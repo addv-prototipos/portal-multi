@@ -672,18 +672,17 @@ arquitectura es evolución posterior, no un segmento pendiente. A partir del seg
 `/<slug>/dashboard`, `/<slug>/tickets`, `/<slug>/login`, `/<slug>/csf` y
 `/<slug>/api/*`, y el frontend ya sabe construir sus llamadas a la API y
 sus enlaces internos respetando ese slug. El segmento 5 migró el
-almacenamiento de archivos de disco local a MinIO — **este último SÍ
-cambia comportamiento real para el tráfico de hoy** (no solo para un
-tenant futuro) y **no se pudo probar contra MinIO real** en el entorno
-donde se construyó: antes de desplegar, levanta el stack completo y
-prueba subir/bajar/borrar constancias, tickets y facturas de verdad (ver
-PROJECT_STATE.md punto 92, "Pendiente antes de producción"). El resto
-(routing, sesiones) sigue sin ser visible en producción: no existe
-ningún tenant real dado de alta (la BD de control solo tiene lo que se
-haya probado a mano con `backend/scripts/provisionar-tenant.js`), así
-que nadie visita las URLs con prefijo — las rutas de siempre (`/admin`,
-`/login`, `/dashboard`, etc., sin prefijo) siguen siendo las únicas con
-tráfico real.
+almacenamiento de archivos de disco local a MinIO — validado contra
+Docker real (PROJECT_STATE.md punto 97), igual que la replicación GTID
+del segmento 8 y el ciclo de vida de `/control`. El segmento 9c
+(2026-08-13) sumó el alta de empresas nuevas desde `/control` con estado
+`provisioning` y pre-llenado fiscal al aprovisionar, validado contra
+Docker/MySQL reales de punta a punta (intake → script → tenant activo
+con config fiscal). Sigue sin existir ningún tenant real dado de alta
+(la BD de control solo tiene lo que se haya probado a mano con
+`backend/scripts/provisionar-tenant.js`), así que nadie visita las URLs
+con prefijo — las rutas de siempre (`/admin`, `/login`, `/dashboard`,
+etc., sin prefijo) siguen siendo las únicas con tráfico real.
 
 **Para convertir tu instalación actual en el primer tenant real**
 (cuando estés listo, con el stack ya levantado y probado): corre
@@ -715,8 +714,13 @@ El script es seguro de correr varias veces: crea/asegura la base de datos
 de control (`control_tenants`, catálogo de tenants) y el permiso amplio del
 usuario `app` sobre cualquier base `tenant_*` de forma idempotente en cada
 corrida. Dar de alta un slug que ya existe se rechaza explícitamente (no
-sobreescribe nada). Reglas de slug (minúsculas/números/guiones, nombres
-reservados como `admin`/`api`/`login`, etc.) en `backend/utils/tenant.js`.
+sobreescribe nada), **salvo que la fila esté en estado `provisioning`** —
+es decir, que la solicitud se haya capturado desde `/control` (segmento
+9c, ver sección siguiente): en ese caso el script la COMPLETA, el nombre
+de la empresa es opcional (se toma el capturado en la UI) y los datos
+fiscales capturados pre-llenan la configuración del tenant. Reglas de slug
+(minúsculas/números/guiones, nombres reservados como `admin`/`api`/
+`login`, etc.) en `backend/utils/tenant.js`.
 
 ## 🕹️ App de control (`/control`, contenedor propio — segmento 9b)
 
@@ -751,7 +755,21 @@ seguridad del segmento 1). El script detecta las filas `provisioning`
 y las completa (pasa a `activo`, y si traían datos fiscales, el tenant
 nace con su configuración fiscal pre-llenada en vez de vacía). En
 resumen: la UI captura la solicitud; un operador con acceso root corre
-el script para materializarla.
+el script para materializarla:
+
+```bash
+MYSQL_ROOT_PASSWORD=<la_de_tu_.env> \
+DB_HOST=localhost DB_PORT=3306 \
+DB_USER=app DB_PASSWORD=<la_de_tu_.env> \
+  node backend/scripts/provisionar-tenant.js piloto9c
+```
+
+(sin segundo argumento: el nombre y el contacto se toman de la
+solicitud capturada; el script avisa si la fila no existe y hace falta
+pasar todo por el CLI). Las variables `TENANT_DB_HOST`/`TENANT_DB_USER`
+(opcionales, ver `.env.example`) sirven solo si los tenants vivirán en
+una instancia de MySQL distinta a la del contenedor de control — por
+defecto heredan la del control y el usuario `app`.
 
 **Antes de la primera vez que uses `/control`**: el usuario MySQL
 `control_app` no existe hasta que corras (una vez)
