@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>En mantenimiento | Portal de Facturación</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --color-bg: #F6F4EF;
+    --color-surface: #FFFFFF;
+    --color-border: #E3DFD4;
+    --color-ink: #21261F;
+    --color-ink-soft: #5B6158;
+    --color-accent: #0F6E5D;
+    --color-accent-dark: #0B5548;
+    --color-accent-soft: #E4EFEC;
+    --color-warn: #B4530C;
+    --color-warn-soft: #FBEBDC;
+    --radius-lg: 16px;
+    --shadow-card: 0 1px 2px rgba(33, 38, 31, 0.04), 0 8px 24px rgba(33, 38, 31, 0.06);
+    --font-display: 'Source Serif 4', Georgia, serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--color-bg);
+    color: var(--color-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.55;
+  }
+
+  /* Fondo con un patrón muy sutil de puntos — le da textura a la página
+     sin competir con el contenido central, mismo criterio de "quietud
+     visual" que el resto de la app ya usa en sus pantallas de espera. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .tarjeta {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 40px 36px 32px;
+    text-align: center;
+  }
+
+  .ilustracion {
+    width: 190px;
+    height: auto;
+    margin: 0 auto 8px;
+    display: block;
+  }
+
+  /* La llave de tuercas se mueve como si el robot de verdad estuviera
+     dándole vueltas — un detalle pequeño y con buen gusto (nada
+     estridente) que ayuda a comunicar "esto ya se está resolviendo",
+     no solo "algo se rompió". Se respeta prefers-reduced-motion. */
+  .llave {
+    transform-origin: 148px 150px;
+    animation: girar-llave 2.4s ease-in-out infinite;
+  }
+  @keyframes girar-llave {
+    0%, 100% { transform: rotate(-14deg); }
+    50% { transform: rotate(10deg); }
+  }
+  .chispa {
+    animation: parpadeo-chispa 1.8s ease-in-out infinite;
+  }
+  .chispa:nth-child(2) { animation-delay: 0.6s; }
+  .chispa:nth-child(3) { animation-delay: 1.2s; }
+  @keyframes parpadeo-chispa {
+    0%, 100% { opacity: 0; transform: scale(0.6); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .llave, .chispa { animation: none; }
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    margin: 12px 0 10px;
+    color: var(--color-ink);
+  }
+
+  p {
+    margin: 0 0 8px;
+    color: var(--color-ink-soft);
+    font-size: 14.5px;
+  }
+
+  .estado {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 0 4px;
+    padding: 9px 16px;
+    background: var(--color-accent-soft);
+    color: var(--color-accent-dark);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .estado-punto {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    animation: latido-punto 1.4s ease-in-out infinite;
+  }
+  @keyframes latido-punto {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .estado-punto { animation: none; }
+  }
+
+  .acciones {
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn-reintentar {
+    appearance: none;
+    border: none;
+    background: var(--color-accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 11px 22px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .btn-reintentar:hover { background: var(--color-accent-dark); }
+  .btn-reintentar:active { transform: scale(0.97); }
+  .btn-reintentar:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-accent-soft), 0 0 0 5px var(--color-accent);
+  }
+
+  .reintento-auto {
+    font-size: 12.5px;
+    color: var(--color-ink-soft);
+  }
+
+  .pie {
+    margin-top: 26px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+    font-size: 12px;
+    color: var(--color-ink-soft);
+  }
+
+  @media (max-width: 420px) {
+    .tarjeta { padding: 32px 22px 26px; }
+    .ilustracion { width: 160px; }
+    h1 { font-size: 21px; }
+  }
+</style>
+</head>
+<body>
+
+  <main class="tarjeta" role="main">
+    <svg class="ilustracion" viewBox="0 0 240 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustración de un robot arreglando un servidor con una llave de tuercas">
+      <!-- Sombra -->
+      <ellipse cx="120" cy="200" rx="78" ry="10" fill="#21261F" opacity="0.06"/>
+
+      <!-- Rack del servidor -->
+      <rect x="24" y="70" width="96" height="120" rx="10" fill="#FFFFFF" stroke="#E3DFD4" stroke-width="2.5"/>
+      <rect x="38" y="86" width="68" height="18" rx="4" fill="#E4EFEC"/>
+      <circle cx="48" cy="95" r="3.5" fill="#0F6E5D"/>
+      <rect x="58" y="92" width="38" height="6" rx="3" fill="#0F6E5D" opacity="0.55"/>
+
+      <rect x="38" y="112" width="68" height="18" rx="4" fill="#E4EFEC"/>
+      <circle cx="48" cy="121" r="3.5" fill="#B4530C"/>
+      <rect x="58" y="118" width="30" height="6" rx="3" fill="#B4530C" opacity="0.55"/>
+
+      <rect x="38" y="138" width="68" height="18" rx="4" fill="#E4EFEC"/>
+      <circle cx="48" cy="147" r="3.5" fill="#0F6E5D"/>
+      <rect x="58" y="144" width="24" height="6" rx="3" fill="#0F6E5D" opacity="0.55"/>
+
+      <rect x="38" y="164" width="68" height="14" rx="4" fill="#F6F4EF"/>
+
+      <!-- Chispas de "trabajo en progreso" -->
+      <g class="chispa">
+        <path d="M172 66 l4 -10 l4 10 l10 4 l-10 4 l-4 10 l-4 -10 l-10 -4 Z" fill="#0F6E5D"/>
+      </g>
+      <g class="chispa">
+        <path d="M198 96 l3 -7 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3 Z" fill="#B4530C"/>
+      </g>
+      <g class="chispa">
+        <path d="M182 108 l2.5 -6 l2.5 6 l6 2.5 l-6 2.5 l-2.5 6 l-2.5 -6 l-6 -2.5 Z" fill="#0F6E5D"/>
+      </g>
+
+      <!-- Robot -->
+      <g>
+        <!-- Piernas -->
+        <rect x="140" y="172" width="12" height="24" rx="5" fill="#5B6158"/>
+        <rect x="168" y="172" width="12" height="24" rx="5" fill="#5B6158"/>
+        <ellipse cx="146" cy="198" rx="11" ry="5" fill="#21261F" opacity="0.75"/>
+        <ellipse cx="174" cy="198" rx="11" ry="5" fill="#21261F" opacity="0.75"/>
+
+        <!-- Cuerpo -->
+        <rect x="128" y="118" width="64" height="60" rx="14" fill="#0F6E5D"/>
+        <rect x="140" y="132" width="40" height="30" rx="8" fill="#E4EFEC"/>
+        <circle cx="152" cy="147" r="4.5" fill="#0B5548"/>
+        <circle cx="168" cy="147" r="4.5" fill="#0B5548"/>
+        <rect x="148" y="158" width="24" height="4" rx="2" fill="#0B5548" opacity="0.6"/>
+
+        <!-- Brazo izquierdo (sosteniendo el rack, apoyado) -->
+        <rect x="112" y="128" width="20" height="11" rx="5.5" fill="#0B5548"/>
+
+        <!-- Cabeza -->
+        <rect x="136" y="82" width="48" height="42" rx="16" fill="#12816D"/>
+        <circle cx="152" cy="103" r="6" fill="#FFFFFF"/>
+        <circle cx="152" cy="103" r="2.6" fill="#0B5548"/>
+        <circle cx="170" cy="103" r="6" fill="#FFFFFF"/>
+        <circle cx="170" cy="103" r="2.6" fill="#0B5548"/>
+        <path d="M153 113 q7 6 14 0" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <rect x="156" y="70" width="8" height="14" rx="4" fill="#12816D"/>
+        <circle cx="160" cy="66" r="6" fill="#B4530C"/>
+
+        <!-- Brazo derecho con la llave, animado -->
+        <g class="llave">
+          <rect x="176" y="126" width="20" height="11" rx="5.5" fill="#0B5548"/>
+          <g transform="translate(190, 118)">
+            <rect x="-4" y="0" width="8" height="30" rx="4" fill="#B4530C"/>
+            <path d="M-10 -8 a10 10 0 1 0 20 0 a10 10 0 1 0 -20 0 M-4 -8 a4 4 0 1 1 8 0 a4 4 0 1 1 -8 0" fill="#B4530C" fill-rule="evenodd"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+
+    <h1>En breve volveremos</h1>
+    <p>Estamos haciendo un ajuste rápido en el servicio. No hay nada que tengas que hacer — en unos minutos todo debería estar funcionando con normalidad otra vez.</p>
+
+    <div class="estado" id="estado-verificacion" role="status" aria-live="polite">
+      <span class="estado-punto" aria-hidden="true"></span>
+      <span id="estado-verificacion-texto">Verificando el servicio…</span>
+    </div>
+
+    <div class="acciones">
+      <button type="button" class="btn-reintentar" id="btn-reintentar">Reintentar ahora</button>
+      <span class="reintento-auto" id="reintento-auto-texto">Esta página se actualiza sola cuando el servicio vuelva.</span>
+    </div>
+
+    <p class="pie">Portal de Facturación</p>
+  </main>
+
+  <script>
+    // Comprueba /api/health cada pocos segundos y recarga la página
+    // automáticamente en cuanto el backend vuelva a responder — para no
+    // dejarle al usuario la tarea de estar refrescando a mano. El
+    // intervalo crece un poco cada vez que falla (2s, 4s, 8s... hasta un
+    // tope de 20s) para no bombardear un servicio que ya está teniendo
+    // problemas con más peticiones de las necesarias.
+    (function () {
+      var textoEstado = document.getElementById('estado-verificacion-texto');
+      var btnReintentar = document.getElementById('btn-reintentar');
+      var esperaMs = 2000;
+      var esperaMaximaMs = 20000;
+      var verificando = false;
+
+      function programarSiguienteIntento() {
+        setTimeout(verificar, esperaMs);
+        esperaMs = Math.min(esperaMs * 1.6, esperaMaximaMs);
+      }
+
+      function verificar() {
+        if (verificando) return;
+        verificando = true;
+        textoEstado.textContent = 'Verificando el servicio…';
+
+        fetch('/api/health', { cache: 'no-store' })
+          .then(function (res) {
+            if (res.ok) {
+              textoEstado.textContent = '¡Ya volvió! Cargando…';
+              window.location.reload();
+              return;
+            }
+            throw new Error('todavia no');
+          })
+          .catch(function () {
+            textoEstado.textContent = 'Seguimos esperando al servicio…';
+            verificando = false;
+            programarSiguienteIntento();
+          });
+      }
+
+      btnReintentar.addEventListener('click', function () {
+        esperaMs = 2000;
+        verificar();
+      });
+
+      programarSiguienteIntento();
+    })();
+  </script>
+</body>
+</html>

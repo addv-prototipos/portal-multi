@@ -1,0 +1,218 @@
+// Pruebas de utils/tenantIntake.js (segmento 9c, ver PROJECT_STATE.md) —
+// captura de la solicitud de alta de empresa nueva desde /control, sin
+// privilegios root de MySQL. Mismo patrón de mock que
+// tenantLifecycle.test.js: se mockea `../../db` por completo — aquí solo
+// interesa que este módulo valide, derive y arme el INSERT correcto, no
+// el comportamiento real de MySQL.
+
+jest.mock('../../db', () => ({
+  obtenerPool: jest.fn(),
+}));
+
+const { obtenerPool } = require('../../db');
+const { crearTenantIntake, ErrorIntakeTenant } = require('../../utils/tenantIntake');
+
+function mockPool() {
+  const pool = { query: jest.fn() };
+  obtenerPool.mockReturnValue(pool);
+  return pool;
+}
+
+describe('utils/tenantIntake.js', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delete process.env.TENANT_DB_HOST;
+    delete process.env.TENANT_DB_USER;
+    delete process.env.CONTROL_DB_HOST;
+  });
+
+  describe('crearTenantIntake', () => {
+    test('guarda la fila en estado "provisioning" con los valores derivados y registra el evento', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[]]) // SELECT de duplicado: no existe
+        .mockResolvedValueOnce([{ insertId: 41 }]) // INSERT
+        .mockResolvedValueOnce([{}]); // registrarEvento
+
+      const resultado = await crearTenantIntake(
+        {
+          nombreEmpresa: '  Empresa Uno S.A. de C.V.  ',
+          slug: 'Empresa-Uno',
+          contactoEmail: 'CONTACTO@EMPRESAUNO.COM',
+          notas: 'Cliente piloto',
+        },
+        { actor: 'admin' }
+      );
+
+      // SELECT de duplicado
+      const [sqlSelect] = pool.query.mock.calls[0];
+      expect(sqlSelect).toMatch(/SELECT id FROM tenants WHERE slug = \?/);
+      expect(pool.query.mock.calls[0][1]).toEqual(['empresa-uno']);
+
+      // INSERT completo
+      const [sqlInsert, paramsInsert] = pool.query.mock.calls[1];
+      expect(sqlInsert).toMatch(/INSERT INTO tenants/);
+      expect(sqlInsert).toMatch(/estado/);
+      expect(sqlInsert).toMatch(/rfc_compania, razon_social_compania, regimen_fiscal_compania/);
+      expect(paramsInsert).toContain('empresa-uno'); // slug normalizado
+      expect(paramsInsert).toContain('Empresa Uno S.A. de C.V.'); // nombre recortado
+      expect(paramsInsert).toContain('contacto@empresauno.com'); // email a minúsculas
+      expect(paramsInsert).toContain('mysql'); // db_host por defecto (sin TENANT_DB_HOST)
+      expect(paramsInsert).toContain('tenant_empresa-uno'); // db_name derivado
+      expect(paramsInsert).toContain('app'); // db_user por defecto
+      expect(paramsInsert).toContain('empresa-uno'); // storage_prefix = slug
+      // Los 7 campos fiscales van como null en el INSERT (no se mandaron)
+      expect(paramsInsert).toEqual(
+        expect.arrayContaining([null, null, null, null, null, null, null])
+      );
+
+      // Evento de auditoría
+      const [sqlEvento] = pool.query.mock.calls[2];
+      expect(sqlEvento).toMatch(/INSERT INTO tenant_eventos/);
+      expect(pool.query.mock.calls[2][1]).toEqual([
+        41,
+        'alta_solicitada',
+        expect.stringContaining('slug=empresa-uno db=tenant_empresa-uno'),
+        'admin',
+        expect.any(Date),
+      ]);
+
+      expect(resultado).toMatchObject({
+        id: 41,
+        slug: 'empresa-uno',
+        nombre_empresa: 'Empresa Uno S.A. de C.V.',
+        estado: 'provisioning',
+        db_name: 'tenant_empresa-uno',
+      });
+    });
+
+    test('TENANT_DB_HOST/TENANT_DB_USER sobreescriben la infra derivada', async () => {
+      process.env.TENANT_DB_HOST = 'mysql-remoto.example.com';
+      process.env.TENANT_DB_USER = 'tenant_user';
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValueOnce([{ insertId: 1 }])
+        .mockResolvedValueOnce([{}]);
+
+      await crearTenantIntake({ nombreEmpresa: 'X', slug: 'x' }, { actor: 'admin' });
+
+      const paramsInsert = pool.query.mock.calls[1][1];
+      expect(paramsInsert).toContain('mysql-remoto.example.com');
+      expect(paramsInsert).toContain('tenant_user');
+    });
+
+    test('CONTROL_DB_HOST es el fallback de TENANT_DB_HOST', async () => {
+      process.env.CONTROL_DB_HOST = 'control-mysql';
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValueOnce([{ insertId: 1 }])
+        .mockResolvedValueOnce([{}]);
+
+      await crearTenantIntake({ nombreEmpresa: 'X', slug: 'x' }, { actor: 'admin' });
+
+      expect(pool.query.mock.calls[1][1]).toContain('control-mysql');
+    });
+
+    test('sin nombre de empresa -> ErrorIntakeTenant de validación', async () => {
+      const pool = mockPool();
+      const error = await crearTenantIntake({ slug: 'empresa' }, { actor: 'admin' }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorIntakeTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(pool.query).not.toHaveBeenCalled(); // no toca la BD
+    });
+
+    test('slug inválido -> ErrorIntakeTenant de validación', async () => {
+      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'Admin' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorIntakeTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(error.message).toMatch(/reservada/); // "Admin" normaliza a "admin"
+    });
+
+    test('slug que ya existe -> ErrorIntakeTenant "slug_existe"', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ id: 9 }]]);
+
+      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'cliente1' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorIntakeTenant);
+      expect(error.codigo).toBe('slug_existe');
+      expect(pool.query).toHaveBeenCalledTimes(1); // solo el SELECT, sin INSERT
+    });
+
+    test('correo de contacto inválido -> ErrorIntakeTenant de validación', async () => {
+      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'empresa', contactoEmail: 'no-es-correo' }, {}).catch(
+        (e) => e
+      );
+
+      expect(error).toBeInstanceOf(ErrorIntakeTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(error.message).toMatch(/correo/);
+    });
+
+    test('dato fiscal inválido (RFC) -> ErrorIntakeTenant de validación', async () => {
+      const error = await crearTenantIntake(
+        { nombreEmpresa: 'X', slug: 'empresa', rfcCompania: 'RFC-INVALIDO-!!!' },
+        {}
+      ).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorIntakeTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(error.message).toMatch(/RFC/);
+    });
+
+    test('datos fiscales válidos se guardan normalizados', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValueOnce([{ insertId: 5 }])
+        .mockResolvedValueOnce([{}]);
+
+      const resultado = await crearTenantIntake(
+        {
+          nombreEmpresa: 'X',
+          slug: 'empresa',
+          rfcCompania: 'aaa010101aaa',
+          tipoPersonaCompania: 'moral',
+          claveSat: '12345678',
+          correoReportes: 'REPORTES@EMPRESA.COM',
+        },
+        { actor: 'admin' }
+      );
+
+      expect(resultado.rfc_compania).toBe('AAA010101AAA'); // a mayúsculas
+      expect(resultado.tipo_persona_compania).toBe('moral');
+      expect(resultado.clave_sat).toBe('12345678');
+      expect(resultado.correo_reportes).toBe('reportes@empresa.com'); // a minúsculas
+      // El evento registra que la solicitud traía datos fiscales
+      expect(pool.query.mock.calls[2][1][2]).toMatch(/con datos fiscales/);
+    });
+
+    test('colisión de carrera en el INSERT (ER_DUP_ENTRY) -> "slug_existe"', async () => {
+      const pool = mockPool();
+      const errDuplicado = new Error('Duplicate entry');
+      errDuplicado.code = 'ER_DUP_ENTRY';
+      pool.query
+        .mockResolvedValueOnce([[]]) // SELECT: no existía aún
+        .mockRejectedValueOnce(errDuplicado); // INSERT: otro proceso ganó la carrera
+
+      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'empresa' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorIntakeTenant);
+      expect(error.codigo).toBe('slug_existe');
+    });
+
+    test('un error de BD que no es duplicado se propaga tal cual', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[]]).mockRejectedValueOnce(new Error('conexión perdida'));
+
+      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'empresa' }, {}).catch((e) => e);
+
+      expect(error).not.toBeInstanceOf(ErrorIntakeTenant);
+      expect(error.message).toBe('conexión perdida');
+    });
+  });
+});

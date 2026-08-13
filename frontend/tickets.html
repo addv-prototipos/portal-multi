@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subir ticket | Portal de Facturación</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/portal.css" />
+</head>
+<body class="portal-body">
+  <header class="portal-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">FX</span>
+      <span class="brand-name">Portal de Facturación</span>
+    </div>
+    <div class="portal-header-actions">
+      <a class="btn-volver-tablero" href="dashboard.html">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M19 12H5M5 12l6-6M5 12l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="btn-volver-tablero-texto">Volver al tablero</span>
+      </a>
+      <span class="portal-user-label" id="portal-user-label"></span>
+      <button type="button" class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="portal-main portal-main-angosto">
+    <div class="card">
+      <!-- Paso 1: subir imagen -->
+      <section class="panel is-active" id="panel-subir">
+        <h1>Sube tu ticket de compra</h1>
+        <p class="panel-subtitle">Toma una foto o sube una imagen legible de tu ticket. Se genera un folio con el que puedes darle seguimiento a tu solicitud de factura.</p>
+
+        <p class="aviso-retencion" id="aviso-retencion" hidden></p>
+
+        <div class="compra-verificacion" id="compra-verificacion-seccion">
+          <p class="compra-verificacion-titulo">Verifica tu compra</p>
+          <p class="panel-subtitle compra-verificacion-subtitulo">Captura los datos tal como te llegaron en el correo de confirmación cuando se registró tu compra.</p>
+
+          <div class="compra-verificacion-grid">
+            <div class="field">
+              <label for="ticket-numero-compra">No. Compra <span class="required">*</span></label>
+              <input type="text" id="ticket-numero-compra" name="numero_compra" placeholder="OC-000001" maxlength="20" autocapitalize="characters" autocomplete="off" />
+              <p class="field-error" id="error-ticket-numero-compra" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label for="ticket-total-compra">Total (MXN) <span class="required">*</span></label>
+              <input type="text" inputmode="decimal" id="ticket-total-compra" name="total_compra" placeholder="0.00" autocomplete="off" />
+              <p class="field-error" id="error-ticket-total-compra" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label for="ticket-fecha-compra">Fecha <span class="required">*</span></label>
+              <input type="text" id="ticket-fecha-compra" name="fecha_compra" placeholder="24/jul/2026" maxlength="12" autocomplete="off" />
+              <p class="field-error" id="error-ticket-fecha-compra" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label for="ticket-hora-compra">Hora <span class="required">*</span></label>
+              <input type="text" id="ticket-hora-compra" name="hora_compra" placeholder="09:30:45" maxlength="8" autocomplete="off" />
+              <p class="field-error" id="error-ticket-hora-compra" role="alert"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="ticket-uso-cfdi">Uso de CFDI <span class="field-mark optional" data-field="uso_cfdi" id="mark-uso-cfdi">(opcional)</span></label>
+          <select id="ticket-uso-cfdi" name="uso_cfdi">
+            <option value="">Selecciona una opción</option>
+          </select>
+          <p class="field-error" id="error-ticket-uso-cfdi" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="ticket-tipo-pago">Tipo de pago <span class="field-mark optional" data-field="tipo_pago" id="mark-tipo-pago">(opcional)</span></label>
+          <select id="ticket-tipo-pago" name="tipo_pago">
+            <option value="">Selecciona una opción</option>
+            <option value="efectivo">Pago en efectivo</option>
+            <option value="transferencia">Pago con transferencia</option>
+            <option value="tarjeta_debito">Pago con tarjeta de débito</option>
+            <option value="tarjeta_credito">Pago con tarjeta de crédito</option>
+            <option value="otro">Otro</option>
+          </select>
+          <p class="field-error" id="error-ticket-tipo-pago" role="alert"></p>
+        </div>
+
+        <div class="field" id="campo-tipo-pago-otro" hidden>
+          <label for="ticket-tipo-pago-otro">Especifica el tipo de pago</label>
+          <input type="text" id="ticket-tipo-pago-otro" name="tipo_pago_otro" maxlength="100" placeholder="Ej. Vale de despensa, transferencia entre terceros, etc." />
+          <p class="field-error" id="error-ticket-tipo-pago-otro" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="ticket-comentarios">Comentarios <span class="field-mark optional" data-field="comentarios" id="mark-comentarios">(opcional)</span></label>
+          <textarea id="ticket-comentarios" name="comentarios" rows="3" maxlength="1000" placeholder="Ej. detalles adicionales sobre esta compra..."></textarea>
+          <p class="field-error" id="error-ticket-comentarios" role="alert"></p>
+        </div>
+
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Seleccionar imagen del ticket">
+          <input type="file" id="input-imagen" accept=".jpg,.jpeg,.png,.webp" hidden />
+          <div class="dropzone-content" id="dropzone-empty">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 16V4M12 4L7 9M12 4L17 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 16V18C4 19.1 4.9 20 6 20H18C19.1 20 20 19.1 20 18V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <p><strong>Toca para elegir una imagen</strong><br/>o arrástrala aquí</p>
+          </div>
+          <div class="dropzone-preview" id="dropzone-preview" hidden>
+            <img id="preview-imagen" alt="Vista previa del ticket" />
+            <button type="button" class="btn-icon" id="btn-quitar-imagen" aria-label="Quitar imagen">✕</button>
+          </div>
+        </div>
+        <p class="field-error" id="error-imagen" role="alert"></p>
+
+        <div class="progress-wrap" id="progress-wrap" hidden>
+          <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+          <span class="progress-percent" id="progress-percent">0%</span>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-block" id="btn-subir-ticket">Enviar ticket</button>
+      </section>
+
+      <!-- Paso 2: confirmación con folio -->
+      <section class="panel" id="panel-confirmacion">
+        <div class="success-icon" aria-hidden="true">✓</div>
+        <h1>¡Ticket recibido!</h1>
+        <p class="panel-subtitle">Guarda tu folio para darle seguimiento o hacer una aclaración.</p>
+        <p class="folio-generado" id="folio-generado"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-otro-ticket">Subir otro ticket</button>
+          <a class="btn btn-primary" href="dashboard.html">Ir al tablero</a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Bloqueo: el cliente no tiene una constancia de situación fiscal subida todavía -->
+  <div class="modal-overlay" id="sin-constancia-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sin-constancia-title">
+      <div class="modal-icono-aviso" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 9v4M12 16.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.29 2.25h17.78A1.5 1.5 0 0 0 22.18 18L13.71 3.86a1.5 1.5 0 0 0-2.58 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2 id="sin-constancia-title">Necesitas tu constancia antes de subir un ticket</h2>
+      <p class="panel-subtitle">Sin tu constancia de situación fiscal, no podemos avisarte cuando tu factura esté lista ni facturar a tu nombre. Súbela primero — solo toma un minuto.</p>
+
+      <div class="btn-row">
+        <a class="btn btn-secondary" href="dashboard.html">Volver al tablero</a>
+        <a class="btn btn-primary" href="csf.html" id="btn-sin-constancia-ir">Subir constancia</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bloqueo: la compra capturada no se encontró, o ya fue facturada antes -->
+  <div class="modal-overlay" id="verificacion-compra-overlay" hidden>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="verificacion-compra-title">
+      <div class="modal-icono-aviso" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 9v4M12 16.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.29 2.25h17.78A1.5 1.5 0 0 0 22.18 18L13.71 3.86a1.5 1.5 0 0 0-2.58 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2 id="verificacion-compra-title">No se encuentra registrada la compra para facturar.</h2>
+      <p class="panel-subtitle" id="verificacion-compra-mensaje">Verifica el No. Compra, la fecha, la hora y el total, tal como te llegaron en tu correo de confirmación.</p>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btn-verificacion-compra-cerrar">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/portal.js"></script>
+  <script src="/tickets.js"></script>
+</body>
+</html>

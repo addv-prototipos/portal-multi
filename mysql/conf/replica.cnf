@@ -1,0 +1,45 @@
+# Configuración de replicación para el nodo RÉPLICA de MySQL — segmento 8
+# del plan multi-tenant (ver PROJECT_STATE.md). Se monta en
+# /etc/mysql/conf.d/ dentro del contenedor mysql-replica (ver
+# docker-stack.yml). Ver mysql/conf/primary.cnf para la explicación de
+# GTID/durabilidad — aquí solo se documenta lo específico de la réplica.
+[mysqld]
+# Debe ser distinto al server-id del primario (1) — server-id repetido
+# entre nodos es el error de configuración de replicación más común y
+# produce fallas silenciosas o inconsistentes, no un error claro al
+# arrancar.
+server-id = 2
+gtid_mode = ON
+enforce-gtid-consistency = ON
+master_info_repository = TABLE
+relay_log_info_repository = TABLE
+
+# Recupera el relay log automáticamente tras un apagado no limpio (ej. el
+# host se reinicia de golpe) en vez de dejar la réplica en un estado
+# indefinido que requeriría reconfigurar la replicación a mano.
+relay_log_recovery = ON
+
+# read_only/super_read_only NO se fijan aquí estáticamente (a propósito,
+# tras probarlo contra un contenedor real): la imagen oficial de MySQL
+# necesita escribir durante su bootstrap inicial (crear la base/usuario de
+# MYSQL_DATABASE/MYSQL_USER, sembrar la cuenta root) la PRIMERA vez que el
+# contenedor arranca con un datadir vacío -- si super_read_only ya está
+# activo en ese momento, ese bootstrap falla con "server is running with
+# the --super-read-only option" y el contenedor nunca llega a arrancar.
+# En vez de eso, backend/scripts/configure-replica.js activa
+# read_only/super_read_only con `SET PERSIST` (no `SET GLOBAL`) justo
+# después de enganchar la réplica al primario: `SET PERSIST` aplica el
+# valor de inmediato Y lo persiste en el datadir (mysqld-auto.cnf), así
+# que sigue activo si el contenedor se reinicia después -- sin bloquear
+# el primer arranque, que ya pasó para entonces. promote-replica.js apaga
+# ambas variables (también con `SET PERSIST`) al promover este nodo a
+# primario.
+
+# Esta réplica también lleva su propio binlog: necesario para que
+# verify-replication.js pueda usar GTID_SUBSET()/comparar el conjunto de
+# GTIDs ejecutados contra el primario, y para que, si este nodo es
+# promovido (promote-replica.js), pueda a su vez servir de primario a una
+# réplica nueva sin reconfiguración adicional.
+log-bin = mysql-bin
+log-replica-updates = ON
+binlog_format = ROW

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>App de control | Portal de Facturación</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body class="admin-body">
+  <!-- Pantalla de acceso -->
+  <div class="admin-login-screen" id="control-login-screen">
+    <div class="card admin-login-card">
+      <div class="brand admin-login-brand">
+        <span class="brand-mark" aria-hidden="true">FX</span>
+        <span class="brand-name">App de control</span>
+      </div>
+      <p class="panel-subtitle admin-login-subtitle">Acceso restringido a administradores de plataforma (perfil "super").</p>
+
+      <form id="control-form-login" novalidate>
+        <div class="field">
+          <label for="control-user">Usuario</label>
+          <input type="text" id="control-user" name="usuario" autocomplete="username" autofocus required />
+        </div>
+        <div class="field">
+          <label for="control-pass">Contraseña</label>
+          <div class="password-field">
+            <input type="password" id="control-pass" name="contrasena" autocomplete="current-password" required />
+            <button type="button" class="btn-toggle-pass" id="control-btn-toggle-pass" aria-label="Mostrar contraseña" aria-pressed="false">
+              <svg id="control-icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p class="field-error" id="control-login-error" role="alert"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="control-btn-login">
+          <span id="control-btn-login-label">Entrar</span>
+        </button>
+      </form>
+
+      <p class="admin-login-hint">Solo cuentas con perfil "super" (variable <code>ADMIN_USERS</code>) pueden entrar aquí. La cuenta de respaldo y los usuarios administrador/fiscal son exclusivos de <code>/admin</code>.</p>
+    </div>
+  </div>
+
+  <!-- App de control -->
+  <div class="admin-dashboard" id="control-dashboard" hidden>
+    <header class="admin-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">FX</span>
+        <span class="brand-name">App de control</span>
+      </div>
+      <div class="admin-header-actions">
+        <span class="admin-user-label" id="control-user-label"></span>
+        <button type="button" class="btn btn-secondary" id="control-btn-logout">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <main class="admin-main">
+      <div class="admin-toolbar">
+        <div class="admin-toolbar-title">
+          <h1>Empresas (tenants)</h1>
+        </div>
+        <div class="admin-toolbar-right">
+          <span class="admin-count" id="control-count">0 tenants</span>
+          <select class="tickets-filtro-estatus" id="control-filtro-estado" aria-label="Filtrar por estado">
+            <option value="">Todos los estados</option>
+            <option value="provisioning">Provisionando</option>
+            <option value="activo">Activo</option>
+            <option value="suspendido">Suspendido</option>
+            <option value="baja">Baja</option>
+          </select>
+          <button type="button" class="btn btn-primary" id="control-btn-nueva-empresa">Nueva empresa</button>
+          <button type="button" class="btn btn-secondary" id="control-btn-refresh">Actualizar</button>
+        </div>
+      </div>
+
+      <div class="admin-search">
+        <svg class="admin-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <input
+          type="search"
+          id="control-search-input"
+          class="admin-search-input"
+          placeholder="Buscar por slug o nombre de empresa…"
+          aria-label="Buscar tenants por slug o nombre de empresa"
+          autocomplete="off"
+        />
+        <button type="button" class="btn-icon admin-search-clear" id="control-btn-clear-search" aria-label="Limpiar búsqueda" hidden>✕</button>
+      </div>
+
+      <p class="field-error" id="control-error" role="alert"></p>
+
+      <p class="admin-login-hint">
+        "Nueva empresa" solo registra la solicitud de alta (estado "Provisionando") — la base de datos física del tenant
+        se crea después con <code>backend/scripts/provisionar-tenant.js</code>, corrido a mano por un operador con acceso
+        root de MySQL. Ese script detecta la solicitud pendiente y la completa con los datos capturados aquí.
+      </p>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table" id="control-tabla-tenants">
+          <thead>
+            <tr>
+              <th>Slug</th>
+              <th>Empresa</th>
+              <th>Estado</th>
+              <th>Contacto</th>
+              <th>Creado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="control-table-body"></tbody>
+        </table>
+        <p class="admin-empty" id="control-empty" hidden>No hay tenants que coincidan con el filtro.</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal de confirmación genérico (suspender / reactivar / dar de baja) -->
+  <div class="modal-overlay" id="control-confirm-modal-overlay" hidden>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="control-confirm-modal-title">
+      <h2 id="control-confirm-modal-title">Confirmar acción</h2>
+      <p id="control-confirm-modal-mensaje"></p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="control-btn-confirm-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="control-btn-confirm-aceptar">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de captura de empresa nueva (segmento 9c, ver PROJECT_STATE.md) -->
+  <div class="modal-overlay" id="control-intake-modal-overlay" hidden>
+    <div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="control-intake-modal-title">
+      <h2 id="control-intake-modal-title">Nueva empresa</h2>
+      <p class="panel-subtitle">
+        Registra la solicitud de alta. El slug no se puede cambiar después: define las URLs de la empresa.
+      </p>
+
+      <form id="control-form-intake" novalidate>
+        <div class="field">
+          <label for="control-intake-nombre">Nombre de la empresa</label>
+          <input type="text" id="control-intake-nombre" maxlength="255" autocomplete="off" required />
+          <p class="field-error" id="error-intake-nombre" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-intake-slug">Slug (identificador único)</label>
+          <input type="text" id="control-intake-slug" maxlength="50" autocomplete="off" inputmode="text"
+            placeholder="ej. empresa-uno" required />
+          <p class="field-hint" id="control-intake-url-preview"></p>
+          <p class="field-error" id="error-intake-slug" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-intake-email">Correo de contacto</label>
+          <input type="email" id="control-intake-email" autocomplete="off" placeholder="contacto@empresa.com" />
+          <p class="field-error" id="error-intake-email" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-intake-notas">Notas</label>
+          <textarea id="control-intake-notas" rows="3" placeholder="Cualquier contexto para el operador que apruebe el alta…"></textarea>
+        </div>
+
+        <button type="button" class="admin-config-toggle" id="control-btn-toggle-fiscal" aria-expanded="false">
+          <span>Datos fiscales (opcional)</span>
+          <svg class="admin-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div id="control-intake-fiscal-body" hidden>
+          <p class="panel-subtitle">
+            Se pre-llenan en la configuración fiscal de la empresa cuando se apruebe el alta — mismos campos y etiquetas
+            que el panel de administración de cada empresa.
+          </p>
+
+          <div class="field">
+            <label for="control-intake-rfc">RFC de la compañía</label>
+            <input type="text" id="control-intake-rfc" maxlength="13" autocomplete="off"
+              placeholder="AAA010101AAA" />
+            <p class="field-hint">12 o 13 caracteres alfanuméricos, opcional.</p>
+            <p class="field-error" id="error-intake-rfc" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-intake-razon-social">Razón Social</label>
+            <input type="text" id="control-intake-razon-social" maxlength="255" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="control-intake-regimen-fiscal">Régimen fiscal</label>
+            <input type="text" id="control-intake-regimen-fiscal" maxlength="255" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="control-intake-tipo-persona">Tipo de persona</label>
+            <select id="control-intake-tipo-persona">
+              <option value="">—</option>
+              <option value="fisica">Persona Física</option>
+              <option value="moral">Persona Moral</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="control-intake-clave-sat">Clave SAT</label>
+            <input type="text" id="control-intake-clave-sat" inputmode="numeric" maxlength="8"
+              placeholder="12345678" autocomplete="off" />
+            <p class="field-hint">Exactamente 8 dígitos.</p>
+            <p class="field-error" id="error-intake-clave-sat" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-intake-link-sat">Link de códigos SAT</label>
+            <input type="url" id="control-intake-link-sat" placeholder="https://..." autocomplete="off" />
+            <p class="field-error" id="error-intake-link-sat" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-intake-correo-reportes">Correo de reportes</label>
+            <input type="email" id="control-intake-correo-reportes" placeholder="reportes@empresa.com" autocomplete="off" />
+            <p class="field-error" id="error-intake-correo-reportes" role="alert"></p>
+          </div>
+        </div>
+
+        <p class="field-error" id="control-intake-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="control-btn-intake-cancelar">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="control-btn-intake-guardar">
+            <span id="control-btn-intake-guardar-label">Registrar solicitud</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="control-toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/control.js"></script>
+</body>
+</html>

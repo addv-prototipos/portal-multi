@@ -1,0 +1,149 @@
+# AGENTS.md — Portal de Facturación ADDV
+
+Contexto operativo persistente para cualquier sesión de Codex que trabaje
+en este repo. Para el historial de decisiones y el estado detallado del
+proyecto, ver `PROJECT_STATE.md` (fuente de verdad más completa que este
+archivo). Para instrucciones de instalación/operación, ver `README.md`.
+
+## Protocolo de trabajo
+
+Este proyecto opera bajo el protocolo `addv-web-app` (skill de Codex):
+sitio corporativo/reputacional, flujo obligatorio **Analizar → Proponer →
+Confirmar → Implementar** — no asumir requisitos ambiguos, no implementar
+sin aprobación explícita del segmento, piso no negociable de UX/accesibilidad/
+rendimiento/seguridad/Docker/pruebas unitarias/calidad de código. Mantener
+siempre actualizados `PROJECT_STATE.md`, este archivo y `README.md`.
+
+Regla persistente de coordinación entre agentes: después de cualquier cambio
+relevante de código, arquitectura, operación, pruebas, decisiones de producto
+o estado del proyecto, actualizar siempre `PROJECT_STATE.md`, `CLAUDE.md` y
+este archivo antes de cerrar el trabajo. Si la sesión tiene acceso de escritura
+a Claude Mem, registrar también ahí la decisión/estado para que futuras
+sesiones de Claude y Codex puedan coordinarse sin depender del historial del
+chat. Si solo hay acceso de lectura a Claude Mem, dejar constancia explícita
+en estos archivos. Esta regla se ejecuta junto con el protocolo
+`addv-web-app`: analizar primero, proponer un segmento acotado, esperar
+confirmación explícita del usuario e implementar solo el segmento aprobado,
+manteniendo el piso obligatorio de UX/accesibilidad/rendimiento/seguridad/
+Docker/pruebas/calidad.
+
+## Stack
+
+Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
+Nginx sirviendo frontend estático (HTML/CSS/JS vanilla, sin build step),
+todo sobre Docker/Docker Compose. Ver README para la lista completa de
+dependencias.
+
+## Comandos frecuentes
+
+```bash
+# Levantar todo el stack
+docker compose up -d --build
+
+# Health check
+curl http://localhost/api/health
+
+# Pruebas unitarias (mockeadas, sin DB real)
+cd backend && npm test          # o: npx jest test/unit
+
+# Pruebas de integración (supertest, sin DB real)
+npx jest test/integration
+
+# Regresión contra MySQL real (requiere el stack levantado)
+docker compose exec backend node scripts/verificar-mysql.js
+
+# node --check en cualquier archivo tocado, antes de dar un cambio por bueno
+node --check backend/ruta/al/archivo.js
+```
+
+## Convenciones establecidas
+
+- Nombres de variables/funciones y comentarios en **español**.
+- Tablas nuevas en MySQL: `CREATE TABLE IF NOT EXISTS` con el esquema
+  completo + revisión de `INFORMATION_SCHEMA.COLUMNS` antes de cualquier
+  `ALTER TABLE ADD COLUMN` (para que `ensureSchema()` sea seguro de
+  re-correr). Ver `backend/db.js`.
+- Fechas: objetos `Date` de JS al escribir, `dateStrings: true` al leer
+  (el frontend siempre recibe `"YYYY-MM-DD HH:MM:SS"` en UTC).
+- Contraseñas con `crypto.scrypt` nativo — sin dependencias de compilación
+  nativa.
+- Sesión de cliente: cookie httpOnly firmada con HMAC, sin tabla de
+  sesiones. Admin: HTTP Basic Auth de 3 niveles (ver `backend/utils/auth.js`).
+- Todas las páginas del frontend reutilizan `style.css` como base; los
+  demás `.css` son extensiones, no reemplazos.
+- Después de cualquier cambio: `node --check` en los `.js` tocados +
+  suite Jest existente sin regresiones + actualizar `PROJECT_STATE.md`.
+- Antes de dar por "no disponible" una skill/herramienta mencionada por el
+  usuario: revisar el catálogo de skills activas, luego `D:\cc`, luego el
+  repositorio oficial — nunca asumir su función.
+
+## Arquitectura en migración: multi-tenant
+
+El proyecto está migrando de single-tenant a multi-tenant (>1000 usuarios,
+múltiples empresas cliente, cada una con BD MySQL dedicada y URLs
+`/<slug>` y `/<slug>/admin`). Plan completo de 9 segmentos, decisiones de
+arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
+88** (arranque + segmento 1) **y punto 89** (segmento 2). Estado:
+
+- Segmento 1 (BD de control + script de aprovisionamiento,
+  `backend/scripts/provisionar-tenant.js` + `backend/utils/tenant.js`):
+  hecho.
+- Segmento 2 (`backend/db.js` refactorizado a registro de pools por
+  tenant + proxy `AsyncLocalStorage` + `ensureSchema(db)` parametrizado):
+  hecho. `pool.query(...)` en cualquier archivo existente sigue
+  funcionando sin cambios — el proxy cae al pool por defecto porque nada
+  establece todavía un contexto de tenant.
+- Segmento 3 (`backend/utils/tenantContext.js` — middleware que resuelve
+  `req.tenant` desde el encabezado `X-Tenant-Slug`; sesión de cliente con
+  clave HMAC derivada por tenant vía HKDF en `authUsuario.js`; realm de
+  Basic Auth con slug en `auth.js`): hecho. Montado globalmente en
+  `server.js`, justo después de `cookieParser()`.
+- Segmento 4 (`frontend/nginx.conf` con 3 `location` nuevas por regex
+  para `/<slug>/admin`, `/<slug>/(dashboard|tickets|login|csf)` y
+  `/<slug>/api/*`; frontend tenant-aware en `portal.js`/`login.js`/
+  `admin.js`/`app.js`; assets locales pasados a rutas absolutas):
+  hecho.
+- Segmento 5 (`backend/utils/storage.js` — almacenamiento migrado de
+  disco local a MinIO/S3, servicio `minio` en `docker-compose.yml`,
+  22 call sites de `fs.*` reemplazados en `server.js`): hecho. **Este es
+  el primer segmento que cambia comportamiento real para el tráfico de
+  hoy** (no solo para un tenant futuro) — no se pudo probar contra MinIO
+  real en el entorno donde se construyó (sin Docker daemon disponible),
+  así que antes de confiar esto en producción hay que levantar el stack
+  y probar subir/bajar/borrar archivos de verdad. Ver PROJECT_STATE.md
+  punto 92, sección "Pendiente antes de producción".
+- Segmento 6 (`backend/scripts/cutover-tenant-piloto.js` — runbook/script
+  para convertir la BD de un solo tenant en el primer tenant real; no
+  destructivo, verificado paso a paso, corte de tráfico real deliberadamente
+  manual): hecho, pero **nunca ejecutado** — no hay MySQL/MinIO real en
+  este entorno. El usuario debe correrlo él mismo cuando esté listo (ver
+  PROJECT_STATE.md punto 93), idealmente contra una copia/backup primero.
+- Segmento 7 (`backend/utils/adminAuditoria.js`, rate limits tenant-aware,
+  anti-enumeración de tenants, limpieza de `X-Tenant-Slug` en nginx,
+  cabeceras de seguridad y `Cache-Control: no-store` para API): hecho.
+  Cierra el hueco documentado de auditoría de `ADMIN_USERS` como acceso
+  super/global y endurece el borde multi-tenant sin agregar una UI nueva
+  de consulta de auditoría.
+- Segmento 9c (`control/utils/tenantIntake.js` + `POST /api/control/tenants`
+  + modal "Nueva empresa" en `/control`): hecho. Captura la solicitud de
+  alta con `estado='provisioning'` — el alta física (CREATE DATABASE +
+  GRANT) sigue siendo exclusiva de `backend/scripts/provisionar-tenant.js`
+  (root de MySQL), que ahora completa esas filas en vez de rechazarlas.
+  Pre-llenado de config fiscal opcional al aprovisionar
+  (`aplicarConfiguracionFiscalEnProcesoHijo`). Ver PROJECT_STATE.md
+  punto 101. No probado contra MySQL/Docker real — falta validar el
+  flujo completo UI → provisioning → activo y el modal en navegador.
+- **Todavía no hay ningún tenant real dado de alta** — nada de esto
+  recibe tráfico real hoy.
+
+No avanzar al segmento 8 sin aprobación explícita del usuario, por el
+mismo protocolo `addv-web-app`.
+
+## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
+
+Ver la sección "Limitaciones de ESTE entorno de generación" en
+`PROJECT_STATE.md` — en general: sin acceso a un MySQL/Docker corriendo,
+la validación se limita a `node --check`, pruebas unitarias con mocks, y
+trazado manual de queries. Cualquier cambio de esquema/queries debe
+confirmarse corriendo `backend/scripts/verificar-mysql.js` contra MySQL
+real antes de producción.

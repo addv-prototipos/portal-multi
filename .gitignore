@@ -1,0 +1,30 @@
+# Entorno
+.env
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Datos persistentes locales (se generan al ejecutar la app).
+# La base de datos ya no vive aqui (ahora es MySQL, en un volumen Docker
+# gestionado); solo los archivos subidos siguen siendo una carpeta local.
+uploads/*
+!uploads/.gitkeep
+
+# Volcados de base de datos que puedas generar con mysqldump localmente
+*.sql
+!backend/scripts/**/*.sql
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editores / herramientas locales
+.idea/
+.claude/
+
+# Pruebas
+backend/coverage/
+e2e/test-results/
+e2e/playwright-report/
+e2e/.cache/

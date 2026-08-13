@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi cuenta | Portal de Facturación</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/portal.css" />
+</head>
+<body class="portal-body">
+  <header class="portal-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">FX</span>
+      <span class="brand-name">Portal de Facturación</span>
+    </div>
+    <div class="portal-header-actions">
+      <span class="portal-user-label" id="portal-user-label"></span>
+      <button type="button" class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <h1 class="portal-titulo">¿Qué quieres hacer hoy?</h1>
+
+    <p class="aviso-retencion" id="aviso-retencion" hidden></p>
+
+    <div class="tablero-tiles">
+      <a class="tile" href="csf.html">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M9 13h6M9 17h6M9 9h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="tile-texto">
+          <span class="tile-titulo">Subir constancia de situación fiscal</span>
+          <span class="tile-descripcion">Registra o actualiza tu Constancia de Situación Fiscal (PDF).</span>
+        </span>
+        <span class="tile-flecha" aria-hidden="true">→</span>
+      </a>
+
+      <a class="tile" href="tickets.html">
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path d="M5 3h14v17l-3-2-2 2-2-2-2 2-2-2-3 2V3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M8 8h8M8 12h8M8 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="tile-texto">
+          <span class="tile-titulo">Subir tickets de compra</span>
+          <span class="tile-descripcion">Sube la foto de tu ticket y obtén un folio de seguimiento.</span>
+        </span>
+        <span class="tile-flecha" aria-hidden="true">→</span>
+      </a>
+    </div>
+
+    <div class="portal-solicitudes">
+      <div class="portal-solicitudes-header">
+        <h2>Mis solicitudes</h2>
+        <button type="button" class="btn btn-secondary" id="btn-refrescar">Actualizar</button>
+      </div>
+
+      <p class="field-error" id="solicitudes-error" role="alert"></p>
+
+      <div class="solicitudes-table-wrap">
+        <table class="solicitudes-table" id="solicitudes-table">
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Uso de CFDI</th>
+              <th>Ticket</th>
+              <th>Estatus</th>
+              <th>Fecha</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="solicitudes-tbody"></tbody>
+        </table>
+        <p class="solicitudes-empty" id="solicitudes-empty" hidden>Todavía no has subido ningún ticket.</p>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/portal.js"></script>
+  <script src="/dashboard.js"></script>
+</body>
+</html>

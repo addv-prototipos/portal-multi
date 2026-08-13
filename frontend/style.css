@@ -1,0 +1,926 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --color-bg: #F6F4EF;
+  --color-surface: #FFFFFF;
+  --color-border: #E3DFD4;
+  --color-ink: #21261F;
+  --color-ink-soft: #5B6158;
+  --color-accent: #0F6E5D;
+  --color-accent-dark: #0B5548;
+  --color-accent-soft: #E4EFEC;
+  --color-warn: #B4530C;
+  --color-warn-soft: #FBEBDC;
+  --color-error: #B3261E;
+  --color-error-soft: #FBEAE9;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-card: 0 1px 2px rgba(33, 38, 31, 0.04), 0 8px 24px rgba(33, 38, 31, 0.06);
+  --font-display: 'Source Serif 4', Georgia, serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+/* Garantiza que el atributo `hidden` siempre oculte el elemento,
+   sin importar que otra regla más abajo defina su propio `display`
+   (ej. .modal-overlay, .progress-wrap, .dropzone-file usan display: flex). */
+[hidden] {
+  display: none !important;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+body {
+  background-image:
+    linear-gradient(var(--color-border) 1px, transparent 1px);
+  background-size: 100% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel.is-active { animation: fade-up 0.35s ease both; }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Botón "Volver al tablero": compartido entre index.html y tickets.html
+   (y disponible para cualquier otra página que cargue style.css). Antes
+   era un enlace de texto discreto, con clases distintas y ubicaciones
+   distintas en cada página — se unificó en un solo componente, con más
+   peso visual (fondo, ícono, borde en foco) para que sea fácil de
+   encontrar sin tener que buscarlo. */
+.btn-volver-tablero {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-volver-tablero svg { flex-shrink: 0; }
+.btn-volver-tablero:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+.btn-volver-tablero:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-accent);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--color-ink);
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px 40px;
+}
+
+.card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 28px 24px 26px;
+}
+
+/* Steps */
+.steps {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  margin: 0 0 26px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  color: var(--color-ink-soft);
+  font-size: 13px;
+}
+
+.step + .step::before {
+  content: '';
+  flex: 0 0 24px;
+  height: 1px;
+  background: var(--color-border);
+  margin-right: 8px;
+}
+
+.step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.step.is-active .step-dot,
+.step.is-done .step-dot {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.step.is-active .step-label,
+.step.is-done .step-label {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.step-label { display: none; }
+@media (min-width: 400px) {
+  .step-label { display: inline; }
+}
+
+/* Panels */
+.panel { display: none; }
+.panel.is-active { display: block; }
+
+.panel h1 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--color-ink);
+}
+
+.panel-subtitle {
+  font-size: 14px;
+  color: var(--color-ink-soft);
+  margin: 0 0 22px;
+  line-height: 1.5;
+}
+
+/* Form fields */
+.field { margin-bottom: 18px; }
+
+/* ---------- Switch (interruptor de encendido/apagado) ----------
+   Componente genérico y reutilizable — mejor práctica de UX para
+   "activar/desactivar una función completa" que un checkbox plano: el
+   estado on/off es evidente de un vistazo (posición + color), no solo
+   por una palomita pequeña. El <input type="checkbox"> real queda
+   visualmente oculto pero sigue siendo el elemento que recibe foco y
+   maneja el estado — el resto es decoración, así que funciona con
+   teclado y lectores de pantalla igual que un checkbox normal. */
+.switch-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.switch-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.switch-toggle-track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  background: var(--color-border);
+  border-radius: 999px;
+  flex-shrink: 0;
+  transition: background 0.18s ease;
+}
+.switch-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(33, 38, 31, 0.3);
+  transition: transform 0.18s ease;
+}
+.switch-toggle input:checked + .switch-toggle-track {
+  background: var(--color-accent);
+}
+.switch-toggle input:checked + .switch-toggle-track .switch-toggle-thumb {
+  transform: translateX(18px);
+}
+.switch-toggle input:focus-visible + .switch-toggle-track {
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.switch-toggle-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.switch-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.switch-toggle-hint {
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  font-weight: 400;
+}
+
+/* Indicador en línea de "Guardando…" / "Guardado" / error, para
+   interruptores que se guardan solos al cambiarlos (ver
+   config-ordenes-habilitado en admin.js) — separado del toast general,
+   ya que da retroalimentación específica justo junto al control que se
+   acaba de mover, más difícil de pasar por alto que un toast que
+   aparece y desaparece en una esquina de la pantalla. Vacío por
+   defecto (no ocupa espacio ni se nota) hasta que hay algo que decir. */
+.switch-toggle-autoguardado {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+  min-height: 15px;
+}
+.switch-toggle-autoguardado[data-estado="guardando"] { color: var(--color-ink-soft); }
+.switch-toggle-autoguardado[data-estado="guardado"] { color: var(--color-accent-dark); }
+.switch-toggle-autoguardado[data-estado="error"] { color: var(--color-error); }
+
+/* ---------- Tooltip personalizado (sin librerías externas) ----------
+   Reemplaza el atributo "title" nativo del navegador (sin estilo, lento
+   en aparecer, el navegador decide dónde ponerlo) en todos los lugares
+   de la app que muestran información adicional al pasar el cursor.
+   El elemento en sí se crea con JavaScript y se agrega a document.body
+   (no como hijo del elemento que activa el tooltip) — a propósito, para
+   que no quede recortado dentro de contenedores con scroll horizontal
+   (como las tablas del panel admin, que usan "overflow-x: auto"; por
+   una particularidad de CSS, eso hace que el otro eje también recorte
+   el contenido, aunque no se haya pedido explícitamente). Ver
+   inicializarTooltips() en admin.js/dashboard.js para la lógica de
+   posicionamiento. */
+[data-tooltip] {
+  cursor: help;
+}
+.tooltip-personalizado {
+  position: fixed;
+  z-index: 1000;
+  max-width: 260px;
+  background: var(--color-ink);
+  color: #fff;
+  padding: 7px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 6px 16px rgba(33, 38, 31, 0.22);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+.tooltip-personalizado.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Flechita apuntando hacia abajo — caso normal, el tooltip aparece
+   arriba del elemento que lo activó. */
+.tooltip-personalizado::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--color-ink);
+}
+/* Si no cabe arriba (el elemento está muy cerca del borde superior de
+   la pantalla), se muestra abajo en su lugar, con la flecha invertida. */
+.tooltip-personalizado.tooltip-flecha-arriba::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--color-ink);
+}
+
+/* Campo de contraseña con botón de mostrar/ocultar, y el checklist de
+   reglas con estado en vivo — se usan en login, registro, y en varios
+   modales del panel de administración (crear usuario, restablecer
+   contraseña). Vivían duplicados byte por byte en admin.css Y auth.css
+   (incluso un comentario en auth.css ya decía "reutilizado... en la
+   vista de admin", pero nunca se llegó a consolidar) — al estar aquí en
+   style.css, que TODAS las páginas cargan primero, una sola copia basta
+   para las dos. */
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+.password-field input {
+  flex: 1;
+  /* Deja espacio a la derecha para el botón de mostrar/ocultar sin que
+     el texto quede debajo del ícono. */
+  padding-right: 42px;
+}
+.btn-toggle-pass {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+}
+.btn-toggle-pass:hover { color: var(--color-ink); background: var(--color-bg); }
+.btn-toggle-pass.is-visible { color: var(--color-accent); }
+.btn-toggle-pass:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.password-reglas {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}
+.password-reglas li {
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  padding-left: 18px;
+  position: relative;
+}
+.password-reglas li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+}
+.password-reglas li.is-cumplida {
+  color: var(--color-accent-dark);
+  font-weight: 600;
+}
+.password-reglas li.is-cumplida::before {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--color-surface);
+}
+@media (max-width: 380px) {
+  .password-reglas { grid-template-columns: 1fr; }
+}
+
+/* Verificación de compra en tickets.html: agrupa los 4 campos
+   obligatorios (No. Compra, Total, Fecha, Hora) en una caja destacada,
+   con los dos pares relacionados (identificador+monto, fecha+hora) uno
+   al lado del otro en pantallas con suficiente ancho — mejor
+   aprovechamiento del espacio que apilarlos uno debajo del otro, ya que
+   son valores cortos. */
+.compra-verificacion {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px 16px 4px;
+  margin-bottom: 20px;
+}
+.compra-verificacion-titulo {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+}
+.compra-verificacion-subtitulo {
+  margin: 0 0 14px !important;
+}
+.compra-verificacion-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+
+/* Por debajo de este ancho, dos columnas dejarían muy poco espacio para
+   escribir "OC-000001" o "24/jul/2026" cómodamente — se apilan en una
+   sola columna, mismo criterio ya usado en otras cuadrículas responsivas
+   de esta app. */
+@media (max-width: 360px) {
+  .compra-verificacion-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field label {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+
+.required { color: var(--color-warn); }
+.optional { color: var(--color-ink-soft); font-weight: 400; }
+
+.field input[type="text"],
+.field input[type="email"],
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6158' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 18px;
+  padding-right: 38px;
+}
+.field select:invalid { color: var(--color-ink-soft); }
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.field input.is-bloqueado {
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  cursor: not-allowed;
+}
+
+.field textarea { resize: vertical; min-height: 70px; }
+
+.field-hint {
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  margin: 6px 0 0;
+}
+
+/* Tooltip informativo junto a una etiqueta: funciona con hover/foco en
+   escritorio y con toque (clase .is-active vía JS) en celular, donde no
+   existe "hover". */
+.tooltip-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-ink-soft);
+  cursor: help;
+  vertical-align: middle;
+}
+.tooltip-trigger:hover,
+.tooltip-trigger:focus-visible,
+.tooltip-trigger.is-active {
+  color: var(--color-accent);
+}
+.tooltip-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  border-radius: 50%;
+}
+
+.tooltip-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  background: var(--color-ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: var(--shadow-card);
+}
+.tooltip-popover::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--color-ink);
+}
+.tooltip-trigger:hover .tooltip-popover,
+.tooltip-trigger:focus-visible .tooltip-popover,
+.tooltip-trigger.is-active .tooltip-popover {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (max-width: 480px) {
+  /* En pantallas angostas, centrado en el viewport no siempre alcanza;
+     se ancla a la izquierda del ícono para no salirse de la pantalla. */
+  .tooltip-popover {
+    left: 0;
+    transform: none;
+  }
+  .tooltip-popover::after { left: 8px; transform: none; }
+}
+
+.field-error {
+  font-size: 12.5px;
+  color: var(--color-error);
+  margin: 6px 0 0;
+  min-height: 0;
+}
+.field-error:empty { display: none; }
+
+.field.has-error input,
+.field.has-error textarea {
+  border-color: var(--color-error);
+}
+
+.radio-group {
+  display: flex;
+  gap: 10px;
+}
+
+.radio-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 10px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.radio-option input { accent-color: var(--color-accent); margin: 0; }
+
+.radio-option:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+}
+
+/* Buttons */
+.btn {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-block { width: 100%; }
+
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--color-accent-dark); }
+.btn-primary:disabled {
+  background: #A9BDB8;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--color-border);
+  color: var(--color-ink);
+}
+.btn-secondary:hover { border-color: var(--color-ink-soft); }
+
+.btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+.btn-row .btn { flex: 1; }
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--color-ink-soft);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+/* Dropzone */
+.dropzone {
+  border: 1.75px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 30px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--color-ink-soft);
+}
+
+.dropzone:hover,
+.dropzone:focus-visible,
+.dropzone.is-dragover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  outline: none;
+}
+
+.dropzone[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: var(--color-bg);
+}
+.dropzone[aria-disabled="true"]:hover {
+  border-color: var(--color-border);
+  background: var(--color-bg);
+}
+
+.dropzone svg { color: var(--color-accent); margin-bottom: 10px; }
+
+.dropzone-content p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.dropzone-content strong { color: var(--color-ink); }
+
+.dropzone-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+
+.file-icon { font-size: 26px; }
+.file-info { flex: 1; min-width: 0; }
+.file-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-size {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+
+/* Progress bar */
+.progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--color-accent);
+  border-radius: 99px;
+  transition: width 0.2s ease;
+}
+.progress-percent {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  min-width: 34px;
+  text-align: right;
+}
+
+/* Confirmation panel */
+#panel-3 { text-align: center; }
+
+.success-icon {
+  width: 56px;
+  height: 56px;
+  margin: 4px auto 18px;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(33, 38, 31, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: var(--shadow-card);
+}
+
+/* Insignia circular de aviso, para modales informativos (ej. "sin
+   constancia registrada" en tickets.html) — reutilizable en cualquier
+   página que cargue style.css. */
+.modal-icono-aviso {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  margin-bottom: 12px;
+}
+
+.modal h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  margin: 0 0 10px;
+}
+.modal p {
+  font-size: 14px;
+  color: var(--color-ink-soft);
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+.modal p:last-of-type { margin-bottom: 0; }
+
+.modal-preview {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.modal-preview-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+.modal-preview-row + .modal-preview-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.modal-preview-row dt {
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  flex-shrink: 0;
+}
+.modal-preview-row dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: var(--color-ink);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  max-width: 90vw;
+  z-index: 60;
+  box-shadow: var(--shadow-card);
+}
+.toast.is-error { background: var(--color-error); }
+
+.app-footer {
+  text-align: center;
+  padding: 8px 20px 28px;
+}
+.app-footer p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+
+@media (max-width: 380px) {
+  .card { padding: 22px 18px 20px; }
+}

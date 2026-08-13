@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Constancia de Situación Fiscal | Portal de Facturación</title>
+  <meta name="description" content="Sube tu constancia de situación fiscal y captura tus datos de facturación." />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/portal.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="portal-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">FX</span>
+        <span class="brand-name">Portal de Facturación</span>
+      </div>
+      <div class="portal-header-actions" id="app-header-sesion" hidden>
+        <a class="btn-volver-tablero" href="dashboard.html">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M19 12H5M5 12l6-6M5 12l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="btn-volver-tablero-texto">Volver al tablero</span>
+        </a>
+        <span class="portal-user-label" id="portal-user-label"></span>
+        <button type="button" class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div class="card">
+        <!-- Indicador de pasos -->
+        <ol class="steps" aria-label="Progreso del formulario">
+          <li class="step is-active" data-step="1"><span class="step-dot">1</span><span class="step-label">Datos</span></li>
+          <li class="step" data-step="2"><span class="step-dot">2</span><span class="step-label">Archivo</span></li>
+          <li class="step" data-step="3"><span class="step-dot">3</span><span class="step-label">Confirmación</span></li>
+        </ol>
+
+        <!-- Paso 1: Formulario de datos -->
+        <section class="panel is-active" id="panel-1" aria-labelledby="panel-1-title">
+          <h1 id="panel-1-title">Datos de facturación</h1>
+          <p class="panel-subtitle">Captura la información con la que deseas recibir tus facturas.</p>
+
+          <form id="form-datos" novalidate>
+            <div class="field">
+              <label>Tipo de persona <span class="field-mark required" data-field="tipo_persona" id="mark-tipo_persona">*</span></label>
+              <div class="radio-group" role="radiogroup" aria-label="Tipo de persona">
+                <label class="radio-option">
+                  <input type="radio" name="tipo_persona" value="fisica" />
+                  <span>Persona Física</span>
+                </label>
+                <label class="radio-option">
+                  <input type="radio" name="tipo_persona" value="moral" />
+                  <span>Persona Moral</span>
+                </label>
+              </div>
+              <p class="field-error" id="error-tipo_persona" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label for="rfc">RFC <span class="field-mark optional" data-field="rfc" id="mark-rfc">(opcional)</span></label>
+              <input type="text" id="rfc" name="rfc" maxlength="13" placeholder="XAXX010101000" autocapitalize="characters" />
+              <p class="field-hint">12 o 13 caracteres, sin guiones.</p>
+              <p class="field-error" id="error-rfc" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label for="email">Correo electrónico para recibir facturas <span class="required">*</span></label>
+              <input type="email" id="email" name="email" required maxlength="200" autocomplete="email" />
+              <p class="field-error" id="error-email" role="alert"></p>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">Continuar</button>
+          </form>
+        </section>
+
+        <!-- Paso 2: Subida de archivo -->
+        <section class="panel" id="panel-2" aria-labelledby="panel-2-title">
+          <h1 id="panel-2-title">Sube tu constancia de situación fiscal</h1>
+          <p class="panel-subtitle">Solo se acepta PDF (la Constancia de Situación Fiscal / Cédula de Identificación Fiscal emitida por el SAT). Tamaño máximo: <span id="max-size-label">5</span> MB. Tu nombre o razón social se leerá automáticamente del documento.</p>
+
+          <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Seleccionar archivo">
+            <input type="file" id="input-archivo" accept=".pdf" hidden />
+            <div class="dropzone-content" id="dropzone-empty">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 16V4M12 4L7 9M12 4L17 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 16V18C4 19.1 4.9 20 6 20H18C19.1 20 20 19.1 20 18V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <p><strong>Toca para elegir un archivo</strong><br/>o arrástralo aquí</p>
+            </div>
+            <div class="dropzone-file" id="dropzone-file" hidden>
+              <span class="file-icon" aria-hidden="true">📄</span>
+              <div class="file-info">
+                <p class="file-name" id="file-name"></p>
+                <p class="file-size" id="file-size"></p>
+              </div>
+              <button type="button" class="btn-icon" id="btn-remove-file" aria-label="Quitar archivo">✕</button>
+            </div>
+          </div>
+          <p class="field-error" id="error-archivo" role="alert"></p>
+
+          <div class="progress-wrap" id="progress-wrap" hidden>
+            <div class="progress-track">
+              <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <span class="progress-percent" id="progress-percent">0%</span>
+          </div>
+
+          <div class="btn-row">
+            <button type="button" class="btn btn-secondary" id="btn-back-1">Atrás</button>
+            <button type="button" class="btn btn-primary" id="btn-submit">Enviar</button>
+          </div>
+        </section>
+
+        <!-- Paso 3: Confirmación -->
+        <section class="panel" id="panel-3" aria-labelledby="panel-3-title">
+          <div class="success-icon" aria-hidden="true">✓</div>
+          <h1 id="panel-3-title">¡Listo!</h1>
+          <p class="panel-subtitle" id="mensaje-confirmacion">Tu información fue registrada correctamente.</p>
+          <button type="button" class="btn btn-primary btn-block" id="btn-nuevo-registro">Registrar otro archivo</button>
+        </section>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p>Tus archivos se almacenan de forma segura y solo se usan para fines de facturación.</p>
+    </footer>
+  </div>
+
+  <!-- Modal de confirmación de reemplazo -->
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h2 id="modal-title">Ya existe un archivo registrado</h2>
+      <p>Encontramos estos datos previamente cargados con este correo electrónico:</p>
+
+      <dl class="modal-preview" id="modal-preview" aria-label="Datos registrados previamente">
+        <div class="modal-preview-row">
+          <dt>Nombre / razón social</dt>
+          <dd id="preview-nombre">—</dd>
+        </div>
+        <div class="modal-preview-row">
+          <dt>Tipo de persona</dt>
+          <dd id="preview-tipo">—</dd>
+        </div>
+        <div class="modal-preview-row" id="preview-rfc-row">
+          <dt>RFC</dt>
+          <dd id="preview-rfc">—</dd>
+        </div>
+        <div class="modal-preview-row">
+          <dt>Documento cargado</dt>
+          <dd id="preview-archivo">—</dd>
+        </div>
+        <div class="modal-preview-row">
+          <dt>Última actualización</dt>
+          <dd id="preview-fecha">—</dd>
+        </div>
+      </dl>
+
+      <p>¿Deseas reemplazar estos datos y el archivo con la nueva información que acabas de capturar?</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-modal-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-modal-confirmar">Sí, reemplazar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/portal.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

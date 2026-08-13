@@ -1,0 +1,40 @@
+# Configuración de replicación para el nodo PRIMARIO de MySQL — segmento 8
+# del plan multi-tenant (ver PROJECT_STATE.md). Se monta en
+# /etc/mysql/conf.d/ dentro del contenedor mysql-primary (ver
+# docker-stack.yml), además de la configuración por defecto de la imagen
+# oficial mysql:8.0 — no la reemplaza, la complementa.
+#
+# GTID (Global Transaction Identifier) en vez de coordenadas de binlog
+# (archivo + posición): permite que backend/scripts/configure-replica.js
+# use SOURCE_AUTO_POSITION=1 (la réplica calcula sola desde dónde
+# reanudar) en vez de tener que pasar manualmente un archivo/posición
+# exactos — y es lo que permite que, tras un backend/scripts/promote-replica.js,
+# el primario original pueda re-engancharse como réplica del nuevo primario
+# sin recalcular coordenadas a mano.
+[mysqld]
+server-id = 1
+log-bin = mysql-bin
+binlog_format = ROW
+gtid_mode = ON
+enforce-gtid-consistency = ON
+
+# Guarda el estado de replicación en tablas del sistema (no en archivos
+# sueltos del datadir) — más fácil de inspeccionar con SQL y consistente
+# con el volumen de datos ya persistido (mysql_primary_data).
+master_info_repository = TABLE
+relay_log_info_repository = TABLE
+
+# Durabilidad estricta: cada commit se sincroniza a disco y al binlog antes
+# de confirmar al cliente. Es el valor por defecto de MySQL 8, se deja
+# explícito aquí porque es la base de la garantía de "cero pérdida de datos
+# confirmados" que le da sentido a tener un primario/réplica en primer
+# lugar — sin esto, un failover podría perder las últimas transacciones.
+sync_binlog = 1
+innodb_flush_log_at_trx_commit = 1
+
+# Si este primario alguna vez se reincorpora como réplica de otro nodo
+# (tras un failover, ver promote-replica.js), necesita su propio binlog de
+# las transacciones que reciba por replicación — sin esto, una réplica
+# encadenada más adelante (o el propio nodo re-promovido) no tendría de
+# dónde replicar.
+log-replica-updates = ON

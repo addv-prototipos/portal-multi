@@ -1,0 +1,267 @@
+# En el despliegue recomendado a producción (ver README, "Configurar Nginx
+# como reverse proxy del host"), hay DOS saltos de proxy: cliente -> nginx
+# del host (ahí termina el HTTPS) -> este nginx (dentro de Docker) ->
+# backend. Si aquí simplemente se reenviara X-Forwarded-Proto como
+# "$scheme", el backend siempre vería "http" (el esquema de la conexión
+# nginx-del-host -> este contenedor, que nunca es https), sin importar que
+# el cliente sí haya usado HTTPS de verdad — rompería, por ejemplo, la
+# detección automática de URL del correo de invitación (ver
+# enviarInvitacionPortal en server.js), que quedaría con "http://" aunque
+# el sitio real sea "https://".
+# Este mapeo usa el valor de X-Forwarded-Proto que ya haya puesto un proxy
+# anterior (el nginx del host), y solo cae de vuelta a "$scheme" cuando no
+# hay ninguno (ej. en desarrollo local, sin ese nginx adicional en frente).
+map $http_x_forwarded_proto $proxy_x_forwarded_proto {
+    default $http_x_forwarded_proto;
+    ''      $scheme;
+}
+
+# Grupo de conexiones reutilizables hacia el backend. Sin esto, nginx abre
+# una conexión TCP nueva con el backend en CADA petición a /api/ — bajo
+# tráfico normal no se nota, pero bajo carga (o con muchas peticiones
+# seguidas, como al cargar una tabla grande) agrega overhead innecesario y
+# puede contribuir a lentitud/errores intermitentes por agotar sockets más
+# rápido de lo necesario. "keepalive 16" mantiene hasta 16 conexiones
+# ociosas listas para reusar. Esto es una optimización de UNA sola
+# instancia — no es balanceo de carga (eso implicaría varios servers aquí
+# abajo, y queda fuera de este cambio a propósito).
+upstream backend_upstream {
+    server backend:4000;
+    keepalive 16;
+}
+
+# App de control, en su propio contenedor desde el segmento 9b (ver
+# PROJECT_STATE.md) — a propósito NO es un nombre de servicio Docker fijo:
+# CONTROL_UPSTREAM_HOST/CONTROL_UPSTREAM_PORT son variables de entorno del
+# contenedor "frontend", sustituidas aquí por envsubst al arrancar (este
+# archivo vive en /etc/nginx/templates/, la imagen oficial de nginx lo
+# procesa sola — ver frontend/Dockerfile). Por defecto apuntan al servicio
+# "control" en la misma red Docker, pero pueden apuntar a cualquier
+# host/IP/dominio si ese contenedor se despliega en un servidor aparte.
+# Nota: envsubst SOLO sustituye nombres que son de verdad variables de
+# entorno del contenedor -- las variables propias de nginx como $host o
+# $request_uri no se tocan, así que es seguro usarlo en todo este archivo.
+upstream control_upstream {
+    server ${CONTROL_UPSTREAM_HOST}:${CONTROL_UPSTREAM_PORT};
+    keepalive 8;
+}
+
+server {
+    listen 80;
+    # "localhost" explícito (en vez del comodín "_" genérico) porque el
+    # despliegue objetivo de este nginx es local — sigue funcionando
+    # igual si en el futuro se pone detrás de un dominio real, ya que
+    # nginx solo usa server_name para elegir ENTRE varios "server {}"
+    # cuando hay más de uno; con solo este bloque, cualquier Host que
+    # llegue lo recibe de todas formas.
+    server_name localhost;
+
+    root /usr/share/nginx/html;
+    index login.html;
+
+    client_max_body_size 20m;
+
+    # Segmento 7 (seguridad multi-tenant): cabeceras de defensa aplicables
+    # a TODA respuesta sin riesgo de romper nada existente. CSP queda
+    # fuera a propósito — requeriría inventariar cada script/estilo
+    # inline de las 6 páginas del frontend, y no hay forma de verificar
+    # visualmente en este entorno que una política mal calibrada no rompa
+    # algo (ver PROJECT_STATE.md, pendiente documentado).
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+
+    # JS y CSS propios de la app cambian con cada despliegue: se permite
+    # cachear, pero SIEMPRE se revalida con el servidor antes de usar la
+    # copia local (peticion condicional ligera - 304 si no cambio, 200 con
+    # el archivo nuevo si si cambio). Esto evita que el navegador siga
+    # usando una version vieja por dias despues de un `docker-compose up --build`.
+    location ~* \.(?:css|js)$ {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    # Assets realmente estaticos (fuentes, imagenes) que no cambian entre
+    # despliegues si pueden cachearse agresivamente.
+    location ~* \.(?:svg|png|jpg|jpeg|woff2?)$ {
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800";
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /login.html;
+    }
+
+    # Panel de administracion, accesible en /admin (sin necesidad de .html)
+    location = /admin {
+        try_files /admin.html =404;
+    }
+
+    # App de control (segmento 9, contenedor propio desde el segmento 9b):
+    # gestion cross-tenant del ciclo de vida de empresas, solo perfil
+    # "super". Esta pagina estatica sigue sirviendola este mismo frontend
+    # -- solo su API (/api/control/*) se reenvia al contenedor aparte, ver
+    # el location "^~ /api/control/" mas abajo.
+    location = /control {
+        try_files /control.html =404;
+    }
+
+    # Rutas amigables (sin .html) para las paginas del portal de usuario
+    location = /dashboard {
+        try_files /dashboard.html =404;
+    }
+    location = /tickets {
+        try_files /tickets.html =404;
+    }
+    location = /login {
+        try_files /login.html =404;
+    }
+    location = /csf {
+        try_files /csf.html =404;
+    }
+
+    # Compatibilidad: esta pagina (constancia de situacion fiscal) se
+    # llamaba "index.html" antes de renombrarse a "csf.html". Si alguien
+    # tiene un enlace o marcador viejo apuntando a /index.html, se
+    # redirige en vez de devolver 404.
+    location = /index.html {
+        return 301 /csf.html;
+    }
+
+    # ---------- Multi-tenant (segmento 4 del plan, ver PROJECT_STATE.md) ----------
+    # Rutas con forma "/<slug>/admin", "/<slug>/dashboard", etc. — mismo
+    # archivo HTML de siempre, servido para CUALQUIER slug con forma
+    # razonable (nginx no valida contra la lista real de tenants dados de
+    # alta; eso lo hace el backend mismo — ver
+    # backend/utils/tenantContext.js — al resolver el encabezado
+    # X-Tenant-Slug). Esto es a propósito: dar de alta un tenant nuevo NO
+    # requiere tocar ni recargar este archivo, solo un alta en la base de
+    # datos de control. El regex de aquí es deliberadamente más permisivo
+    # que backend/utils/tenant.js:validarSlug() (que sí es la validación
+    # autoritativa) — nginx solo necesita capturar un candidato razonable
+    # y dejar que el backend decida si es válido/existe.
+    #
+    # Estas dos ubicaciones son las ÚNICAS que dependen del patrón
+    # "/<slug>/<pagina>" para servir HTML — las rutas SIN prefijo de
+    # arriba (/admin, /dashboard, etc.) siguen intactas, sirviendo el
+    # tenant único de siempre mientras el segmento 6 (cutover) no se haya
+    # ejecutado.
+    # El regex va entre comillas a proposito: el cuantificador "{0,48}"
+    # sin comillas hace que el tokenizador de configuracion de nginx lo
+    # confunda con el inicio de un bloque ("{" es un token especial fuera
+    # de comillas, con o sin espacio antes), truncando el patron real
+    # antes de llegar a pcre2_compile() y produciendo el error "missing
+    # closing parenthesis" — confirmado corriendo esto contra un nginx
+    # real (ver PROJECT_STATE.md).
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/admin$" {
+        try_files /admin.html =404;
+    }
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/(?<pagina_tenant>dashboard|tickets|login|csf)$" {
+        try_files /$pagina_tenant.html =404;
+    }
+
+    # Version con tenant de la API — mismo backend, mismo proxy_pass que
+    # "location /api/" de abajo, con el slug capturado reenviado como
+    # encabezado X-Tenant-Slug (el backend nunca ve el prefijo en la URL,
+    # ver backend/utils/tenantContext.js). Se mantiene deliberadamente
+    # como un bloque casi idéntico a "location /api/" (no una sola
+    # definicion reutilizada) porque nginx no tiene una forma limpia de
+    # "heredar" un location completo — si se ajusta algo aquí (timeouts,
+    # limite de tamaño, pagina de mantenimiento), replicar el cambio en
+    # "location /api/" también.
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/api/(?<resto_api>.*)$" {
+        proxy_pass http://backend_upstream/api/$resto_api$is_args$args;
+        proxy_set_header X-Tenant-Slug $tenant_slug;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 20m;
+        proxy_intercept_errors on;
+        error_page 502 503 504 =503 /mantenimiento.html;
+    }
+
+    # Segmento 9b: API de la app de control, reenviada a su propio
+    # contenedor (control_upstream, ver arriba) en vez de a
+    # backend_upstream. "^~" y el prefijo "/api/control/" (más largo y
+    # específico que "/api/" de abajo) hacen que nginx elija SIEMPRE este
+    # bloque para estas rutas, sin importar el orden de declaración entre
+    # los dos "^~" — nginx prioriza el prefijo más largo que matchea.
+    # X-Tenant-Slug se blanquea explícitamente por el mismo motivo que en
+    # "/api/": /control es cross-tenant por definición, nunca debe
+    # resolver un tenant a partir de un header que mande el cliente.
+    location ^~ /api/control/ {
+        proxy_pass http://control_upstream/api/control/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header X-Tenant-Slug "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 30s;
+        client_max_body_size 1m;
+        proxy_intercept_errors on;
+        error_page 502 503 504 =503 /mantenimiento.html;
+    }
+
+    # Reenvia las peticiones de la API SIN tenant (comportamiento de
+    # siempre) al backend. "^~" evita que nginx llegue a evaluar los
+    # locations con expresion regular de arriba para cualquier ruta que
+    # empiece literalmente con "/api/" — sin esto, el orden de
+    # definicion decide, y una ruta regex mal escrita en el futuro podria
+    # interceptar trafico de la API que no lleva tenant. No cambia el
+    # comportamiento de hoy (antes de este segmento no existia ningun
+    # location con regex con el que pudiera competir).
+    location ^~ /api/ {
+        proxy_pass http://backend_upstream/api/;
+        proxy_http_version 1.1;
+        # Necesario para que el "keepalive" del upstream de arriba
+        # realmente se use — por default, nginx reenvía el header
+        # "Connection: close" del cliente al backend en cada petición,
+        # lo que impediría reusar la conexión aunque esté definida como
+        # keepalive.
+        proxy_set_header Connection "";
+        # Segmento 7 (seguridad multi-tenant): esta es la ruta SIN slug en
+        # la URL, así que el backend NUNCA debe resolver ningún tenant a
+        # partir de ella. nginx reenvía por default cualquier header que
+        # el cliente mande — sin este blanqueo explícito, un cliente podía
+        # mandar su propio "X-Tenant-Slug: <slug-ajeno>" directo a
+        # /api/... y cruzar al pool/BD de ese tenant, evitando por
+        # completo los locations con regex de arriba (los únicos que
+        # deben poder fijar este header, y lo hacen desde el slug que
+        # ELLOS capturaron de la URL, no desde lo que mande el cliente).
+        proxy_set_header X-Tenant-Slug "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 20m;
+
+        # Página de mantenimiento cuando el backend no responde. 502/504
+        # los genera el propio nginx cuando no logra conectar o el
+        # backend se tarda demasiado (ej. el contenedor se está
+        # reiniciando); "proxy_intercept_errors on" además intercepta un
+        # 503 explícito que el backend mismo llegara a devolver, en vez
+        # de dejarlo pasar tal cual. El navegador sigue recibiendo el
+        # código de estado real (503) junto con la página — así una
+        # petición hecha con fetch() todavía puede detectar "esto no
+        # salió bien" por el status, aunque el cuerpo ya no sea el JSON
+        # que esperaba. No hace falta un "location" aparte para
+        # mantenimiento.html: es un archivo estático real, así que el
+        # "location /" de más abajo (con su try_files) ya lo sirve solo,
+        # tanto en esta redirección interna como si alguien lo visita
+        # directamente.
+        proxy_intercept_errors on;
+        error_page 502 503 504 =503 /mantenimiento.html;
+    }
+}

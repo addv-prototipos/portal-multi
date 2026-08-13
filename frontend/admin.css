@@ -1,0 +1,1772 @@
+.admin-body {
+  margin: 0;
+  background: var(--color-bg);
+  min-height: 100vh;
+}
+
+/* Login screen */
+.admin-login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.admin-login-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.admin-login-brand {
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+/* El logo va centrado, así que el subtítulo también se centra para
+   mantener una composición simétrica en vez de mezclar alineaciones. */
+.admin-login-subtitle {
+  text-align: center;
+}
+
+/* ---------- Generar / copiar contraseña automática ---------- */
+.btn-generar-password {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.password-field-con-copiar input { padding-right: 76px; }
+
+.btn-copiar-pass {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+}
+.btn-copiar-pass:hover { color: var(--color-ink); background: var(--color-bg); }
+.btn-copiar-pass.is-copiado { color: var(--color-accent); }
+.btn-copiar-pass:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.password-modal-forzar {
+  margin: 4px 0 18px;
+}
+
+/* ---------- Retención (borrado automático) de tickets ---------- */
+.retencion-config-fila {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.retencion-config-input { flex: 1; margin-bottom: 0; }
+.retencion-config-fila .btn {
+  flex-shrink: 0;
+  padding: 11px 20px;
+  font-size: 13.5px;
+}
+
+@media (max-width: 480px) {
+  .retencion-config-fila { flex-direction: column; align-items: stretch; }
+  .retencion-config-fila .btn { width: 100%; }
+}
+
+/* ---------- Notificación: tickets pendientes sin contador ---------- */
+.notif-tickets-lista {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.notif-tickets-lista li {
+  padding: 10px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--color-border);
+}
+.notif-tickets-lista li:last-child { border-bottom: none; }
+.notif-tickets-lista li.notif-tickets-mas {
+  text-align: center;
+  color: var(--color-ink-soft);
+  font-style: italic;
+}
+
+.admin-login-hint {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+.admin-login-hint code {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+}
+
+/* Estado de carga del botón de acceso */
+.btn-primary[aria-busy="true"] {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+/* Dashboard shell */
+.admin-dashboard { min-height: 100vh; }
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px 24px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* RFC + Código SAT de la compañía, junto a "Administración" — solo se
+   muestra cuando ambos están configurados (ver aplicarInfoFiscalBarra()
+   en admin.js); mientras falte cualquiera de los dos, el atributo
+   "hidden" del HTML lo mantiene oculto por completo. */
+.brand-fiscal-info {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  padding-left: 10px;
+  margin-left: 2px;
+  border-left: 1px solid var(--color-border);
+}
+
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-user-label {
+  font-size: 13.5px;
+  color: var(--color-ink-soft);
+}
+
+.admin-header-actions .btn {
+  padding: 8px 16px;
+  font-size: 13.5px;
+}
+
+.admin-main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-toolbar h1 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.admin-toolbar-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+/* Toggle Activos / Papelera */
+.view-toggle {
+  display: inline-flex;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 2px;
+}
+
+.view-toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.view-toggle-btn:hover { color: var(--color-ink); }
+
+.view-toggle-btn.is-active {
+  background: var(--color-surface);
+  color: var(--color-accent-dark);
+  box-shadow: var(--shadow-card);
+}
+
+.view-toggle-btn.is-danger-context.is-active {
+  color: var(--color-error);
+}
+
+.admin-toolbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-count {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+
+.admin-toolbar-right .btn {
+  padding: 8px 14px;
+  font-size: 13.5px;
+}
+
+/* Buscador */
+.admin-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.admin-search-icon {
+  position: absolute;
+  left: 13px;
+  color: var(--color-ink-soft);
+  pointer-events: none;
+}
+
+.admin-search-input {
+  width: 100%;
+  padding: 10px 40px 10px 38px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.admin-search-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.admin-search-input::-webkit-search-cancel-button { display: none; }
+
+.admin-search-clear {
+  position: absolute;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+.admin-search-clear:hover { background: var(--color-bg); }
+
+/* Checkbox reutilizable (config de campos y columnas) */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  color: var(--color-ink);
+  cursor: pointer;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+}
+.checkbox-row:hover { background: var(--color-bg); }
+.checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* "Configuraciones globales": cuadrícula tipo dashboard en vez de una
+   sola columna vertical apilada — antes las tarjetas ocupaban todo el
+   ancho disponible, desperdiciando espacio horizontal en pantallas
+   anchas. Las 4 tarjetas (Campos obligatorios, Configuraciones
+   fiscales, Correo electrónico, Configuración Reportes) ahora se
+   acomodan uniformes, 2x2, como un solo segmento parejo — todas
+   colapsadas por defecto (mismo alto de entrada, el de solo su
+   encabezado), así que la cuadrícula se ve pareja de inicio sin
+   importar cuánto contenido tenga cada una una vez expandida. El
+   espaciado entre tarjetas lo da el "gap" de la cuadrícula — se anula
+   el margen individual de cada tarjeta aquí dentro, para no sumar ambos
+   y dejar un espacio doble. */
+.config-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.config-dashboard-grid .admin-config-card {
+  margin-bottom: 0;
+}
+
+/* Por debajo de este ancho, dos columnas dejarían muy poco espacio para
+   las etiquetas de los checkboxes ("Uso de CFDI (al subir tickets)", la
+   más larga) — se colapsa a una sola columna apilada, mismo criterio ya
+   usado en otras cuadrículas responsivas de este mismo panel. */
+@media (max-width: 760px) {
+  .config-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* "Orden de compra" y "Cuenta de respaldo admin" (vista "Usuarios") —
+   mismo patrón de cuadrícula de 2 columnas ya usado arriba para
+   "Configuraciones globales": ambas tarjetas tienen poco contenido (un
+   interruptor la una, un campo de contraseña la otra), así que apiladas
+   una debajo de otra dejaban una franja angosta con mucho espacio vacío
+   a los lados en pantallas anchas — puestas al mismo nivel se ven
+   parejas. "Perfiles y roles de acceso" (con una tabla ancha adentro,
+   que sí necesita todo el ancho disponible) se deja fuera de esta
+   cuadrícula a propósito, en su propia fila completa por debajo.
+   Colapsa a una sola columna en el mismo ancho que las demás
+   cuadrículas de este panel, por la misma razón. */
+.usuarios-tarjetas-compactas {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+.usuarios-tarjetas-compactas .admin-config-card {
+  margin-bottom: 0;
+}
+@media (max-width: 760px) {
+  .usuarios-tarjetas-compactas {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tarjeta de configuración de campos obligatorios */
+.admin-config-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.admin-config-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-align: left;
+}
+.admin-config-toggle:hover { background: var(--color-bg); }
+.admin-config-toggle:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-accent-soft);
+}
+
+.admin-config-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--color-accent-dark);
+  min-width: 0;
+}
+.admin-config-toggle-label svg { flex-shrink: 0; }
+
+.admin-config-chevron {
+  color: var(--color-ink-soft);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.admin-config-toggle[aria-expanded="true"] .admin-config-chevron {
+  transform: rotate(180deg);
+}
+
+.admin-config-body {
+  padding: 4px 18px 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-config-subtitle {
+  margin: 14px 0 14px;
+}
+
+/* Orden de compra: la tarjeta reutiliza .admin-config-card (el mismo
+   fondo/borde/sombra que las tarjetas plegables), pero SIN el botón de
+   plegar — es el formulario principal de esta pantalla, siempre visible. */
+.orden-form-body {
+  padding: 18px;
+}
+.orden-form-titulo {
+  font-family: var(--font-display);
+  font-size: 17px;
+  margin: 0;
+}
+/* Link de códigos SAT: una vez guardado, se muestra como hipervínculo
+   real (clicable, abre en pestaña nueva) en vez de dejar el campo de
+   texto siempre editable — el botón "Editar" es lo único que revela el
+   <input> de nuevo. Ver aplicarVistaLinkCodigosSat() en admin.js. */
+.link-editable-vista {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+}
+.link-editable-href {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-accent-dark);
+  font-size: 13.5px;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border);
+}
+.link-editable-href:hover { text-decoration-color: var(--color-accent); }
+.btn-editar-link {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 12.5px;
+}
+
+/* Caja de solo lectura para el/los régimen(es) fiscal(es) leídos de la
+   constancia de la compañía — puede tener más de una línea (un
+   contribuyente puede tener varios regímenes activos a la vez), por eso
+   es una caja con saltos de línea en vez de un <input> de una sola
+   línea. */
+.admin-config-readonly-box {
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  color: var(--color-ink);
+  white-space: pre-line;
+  line-height: 1.6;
+}
+.admin-config-readonly-vacio {
+  color: var(--color-ink-soft);
+  font-style: italic;
+}
+
+/* ---------- Configuración Reportes ---------- */
+.reportes-envio-manual {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  padding: 14px 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.reportes-envio-manual-texto strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+.reportes-envio-manual-texto .field-hint { margin: 0; }
+
+/* ---------- Lectura de reportes ---------- */
+.lectura-reportes-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.lectura-reportes-titulo {
+  font-family: var(--font-display);
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.lectura-reportes-selector-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.lectura-reportes-selector-field {
+  flex: 1;
+  min-width: 240px;
+  margin-bottom: 0;
+}
+
+.lectura-reportes-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-sm);
+}
+.lectura-reportes-resumen-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lectura-reportes-resumen-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-accent-dark);
+}
+.lectura-reportes-resumen-valor {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.lectura-reportes-filtros {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 18px;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.lectura-reportes-filtros .field { margin-bottom: 0; }
+
+/* Campo compuesto "Rango de fechas" — dos inputs de fecha uno junto al
+   otro dentro de la MISMA celda de la cuadrícula, en vez de que "Desde"
+   y "Hasta" fueran dos campos separados (eso dejaba 5 campos en total
+   en una cuadrícula de 4 columnas: el quinto quedaba huérfano en una
+   fila nueva, con 3 espacios vacíos al lado — la desproporción
+   reportada). Agrupar el rango en un solo campo es además el patrón ya
+   esperado para filtros de fecha "desde/hasta". */
+.lectura-reportes-rango-fechas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lectura-reportes-rango-fechas input[type="date"] {
+  flex: 1;
+  min-width: 0;
+}
+.lectura-reportes-rango-separador {
+  flex-shrink: 0;
+  color: var(--color-ink-soft);
+  font-size: 13px;
+}
+
+.lectura-reportes-filtros-acciones {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border);
+  margin-top: 4px;
+}
+.lectura-reportes-exportar {
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .lectura-reportes-filtros { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .lectura-reportes-filtros { grid-template-columns: 1fr; }
+  .lectura-reportes-filtros-acciones { flex-direction: column; align-items: stretch; }
+  .lectura-reportes-exportar { flex-direction: column; }
+}
+
+.lectura-reportes-vacio {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-ink-soft);
+  font-size: 14px;
+}
+
+/* Modal de "Ver Markdown completo" */
+.ver-md-modal { max-width: 720px; width: 92vw; }
+.ver-md-contenido {
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.orden-campo-automatico {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  color: var(--color-ink-soft);
+}
+.orden-total-preview {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-sm);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+}
+
+/* Ícono de "ya facturado" junto al No. Compra en la tabla de órdenes —
+   el tooltip nativo del navegador (atributo title) ya explica su
+   significado al pasar el mouse, sin necesidad de JS adicional. */
+.orden-facturado-icono {
+  margin-right: 6px;
+  cursor: help;
+}
+.orden-correo-con-tooltip {
+  cursor: help;
+}
+
+/* Orden de compra: formulario y lista lado a lado en pantallas anchas,
+   para no tener que desplazarse hasta abajo para ver la lista después de
+   llenar el formulario. El formulario es más angosto (ancho fijo, tiene
+   pocos campos) y la lista toma el resto del espacio disponible (la
+   tabla tiene 6 columnas, necesita más ancho). El formulario queda fijo
+   (`sticky`) al hacer scroll dentro de una lista larga, para poder
+   registrar varias órdenes seguidas sin tener que volver a subir. */
+.orden-compra-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.orden-compra-columna-form {
+  position: sticky;
+  top: 16px;
+}
+/* Corrige un problema real de "desbordamiento" de CSS Grid: por defecto,
+   una celda de grid nunca se encoge por debajo del ancho natural de su
+   contenido, aunque la columna esté definida como "1fr" (flexible). La
+   tabla de la derecha tiene columnas redimensionables — en cuanto el
+   administrador las hace más anchas (arrastrando los encabezados), su
+   ancho natural podía superar el espacio disponible, y SIN esta regla
+   toda la cuadrícula (formulario + lista) se empujaba hacia la derecha
+   en vez de quedarse dentro de su contenedor. Con "min-width: 0", la
+   celda sí se encoge al espacio real disponible, y es la propia tabla
+   (con su "overflow-x: auto" ya existente) la que gana una barra de
+   desplazamiento horizontal si hace falta — en vez de desbalancear toda
+   la página hacia la derecha. El margen izquierdo del contenedor
+   centrado (".admin-main") nunca se mueve; lo que se movía era el
+   borde derecho, dando la sensación de que "todo se recorre a la
+   derecha" cada vez que se ensanchaba una columna. */
+.orden-compra-columna-lista {
+  min-width: 0;
+}
+.orden-lista-titulo {
+  font-family: var(--font-display);
+  font-size: 17px;
+  margin: 0 0 10px;
+}
+
+/* Por debajo de este ancho, una tabla de 6 columnas no cabe
+   razonablemente al lado del formulario — se colapsa a una sola columna
+   apilada, formulario primero (es la acción principal de la pantalla). */
+@media (max-width: 900px) {
+  .orden-compra-layout {
+    grid-template-columns: 1fr;
+  }
+  .orden-compra-columna-form {
+    position: static;
+  }
+  /* En una sola columna, "1fr" sigue necesitando min-width: 0 por el
+     mismo motivo — sin esto, la tabla ancha también desbordaría hacia
+     la derecha en pantallas angostas. */
+  .orden-compra-columna-form,
+  .orden-compra-columna-lista {
+    min-width: 0;
+  }
+}
+
+.admin-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2px 12px;
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-config-note {
+  margin: 12px 2px 0;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+
+.admin-config-actions { margin-top: 16px; }
+.admin-config-actions .btn {
+  flex: 0 0 auto;
+  padding: 9px 22px;
+  font-size: 13.5px;
+}
+
+.admin-config-catalogo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-config-catalogo-texto { min-width: 0; }
+
+.admin-config-catalogo-titulo {
+  margin: 0 0 3px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.admin-config-catalogo-info {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.admin-config-catalogo .btn {
+  flex-shrink: 0;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .admin-config-catalogo {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-config-catalogo .btn { width: 100%; }
+}
+
+/* ---------- Correo SMTP ---------- */
+.smtp-estado-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.smtp-estado-badge.is-ok { background: #DCEFE3; color: #146C43; }
+.smtp-estado-badge.is-pendiente { background: var(--color-warn-soft); color: var(--color-warn); }
+
+.smtp-aviso-gmail {
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink);
+}
+
+.smtp-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 12px;
+  margin-bottom: 4px;
+}
+/* Host, Usuario, Contraseña, Nombre y Correo del remitente ocupan todo el
+   ancho; solo Puerto y Seguridad comparten una fila de dos columnas. */
+.smtp-config-grid .field:not(.smtp-field-puerto):not(.smtp-field-seguridad) {
+  grid-column: 1 / -1;
+}
+
+.smtp-password-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+
+@media (max-width: 480px) {
+  .smtp-config-grid { grid-template-columns: 1fr; }
+  .smtp-config-grid .field { grid-column: 1 / -1; }
+}
+
+.smtp-prueba {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+.smtp-prueba-titulo {
+  margin: 0 0 3px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.smtp-prueba .admin-config-subtitle { margin-bottom: 14px; }
+
+.smtp-plantilla-cliente {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+.smtp-plantilla-cliente .admin-config-subtitle {
+  margin-bottom: 14px;
+}
+.smtp-plantilla-cliente .admin-config-subtitle code {
+  background: var(--color-bg);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+
+/* Selector de columnas visibles */
+.column-toggle { position: relative; }
+
+.column-toggle-panel {
+  /* La posición (top/left) se calcula en JS al abrirse, para garantizar
+     que el panel siempre quede dentro del viewport sin importar en qué
+     posición haya quedado el botón "Columnas" (ej. al envolver en móvil). */
+  position: fixed;
+  z-index: 20;
+  width: 220px;
+  max-width: calc(100vw - 24px);
+  max-height: min(360px, calc(100vh - 24px));
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 10px;
+}
+
+.column-toggle-title {
+  margin: 2px 4px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-ink-soft);
+}
+
+/* Table */
+.admin-table-wrap.hide-nombre [data-col="nombre"],
+.admin-table-wrap.hide-tipo [data-col="tipo"],
+.admin-table-wrap.hide-rfc [data-col="rfc"],
+.admin-table-wrap.hide-regimen [data-col="regimen"],
+.admin-table-wrap.hide-cp [data-col="cp"],
+.admin-table-wrap.hide-correo [data-col="correo"],
+.admin-table-wrap.hide-documento [data-col="documento"],
+.admin-table-wrap.hide-actualizado [data-col="actualizado"],
+.admin-table-wrap.hide-numero [data-col="numero"],
+.admin-table-wrap.hide-fecha [data-col="fecha"],
+.admin-table-wrap.hide-concepto [data-col="concepto"],
+.admin-table-wrap.hide-cantidad [data-col="cantidad"],
+.admin-table-wrap.hide-iva [data-col="iva"],
+.admin-table-wrap.hide-total [data-col="total"] {
+  display: none !important;
+}
+
+.admin-table-wrap {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  box-shadow: var(--shadow-card);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  min-width: 760px;
+  table-layout: fixed;
+}
+
+/* Anchos iniciales por columna (el usuario puede arrastrar para ajustarlos).
+   table-layout:fixed hace que estos anchos del encabezado definan el ancho
+   real de cada columna, evitando que el contenido se desborde encima de la
+   columna vecina. */
+.admin-table th[data-col="nombre"] { width: 190px; }
+.admin-table th[data-col="tipo"] { width: 110px; }
+.admin-table th[data-col="rfc"] { width: 130px; }
+.admin-table th[data-col="regimen"] { width: 240px; }
+.admin-table th[data-col="cp"] { width: 100px; }
+.admin-table th[data-col="correo"] { width: 190px; }
+.admin-table th[data-col="documento"] { width: 190px; }
+.admin-table th[data-col="actualizado"] { width: 170px; }
+.admin-table th[data-col="numero"] { width: 130px; }
+.admin-table th[data-col="fecha"] { width: 170px; }
+.admin-table th[data-col="concepto"] { width: 220px; }
+.admin-table th[data-col="cantidad"] { width: 110px; }
+.admin-table th[data-col="iva"] { width: 80px; }
+.admin-table th[data-col="total"] { width: 110px; }
+.admin-table th:last-child { width: 210px; }
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.admin-table th {
+  position: relative;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-ink-soft);
+  background: var(--color-bg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.th-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-table tbody tr:hover { background: var(--color-accent-soft); }
+
+.admin-table td.col-nombre { font-weight: 600; }
+
+.nombre-preview-link {
+  color: var(--color-accent-dark);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.nombre-preview-link:hover,
+.nombre-preview-link:focus-visible {
+  color: var(--color-accent);
+  text-decoration-color: var(--color-accent);
+}
+.nombre-preview-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  border-radius: 3px;
+}
+.admin-table td.col-regimen {
+  white-space: pre-wrap;
+}
+.admin-table td.col-documento { white-space: normal; word-break: break-word; }
+
+/* Manija de redimensionar: franja delgada en el borde derecho del encabezado.
+   IMPORTANTE: debe quedar completamente DENTRO del <th> (right: 0, no un
+   valor negativo), porque el <th> tiene overflow:hidden para truncar texto
+   largo con elipsis -- cualquier parte de la manija que sobresalga del
+   borde quedaría recortada y dejaría de ser clickeable. */
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+  user-select: none;
+  touch-action: none;
+}
+.col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: var(--color-border);
+}
+.col-resizer:hover::after,
+.col-resizer.is-resizing::after {
+  left: 2px;
+  width: 3px;
+  background: var(--color-accent);
+}
+.admin-table th:last-child .col-resizer { display: none; }
+
+/* Mientras se arrastra, evita que se seleccione texto de la pagina */
+body.is-resizing-column { cursor: col-resize; user-select: none; }
+
+
+.admin-table .btn-ver {
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-accent-dark);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.admin-table .btn-ver:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
+
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Ícono de nota interna en la lista de tickets — solo aparece cuando el
+   ticket tiene algo capturado en "notas_admin"; al hacer clic abre el
+   mismo modal que "Gestionar" (ahí ya se puede leer/copiar el texto
+   completo). */
+.btn-nota-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.btn-nota-icono:hover { background: var(--color-accent); color: #fff; }
+.btn-nota-icono:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+/* Íconos de acción compactos (Editar / Restablecer contraseña /
+   Eliminar) en la tabla de Usuarios — reemplazan a los botones de texto
+   completo de antes ("Restablecer contraseña" por sí solo hacía la
+   columna de acciones más ancha que cualquier otra columna de la
+   tabla). Fondo neutro por defecto (no son una sola acción destacada
+   como el ícono de nota, son tres acciones distintas de igual peso);
+   la variante "peligro" (Eliminar) se distingue con tono rojo desde
+   antes de pasar el cursor, para que su naturaleza destructiva sea
+   evidente de un vistazo, no solo al pasar el mouse. */
+.btn-icono-accion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.btn-icono-accion:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+}
+.btn-icono-accion:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.btn-icono-accion-peligro {
+  color: var(--color-error);
+  border-color: #E8B4AF;
+}
+.btn-icono-accion-peligro:hover {
+  border-color: var(--color-error);
+  background: var(--color-error-soft);
+  color: var(--color-error);
+}
+
+/* Celda "Contacto" (correo + teléfono combinados) en la tabla de
+   Usuarios — el teléfono, cuando existe, se ve en un tono más apagado
+   para no competir visualmente con el correo (el dato más importante
+   de los dos, ya que es el identificador de contacto principal). */
+.usuario-contacto-linea {
+  display: block;
+  font-size: 13px;
+}
+.usuario-contacto-secundario {
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  margin-top: 1px;
+}
+
+/* Quién hizo el último cambio de estatus — texto pequeño debajo de la
+   fecha, en la misma celda "Actualizado" (en vez de una columna aparte,
+   ya que es información relacionada con lo mismo: cuándo Y quién). */
+.ticket-actualizado-por {
+  display: block;
+  font-size: 11.5px;
+  color: var(--color-ink-soft);
+  margin-top: 2px;
+}
+
+.admin-table .btn-eliminar,
+.admin-table .btn-restaurar,
+.admin-table .btn-eliminar-permanente {
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-table .btn-eliminar { color: var(--color-error); }
+.admin-table .btn-eliminar:hover { border-color: var(--color-error); background: var(--color-error-soft); }
+
+.admin-table .btn-restaurar { color: var(--color-accent-dark); }
+.admin-table .btn-restaurar:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
+
+.admin-table .btn-eliminar-permanente { color: var(--color-error); }
+.admin-table .btn-eliminar-permanente:hover { border-color: var(--color-error); background: var(--color-error-soft); }
+
+/* Botón de acción destructiva, usado en el modal de confirmación */
+.btn-danger {
+  background: var(--color-error);
+  color: #fff;
+}
+.btn-danger:hover { background: #962019; }
+
+/* ---------- Toggle Constancias / Tickets ---------- */
+.admin-vista-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-card);
+}
+.admin-vista-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.admin-vista-btn:hover { color: var(--color-ink); }
+.admin-vista-btn.is-active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .admin-vista-toggle { display: flex; width: 100%; }
+  .admin-vista-btn { flex: 1 1 auto; padding: 8px 10px; font-size: 12.5px; text-align: center; }
+}
+
+/* ---------- Tabla de tickets ---------- */
+.tickets-filtro-estatus {
+  padding: 8px 30px 8px 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6158' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+
+/* Insignias de estatus (compartidas conceptualmente con portal.css, pero
+   admin.css se mantiene autosuficiente ya que admin.html no carga portal.css) */
+.estatus-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.estatus-pendiente { background: var(--color-warn-soft); color: var(--color-warn); }
+.estatus-en-curso { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.estatus-cancelado { background: var(--color-error-soft); color: var(--color-error); }
+.estatus-listo { background: #DCEFE3; color: #146C43; }
+
+/* Estado de tenant (app de control, segmento 9) */
+.estatus-provisioning { background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border); }
+.estatus-activo { background: #DCEFE3; color: #146C43; }
+.estatus-suspendido { background: var(--color-warn-soft); color: var(--color-warn); }
+.estatus-baja { background: var(--color-error-soft); color: var(--color-error); }
+
+/* Insignia de perfil (cliente / administrador / fiscal) en la tabla de Usuarios */
+.perfil-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.perfil-cliente { background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border); }
+.perfil-administrador { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.perfil-fiscal { background: var(--color-warn-soft); color: var(--color-warn); }
+
+/* ---------- Tabla "Perfiles y roles de acceso" (solo para "admin") ----------
+   Diseñada para escanearse de un vistazo: cada columna es un área del
+   panel, cada fila un perfil, y el ✓/— responde de inmediato "¿puede
+   entrar aquí?" sin tener que leer texto. El detalle fino (CUÁLES
+   tarjetas de Configuraciones globales) se agrega como texto secundario
+   más pequeño, subordinado al símbolo — no compite con la respuesta
+   principal de la celda. */
+.tabla-perfiles-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.tabla-perfiles {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 640px;
+}
+.tabla-perfiles thead th {
+  text-align: left;
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.tabla-perfiles thead th:first-child { border-top-left-radius: var(--radius-md); }
+.tabla-perfiles thead th:last-child { border-top-right-radius: var(--radius-md); }
+.tabla-perfiles tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+.tabla-perfiles tbody tr:last-child td { border-bottom: none; }
+.tabla-perfiles tbody tr:nth-child(even) { background: rgba(33, 38, 31, 0.015); }
+.fila-perfil-super { background: var(--color-accent-soft) !important; }
+
+.perfil-descripcion {
+  display: block;
+  font-size: 10.5px;
+  color: var(--color-ink-soft);
+  margin-top: 3px;
+  font-weight: 400;
+}
+
+.icono-acceso {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+}
+.celda-acceso-si .icono-acceso { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.celda-acceso-no .icono-acceso { background: var(--color-bg); color: var(--color-ink-soft); }
+
+.detalle-acceso {
+  display: block;
+  font-size: 10px;
+  color: var(--color-ink-soft);
+  margin-top: 3px;
+  line-height: 1.4;
+  max-width: 150px;
+}
+.detalle-acceso-ancho {
+  max-width: none;
+  font-size: 11.5px;
+  font-style: italic;
+}
+
+/* Utilidad de accesibilidad: visible para lectores de pantalla, oculta
+   visualmente — para no repetir "Sí"/"No" como texto plano junto al
+   símbolo (ya lo comunica el color/forma), pero sin dejar la tabla
+   incomprensible para quien no puede ver esos símbolos. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Modal de gestión de ticket ---------- */
+.ticket-modal {
+  max-width: 420px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.ticket-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ticket-modal-header h2 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  margin: 0;
+}
+
+/* Cuadrícula de datos del ticket: reemplaza la línea corrida de antes
+   (RFC · Uso de CFDI · Tipo de pago · archivo) por pares etiqueta/valor
+   fáciles de escanear de un vistazo. */
+.ticket-modal-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.ticket-modal-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.ticket-modal-info-item-ancho {
+  grid-column: 1 / -1;
+}
+.ticket-modal-info-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+  margin: 0;
+}
+.ticket-modal-info-value {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 380px) {
+  .ticket-modal-info-grid { grid-template-columns: 1fr; }
+  .ticket-modal-info-item-ancho { grid-column: auto; }
+}
+
+/* Comentarios del cliente: antes era un párrafo más, ahora es un bloque
+   destacado (borde de color + ícono + etiqueta) para que no se confunda
+   con el resto de la información ni pase desapercibido. */
+.ticket-modal-comentarios-box {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: var(--color-accent-soft);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+}
+
+/* Caja de "compra capturada por el cliente", justo arriba de la foto del
+   ticket, para poder cotejar visualmente uno contra el otro sin tener
+   que ir a buscar la orden de compra por separado. Fondo neutro (no el
+   verde de "comentarios") para no competir visualmente con la foto que
+   viene justo debajo, que es lo más importante de revisar en esta
+   pantalla. */
+.ticket-modal-compra-box {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.ticket-modal-compra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 16px;
+  margin: 10px 0 0;
+}
+@media (max-width: 420px) {
+  .ticket-modal-compra-grid { grid-template-columns: 1fr; }
+}
+
+.ticket-modal-comentarios-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 6px;
+}
+.ticket-modal-comentarios-header svg {
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+.ticket-modal-comentarios-texto {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ticket-modal-imagen-wrap {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-in;
+}
+.ticket-modal-imagen-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.15s ease;
+  transform-origin: 50% 50%;
+}
+/* Efecto lupa: al pasar el cursor, la imagen se agranda; admin.js ajusta
+   transform-origin en cada movimiento del mouse para que el acercamiento
+   siga la posicion del cursor. */
+.ticket-modal-imagen-wrap:hover img {
+  transform: scale(2.4);
+}
+
+.ticket-modal-imagen-status {
+  margin: 0;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+
+.ticket-modal-imagen-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+.ticket-modal-imagen-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+.btn-descargar-imagen {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .ticket-modal-imagen-acciones { flex-direction: column; align-items: stretch; }
+  .btn-descargar-imagen { justify-content: center; }
+  .ticket-modal-imagen-wrap { height: 220px; }
+}
+
+.ticket-modal .estatus-badge { margin-bottom: 14px; }
+
+.ticket-modal-estatus-field { margin-bottom: 16px; }
+
+.ticket-modal > .btn-block { margin-bottom: 16px; }
+
+.ticket-modal-factura {
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+.ticket-modal-factura-actual {
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.ticket-modal-factura-actual .ticket-modal-factura-hint {
+  margin-bottom: 8px;
+}
+.ticket-modal-factura label {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ticket-modal-factura-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+.ticket-modal-factura input[type="file"] {
+  width: 100%;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+/* Modal de vista previa del documento */
+.preview-overlay {
+  padding: 24px;
+}
+
+.preview-modal {
+  max-width: 900px;
+  width: 100%;
+  height: min(85vh, 900px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.preview-header-text { min-width: 0; }
+
+.preview-header-text h2 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.preview-subtitle {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.preview-header-actions .btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.preview-close {
+  font-size: 18px;
+  padding: 6px 10px;
+}
+
+.preview-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-status {
+  margin: 0;
+  padding: 20px;
+  font-size: 14px;
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+
+.preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 640px) {
+  .preview-overlay { padding: 0; }
+  .preview-modal {
+    max-width: none;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+  .preview-header { padding: 14px 16px; }
+}
+
+
+.admin-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--color-ink-soft);
+  font-size: 14px;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-header { padding: 14px 16px; }
+  .admin-main { padding: 18px 12px 40px; }
+}
+
+/* Debajo de este ancho, la tabla se convierte en tarjetas apiladas
+   en vez de requerir scroll horizontal. */
+@media (max-width: 760px) {
+  .admin-table-wrap { overflow-x: visible; }
+
+  .admin-table { min-width: 0; }
+
+  .admin-table thead { display: none; }
+
+  .admin-table, .admin-table tbody, .admin-table tr, .admin-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-table tbody tr {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .admin-table td {
+    border-bottom: none;
+    padding: 5px 0;
+    max-width: none;
+  }
+
+  .admin-table td[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-ink-soft);
+    margin-bottom: 2px;
+  }
+
+  .admin-table td[data-label=""] { padding-top: 10px; }
+  .admin-row-actions { flex-direction: column; }
+  .admin-table .btn-ver,
+  .admin-table .btn-eliminar,
+  .admin-table .btn-restaurar,
+  .admin-table .btn-eliminar-permanente {
+    width: 100%;
+    padding: 10px;
+    text-align: center;
+  }
+  /* Los íconos de acción (Usuarios) son lo bastante compactos para
+     seguir viéndose bien en una sola fila incluso en celular — apilarlos
+     verticalmente como los botones de texto completo desperdiciaría
+     espacio sin necesidad. */
+  .admin-row-actions-iconos { flex-direction: row; }
+}
+
+/* Extension del modal base (style.css) para el formulario de captura de
+   empresa nueva en la app de control (segmento 9c) � el modal por defecto
+   mide 380px, insuficiente para el formulario con preview de URLs y la
+   seccion fiscal plegable. Se limita el alto para que en pantallas chicas
+   el formulario haga scroll dentro del modal en vez de desbordar. */
+.modal-ancho {
+  max-width: 560px;
+  max-height: min(90vh, 680px);
+  overflow-y: auto;
+}
+

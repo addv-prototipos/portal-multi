@@ -1,0 +1,226 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: pfacturacion-mysql
+    restart: unless-stopped
+    # Limite de memoria: sin esto, un pico de memoria en cualquiera de los
+    # tres contenedores puede dejar sin RAM al host completo, y el OOM
+    # killer del sistema operativo puede terminar matando el proceso
+    # equivocado (a veces ni siquiera el que causó el problema) — eso se ve
+    # como caidas random e inexplicables. Con un limite, ese contenedor en
+    # particular es el que se reinicia (gracias a "restart: unless-stopped"),
+    # de forma contenida y predecible, en vez de arriesgar al host entero.
+    mem_limit: 1g
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-portal_facturacion}
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme_app_password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - fiscal-net
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD:-changeme_root_password}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Almacenamiento de archivos (constancias, imágenes de ticket, facturas)
+  # — segmento 5 del plan multi-tenant, ver PROJECT_STATE.md. Reemplaza el
+  # bind mount local `./uploads` (que se rompe en cuanto hay más de una
+  # réplica del backend) por un bucket S3-compatible self-hosted, con un
+  # prefijo por tenant dentro del mismo bucket (ver backend/utils/storage.js).
+  # NOTA: imagen sin pin a un tag RELEASE.<fecha> específico — no se pudo
+  # verificar cuál es el tag estable actual desde este entorno (sin acceso
+  # a Docker Hub). Pin a un tag real antes de producción (ver
+  # PROJECT_STATE.md, punto del segmento 5).
+  minio:
+    image: minio/minio:latest
+    container_name: pfacturacion-minio
+    restart: unless-stopped
+    mem_limit: 512m
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme_minio_password}
+    volumes:
+      - minio_data:/data
+    networks:
+      - fiscal-net
+    # Solo la consola de administración se expone al host (útil para
+    # inspeccionar el bucket en desarrollo, mismo espíritu que MYSQL_PORT
+    # arriba) — el puerto de la API S3 (9000) NO se publica: el backend lo
+    # alcanza por la red interna de Docker, igual que hace con MySQL.
+    ports:
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pfacturacion-backend
+    restart: unless-stopped
+    # 512m era razonable cuando se fijó este límite por primera vez, pero
+    # desde entonces se agregaron exceljs (genera archivos .xlsx
+    # completos en memoria) y pdf-parse (buffers el PDF completo al
+    # leerlo) — ambas pueden tener picos de memoria notables con archivos
+    # grandes o reportes con muchos registros. Un límite demasiado justo
+    # significa que el propio Docker mata el contenedor (OOM) en esos
+    # picos, y "restart: unless-stopped" lo reinicia — eso es EXACTAMENTE
+    # el tipo de intermitencia que un límite generoso busca evitar, no
+    # causar.
+    mem_limit: 768m
+    # Le da tiempo suficiente al apagado ordenado (ver server.js) para
+    # terminar las peticiones en curso y cerrar el pool de MySQL con
+    # calma antes de que Docker mande SIGKILL — el propio código tiene un
+    # limite interno de 10s para forzar la salida si algo se traba, así
+    # que 15s aquí deja margen de sobra sin alargar innecesariamente un
+    # despliegue o reinicio.
+    stop_grace_period: 15s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
+      UPLOAD_DIR: /app/uploads
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER:-app}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_app_password}
+      DB_NAME: ${MYSQL_DATABASE:-portal_facturacion}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      ADMIN_USERS: ${ADMIN_USERS:-admin:admin}
+      USO_CFDI_SYNC_URL: ${USO_CFDI_SYNC_URL:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      NODE_ENV: production
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:-portal-facturacion}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme_minio_password}
+      # Segmento 9b: mismo secreto que el contenedor "control" -- protege
+      # POST /internal/cache-tenant/invalidar (ver server.js). Sin esto,
+      # ese endpoint queda inalcanzable (rechaza todo con 403), no roto.
+      INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - fiscal-net
+    expose:
+      - "4000"
+
+  # App de control, en su propio contenedor por seguridad y portabilidad
+  # (segmento 9b, ver PROJECT_STATE.md) -- gestión cross-tenant del ciclo
+  # de vida de empresas (suspender/reactivar/dar de baja), aislada del
+  # backend principal: credencial de MySQL propia y angosta (control_app,
+  # solo control_tenants, sin acceso a ninguna base tenant_*), y auth
+  # propia (solo ADMIN_USERS, sin tocar la BD de ningún tenant). Puede
+  # desplegarse en otro servidor si hace falta -- ver README, sección
+  # "App de control".
+  #
+  # IMPORTANTE: el usuario MySQL "control_app" no existe hasta que corras
+  # (una vez) backend/scripts/provisionar-tenant.js o
+  # cutover-tenant-piloto.js con CONTROL_APP_PASSWORD definido en el
+  # entorno -- ese script es el que lo crea (requiere privilegios root,
+  # que ningún contenedor tiene montados). Sin eso, este servicio arranca
+  # pero /control responde error de conexión hasta que lo corras.
+  control:
+    build:
+      context: ./control
+      dockerfile: Dockerfile
+    container_name: pfacturacion-control
+    restart: unless-stopped
+    mem_limit: 256m
+    stop_grace_period: 10s
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PORT: 4001
+      ADMIN_USERS: ${ADMIN_USERS:-admin:admin}
+      CONTROL_DB_HOST: mysql
+      CONTROL_DB_PORT: 3306
+      CONTROL_DB_USER: control_app
+      CONTROL_DB_PASSWORD: ${CONTROL_APP_PASSWORD:-changeme_control_app_password}
+      CONTROL_DB_NAME: control_tenants
+      # Segmento 9c: infra de la BD física que recibirán los tenants
+      # capturados por el intake de "Nueva empresa" (ver .env.example) —
+      # por defecto la misma instancia MySQL compartida.
+      TENANT_DB_HOST: ${TENANT_DB_HOST:-mysql}
+      TENANT_DB_USER: ${TENANT_DB_USER:-app}
+      BACKEND_INTERNAL_URL: http://backend:4000
+      INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    networks:
+      - fiscal-net
+    expose:
+      - "4001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pfacturacion-frontend
+    restart: unless-stopped
+    mem_limit: 128m
+    depends_on:
+      backend:
+        # No solo espera a que el CONTENEDOR arranque (lo que hacía
+        # antes, con la sintaxis corta "depends_on: - backend") — espera a
+        # que su healthcheck pase (ver Dockerfile del backend, que ya
+        # traía un HEALTHCHECK definido pero que docker-compose nunca
+        # estaba usando para esta espera). Sin esto, nginx podía arrancar
+        # y empezar a recibir tráfico antes de que el backend hubiera
+        # terminado de preparar el esquema de la base de datos —
+        # peticiones muy tempranas fallarían sin motivo aparente.
+        condition: service_healthy
+      control:
+        condition: service_healthy
+    environment:
+      # Segmento 9b: a dónde reenviar /api/control/* -- por defecto el
+      # servicio "control" de este mismo docker-compose.yml, en la misma
+      # red Docker. Si ese contenedor se despliega en otro servidor,
+      # cambia estas dos por su host/IP/dominio real (ver README).
+      CONTROL_UPSTREAM_HOST: ${CONTROL_UPSTREAM_HOST:-control}
+      CONTROL_UPSTREAM_PORT: ${CONTROL_UPSTREAM_PORT:-4001}
+    # Puerto 80 por defecto (antes 8080) — para que el sitio se vea en
+    # http://localhost directamente, sin tener que agregar un puerto a
+    # la URL. Sigue siendo configurable con la variable FRONTEND_PORT
+    # (ej. si el 80 del host ya está ocupado por otra cosa).
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    networks:
+      - fiscal-net
+
+networks:
+  fiscal-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  minio_data:
+    driver: local

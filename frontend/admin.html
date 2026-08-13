@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Administración | Portal de Facturación</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body class="admin-body">
+  <!-- Pantalla de acceso -->
+  <div class="admin-login-screen" id="admin-login-screen">
+    <div class="card admin-login-card">
+      <div class="brand admin-login-brand">
+        <span class="brand-mark" aria-hidden="true">FX</span>
+        <span class="brand-name">Administración</span>
+      </div>
+      <p class="panel-subtitle admin-login-subtitle">Inicia sesión para ver la información recibida.</p>
+
+      <form id="form-login" novalidate>
+        <div class="field">
+          <label for="admin-user">Usuario</label>
+          <input type="text" id="admin-user" name="usuario" autocomplete="username" autofocus required />
+        </div>
+        <div class="field">
+          <label for="admin-pass">Contraseña</label>
+          <div class="password-field">
+            <input type="password" id="admin-pass" name="contrasena" autocomplete="current-password" required />
+            <button type="button" class="btn-toggle-pass" id="btn-toggle-pass" aria-label="Mostrar contraseña" aria-pressed="false">
+              <svg id="icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p class="field-error" id="login-error" role="alert"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="btn-login">
+          <span id="btn-login-label">Entrar</span>
+        </button>
+      </form>
+
+      <p class="admin-login-hint">¿Olvidaste tus credenciales? Revisa la variable <code>ADMIN_USERS</code> en tu configuración de Docker Compose.</p>
+    </div>
+  </div>
+
+  <!-- Panel de administración -->
+  <div class="admin-dashboard" id="admin-dashboard" hidden>
+    <header class="admin-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">FX</span>
+        <span class="brand-name">Administración</span>
+        <span class="brand-fiscal-info" id="brand-fiscal-info" hidden></span>
+      </div>
+      <div class="admin-header-actions">
+        <span class="admin-user-label" id="admin-user-label"></span>
+        <button type="button" class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <main class="admin-main">
+      <div class="admin-vista-toggle" role="tablist" aria-label="Vista del panel">
+        <button type="button" class="admin-vista-btn is-active" id="btn-vista-constancias" role="tab" aria-selected="true">Constancias</button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-tickets" role="tab" aria-selected="false">Tickets</button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-ordenes" role="tab" aria-selected="false">Orden de compra</button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-usuarios" role="tab" aria-selected="false">Usuarios</button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-configuraciones" role="tab" aria-selected="false">Configuraciones globales</button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-lectura-reportes" role="tab" aria-selected="false">Reportes</button>
+      </div>
+
+      <div id="vista-constancias">
+      <div class="admin-toolbar">
+        <div class="admin-toolbar-title">
+          <h1 id="admin-tabla-titulo">Registros recibidos</h1>
+          <div class="view-toggle" role="tablist" aria-label="Vista de registros">
+            <button type="button" class="view-toggle-btn is-active" id="btn-ver-activos" role="tab" aria-selected="true">Activos</button>
+            <button type="button" class="view-toggle-btn" id="btn-ver-papelera" role="tab" aria-selected="false">Papelera</button>
+          </div>
+        </div>
+        <div class="admin-toolbar-right">
+          <span class="admin-count" id="admin-count">0 registros</span>
+          <div class="column-toggle" id="column-toggle">
+            <button type="button" class="btn btn-secondary" id="btn-columns" aria-haspopup="true" aria-expanded="false" aria-controls="column-toggle-panel">
+              Columnas
+            </button>
+            <div class="column-toggle-panel" id="column-toggle-panel" hidden>
+              <p class="column-toggle-title">Mostrar columnas</p>
+              <label class="checkbox-row"><input type="checkbox" data-col="nombre" checked /><span>Nombre / razón social</span></label>
+              <label class="checkbox-row"><input type="checkbox" data-col="tipo" checked /><span>Tipo</span></label>
+              <label class="checkbox-row"><input type="checkbox" data-col="rfc" checked /><span>RFC</span></label>
+              <label class="checkbox-row"><input type="checkbox" data-col="regimen" checked /><span>Régimen fiscal</span></label>
+              <label class="checkbox-row"><input type="checkbox" data-col="cp" checked /><span>Código postal</span></label>
+              <label class="checkbox-row"><input type="checkbox" data-col="correo" checked /><span>Correo</span></label>
+              <label class="checkbox-row"><input type="checkbox" data-col="documento" checked /><span>Documento</span></label>
+              <label class="checkbox-row"><input type="checkbox" data-col="actualizado" checked /><span>Actualizado</span></label>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary" id="btn-refresh">Actualizar</button>
+        </div>
+      </div>
+
+      <div class="admin-search">
+        <svg class="admin-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <input
+          type="search"
+          id="admin-search-input"
+          class="admin-search-input"
+          placeholder="Buscar por nombre o razón social, o por RFC…"
+          aria-label="Buscar registros por nombre, razón social o RFC"
+          autocomplete="off"
+        />
+        <button type="button" class="btn-icon admin-search-clear" id="btn-clear-search" aria-label="Limpiar búsqueda" hidden>✕</button>
+      </div>
+
+      <p class="field-error" id="admin-error" role="alert"></p>
+
+      <div class="admin-table-wrap" id="admin-table-wrap">
+        <table class="admin-table" id="admin-table">
+          <thead>
+            <tr>
+              <th data-col="nombre"><span class="th-label">Nombre / razón social</span><span class="col-resizer" data-resizer="nombre"></span></th>
+              <th data-col="tipo"><span class="th-label">Tipo</span><span class="col-resizer" data-resizer="tipo"></span></th>
+              <th data-col="rfc"><span class="th-label">RFC</span><span class="col-resizer" data-resizer="rfc"></span></th>
+              <th data-col="regimen"><span class="th-label">Régimen fiscal</span><span class="col-resizer" data-resizer="regimen"></span></th>
+              <th data-col="cp"><span class="th-label">Código postal</span><span class="col-resizer" data-resizer="cp"></span></th>
+              <th data-col="correo"><span class="th-label">Correo</span><span class="col-resizer" data-resizer="correo"></span></th>
+              <th data-col="documento"><span class="th-label">Documento</span><span class="col-resizer" data-resizer="documento"></span></th>
+              <th data-col="actualizado"><span class="th-label">Actualizado</span><span class="col-resizer" data-resizer="actualizado"></span></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="admin-table-body">
+          </tbody>
+        </table>
+        <p class="admin-empty" id="admin-empty" hidden>Aún no hay registros.</p>
+      </div>
+      </div><!-- /vista-constancias -->
+
+      <div id="vista-tickets" hidden>
+        <!-- Configuración de borrado automático de tickets -->
+        <section class="admin-config-card" id="retencion-config-card">
+          <button type="button" class="admin-config-toggle" id="btn-toggle-retencion" aria-expanded="false" aria-controls="retencion-config-body">
+            <span class="admin-config-toggle-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m3 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+              Borrado automático de tickets y órdenes de compra
+              <span class="smtp-estado-badge" id="retencion-estado-badge" hidden></span>
+            </span>
+            <svg class="admin-config-chevron" id="retencion-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <div class="admin-config-body" id="retencion-config-body" hidden>
+            <p class="panel-subtitle admin-config-subtitle">
+              Define después de cuántos días se elimina automáticamente un ticket (imagen, factura si ya la tiene, y su registro) — <strong>y, con el mismo número de días, también una orden de compra</strong> (su registro; no tiene archivos que limpiar). Se aplica a ambos sin importar su estatus. Los clientes ven un aviso de esto en su tablero.
+            </p>
+
+            <div class="retencion-config-fila">
+              <div class="field retencion-config-input">
+                <label for="retencion-dias">Días antes de eliminar un ticket u orden de compra</label>
+                <input type="number" id="retencion-dias" min="0" max="3650" placeholder="0 = desactivado" />
+              </div>
+              <button type="button" class="btn btn-primary" id="btn-guardar-retencion">
+                <span id="btn-guardar-retencion-label">Guardar</span>
+              </button>
+            </div>
+
+            <p class="field-error" id="retencion-error" role="alert"></p>
+            <p class="admin-config-catalogo-info" id="retencion-info"></p>
+            <p class="admin-config-catalogo-info" id="retencion-info-ordenes"></p>
+          </div>
+        </section>
+
+        <div class="admin-toolbar">
+          <div class="admin-toolbar-title">
+            <h1 id="tickets-tabla-titulo">Tickets para facturar</h1>
+            <div class="view-toggle" role="tablist" aria-label="Vista de tickets">
+              <button type="button" class="view-toggle-btn is-active" id="btn-ver-tickets-activos" role="tab" aria-selected="true">Activos</button>
+              <button type="button" class="view-toggle-btn" id="btn-ver-tickets-papelera" role="tab" aria-selected="false">Papelera</button>
+            </div>
+          </div>
+          <div class="admin-toolbar-right">
+            <span class="admin-count" id="tickets-count">0 tickets</span>
+            <select class="tickets-filtro-estatus" id="tickets-filtro-estatus" aria-label="Filtrar por estatus">
+              <option value="">Todos los estatus</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="en_curso">En curso</option>
+              <option value="cancelado">Cancelado</option>
+              <option value="listo">Listo</option>
+            </select>
+            <select class="tickets-filtro-estatus" id="tickets-filtro-usuario" aria-label="Filtrar por usuario que hizo el último cambio">
+              <option value="">Todos los usuarios</option>
+            </select>
+            <button type="button" class="btn btn-secondary" id="btn-refresh-tickets">Actualizar</button>
+          </div>
+        </div>
+
+        <p class="field-error" id="tickets-error" role="alert"></p>
+
+        <div class="admin-table-wrap">
+          <table class="admin-table tickets-table">
+            <thead>
+              <tr>
+                <th>Folio</th>
+                <th>RFC</th>
+                <th>Uso de CFDI</th>
+                <th>Ticket</th>
+                <th>Estatus</th>
+                <th>Asignado a</th>
+                <th>Notas</th>
+                <th>Actualizado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tickets-table-body"></tbody>
+          </table>
+          <p class="admin-empty" id="tickets-empty" hidden>No hay tickets todavía.</p>
+        </div>
+      </div>
+
+      <div id="vista-ordenes" hidden>
+        <div class="admin-toolbar">
+          <div class="admin-toolbar-title">
+            <h1>Orden de compra</h1>
+          </div>
+          <div class="admin-toolbar-right">
+            <span class="admin-count" id="ordenes-count">0 órdenes</span>
+            <div class="column-toggle" id="ordenes-column-toggle">
+              <button type="button" class="btn btn-secondary" id="btn-ordenes-columns" aria-haspopup="true" aria-expanded="false" aria-controls="ordenes-column-toggle-panel">
+                Columnas
+              </button>
+              <div class="column-toggle-panel" id="ordenes-column-toggle-panel" hidden>
+                <p class="column-toggle-title">Mostrar columnas</p>
+                <label class="checkbox-row"><input type="checkbox" data-col="numero" checked /><span>No. Compra</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="fecha" checked /><span>Fecha</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="concepto" checked /><span>Concepto</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="cantidad" checked /><span>Cantidad</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="iva" checked /><span>IVA</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="total" checked /><span>Total</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="correo" checked /><span>Correo</span></label>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-refresh-ordenes">Actualizar</button>
+          </div>
+        </div>
+
+        <div class="orden-compra-layout">
+          <section class="admin-config-card orden-compra-columna-form">
+            <button type="button" class="admin-config-toggle" id="btn-toggle-orden-form" aria-expanded="true" aria-controls="orden-form-body">
+              <span class="admin-config-toggle-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <span class="orden-form-titulo">Registrar orden de compra</span>
+              </span>
+              <svg class="admin-config-chevron" id="orden-form-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <div class="orden-form-body admin-config-body" id="orden-form-body">
+              <p class="panel-subtitle admin-config-subtitle">Captura los datos de la compra. La fecha y el IVA se toman automáticamente de "Configuraciones globales" — no se capturan a mano.</p>
+
+              <div class="field">
+                <label>Fecha de compra</label>
+                <p class="orden-campo-automatico" id="orden-fecha-auto">Se genera automáticamente al guardar, con la zona horaria configurada.</p>
+              </div>
+
+              <div class="field">
+                <label for="orden-concepto">Concepto de venta o servicio <span class="required">*</span></label>
+                <textarea id="orden-concepto" maxlength="255" rows="2" placeholder="Ej. Venta de equipo de cómputo"></textarea>
+                <p class="field-hint" id="orden-concepto-contador">0 / 255</p>
+                <p class="field-error" id="error-orden-concepto" role="alert"></p>
+              </div>
+
+              <div class="field">
+                <label for="orden-cantidad">Cantidad (MXN) <span class="required">*</span></label>
+                <input type="text" inputmode="decimal" id="orden-cantidad" placeholder="0.00" autocomplete="off" />
+                <p class="field-error" id="error-orden-cantidad" role="alert"></p>
+              </div>
+
+              <div class="field">
+                <label>IVA</label>
+                <p class="orden-campo-automatico" id="orden-iva-info">—</p>
+              </div>
+
+              <div class="field">
+                <label>Total</label>
+                <p class="orden-total-preview" id="orden-total-preview">$0.00 MXN</p>
+                <p class="field-hint">Cantidad + IVA — <strong>esta es la cantidad que se va a facturar</strong>.</p>
+              </div>
+
+              <div class="field">
+                <label for="orden-email">Correo electrónico <span class="required">*</span></label>
+                <select id="orden-email">
+                  <option value="">Selecciona un correo</option>
+                </select>
+                <p class="field-hint">Solo se muestran correos que ya tienen una constancia de situación fiscal subida.</p>
+                <p class="field-error" id="error-orden-email" role="alert"></p>
+              </div>
+
+              <div class="field" id="orden-datos-cliente" hidden>
+                <label>Datos asociados a este correo</label>
+                <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
+                <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
+                <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la orden.</p>
+              </div>
+
+              <p class="field-error" id="orden-error-general" role="alert"></p>
+
+              <div class="btn-row admin-config-actions">
+                <button type="button" class="btn btn-primary" id="btn-registrar-orden">
+                  <span id="btn-registrar-orden-label">Registrar orden de compra</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="orden-compra-columna-lista">
+            <h2 class="orden-lista-titulo">Órdenes registradas</h2>
+            <p class="field-error" id="ordenes-error" role="alert"></p>
+
+            <div class="admin-table-wrap" id="ordenes-table-wrap">
+              <table class="admin-table ordenes-table">
+                <thead>
+                  <tr>
+                    <th data-col="numero"><span class="th-label">No. Compra</span><span class="col-resizer" data-resizer="numero"></span></th>
+                    <th data-col="fecha"><span class="th-label">Fecha</span><span class="col-resizer" data-resizer="fecha"></span></th>
+                    <th data-col="concepto"><span class="th-label">Concepto</span><span class="col-resizer" data-resizer="concepto"></span></th>
+                    <th data-col="cantidad"><span class="th-label">Cantidad</span><span class="col-resizer" data-resizer="cantidad"></span></th>
+                    <th data-col="iva"><span class="th-label">IVA</span><span class="col-resizer" data-resizer="iva"></span></th>
+                    <th data-col="total"><span class="th-label">Total</span><span class="col-resizer" data-resizer="total"></span></th>
+                    <th data-col="correo"><span class="th-label">Correo</span><span class="col-resizer" data-resizer="correo"></span></th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="ordenes-table-body"></tbody>
+              </table>
+              <p class="admin-empty" id="ordenes-empty" hidden>No hay órdenes de compra registradas todavía.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="vista-usuarios" hidden>
+        <!-- "Orden de compra" y "Cuenta de respaldo admin" van una junto a
+             la otra en una cuadrícula de 2 columnas — ambas tienen poco
+             contenido (un interruptor la una, un campo de contraseña la
+             otra), así que apiladas una debajo de otra dejaban mucho
+             espacio vacío a los lados; puestas al mismo nivel se ven
+             parejas, igual que ya se hizo en "Configuraciones globales".
+             "Perfiles y roles de acceso" (con una tabla ancha adentro) se
+             queda fuera de esta cuadrícula, en su propia fila completa. -->
+        <div class="usuarios-tarjetas-compactas">
+        <!-- Habilitar Orden de compra — se movió aquí desde "Configuraciones
+             fiscales": "Orden de compra" es un área exclusiva del perfil
+             Administrador (igual que "Usuarios"), así que activarla/
+             desactivarla vive junto al resto de los controles que ese
+             mismo perfil puede ver — un perfil Fiscal, que no ve "Orden de
+             compra" como vista, tampoco debería ver el interruptor que la
+             prende o apaga. -->
+        <section class="admin-config-card" id="ordenes-toggle-card">
+          <button type="button" class="admin-config-toggle" id="btn-toggle-ordenes-card" aria-expanded="false" aria-controls="ordenes-toggle-body">
+            <span class="admin-config-toggle-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="M8 7V5a4 4 0 0 1 8 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+              Orden de compra
+            </span>
+            <svg class="admin-config-chevron" id="ordenes-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div class="admin-config-body" id="ordenes-toggle-body" hidden>
+            <label class="switch-toggle">
+              <input type="checkbox" id="config-ordenes-habilitado" checked />
+              <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+              <span class="switch-toggle-texto">
+                <span class="switch-toggle-label">Habilitar Orden de compra</span>
+                <span class="switch-toggle-hint">Con esto apagado, se oculta el botón "Orden de compra" del panel, y subir un ticket ya no exige verificar la compra. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
+                <span class="switch-toggle-autoguardado" id="ordenes-habilitado-autoguardado" role="status" aria-live="polite"></span>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Cuenta de respaldo "admin" -->
+        <section class="admin-config-card" id="admin-fallback-card">
+          <button type="button" class="admin-config-toggle" id="btn-toggle-admin-fallback" aria-expanded="false" aria-controls="admin-fallback-body">
+            <span class="admin-config-toggle-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3 4 6v6c0 4.5 3.2 7.9 8 9 4.8-1.1 8-4.5 8-9V6l-8-3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="m9.5 12 2 2 3.5-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Cuenta de respaldo "admin"
+            </span>
+            <svg class="admin-config-chevron" id="admin-fallback-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <div class="admin-config-body" id="admin-fallback-body" hidden>
+            <p class="panel-subtitle admin-config-subtitle">
+              El usuario <strong>"admin"</strong> es una cuenta de respaldo independiente de cualquier otro administrador: sirve para no quedarte fuera del panel si olvidas una contraseña o pierdes acceso a la configuración del servidor. Viene con la contraseña <strong>"admin"</strong> por defecto — cámbiala aquí cuanto antes. Esta regla es exclusiva de esta cuenta: los demás administradores o fiscales que crees abajo no tienen este respaldo.
+            </p>
+
+            <button type="button" class="btn btn-secondary btn-generar-password" id="btn-generar-password-admin-fallback">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4.5 15a8 8 0 0 0 14.5 3.5M19.5 9A8 8 0 0 0 5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Generar contraseña automática
+            </button>
+
+            <div class="field">
+              <label for="admin-fallback-password">Nueva contraseña para "admin"</label>
+              <div class="password-field password-field-con-copiar">
+                <input type="password" id="admin-fallback-password" autocomplete="new-password" />
+                <button type="button" class="btn-toggle-pass" id="btn-toggle-admin-fallback-password" aria-label="Mostrar contraseña" aria-pressed="false">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                </button>
+                <button type="button" class="btn-copiar-pass" id="btn-copiar-admin-fallback-password" aria-label="Copiar contraseña al portapapeles" hidden>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/>
+                    <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                </button>
+              </div>
+              <ul class="password-reglas" id="admin-fallback-reglas">
+                <li data-regla="longitud">Al menos 8 caracteres</li>
+                <li data-regla="numero">Al menos un número</li>
+                <li data-regla="minuscula">Al menos una minúscula</li>
+                <li data-regla="mayuscula">Al menos una mayúscula</li>
+              </ul>
+              <p class="field-error" id="admin-fallback-error" role="alert"></p>
+            </div>
+
+            <div class="btn-row admin-config-actions">
+              <button type="button" class="btn btn-primary" id="btn-guardar-admin-fallback">
+                <span id="btn-guardar-admin-fallback-label">Guardar contraseña</span>
+              </button>
+            </div>
+          </div>
+        </section>
+        </div><!-- /usuarios-tarjetas-compactas -->
+
+        <!-- Perfiles y roles de acceso — solo visible para el usuario "admin" -->
+        <section class="admin-config-card" id="perfiles-acceso-card">
+          <button type="button" class="admin-config-toggle" id="btn-toggle-perfiles-acceso" aria-expanded="false" aria-controls="perfiles-acceso-body">
+            <span class="admin-config-toggle-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M3.5 19c.6-3.4 2.9-5.2 5.5-5.2s4.9 1.8 5.5 5.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                <circle cx="17.5" cy="7.5" r="2.4" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M14.8 13.3c2.3.3 3.9 1.8 4.4 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              Perfiles y roles de acceso
+            </span>
+            <svg class="admin-config-chevron" id="perfiles-acceso-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <div class="admin-config-body" id="perfiles-acceso-body" hidden>
+            <p class="panel-subtitle admin-config-subtitle">
+              Referencia de qué puede ver cada perfil en este panel — solo tú, como usuario <strong>"admin"</strong>, puedes ver esta tabla. No es un formulario: los permisos no se editan aquí, están definidos en el código del panel.
+            </p>
+
+            <div class="tabla-perfiles-wrap">
+              <table class="tabla-perfiles">
+                <thead>
+                  <tr>
+                    <th scope="col">Perfil</th>
+                    <th scope="col">Constancias</th>
+                    <th scope="col">Tickets</th>
+                    <th scope="col">Orden de compra</th>
+                    <th scope="col">Usuarios</th>
+                    <th scope="col">Reportes</th>
+                    <th scope="col">Configuraciones globales</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="fila-perfil-super">
+                    <td>
+                      <span class="perfil-badge perfil-administrador">Super</span>
+                      <span class="perfil-descripcion">Cuenta "admin" y ADMIN_USERS</span>
+                    </td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si">
+                      <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
+                      <span class="detalle-acceso">Todas las tarjetas</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span class="perfil-badge perfil-administrador">Administrador</span>
+                      <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
+                    </td>
+                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si">
+                      <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
+                      <span class="detalle-acceso">Solo Configuraciones fiscales y Configuración Reportes</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span class="perfil-badge perfil-fiscal">Fiscal</span>
+                      <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
+                    </td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+                    <td class="celda-acceso-si">
+                      <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
+                      <span class="detalle-acceso">Solo Campos obligatorios y Configuraciones fiscales</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span class="perfil-badge perfil-cliente">Cliente</span>
+                      <span class="perfil-descripcion">Solo entra a login.html</span>
+                    </td>
+                    <td class="celda-acceso-no" colspan="6">
+                      <span class="detalle-acceso detalle-acceso-ancho">Sin acceso al panel de administración — este perfil solo puede iniciar sesión en el portal de usuario (login.html y sus páginas).</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <div class="admin-toolbar">
+          <div class="admin-toolbar-title">
+            <h1>Usuarios</h1>
+          </div>
+          <div class="admin-toolbar-right">
+            <span class="admin-count" id="usuarios-count">0 usuarios</span>
+            <select class="tickets-filtro-estatus" id="usuarios-filtro-perfil" aria-label="Filtrar por perfil">
+              <option value="">Todos los perfiles</option>
+              <option value="cliente">Clientes</option>
+              <option value="administrador">Administradores</option>
+              <option value="fiscal">Fiscales</option>
+            </select>
+            <button type="button" class="btn btn-secondary" id="btn-refresh-usuarios">Actualizar</button>
+            <button type="button" class="btn btn-primary" id="btn-crear-usuario">+ Crear usuario</button>
+          </div>
+        </div>
+
+        <p class="field-error" id="usuarios-error" role="alert"></p>
+
+        <div class="admin-table-wrap">
+          <table class="admin-table usuarios-table">
+            <thead>
+              <tr>
+                <th>RFC / usuario</th>
+                <th>Perfil</th>
+                <th>Contacto</th>
+                <th>Registrado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="usuarios-table-body"></tbody>
+          </table>
+          <p class="admin-empty" id="usuarios-empty" hidden>No hay usuarios registrados todavía.</p>
+        </div>
+      </div>
+
+      <div id="vista-configuraciones" hidden>
+      <div class="config-dashboard-grid">
+      <!-- Configuración de campos obligatorios del formulario público -->
+      <section class="admin-config-card" id="admin-config-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-config" aria-expanded="false" aria-controls="admin-config-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M19.4 13.5C19.4 13 19.5 12.5 19.5 12C19.5 11.5 19.4 11 19.4 10.5L21.4 9C21.6 8.8 21.6 8.5 21.5 8.3L19.6 5C19.5 4.8 19.2 4.7 19 4.8L16.6 5.8C16.1 5.4 15.6 5.1 15 4.9L14.7 2.3C14.6 2.1 14.4 2 14.2 2H9.8C9.6 2 9.4 2.1 9.3 2.3L9 4.9C8.4 5.1 7.9 5.4 7.4 5.8L5 4.8C4.8 4.7 4.5 4.8 4.4 5L2.5 8.3C2.4 8.5 2.4 8.8 2.6 9L4.6 10.5C4.6 11 4.5 11.5 4.5 12C4.5 12.5 4.6 13 4.6 13.5L2.6 15C2.4 15.2 2.4 15.5 2.5 15.7L4.4 19C4.5 19.2 4.8 19.3 5 19.2L7.4 18.2C7.9 18.6 8.4 18.9 9 19.1L9.3 21.7C9.4 21.9 9.6 22 9.8 22H14.2C14.4 22 14.6 21.9 14.7 21.7L15 19.1C15.6 18.9 16.1 18.6 16.6 18.2L19 19.2C19.2 19.3 19.5 19.2 19.6 19L21.5 15.7C21.6 15.5 21.6 15.2 21.4 15L19.4 13.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            </svg>
+            Campos obligatorios de los formularios
+          </span>
+          <svg class="admin-config-chevron" id="admin-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <div class="admin-config-body" id="admin-config-body" hidden>
+          <p class="panel-subtitle admin-config-subtitle">
+            Elige qué campos debe llenar obligatoriamente quien suba su constancia o un ticket. Los cambios se aplican de inmediato, sin reiniciar el servidor.
+          </p>
+
+          <div class="admin-config-grid">
+            <label class="checkbox-row">
+              <input type="checkbox" id="config-tipo_persona" data-campo="tipo_persona" />
+              <span>Tipo de persona</span>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="config-rfc" data-campo="rfc" />
+              <span>RFC</span>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="config-uso_cfdi" data-campo="uso_cfdi" />
+              <span>Uso de CFDI (al subir tickets)</span>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="config-tipo_pago" data-campo="tipo_pago" />
+              <span>Tipo de pago (al subir tickets)</span>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="config-comentarios" data-campo="comentarios" />
+              <span>Comentarios (al subir tickets)</span>
+            </label>
+          </div>
+
+          <p class="admin-config-note">El correo electrónico y el archivo de la constancia siempre son obligatorios. El nombre o razón social ya no se captura aquí: se obtiene automáticamente al leer el PDF. "Tipo de persona" y "RFC" son del formulario de constancia; "Uso de CFDI", "Tipo de pago" y "Comentarios" son del formulario de subir tickets — ninguno de estos tres aplica a la constancia.</p>
+
+          <div class="btn-row admin-config-actions">
+            <button type="button" class="btn btn-primary" id="btn-guardar-config">
+              <span id="btn-guardar-config-label">Guardar cambios</span>
+            </button>
+          </div>
+
+          <div class="admin-config-catalogo">
+            <div class="admin-config-catalogo-texto">
+              <p class="admin-config-catalogo-titulo">Catálogo de Uso de CFDI</p>
+              <p class="admin-config-catalogo-info" id="uso-cfdi-info">Cargando información…</p>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-actualizar-uso-cfdi">
+              <span id="btn-actualizar-uso-cfdi-label">Actualizar catálogo SAT</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Configuraciones fiscales: datos de la compañía, IVA y zona horaria -->
+      <!-- "Habilitar Orden de compra" se movió a la vista "Usuarios" — ver más abajo -->
+      <section class="admin-config-card" id="global-config-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-global-config" aria-expanded="false" aria-controls="global-config-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+            Configuraciones fiscales
+          </span>
+          <svg class="admin-config-chevron" id="global-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <div class="admin-config-body" id="global-config-body" hidden>
+          <div class="field">
+            <label>Constancia de situación fiscal (de la compañía)</label>
+            <p class="field-hint">El RFC, el régimen fiscal y si es Persona Física o Moral se leen automáticamente del PDF — no se capturan a mano.</p>
+            <input type="file" id="constancia-compania-input" accept=".pdf" hidden />
+            <button type="button" class="btn btn-secondary btn-block" id="btn-subir-constancia-compania">
+              <span id="btn-subir-constancia-compania-label">Subir constancia de situación fiscal</span>
+            </button>
+            <p class="field-error" id="error-constancia-compania" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label>Régimen fiscal</label>
+            <div class="admin-config-readonly-box" id="regimen-fiscal-compania-box">
+              <span class="admin-config-readonly-vacio">Todavía no se ha subido ninguna constancia.</span>
+            </div>
+            <p class="field-hint">Se llena solo al subir la constancia — puede tener más de un régimen activo.</p>
+          </div>
+
+          <div class="field">
+            <label>Razón Social</label>
+            <div class="admin-config-readonly-box" id="razon-social-compania-box">
+              <span class="admin-config-readonly-vacio">Todavía no se ha subido ninguna constancia.</span>
+            </div>
+            <p class="field-hint">Se lee del PDF con la misma extracción ya usada en la constancia de un cliente.</p>
+          </div>
+
+          <p class="panel-subtitle admin-config-subtitle">
+            El RFC, el régimen fiscal y el tipo de persona (calculados de la constancia) se muestran en la barra de sesión del panel, junto a "Administración". Mientras falte la constancia o la Clave SAT, aparece un aviso al iniciar sesión recordando completarlos.
+          </p>
+
+          <div class="field">
+            <label for="config-clave-sat">Clave SAT</label>
+            <input type="text" id="config-clave-sat" inputmode="numeric" maxlength="8" placeholder="12345678" />
+            <p class="field-hint">Exactamente 8 dígitos.</p>
+            <p class="field-error" id="error-config-clave-sat" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="config-link-codigos-sat">Link de códigos SAT</label>
+            <div class="link-editable-vista" id="link-codigos-sat-vista" hidden>
+              <a href="#" target="_blank" rel="noopener noreferrer" class="link-editable-href" id="link-codigos-sat-href"></a>
+              <button type="button" class="btn btn-secondary btn-editar-link" id="btn-editar-link-codigos-sat">Editar</button>
+            </div>
+            <input type="url" id="config-link-codigos-sat" placeholder="https://..." />
+            <p class="field-hint">Enlace de referencia a la página del SAT donde se consultan estos códigos.</p>
+            <p class="field-error" id="error-config-link-codigos-sat" role="alert"></p>
+          </div>
+
+          <p class="panel-subtitle admin-config-subtitle">
+            Estos dos valores se usan al registrar una orden de compra: el IVA se aplica al monto capturado para calcular el total a facturar, y la zona horaria determina cómo se genera la fecha y hora de cada compra.
+          </p>
+
+          <div class="field">
+            <label for="config-iva">IVA (%)</label>
+            <input type="number" id="config-iva" min="0" max="100" step="0.01" placeholder="16" />
+            <p class="field-hint">Porcentaje entre 0 y 100 — por ejemplo, 16 para el IVA general, u 8 para la tasa fronteriza.</p>
+            <p class="field-error" id="error-config-iva" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="config-zona-horaria">Zona horaria</label>
+            <select id="config-zona-horaria"></select>
+            <p class="field-hint">Solo se listan zonas horarias válidas en México.</p>
+          </div>
+
+          <p class="field-error" id="global-config-error" role="alert"></p>
+
+          <div class="btn-row admin-config-actions">
+            <button type="button" class="btn btn-primary" id="btn-guardar-config-global">
+              <span id="btn-guardar-config-global-label">Guardar cambios</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Configuración de correo SMTP (envío de correos, pensado para Gmail) -->
+      <section class="admin-config-card" id="smtp-config-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-smtp" aria-expanded="false" aria-controls="smtp-config-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              <path d="m3.5 6 8.5 7 8.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Correo electrónico (SMTP)
+            <span class="smtp-estado-badge" id="smtp-estado-badge" hidden></span>
+          </span>
+          <svg class="admin-config-chevron" id="smtp-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <div class="admin-config-body" id="smtp-config-body" hidden>
+          <p class="panel-subtitle admin-config-subtitle">
+            Configura el servidor SMTP que usará la app para enviar correos. Pensado para Gmail (<code>smtp.gmail.com</code>), pero funciona con cualquier proveedor SMTP estándar.
+          </p>
+
+          <div class="smtp-aviso-gmail">
+            <strong>¿Usas Gmail?</strong> No uses la contraseña normal de la cuenta: Google la rechaza para SMTP. Activa la verificación en dos pasos y genera una <strong>«Contraseña de aplicación»</strong> desde la configuración de seguridad de tu cuenta de Google — esa es la que va en el campo "Contraseña" de aquí abajo.
+          </div>
+
+          <div class="smtp-config-grid">
+            <div class="field">
+              <label for="smtp-host">Host SMTP</label>
+              <input type="text" id="smtp-host" placeholder="smtp.gmail.com" autocomplete="off" />
+            </div>
+            <div class="field smtp-field-puerto">
+              <label for="smtp-puerto">Puerto</label>
+              <input type="number" id="smtp-puerto" placeholder="587" min="1" max="65535" />
+            </div>
+            <div class="field smtp-field-seguridad">
+              <label for="smtp-seguridad">Seguridad</label>
+              <select id="smtp-seguridad">
+                <option value="starttls">STARTTLS (587)</option>
+                <option value="ssl">SSL (465)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="smtp-usuario">Usuario (correo)</label>
+              <input type="email" id="smtp-usuario" placeholder="tucuenta@gmail.com" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="smtp-password">Contraseña</label>
+              <div class="password-field">
+                <input type="password" id="smtp-password" autocomplete="new-password" />
+                <button type="button" class="btn-toggle-pass" id="btn-toggle-smtp-password" aria-label="Mostrar contraseña" aria-pressed="false">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                </button>
+              </div>
+              <p class="smtp-password-hint" id="smtp-password-hint"></p>
+            </div>
+            <div class="field">
+              <label for="smtp-nombre-remitente">Nombre del remitente <span class="field-mark optional">(opcional)</span></label>
+              <input type="text" id="smtp-nombre-remitente" placeholder="Portal de Facturación" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="smtp-correo-remitente">Correo del remitente <span class="field-mark optional">(opcional)</span></label>
+              <input type="email" id="smtp-correo-remitente" placeholder="Si es distinto del usuario" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="smtp-correo-contador">
+                Correo de quien va a facturar
+                <span class="field-mark optional">(opcional)</span>
+                <button type="button" class="tooltip-trigger" id="tooltip-correo-contador" aria-label="Más información sobre este campo">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/>
+                    <path d="M12 11v5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    <circle cx="12" cy="7.75" r="1" fill="currentColor"/>
+                  </svg>
+                  <span class="tooltip-popover" role="tooltip">Este correo debe ser el de su contador: la persona encargada de generar la factura. Se le avisa automáticamente cada vez que un cliente sube un ticket nuevo para facturar.</span>
+                </button>
+              </label>
+              <input type="email" id="smtp-correo-contador" placeholder="contador@ejemplo.com" autocomplete="off" />
+              <p class="field-hint">Recibe un correo automático cada vez que se sube un ticket nuevo. Si lo dejas vacío, te lo notificamos a ti con un aviso emergente al iniciar sesión.</p>
+            </div>
+          </div>
+
+          <div class="smtp-plantilla-cliente">
+            <p class="smtp-prueba-titulo">Correo que recibe el cliente cuando su factura está lista</p>
+            <p class="panel-subtitle admin-config-subtitle">Se envía automáticamente al correo del cliente (el de su constancia) en cuanto subes su factura, con el asunto fijo "Factura lista — Folio ...". Puedes personalizar el cuerpo usando <code>{folio}</code> y <code>{rfc}</code> — se reemplazan por el folio y RFC reales de cada ticket al enviarse.</p>
+
+            <div class="field">
+              <label for="smtp-cuerpo-cliente">Cuerpo del correo al cliente</label>
+              <textarea id="smtp-cuerpo-cliente" rows="4" maxlength="5000" placeholder="Tu factura para el ticket con folio {folio} ya está disponible..."></textarea>
+            </div>
+          </div>
+
+          <p class="field-error" id="smtp-config-error" role="alert"></p>
+
+          <div class="btn-row admin-config-actions">
+            <button type="button" class="btn btn-primary" id="btn-guardar-smtp">
+              <span id="btn-guardar-smtp-label">Guardar configuración</span>
+            </button>
+          </div>
+
+          <div class="smtp-prueba">
+            <p class="smtp-prueba-titulo">Enviar correo de prueba</p>
+            <p class="panel-subtitle admin-config-subtitle">Úsalo para confirmar que la configuración de arriba funciona antes de depender de ella.</p>
+
+            <div class="field">
+              <label for="smtp-prueba-destinatario">Destinatario</label>
+              <input type="email" id="smtp-prueba-destinatario" placeholder="destinatario@ejemplo.com" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="smtp-prueba-asunto">Asunto</label>
+              <input type="text" id="smtp-prueba-asunto" maxlength="200" placeholder="Correo de prueba" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="smtp-prueba-cuerpo">Cuerpo del correo</label>
+              <textarea id="smtp-prueba-cuerpo" rows="4" maxlength="5000" placeholder="Este es un correo de prueba enviado desde el Portal de Facturación."></textarea>
+            </div>
+
+            <p class="field-error" id="smtp-prueba-error" role="alert"></p>
+
+            <div class="btn-row admin-config-actions">
+              <button type="button" class="btn btn-secondary" id="btn-enviar-prueba-smtp">
+                <span id="btn-enviar-prueba-smtp-label">Enviar prueba</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-config-card" id="reportes-config-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-reportes-config" aria-expanded="false" aria-controls="reportes-config-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M15 3v5h5M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            Configuración Reportes
+          </span>
+          <svg class="admin-config-chevron" id="reportes-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="admin-config-body" id="reportes-config-body" hidden>
+          <p class="panel-subtitle admin-config-subtitle">
+            Antes de que el borrado automático por retención elimine tickets y órdenes de compra vencidos, se genera y se guarda un reporte con toda esa información en un archivo Markdown — si hay un correo configurado aquí, también se envía por correo antes de borrarse. Puedes revisar cualquier reporte generado (automático o manual) en "Reportes".
+          </p>
+
+          <div class="field">
+            <label for="config-correo-reportes">Configurar correo de reportes</label>
+            <input type="email" id="config-correo-reportes" placeholder="reportes@ejemplo.com" />
+            <p class="field-hint">A este correo se envía el reporte en Markdown — tanto el automático (antes del borrado) como el manual (botón de abajo). Si se deja vacío, el reporte igual se genera y se guarda, solo que no se manda nada por correo.</p>
+            <p class="field-error" id="error-config-correo-reportes" role="alert"></p>
+          </div>
+
+          <p class="field-error" id="reportes-config-error" role="alert"></p>
+
+          <div class="btn-row admin-config-actions">
+            <button type="button" class="btn btn-primary" id="btn-guardar-config-reportes">
+              <span id="btn-guardar-config-reportes-label">Guardar cambios</span>
+            </button>
+          </div>
+
+          <div class="reportes-envio-manual">
+            <div class="reportes-envio-manual-texto">
+              <strong>Enviar reporte ahora</strong>
+              <p class="field-hint">Genera y envía un reporte con los tickets y órdenes de compra activos del mes en curso — sin esperar a que algo esté por vencerse.</p>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-enviar-reporte-manual">
+              <span id="btn-enviar-reporte-manual-label">Enviar reporte</span>
+            </button>
+          </div>
+          <p class="field-error" id="error-enviar-reporte-manual" role="alert"></p>
+        </div>
+      </section>
+      </div><!-- /config-dashboard-grid -->
+      </div>
+
+
+
+      <!-- ========== Lectura de reportes ========== -->
+      <div id="vista-lectura-reportes" hidden>
+        <div class="lectura-reportes-header">
+          <div>
+            <h2 class="lectura-reportes-titulo">Lectura de reportes</h2>
+            <p class="panel-subtitle">Consulta cualquier reporte ya generado, filtra sus registros y expórtalos.</p>
+          </div>
+        </div>
+
+        <div class="lectura-reportes-selector-wrap">
+          <div class="field lectura-reportes-selector-field">
+            <label for="reportes-selector">Reporte</label>
+            <select id="reportes-selector">
+              <option value="">Selecciona un reporte…</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-secondary" id="btn-ver-md-reporte" disabled>Ver Markdown completo</button>
+          <button type="button" class="btn btn-danger" id="btn-eliminar-reporte" disabled>Eliminar reporte</button>
+        </div>
+
+        <div class="lectura-reportes-resumen" id="lectura-reportes-resumen" hidden>
+          <div class="lectura-reportes-resumen-item">
+            <span class="lectura-reportes-resumen-label">Tipo</span>
+            <span class="lectura-reportes-resumen-valor" id="resumen-reporte-tipo"></span>
+          </div>
+          <div class="lectura-reportes-resumen-item">
+            <span class="lectura-reportes-resumen-label">Generado el</span>
+            <span class="lectura-reportes-resumen-valor" id="resumen-reporte-fecha"></span>
+          </div>
+          <div class="lectura-reportes-resumen-item">
+            <span class="lectura-reportes-resumen-label">Tickets</span>
+            <span class="lectura-reportes-resumen-valor" id="resumen-reporte-tickets"></span>
+          </div>
+          <div class="lectura-reportes-resumen-item">
+            <span class="lectura-reportes-resumen-label">Órdenes de compra</span>
+            <span class="lectura-reportes-resumen-valor" id="resumen-reporte-ordenes"></span>
+          </div>
+          <div class="lectura-reportes-resumen-item">
+            <span class="lectura-reportes-resumen-label">Correo</span>
+            <span class="lectura-reportes-resumen-valor" id="resumen-reporte-correo"></span>
+          </div>
+        </div>
+
+        <div class="lectura-reportes-filtros" id="lectura-reportes-filtros" hidden>
+          <div class="field">
+            <label for="filtro-reporte-tipo">Tipo de registro</label>
+            <select id="filtro-reporte-tipo">
+              <option value="">Todos</option>
+              <option value="ticket">Tickets</option>
+              <option value="orden_compra">Órdenes de compra</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filtro-reporte-estatus">Estatus</label>
+            <select id="filtro-reporte-estatus">
+              <option value="">Todos</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="en_curso">En curso</option>
+              <option value="cancelado">Cancelado</option>
+              <option value="listo">Listo</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filtro-reporte-rfc">RFC / correo</label>
+            <input type="text" id="filtro-reporte-rfc" placeholder="Buscar…" />
+          </div>
+          <div class="field">
+            <label for="filtro-reporte-fecha-desde">Rango de fechas</label>
+            <div class="lectura-reportes-rango-fechas">
+              <input type="date" id="filtro-reporte-fecha-desde" aria-label="Desde" />
+              <span class="lectura-reportes-rango-separador" aria-hidden="true">–</span>
+              <input type="date" id="filtro-reporte-fecha-hasta" aria-label="Hasta" />
+            </div>
+          </div>
+          <div class="lectura-reportes-filtros-acciones">
+            <button type="button" class="btn btn-secondary" id="btn-limpiar-filtros-reporte">Limpiar filtros</button>
+            <div class="lectura-reportes-exportar">
+              <button type="button" class="btn btn-secondary" id="btn-exportar-csv">Exportar CSV</button>
+              <button type="button" class="btn btn-secondary" id="btn-exportar-excel">Exportar Excel</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-table-wrap" id="lectura-reportes-tabla-wrap" hidden>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Identificador</th>
+                <th>RFC / Correo</th>
+                <th>Estatus</th>
+                <th>Monto</th>
+                <th>Atendido por</th>
+                <th>Fecha de registro</th>
+              </tr>
+            </thead>
+            <tbody id="reportes-items-table-body"></tbody>
+          </table>
+          <p class="admin-empty" id="reportes-items-empty" hidden>No hay registros con los filtros seleccionados.</p>
+        </div>
+
+        <p class="lectura-reportes-vacio" id="lectura-reportes-sin-seleccion">Selecciona un reporte de la lista para ver su contenido.</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal de confirmación genérico (eliminar / eliminar permanentemente) -->
+  <!-- Crear usuario ============================================================================ -->
+  <div class="modal-overlay" id="crear-usuario-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="crear-usuario-title">
+      <h2 id="crear-usuario-title">Crear usuario</h2>
+      <p class="panel-subtitle">Los perfiles "Administrador" y "Fiscal" pueden entrar al panel de administración; "Cliente" solo entra al portal público.</p>
+
+      <div class="field">
+        <label for="crear-usuario-perfil">Perfil</label>
+        <select id="crear-usuario-perfil">
+          <option value="cliente">Cliente</option>
+          <option value="administrador">Administrador</option>
+          <option value="fiscal">Fiscal</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="crear-usuario-rfc" id="crear-usuario-rfc-label">RFC</label>
+        <input type="text" id="crear-usuario-rfc" maxlength="50" autocapitalize="characters" />
+        <p class="field-hint" id="crear-usuario-rfc-hint">RFC del cliente, con el que iniciará sesión en el portal.</p>
+        <p class="field-error" id="error-crear-usuario-rfc" role="alert"></p>
+      </div>
+
+      <div class="field">
+        <label for="crear-usuario-email">Correo electrónico <span class="required">*</span></label>
+        <input type="email" id="crear-usuario-email" maxlength="200" autocomplete="off" />
+        <p class="field-hint">A este correo se le envía la invitación al portal, con su usuario y contraseña temporal.</p>
+        <p class="field-error" id="error-crear-usuario-email" role="alert"></p>
+      </div>
+
+      <div class="field" id="crear-usuario-telefono-field">
+        <label for="crear-usuario-telefono">Teléfono</label>
+        <input type="text" id="crear-usuario-telefono" maxlength="20" />
+        <p class="field-error" id="error-crear-usuario-telefono" role="alert"></p>
+      </div>
+
+      <button type="button" class="btn btn-secondary btn-generar-password" id="btn-generar-password-crear-usuario">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4.5 15a8 8 0 0 0 14.5 3.5M19.5 9A8 8 0 0 0 5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Generar contraseña automática
+      </button>
+
+      <div class="field">
+        <label for="crear-usuario-password">Contraseña</label>
+        <div class="password-field password-field-con-copiar">
+          <input type="password" id="crear-usuario-password" autocomplete="new-password" />
+          <button type="button" class="btn-toggle-pass" id="btn-toggle-crear-usuario-password" aria-label="Mostrar contraseña" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+          </button>
+          <button type="button" class="btn-copiar-pass" id="btn-copiar-crear-usuario-password" aria-label="Copiar contraseña al portapapeles" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+          </button>
+        </div>
+        <ul class="password-reglas" id="crear-usuario-reglas">
+          <li data-regla="longitud">Al menos 8 caracteres</li>
+          <li data-regla="numero">Al menos un número</li>
+          <li data-regla="minuscula">Al menos una minúscula</li>
+          <li data-regla="mayuscula">Al menos una mayúscula</li>
+        </ul>
+        <p class="field-error" id="error-crear-usuario-password" role="alert"></p>
+      </div>
+
+      <label class="checkbox-row password-modal-forzar">
+        <input type="checkbox" id="crear-usuario-forzar-cambio" />
+        <span>Forzar cambio de contraseña en el siguiente inicio de sesión</span>
+      </label>
+
+      <p class="field-error" id="crear-usuario-error-general" role="alert"></p>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-crear-usuario-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-crear-usuario-guardar">
+          <span id="btn-crear-usuario-guardar-label">Crear usuario</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editar usuario ============================================================================ -->
+  <div class="modal-overlay" id="editar-usuario-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editar-usuario-title">
+      <h2 id="editar-usuario-title">Editar usuario</h2>
+      <p class="panel-subtitle">Para cambiar la contraseña, usa el botón "Restablecer contraseña" de la tabla — este formulario no la modifica.</p>
+
+      <div class="field">
+        <label for="editar-usuario-perfil">Perfil</label>
+        <select id="editar-usuario-perfil">
+          <option value="cliente">Cliente</option>
+          <option value="administrador">Administrador</option>
+          <option value="fiscal">Fiscal</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="editar-usuario-rfc" id="editar-usuario-rfc-label">RFC</label>
+        <input type="text" id="editar-usuario-rfc" maxlength="50" autocapitalize="characters" />
+        <p class="field-hint" id="editar-usuario-rfc-hint">RFC del cliente, con el que inicia sesión en el portal.</p>
+        <p class="field-error" id="error-editar-usuario-rfc" role="alert"></p>
+      </div>
+
+      <div class="field">
+        <label for="editar-usuario-email">Correo electrónico <span class="required">*</span></label>
+        <input type="email" id="editar-usuario-email" maxlength="200" autocomplete="off" />
+        <p class="field-error" id="error-editar-usuario-email" role="alert"></p>
+      </div>
+
+      <div class="field" id="editar-usuario-telefono-field">
+        <label for="editar-usuario-telefono">Teléfono</label>
+        <input type="text" id="editar-usuario-telefono" maxlength="20" />
+        <p class="field-error" id="error-editar-usuario-telefono" role="alert"></p>
+      </div>
+
+      <p class="field-error" id="editar-usuario-error-general" role="alert"></p>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-editar-usuario-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-editar-usuario-guardar">
+          <span id="btn-editar-usuario-guardar-label">Guardar cambios</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de confirmación genérico (eliminar / eliminar permanentemente) -->
+  <div class="modal-overlay" id="confirm-modal-overlay" hidden>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+      <h2 id="confirm-modal-title">¿Eliminar registro?</h2>
+      <p id="confirm-modal-mensaje">Esta acción se puede deshacer más tarde desde la papelera.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-confirm-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btn-confirm-aceptar">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aviso al iniciar sesión: faltan los datos fiscales de la compañía -->
+  <div class="modal-overlay" id="config-fiscal-faltante-overlay" hidden>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="config-fiscal-faltante-title">
+      <div class="modal-icono-aviso" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 9v4M12 16.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.29 2.25h17.78A1.5 1.5 0 0 0 22.18 18L13.71 3.86a1.5 1.5 0 0 0-2.58 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2 id="config-fiscal-faltante-title">Falta configurar los datos fiscales</h2>
+      <p class="panel-subtitle">El RFC de la compañía (se obtiene subiendo la constancia de situación fiscal) y/o la Clave SAT todavía no están capturados. Complétalos en "Configuraciones fiscales" para que se muestren en la barra de sesión.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btn-config-fiscal-faltante-cerrar">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ver el Markdown completo de un reporte -->
+  <div class="modal-overlay" id="ver-md-overlay" hidden>
+    <div class="modal ver-md-modal" role="dialog" aria-modal="true" aria-labelledby="ver-md-title">
+      <h2 id="ver-md-title">Reporte en Markdown</h2>
+      <pre class="ver-md-contenido" id="ver-md-contenido"></pre>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-descargar-md">Descargar .md</button>
+        <button type="button" class="btn btn-primary" id="btn-cerrar-ver-md">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de vista previa del documento (sin descargarlo) -->
+  <div class="modal-overlay preview-overlay" id="preview-overlay" hidden>
+    <div class="modal preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+      <div class="preview-header">
+        <div class="preview-header-text">
+          <h2 id="preview-title">Vista previa</h2>
+          <p id="preview-subtitle" class="preview-subtitle"></p>
+        </div>
+        <div class="preview-header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-preview-descargar">Descargar</button>
+          <button type="button" class="btn-icon preview-close" id="btn-preview-cerrar" aria-label="Cerrar vista previa">✕</button>
+        </div>
+      </div>
+      <div class="preview-body" id="preview-body">
+        <p class="preview-status" id="preview-status">Cargando documento…</p>
+        <iframe class="preview-frame" id="preview-frame" title="Vista previa del documento" hidden></iframe>
+        <img class="preview-image" id="preview-image" alt="Vista previa del documento" hidden />
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de gestión de un ticket: ver imagen, cambiar estatus, subir factura -->
+  <div class="modal-overlay" id="ticket-modal-overlay" hidden>
+    <div class="modal ticket-modal" role="dialog" aria-modal="true" aria-labelledby="ticket-modal-title">
+      <div class="ticket-modal-header">
+        <div>
+          <h2 id="ticket-modal-title">Ticket</h2>
+        </div>
+        <button type="button" class="btn-icon" id="btn-ticket-modal-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+
+      <dl class="ticket-modal-info-grid">
+        <div class="ticket-modal-info-item">
+          <dt class="ticket-modal-info-label">RFC</dt>
+          <dd class="ticket-modal-info-value" id="ticket-modal-info-rfc"></dd>
+        </div>
+        <div class="ticket-modal-info-item">
+          <dt class="ticket-modal-info-label">Uso de CFDI</dt>
+          <dd class="ticket-modal-info-value" id="ticket-modal-info-uso-cfdi"></dd>
+        </div>
+        <div class="ticket-modal-info-item">
+          <dt class="ticket-modal-info-label">Tipo de pago</dt>
+          <dd class="ticket-modal-info-value" id="ticket-modal-info-tipo-pago"></dd>
+        </div>
+        <div class="ticket-modal-info-item">
+          <dt class="ticket-modal-info-label">Última actualización por</dt>
+          <dd class="ticket-modal-info-value" id="ticket-modal-info-actualizado-por">—</dd>
+        </div>
+        <div class="ticket-modal-info-item ticket-modal-info-item-ancho">
+          <dt class="ticket-modal-info-label">Documento</dt>
+          <dd class="ticket-modal-info-value" id="ticket-modal-info-documento"></dd>
+        </div>
+      </dl>
+
+      <div class="ticket-modal-comentarios-box" id="ticket-modal-comentarios-box" hidden>
+        <div class="ticket-modal-comentarios-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4.4 3.3A.5.5 0 0 1 3.8 20V17H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          </svg>
+          <span>Comentarios del cliente</span>
+        </div>
+        <p class="ticket-modal-comentarios-texto" id="ticket-modal-comentarios-texto"></p>
+      </div>
+
+      <!-- Datos de la compra que el cliente capturó en "Verifica tu compra"
+           al subir el ticket — se muestran justo arriba de la foto para
+           poder cotejarlos contra lo que dice el ticket real. Solo
+           aparece si el ticket quedó vinculado a una orden de compra real
+           (con "Orden de compra" habilitada); si no, no hay nada que
+           mostrar aquí. -->
+      <div class="ticket-modal-compra-box" id="ticket-modal-compra-box" hidden>
+        <div class="ticket-modal-comentarios-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>Compra capturada por el cliente — coteja contra la foto</span>
+        </div>
+        <dl class="ticket-modal-compra-grid">
+          <div class="ticket-modal-info-item">
+            <dt class="ticket-modal-info-label">No. Compra</dt>
+            <dd class="ticket-modal-info-value" id="ticket-modal-compra-numero"></dd>
+          </div>
+          <div class="ticket-modal-info-item">
+            <dt class="ticket-modal-info-label">Fecha</dt>
+            <dd class="ticket-modal-info-value" id="ticket-modal-compra-fecha"></dd>
+          </div>
+          <div class="ticket-modal-info-item">
+            <dt class="ticket-modal-info-label">Hora</dt>
+            <dd class="ticket-modal-info-value" id="ticket-modal-compra-hora"></dd>
+          </div>
+          <div class="ticket-modal-info-item">
+            <dt class="ticket-modal-info-label">Total</dt>
+            <dd class="ticket-modal-info-value" id="ticket-modal-compra-total"></dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="ticket-modal-imagen-wrap" id="ticket-modal-imagen-wrap">
+        <p class="ticket-modal-imagen-status" id="ticket-modal-imagen-status">Cargando imagen…</p>
+        <img id="ticket-modal-imagen" alt="Imagen del ticket" hidden />
+      </div>
+      <div class="ticket-modal-imagen-acciones">
+        <p class="ticket-modal-imagen-hint">Pasa el cursor sobre la imagen para ampliarla.</p>
+        <button type="button" class="btn btn-secondary btn-descargar-imagen" id="btn-ticket-descargar-imagen">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3v12m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          Descargar imagen
+        </button>
+      </div>
+
+      <div class="field ticket-modal-estatus-field">
+        <label for="ticket-modal-estatus-select">Estatus</label>
+        <select id="ticket-modal-estatus-select">
+          <option value="pendiente">Pendiente</option>
+          <option value="en_curso">En curso</option>
+          <option value="cancelado">Cancelado</option>
+          <option value="listo" disabled>Listo (sube la factura para marcarlo)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="ticket-modal-notas">Notas internas</label>
+        <textarea id="ticket-modal-notas" rows="2" maxlength="1000" placeholder="Opcional"></textarea>
+      </div>
+
+      <button type="button" class="btn btn-primary btn-block" id="btn-ticket-guardar-estatus">
+        <span id="btn-ticket-guardar-estatus-label">Guardar cambios</span>
+      </button>
+
+      <div class="ticket-modal-factura">
+        <div class="ticket-modal-factura-actual" id="ticket-modal-factura-actual" hidden>
+          <p class="ticket-modal-factura-hint">Factura actual: <strong id="ticket-modal-factura-actual-nombre"></strong></p>
+          <button type="button" class="btn btn-secondary btn-block" id="btn-ticket-descargar-factura">Descargar factura actual</button>
+        </div>
+        <label for="ticket-modal-factura-input" id="label-ticket-modal-factura-input">Subir factura</label>
+        <p class="ticket-modal-factura-hint" id="ticket-modal-factura-hint">Solo se acepta un archivo <strong>.zip</strong> que contenga, adentro, tanto el <strong>PDF</strong> como el <strong>XML</strong> de la factura — si falta alguno de los dos, se rechaza. Al subirlo correctamente, el ticket se marca automáticamente como "Listo".</p>
+        <input type="file" id="ticket-modal-factura-input" accept=".zip" />
+        <button type="button" class="btn btn-primary btn-block" id="btn-ticket-subir-factura">
+          <span id="btn-ticket-subir-factura-label">Subir factura y marcar como listo</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para restablecer la contraseña de un usuario -->
+  <div class="modal-overlay" id="password-modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="password-modal-title">
+      <h2 id="password-modal-title">Restablecer contraseña</h2>
+      <p class="panel-subtitle" id="password-modal-rfc"></p>
+
+      <button type="button" class="btn btn-secondary btn-block btn-generar-password" id="btn-generar-password">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4.5 15a8 8 0 0 0 14.5 3.5M19.5 9A8 8 0 0 0 5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Generar contraseña automática
+      </button>
+
+      <div class="field">
+        <label for="password-modal-nueva">Nueva contraseña</label>
+        <div class="password-field password-field-con-copiar">
+          <input type="password" id="password-modal-nueva" autocomplete="new-password" />
+          <button type="button" class="btn-toggle-pass" id="btn-toggle-password-modal" aria-label="Mostrar contraseña" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+          </button>
+          <button type="button" class="btn-copiar-pass" id="btn-copiar-password" aria-label="Copiar contraseña al portapapeles" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+          </button>
+        </div>
+        <ul class="password-reglas" id="password-modal-reglas">
+          <li data-regla="longitud">Al menos 8 caracteres</li>
+          <li data-regla="numero">Al menos un número</li>
+          <li data-regla="minuscula">Al menos una minúscula</li>
+          <li data-regla="mayuscula">Al menos una mayúscula</li>
+        </ul>
+        <p class="field-error" id="password-modal-error" role="alert"></p>
+      </div>
+
+      <label class="checkbox-row password-modal-forzar">
+        <input type="checkbox" id="password-modal-forzar-cambio" />
+        <span>Forzar cambio de contraseña en el siguiente inicio de sesión</span>
+      </label>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-password-modal-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-password-modal-guardar">
+          <span id="btn-password-modal-guardar-label">Guardar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notificación emergente: tickets pendientes sin correo de contador asignado -->
+  <div class="modal-overlay" id="notif-tickets-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="notif-tickets-title">
+      <h2 id="notif-tickets-title">Tickets nuevos por facturar</h2>
+      <p class="panel-subtitle" id="notif-tickets-subtitulo"></p>
+
+      <ul class="notif-tickets-lista" id="notif-tickets-lista"></ul>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-notif-tickets-cerrar">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-notif-tickets-ver">Ver tickets</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/admin.js"></script>
+</body>
+</html>

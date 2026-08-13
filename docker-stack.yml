@@ -1,0 +1,271 @@
+# Stack de Docker Swarm para despliegue en producción con MySQL en alta
+# disponibilidad (segmento 8 del plan multi-tenant, ver PROJECT_STATE.md).
+#
+# Este archivo NO reemplaza a docker-compose.yml — ese sigue siendo el
+# flujo de desarrollo local con `docker compose up` (un solo nodo, un solo
+# MySQL, sin Swarm). `docker-stack.yml` es la topología de producción,
+# pensada para desplegarse con `docker stack deploy`, sobre un clúster
+# Swarm de al menos 2 nodos.
+#
+# ── Requisitos previos, antes de `docker stack deploy` ──────────────────
+#
+# 1. Clúster Swarm ya inicializado (`docker swarm init` en el nodo manager,
+#    `docker swarm join` en los demás).
+#
+# 2. Etiquetar exactamente un nodo como primario de MySQL y otro como
+#    réplica — las restricciones de colocación de abajo (`node.labels.*`)
+#    dependen de esto, y MySQL nunca debe correr sin una etiqueta que fije
+#    en qué nodo físico vive su volumen (ver nota sobre volúmenes locales
+#    más abajo):
+#
+#      docker node update --label-add mysql-role=primary <nodo-A>
+#      docker node update --label-add mysql-role=replica <nodo-B>
+#
+# 3. El contenido de este repositorio (en particular `mysql/conf/`) debe
+#    existir en la MISMA ruta en cada nodo que vaya a correr un servicio
+#    con bind mount (`mysql-primary`, `mysql-replica`) — Swarm no
+#    distribuye archivos del host entre nodos por sí solo. La forma más
+#    simple: mismo `git clone`/despliegue en cada nodo del clúster.
+#
+# 4. Variables de entorno del stack: mismas que `.env.example`, más
+#    `MYSQL_REPLICATION_USER`/`MYSQL_REPLICATION_PASSWORD` (ver abajo) y
+#    `CONTROL_APP_PASSWORD`/`INTERNAL_CACHE_SECRET` (segmento 9b, app de
+#    control en su propio servicio -- ver README, sección "App de
+#    control"). `docker stack deploy` no lee `.env` automáticamente como
+#    `docker compose` — expórtalas en el shell o usa
+#    `docker stack deploy --compose-file docker-stack.yml` con las
+#    variables ya presentes en el entorno (ej. `set -a; source .env; set +a`).
+#
+# 5. Después de desplegar el stack por primera vez (o tras recrear el
+#    volumen de la réplica), corre UNA vez:
+#
+#      docker exec -it <container_mysql-primary> true   # solo para confirmar que está arriba
+#      MYSQL_ROOT_PASSWORD=... DB_HOST=<IP/host del nodo primario> \
+#      MYSQL_REPLICATION_USER=repl MYSQL_REPLICATION_PASSWORD=... \
+#      REPLICA_DB_HOST=<IP/host del nodo réplica> \
+#        node backend/scripts/configure-replica.js
+#
+#    Ver el encabezado de ese script para el detalle completo. No es un
+#    paso automático del stack a propósito: enganchar la replicación es
+#    una decisión operativa, no algo que deba dispararse solo en cada
+#    despliegue/reinicio.
+#
+# ── Nota importante sobre los volúmenes de MySQL ─────────────────────────
+# `mysql_primary_data` y `mysql_replica_data` usan el driver `local` (por
+# defecto) — es decir, viven en el disco del nodo donde corre el
+# contenedor, SIN replicarse a nivel de volumen ni migrarse solos si el
+# contenedor se reprograma a otro nodo. Por diseño, eso es aceptable aquí
+# PORQUE la replicación de los datos ya ocurre a nivel de MySQL (binlog +
+# GTID) y las restricciones de colocación fijan cada servicio a su nodo
+# etiquetado — pero significa que si el nodo primario se pierde por
+# completo (disco incluido), la recuperación es: promover la réplica
+# (`backend/scripts/promote-replica.js`) y reconstruir un primario nuevo
+# desde cero como réplica del que acaba de ser promovido. Un volumen de
+# red (NFS/EBS/etc.) queda fuera del alcance de este segmento — no hay
+# forma de verificarlo contra infraestructura real desde este entorno.
+services:
+  mysql-primary:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?falta MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-portal_facturacion}
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD}
+    volumes:
+      - mysql_primary_data:/var/lib/mysql
+      - ./mysql/conf/primary.cnf:/etc/mysql/conf.d/primary.cnf:ro
+    networks:
+      - fiscal-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.mysql-role == primary
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 1g
+
+  mysql-replica:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?falta MYSQL_ROOT_PASSWORD}
+      # MYSQL_DATABASE/MYSQL_USER/MYSQL_PASSWORD también se fijan aquí para
+      # que la imagen oficial siembre el mismo usuario de aplicación en el
+      # datadir inicial de la réplica (antes de que empiece a replicar) —
+      # una vez que configure-replica.js la engancha al primario, todo lo
+      # demás llega por replicación y estos valores dejan de importar.
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-portal_facturacion}
+      MYSQL_USER: ${MYSQL_USER:-app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD}
+    volumes:
+      - mysql_replica_data:/var/lib/mysql
+      - ./mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
+    networks:
+      - fiscal-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.mysql-role == replica
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 1g
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?falta MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - fiscal-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      replicas: 1
+      # MinIO también usa un volumen local (mismo razonamiento que MySQL
+      # arriba) — se fija a un nodo etiquetado explícitamente en vez de
+      # dejar que Swarm lo reprograme a cualquier nodo, donde no
+      # encontraría los datos ya subidos.
+      placement:
+        constraints:
+          - node.labels.mysql-role == primary
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 512m
+
+  backend:
+    image: ${BACKEND_IMAGE:-pfacturacion-backend:latest}
+    environment:
+      PORT: 4000
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
+      UPLOAD_DIR: /app/uploads
+      DB_HOST: mysql-primary
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER:-app}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE:-portal_facturacion}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      ADMIN_USERS: ${ADMIN_USERS:?falta ADMIN_USERS}
+      USO_CFDI_SYNC_URL: ${USO_CFDI_SYNC_URL:-}
+      SESSION_SECRET: ${SESSION_SECRET:?falta SESSION_SECRET}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      NODE_ENV: production
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:-portal-facturacion}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?falta MINIO_ROOT_PASSWORD}
+      # Segmento 9b: mismo secreto que el servicio "control" -- protege
+      # POST /internal/cache-tenant/invalidar (ver backend/server.js).
+      INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:?falta INTERNAL_CACHE_SECRET}
+    networks:
+      - fiscal-net
+    # DB_HOST apunta siempre al primario — este segmento deja las lecturas
+    # 100% en el primario (decisión explícita: la réplica es standby de
+    # failover/respaldo, no un recurso de escalado de lecturas, para no
+    # arriesgar lecturas desactualizadas por lag de replicación en un
+    # sitio de facturación/fiscal). Tras un promote-replica.js, DB_HOST
+    # debe actualizarse aquí (o a un nombre DNS/VIP que apunte siempre al
+    # primario vigente) y redesplegar el stack — ver ese script.
+    deploy:
+      # Un solo reemplazo a la vez: no arrancar el nuevo hasta apagar el
+      # viejo. UPLOAD_DIR sigue siendo un bind mount local de un solo
+      # nodo (staging temporal antes de subir a MinIO, ver server.js) —
+      # correr más de una réplica del backend requiere resolver antes esa
+      # dependencia de disco local, fuera del alcance de este segmento
+      # (que es específicamente HA de MySQL, ver PROJECT_STATE.md).
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 768m
+
+  # App de control, en su propio servicio por seguridad y portabilidad
+  # (segmento 9b, ver PROJECT_STATE.md) -- mismo espíritu que
+  # docker-compose.yml: credencial de MySQL propia y angosta
+  # (control_app, solo control_tenants), auth propia (solo ADMIN_USERS).
+  # DB_HOST apunta al primario, igual que "backend" arriba -- mismo
+  # motivo (las escrituras de /control también deben ir siempre al
+  # primario vigente).
+  control:
+    image: ${CONTROL_IMAGE:-pfacturacion-control:latest}
+    environment:
+      PORT: 4001
+      ADMIN_USERS: ${ADMIN_USERS:?falta ADMIN_USERS}
+      CONTROL_DB_HOST: mysql-primary
+      CONTROL_DB_PORT: 3306
+      CONTROL_DB_USER: control_app
+      CONTROL_DB_PASSWORD: ${CONTROL_APP_PASSWORD:?falta CONTROL_APP_PASSWORD}
+      CONTROL_DB_NAME: control_tenants
+      BACKEND_INTERNAL_URL: http://backend:4000
+      INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:?falta INTERNAL_CACHE_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    networks:
+      - fiscal-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 256m
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-pfacturacion-frontend:latest}
+    environment:
+      CONTROL_UPSTREAM_HOST: ${CONTROL_UPSTREAM_HOST:-control}
+      CONTROL_UPSTREAM_PORT: ${CONTROL_UPSTREAM_PORT:-4001}
+    networks:
+      - fiscal-net
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 128m
+
+networks:
+  fiscal-net:
+    driver: overlay
+
+volumes:
+  mysql_primary_data:
+    driver: local
+  mysql_replica_data:
+    driver: local
+  minio_data:
+    driver: local
