@@ -190,6 +190,47 @@ async function contarObjetosPrefijo(prefijo) {
   return total;
 }
 
+// Copia un solo archivo de una key a otra dentro del bucket (CopyObject
+// del lado del servidor) — usado por el renombrado de slug de un tenant
+// (cambio de slug: mover el logo de `marca/<slug_viejo>/logo` a
+// `marca/<slug_nuevo>/logo`). Lanza si la key origen no existe.
+async function copiarArchivo(prefijo, carpeta, nombreArchivo, prefijoDestino, carpetaDestino, nombreDestino) {
+  const keyOrigen = construirKey(prefijo, carpeta, nombreArchivo);
+  const keyDestino = construirKey(prefijoDestino, carpetaDestino, nombreDestino);
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: BUCKET,
+      CopySource: `/${BUCKET}/${encodeURIComponent(keyOrigen)}`,
+      Key: keyDestino,
+    })
+  );
+  return keyDestino;
+}
+
+// Borra TODOS los objetos bajo "<prefijo>/" (listado paginado + un
+// DeleteObject por objeto) — usado por el renombrado de slug para limpiar
+// el prefijo viejo después de copiarlo al nuevo. Un prefijo que no existe
+// no es un error (no hay nada que borrar).
+async function eliminarPrefijo(prefijo) {
+  let continuationToken;
+  let borrados = 0;
+  do {
+    const listado = await client.send(
+      new ListObjectsV2Command({
+        Bucket: BUCKET,
+        Prefix: `${prefijo}/`,
+        ContinuationToken: continuationToken,
+      })
+    );
+    for (const objeto of listado.Contents || []) {
+      await client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: objeto.Key }));
+      borrados += 1;
+    }
+    continuationToken = listado.IsTruncated ? listado.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return borrados;
+}
+
 module.exports = {
   BUCKET,
   PREFIJO_DEFECTO,
@@ -203,4 +244,6 @@ module.exports = {
   obtenerArchivo,
   copiarPrefijo,
   contarObjetosPrefijo,
+  copiarArchivo,
+  eliminarPrefijo,
 };

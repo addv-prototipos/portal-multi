@@ -1169,7 +1169,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .admin-table .btn-eliminar,
 .admin-table .btn-restaurar,
 .admin-table .btn-eliminar-permanente,
-.admin-table .btn-editar-marca {
+.admin-table .btn-editar {
   background: transparent;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -1189,8 +1189,8 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .admin-table .btn-eliminar-permanente { color: var(--color-error); }
 .admin-table .btn-eliminar-permanente:hover { border-color: var(--color-error); background: var(--color-error-soft); }
 
-.admin-table .btn-editar-marca { color: var(--color-ink); }
-.admin-table .btn-editar-marca:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.admin-table .btn-editar { color: var(--color-ink); }
+.admin-table .btn-editar:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
 
 /* Botón de acción destructiva, usado en el modal de confirmación */
 .btn-danger {
@@ -1752,7 +1752,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   .admin-table .btn-eliminar,
   .admin-table .btn-restaurar,
   .admin-table .btn-eliminar-permanente,
-  .admin-table .btn-editar-marca {
+  .admin-table .btn-editar {
     width: 100%;
     padding: 10px;
     text-align: center;
@@ -1773,5 +1773,81 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   max-width: 560px;
   max-height: min(90vh, 680px);
   overflow-y: auto;
+}
+
+/* Switch "Cambiar slug (avanzado)" del modal de edición de empresa
+   (segmento "edición"): el slug es la identidad pública del tenant, así
+   que por defecto se muestra en solo lectura y solo se habilita la
+   edición si el operador lo activa explícitamente. */
+.control-slug-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.control-slug-fila input[readonly] {
+  background: var(--color-bg-soft, #f4f6f8);
+  color: var(--color-ink-soft);
+  cursor: not-allowed;
+  flex: 1 1 200px;
+}
+
+.control-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.control-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.control-switch-track {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--color-border);
+  transition: background 160ms ease;
+  flex-shrink: 0;
+}
+
+.control-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 160ms ease;
+}
+
+.control-switch input:checked + .control-switch-track {
+  background: var(--color-accent);
+}
+
+.control-switch input:checked + .control-switch-track::after {
+  transform: translateX(18px);
+}
+
+.control-switch input:focus-visible + .control-switch-track {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.control-switch-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
 }
 

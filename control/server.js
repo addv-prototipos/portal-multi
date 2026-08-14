@@ -18,6 +18,7 @@ const {
 } = require('./utils/tenantLifecycle');
 const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake');
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant, MAX_MARCA_LOGO_MB } = require('./utils/tenantMarca');
+const { actualizarDatosTenant, ErrorEdicionTenant } = require('./utils/tenantEdicion');
 
 const PORT = Number(process.env.PORT || 4001);
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -253,6 +254,33 @@ app.put(
     } catch (err) {
       if (err instanceof ErrorMarcaTenant) {
         const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'backend' ? 502 : 400;
+        return res.status(estatus).json({ error: err.message });
+      }
+      throw err;
+    }
+  })
+);
+
+// Edición completa de una empresa existente (segmento "edición", ver
+// PROJECT_STATE.md punto 104): todos los campos del alta + slug opcional
+// (solo se aplica si el operador lo habilitó explícitamente — switch en
+// la UI — y dispara la migración de archivos en el backend vía
+// /internal/renombrar-slug ANTES de tocar la fila). 200 actualizado /
+// 400 datos que no pasan la validación / 404 slug inexistente / 409 slug
+// nuevo ya registrado / 502 la migración de almacenamiento falló.
+app.put(
+  '/api/control/tenants/:slug',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const tenant = await actualizarDatosTenant(req.params.slug, req.body || {}, { actor: req.adminUser });
+      res.json({ ok: true, tenant });
+    } catch (err) {
+      if (err instanceof ErrorEdicionTenant) {
+        const estatus =
+          err.codigo === 'no_encontrado' ? 404 : err.codigo === 'slug_existe' ? 409 : err.codigo === 'backend' ? 502 : 400;
         return res.status(estatus).json({ error: err.message });
       }
       throw err;

@@ -1,0 +1,356 @@
+// Pruebas de utils/tenantEdicion.js (segmento "edición", ver PROJECT_STATE.md
+// punto 104) — actualización de TODOS los datos editables de una empresa
+// desde /control, incluido el cambio opcional de slug (que dispara la
+// migración de archivos en el backend por /internal/renombrar-slug antes
+// de tocar la fila). El fetch al backend y la BD se mockean por completo.
+
+jest.mock('../../db', () => ({
+  obtenerPool: jest.fn(),
+}));
+
+jest.mock('../../utils/notificarBackend', () => ({
+  notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
+}));
+
+const { obtenerPool } = require('../../db');
+const { notificarInvalidacionCache } = require('../../utils/notificarBackend');
+const { actualizarDatosTenant, ErrorEdicionTenant } = require('../../utils/tenantEdicion');
+
+function filaTenant(overrides = {}) {
+  return {
+    id: 7,
+    slug: 'cliente1',
+    nombre_empresa: 'Empresa Uno',
+    contacto_email: 'contacto@uno.com',
+    notas: null,
+    rfc_compania: null,
+    razon_social_compania: null,
+    regimen_fiscal_compania: null,
+    tipo_persona_compania: null,
+    clave_sat: null,
+    link_codigos_sat: null,
+    correo_reportes: null,
+    marca: null,
+    marca_logo_url: null,
+    estado: 'activo',
+    db_name: 'tenant_cliente1',
+    storage_prefix: 'cliente1',
+    ...overrides,
+  };
+}
+
+// mockPool arma la secuencia de queries según el caso:
+//  - sin slug nuevo: SELECT tenant, UPDATE, SELECT post, INSERT evento
+//  - con slug nuevo: SELECT tenant, SELECT duplicados, UPDATE, SELECT post, INSERT evento
+function mockPool(tenantFila, conSlugNuevo = false, filaPostUpdate) {
+  const pool = { query: jest.fn() };
+  const filaFinal =
+    filaPostUpdate ||
+    (tenantFila
+      ? { ...tenantFila, slug: conSlugNuevo ? 'cliente2' : tenantFila.slug }
+      : null);
+  pool.query.mockResolvedValueOnce(tenantFila ? [[tenantFila]] : [[]]); // SELECT del tenant
+  if (conSlugNuevo) {
+    pool.query.mockResolvedValueOnce([[]]); // SELECT de duplicados de slug
+  }
+  pool.query.mockResolvedValueOnce([{ affectedRows: tenantFila ? 1 : 0 }]); // UPDATE
+  pool.query.mockResolvedValueOnce([[filaFinal]]); // SELECT post-UPDATE
+  pool.query.mockResolvedValueOnce([{}]); // registrarEvento
+  obtenerPool.mockReturnValue(pool);
+  return pool;
+}
+
+// PNG real mínimo (firma binaria válida: 8 bytes mágicos + cabecera IHDR).
+function bufferPng() {
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.alloc(32, 0),
+  ]);
+}
+
+describe('utils/tenantEdicion.js', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn();
+  });
+
+  describe('actualizarDatosTenant', () => {
+    test('actualiza todos los campos editables y registra el evento de auditoría', async () => {
+      const pool = mockPool(filaTenant(), false, {
+        ...filaTenant(),
+        nombre_empresa: 'Empresa Uno Renombrada',
+        contacto_email: 'nuevo@uno.com',
+        notas: 'nota nueva',
+        rfc_compania: 'AAA010101AAA',
+        razon_social_compania: 'Razón Social',
+        regimen_fiscal_compania: '601',
+        tipo_persona_compania: 'moral',
+        clave_sat: '12345678',
+        link_codigos_sat: 'https://sat.gob.mx',
+        correo_reportes: 'reportes@uno.com',
+        marca: 'Marca Uno',
+      });
+      global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+
+      const resultado = await actualizarDatosTenant(
+        'cliente1',
+        {
+          nombreEmpresa: 'Empresa Uno Renombrada',
+          contactoEmail: 'nuevo@uno.com',
+          notas: 'nota nueva',
+          rfcCompania: 'AAA010101AAA',
+          razonSocialCompania: 'Razón Social',
+          regimenFiscalCompania: '601',
+          tipoPersonaCompania: 'moral',
+          claveSat: '12345678',
+          linkCodigosSat: 'https://sat.gob.mx',
+          correoReportes: 'reportes@uno.com',
+          marca: 'Marca Uno',
+        },
+        { actor: 'admin' }
+      );
+
+      // UPDATE con todos los campos en orden (ver tenantEdicion.js)
+      const [sqlUpdate, paramsUpdate] = pool.query.mock.calls[1];
+      expect(sqlUpdate).toMatch(/^UPDATE tenants SET\s+slug = \?, nombre_empresa = \?, contacto_email = \?, notas = \?,\s+db_name = \?, storage_prefix = \?,/);
+      expect(paramsUpdate[0]).toBe('cliente1'); // slug sin cambios
+      expect(paramsUpdate[1]).toBe('Empresa Uno Renombrada');
+      expect(paramsUpdate[2]).toBe('nuevo@uno.com');
+      expect(paramsUpdate[3]).toBe('nota nueva');
+      expect(paramsUpdate[4]).toBe('tenant_cliente1'); // db_name se conserva
+      expect(paramsUpdate[5]).toBe('cliente1'); // storage_prefix se conserva
+      expect(paramsUpdate[6]).toBe('AAA010101AAA');
+      expect(paramsUpdate[7]).toBe('Razón Social');
+      expect(paramsUpdate[8]).toBe('601');
+      expect(paramsUpdate[9]).toBe('moral');
+      expect(paramsUpdate[10]).toBe('12345678');
+      expect(paramsUpdate[11]).toBe('https://sat.gob.mx');
+      expect(paramsUpdate[12]).toBe('reportes@uno.com');
+      expect(paramsUpdate[13]).toBe('Marca Uno');
+      expect(paramsUpdate[14]).toBeNull(); // sin logo
+
+      // Evento de auditoría
+      const sqlEvento = pool.query.mock.calls[3][0];
+      expect(sqlEvento).toMatch(/INSERT INTO tenant_eventos/);
+      expect(pool.query.mock.calls[3][1][1]).toBe('datos_actualizados');
+      expect(pool.query.mock.calls[3][1][3]).toBe('admin');
+
+      // Sin cambio de slug: no se llama al backend de almacenamiento
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(notificarInvalidacionCache).toHaveBeenCalledWith('cliente1');
+
+      expect(resultado.nombre_empresa).toBe('Empresa Uno Renombrada');
+    });
+
+    test('cambio de slug: migra en el backend ANTES del UPDATE, actualiza slug/storage_prefix y conserva db_name en tenants activos', async () => {
+      const pool = mockPool(
+        filaTenant({ marca_logo_url: '/api/marca-logo/cliente1' }),
+        true,
+        {
+          ...filaTenant({ marca_logo_url: '/api/marca-logo/cliente2' }),
+          slug: 'cliente2',
+          storage_prefix: 'cliente2',
+        }
+      );
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true, copiados: 3, borrados: 3, logoMovido: true }),
+      });
+
+      const resultado = await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' },
+        { actor: 'admin' }
+      );
+
+      // 1) La migración se disparó con ambos slugs
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      const [url, opciones] = global.fetch.mock.calls[0];
+      expect(url).toMatch(/\/internal\/renombrar-slug$/);
+      expect(opciones.method).toBe('POST');
+      expect(opciones.headers['X-Internal-Secret']).toBeDefined();
+      expect(JSON.parse(opciones.body)).toEqual({ slugAnterior: 'cliente1', slugNuevo: 'cliente2' });
+
+      // 2) El SELECT de duplicados ocurrió antes del UPDATE
+      const sqlDuplicados = pool.query.mock.calls[1][0];
+      expect(sqlDuplicados).toMatch(/SELECT id FROM tenants WHERE slug = \? AND id <> \?/);
+      expect(pool.query.mock.calls[1][1]).toEqual(['cliente2', 7]);
+
+      // 3) UPDATE: slug y storage_prefix nuevos, pero db_name conservado (activo)
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate[0]).toBe('cliente2');
+      expect(paramsUpdate[4]).toBe('tenant_cliente1');
+      expect(paramsUpdate[5]).toBe('cliente2');
+      // La ruta del logo se reescribió al slug nuevo (el archivo lo movió la migración)
+      expect(paramsUpdate[14]).toBe('/api/marca-logo/cliente2');
+
+      // 4) Evento específico de cambio de slug
+      expect(pool.query.mock.calls[4][1][1]).toBe('slug_cambiado');
+      expect(pool.query.mock.calls[4][1][2]).toBe('slug: cliente1 -> cliente2');
+
+      // 5) Caché invalidada para AMBOS slugs (el viejo queda 404 y el nuevo responde ya)
+      expect(notificarInvalidacionCache).toHaveBeenCalledWith('cliente1');
+      expect(notificarInvalidacionCache).toHaveBeenCalledWith('cliente2');
+
+      expect(resultado.slug).toBe('cliente2');
+    });
+
+    test('en estado provisioning, el cambio de slug también regenera db_name con el slug nuevo', async () => {
+      const tenant = filaTenant({ estado: 'provisioning' });
+      const pool = mockPool(tenant, true, { ...tenant, slug: 'cliente2' });
+      global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true, copiados: 0, borrados: 0, logoMovido: false }) });
+
+      await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, { actor: 'admin' });
+
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate[0]).toBe('cliente2');
+      expect(paramsUpdate[4]).toBe('tenant_cliente2'); // db_name regenerado
+    });
+
+    test('slug nuevo duplicado -> ErrorEdicionTenant "slug_existe" sin migrar nada', async () => {
+      const pool = { query: jest.fn() };
+      pool.query
+        .mockResolvedValueOnce([[filaTenant()]]) // SELECT del tenant
+        .mockResolvedValueOnce([[{ id: 99 }]]); // SELECT de duplicados: YA existe
+      obtenerPool.mockReturnValue(pool);
+
+      const error = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('slug_existe');
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(pool.query.mock.calls.length).toBe(2); // nunca el UPDATE
+    });
+
+    test('slug nuevo inválido -> ErrorEdicionTenant "validacion"', async () => {
+      const pool = mockPool(filaTenant());
+      const error = await actualizarDatosTenant('cliente1', { slug: 'Mal Slug!' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('slug actual inválido -> ErrorEdicionTenant "validacion" sin tocar la BD', async () => {
+      const error = await actualizarDatosTenant('Mal Slug', {}, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(obtenerPool().query).not.toHaveBeenCalled();
+    });
+
+    test('nombre obligatorio -> ErrorEdicionTenant "validacion"', async () => {
+      const pool = mockPool(filaTenant());
+      const error = await actualizarDatosTenant('cliente1', { nombreEmpresa: '' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(pool.query.mock.calls.length).toBe(1); // solo el SELECT, nunca el UPDATE
+    });
+
+    test('slug inexistente -> ErrorEdicionTenant "no_encontrado"', async () => {
+      const pool = mockPool(null);
+      const error = await actualizarDatosTenant('nadie', { nombreEmpresa: 'X' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('no_encontrado');
+    });
+
+    test('backend rechaza la migración -> ErrorEdicionTenant "backend" y NO se toca la fila', async () => {
+      const pool = mockPool(filaTenant(), true);
+      global.fetch.mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: async () => ({ error: 'No se pudo migrar el almacenamiento del tenant al slug nuevo.' }),
+      });
+
+      const error = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('backend');
+      expect(pool.query.mock.calls.length).toBe(2); // SELECTs, nunca el UPDATE
+    });
+
+    test('backend inalcanzable -> ErrorEdicionTenant "backend"', async () => {
+      const pool = mockPool(filaTenant(), true);
+      global.fetch.mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const error = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('backend');
+      expect(pool.query.mock.calls.length).toBe(2);
+    });
+
+    test('sube logo nuevo al slug final después de la migración', async () => {
+      const pool = mockPool(filaTenant(), true, {
+        ...filaTenant(),
+        slug: 'cliente2',
+        marca_logo_url: '/api/marca-logo/cliente2',
+      });
+      global.fetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, copiados: 0, borrados: 0, logoMovido: false }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, url: '/api/marca-logo/cliente2' }) });
+
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', slug: 'cliente2', logoBase64: bufferPng().toString('base64') },
+        { actor: 'admin' }
+      );
+
+      // 1er fetch: migración; 2do fetch: subir el logo AL slug nuevo
+      const logoFetch = global.fetch.mock.calls[1];
+      expect(logoFetch[0]).toMatch(/\/internal\/marca-logo\/cliente2$/);
+      expect(logoFetch[1].method).toBe('POST');
+
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate[14]).toBe('/api/marca-logo/cliente2');
+    });
+
+    test('quitarLogo con cambio de slug borra el logo del slug nuevo', async () => {
+      const pool = mockPool(filaTenant({ marca_logo_url: '/api/marca-logo/cliente1' }), true, {
+        ...filaTenant({ marca_logo_url: null }),
+        slug: 'cliente2',
+      });
+      global.fetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, copiados: 0, borrados: 0, logoMovido: true }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
+
+      await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2', quitarLogo: true }, { actor: 'admin' });
+
+      const borrarFetch = global.fetch.mock.calls[1];
+      expect(borrarFetch[0]).toMatch(/\/internal\/marca-logo\/cliente2$/);
+      expect(borrarFetch[1].method).toBe('DELETE');
+
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate[14]).toBeNull();
+    });
+
+    test('logo que excede el tamaño máximo -> ErrorEdicionTenant "validacion"', async () => {
+      const pool = mockPool(filaTenant());
+      const error = await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', logoBase64: Buffer.alloc(3 * 1024 * 1024).toString('base64') },
+        {}
+      ).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(error.message).toMatch(/excede el tamaño máximo/);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('una invalidación de caché que falla no revienta la edición', async () => {
+      const pool = mockPool(filaTenant(), true, { ...filaTenant(), slug: 'cliente2' });
+      global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true, copiados: 0, borrados: 0, logoMovido: false }) });
+      notificarInvalidacionCache
+        .mockRejectedValueOnce(new Error('backend caído'))
+        .mockResolvedValueOnce(undefined);
+
+      const resultado = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, { actor: 'admin' });
+
+      expect(resultado.slug).toBe('cliente2');
+      expect(notificarInvalidacionCache).toHaveBeenCalledTimes(2);
+    });
+  });
+});

@@ -232,6 +232,70 @@ describe('utils/storage.js', () => {
     });
   });
 
+  describe('copiarArchivo', () => {
+    test('envía un CopyObjectCommand entre las dos keys y devuelve la key destino', async () => {
+      mockSend.mockResolvedValueOnce({});
+      const key = await storage.copiarArchivo('marca', 'cliente1', 'logo', 'marca', 'cliente2', 'logo');
+
+      expect(key).toBe('marca/cliente2/logo');
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const comando = mockSend.mock.calls[0][0];
+      expect(comando).toBeInstanceOf(CopyObjectCommand);
+      expect(comando.input).toEqual({
+        Bucket: storage.BUCKET,
+        CopySource: `/${storage.BUCKET}/marca%2Fcliente1%2Flogo`,
+        Key: 'marca/cliente2/logo',
+      });
+    });
+  });
+
+  describe('eliminarPrefijo', () => {
+    test('borra todos los objetos listados bajo "<prefijo>/" y devuelve el conteo', async () => {
+      mockSend.mockResolvedValueOnce({
+        Contents: [{ Key: 'cliente1/a.pdf' }, { Key: 'cliente1/tickets/b.jpg' }],
+        IsTruncated: false,
+      });
+      mockSend.mockResolvedValueOnce({});
+      mockSend.mockResolvedValueOnce({});
+
+      const borrados = await storage.eliminarPrefijo('cliente1');
+
+      expect(borrados).toBe(2);
+      expect(mockSend.mock.calls[0][0]).toBeInstanceOf(ListObjectsV2Command);
+      expect(mockSend.mock.calls[0][0].input).toMatchObject({ Bucket: storage.BUCKET, Prefix: 'cliente1/' });
+
+      const borrado1 = mockSend.mock.calls[1][0];
+      expect(borrado1).toBeInstanceOf(DeleteObjectCommand);
+      expect(borrado1.input).toEqual({ Bucket: storage.BUCKET, Key: 'cliente1/a.pdf' });
+      expect(mockSend.mock.calls[2][0].input.Key).toBe('cliente1/tickets/b.jpg');
+    });
+
+    test('sigue paginando mientras IsTruncated sea true', async () => {
+      mockSend.mockResolvedValueOnce({
+        Contents: [{ Key: 'cliente1/a.pdf' }],
+        IsTruncated: true,
+        NextContinuationToken: 'token-pagina-2',
+      });
+      mockSend.mockResolvedValueOnce({});
+      mockSend.mockResolvedValueOnce({
+        Contents: [{ Key: 'cliente1/b.pdf' }],
+        IsTruncated: false,
+      });
+      mockSend.mockResolvedValueOnce({});
+
+      const borrados = await storage.eliminarPrefijo('cliente1');
+
+      expect(borrados).toBe(2);
+      expect(mockSend.mock.calls[2][0].input.ContinuationToken).toBe('token-pagina-2');
+    });
+
+    test('sin objetos bajo el prefijo, devuelve 0 sin borrar nada', async () => {
+      mockSend.mockResolvedValueOnce({ Contents: [], IsTruncated: false });
+      expect(await storage.eliminarPrefijo('cliente1')).toBe(0);
+      expect(mockSend).toHaveBeenCalledTimes(1); // solo el ListObjectsV2, ningún DeleteObject
+    });
+  });
+
   describe('enviarArchivoARespuesta', () => {
     test('envía un GetObjectCommand y hace pipe() del Body a la respuesta', async () => {
       const pipeMock = jest.fn();

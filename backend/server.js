@@ -509,6 +509,71 @@ app.delete('/internal/marca-logo/:slug', (req, res) => {
     });
 });
 
+// Renombra el slug de un tenant: migra TODOS sus archivos en MinIO (los
+// del prefijo "<slug>/" — constancias, tickets, facturas — y el logo de
+// marca "marca/<slug>/logo") al slug nuevo, verificando que la copia no
+// perdió objetos antes de borrar los viejos. Lo usa el contenedor
+// "control" cuando el operador cambia el slug desde /control (segmento
+// "edición", ver PROJECT_STATE.md punto 104). Misma protección por
+// secreto compartido que los demás /internal/*, y NO se expone por nginx.
+//
+// nginx NO necesita tocarse ni recargarse para el slug nuevo: sus rutas
+// de tenant son dinámicas por regex (segmento 4), así que cualquier slug
+// válido empieza a funcionar en cuanto el backend resuelve al tenant por
+// el nuevo valor (control invalida la caché de resolución después).
+app.post('/internal/renombrar-slug', async (req, res) => {
+  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
+  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const body = req.body || {};
+  const slugAnterior = String(body.slugAnterior || '').toLowerCase();
+  const slugNuevo = String(body.slugNuevo || '').toLowerCase();
+  const errorAnterior = validarSlug(slugAnterior);
+  if (errorAnterior) {
+    return res.status(400).json({ error: 'Slug anterior inválido.' });
+  }
+  const errorNuevo = validarSlug(slugNuevo);
+  if (errorNuevo) {
+    return res.status(400).json({ error: 'Slug nuevo inválido.' });
+  }
+  if (slugAnterior === slugNuevo) {
+    return res.status(400).json({ error: 'Los slugs son el mismo.' });
+  }
+
+  try {
+    // 1. Copiar el prefijo de archivos del tenant (verificado por conteo:
+    //    si el destino no tiene tantos objetos como el origen, abortar sin
+    //    borrar nada).
+    const esperados = await storage.contarObjetosPrefijo(slugAnterior);
+    const copiados = await storage.copiarPrefijo(slugAnterior, slugNuevo);
+    if (esperados !== copiados) {
+      return res.status(502).json({
+        error: `La migración de archivos quedó incompleta (${copiados}/${esperados} objetos copiados). No se borró nada.`,
+      });
+    }
+
+    // 2. Mover el logo de marca si el tenant tiene uno.
+    let logoMovido = false;
+    if (await storage.existeArchivo('marca', slugAnterior, 'logo')) {
+      await storage.copiarArchivo('marca', slugAnterior, 'logo', 'marca', slugNuevo, 'logo');
+      logoMovido = true;
+    }
+
+    // 3. Solo hasta aquí se borra lo viejo.
+    const borrados = await storage.eliminarPrefijo(slugAnterior);
+    if (logoMovido) {
+      await storage.eliminarArchivo('marca', slugAnterior, 'logo');
+    }
+
+    res.json({ ok: true, copiados, borrados, logoMovido });
+  } catch (err) {
+    console.error(`Error migrando archivos del slug "${slugAnterior}" a "${slugNuevo}":`, err);
+    res.status(502).json({ error: 'No se pudo migrar el almacenamiento del tenant al slug nuevo.' });
+  }
+});
+
 // Sirve el logo de marca de un tenant. Público a propósito: va incrustado
 // en los correos que reciben los clientes, así que no puede requerir
 // autenticación. Cache-Control largo porque el logo solo cambia cuando el

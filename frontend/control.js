@@ -61,16 +61,31 @@
     intakeCorreoReportes: document.getElementById('control-intake-correo-reportes'),
     intakeMarca: document.getElementById('control-intake-marca'),
     intakeLogo: document.getElementById('control-intake-logo'),
-    marcaOverlay: document.getElementById('control-marca-modal-overlay'),
-    formMarca: document.getElementById('control-form-marca'),
-    marcaEmpresa: document.getElementById('control-marca-modal-empresa'),
-    marcaNombre: document.getElementById('control-marca-nombre'),
-    marcaLogo: document.getElementById('control-marca-logo'),
-    marcaLogoActual: document.getElementById('control-marca-logo-actual'),
-    marcaError: document.getElementById('control-marca-error'),
-    btnMarcaCancelar: document.getElementById('control-btn-marca-cancelar'),
-    btnMarcaGuardar: document.getElementById('control-btn-marca-guardar'),
-    btnMarcaGuardarLabel: document.getElementById('control-btn-marca-guardar-label'),
+    editarOverlay: document.getElementById('control-editar-modal-overlay'),
+    formEditar: document.getElementById('control-form-editar'),
+    editarEmpresa: document.getElementById('control-editar-modal-empresa'),
+    editarNombre: document.getElementById('control-editar-nombre'),
+    editarMarca: document.getElementById('control-editar-marca'),
+    editarLogo: document.getElementById('control-editar-logo'),
+    editarLogoActual: document.getElementById('control-editar-logo-actual'),
+    editarSlug: document.getElementById('control-editar-slug'),
+    editarSlugSwitch: document.getElementById('control-editar-slug-switch'),
+    editarSlugHint: document.getElementById('control-editar-slug-hint'),
+    editarEmail: document.getElementById('control-editar-email'),
+    editarNotas: document.getElementById('control-editar-notas'),
+    btnToggleFiscalEditar: document.getElementById('control-btn-toggle-fiscal-editar'),
+    editarFiscalBody: document.getElementById('control-editar-fiscal-body'),
+    editarRfc: document.getElementById('control-editar-rfc'),
+    editarRazonSocial: document.getElementById('control-editar-razon-social'),
+    editarRegimenFiscal: document.getElementById('control-editar-regimen-fiscal'),
+    editarTipoPersona: document.getElementById('control-editar-tipo-persona'),
+    editarClaveSat: document.getElementById('control-editar-clave-sat'),
+    editarLinkSat: document.getElementById('control-editar-link-sat'),
+    editarCorreoReportes: document.getElementById('control-editar-correo-reportes'),
+    editarError: document.getElementById('control-editar-error'),
+    btnEditarCancelar: document.getElementById('control-btn-editar-cancelar'),
+    btnEditarGuardar: document.getElementById('control-btn-editar-guardar'),
+    btnEditarGuardarLabel: document.getElementById('control-btn-editar-guardar-label'),
   };
 
   function getAuthHeader() {
@@ -327,7 +342,7 @@
       }
 
       contenedorAcciones.appendChild(
-        crearBotonAccion('btn-editar-marca', 'Editar marca', () => abrirMarca(t))
+        crearBotonAccion('btn-editar', 'Editar', () => abrirEdicion(t))
       );
 
       celdaAcciones.appendChild(contenedorAcciones);
@@ -595,10 +610,10 @@
     }
   });
 
-  // ---------- Modal de edición de marca (segmento "marca") ----------
+  // ---------- Modal de edición de empresa (segmento "edición") ----------
 
   const MARCA_LOGO_MAX_MB = 2;
-  let marcaSlugActual = null;
+  let slugActualEdicion = null;
 
   function leerArchivoComoBase64(file) {
     return new Promise((resolve, reject) => {
@@ -609,85 +624,213 @@
     });
   }
 
-  function limpiarErroresMarca() {
-    els.marcaError.textContent = '';
-    ['marca-nombre', 'marca-logo'].forEach((id) => {
-      const errorEl = document.getElementById(`error-${id}`);
-      if (errorEl) errorEl.textContent = '';
+  function setFieldErrorEditar(id, mensaje) {
+    const errorEl = document.getElementById(`error-${id}`);
+    if (errorEl) errorEl.textContent = mensaje;
+  }
+
+  function limpiarErroresEditar() {
+    els.editarError.textContent = '';
+    document.querySelectorAll('#control-form-editar .field-error').forEach((el) => {
+      el.textContent = '';
     });
   }
 
-  function abrirMarca(tenant) {
-    marcaSlugActual = tenant.slug;
-    limpiarErroresMarca();
-    els.marcaEmpresa.textContent = `${tenant.nombre_empresa} (${tenant.slug})`;
-    els.marcaNombre.value = tenant.marca || '';
-    els.marcaLogo.value = '';
+  function abrirEdicion(tenant) {
+    slugActualEdicion = tenant.slug;
+    limpiarErroresEditar();
+    els.formEditar.reset();
+    els.btnToggleFiscalEditar.setAttribute('aria-expanded', 'false');
+    els.editarFiscalBody.hidden = true;
+
+    els.editarEmpresa.textContent = `Editando ${tenant.nombre_empresa} (${tenant.slug})`;
+    els.editarNombre.value = tenant.nombre_empresa || '';
+    els.editarMarca.value = tenant.marca || '';
+    els.editarEmail.value = tenant.contacto_email || '';
+    els.editarNotas.value = tenant.notas || '';
+    els.editarRfc.value = tenant.rfc_compania || '';
+    els.editarRazonSocial.value = tenant.razon_social_compania || '';
+    els.editarRegimenFiscal.value = tenant.regimen_fiscal_compania || '';
+    els.editarTipoPersona.value = tenant.tipo_persona_compania || '';
+    els.editarClaveSat.value = tenant.clave_sat || '';
+    els.editarLinkSat.value = tenant.link_codigos_sat || '';
+    els.editarCorreoReportes.value = tenant.correo_reportes || '';
+    els.editarSlug.value = tenant.slug;
+    els.editarSlugSwitch.checked = false;
+    bloquearSlugEdicion();
+
+    els.editarLogo.value = '';
     if (tenant.marca_logo_url) {
-      els.marcaLoGoActual.textContent = 'Este tenant ya tiene un logo cargado. Elige un archivo para reemplazarlo, o guarda con la marca vacía para quitarlo.';
-      els.marcaLoGoActual.hidden = false;
+      els.editarLogoActual.textContent = 'Este tenant ya tiene un logo cargado. Elige un archivo para reemplazarlo, o guarda sin elegir para quitarlo.';
+      els.editarLogoActual.hidden = false;
     } else {
-      els.marcaLoGoActual.textContent = '';
-      els.marcaLoGoActual.hidden = true;
+      els.editarLogoActual.textContent = '';
+      els.editarLogoActual.hidden = true;
     }
-    els.marcaOverlay.hidden = false;
-    els.marcaNombre.focus();
+
+    els.editarOverlay.hidden = false;
+    els.editarNombre.focus();
   }
 
-  function cerrarMarca() {
-    els.marcaOverlay.hidden = true;
-    marcaSlugActual = null;
+  function cerrarEdicion() {
+    els.editarOverlay.hidden = true;
+    slugActualEdicion = null;
   }
 
-  els.btnMarcaCancelar.addEventListener('click', cerrarMarca);
-  els.marcaOverlay.addEventListener('click', (e) => {
-    if (e.target === els.marcaOverlay) cerrarMarca();
+  // El slug se edita solo si el operador lo habilita explícitamente: al
+  // activar el switch queda escribible y se muestra una advertencia
+  // (migración de archivos y URLs nuevas). Al guardar, el backend migra
+  // el almacenamiento y las rutas /<slug>/... y /<slug>/admin pasan a
+  // responder por el slug nuevo de inmediato (nginx no necesita nada:
+  // sus rutas de tenant son regex dinámicas).
+  function bloquearSlugEdicion() {
+    els.editarSlug.readOnly = true;
+    els.editarSlugHint.textContent =
+      'Define las URLs de la empresa. Solo puede cambiarse activando el switch; al guardar, los archivos se migran al slug nuevo.';
+  }
+
+  function desbloquearSlugEdicion() {
+    els.editarSlug.readOnly = false;
+    els.editarSlugHint.textContent =
+      'Al guardar, TODOS los archivos de la empresa se migrarán al slug nuevo, el slug actual dejará de responder y las URLs cambiarán. Este cambio es irreversible.';
+  }
+
+  els.editarSlugSwitch.addEventListener('change', () => {
+    if (els.editarSlugSwitch.checked) {
+      desbloquearSlugEdicion();
+      els.editarSlug.focus();
+    } else {
+      // Al desactivarlo se revierte al slug actual.
+      els.editarSlug.value = slugActualEdicion || '';
+      bloquearSlugEdicion();
+    }
   });
 
-  function setMarcaLoading(isLoading) {
-    els.btnMarcaGuardar.disabled = isLoading;
-    els.btnMarcaGuardar.setAttribute('aria-busy', String(isLoading));
-    els.btnMarcaGuardarLabel.textContent = isLoading ? 'Guardando…' : 'Guardar marca';
+  els.btnEditarCancelar.addEventListener('click', cerrarEdicion);
+  els.editarOverlay.addEventListener('click', (e) => {
+    if (e.target === els.editarOverlay) cerrarEdicion();
+  });
+
+  els.btnToggleFiscalEditar.addEventListener('click', () => {
+    const abierto = els.btnToggleFiscalEditar.getAttribute('aria-expanded') === 'true';
+    els.btnToggleFiscalEditar.setAttribute('aria-expanded', String(!abierto));
+    els.editarFiscalBody.hidden = abierto;
+  });
+
+  function setEdicionLoading(isLoading) {
+    els.btnEditarGuardar.disabled = isLoading;
+    els.btnEditarGuardar.setAttribute('aria-busy', String(isLoading));
+    els.btnEditarGuardarLabel.textContent = isLoading ? 'Guardando…' : 'Guardar cambios';
   }
 
-  els.formMarca.addEventListener('submit', async (e) => {
+  els.formEditar.addEventListener('submit', async (e) => {
     e.preventDefault();
     const authHeader = getAuthHeader();
     if (!authHeader) {
       showLogin();
       return;
     }
-    if (!marcaSlugActual) return;
+    if (!slugActualEdicion) return;
 
-    limpiarErroresMarca();
+    limpiarErroresEditar();
 
-    const marca = els.marcaNombre.value.trim();
-    const archivoLogo = els.marcaLoGo.files && els.marcaLoGo.files[0];
-
-    let logoBase64 = null;
-    if (archivoLogo) {
-      if (archivoLogo.size > MARCA_LOGO_MAX_MB * 1024 * 1024) {
-        setFieldErrorIntake('marca-logo', `El logo excede el tamaño máximo permitido de ${MARCA_LOGO_MAX_MB} MB.`);
-        els.marcaLoGo.focus();
+    // Misma validación del lado del cliente que el alta.
+    const nombre = els.editarNombre.value.trim();
+    if (!nombre) {
+      setFieldErrorEditar('editar-nombre', 'El nombre de la empresa es obligatorio.');
+      els.editarNombre.focus();
+      return;
+    }
+    let slug = els.editarSlug.value.trim().toLowerCase();
+    if (els.editarSlugSwitch.checked) {
+      if (!slug) {
+        setFieldErrorEditar('editar-slug', 'El slug es obligatorio.');
+        els.editarSlug.focus();
         return;
       }
-      try {
-        logoBase64 = await leerArchivoComoBase64(archivoLogo);
-      } catch (err) {
-        setFieldErrorIntake('marca-logo', err.message);
+      if (!/^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/.test(slug)) {
+        setFieldErrorEditar('editar-slug', 'El slug debe ser minúsculas, números y guiones (1-50 caracteres), sin empezar ni terminar en guion.');
+        els.editarSlug.focus();
+        return;
+      }
+      const SLUGS_RESERVADOS = new Set([
+        'admin', 'api', 'dashboard', 'tickets', 'login', 'csf', 'mantenimiento',
+        'health', 'uploads', 'static', 'assets', 'control', 'www',
+        'favicon.ico', 'robots.txt',
+      ]);
+      if (SLUGS_RESERVADOS.has(slug)) {
+        setFieldErrorEditar('editar-slug', `"${slug}" es una ruta reservada de la aplicación y no puede usarse como slug de cliente.`);
+        els.editarSlug.focus();
         return;
       }
     }
+    const email = els.editarEmail.value.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFieldErrorEditar('editar-email', 'El correo de contacto no tiene un formato válido.');
+      els.editarEmail.focus();
+      return;
+    }
+    const rfc = els.editarRfc.value.trim().toUpperCase();
+    if (rfc && !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) {
+      setFieldErrorEditar('editar-rfc', 'El RFC de la compañía no tiene un formato válido.');
+      els.editarRfc.focus();
+      return;
+    }
+    const claveSat = els.editarClaveSat.value.trim();
+    if (claveSat && !/^\d{8}$/.test(claveSat)) {
+      setFieldErrorEditar('editar-clave-sat', 'La Clave SAT debe ser exactamente 8 dígitos.');
+      els.editarClaveSat.focus();
+      return;
+    }
+    const linkSat = els.editarLinkSat.value.trim();
+    if (linkSat && !/^https?:\/\/.+/i.test(linkSat)) {
+      setFieldErrorEditar('editar-link-sat', 'El link de códigos SAT debe ser una URL válida (http:// o https://).');
+      els.editarLinkSat.focus();
+      return;
+    }
+    const correoReportes = els.editarCorreoReportes.value.trim();
+    if (correoReportes && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoReportes)) {
+      setFieldErrorEditar('editar-correo-reportes', 'El correo de reportes no tiene un formato válido.');
+      els.editarCorreoReportes.focus();
+      return;
+    }
 
-    setMarcaLoading(true);
+    setEdicionLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(marcaSlugActual)}/marca`, {
+      let logoBase64 = null;
+      const archivoLogo = els.editarLogo.files && els.editarLogo.files[0];
+      if (archivoLogo) {
+        if (archivoLogo.size > MARCA_LOGO_MAX_MB * 1024 * 1024) {
+          setFieldErrorEditar('editar-logo', `El logo excede el tamaño máximo permitido de ${MARCA_LOGO_MAX_MB} MB.`);
+          els.editarLogo.focus();
+          return;
+        }
+        try {
+          logoBase64 = await leerArchivoComoBase64(archivoLogo);
+        } catch (err) {
+          setFieldErrorEditar('editar-logo', err.message);
+          return;
+        }
+      }
+
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}`, {
         method: 'PUT',
         headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          marca: marca || null,
+          nombreEmpresa: nombre,
+          slug: els.editarSlugSwitch.checked ? slug : undefined,
+          contactoEmail: email || null,
+          notas: els.editarNotas.value.trim() || null,
+          rfcCompania: rfc || null,
+          razonSocialCompania: els.editarRazonSocial.value.trim() || null,
+          regimenFiscalCompania: els.editarRegimenFiscal.value.trim() || null,
+          tipoPersonaCompania: els.editarTipoPersona.value || null,
+          claveSat: claveSat || null,
+          linkCodigosSat: linkSat || null,
+          correoReportes: correoReportes || null,
+          marca: els.editarMarca.value.trim() || null,
           logoBase64: logoBase64 || null,
-          quitarLogo: logoBase64 ? false : !els.marcaLoGoActual.hidden,
+          quitarLogo: logoBase64 ? false : !els.editarLogoActual.hidden,
         }),
       });
       if (res.status === 401) {
@@ -697,16 +840,22 @@
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        els.marcaError.textContent = data.error || 'No se pudo guardar la marca.';
+        els.editarError.textContent = data.error || 'No se pudieron guardar los cambios.';
         return;
       }
-      cerrarMarca();
-      showToast(`Marca de "${data.tenant.slug}" guardada.`);
+      const slugAnterior = slugActualEdicion;
+      cerrarEdicion();
+      const slugFinal = data.tenant.slug;
+      const mensaje =
+        slugFinal !== slugAnterior
+          ? `Empresa actualizada: el slug cambió a "${slugFinal}". Las URLs antiguas ya no responden.`
+          : `Datos de "${slugFinal}" guardados.`;
+      showToast(mensaje);
       cargarTenants();
     } catch (err) {
-      els.marcaError.textContent = 'No se pudo conectar con el servidor.';
+      els.editarError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
-      setMarcaLoading(false);
+      setEdicionLoading(false);
     }
   });
 

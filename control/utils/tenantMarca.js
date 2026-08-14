@@ -190,4 +190,4 @@ async function actualizarMarcaTenant(slug, datos = {}, { actor, db = obtenerPool
   return tenantActualizado;
 }
 
-module.exports = { ErrorMarcaTenant, actualizarMarcaTenant, subirLogoAlBackend, MAX_MARCA_LOGO_MB };
+module.exports = { ErrorMarcaTenant, actualizarMarcaTenant, subirLogoAlBackend, borrarLogoDelBackend, MAX_MARCA_LOGO_MB };

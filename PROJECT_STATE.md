@@ -5292,6 +5292,81 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       configurado, error esperado) con la marca real resuelta. Suites:
       **backend 482/482 (28 suites), control 67/67 (6 suites), E2E
       `flujo-facturacion-piloto9c` 5/5** (18.8s) — sin regresiones.
+104. **Segmento "Edición": editar TODOS los datos de una empresa existente
+    desde /control, incluido el cambio opcional de slug** (aprobado por el
+    usuario 2026-08-13 — instrucción textual: "agrega edición de empresa
+    para modificar sus datos, se habilita con un switch avanzado para
+    cambiar el slug y que este no afecte la facturación actual") — 
+    reemplaza al modal "Editar marca" del segmento 103 (ahora un botón
+    "Editar" por fila que abre el modal de edición completa):
+    - **Modelo de datos**: sin columnas nuevas; reutiliza las del 9c y
+      103. El slug sigue siendo la identidad pública (URLs `/<slug>/...`,
+      prefijo de archivos en MinIO, clave de resolución del backend).
+    - **Migración de archivos al cambiar el slug** (endpoint interno
+      NUEVO `POST /internal/renombrar-slug` en `backend/server.js`,
+      protegido con `X-Internal-Secret`/`INTERNAL_CACHE_SECRET`, NO
+      expuesto por nginx): copia TODOS los objetos del prefijo
+      `/<slug_viejo>/` al nuevo (verificado por conteo — si el destino
+      no tiene tantos objetos como el origen, responde 502 SIN borrar
+      nada), mueve el logo de marca (`marca/<slug_viejo>/logo` →
+      `marca/<slug_nuevo>/logo` si existe) y solo entonces borra lo
+      viejo. Helpers NUEVOS en `backend/utils/storage.js`:
+      `copiarArchivo()` (CopyObjectCommand) y `eliminarPrefijo()`
+      (listado paginado + DeleteObject por objeto). nginx NO necesita
+      recargarse (rutas de tenant por regex dinámicas del segmento 4); el
+      control invalida la caché de resolución del backend para ambos
+      slugs (viejo queda 404, nuevo responde ya).
+    - **La BD física del tenant NO se renombra**: `db_name` se conserva
+      tal cual en tenants ya aprovisionados (el backend se conecta por el
+      `db_name` guardado en la fila); solo en estado `provisioning` (BD
+      aún no creada) se regenera con el slug nuevo
+      (`nombreDbTenant(slugNuevo)`) para que `provisionar-tenant.js`
+      cree la BD con el nombre correcto. El `storage_prefix` SÍ cambia
+      siempre al slug nuevo.
+    - **API de control**: NUEVO `PUT /api/control/tenants/:slug`
+      (`control/server.js` + `control/utils/tenantEdicion.js` NUEVO).
+      Acepta los MISMOS campos que el alta (nombreEmpresa obligatorio,
+      contactoEmail, notas, fiscales, marca, logoBase64, quitarLogo) más
+      `slug` opcional — solo se aplica si el operador lo habilitó
+      explícitamente (switch en la UI). Orden: validar → slug duplicado
+      (409) → migrar archivos en el backend ANTES de tocar la fila (502
+      si el backend la rechaza) → subir/borrar logo al slug FINAL →
+      UPDATE → evento de auditoría `datos_actualizados`/`slug_cambiado`
+      en `tenant_eventos` → invalidar caché del backend. Reutiliza
+      `normalizarDatosBase` (ahora exportado por `tenantIntake.js`) y
+      `subirLogoAlBackend`/`borrarLogoDelBackend` (ahora exportado por
+      `tenantMarca.js`). El slug del tenant solo cambia si el switch está
+      activado (si no, se ignora aunque venga distinto).
+    - **Frontend** (`frontend/control.html`/`control.js`/`admin.css`): el
+      modal "Editar marca" se reemplaza por el modal "Editar empresa"
+      (mismos campos que el alta + slug en solo lectura). El slug se
+      habilita con el switch "Cambiar slug (avanzado)" (CSS nuevo
+      `.control-switch` en admin.css); al activarlo se muestra una
+      advertencia de migración irreversible; al desactivarlo se revierte
+      al slug actual. Toast distinto si el slug cambió ("las URLs
+      antiguas ya no responden"). Botón por fila renombrado de
+      "Editar marca" a "Editar" (`.btn-editar` en admin.css).
+    - **Pruebas**: backend `test/unit/storage.test.js` (copiarArchivo +
+      eliminarPrefijo con paginación, 3 casos) e
+      `test/integration/internal.test.js` (renombrar-slug:
+      403/400/200/502 sin borrar nada si el conteo no cuadra, 6 casos);
+      control `test/unit/tenantEdicion.test.js` NUEVO (13 casos: campos
+      completos, slug con migración antes del UPDATE, db_name conservado
+      en activo / regenerado en provisioning, 409 duplicado, 400
+      validación, 404 inexistente, 502 backend caído/rechaza, logo al
+      slug final, quitarLogo, logo grande, invalidación de caché que
+      falla no rompe la edición) e `test/integration/control.test.js`
+      (PUT edición: 200/400/404/409/502/401).
+    - **Bug encontrado durante la revisión post-interrupción**: en
+      `frontend/control.js` el toast de éxito comparaba `slugFinal` contra
+      `slugActualEdicion` DESPUÉS de `cerrarEdicion()` (que lo pone en
+      null) — siempre habría mostrado "el slug cambió". Fix: capturar
+      `slugAnterior` antes de cerrar el modal.
+    - **Pendiente antes de producción**: el flujo completo (renombrar
+      slug contra MinIO real, edición contra MySQL real y E2E en
+      navegador) NO se ha probado con el stack Docker levantado todavía.
+    - **Suites al día**: **backend 492/492 (28 suites), control 88/88
+      (7 suites)** — sin regresiones.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

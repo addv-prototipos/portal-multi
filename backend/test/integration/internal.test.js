@@ -26,6 +26,10 @@ jest.mock('../../utils/storage', () => ({
   guardarArchivo: jest.fn().mockResolvedValue('marca/cliente1/logo'),
   existeArchivo: jest.fn().mockResolvedValue(true),
   eliminarArchivo: jest.fn().mockResolvedValue(undefined),
+  copiarPrefijo: jest.fn().mockResolvedValue(2),
+  contarObjetosPrefijo: jest.fn().mockResolvedValue(2),
+  copiarArchivo: jest.fn().mockResolvedValue('marca/cliente2/logo'),
+  eliminarPrefijo: jest.fn().mockResolvedValue(2),
   enviarArchivoARespuesta: jest.fn((prefijo, carpeta, nombreArchivo, res) => {
     res.end(Buffer.from('contenido-simulado'));
     return Promise.resolve();
@@ -224,5 +228,116 @@ describe('GET /api/marca-logo/:slug', () => {
 
     expect(res.status).toBe(404);
     expect(storage.existeArchivo).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /internal/renombrar-slug', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  beforeEach(() => {
+    storage.copiarPrefijo.mockClear();
+    storage.contarObjetosPrefijo.mockClear();
+    storage.copiarArchivo.mockClear();
+    storage.eliminarPrefijo.mockClear();
+    storage.eliminarArchivo.mockClear();
+    storage.existeArchivo.mockClear();
+    storage.copiarPrefijo.mockResolvedValue(2);
+    storage.contarObjetosPrefijo.mockResolvedValue(2);
+    storage.copiarArchivo.mockResolvedValue('marca/cliente2/logo');
+    storage.eliminarPrefijo.mockResolvedValue(2);
+    storage.existeArchivo.mockResolvedValue(true);
+  });
+
+  test('sin el secreto responde 403 y no toca el almacenamiento', async () => {
+    const res = await request(app)
+      .post('/internal/renombrar-slug')
+      .send({ slugAnterior: 'cliente1', slugNuevo: 'cliente2' });
+
+    expect(res.status).toBe(403);
+    expect(storage.copiarPrefijo).not.toHaveBeenCalled();
+  });
+
+  test('rechaza slugs inválidos o iguales', async () => {
+    const sinSecretoValido = { 'X-Internal-Secret': 'secreto-de-prueba' };
+    let res = await request(app)
+      .post('/internal/renombrar-slug')
+      .set(sinSecretoValido)
+      .send({ slugAnterior: 'Mal Slug', slugNuevo: 'cliente2' });
+    expect(res.status).toBe(400);
+
+    res = await request(app)
+      .post('/internal/renombrar-slug')
+      .set(sinSecretoValido)
+      .send({ slugAnterior: 'cliente1', slugNuevo: '' });
+    expect(res.status).toBe(400);
+
+    res = await request(app)
+      .post('/internal/renombrar-slug')
+      .set(sinSecretoValido)
+      .send({ slugAnterior: 'cliente1', slugNuevo: 'cliente1' });
+    expect(res.status).toBe(400);
+    expect(storage.copiarPrefijo).not.toHaveBeenCalled();
+  });
+
+  test('copia el prefijo verificando el conteo, mueve el logo y borra lo viejo', async () => {
+    const res = await request(app)
+      .post('/internal/renombrar-slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ slugAnterior: 'cliente1', slugNuevo: 'cliente2' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, copiados: 2, borrados: 2, logoMovido: true });
+    expect(storage.contarObjetosPrefijo).toHaveBeenCalledWith('cliente1');
+    expect(storage.copiarPrefijo).toHaveBeenCalledWith('cliente1', 'cliente2');
+    expect(storage.existeArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'logo');
+    expect(storage.copiarArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'logo', 'marca', 'cliente2', 'logo');
+    expect(storage.eliminarPrefijo).toHaveBeenCalledWith('cliente1');
+    expect(storage.eliminarArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'logo');
+  });
+
+  test('migra sin logo cuando el tenant no tiene uno', async () => {
+    storage.existeArchivo.mockResolvedValue(false);
+    const res = await request(app)
+      .post('/internal/renombrar-slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ slugAnterior: 'cliente1', slugNuevo: 'cliente2' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.logoMovido).toBe(false);
+    expect(storage.copiarArchivo).not.toHaveBeenCalled();
+    expect(storage.eliminarArchivo).not.toHaveBeenCalled();
+  });
+
+  test('si el conteo no cuadra responde 502 SIN borrar nada', async () => {
+    storage.copiarPrefijo.mockResolvedValue(1); // copió menos de los 2 esperados
+
+    const res = await request(app)
+      .post('/internal/renombrar-slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ slugAnterior: 'cliente1', slugNuevo: 'cliente2' });
+
+    expect(res.status).toBe(502);
+    expect(storage.eliminarPrefijo).not.toHaveBeenCalled();
+    expect(storage.eliminarArchivo).not.toHaveBeenCalled();
+    expect(storage.copiarArchivo).not.toHaveBeenCalled();
+  });
+
+  test('si la copia falla responde 502 sin borrar nada', async () => {
+    storage.copiarPrefijo.mockRejectedValue(new Error('MinIO caído'));
+    const res = await request(app)
+      .post('/internal/renombrar-slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ slugAnterior: 'cliente1', slugNuevo: 'cliente2' });
+
+    expect(res.status).toBe(502);
+    expect(storage.eliminarPrefijo).not.toHaveBeenCalled();
   });
 });

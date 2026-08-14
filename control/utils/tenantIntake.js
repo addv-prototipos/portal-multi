@@ -205,4 +205,4 @@ async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {})
   };
 }
 
-module.exports = { ErrorIntakeTenant, crearTenantIntake };
+module.exports = { ErrorIntakeTenant, crearTenantIntake, normalizarDatosBase };

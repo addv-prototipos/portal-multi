@@ -194,6 +194,133 @@ describe('Control standalone (/api/control)', () => {
     });
   });
 
+  describe('PUT /api/control/tenants/:slug (edición de empresa, segmento "edición")', () => {
+    const FILA_COMPLETA = {
+      ...TENANT_FILA,
+      notas: null,
+      rfc_compania: null,
+      razon_social_compania: null,
+      regimen_fiscal_compania: null,
+      tipo_persona_compania: null,
+      clave_sat: null,
+      link_codigos_sat: null,
+      correo_reportes: null,
+      marca: null,
+      marca_logo_url: null,
+      db_name: 'tenant_cliente1',
+      storage_prefix: 'cliente1',
+    };
+
+    beforeEach(() => {
+      global.fetch = jest.fn();
+    });
+
+    test('200 actualiza los datos editables y registra el evento', async () => {
+      pool.query
+        .mockResolvedValueOnce([[FILA_COMPLETA]]) // SELECT del tenant
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([[{ ...FILA_COMPLETA, nombre_empresa: 'Empresa Uno Nueva' }]]) // SELECT post-UPDATE
+        .mockResolvedValueOnce([{}]); // registrarEvento
+
+      const res = await request(app)
+        .put('/api/control/tenants/cliente1')
+        .auth('admin', 'admin')
+        .send({ nombreEmpresa: 'Empresa Uno Nueva', notas: 'nota' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.tenant.nombre_empresa).toBe('Empresa Uno Nueva');
+      expect(global.fetch).not.toHaveBeenCalled(); // sin cambio de slug no hay migración
+      expect(notificarInvalidacionCache).toHaveBeenCalledWith('cliente1');
+    });
+
+    test('200 con slug nuevo: delega la migración al backend y devuelve el tenant renombrado', async () => {
+      pool.query
+        .mockResolvedValueOnce([[FILA_COMPLETA]]) // SELECT del tenant
+        .mockResolvedValueOnce([[]]) // SELECT de duplicados
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([[{ ...FILA_COMPLETA, slug: 'cliente2', storage_prefix: 'cliente2' }]]) // SELECT post-UPDATE
+        .mockResolvedValueOnce([{}]); // registrarEvento
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true, copiados: 0, borrados: 0, logoMovido: false }),
+      });
+
+      const res = await request(app)
+        .put('/api/control/tenants/cliente1')
+        .auth('admin', 'admin')
+        .send({ nombreEmpresa: 'Empresa Uno', slug: 'cliente2' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.tenant.slug).toBe('cliente2');
+      const [url] = global.fetch.mock.calls[0];
+      expect(url).toMatch(/\/internal\/renombrar-slug$/);
+      expect(notificarInvalidacionCache).toHaveBeenCalledWith('cliente1');
+      expect(notificarInvalidacionCache).toHaveBeenCalledWith('cliente2');
+    });
+
+    test('409 con slug nuevo que ya pertenece a otra empresa', async () => {
+      pool.query
+        .mockResolvedValueOnce([[FILA_COMPLETA]]) // SELECT del tenant
+        .mockResolvedValueOnce([[{ id: 99 }]]); // SELECT de duplicados: ya existe
+
+      const res = await request(app)
+        .put('/api/control/tenants/cliente1')
+        .auth('admin', 'admin')
+        .send({ nombreEmpresa: 'Empresa Uno', slug: 'cliente2' });
+
+      expect(res.status).toBe(409);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('400 con datos inválidos (nombre vacío)', async () => {
+      pool.query.mockResolvedValueOnce([[FILA_COMPLETA]]);
+
+      const res = await request(app)
+        .put('/api/control/tenants/cliente1')
+        .auth('admin', 'admin')
+        .send({ nombreEmpresa: '  ' });
+
+      expect(res.status).toBe(400);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('404 si el slug no existe', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const res = await request(app)
+        .put('/api/control/tenants/fantasma')
+        .auth('admin', 'admin')
+        .send({ nombreEmpresa: 'X' });
+
+      expect(res.status).toBe(404);
+    });
+
+    test('502 si la migración falla en el backend', async () => {
+      pool.query
+        .mockResolvedValueOnce([[FILA_COMPLETA]]) // SELECT del tenant
+        .mockResolvedValueOnce([[]]); // SELECT de duplicados
+      global.fetch.mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: async () => ({ error: 'No se pudo migrar el almacenamiento del tenant al slug nuevo.' }),
+      });
+
+      const res = await request(app)
+        .put('/api/control/tenants/cliente1')
+        .auth('admin', 'admin')
+        .send({ nombreEmpresa: 'Empresa Uno', slug: 'cliente2' });
+
+      expect(res.status).toBe(502);
+    });
+
+    test('401 sin credenciales válidas', async () => {
+      const res = await request(app).put('/api/control/tenants/cliente1').send({ nombreEmpresa: 'X' });
+      expect(res.status).toBe(401);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+  });
+
   describe('POST /api/control/tenants (intake de empresa nueva, segmento 9c)', () => {
     test('201 con datos válidos, guarda la solicitud y registra el evento', async () => {
       pool.query

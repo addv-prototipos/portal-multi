@@ -164,6 +164,26 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   67/67, E2E piloto9c 5/5, y flujo real (subir/GET/borrar logo contra
   MinIO real, marca en correo de invitación hasta SMTP). Límites
   `express.json` de backend y control en 4mb (base64 del logo).
+- **Segmento "Edición" (ver PROJECT_STATE.md punto 104)**: hecho a nivel
+  de código + pruebas (pendiente solo la validación real contra el stack
+  Docker). Edición completa de una empresa existente desde `/control`:
+  botón "Editar" por fila → modal con los MISMOS campos que el alta +
+  slug en solo lectura habilitable solo con el switch "Cambiar slug
+  (avanzado)" (CSS `.control-switch` en `frontend/admin.css`). API:
+  `PUT /api/control/tenants/:slug` (`control/utils/tenantEdicion.js`)
+  con `slug` opcional — cambiar slug dispara ANTES la migración de
+  TODOS los archivos del tenant en MinIO vía endpoint interno
+  `POST /internal/renombrar-slug` (backend, secreto `X-Internal-Secret`,
+  NO expuesto por nginx; verificado por conteo, 502 sin borrar nada si
+  no cuadra; helpers `copiarArchivo`/`eliminarPrefijo` en
+  `backend/utils/storage.js`). La BD física NO se renombra (`db_name` se
+  conserva; solo en `provisioning` se regenera); `storage_prefix` sí.
+  nginx no necesita recarga (rutas regex del segmento 4); el control
+  invalida la caché del backend para ambos slugs. Auditoría
+  `datos_actualizados`/`slug_cambiado` en `tenant_eventos`. Bug de
+  sesión anterior corregido: el toast comparaba el slug después de
+  `cerrarEdicion()` (siempre habría dicho "el slug cambió"). Suites al
+  día: backend 492/492 (28 suites), control 88/88 (7 suites).
 - **Todavía no hay ningún tenant real dado de alta** — nada de esto
   recibe tráfico real hoy.
 

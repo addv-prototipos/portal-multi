@@ -270,6 +270,31 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   MinIO real, invitación con la marca del tenant hasta SMTP).
   No avanzar sin aprobación explícita del usuario, mismo protocolo
   `addv-web-app`.
+- **Segmento "Edición" (ver PROJECT_STATE.md punto 104)**: hecho a nivel
+  de código + pruebas (2026-08-13), pendiente solo la validación real
+  contra el stack Docker. Edición completa de una empresa existente
+  desde `/control`: botón "Editar" por fila → modal con los MISMOS
+  campos que el alta + slug en solo lectura, habilitable solo con el
+  switch "Cambiar slug (avanzado)" (CSS `.control-switch` en
+  `frontend/admin.css`; el modal viejo "Editar marca" del punto 103
+  quedó reemplazado). API: `PUT /api/control/tenants/:slug`
+  (`control/utils/tenantEdicion.js`, 200/400/404/409/502). Cambiar slug
+  dispara ANTES la migración de TODOS los archivos del tenant en MinIO
+  vía endpoint interno `POST /internal/renombrar-slug` en
+  `backend/server.js` (secreto `X-Internal-Secret`, NO expuesto por
+  nginx; copia verificada por conteo → 502 sin borrar nada si no cuadra;
+  helpers `copiarArchivo`/`eliminarPrefijo` nuevos en
+  `backend/utils/storage.js`). La BD física NO se renombra (`db_name` se
+  conserva; solo en `provisioning` se regenera con el slug nuevo);
+  `storage_prefix` sí cambia. nginx no necesita recarga (rutas regex del
+  segmento 4); el control invalida la caché del backend para ambos
+  slugs. Auditoría `datos_actualizados`/`slug_cambiado` en
+  `tenant_eventos`. Bug corregido en la revisión: el toast de éxito
+  comparaba el slug después de `cerrarEdicion()` (habría dicho siempre
+  "el slug cambió") — se captura el slug anterior antes de cerrar el
+  modal. Suites al día: backend 492/492 (28 suites), control 88/88 (7
+  suites). No avanzar sin aprobación explícita del usuario, mismo
+  protocolo `addv-web-app`.
 - **Primera corrida real contra Docker (punto 97 de PROJECT_STATE.md,
   IMPORTANTE leer antes de tocar `nginx.conf`/`Dockerfile`/`*.cnf`
   otra vez)**: encontró y corrigió 4 bugs que ningún `node --check` podía

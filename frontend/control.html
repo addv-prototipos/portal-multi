@@ -256,38 +256,131 @@
     </div>
   </div>
 
-  <!-- Modal de edición de marca de un tenant existente (segmento "marca") -->
-  <div class="modal-overlay" id="control-marca-modal-overlay" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="control-marca-modal-title">
-      <h2 id="control-marca-modal-title">Editar marca</h2>
-      <p class="panel-subtitle" id="control-marca-modal-empresa"></p>
+  <!-- Modal de edición de una empresa existente (segmento "edición").
+       Mismos campos que el alta, con el Slug en solo lectura — el único
+       campo que requiere habilitarlo explícitamente con el switch
+       "Cambiar slug" (avanzado): al guardar, el sistema migra los
+       archivos al slug nuevo y las URLs /<slug>/... quedan activas. -->
+  <div class="modal-overlay" id="control-editar-modal-overlay" hidden>
+    <div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="control-editar-modal-title">
+      <h2 id="control-editar-modal-title">Editar empresa</h2>
+      <p class="panel-subtitle" id="control-editar-modal-empresa"></p>
 
-      <form id="control-form-marca" novalidate>
+      <form id="control-form-editar" novalidate>
         <div class="field">
-          <label for="control-marca-nombre">Marca</label>
-          <input type="text" id="control-marca-nombre" maxlength="255" autocomplete="off"
-            placeholder="ej. Mi Empresa S.A." />
-          <p class="field-hint">
-            Nombre con el que quieren ser reconocidos en los correos del portal. Déjalo vacío para usar el nombre genérico de la plataforma.
-          </p>
-          <p class="field-error" id="error-marca-nombre" role="alert"></p>
+          <label for="control-editar-nombre">Nombre de la empresa</label>
+          <input type="text" id="control-editar-nombre" maxlength="255" autocomplete="off" required />
+          <p class="field-error" id="error-editar-nombre" role="alert"></p>
         </div>
 
         <div class="field">
-          <label for="control-marca-logo">Logo de la marca</label>
-          <input type="file" id="control-marca-logo" accept="image/png,image/jpeg,image/webp" />
+          <label for="control-editar-marca">Marca</label>
+          <input type="text" id="control-editar-marca" maxlength="255" autocomplete="off"
+            placeholder="ej. Mi Empresa S.A." />
+          <p class="field-hint">
+            Nombre con el que quieren ser reconocidos en los correos del portal (logo o texto). Vacío = nombre genérico de la plataforma.
+          </p>
+          <p class="field-error" id="error-editar-marca" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-editar-logo">Logo de la marca</label>
+          <input type="file" id="control-editar-logo" accept="image/png,image/jpeg,image/webp" />
           <p class="field-hint">
             Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
           </p>
-          <p class="field-hint" id="control-marca-logo-actual" hidden></p>
-          <p class="field-error" id="error-marca-logo" role="alert"></p>
+          <p class="field-hint" id="control-editar-logo-actual" hidden></p>
+          <p class="field-error" id="error-editar-logo" role="alert"></p>
         </div>
 
-        <p class="field-error" id="control-marca-error" role="alert"></p>
+        <div class="field">
+          <label for="control-editar-slug">Slug (Contexto URL único)</label>
+          <div class="control-slug-fila">
+            <input type="text" id="control-editar-slug" maxlength="50" autocomplete="off" inputmode="text"
+              placeholder="ej. empresa-uno" readonly />
+            <label class="control-switch" for="control-editar-slug-switch">
+              <input type="checkbox" id="control-editar-slug-switch" />
+              <span class="control-switch-track" aria-hidden="true"></span>
+              <span class="control-switch-label">Cambiar slug (avanzado)</span>
+            </label>
+          </div>
+          <p class="field-hint" id="control-editar-slug-hint">
+            Define las URLs de la empresa. Solo puede cambiarse activando el switch; al guardar, los archivos se migran al slug nuevo.
+          </p>
+          <p class="field-error" id="error-editar-slug" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-editar-email">Correo de contacto</label>
+          <input type="email" id="control-editar-email" autocomplete="off" placeholder="contacto@empresa.com" />
+          <p class="field-error" id="error-editar-email" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-editar-notas">Notas</label>
+          <textarea id="control-editar-notas" rows="3" placeholder="Cualquier contexto para el operador…"></textarea>
+        </div>
+
+        <button type="button" class="admin-config-toggle" id="control-btn-toggle-fiscal-editar" aria-expanded="false">
+          <span>Datos fiscales (opcional)</span>
+          <svg class="admin-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div id="control-editar-fiscal-body" hidden>
+          <div class="field">
+            <label for="control-editar-rfc">RFC de la compañía</label>
+            <input type="text" id="control-editar-rfc" maxlength="13" autocomplete="off"
+              placeholder="AAA010101AAA" />
+            <p class="field-hint">12 o 13 caracteres alfanuméricos, opcional.</p>
+            <p class="field-error" id="error-editar-rfc" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-editar-razon-social">Razón Social</label>
+            <input type="text" id="control-editar-razon-social" maxlength="255" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="control-editar-regimen-fiscal">Régimen fiscal</label>
+            <input type="text" id="control-editar-regimen-fiscal" maxlength="255" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="control-editar-tipo-persona">Tipo de persona</label>
+            <select id="control-editar-tipo-persona">
+              <option value="">—</option>
+              <option value="fisica">Persona Física</option>
+              <option value="moral">Persona Moral</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="control-editar-clave-sat">Clave SAT</label>
+            <input type="text" id="control-editar-clave-sat" inputmode="numeric" maxlength="8"
+              placeholder="12345678" autocomplete="off" />
+            <p class="field-hint">Exactamente 8 dígitos.</p>
+            <p class="field-error" id="error-editar-clave-sat" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-editar-link-sat">Link de códigos SAT</label>
+            <input type="url" id="control-editar-link-sat" placeholder="https://..." autocomplete="off" />
+            <p class="field-error" id="error-editar-link-sat" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-editar-correo-reportes">Correo de reportes</label>
+            <input type="email" id="control-editar-correo-reportes" placeholder="reportes@empresa.com" autocomplete="off" />
+            <p class="field-error" id="error-editar-correo-reportes" role="alert"></p>
+          </div>
+        </div>
+
+        <p class="field-error" id="control-editar-error" role="alert"></p>
         <div class="btn-row">
-          <button type="button" class="btn btn-secondary" id="control-btn-marca-cancelar">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="control-btn-marca-guardar">
-            <span id="control-btn-marca-guardar-label">Guardar marca</span>
+          <button type="button" class="btn btn-secondary" id="control-btn-editar-cancelar">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="control-btn-editar-guardar">
+            <span id="control-btn-editar-guardar-label">Guardar cambios</span>
           </button>
         </div>
       </form>
