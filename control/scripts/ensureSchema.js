@@ -27,6 +27,12 @@ const COLUMNAS_NUEVAS = [
   { nombre: 'clave_sat', definicion: 'VARCHAR(8) NULL' },
   { nombre: 'link_codigos_sat', definicion: 'VARCHAR(500) NULL' },
   { nombre: 'correo_reportes', definicion: 'VARCHAR(200) NULL' },
+  // Marca de la empresa (segmento "marca"): nombre con el que la empresa
+  // quiere ser reconocida en los correos del portal (en vez del nombre
+  // por defecto "ADDV"), y ruta pública del logo cargado (si se subió
+  // uno) — si no hay logo, el correo genera un logo de texto con la marca.
+  { nombre: 'marca', definicion: 'VARCHAR(255) NULL' },
+  { nombre: 'marca_logo_url', definicion: 'VARCHAR(500) NULL' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {

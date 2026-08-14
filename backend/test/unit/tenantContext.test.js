@@ -39,6 +39,8 @@ const FILA_TENANT_ACTIVO = {
   db_host: 'mysql',
   db_name: 'tenant_cliente1',
   db_user: 'app',
+  marca: 'Cliente Uno',
+  marca_logo_url: '/api/marca-logo/cliente1',
 };
 
 describe('utils/tenantContext.js', () => {
@@ -135,7 +137,13 @@ describe('utils/tenantContext.js', () => {
 
       await resolverTenantMiddleware(req, res, next);
 
-      expect(req.tenant).toEqual({ id: 1, slug: 'cliente1', nombreEmpresa: 'Cliente Uno S.A.' });
+      expect(req.tenant).toEqual({
+        id: 1,
+        slug: 'cliente1',
+        nombreEmpresa: 'Cliente Uno S.A.',
+        marca: 'Cliente Uno',
+        marcaLogoUrl: '/api/marca-logo/cliente1',
+      });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })
       );

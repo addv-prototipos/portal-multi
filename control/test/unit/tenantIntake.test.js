@@ -40,6 +40,7 @@ describe('utils/tenantIntake.js', () => {
           slug: 'Empresa-Uno',
           contactoEmail: 'CONTACTO@EMPRESAUNO.COM',
           notas: 'Cliente piloto',
+          marca: '  Marca Uno  ',
         },
         { actor: 'admin' }
       );
@@ -54,6 +55,7 @@ describe('utils/tenantIntake.js', () => {
       expect(sqlInsert).toMatch(/INSERT INTO tenants/);
       expect(sqlInsert).toMatch(/estado/);
       expect(sqlInsert).toMatch(/rfc_compania, razon_social_compania, regimen_fiscal_compania/);
+      expect(sqlInsert).toMatch(/marca, marca_logo_url/);
       expect(paramsInsert).toContain('empresa-uno'); // slug normalizado
       expect(paramsInsert).toContain('Empresa Uno S.A. de C.V.'); // nombre recortado
       expect(paramsInsert).toContain('contacto@empresauno.com'); // email a minúsculas
@@ -61,6 +63,7 @@ describe('utils/tenantIntake.js', () => {
       expect(paramsInsert).toContain('tenant_empresa-uno'); // db_name derivado
       expect(paramsInsert).toContain('app'); // db_user por defecto
       expect(paramsInsert).toContain('empresa-uno'); // storage_prefix = slug
+      expect(paramsInsert).toContain('Marca Uno'); // marca recortada
       // Los 7 campos fiscales van como null en el INSERT (no se mandaron)
       expect(paramsInsert).toEqual(
         expect.arrayContaining([null, null, null, null, null, null, null])
@@ -83,7 +86,54 @@ describe('utils/tenantIntake.js', () => {
         nombre_empresa: 'Empresa Uno S.A. de C.V.',
         estado: 'provisioning',
         db_name: 'tenant_empresa-uno',
+        marca: 'Marca Uno',
       });
+    });
+
+    test('la marca vacía se guarda como null y la ruta del logo se valida', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValueOnce([{ insertId: 2 }])
+        .mockResolvedValueOnce([{}]);
+
+      const resultado = await crearTenantIntake(
+        {
+          nombreEmpresa: 'X',
+          slug: 'empresa',
+          marca: '   ',
+          marcaLoGoUrl: 'http://sitio-malicioso.com/logo.png',
+        },
+        { actor: 'admin' }
+      );
+
+      const paramsInsert = pool.query.mock.calls[1][1];
+      // marca vacía -> null; URL que no empieza con /api/marca-logo/ -> null
+      expect(paramsInsert).toContain(null);
+      expect(resultado.marca).toBeNull();
+      expect(resultado.marca_logo_url).toBeNull();
+    });
+
+    test('la ruta del logo generada por el servidor sí se guarda', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValueOnce([{ insertId: 3 }])
+        .mockResolvedValueOnce([{}]);
+
+      const resultado = await crearTenantIntake(
+        {
+          nombreEmpresa: 'X',
+          slug: 'empresa',
+          marca: 'Marca X',
+          marcaLoGoUrl: '/api/marca-logo/empresa',
+        },
+        { actor: 'admin' }
+      );
+
+      const paramsInsert = pool.query.mock.calls[1][1];
+      expect(paramsInsert).toContain('/api/marca-logo/empresa');
+      expect(resultado.marca_logo_url).toBe('/api/marca-logo/empresa');
     });
 
     test('TENANT_DB_HOST/TENANT_DB_USER sobreescriben la infra derivada', async () => {

@@ -17,6 +17,7 @@ const {
   ErrorTransicionTenant,
 } = require('./utils/tenantLifecycle');
 const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake');
+const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant, MAX_MARCA_LOGO_MB } = require('./utils/tenantMarca');
 
 const PORT = Number(process.env.PORT || 4001);
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -26,7 +27,12 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
-app.use(express.json({ limit: '10kb' }));
+// Límite de body amplio a propósito: el logo de marca se recibe aquí como
+// base64 desde el navegador (hasta 2 MB de archivo, ~2.7 MB de texto) y se
+// reenvía al backend por su endpoint interno — ver PUT
+// /api/control/tenants/:slug/marca y backend/server.js
+// (POST /internal/marca-logo/:slug).
+app.use(express.json({ limit: '4mb' }));
 
 // Sin req.tenant en este servicio (nunca resuelve un tenant específico),
 // así que la clave de los limiters es siempre "sin-tenant:IP" — mismo
@@ -153,7 +159,40 @@ app.post(
   requireAdminArea(),
   asyncHandler(async (req, res) => {
     try {
-      const tenant = await crearTenantIntake(req.body || {}, { actor: req.adminUser });
+      const body = req.body || {};
+
+      // Logo de marca opcional: se sube al almacenamiento (vía backend
+      // interno) ANTES de crear la fila, para que el intake guarde la
+      // ruta pública resultante junto con la marca. Si el alta después
+      // falla (ej. slug duplicado), el archivo queda huérfano en
+      // almacenamiento — inofensivo (se sobrescribe si se reintenta con
+      // ese mismo slug), y no vale la pena un paso de limpieza por un
+      // caso de esquina.
+      let marcaLoGoUrl = null;
+      if (typeof body.logoBase64 === 'string' && body.logoBase64.length > 0) {
+        let buffer;
+        try {
+          buffer = Buffer.from(body.logoBase64, 'base64');
+        } catch (err) {
+          return res.status(400).json({ error: 'El contenido del logo no es un base64 válido.' });
+        }
+        if (buffer.length === 0) {
+          return res.status(400).json({ error: 'El logo está vacío.' });
+        }
+        if (buffer.length > MAX_MARCA_LOGO_MB * 1024 * 1024) {
+          return res.status(400).json({ error: `El logo excede el tamaño máximo permitido de ${MAX_MARCA_LOGO_MB} MB.` });
+        }
+        try {
+          marcaLoGoUrl = await subirLogoAlBackend(body.slug || '', buffer);
+        } catch (err) {
+          if (err instanceof ErrorMarcaTenant) {
+            return res.status(err.codigo === 'backend' ? 502 : 400).json({ error: err.message });
+          }
+          throw err;
+        }
+      }
+
+      const tenant = await crearTenantIntake({ ...body, marcaLoGoUrl }, { actor: req.adminUser });
       res.status(201).json({ ok: true, tenant });
     } catch (err) {
       if (err instanceof ErrorIntakeTenant) {
@@ -192,6 +231,32 @@ app.post(
   requireAdminArea(),
   asyncHandler(async (req, res) => {
     await manejarTransicionTenant(res, () => darDeBajaTenant(req.params.slug, { actor: req.adminUser }));
+  })
+);
+
+// Actualiza la marca (y opcionalmente el logo) de un tenant — el nombre
+// con el que la empresa quiere ser reconocida en los correos del portal,
+// con prioridad sobre el nombre genérico por defecto. El logo llega como
+// base64 y se reenvía al backend principal para persistirlo en MinIO (ver
+// control/utils/tenantMarca.js). 200 marca actualizada / 400 datos que no
+// pasan la validación / 404 slug inexistente / 502 el backend rechazó el
+// logo.
+app.put(
+  '/api/control/tenants/:slug/marca',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const tenant = await actualizarMarcaTenant(req.params.slug, req.body || {}, { actor: req.adminUser });
+      res.json({ ok: true, tenant });
+    } catch (err) {
+      if (err instanceof ErrorMarcaTenant) {
+        const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'backend' ? 502 : 400;
+        return res.status(estatus).json({ error: err.message });
+      }
+      throw err;
+    }
   })
 );
 

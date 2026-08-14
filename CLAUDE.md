@@ -243,6 +243,33 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   residuales en `beforeAll` y cierra el modal de notificación si aparece).
   No avanzar sin aprobación explícita del usuario, mismo protocolo
   `addv-web-app`.
+- **Segmento "Marca" (ver PROJECT_STATE.md punto 103)**: hecho y validado
+  contra Docker/MySQL reales (2026-08-13). Campo `marca` (VARCHAR 255) +
+  `marca_logo_url` (VARCHAR 500) en `control_tenants.tenants` (solo vía
+  `control/scripts/ensureSchema.js`); logo en MinIO bajo key
+  `marca/<slug>/logo` (sin extensión, ContentType del objeto), subido por
+  el control vía `POST/DELETE /internal/marca-logo/:slug` (secreto
+  `X-Internal-Secret`, NO expuesto por nginx) y servido por
+  `GET /api/marca-logo/:slug` (público a propósito — va en correos —,
+  `Cache-Control: public, max-age=86400`). Los 7 "ADDV" incrustados en
+  correos del backend quedaron mapeados a `MARCA_DEFECTO='ADDV'` +
+  `marcaDelTenant(req)` en `backend/server.js` (tickets, órdenes de
+  compra, invitación, ticket nuevo al contador, factura lista, plantilla
+  default de `backend/utils/email.js`); `req.tenant.marca`/`marcaLoGoUrl`
+  llegan desde `tenantContext.js`. API de control:
+  `PUT /api/control/tenants/:slug/marca` (`{marca?, logoBase64?,
+  quitarLogo?}`, 400/404/502, evento `marca_actualizada` + invalidación
+  de caché) en `control/utils/tenantMarca.js`; el intake 9c acepta
+  `marca`+`logoBase64` (sube el logo antes de crear la fila; huérfano en
+  MinIO si el alta falla, aceptado). UI: campo Marca + logo en el modal
+  de alta y botón "Editar marca" por fila en `/control`; etiqueta
+  "Slug (Contexto URL único)". Límites `express.json` en 4mb (backend y
+  control) para el base64; `MAX_MARCA_LOGO_MB=2` (env en ambos).
+  Verificación: backend Jest 482/482 (28 suites), control 67/67 (6
+  suites), E2E piloto9c 5/5, flujo real (subir/GET/borrar logo contra
+  MinIO real, invitación con la marca del tenant hasta SMTP).
+  No avanzar sin aprobación explícita del usuario, mismo protocolo
+  `addv-web-app`.
 - **Primera corrida real contra Docker (punto 97 de PROJECT_STATE.md,
   IMPORTANTE leer antes de tocar `nginx.conf`/`Dockerfile`/`*.cnf`
   otra vez)**: encontró y corrigió 4 bugs que ningún `node --check` podía

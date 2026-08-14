@@ -21,6 +21,8 @@ const TODAS_LAS_COLUMNAS = [
   { COLUMN_NAME: 'clave_sat' },
   { COLUMN_NAME: 'link_codigos_sat' },
   { COLUMN_NAME: 'correo_reportes' },
+  { COLUMN_NAME: 'marca' },
+  { COLUMN_NAME: 'marca_logo_url' },
 ];
 
 describe('scripts/ensureSchema.js', () => {
@@ -32,7 +34,7 @@ describe('scripts/ensureSchema.js', () => {
 
       await asegurarColumnasCicloVidaTenant(db);
 
-      expect(db.query).toHaveBeenCalledTimes(9);
+      expect(db.query).toHaveBeenCalledTimes(11);
       expect(db.query.mock.calls[1][0]).toMatch(/ALTER TABLE tenants ADD COLUMN baja_en DATETIME NULL/);
       expect(db.query.mock.calls[2][0]).toMatch(/ALTER TABLE tenants ADD COLUMN rfc_compania VARCHAR\(13\) NULL/);
       expect(db.query.mock.calls[3][0]).toMatch(/ALTER TABLE tenants ADD COLUMN razon_social_compania VARCHAR\(255\) NULL/);
@@ -41,6 +43,8 @@ describe('scripts/ensureSchema.js', () => {
       expect(db.query.mock.calls[6][0]).toMatch(/ALTER TABLE tenants ADD COLUMN clave_sat VARCHAR\(8\) NULL/);
       expect(db.query.mock.calls[7][0]).toMatch(/ALTER TABLE tenants ADD COLUMN link_codigos_sat VARCHAR\(500\) NULL/);
       expect(db.query.mock.calls[8][0]).toMatch(/ALTER TABLE tenants ADD COLUMN correo_reportes VARCHAR\(200\) NULL/);
+      expect(db.query.mock.calls[9][0]).toMatch(/ALTER TABLE tenants ADD COLUMN marca VARCHAR\(255\) NULL/);
+      expect(db.query.mock.calls[10][0]).toMatch(/ALTER TABLE tenants ADD COLUMN marca_logo_url VARCHAR\(500\) NULL/);
     });
 
     test('no agrega ninguna columna si todas existen (idempotente)', async () => {
@@ -60,13 +64,15 @@ describe('scripts/ensureSchema.js', () => {
 
       await asegurarColumnasCicloVidaTenant(db);
 
-      expect(db.query).toHaveBeenCalledTimes(7);
+      expect(db.query).toHaveBeenCalledTimes(9);
       expect(db.query.mock.calls[1][0]).toMatch(/ADD COLUMN razon_social_compania/);
       expect(db.query.mock.calls[2][0]).toMatch(/ADD COLUMN regimen_fiscal_compania/);
       expect(db.query.mock.calls[3][0]).toMatch(/ADD COLUMN tipo_persona_compania/);
       expect(db.query.mock.calls[4][0]).toMatch(/ADD COLUMN clave_sat/);
       expect(db.query.mock.calls[5][0]).toMatch(/ADD COLUMN link_codigos_sat/);
       expect(db.query.mock.calls[6][0]).toMatch(/ADD COLUMN correo_reportes/);
+      expect(db.query.mock.calls[7][0]).toMatch(/ADD COLUMN marca/);
+      expect(db.query.mock.calls[8][0]).toMatch(/ADD COLUMN marca_logo_url/);
     });
   });
 });

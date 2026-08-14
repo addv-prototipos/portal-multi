@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -78,7 +78,16 @@ async function resolverTenantMiddleware(req, res, next) {
       return res.status(404).json({ error: 'Tenant no encontrado.' });
     }
 
-    req.tenant = { id: tenant.id, slug: tenant.slug, nombreEmpresa: tenant.nombre_empresa };
+    req.tenant = {
+      id: tenant.id,
+      slug: tenant.slug,
+      nombreEmpresa: tenant.nombre_empresa,
+      // Marca de la empresa (segmento "marca"): nombre con el que quiere
+      // ser reconocida en los correos del portal. Si no la definió, cae al
+      // nombre genérico por defecto ("ADDV") en los puntos de uso, no aquí.
+      marca: tenant.marca || null,
+      marcaLogoUrl: tenant.marca_logo_url || null,
+    };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas
     // cuyo handler corre FUERA del contexto ALS establecido por

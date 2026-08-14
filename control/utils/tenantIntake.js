@@ -78,6 +78,22 @@ function normalizarDatosBase(datos = {}) {
   const notas = typeof datos.notas === 'string' ? datos.notas.trim() : '';
   normalizado.notas = notas ? notas.slice(0, 65535) : null;
 
+  // Marca de la empresa (segmento "marca"): nombre con el que quiere ser
+  // reconocida en los correos del portal — opcional, se usa el nombre por
+  // defecto de la app si no se define.
+  const marca = typeof datos.marca === 'string' ? datos.marca.trim() : '';
+  if (marca.length > 255) {
+    throw new Error('La marca no puede superar los 255 caracteres.');
+  }
+  normalizado.marca = marca || null;
+
+  // Ruta pública del logo de marca — la deja la capa de rutas después de
+  // subir el archivo al backend (POST /internal/marca-logo/:slug). Es una
+  // ruta generada por el servidor (siempre empieza con "/api/marca-logo/"),
+  // no texto libre del cliente.
+  const marcaLoGoUrl = typeof datos.marcaLoGoUrl === 'string' ? datos.marcaLoGoUrl.trim() : '';
+  normalizado.marcaLoGoUrl = marcaLoGoUrl && marcaLoGoUrl.startsWith('/api/marca-logo/') ? marcaLoGoUrl : null;
+
   return normalizado;
 }
 
@@ -113,9 +129,11 @@ async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {})
         (slug, nombre_empresa, estado, db_host, db_name, db_user, storage_prefix,
          contacto_email, notas, creado_en,
          rfc_compania, razon_social_compania, regimen_fiscal_compania,
-         tipo_persona_compania, clave_sat, link_codigos_sat, correo_reportes)
+         tipo_persona_compania, clave_sat, link_codigos_sat, correo_reportes,
+         marca, marca_logo_url)
        VALUES (?, ?, 'provisioning', ?, ?, ?, ?, ?, ?, ?,
-               ?, ?, ?, ?, ?, ?, ?)`,
+               ?, ?, ?, ?, ?, ?, ?,
+               ?, ?)`,
       [
         base.slug,
         base.nombreEmpresa,
@@ -133,6 +151,8 @@ async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {})
         fiscales.claveSat,
         fiscales.linkCodigosSat,
         fiscales.correoReportes,
+        base.marca,
+        base.marcaLoGoUrl,
       ]
     );
     tenantId = insertResult.insertId;
@@ -180,6 +200,8 @@ async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {})
     clave_sat: fiscales.claveSat,
     link_codigos_sat: fiscales.linkCodigosSat,
     correo_reportes: fiscales.correoReportes,
+    marca: base.marca,
+    marca_logo_url: base.marcaLoGoUrl,
   };
 }
 

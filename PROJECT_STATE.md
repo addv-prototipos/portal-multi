@@ -5219,6 +5219,80 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     - Nota: `e2e/debug-select.js` y `e2e/diag-orden.js` (artefactos de
       diagnóstico del BUG 1) se eliminaron.
 
+103. **Segmento "Marca": el nombre con el que cada empresa quiere ser
+    reconocida en los correos del portal (en vez del genérico "ADDV") +
+    logo opcional + etiqueta "Slug (Contexto URL único)"** (aprobado por el
+    usuario 2026-08-13, instrucción textual: "agrega control otro campo que
+    se llame MARCA, este es con el que quieren ser reconocidos con su logo
+    o texto, deja la opción para cargar logo, pero sino cargan logo, Sea el
+    nombre en texto y nosotros generamos el logo"; y "al texto Slug
+    (identificador único) modificalo por Slug (Contexto URL único)"):
+    - **Modelo de datos**: columnas `marca VARCHAR(255) NULL` y
+      `marca_logo_url VARCHAR(500) NULL` en `control_tenants.tenants`,
+      agregadas por `control/scripts/ensureSchema.js` (única fuente del
+      esquema de control; `backend/scripts/lib/controlDb.js` no se tocó,
+      mismo patrón que las columnas del 9c). El logo se guarda en MinIO
+      con key `marca/<slug>/logo` (sin extensión; ContentType del objeto),
+      y en la fila solo la ruta pública relativa `/api/marca-logo/<slug>`.
+    - **Flujo del logo (el control no tiene SDK S3 ni multer)**: navegador
+      → base64 JSON → control → `POST /internal/marca-logo/:slug` del
+      backend (protegido con `X-Internal-Secret`/`INTERNAL_CACHE_SECRET`,
+      NO expuesto por nginx; valida magic bytes PNG/JPEG/WEBP y
+      `MAX_MARCA_LOGO_MB=2`, configurable vía env en ambos contenedores) →
+      MinIO → el backend devuelve la ruta pública que se guarda en la fila.
+      `DELETE /internal/marca-logo/:slug` borra el archivo ("quitar logo").
+      `GET /api/marca-logo/:slug` es público a propósito (el logo va en
+      correos) con `Cache-Control: public, max-age=86400`. Límites de
+      `express.json` subidos a 4mb en backend y control (el base64 de un
+      logo de 2MB pesa ~2.7MB).
+    - **Mapeo de los 7 "ADDV" incrustados en correos del backend**
+      (`backend/server.js`): constante `MARCA_DEFECTO='ADDV'` + helper
+      `marcaDelTenant(req)` = `(req.tenant && req.tenant.marca) ||
+      'ADDV'`; `req.tenant.marca`/`marcaLoGoUrl` llegan vía
+      `resolverTenantPorSlug` (`backend/utils/tenantContext.js`). Puntos
+      mapeados: `logoTicketHtml(logoUrl, marca)` (tickets), correo de
+      orden de compra (`construirCorreoOrdenCompra`, footer con marca;
+      prioridad de logo: `marcaLoGoUrl` del tenant convertido a absoluto
+      con `detectarUrlPortal(req)` > `configGlobal.logo_url`), invitación
+      al portal (`enviarInvitacionPortal`, asunto + cuerpo), aviso de
+      ticket nuevo al contador (`notificarNuevoTicketAlContador`), aviso
+      de factura lista al cliente (`notificarFacturaListaAlCliente`), y la
+      plantilla default de `backend/utils/email.js` (`{folio}`, `{rfc}`,
+      `{marca}`).
+    - **API de control**: `PUT /api/control/tenants/:slug/marca` con
+      `{ marca?, logoBase64?, quitarLogo? }` (400 validación / 404 slug /
+      502 backend rechazó el logo); registra evento `marca_actualizada`
+      en `tenant_eventos` e invalida la caché del backend
+      (`notificarInvalidacionCache`). El intake del 9c
+      (`POST /api/control/tenants`) acepta ahora `marca` y `logoBase64`
+      (sube el logo ANTES de crear la fila; si el alta falla queda un
+      archivo huérfano en MinIO, aceptado como inofensivo).
+      Implementación: `control/utils/tenantMarca.js` (NUEVO) +
+      `tenantIntake.js`.
+    - **Frontend** (`frontend/control.html`/`control.js`/`admin.css`):
+      etiqueta renombrada "Slug (Contexto URL único)"; campo Marca + input
+      de logo (máx 2MB, JPG/PNG/WEBP) en el modal de "Nueva empresa";
+      botón "Editar marca" por fila → modal propio con nombre + logo
+      actual + reemplazo/quitado.
+    - **Pruebas**: backend `test/integration/internal.test.js` (mock de
+      storage; POST/DELETE/GET del logo: 403/200/400/404, Content-Type y
+      cache); control `test/unit/tenantMarca.test.js` (8 casos),
+      `test/unit/tenantIntake.test.js` (marca + rutas de logo),
+      `test/integration/control.test.js` (PUT marca 200/400/404/401;
+      intake 201 con logo, 400 logo grande — 2.5MB: el base64 de 3MB
+      exactos toca el límite de 4mb de express y daría 413 antes de la
+      validación propia — y 400 no-imagen). `ensureSchema.test.js`
+      actualizado (11 columnas).
+    - **Verificación real contra el stack Docker (2026-08-13)**: rebuild
+      de backend/control/frontend; columnas presentes en MySQL real;
+      PUT marca+logo → fila actualizada + objeto `marca/<slug>/logo` en
+      MinIO (70B, Content-Type image/png) + GET público 200 con cache;
+      quitarLogo → archivo borrado de MinIO y 404; alta de usuario bajo
+      el tenant con `X-Tenant-Slug` → invitación llega hasta SMTP (no
+      configurado, error esperado) con la marca real resuelta. Suites:
+      **backend 482/482 (28 suites), control 67/67 (6 suites), E2E
+      `flujo-facturacion-piloto9c` 5/5** (18.8s) — sin regresiones.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

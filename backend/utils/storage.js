@@ -125,6 +125,16 @@ async function enviarArchivoARespuesta(prefijo, carpeta, nombreArchivo, res) {
   resultado.Body.pipe(res);
 }
 
+// Lee un archivo completo y devuelve su stream junto con el Content-Type
+// con el que se guardó — usado por el logo de marca del tenant (segmento
+// "marca"): como la key no lleva extensión, el GET público necesita el
+// MIME guardado para responder con el Content-Type correcto.
+async function obtenerArchivo(prefijo, carpeta, nombreArchivo) {
+  const key = construirKey(prefijo, carpeta, nombreArchivo);
+  const resultado = await client.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  return { stream: resultado.Body, contentType: resultado.ContentType || 'application/octet-stream' };
+}
+
 // Copia TODOS los objetos bajo "<prefijoOrigen>/" a "<prefijoDestino>/"
 // (mismo bucket) usando CopyObject del lado del servidor — no descarga ni
 // vuelve a subir nada. Usada por el cutover del tenant piloto (segmento 6
@@ -190,6 +200,7 @@ module.exports = {
   existeArchivo,
   eliminarArchivo,
   enviarArchivoARespuesta,
+  obtenerArchivo,
   copiarPrefijo,
   contarObjetosPrefijo,
 };

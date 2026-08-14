@@ -144,8 +144,26 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   de multer en `server.js` (tickets, registro, constancia-compania,
   factura); (2) desfase de 1 segundo en `POST /api/admin/ordenes-compra`
   (Intl trunca ms, MySQL redondea → COMPRA_NO_ENCONTRADA intermitente) —
-  fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
-  5/5 passed contra Docker/MySQL reales.
+fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
+   5/5 passed contra Docker/MySQL reales.
+- **Segmento "Marca" (ver PROJECT_STATE.md punto 103)**: hecho y validado
+  contra Docker/MySQL reales. Campo `marca` (VARCHAR 255) + `marca_logo_url`
+  (VARCHAR 500) en `control_tenants.tenants` (solo vía
+  `control/scripts/ensureSchema.js`); logo opcional en MinIO bajo key
+  `marca/<slug>/logo` subido por el control vía endpoint interno
+  `POST/DELETE /internal/marca-logo/:slug` (secreto `X-Internal-Secret`,
+  NO expuesto por nginx) y servido por `GET /api/marca-logo/:slug` (público,
+  cache 86400). Los 7 "ADDV" incrustados en correos del backend quedaron
+  mapeados a `MARCA_DEFECTO='ADDV'` + `marcaDelTenant(req)` en `server.js`;
+  `req.tenant.marca`/`marcaLoGoUrl` llegan desde `tenantContext.js`.
+  API: `PUT /api/control/tenants/:slug/marca` (`{marca?, logoBase64?,
+  quitarLogo?}`) en `control/utils/tenantMarca.js`; el intake 9c acepta
+  `marca`+`logoBase64`. UI: campo Marca + logo en el modal de alta y
+  botón "Editar marca" por fila en `/control`; etiqueta renombrada a
+  "Slug (Contexto URL único)". Verificado: backend Jest 482/482, control
+  67/67, E2E piloto9c 5/5, y flujo real (subir/GET/borrar logo contra
+  MinIO real, marca en correo de invitación hasta SMTP). Límites
+  `express.json` de backend y control en 4mb (base64 del logo).
 - **Todavía no hay ningún tenant real dado de alta** — nada de esto
   recibe tráfico real hoy.
 

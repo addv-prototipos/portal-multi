@@ -771,6 +771,25 @@ pasar todo por el CLI). Las variables `TENANT_DB_HOST`/`TENANT_DB_USER`
 una instancia de MySQL distinta a la del contenedor de control — por
 defecto heredan la del control y el usuario `app`.
 
+**Marca por empresa (segmento "Marca", ver PROJECT_STATE.md punto 103)**:
+cada empresa define el **nombre de su marca** (campo `marca` en
+`control_tenants.tenants`) con el que quiere ser reconocida en los
+correos del portal (en vez del nombre genérico "ADDV"), y opcionalmente
+un **logo** (JPG/PNG/WEBP, máx 2 MB). Sin logo, los correos usan el
+nombre en texto (el operador puede generar el logo después). El logo se
+guarda en MinIO bajo `marca/<slug>/logo` (el contenedor `control` no
+tiene SDK de MinIO: se reenvía al backend por su endpoint interno
+`POST/DELETE /internal/marca-logo/:slug`, protegido con el mismo
+`INTERNAL_CACHE_SECRET` que la invalidación de caché y NO expuesto por
+nginx) y se sirve en `GET /api/marca-logo/:slug` (público a propósito —
+el logo viaja en los correos —, con cache de 24 h). Se edita desde
+`/control`: el campo "Marca" + el logo en el modal de **"Nueva
+empresa"**, y el botón **"Editar marca"** por fila (renombrar, subir/
+reemplazar/quitar el logo). El backend usa `req.tenant.marca` (con
+fallback `'ADDV'`) en los 7 correos que antes tenían "ADDV" incrustado:
+ticket nuevo, orden de compra, invitación al portal, ticket nuevo al
+contador, factura lista y la plantilla de correo por defecto.
+
 **Antes de la primera vez que uses `/control`**: el usuario MySQL
 `control_app` no existe hasta que corras (una vez)
 `provisionar-tenant.js` o `cutover-tenant-piloto.js` con
@@ -855,6 +874,7 @@ mismo host.
   - `PUT /api/admin/config/smtp` — guarda/actualiza la configuración de correo SMTP (protegido).
   - `POST /api/admin/config/smtp/prueba` — envía un correo de prueba con asunto y cuerpo capturados (protegido).
   - `GET /api/config/tickets-retencion` — pública; días configurados para el borrado automático de tickets (o `null` si está desactivado), usado para el aviso en el tablero del cliente.
+  - `GET /api/marca-logo/:slug` — pública; sirve el logo de marca de un tenant (almacenado en MinIO bajo `marca/<slug>/logo`), con `Cache-Control` de 24 h — usado por los correos y por la app de control (ver sección "App de control").
   - `GET /api/admin/config/tickets-retencion` / `PUT /api/admin/config/tickets-retencion` — consulta y actualiza los días de retención (aplican tanto a tickets como a órdenes de compra), e informa la última limpieza ejecutada de cada uno por separado (protegido).
   - `POST /api/admin/reportes/enviar` — genera y guarda un reporte manual con los tickets y órdenes de compra activos del mes calendario en curso (siempre, sin importar la configuración), y además lo envía por correo si hay uno configurado. Solo responde con error si SÍ había un correo configurado pero el envío en sí falló (protegido).
   - `GET /api/admin/reportes` — lista todos los reportes generados (solo metadatos: tipo, fecha, totales, si se envió por correo), del más reciente al más antiguo (protegido).

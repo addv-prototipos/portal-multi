@@ -13,6 +13,7 @@ const cookieParser = require('cookie-parser');
 
 const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant } = require('./db');
 const { resolverTenantMiddleware, invalidarCacheTenant } = require('./utils/tenantContext');
+const { validarSlug } = require('./utils/tenant');
 const storage = require('./utils/storage');
 const { requireAdminAuth, requireAdminArea, requireUsuarioAdminExacto } = require('./utils/auth');
 const { asegurarTablaAuditoria, registrarAccesoAdmin } = require('./utils/adminAuditoria');
@@ -137,7 +138,13 @@ app.use(helmet());
 // define CORS_ORIGIN con ese dominio exacto (no "*", que los navegadores
 // rechazan combinado con credenciales).
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
-app.use(express.json({ limit: '100kb' }));
+// Límite de body amplio a propósito: el logo de marca del tenant llega
+// aquí como base64 desde el contenedor "control" (hasta
+// MAX_MARCA_LOGO_MB = 2 MB de archivo, ~2.7 MB de texto base64) — ver
+// POST /internal/marca-logo/:slug más abajo. Las rutas que reciben
+// archivos usan multer con sus propios límites, y cada ruta valida el
+// tamaño real de lo que recibe.
+app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 // Multi-tenant (segmento 3, ver PROJECT_STATE.md): resuelve `req.tenant` y
 // el pool de MySQL activo a partir del encabezado `X-Tenant-Slug`. Montado
@@ -408,6 +415,125 @@ app.post('/internal/cache-tenant/invalidar', (req, res) => {
   }
   invalidarCacheTenant((req.body && req.body.slug) || null);
   res.json({ ok: true });
+});
+
+// ---------- Logo de marca del tenant (segmento "marca") ----------
+// El logo de la marca de cada empresa vive en MinIO (mismo bucket
+// compartido, key "marca/<slug>/logo") y se referencia en
+// control_tenants.tenants.marca_logo_url como ruta RELATIVA
+// ("/api/marca-logo/<slug>") — el backend la convierte a absoluta con
+// detectarUrlPortal(req) al armar los correos. El GET público sirve el
+// archivo con cache largo (es un logo: va en correos, no es sensible).
+const MAX_MARCA_LOGO_MB = Number(process.env.MAX_MARCA_LOGO_MB || 2);
+const MAX_MARCA_LOGO_BYTES = MAX_MARCA_LOGO_MB * 1024 * 1024;
+
+// Sube el logo de marca de un tenant. Solo el contenedor "control" lo usa
+// (el administrador de control carga el logo y este servicio lo persiste
+// en MinIO) — misma protección por secreto compartido que
+// /internal/cache-tenant/invalidar, y NO se expone por nginx. El logo
+// llega como base64 en el body (el contenedor control no tiene SDK S3 ni
+// multer; ya depende de este endpoint interno para la caché). La key no
+// lleva extensión: el Content-Type se guarda como metadata del objeto y
+// el GET público lo devuelve tal cual.
+app.post('/internal/marca-logo/:slug', (req, res) => {
+  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
+  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  const body = req.body || {};
+  const base64 = typeof body.base64 === 'string' ? body.base64 : '';
+  if (!base64) {
+    return res.status(400).json({ error: 'Falta el contenido del logo (base64).' });
+  }
+
+  let buffer;
+  try {
+    buffer = Buffer.from(base64, 'base64');
+  } catch (err) {
+    return res.status(400).json({ error: 'El contenido del logo no es un base64 válido.' });
+  }
+  if (buffer.length === 0) {
+    return res.status(400).json({ error: 'El logo está vacío.' });
+  }
+  if (buffer.length > MAX_MARCA_LOGO_BYTES) {
+    return res.status(413).json({ error: `El logo excede el tamaño máximo permitido de ${MAX_MARCA_LOGO_MB} MB.` });
+  }
+
+  // Se valida el contenido real (firma binaria), no solo el MIME que manda
+  // el cliente — mismo criterio que las imágenes de tickets.
+  const mimeReal = detectRealImageMimeType(buffer);
+  if (!mimeReal) {
+    return res.status(400).json({ error: 'El archivo no es una imagen válida (JPG, PNG o WEBP).' });
+  }
+
+  storage
+    .guardarArchivo('marca', slug, 'logo', buffer, mimeReal)
+    .then(() => {
+      res.json({ ok: true, url: `/api/marca-logo/${slug}` });
+    })
+    .catch((err) => {
+      console.error(`Error guardando el logo de marca del tenant "${slug}":`, err);
+      res.status(500).json({ error: 'No se pudo guardar el logo.' });
+    });
+});
+
+// Borra el logo de marca de un tenant de MinIO. Lo usa el contenedor
+// "control" cuando el administrador quita el logo (misma protección por
+// secreto que el POST de arriba). La fila de control la actualiza el
+// propio control; aquí solo se elimina el archivo.
+app.delete('/internal/marca-logo/:slug', (req, res) => {
+  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
+  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  storage
+    .eliminarArchivo('marca', slug, 'logo')
+    .then(() => res.json({ ok: true }))
+    .catch((err) => {
+      console.error(`Error borrando el logo de marca del tenant "${slug}":`, err);
+      res.status(500).json({ error: 'No se pudo borrar el logo.' });
+    });
+});
+
+// Sirve el logo de marca de un tenant. Público a propósito: va incrustado
+// en los correos que reciben los clientes, así que no puede requerir
+// autenticación. Cache-Control largo porque el logo solo cambia cuando el
+// administrador de control lo reemplaza (y, al hacerlo, la URL relativa
+// guardada en la BD es la misma — el contenido nuevo se propaga con la
+// misma caché de navegador, aceptable para un logo).
+app.get('/api/marca-logo/:slug', async (req, res) => {
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(404).json({ error: 'Logo no encontrado.' });
+  }
+
+  try {
+    if (!(await storage.existeArchivo('marca', slug, 'logo'))) {
+      return res.status(404).json({ error: 'Logo no encontrado.' });
+    }
+    const { stream, contentType } = await storage.obtenerArchivo('marca', slug, 'logo');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    stream.pipe(res);
+  } catch (err) {
+    console.error(`Error sirviendo el logo de marca del tenant "${slug}":`, err);
+    res.status(500).json({ error: 'No se pudo leer el logo.' });
+  }
 });
 
 // ---------- Rutas ----------
@@ -869,7 +995,7 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
       // GET /api/admin/tickets/pendientes-sin-contador la próxima vez que
       // inicie sesión.
       const urlPortalTicket = detectarUrlPortal(req);
-      notificarNuevoTicketAlContador(req.userRfc, folio, urlPortalTicket).catch((err) => {
+      notificarNuevoTicketAlContador(req.userRfc, folio, urlPortalTicket, marcaDelTenant(req)).catch((err) => {
         console.error('No se pudo notificar el nuevo ticket al contador:', err.message);
       });
 
@@ -891,13 +1017,22 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
 // getConfiguracionGlobal, backend/utils/config.js), esta función ya está
 // lista para usarlo — por ahora, sin esa configuración todavía, genera un
 // logo de texto simple (nada que dependa de alojar/servir una imagen).
-function logoTicketHtml(logoUrl) {
+// `marca` (segmento "marca" de control): si el tenant definió su marca,
+// se usa en el `alt` de la imagen y en el logo de texto; si no, cae al
+// nombre por defecto de la app.
+const MARCA_DEFECTO = 'ADDV';
+
+function marcaDelTenant(req) {
+  return (req && req.tenant && req.tenant.marca) || MARCA_DEFECTO;
+}
+
+function logoTicketHtml(logoUrl, marca) {
   if (logoUrl) {
-    return `<img src="${logoUrl}" alt="Portal de Facturación ADDV" style="max-width:180px; max-height:60px; display:block; margin:0 auto;" />`;
+    return `<img src="${logoUrl}" alt="Portal de Facturación ${escapeHtmlCorreo(marca)}" style="max-width:180px; max-height:60px; display:block; margin:0 auto;" />`;
   }
   return `
     <div style="display:inline-block; background:#0F6E5D; color:#ffffff; font-family:Georgia,'Times New Roman',serif; font-weight:bold; font-size:20px; letter-spacing:0.06em; padding:10px 18px; border-radius:6px;">
-      ADDV
+      ${escapeHtmlCorreo(marca)}
     </div>`;
 }
 
@@ -908,7 +1043,7 @@ function logoTicketHtml(logoUrl) {
 // Devuelve tanto la versión HTML (el ticket en sí) como una versión de
 // texto plano equivalente (ver la nota en utils/email.js sobre por qué
 // siempre se manda ambas).
-function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, email, urlPortal, logoUrl }) {
+function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, email, urlPortal, logoUrl, marca }) {
   const enlaceLogin = urlPortal ? `${urlPortal}/login` : '';
 
   const filaTicket = (etiqueta, valor, destacado) => `
@@ -925,7 +1060,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; margin:0 auto;">
     <tr>
       <td style="text-align:center; padding-bottom:18px;">
-        ${logoTicketHtml(logoUrl)}
+        ${logoTicketHtml(logoUrl, marca)}
       </td>
     </tr>
     <tr>
@@ -976,7 +1111,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
             </td>
           </tr>
         </table>` : ''}
-        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A8578; text-align:center;">Si no esperabas este correo, contacta a tu administrador. Portal de Facturación ADDV.</p>
+        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A8578; text-align:center;">Si no esperabas este correo, contacta a tu administrador. Portal de Facturación ${escapeHtmlCorreo(marca)}.</p>
       </td>
     </tr>
   </table>
@@ -1034,8 +1169,9 @@ const PERFIL_TEXTO = {
   fiscal: 'Fiscal',
 };
 
-async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal }) {
+async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal, marca }) {
   const perfilTexto = PERFIL_TEXTO[perfil] || perfil;
+  const marcaCorreo = marca || MARCA_DEFECTO;
 
   // El enlace depende del perfil, porque cada uno entra por un lugar
   // distinto: "cliente" usa el portal público (RFC + contraseña, cookie
@@ -1056,10 +1192,10 @@ async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal 
   // usuario/contraseña siguen siendo suficientes para entrar manualmente.
   await enviarCorreo({
     destinatario: email,
-    asunto: 'Te invitamos al Portal de Facturación ADDV',
+    asunto: `Te invitamos al Portal de Facturación ${marcaCorreo}`,
     cuerpo:
       `Hola,\n\n` +
-      `Se creó una cuenta para ti en el Portal de Facturación ADDV, con perfil "${perfilTexto}".\n\n` +
+      `Se creó una cuenta para ti en el Portal de Facturación ${marcaCorreo}, con perfil "${perfilTexto}".\n\n` +
       `Usuario: ${rfc}\n` +
       `Contraseña temporal: ${password}\n\n` +
       (enlacePortal
@@ -1079,10 +1215,11 @@ async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal 
 // El "correo de quien va a facturar" (contador) ahora es un valor único y
 // global que captura el administrador dentro de la configuración de
 // correo SMTP — no un campo por cliente/RFC como en una versión anterior.
-async function notificarNuevoTicketAlContador(rfc, folio, urlPortal) {
+async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca) {
   const config = await getConfigSmtp();
   const correoContador = config && config.correo_contador;
   if (!correoContador) return;
+  const marcaCorreo = marca || MARCA_DEFECTO;
 
   // Mismo mecanismo de auto-detección de URL que ya usa la invitación al
   // crear un usuario (ver enviarInvitacionPortal más abajo): la URL base
@@ -1101,8 +1238,8 @@ async function notificarNuevoTicketAlContador(rfc, folio, urlPortal) {
       `RFC: ${rfc}\n` +
       `Folio: ${folio}\n\n` +
       (enlacePanel
-        ? `Ingresa al panel de administración del Portal de Facturación ADDV para revisarlo y generar la factura correspondiente:\n${enlacePanel}`
-        : `Ingresa al panel de administración del Portal de Facturación ADDV para revisarlo y generar la factura correspondiente.`),
+        ? `Ingresa al panel de administración del Portal de Facturación ${marcaCorreo} para revisarlo y generar la factura correspondiente:\n${enlacePanel}`
+        : `Ingresa al panel de administración del Portal de Facturación ${marcaCorreo} para revisarlo y generar la factura correspondiente.`),
   });
 }
 
@@ -2012,7 +2149,7 @@ app.post(
     // habilitado arriba para que `req.protocol` refleje el protocolo real
     // detrás de nginx.
     const urlPortal = detectarUrlPortal(req);
-    enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal }).catch((err) => {
+    enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal, marca: marcaDelTenant(req) }).catch((err) => {
       console.error('No se pudo enviar la invitación al portal:', err.message);
     });
 
@@ -3021,7 +3158,7 @@ app.post(
       // Igual que con la notificación al contador: no se espera (await)
       // ni se deja que una falla aquí afecte la respuesta al
       // administrador — la factura ya se guardó correctamente.
-      notificarFacturaListaAlCliente(ticket.rfc, ticket.folio).catch((err) => {
+      notificarFacturaListaAlCliente(ticket.rfc, ticket.folio, marcaDelTenant(req)).catch((err) => {
         console.error('No se pudo notificar la factura lista al cliente:', err.message);
       });
 
@@ -3042,7 +3179,7 @@ app.post(
 // a diferencia del cuerpo, que sí se puede personalizar desde el panel.
 const ASUNTO_FACTURA_LISTA = 'Factura lista — Folio {folio}';
 
-async function notificarFacturaListaAlCliente(rfc, folio) {
+async function notificarFacturaListaAlCliente(rfc, folio, marca) {
   const [filas] = await pool.query(
     'SELECT email FROM registros WHERE rfc = ? AND eliminado_en IS NULL LIMIT 1',
     [rfc]
@@ -3057,7 +3194,7 @@ async function notificarFacturaListaAlCliente(rfc, folio) {
   // backend/utils/email.js). El asunto siempre es el mensaje fijo de
   // arriba — no es configurable.
   const config = await getConfigSmtp();
-  const variables = { folio, rfc };
+  const variables = { folio, rfc, marca: marca || MARCA_DEFECTO };
   const asunto = aplicarPlantilla(ASUNTO_FACTURA_LISTA, variables);
   const cuerpo = aplicarPlantilla((config && config.cuerpo_cliente) || DEFAULTS_SMTP.cuerpo_cliente, variables);
 
@@ -3231,6 +3368,8 @@ app.post(
     // enlace de acceso al portal — "fire-and-forget": si falla, la orden
     // ya se guardó correctamente de todas formas.
     const urlPortalOrden = detectarUrlPortal(req);
+    const marcaTenant = marcaDelTenant(req);
+    const marcaLogoUrl = req.tenant && req.tenant.marcaLogoUrl;
     enviarCorreoOrdenCompra({
       numeroCompra,
       fechaFormateada,
@@ -3240,7 +3379,15 @@ app.post(
       total,
       email,
       urlPortal: urlPortalOrden,
-      logoUrl: configGlobal.logo_url,
+      // El logo de la MARCA del tenant (si lo definió en control, ver el
+      // segmento "marca") tiene prioridad sobre el logo global del panel;
+      // si no hay ninguno, logoTicketHtml genera un logo de texto con la
+      // marca. La ruta guardada en control es relativa
+      // ("/api/marca-logo/<slug>"), así que aquí se convierte a absoluta
+      // con la URL detectada de la petición, para que el correo la pueda
+      // mostrar.
+      logoUrl: marcaLogoUrl ? `${urlPortalOrden}${marcaLoGoUrl}` : configGlobal.logo_url,
+      marca: marcaTenant,
     }).catch((err) => {
       console.error('No se pudo enviar el correo de confirmación de la orden de compra:', err.message);
     });
@@ -3325,6 +3472,9 @@ app.post(
     );
 
     try {
+      const marcaTenantReenvio = marcaDelTenant(req);
+      const marcaLogoUrlReenvio = req.tenant && req.tenant.marcaLogoUrl;
+      const urlPortalReenvio = detectarUrlPortal(req);
       await enviarCorreoOrdenCompra({
         numeroCompra: orden.numero_compra,
         fechaFormateada,
@@ -3333,8 +3483,9 @@ app.post(
         ivaPorcentaje: Number(orden.iva_porcentaje),
         total: Number(orden.total),
         email: orden.email,
-        urlPortal: detectarUrlPortal(req),
-        logoUrl: configGlobal.logo_url,
+        urlPortal: urlPortalReenvio,
+        logoUrl: marcaLogoUrlReenvio ? `${urlPortalReenvio}${marcaLoGoUrlReenvio}` : configGlobal.logo_url,
+        marca: marcaTenantReenvio,
       });
     } catch (err) {
       return res.status(502).json({ error: `No se pudo reenviar el correo: ${err.message}` });

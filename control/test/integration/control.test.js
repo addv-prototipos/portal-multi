@@ -146,6 +146,54 @@ describe('Control standalone (/api/control)', () => {
     });
   });
 
+  describe('PUT /api/control/tenants/:slug/marca (segmento marca)', () => {
+    test('200 actualiza la marca y registra el evento', async () => {
+      pool.query
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, marca: null, marca_logo_url: null }]]) // SELECT del tenant
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, marca: 'Marca Nueva', marca_logo_url: null }]]) // SELECT post-UPDATE
+        .mockResolvedValueOnce([{}]); // registrarEvento
+
+      const res = await request(app)
+        .put('/api/control/tenants/cliente1/marca')
+        .auth('admin', 'admin')
+        .send({ marca: '  Marca Nueva  ' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.tenant.marca).toBe('Marca Nueva');
+      expect(notificarInvalidacionCache).toHaveBeenCalledWith('cliente1');
+    });
+
+    test('400 con marca que supera 255 caracteres', async () => {
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, marca: null, marca_logo_url: null }]]);
+
+      const res = await request(app)
+        .put('/api/control/tenants/cliente1/marca')
+        .auth('admin', 'admin')
+        .send({ marca: 'x'.repeat(256) });
+
+      expect(res.status).toBe(400);
+    });
+
+    test('404 si el slug no existe', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const res = await request(app)
+        .put('/api/control/tenants/fantasma/marca')
+        .auth('admin', 'admin')
+        .send({ marca: 'X' });
+
+      expect(res.status).toBe(404);
+    });
+
+    test('401 sin credenciales válidas', async () => {
+      const res = await request(app).put('/api/control/tenants/cliente1/marca').send({ marca: 'X' });
+      expect(res.status).toBe(401);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+  });
+
   describe('POST /api/control/tenants (intake de empresa nueva, segmento 9c)', () => {
     test('201 con datos válidos, guarda la solicitud y registra el evento', async () => {
       pool.query
@@ -191,6 +239,85 @@ describe('Control standalone (/api/control)', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/RFC/);
+    });
+
+    test('201 con marca y logo (base64), guarda la ruta pública del logo', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true, url: '/api/marca-logo/empresa-nueva' }),
+      });
+
+      const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 0)]);
+
+      pool.query
+        .mockResolvedValueOnce([[]]) // SELECT de duplicado
+        .mockResolvedValueOnce([{ insertId: 3 }]) // INSERT de la solicitud
+        .mockResolvedValueOnce([{}]); // registrarEvento
+
+      const res = await request(app)
+        .post('/api/control/tenants')
+        .auth('admin', 'admin')
+        .send({
+          nombreEmpresa: 'Empresa Nueva',
+          slug: 'empresa-nueva',
+          marca: 'Marca Nueva',
+          logoBase64: png.toString('base64'),
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.tenant.marca).toBe('Marca Nueva');
+      expect(res.body.tenant.marca_logo_url).toBe('/api/marca-logo/empresa-nueva');
+      // El logo se subió al backend interno antes de crear la fila
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch.mock.calls[0][0]).toMatch(/\/internal\/marca-logo\/empresa-nueva$/);
+      // La fila guardó la ruta devuelta por el backend
+      expect(pool.query.mock.calls[1][1]).toContain('/api/marca-logo/empresa-nueva');
+
+      delete global.fetch;
+    });
+
+    test('400 con logo que excede el tamaño máximo', async () => {
+      // 2.5 MB binarios: excede MAX_MARCA_LOGO_MB=2 pero su base64 (~3.3 MB)
+      // cabe en el límite de 4mb de express.json (3 MB exactos darían 413
+      // del parser antes de llegar a la validación propia).
+      const pngGrande = Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.alloc(2.5 * 1024 * 1024),
+      ]);
+
+      const res = await request(app)
+        .post('/api/control/tenants')
+        .auth('admin', 'admin')
+        .send({
+          nombreEmpresa: 'X',
+          slug: 'empresa',
+          logoBase64: pngGrande.toString('base64'),
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/excede el tamaño máximo/);
+    });
+
+    test('400 con logo que no es una imagen real', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: 'El archivo del logo no es una imagen válida (JPG, PNG o WEBP).' }),
+      });
+
+      const res = await request(app)
+        .post('/api/control/tenants')
+        .auth('admin', 'admin')
+        .send({
+          nombreEmpresa: 'X',
+          slug: 'empresa',
+          logoBase64: Buffer.from('no-soy-imagen').toString('base64'),
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/no es una imagen/);
+
+      delete global.fetch;
     });
 
     test('409 si el slug ya está registrado', async () => {

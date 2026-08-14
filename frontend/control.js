@@ -59,6 +59,18 @@
     intakeClaveSat: document.getElementById('control-intake-clave-sat'),
     intakeLinkSat: document.getElementById('control-intake-link-sat'),
     intakeCorreoReportes: document.getElementById('control-intake-correo-reportes'),
+    intakeMarca: document.getElementById('control-intake-marca'),
+    intakeLogo: document.getElementById('control-intake-logo'),
+    marcaOverlay: document.getElementById('control-marca-modal-overlay'),
+    formMarca: document.getElementById('control-form-marca'),
+    marcaEmpresa: document.getElementById('control-marca-modal-empresa'),
+    marcaNombre: document.getElementById('control-marca-nombre'),
+    marcaLogo: document.getElementById('control-marca-logo'),
+    marcaLogoActual: document.getElementById('control-marca-logo-actual'),
+    marcaError: document.getElementById('control-marca-error'),
+    btnMarcaCancelar: document.getElementById('control-btn-marca-cancelar'),
+    btnMarcaGuardar: document.getElementById('control-btn-marca-guardar'),
+    btnMarcaGuardarLabel: document.getElementById('control-btn-marca-guardar-label'),
   };
 
   function getAuthHeader() {
@@ -314,6 +326,10 @@
         );
       }
 
+      contenedorAcciones.appendChild(
+        crearBotonAccion('btn-editar-marca', 'Editar marca', () => abrirMarca(t))
+      );
+
       celdaAcciones.appendChild(contenedorAcciones);
       els.tableBody.appendChild(tr);
     });
@@ -521,6 +537,25 @@
 
     setIntakeLoading(true);
     try {
+      // Logo de marca (opcional): se lee como base64 y se manda junto con
+      // el alta; el backend de control lo reenvía al almacenamiento y
+      // guarda la ruta pública (ver control/utils/tenantIntake.js).
+      let logoBase64 = null;
+      const archivoLogo = els.intakeLogo.files && els.intakeLogo.files[0];
+      if (archivoLogo) {
+        if (archivoLogo.size > MARCA_LOGO_MAX_MB * 1024 * 1024) {
+          setFieldErrorIntake('intake-logo', `El logo excede el tamaño máximo permitido de ${MARCA_LOGO_MAX_MB} MB.`);
+          els.intakeLogo.focus();
+          return;
+        }
+        try {
+          logoBase64 = await leerArchivoComoBase64(archivoLogo);
+        } catch (err) {
+          setFieldErrorIntake('intake-logo', err.message);
+          return;
+        }
+      }
+
       const res = await fetch(`${API_BASE}/tenants`, {
         method: 'POST',
         headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
@@ -536,6 +571,8 @@
           claveSat: claveSat || null,
           linkCodigosSat: linkSat || null,
           correoReportes: correoReportes || null,
+          marca: els.intakeMarca.value.trim() || null,
+          logoBase64,
         }),
       });
       if (res.status === 401) {
@@ -555,6 +592,121 @@
       els.intakeError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
       setIntakeLoading(false);
+    }
+  });
+
+  // ---------- Modal de edición de marca (segmento "marca") ----------
+
+  const MARCA_LOGO_MAX_MB = 2;
+  let marcaSlugActual = null;
+
+  function leerArchivoComoBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function limpiarErroresMarca() {
+    els.marcaError.textContent = '';
+    ['marca-nombre', 'marca-logo'].forEach((id) => {
+      const errorEl = document.getElementById(`error-${id}`);
+      if (errorEl) errorEl.textContent = '';
+    });
+  }
+
+  function abrirMarca(tenant) {
+    marcaSlugActual = tenant.slug;
+    limpiarErroresMarca();
+    els.marcaEmpresa.textContent = `${tenant.nombre_empresa} (${tenant.slug})`;
+    els.marcaNombre.value = tenant.marca || '';
+    els.marcaLogo.value = '';
+    if (tenant.marca_logo_url) {
+      els.marcaLoGoActual.textContent = 'Este tenant ya tiene un logo cargado. Elige un archivo para reemplazarlo, o guarda con la marca vacía para quitarlo.';
+      els.marcaLoGoActual.hidden = false;
+    } else {
+      els.marcaLoGoActual.textContent = '';
+      els.marcaLoGoActual.hidden = true;
+    }
+    els.marcaOverlay.hidden = false;
+    els.marcaNombre.focus();
+  }
+
+  function cerrarMarca() {
+    els.marcaOverlay.hidden = true;
+    marcaSlugActual = null;
+  }
+
+  els.btnMarcaCancelar.addEventListener('click', cerrarMarca);
+  els.marcaOverlay.addEventListener('click', (e) => {
+    if (e.target === els.marcaOverlay) cerrarMarca();
+  });
+
+  function setMarcaLoading(isLoading) {
+    els.btnMarcaGuardar.disabled = isLoading;
+    els.btnMarcaGuardar.setAttribute('aria-busy', String(isLoading));
+    els.btnMarcaGuardarLabel.textContent = isLoading ? 'Guardando…' : 'Guardar marca';
+  }
+
+  els.formMarca.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    if (!marcaSlugActual) return;
+
+    limpiarErroresMarca();
+
+    const marca = els.marcaNombre.value.trim();
+    const archivoLogo = els.marcaLoGo.files && els.marcaLoGo.files[0];
+
+    let logoBase64 = null;
+    if (archivoLogo) {
+      if (archivoLogo.size > MARCA_LOGO_MAX_MB * 1024 * 1024) {
+        setFieldErrorIntake('marca-logo', `El logo excede el tamaño máximo permitido de ${MARCA_LOGO_MAX_MB} MB.`);
+        els.marcaLoGo.focus();
+        return;
+      }
+      try {
+        logoBase64 = await leerArchivoComoBase64(archivoLogo);
+      } catch (err) {
+        setFieldErrorIntake('marca-logo', err.message);
+        return;
+      }
+    }
+
+    setMarcaLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(marcaSlugActual)}/marca`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          marca: marca || null,
+          logoBase64: logoBase64 || null,
+          quitarLogo: logoBase64 ? false : !els.marcaLoGoActual.hidden,
+        }),
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.marcaError.textContent = data.error || 'No se pudo guardar la marca.';
+        return;
+      }
+      cerrarMarca();
+      showToast(`Marca de "${data.tenant.slug}" guardada.`);
+      cargarTenants();
+    } catch (err) {
+      els.marcaError.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      setMarcaLoading(false);
     }
   });
 

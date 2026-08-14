@@ -1168,7 +1168,8 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 
 .admin-table .btn-eliminar,
 .admin-table .btn-restaurar,
-.admin-table .btn-eliminar-permanente {
+.admin-table .btn-eliminar-permanente,
+.admin-table .btn-editar-marca {
   background: transparent;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -1187,6 +1188,9 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 
 .admin-table .btn-eliminar-permanente { color: var(--color-error); }
 .admin-table .btn-eliminar-permanente:hover { border-color: var(--color-error); background: var(--color-error-soft); }
+
+.admin-table .btn-editar-marca { color: var(--color-ink); }
+.admin-table .btn-editar-marca:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
 
 /* Botón de acción destructiva, usado en el modal de confirmación */
 .btn-danger {
@@ -1744,10 +1748,11 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 
   .admin-table td[data-label=""] { padding-top: 10px; }
   .admin-row-actions { flex-direction: column; }
-  .admin-table .btn-ver,
+.admin-table .btn-ver,
   .admin-table .btn-eliminar,
   .admin-table .btn-restaurar,
-  .admin-table .btn-eliminar-permanente {
+  .admin-table .btn-eliminar-permanente,
+  .admin-table .btn-editar-marca {
     width: 100%;
     padding: 10px;
     text-align: center;
@@ -1760,7 +1765,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 
 /* Extension del modal base (style.css) para el formulario de captura de
-   empresa nueva en la app de control (segmento 9c) � el modal por defecto
+   empresa nueva en la app de control (segmento 9c) � el modal por defecto
    mide 380px, insuficiente para el formulario con preview de URLs y la
    seccion fiscal plegable. Se limita el alto para que en pantallas chicas
    el formulario haga scroll dentro del modal en vez de desbordar. */

@@ -21,13 +21,16 @@ const DEFAULTS_SMTP = {
   correo_contador: '',
   // Plantilla del CUERPO del correo que recibe el CLIENTE cuando su
   // factura ya está lista (ver notificarFacturaListaAlCliente en
-  // server.js). Admite las variables {folio} y {rfc}, que se sustituyen
-  // por su valor real al enviar (ver aplicarPlantilla más abajo). El
-  // asunto de ese correo NO es configurable a propósito: siempre es un
-  // mensaje fijo de "factura lista" (ver ASUNTO_FACTURA_LISTA en server.js).
+  // server.js). Admite las variables {folio}, {rfc} y {marca} (esta
+  // última es el nombre de marca del tenant, ver el segmento "marca" —
+  // cae al valor por defecto "ADDV" si el tenant no definió la suya), que
+  // se sustituyen por su valor real al enviar (ver aplicarPlantilla más
+  // abajo). El asunto de ese correo NO es configurable a propósito:
+  // siempre es un mensaje fijo de "factura lista" (ver
+  // ASUNTO_FACTURA_LISTA en server.js).
   cuerpo_cliente:
     'Tu factura para el ticket con folio {folio} ya está disponible.\n\n' +
-    'Ingresa al Portal de Facturación ADDV y descárgala desde tu tablero de solicitudes.',
+    'Ingresa al Portal de Facturación {marca} y descárgala desde tu tablero de solicitudes.',
 };
 
 async function getConfigSmtp() {

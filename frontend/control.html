@@ -148,7 +148,26 @@
         </div>
 
         <div class="field">
-          <label for="control-intake-slug">Slug (identificador único)</label>
+          <label for="control-intake-marca">Marca</label>
+          <input type="text" id="control-intake-marca" maxlength="255" autocomplete="off"
+            placeholder="ej. Mi Empresa S.A." />
+          <p class="field-hint">
+            Nombre con el que quieren ser reconocidos en los correos del portal (logo o texto). Si no lo capturas, se usa el nombre genérico de la plataforma.
+          </p>
+          <p class="field-error" id="error-intake-marca" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-intake-logo">Logo de la marca</label>
+          <input type="file" id="control-intake-logo" accept="image/png,image/jpeg,image/webp" />
+          <p class="field-hint">
+            Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
+          </p>
+          <p class="field-error" id="error-intake-logo" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-intake-slug">Slug (Contexto URL único)</label>
           <input type="text" id="control-intake-slug" maxlength="50" autocomplete="off" inputmode="text"
             placeholder="ej. empresa-uno" required />
           <p class="field-hint" id="control-intake-url-preview"></p>
@@ -231,6 +250,44 @@
           <button type="button" class="btn btn-secondary" id="control-btn-intake-cancelar">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="control-btn-intake-guardar">
             <span id="control-btn-intake-guardar-label">Registrar solicitud</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de edición de marca de un tenant existente (segmento "marca") -->
+  <div class="modal-overlay" id="control-marca-modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="control-marca-modal-title">
+      <h2 id="control-marca-modal-title">Editar marca</h2>
+      <p class="panel-subtitle" id="control-marca-modal-empresa"></p>
+
+      <form id="control-form-marca" novalidate>
+        <div class="field">
+          <label for="control-marca-nombre">Marca</label>
+          <input type="text" id="control-marca-nombre" maxlength="255" autocomplete="off"
+            placeholder="ej. Mi Empresa S.A." />
+          <p class="field-hint">
+            Nombre con el que quieren ser reconocidos en los correos del portal. Déjalo vacío para usar el nombre genérico de la plataforma.
+          </p>
+          <p class="field-error" id="error-marca-nombre" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="control-marca-logo">Logo de la marca</label>
+          <input type="file" id="control-marca-logo" accept="image/png,image/jpeg,image/webp" />
+          <p class="field-hint">
+            Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
+          </p>
+          <p class="field-hint" id="control-marca-logo-actual" hidden></p>
+          <p class="field-error" id="error-marca-logo" role="alert"></p>
+        </div>
+
+        <p class="field-error" id="control-marca-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="control-btn-marca-cancelar">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="control-btn-marca-guardar">
+            <span id="control-btn-marca-guardar-label">Guardar marca</span>
           </button>
         </div>
       </form>
