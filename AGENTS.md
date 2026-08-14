@@ -164,9 +164,15 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   67/67, E2E piloto9c 5/5, y flujo real (subir/GET/borrar logo contra
   MinIO real, marca en correo de invitación hasta SMTP). Límites
   `express.json` de backend y control en 4mb (base64 del logo).
-- **Segmento "Edición" (ver PROJECT_STATE.md punto 104)**: hecho a nivel
-  de código + pruebas (pendiente solo la validación real contra el stack
-  Docker). Edición completa de una empresa existente desde `/control`:
+- **Segmento "Edición" (ver PROJECT_STATE.md punto 104)**: hecho y
+  **validado contra Docker/MySQL/MinIO reales (2026-08-14)**: rebuild
+  del stack; renombrado de slug con 4 archivos reales + logo (migración
+  íntegra verificada byte a byte, prefijo viejo vacío, db_name
+  conservado, auditoría `slug_cambiado`, URLs 200/404); spec E2E NUEVO
+  `e2e/tests/control-editar-empresa.spec.ts` (2/2) y suite E2E completa
+  14/14. Detalle encontrado en la validación: el checkbox del switch
+  "Cambiar slug" está oculto visualmente — se interactúa con su label.
+  Edición completa de una empresa existente desde `/control`:
   botón "Editar" por fila → modal con los MISMOS campos que el alta +
   slug en solo lectura habilitable solo con el switch "Cambiar slug
   (avanzado)" (CSS `.control-switch` en `frontend/admin.css`). API:

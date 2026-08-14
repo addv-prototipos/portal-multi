@@ -5367,6 +5367,37 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       navegador) NO se ha probado con el stack Docker levantado todavía.
     - **Suites al día**: **backend 492/492 (28 suites), control 88/88
       (7 suites)** — sin regresiones.
+    - **Validación real contra el stack Docker (2026-08-14)**: rebuild
+      de backend/control/frontend. Verificado de punta a punta:
+      1) **Renombrado por API con archivos reales**: tenant de prueba
+      `e2e-migracion-origen` creado vía intake 9c → aprovisionado por
+      CLI → 4 archivos subidos a MinIO bajo `e2e-migracion-origen/`
+      (constancias, `tickets/`, `facturas/`) + logo
+      `marca/e2e-migracion-origen/logo` → `PUT /api/control/tenants`
+      con slug `e2e-migracion-destino` + marca + logo nuevo →
+      `200`; prefijo nuevo con los 4 archivos y contenido íntegro
+      verificado byte a byte (`mc cat`), prefijo viejo vacío, logo
+      movido, `db_name` conservado y `storage_prefix` actualizado en
+      la fila, evento `slug_cambiado` en `tenant_eventos`, API del
+      slug nuevo 200 / del viejo 404, `GET /api/marca-logo` nuevo 200
+      / viejo 404.
+      2) **Renombrado por la UI (Playwright)**: spec NUEVO
+      `e2e/tests/control-editar-empresa.spec.ts` (2 tests seriales:
+      editar datos sin slug → guardar con toast; switch "Cambiar slug
+      (avanzado)" → migración + URLs nuevas activas + restauración del
+      slug original por API al final para que la suite sea
+      re-ejecutable — el slug actual se lee de la fila, no se asume).
+      Encontró un detalle de la UI: el checkbox del switch está oculto
+      visualmente (opacity 0) y el test debe clickar el label
+      `label.control-switch[for=...]`, no el checkbox.
+      3) **Suite E2E completa 14/14 passed** (24.8s): los 2 nuevos +
+      smoke + control-alta-empresa 2/2 + contexto-urls 4/4 +
+      flujo-facturacion-piloto9c 5/5. Durante la corrida se reactivó
+      el tenant `e2e9c60170151` que había quedado suspendido por una
+      prueba de la sesión anterior (estado residual en BD, no
+      regresión), y se aprovisionaron los slugs capturados por
+      control-alta-empresa con el paso CLI manual del harness.
+      **El segmento queda validado contra Docker/MySQL/MinIO reales.**
 
 ## Limitaciones de ESTE entorno de generación (importante)
 
