@@ -80,13 +80,13 @@ async function resolverTenantMiddleware(req, res, next) {
 
     req.tenant = { id: tenant.id, slug: tenant.slug, nombreEmpresa: tenant.nombre_empresa };
 
-    // Credencial de aplicación compartida entre todos los tenants (decisión
-    // ya tomada en el plan) — nunca se guarda en la fila del tenant, solo
-    // en la variable de entorno del backend, igual que hoy para el tenant
-    // único. `tenant.db_host`/`tenant.db_user` sí vienen de la fila (por
-    // si algún día un tenant vive en un host/usuario distinto); el puerto
-    // es el mismo para todos porque hoy todos comparten el mismo servidor
-    // MySQL físico.
+    // El pool del tenant se expone en `req.poolTenant` para que las rutas
+    // cuyo handler corre FUERA del contexto ALS establecido por
+    // `ejecutarComoTenant` de abajo (las de multer/busboy, cuyo stream se
+    // procesa en un async resource del HTTP server que no hereda el store)
+    // puedan re-entrar al contexto con `reanudarContextoTenant` (ver
+    // server.js). Sin esto, el `pool.query(...)` dentro de esos callbacks
+    // cae al pool por defecto y escribe en la BD equivocada.
     const tenantPool = obtenerPoolTenant({
       slug: tenant.slug,
       host: tenant.db_host,
@@ -95,6 +95,8 @@ async function resolverTenantMiddleware(req, res, next) {
       password: process.env.DB_PASSWORD || '',
       database: tenant.db_name,
     });
+
+    req.poolTenant = tenantPool;
 
     ejecutarComoTenant(tenantPool, () => next());
   } catch (err) {

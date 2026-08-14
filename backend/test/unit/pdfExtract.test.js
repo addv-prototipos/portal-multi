@@ -43,6 +43,23 @@ describe('pdfExtract.js', () => {
       const resultado = await extraerTextoPdf(Buffer.from('basura'));
       expect(resultado).toBeNull();
     });
+
+    test('pasa un Uint8Array a pdf-parse (no un Buffer) — bug de producción con Node 20', async () => {
+      // Bug real (2026-08-13, pruebas funcionales con Docker real):
+      // pdf-parse 1.1.4 falla con "bad XRef entry" cuando recibe un
+      // Buffer de Node 20 (el contenedor usa node:20-alpine). El fix
+      // convierte el buffer a Uint8Array antes de llamar a pdf-parse.
+      const pdfParse = require('pdf-parse');
+      pdfParse.mockResolvedValueOnce({ text: 'texto ok' });
+
+      const resultado = await extraerTextoPdf(Buffer.from('%PDF-1.4 dato'));
+      expect(resultado).toBe('texto ok');
+      expect(pdfParse).toHaveBeenCalledTimes(1);
+      const argumento = pdfParse.mock.calls[0][0];
+      expect(argumento).toBeInstanceOf(Uint8Array);
+      expect(Buffer.isBuffer(argumento)).toBe(false);
+      expect(Buffer.from(argumento).toString('latin1')).toBe('%PDF-1.4 dato');
+    });
   });
 
   describe('pareceConstanciaFiscal', () => {

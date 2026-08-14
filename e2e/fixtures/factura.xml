@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0" Folio="E2E-0001" Serie="A" Fecha="2026-08-13T16:00:00" Sello="AAA" FormaPago="03" MetodoPago="PUE" Moneda="MXN" TipoCambio="1" SubTotal="100.00" Total="116.00" LugarExpedicion="06600" Exportacion="01">
+  <cfdi:Emisor Rfc="EEME991231AB1" Nombre="Empresa E2E 9c S.A. de C.V." RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="AAMA850101HDF" Nombre="Cliente E2E" DomicilioFiscalReceptor="06600" RegimenFiscalReceptor="605" UsoCFDI="G03"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="84111506" Cantidad="1" ClaveUnidad="E48" Descripcion="Facturacion de compra E2E" ValorUnitario="100.00" Importe="100.00" ObjetoImp="01"/>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="16.00">
+    <cfdi:Traslados><cfdi:Traslado Base="100.00" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="16.00"/></cfdi:Traslados>
+  </cfdi:Impuestos>
+</cfdi:Comprobante>

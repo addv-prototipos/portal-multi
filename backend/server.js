@@ -11,7 +11,7 @@ const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 
-const { pool, ensureSchema, cerrarTodosLosPoolsTenant } = require('./db');
+const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant } = require('./db');
 const { resolverTenantMiddleware, invalidarCacheTenant } = require('./utils/tenantContext');
 const storage = require('./utils/storage');
 const { requireAdminAuth, requireAdminArea, requireUsuarioAdminExacto } = require('./utils/auth');
@@ -146,6 +146,30 @@ app.use(cookieParser());
 // `req.tenant`. No-op para cualquier petición sin ese encabezado — es
 // decir, para todo el tráfico real hoy.
 app.use(resolverTenantMiddleware);
+
+// Multi-tenant (bug encontrado durante la verificación funcional del
+// segmento 9c — ver PROJECT_STATE.md): el AsyncLocalStorage de
+// `ejecutarComoTenant` NO se propaga de forma confiable al callback de
+// multer/busboy. El stream del request lo crea el HTTP server FUERA del
+// `almacenTenant.run(...)` del middleware, y los eventos de busboy se
+// despachan en ese contexto, así que `almacenTenant.getStore()` puede
+// devolver undefined dentro del callback (es una carrera: unas veces
+// heredaba el store y otras no). Eso hacía que `pool.query(...)` dentro de
+// los callbacks de multer cayera al pool por defecto y escribiera en la BD
+// equivocada (registros/tickets de un tenant en `portal_facturacion`).
+//
+// Solución: el middleware deja el pool del tenant en `req.poolTenant`
+// (ver tenantContext.js), y `subirConTenant` envuelve el callback de
+// multer para re-entrar al contexto del tenant antes de ejecutar el
+// handler — determinista, sin depender de la propagación del ALS.
+function reanudarContextoTenant(req, fn) {
+  if (req && req.poolTenant) return ejecutarComoTenant(req.poolTenant, fn);
+  return fn();
+}
+
+function subirConTenant(multerUpload, campo, req, res, cb) {
+  multerUpload.single(campo)(req, res, (err) => reanudarContextoTenant(req, () => cb(err)));
+}
 
 // Multi-tenant (segmento 7, ver PROJECT_STATE.md): la clave de cada
 // limiter de abajo pasa de ser solo la IP a "tenant:IP" — sin esto, una
@@ -599,7 +623,7 @@ const TIPOS_PAGO = {
 };
 
 app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
-  uploadImagen.single('imagen')(req, res, async (err) => {
+  subirConTenant(uploadImagen, 'imagen', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({
@@ -1270,7 +1294,7 @@ app.get(
 );
 
 app.post('/api/registro', submitLimiter, (req, res) => {
-  upload.single('archivo')(req, res, async (err) => {
+  subirConTenant(upload, 'archivo', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({
@@ -2273,7 +2297,7 @@ app.post(
   requireAdminAuth,
   requireAdminArea('administrador', 'fiscal'),
   (req, res) => {
-  upload.single('archivo')(req, res, async (err) => {
+  subirConTenant(upload, 'archivo', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({
@@ -2907,7 +2931,7 @@ app.post(
   requireAdminAuth,
   requireAdminArea('fiscal'),
   (req, res) => {
-  uploadFactura.single('factura')(req, res, async (err) => {
+  subirConTenant(uploadFactura, 'factura', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({
@@ -3182,7 +3206,15 @@ app.post(
     // Redondeo a 2 decimales (centavos), como cualquier monto en pesos.
     const total = Math.round(cantidad * (1 + ivaPorcentaje / 100) * 100) / 100;
 
+    // `ahora` se normaliza a segundo exacto (sin milisegundos) para que la
+    // BD (MySQL redondea DATETIME sin fracción), la respuesta a este
+    // endpoint y el correo de confirmación muestren EXACTAMENTE el mismo
+    // segundo. Sin esto, con milisegundos >= 500 MySQL redondea hacia
+    // arriba y `Intl.DateTimeFormat` (que trunca) devuelve un segundo
+    // distinto — la validación del ticket (comparación hora exacta)
+    // fallaba con COMPRA_NO_ENCONTRADA aunque los datos fueran correctos.
     const ahora = new Date();
+    ahora.setMilliseconds(0);
     const [resultado] = await pool.query(
       `INSERT INTO ordenes_compra
         (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)

@@ -210,8 +210,39 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   Bug encontrado y corregido en la rama 9c de
   `backend/scripts/provisionar-tenant.js`: los procesos hijo usaban
   `fila.db_host` ('mysql', nombre Docker) en vez de `dbHost` del env —
-  desde el host no resolvía (ENOTFOUND). No avanzar sin aprobación
-  explícita del usuario, mismo protocolo `addv-web-app`.
+  desde el host no resolvía (ENOTFOUND). **Validación E2E en navegador
+  real (Playwright, 2026-08-13)**: `e2e/tests/control-alta-empresa.spec.ts`
+  (login /control → modal → captura con fiscales → fila "Provisionando" +
+  rechazo de slug duplicado) y `e2e/tests/contexto-urls.spec.ts` (el slug
+  define las URLs `/e2e9c…` y `/e2e9c…/admin`, API tenant-aware resuelve
+  contra la BD del tenant, slug inexistente 404) — 7/7 passed, dos
+  tenants reales aprovisionados y validados de punta a punta. El slug
+  activo vive en `e2e/.slug-e2e.txt` (gitignored) para coordinar
+  captura → aprovisionamiento CLI → validación de URLs. No avanzar sin
+  aprobación explícita del usuario, mismo protocolo `addv-web-app`.
+- **Validación E2E funcional del flujo completo en el tenant real
+  `piloto9c` (Playwright headed, 2026-08-13, ver PROJECT_STATE.md punto
+  102)**: `e2e/tests/flujo-facturacion-piloto9c.spec.ts` (5 tests seriales:
+  registro+CSF → orden de compra → ticket → factura ZIP → descarga del
+  cliente), **5/5 passed** contra el stack Docker real. Encontró y
+  corrigió **dos bugs de producción**:
+  1. **ALS/multer (multi-tenant)**: el AsyncLocalStorage de
+     `ejecutarComoTenant` no se propaga de forma confiable al callback de
+     multer/busboy → `pool.query` caía a veces a `portal_facturacion`
+     (registros huérfanos, `COMPRA_NO_ENCONTRADA` intermitentes). Fix:
+     `req.poolTenant` en `backend/utils/tenantContext.js` + helpers
+     `reanudarContextoTenant`/`subirConTenant` en `backend/server.js` que
+     envuelven los 4 call sites de multer (tickets, registro,
+     constancia-compania, factura).
+  2. **Desfase de 1 segundo en órdenes de compra**: `new Date()` con
+     milisegundos → `Intl.DateTimeFormat` trunca la hora mostrada pero
+     MySQL redondea la guardada → la validación del ticket fallaba ~50%
+     de las veces con datos correctos. Fix: `ahora.setMilliseconds(0)`
+     antes del INSERT/respuesta en `POST /api/admin/ordenes-compra`.
+  Suite Jest 388/388, y la suite E2E es idempotente (limpia tickets
+  residuales en `beforeAll` y cierra el modal de notificación si aparece).
+  No avanzar sin aprobación explícita del usuario, mismo protocolo
+  `addv-web-app`.
 - **Primera corrida real contra Docker (punto 97 de PROJECT_STATE.md,
   IMPORTANTE leer antes de tocar `nginx.conf`/`Dockerfile`/`*.cnf`
   otra vez)**: encontró y corrigió 4 bugs que ningún `node --check` podía

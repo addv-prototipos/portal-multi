@@ -53,11 +53,20 @@ function normalizar(str) {
  * Extrae el texto de un PDF a partir de su buffer.
  * Devuelve el texto (posiblemente vacio si el PDF es solo imagenes/escaneado
  * sin capa de texto), o null si el archivo no se pudo procesar como PDF.
+ *
+ * NOTA (bug de producción encontrado 2026-08-13 en las pruebas funcionales
+ * con Docker real): pdf-parse 1.1.4 (pdf.js v1.10.100) falla con
+ * "bad XRef entry" cuando recibe un Buffer de Node 20 (el contenedor usa
+ * node:20-alpine; en Node 24 no se reproduce, por eso los tests con mocks
+ * nunca lo detectaron). La conversión a Uint8Array copia los bytes a un
+ * arreglo sin las propiedades extra de Buffer y pdf.js lo procesa bien en
+ * todas las versiones de Node — ver PROJECT_STATE.md punto 102.
  */
 async function extraerTextoPdf(buffer) {
   try {
     const pdfParse = require('pdf-parse');
-    const datos = await pdfParse(buffer);
+    const bytes = buffer instanceof Uint8Array ? new Uint8Array(buffer) : buffer;
+    const datos = await pdfParse(bytes);
     return datos.text || '';
   } catch (e) {
     return null;

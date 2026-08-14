@@ -5137,6 +5137,88 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     - Estado final limpio: `piloto9c` queda `activo`, stack 5/5
       healthy.
 
+    **Validación E2E en navegador real (Playwright, 2026-08-13, misma
+    sesión)** — cierra el pendiente del modal en navegador real:
+    - `e2e/tests/control-alta-empresa.spec.ts` (NUEVO): login en
+      `/control` (admin/admin) → botón "Nueva empresa" → preview en vivo
+      de URLs (`/<slug>` y `/<slug>/admin`) → captura con los 7 campos
+      fiscales (sección plegable) → 201 cierra el modal y muestra toast →
+      fila "Provisionando" en la tabla. Segundo test: slug duplicado →
+      409 y el modal permanece abierto con el mensaje.
+    - `e2e/tests/contexto-urls.spec.ts` (NUEVO): el slug capturado define
+      las URLs reales — `/e2e9c…/login` y `/e2e9c…/admin` responden 200,
+      la API tenant-aware bajo `/e2e9c…/api/*` resuelve contra la BD del
+      tenant (Basic Auth `admin:admin` contra `admin_fallback_password_hash`
+      sembrada por el script → 200 `{ok, usuario:"admin", perfil:"super"}`),
+      y un slug inexistente da 404. El slug activo se guarda en
+      `e2e/.slug-e2e.txt` (ignorado por git) para que el aprovisionamiento
+      CLI y la validación de URLs usen el mismo tenant.
+    - Flujo completo repetido con un segundo tenant (`e2e9c60170151`):
+      captura UI → `provisionar-tenant.js` → `activo` → contexto de URLs
+      validado (4/4). El primer tenant de la suite quedó `activo` también
+      (`e2e9c59931917`, aprovisionado y validado).
+    - Suite E2E completa: **7/7 passed** (smoke + captura + duplicado +
+      4 de contexto de URLs). Suites unitarias sin regresión: control
+      50/50, backend 472/472.
+
+102. **Validación E2E funcional del flujo completo de facturación en el
+    tenant real `piloto9c` + DOS bugs de producción reales encontrados y
+    corregidos** (Playwright headed, 2026-08-13, stack Docker real):
+    - `e2e/tests/flujo-facturacion-piloto9c.spec.ts` (NUEVO): 5 tests
+      seriales del ciclo completo — cliente se registra y sube su CSF
+      (`constancia-grande.pdf` con indicadores SAT) → admin crea la orden
+      de compra → cliente sube ticket (imagen + No. compra/fecha/hora/
+      total, uso CFDI, tipo pago, comentarios) → folio TK-… pendiente →
+      admin sube el ZIP de la factura (PDF+XML) → ticket "Listo" → el
+      cliente ve "Listo" en su dashboard y descarga la factura. Corre en
+      navegador real (`--headed`), con `test.slow()`, contexto de
+      navegador separado para cliente (cookie de sesión) y admin (Basic
+      Auth). Fixtures reales en `e2e/fixtures/`.
+    - **BUG 1 (producción, multi-tenant): el AsyncLocalStorage de
+      `ejecutarComoTenant` no se propaga de forma confiable al callback
+      de multer/busboy.** El stream del request lo crea el HTTP server
+      fuera del `almacenTenant.run(...)`, así que `almacenTenant.getStore()`
+      a veces devuelve `undefined` y `pool.query` cae al pool por defecto
+      (`portal_facturacion`) aunque `req.tenant` esté bien resuelto. Es
+      una carrera (se invertía entre restarts) que explicaba los registros
+      huérfanos en la BD de control y los `COMPRA_NO_ENCONTRADA`
+      intermitentes (la orden se buscaba en la BD equivocada). Afectaba
+      las 4 rutas con multer: `POST /api/tickets`, `POST /api/registro`,
+      `POST /api/admin/config/constancia-compania`,
+      `POST /api/admin/tickets/:id/factura`. **Fix**: el middleware
+      `resolverTenantMiddleware` (`backend/utils/tenantContext.js`) ahora
+      guarda `req.poolTenant = tenantPool` ANTES de `ejecutarComoTenant`;
+      en `backend/server.js` los helpers `reanudarContextoTenant(req, fn)`
+      (re-entra al contexto del pool si existe) y `subirConTenant(
+      multerUpload, campo, req, res, cb)` (envuelve el callback de multer)
+      hacen que los 4 call sites se ejecuten SIEMPRE dentro del contexto
+      del tenant correcto.
+    - **BUG 2 (producción, todos los tenants): desfase de 1 segundo entre
+      la hora que se muestra al crear una orden de compra y la que se
+      guarda.** `new Date()` lleva milisegundos: `Intl.DateTimeFormat`
+      (trunca) mostraba `17:43:16` en la respuesta/correo, pero MySQL
+      (redondea DATETIME sin fracción) guardaba `23:43:17` UTC (= 17:43:17
+      CDMX) → la validación del ticket (comparación exacta de hora contra
+      la orden, `COMPRA_NO_ENCONTRADA`) fallaba ~50% de las veces según
+      los ms, incluso con datos correctos — afectaba también a usuarios
+      reales que teclearan la hora del correo de confirmación. **Fix**:
+      `ahora.setMilliseconds(0)` antes del INSERT y de la respuesta en
+      `POST /api/admin/ordenes-compra` — BD, respuesta y correo usan el
+      mismo segundo exacto, determinista.
+    - **Robustez del spec E2E**: `beforeAll` limpia tickets residuales de
+      corridas anteriores vía API admin (borrado permanente), y el helper
+      `cerrarNotifTickets(page)` cierra el modal "Tickets nuevos por
+      facturar" (que bloquea la UI) si aparece al entrar al panel.
+    - Verificación: `node --check` en los archivos tocados, suite Jest
+      backend 388/388 (20 suites, `npx jest test/unit`), experimento de
+      5 órdenes seguidas vía API (hora de respuesta = hora en BD en los 5
+      casos), y **suite E2E completa 5/5 passed** (16.7s). Estado final
+      en BD: ticket TK-000005 `listo` con `factura.zip`, orden
+      OC-000011, todo en `tenant_piloto9c` — cero filas e2e en
+      `portal_facturacion` (datos reales intactos).
+    - Nota: `e2e/debug-select.js` y `e2e/diag-orden.js` (artefactos de
+      diagnóstico del BUG 1) se eliminaron.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

@@ -131,8 +131,21 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   (root de MySQL), que ahora completa esas filas en vez de rechazarlas.
   Pre-llenado de config fiscal opcional al aprovisionar
   (`aplicarConfiguracionFiscalEnProcesoHijo`). Ver PROJECT_STATE.md
-  punto 101. No probado contra MySQL/Docker real — falta validar el
-  flujo completo UI → provisioning → activo y el modal en navegador.
+  punto 101. Validado contra Docker/MySQL reales: captura UI →
+  provisioning CLI → fila `activo` con pre-llenado fiscal, ciclo de
+  vida 404/200, y E2E en navegador real (Playwright, 7/7 passed).
+- **Bugs de producción encontrados y corregidos con la E2E del flujo
+  completo en `piloto9c` (ver PROJECT_STATE.md punto 102)**: (1) el
+  AsyncLocalStorage de `ejecutarComoTenant` NO se propaga de forma
+  confiable al callback de multer/busboy (carrera: `pool.query` caía a
+  veces a `portal_facturacion` aunque `req.tenant` estuviera bien) —
+  fix: `req.poolTenant` en `tenantContext.js` + helpers
+  `reanudarContextoTenant`/`subirConTenant` envolviendo los 4 call sites
+  de multer en `server.js` (tickets, registro, constancia-compania,
+  factura); (2) desfase de 1 segundo en `POST /api/admin/ordenes-compra`
+  (Intl trunca ms, MySQL redondea → COMPRA_NO_ENCONTRADA intermitente) —
+  fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
+  5/5 passed contra Docker/MySQL reales.
 - **Todavía no hay ningún tenant real dado de alta** — nada de esto
   recibe tráfico real hoy.
 
