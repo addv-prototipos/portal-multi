@@ -4,30 +4,8 @@
   min-height: 100vh;
 }
 
-/* Login screen */
-.admin-login-screen {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.admin-login-card {
-  width: 100%;
-  max-width: 380px;
-}
-
-.admin-login-brand {
-  justify-content: center;
-  margin-bottom: 14px;
-}
-
-/* El logo va centrado, así que el subtítulo también se centra para
-   mantener una composición simétrica en vez de mezclar alineaciones. */
-.admin-login-subtitle {
-  text-align: center;
-}
+/* Login screen: layout de split-screen (marca + tarjeta) compartido con
+   el login de cliente, ver auth.css. */
 
 /* ---------- Generar / copiar contraseña automática ---------- */
 .btn-generar-password {
@@ -1850,4 +1828,117 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   font-weight: 600;
   color: var(--color-ink-soft);
 }
+
+/* ---------- Sección "Identidad visual" del modal de edición ---------- */
+
+.tema-preview {
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 18px;
+}
+
+.tema-preview-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  margin: 0 0 10px;
+}
+
+.tema-preview-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  font-family: var(--font-body);
+}
+
+.tema-preview-titulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.tema-preview-texto {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+
+.tema-preview-boton {
+  margin-top: 8px;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+}
+
+.tema-preview-enlace {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.tema-grupo {
+  margin: 18px 0;
+}
+
+.tema-grupo-titulo {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.tema-grid-colores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.tema-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tema-color-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+
+.tema-color-field input[type='color'] {
+  width: 100%;
+  height: 38px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.tema-color-field input[type='color']:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.tema-fila-selects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
 

@@ -10,12 +10,19 @@
 </head>
 <body class="auth-body">
   <div class="auth-screen">
-    <div class="card auth-card">
-      <div class="brand auth-brand">
-        <span class="brand-mark" aria-hidden="true">FX</span>
-        <span class="brand-name">Portal de Facturación</span>
-      </div>
+    <div class="auth-shell">
+      <aside class="auth-hero">
+        <img class="auth-hero-branding" src="/assets/branding.png" alt="CLARVO — Portal de Facturación by ADDV" />
 
+        <h2 class="auth-hero-headline">Gestiona tus solicitudes de factura de forma <span class="auth-hero-highlight">simple y segura</span>.</h2>
+        <span class="auth-hero-divider" aria-hidden="true"></span>
+        <p class="auth-hero-copy">Un solo lugar para solicitar, dar seguimiento y administrar tus facturas.</p>
+
+        <img class="auth-hero-decor" src="/assets/login-decoracion-marca.png" alt="" aria-hidden="true" loading="lazy" onerror="this.remove()" />
+        <p class="auth-hero-footer">© <span id="auth-anio"></span> CLARVO by ADDV. Todos los derechos reservados.</p>
+      </aside>
+
+    <div class="card auth-card">
       <!-- ---------- Iniciar sesión ---------- -->
       <section class="auth-panel is-active" id="panel-login" aria-labelledby="login-title">
         <h1 id="login-title">Inicia sesión</h1>
@@ -174,10 +181,13 @@
         </form>
       </section>
     </div>
+    </div>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+  <script>document.getElementById('auth-anio').textContent = new Date().getFullYear();</script>
+  <script src="/theme.js"></script>
   <script src="/login.js"></script>
 </body>
 </html>

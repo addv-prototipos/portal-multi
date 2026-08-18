@@ -179,13 +179,34 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
     slugNuevo && tenant.estado === 'provisioning' ? nombreDbTenant(slugNuevo) : tenant.db_name;
   const storagePrefixFinal = slugNuevo || tenant.storage_prefix;
 
+  // Tema (segmento "Look & Feel"): con slug nuevo, la ruta del favicon
+  // dentro de tema_json debe apuntar al slug nuevo (la migración de
+  // /internal/renombrar-slug ya movió el archivo a marca/<nuevo>/favicon);
+  // el resto del tema viaja con la fila sin cambios.
+  let temaJsonFinal = tenant.tema_json;
+  if (slugNuevo && typeof temaJsonFinal === 'string' && temaJsonFinal.trim()) {
+    try {
+      const temaParseado = JSON.parse(temaJsonFinal);
+      if (temaParseado && typeof temaParseado.faviconUrl === 'string') {
+        const faviconNuevo = `/api/favicon/${slugNuevo}`;
+        if (temaParseado.faviconUrl !== faviconNuevo) {
+          temaParseado.faviconUrl = faviconNuevo;
+          temaJsonFinal = JSON.stringify(temaParseado);
+        }
+      }
+    } catch (err) {
+      // tema_json corrupto: se conserva tal cual (el backend lo degrada
+      // al diseño base al leerlo y lo loguea para corregirlo).
+    }
+  }
+
   const [resultado] = await db.query(
     `UPDATE tenants SET
        slug = ?, nombre_empresa = ?, contacto_email = ?, notas = ?,
        db_name = ?, storage_prefix = ?,
        rfc_compania = ?, razon_social_compania = ?, regimen_fiscal_compania = ?,
        tipo_persona_compania = ?, clave_sat = ?, link_codigos_sat = ?, correo_reportes = ?,
-       marca = ?, marca_logo_url = ?
+       marca = ?, marca_logo_url = ?, tema_json = ?
      WHERE id = ?`,
     [
       slugNuevo || tenant.slug,
@@ -203,6 +224,7 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
       fiscales.correoReportes,
       base.marca,
       marcaLogoUrl,
+      temaJsonFinal,
       tenant.id,
     ]
   );

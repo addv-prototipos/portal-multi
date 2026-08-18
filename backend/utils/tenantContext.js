@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );

@@ -7,19 +7,138 @@
 .auth-screen {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
 }
 
-.auth-card {
+/* Marco exterior "split screen": panel de marca (izquierda) + tarjeta de
+   formulario (derecha). Paleta propia del segmento fiel al diseño
+   "stitch/code.html" (azul institucional + acento eléctrico) — se
+   redefinen aquí las variables de color/sombra que ya usan .btn-primary,
+   .field input, etc. (ver style.css), así los componentes existentes se
+   re-piñan solos sin duplicar sus reglas. Queda contenido a .auth-shell:
+   el resto del sitio conserva la paleta verde base de style.css. */
+.auth-shell {
+  --color-accent: #03285B;
+  --color-accent-dark: #0B1320;
+  --color-accent-soft: #E7ECF3;
+  --color-ink: #0B1320;
+  --color-ink-soft: #6B7280;
+  --color-border: #E5E7EB;
+  --shadow-card: 0px 4px 12px rgba(11, 19, 32, 0.05);
+  --auth-electric: #05DBF2;
+  --auth-highlight: #2F6FED;
+
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
   width: 100%;
-  max-width: 420px;
+  max-width: 1080px;
+  min-height: 560px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
-.auth-brand {
-  justify-content: center;
-  margin-bottom: 18px;
+/* Patrón de puntos decorativo sobre la mitad derecha del marco. */
+.auth-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  left: 50%;
+  background-image: radial-gradient(var(--auth-electric) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.06;
+  pointer-events: none;
+}
+
+.auth-hero {
+  flex: 1 1 55%;
+  min-width: 0;
+  padding: 48px 40px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-hero-branding {
+  display: block;
+  height: auto;
+  max-width: 220px;
+  margin-bottom: 32px;
+}
+
+.auth-hero-headline {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(26px, 3.2vw, 40px);
+  line-height: 1.2;
+  margin: 0 0 14px;
+  color: var(--color-accent);
+  max-width: 22ch;
+}
+.auth-hero-highlight { color: var(--auth-highlight); }
+
+.auth-hero-divider {
+  display: block;
+  width: 40px;
+  height: 3px;
+  background: var(--auth-highlight);
+  border-radius: 2px;
+  margin: 4px 0 20px;
+}
+
+.auth-hero-copy {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--color-ink-soft);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.auth-hero-decor {
+  display: block;
+  margin-top: auto;
+  padding-top: 24px;
+  max-width: 220px;
+  height: auto;
+  align-self: flex-start;
+}
+
+.auth-hero-footer {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  opacity: 0.8;
+}
+
+.auth-card {
+  flex: 0 0 380px;
+  max-width: 380px;
+  width: 100%;
+  margin: auto 40px auto 0;
+  align-self: center;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-card h1 {
+  font-family: var(--font-body);
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  text-align: center;
+  color: var(--color-ink);
+}
+
+.auth-card .panel-subtitle {
+  text-align: center;
+  margin-bottom: 22px;
 }
 
 .auth-panel { display: none; }
@@ -27,19 +146,6 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .auth-panel.is-active { animation: fade-up 0.3s ease both; }
-}
-
-.auth-panel h1 {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-  margin: 0 0 6px;
-  text-align: center;
-}
-
-.auth-panel .panel-subtitle {
-  text-align: center;
-  margin-bottom: 22px;
 }
 
 .auth-switch {
@@ -54,11 +160,25 @@
   border: none;
   padding: 0;
   margin-left: 4px;
-  color: var(--color-accent-dark);
+  color: var(--color-accent);
   font-weight: 600;
   font-size: 13.5px;
   text-decoration: underline;
   text-decoration-color: var(--color-border);
   cursor: pointer;
 }
-.auth-switch-link:hover { color: var(--color-accent); text-decoration-color: var(--color-accent); }
+.auth-switch-link:hover { color: var(--auth-electric); text-decoration-color: var(--auth-electric); }
+
+@media (max-width: 860px) {
+  .auth-shell { flex-direction: column; min-height: 0; }
+  .auth-shell::before { left: 0; opacity: 0.04; }
+  .auth-hero { padding: 32px 28px 20px; }
+  .auth-hero-decor { display: none; }
+  .auth-hero-footer { display: none; }
+  .auth-card { flex: none; max-width: 100%; margin: 0; padding: 24px 24px 22px; }
+}
+
+@media (max-width: 420px) {
+  .auth-hero { padding: 24px 20px 12px; }
+  .auth-hero-headline { font-size: 24px; }
+}

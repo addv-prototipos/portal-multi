@@ -294,13 +294,28 @@ describe('POST /internal/renombrar-slug', () => {
       .send({ slugAnterior: 'cliente1', slugNuevo: 'cliente2' });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, copiados: 2, borrados: 2, logoMovido: true });
+    expect(res.body).toEqual({ ok: true, copiados: 2, borrados: 2, logoMovido: true, faviconMovido: true });
     expect(storage.contarObjetosPrefijo).toHaveBeenCalledWith('cliente1');
     expect(storage.copiarPrefijo).toHaveBeenCalledWith('cliente1', 'cliente2');
     expect(storage.existeArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'logo');
     expect(storage.copiarArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'logo', 'marca', 'cliente2', 'logo');
     expect(storage.eliminarPrefijo).toHaveBeenCalledWith('cliente1');
     expect(storage.eliminarArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'logo');
+  });
+
+  test('migra el favicon cuando el tenant tiene uno', async () => {
+    storage.existeArchivo
+      .mockResolvedValueOnce(false) // logo: no existe
+      .mockResolvedValueOnce(true); // favicon: existe
+    const res = await request(app)
+      .post('/internal/renombrar-slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ slugAnterior: 'cliente1', slugNuevo: 'cliente2' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.faviconMovido).toBe(true);
+    expect(storage.copiarArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'favicon', 'marca', 'cliente2', 'favicon');
+    expect(storage.eliminarArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'favicon');
   });
 
   test('migra sin logo cuando el tenant no tiene uno', async () => {

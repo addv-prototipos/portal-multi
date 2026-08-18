@@ -12,9 +12,14 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 
 const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant } = require('./db');
-const { resolverTenantMiddleware, invalidarCacheTenant } = require('./utils/tenantContext');
+const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant } = require('./utils/tenantContext');
 const { validarSlug } = require('./utils/tenant');
 const storage = require('./utils/storage');
+const {
+  parsearTemaDesdeFila,
+  temaAVariables,
+  fuentesAUrlGoogle,
+} = require('./utils/tenantTema');
 const { requireAdminAuth, requireAdminArea, requireUsuarioAdminExacto } = require('./utils/auth');
 const { asegurarTablaAuditoria, registrarAccesoAdmin } = require('./utils/adminAuditoria');
 const {
@@ -509,6 +514,84 @@ app.delete('/internal/marca-logo/:slug', (req, res) => {
     });
 });
 
+// ---------- Favicon del tenant (segmento "Look & Feel") ----------
+// Mismo patrón que el logo de marca: la imagen vive en MinIO (key
+// "marca/<slug>/favicon") y se referencia en el tema como ruta relativa
+// ("/api/favicon/<slug>"). Solo el contenedor "control" sube/borra (por
+// endpoint interno con secreto compartido); el GET público sirve el
+// archivo con cache largo. Se aceptan los mismos formatos que el logo
+// (JPG/PNG/WEBP), validados por firma binaria.
+
+// Sube el favicon de un tenant.
+app.post('/internal/favicon/:slug', (req, res) => {
+  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
+  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  const body = req.body || {};
+  const base64 = typeof body.base64 === 'string' ? body.base64 : '';
+  if (!base64) {
+    return res.status(400).json({ error: 'Falta el contenido del favicon (base64).' });
+  }
+
+  let buffer;
+  try {
+    buffer = Buffer.from(base64, 'base64');
+  } catch (err) {
+    return res.status(400).json({ error: 'El contenido del favicon no es un base64 válido.' });
+  }
+  if (buffer.length === 0) {
+    return res.status(400).json({ error: 'El favicon está vacío.' });
+  }
+  if (buffer.length > MAX_MARCA_LOGO_BYTES) {
+    return res.status(413).json({ error: `El favicon excede el tamaño máximo permitido de ${MAX_MARCA_LOGO_MB} MB.` });
+  }
+
+  const mimeReal = detectRealImageMimeType(buffer);
+  if (!mimeReal) {
+    return res.status(400).json({ error: 'El archivo no es una imagen válida (JPG, PNG o WEBP).' });
+  }
+
+  storage
+    .guardarArchivo('marca', slug, 'favicon', buffer, mimeReal)
+    .then(() => {
+      res.json({ ok: true, url: `/api/favicon/${slug}` });
+    })
+    .catch((err) => {
+      console.error(`Error guardando el favicon del tenant "${slug}":`, err);
+      res.status(500).json({ error: 'No se pudo guardar el favicon.' });
+    });
+});
+
+// Borra el favicon de un tenant de MinIO.
+app.delete('/internal/favicon/:slug', (req, res) => {
+  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
+  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  storage
+    .eliminarArchivo('marca', slug, 'favicon')
+    .then(() => res.json({ ok: true }))
+    .catch((err) => {
+      console.error(`Error borrando el favicon del tenant "${slug}":`, err);
+      res.status(500).json({ error: 'No se pudo borrar el favicon.' });
+    });
+});
+
 // Renombra el slug de un tenant: migra TODOS sus archivos en MinIO (los
 // del prefijo "<slug>/" — constancias, tickets, facturas — y el logo de
 // marca "marca/<slug>/logo") al slug nuevo, verificando que la copia no
@@ -554,11 +637,16 @@ app.post('/internal/renombrar-slug', async (req, res) => {
       });
     }
 
-    // 2. Mover el logo de marca si el tenant tiene uno.
+    // 2. Mover el logo de marca y el favicon si el tenant tiene alguno.
     let logoMovido = false;
     if (await storage.existeArchivo('marca', slugAnterior, 'logo')) {
       await storage.copiarArchivo('marca', slugAnterior, 'logo', 'marca', slugNuevo, 'logo');
       logoMovido = true;
+    }
+    let faviconMovido = false;
+    if (await storage.existeArchivo('marca', slugAnterior, 'favicon')) {
+      await storage.copiarArchivo('marca', slugAnterior, 'favicon', 'marca', slugNuevo, 'favicon');
+      faviconMovido = true;
     }
 
     // 3. Solo hasta aquí se borra lo viejo.
@@ -566,8 +654,11 @@ app.post('/internal/renombrar-slug', async (req, res) => {
     if (logoMovido) {
       await storage.eliminarArchivo('marca', slugAnterior, 'logo');
     }
+    if (faviconMovido) {
+      await storage.eliminarArchivo('marca', slugAnterior, 'favicon');
+    }
 
-    res.json({ ok: true, copiados, borrados, logoMovido });
+    res.json({ ok: true, copiados, borrados, logoMovido, faviconMovido });
   } catch (err) {
     console.error(`Error migrando archivos del slug "${slugAnterior}" a "${slugNuevo}":`, err);
     res.status(502).json({ error: 'No se pudo migrar el almacenamiento del tenant al slug nuevo.' });
@@ -598,6 +689,66 @@ app.get('/api/marca-logo/:slug', async (req, res) => {
   } catch (err) {
     console.error(`Error sirviendo el logo de marca del tenant "${slug}":`, err);
     res.status(500).json({ error: 'No se pudo leer el logo.' });
+  }
+});
+
+// Favicon del tenant (segmento "Look & Feel"): sirve la imagen con cache
+// largo (un favicon cambia rara vez; el navegador lo re-pide si cambia la
+// URL del <link>). 404 si el tenant no subió uno.
+app.get('/api/favicon/:slug', async (req, res) => {
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(404).json({ error: 'Favicon no encontrado.' });
+  }
+
+  try {
+    if (!(await storage.existeArchivo('marca', slug, 'favicon'))) {
+      return res.status(404).json({ error: 'Favicon no encontrado.' });
+    }
+    const { stream, contentType } = await storage.obtenerArchivo('marca', slug, 'favicon');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    stream.pipe(res);
+  } catch (err) {
+    console.error(`Error sirviendo el favicon del tenant "${slug}":`, err);
+    res.status(500).json({ error: 'No se pudo leer el favicon.' });
+  }
+});
+
+// Tema / identidad visual del tenant (segmento "Look & Feel", ver
+// PROJECT_STATE.md punto 105). Público a propósito: el frontend lo
+// consume en el <head> de TODAS las páginas del portal (antes de
+// cualquier login) para pintar las CSS variables del tenant sobre el
+// diseño base ADDV. Cache corto (5 min): un cambio de marca debe
+// propagarse pronto, a diferencia del logo (24h).
+//
+// Siempre responde 200 con el tema del tenant (o vacío si no tiene uno,
+// lo que significa "usar el diseño base ADDV") — no distingue por
+// código de estado entre "tenant sin tema" y "tenant inexistente",
+// igual que el logo (404 solo para slug con formato inválido).
+app.get('/api/tema/:slug', async (req, res) => {
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(404).json({ error: 'Tema no encontrado.' });
+  }
+
+  try {
+    const tenant = await resolverTenantPorSlug(slug);
+    const tema = parsearTemaDesdeFila(tenant);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json({
+      slug,
+      marca: (tenant && tenant.marca) || null,
+      marcaLoGoUrl: (tenant && tenant.marca_logo_url) || null,
+      tema,
+      variables: temaAVariables(tema),
+      fuentesGoogle: fuentesAUrlGoogle(tema),
+    });
+  } catch (err) {
+    console.error(`Error sirviendo el tema del tenant "${slug}":`, err);
+    res.status(500).json({ error: 'No se pudo leer el tema.' });
   }
 });
 

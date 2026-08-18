@@ -112,6 +112,17 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* Logo de la empresa (segmento "Look & Feel"): cuando el tenant sube su
+   propio logo, theme.js reemplaza .brand-mark por una imagen con esta
+   clase — mismo tamaño/forma que la marca de texto, sin borde (el logo
+   ya trae su identidad). */
+.brand-mark-img {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .brand-name {
   font-family: var(--font-display);
   font-weight: 600;
@@ -378,9 +389,6 @@ body {
 }
 .password-field input {
   flex: 1;
-  /* Deja espacio a la derecha para el botón de mostrar/ocultar sin que
-     el texto quede debajo del ícono. */
-  padding-right: 42px;
 }
 .btn-toggle-pass {
   position: absolute;
@@ -494,6 +502,11 @@ body {
 
 .field input[type="text"],
 .field input[type="email"],
+.field input[type="password"],
+.field input[type="tel"],
+.field input[type="url"],
+.field input[type="number"],
+.field input[type="date"],
 .field select,
 .field textarea {
   width: 100%;
@@ -505,6 +518,15 @@ body {
   color: var(--color-ink);
   background: var(--color-surface);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Espacio para el botón de mostrar/ocultar contraseña. Misma
+   especificidad que la regla de arriba (clase + elemento + atributo) —
+   tiene que ir DESPUÉS en el archivo para ganarle, si no el padding
+   quedaría en 12px y el texto pasaría debajo del ícono del ojo. */
+.password-field input[type="password"],
+.password-field input[type="text"] {
+  padding-right: 42px;
 }
 
 .field select {

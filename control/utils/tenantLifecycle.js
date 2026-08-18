@@ -41,7 +41,8 @@ async function listarTenants({ estado, q } = {}, db = obtenerPool()) {
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   const [filas] = await db.query(
-    `SELECT id, slug, nombre_empresa, estado, contacto_email, creado_en, activado_en, suspendido_en, baja_en
+    `SELECT id, slug, nombre_empresa, estado, contacto_email, creado_en, activado_en, suspendido_en, baja_en,
+            marca, marca_logo_url, tema_json
      FROM tenants ${where} ORDER BY creado_en DESC`,
     parametros
   );

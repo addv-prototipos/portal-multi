@@ -301,6 +301,46 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   modal. Suites al día: backend 492/492 (28 suites), control 88/88 (7
   suites), E2E completa 14/14. No avanzar sin aprobación explícita del
   usuario, mismo protocolo `addv-web-app`.
+- **Segmento "Look & Feel" (ver PROJECT_STATE.md punto 105)**: identidad
+  visual (tema) por empresa desde `/control` — paleta de colores,
+  tipografías (catálogo cerrado de 8 fuentes Google Fonts, nunca texto
+  libre), radio de esquinas y favicon propio, sobre el diseño base ADDV.
+  Columna nueva `tema_json` (TEXT NULL) en `control_tenants.tenants`;
+  validación DUPLICADA `backend/utils/tenantTema.js` /
+  `control/utils/tenantTema.js` (mismo principio que `tenantMarca.js`),
+  incluido contraste **WCAG 2.1 AA real** sobre 9 pares fondo/texto (400
+  si no cumple). Favicon con el mismo patrón que el logo de marca:
+  `POST`/`DELETE /internal/favicon/:slug` en `backend/server.js`
+  (`X-Internal-Secret`, no expuesto por nginx), MinIO
+  `marca/<slug>/favicon`, público en `GET /api/favicon/:slug` (cache
+  24h); el renombrado de slug del segmento 104 ya lo migra. API:
+  `PUT /api/control/tenants/:slug/tema` (200/400/404/502) y pública
+  `GET /api/tema/:slug` (siempre 200, cache 5 min) que arma
+  `{marca, marcaLoGoUrl, tema, variables, fuentesGoogle}`. Frontend:
+  script nuevo `frontend/theme.js` (cargado después de `style.css` en
+  las 6 páginas del portal, pinta CSS variables en runtime, degradación
+  elegante si falla) y sección colapsable "Identidad visual" con vista
+  previa en vivo dentro del modal de edición de `/control`.
+  **Sin verificar en esta revisión** (sesión sin autorización para
+  correr `node --check`/Jest): faltan pruebas en `control/` (no hay
+  `tenantTema.test.js` ahí, solo en `backend/`) y validación contra
+  Docker/MySQL/MinIO reales, mismo patrón pendiente que los segmentos
+  103/104 antes de este punto. Se corrigió un mojibake (encoding roto,
+  cosmético) en un comentario de `control/scripts/ensureSchema.js`
+  durante esta revisión. No avanzar sin aprobación explícita del
+  usuario, mismo protocolo `addv-web-app`.
+- **Rediseño de login (cliente y admin), ver PROJECT_STATE.md punto
+  106**: split-screen fiel a un mock aportado por el usuario (carpeta
+  `stitch/` en la raíz, no borrar). Paleta propia contenida en
+  `.auth-shell` (`frontend/auth.css`, variables CSS locales, no toca el
+  verde base de `style.css`). Marca por defecto "CLARVO" como imagen
+  estática (`frontend/assets/branding.png` + `login-decoracion-marca.png`,
+  aportadas por el usuario) — pierde el reemplazo dinámico de marca de
+  `theme.js` solo en esta franja. Bug real corregido en `style.css`:
+  faltaban `password`/`tel`/`url`/`number`/`date` en el selector base de
+  `.field input`. `frontend/Dockerfile` corregido: le faltaba copiar
+  `theme.js` (bug preexistente del segmento 105) y la carpeta `assets/`.
+  Sin probar contra Docker real ni Playwright en esta sesión.
 - **Primera corrida real contra Docker (punto 97 de PROJECT_STATE.md,
   IMPORTANTE leer antes de tocar `nginx.conf`/`Dockerfile`/`*.cnf`
   otra vez)**: encontró y corrigió 4 bugs que ningún `node --check` podía

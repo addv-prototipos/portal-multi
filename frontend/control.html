@@ -376,6 +376,131 @@
           </div>
         </div>
 
+        <button type="button" class="admin-config-toggle" id="control-btn-toggle-tema-editar" aria-expanded="false">
+          <span>Identidad visual (personalizada)</span>
+          <svg class="admin-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div id="control-tema-body" hidden>
+          <div class="field">
+            <p class="field-hint">
+              Colores, tipografías y favicon del portal de la empresa. Si no se toca nada, se usa el diseño
+              base de la plataforma (ADDV). Los colores deben cumplir contraste AA: el sistema avisa antes
+              de guardar si un par no lo cumple.
+            </p>
+          </div>
+
+          <div class="tema-preview" id="control-tema-preview" role="img"
+            aria-label="Vista previa de la identidad visual">
+            <p class="tema-preview-label">Vista previa</p>
+            <div class="tema-preview-card">
+              <p class="tema-preview-titulo">Portal de facturación</p>
+              <p class="tema-preview-texto">Asientos, constancias y tickets de su empresa.</p>
+              <span class="tema-preview-boton">Subir ticket</span>
+              <span class="tema-preview-enlace">Ir al tablero</span>
+            </div>
+          </div>
+
+          <div class="tema-grupo">
+            <p class="tema-grupo-titulo">Paleta de colores</p>
+            <div class="tema-grid-colores">
+              <div class="tema-color-field">
+                <label for="control-tema-bg">Fondo general</label>
+                <input type="color" id="control-tema-bg" value="#F6F4EF" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-surface">Superficie</label>
+                <input type="color" id="control-tema-surface" value="#FFFFFF" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-border">Bordes</label>
+                <input type="color" id="control-tema-border" value="#E3DFD4" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-ink">Texto principal</label>
+                <input type="color" id="control-tema-ink" value="#21261F" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-ink-soft">Texto secundario</label>
+                <input type="color" id="control-tema-ink-soft" value="#5B6158" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-accent">Color de acción</label>
+                <input type="color" id="control-tema-accent" value="#0F6E5D" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-accent-dark">Acción oscuro</label>
+                <input type="color" id="control-tema-accent-dark" value="#0B5548" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-accent-soft">Acción suave</label>
+                <input type="color" id="control-tema-accent-soft" value="#E4EFEC" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-warn">Advertencia</label>
+                <input type="color" id="control-tema-warn" value="#B4530C" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-warn-soft">Advertencia suave</label>
+                <input type="color" id="control-tema-warn-soft" value="#FBEBDC" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-error">Error</label>
+                <input type="color" id="control-tema-error" value="#B3261E" />
+              </div>
+              <div class="tema-color-field">
+                <label for="control-tema-error-soft">Error suave</label>
+                <input type="color" id="control-tema-error-soft" value="#FBEAE9" />
+              </div>
+            </div>
+          </div>
+
+          <div class="tema-grupo">
+            <p class="tema-grupo-titulo">Tipografía</p>
+            <div class="tema-fila-selects">
+              <div class="field">
+                <label for="control-tema-font-display">Títulos</label>
+                <select id="control-tema-font-display">
+                  <option value="source-serif-4">Source Serif 4 (serif)</option>
+                  <option value="lora">Lora (serif)</option>
+                  <option value="playfair-display">Playfair Display (serif)</option>
+                  <option value="merriweather">Merriweather (serif)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="control-tema-font-cuerpo">Cuerpo</label>
+                <select id="control-tema-font-cuerpo">
+                  <option value="inter">Inter (sans)</option>
+                  <option value="open-sans">Open Sans (sans)</option>
+                  <option value="roboto">Roboto (sans)</option>
+                  <option value="source-sans-3">Source Sans 3 (sans)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="control-tema-radio">Esquinas</label>
+                <select id="control-tema-radio">
+                  <option value="sm">Sutil</option>
+                  <option value="md" selected>Medio</option>
+                  <option value="lg">Redondeado</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="control-tema-favicon">Favicon</label>
+            <input type="file" id="control-tema-favicon" accept="image/png,image/jpeg,image/webp" />
+            <p class="field-hint">Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin favicon, se usa el de la plataforma.</p>
+            <p class="field-hint" id="control-tema-favicon-actual" hidden></p>
+            <p class="field-error" id="error-control-tema" role="alert"></p>
+          </div>
+
+          <div class="btn-row">
+            <button type="button" class="btn btn-secondary" id="control-btn-tema-restablecer">Restablecer al diseño ADDV</button>
+          </div>
+        </div>
+
         <p class="field-error" id="control-editar-error" role="alert"></p>
         <div class="btn-row">
           <button type="button" class="btn btn-secondary" id="control-btn-editar-cancelar">Cancelar</button>
@@ -389,6 +514,7 @@
 
   <div class="toast" id="control-toast" role="status" aria-live="polite" hidden></div>
 
+  <script src="/theme.js"></script>
   <script src="/control.js"></script>
 </body>
 </html>

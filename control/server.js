@@ -18,6 +18,7 @@ const {
 } = require('./utils/tenantLifecycle');
 const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake');
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant, MAX_MARCA_LOGO_MB } = require('./utils/tenantMarca');
+const { actualizarTemaTenant, ErrorTemaTenant } = require('./utils/tenantTema');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('./utils/tenantEdicion');
 
 const PORT = Number(process.env.PORT || 4001);
@@ -253,6 +254,33 @@ app.put(
       res.json({ ok: true, tenant });
     } catch (err) {
       if (err instanceof ErrorMarcaTenant) {
+        const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'backend' ? 502 : 400;
+        return res.status(estatus).json({ error: err.message });
+      }
+      throw err;
+    }
+  })
+);
+
+// Actualiza el tema / identidad visual de un tenant (segmento "Look &
+// Feel", ver PROJECT_STATE.md punto 105): paleta de colores, tipografías
+// del catálogo, radio de esquinas y favicon, que personalizan el portal
+// de la empresa sobre el diseño base ADDV. `tema` es un objeto parcial
+// (las claves ausentes conservan el diseño base); `restablecer: true`
+// devuelve el tenant al diseño base ADDV. 200 tema actualizado / 400
+// datos que no pasan la validación (incluido contraste AA) / 404 slug
+// inexistente / 502 el backend rechazó el favicon.
+app.put(
+  '/api/control/tenants/:slug/tema',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const tenant = await actualizarTemaTenant(req.params.slug, req.body || {}, { actor: req.adminUser });
+      res.json({ ok: true, tenant });
+    } catch (err) {
+      if (err instanceof ErrorTemaTenant) {
         const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'backend' ? 502 : 400;
         return res.status(estatus).json({ error: err.message });
       }

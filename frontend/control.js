@@ -71,11 +71,18 @@
     editarSlug: document.getElementById('control-editar-slug'),
     editarSlugSwitch: document.getElementById('control-editar-slug-switch'),
     editarSlugHint: document.getElementById('control-editar-slug-hint'),
-    editarEmail: document.getElementById('control-editar-email'),
-    editarNotas: document.getElementById('control-editar-notas'),
-    btnToggleFiscalEditar: document.getElementById('control-btn-toggle-fiscal-editar'),
-    editarFiscalBody: document.getElementById('control-editar-fiscal-body'),
-    editarRfc: document.getElementById('control-editar-rfc'),
+  editarEmail: document.getElementById('control-editar-email'),
+  editarNotas: document.getElementById('control-editar-notas'),
+  btnToggleFiscalEditar: document.getElementById('control-btn-toggle-fiscal-editar'),
+  editarFiscalBody: document.getElementById('control-editar-fiscal-body'),
+  btnToggleTemaEditar: document.getElementById('control-btn-toggle-tema-editar'),
+  temaBody: document.getElementById('control-tema-body'),
+  temaPreview: document.getElementById('control-tema-preview'),
+  temaFavicon: document.getElementById('control-tema-favicon'),
+  temaFaviconActual: document.getElementById('control-tema-favicon-actual'),
+  temaError: document.getElementById('error-control-tema'),
+  btnTemaRestablecer: document.getElementById('control-btn-tema-restablecer'),
+  editarRfc: document.getElementById('control-editar-rfc'),
     editarRazonSocial: document.getElementById('control-editar-razon-social'),
     editarRegimenFiscal: document.getElementById('control-editar-regimen-fiscal'),
     editarTipoPersona: document.getElementById('control-editar-tipo-persona'),
@@ -631,6 +638,7 @@
 
   function limpiarErroresEditar() {
     els.editarError.textContent = '';
+    els.temaError.textContent = '';
     document.querySelectorAll('#control-form-editar .field-error').forEach((el) => {
       el.textContent = '';
     });
@@ -642,6 +650,7 @@
     els.formEditar.reset();
     els.btnToggleFiscalEditar.setAttribute('aria-expanded', 'false');
     els.editarFiscalBody.hidden = true;
+    cerrarSeccionTema();
 
     els.editarEmpresa.textContent = `Editando ${tenant.nombre_empresa} (${tenant.slug})`;
     els.editarNombre.value = tenant.nombre_empresa || '';
@@ -669,12 +678,14 @@
     }
 
     els.editarOverlay.hidden = false;
+    cargarTemaEnFormulario(tenant);
     els.editarNombre.focus();
   }
 
   function cerrarEdicion() {
     els.editarOverlay.hidden = true;
     slugActualEdicion = null;
+    cerrarSeccionTema();
   }
 
   // El slug se edita solo si el operador lo habilita explícitamente: al
@@ -843,9 +854,57 @@
         els.editarError.textContent = data.error || 'No se pudieron guardar los cambios.';
         return;
       }
+      const slugFinal = data.tenant.slug;
+
+      // Identidad visual: si el operador modificó el tema, se guarda al
+      // slug FINAL (si el slug cambió, la migración del backend ya movió
+      // archivos y el tema de la fila viajó con el UPDATE de edición).
+      if (temaModificado) {
+        const temaEnvio = construirTemaDesdeFormulario();
+        const errorContraste = validarContrasteTema(temaEnvio.colores);
+        if (errorContraste) {
+          setFieldErrorTema(errorContraste);
+          return;
+        }
+        let faviconBase64 = null;
+        const archivoFavicon = els.temaFavicon.files && els.temaFavicon.files[0];
+        if (archivoFavicon) {
+          if (archivoFavicon.size > MARCA_LOGO_MAX_MB * 1024 * 1024) {
+            setFieldErrorTema(`El favicon excede el tamaño máximo permitido de ${MARCA_LOGO_MAX_MB} MB.`);
+            return;
+          }
+          try {
+            faviconBase64 = await leerArchivoComoBase64(archivoFavicon);
+          } catch (err) {
+            setFieldErrorTema(err.message);
+            return;
+          }
+        }
+        const resTema = await fetch(
+          `${API_BASE}/tenants/${encodeURIComponent(slugFinal)}/tema`,
+          {
+            method: 'PUT',
+            headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tema: temaEnvio,
+              faviconBase64: faviconBase64 || null,
+            }),
+          }
+        );
+        if (resTema.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        const dataTema = await resTema.json().catch(() => ({}));
+        if (!resTema.ok) {
+          setFieldErrorTema(dataTema.error || 'No se pudo guardar la identidad visual.');
+          return;
+        }
+      }
+
       const slugAnterior = slugActualEdicion;
       cerrarEdicion();
-      const slugFinal = data.tenant.slug;
       const mensaje =
         slugFinal !== slugAnterior
           ? `Empresa actualizada: el slug cambió a "${slugFinal}". Las URLs antiguas ya no responden.`
@@ -857,6 +916,275 @@
     } finally {
       setEdicionLoading(false);
     }
+  });
+
+  // ---------- Sección "Identidad visual" del modal de edición ----------
+  // (segmento "Look & Feel", ver PROJECT_STATE.md punto 105): colores,
+  // tipografías del catálogo, radio de esquinas y favicon del portal de
+  // la empresa, guardados como tema_json en la fila del tenant. Si no se
+  // toca nada, el tenant sigue con el diseño base ADDV (tema_json NULL).
+
+  const TEMA_DEFAULT_ADDV = {
+    colores: {
+      bg: '#F6F4EF',
+      surface: '#FFFFFF',
+      border: '#E3DFD4',
+      ink: '#21261F',
+      inkSoft: '#5B6158',
+      accent: '#0F6E5D',
+      accentDark: '#0B5548',
+      accentSoft: '#E4EFEC',
+      warn: '#B4530C',
+      warnSoft: '#FBEBDC',
+      error: '#B3261E',
+      errorSoft: '#FBEAE9',
+    },
+    tipografia: { display: 'source-serif-4', cuerpo: 'inter' },
+    radio: 'md',
+  };
+
+  // clave del tema -> id del <input type="color"> en control.html
+  const TEMA_INPUTS_COLOR = [
+    ['bg', 'control-tema-bg'],
+    ['surface', 'control-tema-surface'],
+    ['border', 'control-tema-border'],
+    ['ink', 'control-tema-ink'],
+    ['inkSoft', 'control-tema-ink-soft'],
+    ['accent', 'control-tema-accent'],
+    ['accentDark', 'control-tema-accent-dark'],
+    ['accentSoft', 'control-tema-accent-soft'],
+    ['warn', 'control-tema-warn'],
+    ['warnSoft', 'control-tema-warn-soft'],
+    ['error', 'control-tema-error'],
+    ['errorSoft', 'control-tema-error-soft'],
+  ];
+
+  // Familias reales (solo para el preview; el catálogo completo vive en
+  // backend/utils/tenantTema.js y control/utils/tenantTema.js).
+  const TEMA_FUENTES = {
+    'source-serif-4': 'Source Serif 4',
+    inter: 'Inter',
+    lora: 'Lora',
+    'playfair-display': 'Playfair Display',
+    merriweather: 'Merriweather',
+    'open-sans': 'Open Sans',
+    roboto: 'Roboto',
+    'source-sans-3': 'Source Sans 3',
+  };
+
+  // Radios por nivel (sm/md/lg), iguales a los del catálogo del backend.
+  const TEMA_RADIOS = {
+    sm: { sm: '4px', md: '8px', lg: '12px' },
+    md: { sm: '6px', md: '10px', lg: '16px' },
+    lg: { sm: '10px', md: '14px', lg: '20px' },
+  };
+
+  let temaModificado = false;
+
+  function setFieldErrorTema(mensaje) {
+    els.temaError.textContent = mensaje;
+    if (mensaje) abrirSeccionTema();
+  }
+
+  function abrirSeccionTema() {
+    els.btnToggleTemaEditar.setAttribute('aria-expanded', 'true');
+    els.temaBody.hidden = false;
+  }
+
+  function cerrarSeccionTema() {
+    els.btnToggleTemaEditar.setAttribute('aria-expanded', 'false');
+    els.temaBody.hidden = true;
+  }
+
+  els.btnToggleTemaEditar.addEventListener('click', () => {
+    const abierto = els.btnToggleTemaEditar.getAttribute('aria-expanded') === 'true';
+    if (abierto) {
+      cerrarSeccionTema();
+    } else {
+      abrirSeccionTema();
+    }
+  });
+
+  // ---------- Contraste WCAG 2.1 AA (misma fórmula que el backend) ----------
+
+  function luminanciaRelativa(hex) {
+    const valores = [1, 3, 5].map((i) => {
+      const canal = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return canal <= 0.03928 ? canal / 12.92 : Math.pow((canal + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * valores[0] + 0.7152 * valores[1] + 0.0722 * valores[2];
+  }
+
+  function ratioContraste(hexA, hexB) {
+    const l1 = luminanciaRelativa(hexA);
+    const l2 = luminanciaRelativa(hexB);
+    const masClaro = Math.max(l1, l2);
+    const masOscuro = Math.min(l1, l2);
+    return (masClaro + 0.05) / (masOscuro + 0.05);
+  }
+
+  // Devuelve un mensaje de error si algún par de la paleta no cumple
+  // contraste AA (mismos pares y umbrales que el backend), o null.
+  function validarContrasteTema(colores) {
+    const exige = (fondo, texto, minimo, descripcion) => {
+      if (!colores[fondo] || !colores[texto]) return null;
+      const ratio = ratioContraste(colores[fondo], colores[texto]);
+      return ratio < minimo
+        ? `${descripcion} no cumple contraste AA (${ratio.toFixed(2)}:1, mínimo ${minimo}:1).`
+        : null;
+    };
+    return (
+      exige('bg', 'ink', 4.5, 'El texto principal sobre el fondo') ||
+      exige('surface', 'ink', 4.5, 'El texto principal sobre las tarjetas') ||
+      exige('surface', 'inkSoft', 4.5, 'El texto secundario sobre las tarjetas') ||
+      exige('bg', 'warn', 4.5, 'El texto de advertencia') ||
+      exige('bg', 'error', 4.5, 'El texto de error') ||
+      exige('accent', '#FFFFFF', 3, 'El texto blanco sobre los botones principales') ||
+      exige('accentDark', '#FFFFFF', 3, 'El texto blanco sobre los botones oscuros') ||
+      exige('surface', 'accent', 3, 'Los enlaces de color de acción') ||
+      exige('accentSoft', 'accentDark', 3, 'El texto de acción sobre su fondo suave') ||
+      null
+    );
+  }
+
+  // ---------- Preview en vivo ----------
+
+  function construirTemaDesdeFormulario() {
+    const colores = {};
+    TEMA_INPUTS_COLOR.forEach(([clave, id]) => {
+      const input = document.getElementById(id);
+      colores[clave] = (input && input.value) || TEMA_DEFAULT_ADDV.colores[clave];
+    });
+    return {
+      colores,
+      tipografia: {
+        display: document.getElementById('control-tema-font-display').value,
+        cuerpo: document.getElementById('control-tema-font-cuerpo').value,
+      },
+      radio: document.getElementById('control-tema-radio').value,
+    };
+  }
+
+  function aplicarPreviewTema() {
+    const tema = construirTemaDesdeFormulario();
+    const radios = TEMA_RADIOS[tema.radio] || TEMA_RADIOS.md;
+    const variables = {
+      '--color-bg': tema.colores.bg,
+      '--color-surface': tema.colores.surface,
+      '--color-border': tema.colores.border,
+      '--color-ink': tema.colores.ink,
+      '--color-ink-soft': tema.colores.inkSoft,
+      '--color-accent': tema.colores.accent,
+      '--color-accent-dark': tema.colores.accentDark,
+      '--color-accent-soft': tema.colores.accentSoft,
+      '--color-warn': tema.colores.warn,
+      '--color-warn-soft': tema.colores.warnSoft,
+      '--color-error': tema.colores.error,
+      '--color-error-soft': tema.colores.errorSoft,
+      '--radius-sm': radios.sm,
+      '--radius-md': radios.md,
+      '--radius-lg': radios.lg,
+      '--font-display': `'${TEMA_FUENTES[tema.tipografia.display] || 'Source Serif 4'}', Georgia, serif`,
+      '--font-body': `'${TEMA_FUENTES[tema.tipografia.cuerpo] || 'Inter'}', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
+    };
+    Object.entries(variables).forEach(([clave, valor]) => {
+      els.temaPreview.style.setProperty(clave, valor);
+    });
+  }
+
+  // ---------- Carga del tema del tenant en el formulario ----------
+
+  function cargarTemaEnFormulario(tenant) {
+    let tema = null;
+    if (tenant && tenant.tema_json) {
+      try {
+        tema = JSON.parse(tenant.tema_json);
+      } catch (err) {
+        tema = null;
+      }
+    }
+    const colores = Object.assign({}, TEMA_DEFAULT_ADDV.colores, (tema && tema.colores) || {});
+    TEMA_INPUTS_COLOR.forEach(([clave, id]) => {
+      const input = document.getElementById(id);
+      if (input) input.value = colores[clave] || TEMA_DEFAULT_ADDV.colores[clave];
+    });
+    const tipografia = (tema && tema.tipografia) || {};
+    document.getElementById('control-tema-font-display').value = tipografia.display || 'source-serif-4';
+    document.getElementById('control-tema-font-cuerpo').value = tipografia.cuerpo || 'inter';
+    document.getElementById('control-tema-radio').value = (tema && tema.radio) || 'md';
+    els.temaFavicon.value = '';
+    if (tema && tema.faviconUrl) {
+      els.temaFaviconActual.textContent = 'Este tenant ya tiene un favicon cargado. Elige un archivo para reemplazarlo.';
+      els.temaFaviconActual.hidden = false;
+    } else {
+      els.temaFaviconActual.textContent = '';
+      els.temaFaviconActual.hidden = true;
+    }
+    temaModificado = false;
+    aplicarPreviewTema();
+  }
+
+  // ---------- Listeners de modificación del tema ----------
+
+  TEMA_INPUTS_COLOR.forEach(([, id]) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.addEventListener('input', () => {
+      temaModificado = true;
+      aplicarPreviewTema();
+    });
+  });
+
+  ['control-tema-font-display', 'control-tema-font-cuerpo', 'control-tema-radio'].forEach((id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.addEventListener('change', () => {
+      temaModificado = true;
+      aplicarPreviewTema();
+    });
+  });
+
+  els.temaFavicon.addEventListener('change', () => {
+    temaModificado = true;
+  });
+
+  // ---------- Restablecer al diseño ADDV ----------
+
+  els.btnTemaRestablecer.addEventListener('click', () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !slugActualEdicion) return;
+    confirmarAccion({
+      titulo: 'Restablecer identidad visual',
+      mensaje:
+        'La empresa volverá al diseño base de la plataforma (colores, tipografías y favicon por defecto). Esta acción no se puede deshacer.',
+      textoBoton: 'Restablecer',
+      onConfirmar: async () => {
+        setEdicionLoading(true);
+        try {
+          const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}/tema`, {
+            method: 'PUT',
+            headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ restablecer: true }),
+          });
+          if (res.status === 401) {
+            clearSession();
+            showLogin();
+            return;
+          }
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setFieldErrorTema(data.error || 'No se pudo restablecer la identidad visual.');
+            return;
+          }
+          cargarTemaEnFormulario(data.tenant);
+          showToast('Identidad visual restablecida al diseño base.');
+        } catch (err) {
+          setFieldErrorTema('No se pudo conectar con el servidor.');
+        } finally {
+          setEdicionLoading(false);
+        }
+      },
+    });
   });
 
   // ---------- Inicialización ----------

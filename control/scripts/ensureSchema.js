@@ -33,6 +33,12 @@ const COLUMNAS_NUEVAS = [
   // uno) — si no hay logo, el correo genera un logo de texto con la marca.
   { nombre: 'marca', definicion: 'VARCHAR(255) NULL' },
   { nombre: 'marca_logo_url', definicion: 'VARCHAR(500) NULL' },
+  // Identidad visual de la empresa (segmento "Look & Feel"): JSON
+  // completo del tema (paleta de colores, tipografías, radio de esquinas,
+  // favicon) validado por control/utils/tenantTema.js — NULL = identidad
+  // base "ADDV" por defecto. TEXT (no JSON nativo) para que el esquema de
+  // lectura del backend no dependa de la versión de MySQL.
+  { nombre: 'tema_json', definicion: 'TEXT NULL' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {

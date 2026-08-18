@@ -5399,6 +5399,177 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       control-alta-empresa con el paso CLI manual del harness.
       **El segmento queda validado contra Docker/MySQL/MinIO reales.**
 
+105. **Segmento "Look & Feel": identidad visual (tema) personalizada por
+    empresa desde `/control`** — cada tenant puede tener su propia
+    paleta de colores, tipografías y radio de esquinas sobre el diseño
+    base ADDV, más un favicon propio, sin tocar ningún CSS de
+    componente:
+    - **Modelo de datos**: columna NUEVA `tema_json` (`TEXT NULL`) en
+      `control_tenants.tenants` vía `control/scripts/ensureSchema.js`.
+      `NULL` = identidad base ADDV (la que define `frontend/style.css`);
+      el JSON solo trae las claves que el tenant personaliza — las
+      ausentes las cubre el diseño base. `TEXT` (no JSON nativo) para
+      que la lectura no dependa de la versión de MySQL, mismo patrón que
+      el resto de columnas de control.
+    - **Validación duplicada backend/control** (mismo principio que
+      `tenantMarca.js` con la firma de imagen — `control/` es un
+      contexto de build aparte, no puede importar `backend/utils/`):
+      `backend/utils/tenantTema.js` (fuente de verdad, con
+      `parsearTemaDesdeFila`/`temaAVariables`/`fuentesAUrlGoogle`) y
+      `control/utils/tenantTema.js` (`normalizarTema` + cálculo de
+      contraste, catálogo de fuentes/radios idéntico a mano — hay que
+      mantenerlos sincronizados si cambia el catálogo). Reglas: colores
+      hex de 6 dígitos de una lista cerrada de 12 claves (`bg`,
+      `surface`, `border`, `ink`, `inkSoft`, `accent`, `accentDark`,
+      `accentSoft`, `warn`, `warnSoft`, `error`, `errorSoft`);
+      tipografías solo de un catálogo cerrado de 8 fuentes de Google
+      Fonts (nunca texto libre, para no arriesgar inyección en el
+      `<link>` dinámico); radio `sm`/`md`/`lg`; contraste **WCAG 2.1 AA
+      real** calculado sobre 9 pares fondo/texto (4.5:1 texto normal,
+      3:1 botones/enlaces) — si un par no cumple, se rechaza con 400
+      antes de guardar.
+    - **Favicon**: mismo patrón que el logo de marca (segmento 103) pero
+      con endpoints propios — `POST`/`DELETE /internal/favicon/:slug`
+      en `backend/server.js` (protegidos con `X-Internal-Secret`, NO
+      expuestos por nginx), archivo en MinIO bajo
+      `marca/<slug>/favicon`, servido público en
+      `GET /api/favicon/:slug` (cache 24h). `control/utils/tenantTema.js`
+      reenvía el favicon al backend por HTTP (`subirFaviconAlBackend`/
+      `borrarFaviconDelBackend`), igual que el logo. El renombrado de
+      slug (`POST /internal/renombrar-slug`, segmento 104) ahora también
+      migra el favicon si existe (`faviconMovido` en la respuesta) y
+      `tenantEdicion.js` reescribe la ruta del favicon dentro de
+      `tema_json` al slug nuevo.
+    - **API de control**: NUEVO `PUT /api/control/tenants/:slug/tema`
+      (`control/server.js` + `control/utils/tenantTema.js`). Body:
+      `{ tema, faviconBase64?, quitarFavicon? }` o
+      `{ restablecer: true }` (vuelve a `NULL` = diseño base y borra el
+      favicon si tenía). 200/400 (validación, incluido contraste)/404
+      (slug inexistente)/502 (backend rechazó el favicon). Cada cambio
+      queda en `tenant_eventos` (`tema_actualizado`) e invalida la caché
+      de resolución del backend (mismo mecanismo que marca/edición).
+    - **API pública**: NUEVO `GET /api/tema/:slug` en
+      `backend/server.js` — siempre 200 (o 404 solo si el slug tiene
+      formato inválido; no distingue "tenant sin tema" de "tenant
+      inexistente", igual que el logo de marca). Devuelve
+      `{ marca, marcaLoGoUrl, tema, variables, fuentesGoogle }` listo
+      para pintar. Cache corto (5 min, vs. 24h del logo) porque un
+      cambio de identidad debe propagarse pronto. `resolverTenantPorSlug`
+      ahora también trae `tema_json` en el SELECT.
+    - **Frontend**: script NUEVO `frontend/theme.js`, cargado DESPUÉS de
+      `style.css` en las 6 páginas del portal (login, dashboard, tickets,
+      csf, admin, control) — pinta las CSS variables del tema sobre
+      `:root`, carga los `<link>` de Google Fonts que falten, reemplaza
+      `.brand-name`/`.brand-mark` con la marca/logo del tenant y el
+      `<link rel="icon">` con el favicon. En páginas sin tenant (`/admin`
+      sin slug, `/control`) no hace nada — degradación elegante también
+      si el `fetch` falla o el tenant no tiene tema: el portal se ve con
+      el diseño base ADDV, nunca rompe la página. Clase CSS nueva
+      `.brand-mark-img` en `frontend/style.css`.
+    - **UI de edición** (`frontend/control.html`/`control.js`/
+      `admin.css`): sección colapsable "Identidad visual (personalizada)"
+      dentro del modal "Editar empresa" del segmento 104 — 12 selectores
+      de color, 3 selects de tipografía/radio, campo de favicon (máx.
+      2 MB, mismo límite que el logo), vista previa en vivo (tarjeta de
+      ejemplo que se repinta con cada cambio, sin esperar al guardado) y
+      botón "Restablecer al diseño ADDV". El tema solo se envía al
+      backend si el operador tocó algo (`temaModificado`); se guarda al
+      slug FINAL (si el operador también cambió el slug en el mismo
+      guardado, la migración de archivos ya corrió antes). Validación de
+      contraste duplicada una tercera vez en `control.js` (mismos 9
+      pares) para dar el error antes de intentar guardar.
+    - **Pruebas**: `backend/test/unit/tenantTema.test.js` (normalización,
+      contraste AA, `temaAVariables`/`fuentesAUrlGoogle`) y
+      `backend/test/integration/tema.test.js` (`GET /api/tema/:slug` y
+      los endpoints internos de favicon) + el caso de favicon agregado a
+      `backend/test/integration/internal.test.js` (renombrar-slug).
+      **Falta contraparte en `control/`**: no hay
+      `control/test/unit/tenantTema.test.js` ni cobertura de integración
+      para `PUT /api/control/tenants/:slug/tema` en
+      `control/test/integration/control.test.js` — pendiente antes de
+      dar el segmento por cerrado.
+    - **Bug encontrado y corregido en esta revisión**: comentario con
+      mojibake (encoding roto) en `control/scripts/ensureSchema.js`
+      alrededor de la columna `marca` — cosmético (no afectaba
+      ejecución), corregido a UTF-8 correcto.
+    - **Sin verificar en esta sesión**: no se corrió `node --check` ni
+      la suite Jest de `backend/`/`control/` sobre estos archivos (no
+      autorizado en la sesión que hizo esta revisión), ni se probó
+      contra Docker/MySQL/MinIO reales. Antes de dar el segmento por
+      válido: correr ambas suites, agregar las pruebas de `control/`
+      que faltan, y repetir el patrón de validación real en Docker de
+      los segmentos 103/104 (subir/quitar favicon contra MinIO real,
+      guardar tema contra MySQL real, ver el tema aplicado en un tenant
+      real en el navegador).
+106. **Rediseño de login (cliente y admin): split-screen fiel a
+    `stitch/code.html`/`stitch/DESIGN.md`** (mock aportado por el
+    usuario, carpeta `stitch/` en la raíz — no se borra, queda como
+    referencia de diseño) — pedido explícito, mismo protocolo
+    analizar-proponer-confirmar-implementar (2026-08-18):
+    - **Layout**: `.auth-shell` nuevo en `frontend/auth.css` — panel de
+      marca a la izquierda (`.auth-hero`) + tarjeta de formulario a la
+      derecha (`.auth-card`), en vez de la card centrada de antes.
+      Responsive: se apila en `≤860px`. Aplicado en `frontend/login.html`
+      (login/registro/cambio de contraseña, mismos IDs y lógica, solo
+      cambió el marcado alrededor) y `frontend/admin.html` (pantalla de
+      acceso de `/admin`, ahora carga también `auth.css`).
+    - **Paleta propia, contenida**: `.auth-shell` redefine
+      `--color-accent`/`--color-ink`/`--color-border`/`--shadow-card`
+      etc. como variables LOCALES (no toca `:root` en `style.css`) — los
+      componentes existentes (`.btn-primary`, `.field input`, focus
+      rings) se repintan solos vía cascada de variables CSS sin duplicar
+      reglas. El resto del sitio (dashboard, tickets, csf, admin panel)
+      conserva la paleta verde base intacta.
+    - **Marca por defecto = CLARVO**: decisión explícita del usuario —
+      "CLARVO" es el diseño/marca por defecto del plan base; la
+      personalización real (logo, paleta, tipografías) para el
+      siguiente plan sigue siendo el segmento "Look & Feel" (punto 105)
+      vía `/control`. El lockup CLARVO/"Portal de Facturación"/"by ADDV"
+      terminó como una imagen estática (`frontend/assets/branding.png`,
+      subida por el usuario) en vez de texto — **por diseño pierde el
+      reemplazo dinámico de `.brand-name`/`.brand-mark` que hace
+      `theme.js` en esta franja específica** (un tenant con marca
+      personalizada vía segmento 103 no repinta este bloque; sí sigue
+      funcionando en el resto de páginas). Gráfico decorativo del panel
+      izquierdo: `frontend/assets/login-decoracion-marca.png` (imagen
+      aportada por el usuario, no generada por IA en el repo).
+    - **`frontend/Dockerfile` corregido**: el `COPY` explícito de
+      archivos nunca incluyó `theme.js` — bug preexistente del segmento
+      105, el tema personalizado nunca se hubiera cargado en un
+      contenedor real. Se agregó `theme.js` a la lista y un `COPY
+      assets/ .../assets/` nuevo para los PNG. **Sin probar contra un
+      build de Docker real en esta sesión** — antes de confiar esto en
+      producción, reconstruir la imagen `frontend` y confirmar que
+      `/theme.js` y `/assets/*.png` responden 200.
+    - **Bug real encontrado y corregido (no exclusivo del login)**: en
+      `frontend/style.css`, la regla base de inputs
+      (`.field input[type="text"], input[type="email"], select,
+      textarea`) nunca incluyó `password`/`tel`/`url`/`number`/`date` —
+      cualquier campo contraseña del sitio (login, registro, cambio de
+      contraseña, admin, `/control`) se veía con el borde/padding por
+      defecto del navegador hasta que el usuario tocaba el ícono del
+      ojo (que cambia `type="password"` a `type="text"`, matcheando
+      recién ahí la regla). Se agregaron los tipos faltantes al
+      selector base; el padding-right que le deja espacio al botón del
+      ojo se separó a una regla aparte con la misma especificidad pero
+      DESPUÉS en el archivo (si no, el `padding: 11px 12px` del
+      selector base lo pisa y el texto queda debajo del ícono).
+    - **Explícitamente omitido** (confirmado con el usuario): sin botón
+      "Continuar con Google", sin checkbox "Recuérdame", sin enlace
+      "¿Olvidaste tu contraseña?" (no existe flujo de recuperación de
+      contraseña en la app — agregar el enlace sin el flujo real habría
+      quedado roto). El campo de acceso del cliente sigue siendo RFC,
+      no correo (el mock traía "Correo electrónico" pero cambiar el
+      mecanismo de login es una decisión de negocio fuera de alcance de
+      "aplicar el diseño").
+    - **Sin verificar en esta sesión**: sin corrida de Playwright/E2E
+      contra el stack Docker real, ni revisión visual con la extensión
+      Claude in Chrome (no se pudo conectar). Validado solo sirviendo
+      `frontend/` con un server estático simple y confirmación manual
+      del usuario en navegador. `node --check` limpio en los `.js`
+      tocados (`login.js`, `admin.js`, `theme.js` — ninguno cambió,
+      solo se revalidó que siguen sirviendo bien con el HTML/CSS nuevo).
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto
@@ -5551,4 +5722,5 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 - App de control, contenedor propio (multi-tenant, segmento 9b, punto 99): directorio `control/` completo (`server.js`, `db.js`, `utils/`, `scripts/ensureSchema.js`) — NO vive en `backend/`
 - Alta de empresa nueva desde `/control` (multi-tenant, segmento 9c, punto 101): `control/utils/tenantIntake.js` (`crearTenantIntake`, fila `estado='provisioning'`), `control/server.js` (`POST /api/control/tenants`), modal en `frontend/control.html`/`control.js`/`admin.css`, completado por `backend/scripts/provisionar-tenant.js` + `aplicarConfiguracionFiscalEnProcesoHijo` en `backend/scripts/lib/controlDb.js`
 - Endpoint interno de invalidación de caché entre contenedores (punto 99): `backend/server.js`, `POST /internal/cache-tenant/invalidar`
+- Identidad visual (tema) por tenant (segmento "Look & Feel", punto 105): `backend/utils/tenantTema.js` + `control/utils/tenantTema.js` (validación duplicada), columna `tema_json` en `control/scripts/ensureSchema.js`, `GET /api/tema/:slug` + `POST`/`DELETE /internal/favicon/:slug` en `backend/server.js`, `PUT /api/control/tenants/:slug/tema` en `control/server.js`, `frontend/theme.js` (pinta CSS variables en runtime)
 - Documentación completa para el usuario final: `README.md` (mucho más detallado que este archivo — este es para retomar el trabajo, el README es para operar la app)
