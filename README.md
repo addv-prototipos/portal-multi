@@ -88,7 +88,7 @@ El backend se conecta a MySQL usando `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWO
 
 1. Clona el repositorio:
    ```bash
-   git clone <url-del-repositorio>
+   git clone https://github.com/antonioprado-sketch/ADDVportalFact.git
    cd app
    ```
 2. Copia el archivo de variables de entorno:
@@ -231,7 +231,7 @@ Diseño mobile-first en todas las páginas, con foco visible para navegación po
 
 2. **Clonar el proyecto y configurar variables**
    ```bash
-   git clone <url-del-repositorio>
+   git clone https://github.com/antonioprado-sketch/ADDVportalFact.git
    cd app
    cp .env.example .env
    # Edita .env: define CORS_ORIGIN con tu dominio real, y cambia
@@ -906,3 +906,11 @@ mismo host.
 - **Base de datos**: MySQL 8 en su propio contenedor (`docker-compose.yml`), con un volumen Docker nombrado (`mysql_data`) para persistencia. El backend espera activamente a que MySQL esté listo antes de aceptar tráfico (con reintentos), y `docker-compose` además usa un *healthcheck* de MySQL para no arrancar el backend hasta que la base de datos esté sana. Todas las consultas usan el driver `mysql2/promise` (asíncrono) con un *pool* de conexiones.
 - **Tarea periódica de limpieza**: el borrado automático de tickets vencidos corre dentro del propio proceso de Node (`setInterval`, una vez al arrancar y luego cada hora) — no depende de un cron externo ni de un contenedor adicional. Si el proceso se reinicia (ej. `docker-compose restart backend`), la limpieza simplemente vuelve a correr al arrancar, así que no se pierde ninguna ejecución de forma permanente.
 - **Persistencia**: MySQL para los datos estructurados, y almacenamiento de archivos en disco mapeado como *bind mount* local (`./uploads`) para poder inspeccionarlo directamente y que sobreviva a reconstrucciones de contenedores.
+
+## 🗂️ Repositorio y ramas (git)
+
+- Repositorio público de este trabajo: `https://github.com/antonioprado-sketch/ADDVportalFact.git`
+  (remote `fact`, rama destino `master`).
+- `origin` apunta a `https://github.com/antonioprado-sketch/portal-multi.git` (repo previo, ya no es el destino de publicación).
+- La rama local por defecto es `main`; publicar = `git push fact main:master`.
+- El `master` remoto fue reemplazado por force push el 2026-08-18 (el historial anterior quedó huérfano; la rama `prototipo` del remote sigue intacta). Ver `PROJECT_STATE.md` punto 107.

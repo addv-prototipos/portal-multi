@@ -5569,6 +5569,28 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       del usuario en navegador. `node --check` limpio en los `.js`
       tocados (`login.js`, `admin.js`, `theme.js` — ninguno cambió,
       solo se revalidó que siguen sirviendo bien con el HTML/CSS nuevo).
+107. **Push del repo local a `ADDVportalFact` (master) — remotes git**
+    (2026-08-18): el repo local tenía un solo remote `origin` apuntando a
+    `https://github.com/antonioprado-sketch/portal-multi.git`, con la rama
+    local `main`. Por pedido explícito del usuario se agregó el remote
+    `fact` apuntando a `https://github.com/antonioprado-sketch/ADDVportalFact.git`
+    y se publicó el historial completo (`main` → `master` del remote):
+    - **El master remoto tenía 53 commits con historial INDEPENDIENTE**
+      (proyecto previo del usuario, ramas `master` y `prototipo`), sin
+      ninguna relación de ancestría con este repo local — el push normal
+      fue rechazado ("fetch first"). Con aprobación explícita del
+      usuario se hizo **force push** (`git push fact main:master
+      --force`): el `master` remoto quedó reemplazado por el historial
+      local (7 commits, del 6d6cd68 al 0d96dd7). Los 53 commits del
+      master anterior quedaron huérfanos (sigue existiendo la rama
+      `prototipo` del remote, intacta).
+    - **Estado de remotes actual** (`git remote -v`): `origin` =
+      `portal-multi.git` (sin cambios) y `fact` = `ADDVportalFact.git`
+      (nuevo). Rama local por defecto sigue siendo `main`; el flujo de
+      publicación de aquí en adelante es `git push fact main:master`.
+    - **Documentación** (este punto + `CLAUDE.md` + `AGENTS.md` +
+      `README.md`) actualizada para que cualquier sesión futura conozca
+      el remote correcto en vez de asumir `origin`.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

@@ -192,6 +192,13 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   día: backend 492/492 (28 suites), control 88/88 (7 suites).
 - **Todavía no hay ningún tenant real dado de alta** — nada de esto
   recibe tráfico real hoy.
+- **Remotes git (ver PROJECT_STATE.md punto 107)**: `origin` apunta a
+  `portal-multi.git` y `fact` a `ADDVportalFact.git` (el repo donde se
+  publica el trabajo real). Publicar = `git push fact main:master` (la
+  rama local es `main`; el master remoto fue reemplazado por force push
+  el 2026-08-18, los 53 commits previos quedaron huérfanos, la rama
+  `prototipo` del remote sigue intacta). No asumir `origin` como destino
+  de publicación sin verificar antes.
 
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.

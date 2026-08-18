@@ -355,6 +355,13 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   contenedores reales. Sigue sin probar: Docker Swarm multi-nodo real.
 - **Todavía no hay ningún tenant real dado de alta** — nada de esto
   recibe tráfico real hoy.
+- **Remotes git (ver PROJECT_STATE.md punto 107)**: `origin` apunta a
+  `portal-multi.git` y `fact` a `ADDVportalFact.git` (el repo donde se
+  publica el trabajo real). Publicar = `git push fact main:master` (la
+  rama local es `main`; el master remoto fue reemplazado por force push
+  el 2026-08-18, los 53 commits previos quedaron huérfanos, la rama
+  `prototipo` del remote sigue intacta). No asumir `origin` como destino
+  de publicación sin verificar antes.
 
 Las tres superficies de la app: portal de cliente (sin prefijo o
 `/<slug>/...`), panel admin por tenant (`/admin` o `/<slug>/admin`), y
