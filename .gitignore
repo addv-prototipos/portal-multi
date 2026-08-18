@@ -1,6 +1,9 @@
 # Entorno
 .env
 
+# Notas locales de prueba con credenciales — nunca al repositorio
+test.md
+
 # Node
 node_modules/
 npm-debug.log*

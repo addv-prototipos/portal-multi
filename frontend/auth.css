@@ -173,12 +173,9 @@
   .auth-shell { flex-direction: column; min-height: 0; }
   .auth-shell::before { left: 0; opacity: 0.04; }
   .auth-hero { padding: 32px 28px 20px; }
+  .auth-hero-headline { display: none; }
+  .auth-hero-divider { display: none; }
   .auth-hero-decor { display: none; }
   .auth-hero-footer { display: none; }
   .auth-card { flex: none; max-width: 100%; margin: 0; padding: 24px 24px 22px; }
-}
-
-@media (max-width: 420px) {
-  .auth-hero { padding: 24px 20px 12px; }
-  .auth-hero-headline { font-size: 24px; }
 }
