@@ -661,6 +661,7 @@ async function ensureSchema(db = pool) {
       monto DECIMAL(12,2) NULL,
       fecha_registro DATETIME NULL,
       atendido_por VARCHAR(100) NULL,
+      accion VARCHAR(20) NULL,
       creado_en DATETIME NOT NULL,
       CONSTRAINT fk_reporte_items_reporte FOREIGN KEY (reporte_id) REFERENCES reportes(id) ON DELETE CASCADE,
       KEY idx_reporte_items_reporte_id (reporte_id),
@@ -694,6 +695,14 @@ async function ensureSchema(db = pool) {
   const nombresColumnasReporteItems = columnasReporteItems.map((c) => c.COLUMN_NAME);
   if (!nombresColumnasReporteItems.includes('atendido_por')) {
     await db.query('ALTER TABLE reporte_items ADD COLUMN atendido_por VARCHAR(100) NULL');
+  }
+  // Migración: instalaciones que ya tenían "reporte_items" antes de
+  // "accion" — distingue un registro que de verdad se eliminó (retención
+  // automática, o "Eliminar" una orden de compra) de uno que solo
+  // aparece en una fotografía manual ("Enviar reporte", que no borra
+  // nada) — ver "Lectura de reportes" en el frontend, badge "Eliminado".
+  if (!nombresColumnasReporteItems.includes('accion')) {
+    await db.query('ALTER TABLE reporte_items ADD COLUMN accion VARCHAR(20) NULL');
   }
 
 

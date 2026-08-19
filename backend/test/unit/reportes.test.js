@@ -198,7 +198,7 @@ describe('reportes.js', () => {
     test('incluye encabezados y una fila por item', () => {
       const csv = generarCSV([itemTicket, itemOrden], 'America/Mexico_City');
       const lineas = csv.replace('﻿', '').split('\r\n');
-      expect(lineas[0]).toBe('Tipo,Identificador,RFC / Correo,Estatus,Monto,Atendido por,Fecha de registro');
+      expect(lineas[0]).toBe('Tipo,Identificador,RFC / Correo,Estatus,Monto,Atendido por,Fecha de registro,Acción');
       expect(lineas).toHaveLength(3); // encabezado + 2 items
     });
 

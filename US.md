@@ -1,13 +1,78 @@
 # Historias de Usuario — Portal de Facturación ADDV
 
 Documento de historias de usuario del **Portal de Facturación ADDV** (carga de
-constancia de situación fiscal, tickets de compra, facturación y administración
-multi-tenant). Cada historia sigue el formato *"Como [rol], quiero [capacidad],
-para [beneficio]"* e incluye criterios de aceptación verificables.
+constancia de situación fiscal, tickets de compra, facturación, órdenes de
+compra y administración multi-tenant). Cada historia sigue el formato
+*"Como [rol], quiero [capacidad], para [beneficio]"* e incluye criterios de
+aceptación verificables.
+
+Este archivo es la **fuente de contexto completa del producto**: sirve tanto
+para documentar lo ya implementado como para dar contexto a un asistente de
+diseño (ChatGPT) que proponga **nuevos módulos**. Al proponer funcionalidad
+nueva, respetar el formato de este documento, reutilizar los actores
+existentes y marcar las historias nuevas como *propuestas*.
 
 > Fuente de comportamiento: `README.md` y `PROJECT_STATE.md`. Las historias
-> describen funcionalidad **ya implementada** en el proyecto (nada de esto está
-> pendiente de construir, salvo donde se indica explícitamente).
+> describen funcionalidad **ya implementada** en el proyecto, salvo donde se
+> indica explícitamente.
+
+---
+
+## 0. Contexto del sistema (para diseñar nuevos módulos)
+
+### Propósito del producto
+
+Plataforma web B2B de facturación para que clientes y proveedores capturen su
+**constancia de situación fiscal** (PDF del SAT), suban **tickets de compra** y
+obtengan su **factura (CFDI)**. Un administrador registra **órdenes de compra**,
+las envía por correo al cliente con diseño de ticket, y factura cada compra.
+El producto es **multi-tenant**: cada empresa cliente tiene su propia base de
+datos MySQL, su propio espacio de URLs (`/<slug>` y `/<slug>/admin`) y su
+propia identidad visual (marca, logo, tema).
+
+### Stack y arquitectura
+
+| Capa | Tecnología |
+|---|---|
+| Backend | Node.js 20 + Express 4 (`backend/`, puerto 4000) |
+| App de control | Node.js + Express propio en contenedor aparte (`control/`, puerto 4001) — cross-tenant, credencial MySQL angosta |
+| Frontend | HTML + CSS + JavaScript vanilla (sin build step), servido por Nginx (`frontend/`) |
+| Base de datos | MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM) — una BD por tenant |
+| Almacenamiento | MinIO (S3-compatible) para constancias, tickets, facturas, logos y favicons |
+| Correo | Nodemailer (SMTP configurable, pensado para Gmail) |
+| Contenedores | Docker + Docker Compose; `docker-stack.yml` para Swarm (MySQL primario/réplica) |
+
+### Superficies de la app
+
+1. **Portal de cliente** — `/<slug>/login`, `/<slug>/dashboard`,
+   `/<slug>/tickets`, `/<slug>/csf` (sin prefijo para el tenant base).
+2. **Panel de administración** — `/<slug>/admin`, por perfil (Super /
+   Administrador / Fiscal).
+3. **App de control** — `/control`, solo cuentas "super" (`ADMIN_USERS`),
+   gestiona el ciclo de vida de las empresas/tenants (alta, edición, tema,
+   suspensión, baja).
+
+### Reglas transversales de negocio
+
+- **RFC** es el identificador de cada contribuyente; los tickets quedan
+  aislados por RFC de sesión.
+- **Un solo archivo activo** de constancia por contribuyente (RFC primero,
+  correo como respaldo).
+- **Retención**: un solo número de días configurable elimina automáticamente
+  tickets (imagen + factura + registro) y órdenes (registro).
+- **IVA** configurable globalmente, "fotografiado" al momento de cada orden.
+- **Zona horaria** mexicana (catálogo IANA) para fechas/horas de compras.
+- **Orden de compra** puede habilitarse/deshabilitarse globalmente por tenant.
+- **Marca** por tenant (nombre + logo) para los correos; fallback `"ADDV"`.
+- **Identidad visual (tema)** por tenant (colores, tipografías, radio de
+  esquinas, favicon) sobre el diseño base ADDV.
+- **Contraseñas** con `crypto.scrypt`; sesión de cliente en cookie httpOnly
+  firmada (HMAC), Basic Auth de 3 niveles para el panel.
+- **Multi-tenant**: rate limits claveados por `tenant + IP`; auditoría de
+  mutaciones del panel en `control_tenants.admin_auditoria`; 404 de tenant con
+  costo artificial anti-enumeración.
+
+---
 
 ## Actores
 
@@ -15,11 +80,11 @@ para [beneficio]"* e incluye criterios de aceptación verificables.
 |---|---|
 | **Cliente** | Usuario del portal público (RFC + contraseña). Sube constancia y tickets, descarga facturas. |
 | **Visitante** | Persona sin cuenta que accede al formulario público de constancia (acceso anónimo, retrocompatibilidad). |
-| **Fiscal** | Perfil del panel de administración: gestiona constancias y tickets. No ve usuarios ni órdenes de compra. |
+| **Fiscal** | Perfil del panel de administración: gestiona constancias y tickets, ve Inicio. No ve usuarios ni órdenes de compra. |
 | **Administrador** | Perfil del panel: gestiona usuarios, órdenes de compra, reportes y configuraciones fiscales. |
 | **Super** | Cuenta `admin` de respaldo y cuentas de `ADMIN_USERS`: acceso total al panel y a `/control`. |
 | **Operador de control** | Persona con cuenta "super" que opera la app de control `/control` (ciclo de vida de empresas/tenants). |
-| **Sistema** | Comportamiento automático del backend (limpiezas, notificaciones, respaldos). |
+| **Sistema** | Comportamiento automático del backend (limpiezas, notificaciones, respaldos, migraciones). |
 
 ---
 
@@ -38,7 +103,7 @@ para poder iniciar sesión y facturar con mi RFC.
 Como **cliente**, quiero iniciar sesión con mi RFC y contraseña, para acceder a mi tablero.
 
 **Criterios de aceptación:**
-- La sesión dura 12 horas en una cookie httpOnly firmada con HMAC.
+- La sesión dura 12 horas en una cookie httpOnly firmada con HMAC (clave derivada por tenant vía HKDF).
 - El error de login es genérico ("RFC o contraseña incorrectos") para no revelar RFCs registrados.
 - Hay rate limiting (50 intentos / 15 min por IP).
 
@@ -111,6 +176,7 @@ y la lista de todas mis solicitudes de tickets, para dar seguimiento a mis trám
 - Cada ticket muestra folio (`TK-000001`), nombre de archivo, estatus y fecha de actualización.
 - Estatus con insignias de color: Pendiente, En curso, Cancelado, Listo.
 - Aislamiento por RFC: cada usuario solo ve y descarga sus propios tickets.
+- La barra superior usa la paleta navy de marca con el logo claro (`branding_bgo.png`).
 
 ### US-011 — Descargar factura cuando el ticket está listo
 Como **cliente**, quiero descargar la factura de mis tickets en estatus "Listo",
@@ -167,6 +233,7 @@ para administrar la operación.
 - Un perfil "Cliente" nunca puede entrar al panel (excluido a nivel de SQL).
 - Contraseñas con `scrypt` + comparación `timingSafeEqual`.
 - Rate limiting en login (50/15 min) y límite separado para el resto de la API del panel (2000/15 min).
+- La pantalla de acceso usa el diseño split-screen (login rediseñado, punto 106).
 
 ### US-017 — Restricción de acceso por perfil
 Como **fiscal** o **administrador**, quiero ver solo las vistas y tarjetas de mi perfil en el panel,
@@ -174,8 +241,8 @@ para no acceder a áreas que no me corresponden.
 
 **Criterios de aceptación:**
 - Interfaz: los botones/tarjetas fuera de perfil se ocultan, no solo se deshabilitan.
-- Backend: los 45 endpoints de `/api/admin/*` exigen `requireAdminAuth` + `requireAdminArea(...)` → 403 real.
-- Matriz de acceso: Super → todo; Administrador → Órdenes, Usuarios, Reportes, Config fiscales/reportes; Fiscal → Constancias, Tickets, Campos obligatorios, Config fiscales.
+- Backend: los 45+ endpoints de `/api/admin/*` exigen `requireAdminAuth` + `requireAdminArea(...)` → 403 real.
+- Matriz de acceso: Super → todo; Administrador → Órdenes, Usuarios, Reportes, Config fiscales/reportes; Fiscal → Inicio, Constancias, Tickets, Campos obligatorios, Config fiscales.
 - "Cuenta de respaldo admin" solo visible/editable por el usuario `admin` exacto (`requireUsuarioAdminExacto`).
 - Si la vista por defecto no está permitida, se navega a la primera vista disponible.
 
@@ -185,7 +252,23 @@ Como **super**, quiero que cada mutación del panel y cada login queden registra
 
 ---
 
-## 6. Panel — Vista Constancias
+## 6. Panel — Vista Inicio
+
+### US-061 — Resumen de operación con estadísticas reales
+Como **fiscal** (o super), quiero ver al entrar al panel una vista "Inicio" con estadísticas,
+las solicitudes más recientes y una dona de estatus, para monitorear la operación de un vistazo.
+
+**Criterios de aceptación:**
+- Cuatro tarjetas: **Solicitudes totales**, **En proceso** (pendiente + en curso), **Completadas** (listo) y **Rechazadas** (cancelado), cada una con variación real contra el mes calendario anterior.
+- Tabla de las **5 solicitudes más recientes** con botón "Gestionar" (abre el mismo modal de Tickets) y enlace "Ver todas" a la vista Tickets.
+- Dona SVG de 3 segmentos con porcentajes reales por estatus.
+- Todo se calcula en el cliente a partir del mismo endpoint `GET /api/admin/tickets` — sin endpoint nuevo.
+- Visible para `super`/`fiscal` (no para `administrador`, que no ve Tickets). Es la vista por defecto al iniciar sesión.
+- Sidebar navy con íconos SVG (mockup `stitch/panel_admin_portal_addv_fiel_al_mockup`); "Inicio" en primera posición, "Tickets" en segunda.
+
+---
+
+## 7. Panel — Vista Constancias
 
 ### US-019 — Consultar constancias recibidas
 Como **fiscal**, quiero ver la tabla de constancias (nombre/razón social, tipo, RFC, régimen, CP, correo,
@@ -209,14 +292,15 @@ Como **fiscal**, quiero eliminar registros con borrado lógico (papelera, revers
 
 ---
 
-## 7. Panel — Vista Tickets
+## 8. Panel — Vista Tickets
 
 ### US-021 — Gestionar tickets (estatus, notas, factura)
 Como **fiscal**, quiero abrir un ticket y gestionar su estatus, notas internas y factura,
 para dar seguimiento y completar la facturación.
 
 **Criterios de aceptación:**
-- Panel con datos del ticket (RFC, Uso CFDI, tipo de pago, actualizado por, archivo), compra capturada (si aplica) y comentarios del cliente destacados.
+- Modal ancho (820px) rediseñado en 2 columnas fiel a `stitch/detalle_de_solicitud`: información de la solicitud + ticket adjunto a la izquierda, estatus + factura en tarjetas a la derecha, con badge de estatus junto al título.
+- Datos del ticket (RFC, Uso CFDI, tipo de pago, actualizado por, archivo), compra capturada (si aplica) y comentarios del cliente destacados.
 - Imagen con efecto lupa + botón "Descargar imagen".
 - Selector de estatus (Pendiente / En curso / Cancelado / Listo) — "Listo" deshabilitado (solo se alcanza subiendo la factura); "Cancelado" pide confirmación.
 - Notas internas con botón "Guardar cambios".
@@ -265,11 +349,11 @@ disponible, para descargarla sin tener que revisar el portal a cada rato.
 
 ---
 
-## 8. Panel — Vista Orden de compra (Administrador)
+## 9. Panel — Vista Orden de compra (Administrador)
 
 ### US-027 — Registrar una orden de compra
-Como **administrador**, quiero registrar una compra/servicio (concepto, cantidad, correo del cliente)
-para generar su factura y enviarle el comprobante por correo.
+Como **administrador**, quiero registrar una compra/servicio para generar su factura y enviarle el
+comprobante por correo al cliente.
 
 **Criterios de aceptación:**
 - No. Compra se auto-genera (`OC-000001`); fecha/hora se toman del servidor con la zona horaria configurada.
@@ -278,6 +362,29 @@ para generar su factura y enviarle el comprobante por correo.
 - Todos los campos son obligatorios.
 - Formulario y lista lado a lado en pantallas anchas; formulario `sticky`; "Registrar orden" expandible/colapsable con preferencia recordada.
 - Envío de correo de confirmación con diseño de ticket (fire-and-forget).
+
+### US-062 — Capturar la orden como lista de productos
+Como **administrador**, quiero armar la orden agregando productos uno por uno (concepto + precio
+unitario + cantidad), para que el concepto final y el monto se calculen solos sin capturarlos a mano.
+
+**Criterios de aceptación:**
+- Por cada producto: concepto (≤150), precio unitario (MXN) y cantidad de piezas (entero ≥ 1); botón "+ Agregar producto".
+- Cada línea se muestra en una tabla (Concepto, P. unitario, Cant., Subtotal, quitar ✕); se puede quitar antes de guardar.
+- El "Concepto de venta o servicio" (readonly) se arma uniendo las líneas con el formato `2 x Toner ($850.00 c/u)`, con contador `/255`.
+- "Cantidad (MXN)" (readonly) es la suma de subtotales (`precio × cantidad`); el Total preview = cantidad + IVA.
+- Se bloquea agregar una línea si el concepto final pasaría de 255 caracteres (el backend antes truncaba en silencio).
+- Nada se guarda hasta "Registrar orden de compra".
+- En "Órdenes registradas", un concepto con varios productos se renderiza en renglones separados con la cantidad resaltada en el acento de marca; una línea sola se ve igual que siempre.
+
+### US-063 — Registrar orden para un cliente nuevo (sin constancia)
+Como **administrador**, quiero poder registrar una orden para un correo que todavía no tiene
+constancia de situación fiscal, para no bloquear la venta de clientes en trámite.
+
+**Criterios de aceptación:**
+- Toggle "Cliente ya registrado" / "Cliente nuevo" (tabs).
+- "Cliente ya registrado" (default): desplegable solo con correos con constancia activa; el backend revalida.
+- "Cliente nuevo": campo de texto libre para el correo (validado como email); el backend relaja la exigencia de constancia solo cuando el body trae `es_cliente_nuevo: true`.
+- El resto del flujo (correo de confirmación con diseño de ticket) funciona igual en ambos modos.
 
 ### US-028 — Correo de confirmación de compra al cliente
 Como **cliente**, quiero recibir un correo con diseño de ticket (datos de la compra, "TOTAL A FACTURAR"
@@ -305,7 +412,7 @@ Como **administrador**, quiero ver un ✅ en las órdenes ya facturadas, para no
 
 ---
 
-## 9. Panel — Vista Usuarios (Administrador)
+## 10. Panel — Vista Usuarios (Administrador)
 
 ### US-031 — Crear usuario con invitación por correo
 Como **administrador**, quiero crear cuentas (Cliente / Administrador / Fiscal) con invitación por
@@ -360,7 +467,7 @@ Como **administrador**, quiero prender o apagar la funcionalidad completa de "Or
 
 ---
 
-## 10. Panel — Vista Configuraciones globales
+## 11. Panel — Vista Configuraciones globales
 
 ### US-038 — Configurar campos obligatorios de los formularios
 Como **fiscal**, quiero marcar qué campos son obligatorios al subir constancia (tipo de persona, RFC)
@@ -403,7 +510,7 @@ para que todas las notificaciones del sistema funcionen.
 
 ---
 
-## 11. Panel — Vista Reportes (Administrador)
+## 12. Panel — Vista Reportes (Administrador)
 
 ### US-042 — Generar y consultar reportes
 Como **administrador**, quiero generar reportes (manual o automático antes de la retención) y
@@ -429,12 +536,17 @@ eliminar reportes (con confirmación, sin papelera), para consultarlos o depurar
 
 ---
 
-## 12. Experiencia general y confiabilidad
+## 13. Experiencia general y confiabilidad
 
 ### US-045 — Experiencia consistente y accesible
 Como **cliente**, quiero que todas las páginas sean mobile-first, con foco visible por teclado,
 etiquetas asociadas a campos, contraste adecuado y tooltips propios del sistema, para usarlas desde
 cualquier dispositivo.
+
+**Criterios de aceptación:**
+- Identidad ADDV consistente: login split-screen, sidebar navy en el panel, barra superior navy en el portal, logo `branding_bgo.png` sobre fondos oscuros.
+- Los modales y tablas reutilizan el diseño y el sistema de tooltips propios.
+- `theme.js` pinta la identidad del tenant (si existe) sobre todas las páginas sin romper el diseño base.
 
 ### US-046 — Página de mantenimiento automática
 Como **usuario**, quiero ver una página de mantenimiento propia ("En breve volveremos") cuando el
@@ -453,15 +565,15 @@ separados (login vs. API autenticada), para evitar caídas intermitentes.
 
 ---
 
-## 13. Multi-tenant — App de control `/control` (Super / Operador)
+## 14. Multi-tenant — App de control `/control` (Super / Operador)
 
 ### US-048 — Listar empresas (tenants)
 Como **super**, quiero ver la lista de empresas del catálogo de control (con estado, slug y contacto),
 para administrar la plataforma multi-tenant.
 
 ### US-049 — Alta de empresa nueva (solicitud)
-Como **operador de control**, quiero capturar una solicitud de alta (nombre, slug, contacto, notas y
-datos fiscales opcionales) desde `/control`, para iniciar el proceso de aprovisionamiento.
+Como **operador de control**, quiero capturar una solicitud de alta (nombre, slug, contacto, notas,
+marca, logo opcional y datos fiscales opcionales) desde `/control`, para iniciar el proceso de aprovisionamiento.
 
 **Criterios de aceptación:**
 - La fila queda en estado `provisioning`; el alta física (CREATE DATABASE + GRANT) la hace solo
@@ -502,9 +614,31 @@ Como **super**, quiero que `/control` use una credencial de MySQL propia y angos
 `control_tenants`, sin acceso a BDs de tenants), para que un compromiso de un contenedor no
 comprometa al otro.
 
+### US-064 — Definir identidad visual (tema) de una empresa
+Como **operador de control**, quiero configurar colores, tipografías y radio de esquinas de una empresa
+desde `/control`, para que su portal tenga identidad propia sin tocar el diseño base.
+
+**Criterios de aceptación:**
+- Sección "Identidad visual (personalizada)" dentro del modal "Editar empresa": 12 selectores de color (lista cerrada de claves), 3 selects de tipografía/radio (catálogo cerrado de 8 fuentes de Google Fonts, nunca texto libre), campo de favicon (máx. 2 MB) y botón "Restablecer al diseño ADDV".
+- Vista previa en vivo (tarjeta de ejemplo se repinta con cada cambio, sin esperar el guardado).
+- Contraste **WCAG 2.1 AA real** calculado sobre 9 pares fondo/texto (4.5:1 texto normal, 3:1 botones) — si un par no cumple, se rechaza con 400 (validado también en el frontend antes de guardar).
+- El tema se guarda vía `PUT /api/control/tenants/:slug/tema`; cada cambio queda en `tenant_eventos` (`tema_actualizado`) e invalida la caché del backend.
+- `GET /api/tema/:slug` (público, cache 5 min) devuelve `{marca, marcaLoGoUrl, tema, variables, fuentesGoogle}`; `frontend/theme.js` pinta las variables CSS y carga las fuentes en las 6 páginas del portal.
+- "Restablecer al diseño ADDV" vuelve `tema_json` a `NULL` (diseño base) y borra el favicon.
+
+### US-065 — Favicon por empresa
+Como **operador de control**, quiero subir o quitar el favicon de una empresa, para que el navegador
+muestre su icono.
+
+**Criterios de aceptación:**
+- Se sube junto con el tema (campo de favicon en "Identidad visual") o en la edición de tema.
+- El archivo vive en MinIO bajo `marca/<slug>/favicon`, subido vía `POST/DELETE /internal/favicon/:slug` (protegido con `X-Internal-Secret`, no expuesto por nginx).
+- Se sirve público en `GET /api/favicon/:slug` con cache de 24 h.
+- El renombrado de slug (segmento Edición) migra también el favicon si existe.
+
 ---
 
-## 14. Multi-tenant — Infraestructura (Operador / DevOps)
+## 15. Multi-tenant — Infraestructura (Operador / DevOps)
 
 ### US-054 — Aprovisionar la base de datos de un tenant nuevo
 Como **operador**, quiero correr `provisionar-tenant.js` con root de MySQL para materializar la BD
@@ -549,19 +683,32 @@ para no depender del disco local y poder escalar a múltiples nodos.
 
 **Criterios de aceptación:**
 - Bucket `MINIO_BUCKET` auto-creado; consola en `MINIO_CONSOLE_PORT` (9001).
-- **Pendiente de validación real** (recomendado antes de producción): probar subir/bajar/borrar
-  contra MinIO real en el stack levantado.
+- Validado contra MinIO real en Docker (punto 97): subir/bajar/borrar archivos funciona.
 
 ---
 
-## 15. Historial / pendientes a futuro
+## 16. Historial / pendientes a futuro
 
 ### US-059 — Subir logo real de la empresa en el panel
 Como **administrador**, quiero una pantalla en el panel para subir/configurar el logo real de mi
-empresa (hoy el correo usa logo de texto "ADDV" o la marca del tenant), para personalizar los correos.
-*(Campo `logo_url` y lógica ya existen; falta la pantalla — ver PROJECT_STATE.md.)*
+empresa (hoy el correo usa la marca del tenant y el logo se gestiona desde `/control`), para
+personalizar los correos. *(Campo `logo_url` y lógica ya existen; falta la pantalla en el panel — ver PROJECT_STATE.md.)*
 
 ### US-060 — Navegación móvil del panel / control verificada en navegador real
 Como **usuario**, quiero que el ciclo de vida de `/control` y las 6 páginas del sitio se prueben en
 un navegador real en móvil y escritorio, para garantizar la experiencia.
-*(Pendiente de validación manual, ver PROJECT_STATE.md — el ciclo de vida de control se validó por API.)*
+*(Pendiente de validación manual — el ciclo de vida de control y el rediseño se validaron por API/E2E; la cobertura móvil en navegador real sigue pendiente.)*
+
+### Ideas/áreas posibles para nuevos módulos (no implementadas)
+
+Estas son áreas donde la arquitectura ya tiene bases listas para evolucionar
+(a confirmar requisitos antes de implementar, protocolo `addv-web-app`):
+
+- **Recuperación de contraseña** (flujo de email con enlace, hoy solo existe el reset desde el panel).
+- **CFDI completo**: timbrado real, cancelación de facturas, estatus del SAT.
+- **Portal de pagos / pasarela** y conciliación con las órdenes de compra.
+- **Notificaciones y reportería avanzada** (filtros por tenant, exportación masiva, programación).
+- **Autoservicio de marca/tema** para que el propio tenant gestione su identidad sin pasar por `/control`.
+- **UI de consulta de auditoría** (los datos ya se registran en `control_tenants.admin_auditoria`).
+- **Multi-idioma / multi-moneda** para expansión del producto.
+- **App móvil / PWA** del portal de cliente.

@@ -115,7 +115,12 @@ async function limpiarOrdenesVencidas() {
 }
 
 // Convierte una fila de ticket/orden ya cruda de MySQL al formato de
-// "item" que espera utils/reportes.js.
+// "item" que espera utils/reportes.js. Ambas funciones se usan SOLO desde
+// flujos que de verdad borran el registro (limpieza automática por
+// retención, y "Eliminar" una orden de compra) — por eso accion:'eliminado'
+// va fijo aquí, no como parámetro. La fotografía manual ("Enviar
+// reporte", que no borra nada) arma sus items aparte, sin pasar por
+// estas funciones, así que sus items quedan sin esta marca.
 function ticketAItemReporte(ticket) {
   return {
     tipo_registro: 'ticket',
@@ -125,6 +130,7 @@ function ticketAItemReporte(ticket) {
     monto: null, // un ticket no tiene un monto propio — el monto real vive en su orden de compra, si tiene una vinculada
     fecha_registro: ticket.creado_en,
     atendido_por: ticket.actualizado_por,
+    accion: 'eliminado',
   };
 }
 
@@ -136,6 +142,7 @@ function ordenAItemReporte(orden) {
     estatus_o_concepto: orden.concepto,
     monto: orden.total,
     fecha_registro: orden.creado_en,
+    accion: 'eliminado',
   };
 }
 
@@ -204,6 +211,7 @@ module.exports = {
   eliminarOrdenes,
   ejecutarLimpiezaConReporte,
   getInfoUltimaLimpieza,
+  ordenAItemReporte,
   CLAVE_ULTIMA_LIMPIEZA_TICKETS,
   CLAVE_ULTIMA_LIMPIEZA_ORDENES,
 };

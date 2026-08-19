@@ -79,6 +79,7 @@ const { getConfigSmtp, setConfigSmtp, configSmtpParaMostrar, enviarCorreo, aplic
 const {
   ejecutarLimpiezaConReporte,
   getInfoUltimaLimpieza,
+  ordenAItemReporte,
   CLAVE_ULTIMA_LIMPIEZA_TICKETS,
   CLAVE_ULTIMA_LIMPIEZA_ORDENES,
 } = require('./utils/ticketsCleanup');
@@ -3708,7 +3709,7 @@ app.post(
         total: Number(orden.total),
         email: orden.email,
         urlPortal: urlPortalReenvio,
-        logoUrl: marcaLogoUrlReenvio ? `${urlPortalReenvio}${marcaLoGoUrlReenvio}` : configGlobal.logo_url,
+        logoUrl: marcaLogoUrlReenvio ? `${urlPortalReenvio}${marcaLogoUrlReenvio}` : configGlobal.logo_url,
         marca: marcaTenantReenvio,
       });
     } catch (err) {
@@ -3716,6 +3717,61 @@ app.post(
     }
 
     res.json({ ok: true, mensaje: `Correo reenviado a ${orden.email}.` });
+  })
+);
+
+// Elimina una orden de compra (borrado físico, sin papelera — mismo
+// criterio que ya usa la limpieza automática por retención, ver
+// utils/ticketsCleanup.js: el reporte generado aquí abajo ES el respaldo
+// permanente, no una fila que se pueda restaurar). Antes de borrar,
+// genera y (si hay un correo de reportes configurado en "Configuraciones
+// globales") envía un reporte con la información de esta orden — mismo
+// mecanismo y mismo correo destino que ya usa el borrado automático, solo
+// que aquí es un reporte de un solo item y tipo "manual". Si el reporte
+// falla al generarse/guardarse, la orden NO se borra (a diferencia de la
+// limpieza automática por lotes, aquí es una sola orden a propósito
+// elegida por el administrador — perder su respaldo sin avisar sería
+// peor que dejarla sin borrar).
+app.delete(
+  '/api/admin/ordenes-compra/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM ordenes_compra WHERE id = ? AND eliminado_en IS NULL', [id]);
+    const orden = filas[0];
+    if (!orden) {
+      return res.status(404).json({ error: 'Orden de compra no encontrada.' });
+    }
+
+    let resultadoReporte;
+    try {
+      const item = ordenAItemReporte(orden);
+      resultadoReporte = await generarYEnviarReporte({
+        tipo: 'manual',
+        items: [item],
+        rangoInicio: orden.creado_en,
+        rangoFin: orden.creado_en,
+      });
+    } catch (err) {
+      return res.status(502).json({ error: `No se pudo generar el reporte antes de eliminar: ${err.message}` });
+    }
+
+    await pool.query('DELETE FROM ordenes_compra WHERE id = ?', [id]);
+
+    res.json({
+      ok: true,
+      mensaje: resultadoReporte.correoEnviado
+        ? `Orden ${orden.numero_compra} eliminada. Reporte enviado a ${resultadoReporte.correoDestino}.`
+        : `Orden ${orden.numero_compra} eliminada. El reporte se guardó, pero no hay un correo de reportes configurado — nada se envió.`,
+      correoEnviado: resultadoReporte.correoEnviado,
+      correoDestino: resultadoReporte.correoDestino,
+    });
   })
 );
 

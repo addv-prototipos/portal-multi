@@ -378,8 +378,6 @@
                 <label class="checkbox-row"><input type="checkbox" data-col="numero" checked /><span>No. Compra</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="fecha" checked /><span>Fecha</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="concepto" checked /><span>Concepto</span></label>
-                <label class="checkbox-row"><input type="checkbox" data-col="cantidad" checked /><span>Cantidad</span></label>
-                <label class="checkbox-row"><input type="checkbox" data-col="iva" checked /><span>IVA</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="total" checked /><span>Total</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="correo" checked /><span>Correo</span></label>
               </div>
@@ -527,8 +525,6 @@
                     <th data-col="numero"><span class="th-label">No. Compra</span><span class="col-resizer" data-resizer="numero"></span></th>
                     <th data-col="fecha"><span class="th-label">Fecha</span><span class="col-resizer" data-resizer="fecha"></span></th>
                     <th data-col="concepto"><span class="th-label">Concepto</span><span class="col-resizer" data-resizer="concepto"></span></th>
-                    <th data-col="cantidad"><span class="th-label">Cantidad</span><span class="col-resizer" data-resizer="cantidad"></span></th>
-                    <th data-col="iva"><span class="th-label">IVA</span><span class="col-resizer" data-resizer="iva"></span></th>
                     <th data-col="total"><span class="th-label">Total</span><span class="col-resizer" data-resizer="total"></span></th>
                     <th data-col="correo"><span class="th-label">Correo</span><span class="col-resizer" data-resizer="correo"></span></th>
                     <th></th>
@@ -1612,6 +1608,93 @@
         <button type="button" class="btn btn-primary" id="btn-password-modal-guardar">
           <span id="btn-password-modal-guardar-label">Guardar</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de detalle de una orden de compra -->
+  <div class="modal-overlay" id="orden-modal-overlay" hidden>
+    <div class="modal orden-modal" role="dialog" aria-modal="true" aria-labelledby="orden-modal-title">
+      <div class="orden-modal-header">
+        <div class="orden-modal-header-title">
+          <h2 id="orden-modal-title">Orden</h2>
+          <span class="estatus-badge estatus-listo" id="orden-modal-badge" hidden>Facturado</span>
+        </div>
+        <button type="button" class="btn-icon" id="btn-orden-modal-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="orden-modal-body">
+        <div class="orden-modal-main">
+          <section class="orden-modal-info-card">
+            <h3 class="ticket-modal-section-titulo">Información de la orden</h3>
+            <dl class="ticket-modal-info-grid">
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Fecha de compra</dt>
+                <dd class="ticket-modal-info-value" id="orden-modal-fecha"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Correo</dt>
+                <dd class="ticket-modal-info-value" id="orden-modal-correo"></dd>
+              </div>
+              <div class="ticket-modal-info-item" id="orden-modal-rfc-item" hidden>
+                <dt class="ticket-modal-info-label">RFC</dt>
+                <dd class="ticket-modal-info-value" id="orden-modal-rfc"></dd>
+              </div>
+              <div class="ticket-modal-info-item" id="orden-modal-razon-item" hidden>
+                <dt class="ticket-modal-info-label">Razón social</dt>
+                <dd class="ticket-modal-info-value" id="orden-modal-razon"></dd>
+              </div>
+            </dl>
+          </section>
+
+          <section>
+            <h3 class="ticket-modal-section-titulo">Productos</h3>
+            <div id="orden-modal-productos-tabla-wrap" hidden>
+              <div class="orden-productos-lista-wrap">
+                <table class="admin-table orden-productos-tabla">
+                  <thead>
+                    <tr>
+                      <th>Concepto</th>
+                      <th>P. unitario</th>
+                      <th>Cant.</th>
+                      <th>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody id="orden-modal-productos-body"></tbody>
+                </table>
+              </div>
+            </div>
+            <p class="orden-campo-automatico" id="orden-modal-concepto-simple" hidden></p>
+          </section>
+        </div>
+
+        <div class="orden-modal-sidebar">
+          <section class="orden-modal-side-card">
+            <h3 class="ticket-modal-section-titulo">Montos</h3>
+            <div class="field">
+              <label>Cantidad</label>
+              <p class="orden-campo-automatico" id="orden-modal-cantidad">—</p>
+            </div>
+            <div class="field">
+              <label>IVA</label>
+              <p class="orden-campo-automatico" id="orden-modal-iva">—</p>
+            </div>
+            <div class="field">
+              <label>Total</label>
+              <p class="orden-total-preview" id="orden-modal-total">$0.00 MXN</p>
+            </div>
+          </section>
+
+          <section class="orden-modal-side-card">
+            <h3 class="ticket-modal-section-titulo">Acciones</h3>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-orden-modal-reenviar">
+              <span id="btn-orden-modal-reenviar-label">Reenviar correo</span>
+            </button>
+            <button type="button" class="btn btn-danger btn-block" id="btn-orden-modal-eliminar">
+              Eliminar
+            </button>
+          </section>
+        </div>
       </div>
     </div>
   </div>

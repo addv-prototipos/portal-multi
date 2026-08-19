@@ -159,11 +159,12 @@ async function guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, it
       item.monto === undefined ? null : item.monto,
       item.fecha_registro || null,
       item.atendido_por || null,
+      item.accion || null,
       fechaGeneracion,
     ]);
     await pool.query(
       `INSERT INTO reporte_items
-        (reporte_id, tipo_registro, identificador, rfc, estatus_o_concepto, monto, fecha_registro, atendido_por, creado_en)
+        (reporte_id, tipo_registro, identificador, rfc, estatus_o_concepto, monto, fecha_registro, atendido_por, accion, creado_en)
        VALUES ?`,
       [valores]
     );
@@ -249,7 +250,7 @@ function escaparCeldaCSV(valor) {
   return texto;
 }
 
-const ENCABEZADOS_EXPORTACION = ['Tipo', 'Identificador', 'RFC / Correo', 'Estatus', 'Monto', 'Atendido por', 'Fecha de registro'];
+const ENCABEZADOS_EXPORTACION = ['Tipo', 'Identificador', 'RFC / Correo', 'Estatus', 'Monto', 'Atendido por', 'Fecha de registro', 'Acción'];
 
 function itemsAFilas(items, zonaHoraria) {
   return items.map((item) => {
@@ -263,6 +264,7 @@ function itemsAFilas(items, zonaHoraria) {
       item.monto === null || item.monto === undefined ? '' : Number(item.monto),
       item.atendido_por || '',
       fechaFormateada ? `${fechaFormateada.fecha} ${fechaFormateada.hora}` : '',
+      item.accion === 'eliminado' ? 'Eliminado' : '',
     ];
   });
 }

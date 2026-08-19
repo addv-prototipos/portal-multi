@@ -226,6 +226,25 @@
     btnRegistrarOrdenLabel: document.getElementById('btn-registrar-orden-label'),
     ordenesError: document.getElementById('ordenes-error'),
     ordenesTableBody: document.getElementById('ordenes-table-body'),
+    // Modal de detalle de una orden de compra
+    ordenModalOverlay: document.getElementById('orden-modal-overlay'),
+    ordenModalTitle: document.getElementById('orden-modal-title'),
+    ordenModalBadge: document.getElementById('orden-modal-badge'),
+    ordenModalFecha: document.getElementById('orden-modal-fecha'),
+    ordenModalCorreo: document.getElementById('orden-modal-correo'),
+    ordenModalRfcItem: document.getElementById('orden-modal-rfc-item'),
+    ordenModalRfc: document.getElementById('orden-modal-rfc'),
+    ordenModalRazonItem: document.getElementById('orden-modal-razon-item'),
+    ordenModalRazon: document.getElementById('orden-modal-razon'),
+    ordenModalProductosTablaWrap: document.getElementById('orden-modal-productos-tabla-wrap'),
+    ordenModalProductosBody: document.getElementById('orden-modal-productos-body'),
+    ordenModalConceptoSimple: document.getElementById('orden-modal-concepto-simple'),
+    ordenModalCantidad: document.getElementById('orden-modal-cantidad'),
+    ordenModalIva: document.getElementById('orden-modal-iva'),
+    ordenModalTotal: document.getElementById('orden-modal-total'),
+    btnOrdenModalCerrar: document.getElementById('btn-orden-modal-cerrar'),
+    btnOrdenModalReenviar: document.getElementById('btn-orden-modal-reenviar'),
+    btnOrdenModalEliminar: document.getElementById('btn-orden-modal-eliminar'),
     ordenesEmpty: document.getElementById('ordenes-empty'),
     // Configuración global (IVA y zona horaria)
     btnToggleGlobalConfig: document.getElementById('btn-toggle-global-config'),
@@ -1542,10 +1561,19 @@
     els.lecturaReportesTablaWrap.hidden = false;
 
     items.forEach((item) => {
+      // "Eliminado": el registro ya no existe (se borró por retención
+      // automática, o a mano con el botón "Eliminar") — a diferencia de
+      // un item que solo aparece en una fotografía manual ("Enviar
+      // reporte"), que sigue existiendo tal cual. El tooltip explica la
+      // diferencia al pasar el cursor, sin tener que adivinarla.
+      const badgeEliminado =
+        item.accion === 'eliminado'
+          ? '<span class="estatus-badge estatus-cancelado reportes-badge-eliminado" data-tooltip="Este registro ya no existe: se eliminó de la base de datos. Esta es su información de respaldo, guardada justo antes de borrarse.">Eliminado</span>'
+          : '';
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td data-label="Tipo">${item.tipo_registro === 'ticket' ? 'Ticket' : 'Orden de compra'}</td>
-        <td data-label="Identificador"><strong>${escapeHtml(item.identificador)}</strong></td>
+        <td data-label="Identificador"><strong>${escapeHtml(item.identificador)}</strong>${badgeEliminado}</td>
         <td data-label="RFC / Correo">${escapeHtml(item.rfc || '—')}</td>
         <td data-label="Estatus">${escapeHtml(item.estatus_o_concepto || '—')}</td>
         <td data-label="Monto">${item.monto === null ? '—' : `$${formatearMoneda(item.monto)}`}</td>
@@ -3819,23 +3847,31 @@
     }
   }
 
-  // El armador de productos (ver btnAgregarProductoOrden) guarda el
-  // concepto como "N x Concepto ($X.XX c/u)", un producto por línea — se
-  // separa aquí para mostrar la cantidad destacada y cada producto en su
-  // propio renglón. Un concepto de una sola línea (capturado a mano,
-  // como antes de este cambio) se muestra tal cual, sin decorar de más.
-  function renderConceptoOrden(concepto) {
+  // Intenta leer una línea "N x Concepto ($X.XX c/u)" (el formato exacto
+  // que arma btnAgregarProductoOrden) de vuelta a sus 3 valores — usado
+  // por el modal de detalle para reconstruir la tabla de productos con
+  // su subtotal. Si la línea no sigue ese formato (concepto capturado a
+  // mano), regresa null.
+  function parsearProductoDeLinea(linea) {
+    const match = linea.match(/^(\d+)\s*x\s*(.+?)\s*\(\$([\d,]+\.\d{2})\s*c\/u\)$/i);
+    if (!match) return null;
+    const [, cantidadTexto, concepto, precioTexto] = match;
+    const cantidad = Number(cantidadTexto);
+    const precio = Number(precioTexto.replace(/,/g, ''));
+    return { cantidad, concepto, precio, subtotal: Math.round(cantidad * precio * 100) / 100 };
+  }
+
+  // Vista previa del concepto para la tabla (resumida): un concepto de
+  // varios productos solo muestra el primero + "+N más" — el detalle
+  // completo vive en el modal, que abre el link de "No. Compra".
+  function renderConceptoPreviewOrden(concepto) {
     const lineas = concepto.split('\n').filter((linea) => linea.trim());
     if (lineas.length <= 1) return escapeHtml(concepto);
-
-    return lineas
-      .map((linea) => {
-        const match = linea.match(/^(\d+)\s*x\s*(.+)$/i);
-        if (!match) return `<div class="orden-concepto-linea">${escapeHtml(linea)}</div>`;
-        const [, cantidad, resto] = match;
-        return `<div class="orden-concepto-linea"><strong class="orden-concepto-cant">${escapeHtml(cantidad)}×</strong> ${escapeHtml(resto)}</div>`;
-      })
-      .join('');
+    const primerProducto = parsearProductoDeLinea(lineas[0]);
+    const textoPrimera = primerProducto
+      ? `${primerProducto.cantidad}× ${primerProducto.concepto}`
+      : lineas[0];
+    return `${escapeHtml(textoPrimera)} <span class="orden-concepto-mas">+${lineas.length - 1} más</span>`;
   }
 
   function renderOrdenes(ordenes) {
@@ -3844,8 +3880,11 @@
     els.ordenesEmpty.hidden = ordenes.length > 0;
 
     ordenes.forEach((orden) => {
-      const fechaTexto = orden.fecha_compra_formateada
-        ? `${orden.fecha_compra_formateada.fecha} ${orden.fecha_compra_formateada.hora}`
+      // Fecha y hora en 2 líneas (antes iban juntas en una sola línea que
+      // no cabía en el ancho de la columna y quedaba cortada a la mitad
+      // entre filas) — mismo patrón ya usado en "Actualizado" (Tickets).
+      const fechaCeldaHtml = orden.fecha_compra_formateada
+        ? `<div>${escapeHtml(orden.fecha_compra_formateada.fecha)}</div><div class="admin-fecha-hora">${escapeHtml(orden.fecha_compra_formateada.hora)}</div>`
         : '—';
       const iconoFacturado = orden.facturado
         ? '<span class="orden-facturado-icono" data-tooltip="Orden de compra facturado" aria-label="Orden de compra facturado">✅</span>'
@@ -3859,30 +3898,151 @@
         : 'Razón social no disponible';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="No. Compra" data-col="numero">${iconoFacturado}<strong>${escapeHtml(orden.numero_compra || '—')}</strong></td>
-        <td data-label="Fecha" data-col="fecha">${escapeHtml(fechaTexto)}</td>
-        <td data-label="Concepto" data-col="concepto">${renderConceptoOrden(orden.concepto)}</td>
-        <td data-label="Cantidad" data-col="cantidad">$${Number(orden.cantidad).toFixed(2)}</td>
-        <td data-label="IVA" data-col="iva">${Number(orden.iva_porcentaje)}%</td>
+        <td data-label="No. Compra" data-col="numero">${iconoFacturado}<button type="button" class="orden-numero-link">${escapeHtml(orden.numero_compra || '—')}</button></td>
+        <td data-label="Fecha" data-col="fecha">${fechaCeldaHtml}</td>
+        <td data-label="Concepto" data-col="concepto">${renderConceptoPreviewOrden(orden.concepto)}</td>
         <td data-label="Total" data-col="total"><strong>$${formatearMoneda(orden.total)}</strong></td>
         <td data-label="Correo" data-col="correo" class="orden-correo-con-tooltip" data-tooltip="${escapeHtml(tituloCorreo)}">${escapeHtml(orden.email)}</td>
         <td data-label=""></td>
       `;
 
+      tr.querySelector('.orden-numero-link').addEventListener('click', () => abrirOrdenModal(orden));
+
       const celdaAccionesOrden = tr.lastElementChild;
       const contenedorAccionesOrden = document.createElement('div');
-      contenedorAccionesOrden.className = 'admin-row-actions';
+      contenedorAccionesOrden.className = 'admin-row-actions admin-row-actions-iconos';
 
       const btnReenviar = document.createElement('button');
       btnReenviar.type = 'button';
-      btnReenviar.className = 'btn-ver';
-      btnReenviar.textContent = 'Reenviar correo';
+      btnReenviar.className = 'btn-icono-accion';
+      btnReenviar.setAttribute('data-tooltip', 'Reenviar correo de confirmación');
+      btnReenviar.setAttribute('aria-label', 'Reenviar correo de confirmación');
+      btnReenviar.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m3.5 6 8.5 7 8.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       btnReenviar.addEventListener('click', () => reenviarCorreoOrden(orden.id, orden.numero_compra, orden.email, btnReenviar));
       contenedorAccionesOrden.appendChild(btnReenviar);
+
+      const btnEliminarOrden = document.createElement('button');
+      btnEliminarOrden.type = 'button';
+      btnEliminarOrden.className = 'btn-icono-accion btn-icono-accion-peligro';
+      btnEliminarOrden.setAttribute('data-tooltip', 'Eliminar orden de compra');
+      btnEliminarOrden.setAttribute('aria-label', 'Eliminar orden de compra');
+      btnEliminarOrden.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      btnEliminarOrden.addEventListener('click', () => confirmarEliminarOrden(orden.id, orden.numero_compra));
+      contenedorAccionesOrden.appendChild(btnEliminarOrden);
 
       celdaAccionesOrden.appendChild(contenedorAccionesOrden);
       els.ordenesTableBody.appendChild(tr);
     });
+  }
+
+  // Modal de detalle de una orden de compra — abre al hacer clic en el
+  // "No. Compra" de la tabla (ahora resumida); mismo lenguaje visual que
+  // "Gestionar" de tickets, con los mismos datos de siempre, solo
+  // reordenados en 2 columnas.
+  let ordenModalActual = null;
+
+  function abrirOrdenModal(orden) {
+    ordenModalActual = orden;
+    els.ordenModalTitle.textContent = `Orden ${orden.numero_compra}`;
+    els.ordenModalBadge.hidden = !orden.facturado;
+
+    const fecha = orden.fecha_compra_formateada;
+    els.ordenModalFecha.textContent = fecha ? `${fecha.fecha} ${fecha.hora}` : '—';
+    els.ordenModalCorreo.textContent = orden.email;
+
+    const registroDelCorreo = correosRegistradosCache.find((c) => c.email === orden.email);
+    els.ordenModalRfcItem.hidden = !registroDelCorreo;
+    els.ordenModalRazonItem.hidden = !(registroDelCorreo && registroDelCorreo.nombre);
+    if (registroDelCorreo) {
+      els.ordenModalRfc.textContent = registroDelCorreo.rfc || '—';
+      els.ordenModalRazon.textContent = registroDelCorreo.nombre || '—';
+    }
+
+    // Productos: si TODAS las líneas del concepto siguen el formato del
+    // armador ("N x Concepto ($X.XX c/u)"), se arma la misma tabla que ya
+    // se ve al capturar la orden (Concepto/P. Unitario/Cant./Subtotal).
+    // Si no (concepto capturado a mano, de antes de este cambio), se
+    // muestra como texto simple.
+    const lineas = orden.concepto.split('\n').filter((linea) => linea.trim());
+    const productos = lineas.map(parsearProductoDeLinea);
+    const todosParsearon = productos.length > 0 && productos.every((p) => p !== null);
+
+    els.ordenModalProductosTablaWrap.hidden = !todosParsearon;
+    els.ordenModalConceptoSimple.hidden = todosParsearon;
+    if (todosParsearon) {
+      els.ordenModalProductosBody.innerHTML = productos
+        .map(
+          (p) => `
+            <tr>
+              <td>${escapeHtml(p.concepto)}</td>
+              <td>$${formatearMoneda(p.precio)}</td>
+              <td>${p.cantidad}</td>
+              <td>$${formatearMoneda(p.subtotal)}</td>
+            </tr>`
+        )
+        .join('');
+    } else {
+      els.ordenModalConceptoSimple.textContent = orden.concepto;
+    }
+
+    els.ordenModalCantidad.textContent = `$${formatearMoneda(orden.cantidad)}`;
+    els.ordenModalIva.textContent = `${Number(orden.iva_porcentaje)}%`;
+    els.ordenModalTotal.textContent = `$${formatearMoneda(orden.total)} MXN`;
+
+    els.ordenModalOverlay.hidden = false;
+  }
+
+  function cerrarOrdenModal() {
+    els.ordenModalOverlay.hidden = true;
+    ordenModalActual = null;
+  }
+
+  els.btnOrdenModalCerrar.addEventListener('click', cerrarOrdenModal);
+  els.ordenModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.ordenModalOverlay) cerrarOrdenModal();
+  });
+  els.btnOrdenModalReenviar.addEventListener('click', () => {
+    if (!ordenModalActual) return;
+    reenviarCorreoOrden(ordenModalActual.id, ordenModalActual.numero_compra, ordenModalActual.email, els.btnOrdenModalReenviar);
+  });
+  els.btnOrdenModalEliminar.addEventListener('click', () => {
+    if (!ordenModalActual) return;
+    confirmarEliminarOrden(ordenModalActual.id, ordenModalActual.numero_compra);
+  });
+
+  function confirmarEliminarOrden(id, numeroCompra) {
+    abrirConfirmacion({
+      titulo: '¿Eliminar orden de compra?',
+      mensaje: `Se eliminará la orden ${numeroCompra} permanentemente. Antes de borrarla, se genera un reporte con su información y se envía al correo de reportes configurado (si hay uno) — esta acción no se puede deshacer.`,
+      textoBoton: 'Eliminar',
+      onConfirmar: () => eliminarOrden(id),
+    });
+  }
+
+  async function eliminarOrden(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/ordenes-compra/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo eliminar la orden de compra.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Orden de compra eliminada.');
+      els.ordenModalOverlay.hidden = true;
+      cargarOrdenes();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
   }
 
   async function reenviarCorreoOrden(id, numeroCompra, email, boton) {
@@ -3892,9 +4052,7 @@
       return;
     }
 
-    const textoOriginal = boton.textContent;
     boton.disabled = true;
-    boton.textContent = 'Enviando…';
     try {
       const res = await fetch(`${API_BASE}/admin/ordenes-compra/${id}/reenviar-correo`, {
         method: 'POST',
@@ -3910,7 +4068,6 @@
       showToast('No se pudo conectar con el servidor.', true);
     } finally {
       boton.disabled = false;
-      boton.textContent = textoOriginal;
     }
   }
 
