@@ -5917,6 +5917,40 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       `FRONTEND_PORT=8088` en `.env` conservado. Pendiente: revisión visual
       del usuario.
 
+113. **Diagnóstico post-opencode y corrección de la única regresión real
+    encontrada (2026-08-19)**: el usuario reportó que otra herramienta de
+    IA (opencode) trabajó en este mismo repo y se quedó sin créditos a
+    mitad de tarea; pidió una auditoría y diagnóstico honesto antes de
+    tocar documentación. Auditoría hecha sobre los 6 commits de opencode
+    (`7113deb`..`81ad13c`, ya en `fact/master`: módulo "Gastos" —punto
+    109/110—, fix de `verificar-mysql.js` —punto 111—, renombrado "Orden
+    de compra"→"Ventas" —punto 112—):
+    - `git diff --stat f0ca81c..81ad13c` (2654 líneas, 17 archivos) +
+      `node --check` en cada `.js` tocado: limpio, sin errores de sintaxis.
+    - Backend Jest: **546/546** (32 suites) — sin regresiones.
+    - **`control/` Jest: 3 fallas reales** en
+      `control/test/unit/ensureSchema.test.js`
+      (`asegurarColumnasCicloVidaTenant`), las tres por
+      `toHaveBeenCalledTimes` desfasado en +1. **No es bug de opencode** —
+      opencode nunca tocó `control/` (fuera del diff --stat). Causa real:
+      el test quedó desactualizado desde el segmento "Look & Feel" (punto
+      105), que agregó la columna `tema_json` a
+      `control/scripts/ensureSchema.js` sin actualizar este test — el
+      propio punto 105 ya lo advertía ("faltan pruebas en `control/`").
+      Fix: agregada `tema_json` a la lista de columnas esperadas y
+      ajustados los conteos/índices en las 3 pruebas. `control/` Jest
+      vuelve a **88/88** (7 suites).
+    - Contenedores Docker corriendo (`pfacturacion-backend`/`-frontend`,
+      creados 2026-08-19 15:01, después del código de `a34c877`)
+      confirmados al día con `HEAD` (`81ad13c` es un commit solo de
+      documentación) — `curl /api/health` OK, `/admin` 200.
+    - **Diagnóstico final entregado al usuario**: el trabajo de opencode
+      está íntegro y verificado (Gastos, rename Ventas, fix de
+      `verificar-mysql.js`) salvo por este único test desactualizado en
+      `control/`, ya corregido en esta sesión. No se encontraron bugs de
+      producto nuevos. Pendiente de aprobación del usuario: commitear y
+      pushear el fix del test.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

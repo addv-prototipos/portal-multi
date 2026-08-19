@@ -329,6 +329,14 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   cosmético) en un comentario de `control/scripts/ensureSchema.js`
   durante esta revisión. No avanzar sin aprobación explícita del
   usuario, mismo protocolo `addv-web-app`.
+- **Diagnóstico post-opencode (ver PROJECT_STATE.md punto 113)**: otra
+  herramienta de IA (opencode) trabajó este mismo repo y agregó 6 commits
+  (módulo "Gastos", fix de `verificar-mysql.js`, renombrado "Orden de
+  compra"→"Ventas") ya en `fact/master`. Auditados: `node --check` limpio,
+  backend Jest 546/546. Único hallazgo real: `control/`
+  `ensureSchema.test.js` desactualizado (le faltaba la columna
+  `tema_json` del segmento 105) — no es bug de opencode, corregido en
+  esta sesión, `control/` Jest vuelve a 88/88.
 - **Rediseño de login (cliente y admin), ver PROJECT_STATE.md punto
   106**: split-screen fiel a un mock aportado por el usuario (carpeta
   `stitch/` en la raíz, no borrar). Paleta propia contenida en
