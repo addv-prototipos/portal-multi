@@ -6031,6 +6031,32 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       datos de prueba (ventas $1,102 en agosto, gastos $2,300 en agosto,
       nada en meses anteriores), la gráfica ahora solo muestra la barra
       de "Ago".
+    - **Bug real encontrado por el usuario tras la revisión visual (mismo
+      día): perfil `fiscal` veía el botón "Ventas" en el menú**, aunque
+      `RESTRICCIONES_PERFIL.fiscal.vistasPermitidas` nunca incluyó
+      `ordenes`. Causa raíz: **preexistente, no introducida por el
+      segmento "Resumen financiero"** — `aplicarVisibilidadOrdenesCompra()`
+      (el interruptor "Habilitar Ventas" de Configuraciones globales)
+      pisaba `els.btnVistaOrdenes.hidden` de forma incondicional según
+      solo el toggle global, sin considerar el perfil; como
+      `cargarConfigGlobal()` se precarga siempre después de
+      `aplicarRestriccionesPerfil()` (ver `showDashboard()`), el toggle
+      (habilitado por defecto) siempre ganaba la carrera y reaparecía el
+      botón para cualquier perfil, incluido `fiscal`. Fix: variable de
+      módulo `ventasHabilitadaGlobalmente`, combinada dentro de
+      `aplicarRestriccionesPerfil()` (única fuente de verdad para
+      `btn-vista-ordenes`); `aplicarVisibilidadOrdenesCompra()` ahora solo
+      actualiza esa variable y reinvoca `aplicarRestriccionesPerfil()` en
+      vez de tocar `hidden` directamente. **Validado en navegador real**
+      con 3 cuentas de prueba creadas y borradas en la misma sesión
+      (`fiscaltest1`/perfil fiscal, `admintest1`/perfil administrador,
+      y `admin`/super): fiscal ya no ve Ventas/Gastos/Resumen financiero/
+      Usuarios/Reportes; administrador aterriza en "Resumen financiero" y
+      ve Resumen financiero/Ventas/Gastos/Usuarios/Configuraciones/
+      Reportes sin Inicio/Tickets/Constancias; super ve todo. `node
+      --check` limpio, Jest backend 551/551 sin regresiones (este bug es
+      puramente de frontend, sin pruebas Jest que lo cubran — la
+      verificación fue en navegador real).
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

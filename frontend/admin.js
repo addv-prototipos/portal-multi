@@ -795,6 +795,11 @@
   // tarjetas — el resto ni siquiera se muestra, no solo se deshabilita.
   let perfilActual = null;
   let usuarioSesionActual = null;
+  // Si "Ventas" está deshabilitada globalmente (interruptor "Habilitar
+  // Ventas" en Configuraciones) — combinado con la restricción de perfil
+  // dentro de aplicarRestriccionesPerfil() para que ninguna de las dos
+  // condiciones pueda pisar a la otra (ver aplicarVisibilidadOrdenesCompra).
+  let ventasHabilitadaGlobalmente = true;
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
@@ -827,7 +832,9 @@
       'lectura-reportes': els.btnVistaLecturaReportes,
     };
     Object.entries(navPorVista).forEach(([vista, boton]) => {
-      boton.hidden = !(sinRestricciones || restriccion.vistasPermitidas.includes(vista));
+      const permitidaPorPerfil = sinRestricciones || restriccion.vistasPermitidas.includes(vista);
+      const permitidaPorConfig = vista !== 'ordenes' || ventasHabilitadaGlobalmente;
+      boton.hidden = !(permitidaPorPerfil && permitidaPorConfig);
     });
 
     // Las 4 tarjetas de "Configuraciones globales".
@@ -1285,20 +1292,20 @@
     }
   });
 
-  // Muestra/oculta el botón "Ventas" del menú según el
-  // interruptor de "Configuraciones globales" — con el botón oculto, no
-  // hay forma de llegar a esa vista desde el menú (este panel no usa
-  // rutas de URL para cada pestaña, así que ocultar el botón ya basta
-  // para "quitar" la funcionalidad de la navegación).
+  // Muestra/oculta el botón "Ventas" del menú según el interruptor de
+  // "Configuraciones globales" — con el botón oculto, no hay forma de
+  // llegar a esa vista desde el menú (este panel no usa rutas de URL para
+  // cada pestaña, así que ocultar el botón ya basta para "quitar" la
+  // funcionalidad de la navegación). Delega en aplicarRestriccionesPerfil()
+  // en vez de tocar els.btnVistaOrdenes.hidden directamente: esa función ya
+  // combina esto con la restricción de perfil (ventasHabilitadaGlobalmente
+  // && permitida para el perfil) y ya trae la lógica de "si estaba viendo
+  // la vista que se acaba de ocultar, navegar a la primera disponible" —
+  // duplicarla aquí permitía que esta función reactivara "Ventas" para un
+  // perfil "fiscal" que aplicarRestriccionesPerfil() ya había ocultado.
   function aplicarVisibilidadOrdenesCompra(habilitado) {
-    els.btnVistaOrdenes.hidden = !habilitado;
-    // Si el administrador estaba viendo Ventas justo cuando se
-    // desactivó (ej. lo apagó desde otra pestaña, o guardó el cambio
-    // estando ahí mismo), se regresa a Constancias — no tendría sentido
-    // dejarlo viendo una pantalla a la que el menú ya no puede llevarlo.
-    if (!habilitado && !els.vistaOrdenes.hidden) {
-      cambiarVistaPrincipal('constancias');
-    }
+    ventasHabilitadaGlobalmente = habilitado;
+    aplicarRestriccionesPerfil();
   }
 
   // El interruptor "Habilitar Ventas" se guarda SOLO al

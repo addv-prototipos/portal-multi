@@ -335,10 +335,17 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   perfil `administrador` (+ super) — 4 KPIs del mes (Total facturado,
   Total gastos, "Balance ventas vs gastos" y "Ventas sin facturar",
   renombrados desde "IVA Neto"/"Tickets Pendientes" del mockup por no
-  tener respaldo fiscal/de datos real) + gráfica de 6 meses en barras
-  CSS. Endpoint `GET /api/admin/resumen-financiero`
-  (`requireAdminArea('administrador')`). Jest 550/550, validado contra
-  Docker/MySQL reales y en navegador real (Claude in Chrome).
+  tener respaldo fiscal/de datos real) + gráfica en barras CSS que
+  arranca en el mes actual hacia adelante y omite meses sin actividad.
+  Endpoint `GET /api/admin/resumen-financiero`
+  (`requireAdminArea('administrador')`). Jest 551/551, validado contra
+  Docker/MySQL reales y en navegador real (Claude in Chrome). **Bug
+  preexistente encontrado y corregido de paso** (no causado por este
+  segmento): perfil `fiscal` veía el botón "Ventas" porque
+  `aplicarVisibilidadOrdenesCompra()` (toggle "Habilitar Ventas") pisaba
+  `hidden` sin considerar el perfil — ahora `ventasHabilitadaGlobalmente`
+  se combina dentro de `aplicarRestriccionesPerfil()`, única fuente de
+  verdad.
 - **Diagnóstico post-opencode (ver PROJECT_STATE.md punto 113)**: otra
   herramienta de IA (opencode) trabajó este mismo repo y agregó 6 commits
   (módulo "Gastos", fix de `verificar-mysql.js`, renombrado "Orden de
