@@ -23,7 +23,7 @@ rendimiento/seguridad/Docker/pruebas/calidad.
 ## Qué es esto
 
 App web para que clientes suban su Constancia de Situación Fiscal (PDF) y
-generen solicitudes de factura a partir de tickets de compra (foto). Tiene
+generen solicitudes de factura a partir de tickets de venta (foto). Tiene
 cuentas de usuario (login por RFC + contraseña), un panel de administración
 separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
@@ -5872,6 +5872,43 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       regresiones. Los números de compra de prueba ahora caben en la
       columna real, que ya es coherente con el `sanitizeText(…, 20)` del
       endpoint.
+
+112. **Renombrado de la etiqueta "Orden de compra" a "Ventas" en toda la UI**
+    (2026-08-19): pedido del usuario ("cambiar el nombre de Orden de compra a
+    Ventas en el menú"). Alcance aprobado por el usuario: **Opción B** — todo
+    el texto visible, incluyendo correos y el portal del cliente, con **"todo
+    a 'venta'"** (No. Compra → No. Venta; asunto del correo `VENTA —
+    OC-000001`, conservando el prefijo `OC-`).
+    - **SÍ se renombró** (solo texto visible al usuario): menú y vista del
+      panel (`admin.html`/`admin.js`: "Ventas", "Ventas registradas",
+      "Registrar venta", toasts "Venta registrada correctamente."/"Venta no
+      encontrada.", "Venta facturada", "Venta eliminada.", switch "Habilitar
+      Ventas", "Borrado automático de tickets y ventas", modal "Información de
+      la venta", "No. Venta", "Fecha de venta"); portal del cliente
+      (`tickets.html`/`tickets.js`: "Sube tu ticket de venta", "Verifica tu
+      venta", "No. Venta", "El número de venta es obligatorio.", "Esa venta ya
+      fue facturada.", "No se encuentra registrada la venta para facturar.");
+      tile del tablero ("Subir tickets de venta"); correos (`server.js`:
+      cabecera "Venta", asunto `VENTA — OC-000001` y `Confirmación de venta —
+      OC-000001`, "registramos tu venta", "ticket de venta"); labels de
+      reportes (`reportes.js`: "## Ventas", "No. Venta", "Fecha de venta",
+      asunto "Reporte de tickets y ventas", tipo 'Ventas' en CSV/Excel);
+      mensajes de error API ("La fecha/hora de venta debe tener el formato…").
+    - **NO se renombró** (identificadores, a propósito): tabla
+      `ordenes_compra`, columnas `numero_compra`/`fecha_compra`/etc., config
+      `ordenes_compra_habilitado`, endpoints `/api/admin/ordenes-compra`, IDs
+      y clases (`btn-vista-ordenes`, `.orden-*`, `ticket-numero-compra`), y el
+      prefijo `OC-000001` (lo aserta `verificar-mysql.js`; la E2E interactúa
+      solo por IDs). Los comentarios internos y logs del backend se dejaron
+      como estaban (no son texto visible).
+    - **Tests actualizados al nuevo texto**: `/número de venta es
+      obligatorio/` en `test/integration/tickets.test.js` (el mensaje del
+      endpoint cambió), y `**Ventas:** 1` / `_Sin ventas en este reporte._` en
+      `test/unit/reportes.test.js` (los labels del Markdown cambiaron).
+    - **Validación**: `node --check` en los `.js` tocados + Jest completo sin
+      regresiones (ver el commit). No afecta esquema ni queries; una corrida
+      de `verificar-mysql.js` es opcional (no aserta labels, solo prefijos e
+      identificadores). Falta rebuild del frontend para la revisión visual.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

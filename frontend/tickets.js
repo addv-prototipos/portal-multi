@@ -61,7 +61,7 @@
 
   // ---------- Formato automático del campo Total (comas de miles) ----------
   // Mismo comportamiento y misma lógica que ya usa admin.js para
-  // "Cantidad" en Orden de compra — se repite aquí en vez de compartir
+  // "Cantidad" en Ventas — se repite aquí en vez de compartir
   // un archivo porque cada página se sirve de forma independiente, sin
   // un bundler que junte módulos comunes entre páginas.
   function formatearNumeroConComas(valorCrudo) {
@@ -213,10 +213,10 @@
       return;
     }
 
-    // Mismas reglas de formato que ya usa "Orden de compra" del lado del
+    // Mismas reglas de formato que ya usa "Ventas" del lado del
     // administrador — el cliente captura estos datos tal como le
-    // llegaron en el correo de confirmación de su compra. Todo este
-    // bloque se salta por completo si "Orden de compra" está
+    // llegaron en el correo de confirmación de su venta. Todo este
+    // bloque se salta por completo si "Ventas" está
     // desactivada desde el panel — el ticket se puede enviar sin estos
     // cuatro campos, igual que el backend ya los ignora en ese caso.
     let numeroCompra = '';
@@ -231,7 +231,7 @@
       horaCompra = els.horaCompraInput.value.trim();
 
       if (!numeroCompra) {
-        document.getElementById('error-ticket-numero-compra').textContent = 'El número de compra es obligatorio.';
+        document.getElementById('error-ticket-numero-compra').textContent = 'El número de venta es obligatorio.';
         return;
       }
       if (!Number.isFinite(totalCompra) || totalCompra <= 0) {
@@ -324,13 +324,13 @@
         // de que siga intentando — mismo criterio ya usado para "sin
         // constancia".
         abrirModalVerificacionCompra(
-          data.error || 'No se encuentra registrada la compra para facturar.',
-          'Verifica el No. Compra, la fecha, la hora y el total, tal como te llegaron en tu correo de confirmación de compra.'
+          data.error || 'No se encuentra registrada la venta para facturar.',
+          'Verifica el No. Venta, la fecha, la hora y el total, tal como te llegaron en tu correo de confirmación de venta.'
         );
       } else if (data.codigo === 'COMPRA_YA_FACTURADA') {
         abrirModalVerificacionCompra(
-          data.error || 'Esa compra ya fue facturada.',
-          'Cada orden de compra solo se puede facturar una vez. Si crees que esto es un error, contacta a tu administrador.'
+          data.error || 'Esa venta ya fue facturada.',
+          'Cada venta solo se puede facturar una vez. Si crees que esto es un error, contacta a tu administrador.'
         );
       } else {
         showToast(data.error || 'No se pudo subir tu ticket.', true);
@@ -398,10 +398,10 @@
     }
   }
 
-  // ---------- Ventana emergente: compra no encontrada / ya facturada ----------
+  // ---------- Ventana emergente: venta no encontrada / ya facturada ----------
   // Un solo modal reutilizable para ambos casos (título y mensaje se
   // ajustan dinámicamente) — conceptualmente son el mismo tipo de aviso:
-  // "no podemos continuar con esta compra", solo cambia el motivo.
+  // "no podemos continuar con esta venta", solo cambia el motivo.
 
   function abrirModalVerificacionCompra(titulo, mensaje) {
     els.verificacionCompraTitle.textContent = titulo;
@@ -456,7 +456,7 @@
       if (configRes.ok) {
         const config = await configRes.json();
         ordenesCompraHabilitado = Boolean(config.ordenes_compra_habilitado);
-        // Con "Orden de compra" desactivada desde el panel, toda la
+        // Con "Ventas" desactivada desde el panel, toda la
         // sección de verificación se oculta por completo — el ticket se
         // puede enviar sin estos cuatro campos (ver el submit handler
         // más abajo, donde se saltan tanto la validación como el envío

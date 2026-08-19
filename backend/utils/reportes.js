@@ -60,7 +60,7 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
   const tipoTexto = tipo === 'automatico' ? 'Automático (antes de borrado por retención)' : 'Manual';
 
   const lineas = [];
-  lineas.push(`# Reporte de tickets y órdenes de compra`);
+  lineas.push(`# Reporte de tickets y ventas`);
   lineas.push('');
   lineas.push(`**Tipo de reporte:** ${tipoTexto}`);
   lineas.push(`**Fecha y hora de generación:** ${fechaGeneracionFormateada.fecha} ${fechaGeneracionFormateada.hora}`);
@@ -75,7 +75,7 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
   lineas.push(`## Resumen`);
   lineas.push('');
   lineas.push(`- **Tickets:** ${tickets.length}`);
-  lineas.push(`- **Órdenes de compra:** ${ordenes.length}`);
+  lineas.push(`- **Ventas:** ${ordenes.length}`);
   lineas.push(`- **Total de registros:** ${items.length}`);
   lineas.push('');
 
@@ -98,12 +98,12 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
   }
   lineas.push('');
 
-  lineas.push(`## Órdenes de compra (${ordenes.length})`);
+  lineas.push(`## Ventas (${ordenes.length})`);
   lineas.push('');
   if (ordenes.length === 0) {
-    lineas.push('_Sin órdenes de compra en este reporte._');
+    lineas.push('_Sin ventas en este reporte._');
   } else {
-    lineas.push('| No. Compra | RFC | Concepto | Total | Fecha de compra |');
+    lineas.push('| No. Venta | RFC | Concepto | Total | Fecha de venta |');
     lineas.push('|---|---|---|---|---|');
     ordenes.forEach((o) => {
       const fechaSegura = aFechaSegura(o.fecha_registro);
@@ -205,10 +205,10 @@ async function generarYEnviarReporte({ tipo, items, rangoInicio, rangoFin }) {
       const fechaGeneracionFormateada = formatearFechaHoraMexico(fechaGeneracion, configGlobal.zona_horaria);
       await enviarCorreo({
         destinatario: correoDestino,
-        asunto: `Reporte de tickets y órdenes de compra — ${fechaGeneracionFormateada.fecha}`,
+        asunto: `Reporte de tickets y ventas — ${fechaGeneracionFormateada.fecha}`,
         cuerpo: `Se adjunta el reporte generado el ${fechaGeneracionFormateada.fecha} a las ${fechaGeneracionFormateada.hora}.\n\nTickets: ${
           items.filter((i) => i.tipo_registro === 'ticket').length
-        }\nÓrdenes de compra: ${items.filter((i) => i.tipo_registro === 'orden_compra').length}`,
+        }\nVentas: ${items.filter((i) => i.tipo_registro === 'orden_compra').length}`,
         adjuntos: [
           {
             filename: `reporte-${fechaGeneracion.toISOString().slice(0, 10)}.md`,
@@ -257,7 +257,7 @@ function itemsAFilas(items, zonaHoraria) {
     const fechaSegura = aFechaSegura(item.fecha_registro);
     const fechaFormateada = fechaSegura ? formatearFechaHoraMexico(fechaSegura, zonaHoraria) : null;
     return [
-      item.tipo_registro === 'ticket' ? 'Ticket' : 'Orden de compra',
+      item.tipo_registro === 'ticket' ? 'Ticket' : 'Ventas',
       item.identificador,
       item.rfc || '',
       item.estatus_o_concepto || '',

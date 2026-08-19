@@ -113,7 +113,7 @@
     previewImage: document.getElementById('preview-image'),
     btnPreviewDescargar: document.getElementById('btn-preview-descargar'),
     btnPreviewCerrar: document.getElementById('btn-preview-cerrar'),
-    // Vista Inicio / Constancias / Tickets / Orden de compra / Usuarios / Configuraciones globales
+    // Vista Inicio / Constancias / Tickets / Ventas / Usuarios / Configuraciones globales
     btnVistaInicio: document.getElementById('btn-vista-inicio'),
     btnVistaConstancias: document.getElementById('btn-vista-constancias'),
     btnVistaTickets: document.getElementById('btn-vista-tickets'),
@@ -194,7 +194,7 @@
     ticketModalFacturaInput: document.getElementById('ticket-modal-factura-input'),
     btnTicketSubirFactura: document.getElementById('btn-ticket-subir-factura'),
     btnTicketSubirFacturaLabel: document.getElementById('btn-ticket-subir-factura-label'),
-    // Orden de compra
+    // Ventas
     ordenesCount: document.getElementById('ordenes-count'),
     ordenesTableWrap: document.getElementById('ordenes-table-wrap'),
     btnOrdenesColumns: document.getElementById('btn-ordenes-columns'),
@@ -204,7 +204,7 @@
     ordenConcepto: document.getElementById('orden-concepto'),
     ordenConceptoContador: document.getElementById('orden-concepto-contador'),
     ordenCantidad: document.getElementById('orden-cantidad'),
-    // Captura de productos de una orden de compra (arman concepto + cantidad)
+    // Captura de productos de una venta (arman concepto + cantidad)
     ordenProductoConcepto: document.getElementById('orden-producto-concepto'),
     ordenProductoPrecio: document.getElementById('orden-producto-precio'),
     ordenProductoCantidad: document.getElementById('orden-producto-cantidad'),
@@ -217,7 +217,7 @@
     ordenDatosCliente: document.getElementById('orden-datos-cliente'),
     ordenRfcInfo: document.getElementById('orden-rfc-info'),
     ordenNombreInfo: document.getElementById('orden-nombre-info'),
-    // Toggle "Cliente ya registrado" / "Cliente nuevo" de la orden de compra
+    // Toggle "Cliente ya registrado" / "Cliente nuevo" de la venta
     btnOrdenClienteRegistrado: document.getElementById('btn-orden-cliente-registrado'),
     btnOrdenClienteNuevo: document.getElementById('btn-orden-cliente-nuevo'),
     ordenEmailRegistradoWrap: document.getElementById('orden-email-registrado-wrap'),
@@ -228,7 +228,7 @@
     btnRegistrarOrdenLabel: document.getElementById('btn-registrar-orden-label'),
     ordenesError: document.getElementById('ordenes-error'),
     ordenesTableBody: document.getElementById('ordenes-table-body'),
-    // Modal de detalle de una orden de compra
+    // Modal de detalle de una venta
     ordenModalOverlay: document.getElementById('orden-modal-overlay'),
     ordenModalTitle: document.getElementById('orden-modal-title'),
     ordenModalBadge: document.getElementById('orden-modal-badge'),
@@ -494,7 +494,7 @@
   const COLUMNAS_STORAGE_KEY = 'admin_columnas_visibles';
   const ANCHOS_STORAGE_KEY = 'admin_anchos_columnas';
   // Mismo mecanismo de columnas ajustables (mostrar/ocultar + redimensionar),
-  // aplicado también a la tabla de "Órdenes registradas" — claves de
+  // aplicado también a la tabla de "Ventas registradas" — claves de
   // localStorage separadas para no mezclar las preferencias de ambas tablas.
   const COLUMNAS_TABLA_ORDENES = ['numero', 'fecha', 'concepto', 'cantidad', 'iva', 'total', 'correo'];
   const COLUMNAS_ORDENES_STORAGE_KEY = 'admin_ordenes_columnas_visibles';
@@ -1109,7 +1109,7 @@
     els.globalConfigBody.hidden = abierto;
   });
 
-  // "Registrar orden de compra" empieza expandido (es la acción
+  // "Registrar venta" empieza expandido (es la acción
   // principal de esa pantalla), pero se puede colapsar — sobre todo útil
   // en celular, donde el formulario completo ocupa mucho espacio antes
   // de poder ver la lista de abajo. La preferencia se recuerda entre
@@ -1138,7 +1138,7 @@
 
   // Las zonas horarias son un catálogo fijo (no cambia entre peticiones),
   // así que se piden una sola vez y se reutilizan tanto aquí como en la
-  // vista de Orden de compra.
+  // vista de Ventas.
   let zonasHorariasCache = null;
 
   async function obtenerZonasHorarias() {
@@ -1272,14 +1272,14 @@
     }
   });
 
-  // Muestra/oculta el botón "Orden de compra" del menú según el
+  // Muestra/oculta el botón "Ventas" del menú según el
   // interruptor de "Configuraciones globales" — con el botón oculto, no
   // hay forma de llegar a esa vista desde el menú (este panel no usa
   // rutas de URL para cada pestaña, así que ocultar el botón ya basta
   // para "quitar" la funcionalidad de la navegación).
   function aplicarVisibilidadOrdenesCompra(habilitado) {
     els.btnVistaOrdenes.hidden = !habilitado;
-    // Si el administrador estaba viendo Órdenes justo cuando se
+    // Si el administrador estaba viendo Ventas justo cuando se
     // desactivó (ej. lo apagó desde otra pestaña, o guardó el cambio
     // estando ahí mismo), se regresa a Constancias — no tendría sentido
     // dejarlo viendo una pantalla a la que el menú ya no puede llevarlo.
@@ -1288,7 +1288,7 @@
     }
   }
 
-  // El interruptor "Habilitar Orden de compra" se guarda SOLO al
+  // El interruptor "Habilitar Ventas" se guarda SOLO al
   // cambiarlo, sin depender del botón "Guardar cambios" general de esta
   // tarjeta (que sigue guardando IVA/zona horaria/Clave SAT/link como
   // siempre) — a diferencia de esos campos de texto, un interruptor es
@@ -1402,7 +1402,7 @@
     // aquí — se leen automáticamente de la constancia (ver el botón
     // "Subir constancia de situación fiscal" más arriba). Este botón
     // "Guardar cambios" solo sigue siendo responsable de IVA, zona
-    // horaria, el interruptor de Orden de compra, la Clave SAT y el link.
+    // horaria, el interruptor de Ventas, la Clave SAT y el link.
     const claveSat = els.configClaveSat.value.trim();
     if (claveSat && !/^\d{8}$/.test(claveSat)) {
       setFieldError('config-clave-sat', 'La Clave SAT debe ser exactamente 8 dígitos.');
@@ -1633,7 +1633,7 @@
         const option = document.createElement('option');
         option.value = r.id;
         const tipoTexto = r.tipo === 'automatico' ? 'Automático' : 'Manual';
-        option.textContent = `${formatearFechaCorta(r.fecha_generacion)} — ${tipoTexto} (${r.total_tickets} tickets, ${r.total_ordenes} órdenes)`;
+        option.textContent = `${formatearFechaCorta(r.fecha_generacion)} — ${tipoTexto} (${r.total_tickets} tickets, ${r.total_ordenes} ventas)`;
         els.reportesSelector.appendChild(option);
       });
     } catch (err) {
@@ -1677,7 +1677,7 @@
           : '';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="Tipo">${item.tipo_registro === 'ticket' ? 'Ticket' : 'Orden de compra'}</td>
+        <td data-label="Tipo">${item.tipo_registro === 'ticket' ? 'Ticket' : 'Ventas'}</td>
         <td data-label="Identificador"><strong>${escapeHtml(item.identificador)}</strong>${badgeEliminado}</td>
         <td data-label="RFC / Correo">${escapeHtml(item.rfc || '—')}</td>
         <td data-label="Estatus">${escapeHtml(item.estatus_o_concepto || '—')}</td>
@@ -2098,7 +2098,7 @@
 
       els.retencionDias.value = data.dias || '';
       els.retencionInfo.textContent = formatearInfoUltimaLimpieza(data.ultimaLimpieza, 'tickets');
-      els.retencionInfoOrdenes.textContent = formatearInfoUltimaLimpieza(data.ultimaLimpiezaOrdenes, 'órdenes de compra');
+      els.retencionInfoOrdenes.textContent = formatearInfoUltimaLimpieza(data.ultimaLimpiezaOrdenes, 'ventas');
       els.retencionEstadoBadge.hidden = false;
       els.retencionEstadoBadge.textContent = data.dias ? `Activo: ${data.dias} días` : 'Desactivado';
       els.retencionEstadoBadge.className = `smtp-estado-badge ${data.dias ? 'is-ok' : 'is-pendiente'}`;
@@ -2258,7 +2258,7 @@
   // ---------- Columnas ajustables (mostrar/ocultar + redimensionar) ----------
   // Función reutilizable: antes esto solo existía para la tabla de
   // Constancias, escrito directamente contra sus elementos. Se generalizó
-  // para poder ofrecer la misma funcionalidad también en "Órdenes
+  // para poder ofrecer la misma funcionalidad también en "Ventas
   // registradas", sin duplicar los ~90 líneas de lógica dos veces — cada
   // tabla solo pasa sus propios elementos, lista de columnas y claves de
   // localStorage, y el comportamiento (mostrar/ocultar columnas,
@@ -3390,10 +3390,10 @@
     els.ticketModalInfoActualizadoPor.textContent = ticket.actualizado_por || '— (todavía nadie le ha cambiado el estatus)';
     els.ticketModalInfoDocumento.textContent = ticket.imagen_nombre_original;
 
-    // Datos que el cliente capturó en "Verifica tu compra" al subir el
+    // Datos que el cliente capturó en "Verifica tu venta" al subir el
     // ticket — justo arriba de la foto, para poder cotejarlos contra lo
     // que dice el ticket real. Solo hay algo que mostrar si el ticket
-    // quedó vinculado a una orden real (con "Orden de compra"
+    // quedó vinculado a una orden real (con "Ventas"
     // habilitada al momento de subirlo) — si no, se oculta la caja
     // completa en vez de mostrarla vacía.
     if (ticket.orden_numero_compra && ticket.orden_fecha_compra_formateada) {
@@ -3645,14 +3645,14 @@
     }
   });
 
-  // ---------- Orden de compra ----------
+  // ---------- Ventas ----------
 
   let ivaActualParaOrden = 16; // se sobreescribe al cargar la configuración real
-  // Productos capturados para la orden de compra en curso — {concepto, precio, cantidad} —
+  // Productos capturados para la venta en curso — {concepto, precio, cantidad} —
   // arman #orden-concepto y #orden-cantidad (ambos de solo lectura); solo viven en el
-  // navegador, nada se guarda hasta presionar "Registrar orden de compra".
+  // navegador, nada se guarda hasta presionar "Registrar venta".
   let productosOrdenActual = [];
-  // Toggle de la orden de compra: false = elegir un correo ya registrado
+  // Toggle de la venta: false = elegir un correo ya registrado
   // (con constancia activa, como siempre); true = capturar el correo de
   // un cliente nuevo a mano — ver btnOrdenClienteRegistrado/Nuevo abajo.
   let ordenModoClienteNuevo = false;
@@ -3868,7 +3868,7 @@
 
   function setRegistrarOrdenLoading(isLoading) {
     els.btnRegistrarOrden.disabled = isLoading;
-    els.btnRegistrarOrdenLabel.textContent = isLoading ? 'Registrando…' : 'Registrar orden de compra';
+    els.btnRegistrarOrdenLabel.textContent = isLoading ? 'Registrando…' : 'Registrar venta';
   }
 
   els.btnRegistrarOrden.addEventListener('click', async () => {
@@ -3919,10 +3919,10 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        els.ordenErrorGeneral.textContent = data.error || 'No se pudo registrar la orden de compra.';
+        els.ordenErrorGeneral.textContent = data.error || 'No se pudo registrar la venta.';
         return;
       }
-      showToast(`Orden ${data.numero_compra} registrada correctamente. Se envió la confirmación a ${email}.`);
+      showToast(`Venta ${data.numero_compra} registrada correctamente. Se envió la confirmación a ${email}.`);
       limpiarFormularioOrden();
       cargarOrdenes();
     } catch (err) {
@@ -3956,7 +3956,7 @@
         return;
       }
       if (!res.ok) {
-        els.ordenesError.textContent = 'No se pudieron cargar las órdenes de compra.';
+        els.ordenesError.textContent = 'No se pudieron cargar las ventas.';
         return;
       }
       const data = await res.json();
@@ -3982,7 +3982,7 @@
 
   // Vista previa del concepto para la tabla (resumida): un concepto de
   // varios productos solo muestra el primero + "+N más" — el detalle
-  // completo vive en el modal, que abre el link de "No. Compra".
+  // completo vive en el modal, que abre el link de "No. Venta".
   function renderConceptoPreviewOrden(concepto) {
     const lineas = concepto.split('\n').filter((linea) => linea.trim());
     if (lineas.length <= 1) return escapeHtml(concepto);
@@ -3994,7 +3994,7 @@
   }
 
   function renderOrdenes(ordenes) {
-    els.ordenesCount.textContent = `${ordenes.length} orden${ordenes.length === 1 ? '' : 'es'}`;
+    els.ordenesCount.textContent = `${ordenes.length} venta${ordenes.length === 1 ? '' : 's'}`;
     els.ordenesTableBody.innerHTML = '';
     els.ordenesEmpty.hidden = ordenes.length > 0;
 
@@ -4006,7 +4006,7 @@
         ? `<div>${escapeHtml(orden.fecha_compra_formateada.fecha)}</div><div class="admin-fecha-hora">${escapeHtml(orden.fecha_compra_formateada.hora)}</div>`
         : '—';
       const iconoFacturado = orden.facturado
-        ? '<span class="orden-facturado-icono" data-tooltip="Orden de compra facturado" aria-label="Orden de compra facturado">✅</span>'
+        ? '<span class="orden-facturado-icono" data-tooltip="Venta facturada" aria-label="Venta facturada">✅</span>'
         : '';
       // Razón social asociada al correo, para el tooltip — se busca en
       // la misma caché ya cargada para el desplegable del formulario
@@ -4017,7 +4017,7 @@
         : 'Razón social no disponible';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="No. Compra" data-col="numero">${iconoFacturado}<button type="button" class="orden-numero-link">${escapeHtml(orden.numero_compra || '—')}</button></td>
+        <td data-label="No. Venta" data-col="numero">${iconoFacturado}<button type="button" class="orden-numero-link">${escapeHtml(orden.numero_compra || '—')}</button></td>
         <td data-label="Fecha" data-col="fecha">${fechaCeldaHtml}</td>
         <td data-label="Concepto" data-col="concepto">${renderConceptoPreviewOrden(orden.concepto)}</td>
         <td data-label="Total" data-col="total"><strong>$${formatearMoneda(orden.total)}</strong></td>
@@ -4044,8 +4044,8 @@
       const btnEliminarOrden = document.createElement('button');
       btnEliminarOrden.type = 'button';
       btnEliminarOrden.className = 'btn-icono-accion btn-icono-accion-peligro';
-      btnEliminarOrden.setAttribute('data-tooltip', 'Eliminar orden de compra');
-      btnEliminarOrden.setAttribute('aria-label', 'Eliminar orden de compra');
+      btnEliminarOrden.setAttribute('data-tooltip', 'Eliminar venta');
+      btnEliminarOrden.setAttribute('aria-label', 'Eliminar venta');
       btnEliminarOrden.innerHTML =
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       btnEliminarOrden.addEventListener('click', () => confirmarEliminarOrden(orden.id, orden.numero_compra));
@@ -4056,15 +4056,15 @@
     });
   }
 
-  // Modal de detalle de una orden de compra — abre al hacer clic en el
-  // "No. Compra" de la tabla (ahora resumida); mismo lenguaje visual que
+  // Modal de detalle de una venta — abre al hacer clic en el
+  // "No. Venta" de la tabla (ahora resumida); mismo lenguaje visual que
   // "Gestionar" de tickets, con los mismos datos de siempre, solo
   // reordenados en 2 columnas.
   let ordenModalActual = null;
 
   function abrirOrdenModal(orden) {
     ordenModalActual = orden;
-    els.ordenModalTitle.textContent = `Orden ${orden.numero_compra}`;
+    els.ordenModalTitle.textContent = `Venta ${orden.numero_compra}`;
     els.ordenModalBadge.hidden = !orden.facturado;
 
     const fecha = orden.fecha_compra_formateada;
@@ -4133,8 +4133,8 @@
 
   function confirmarEliminarOrden(id, numeroCompra) {
     abrirConfirmacion({
-      titulo: '¿Eliminar orden de compra?',
-      mensaje: `Se eliminará la orden ${numeroCompra} permanentemente. Antes de borrarla, se genera un reporte con su información y se envía al correo de reportes configurado (si hay uno) — esta acción no se puede deshacer.`,
+      titulo: '¿Eliminar venta?',
+      mensaje: `Se eliminará la venta ${numeroCompra} permanentemente. Antes de borrarla, se genera un reporte con su información y se envía al correo de reportes configurado (si hay uno) — esta acción no se puede deshacer.`,
       textoBoton: 'Eliminar',
       onConfirmar: () => eliminarOrden(id),
     });
@@ -4153,10 +4153,10 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showToast(data.error || 'No se pudo eliminar la orden de compra.', true);
+        showToast(data.error || 'No se pudo eliminar la venta.', true);
         return;
       }
-      showToast(data.mensaje || 'Orden de compra eliminada.');
+      showToast(data.mensaje || 'Venta eliminada.');
       els.ordenModalOverlay.hidden = true;
       cargarOrdenes();
     } catch (err) {

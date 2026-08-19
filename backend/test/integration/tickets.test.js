@@ -126,7 +126,7 @@ describe('Tickets', () => {
         .attach('imagen', JPEG_BUFFER_VALIDO, { filename: 'ticket.jpg', contentType: 'image/jpeg' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/número de compra es obligatorio/);
+      expect(res.body.error).toMatch(/número de venta es obligatorio/);
     });
 
     test('con orden de compra no encontrada, responde con código COMPRA_NO_ENCONTRADA', async () => {

@@ -223,7 +223,7 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
 - **Validación E2E funcional del flujo completo en el tenant real
   `piloto9c` (Playwright headed, 2026-08-13, ver PROJECT_STATE.md punto
   102)**: `e2e/tests/flujo-facturacion-piloto9c.spec.ts` (5 tests seriales:
-  registro+CSF → orden de compra → ticket → factura ZIP → descarga del
+  registro+CSF → venta → ticket → factura ZIP → descarga del
   cliente), **5/5 passed** contra el stack Docker real. Encontró y
   corrigió **dos bugs de producción**:
   1. **ALS/multer (multi-tenant)**: el AsyncLocalStorage de
@@ -234,7 +234,7 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
      `reanudarContextoTenant`/`subirConTenant` en `backend/server.js` que
      envuelven los 4 call sites de multer (tickets, registro,
      constancia-compania, factura).
-  2. **Desfase de 1 segundo en órdenes de compra**: `new Date()` con
+  2. **Desfase de 1 segundo en ventas**: `new Date()` con
      milisegundos → `Intl.DateTimeFormat` trunca la hora mostrada pero
      MySQL redondea la guardada → la validación del ticket fallaba ~50%
      de las veces con datos correctos. Fix: `ahora.setMilliseconds(0)`

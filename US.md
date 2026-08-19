@@ -1,8 +1,7 @@
 # Historias de Usuario — Portal de Facturación ADDV
 
 Documento de historias de usuario del **Portal de Facturación ADDV** (carga de
-constancia de situación fiscal, tickets de compra, facturación, órdenes de
-compra y administración multi-tenant). Cada historia sigue el formato
+constancia de situación fiscal, tickets de venta, facturación, ventas y administración multi-tenant). Cada historia sigue el formato
 *"Como [rol], quiero [capacidad], para [beneficio]"* e incluye criterios de
 aceptación verificables.
 
@@ -23,9 +22,9 @@ existentes y marcar las historias nuevas como *propuestas*.
 ### Propósito del producto
 
 Plataforma web B2B de facturación para que clientes y proveedores capturen su
-**constancia de situación fiscal** (PDF del SAT), suban **tickets de compra** y
-obtengan su **factura (CFDI)**. Un administrador registra **órdenes de compra**,
-las envía por correo al cliente con diseño de ticket, y factura cada compra.
+**constancia de situación fiscal** (PDF del SAT), suban **tickets de venta** y
+obtengan su **factura (CFDI)**. Un administrador registra **ventas**,
+las envía por correo al cliente con diseño de ticket, y factura cada venta.
 El producto es **multi-tenant**: cada empresa cliente tiene su propia base de
 datos MySQL, su propio espacio de URLs (`/<slug>` y `/<slug>/admin`) y su
 propia identidad visual (marca, logo, tema).
@@ -59,10 +58,10 @@ propia identidad visual (marca, logo, tema).
 - **Un solo archivo activo** de constancia por contribuyente (RFC primero,
   correo como respaldo).
 - **Retención**: un solo número de días configurable elimina automáticamente
-  tickets (imagen + factura + registro) y órdenes (registro).
-- **IVA** configurable globalmente, "fotografiado" al momento de cada orden.
-- **Zona horaria** mexicana (catálogo IANA) para fechas/horas de compras.
-- **Orden de compra** puede habilitarse/deshabilitarse globalmente por tenant.
+  tickets (imagen + factura + registro) y ventas (registro).
+- **IVA** configurable globalmente, "fotografiado" al momento de cada venta.
+- **Zona horaria** mexicana (catálogo IANA) para fechas/horas de ventas.
+- **Ventas** puede habilitarse/deshabilitarse globalmente por tenant.
 - **Marca** por tenant (nombre + logo) para los correos; fallback `"ADDV"`.
 - **Identidad visual (tema)** por tenant (colores, tipografías, radio de
   esquinas, favicon) sobre el diseño base ADDV.
@@ -80,8 +79,8 @@ propia identidad visual (marca, logo, tema).
 |---|---|
 | **Cliente** | Usuario del portal público (RFC + contraseña). Sube constancia y tickets, descarga facturas. |
 | **Visitante** | Persona sin cuenta que accede al formulario público de constancia (acceso anónimo, retrocompatibilidad). |
-| **Fiscal** | Perfil del panel de administración: gestiona constancias y tickets, ve Inicio. No ve usuarios ni órdenes de compra. |
-| **Administrador** | Perfil del panel: gestiona usuarios, órdenes de compra, reportes y configuraciones fiscales. |
+| **Fiscal** | Perfil del panel de administración: gestiona constancias y tickets, ve Inicio. No ve usuarios ni ventas. |
+| **Administrador** | Perfil del panel: gestiona usuarios, ventas, reportes y configuraciones fiscales. |
 | **Super** | Cuenta `admin` de respaldo y cuentas de `ADMIN_USERS`: acceso total al panel y a `/control`. |
 | **Operador de control** | Persona con cuenta "super" que opera la app de control `/control` (ciclo de vida de empresas/tenants). |
 | **Sistema** | Comportamiento automático del backend (limpiezas, notificaciones, respaldos, migraciones). |
@@ -169,7 +168,7 @@ para usarla en flujos anónimos con retrocompatibilidad.
 ## 3. Tablero del cliente
 
 ### US-010 — Ver accesos directos y mis solicitudes
-Como **cliente**, quiero ver mi tablero con accesos a "Subir constancia" y "Subir tickets de compra"
+Como **cliente**, quiero ver mi tablero con accesos a "Subir constancia" y "Subir tickets de venta"
 y la lista de todas mis solicitudes de tickets, para dar seguimiento a mis trámites.
 
 **Criterios de aceptación:**
@@ -200,17 +199,17 @@ eliminen mis tickets automáticamente (si la retención está configurada), para
 
 ---
 
-## 4. Tickets de compra (Cliente)
+## 4. Tickets de venta (Cliente)
 
-### US-014 — Subir ticket de compra con verificación de orden
-Como **cliente**, quiero subir la foto de mi ticket (JPG/PNG/WEBP) y, si "Orden de compra" está
-habilitada, capturar No. Compra, Total, Fecha y Hora tal como llegaron en mi correo de confirmación,
+### US-014 — Subir ticket de venta con verificación de venta
+Como **cliente**, quiero subir la foto de mi ticket (JPG/PNG/WEBP) y, si "Ventas" está
+habilitada, capturar No. Venta, Total, Fecha y Hora tal como llegaron en mi correo de confirmación,
 para solicitar mi factura.
 
 **Criterios de aceptación:**
-- Los 4 campos de compra son obligatorios solo si la orden de compra está habilitada (si no, la sección desaparece).
-- El backend valida contra una orden real; si no coincide → `400`, `codigo: COMPRA_NO_ENCONTRADA`, mensaje genérico "No se encuentra registrada la compra para facturar." (sin pistas de cuál campo falló).
-- Si la orden ya fue facturada → `400`, `codigo: COMPRA_YA_FACTURADA`, "Esa compra ya fue facturada."
+- Los 4 campos de la venta son obligatorios solo si la venta está habilitada (si no, la sección desaparece).
+- El backend valida contra una venta real; si no coincide → `400`, `codigo: COMPRA_NO_ENCONTRADA`, mensaje genérico "No se encuentra registrada la venta para facturar." (sin pistas de cuál campo falló).
+- Si la venta ya fue facturada → `400`, `codigo: COMPRA_YA_FACTURADA`, "Esa venta ya fue facturada."
 - Total con separador de miles en vivo; los campos se muestran en cuadrícula de 2 columnas en pantallas anchas.
 - Uso de CFDI, tipo de pago (5 opciones fijas; "Otro" exige especificar) y comentarios, obligatorios u opcionales según configuración.
 - Al enviar se genera folio `TK-000001`.
@@ -242,7 +241,7 @@ para no acceder a áreas que no me corresponden.
 **Criterios de aceptación:**
 - Interfaz: los botones/tarjetas fuera de perfil se ocultan, no solo se deshabilitan.
 - Backend: los 45+ endpoints de `/api/admin/*` exigen `requireAdminAuth` + `requireAdminArea(...)` → 403 real.
-- Matriz de acceso: Super → todo; Administrador → Órdenes, Usuarios, Reportes, Config fiscales/reportes; Fiscal → Inicio, Constancias, Tickets, Campos obligatorios, Config fiscales.
+- Matriz de acceso: Super → todo; Administrador → Ventas, Usuarios, Reportes, Config fiscales/reportes; Fiscal → Inicio, Constancias, Tickets, Campos obligatorios, Config fiscales.
 - "Cuenta de respaldo admin" solo visible/editable por el usuario `admin` exacto (`requireUsuarioAdminExacto`).
 - Si la vista por defecto no está permitida, se navega a la primera vista disponible.
 
@@ -300,7 +299,7 @@ para dar seguimiento y completar la facturación.
 
 **Criterios de aceptación:**
 - Modal ancho (820px) rediseñado en 2 columnas fiel a `stitch/detalle_de_solicitud`: información de la solicitud + ticket adjunto a la izquierda, estatus + factura en tarjetas a la derecha, con badge de estatus junto al título.
-- Datos del ticket (RFC, Uso CFDI, tipo de pago, actualizado por, archivo), compra capturada (si aplica) y comentarios del cliente destacados.
+- Datos del ticket (RFC, Uso CFDI, tipo de pago, actualizado por, archivo), venta capturada (si aplica) y comentarios del cliente destacados.
 - Imagen con efecto lupa + botón "Descargar imagen".
 - Selector de estatus (Pendiente / En curso / Cancelado / Listo) — "Listo" deshabilitado (solo se alcanza subiendo la factura); "Cancelado" pide confirmación.
 - Notas internas con botón "Guardar cambios".
@@ -322,7 +321,7 @@ Activos/Papelera), para encontrar rápidamente los que me corresponden.
 
 ### US-024 — Borrado automático por retención
 Como **administrador**, quiero configurar después de cuántos días se eliminan automáticamente tickets
-(imagen, factura y registro) y órdenes de compra (registro), para cumplir políticas de retención.
+(imagen, factura y registro) y ventas (registro), para cumplir políticas de retención.
 
 **Criterios de aceptación:**
 - Un solo número de días aplica a ambos; `0`/vacío = desactivado.
@@ -349,22 +348,22 @@ disponible, para descargarla sin tener que revisar el portal a cada rato.
 
 ---
 
-## 9. Panel — Vista Orden de compra (Administrador)
+## 9. Panel — Vista Ventas (Administrador)
 
-### US-027 — Registrar una orden de compra
-Como **administrador**, quiero registrar una compra/servicio para generar su factura y enviarle el
+### US-027 — Registrar una venta
+Como **administrador**, quiero registrar una venta/servicio para generar su factura y enviarle el
 comprobante por correo al cliente.
 
 **Criterios de aceptación:**
-- No. Compra se auto-genera (`OC-000001`); fecha/hora se toman del servidor con la zona horaria configurada.
+- No. Venta se auto-genera (`OC-000001`); fecha/hora se toman del servidor con la zona horaria configurada.
 - IVA de solo lectura (porcentaje global); el total se calcula `cantidad × (1 + iva%)` con vista previa en vivo.
 - Correo: desplegable solo con correos que ya tienen constancia; al elegir, se muestran RFC y razón social de solo lectura (el backend revalida).
 - Todos los campos son obligatorios.
-- Formulario y lista lado a lado en pantallas anchas; formulario `sticky`; "Registrar orden" expandible/colapsable con preferencia recordada.
+- Formulario y lista lado a lado en pantallas anchas; formulario `sticky`; "Registrar venta" expandible/colapsable con preferencia recordada.
 - Envío de correo de confirmación con diseño de ticket (fire-and-forget).
 
-### US-062 — Capturar la orden como lista de productos
-Como **administrador**, quiero armar la orden agregando productos uno por uno (concepto + precio
+### US-062 — Capturar la venta como lista de productos
+Como **administrador**, quiero armar la venta agregando productos uno por uno (concepto + precio
 unitario + cantidad), para que el concepto final y el monto se calculen solos sin capturarlos a mano.
 
 **Criterios de aceptación:**
@@ -373,11 +372,11 @@ unitario + cantidad), para que el concepto final y el monto se calculen solos si
 - El "Concepto de venta o servicio" (readonly) se arma uniendo las líneas con el formato `2 x Toner ($850.00 c/u)`, con contador `/255`.
 - "Cantidad (MXN)" (readonly) es la suma de subtotales (`precio × cantidad`); el Total preview = cantidad + IVA.
 - Se bloquea agregar una línea si el concepto final pasaría de 255 caracteres (el backend antes truncaba en silencio).
-- Nada se guarda hasta "Registrar orden de compra".
-- En "Órdenes registradas", un concepto con varios productos se renderiza en renglones separados con la cantidad resaltada en el acento de marca; una línea sola se ve igual que siempre.
+- Nada se guarda hasta "Registrar venta".
+- En "Ventas registradas", un concepto con varios productos se renderiza en renglones separados con la cantidad resaltada en el acento de marca; una línea sola se ve igual que siempre.
+### US-063 — Registrar venta para un cliente nuevo (sin constancia)
 
-### US-063 — Registrar orden para un cliente nuevo (sin constancia)
-Como **administrador**, quiero poder registrar una orden para un correo que todavía no tiene
+Como **administrador**, quiero poder registrar una venta para un correo que todavía no tiene
 constancia de situación fiscal, para no bloquear la venta de clientes en trámite.
 
 **Criterios de aceptación:**
@@ -386,8 +385,8 @@ constancia de situación fiscal, para no bloquear la venta de clientes en trámi
 - "Cliente nuevo": campo de texto libre para el correo (validado como email); el backend relaja la exigencia de constancia solo cuando el body trae `es_cliente_nuevo: true`.
 - El resto del flujo (correo de confirmación con diseño de ticket) funciona igual en ambos modos.
 
-### US-028 — Correo de confirmación de compra al cliente
-Como **cliente**, quiero recibir un correo con diseño de ticket (datos de la compra, "TOTAL A FACTURAR"
+### US-028 — Correo de confirmación de venta al cliente
+Como **cliente**, quiero recibir un correo con diseño de ticket (datos de la venta, "TOTAL A FACTURAR"
 y botón "Iniciar sesión y solicitar mi factura"), para saber qué datos usar al facturar.
 
 **Criterios de aceptación:**
@@ -396,18 +395,18 @@ y botón "Iniciar sesión y solicitar mi factura"), para saber qué datos usar a
 - Logo parametrizado (marca del tenant) con fallback "ADDV".
 
 ### US-029 — Reenviar correo de confirmación
-Como **administrador**, quiero reenviar el correo de confirmación de una orden existente,
+Como **administrador**, quiero reenviar el correo de confirmación de una venta existente,
 para el cliente que lo perdió.
 
 **Criterios de aceptación:**
 - A diferencia del envío original, espera el resultado y avisa con toast éxito/fallo.
+### US-030 — Marcar venta como facturada e impedir doble facturación
 
-### US-030 — Marcar orden como facturada e impedir doble facturación
-Como **administrador**, quiero ver un ✅ en las órdenes ya facturadas, para no facturar dos veces la misma compra.
+Como **administrador**, quiero ver un ✅ en las ventas ya facturadas, para no facturar dos veces la misma venta.
 
 **Criterios de aceptación:**
 - ✅ con tooltip cuando el ticket vinculado pasó a "listo".
-- El backend rechaza otro ticket para una orden ya facturada (`COMPRA_YA_FACTURADA`).
+- El backend rechaza otro ticket para una venta ya facturada (`COMPRA_YA_FACTURADA`).
 - Tooltip de razón social al pasar el cursor sobre el correo de cada fila.
 
 ---
@@ -457,12 +456,12 @@ para tener una salida de emergencia segura al panel.
 Como **admin** (usuario exacto), quiero ver la tabla de solo lectura de permisos por perfil,
 para saber de un vistazo qué puede ver cada quien.
 
-### US-037 — Activar/desactivar "Orden de compra"
-Como **administrador**, quiero prender o apagar la funcionalidad completa de "Orden de compra"
-(se guarda al momento), para controlar si los clientes deben verificar su compra al subir tickets.
+### US-037 — Activar/desactivar "Ventas"
+Como **administrador**, quiero prender o apagar la funcionalidad completa de "Ventas"
+(se guarda al momento), para controlar si los clientes deben verificar su venta al subir tickets.
 
 **Criterios de aceptación:**
-- Apagada: el botón "Orden de compra" desaparece del menú, la sección "Verifica tu compra" desaparece de `tickets.html` y el backend deja de exigir los 4 campos.
+- Apagada: el botón "Ventas" desaparece del menú, la sección "Verifica tu venta" desaparece de `tickets.html` y el backend deja de exigir los 4 campos.
 - Encendida (default): todo funciona normal.
 
 ---
@@ -481,12 +480,12 @@ y al subir ticket (Uso de CFDI, tipo de pago, comentarios), para adaptar los for
 ### US-039 — Configurar datos fiscales de la compañía (IVA, zona horaria, clave SAT, constancia de la compañía)
 Como **administrador**, quiero configurar IVA (0-100%), zona horaria mexicana (catálogo IANA), clave SAT
 (8 dígitos), link de códigos SAT (URL) y la constancia de situación fiscal de mi propia empresa,
-para que las órdenes de compra se calculen y muestren correctamente.
+para que las ventas se calculen y muestren correctamente.
 
 **Criterios de aceptación:**
 - La constancia de la compañía reutiliza la misma extracción de PDF; aquí el RFC **es obligatorio** (si no se identifica, se rechaza).
 - Régimen, razón social y tipo de persona se muestran de solo lectura (tipo calculado por 3 señales en orden de confiabilidad).
-- El IVA se "fotografía" en cada orden: cambios posteriores no afectan órdenes ya creadas.
+- El IVA se "fotografía" en cada venta: cambios posteriores no afectan ventas ya creadas.
 - RFC/Clave SAT/tipo de persona se muestran en la barra de sesión del panel; si falta el RFC y/o la clave, se recuerda completarlos en una ventana al iniciar sesión.
 
 ### US-040 — Sincronizar catálogo de Uso de CFDI
@@ -517,7 +516,7 @@ Como **administrador**, quiero generar reportes (manual o automático antes de l
 consultarlos (selector, resumen, filtros combinables), para dar seguimiento a la facturación del mes.
 
 **Criterios de aceptación:**
-- Reporte manual: tickets y órdenes de compra activos del mes calendario en curso; se guarda siempre; se envía por correo solo si hay correo de reportes configurado.
+- Reporte manual: tickets y ventas activos del mes calendario en curso; se guarda siempre; se envía por correo solo si hay correo de reportes configurado.
 - Reporte de retención: se genera antes de borrar nada, con fecha/hora exacta y zona horaria configurada.
 - Filtros combinables: tipo de registro, estatus, RFC/correo (parcial), rango de fechas.
 - Incluye "Atendido por" (quién atendió cada ticket).
@@ -733,7 +732,7 @@ Estas son áreas donde la arquitectura ya tiene bases listas para evolucionar
 
 - **Recuperación de contraseña** (flujo de email con enlace, hoy solo existe el reset desde el panel).
 - **CFDI completo**: timbrado real, cancelación de facturas, estatus del SAT.
-- **Portal de pagos / pasarela** y conciliación con las órdenes de compra.
+- **Portal de pagos / pasarela** y conciliación con las ventas.
 - **Notificaciones y reportería avanzada** (filtros por tenant, exportación masiva, programación).
 - **Autoservicio de marca/tema** para que el propio tenant gestione su identidad sin pasar por `/control`.
 - **UI de consulta de auditoría** (los datos ya se registran en `control_tenants.admin_auditoria`).

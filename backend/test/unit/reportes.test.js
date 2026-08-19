@@ -79,7 +79,7 @@ describe('reportes.js', () => {
         zonaHoraria: 'America/Mexico_City',
       });
       expect(md).toContain('**Tickets:** 1');
-      expect(md).toContain('**Órdenes de compra:** 1');
+      expect(md).toContain('**Ventas:** 1');
       expect(md).toContain('**Total de registros:** 2');
     });
 
@@ -91,7 +91,7 @@ describe('reportes.js', () => {
     test('sin tickets ni órdenes, muestra los mensajes de "sin registros"', () => {
       const md = generarContenidoMD({ tipo: 'manual', fechaGeneracion: new Date(), items: [], zonaHoraria: 'America/Mexico_City' });
       expect(md).toContain('_Sin tickets en este reporte._');
-      expect(md).toContain('_Sin órdenes de compra en este reporte._');
+      expect(md).toContain('_Sin ventas en este reporte._');
     });
 
     test('escapa "|" dentro de una celda para no romper la tabla Markdown', () => {

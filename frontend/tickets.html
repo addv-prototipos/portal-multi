@@ -28,18 +28,18 @@
     <div class="card">
       <!-- Paso 1: subir imagen -->
       <section class="panel is-active" id="panel-subir">
-        <h1>Sube tu ticket de compra</h1>
+        <h1>Sube tu ticket de venta</h1>
         <p class="panel-subtitle">Toma una foto o sube una imagen legible de tu ticket. Se genera un folio con el que puedes darle seguimiento a tu solicitud de factura.</p>
 
         <p class="aviso-retencion" id="aviso-retencion" hidden></p>
 
         <div class="compra-verificacion" id="compra-verificacion-seccion">
-          <p class="compra-verificacion-titulo">Verifica tu compra</p>
-          <p class="panel-subtitle compra-verificacion-subtitulo">Captura los datos tal como te llegaron en el correo de confirmación cuando se registró tu compra.</p>
+          <p class="compra-verificacion-titulo">Verifica tu venta</p>
+          <p class="panel-subtitle compra-verificacion-subtitulo">Captura los datos tal como te llegaron en el correo de confirmación cuando se registró tu venta.</p>
 
           <div class="compra-verificacion-grid">
             <div class="field">
-              <label for="ticket-numero-compra">No. Compra <span class="required">*</span></label>
+              <label for="ticket-numero-compra">No. Venta <span class="required">*</span></label>
               <input type="text" id="ticket-numero-compra" name="numero_compra" placeholder="OC-000001" maxlength="20" autocapitalize="characters" autocomplete="off" />
               <p class="field-error" id="error-ticket-numero-compra" role="alert"></p>
             </div>
@@ -93,7 +93,7 @@
 
         <div class="field">
           <label for="ticket-comentarios">Comentarios <span class="field-mark optional" data-field="comentarios" id="mark-comentarios">(opcional)</span></label>
-          <textarea id="ticket-comentarios" name="comentarios" rows="3" maxlength="1000" placeholder="Ej. detalles adicionales sobre esta compra..."></textarea>
+          <textarea id="ticket-comentarios" name="comentarios" rows="3" maxlength="1000" placeholder="Ej. detalles adicionales sobre esta venta..."></textarea>
           <p class="field-error" id="error-ticket-comentarios" role="alert"></p>
         </div>
 
@@ -154,7 +154,7 @@
     </div>
   </div>
 
-  <!-- Bloqueo: la compra capturada no se encontró, o ya fue facturada antes -->
+  <!-- Bloqueo: la venta capturada no se encontró, o ya fue facturada antes -->
   <div class="modal-overlay" id="verificacion-compra-overlay" hidden>
     <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="verificacion-compra-title">
       <div class="modal-icono-aviso" aria-hidden="true">
@@ -163,8 +163,8 @@
           <path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.29 2.25h17.78A1.5 1.5 0 0 0 22.18 18L13.71 3.86a1.5 1.5 0 0 0-2.58 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
         </svg>
       </div>
-      <h2 id="verificacion-compra-title">No se encuentra registrada la compra para facturar.</h2>
-      <p class="panel-subtitle" id="verificacion-compra-mensaje">Verifica el No. Compra, la fecha, la hora y el total, tal como te llegaron en tu correo de confirmación.</p>
+      <h2 id="verificacion-compra-title">No se encuentra registrada la venta para facturar.</h2>
+      <p class="panel-subtitle" id="verificacion-compra-mensaje">Verifica el No. Venta, la fecha, la hora y el total, tal como te llegaron en tu correo de confirmación.</p>
 
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="btn-verificacion-compra-cerrar">Entendido</button>

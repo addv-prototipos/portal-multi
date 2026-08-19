@@ -78,7 +78,7 @@
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-ordenes" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
-          <span>Orden de compra</span>
+          <span>Ventas</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-gastos" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
@@ -290,7 +290,7 @@
                 <path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m3 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
               </svg>
-              Borrado automático de tickets y órdenes de compra
+              Borrado automático de tickets y ventas
               <span class="smtp-estado-badge" id="retencion-estado-badge" hidden></span>
             </span>
             <svg class="admin-config-chevron" id="retencion-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -300,12 +300,12 @@
 
           <div class="admin-config-body" id="retencion-config-body" hidden>
             <p class="panel-subtitle admin-config-subtitle">
-              Define después de cuántos días se elimina automáticamente un ticket (imagen, factura si ya la tiene, y su registro) — <strong>y, con el mismo número de días, también una orden de compra</strong> (su registro; no tiene archivos que limpiar). Se aplica a ambos sin importar su estatus. Los clientes ven un aviso de esto en su tablero.
+              Define después de cuántos días se elimina automáticamente un ticket (imagen, factura si ya la tiene, y su registro) — <strong>y, con el mismo número de días, también una venta</strong> (su registro; no tiene archivos que limpiar). Se aplica a ambos sin importar su estatus. Los clientes ven un aviso de esto en su tablero.
             </p>
 
             <div class="retencion-config-fila">
               <div class="field retencion-config-input">
-                <label for="retencion-dias">Días antes de eliminar un ticket u orden de compra</label>
+                <label for="retencion-dias">Días antes de eliminar un ticket o venta</label>
                 <input type="number" id="retencion-dias" min="0" max="3650" placeholder="0 = desactivado" />
               </div>
               <button type="button" class="btn btn-primary" id="btn-guardar-retencion">
@@ -369,17 +369,17 @@
       <div id="vista-ordenes" hidden>
         <div class="admin-toolbar">
           <div class="admin-toolbar-title">
-            <h1>Orden de compra</h1>
+            <h1>Ventas</h1>
           </div>
           <div class="admin-toolbar-right">
-            <span class="admin-count" id="ordenes-count">0 órdenes</span>
+            <span class="admin-count" id="ordenes-count">0 ventas</span>
             <div class="column-toggle" id="ordenes-column-toggle">
               <button type="button" class="btn btn-secondary" id="btn-ordenes-columns" aria-haspopup="true" aria-expanded="false" aria-controls="ordenes-column-toggle-panel">
                 Columnas
               </button>
               <div class="column-toggle-panel" id="ordenes-column-toggle-panel" hidden>
                 <p class="column-toggle-title">Mostrar columnas</p>
-                <label class="checkbox-row"><input type="checkbox" data-col="numero" checked /><span>No. Compra</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="numero" checked /><span>No. Venta</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="fecha" checked /><span>Fecha</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="concepto" checked /><span>Concepto</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="total" checked /><span>Total</span></label>
@@ -397,17 +397,17 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                 </svg>
-                <span class="orden-form-titulo">Registrar orden de compra</span>
+                <span class="orden-form-titulo">Registrar venta</span>
               </span>
               <svg class="admin-config-chevron" id="orden-form-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
             <div class="orden-form-body admin-config-body" id="orden-form-body">
-              <p class="panel-subtitle admin-config-subtitle">Captura los datos de la compra. La fecha y el IVA se toman automáticamente de "Configuraciones globales" — no se capturan a mano.</p>
+              <p class="panel-subtitle admin-config-subtitle">Captura los datos de la venta. La fecha y el IVA se toman automáticamente de "Configuraciones globales" — no se capturan a mano.</p>
 
               <div class="field">
-                <label>Fecha de compra</label>
+                <label>Fecha de venta</label>
                 <p class="orden-campo-automatico" id="orden-fecha-auto">Se genera automáticamente al guardar, con la zona horaria configurada.</p>
               </div>
 
@@ -475,7 +475,7 @@
 
               <div class="field">
                 <label>Tipo de cliente</label>
-                <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta orden">
+                <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta venta">
                   <button type="button" class="view-toggle-btn is-active" id="btn-orden-cliente-registrado" role="tab" aria-selected="true">Cliente ya registrado</button>
                   <button type="button" class="view-toggle-btn" id="btn-orden-cliente-nuevo" role="tab" aria-selected="false">Cliente nuevo</button>
                 </div>
@@ -495,7 +495,7 @@
                   <label>Datos asociados a este correo</label>
                   <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
                   <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
-                  <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la orden.</p>
+                  <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la venta.</p>
                 </div>
               </div>
 
@@ -503,7 +503,7 @@
                 <div class="field">
                   <label for="orden-email-nuevo">Correo electrónico <span class="required">*</span></label>
                   <input type="email" id="orden-email-nuevo" placeholder="correo@ejemplo.com" maxlength="200" autocomplete="off" />
-                  <p class="field-hint">Este cliente todavía no tiene una constancia de situación fiscal registrada — se le enviará la confirmación de la compra a este correo.</p>
+                  <p class="field-hint">Este cliente todavía no tiene una constancia de situación fiscal registrada — se le enviará la confirmación de la venta a este correo.</p>
                   <p class="field-error" id="error-orden-email-nuevo" role="alert"></p>
                 </div>
               </div>
@@ -512,21 +512,21 @@
 
               <div class="btn-row admin-config-actions">
                 <button type="button" class="btn btn-primary" id="btn-registrar-orden">
-                  <span id="btn-registrar-orden-label">Registrar orden de compra</span>
+                  <span id="btn-registrar-orden-label">Registrar venta</span>
                 </button>
               </div>
             </div>
           </section>
 
           <section class="orden-compra-columna-lista">
-            <h2 class="orden-lista-titulo">Órdenes registradas</h2>
+            <h2 class="orden-lista-titulo">Ventas registradas</h2>
             <p class="field-error" id="ordenes-error" role="alert"></p>
 
             <div class="admin-table-wrap" id="ordenes-table-wrap">
               <table class="admin-table ordenes-table">
                 <thead>
                   <tr>
-                    <th data-col="numero"><span class="th-label">No. Compra</span><span class="col-resizer" data-resizer="numero"></span></th>
+                    <th data-col="numero"><span class="th-label">No. Venta</span><span class="col-resizer" data-resizer="numero"></span></th>
                     <th data-col="fecha"><span class="th-label">Fecha</span><span class="col-resizer" data-resizer="fecha"></span></th>
                     <th data-col="concepto"><span class="th-label">Concepto</span><span class="col-resizer" data-resizer="concepto"></span></th>
                     <th data-col="total"><span class="th-label">Total</span><span class="col-resizer" data-resizer="total"></span></th>
@@ -536,7 +536,7 @@
                 </thead>
                 <tbody id="ordenes-table-body"></tbody>
               </table>
-              <p class="admin-empty" id="ordenes-empty" hidden>No hay órdenes de compra registradas todavía.</p>
+              <p class="admin-empty" id="ordenes-empty" hidden>No hay ventas registradas todavía.</p>
             </div>
           </section>
         </div>
@@ -675,7 +675,7 @@
       </div>
 
       <div id="vista-usuarios" hidden>
-        <!-- "Orden de compra" y "Cuenta de respaldo admin" van una junto a
+        <!-- "Ventas" y "Cuenta de respaldo admin" van una junto a
              la otra en una cuadrícula de 2 columnas — ambas tienen poco
              contenido (un interruptor la una, un campo de contraseña la
              otra), así que apiladas una debajo de otra dejaban mucho
@@ -684,12 +684,12 @@
              "Perfiles y roles de acceso" (con una tabla ancha adentro) se
              queda fuera de esta cuadrícula, en su propia fila completa. -->
         <div class="usuarios-tarjetas-compactas">
-        <!-- Habilitar Orden de compra — se movió aquí desde "Configuraciones
-             fiscales": "Orden de compra" es un área exclusiva del perfil
+        <!-- Habilitar Ventas — se movió aquí desde "Configuraciones
+             fiscales": "Ventas" es un área exclusiva del perfil
              Administrador (igual que "Usuarios"), así que activarla/
              desactivarla vive junto al resto de los controles que ese
-             mismo perfil puede ver — un perfil Fiscal, que no ve "Orden de
-             compra" como vista, tampoco debería ver el interruptor que la
+             mismo perfil puede ver — un perfil Fiscal, que no ve "Ventas"
+             como vista, tampoco debería ver el interruptor que la
              prende o apaga. -->
         <section class="admin-config-card" id="ordenes-toggle-card">
           <button type="button" class="admin-config-toggle" id="btn-toggle-ordenes-card" aria-expanded="false" aria-controls="ordenes-toggle-body">
@@ -698,7 +698,7 @@
                 <path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
                 <path d="M8 7V5a4 4 0 0 1 8 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
               </svg>
-              Orden de compra
+              Ventas
             </span>
             <svg class="admin-config-chevron" id="ordenes-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -709,8 +709,8 @@
               <input type="checkbox" id="config-ordenes-habilitado" checked />
               <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
               <span class="switch-toggle-texto">
-                <span class="switch-toggle-label">Habilitar Orden de compra</span>
-                <span class="switch-toggle-hint">Con esto apagado, se oculta el botón "Orden de compra" del panel, y subir un ticket ya no exige verificar la compra. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
+                <span class="switch-toggle-label">Habilitar Ventas</span>
+                <span class="switch-toggle-hint">Con esto apagado, se oculta el botón "Ventas" del panel, y subir un ticket ya no exige verificar la venta. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
                 <span class="switch-toggle-autoguardado" id="ordenes-habilitado-autoguardado" role="status" aria-live="polite"></span>
               </span>
             </label>
@@ -809,7 +809,7 @@
                     <th scope="col">Perfil</th>
                     <th scope="col">Constancias</th>
                     <th scope="col">Tickets</th>
-                    <th scope="col">Orden de compra</th>
+                    <th scope="col">Ventas</th>
                     <th scope="col">Usuarios</th>
                     <th scope="col">Reportes</th>
                     <th scope="col">Configuraciones globales</th>
@@ -978,7 +978,7 @@
       </section>
 
       <!-- Configuraciones fiscales: datos de la compañía, IVA y zona horaria -->
-      <!-- "Habilitar Orden de compra" se movió a la vista "Usuarios" — ver más abajo -->
+      <!-- "Habilitar Ventas" se movió a la vista "Usuarios" — ver más abajo -->
       <section class="admin-config-card" id="global-config-card">
         <button type="button" class="admin-config-toggle" id="btn-toggle-global-config" aria-expanded="false" aria-controls="global-config-body">
           <span class="admin-config-toggle-label">
@@ -1043,7 +1043,7 @@
           </div>
 
           <p class="panel-subtitle admin-config-subtitle">
-            Estos dos valores se usan al registrar una orden de compra: el IVA se aplica al monto capturado para calcular el total a facturar, y la zona horaria determina cómo se genera la fecha y hora de cada compra.
+            Estos dos valores se usan al registrar una venta: el IVA se aplica al monto capturado para calcular el total a facturar, y la zona horaria determina cómo se genera la fecha y hora de cada venta.
           </p>
 
           <div class="field">
@@ -1214,7 +1214,7 @@
         </button>
         <div class="admin-config-body" id="reportes-config-body" hidden>
           <p class="panel-subtitle admin-config-subtitle">
-            Antes de que el borrado automático por retención elimine tickets y órdenes de compra vencidos, se genera y se guarda un reporte con toda esa información en un archivo Markdown — si hay un correo configurado aquí, también se envía por correo antes de borrarse. Puedes revisar cualquier reporte generado (automático o manual) en "Reportes".
+            Antes de que el borrado automático por retención elimine tickets y ventas vencidos, se genera y se guarda un reporte con toda esa información en un archivo Markdown — si hay un correo configurado aquí, también se envía por correo antes de borrarse. Puedes revisar cualquier reporte generado (automático o manual) en "Reportes".
           </p>
 
           <div class="field">
@@ -1235,7 +1235,7 @@
           <div class="reportes-envio-manual">
             <div class="reportes-envio-manual-texto">
               <strong>Enviar reporte ahora</strong>
-              <p class="field-hint">Genera y envía un reporte con los tickets y órdenes de compra activos del mes en curso — sin esperar a que algo esté por vencerse.</p>
+              <p class="field-hint">Genera y envía un reporte con los tickets y ventas activos del mes en curso — sin esperar a que algo esté por vencerse.</p>
             </div>
             <button type="button" class="btn btn-secondary" id="btn-enviar-reporte-manual">
               <span id="btn-enviar-reporte-manual-label">Enviar reporte</span>
@@ -1283,7 +1283,7 @@
             <span class="lectura-reportes-resumen-valor" id="resumen-reporte-tickets"></span>
           </div>
           <div class="lectura-reportes-resumen-item">
-            <span class="lectura-reportes-resumen-label">Órdenes de compra</span>
+            <span class="lectura-reportes-resumen-label">Ventas</span>
             <span class="lectura-reportes-resumen-valor" id="resumen-reporte-ordenes"></span>
           </div>
           <div class="lectura-reportes-resumen-item">
@@ -1298,7 +1298,7 @@
             <select id="filtro-reporte-tipo">
               <option value="">Todos</option>
               <option value="ticket">Tickets</option>
-              <option value="orden_compra">Órdenes de compra</option>
+              <option value="orden_compra">Ventas</option>
             </select>
           </div>
           <div class="field">
@@ -1599,11 +1599,11 @@
             <p class="ticket-modal-comentarios-texto" id="ticket-modal-comentarios-texto"></p>
           </div>
 
-          <!-- Datos de la compra que el cliente capturó en "Verifica tu compra"
+          <!-- Datos de la venta que el cliente capturó en "Verifica tu venta"
                al subir el ticket — se muestran justo arriba de la foto para
                poder cotejarlos contra lo que dice el ticket real. Solo
-               aparece si el ticket quedó vinculado a una orden de compra real
-               (con "Orden de compra" habilitada); si no, no hay nada que
+               aparece si el ticket quedó vinculado a una venta real
+               (con "Ventas" habilitada); si no, no hay nada que
                mostrar aquí. -->
           <div class="ticket-modal-compra-box" id="ticket-modal-compra-box" hidden>
             <div class="ticket-modal-comentarios-header">
@@ -1611,11 +1611,11 @@
                 <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
               </svg>
-              <span>Compra capturada por el cliente — coteja contra la foto</span>
+              <span>Venta capturada por el cliente — coteja contra la foto</span>
             </div>
             <dl class="ticket-modal-compra-grid">
               <div class="ticket-modal-info-item">
-                <dt class="ticket-modal-info-label">No. Compra</dt>
+                <dt class="ticket-modal-info-label">No. Venta</dt>
                 <dd class="ticket-modal-info-value" id="ticket-modal-compra-numero"></dd>
               </div>
               <div class="ticket-modal-info-item">
@@ -1748,12 +1748,12 @@
     </div>
   </div>
 
-  <!-- Modal de detalle de una orden de compra -->
+  <!-- Modal de detalle de una venta -->
   <div class="modal-overlay" id="orden-modal-overlay" hidden>
     <div class="modal orden-modal" role="dialog" aria-modal="true" aria-labelledby="orden-modal-title">
       <div class="orden-modal-header">
         <div class="orden-modal-header-title">
-          <h2 id="orden-modal-title">Orden</h2>
+          <h2 id="orden-modal-title">Venta</h2>
           <span class="estatus-badge estatus-listo" id="orden-modal-badge" hidden>Facturado</span>
         </div>
         <button type="button" class="btn-icon" id="btn-orden-modal-cerrar" aria-label="Cerrar">✕</button>
@@ -1762,10 +1762,10 @@
       <div class="orden-modal-body">
         <div class="orden-modal-main">
           <section class="orden-modal-info-card">
-            <h3 class="ticket-modal-section-titulo">Información de la orden</h3>
+            <h3 class="ticket-modal-section-titulo">Información de la venta</h3>
             <dl class="ticket-modal-info-grid">
               <div class="ticket-modal-info-item">
-                <dt class="ticket-modal-info-label">Fecha de compra</dt>
+                <dt class="ticket-modal-info-label">Fecha de venta</dt>
                 <dd class="ticket-modal-info-value" id="orden-modal-fecha"></dd>
               </div>
               <div class="ticket-modal-info-item">

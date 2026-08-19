@@ -1100,23 +1100,23 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
         const totalCompra = Number(body.total_compra);
 
         if (!numeroCompra) {
-          return res.status(400).json({ error: 'El número de compra es obligatorio.' });
+          return res.status(400).json({ error: 'El número de venta es obligatorio.' });
         }
 
         const matchFecha = fechaCompraCruda.match(/\d{2}\/[a-záéíóúñ]{3}\/\d{4}/i);
         if (!matchFecha) {
-          return res.status(400).json({ error: 'La fecha de compra debe tener el formato dd/mmm/aaaa (ej. 24/jul/2026).' });
+          return res.status(400).json({ error: 'La fecha de venta debe tener el formato dd/mmm/aaaa (ej. 24/jul/2026).' });
         }
         const fechaCompraTexto = matchFecha[0];
 
         const matchHora = horaCompraCruda.match(/([01]\d|2[0-3]):[0-5]\d:[0-5]\d/);
         if (!matchHora) {
-          return res.status(400).json({ error: 'La hora de compra debe tener el formato HH:mm:ss (ej. 09:30:45).' });
+          return res.status(400).json({ error: 'La hora de venta debe tener el formato HH:mm:ss (ej. 09:30:45).' });
         }
         const horaCompraTexto = matchHora[0];
 
         if (!Number.isFinite(totalCompra) || totalCompra <= 0) {
-          return res.status(400).json({ error: 'El total de la compra debe ser un número mayor a cero.' });
+          return res.status(400).json({ error: 'El total de la venta debe ser un número mayor a cero.' });
         }
 
         // Un solo mensaje genérico para cualquier discrepancia (no se
@@ -1124,7 +1124,7 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
         // hora/total no coinciden) — a propósito, para no revelar cuál
         // dato en particular está mal y facilitar que alguien adivine una
         // combinación válida por partes.
-        const MENSAJE_COMPRA_NO_ENCONTRADA = 'No se encuentra registrada la compra para facturar.';
+        const MENSAJE_COMPRA_NO_ENCONTRADA = 'No se encuentra registrada la venta para facturar.';
 
         const [ordenesCoincidentes] = await pool.query(
           'SELECT * FROM ordenes_compra WHERE numero_compra = ? AND eliminado_en IS NULL LIMIT 1',
@@ -1166,7 +1166,7 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
         );
         if (ticketsYaFacturados.length > 0) {
           return res.status(400).json({
-            error: 'Esa compra ya fue facturada.',
+            error: 'Esa venta ya fue facturada.',
             codigo: 'COMPRA_YA_FACTURADA',
           });
         }
@@ -1330,7 +1330,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff; border:1px dashed #C9C4B8; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.06);">
           <tr>
             <td style="padding:26px 28px 6px; text-align:center;">
-              <p style="margin:0; font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#7A756A;">Orden de compra</p>
+              <p style="margin:0; font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#7A756A;">Venta</p>
               <p style="margin:6px 0 0; font-size:22px; font-weight:bold; color:#1A1A1A; font-family:'Courier New',Courier,monospace;">${escapeHtmlCorreo(numeroCompra)}</p>
             </td>
           </tr>
@@ -1363,8 +1363,8 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     </tr>
     <tr>
       <td style="padding:22px 10px 0;">
-        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#333333;">¡Hola! Te confirmamos que registramos tu compra <strong>${escapeHtmlCorreo(numeroCompra)}</strong>. Con estos datos ya puedes solicitar tu factura desde el portal.</p>
-        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#333333;"><strong>Guarda este correo</strong> — tómale una foto o captura de pantalla — porque, al solicitar tu factura en el portal, te pediremos que captures el <strong>No. Compra, Fecha, Hora y Total exactamente como aparecen arriba</strong> (cada uno en su propio campo), además de la imagen de tu ticket de compra.</p>
+        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#333333;">¡Hola! Te confirmamos que registramos tu venta <strong>${escapeHtmlCorreo(numeroCompra)}</strong>. Con estos datos ya puedes solicitar tu factura desde el portal.</p>
+        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#333333;"><strong>Guarda este correo</strong> — tómale una foto o captura de pantalla — porque, al solicitar tu factura en el portal, te pediremos que captures el <strong>No. Venta, Fecha, Hora y Total exactamente como aparecen arriba</strong> (cada uno en su propio campo), además de la imagen de tu ticket de venta.</p>
         ${enlaceLogin ? `
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto;">
           <tr>
@@ -1381,7 +1381,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
 </html>`;
 
   const texto =
-    `ORDEN DE COMPRA — ${numeroCompra}\n\n` +
+    `VENTA — ${numeroCompra}\n\n` +
     `Fecha: ${fechaFormateada.fecha}\n` +
     `Hora: ${fechaFormateada.hora}\n` +
     `Concepto: ${concepto}\n` +
@@ -1389,8 +1389,8 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     `IVA (${ivaPorcentaje}%): $${(total - cantidad).toFixed(2)} MXN\n` +
     `TOTAL A FACTURAR: $${total.toFixed(2)} MXN\n` +
     `Correo: ${email}\n\n` +
-    `¡Hola! Te confirmamos que registramos tu compra ${numeroCompra}. Con estos datos ya puedes solicitar tu factura desde el portal.\n\n` +
-    `Guarda este correo — tómale una foto o captura de pantalla — porque, además de estos datos, al solicitar tu factura en el portal también te pediremos la imagen de tu ticket de compra.\n\n` +
+    `¡Hola! Te confirmamos que registramos tu venta ${numeroCompra}. Con estos datos ya puedes solicitar tu factura desde el portal.\n\n` +
+    `Guarda este correo — tómale una foto o captura de pantalla — porque, además de estos datos, al solicitar tu factura en el portal también te pediremos la imagen de tu ticket de venta.\n\n` +
     (enlaceLogin ? `Inicia sesión aquí para solicitar tu factura: ${enlaceLogin}\n\n` : '') +
     `Si no esperabas este correo, contacta a tu administrador.`;
 
@@ -1413,7 +1413,7 @@ async function enviarCorreoOrdenCompra(datos) {
   const { html, texto } = construirCorreoOrdenCompra(datos);
   await enviarCorreo({
     destinatario: datos.email,
-    asunto: `Confirmación de compra — ${datos.numeroCompra}`,
+    asunto: `Confirmación de venta — ${datos.numeroCompra}`,
     cuerpo: texto,
     html,
   });
@@ -1496,7 +1496,7 @@ async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca) {
     destinatario: correoContador,
     asunto: `Nuevo ticket para facturar — Folio ${folio}`,
     cuerpo:
-      `Se subió un nuevo ticket de compra para facturar.\n\n` +
+      `Se subió un nuevo ticket de venta para facturar.\n\n` +
       `RFC: ${rfc}\n` +
       `Folio: ${folio}\n\n` +
       (enlacePanel
@@ -2658,7 +2658,7 @@ app.put(
       return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar el correo de reportes.' });
     }
     if (body.ordenes_compra_habilitado !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
-      return res.status(403).json({ error: 'Tu perfil no tiene acceso a habilitar o deshabilitar Orden de compra.' });
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a habilitar o deshabilitar Ventas.' });
     }
     try {
       // rfc_compania / regimen_fiscal_compania / tipo_persona_compania
@@ -3672,7 +3672,7 @@ app.post(
       iva_porcentaje: ivaPorcentaje,
       total,
       email,
-      mensaje: 'Orden de compra registrada correctamente.',
+      mensaje: 'Venta registrada correctamente.',
     });
   })
 );
@@ -3732,7 +3732,7 @@ app.post(
     const [filas] = await pool.query('SELECT * FROM ordenes_compra WHERE id = ? AND eliminado_en IS NULL', [id]);
     const orden = filas[0];
     if (!orden) {
-      return res.status(404).json({ error: 'Orden de compra no encontrada.' });
+      return res.status(404).json({ error: 'Venta no encontrada.' });
     }
 
     const configGlobal = await getConfiguracionGlobal();
@@ -3791,7 +3791,7 @@ app.delete(
     const [filas] = await pool.query('SELECT * FROM ordenes_compra WHERE id = ? AND eliminado_en IS NULL', [id]);
     const orden = filas[0];
     if (!orden) {
-      return res.status(404).json({ error: 'Orden de compra no encontrada.' });
+      return res.status(404).json({ error: 'Venta no encontrada.' });
     }
 
     let resultadoReporte;
@@ -3812,8 +3812,8 @@ app.delete(
     res.json({
       ok: true,
       mensaje: resultadoReporte.correoEnviado
-        ? `Orden ${orden.numero_compra} eliminada. Reporte enviado a ${resultadoReporte.correoDestino}.`
-        : `Orden ${orden.numero_compra} eliminada. El reporte se guardó, pero no hay un correo de reportes configurado — nada se envió.`,
+        ? `Venta ${orden.numero_compra} eliminada. Reporte enviado a ${resultadoReporte.correoDestino}.`
+        : `Venta ${orden.numero_compra} eliminada. El reporte se guardó, pero no hay un correo de reportes configurado — nada se envió.`,
       correoEnviado: resultadoReporte.correoEnviado,
       correoDestino: resultadoReporte.correoDestino,
     });

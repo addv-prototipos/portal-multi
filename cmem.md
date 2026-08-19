@@ -222,3 +222,19 @@ ya se quitó de `validate.js`). Resultado: `verificar-mysql.js` 305/305
 reconstruido (`--no-cache` + `--force-recreate`). Docs: `PROJECT_STATE`
 punto 111, `AGENTS.md`, `CLAUDE.md`. Commit del módulo Gastos hecho
 (`7113deb`). Pendiente: commit del fix y push a `fact`.
+
+## 2026-08-19 — Renombrado "Orden de compra" → "Ventas"
+
+C031 14:30 ✓ El usuario pidió cambiar el nombre de "Orden de compra" a
+"Ventas" en el menú. Se analizó impacto/regresiones y se presentó
+propuesta; el usuario aprobó la **Opción B (todo el texto visible)** +
+"todo a 'venta'" (No. Compra → No. Venta; asunto del correo `VENTA —
+OC-000001` conservando el prefijo `OC-`). Se renombró TODO el texto
+visible al usuario (admin.html/admin.js, tickets.html/tickets.js,
+dashboard.html, server.js correos y mensajes API, reportes.js labels
+del Markdown/CSV/email) y se actualizaron los tests que asertaban el
+texto viejo (`tickets.test.js` y `reportes.test.js`). NO se tocaron
+identificadores (tabla `ordenes_compra`, columnas `numero_compra`/etc.,
+config `ordenes_compra_habilitado`, endpoints `/api/admin/ordenes-compra`,
+IDs/classes, prefijo `OC-`). Docs: PROJECT_STATE punto 112, README, US,
+CLAUDE. Validación: node --check + Jest pendientes antes del commit.
