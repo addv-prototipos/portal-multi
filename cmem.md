@@ -160,9 +160,8 @@ de la tabla `gastos` deben confirmarse con
 C025 11:00 ✓ Stack Docker arriba (backend 2h desactualizado). Se hizo
 `docker compose build --no-cache backend` + `up -d` (gotcha del punto
 108) y se validó el módulo Gastos contra MySQL+MinIO REALES:
-`verificar-mysql.js` 256/262 (6 fallas preexistentes ajenas:
-`numero_compra` DATA_TOO_LONG y un CHECK de tipo_persona que muere
-antes del CHECK). Tabla `gastos` + CHECK `chk_gastos_categoria`
+`verificar-mysql.js` 256/262 (6 fallas preexistentes ajenas —
+corregidas después, C029). Tabla `gastos` + CHECK `chk_gastos_categoria`
 confirmados en `INFORMATION_SCHEMA`.
 
 C026 11:05 ✓ Ciclo de vida completo por API (admin:admin vía nginx
@@ -198,3 +197,20 @@ actualizadas: `PROJECT_STATE.md` (punto 110), `AGENTS.md`, `CLAUDE.md`,
 `README.md` (sección "Vista Gastos", tabla de perfiles con la columna
 Gastos, conteo de endpoints 45→56, `FRONTEND_PORT` default 80),
 `.env` (FRONTEND_PORT=8088). Pendiente: revisión visual del usuario.
+
+## 2026-08-19 — Corrección de verificar-mysql.js (305/305)
+
+C029 13:00 ✓ Las 6 fallas "preexistentes" del script de regresión eran
+bugs del propio script, no del producto: 5 por `numero_compra` que no
+cabía en `VARCHAR(20)` (prefijo largo `__prueba_regresion__`) y 1 por
+`tipo_persona` que moría por longitud antes del CHECK. Fix: prefijo
+corto `NUM_COMPRA_PRUEBA='PRGR'` + limpieza idempotente + valor
+`'invalido'` para disparar el CHECK. Al destapar los bloques se
+encontraron 2 fallas más ocultas: el desfase de 1s (ms vs redondeo de
+MySQL; fix `setMilliseconds(0)` igual que el endpoint, punto 102) y el
+test histórico de `sanitizeText()` que quedó obsoleto (el escape de "/"
+ya se quitó de `validate.js`). Resultado: `verificar-mysql.js` 305/305
+(2 corridas contra MySQL real, idempotente) + Jest 546/546. Backend
+reconstruido (`--no-cache` + `--force-recreate`). Docs: `PROJECT_STATE`
+punto 111, `AGENTS.md`, `CLAUDE.md`. Commit del módulo Gastos hecho
+(`7113deb`). Pendiente: commit del fix y push a `fact`.

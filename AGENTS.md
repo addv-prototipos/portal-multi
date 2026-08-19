@@ -210,7 +210,8 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   completo por API (alta → lista+resumen → comprobante PDF en MinIO →
   descarga → edición a sin factura borra el archivo → papelera/
   restaurar/permanente, auditoría `admin_auditoria` registra todo);
-  verificar-mysql.js 256/262 (6 fallas preexistentes ajenas). Rebuild
+  verificar-mysql.js 305/305 (las 6 fallas preexistentes de `numero_compra`
+  y `tipo_persona` quedaron corregidas — ver punto 111). Rebuild
   del frontend para la revisión visual (2026-08-19): `docker compose
   build --no-cache frontend` + `up -d frontend` NO recreó el contenedor
   (seguía sirviendo `admin.html` viejo — hubo que `docker compose up -d

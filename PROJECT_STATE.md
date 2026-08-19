@@ -5772,10 +5772,11 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     - **Validado contra MySQL+MinIO reales (2026-08-19)**: stack Docker
       levantado; `docker compose build --no-cache backend` + `up -d`
       (gotcha del punto 108: el build normal no siempre recoge cambios).
-      `backend/scripts/verificar-mysql.js`: 256/262 (las 6 fallas son
+      `backend/scripts/verificar-mysql.js`: 256/262 (las 6 fallas eran
       PREEXISTENTES y ajenas a Gastos — `numero_compra` más largo que la
       columna en la prueba y un CHECK de tipo_persona que muere por
       `ER_DATA_TOO_LONG` antes del CHECK; el script no cubre gastos).
+      Corregidas después (punto 111).
       Tabla `gastos` + CHECK `chk_gastos_categoria` confirmados vía
       `INFORMATION_SCHEMA` en MySQL real. Ciclo de vida completo por API
       (usuario `admin:admin` vía nginx en `127.0.0.1:8088`):
@@ -5828,8 +5829,46 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        Activos/Papelera. Un script Playwright temporal de capturas se
        descartó al detectarse el gotcha del contenedor (se prefirió la
        revisión manual del usuario). El `.env` quedó así:
-       `CONTROL_APP_PASSWORD`, `INTERNAL_CACHE_SECRET`,
-       `FRONTEND_PORT=8088`.
+`CONTROL_APP_PASSWORD`, `INTERNAL_CACHE_SECRET`,
+        `FRONTEND_PORT=8088`.
+
+111. **Corrección de `verificar-mysql.js` — 305/305 pruebas (2026-08-19)**:
+    las 6 fallas "preexistentes ajenas" del script de regresión eran
+    **bugs del propio script**, no del producto, y quedaron corregidas
+    contra MySQL real (Docker/MySQL, backend reconstruido con `--no-cache`
+    + `--force-recreate`, gotcha del punto 110).
+    - **5 fallas `numero_compra` (ER_DATA_TOO_LONG)**: `ordenes_compra.
+      numero_compra` es `VARCHAR(20)` pero los valores de prueba usaban el
+      prefijo largo `__prueba_regresion__` (19 chars) → los INSERTs
+      fallaban por longitud. Fix: prefijo propio corto `NUM_COMPRA_PRUEBA
+      = 'PRGR'` (valores de 12–19 chars) + limpieza nueva en
+      `limpiarDatosDePrueba()` (`DELETE ... WHERE numero_compra LIKE
+      'PRGR-%'`, idempotente entre corridas). Corregidos los 8 sitios
+      (TICKET-VERIF, FACTURADO, REENVIO, RETEN-VIEJA/RECIENTE, REPORTE,
+      OC-invalida-1/2, el SELECT `-NO-EXISTE` y el check del Markdown de
+      reportes).
+    - **1 falla `tipo_persona` (ER_DATA_TOO_LONG)**: el test insertaba
+      `'no_es_un_tipo_valido'` (19 chars) que moría por longitud del
+      `VARCHAR(10)` ANTES de que el CHECK `chk_tipo_persona` evaluara.
+      Fix: valor `'invalido'` (8 chars) — ahora el CHECK dispara
+      `ER_CHECK_CONSTRAINT_VIOLATED` como esperaba la prueba.
+    - **2 fallas ocultas destapadas al arreglar las anteriores** (todo el
+      bloque de "Verificación de compra" abortaba antes y nunca se
+      ejercitaba): (a) el **desfase de 1 segundo** documentado en el
+      punto 102 se reproducía aquí — el script insertaba `new Date()` con
+      ms y MySQL redondea el DATETIME, haciendo intermitente la
+      comparación de los 4 datos; fix igual que el endpoint:
+      `ahoraOrdenTicket.setMilliseconds(0)` (también en FACTURADO y
+      REENVIO); (b) el test "BUG CONFIRMADO con sanitizeText()" quedó
+      **obsoleto**: el escape de "/" que corrompía la fecha se quitó de
+      `sanitizeText()` (fix de doble escape, ver comentario en
+      `backend/utils/validate.js`), así que la corrupción ya no existe —
+      se actualizó la aserción a "histórico, ya no aplica".
+    - **Resultado**: `verificar-mysql.js` **305/305** (2 corridas
+      consecutivas contra MySQL real, idempotente) + Jest **546/546** sin
+      regresiones. Los números de compra de prueba ahora caben en la
+      columna real, que ya es coherente con el `sanitizeText(…, 20)` del
+      endpoint.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

@@ -58,6 +58,11 @@ const {
 const { esZipValido, zipContienePdfYXml, sanitizeText, sanitizeTextoLibre } = require('../utils/validate');
 
 const PREFIJO_PRUEBA = '__prueba_regresion__';
+// `ordenes_compra.numero_compra` es VARCHAR(20) — el prefijo largo de
+// arriba (19 chars) no cabe en la columna y hace fallar los INSERTs por
+// ER_DATA_TOO_LONG. Los números de compra de prueba usan este prefijo
+// corto propio (aun así fácil de identificar y de limpiar).
+const NUM_COMPRA_PRUEBA = 'PRGR';
 const EMAIL_PRUEBA = `${PREFIJO_PRUEBA}@example.test`;
 const EMAIL_PRUEBA_2 = `${PREFIJO_PRUEBA}-2@example.test`;
 const RFC_PRUEBA_USUARIO = 'AAA010101AA1';
@@ -76,6 +81,7 @@ async function limpiarDatosDePrueba() {
   await pool.query('DELETE FROM registros WHERE email LIKE ?', [`${PREFIJO_PRUEBA}%`]);
   await pool.query('DELETE FROM tickets WHERE rfc = ?', [RFC_PRUEBA_USUARIO]);
   await pool.query('DELETE FROM usuarios WHERE rfc = ?', [RFC_PRUEBA_USUARIO]);
+  await pool.query('DELETE FROM ordenes_compra WHERE numero_compra LIKE ?', [`${NUM_COMPRA_PRUEBA}-%`]);
 }
 
 async function main() {
@@ -621,7 +627,7 @@ async function main() {
         (nombre, tipo_persona, email, archivo_nombre_original, archivo_nombre_guardado,
          archivo_mime, archivo_tamano_bytes, creado_en, actualizado_en)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['Cliente Invalido', 'no_es_un_tipo_valido', EMAIL_PRUEBA_2, 'c.pdf', 'uuid-c.pdf', 'application/pdf', 100, new Date(), new Date()]
+      ['Cliente Invalido', 'invalido', EMAIL_PRUEBA_2, 'c.pdf', 'uuid-c.pdf', 'application/pdf', 100, new Date(), new Date()]
     );
     log(false, 'La restricción CHECK en tipo_persona rechaza un valor invalido', 'no lanzo error (deberia haber fallado)');
   } catch (err) {
@@ -1567,11 +1573,17 @@ async function main() {
   // captura de No. Compra + fecha + hora + total, buscando una orden de
   // compra real que coincida en los cuatro datos antes de aceptar el
   // ticket para facturar.
-  const NUMERO_COMPRA_PRUEBA_TICKET = `${PREFIJO_PRUEBA}-TICKET-VERIF`;
+  const NUMERO_COMPRA_PRUEBA_TICKET = `${NUM_COMPRA_PRUEBA}-TICKET-VERIF`;
   let idOrdenParaTicket = null;
   try {
     const configParaVerificacion = await getConfiguracionGlobal();
     const ahoraOrdenTicket = new Date();
+    // Mismo fix que el endpoint POST /api/admin/ordenes-compra: Intl trunca
+    // los ms y MySQL redondea el DATETIME, así que un Date con ms ≥500
+    // guarda un segundo +1 y la comparación de los 4 datos falla
+    // intermitentemente (COMPRA_NO_ENCONTRADA). Sin ms, la comparación es
+    // determinista.
+    ahoraOrdenTicket.setMilliseconds(0);
     const [ordenParaTicket] = await pool.query(
       `INSERT INTO ordenes_compra
         (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
@@ -1632,7 +1644,7 @@ async function main() {
 
     const [ordenInexistente] = await pool.query(
       'SELECT * FROM ordenes_compra WHERE numero_compra = ? AND eliminado_en IS NULL LIMIT 1',
-      [`${PREFIJO_PRUEBA}-NO-EXISTE`]
+      [`${NUM_COMPRA_PRUEBA}-NO-EXISTE`]
     );
     log(ordenInexistente.length === 0, 'Un número de compra que no existe no encuentra ninguna orden (se rechazaría con "No se encuentra registrada la compra para facturar")');
 
@@ -1652,8 +1664,8 @@ async function main() {
       return match ? match[0] : null;
     }
     log(
-      extraerFechaComoLoHaceElEndpoint('24/jul/2026', sanitizeText) === null,
-      'BUG CONFIRMADO (documentado, no un defecto actual): con sanitizeText(), una fecha con formato perfecto se corrompía y no se reconocía'
+      extraerFechaComoLoHaceElEndpoint('24/jul/2026', sanitizeText) === '24/jul/2026',
+      'HISTÓRICO (ya no aplica): el escape de "/" que corrompía la fecha se quitó de sanitizeText() (doble escape visible al pintar), así que hoy tampoco se corrompe con sanitizeText — el punto sigue siendo que sanitizeTextoLibre() la deja intacta'
     );
     log(
       extraerFechaComoLoHaceElEndpoint('24/jul/2026', sanitizeTextoLibre) === '24/jul/2026',
@@ -1681,11 +1693,12 @@ async function main() {
   // 'listo') — mismo criterio que usa tanto el ícono ✅ en la tabla del
   // admin como el rechazo en POST /api/tickets para no volver a facturar
   // la misma compra.
-  const NUMERO_COMPRA_PRUEBA_FACTURADO = `${PREFIJO_PRUEBA}-FACTURADO`;
+  const NUMERO_COMPRA_PRUEBA_FACTURADO = `${NUM_COMPRA_PRUEBA}-FACTURADO`;
   let idOrdenFacturado = null;
   let idTicketFacturado = null;
   try {
     const ahoraOrdenFacturado = new Date();
+    ahoraOrdenFacturado.setMilliseconds(0);
     const [ordenFacturado] = await pool.query(
       `INSERT INTO ordenes_compra
         (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
@@ -1792,10 +1805,11 @@ async function main() {
   // nota ya existente sobre "Enviar prueba" para eso), pero sí se prueba
   // la consulta y el armado de los datos que usa
   // POST /api/admin/ordenes-compra/:id/reenviar-correo.
-  const NUMERO_COMPRA_PRUEBA_REENVIO = `${PREFIJO_PRUEBA}-REENVIO`;
+  const NUMERO_COMPRA_PRUEBA_REENVIO = `${NUM_COMPRA_PRUEBA}-REENVIO`;
   let idOrdenReenvio = null;
   try {
     const ahoraOrdenReenvio = new Date();
+    ahoraOrdenReenvio.setMilliseconds(0);
     const [ordenReenvio] = await pool.query(
       `INSERT INTO ordenes_compra
         (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
@@ -2088,13 +2102,13 @@ async function main() {
         (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
        VALUES (?, DATE_SUB(NOW(), INTERVAL 100 DAY), 'Orden vieja de prueba', 100, 16, 116, ?,
                DATE_SUB(NOW(), INTERVAL 100 DAY), DATE_SUB(NOW(), INTERVAL 100 DAY))`,
-      [`${PREFIJO_PRUEBA}-RETEN-VIEJA`, EMAIL_PRUEBA]
+      [`${NUM_COMPRA_PRUEBA}-RETEN-VIEJA`, EMAIL_PRUEBA]
     );
     const [ordenReciente] = await pool.query(
       `INSERT INTO ordenes_compra
         (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
        VALUES (?, NOW(), 'Orden reciente de prueba', 100, 16, 116, ?, NOW(), NOW())`,
-      [`${PREFIJO_PRUEBA}-RETEN-RECIENTE`, EMAIL_PRUEBA]
+      [`${NUM_COMPRA_PRUEBA}-RETEN-RECIENTE`, EMAIL_PRUEBA]
     );
 
     const { eliminados: eliminadosOrdenes } = await limpiarOrdenesVencidas();
@@ -2144,7 +2158,7 @@ async function main() {
         (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
        VALUES (?, DATE_SUB(NOW(), INTERVAL 100 DAY), 'Orden para probar el reporte', 200, 16, 232, ?,
                DATE_SUB(NOW(), INTERVAL 100 DAY), DATE_SUB(NOW(), INTERVAL 100 DAY))`,
-      [`${PREFIJO_PRUEBA}-REPORTE`, EMAIL_PRUEBA]
+      [`${NUM_COMPRA_PRUEBA}-REPORTE`, EMAIL_PRUEBA]
     );
 
     const resultadoLimpieza = await ejecutarLimpiezaConReporte();
@@ -2163,7 +2177,7 @@ async function main() {
       log(filasReporte.length === 1, 'El reporte quedó guardado en la tabla "reportes"');
       log(filasReporte[0].tipo === 'automatico', 'El reporte generado antes del borrado se guarda con tipo "automatico"');
       log(
-        filasReporte[0].md_contenido.includes('TK-TEST-REPORTE') && filasReporte[0].md_contenido.includes(`${PREFIJO_PRUEBA}-REPORTE`),
+        filasReporte[0].md_contenido.includes('TK-TEST-REPORTE') && filasReporte[0].md_contenido.includes(`${NUM_COMPRA_PRUEBA}-REPORTE`),
         'El Markdown guardado contiene tanto el folio del ticket como el No. Compra de la orden capturados'
       );
 
@@ -2180,7 +2194,7 @@ async function main() {
         'El Markdown del reporte incluye quién atendió el ticket en la columna "Atendido por"'
       );
       log(
-        Boolean(itemOrden) && itemOrden.identificador === `${PREFIJO_PRUEBA}-REPORTE` && Number(itemOrden.monto) === 232,
+        Boolean(itemOrden) && itemOrden.identificador === `${NUM_COMPRA_PRUEBA}-REPORTE` && Number(itemOrden.monto) === 232,
         'El item de la orden quedó guardado en "reporte_items" con su No. Compra y monto correctos'
       );
 
@@ -2543,7 +2557,7 @@ async function main() {
         `INSERT INTO ordenes_compra
           (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
          VALUES (?, NOW(), 'Prueba invalida', -100, 16, 0, ?, NOW(), NOW())`,
-        [`${PREFIJO_PRUEBA}-OC-invalida-1`, EMAIL_PRUEBA_ORDEN]
+        [`${NUM_COMPRA_PRUEBA}-OC-invalida-1`, EMAIL_PRUEBA_ORDEN]
       );
     } catch (err) {
       rechazoCantidadInvalida = true;
@@ -2556,7 +2570,7 @@ async function main() {
         `INSERT INTO ordenes_compra
           (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
          VALUES (?, NOW(), 'Prueba invalida', 100, 150, 250, ?, NOW(), NOW())`,
-        [`${PREFIJO_PRUEBA}-OC-invalida-2`, EMAIL_PRUEBA_ORDEN]
+        [`${NUM_COMPRA_PRUEBA}-OC-invalida-2`, EMAIL_PRUEBA_ORDEN]
       );
     } catch (err) {
       rechazoIvaInvalido = true;
