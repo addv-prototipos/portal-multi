@@ -237,4 +237,9 @@ texto viejo (`tickets.test.js` y `reportes.test.js`). NO se tocaron
 identificadores (tabla `ordenes_compra`, columnas `numero_compra`/etc.,
 config `ordenes_compra_habilitado`, endpoints `/api/admin/ordenes-compra`,
 IDs/classes, prefijo `OC-`). Docs: PROJECT_STATE punto 112, README, US,
-CLAUDE. Validación: node --check + Jest pendientes antes del commit.
+CLAUDE. Validación: node --check + Jest 546/546 OK; commit `a34c877`
+pusheado a `fact` (`main:master`). Rebuild backend+frontend
+(`--no-cache` + `--force-recreate`, 2026-08-19) verificado por HTTP:
+health OK, `/admin` sirve "Ventas" sin restos de "Orden de compra", y
+`/tickets` sirve "Verifica tu venta"/"No. Venta"; `FRONTEND_PORT=8088`
+conservado. Pendiente: revisión visual del usuario.

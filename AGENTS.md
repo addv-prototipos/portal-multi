@@ -221,6 +221,16 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   por API (2 activos, 1 en papelera, uno con comprobante PDF) para la
   revisión manual. **Revisión visual APROBADA por el usuario (2026-08-19)**:
   `http://localhost:8088/admin` (`admin:admin`).
+- **Renombrado "Orden de compra" → "Ventas" (ver PROJECT_STATE.md punto 112)**
+  (2026-08-19): solo texto visible al usuario (panel admin, portal del
+  cliente, correos y reportes); identificadores intactos a propósito (tabla
+  `ordenes_compra`, columnas `numero_compra`/etc., endpoint
+  `/api/admin/ordenes-compra`, config `ordenes_compra_habilitado`, IDs/classes
+  y prefijo `OC-000001`). Tests al día (`tickets.test.js`,
+  `reportes.test.js`) + `node --check` + Jest **546/546**. Rebuild
+  backend+frontend (`--no-cache` + `--force-recreate`) verificado por HTTP
+  (health OK, `/admin` y `/tickets` sirven el nuevo texto);
+  `FRONTEND_PORT=8088` conservado. Commit `a34c877` pusheado a `fact`.
 - **Remotes git (ver PROJECT_STATE.md punto 107)**: `origin` apunta a
   `portal-multi.git` y `fact` a `ADDVportalFact.git` (el repo donde se
   publica el trabajo real). Publicar = `git push fact main:master` (la

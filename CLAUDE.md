@@ -409,6 +409,16 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   por API (2 activos, 1 en papelera, uno con comprobante PDF) para la
   revisión manual. **Revisión visual APROBADA por el usuario (2026-08-19)**:
   `http://localhost:8088/admin` (`admin:admin`).
+- **Renombrado "Orden de compra" → "Ventas" (ver PROJECT_STATE.md punto 112)**
+  (2026-08-19): solo texto visible al usuario (panel admin, portal del
+  cliente, correos y reportes); identificadores intactos a propósito (tabla
+  `ordenes_compra`, columnas `numero_compra`/etc., endpoint
+  `/api/admin/ordenes-compra`, config `ordenes_compra_habilitado`, IDs/classes
+  y prefijo `OC-000001`). Tests al día (`tickets.test.js`,
+  `reportes.test.js`) + `node --check` + Jest **546/546**. Rebuild
+  backend+frontend (`--no-cache` + `--force-recreate`) verificado por HTTP
+  (health OK, `/admin` y `/tickets` sirven el nuevo texto);
+  `FRONTEND_PORT=8088` conservado. Commit `a34c877` pusheado a `fact`.
 
 Las tres superficies de la app: portal de cliente (sin prefijo o
 `/<slug>/...`), panel admin por tenant (`/admin` o `/<slug>/admin`), y

@@ -5908,7 +5908,14 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     - **Validación**: `node --check` en los `.js` tocados + Jest completo sin
       regresiones (ver el commit). No afecta esquema ni queries; una corrida
       de `verificar-mysql.js` es opcional (no aserta labels, solo prefijos e
-      identificadores). Falta rebuild del frontend para la revisión visual.
+      identificadores). **Rebuild del stack (2026-08-19)**: `docker compose
+      build --no-cache backend frontend` + `up -d --force-recreate backend
+      frontend` (mismo gotcha del punto 110: `up -d` solo NO recrea el
+      contenedor) — verificado por HTTP: `/api/health` OK, `/admin` sirve
+      "Ventas"/"Ventas registradas" sin restos de "Orden de compra"/"No.
+      Compra", `/tickets` sirve "Verifica tu venta"/"No. Venta".
+      `FRONTEND_PORT=8088` en `.env` conservado. Pendiente: revisión visual
+      del usuario.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 
