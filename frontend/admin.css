@@ -1,7 +1,161 @@
+/* Panel de administración: paleta azul institucional fiel al mockup de
+   stitch (stitch/panel_admin_portal_addv_fiel_al_mockup/code.html), misma
+   ya usada en el login rediseñado (auth.css .auth-shell) — contenida a
+   .admin-body para no tocar el verde base de style.css en el resto del
+   sitio. Va en .admin-body (no en .admin-dashboard) porque los modales
+   (crear usuario, confirmar eliminar, etc.) son hermanos de
+   #admin-dashboard en el HTML, no hijos — así los botones/enfoque de los
+   modales también heredan la paleta en vez de quedar en verde. El login
+   (.auth-shell) redefine las mismas variables con los mismos valores, así
+   que no hay conflicto ahí. */
 .admin-body {
   margin: 0;
   background: var(--color-bg);
   min-height: 100vh;
+
+  --color-accent: #03285B;
+  --color-accent-dark: #0B1320;
+  --color-accent-soft: #E7ECF3;
+  --color-ink: #0B1320;
+  --color-ink-soft: #6B7280;
+  --color-border: #E5E7EB;
+  --shadow-card: 0px 4px 12px rgba(11, 19, 32, 0.05);
+}
+
+.admin-dashboard {
+  display: flex;
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.admin-sidebar {
+  width: 256px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #03285B;
+  color: #fff;
+}
+
+/* branding_bgo.png es la variante clara del logo, pensada para fondo
+   oscuro (texto blanco) — directo sobre el navy del sidebar, sin tarjeta. */
+.admin-sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 16px 18px;
+}
+.admin-sidebar-logo-img {
+  display: block;
+  max-width: 140px;
+  height: auto;
+}
+.admin-sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-sidebar-nav .admin-vista-btn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.admin-sidebar-nav .admin-vista-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.admin-sidebar-nav .admin-vista-btn.is-active {
+  background: #05DBF2;
+  color: #03285B;
+  font-weight: 600;
+}
+.admin-sidebar-icon { flex-shrink: 0; }
+
+.admin-sidebar-footer {
+  padding: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.admin-sidebar-logout {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.admin-sidebar-logout:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
+.admin-sidebar-nav .admin-vista-btn:focus-visible,
+.admin-sidebar-logout:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #05DBF2;
+}
+
+/* Sin display:flex aquí a propósito: .admin-main usa margin:0 auto para
+   centrarse con un ancho máximo (max-width:1400px) — dentro de un
+   contenedor flex, el auto-margin en el eje transversal encoge el
+   elemento a su contenido en vez de respetar el ancho del contenedor
+   (rompía el wrap de la barra de herramientas, empujándola fuera del
+   viewport). Como bloque normal, .admin-main sí hereda el 100% del
+   ancho ya acotado por flex:1 + min-width:0 de aquí abajo. */
+.admin-content {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .admin-dashboard { flex-direction: column; min-height: 0; }
+  .admin-sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+  }
+  .admin-sidebar-logo {
+    padding: 10px 12px;
+    flex-shrink: 0;
+  }
+  .admin-sidebar-logo-img { max-width: 80px; }
+  .admin-sidebar-nav {
+    flex: 1;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px;
+    min-width: 0;
+  }
+  .admin-sidebar-nav .admin-vista-btn { flex-shrink: 0; white-space: nowrap; padding: 8px 10px; font-size: 12.5px; }
+  .admin-sidebar-footer {
+    border-top: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 10px;
+    flex-shrink: 0;
+  }
+  .admin-sidebar-logout span:last-child { display: none; }
+  .admin-sidebar-logout { padding: 8px; justify-content: center; }
 }
 
 /* Login screen: layout de split-screen (marca + tarjeta) compartido con
@@ -109,47 +263,35 @@
   cursor: progress;
 }
 
-/* Dashboard shell */
-.admin-dashboard { min-height: 100vh; }
-
+/* Topbar del panel — a la derecha del sidebar, solo muestra la info
+   fiscal de la compañía y la sesión activa (ver .admin-sidebar-footer
+   para "Cerrar sesión", ahora en el sidebar). */
 .admin-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 16px;
   padding: 16px 24px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
 
-/* RFC + Código SAT de la compañía, junto a "Administración" — solo se
-   muestra cuando ambos están configurados (ver aplicarInfoFiscalBarra()
-   en admin.js); mientras falte cualquiera de los dos, el atributo
-   "hidden" del HTML lo mantiene oculto por completo. */
+/* RFC + Código SAT de la compañía — solo se muestra cuando ambos están
+   configurados (ver aplicarInfoFiscalBarra() en admin.js); mientras falte
+   cualquiera de los dos, el atributo "hidden" del HTML lo mantiene oculto
+   por completo. */
 .brand-fiscal-info {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--color-ink-soft);
-  padding-left: 10px;
-  margin-left: 2px;
-  border-left: 1px solid var(--color-border);
-}
-
-.admin-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  padding-right: 16px;
+  border-right: 1px solid var(--color-border);
 }
 
 .admin-user-label {
   font-size: 13.5px;
   color: var(--color-ink-soft);
-}
-
-.admin-header-actions .btn {
-  padding: 8px 16px;
-  font-size: 13.5px;
 }
 
 .admin-main {
@@ -1177,41 +1319,6 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .btn-danger:hover { background: #962019; }
 
-/* ---------- Toggle Constancias / Tickets ---------- */
-.admin-vista-toggle {
-  display: inline-flex;
-  flex-wrap: wrap;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 3px;
-  gap: 2px;
-  margin-bottom: 18px;
-  box-shadow: var(--shadow-card);
-}
-.admin-vista-btn {
-  border: none;
-  background: transparent;
-  color: var(--color-ink-soft);
-  font-family: var(--font-body);
-  font-size: 13.5px;
-  font-weight: 600;
-  padding: 8px 18px;
-  border-radius: 6px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.admin-vista-btn:hover { color: var(--color-ink); }
-.admin-vista-btn.is-active {
-  background: var(--color-accent);
-  color: #fff;
-}
-
-@media (max-width: 640px) {
-  .admin-vista-toggle { display: flex; width: 100%; }
-  .admin-vista-btn { flex: 1 1 auto; padding: 8px 10px; font-size: 12.5px; text-align: center; }
-}
-
 /* ---------- Tabla de tickets ---------- */
 .tickets-filtro-estatus {
   padding: 8px 30px 8px 12px;
@@ -1356,9 +1463,14 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   border: 0;
 }
 
-/* ---------- Modal de gestión de ticket ---------- */
+/* ---------- Modal de gestión de ticket ----------
+   Fiel al mockup de stitch (stitch/detalle_de_solicitud/code.html):
+   encabezado con badge de estatus junto al título, cuerpo en 2 columnas
+   (información + adjunto a la izquierda, acciones en tarjetas a la
+   derecha) — mismos campos/funciones de siempre, solo reordenados. */
 .ticket-modal {
-  max-width: 420px;
+  max-width: 820px;
+  width: 94vw;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
 }
@@ -1368,12 +1480,68 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 20px;
+}
+.ticket-modal-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .ticket-modal-header h2 {
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 19px;
   margin: 0;
+}
+
+.ticket-modal-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+.ticket-modal-main {
+  flex: 1;
+  min-width: 0;
+}
+.ticket-modal-main > * + * {
+  margin-top: 22px;
+}
+.ticket-modal-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ticket-modal-section-titulo {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+  margin: 0 0 12px;
+}
+
+.ticket-modal-info-card {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+.ticket-modal-info-card .ticket-modal-info-grid { margin: 0; }
+
+.ticket-modal-side-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+}
+
+@media (max-width: 720px) {
+  .ticket-modal-body { flex-direction: column; }
+  .ticket-modal-sidebar { width: 100%; }
 }
 
 /* Cuadrícula de datos del ticket: reemplaza la línea corrida de antes
@@ -1538,16 +1706,10 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   .ticket-modal-imagen-wrap { height: 220px; }
 }
 
-.ticket-modal .estatus-badge { margin-bottom: 14px; }
-
 .ticket-modal-estatus-field { margin-bottom: 16px; }
 
-.ticket-modal > .btn-block { margin-bottom: 16px; }
+.ticket-modal-side-card .btn-block { margin-top: 4px; }
 
-.ticket-modal-factura {
-  padding-top: 16px;
-  border-top: 1px solid var(--color-border);
-}
 .ticket-modal-factura-actual {
   background: var(--color-bg);
   border-radius: var(--radius-sm);

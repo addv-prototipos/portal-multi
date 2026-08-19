@@ -1,18 +1,46 @@
+/* Paleta azul institucional del panel de administración (ver admin.css
+   .admin-body) y del login (auth.css .auth-shell), aplicada aquí al
+   portal de cliente para que las tres superficies compartan identidad —
+   contenida a .portal-body para no tocar el verde base de style.css en
+   /control (que no usa esta clase). */
 .portal-body {
   margin: 0;
   min-height: 100vh;
   background: var(--color-bg);
+
+  --color-accent: #03285B;
+  --color-accent-dark: #0B1320;
+  --color-accent-soft: #E7ECF3;
+  --color-ink: #0B1320;
+  --color-ink-soft: #6B7280;
+  --color-border: #E5E7EB;
+  --shadow-card: 0px 4px 12px rgba(11, 19, 32, 0.05);
 }
 
+/* Mismo navy que la barra lateral del admin (ver admin.css .admin-sidebar) —
+   hardcodeado (no var(--color-accent)) porque esta barra es siempre oscura
+   sin importar el tema del tenant, igual que esa barra lateral. */
 .portal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 16px 24px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  padding: 12px 24px;
+  background: #03285B;
+}
+
+/* branding_bgo.png es la variante clara del logo (texto blanco), pensada
+   para el navy del header — sin tarjeta, igual que admin.css
+   .admin-sidebar-logo. */
+.portal-header-logo {
+  display: flex;
+  align-items: center;
+}
+.portal-header-logo img {
+  display: block;
+  height: 42px;
+  width: auto;
 }
 
 .portal-header-actions {
@@ -20,6 +48,19 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px 14px;
+}
+
+.portal-header .portal-user-label {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.portal-header .btn-secondary {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.portal-header .btn-secondary:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .portal-user-label {

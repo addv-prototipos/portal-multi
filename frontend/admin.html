@@ -58,28 +58,53 @@
 
   <!-- Panel de administración -->
   <div class="admin-dashboard" id="admin-dashboard" hidden>
-    <header class="admin-header">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">FX</span>
-        <span class="brand-name">Administración</span>
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-logo">
+        <img class="admin-sidebar-logo-img" src="/assets/branding_bgo.png" alt="CLARVO — Portal de Facturación by ADDV" />
+      </div>
+
+      <nav class="admin-sidebar-nav" role="tablist" aria-label="Vista del panel">
+        <button type="button" class="admin-vista-btn is-active" id="btn-vista-constancias" role="tab" aria-selected="true">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Constancias</span>
+        </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-tickets" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Tickets</span>
+        </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-ordenes" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
+          <span>Orden de compra</span>
+        </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-usuarios" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Usuarios</span>
+        </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-configuraciones" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round" stroke-width="1.3"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Configuraciones globales</span>
+        </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-lectura-reportes" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Reportes</span>
+        </button>
+      </nav>
+
+      <div class="admin-sidebar-footer">
+        <button type="button" class="admin-sidebar-logout" id="btn-logout" aria-label="Cerrar sesión">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Cerrar sesión</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="admin-content">
+      <header class="admin-header">
         <span class="brand-fiscal-info" id="brand-fiscal-info" hidden></span>
-      </div>
-      <div class="admin-header-actions">
         <span class="admin-user-label" id="admin-user-label"></span>
-        <button type="button" class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
-      </div>
-    </header>
+      </header>
 
-    <main class="admin-main">
-      <div class="admin-vista-toggle" role="tablist" aria-label="Vista del panel">
-        <button type="button" class="admin-vista-btn is-active" id="btn-vista-constancias" role="tab" aria-selected="true">Constancias</button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-tickets" role="tab" aria-selected="false">Tickets</button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-ordenes" role="tab" aria-selected="false">Orden de compra</button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-usuarios" role="tab" aria-selected="false">Usuarios</button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-configuraciones" role="tab" aria-selected="false">Configuraciones globales</button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-lectura-reportes" role="tab" aria-selected="false">Reportes</button>
-      </div>
-
+      <main class="admin-main">
       <div id="vista-constancias">
       <div class="admin-toolbar">
         <div class="admin-toolbar-title">
@@ -1037,7 +1062,8 @@
 
         <p class="lectura-reportes-vacio" id="lectura-reportes-sin-seleccion">Selecciona un reporte de la lista para ver su contenido.</p>
       </div>
-    </main>
+      </main>
+    </div>
   </div>
 
   <!-- Modal de confirmación genérico (eliminar / eliminar permanentemente) -->
@@ -1237,124 +1263,143 @@
   <div class="modal-overlay" id="ticket-modal-overlay" hidden>
     <div class="modal ticket-modal" role="dialog" aria-modal="true" aria-labelledby="ticket-modal-title">
       <div class="ticket-modal-header">
-        <div>
+        <div class="ticket-modal-header-title">
           <h2 id="ticket-modal-title">Ticket</h2>
+          <span class="estatus-badge" id="ticket-modal-estatus-badge"></span>
         </div>
         <button type="button" class="btn-icon" id="btn-ticket-modal-cerrar" aria-label="Cerrar">✕</button>
       </div>
 
-      <dl class="ticket-modal-info-grid">
-        <div class="ticket-modal-info-item">
-          <dt class="ticket-modal-info-label">RFC</dt>
-          <dd class="ticket-modal-info-value" id="ticket-modal-info-rfc"></dd>
-        </div>
-        <div class="ticket-modal-info-item">
-          <dt class="ticket-modal-info-label">Uso de CFDI</dt>
-          <dd class="ticket-modal-info-value" id="ticket-modal-info-uso-cfdi"></dd>
-        </div>
-        <div class="ticket-modal-info-item">
-          <dt class="ticket-modal-info-label">Tipo de pago</dt>
-          <dd class="ticket-modal-info-value" id="ticket-modal-info-tipo-pago"></dd>
-        </div>
-        <div class="ticket-modal-info-item">
-          <dt class="ticket-modal-info-label">Última actualización por</dt>
-          <dd class="ticket-modal-info-value" id="ticket-modal-info-actualizado-por">—</dd>
-        </div>
-        <div class="ticket-modal-info-item ticket-modal-info-item-ancho">
-          <dt class="ticket-modal-info-label">Documento</dt>
-          <dd class="ticket-modal-info-value" id="ticket-modal-info-documento"></dd>
-        </div>
-      </dl>
+      <div class="ticket-modal-body">
+        <!-- Columna principal: datos de la solicitud + ticket adjunto -->
+        <div class="ticket-modal-main">
+          <section class="ticket-modal-info-card">
+            <h3 class="ticket-modal-section-titulo">Información de la solicitud</h3>
+            <dl class="ticket-modal-info-grid">
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">RFC</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-info-rfc"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Uso de CFDI</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-info-uso-cfdi"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Tipo de pago</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-info-tipo-pago"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Última actualización por</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-info-actualizado-por">—</dd>
+              </div>
+              <div class="ticket-modal-info-item ticket-modal-info-item-ancho">
+                <dt class="ticket-modal-info-label">Documento</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-info-documento"></dd>
+              </div>
+            </dl>
+          </section>
 
-      <div class="ticket-modal-comentarios-box" id="ticket-modal-comentarios-box" hidden>
-        <div class="ticket-modal-comentarios-header">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4.4 3.3A.5.5 0 0 1 3.8 20V17H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-          </svg>
-          <span>Comentarios del cliente</span>
-        </div>
-        <p class="ticket-modal-comentarios-texto" id="ticket-modal-comentarios-texto"></p>
-      </div>
-
-      <!-- Datos de la compra que el cliente capturó en "Verifica tu compra"
-           al subir el ticket — se muestran justo arriba de la foto para
-           poder cotejarlos contra lo que dice el ticket real. Solo
-           aparece si el ticket quedó vinculado a una orden de compra real
-           (con "Orden de compra" habilitada); si no, no hay nada que
-           mostrar aquí. -->
-      <div class="ticket-modal-compra-box" id="ticket-modal-compra-box" hidden>
-        <div class="ticket-modal-comentarios-header">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-          </svg>
-          <span>Compra capturada por el cliente — coteja contra la foto</span>
-        </div>
-        <dl class="ticket-modal-compra-grid">
-          <div class="ticket-modal-info-item">
-            <dt class="ticket-modal-info-label">No. Compra</dt>
-            <dd class="ticket-modal-info-value" id="ticket-modal-compra-numero"></dd>
+          <div class="ticket-modal-comentarios-box" id="ticket-modal-comentarios-box" hidden>
+            <div class="ticket-modal-comentarios-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4.4 3.3A.5.5 0 0 1 3.8 20V17H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              </svg>
+              <span>Comentarios del cliente</span>
+            </div>
+            <p class="ticket-modal-comentarios-texto" id="ticket-modal-comentarios-texto"></p>
           </div>
-          <div class="ticket-modal-info-item">
-            <dt class="ticket-modal-info-label">Fecha</dt>
-            <dd class="ticket-modal-info-value" id="ticket-modal-compra-fecha"></dd>
+
+          <!-- Datos de la compra que el cliente capturó en "Verifica tu compra"
+               al subir el ticket — se muestran justo arriba de la foto para
+               poder cotejarlos contra lo que dice el ticket real. Solo
+               aparece si el ticket quedó vinculado a una orden de compra real
+               (con "Orden de compra" habilitada); si no, no hay nada que
+               mostrar aquí. -->
+          <div class="ticket-modal-compra-box" id="ticket-modal-compra-box" hidden>
+            <div class="ticket-modal-comentarios-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+              <span>Compra capturada por el cliente — coteja contra la foto</span>
+            </div>
+            <dl class="ticket-modal-compra-grid">
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">No. Compra</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-compra-numero"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Fecha</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-compra-fecha"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Hora</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-compra-hora"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Total</dt>
+                <dd class="ticket-modal-info-value" id="ticket-modal-compra-total"></dd>
+              </div>
+            </dl>
           </div>
-          <div class="ticket-modal-info-item">
-            <dt class="ticket-modal-info-label">Hora</dt>
-            <dd class="ticket-modal-info-value" id="ticket-modal-compra-hora"></dd>
-          </div>
-          <div class="ticket-modal-info-item">
-            <dt class="ticket-modal-info-label">Total</dt>
-            <dd class="ticket-modal-info-value" id="ticket-modal-compra-total"></dd>
-          </div>
-        </dl>
-      </div>
 
-      <div class="ticket-modal-imagen-wrap" id="ticket-modal-imagen-wrap">
-        <p class="ticket-modal-imagen-status" id="ticket-modal-imagen-status">Cargando imagen…</p>
-        <img id="ticket-modal-imagen" alt="Imagen del ticket" hidden />
-      </div>
-      <div class="ticket-modal-imagen-acciones">
-        <p class="ticket-modal-imagen-hint">Pasa el cursor sobre la imagen para ampliarla.</p>
-        <button type="button" class="btn btn-secondary btn-descargar-imagen" id="btn-ticket-descargar-imagen">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 3v12m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-          Descargar imagen
-        </button>
-      </div>
-
-      <div class="field ticket-modal-estatus-field">
-        <label for="ticket-modal-estatus-select">Estatus</label>
-        <select id="ticket-modal-estatus-select">
-          <option value="pendiente">Pendiente</option>
-          <option value="en_curso">En curso</option>
-          <option value="cancelado">Cancelado</option>
-          <option value="listo" disabled>Listo (sube la factura para marcarlo)</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="ticket-modal-notas">Notas internas</label>
-        <textarea id="ticket-modal-notas" rows="2" maxlength="1000" placeholder="Opcional"></textarea>
-      </div>
-
-      <button type="button" class="btn btn-primary btn-block" id="btn-ticket-guardar-estatus">
-        <span id="btn-ticket-guardar-estatus-label">Guardar cambios</span>
-      </button>
-
-      <div class="ticket-modal-factura">
-        <div class="ticket-modal-factura-actual" id="ticket-modal-factura-actual" hidden>
-          <p class="ticket-modal-factura-hint">Factura actual: <strong id="ticket-modal-factura-actual-nombre"></strong></p>
-          <button type="button" class="btn btn-secondary btn-block" id="btn-ticket-descargar-factura">Descargar factura actual</button>
+          <section>
+            <h3 class="ticket-modal-section-titulo">Ticket adjunto</h3>
+            <div class="ticket-modal-imagen-wrap" id="ticket-modal-imagen-wrap">
+              <p class="ticket-modal-imagen-status" id="ticket-modal-imagen-status">Cargando imagen…</p>
+              <img id="ticket-modal-imagen" alt="Imagen del ticket" hidden />
+            </div>
+            <div class="ticket-modal-imagen-acciones">
+              <p class="ticket-modal-imagen-hint">Pasa el cursor sobre la imagen para ampliarla.</p>
+              <button type="button" class="btn btn-secondary btn-descargar-imagen" id="btn-ticket-descargar-imagen">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 3v12m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                Descargar imagen
+              </button>
+            </div>
+          </section>
         </div>
-        <label for="ticket-modal-factura-input" id="label-ticket-modal-factura-input">Subir factura</label>
-        <p class="ticket-modal-factura-hint" id="ticket-modal-factura-hint">Solo se acepta un archivo <strong>.zip</strong> que contenga, adentro, tanto el <strong>PDF</strong> como el <strong>XML</strong> de la factura — si falta alguno de los dos, se rechaza. Al subirlo correctamente, el ticket se marca automáticamente como "Listo".</p>
-        <input type="file" id="ticket-modal-factura-input" accept=".zip" />
-        <button type="button" class="btn btn-primary btn-block" id="btn-ticket-subir-factura">
-          <span id="btn-ticket-subir-factura-label">Subir factura y marcar como listo</span>
-        </button>
+
+        <!-- Columna lateral: acciones (estatus + factura) -->
+        <div class="ticket-modal-sidebar">
+          <section class="ticket-modal-side-card">
+            <h3 class="ticket-modal-section-titulo">Estatus</h3>
+            <div class="field ticket-modal-estatus-field">
+              <label for="ticket-modal-estatus-select">Cambiar estatus</label>
+              <select id="ticket-modal-estatus-select">
+                <option value="pendiente">Pendiente</option>
+                <option value="en_curso">En curso</option>
+                <option value="cancelado">Cancelado</option>
+                <option value="listo" disabled>Listo (sube la factura para marcarlo)</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="ticket-modal-notas">Notas internas</label>
+              <textarea id="ticket-modal-notas" rows="2" maxlength="1000" placeholder="Opcional"></textarea>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-block" id="btn-ticket-guardar-estatus">
+              <span id="btn-ticket-guardar-estatus-label">Guardar cambios</span>
+            </button>
+          </section>
+
+          <section class="ticket-modal-side-card ticket-modal-factura">
+            <h3 class="ticket-modal-section-titulo">Factura</h3>
+            <div class="ticket-modal-factura-actual" id="ticket-modal-factura-actual" hidden>
+              <p class="ticket-modal-factura-hint">Factura actual: <strong id="ticket-modal-factura-actual-nombre"></strong></p>
+              <button type="button" class="btn btn-secondary btn-block" id="btn-ticket-descargar-factura">Descargar factura actual</button>
+            </div>
+            <label for="ticket-modal-factura-input" id="label-ticket-modal-factura-input">Subir factura</label>
+            <p class="ticket-modal-factura-hint" id="ticket-modal-factura-hint">Solo se acepta un archivo <strong>.zip</strong> que contenga, adentro, tanto el <strong>PDF</strong> como el <strong>XML</strong> de la factura — si falta alguno de los dos, se rechaza. Al subirlo correctamente, el ticket se marca automáticamente como "Listo".</p>
+            <input type="file" id="ticket-modal-factura-input" accept=".zip" />
+            <button type="button" class="btn btn-primary btn-block" id="btn-ticket-subir-factura">
+              <span id="btn-ticket-subir-factura-label">Subir factura y marcar como listo</span>
+            </button>
+          </section>
+        </div>
       </div>
     </div>
   </div>

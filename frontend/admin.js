@@ -140,6 +140,7 @@
     // Modal de gestión de ticket
     ticketModalOverlay: document.getElementById('ticket-modal-overlay'),
     ticketModalTitle: document.getElementById('ticket-modal-title'),
+    ticketModalEstatusBadge: document.getElementById('ticket-modal-estatus-badge'),
     ticketModalInfoRfc: document.getElementById('ticket-modal-info-rfc'),
     ticketModalInfoUsoCfdi: document.getElementById('ticket-modal-info-uso-cfdi'),
     ticketModalInfoTipoPago: document.getElementById('ticket-modal-info-tipo-pago'),
@@ -3073,6 +3074,9 @@
         ? TIPOS_PAGO_INFO[ticket.tipo_pago] || ticket.tipo_pago
         : '—';
     els.ticketModalTitle.textContent = `Ticket ${ticket.folio}`;
+    const estatusInfo = ESTATUS_INFO[ticket.estatus] || { texto: ticket.estatus, clase: '' };
+    els.ticketModalEstatusBadge.textContent = estatusInfo.texto;
+    els.ticketModalEstatusBadge.className = `estatus-badge ${estatusInfo.clase}`;
     els.ticketModalInfoRfc.textContent = ticket.rfc;
     els.ticketModalInfoUsoCfdi.textContent = ticket.uso_cfdi || '—';
     els.ticketModalInfoTipoPago.textContent = tipoPagoTexto;
