@@ -6058,6 +6058,75 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       puramente de frontend, sin pruebas Jest que lo cubran — la
       verificación fue en navegador real).
 
+115. **Siembra de datos de demostración / pruebas de humo funcionales
+    (2026-08-19, EN CURSO — pausada a pedido del usuario)**: el usuario
+    pidió datos de muestra reales (30 ventas, gastos, solicitudes de
+    factura de clientes distintos) repartidos entre multi-tenant y el
+    contexto sin slug (`portal_facturacion`, el que usa localmente), para
+    poder hacer una demo del producto. En vez de insertar filas
+    directamente en MySQL, se ejercitó el flujo real end-to-end por HTTP
+    contra el stack Docker vivo (`http://localhost:8088`): registro de
+    cliente (`POST /api/auth/registro`) → subida de CSF real con PDF
+    generado con `pdfkit` que sí pasa `pareceConstanciaFiscal()` (mismo
+    generador que ya usan las fixtures de `e2e/fixtures/generar-csf.js`,
+    parametrizado por RFC) → alta de venta como admin
+    (`POST /api/admin/ordenes-compra`) → subida de ticket como el cliente
+    con los 4 campos de verificación (No. Venta/fecha/hora/total) → avance
+    a `listo` (factura ZIP real con PDF+XML, reutilizando
+    `e2e/fixtures/factura.zip`), `en_curso` o `cancelado` según una
+    distribución ~60/25/10/5. Gastos con fecha real (algunos en el mes
+    anterior a propósito, para que la tendencia % de "Resumen financiero"
+    tenga un punto de comparación). Script:
+    `seed-demo.js` en el scratchpad de la sesión (no se commiteó al
+    repo — es una herramienta de una sola vez, no un artefacto del
+    producto; si se necesita repetir la siembra, hay que regenerarlo con
+    la misma lógica descrita aquí).
+    - **Progreso real al momento de la pausa**:
+      - **"Sin contexto" (`portal_facturacion`)**: completo — 7 clientes,
+        14 ventas (OC-000061 a OC-000074), 14 tickets (8 `listo`, 4
+        `pendiente`, 1 `en_curso`, 1 `cancelado`), 10 gastos.
+      - **Tenant `pruebaadmin`**: parcial — 4 clientes, 8 ventas
+        (OC-000001 a OC-000008), 8 tickets (5 `listo`, 2 `pendiente`, 1
+        `en_curso`). **Gastos falló a la mitad** (ver hallazgo abajo) —
+        0 de 7 gastos planeados se crearon.
+      - **Tenant `piloto9c`**: sin empezar.
+    - **Hallazgo real (bloqueador, sin resolver todavía)**: crear un gasto
+      en el tenant `pruebaadmin` responde `500` —
+      `Table 'tenant_pruebaadmin.gastos' doesn't exist` (confirmado en
+      logs del contenedor backend). Causa raíz: **exactamente la
+      limitación ya documentada en CLAUDE.md** — `ensureSchema()` solo
+      corre automáticamente contra el pool POR DEFECTO al arrancar el
+      backend, nunca contra tenants ya aprovisionados; el módulo "Gastos"
+      (con su tabla nueva) se agregó en una sesión posterior a cuando
+      `pruebaadmin`/`piloto9c` se aprovisionaron por primera vez, así que
+      ninguno de los dos tiene la tabla `gastos` (ni probablemente
+      `tema_json` en `tenants` si aplicara ahí, aunque esa sí es de
+      `control_tenants`, no de cada tenant). **Nunca se había topado en
+      la práctica hasta ahora** porque nadie había intentado usar Gastos
+      contra un tenant real todavía. Fix pendiente (no aplicado, sesión
+      pausada antes de ejecutarlo): re-correr
+      `backend/scripts/provisionar-tenant.js pruebaadmin` y
+      `... piloto9c` (idempotente, ya documentado como seguro de
+      re-correr) para que `ensureSchema()` se aplique también ahí.
+    - **Otros ajustes hechos sobre la marcha al script de siembra** (para
+      referencia si se regenera): `POST /api/tickets` solo devuelve
+      `{ok, folio, mensaje}` (sin `id`) — el `id` numérico que piden
+      `/estatus` y `/factura` se busca después en `GET /api/admin/tickets`
+      por folio; `POST /api/admin/gastos` tampoco repite los campos
+      enviados en la respuesta; el limitador `submitLimiter` (30
+      peticiones/15 min, `POST /api/registro` + `POST /api/tickets`
+      combinados, por `tenant+IP`) se agotó durante las corridas de
+      prueba del script y hubo que reiniciar el contenedor backend para
+      vaciar el estado en memoria del limitador antes de la corrida real
+      — confirma que el limitador funciona correctamente bajo uso
+      intensivo real, no es un bug.
+    - **Pendiente antes de reanudar**: aplicar el fix de esquema de los
+      dos tenants, limpiar (si hace falta) los 7 gastos que sí se
+      alcanzaron a crear en `pruebaadmin` antes del fallo (ninguno, el
+      fallo fue en el primero), y completar `pruebaadmin` + `piloto9c`.
+      No avanzar sin instrucción explícita del usuario — la sesión se
+      pausó a petición suya.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

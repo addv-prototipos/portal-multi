@@ -329,6 +329,18 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   cosmético) en un comentario de `control/scripts/ensureSchema.js`
   durante esta revisión. No avanzar sin aprobación explícita del
   usuario, mismo protocolo `addv-web-app`.
+- **Siembra de datos de demostración, EN PAUSA (ver PROJECT_STATE.md
+  punto 115)**: flujo real end-to-end por HTTP (registro cliente → CSF →
+  venta → ticket → factura/gastos) contra Docker vivo, para tener datos
+  de muestra reales de cara a una demo. "Sin contexto" completo (7
+  clientes/14 ventas/14 tickets/10 gastos); tenant `pruebaadmin` parcial
+  (8 ventas/8 tickets, gastos bloqueado); `piloto9c` sin empezar.
+  **Hallazgo real**: los tenants `pruebaadmin`/`piloto9c` NO tienen la
+  tabla `gastos` (`ensureSchema()` nunca corre contra tenants ya
+  aprovisionados, solo contra el pool por defecto — el módulo Gastos se
+  agregó después de que esos tenants se crearan). Fix pendiente:
+  re-correr `provisionar-tenant.js` contra ambos. Pausado a pedido del
+  usuario, no reanudar sin instrucción explícita.
 - **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
   partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
   propia (no dentro de "Inicio", que es del perfil `fiscal`) para el
