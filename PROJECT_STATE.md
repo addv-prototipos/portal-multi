@@ -5822,15 +5822,18 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        (*Renta del local* con comprobante PDF descargable y *Servicio
        de hosting*) + 1 en papelera (*Papelería y consumibles*). Los
        KPIs de la vista muestran los $2,300 reales del mes.
-     - **Revisión visual en curso por el usuario**: URL
-       `http://localhost:8088/admin` (login `admin:admin`). Qué probar:
-       KPIs, filtros/búsqueda, columnas ocultables, modal de detalle
-       (descarga del comprobante), modal de alta/edición y toggle
-       Activos/Papelera. Un script Playwright temporal de capturas se
-       descartó al detectarse el gotcha del contenedor (se prefirió la
-       revisión manual del usuario). El `.env` quedó así:
-`CONTROL_APP_PASSWORD`, `INTERNAL_CACHE_SECRET`,
-        `FRONTEND_PORT=8088`.
+- **Revisión visual en curso por el usuario**: URL
+        `http://localhost:8088/admin` (login `admin:admin`). Qué probar:
+        KPIs, filtros/búsqueda, columnas ocultables, modal de detalle
+        (descarga del comprobante), modal de alta/edición y toggle
+        Activos/Papelera. Un script Playwright temporal de capturas se
+        descartó al detectarse el gotcha del contenedor (se prefirió la
+        revisión manual del usuario). El `.env` quedó así:
+        `CONTROL_APP_PASSWORD`, `INTERNAL_CACHE_SECRET`,
+        `FRONTEND_PORT=8088`. **Revisión visual APROBADA por el usuario
+        (2026-08-19)**: módulo Gastos cerrado — backend + frontend +
+        pruebas (Jest 546/546) + regresión real (verificar-mysql.js
+        305/305) + revisión visual en navegador real.
 
 111. **Corrección de `verificar-mysql.js` — 305/305 pruebas (2026-08-19)**:
     las 6 fallas "preexistentes ajenas" del script de regresión eran

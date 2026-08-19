@@ -198,6 +198,14 @@ actualizadas: `PROJECT_STATE.md` (punto 110), `AGENTS.md`, `CLAUDE.md`,
 Gastos, conteo de endpoints 45→56, `FRONTEND_PORT` default 80),
 `.env` (FRONTEND_PORT=8088). Pendiente: revisión visual del usuario.
 
+## 2026-08-19 — Revisión visual aprobada — módulo Gastos cerrado
+
+C030 13:30 ✓ El usuario revisó la vista Gastos en navegador real
+(`http://localhost:8088/admin`) y la **aprobó**. Módulo Gastos cerrado:
+backend + frontend + pruebas (Jest 546/546) + regresión contra MySQL
+real (verificar-mysql.js 305/305) + revisión visual. Docs actualizadas
+(AGENTS.md, CLAUDE.md, PROJECT_STATE punto 110).
+
 ## 2026-08-19 — Corrección de verificar-mysql.js (305/305)
 
 C029 13:00 ✓ Las 6 fallas "preexistentes" del script de regresión eran

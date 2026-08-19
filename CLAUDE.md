@@ -407,7 +407,7 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   puertos a `80:80`, así que quedó fijado `FRONTEND_PORT=8088` en `.env`
   para volver a `http://localhost:8088`. Se sembraron 3 gastos de prueba
   por API (2 activos, 1 en papelera, uno con comprobante PDF) para la
-  revisión manual. **Pendiente**: revisión visual del usuario en
+  revisión manual. **Revisión visual APROBADA por el usuario (2026-08-19)**:
   `http://localhost:8088/admin` (`admin:admin`).
 
 Las tres superficies de la app: portal de cliente (sin prefijo o
