@@ -1010,6 +1010,15 @@ function limitesMes(zonaHoraria) {
   };
 }
 
+// Etiqueta corta en español ("Ene", "Feb", …) para una llave "YYYY-MM" —
+// usada por el resumen financiero para la serie mensual de la gráfica.
+function etiquetaMes(llave) {
+  const [anio, mes] = llave.split('-').map(Number);
+  const fecha = new Date(Date.UTC(anio, mes - 1, 1));
+  const corta = new Intl.DateTimeFormat('es-MX', { month: 'short', timeZone: 'UTC' }).format(fecha).replace('.', '');
+  return corta.charAt(0).toUpperCase() + corta.slice(1);
+}
+
 app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
   subirConTenant(uploadImagen, 'imagen', req, res, async (err) => {
     if (err) {
@@ -3709,6 +3718,119 @@ app.get(
     }));
 
     res.json({ total: ordenesFormateadas.length, ordenes: ordenesFormateadas });
+  })
+);
+
+// Resumen financiero (Ventas, Facturado, Gastos) para la vista "Resumen
+// financiero" del perfil administrador (ver PROJECT_STATE.md). Los KPIs
+// del mes en curso (con tendencia vs el mes anterior) se calculan aparte
+// de la gráfica: la gráfica arranca en el mes en curso y solo hacia
+// adelante (nunca mete meses pasados vacíos) y omite cualquier mes sin
+// ventas ni gastos — a propósito, para no ensuciarla con meses en cero de
+// antes de que el negocio empezara a usar el sistema. Todo agregado en
+// SQL, nunca se manda una fila suelta de ordenes_compra ni de gastos al
+// frontend. "Facturado" usa el mismo criterio que el ícono de la tabla de
+// Ventas: existe un ticket vinculado en estatus 'listo'. "IVA Neto" no se
+// puede calcular con el esquema actual (gastos no guarda desglose de IVA,
+// solo el booleano iva_incluido) — el "balance" de aquí es Facturado -
+// Gastos, sin pretender ser una cifra fiscal.
+app.get(
+  '/api/admin/resumen-financiero',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const configGlobal = await getConfiguracionGlobal();
+    const { inicio, fin, inicioAnterior, finAnterior } = limitesMes(configGlobal.zona_horaria);
+
+    const [[kpiVentas]] = await pool.query(
+      `SELECT
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? THEN o.total END), 0) AS ventas,
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND EXISTS(
+           SELECT 1 FROM tickets t
+           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
+         ) THEN o.total END), 0) AS facturado,
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND EXISTS(
+           SELECT 1 FROM tickets t
+           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
+         ) THEN o.total END), 0) AS facturado_anterior
+       FROM ordenes_compra o
+       WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ?`,
+      [inicio, fin, inicio, fin, inicioAnterior, finAnterior, inicioAnterior]
+    );
+    const [[kpiGastos]] = await pool.query(
+      `SELECT
+         COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? THEN monto END), 0) AS gastos,
+         COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? THEN monto END), 0) AS gastos_anterior
+       FROM gastos
+       WHERE eliminado_en IS NULL AND fecha >= ?`,
+      [inicio, fin, inicioAnterior, finAnterior, inicioAnterior]
+    );
+
+    const ventas = Number(kpiVentas.ventas);
+    const facturado = Number(kpiVentas.facturado);
+    const facturadoAnterior = Number(kpiVentas.facturado_anterior);
+    const gastos = Number(kpiGastos.gastos);
+    const gastosAnterior = Number(kpiGastos.gastos_anterior);
+
+    // Sin datos del mes anterior para comparar, no se inventa una
+    // tendencia (mismo criterio que aplicarTendencia() en admin.js para
+    // los KPIs de tickets de la vista "Inicio").
+    const calcularTendencia = (actual, anterior) => {
+      if (anterior === 0) return actual > 0 ? null : 0;
+      return Math.round(((actual - anterior) / anterior) * 100);
+    };
+
+    // Gráfica: desde el mes en curso hacia adelante — GROUP BY solo
+    // devuelve meses que sí tuvieron al menos una fila, así que un mes
+    // vacío simplemente no aparece (sin necesidad de filtrarlo aparte).
+    const [filasVentasSerie] = await pool.query(
+      `SELECT DATE_FORMAT(o.fecha_compra, '%Y-%m') AS mes,
+         SUM(o.total) AS ventas,
+         SUM(CASE WHEN EXISTS(
+           SELECT 1 FROM tickets t
+           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
+         ) THEN o.total ELSE 0 END) AS facturado
+       FROM ordenes_compra o
+       WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ?
+       GROUP BY DATE_FORMAT(o.fecha_compra, '%Y-%m')`,
+      [inicio]
+    );
+    const [filasGastosSerie] = await pool.query(
+      `SELECT DATE_FORMAT(fecha, '%Y-%m') AS mes, SUM(monto) AS gastos
+       FROM gastos
+       WHERE eliminado_en IS NULL AND fecha >= ?
+       GROUP BY DATE_FORMAT(fecha, '%Y-%m')`,
+      [inicio]
+    );
+
+    const mapaVentasSerie = new Map(filasVentasSerie.map((f) => [f.mes, f]));
+    const mapaGastosSerie = new Map(filasGastosSerie.map((f) => [f.mes, Number(f.gastos)]));
+    const llavesMeses = [...new Set([...mapaVentasSerie.keys(), ...mapaGastosSerie.keys()])].sort();
+    const serie = llavesMeses.map((llave) => {
+      const v = mapaVentasSerie.get(llave);
+      return {
+        mes: etiquetaMes(llave),
+        ventas: v ? Number(v.ventas) : 0,
+        facturado: v ? Number(v.facturado) : 0,
+        gastos: mapaGastosSerie.get(llave) || 0,
+      };
+    });
+
+    res.json({
+      mes_actual: {
+        ventas,
+        facturado,
+        ventas_sin_facturar: ventas - facturado,
+        gastos,
+        balance: facturado - gastos,
+      },
+      tendencia: {
+        facturado: calcularTendencia(facturado, facturadoAnterior),
+        gastos: calcularTendencia(gastos, gastosAnterior),
+      },
+      serie_mensual: serie,
+    });
   })
 );
 

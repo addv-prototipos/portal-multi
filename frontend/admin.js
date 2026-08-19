@@ -117,6 +117,7 @@
     btnVistaInicio: document.getElementById('btn-vista-inicio'),
     btnVistaConstancias: document.getElementById('btn-vista-constancias'),
     btnVistaTickets: document.getElementById('btn-vista-tickets'),
+    btnVistaResumenFinanciero: document.getElementById('btn-vista-resumen-financiero'),
     btnVistaOrdenes: document.getElementById('btn-vista-ordenes'),
     btnVistaGastos: document.getElementById('btn-vista-gastos'),
     btnVistaUsuarios: document.getElementById('btn-vista-usuarios'),
@@ -125,6 +126,7 @@
     vistaInicio: document.getElementById('vista-inicio'),
     vistaConstancias: document.getElementById('vista-constancias'),
     vistaTickets: document.getElementById('vista-tickets'),
+    vistaResumenFinanciero: document.getElementById('vista-resumen-financiero'),
     vistaOrdenes: document.getElementById('vista-ordenes'),
     vistaGastos: document.getElementById('vista-gastos'),
     vistaUsuarios: document.getElementById('vista-usuarios'),
@@ -265,6 +267,16 @@
     gastosKpiSinFacturaTendencia: document.getElementById('gastos-kpi-sin-factura-tendencia'),
     gastosKpiVs: document.getElementById('gastos-kpi-vs'),
     gastosKpiVsTendencia: document.getElementById('gastos-kpi-vs-tendencia'),
+    // Vista Resumen financiero
+    resumenFinError: document.getElementById('resumen-fin-error'),
+    resumenFinKpiFacturado: document.getElementById('resumen-fin-kpi-facturado'),
+    resumenFinKpiFacturadoTendencia: document.getElementById('resumen-fin-kpi-facturado-tendencia'),
+    resumenFinKpiGastos: document.getElementById('resumen-fin-kpi-gastos'),
+    resumenFinKpiGastosTendencia: document.getElementById('resumen-fin-kpi-gastos-tendencia'),
+    resumenFinKpiBalance: document.getElementById('resumen-fin-kpi-balance'),
+    resumenFinKpiSinFacturar: document.getElementById('resumen-fin-kpi-sin-facturar'),
+    resumenFinChartBody: document.getElementById('resumen-fin-chart-body'),
+    resumenFinChartEmpty: document.getElementById('resumen-fin-chart-empty'),
     gastosFiltroCategoria: document.getElementById('gastos-filtro-categoria'),
     gastosFiltroFactura: document.getElementById('gastos-filtro-factura'),
     gastosFiltroRecurrente: document.getElementById('gastos-filtro-recurrente'),
@@ -786,7 +798,7 @@
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['ordenes', 'gastos', 'usuarios', 'lectura-reportes', 'configuraciones'],
+      vistasPermitidas: ['resumen-financiero', 'ordenes', 'gastos', 'usuarios', 'lectura-reportes', 'configuraciones'],
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card'],
     },
     fiscal: {
@@ -807,6 +819,7 @@
       inicio: els.btnVistaInicio,
       constancias: els.btnVistaConstancias,
       tickets: els.btnVistaTickets,
+      'resumen-financiero': els.btnVistaResumenFinanciero,
       ordenes: els.btnVistaOrdenes,
       gastos: els.btnVistaGastos,
       usuarios: els.btnVistaUsuarios,
@@ -2921,6 +2934,8 @@
     els.btnVistaConstancias.setAttribute('aria-selected', String(vista === 'constancias'));
     els.btnVistaTickets.classList.toggle('is-active', vista === 'tickets');
     els.btnVistaTickets.setAttribute('aria-selected', String(vista === 'tickets'));
+    els.btnVistaResumenFinanciero.classList.toggle('is-active', vista === 'resumen-financiero');
+    els.btnVistaResumenFinanciero.setAttribute('aria-selected', String(vista === 'resumen-financiero'));
     els.btnVistaOrdenes.classList.toggle('is-active', vista === 'ordenes');
     els.btnVistaOrdenes.setAttribute('aria-selected', String(vista === 'ordenes'));
     els.btnVistaGastos.classList.toggle('is-active', vista === 'gastos');
@@ -2934,6 +2949,7 @@
     els.vistaInicio.hidden = vista !== 'inicio';
     els.vistaConstancias.hidden = vista !== 'constancias';
     els.vistaTickets.hidden = vista !== 'tickets';
+    els.vistaResumenFinanciero.hidden = vista !== 'resumen-financiero';
     els.vistaOrdenes.hidden = vista !== 'ordenes';
     els.vistaGastos.hidden = vista !== 'gastos';
     els.vistaUsuarios.hidden = vista !== 'usuarios';
@@ -2957,6 +2973,7 @@
         cargarOrdenes();
       })();
     }
+    if (vista === 'resumen-financiero') cargarResumenFinanciero();
     if (vista === 'gastos') cargarGastos();
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'configuraciones') {
@@ -2974,6 +2991,7 @@
   els.btnVistaInicio.addEventListener('click', () => cambiarVistaPrincipal('inicio'));
   els.btnVistaConstancias.addEventListener('click', () => cambiarVistaPrincipal('constancias'));
   els.btnVistaTickets.addEventListener('click', () => cambiarVistaPrincipal('tickets'));
+  els.btnVistaResumenFinanciero.addEventListener('click', () => cambiarVistaPrincipal('resumen-financiero'));
   els.btnVistaOrdenes.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
   els.btnVistaGastos.addEventListener('click', () => cambiarVistaPrincipal('gastos'));
   els.btnVistaUsuarios.addEventListener('click', () => cambiarVistaPrincipal('usuarios'));
@@ -4941,6 +4959,78 @@
     els.gastosFiltroCategoria.innerHTML = `<option value="">Todas</option>${opciones}`;
     els.gastosFiltroCategoria.value = seleccionFiltro;
     els.gastosModalCategoria.innerHTML = opciones;
+  }
+
+  // ---------- Vista Resumen financiero ----------
+
+  function aplicarTendenciaMoneda(elemento, porcentaje) {
+    elemento.classList.remove('es-positiva', 'es-negativa');
+    if (porcentaje === null || porcentaje === undefined) {
+      elemento.textContent = 'Sin datos del mes anterior';
+      return;
+    }
+    elemento.textContent = `${porcentaje > 0 ? '+' : ''}${porcentaje}% vs mes anterior`;
+    if (porcentaje > 0) elemento.classList.add('es-positiva');
+    if (porcentaje < 0) elemento.classList.add('es-negativa');
+  }
+
+  async function cargarResumenFinanciero() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.resumenFinError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/resumen-financiero`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        els.resumenFinError.textContent = 'No se pudo cargar el resumen financiero.';
+        return;
+      }
+      const data = await res.json();
+      renderResumenFinanciero(data);
+    } catch (err) {
+      els.resumenFinError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function renderResumenFinanciero(data) {
+    const mes = data.mes_actual || {};
+    els.resumenFinKpiFacturado.textContent = `$${formatearMoneda(mes.facturado || 0)}`;
+    els.resumenFinKpiGastos.textContent = `$${formatearMoneda(mes.gastos || 0)}`;
+    els.resumenFinKpiBalance.textContent = `$${formatearMoneda(mes.balance || 0)}`;
+    els.resumenFinKpiSinFacturar.textContent = `$${formatearMoneda(mes.ventas_sin_facturar || 0)}`;
+    aplicarTendenciaMoneda(els.resumenFinKpiFacturadoTendencia, data.tendencia && data.tendencia.facturado);
+    aplicarTendenciaMoneda(els.resumenFinKpiGastosTendencia, data.tendencia && data.tendencia.gastos);
+
+    // Gráfica de barras (Ventas / Facturado / Gastos) por mes, en CSS
+    // puro — misma altura relativa al valor máximo de toda la serie,
+    // sin librería externa (mismo criterio que el resto del frontend
+    // sin build step).
+    const serie = data.serie_mensual || [];
+    const maximo = Math.max(1, ...serie.flatMap((m) => [m.ventas, m.facturado, m.gastos]));
+    els.resumenFinChartBody.innerHTML = '';
+    els.resumenFinChartEmpty.hidden = serie.some((m) => m.ventas || m.facturado || m.gastos);
+    serie.forEach((m) => {
+      const columna = document.createElement('div');
+      columna.className = 'resumen-fin-chart-columna';
+      columna.innerHTML = `
+        <div class="resumen-fin-chart-barras" role="img" aria-label="${m.mes}: ventas $${formatearMoneda(m.ventas)}, facturado $${formatearMoneda(m.facturado)}, gastos $${formatearMoneda(m.gastos)}">
+          <span class="resumen-fin-chart-barra resumen-fin-chart-barra-ventas" style="height:${(m.ventas / maximo) * 100}%" title="Ventas: $${formatearMoneda(m.ventas)}"></span>
+          <span class="resumen-fin-chart-barra resumen-fin-chart-barra-facturado" style="height:${(m.facturado / maximo) * 100}%" title="Facturado: $${formatearMoneda(m.facturado)}"></span>
+          <span class="resumen-fin-chart-barra resumen-fin-chart-barra-gastos" style="height:${(m.gastos / maximo) * 100}%" title="Gastos: $${formatearMoneda(m.gastos)}"></span>
+        </div>
+        <span class="resumen-fin-chart-etiqueta">${m.mes}</span>
+      `;
+      els.resumenFinChartBody.appendChild(columna);
+    });
   }
 
   async function cargarGastos() {

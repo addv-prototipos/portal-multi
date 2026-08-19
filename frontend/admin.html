@@ -76,6 +76,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Constancias</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-resumen-financiero" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Resumen financiero</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-ordenes" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Ventas</span>
@@ -364,6 +368,69 @@
           </table>
           <p class="admin-empty" id="tickets-empty" hidden>No hay tickets todavía.</p>
         </div>
+      </div>
+
+      <div id="vista-resumen-financiero" hidden>
+        <div class="inicio-bienvenida">
+          <h1>Resumen financiero</h1>
+          <p class="panel-subtitle">Ventas, facturación y gastos del mes en curso.</p>
+        </div>
+
+        <p class="field-error" id="resumen-fin-error" role="alert"></p>
+
+        <div class="inicio-stats-grid" id="resumen-fin-kpis-wrap">
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Total facturado</span>
+              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="resumen-fin-kpi-facturado">$0.00</p>
+            <p class="inicio-stat-tendencia" id="resumen-fin-kpi-facturado-tendencia">—</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Total gastos</span>
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6h15l-1.5 9H8L6 6Zm0 0-1-3H2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="resumen-fin-kpi-gastos">$0.00</p>
+            <p class="inicio-stat-tendencia" id="resumen-fin-kpi-gastos-tendencia">—</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Balance ventas vs gastos</span>
+              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="resumen-fin-kpi-balance">$0.00</p>
+            <p class="inicio-stat-tendencia">Facturado − Gastos del mes</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Ventas sin facturar</span>
+              <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="resumen-fin-kpi-sin-facturar">$0.00</p>
+            <p class="inicio-stat-tendencia">Ventas del mes aún sin facturar</p>
+          </div>
+        </div>
+
+        <section class="resumen-fin-chart-card">
+          <h2>Ventas vs Facturado vs Gastos</h2>
+          <div class="resumen-fin-chart-body" id="resumen-fin-chart-body"></div>
+          <p class="admin-empty" id="resumen-fin-chart-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
+          <ul class="resumen-fin-chart-leyenda">
+            <li><span class="resumen-fin-dot resumen-fin-dot-ventas" aria-hidden="true"></span>Ventas</li>
+            <li><span class="resumen-fin-dot resumen-fin-dot-facturado" aria-hidden="true"></span>Facturado</li>
+            <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
+          </ul>
+        </section>
       </div>
 
       <div id="vista-ordenes" hidden>

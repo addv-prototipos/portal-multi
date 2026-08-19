@@ -5951,6 +5951,87 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       producto nuevos. Pendiente de aprobación del usuario: commitear y
       pushear el fix del test.
 
+114. **Vista "Resumen financiero" (2026-08-19)**: a partir del mockup
+    `stitch/stitch_portal_financiero` (sidebar "CLARVO" con KPIs
+    financieros + gráfica "Ventas vs Facturación vs Gastos"), agregada
+    como vista nueva y propia — no dentro de "Inicio" — tras detectar que
+    "Inicio" es del dominio del perfil `fiscal` (`RESTRICCIONES_PERFIL.
+    fiscal.vistasPermitidas` no incluye `ordenes` ni `gastos`) mientras
+    que el resumen financiero (Ventas+Gastos) es el dominio del perfil
+    `administrador` (bloqueado de "Inicio" hasta ahora). Mezclarlo en
+    "Inicio" habría expuesto datos de Gastos al perfil `fiscal`, que no
+    tiene permiso de verlos.
+    - **Alcance recortado del mockup tras análisis + confirmación del
+      usuario**: se omitió "Estado SAT" (dependía de una "meta mensual"
+      que no existe en la app) y se renombraron dos tarjetas para no
+      afirmar cifras fiscales que el esquema actual no respalda —
+      "IVA Neto (A Favor)" → **"Balance ventas vs gastos"** (Facturado −
+      Gastos; `gastos` no guarda desglose de IVA, solo el booleano
+      `iva_incluido`) y "Tickets Pendientes" → **"Ventas sin facturar"**
+      (Ventas totales − Facturado).
+    - **4 KPIs del mes en curso** (con tendencia % vs mes anterior en
+      Total facturado y Total gastos, sin inventar tendencia si el mes
+      anterior fue $0): Total facturado, Total gastos, Balance ventas vs
+      gastos, Ventas sin facturar.
+    - **Gráfica "Ventas vs Facturado vs Gastos"** en barras CSS puras
+      (sin librería, mismo criterio que el resto del frontend sin build
+      step), agrupada en SQL con `DATE_FORMAT(…, '%Y-%m')`. **Ajustada a
+      pedido del usuario tras la primera revisión visual**: en vez de una
+      ventana fija de 6 meses hacia atrás con meses en $0 rellenados, la
+      ventana arranca en el mes en curso hacia adelante y **omite
+      cualquier mes sin ventas ni gastos** (un mes solo aparece si
+      `GROUP BY` le devuelve al menos una fila en alguna de las dos
+      tablas) — evita ensuciar la gráfica con meses en cero de antes de
+      que el negocio empezara a usar el sistema.
+    - **Backend**: `GET /api/admin/resumen-financiero` en `server.js`,
+      mismo gate `requireAdminArea('administrador')` que Gastos/Ventas
+      (administrador + super implícito). Reutiliza el criterio de
+      "facturado" ya existente (`EXISTS` de un ticket vinculado en
+      estatus `'listo'`, mismo que el ícono de la tabla de Ventas).
+      Helper nuevo `ultimosMeses(zonaHoraria, cantidadMeses)` junto a
+      `limitesMes()`. Nunca manda filas sueltas de `ordenes_compra` ni de
+      `gastos` al frontend, solo agregados.
+    - **Frontend**: botón nuevo `btn-vista-resumen-financiero` en el
+      sidebar (justo antes de "Ventas"), vista `vista-resumen-financiero`
+      reutilizando las clases `.inicio-stats-grid`/`.inicio-stat-card` ya
+      existentes para las 4 tarjetas + sección nueva `.resumen-fin-chart-*`
+      para la gráfica. Agregado a `RESTRICCIONES_PERFIL.administrador.
+      vistasPermitidas` (primera entrada — administrador ahora aterriza
+      aquí en vez de en "Ventas") e insertado antes de `ordenes` en
+      `navPorVista` para que el redirect automático de perfil restringido
+      lo elija primero.
+    - **Pruebas**: `backend/test/integration/resumenFinanciero.test.js`
+      nuevo (401 sin credenciales, 403 perfil `fiscal`, KPIs + serie de 6
+      meses con datos, serie en 0 sin omitir meses). Jest backend
+      **550/550** (33 suites) sin regresiones.
+    - **Validado contra Docker/MySQL reales (2026-08-19)**: rebuild
+      `--no-cache` + `--force-recreate` de backend y frontend,
+      `FRONTEND_PORT=8088` conservado; `curl` al endpoint con
+      `admin:admin` devolvió agregados reales coherentes con los datos de
+      prueba ya sembrados en el volumen (gastos $2,300, ventas $1,102 sin
+      facturar). Verificado también con la extensión Claude in Chrome
+      (navegador real): las 4 tarjetas y las 6 barras de la gráfica se
+      renderizan con esos mismos valores. El gating por perfil
+      (`administrador` ve la vista, `fiscal` no) se verificó por revisión
+      de código contra el mismo patrón ya probado en vivo para Ventas/
+      Gastos (punto 108) — no se creó un usuario `fiscal` de prueba en
+      esta sesión para una verificación en vivo adicional.
+    - **Ajuste post-revisión visual (mismo día)**: usuario pidió no
+      mostrar meses vacíos y arrancar la ventana en el mes actual hacia
+      adelante (no hacia atrás). Se quitó el helper `ultimosMeses()`
+      (zero-fill de 6 meses) por `etiquetaMes(llave)` + dos consultas
+      `GROUP BY DATE_FORMAT(…, '%Y-%m')` con `WHERE fecha >= inicio del
+      mes actual`, uniendo las llaves de mes presentes en ventas o gastos
+      (un mes con actividad en solo una de las dos tablas sí aparece; un
+      mes sin ninguna fila en ninguna, no). Los KPIs del mes actual/
+      tendencia se separaron a su propia consulta agregada (ya no dependen
+      de la serie de la gráfica). Jest backend **551/551** (34 suites,
+      `resumenFinanciero.test.js` con 5 pruebas). Validado de nuevo
+      contra Docker/MySQL reales y en navegador real: con los mismos
+      datos de prueba (ventas $1,102 en agosto, gastos $2,300 en agosto,
+      nada en meses anteriores), la gráfica ahora solo muestra la barra
+      de "Ago".
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

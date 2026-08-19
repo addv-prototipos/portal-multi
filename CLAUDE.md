@@ -329,6 +329,16 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   cosmético) en un comentario de `control/scripts/ensureSchema.js`
   durante esta revisión. No avanzar sin aprobación explícita del
   usuario, mismo protocolo `addv-web-app`.
+- **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
+  partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
+  propia (no dentro de "Inicio", que es del perfil `fiscal`) para el
+  perfil `administrador` (+ super) — 4 KPIs del mes (Total facturado,
+  Total gastos, "Balance ventas vs gastos" y "Ventas sin facturar",
+  renombrados desde "IVA Neto"/"Tickets Pendientes" del mockup por no
+  tener respaldo fiscal/de datos real) + gráfica de 6 meses en barras
+  CSS. Endpoint `GET /api/admin/resumen-financiero`
+  (`requireAdminArea('administrador')`). Jest 550/550, validado contra
+  Docker/MySQL reales y en navegador real (Claude in Chrome).
 - **Diagnóstico post-opencode (ver PROJECT_STATE.md punto 113)**: otra
   herramienta de IA (opencode) trabajó este mismo repo y agregó 6 commits
   (módulo "Gastos", fix de `verificar-mysql.js`, renombrado "Orden de
