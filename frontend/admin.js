@@ -202,12 +202,25 @@
     ordenConcepto: document.getElementById('orden-concepto'),
     ordenConceptoContador: document.getElementById('orden-concepto-contador'),
     ordenCantidad: document.getElementById('orden-cantidad'),
+    // Captura de productos de una orden de compra (arman concepto + cantidad)
+    ordenProductoConcepto: document.getElementById('orden-producto-concepto'),
+    ordenProductoPrecio: document.getElementById('orden-producto-precio'),
+    ordenProductoCantidad: document.getElementById('orden-producto-cantidad'),
+    btnAgregarProductoOrden: document.getElementById('btn-agregar-producto-orden'),
+    ordenProductosListaWrap: document.getElementById('orden-productos-lista-wrap'),
+    ordenProductosListaBody: document.getElementById('orden-productos-lista-body'),
     ordenIvaInfo: document.getElementById('orden-iva-info'),
     ordenTotalPreview: document.getElementById('orden-total-preview'),
     ordenEmail: document.getElementById('orden-email'),
     ordenDatosCliente: document.getElementById('orden-datos-cliente'),
     ordenRfcInfo: document.getElementById('orden-rfc-info'),
     ordenNombreInfo: document.getElementById('orden-nombre-info'),
+    // Toggle "Cliente ya registrado" / "Cliente nuevo" de la orden de compra
+    btnOrdenClienteRegistrado: document.getElementById('btn-orden-cliente-registrado'),
+    btnOrdenClienteNuevo: document.getElementById('btn-orden-cliente-nuevo'),
+    ordenEmailRegistradoWrap: document.getElementById('orden-email-registrado-wrap'),
+    ordenEmailNuevoWrap: document.getElementById('orden-email-nuevo-wrap'),
+    ordenEmailNuevo: document.getElementById('orden-email-nuevo'),
     ordenErrorGeneral: document.getElementById('orden-error-general'),
     btnRegistrarOrden: document.getElementById('btn-registrar-orden'),
     btnRegistrarOrdenLabel: document.getElementById('btn-registrar-orden-label'),
@@ -3488,6 +3501,14 @@
   // ---------- Orden de compra ----------
 
   let ivaActualParaOrden = 16; // se sobreescribe al cargar la configuración real
+  // Productos capturados para la orden de compra en curso — {concepto, precio, cantidad} —
+  // arman #orden-concepto y #orden-cantidad (ambos de solo lectura); solo viven en el
+  // navegador, nada se guarda hasta presionar "Registrar orden de compra".
+  let productosOrdenActual = [];
+  // Toggle de la orden de compra: false = elegir un correo ya registrado
+  // (con constancia activa, como siempre); true = capturar el correo de
+  // un cliente nuevo a mano — ver btnOrdenClienteRegistrado/Nuevo abajo.
+  let ordenModoClienteNuevo = false;
 
   // Cache de los correos ya cargados (con su RFC y nombre/razón social),
   // para no tener que pedirle al servidor los datos de nuevo cada vez que
@@ -3539,6 +3560,28 @@
 
   els.ordenEmail.addEventListener('change', actualizarDatosClienteOrden);
 
+  function aplicarModoClienteOrden(esNuevo) {
+    ordenModoClienteNuevo = esNuevo;
+    els.btnOrdenClienteRegistrado.classList.toggle('is-active', !esNuevo);
+    els.btnOrdenClienteRegistrado.setAttribute('aria-selected', String(!esNuevo));
+    els.btnOrdenClienteNuevo.classList.toggle('is-active', esNuevo);
+    els.btnOrdenClienteNuevo.setAttribute('aria-selected', String(esNuevo));
+    els.ordenEmailRegistradoWrap.hidden = esNuevo;
+    els.ordenEmailNuevoWrap.hidden = !esNuevo;
+    // Limpia el campo del modo que se deja de usar, para no mandar por
+    // error un correo capturado antes de cambiar de modo.
+    if (esNuevo) {
+      els.ordenEmail.value = '';
+      setFieldError('orden-email', '');
+      actualizarDatosClienteOrden();
+    } else {
+      els.ordenEmailNuevo.value = '';
+      setFieldError('orden-email-nuevo', '');
+    }
+  }
+  els.btnOrdenClienteRegistrado.addEventListener('click', () => aplicarModoClienteOrden(false));
+  els.btnOrdenClienteNuevo.addEventListener('click', () => aplicarModoClienteOrden(true));
+
   function actualizarTotalPreviewOrden() {
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
@@ -3571,22 +3614,108 @@
     }
   }
 
-  formatearCampoDinero(els.ordenCantidad);
-  els.ordenCantidad.addEventListener('input', actualizarTotalPreviewOrden);
-  els.ordenConcepto.addEventListener('input', () => {
-    els.ordenConceptoContador.textContent = `${els.ordenConcepto.value.length} / 255`;
+  formatearCampoDinero(els.ordenProductoPrecio);
+
+  // Texto de un producto tal como aparece en la lista y en el concepto
+  // final que se manda al backend — "2 x Toner ($850.00 c/u)".
+  function textoProductoOrden(producto) {
+    return `${producto.cantidad} x ${producto.concepto} ($${formatearMoneda(producto.precio)} c/u)`;
+  }
+
+  function subtotalProductoOrden(producto) {
+    return Math.round(producto.precio * producto.cantidad * 100) / 100;
+  }
+
+  // Reconstruye #orden-concepto (texto armado + contador), #orden-cantidad
+  // (suma de subtotales) y la lista visible, a partir de productosOrdenActual
+  // — se llama después de agregar o quitar un producto.
+  function recalcularOrdenDesdeProductos() {
+    const textoConcepto = productosOrdenActual.map(textoProductoOrden).join('\n');
+    els.ordenConcepto.value = textoConcepto;
+    els.ordenConceptoContador.textContent = `${textoConcepto.length} / 255`;
+
+    const suma = productosOrdenActual.reduce((acc, p) => acc + subtotalProductoOrden(p), 0);
+    els.ordenCantidad.value = suma > 0 ? formatearMoneda(suma) : '';
+    actualizarTotalPreviewOrden();
+
+    els.ordenProductosListaWrap.hidden = productosOrdenActual.length === 0;
+    els.ordenProductosListaBody.innerHTML = '';
+    productosOrdenActual.forEach((producto, indice) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(producto.concepto)}</td>
+        <td>$${formatearMoneda(producto.precio)}</td>
+        <td>${producto.cantidad}</td>
+        <td>$${formatearMoneda(subtotalProductoOrden(producto))}</td>
+        <td><button type="button" class="btn-quitar-producto-orden" aria-label="Quitar ${escapeHtml(producto.concepto)}">✕</button></td>
+      `;
+      tr.querySelector('.btn-quitar-producto-orden').addEventListener('click', () => {
+        productosOrdenActual.splice(indice, 1);
+        recalcularOrdenDesdeProductos();
+      });
+      els.ordenProductosListaBody.appendChild(tr);
+    });
+  }
+
+  els.btnAgregarProductoOrden.addEventListener('click', () => {
+    setFieldError('orden-producto-concepto', '');
+    setFieldError('orden-producto-precio', '');
+    setFieldError('orden-producto-cantidad', '');
+    document.getElementById('error-orden-producto-general').textContent = '';
+
+    const concepto = els.ordenProductoConcepto.value.trim();
+    const precio = obtenerValorNumerico(els.ordenProductoPrecio);
+    const cantidad = Number(els.ordenProductoCantidad.value);
+
+    let valido = true;
+    if (!concepto) {
+      setFieldError('orden-producto-concepto', 'Captura el concepto de este producto.');
+      valido = false;
+    }
+    if (!Number.isFinite(precio) || precio <= 0) {
+      setFieldError('orden-producto-precio', 'Captura un precio unitario mayor a cero.');
+      valido = false;
+    }
+    if (!Number.isInteger(cantidad) || cantidad <= 0) {
+      setFieldError('orden-producto-cantidad', 'Captura una cantidad de piezas mayor a cero.');
+      valido = false;
+    }
+    if (!valido) return;
+
+    const productoNuevo = { concepto, precio, cantidad };
+    const textoConCandidato = [...productosOrdenActual, productoNuevo].map(textoProductoOrden).join('\n');
+    if (textoConCandidato.length > 255) {
+      document.getElementById('error-orden-producto-general').textContent =
+        'No cabe: el concepto final se pasaría de 255 caracteres. Acorta el concepto de este producto o quita alguno de la lista.';
+      return;
+    }
+
+    productosOrdenActual.push(productoNuevo);
+    els.ordenProductoConcepto.value = '';
+    els.ordenProductoPrecio.value = '';
+    els.ordenProductoCantidad.value = '';
+    recalcularOrdenDesdeProductos();
+    els.ordenProductoConcepto.focus();
   });
 
   function limpiarFormularioOrden() {
-    els.ordenConcepto.value = '';
-    els.ordenConceptoContador.textContent = '0 / 255';
-    els.ordenCantidad.value = '';
+    productosOrdenActual = [];
+    els.ordenProductoConcepto.value = '';
+    els.ordenProductoPrecio.value = '';
+    els.ordenProductoCantidad.value = '';
+    setFieldError('orden-producto-concepto', '');
+    setFieldError('orden-producto-precio', '');
+    setFieldError('orden-producto-cantidad', '');
+    document.getElementById('error-orden-producto-general').textContent = '';
+    recalcularOrdenDesdeProductos();
     els.ordenEmail.value = '';
+    els.ordenEmailNuevo.value = '';
+    aplicarModoClienteOrden(false);
     els.ordenErrorGeneral.textContent = '';
     setFieldError('orden-concepto', '');
     setFieldError('orden-cantidad', '');
     setFieldError('orden-email', '');
-    actualizarTotalPreviewOrden();
+    setFieldError('orden-email-nuevo', '');
     actualizarDatosClienteOrden();
   }
 
@@ -3606,10 +3735,13 @@
     setFieldError('orden-concepto', '');
     setFieldError('orden-cantidad', '');
     setFieldError('orden-email', '');
+    setFieldError('orden-email-nuevo', '');
 
     const concepto = els.ordenConcepto.value.trim();
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
-    const email = els.ordenEmail.value;
+    const email = ordenModoClienteNuevo
+      ? els.ordenEmailNuevo.value.trim().toLowerCase()
+      : els.ordenEmail.value;
 
     let valido = true;
     if (!concepto) {
@@ -3620,7 +3752,12 @@
       setFieldError('orden-cantidad', 'Captura una cantidad mayor a cero.');
       valido = false;
     }
-    if (!email) {
+    if (ordenModoClienteNuevo) {
+      if (!email || !els.ordenEmailNuevo.checkValidity()) {
+        setFieldError('orden-email-nuevo', 'Captura un correo electrónico válido.');
+        valido = false;
+      }
+    } else if (!email) {
       setFieldError('orden-email', 'Selecciona un correo electrónico.');
       valido = false;
     }
@@ -3631,7 +3768,7 @@
       const res = await fetch(`${API_BASE}/admin/ordenes-compra`, {
         method: 'POST',
         headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concepto, cantidad, email }),
+        body: JSON.stringify({ concepto, cantidad, email, es_cliente_nuevo: ordenModoClienteNuevo }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -3682,6 +3819,25 @@
     }
   }
 
+  // El armador de productos (ver btnAgregarProductoOrden) guarda el
+  // concepto como "N x Concepto ($X.XX c/u)", un producto por línea — se
+  // separa aquí para mostrar la cantidad destacada y cada producto en su
+  // propio renglón. Un concepto de una sola línea (capturado a mano,
+  // como antes de este cambio) se muestra tal cual, sin decorar de más.
+  function renderConceptoOrden(concepto) {
+    const lineas = concepto.split('\n').filter((linea) => linea.trim());
+    if (lineas.length <= 1) return escapeHtml(concepto);
+
+    return lineas
+      .map((linea) => {
+        const match = linea.match(/^(\d+)\s*x\s*(.+)$/i);
+        if (!match) return `<div class="orden-concepto-linea">${escapeHtml(linea)}</div>`;
+        const [, cantidad, resto] = match;
+        return `<div class="orden-concepto-linea"><strong class="orden-concepto-cant">${escapeHtml(cantidad)}×</strong> ${escapeHtml(resto)}</div>`;
+      })
+      .join('');
+  }
+
   function renderOrdenes(ordenes) {
     els.ordenesCount.textContent = `${ordenes.length} orden${ordenes.length === 1 ? '' : 'es'}`;
     els.ordenesTableBody.innerHTML = '';
@@ -3705,7 +3861,7 @@
       tr.innerHTML = `
         <td data-label="No. Compra" data-col="numero">${iconoFacturado}<strong>${escapeHtml(orden.numero_compra || '—')}</strong></td>
         <td data-label="Fecha" data-col="fecha">${escapeHtml(fechaTexto)}</td>
-        <td data-label="Concepto" data-col="concepto">${escapeHtml(orden.concepto)}</td>
+        <td data-label="Concepto" data-col="concepto">${renderConceptoOrden(orden.concepto)}</td>
         <td data-label="Cantidad" data-col="cantidad">$${Number(orden.cantidad).toFixed(2)}</td>
         <td data-label="IVA" data-col="iva">${Number(orden.iva_porcentaje)}%</td>
         <td data-label="Total" data-col="total"><strong>$${formatearMoneda(orden.total)}</strong></td>

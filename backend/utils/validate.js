@@ -172,7 +172,13 @@ function sanitizeText(input, maxLength = 500) {
   const noTags = trimmed.replace(/<[^>]*>/g, '');
   // eslint-disable-next-line no-control-regex
   const noControl = noTags.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
-  return validator.escape(noControl);
+  // Se guarda CRUDO (sin validator.escape()) a propósito: el escape para
+  // HTML lo hace escapeHtml() del lado del frontend al pintarlo, igual
+  // que con cualquier otro campo de texto (RFC, nombre, folio...) — pre-
+  // escaparlo aquí también producía un doble escape visible en pantalla
+  // (ej. "/" guardado como "&#x2F;", que al re-escaparse se veía como
+  // "&amp;#x2F;" y el navegador solo decodificaba un nivel).
+  return noControl;
 }
 
 // Para texto que va DENTRO de un correo enviado (asunto/cuerpo), no dentro

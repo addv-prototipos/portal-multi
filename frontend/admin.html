@@ -409,16 +409,54 @@
                 <p class="orden-campo-automatico" id="orden-fecha-auto">Se genera automáticamente al guardar, con la zona horaria configurada.</p>
               </div>
 
+              <div class="orden-productos-captura">
+                <div class="field">
+                  <label for="orden-producto-concepto">Concepto del producto <span class="required">*</span></label>
+                  <input type="text" id="orden-producto-concepto" maxlength="150" placeholder="Ej. Toner para impresora HP" autocomplete="off" />
+                  <p class="field-error" id="error-orden-producto-concepto" role="alert"></p>
+                </div>
+                <div class="orden-productos-captura-fila">
+                  <div class="field">
+                    <label for="orden-producto-precio">Precio unitario (MXN) <span class="required">*</span></label>
+                    <input type="text" inputmode="decimal" id="orden-producto-precio" placeholder="0.00" autocomplete="off" />
+                    <p class="field-error" id="error-orden-producto-precio" role="alert"></p>
+                  </div>
+                  <div class="field">
+                    <label for="orden-producto-cantidad">Cantidad (piezas) <span class="required">*</span></label>
+                    <input type="number" id="orden-producto-cantidad" min="1" step="1" placeholder="1" autocomplete="off" />
+                    <p class="field-error" id="error-orden-producto-cantidad" role="alert"></p>
+                  </div>
+                </div>
+                <p class="field-error" id="error-orden-producto-general" role="alert"></p>
+                <button type="button" class="btn btn-secondary btn-block" id="btn-agregar-producto-orden">+ Agregar producto</button>
+              </div>
+
+              <div class="orden-productos-lista-wrap" id="orden-productos-lista-wrap" hidden>
+                <table class="admin-table orden-productos-tabla">
+                  <thead>
+                    <tr>
+                      <th>Concepto</th>
+                      <th>P. unitario</th>
+                      <th>Cant.</th>
+                      <th>Subtotal</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="orden-productos-lista-body"></tbody>
+                </table>
+              </div>
+
               <div class="field">
                 <label for="orden-concepto">Concepto de venta o servicio <span class="required">*</span></label>
-                <textarea id="orden-concepto" maxlength="255" rows="2" placeholder="Ej. Venta de equipo de cómputo"></textarea>
+                <textarea id="orden-concepto" maxlength="255" rows="2" placeholder="Agrega al menos un producto arriba" readonly></textarea>
                 <p class="field-hint" id="orden-concepto-contador">0 / 255</p>
                 <p class="field-error" id="error-orden-concepto" role="alert"></p>
               </div>
 
               <div class="field">
-                <label for="orden-cantidad">Cantidad (MXN) <span class="required">*</span></label>
-                <input type="text" inputmode="decimal" id="orden-cantidad" placeholder="0.00" autocomplete="off" />
+                <label for="orden-cantidad">Cantidad (MXN)</label>
+                <input type="text" id="orden-cantidad" placeholder="0.00" readonly />
+                <p class="field-hint">Se calcula sola, sumando los productos agregados arriba.</p>
                 <p class="field-error" id="error-orden-cantidad" role="alert"></p>
               </div>
 
@@ -434,19 +472,38 @@
               </div>
 
               <div class="field">
-                <label for="orden-email">Correo electrónico <span class="required">*</span></label>
-                <select id="orden-email">
-                  <option value="">Selecciona un correo</option>
-                </select>
-                <p class="field-hint">Solo se muestran correos que ya tienen una constancia de situación fiscal subida.</p>
-                <p class="field-error" id="error-orden-email" role="alert"></p>
+                <label>Tipo de cliente</label>
+                <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta orden">
+                  <button type="button" class="view-toggle-btn is-active" id="btn-orden-cliente-registrado" role="tab" aria-selected="true">Cliente ya registrado</button>
+                  <button type="button" class="view-toggle-btn" id="btn-orden-cliente-nuevo" role="tab" aria-selected="false">Cliente nuevo</button>
+                </div>
               </div>
 
-              <div class="field" id="orden-datos-cliente" hidden>
-                <label>Datos asociados a este correo</label>
-                <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
-                <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
-                <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la orden.</p>
+              <div id="orden-email-registrado-wrap">
+                <div class="field">
+                  <label for="orden-email">Correo electrónico <span class="required">*</span></label>
+                  <select id="orden-email">
+                    <option value="">Selecciona un correo</option>
+                  </select>
+                  <p class="field-hint">Solo se muestran correos que ya tienen una constancia de situación fiscal subida.</p>
+                  <p class="field-error" id="error-orden-email" role="alert"></p>
+                </div>
+
+                <div class="field" id="orden-datos-cliente" hidden>
+                  <label>Datos asociados a este correo</label>
+                  <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
+                  <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
+                  <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la orden.</p>
+                </div>
+              </div>
+
+              <div id="orden-email-nuevo-wrap" hidden>
+                <div class="field">
+                  <label for="orden-email-nuevo">Correo electrónico <span class="required">*</span></label>
+                  <input type="email" id="orden-email-nuevo" placeholder="correo@ejemplo.com" maxlength="200" autocomplete="off" />
+                  <p class="field-hint">Este cliente todavía no tiene una constancia de situación fiscal registrada — se le enviará la confirmación de la compra a este correo.</p>
+                  <p class="field-error" id="error-orden-email-nuevo" role="alert"></p>
+                </div>
               </div>
 
               <p class="field-error" id="orden-error-general" role="alert"></p>

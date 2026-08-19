@@ -151,8 +151,8 @@ describe('validate.js', () => {
       expect(sanitizeText('a'.repeat(10), 5)).toBe('aaaaa');
     });
 
-    test('escapa caracteres especiales HTML restantes', () => {
-      expect(sanitizeText('5 > 3 & 2 < 4')).toBe('5 &gt; 3 &amp; 2 &lt; 4');
+    test('NO escapa entidades HTML (eso lo hace escapeHtml() del frontend al pintarlo — escaparlo aquí también producía doble escape en pantalla)', () => {
+      expect(sanitizeText('5 > 3 & 2 < 4')).toBe('5 > 3 & 2 < 4');
     });
 
     test('quita caracteres de control', () => {

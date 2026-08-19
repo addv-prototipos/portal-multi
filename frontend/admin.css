@@ -793,6 +793,63 @@
   color: var(--color-accent-dark);
 }
 
+/* Captura de productos de una orden de compra: se arma el concepto final
+   y la cantidad (MXN) sumando productos, en vez de escribirlos a mano
+   directamente — ver #orden-concepto/#orden-cantidad, que pasan a ser
+   de solo lectura debajo de este bloque. */
+.orden-productos-captura {
+  padding: 14px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+.orden-productos-captura .field:last-of-type { margin-bottom: 0; }
+.orden-productos-captura-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+}
+@media (max-width: 380px) {
+  .orden-productos-captura-fila { grid-template-columns: 1fr; }
+}
+
+.orden-productos-lista-wrap {
+  margin-bottom: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+.orden-productos-tabla {
+  min-width: 0;
+  font-size: 13px;
+}
+.orden-productos-tabla th,
+.orden-productos-tabla td {
+  padding: 8px 10px;
+}
+.orden-productos-tabla td:nth-child(2),
+.orden-productos-tabla td:nth-child(3),
+.orden-productos-tabla td:nth-child(4) {
+  white-space: nowrap;
+}
+.btn-quitar-producto-orden {
+  background: transparent;
+  border: none;
+  color: var(--color-error);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.btn-quitar-producto-orden:hover { color: #962019; }
+
+#orden-concepto[readonly],
+#orden-cantidad[readonly] {
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  cursor: not-allowed;
+}
+
 /* Ícono de "ya facturado" junto al No. Compra en la tabla de órdenes —
    el tooltip nativo del navegador (atributo title) ya explica su
    significado al pasar el mouse, sin necesidad de JS adicional. */
@@ -802,6 +859,24 @@
 }
 .orden-correo-con-tooltip {
   cursor: help;
+}
+
+/* Concepto de una orden con varios productos (ver renderConceptoOrden en
+   admin.js): un producto por renglón, con la cantidad destacada en el
+   acento de marca — en vez del texto corrido de antes, todo en una sola
+   línea sin distinguir dónde empieza cada producto. */
+.admin-table td[data-col="concepto"] {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.orden-concepto-linea {
+  line-height: 1.5;
+}
+.orden-concepto-linea + .orden-concepto-linea {
+  margin-top: 2px;
+}
+.orden-concepto-cant {
+  color: var(--color-accent-dark);
 }
 
 /* Orden de compra: formulario y lista lado a lado en pantallas anchas,

@@ -3541,17 +3541,25 @@ app.post(
       return res.status(400).json({ error: 'Selecciona un correo electrónico válido.' });
     }
 
-    // El desplegable del frontend solo ofrece correos con constancia
-    // activa, pero se revalida aquí del lado del servidor por si acaso
-    // (nunca se confía solo en lo que mande el navegador).
-    const [registrosCoincidentes] = await pool.query(
-      'SELECT id FROM registros WHERE email = ? AND eliminado_en IS NULL LIMIT 1',
-      [email]
-    );
-    if (registrosCoincidentes.length === 0) {
-      return res.status(400).json({
-        error: 'Ese correo no corresponde a ninguna constancia de situación fiscal activa.',
-      });
+    // "Cliente nuevo" (sin constancia todavía, ver frontend): se salta la
+    // exigencia de que el correo ya tenga una constancia activa — la orden
+    // solo necesita un correo válido (ver ordenes_compra en db.js, no
+    // guarda RFC/nombre, así que no hay ningún otro dato que depender de
+    // un registro existente). "Cliente ya registrado" (el modo de
+    // siempre) sigue exigiendo la constancia activa — el desplegable del
+    // frontend solo ofrece esos correos, pero se revalida aquí del lado
+    // del servidor por si acaso (nunca se confía solo en lo que mande el
+    // navegador).
+    if (!body.es_cliente_nuevo) {
+      const [registrosCoincidentes] = await pool.query(
+        'SELECT id FROM registros WHERE email = ? AND eliminado_en IS NULL LIMIT 1',
+        [email]
+      );
+      if (registrosCoincidentes.length === 0) {
+        return res.status(400).json({
+          error: 'Ese correo no corresponde a ninguna constancia de situación fiscal activa.',
+        });
+      }
     }
 
     const configGlobal = await getConfiguracionGlobal();
