@@ -95,7 +95,7 @@ describe('GET /api/tema/:slug', () => {
     expect(res.body).toEqual({
       slug: 'cliente1',
       marca: null,
-      marcaLogoUrl: null,
+      marcaLoGoUrl: null,
       tema: null,
       variables: {},
       fuentesGoogle: [],

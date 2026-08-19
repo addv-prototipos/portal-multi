@@ -1106,7 +1106,11 @@
 .admin-table-wrap.hide-numero [data-col="numero"],
 .admin-table-wrap.hide-fecha [data-col="fecha"],
 .admin-table-wrap.hide-concepto [data-col="concepto"],
-.admin-table-wrap.hide-total [data-col="total"] {
+.admin-table-wrap.hide-total [data-col="total"],
+.admin-table-wrap.hide-proveedor [data-col="proveedor"],
+.admin-table-wrap.hide-categoria [data-col="categoria"],
+.admin-table-wrap.hide-factura [data-col="factura"],
+.admin-table-wrap.hide-monto [data-col="monto"] {
   display: none !important;
 }
 
@@ -1142,6 +1146,10 @@
 .admin-table th[data-col="fecha"] { width: 170px; }
 .admin-table th[data-col="concepto"] { width: 220px; }
 .admin-table th[data-col="total"] { width: 110px; }
+.admin-table th[data-col="proveedor"] { width: 170px; }
+.admin-table th[data-col="categoria"] { width: 150px; }
+.admin-table th[data-col="factura"] { width: 120px; }
+.admin-table th[data-col="monto"] { width: 120px; }
 .admin-table th:last-child { width: 210px; }
 
 .admin-table th,
@@ -2461,6 +2469,196 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
+}
+
+/* ---------- Vista Gastos ---------- */
+
+/* Los KPIs reutilizan .inicio-stats-grid/.inicio-stat-card (genéricos),
+   pero "es-positiva/es-negativa" solo estaba definido para la tendencia;
+   en gastos el número de "vs mes anterior" también cambia de color. */
+.inicio-stat-numero.es-positiva { color: #146C43; }
+.inicio-stat-numero.es-negativa { color: var(--color-error); }
+
+.gastos-resumen-grid {
+  margin-top: 4px;
+}
+
+.gastos-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+.gastos-filtro-campo {
+  margin: 0;
+}
+.gastos-filtro-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-ink-soft);
+  margin-bottom: 4px;
+}
+.gastos-filtro-campo select,
+.gastos-filtro-campo input[type='date'] {
+  min-width: 150px;
+}
+.gastos-filtro-busqueda {
+  flex: 1;
+  min-width: 200px;
+}
+.gastos-filtro-busqueda input {
+  width: 100%;
+  min-width: 0;
+}
+.gastos-filtro-limpiar {
+  margin-bottom: 1px;
+}
+
+/* Concepto clicable de la tabla de gastos — abre el modal de detalle
+   (mismo lenguaje visual que "No. Compra" de las órdenes). */
+.gasto-concepto-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-accent-dark);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border);
+  cursor: pointer;
+}
+.gasto-concepto-link:hover,
+.gasto-concepto-link:focus-visible {
+  color: var(--color-accent);
+  text-decoration-color: var(--color-accent);
+}
+
+/* Enlace de descarga del comprobante dentro de la columna "Factura"
+   (PDF o ZIP según el tipo real del archivo). */
+.gasto-factura-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-accent-dark);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.gasto-factura-link:hover,
+.gasto-factura-link:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Chip suave de categoría en la tabla de gastos. */
+.gasto-categoria {
+  display: inline-block;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--color-ink);
+}
+
+/* ---------- Modales de gastos ---------- */
+
+.gastos-modal {
+  max-width: 640px;
+  width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+.gastos-detalle-modal {
+  max-width: 760px;
+}
+.gastos-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.gastos-modal-header-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.gastos-modal-header h2 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  margin: 0;
+}
+.gastos-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gastos-modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+}
+.gastos-modal-check {
+  align-self: center;
+}
+.gastos-modal-factura,
+.gastos-modal-comprobante-wrap,
+.gastos-modal-notas {
+  grid-column: 1 / -1;
+}
+@media (max-width: 560px) {
+  .gastos-modal-grid { grid-template-columns: 1fr; }
+}
+
+.gastos-detalle-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+.gastos-detalle-main {
+  flex: 1;
+  min-width: 0;
+}
+.gastos-detalle-info-card {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+.gastos-detalle-info-card .ticket-modal-info-grid { margin: 0; }
+.gastos-detalle-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.gastos-detalle-side-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+}
+.gastos-detalle-side-card .btn-block + .btn-block { margin-top: 8px; }
+.gastos-detalle-comprobante-nombre {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  word-break: break-all;
+  color: var(--color-ink);
+}
+@media (max-width: 720px) {
+  .gastos-detalle-body { flex-direction: column; }
+  .gastos-detalle-sidebar { width: 100%; }
 }
 
 

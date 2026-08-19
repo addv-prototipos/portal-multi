@@ -380,6 +380,34 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   probar) y el navegador cachea HTML/CSS en disco tras el rebuild (forzar
   `Ctrl+Shift+R`). Sigue vigente: **todavía no hay ningún tenant real de
   producción dado de alta** — nada de esto recibe tráfico real hoy.
+- **Módulo "Gastos" (ver PROJECT_STATE.md punto 109)**: control
+  administrativo de gastos de la operación — solo perfil `administrador`.
+  Categorías en lista CERRADA en código (`backend/utils/gastos.js`),
+  tabla `gastos` en `backend/db.js` con CHECK `chk_gastos_categoria`,
+  comprobante opcional PDF/ZIP en MinIO (carpeta `comprobantes`).
+  Backend: CRUD + papelera (restaurar/permanente) + comprobante
+  (subir/descargar/quitar) en `backend/server.js` bajo
+  `/api/admin/gastos`. Frontend: vista "Gastos" en `frontend/admin.js`/
+  `admin.html`/`admin.css` (botón `#btn-vista-gastos` en el sidebar entre
+  Órdenes y Usuarios, KPIs + filtros + tabla con columnas ocultables +
+  modales de alta/edición/detalle). `node --check` + Jest **546/546**
+  (32 suites); se corrigió de paso la falla preexistente de
+  `tema.test.js` (typo `marcaLogoUrl` → alineado al servidor
+  `marcaLoGoUrl`). **Validado contra MySQL+MinIO reales (2026-08-19)**:
+  tabla `gastos` + CHECK `chk_gastos_categoria` en MySQL real, ciclo
+  completo por API (alta → lista+resumen → comprobante PDF en MinIO →
+  descarga → edición a sin factura borra el archivo → papelera/
+  restaurar/permanente, auditoría `admin_auditoria` registra todo);
+  verificar-mysql.js 256/262 (6 fallas preexistentes ajenas). Rebuild
+  del frontend para la revisión visual (2026-08-19): `docker compose
+  build --no-cache frontend` + `up -d frontend` NO recreó el contenedor
+  (seguía sirviendo `admin.html` viejo — hubo que `docker compose up -d
+  --force-recreate frontend`); el recreate además reseteó el mapeo de
+  puertos a `80:80`, así que quedó fijado `FRONTEND_PORT=8088` en `.env`
+  para volver a `http://localhost:8088`. Se sembraron 3 gastos de prueba
+  por API (2 activos, 1 en papelera, uno con comprobante PDF) para la
+  revisión manual. **Pendiente**: revisión visual del usuario en
+  `http://localhost:8088/admin` (`admin:admin`).
 
 Las tres superficies de la app: portal de cliente (sin prefijo o
 `/<slug>/...`), panel admin por tenant (`/admin` o `/<slug>/admin`), y

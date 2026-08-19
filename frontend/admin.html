@@ -80,6 +80,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Orden de compra</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-gastos" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
+          <span>Gastos</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-usuarios" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Usuarios</span>
@@ -535,6 +539,138 @@
               <p class="admin-empty" id="ordenes-empty" hidden>No hay órdenes de compra registradas todavía.</p>
             </div>
           </section>
+        </div>
+      </div>
+
+      <div id="vista-gastos" hidden>
+        <div class="admin-toolbar">
+          <div class="admin-toolbar-title">
+            <h1>Gastos</h1>
+          </div>
+          <div class="admin-toolbar-right">
+            <div class="view-toggle" role="tablist" aria-label="Ver gastos activos o papelera">
+              <button type="button" class="view-toggle-btn is-active" id="btn-ver-gastos-activos" role="tab" aria-selected="true">Activos</button>
+              <button type="button" class="view-toggle-btn" id="btn-ver-gastos-papelera" role="tab" aria-selected="false">Papelera</button>
+            </div>
+            <span class="admin-count" id="gastos-count">0 gastos</span>
+            <div class="column-toggle" id="gastos-column-toggle">
+              <button type="button" class="btn btn-secondary" id="btn-gastos-columns" aria-haspopup="true" aria-expanded="false" aria-controls="gastos-column-toggle-panel">
+                Columnas
+              </button>
+              <div class="column-toggle-panel" id="gastos-column-toggle-panel" hidden>
+                <p class="column-toggle-title">Mostrar columnas</p>
+                <label class="checkbox-row"><input type="checkbox" data-col="fecha" checked /><span>Fecha</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="concepto" checked /><span>Concepto</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="proveedor" checked /><span>Proveedor</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="categoria" checked /><span>Categoría</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="factura" checked /><span>Factura</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="monto" checked /><span>Monto</span></label>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-refresh-gastos">Actualizar</button>
+            <button type="button" class="btn btn-primary" id="btn-nuevo-gasto">+ Registrar gasto</button>
+          </div>
+        </div>
+
+        <div class="inicio-stats-grid gastos-resumen-grid" id="gastos-resumen-wrap">
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Gasto del mes</span>
+              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="gastos-kpi-mes">$0.00</p>
+            <p class="inicio-stat-tendencia" id="gastos-kpi-mes-tendencia">—</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Con factura</span>
+              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="gastos-kpi-con-factura">$0.00</p>
+            <p class="inicio-stat-tendencia" id="gastos-kpi-con-factura-tendencia">—</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Sin factura</span>
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="gastos-kpi-sin-factura">$0.00</p>
+            <p class="inicio-stat-tendencia" id="gastos-kpi-sin-factura-tendencia">—</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">vs mes anterior</span>
+              <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="gastos-kpi-vs">—</p>
+            <p class="inicio-stat-tendencia" id="gastos-kpi-vs-tendencia">—</p>
+          </div>
+        </div>
+
+        <div class="gastos-filtros">
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="gastos-filtro-categoria">Categoría</label>
+            <select id="gastos-filtro-categoria">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="gastos-filtro-factura">Factura</label>
+            <select id="gastos-filtro-factura">
+              <option value="">Todas</option>
+              <option value="1">Con factura</option>
+              <option value="0">Sin factura</option>
+            </select>
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="gastos-filtro-recurrente">Recurrente</label>
+            <select id="gastos-filtro-recurrente">
+              <option value="">Todos</option>
+              <option value="1">Sí</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="gastos-filtro-desde">Desde</label>
+            <input type="date" id="gastos-filtro-desde" />
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="gastos-filtro-hasta">Hasta</label>
+            <input type="date" id="gastos-filtro-hasta" />
+          </div>
+          <div class="field gastos-filtro-campo gastos-filtro-busqueda">
+            <label class="gastos-filtro-label" for="gastos-busqueda">Buscar</label>
+            <input type="text" id="gastos-busqueda" placeholder="Concepto o proveedor" maxlength="200" autocomplete="off" />
+          </div>
+          <button type="button" class="btn btn-secondary gastos-filtro-limpiar" id="btn-limpiar-filtros-gastos">Limpiar filtros</button>
+        </div>
+
+        <p class="field-error" id="gastos-error" role="alert"></p>
+
+        <div class="admin-table-wrap" id="gastos-table-wrap">
+          <table class="admin-table gastos-table">
+            <thead>
+              <tr>
+                <th data-col="fecha"><span class="th-label">Fecha</span><span class="col-resizer" data-resizer="fecha"></span></th>
+                <th data-col="concepto"><span class="th-label">Concepto</span><span class="col-resizer" data-resizer="concepto"></span></th>
+                <th data-col="proveedor"><span class="th-label">Proveedor</span><span class="col-resizer" data-resizer="proveedor"></span></th>
+                <th data-col="categoria"><span class="th-label">Categoría</span><span class="col-resizer" data-resizer="categoria"></span></th>
+                <th data-col="factura"><span class="th-label">Factura</span><span class="col-resizer" data-resizer="factura"></span></th>
+                <th data-col="monto"><span class="th-label">Monto</span><span class="col-resizer" data-resizer="monto"></span></th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="gastos-table-body"></tbody>
+          </table>
+          <p class="admin-empty" id="gastos-empty" hidden>No hay gastos registrados todavía.</p>
         </div>
       </div>
 
@@ -1693,6 +1829,148 @@
             <button type="button" class="btn btn-danger btn-block" id="btn-orden-modal-eliminar">
               Eliminar
             </button>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de registrar/editar un gasto -->
+  <div class="modal-overlay" id="gastos-modal-overlay" hidden>
+    <div class="modal gastos-modal" role="dialog" aria-modal="true" aria-labelledby="gastos-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="gastos-modal-title">Registrar gasto</h2>
+        <button type="button" class="btn-icon" id="btn-gastos-modal-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="gastos-modal-body">
+        <div class="gastos-modal-grid">
+          <div class="field">
+            <label for="gastos-modal-fecha">Fecha del gasto <span class="required">*</span></label>
+            <input type="date" id="gastos-modal-fecha" />
+            <p class="field-error" id="error-gastos-modal-fecha" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="gastos-modal-concepto">Concepto <span class="required">*</span></label>
+            <input type="text" id="gastos-modal-concepto" maxlength="200" placeholder="Ej. Renta del local" autocomplete="off" />
+            <p class="field-hint" id="gastos-modal-concepto-contador">0 / 200</p>
+            <p class="field-error" id="error-gastos-modal-concepto" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="gastos-modal-proveedor">Proveedor</label>
+            <input type="text" id="gastos-modal-proveedor" maxlength="150" placeholder="Opcional" autocomplete="off" />
+            <p class="field-error" id="error-gastos-modal-proveedor" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="gastos-modal-categoria">Categoría <span class="required">*</span></label>
+            <select id="gastos-modal-categoria"></select>
+            <p class="field-error" id="error-gastos-modal-categoria" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="gastos-modal-monto">Monto (MXN) <span class="required">*</span></label>
+            <input type="text" inputmode="decimal" id="gastos-modal-monto" placeholder="0.00" autocomplete="off" />
+            <p class="field-error" id="error-gastos-modal-monto" role="alert"></p>
+          </div>
+          <label class="checkbox-row gastos-modal-check"><input type="checkbox" id="gastos-modal-iva-incluido" /><span>El monto ya incluye IVA</span></label>
+          <div class="field gastos-modal-factura">
+            <label>Factura</label>
+            <div class="view-toggle" role="tablist" aria-label="¿Este gasto tiene factura?">
+              <button type="button" class="view-toggle-btn is-active" id="btn-gastos-modal-con-factura" role="tab" aria-selected="true">Con factura</button>
+              <button type="button" class="view-toggle-btn" id="btn-gastos-modal-sin-factura" role="tab" aria-selected="false">Sin factura</button>
+            </div>
+            <p class="field-hint">Controla cuánto gasto tiene respaldo fiscal. Un gasto sin factura no se considera automáticamente deducible.</p>
+          </div>
+          <div id="gastos-modal-comprobante-wrap" hidden>
+            <div class="field">
+              <label for="gastos-modal-comprobante">Comprobante (opcional)</label>
+              <input type="file" id="gastos-modal-comprobante" accept=".pdf,.zip,application/pdf,application/zip" />
+              <p class="field-hint">PDF de la factura, o ZIP con el PDF + XML del CFDI.</p>
+              <p class="field-error" id="error-gastos-modal-comprobante" role="alert"></p>
+            </div>
+          </div>
+          <label class="checkbox-row gastos-modal-check"><input type="checkbox" id="gastos-modal-recurrente" /><span>Gasto recurrente</span></label>
+          <div class="field gastos-modal-notas">
+            <label for="gastos-modal-notas">Notas internas</label>
+            <textarea id="gastos-modal-notas" maxlength="2000" rows="3" placeholder="Opcional"></textarea>
+            <p class="field-error" id="error-gastos-modal-notas" role="alert"></p>
+          </div>
+        </div>
+        <p class="field-error" id="gastos-modal-error-general" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-gastos-modal-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-gastos-modal-guardar">
+            <span id="btn-gastos-modal-guardar-label">Guardar gasto</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de detalle de un gasto -->
+  <div class="modal-overlay" id="gastos-detalle-modal-overlay" hidden>
+    <div class="modal gastos-modal gastos-detalle-modal" role="dialog" aria-modal="true" aria-labelledby="gastos-detalle-modal-title">
+      <div class="gastos-modal-header">
+        <div class="gastos-modal-header-titulo">
+          <h2 id="gastos-detalle-modal-title">Gasto</h2>
+          <span class="estatus-badge estatus-listo" id="gastos-detalle-badge" hidden>Recurrente</span>
+        </div>
+        <button type="button" class="btn-icon" id="btn-gastos-detalle-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="gastos-detalle-body">
+        <div class="gastos-detalle-main">
+          <section class="gastos-detalle-info-card">
+            <h3 class="ticket-modal-section-titulo">Datos del gasto</h3>
+            <dl class="ticket-modal-info-grid">
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Fecha</dt>
+                <dd class="ticket-modal-info-value" id="gastos-detalle-fecha"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Concepto</dt>
+                <dd class="ticket-modal-info-value" id="gastos-detalle-concepto"></dd>
+              </div>
+              <div class="ticket-modal-info-item" id="gastos-detalle-proveedor-item">
+                <dt class="ticket-modal-info-label">Proveedor</dt>
+                <dd class="ticket-modal-info-value" id="gastos-detalle-proveedor"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Categoría</dt>
+                <dd class="ticket-modal-info-value" id="gastos-detalle-categoria"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Monto</dt>
+                <dd class="ticket-modal-info-value" id="gastos-detalle-monto"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">IVA incluido</dt>
+                <dd class="ticket-modal-info-value" id="gastos-detalle-iva"></dd>
+              </div>
+              <div class="ticket-modal-info-item">
+                <dt class="ticket-modal-info-label">Recurrente</dt>
+                <dd class="ticket-modal-info-value" id="gastos-detalle-recurrente"></dd>
+              </div>
+              <div class="ticket-modal-info-item" id="gastos-detalle-notas-item">
+                <dt class="ticket-modal-info-label">Notas</dt>
+                <dd class="ticket-modal-info-value" id="gastos-detalle-notas"></dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+        <div class="gastos-detalle-sidebar">
+          <section class="gastos-detalle-side-card">
+            <h3 class="ticket-modal-section-titulo">Factura</h3>
+            <p class="estatus-badge" id="gastos-detalle-factura-badge">—</p>
+            <div id="gastos-detalle-comprobante-wrap" hidden>
+              <p class="gastos-detalle-comprobante-nombre" id="gastos-detalle-comprobante-nombre">—</p>
+              <button type="button" class="btn btn-secondary btn-block" id="btn-gastos-detalle-descargar">
+                <span id="btn-gastos-detalle-descargar-label">Descargar comprobante</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-block" id="btn-gastos-detalle-quitar-comprobante">Quitar comprobante</button>
+            </div>
+          </section>
+          <section class="gastos-detalle-side-card">
+            <h3 class="ticket-modal-section-titulo">Acciones</h3>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-gastos-detalle-editar">Editar gasto</button>
+            <button type="button" class="btn btn-danger btn-block" id="btn-gastos-detalle-eliminar">Mover a papelera</button>
           </section>
         </div>
       </div>

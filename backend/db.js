@@ -1,6 +1,11 @@
 const { AsyncLocalStorage } = require('async_hooks');
 const mysql = require('mysql2/promise');
 const { hashPassword } = require('./utils/authUsuario');
+const {
+  CATEGORIAS_GASTOS,
+  CLAVE_CHECK_CATEGORIA_GASTOS,
+  clausulaCheckCategoria,
+} = require('./utils/gastos');
 
 // Opciones de conexion compartidas por CUALQUIER pool que este modulo cree
 // (el de siempre, y cualquier pool de tenant que se agregue mas adelante) —
@@ -602,6 +607,82 @@ async function ensureSchema(db = pool) {
       `ALTER TABLE ordenes_compra ADD CONSTRAINT chk_ordenes_compra_iva
        CHECK (iva_porcentaje >= 0 AND iva_porcentaje <= 100)`
     );
+  }
+
+  // Gastos de la operación (módulo "Gastos", ver PROJECT_STATE.md):
+  // control administrativo/financiero de egresos, con o sin factura/CFDI.
+  // NO es un sistema contable — se guarda el monto tal cual se pagó y un
+  // indicador de si vino con factura, pero no se desglosa IVA ni se hace
+  // ninguna contabilidad. `fecha` es la fecha del gasto (DATE, sin hora,
+  // la hora no aporta nada a este control). `categoria` es un slug de la
+  // lista cerrada de backend/utils/gastos.js (Renta, Nómina, Software,
+  // Hosting, Servicios, Papelería, Combustible, Viáticos, Publicidad,
+  // Otro). `tiene_factura` distingue desde el origen un gasto con factura
+  // de uno sin ella; si es true, opcionalmente se puede adjuntar el
+  // comprobante (PDF o ZIP con PDF+XML, ver POST
+  // /api/admin/gastos/:id/comprobante en server.js). `recurrente` es una
+  // simple etiqueta sí/no (no hay programación de pagos). Borrado
+  // lógico con `eliminado_en` (papelera), mismo patrón que tickets y
+  // constancias.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS gastos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      fecha DATE NOT NULL,
+      concepto VARCHAR(200) NOT NULL,
+      proveedor VARCHAR(150) NULL,
+      categoria VARCHAR(50) NOT NULL,
+      monto DECIMAL(12,2) NOT NULL,
+      iva_incluido TINYINT(1) NOT NULL DEFAULT 0,
+      tiene_factura TINYINT(1) NOT NULL DEFAULT 0,
+      comprobante_nombre_original VARCHAR(255) NULL,
+      comprobante_nombre_guardado VARCHAR(255) NULL,
+      comprobante_mime VARCHAR(100) NULL,
+      recurrente TINYINT(1) NOT NULL DEFAULT 0,
+      notas TEXT NULL,
+      creado_por VARCHAR(100) NULL,
+      eliminado_en DATETIME NULL,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      KEY idx_gastos_fecha (fecha),
+      KEY idx_gastos_categoria (categoria),
+      KEY idx_gastos_tiene_factura (tiene_factura),
+      KEY idx_gastos_eliminado_en (eliminado_en)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // El CHECK de categoría se agrega aparte (mismo patrón que los demás
+  // CHECK de este esquema) y se mantiene al día con la lista actual de
+  // backend/utils/gastos.js — si la restricción existe con la cláusula
+  // VIEJA (falta una categoría agregada después), se reemplaza. Sin este
+  // paso, una instalación ya desplegada se quedaría para siempre con la
+  // lista vieja y rechazaría la categoría nueva sin explicación aparente.
+  const [checksGastos] = await db.query(
+    `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos'
+       AND CONSTRAINT_NAME = '${CLAVE_CHECK_CATEGORIA_GASTOS}'`
+  );
+  if (checksGastos.length === 0) {
+    await db.query(
+      `ALTER TABLE gastos ADD CONSTRAINT ${CLAVE_CHECK_CATEGORIA_GASTOS}
+       CHECK (${clausulaCheckCategoria()})`
+    );
+  } else {
+    const [definicionCheckGastos] = await db.query(
+      `SELECT CHECK_CLAUSE FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS
+       WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = '${CLAVE_CHECK_CATEGORIA_GASTOS}'`
+    );
+    const clausulaActualGastos = definicionCheckGastos[0] ? definicionCheckGastos[0].CHECK_CLAUSE : '';
+    const clausulaEsperadaGastos = clausulaCheckCategoria();
+    // Comparación por cantidad de categorías (los slugs son fijos y en
+    // orden): si cambió la lista, la cláusula guardada dejó de coincidir.
+    const contadorActual = (clausulaActualGastos.match(/'/g) || []).length / 2;
+    if (contadorActual !== CATEGORIAS_GASTOS.length || !clausulaActualGastos.includes(clausulaEsperadaGastos)) {
+      await db.query(`ALTER TABLE gastos DROP CHECK ${CLAVE_CHECK_CATEGORIA_GASTOS}`);
+      await db.query(
+        `ALTER TABLE gastos ADD CONSTRAINT ${CLAVE_CHECK_CATEGORIA_GASTOS}
+         CHECK (${clausulaEsperadaGastos})`
+      );
+    }
   }
 
   // Reportes: cada fila es UNA corrida de generación de reporte (ya sea

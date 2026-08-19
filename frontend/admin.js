@@ -118,6 +118,7 @@
     btnVistaConstancias: document.getElementById('btn-vista-constancias'),
     btnVistaTickets: document.getElementById('btn-vista-tickets'),
     btnVistaOrdenes: document.getElementById('btn-vista-ordenes'),
+    btnVistaGastos: document.getElementById('btn-vista-gastos'),
     btnVistaUsuarios: document.getElementById('btn-vista-usuarios'),
     btnVistaConfiguraciones: document.getElementById('btn-vista-configuraciones'),
     btnVistaLecturaReportes: document.getElementById('btn-vista-lectura-reportes'),
@@ -125,6 +126,7 @@
     vistaConstancias: document.getElementById('vista-constancias'),
     vistaTickets: document.getElementById('vista-tickets'),
     vistaOrdenes: document.getElementById('vista-ordenes'),
+    vistaGastos: document.getElementById('vista-gastos'),
     vistaUsuarios: document.getElementById('vista-usuarios'),
     vistaConfiguraciones: document.getElementById('vista-configuraciones'),
     vistaLecturaReportes: document.getElementById('vista-lectura-reportes'),
@@ -246,6 +248,85 @@
     btnOrdenModalReenviar: document.getElementById('btn-orden-modal-reenviar'),
     btnOrdenModalEliminar: document.getElementById('btn-orden-modal-eliminar'),
     ordenesEmpty: document.getElementById('ordenes-empty'),
+    // Gastos
+    gastosCount: document.getElementById('gastos-count'),
+    btnGastosColumns: document.getElementById('btn-gastos-columns'),
+    gastosColumnTogglePanel: document.getElementById('gastos-column-toggle-panel'),
+    btnRefreshGastos: document.getElementById('btn-refresh-gastos'),
+    btnNuevoGasto: document.getElementById('btn-nuevo-gasto'),
+    btnVerGastosActivos: document.getElementById('btn-ver-gastos-activos'),
+    btnVerGastosPapelera: document.getElementById('btn-ver-gastos-papelera'),
+    gastosResumenWrap: document.getElementById('gastos-resumen-wrap'),
+    gastosKpiMes: document.getElementById('gastos-kpi-mes'),
+    gastosKpiMesTendencia: document.getElementById('gastos-kpi-mes-tendencia'),
+    gastosKpiConFactura: document.getElementById('gastos-kpi-con-factura'),
+    gastosKpiConFacturaTendencia: document.getElementById('gastos-kpi-con-factura-tendencia'),
+    gastosKpiSinFactura: document.getElementById('gastos-kpi-sin-factura'),
+    gastosKpiSinFacturaTendencia: document.getElementById('gastos-kpi-sin-factura-tendencia'),
+    gastosKpiVs: document.getElementById('gastos-kpi-vs'),
+    gastosKpiVsTendencia: document.getElementById('gastos-kpi-vs-tendencia'),
+    gastosFiltroCategoria: document.getElementById('gastos-filtro-categoria'),
+    gastosFiltroFactura: document.getElementById('gastos-filtro-factura'),
+    gastosFiltroRecurrente: document.getElementById('gastos-filtro-recurrente'),
+    gastosFiltroDesde: document.getElementById('gastos-filtro-desde'),
+    gastosFiltroHasta: document.getElementById('gastos-filtro-hasta'),
+    gastosBusqueda: document.getElementById('gastos-busqueda'),
+    btnLimpiarFiltrosGastos: document.getElementById('btn-limpiar-filtros-gastos'),
+    gastosError: document.getElementById('gastos-error'),
+    gastosTableBody: document.getElementById('gastos-table-body'),
+    gastosEmpty: document.getElementById('gastos-empty'),
+    // Modal de registro/edición de gasto
+    gastosModalOverlay: document.getElementById('gastos-modal-overlay'),
+    gastosModalTitle: document.getElementById('gastos-modal-title'),
+    gastosModalFecha: document.getElementById('gastos-modal-fecha'),
+    gastosModalConcepto: document.getElementById('gastos-modal-concepto'),
+    gastosModalConceptoContador: document.getElementById('gastos-modal-concepto-contador'),
+    gastosModalProveedor: document.getElementById('gastos-modal-proveedor'),
+    gastosModalCategoria: document.getElementById('gastos-modal-categoria'),
+    gastosModalMonto: document.getElementById('gastos-modal-monto'),
+    gastosModalIvaIncluido: document.getElementById('gastos-modal-iva-incluido'),
+    btnGastosModalConFactura: document.getElementById('btn-gastos-modal-con-factura'),
+    btnGastosModalSinFactura: document.getElementById('btn-gastos-modal-sin-factura'),
+    gastosModalFacturaHint: document.getElementById('gastos-modal-factura-hint'),
+    gastosModalComprobanteWrap: document.getElementById('gastos-modal-comprobante-wrap'),
+    gastosModalComprobante: document.getElementById('gastos-modal-comprobante'),
+    gastosModalRecurrente: document.getElementById('gastos-modal-recurrente'),
+    gastosModalNotas: document.getElementById('gastos-modal-notas'),
+    gastosModalErrorGeneral: document.getElementById('gastos-modal-error-general'),
+    btnGastosModalCerrar: document.getElementById('btn-gastos-modal-cerrar'),
+    btnGastosModalCancelar: document.getElementById('btn-gastos-modal-cancelar'),
+    btnGastosModalGuardar: document.getElementById('btn-gastos-modal-guardar'),
+    btnGastosModalGuardarLabel: document.getElementById('btn-gastos-modal-guardar-label'),
+    errorGastosModalFecha: document.getElementById('error-gastos-modal-fecha'),
+    errorGastosModalConcepto: document.getElementById('error-gastos-modal-concepto'),
+    errorGastosModalProveedor: document.getElementById('error-gastos-modal-proveedor'),
+    errorGastosModalCategoria: document.getElementById('error-gastos-modal-categoria'),
+    errorGastosModalMonto: document.getElementById('error-gastos-modal-monto'),
+    errorGastosModalComprobante: document.getElementById('error-gastos-modal-comprobante'),
+    errorGastosModalNotas: document.getElementById('error-gastos-modal-notas'),
+    // Modal de detalle de gasto
+    gastosDetalleOverlay: document.getElementById('gastos-detalle-modal-overlay'),
+    gastosDetalleTitle: document.getElementById('gastos-detalle-modal-title'),
+    gastosDetalleBadge: document.getElementById('gastos-detalle-badge'),
+    gastosDetalleFecha: document.getElementById('gastos-detalle-fecha'),
+    gastosDetalleConcepto: document.getElementById('gastos-detalle-concepto'),
+    gastosDetalleProveedorItem: document.getElementById('gastos-detalle-proveedor-item'),
+    gastosDetalleProveedor: document.getElementById('gastos-detalle-proveedor'),
+    gastosDetalleCategoria: document.getElementById('gastos-detalle-categoria'),
+    gastosDetalleMonto: document.getElementById('gastos-detalle-monto'),
+    gastosDetalleIva: document.getElementById('gastos-detalle-iva'),
+    gastosDetalleRecurrente: document.getElementById('gastos-detalle-recurrente'),
+    gastosDetalleNotasItem: document.getElementById('gastos-detalle-notas-item'),
+    gastosDetalleNotas: document.getElementById('gastos-detalle-notas'),
+    gastosDetalleFacturaBadge: document.getElementById('gastos-detalle-factura-badge'),
+    gastosDetalleComprobanteWrap: document.getElementById('gastos-detalle-comprobante-wrap'),
+    gastosDetalleComprobanteNombre: document.getElementById('gastos-detalle-comprobante-nombre'),
+    btnGastosDetalleDescargar: document.getElementById('btn-gastos-detalle-descargar'),
+    btnGastosDetalleDescargarLabel: document.getElementById('btn-gastos-detalle-descargar-label'),
+    btnGastosDetalleQuitarComprobante: document.getElementById('btn-gastos-detalle-quitar-comprobante'),
+    btnGastosDetalleCerrar: document.getElementById('btn-gastos-detalle-cerrar'),
+    btnGastosDetalleEditar: document.getElementById('btn-gastos-detalle-editar'),
+    btnGastosDetalleEliminar: document.getElementById('btn-gastos-detalle-eliminar'),
     // Configuración global (IVA y zona horaria)
     btnToggleGlobalConfig: document.getElementById('btn-toggle-global-config'),
     btnToggleOrdenForm: document.getElementById('btn-toggle-orden-form'),
@@ -418,6 +499,26 @@
   const COLUMNAS_TABLA_ORDENES = ['numero', 'fecha', 'concepto', 'cantidad', 'iva', 'total', 'correo'];
   const COLUMNAS_ORDENES_STORAGE_KEY = 'admin_ordenes_columnas_visibles';
   const ANCHOS_ORDENES_STORAGE_KEY = 'admin_ordenes_anchos_columnas';
+  // Mismo mecanismo de columnas ajustables, aplicado a la tabla de
+  // "Gastos" — claves de localStorage propias para no mezclar preferencias.
+  const COLUMNAS_TABLA_GASTOS = ['fecha', 'concepto', 'proveedor', 'categoria', 'factura', 'monto'];
+  const COLUMNAS_GASTOS_STORAGE_KEY = 'admin_gastos_columnas_visibles';
+  const ANCHOS_GASTOS_STORAGE_KEY = 'admin_gastos_anchos_columnas';
+
+  // Categorías de gasto — lista cerrada, mapea el slug (lo que guarda la
+  // base de datos) a la etiqueta que se muestra en la interfaz.
+  const CATEGORIAS_GASTOS = {
+    renta: 'Renta',
+    nomina: 'Nómina',
+    software: 'Software',
+    hosting: 'Hosting y dominio',
+    servicios: 'Servicios',
+    papeleria: 'Papelería',
+    combustible: 'Combustible',
+    viaticos: 'Viáticos',
+    publicidad: 'Publicidad',
+    otro: 'Otro',
+  };
 
   // Guarda todos los registros cargados del servidor para poder filtrarlos
   // en el cliente sin volver a pedirlos cada vez que el usuario escribe.
@@ -425,6 +526,7 @@
     registros: [],
     vista: 'activos', // 'activos' | 'papelera' (constancias)
     vistaTickets: 'activos', // 'activos' | 'papelera' (tickets) — estado separado, es otra tabla
+    vistaGastos: 'activos', // 'activos' | 'papelera' (gastos) — estado separado, es otra tabla
   };
 
   function showToast(message, isError = false) {
@@ -684,7 +786,7 @@
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['ordenes', 'usuarios', 'lectura-reportes', 'configuraciones'],
+      vistasPermitidas: ['ordenes', 'gastos', 'usuarios', 'lectura-reportes', 'configuraciones'],
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card'],
     },
     fiscal: {
@@ -706,6 +808,7 @@
       constancias: els.btnVistaConstancias,
       tickets: els.btnVistaTickets,
       ordenes: els.btnVistaOrdenes,
+      gastos: els.btnVistaGastos,
       usuarios: els.btnVistaUsuarios,
       configuraciones: els.btnVistaConfiguraciones,
       'lectura-reportes': els.btnVistaLecturaReportes,
@@ -752,6 +855,8 @@
     controladorColumnasConstancias.aplicarAnchosGuardados();
     controladorColumnasOrdenes.aplicarColumnasVisibles(controladorColumnasOrdenes.cargarColumnasGuardadas());
     controladorColumnasOrdenes.aplicarAnchosGuardados();
+    controladorColumnasGastos.aplicarColumnasVisibles(controladorColumnasGastos.cargarColumnasGuardadas());
+    controladorColumnasGastos.aplicarAnchosGuardados();
     // "Configuraciones fiscales" (cargarConfigGlobal) la puede ver
     // cualquier perfil que entra al panel (super/administrador/fiscal),
     // así que se precarga siempre. Los otros tres son específicamente
@@ -2363,6 +2468,15 @@
     panel: els.ordenesColumnTogglePanel,
   });
 
+  const controladorColumnasGastos = crearControladorColumnas({
+    tableWrap: els.gastosTableBody ? els.gastosTableBody.closest('.admin-table-wrap') : null,
+    columnas: COLUMNAS_TABLA_GASTOS,
+    storageKeyVisibles: COLUMNAS_GASTOS_STORAGE_KEY,
+    storageKeyAnchos: ANCHOS_GASTOS_STORAGE_KEY,
+    btnColumnas: els.btnGastosColumns,
+    panel: els.gastosColumnTogglePanel,
+  });
+
   // ---------- Carga de registros ----------
 
   async function cargarRegistros() {
@@ -2809,6 +2923,8 @@
     els.btnVistaTickets.setAttribute('aria-selected', String(vista === 'tickets'));
     els.btnVistaOrdenes.classList.toggle('is-active', vista === 'ordenes');
     els.btnVistaOrdenes.setAttribute('aria-selected', String(vista === 'ordenes'));
+    els.btnVistaGastos.classList.toggle('is-active', vista === 'gastos');
+    els.btnVistaGastos.setAttribute('aria-selected', String(vista === 'gastos'));
     els.btnVistaUsuarios.classList.toggle('is-active', vista === 'usuarios');
     els.btnVistaUsuarios.setAttribute('aria-selected', String(vista === 'usuarios'));
     els.btnVistaConfiguraciones.classList.toggle('is-active', vista === 'configuraciones');
@@ -2819,6 +2935,7 @@
     els.vistaConstancias.hidden = vista !== 'constancias';
     els.vistaTickets.hidden = vista !== 'tickets';
     els.vistaOrdenes.hidden = vista !== 'ordenes';
+    els.vistaGastos.hidden = vista !== 'gastos';
     els.vistaUsuarios.hidden = vista !== 'usuarios';
     els.vistaConfiguraciones.hidden = vista !== 'configuraciones';
     els.vistaLecturaReportes.hidden = vista !== 'lectura-reportes';
@@ -2840,6 +2957,7 @@
         cargarOrdenes();
       })();
     }
+    if (vista === 'gastos') cargarGastos();
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'configuraciones') {
       cargarConfigCampos();
@@ -2857,6 +2975,7 @@
   els.btnVistaConstancias.addEventListener('click', () => cambiarVistaPrincipal('constancias'));
   els.btnVistaTickets.addEventListener('click', () => cambiarVistaPrincipal('tickets'));
   els.btnVistaOrdenes.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
+  els.btnVistaGastos.addEventListener('click', () => cambiarVistaPrincipal('gastos'));
   els.btnVistaUsuarios.addEventListener('click', () => cambiarVistaPrincipal('usuarios'));
   els.btnVistaConfiguraciones.addEventListener('click', () => cambiarVistaPrincipal('configuraciones'));
   els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));
@@ -4770,6 +4889,692 @@
     } finally {
       setGuardandoPasswordLoading(false);
     }
+  });
+
+  // ---------- Gastos ----------
+
+  // Gastos de la vista actual (activos o papelera) tal como los devolvió
+  // el servidor — se conservan para abrir el modal de detalle sin volver
+  // a pedirlos.
+  let gastosActuales = [];
+  // Gasto en edición dentro de #gastos-modal-overlay; null = alta nueva.
+  let gastoModalEditando = null;
+  // Gasto mostrado en #gastos-detalle-modal-overlay.
+  let gastoDetalleActual = null;
+  // Valor actual del toggle "Con factura / Sin factura" del modal.
+  let gastoModalConFactura = true;
+  // Límite de subida del comprobante en el cliente — el servidor impone
+  // el definitivo (MAX_FILE_SIZE_MB en server.js, 5 MB por defecto) y
+  // devuelve su propio error si se excede; aquí solo se evita subir un
+  // archivo enorme que de todos modos sería rechazado.
+  const MAX_COMPROBANTE_MB = 5;
+
+  // La fecha de un gasto es solo "YYYY-MM-DD" (columna DATE), así que no
+  // pasa por formatFecha() (que espera un DATETIME) — se formatea aquí.
+  function formatoFechaGasto(fecha) {
+    if (!fecha) return '—';
+    const m = String(fecha).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return String(fecha);
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+
+  // Fecha de hoy en "YYYY-MM-DD" (lo que espera un <input type="date">).
+  function hoyParaGasto() {
+    const d = new Date();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mes}-${dia}`;
+  }
+
+  function etiquetaCategoriaGasto(slug) {
+    return CATEGORIAS_GASTOS[slug] || slug || '—';
+  }
+
+  // Llena los dos desplegables de categorías (filtro de la tabla y
+  // selector del modal) con la lista cerrada definida arriba, sin pisar
+  // la selección que el usuario ya tenga hecha en el filtro.
+  function llenarSelectsCategoriaGasto() {
+    const opciones = Object.entries(CATEGORIAS_GASTOS)
+      .map(([slug, etiqueta]) => `<option value="${slug}">${escapeHtml(etiqueta)}</option>`)
+      .join('');
+    const seleccionFiltro = els.gastosFiltroCategoria.value;
+    els.gastosFiltroCategoria.innerHTML = `<option value="">Todas</option>${opciones}`;
+    els.gastosFiltroCategoria.value = seleccionFiltro;
+    els.gastosModalCategoria.innerHTML = opciones;
+  }
+
+  async function cargarGastos() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    els.gastosError.textContent = '';
+    try {
+      const params = new URLSearchParams();
+      if (state.vistaGastos === 'papelera') params.set('papelera', 'true');
+      if (els.gastosFiltroCategoria.value) params.set('categoria', els.gastosFiltroCategoria.value);
+      if (els.gastosFiltroFactura.value !== '') params.set('tiene_factura', els.gastosFiltroFactura.value);
+      if (els.gastosFiltroRecurrente.value !== '') params.set('recurrente', els.gastosFiltroRecurrente.value);
+      if (els.gastosFiltroDesde.value) params.set('fecha_desde', els.gastosFiltroDesde.value);
+      if (els.gastosFiltroHasta.value) params.set('fecha_hasta', els.gastosFiltroHasta.value);
+      if (els.gastosBusqueda.value.trim()) params.set('busqueda', els.gastosBusqueda.value.trim());
+
+      const res = await fetch(`${API_BASE}/admin/gastos?${params.toString()}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        els.gastosError.textContent = 'No se pudieron cargar los gastos.';
+        return;
+      }
+      const data = await res.json();
+      gastosActuales = data.gastos || [];
+      renderGastos(gastosActuales, data.resumen || null, data.total);
+    } catch (err) {
+      els.gastosError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function renderGastos(gastos, resumen, total) {
+    const esPapelera = state.vistaGastos === 'papelera';
+    const cuenta = Number.isFinite(total) ? total : gastos.length;
+    els.gastosResumenWrap.hidden = esPapelera;
+    els.gastosCount.textContent = `${cuenta} gasto${cuenta === 1 ? '' : 's'}`;
+    els.gastosEmpty.hidden = gastos.length > 0;
+    els.gastosEmpty.textContent = esPapelera
+      ? 'La papelera de gastos está vacía.'
+      : 'No hay gastos que coincidan con la búsqueda.';
+
+    if (!esPapelera && resumen) {
+      const { mes_actual, con_factura, sin_factura, mes_anterior, cantidad } = resumen;
+      els.gastosKpiMes.textContent = `$${formatearMoneda(mes_actual)}`;
+      els.gastosKpiMesTendencia.textContent = `${cantidad} gasto${cantidad === 1 ? '' : 's'} este mes`;
+      els.gastosKpiConFactura.textContent = `$${formatearMoneda(con_factura)}`;
+      const pctCon = mes_actual > 0 ? Math.round((con_factura / mes_actual) * 100) : 0;
+      els.gastosKpiConFacturaTendencia.textContent = `${pctCon}% del mes`;
+      els.gastosKpiSinFactura.textContent = `$${formatearMoneda(sin_factura)}`;
+      const pctSin = mes_actual > 0 ? Math.round((sin_factura / mes_actual) * 100) : 0;
+      els.gastosKpiSinFacturaTendencia.textContent = `${pctSin}% del mes`;
+      const variacion = mes_anterior > 0 ? ((mes_actual - mes_anterior) / mes_anterior) * 100 : null;
+      els.gastosKpiVs.classList.remove('es-positiva', 'es-negativa');
+      if (variacion === null) {
+        els.gastosKpiVs.textContent = '—';
+        els.gastosKpiVsTendencia.textContent = 'Sin gastos registrados el mes anterior';
+      } else {
+        // En gastos, que el número suba es una mala noticia: subir =
+        // "es-negativa", bajar = "es-positiva" (el color lo decide la
+        // clase, no el signo del texto).
+        const esAumento = variacion > 0;
+        els.gastosKpiVs.textContent = `${esAumento ? '+' : '−'}${Math.abs(variacion).toFixed(1)}%`;
+        els.gastosKpiVs.classList.add(esAumento ? 'es-negativa' : 'es-positiva');
+        els.gastosKpiVsTendencia.textContent = `Mes anterior: $${formatearMoneda(mes_anterior)}`;
+      }
+    }
+
+    els.gastosTableBody.innerHTML = '';
+    gastos.forEach((g) => {
+      const badgeFactura = g.tiene_factura
+        ? g.comprobante_nombre_guardado
+          ? `<button type="button" class="gasto-factura-link" data-tooltip="Descargar comprobante" aria-label="Descargar comprobante">${g.comprobante_mime === 'application/zip' ? 'ZIP' : 'PDF'}</button>`
+          : '<span class="estatus-badge estatus-listo">Con factura</span>'
+        : '<span class="estatus-badge estatus-rechazado">Sin factura</span>';
+      const recurrenteBadge = g.recurrente
+        ? '<span class="estatus-badge estatus-proceso" data-tooltip="Gasto recurrente" aria-label="Gasto recurrente">⟳</span>'
+        : '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td data-label="Fecha" data-col="fecha">${formatoFechaGasto(g.fecha)}</td>
+        <td data-label="Concepto" data-col="concepto">${recurrenteBadge}<button type="button" class="gasto-concepto-link">${escapeHtml(g.concepto)}</button></td>
+        <td data-label="Proveedor" data-col="proveedor">${escapeHtml(g.proveedor || '—')}</td>
+        <td data-label="Categoría" data-col="categoria"><span class="gasto-categoria">${escapeHtml(etiquetaCategoriaGasto(g.categoria))}</span></td>
+        <td data-label="Factura" data-col="factura">${badgeFactura}</td>
+        <td data-label="Monto" data-col="monto"><strong>$${formatearMoneda(g.monto)}</strong></td>
+        <td data-label=""></td>
+      `;
+
+      tr.querySelector('.gasto-concepto-link').addEventListener('click', () => abrirDetalleGasto(g));
+
+      const linkComprobante = tr.querySelector('.gasto-factura-link');
+      if (linkComprobante) {
+        linkComprobante.addEventListener('click', () =>
+          descargarComprobante(g.id, g.comprobante_nombre_original)
+        );
+      }
+
+      const celdaAcciones = tr.lastElementChild;
+      const contenedorAcciones = document.createElement('div');
+      contenedorAcciones.className = 'admin-row-actions admin-row-actions-iconos';
+
+      if (esPapelera) {
+        const btnRestaurar = document.createElement('button');
+        btnRestaurar.type = 'button';
+        btnRestaurar.className = 'btn-icono-accion';
+        btnRestaurar.setAttribute('data-tooltip', 'Restaurar gasto');
+        btnRestaurar.setAttribute('aria-label', 'Restaurar gasto');
+        btnRestaurar.innerHTML =
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btnRestaurar.addEventListener('click', () => confirmarRestaurarGasto(g.id, g.concepto));
+        contenedorAcciones.appendChild(btnRestaurar);
+
+        const btnEliminarPermanente = document.createElement('button');
+        btnEliminarPermanente.type = 'button';
+        btnEliminarPermanente.className = 'btn-icono-accion btn-icono-accion-peligro';
+        btnEliminarPermanente.setAttribute('data-tooltip', 'Eliminar permanentemente');
+        btnEliminarPermanente.setAttribute('aria-label', 'Eliminar permanentemente');
+        btnEliminarPermanente.innerHTML =
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btnEliminarPermanente.addEventListener('click', () => confirmarEliminarGastoPermanente(g.id, g.concepto));
+        contenedorAcciones.appendChild(btnEliminarPermanente);
+      } else {
+        const btnEditar = document.createElement('button');
+        btnEditar.type = 'button';
+        btnEditar.className = 'btn-icono-accion';
+        btnEditar.setAttribute('data-tooltip', 'Editar gasto');
+        btnEditar.setAttribute('aria-label', 'Editar gasto');
+        btnEditar.innerHTML =
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+        btnEditar.addEventListener('click', () => abrirGastoModal(g));
+        contenedorAcciones.appendChild(btnEditar);
+
+        const btnPapelera = document.createElement('button');
+        btnPapelera.type = 'button';
+        btnPapelera.className = 'btn-icono-accion btn-icono-accion-peligro';
+        btnPapelera.setAttribute('data-tooltip', 'Mover a papelera');
+        btnPapelera.setAttribute('aria-label', 'Mover a papelera');
+        btnPapelera.innerHTML =
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btnPapelera.addEventListener('click', () => confirmarMoverGastoAPapelera(g.id, g.concepto));
+        contenedorAcciones.appendChild(btnPapelera);
+      }
+
+      celdaAcciones.appendChild(contenedorAcciones);
+      els.gastosTableBody.appendChild(tr);
+    });
+  }
+
+  function cambiarVistaGastos(nuevaVista) {
+    if (state.vistaGastos === nuevaVista) return;
+    state.vistaGastos = nuevaVista;
+
+    const esPapelera = nuevaVista === 'papelera';
+    els.btnVerGastosActivos.classList.toggle('is-active', !esPapelera);
+    els.btnVerGastosActivos.setAttribute('aria-selected', String(!esPapelera));
+    els.btnVerGastosPapelera.classList.toggle('is-active', esPapelera);
+    els.btnVerGastosPapelera.classList.toggle('is-danger-context', esPapelera);
+    els.btnVerGastosPapelera.setAttribute('aria-selected', String(esPapelera));
+    els.btnNuevoGasto.hidden = esPapelera;
+    els.gastosResumenWrap.hidden = esPapelera;
+
+    cargarGastos();
+  }
+
+  function limpiarFiltrosGastos() {
+    els.gastosFiltroCategoria.value = '';
+    els.gastosFiltroFactura.value = '';
+    els.gastosFiltroRecurrente.value = '';
+    els.gastosFiltroDesde.value = '';
+    els.gastosFiltroHasta.value = '';
+    els.gastosBusqueda.value = '';
+    cargarGastos();
+  }
+
+  // ---------- Modal de registro/edición de gasto ----------
+
+  function abrirGastoModal(gasto) {
+    gastoModalEditando = gasto || null;
+    els.gastosModalTitle.textContent = gasto ? 'Editar gasto' : 'Registrar gasto';
+    els.btnGastosModalGuardarLabel.textContent = gasto ? 'Guardar cambios' : 'Guardar gasto';
+
+    els.gastosModalFecha.value = gasto ? gasto.fecha : hoyParaGasto();
+    els.gastosModalConcepto.value = gasto ? gasto.concepto : '';
+    els.gastosModalConceptoContador.textContent = `${els.gastosModalConcepto.value.length} / 200`;
+    els.gastosModalProveedor.value = gasto ? gasto.proveedor || '' : '';
+    els.gastosModalCategoria.value = gasto ? gasto.categoria : '';
+    els.gastosModalMonto.value = gasto ? gasto.monto.toFixed(2) : '';
+    els.gastosModalIvaIncluido.checked = gasto ? gasto.iva_incluido : false;
+    els.gastosModalRecurrente.checked = gasto ? gasto.recurrente : false;
+    els.gastosModalNotas.value = gasto ? gasto.notas || '' : '';
+    els.gastosModalComprobante.value = '';
+    setGastoModalFactura(gasto ? gasto.tiene_factura : true);
+
+    setFieldError('gastos-modal-fecha', '');
+    setFieldError('gastos-modal-concepto', '');
+    setFieldError('gastos-modal-proveedor', '');
+    setFieldError('gastos-modal-categoria', '');
+    setFieldError('gastos-modal-monto', '');
+    setFieldError('gastos-modal-comprobante', '');
+    setFieldError('gastos-modal-notas', '');
+    els.gastosModalErrorGeneral.textContent = '';
+
+    els.gastosModalOverlay.hidden = false;
+    els.gastosModalFecha.focus();
+  }
+
+  function cerrarGastoModal() {
+    els.gastosModalOverlay.hidden = true;
+    gastoModalEditando = null;
+    els.gastosModalComprobante.value = '';
+  }
+
+  function setGastoModalFactura(con) {
+    gastoModalConFactura = Boolean(con);
+    els.btnGastosModalConFactura.classList.toggle('is-active', gastoModalConFactura);
+    els.btnGastosModalConFactura.setAttribute('aria-selected', String(gastoModalConFactura));
+    els.btnGastosModalSinFactura.classList.toggle('is-active', !gastoModalConFactura);
+    els.btnGastosModalSinFactura.setAttribute('aria-selected', String(!gastoModalConFactura));
+    els.gastosModalComprobanteWrap.hidden = !gastoModalConFactura;
+  }
+
+  function setGuardarGastoLoading(cargando) {
+    els.btnGastosModalGuardar.disabled = cargando;
+    els.btnGastosModalGuardarLabel.textContent = cargando ? 'Guardando…' : gastoModalEditando ? 'Guardar cambios' : 'Guardar gasto';
+  }
+
+  async function guardarGasto() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    setFieldError('gastos-modal-fecha', '');
+    setFieldError('gastos-modal-concepto', '');
+    setFieldError('gastos-modal-proveedor', '');
+    setFieldError('gastos-modal-categoria', '');
+    setFieldError('gastos-modal-monto', '');
+    setFieldError('gastos-modal-comprobante', '');
+    setFieldError('gastos-modal-notas', '');
+    els.gastosModalErrorGeneral.textContent = '';
+
+    const fecha = els.gastosModalFecha.value;
+    if (!fecha) {
+      setFieldError('gastos-modal-fecha', 'Selecciona la fecha del gasto.');
+      return;
+    }
+    const concepto = els.gastosModalConcepto.value.trim();
+    if (!concepto) {
+      setFieldError('gastos-modal-concepto', 'El concepto es obligatorio.');
+      return;
+    }
+    const categoria = els.gastosModalCategoria.value;
+    if (!categoria) {
+      setFieldError('gastos-modal-categoria', 'Selecciona una categoría.');
+      return;
+    }
+    const montoTexto = els.gastosModalMonto.value.trim().replace(/,/g, '');
+    const monto = Number(montoTexto);
+    if (!Number.isFinite(monto) || monto <= 0) {
+      setFieldError('gastos-modal-monto', 'El monto debe ser un número mayor a cero.');
+      return;
+    }
+
+    const archivo = els.gastosModalComprobante.files[0];
+    if (archivo) {
+      const ext = archivo.name.split('.').pop().toLowerCase();
+      if (!['pdf', 'zip'].includes(ext)) {
+        setFieldError('gastos-modal-comprobante', 'Solo se acepta un PDF (la factura) o un ZIP (con el PDF y el XML).');
+        return;
+      }
+      if (archivo.size > MAX_COMPROBANTE_MB * 1024 * 1024) {
+        setFieldError('gastos-modal-comprobante', `El archivo excede el tamaño máximo permitido de ${MAX_COMPROBANTE_MB} MB.`);
+        return;
+      }
+    }
+
+    const cuerpo = {
+      fecha,
+      concepto,
+      proveedor: els.gastosModalProveedor.value.trim(),
+      categoria,
+      monto,
+      iva_incluido: els.gastosModalIvaIncluido.checked,
+      tiene_factura: gastoModalConFactura,
+      recurrente: els.gastosModalRecurrente.checked,
+      notas: els.gastosModalNotas.value.trim(),
+    };
+
+    setGuardarGastoLoading(true);
+    try {
+      let idGasto;
+      if (gastoModalEditando) {
+        const res = await fetch(`${API_BASE}/admin/gastos/${gastoModalEditando.id}`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuerpo),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        if (!res.ok) {
+          els.gastosModalErrorGeneral.textContent = data.error || 'No se pudo actualizar el gasto.';
+          return;
+        }
+        idGasto = gastoModalEditando.id;
+        showToast(data.mensaje || 'Gasto actualizado.');
+      } else {
+        const res = await fetch(`${API_BASE}/admin/gastos`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuerpo),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        if (!res.ok) {
+          els.gastosModalErrorGeneral.textContent = data.error || 'No se pudo registrar el gasto.';
+          return;
+        }
+        idGasto = data.id;
+        showToast(data.mensaje || 'Gasto registrado.');
+      }
+
+      if (gastoModalConFactura && archivo) {
+        const formData = new FormData();
+        formData.append('comprobante', archivo);
+        const resSubida = await fetch(`${API_BASE}/admin/gastos/${idGasto}/comprobante`, {
+          method: 'POST',
+          headers: { Authorization: authHeader },
+          body: formData,
+        });
+        const dataSubida = await resSubida.json().catch(() => ({}));
+        if (!resSubida.ok) {
+          // El gasto ya quedó guardado; solo falló el comprobante, y se
+          // avisa para que se adjunte después desde el detalle.
+          showToast(
+            `${dataSubida.error || 'No se pudo subir el comprobante.'} El gasto ya quedó guardado; adjunta el comprobante desde el detalle.`,
+            true
+          );
+        }
+      }
+
+      cerrarGastoModal();
+      cargarGastos();
+    } catch (err) {
+      els.gastosModalErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      setGuardarGastoLoading(false);
+    }
+  }
+
+  // ---------- Modal de detalle de gasto ----------
+
+  function abrirDetalleGasto(g) {
+    gastoDetalleActual = g;
+    els.gastosDetalleTitle.textContent = 'Detalle del gasto';
+    els.gastosDetalleBadge.hidden = !g.recurrente;
+
+    els.gastosDetalleFecha.textContent = formatoFechaGasto(g.fecha);
+    els.gastosDetalleConcepto.textContent = g.concepto;
+    els.gastosDetalleProveedorItem.hidden = !g.proveedor;
+    els.gastosDetalleProveedor.textContent = g.proveedor || '—';
+    els.gastosDetalleCategoria.textContent = etiquetaCategoriaGasto(g.categoria);
+    els.gastosDetalleMonto.textContent = `$${formatearMoneda(g.monto)} MXN`;
+    els.gastosDetalleIva.textContent = g.iva_incluido ? 'Sí' : 'No';
+    els.gastosDetalleRecurrente.textContent = g.recurrente ? 'Sí' : 'No';
+    els.gastosDetalleNotasItem.hidden = !g.notas;
+    els.gastosDetalleNotas.textContent = g.notas || '—';
+
+    els.gastosDetalleFacturaBadge.textContent = g.tiene_factura ? 'Con factura' : 'Sin factura';
+    els.gastosDetalleFacturaBadge.classList.toggle('estatus-listo', g.tiene_factura);
+    els.gastosDetalleFacturaBadge.classList.toggle('estatus-rechazado', !g.tiene_factura);
+
+    const tieneComprobante = Boolean(g.comprobante_nombre_guardado);
+    els.gastosDetalleComprobanteWrap.hidden = !tieneComprobante;
+    if (tieneComprobante) {
+      els.gastosDetalleComprobanteNombre.textContent =
+        g.comprobante_nombre_original || (g.comprobante_mime === 'application/zip' ? 'comprobante.zip' : 'comprobante.pdf');
+      els.btnGastosDetalleDescargarLabel.textContent =
+        g.comprobante_mime === 'application/zip' ? 'Descargar ZIP' : 'Descargar PDF';
+    }
+
+    els.gastosDetalleOverlay.hidden = false;
+  }
+
+  function cerrarDetalleGasto() {
+    els.gastosDetalleOverlay.hidden = true;
+    gastoDetalleActual = null;
+  }
+
+  async function descargarComprobante(id, nombreOriginal) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/${id}/comprobante`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'No se pudo descargar el comprobante.', true);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombreOriginal || `comprobante-${id}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  function confirmarQuitarComprobante() {
+    if (!gastoDetalleActual) return;
+    abrirConfirmacion({
+      titulo: '¿Quitar comprobante?',
+      mensaje:
+        'Se eliminará el archivo del comprobante de forma permanente. El gasto se mantendrá marcado como "con factura".',
+      textoBoton: 'Quitar',
+      onConfirmar: () => quitarComprobante(gastoDetalleActual.id),
+    });
+  }
+
+  async function quitarComprobante(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/${id}/comprobante`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo quitar el comprobante.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Comprobante eliminado.');
+      cerrarDetalleGasto();
+      cargarGastos();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  function confirmarMoverGastoAPapelera(id, concepto) {
+    abrirConfirmacion({
+      titulo: '¿Mover a la papelera?',
+      mensaje: `El gasto "${concepto}" se moverá a la papelera. Podrás restaurarlo o eliminarlo permanentemente después.`,
+      textoBoton: 'Mover a papelera',
+      onConfirmar: () => moverGastoAPapelera(id),
+    });
+  }
+
+  async function moverGastoAPapelera(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo mover el gasto a la papelera.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Gasto movido a la papelera.');
+      if (gastoDetalleActual && gastoDetalleActual.id === id) cerrarDetalleGasto();
+      cargarGastos();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  function confirmarRestaurarGasto(id, concepto) {
+    abrirConfirmacion({
+      titulo: '¿Restaurar gasto?',
+      mensaje: `El gasto "${concepto}" volverá a la lista de gastos activos.`,
+      textoBoton: 'Restaurar',
+      onConfirmar: () => restaurarGasto(id),
+    });
+  }
+
+  async function restaurarGasto(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/${id}/restaurar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo restaurar el gasto.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Gasto restaurado.');
+      cargarGastos();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  function confirmarEliminarGastoPermanente(id, concepto) {
+    abrirConfirmacion({
+      titulo: '¿Eliminar permanentemente?',
+      mensaje: `El gasto "${concepto}" y su comprobante (si tiene) se eliminarán de forma permanente. Esta acción no se puede deshacer.`,
+      textoBoton: 'Eliminar',
+      onConfirmar: () => eliminarGastoPermanente(id),
+    });
+  }
+
+  async function eliminarGastoPermanente(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/${id}/permanente`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo eliminar el gasto.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Gasto eliminado permanentemente.');
+      cargarGastos();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  llenarSelectsCategoriaGasto();
+  formatearCampoDinero(els.gastosModalMonto);
+
+  els.btnVerGastosActivos.addEventListener('click', () => cambiarVistaGastos('activos'));
+  els.btnVerGastosPapelera.addEventListener('click', () => cambiarVistaGastos('papelera'));
+  els.btnRefreshGastos.addEventListener('click', cargarGastos);
+  els.btnNuevoGasto.addEventListener('click', () => abrirGastoModal(null));
+  els.btnLimpiarFiltrosGastos.addEventListener('click', limpiarFiltrosGastos);
+  els.gastosFiltroCategoria.addEventListener('change', cargarGastos);
+  els.gastosFiltroFactura.addEventListener('change', cargarGastos);
+  els.gastosFiltroRecurrente.addEventListener('change', cargarGastos);
+  els.gastosFiltroDesde.addEventListener('change', cargarGastos);
+  els.gastosFiltroHasta.addEventListener('change', cargarGastos);
+  els.gastosBusqueda.addEventListener('input', debounce(() => cargarGastos(), 350));
+  els.gastosModalConcepto.addEventListener('input', () => {
+    els.gastosModalConceptoContador.textContent = `${els.gastosModalConcepto.value.length} / 200`;
+  });
+  els.btnGastosModalConFactura.addEventListener('click', () => setGastoModalFactura(true));
+  els.btnGastosModalSinFactura.addEventListener('click', () => setGastoModalFactura(false));
+  els.btnGastosModalCerrar.addEventListener('click', cerrarGastoModal);
+  els.btnGastosModalCancelar.addEventListener('click', cerrarGastoModal);
+  els.gastosModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.gastosModalOverlay) cerrarGastoModal();
+  });
+  els.btnGastosModalGuardar.addEventListener('click', guardarGasto);
+  els.btnGastosDetalleCerrar.addEventListener('click', cerrarDetalleGasto);
+  els.gastosDetalleOverlay.addEventListener('click', (e) => {
+    if (e.target === els.gastosDetalleOverlay) cerrarDetalleGasto();
+  });
+  els.btnGastosDetalleDescargar.addEventListener('click', () => {
+    if (gastoDetalleActual) descargarComprobante(gastoDetalleActual.id, gastoDetalleActual.comprobante_nombre_original);
+  });
+  els.btnGastosDetalleQuitarComprobante.addEventListener('click', confirmarQuitarComprobante);
+  els.btnGastosDetalleEditar.addEventListener('click', () => {
+    if (!gastoDetalleActual) return;
+    const gasto = gastoDetalleActual;
+    cerrarDetalleGasto();
+    abrirGastoModal(gasto);
+  });
+  els.btnGastosDetalleEliminar.addEventListener('click', () => {
+    if (!gastoDetalleActual) return;
+    confirmarMoverGastoAPapelera(gastoDetalleActual.id, gastoDetalleActual.concepto);
   });
 
   // ---------- Inicialización ----------

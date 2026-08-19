@@ -32,6 +32,21 @@ const ALLOWED_ZIP_MIME_TYPES = new Set([
 ]);
 const ALLOWED_ZIP_EXTENSIONS = new Set(['.zip']);
 
+// Comprobante de un gasto (módulo "Gastos"): acepta un PDF (la factura
+// sola) o un ZIP (el par PDF + XML de un CFDI, mismo formato que el
+// comprobante de tickets). El MIME reportado por el navegador para .zip
+// varía entre sistemas (ver ALLOWED_ZIP_MIME_TYPES arriba) — el filtro
+// real de seguridad es la firma binaria (PDF %PDF o ZIP PK), no estos
+// valores declarados.
+const ALLOWED_COMPROBANTE_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-zip',
+  'application/octet-stream',
+]);
+const ALLOWED_COMPROBANTE_EXTENSIONS = new Set(['.pdf', '.zip']);
+
 // Firma binaria (magic number) real de un PDF, para evitar que un archivo
 // malicioso se disfrace con una extension/MIME falsos.
 const MAGIC_SIGNATURES = [
@@ -230,6 +245,8 @@ module.exports = {
   ALLOWED_IMAGE_EXTENSIONS,
   ALLOWED_ZIP_MIME_TYPES,
   ALLOWED_ZIP_EXTENSIONS,
+  ALLOWED_COMPROBANTE_MIME_TYPES,
+  ALLOWED_COMPROBANTE_EXTENSIONS,
   detectRealMimeType,
   detectRealImageMimeType,
   esZipValido,

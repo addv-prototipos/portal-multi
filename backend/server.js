@@ -58,6 +58,8 @@ const {
   ALLOWED_IMAGE_EXTENSIONS,
   ALLOWED_ZIP_MIME_TYPES,
   ALLOWED_ZIP_EXTENSIONS,
+  ALLOWED_COMPROBANTE_MIME_TYPES,
+  ALLOWED_COMPROBANTE_EXTENSIONS,
   detectRealMimeType,
   detectRealImageMimeType,
   esZipValido,
@@ -84,6 +86,7 @@ const {
   CLAVE_ULTIMA_LIMPIEZA_ORDENES,
 } = require('./utils/ticketsCleanup');
 const { generarYEnviarReporte, generarCSV, generarExcelBuffer } = require('./utils/reportes');
+const { categoriaValida } = require('./utils/gastos');
 
 const PORT = process.env.PORT || 4000;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 5);
@@ -268,7 +271,7 @@ const adminApiLimiter = rateLimit({
 // Segmento 7 (seguridad multi-tenant): adminLoginLimiter arriba solo cubre
 // GET /api/admin/login, pero Basic Auth manda las credenciales en CADA
 // petición — sin esto, alguien puede probar contraseñas directo contra
-// cualquiera de los otros ~45 endpoints de /api/admin/*, que solo tienen
+// cualquiera de los otros ~56 endpoints de /api/admin/*, que solo tienen
 // adminApiLimiter (pensado para no estorbar uso legítimo, no para frenar
 // fuerza bruta: 2000 intentos en 15 min). skipSuccessfulRequests evita que
 // uso normal (200) consuma la cuota — solo credenciales incorrectas (401)
@@ -336,6 +339,25 @@ const uploadFactura = multer({
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
     if (!ALLOWED_ZIP_MIME_TYPES.has(file.mimetype) || !ALLOWED_ZIP_EXTENSIONS.has(ext)) {
+      cb(new Error('TIPO_NO_PERMITIDO'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+// Uploader del comprobante de un gasto (módulo "Gastos"): acepta PDF (la
+// factura sola) o ZIP (el par PDF + XML de un CFDI, mismo criterio que el
+// comprobante de tickets). El filtro aquí es de extensión/MIME declarados
+// (rápido, buena UX); la verificación real de contenido (firma binaria)
+// pasa después, dentro del handler — ver POST
+// /api/admin/gastos/:id/comprobante.
+const uploadComprobante = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_COMPROBANTE_MIME_TYPES.has(file.mimetype) || !ALLOWED_COMPROBANTE_EXTENSIONS.has(ext)) {
       cb(new Error('TIPO_NO_PERMITIDO'));
       return;
     }
@@ -964,6 +986,29 @@ const TIPOS_PAGO = {
   tarjeta_credito: 'Pago con tarjeta de crédito',
   otro: 'Otro',
 };
+
+// Límites del mes actual y del mes anterior en la zona horaria
+// configurada, expresados como Date en UTC — usados por el resumen de
+// KPIs del módulo "Gastos" ("¿cuánto gasté este mes?", "con/sin factura",
+// "vs mes anterior"). Los gastos se guardan con su fecha de calendario
+// (columna DATE), así que "este mes" se calcula con el año/mes vigente en
+// la zona horaria de México (la configurada por el administrador), no con
+// la del servidor MySQL.
+function limitesMes(zonaHoraria) {
+  const ahora = new Date();
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: zonaHoraria,
+    year: 'numeric',
+    month: '2-digit',
+  }).format(ahora);
+  const [anio, mes] = partes.split('-').map(Number);
+  return {
+    inicio: new Date(Date.UTC(anio, mes - 1, 1)),
+    fin: new Date(Date.UTC(anio, mes, 1)), // exclusivo (primer día del mes siguiente)
+    inicioAnterior: new Date(Date.UTC(anio, mes - 2, 1)),
+    finAnterior: new Date(Date.UTC(anio, mes - 1, 1)), // exclusivo
+  };
+}
 
 app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
   subirConTenant(uploadImagen, 'imagen', req, res, async (err) => {
@@ -3772,6 +3817,522 @@ app.delete(
       correoEnviado: resultadoReporte.correoEnviado,
       correoDestino: resultadoReporte.correoDestino,
     });
+  })
+);
+
+// ---------- Gastos de la operación (módulo "Gastos") ----------
+// Control administrativo/financiero de los gastos, con o sin factura
+// (ver PROJECT_STATE.md). Solo lo ve el perfil "administrador" (el
+// perfil "fiscal" atiende constancias/tickets; los gastos son control
+// del dueño de la operación). Papelera con borrado lógico
+// (`eliminado_en`), mismo patrón que tickets y constancias.
+
+// Normaliza un booleano enviado en el cuerpo de la petición: el
+// formulario manda true/false, pero se aceptan también 1/0 y sus
+// equivalentes en texto por si algún cliente HTTP distinto los manda.
+function booleanoDe(body, campo) {
+  const valor = body[campo];
+  return valor === true || valor === 1 || valor === '1';
+}
+
+// Lista los gastos con filtros combinables y, además, el resumen de
+// KPIs del mes en curso (solo en la vista de activos — en la papelera
+// no aplica). Los filtros son opcionales y se van agregando al WHERE
+// solo si vienen; `busqueda` hace un LIKE sin acentos sobre concepto y
+// proveedor. `fecha_desde`/`fecha_hasta` son "YYYY-MM-DD".
+app.get(
+  '/api/admin/gastos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const verPapelera = req.query.papelera === 'true';
+    const pagina = Math.max(1, Number(req.query.pagina) || 1);
+    const porPagina = Math.min(100, Math.max(5, Number(req.query.por_pagina) || 25));
+
+    const condiciones = ['1=1'];
+    const params = [];
+    if (req.query.fecha_desde && /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha_desde)) {
+      condiciones.push('fecha >= ?');
+      params.push(req.query.fecha_desde);
+    }
+    if (req.query.fecha_hasta && /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha_hasta)) {
+      condiciones.push('fecha <= ?');
+      params.push(req.query.fecha_hasta);
+    }
+    if (req.query.categoria && categoriaValida(req.query.categoria)) {
+      condiciones.push('categoria = ?');
+      params.push(req.query.categoria);
+    }
+    if (req.query.tiene_factura === '1' || req.query.tiene_factura === '0') {
+      condiciones.push('tiene_factura = ?');
+      params.push(req.query.tiene_factura);
+    }
+    if (req.query.recurrente === '1' || req.query.recurrente === '0') {
+      condiciones.push('recurrente = ?');
+      params.push(req.query.recurrente);
+    }
+    const busqueda = typeof req.query.busqueda === 'string' ? req.query.busqueda.trim() : '';
+    if (busqueda) {
+      const patron = `%${busqueda}%`;
+      condiciones.push('(concepto LIKE ? OR proveedor LIKE ?)');
+      params.push(patron, patron);
+    }
+    condiciones.push(verPapelera ? 'eliminado_en IS NOT NULL' : 'eliminado_en IS NULL');
+    const where = condiciones.join(' AND ');
+
+    const [contador] = await pool.query(`SELECT COUNT(*) AS total FROM gastos WHERE ${where}`, params);
+    const total = Number(contador[0].total);
+
+    const [filas] = await pool.query(
+      `SELECT * FROM gastos WHERE ${where} ORDER BY fecha DESC, id DESC LIMIT ? OFFSET ?`,
+      [...params, porPagina, (pagina - 1) * porPagina]
+    );
+
+    let resumen = null;
+    if (!verPapelera) {
+      const configGlobal = await getConfiguracionGlobal();
+      const { inicio, fin, inicioAnterior, finAnterior } = limitesMes(configGlobal.zona_horaria);
+      const [filasResumen] = await pool.query(
+        `SELECT
+           COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? THEN monto END), 0) AS mes_actual,
+           COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? AND tiene_factura = 1 THEN monto END), 0) AS con_factura,
+           COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? AND tiene_factura = 0 THEN monto END), 0) AS sin_factura,
+           COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? THEN monto END), 0) AS mes_anterior,
+           COUNT(CASE WHEN fecha >= ? AND fecha < ? THEN 1 END) AS cantidad
+         FROM gastos WHERE eliminado_en IS NULL`,
+        [inicio, fin, inicio, fin, inicio, fin, inicioAnterior, finAnterior, inicio, fin]
+      );
+      const r = filasResumen[0];
+      resumen = {
+        mes_actual: Number(r.mes_actual),
+        con_factura: Number(r.con_factura),
+        sin_factura: Number(r.sin_factura),
+        mes_anterior: Number(r.mes_anterior),
+        cantidad: Number(r.cantidad),
+      };
+    }
+
+    res.json({
+      total,
+      pagina,
+      por_pagina: porPagina,
+      gastos: filas.map((g) => ({
+        ...g,
+        monto: Number(g.monto),
+        iva_incluido: Boolean(g.iva_incluido),
+        tiene_factura: Boolean(g.tiene_factura),
+        recurrente: Boolean(g.recurrente),
+      })),
+      resumen,
+    });
+  })
+);
+
+// Valida los campos comunes de crear/actualizar un gasto y devuelve el
+// objeto ya normalizado listo para el INSERT/UPDATE, o `null` tras
+// responder con el error correspondiente.
+function validarCuerpoGasto(req, res) {
+  const body = req.body || {};
+
+  const fecha = String(body.fecha || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    res.status(400).json({ error: 'Selecciona la fecha del gasto.' });
+    return null;
+  }
+  if (Number.isNaN(new Date(`${fecha}T00:00:00Z`).getTime())) {
+    res.status(400).json({ error: 'La fecha del gasto no es válida.' });
+    return null;
+  }
+
+  const concepto = sanitizeText(body.concepto, 200);
+  if (!concepto) {
+    res.status(400).json({ error: 'El concepto del gasto es obligatorio.' });
+    return null;
+  }
+
+  const proveedor = sanitizeText(body.proveedor, 150) || null;
+  const categoria = String(body.categoria || '');
+  if (!categoriaValida(categoria)) {
+    res.status(400).json({ error: 'Selecciona una categoría válida.' });
+    return null;
+  }
+
+  const monto = Number(body.monto);
+  if (!Number.isFinite(monto) || monto <= 0) {
+    res.status(400).json({ error: 'El monto debe ser un número mayor a cero.' });
+    return null;
+  }
+  const montoRedondeado = Math.round(monto * 100) / 100;
+
+  const notas = sanitizeText(body.notas, 2000) || null;
+
+  return {
+    fecha,
+    concepto,
+    proveedor,
+    categoria,
+    monto: montoRedondeado,
+    iva_incluido: booleanoDe(body, 'iva_incluido') ? 1 : 0,
+    tiene_factura: booleanoDe(body, 'tiene_factura') ? 1 : 0,
+    recurrente: booleanoDe(body, 'recurrente') ? 1 : 0,
+    notas,
+  };
+}
+
+// Registra un gasto. La fecha la manda el administrador (la del gasto,
+// no la de captura — la captura siempre se guarda aparte en creado_en).
+app.post(
+  '/api/admin/gastos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const datos = validarCuerpoGasto(req, res);
+    if (!datos) return;
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    const [resultado] = await pool.query(
+      `INSERT INTO gastos
+        (fecha, concepto, proveedor, categoria, monto, iva_incluido, tiene_factura, recurrente, notas, creado_por, creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        datos.fecha,
+        datos.concepto,
+        datos.proveedor,
+        datos.categoria,
+        datos.monto,
+        datos.iva_incluido,
+        datos.tiene_factura,
+        datos.recurrente,
+        datos.notas,
+        req.adminUser,
+        ahora,
+        ahora,
+      ]
+    );
+
+    res.status(201).json({
+      ok: true,
+      id: resultado.insertId,
+      mensaje: 'Gasto registrado correctamente.',
+    });
+  })
+);
+
+// Actualiza un gasto (solo desde la vista de activos). Si se cambia
+// "tiene_factura" a falso y el gasto tenía un comprobante adjunto, el
+// archivo se elimina del almacenamiento y los campos del comprobante se
+// limpian — un gasto "sin factura" no debe conservar un comprobante.
+app.put(
+  '/api/admin/gastos/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM gastos WHERE id = ? AND eliminado_en IS NULL', [id]);
+    const gasto = filas[0];
+    if (!gasto) {
+      return res.status(404).json({ error: 'Gasto no encontrado.' });
+    }
+
+    const datos = validarCuerpoGasto(req, res);
+    if (!datos) return;
+
+    let comprobanteNombreOriginal = gasto.comprobante_nombre_original;
+    let comprobanteNombreGuardado = gasto.comprobante_nombre_guardado;
+    let comprobanteMime = gasto.comprobante_mime;
+    if (!datos.tiene_factura && gasto.comprobante_nombre_guardado) {
+      try {
+        await storage.eliminarArchivo(storage.prefijoTenant(req), 'comprobantes', gasto.comprobante_nombre_guardado);
+      } catch (e) {
+        console.error('No se pudo borrar el comprobante del gasto en el almacenamiento:', e);
+      }
+      comprobanteNombreOriginal = null;
+      comprobanteNombreGuardado = null;
+      comprobanteMime = null;
+    }
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query(
+      `UPDATE gastos SET fecha = ?, concepto = ?, proveedor = ?, categoria = ?, monto = ?,
+         iva_incluido = ?, tiene_factura = ?, recurrente = ?, notas = ?,
+         comprobante_nombre_original = ?, comprobante_nombre_guardado = ?, comprobante_mime = ?,
+         actualizado_en = ?
+       WHERE id = ?`,
+      [
+        datos.fecha,
+        datos.concepto,
+        datos.proveedor,
+        datos.categoria,
+        datos.monto,
+        datos.iva_incluido,
+        datos.tiene_factura,
+        datos.recurrente,
+        datos.notas,
+        comprobanteNombreOriginal,
+        comprobanteNombreGuardado,
+        comprobanteMime,
+        ahora,
+        id,
+      ]
+    );
+
+    res.json({ ok: true, mensaje: 'Gasto actualizado correctamente.' });
+  })
+);
+
+// Borrado lógico: manda el gasto a la papelera. No toca el comprobante
+// en el almacenamiento ni la fila — se puede restaurar después.
+app.delete(
+  '/api/admin/gastos/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM gastos WHERE id = ? AND eliminado_en IS NULL', [id]);
+    if (!filas[0]) {
+      return res.status(404).json({ error: 'Gasto no encontrado.' });
+    }
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query('UPDATE gastos SET eliminado_en = ?, actualizado_en = ? WHERE id = ?', [ahora, ahora, id]);
+    res.json({ ok: true, mensaje: 'Gasto movido a la papelera.' });
+  })
+);
+
+// Restaura un gasto que estaba en la papelera (deshace el borrado lógico).
+app.post(
+  '/api/admin/gastos/:id/restaurar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM gastos WHERE id = ? AND eliminado_en IS NOT NULL', [id]);
+    if (!filas[0]) {
+      return res.status(404).json({ error: 'Gasto no encontrado en la papelera.' });
+    }
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query('UPDATE gastos SET eliminado_en = NULL, actualizado_en = ? WHERE id = ?', [ahora, id]);
+    res.json({ ok: true, mensaje: 'Gasto restaurado.' });
+  })
+);
+
+// Borrado físico: elimina la fila y su comprobante (si lo tiene) del
+// almacenamiento, de forma permanente. No se puede deshacer. Se espera
+// que el gasto ya esté en la papelera (el frontend solo expone este
+// botón ahí).
+app.delete(
+  '/api/admin/gastos/:id/permanente',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM gastos WHERE id = ? AND eliminado_en IS NOT NULL', [id]);
+    const gasto = filas[0];
+    if (!gasto) {
+      return res.status(404).json({ error: 'Gasto no encontrado en la papelera.' });
+    }
+
+    if (gasto.comprobante_nombre_guardado) {
+      try {
+        await storage.eliminarArchivo(storage.prefijoTenant(req), 'comprobantes', gasto.comprobante_nombre_guardado);
+      } catch (e) {
+        console.error('No se pudo borrar el comprobante del gasto en el almacenamiento:', e);
+      }
+    }
+
+    await pool.query('DELETE FROM gastos WHERE id = ?', [id]);
+    res.json({ ok: true, mensaje: 'Gasto y su comprobante eliminados permanentemente.' });
+  })
+);
+
+// Sube (o reemplaza) el comprobante de un gasto — PDF (la factura sola)
+// o ZIP (el par PDF + XML de un CFDI). Solo aplica a gastos marcados con
+// "tiene_factura"; el filtro de extensión/MIME lo hace multer, y aquí se
+// verifica la firma binaria real antes de guardar (mismo patrón que la
+// constancia y los tickets).
+app.post(
+  '/api/admin/gastos/:id/comprobante',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  (req, res) => {
+    subirConTenant(uploadComprobante, 'comprobante', req, res, async (err) => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({
+            error: `El archivo excede el tamaño máximo permitido de ${MAX_FILE_SIZE_MB} MB.`,
+          });
+        }
+        if (err.message === 'TIPO_NO_PERMITIDO') {
+          return res.status(400).json({
+            error: 'Solo se acepta un PDF (la factura) o un ZIP (con el PDF y el XML de la factura dentro).',
+          });
+        }
+        console.error('Error al subir el comprobante del gasto:', err);
+        return res.status(400).json({ error: 'No se pudo procesar el archivo.' });
+      }
+
+      try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id)) {
+          return res.status(400).json({ error: 'Identificador inválido.' });
+        }
+        if (!req.file) {
+          return res.status(400).json({ error: 'Debes adjuntar el comprobante.' });
+        }
+
+        const [filas] = await pool.query('SELECT * FROM gastos WHERE id = ? AND eliminado_en IS NULL', [id]);
+        const gasto = filas[0];
+        if (!gasto) {
+          return res.status(404).json({ error: 'Gasto no encontrado.' });
+        }
+        if (!gasto.tiene_factura) {
+          return res.status(400).json({ error: 'Un gasto marcado sin factura no puede tener comprobante.' });
+        }
+
+        // Verificación real del contenido por firma binaria: PDF (%PDF) o
+        // ZIP (PK). Un archivo renombrado a ".pdf"/".zip" pero que es otra
+        // cosa se rechaza aquí, aunque haya pasado el filtro inicial.
+        const mimePdf = detectRealMimeType(req.file.buffer);
+        let extension;
+        let mime;
+        if (mimePdf) {
+          extension = '.pdf';
+          mime = 'application/pdf';
+        } else if (esZipValido(req.file.buffer)) {
+          extension = '.zip';
+          mime = 'application/zip';
+        } else {
+          return res.status(400).json({ error: 'El contenido del archivo no es un PDF ni un ZIP válido.' });
+        }
+
+        req.file.originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
+        const prefijoComprobante = storage.prefijoTenant(req);
+
+        // Borra el comprobante anterior si se está reemplazando. DeleteObject
+        // es idempotente, no hace falta comprobar existencia primero.
+        if (gasto.comprobante_nombre_guardado) {
+          await storage.eliminarArchivo(prefijoComprobante, 'comprobantes', gasto.comprobante_nombre_guardado);
+        }
+
+        const storedFilename = `${crypto.randomUUID()}${extension}`;
+        await storage.guardarArchivo(prefijoComprobante, 'comprobantes', storedFilename, req.file.buffer, mime);
+
+        const ahora = new Date();
+        ahora.setMilliseconds(0);
+        await pool.query(
+          `UPDATE gastos SET comprobante_nombre_original = ?, comprobante_nombre_guardado = ?,
+             comprobante_mime = ?, actualizado_en = ? WHERE id = ?`,
+          [req.file.originalname.slice(0, 255), storedFilename, mime, ahora, id]
+        );
+
+        res.json({ ok: true, mensaje: 'Comprobante cargado correctamente.' });
+      } catch (innerErr) {
+        console.error('Error al guardar el comprobante del gasto:', innerErr);
+        res.status(500).json({ error: 'Ocurrió un error interno. Intenta de nuevo.' });
+      }
+    });
+  }
+);
+
+// Quita el comprobante de un gasto (borra el archivo y limpia los campos).
+app.delete(
+  '/api/admin/gastos/:id/comprobante',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM gastos WHERE id = ? AND eliminado_en IS NULL', [id]);
+    const gasto = filas[0];
+    if (!gasto) {
+      return res.status(404).json({ error: 'Gasto no encontrado.' });
+    }
+    if (!gasto.comprobante_nombre_guardado) {
+      return res.status(409).json({ error: 'Este gasto no tiene un comprobante cargado.' });
+    }
+
+    await storage.eliminarArchivo(storage.prefijoTenant(req), 'comprobantes', gasto.comprobante_nombre_guardado);
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query(
+      `UPDATE gastos SET comprobante_nombre_original = NULL, comprobante_nombre_guardado = NULL,
+         comprobante_mime = NULL, actualizado_en = ? WHERE id = ?`,
+      [ahora, id]
+    );
+
+    res.json({ ok: true, mensaje: 'Comprobante eliminado.' });
+  })
+);
+
+// Descarga el comprobante de un gasto (para verificarlo o volver a
+// descargarlo sin depender de tenerlo en la computadora de quien lo subió).
+app.get(
+  '/api/admin/gastos/:id/comprobante',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM gastos WHERE id = ?', [id]);
+    const gasto = filas[0];
+    if (!gasto) {
+      return res.status(404).json({ error: 'Gasto no encontrado.' });
+    }
+    if (!gasto.comprobante_nombre_guardado) {
+      return res.status(409).json({ error: 'Este gasto no tiene un comprobante cargado.' });
+    }
+
+    const prefijoComprobanteGet = storage.prefijoTenant(req);
+    if (!(await storage.existeArchivo(prefijoComprobanteGet, 'comprobantes', gasto.comprobante_nombre_guardado))) {
+      return res.status(404).json({ error: 'El comprobante ya no existe en el servidor.' });
+    }
+
+    res.setHeader('Content-Type', gasto.comprobante_mime || 'application/octet-stream');
+    const originalName = gasto.comprobante_nombre_original || `comprobante-${gasto.id}.pdf`;
+    const asciiFallback = originalName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, "'");
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(originalName)}`
+    );
+    await storage.enviarArchivoARespuesta(prefijoComprobanteGet, 'comprobantes', gasto.comprobante_nombre_guardado, res);
   })
 );
 

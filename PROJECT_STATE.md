@@ -5705,6 +5705,132 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       reorden del sidebar de este mismo punto se documentan aquí pero
       quedan para el próximo commit.
 
+109. **Módulo "Gastos" — control administrativo de gastos de la operación**
+    (2026-08-19): aprobado por el usuario con análisis previo (protocolo
+    `addv-web-app`), implementado en 3 segmentos y verificado con
+    `node --check` + suite Jest sin regresiones. Es una herramienta de
+    control financiero operativo, **no** un sistema contable.
+    - **Decisiones aprobadas**: solo perfil `administrador` (ni fiscal ni
+      super por `ADMIN_USERS` — `requireAdminArea('administrador')`);
+      monto único + flag `iva_incluido`; categorías en lista **cerrada**
+      en código (`renta, nomina, software, hosting, servicios, papeleria,
+      combustible, viaticos, publicidad, otro`); recurrente solo sí/no;
+      papelera (borrado lógico + restaurar + eliminar permanente);
+      comprobante **opcional** PDF (factura) o ZIP (par PDF+XML de CFDI,
+      mismo criterio que tickets) en MinIO bajo carpeta `comprobantes`.
+    - **S1 backend**: `backend/utils/gastos.js` (categorías + etiquetas +
+      `categoriaValida()` + `clausulaCheckCategoria()` — la lista cerrada
+      vive en UN solo lugar); tabla `gastos` en `backend/db.js` con CHECK
+      `chk_gastos_categoria` (migración "actualizar si quedó
+      desactualizado" como `chk_tickets_tipo_pago`); exports de MIME/
+      extensiones de comprobante en `backend/utils/validate.js`;
+      endpoints en `backend/server.js` (`adminApiLimiter` +
+      `requireAdminAuth` + `requireAdminArea('administrador')` +
+      `asyncHandler`): `GET /api/admin/gastos` (filtros `papelera`,
+      `fecha_desde/hasta`, `categoria`, `tiene_factura`, `recurrente`,
+      `busqueda`, paginación `pagina`/`por_pagina` 5..100) que devuelve
+      `{total, pagina, por_pagina, gastos[], resumen:{mes_actual,
+      con_factura, sin_factura, mes_anterior, cantidad}|null}` — el
+      resumen de KPIs solo cuando NO es papelera; `POST /api/admin/gastos`
+      (201 con `{ok, id}`); `PUT /:id` (si pasa a sin factura borra el
+      comprobante del storage); `DELETE /:id` (papelera), `POST
+      /:id/restaurar`, `DELETE /:id/permanente` (borra fila + comprobante);
+      `POST /:id/comprobante` (multipart campo `comprobante`, multer en
+      memoria `MAX_FILE_SIZE_BYTES`, verificación real por firma binaria
+      vía `detectRealMimeType`/`esZipValido` — un archivo renombrado se
+      rechaza con 400 aunque pase el filtro de extensión), `GET
+      /:id/comprobante` (binario, nombre original) y `DELETE
+      /:id/comprobante`. Booleans normalizados (`tiene_factura` etc.),
+      `monto` Number, `fecha` "YYYY-MM-DD".
+    - **S2 frontend** (`frontend/admin.html`/`admin.js`/`admin.css`):
+      botón `#btn-vista-gastos` en el sidebar (entre Órdenes y Usuarios);
+      vista `#vista-gastos` con toggle Activos/Papelera, 4 KPIs
+      (`inicio-stats-grid` reusado: Total mes, Con factura, Sin factura,
+      vs mes anterior — `es-positiva` cuando el gasto BAJA), filtros,
+      tabla con columnas ocultables (persisten en `localStorage`) y
+      paginación, columna Factura con link al PDF/ZIP o badge
+      "Con factura"/"Sin factura"; modal de alta/edición y modal de
+      detalle (2 columnas, descarga/quitado de comprobante); acciones de
+      papelera (mover/restaurar/eliminar permanente) con
+      `abrirConfirmacion`; `RESTRICCIONES_PERFIL.administrador` ya
+      incluye `'gastos'` (el perfil fiscal nunca ve el botón ni puede
+      llamar a la API).
+    - **Bug real encontrado y corregido por la suite**: `res.json` de la
+      lista usaba `por_pagina` cuando la variable local es `porPagina`
+      (ReferenceError → 500 en cada GET). Detectado por
+      `test/integration/gastos.test.js`, fix de una línea.
+    - **Corrección de test preexistente**: `tema.test.js` tenía el typo
+      `marcaLogoUrl` (esperado) contra `marcaLoGoUrl` (lo que el servidor
+      realmente devuelve, y lo que la línea 114 del mismo test ya
+      esperaba) — falla preexistente documentada en el punto 108
+      (516/517); alineado el test al servidor y quedó 546/546.
+    - **Suites al día**: backend Jest **546/546** (32 suites) — se
+      agregaron `test/unit/gastos.test.js` (5) y
+      `test/integration/gastos.test.js` (24, con mocks de
+      `../../db`, `nodemailer` y `../../utils/storage`, helper
+      `mockUsuarioAdministrativo`, buffers PDF/ZIP reales por firma).
+    - **Validado contra MySQL+MinIO reales (2026-08-19)**: stack Docker
+      levantado; `docker compose build --no-cache backend` + `up -d`
+      (gotcha del punto 108: el build normal no siempre recoge cambios).
+      `backend/scripts/verificar-mysql.js`: 256/262 (las 6 fallas son
+      PREEXISTENTES y ajenas a Gastos — `numero_compra` más largo que la
+      columna en la prueba y un CHECK de tipo_persona que muere por
+      `ER_DATA_TOO_LONG` antes del CHECK; el script no cubre gastos).
+      Tabla `gastos` + CHECK `chk_gastos_categoria` confirmados vía
+      `INFORMATION_SCHEMA` en MySQL real. Ciclo de vida completo por API
+      (usuario `admin:admin` vía nginx en `127.0.0.1:8088`):
+      POST alta (201, id=1) → GET lista con `resumen` (mes_actual/
+      con_factura correctos) → subir comprobante PDF (80 bytes reales) →
+      GET descarga (200, `Content-Type: application/pdf`,
+      `Content-Disposition` con nombre original) → archivo verificado en
+      MinIO bajo `_default/comprobantes/<uuid>.pdf` → PUT a "sin factura"
+      BORRA el archivo de MinIO (directorio queda vacío) → POST
+      comprobante a gasto sin factura rechazado (400 "Un gasto marcado
+      sin factura no puede tener comprobante.") → papelera (activos total
+      0 / papelera total 1, `resumen: null`, archivo CONSERVADO en
+      MinIO) → restaurar (vuelve a activos) → permanente rechazado en
+      activo (404 "Gasto no encontrado en la papelera.") → papelera +
+      permanente borra fila Y archivo (MinIO vacío, fila id=1 en 0).
+      Auditoría: `control_tenants.admin_auditoria` registra cada request
+      de gastos con actor/mecanismo/perfil/tenant_slug/ruta/estatus/IP.
+      La API y la lógica quedaron validadas; la revisión visual en
+      navegador real se preparó en el punto 110 y **sigue pendiente de
+      revisión por el usuario**.
+
+110. **Revisión visual del módulo "Gastos" — preparación del entorno y
+     gotchas de operación (2026-08-19)**: sesión dedicada a dejar la
+     vista Gastos lista para que el usuario la pruebe en navegador real.
+     - **Gotcha descubierto (validación de `docker compose`)**: tras
+       `docker compose build --no-cache frontend`, el `docker compose
+       up -d frontend` normal NO recreó el contenedor — el running
+       container siguió sirviendo el `admin.html` viejo (verificado:
+       la imagen nueva SÍ tenía `#btn-vista-gastos`, el contenedor no).
+       Fix: `docker compose up -d --force-recreate frontend`. Moraleja
+       para futuras sesiones: `build` + `up -d` no garantiza que el
+       contenedor en curso se actualice; verificar el HTML servido
+       (curl) y, si sigue viejo, forzar recreate.
+     - **El `--force-recreate` reseteó el mapeo de puertos**: el
+       contenedor frontend pasó de `8088:80` a `80:80` (el compose usa
+       `${FRONTEND_PORT:-80}:80` y esta sesión no tenía la variable
+       exportada). Se fijó `FRONTEND_PORT=8088` en `.env` (raíz) para
+       que `docker compose up` siempre exponga el puerto conocido de
+       las pruebas/docs, y se recreó el contenedor: vuelve a
+       `8088:80` y sirve el `admin.html` con el botón Gastos.
+     - **Datos sembrados para la revisión manual** (vía API real,
+       `admin:admin` en `http://127.0.0.1:8088`): 2 gastos activos
+       (*Renta del local* con comprobante PDF descargable y *Servicio
+       de hosting*) + 1 en papelera (*Papelería y consumibles*). Los
+       KPIs de la vista muestran los $2,300 reales del mes.
+     - **Revisión visual en curso por el usuario**: URL
+       `http://localhost:8088/admin` (login `admin:admin`). Qué probar:
+       KPIs, filtros/búsqueda, columnas ocultables, modal de detalle
+       (descarga del comprobante), modal de alta/edición y toggle
+       Activos/Papelera. Un script Playwright temporal de capturas se
+       descartó al detectarse el gotcha del contenedor (se prefirió la
+       revisión manual del usuario). El `.env` quedó así:
+       `CONTROL_APP_PASSWORD`, `INTERNAL_CACHE_SECRET`,
+       `FRONTEND_PORT=8088`.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

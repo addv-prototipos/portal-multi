@@ -536,7 +536,34 @@ eliminar reportes (con confirmación, sin papelera), para consultarlos o depurar
 
 ---
 
-## 13. Experiencia general y confiabilidad
+## 13. Panel — Vista Gastos (Administrador)
+
+### US-066 — Registrar y consultar gastos de la operación
+Como **administrador**, quiero registrar los gastos de la operación (con o sin factura) y
+consultarlos con filtros y KPIs, para controlar el flujo de caja mensual.
+
+**Criterios de aceptación:**
+- Solo perfil **administrador** (ni fiscal ni super por `ADMIN_USERS`); el botón de Gastos no aparece para otros perfiles y el backend responde 403.
+- Registro con: fecha, concepto, proveedor (opcional), categoría de lista **cerrada** (renta, nómina, software, hosting, servicios, papelería, combustible, viáticos, publicidad, otro), monto único, `iva_incluido` (sí/no), `tiene_factura` (sí/no), recurrente (sí/no) y notas.
+- KPIs del mes en curso: total, total con factura, total sin factura y comparación "vs mes anterior" (el indicador es positivo cuando el gasto baja).
+- Filtros combinables: rango de fechas, categoría, con/sin factura, recurrente, búsqueda por concepto/proveedor; paginación.
+- Columnas ocultables (fecha, proveedor, categoría, factura, monto); la elección persiste en `localStorage`.
+- Columna Factura: link al comprobante (PDF/ZIP) si está cargado, o badge "Con factura"/"Sin factura".
+
+### US-067 — Editar, papelera y comprobante de un gasto
+Como **administrador**, quiero editar gastos, moverlos a papelera (con restaurar y eliminar
+permanente) y cargar/ver/quitar su comprobante, para mantener el registro correcto.
+
+**Criterios de aceptación:**
+- Edición con los mismos campos del alta; cambiar un gasto a "sin factura" borra su comprobante del almacenamiento.
+- Papelera: borrado lógico, restaurar y eliminar permanente (con confirmación); en papelera no se muestran KPIs.
+- Comprobante opcional: PDF (factura) o ZIP (par PDF+XML de CFDI), máx. 5 MB; la verificación es por firma binaria real (un archivo renombrado se rechaza).
+- Descarga del comprobante con su nombre original; quitarlo borra el archivo y limpia los campos.
+- Auditoría de acceso admin (`admin_auditoria`) aplica a las rutas de gastos como al resto del panel.
+
+---
+
+## 14. Experiencia general y confiabilidad
 
 ### US-045 — Experiencia consistente y accesible
 Como **cliente**, quiero que todas las páginas sean mobile-first, con foco visible por teclado,
@@ -565,7 +592,7 @@ separados (login vs. API autenticada), para evitar caídas intermitentes.
 
 ---
 
-## 14. Multi-tenant — App de control `/control` (Super / Operador)
+## 15. Multi-tenant — App de control `/control` (Super / Operador)
 
 ### US-048 — Listar empresas (tenants)
 Como **super**, quiero ver la lista de empresas del catálogo de control (con estado, slug y contacto),
@@ -638,7 +665,7 @@ muestre su icono.
 
 ---
 
-## 15. Multi-tenant — Infraestructura (Operador / DevOps)
+## 16. Multi-tenant — Infraestructura (Operador / DevOps)
 
 ### US-054 — Aprovisionar la base de datos de un tenant nuevo
 Como **operador**, quiero correr `provisionar-tenant.js` con root de MySQL para materializar la BD
@@ -687,7 +714,7 @@ para no depender del disco local y poder escalar a múltiples nodos.
 
 ---
 
-## 16. Historial / pendientes a futuro
+## 17. Historial / pendientes a futuro
 
 ### US-059 — Subir logo real de la empresa en el panel
 Como **administrador**, quiero una pantalla en el panel para subir/configurar el logo real de mi

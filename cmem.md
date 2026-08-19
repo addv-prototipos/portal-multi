@@ -121,3 +121,80 @@ el 2026-08-18 (53 commits previos quedaron huérfanos ahí); la rama
 - El enlace "¿Olvidaste tu contraseña?" quedó fuera del login nuevo a
   propósito — si se quiere, es una feature aparte (flujo de
   recuperación de contraseña no existe hoy).
+
+## 2026-08-19 — Módulo "Gastos" (S3: pruebas + documentación)
+
+C019 10:00 ⚖ Sesión previa implementó el módulo "Gastos" (S1 backend +
+S2 frontend, ver `PROJECT_STATE.md` punto 109) bajo el protocolo
+`addv-web-app` con aprobación explícita del usuario. Esta sesión
+completó el S3 (pruebas + docs).
+
+C020 10:05 ✓ S3 pruebas: `backend/test/unit/gastos.test.js` (5) y
+`backend/test/integration/gastos.test.js` (24, mocks de `db`,
+`nodemailer` y `utils/storage`, helper `mockUsuarioAdministrativo`,
+buffers PDF/ZIP reales por firma binaria).
+
+C021 10:10 ●bugfix Real encontrado por la suite de integración: la
+respuesta del GET lista usaba `por_pagina` cuando la variable local es
+`porPagina` (ReferenceError → 500 en cada GET de gastos). Fix de una
+línea en `backend/server.js:3919`.
+
+C022 10:15 ✓ Se corrigió de paso la falla PREEXISTENTE de
+`tema.test.js` (typo `marcaLogoUrl` vs `marcaLoGoUrl` — el servidor
+devuelve `marcaLoGoUrl`, igual que espera la línea 114 del mismo test).
+Documentada en el punto 108 (516/517). Suite completa: **546/546**
+(32 suites), sin regresiones.
+
+C023 10:20 ✓ Documentación actualizada: `PROJECT_STATE.md` punto 109,
+`US.md` (US-066/US-067, sección nueva "Panel — Vista Gastos"),
+`AGENTS.md`, `CLAUDE.md`.
+
+C024 10:25 ○ Pendiente de validación real (misma regla que el segmento
+5): flujo completo de gastos contra MySQL+MinIO reales y revisión
+visual en navegador — el CHECK `chk_gastos_categoria` y la migración
+de la tabla `gastos` deben confirmarse con
+`backend/scripts/verificar-mysql.js`.
+
+## 2026-08-19 — Validación real del módulo "Gastos" (Docker/MySQL/MinIO)
+
+C025 11:00 ✓ Stack Docker arriba (backend 2h desactualizado). Se hizo
+`docker compose build --no-cache backend` + `up -d` (gotcha del punto
+108) y se validó el módulo Gastos contra MySQL+MinIO REALES:
+`verificar-mysql.js` 256/262 (6 fallas preexistentes ajenas:
+`numero_compra` DATA_TOO_LONG y un CHECK de tipo_persona que muere
+antes del CHECK). Tabla `gastos` + CHECK `chk_gastos_categoria`
+confirmados en `INFORMATION_SCHEMA`.
+
+C026 11:05 ✓ Ciclo de vida completo por API (admin:admin vía nginx
+8088): alta → lista+resumen → comprobante PDF en MinIO
+(`_default/comprobantes/<uuid>.pdf`) → descarga con nombre original →
+edición a sin factura BORRA el archivo de MinIO → comprobante a gasto
+sin factura rechazado (400) → papelera (archivo conservado, resumen
+null) → restaurar → permanente rechazado en activo (404) → papelera +
+permanente borra fila y archivo. `admin_auditoria` registra todo
+(actor/mecanismo/perfil/ruta/estatus/IP).
+
+C027 11:10 ✓ Docs actualizadas: `PROJECT_STATE.md` punto 109 (sección
+"Validado contra MySQL+MinIO reales"), `AGENTS.md`, `CLAUDE.md`.
+Pendiente único: revisión visual de la vista Gastos en navegador
+real.
+
+## 2026-08-19 — Preparación de la revisión visual de la vista Gastos
+
+C028 12:00 ✓ Se preparó el entorno para que el usuario pruebe la vista
+Gastos en navegador real (URL `http://localhost:8088/admin`,
+`admin:admin`). Gotchas descubiertos en el camino (documentados en
+`PROJECT_STATE.md` punto 110): (1) `docker compose build --no-cache
+frontend` + `up -d frontend` NO recreó el contenedor — siguió
+sirviendo el `admin.html` viejo (la imagen nueva sí tenía el botón);
+fix `docker compose up -d --force-recreate frontend`. (2) El
+`--force-recreate` reseteó el mapeo a `80:80` (compose usa
+`${FRONTEND_PORT:-80}`); se fijó `FRONTEND_PORT=8088` en `.env` y se
+recreó. Se sembraron 3 gastos de prueba vía API real (2 activos, 1 en
+papelera, uno con comprobante PDF) para que la vista no esté vacía.
+Un script Playwright temporal de capturas se descartó al detectarse el
+gotcha del contenedor — el usuario hará la revisión manual. Docs
+actualizadas: `PROJECT_STATE.md` (punto 110), `AGENTS.md`, `CLAUDE.md`,
+`README.md` (sección "Vista Gastos", tabla de perfiles con la columna
+Gastos, conteo de endpoints 45→56, `FRONTEND_PORT` default 80),
+`.env` (FRONTEND_PORT=8088). Pendiente: revisión visual del usuario.
