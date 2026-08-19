@@ -64,13 +64,17 @@
       </div>
 
       <nav class="admin-sidebar-nav" role="tablist" aria-label="Vista del panel">
-        <button type="button" class="admin-vista-btn is-active" id="btn-vista-constancias" role="tab" aria-selected="true">
-          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Constancias</span>
+        <button type="button" class="admin-vista-btn is-active" id="btn-vista-inicio" role="tab" aria-selected="true">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Inicio</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-tickets" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Tickets</span>
+        </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-constancias" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Constancias</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-ordenes" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
@@ -105,7 +109,104 @@
       </header>
 
       <main class="admin-main">
-      <div id="vista-constancias">
+      <div id="vista-inicio">
+        <div class="inicio-bienvenida">
+          <h1 id="inicio-titulo-bienvenida">¡Bienvenido!</h1>
+          <p class="panel-subtitle">Este es el resumen de las solicitudes de facturación.</p>
+        </div>
+
+        <div class="inicio-stats-grid">
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Solicitudes totales</span>
+              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inicio-stat-total">0</p>
+            <p class="inicio-stat-tendencia" id="inicio-stat-total-tendencia"></p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">En proceso</span>
+              <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inicio-stat-proceso">0</p>
+            <p class="inicio-stat-tendencia" id="inicio-stat-proceso-tendencia"></p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Completadas</span>
+              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inicio-stat-completadas">0</p>
+            <p class="inicio-stat-tendencia" id="inicio-stat-completadas-tendencia"></p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Rechazadas</span>
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inicio-stat-rechazadas">0</p>
+            <p class="inicio-stat-tendencia" id="inicio-stat-rechazadas-tendencia"></p>
+          </div>
+        </div>
+
+        <p class="field-error" id="inicio-error" role="alert"></p>
+
+        <div class="inicio-main-grid">
+          <section class="inicio-recientes-card">
+            <div class="inicio-card-header">
+              <h2>Solicitudes recientes</h2>
+              <button type="button" class="inicio-ver-todas" id="btn-inicio-ver-todas">Ver todas</button>
+            </div>
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Folio</th>
+                    <th>Cliente (RFC)</th>
+                    <th>Fecha de solicitud</th>
+                    <th>Estatus</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="inicio-recientes-body"></tbody>
+              </table>
+              <p class="admin-empty" id="inicio-recientes-empty" hidden>No hay tickets todavía.</p>
+            </div>
+          </section>
+
+          <section class="inicio-donut-card">
+            <h2>Solicitudes por estatus</h2>
+            <div class="inicio-donut-wrap">
+              <svg class="inicio-donut" viewBox="0 0 100 100" width="150" height="150" aria-hidden="true">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--color-border)" stroke-width="16"/>
+                <circle id="inicio-donut-proceso" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
+                <circle id="inicio-donut-completadas" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
+                <circle id="inicio-donut-rechazadas" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
+              </svg>
+              <div class="inicio-donut-centro">
+                <span class="inicio-donut-total" id="inicio-donut-total">0</span>
+                <span class="inicio-donut-total-label">Total</span>
+              </div>
+            </div>
+            <ul class="inicio-donut-leyenda">
+              <li><span class="inicio-donut-dot inicio-donut-dot-proceso" aria-hidden="true"></span><span>En proceso</span><strong id="inicio-leyenda-proceso"></strong></li>
+              <li><span class="inicio-donut-dot inicio-donut-dot-completadas" aria-hidden="true"></span><span>Completadas</span><strong id="inicio-leyenda-completadas"></strong></li>
+              <li><span class="inicio-donut-dot inicio-donut-dot-rechazadas" aria-hidden="true"></span><span>Rechazadas</span><strong id="inicio-leyenda-rechazadas"></strong></li>
+            </ul>
+          </section>
+        </div>
+      </div>
+
+      <div id="vista-constancias" hidden>
       <div class="admin-toolbar">
         <div class="admin-toolbar-title">
           <h1 id="admin-tabla-titulo">Registros recibidos</h1>

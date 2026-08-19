@@ -5591,6 +5591,119 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     - **Documentación** (este punto + `CLAUDE.md` + `AGENTS.md` +
       `README.md`) actualizada para que cualquier sesión futura conozca
       el remote correcto en vez de asumir `origin`.
+108. **Rediseño de `/admin` y del portal de cliente fiel a los mockups de
+    `stitch/` (2026-08-18/19)**: sesión con acceso real a Docker/MySQL/
+    MinIO/navegador (extensión Claude in Chrome) — todo validado en vivo,
+    no solo `node --check`. Trabajo por pedidos sucesivos del usuario,
+    todos implementados y confirmados visualmente antes de cerrar:
+    - **Sidebar del panel admin** (`frontend/admin.html`/`admin.css`):
+      reestructurado de header+tabs horizontales a sidebar fijo tipo
+      `stitch/panel_admin_portal_addv_fiel_al_mockup`, íconos SVG
+      copiados literal del mockup. Paleta azul institucional (`#03285B`
+      navy / `#05DBF2` cian) igual a la ya usada en el login (punto 106,
+      `auth.css .auth-shell`) — variables CSS redefinidas en `.admin-body`
+      (no en `.admin-dashboard`: los modales son hermanos de
+      `#admin-dashboard` en el HTML, no hijos, así que el scope tenía que
+      ser el `<body>` para que los modales también heredaran la paleta).
+      Fondo del área de contenido usa `var(--color-bg)` (el beige cálido
+      de marca, `#F6F4EF`), no un gris frío nuevo — corregido después de
+      que el usuario notara la inconsistencia contra el resto del sitio.
+    - **Logo**: `frontend/assets/branding_bgo.png` (variante clara del
+      logo, texto blanco, subida por el usuario) para fondos oscuros —
+      sidebar del admin y barra superior del portal de cliente. Sin
+      tarjeta blanca de por medio (a diferencia de un intento inicial con
+      `branding.png`, que trae texto oscuro y quedaba ilegible sobre
+      navy). `branding.png` (oscuro) se sigue usando donde el fondo es
+      claro (login).
+    - **Bug real encontrado y corregido**: `.admin-content` con
+      `display:flex; flex-direction:column` rompía el `margin:0 auto` de
+      `.admin-main` (el auto-margin en flex encoge al contenido en vez de
+      estirar), y la barra de herramientas de Constancias (con el botón
+      "Columnas") se salía del viewport sin hacer wrap — el usuario lo
+      reportó como "ya no están los filtros de columnas". Fix: quitar el
+      `display:flex` innecesario de `.admin-content` (no hacía falta,
+      apilar header+main ya es el comportamiento por defecto de bloques).
+    - **Modal "Gestionar" de tickets** (`#ticket-modal-overlay`)
+      rediseñado fiel a `stitch/detalle_de_solicitud`: modal ancho
+      (820px) en 2 columnas — información de la solicitud + ticket
+      adjunto a la izquierda, estatus + factura en tarjetas a la derecha
+      — con un badge de estatus junto al título (reutiliza
+      `ESTATUS_INFO`, ya existente). Mismos campos/funciones de siempre
+      (RFC, Uso de CFDI, tipo de pago, comentarios del cliente, datos de
+      compra, imagen con zoom, cambiar estatus, notas internas, subir
+      factura) — ningún dato ni endpoint nuevo, solo reordenados.
+    - **Vista "Inicio" nueva** (primera en el sidebar, junto con mover
+      "Tickets" a segunda posición — pedido explícito): fiel a
+      `stitch/dashboard_portal_addv_fiel_al_mockup` — bienvenida, 4
+      tarjetas de estatísticas (Solicitudes totales / En proceso /
+      Completadas / Rechazadas, mapeadas 1:1 a los 4 `estatus` reales de
+      tickets: pendiente+en_curso / listo / cancelado), tabla de
+      "Solicitudes recientes" (últimos 5 tickets, botón "Gestionar" abre
+      el mismo modal de siempre) y una dona SVG de 3 segmentos con
+      porcentajes reales. Todo calculado en el cliente a partir del MISMO
+      endpoint `GET /admin/tickets` que ya usa la vista Tickets — sin
+      endpoint nuevo. La tendencia "vs mes anterior" de cada tarjeta es
+      real (compara `creado_en` del mes calendario actual contra el
+      anterior); si no hay datos del mes anterior se muestra el conteo
+      del mes en curso en vez de inventar un porcentaje. "Inicio" es
+      ahora la vista por defecto al iniciar sesión (antes era
+      Constancias) — `cambiarVistaPrincipal('constancias')` en el reset
+      de logout y la precarga post-login se cambiaron a `'inicio'`.
+      Permitida para perfiles `super`/`fiscal` (agregada a
+      `RESTRICCIONES_PERFIL.fiscal.vistasPermitidas`); el perfil
+      `administrador` no la ve porque tampoco ve Tickets (misma regla de
+      negocio ya existente, la vista es 100% derivada de datos de
+      tickets).
+    - **Portal de cliente** (`dashboard.html`/`tickets.html`/`csf.html` +
+      `portal.css`): misma paleta navy que el admin, escopada a
+      `.portal-body` (no toca `/control`, que sigue en verde). Barra
+      superior (`.portal-header`) en navy con el logo `branding_bgo.png`
+      (agrandado de 26px a 42px de alto tras feedback del usuario de que
+      se veía chico). `csf.html` no tenía la clase `.portal-body` en el
+      `<body>` (bug preexistente, sin relación) — se agregó para que
+      heredara la paleta igual que las otras dos páginas.
+    - **Validado en vivo contra Docker/MySQL/MinIO reales**: stack
+      levantado con `docker compose up`, dos tenants de prueba
+      aprovisionados (`pruebaadmin`, `piloto9c`) para probar login de
+      admin/cliente con datos reales (incluyendo tickets insertados a
+      mano para ver Inicio con números != 0). **Bug de entorno
+      encontrado y corregido, no de código**: `provisionar-tenant.js`
+      corrido desde el host con `DB_HOST=127.0.0.1` guarda ese mismo
+      valor como `db_host` del tenant en `control_tenants.tenants` — pero
+      el backend (dentro de Docker) necesita `db_host='mysql'` para
+      conectar. Se corrigió a mano con `UPDATE` para ambos tenants de
+      prueba; si se vuelve a provisionar un tenant desde el host, revisar
+      ese valor antes de asumir que el backend podrá conectarse.
+      **Gotcha de esta sesión, anotarlo para la próxima**: un
+      `docker compose build <servicio>` normal a veces NO recoge cambios
+      de archivos aunque el contenido cambió (visto en este entorno
+      Windows/Docker Desktop) — si un rebuild no se refleja al probar
+      (verificar con `curl` al archivo estático servido), usar
+      `docker compose build --no-cache <servicio>` seguido de
+      `up -d --force-recreate <servicio>`. Además, el navegador cachea en
+      disco el HTML/CSS servido — tras cualquier rebuild, forzar
+      recarga dura (`Ctrl+Shift+R`) antes de concluir que un cambio no
+      se aplicó.
+    - Suite E2E de Playwright corrida contra el stack real (`--workers=1`,
+      `E2E_BASE_URL` con `127.0.0.1` en vez de `localhost` — el Chromium
+      de Playwright en este entorno resuelve `localhost` a IPv6 y se
+      cuelga): la mayoría de las fallas encontradas eran huecos de
+      fixtures del entorno (tenant `piloto9c` sin constancia fiscal
+      subida, alta de empresa vía `/control` sin completar con el CLI,
+      `e2e/.slug-e2e.txt` con un slug viejo de otra sesión) — no
+      regresiones del reskin. Jest de backend: 516/517 sin cambios (la
+      única falla, `tema.test.js` con typo `marcaLogoUrl`/`marcaLoGoUrl`,
+      es preexistente y no relacionada).
+    - **Skill global `addv-web-app`** (`~/.claude/skills/addv-web-app/
+      SKILL.md`, fuera de este repo, afecta todos los proyectos del
+      usuario bajo este protocolo) actualizada con las lecciones de esta
+      sesión (caché de build/navegador arriba), `caveman` confirmado
+      activo, e `impeccable` movida de "no instalada" a skill nativa
+      activa en la tabla de fases de diseño/UI.
+    - Commit `26ebdc6` (rediseño sidebar+modal+paleta+logo, sin la vista
+      Inicio todavía) publicado a `fact main:master`. La vista Inicio +
+      reorden del sidebar de este mismo punto se documentan aquí pero
+      quedan para el próximo commit.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

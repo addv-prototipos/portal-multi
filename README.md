@@ -369,7 +369,11 @@ contra infraestructura real y confirma cada uno.
 Disponible en `http://localhost:8080/admin` (o `https://tudominio.com/admin` en producción).
 
 - **Acceso**: usuario y contraseña por HTTP Basic Auth. Por defecto `admin` / `admin` (ver "Administración de cuentas y contraseñas" más abajo para los tres mecanismos que aceptan credenciales — variable de entorno, cuenta de respaldo, o usuarios con perfil administrador/fiscal). Es un sistema **separado** del login de RFC + contraseña de los usuarios del portal (`login.html`) — un cliente no puede iniciar sesión en el panel, y un administrador no inicia sesión como cliente.
-- El panel tiene cuatro vistas, con un selector arriba: **"Constancias"** (lo de siempre), **"Tickets"**, **"Usuarios"** y **"Configuraciones globales"** (agrupa la configuración de campos obligatorios y de correo SMTP, ver más abajo).
+- El panel tiene un menú lateral con estas vistas, en este orden: **"Inicio"** (resumen, ver abajo), **"Tickets"**, **"Constancias"** (lo de siempre), **"Orden de compra"**, **"Usuarios"**, **"Configuraciones globales"** (agrupa la configuración de campos obligatorios y de correo SMTP, ver más abajo) y **"Reportes"**. "Inicio" es la vista que se ve al iniciar sesión.
+
+### Vista "Inicio"
+
+Resumen de tickets al estilo tablero de control: un saludo, cuatro tarjetas de estatísticas (**Solicitudes totales**, **En proceso** —pendiente + en curso—, **Completadas** —listo— y **Rechazadas** —cancelado—, cada una con su variación real contra el mes calendario anterior), una tabla de las **5 solicitudes más recientes** (con un botón **"Gestionar"** que abre el mismo panel de gestión que la vista Tickets, y un enlace **"Ver todas"** que salta directo a esa vista) y una gráfica de dona con el porcentaje real de tickets en cada estatus. Todo se calcula a partir de los mismos tickets que ya ves en la vista "Tickets" — no hay datos ni endpoint aparte. Visible para el perfil `super` y `fiscal` (el perfil `administrador` no la ve, porque tampoco ve la vista Tickets de la que se deriva).
 
 ### Vista "Constancias"
 

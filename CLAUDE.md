@@ -362,6 +362,24 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   el 2026-08-18, los 53 commits previos quedaron huérfanos, la rama
   `prototipo` del remote sigue intacta). No asumir `origin` como destino
   de publicación sin verificar antes.
+- **Rediseño de `/admin` y del portal de cliente fiel a `stitch/`, ver
+  PROJECT_STATE.md punto 108**: sidebar navy en el admin (mockup
+  `panel_admin_...`), modal "Gestionar" de tickets en 2 columnas (mockup
+  `detalle_de_solicitud`), vista "Inicio" nueva con estatísticas/dona
+  reales de tickets (mockup `dashboard_portal_addv_...`, ahora primera en
+  el sidebar, con "Tickets" en segunda posición), y la misma paleta navy
+  + logo claro (`frontend/assets/branding_bgo.png`) en la barra superior
+  del portal de cliente. Validado en vivo contra Docker/MySQL/MinIO
+  reales y con la extensión Claude in Chrome — no solo `node --check`.
+  Dos tenants de prueba viven en el volumen de MySQL de quien haya
+  corrido esta sesión (`pruebaadmin`, `piloto9c`) para esa validación —
+  no son tenants reales, se pueden dar de baja o ignorar. **Gotcha de
+  Docker/navegador para la próxima sesión**: un `docker compose build
+  <servicio>` normal a veces no recoge cambios de archivo (usar
+  `--no-cache` + `up -d --force-recreate` si un rebuild no se refleja al
+  probar) y el navegador cachea HTML/CSS en disco tras el rebuild (forzar
+  `Ctrl+Shift+R`). Sigue vigente: **todavía no hay ningún tenant real de
+  producción dado de alta** — nada de esto recibe tráfico real hoy.
 
 Las tres superficies de la app: portal de cliente (sin prefijo o
 `/<slug>/...`), panel admin por tenant (`/admin` o `/<slug>/admin`), y

@@ -1319,6 +1319,201 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .btn-danger:hover { background: #962019; }
 
+/* ---------- Vista Inicio (dashboard de bienvenida) ----------
+   Fiel al mockup de stitch (stitch/dashboard_portal_addv_fiel_al_mockup/
+   code.html): bienvenida, 4 tarjetas de estatísticas, tabla de
+   solicitudes recientes y dona de estatus — con datos reales de tickets
+   (mismo endpoint GET /admin/tickets que ya usa la vista Tickets), sin
+   inventar métricas: la tendencia "vs mes anterior" se calcula
+   comparando creado_en del mes actual contra el anterior; si no hay
+   datos del mes anterior se muestra "—" en vez de un porcentaje falso. */
+.inicio-bienvenida {
+  margin-bottom: 20px;
+}
+.inicio-bienvenida h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  margin: 0 0 4px;
+}
+
+.inicio-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+  .inicio-stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .inicio-stats-grid { grid-template-columns: 1fr; }
+}
+
+.inicio-stat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+}
+.inicio-stat-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.inicio-stat-titulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+.inicio-stat-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.inicio-stat-icono-total { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.inicio-stat-icono-proceso { background: var(--color-warn-soft); color: var(--color-warn); }
+.inicio-stat-icono-completadas { background: #DCEFE3; color: #146C43; }
+.inicio-stat-icono-rechazadas { background: var(--color-error-soft); color: var(--color-error); }
+
+.inicio-stat-numero {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  margin: 10px 0 4px;
+}
+.inicio-stat-tendencia {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+.inicio-stat-tendencia.es-positiva { color: #146C43; }
+.inicio-stat-tendencia.es-negativa { color: var(--color-error); }
+
+.inicio-main-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .inicio-main-grid { grid-template-columns: 1fr; }
+}
+
+.inicio-recientes-card,
+.inicio-donut-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.inicio-donut-card { padding: 18px; }
+
+.inicio-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+.inicio-card-header h2,
+.inicio-donut-card h2 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  margin: 0;
+}
+.inicio-donut-card h2 { margin-bottom: 16px; }
+
+.inicio-ver-todas {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+.inicio-ver-todas:hover { text-decoration: underline; }
+
+.inicio-recientes-card .admin-table-wrap {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.inicio-recientes-card .admin-table { min-width: 0; }
+
+.inicio-donut-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 18px;
+  width: 150px;
+  height: 150px;
+}
+.inicio-donut { transform: rotate(-90deg); }
+.inicio-donut-segmento { transition: stroke-dasharray 0.6s ease; }
+#inicio-donut-proceso { stroke: var(--color-warn); }
+#inicio-donut-completadas { stroke: #1FAE6B; }
+#inicio-donut-rechazadas { stroke: var(--color-error); }
+
+.inicio-donut-centro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.inicio-donut-total {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.inicio-donut-total-label {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+}
+
+.inicio-donut-leyenda {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inicio-donut-leyenda li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+.inicio-donut-leyenda li strong {
+  margin-left: auto;
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.inicio-donut-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.inicio-donut-dot-proceso { background: var(--color-warn); }
+.inicio-donut-dot-completadas { background: #1FAE6B; }
+.inicio-donut-dot-rechazadas { background: var(--color-error); }
+
 /* ---------- Tabla de tickets ---------- */
 .tickets-filtro-estatus {
   padding: 8px 30px 8px 12px;

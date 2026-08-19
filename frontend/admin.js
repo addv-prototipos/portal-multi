@@ -113,19 +113,42 @@
     previewImage: document.getElementById('preview-image'),
     btnPreviewDescargar: document.getElementById('btn-preview-descargar'),
     btnPreviewCerrar: document.getElementById('btn-preview-cerrar'),
-    // Vista Constancias / Tickets / Orden de compra / Usuarios / Configuraciones globales
+    // Vista Inicio / Constancias / Tickets / Orden de compra / Usuarios / Configuraciones globales
+    btnVistaInicio: document.getElementById('btn-vista-inicio'),
     btnVistaConstancias: document.getElementById('btn-vista-constancias'),
     btnVistaTickets: document.getElementById('btn-vista-tickets'),
     btnVistaOrdenes: document.getElementById('btn-vista-ordenes'),
     btnVistaUsuarios: document.getElementById('btn-vista-usuarios'),
     btnVistaConfiguraciones: document.getElementById('btn-vista-configuraciones'),
     btnVistaLecturaReportes: document.getElementById('btn-vista-lectura-reportes'),
+    vistaInicio: document.getElementById('vista-inicio'),
     vistaConstancias: document.getElementById('vista-constancias'),
     vistaTickets: document.getElementById('vista-tickets'),
     vistaOrdenes: document.getElementById('vista-ordenes'),
     vistaUsuarios: document.getElementById('vista-usuarios'),
     vistaConfiguraciones: document.getElementById('vista-configuraciones'),
     vistaLecturaReportes: document.getElementById('vista-lectura-reportes'),
+    // Vista Inicio: bienvenida, tarjetas de estatísticas, recientes y dona
+    inicioTituloBienvenida: document.getElementById('inicio-titulo-bienvenida'),
+    inicioError: document.getElementById('inicio-error'),
+    inicioStatTotal: document.getElementById('inicio-stat-total'),
+    inicioStatTotalTendencia: document.getElementById('inicio-stat-total-tendencia'),
+    inicioStatProceso: document.getElementById('inicio-stat-proceso'),
+    inicioStatProcesoTendencia: document.getElementById('inicio-stat-proceso-tendencia'),
+    inicioStatCompletadas: document.getElementById('inicio-stat-completadas'),
+    inicioStatCompletadasTendencia: document.getElementById('inicio-stat-completadas-tendencia'),
+    inicioStatRechazadas: document.getElementById('inicio-stat-rechazadas'),
+    inicioStatRechazadasTendencia: document.getElementById('inicio-stat-rechazadas-tendencia'),
+    btnInicioVerTodas: document.getElementById('btn-inicio-ver-todas'),
+    inicioRecientesBody: document.getElementById('inicio-recientes-body'),
+    inicioRecientesEmpty: document.getElementById('inicio-recientes-empty'),
+    inicioDonutTotal: document.getElementById('inicio-donut-total'),
+    inicioDonutProceso: document.getElementById('inicio-donut-proceso'),
+    inicioDonutCompletadas: document.getElementById('inicio-donut-completadas'),
+    inicioDonutRechazadas: document.getElementById('inicio-donut-rechazadas'),
+    inicioLeyendaProceso: document.getElementById('inicio-leyenda-proceso'),
+    inicioLeyendaCompletadas: document.getElementById('inicio-leyenda-completadas'),
+    inicioLeyendaRechazadas: document.getElementById('inicio-leyenda-rechazadas'),
     // Tabla de tickets
     ticketsTablaTitulo: document.getElementById('tickets-tabla-titulo'),
     btnVerTicketsActivos: document.getElementById('btn-ver-tickets-activos'),
@@ -633,7 +656,7 @@
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card'],
     },
     fiscal: {
-      vistasPermitidas: ['constancias', 'tickets', 'configuraciones'],
+      vistasPermitidas: ['inicio', 'constancias', 'tickets', 'configuraciones'],
       tarjetasConfigPermitidas: ['admin-config-card', 'global-config-card'],
     },
   };
@@ -647,6 +670,7 @@
     const sinRestricciones = !restriccion;
 
     const navPorVista = {
+      inicio: els.btnVistaInicio,
       constancias: els.btnVistaConstancias,
       tickets: els.btnVistaTickets,
       ordenes: els.btnVistaOrdenes,
@@ -767,14 +791,13 @@
       const data = await res.json();
       setSession(usuario, contrasena);
       showDashboard(data.usuario || usuario, data.perfil);
-      // "Constancias" (la vista que se ve por defecto al iniciar sesión)
-      // es del área "fiscal" en el backend — precargarla sin condición
-      // le pediría al backend algo que un perfil "administrador" ya no
-      // tiene permitido. aplicarRestriccionesPerfil() (dentro de
+      // "Inicio" (la vista que se ve por defecto al iniciar sesión) usa
+      // datos de tickets, que un perfil "administrador" no tiene
+      // permitido ver. aplicarRestriccionesPerfil() (dentro de
       // showDashboard) ya redirige a ese perfil a una vista que sí
-      // puede ver, así que tampoco haría falta el dato de Constancias.
+      // puede ver, así que tampoco haría falta el dato de Inicio.
       if (data.perfil !== 'administrador') {
-        await cargarRegistros();
+        await cargarInicio();
       }
     } catch (err) {
       els.loginError.textContent = 'No se pudo conectar con el servidor.';
@@ -819,7 +842,7 @@
     cerrarPreview();
     cerrarTicketModal();
     cerrarPasswordModal();
-    cambiarVistaPrincipal('constancias');
+    cambiarVistaPrincipal('inicio');
     state.vista = 'activos';
     els.btnVerActivos.classList.add('is-active');
     els.btnVerActivos.setAttribute('aria-selected', 'true');
@@ -2737,6 +2760,8 @@
   // ---------- Vista Constancias / Tickets / Usuarios ----------
 
   function cambiarVistaPrincipal(vista) {
+    els.btnVistaInicio.classList.toggle('is-active', vista === 'inicio');
+    els.btnVistaInicio.setAttribute('aria-selected', String(vista === 'inicio'));
     els.btnVistaConstancias.classList.toggle('is-active', vista === 'constancias');
     els.btnVistaConstancias.setAttribute('aria-selected', String(vista === 'constancias'));
     els.btnVistaTickets.classList.toggle('is-active', vista === 'tickets');
@@ -2749,12 +2774,15 @@
     els.btnVistaConfiguraciones.setAttribute('aria-selected', String(vista === 'configuraciones'));
     els.btnVistaLecturaReportes.classList.toggle('is-active', vista === 'lectura-reportes');
     els.btnVistaLecturaReportes.setAttribute('aria-selected', String(vista === 'lectura-reportes'));
+    els.vistaInicio.hidden = vista !== 'inicio';
     els.vistaConstancias.hidden = vista !== 'constancias';
     els.vistaTickets.hidden = vista !== 'tickets';
     els.vistaOrdenes.hidden = vista !== 'ordenes';
     els.vistaUsuarios.hidden = vista !== 'usuarios';
     els.vistaConfiguraciones.hidden = vista !== 'configuraciones';
     els.vistaLecturaReportes.hidden = vista !== 'lectura-reportes';
+    if (vista === 'inicio') cargarInicio();
+    if (vista === 'constancias') cargarRegistros();
     if (vista === 'tickets') {
       cargarUsuariosFiltroTickets();
       cargarTickets();
@@ -2784,6 +2812,7 @@
     if (vista === 'lectura-reportes') cargarListaReportes();
   }
 
+  els.btnVistaInicio.addEventListener('click', () => cambiarVistaPrincipal('inicio'));
   els.btnVistaConstancias.addEventListener('click', () => cambiarVistaPrincipal('constancias'));
   els.btnVistaTickets.addEventListener('click', () => cambiarVistaPrincipal('tickets'));
   els.btnVistaOrdenes.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
@@ -2826,6 +2855,124 @@
       // Si falla, el filtro se queda solo con "Todos los usuarios" — no bloquea el resto de la vista.
     }
   }
+
+  // Vista "Inicio": bienvenida + resumen de tickets, fiel al mockup de
+  // stitch (dashboard_portal_addv_fiel_al_mockup). Reutiliza el mismo
+  // endpoint GET /admin/tickets que ya usa la vista Tickets — sin
+  // agregar un endpoint nuevo — y calcula todo (estatísticas, dona,
+  // recientes) en el cliente a partir de esos mismos datos.
+  async function cargarInicio() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.inicioError.textContent = '';
+    els.inicioTituloBienvenida.textContent = usuarioSesionActual
+      ? `¡Bienvenido, ${usuarioSesionActual}!`
+      : '¡Bienvenido!';
+    try {
+      const res = await fetch(`${API_BASE}/admin/tickets`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        els.inicioError.textContent = 'No se pudieron cargar las solicitudes.';
+        return;
+      }
+      const data = await res.json();
+      renderInicio(data.tickets || []);
+    } catch (err) {
+      els.inicioError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  // Compara cuántos tickets de "lista" se crearon en el mes calendario
+  // actual (a la fecha) contra el mes calendario anterior completo. Sin
+  // datos del mes anterior no se inventa una tendencia — se muestra el
+  // conteo del mes en curso en su lugar.
+  function aplicarTendencia(elemento, lista) {
+    const ahora = new Date();
+    const inicioMesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    const inicioMesAnterior = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1);
+    const contarEnRango = (desde, hasta) =>
+      lista.filter((t) => {
+        const fecha = new Date(t.creado_en);
+        return fecha >= desde && fecha < hasta;
+      }).length;
+
+    const actual = contarEnRango(inicioMesActual, ahora);
+    const anterior = contarEnRango(inicioMesAnterior, inicioMesActual);
+
+    elemento.classList.remove('es-positiva', 'es-negativa');
+    if (anterior === 0) {
+      elemento.textContent = actual > 0 ? `${actual} nuevas este mes` : 'Sin cambios este mes';
+      return;
+    }
+    const cambio = Math.round(((actual - anterior) / anterior) * 100);
+    elemento.textContent = `${cambio > 0 ? '+' : ''}${cambio}% vs mes anterior`;
+    if (cambio > 0) elemento.classList.add('es-positiva');
+    if (cambio < 0) elemento.classList.add('es-negativa');
+  }
+
+  function renderInicio(tickets) {
+    const enProceso = tickets.filter((t) => t.estatus === 'pendiente' || t.estatus === 'en_curso');
+    const completadas = tickets.filter((t) => t.estatus === 'listo');
+    const rechazadas = tickets.filter((t) => t.estatus === 'cancelado');
+    const total = tickets.length;
+
+    els.inicioStatTotal.textContent = total;
+    els.inicioStatProceso.textContent = enProceso.length;
+    els.inicioStatCompletadas.textContent = completadas.length;
+    els.inicioStatRechazadas.textContent = rechazadas.length;
+    aplicarTendencia(els.inicioStatTotalTendencia, tickets);
+    aplicarTendencia(els.inicioStatProcesoTendencia, enProceso);
+    aplicarTendencia(els.inicioStatCompletadasTendencia, completadas);
+    aplicarTendencia(els.inicioStatRechazadasTendencia, rechazadas);
+
+    // Dona de 3 segmentos (en proceso / completadas / rechazadas) sobre
+    // el total de tickets — el arco vacío del fondo ya representa el resto.
+    const circunferencia = 2 * Math.PI * 40;
+    els.inicioDonutTotal.textContent = total;
+    let acumulado = 0;
+    [
+      { el: els.inicioDonutProceso, cantidad: enProceso.length, leyenda: els.inicioLeyendaProceso },
+      { el: els.inicioDonutCompletadas, cantidad: completadas.length, leyenda: els.inicioLeyendaCompletadas },
+      { el: els.inicioDonutRechazadas, cantidad: rechazadas.length, leyenda: els.inicioLeyendaRechazadas },
+    ].forEach(({ el, cantidad, leyenda }) => {
+      const porcentaje = total > 0 ? (cantidad / total) * 100 : 0;
+      const largo = (porcentaje / 100) * circunferencia;
+      el.setAttribute('stroke-dasharray', `${largo} ${circunferencia - largo}`);
+      el.setAttribute('stroke-dashoffset', String(-acumulado));
+      acumulado += largo;
+      leyenda.textContent = total > 0 ? `${cantidad} (${Math.round(porcentaje)}%)` : `${cantidad}`;
+    });
+
+    // Solicitudes recientes: últimos 5 tickets por fecha de creación —
+    // el botón "Gestionar" abre el mismo modal que la vista Tickets.
+    const recientes = [...tickets].sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en)).slice(0, 5);
+    els.inicioRecientesBody.innerHTML = '';
+    els.inicioRecientesEmpty.hidden = recientes.length > 0;
+    recientes.forEach((t) => {
+      const info = ESTATUS_INFO[t.estatus] || { texto: t.estatus, clase: '' };
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td data-label="Folio"><strong>${escapeHtml(t.folio)}</strong></td>
+        <td data-label="Cliente (RFC)">${escapeHtml(t.rfc)}</td>
+        <td data-label="Fecha de solicitud">${formatFecha(t.creado_en)}</td>
+        <td data-label="Estatus"><span class="estatus-badge ${info.clase}">${escapeHtml(info.texto)}</span></td>
+        <td data-label=""><button type="button" class="btn-ver">Gestionar</button></td>
+      `;
+      tr.querySelector('.btn-ver').addEventListener('click', () => abrirTicketModal(t));
+      els.inicioRecientesBody.appendChild(tr);
+    });
+  }
+
+  els.btnInicioVerTodas.addEventListener('click', () => els.btnVistaTickets.click());
 
   async function cargarTickets() {
     const authHeader = getAuthHeader();
