@@ -6384,6 +6384,79 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       intactos). Nada commiteado — todo queda en el working tree para
       revisión del usuario antes de decidir qué mergear/pushear.
 
+117. **Gráficas de Business Intelligence en "Resumen financiero"
+    (2026-08-20)**: a partir de un análisis previo de qué datos reales
+    respaldan cada gráfica (sin inventar métricas — mismo criterio que ya
+    forzó el renombrado de "IVA Neto"/"Tickets Pendientes" en el punto
+    114), propuesta en markdown presentada y aprobada explícitamente por
+    el usuario ("sí, adelante con las 5, mes actual") antes de
+    implementar, protocolo `addv-web-app`. 5 gráficas nuevas agregadas a
+    la vista ya existente, todas en SVG/CSS puro sin librería externa
+    (mismo criterio que el resto del frontend sin build step, y
+    consistente con el fix de seguridad del punto 116 que quitó el único
+    CDN externo del sitio):
+    - **Distribución de gastos por categoría** (dona dinámica, mes
+      actual): `GROUP BY categoria` sobre `gastos`, las 10 categorías de
+      la lista cerrada (`backend/utils/gastos.js`) con color fijo por
+      categoría (para que el mismo color siempre represente la misma
+      categoría entre cargas).
+    - **Ventas facturadas vs sin facturar** (dona, 2 segmentos): mismo
+      dato que ya existía como KPI de texto ("Ventas sin facturar"),
+      ahora también como proporción visual.
+    - **Balance acumulado** (línea, Facturado − Gastos sumado mes a mes
+      sobre `serie_mensual`): muestra tendencia en el tiempo, no solo el
+      corte del mes — implementada como gráfica de línea propia (SVG
+      `polyline` + puntos), NO superpuesta sobre la barra existente de
+      Ventas/Facturado/Gastos como decía la propuesta original (ajuste
+      de implementación: superponerla sobre barras CSS de altura
+      variable habría requerido convertir esa gráfica entera a SVG,
+      cambio innecesariamente grande para el mismo resultado visual).
+    - **Proyección de ventas** (línea sólida + tramo punteado): estimación
+      estadística simple (promedio del delta mes a mes de los últimos 3
+      meses reales, extendido 2 meses hacia adelante, piso en 0) — NUNCA
+      se muestra con menos de 3 meses reales de histórico (mismo
+      principio que `calcularTendencia()`, no inventar con datos
+      insuficientes). Etiquetada explícitamente en la UI como estimación,
+      no pronóstico financiero.
+    - **Top 5 proveedores de gasto** (barras horizontales, mes actual):
+      `GROUP BY proveedor` sobre `gastos` (excluye proveedor vacío/nulo)
+      — dato accionable real, columna que ya se capturaba desde el alta
+      de gasto sin usarse en ningún reporte hasta ahora.
+    - Backend: `GET /api/admin/resumen-financiero`
+      (`backend/server.js`) extendido con 3 campos nuevos en la
+      respuesta (`gastos_por_categoria`, `top_proveedores`,
+      `proyeccion_ventas`), 2 queries SQL nuevas (agregadas, nunca se
+      manda una fila suelta de `gastos` al frontend, mismo criterio que
+      el resto del endpoint) + cálculo de la proyección en JS a partir de
+      la serie ya construida. Frontend: 5 tarjetas nuevas en
+      `frontend/admin.html` dentro de `#vista-resumen-financiero`, CSS en
+      `frontend/admin.css` (`.resumen-fin-grid`, `.resumen-fin-line-*`,
+      `.resumen-fin-donut-*` — dona generalizada a N segmentos dinámicos
+      vía `renderDonutGenerico()`, a diferencia de la dona de 3 círculos
+      fijos que ya existía en "Inicio"), lógica en `frontend/admin.js`.
+    - Tests: `backend/test/integration/resumenFinanciero.test.js`
+      extendido (mocks de las 2 queries nuevas en los tests existentes +
+      2 tests nuevos: campos vacíos sin actividad, y proyección con 3+
+      meses reales de crecimiento constante). Jest backend **552/552**
+      (33 suites). `node --check` limpio en `server.js`/`admin.js`,
+      balance de llaves verificado en `admin.css`, cruce
+      `getElementById()`↔`id=` sin IDs nuevos huérfanos.
+    - **Validado contra Docker/MySQL reales**: rebuild + redeploy de
+      `backend` y `frontend` (el código no está montado por volumen,
+      necesita rebuild de imagen); `GET /api/admin/resumen-financiero`
+      contra los datos reales de la siembra del punto 115 devuelve las 7
+      categorías de gasto de `pruebaadmin`/`portal_facturacion` y sus 5
+      proveedores reales (AWS, Imprenta Rápida, Office Depot, Gasolinera
+      Pemex, Telmex), y `proyeccion_ventas: null` correctamente (solo 1
+      mes de datos reales, menos de los 3 que exige la proyección). HTML
+      servido por el contenedor `frontend` confirmado con las 5 tarjetas
+      nuevas (sin problema de caché de build). **Sin verificar en
+      navegador real** (extensión Claude in Chrome no conectada en esta
+      sesión) — pendiente una revisión visual con clics reales antes de
+      considerar esto completamente cerrado, mismo hueco que otros
+      segmentos han dejado documentado explícitamente en vez de asumir
+      que "se ve bien". Nada commiteado.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

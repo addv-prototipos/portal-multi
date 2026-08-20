@@ -382,6 +382,19 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   aplicadas (segmentar la red plana de Docker), en el punto 116. No se
   hizo ningún commit/push — todo en el working tree para revisión del
   usuario.
+- **Gráficas BI en "Resumen financiero" (ver PROJECT_STATE.md punto 117,
+  2026-08-20)**: análisis de datos reales → propuesta en markdown →
+  aprobación explícita del usuario → implementación, protocolo
+  `addv-web-app`. 5 gráficas nuevas (distribución de gastos por
+  categoría, ventas facturadas vs sin facturar, balance acumulado,
+  proyección de ventas a 2 meses con mínimo de 3 meses reales para
+  mostrarse, top 5 proveedores de gasto), todas SVG/CSS puro sin
+  librería externa. `GET /api/admin/resumen-financiero` extendido con
+  `gastos_por_categoria`/`top_proveedores`/`proyeccion_ventas`. Jest
+  552/552. Validado con datos reales de la siembra del punto 115 vía
+  `curl` + HTML servido por el contenedor confirmado — **sin revisión en
+  navegador real** (extensión Claude in Chrome no conectada esta
+  sesión), pendiente antes de cerrar del todo. Nada commiteado.
 - **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
   partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
   propia (no dentro de "Inicio", que es del perfil `fiscal`) para el

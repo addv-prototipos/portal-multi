@@ -431,6 +431,61 @@
             <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
           </ul>
         </section>
+
+        <div class="resumen-fin-grid">
+          <section class="resumen-fin-line-card">
+            <h2>Balance acumulado (Facturado − Gastos)</h2>
+            <div class="resumen-fin-line-wrap">
+              <svg class="resumen-fin-line-svg" id="resumen-fin-balance-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Balance acumulado por mes"></svg>
+            </div>
+            <div class="resumen-fin-line-etiquetas" id="resumen-fin-balance-etiquetas"></div>
+            <p class="admin-empty" id="resumen-fin-balance-empty" hidden>Aún no hay suficientes datos para esta gráfica.</p>
+          </section>
+
+          <section class="resumen-fin-donut-card">
+            <h2>Distribución de gastos por categoría</h2>
+            <div class="resumen-fin-donut-wrap">
+              <svg class="resumen-fin-donut" id="resumen-fin-donut-categorias" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
+              <div class="resumen-fin-donut-centro">
+                <span class="resumen-fin-donut-total" id="resumen-fin-donut-categorias-total">$0</span>
+                <span class="resumen-fin-donut-total-label">Gastos</span>
+              </div>
+            </div>
+            <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-categorias-leyenda"></ul>
+            <p class="admin-empty" id="resumen-fin-donut-categorias-empty" hidden>Aún no hay gastos registrados este mes.</p>
+          </section>
+        </div>
+
+        <div class="resumen-fin-grid">
+          <section class="resumen-fin-line-card">
+            <h2>Proyección de ventas</h2>
+            <div class="resumen-fin-line-wrap">
+              <svg class="resumen-fin-line-svg" id="resumen-fin-proyeccion-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Proyección de ventas"></svg>
+            </div>
+            <div class="resumen-fin-line-etiquetas" id="resumen-fin-proyeccion-etiquetas"></div>
+            <p class="resumen-fin-proyeccion-nota" id="resumen-fin-proyeccion-nota" hidden>Proyección estimada a partir de tu histórico — no es un pronóstico garantizado.</p>
+            <p class="admin-empty" id="resumen-fin-proyeccion-empty" hidden>Necesitas al menos 3 meses con ventas para ver una proyección.</p>
+          </section>
+
+          <section class="resumen-fin-donut-card">
+            <h2>Ventas facturadas vs sin facturar</h2>
+            <div class="resumen-fin-donut-wrap">
+              <svg class="resumen-fin-donut" id="resumen-fin-donut-facturacion" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
+              <div class="resumen-fin-donut-centro">
+                <span class="resumen-fin-donut-total" id="resumen-fin-donut-facturacion-total">$0</span>
+                <span class="resumen-fin-donut-total-label">Ventas</span>
+              </div>
+            </div>
+            <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-facturacion-leyenda"></ul>
+            <p class="admin-empty" id="resumen-fin-donut-facturacion-empty" hidden>Aún no hay ventas registradas este mes.</p>
+          </section>
+        </div>
+
+        <section class="resumen-fin-proveedores-card">
+          <h2>Top proveedores de gasto</h2>
+          <ul class="resumen-fin-proveedores-lista" id="resumen-fin-proveedores-lista"></ul>
+          <p class="admin-empty" id="resumen-fin-proveedores-empty" hidden>Aún no hay gastos con proveedor capturado este mes.</p>
+        </section>
       </div>
 
       <div id="vista-ordenes" hidden>

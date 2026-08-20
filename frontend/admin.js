@@ -277,6 +277,23 @@
     resumenFinKpiSinFacturar: document.getElementById('resumen-fin-kpi-sin-facturar'),
     resumenFinChartBody: document.getElementById('resumen-fin-chart-body'),
     resumenFinChartEmpty: document.getElementById('resumen-fin-chart-empty'),
+    resumenFinBalanceSvg: document.getElementById('resumen-fin-balance-svg'),
+    resumenFinBalanceEtiquetas: document.getElementById('resumen-fin-balance-etiquetas'),
+    resumenFinBalanceEmpty: document.getElementById('resumen-fin-balance-empty'),
+    resumenFinProyeccionSvg: document.getElementById('resumen-fin-proyeccion-svg'),
+    resumenFinProyeccionEtiquetas: document.getElementById('resumen-fin-proyeccion-etiquetas'),
+    resumenFinProyeccionNota: document.getElementById('resumen-fin-proyeccion-nota'),
+    resumenFinProyeccionEmpty: document.getElementById('resumen-fin-proyeccion-empty'),
+    resumenFinDonutCategorias: document.getElementById('resumen-fin-donut-categorias'),
+    resumenFinDonutCategoriasTotal: document.getElementById('resumen-fin-donut-categorias-total'),
+    resumenFinDonutCategoriasLeyenda: document.getElementById('resumen-fin-donut-categorias-leyenda'),
+    resumenFinDonutCategoriasEmpty: document.getElementById('resumen-fin-donut-categorias-empty'),
+    resumenFinDonutFacturacion: document.getElementById('resumen-fin-donut-facturacion'),
+    resumenFinDonutFacturacionTotal: document.getElementById('resumen-fin-donut-facturacion-total'),
+    resumenFinDonutFacturacionLeyenda: document.getElementById('resumen-fin-donut-facturacion-leyenda'),
+    resumenFinDonutFacturacionEmpty: document.getElementById('resumen-fin-donut-facturacion-empty'),
+    resumenFinProveedoresLista: document.getElementById('resumen-fin-proveedores-lista'),
+    resumenFinProveedoresEmpty: document.getElementById('resumen-fin-proveedores-empty'),
     gastosFiltroCategoria: document.getElementById('gastos-filtro-categoria'),
     gastosFiltroFactura: document.getElementById('gastos-filtro-factura'),
     gastosFiltroRecurrente: document.getElementById('gastos-filtro-recurrente'),
@@ -5038,6 +5055,251 @@
       `;
       els.resumenFinChartBody.appendChild(columna);
     });
+
+    renderResumenFinBalanceAcumulado(serie);
+    renderResumenFinProyeccion(serie, data.proyeccion_ventas);
+    renderResumenFinGastosCategoria(data.gastos_por_categoria || []);
+    renderResumenFinFacturacion(mes);
+    renderResumenFinProveedores(data.top_proveedores || []);
+  }
+
+  // Convierte una serie de valores en puntos (x,y) dentro de un viewBox
+  // SVG de "ancho" x "alto" con margen "pad" — reutilizado por las
+  // gráficas de línea de Balance acumulado y Proyección de ventas. El
+  // dominio vertical SIEMPRE incluye el 0, para que la línea de
+  // referencia en cero sea comparable entre ambas gráficas.
+  function construirPuntosLinea(valores, ancho = 300, alto = 120, pad = 14) {
+    const dominio = [0, ...valores];
+    const minimo = Math.min(...dominio);
+    const maximo = Math.max(...dominio);
+    const rango = maximo - minimo || 1;
+    const pasoX = valores.length > 1 ? (ancho - pad * 2) / (valores.length - 1) : 0;
+    const escalaY = (valor) => alto - pad - ((valor - minimo) / rango) * (alto - pad * 2);
+    return {
+      puntos: valores.map((v, i) => ({ x: pad + pasoX * i, y: escalaY(v) })),
+      yCero: escalaY(0),
+    };
+  }
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  // Balance acumulado (Facturado − Gastos, mes a mes, sumado sobre la
+  // serie) — muestra si la tendencia del negocio es positiva o negativa
+  // en el tiempo, no solo el corte del mes actual.
+  function renderResumenFinBalanceAcumulado(serie) {
+    const svg = els.resumenFinBalanceSvg;
+    svg.innerHTML = '';
+    els.resumenFinBalanceEtiquetas.innerHTML = '';
+    if (serie.length === 0) {
+      els.resumenFinBalanceEmpty.hidden = false;
+      return;
+    }
+    els.resumenFinBalanceEmpty.hidden = true;
+
+    let acumulado = 0;
+    const valores = serie.map((m) => (acumulado += m.facturado - m.gastos));
+    const { puntos, yCero } = construirPuntosLinea(valores);
+
+    const lineaCero = document.createElementNS(SVG_NS, 'line');
+    lineaCero.setAttribute('x1', '0');
+    lineaCero.setAttribute('x2', '300');
+    lineaCero.setAttribute('y1', String(yCero));
+    lineaCero.setAttribute('y2', String(yCero));
+    lineaCero.setAttribute('class', 'resumen-fin-linea-cero');
+    svg.appendChild(lineaCero);
+
+    if (puntos.length > 1) {
+      const polyline = document.createElementNS(SVG_NS, 'polyline');
+      polyline.setAttribute('points', puntos.map((p) => `${p.x},${p.y}`).join(' '));
+      polyline.setAttribute('class', 'resumen-fin-linea-trazo resumen-fin-linea-balance');
+      svg.appendChild(polyline);
+    }
+
+    puntos.forEach((p, i) => {
+      const circle = document.createElementNS(SVG_NS, 'circle');
+      circle.setAttribute('cx', String(p.x));
+      circle.setAttribute('cy', String(p.y));
+      circle.setAttribute('r', '3.5');
+      circle.setAttribute('class', 'resumen-fin-linea-punto resumen-fin-linea-punto-balance');
+      const titulo = document.createElementNS(SVG_NS, 'title');
+      titulo.textContent = `${serie[i].mes}: $${formatearMoneda(valores[i])}`;
+      circle.appendChild(titulo);
+      svg.appendChild(circle);
+    });
+
+    els.resumenFinBalanceEtiquetas.innerHTML = serie.map((m) => `<span>${escapeHtml(m.mes)}</span>`).join('');
+  }
+
+  // Proyección de ventas: línea sólida con los meses reales + línea
+  // punteada con la estimación de los próximos 2 meses (si el backend la
+  // calculó — necesita al menos 3 meses reales, ver
+  // GET /api/admin/resumen-financiero). Nunca se inventa una proyección
+  // sin datos suficientes.
+  function renderResumenFinProyeccion(serie, proyeccion) {
+    const svg = els.resumenFinProyeccionSvg;
+    svg.innerHTML = '';
+    els.resumenFinProyeccionEtiquetas.innerHTML = '';
+    if (serie.length === 0) {
+      els.resumenFinProyeccionEmpty.hidden = false;
+      els.resumenFinProyeccionNota.hidden = true;
+      return;
+    }
+    els.resumenFinProyeccionEmpty.hidden = true;
+
+    const meses = [...serie.map((m) => m.mes), ...(proyeccion || []).map((m) => m.mes)];
+    const valores = [...serie.map((m) => m.ventas), ...(proyeccion || []).map((m) => m.ventas)];
+    const cantidadReal = serie.length;
+    const { puntos } = construirPuntosLinea(valores);
+
+    const trazarSegmento = (desde, hasta, clase) => {
+      const sub = puntos.slice(desde, hasta + 1);
+      if (sub.length < 2) return;
+      const polyline = document.createElementNS(SVG_NS, 'polyline');
+      polyline.setAttribute('points', sub.map((p) => `${p.x},${p.y}`).join(' '));
+      polyline.setAttribute('class', clase);
+      svg.appendChild(polyline);
+    };
+
+    trazarSegmento(0, cantidadReal - 1, 'resumen-fin-linea-trazo resumen-fin-linea-ventas');
+    if (proyeccion && proyeccion.length) {
+      trazarSegmento(cantidadReal - 1, puntos.length - 1, 'resumen-fin-linea-trazo resumen-fin-linea-proyeccion');
+    }
+
+    puntos.forEach((p, i) => {
+      const esProyectado = i >= cantidadReal;
+      const circle = document.createElementNS(SVG_NS, 'circle');
+      circle.setAttribute('cx', String(p.x));
+      circle.setAttribute('cy', String(p.y));
+      circle.setAttribute('r', '3.5');
+      circle.setAttribute(
+        'class',
+        `resumen-fin-linea-punto ${esProyectado ? 'resumen-fin-linea-punto-proyeccion' : 'resumen-fin-linea-punto-ventas'}`
+      );
+      const titulo = document.createElementNS(SVG_NS, 'title');
+      titulo.textContent = `${meses[i]}${esProyectado ? ' (proyectado)' : ''}: $${formatearMoneda(valores[i])}`;
+      circle.appendChild(titulo);
+      svg.appendChild(circle);
+    });
+
+    els.resumenFinProyeccionEtiquetas.innerHTML = meses
+      .map((m, i) => `<span class="${i >= cantidadReal ? 'es-proyectado' : ''}">${escapeHtml(m)}</span>`)
+      .join('');
+    els.resumenFinProyeccionNota.hidden = !(proyeccion && proyeccion.length);
+  }
+
+  // Genera una dona SVG de N segmentos dinámicos (a diferencia de la
+  // dona de "Inicio", que tiene 3 círculos fijos en el HTML) — reutilizado
+  // por "Distribución de gastos" y "Facturadas vs sin facturar".
+  function renderDonutGenerico(svgEl, segmentos) {
+    const circunferencia = 2 * Math.PI * 40;
+    const total = segmentos.reduce((acc, s) => acc + s.valor, 0);
+    svgEl.innerHTML = '';
+    let acumulado = 0;
+    segmentos.forEach((s) => {
+      const porcentaje = total > 0 ? (s.valor / total) * 100 : 0;
+      const largo = (porcentaje / 100) * circunferencia;
+      const circle = document.createElementNS(SVG_NS, 'circle');
+      circle.setAttribute('cx', '50');
+      circle.setAttribute('cy', '50');
+      circle.setAttribute('r', '40');
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke-width', '16');
+      circle.setAttribute('stroke', s.color);
+      circle.setAttribute('stroke-dasharray', `${largo} ${circunferencia - largo}`);
+      circle.setAttribute('stroke-dashoffset', String(-acumulado));
+      circle.setAttribute('class', 'resumen-fin-donut-segmento');
+      svgEl.appendChild(circle);
+      acumulado += largo;
+    });
+    return total;
+  }
+
+  // El color de cada categoría de gasto es fijo (no depende de cuáles
+  // aparezcan este mes) para que el mismo color siempre represente la
+  // misma categoría entre una carga y otra de la vista.
+  const RESUMEN_FIN_COLORES_CATEGORIA = {
+    renta: '#2F6FED',
+    nomina: '#7C3AED',
+    software: '#0EA5E9',
+    hosting: '#14B8A6',
+    servicios: '#F59E0B',
+    papeleria: '#F97316',
+    combustible: '#84CC16',
+    viaticos: '#EC4899',
+    publicidad: '#6366F1',
+    otro: '#94A3B8',
+  };
+  const RESUMEN_FIN_COLOR_FACTURADO = '#1FAE6B';
+  const RESUMEN_FIN_COLOR_SIN_FACTURAR = '#B4530C';
+
+  function renderResumenFinGastosCategoria(filas) {
+    if (!filas || filas.length === 0) {
+      els.resumenFinDonutCategorias.innerHTML = '';
+      els.resumenFinDonutCategoriasLeyenda.innerHTML = '';
+      els.resumenFinDonutCategoriasTotal.textContent = '$0';
+      els.resumenFinDonutCategoriasEmpty.hidden = false;
+      return;
+    }
+    els.resumenFinDonutCategoriasEmpty.hidden = true;
+    const segmentos = filas.map((f) => ({
+      valor: f.monto,
+      color: RESUMEN_FIN_COLORES_CATEGORIA[f.categoria] || RESUMEN_FIN_COLORES_CATEGORIA.otro,
+    }));
+    const total = renderDonutGenerico(els.resumenFinDonutCategorias, segmentos);
+    els.resumenFinDonutCategoriasTotal.textContent = `$${formatearMoneda(total)}`;
+    els.resumenFinDonutCategoriasLeyenda.innerHTML = filas
+      .map((f) => {
+        const color = RESUMEN_FIN_COLORES_CATEGORIA[f.categoria] || RESUMEN_FIN_COLORES_CATEGORIA.otro;
+        const porcentaje = total > 0 ? Math.round((f.monto / total) * 100) : 0;
+        return `<li><span class="resumen-fin-donut-dot" style="background:${color}" aria-hidden="true"></span><span>${escapeHtml(etiquetaCategoriaGasto(f.categoria))}</span><strong>$${formatearMoneda(f.monto)} (${porcentaje}%)</strong></li>`;
+      })
+      .join('');
+  }
+
+  function renderResumenFinFacturacion(mes) {
+    const ventas = mes.ventas || 0;
+    const facturado = mes.facturado || 0;
+    const sinFacturar = mes.ventas_sin_facturar || 0;
+    if (ventas <= 0) {
+      els.resumenFinDonutFacturacion.innerHTML = '';
+      els.resumenFinDonutFacturacionLeyenda.innerHTML = '';
+      els.resumenFinDonutFacturacionTotal.textContent = '$0';
+      els.resumenFinDonutFacturacionEmpty.hidden = false;
+      return;
+    }
+    els.resumenFinDonutFacturacionEmpty.hidden = true;
+    renderDonutGenerico(els.resumenFinDonutFacturacion, [
+      { valor: facturado, color: RESUMEN_FIN_COLOR_FACTURADO },
+      { valor: sinFacturar, color: RESUMEN_FIN_COLOR_SIN_FACTURAR },
+    ]);
+    els.resumenFinDonutFacturacionTotal.textContent = `$${formatearMoneda(ventas)}`;
+    const pctFacturado = Math.round((facturado / ventas) * 100);
+    els.resumenFinDonutFacturacionLeyenda.innerHTML = `
+      <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_FACTURADO}" aria-hidden="true"></span><span>Facturadas</span><strong>$${formatearMoneda(facturado)} (${pctFacturado}%)</strong></li>
+      <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_SIN_FACTURAR}" aria-hidden="true"></span><span>Sin facturar</span><strong>$${formatearMoneda(sinFacturar)} (${Math.max(0, 100 - pctFacturado)}%)</strong></li>
+    `;
+  }
+
+  function renderResumenFinProveedores(filas) {
+    if (!filas || filas.length === 0) {
+      els.resumenFinProveedoresLista.innerHTML = '';
+      els.resumenFinProveedoresEmpty.hidden = false;
+      return;
+    }
+    els.resumenFinProveedoresEmpty.hidden = true;
+    const maximo = Math.max(...filas.map((f) => f.monto), 1);
+    els.resumenFinProveedoresLista.innerHTML = filas
+      .map(
+        (f) => `
+      <li class="resumen-fin-proveedor-fila">
+        <span class="resumen-fin-proveedor-nombre" title="${escapeHtml(f.proveedor)}">${escapeHtml(f.proveedor)}</span>
+        <div class="resumen-fin-proveedor-barra-wrap">
+          <span class="resumen-fin-proveedor-barra" style="width:${(f.monto / maximo) * 100}%"></span>
+        </div>
+        <span class="resumen-fin-proveedor-monto">$${formatearMoneda(f.monto)}</span>
+      </li>`
+      )
+      .join('');
   }
 
   async function cargarGastos() {

@@ -3868,6 +3868,58 @@ app.get(
       };
     });
 
+    // Distribución de gastos por categoría del mes en curso (para la
+    // dona de "Distribución de gastos" del segmento BI). Se manda el slug
+    // crudo, no la etiqueta en español — el frontend ya tiene su propio
+    // mapa de etiquetas (etiquetaCategoriaGasto en admin.js), mismo
+    // criterio que la lista de gastos.
+    const [filasGastosCategoria] = await pool.query(
+      `SELECT categoria, SUM(monto) AS monto
+         FROM gastos
+        WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?
+        GROUP BY categoria
+        ORDER BY monto DESC`,
+      [inicio, fin]
+    );
+
+    // Top 5 proveedores de gasto del mes en curso — dato accionable real
+    // (columna `proveedor`, texto libre capturado en el alta del gasto);
+    // se excluyen los gastos sin proveedor capturado.
+    const [filasTopProveedores] = await pool.query(
+      `SELECT proveedor, SUM(monto) AS monto
+         FROM gastos
+        WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?
+          AND proveedor IS NOT NULL AND proveedor <> ''
+        GROUP BY proveedor
+        ORDER BY monto DESC
+        LIMIT 5`,
+      [inicio, fin]
+    );
+
+    // Proyección de ventas de los próximos 2 meses: estimación estadística
+    // simple (promedio del cambio mes a mes de los últimos 3 meses CON
+    // datos reales, extendido hacia adelante), NO un pronóstico
+    // financiero — se etiqueta como tal en el frontend. Sin al menos 3
+    // meses reales para calcular una tendencia, no se inventa nada (mismo
+    // criterio que calcularTendencia() de arriba con el mes anterior).
+    let proyeccionVentas = null;
+    if (llavesMeses.length >= 3) {
+      const ultimasLlaves = llavesMeses.slice(-3);
+      const ultimosValores = ultimasLlaves.map((llave) => Number(mapaVentasSerie.get(llave)?.ventas || 0));
+      const promedioDelta = ((ultimosValores[1] - ultimosValores[0]) + (ultimosValores[2] - ultimosValores[1])) / 2;
+      const ultimaLlave = llavesMeses[llavesMeses.length - 1];
+      const ultimoValor = ultimosValores[2];
+      proyeccionVentas = [1, 2].map((n) => {
+        const [anio, mesNum] = ultimaLlave.split('-').map(Number);
+        const fechaProyectada = new Date(Date.UTC(anio, mesNum - 1 + n, 1));
+        const llaveProyectada = `${fechaProyectada.getUTCFullYear()}-${String(fechaProyectada.getUTCMonth() + 1).padStart(2, '0')}`;
+        return {
+          mes: etiquetaMes(llaveProyectada),
+          ventas: Math.max(0, Math.round((ultimoValor + promedioDelta * n) * 100) / 100),
+        };
+      });
+    }
+
     res.json({
       mes_actual: {
         ventas,
@@ -3881,6 +3933,9 @@ app.get(
         gastos: calcularTendencia(gastos, gastosAnterior),
       },
       serie_mensual: serie,
+      gastos_por_categoria: filasGastosCategoria.map((f) => ({ categoria: f.categoria, monto: Number(f.monto) })),
+      top_proveedores: filasTopProveedores.map((f) => ({ proveedor: f.proveedor, monto: Number(f.monto) })),
+      proyeccion_ventas: proyeccionVentas,
     });
   })
 );
