@@ -5029,12 +5029,12 @@
       const columna = document.createElement('div');
       columna.className = 'resumen-fin-chart-columna';
       columna.innerHTML = `
-        <div class="resumen-fin-chart-barras" role="img" aria-label="${m.mes}: ventas $${formatearMoneda(m.ventas)}, facturado $${formatearMoneda(m.facturado)}, gastos $${formatearMoneda(m.gastos)}">
+        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtml(m.mes)}: ventas $${formatearMoneda(m.ventas)}, facturado $${formatearMoneda(m.facturado)}, gastos $${formatearMoneda(m.gastos)}">
           <span class="resumen-fin-chart-barra resumen-fin-chart-barra-ventas" style="height:${(m.ventas / maximo) * 100}%" title="Ventas: $${formatearMoneda(m.ventas)}"></span>
           <span class="resumen-fin-chart-barra resumen-fin-chart-barra-facturado" style="height:${(m.facturado / maximo) * 100}%" title="Facturado: $${formatearMoneda(m.facturado)}"></span>
           <span class="resumen-fin-chart-barra resumen-fin-chart-barra-gastos" style="height:${(m.gastos / maximo) * 100}%" title="Gastos: $${formatearMoneda(m.gastos)}"></span>
         </div>
-        <span class="resumen-fin-chart-etiqueta">${m.mes}</span>
+        <span class="resumen-fin-chart-etiqueta">${escapeHtml(m.mes)}</span>
       `;
       els.resumenFinChartBody.appendChild(columna);
     });

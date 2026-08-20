@@ -1,6 +1,16 @@
 const crypto = require('crypto');
 const { pool } = require('../db');
-const { verifyPassword } = require('./authUsuario');
+const { verifyPassword, hashPassword } = require('./authUsuario');
+
+// Hash de relleno para cuando el usuario/RFC administrativo no existe
+// (Seguridad, ver auditoría OWASP) — mismo motivo y mismo patrón que
+// HASH_RELLENO_LOGIN en server.js (login de cliente): sin esto,
+// `if (!fila) return null;` hace corto-circuito antes de llamar a
+// verifyPassword (scrypt, el paso costoso), lo que deja una diferencia de
+// tiempo medible entre "ese usuario administrativo no existe" y "existe,
+// contraseña incorrecta" que permitiría enumerar cuentas administrador/
+// fiscal por temporización.
+const HASH_RELLENO_ADMIN = hashPassword(crypto.randomBytes(32).toString('hex'));
 
 /**
  * Lee las credenciales de administrador desde la variable de entorno ADMIN_USERS.
@@ -88,8 +98,11 @@ async function verificarUsuarioAdministrativo(usuario, password) {
     [usuario]
   );
   const fila = filas[0];
-  if (!fila) return null;
-  if (!verifyPassword(password, fila.password_hash)) return null;
+  // verifyPassword() SIEMPRE se llama (con el hash real o con el de
+  // relleno) para que el tiempo de respuesta no delate por sí solo si el
+  // usuario existe — ver HASH_RELLENO_ADMIN arriba.
+  const passwordValida = verifyPassword(password, fila ? fila.password_hash : HASH_RELLENO_ADMIN);
+  if (!fila || !passwordValida) return null;
   return fila;
 }
 

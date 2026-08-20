@@ -6059,7 +6059,7 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       verificación fue en navegador real).
 
 115. **Siembra de datos de demostración / pruebas de humo funcionales
-    (2026-08-19, EN CURSO — pausada a pedido del usuario)**: el usuario
+    (2026-08-19, COMPLETA 2026-08-20)**: el usuario
     pidió datos de muestra reales (30 ventas, gastos, solicitudes de
     factura de clientes distintos) repartidos entre multi-tenant y el
     contexto sin slug (`portal_facturacion`, el que usa localmente), para
@@ -6120,12 +6120,269 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       vaciar el estado en memoria del limitador antes de la corrida real
       — confirma que el limitador funciona correctamente bajo uso
       intensivo real, no es un bug.
-    - **Pendiente antes de reanudar**: aplicar el fix de esquema de los
-      dos tenants, limpiar (si hace falta) los 7 gastos que sí se
-      alcanzaron a crear en `pruebaadmin` antes del fallo (ninguno, el
-      fallo fue en el primero), y completar `pruebaadmin` + `piloto9c`.
-      No avanzar sin instrucción explícita del usuario — la sesión se
-      pausó a petición suya.
+    - **Fix de esquema aplicado (2026-08-20)**: `provisionar-tenant.js`
+      rechaza re-correr contra un tenant `activo` (por diseño — solo
+      completa filas en `provisioning`), así que el fix real fue invocar
+      `ensureSchema()` directo dentro del contenedor `backend`, pisando
+      solo `DB_NAME` (que ya trae `DB_HOST`/`DB_USER`/`DB_PASSWORD`
+      correctos del entorno del contenedor):
+      `docker compose exec -e DB_NAME=tenant_<slug> backend node -e
+      "require('./db').ensureSchema()..."`. Confirmado con
+      `SHOW TABLES LIKE 'gastos'` contra MySQL real: tabla `gastos`
+      presente en `tenant_pruebaadmin` y `tenant_piloto9c`.
+    - **Siembra terminada (2026-08-20)**: `pruebaadmin` recibió sus 7
+      gastos pendientes (`POST /pruebaadmin/api/admin/gastos`, Basic
+      `admin:admin`) — categorías nómina/software/hosting/papelería/
+      combustible/publicidad/servicios, 2 en julio y 5 en agosto (mismo
+      criterio de "punto de comparación" que el resto de la siembra).
+      `piloto9c` se sembró desde cero, mismo patrón que `pruebaadmin`: 4
+      clientes (`GARC800101AB1`/`LOMH850315XY2`/`PEMJ900722QW3`/
+      `RODA750210ZZ4`, RFCs sintéticos pero con formato válido) → CSF con
+      PDF `pdfkit` parametrizado por RFC (misma lógica de
+      `e2e/fixtures/generar-csf.js`, copiada al script de siembra sin
+      tocar el fixture del repo) → 8 ventas (`OC-000007` a `OC-000014` —
+      arrancan en 7 porque el tenant ya tenía 6 filas de pruebas E2E
+      previas, soft-eliminadas por la suite `e2e/tests/
+      flujo-facturacion-piloto9c.spec.ts` del punto 102 — no son de esta
+      siembra) repartidas 2 por cliente → 8 tickets (`TK-000007` a
+      `TK-000014`) con los 4 campos de verificación exactos tomados de la
+      respuesta de cada venta → distribución final 5 `listo` (factura ZIP
+      real subida)/2 `pendiente` (sin tocar)/1 `en_curso`, igual que
+      `pruebaadmin` → 7 gastos (renta/nómina/hosting/viáticos/papelería/
+      otro, 2 en julio y 5 en agosto). Script final:
+      `seed-demo-2.js` en el scratchpad de la sesión (no se commiteó,
+      mismo criterio que `seed-demo.js` de la sesión anterior).
+    - **Bug real encontrado y corregido durante la siembra (no del script,
+      del producto/documentación del propio flujo)**: la primera pasada
+      de subida de CSF para los 4 clientes de `piloto9c` NO mandó el
+      campo `rfc` del formulario (solo `tipo_persona`/`email`/`archivo`,
+      como sugería la descripción original de la tarea) — `POST
+      /api/registro` en `backend/server.js` (~línea 1724 y el INSERT en
+      ~línea 1946) guarda en `registros.rfc` el valor de `body.rfc`
+      (`rfcRaw`) tal cual lo mandó el formulario, **no** el RFC extraído
+      del PDF (`extraerRFC(textoPdf)`, que solo se usa para VALIDAR que
+      coincida con la referencia, nunca para guardarse) ni el RFC de la
+      sesión. Con el campo `rfc` ausente, los 4 registros quedaron con
+      `registros.rfc = NULL` — silencioso (`POST /api/registro` respondió
+      200 igual, porque el campo es opcional a propósito para constancias
+      sin RFC capturado) hasta que `POST /api/tickets` intentó el primer
+      ticket, que revisa `SELECT id FROM registros WHERE rfc = ?
+      [req.userRfc]` (server.js ~línea 1049) para confirmar que existe
+      constancia activa antes de aceptar un ticket — con `rfc` NULL en la
+      fila, ese `SELECT` nunca encuentra nada y el ticket se habría
+      rechazado con `SIN_CONSTANCIA` aunque el cliente sí hubiera subido
+      su CSF. Se detectó ANTES de llegar a esa etapa (revisando
+      `registros.rfc` por SQL directo como parte de la verificación
+      intermedia) y se corrigió re-subiendo la CSF de los 4 con
+      `rfc=<RFC del cliente>` + `confirmar_reemplazo=true` antes de
+      continuar con las ventas/tickets. No es un bug nuevo de esta
+      sesión — es una característica existente del endpoint (RFC de
+      constancia opcional, ver comentario "el nombre/razón social ya no
+      se captura..." en el mismo bloque) mal aprovechada por la
+      instrucción original de la tarea de siembra, que omitía ese campo;
+      queda documentado aquí para que una futura siembra/integración que
+      use `POST /api/registro` programáticamente no repita el mismo
+      error silencioso.
+    - **Conteos finales verificados por SQL directo (2026-08-20)**:
+      `tenant_pruebaadmin.gastos` = 7;
+      `tenant_piloto9c.gastos` = 7,
+      `tenant_piloto9c.registros` (activos) = 5 (4 nuevos + 1 preexistente
+      de la suite E2E del punto 102, RFC `AAMA850101HDF`),
+      `tenant_piloto9c.ordenes_compra` (activas) = 8,
+      `tenant_piloto9c.tickets` (activos) = 8 con `estatus`: 5 `listo` /
+      2 `pendiente` / 1 `en_curso`. `docker compose logs backend
+      --since 20m` sin errores nuevos (el único `500` de
+      `tenant_pruebaadmin.gastos doesn't exist` en el log pertenece a la
+      corrida fallida de la sesión anterior, antes del fix de esquema).
+      Con esto, la siembra de datos de demostración del punto 115 queda
+      completa: "sin contexto" (14/14/10), `pruebaadmin` (8/8/7),
+      `piloto9c` (8/8/7 sobre su propia numeración de folios).
+
+116. **Auditoría de seguridad OWASP Top 10 2021, sitio completo
+    (2026-08-20)**: a pedido explícito del usuario, con autorización
+    previa para corregir vulnerabilidades reales sin esperar confirmación
+    (no así para commitear/pushear — eso queda para revisión del
+    usuario). Tres auditorías en paralelo, un dominio cada una:
+    `backend/`+`control/`, `frontend/`, y Docker/infraestructura. Todas
+    verificadas contra Docker/MySQL/MinIO reales (stack ya levantado por
+    la siembra del punto 115); ningún commit/push hecho por ninguna de
+    las tres. Jest backend **551/551** (33 suites) y control **88/88**
+    después de todas las correcciones.
+
+    - **[MEDIO] Timing attack en `X-Internal-Secret`** (`backend/server.js`,
+      6 endpoints `/internal/*`: cache-tenant/invalidar, marca-logo
+      POST/DELETE, favicon POST/DELETE, renombrar-slug): comparaban el
+      secreto compartido con `!==` directo — medible por temporización
+      desde la red interna de Docker. Corregido: nueva función
+      `secretoInternoValido(req)` con `crypto.timingSafeEqual`, mismo
+      patrón que `timingSafeEqualStrings` ya usado en `requireAdminAuth`.
+    - **[MEDIO] Enumeración de cuentas por temporización en login**
+      (`POST /api/auth/login` en `backend/server.js` y
+      `verificarUsuarioAdministrativo` en `backend/utils/auth.js`):
+      corto-circuitaban con `if (!usuario) return ...` ANTES de llamar
+      `verifyPassword` (scrypt, el paso costoso) cuando el RFC/usuario no
+      existía — diferencia de tiempo medible entre "no existe" y "existe,
+      password incorrecta", pese al mensaje de error ya genérico.
+      Corregido: `verifyPassword` se llama SIEMPRE, contra el hash real o
+      un hash de relleno (`HASH_RELLENO_LOGIN`/`HASH_RELLENO_ADMIN`,
+      generado una vez al arrancar) — mismo principio que
+      `costoArtificialComparable()` ya aplica a slugs de tenant
+      inexistentes en `tenantContext.js`.
+    - **[MEDIO] Enumeración masiva de RFC/nombre sin límite de tasa**
+      (`GET /api/registro/buscar` y `GET /api/registro/:email`, públicas
+      por diseño — el formulario necesita avisar "ya existe una
+      constancia" antes de reemplazar — pero sin `submitLimiter` a
+      diferencia de `POST /api/registro`): permitían raspar en masa qué
+      RFC/nombre corresponde a qué correo. Corregido: agregado
+      `submitLimiter` (30/15min por tenant+IP, ya existente) a ambas.
+    - **[ALTO, PENDIENTE] `nodemailer@6.10.1` vulnerable** (`backend/`):
+      `npm audit` reporta 8 avisos en versiones `<=9.0.0`, incluida
+      inyección de comandos SMTP, inyección CRLF en cabeceras, y
+      SSRF/lectura arbitraria de archivos vía la opción `raw` a nivel de
+      mensaje (bypass de `disableFileAccess`/`disableUrlAccess`). NO
+      corregido — el fix real es un salto de major (v6→v9, cambios de
+      API) que `npm audit fix --force` confirma como *breaking change*, y
+      esta sesión nunca ha enviado un correo real contra SMTP verdadero
+      (ver "Limitaciones de ESTE entorno" más abajo) para poder validar la
+      migración con confianza. **Pendiente**: rama aparte, actualizar a
+      `nodemailer@9.x`, correr `email.test.js` + una prueba real de envío
+      (botón "Enviar prueba" del panel admin) antes de mergear.
+      Informativo de paso: `uuid <11.1.1` transitivo vía `exceljs`
+      (moderado, pero el proyecto no usa la API afectada — bajo impacto
+      real). `control/`: `npm audit` → 0 vulnerabilidades.
+    - **[MEDIO] Password root de MySQL expuesto en texto plano vía
+      `docker inspect`/`docker top`** (`docker-compose.yml`,
+      `docker-stack.yml`): el healthcheck usaba `-p${MYSQL_ROOT_PASSWORD}`
+      como argumento de línea de comandos — visible en el array
+      `Healthcheck.Test` y en el argv del proceso para cualquiera con
+      acceso al host Docker. Corregido: `MYSQL_PWD="$$MYSQL_ROOT_PASSWORD"
+      mysqladmin ping ...` (variable de entorno, no argumento CLI).
+      Verificado: `docker compose config` ya no muestra la contraseña
+      literal; `pfacturacion-mysql` healthy tras recrear.
+    - **[MEDIO] Puertos de MySQL/MinIO console publicados a
+      `0.0.0.0`** (`docker-compose.yml`): `MYSQL_PORT` (3306) y
+      `MINIO_CONSOLE_PORT` (9001) eran alcanzables desde la LAN/Internet,
+      no solo desde el host. Corregido a `127.0.0.1:${VAR}:PUERTO` —
+      siguen accesibles desde la misma máquina, ya no desde afuera.
+    - **[MEDIO] Falta `.dockerignore` en `control/`**: a diferencia de
+      `backend/`. El Dockerfile hace `COPY --from=deps .../node_modules`
+      y LUEGO `COPY . .` — sin `.dockerignore`, el `node_modules` local
+      del host (Windows, con `devDependencies`/binarios no-Linux) podía
+      sobrescribir silenciosamente el `node_modules` limpio de la etapa
+      `deps`, y un `.env` local se habría copiado a la imagen. Creado
+      `control/.dockerignore` (mismo patrón que `backend/`) y
+      `frontend/.dockerignore` (menor riesgo, reduce contexto de build).
+      Verificado: contexto de build de `control` bajó a 5.29kB.
+    - **[BAJO] `no-new-privileges` ausente** (CIS Docker Benchmark 5.25):
+      agregado `security_opt: [no-new-privileges:true]` a los 5 servicios
+      de `docker-compose.yml` y los 6 de `docker-stack.yml`. Verificado
+      en `backend` (el más sensible por el patrón
+      root→`chown`→`su-exec`→`appuser` del entrypoint): `docker exec
+      pfacturacion-backend ps aux` confirma PID 1 (`node server.js`)
+      corriendo como `appuser`, no root — el flag no rompe el drop de
+      privilegios.
+    - **[BAJO] Defaults inseguros sin advertencia suficiente**:
+      `ADMIN_USERS=admin:admin` en `.env.example`/`README.md` no tenía la
+      marca "IMPORTANTE"/"cámbialo en producción" que sí tienen
+      `MYSQL_ROOT_PASSWORD`/`MYSQL_PASSWORD`/`MINIO_ROOT_PASSWORD`, pese a
+      controlar acceso a `/admin` y `/control` (perfil `super`).
+      Corregido en ambos archivos, más un banner de advertencia agregado
+      al inicio de `docker-compose.yml`.
+    - **[BAJO] `.gitignore` incompleto**: no cubría variantes de `.env`
+      (`.env.local`, `.env.production`, etc.) ni certificados/llaves
+      (`*.pem`, `*.key`, `*.crt`, `*.p12`, `*.pfx`). Agregado `.env.*` con
+      excepción explícita `!.env.example`, más los patrones de
+      certificados. Confirmado: ningún archivo de esos patrones estuvo
+      trackeado nunca en el historial de git.
+    - **[MEDIO] Mockup con CDN externo expuesto en build público del
+      frontend**: `frontend/assets/stitch_portal_de_facturaci_n/code.html`
+      (carpeta sin trackear, agregada en una sesión de diseño reciente)
+      quedaba dentro de `frontend/assets/`, que `frontend/Dockerfile`
+      copia entera al root público de nginx — el mockup carga
+      `https://cdn.tailwindcss.com` sin Subresource Integrity y habría
+      quedado accesible en `/assets/stitch_portal_de_facturaci_n/code.html`
+      en cualquier despliegue real. Corregido: reubicado a
+      `stitch/stitch_portal_de_facturaci_n/`, junto a sus hermanas (mismo
+      patrón que `dashboard_portal_addv_fiel_al_mockup/` etc.) — carpeta
+      que NO se copia al contenedor.
+    - **[BAJO] Cabeceras de seguridad faltantes en nginx**
+      (`frontend/nginx.conf.template`): agregado `server_tokens off;`
+      (oculta versión de nginx) y `Strict-Transport-Security` condicional
+      (vía `map` sobre `$proxy_x_forwarded_proto`, mismo criterio que ya
+      usa el archivo para otros headers dependientes de HTTPS real — sin
+      efecto hoy en `http://localhost`, listo para cuando haya HTTPS real
+      en el nginx del host). CSP sigue sin agregarse a propósito — el
+      propio archivo ya documenta esa ausencia como decisión deliberada
+      (requeriría inventariar cada script/estilo inline sin poder
+      probarlo en navegador real desde este entorno).
+    - **[BAJO] XSS defensivo, no explotable**: `frontend/admin.js`
+      (vista "Resumen financiero", etiqueta de mes del gráfico) insertaba
+      `m.mes` en `innerHTML` sin `escapeHtml()`, a diferencia de
+      prácticamente todo el resto del archivo — el valor siempre viene de
+      `etiquetaMes()` en el servidor (`Intl.DateTimeFormat`, sin ruta de
+      entrada de usuario), así que no era explotable hoy. Corregido de
+      todas formas por consistencia con el resto del código.
+    - **Bug real de producto encontrado y corregido (no de seguridad)**:
+      `backend/server.js` (~línea 3719, dentro de
+      `POST /api/admin/ordenes-compra`) referenciaba la variable
+      `marcaLoGoUrl` (capital G, nunca declarada en ese scope) dentro del
+      template literal del logo del correo de confirmación, en vez de la
+      constante local correcta `marcaLogoUrl` (minúscula, sí declarada
+      línea arriba desde `req.tenant.marcaLogoUrl`). Para cualquier
+      tenant con logo de marca configurado (ver segmento "Marca", punto
+      103), esto lanzaba un `ReferenceError` síncrono al construir los
+      argumentos de `enviarCorreoOrdenCompra(...)` — la venta ya había
+      quedado insertada en la BD (el INSERT ocurre antes), pero la
+      respuesta al admin era `500` en vez de `201`, y el correo de
+      confirmación nunca se enviaba. Corregido con el fix de una sola
+      palabra; verificado con `node --check` + Jest backend 551/551.
+    - **Revisado sin hallazgos** (ver detalle completo en el historial de
+      la sesión si hace falta): inyección SQL (placeholders `?` en todo
+      `pool.query`/`db.query`, ningún template literal con datos de
+      `req.*` interpolado directo en SQL), control de acceso en las ~57
+      rutas `/api/admin/*` + 8 de `control/` (todas con
+      `requireAdminAuth`+`requireAdminArea` consistente), aislamiento
+      multi-tenant (proxy `AsyncLocalStorage` de `backend/db.js`), subida
+      de archivos (firma binaria real verificada en PDF/imagen/ZIP/
+      comprobante, sin path traversal posible en keys de MinIO —
+      `crypto.randomUUID()`), SSRF (`USO_CFDI_SYNC_URL`/
+      `BACKEND_INTERNAL_URL` solo de variables de entorno, nunca de
+      `req.*`), `/internal/*` no alcanzable desde nginx público
+      (confirmado: ningún `location` en `nginx.conf.template` matchea
+      `/internal/`), cookies de sesión (httpOnly, ningún `.js` del
+      frontend lee `document.cookie`), XSS (los ~40 usos de
+      `innerHTML`/`insertAdjacentHTML` del frontend ya pasan por
+      `escapeHtml()` salvo el caso defensivo de arriba), clickjacking
+      (`X-Frame-Options: DENY` ya presente), credenciales admin nunca
+      logueadas ni en URLs, `control/Dockerfile` ya no-root,
+      `backend/Dockerfile` ya usa el patrón `su-exec` correcto,
+      imágenes base con tag fijo (salvo `minio:latest`, ya conocido).
+    - **Ya documentado, no reportado como hallazgo nuevo**: ausencia de
+      CSP real, credencial MySQL de aplicación compartida entre tenants,
+      `SESSION_SECRET` aleatorio si no se define, `CORS_ORIGIN=*` por
+      defecto, `minio:latest` sin pin, MySQL HA/Swarm nunca probado en
+      clúster real — todos ya señalados en "Pendiente antes de
+      producción"/"Limitaciones de ESTE entorno" más abajo.
+    - **Pendiente/recomendación no aplicada**: segmentar la red plana
+      única (`fiscal-net` en compose, overlay única en
+      `docker-stack.yml`) en una red "pública" (frontend↔backend/control)
+      y una "de datos" (backend/control↔mysql/minio) — reduciría la
+      superficie si un contenedor se compromete, pero es un cambio
+      estructural con riesgo real de romper conectividad que no pudo
+      validarse a fondo solo con `curl`/`docker compose ps` en el tiempo
+      disponible.
+    - **Archivos modificados**: `.env.example`, `.gitignore`, `README.md`,
+      `backend/server.js`, `backend/utils/auth.js`, `docker-compose.yml`,
+      `docker-stack.yml`, `frontend/admin.js`,
+      `frontend/nginx.conf.template`; nuevos `control/.dockerignore`,
+      `frontend/.dockerignore`; reubicado
+      `frontend/assets/stitch_portal_de_facturaci_n/` →
+      `stitch/stitch_portal_de_facturaci_n/`. Stack completo verificado
+      `healthy` tras recrear `mysql`/`minio`/`backend`/`control`/
+      `frontend` (headers de seguridad confirmados por `curl -I`, backend
+      corriendo como `appuser` no-root, datos de la siembra del punto 115
+      intactos). Nada commiteado — todo queda en el working tree para
+      revisión del usuario antes de decidir qué mergear/pushear.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

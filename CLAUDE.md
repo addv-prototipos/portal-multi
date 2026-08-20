@@ -329,18 +329,59 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   cosmético) en un comentario de `control/scripts/ensureSchema.js`
   durante esta revisión. No avanzar sin aprobación explícita del
   usuario, mismo protocolo `addv-web-app`.
-- **Siembra de datos de demostración, EN PAUSA (ver PROJECT_STATE.md
+- **Siembra de datos de demostración, COMPLETA (ver PROJECT_STATE.md
   punto 115)**: flujo real end-to-end por HTTP (registro cliente → CSF →
   venta → ticket → factura/gastos) contra Docker vivo, para tener datos
-  de muestra reales de cara a una demo. "Sin contexto" completo (7
-  clientes/14 ventas/14 tickets/10 gastos); tenant `pruebaadmin` parcial
-  (8 ventas/8 tickets, gastos bloqueado); `piloto9c` sin empezar.
-  **Hallazgo real**: los tenants `pruebaadmin`/`piloto9c` NO tienen la
-  tabla `gastos` (`ensureSchema()` nunca corre contra tenants ya
-  aprovisionados, solo contra el pool por defecto — el módulo Gastos se
-  agregó después de que esos tenants se crearan). Fix pendiente:
-  re-correr `provisionar-tenant.js` contra ambos. Pausado a pedido del
-  usuario, no reanudar sin instrucción explícita.
+  de muestra reales de cara a una demo. Conteos finales verificados por
+  SQL directo: "Sin contexto" (`portal_facturacion`) 7 clientes/14
+  ventas/14 tickets/10 gastos; tenant `pruebaadmin` 4 clientes/8 ventas/8
+  tickets (5 listo/2 pendiente/1 en_curso)/7 gastos; tenant `piloto9c` 4
+  clientes nuevos + 1 preexistente de E2E/8 ventas/8 tickets (misma
+  distribución 5/2/1)/7 gastos. **Hallazgo resuelto**: los tenants
+  `pruebaadmin`/`piloto9c` no tenían la tabla `gastos` porque
+  `ensureSchema()` nunca corre contra tenants ya aprovisionados, solo
+  contra el pool por defecto — se aplicó corriendo `ensureSchema()`
+  directo dentro del contenedor `backend` con `DB_NAME` apuntando a cada
+  tenant (`provisionar-tenant.js` no sirve para esto: rechaza re-correr
+  contra un tenant ya `activo`). **Bug real encontrado en el camino** (no
+  del script de siembra, del endpoint): `POST /api/registro` guarda en
+  `registros.rfc` el valor que mande el formulario (`body.rfc`), no el
+  RFC extraído del PDF ni el de la sesión — subir la CSF sin mandar
+  explícitamente el campo `rfc` deja `registros.rfc` en NULL de forma
+  silenciosa (200 OK, el campo es opcional a propósito) y rompe
+  después `POST /api/tickets` con `SIN_CONSTANCIA` porque ese endpoint
+  busca por `rfc` exacto. Documentado en el punto 115 para que cualquier
+  integración futura contra `POST /api/registro` no repita el error.
+- **Auditoría de seguridad OWASP Top 10, sitio completo (ver
+  PROJECT_STATE.md punto 116, 2026-08-20)**: a pedido explícito del
+  usuario, 3 auditorías en paralelo (`backend/`+`control/`, `frontend/`,
+  Docker/infra) contra Docker/MySQL/MinIO reales, con autorización previa
+  para corregir sin esperar confirmación (no para commitear/pushear).
+  Jest backend 551/551, control 88/88 tras las correcciones. Corregidos:
+  timing attacks en `X-Internal-Secret` y en login (cliente+admin,
+  `crypto.timingSafeEqual`), enumeración sin rate limit en
+  `GET /api/registro/buscar`/`:email`, password root de MySQL expuesto en
+  texto plano vía healthcheck (`docker inspect`/`docker top`), puertos
+  MySQL/MinIO console publicados a `0.0.0.0` (ahora solo `127.0.0.1`),
+  falta de `.dockerignore` en `control/` (riesgo de `.env` local
+  copiado a la imagen), falta `no-new-privileges` (CIS Docker Benchmark)
+  en los 5+6 servicios de compose/stack, mockup con CDN Tailwind sin SRI
+  expuesto en el build público del frontend (reubicado fuera de
+  `frontend/assets/`), cabeceras `server_tokens off`/HSTS condicional en
+  nginx, `.gitignore`/`.env.example`/README con advertencias reforzadas.
+  **Pendiente (alto, no corregido)**: `nodemailer@6.10.1` vulnerable
+  (CRLF/SMTP injection, SSRF vía opción `raw`) — requiere salto de major
+  a v9 con prueba de envío SMTP real antes de mergear, fuera del alcance
+  de un fix seguro sin esa validación. **Bug real de producto encontrado
+  y corregido de paso** (no de seguridad): typo `marcaLoGoUrl` en
+  `POST /api/admin/ordenes-compra` (`backend/server.js`) causaba
+  `ReferenceError`/500 al crear una venta en cualquier tenant con logo de
+  marca configurado (la venta ya quedaba insertada, pero el admin recibía
+  500 y el correo de confirmación nunca salía). Todo el detalle línea por
+  línea, incluidos los hallazgos "ya conocidos" y las recomendaciones no
+  aplicadas (segmentar la red plana de Docker), en el punto 116. No se
+  hizo ningún commit/push — todo en el working tree para revisión del
+  usuario.
 - **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
   partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
   propia (no dentro de "Inicio", que es del perfil `fiscal`) para el

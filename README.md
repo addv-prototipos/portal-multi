@@ -69,16 +69,16 @@ Copia `.env.example` a `.env` y ajusta si lo necesitas:
 | `MYSQL_DATABASE` | Nombre de la base de datos de la aplicación | `portal_facturacion` |
 | `MYSQL_USER` | Usuario (no root) que usa el backend para conectarse | `app` |
 | `MYSQL_PASSWORD` | Contraseña de ese usuario — **cámbiala en producción** | `changeme_app_password` |
-| `MYSQL_PORT` | Puerto de MySQL expuesto en el host (para conectarte con un cliente externo) | `3306` |
+| `MYSQL_PORT` | Puerto de MySQL expuesto en el host (para conectarte con un cliente externo) — publicado solo en `127.0.0.1`, no en toda la LAN/interfaz pública | `3306` |
 | `MAX_FILE_SIZE_MB` | Tamaño máximo permitido por archivo (MB) | `5` |
 | `CORS_ORIGIN` | Origen permitido para CORS en el backend | `*` |
-| `ADMIN_USERS` | Usuarios administradores, formato `usuario:contrasena,usuario2:contrasena2` | `admin:admin` |
+| `ADMIN_USERS` | Usuarios administradores, formato `usuario:contrasena,usuario2:contrasena2` — **cámbialo en producción** (el valor por defecto es público, da acceso a `/admin` y `/control`) | `admin:admin` |
 | `USO_CFDI_SYNC_URL` | Origen desde donde se sincroniza el catálogo de Uso de CFDI | sin definir (requiere configurarse explícitamente) |
 | `SESSION_SECRET` | Clave para firmar las sesiones de usuario (login por RFC) | aleatoria al arrancar (fija esta para producción) |
 | `COOKIE_SECURE` | Pon `true` **solo** si el sitio ya se sirve por HTTPS real (ver despliegue a producción) | `false` |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Credenciales de MinIO (almacenamiento de archivos) — **cámbialas en producción** | `minioadmin` / `changeme_minio_password` |
 | `MINIO_BUCKET` | Bucket compartido donde se guardan constancias/tickets/facturas (se crea solo si no existe) | `portal-facturacion` |
-| `MINIO_CONSOLE_PORT` | Puerto del host para la consola web de administración de MinIO | `9001` |
+| `MINIO_CONSOLE_PORT` | Puerto del host para la consola web de administración de MinIO — publicado solo en `127.0.0.1`, no en toda la LAN/interfaz pública | `9001` |
 
 El backend se conecta a MySQL usando `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` y `DB_NAME` — en `docker-compose.yml` ya están configuradas automáticamente a partir de las variables `MYSQL_*` de arriba (`DB_HOST` apunta al servicio `mysql` dentro de la red interna de Docker), así que normalmente no necesitas tocarlas directamente.
 

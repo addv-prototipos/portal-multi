@@ -424,6 +424,31 @@ app.use('/api/admin', (req, res, next) => {
   next();
 });
 
+// Compara el secreto interno (X-Internal-Secret) mandado por el
+// contenedor "control" contra INTERNAL_CACHE_SECRET en tiempo constante.
+// Sin esto, `!==` sobre strings compara caracter a caracter y termina en
+// cuanto encuentra la primera diferencia — una diferencia de tiempo
+// medible en teoría (más pronunciada mientras más largo el secreto
+// correcto) que un atacante en la misma red podría explotar para
+// adivinar el secreto byte a byte, igual que ya se evita en
+// requireAdminAuth (ver utils/auth.js:timingSafeEqualStrings). Nunca
+// deja pasar si el secreto no está configurado o si las longitudes no
+// coinciden (crypto.timingSafeEqual exige buffers del mismo tamaño).
+function secretoInternoValido(req) {
+  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
+  const recibido = req.get('X-Internal-Secret') || '';
+  if (!secretoEsperado) return false;
+  const bufEsperado = Buffer.from(secretoEsperado);
+  const bufRecibido = Buffer.from(recibido);
+  if (bufEsperado.length !== bufRecibido.length) {
+    // Compara igual contra si mismo para mantener un tiempo constante,
+    // evitando filtrar la longitud esperada mediante temporizacion.
+    crypto.timingSafeEqual(bufEsperado, bufEsperado);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufEsperado, bufRecibido);
+}
+
 // Segmento 9b: endpoint interno para que el servicio "control" (contenedor
 // propio, ver PROJECT_STATE.md) pueda invalidar la caché de resolución de
 // tenant de ESTE proceso después de suspender/reactivar/dar de baja un
@@ -437,8 +462,7 @@ app.use('/api/admin', (req, res, next) => {
 // ambos contenedores) en vez de dejarlo abierto a cualquiera que lo
 // encuentre.
 app.post('/internal/cache-tenant/invalidar', (req, res) => {
-  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
-  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+  if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
   invalidarCacheTenant((req.body && req.body.slug) || null);
@@ -464,8 +488,7 @@ const MAX_MARCA_LOGO_BYTES = MAX_MARCA_LOGO_MB * 1024 * 1024;
 // lleva extensión: el Content-Type se guarda como metadata del objeto y
 // el GET público lo devuelve tal cual.
 app.post('/internal/marca-logo/:slug', (req, res) => {
-  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
-  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+  if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
 
@@ -517,8 +540,7 @@ app.post('/internal/marca-logo/:slug', (req, res) => {
 // secreto que el POST de arriba). La fila de control la actualiza el
 // propio control; aquí solo se elimina el archivo.
 app.delete('/internal/marca-logo/:slug', (req, res) => {
-  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
-  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+  if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
 
@@ -547,8 +569,7 @@ app.delete('/internal/marca-logo/:slug', (req, res) => {
 
 // Sube el favicon de un tenant.
 app.post('/internal/favicon/:slug', (req, res) => {
-  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
-  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+  if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
 
@@ -595,8 +616,7 @@ app.post('/internal/favicon/:slug', (req, res) => {
 
 // Borra el favicon de un tenant de MinIO.
 app.delete('/internal/favicon/:slug', (req, res) => {
-  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
-  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+  if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
 
@@ -628,8 +648,7 @@ app.delete('/internal/favicon/:slug', (req, res) => {
 // válido empieza a funcionar en cuanto el backend resuelve al tenant por
 // el nuevo valor (control invalida la caché de resolución después).
 app.post('/internal/renombrar-slug', async (req, res) => {
-  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
-  if (!secretoEsperado || req.get('X-Internal-Secret') !== secretoEsperado) {
+  if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
 
@@ -851,6 +870,19 @@ app.post(
   })
 );
 
+// Hash de relleno para cuando el RFC no existe (Seguridad, ver auditoría
+// OWASP): sin esto, `!usuario || !verifyPassword(...)` hace corto-circuito
+// y NUNCA llama a verifyPassword (que corre scrypt, el paso costoso) si el
+// RFC no existe — una diferencia de tiempo medible entre "RFC no
+// registrado" y "RFC registrado, contraseña incorrecta" que permitiría
+// enumerar RFCs válidos sin usar el mensaje de error (que ya es genérico
+// a propósito) para nada. Mismo principio que ya aplica
+// costoArtificialComparable() en utils/tenantContext.js para slugs de
+// tenant inexistentes. Se genera una sola vez al arrancar (no en cada
+// intento fallido) porque el valor nunca necesita cambiar — solo sirve de
+// "algo con pinta de hash real" contra lo que comparar.
+const HASH_RELLENO_LOGIN = hashPassword(crypto.randomBytes(32).toString('hex'));
+
 // Inicio de sesión: el backend acepta cualquier valor que coincida con
 // `usuarios.rfc`, sin filtrar por perfil (la tabla no distingue el campo
 // de "usuario" entre RFC y nombre de usuario, es la misma columna) — así
@@ -879,8 +911,12 @@ app.post(
     const usuario = filas[0];
 
     // Mensaje generico (no revela si el RFC existe o no) para no facilitar
-    // enumeracion de cuentas registradas.
-    if (!usuario || !verifyPassword(password, usuario.password_hash)) {
+    // enumeracion de cuentas registradas. verifyPassword() SIEMPRE se
+    // llama (con el hash real o con el de relleno) para que el tiempo de
+    // respuesta no delate por sí solo si el RFC existe — ver
+    // HASH_RELLENO_LOGIN arriba.
+    const passwordValida = verifyPassword(password, usuario ? usuario.password_hash : HASH_RELLENO_LOGIN);
+    if (!usuario || !passwordValida) {
       return res.status(401).json({ error: 'RFC o contraseña incorrectos.' });
     }
 
@@ -1609,8 +1645,18 @@ app.get(
 // formulario público para mostrar la vista previa antes de reemplazar.
 // IMPORTANTE: esta ruta debe declararse ANTES que "/api/registro/:email",
 // o Express interpretaría "buscar" como el valor del parámetro :email.
+// submitLimiter (Seguridad, ver auditoría OWASP): esta ruta es pública y
+// devuelve datos completos del registro (nombre/razón social, RFC,
+// indicaciones) para cualquier correo o RFC que se le mande, sin
+// autenticación — necesario para que el formulario público detecte "ya
+// existe una constancia con estos datos" antes de reemplazarla. Sin un
+// límite de tasa, esto permitía enumerar en masa qué RFC/nombre
+// corresponde a qué correo (o viceversa) con peticiones ilimitadas. El
+// límite no cambia el comportamiento para el uso legítimo (una consulta
+// puntual antes de subir un archivo), solo frena el raspado masivo.
 app.get(
   '/api/registro/buscar',
+  submitLimiter,
   asyncHandler(async (req, res) => {
     const email = sanitizeText(req.query.email, 200).toLowerCase();
     const rfc = sanitizeText(req.query.rfc, 13).toUpperCase();
@@ -1679,8 +1725,13 @@ app.get(
 // Consulta si ya existe un registro/archivo para un correo dado.
 // Se conserva por retrocompatibilidad; el formulario público ahora usa
 // GET /api/registro/buscar (arriba), que también considera el RFC.
+// submitLimiter (Seguridad, ver auditoría OWASP): mismo motivo que en
+// GET /api/registro/buscar — es pública y devuelve datos completos del
+// registro, así que sin límite de tasa permite enumeración masiva por
+// correo.
 app.get(
   '/api/registro/:email',
+  submitLimiter,
   asyncHandler(async (req, res) => {
     const email = String(req.params.email || '').trim().toLowerCase();
     if (!isValidEmail(email)) {
@@ -3665,7 +3716,7 @@ app.post(
       // ("/api/marca-logo/<slug>"), así que aquí se convierte a absoluta
       // con la URL detectada de la petición, para que el correo la pueda
       // mostrar.
-      logoUrl: marcaLogoUrl ? `${urlPortalOrden}${marcaLoGoUrl}` : configGlobal.logo_url,
+      logoUrl: marcaLogoUrl ? `${urlPortalOrden}${marcaLogoUrl}` : configGlobal.logo_url,
       marca: marcaTenant,
     }).catch((err) => {
       console.error('No se pudo enviar el correo de confirmación de la orden de compra:', err.message);

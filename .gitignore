@@ -1,5 +1,17 @@
 # Entorno
 .env
+# Cualquier variante (.env.local, .env.production, etc.) — .env.example es
+# la única excepción a propósito, es la plantilla sin secretos reales.
+.env.*
+!.env.example
+
+# Certificados/llaves privadas — nunca al repositorio si alguna vez se
+# generan localmente para pruebas de HTTPS.
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
 
 # Notas locales de prueba con credenciales — nunca al repositorio
 test.md

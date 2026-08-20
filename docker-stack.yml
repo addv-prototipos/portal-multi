@@ -76,12 +76,22 @@ services:
       - ./mysql/conf/primary.cnf:/etc/mysql/conf.d/primary.cnf:ro
     networks:
       - fiscal-net
+    # MYSQL_PWD (variable de entorno) en vez de "-p<password>" como argumento
+    # de línea de comandos -- mismo motivo que docker-compose.yml: un
+    # argumento de CLI queda visible en texto plano vía "ps aux"/"docker
+    # top", una variable de entorno no. "$$" evita que docker/Swarm
+    # sustituya la variable al interpretar este archivo (horneando la
+    # contraseña en texto plano dentro del comando, visible con "docker
+    # inspect") -- se resuelve en tiempo de ejecución dentro del shell del
+    # contenedor, a partir de MYSQL_ROOT_PASSWORD ya definida arriba.
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-}"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h localhost -u root --silent || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+    security_opt:
+      - no-new-privileges:true
     deploy:
       replicas: 1
       placement:
@@ -111,12 +121,16 @@ services:
       - ./mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
     networks:
       - fiscal-net
+    # Ver el comentario equivalente en mysql-primary arriba (MYSQL_PWD en
+    # vez de "-p<password>" en el argv del healthcheck).
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-}"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h localhost -u root --silent || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+    security_opt:
+      - no-new-privileges:true
     deploy:
       replicas: 1
       placement:
@@ -145,6 +159,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    security_opt:
+      - no-new-privileges:true
     deploy:
       replicas: 1
       # MinIO también usa un volumen local (mismo razonamiento que MySQL
@@ -187,6 +203,8 @@ services:
       INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:?falta INTERNAL_CACHE_SECRET}
     networks:
       - fiscal-net
+    security_opt:
+      - no-new-privileges:true
     # DB_HOST apunta siempre al primario — este segmento deja las lecturas
     # 100% en el primario (decisión explícita: la réplica es standby de
     # failover/respaldo, no un recurso de escalado de lecturas, para no
@@ -231,6 +249,8 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
     networks:
       - fiscal-net
+    security_opt:
+      - no-new-privileges:true
     deploy:
       replicas: 1
       restart_policy:
@@ -247,6 +267,8 @@ services:
       CONTROL_UPSTREAM_PORT: ${CONTROL_UPSTREAM_PORT:-4001}
     networks:
       - fiscal-net
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${FRONTEND_PORT:-80}:80"
     deploy:

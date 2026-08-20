@@ -1,3 +1,15 @@
+# ──────────────────────────────────────────────────────────────────────────
+# AVISO DE SEGURIDAD: todas las contraseñas/credenciales de este archivo usan
+# el patrón "${VAR:-valor_por_defecto}" — SOLO para que el stack levante sin
+# fricción en desarrollo local. Esos valores por defecto (changeme_*,
+# admin:admin, minioadmin, etc.) son PÚBLICOS (están en este archivo, en el
+# repositorio) y NUNCA deben usarse en producción. Antes de desplegar contra
+# tráfico real: copia `.env.example` a `.env` y cambia TODAS las variables
+# marcadas "cámbiala/cámbialas en producción" (ver README, sección
+# "Variables de entorno") — en particular MYSQL_ROOT_PASSWORD, MYSQL_PASSWORD,
+# ADMIN_USERS, MINIO_ROOT_PASSWORD, CONTROL_APP_PASSWORD,
+# INTERNAL_CACHE_SECRET y SESSION_SECRET.
+# ──────────────────────────────────────────────────────────────────────────
 services:
   mysql:
     image: mysql:8.0
@@ -20,24 +32,40 @@ services:
       - mysql_data:/var/lib/mysql
     networks:
       - fiscal-net
+    # Solo el host local (127.0.0.1), no toda la LAN/interfaz pública —
+    # sigue siendo útil para conectarte con un cliente externo (MySQL
+    # Workbench/TablePlus/DBeaver) desde la MISMA máquina donde corre
+    # Docker. En un servidor de producción real, lo más seguro es quitar
+    # este mapeo de puertos por completo (el backend ya lo alcanza por la
+    # red interna de Docker sin necesidad de publicarlo) o dejarlo detrás
+    # de un firewall/VPN — nunca expuesto directo a Internet.
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     healthcheck:
+      # MYSQL_PWD (variable de entorno) en vez de "-p<password>" como
+      # argumento de línea de comandos: un argumento de CLI queda visible
+      # en texto plano para cualquier proceso/usuario que pueda listar
+      # procesos dentro del contenedor (`ps aux`/`docker top`), mientras
+      # que una variable de entorno solo la puede leer el dueño del
+      # proceso (o root) vía /proc/<pid>/environ — superficie de
+      # exposición bastante menor para la misma contraseña. "$$" (no "$")
+      # es a propósito: evita que docker compose sustituya la variable al
+      # interpretar este archivo (lo que horneraría la contraseña en texto
+      # plano dentro del propio comando, visible con "docker inspect") —
+      # así el valor se resuelve en tiempo de ejecución, dentro del shell
+      # del contenedor, a partir de la variable de entorno MYSQL_ROOT_PASSWORD
+      # que ya está definida más arriba para este mismo servicio.
       test:
         [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost",
-          "-u",
-          "root",
-          "-p${MYSQL_ROOT_PASSWORD:-changeme_root_password}",
+          "CMD-SHELL",
+          "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h localhost -u root --silent || exit 1",
         ]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+    security_opt:
+      - no-new-privileges:true
 
   # Almacenamiento de archivos (constancias, imágenes de ticket, facturas)
   # — segmento 5 del plan multi-tenant, ver PROJECT_STATE.md. Reemplaza el
@@ -61,18 +89,24 @@ services:
       - minio_data:/data
     networks:
       - fiscal-net
-    # Solo la consola de administración se expone al host (útil para
-    # inspeccionar el bucket en desarrollo, mismo espíritu que MYSQL_PORT
-    # arriba) — el puerto de la API S3 (9000) NO se publica: el backend lo
-    # alcanza por la red interna de Docker, igual que hace con MySQL.
+    # Solo la consola de administración se expone al host, y solo en
+    # 127.0.0.1 (no toda la LAN/interfaz pública) — útil para inspeccionar
+    # el bucket en desarrollo desde la MISMA máquina, mismo espíritu que
+    # MYSQL_PORT arriba. En producción real, lo más seguro es quitar este
+    # mapeo por completo o dejarlo detrás de un firewall/VPN — la consola
+    # de MinIO no debería quedar alcanzable desde Internet. El puerto de
+    # la API S3 (9000) NO se publica: el backend lo alcanza por la red
+    # interna de Docker, igual que hace con MySQL.
     ports:
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    security_opt:
+      - no-new-privileges:true
 
   backend:
     build:
@@ -131,6 +165,8 @@ services:
       - fiscal-net
     expose:
       - "4000"
+    security_opt:
+      - no-new-privileges:true
 
   # App de control, en su propio contenedor por seguridad y portabilidad
   # (segmento 9b, ver PROJECT_STATE.md) -- gestión cross-tenant del ciclo
@@ -178,6 +214,8 @@ services:
       - fiscal-net
     expose:
       - "4001"
+    security_opt:
+      - no-new-privileges:true
 
   frontend:
     build:
@@ -214,6 +252,8 @@ services:
       - "${FRONTEND_PORT:-80}:80"
     networks:
       - fiscal-net
+    security_opt:
+      - no-new-privileges:true
 
 networks:
   fiscal-net:

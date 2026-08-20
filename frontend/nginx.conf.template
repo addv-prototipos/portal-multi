@@ -16,6 +16,22 @@ map $http_x_forwarded_proto $proxy_x_forwarded_proto {
     ''      $scheme;
 }
 
+# Auditoria de seguridad (frontend, OWASP Top 10 2021): Strict-Transport-
+# Security solo tiene sentido si la conexion de verdad llego por HTTPS —
+# mandarlo siempre, incluso en HTTP simple (como el "http://localhost"
+# de este entorno de desarrollo sin el nginx del host en frente), le
+# diria al navegador que fuerce HTTPS en este host aunque el sitio no lo
+# sirva, rompiendo el acceso. Se reusa el mismo criterio que
+# $proxy_x_forwarded_proto de arriba (X-Forwarded-Proto del proxy del
+# host si existe, si no el esquema real de la conexion a este nginx): el
+# header solo se agrega cuando ese valor es "https". Con add_header, un
+# valor de variable vacio hace que nginx NO mande el header en absoluto
+# (desde nginx 1.7.5) — no hace falta "if" para lograr la condicion.
+map $proxy_x_forwarded_proto $hsts_header_valor {
+    default "";
+    https   "max-age=31536000; includeSubDomains";
+}
+
 # Grupo de conexiones reutilizables hacia el backend. Sin esto, nginx abre
 # una conexión TCP nueva con el backend en CADA petición a /api/ — bajo
 # tráfico normal no se nota, pero bajo carga (o con muchas peticiones
@@ -56,6 +72,13 @@ server {
     # llegue lo recibe de todas formas.
     server_name localhost;
 
+    # Auditoria de seguridad (frontend, OWASP A05:2021 Security
+    # Misconfiguration): no anunciar la version exacta de nginx en la
+    # cabecera "Server" ni en las paginas de error generadas por nginx —
+    # reduce la informacion disponible para un atacante que busque
+    # vulnerabilidades conocidas de una version especifica.
+    server_tokens off;
+
     root /usr/share/nginx/html;
     index login.html;
 
@@ -71,6 +94,12 @@ server {
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+    # Auditoria de seguridad (frontend): HSTS condicional — ver el map
+    # $hsts_header_valor de arriba para el motivo de por que no es
+    # incondicional. Sin efecto en este entorno mientras no haya HTTPS
+    # real en frente; queda listo para cuando lo haya (mismo criterio ya
+    # usado para X-Forwarded-Proto en este archivo).
+    add_header Strict-Transport-Security $hsts_header_valor always;
 
     # JS y CSS propios de la app cambian con cada despliegue: se permite
     # cachear, pero SIEMPRE se revalida con el servidor antes de usar la
