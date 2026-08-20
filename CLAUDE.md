@@ -392,9 +392,9 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   librería externa. `GET /api/admin/resumen-financiero` extendido con
   `gastos_por_categoria`/`top_proveedores`/`proyeccion_ventas`. Jest
   552/552. Validado con datos reales de la siembra del punto 115 vía
-  `curl` + HTML servido por el contenedor confirmado — **sin revisión en
-  navegador real** (extensión Claude in Chrome no conectada esta
-  sesión), pendiente antes de cerrar del todo. Nada commiteado.
+  `curl` y **en navegador real** (Claude in Chrome, tras reconectar la
+  extensión): las 5 tarjetas confirmadas visualmente contra los datos
+  reales, sin errores de consola. Commit `d0b0ada`.
 - **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
   partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
   propia (no dentro de "Inicio", que es del perfil `fiscal`) para el

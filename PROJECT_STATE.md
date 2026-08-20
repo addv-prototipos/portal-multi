@@ -6450,12 +6450,24 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       Pemex, Telmex), y `proyeccion_ventas: null` correctamente (solo 1
       mes de datos reales, menos de los 3 que exige la proyección). HTML
       servido por el contenedor `frontend` confirmado con las 5 tarjetas
-      nuevas (sin problema de caché de build). **Sin verificar en
-      navegador real** (extensión Claude in Chrome no conectada en esta
-      sesión) — pendiente una revisión visual con clics reales antes de
-      considerar esto completamente cerrado, mismo hueco que otros
-      segmentos han dejado documentado explícitamente en vez de asumir
-      que "se ve bien". Nada commiteado.
+      nuevas (sin problema de caché de build).
+    - **Validado en navegador real (Claude in Chrome, 2026-08-20, misma
+      sesión — la extensión no conectaba al principio, el usuario la
+      reconectó y reinició Chrome)**: login admin (`admin:admin`,
+      Chrome traía autocompletado un correo distinto que dio 401 —no es
+      bug, era la credencial equivocada) → vista "Resumen financiero" →
+      las 5 tarjetas nuevas confirmadas visualmente contra los datos
+      reales de la siembra: dona "Distribución de gastos por categoría"
+      (7 categorías, porcentajes suman 100%: 19+19+18+17+12+11+4), dona
+      "Ventas facturadas vs sin facturar" (69%+31%=100%), "Top
+      proveedores de gasto" (5 barras proporcionales, AWS más larga,
+      montos exactos), "Balance acumulado" y "Proyección de ventas"
+      correctamente en su estado "insuficientes datos" (un solo punto,
+      sin línea ni proyección — solo hay 1 mes de histórico real, se
+      necesitan 3). Sin errores en consola del navegador. Con esto, el
+      segmento de gráficas BI queda completamente cerrado. Commit
+      `d0b0ada` (ya hecho antes de esta validación visual, a pedido
+      explícito del usuario).
 
 ## Limitaciones de ESTE entorno de generación (importante)
 
