@@ -434,16 +434,27 @@
 
         <div class="resumen-fin-grid">
           <section class="resumen-fin-line-card">
-            <h2>Balance acumulado (Facturado − Gastos)</h2>
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+              <h2>Balance acumulado (Facturado − Gastos)</h2>
+            </div>
             <div class="resumen-fin-line-wrap">
               <svg class="resumen-fin-line-svg" id="resumen-fin-balance-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Balance acumulado por mes"></svg>
             </div>
             <div class="resumen-fin-line-etiquetas" id="resumen-fin-balance-etiquetas"></div>
+            <p class="resumen-fin-proyeccion-nota" id="resumen-fin-balance-nota" hidden>Necesitas al menos 2 meses con actividad para ver la tendencia.</p>
             <p class="admin-empty" id="resumen-fin-balance-empty" hidden>Aún no hay suficientes datos para esta gráfica.</p>
           </section>
 
           <section class="resumen-fin-donut-card">
-            <h2>Distribución de gastos por categoría</h2>
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6h15l-1.5 9H8L6 6Zm0 0-1-3H2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg>
+              </span>
+              <h2>Distribución de gastos por categoría</h2>
+            </div>
             <div class="resumen-fin-donut-wrap">
               <svg class="resumen-fin-donut" id="resumen-fin-donut-categorias" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
               <div class="resumen-fin-donut-centro">
@@ -458,7 +469,12 @@
 
         <div class="resumen-fin-grid">
           <section class="resumen-fin-line-card">
-            <h2>Proyección de ventas</h2>
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+              <h2>Proyección de ventas</h2>
+            </div>
             <div class="resumen-fin-line-wrap">
               <svg class="resumen-fin-line-svg" id="resumen-fin-proyeccion-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Proyección de ventas"></svg>
             </div>
@@ -468,7 +484,12 @@
           </section>
 
           <section class="resumen-fin-donut-card">
-            <h2>Ventas facturadas vs sin facturar</h2>
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
+              </span>
+              <h2>Ventas facturadas vs sin facturar</h2>
+            </div>
             <div class="resumen-fin-donut-wrap">
               <svg class="resumen-fin-donut" id="resumen-fin-donut-facturacion" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
               <div class="resumen-fin-donut-centro">
@@ -482,7 +503,12 @@
         </div>
 
         <section class="resumen-fin-proveedores-card">
-          <h2>Top proveedores de gasto</h2>
+          <div class="resumen-fin-card-header">
+            <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h10M4 18h6" stroke-linecap="round" stroke-width="2"/></svg>
+            </span>
+            <h2>Top proveedores de gasto</h2>
+          </div>
           <ul class="resumen-fin-proveedores-lista" id="resumen-fin-proveedores-lista"></ul>
           <p class="admin-empty" id="resumen-fin-proveedores-empty" hidden>Aún no hay gastos con proveedor capturado este mes.</p>
         </section>

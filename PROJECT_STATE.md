@@ -6468,6 +6468,46 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       segmento de gráficas BI queda completamente cerrado. Commit
       `d0b0ada` (ya hecho antes de esta validación visual, a pedido
       explícito del usuario).
+    - **Rediseño de paleta (2026-08-20, mismo día, a pedido del usuario
+      tras ver la vista en producción)**: la paleta original de las 10
+      categorías de gasto usaba 10 colores arcoíris sin relación con la
+      identidad del panel (navy `#03285B` + verde `#1FAE6B` "facturado" +
+      terracota `#B4530C` "warn") — rompía la coherencia visual. Se
+      investigó primero si el "texto en negro" que reportó el usuario en
+      su captura era un bug real: verificado en navegador limpio (Claude
+      in Chrome) que el texto de la leyenda SIEMPRE fue gris/oscuro
+      neutro uniforme, nunca coloreado por categoría — la captura del
+      usuario reflejaba algo del lado de su navegador (extensión), no un
+      bug de esta vista; documentado así para no perseguir un fantasma.
+      El problema real (paleta arcoíris) sí se corrigió, en dos pasadas:
+      1) Paleta reemplazada por una rampa derivada de la marca (azules
+      navy + 1 verde + 1 terracota + 1 gris neutro, en vez de 10 matices
+      sin relación). 2) A pedido explícito de seguimiento del usuario
+      ("usa colores en tonos claros y pasteles" para las gráficas
+      circulares), la rampa se suavizó a tonos pastel manteniendo la
+      MISMA familia de matices (no una paleta pastel genérica) — ver
+      `RESUMEN_FIN_COLORES_CATEGORIA`/`RESUMEN_FIN_COLOR_FACTURADO`/
+      `RESUMEN_FIN_COLOR_SIN_FACTURAR` en `frontend/admin.js`. Se agregó
+      un pequeño espacio + `stroke-linecap: round` entre segmentos de
+      dona (`renderDonutGenerico`) porque tonos pastel contiguos se
+      fusionan sin separación visual, y un borde sutil
+      (`box-shadow: inset`) a los puntos de leyenda en `admin.css`
+      porque un pastel muy claro pierde definición contra fondo blanco.
+      Además, coherencia con el resto del dashboard: las 5 tarjetas
+      ganaron un ícono de encabezado en un badge de color (mismo patrón
+      ya usado en las tarjetas KPI — `inicio-stat-icono-*`), reutilizando
+      exactamente los mismos tokens/semántica ya establecidos (verde
+      "completadas" para tarjetas de ventas, rojo/rosa "rechazadas" para
+      tarjetas de gastos, navy "total" para balance) — ningún color
+      nuevo inventado fuera de lo ya existente en el sistema. También se
+      agregó una nota honesta ("Necesitas al menos 2 meses con actividad
+      para ver la tendencia") en "Balance acumulado" cuando hay menos de
+      2 meses de histórico, en vez de dejar un punto flotando sin
+      contexto (mismo criterio ya usado en "Proyección de ventas").
+      **Validado en navegador real** (Claude in Chrome): las 5 tarjetas
+      confirmadas visualmente con la paleta pastel + íconos, sin errores
+      de consola, montos/porcentajes intactos. Nada commiteado — el
+      usuario no lo ha pedido todavía para este ajuste.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

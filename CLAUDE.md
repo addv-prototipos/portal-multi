@@ -394,7 +394,21 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   552/552. Validado con datos reales de la siembra del punto 115 vía
   `curl` y **en navegador real** (Claude in Chrome, tras reconectar la
   extensión): las 5 tarjetas confirmadas visualmente contra los datos
-  reales, sin errores de consola. Commit `d0b0ada`.
+  reales, sin errores de consola. Commit `d0b0ada`. **Rediseño de
+  paleta (mismo día, punto 117)**: la paleta original de 10 colores
+  arcoíris para las categorías de gasto no tenía relación con la
+  identidad del panel — reemplazada por una rampa derivada de la marca
+  (navy/verde/terracota ya establecidos) y luego suavizada a tonos
+  pastel a pedido explícito del usuario, con espacio + `stroke-linecap:
+  round` entre segmentos de dona y borde sutil en los puntos de leyenda
+  para que los pasteles no pierdan definición. Las 5 tarjetas ganaron
+  íconos de encabezado reutilizando los mismos badges/semántica de las
+  KPI (`inicio-stat-icono-*`), sin colores nuevos inventados. Se
+  investigó y descartó como bug real el "texto en negro" que reportó el
+  usuario — verificado en navegador limpio que la leyenda siempre fue
+  gris/oscuro neutro, el efecto venía de algo del lado de su navegador.
+  Validado visualmente en navegador real, sin commitear (no pedido
+  todavía para este ajuste).
 - **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
   partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
   propia (no dentro de "Inicio", que es del perfil `fiscal`) para el

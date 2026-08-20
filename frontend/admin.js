@@ -280,6 +280,7 @@
     resumenFinBalanceSvg: document.getElementById('resumen-fin-balance-svg'),
     resumenFinBalanceEtiquetas: document.getElementById('resumen-fin-balance-etiquetas'),
     resumenFinBalanceEmpty: document.getElementById('resumen-fin-balance-empty'),
+    resumenFinBalanceNota: document.getElementById('resumen-fin-balance-nota'),
     resumenFinProyeccionSvg: document.getElementById('resumen-fin-proyeccion-svg'),
     resumenFinProyeccionEtiquetas: document.getElementById('resumen-fin-proyeccion-etiquetas'),
     resumenFinProyeccionNota: document.getElementById('resumen-fin-proyeccion-nota'),
@@ -5128,6 +5129,10 @@
     });
 
     els.resumenFinBalanceEtiquetas.innerHTML = serie.map((m) => `<span>${escapeHtml(m.mes)}</span>`).join('');
+    // Con un solo mes no hay trazo que dibujar (un punto solo no es una
+    // tendencia) — se avisa en vez de dejar el punto flotando sin
+    // contexto, mismo espíritu que la nota de "Proyección de ventas".
+    els.resumenFinBalanceNota.hidden = puntos.length > 1;
   }
 
   // Proyección de ventas: línea sólida con los meses reales + línea
@@ -5189,15 +5194,21 @@
 
   // Genera una dona SVG de N segmentos dinámicos (a diferencia de la
   // dona de "Inicio", que tiene 3 círculos fijos en el HTML) — reutilizado
-  // por "Distribución de gastos" y "Facturadas vs sin facturar".
+  // por "Distribución de gastos" y "Facturadas vs sin facturar". Deja un
+  // pequeño espacio entre segmentos (a pedido del usuario, tonos
+  // pasteles): sin él, dos tonos pastel contiguos se funden entre sí
+  // porque su contraste mutuo es bajo — el hueco los separa visualmente
+  // sin depender de que el color por sí solo marque el límite.
   function renderDonutGenerico(svgEl, segmentos) {
     const circunferencia = 2 * Math.PI * 40;
     const total = segmentos.reduce((acc, s) => acc + s.valor, 0);
+    const espacio = segmentos.length > 1 ? 2 : 0;
     svgEl.innerHTML = '';
     let acumulado = 0;
     segmentos.forEach((s) => {
       const porcentaje = total > 0 ? (s.valor / total) * 100 : 0;
-      const largo = (porcentaje / 100) * circunferencia;
+      const largoTotal = (porcentaje / 100) * circunferencia;
+      const largo = Math.max(0, largoTotal - espacio);
       const circle = document.createElementNS(SVG_NS, 'circle');
       circle.setAttribute('cx', '50');
       circle.setAttribute('cy', '50');
@@ -5205,32 +5216,40 @@
       circle.setAttribute('fill', 'none');
       circle.setAttribute('stroke-width', '16');
       circle.setAttribute('stroke', s.color);
+      circle.setAttribute('stroke-linecap', 'round');
       circle.setAttribute('stroke-dasharray', `${largo} ${circunferencia - largo}`);
       circle.setAttribute('stroke-dashoffset', String(-acumulado));
       circle.setAttribute('class', 'resumen-fin-donut-segmento');
       svgEl.appendChild(circle);
-      acumulado += largo;
+      acumulado += largoTotal;
     });
     return total;
   }
 
   // El color de cada categoría de gasto es fijo (no depende de cuáles
   // aparezcan este mes) para que el mismo color siempre represente la
-  // misma categoría entre una carga y otra de la vista.
+  // misma categoría entre una carga y otra de la vista. Tonos PASTEL (a
+  // pedido explícito del usuario) pero derivados de la misma familia de
+  // matices que la identidad del panel (azul de --color-accent #03285B,
+  // verde de "facturado" #1FAE6B, terracota de "warn"/"sin facturar"
+  // #B4530C) en vez de una paleta arcoíris sin relación con la marca —
+  // mismo criterio que pidió el usuario tras revisar la vista en
+  // producción (ver PROJECT_STATE.md, segmento de rediseño de esta
+  // vista).
   const RESUMEN_FIN_COLORES_CATEGORIA = {
-    renta: '#2F6FED',
-    nomina: '#7C3AED',
-    software: '#0EA5E9',
-    hosting: '#14B8A6',
-    servicios: '#F59E0B',
-    papeleria: '#F97316',
-    combustible: '#84CC16',
-    viaticos: '#EC4899',
-    publicidad: '#6366F1',
-    otro: '#94A3B8',
+    renta: '#8FADD9',
+    nomina: '#A9C4E3',
+    software: '#719FD4',
+    hosting: '#C0D3EB',
+    servicios: '#9BB8DE',
+    combustible: '#D1DEED',
+    papeleria: '#B3C9E1',
+    publicidad: '#8ED6B7',
+    viaticos: '#E8B592',
+    otro: '#C7CAD1',
   };
-  const RESUMEN_FIN_COLOR_FACTURADO = '#1FAE6B';
-  const RESUMEN_FIN_COLOR_SIN_FACTURAR = '#B4530C';
+  const RESUMEN_FIN_COLOR_FACTURADO = '#7FCBA8';
+  const RESUMEN_FIN_COLOR_SIN_FACTURAR = '#E4A97E';
 
   function renderResumenFinGastosCategoria(filas) {
     if (!filas || filas.length === 0) {
