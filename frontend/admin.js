@@ -277,6 +277,9 @@
     resumenFinKpiSinFacturar: document.getElementById('resumen-fin-kpi-sin-facturar'),
     resumenFinChartBody: document.getElementById('resumen-fin-chart-body'),
     resumenFinChartEmpty: document.getElementById('resumen-fin-chart-empty'),
+    resumenFinUtilidadValor: document.getElementById('resumen-fin-utilidad-valor'),
+    resumenFinUtilidadBody: document.getElementById('resumen-fin-utilidad-body'),
+    resumenFinUtilidadEmpty: document.getElementById('resumen-fin-utilidad-empty'),
     resumenFinBalanceSvg: document.getElementById('resumen-fin-balance-svg'),
     resumenFinBalanceEtiquetas: document.getElementById('resumen-fin-balance-etiquetas'),
     resumenFinBalanceEmpty: document.getElementById('resumen-fin-balance-empty'),
@@ -300,6 +303,11 @@
     resumenFinDetalleTitulo: document.getElementById('resumen-fin-detalle-titulo'),
     resumenFinDetalleIcono: document.getElementById('resumen-fin-detalle-icono'),
     btnResumenFinDetalleCerrar: document.getElementById('btn-resumen-fin-detalle-cerrar'),
+    // Modo dashboard (punto 119)
+    btnModoDashboard: document.getElementById('btn-modo-dashboard'),
+    btnRestablecerDashboard: document.getElementById('btn-restablecer-dashboard'),
+    resumenFinDashboardAyuda: document.getElementById('resumen-fin-dashboard-ayuda'),
+    resumenFinTablero: document.getElementById('resumen-fin-tablero'),
     gastosFiltroCategoria: document.getElementById('gastos-filtro-categoria'),
     gastosFiltroFactura: document.getElementById('gastos-filtro-factura'),
     gastosFiltroRecurrente: document.getElementById('gastos-filtro-recurrente'),
@@ -3003,7 +3011,13 @@
         cargarOrdenes();
       })();
     }
-    if (vista === 'resumen-financiero') cargarResumenFinanciero();
+    if (vista === 'resumen-financiero') {
+    cargarResumenFinanciero();
+    // Modo dashboard (punto 119): el layout personalizado del usuario se
+    // aplica ANTES de que las tarjetas sean visibles para evitar saltos
+    // (CLS) — por eso va en paralelo a la carga de datos, no después.
+    cargarPreferenciasDashboard();
+  }
     if (vista === 'gastos') cargarGastos();
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'configuraciones') {
@@ -5004,6 +5018,372 @@
     if (porcentaje < 0) elemento.classList.add('es-negativa');
   }
 
+  // ---------- Modo dashboard del Resumen financiero (punto 119) ----------
+  //
+  // Permite reordenar y redimensionar las tarjetas de la vista y guarda
+  // el layout POR USUARIO en el servidor (preferencias_dashboard vía
+  // GET/PUT/DELETE /api/admin/preferencias-dashboard/resumen-financiero),
+  // para restaurarse en cada ingreso. Decisiones clave:
+  //  - El arrastre NUNCA mueve nodos del DOM: solo cambia style.order y
+  //    style.gridColumn de los hijos del tablero. Mover nodos rompería
+  //    abrirDetalleGrafica(), que devuelve cada contenido a su padre
+  //    original al cerrar el modal.
+  //  - El movimiento visual durante el arrastre usa transform (compositor)
+  //    con transiciones desactivadas en la tarjeta arrastrada.
+  //  - Accesibilidad: cada tarjeta es enfocable con el modo activo y se
+  //    puede reordenar/redimensionar solo con teclado (↑/↓ posición,
+  //    ←/→ ancho, Esc sale) — mismo resultado que el puntero.
+  const DASHBOARD_TARJETAS = [
+    { id: 'kpi-facturado', titulo: 'Total facturado' },
+    { id: 'kpi-gastos', titulo: 'Total gastos' },
+    { id: 'kpi-balance', titulo: 'Balance ventas vs gastos' },
+    { id: 'kpi-sin-facturar', titulo: 'Ventas sin facturar' },
+    { id: 'utilidad', titulo: 'Utilidad neta del mes' },
+    { id: 'ventas-facturado-gastos', titulo: 'Ventas vs Facturado vs Gastos' },
+    { id: 'gastos-categoria', titulo: 'Distribución de gastos por categoría' },
+    { id: 'facturacion', titulo: 'Ventas facturadas vs sin facturar' },
+    { id: 'balance-acumulado', titulo: 'Balance acumulado' },
+    { id: 'proyeccion', titulo: 'Proyección de ventas' },
+    { id: 'proveedores', titulo: 'Top proveedores de gasto' },
+  ];
+  const DASHBOARD_SPAN_MIN = 3;
+  const DASHBOARD_SPAN_MAX = 12;
+  const DASHBOARD_SPANS_DEFECTO = {
+    'kpi-facturado': 3,
+    'kpi-gastos': 3,
+    'kpi-balance': 3,
+    'kpi-sin-facturar': 3,
+    utilidad: 12,
+    'ventas-facturado-gastos': 12,
+    'gastos-categoria': 6,
+    facturacion: 6,
+    'balance-acumulado': 6,
+    proyeccion: 6,
+    proveedores: 12,
+  };
+  const DASHBOARD_VISTA = 'resumen-financiero';
+  const DASHBOARD_GUARDADO_DEBOUNCE_MS = 800;
+
+  let dashboardModoActivo = false;
+  let dashboardLayout = null; // null = layout por defecto; [{id, span}] = personalizado
+  let dashboardGuardadoTimer = null;
+
+  function obtenerTarjetasDashboard() {
+    return Array.from(els.resumenFinTablero.querySelectorAll('[data-dashboard-id]')).sort(
+      (a, b) => Number(getComputedStyle(a).order) - Number(getComputedStyle(b).order)
+    );
+  }
+
+  function aplicarLayoutDashboard() {
+    const tarjetas = obtenerTarjetasDashboard();
+    if (!dashboardLayout) {
+      tarjetas.forEach((t) => {
+        t.style.order = '';
+        t.style.gridColumn = '';
+      });
+      return;
+    }
+    const spansPorId = new Map(dashboardLayout.map((item) => [item.id, item.span]));
+    tarjetas.forEach((t, indice) => {
+      t.style.order = String(indice);
+      const span = spansPorId.get(t.dataset.dashboardId);
+      if (span) t.style.gridColumn = `span ${span}`;
+    });
+  }
+
+  function sincronizarBotonRestablecerDashboard() {
+    els.btnRestablecerDashboard.hidden = !dashboardLayout;
+  }
+
+  async function cargarPreferenciasDashboard() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/preferencias-dashboard/${DASHBOARD_VISTA}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) return; // sin preferencia o fallo no bloqueante: layout por defecto
+      const data = await res.json();
+      if (Array.isArray(data.layout) && data.layout.length > 0) {
+        dashboardLayout = data.layout;
+        aplicarLayoutDashboard();
+        sincronizarBotonRestablecerDashboard();
+      }
+    } catch (err) {
+      // Fallo de red: la vista funciona igual con el layout por defecto.
+    }
+  }
+
+  function guardarPreferenciasDashboard() {
+    clearTimeout(dashboardGuardadoTimer);
+    dashboardGuardadoTimer = setTimeout(async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) return;
+      const layout = obtenerTarjetasDashboard().map((t) => ({
+        id: t.dataset.dashboardId,
+        span: parseInt(t.style.gridColumn.replace('span ', ''), 10) || DASHBOARD_SPANS_DEFECTO[t.dataset.dashboardId] || 12,
+      }));
+      try {
+        const res = await fetch(`${API_BASE}/admin/preferencias-dashboard/${DASHBOARD_VISTA}`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layout }),
+        });
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        if (!res.ok) {
+          showToast('No se pudo guardar el layout.', true);
+          return;
+        }
+        dashboardLayout = layout;
+        sincronizarBotonRestablecerDashboard();
+        showToast('Layout guardado.');
+      } catch (err) {
+        showToast('No se pudo guardar el layout.', true);
+      }
+    }, DASHBOARD_GUARDADO_DEBOUNCE_MS);
+  }
+
+  async function restablecerDashboard() {
+    clearTimeout(dashboardGuardadoTimer);
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/preferencias-dashboard/${DASHBOARD_VISTA}`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast('No se pudo restablecer el layout.', true);
+        return;
+      }
+      dashboardLayout = null;
+      aplicarLayoutDashboard();
+      sincronizarBotonRestablecerDashboard();
+      showToast('Layout restablecido.');
+    } catch (err) {
+      showToast('No se pudo restablecer el layout.', true);
+    }
+  }
+
+  function crearHandleMover(tarjeta, titulo) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'dashboard-handle-mover';
+    boton.setAttribute('aria-label', `Mover tarjeta: ${titulo}`);
+    boton.innerHTML =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.7"/><circle cx="15" cy="5" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="19" r="1.7"/><circle cx="15" cy="19" r="1.7"/></svg>';
+    boton.addEventListener('pointerdown', (e) => iniciarArrastreDashboard(e, tarjeta));
+    return boton;
+  }
+
+  function crearHandleRedimensionar(tarjeta, titulo) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'dashboard-handle-redimensionar';
+    boton.setAttribute('aria-label', `Cambiar ancho de tarjeta: ${titulo} (flechas izquierda/derecha con la tarjeta enfocada)`);
+    boton.tabIndex = -1;
+    boton.innerHTML =
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 4v16H4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"/></svg>';
+    boton.addEventListener('pointerdown', (e) => iniciarRedimensionDashboard(e, tarjeta));
+    return boton;
+  }
+
+  function activarModoDashboard() {
+    if (dashboardModoActivo) return;
+    dashboardModoActivo = true;
+    els.resumenFinTablero.classList.add('dashboard-activo');
+    els.btnModoDashboard.setAttribute('aria-pressed', 'true');
+    els.btnModoDashboard.textContent = 'Salir del modo dashboard';
+    els.resumenFinDashboardAyuda.hidden = false;
+    sincronizarBotonRestablecerDashboard();
+    const titulosPorId = new Map(DASHBOARD_TARJETAS.map((t) => [t.id, t.titulo]));
+    obtenerTarjetasDashboard().forEach((tarjeta) => {
+      const titulo = titulosPorId.get(tarjeta.dataset.dashboardId) || 'tarjeta';
+      tarjeta.tabIndex = 0;
+      tarjeta.addEventListener('keydown', manejadorTecladoDashboard);
+      const header =
+        tarjeta.querySelector('.resumen-fin-card-header') || tarjeta.querySelector('.inicio-stat-header');
+      if (header) {
+        const expandir = header.querySelector('.resumen-fin-expandir-btn');
+        const mover = crearHandleMover(tarjeta, titulo);
+        if (expandir) header.insertBefore(mover, expandir);
+        else header.appendChild(mover);
+      }
+      tarjeta.appendChild(crearHandleRedimensionar(tarjeta, titulo));
+    });
+  }
+
+  function desactivarModoDashboard() {
+    if (!dashboardModoActivo) return;
+    dashboardModoActivo = false;
+    els.resumenFinTablero.classList.remove('dashboard-activo');
+    els.btnModoDashboard.setAttribute('aria-pressed', 'false');
+    els.btnModoDashboard.textContent = 'Modo dashboard';
+    els.resumenFinDashboardAyuda.hidden = true;
+    els.btnRestablecerDashboard.hidden = true;
+    obtenerTarjetasDashboard().forEach((tarjeta) => {
+      tarjeta.tabIndex = -1;
+      tarjeta.removeEventListener('keydown', manejadorTecladoDashboard);
+      tarjeta.style.transform = '';
+      tarjeta.querySelectorAll('.dashboard-handle-mover, .dashboard-handle-redimensionar').forEach((h) => h.remove());
+    });
+  }
+
+  function alternarModoDashboard() {
+    if (dashboardModoActivo) desactivarModoDashboard();
+    else activarModoDashboard();
+  }
+
+  // Reordena en vivo: cuenta cuántas tarjetas están "antes" del puntero
+  // (por centro vertical, o por centro horizontal dentro de la misma fila)
+  // y mueve la tarjeta arrastrada a ese índice. Solo cambian valores de
+  // style.order — ningún nodo se mueve del DOM.
+  function reordenarDuranteArrastre(tarjetaArrastrada, punto) {
+    const tarjetas = obtenerTarjetasDashboard();
+    const otras = tarjetas.filter((t) => t !== tarjetaArrastrada);
+    let indice = 0;
+    for (const otra of otras) {
+      const r = otra.getBoundingClientRect();
+      const centroY = r.top + r.height / 2;
+      const centroX = r.left + r.width / 2;
+      if (centroY < punto.y || (Math.abs(punto.y - centroY) <= r.height / 2 && centroX < punto.x)) {
+        indice += 1;
+      }
+    }
+    const nuevoOrden = [...otras.slice(0, indice), tarjetaArrastrada, ...otras.slice(indice)];
+    nuevoOrden.forEach((t, i) => {
+      t.style.order = String(i);
+    });
+  }
+
+  function iniciarArrastreDashboard(evento, tarjeta) {
+    evento.preventDefault();
+    const handle = evento.currentTarget;
+    handle.setPointerCapture(evento.pointerId);
+    const rectInicial = tarjeta.getBoundingClientRect();
+    const offsetDentro = { x: evento.clientX - rectInicial.left, y: evento.clientY - rectInicial.top };
+    tarjeta.classList.add('tarjeta-arrastrando');
+    let ordenInicial = Number(getComputedStyle(tarjeta).order);
+    let transformVigente = { x: 0, y: 0 };
+    let cuadroPendiente = false;
+    let ultimoPunto = { x: evento.clientX, y: evento.clientY };
+
+    const alMover = (e) => {
+      ultimoPunto = { x: e.clientX, y: e.clientY };
+      if (cuadroPendiente) return;
+      cuadroPendiente = true;
+      requestAnimationFrame(() => {
+        cuadroPendiente = false;
+        // La posición ESTÁTICA de la tarjeta cambia cuando el reorden
+        // mueve su slot en la cuadrícula; para que siga pegada al puntero
+        // sin saltos, el nuevo transform se calcula contra esa posición
+        // estática (rect actual − transform ya aplicado).
+        const r = tarjeta.getBoundingClientRect();
+        const estaticaX = r.left - transformVigente.x;
+        const estaticaY = r.top - transformVigente.y;
+        transformVigente = {
+          x: ultimoPunto.x - offsetDentro.x - estaticaX,
+          y: ultimoPunto.y - offsetDentro.y - estaticaY,
+        };
+        tarjeta.style.transform = `translate(${transformVigente.x}px, ${transformVigente.y}px)`;
+        reordenarDuranteArrastre(tarjeta, ultimoPunto);
+      });
+    };
+    const alTerminar = () => {
+      handle.removeEventListener('pointermove', alMover);
+      handle.removeEventListener('pointerup', alTerminar);
+      handle.removeEventListener('pointercancel', alTerminar);
+      tarjeta.classList.remove('tarjeta-arrastrando');
+      tarjeta.style.transform = '';
+      const ordenFinal = Number(getComputedStyle(tarjeta).order);
+      if (ordenFinal !== ordenInicial) {
+        guardarPreferenciasDashboard();
+      }
+    };
+    handle.addEventListener('pointermove', alMover);
+    handle.addEventListener('pointerup', alTerminar);
+    handle.addEventListener('pointercancel', alTerminar);
+  }
+
+  function iniciarRedimensionDashboard(evento, tarjeta) {
+    evento.preventDefault();
+    const handle = evento.currentTarget;
+    handle.setPointerCapture(evento.pointerId);
+    const xInicial = evento.clientX;
+    const spanInicial =
+      parseInt((tarjeta.style.gridColumn || '').replace('span ', ''), 10) ||
+      DASHBOARD_SPANS_DEFECTO[tarjeta.dataset.dashboardId] ||
+      12;
+    let spanFinal = spanInicial;
+    const alMover = (e) => {
+      const anchoColumna = els.resumenFinTablero.clientWidth / 12;
+      const delta = Math.round((e.clientX - xInicial) / anchoColumna);
+      spanFinal = Math.min(DASHBOARD_SPAN_MAX, Math.max(DASHBOARD_SPAN_MIN, spanInicial + delta));
+      tarjeta.style.gridColumn = `span ${spanFinal}`;
+    };
+    const alTerminar = () => {
+      handle.removeEventListener('pointermove', alMover);
+      handle.removeEventListener('pointerup', alTerminar);
+      handle.removeEventListener('pointercancel', alTerminar);
+      if (spanFinal !== spanInicial) {
+        guardarPreferenciasDashboard();
+      }
+    };
+    handle.addEventListener('pointermove', alMover);
+    handle.addEventListener('pointerup', alTerminar);
+    handle.addEventListener('pointercancel', alTerminar);
+  }
+
+  function manejadorTecladoDashboard(evento) {
+    const tarjeta = evento.currentTarget;
+    if (evento.key === 'Escape') {
+      desactivarModoDashboard();
+      return;
+    }
+    if (evento.key === 'ArrowLeft' || evento.key === 'ArrowRight') {
+      evento.preventDefault();
+      const actual =
+        parseInt((tarjeta.style.gridColumn || '').replace('span ', ''), 10) ||
+        DASHBOARD_SPANS_DEFECTO[tarjeta.dataset.dashboardId] ||
+        12;
+      const delta = evento.key === 'ArrowRight' ? 1 : -1;
+      tarjeta.style.gridColumn = `span ${Math.min(DASHBOARD_SPAN_MAX, Math.max(DASHBOARD_SPAN_MIN, actual + delta))}`;
+      guardarPreferenciasDashboard();
+      return;
+    }
+    if (evento.key === 'ArrowUp' || evento.key === 'ArrowDown') {
+      evento.preventDefault();
+      const tarjetas = obtenerTarjetasDashboard();
+      const indiceActual = tarjetas.indexOf(tarjeta);
+      const indiceDestino = evento.key === 'ArrowUp' ? indiceActual - 1 : indiceActual + 1;
+      if (indiceDestino < 0 || indiceDestino >= tarjetas.length) return;
+      const nuevaSecuencia = [...tarjetas];
+      nuevaSecuencia.splice(indiceActual, 1);
+      nuevaSecuencia.splice(indiceDestino, 0, tarjeta);
+      nuevaSecuencia.forEach((t, i) => {
+        t.style.order = String(i);
+      });
+      guardarPreferenciasDashboard();
+    }
+  }
+
+  els.btnModoDashboard.addEventListener('click', alternarModoDashboard);
+  els.btnRestablecerDashboard.addEventListener('click', restablecerDashboard);
+
   async function cargarResumenFinanciero() {
     const authHeader = getAuthHeader();
     if (!authHeader) {
@@ -5062,11 +5442,58 @@
       els.resumenFinChartBody.appendChild(columna);
     });
 
+    renderResumenFinUtilidad(mes);
     renderResumenFinBalanceAcumulado(serie);
     renderResumenFinProyeccion(serie, data.proyeccion_ventas);
     renderResumenFinGastosCategoria(data.gastos_por_categoria || []);
     renderResumenFinFacturacion(mes);
     renderResumenFinProveedores(data.top_proveedores || []);
+  }
+
+  // Tarjeta "Utilidad neta del mes (ventas totales vs gastos)" (punto
+  // 118 de PROJECT_STATE.md): número grande + dos columnas de barras en
+  // CSS puro — "Ventas totales" apilada (Subtotal abajo + IVA cobrado
+  // arriba) junto a "Gastos" sólida, misma escala relativa al máximo.
+  // El IVA aquí es el cobrado en ventas; los gastos no desglosan el suyo,
+  // así que la cifra NO pretende ser un IVA neto fiscal (nota visible en
+  // la tarjeta).
+  function renderResumenFinUtilidad(mes) {
+    const subtotal = mes.subtotal_ventas || 0;
+    const iva = mes.iva_ventas || 0;
+    const ventasTotales = mes.ventas || 0;
+    const gastos = mes.gastos || 0;
+    const utilidad =
+      typeof mes.utilidad_neta === 'number' ? mes.utilidad_neta : subtotal - gastos;
+
+    els.resumenFinUtilidadValor.textContent = `$${formatearMoneda(utilidad)}`;
+    els.resumenFinUtilidadValor.classList.toggle('es-positiva', utilidad > 0);
+    els.resumenFinUtilidadValor.classList.toggle('es-negativa', utilidad < 0);
+
+    const hayDatos = ventasTotales > 0 || gastos > 0;
+    els.resumenFinUtilidadEmpty.hidden = hayDatos;
+    els.resumenFinUtilidadBody.hidden = !hayDatos;
+    if (!hayDatos) return;
+
+    const maximo = Math.max(ventasTotales, gastos, 1);
+    // Mínimo 1% para valores > 0: que un monto chico siga siendo visible
+    // junto a uno grande (mismo criterio que min-height:2px de las barras
+    // de la gráfica principal).
+    const alturaPct = (valor) => (valor > 0 ? Math.max((valor / maximo) * 100, 1) : 0);
+    els.resumenFinUtilidadBody.innerHTML = `
+      <div class="resumen-fin-chart-columna">
+        <div class="resumen-fin-utilidad-apilada" role="img" aria-label="Ventas totales $${formatearMoneda(ventasTotales)}: subtotal $${formatearMoneda(subtotal)} más IVA $${formatearMoneda(iva)}">
+          <span class="resumen-fin-utilidad-segmento-iva" style="height:${alturaPct(iva)}%" title="IVA cobrado: $${formatearMoneda(iva)}"></span>
+          <span class="resumen-fin-utilidad-segmento-subtotal" style="height:${alturaPct(subtotal)}%" title="Subtotal (neto): $${formatearMoneda(subtotal)}"></span>
+        </div>
+        <span class="resumen-fin-chart-etiqueta">Ventas totales</span>
+      </div>
+      <div class="resumen-fin-chart-columna">
+        <div class="resumen-fin-utilidad-apilada" role="img" aria-label="Gastos $${formatearMoneda(gastos)}">
+          <span class="resumen-fin-utilidad-segmento-gastos" style="height:${alturaPct(gastos)}%" title="Gastos: $${formatearMoneda(gastos)}"></span>
+        </div>
+        <span class="resumen-fin-chart-etiqueta">Gastos</span>
+      </div>
+    `;
   }
 
   // Convierte una serie de valores en puntos (x,y) dentro de un viewBox

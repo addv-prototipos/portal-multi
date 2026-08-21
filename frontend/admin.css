@@ -1765,6 +1765,47 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .resumen-fin-dot-facturado { background: #1FAE6B; }
 .resumen-fin-dot-gastos { background: var(--color-border); }
 
+/* ---------- Resumen financiero: tarjeta Utilidad neta (punto 118) ---------- */
+.resumen-fin-utilidad-valor {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  margin: 4px 0 2px;
+}
+.resumen-fin-utilidad-valor.es-positiva { color: #1FAE6B; }
+.resumen-fin-utilidad-valor.es-negativa { color: var(--color-error); }
+.resumen-fin-utilidad-nota {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+/* Barras apiladas de la tarjeta: contenedor de ancho fijo (lección del
+   punto 117 — nada de flex:1 que estire columnas), subtotal abajo e IVA
+   arriba. Paleta pastel navy ya establecida (#719FD4 / #C0D3EB) y gastos
+   en el mismo gris de las barras de la gráfica principal. */
+.resumen-fin-utilidad-apilada {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 48px;
+  height: 200px;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+}
+.resumen-fin-utilidad-segmento-subtotal,
+.resumen-fin-utilidad-segmento-iva,
+.resumen-fin-utilidad-segmento-gastos {
+  display: block;
+  width: 100%;
+  transition: height 0.4s ease;
+}
+.resumen-fin-utilidad-segmento-subtotal { background: #719FD4; }
+.resumen-fin-utilidad-segmento-iva { background: #C0D3EB; }
+.resumen-fin-utilidad-segmento-gastos { background: var(--color-border); }
+.resumen-fin-dot-subtotal { background: #719FD4; }
+.resumen-fin-dot-iva { background: #C0D3EB; }
+.resumen-fin-dot-total { background: linear-gradient(135deg, #C0D3EB 50%, #719FD4 50%); }
+
 /* ---------- Resumen financiero: gráficas BI (segmento 2026-08-20) ---------- */
 .resumen-fin-grid {
   display: grid;
@@ -3004,3 +3045,127 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 
 
+
+/* ---------- Modo dashboard del Resumen financiero (punto 119) ---------- */
+/* Tablero unificado: los 11 elementos de la vista son hijos directos de
+   UNA cuadrícula de 12 columnas. El layout por defecto replica el aspecto
+   original: KPIs a 3 columnas, pares a 6, tarjetas grandes a 12. El Modo
+   dashboard solo cambia order/grid-column en línea — NUNCA mueve nodos
+   del DOM (moverlos rompería abrirDetalleGrafica(), que devuelve cada
+   contenido a su padre original). */
+.resumen-fin-tablero {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px 16px;
+}
+.resumen-fin-tablero > [data-dashboard-id] {
+  grid-column: span 12;
+  min-width: 0;
+}
+.resumen-fin-tablero > [data-dashboard-id="kpi-facturado"],
+.resumen-fin-tablero > [data-dashboard-id="kpi-gastos"],
+.resumen-fin-tablero > [data-dashboard-id="kpi-balance"],
+.resumen-fin-tablero > [data-dashboard-id="kpi-sin-facturar"] {
+  grid-column: span 3;
+}
+.resumen-fin-tablero > [data-dashboard-id="gastos-categoria"],
+.resumen-fin-tablero > [data-dashboard-id="facturacion"],
+.resumen-fin-tablero > [data-dashboard-id="balance-acumulado"],
+.resumen-fin-tablero > [data-dashboard-id="proyeccion"] {
+  grid-column: span 6;
+}
+@media (max-width: 900px) {
+  /* En pantallas chicas se ignora el ANCHO personalizado (KPIs a 2 por
+     fila, resto apilado) pero el ORDEN personalizado sí se conserva. */
+  .resumen-fin-tablero > [data-dashboard-id] { grid-column: span 12; }
+  .resumen-fin-tablero > [data-dashboard-id^="kpi-"] { grid-column: span 6; }
+}
+@media (max-width: 480px) {
+  .resumen-fin-tablero > [data-dashboard-id] { grid-column: span 12; }
+}
+
+/* Barra de controles del modo */
+.resumen-fin-dashboard-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.resumen-fin-dashboard-ayuda {
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+
+/* Estado activo del modo: contorno punteado como affordance de que las
+   tarjetas son reordenables + posición relativa para el handle de resize */
+.resumen-fin-tablero.dashboard-activo > [data-dashboard-id] {
+  position: relative;
+  outline: 1px dashed var(--color-border);
+  outline-offset: 3px;
+}
+.resumen-fin-tablero.dashboard-activo > [data-dashboard-id]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/* Handle de arrastre (⠿): se inserta por JS solo con el modo activo.
+   En los headers BI va junto al botón expandir (que ya empuja con
+   margin-left:auto); en los KPIs el header usa space-between y lo deja
+   a la derecha sin regla extra. */
+.dashboard-handle-mover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+  cursor: grab;
+  touch-action: none;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.dashboard-handle-mover:hover,
+.dashboard-handle-mover:focus-visible {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+  border-color: var(--color-accent);
+}
+.dashboard-handle-mover:active {
+  cursor: grabbing;
+}
+
+/* Handle de redimensionar (◢): esquina inferior derecha de la tarjeta */
+.dashboard-handle-redimensionar {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 2px;
+  color: var(--color-ink-soft);
+  cursor: nwse-resize;
+  touch-action: none;
+  background: none;
+  border: none;
+}
+.dashboard-handle-redimensionar:hover,
+.dashboard-handle-redimensionar:focus-visible {
+  color: var(--color-accent-dark);
+}
+
+/* Tarjeta en pleno arrastre: elevación + sin transiciones para que siga
+   al puntero sin retardo. El movimiento visual es transform (compositor),
+   no top/left. */
+.resumen-fin-tablero > [data-dashboard-id].tarjeta-arrastrando {
+  z-index: 30;
+  opacity: 0.92;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.28);
+  transition: none;
+}

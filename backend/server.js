@@ -3785,6 +3785,14 @@ app.get(
 // puede calcular con el esquema actual (gastos no guarda desglose de IVA,
 // solo el booleano iva_incluido) — el "balance" de aquí es Facturado -
 // Gastos, sin pretender ser una cifra fiscal.
+//
+// La tarjeta "Utilidad neta del mes (ventas totales vs gastos)" (punto
+// 118 de PROJECT_STATE.md) también vive aquí: subtotal_ventas suma
+// o.cantidad de TODAS las ventas del mes (facturadas o no, sin join a
+// tickets), iva_ventas = ventas - subtotal_ventas (dato real: total ya
+// incluye el IVA por fila), y utilidad_neta = subtotal_ventas - gastos.
+// Es "IVA cobrado en ventas", NO un IVA neto fiscal (los gastos no
+// desglosan su propio IVA).
 app.get(
   '/api/admin/resumen-financiero',
   adminApiLimiter,
@@ -3797,6 +3805,7 @@ app.get(
     const [[kpiVentas]] = await pool.query(
       `SELECT
          COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? THEN o.total END), 0) AS ventas,
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? THEN o.cantidad END), 0) AS subtotal,
          COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND EXISTS(
            SELECT 1 FROM tickets t
            WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
@@ -3807,7 +3816,7 @@ app.get(
          ) THEN o.total END), 0) AS facturado_anterior
        FROM ordenes_compra o
        WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ?`,
-      [inicio, fin, inicio, fin, inicioAnterior, finAnterior, inicioAnterior]
+      [inicio, fin, inicio, fin, inicio, fin, inicioAnterior, finAnterior, inicioAnterior]
     );
     const [[kpiGastos]] = await pool.query(
       `SELECT
@@ -3821,8 +3830,16 @@ app.get(
     const ventas = Number(kpiVentas.ventas);
     const facturado = Number(kpiVentas.facturado);
     const facturadoAnterior = Number(kpiVentas.facturado_anterior);
+    const subtotalVentas = Number(kpiVentas.subtotal);
     const gastos = Number(kpiGastos.gastos);
     const gastosAnterior = Number(kpiGastos.gastos_anterior);
+
+    // Tarjeta "Utilidad neta del mes (ventas totales vs gastos)" (punto
+    // 118): compara el neto SIN IVA de todas las ventas contra los gastos.
+    // Se redondea a 2 decimales para evitar polvo de punto flotante en la
+    // resta (mismo criterio que la proyección de abajo).
+    const ivaVentas = Math.round((ventas - subtotalVentas) * 100) / 100;
+    const utilidadNeta = Math.round((subtotalVentas - gastos) * 100) / 100;
 
     // Sin datos del mes anterior para comparar, no se inventa una
     // tendencia (mismo criterio que aplicarTendencia() en admin.js para
@@ -3927,6 +3944,9 @@ app.get(
         ventas_sin_facturar: ventas - facturado,
         gastos,
         balance: facturado - gastos,
+        subtotal_ventas: subtotalVentas,
+        iva_ventas: ivaVentas,
+        utilidad_neta: utilidadNeta,
       },
       tendencia: {
         facturado: calcularTendencia(facturado, facturadoAnterior),
@@ -3937,6 +3957,138 @@ app.get(
       top_proveedores: filasTopProveedores.map((f) => ({ proveedor: f.proveedor, monto: Number(f.monto) })),
       proyeccion_ventas: proyeccionVentas,
     });
+  })
+);
+
+// ---------- Modo dashboard: preferencias de layout por usuario ----------
+//
+// Cada usuario administrador puede reorganizar y redimensionar las
+// tarjetas de una vista ("Modo dashboard" en el frontend) y su layout se
+// guarda en preferencias_dashboard, por usuario y por vista, para
+// restaurarse en su próximo ingreso. El layout se valida SIEMPRE contra
+// una whitelist cerrada de elementos conocidos por vista: nunca se confía
+// en IDs ni coordenadas arbitrarias del cliente (máximo un elemento por
+// id, span entero acotado). Sin FK a usuarios a propósito: las cuentas
+// "super" que entran por ADMIN_USERS o la cuenta de respaldo "admin" no
+// existen en la tabla usuarios y también deben poder guardar layout.
+// La auditoría de estos PUT/DELETE ya queda cubierta por el middleware
+// global de accesos administrativos (solo omite GET).
+const VISTAS_DASHBOARD = {
+  'resumen-financiero': {
+    elementos: [
+      'kpi-facturado',
+      'kpi-gastos',
+      'kpi-balance',
+      'kpi-sin-facturar',
+      'utilidad',
+      'ventas-facturado-gastos',
+      'gastos-categoria',
+      'facturacion',
+      'balance-acumulado',
+      'proyeccion',
+      'proveedores',
+    ],
+    spanMin: 3,
+    spanMax: 12,
+  },
+};
+
+// Normaliza/valida un layout del cliente contra la whitelist de la vista.
+// Devuelve el arreglo limpio [{id, span}] o null si algo no cuadra —
+// un layout parcialmente válido se rechaza completo para que el frontend
+// nunca guarde a medias.
+function validarLayoutDashboard(configVista, layout) {
+  if (!Array.isArray(layout) || layout.length === 0 || layout.length > configVista.elementos.length) {
+    return null;
+  }
+  const vistos = new Set();
+  const limpio = [];
+  for (const item of layout) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    if (!configVista.elementos.includes(item.id) || vistos.has(item.id)) return null;
+    if (!Number.isInteger(item.span) || item.span < configVista.spanMin || item.span > configVista.spanMax) {
+      return null;
+    }
+    vistos.add(item.id);
+    limpio.push({ id: item.id, span: item.span });
+  }
+  return limpio;
+}
+
+app.get(
+  '/api/admin/preferencias-dashboard/:vista',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const configVista = VISTAS_DASHBOARD[req.params.vista];
+    if (!configVista) {
+      return res.status(404).json({ error: 'Vista no encontrada.' });
+    }
+    const [filas] = await pool.query(
+      'SELECT layout_json FROM preferencias_dashboard WHERE usuario = ? AND vista = ?',
+      [req.adminUser, req.params.vista]
+    );
+    if (filas.length === 0) {
+      return res.json({ layout: null });
+    }
+    let layout = filas[0].layout_json;
+    if (typeof layout === 'string') {
+      try {
+        layout = JSON.parse(layout);
+      } catch (err) {
+        layout = null;
+      }
+    }
+    if (!Array.isArray(layout)) {
+      return res.json({ layout: null });
+    }
+    // Defensa en profundidad: aunque la fila venga de nuestra propia BD,
+    // solo se devuelven elementos de la whitelist vigente — si una vista
+    // cambió sus tarjetas, un layout viejo no debe romper al frontend.
+    res.json({ layout: validarLayoutDashboard(configVista, layout) });
+  })
+);
+
+app.put(
+  '/api/admin/preferencias-dashboard/:vista',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const configVista = VISTAS_DASHBOARD[req.params.vista];
+    if (!configVista) {
+      return res.status(404).json({ error: 'Vista no encontrada.' });
+    }
+    const layout = validarLayoutDashboard(configVista, req.body ? req.body.layout : undefined);
+    if (!layout) {
+      return res.status(400).json({ error: 'Layout inválido.' });
+    }
+    await pool.query(
+      `INSERT INTO preferencias_dashboard (usuario, vista, layout_json, actualizado_en)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE layout_json = VALUES(layout_json), actualizado_en = VALUES(actualizado_en)`,
+      [req.adminUser, req.params.vista, JSON.stringify(layout), new Date()]
+    );
+    res.json({ ok: true, layout });
+  })
+);
+
+app.delete(
+  '/api/admin/preferencias-dashboard/:vista',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const configVista = VISTAS_DASHBOARD[req.params.vista];
+    if (!configVista) {
+      return res.status(404).json({ error: 'Vista no encontrada.' });
+    }
+    await pool.query('DELETE FROM preferencias_dashboard WHERE usuario = ? AND vista = ?', [
+      req.adminUser,
+      req.params.vista,
+    ]);
+    res.json({ ok: true });
   })
 );
 

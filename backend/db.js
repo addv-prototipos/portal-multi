@@ -786,6 +786,25 @@ async function ensureSchema(db = pool) {
     await db.query('ALTER TABLE reporte_items ADD COLUMN accion VARCHAR(20) NULL');
   }
 
+  // Preferencias de dashboard por usuario administrador ("Modo dashboard",
+  // punto 119 de PROJECT_STATE.md): una fila por (usuario, vista) con el
+  // layout personalizado — orden y ancho de cada tarjeta — en JSON, para
+  // restaurarse cada vez que el usuario entra a la vista. Sin FK a
+  // usuarios A PROPÓSITO: las cuentas "super" que entran por ADMIN_USERS
+  // o por la cuenta de respaldo "admin" no existen en la tabla usuarios,
+  // y sus preferencias también deben poder guardarse (mismo criterio que
+  // admin_auditoria usa VARCHAR para su actor).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS preferencias_dashboard (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      usuario VARCHAR(100) NOT NULL,
+      vista VARCHAR(50) NOT NULL,
+      layout_json JSON NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      CONSTRAINT uq_preferencias_dashboard UNIQUE (usuario, vista)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
 
   // contraseña vive fuera de ADMIN_USERS (el archivo/variable de entorno
   // que ya existía) — sirve como medida de seguridad para no quedar fuera

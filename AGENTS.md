@@ -231,6 +231,36 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   backend+frontend (`--no-cache` + `--force-recreate`) verificado por HTTP
   (health OK, `/admin` y `/tickets` sirven el nuevo texto);
   `FRONTEND_PORT=8088` conservado. Commit `a34c877` pusheado a `fact`.
+- **Tarjeta "Utilidad neta del mes (ventas totales vs gastos)" (ver
+  PROJECT_STATE.md punto 118)** (2026-08-20): nueva tarjeta full-width en
+  la vista "Resumen financiero" (tras los 4 KPIs) — número grande
+  verde/rojo + barras apiladas CSS puro (Subtotal+IVA vs Gastos) con
+  modal de detalle. Cuenta TODAS las ventas del mes (facturadas o no) y
+  compara el neto sin IVA contra gastos; nota visible de que el IVA es
+  "cobrado en ventas", no cifra fiscal. Backend: `GET
+  /api/admin/resumen-financiero` devuelve `subtotal_ventas`/
+  `iva_ventas`/`utilidad_neta` en `mes_actual` (sin join a tickets, sin
+  cambio de esquema). `node --check` limpio, Jest **552/552 (33
+  suites)**, resumen financiero 6/6. Rebuild backend+frontend
+  (`--no-cache` + `--force-recreate`) verificado por HTTP: health OK,
+  HTML nuevo servido y API validada contra MySQL real (utilidad
+  −12,879.46 ≠ balance −37,308.46 con los datos sembrados).
+  Pendiente solo revisión visual del usuario (`http://localhost:8088/admin`).
+- **Modo dashboard personalizable en Resumen financiero (ver
+  PROJECT_STATE.md punto 119)** (2026-08-20): reordenar/redimensionar las
+  11 tarjetas de la vista con drag/resize y layout guardado POR USUARIO en
+  el servidor, restaurándose en cada ingreso. Vanilla sin librerías: los
+  elementos son hijos directos de un tablero CSS Grid de 12 columnas y el
+  drag NUNCA mueve nodos del DOM (solo `order`/`grid-column`) para no
+  romper `abrirDetalleGrafica()`; teclado completo como alternativa (↑/↓
+  posición, ←/→ ancho, Esc). Backend: tabla `preferencias_dashboard`
+  (UNIQUE usuario+vista, JSON, SIN FK a usuarios — las cuentas super no
+  están ahí) + `GET/PUT/DELETE /api/admin/preferencias-dashboard/:vista`
+  con whitelist cerrada de IDs y span 3..12 (rechazo en bloque de layouts
+  inválidos); auditoría cubierta por el middleware global. Jest
+  **560/560 (34 suites)**. Validado contra Docker/MySQL reales: ciclo API
+  completo por HTTP (null→PUT→GET→400s→404→401→DELETE) + tabla real +
+  auditoría automática. Pendiente solo revisión visual del usuario.
 - **Remotes git (ver PROJECT_STATE.md punto 107)**: `origin` apunta a
   `portal-multi.git` y `fact` a `ADDVportalFact.git` (el repo donde se
   publica el trabajo real). Publicar = `git push fact main:master` (la

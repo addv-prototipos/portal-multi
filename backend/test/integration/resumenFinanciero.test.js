@@ -40,7 +40,7 @@ describe('Admin: Resumen financiero', () => {
   test('perfil "administrador" recibe KPIs del mes, tendencia y la serie mensual', async () => {
     const { usuario, password } = mockUsuarioAdministrativo('administrador');
     pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
-    pool.query.mockResolvedValueOnce([[{ ventas: '5000.00', facturado: '3000.00', facturado_anterior: '2000.00' }]]); // KPI ventas
+    pool.query.mockResolvedValueOnce([[{ ventas: '5000.00', subtotal: '4000.00', facturado: '3000.00', facturado_anterior: '2000.00' }]]); // KPI ventas
     pool.query.mockResolvedValueOnce([[{ gastos: '1200.00', gastos_anterior: '800.00' }]]); // KPI gastos
     pool.query.mockResolvedValueOnce([[{ mes: '2026-08', ventas: '5000.00', facturado: '3000.00' }]]); // serie ventas
     pool.query.mockResolvedValueOnce([[{ mes: '2026-08', gastos: '1200.00' }]]); // serie gastos
@@ -56,6 +56,12 @@ describe('Admin: Resumen financiero', () => {
       ventas_sin_facturar: 2000,
       gastos: 1200,
       balance: 1800,
+      // Tarjeta "Utilidad neta del mes" (punto 118): cuenta TODAS las
+      // ventas (facturadas o no) y compara el neto sin IVA contra gastos,
+      // por eso utilidad_neta (2800) difiere de balance (1800).
+      subtotal_ventas: 4000,
+      iva_ventas: 1000,
+      utilidad_neta: 2800,
     });
     expect(res.body.tendencia).toEqual({ facturado: 50, gastos: 50 });
     expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 5000, facturado: 3000, gastos: 1200 }]);
@@ -71,7 +77,7 @@ describe('Admin: Resumen financiero', () => {
   test('sin actividad este mes, la serie viene vacía (no meses en 0)', async () => {
     const { usuario, password } = mockUsuarioAdministrativo('administrador');
     pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
-    pool.query.mockResolvedValueOnce([[{ ventas: '0.00', facturado: '0.00', facturado_anterior: '0.00' }]]);
+    pool.query.mockResolvedValueOnce([[{ ventas: '0.00', subtotal: '0.00', facturado: '0.00', facturado_anterior: '0.00' }]]);
     pool.query.mockResolvedValueOnce([[{ gastos: '0.00', gastos_anterior: '0.00' }]]);
     pool.query.mockResolvedValueOnce([[]]); // sin filas de ventas
     pool.query.mockResolvedValueOnce([[]]); // sin filas de gastos
@@ -88,6 +94,9 @@ describe('Admin: Resumen financiero', () => {
       ventas_sin_facturar: 0,
       gastos: 0,
       balance: 0,
+      subtotal_ventas: 0,
+      iva_ventas: 0,
+      utilidad_neta: 0,
     });
     expect(res.body.tendencia).toEqual({ facturado: 0, gastos: 0 });
     expect(res.body.gastos_por_categoria).toEqual([]);
@@ -98,7 +107,7 @@ describe('Admin: Resumen financiero', () => {
   test('un mes con solo gastos (sin ventas) sí aparece en la serie', async () => {
     const { usuario, password } = mockUsuarioAdministrativo('administrador');
     pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
-    pool.query.mockResolvedValueOnce([[{ ventas: '0.00', facturado: '0.00', facturado_anterior: '0.00' }]]);
+    pool.query.mockResolvedValueOnce([[{ ventas: '0.00', subtotal: '0.00', facturado: '0.00', facturado_anterior: '0.00' }]]);
     pool.query.mockResolvedValueOnce([[{ gastos: '500.00', gastos_anterior: '0.00' }]]);
     pool.query.mockResolvedValueOnce([[]]); // sin filas de ventas
     pool.query.mockResolvedValueOnce([[{ mes: '2026-08', gastos: '500.00' }]]);
@@ -109,12 +118,14 @@ describe('Admin: Resumen financiero', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 0, facturado: 0, gastos: 500 }]);
+    // Solo gastos y sin ventas: utilidad negativa.
+    expect(res.body.mes_actual.utilidad_neta).toBe(-500);
   });
 
   test('con 3+ meses reales de ventas, proyecta los siguientes 2 meses', async () => {
     const { usuario, password } = mockUsuarioAdministrativo('administrador');
     pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
-    pool.query.mockResolvedValueOnce([[{ ventas: '3000.00', facturado: '3000.00', facturado_anterior: '2000.00' }]]);
+    pool.query.mockResolvedValueOnce([[{ ventas: '3000.00', subtotal: '3000.00', facturado: '3000.00', facturado_anterior: '2000.00' }]]);
     pool.query.mockResolvedValueOnce([[{ gastos: '0.00', gastos_anterior: '0.00' }]]);
     pool.query.mockResolvedValueOnce([
       [

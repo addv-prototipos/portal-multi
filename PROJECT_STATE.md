@@ -6584,8 +6584,238 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         2 tarjetas distintas (dona de categorías y barra) — abre con los
         datos reales agrandados, cierra y el contenido regresa
         exactamente a su tarjeta original, sin errores de consola.
-        `node --check` limpio, sin IDs duplicados/huérfanos. Nada
-        commiteado — no pedido todavía para este ajuste.
+        `node --check` limpio, sin IDs duplicados/huérfanos. Commit
+        `1fd0dbd`, pusheado a `fact`.
+
+118. **IMPLEMENTADO y validado con Jest (2026-08-20)**: tarjeta nueva con gráfico para
+    "Resumen financiero", pedida así por el usuario: *"quiero una nueva
+    tarjeta del balance de ventas vs gastos, pero con gráfico, donde
+    ponga el total vendido sin importar si esta facturado o no y la
+    cantidad que es de iva, para saber el total que se vendio y cuanto
+    es lo que nos quedó de utilidad comparado con los gastos"* — con
+    instrucción explícita de NO ejecutar todavía, solo analizar y
+    documentar (protocolo `addv-web-app`: analizar → proponer →
+    confirmar → implementar, aquí detenido después de "proponer" a
+    propósito). El usuario pidió que esto quede registrado en Claude Mem
+    ("cmem") además de `PROJECT_STATE.md` — **esta sesión solo tiene
+    herramientas de LECTURA de Claude Mem disponibles**
+    (`mcp__plugin_claude-mem_mcp-search__*`: `search`, `get_observations`,
+    `timeline`, `list_corpora`, `build_corpus`, `prime_corpus`,
+    `query_corpus`, etc. — ninguna de escritura/registro manual, mismo
+    hallazgo ya dejado como constancia en CLAUDE.md el 2026-08-12), así
+    que el análisis completo se deja aquí y en CLAUDE.md como la fuente
+    de verdad — si una sesión futura sí tiene acceso de escritura a
+    Claude Mem, debe registrar ahí también esta decisión antes de
+    implementar.
+
+    - **Por qué el usuario lo pide (contexto de negocio)**: el KPI
+      "Balance ventas vs gastos" que ya existe (Facturado − Gastos, ver
+      punto 114) tiene dos limitaciones que lo alejan de una "utilidad"
+      real: (1) solo cuenta ventas que YA tienen un ticket en estatus
+      `listo` (ver `ordenes_compra`/`tickets` join en el endpoint) — una
+      venta real que todavía no se facturó no cuenta, aunque el dinero
+      ya haya entrado; (2) `total` incluye el IVA cobrado al cliente, que
+      no es ingreso de la empresa (se traslada al SAT), así que restarle
+      gastos a una cifra que todavía trae IVA adentro sobreestima la
+      utilidad real. La tarjeta nueva corrige ambos puntos: cuenta TODAS
+      las ventas del mes (facturadas o no) y separa el IVA antes de
+      comparar contra gastos.
+    - **Datos reales disponibles (nada que inventar)**: `ordenes_compra`
+      ya guarda, por fila, `cantidad` (subtotal antes de IVA),
+      `iva_porcentaje` y `total` (`cantidad * (1 + iva_porcentaje/100)`,
+      ver `POST /api/admin/ordenes-compra` en `backend/server.js`) — o
+      sea que el subtotal y el IVA de cada venta YA están ahí, no hace
+      falta ningún cambio de esquema. `gastos.monto` (suma mensual) ya
+      se calcula en el endpoint actual, reutilizable tal cual.
+    - **Límite honesto que hay que declarar en la tarjeta** (mismo
+      criterio que ya se aplicó en el punto 114 al renombrar "IVA Neto"):
+      `gastos` NO desglosa su propio IVA — solo tiene el booleano
+      `iva_incluido` (sí/no), sin monto ni porcentaje. Por eso esta
+      tarjeta calcula "IVA cobrado en ventas" (un dato real y preciso),
+      **no** un "IVA neto a pagar/por acreditar" tipo declaración fiscal
+      — eso requeriría desglosar el IVA de cada gasto, que el esquema
+      actual no guarda. El nombre de la tarjeta y sus etiquetas deben
+      dejar esto claro para no aparentar una cifra fiscal que no es.
+    - **Cálculo propuesto** (todo agregado en SQL, mismo criterio de
+      privacidad que el resto del endpoint — nunca se manda una fila
+      suelta de `ordenes_compra` al frontend):
+      - `subtotal_ventas = SUM(cantidad)` de TODAS las ventas del mes
+        (sin filtrar por ticket/factura).
+      - `total_vendido = SUM(total)` (con IVA incluido) de esas mismas
+        filas.
+      - `iva_ventas = total_vendido − subtotal_ventas`.
+      - `utilidad_neta = subtotal_ventas − gastos_del_mes` (compara
+        ingreso NETO de IVA contra gastos — la resta correcta desde el
+        punto de vista contable; el "Balance ventas vs gastos" actual,
+        que compara `facturado − gastos`, se conserva sin tocar, son dos
+        preguntas distintas y complementarias, no un reemplazo).
+    - **Nombre de la tarjeta — decisión pendiente de confirmar con el
+      usuario**: dado que ya existe un KPI llamado "Balance ventas vs
+      gastos" (Facturado − Gastos, otra cifra distinta), poner el mismo
+      nombre a la tarjeta nueva confundiría cuál número es "el real".
+      Propuesta de nombre distintivo: **"Utilidad neta del mes (ventas
+      totales vs gastos)"** — a confirmar o ajustar con el usuario antes
+      de implementar.
+    - **Propuesta visual** (gráfica de barras, mismo lenguaje visual que
+      "Ventas vs Facturado vs Gastos" ya existente — reutiliza el mismo
+      patrón CSS/JS de barras, solo con series distintas, para no
+      introducir un tipo de gráfica nuevo sin necesidad):
+      ```
+      ┌─────────────────────────────────────────────────────┐
+      │ 🧾 Utilidad neta del mes (ventas totales vs gastos)   │
+      │                                                        │
+      │  Utilidad neta: $XX,XXX.XX   (verde si +, rojo si −)  │
+      │                                                        │
+      │   ┌──────┐                                             │
+      │   │ IVA  │  ┌──────┐                                   │
+      │   ├──────┤  │Gastos│                                   │
+      │   │Subto-│  │      │                                   │
+      │   │ tal  │  │      │                                   │
+      │   └──────┘  └──────┘                                   │
+      │   Ventas      Gastos                                   │
+      │   totales                                               │
+      │                                                        │
+      │  ● Subtotal (neto)      $XX,XXX.XX                     │
+      │  ● IVA cobrado          $X,XXX.XX                       │
+      │  ● Ventas totales       $XX,XXX.XX                      │
+      │  ● Gastos               $XX,XXX.XX                      │
+      └─────────────────────────────────────────────────────┘
+      ```
+      Barra "Ventas totales" apilada (Subtotal + IVA, mismos tonos
+      pastel navy/gris ya establecidos) junto a una barra sólida
+      "Gastos" (mismo tono ya usado) — 2 columnas, mismo ancho fijo que
+      ya se corrigió en el punto 117 (no repetir el problema de espacio
+      desperdiciado con `flex:1`). Leyenda con 4 filas debajo, mismo
+      patrón que las leyendas de dona ya existentes.
+    - **Placement propuesto**: tarjeta completa (ancho completo),
+      inmediatamente después de las 4 tarjetas KPI y antes de la barra
+      "Ventas vs Facturado vs Gastos" — es arguably la pregunta más
+      importante de toda la vista ("¿ganamos dinero este mes de verdad?"),
+      merece estar arriba, no entre las tarjetas secundarias de
+      desglose.
+    - **Implementación (2026-08-20, aprobada por el usuario con el nombre
+      "Utilidad neta del mes (ventas totales vs gastos)" y luz verde
+      "implementa todo el segmento")**:
+      - **Backend** (`backend/server.js`, `GET /api/admin/resumen-financiero`):
+        en vez de un query aparte se extendió el query KPI de ventas ya
+        existente con `COALESCE(SUM(CASE ... THEN o.cantidad END), 0) AS
+        subtotal` (misma tabla, misma ventana de fechas, SIN join a
+        `tickets` igual que lo prometido — una consulta menos por request).
+        La respuesta ahora incluye en `mes_actual`: `subtotal_ventas`,
+        `iva_ventas` (= ventas − subtotal, redondeado a 2 decimales contra
+        polvo de punto flotante, mismo criterio que la proyección) y
+        `utilidad_neta` (= subtotal − gastos, ídem). `total_vendido` NO se
+        duplicó como llave nueva porque ya existe: es `mes_actual.ventas`.
+      - **Frontend**: tarjeta full-width (`admin.html`) inmediatamente
+        después de `#resumen-fin-kpis-wrap` y antes de "Ventas vs
+        Facturado vs Gastos", con número grande (`#resumen-fin-utilidad-valor`,
+        verde si + / rojo si − / neutro si 0), nota visible del límite
+        honesto ("El IVA mostrado es el cobrado en ventas, no una cifra
+        fiscal"), barras apiladas CSS puro (`renderResumenFinUtilidad` en
+        `admin.js`: columna "Ventas totales" con Subtotal #719FD4 abajo +
+        IVA cobrado #C0D3EB arriba — paleta pastel navy ya establecida —,
+        columna "Gastos" sólida en el mismo gris `var(--color-border)` de
+        la gráfica principal; ancho fijo 48px, lección del punto 117),
+        leyenda de 4 filas y empty state cuando no hay ventas ni gastos.
+        El modal de detalle funciona con el mecanismo genérico
+        `data-detalle-contenido`/`abrirDetalleGrafica()` sin código extra.
+        CSS nuevo en `admin.css` bajo el comentario "tarjeta Utilidad
+        neta (punto 118)".
+      - **Tests** (`backend/test/integration/resumenFinanciero.test.js`):
+        mocks del query KPI actualizados con `subtotal`; aserciones nuevas:
+        caso principal demuestra que `utilidad_neta` (2800) difiere de
+        `balance` (1800) — cuenta las ventas sin facturar; caso "solo
+        gastos" verifica utilidad negativa (−500); caso sin actividad
+        verifica todo en 0.
+      - **Validación**: `node --check` limpio en `server.js`, `admin.js` y
+        el test; Jest completo **552/552 (33 suites)** sin regresiones;
+        suite de resumen financiero **6/6**. Sin cambios de esquema de BD.
+      - **Rebuild + validación contra el stack real (2026-08-20)**:
+        `docker compose build --no-cache backend frontend` +
+        `up -d --force-recreate backend frontend` (lección del punto 109:
+        sin `--force-recreate` el contenedor no se reemplaza). Health OK,
+        `/admin` sirve el HTML con la tarjeta nueva, y la API respondió
+        contra MySQL real con los datos sembrados: `subtotal_ventas`
+        120,929.31 / `iva_ventas` 19,348.70 (= ventas − subtotal, exacto) /
+        `utilidad_neta` −12,879.46, claramente distinto de `balance`
+        −37,308.46 (Facturado − Gastos) — la diferencia son las ventas sin
+        facturar, tal como debe ser. Queda pendiente SOLO la revisión
+        visual del usuario en el navegador (`http://localhost:8088/admin`,
+        `admin:admin`).
+
+119. **IMPLEMENTADO Y VALIDADO — "Modo dashboard" personalizable en
+    Resumen financiero (2026-08-20)**: usuario pidió poder reorganizar las
+    tarjetas arrastrándolas (drag/move), redimensionarlas (resize) y que la
+    configuración se guarde para su perfil, restaurándose cada vez que
+    entre al modo dashboard. Propuesta presentada en markdown (protocolo
+    `addv-web-app`), decisiones tomadas por el usuario vía cuestionario
+    (alcance SOLO "Resumen financiero" — 11 elementos: 4 KPIs + 7 tarjetas;
+    persistencia SERVIDOR por usuario; guardado AUTOMÁTICO con debounce +
+    botón "Restablecer") y confirmación explícita recibida ("Sí, implementa
+    todo el segmento").
+
+    - **Diseño técnico**: vanilla SIN dependencias externas (Pointer
+      Events + CSS Grid de 12 columnas; GridStack.js descartado por romper
+      la convención "sin librerías" del frontend y porque su motor
+      reparenta DOM). Decisión clave anti-regresión: el drag NO mueve
+      nodos del DOM — solo cambia `style.order`/`style.gridColumn` — para
+      no romper `abrirDetalleGrafica()` (el modal reubica el contenido ya
+      renderizado y lo regresa a su padre original). El movimiento visual
+      durante el drag usa `transform` con transiciones desactivadas en la
+      tarjeta arrastrada.
+    - **Backend**: tabla `preferencias_dashboard` (usuario VARCHAR(100),
+      vista VARCHAR(50), layout_json JSON, actualizado_en, UNIQUE(usuario,
+      vista)) en `backend/db.js` — SIN FK a usuarios a propósito: las
+      cuentas super (ADMIN_USERS / respaldo "admin") no existen en la
+      tabla usuarios y también deben poder guardar layout. Endpoints
+      `GET/PUT/DELETE /api/admin/preferencias-dashboard/:vista` en
+      `backend/server.js` (`adminApiLimiter` + `requireAdminAuth` +
+      `requireAdminArea('administrador')`): validación whitelist cerrada
+      de los 11 IDs conocidos + span entero 3..12 + rechazo EN BLOQUE de
+      layouts parciales/inválidos; GET normaliza layouts viejos contra la
+      whitelist vigente; PUT hace upsert (`ON DUPLICATE KEY UPDATE`);
+      DELETE vuelve al layout por defecto. La auditoría de PUT/DELETE
+      queda cubierta por el middleware global existente (verificado:
+      filas en `admin_auditoria` con actor/mecanismo).
+    - **Frontend** (`admin.html`/`admin.js`/`admin.css`): los 11 elementos
+      son ahora hijos directos de UN tablero unificado
+      `#resumen-fin-tablero` (cuadrícula 12 columnas; se aplanaron los
+      KPIs fuera de su wrapper y se quitaron los dos `.resumen-fin-grid`)
+      con `data-dashboard-id` en cada uno; el layout por defecto replica
+      el aspecto original (KPIs a 3 columnas, pares a 6, grandes a 12).
+      Barra de controles: botón "Modo dashboard" (aria-pressed), botón
+      "Restablecer" (visible solo si hay layout guardado) y ayuda
+      contextual. En modo ON: contorno punteado por tarjeta, handle ⠿ de
+      arrastre junto al botón expandir (headers BI) o a la derecha
+      (KPIs), handle ◢ de resize en la esquina inferior derecha,
+      tarjetas enfocables con alternativa de teclado completa (↑/↓
+      posición, ←/→ ancho, Esc sale — WCAG 2.1 AA). Guardado automático
+      con debounce 800ms + toast "Layout guardado."; carga de preferencias
+      en paralelo a los datos al entrar a la vista. Bajo 900px se ignora
+      el ANCHO personalizado (KPIs a 2 por fila, resto apilado) pero el
+      ORDEN personalizado sí se conserva.
+    - **Pruebas**: suite nueva `backend/test/integration/
+      preferenciasDashboard.test.js` (8 tests: 401, 403 fiscal, 404 vista
+      desconocida, GET sin preferencia, PUT válido persiste JSON
+      serializado, 6 casos de PUT inválido → 400 sin escribir BD, GET
+      normaliza layout viejo con elemento fuera de whitelist → null,
+      DELETE). Jest total **560/560 (34 suites)**. `node --check` limpio
+      en server.js/db.js/admin.js; llaves CSS balanceadas (589/589); IDs
+      cruzados HTML↔JS verificados.
+    - **Validado contra Docker/MySQL reales (2026-08-20)**: rebuild
+      backend+frontend (`--no-cache` + `--force-recreate`), health OK;
+      `/admin` sirve el HTML nuevo (11 `data-dashboard-id`); tabla
+      `preferencias_dashboard` creada en MySQL real con esquema correcto
+      (columna JSON + UNIQUE); ciclo API completo verificado por HTTP:
+      GET inicial `{layout:null}` → PUT válido 200 → GET devuelve el
+      layout → PUT inválidos 400 (span fuera de rango, id inventado) →
+      vista desconocida 404 → sin auth 401 → DELETE ok → GET null;
+      auditoría registró PUT/DELETE automáticamente. **Pendiente solo la
+      revisión visual del usuario** (`http://localhost:8088/admin`,
+      `admin:admin`): activar Modo dashboard, arrastrar/redimensionar
+      tarjetas, verificar que el modal de detalle sigue funcionando tras
+      un drag, recargar para confirmar restauración, y probar teclado.
+
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

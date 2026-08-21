@@ -427,8 +427,70 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   JS nuevo (mismo gotcha ya documentado, manifestación distinta —
   excepción en vez de vista vieja). `Ctrl+Shift+R` lo resolvió. Validado
   en navegador real (barra, donas y modal de detalle probados en 2
-  tarjetas), sin errores de consola. Nada commiteado — no pedido
-  todavía para este ajuste.
+  tarjetas), sin errores de consola. Commit `1fd0dbd`, pusheado a `fact`.
+- **Tarjeta "Utilidad neta del mes (ventas totales vs gastos)" (ver
+  PROJECT_STATE.md punto 118, 2026-08-20, IMPLEMENTADO)**: usuario pidió
+  una tarjeta nueva con gráfico para "Resumen financiero" — total
+  vendido SIN importar si está facturado, el IVA cobrado en esas ventas,
+  y la utilidad neta comparada contra gastos — propuesta documentada
+  primero (protocolo `addv-web-app`), nombre y segmento confirmados
+  explícitamente por el usuario ("Sí, implementa todo el segmento"), e
+  implementado el mismo día. Corrige dos límites reales del KPI
+  "Balance ventas vs gastos" existente (Facturado−Gastos, punto 114):
+  (1) solo cuenta ventas ya facturadas, (2) no separa el IVA antes de
+  restar gastos. **Backend**: `GET /api/admin/resumen-financiero`
+  extendido — el query KPI de ventas ahora también suma
+  `SUM(o.cantidad) AS subtotal` (sin join a `tickets`, una sola consulta)
+  y `mes_actual` devuelve `subtotal_ventas`/`iva_ventas`/`utilidad_neta`
+  (redondeo a 2 decimales contra polvo flotante); `total_vendido` no se
+  duplica porque ya es `mes_actual.ventas`. **Frontend**: tarjeta
+  full-width tras los 4 KPIs con número grande verde/rojo, nota visible
+  del límite honesto ("IVA cobrado en ventas, no cifra fiscal" — los
+  gastos solo tienen el booleano `iva_incluido`), barras apiladas CSS
+  puro (Subtotal #719FD4 + IVA #C0D3EB vs Gastos gris, ancho fijo 48px,
+  lección del punto 117), leyenda de 4 filas, empty state, y modal de
+  detalle vía el mecanismo genérico `data-detalle-contenido`. **Tests**:
+  mocks con `subtotal` + aserciones nuevas (utilidad 2800 ≠ balance 1800
+  demuestra que cuenta ventas sin facturar; solo-gastos → −500).
+  `node --check` limpio, Jest **552/552 (33 suites)**, resumen
+  financiero 6/6. Sin cambios de esquema. **Rebuild hecho contra el
+  stack real** (`--no-cache` + `--force-recreate` backend+frontend,
+  lección del punto 109): health OK, HTML nuevo servido y API validada
+  con datos reales (iva_ventas = ventas − subtotal exacto; utilidad
+  −12,879.46 ≠ balance −37,308.46). Pendiente solo la revisión visual
+  del usuario (`http://localhost:8088/admin`, `admin:admin`). Constancia
+  para Claude Mem: esta sesión siguió teniendo
+   solo herramientas de LECTURA de Claude Mem, así que el registro vive en
+   PROJECT_STATE.md/CLAUDE.md/AGENTS.md (+ `cmem.md`).
+- **Modo dashboard personalizable en Resumen financiero (ver
+  PROJECT_STATE.md punto 119, 2026-08-20, IMPLEMENTADO Y VALIDADO)**:
+  usuario pidió reordenar/redimensionar las tarjetas de la vista y que el
+  layout se guarde por perfil restaurándose en cada ingreso — propuesta +
+  decisiones capturadas por cuestionario (solo esta vista, persistencia
+  servidor, guardado automático) + confirmación explícita ("Sí, implementa
+  todo el segmento"). **Vanilla sin librerías**: los 11 elementos (4 KPIs
+  + 7 tarjetas) son hijos directos de un tablero CSS Grid de 12 columnas
+  (`#resumen-fin-tablero`, `data-dashboard-id` en cada uno; se aplanaron
+  los KPIs fuera de su wrapper y se quitaron los dos `.resumen-fin-grid`)
+  y el drag NUNCA mueve nodos del DOM — solo `style.order`/
+  `style.gridColumn`, movimiento visual con `transform` — para no romper
+  `abrirDetalleGrafica()` (el modal devuelve cada contenido a su padre
+  original). Teclado completo como alternativa WCAG AA (↑/↓ posición,
+  ←/→ ancho, Esc sale). Backend: tabla `preferencias_dashboard`
+  (UNIQUE usuario+vista, layout_json JSON, SIN FK a usuarios a propósito —
+  cuentas super/respaldo no están en `usuarios`) + `GET/PUT/DELETE
+  /api/admin/preferencias-dashboard/:vista` con whitelist cerrada de IDs,
+  span entero 3..12, rechazo EN BLOQUE de layouts inválidos, upsert y
+  normalización de layouts viejos contra la whitelist vigente; auditoría
+  cubierta por el middleware global existente. Guardado automático con
+  debounce 800ms + toast; botón "Restablecer" solo visible con layout
+  guardado; <900px se ignora el ancho custom pero se conserva el orden.
+  Jest **560/560 (34 suites)** (8 tests nuevos). Validado contra
+  Docker/MySQL reales: rebuild, health OK, HTML nuevo servido (11 IDs),
+  tabla real creada, ciclo API completo por HTTP (null→PUT→GET→400s→404→
+  401→DELETE) y auditoría automática verificada. Pendiente solo revisión
+  visual del usuario. Claude Mem: esta sesión siguió con herramientas de
+  solo lectura — registro en PROJECT_STATE.md/CLAUDE.md/AGENTS.md/cmem.md.
 - **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
   partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
   propia (no dentro de "Inicio", que es del perfil `fiscal`) para el

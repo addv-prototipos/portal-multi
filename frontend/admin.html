@@ -378,8 +378,25 @@
 
         <p class="field-error" id="resumen-fin-error" role="alert"></p>
 
-        <div class="inicio-stats-grid" id="resumen-fin-kpis-wrap">
-          <div class="inicio-stat-card">
+        <!-- Barra del "Modo dashboard" (punto 119 PROJECT_STATE.md):
+             activar/desactivar la edición del layout y restablecerlo al
+             layout por defecto. Los controles de arrastre solo existen
+             mientras el modo está activo. -->
+        <div class="resumen-fin-dashboard-bar">
+          <button type="button" class="btn btn-secondary" id="btn-modo-dashboard" aria-pressed="false">Modo dashboard</button>
+          <button type="button" class="btn btn-secondary" id="btn-restablecer-dashboard" hidden>Restablecer</button>
+          <span class="resumen-fin-dashboard-ayuda" id="resumen-fin-dashboard-ayuda" hidden>Arrastra ⠿ para mover · ←/→ ajustan el ancho · ↑/↓ cambian la posición · Esc sale</span>
+        </div>
+
+        <!-- Tablero unificado: los 11 elementos de la vista son hijos
+             directos de UNA sola cuadrícula de 12 columnas para que el
+             Modo dashboard pueda reordenarlos/redimensionarlos sin mover
+             nodos del DOM (solo order + grid-column) — mover nodos rompería
+             abrirDetalleGrafica(), que devuelve cada contenido a su padre
+             original. El layout por defecto replica el aspecto original:
+             KPIs a 3 columnas, pares a 6, tarjetas grandes a 12. -->
+        <div class="resumen-fin-tablero" id="resumen-fin-tablero">
+          <div class="inicio-stat-card" data-dashboard-id="kpi-facturado">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Total facturado</span>
               <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
@@ -389,7 +406,7 @@
             <p class="inicio-stat-numero" id="resumen-fin-kpi-facturado">$0.00</p>
             <p class="inicio-stat-tendencia" id="resumen-fin-kpi-facturado-tendencia">—</p>
           </div>
-          <div class="inicio-stat-card">
+          <div class="inicio-stat-card" data-dashboard-id="kpi-gastos">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Total gastos</span>
               <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
@@ -399,7 +416,7 @@
             <p class="inicio-stat-numero" id="resumen-fin-kpi-gastos">$0.00</p>
             <p class="inicio-stat-tendencia" id="resumen-fin-kpi-gastos-tendencia">—</p>
           </div>
-          <div class="inicio-stat-card">
+          <div class="inicio-stat-card" data-dashboard-id="kpi-balance">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Balance ventas vs gastos</span>
               <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
@@ -409,7 +426,7 @@
             <p class="inicio-stat-numero" id="resumen-fin-kpi-balance">$0.00</p>
             <p class="inicio-stat-tendencia">Facturado − Gastos del mes</p>
           </div>
-          <div class="inicio-stat-card">
+          <div class="inicio-stat-card" data-dashboard-id="kpi-sin-facturar">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Ventas sin facturar</span>
               <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
@@ -419,9 +436,37 @@
             <p class="inicio-stat-numero" id="resumen-fin-kpi-sin-facturar">$0.00</p>
             <p class="inicio-stat-tendencia">Ventas del mes aún sin facturar</p>
           </div>
-        </div>
 
-        <section class="resumen-fin-chart-card">
+        <!-- Tarjeta "Utilidad neta del mes (ventas totales vs gastos)"
+             (punto 118 PROJECT_STATE.md): número grande + barras apiladas
+             Subtotal+IVA junto a Gastos. El modal de detalle reutiliza el
+             mecanismo genérico abrirDetalleGrafica() vía
+             data-detalle-contenido. -->
+        <section class="resumen-fin-chart-card resumen-fin-utilidad-card" data-dashboard-id="utilidad">
+          <div class="resumen-fin-card-header">
+            <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 7l-8.5 8.5-5-5L2 17M16 7h6v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            </span>
+            <h2>Utilidad neta del mes (ventas totales vs gastos)</h2>
+            <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-utilidad-contenido" data-detalle-titulo="Utilidad neta del mes (ventas totales vs gastos)" aria-label="Ver Utilidad neta del mes en grande">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            </button>
+          </div>
+          <div id="resumen-fin-utilidad-contenido">
+            <p class="resumen-fin-utilidad-valor" id="resumen-fin-utilidad-valor">$0.00</p>
+            <p class="resumen-fin-utilidad-nota">Subtotal de ventas (sin IVA) − gastos. El IVA mostrado es el cobrado en ventas, no una cifra fiscal.</p>
+            <div class="resumen-fin-chart-body resumen-fin-utilidad-body" id="resumen-fin-utilidad-body" role="img"></div>
+            <p class="admin-empty" id="resumen-fin-utilidad-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
+            <ul class="resumen-fin-chart-leyenda">
+              <li><span class="resumen-fin-dot resumen-fin-dot-subtotal" aria-hidden="true"></span>Subtotal (neto)</li>
+              <li><span class="resumen-fin-dot resumen-fin-dot-iva" aria-hidden="true"></span>IVA cobrado</li>
+              <li><span class="resumen-fin-dot resumen-fin-dot-total" aria-hidden="true"></span>Ventas totales</li>
+              <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="resumen-fin-chart-card" data-dashboard-id="ventas-facturado-gastos">
           <div class="resumen-fin-card-header">
             <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 11l3 3 4-6 4 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
@@ -442,8 +487,7 @@
           </div>
         </section>
 
-        <div class="resumen-fin-grid">
-          <section class="resumen-fin-donut-card">
+        <section class="resumen-fin-donut-card" data-dashboard-id="gastos-categoria">
             <div class="resumen-fin-card-header">
               <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6h15l-1.5 9H8L6 6Zm0 0-1-3H2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg>
@@ -468,7 +512,7 @@
             </div>
           </section>
 
-          <section class="resumen-fin-donut-card">
+        <section class="resumen-fin-donut-card" data-dashboard-id="facturacion">
             <div class="resumen-fin-card-header">
               <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
@@ -492,10 +536,8 @@
               <p class="admin-empty" id="resumen-fin-donut-facturacion-empty" hidden>Aún no hay ventas registradas este mes.</p>
             </div>
           </section>
-        </div>
 
-        <div class="resumen-fin-grid">
-          <section class="resumen-fin-line-card">
+        <section class="resumen-fin-line-card" data-dashboard-id="balance-acumulado">
             <div class="resumen-fin-card-header">
               <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
@@ -515,7 +557,7 @@
             </div>
           </section>
 
-          <section class="resumen-fin-line-card">
+        <section class="resumen-fin-line-card" data-dashboard-id="proyeccion">
             <div class="resumen-fin-card-header">
               <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
@@ -534,9 +576,8 @@
               <p class="admin-empty" id="resumen-fin-proyeccion-empty" hidden>Necesitas al menos 3 meses con ventas para ver una proyección.</p>
             </div>
           </section>
-        </div>
 
-        <section class="resumen-fin-proveedores-card">
+        <section class="resumen-fin-proveedores-card" data-dashboard-id="proveedores">
           <div class="resumen-fin-card-header">
             <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h10M4 18h6" stroke-linecap="round" stroke-width="2"/></svg>
@@ -551,6 +592,8 @@
           <p class="admin-empty" id="resumen-fin-proveedores-empty" hidden>Aún no hay gastos con proveedor capturado este mes.</p>
           </div>
         </section>
+        </div>
+
       </div>
 
       <div id="vista-ordenes" hidden>

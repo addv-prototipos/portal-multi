@@ -429,7 +429,9 @@ Tablero financiero para el perfil `administrador` (visible también para `super`
   - **Balance ventas vs gastos**: Total facturado − Total gastos. **No es un cálculo de IVA neto** — la tabla de gastos no guarda el desglose de IVA (solo si el monto ya lo incluye o no), así que no hay forma de calcular una cifra fiscal real con los datos actuales.
   - **Ventas sin facturar**: ventas del mes que todavía no tienen su factura subida (Ventas totales − Total facturado).
 - **Gráfica "Ventas vs Facturado vs Gastos"**: barras por mes (Ventas, Facturado y Gastos, un color cada una), empezando en el mes en curso **hacia adelante** — nunca muestra meses pasados, y **omite cualquier mes sin ninguna venta ni gasto registrado** en vez de mostrarlo en $0, para no ensuciar la gráfica con meses de antes de que el negocio empezara a usar el sistema. Un mes con actividad en solo una de las dos tablas (por ejemplo, un gasto sin ninguna venta) sí aparece.
+- **Tarjeta "Utilidad neta del mes (ventas totales vs gastos)"**: número grande (verde si la utilidad es positiva, rojo si es negativa) acompañado de una gráfica de dos columnas — "Ventas totales" como barra apilada (Subtotal sin IVA abajo + IVA cobrado arriba) junto a una barra sólida de "Gastos", ambas a la misma escala. A diferencia del KPI "Balance ventas vs gastos" (que solo cuenta ventas ya facturadas y resta sobre montos con IVA incluido), esta tarjeta cuenta **todas** las ventas del mes — facturadas o no — y compara el ingreso **neto de IVA** contra los gastos. El IVA mostrado es el **cobrado en ventas**, no una cifra fiscal de "IVA neto": los gastos no guardan el desglose de su propio IVA.
 - Los datos se calculan agregados en SQL — nunca se manda al navegador una lista de ventas o gastos sueltos, solo los totales ya sumados.
+- **Modo dashboard personalizable**: el botón **"Modo dashboard"** (encabezado de la vista) activa la edición del layout — cada tarjeta muestra un handle ⠿ para arrastrarla a otra posición y un handle ◢ en su esquina para redimensionar su ancho (de 1/4 de fila hasta fila completa). El layout se guarda **por usuario** en el servidor automáticamente (con confirmación visual "Layout guardado") y se restaura en cada ingreso; el botón **"Restablecer"** vuelve al layout original. Hay alternativa completa de teclado: con una tarjeta enfocada, ↑/↓ cambian su posición, ←/→ ajustan su ancho y Esc sale del modo. En pantallas angostas (<900px) se ignora el ancho personalizado (las tarjetas se apilan como siempre), pero el orden personalizado sí se respeta.
 
 ### Vista "Ventas"
 
@@ -525,7 +527,7 @@ Dentro de la vista "Usuarios", justo debajo de "Cuenta de respaldo admin" — vi
 
 #### Autorización por perfil en el backend (segunda capa, además de la interfaz)
 
-Cada uno de los **57 endpoints** de `/api/admin/*` (todos excepto `GET /api/admin/login`, que es el chequeo de sesión en sí — no tendría sentido "autorizar" algo antes de saber quién es) pasa por dos verificaciones encadenadas, no solo una:
+Cada uno de los **60 endpoints** de `/api/admin/*` (todos excepto `GET /api/admin/login`, que es el chequeo de sesión en sí — no tendría sentido "autorizar" algo antes de saber quién es) pasa por dos verificaciones encadenadas, no solo una:
 
 1. **`requireAdminAuth`** — ¿la sesión (Basic Auth) es válida? Determina también `req.adminUser` (el nombre de usuario real) y `req.adminPerfil` (`super` | `administrador` | `fiscal`).
 2. **`requireAdminArea(...perfilesPermitidos)`** — dado ese perfil, ¿tiene permiso sobre el área específica de ESTE endpoint? `super` pasa siempre, sin importar qué área se le pida — el resto se compara contra la lista de perfiles permitidos de la ruta. Si no tiene permiso, responde **403** (no 401: la sesión ya es válida, lo que falta es autorización sobre esa área en particular).
@@ -538,7 +540,7 @@ Las rutas de **"Cuenta de respaldo admin"** (`GET`/`PUT /api/admin/config/admin-
 |---|---|---|
 | Constancias | `fiscal` | `registros` (listar/eliminar/restaurar/eliminar permanente), `archivo/:id` |
 | Tickets | `fiscal` | `tickets` (listar/estatus/eliminar/restaurar/eliminar permanente/factura/imagen), `tickets/pendientes-sin-contador`, `tickets/usuarios-actualizado-por`, `config/tickets-retencion` (el borrado automático vive dentro de la vista Tickets) |
-| Resumen financiero | `administrador` | `resumen-financiero` (KPIs del mes + serie mensual, solo lectura) |
+| Resumen financiero | `administrador` | `resumen-financiero` (KPIs del mes + serie mensual, solo lectura), `preferencias-dashboard/:vista` (layout personalizado del "Modo dashboard": GET/PUT/DELETE por usuario) |
 | Ventas | `administrador` | `ordenes-compra` (listar/crear/reenviar correo), `correos-registrados`, y el campo `ordenes_compra_habilitado` dentro de `PUT /api/admin/config/global` (ver el caso especial abajo) |
 | Usuarios | `administrador` | `usuarios` (listar/crear/editar/eliminar/cambiar contraseña) |
 | Reportes | `administrador` | `reportes` (enviar/listar/md/items/exportar/eliminar) |
