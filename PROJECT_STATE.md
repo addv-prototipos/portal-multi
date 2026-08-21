@@ -7086,6 +7086,23 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       guardada en memoria persistente**: todo cambio de diseño visual
       (nuevo o ajuste) siempre lleva propuesta antes/después en
       markdown antes de implementar, sin que se pida cada vez.
+    - **Commit + push**: todo lo de este punto (121+122) más limpieza de
+      mockups `stitch/` ya sin uso (hecha por el usuario) y actualización
+      de README (título, puertos) — commit `f7b26d4`, push a `fact`
+      (`bf9a9f6..f7b26d4`).
+    - **2 ajustes más pedidos tras el push, con propuesta antes/después
+      aprobada**: (1) "Configuraciones globales" movido al final del
+      sidebar (después de "Reportes"), con comentario en el HTML de que
+      cualquier vista nueva se agrega ANTES de ese botón, nunca después
+      — ancla fija a propósito. (2) Número centrado (no todo el
+      contenido, solo el número) en las 4 tarjetas KPI de "Inicio" y las
+      4 de "Resumen financiero" — mismo pedido que ya se había hecho en
+      Reportes, aplicado ahora también aquí, scoped por contenedor
+      (`.inicio-stats-grid`/`.resumen-fin-tablero`) para no afectar las
+      demás vistas que reutilizan la misma clase base
+      `.inicio-stat-numero`. Validado en navegador real ambos, sin
+      errores de consola. Sin commit/push todavía — pendiente de la
+      próxima ronda.
 
 
 ## Limitaciones de ESTE entorno de generación (importante)

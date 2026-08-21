@@ -538,7 +538,17 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   fijas de 230×230px (no estiradas), centradas, con texto+número +40%
   en las 2 numéricas — mismo gotcha de especificidad CSS que el punto
   121 (`.resumen-fin-chart-body` ya fija `min-height:220px`; hubo que
-  usar id, no clase, para ganar). Sin commit/push.
+  usar id, no clase, para ganar). Título de las 3 tarjetas fijo arriba
+  a la izquierda, resto (número/nota/barra) centrado en el espacio
+  sobrante vía `margin-top/bottom:auto`. Commit `f7b26d4`, push a
+  `fact`. **Regla nueva del usuario, guardada en memoria persistente**:
+  todo cambio de diseño visual (nuevo o ajuste) siempre lleva propuesta
+  antes/después en markdown antes de implementar, sin que se pida cada
+  vez. Después del push: "Configuraciones globales" movido al final del
+  sidebar (ancla fija, comentario en el HTML para vistas nuevas), y
+  número centrado (no todo el contenido) en los KPIs de "Inicio" y
+  "Resumen financiero", mismo criterio que Reportes. Sin commit/push
+  todavía estos 2 últimos.
 - **Auditoría de consistencia de documentación (ver PROJECT_STATE.md
   punto 120, 2026-08-21)**: a pedido explícito del usuario ("revisa la
   documentación"), revisión de salud de los 3 entregables obligatorios

@@ -1617,6 +1617,13 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   gap: 16px;
   margin-bottom: 24px;
 }
+/* Solo el número centrado en las 4 tarjetas de Inicio (pedido explícito)
+   — título/tendencia se quedan a la izquierda; no toca Resumen
+   financiero ni Reportes, que reutilizan la misma clase base pero en
+   otro contenedor. */
+.inicio-stats-grid .inicio-stat-numero { text-align: center; }
+/* Mismo pedido para los 4 KPIs de Resumen financiero. */
+.resumen-fin-tablero .inicio-stat-numero { text-align: center; }
 @media (max-width: 900px) {
   .inicio-stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
