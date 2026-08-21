@@ -407,8 +407,28 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   investigó y descartó como bug real el "texto en negro" que reportó el
   usuario — verificado en navegador limpio que la leyenda siempre fue
   gris/oscuro neutro, el efecto venía de algo del lado de su navegador.
-  Validado visualmente en navegador real, sin commitear (no pedido
-  todavía para este ajuste).
+  Validado visualmente en navegador real. Commit `3289675`, pusheado a
+  `fact`. **Rediseño de layout + modal de detalle (mismo día, punto
+  117)**: a pedido del usuario ("se ve desperdiciado mucho espacio" +
+  "que al dar click se abra en popup"), se corrigió la causa raíz del
+  vacío en la barra mensual (`flex: 1` en una sola columna estirándose a
+  ~900px — ahora `flex: 0 0 64px` + `justify-content: center`), las
+  donas pasaron de apiladas a lado a lado (dona + leyenda), las 2
+  gráficas dispersas (Balance acumulado/Proyección) se reagruparon
+  juntas en vez de cada una emparejada con una dona densa, y "Top
+  proveedores" topó sus barras a `max-width: 640px` (antes se estiraban
+  a todo el ancho de pantalla). Nueva funcionalidad: botón "expandir" en
+  las 6 tarjetas abre un modal grande (mismo patrón que "Gestionar" de
+  tickets) que REUBICA el contenido ya renderizado (mismo elemento del
+  DOM, sin duplicar lógica de render) y lo regresa al cerrar. **Bug real
+  encontrado y corregido durante la validación**: excepción de JS al
+  cargar (`els.btnResumenFinDetalleCerrar` null) rompía toda la vista —
+  causa real: caché de disco del navegador sirviendo HTML viejo contra
+  JS nuevo (mismo gotcha ya documentado, manifestación distinta —
+  excepción en vez de vista vieja). `Ctrl+Shift+R` lo resolvió. Validado
+  en navegador real (barra, donas y modal de detalle probados en 2
+  tarjetas), sin errores de consola. Nada commiteado — no pedido
+  todavía para este ajuste.
 - **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
   partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
   propia (no dentro de "Inicio", que es del perfil `fiscal`) para el

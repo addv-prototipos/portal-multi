@@ -6506,8 +6506,86 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       contexto (mismo criterio ya usado en "Proyección de ventas").
       **Validado en navegador real** (Claude in Chrome): las 5 tarjetas
       confirmadas visualmente con la paleta pastel + íconos, sin errores
-      de consola, montos/porcentajes intactos. Nada commiteado — el
-      usuario no lo ha pedido todavía para este ajuste.
+      de consola, montos/porcentajes intactos. Commit `3289675`,
+      pusheado a `fact` a pedido del usuario.
+    - **Rediseño de layout + modal de detalle grande (2026-08-20, mismo
+      día, a pedido del usuario: "se ve desperdiciado mucho espacio" +
+      "agrega la funcionalidad que cuando dé click a una gráfica se abra
+      en popup")**:
+      - **Barra "Ventas vs Facturado vs Gastos"**: la causa raíz del
+        espacio vacío era `.resumen-fin-chart-columna { flex: 1 }` —
+        con 1-2 meses de historial, una sola columna flex creciendo para
+        llenar los ~900px de la tarjeta dejaba las barras (delgadas)
+        aisladas en medio de un vacío enorme. Corregido a
+        `flex: 0 0 64px` (ancho fijo por mes) + contenedor con
+        `justify-content: center` (antes `space-around`) — con pocos
+        meses el grupo de barras se ve compacto y centrado en vez de
+        esparcido; `overflow-x: auto` agregado por si acaso a futuro hay
+        más meses que ancho disponible.
+      - **Donas (categorías / facturadas vs sin facturar)**: rediseñadas
+        de apiladas (dona arriba, leyenda abajo a todo el ancho de la
+        tarjeta — dejaba un vacío enorme entre la etiqueta y el monto)
+        a lado a lado (`.resumen-fin-donut-body`, flex row, dona
+        izquierda + leyenda derecha, con breakpoint a apilado en
+        pantallas angostas) — mismo patrón visual que un dashboard
+        dona+leyenda convencional, mucho mejor uso del ancho.
+      - **Reordenamiento**: las 2 donas (densas, con datos reales ricos)
+        ahora van juntas en la primera fila secundaria; "Balance
+        acumulado" y "Proyección de ventas" (ambas dispersas con solo
+        1-2 meses de historial) se movieron a la segunda fila, juntas
+        entre sí — antes cada gráfica dispersa estaba emparejada con una
+        dona densa, generando un desbalance visual marcado (un lado
+        lleno, el otro casi vacío) que agravaba la sensación de
+        desperdicio.
+      - **Gráficas de línea dispersas**: altura de `.resumen-fin-line-svg`
+        reducida de 130px a 100px — con 1-2 puntos reales, menos alto
+        vacío sin apretar la lectura si la serie crece más adelante.
+      - **"Top proveedores de gasto"**: las barras se estiraban a todo
+        el ancho de la tarjeta (que ocupa toda la pantalla) — con solo 5
+        proveedores, una barra de +1500px de largo no aporta nada,
+        solo se ve "muy largo" (reporte directo del usuario con
+        captura). Corregido con `max-width: 640px` en la lista.
+      - **Modal de detalle grande al hacer click** (nueva funcionalidad,
+        mismo patrón visual que el modal "Gestionar" de tickets —
+        `.modal-overlay` + `.modal`, cierre por botón/click fuera/
+        Escape): cada una de las 6 tarjetas (barra, 2 donas, 2 líneas,
+        proveedores) tiene un botón "expandir" (⤢) en su encabezado. En
+        vez de duplicar la lógica de render para una "versión grande"
+        (que arrastraría el riesgo de que ambas versiones se
+        desincronicen), `abrirDetalleGrafica()` en `admin.js` REUBICA el
+        mismo contenedor ya renderizado (con sus datos reales, mismo
+        elemento del DOM) dentro del modal, agrega la clase
+        `resumen-fin-detalle-contenido-grande` (agranda dona/línea/barra
+        vía CSS) y lo regresa a su posición original al cerrar — cero
+        duplicación de código, imposible que la versión grande muestre
+        datos distintos a la chica. El ícono del encabezado del modal se
+        clona del icono ya presente en el header de la tarjeta (una sola
+        fuente de verdad, sin mapear colores/iconos por separado).
+      - **Bug real encontrado y corregido durante la validación** (no
+        de este segmento en sí, de un gotcha ya documentado): al probar
+        en navegador, `els.btnResumenFinDetalleCerrar.addEventListener`
+        tronaba con `TypeError: Cannot read properties of null` — la
+        excepción rompía la carga completa de `admin.js` (nada de la
+        vista funcionaba, ni siquiera cambiar de pestaña). Diagnóstico
+        confirmado inspeccionando el DOM vivo del navegador
+        (`document.getElementById(...)` real): el HTML sin recargar
+        seguía siendo el de ANTES del rebuild (caché de disco del
+        navegador), mientras el `admin.js` sí era el nuevo — el
+        desfase entre un HTML viejo sin el modal nuevo y un JS nuevo que
+        ya lo esperaba causaba el `null`. Mismo gotcha ya anotado en
+        CLAUDE.md ("el navegador cachea HTML/CSS en disco tras el
+        rebuild") pero esta vez con una manifestación distinta y más
+        confusa (excepción de JS, no una vista vieja) — vale la pena
+        que quede registrado así para reconocerlo más rápido la próxima
+        vez. `Ctrl+Shift+R` lo resolvió; consola limpia después.
+      - **Validado en navegador real** (Claude in Chrome): barra
+        centrada, donas lado a lado, tarjetas dispersas agrupadas,
+        proveedores con ancho topado, y el modal de detalle probado en
+        2 tarjetas distintas (dona de categorías y barra) — abre con los
+        datos reales agrandados, cierra y el contenido regresa
+        exactamente a su tarjeta original, sin errores de consola.
+        `node --check` limpio, sin IDs duplicados/huérfanos. Nada
+        commiteado — no pedido todavía para este ajuste.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

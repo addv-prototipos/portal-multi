@@ -422,65 +422,50 @@
         </div>
 
         <section class="resumen-fin-chart-card">
-          <h2>Ventas vs Facturado vs Gastos</h2>
-          <div class="resumen-fin-chart-body" id="resumen-fin-chart-body"></div>
-          <p class="admin-empty" id="resumen-fin-chart-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
-          <ul class="resumen-fin-chart-leyenda">
-            <li><span class="resumen-fin-dot resumen-fin-dot-ventas" aria-hidden="true"></span>Ventas</li>
-            <li><span class="resumen-fin-dot resumen-fin-dot-facturado" aria-hidden="true"></span>Facturado</li>
-            <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
-          </ul>
+          <div class="resumen-fin-card-header">
+            <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 11l3 3 4-6 4 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            </span>
+            <h2>Ventas vs Facturado vs Gastos</h2>
+            <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-chart-contenido" data-detalle-titulo="Ventas vs Facturado vs Gastos" aria-label="Ver Ventas vs Facturado vs Gastos en grande">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            </button>
+          </div>
+          <div id="resumen-fin-chart-contenido">
+            <div class="resumen-fin-chart-body" id="resumen-fin-chart-body"></div>
+            <p class="admin-empty" id="resumen-fin-chart-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
+            <ul class="resumen-fin-chart-leyenda">
+              <li><span class="resumen-fin-dot resumen-fin-dot-ventas" aria-hidden="true"></span>Ventas</li>
+              <li><span class="resumen-fin-dot resumen-fin-dot-facturado" aria-hidden="true"></span>Facturado</li>
+              <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
+            </ul>
+          </div>
         </section>
 
         <div class="resumen-fin-grid">
-          <section class="resumen-fin-line-card">
-            <div class="resumen-fin-card-header">
-              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              </span>
-              <h2>Balance acumulado (Facturado − Gastos)</h2>
-            </div>
-            <div class="resumen-fin-line-wrap">
-              <svg class="resumen-fin-line-svg" id="resumen-fin-balance-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Balance acumulado por mes"></svg>
-            </div>
-            <div class="resumen-fin-line-etiquetas" id="resumen-fin-balance-etiquetas"></div>
-            <p class="resumen-fin-proyeccion-nota" id="resumen-fin-balance-nota" hidden>Necesitas al menos 2 meses con actividad para ver la tendencia.</p>
-            <p class="admin-empty" id="resumen-fin-balance-empty" hidden>Aún no hay suficientes datos para esta gráfica.</p>
-          </section>
-
           <section class="resumen-fin-donut-card">
             <div class="resumen-fin-card-header">
               <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6h15l-1.5 9H8L6 6Zm0 0-1-3H2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg>
               </span>
               <h2>Distribución de gastos por categoría</h2>
+              <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-donut-categorias-contenido" data-detalle-titulo="Distribución de gastos por categoría" aria-label="Ver Distribución de gastos por categoría en grande">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </button>
             </div>
-            <div class="resumen-fin-donut-wrap">
-              <svg class="resumen-fin-donut" id="resumen-fin-donut-categorias" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
-              <div class="resumen-fin-donut-centro">
-                <span class="resumen-fin-donut-total" id="resumen-fin-donut-categorias-total">$0</span>
-                <span class="resumen-fin-donut-total-label">Gastos</span>
+            <div id="resumen-fin-donut-categorias-contenido">
+              <div class="resumen-fin-donut-body">
+                <div class="resumen-fin-donut-wrap">
+                  <svg class="resumen-fin-donut" id="resumen-fin-donut-categorias" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
+                  <div class="resumen-fin-donut-centro">
+                    <span class="resumen-fin-donut-total" id="resumen-fin-donut-categorias-total">$0</span>
+                    <span class="resumen-fin-donut-total-label">Gastos</span>
+                  </div>
+                </div>
+                <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-categorias-leyenda"></ul>
               </div>
+              <p class="admin-empty" id="resumen-fin-donut-categorias-empty" hidden>Aún no hay gastos registrados este mes.</p>
             </div>
-            <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-categorias-leyenda"></ul>
-            <p class="admin-empty" id="resumen-fin-donut-categorias-empty" hidden>Aún no hay gastos registrados este mes.</p>
-          </section>
-        </div>
-
-        <div class="resumen-fin-grid">
-          <section class="resumen-fin-line-card">
-            <div class="resumen-fin-card-header">
-              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              </span>
-              <h2>Proyección de ventas</h2>
-            </div>
-            <div class="resumen-fin-line-wrap">
-              <svg class="resumen-fin-line-svg" id="resumen-fin-proyeccion-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Proyección de ventas"></svg>
-            </div>
-            <div class="resumen-fin-line-etiquetas" id="resumen-fin-proyeccion-etiquetas"></div>
-            <p class="resumen-fin-proyeccion-nota" id="resumen-fin-proyeccion-nota" hidden>Proyección estimada a partir de tu histórico — no es un pronóstico garantizado.</p>
-            <p class="admin-empty" id="resumen-fin-proyeccion-empty" hidden>Necesitas al menos 3 meses con ventas para ver una proyección.</p>
           </section>
 
           <section class="resumen-fin-donut-card">
@@ -489,16 +474,65 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
               </span>
               <h2>Ventas facturadas vs sin facturar</h2>
+              <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-donut-facturacion-contenido" data-detalle-titulo="Ventas facturadas vs sin facturar" aria-label="Ver Ventas facturadas vs sin facturar en grande">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </button>
             </div>
-            <div class="resumen-fin-donut-wrap">
-              <svg class="resumen-fin-donut" id="resumen-fin-donut-facturacion" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
-              <div class="resumen-fin-donut-centro">
-                <span class="resumen-fin-donut-total" id="resumen-fin-donut-facturacion-total">$0</span>
-                <span class="resumen-fin-donut-total-label">Ventas</span>
+            <div id="resumen-fin-donut-facturacion-contenido">
+              <div class="resumen-fin-donut-body">
+                <div class="resumen-fin-donut-wrap">
+                  <svg class="resumen-fin-donut" id="resumen-fin-donut-facturacion" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
+                  <div class="resumen-fin-donut-centro">
+                    <span class="resumen-fin-donut-total" id="resumen-fin-donut-facturacion-total">$0</span>
+                    <span class="resumen-fin-donut-total-label">Ventas</span>
+                  </div>
+                </div>
+                <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-facturacion-leyenda"></ul>
               </div>
+              <p class="admin-empty" id="resumen-fin-donut-facturacion-empty" hidden>Aún no hay ventas registradas este mes.</p>
             </div>
-            <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-facturacion-leyenda"></ul>
-            <p class="admin-empty" id="resumen-fin-donut-facturacion-empty" hidden>Aún no hay ventas registradas este mes.</p>
+          </section>
+        </div>
+
+        <div class="resumen-fin-grid">
+          <section class="resumen-fin-line-card">
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+              <h2>Balance acumulado (Facturado − Gastos)</h2>
+              <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-balance-contenido" data-detalle-titulo="Balance acumulado (Facturado − Gastos)" aria-label="Ver Balance acumulado en grande">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </button>
+            </div>
+            <div id="resumen-fin-balance-contenido">
+              <div class="resumen-fin-line-wrap">
+                <svg class="resumen-fin-line-svg" id="resumen-fin-balance-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Balance acumulado por mes"></svg>
+              </div>
+              <div class="resumen-fin-line-etiquetas" id="resumen-fin-balance-etiquetas"></div>
+              <p class="resumen-fin-proyeccion-nota" id="resumen-fin-balance-nota" hidden>Necesitas al menos 2 meses con actividad para ver la tendencia.</p>
+              <p class="admin-empty" id="resumen-fin-balance-empty" hidden>Aún no hay suficientes datos para esta gráfica.</p>
+            </div>
+          </section>
+
+          <section class="resumen-fin-line-card">
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 17l6-6 4 4 8-8M15 7h6v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+              <h2>Proyección de ventas</h2>
+              <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-proyeccion-contenido" data-detalle-titulo="Proyección de ventas" aria-label="Ver Proyección de ventas en grande">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </button>
+            </div>
+            <div id="resumen-fin-proyeccion-contenido">
+              <div class="resumen-fin-line-wrap">
+                <svg class="resumen-fin-line-svg" id="resumen-fin-proyeccion-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Proyección de ventas"></svg>
+              </div>
+              <div class="resumen-fin-line-etiquetas" id="resumen-fin-proyeccion-etiquetas"></div>
+              <p class="resumen-fin-proyeccion-nota" id="resumen-fin-proyeccion-nota" hidden>Proyección estimada a partir de tu histórico — no es un pronóstico garantizado.</p>
+              <p class="admin-empty" id="resumen-fin-proyeccion-empty" hidden>Necesitas al menos 3 meses con ventas para ver una proyección.</p>
+            </div>
           </section>
         </div>
 
@@ -508,9 +542,14 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h10M4 18h6" stroke-linecap="round" stroke-width="2"/></svg>
             </span>
             <h2>Top proveedores de gasto</h2>
+            <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-proveedores-contenido" data-detalle-titulo="Top proveedores de gasto" aria-label="Ver Top proveedores de gasto en grande">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            </button>
           </div>
+          <div id="resumen-fin-proveedores-contenido">
           <ul class="resumen-fin-proveedores-lista" id="resumen-fin-proveedores-lista"></ul>
           <p class="admin-empty" id="resumen-fin-proveedores-empty" hidden>Aún no hay gastos con proveedor capturado este mes.</p>
+          </div>
         </section>
       </div>
 
@@ -1644,6 +1683,24 @@
         <button type="button" class="btn btn-secondary" id="btn-confirm-cancelar">Cancelar</button>
         <button type="button" class="btn btn-danger" id="btn-confirm-aceptar">Eliminar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Detalle grande de una gráfica de "Resumen financiero": reubica el
+       contenido ya renderizado de la tarjeta (mismo elemento, sin
+       duplicar lógica de render) dentro de este modal y lo regresa a su
+       lugar al cerrar — ver abrirDetalleGrafica()/cerrarDetalleGrafica()
+       en admin.js. -->
+  <div class="modal-overlay" id="resumen-fin-detalle-overlay" hidden>
+    <div class="modal resumen-fin-detalle-modal" role="dialog" aria-modal="true" aria-labelledby="resumen-fin-detalle-titulo">
+      <div class="ticket-modal-header">
+        <div class="ticket-modal-header-title">
+          <span class="inicio-stat-icono" id="resumen-fin-detalle-icono" aria-hidden="true"></span>
+          <h2 id="resumen-fin-detalle-titulo">Detalle</h2>
+        </div>
+        <button type="button" class="btn-icon" id="btn-resumen-fin-detalle-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="resumen-fin-detalle-body" id="resumen-fin-detalle-body"></div>
     </div>
   </div>
 

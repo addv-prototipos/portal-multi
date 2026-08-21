@@ -295,6 +295,11 @@
     resumenFinDonutFacturacionEmpty: document.getElementById('resumen-fin-donut-facturacion-empty'),
     resumenFinProveedoresLista: document.getElementById('resumen-fin-proveedores-lista'),
     resumenFinProveedoresEmpty: document.getElementById('resumen-fin-proveedores-empty'),
+    resumenFinDetalleOverlay: document.getElementById('resumen-fin-detalle-overlay'),
+    resumenFinDetalleBody: document.getElementById('resumen-fin-detalle-body'),
+    resumenFinDetalleTitulo: document.getElementById('resumen-fin-detalle-titulo'),
+    resumenFinDetalleIcono: document.getElementById('resumen-fin-detalle-icono'),
+    btnResumenFinDetalleCerrar: document.getElementById('btn-resumen-fin-detalle-cerrar'),
     gastosFiltroCategoria: document.getElementById('gastos-filtro-categoria'),
     gastosFiltroFactura: document.getElementById('gastos-filtro-factura'),
     gastosFiltroRecurrente: document.getElementById('gastos-filtro-recurrente'),
@@ -5320,6 +5325,64 @@
       )
       .join('');
   }
+
+  // Detalle grande de una gráfica de "Resumen financiero": en vez de
+  // duplicar la lógica de render para una versión "grande", se reubica
+  // el MISMO contenedor ya renderizado (con sus datos reales) dentro del
+  // modal, y se regresa a su lugar original al cerrar — mismo criterio
+  // que ya usa el modal "Gestionar" de tickets (btn-icon + modal-overlay
+  // + cierre por click fuera/Escape/botón), pero sin necesidad de volver
+  // a pintar nada: el tamaño más grande lo da la clase
+  // resumen-fin-detalle-contenido-grande en admin.css.
+  let detalleGraficaOrigen = null;
+
+  function abrirDetalleGrafica(boton) {
+    const contenedor = document.getElementById(boton.dataset.detalleContenido || '');
+    if (!contenedor) return;
+    const header = boton.closest('.resumen-fin-card-header');
+    const iconoOrigen = header ? header.querySelector('.inicio-stat-icono') : null;
+
+    detalleGraficaOrigen = {
+      contenedor,
+      padre: contenedor.parentNode,
+      siguiente: contenedor.nextSibling,
+    };
+
+    els.resumenFinDetalleTitulo.textContent = boton.dataset.detalleTitulo || 'Detalle';
+    els.resumenFinDetalleIcono.className = iconoOrigen ? iconoOrigen.className : 'inicio-stat-icono';
+    els.resumenFinDetalleIcono.innerHTML = iconoOrigen ? iconoOrigen.innerHTML : '';
+
+    contenedor.classList.add('resumen-fin-detalle-contenido-grande');
+    els.resumenFinDetalleBody.appendChild(contenedor);
+    els.resumenFinDetalleOverlay.hidden = false;
+    els.btnResumenFinDetalleCerrar.focus();
+  }
+
+  function cerrarDetalleGrafica() {
+    if (els.resumenFinDetalleOverlay.hidden) return;
+    if (detalleGraficaOrigen) {
+      const { contenedor, padre, siguiente } = detalleGraficaOrigen;
+      contenedor.classList.remove('resumen-fin-detalle-contenido-grande');
+      if (siguiente) {
+        padre.insertBefore(contenedor, siguiente);
+      } else {
+        padre.appendChild(contenedor);
+      }
+      detalleGraficaOrigen = null;
+    }
+    els.resumenFinDetalleOverlay.hidden = true;
+  }
+
+  document.querySelectorAll('.resumen-fin-expandir-btn').forEach((boton) => {
+    boton.addEventListener('click', () => abrirDetalleGrafica(boton));
+  });
+  els.btnResumenFinDetalleCerrar.addEventListener('click', cerrarDetalleGrafica);
+  els.resumenFinDetalleOverlay.addEventListener('click', (e) => {
+    if (e.target === els.resumenFinDetalleOverlay) cerrarDetalleGrafica();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !els.resumenFinDetalleOverlay.hidden) cerrarDetalleGrafica();
+  });
 
   async function cargarGastos() {
     const authHeader = getAuthHeader();
