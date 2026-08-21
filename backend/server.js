@@ -3016,7 +3016,7 @@ app.get(
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const { tipo_registro: tipoRegistro, estatus, rfc, fecha_desde: fechaDesde, fecha_hasta: fechaHasta } = req.query;
+    const { tipo_registro: tipoRegistro, estatus, rfc, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, accion } = req.query;
     const estatusValidos = ['pendiente', 'en_curso', 'cancelado', 'listo'];
 
     let sql = 'SELECT * FROM reporte_items WHERE reporte_id = ?';
@@ -3046,6 +3046,16 @@ app.get(
       sql += ' AND fecha_registro <= ?';
       params.push(fechaHasta);
     }
+    // "accion" separa los registros que de verdad se eliminaron
+    // (retención automática o "Eliminar" venta) de los que solo son una
+    // fotografía informativa de algo que sigue activo — usado para las
+    // 2 tablas separadas ("Movimientos"/"Eliminados") de "Lectura de
+    // reportes", y para que cada una exporte solo lo suyo.
+    if (accion === 'eliminado') {
+      sql += " AND accion = 'eliminado'";
+    } else if (accion === 'activo') {
+      sql += ' AND accion IS NULL';
+    }
     sql += ' ORDER BY fecha_registro ASC';
 
     const [items] = await pool.query(sql, params);
@@ -3064,7 +3074,7 @@ app.get(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const formato = req.query.formato === 'excel' ? 'excel' : 'csv';
-    const { tipo_registro: tipoRegistro, estatus, rfc, fecha_desde: fechaDesde, fecha_hasta: fechaHasta } = req.query;
+    const { tipo_registro: tipoRegistro, estatus, rfc, fecha_desde: fechaDesde, fecha_hasta: fechaHasta, accion } = req.query;
     const estatusValidosExportar = ['pendiente', 'en_curso', 'cancelado', 'listo'];
 
     let sql = 'SELECT * FROM reporte_items WHERE reporte_id = ?';
@@ -3089,6 +3099,13 @@ app.get(
       sql += ' AND fecha_registro <= ?';
       params.push(fechaHasta);
     }
+    // Mismo criterio que GET .../items — exporta solo "Eliminados" o solo
+    // "Movimientos" según qué tabla haya disparado la exportación.
+    if (accion === 'eliminado') {
+      sql += " AND accion = 'eliminado'";
+    } else if (accion === 'activo') {
+      sql += ' AND accion IS NULL';
+    }
     sql += ' ORDER BY fecha_registro ASC';
 
     const [items] = await pool.query(sql, params);
@@ -3105,6 +3122,41 @@ app.get(
       res.setHeader('Content-Disposition', `attachment; filename="reporte-${id}.csv"`);
       res.send(csv);
     }
+  })
+);
+
+// KPIs de auditoría para la vista "Lectura de reportes": totales
+// históricos de registros eliminados vs. solo capturados como fotografía
+// activa, y una serie mensual de eliminados (últimos 6 meses CON
+// actividad, mismo criterio de "no inventar meses vacíos" que
+// resumen-financiero) — para la tarjeta de tendencia. Cruza TODOS los
+// reportes, no uno seleccionado, a propósito: es la vista panorámica de
+// auditoría, independiente de cuál reporte se esté leyendo en ese momento.
+app.get(
+  '/api/admin/reportes/estadisticas',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const [[totales]] = await pool.query(
+      `SELECT
+         SUM(CASE WHEN accion = 'eliminado' THEN 1 ELSE 0 END) AS total_eliminados,
+         SUM(CASE WHEN accion IS NULL THEN 1 ELSE 0 END) AS total_activos
+       FROM reporte_items`
+    );
+    const [filasSerie] = await pool.query(
+      `SELECT DATE_FORMAT(creado_en, '%Y-%m') AS mes, COUNT(*) AS total
+         FROM reporte_items
+        WHERE accion = 'eliminado' AND creado_en >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+        GROUP BY DATE_FORMAT(creado_en, '%Y-%m')
+        ORDER BY mes ASC`
+    );
+
+    res.json({
+      total_eliminados: Number(totales.total_eliminados) || 0,
+      total_activos: Number(totales.total_activos) || 0,
+      eliminados_por_mes: filasSerie.map((f) => ({ mes: etiquetaMes(f.mes), total: Number(f.total) })),
+    });
   })
 );
 

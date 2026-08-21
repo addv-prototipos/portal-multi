@@ -6985,6 +6985,108 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       revisión del usuario, mismo criterio que el resto de segmentos de
       esta sesión.
 
+122. **"Lectura de reportes" rediseñada para auditorías, IMPLEMENTADO Y
+    VALIDADO en navegador real (2026-08-21)**: pedido explícito del
+    usuario, protocolo `addv-web-app` completo (análisis del modelo de
+    datos real → propuesta en markdown con 4 puntos base + 4 ideas
+    opcionales A-D → usuario aprobó base + idea A → implementación).
+    - **Hallazgo clave del análisis**: `reporte_items.accion` YA existía
+      (`'eliminado'` = el ticket/venta se borró de verdad; `NULL` = solo
+      una fotografía de algo que seguía activo) pero se mostraba como un
+      badge chiquito MEZCLADO en una sola tabla — de ahí el pedido de
+      separarlo. Permisos: las 5 rutas de `/admin/reportes` YA estaban
+      `requireAdminArea('administrador')` (solo administrador+super
+      llegan; `fiscal` ni ve el botón en el sidebar) — el pedido de
+      "eliminar solo admin+super" ya se cumplía en el backend; se
+      reforzó también en frontend (`puedeEliminarReporte()`, oculta el
+      botón, no solo lo deshabilita).
+    - **Cabecera "Detalle"** reemplaza "Estatus" en ambas tablas nuevas
+      (el filtro dropdown "Estatus" se queda igual, sigue filtrando el
+      enum real de tickets). El "Detalle" de un ticket ahora usa el
+      MISMO sistema de badges de color que Tickets/Ventas
+      (`ESTATUS_BADGE_CLASE` en `admin.js`) en vez de texto plano; el
+      concepto de una venta (texto libre, sin enum) se queda como texto.
+    - **2 tablas separadas** dentro de un reporte seleccionado:
+      "Movimientos del periodo" (`accion IS NULL`, informativo) y
+      "Eliminados" (`accion = 'eliminado'`, acento rojo a la izquierda,
+      evidencia real de auditoría) — división client-side del mismo
+      fetch (`renderReporteItems` filtra por `item.accion`, sin
+      duplicar la petición). Cada tabla con su propio conteo y sus
+      propios botones "Exportar CSV"/"Exportar Excel", que SÍ viajan
+      con un nuevo parámetro `accion=activo|eliminado` a
+      `GET /api/admin/reportes/:id/exportar` (y el mismo filtro se
+      agregó a `GET /api/admin/reportes/:id/items` por consistencia) —
+      un archivo exportado nunca mezcla las dos categorías.
+    - **Idea A implementada — KPIs de auditoría** arriba de la vista:
+      "Eliminados (histórico)" y "Movimientos (histórico)" (tarjetas
+      `.inicio-stat-card` reutilizadas) + tarjeta "Eliminados por mes"
+      (barras CSS de 1 sola serie, mismas clases `.resumen-fin-chart-*`
+      que Resumen financiero, color `var(--color-error)` — el mismo
+      rojo que ya usaba el badge "Eliminado", para que el color siga
+      significando lo mismo en toda la vista). Endpoint nuevo
+      `GET /api/admin/reportes/estadisticas` (cruza TODOS los reportes,
+      no uno seleccionado — vista panorámica): `SUM(CASE WHEN accion=…)`
+      para los totales, serie mensual de los últimos 6 meses agrupada
+      por `creado_en` (cuándo se registró la eliminación, no la fecha
+      original del ticket/venta).
+    - **Archivos**: `backend/server.js` (filtro `accion` en 2 rutas +
+      endpoint `estadisticas` nuevo, sin cambios de esquema — reutiliza
+      columnas existentes), `frontend/admin.html` (KPI grid + 2 tablas
+      reemplazando la única tabla vieja), `frontend/admin.css` (grid de
+      KPIs, color de barra, tarjetas `.lectura-reportes-subtabla`),
+      `frontend/admin.js` (refs nuevas, split de render, export por
+      tabla, `cargarEstadisticasReportes()`, chequeo de perfil).
+    - **Verificación**: `node --check` limpio en los 3 archivos, llaves
+      CSS balanceadas (610/610), cross-check de IDs nuevos JS↔HTML sin
+      huérfanos, IDs viejos confirmados sin referencias residuales. Jest
+      backend **560/560 (34 suites)**, sin regresión — el endpoint de
+      items/exportar solo ganó un parámetro opcional, comportamiento
+      previo intacto sin `accion` en la query. Validado en navegador
+      real (Claude in Chrome) con datos reales de la siembra: KPIs
+      cargando (21 eliminados / 31 movimientos históricos), un reporte
+      manual de snapshot mostrando 31 movimientos / 0 eliminados, y un
+      reporte de "Eliminar venta" mostrando 0 movimientos / 1 eliminado
+      (OC-000060) — exactamente la separación pedida. Export CSV
+      probado sin error de consola. Sin commit/push — working tree para
+      revisión del usuario.
+    - **Ajuste de diseño de las tarjetas KPI, pedido en vivo tras la
+      validación**: 3 iteraciones rápidas del usuario viendo la captura
+      real. Resultado final: las 3 tarjetas (Eliminados/Movimientos/
+      Eliminados por mes) son **cuadradas de 230×230px fijos** (no
+      `1fr` estirado — así se ven simétricas entre sí sin depender del
+      ancho de la fila), centradas vertical y horizontalmente (flex +
+      `justify-content:center` + `text-align:center`), con el texto y
+      el número de las 2 tarjetas numéricas **+40% sobre el tamaño base**
+      (título 13→18px, número 30→42px, nota 12→17px) — la barra de
+      tendencia se dejó a su proporción normal, solo se ajustó el
+      presupuesto vertical de su tarjeta (`min-height`/altura de barra
+      reescaladas para caber en el cuadro de 230px). **Lección
+      reafirmada de especificidad CSS** (misma causa que el bug de
+      alineación del punto 121): `.resumen-fin-chart-body` ya fija
+      `min-height:220px` para la gráfica mensual grande — un override
+      por clase con la misma especificidad pierde por orden en la hoja
+      de estilos; hubo que usar `#reportes-kpi-chart-body` (por id) para
+      que sí ganara. Validado en navegador real: 3 cuadros idénticos,
+      sin huecos, texto grande y centrado, sin errores de consola.
+      **Último ajuste**: texto/número de las 2 tarjetas numéricas
+      reducido 30% sobre ese +40% (título 13px, número 29px, nota 12px)
+      — tamaño de tarjeta (230×230px) sin tocar. Título "Eliminados por
+      mes" también reducido en la misma proporción (16→11px), mismo
+      gotcha de especificidad (`.resumen-fin-chart-card h2` vs clase
+      propia, misma especificidad — resuelto con `#reportes-kpi-grid`
+      antepuesto). Validado en navegador real, sin errores de consola.
+      **Ajustes finales de layout** (con propuesta antes/después en
+      markdown, aprobada explícitamente): título de las 3 tarjetas fijo
+      arriba a la izquierda (se quitó `justify-content:center` de la
+      tarjeta), resto del contenido (número+nota / la barra) centrado
+      en el espacio sobrante vía `margin-top/bottom:auto` en esos
+      elementos específicos — sin el conflicto de la vez anterior porque
+      ya no compite con el centrado de la tarjeta completa. Validado en
+      navegador real, sin errores de consola. **Regla nueva del usuario,
+      guardada en memoria persistente**: todo cambio de diseño visual
+      (nuevo o ajuste) siempre lleva propuesta antes/después en
+      markdown antes de implementar, sin que se pida cada vez.
+
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

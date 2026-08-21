@@ -1,7 +1,8 @@
 # Historias de Usuario — Portal de Facturación ADDV
 
 Documento de historias de usuario del **Portal de Facturación ADDV** (carga de
-constancia de situación fiscal, tickets de venta, facturación, ventas y administración multi-tenant). Cada historia sigue el formato
+constancia de situación fiscal, tickets de venta, facturación, ventas, gastos,
+resumen financiero y administración multi-tenant). Cada historia sigue el formato
 *"Como [rol], quiero [capacidad], para [beneficio]"* e incluye criterios de
 aceptación verificables.
 
@@ -240,10 +241,11 @@ para no acceder a áreas que no me corresponden.
 
 **Criterios de aceptación:**
 - Interfaz: los botones/tarjetas fuera de perfil se ocultan, no solo se deshabilitan.
-- Backend: los 45+ endpoints de `/api/admin/*` exigen `requireAdminAuth` + `requireAdminArea(...)` → 403 real.
-- Matriz de acceso: Super → todo; Administrador → Ventas, Usuarios, Reportes, Config fiscales/reportes; Fiscal → Inicio, Constancias, Tickets, Campos obligatorios, Config fiscales.
+- Backend: todos los endpoints de `/api/admin/*` exigen `requireAdminAuth` + `requireAdminArea(...)` → 403 real.
+- Matriz de acceso: Super → todo; Administrador → Resumen financiero (su vista por defecto), Ventas, Gastos, Usuarios, Reportes, Config fiscales/reportes; Fiscal → Inicio, Constancias, Tickets, Campos obligatorios, Config fiscales.
 - "Cuenta de respaldo admin" solo visible/editable por el usuario `admin` exacto (`requireUsuarioAdminExacto`).
-- Si la vista por defecto no está permitida, se navega a la primera vista disponible.
+- Si la vista por defecto no está permitida, se navega a la primera vista disponible (el administrador aterriza en "Resumen financiero"; fiscal en "Inicio").
+- Al refrescar el navegador (F5) se restaura la última vista visitada de la sesión activa (`sessionStorage`, solo si la vista sigue permitida para el perfil); un inicio de sesión nuevo siempre aterriza en la vista por defecto.
 
 ### US-018 — Auditoría de acciones administrativas
 Como **super**, quiero que cada mutación del panel y cada login queden registrados
@@ -262,7 +264,7 @@ las solicitudes más recientes y una dona de estatus, para monitorear la operaci
 - Tabla de las **5 solicitudes más recientes** con botón "Gestionar" (abre el mismo modal de Tickets) y enlace "Ver todas" a la vista Tickets.
 - Dona SVG de 3 segmentos con porcentajes reales por estatus.
 - Todo se calcula en el cliente a partir del mismo endpoint `GET /api/admin/tickets` — sin endpoint nuevo.
-- Visible para `super`/`fiscal` (no para `administrador`, que no ve Tickets). Es la vista por defecto al iniciar sesión.
+- Visible para `super`/`fiscal` (no para `administrador`, que no ve Tickets). Es la vista por defecto al iniciar sesión (el perfil `administrador`, sin acceso a Inicio, aterriza en "Resumen financiero").
 - Sidebar navy con íconos SVG (mockup `stitch/panel_admin_portal_addv_fiel_al_mockup`); "Inicio" en primera posición, "Tickets" en segunda.
 
 ---
@@ -562,7 +564,78 @@ permanente) y cargar/ver/quitar su comprobante, para mantener el registro correc
 
 ---
 
-## 14. Experiencia general y confiabilidad
+## 14. Panel — Vista Resumen financiero (Administrador)
+
+> Vista propia del perfil **administrador** (+ super implícito); el perfil
+> fiscal no la ve. Botón en el sidebar justo antes de "Ventas". Todos los
+> datos salen del endpoint `GET /api/admin/resumen-financiero`, que solo
+> devuelve **agregados SQL** (nunca filas sueltas de ventas o gastos).
+> Todas las gráficas son SVG/CSS puro sin librerías ni CDN externos.
+
+### US-068 — Ver los KPIs financieros del mes
+Como **administrador**, quiero ver al entrar 4 tarjetas KPI del mes en curso
+(Total facturado, Total gastos, Balance ventas vs gastos y Ventas sin facturar),
+para conocer la salud económica de la operación sin cruzar reportes a mano.
+
+**Criterios de aceptación:**
+- "Balance ventas vs gastos" = Facturado − Gastos ("facturado" = venta con ticket vinculado en estatus `listo`).
+- "Ventas sin facturar" = Ventas totales − Facturado.
+- Tendencia % real contra el mes calendario anterior en Total facturado y Total gastos; si el mes anterior fue $0, no se inventa tendencia.
+
+### US-069 — Gráfica mensual "Ventas vs Facturado vs Gastos"
+Como **administrador**, quiero una gráfica de barras por mes que compare ventas
+totales, facturado, sin facturar y gastos, para ver la evolución y detectar
+venta no facturada.
+
+**Criterios de aceptación:**
+- Barras CSS puro agrupadas por mes en SQL (`DATE_FORMAT(…, '%Y-%m')`).
+- Solo aparecen meses con actividad real en ventas o gastos: no se rellenan meses en cero.
+- Orden final de barras dentro de cada mes: Ventas, Gastos, Facturado, Sin facturar.
+- La barra "Sin facturar" se deriva en el cliente (`ventas − facturado`, piso 0) — cero cambios de backend para calcularla; comparte color con la dona de facturadas vs sin facturar.
+- Cada tarjeta de gráfica tiene botón expandir que abre un modal de detalle (la misma gráfica ampliada) reutilizando el contenido ya renderizado.
+
+### US-070 — Tarjeta "Utilidad neta del mes (ventas totales vs gastos)"
+Como **administrador**, quiero ver la utilidad neta del mes comparando TODAS las
+ventas del período (facturadas o no) contra los gastos, para saber cuánto
+dinero quedó realmente este mes.
+
+**Criterios de aceptación:**
+- `utilidad_neta = subtotal_ventas − gastos_del_mes`; cuenta todas las ventas del mes aunque no estén facturadas (a diferencia del KPI "Balance", que es Facturado − Gastos — son dos preguntas distintas y complementarias).
+- Subtotal e IVA provienen de los datos ya guardados de cada venta (`cantidad`, `iva_porcentaje`, `total`), sin cambio de esquema.
+- Número grande verde (positivo) / rojo (negativo) / neutro (cero).
+- Gráfica comparativa de 2 columnas CSS puro: "Ventas totales" apilada (Subtotal + IVA cobrado) junto a columna sólida "Gastos"; leyenda de 4 filas; empty state si no hay actividad.
+- Nota visible en la tarjeta: "El IVA mostrado es el cobrado en ventas, no una cifra fiscal" (los gastos no desglosan su propio IVA, solo `iva_incluido` sí/no).
+
+### US-071 — Gráficas BI complementarias sobre datos reales
+Como **administrador**, quiero gráficas adicionales construidas solo con métricas
+que la base de datos respalda (sin inventar indicadores), para analizar la
+operación de un vistazo.
+
+**Criterios de aceptación:**
+- Dona "Distribución de gastos por categoría" (mes actual): `GROUP BY categoria` con color fijo por categoría (lista cerrada de 10).
+- Dona "Ventas facturadas vs sin facturar": proporción visual del mismo dato del KPI.
+- Línea "Balance acumulado": Facturado − Gastos acumulado mes a mes sobre la serie mensual.
+- Línea "Proyección de ventas": estimación simple (promedio del delta de los últimos 3 meses reales extendido 2 meses hacia adelante, piso en 0); nunca se muestra con menos de 3 meses de histórico; etiquetada explícitamente como estimación, no pronóstico financiero.
+- Barras horizontales "Top 5 proveedores de gasto" (mes actual; excluye proveedor vacío/nulo).
+- Todas con modal de detalle (expandir) y accesibles (leyenda + tooltip + `aria-label`).
+
+### US-072 — Modo dashboard personalizable con layout por usuario
+Como **administrador**, quiero arrastrar y redimensionar las tarjetas de Resumen
+financiero y que mi layout se guarde en el servidor, para armar mi tablero a mi
+manera y encontrarlo igual cada vez que entre.
+
+**Criterios de aceptación:**
+- Botón "Modo dashboard" (con estado `aria-pressed`), botón "Restablecer" (visible solo si hay layout guardado) y ayuda contextual.
+- Handles de arrastre (⠿) y resize (◢); alternativa completa de teclado (↑/↓ posición, ←/→ ancho, Esc sale del modo) — WCAG 2.1 AA.
+- Tablero CSS Grid de 12 columnas; el drag NUNCA mueve nodos del DOM (solo cambia `order`/`grid-column`) para no romper el modal de detalle; vanilla sin librerías externas.
+- Persistencia SERVIDOR por usuario: tabla `preferencias_dashboard` (UNIQUE usuario+vista, JSON, SIN FK a usuarios — las cuentas super no existen en la tabla `usuarios`); endpoints `GET/PUT/DELETE /api/admin/preferencias-dashboard/:vista`.
+- Validación backend en bloque: whitelist cerrada de IDs conocidos + span entero 3..12; layouts parciales/inválidos se rechazan completos (400) sin escribir BD; PUT hace upsert; DELETE vuelve al layout por defecto; auditoría automática cubierta por el middleware global.
+- Guardado automático con debounce (~800 ms) + toast "Layout guardado."; restauración al entrar a la vista.
+- Móvil (<900 px): se ignora el ANCHO personalizado pero se conserva el ORDEN.
+
+---
+
+## 15. Experiencia general y confiabilidad
 
 ### US-045 — Experiencia consistente y accesible
 Como **cliente**, quiero que todas las páginas sean mobile-first, con foco visible por teclado,
@@ -591,7 +664,7 @@ separados (login vs. API autenticada), para evitar caídas intermitentes.
 
 ---
 
-## 15. Multi-tenant — App de control `/control` (Super / Operador)
+## 16. Multi-tenant — App de control `/control` (Super / Operador)
 
 ### US-048 — Listar empresas (tenants)
 Como **super**, quiero ver la lista de empresas del catálogo de control (con estado, slug y contacto),
@@ -664,7 +737,7 @@ muestre su icono.
 
 ---
 
-## 16. Multi-tenant — Infraestructura (Operador / DevOps)
+## 17. Multi-tenant — Infraestructura (Operador / DevOps)
 
 ### US-054 — Aprovisionar la base de datos de un tenant nuevo
 Como **operador**, quiero correr `provisionar-tenant.js` con root de MySQL para materializar la BD
@@ -713,7 +786,7 @@ para no depender del disco local y poder escalar a múltiples nodos.
 
 ---
 
-## 17. Historial / pendientes a futuro
+## 18. Historial / pendientes a futuro
 
 ### US-059 — Subir logo real de la empresa en el panel
 Como **administrador**, quiero una pantalla en el panel para subir/configurar el logo real de mi

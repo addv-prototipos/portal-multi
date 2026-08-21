@@ -1,6 +1,6 @@
-# Portal de Facturación ADDV — Carga de Constancia de Situación Fiscal
+# Portal de Facturación ADDV — Multi-tenant (constancia fiscal, tickets, ventas, gastos y facturación)
 
-Aplicación web para que clientes y proveedores capturen sus datos de facturación y suban su **constancia de situación fiscal** (solo PDF; el sistema valida que sea un documento genuino del SAT y extrae automáticamente el nombre/razón social, el régimen fiscal y el código postal). Cada usuario, identificado por su correo electrónico, puede mantener **un solo archivo activo**; si ya existe uno, la app pide confirmación antes de reemplazarlo.
+Plataforma web multi-tenant (múltiples empresas cliente, cada una con su propia base de datos, sus propias URLs `/<slug>` y `/<slug>/admin`, y su propia identidad visual) para que clientes y proveedores capturen sus datos de facturación y suban su **constancia de situación fiscal** (solo PDF; el sistema valida que sea un documento genuino del SAT y extrae automáticamente el nombre/razón social, el régimen fiscal y el código postal). Cada usuario, identificado por su correo electrónico, puede mantener **un solo archivo activo**; si ya existe uno, la app pide confirmación antes de reemplazarlo. Incluye además tickets de venta con verificación de compra, un panel de administración con gráficas de Business Intelligence y auditoría, control de gastos de la operación, y una app de control (`/control`) cross-tenant para gestionar el ciclo de vida de las empresas dadas de alta.
 
 ## 🧱 Tecnologías usadas
 
@@ -102,8 +102,9 @@ El backend se conecta a MySQL usando `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWO
    La primera vez, `docker-compose` levanta MySQL, espera a que su *healthcheck* pase (puede tardar unos segundos mientras MySQL inicializa la base de datos), y solo entonces arranca el backend — que además espera activamente a poder conectarse antes de aceptar tráfico, con varios reintentos con espera. No deberías ver errores de conexión durante el arranque normal.
 4. Abre el navegador en:
    ```
-   http://localhost:8080
+   http://localhost
    ```
+   (o `http://localhost:8088` si cambiaste `FRONTEND_PORT` a `8088` en tu `.env` — el valor por defecto de `FRONTEND_PORT` es `80`, así que no hace falta indicar puerto salvo que lo hayas cambiado).
 
 Los archivos subidos (constancias, tickets, facturas) se guardan en **MinIO** (bucket `MINIO_BUCKET`, volumen Docker `minio_data`) — puedes inspeccionarlos desde la consola web de MinIO en `http://localhost:9001` (o el `MINIO_CONSOLE_PORT` que hayas configurado) con las credenciales `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` de tu `.env`. La carpeta `./uploads` del proyecto ya no se usa para guardar nada (vestigial, ver PROJECT_STATE.md punto 92). La base de datos MySQL vive en el volumen Docker con nombre `mysql_data` — no es un archivo que puedas copiar directamente como con SQLite, pero puedes inspeccionarla con cualquier cliente MySQL apuntando a `localhost:3306` (o el `MYSQL_PORT` que hayas configurado) con el usuario/contraseña de tu `.env`. Tanto MinIO como la base de datos persisten entre reinicios y reconstrucciones (`docker-compose up --build`).
 
@@ -366,7 +367,7 @@ contra infraestructura real y confirma cada uno.
 
 ## 👤 Panel de administración
 
-Disponible en `http://localhost:8080/admin` (o `https://tudominio.com/admin` en producción).
+Disponible en `http://localhost/admin` (o `https://tudominio.com/admin` en producción; usa el puerto que hayas configurado en `FRONTEND_PORT` si no es el `80` por defecto).
 
 - **Acceso**: usuario y contraseña por HTTP Basic Auth. Por defecto `admin` / `admin` (ver "Administración de cuentas y contraseñas" más abajo para los tres mecanismos que aceptan credenciales — variable de entorno, cuenta de respaldo, o usuarios con perfil administrador/fiscal). Es un sistema **separado** del login de RFC + contraseña de los usuarios del portal (`login.html`) — un cliente no puede iniciar sesión en el panel, y un administrador no inicia sesión como cliente.
 - El panel tiene un menú lateral con estas vistas, en este orden: **"Inicio"** (resumen, ver abajo), **"Tickets"**, **"Constancias"** (lo de siempre), **"Resumen financiero"**, **"Ventas"**, **"Gastos"**, **"Usuarios"**, **"Configuraciones globales"** (agrupa la configuración de campos obligatorios y de correo SMTP, ver más abajo) y **"Reportes"**. "Inicio" es la vista que se ve al iniciar sesión para los perfiles que la tienen disponible; el perfil `administrador` aterriza en "Resumen financiero" (ver abajo), su primera vista disponible.
@@ -564,7 +565,7 @@ El **correo electrónico es obligatorio para cualquier perfil** — a diferencia
 - **Cliente** → enlaza al portal público (`/login`), donde inicia sesión con RFC + contraseña.
 - **Administrador / Fiscal** → enlaza al **panel de administración** (`/admin`), donde inicia sesión con su usuario + contraseña por el formulario de acceso del panel — no tendría sentido mandarle a un fiscal el enlace del portal de clientes, ya que no es por ahí donde entra.
 
-En ambos casos, la URL base (protocolo + dominio) se arma automáticamente a partir de la propia petición del administrador (con la que llegó al panel) — funciona igual en desarrollo local (`http://localhost:8080`), accediendo por la IP de tu red local, o en un dominio real con HTTPS en producción, sin necesidad de configurar una URL fija en ningún lado. Si por alguna razón no se pudo detectar el dominio, el correo se envía de todas formas, solo que sin esa línea del enlace. El envío es "fire-and-forget": si el correo SMTP no está configurado (ver "Configuraciones globales") o el envío falla por cualquier motivo, **la cuenta se crea de todas formas** — el administrador puede darle las credenciales por otro medio; el error solo se registra en los logs del backend, nunca bloquea la creación de la cuenta.
+En ambos casos, la URL base (protocolo + dominio) se arma automáticamente a partir de la propia petición del administrador (con la que llegó al panel) — funciona igual en desarrollo local (`http://localhost`, o `http://localhost:8088` si cambiaste `FRONTEND_PORT`), accediendo por la IP de tu red local, o en un dominio real con HTTPS en producción, sin necesidad de configurar una URL fija en ningún lado. Si por alguna razón no se pudo detectar el dominio, el correo se envía de todas formas, solo que sin esa línea del enlace. El envío es "fire-and-forget": si el correo SMTP no está configurado (ver "Configuraciones globales") o el envío falla por cualquier motivo, **la cuenta se crea de todas formas** — el administrador puede darle las credenciales por otro medio; el error solo se registra en los logs del backend, nunca bloquea la creación de la cuenta.
 
 En ambos casos hay que capturar una contraseña — con el mismo botón de **"Generar contraseña automática"** + copiar al portapapeles + casilla de "forzar cambio en el siguiente inicio de sesión" que ya existía para restablecer contraseñas (ver más abajo).
 
@@ -674,7 +675,7 @@ En los tres casos, las contraseñas guardadas en MySQL (mecanismos #2 y #3) usan
 ## 🧪 Verificación rápida de la API
 
 ```bash
-curl http://localhost:8080/api/health
+curl http://localhost/api/health   # o :8088 si cambiaste FRONTEND_PORT
 # {"status":"ok","maxFileSizeMb":5}
 ```
 

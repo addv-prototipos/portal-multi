@@ -653,6 +653,63 @@
   margin: 0 0 4px;
 }
 
+/* KPIs de auditoría (histórico completo) — 2 tarjetas numéricas + 1
+   tarjeta de tendencia, mismas clases .inicio-stat-card/
+   .resumen-fin-chart-card que el resto del panel, solo el layout de
+   esta cuadrícula es propio de "Lectura de reportes". */
+/* Cuadradas, tamaño fijo (no 1fr estirado) — ancho=alto exacto, así se
+   ven simétricas entre sí sin depender de a qué se estire la fila. */
+.reportes-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 230px);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.reportes-kpi-grid .inicio-stat-card,
+.reportes-kpi-chart-card {
+  width: 230px;
+  height: 230px;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+}
+/* Título de las 3 tarjetas arriba a la izquierda (pedido explícito) —
+   la tarjeta ya no centra verticalmente (era justify-content:center),
+   así que el header (ícono+título) queda pegado arriba por el orden
+   natural del flex column; el título ya no se centra horizontal, vuelve
+   a su alineación normal a la izquierda. */
+/* Número+nota (o la gráfica, en la 3ra tarjeta) se centran solos en el
+   espacio que sobra debajo del header — margin auto arriba del primero
+   y abajo del último, sin pelear con la tarjeta (que ya no tiene
+   justify-content:center, así el header se queda fijo arriba). */
+.reportes-kpi-grid .inicio-stat-numero { font-size: 29px; text-align: center; margin-top: auto; }
+.reportes-kpi-grid .inicio-stat-tendencia { font-size: 12px; text-align: center; margin-bottom: auto; }
+/* Letras +40% sobre el tamaño base — se mantiene, solo cambió la
+   alineación del título (arriba, arriba a la izquierda). */
+.reportes-kpi-grid .inicio-stat-titulo { font-size: 13px; }
+#reportes-kpi-chart-contenido { margin-top: auto; margin-bottom: auto; }
+/* Título "Eliminados por mes" al mismo tamaño que el título de
+   Eliminados/Movimientos (13px) — pedido explícito, misma proporción
+   entre las 3 tarjetas. Por id, no solo por clase:
+   ".resumen-fin-chart-card h2" (16px) tiene la MISMA especificidad y
+   gana por orden en la hoja de estilos si no se sube. */
+#reportes-kpi-grid .reportes-kpi-chart-card h2 { font-size: 13px; }
+/* Por id, no por clase: .resumen-fin-chart-body también fija
+   min-height (220px, pensado para la gráfica mensual grande) con la
+   MISMA especificidad que un selector de una sola clase — sin el id,
+   gana esa por orden en la hoja de estilos. Bug real corregido aquí: el
+   `margin-top/bottom:auto` que tenía #reportes-kpi-chart-contenido
+   peleaba con el `justify-content:center` de la tarjeta y terminaba
+   empujando el título hasta arriba sin margen (el síntoma reportado) —
+   se quitó esa regla; ahora la tarjeta centra header+gráfica como UN
+   solo bloque, y la barra se redujo para que ese bloque quepa con
+   margen arriba y abajo. */
+#reportes-kpi-chart-body { min-height: 80px; }
+.reportes-kpi-chart-body .resumen-fin-chart-barras { height: 70px; }
+@media (max-width: 900px) {
+  .reportes-kpi-grid { grid-template-columns: 1fr; }
+}
+
 .lectura-reportes-selector-wrap {
   display: flex;
   align-items: flex-end;
@@ -750,6 +807,57 @@
   .lectura-reportes-filtros { grid-template-columns: 1fr; }
   .lectura-reportes-filtros-acciones { flex-direction: column; align-items: stretch; }
   .lectura-reportes-exportar { flex-direction: column; }
+}
+
+/* Movimientos / Eliminados: 2 tarjetas separadas, no una tabla con un
+   badge mezclado — pedido explícito de auditoría (que un eliminado no
+   se lea entre registros que siguen activos). "Eliminados" lleva un
+   acento rojo a la izquierda para que se distinga de un vistazo cuál de
+   las dos tarjetas es la evidencia de borrado real. */
+.lectura-reportes-subtabla {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.lectura-reportes-subtabla-eliminados { border-left: 3px solid var(--color-error); }
+.lectura-reportes-subtabla-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.lectura-reportes-subtabla-header h3 {
+  font-family: var(--font-display);
+  font-size: 15px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lectura-reportes-conteo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+}
+.lectura-reportes-conteo-eliminado { background: var(--color-error-soft); color: var(--color-error); }
+.lectura-reportes-subtabla-nota {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+@media (max-width: 700px) {
+  .lectura-reportes-subtabla-header { flex-direction: column; align-items: flex-start; }
 }
 
 .lectura-reportes-vacio {
@@ -1762,6 +1870,10 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .resumen-fin-chart-barra-facturado { background: #1FAE6B; }
 .resumen-fin-chart-barra-gastos { background: var(--color-border); }
 .resumen-fin-chart-barra-sin-facturar { background: #E4A97E; }
+/* Serie única de "Eliminados por mes" (Lectura de reportes) — mismo rojo
+   que ya usa el badge "Eliminado" (estatus-cancelado/--color-error) en
+   esa misma vista, para que el color siga significando lo mismo. */
+.resumen-fin-chart-barra-eliminado-reportes { background: var(--color-error); }
 .resumen-fin-chart-etiqueta {
   font-size: 12px;
   color: var(--color-ink-soft);

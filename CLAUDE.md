@@ -522,6 +522,23 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   toca la tarjeta vecina) — ambas tarjetas comparten línea base tras
   validar con zoom a pixel. Sin commit/push — working tree para
   revisión del usuario.
+- **"Lectura de reportes" rediseñada para auditorías (ver
+  PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
+  `reporte_items.accion` ya distinguía "eliminado" (borrado real) de
+  `NULL` (fotografía activa) pero se mostraba mezclado — ahora 2 tablas
+  separadas ("Movimientos"/"Eliminados", acento rojo), export CSV/Excel
+  independiente por tabla (`accion=activo|eliminado` en
+  `/exportar`/`/items`), cabecera "Detalle" con badges de color
+  reutilizados de Tickets/Ventas, KPIs de auditoría arriba (histórico +
+  tendencia mensual, endpoint nuevo `GET /api/admin/reportes/estadisticas`),
+  y refuerzo frontend de que "Eliminar reporte" es solo admin/super
+  (backend ya lo exigía). Sin cambios de esquema. Jest 560/560, validado
+  en navegador real con datos reales de la siembra. **Ajuste de diseño
+  en vivo** tras revisar la captura: las 3 tarjetas KPI son cuadradas
+  fijas de 230×230px (no estiradas), centradas, con texto+número +40%
+  en las 2 numéricas — mismo gotcha de especificidad CSS que el punto
+  121 (`.resumen-fin-chart-body` ya fija `min-height:220px`; hubo que
+  usar id, no clase, para ganar). Sin commit/push.
 - **Auditoría de consistencia de documentación (ver PROJECT_STATE.md
   punto 120, 2026-08-21)**: a pedido explícito del usuario ("revisa la
   documentación"), revisión de salud de los 3 entregables obligatorios

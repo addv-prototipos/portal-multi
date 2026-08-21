@@ -406,6 +406,10 @@
     btnEnviarReporteManualLabel: document.getElementById('btn-enviar-reporte-manual-label'),
     errorEnviarReporteManual: document.getElementById('error-enviar-reporte-manual'),
     // Lectura de reportes
+    reportesKpiEliminados: document.getElementById('reportes-kpi-eliminados'),
+    reportesKpiActivos: document.getElementById('reportes-kpi-activos'),
+    reportesKpiChartBody: document.getElementById('reportes-kpi-chart-body'),
+    reportesKpiChartEmpty: document.getElementById('reportes-kpi-chart-empty'),
     reportesSelector: document.getElementById('reportes-selector'),
     btnEliminarReporte: document.getElementById('btn-eliminar-reporte'),
     btnVerMdReporte: document.getElementById('btn-ver-md-reporte'),
@@ -422,11 +426,18 @@
     filtroReporteFechaDesde: document.getElementById('filtro-reporte-fecha-desde'),
     filtroReporteFechaHasta: document.getElementById('filtro-reporte-fecha-hasta'),
     btnLimpiarFiltrosReporte: document.getElementById('btn-limpiar-filtros-reporte'),
-    btnExportarCsv: document.getElementById('btn-exportar-csv'),
-    btnExportarExcel: document.getElementById('btn-exportar-excel'),
-    lecturaReportesTablaWrap: document.getElementById('lectura-reportes-tabla-wrap'),
-    reportesItemsTableBody: document.getElementById('reportes-items-table-body'),
-    reportesItemsEmpty: document.getElementById('reportes-items-empty'),
+    reportesMovimientosWrap: document.getElementById('reportes-movimientos-wrap'),
+    reportesMovimientosConteo: document.getElementById('reportes-movimientos-conteo'),
+    reportesMovimientosTableBody: document.getElementById('reportes-movimientos-table-body'),
+    reportesMovimientosEmpty: document.getElementById('reportes-movimientos-empty'),
+    btnExportarMovimientosCsv: document.getElementById('btn-exportar-movimientos-csv'),
+    btnExportarMovimientosExcel: document.getElementById('btn-exportar-movimientos-excel'),
+    reportesEliminadosWrap: document.getElementById('reportes-eliminados-wrap'),
+    reportesEliminadosConteo: document.getElementById('reportes-eliminados-conteo'),
+    reportesEliminadosTableBody: document.getElementById('reportes-eliminados-table-body'),
+    reportesEliminadosEmpty: document.getElementById('reportes-eliminados-empty'),
+    btnExportarEliminadosCsv: document.getElementById('btn-exportar-eliminados-csv'),
+    btnExportarEliminadosExcel: document.getElementById('btn-exportar-eliminados-excel'),
     lecturaReportesSinSeleccion: document.getElementById('lectura-reportes-sin-seleccion'),
     verMdOverlay: document.getElementById('ver-md-overlay'),
     verMdTitle: document.getElementById('ver-md-title'),
@@ -1712,10 +1723,56 @@
     }
   }
 
+  // Solo administrador/super pueden borrar un reporte (ya lo exige el
+  // backend en las 5 rutas de /admin/reportes con
+  // requireAdminArea('administrador')) — este chequeo en frontend es
+  // defensa en profundidad: oculta el botón directamente en vez de
+  // dejar que alguien lo vea deshabilitado o lo intente y reciba un 403.
+  function puedeEliminarReporte() {
+    return perfilActual === 'administrador' || !RESTRICCIONES_PERFIL[perfilActual];
+  }
+
+  // KPIs de auditoría (histórico completo, no de un reporte en
+  // particular) — tarjetas arriba de la vista, se cargan una sola vez al
+  // entrar. Serie mensual en CSS puro, mismo patrón de barras que
+  // Resumen financiero; una sola serie no necesita leyenda (el título de
+  // la tarjeta ya la nombra).
+  async function cargarEstadisticasReportes() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/reportes/estadisticas`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      els.reportesKpiEliminados.textContent = data.total_eliminados || 0;
+      els.reportesKpiActivos.textContent = data.total_activos || 0;
+
+      const serie = data.eliminados_por_mes || [];
+      els.reportesKpiChartEmpty.hidden = serie.length > 0;
+      els.reportesKpiChartBody.innerHTML = '';
+      if (serie.length === 0) return;
+      const maximo = Math.max(1, ...serie.map((m) => m.total));
+      serie.forEach((m) => {
+        const columna = document.createElement('div');
+        columna.className = 'resumen-fin-chart-columna';
+        columna.innerHTML = `
+          <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtml(m.mes)}: ${m.total} eliminados">
+            <span class="resumen-fin-chart-barra resumen-fin-chart-barra-eliminado-reportes" style="height:${(m.total / maximo) * 100}%" title="${escapeHtml(m.mes)}: ${m.total} eliminados"></span>
+          </div>
+          <span class="resumen-fin-chart-etiqueta">${escapeHtml(m.mes)}</span>
+        `;
+        els.reportesKpiChartBody.appendChild(columna);
+      });
+    } catch (err) {
+      // Las tarjetas se quedan en su valor por defecto (0 / vacío); se puede reintentar cambiando de vista.
+    }
+  }
+
   function limpiarVistaLecturaReportes() {
     els.lecturaReportesResumen.hidden = true;
     els.lecturaReportesFiltros.hidden = true;
-    els.lecturaReportesTablaWrap.hidden = true;
+    els.reportesMovimientosWrap.hidden = true;
+    els.reportesEliminadosWrap.hidden = true;
     els.lecturaReportesSinSeleccion.hidden = false;
     els.btnVerMdReporte.disabled = true;
     els.btnEliminarReporte.disabled = true;
@@ -1731,33 +1788,55 @@
     return params;
   }
 
-  function renderReporteItems(items) {
-    els.reportesItemsTableBody.innerHTML = '';
-    els.reportesItemsEmpty.hidden = items.length > 0;
-    els.lecturaReportesTablaWrap.hidden = false;
+  // Fila de una tabla de reporte — "Detalle" (antes "Estatus") usa el
+  // mismo sistema de badges de color que Tickets/Ventas para un ticket
+  // (estatus real, enum cerrado); una venta guarda "concepto" ahí, texto
+  // libre sin enum, así que se muestra tal cual.
+  const ESTATUS_BADGE_CLASE = {
+    pendiente: 'estatus-pendiente',
+    en_curso: 'estatus-en-curso',
+    cancelado: 'estatus-cancelado',
+    listo: 'estatus-listo',
+  };
+  function renderDetalleItemReporte(item) {
+    if (item.tipo_registro === 'ticket' && ESTATUS_BADGE_CLASE[item.estatus_o_concepto]) {
+      return `<span class="estatus-badge ${ESTATUS_BADGE_CLASE[item.estatus_o_concepto]}">${escapeHtml(item.estatus_o_concepto)}</span>`;
+    }
+    return escapeHtml(item.estatus_o_concepto || '—');
+  }
 
-    items.forEach((item) => {
-      // "Eliminado": el registro ya no existe (se borró por retención
-      // automática, o a mano con el botón "Eliminar") — a diferencia de
-      // un item que solo aparece en una fotografía manual ("Enviar
-      // reporte"), que sigue existiendo tal cual. El tooltip explica la
-      // diferencia al pasar el cursor, sin tener que adivinarla.
-      const badgeEliminado =
-        item.accion === 'eliminado'
-          ? '<span class="estatus-badge estatus-cancelado reportes-badge-eliminado" data-tooltip="Este registro ya no existe: se eliminó de la base de datos. Esta es su información de respaldo, guardada justo antes de borrarse.">Eliminado</span>'
-          : '';
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
+  function renderFilaReporteItem(item) {
+    return `
+      <tr>
         <td data-label="Tipo">${item.tipo_registro === 'ticket' ? 'Ticket' : 'Ventas'}</td>
-        <td data-label="Identificador"><strong>${escapeHtml(item.identificador)}</strong>${badgeEliminado}</td>
+        <td data-label="Identificador"><strong>${escapeHtml(item.identificador)}</strong></td>
         <td data-label="RFC / Correo">${escapeHtml(item.rfc || '—')}</td>
-        <td data-label="Estatus">${escapeHtml(item.estatus_o_concepto || '—')}</td>
+        <td data-label="Detalle">${renderDetalleItemReporte(item)}</td>
         <td data-label="Monto">${item.monto === null ? '—' : `$${formatearMoneda(item.monto)}`}</td>
         <td data-label="Atendido por">${escapeHtml(item.atendido_por || '—')}</td>
         <td data-label="Fecha de registro">${formatearFechaCorta(item.fecha_registro)}</td>
-      `;
-      els.reportesItemsTableBody.appendChild(tr);
-    });
+      </tr>
+    `;
+  }
+
+  // Divide los items ya cargados (una sola petición, sin filtrar por
+  // "accion" del lado del servidor) en 2 tablas separadas — pedido
+  // explícito del usuario para auditoría: un "Eliminado" no debe leerse
+  // mezclado entre registros que siguen activos, aunque ambos vengan del
+  // mismo reporte.
+  function renderReporteItems(items) {
+    const movimientos = items.filter((i) => i.accion !== 'eliminado');
+    const eliminados = items.filter((i) => i.accion === 'eliminado');
+
+    els.reportesMovimientosWrap.hidden = false;
+    els.reportesMovimientosConteo.textContent = movimientos.length;
+    els.reportesMovimientosTableBody.innerHTML = movimientos.map(renderFilaReporteItem).join('');
+    els.reportesMovimientosEmpty.hidden = movimientos.length > 0;
+
+    els.reportesEliminadosWrap.hidden = false;
+    els.reportesEliminadosConteo.textContent = eliminados.length;
+    els.reportesEliminadosTableBody.innerHTML = eliminados.map(renderFilaReporteItem).join('');
+    els.reportesEliminadosEmpty.hidden = eliminados.length > 0;
   }
 
   async function cargarItemsReporteSeleccionado() {
@@ -1799,6 +1878,7 @@
     els.lecturaReportesFiltros.hidden = false;
     els.lecturaReportesSinSeleccion.hidden = true;
     els.btnVerMdReporte.disabled = false;
+    els.btnEliminarReporte.hidden = !puedeEliminarReporte();
     els.btnEliminarReporte.disabled = false;
 
     // Los filtros se reinician al cambiar de reporte — un filtro de RFC
@@ -1840,13 +1920,17 @@
   // "descarga" creando una URL temporal a partir del blob de la
   // respuesta — mismo patrón ya usado para descargar la factura/imagen
   // de un ticket en este mismo archivo.
-  async function exportarReporte(formato) {
+  // "accionFiltro" ('activo' | 'eliminado') scopea la exportación a
+  // exactamente la tabla que la disparó — nunca mezcla Movimientos con
+  // Eliminados en un mismo archivo, mismo criterio que la pantalla.
+  async function exportarReporte(formato, accionFiltro) {
     if (!reporteSeleccionadoId) return;
     const authHeader = getAuthHeader();
     if (!authHeader) return;
     try {
       const params = obtenerFiltrosReporteActuales();
       params.set('formato', formato);
+      params.set('accion', accionFiltro);
       const res = await fetch(`${API_BASE}/admin/reportes/${reporteSeleccionadoId}/exportar?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
@@ -1858,7 +1942,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `reporte-${reporteSeleccionadoId}.${formato === 'excel' ? 'xlsx' : 'csv'}`;
+      a.download = `reporte-${reporteSeleccionadoId}-${accionFiltro}.${formato === 'excel' ? 'xlsx' : 'csv'}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1867,8 +1951,10 @@
       showToast('No se pudo exportar el reporte.');
     }
   }
-  els.btnExportarCsv.addEventListener('click', () => exportarReporte('csv'));
-  els.btnExportarExcel.addEventListener('click', () => exportarReporte('excel'));
+  els.btnExportarMovimientosCsv.addEventListener('click', () => exportarReporte('csv', 'activo'));
+  els.btnExportarMovimientosExcel.addEventListener('click', () => exportarReporte('excel', 'activo'));
+  els.btnExportarEliminadosCsv.addEventListener('click', () => exportarReporte('csv', 'eliminado'));
+  els.btnExportarEliminadosExcel.addEventListener('click', () => exportarReporte('excel', 'eliminado'));
 
   let mdContenidoActual = '';
   let nombreArchivoMdActual = '';
@@ -3050,7 +3136,10 @@
       // así que se carga al mismo tiempo que el resto de esta vista.
       cargarConfigReportes();
     }
-    if (vista === 'lectura-reportes') cargarListaReportes();
+    if (vista === 'lectura-reportes') {
+      cargarListaReportes();
+      cargarEstadisticasReportes();
+    }
   }
 
   els.btnVistaInicio.addEventListener('click', () => cambiarVistaPrincipal('inicio'));

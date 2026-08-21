@@ -1485,7 +1485,42 @@
         <div class="lectura-reportes-header">
           <div>
             <h2 class="lectura-reportes-titulo">Lectura de reportes</h2>
-            <p class="panel-subtitle">Consulta cualquier reporte ya generado, filtra sus registros y expórtalos.</p>
+            <p class="panel-subtitle">Consulta cualquier reporte ya generado, filtra sus registros y expórtalos — pensado para auditorías: qué pasó, cuándo y con qué evidencia.</p>
+          </div>
+        </div>
+
+        <div class="reportes-kpi-grid" id="reportes-kpi-grid">
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Eliminados (histórico)</span>
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="reportes-kpi-eliminados">0</p>
+            <p class="inicio-stat-tendencia">Tickets + ventas realmente borrados de la base de datos</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Movimientos (histórico)</span>
+              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="reportes-kpi-activos">0</p>
+            <p class="inicio-stat-tendencia">Fotografías de registros que seguían activos al reportarse</p>
+          </div>
+          <div class="resumen-fin-chart-card reportes-kpi-chart-card">
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+              <h2>Eliminados por mes</h2>
+            </div>
+            <div id="reportes-kpi-chart-contenido">
+              <div class="resumen-fin-chart-body reportes-kpi-chart-body" id="reportes-kpi-chart-body"></div>
+              <p class="admin-empty" id="reportes-kpi-chart-empty" hidden>Aún no hay eliminados registrados en los últimos 6 meses.</p>
+            </div>
           </div>
         </div>
 
@@ -1497,7 +1532,7 @@
             </select>
           </div>
           <button type="button" class="btn btn-secondary" id="btn-ver-md-reporte" disabled>Ver Markdown completo</button>
-          <button type="button" class="btn btn-danger" id="btn-eliminar-reporte" disabled>Eliminar reporte</button>
+          <button type="button" class="btn btn-danger" id="btn-eliminar-reporte" disabled hidden>Eliminar reporte</button>
         </div>
 
         <div class="lectura-reportes-resumen" id="lectura-reportes-resumen" hidden>
@@ -1556,29 +1591,65 @@
           </div>
           <div class="lectura-reportes-filtros-acciones">
             <button type="button" class="btn btn-secondary" id="btn-limpiar-filtros-reporte">Limpiar filtros</button>
-            <div class="lectura-reportes-exportar">
-              <button type="button" class="btn btn-secondary" id="btn-exportar-csv">Exportar CSV</button>
-              <button type="button" class="btn btn-secondary" id="btn-exportar-excel">Exportar Excel</button>
-            </div>
           </div>
         </div>
 
-        <div class="admin-table-wrap" id="lectura-reportes-tabla-wrap" hidden>
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Identificador</th>
-                <th>RFC / Correo</th>
-                <th>Estatus</th>
-                <th>Monto</th>
-                <th>Atendido por</th>
-                <th>Fecha de registro</th>
-              </tr>
-            </thead>
-            <tbody id="reportes-items-table-body"></tbody>
-          </table>
-          <p class="admin-empty" id="reportes-items-empty" hidden>No hay registros con los filtros seleccionados.</p>
+        <!-- Movimientos: registros que seguían activos al generarse el reporte — no implica que se hayan eliminado. -->
+        <div class="lectura-reportes-subtabla" id="reportes-movimientos-wrap" hidden>
+          <div class="lectura-reportes-subtabla-header">
+            <h3>Movimientos del periodo <span class="lectura-reportes-conteo" id="reportes-movimientos-conteo">0</span></h3>
+            <p class="lectura-reportes-subtabla-nota">Tickets y ventas activos al momento de este reporte — información de respaldo, no un registro de eliminación.</p>
+            <div class="lectura-reportes-exportar">
+              <button type="button" class="btn btn-secondary" id="btn-exportar-movimientos-csv">Exportar CSV</button>
+              <button type="button" class="btn btn-secondary" id="btn-exportar-movimientos-excel">Exportar Excel</button>
+            </div>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Identificador</th>
+                  <th>RFC / Correo</th>
+                  <th>Detalle</th>
+                  <th>Monto</th>
+                  <th>Atendido por</th>
+                  <th>Fecha de registro</th>
+                </tr>
+              </thead>
+              <tbody id="reportes-movimientos-table-body"></tbody>
+            </table>
+            <p class="admin-empty" id="reportes-movimientos-empty" hidden>No hay movimientos con los filtros seleccionados.</p>
+          </div>
+        </div>
+
+        <!-- Eliminados: la evidencia de auditoría real — estos registros ya no existen en tickets/ordenes_compra. -->
+        <div class="lectura-reportes-subtabla lectura-reportes-subtabla-eliminados" id="reportes-eliminados-wrap" hidden>
+          <div class="lectura-reportes-subtabla-header">
+            <h3>Eliminados <span class="lectura-reportes-conteo lectura-reportes-conteo-eliminado" id="reportes-eliminados-conteo">0</span></h3>
+            <p class="lectura-reportes-subtabla-nota">Registros que YA NO existen: se eliminaron por retención automática o a mano. Esta es su evidencia de respaldo.</p>
+            <div class="lectura-reportes-exportar">
+              <button type="button" class="btn btn-secondary" id="btn-exportar-eliminados-csv">Exportar CSV</button>
+              <button type="button" class="btn btn-secondary" id="btn-exportar-eliminados-excel">Exportar Excel</button>
+            </div>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Identificador</th>
+                  <th>RFC / Correo</th>
+                  <th>Detalle</th>
+                  <th>Monto</th>
+                  <th>Atendido por</th>
+                  <th>Fecha de registro</th>
+                </tr>
+              </thead>
+              <tbody id="reportes-eliminados-table-body"></tbody>
+            </table>
+            <p class="admin-empty" id="reportes-eliminados-empty" hidden>No hay eliminados con los filtros seleccionados.</p>
+          </div>
         </div>
 
         <p class="lectura-reportes-vacio" id="lectura-reportes-sin-seleccion">Selecciona un reporte de la lista para ver su contenido.</p>
