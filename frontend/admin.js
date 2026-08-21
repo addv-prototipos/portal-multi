@@ -597,6 +597,21 @@
     sessionStorage.removeItem(SESSION_KEY);
   }
 
+  // Recuerda la última vista del panel dentro de esta MISMA sesión de
+  // pestaña (sessionStorage, no localStorage — se descarta sola al
+  // cerrar la pestaña, igual que SESSION_KEY) para que un refresh del
+  // navegador te deje donde estabas, en vez de mandarte siempre a
+  // "Inicio". Un login nuevo sí resetea esto a "inicio" explícitamente
+  // (ver el submit de #form-login) — la restauración es solo para
+  // refrescar una sesión que ya estaba activa.
+  const CLAVE_VISTA_ACTUAL = 'admin_vista_actual';
+  function guardarVistaActual(vista) {
+    sessionStorage.setItem(CLAVE_VISTA_ACTUAL, vista);
+  }
+  function obtenerVistaGuardada() {
+    return sessionStorage.getItem(CLAVE_VISTA_ACTUAL);
+  }
+
   function formatFecha(fechaInput) {
     if (!fechaInput) return '—';
     const texto = String(fechaInput);
@@ -978,6 +993,11 @@
 
       const data = await res.json();
       setSession(usuario, contrasena);
+      // Login nuevo: siempre "Inicio", sin importar qué vista haya quedado
+      // guardada de una sesión anterior en esta misma pestaña — la
+      // restauración de vista (ver init()) es solo para refrescar una
+      // sesión que ya estaba activa, no para un login recién hecho.
+      guardarVistaActual('inicio');
       showDashboard(data.usuario || usuario, data.perfil);
       // "Inicio" (la vista que se ve por defecto al iniciar sesión) usa
       // datos de tickets, que un perfil "administrador" no tiene
@@ -2966,6 +2986,7 @@
   // ---------- Vista Constancias / Tickets / Usuarios ----------
 
   function cambiarVistaPrincipal(vista) {
+    guardarVistaActual(vista);
     els.btnVistaInicio.classList.toggle('is-active', vista === 'inicio');
     els.btnVistaInicio.setAttribute('aria-selected', String(vista === 'inicio'));
     els.btnVistaConstancias.classList.toggle('is-active', vista === 'constancias');
@@ -5429,13 +5450,15 @@
     els.resumenFinChartBody.innerHTML = '';
     els.resumenFinChartEmpty.hidden = serie.some((m) => m.ventas || m.facturado || m.gastos);
     serie.forEach((m) => {
+      const sinFacturar = Math.max(0, m.ventas - m.facturado);
       const columna = document.createElement('div');
-      columna.className = 'resumen-fin-chart-columna';
+      columna.className = 'resumen-fin-chart-columna resumen-fin-chart-columna--4';
       columna.innerHTML = `
-        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtml(m.mes)}: ventas $${formatearMoneda(m.ventas)}, facturado $${formatearMoneda(m.facturado)}, gastos $${formatearMoneda(m.gastos)}">
+        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtml(m.mes)}: ventas $${formatearMoneda(m.ventas)}, gastos $${formatearMoneda(m.gastos)}, facturado $${formatearMoneda(m.facturado)}, sin facturar $${formatearMoneda(sinFacturar)}">
           <span class="resumen-fin-chart-barra resumen-fin-chart-barra-ventas" style="height:${(m.ventas / maximo) * 100}%" title="Ventas: $${formatearMoneda(m.ventas)}"></span>
-          <span class="resumen-fin-chart-barra resumen-fin-chart-barra-facturado" style="height:${(m.facturado / maximo) * 100}%" title="Facturado: $${formatearMoneda(m.facturado)}"></span>
           <span class="resumen-fin-chart-barra resumen-fin-chart-barra-gastos" style="height:${(m.gastos / maximo) * 100}%" title="Gastos: $${formatearMoneda(m.gastos)}"></span>
+          <span class="resumen-fin-chart-barra resumen-fin-chart-barra-facturado" style="height:${(m.facturado / maximo) * 100}%" title="Facturado: $${formatearMoneda(m.facturado)}"></span>
+          <span class="resumen-fin-chart-barra resumen-fin-chart-barra-sin-facturar" style="height:${(sinFacturar / maximo) * 100}%" title="Sin facturar: $${formatearMoneda(sinFacturar)}"></span>
         </div>
         <span class="resumen-fin-chart-etiqueta">${escapeHtml(m.mes)}</span>
       `;
@@ -6458,6 +6481,28 @@
               showDashboard(data.usuario, data.perfil);
               if (data.perfil !== 'administrador') {
                 cargarRegistros();
+              }
+              // Refresh de una sesión ya activa (no un login nuevo, ese
+              // caso ya fuerza "inicio" en su propio submit): restaura la
+              // última vista que se traía abierta en esta pestaña, solo
+              // si sigue siendo una vista permitida para este perfil —
+              // aplicarRestriccionesPerfil() (dentro de showDashboard) ya
+              // ocultó el botón de cualquier vista no permitida.
+              const botonesPorVista = {
+                inicio: els.btnVistaInicio,
+                constancias: els.btnVistaConstancias,
+                tickets: els.btnVistaTickets,
+                'resumen-financiero': els.btnVistaResumenFinanciero,
+                ordenes: els.btnVistaOrdenes,
+                gastos: els.btnVistaGastos,
+                usuarios: els.btnVistaUsuarios,
+                configuraciones: els.btnVistaConfiguraciones,
+                'lectura-reportes': els.btnVistaLecturaReportes,
+              };
+              const vistaGuardada = obtenerVistaGuardada();
+              const botonGuardado = vistaGuardada && botonesPorVista[vistaGuardada];
+              if (botonGuardado && !botonGuardado.hidden && !botonGuardado.classList.contains('is-active')) {
+                cambiarVistaPrincipal(vistaGuardada);
               }
             });
           }

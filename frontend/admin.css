@@ -1688,7 +1688,19 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: 20px 24px 24px;
+  /* flex column para que #resumen-fin-chart-contenido (ver más abajo)
+     pueda empujarse al fondo con margin-top:auto — sin esto, la tarjeta
+     "Ventas vs Facturado vs Gastos" (sin número grande ni nota arriba,
+     a diferencia de su vecina "Utilidad neta del mes") queda con la
+     gráfica pegada arriba y un hueco en blanco abajo, porque ambas
+     tarjetas se estiran a la misma altura (grid) pero esta tiene menos
+     contenido antes de la gráfica. */
+  display: flex;
+  flex-direction: column;
 }
+/* Solo la tarjeta "Ventas vs Facturado vs Gastos" (id único) — no la de
+   "Utilidad neta", que ya llega abajo por sí sola con su número+nota. */
+#resumen-fin-chart-contenido { margin-top: auto; }
 .resumen-fin-chart-card h2 {
   font-family: var(--font-display);
   font-size: 16px;
@@ -1696,7 +1708,15 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .resumen-fin-chart-body {
   display: flex;
-  align-items: flex-end;
+  /* "flex-start", no "flex-end": la caja de la barra siempre mide 200px
+     fijo en las dos gráficas que usan esta clase; alinear por el TOP
+     garantiza que todas las barras compartan el mismo fondo sin importar
+     si la etiqueta de abajo envuelve a 1 o 2 líneas ("Ventas totales" vs
+     "Gastos") — con "flex-end" se alineaba el fondo de la COLUMNA
+     completa (barra+etiqueta), no el de la barra, y la columna con
+     etiqueta más corta quedaba corrida hacia abajo (bug reportado:
+     barra de Gastos "movida"/"chueca" en Utilidad neta del mes). */
+  align-items: flex-start;
   /* "center" en vez de "space-around": con pocos meses de historial,
      "space-around" + columnas flex:1 estiraba cada mes para llenar todo
      el ancho de la tarjeta, dejando casi todo en blanco alrededor de un
@@ -1721,6 +1741,11 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   gap: 8px;
   flex: 0 0 64px;
 }
+/* Modificador exclusivo de "Ventas vs Facturado vs Gastos" (4 barras, no
+   2 como Utilidad neta) — columna más ancha para que quepan sin apretarse,
+   sin tocar el ancho de la otra gráfica que reutiliza la misma clase base. */
+.resumen-fin-chart-columna--4 { flex: 0 0 82px; }
+.resumen-fin-detalle-contenido-grande .resumen-fin-chart-columna--4 { flex: 0 0 124px; }
 .resumen-fin-chart-barras {
   display: flex;
   align-items: flex-end;
@@ -1736,6 +1761,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .resumen-fin-chart-barra-ventas { background: var(--color-accent); }
 .resumen-fin-chart-barra-facturado { background: #1FAE6B; }
 .resumen-fin-chart-barra-gastos { background: var(--color-border); }
+.resumen-fin-chart-barra-sin-facturar { background: #E4A97E; }
 .resumen-fin-chart-etiqueta {
   font-size: 12px;
   color: var(--color-ink-soft);
@@ -1764,6 +1790,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .resumen-fin-dot-ventas { background: var(--color-accent); }
 .resumen-fin-dot-facturado { background: #1FAE6B; }
 .resumen-fin-dot-gastos { background: var(--color-border); }
+.resumen-fin-dot-sin-facturar { background: #E4A97E; }
 
 /* ---------- Resumen financiero: tarjeta Utilidad neta (punto 118) ---------- */
 .resumen-fin-utilidad-valor {
@@ -1779,6 +1806,12 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   font-size: 12.5px;
   color: var(--color-ink-soft);
 }
+/* Solo 2 columnas en esta tarjeta ("Ventas totales" y "Gastos"), a
+   comparar directamente entre sí — no son meses distintos como en la
+   gráfica principal, así que el mismo gap:28px de esa gráfica las leía
+   como categorías separadas en vez de un par. Las junta más (gap propio,
+   por id para no tocar `.resumen-fin-chart-body` compartido). */
+#resumen-fin-utilidad-body { gap: 14px; }
 /* Barras apiladas de la tarjeta: contenedor de ancho fijo (lección del
    punto 117 — nada de flex:1 que estire columnas), subtotal abajo e IVA
    arriba. Paleta pastel navy ya establecida (#719FD4 / #C0D3EB) y gastos

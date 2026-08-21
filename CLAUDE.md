@@ -491,6 +491,57 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   401→DELETE) y auditoría automática verificada. Pendiente solo revisión
   visual del usuario. Claude Mem: esta sesión siguió con herramientas de
   solo lectura — registro en PROJECT_STATE.md/CLAUDE.md/AGENTS.md/cmem.md.
+- **Fix de alineación + tarjeta "Sin facturar" en Resumen financiero (ver
+  PROJECT_STATE.md punto 121, 2026-08-21, IMPLEMENTADO Y VALIDADO en
+  navegador real)**: causa raíz del bug "barra Gastos movida/chueca" en
+  "Utilidad neta del mes" — `.resumen-fin-chart-body` alineaba columnas
+  por `flex-end`, así que una etiqueta de 2 líneas ("Ventas totales")
+  corría hacia abajo la columna con etiqueta de 1 línea ("Gastos"); fix
+  de 1 línea (`align-items: flex-start`, la caja de la barra siempre es
+  200px fija en ambas). 4ta barra "Sin facturar" en "Ventas vs Facturado
+  vs Gastos" — dato derivado en cliente (`ventas - facturado`, cero
+  cambios de backend), color `#E4A97E` REUTILIZADO del que ya existe
+  para el mismo concepto en la dona vecina (regla de la skill `dataviz`:
+  "color sigue a la entidad"), validado con el validador oficial de
+  paleta. Reordenada junto a "Facturado" y gap de Utilidad neta reducido
+  a pedido del usuario en vivo durante la prueba. **Bug preexistente no
+  relacionado, encontrado y corregido de paso**: refrescar el navegador
+  en cualquier vista distinta de "Inicio" siempre regresaba a Inicio —
+  ahora `sessionStorage` (`admin_vista_actual`) persiste la vista y la
+  restaura solo en refresh de sesión ya activa (nunca en login nuevo,
+  que sigue forzando "Inicio"). Validado en navegador real (Claude in
+  Chrome): zoom a pixel confirmando mismo fondo en ambas barras, 4
+  barras en orden correcto en tarjeta normal y modal expandido, refresh
+  en "Resumen financiero" mantuvo la vista con datos, login nuevo
+  aterrizó en Inicio con datos reales, sin errores de consola. **2
+  ajustes finales tras revisar captura de pantalla**: orden final
+  Ventas/Gastos/Facturado/Sin facturar (Gastos movido junto a Ventas), y
+  fix de alineación vertical entre "Utilidad neta" y "Ventas vs
+  Facturado vs Gastos" (`.resumen-fin-chart-card` a flex column +
+  `#resumen-fin-chart-contenido { margin-top: auto }`, id único, no
+  toca la tarjeta vecina) — ambas tarjetas comparten línea base tras
+  validar con zoom a pixel. Sin commit/push — working tree para
+  revisión del usuario.
+- **Auditoría de consistencia de documentación (ver PROJECT_STATE.md
+  punto 120, 2026-08-21)**: a pedido explícito del usuario ("revisa la
+  documentación"), revisión de salud de los 3 entregables obligatorios
+  del protocolo, sin implementar corrección todavía (solo diagnóstico).
+  Hallazgos: título/línea 1 del README sigue sin mencionar multi-tenant
+  aunque el contenido interno sí lo cubre; README no documenta 3
+  features ya hechas (tarjeta "Utilidad neta del mes" punto 118,
+  gráficas BI punto 117, "Look & Feel" punto 105); `FRONTEND_PORT`
+  documentado con 3 valores distintos entre README/`.env` real (`80`
+  en la tabla, `8080` en ejemplos, `8088` real desde el punto 109); la
+  sección "Pendiente antes de producción" de `PROJECT_STATE.md` (líneas
+  6877-6944) contradice puntos posteriores del mismo archivo (dice
+  "marca no implementada" cuando el punto 103 ya la hizo, dice "falta
+  probar /control en navegador" cuando el punto 100 ya lo hizo).
+  Confirmado vigente y sin resolver: `nodemailer` vulnerable (punto
+  116), Swarm multi-nodo real nunca probado (95/97), `/control` en dos
+  servidores físicos nunca probado (99), red Docker sin segmentar
+  (116). Ningún comando/script de este archivo está roto — todos
+  verificados. No avanzar con la corrección sin aprobación explícita
+  del usuario, mismo protocolo `addv-web-app`.
 - **Vista "Resumen financiero" (ver PROJECT_STATE.md punto 114)**: a
   partir del mockup `stitch/stitch_portal_financiero`, vista nueva y
   propia (no dentro de "Inicio", que es del perfil `fiscal`) para el

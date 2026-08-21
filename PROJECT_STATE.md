@@ -6816,6 +6816,175 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       tarjetas, verificar que el modal de detalle sigue funcionando tras
       un drag, recargar para confirmar restauración, y probar teclado.
 
+120. **Auditoría de consistencia de documentación (2026-08-21, a pedido
+    explícito del usuario — "revisa la documentación")**: revisión de
+    salud/consistencia de los 3 entregables obligatorios del protocolo
+    (`CLAUDE.md`, `PROJECT_STATE.md`, `README.md`), sin implementar
+    ningún cambio (solo diagnóstico, documentado aquí para retomar
+    cuando el usuario confirme el segmento de corrección). Hallazgos:
+    - **Título/framing del README desactualizado**: la línea 1 sigue
+      diciendo "Portal de Facturación ADDV — Carga de Constancia de
+      Situación Fiscal" (nombre de la etapa single-tenant original). El
+      contenido interno SÍ cubre multi-tenant, `/control` (líneas
+      757-878), `docker-stack.yml`/MySQL HA Swarm (líneas 292-337) y
+      slugs (líneas 691-710) — no es una laguna de contenido, solo de
+      título/encabezado.
+    - **Gaps reales en README**: no documenta 3 features ya
+      implementadas y validadas — tarjeta "Utilidad neta del mes"
+      (punto 118), gráficas BI de "Resumen financiero" (punto 117), ni
+      el segmento "Look & Feel" (tema/favicon por tenant, punto 105);
+      ninguna búsqueda de "Look & Feel"/"Identidad visual"/`theme.js`
+      dio resultado en el archivo.
+    - **Inconsistencia `FRONTEND_PORT`**: la tabla de variables de
+      entorno del README (línea 67) documenta el valor por defecto
+      como `80`; la sección "Despliegue local" y varios ejemplos
+      posteriores (líneas 105, 369, 677) usan `http://localhost:8080`
+      sin explicar el salto; y el `.env` real de este repo tiene
+      `FRONTEND_PORT=8088` (fijado en el punto 109) — tres valores
+      distintos sin reconciliar en la documentación.
+    - **Sección "Pendiente / recomendado antes de producción" de este
+      mismo archivo (líneas 6877-6944) desactualizada respecto a
+      puntos posteriores del propio `PROJECT_STATE.md`**: el ítem 6
+      (líneas 6912-6944) dice que los "parámetros de marca" son "solo
+      diagnóstico, no implementado todavía" — falso, el segmento
+      "Marca" (punto 103) ya está hecho y validado contra Docker/MySQL/
+      MinIO reales; el ítem del segmento 9 (líneas 6886-6890) dice que
+      falta "probarlo desde un navegador real" — falso, el punto 100 ya
+      validó `/control` con clics reales en Chrome. Esa sección sigue
+      sin corregirse (queda como parte del segmento de corrección
+      pendiente de aprobación, no tocada en esta auditoría).
+    - **Deuda técnica pendiente real, vigente, confirmada por esta
+      auditoría** (no contradicha por ningún punto posterior):
+      `nodemailer@6.10.1` vulnerable (CRLF/SSRF vía opción `raw`),
+      requiere salto de major a v9 con prueba SMTP real antes de
+      mergear (punto 116); Docker Swarm multi-nodo real nunca probado
+      (puntos 95/97); despliegue de `/control` en dos servidores
+      físicos distintos nunca probado (punto 99); segmentación de la
+      red plana de Docker no aplicada (punto 116, recomendación no
+      tomada).
+    - **Comandos/scripts verificados, ninguno roto**: todos los scripts
+      citados en `CLAUDE.md` bajo "Comandos frecuentes" existen tal
+      cual se nombran (`backend/scripts/{verificar-mysql,
+      configure-replica,verify-replication,promote-replica,
+      provisionar-tenant,cutover-tenant-piloto}.js`, `control/server.js`,
+      `docker-stack.yml`).
+    - **Nada de esto se corrigió todavía** — el usuario pidió documentar
+      y esperar. Próximo paso, solo con aprobación explícita: corregir
+      título/framing del README, agregar las 3 features faltantes,
+      reconciliar `FRONTEND_PORT`, y actualizar la sección "Pendiente"
+      de este archivo para que deje de contradecir los puntos 100/103.
+
+121. **Fix de alineación de barras + tarjeta "Sin facturar" en Resumen
+    financiero, IMPLEMENTADO Y VALIDADO en navegador real (2026-08-21)**:
+    a pedido del usuario con capturas de pantalla, protocolo
+    `addv-web-app` completo (análisis con causa raíz + propuesta en
+    markdown con skills usadas/justificación + validación de paleta con
+    `dataviz` + aprobación explícita "Sí, implementa todo el segmento").
+    - **Bug real corregido — barra "Gastos" desalineada en "Utilidad
+      neta del mes"**: causa raíz, no síntoma — `.resumen-fin-chart-body`
+      (clase compartida por las 2 gráficas de barras de esta vista)
+      usaba `align-items: flex-end`; como cada columna es
+      `flex-direction: column` sin `justify-content`, su alto total
+      dependía de cuántas líneas ocupara la etiqueta de abajo ("Ventas
+      totales" envuelve a 2 líneas, "Gastos" a 1), y `flex-end` alineaba
+      el fondo de la COLUMNA completa (barra+etiqueta), no el de la
+      barra — la columna con etiqueta más corta quedaba corrida hacia
+      abajo. Fix de 1 línea: `align-items: flex-start` — como la caja de
+      la barra siempre mide 200px fijo en ambas columnas, alinear por el
+      top garantiza el mismo fondo sin importar el wrap de la etiqueta.
+      Válido para las 2 únicas instancias que usan esa clase (verificado
+      por grep antes de tocarla).
+    - **Feature nueva — 4ta barra "Sin facturar" en "Ventas vs Facturado
+      vs Gastos"**: dato derivado en el cliente (`ventas - facturado`
+      por mes, mismo cálculo que ya usa el backend para el KPI
+      `ventas_sin_facturar`) — **cero cambios de backend/API/esquema**.
+      Color: `#E4A97E`, REUTILIZADO del que ya existe para el mismo
+      concepto en la dona vecina "Ventas facturadas vs sin facturar"
+      (`RESUMEN_FIN_COLOR_SIN_FACTURAR`) — no se inventó un color nuevo;
+      validado con el script oficial de la skill `dataviz`
+      (`scripts/validate_palette.js`): separación CVD y umbral de
+      visión normal en PASS contra los 3 colores existentes de la
+      gráfica (navy/verde/gris); el FAIL de banda de luminosidad/croma
+      es de los colores de marca YA aprobados en producción (punto
+      117), fuera de alcance de este cambio; el WARN de contraste vs.
+      fondo blanco está mitigado porque la gráfica ya tiene leyenda +
+      tooltip + `aria-label` por barra (excepción explícita que permite
+      la skill cuando hay codificación secundaria).
+    - **2 ajustes de orden/espaciado pedidos en vivo durante la
+      implementación** (mensajes del usuario mientras se validaba en
+      navegador): la barra "Sin facturar" se reordenó para quedar junto
+      a "Facturado" (Ventas, Facturado, Sin facturar, Gastos — agrupa
+      visualmente las dos partidas que suman Ventas), y el `gap` entre
+      "Ventas totales"/"Gastos" en la tarjeta de Utilidad neta se redujo
+      de 28px (heredado de la gráfica mensual, pensado para separar
+      MESES) a 14px por id propio (`#resumen-fin-utilidad-body`), para
+      que las 2 únicas columnas se lean como un par comparativo directo,
+      no como categorías separadas.
+    - **Archivos tocados**: `frontend/admin.css` (align-items fix +
+      modificador `.resumen-fin-chart-columna--4` para ensanchar solo
+      esta gráfica de 4 barras, normal 64→82px y vista expandida en
+      modal 100→124px, sin tocar el ancho de la gráfica de Utilidad
+      neta que comparte la clase base; color de barra y dot de leyenda
+      nuevos; gap reducido de Utilidad neta), `frontend/admin.html`
+      (4to `<li>` de leyenda), `frontend/admin.js` (4to `<span>` en el
+      loop de render + `Math.max(0, ...)` defensivo + `aria-label`
+      actualizado).
+    - **Validado en navegador real (Claude in Chrome)**: rebuild
+      `--no-cache` + `--force-recreate` del frontend en cada iteración;
+      zoom a pixel sobre ambas barras de Utilidad neta confirmando el
+      mismo fondo exacto (bug resuelto); las 4 barras visibles y en el
+      orden correcto tanto en la tarjeta normal como en el modal
+      "expandir" (ambas vistas probadas); sin errores de consola.
+    - **`node --check` limpio** en `admin.js` en cada edición; llaves
+      CSS balanceadas (593/593 antes de esta ronda). Sin cambios de
+      backend, sin tests Jest nuevos requeridos (endpoint no tocado).
+    - **Bug preexistente NO relacionado, encontrado durante la
+      validación manual y corregido de paso** (reportado por el usuario
+      a mitad de la prueba): al refrescar el navegador estando en
+      cualquier vista del panel que no fuera "Inicio", la SPA siempre
+      regresaba a "Inicio" en vez de quedarse donde estaba — causa raíz:
+      `init()` (la función que revalida la sesión guardada en cada
+      carga de página) llamaba `showDashboard()` pero nunca explícitaba
+      qué vista mostrar, así que quedaba lo que el HTML trae por defecto
+      (Inicio visible) sin importar la vista anterior. Fix: nueva clave
+      `admin_vista_actual` en `sessionStorage` (mismo criterio que
+      `SESSION_KEY`, se descarta sola al cerrar la pestaña) —
+      `cambiarVistaPrincipal(vista)` la persiste en cada navegación;
+      `init()` la restaura al validar la sesión, PERO solo si el botón
+      de esa vista sigue visible para el perfil actual (reutiliza el
+      mismo mecanismo de `boton.hidden` que ya aplica
+      `aplicarRestriccionesPerfil()`); el submit de login (`#form-login`)
+      la resetea explícitamente a `'inicio'` ANTES de `showDashboard()`,
+      para que un login nuevo en la misma pestaña (con una vista vieja
+      todavía guardada de una sesión anterior) siempre aterrice en
+      Inicio — cumpliendo el pedido explícito del usuario de que
+      "Inicio" siga siendo la landing page justo después de iniciar
+      sesión, y que solo el REFRESH de una sesión ya activa recuerde la
+      vista. Validado en navegador real: refresh estando en "Resumen
+      financiero" mantuvo esa vista con sus datos cargados; login nuevo
+      después de cerrar sesión aterrizó en Inicio con datos reales
+      (15/6/8/1). Sin cambios de backend.
+    - **2 ajustes finales pedidos tras revisar la captura de pantalla**:
+      (1) orden final de las 4 barras: Ventas, **Gastos** (movido junto a
+      Ventas, a pedido explícito), Facturado, Sin facturar — Gastos ya
+      no queda al extremo derecho separado de Ventas por 2 barras. (2)
+      **Alineación vertical entre las 2 tarjetas de gráfica de barras**:
+      como ambas tarjetas se estiran a la misma altura (grid, stretch
+      por defecto) pero "Ventas vs Facturado vs Gastos" no tiene número
+      grande ni nota arriba (a diferencia de su vecina "Utilidad neta
+      del mes"), su gráfica quedaba pegada arriba con un hueco en blanco
+      abajo — las barras de las 2 tarjetas no compartían la misma línea
+      base visual. Fix: `.resumen-fin-chart-card` pasó a `display:flex;
+      flex-direction:column` y `#resumen-fin-chart-contenido` (id único,
+      no afecta a la tarjeta de Utilidad neta) recibió `margin-top:auto`
+      para empujarse al fondo de la tarjeta, moviendo el hueco de abajo
+      hacia arriba. Validado en navegador real con zoom a pixel: las
+      barras de ambas tarjetas comparten exactamente la misma línea
+      base. Sin errores de consola.
+    - **No se hizo commit/push** — cambios en el working tree para
+      revisión del usuario, mismo criterio que el resto de segmentos de
+      esta sesión.
+
 
 ## Limitaciones de ESTE entorno de generación (importante)
 
