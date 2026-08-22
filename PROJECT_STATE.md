@@ -7517,6 +7517,90 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       antes de asumir que es un problema de layout. Sin commit/push
       todavía.
 
+129. **Simplificación del formulario de "Registrar venta" + wizard móvil
+    de 3 pasos (punto 2 pendiente del punto 126) — IMPLEMENTADO Y
+    VALIDADO (2026-08-22)**: usuario pidió continuar con el wizard móvil
+    y, de paso, ocultar 3 campos que "no aportan visualmente": Fecha de
+    venta, IVA, y Cantidad — pidió que se cuestionara/mejorara la
+    propuesta antes de implementar (protocolo `addv-web-app`).
+    - **Ambigüedad resuelta ANTES de tocar código**: había dos campos
+      "Cantidad" — el de piezas por producto (editable, obligatorio,
+      NO se toca) y el agregado en pesos "Cantidad (MXN)" (readonly,
+      autogenerado). Se confirmó con el usuario que se refería al
+      segundo. Aclarado explícitamente en el análisis para no romper
+      la captura de productos.
+    - **Decisiones confirmadas por el usuario** (cuestionario): (1)
+      dejar un mini-resumen chico "Subtotal $X · IVA $Y" arriba del
+      Total en vez de quitar todo rastro — para poder verificar el
+      cálculo antes de guardar, no solo después; (2) la simplificación
+      aplica a AMBOS, escritorio y móvil, no solo al wizard — un solo
+      formulario, no dos versiones divergentes.
+    - **Qué se ocultó** (`frontend/admin.html`): los 3 bloques
+      (`.field hidden`) de Fecha de venta, Cantidad (MXN) e IVA — los
+      inputs/textos se QUEDAN en el DOM (Fecha e IVA son de solo
+      escritura desde JS, Cantidad-MXN la sigue leyendo la validación
+      del envío), cero cambio de comportamiento, solo visual. Se
+      confirmó grepeando `admin.js` que ninguno de los 3 se lee de
+      vuelta salvo `#orden-cantidad` (ya cubierto). El dato sigue
+      disponible en la tabla de productos agregados y en "Ver venta"
+      (modal de detalle) después de guardar.
+    - **Mini-resumen**: `actualizarTotalPreviewOrden()` ahora también
+      escribe `#orden-mini-resumen` (reusa la clase `.field-hint`, cero
+      CSS nuevo) — el IVA mostrado se calcula como `total - cantidad`
+      (no independiente) para que nunca se desfase 1 centavo contra el
+      Total ya redondeado.
+    - **Wizard de 3 pasos, solo móvil (<900px)** — reusa el componente
+      `.steps`/`.step`/`.step-dot` YA VALIDADO en `csf.html`, cero
+      componente nuevo. Orden: Cliente → Productos → Confirmar (mismo
+      orden ya aprobado en el punto 126). El DOM NO se reordenó — el
+      orden de escritorio se queda igual que siempre (Productos,
+      Confirmar, Cliente al final); en móvil cada `.orden-wizard-paso`
+      ocupa el mismo lugar exclusivamente vía `display:none`/`.is-active`
+      dentro de `@media(max-width:900px)`, así que la posición en el DOM
+      no afecta el orden visual del wizard. En escritorio esa media
+      query no aplica — los 3 bloques se ven todos juntos, una sola
+      página, como siempre.
+    - **Validación por paso** (`frontend/admin.js`): "Siguiente" desde
+      Cliente exige correo válido (`validarPasoClienteOrden()`, función
+      nueva compartida con el handler de envío final — antes esa
+      validación estaba duplicada inline, ahora una sola fuente de
+      verdad); "Siguiente" desde Productos exige al menos 1 producto
+      agregado. El botón "Registrar venta" NO vive dentro del paso 3 en
+      el DOM (evita romper el orden de escritorio) — se oculta/muestra
+      por JS (`ordenRegistrarBtnRow.hidden`) leyendo
+      `window.matchMedia('(max-width:900px)')`, así en escritorio
+      siempre está visible sin importar el "paso" interno.
+    - **Modal a pantalla completa en móvil**: clase nueva
+      `.orden-registrar-modal` (no toca otros usos de `.ticket-modal`
+      en Tickets/Gastos/etc.) — `width/height:100vw/100vh`, sin
+      `border-radius`, `overlay` sin padding, solo dentro de
+      `@media(max-width:900px)`.
+    - **Verificación**: `node --check` limpio, CSS balanceado (654/654),
+      9 ids nuevos verificados sin duplicados, Jest backend **560/560**
+      (sin cambios de backend). Rebuild de `frontend`, health 200 OK.
+    - **Validado en navegador real (Claude in Chrome)**, escritorio Y
+      móvil, con guardado real de punta a punta en ambos: escritorio —
+      formulario sin los 3 bloques ocultos, mini-resumen visible
+      ("Subtotal $200.00 · IVA $32.00" → Total $232.00, matemática
+      correcta), venta guardada y confirmada por API. Móvil — mismo
+      arnés de viewport genuino (390×844) del punto 128, con un ajuste
+      nuevo necesario: como `esVistaMovilOrden()` lee
+      `window.matchMedia` real (no el `body.max-width` inyectado), hubo
+      que además sobreescribir temporalmente `window.matchMedia` en el
+      arnés de prueba para que la lógica JS del wizard coincidiera con
+      el CSS forzado — documentado aquí para la próxima sesión que
+      pruebe algo con lógica JS condicionada por `matchMedia`. Con eso:
+      wizard completo probado paso a paso — bloqueo de "Siguiente" sin
+      correo (paso 1) y sin productos (paso 2) confirmados, "Atrás"
+      conserva los datos capturados, paso 3 muestra el mini-resumen y
+      Total correctos (Subtotal $450.00 · IVA $72.00 → $522.00), y el
+      guardado real desde el paso 3 se confirmó contra la API
+      (`GET /api/admin/ordenes-compra`, venta con concepto/cantidad/
+      total exactos). Cero errores de consola en todo el recorrido
+      (ambos tamaños). Con esto, el punto 2 pendiente del punto 126
+      queda completo — el segmento "Rediseño de Ventas" del punto 126
+      queda 100% implementado y validado. Sin commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

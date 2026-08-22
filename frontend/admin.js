@@ -219,6 +219,14 @@
     btnCerrarOrdenModal: document.getElementById('btn-cerrar-orden-modal'),
     ordenFormExito: document.getElementById('orden-form-exito'),
     ordenFechaAuto: document.getElementById('orden-fecha-auto'),
+    // Wizard de 3 pasos (solo activo en móvil, <900px)
+    ordenWizardSteps: document.getElementById('orden-wizard-steps'),
+    ordenWizardPasos: document.querySelectorAll('.orden-wizard-paso'),
+    ordenWizardNav: document.getElementById('orden-wizard-nav'),
+    btnOrdenPasoAtras: document.getElementById('btn-orden-paso-atras'),
+    btnOrdenPasoSiguiente: document.getElementById('btn-orden-paso-siguiente'),
+    ordenRegistrarBtnRow: document.getElementById('orden-registrar-btn-row'),
+    ordenMiniResumen: document.getElementById('orden-mini-resumen'),
     ordenConcepto: document.getElementById('orden-concepto'),
     ordenConceptoContador: document.getElementById('orden-concepto-contador'),
     ordenCantidad: document.getElementById('orden-cantidad'),
@@ -4158,14 +4166,81 @@
   els.btnOrdenClienteRegistrado.addEventListener('click', () => aplicarModoClienteOrden(false));
   els.btnOrdenClienteNuevo.addEventListener('click', () => aplicarModoClienteOrden(true));
 
+  // Wizard de 3 pasos (Cliente → Productos → Confirmar), solo activo en
+  // móvil (<900px, ver admin.css) — en escritorio los 3 ".orden-wizard-paso"
+  // ya se muestran todos juntos vía CSS, así que aquí solo hace falta
+  // ocultar/mostrar el botón "Registrar venta" según el ancho real de
+  // pantalla (en escritorio siempre visible, nunca gateado por paso).
+  let ordenPasoActual = 1;
+  function esVistaMovilOrden() {
+    return window.matchMedia('(max-width: 900px)').matches;
+  }
+  function irAPasoOrdenWizard(numero) {
+    ordenPasoActual = numero;
+    els.ordenWizardPasos.forEach((paso) => {
+      paso.classList.toggle('is-active', Number(paso.dataset.paso) === numero);
+    });
+    els.ordenWizardSteps.querySelectorAll('.step').forEach((step) => {
+      const num = Number(step.dataset.step);
+      step.classList.toggle('is-active', num === numero);
+      step.classList.toggle('is-done', num < numero);
+    });
+    const movil = esVistaMovilOrden();
+    els.btnOrdenPasoAtras.hidden = !movil || numero === 1;
+    els.btnOrdenPasoSiguiente.hidden = !movil || numero === 3;
+    els.ordenRegistrarBtnRow.hidden = movil && numero !== 3;
+    const dialogo = els.ordenRegistrarModalOverlay.querySelector('.ticket-modal');
+    if (dialogo) dialogo.scrollTop = 0;
+  }
+
+  function validarPasoClienteOrden() {
+    setFieldError('orden-email', '');
+    setFieldError('orden-email-nuevo', '');
+    const email = ordenModoClienteNuevo
+      ? els.ordenEmailNuevo.value.trim().toLowerCase()
+      : els.ordenEmail.value;
+    if (ordenModoClienteNuevo) {
+      if (!email || !els.ordenEmailNuevo.checkValidity()) {
+        setFieldError('orden-email-nuevo', 'Captura un correo electrónico válido.');
+        return false;
+      }
+    } else if (!email) {
+      setFieldError('orden-email', 'Selecciona un correo electrónico.');
+      return false;
+    }
+    return true;
+  }
+
+  els.btnOrdenPasoSiguiente.addEventListener('click', () => {
+    if (ordenPasoActual === 1) {
+      if (!validarPasoClienteOrden()) return;
+      irAPasoOrdenWizard(2);
+    } else if (ordenPasoActual === 2) {
+      document.getElementById('error-orden-producto-general').textContent =
+        productosOrdenActual.length === 0 ? 'Agrega al menos un producto para continuar.' : '';
+      if (productosOrdenActual.length === 0) return;
+      irAPasoOrdenWizard(3);
+    }
+  });
+  els.btnOrdenPasoAtras.addEventListener('click', () => {
+    irAPasoOrdenWizard(Math.max(1, ordenPasoActual - 1));
+  });
+
   function actualizarTotalPreviewOrden() {
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
       els.ordenTotalPreview.textContent = '$0.00 MXN';
+      els.ordenMiniResumen.textContent = '';
       return;
     }
     const total = Math.round(cantidad * (1 + ivaActualParaOrden / 100) * 100) / 100;
     els.ordenTotalPreview.textContent = `$${formatearMoneda(total)} MXN`;
+    // Sustituye los campos "Cantidad (MXN)"/"IVA" (ocultos, ver
+    // admin.html) por un resumen chico de una línea — mismo dato, sin
+    // ocupar 2 bloques completos. La resta contra el total ya redondeado
+    // evita que el IVA mostrado y el total mostrado se desfasen entre sí.
+    const ivaMonto = Math.round((total - cantidad) * 100) / 100;
+    els.ordenMiniResumen.textContent = `Subtotal $${formatearMoneda(cantidad)} · IVA $${formatearMoneda(ivaMonto)}`;
   }
 
   async function cargarConfigGlobalParaOrden() {
@@ -4293,6 +4368,7 @@
     setFieldError('orden-email', '');
     setFieldError('orden-email-nuevo', '');
     actualizarDatosClienteOrden();
+    irAPasoOrdenWizard(1);
   }
 
   function setRegistrarOrdenLoading(isLoading) {
@@ -4328,15 +4404,7 @@
       setFieldError('orden-cantidad', 'Captura una cantidad mayor a cero.');
       valido = false;
     }
-    if (ordenModoClienteNuevo) {
-      if (!email || !els.ordenEmailNuevo.checkValidity()) {
-        setFieldError('orden-email-nuevo', 'Captura un correo electrónico válido.');
-        valido = false;
-      }
-    } else if (!email) {
-      setFieldError('orden-email', 'Selecciona un correo electrónico.');
-      valido = false;
-    }
+    if (!validarPasoClienteOrden()) valido = false;
     if (!valido) return;
 
     setRegistrarOrdenLoading(true);

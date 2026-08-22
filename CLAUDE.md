@@ -598,6 +598,31 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   `@media` reales (`window.innerWidth` no cambia) — hay que replicar
   las reglas del breakpoint manualmente en el arnés de prueba. Sin
   commit/push todavía.
+- **Simplificación del formulario de Ventas + wizard móvil de 3 pasos
+  — COMPLETA (ver PROJECT_STATE.md punto 129, 2026-08-22)**: cierra el
+  punto 2 pendiente del punto 126 (wizard Cliente→Productos→Confirmar,
+  reusa `.steps` de `csf.html`, cero componente nuevo) y de paso oculta
+  3 campos que no aportan visualmente (Fecha de venta, IVA, "Cantidad
+  MXN" agregada — NO la de piezas por producto, esa sigue editable) a
+  pedido del usuario, aplicado a escritorio Y móvil (un solo
+  formulario). Los 3 campos ocultos se quedan en el DOM (siguen
+  recibiendo su valor por JS, cero cambio de comportamiento) —
+  sustituidos por un mini-resumen chico "Subtotal $X · IVA $Y" arriba
+  del Total (reusa `.field-hint`, sin CSS nuevo). DOM sin reordenar
+  (escritorio se ve igual que siempre); en móvil cada paso ocupa el
+  mismo lugar vía `display:none`/`.is-active`. Botón "Registrar venta"
+  vive fuera del wizard (se muestra/oculta por JS con
+  `matchMedia('900px')`, nunca se mueve de sitio en el DOM). Validación
+  por paso: "Siguiente" exige correo (paso 1) o ≥1 producto (paso 2).
+  Modal a pantalla completa en móvil (`.orden-registrar-modal`, no
+  toca otros usos de `.ticket-modal`). Jest 560/560. **Validado en
+  navegador real de punta a punta en ambos tamaños, con guardado real
+  contra la API en cada uno** (escritorio: $200+$32 IVA=$232; móvil:
+  $450+$72 IVA=$522, ambos confirmados por `GET /ordenes-compra`).
+  Bloqueo de "Siguiente" sin correo/sin productos confirmado, "Atrás"
+  conserva datos. Cero errores de consola. Con esto el segmento
+  "Rediseño de Ventas" del punto 126 queda 100% completo. Sin
+  commit/push todavía.
 - **"Lectura de reportes" rediseñada para auditorías (ver
   PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
   `reporte_items.accion` ya distinguía "eliminado" (borrado real) de

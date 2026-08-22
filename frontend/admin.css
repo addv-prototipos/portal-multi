@@ -993,6 +993,35 @@
   font-weight: 700;
   color: var(--color-accent-dark);
 }
+#orden-mini-resumen { margin: 0 0 6px; }
+
+/* Wizard de 3 pasos (Cliente/Productos/Confirmar) — SOLO en móvil
+   (<900px). En escritorio los 3 ".orden-wizard-paso" siguen mostrándose
+   todos juntos, una sola página, como siempre — el orden en el DOM no
+   cambió (Productos, Confirmar, Cliente), el número de paso es
+   independiente de esa posición porque en móvil cada uno ocupa el mismo
+   lugar exclusivamente. */
+.orden-wizard-steps { display: none; }
+.orden-wizard-nav { display: none; }
+@media (max-width: 900px) {
+  .orden-wizard-steps { display: flex; }
+  .orden-wizard-paso { display: none; }
+  .orden-wizard-paso.is-active { display: block; }
+  .orden-wizard-nav { display: flex; }
+}
+
+/* Modal "Registrar venta" a pantalla completa en móvil — clase propia
+   (no toca el resto de usos de .ticket-modal en Tickets/Gastos/etc). */
+@media (max-width: 900px) {
+  #orden-registrar-modal-overlay { padding: 0; }
+  .orden-registrar-modal {
+    max-width: 100vw;
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}
 
 /* Captura de productos de una orden de compra: se arma el concepto final
    y la cantidad (MXN) sumando productos, en vez de escribirlos a mano
