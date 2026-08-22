@@ -7202,6 +7202,320 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       correctos, sin errores de consola.
     - **Segmento completo (B+C+D)**: sin commit/push todavía.
 
+126. **Rediseño de la vista "Ventas" — APROBADO POR EL USUARIO, PENDIENTE
+    DE IMPLEMENTAR (2026-08-21)**: protocolo `addv-web-app` completo
+    (revisión del estado real → propuesta con 3 alternativas + skills/
+    justificación → usuario aprobó, pidió además rediseñar la versión
+    web → crítica constructiva del propio usuario a su idea + ajuste
+    propuesto → usuario aprobó ese ajuste + pidió una mejora más sobre
+    la notificación de guardado → propuesta visual → **usuario aprobó
+    todo, pidió documentar antes de implementar** por si se corta la
+    sesión). Nada de esto está implementado todavía — es la
+    especificación completa aprobada, para que cualquier sesión futura
+    (esta u otra) pueda implementarla sin tener que rederivar el diseño
+    ni volver a preguntar.
+    - **Estado real actual de "Ventas"** (verificado en código antes de
+      proponer, para no perder nada): formulario expandible/colapsable
+      con memoria de preferencia + captura por **productos
+      individuales** (concepto+precio+cantidad se agregan a una lista,
+      el "Concepto" final de la venta se compone solo a partir de esa
+      lista) + toggle "Tipo de cliente" (Cliente ya registrado / Cliente
+      nuevo) + selector de correo con RFC/razón social de solo lectura
+      (verificación visual) + IVA/Total calculados en vivo (foto del
+      IVA global al momento de guardar, no retroactivo) + tabla lateral
+      sticky con columnas ajustables/ocultables (mismo mecanismo que
+      Constancias) + ícono ✅ "ya facturado" + tooltip de razón social
+      en el correo + botón "Reenviar correo" + botón "Eliminar" + modal
+      de detalle de venta (`#orden-modal-overlay`, YA EXISTE, separado
+      del formulario de registrar) + correo de confirmación tipo
+      ticket. La tabla YA tiene fallback de tarjetas apiladas en móvil
+      (`data-label` + CSS genérica de `.admin-table` a los 760px,
+      mecanismo compartido con toda la app) — no partía de cero.
+      `GET /api/admin/ordenes-compra` ya trae la lista COMPLETA sin
+      paginar (sin filtros de query) — clave para el punto de filtros
+      más abajo.
+    - **1. Formulario → botón + modal** (ya no sticky en la barra
+      lateral): botón **"+ Registrar venta"** en la toolbar (junto a
+      "Columnas"/"Actualizar") abre un modal reutilizando el patrón
+      `.ticket-modal` ya existente (max-width 820px, mismo lenguaje
+      visual que "Gestionar" de Tickets) — no un componente nuevo desde
+      cero. "Ventas registradas" pasa a ocupar el ancho completo del
+      panel.
+    - **2. Un solo modal para las 2 plataformas**: en escritorio (≥900px)
+      el modal muestra el formulario en una columna, tal cual sus
+      campos actuales. En móvil (<900px) el MISMO modal se vuelve
+      pantalla completa y adentro se activa un **wizard de 3 pasos**
+      (reutilizando el patrón de 3 pasos YA validado en `csf.html` del
+      portal de cliente, no un patrón nuevo): **① Cliente** (tipo de
+      cliente + correo/RFC/nombre verificado) → **② Productos**
+      (agregar productos, tarjetas en vez de tabla, subtotal visible) →
+      **③ Confirmar** (resumen completo, IVA, total grande, botón
+      Registrar). Puntos de progreso arriba, "Atrás"/"Siguiente" entre
+      pasos. Un solo componente que mantener, no dos.
+    - **3. El modal NO se cierra solo al guardar**: se limpia y se
+      queda abierto, listo para la siguiente venta — corrige a
+      propósito la pérdida del flujo actual de "registrar varias
+      ventas seguidas sin volver a subir" (documentado así en el
+      README de hoy) que un modal ingenuo rompería. Botón "✕"/"Cerrar"
+      explícito para cuando ya se terminó de capturar.
+    - **4. Confirmación de guardado INLINE, no toast** (ajuste pedido
+      explícitamente porque "el toast muchas veces no se nota"): al
+      guardar con éxito, el formulario se desvanece (`opacity`) y en su
+      lugar aparece, DENTRO del mismo modal, una palomita (✓) que se
+      "dibuja" con una animación de trazo SVG (`stroke-dashoffset`) en
+      **cyan de marca `#05DBF2`** (el mismo cyan ya usado para el ítem
+      activo del sidebar — reutilizado, no inventado) + texto "Guardado
+      con éxito" debajo. Dura ~600ms dibujándose + ~700ms visible +
+      fade out — corto pero imposible de no ver, porque aparece justo
+      donde ya está la vista puesta. Respeta
+      `prefers-reduced-motion` (palomita ya completa, sin animar el
+      trazo — mismo criterio que `mantenimiento.html`). Solo
+      `opacity`/`transform`/trazo SVG, nada que dispare layout.
+      Después del fade, el formulario se limpia para la siguiente
+      venta (retoma el punto 3).
+    - **5. Filtros nuevos en "Ventas registradas"**: buscar por
+      concepto (texto), rango de fechas, rango de total — **100% en el
+      cliente (JS), sin cambios de backend**, ya que la lista completa
+      se trae de una sola vez sin paginar; mismo patrón ya establecido
+      del buscador de Constancias (`admin-search-input` +
+      `normalizar()`), extendido con 2 filtros de rango nuevos.
+    - **6. Cero funcionalidad perdida** (checklist explícito para
+      cuando se implemente): line-items de productos, toggle tipo de
+      cliente, verificación de correo/RFC/nombre, cálculo de IVA/Total
+      con foto no retroactiva, ícono ✅ facturado, tooltip de razón
+      social, reenviar correo, eliminar venta, modal de detalle
+      (`#orden-modal-overlay`, sigue siendo un modal aparte del nuevo
+      "Registrar venta"), columnas ajustables/ocultables de la tabla.
+    - **Skills a usar al implementar**: `frontend-design-direction` +
+      `impeccable` (el wizard y el modal no deben sentirse genéricos),
+      `low-impact-motion` (checkmark + fade, solo transform/opacity),
+      `accessibility-review` + `web-performance-accessibility`
+      (checklist final, objetivo táctil ≥44px real en el wizard móvil,
+      no solo al límite como hoy), `ux-copy` (texto de cada paso del
+      wizard y del mensaje de éxito).
+    - **4 ideas de funcionalidad nueva OFRECIDAS, sin decidir todavía**
+      (el usuario dijo explícitamente "ya te digo si las implementamos
+      o guardamos para después" — preguntar antes de tocar cualquiera
+      de estas si se retoma esta sesión):
+      1. Productos frecuentes — mini-catálogo reutilizable (un tap
+         llena concepto+precio en vez de reescribir cada vez).
+      2. Buscador de cliente por nombre/RFC (no solo el desplegable de
+         correos actual) — mejor si el catálogo de clientes crece.
+      3. Compartir el resumen de la venta por WhatsApp, además del
+         correo.
+      4. Borrador local (`localStorage`) por si se pierde la conexión a
+         medio capturar una venta en campo.
+    - **Nada implementado todavía** — este punto es la especificación
+      completa aprobada, no un resumen de trabajo hecho. Antes de
+      implementar: confirmar con el usuario si alguna de las 4 ideas
+      opcionales entra en este mismo segmento o se queda para después
+      (seguía sin respuesta cuando se documentó esto). Mismo protocolo
+      `addv-web-app` de siempre para el resto de sesiones — no saltarse
+      la validación en navegador real ni el registro en Jest al
+      implementar.
+    - **Parte web (puntos 1, 3, 4, 5 de la lista de arriba)
+      IMPLEMENTADA Y VALIDADA en navegador real (2026-08-22)** — a
+      pedido explícito del usuario ("comienza los cambios aprobados,
+      primero para web"). El wizard móvil de 3 pasos (punto 2, dentro
+      del mismo modal) queda para la siguiente ronda, sin tocar todavía.
+      - **HTML**: el formulario completo se movió tal cual (mismos
+        campos, mismos ids) de `.orden-compra-columna-form` (sticky) a
+        un modal nuevo `#orden-registrar-modal-overlay` (reusa
+        `.ticket-modal`, 820px, mismo patrón que "Gestionar" de
+        Tickets). Se quitó el botón/chevron de colapsar (ya no aplica,
+        el modal abierto/cerrado ES el show/hide). Botón nuevo
+        **"+ Registrar venta"** en la toolbar. Barra de filtros nueva
+        `.ordenes-filtros` (Concepto/Rango de fechas/Rango de total)
+        arriba de la tabla, que ahora es de ancho completo (ya no
+        compite con el formulario). Overlay de éxito
+        `#orden-form-exito` (palomita SVG + texto) dentro del mismo
+        modal, oculto por defecto.
+      - **CSS**: se eliminó `.orden-compra-layout` (grid sticky de 2
+        columnas) y su media query — ya no aplica. Nuevo: `.ordenes-
+        filtros` (mismo lenguaje visual que `.lectura-reportes-
+        filtros`, reutiliza `.lectura-reportes-rango-fechas`/
+        `-acciones` tal cual, ya eran genéricas). Animación de la
+        palomita: `stroke-dasharray`/`stroke-dashoffset` en el círculo
+        (176, circunferencia real de r=28) y el check (40, con margen
+        sobre el largo real del trazo ~35), cyan `#05DBF2` (reutilizado
+        del sidebar activo, no inventado), ~650ms de dibujo + fade de
+        texto a los 500ms; `prefers-reduced-motion` deja todo estático
+        sin animar (mismo criterio que `mantenimiento.html`).
+      - **JS**: `abrirOrdenRegistrarModal()`/`cerrarOrdenRegistrarModal()`
+        nuevas (reemplazan el toggle con `localStorage` de antes —
+        ya no aplica, el modal recuerda su propio estado abierto/
+        cerrado por sí solo, siempre limpio al abrir). El handler de
+        "Registrar" ya NO usa `showToast()` (pedido explícito: "el
+        toast muchas veces no se nota") — llama a
+        `mostrarExitoRegistrarOrden()`, que oculta el formulario, muestra
+        la palomita, y a los 1300ms limpia el formulario y lo vuelve a
+        mostrar CON EL MODAL TODAVÍA ABIERTO (foco en el primer campo,
+        listo para la siguiente venta) — corrige a propósito la pérdida
+        del flujo de "varias ventas seguidas" que un modal ingenuo
+        habría roto. Filtros: `ordenesCache` nuevo (la respuesta cruda
+        de `GET /ordenes-compra` ya no se renderiza directo, se guarda
+        ahí) + `aplicarFiltrosOrdenes()` (concepto con `normalizar()`,
+        mismo helper ya usado en Constancias; fechas comparando el
+        prefijo `YYYY-MM-DD` de `fecha_compra`; total con `Number()`)
+        — **sin cambios de backend**, ya que `GET /ordenes-compra`
+        siempre trajo la lista completa sin paginar. Distingue "No hay
+        ventas registradas todavía" (cache vacío) de "Ninguna venta
+        coincide con los filtros" (cache con datos, filtro sin match).
+      - **Verificación**: `node --check` limpio, cross-check de IDs sin
+        huérfanos (se confirmó que `btn-toggle-orden-form`/
+        `ordenFormChevron`/`.orden-compra-layout` no quedaron
+        referenciados en ningún lado), llaves CSS balanceadas
+        (637/637), Jest backend **560/560** (sin cambios de backend en
+        este segmento, se corrió para confirmar cero regresión). 
+        Validado en navegador real (Claude in Chrome): filtro de
+        concepto instantáneo (16→4 ventas), filtro de rango de total
+        instantáneo (0 en ≥20000, 3 en ≥15000 — confirma que sí filtra,
+        no solo que no rompe), **2 ventas registradas de prueba de
+        punta a punta** (incluida validación fiscal completa: producto
+        → concepto compuesto → correo → IVA 16% aplicado correctamente
+        — $100×2+16%=$232.00) confirmando que el modal se queda abierto
+        y el formulario se limpia solo tras cada una, sin volver a abrir
+        nada a mano; confirmado que el toast YA NO aparece en este flujo
+        (`document.getElementById('toast').hidden === true` tras
+        registrar). Sin errores de consola en ningún paso. Sin commit/
+        push todavía — pendiente de la parte móvil (wizard, punto 2)
+        antes de cerrar el segmento completo.
+
+127. **Rediseño del menú de navegación móvil del panel admin —
+    IMPLEMENTADO Y VALIDADO en navegador real (2026-08-22)**: usuario
+    reportó "en la versión móvil no funciona el menú" — el `.admin-
+    sidebar-nav` de escritorio, forzado a fila horizontal con scroll
+    lateral por la media query de `admin.css`, quedaba con texto 12.5px
+    y tap targets por debajo de los 44px mínimos de accesibilidad.
+    Usuario propuso una grilla de botones cuadrados con íconos en el
+    home, simétrica, dejando en la barra superior la opción de volver
+    siempre al inicio — pidió explícitamente que se cuestionara y
+    mejorara la propuesta antes de implementar. Crítica aplicada: usar
+    "Inicio" como botón de regreso no funciona para el perfil
+    `administrador` (no tiene acceso a la vista Inicio, ver
+    `RESTRICCIONES_PERFIL` en `admin.js`) — se propuso en su lugar un
+    botón neutral **"Menú"** en la barra superior que siempre reabre la
+    grilla completa de íconos (no una vista fija), independiente del
+    perfil. Usuario aprobó con "si por favor".
+    - **HTML** (`frontend/admin.html`): botón `#btn-menu-movil` ("Menú"
+      + ícono de grilla) agregado junto al logo del sidebar, visible
+      solo en móvil. Grilla nueva `#admin-menu-movil` (oculta por
+      defecto, `hidden`) como primer hijo de `.admin-main`, con 9
+      botones `.admin-menu-movil-btn` (`data-vista` = inicio, tickets,
+      constancias, resumen-financiero, ordenes, gastos, usuarios,
+      lectura-reportes, configuraciones — mismas 9 vistas del sidebar
+      de escritorio, mismos íconos SVG ya usados ahí).
+    - **CSS** (`frontend/admin.css`): `.btn-menu-movil` oculto en
+      escritorio, visible solo dentro de la media query `max-width:
+      900px` (mismo breakpoint ya establecido). Dentro de esa misma
+      media query, `.admin-sidebar-nav` (la fila de scroll horizontal
+      vieja) pasa a `display: none` — se reemplaza por completo, no
+      convive con la grilla nueva. `.admin-menu-movil` es un grid de 2
+      columnas (`repeat(2, 1fr)`, `gap: 14px`, `max-width: 420px`)
+      **sin gatear con media query** (solo el atributo `hidden` la
+      controla) porque solo debe existir/usarse en móvil de todos
+      modos vía JS. Tarjetas `.admin-menu-movil-btn` cuadradas
+      (`aspect-ratio: 1/1`), mismo lenguaje visual que el resto del
+      panel (fondo blanco, borde suave, `box-shadow: var(--shadow-
+      card)`), tap target generoso (bien por encima de 44px).
+    - **JS** (`frontend/admin.js`): `aplicarRestriccionesPerfil()`
+      extendido para ocultar/mostrar cada `.admin-menu-movil-btn` en
+      espejo exacto de su equivalente de escritorio (mismo `permitida`
+      por perfil + config de Ventas habilitada/deshabilitada — una sola
+      fuente de verdad, sin duplicar la lógica de permisos).
+      `cambiarVistaPrincipal(vista)` ahora oculta `#admin-menu-movil`
+      al entrar a cualquier vista (para que no quede debajo). Nueva
+      `mostrarMenuMovil()` oculta todas las vistas y muestra la grilla;
+      enlazada al click de `#btn-menu-movil` y, por delegación, cada
+      `.admin-menu-movil-btn` llama a `cambiarVistaPrincipal(dataset.
+      vista)` al hacer click.
+    - **Verificación**: `node --check` limpio, llaves CSS balanceadas
+      (643/643), Jest **560/560** (sin cambios de backend), rebuild de
+      `frontend` (`--no-cache` + `--force-recreate`, mismo gotcha ya
+      documentado) con health check 200 OK.
+    - **Validación en navegador real (Claude in Chrome)** — con la
+      limitación ya conocida de este entorno (`resize_window` no
+      cambia el viewport real de la pestaña, zoom por teclado
+      bloqueado por la extensión): se generó un viewport móvil
+      genuino de 390×844 vía un `<style>` temporal inyectado (copia
+      sin `@media` de las mismas reglas de `admin.css`, luego
+      removido) en vez de un iframe (el iframe fue bloqueado por las
+      cabeceras `frame-ancestors`/`X-Frame-Options` del endurecimiento
+      de seguridad del punto 116 — confirma que esa protección
+      funciona). Confirmado visualmente: barra superior con "Menú" +
+      cerrar sesión, grilla 2 columnas con los 9 íconos correctos:
+      Inicio, Tickets, Constancias, Resumen financiero, Ventas,
+      Gastos, Usuarios, Reportes, Configuraciones (el 9no queda solo
+      en su fila, esperado y sin problema visual). Click en "Ventas"
+      navega correctamente y oculta la grilla; click en "Menú" desde
+      esa vista reabre la grilla completa — el patrón de "regreso a
+      casa siempre disponible" pedido por el usuario funciona tal como
+      se diseñó. Cero errores de consola en todo el flujo. Sin commit/
+      push todavía.
+
+128. **Fix de overflow/desalineación en móvil — Resumen financiero,
+    Inicio y Gastos (KPIs) + filtros de Gastos — IMPLEMENTADO Y
+    VALIDADO (2026-08-22)**: usuario reportó "cuando sea la primera
+    vez [sin layout de dashboard guardado], los elementos todos deben
+    estar a lo ancho al maximo para que no se encimen y no se salga el
+    texto" en Resumen financiero, y "en la opción de gastos estan los
+    elementos del filtros todos desalineados", ambos para móvil.
+    Propuesta antes/después mostrada primero (regla persistente del
+    usuario), aprobada con "si por favor".
+    - **Causa raíz 1 (KPIs)**: `.inicio-stats-grid` (compartida por
+      Inicio y Gastos) y la regla de KPIs de `.resumen-fin-tablero`
+      forzaban 2 columnas entre 480-900px de ancho — con números
+      largos ($96,500.31, $133,808.77) el texto se recortaba contra el
+      borde de la tarjeta. Reproducido y confirmado con zoom en
+      navegador real antes del fix.
+    - **Fix 1** (`frontend/admin.css`): ambas reglas simplificadas a 1
+      columna (ancho completo) directo debajo de 900px, sin nivel
+      intermedio de 2 — se quitó el breakpoint duplicado de 480px en
+      `.inicio-stats-grid` (ya no hacía falta) y la línea
+      `[data-dashboard-id^="kpi-"] { grid-column: span 6 }` de
+      `.resumen-fin-tablero` (el orden personalizado del modo
+      dashboard se sigue conservando, solo se ignora el ancho, mismo
+      criterio que ya existía).
+    - **Causa raíz 2 (filtros de Gastos)**: `.gastos-filtros` era el
+      único filtro del panel que seguía usando `flex-wrap` con
+      `min-width` distinto por campo (150px selects/fechas, 200px
+      búsqueda) en vez del patrón CSS Grid ya establecido en
+      `.ordenes-filtros`/`.lectura-reportes-filtros` — en móvil el
+      wrap quedaba ragged/zigzag y "Limpiar filtros" descolgado.
+    - **Fix 2**: nueva regla `@media (max-width: 900px)` en
+      `.gastos-filtros` que apila los 7 campos (Categoría, Factura,
+      Recurrente, Desde, Hasta, Buscar, Limpiar filtros) a 100% de
+      ancho, uno debajo del otro — alineación garantizada sin
+      depender de cálculos de `min-width` en flexbox. Cero cambios en
+      escritorio (>900px) en ningún caso.
+    - **Verificación**: llaves CSS balanceadas (643/643 antes y
+      después del fix neto), Jest backend **560/560** (sin cambios de
+      backend), rebuild de `frontend` (`docker compose build frontend`
+      + `up -d frontend`, health 200 OK).
+    - **Validado en navegador real (Claude in Chrome)** con la misma
+      técnica de viewport móvil genuino (390×844, `<style>` temporal
+      sin `@media`) del punto 127. **Nota metodológica para la próxima
+      sesión**: la primera pasada de validación dio un falso negativo
+      — el arnés de prueba solo fijaba `body { max-width: 390px }`
+      visualmente, pero `window.innerWidth` seguía en el ancho real
+      del navegador (1440px), así que los `@media (max-width: 900px)`
+      REALES nunca se disparaban y se veía el layout de escritorio sin
+      querer. Hay que replicar las reglas del `@media` manualmente
+      (sin `@media`, con `!important`) en el `<style>` de prueba, no
+      solo angostar el `body` — mismo patrón ya usado en el punto 127,
+      pero esta vez se omitió por error y se corrigió a medias
+      pruebas. Una vez corregido: KPIs de Resumen financiero y Gastos
+      confirmados a ancho completo sin recorte de texto (zoom
+      confirmado), filtros de Gastos confirmados apilados y alineados
+      campo por campo hasta "Limpiar filtros". **Nota adicional**: la
+      herramienta de captura de pantalla del navegador devolvió 2
+      capturas en blanco durante esta validación (`Page.captureScreenshot`
+      no dio timeout esa vez, pero la imagen vino vacía) — confirmado
+      con `elementFromPoint`/`getBoundingClientRect` por JS que el
+      contenido SÍ estaba ahí (glitch de captura, no bug real); si una
+      captura sale en blanco en sesiones futuras, verificar por DOM
+      antes de asumir que es un problema de layout. Sin commit/push
+      todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

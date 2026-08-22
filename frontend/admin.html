@@ -63,6 +63,16 @@
         <img class="admin-sidebar-logo-img" src="/assets/branding_bgo.png" alt="CLARVO — Portal de Facturación by ADDV" />
       </div>
 
+      <!-- Solo visible en móvil (<900px, ver admin.css) — reemplaza el
+           menú de fila con scroll lateral. Regresa siempre al grid de
+           íconos (#admin-menu-movil), nunca a una vista de negocio
+           específica, para que funcione igual sin importar el perfil
+           (administrador no tiene "Inicio", por ejemplo). -->
+      <button type="button" class="btn-menu-movil" id="btn-menu-movil" aria-label="Abrir menú">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke-width="2"/></svg>
+        <span>Menú</span>
+      </button>
+
       <nav class="admin-sidebar-nav" role="tablist" aria-label="Vista del panel">
         <button type="button" class="admin-vista-btn is-active" id="btn-vista-inicio" role="tab" aria-selected="true">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
@@ -120,6 +130,50 @@
       </header>
 
       <main class="admin-main">
+      <!-- Launcher de íconos — SOLO móvil (<900px). Reemplaza el menú de
+           fila con scroll lateral (pedido explícito del usuario, "no
+           funciona el menú"). Cada botón replica ícono+etiqueta+destino
+           del sidebar de escritorio; su visibilidad por perfil la
+           controla aplicarRestriccionesPerfil() en admin.js (mismo
+           permiso que ya oculta el botón del sidebar, no duplicado). -->
+      <div id="admin-menu-movil" class="admin-menu-movil" hidden>
+        <button type="button" class="admin-menu-movil-btn" data-vista="inicio">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Inicio</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="tickets">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Tickets</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="constancias">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Constancias</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="resumen-financiero">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Resumen financiero</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="ordenes">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
+          <span>Ventas</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="gastos">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
+          <span>Gastos</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="usuarios">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Usuarios</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="lectura-reportes">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Reportes</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="configuraciones">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round" stroke-width="1.3"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Configuraciones</span>
+        </button>
+      </div>
       <div id="vista-inicio">
         <div class="inicio-bienvenida">
           <h1 id="inicio-titulo-bienvenida">¡Bienvenido!</h1>
@@ -621,158 +675,188 @@
               </div>
             </div>
             <button type="button" class="btn btn-secondary" id="btn-refresh-ordenes">Actualizar</button>
+            <button type="button" class="btn btn-primary" id="btn-abrir-orden-modal">+ Registrar venta</button>
           </div>
         </div>
 
-        <div class="orden-compra-layout">
-          <section class="admin-config-card orden-compra-columna-form">
-            <button type="button" class="admin-config-toggle" id="btn-toggle-orden-form" aria-expanded="true" aria-controls="orden-form-body">
-              <span class="admin-config-toggle-label">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
-                <span class="orden-form-titulo">Registrar venta</span>
-              </span>
-              <svg class="admin-config-chevron" id="orden-form-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-            <div class="orden-form-body admin-config-body" id="orden-form-body">
-              <p class="panel-subtitle admin-config-subtitle">Captura los datos de la venta. La fecha y el IVA se toman automáticamente de "Configuraciones globales" — no se capturan a mano.</p>
-
-              <div class="field">
-                <label>Fecha de venta</label>
-                <p class="orden-campo-automatico" id="orden-fecha-auto">Se genera automáticamente al guardar, con la zona horaria configurada.</p>
-              </div>
-
-              <div class="orden-productos-captura">
-                <div class="field">
-                  <label for="orden-producto-concepto">Concepto del producto <span class="required">*</span></label>
-                  <input type="text" id="orden-producto-concepto" maxlength="150" placeholder="Ej. Toner para impresora HP" autocomplete="off" />
-                  <p class="field-error" id="error-orden-producto-concepto" role="alert"></p>
-                </div>
-                <div class="orden-productos-captura-fila">
-                  <div class="field">
-                    <label for="orden-producto-precio">Precio unitario (MXN) <span class="required">*</span></label>
-                    <input type="text" inputmode="decimal" id="orden-producto-precio" placeholder="0.00" autocomplete="off" />
-                    <p class="field-error" id="error-orden-producto-precio" role="alert"></p>
-                  </div>
-                  <div class="field">
-                    <label for="orden-producto-cantidad">Cantidad (piezas) <span class="required">*</span></label>
-                    <input type="number" id="orden-producto-cantidad" min="1" step="1" placeholder="1" autocomplete="off" />
-                    <p class="field-error" id="error-orden-producto-cantidad" role="alert"></p>
-                  </div>
-                </div>
-                <p class="field-error" id="error-orden-producto-general" role="alert"></p>
-                <button type="button" class="btn btn-secondary btn-block" id="btn-agregar-producto-orden">+ Agregar producto</button>
-              </div>
-
-              <div class="orden-productos-lista-wrap" id="orden-productos-lista-wrap" hidden>
-                <table class="admin-table orden-productos-tabla">
-                  <thead>
-                    <tr>
-                      <th>Concepto</th>
-                      <th>P. unitario</th>
-                      <th>Cant.</th>
-                      <th>Subtotal</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="orden-productos-lista-body"></tbody>
-                </table>
-              </div>
-
-              <div class="field">
-                <label for="orden-concepto">Concepto de venta o servicio <span class="required">*</span></label>
-                <textarea id="orden-concepto" maxlength="255" rows="2" placeholder="Agrega al menos un producto arriba" readonly></textarea>
-                <p class="field-hint" id="orden-concepto-contador">0 / 255</p>
-                <p class="field-error" id="error-orden-concepto" role="alert"></p>
-              </div>
-
-              <div class="field">
-                <label for="orden-cantidad">Cantidad (MXN)</label>
-                <input type="text" id="orden-cantidad" placeholder="0.00" readonly />
-                <p class="field-hint">Se calcula sola, sumando los productos agregados arriba.</p>
-                <p class="field-error" id="error-orden-cantidad" role="alert"></p>
-              </div>
-
-              <div class="field">
-                <label>IVA</label>
-                <p class="orden-campo-automatico" id="orden-iva-info">—</p>
-              </div>
-
-              <div class="field">
-                <label>Total</label>
-                <p class="orden-total-preview" id="orden-total-preview">$0.00 MXN</p>
-                <p class="field-hint">Cantidad + IVA — <strong>esta es la cantidad que se va a facturar</strong>.</p>
-              </div>
-
-              <div class="field">
-                <label>Tipo de cliente</label>
-                <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta venta">
-                  <button type="button" class="view-toggle-btn is-active" id="btn-orden-cliente-registrado" role="tab" aria-selected="true">Cliente ya registrado</button>
-                  <button type="button" class="view-toggle-btn" id="btn-orden-cliente-nuevo" role="tab" aria-selected="false">Cliente nuevo</button>
-                </div>
-              </div>
-
-              <div id="orden-email-registrado-wrap">
-                <div class="field">
-                  <label for="orden-email">Correo electrónico <span class="required">*</span></label>
-                  <select id="orden-email">
-                    <option value="">Selecciona un correo</option>
-                  </select>
-                  <p class="field-hint">Solo se muestran correos que ya tienen una constancia de situación fiscal subida.</p>
-                  <p class="field-error" id="error-orden-email" role="alert"></p>
-                </div>
-
-                <div class="field" id="orden-datos-cliente" hidden>
-                  <label>Datos asociados a este correo</label>
-                  <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
-                  <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
-                  <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la venta.</p>
-                </div>
-              </div>
-
-              <div id="orden-email-nuevo-wrap" hidden>
-                <div class="field">
-                  <label for="orden-email-nuevo">Correo electrónico <span class="required">*</span></label>
-                  <input type="email" id="orden-email-nuevo" placeholder="correo@ejemplo.com" maxlength="200" autocomplete="off" />
-                  <p class="field-hint">Este cliente todavía no tiene una constancia de situación fiscal registrada — se le enviará la confirmación de la venta a este correo.</p>
-                  <p class="field-error" id="error-orden-email-nuevo" role="alert"></p>
-                </div>
-              </div>
-
-              <p class="field-error" id="orden-error-general" role="alert"></p>
-
-              <div class="btn-row admin-config-actions">
-                <button type="button" class="btn btn-primary" id="btn-registrar-orden">
-                  <span id="btn-registrar-orden-label">Registrar venta</span>
-                </button>
-              </div>
+        <div class="ordenes-filtros" id="ordenes-filtros">
+          <div class="field">
+            <label for="ordenes-filtro-concepto">Concepto</label>
+            <input type="text" id="ordenes-filtro-concepto" placeholder="Buscar…" />
+          </div>
+          <div class="field">
+            <label for="ordenes-filtro-fecha-desde">Rango de fechas</label>
+            <div class="lectura-reportes-rango-fechas">
+              <input type="date" id="ordenes-filtro-fecha-desde" aria-label="Desde" />
+              <span class="lectura-reportes-rango-separador" aria-hidden="true">–</span>
+              <input type="date" id="ordenes-filtro-fecha-hasta" aria-label="Hasta" />
             </div>
-          </section>
+          </div>
+          <div class="field">
+            <label for="ordenes-filtro-total-min">Rango de total (MXN)</label>
+            <div class="lectura-reportes-rango-fechas">
+              <input type="number" min="0" step="0.01" id="ordenes-filtro-total-min" placeholder="Mínimo" aria-label="Total mínimo" />
+              <span class="lectura-reportes-rango-separador" aria-hidden="true">–</span>
+              <input type="number" min="0" step="0.01" id="ordenes-filtro-total-max" placeholder="Máximo" aria-label="Total máximo" />
+            </div>
+          </div>
+          <div class="lectura-reportes-filtros-acciones">
+            <button type="button" class="btn btn-secondary" id="btn-limpiar-filtros-ordenes">Limpiar filtros</button>
+          </div>
+        </div>
 
-          <section class="orden-compra-columna-lista">
-            <h2 class="orden-lista-titulo">Ventas registradas</h2>
-            <p class="field-error" id="ordenes-error" role="alert"></p>
+        <section class="orden-compra-columna-lista">
+          <p class="field-error" id="ordenes-error" role="alert"></p>
 
-            <div class="admin-table-wrap" id="ordenes-table-wrap">
-              <table class="admin-table ordenes-table">
+          <div class="admin-table-wrap" id="ordenes-table-wrap">
+            <table class="admin-table ordenes-table">
+              <thead>
+                <tr>
+                  <th data-col="numero"><span class="th-label">No. Venta</span><span class="col-resizer" data-resizer="numero"></span></th>
+                  <th data-col="fecha"><span class="th-label">Fecha</span><span class="col-resizer" data-resizer="fecha"></span></th>
+                  <th data-col="concepto"><span class="th-label">Concepto</span><span class="col-resizer" data-resizer="concepto"></span></th>
+                  <th data-col="total"><span class="th-label">Total</span><span class="col-resizer" data-resizer="total"></span></th>
+                  <th data-col="correo"><span class="th-label">Correo</span><span class="col-resizer" data-resizer="correo"></span></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="ordenes-table-body"></tbody>
+            </table>
+            <p class="admin-empty" id="ordenes-empty" hidden>No hay ventas registradas todavía.</p>
+            <p class="admin-empty" id="ordenes-filtro-empty" hidden>Ninguna venta coincide con los filtros.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- Registrar venta (modal — reemplaza el formulario sticky de antes) -->
+      <div class="modal-overlay" id="orden-registrar-modal-overlay" hidden>
+        <div class="modal ticket-modal" role="dialog" aria-modal="true" aria-labelledby="orden-registrar-modal-title">
+          <div class="ticket-modal-header">
+            <h2 id="orden-registrar-modal-title">Registrar venta</h2>
+            <button type="button" class="btn-icon" id="btn-cerrar-orden-modal" aria-label="Cerrar">✕</button>
+          </div>
+
+          <div id="orden-form-exito" class="orden-form-exito" hidden>
+            <svg class="orden-form-exito-check" width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <circle cx="32" cy="32" r="28" stroke="#05DBF2" stroke-width="4"/>
+              <path d="M20 33l8 8 16-18" stroke="#05DBF2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <p class="orden-form-exito-texto">Guardado con éxito</p>
+          </div>
+
+          <div class="orden-form-body" id="orden-form-body">
+            <p class="panel-subtitle admin-config-subtitle">Captura los datos de la venta. La fecha y el IVA se toman automáticamente de "Configuraciones globales" — no se capturan a mano.</p>
+
+            <div class="field">
+              <label>Fecha de venta</label>
+              <p class="orden-campo-automatico" id="orden-fecha-auto">Se genera automáticamente al guardar, con la zona horaria configurada.</p>
+            </div>
+
+            <div class="orden-productos-captura">
+              <div class="field">
+                <label for="orden-producto-concepto">Concepto del producto <span class="required">*</span></label>
+                <input type="text" id="orden-producto-concepto" maxlength="150" placeholder="Ej. Toner para impresora HP" autocomplete="off" />
+                <p class="field-error" id="error-orden-producto-concepto" role="alert"></p>
+              </div>
+              <div class="orden-productos-captura-fila">
+                <div class="field">
+                  <label for="orden-producto-precio">Precio unitario (MXN) <span class="required">*</span></label>
+                  <input type="text" inputmode="decimal" id="orden-producto-precio" placeholder="0.00" autocomplete="off" />
+                  <p class="field-error" id="error-orden-producto-precio" role="alert"></p>
+                </div>
+                <div class="field">
+                  <label for="orden-producto-cantidad">Cantidad (piezas) <span class="required">*</span></label>
+                  <input type="number" id="orden-producto-cantidad" min="1" step="1" placeholder="1" autocomplete="off" />
+                  <p class="field-error" id="error-orden-producto-cantidad" role="alert"></p>
+                </div>
+              </div>
+              <p class="field-error" id="error-orden-producto-general" role="alert"></p>
+              <button type="button" class="btn btn-secondary btn-block" id="btn-agregar-producto-orden">+ Agregar producto</button>
+            </div>
+
+            <div class="orden-productos-lista-wrap" id="orden-productos-lista-wrap" hidden>
+              <table class="admin-table orden-productos-tabla">
                 <thead>
                   <tr>
-                    <th data-col="numero"><span class="th-label">No. Venta</span><span class="col-resizer" data-resizer="numero"></span></th>
-                    <th data-col="fecha"><span class="th-label">Fecha</span><span class="col-resizer" data-resizer="fecha"></span></th>
-                    <th data-col="concepto"><span class="th-label">Concepto</span><span class="col-resizer" data-resizer="concepto"></span></th>
-                    <th data-col="total"><span class="th-label">Total</span><span class="col-resizer" data-resizer="total"></span></th>
-                    <th data-col="correo"><span class="th-label">Correo</span><span class="col-resizer" data-resizer="correo"></span></th>
+                    <th>Concepto</th>
+                    <th>P. unitario</th>
+                    <th>Cant.</th>
+                    <th>Subtotal</th>
                     <th></th>
                   </tr>
                 </thead>
-                <tbody id="ordenes-table-body"></tbody>
+                <tbody id="orden-productos-lista-body"></tbody>
               </table>
-              <p class="admin-empty" id="ordenes-empty" hidden>No hay ventas registradas todavía.</p>
             </div>
-          </section>
+
+            <div class="field">
+              <label for="orden-concepto">Concepto de venta o servicio <span class="required">*</span></label>
+              <textarea id="orden-concepto" maxlength="255" rows="2" placeholder="Agrega al menos un producto arriba" readonly></textarea>
+              <p class="field-hint" id="orden-concepto-contador">0 / 255</p>
+              <p class="field-error" id="error-orden-concepto" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label for="orden-cantidad">Cantidad (MXN)</label>
+              <input type="text" id="orden-cantidad" placeholder="0.00" readonly />
+              <p class="field-hint">Se calcula sola, sumando los productos agregados arriba.</p>
+              <p class="field-error" id="error-orden-cantidad" role="alert"></p>
+            </div>
+
+            <div class="field">
+              <label>IVA</label>
+              <p class="orden-campo-automatico" id="orden-iva-info">—</p>
+            </div>
+
+            <div class="field">
+              <label>Total</label>
+              <p class="orden-total-preview" id="orden-total-preview">$0.00 MXN</p>
+              <p class="field-hint">Cantidad + IVA — <strong>esta es la cantidad que se va a facturar</strong>.</p>
+            </div>
+
+            <div class="field">
+              <label>Tipo de cliente</label>
+              <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta venta">
+                <button type="button" class="view-toggle-btn is-active" id="btn-orden-cliente-registrado" role="tab" aria-selected="true">Cliente ya registrado</button>
+                <button type="button" class="view-toggle-btn" id="btn-orden-cliente-nuevo" role="tab" aria-selected="false">Cliente nuevo</button>
+              </div>
+            </div>
+
+            <div id="orden-email-registrado-wrap">
+              <div class="field">
+                <label for="orden-email">Correo electrónico <span class="required">*</span></label>
+                <select id="orden-email">
+                  <option value="">Selecciona un correo</option>
+                </select>
+                <p class="field-hint">Solo se muestran correos que ya tienen una constancia de situación fiscal subida.</p>
+                <p class="field-error" id="error-orden-email" role="alert"></p>
+              </div>
+
+              <div class="field" id="orden-datos-cliente" hidden>
+                <label>Datos asociados a este correo</label>
+                <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
+                <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
+                <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la venta.</p>
+              </div>
+            </div>
+
+            <div id="orden-email-nuevo-wrap" hidden>
+              <div class="field">
+                <label for="orden-email-nuevo">Correo electrónico <span class="required">*</span></label>
+                <input type="email" id="orden-email-nuevo" placeholder="correo@ejemplo.com" maxlength="200" autocomplete="off" />
+                <p class="field-hint">Este cliente todavía no tiene una constancia de situación fiscal registrada — se le enviará la confirmación de la venta a este correo.</p>
+                <p class="field-error" id="error-orden-email-nuevo" role="alert"></p>
+              </div>
+            </div>
+
+            <p class="field-error" id="orden-error-general" role="alert"></p>
+
+            <div class="btn-row admin-config-actions">
+              <button type="button" class="btn btn-primary" id="btn-registrar-orden">
+                <span id="btn-registrar-orden-label">Registrar venta</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

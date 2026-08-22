@@ -123,6 +123,9 @@
     btnVistaUsuarios: document.getElementById('btn-vista-usuarios'),
     btnVistaConfiguraciones: document.getElementById('btn-vista-configuraciones'),
     btnVistaLecturaReportes: document.getElementById('btn-vista-lectura-reportes'),
+    // Menú móvil (launcher de íconos, reemplaza el nav de fila en <900px)
+    btnMenuMovil: document.getElementById('btn-menu-movil'),
+    adminMenuMovil: document.getElementById('admin-menu-movil'),
     vistaInicio: document.getElementById('vista-inicio'),
     vistaConstancias: document.getElementById('vista-constancias'),
     vistaTickets: document.getElementById('vista-tickets'),
@@ -202,6 +205,19 @@
     btnOrdenesColumns: document.getElementById('btn-ordenes-columns'),
     ordenesColumnTogglePanel: document.getElementById('ordenes-column-toggle-panel'),
     btnRefreshOrdenes: document.getElementById('btn-refresh-ordenes'),
+    // Filtros de la lista (concepto/fechas/total) — 100% client-side
+    ordenesFiltroConcepto: document.getElementById('ordenes-filtro-concepto'),
+    ordenesFiltroFechaDesde: document.getElementById('ordenes-filtro-fecha-desde'),
+    ordenesFiltroFechaHasta: document.getElementById('ordenes-filtro-fecha-hasta'),
+    ordenesFiltroTotalMin: document.getElementById('ordenes-filtro-total-min'),
+    ordenesFiltroTotalMax: document.getElementById('ordenes-filtro-total-max'),
+    btnLimpiarFiltrosOrdenes: document.getElementById('btn-limpiar-filtros-ordenes'),
+    ordenesFiltroEmpty: document.getElementById('ordenes-filtro-empty'),
+    // Modal "Registrar venta" (antes formulario sticky)
+    btnAbrirOrdenModal: document.getElementById('btn-abrir-orden-modal'),
+    ordenRegistrarModalOverlay: document.getElementById('orden-registrar-modal-overlay'),
+    btnCerrarOrdenModal: document.getElementById('btn-cerrar-orden-modal'),
+    ordenFormExito: document.getElementById('orden-form-exito'),
     ordenFechaAuto: document.getElementById('orden-fecha-auto'),
     ordenConcepto: document.getElementById('orden-concepto'),
     ordenConceptoContador: document.getElementById('orden-concepto-contador'),
@@ -372,7 +388,6 @@
     btnGastosDetalleEliminar: document.getElementById('btn-gastos-detalle-eliminar'),
     // Configuración global (IVA y zona horaria)
     btnToggleGlobalConfig: document.getElementById('btn-toggle-global-config'),
-    btnToggleOrdenForm: document.getElementById('btn-toggle-orden-form'),
     ordenFormBody: document.getElementById('orden-form-body'),
     globalConfigBody: document.getElementById('global-config-body'),
     configIva: document.getElementById('config-iva'),
@@ -912,7 +927,13 @@
     Object.entries(navPorVista).forEach(([vista, boton]) => {
       const permitidaPorPerfil = sinRestricciones || restriccion.vistasPermitidas.includes(vista);
       const permitidaPorConfig = vista !== 'ordenes' || ventasHabilitadaGlobalmente;
-      boton.hidden = !(permitidaPorPerfil && permitidaPorConfig);
+      const permitida = permitidaPorPerfil && permitidaPorConfig;
+      boton.hidden = !permitida;
+      // Mismo permiso, botón espejo en el launcher de íconos del menú
+      // móvil (#admin-menu-movil) — un solo lugar decide quién ve qué,
+      // no una segunda lista de restricciones que mantener sincronizada.
+      const botonMovil = document.querySelector(`.admin-menu-movil-btn[data-vista="${vista}"]`);
+      if (botonMovil) botonMovil.hidden = !permitida;
     });
 
     // Las 4 tarjetas de "Configuraciones globales".
@@ -1212,31 +1233,26 @@
     els.globalConfigBody.hidden = abierto;
   });
 
-  // "Registrar venta" empieza expandido (es la acción
-  // principal de esa pantalla), pero se puede colapsar — sobre todo útil
-  // en celular, donde el formulario completo ocupa mucho espacio antes
-  // de poder ver la lista de abajo. La preferencia se recuerda entre
-  // sesiones con localStorage, mismo criterio ya usado para columnas
-  // visibles/anchos de las tablas.
-  const CLAVE_ORDEN_FORM_EXPANDIDO = 'admin_orden_form_expandido';
-  try {
-    const preferenciaGuardada = localStorage.getItem(CLAVE_ORDEN_FORM_EXPANDIDO);
-    if (preferenciaGuardada === 'false') {
-      els.btnToggleOrdenForm.setAttribute('aria-expanded', 'false');
-      els.ordenFormBody.hidden = true;
-    }
-  } catch (err) {
-    // Sin localStorage disponible (modo privado, etc.), se queda expandido por defecto.
+  // "Registrar venta" (rediseño 2026-08-21, PROJECT_STATE.md punto 126):
+  // ya no es un panel sticky que se colapsa — es un modal (mismo patrón
+  // "Gestionar" que Tickets). Se abre limpio cada vez (una venta nueva
+  // parte de cero) y NO se cierra solo al guardar — ver el handler de
+  // "Registrar" más abajo, que lo deja abierto y listo para la
+  // siguiente venta a propósito, para no romper el flujo de capturar
+  // varias ventas seguidas que sí tenía el formulario sticky anterior.
+  function abrirOrdenRegistrarModal() {
+    limpiarFormularioOrden();
+    els.ordenFormExito.hidden = true;
+    els.ordenFormBody.hidden = false;
+    els.ordenRegistrarModalOverlay.hidden = false;
   }
-  els.btnToggleOrdenForm.addEventListener('click', () => {
-    const abierto = els.btnToggleOrdenForm.getAttribute('aria-expanded') === 'true';
-    els.btnToggleOrdenForm.setAttribute('aria-expanded', String(!abierto));
-    els.ordenFormBody.hidden = abierto;
-    try {
-      localStorage.setItem(CLAVE_ORDEN_FORM_EXPANDIDO, String(!abierto));
-    } catch (err) {
-      // Sin localStorage disponible, simplemente no se recuerda la próxima vez.
-    }
+  function cerrarOrdenRegistrarModal() {
+    els.ordenRegistrarModalOverlay.hidden = true;
+  }
+  els.btnAbrirOrdenModal.addEventListener('click', abrirOrdenRegistrarModal);
+  els.btnCerrarOrdenModal.addEventListener('click', cerrarOrdenRegistrarModal);
+  els.ordenRegistrarModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.ordenRegistrarModalOverlay) cerrarOrdenRegistrarModal();
   });
 
   // Las zonas horarias son un catálogo fijo (no cambia entre peticiones),
@@ -3287,6 +3303,9 @@
 
   function cambiarVistaPrincipal(vista) {
     guardarVistaActual(vista);
+    // Seleccionar cualquier vista de negocio real cierra el launcher de
+    // íconos del menú móvil, si estaba abierto.
+    els.adminMenuMovil.hidden = true;
     els.btnVistaInicio.classList.toggle('is-active', vista === 'inicio');
     els.btnVistaInicio.setAttribute('aria-selected', String(vista === 'inicio'));
     els.btnVistaConstancias.classList.toggle('is-active', vista === 'constancias');
@@ -3365,6 +3384,30 @@
   els.btnVistaUsuarios.addEventListener('click', () => cambiarVistaPrincipal('usuarios'));
   els.btnVistaConfiguraciones.addEventListener('click', () => cambiarVistaPrincipal('configuraciones'));
   els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));
+
+  // Menú móvil (launcher de íconos) — "Menú" en la barra superior
+  // siempre regresa aquí, sin importar el perfil ni qué vista estaba
+  // abierta (a propósito: no es "Inicio", que el perfil administrador
+  // ni siquiera tiene — ver PROJECT_STATE.md, segmento de rediseño de
+  // Ventas/navegación móvil). Oculta las 9 vistas de negocio y muestra
+  // el grid; cada botón del grid simplemente llama a
+  // cambiarVistaPrincipal(), igual que el sidebar de escritorio.
+  function mostrarMenuMovil() {
+    els.vistaInicio.hidden = true;
+    els.vistaConstancias.hidden = true;
+    els.vistaTickets.hidden = true;
+    els.vistaResumenFinanciero.hidden = true;
+    els.vistaOrdenes.hidden = true;
+    els.vistaGastos.hidden = true;
+    els.vistaUsuarios.hidden = true;
+    els.vistaConfiguraciones.hidden = true;
+    els.vistaLecturaReportes.hidden = true;
+    els.adminMenuMovil.hidden = false;
+  }
+  els.btnMenuMovil.addEventListener('click', mostrarMenuMovil);
+  document.querySelectorAll('.admin-menu-movil-btn').forEach((boton) => {
+    boton.addEventListener('click', () => cambiarVistaPrincipal(boton.dataset.vista));
+  });
   els.ticketsFiltroEstatus.addEventListener('change', () => cargarTickets());
   els.ticketsFiltroUsuario.addEventListener('change', () => cargarTickets());
   els.btnRefreshTickets.addEventListener('click', () => cargarTickets());
@@ -4308,8 +4351,7 @@
         els.ordenErrorGeneral.textContent = data.error || 'No se pudo registrar la venta.';
         return;
       }
-      showToast(`Venta ${data.numero_compra} registrada correctamente. Se envió la confirmación a ${email}.`);
-      limpiarFormularioOrden();
+      mostrarExitoRegistrarOrden();
       cargarOrdenes();
     } catch (err) {
       els.ordenErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
@@ -4317,6 +4359,21 @@
       setRegistrarOrdenLoading(false);
     }
   });
+
+  // Confirmación INLINE dentro del modal (no toast — "muchas veces no se
+  // nota", pedido explícito del usuario) — palomita animada + texto,
+  // dura ~1.3s en total, y el modal se queda abierto y se limpia solo,
+  // listo para la siguiente venta (no hay que volver a abrirlo).
+  function mostrarExitoRegistrarOrden() {
+    els.ordenFormBody.hidden = true;
+    els.ordenFormExito.hidden = false;
+    setTimeout(() => {
+      els.ordenFormExito.hidden = true;
+      els.ordenFormBody.hidden = false;
+      limpiarFormularioOrden();
+      els.ordenProductoConcepto.focus();
+    }, 1300);
+  }
 
   els.btnRefreshOrdenes.addEventListener('click', async () => {
     cargarConfigGlobalParaOrden();
@@ -4346,11 +4403,53 @@
         return;
       }
       const data = await res.json();
-      renderOrdenes(data.ordenes || []);
+      ordenesCache = data.ordenes || [];
+      aplicarFiltrosOrdenes();
     } catch (err) {
       els.ordenesError.textContent = 'No se pudo conectar con el servidor.';
     }
   }
+
+  // Filtros de "Ventas registradas" (concepto/rango de fechas/rango de
+  // total) — 100% en el cliente: la lista ya se trae completa de una
+  // sola vez sin paginar (GET /ordenes-compra), así que filtrar aquí es
+  // instantáneo y no necesita ningún cambio de backend. Mismo criterio
+  // que el buscador ya existente de Constancias.
+  let ordenesCache = [];
+  function aplicarFiltrosOrdenes() {
+    const concepto = normalizar(els.ordenesFiltroConcepto.value.trim());
+    const fechaDesde = els.ordenesFiltroFechaDesde.value;
+    const fechaHasta = els.ordenesFiltroFechaHasta.value;
+    const totalMin = els.ordenesFiltroTotalMin.value ? Number(els.ordenesFiltroTotalMin.value) : null;
+    const totalMax = els.ordenesFiltroTotalMax.value ? Number(els.ordenesFiltroTotalMax.value) : null;
+
+    const filtradas = ordenesCache.filter((orden) => {
+      if (concepto && !normalizar(orden.concepto).includes(concepto)) return false;
+      const fechaOrden = String(orden.fecha_compra || '').slice(0, 10);
+      if (fechaDesde && fechaOrden < fechaDesde) return false;
+      if (fechaHasta && fechaOrden > fechaHasta) return false;
+      const total = Number(orden.total);
+      if (totalMin !== null && total < totalMin) return false;
+      if (totalMax !== null && total > totalMax) return false;
+      return true;
+    });
+
+    renderOrdenes(filtradas);
+    const hayFiltro = Boolean(concepto || fechaDesde || fechaHasta || totalMin !== null || totalMax !== null);
+    els.ordenesEmpty.hidden = ordenesCache.length > 0;
+    els.ordenesFiltroEmpty.hidden = !(hayFiltro && ordenesCache.length > 0 && filtradas.length === 0);
+  }
+  [els.ordenesFiltroConcepto, els.ordenesFiltroFechaDesde, els.ordenesFiltroFechaHasta, els.ordenesFiltroTotalMin, els.ordenesFiltroTotalMax].forEach((el) => {
+    el.addEventListener('input', () => aplicarFiltrosOrdenes());
+  });
+  els.btnLimpiarFiltrosOrdenes.addEventListener('click', () => {
+    els.ordenesFiltroConcepto.value = '';
+    els.ordenesFiltroFechaDesde.value = '';
+    els.ordenesFiltroFechaHasta.value = '';
+    els.ordenesFiltroTotalMin.value = '';
+    els.ordenesFiltroTotalMax.value = '';
+    aplicarFiltrosOrdenes();
+  });
 
   // Intenta leer una línea "N x Concepto ($X.XX c/u)" (el formato exacto
   // que arma btnAgregarProductoOrden) de vuelta a sus 3 valores — usado

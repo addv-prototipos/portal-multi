@@ -375,3 +375,162 @@ auditoría automática. Pendiente revisión visual del usuario
 (`http://localhost:8088/admin`). Detalle completo: PROJECT_STATE.md punto
 119. Claude Mem: sesión con solo lectura — registro en
 PROJECT_STATE.md/CLAUDE.md/AGENTS.md/cmem.md.
+
+## 2026-08-21 — Auditoría de docs, fixes de Resumen financiero, Reportes (auditoría B/C/D) y rediseño de Ventas (aprobado, pendiente)
+
+C040 13:33 ○ Usuario pidió "revisa la documentación" — auditoría de
+consistencia de CLAUDE.md/PROJECT_STATE.md/README.md vía agente en
+paralelo. Hallazgos: título del README (línea 1) sigue sin mencionar
+multi-tenant aunque el contenido sí lo cubre; README no documentaba 3
+features ya hechas (Utilidad neta punto 118, gráficas BI punto 117,
+Look & Feel punto 105); `FRONTEND_PORT` documentado con 3 valores
+distintos (80 tabla / 8080 ejemplos / 8088 real); sección "Pendiente"
+de PROJECT_STATE.md contradecía puntos posteriores del mismo archivo
+(marca y `/control` en navegador ya hechos, listados como pendientes).
+Ningún comando/script roto. Documentado (punto 120), sin corregir
+todavía a esa hora — corregido después (C041, título+puertos README).
+
+C041 14:35 ●bugfix Bug real en "Resumen financiero" reportado por el
+usuario con captura: barra "Gastos" desalineada en "Utilidad neta del
+mes". Causa raíz: `.resumen-fin-chart-body` usaba
+`align-items:flex-end` — alineaba el fondo de la COLUMNA completa
+(barra+etiqueta), no el de la barra; una etiqueta de 2 líneas ("Ventas
+totales") corría la columna vecina de 1 línea ("Gastos") hacia abajo.
+Fix de 1 línea (`flex-start`, la caja de la barra siempre es 200px fija
+en ambas). De paso: 4ta barra "Sin facturar" en "Ventas vs Facturado vs
+Gastos" (dato derivado en cliente, sin backend nuevo; color `#E4A97E`
+REUTILIZADO de la dona vecina, validado con el script de la skill
+`dataviz`). 3 rondas de ajuste en vivo pedidas por el usuario viendo
+capturas: Gastos movido junto a Ventas, gráfica alineada al fondo de la
+tarjeta (`margin-top:auto` en `#resumen-fin-chart-contenido`, id único).
+Jest 560/560. Commits `bf9a9f6`→`f7b26d4` (incluye también el fix de
+README de C040 y limpieza de `stitch/` que hizo el usuario mismo).
+Detalle: PROJECT_STATE.md puntos 120-121.
+
+C042 15:00 ◆ Rediseño de "Lectura de reportes" para auditorías —
+protocolo completo (análisis del modelo de datos real → propuesta con
+4 puntos base + 4 ideas opcionales A-D en markdown → usuario aprobó
+base+A). Hallazgo clave: `reporte_items.accion` YA distinguía
+'eliminado' (borrado real) de NULL (fotografía activa) pero se
+mostraba mezclado en un badge dentro de una sola tabla. Implementado:
+cabecera "Detalle" (antes "Estatus"), 2 tablas separadas
+("Movimientos"/"Eliminados", export CSV/Excel propio cada una,
+`accion=activo|eliminado` nuevo en `/items`/`/exportar`), botón
+"Eliminar reporte" reforzado en frontend a solo admin/super (backend
+ya lo exigía), KPIs de auditoría (idea A: histórico + tendencia
+mensual, endpoint nuevo `/reportes/estadisticas`, tarjetas cuadradas
+230×230px tras 3 rondas de ajuste en vivo del usuario — texto+número
++40%, luego -30%, título fijo arriba-izquierda, resto centrado en
+espacio sobrante). Bug real: `.map(renderFilaReporteItem)` pasaba el
+índice del array como 2do argumento (columna de más en Movimientos) —
+corregido antes de probar. Jest 560/560. Ajustes post-push pedidos por
+el usuario: "Configuraciones globales" fijado al final del sidebar
+(ancla permanente), número centrado (no todo el contenido) en KPIs de
+Inicio y Resumen financiero. Commits `fa0906e`. **Regla nueva del
+usuario, guardada en memoria persistente de Claude Code**: todo cambio
+de diseño visual (nuevo o ajuste) siempre lleva propuesta antes/después
+en markdown antes de implementar, sin que se pida cada vez. Detalle:
+PROJECT_STATE.md punto 122.
+
+C043 16:30 ◆ Ideas B+C+D de Reportes, las 3 implementadas en orden a
+pedido del usuario ("comienza con todos en orden"), cada una con
+propuesta antes/después + skills/justificación antes de implementar.
+**B** — pestaña "Todo lo eliminado": ledger cruzado de TODOS los
+reportes, columna "Reporte de origen", export propio (`/reportes/
+eliminados`, `/reportes/eliminados-exportar` — ruta con guión a
+propósito para no competir en forma con `/reportes/:id/exportar`).
+**C** — "Generado por" en el resumen: cruza `admin_auditoria`
+(segmento 7, `control_tenants`) por ruta (`POST /reportes/enviar` o
+`DELETE /ordenes-compra/:id`) + ventana de 5s contra
+`fecha_generacion`, mejor esfuerzo, nunca bloquea sin match
+(`/reportes/:id/generado-por`). **D** — botón "Ver historial" por
+identificador: modal con la línea de tiempo completa de ese folio/No.
+venta en todos los reportes (`/reportes/timeline/:tipo/:identificador`).
+2 bugs reales encontrados y corregidos en la validación: el mismo bug
+de índice-como-argumento reapareció en la tabla Movimientos al
+extenderse la función para aceptar el flag de origen (corregido), y el
+modal de historial desbordaba horizontalmente con descripciones largas
+(faltaba `flex:1;min-width:0` en `.reportes-timeline-detalle`). Sin
+cambios de esquema en ninguna de las 3. Jest 560/560 en todo el
+segmento. Commit `15de641`, push a `fact`. Con esto, las 4 ideas
+propuestas para Reportes quedan completas (A ya estaba de C042, ahora
+B+C+D). Detalle: PROJECT_STATE.md puntos 123-125.
+
+C044 18:45 ⚖ **PROPUESTA APROBADA, NO IMPLEMENTADA A PROPÓSITO** —
+rediseño de la vista "Ventas", mobile-first. Usuario pidió explícitamente
+documentar todo antes de implementar por si se acababan los créditos de
+la sesión. Recorrido largo de decisión: (1) usuario pidió rediseño
+mobile-first para registrar ventas desde el celular → análisis del
+estado real (más rico de lo documentado en README: hay un builder de
+productos individuales que componen el concepto final, toggle tipo de
+cliente registrado/nuevo — no solo un campo de texto simple) →
+propuesta de 3 alternativas (wizard móvil / acordeón / hoja modal) →
+usuario aprobó **A** (wizard de 3 pasos SOLO en móvil <900px, reusa el
+patrón de csf.html, desktop sin cambios). (2) Usuario pidió ADEMÁS
+rediseñar la versión de escritorio, porque el layout actual (formulario
+sticky al lado de la tabla) "se le hace incómodo" — su idea: formulario
+a botón+modal (como "Gestionar" de Tickets) y tabla a ancho completo
+con filtros (concepto/fechas/rango de total). Se le hizo una crítica
+constructiva pedida explícitamente ("cuestiona mi diseño, critícalo"):
+el modal tal cual rompería el flujo actual de "registrar varias ventas
+seguidas sin volver a subir" (documentado así en el README) — se
+propuso que el modal NO se cierre solo al guardar, se limpie y quede
+abierto listo para la siguiente venta. Esto además UNIFICA el punto 1 y
+2: un solo modal para las 2 plataformas — en escritorio se ve como
+formulario normal (reusa `.ticket-modal`, 820px); en móvil el MISMO
+modal se vuelve pantalla completa y adentro se activa el wizard de 3
+pasos de (1). Usuario aprobó. (3) Usuario pidió un ajuste más: el toast
+de confirmación "muchas veces no se nota" — pidió una confirmación
+INLINE dentro del modal: palomita animada (trazo SVG) en **cyan de
+marca `#05DBF2`** (el mismo cyan del ítem activo del sidebar,
+reutilizado — no inventado) + "Guardado con éxito", ~1.3s total,
+`prefers-reduced-motion` respetado (palomita ya completa sin animar,
+mismo criterio que `mantenimiento.html`). Propuesta visual mostrada,
+usuario aprobó todo el conjunto. Filtros de la tabla (concepto/fechas/
+total): 100% client-side, `GET /ordenes-compra` ya trae todo sin
+paginar — sin cambios de backend. **Nada de esto está implementado —
+es la especificación completa aprobada**, documentada en
+PROJECT_STATE.md punto 126 (detalle línea por línea, incluyendo
+checklist de "cero funcionalidad perdida") y CLAUDE.md, para que
+cualquier sesión futura la implemente sin rederivar el diseño. 4 ideas
+de funcionalidad nueva OFRECIDAS y SIN decidir (productos frecuentes,
+buscador de cliente por nombre/RFC, compartir por WhatsApp, borrador
+local `localStorage`) — preguntar antes de tocar cualquiera si se
+retoma esta sesión. Sin commit — es solo documentación, no hay código
+que commitear todavía. Esta sesión siguió con solo herramientas de
+LECTURA de Claude Mem — este registro en `cmem.md` es el sustituto
+acordado (mismo criterio que C037).
+
+C045 09:15 ◆ Parte web del rediseño de "Ventas" (C044), IMPLEMENTADA Y
+VALIDADA. Formulario de sticky-lateral a modal (`#orden-registrar-
+modal-overlay`, reusa `.ticket-modal`) + botón "+ Registrar venta",
+tabla a ancho completo con filtros nuevos 100% client-side (concepto/
+fechas/total, `ordenesCache` + `aplicarFiltrosOrdenes()`, sin cambios
+de backend), palomita animada cyan `#05DBF2` en vez de toast al
+guardar (modal se queda abierto, se limpia solo). Jest 560/560,
+validado en navegador real: 2 ventas de prueba registradas de punta a
+punta con IVA correcto, filtros confirmados con datos reales, toast
+confirmado ausente, cero errores de consola. Falta el wizard móvil de
+3 pasos (punto 2 de C044) — sin commit/push, se cierra junto con esa
+parte. Detalle: PROJECT_STATE.md punto 126 (subsección "Parte web").
+
+C046 09:40 ◆ Menú de navegación móvil del panel admin, rediseñado e
+IMPLEMENTADO. Usuario reportó que el menú no funcionaba en celular (fila
+horizontal con scroll, tap targets bajo 44px) y propuso una grilla
+simétrica de botones cuadrados con íconos en el home. Se cuestionó la
+propuesta antes de implementar: usar "Inicio" como botón de regreso no
+sirve porque el perfil `administrador` no tiene esa vista — se propuso
+en su lugar un botón neutral **"Menú"** en la barra superior que
+siempre reabre la grilla completa, sin importar el perfil. Usuario
+aprobó ("si por favor"). Botón `#btn-menu-movil` + grilla
+`#admin-menu-movil` (9 tarjetas, mismas vistas/íconos del sidebar,
+ocultas/mostradas en espejo exacto de `RESTRICCIONES_PERFIL`);
+`.admin-sidebar-nav` (la fila vieja) reemplazada por completo en móvil.
+Jest 560/560, `node --check` limpio. Validado en navegador real con un
+viewport móvil genuino de 390×844 simulado vía `<style>` temporal
+inyectado (el iframe se descartó porque las cabeceras `frame-ancestors`/
+`X-Frame-Options` del punto 116 lo bloquearon — confirma que ese
+endurecimiento de seguridad funciona): grilla correcta, navegación
+oculta la grilla, "Menú" la reabre desde cualquier vista, cero errores
+de consola. Sin commit/push todavía. Detalle: PROJECT_STATE.md punto
+127.

@@ -128,26 +128,42 @@
   min-width: 0;
 }
 
+/* Botón "Menú" de la barra superior móvil — oculto en escritorio, la
+   fila del sidebar tiene su propio nav vertical ahí. */
+.btn-menu-movil {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-menu-movil:hover { background: rgba(255, 255, 255, 0.08); }
+
 @media (max-width: 900px) {
   .admin-dashboard { flex-direction: column; min-height: 0; }
   .admin-sidebar {
     width: 100%;
     flex-direction: row;
     align-items: center;
+    justify-content: space-between;
   }
   .admin-sidebar-logo {
     padding: 10px 12px;
     flex-shrink: 0;
   }
   .admin-sidebar-logo-img { max-width: 80px; }
-  .admin-sidebar-nav {
-    flex: 1;
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 8px;
-    min-width: 0;
-  }
-  .admin-sidebar-nav .admin-vista-btn { flex-shrink: 0; white-space: nowrap; padding: 8px 10px; font-size: 12.5px; }
+  .btn-menu-movil { display: flex; }
+  /* El menú de fila con scroll lateral (pill por pill, texto 12.5px,
+     tap target por debajo de 44px) se reemplaza por completo con el
+     grid de íconos (#admin-menu-movil) — pedido explícito del usuario
+     ("no funciona el menú"). Ya no se muestra en absoluto en móvil. */
+  .admin-sidebar-nav { display: none; }
   .admin-sidebar-footer {
     border-top: none;
     border-left: 1px solid rgba(255, 255, 255, 0.1);
@@ -157,6 +173,45 @@
   .admin-sidebar-logout span:last-child { display: none; }
   .admin-sidebar-logout { padding: 8px; justify-content: center; }
 }
+
+/* Launcher de íconos (menú móvil) — grid simétrico de 2 columnas,
+   tarjetas cuadradas con tap target generoso (bien por encima de los
+   44px mínimos de accesibilidad, a diferencia del menú de fila viejo).
+   Mismo lenguaje visual que el resto de tarjetas del panel (fondo
+   blanco, borde suave) en vez del navy del sidebar — vive en el área
+   de contenido, no en la barra lateral. */
+.admin-menu-movil {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  max-width: 420px;
+  margin: 8px auto 0;
+}
+.admin-menu-movil-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  aspect-ratio: 1 / 1;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  color: var(--color-accent-dark);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+.admin-menu-movil-btn:hover,
+.admin-menu-movil-btn:active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.admin-menu-movil-btn svg { color: var(--color-accent); flex-shrink: 0; }
 
 /* Login screen: layout de split-screen (marca + tarjeta) compartido con
    el login de cliente, ver auth.css. */
@@ -1012,64 +1067,81 @@
   padding-bottom: 10px;
 }
 
-/* Orden de compra: formulario y lista lado a lado en pantallas anchas,
-   para no tener que desplazarse hasta abajo para ver la lista después de
-   llenar el formulario. El formulario es más angosto (ancho fijo, tiene
-   pocos campos) y la lista toma el resto del espacio disponible (la
-   tabla tiene 6 columnas, necesita más ancho). El formulario queda fijo
-   (`sticky`) al hacer scroll dentro de una lista larga, para poder
-   registrar varias órdenes seguidas sin tener que volver a subir. */
-.orden-compra-layout {
-  display: grid;
-  grid-template-columns: minmax(300px, 380px) 1fr;
-  gap: 20px;
-  align-items: start;
-}
-.orden-compra-columna-form {
-  position: sticky;
-  top: 16px;
-}
-/* Corrige un problema real de "desbordamiento" de CSS Grid: por defecto,
-   una celda de grid nunca se encoge por debajo del ancho natural de su
-   contenido, aunque la columna esté definida como "1fr" (flexible). La
-   tabla de la derecha tiene columnas redimensionables — en cuanto el
-   administrador las hace más anchas (arrastrando los encabezados), su
-   ancho natural podía superar el espacio disponible, y SIN esta regla
-   toda la cuadrícula (formulario + lista) se empujaba hacia la derecha
-   en vez de quedarse dentro de su contenedor. Con "min-width: 0", la
-   celda sí se encoge al espacio real disponible, y es la propia tabla
-   (con su "overflow-x: auto" ya existente) la que gana una barra de
-   desplazamiento horizontal si hace falta — en vez de desbalancear toda
-   la página hacia la derecha. El margen izquierdo del contenedor
-   centrado (".admin-main") nunca se mueve; lo que se movía era el
-   borde derecho, dando la sensación de que "todo se recorre a la
-   derecha" cada vez que se ensanchaba una columna. */
+/* Ventas: rediseño 2026-08-21 (aprobado en PROJECT_STATE.md punto 126)
+   — el formulario "Registrar venta" dejó de ser una columna sticky al
+   lado de la tabla (competía por espacio con una tabla de 6 columnas) y
+   pasó a un botón + modal (mismo patrón "Gestionar" que ya usan
+   Tickets, `.ticket-modal`). La lista ahora es de ancho completo. */
 .orden-compra-columna-lista {
   min-width: 0;
 }
-.orden-lista-titulo {
-  font-family: var(--font-display);
-  font-size: 17px;
-  margin: 0 0 10px;
+
+/* Filtros de "Ventas registradas" (concepto/fechas/total) — mismo
+   lenguaje visual que los filtros de "Lectura de reportes"
+   (`.lectura-reportes-rango-fechas`/`-acciones` se reutilizan tal
+   cual, ya son genéricos), reglas propias solo para el grid en sí. */
+.ordenes-filtros {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 18px;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.ordenes-filtros .field { margin-bottom: 0; }
+@media (max-width: 900px) {
+  .ordenes-filtros { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .ordenes-filtros { grid-template-columns: 1fr; }
 }
 
-/* Por debajo de este ancho, una tabla de 6 columnas no cabe
-   razonablemente al lado del formulario — se colapsa a una sola columna
-   apilada, formulario primero (es la acción principal de la pantalla). */
-@media (max-width: 900px) {
-  .orden-compra-layout {
-    grid-template-columns: 1fr;
+/* Confirmación de guardado INLINE dentro del modal "Registrar venta"
+   (pedido explícito: un toast "muchas veces no se nota" — esto aparece
+   justo donde ya está la vista puesta). Palomita con animación de
+   trazo SVG en el cyan de marca (#05DBF2, el mismo del ítem activo del
+   sidebar — reutilizado, no un color nuevo). */
+.orden-form-exito {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 56px 20px;
+  text-align: center;
+}
+.orden-form-exito-check circle {
+  stroke-dasharray: 176;
+  stroke-dashoffset: 176;
+  animation: orden-check-circulo 0.4s ease forwards;
+}
+.orden-form-exito-check path {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: orden-check-palomita 0.25s ease 0.35s forwards;
+}
+@keyframes orden-check-circulo { to { stroke-dashoffset: 0; } }
+@keyframes orden-check-palomita { to { stroke-dashoffset: 0; } }
+.orden-form-exito-texto {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0;
+  opacity: 0;
+  animation: orden-check-texto 0.3s ease 0.5s forwards;
+}
+@keyframes orden-check-texto { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .orden-form-exito-check circle,
+  .orden-form-exito-check path {
+    animation: none;
+    stroke-dashoffset: 0;
   }
-  .orden-compra-columna-form {
-    position: static;
-  }
-  /* En una sola columna, "1fr" sigue necesitando min-width: 0 por el
-     mismo motivo — sin esto, la tabla ancha también desbordaría hacia
-     la derecha en pantallas angostas. */
-  .orden-compra-columna-form,
-  .orden-compra-columna-lista {
-    min-width: 0;
-  }
+  .orden-form-exito-texto { animation: none; opacity: 1; }
 }
 
 .admin-config-grid {
@@ -1663,9 +1735,9 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 /* Mismo pedido para los 4 KPIs de Resumen financiero. */
 .resumen-fin-tablero .inicio-stat-numero { text-align: center; }
 @media (max-width: 900px) {
-  .inicio-stats-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 480px) {
+  /* 1 columna directo (sin nivel intermedio de 2) — a 2 columnas los
+     números largos ($96,500.31) se recortaban contra el borde de la
+     tarjeta. */
   .inicio-stats-grid { grid-template-columns: 1fr; }
 }
 
@@ -3090,6 +3162,20 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .gastos-filtro-limpiar {
   margin-bottom: 1px;
 }
+@media (max-width: 900px) {
+  /* flex-wrap con min-width distinto por campo (150px selects, 200px
+     búsqueda) hacía wrap desordenado en móvil — se apila 1 columna,
+     ancho completo, alineación garantizada (mismo criterio que
+     .ordenes-filtros/.lectura-reportes-filtros). */
+  .gastos-filtros { flex-direction: column; align-items: stretch; }
+  .gastos-filtro-campo select,
+  .gastos-filtro-campo input[type='date'] {
+    width: 100%;
+    min-width: 0;
+  }
+  .gastos-filtro-busqueda { min-width: 0; }
+  .gastos-filtro-limpiar { margin-bottom: 0; width: 100%; }
+}
 
 /* Concepto clicable de la tabla de gastos — abre el modal de detalle
    (mismo lenguaje visual que "No. Compra" de las órdenes). */
@@ -3265,12 +3351,10 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   grid-column: span 6;
 }
 @media (max-width: 900px) {
-  /* En pantallas chicas se ignora el ANCHO personalizado (KPIs a 2 por
-     fila, resto apilado) pero el ORDEN personalizado sí se conserva. */
-  .resumen-fin-tablero > [data-dashboard-id] { grid-column: span 12; }
-  .resumen-fin-tablero > [data-dashboard-id^="kpi-"] { grid-column: span 6; }
-}
-@media (max-width: 480px) {
+  /* En pantallas chicas se ignora el ANCHO personalizado (todo a ancho
+     completo, incluidos los KPIs) pero el ORDEN personalizado sí se
+     conserva. Los KPIs a 2 por fila recortaban números largos contra
+     el borde de la tarjeta (mismo criterio que .inicio-stats-grid). */
   .resumen-fin-tablero > [data-dashboard-id] { grid-column: span 12; }
 }
 

@@ -522,6 +522,82 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   toca la tarjeta vecina) — ambas tarjetas comparten línea base tras
   validar con zoom a pixel. Sin commit/push — working tree para
   revisión del usuario.
+- **Rediseño de "Ventas" — APROBADO POR EL USUARIO, PENDIENTE DE
+  IMPLEMENTAR (ver PROJECT_STATE.md punto 126, 2026-08-21)**: NADA
+  implementado todavía — es la especificación completa ya aprobada
+  (protocolo `addv-web-app` completo, con 2 rondas de crítica del
+  propio usuario a su idea y ajustes ya resueltos), documentada para
+  que cualquier sesión futura la implemente sin rederivar el diseño.
+  Resumen: (1) formulario "Registrar venta" pasa de sticky-lateral a
+  botón + modal (reusa `.ticket-modal`, 820px, mismo patrón que
+  "Gestionar" de Tickets), tabla a ancho completo; (2) un solo modal
+  para escritorio Y móvil — en móvil (<900px) se vuelve pantalla
+  completa con wizard de 3 pasos (Cliente → Productos → Confirmar,
+  reusa el patrón de 3 pasos ya validado en `csf.html`); (3) el modal
+  NO se cierra solo al guardar — se limpia y se queda abierto (corrige
+  a propósito la pérdida del flujo de "varias ventas seguidas" que un
+  modal ingenuo rompería); (4) confirmación de guardado INLINE dentro
+  del modal (no toast, "muchas veces no se nota") — palomita animada en
+  cyan de marca `#05DBF2` (mismo cyan del ítem activo del sidebar,
+  reutilizado) con trazo SVG + "Guardado con éxito", ~1.3s total,
+  respeta `prefers-reduced-motion`; (5) filtros nuevos (concepto,
+  rango de fechas, rango de total) 100% client-side, sin backend —
+  `GET /api/admin/ordenes-compra` ya trae todo sin paginar, mismo
+  patrón que el buscador de Constancias. Cero funcionalidad perdida
+  (checklist completo en PROJECT_STATE.md). 4 ideas opcionales
+  ofrecidas y SIN decidir (productos frecuentes, buscador de cliente
+  por nombre/RFC, compartir por WhatsApp, borrador local) — preguntar
+  antes de tocar cualquiera si se retoma. **Parte web IMPLEMENTADA Y
+  VALIDADA (2026-08-22)**: formulario movido de sticky a modal
+  (`#orden-registrar-modal-overlay`, reusa `.ticket-modal`), botón
+  "+ Registrar venta", tabla a ancho completo con filtros nuevos
+  (`.ordenes-filtros`, 100% client-side, `ordenesCache` +
+  `aplicarFiltrosOrdenes()`, sin cambios de backend), palomita animada
+  cyan `#05DBF2` en vez de toast (`mostrarExitoRegistrarOrden()`, modal
+  se queda abierto y se limpia solo tras guardar). Jest 560/560,
+  validado en navegador real (2 ventas de prueba registradas de punta a
+  punta, filtros confirmados con datos reales, toast confirmado
+  ausente). **Falta el wizard móvil de 3 pasos (punto 2)** — sin
+  commit/push todavía, se hace junto con la parte móvil. Ver el punto
+  126 completo para el detalle línea por línea antes de continuar.
+- **Menú de navegación móvil del panel admin rediseñado — IMPLEMENTADO
+  Y VALIDADO (ver PROJECT_STATE.md punto 127, 2026-08-22)**: la fila
+  horizontal con scroll lateral (`.admin-sidebar-nav` forzada en móvil)
+  no funcionaba bien (tap targets bajo 44px) — usuario pidió una
+  grilla simétrica de botones cuadrados con íconos en el home, solo
+  móvil. Crítica aplicada antes de implementar: "Inicio" como botón de
+  regreso no sirve porque `administrador` no tiene esa vista — se usó
+  en su lugar un botón neutral **"Menú"** en la barra superior que
+  siempre reabre la grilla completa (independiente del perfil),
+  aprobado con "si por favor". Botón `#btn-menu-movil` + grilla
+  `#admin-menu-movil` (9 tarjetas `.admin-menu-movil-btn`, mismas
+  vistas/íconos del sidebar de escritorio, ocultas/mostradas en espejo
+  exacto de `RESTRICCIONES_PERFIL` vía `aplicarRestriccionesPerfil()`).
+  `.admin-sidebar-nav` pasa a `display:none` en móvil, reemplazada por
+  completo. Jest 560/560, `node --check` limpio, llaves CSS 643/643.
+  **Validado en navegador real** con un viewport móvil genuino de
+  390×844 simulado vía `<style>` temporal inyectado (el iframe se
+  descartó porque `frame-ancestors`/`X-Frame-Options` del punto 116 lo
+  bloqueó — confirma que ese endurecimiento funciona): grilla 2
+  columnas correcta con los 9 íconos, navegación a "Ventas" oculta la
+  grilla, botón "Menú" la reabre desde cualquier vista, cero errores de
+  consola. Sin commit/push todavía.
+- **Fix de overflow/desalineación en móvil — Resumen financiero,
+  Inicio, Gastos (ver PROJECT_STATE.md punto 128, 2026-08-22)**:
+  usuario reportó KPIs con texto recortado (2 columnas entre 480-900px
+  con números largos) en Resumen financiero/Inicio/Gastos, y filtros
+  de Gastos desalineados en móvil (único filtro que aún usaba
+  `flex-wrap` con `min-width` en vez del patrón grid ya establecido en
+  Ventas/Reportes). Propuesta antes/después aprobada. Fix: KPIs
+  (`.inicio-stats-grid`, `.resumen-fin-tablero`) a 1 columna directo
+  debajo de 900px (sin nivel intermedio de 2); `.gastos-filtros` con
+  `@media (max-width: 900px)` nuevo que apila los 7 campos a 100% de
+  ancho. Cero cambios en escritorio. Jest 560/560, validado en
+  navegador real. **Gotcha de metodología de prueba documentado en el
+  punto 128**: angostar solo `body { max-width }` no dispara los
+  `@media` reales (`window.innerWidth` no cambia) — hay que replicar
+  las reglas del breakpoint manualmente en el arnés de prueba. Sin
+  commit/push todavía.
 - **"Lectura de reportes" rediseñada para auditorías (ver
   PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
   `reporte_items.accion` ya distinguía "eliminado" (borrado real) de
