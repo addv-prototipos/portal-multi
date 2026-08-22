@@ -547,8 +547,20 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   vez. Después del push: "Configuraciones globales" movido al final del
   sidebar (ancla fija, comentario en el HTML para vistas nuevas), y
   número centrado (no todo el contenido) en los KPIs de "Inicio" y
-  "Resumen financiero", mismo criterio que Reportes. Sin commit/push
-  todavía estos 2 últimos.
+  "Resumen financiero", mismo criterio que Reportes. Commit `fa0906e`,
+  push a `fact`. **B+C+D del punto 122 implementadas y validadas**: B —
+  pestaña "Todo lo eliminado" (ledger cruzado de todos los reportes,
+  endpoints `/reportes/eliminados` y `/reportes/eliminados-exportar`,
+  columna "Reporte de origen"); C — "Generado por" en el resumen del
+  reporte, cruzando `admin_auditoria` (segmento 7) por ruta+ventana de
+  5s (`/reportes/:id/generado-por`), mejor esfuerzo, nunca bloquea; D —
+  botón "Ver historial" por identificador, modal con su timeline en
+  todos los reportes (`/reportes/timeline/:tipo/:identificador`). 2 bugs
+  reales encontrados y corregidos en el camino: `map(renderFilaReporteItem)`
+  pasaba el índice del array como segundo argumento (columna de más en
+  Movimientos), y el timeline desbordaba con descripciones largas
+  (faltaba `flex:1;min-width:0`). Sin cambios de esquema. Jest 560/560.
+  Sin commit/push todavía este segmento (B+C+D).
 - **Auditoría de consistencia de documentación (ver PROJECT_STATE.md
   punto 120, 2026-08-21)**: a pedido explícito del usuario ("revisa la
   documentación"), revisión de salud de los 3 entregables obligatorios

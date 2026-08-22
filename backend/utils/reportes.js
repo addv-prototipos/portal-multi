@@ -252,11 +252,15 @@ function escaparCeldaCSV(valor) {
 
 const ENCABEZADOS_EXPORTACION = ['Tipo', 'Identificador', 'RFC / Correo', 'Estatus', 'Monto', 'Atendido por', 'Fecha de registro', 'Acción'];
 
-function itemsAFilas(items, zonaHoraria) {
+// "Reporte de origen" — columna opcional, solo para el ledger cruzado de
+// eliminados (que junta varios reportes); la exportación de UN solo
+// reporte no la necesita, ya sabes de cuál reporte es.
+function itemsAFilas(items, zonaHoraria, opciones) {
+  const incluirOrigen = Boolean(opciones && opciones.incluirOrigen);
   return items.map((item) => {
     const fechaSegura = aFechaSegura(item.fecha_registro);
     const fechaFormateada = fechaSegura ? formatearFechaHoraMexico(fechaSegura, zonaHoraria) : null;
-    return [
+    const fila = [
       item.tipo_registro === 'ticket' ? 'Ticket' : 'Ventas',
       item.identificador,
       item.rfc || '',
@@ -266,6 +270,12 @@ function itemsAFilas(items, zonaHoraria) {
       fechaFormateada ? `${fechaFormateada.fecha} ${fechaFormateada.hora}` : '',
       item.accion === 'eliminado' ? 'Eliminado' : '',
     ];
+    if (incluirOrigen) {
+      const origenSeguro = aFechaSegura(item.reporte_fecha_generacion);
+      const origenFormateado = origenSeguro ? formatearFechaHoraMexico(origenSeguro, zonaHoraria) : null;
+      fila.push(origenFormateado ? `${origenFormateado.fecha} ${origenFormateado.hora}` : '');
+    }
+    return fila;
   });
 }
 
@@ -274,8 +284,9 @@ function itemsAFilas(items, zonaHoraria) {
  * lista de items de reporte — usado por el botón "Exportar a CSV" de
  * "Lectura de reportes".
  */
-function generarCSV(items, zonaHoraria) {
-  const filas = [ENCABEZADOS_EXPORTACION, ...itemsAFilas(items, zonaHoraria)];
+function generarCSV(items, zonaHoraria, opciones) {
+  const encabezados = opciones && opciones.incluirOrigen ? [...ENCABEZADOS_EXPORTACION, 'Reporte de origen'] : ENCABEZADOS_EXPORTACION;
+  const filas = [encabezados, ...itemsAFilas(items, zonaHoraria, opciones)];
   // "\uFEFF" (BOM) al inicio para que Excel en Windows detecte UTF-8
   // automáticamente y no muestre acentos/eñes corrompidos al abrir el
   // CSV directamente — un problema real y común de Excel con CSV sin BOM.
@@ -287,18 +298,19 @@ function generarCSV(items, zonaHoraria) {
  * lista de items de reporte — usado por el botón "Exportar a Excel".
  * Devuelve un Buffer listo para mandar como respuesta HTTP.
  */
-async function generarExcelBuffer(items, zonaHoraria) {
+async function generarExcelBuffer(items, zonaHoraria, opciones) {
   const workbook = new ExcelJS.Workbook();
   const hoja = workbook.addWorksheet('Reporte');
+  const encabezados = opciones && opciones.incluirOrigen ? [...ENCABEZADOS_EXPORTACION, 'Reporte de origen'] : ENCABEZADOS_EXPORTACION;
 
   // Ancho extra para la columna "Estatus" — sigue haciendo falta aunque
   // se haya renombrado, ya que esta misma columna también guarda el
   // concepto (texto libre, potencialmente largo) de una orden de
   // compra, no solo el estatus corto de un ticket.
-  hoja.columns = ENCABEZADOS_EXPORTACION.map((titulo) => ({ header: titulo, width: titulo === 'Estatus' ? 32 : 20 }));
+  hoja.columns = encabezados.map((titulo) => ({ header: titulo, width: titulo === 'Estatus' ? 32 : 20 }));
   hoja.getRow(1).font = { bold: true };
 
-  itemsAFilas(items, zonaHoraria).forEach((fila) => hoja.addRow(fila));
+  itemsAFilas(items, zonaHoraria, opciones).forEach((fila) => hoja.addRow(fila));
 
   // La columna de Monto se le da formato de moneda solo en las filas que
   // de verdad traen un número (las de tipo "Ticket" se quedan vacías).

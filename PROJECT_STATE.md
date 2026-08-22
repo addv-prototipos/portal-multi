@@ -7101,8 +7101,106 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       (`.inicio-stats-grid`/`.resumen-fin-tablero`) para no afectar las
       demás vistas que reutilizan la misma clase base
       `.inicio-stat-numero`. Validado en navegador real ambos, sin
-      errores de consola. Sin commit/push todavía — pendiente de la
-      próxima ronda.
+      errores de consola. Commit `fa0906e`, push a `fact`
+      (`f7b26d4..fa0906e`).
+
+123. **Idea B de Reportes — ledger cruzado de eliminados, IMPLEMENTADO Y
+    VALIDADO en navegador real (2026-08-21)**: pedido explícito del
+    usuario ("comienza con todos en orden"), protocolo `addv-web-app`
+    completo (propuesta con antes/después en markdown + skills +
+    justificación → aprobado → implementado). Primera de las 3 ideas
+    opcionales del punto 122 (B/C/D); C y D quedan pendientes.
+    - **Qué es**: nueva pestaña "Todo lo eliminado" junto a "Por
+      reporte" (toggle `.view-toggle`, mismo patrón ya usado en Tickets/
+      Gastos/Constancias) — cruza TODOS los reportes en una sola tabla
+      filtrable (mismos filtros que ya existían: tipo, estatus, RFC/
+      correo, rango de fechas), con una columna nueva "Reporte de
+      origen" (de qué reporte viene cada eliminado) y export CSV/Excel
+      propio.
+    - **Backend**: 2 rutas nuevas, `GET /api/admin/reportes/eliminados`
+      y `GET /api/admin/reportes/eliminados-exportar` (ruta con guión,
+      NO anidada como `/eliminados/:algo`, a propósito — para no competir
+      en forma con `GET /reportes/:id/exportar`, que Express matchearía
+      primero si el shape de la URL fuera igual). JOIN `reporte_items` +
+      `reportes` filtrando `accion='eliminado'`, sin tocar esquema.
+      `generarCSV`/`generarExcelBuffer` (`backend/utils/reportes.js`)
+      ahora aceptan un 3er parámetro opcional `{incluirOrigen}` que
+      agrega la columna "Reporte de origen" — retrocompatible, las
+      llamadas existentes (exportación de un solo reporte) no lo pasan
+      y siguen igual.
+    - **Bug real encontrado y corregido en el camino** (no reportado por
+      el usuario, encontrado al revisar el propio código antes de
+      probar): `movimientos.map(renderFilaReporteItem)` en `admin.js`
+      pasaba el índice del array como segundo argumento de la función
+      (comportamiento nativo de `Array.map`), y como la función se
+      extendió para aceptar `(item, conOrigen)`, cualquier fila con
+      índice > 0 habría mostrado una columna "Reporte de origen" vacía
+      de más en la tabla "Movimientos" (que no debería tenerla). Se
+      corrigió a `.map((item) => renderFilaReporteItem(item, false))`
+      antes de llegar a probarlo en navegador.
+    - **Verificación**: `node --check` limpio en los 3 archivos
+      tocados, cross-check de IDs nuevos JS↔HTML sin huérfanos, Jest
+      backend **560/560 (34 suites)**, sin regresión. Validado en
+      navegador real: pestaña nueva carga 21 eliminados (coincide con
+      el KPI histórico), filtro por tipo "Tickets" → 0 resultados
+      (correcto, en esta siembra todos los eliminados son ventas),
+      "Limpiar filtros" y export CSV probados sin error de consola, y
+      "Por reporte" se confirmó intacto (mismo comportamiento de
+      siempre) al volver a esa pestaña. Sin commit/push todavía.
+
+124. **Idea C de Reportes — quién generó el reporte, IMPLEMENTADO Y
+    VALIDADO en navegador real (2026-08-21)**: cruza `admin_auditoria`
+    (`control_tenants`, segmento 7) con `reportes.fecha_generacion` —
+    no había columna `generado_por` en `reportes` (nadie lo pidió
+    cuando se diseñó esa tabla). Endpoint nuevo
+    `GET /api/admin/reportes/:id/generado-por`: si `tipo='automatico'`
+    responde `{actor: null, motivo: 'automatico'}` sin ni siquiera
+    intentar el cruce (un cron no tiene sesión de admin, por
+    definición); si es manual, busca en `admin_auditoria` la mutación
+    (`POST /reportes/enviar` o `DELETE /ordenes-compra/:id`, filtrada
+    también por `tenant_slug`) más cercana en el tiempo a
+    `fecha_generacion` dentro de una ventana de 5 segundos — mejor
+    esfuerzo, responde `null`/"Sin coincidencia" sin bloquear si no
+    encuentra nada (ej. instalaciones de antes del segmento 7). Nuevo
+    campo "Generado por" en el resumen del reporte seleccionado,
+    cargado aparte (no viene en la lista) con guardia contra condición
+    de carrera (si cambias de reporte mientras la petición sigue en
+    vuelo, no pisa el resumen del nuevo). Sin cambios de esquema. Jest
+    backend 560/560. Validado en navegador real con datos reales de
+    esta sesión: un reporte manual de snapshot y uno de "Eliminar
+    venta" resolvieron correctamente a "admin (super)" — la propia
+    sesión que los generó al probar B. Sin errores de consola.
+
+125. **Idea D de Reportes — timeline por identificador, IMPLEMENTADO Y
+    VALIDADO en navegador real (2026-08-21)**: última de las 3 ideas
+    opcionales del punto 122 — con esto, B+C+D quedan completas.
+    - **Qué es**: botón "Ver historial" (ícono de reloj) junto al
+      identificador en las 3 tablas (Movimientos, Eliminados, ledger
+      cruzado) — abre un modal con TODAS las veces que ese folio/No. de
+      venta apareció en cualquier reporte, del más antiguo al más
+      reciente, cada entrada con badge "Activo"/"Eliminado" y su
+      detalle. Un solo `addEventListener('click')` delegado en
+      `document` cubre las 3 tablas (generadas y regeneradas
+      dinámicamente) sin re-engancharse cada vez.
+    - **Backend**: ruta nueva
+      `GET /api/admin/reportes/timeline/:tipoRegistro/:identificador` —
+      JOIN `reporte_items`+`reportes` por `tipo_registro`+`identificador`
+      exactos, ordenado por `fecha_generacion` ASC. Sin cambios de
+      esquema.
+    - **Bug real encontrado y corregido durante la validación en
+      navegador** (no antes): con una descripción larga ("Servicio de
+      mantenimiento vehicular"), la fila del timeline desbordaba
+      horizontalmente el modal — `.reportes-timeline-detalle` no tenía
+      `flex:1; min-width:0` (necesario para que un hijo flex respete el
+      ancho del contenedor en vez de forzarlo a crecer con su
+      contenido). Corregido, texto envuelve a varias líneas.
+    - **Verificación**: `node --check` limpio en los 3 archivos,
+      cross-check de IDs sin huérfanos, llaves CSS balanceadas
+      (625/625), Jest backend **560/560 (34 suites)**. Validado en
+      navegador real: un ticket con una sola aparición (badge
+      "Activo") y una venta eliminada (badge "Eliminado") ambos
+      correctos, sin errores de consola.
+    - **Segmento completo (B+C+D)**: sin commit/push todavía.
 
 
 ## Limitaciones de ESTE entorno de generación (importante)

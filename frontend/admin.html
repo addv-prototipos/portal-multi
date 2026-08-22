@@ -1527,6 +1527,12 @@
           </div>
         </div>
 
+        <div class="view-toggle" role="tablist" aria-label="Ver por reporte o todo lo eliminado">
+          <button type="button" class="view-toggle-btn is-active" id="btn-reportes-vista-por-reporte" role="tab" aria-selected="true">Por reporte</button>
+          <button type="button" class="view-toggle-btn" id="btn-reportes-vista-ledger" role="tab" aria-selected="false">Todo lo eliminado</button>
+        </div>
+
+        <div id="reportes-vista-por-reporte">
         <div class="lectura-reportes-selector-wrap">
           <div class="field lectura-reportes-selector-field">
             <label for="reportes-selector">Reporte</label>
@@ -1558,6 +1564,10 @@
           <div class="lectura-reportes-resumen-item">
             <span class="lectura-reportes-resumen-label">Correo</span>
             <span class="lectura-reportes-resumen-valor" id="resumen-reporte-correo"></span>
+          </div>
+          <div class="lectura-reportes-resumen-item">
+            <span class="lectura-reportes-resumen-label">Generado por</span>
+            <span class="lectura-reportes-resumen-valor" id="resumen-reporte-generado-por">—</span>
           </div>
         </div>
 
@@ -1656,6 +1666,77 @@
         </div>
 
         <p class="lectura-reportes-vacio" id="lectura-reportes-sin-seleccion">Selecciona un reporte de la lista para ver su contenido.</p>
+        </div>
+
+        <!-- Ledger cruzado: todos los eliminados de TODOS los reportes en un
+             solo lugar filtrable — a diferencia de "Por reporte" (arriba),
+             no depende de abrir cada reporte uno por uno para encontrar algo. -->
+        <div id="reportes-vista-ledger" hidden>
+          <div class="lectura-reportes-filtros" id="ledger-filtros">
+            <div class="field">
+              <label for="ledger-filtro-tipo">Tipo de registro</label>
+              <select id="ledger-filtro-tipo">
+                <option value="">Todos</option>
+                <option value="ticket">Tickets</option>
+                <option value="orden_compra">Ventas</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="ledger-filtro-estatus">Estatus</label>
+              <select id="ledger-filtro-estatus">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="en_curso">En curso</option>
+                <option value="cancelado">Cancelado</option>
+                <option value="listo">Listo</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="ledger-filtro-rfc">RFC / correo</label>
+              <input type="text" id="ledger-filtro-rfc" placeholder="Buscar…" />
+            </div>
+            <div class="field">
+              <label for="ledger-filtro-fecha-desde">Rango de fechas</label>
+              <div class="lectura-reportes-rango-fechas">
+                <input type="date" id="ledger-filtro-fecha-desde" aria-label="Desde" />
+                <span class="lectura-reportes-rango-separador" aria-hidden="true">–</span>
+                <input type="date" id="ledger-filtro-fecha-hasta" aria-label="Hasta" />
+              </div>
+            </div>
+            <div class="lectura-reportes-filtros-acciones">
+              <button type="button" class="btn btn-secondary" id="btn-limpiar-filtros-ledger">Limpiar filtros</button>
+            </div>
+          </div>
+
+          <div class="lectura-reportes-subtabla lectura-reportes-subtabla-eliminados">
+            <div class="lectura-reportes-subtabla-header">
+              <h3>Todo lo eliminado <span class="lectura-reportes-conteo lectura-reportes-conteo-eliminado" id="ledger-conteo">0</span></h3>
+              <p class="lectura-reportes-subtabla-nota">Cruza TODOS los reportes — la evidencia completa de qué se ha eliminado, sin tener que abrir reporte por reporte.</p>
+              <div class="lectura-reportes-exportar">
+                <button type="button" class="btn btn-secondary" id="btn-exportar-ledger-csv">Exportar CSV</button>
+                <button type="button" class="btn btn-secondary" id="btn-exportar-ledger-excel">Exportar Excel</button>
+              </div>
+            </div>
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Identificador</th>
+                    <th>RFC / Correo</th>
+                    <th>Detalle</th>
+                    <th>Monto</th>
+                    <th>Atendido por</th>
+                    <th>Fecha de registro</th>
+                    <th>Reporte de origen</th>
+                  </tr>
+                </thead>
+                <tbody id="ledger-table-body"></tbody>
+              </table>
+              <p class="admin-empty" id="ledger-empty" hidden>No hay eliminados con los filtros seleccionados.</p>
+            </div>
+          </div>
+        </div>
       </div>
       </main>
     </div>
@@ -1847,6 +1928,19 @@
       <div class="btn-row">
         <button type="button" class="btn btn-secondary" id="btn-descargar-md">Descargar .md</button>
         <button type="button" class="btn btn-primary" id="btn-cerrar-ver-md">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historial de un identificador a través de todos los reportes (idea D de auditoría) -->
+  <div class="modal-overlay" id="reportes-timeline-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reportes-timeline-title">
+      <h2 id="reportes-timeline-title">Historial</h2>
+      <p class="panel-subtitle" id="reportes-timeline-subtitulo"></p>
+      <ul class="reportes-timeline-lista" id="reportes-timeline-lista"></ul>
+      <p class="admin-empty" id="reportes-timeline-empty" hidden>No se encontró en ningún otro reporte.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btn-cerrar-reportes-timeline">Cerrar</button>
       </div>
     </div>
   </div>

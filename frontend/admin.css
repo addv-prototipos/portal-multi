@@ -850,6 +850,44 @@
   color: var(--color-accent-dark);
 }
 .lectura-reportes-conteo-eliminado { background: var(--color-error-soft); color: var(--color-error); }
+
+/* Botón "Ver historial" (idea D) — junto al identificador en las 3
+   tablas de Reportes (Movimientos/Eliminados/ledger cruzado). */
+.btn-ver-historial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.btn-ver-historial:hover { border-color: var(--color-accent); color: var(--color-accent-dark); background: var(--color-accent-soft); }
+
+.reportes-timeline-lista {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.reportes-timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13.5px;
+}
+.reportes-timeline-item:last-child { border-bottom: none; }
+.reportes-timeline-fecha { flex-shrink: 0; color: var(--color-ink-soft); min-width: 140px; }
+.reportes-timeline-detalle { flex: 1; min-width: 0; color: var(--color-ink); overflow-wrap: break-word; }
 .lectura-reportes-subtabla-nota {
   flex: 1 1 100%;
   margin: 0;

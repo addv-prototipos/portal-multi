@@ -419,6 +419,7 @@
     resumenReporteTickets: document.getElementById('resumen-reporte-tickets'),
     resumenReporteOrdenes: document.getElementById('resumen-reporte-ordenes'),
     resumenReporteCorreo: document.getElementById('resumen-reporte-correo'),
+    resumenReporteGeneradoPor: document.getElementById('resumen-reporte-generado-por'),
     lecturaReportesFiltros: document.getElementById('lectura-reportes-filtros'),
     filtroReporteTipo: document.getElementById('filtro-reporte-tipo'),
     filtroReporteEstatus: document.getElementById('filtro-reporte-estatus'),
@@ -439,6 +440,26 @@
     btnExportarEliminadosCsv: document.getElementById('btn-exportar-eliminados-csv'),
     btnExportarEliminadosExcel: document.getElementById('btn-exportar-eliminados-excel'),
     lecturaReportesSinSeleccion: document.getElementById('lectura-reportes-sin-seleccion'),
+    btnReportesVistaPorReporte: document.getElementById('btn-reportes-vista-por-reporte'),
+    btnReportesVistaLedger: document.getElementById('btn-reportes-vista-ledger'),
+    reportesVistaPorReporte: document.getElementById('reportes-vista-por-reporte'),
+    reportesVistaLedger: document.getElementById('reportes-vista-ledger'),
+    ledgerFiltroTipo: document.getElementById('ledger-filtro-tipo'),
+    ledgerFiltroEstatus: document.getElementById('ledger-filtro-estatus'),
+    ledgerFiltroRfc: document.getElementById('ledger-filtro-rfc'),
+    ledgerFiltroFechaDesde: document.getElementById('ledger-filtro-fecha-desde'),
+    ledgerFiltroFechaHasta: document.getElementById('ledger-filtro-fecha-hasta'),
+    btnLimpiarFiltrosLedger: document.getElementById('btn-limpiar-filtros-ledger'),
+    ledgerConteo: document.getElementById('ledger-conteo'),
+    ledgerTableBody: document.getElementById('ledger-table-body'),
+    ledgerEmpty: document.getElementById('ledger-empty'),
+    btnExportarLedgerCsv: document.getElementById('btn-exportar-ledger-csv'),
+    btnExportarLedgerExcel: document.getElementById('btn-exportar-ledger-excel'),
+    reportesTimelineOverlay: document.getElementById('reportes-timeline-overlay'),
+    reportesTimelineSubtitulo: document.getElementById('reportes-timeline-subtitulo'),
+    reportesTimelineLista: document.getElementById('reportes-timeline-lista'),
+    reportesTimelineEmpty: document.getElementById('reportes-timeline-empty'),
+    btnCerrarReportesTimeline: document.getElementById('btn-cerrar-reportes-timeline'),
     verMdOverlay: document.getElementById('ver-md-overlay'),
     verMdTitle: document.getElementById('ver-md-title'),
     verMdContenido: document.getElementById('ver-md-contenido'),
@@ -1805,16 +1826,28 @@
     return escapeHtml(item.estatus_o_concepto || '—');
   }
 
-  function renderFilaReporteItem(item) {
+  // "conOrigen" agrega la columna "Reporte de origen" — solo la usa el
+  // ledger cruzado (varios reportes a la vez); dentro de un solo reporte
+  // sobra, ya sabes de cuál es.
+  function renderFilaReporteItem(item, conOrigen) {
+    const celdaOrigen = conOrigen
+      ? `<td data-label="Reporte de origen">${formatearFechaCorta(item.reporte_fecha_generacion)}</td>`
+      : '';
     return `
       <tr>
         <td data-label="Tipo">${item.tipo_registro === 'ticket' ? 'Ticket' : 'Ventas'}</td>
-        <td data-label="Identificador"><strong>${escapeHtml(item.identificador)}</strong></td>
+        <td data-label="Identificador">
+          <strong>${escapeHtml(item.identificador)}</strong>
+          <button type="button" class="btn-ver-historial" data-tipo="${item.tipo_registro}" data-identificador="${escapeHtml(item.identificador)}" data-tooltip="Ver historial en todos los reportes" aria-label="Ver historial de ${escapeHtml(item.identificador)}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          </button>
+        </td>
         <td data-label="RFC / Correo">${escapeHtml(item.rfc || '—')}</td>
         <td data-label="Detalle">${renderDetalleItemReporte(item)}</td>
         <td data-label="Monto">${item.monto === null ? '—' : `$${formatearMoneda(item.monto)}`}</td>
         <td data-label="Atendido por">${escapeHtml(item.atendido_por || '—')}</td>
         <td data-label="Fecha de registro">${formatearFechaCorta(item.fecha_registro)}</td>
+        ${celdaOrigen}
       </tr>
     `;
   }
@@ -1830,14 +1863,194 @@
 
     els.reportesMovimientosWrap.hidden = false;
     els.reportesMovimientosConteo.textContent = movimientos.length;
-    els.reportesMovimientosTableBody.innerHTML = movimientos.map(renderFilaReporteItem).join('');
+    els.reportesMovimientosTableBody.innerHTML = movimientos.map((item) => renderFilaReporteItem(item, false)).join('');
     els.reportesMovimientosEmpty.hidden = movimientos.length > 0;
 
     els.reportesEliminadosWrap.hidden = false;
     els.reportesEliminadosConteo.textContent = eliminados.length;
-    els.reportesEliminadosTableBody.innerHTML = eliminados.map(renderFilaReporteItem).join('');
+    els.reportesEliminadosTableBody.innerHTML = eliminados.map((item) => renderFilaReporteItem(item, false)).join('');
     els.reportesEliminadosEmpty.hidden = eliminados.length > 0;
   }
+
+  // "Generado por" (idea C de auditoría) — no viene en la lista de
+  // reportes (GET /reportes), se resuelve aparte, solo al seleccionar
+  // uno, cruzando con admin_auditoria en el backend. Un reporte
+  // automático nunca tiene actor (cron sin sesión), así que ni se pide.
+  async function cargarGeneradoPorReporte(id, tipoReporte) {
+    if (tipoReporte === 'automatico') {
+      els.resumenReporteGeneradoPor.textContent = 'Automático (retención, sin sesión de un admin)';
+      return;
+    }
+    els.resumenReporteGeneradoPor.textContent = '—';
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/reportes/${id}/generado-por`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      // Puede llegar tarde si la persona ya cambió de reporte mientras
+      // esta petición seguía en vuelo — no pisar el resumen equivocado.
+      if (reporteSeleccionadoId !== String(id)) return;
+      els.resumenReporteGeneradoPor.textContent = data.actor
+        ? `${data.actor}${data.perfil ? ` (${data.perfil})` : ''}`
+        : 'Sin coincidencia en la auditoría';
+    } catch (err) {
+      els.resumenReporteGeneradoPor.textContent = '—';
+    }
+  }
+
+  // ---------- Ledger cruzado de eliminados (idea B) ----------
+  // A diferencia de "Por reporte" (arriba), esta pestaña no depende de
+  // seleccionar un reporte — junta los eliminados de TODOS los reportes
+  // en una sola tabla filtrable, con su reporte de origen visible.
+
+  function obtenerFiltrosLedgerActuales() {
+    const params = new URLSearchParams();
+    if (els.ledgerFiltroTipo.value) params.set('tipo_registro', els.ledgerFiltroTipo.value);
+    if (els.ledgerFiltroEstatus.value) params.set('estatus', els.ledgerFiltroEstatus.value);
+    if (els.ledgerFiltroRfc.value.trim()) params.set('rfc', els.ledgerFiltroRfc.value.trim());
+    if (els.ledgerFiltroFechaDesde.value) params.set('fecha_desde', els.ledgerFiltroFechaDesde.value);
+    if (els.ledgerFiltroFechaHasta.value) params.set('fecha_hasta', els.ledgerFiltroFechaHasta.value);
+    return params;
+  }
+
+  async function cargarLedgerEliminados() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const params = obtenerFiltrosLedgerActuales();
+      const res = await fetch(`${API_BASE}/admin/reportes/eliminados?${params.toString()}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = data.items || [];
+      els.ledgerConteo.textContent = items.length;
+      els.ledgerTableBody.innerHTML = items.map((item) => renderFilaReporteItem(item, true)).join('');
+      els.ledgerEmpty.hidden = items.length > 0;
+    } catch (err) {
+      // La tabla se queda con lo último cargado; se puede reintentar ajustando un filtro.
+    }
+  }
+
+  [els.ledgerFiltroTipo, els.ledgerFiltroEstatus, els.ledgerFiltroFechaDesde, els.ledgerFiltroFechaHasta].forEach((el) => {
+    el.addEventListener('change', () => cargarLedgerEliminados());
+  });
+  let timeoutFiltroRfcLedger = null;
+  els.ledgerFiltroRfc.addEventListener('input', () => {
+    clearTimeout(timeoutFiltroRfcLedger);
+    timeoutFiltroRfcLedger = setTimeout(() => cargarLedgerEliminados(), 350);
+  });
+  els.btnLimpiarFiltrosLedger.addEventListener('click', () => {
+    els.ledgerFiltroTipo.value = '';
+    els.ledgerFiltroEstatus.value = '';
+    els.ledgerFiltroRfc.value = '';
+    els.ledgerFiltroFechaDesde.value = '';
+    els.ledgerFiltroFechaHasta.value = '';
+    cargarLedgerEliminados();
+  });
+
+  async function exportarLedger(formato) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const params = obtenerFiltrosLedgerActuales();
+      params.set('formato', formato);
+      const res = await fetch(`${API_BASE}/admin/reportes/eliminados-exportar?${params.toString()}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) {
+        showToast('No se pudo exportar.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `eliminados-historico.${formato === 'excel' ? 'xlsx' : 'csv'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast('No se pudo exportar.');
+    }
+  }
+  els.btnExportarLedgerCsv.addEventListener('click', () => exportarLedger('csv'));
+  els.btnExportarLedgerExcel.addEventListener('click', () => exportarLedger('excel'));
+
+  els.btnReportesVistaPorReporte.addEventListener('click', () => {
+    els.btnReportesVistaPorReporte.classList.add('is-active');
+    els.btnReportesVistaPorReporte.setAttribute('aria-selected', 'true');
+    els.btnReportesVistaLedger.classList.remove('is-active');
+    els.btnReportesVistaLedger.setAttribute('aria-selected', 'false');
+    els.reportesVistaPorReporte.hidden = false;
+    els.reportesVistaLedger.hidden = true;
+  });
+  els.btnReportesVistaLedger.addEventListener('click', () => {
+    els.btnReportesVistaLedger.classList.add('is-active');
+    els.btnReportesVistaLedger.setAttribute('aria-selected', 'true');
+    els.btnReportesVistaPorReporte.classList.remove('is-active');
+    els.btnReportesVistaPorReporte.setAttribute('aria-selected', 'false');
+    els.reportesVistaLedger.hidden = false;
+    els.reportesVistaPorReporte.hidden = true;
+    cargarLedgerEliminados();
+  });
+
+  // ---------- Historial por identificador (idea D) ----------
+  // Delegado en document: el botón "Ver historial" vive en 3 tablas
+  // distintas (Movimientos, Eliminados, ledger cruzado), generadas y
+  // regeneradas dinámicamente — un solo listener delegado cubre las 3
+  // sin tener que re-engancharlo cada vez que se re-renderiza una tabla.
+  document.addEventListener('click', (e) => {
+    const boton = e.target.closest('.btn-ver-historial');
+    if (!boton) return;
+    abrirTimelineItem(boton.dataset.tipo, boton.dataset.identificador);
+  });
+
+  function renderEntradaTimeline(entrada) {
+    const esEliminado = entrada.accion === 'eliminado';
+    const badge = esEliminado
+      ? '<span class="estatus-badge estatus-cancelado">Eliminado</span>'
+      : '<span class="estatus-badge estatus-listo">Activo</span>';
+    return `
+      <li class="reportes-timeline-item">
+        <span class="reportes-timeline-fecha">${formatearFechaCorta(entrada.reporte_fecha_generacion)}</span>
+        ${badge}
+        <span class="reportes-timeline-detalle">${renderDetalleItemReporte(entrada)}</span>
+      </li>
+    `;
+  }
+
+  async function abrirTimelineItem(tipo, identificador) {
+    els.reportesTimelineSubtitulo.textContent = `${tipo === 'ticket' ? 'Ticket' : 'Ventas'} ${identificador} — en todos los reportes donde apareció, del más antiguo al más reciente.`;
+    els.reportesTimelineLista.innerHTML = '';
+    els.reportesTimelineEmpty.hidden = true;
+    els.reportesTimelineOverlay.hidden = false;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/reportes/timeline/${tipo}/${encodeURIComponent(identificador)}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const entradas = data.entradas || [];
+      els.reportesTimelineLista.innerHTML = entradas.map(renderEntradaTimeline).join('');
+      els.reportesTimelineEmpty.hidden = entradas.length > 0;
+    } catch (err) {
+      els.reportesTimelineEmpty.hidden = false;
+    }
+  }
+
+  els.btnCerrarReportesTimeline.addEventListener('click', () => {
+    els.reportesTimelineOverlay.hidden = true;
+  });
+  els.reportesTimelineOverlay.addEventListener('click', (e) => {
+    if (e.target === els.reportesTimelineOverlay) els.reportesTimelineOverlay.hidden = true;
+  });
 
   async function cargarItemsReporteSeleccionado() {
     if (!reporteSeleccionadoId) return;
@@ -1872,6 +2085,7 @@
       els.resumenReporteCorreo.textContent = reporte.correo_enviado
         ? `Enviado a ${reporte.correo_enviado_a}`
         : 'No se envió por correo';
+      cargarGeneradoPorReporte(reporte.id, reporte.tipo);
     }
 
     els.lecturaReportesResumen.hidden = false;

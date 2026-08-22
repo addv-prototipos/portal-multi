@@ -11,7 +11,7 @@ const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 
-const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant } = require('./db');
+const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl } = require('./db');
 const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant } = require('./utils/tenantContext');
 const { validarSlug } = require('./utils/tenant');
 const storage = require('./utils/storage');
@@ -3006,6 +3006,60 @@ app.get(
   })
 );
 
+// Quién generó el reporte (idea C de auditoría) — no hay una columna
+// "generado_por" en `reportes` (no existía ese requisito cuando se
+// diseñó la tabla), así que se infiere cruzando con `admin_auditoria`
+// (control_tenants, segmento 7): el actor cuya mutación (POST
+// /reportes/enviar o DELETE /ordenes-compra/:id) ocurrió más cerca en
+// el tiempo de `fecha_generacion`, dentro de una ventana de 5 segundos
+// (el reporte se guarda inmediatamente después de esa mutación, nunca
+// con más retraso que eso). Un reporte "automático" (retención, cron
+// sin sesión de ningún admin) nunca tiene actor por definición — ni
+// siquiera se intenta el cruce. Mejor esfuerzo: si no hay match (ej.
+// instalación previa al segmento 7, sin auditoría todavía), responde
+// null sin bloquear ni inventar nada.
+app.get(
+  '/api/admin/reportes/:id/generado-por',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const [filas] = await pool.query('SELECT tipo, fecha_generacion FROM reportes WHERE id = ?', [id]);
+    if (filas.length === 0) {
+      return res.status(404).json({ error: 'Reporte no encontrado.' });
+    }
+    if (filas[0].tipo === 'automatico') {
+      return res.json({ actor: null, motivo: 'automatico' });
+    }
+
+    const tenantSlug = req.tenant ? req.tenant.slug : null;
+    const poolControl = obtenerPoolControl();
+    const fechaGeneracion = filas[0].fecha_generacion;
+    const [coincidencias] = await poolControl.query(
+      `SELECT actor, perfil, ocurrido_en
+         FROM admin_auditoria
+        WHERE resultado_estatus < 400
+          AND ${tenantSlug ? 'tenant_slug = ?' : 'tenant_slug IS NULL'}
+          AND (
+            (metodo = 'POST' AND ruta = '/api/admin/reportes/enviar')
+            OR (metodo = 'DELETE' AND ruta LIKE '/api/admin/ordenes-compra/%')
+          )
+          AND ocurrido_en BETWEEN DATE_SUB(?, INTERVAL 5 SECOND) AND DATE_ADD(?, INTERVAL 5 SECOND)
+        ORDER BY ABS(TIMESTAMPDIFF(SECOND, ocurrido_en, ?)) ASC
+        LIMIT 1`,
+      tenantSlug
+        ? [tenantSlug, fechaGeneracion, fechaGeneracion, fechaGeneracion]
+        : [fechaGeneracion, fechaGeneracion, fechaGeneracion]
+    );
+
+    if (coincidencias.length === 0) {
+      return res.json({ actor: null, motivo: 'sin_coincidencia' });
+    }
+    res.json({ actor: coincidencias[0].actor, perfil: coincidencias[0].perfil, motivo: 'coincidencia' });
+  })
+);
+
 // Items estructurados de un reporte, con filtros opcionales — para la
 // tabla filtrable de "Lectura de reportes". Todos los filtros se pueden
 // combinar entre sí.
@@ -3157,6 +3211,126 @@ app.get(
       total_activos: Number(totales.total_activos) || 0,
       eliminados_por_mes: filasSerie.map((f) => ({ mes: etiquetaMes(f.mes), total: Number(f.total) })),
     });
+  })
+);
+
+// Arma el WHERE compartido por el ledger cruzado de eliminados
+// (GET /reportes/eliminados y su exportación) — mismos filtros que ya
+// soporta GET /reportes/:id/items, sin el reporte_id (cruza TODOS).
+function filtrosLedgerEliminados(req) {
+  const { tipo_registro: tipoRegistro, estatus, rfc, fecha_desde: fechaDesde, fecha_hasta: fechaHasta } = req.query;
+  const estatusValidos = ['pendiente', 'en_curso', 'cancelado', 'listo'];
+  let sql = "WHERE ri.accion = 'eliminado'";
+  const params = [];
+  if (tipoRegistro && ['ticket', 'orden_compra'].includes(tipoRegistro)) {
+    sql += ' AND ri.tipo_registro = ?';
+    params.push(tipoRegistro);
+  }
+  if (estatus && estatusValidos.includes(estatus)) {
+    sql += ' AND ri.estatus_o_concepto = ?';
+    params.push(estatus);
+  }
+  if (rfc) {
+    sql += ' AND ri.rfc LIKE ?';
+    params.push(`%${sanitizeText(rfc, 100)}%`);
+  }
+  if (fechaDesde) {
+    sql += ' AND ri.fecha_registro >= ?';
+    params.push(fechaDesde);
+  }
+  if (fechaHasta) {
+    sql += ' AND ri.fecha_registro <= ?';
+    params.push(fechaHasta);
+  }
+  return { sql, params };
+}
+
+// Ledger cruzado: TODOS los registros eliminados de TODOS los reportes en
+// un solo lugar filtrable — a diferencia de GET /reportes/:id/items (que
+// solo ve un reporte a la vez), esta es la vista panorámica de auditoría
+// completa. Trae también de qué reporte viene cada uno ("Reporte de
+// origen"), vía JOIN — información que no aporta nada dentro de un solo
+// reporte (ya lo sabes, es el que abriste) pero es central aquí.
+app.get(
+  '/api/admin/reportes/eliminados',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const { sql: where, params } = filtrosLedgerEliminados(req);
+    const [items] = await pool.query(
+      `SELECT ri.*, r.fecha_generacion AS reporte_fecha_generacion, r.tipo AS reporte_tipo
+         FROM reporte_items ri
+         JOIN reportes r ON r.id = ri.reporte_id
+         ${where}
+        ORDER BY ri.fecha_registro DESC`,
+      params
+    );
+    res.json({ total: items.length, items });
+  })
+);
+
+// Exportación del ledger cruzado — mismos filtros que GET .../eliminados,
+// agrega la columna "Reporte de origen" (generarCSV/generarExcelBuffer
+// la incluyen solo cuando se les pide explícitamente, para no alterar la
+// exportación de un solo reporte, que no la necesita). Ruta con guión
+// (no anidada bajo /reportes/:algo/exportar) a propósito, para no
+// competir con la forma de GET /reportes/:id/exportar.
+app.get(
+  '/api/admin/reportes/eliminados-exportar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const formato = req.query.formato === 'excel' ? 'excel' : 'csv';
+    const { sql: where, params } = filtrosLedgerEliminados(req);
+    const [items] = await pool.query(
+      `SELECT ri.*, r.fecha_generacion AS reporte_fecha_generacion, r.tipo AS reporte_tipo
+         FROM reporte_items ri
+         JOIN reportes r ON r.id = ri.reporte_id
+         ${where}
+        ORDER BY ri.fecha_registro DESC`,
+      params
+    );
+    const configGlobalExport = await getConfiguracionGlobal();
+
+    if (formato === 'excel') {
+      const buffer = await generarExcelBuffer(items, configGlobalExport.zona_horaria, { incluirOrigen: true });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="eliminados-historico.xlsx"');
+      res.send(buffer);
+    } else {
+      const csv = generarCSV(items, configGlobalExport.zona_horaria, { incluirOrigen: true });
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="eliminados-historico.csv"');
+      res.send(csv);
+    }
+  })
+);
+
+// Historial de un identificador (folio de ticket o No. de venta) a
+// través de TODOS los reportes donde apareció (idea D de auditoría) —
+// útil para ver, por ejemplo, que un mismo ticket salió "activo" en un
+// reporte de hace 2 semanas y "eliminado" en el de ayer.
+app.get(
+  '/api/admin/reportes/timeline/:tipoRegistro/:identificador',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const { tipoRegistro, identificador } = req.params;
+    if (!['ticket', 'orden_compra'].includes(tipoRegistro)) {
+      return res.status(400).json({ error: 'Tipo de registro inválido.' });
+    }
+    const [entradas] = await pool.query(
+      `SELECT ri.*, r.fecha_generacion AS reporte_fecha_generacion, r.tipo AS reporte_tipo
+         FROM reporte_items ri
+         JOIN reportes r ON r.id = ri.reporte_id
+        WHERE ri.tipo_registro = ? AND ri.identificador = ?
+        ORDER BY r.fecha_generacion ASC`,
+      [tipoRegistro, identificador]
+    );
+    res.json({ tipoRegistro, identificador, entradas });
   })
 );
 
