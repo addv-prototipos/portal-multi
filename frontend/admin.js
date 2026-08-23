@@ -237,12 +237,18 @@
     btnAgregarProductoOrden: document.getElementById('btn-agregar-producto-orden'),
     ordenProductosListaWrap: document.getElementById('orden-productos-lista-wrap'),
     ordenProductosListaBody: document.getElementById('orden-productos-lista-body'),
+    ordenProductosListaMovil: document.getElementById('orden-productos-lista-movil'),
     ordenIvaInfo: document.getElementById('orden-iva-info'),
     ordenTotalPreview: document.getElementById('orden-total-preview'),
     ordenEmail: document.getElementById('orden-email'),
     ordenDatosCliente: document.getElementById('orden-datos-cliente'),
     ordenRfcInfo: document.getElementById('orden-rfc-info'),
     ordenNombreInfo: document.getElementById('orden-nombre-info'),
+    // Método de entrega (correo / imprimir), paso final del wizard
+    btnOrdenEntregaCorreo: document.getElementById('btn-orden-entrega-correo'),
+    btnOrdenEntregaImprimir: document.getElementById('btn-orden-entrega-imprimir'),
+    ordenEntregaCorreoWrap: document.getElementById('orden-entrega-correo-wrap'),
+    ordenEntregaImprimirHint: document.getElementById('orden-entrega-imprimir-hint'),
     // Toggle "Cliente ya registrado" / "Cliente nuevo" de la venta
     btnOrdenClienteRegistrado: document.getElementById('btn-orden-cliente-registrado'),
     btnOrdenClienteNuevo: document.getElementById('btn-orden-cliente-nuevo'),
@@ -250,6 +256,13 @@
     ordenEmailNuevoWrap: document.getElementById('orden-email-nuevo-wrap'),
     ordenEmailNuevo: document.getElementById('orden-email-nuevo'),
     ordenErrorGeneral: document.getElementById('orden-error-general'),
+    // Ticket de impresión + asignar correo a una venta sin uno
+    ticketImprimir: document.getElementById('ticket-imprimir'),
+    btnOrdenModalImprimir: document.getElementById('btn-orden-modal-imprimir'),
+    ordenAsignarCorreoOverlay: document.getElementById('orden-asignar-correo-overlay'),
+    ordenAsignarCorreoInput: document.getElementById('orden-asignar-correo-input'),
+    btnOrdenAsignarCorreoCancelar: document.getElementById('btn-orden-asignar-correo-cancelar'),
+    btnOrdenAsignarCorreoEnviar: document.getElementById('btn-orden-asignar-correo-enviar'),
     btnRegistrarOrden: document.getElementById('btn-registrar-orden'),
     btnRegistrarOrdenLabel: document.getElementById('btn-registrar-orden-label'),
     ordenesError: document.getElementById('ordenes-error'),
@@ -4166,11 +4179,13 @@
   els.btnOrdenClienteRegistrado.addEventListener('click', () => aplicarModoClienteOrden(false));
   els.btnOrdenClienteNuevo.addEventListener('click', () => aplicarModoClienteOrden(true));
 
-  // Wizard de 3 pasos (Cliente → Productos → Confirmar), solo activo en
+  // Wizard de 3 pasos (Productos → Confirmar → Entrega), solo activo en
   // móvil (<900px, ver admin.css) — en escritorio los 3 ".orden-wizard-paso"
   // ya se muestran todos juntos vía CSS, así que aquí solo hace falta
   // ocultar/mostrar el botón "Registrar venta" según el ancho real de
-  // pantalla (en escritorio siempre visible, nunca gateado por paso).
+  // pantalla (en escritorio siempre visible, nunca gateado por paso). El
+  // correo se pide hasta el último paso ("Entrega"), junto con la
+  // elección de método — antes vivía en el primer paso.
   let ordenPasoActual = 1;
   function esVistaMovilOrden() {
     return window.matchMedia('(max-width: 900px)').matches;
@@ -4193,7 +4208,31 @@
     if (dialogo) dialogo.scrollTop = 0;
   }
 
+  // Método de entrega: correo (de siempre) o imprimir ticket (nuevo, sin
+  // correo — ver PROJECT_STATE.md). Imprimir oculta Tipo de cliente +
+  // Correo por completo, ya no aplican.
+  let ordenMetodoEntregaImprimir = false;
+  function aplicarMetodoEntregaOrden(esImprimir) {
+    ordenMetodoEntregaImprimir = esImprimir;
+    els.btnOrdenEntregaCorreo.classList.toggle('is-active', !esImprimir);
+    els.btnOrdenEntregaCorreo.setAttribute('aria-selected', String(!esImprimir));
+    els.btnOrdenEntregaImprimir.classList.toggle('is-active', esImprimir);
+    els.btnOrdenEntregaImprimir.setAttribute('aria-selected', String(esImprimir));
+    els.ordenEntregaCorreoWrap.hidden = esImprimir;
+    els.ordenEntregaImprimirHint.hidden = !esImprimir;
+    if (esImprimir) {
+      setFieldError('orden-email', '');
+      setFieldError('orden-email-nuevo', '');
+    }
+  }
+  els.btnOrdenEntregaCorreo.addEventListener('click', () => aplicarMetodoEntregaOrden(false));
+  els.btnOrdenEntregaImprimir.addEventListener('click', () => aplicarMetodoEntregaOrden(true));
+
+  // Correo es obligatorio SOLO si el método de entrega es "correo" — con
+  // "imprimir" no hay nada que validar aquí (ver POST /ordenes-compra,
+  // acepta email vacío).
   function validarPasoClienteOrden() {
+    if (ordenMetodoEntregaImprimir) return true;
     setFieldError('orden-email', '');
     setFieldError('orden-email-nuevo', '');
     const email = ordenModoClienteNuevo
@@ -4213,12 +4252,11 @@
 
   els.btnOrdenPasoSiguiente.addEventListener('click', () => {
     if (ordenPasoActual === 1) {
-      if (!validarPasoClienteOrden()) return;
-      irAPasoOrdenWizard(2);
-    } else if (ordenPasoActual === 2) {
       document.getElementById('error-orden-producto-general').textContent =
         productosOrdenActual.length === 0 ? 'Agrega al menos un producto para continuar.' : '';
       if (productosOrdenActual.length === 0) return;
+      irAPasoOrdenWizard(2);
+    } else if (ordenPasoActual === 2) {
       irAPasoOrdenWizard(3);
     }
   });
@@ -4291,7 +4329,13 @@
 
     els.ordenProductosListaWrap.hidden = productosOrdenActual.length === 0;
     els.ordenProductosListaBody.innerHTML = '';
+    els.ordenProductosListaMovil.innerHTML = '';
     productosOrdenActual.forEach((producto, indice) => {
+      const quitar = () => {
+        productosOrdenActual.splice(indice, 1);
+        recalcularOrdenDesdeProductos();
+      };
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${escapeHtml(producto.concepto)}</td>
@@ -4300,11 +4344,26 @@
         <td>$${formatearMoneda(subtotalProductoOrden(producto))}</td>
         <td><button type="button" class="btn-quitar-producto-orden" aria-label="Quitar ${escapeHtml(producto.concepto)}">✕</button></td>
       `;
-      tr.querySelector('.btn-quitar-producto-orden').addEventListener('click', () => {
-        productosOrdenActual.splice(indice, 1);
-        recalcularOrdenDesdeProductos();
-      });
+      tr.querySelector('.btn-quitar-producto-orden').addEventListener('click', quitar);
       els.ordenProductosListaBody.appendChild(tr);
+
+      // Solo móvil (<760px, ver admin.css): tarjeta compacta de 2 líneas
+      // en vez de la tabla apilada sin etiquetas — reusa el mismo texto
+      // ya armado por textoProductoOrden() ("N x Concepto ($X c/u)").
+      const li = document.createElement('li');
+      li.className = 'orden-productos-lista-movil-item';
+      li.innerHTML = `
+        <p class="orden-productos-lista-movil-concepto">${escapeHtml(textoProductoOrden(producto))}</p>
+        <div class="orden-productos-lista-movil-fila">
+          <span class="orden-productos-lista-movil-precio">${producto.cantidad} pza${producto.cantidad === 1 ? '' : 's'}</span>
+          <div class="orden-productos-lista-movil-derecha">
+            <span class="orden-productos-lista-movil-subtotal">$${formatearMoneda(subtotalProductoOrden(producto))}</span>
+            <button type="button" class="btn-quitar-producto-orden" aria-label="Quitar ${escapeHtml(producto.concepto)}">✕</button>
+          </div>
+        </div>
+      `;
+      li.querySelector('.btn-quitar-producto-orden').addEventListener('click', quitar);
+      els.ordenProductosListaMovil.appendChild(li);
     });
   }
 
@@ -4362,6 +4421,7 @@
     els.ordenEmail.value = '';
     els.ordenEmailNuevo.value = '';
     aplicarModoClienteOrden(false);
+    aplicarMetodoEntregaOrden(false);
     els.ordenErrorGeneral.textContent = '';
     setFieldError('orden-concepto', '');
     setFieldError('orden-cantidad', '');
@@ -4391,9 +4451,17 @@
 
     const concepto = els.ordenConcepto.value.trim();
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
-    const email = ordenModoClienteNuevo
-      ? els.ordenEmailNuevo.value.trim().toLowerCase()
-      : els.ordenEmail.value;
+    // Sin correo cuando el método de entrega es "imprimir" (ver
+    // PROJECT_STATE.md — el backend acepta email vacío en ese caso).
+    const email = ordenMetodoEntregaImprimir
+      ? ''
+      : ordenModoClienteNuevo
+        ? els.ordenEmailNuevo.value.trim().toLowerCase()
+        : els.ordenEmail.value;
+    // Se captura ANTES de que limpiarFormularioOrden() (dentro del
+    // temporizador de mostrarExitoRegistrarOrden) regrese el toggle a
+    // "correo" por defecto para la siguiente venta.
+    const imprimirAlGuardar = ordenMetodoEntregaImprimir;
 
     let valido = true;
     if (!concepto) {
@@ -4421,6 +4489,17 @@
       }
       mostrarExitoRegistrarOrden();
       cargarOrdenes();
+      if (imprimirAlGuardar) {
+        imprimirTicketOrden({
+          numero_compra: data.numero_compra,
+          concepto: data.concepto,
+          cantidad: data.cantidad,
+          iva_porcentaje: data.iva_porcentaje,
+          total: data.total,
+          email: data.email,
+          fecha_compra_formateada: data.fecha_compra,
+        });
+      }
     } catch (err) {
       els.ordenErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -4533,6 +4612,50 @@
     return { cantidad, concepto, precio, subtotal: Math.round(cantidad * precio * 100) / 100 };
   }
 
+  // Arma el ticket de impresión (diseño angosto tipo recibo físico, ver
+  // admin.css) a partir de los datos YA guardados de una venta — reutiliza
+  // el mismo parser de #orden-modal-productos-body, cero datos nuevos del
+  // backend. Se llama desde 3 lugares: justo después de guardar (si el
+  // método de entrega fue "imprimir"), el ícono de la fila, y el botón
+  // "Imprimir ticket" del modal "Ver venta" — mismo componente, 3 entradas.
+  function imprimirTicketOrden(orden) {
+    const fecha = orden.fecha_compra_formateada
+      ? `${orden.fecha_compra_formateada.fecha} ${orden.fecha_compra_formateada.hora}`
+      : '';
+    const lineas = orden.concepto.split('\n').filter((linea) => linea.trim());
+    const productos = lineas.map(parsearProductoDeLinea);
+    const todosParsearon = productos.length > 0 && productos.every((p) => p !== null);
+    const filasHtml = todosParsearon
+      ? productos
+          .map(
+            (p) => `
+              <div class="ticket-imprimir-linea">
+                <span>${p.cantidad} x ${escapeHtml(p.concepto)}</span>
+                <span>$${formatearMoneda(p.subtotal)}</span>
+              </div>`
+          )
+          .join('')
+      : `<div class="ticket-imprimir-linea"><span>${escapeHtml(orden.concepto)}</span></div>`;
+    const ivaMonto = Math.round((Number(orden.total) - Number(orden.cantidad)) * 100) / 100;
+
+    els.ticketImprimir.innerHTML = `
+      <div class="ticket-imprimir-titulo">Ticket de venta</div>
+      <div class="ticket-imprimir-separador"></div>
+      <div class="ticket-imprimir-meta">Folio: ${escapeHtml(orden.numero_compra || '—')}</div>
+      <div class="ticket-imprimir-meta">${escapeHtml(fecha)}</div>
+      <div class="ticket-imprimir-separador"></div>
+      ${filasHtml}
+      <div class="ticket-imprimir-separador"></div>
+      <div class="ticket-imprimir-linea"><span>Subtotal</span><span>$${formatearMoneda(orden.cantidad)}</span></div>
+      <div class="ticket-imprimir-linea"><span>IVA (${Number(orden.iva_porcentaje)}%)</span><span>$${formatearMoneda(ivaMonto)}</span></div>
+      <div class="ticket-imprimir-linea ticket-imprimir-total"><span>TOTAL</span><span>$${formatearMoneda(orden.total)}</span></div>
+      <div class="ticket-imprimir-separador"></div>
+      ${orden.email ? `<div class="ticket-imprimir-meta">Cliente: ${escapeHtml(orden.email)}</div><div class="ticket-imprimir-separador"></div>` : ''}
+      <div class="ticket-imprimir-gracias">¡Gracias por su compra!</div>
+    `;
+    window.print();
+  }
+
   // Vista previa del concepto para la tabla (resumida): un concepto de
   // varios productos solo muestra el primero + "+N más" — el detalle
   // completo vive en el modal, que abre el link de "No. Venta".
@@ -4565,16 +4688,18 @@
       // la misma caché ya cargada para el desplegable del formulario
       // (ver cargarCorreosRegistrados), no hace falta pedirla de nuevo.
       const registroDelCorreo = correosRegistradosCache.find((c) => c.email === orden.email);
-      const tituloCorreo = registroDelCorreo && registroDelCorreo.nombre
-        ? `Razón social: ${registroDelCorreo.nombre}`
-        : 'Razón social no disponible';
+      const tituloCorreo = !orden.email
+        ? 'Venta registrada sin correo (se imprimió el ticket)'
+        : registroDelCorreo && registroDelCorreo.nombre
+          ? `Razón social: ${registroDelCorreo.nombre}`
+          : 'Razón social no disponible';
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td data-label="No. Venta" data-col="numero">${iconoFacturado}<button type="button" class="orden-numero-link">${escapeHtml(orden.numero_compra || '—')}</button></td>
         <td data-label="Fecha" data-col="fecha">${fechaCeldaHtml}</td>
         <td data-label="Concepto" data-col="concepto">${renderConceptoPreviewOrden(orden.concepto)}</td>
         <td data-label="Total" data-col="total"><strong>$${formatearMoneda(orden.total)}</strong></td>
-        <td data-label="Correo" data-col="correo" class="orden-correo-con-tooltip" data-tooltip="${escapeHtml(tituloCorreo)}">${escapeHtml(orden.email)}</td>
+        <td data-label="Correo" data-col="correo" class="orden-correo-con-tooltip" data-tooltip="${escapeHtml(tituloCorreo)}">${orden.email ? escapeHtml(orden.email) : 'Sin correo'}</td>
         <td data-label=""></td>
       `;
 
@@ -4587,12 +4712,23 @@
       const btnReenviar = document.createElement('button');
       btnReenviar.type = 'button';
       btnReenviar.className = 'btn-icono-accion';
-      btnReenviar.setAttribute('data-tooltip', 'Reenviar correo de confirmación');
-      btnReenviar.setAttribute('aria-label', 'Reenviar correo de confirmación');
+      const tituloReenviar = orden.email ? 'Reenviar correo de confirmación' : 'Asignar correo y enviar';
+      btnReenviar.setAttribute('data-tooltip', tituloReenviar);
+      btnReenviar.setAttribute('aria-label', tituloReenviar);
       btnReenviar.innerHTML =
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m3.5 6 8.5 7 8.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      btnReenviar.addEventListener('click', () => reenviarCorreoOrden(orden.id, orden.numero_compra, orden.email, btnReenviar));
+      btnReenviar.addEventListener('click', () => iniciarReenvioOrden(orden, btnReenviar));
       contenedorAccionesOrden.appendChild(btnReenviar);
+
+      const btnImprimirOrden = document.createElement('button');
+      btnImprimirOrden.type = 'button';
+      btnImprimirOrden.className = 'btn-icono-accion';
+      btnImprimirOrden.setAttribute('data-tooltip', 'Imprimir ticket');
+      btnImprimirOrden.setAttribute('aria-label', 'Imprimir ticket');
+      btnImprimirOrden.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><rect x="4" y="9" width="16" height="8" rx="1.2" stroke="currentColor" stroke-width="1.6"/><path d="M6 14h12v7H6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+      btnImprimirOrden.addEventListener('click', () => imprimirTicketOrden(orden));
+      contenedorAccionesOrden.appendChild(btnImprimirOrden);
 
       const btnEliminarOrden = document.createElement('button');
       btnEliminarOrden.type = 'button';
@@ -4622,7 +4758,7 @@
 
     const fecha = orden.fecha_compra_formateada;
     els.ordenModalFecha.textContent = fecha ? `${fecha.fecha} ${fecha.hora}` : '—';
-    els.ordenModalCorreo.textContent = orden.email;
+    els.ordenModalCorreo.textContent = orden.email || 'Sin correo';
 
     const registroDelCorreo = correosRegistradosCache.find((c) => c.email === orden.email);
     els.ordenModalRfcItem.hidden = !registroDelCorreo;
@@ -4677,7 +4813,11 @@
   });
   els.btnOrdenModalReenviar.addEventListener('click', () => {
     if (!ordenModalActual) return;
-    reenviarCorreoOrden(ordenModalActual.id, ordenModalActual.numero_compra, ordenModalActual.email, els.btnOrdenModalReenviar);
+    iniciarReenvioOrden(ordenModalActual, els.btnOrdenModalReenviar);
+  });
+  els.btnOrdenModalImprimir.addEventListener('click', () => {
+    if (!ordenModalActual) return;
+    imprimirTicketOrden(ordenModalActual);
   });
   els.btnOrdenModalEliminar.addEventListener('click', () => {
     if (!ordenModalActual) return;
@@ -4717,7 +4857,20 @@
     }
   }
 
-  async function reenviarCorreoOrden(id, numeroCompra, email, boton) {
+  // Punto de entrada único para el ícono/botón "Reenviar correo": si la
+  // venta todavía no tiene uno (se registró con "Imprimir ticket"), pide
+  // primero uno nuevo en vez de intentar reenviar a nada.
+  function iniciarReenvioOrden(orden, boton) {
+    if (!orden.email) {
+      abrirAsignarCorreoOrden(orden, boton);
+      return;
+    }
+    reenviarCorreoOrden(orden.id, orden.numero_compra, orden.email, boton);
+  }
+
+  // `emailNuevo` solo se manda cuando la venta no tenía correo — el
+  // backend lo guarda ahí antes de enviar (ver POST .../reenviar-correo).
+  async function reenviarCorreoOrden(id, numeroCompra, email, boton, emailNuevo) {
     const authHeader = getAuthHeader();
     if (!authHeader) {
       showLogin();
@@ -4728,20 +4881,66 @@
     try {
       const res = await fetch(`${API_BASE}/admin/ordenes-compra/${id}/reenviar-correo`, {
         method: 'POST',
-        headers: { Authorization: authHeader },
+        headers: {
+          Authorization: authHeader,
+          ...(emailNuevo ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(emailNuevo ? { body: JSON.stringify({ email: emailNuevo }) } : {}),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         showToast(data.error || `No se pudo reenviar el correo de ${numeroCompra}.`, true);
         return;
       }
-      showToast(`Correo de ${numeroCompra} reenviado a ${email}.`);
+      const correoFinal = data.email || email;
+      const notaConstancia =
+        data.tiene_constancia === true
+          ? ' (sí tiene constancia fiscal asignada)'
+          : data.tiene_constancia === false
+            ? ' (todavía sin constancia fiscal asignada)'
+            : '';
+      showToast(`Correo de ${numeroCompra} enviado a ${correoFinal}.${notaConstancia}`);
+      if (ordenModalActual && ordenModalActual.id === id) {
+        ordenModalActual.email = correoFinal;
+        abrirOrdenModal(ordenModalActual);
+      }
+      cargarOrdenes();
     } catch (err) {
       showToast('No se pudo conectar con el servidor.', true);
     } finally {
       boton.disabled = false;
     }
   }
+
+  // Modal chico "Asignar correo" — se abre cuando "Reenviar correo" se
+  // usa sobre una venta que todavía no tiene uno guardado.
+  let ordenAsignarCorreoActual = null;
+  function abrirAsignarCorreoOrden(orden, boton) {
+    ordenAsignarCorreoActual = { id: orden.id, numeroCompra: orden.numero_compra, boton };
+    els.ordenAsignarCorreoInput.value = '';
+    setFieldError('orden-asignar-correo', '');
+    els.ordenAsignarCorreoOverlay.hidden = false;
+    els.ordenAsignarCorreoInput.focus();
+  }
+  function cerrarAsignarCorreoOrden() {
+    els.ordenAsignarCorreoOverlay.hidden = true;
+    ordenAsignarCorreoActual = null;
+  }
+  els.btnOrdenAsignarCorreoCancelar.addEventListener('click', cerrarAsignarCorreoOrden);
+  els.ordenAsignarCorreoOverlay.addEventListener('click', (e) => {
+    if (e.target === els.ordenAsignarCorreoOverlay) cerrarAsignarCorreoOrden();
+  });
+  els.btnOrdenAsignarCorreoEnviar.addEventListener('click', async () => {
+    if (!ordenAsignarCorreoActual) return;
+    const email = els.ordenAsignarCorreoInput.value.trim().toLowerCase();
+    if (!email || !els.ordenAsignarCorreoInput.checkValidity()) {
+      setFieldError('orden-asignar-correo', 'Captura un correo electrónico válido.');
+      return;
+    }
+    const { id, numeroCompra, boton } = ordenAsignarCorreoActual;
+    cerrarAsignarCorreoOrden();
+    await reenviarCorreoOrden(id, numeroCompra, email, boton, email);
+  });
 
   // ---------- Usuarios registrados ----------
 

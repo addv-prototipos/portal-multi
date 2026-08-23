@@ -623,6 +623,50 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   conserva datos. Cero errores de consola. Con esto el segmento
   "Rediseño de Ventas" del punto 126 queda 100% completo. Sin
   commit/push todavía.
+- **Correo opcional + método de entrega (correo/imprimir) + ticket de
+  impresión en Ventas (ver PROJECT_STATE.md punto 130, 2026-08-22,
+  IMPLEMENTADO Y VALIDADO en escritorio Y móvil)**: usuario pidió mover
+  el correo al final del wizard, agregar "¿por correo o se imprime?", y
+  un ticket de impresión SIEMPRE disponible junto a Reenviar/Eliminar.
+  De paso ocultó también "Concepto de venta" (repetía la tabla de
+  productos, mismo criterio que Fecha/IVA/Cantidad del punto 129).
+  **Único cambio de esquema**: `ordenes_compra.email` de `NOT NULL` a
+  `NULL`. Backend: `POST /ordenes-compra` acepta correo vacío (salta
+  validación/constancia/envío); `POST /:id/reenviar-correo` ahora
+  guarda un correo nuevo cuando la venta no tenía uno y devuelve
+  `tiene_constancia`. Wizard reordenado a Productos→Confirmar→Entrega
+  (correo hasta el final, junto al toggle "Enviar por correo"/
+  "Imprimir ticket" — elegir imprimir oculta Tipo de cliente+Correo
+  por completo). Ticket de impresión (`imprimirTicketOrden()`) reusa el
+  parser ya existente de productos (cero dato nuevo del backend) e
+  imprime la MISMA página vía `@media print` en vez de ventana nueva —
+  decisión explícita: `window.open()+print()` se bloquea seguido tras
+  un fetch async, sobre todo en móvil. Disponible desde 3 entradas:
+  automático al guardar (si "imprimir"), ícono en la fila, botón en el
+  modal "Ver venta". Modal nuevo "Asignar correo" para reenviar sobre
+  ventas sin correo. Pruebas nuevas: `ordenes-compra.test.js` (no había
+  cobertura antes), 7 casos. Jest backend 567/567. Validado contra
+  Docker/MySQL reales (migración confirmada, ciclo completo por curl) y
+  en navegador real ambos tamaños, con `window.print` interceptado
+  durante la prueba para confirmar que se dispara en el momento
+  correcto con el ticket ya armado, sin bloquear la automatización. Sin
+  commit/push todavía.
+- **Fix de la lista de productos capturados en Ventas, solo móvil (ver
+  PROJECT_STATE.md punto 131, 2026-08-22)**: usuario reportó "sale
+  desacomodado" debajo de "+ Agregar producto" en móvil (escritorio
+  bien). Causa: la tabla ya tenía `.admin-table` así que se apilaba
+  sola por debajo de 760px, pero sus `<td>` nunca tuvieron
+  `data-label` — se apilaba SIN etiquetas (5 valores sueltos, no se
+  sabía cuál era cuál). Fix, solo móvil: tarjeta compacta de 2 líneas
+  (`.orden-productos-lista-movil`) que reusa tal cual el texto que ya
+  arma `textoProductoOrden()` — cero formato nuevo. Escritorio no
+  cambió (misma tabla de siempre). **Gotcha de metodología**: el primer
+  intento de reproducir el bug dio un falso resultado porque el arnés
+  de prueba solo mirroreaba el breakpoint de 900px — la tabla usa 760px,
+  un breakpoint distinto que no estaba replicado (mismo patrón de
+  gotcha del punto 128, con otro breakpoint). Jest 567/567 (sin cambios
+  de backend), validado en navegador real (nombre largo, botón quitar,
+  escritorio sin cambios). Sin commit/push todavía.
 - **"Lectura de reportes" rediseñada para auditorías (ver
   PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
   `reporte_items.accion` ya distinguía "eliminado" (borrado real) de

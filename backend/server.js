@@ -3868,29 +3868,37 @@ app.post(
       return res.status(400).json({ error: 'La cantidad debe ser un número mayor a cero.' });
     }
 
-    const email = sanitizeText(body.email, 200).toLowerCase();
-    if (!email || !isValidEmail(email)) {
-      return res.status(400).json({ error: 'Selecciona un correo electrónico válido.' });
-    }
+    // El correo ahora es opcional — modalidad "Imprimir ticket" (ver
+    // PROJECT_STATE.md): la venta se registra sin correo, sin correo de
+    // confirmación, y se le asigna uno después desde "Reenviar correo" si
+    // hace falta. Si SÍ se manda un correo, se valida igual que siempre.
+    const emailCapturado = sanitizeText(body.email, 200).toLowerCase();
+    let email = null;
+    if (emailCapturado) {
+      if (!isValidEmail(emailCapturado)) {
+        return res.status(400).json({ error: 'Captura un correo electrónico válido.' });
+      }
+      email = emailCapturado;
 
-    // "Cliente nuevo" (sin constancia todavía, ver frontend): se salta la
-    // exigencia de que el correo ya tenga una constancia activa — la orden
-    // solo necesita un correo válido (ver ordenes_compra en db.js, no
-    // guarda RFC/nombre, así que no hay ningún otro dato que depender de
-    // un registro existente). "Cliente ya registrado" (el modo de
-    // siempre) sigue exigiendo la constancia activa — el desplegable del
-    // frontend solo ofrece esos correos, pero se revalida aquí del lado
-    // del servidor por si acaso (nunca se confía solo en lo que mande el
-    // navegador).
-    if (!body.es_cliente_nuevo) {
-      const [registrosCoincidentes] = await pool.query(
-        'SELECT id FROM registros WHERE email = ? AND eliminado_en IS NULL LIMIT 1',
-        [email]
-      );
-      if (registrosCoincidentes.length === 0) {
-        return res.status(400).json({
-          error: 'Ese correo no corresponde a ninguna constancia de situación fiscal activa.',
-        });
+      // "Cliente nuevo" (sin constancia todavía, ver frontend): se salta la
+      // exigencia de que el correo ya tenga una constancia activa — la orden
+      // solo necesita un correo válido (ver ordenes_compra en db.js, no
+      // guarda RFC/nombre, así que no hay ningún otro dato que depender de
+      // un registro existente). "Cliente ya registrado" (el modo de
+      // siempre) sigue exigiendo la constancia activa — el desplegable del
+      // frontend solo ofrece esos correos, pero se revalida aquí del lado
+      // del servidor por si acaso (nunca se confía solo en lo que mande el
+      // navegador).
+      if (!body.es_cliente_nuevo) {
+        const [registrosCoincidentes] = await pool.query(
+          'SELECT id FROM registros WHERE email = ? AND eliminado_en IS NULL LIMIT 1',
+          [email]
+        );
+        if (registrosCoincidentes.length === 0) {
+          return res.status(400).json({
+            error: 'Ese correo no corresponde a ninguna constancia de situación fiscal activa.',
+          });
+        }
       }
     }
 
@@ -3922,31 +3930,36 @@ app.post(
 
     // Correo de confirmación al cliente, con el diseño de "ticket" y el
     // enlace de acceso al portal — "fire-and-forget": si falla, la orden
-    // ya se guardó correctamente de todas formas.
-    const urlPortalOrden = detectarUrlPortal(req);
-    const marcaTenant = marcaDelTenant(req);
-    const marcaLogoUrl = req.tenant && req.tenant.marcaLogoUrl;
-    enviarCorreoOrdenCompra({
-      numeroCompra,
-      fechaFormateada,
-      concepto,
-      cantidad,
-      ivaPorcentaje,
-      total,
-      email,
-      urlPortal: urlPortalOrden,
-      // El logo de la MARCA del tenant (si lo definió en control, ver el
-      // segmento "marca") tiene prioridad sobre el logo global del panel;
-      // si no hay ninguno, logoTicketHtml genera un logo de texto con la
-      // marca. La ruta guardada en control es relativa
-      // ("/api/marca-logo/<slug>"), así que aquí se convierte a absoluta
-      // con la URL detectada de la petición, para que el correo la pueda
-      // mostrar.
-      logoUrl: marcaLogoUrl ? `${urlPortalOrden}${marcaLogoUrl}` : configGlobal.logo_url,
-      marca: marcaTenant,
-    }).catch((err) => {
-      console.error('No se pudo enviar el correo de confirmación de la orden de compra:', err.message);
-    });
+    // ya se guardó correctamente de todas formas. Se salta por completo si
+    // la venta se registró sin correo (modalidad "Imprimir ticket") — no
+    // hay a quién mandarlo; se puede asignar uno después desde "Reenviar
+    // correo".
+    if (email) {
+      const urlPortalOrden = detectarUrlPortal(req);
+      const marcaTenant = marcaDelTenant(req);
+      const marcaLogoUrl = req.tenant && req.tenant.marcaLogoUrl;
+      enviarCorreoOrdenCompra({
+        numeroCompra,
+        fechaFormateada,
+        concepto,
+        cantidad,
+        ivaPorcentaje,
+        total,
+        email,
+        urlPortal: urlPortalOrden,
+        // El logo de la MARCA del tenant (si lo definió en control, ver el
+        // segmento "marca") tiene prioridad sobre el logo global del panel;
+        // si no hay ninguno, logoTicketHtml genera un logo de texto con la
+        // marca. La ruta guardada en control es relativa
+        // ("/api/marca-logo/<slug>"), así que aquí se convierte a absoluta
+        // con la URL detectada de la petición, para que el correo la pueda
+        // mostrar.
+        logoUrl: marcaLogoUrl ? `${urlPortalOrden}${marcaLogoUrl}` : configGlobal.logo_url,
+        marca: marcaTenant,
+      }).catch((err) => {
+        console.error('No se pudo enviar el correo de confirmación de la orden de compra:', err.message);
+      });
+    }
 
     res.status(201).json({
       ok: true,
@@ -4341,6 +4354,33 @@ app.post(
       return res.status(404).json({ error: 'Venta no encontrada.' });
     }
 
+    // Ventas registradas sin correo (modalidad "Imprimir ticket") no
+    // tienen a quién reenviar — aquí es donde se les asigna uno por
+    // primera vez. El correo mandado en el body SOLO se usa/guarda si la
+    // venta todavía no tiene uno; si ya tiene, se ignora y se reenvía al
+    // que ya estaba (mismo comportamiento de siempre).
+    let email = orden.email;
+    let tieneConstancia = null;
+    if (!email) {
+      const emailCapturado = sanitizeText(req.body && req.body.email, 200).toLowerCase();
+      if (!emailCapturado || !isValidEmail(emailCapturado)) {
+        return res.status(400).json({ error: 'Captura un correo electrónico válido para esta venta.' });
+      }
+      email = emailCapturado;
+      const [registrosCoincidentes] = await pool.query(
+        'SELECT id FROM registros WHERE email = ? AND eliminado_en IS NULL LIMIT 1',
+        [email]
+      );
+      tieneConstancia = registrosCoincidentes.length > 0;
+      const ahoraAsignacion = new Date();
+      ahoraAsignacion.setMilliseconds(0);
+      await pool.query('UPDATE ordenes_compra SET email = ?, actualizado_en = ? WHERE id = ?', [
+        email,
+        ahoraAsignacion,
+        id,
+      ]);
+    }
+
     const configGlobal = await getConfiguracionGlobal();
     const fechaFormateada = formatearFechaHoraMexico(
       new Date(`${String(orden.fecha_compra).replace(' ', 'T')}Z`),
@@ -4358,7 +4398,7 @@ app.post(
         cantidad: Number(orden.cantidad),
         ivaPorcentaje: Number(orden.iva_porcentaje),
         total: Number(orden.total),
-        email: orden.email,
+        email,
         urlPortal: urlPortalReenvio,
         logoUrl: marcaLogoUrlReenvio ? `${urlPortalReenvio}${marcaLogoUrlReenvio}` : configGlobal.logo_url,
         marca: marcaTenantReenvio,
@@ -4367,7 +4407,12 @@ app.post(
       return res.status(502).json({ error: `No se pudo reenviar el correo: ${err.message}` });
     }
 
-    res.json({ ok: true, mensaje: `Correo reenviado a ${orden.email}.` });
+    res.json({
+      ok: true,
+      mensaje: `Correo reenviado a ${email}.`,
+      email,
+      tiene_constancia: tieneConstancia,
+    });
   })
 );
 

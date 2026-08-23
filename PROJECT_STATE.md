@@ -7601,6 +7601,156 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       queda completo — el segmento "Rediseño de Ventas" del punto 126
       queda 100% implementado y validado. Sin commit/push todavía.
 
+130. **Correo opcional + método de entrega (correo/imprimir) + ticket de
+    impresión en Ventas — IMPLEMENTADO Y VALIDADO en navegador real,
+    escritorio Y móvil (2026-08-22)**: usuario pidió mover el correo al
+    final del wizard, agregar la elección "por correo o se imprime", y
+    generar un ticket de impresión SIEMPRE disponible (no solo al elegir
+    imprimir) junto a Reenviar/Eliminar. Protocolo `addv-web-app`
+    completo: crítica + análisis de impacto + propuesta visual → 2
+    rondas de aclaración del usuario (interpretación de "correo opcional"
+    y del reordenamiento del wizard) → confirmado → implementado. En
+    paralelo, el usuario pidió (mensaje suelto durante la implementación)
+    ocultar también "Concepto de venta o servicio" del formulario, por
+    repetir la tabla de productos — aplicado con el mismo criterio ya
+    usado para Fecha/IVA/Cantidad(MXN): campo oculto, el textarea se
+    queda en el DOM (sigue siendo el valor real que se manda al
+    backend).
+    - **Cambio de esquema**: `ordenes_compra.email` pasa de `NOT NULL` a
+      `NULL` (`backend/db.js`, migración con `INFORMATION_SCHEMA.COLUMNS`
+      antes de alterar, mismo patrón cuidadoso ya establecido). Único
+      cambio de base de datos de todo el segmento.
+    - **Backend** (`backend/server.js`): `POST /api/admin/ordenes-compra`
+      acepta `email` vacío — salta la validación de formato, la
+      verificación de constancia fiscal, y el envío del correo de
+      confirmación (antes incondicional). `POST
+      /:id/reenviar-correo` ahora acepta `{email}` en el body: si la
+      venta YA tiene correo, se ignora (comportamiento de siempre); si
+      NO tiene, ese correo se vuelve obligatorio, se guarda en la venta
+      (`UPDATE`), se revisa si corresponde a una constancia activa
+      (`tiene_constancia`, informativo — no bloquea) y se manda ahí.
+    - **Wizard reordenado**: Productos → Confirmar → Entrega (antes
+      Cliente → Productos → Confirmar) — el correo se pide hasta el
+      último paso, junto con la nueva elección "¿Cómo se entrega?"
+      (Enviar por correo / Imprimir ticket, reusa `.view-toggle`). El
+      DOM no se reordenó (el paso "Entrega" sigue siendo el último hijo
+      físico, como ya era "Cliente") — solo cambiaron los atributos
+      `data-paso`/`data-step`, mismo mecanismo del punto 129. Elegir
+      "Imprimir" oculta por completo Tipo de cliente + Correo
+      (`#orden-entrega-correo-wrap`) y muestra un aviso de qué va a
+      pasar; `validarPasoClienteOrden()` se salta entera cuando el
+      método es "imprimir". El correo enviado al backend es `''` en ese
+      caso (el propio POST ya lo interpreta como "sin correo").
+    - **Ticket de impresión** (`frontend/admin.js`,
+      `imprimirTicketOrden()`): reutiliza el parser YA existente
+      (`parsearProductoDeLinea`, el mismo que arma la tabla de
+      productos del modal "Ver venta") — cero dato nuevo del backend,
+      cero riesgo de esquema para esto. Se imprime la MISMA página con
+      una hoja de estilos `@media print` (`#ticket-imprimir`, hijo
+      directo de `<body>`) en vez de abrir una ventana nueva —
+      decisión explícita tras cuestionar la propuesta original: `window.
+      open()+print()` se bloquea seguido por el navegador cuando ocurre
+      después de un `fetch` async (pierde el gesto de usuario), sobre
+      todo en móvil; imprimir la página actual da la misma vista previa
+      nativa del navegador sin ese riesgo. Disponible desde 3 entradas
+      (mismo componente): automático al guardar si el método fue
+      "imprimir", ícono nuevo en la fila de la tabla, y botón "🖨️
+      Imprimir ticket" en la tarjeta "Acciones" del modal "Ver venta"
+      (junto a Reenviar correo/Eliminar, donde pidió el usuario).
+    - **Modal "Asignar correo"** (`#orden-asignar-correo-overlay`,
+      nuevo, patrón `.modal` simple): se abre desde el ícono/botón
+      "Reenviar correo" cuando la venta no tiene uno guardado — pide un
+      correo, lo manda al mismo endpoint de reenvío (que ahora lo
+      guarda), y el toast de éxito indica si ese correo ya tiene
+      constancia fiscal asignada o no.
+    - **Tabla y modal de detalle**: columna "Correo" y
+      `#orden-modal-correo` muestran "Sin correo" cuando aplica; tooltip
+      de la fila indica "Venta registrada sin correo (se imprimió el
+      ticket)"; el ícono de reenviar cambia su título a "Asignar correo
+      y enviar" en esas filas.
+    - **Pruebas nuevas**: `backend/test/integration/ordenes-compra.test.js`
+      (no existía cobertura de Jest para estos endpoints antes de este
+      segmento) — 7 casos: registrar con/sin correo, correo inválido,
+      correo sin constancia, reenviar con correo existente (ignora
+      body), reenviar sin correo (lo exige/guarda/devuelve
+      `tiene_constancia`), reenviar sin correo y sin body → 400. Jest
+      backend **567/567** (35 suites, +1 suite/+7 tests).
+      `node --check` limpio en `server.js`/`db.js`/`admin.js`, CSS
+      balanceado (664/664), ids nuevos verificados sin duplicados.
+    - **Validado contra Docker/MySQL reales**: rebuild de
+      `backend`+`frontend` (`--no-cache` no fue necesario, `build`
+      normal detectó los cambios), migración de esquema confirmada
+      (`IS_NULLABLE = 'YES'` verificado con una consulta directa desde
+      dentro del contenedor), ciclo completo por `curl`: venta sin
+      correo (`email: null` en la respuesta) → asignar correo vía
+      reenviar-correo (`tiene_constancia: false`, guardado confirmado
+      en una segunda consulta).
+    - **Validado en navegador real (Claude in Chrome), escritorio Y
+      móvil** (mismo arnés de viewport genuino de los puntos 127-129,
+      con `window.matchMedia` sobreescrito para que la lógica JS del
+      wizard coincida con el CSS forzado): en escritorio, formulario sin
+      el bloque "Concepto de venta" ni los otros 3 ya ocultos, toggle
+      "¿Cómo se entrega?" funcionando (oculta/muestra Tipo de
+      cliente+Correo en vivo); en móvil, recorrido completo del wizard
+      Productos→Confirmar→Entrega, elegido "Imprimir ticket", math
+      correcta en cada paso. **`window.print` se sobrescribió
+      temporalmente durante la prueba** (para no bloquear la
+      automatización con el diálogo real de impresión del SO) y se
+      confirmó que se llamó en el momento correcto con el HTML del
+      ticket ya armado — mismo patrón para las 3 entradas (automático,
+      ícono de fila, botón del modal). Ciclo completo de "Asignar
+      correo" probado en vivo sobre una venta real sin correo (creada
+      en la misma sesión de prueba): modal, guardado, toast con
+      `tiene_constancia`, tabla y modal de detalle actualizados. Cero
+      errores de consola en todo el recorrido (ambos tamaños). Sin
+      commit/push todavía.
+
+131. **Fix de la lista de productos capturados en el wizard de Ventas,
+    solo móvil — IMPLEMENTADO Y VALIDADO (2026-08-22)**: usuario reportó
+    "sale desacomodado" el elemento debajo de "+ Agregar producto",
+    aclarando que solo pasa en móvil (en escritorio está bien). Pidió
+    propuesta visual antes de tocar código (regla persistente del
+    usuario).
+    - **Causa raíz**: la tabla de productos capturados
+      (`.orden-productos-tabla`, 4 columnas + botón quitar) ya tenía la
+      clase `.admin-table`, así que por debajo de 760px el CSS general
+      la apila en bloques (mismo mecanismo que ya usan Tickets/Gastos/
+      la tabla de Ventas) — pero sus `<td>` nunca tuvieron atributos
+      `data-label`, así que se apilaba SIN etiquetas: 5 valores sueltos
+      uno debajo del otro (concepto, precio, cantidad, subtotal, "✕")
+      sin decir cuál era cuál. **Nota de metodología para la próxima
+      sesión**: la primera reproducción de este bug con el arnés de
+      prueba dio un falso resultado (mostraba scroll horizontal en vez
+      del apilado sin etiquetas) porque el arnés solo mirroreaba el
+      breakpoint de 900px (sidebar/wizard) — la tabla usa un breakpoint
+      DISTINTO (760px, `.admin-table` en general) que no estaba
+      replicado; hubo que agregar esas reglas también, mismo patrón de
+      gotcha ya documentado en el punto 128 pero con un breakpoint
+      diferente al de esa vez.
+    - **Fix, SOLO móvil (<760px)**: en vez de agregar simplemente
+      `data-label` (que habría dejado 5 líneas apiladas por producto,
+      ocupando mucho alto si hay varios), se reemplaza la tabla por una
+      lista de tarjetas compactas de 2 líneas
+      (`.orden-productos-lista-movil`, nueva) — línea 1 reutiliza
+      TAL CUAL el texto que ya arma `textoProductoOrden()` ("N x
+      Concepto ($X.XX c/u)", el mismo que ya se ve en "Concepto de
+      venta"), línea 2 muestra "N pza(s)" + subtotal + botón quitar.
+      Cero formato nuevo, cero dato nuevo. La tabla de escritorio
+      (`.orden-productos-tabla-escritorio`, misma tabla de siempre, solo
+      con esa clase agregada para poder ocultarla en móvil) no cambió
+      en absoluto — ambas estructuras se renderizan siempre desde
+      `recalcularOrdenDesdeProductos()` (mismo array de productos, dos
+      vistas) y CSS decide cuál se ve según el ancho.
+    - **Verificación**: `node --check` limpio, CSS balanceado
+      (675/675), Jest backend 567/567 (cambio 100% frontend, sin
+      impacto esperado ni real). Rebuild de `frontend`, health 200 OK.
+    - **Validado en navegador real** con el arnés corregido (900px +
+      760px mirroreados): 2 productos de prueba (uno con nombre largo,
+      confirmó que envuelve bien sin romper el layout), botón "✕" de la
+      tarjeta nueva probado (quita el producto correcto, recalcula
+      total). Escritorio confirmado sin cambios (tabla normal de 4
+      columnas). Cero errores de consola. Sin commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

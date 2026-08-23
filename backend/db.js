@@ -549,7 +549,7 @@ async function ensureSchema(db = pool) {
       cantidad DECIMAL(12,2) NOT NULL,
       iva_porcentaje DECIMAL(5,2) NOT NULL,
       total DECIMAL(12,2) NOT NULL,
-      email VARCHAR(200) NOT NULL,
+      email VARCHAR(200) NULL,
       eliminado_en DATETIME NULL,
       creado_en DATETIME NOT NULL,
       actualizado_en DATETIME NOT NULL,
@@ -584,6 +584,18 @@ async function ensureSchema(db = pool) {
     if (indicesOrdenesCompra.length === 0) {
       await db.query('ALTER TABLE ordenes_compra ADD UNIQUE KEY uq_ordenes_compra_numero (numero_compra)');
     }
+  }
+
+  // Migracion: "email" pasa de NOT NULL a NULL — ahora una venta se puede
+  // registrar sin correo (modalidad "Imprimir ticket", ver
+  // PROJECT_STATE.md). Ventas ya existentes conservan su correo tal cual,
+  // solo se relaja la restriccion para las nuevas filas.
+  const [columnaEmailOrdenesCompra] = await db.query(
+    `SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ordenes_compra' AND COLUMN_NAME = 'email'`
+  );
+  if (columnaEmailOrdenesCompra.length > 0 && columnaEmailOrdenesCompra[0].IS_NULLABLE === 'NO') {
+    await db.query('ALTER TABLE ordenes_compra MODIFY COLUMN email VARCHAR(200) NULL');
   }
 
   const [checksOrdenCantidad] = await db.query(

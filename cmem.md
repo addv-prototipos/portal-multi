@@ -534,3 +534,54 @@ endurecimiento de seguridad funciona): grilla correcta, navegación
 oculta la grilla, "Menú" la reabre desde cualquier vista, cero errores
 de consola. Sin commit/push todavía. Detalle: PROJECT_STATE.md punto
 127.
+
+C047 10:20 ● Fix de overflow/desalineación en móvil — Resumen
+financiero, Inicio, Gastos (KPIs a 1 columna en vez de 2 entre
+480-900px, que recortaba números largos) + filtros de Gastos
+(`.gastos-filtros` pasa de `flex-wrap` a apilado 100% ancho, mismo
+patrón que Ventas/Reportes). Cero cambios en escritorio. Jest 560/560,
+validado en navegador real. Gotcha documentado: angostar solo
+`body{max-width}` no dispara los `@media` reales — hay que replicar
+las reglas del breakpoint manualmente en el arnés de prueba. Sin
+commit/push todavía. Detalle: PROJECT_STATE.md punto 128.
+
+C048 10:45 ◆ Wizard móvil de Ventas COMPLETO (cierra el punto 2
+pendiente de C044/C045) — 3 pasos (Cliente→Productos→Confirmar en ese
+momento), reusa `.steps` de csf.html. De paso, a pedido del usuario,
+se ocultaron Fecha/IVA/Cantidad(MXN) del formulario (auto-calculados,
+redundantes con la tabla) en escritorio Y móvil, sustituidos por un
+mini-resumen "Subtotal · IVA" junto al Total. Jest 560/560, validado
+en navegador real ambos tamaños con guardado real contra la API
+(escritorio $232, móvil $522, ambos correctos). Segmento "Rediseño de
+Ventas" (C044) queda 100% completo. Sin commit/push todavía. Detalle:
+PROJECT_STATE.md punto 129.
+
+C049 20:35 ◆ Correo opcional + método de entrega (correo/imprimir) +
+ticket de impresión en Ventas. Único cambio de esquema:
+`ordenes_compra.email` de NOT NULL a NULL. Wizard reordenado a
+Productos→Confirmar→Entrega (correo hasta el final, junto al toggle
+correo/imprimir — imprimir oculta Tipo de cliente+Correo). Ticket
+reusa el parser de productos ya existente, imprime la MISMA página vía
+`@media print` (no ventana nueva — se bloquea seguido tras un fetch
+async). Disponible desde 3 entradas: automático al guardar, ícono de
+fila, botón en "Ver venta". Modal nuevo "Asignar correo" para ventas
+sin correo, con aviso de si tiene constancia. De paso, mensaje suelto
+del usuario: también se ocultó "Concepto de venta" (repetía la tabla
+de productos). Pruebas nuevas `ordenes-compra.test.js` (no había
+cobertura antes), 7 casos. Jest 567/567. Validado contra Docker/MySQL
+reales y en navegador real ambos tamaños (`window.print` interceptado
+para no bloquear la automatización, confirmado que se dispara con el
+ticket correcto). Sin commit/push todavía. Detalle: PROJECT_STATE.md
+punto 130.
+
+C050 21:15 ● Fix de la lista de productos capturados en el wizard de
+Ventas, solo móvil. Usuario: "sale desacomodado" debajo de "+ Agregar
+producto". Causa: la tabla ya tenía `.admin-table` así que se apilaba
+sola por debajo de 760px, pero sin `data-label` en sus `<td>` — se
+apilaba SIN etiquetas (5 valores sueltos). Fix solo móvil: tarjeta
+compacta de 2 líneas que reusa tal cual el texto de
+`textoProductoOrden()`, escritorio sin cambios. Gotcha de metodología:
+el primer intento de reproducir el bug dio falso negativo — el arnés
+de prueba solo mirroreaba el breakpoint de 900px, la tabla usa 760px
+(distinto, no estaba replicado). Jest 567/567, validado en navegador
+real. Sin commit/push todavía. Detalle: PROJECT_STATE.md punto 131.

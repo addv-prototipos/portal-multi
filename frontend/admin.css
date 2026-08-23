@@ -1023,6 +1023,56 @@
   }
 }
 
+/* Ticket de impresión — diseño angosto tipo recibo físico, armado por JS
+   (imprimirTicketOrden en admin.js) justo antes de window.print(). En
+   pantalla no ocupa espacio ni layout (display:none); dentro de
+   @media print se vuelve lo ÚNICO visible de toda la página — más
+   confiable que abrir una ventana nueva (window.open + print se bloquea
+   seguido por el navegador cuando ocurre después de un fetch async,
+   sobre todo en móvil) y sigue dando la vista previa nativa del
+   navegador (Ctrl+P la muestra igual). */
+.ticket-imprimir { display: none; }
+@media print {
+  body > *:not(#ticket-imprimir) { display: none !important; }
+  #ticket-imprimir {
+    display: block !important;
+    position: static;
+    width: 300px;
+    margin: 0 auto;
+    padding: 12px 0;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12.5px;
+    color: #000;
+  }
+}
+.ticket-imprimir-titulo {
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.ticket-imprimir-separador {
+  border-top: 1px dashed #000;
+  margin: 8px 0;
+}
+.ticket-imprimir-meta { margin: 2px 0; }
+.ticket-imprimir-linea {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 3px 0;
+}
+.ticket-imprimir-total {
+  font-weight: 700;
+  font-size: 14px;
+}
+.ticket-imprimir-gracias {
+  text-align: center;
+  margin-top: 8px;
+}
+
 /* Captura de productos de una orden de compra: se arma el concepto final
    y la cantidad (MXN) sumando productos, en vez de escribirlos a mano
    directamente — ver #orden-concepto/#orden-cantidad, que pasan a ser
@@ -1062,6 +1112,50 @@
 .orden-productos-tabla td:nth-child(4) {
   white-space: nowrap;
 }
+
+/* Lista compacta solo móvil: la tabla de 4 columnas se vuelve apilada sin
+   etiquetas por debajo de 760px (mismo breakpoint que .admin-table en
+   general) — en vez de eso, cada producto es una tarjeta de 2 líneas con
+   el texto ya armado por textoProductoOrden() ("N x Concepto ($X c/u)"),
+   mismo lenguaje que ya se ve en "Concepto de venta". Escritorio no
+   cambia — sigue siendo la tabla de siempre. */
+.orden-productos-lista-movil {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+@media (max-width: 760px) {
+  .orden-productos-tabla-escritorio { display: none; }
+  .orden-productos-lista-movil { display: block; }
+}
+.orden-productos-lista-movil-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.orden-productos-lista-movil-item:last-child { border-bottom: none; }
+.orden-productos-lista-movil-concepto {
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+.orden-productos-lista-movil-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.orden-productos-lista-movil-precio {
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+.orden-productos-lista-movil-derecha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.orden-productos-lista-movil-subtotal { font-weight: 600; }
+
 .btn-quitar-producto-orden {
   background: transparent;
   border: none;

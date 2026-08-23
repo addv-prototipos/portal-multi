@@ -752,9 +752,9 @@
                  escritorio los 3 "pasos" de abajo se muestran todos juntos,
                  una sola página, como siempre. -->
             <ol class="steps orden-wizard-steps" id="orden-wizard-steps" aria-label="Pasos para registrar una venta">
-              <li class="step is-active" data-step="1"><span class="step-dot">1</span><span class="step-label">Cliente</span></li>
-              <li class="step" data-step="2"><span class="step-dot">2</span><span class="step-label">Productos</span></li>
-              <li class="step" data-step="3"><span class="step-dot">3</span><span class="step-label">Confirmar</span></li>
+              <li class="step is-active" data-step="1"><span class="step-dot">1</span><span class="step-label">Productos</span></li>
+              <li class="step" data-step="2"><span class="step-dot">2</span><span class="step-label">Confirmar</span></li>
+              <li class="step" data-step="3"><span class="step-dot">3</span><span class="step-label">Entrega</span></li>
             </ol>
 
             <!-- Fecha de venta: puro texto informativo, nunca fue un campo
@@ -767,7 +767,7 @@
               <p class="orden-campo-automatico" id="orden-fecha-auto">Se genera automáticamente al guardar, con la zona horaria configurada.</p>
             </div>
 
-            <div class="orden-wizard-paso" data-paso="2">
+            <div class="orden-wizard-paso is-active" data-paso="1">
               <div class="orden-productos-captura">
                 <div class="field">
                   <label for="orden-producto-concepto">Concepto del producto <span class="required">*</span></label>
@@ -791,7 +791,7 @@
               </div>
 
               <div class="orden-productos-lista-wrap" id="orden-productos-lista-wrap" hidden>
-                <table class="admin-table orden-productos-tabla">
+                <table class="admin-table orden-productos-tabla orden-productos-tabla-escritorio">
                   <thead>
                     <tr>
                       <th>Concepto</th>
@@ -803,11 +803,23 @@
                   </thead>
                   <tbody id="orden-productos-lista-body"></tbody>
                 </table>
+                <!-- Solo móvil (<760px, ver admin.css): tarjetas compactas de
+                     2 líneas en vez de la tabla apilada sin etiquetas — reusa
+                     el mismo texto ya armado por textoProductoOrden(). -->
+                <ul class="orden-productos-lista-movil" id="orden-productos-lista-movil"></ul>
               </div>
             </div>
 
-            <div class="orden-wizard-paso" data-paso="3">
-              <div class="field">
+            <div class="orden-wizard-paso" data-paso="2">
+              <!-- Concepto de venta: repite exactamente lo que ya muestra
+                   la tabla de productos del paso anterior (línea por
+                   línea) — oculto siempre (escritorio y móvil) por
+                   duplicar esa info sin aportar nada nuevo. El textarea
+                   se queda en el DOM: sigue siendo el valor real que se
+                   manda al backend (recalcularOrdenDesdeProductos() lo
+                   arma solo) y la validación del envío lo sigue leyendo
+                   igual que siempre. -->
+              <div class="field" hidden>
                 <label for="orden-concepto">Concepto de venta o servicio <span class="required">*</span></label>
                 <textarea id="orden-concepto" maxlength="255" rows="2" placeholder="Agrega al menos un producto arriba" readonly></textarea>
                 <p class="field-hint" id="orden-concepto-contador">0 / 255</p>
@@ -840,41 +852,53 @@
               </div>
             </div>
 
-            <div class="orden-wizard-paso is-active" data-paso="1">
+            <div class="orden-wizard-paso" data-paso="3">
               <div class="field">
-                <label>Tipo de cliente</label>
-                <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta venta">
-                  <button type="button" class="view-toggle-btn is-active" id="btn-orden-cliente-registrado" role="tab" aria-selected="true">Cliente ya registrado</button>
-                  <button type="button" class="view-toggle-btn" id="btn-orden-cliente-nuevo" role="tab" aria-selected="false">Cliente nuevo</button>
+                <label>¿Cómo se entrega?</label>
+                <div class="view-toggle" role="tablist" aria-label="Método de entrega de esta venta">
+                  <button type="button" class="view-toggle-btn is-active" id="btn-orden-entrega-correo" role="tab" aria-selected="true">📧 Enviar por correo</button>
+                  <button type="button" class="view-toggle-btn" id="btn-orden-entrega-imprimir" role="tab" aria-selected="false">🖨️ Imprimir ticket</button>
                 </div>
               </div>
 
-              <div id="orden-email-registrado-wrap">
+              <div id="orden-entrega-correo-wrap">
                 <div class="field">
-                  <label for="orden-email">Correo electrónico <span class="required">*</span></label>
-                  <select id="orden-email">
-                    <option value="">Selecciona un correo</option>
-                  </select>
-                  <p class="field-hint">Solo se muestran correos que ya tienen una constancia de situación fiscal subida.</p>
-                  <p class="field-error" id="error-orden-email" role="alert"></p>
+                  <label>Tipo de cliente</label>
+                  <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta venta">
+                    <button type="button" class="view-toggle-btn is-active" id="btn-orden-cliente-registrado" role="tab" aria-selected="true">Cliente ya registrado</button>
+                    <button type="button" class="view-toggle-btn" id="btn-orden-cliente-nuevo" role="tab" aria-selected="false">Cliente nuevo</button>
+                  </div>
                 </div>
 
-                <div class="field" id="orden-datos-cliente" hidden>
-                  <label>Datos asociados a este correo</label>
-                  <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
-                  <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
-                  <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la venta.</p>
+                <div id="orden-email-registrado-wrap">
+                  <div class="field">
+                    <label for="orden-email">Correo electrónico <span class="required">*</span></label>
+                    <select id="orden-email">
+                      <option value="">Selecciona un correo</option>
+                    </select>
+                    <p class="field-hint">Solo se muestran correos que ya tienen una constancia de situación fiscal subida.</p>
+                    <p class="field-error" id="error-orden-email" role="alert"></p>
+                  </div>
+
+                  <div class="field" id="orden-datos-cliente" hidden>
+                    <label>Datos asociados a este correo</label>
+                    <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
+                    <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
+                    <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la venta.</p>
+                  </div>
+                </div>
+
+                <div id="orden-email-nuevo-wrap" hidden>
+                  <div class="field">
+                    <label for="orden-email-nuevo">Correo electrónico <span class="required">*</span></label>
+                    <input type="email" id="orden-email-nuevo" placeholder="correo@ejemplo.com" maxlength="200" autocomplete="off" />
+                    <p class="field-hint">Este cliente todavía no tiene una constancia de situación fiscal registrada — se le enviará la confirmación de la venta a este correo.</p>
+                    <p class="field-error" id="error-orden-email-nuevo" role="alert"></p>
+                  </div>
                 </div>
               </div>
 
-              <div id="orden-email-nuevo-wrap" hidden>
-                <div class="field">
-                  <label for="orden-email-nuevo">Correo electrónico <span class="required">*</span></label>
-                  <input type="email" id="orden-email-nuevo" placeholder="correo@ejemplo.com" maxlength="200" autocomplete="off" />
-                  <p class="field-hint">Este cliente todavía no tiene una constancia de situación fiscal registrada — se le enviará la confirmación de la venta a este correo.</p>
-                  <p class="field-error" id="error-orden-email-nuevo" role="alert"></p>
-                </div>
-              </div>
+              <p class="field-hint" id="orden-entrega-imprimir-hint" hidden>Se guarda sin correo. El ticket se abre para imprimir en cuanto termines de registrar la venta — también puedes asignarle un correo después desde "Reenviar correo".</p>
             </div>
 
             <p class="field-error" id="orden-error-general" role="alert"></p>
@@ -2360,6 +2384,9 @@
             <button type="button" class="btn btn-secondary btn-block" id="btn-orden-modal-reenviar">
               <span id="btn-orden-modal-reenviar-label">Reenviar correo</span>
             </button>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-orden-modal-imprimir">
+              🖨️ Imprimir ticket
+            </button>
             <button type="button" class="btn btn-danger btn-block" id="btn-orden-modal-eliminar">
               Eliminar
             </button>
@@ -2527,6 +2554,32 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Asignar correo a una venta registrada sin uno (modalidad "Imprimir
+       ticket") — se abre desde "Reenviar correo" cuando la venta todavía
+       no tiene uno guardado. -->
+  <div class="modal-overlay" id="orden-asignar-correo-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="orden-asignar-correo-title">
+      <h2 id="orden-asignar-correo-title">Esta venta no tiene correo todavía</h2>
+      <p class="panel-subtitle">Captúralo para poder enviarle la confirmación — se guarda en esta venta.</p>
+      <div class="field">
+        <label for="orden-asignar-correo-input">Correo electrónico <span class="required">*</span></label>
+        <input type="email" id="orden-asignar-correo-input" placeholder="correo@ejemplo.com" maxlength="200" autocomplete="off" />
+        <p class="field-error" id="error-orden-asignar-correo" role="alert"></p>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-orden-asignar-correo-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-orden-asignar-correo-enviar">Enviar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ticket de impresión: JS lo llena (imprimirTicketOrden) justo antes de
+       llamar a window.print() — visible SOLO dentro de @media print (ver
+       admin.css), el resto de la página se oculta con esa misma regla.
+       Hijo directo de <body> a propósito: así "ocultar todo excepto esto"
+       no depende de en qué vista/modal esté parado el admin al imprimir. -->
+  <div id="ticket-imprimir" class="ticket-imprimir" hidden></div>
 
   <script>document.getElementById('auth-anio').textContent = new Date().getFullYear();</script>
   <script src="/theme.js"></script>
