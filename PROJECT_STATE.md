@@ -7987,6 +7987,104 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       aprobado.
     - **Sin commit/push todavía** — pendiente de decisión del usuario.
 
+133. **Rediseño del ticket de correo de Ventas con la marca CLARVO —
+    IMPLEMENTADO Y VALIDADO (2026-08-23)**: usuario pidió recolorear el
+    correo de confirmación de venta (`construirCorreoOrdenCompra`,
+    `backend/server.js`) con los colores de marca y el logo real de
+    CLARVO, con propuesta visual antes de aplicar (regla persistente
+    del usuario). Se publicó un Artifact con el antes/después
+    renderizado lado a lado + tabla de cambios exacta, aprobado con
+    "excelente trabajo, si aplícalo".
+    - **Logo** (`logoTicketHtml`): cuando no hay logo de tenant
+      configurado, si la marca es la de por defecto (`MARCA_DEFECTO`,
+      ningún tenant la sobreescribió) ahora usa el logo REAL de CLARVO
+      (`${urlPortal}/assets/branding.png`, el mismo archivo que ya
+      sirve el login) en vez de una caja de texto verde genérica. Un
+      tenant con su propio nombre de marca (sin logo todavía) sigue
+      viendo SU texto, nunca el logo de CLARVO — se agregó el parámetro
+      `urlPortal` a la función para poder construir la URL absoluta.
+    - **Paleta**: verde `#0F6E5D`/beige `#F0EFEA` → navy `#03285B` +
+      cian `#05DBF2` de marca, los MISMOS tokens ya usados en
+      `auth.css`/login/sidebar del panel (`--color-accent`,
+      `--auth-electric`), no valores inventados nuevos. Franja
+      degradada navy→azul→cian (`#03285B`→`#2F6FED`→`#05DBF2`) nueva
+      arriba de la tarjeta — mismo degradado que ya tiene el isotipo
+      real de CLARVO. Fondo suave `#E7ECF3` detrás de la fila "TOTAL A
+      FACTURAR" (mismo tono que las tarjetas KPI del panel) para que
+      el número que importa se distinga de un vistazo.
+    - **Pie de página**: cuando la marca es la de por defecto, muestra
+      "CLARVO by ADDV" en vez de solo "ADDV" (`MARCA_DEFECTO` en sí NO
+      se tocó — sigue siendo `'ADDV'`, usado igual en los otros 6
+      correos que lo referencian; solo este template en particular
+      muestra el nombre completo en su pie de página).
+    - **Sin cambios de estructura**: mismo esquema de tabla HTML,
+      mismo texto plano equivalente, mismo comportamiento para
+      tenants con su propio logo/marca — solo colores + logo de
+      respaldo.
+    - **Verificación**: `node --check` limpio, Jest backend **567/567**
+      (sin tests que dependieran de los colores viejos — verificado
+      que las coincidencias de `#0F6E5D` en la suite eran de un test
+      no relacionado, `tema.test.js`). Rebuild de `backend`, health
+      200 OK.
+    - **Validado con la salida REAL de la función** (no solo el
+      mockup): se extrajeron las funciones tal cual quedaron en
+      `server.js` a un script aislado, se renderizaron con datos
+      reales, y se publicó como Artifact para inspección visual — la
+      franja degradada, el resaltado navy del total y el botón se ven
+      exactamente como en la propuesta aprobada (el logo salió roto
+      SOLO en el Artifact por no poder alcanzar `localhost:8088` desde
+      ese sandbox — confirmado con `curl` que la ruta real
+      `/assets/branding.png` responde 200 `image/png`). **Validado con
+      un envío SMTP real**: este entorno ya tiene SMTP configurado de
+      verdad (`smtp.gmail.com`/`notificaciones@addv.mx`) — se registró
+      una venta real de prueba y el correo se envió sin ningún error en
+      los logs del backend.
+    - **CORRECCIÓN — el logo SÍ llegó roto en el correo real
+      (2026-08-23, mismo día)**: la suposición de arriba ("en un correo
+      real sí carga") era incorrecta — el usuario recibió el correo de
+      prueba y reportó la imagen rota. Causa raíz real:
+      `detectarUrlPortal(req)` arma la URL del logo a partir del header
+      `Host` de la petición entrante — en TODAS las pruebas de esta
+      sesión (curl o navegador) ese header fue `localhost:8088`, así
+      que el `<img src="http://localhost:8088/assets/branding.png">`
+      del correo era una URL que solo esta máquina puede resolver — ni
+      Gmail ni el dispositivo del destinatario pueden llegar a
+      "localhost" de otra computadora. El mismo punto ciego ya existía
+      de antes para el logo de marca de un TENANT (usa el mismo
+      mecanismo de URL absoluta), no es nuevo de este segmento, pero
+      nunca se había probado contra un correo real hasta ahora.
+      **Fix, con confirmación explícita del usuario** (URL vs.
+      incrustado — eligió incrustado): el logo de CLARVO por defecto
+      ahora viaja DENTRO del correo como adjunto embebido (CID) en vez
+      de un `<img src="URL">` — funciona sin importar si el servidor es
+      alcanzable públicamente, y es más confiable en general (varios
+      clientes de correo bloquean imágenes remotas por defecto de
+      cualquier forma). `logoTicketHtml()` ahora regresa `{html,
+      adjunto}` en vez de solo el HTML; `construirCorreoOrdenCompra()`
+      regresa `adjuntos: []` (con el logo si aplica) que
+      `enviarCorreoOrdenCompra()` pasa a `enviarCorreo()` (que ya
+      soportaba `adjuntos`/`attachments` de antes, sin cambios ahí).
+      Copia propia del PNG en `backend/assets/branding.png` (nueva —
+      el backend no tiene acceso al filesystem del contenedor
+      frontend, así que se duplica a propósito, mismo criterio ya
+      usado para otro código pequeño compartido entre `backend/` y
+      `control/`), cacheada en memoria tras la primera lectura
+      (`obtenerLogoClarvoBuffer()`), con manejo de error si el archivo
+      no se puede leer (cae al texto de respaldo en vez de tronar el
+      correo). El logo de un TENANT (`logoUrl` desde `/control`) NO se
+      tocó — sigue siendo una URL absoluta, eso no fue lo que se
+      reportó roto.
+      **Verificación**: `node --check` limpio, Jest **567/567**.
+      Confirmado dentro del contenedor real: el PNG se copió
+      correctamente a la imagen (`433174` bytes, firma PNG válida),
+      y se renderizó el MIME real del correo con
+      `nodemailer.createTransport({streamTransport:true})` — contiene
+      `Content-ID: <logo-clarvo-addv>` y `Content-Type: image/png`
+      con el adjunto de 433174 bytes, exactamente lo que un cliente de
+      correo espera para mostrar una imagen incrustada. **Confirmado
+      por el usuario contra un correo real** ("ya llegó bien") tras un
+      segundo envío de prueba real vía SMTP. Sin commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

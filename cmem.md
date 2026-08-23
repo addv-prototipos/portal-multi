@@ -633,3 +633,37 @@ la pestaña (la cola de pendientes sí sobrevive un reload, vive en
 IndexedDB). Detalle: PROJECT_STATE.md punto 132 (subsección
 "IMPLEMENTACIÓN"), US.md US-073/074/075 marcadas IMPLEMENTADA. Sin
 commit/push todavía.
+
+C053 15:05 ◆ Rediseño del ticket de correo de Ventas con la marca
+CLARVO — IMPLEMENTADO Y VALIDADO. Propuesta visual primero (Artifact
+con antes/después renderizado + tabla de cambios), aprobada con
+"excelente trabajo, si aplícalo". Logo: sin logo de tenant y marca por
+defecto → logo real de CLARVO (`/assets/branding.png`) en vez de caja
+de texto verde; tenant con su propia marca sigue viendo su texto.
+Paleta verde/beige → navy `#03285B` + cian `#05DBF2` (mismos tokens del
+login/panel, no inventados), franja degradada navy→azul→cian arriba de
+la tarjeta (mismo degradado del isotipo real), fondo suave navy detrás
+del TOTAL. Pie de página "CLARVO by ADDV" cuando la marca es la de por
+defecto. Sin cambios de estructura. Jest 567/567. Validado con la
+salida REAL de la función (extraída y renderizada en un Artifact
+aparte) y con un envío SMTP real (este entorno ya tiene SMTP
+configurado — venta de prueba registrada, correo enviado sin errores).
+Detalle: PROJECT_STATE.md punto 133. Sin commit/push todavía.
+
+C054 15:25 ● Corrección el mismo día: el logo SÍ llegó roto en el
+correo real ("sale rota la imagen"). Causa: `detectarUrlPortal()` arma
+la URL del logo desde el header Host de la petición — todas las
+pruebas de la sesión pegaron con `localhost:8088`, URL que nadie fuera
+de esta máquina puede resolver. Mismo punto ciego preexistente del
+logo de tenant, nunca antes probado contra un correo real. Usuario
+eligió explícitamente "incrustado" sobre "solo URL" al preguntarle.
+Fix: el logo de CLARVO por defecto ahora viaja DENTRO del correo como
+adjunto CID en vez de un <img src=URL> — funciona sin importar si el
+servidor es alcanzable públicamente. Copia nueva del PNG en
+backend/assets/ (backend no comparte filesystem con el contenedor
+frontend), cacheada en memoria. Logo de tenant sin tocar. Verificado
+dentro del contenedor real (PNG correcto, MIME real renderizado con
+nodemailer streamTransport confirma Content-ID/Content-Type
+correctos) y CONFIRMADO por el usuario contra un correo real de
+verdad ("ya llegó bien"). Jest 567/567. Detalle: PROJECT_STATE.md
+punto 133 (subsección "CORRECCIÓN").

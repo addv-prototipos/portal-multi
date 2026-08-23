@@ -1333,14 +1333,57 @@ function marcaDelTenant(req) {
   return (req && req.tenant && req.tenant.marca) || MARCA_DEFECTO;
 }
 
+// Logo real de CLARVO para el correo, INCRUSTADO como adjunto CID en vez
+// de una <img src="URL">: una URL absoluta depende de que el servidor sea
+// alcanzable públicamente desde donde esté el cliente de correo — en
+// desarrollo (localhost) o detrás de un proxy no expuesto, la imagen sale
+// rota. Incrustado como CID viaja DENTRO del correo, funciona siempre
+// (confirmado: se probó primero con URL absoluta y llegó rota en un
+// correo real, ver PROJECT_STATE.md punto 133). Copia propia del archivo
+// en backend/assets/ (mismo PNG que ya sirve el frontend en
+// /assets/branding.png) — el backend no tiene acceso al filesystem del
+// contenedor frontend, así que se duplica a propósito, mismo criterio ya
+// usado para otro código pequeño compartido entre ambos.
+const LOGO_CLARVO_CID = 'logo-clarvo-addv';
+let logoClarvoBufferCache = null;
+function obtenerLogoClarvoBuffer() {
+  if (logoClarvoBufferCache === null) {
+    try {
+      logoClarvoBufferCache = fs.readFileSync(path.join(__dirname, 'assets', 'branding.png'));
+    } catch (err) {
+      logoClarvoBufferCache = undefined; // no se pudo leer: se cae al texto de respaldo, nunca truena el correo
+    }
+  }
+  return logoClarvoBufferCache || null;
+}
+
+// Sin logo de tenant configurado: si la marca es la de por defecto
+// (ningún tenant la sobreescribió), se usa el logo REAL de CLARVO en vez
+// de una caja de texto genérica. Un tenant con su propio nombre de marca
+// (pero sin logo todavía) sigue viendo su propio texto — nunca el logo de
+// CLARVO, que no le pertenece. Devuelve también el adjunto CID que hay
+// que mandar junto con el correo (null si no aplica).
 function logoTicketHtml(logoUrl, marca) {
   if (logoUrl) {
-    return `<img src="${logoUrl}" alt="Portal de Facturación ${escapeHtmlCorreo(marca)}" style="max-width:180px; max-height:60px; display:block; margin:0 auto;" />`;
+    return {
+      html: `<img src="${logoUrl}" alt="Portal de Facturación ${escapeHtmlCorreo(marca)}" style="max-width:180px; max-height:60px; display:block; margin:0 auto;" />`,
+      adjunto: null,
+    };
   }
-  return `
-    <div style="display:inline-block; background:#0F6E5D; color:#ffffff; font-family:Georgia,'Times New Roman',serif; font-weight:bold; font-size:20px; letter-spacing:0.06em; padding:10px 18px; border-radius:6px;">
+  const bufferLogo = marca === MARCA_DEFECTO ? obtenerLogoClarvoBuffer() : null;
+  if (bufferLogo) {
+    return {
+      html: `<img src="cid:${LOGO_CLARVO_CID}" alt="CLARVO — Portal de Facturación by ADDV" style="max-width:170px; height:auto; display:block; margin:0 auto;" />`,
+      adjunto: { filename: 'clarvo-logo.png', content: bufferLogo, cid: LOGO_CLARVO_CID },
+    };
+  }
+  return {
+    html: `
+    <div style="display:inline-block; background:#03285B; color:#ffffff; font-family:Georgia,'Times New Roman',serif; font-weight:bold; font-size:20px; letter-spacing:0.06em; padding:10px 18px; border-radius:6px;">
       ${escapeHtmlCorreo(marca)}
-    </div>`;
+    </div>`,
+    adjunto: null,
+  };
 }
 
 // Arma el correo de confirmación de una orden de compra, con diseño
@@ -1352,40 +1395,50 @@ function logoTicketHtml(logoUrl, marca) {
 // siempre se manda ambas).
 function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, email, urlPortal, logoUrl, marca }) {
   const enlaceLogin = urlPortal ? `${urlPortal}/login` : '';
+  // Sin marca de tenant (caso de hoy — todavía no hay ningún tenant real
+  // dado de alta), el pie de página usa el nombre completo de la marca en
+  // vez del "ADDV" corto de MARCA_DEFECTO — mismo texto que ya se usa en
+  // el atributo alt del logo en el resto del sitio. Un tenant con su
+  // propia marca sigue viendo su propio nombre tal cual.
+  const marcaMostrada = marca === MARCA_DEFECTO ? 'CLARVO by ADDV' : marca;
+  const logo = logoTicketHtml(logoUrl, marca);
 
   const filaTicket = (etiqueta, valor, destacado) => `
     <tr>
-      <td style="padding:6px 0; font-family:'Courier New',Courier,monospace; font-size:13px; color:${destacado ? '#0B5548' : '#4A4A4A'}; ${destacado ? 'font-weight:bold;' : ''}">${etiqueta}</td>
-      <td style="padding:6px 0; font-family:'Courier New',Courier,monospace; font-size:${destacado ? '15px' : '13px'}; color:${destacado ? '#0B5548' : '#1A1A1A'}; text-align:right; ${destacado ? 'font-weight:bold;' : ''}">${valor}</td>
+      <td style="padding:${destacado ? '9px 10px' : '6px 0'}; font-family:'Courier New',Courier,monospace; font-size:13px; color:${destacado ? '#03285B' : '#5B6472'}; ${destacado ? 'font-weight:bold; background:#E7ECF3; border-radius:8px 0 0 8px;' : ''}">${etiqueta}</td>
+      <td style="padding:${destacado ? '9px 10px' : '6px 0'}; font-family:'Courier New',Courier,monospace; font-size:${destacado ? '15px' : '13px'}; color:${destacado ? '#03285B' : '#0B1320'}; text-align:right; ${destacado ? 'font-weight:bold; background:#E7ECF3; border-radius:0 8px 8px 0;' : ''}">${valor}</td>
     </tr>`;
 
   const html = `
 <!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0; padding:24px 12px; background:#F0EFEA; font-family:Arial,Helvetica,sans-serif;">
+<body style="margin:0; padding:24px 12px; background:#F4F6FA; font-family:Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; margin:0 auto;">
     <tr>
       <td style="text-align:center; padding-bottom:18px;">
-        ${logoTicketHtml(logoUrl, marca)}
+        ${logo.html}
       </td>
     </tr>
     <tr>
       <td>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff; border:1px dashed #C9C4B8; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff; border:1px dashed #C7CDD9; border-radius:12px; box-shadow:0 2px 14px rgba(11,19,32,0.10);">
           <tr>
-            <td style="padding:26px 28px 6px; text-align:center;">
-              <p style="margin:0; font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#7A756A;">Venta</p>
-              <p style="margin:6px 0 0; font-size:22px; font-weight:bold; color:#1A1A1A; font-family:'Courier New',Courier,monospace;">${escapeHtmlCorreo(numeroCompra)}</p>
+            <td style="height:4px; line-height:4px; font-size:0; background:#03285B; background:linear-gradient(90deg,#03285B 0%,#2F6FED 55%,#05DBF2 100%); border-radius:11px 11px 0 0;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td style="padding:24px 28px 6px; text-align:center;">
+              <p style="margin:0; font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#5B6472;">Venta</p>
+              <p style="margin:6px 0 0; font-size:22px; font-weight:bold; color:#0B1320; font-family:'Courier New',Courier,monospace;">${escapeHtmlCorreo(numeroCompra)}</p>
             </td>
           </tr>
           <tr>
             <td style="padding:14px 28px 0;">
-              <div style="border-top:1px dashed #C9C4B8;"></div>
+              <div style="border-top:1px dashed #DCE2EC;"></div>
             </td>
           </tr>
           <tr>
-            <td style="padding:16px 28px;">
+            <td style="padding:16px 28px 24px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 ${filaTicket('Fecha', escapeHtmlCorreo(fechaFormateada.fecha))}
                 ${filaTicket('Hora', escapeHtmlCorreo(fechaFormateada.hora))}
@@ -1393,11 +1446,11 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
                 ${filaTicket('Cantidad', `$${cantidad.toFixed(2)} MXN`)}
                 ${filaTicket(`IVA (${ivaPorcentaje}%)`, `$${(total - cantidad).toFixed(2)} MXN`)}
               </table>
-              <div style="border-top:1px dashed #C9C4B8; margin:10px 0;"></div>
+              <div style="border-top:1px dashed #DCE2EC; margin:10px 0;"></div>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 ${filaTicket('TOTAL A FACTURAR', `$${total.toFixed(2)} MXN`, true)}
               </table>
-              <div style="border-top:1px dashed #C9C4B8; margin:10px 0;"></div>
+              <div style="border-top:1px dashed #DCE2EC; margin:10px 0;"></div>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 ${filaTicket('Correo', escapeHtmlCorreo(email))}
               </table>
@@ -1408,17 +1461,17 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     </tr>
     <tr>
       <td style="padding:22px 10px 0;">
-        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#333333;">¡Hola! Te confirmamos que registramos tu venta <strong>${escapeHtmlCorreo(numeroCompra)}</strong>. Con estos datos ya puedes solicitar tu factura desde el portal.</p>
-        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#333333;"><strong>Guarda este correo</strong> — tómale una foto o captura de pantalla — porque, al solicitar tu factura en el portal, te pediremos que captures el <strong>No. Venta, Fecha, Hora y Total exactamente como aparecen arriba</strong> (cada uno en su propio campo), además de la imagen de tu ticket de venta.</p>
+        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#2A3342;">¡Hola! Te confirmamos que registramos tu venta <strong>${escapeHtmlCorreo(numeroCompra)}</strong>. Con estos datos ya puedes solicitar tu factura desde el portal.</p>
+        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#2A3342;"><strong>Guarda este correo</strong> — tómale una foto o captura de pantalla — porque, al solicitar tu factura en el portal, te pediremos que captures el <strong>No. Venta, Fecha, Hora y Total exactamente como aparecen arriba</strong> (cada uno en su propio campo), además de la imagen de tu ticket de venta.</p>
         ${enlaceLogin ? `
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto;">
           <tr>
-            <td style="border-radius:8px; background:#0F6E5D;">
+            <td style="border-radius:8px; background:#03285B;">
               <a href="${enlaceLogin}" style="display:inline-block; padding:12px 28px; font-size:14.5px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:8px;">Iniciar sesión y solicitar mi factura</a>
             </td>
           </tr>
         </table>` : ''}
-        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A8578; text-align:center;">Si no esperabas este correo, contacta a tu administrador. Portal de Facturación ${escapeHtmlCorreo(marca)}.</p>
+        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A93A3; text-align:center;">Si no esperabas este correo, contacta a tu administrador. Portal de Facturación ${escapeHtmlCorreo(marcaMostrada)}.</p>
       </td>
     </tr>
   </table>
@@ -1439,7 +1492,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     (enlaceLogin ? `Inicia sesión aquí para solicitar tu factura: ${enlaceLogin}\n\n` : '') +
     `Si no esperabas este correo, contacta a tu administrador.`;
 
-  return { html, texto };
+  return { html, texto, adjuntos: logo.adjunto ? [logo.adjunto] : [] };
 }
 
 function escapeHtmlCorreo(valor) {
@@ -1455,12 +1508,13 @@ function escapeHtmlCorreo(valor) {
 // correos de esta app: si falla (SMTP sin configurar, etc.), la orden ya
 // se guardó correctamente de todas formas.
 async function enviarCorreoOrdenCompra(datos) {
-  const { html, texto } = construirCorreoOrdenCompra(datos);
+  const { html, texto, adjuntos } = construirCorreoOrdenCompra(datos);
   await enviarCorreo({
     destinatario: datos.email,
     asunto: `Confirmación de venta — ${datos.numeroCompra}`,
     cuerpo: texto,
     html,
+    adjuntos,
   });
 }
 

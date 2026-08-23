@@ -717,6 +717,53 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
     (no sobrevive un reload sin haber cargado antes esa vista) — la
     cola de pendientes por crear sí sobrevive un reload (IndexedDB).
     Sin commit/push todavía.
+- **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver
+  PROJECT_STATE.md punto 133, 2026-08-23, IMPLEMENTADO Y VALIDADO)**:
+  usuario pidió recolorear `construirCorreoOrdenCompra`
+  (`backend/server.js`) con colores de marca + logo real — propuesta
+  visual (Artifact con antes/después renderizado) aprobada primero,
+  regla persistente del usuario. Logo: sin logo de tenant configurado
+  y marca por defecto → logo real de CLARVO (`/assets/branding.png`,
+  mismo archivo del login) en vez de caja de texto verde; un tenant
+  con su propio nombre sigue viendo SU texto, nunca el logo de CLARVO.
+  Paleta: verde `#0F6E5D`/beige `#F0EFEA` → navy `#03285B` + cian
+  `#05DBF2`, los MISMOS tokens ya usados en login/panel (no valores
+  nuevos); franja degradada navy→azul→cian arriba de la tarjeta (mismo
+  degradado del isotipo real de CLARVO); fondo suave navy detrás del
+  TOTAL. Pie de página dice "CLARVO by ADDV" cuando la marca es la de
+  por defecto (`MARCA_DEFECTO` en sí no cambió). Sin cambios de
+  estructura HTML ni de texto plano. Jest backend 567/567. Validado
+  con la salida REAL de la función (extraída a un script aislado,
+  renderizada, publicada como Artifact para inspección visual — logo
+  roto solo en el Artifact por no alcanzar `localhost` desde ese
+  sandbox, confirmado con `curl` que la ruta real sí responde 200) y
+  con un **envío SMTP real** (este entorno ya tiene SMTP configurado
+  de verdad — venta de prueba registrada, correo enviado sin errores
+  en los logs). **CORRECCIÓN el mismo día**: el logo SÍ llegó roto en
+  el correo real (usuario reportó "sale rota la imagen") — la
+  suposición de que la URL absoluta cargaría en producción era
+  correcta en teoría pero irrelevante en la práctica: TODAS las
+  pruebas de esta sesión pegaron con `Host: localhost:8088`
+  (`detectarUrlPortal()` arma la URL del logo desde ese header), y
+  "localhost" no lo puede resolver nadie fuera de esta máquina — ni
+  Gmail ni el destinatario. Mismo punto ciego que ya tenía el logo de
+  un TENANT (mecanismo de URL absoluta compartido), nunca antes
+  probado contra un correo real. **Fix, con el usuario eligiendo
+  explícitamente "incrustado" sobre "solo URL"**: el logo de CLARVO
+  por defecto ahora viaja DENTRO del correo como adjunto CID
+  (`logoTicketHtml()` regresa `{html, adjunto}`,
+  `construirCorreoOrdenCompra()` regresa `adjuntos: []`,
+  `enviarCorreoOrdenCompra()` los pasa a `enviarCorreo()` — que ya
+  soportaba adjuntos, sin cambios ahí). Copia nueva del PNG en
+  `backend/assets/branding.png` (el backend no comparte filesystem con
+  el contenedor frontend), cacheada en memoria, con fallback al texto
+  si no se puede leer. El logo de un TENANT no se tocó. Verificado
+  dentro del contenedor real: PNG copiado correctamente (433174 bytes,
+  firma válida), MIME real renderizado con
+  `nodemailer.createTransport({streamTransport:true})` confirma
+  `Content-ID`/`Content-Type: image/png` correctos. **Confirmado por
+  el usuario contra un correo real** ("ya llegó bien"). Sin
+  commit/push todavía.
 - **"Lectura de reportes" rediseñada para auditorías (ver
   PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
   `reporte_items.accion` ya distinguía "eliminado" (borrado real) de
