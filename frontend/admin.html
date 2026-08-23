@@ -10,6 +10,16 @@
   <link rel="stylesheet" href="/admin.css" />
 </head>
 <body class="admin-body">
+  <!-- Franja de estado de conexión (Ventas/Gastos offline, ver
+       PROJECT_STATE.md punto 132) — roja sin conexión, verde
+       sincronizando, se oculta sola al terminar. Distinta de
+       mantenimiento.html (esa es para cuando el BACKEND está caído; esta
+       es para cuando el DISPOSITIVO se queda sin red, el resto del sitio
+       sigue usable). -->
+  <div id="conexion-banner" class="conexion-banner" hidden role="status" aria-live="polite">
+    <span id="conexion-banner-texto"></span>
+  </div>
+
   <!-- Pantalla de acceso -->
   <div class="admin-login-screen auth-screen" id="admin-login-screen">
     <div class="auth-shell">
@@ -741,7 +751,7 @@
               <circle cx="32" cy="32" r="28" stroke="#05DBF2" stroke-width="4"/>
               <path d="M20 33l8 8 16-18" stroke="#05DBF2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <p class="orden-form-exito-texto">Guardado con éxito</p>
+            <p class="orden-form-exito-texto" id="orden-form-exito-texto">Guardado con éxito</p>
           </div>
 
           <div class="orden-form-body" id="orden-form-body">
@@ -2583,6 +2593,7 @@
 
   <script>document.getElementById('auth-anio').textContent = new Date().getFullYear();</script>
   <script src="/theme.js"></script>
+  <script src="/offline.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

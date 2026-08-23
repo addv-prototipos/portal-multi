@@ -218,6 +218,7 @@
     ordenRegistrarModalOverlay: document.getElementById('orden-registrar-modal-overlay'),
     btnCerrarOrdenModal: document.getElementById('btn-cerrar-orden-modal'),
     ordenFormExito: document.getElementById('orden-form-exito'),
+    ordenFormExitoTexto: document.getElementById('orden-form-exito-texto'),
     ordenFechaAuto: document.getElementById('orden-fecha-auto'),
     // Wizard de 3 pasos (solo activo en móvil, <900px)
     ordenWizardSteps: document.getElementById('orden-wizard-steps'),
@@ -570,9 +571,106 @@
     btnPasswordModalCancelar: document.getElementById('btn-password-modal-cancelar'),
     btnPasswordModalGuardar: document.getElementById('btn-password-modal-guardar'),
     btnPasswordModalGuardarLabel: document.getElementById('btn-password-modal-guardar-label'),
+    // Franja de estado de conexión (Ventas/Gastos offline)
+    conexionBanner: document.getElementById('conexion-banner'),
+    conexionBannerTexto: document.getElementById('conexion-banner-texto'),
   };
 
   inicializarTooltips();
+
+  // ---------- Modo fuera de línea: Ventas y Gastos (ver PROJECT_STATE.md
+  // punto 132, US-073/074/075) — el módulo genérico vive en offline.js;
+  // aquí solo se conecta la franja visual y los manejadores concretos de
+  // sincronización de cada tipo. ----------
+  if (window.OfflineQueue) {
+    OfflineQueue.onCambioEstado((estado) => {
+      if (estado === 'offline') {
+        els.conexionBanner.hidden = false;
+        els.conexionBanner.classList.remove('es-syncing', 'se-oculta');
+        els.conexionBanner.classList.add('es-offline');
+        els.conexionBannerTexto.textContent = 'Sin conexión a internet';
+        document.body.classList.add('tiene-banner-conexion');
+        // "Imprimir ticket" necesita un folio real, que no existe sin
+        // conexión — se fuerza de vuelta a "Enviar por correo".
+        if (typeof aplicarMetodoEntregaOrden === 'function' && ordenMetodoEntregaImprimir) {
+          aplicarMetodoEntregaOrden(false);
+        }
+        if (els.btnOrdenEntregaImprimir) {
+          els.btnOrdenEntregaImprimir.disabled = true;
+          els.btnOrdenEntregaImprimir.setAttribute(
+            'data-tooltip',
+            'No disponible sin conexión — no hay folio para imprimir todavía'
+          );
+        }
+      } else if (estado === 'syncing') {
+        els.conexionBanner.hidden = false;
+        els.conexionBanner.classList.remove('es-offline', 'se-oculta');
+        els.conexionBanner.classList.add('es-syncing');
+        els.conexionBannerTexto.textContent = 'Sincronizando datos…';
+        document.body.classList.add('tiene-banner-conexion');
+      } else {
+        document.body.classList.remove('tiene-banner-conexion');
+        if (els.btnOrdenEntregaImprimir) {
+          els.btnOrdenEntregaImprimir.disabled = false;
+          els.btnOrdenEntregaImprimir.removeAttribute('data-tooltip');
+        }
+        if (!els.conexionBanner.hidden) {
+          els.conexionBanner.classList.add('se-oculta');
+          setTimeout(() => {
+            els.conexionBanner.hidden = true;
+            els.conexionBanner.classList.remove('es-syncing', 'es-offline', 'se-oculta');
+          }, 300);
+        }
+      }
+    });
+
+    OfflineQueue.registrarManejadorSync('ordenes', async (datos) => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) return { ok: false, error: 'Sesión expirada — inicia sesión de nuevo.' };
+      try {
+        const res = await fetch(`${API_BASE}/admin/ordenes-compra`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify(datos),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: data.error || 'No se pudo registrar la venta.' };
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: 'No se pudo conectar con el servidor.' };
+      }
+    });
+
+    OfflineQueue.registrarManejadorSync('gastos', async (datos) => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) return { ok: false, error: 'Sesión expirada — inicia sesión de nuevo.' };
+      try {
+        const res = await fetch(`${API_BASE}/admin/gastos`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify(datos),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: data.error || 'No se pudo registrar el gasto.' };
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: 'No se pudo conectar con el servidor.' };
+      }
+    });
+
+    OfflineQueue.onSincronizacionCompleta('ordenes', () => {
+      if (typeof cargarOrdenes === 'function' && els.ordenesTableBody) cargarOrdenes();
+    });
+    OfflineQueue.onSincronizacionCompleta('gastos', () => {
+      if (typeof cargarGastos === 'function' && els.gastosTableBody) cargarGastos();
+    });
+    OfflineQueue.onCambioCola('ordenes', () => {
+      if (typeof aplicarFiltrosOrdenes === 'function') aplicarFiltrosOrdenes();
+    });
+    OfflineQueue.onCambioCola('gastos', () => {
+      if (typeof renderizarGastosConPendientes === 'function') renderizarGastosConPendientes();
+    });
+  }
 
   const ESTATUS_INFO = {
     pendiente: { texto: 'Pendiente', clase: 'estatus-pendiente' },
@@ -1088,7 +1186,25 @@
     }
   });
 
-  els.btnLogout.addEventListener('click', () => {
+  els.btnLogout.addEventListener('click', async () => {
+    // La cola offline (Ventas/Gastos pendientes de sincronizar, ver
+    // PROJECT_STATE.md punto 132) se limpia al cerrar sesión — si hay
+    // algo sin sincronizar todavía, se avisa antes en vez de perderlo en
+    // silencio.
+    if (window.OfflineQueue) {
+      const [pendOrdenes, pendGastos] = await Promise.all([
+        OfflineQueue.listarPendientes('ordenes').catch(() => []),
+        OfflineQueue.listarPendientes('gastos').catch(() => []),
+      ]);
+      const totalPendientes = pendOrdenes.length + pendGastos.length;
+      if (totalPendientes > 0) {
+        const confirmado = window.confirm(
+          `Tienes ${totalPendientes} registro(s) de Ventas/Gastos sin sincronizar todavía. Si cierras sesión se pierden. ¿Cerrar sesión de todas formas?`
+        );
+        if (!confirmado) return;
+      }
+      await OfflineQueue.limpiarTodo();
+    }
     clearSession();
     els.inputPass.value = '';
     els.inputPass.type = 'password';
@@ -4475,6 +4591,28 @@
     if (!validarPasoClienteOrden()) valido = false;
     if (!valido) return;
 
+    // Sin conexión: se encola en IndexedDB en vez de intentar guardar
+    // (fallaría de todas formas) — ver PROJECT_STATE.md punto 132.
+    // "Imprimir" no aplica sin folio real, así que si de alguna forma
+    // llegó hasta aquí en ese estado (no debería, el botón se deshabilita
+    // al quedarse sin conexión) se bloquea aquí también, por seguridad.
+    if (window.OfflineQueue && OfflineQueue.isOffline()) {
+      if (imprimirAlGuardar) {
+        els.ordenErrorGeneral.textContent =
+          'No se puede imprimir sin conexión. Cambia a "Enviar por correo" o espera a recuperar internet.';
+        return;
+      }
+      await OfflineQueue.agregarPendiente('ordenes', {
+        concepto,
+        cantidad,
+        email,
+        es_cliente_nuevo: ordenModoClienteNuevo,
+      });
+      mostrarExitoRegistrarOrden('Guardado — se enviará al recuperar conexión');
+      aplicarFiltrosOrdenes();
+      return;
+    }
+
     setRegistrarOrdenLoading(true);
     try {
       const res = await fetch(`${API_BASE}/admin/ordenes-compra`, {
@@ -4511,7 +4649,8 @@
   // nota", pedido explícito del usuario) — palomita animada + texto,
   // dura ~1.3s en total, y el modal se queda abierto y se limpia solo,
   // listo para la siguiente venta (no hay que volver a abrirlo).
-  function mostrarExitoRegistrarOrden() {
+  function mostrarExitoRegistrarOrden(mensaje) {
+    els.ordenFormExitoTexto.textContent = mensaje || 'Guardado con éxito';
     els.ordenFormBody.hidden = true;
     els.ordenFormExito.hidden = false;
     setTimeout(() => {
@@ -4532,6 +4671,15 @@
     const authHeader = getAuthHeader();
     if (!authHeader) {
       showLogin();
+      return;
+    }
+
+    // Sin conexión: se sigue mostrando la última lista ya cargada
+    // (ordenesCache en memoria) + lo pendiente de sincronizar, sin
+    // intentar la petición (fallaría de todas formas) — ver
+    // PROJECT_STATE.md punto 132.
+    if (window.OfflineQueue && OfflineQueue.isOffline()) {
+      aplicarFiltrosOrdenes();
       return;
     }
 
@@ -4563,7 +4711,33 @@
   // instantáneo y no necesita ningún cambio de backend. Mismo criterio
   // que el buscador ya existente de Constancias.
   let ordenesCache = [];
-  function aplicarFiltrosOrdenes() {
+
+  // Convierte una fila de la cola offline (ver offline.js) en un objeto
+  // con la misma forma que ya espera renderOrdenes/filaOrdenPendiente —
+  // el total es un ESTIMADO client-side (mismo % de IVA ya cargado antes
+  // de perder conexión), nunca el total real hasta que el servidor lo
+  // confirme al sincronizar.
+  function ordenPendienteAVista(item) {
+    const cantidad = Number(item.datos.cantidad) || 0;
+    const iva = typeof ivaActualParaOrden === 'number' ? ivaActualParaOrden : 16;
+    const totalEstimado = Math.round(cantidad * (1 + iva / 100) * 100) / 100;
+    const fecha = new Date(item.creadoEn);
+    return {
+      __pendiente: true,
+      __localId: item.localId,
+      __error: item.error,
+      concepto: item.datos.concepto,
+      total: totalEstimado,
+      email: item.datos.email || null,
+      fecha_compra: fecha.toISOString().slice(0, 10),
+      fecha_compra_formateada: {
+        fecha: fecha.toLocaleDateString('es-MX'),
+        hora: fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+      },
+    };
+  }
+
+  async function aplicarFiltrosOrdenes() {
     const concepto = normalizar(els.ordenesFiltroConcepto.value.trim());
     const fechaDesde = els.ordenesFiltroFechaDesde.value;
     const fechaHasta = els.ordenesFiltroFechaHasta.value;
@@ -4581,9 +4755,22 @@
       return true;
     });
 
-    renderOrdenes(filtradas);
+    // Las pendientes de sincronizar SIEMPRE se muestran arriba, sin pasar
+    // por los filtros (todavía no tienen folio/fecha real del servidor
+    // con los que comparar de forma confiable).
+    let pendientes = [];
+    if (window.OfflineQueue) {
+      try {
+        const crudas = await OfflineQueue.listarPendientes('ordenes');
+        pendientes = crudas.map(ordenPendienteAVista);
+      } catch (err) {
+        pendientes = [];
+      }
+    }
+
+    renderOrdenes([...pendientes, ...filtradas]);
     const hayFiltro = Boolean(concepto || fechaDesde || fechaHasta || totalMin !== null || totalMax !== null);
-    els.ordenesEmpty.hidden = ordenesCache.length > 0;
+    els.ordenesEmpty.hidden = ordenesCache.length > 0 || pendientes.length > 0;
     els.ordenesFiltroEmpty.hidden = !(hayFiltro && ordenesCache.length > 0 && filtradas.length === 0);
   }
   [els.ordenesFiltroConcepto, els.ordenesFiltroFechaDesde, els.ordenesFiltroFechaHasta, els.ordenesFiltroTotalMin, els.ordenesFiltroTotalMax].forEach((el) => {
@@ -4669,12 +4856,71 @@
     return `${escapeHtml(textoPrimera)} <span class="orden-concepto-mas">+${lineas.length - 1} más</span>`;
   }
 
+  // Fila de una venta capturada sin conexión, todavía sin folio real (ver
+  // PROJECT_STATE.md punto 132). Sin "No. Venta" clicable (no hay id de
+  // servidor todavía) y sin Reenviar/Imprimir/Eliminar — nada de eso
+  // aplica hasta que exista de verdad en el servidor. "Descartar" quita
+  // la fila de la cola local; "Reintentar" solo aparece si ya falló una
+  // vez al sincronizar.
+  function filaOrdenPendiente(orden) {
+    const tr = document.createElement('tr');
+    tr.className = `fila-pendiente-sync${orden.__error ? ' tiene-error' : ''}`;
+    const badgeTexto = orden.__error ? '⚠ No se pudo sincronizar' : '⏳ Pendiente de sincronizar';
+    const errorHtml = orden.__error
+      ? `<span class="pendiente-sync-error">${escapeHtml(orden.__error)}</span>`
+      : '';
+    tr.innerHTML = `
+      <td data-label="No. Venta" data-col="numero"><span class="pendiente-sync-badge">${badgeTexto}</span>${errorHtml}</td>
+      <td data-label="Fecha" data-col="fecha">${escapeHtml(orden.fecha_compra_formateada.fecha)}<div class="admin-fecha-hora">${escapeHtml(orden.fecha_compra_formateada.hora)}</div></td>
+      <td data-label="Concepto" data-col="concepto">${renderConceptoPreviewOrden(orden.concepto)}</td>
+      <td data-label="Total" data-col="total"><strong>~$${formatearMoneda(orden.total)}</strong></td>
+      <td data-label="Correo" data-col="correo">${orden.email ? escapeHtml(orden.email) : 'Sin correo'}</td>
+      <td data-label=""></td>
+    `;
+    const celdaAcciones = tr.lastElementChild;
+    const contenedor = document.createElement('div');
+    contenedor.className = 'pendiente-sync-acciones';
+
+    if (orden.__error) {
+      const btnReintentar = document.createElement('button');
+      btnReintentar.type = 'button';
+      btnReintentar.className = 'btn btn-secondary';
+      btnReintentar.textContent = 'Reintentar';
+      btnReintentar.addEventListener('click', async () => {
+        btnReintentar.disabled = true;
+        await OfflineQueue.reintentarUno('ordenes', orden.__localId);
+      });
+      contenedor.appendChild(btnReintentar);
+    }
+
+    const btnDescartar = document.createElement('button');
+    btnDescartar.type = 'button';
+    btnDescartar.className = 'btn btn-secondary';
+    btnDescartar.textContent = 'Descartar';
+    btnDescartar.addEventListener('click', () => {
+      abrirConfirmacion({
+        titulo: '¿Descartar esta venta pendiente?',
+        mensaje: 'Se borra de la cola local sin registrarse en el servidor — no se puede deshacer.',
+        textoBoton: 'Descartar',
+        onConfirmar: () => OfflineQueue.eliminarPendiente('ordenes', orden.__localId),
+      });
+    });
+    contenedor.appendChild(btnDescartar);
+
+    celdaAcciones.appendChild(contenedor);
+    return tr;
+  }
+
   function renderOrdenes(ordenes) {
     els.ordenesCount.textContent = `${ordenes.length} venta${ordenes.length === 1 ? '' : 's'}`;
     els.ordenesTableBody.innerHTML = '';
     els.ordenesEmpty.hidden = ordenes.length > 0;
 
     ordenes.forEach((orden) => {
+      if (orden.__pendiente) {
+        els.ordenesTableBody.appendChild(filaOrdenPendiente(orden));
+        return;
+      }
       // Fecha y hora en 2 líneas (antes iban juntas en una sola línea que
       // no cabía en el ancho de la columna y quedaba cortada a la mitad
       // entre filas) — mismo patrón ya usado en "Actualizado" (Tickets).
@@ -6503,10 +6749,24 @@
     if (e.key === 'Escape' && !els.resumenFinDetalleOverlay.hidden) cerrarDetalleGrafica();
   });
 
+  // Se cachean junto con gastosActuales para poder re-renderizar (al
+  // cambiar la cola offline) sin tener que repetir la petición — ver
+  // renderizarGastosConPendientes().
+  let gastosResumenActual = null;
+  let gastosTotalActual = 0;
+
   async function cargarGastos() {
     const authHeader = getAuthHeader();
     if (!authHeader) {
       showLogin();
+      return;
+    }
+
+    // Sin conexión: se sigue mostrando la última lista ya cargada +
+    // lo pendiente de sincronizar, sin intentar la petición — ver
+    // PROJECT_STATE.md punto 132.
+    if (window.OfflineQueue && OfflineQueue.isOffline()) {
+      renderizarGastosConPendientes();
       return;
     }
 
@@ -6535,10 +6795,97 @@
       }
       const data = await res.json();
       gastosActuales = data.gastos || [];
-      renderGastos(gastosActuales, data.resumen || null, data.total);
+      gastosResumenActual = data.resumen || null;
+      gastosTotalActual = data.total;
+      await renderizarGastosConPendientes();
     } catch (err) {
       els.gastosError.textContent = 'No se pudo conectar con el servidor.';
     }
+  }
+
+  // Convierte una fila de la cola offline en un objeto con la misma forma
+  // que ya espera renderGastos/filaGastoPendiente.
+  function gastoPendienteAVista(item) {
+    const fecha = new Date(item.creadoEn);
+    return {
+      __pendiente: true,
+      __localId: item.localId,
+      __error: item.error,
+      fecha: fecha.toISOString().slice(0, 10),
+      concepto: item.datos.concepto,
+      proveedor: item.datos.proveedor,
+      categoria: item.datos.categoria,
+      monto: item.datos.monto,
+    };
+  }
+
+  // Re-renderiza Gastos con lo pendiente de sincronizar mezclado arriba —
+  // se usa tanto al cargar offline como cuando cambia la cola (agregar,
+  // descartar, reintentar), sin volver a pedirle nada al servidor.
+  async function renderizarGastosConPendientes() {
+    let pendientes = [];
+    if (window.OfflineQueue && state.vistaGastos !== 'papelera') {
+      try {
+        const crudas = await OfflineQueue.listarPendientes('gastos');
+        pendientes = crudas.map(gastoPendienteAVista);
+      } catch (err) {
+        pendientes = [];
+      }
+    }
+    renderGastos([...pendientes, ...gastosActuales], gastosResumenActual, gastosTotalActual + pendientes.length);
+  }
+
+  // Fila de un gasto capturado sin conexión, todavía sin id real (ver
+  // PROJECT_STATE.md punto 132) — sin comprobante (esa parte siempre
+  // requiere conexión, se adjunta después) ni acciones de
+  // editar/papelera, que solo aplican a un gasto que ya existe de
+  // verdad en el servidor.
+  function filaGastoPendiente(g) {
+    const tr = document.createElement('tr');
+    tr.className = `fila-pendiente-sync${g.__error ? ' tiene-error' : ''}`;
+    const badgeTexto = g.__error ? '⚠ No se pudo sincronizar' : '⏳ Pendiente de sincronizar';
+    const errorHtml = g.__error ? `<span class="pendiente-sync-error">${escapeHtml(g.__error)}</span>` : '';
+    tr.innerHTML = `
+      <td data-label="Fecha" data-col="fecha">${formatoFechaGasto(g.fecha)}</td>
+      <td data-label="Concepto" data-col="concepto"><span class="pendiente-sync-badge">${badgeTexto}</span>${errorHtml}<div>${escapeHtml(g.concepto)}</div></td>
+      <td data-label="Proveedor" data-col="proveedor">${escapeHtml(g.proveedor || '—')}</td>
+      <td data-label="Categoría" data-col="categoria"><span class="gasto-categoria">${escapeHtml(etiquetaCategoriaGasto(g.categoria))}</span></td>
+      <td data-label="Factura" data-col="factura">—</td>
+      <td data-label="Monto" data-col="monto"><strong>$${formatearMoneda(g.monto)}</strong></td>
+      <td data-label=""></td>
+    `;
+    const celdaAcciones = tr.lastElementChild;
+    const contenedor = document.createElement('div');
+    contenedor.className = 'pendiente-sync-acciones';
+
+    if (g.__error) {
+      const btnReintentar = document.createElement('button');
+      btnReintentar.type = 'button';
+      btnReintentar.className = 'btn btn-secondary';
+      btnReintentar.textContent = 'Reintentar';
+      btnReintentar.addEventListener('click', async () => {
+        btnReintentar.disabled = true;
+        await OfflineQueue.reintentarUno('gastos', g.__localId);
+      });
+      contenedor.appendChild(btnReintentar);
+    }
+
+    const btnDescartar = document.createElement('button');
+    btnDescartar.type = 'button';
+    btnDescartar.className = 'btn btn-secondary';
+    btnDescartar.textContent = 'Descartar';
+    btnDescartar.addEventListener('click', () => {
+      abrirConfirmacion({
+        titulo: '¿Descartar este gasto pendiente?',
+        mensaje: 'Se borra de la cola local sin registrarse en el servidor — no se puede deshacer.',
+        textoBoton: 'Descartar',
+        onConfirmar: () => OfflineQueue.eliminarPendiente('gastos', g.__localId),
+      });
+    });
+    contenedor.appendChild(btnDescartar);
+
+    celdaAcciones.appendChild(contenedor);
+    return tr;
   }
 
   function renderGastos(gastos, resumen, total) {
@@ -6579,6 +6926,10 @@
 
     els.gastosTableBody.innerHTML = '';
     gastos.forEach((g) => {
+      if (g.__pendiente) {
+        els.gastosTableBody.appendChild(filaGastoPendiente(g));
+        return;
+      }
       const badgeFactura = g.tiene_factura
         ? g.comprobante_nombre_guardado
           ? `<button type="button" class="gasto-factura-link" data-tooltip="Descargar comprobante" aria-label="Descargar comprobante">${g.comprobante_mime === 'application/zip' ? 'ZIP' : 'PDF'}</button>`
@@ -6798,6 +7149,22 @@
       recurrente: els.gastosModalRecurrente.checked,
       notas: els.gastosModalNotas.value.trim(),
     };
+
+    // Sin conexión: solo se puede CREAR (no editar) — se encola en
+    // IndexedDB, sin comprobante (esa parte siempre requiere conexión,
+    // ver PROJECT_STATE.md punto 132; se adjunta después desde el
+    // detalle, igual que ya se hace hoy si la subida falla).
+    if (!gastoModalEditando && window.OfflineQueue && OfflineQueue.isOffline()) {
+      await OfflineQueue.agregarPendiente('gastos', cuerpo);
+      showToast(
+        archivo
+          ? 'Gasto guardado sin conexión — se registrará al recuperar internet. El comprobante se debe adjuntar después, ya conectado.'
+          : 'Gasto guardado sin conexión — se registrará al recuperar internet.'
+      );
+      cerrarGastoModal();
+      renderizarGastosConPendientes();
+      return;
+    }
 
     setGuardarGastoLoading(true);
     try {

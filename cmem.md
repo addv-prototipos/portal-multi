@@ -606,3 +606,30 @@ confirmó: imprimir deshabilitado sin conexión (correo sí), sync 100%
 automático al reconectar, tablas en solo lectura sin conexión.
 Documentado en US.md (US-073/074/075) y PROJECT_STATE.md punto 132.
 Implementación queda para después, a pedido explícito del usuario.
+
+C052 14:45 ◆ Modo fuera de línea para Ventas/Gastos — IMPLEMENTADO Y
+VALIDADO (a pedido explícito: "comienza a aplicar los cambios"). 100%
+frontend, sin cambios de backend. `frontend/offline.js` nuevo (genérico):
+IndexedDB (cola pendientes_ordenes/gastos), detección de conexión real
+(ping a /api/health, no solo el evento `online` del navegador — evita
+falso positivo de wifi sin internet), reintento cada 10s si sigue
+offline. Franja `#conexion-banner` roja/verde con fade-out. Ventas:
+`btnRegistrarOrden` encola si offline, "Imprimir ticket" se deshabilita
+solo (folio real no existe todavía); filas pendientes con total estimado
+mezcladas arriba de la lista real. Gastos: mismo patrón, solo intercepta
+CREAR (no editar), comprobante se avisa que se adjunta después. Sync por
+tipo en orden de creación, un fallo no detiene a los demás (error real
+del backend mostrado, botones Reintentar/Descartar). Logout con cola
+pendiente pide confirmación antes de limpiar. Agregado al Dockerfile
+(mismo gotcha del punto 106). Jest 567/567. Validado en navegador real
+de punta a punta simulando online/offline reales (no mock superficial):
+online sin regresión, offline (banner, imprimir deshabilitado, venta+
+gasto encolados correctos), reconexión (sync automático, folio/id real
+confirmado por API), camino de falla (Reintentar/Descartar funcionando),
+mismo recorrido en móvil 390×844. Bug chico encontrado y corregido:
+botones se envolvían en 2 líneas (white-space:nowrap). Limitación
+aceptada a propósito: la caché de lectura offline es solo en memoria de
+la pestaña (la cola de pendientes sí sobrevive un reload, vive en
+IndexedDB). Detalle: PROJECT_STATE.md punto 132 (subsección
+"IMPLEMENTACIÓN"), US.md US-073/074/075 marcadas IMPLEMENTADA. Sin
+commit/push todavía.

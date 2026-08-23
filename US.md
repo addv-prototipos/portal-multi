@@ -402,7 +402,7 @@ para el cliente que lo perdió.
 
 **Criterios de aceptación:**
 - A diferencia del envío original, espera el resultado y avisa con toast éxito/fallo.
-### US-073 — Registrar ventas sin conexión a internet *(propuesta, no implementada)*
+### US-073 — Registrar ventas sin conexión a internet *(IMPLEMENTADA)*
 Como **administrador**, quiero poder capturar una venta aunque se caiga la conexión a internet, para
 no detener la operación en punto de venta por una falla de red pasajera.
 
@@ -422,7 +422,7 @@ no detener la operación en punto de venta por una falla de red pasajera.
   mano; no bloquea ni descarta las demás.
 - Ver también US-074 (mismo mecanismo para Gastos) y US-075 (indicador de conexión/sincronización).
 
-### US-074 — Registrar gastos sin conexión a internet *(propuesta, no implementada)*
+### US-074 — Registrar gastos sin conexión a internet *(IMPLEMENTADA)*
 Como **administrador**, quiero poder registrar un gasto aunque no haya internet, para no perder el
 dato mientras estoy en campo.
 
@@ -434,7 +434,7 @@ dato mientras estoy en campo.
   (`POST /gastos` primero, `POST /gastos/:id/comprobante` después) en el diseño actual, así que
   capturar el gasto offline no bloquea ni necesita ese archivo; se adjunta después, ya conectado.
 
-### US-075 — Indicador de conexión y sincronización *(propuesta, no implementada)*
+### US-075 — Indicador de conexión y sincronización *(IMPLEMENTADA)*
 Como **usuario del panel**, quiero ver claramente cuándo estoy sin conexión y cuándo el sistema está
 sincronizando lo pendiente, para saber si es seguro seguir capturando o esperar.
 
@@ -858,7 +858,6 @@ Estas son áreas donde la arquitectura ya tiene bases listas para evolucionar
 - **Autoservicio de marca/tema** para que el propio tenant gestione su identidad sin pasar por `/control`.
 - **UI de consulta de auditoría** (los datos ya se registran en `control_tenants.admin_auditoria`).
 - **Multi-idioma / multi-moneda** para expansión del producto.
-- **Modo fuera de línea para Ventas y Gastos** — diseño ya refinado y aprobado, ver US-073/US-074/
-  US-075 y PROJECT_STATE.md punto 132. Alcance acotado a propósito (solo esas 2 vistas, sin subir
-  archivos, sin login offline) tras cuestionar una petición inicial mucho más amplia.
-- **App móvil / PWA** del portal de cliente.
+- **App móvil / PWA** del portal de cliente — pedida y CANCELADA explícitamente por el usuario
+  antes de implementar (ver PROJECT_STATE.md punto 132); en su lugar se implementó el modo fuera
+  de línea de Ventas/Gastos (US-073/US-074/US-075, ya implementadas).

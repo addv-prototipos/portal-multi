@@ -7751,8 +7751,9 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       total). Escritorio confirmado sin cambios (tabla normal de 4
       columnas). Cero errores de consola. Sin commit/push todavía.
 
-132. **Modo fuera de línea para Ventas y Gastos — DISEÑO APROBADO, PENDIENTE
-    DE IMPLEMENTAR (2026-08-22)**: usuario pidió instalabilidad tipo PWA
+132. **Modo fuera de línea para Ventas y Gastos — DISEÑO APROBADO E
+    IMPLEMENTADO, ver subsección "IMPLEMENTACIÓN" al final de este punto
+    (2026-08-22/23)**: usuario pidió instalabilidad tipo PWA
     primero (analizada, CANCELADA explícitamente por el usuario antes de
     tocar ningún archivo — ver el mensaje "cancela el requerimiento y
     borra la petición", nada se llegó a implementar de eso). En su lugar
@@ -7873,6 +7874,118 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       ronda de refinamiento pidió documentar todo primero y dejó la
       implementación para después ("después podemos proceder a los
       cambios").
+
+    ---
+    **IMPLEMENTACIÓN (2026-08-23)** — a pedido explícito del usuario
+    ("comienza a aplicar los cambios"), se implementó el diseño de
+    arriba TAL CUAL fue aprobado, sin desviaciones de alcance.
+
+    - **Archivo nuevo `frontend/offline.js`**: módulo genérico y
+      reusable, sin conocer nada de "ventas"/"gastos" en concreto —
+      IndexedDB (`portalfac_offline`, stores `pendientes_ordenes`/
+      `pendientes_gastos`), detección de conexión real (no solo el
+      evento `online` del navegador, que puede dar falso positivo con
+      un wifi sin internet real — se confirma con un ping a
+      `/api/health`, público, mismo endpoint que ya usa
+      `mantenimiento.html`), reintento cada 10s mientras el estado
+      conocido sea "offline" (por si el evento nunca llega), y una API
+      pequeña (`agregarPendiente`, `listarPendientes`,
+      `eliminarPendiente`, `marcarError`, `reintentarUno`,
+      `registrarManejadorSync`, `onCambioEstado`, `onCambioCola`,
+      `onSincronizacionCompleta`, `limpiarTodo`) que `admin.js` usa sin
+      duplicar lógica de IndexedDB. Se agregó al `COPY` del
+      `frontend/Dockerfile` (mismo gotcha ya documentado en el punto
+      106 — un archivo JS nuevo que no se copia a la imagen falla en
+      silencio hasta que se prueba de verdad).
+    - **Franja de estado** (`#conexion-banner`, admin.html/admin.css):
+      fija arriba de TODO (z-index por encima de los modales), roja
+      "Sin conexión a internet" / verde "Sincronizando datos…",
+      desaparece con fade-out al terminar. `admin.js` la controla desde
+      `OfflineQueue.onCambioEstado()`.
+    - **Ventas** (`frontend/admin.js`): `btnRegistrarOrden` encola en
+      vez de hacer `fetch` cuando `OfflineQueue.isOffline()`; el botón
+      "🖨️ Imprimir ticket" del paso "Entrega" se deshabilita
+      automáticamente al quedarse sin conexión (con tooltip explicando
+      por qué) y se re-habilita al volver — con un bloqueo defensivo
+      adicional dentro del propio handler de guardado, por si acaso.
+      `cargarOrdenes()`/`aplicarFiltrosOrdenes()` se volvieron
+      conscientes de offline: sin conexión no intentan la petición
+      (usan la última `ordenesCache` ya cargada en memoria), y SIEMPRE
+      mezclan lo pendiente de la cola arriba de la lista real
+      (`ordenPendienteAVista()`, con un total ESTIMADO client-side,
+      nunca el real hasta que el servidor lo confirme). Fila pendiente
+      (`filaOrdenPendiente()`): badge ámbar "Pendiente de sincronizar"
+      o rojo "No se pudo sincronizar" + el mensaje de error real del
+      servidor, botones "Descartar" (siempre) y "Reintentar" (solo si
+      ya falló una vez).
+    - **Gastos**: mismo patrón exacto (`guardarGasto()` solo intercepta
+      la rama de CREAR, nunca editar — offline no aplica a editar un
+      gasto que ya existe de verdad; el comprobante, si se seleccionó
+      uno, se avisa que hay que adjuntarlo después, ya conectado, mismo
+      mensaje que ya usaba el flujo existente cuando la subida fallaba
+      pero el gasto sí se guardó). `gastosResumenActual`/
+      `gastosTotalActual` nuevos (cachean lo último cargado, para poder
+      re-renderizar con la cola mezclada sin volver a pedirle nada al
+      servidor). Las pendientes NUNCA se mezclan en la vista "Papelera"
+      (no tiene sentido ahí).
+    - **Sincronización**: `admin.js` registra un manejador por tipo
+      (`OfflineQueue.registrarManejadorSync('ordenes'|'gastos', ...)`)
+      que hace el `POST` real de siempre; al recuperar conexión de
+      verdad, la cola se procesa EN ORDEN DE CREACIÓN, un fallo en uno
+      no detiene a los demás (se marca con `marcarError` y sigue). Al
+      terminar de sincronizar un tipo, se recarga esa lista
+      (`onSincronizacionCompleta`) para reemplazar las filas pendientes
+      por las reales con folio.
+    - **Cerrar sesión con cola pendiente**: si hay algo sin sincronizar
+      al hacer clic en "Cerrar sesión", se avisa con `window.confirm()`
+      antes de limpiar la cola (perderla en silencio sería peor que un
+      diálogo nativo un poco menos pulido que el resto de la UI — se
+      documenta la inconsistencia de estilo a propósito, es una
+      decisión consciente por seguridad de datos, no un descuido).
+    - **Verificación**: `node --check` limpio en `admin.js`/
+      `offline.js`, CSS balanceado (689/689), Jest backend **567/567**
+      (sin cambios de backend en este segmento — todo el mecanismo es
+      100% frontend). Rebuild de `frontend`, health 200 OK.
+    - **Validado en navegador real de punta a punta (Claude in
+      Chrome)**, simulando offline/online real (se sobrescribió
+      `navigator.onLine` + se dispararon los eventos `online`/`offline`
+      reales del navegador, no un mock superficial):
+      1. Venta online normal (sin tocar nada de esto) — confirmado sin
+         regresión, guardó con folio real de siempre.
+      2. Offline: banner rojo confirmado, "Imprimir ticket" confirmado
+         deshabilitado, venta capturada offline con correo
+         seleccionado → fila "⏳ Pendiente de sincronizar" con total
+         estimado correcto, gasto capturado offline → misma fila
+         pendiente con categoría/monto correctos.
+      3. Reconexión: banner desaparece, ambos registros confirmados
+         reales contra la API (`GET /ordenes-compra`/`GET /gastos`) con
+         folio/id real y el monto exacto que se había estimado offline.
+      4. Cola vacía confirmada después de sincronizar
+         (`listarPendientes` → `[]` para ambos tipos).
+      5. Camino de falla: un gasto con categoría inválida encolado a
+         propósito → al reconectar, fila roja "⚠ No se pudo
+         sincronizar" con el mensaje real del backend, botones
+         "Reintentar" (repite el mismo error, no crashea) y "Descartar"
+         (limpia la cola) confirmados funcionando.
+      6. Mismo recorrido repetido en viewport móvil genuino (390×844,
+         mismo arnés de los puntos 127-131) — banner y fila pendiente
+         confirmados sin romper el layout responsive.
+      Cero errores de consola en todo el recorrido. **Bug chico
+      encontrado y corregido en el camino**: los botones "Reintentar"/
+      "Descartar" se envolvían mal en 2 líneas dentro de la celda de
+      acciones — CSS `white-space: nowrap` en `.pendiente-sync-acciones
+      .btn`.
+    - **Limitación conocida, aceptada a propósito** (no es un bug):
+      el "último conocido" que se muestra offline es la caché EN
+      MEMORIA de la pestaña actual — si se recarga la página estando
+      offline sin haber visitado antes esa vista, se ve vacía hasta
+      reconectar (no hay persistencia de la lista de LECTURA en
+      IndexedDB, solo de la cola de pendientes por crear, que sí
+      sobrevive un reload). Ampliar esto a un caché de lectura
+      persistente es una mejora futura razonable si hace falta, no se
+      construyó en este segmento por mantener el alcance acotado a lo
+      aprobado.
+    - **Sin commit/push todavía** — pendiente de decisión del usuario.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

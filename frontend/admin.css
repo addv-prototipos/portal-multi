@@ -22,6 +22,59 @@
   --shadow-card: 0px 4px 12px rgba(11, 19, 32, 0.05);
 }
 
+/* Franja de estado de conexión (Ventas/Gastos offline, ver
+   PROJECT_STATE.md punto 132) — fija arriba de TODO, por encima incluso
+   de los modales (z-index más alto que .modal-overlay). Cuando está
+   visible, .admin-body gana padding-top para que no tape el sidebar/
+   header (ver más abajo) — se activa/desactiva por JS agregando
+   "tiene-banner-conexion" en <body>. */
+.conexion-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+  transition: opacity 0.3s ease;
+}
+.conexion-banner.es-offline { background: var(--color-error, #B3261E); }
+.conexion-banner.es-syncing { background: #1E7A3D; }
+.conexion-banner.se-oculta { opacity: 0; }
+.admin-body.tiene-banner-conexion { padding-top: 36px; }
+@media (prefers-reduced-motion: reduce) {
+  .conexion-banner { transition: none; }
+}
+
+/* Fila "pendiente de sincronizar" (Ventas/Gastos offline) — mismo
+   lenguaje visual que el resto de la tabla, con acento ámbar mientras
+   espera y rojo si falló al sincronizar. */
+.fila-pendiente-sync { background: #FFF8EC; }
+.fila-pendiente-sync.tiene-error { background: #FDECEC; }
+.pendiente-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8A5A00;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.fila-pendiente-sync.tiene-error .pendiente-sync-badge { color: var(--color-error, #B3261E); }
+.pendiente-sync-error {
+  display: block;
+  font-size: 11.5px;
+  color: var(--color-error, #B3261E);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.pendiente-sync-acciones { display: flex; gap: 6px; flex-wrap: nowrap; }
+.pendiente-sync-acciones .btn { white-space: nowrap; flex-shrink: 0; width: auto; }
+
 .admin-dashboard {
   display: flex;
   min-height: 100vh;

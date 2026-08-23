@@ -667,36 +667,56 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   gotcha del punto 128, con otro breakpoint). Jest 567/567 (sin cambios
   de backend), validado en navegador real (nombre largo, botón quitar,
   escritorio sin cambios). Sin commit/push todavía.
-- **Modo fuera de línea para Ventas y Gastos — DISEÑO APROBADO, PENDIENTE
-  DE IMPLEMENTAR (ver PROJECT_STATE.md punto 132 y US.md US-073/074/075,
-  2026-08-22)**: usuario pidió primero instalabilidad PWA (analizada,
-  CANCELADA por el usuario antes de tocar código) y luego modo offline
-  con sync al reconectar + "máxima seguridad/cifrado" + franja de
-  estado. Petición original inviable tal cual para este sistema —
-  folios `AUTO_INCREMENT`, validación fiscal en vivo, login que
-  requiere BD, riesgo de pérdida silenciosa al subir archivos offline,
-  y "cifrado en el navegador" que no protege nada real si la llave
-  también vive ahí (de paso: el panel admin YA guarda usuario:
-  contraseña en `sessionStorage` en base64, no cifrado — preexistente,
-  no de este segmento). 3 rondas de crítica + refinamiento hasta un
-  alcance realista: **solo Ventas y Gastos**, sin subir archivos, sin
-  login offline. Folio se asigna al sincronizar (orden real de llegada
-  al servidor, sin reservar números); correo no necesita cola nueva
-  (ya vive dentro del guardado real, fire-and-forget existente);
-  archivos no aplican (comprobante de gasto ya es acción separada del
-  alta); Gastos sin riesgo de validación (categoría es lista cerrada
-  local), Ventas difiere la validación de constancia al sync (si
-  falla, se corrige a mano, no bloquea las demás). Confirmado por el
-  usuario: "Imprimir ticket" deshabilitado sin conexión (sí "Enviar
-  por correo"), sync 100% automático al reconectar, tablas muestran
-  última lista conocida en solo lectura sin conexión. Piezas técnicas
-  previstas (nada construido): `IndexedDB` para la cola + caché de
-  lectura, franja roja/verde con `navigator.onLine` + ping real a
-  `/api/health`, distinta del mecanismo ya existente de
-  `mantenimiento.html` (ese es para backend caído, no para el
-  dispositivo sin red). No avanzar sin aprobación explícita — el
-  usuario pidió documentar todo primero, implementación queda para
-  después.
+- **Modo fuera de línea para Ventas y Gastos — IMPLEMENTADO Y VALIDADO
+  (ver PROJECT_STATE.md punto 132 y US.md US-073/074/075,
+  2026-08-22/23)**: usuario pidió primero instalabilidad PWA (analizada,
+  CANCELADA antes de tocar código) y luego modo offline con sync al
+  reconectar + "máxima seguridad/cifrado" + franja de estado. Petición
+  original inviable tal cual (folios `AUTO_INCREMENT`, validación
+  fiscal en vivo, login que requiere BD, riesgo de pérdida silenciosa
+  subiendo archivos offline, "cifrado en el navegador" que no protege
+  nada si la llave vive ahí mismo — de paso, documentado que el panel
+  admin YA guarda usuario:contraseña en `sessionStorage` en base64, no
+  cifrado, preexistente). 3 rondas de crítica/refinamiento hasta un
+  alcance realista: **solo Ventas y Gastos**, sin archivos, sin login
+  offline, folio asignado al sincronizar (orden real de llegada),
+  correo sin cola nueva (ya vive en el guardado real existente), Ventas
+  difiere la validación de constancia al sync.
+  - **`frontend/offline.js`** (nuevo, genérico): IndexedDB
+    (`pendientes_ordenes`/`pendientes_gastos`), detección de conexión
+    real (no solo el evento `online` — se confirma con ping a
+    `/api/health`, reintento cada 10s si sigue "offline"), API pequeña
+    que `admin.js` conecta con manejadores concretos por tipo. Agregado
+    al `COPY` de `frontend/Dockerfile` (mismo gotcha del punto 106).
+  - **Franja de estado** (`#conexion-banner`): roja "Sin conexión a
+    internet" / verde "Sincronizando datos…", fade-out al terminar,
+    z-index por encima de los modales.
+  - **Ventas**: `btnRegistrarOrden` encola en vez de `fetch` si
+    offline; "Imprimir ticket" se deshabilita solo al quedarse sin
+    conexión (con bloqueo defensivo extra en el handler). Filas
+    pendientes (badge ámbar/rojo, total estimado, botones
+    Reintentar/Descartar) se mezclan arriba de la lista real sin
+    esperar al servidor.
+  - **Gastos**: mismo patrón, solo intercepta CREAR (nunca editar);
+    comprobante seleccionado se avisa que hay que adjuntarlo después
+    (mismo mensaje que ya existía para cuando la subida fallaba).
+  - **Sync**: por tipo, en orden de creación, un fallo no detiene a
+    los demás (se marca con el error real del backend y sigue).
+    Logout con cola pendiente pide confirmación antes de limpiarla.
+  - **Verificación**: `node --check` limpio, CSS balanceado
+    (689/689), Jest backend **567/567** (100% frontend, sin cambios de
+    backend). Validado en navegador real de punta a punta —
+    online sin regresión, offline (banner, imprimir deshabilitado,
+    venta+gasto encolados con total/monto correcto), reconexión (sync
+    automático, folio/id real confirmado contra la API), camino de
+    falla (error real mostrado, Reintentar/Descartar funcionando), y
+    mismo recorrido en móvil (390×844). **Bug chico encontrado y
+    corregido**: botones Reintentar/Descartar se envolvían en 2 líneas
+    — `white-space: nowrap`. Limitación aceptada a propósito: la
+    lista de lectura offline es solo caché en memoria de la pestaña
+    (no sobrevive un reload sin haber cargado antes esa vista) — la
+    cola de pendientes por crear sí sobrevive un reload (IndexedDB).
+    Sin commit/push todavía.
 - **"Lectura de reportes" rediseñada para auditorías (ver
   PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
   `reporte_items.accion` ya distinguía "eliminado" (borrado real) de
