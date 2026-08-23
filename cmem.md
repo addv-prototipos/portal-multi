@@ -585,3 +585,24 @@ el primer intento de reproducir el bug dio falso negativo — el arnés
 de prueba solo mirroreaba el breakpoint de 900px, la tabla usa 760px
 (distinto, no estaba replicado). Jest 567/567, validado en navegador
 real. Sin commit/push todavía. Detalle: PROJECT_STATE.md punto 131.
+
+C051 21:50 ⚖ Modo fuera de línea para Ventas/Gastos — DISEÑO APROBADO,
+NADA IMPLEMENTADO. Usuario pidió instalabilidad PWA primero → CANCELADA
+explícitamente antes de tocar código ("cancela el requerimiento y borra
+la petición"). Pidió en su lugar offline con sync al reconectar +
+"máxima seguridad/cifrado" + franja roja/verde. Petición original
+inviable tal cual: folios AUTO_INCREMENT, validación fiscal en vivo,
+login que necesita BD, riesgo de pérdida silenciosa subiendo archivos
+offline, "cifrado en el navegador" que no protege nada si la llave
+también vive ahí (de paso, documentado que el panel admin ya guarda
+usuario:contraseña en sessionStorage en base64 — preexistente, no de
+este segmento). 3 rondas de crítica/refinamiento del usuario hasta un
+alcance realista: SOLO Ventas y Gastos, sin archivos, sin login
+offline. Folio se asigna al sincronizar (orden real de llegada); correo
+no necesita cola nueva (ya vive dentro del guardado real); archivos no
+aplican (comprobante ya es acción separada); Ventas difiere la
+validación de constancia al sync (si falla se corrige a mano). Usuario
+confirmó: imprimir deshabilitado sin conexión (correo sí), sync 100%
+automático al reconectar, tablas en solo lectura sin conexión.
+Documentado en US.md (US-073/074/075) y PROJECT_STATE.md punto 132.
+Implementación queda para después, a pedido explícito del usuario.

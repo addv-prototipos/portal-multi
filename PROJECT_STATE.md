@@ -7751,6 +7751,129 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       total). Escritorio confirmado sin cambios (tabla normal de 4
       columnas). Cero errores de consola. Sin commit/push todavía.
 
+132. **Modo fuera de línea para Ventas y Gastos — DISEÑO APROBADO, PENDIENTE
+    DE IMPLEMENTAR (2026-08-22)**: usuario pidió instalabilidad tipo PWA
+    primero (analizada, CANCELADA explícitamente por el usuario antes de
+    tocar ningún archivo — ver el mensaje "cancela el requerimiento y
+    borra la petición", nada se llegó a implementar de eso). En su lugar
+    pidió modo fuera de línea con sincronización al reconectar, "los más
+    altos estándares de seguridad, cifrado y ofuscamiento" y una franja
+    de estado (roja sin conexión / verde sincronizando). Protocolo
+    `addv-web-app` completo: la primera versión de la petición era
+    inviable tal cual para este sistema — 3 rondas de crítica +
+    refinamiento con el usuario hasta llegar a un alcance realista.
+    **Nada de esto está implementado todavía** — es la especificación
+    completa ya aprobada, documentada en `US.md` (US-073/US-074/US-075)
+    y aquí para que cualquier sesión futura la implemente sin
+    rederivar el diseño.
+    - **Por qué la petición original no era viable tal cual** (razones
+      que el usuario aceptó y usó para acotar el alcance):
+      1. Los folios (`OC-000082`, `TK-000079`) los asigna
+         `AUTO_INCREMENT` de MySQL al momento de guardar — no se pueden
+         generar en el navegador sin arriesgar choques/reordenamientos
+         al sincronizar.
+      2. Ventas valida en vivo contra la base de datos (correo con
+         constancia activa) — un dato que puede estar desactualizado si
+         se cachea offline.
+      3. El login (scrypt contra la BD) no puede pasar sin conexión —
+         solo se puede mantener viva una sesión YA iniciada.
+      4. Subir archivos offline (fotos de tickets, comprobantes,
+         constancias) es el riesgo más alto — los navegadores pueden
+         desalojar `IndexedDB` sin avisar si el dispositivo anda corto
+         de espacio, perdiendo el archivo del cliente en silencio.
+      5. "Cifrado/ofuscación en el navegador" es engañoso tal como se
+         pidió: la llave para descifrar tendría que vivir también en el
+         navegador (no hay servidor offline que la resguarde), así que
+         no protege de un atacante con acceso al dispositivo — no es
+         cifrado real, es falsa confianza. Se documentó también, de
+         paso, que el panel admin YA guarda usuario:contraseña en
+         `sessionStorage` codificado en base64 (no cifrado, reversible
+         al instante) para el Basic Auth actual — diseño preexistente,
+         no algo nuevo de este segmento, pero relevante para calibrar
+         qué tan realista es hablar de "máxima seguridad" en el
+         navegador.
+    - **Alcance final aprobado** (tras 2 rondas de refinamiento del
+      usuario), que resuelve o evita cada uno de los 5 puntos de
+      arriba:
+      - **Solo Ventas y Gastos** del panel admin — nada de Tickets, ni
+        portal de cliente, ni subir archivos, ni login offline.
+      - **Folios**: sin número mientras esté offline — fila
+        "Pendiente de sincronizar" en la tabla; el servidor asigna el
+        folio real en el orden en que le lleguen las peticiones al
+        reconectar (el usuario aceptó explícitamente este
+        comportamiento: "los folios se generan conforme lleguen las
+        peticiones al servidor").
+      - **Correo**: no hace falta ninguna cola de correo nueva — el
+        envío YA vive dentro del mismo guardado en el servidor
+        (fire-and-forget, código ya existente); diferir el guardado
+        completo hasta reconectar basta para que "el correo se mande
+        hasta que ya esté en la base de datos" tal como pidió el
+        usuario.
+      - **Archivos**: se resuelve solo, sin diseño nuevo — el
+        comprobante de un gasto YA es una acción SEPARADA del alta
+        (`POST /gastos` primero, `POST /gastos/:id/comprobante`
+        después, patrón ya construido) y Ventas nunca sube archivos —
+        así que "crear offline" nunca necesita adjuntar nada.
+      - **Validación fiscal en vivo**: Gastos no depende de ningún dato
+        dinámico del servidor al capturar (categoría es lista cerrada
+        ya conocida en el navegador) — cero riesgo. Ventas sí valida
+        constancia contra la BD, pero esa validación también se
+        difiere al momento de sincronizar — el usuario aceptó
+        explícitamente que si falla ahí, "se corrige a posteriori" (esa
+        venta puntual se marca con el error, no bloquea ni descarta
+        las demás).
+      - **Login offline**: sigue sin resolverse, a propósito — fuera de
+        alcance, la sesión ya activa del admin es la que permite seguir
+        capturando.
+      - **Cifrado**: bajo este alcance solo se guarda texto de negocio
+        (producto/precio/monto/categoría), no contraseñas ni archivos
+        — se recomendó NO agregar cifrado del lado del cliente (no
+        resuelve nada real, ver punto 5 de arriba) y confiar en el
+        aislamiento por origen que ya da el navegador (nadie fuera de
+        este sitio puede leer esos datos), limpiando el
+        almacenamiento local al cerrar sesión.
+    - **Decisiones de UX ya confirmadas por el usuario** (3 preguntas
+      de la última ronda de refinamiento):
+      1. "Imprimir ticket" queda DESHABILITADO sin conexión (no hay
+         folio real que imprimir todavía) — SÍ se puede elegir "Enviar
+         por correo" y guardar, sin problema.
+      2. Disparo de sincronización 100% automático al recuperar
+         conexión (no se pidió botón manual "Sincronizar ahora").
+      3. Las tablas de Ventas/Gastos siguen mostrando la última lista
+         conocida (solo lectura) mientras no hay conexión, no solo la
+         capacidad de crear.
+    - **Piezas técnicas previstas** (para cuando se implemente,
+      ninguna construida todavía):
+      - Almacenamiento local: `IndexedDB` (no `localStorage` — más
+        espacio, no bloquea el hilo principal), limitado a la cola de
+        Ventas/Gastos pendientes + la última lista de lectura de cada
+        vista; se limpia al cerrar sesión.
+      - Franja de estado fija arriba: roja "Sin conexión a internet"
+        (mientras `navigator.onLine`/eventos `online`/`offline`
+        indiquen que no hay red — conviene además un ping real a
+        `/api/health` antes de dar por buena la reconexión, para no
+        disparar una sincronización que falle de inmediato por un
+        falso positivo de "hay red pero no hay internet real"), verde
+        "Sincronizando datos…" mientras se procesa la cola en el orden
+        en que se creó, desaparece sola (fade-out) al terminar —
+        mismo criterio de animación ya usado en el resto del panel
+        (transform/opacity, respeta `prefers-reduced-motion`).
+      - Distinto del mecanismo YA EXISTENTE de `mantenimiento.html`
+        (página completa cuando el BACKEND responde 502/503/504) — este
+        es para cuando el DISPOSITIVO del usuario se queda sin red, el
+        resto del sitio sigue usable, no se reemplaza por una pantalla
+        completa. No confundir ambos al implementar.
+      - Cada fila "Pendiente de sincronizar" necesita un estado visible
+        si falla al sincronizar (no desaparece ni se descarta sola —
+        se queda visible con el error para corregir a mano, ver punto
+        de validación de Ventas arriba).
+    - **No avanzar con la implementación sin aprobación explícita del
+      usuario** — este punto documenta el diseño ya aprobado, mismo
+      protocolo `addv-web-app` de siempre; el mensaje que cerró esta
+      ronda de refinamiento pidió documentar todo primero y dejó la
+      implementación para después ("después podemos proceder a los
+      cambios").
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

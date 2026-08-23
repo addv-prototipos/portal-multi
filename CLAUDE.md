@@ -667,6 +667,36 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   gotcha del punto 128, con otro breakpoint). Jest 567/567 (sin cambios
   de backend), validado en navegador real (nombre largo, botón quitar,
   escritorio sin cambios). Sin commit/push todavía.
+- **Modo fuera de línea para Ventas y Gastos — DISEÑO APROBADO, PENDIENTE
+  DE IMPLEMENTAR (ver PROJECT_STATE.md punto 132 y US.md US-073/074/075,
+  2026-08-22)**: usuario pidió primero instalabilidad PWA (analizada,
+  CANCELADA por el usuario antes de tocar código) y luego modo offline
+  con sync al reconectar + "máxima seguridad/cifrado" + franja de
+  estado. Petición original inviable tal cual para este sistema —
+  folios `AUTO_INCREMENT`, validación fiscal en vivo, login que
+  requiere BD, riesgo de pérdida silenciosa al subir archivos offline,
+  y "cifrado en el navegador" que no protege nada real si la llave
+  también vive ahí (de paso: el panel admin YA guarda usuario:
+  contraseña en `sessionStorage` en base64, no cifrado — preexistente,
+  no de este segmento). 3 rondas de crítica + refinamiento hasta un
+  alcance realista: **solo Ventas y Gastos**, sin subir archivos, sin
+  login offline. Folio se asigna al sincronizar (orden real de llegada
+  al servidor, sin reservar números); correo no necesita cola nueva
+  (ya vive dentro del guardado real, fire-and-forget existente);
+  archivos no aplican (comprobante de gasto ya es acción separada del
+  alta); Gastos sin riesgo de validación (categoría es lista cerrada
+  local), Ventas difiere la validación de constancia al sync (si
+  falla, se corrige a mano, no bloquea las demás). Confirmado por el
+  usuario: "Imprimir ticket" deshabilitado sin conexión (sí "Enviar
+  por correo"), sync 100% automático al reconectar, tablas muestran
+  última lista conocida en solo lectura sin conexión. Piezas técnicas
+  previstas (nada construido): `IndexedDB` para la cola + caché de
+  lectura, franja roja/verde con `navigator.onLine` + ping real a
+  `/api/health`, distinta del mecanismo ya existente de
+  `mantenimiento.html` (ese es para backend caído, no para el
+  dispositivo sin red). No avanzar sin aprobación explícita — el
+  usuario pidió documentar todo primero, implementación queda para
+  después.
 - **"Lectura de reportes" rediseñada para auditorías (ver
   PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
   `reporte_items.accion` ya distinguía "eliminado" (borrado real) de

@@ -402,6 +402,54 @@ para el cliente que lo perdió.
 
 **Criterios de aceptación:**
 - A diferencia del envío original, espera el resultado y avisa con toast éxito/fallo.
+### US-073 — Registrar ventas sin conexión a internet *(propuesta, no implementada)*
+Como **administrador**, quiero poder capturar una venta aunque se caiga la conexión a internet, para
+no detener la operación en punto de venta por una falla de red pasajera.
+
+**Criterios de aceptación (diseño aprobado, ver PROJECT_STATE.md punto 132):**
+- Alcance: SOLO Ventas y Gastos del panel admin. Tickets, Constancias, portal de cliente y subir
+  archivos NO son capturables sin conexión (quedan como hoy, requieren conexión).
+- El formulario de "Registrar venta" sigue funcionando offline; al guardar, la venta queda en la
+  tabla como **"Pendiente de sincronizar"**, SIN folio (el folio lo asigna el servidor en el orden
+  real en que le lleguen las peticiones al reconectar — no se reserva ni se inventa uno local).
+- Con conexión, "Imprimir ticket" elegido en el paso "Entrega" sigue disparando la impresión de
+  siempre. **Sin conexión, "Imprimir ticket" queda deshabilitado** (no hay folio real que imprimir
+  todavía) — SÍ se puede elegir "Enviar por correo" y guardar; el correo se manda de por sí desde
+  dentro del guardado real en el servidor (mismo mecanismo de hoy, fire-and-forget), así que no hace
+  falta ninguna cola de correo aparte — basta con diferir el guardado completo hasta reconectar.
+- La validación fiscal (correo con constancia activa) se difiere también al momento de sincronizar
+  — si en ese momento ya no es válida, esa venta puntual se marca con el error para corregirla a
+  mano; no bloquea ni descarta las demás.
+- Ver también US-074 (mismo mecanismo para Gastos) y US-075 (indicador de conexión/sincronización).
+
+### US-074 — Registrar gastos sin conexión a internet *(propuesta, no implementada)*
+Como **administrador**, quiero poder registrar un gasto aunque no haya internet, para no perder el
+dato mientras estoy en campo.
+
+**Criterios de aceptación (diseño aprobado, ver PROJECT_STATE.md punto 132):**
+- Mismo mecanismo que US-073 (fila "Pendiente de sincronizar", folio/id real al sincronizar).
+- Sin validación server-side que dependa de datos dinámicos al capturar (categoría es una lista
+  cerrada ya conocida en el navegador) — menor riesgo que Ventas.
+- El comprobante (PDF/ZIP) NO se puede adjuntar sin conexión — ya es una acción aparte del alta
+  (`POST /gastos` primero, `POST /gastos/:id/comprobante` después) en el diseño actual, así que
+  capturar el gasto offline no bloquea ni necesita ese archivo; se adjunta después, ya conectado.
+
+### US-075 — Indicador de conexión y sincronización *(propuesta, no implementada)*
+Como **usuario del panel**, quiero ver claramente cuándo estoy sin conexión y cuándo el sistema está
+sincronizando lo pendiente, para saber si es seguro seguir capturando o esperar.
+
+**Criterios de aceptación (diseño aprobado, ver PROJECT_STATE.md punto 132):**
+- Franja roja fija arriba ("Sin conexión a internet") mientras el navegador detecta que no hay red.
+- Al recuperar conexión, franja verde ("Sincronizando datos…") mientras se envía todo lo pendiente
+  de Ventas/Gastos, en el orden en que se creó; desaparece sola (fade-out) al terminar.
+- Disparo de sincronización 100% automático al recuperar conexión (sin botón manual).
+- Ventas/Gastos: la tabla sigue mostrando la última lista conocida (solo lectura) mientras no hay
+  conexión, para poder seguir consultando aunque no se pueda crear nada nuevo fuera de lo ya
+  descrito en US-073/US-074.
+- Distinto del mecanismo ya existente de US-046 (página de mantenimiento cuando el BACKEND está
+  caído) — este es para cuando el dispositivo del usuario se queda sin red, el resto del sitio
+  sigue usable, no se reemplaza por una pantalla completa.
+
 ### US-030 — Marcar venta como facturada e impedir doble facturación
 
 Como **administrador**, quiero ver un ✅ en las ventas ya facturadas, para no facturar dos veces la misma venta.
@@ -810,4 +858,7 @@ Estas son áreas donde la arquitectura ya tiene bases listas para evolucionar
 - **Autoservicio de marca/tema** para que el propio tenant gestione su identidad sin pasar por `/control`.
 - **UI de consulta de auditoría** (los datos ya se registran en `control_tenants.admin_auditoria`).
 - **Multi-idioma / multi-moneda** para expansión del producto.
+- **Modo fuera de línea para Ventas y Gastos** — diseño ya refinado y aprobado, ver US-073/US-074/
+  US-075 y PROJECT_STATE.md punto 132. Alcance acotado a propósito (solo esas 2 vistas, sin subir
+  archivos, sin login offline) tras cuestionar una petición inicial mucho más amplia.
 - **App móvil / PWA** del portal de cliente.
