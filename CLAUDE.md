@@ -741,7 +741,8 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   inline; el único `new Function()` del bundle es un fallback de
   `globalThis` inalcanzable en navegadores modernos) — style-src
   conserva `unsafe-inline` a propósito (bloques `<style>` literales del
-  HTML, riesgo bajo). Cuentas por cobrar sin commitear pese a su
+  HTML, riesgo bajo) — **confirmado visualmente por el usuario**
+  ("se ve bien"). Cuentas por cobrar sin commitear pese a su
   propia nota de "no implementar sin
   confirmación"). **Rediseño final el mismo
   día**: `calcularEtiquetasLejos()` (colisión por ancho de texto) se

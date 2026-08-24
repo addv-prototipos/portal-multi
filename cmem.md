@@ -755,3 +755,9 @@ los 8 con 200. Sin validación visual en navegador real esta vez
 confirme /api/docs y /api/control/docs cuando pueda. Jest 584/584,
 rebuild+redeploy backend/control contra Docker real, health OK.
 Detalle: PROJECT_STATE.md punto 140.
+
+C060 10:18 ✓ Usuario confirmó visualmente: "ya lo revisé, se ve bien"
+— /api/docs pinta correctamente en navegador real con la CSP
+endurecida de C059 (sin unsafe-inline/unsafe-eval en script-src).
+Cierra el pendiente de validación visual que había quedado abierto.
+Detalle: PROJECT_STATE.md punto 140.

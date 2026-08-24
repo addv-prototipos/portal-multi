@@ -8602,11 +8602,11 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        tuvo la CSP correcta, confirmado con `curl` a los 4 assets
        (`swagger-ui-bundle.js`/`standalone-preset.js`/`init.js`/`.css`)
        en backend Y control, los 4 con 200 y content-type correcto.
-       Validación visual en navegador real NO disponible esta vez
-       (extensión Claude in Chrome desconectada) — pendiente que el
-       usuario confirme visualmente `/api/docs` y `/api/control/docs`
-       cuando pueda. Jest 584/584, `node --check` limpio, rebuild +
-       redeploy de backend/control contra Docker real, health OK.
+       **Confirmado visualmente por el usuario (mismo día)**: revisó
+       `/api/docs` en su propio navegador, "se ve bien" — Swagger UI
+       pinta correctamente con la CSP endurecida, sin bloqueos.
+       Jest 584/584, `node --check` limpio, rebuild + redeploy de
+       backend/control contra Docker real, health OK.
        Aparte, el punto 138 (Cuentas por cobrar) sigue **sin commitear**
        en el working tree (schema `estado_pago`/`monto_cobrado`/etc. en
        `ordenes_compra`, endpoint `PUT /api/admin/ordenes-compra/:id/cobro`,
