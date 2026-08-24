@@ -193,7 +193,7 @@ async function requireAdminAuth(req, res, next) {
   // 0. Clave API por empresa (cookieAuth / X-API-Key) — autoriza uso de las APIs como esta clave API por empresa.
   // Se verifica ANTES de exigir Basic, para que `curl -H "X-API-Key: ..."` no necesite también Basic.
   if (req.tenant && req.tenant.slug) {
-    const claveApiPrevia = (req.get ? req.get('X-API-Key') : req.headers['x-api-key'] || req.headers['X-API-Key']) || (req.cookies && req.cookies.api_key) || (req.query && req.query.api_key);
+    const claveApiPrevia = (req.get ? req.get('X-API-Key') : req.headers['x-api-key'] || req.headers['X-API-Key']) || (req.cookies && req.cookies.api_key);
     if (claveApiPrevia) {
       try {
         const credClave = await verificarClaveApi(String(claveApiPrevia), req.tenant.slug);
@@ -289,7 +289,7 @@ async function requireAdminAuth(req, res, next) {
       console.error('Error verificando credencial API:', err);
     }
     // 4b. Clave API (cookieAuth / X-API-Key) — autoriza uso de las APIs como esta clave API por empresa
-    const claveApi = (req.get ? req.get('X-API-Key') : req.headers['x-api-key'] || req.headers['X-API-Key']) || (req.cookies && req.cookies.api_key) || (req.query && req.query.api_key);
+    const claveApi = (req.get ? req.get('X-API-Key') : req.headers['x-api-key'] || req.headers['X-API-Key']) || (req.cookies && req.cookies.api_key);
     if (claveApi) {
       try {
         const credClave = await verificarClaveApi(String(claveApi), req.tenant.slug);

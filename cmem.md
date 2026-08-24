@@ -718,3 +718,19 @@ selectivas (C055/C056) + trabajo en curso de la otra herramienta
 e2e/tests/temp-resumen2.spec.ts (script de depuración suelto, sin
 relación con ningún segmento documentado, quedó fuera del commit
 original a propósito y luego el usuario pidió borrarlo).
+
+C058 09:42 ●bugfix Corregido hallazgo #1 del audit de seguridad (C055):
+`?api_key=` por query string ya no se acepta como mecanismo de auth
+(quedaba expuesta en logs de acceso/historial del navegador/Referer).
+Quitado de las 2 capas de `requireAdminAuth()` en `backend/utils/
+auth.js` que lo leían. También limpiado de lo que se le enseña al
+usuario: descripción del esquema `apiKey` en `backend/utils/
+swagger.js` ahora dice explícitamente que NO se acepta por query
+string, y el ejemplo `curl ?api_key=` que el modal "Credenciales API"
+de `/control` mostraba (`frontend/control.js`) se quitó — solo header
+y cookie de aquí en adelante. Sin tests que cubrieran esto antes (cero
+regresión posible). Jest 584/584, `node --check` limpio en los 3
+archivos, rebuild+redeploy de backend/control/frontend contra Docker
+real, health OK. Hallazgo #2 (CSP unsafe-inline/unsafe-eval en rutas
+de Swagger) sigue pendiente, sin tocar. Detalle: PROJECT_STATE.md
+punto 140.

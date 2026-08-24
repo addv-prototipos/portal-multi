@@ -8564,15 +8564,27 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        commit `7b7abba` ya en `main` agrega Swagger (`/api/docs`,
        `/api/control/docs`) + credenciales API por tenant
        (`api_credenciales` en la BD de control, Basic o `X-API-Key` por
-       header/cookie/**query string**, resuelve a `perfil:'super'`
-       acotado al tenant, scrypt + timing-safe + defensa dummy-hash
-       contra oráculo de existencia). **Dos hallazgos sin corregir
-       todavía, pendientes de decisión del usuario**: (1) aceptar la
-       clave API por `?api_key=` en la URL es un riesgo real (queda en
-       logs de acceso/historial/Referer) — debería ser solo header o
-       cookie; (2) las rutas de Swagger (`/api/docs`, `/api/control/docs`)
-       ponen CSP con `'unsafe-inline' 'unsafe-eval'` — acotado a esas
-       rutas nada más, no global, pero amplía la superficie de XSS ahí.
+       header/cookie, resuelve a `perfil:'super'` acotado al tenant,
+       scrypt + timing-safe + defensa dummy-hash contra oráculo de
+       existencia). **Hallazgo 1 CORREGIDO (2026-08-24, a pedido del
+       usuario)**: `?api_key=` en la URL ya no se acepta como mecanismo
+       de auth — quedaba expuesta en logs de acceso/historial del
+       navegador/header Referer. Quitado de `requireAdminAuth()`
+       (`backend/utils/auth.js`, las 2 capas 0 y 4b que lo leían) y de
+       toda mención pública: descripción del esquema `apiKey` en
+       `backend/utils/swagger.js` actualizada para decir explícitamente
+       que NO se acepta por query string, y el ejemplo `curl` de query
+       que el modal "Credenciales API" de `/control` mostraba al admin
+       (`frontend/control.js`) se quitó — ahora solo enseña header y
+       cookie. Sigue funcionando exactamente igual por header/cookie (no
+       había tests que cubrieran esto — cero regresión posible ahí).
+       Jest 584/584 sin cambios, `node --check` limpio en los 3
+       archivos, validado contra Docker real (rebuild + redeploy de
+       backend/control/frontend, health OK). **Hallazgo 2 sigue sin
+       corregir, pendiente de decisión del usuario**: las rutas de
+       Swagger (`/api/docs`, `/api/control/docs`) ponen CSP con
+       `'unsafe-inline' 'unsafe-eval'` — acotado a esas rutas nada más,
+       no global, pero amplía la superficie de XSS ahí.
        Aparte, el punto 138 (Cuentas por cobrar) sigue **sin commitear**
        en el working tree (schema `estado_pago`/`monto_cobrado`/etc. en
        `ordenes_compra`, endpoint `PUT /api/admin/ordenes-compra/:id/cobro`,
