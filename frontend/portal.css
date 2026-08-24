@@ -162,11 +162,12 @@
   box-shadow: var(--shadow-card);
   text-decoration: none;
   color: inherit;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 .tile:hover {
   transform: translateY(-2px);
   border-color: var(--color-accent);
+  background: var(--color-accent-soft);
   box-shadow: 0 4px 16px rgba(15, 110, 93, 0.14);
 }
 .tile:focus-visible {

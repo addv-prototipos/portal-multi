@@ -807,3 +807,15 @@ Docs persistentes actualizados: `CLAUDE.md`, `AGENTS.md` (convención en
 "Convenciones establecidas"), `PROJECT_STATE.md` (nueva sección
 "Convención persistente de tipografía") y este `cmem.md`. TenantTema
 congelado en esta default. Verificación `node --check` y grep.
+
+C064 2026-08-24 ◆ Hover homologado en todo el sitio/apps (a pedido:
+"Resumen financiero se ve muy simple vs Tickets/Constancias").
+`frontend/admin.css:1617` `.admin-table tbody tr:hover` era el patrón de
+referencia (`background: var(--color-accent-soft)`). Se agregó bloque
+"Hover unificado" en `frontend/admin.css` (tarjetas Inicio/Resumen/Reportes/
+Configuraciones/Gastos) con `background: var(--color-accent-soft)` +
+`border-color: var(--color-accent)` + `transition 0.15s ease` (reduce-motion
+respeta). `frontend/portal.css` `.tile:hover` homologado al mismo fondo
+suave. Aplica a admin, control (reusa admin.css) y portal cliente.
+Documentado en `CLAUDE.md`, `AGENTS.md` y `PROJECT_STATE.md` (nueva sección
+"Convención persistente de hover"). Rebuild y push posteriores.

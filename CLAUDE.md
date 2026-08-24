@@ -117,6 +117,15 @@ node --check backend/ruta/al/archivo.js
   sistema de temas por tenant (`backend/utils/tenantTema.js`,
   `control/utils/tenantTema.js`) queda congelado en esta default; si se
   reactiva, debe respetar esta regla.
+- **Hover unificado (2026-08-24)**: el `hover` de **Resumen financiero**
+  era muy simple frente a **Tickets/Constancias** (`admin.css:1617`
+  `.admin-table tbody tr:hover { background: var(--color-accent-soft) }`).
+  Se homologó en **todo el sitio y apps** (admin, control, portal cliente,
+  reportes y resúmenes) al mismo lenguaje: `background: var(--color-accent-soft)` +
+  `border-color: var(--color-accent)` + `transition 0.15s ease` (ver
+  `admin.css` bloque "Hover unificado" y `portal.css` `.tile:hover`). Aplica a
+  tarjetas de Inicio/Resumen/Reportes/Configuraciones/Gastos y tiles del portal.
+  Respeta `prefers-reduced-motion: reduce`.
 - Después de cualquier cambio: `node --check` en los `.js` tocados +
   suite Jest existente sin regresiones + actualizar `PROJECT_STATE.md`.
 - Antes de dar por "no disponible" una skill/herramienta mencionada por el

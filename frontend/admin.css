@@ -3832,3 +3832,51 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.28);
   transition: none;
 }
+
+/* ---------- Hover unificado (2026-08-24) ----------
+   Resumen financiero tenía un hover muy simple (o nulo) frente a
+   Tickets/Constancias (.admin-table tbody tr:hover). Se homologa todo el
+   sitio y apps (admin, control, portal cliente, reportes) al mismo
+   lenguaje: fondo var(--color-accent-soft) + borde var(--color-accent).
+   Misma transición 0.15s ease que tablas y botones. Cubre tarjetas de
+   Inicio, Resumen financiero, Reportes y configuraciones globales. */
+.inicio-stat-card,
+.inicio-recientes-card,
+.inicio-donut-card,
+.resumen-fin-chart-card,
+.resumen-fin-line-card,
+.resumen-fin-donut-card,
+.resumen-fin-proveedores-card,
+.resumen-fin-utilidad-card,
+.reportes-kpi-grid .inicio-stat-card,
+.reportes-kpi-grid .reportes-kpi-chart-card,
+.lectura-reportes-subtabla,
+.admin-config-card,
+.gastos-kpi-card,
+.gastos-filtro-card {
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.inicio-stat-card:hover,
+.inicio-recientes-card:hover,
+.inicio-donut-card:hover,
+.resumen-fin-chart-card:hover,
+.resumen-fin-line-card:hover,
+.resumen-fin-donut-card:hover,
+.resumen-fin-proveedores-card:hover,
+.resumen-fin-utilidad-card:hover,
+.reportes-kpi-grid .inicio-stat-card:hover,
+.reportes-kpi-grid .reportes-kpi-chart-card:hover,
+.lectura-reportes-subtabla:hover,
+.admin-config-card:hover,
+.gastos-kpi-card:hover,
+.gastos-filtro-card:hover {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .inicio-stat-card, .inicio-recientes-card, .inicio-donut-card,
+  .resumen-fin-chart-card, .resumen-fin-line-card, .resumen-fin-donut-card,
+  .resumen-fin-proveedores-card, .lectura-reportes-subtabla, .admin-config-card {
+    transition: none;
+  }
+}

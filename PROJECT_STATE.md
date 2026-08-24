@@ -34,6 +34,19 @@ catálogo de 8 fuentes) queda congelado en esta default; si se reactiva, debe
 respetar esta regla. Documentado también en `CLAUDE.md`, `AGENTS.md` y
 `cmem.md`.
 
+## Convención persistente de hover (2026-08-24)
+
+El `hover` de **Resumen financiero** era muy simple frente a **Tickets/
+Constancias** (`frontend/admin.css:1617` `tbody tr:hover { background:
+var(--color-accent-soft) }`). Se homologó en **todo el sitio y apps**
+(admin, control, portal cliente, reportes) al mismo lenguaje:
+`background: var(--color-accent-soft)` + `border-color: var(--color-accent)` +
+`transition 0.15s ease` (ver `frontend/admin.css` bloque "Hover unificado" y
+`frontend/portal.css` `.tile:hover`). Aplica a tarjetas de Inicio, Resumen
+financiero (KPIs, gráficas, donas), Reportes (KPIs, subtablas), Configuraciones
+y Gastos, más tiles del portal del cliente. Respeta `prefers-reduced-motion`.
+Todo cambio futuro de hover debe respetar este lenguaje.
+
 ## Qué es esto
 
 App web para que clientes suban su Constancia de Situación Fiscal (PDF) y
