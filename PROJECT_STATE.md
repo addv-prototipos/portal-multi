@@ -8397,8 +8397,9 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        pasada) si se captura; opcional pero recomendada.
 
      **Propuesta visual — 2) Nueva vista "Cuentas por cobrar"**
-     Sidebar: entre **Ventas** y **Gastos** (`#btn-vista-cxc`,
-     ícono 💳/monedas, mismo `admin-sidebar-nav` navy). Solo perfil
+      Sidebar: entre **Ventas** y **Gastos** (`#btn-vista-cxc`,
+      ícono SVG monedas (mismo set que Resumen financiero), mismo
+      `admin-sidebar-nav` navy). Solo perfil
      `administrador`+`super` (igual que Ventas/Gastos, ver punto 114
      `RESTRICCIONES_PERFIL`).
 
@@ -8414,22 +8415,26 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
      │ Tabla: No.Venta | Cliente | Total | Cobrado  │
      │        | Saldo  | Vencimiento | Estado | ●   │
      │        | OC-000082 | ana@... | $1,232 | $0   │
-     │        | $1,232 | 2026-09-10 | ⏳ Pendiente  │
+      │        | $1,232 | 2026-09-10 | Pendiente  │
      │        | [Ver venta] [Registrar cobro] [Recordatorio]│
      │ Modal "Registrar cobro":                     │
      │  Saldo $1,232  [Monto a cobrar $____]        │
      │  [Cobro parcial] [Cobro total]  [Guardar]    │
      └────────────────────────────────────────────┘
-     ```
-     - 4 KPIs del mes: Por cobrar (suma saldos pendientes), Vencidas
-       (`fecha_vencimiento < hoy`), Por vencer, Cobrado del mes
-       (`estado_pago='pagada' AND fecha_cobro en mes`). Reusa
-       `.inicio-stats-grid` (ya usado en Inicio/Gastos/Resumen).
-     - Tabla reutiliza `.admin-table` + columnas ocultables (mismo
-       controlador `crearControladorColumnas`) + toggle
-       Activos(pendientes)/Cobradas (papelera semántica pero sin
-       borrado físico — es estado de la venta). Badge `⏳ Pendiente`
-       (ámbar) / `🔴 Vencida` (rojo) / `✅ Cobrada` (verde).
+      ```
+      - 4 KPIs del mes: Por cobrar (suma saldos pendientes), Vencidas
+        (`fecha_vencimiento < hoy`), Por vencer, Cobrado del mes
+        (`estado_pago='pagada' AND fecha_cobro en mes`). Reusa
+        `.inicio-stats-grid` (ya usado en Inicio/Gastos/Resumen) + icono
+        SVG 18×18 por KPI (mismo set que Resumen financiero: $/x-circle/
+        clock/check-circle, tintados por `inicio-stat-icono-*`).
+      - Tabla reutiliza `.admin-table` + columnas ocultables (mismo
+        controlador `crearControladorColumnas`) + toggle
+        Activos(pendientes)/Cobradas (papelera semántica pero sin
+        borrado físico — es estado de la venta). Badge `Pendiente`
+        (ámbar) / `Vencida` (rojo) / `Pagada` (verde) — solo texto, sin
+        emojis, color por `estatus-pendiente|cancelado|listo` (punto
+        141).
      - Acciones por fila: Ver venta (abre `#orden-modal-overlay`
        existente), **Registrar cobro** (modal simple con monto, valida
        `monto <= saldo`, crea abono → actualiza `monto_cobrado`,
@@ -8679,42 +8684,83 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        antes de asumir que sigue en fase de propuesta.
      - Jest backend 584/584 sin cambios (segmento 100% frontend).
 
-     **Rediseño final del mismo día — cifras selectivas en vez de
-     colisión-por-ancho, IMPLEMENTADO Y VALIDADO**: el fix de
-     `calcularEtiquetasLejos()` de arriba resolvió el caso que causó el
-     incidente, pero el usuario mandó una captura mostrando que
-     "Proyección de ventas" seguía viéndose mal — la cifra de Marzo
-     cortada a "$26" porque el primer/último punto usan alineación de
-     texto (`text-anchor: start/end`) distinta a los del medio
-     (`middle`), y el cálculo de colisión por ancho de texto no los
-     medía igual. Propuesta visual (Artifact con antes/después real,
-     reproduciendo el bug exacto de la captura) presentada y aprobada
-     ("me agrada tu propuesta... aplícala") antes de tocar código —
-     mismo protocolo. **Se abandonó por completo la colisión-por-ancho**
-     (`calcularEtiquetasLejos()` eliminada) a favor de **etiquetado
-     selectivo**, la práctica estándar en gráficas de línea con varios
-     puntos: `calcularIndicesClave(valores, cantidadReal)` nueva en
-     `admin.js` marca solo primero, último (+ último REAL si hay
-     proyección, para no perder el punto donde arranca el pronóstico),
-     máximo y mínimo — nunca más de 4-5 cifras por tarjeta sin importar
-     cuántos meses traiga la serie. Los puntos que no son clave se
-     quedan como círculo pequeño semi-transparente
-     (`.resumen-fin-linea-punto-fantasma`, `fill:var(--color-ink-soft);
-     opacity:.55`) SIN cifra pegada — su valor exacto sigue disponible
-     con el `<title>` nativo del navegador al pasar el mouse (ya
-     existía en el círculo, no se tocó). Elimina la clase de bug entera
-     en vez de parchar el caso puntual: con como máximo 4-5 etiquetas
-     nunca adyacentes por diseño, no hay cálculo de colisión que
-     mantener. Validado en navegador real (login + click a Resumen
-     financiero + zoom a la gráfica + expandida en el modal grande):
-     ambas tarjetas limpias, sin cortes ni encimados, puntos fantasma
-     visibles pero discretos. Jest backend 584/584 (sin cambios,
-     segmento 100% frontend). **Commiteado y pusheado** (`f1b395a` →
-     `fact/master`, junto con el trabajo en curso de la otra
-     herramienta — ver arriba). Limpieza aparte: se borró
-     `e2e/tests/temp-resumen2.spec.ts`, un script de depuración suelto
-     (nombre "temp", sin relación con ningún segmento documentado) que
-     había quedado sin commitear en el working tree.
+      **Rediseño final del mismo día — cifras selectivas en vez de
+      colisión-por-ancho, IMPLEMENTADO Y VALIDADO**: el fix de
+      `calcularEtiquetasLejos()` de arriba resolvió el caso que causó el
+      incidente, pero el usuario mandó una captura mostrando que
+      "Proyección de ventas" seguía viéndose mal — la cifra de Marzo
+      cortada a "$26" porque el primer/último punto usan alineación de
+      texto (`text-anchor: start/end`) distinta a los del medio
+      (`middle`), y el cálculo de colisión por ancho de texto no los
+      medía igual. Propuesta visual (Artifact con antes/después real,
+      reproduciendo el bug exacto de la captura) presentada y aprobada
+      ("me agrada tu propuesta... aplícala") antes de tocar código —
+      mismo protocolo. **Se abandonó por completo la colisión-por-ancho**
+      (`calcularEtiquetasLejos()` eliminada) a favor de **etiquetado
+      selectivo**, la práctica estándar en gráficas de línea con varios
+      puntos: `calcularIndicesClave(valores, cantidadReal)` nueva en
+      `admin.js` marca solo primero, último (+ último REAL si hay
+      proyección, para no perder el punto donde arranca el pronóstico),
+      máximo y mínimo — nunca más de 4-5 cifras por tarjeta sin importar
+      cuántos meses traiga la serie. Los puntos que no son clave se
+      quedan como círculo pequeño semi-transparente
+      (`.resumen-fin-linea-punto-fantasma`, `fill:var(--color-ink-soft);
+      opacity:.55`) SIN cifra pegada — su valor exacto sigue disponible
+      con el `<title>` nativo del navegador al pasar el mouse (ya
+      existía en el círculo, no se tocó). Elimina la clase de bug entera
+      en vez de parchar el caso puntual: con como máximo 4-5 etiquetas
+      nunca adyacentes por diseño, no hay cálculo de colisión que
+      mantener. Validado en navegador real (login + click a Resumen
+      financiero + zoom a la gráfica + expandida en el modal grande):
+      ambas tarjetas limpias, sin cortes ni encimados, puntos fantasma
+      visibles pero discretos. Jest backend 584/584 (sin cambios,
+      segmento 100% frontend). **Commiteado y pusheado** (`f1b395a` →
+      `fact/master`, junto con el trabajo en curso de la otra
+      herramienta — ver arriba). Limpieza aparte: se borró
+      `e2e/tests/temp-resumen2.spec.ts`, un script de depuración suelto
+      (nombre "temp", sin relación con ningún segmento documentado) que
+      había quedado sin commitear en el working tree.
+
+ 141. **Pulido visual Cuentas por cobrar + Ventas — sin emojis, icono
+      factura (2026-08-24, IMPLEMENTADO Y VALIDADO)**: a pedido explícito
+      *"en el proyecto no usamos emojis, por favor retira los que están
+      en Cuentas por cobrar y mantén el diseño como los iconos de la
+      sección Resumen financiero"* + confirmación A+B (limpiar también
+      Ventas, factura junto a OC como documento). Protocolo Analizar →
+      Proponer → Confirmar cumplido: se analizó impacto, se propuso tabla
+      de mapeo de emojis → SVG y se esperó el "en A y B por favor, ...
+      solo deja el texto, pero la que está al lado de la orden de compra
+      OC esa cámbiala por una que imite una factura".
+      - `frontend/admin.html:986-989` — 4 KPIs de CxC: `💰`/`🔴`/`⏳`/`✅`
+        dentro de `span.inicio-stat-icono` → reemplazados por SVG
+        `18×18` `stroke="currentColor"` con la MISMA paleta que Resumen
+        financiero: Por cobrar `$` (`M12 1v22…`, `inicio-stat-icono-total`
+        azul), Vencidas `circle-x` (`M10 14l2…`, `rechazadas` rojo), Por
+        vencer `clock` (`M12 8v4…`, `proceso` ámbar), Cobrado mes
+        `check-circle` (`M9 12l2…`, `completadas` verde). Sin clases
+        nuevas, sin CSS nuevo en tarjetas.
+      - `frontend/admin.html:886-887` — toggle Estado de pago del modal
+        Registrar venta: `✅ Pagada`/`⏳ Pendiente de pago` → solo texto
+        `Pagada`/`Pendiente de pago` (el `view-toggle-btn.is-active` ya
+        comunica estado).
+      - `frontend/admin.js:5023-5025` — `iconoFacturado` junto a
+        `OC-000001`: `✅` → factura SVG `14×14` (doc con doblez + 2
+        líneas, `M14 2H7a2… M14 2v6h6`), `aria-label="Venta facturada"`,
+        tooltip intacto.
+      - `frontend/admin.js:5030` y `7988` — badges Estado:
+        `🔴 Vencida`/`⏳ Pendiente`/`✅ Pagada` → `Vencida`/`Pendiente`/
+        `Pagada` solo texto dentro de `estatus-badge
+        estatus-cancelado|pendiente|listo` (color ya distingue).
+      - `frontend/admin.css:1263` — `.orden-facturado-icono` ahora
+        `display:inline-flex; color:var(--color-ink-soft)` para centrar el
+        SVG 14px (antes emoji heredaba color, SVG necesita alineación
+        explícita).
+      - `node --check` limpio en `admin.js`/`server.js`, Jest
+        **595/595 (36 suites)** sin regresiones, `docker compose build
+        frontend` + `up -d --force-recreate frontend` verificado por HTTP:
+        `GET /admin` 200 sin emojis pero con SVG en
+        `inicio-stat-icono-total`, `GET /admin.js` con factura SVG y badges
+        limpios. `FRONTEND_PORT=8088` conservado. No se tocó esquema/API.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

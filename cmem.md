@@ -781,3 +781,17 @@ suites), validado contra Docker/MySQL reales y en navegador real (0
 errores de consola, filtro y vista CxC funcionando con datos reales).
 Las 4 preguntas de diseño originales del punto 138 siguen sin
 respuesta explícita del usuario. Detalle: PROJECT_STATE.md punto 138.
+
+C062 11:30 ◆ Pulido visual Cuentas por cobrar + Ventas — sin emojis, icono
+factura (punto 141). A pedido explícito "no usamos emojis, retira los
+de CxC y mantén el diseño como Resumen financiero" + confirmación A+B.
+Analicé impacto, propuse mapeo emoji→SVG (tabla $/x-circle/clock/
+check-circle) y esperé confirmación — usuario aprobó con matiz: badge
+Pagada solo texto, icono junto a OC como factura. Implementado:
+admin.html:986-989 KPIs 💰🔴⏳✅→SVG 18×18 tintados (mismo set que Resumen),
+admin.html:886-887 toggle ✅/⏳→solo texto, admin.js:5023 icono OC ✅→
+factura SVG 14×14 doc, admin.js:5030/7988 badges 🔴/⏳/✅→solo texto
+(Vencida/Pendiente/Pagada, color por estatus-*), admin.css:1263
+.orden-facturado-icono inline-flex. Jest 595/595, rebuild frontend y
+verificación HTTP (/admin 200 sin emojis con SVG, /admin.js con factura).
+Detalle: PROJECT_STATE.md punto 141. Sin cambios de esquema/API.

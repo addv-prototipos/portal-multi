@@ -5021,14 +5021,14 @@
         ? `<div>${escapeHtml(orden.fecha_compra_formateada.fecha)}</div><div class="admin-fecha-hora">${escapeHtml(orden.fecha_compra_formateada.hora)}</div>`
         : '—';
       const iconoFacturado = orden.facturado
-        ? '<span class="orden-facturado-icono" data-tooltip="Venta facturada" aria-label="Venta facturada">✅</span>'
+        ? '<span class="orden-facturado-icono" data-tooltip="Venta facturada" aria-label="Venta facturada"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H7a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V8z" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M9 13h6M9 17h6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
         : '';
       const estadoPago = orden.estado_pago || 'pagada';
       const esPendiente = estadoPago === 'pendiente';
       const vencida = esPendiente && orden.fecha_vencimiento && new Date(orden.fecha_vencimiento + 'T00:00:00') < new Date(new Date().toISOString().slice(0,10)+'T00:00:00');
       const badgeEstadoPago = esPendiente
-        ? `<span class="estatus-badge ${vencida ? 'estatus-cancelado' : 'estatus-pendiente'}" style="margin-left:6px">${vencida ? '🔴 Vencida' : '⏳ Pendiente'}</span>`
-        : '<span class="estatus-badge estatus-listo" style="margin-left:6px">✅ Pagada</span>';
+        ? `<span class="estatus-badge ${vencida ? 'estatus-cancelado' : 'estatus-pendiente'}" style="margin-left:6px">${vencida ? 'Vencida' : 'Pendiente'}</span>`
+        : '<span class="estatus-badge estatus-listo" style="margin-left:6px">Pagada</span>';
       // Razón social asociada al correo, para el tooltip — se busca en
       // la misma caché ya cargada para el desplegable del formulario
       // (ver cargarCorreosRegistrados), no hace falta pedirla de nuevo.
@@ -7985,7 +7985,7 @@
     filtradas.forEach((orden) => {
       const saldo = Math.round((Number(orden.total) - Number(orden.monto_cobrado || 0)) * 100) / 100;
       const vencida = esVencida(orden);
-      const estadoBadge = (orden.estado_pago === 'pendiente') ? (vencida ? '<span class="estatus-badge estatus-cancelado">🔴 Vencida</span>' : '<span class="estatus-badge estatus-pendiente">⏳ Pendiente</span>') : '<span class="estatus-badge estatus-listo">✅ Pagada</span>';
+      const estadoBadge = (orden.estado_pago === 'pendiente') ? (vencida ? '<span class="estatus-badge estatus-cancelado">Vencida</span>' : '<span class="estatus-badge estatus-pendiente">Pendiente</span>') : '<span class="estatus-badge estatus-listo">Pagada</span>';
       const vencimientoTxt = orden.fecha_vencimiento ? escapeHtml(orden.fecha_vencimiento) : '—';
       const tr = document.createElement('tr');
       tr.innerHTML = `<td data-label="No. Venta">${escapeHtml(orden.numero_compra || '—')}</td><td data-label="Cliente">${escapeHtml(orden.email || 'Sin correo')}</td><td data-label="Total">$${formatearMoneda(orden.total)}</td><td data-label="Cobrado">$${formatearMoneda(orden.monto_cobrado || 0)}</td><td data-label="Saldo"><strong>$${formatearMoneda(saldo)}</strong></td><td data-label="Vencimiento">${vencimientoTxt}</td><td data-label="Estado">${estadoBadge}</td><td data-label=""></td>`;

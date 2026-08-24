@@ -452,10 +452,23 @@ sincronizando lo pendiente, para saber si es seguro seguir capturando o esperar.
 
 ### US-030 — Marcar venta como facturada e impedir doble facturación
 
-Como **administrador**, quiero ver un ✅ en las ventas ya facturadas, para no facturar dos veces la misma venta.
+Como **administrador**, quiero ver un icono de factura junto a las ventas ya facturadas, para no facturar dos veces la misma venta.
 
 **Criterios de aceptación:**
-- ✅ con tooltip cuando el ticket vinculado pasó a "listo".
+- Icono de factura SVG (`14×14`, doc con doblez) con tooltip "Venta facturada" cuando el ticket vinculado pasó a "listo" (antes ✅, retirado por pulido visual punto 141 — sin emojis, mismo estilo stroke que Resumen financiero).
+- El backend rechaza otro ticket para una venta ya facturada (`COMPRA_YA_FACTURADA`).
+- Tooltip de razón social al pasar el cursor sobre el correo de cada fila.
+
+### US-076 — Cuentas por cobrar: venta a crédito y cobro *(IMPLEMENTADA)*
+
+Como **administrador**, quiero registrar una venta como "Pagada" (default) o "Pendiente de pago" (con vencimiento/notas) y gestionarla en la vista "Cuentas por cobrar", para llevar el control de lo cobrado y lo pendiente.
+
+**Criterios de aceptación (ver PROJECT_STATE.md puntos 138 y 141):**
+- Modal "Registrar venta": toggle `Pagada` / `Pendiente de pago` (solo texto, sin emojis, punto 141) en el paso Entrega; por defecto `Pagada`. Al elegir `Pendiente` se revelan `fecha_vencimiento` (DATE, futura, opcional pero validada si se manda) y `notas_cobro` (TEXT). Filtro "Estado de pago" en Ventas (Todas/Pagada/Pendiente/Vencida) 100% client-side.
+- Modelo `ordenes_compra`: `estado_pago ENUM('pagada','pendiente') DEFAULT 'pagada'`, `fecha_vencimiento DATE NULL`, `monto_cobrado DECIMAL(12,2) DEFAULT 0`, `fecha_cobro DATETIME NULL`, `notas_cobro TEXT NULL`, `saldo = total − monto_cobrado` derivado. Migración idempotente + backfill histórico verificado (212/212).
+- Vista "Cuentas por cobrar" entre **Ventas** y **Gastos** (solo `administrador`+`super`): toggle `Pendientes`/`Cobradas`, 4 KPIs con icono SVG tintado (igual que Resumen financiero: Por cobrar `$` azul / Vencidas `x-circle` rojo / Por vencer `clock` ámbar / Cobrado mes `check-circle` verde, sin emojis), filtros Cliente/correo + Vencimiento, tabla No. Venta/Cliente/Total/Cobrado/Saldo/Vencimiento/Estado (badge solo texto `Pendiente`/`Vencida`/`Pagada` por `estatus-pendiente|cancelado|listo`, sin emojis).
+- Acciones por fila: Ver venta, Registrar cobro (modal monto `>0 && <= saldo`, crea abono → actualiza `monto_cobrado`; si `saldo==0` pasa a `pagada` y `fecha_cobro=NOW()`), Copiar recordatorio (texto al portapapeles). Offline: `estado_pago` en la cola IndexedDB, imprimir deshabilitado para pendiente sin folio.
+- API: `PUT /api/admin/ordenes-compra/:id/cobro` (`{monto, notas}`) con `requireAdminArea('administrador')` + `adminApiLimiter`; validación `monto >0 && monto <= saldo`, 401/403/404/400 según caso. Auditoría automática vía middleware (segmento 7).
 - El backend rechaza otro ticket para una venta ya facturada (`COMPRA_YA_FACTURADA`).
 - Tooltip de razón social al pasar el cursor sobre el correo de cada fila.
 

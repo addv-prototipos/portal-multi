@@ -1261,9 +1261,15 @@
    el tooltip nativo del navegador (atributo title) ya explica su
    significado al pasar el mouse, sin necesidad de JS adicional. */
 .orden-facturado-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
   margin-right: 6px;
+  color: var(--color-ink-soft);
   cursor: help;
 }
+.orden-facturado-icono svg { display: block; }
 .orden-correo-con-tooltip {
   cursor: help;
 }
