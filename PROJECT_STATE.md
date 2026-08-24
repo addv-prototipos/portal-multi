@@ -8494,6 +8494,127 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        `FX`. Pendiente solo entrega de PNG "Clarvo Control by ADDV"
        para reemplazar `branding*.png` sin tocar código.
 
+140. **Sidebar fijo (nunca se pierde en scroll) + cifras visibles y sin
+     encimarse en las gráficas de Resumen financiero — IMPLEMENTADO Y
+     VALIDADO (2026-08-24)**: dos pedidos del usuario con captura de
+     pantalla real como evidencia — (1) el sidebar de `/admin` se perdía
+     al hacer scroll largo (Resumen financiero) y "Cerrar sesión" a
+     veces no aparecía; (2) las cifras que el punto 135^ (sesión previa)
+     agregó a "Utilidad neta mensual"/"Proyección de ventas" se
+     encimaban entre meses vecinos.
+     - **Sidebar**: `.admin-sidebar` pasó de flex-child normal (se
+       estiraba al alto de `.admin-content`, así que en vistas largas su
+       parte de arriba —logo, nav, y el footer "Cerrar sesión"— quedaba
+       muy por debajo del viewport visible) a `position: fixed; top:0;
+       left:0; height:100vh` — el usuario pidió explícitamente que el
+       scroll quede "embebido" del lado derecho, no en el menú. Un primer
+       intento con `position: sticky` no bastó (el usuario lo probó y
+       reportó que el menú se seguía perdiendo) — `fixed` lo saca del
+       todo del flujo del documento, sin ambigüedad. `.admin-content`
+       gana `margin-left: 256px` para no quedar tapado. En móvil
+       (`<900px`, donde el sidebar ya es una barra horizontal angosta)
+       vuelve a `position: sticky` normal — `fixed` ahí rompería el
+       layout apilado. Ajuste ya existente de `top` cuando la franja de
+       "sin conexión" está visible, replicado para el nuevo `fixed`.
+     - **Cifras encimadas**: el primer fix (alternar cerca/lejos del
+       punto por paridad de índice par/impar) solo resuelve el caso
+       zigzag — falla cuando varios meses seguidos suben o bajan juntos
+       (ej. Ago→Sep→Oct en Proyección, exactamente lo que el usuario
+       capturó). Reemplazado por `calcularEtiquetasLejos()`
+       (`frontend/admin.js`): compara el ANCHO DE TEXTO estimado (por
+       cantidad de caracteres — SVG no permite medir el ancho real antes
+       de insertar) contra el espacio horizontal real entre puntos
+       consecutivos; si dos cifras vecinas no caben una junto a otra, la
+       segunda se aleja más de su punto (offset mayor), y si la anterior
+       ya se alejó, esta se queda cerca — nunca alterna a ciegas. Halo
+       `paint-order:stroke` del color de superficie detrás de cada cifra
+       (`.resumen-fin-linea-etiqueta-valor`), para legibilidad si de
+       todos modos queda cerca de otra o del trazo.
+     - **Incidente real durante la implementación, documentado para que
+       no se repita**: otra sesión/herramienta (claude-flow/ruflo, ver
+       `.claude-flow/`/`.agents/`/`.mcp.json` sin trackear en el repo)
+       estuvo corriendo en paralelo sobre el MISMO directorio de trabajo,
+       construyendo/desplegando su propia feature (Cuentas por cobrar,
+       punto 138) con `docker build` propio. En algún momento su build
+       capturó `frontend/admin.js` a medio editar de este lado —
+       `calcularEtiquetasLejos()` ya exigía un segundo parámetro
+       (`textos`) pero una de las dos llamadas (`renderResumenFinProyeccion`)
+       todavía no se lo mandaba — y lo desplegó así. Efecto: al abrir
+       Resumen financiero, esa función tronaba
+       (`TypeError: Cannot read properties of undefined (reading
+       'length')`), y como `renderResumenFinanciero()` llama a los
+       renders uno tras otro sin try/catch individual, todo lo que viene
+       DESPUÉS en esa cadena se quedaba en blanco (Proyección, Distribución
+       de gastos, Ventas facturadas vs sin facturar, Top proveedores) — el
+       catch de más afuera atrapa la excepción y la etiqueta mal como
+       *"No se pudo conectar con el servidor"* (no es de red, es JS roto;
+       ese texto es compartido por 46 bloques `catch` distintos en
+       `admin.js`, cualquier excepción ahí cae en el mismo mensaje
+       genérico). La API nunca dejó de responder bien — confirmado por
+       `curl` con datos reales en todo momento. Se corrigió terminando el
+       wire-up pendiente y volviendo a desplegar; confirmado con un
+       listener de `error`/`unhandledrejection` instalado por JS +
+       recorrido de las 9 vistas principales (incluida "Cuentas por
+       cobrar") con reload de página real — cero excepciones. Logs de
+       backend/nginx de las últimas 24h también limpios (cero 500, cero
+       error real de servidor) — refuerza que el mensaje "No se pudo
+       conectar" que el usuario vio repetido no era de red.
+     - **Auditoría de lo que la otra herramienta cambió**, revisada a
+       pedido del usuario antes de continuar (ver también punto 137/138):
+       commit `7b7abba` ya en `main` agrega Swagger (`/api/docs`,
+       `/api/control/docs`) + credenciales API por tenant
+       (`api_credenciales` en la BD de control, Basic o `X-API-Key` por
+       header/cookie/**query string**, resuelve a `perfil:'super'`
+       acotado al tenant, scrypt + timing-safe + defensa dummy-hash
+       contra oráculo de existencia). **Dos hallazgos sin corregir
+       todavía, pendientes de decisión del usuario**: (1) aceptar la
+       clave API por `?api_key=` en la URL es un riesgo real (queda en
+       logs de acceso/historial/Referer) — debería ser solo header o
+       cookie; (2) las rutas de Swagger (`/api/docs`, `/api/control/docs`)
+       ponen CSP con `'unsafe-inline' 'unsafe-eval'` — acotado a esas
+       rutas nada más, no global, pero amplía la superficie de XSS ahí.
+       Aparte, el punto 138 (Cuentas por cobrar) sigue **sin commitear**
+       en el working tree (schema `estado_pago`/`monto_cobrado`/etc. en
+       `ordenes_compra`, endpoint `PUT /api/admin/ordenes-compra/:id/cobro`,
+       vista nueva) pese a que el punto 138 dice "NO IMPLEMENTAR hasta
+       confirmación explícita, cero código tocado" — la documentación
+       quedó desalineada con el working tree real; anotado aquí para que
+       quien retome sepa que ya hay código (no probado por esta sesión)
+       antes de asumir que sigue en fase de propuesta.
+     - Jest backend 584/584 sin cambios (segmento 100% frontend).
+
+     **Rediseño final del mismo día — cifras selectivas en vez de
+     colisión-por-ancho, IMPLEMENTADO Y VALIDADO**: el fix de
+     `calcularEtiquetasLejos()` de arriba resolvió el caso que causó el
+     incidente, pero el usuario mandó una captura mostrando que
+     "Proyección de ventas" seguía viéndose mal — la cifra de Marzo
+     cortada a "$26" porque el primer/último punto usan alineación de
+     texto (`text-anchor: start/end`) distinta a los del medio
+     (`middle`), y el cálculo de colisión por ancho de texto no los
+     medía igual. Propuesta visual (Artifact con antes/después real,
+     reproduciendo el bug exacto de la captura) presentada y aprobada
+     ("me agrada tu propuesta... aplícala") antes de tocar código —
+     mismo protocolo. **Se abandonó por completo la colisión-por-ancho**
+     (`calcularEtiquetasLejos()` eliminada) a favor de **etiquetado
+     selectivo**, la práctica estándar en gráficas de línea con varios
+     puntos: `calcularIndicesClave(valores, cantidadReal)` nueva en
+     `admin.js` marca solo primero, último (+ último REAL si hay
+     proyección, para no perder el punto donde arranca el pronóstico),
+     máximo y mínimo — nunca más de 4-5 cifras por tarjeta sin importar
+     cuántos meses traiga la serie. Los puntos que no son clave se
+     quedan como círculo pequeño semi-transparente
+     (`.resumen-fin-linea-punto-fantasma`, `fill:var(--color-ink-soft);
+     opacity:.55`) SIN cifra pegada — su valor exacto sigue disponible
+     con el `<title>` nativo del navegador al pasar el mouse (ya
+     existía en el círculo, no se tocó). Elimina la clase de bug entera
+     en vez de parchar el caso puntual: con como máximo 4-5 etiquetas
+     nunca adyacentes por diseño, no hay cálculo de colisión que
+     mantener. Validado en navegador real (login + click a Resumen
+     financiero + zoom a la gráfica + expandida en el modal grande):
+     ambas tarjetas limpias, sin cortes ni encimados, puntos fantasma
+     visibles pero discretos. Jest backend 584/584 (sin cambios,
+     segmento 100% frontend). Sin commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

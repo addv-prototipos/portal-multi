@@ -667,3 +667,47 @@ nodemailer streamTransport confirma Content-ID/Content-Type
 correctos) y CONFIRMADO por el usuario contra un correo real de
 verdad ("ya llegó bien"). Jest 567/567. Detalle: PROJECT_STATE.md
 punto 133 (subsección "CORRECCIÓN").
+
+C055 08:52 ● Sidebar de /admin se perdía en scroll largo + "Cerrar
+sesión" a veces invisible: `.admin-sidebar` se estiraba al alto de
+`.admin-content` en vez de quedar acotado al viewport. Sticky no
+bastó (usuario lo probó, se seguía perdiendo) → `position:fixed;
+height:100vh` (sticky solo en móvil <900px, ahí es barra horizontal).
+Cifras de "Utilidad neta mensual"/"Proyección de ventas" se encimaban
+en meses consecutivos que suben/bajan juntos (alternar por paridad de
+índice solo resuelve zigzag) → `calcularEtiquetasLejos()` nueva:
+compara ancho de texto estimado contra espacio real entre puntos,
+aleja la cifra solo si hace falta. INCIDENTE: otra herramienta
+(claude-flow/ruflo) corriendo en paralelo sobre el mismo directorio
+desplegó `admin.js` a medio editar de este lado (llamada sin el 2do
+parámetro de la función nueva) → TypeError al abrir Resumen
+financiero → todo lo que rendereaba después en la misma cadena
+quedaba en blanco (Proyección, donas, top proveedores) → catch
+genérico lo etiquetó mal como "No se pudo conectar con el servidor"
+(era JS roto, no red — confirmado con curl + logs backend/nginx 24h
+limpios). Corregido completando el wire-up + redeploy; 0 excepciones
+tras recorrer las 9 vistas con listener de error + reload real.
+Auditoría de lo que la otra herramienta cambió (a pedido del usuario):
+commit `7b7abba` ya en main con Swagger + credenciales API por tenant
+— 2 hallazgos sin corregir (API key aceptada por `?api_key=` en URL,
+CSP con unsafe-inline/unsafe-eval en rutas de Swagger, acotado). CxC
+(punto 138) sigue sin commitear pese a decir "no implementar sin
+confirmación" en su propia documentación — anotado para quien retome.
+Jest 584/584 (sin cambios backend). Detalle: PROJECT_STATE.md punto
+140.
+
+C056 09:14 ● Usuario mandó captura mostrando que el fix de C055 no
+bastó: "$264.6k" seguía cortándose a "$26" en Proyección de ventas.
+Causa: primer/último punto usan text-anchor distinto (start/end vs
+middle), el cálculo de colisión por ancho de texto no los medía igual.
+Abandoné calcularEtiquetasLejos() por completo → etiquetado selectivo
+(calcularIndicesClave): solo primero/último(+último real si hay
+proyección)/máximo/mínimo llevan cifra, máximo 4-5 por tarjeta pase lo
+que pase con la serie; el resto son puntos discretos
+(punto-fantasma, gris semi-transparente) con su valor por hover nativo
+(title, ya existía). Propuesta visual con Artifact (antes/después
+reproduciendo el bug exacto de la captura) aprobada ("me agrada tu
+propuesta... aplícala") antes de tocar código. Elimina la clase de bug
+entera, no un caso puntual. Validado en navegador real, tarjeta normal
+y modal expandido, ambas limpias. Jest 584/584. Detalle:
+PROJECT_STATE.md punto 140 (subsección "Rediseño final").

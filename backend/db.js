@@ -546,12 +546,20 @@ async function ensureSchema(db = pool) {
       iva_porcentaje DECIMAL(5,2) NOT NULL,
       total DECIMAL(12,2) NOT NULL,
       email VARCHAR(200) NULL,
+      estado_pago ENUM('pagada','pendiente') NOT NULL DEFAULT 'pagada',
+      fecha_vencimiento DATE NULL,
+      monto_cobrado DECIMAL(12,2) NOT NULL DEFAULT 0,
+      fecha_cobro DATETIME NULL,
+      notas_cobro TEXT NULL,
       eliminado_en DATETIME NULL,
       creado_en DATETIME NOT NULL,
       actualizado_en DATETIME NOT NULL,
       UNIQUE KEY uq_ordenes_compra_numero (numero_compra),
       KEY idx_ordenes_compra_email (email),
-      KEY idx_ordenes_compra_eliminado_en (eliminado_en)
+      KEY idx_ordenes_compra_eliminado_en (eliminado_en),
+      KEY idx_ordenes_compra_estado_pago (estado_pago),
+      KEY idx_ordenes_compra_vencimiento (fecha_vencimiento),
+      CONSTRAINT chk_ordenes_monto_cobrado CHECK (monto_cobrado >= 0)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
@@ -615,6 +623,37 @@ async function ensureSchema(db = pool) {
       `ALTER TABLE ordenes_compra ADD CONSTRAINT chk_ordenes_compra_iva
        CHECK (iva_porcentaje >= 0 AND iva_porcentaje <= 100)`
     );
+  }
+
+  // Cuentas por cobrar (punto 138): por defecto pagada, opción pendiente
+  // con vencimiento/notas y abonos parciales (monto_cobrado). Saldo es
+  // derivado total - monto_cobrado, no columna.
+  const [colsOrdenCxc] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ordenes_compra'`
+  );
+  const nombresCxc = colsOrdenCxc.map((c) => c.COLUMN_NAME);
+  if (!nombresCxc.includes('estado_pago')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN estado_pago ENUM('pagada','pendiente') NOT NULL DEFAULT 'pagada'`);
+    await db.query(`ALTER TABLE ordenes_compra ADD KEY idx_ordenes_compra_estado_pago (estado_pago)`);
+  }
+  if (!nombresCxc.includes('fecha_vencimiento')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN fecha_vencimiento DATE NULL`);
+    await db.query(`ALTER TABLE ordenes_compra ADD KEY idx_ordenes_compra_vencimiento (fecha_vencimiento)`);
+  }
+  if (!nombresCxc.includes('monto_cobrado')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN monto_cobrado DECIMAL(12,2) NOT NULL DEFAULT 0`);
+  }
+  if (!nombresCxc.includes('fecha_cobro')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN fecha_cobro DATETIME NULL`);
+  }
+  if (!nombresCxc.includes('notas_cobro')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN notas_cobro TEXT NULL`);
+  }
+  const [chkMontoCobrado] = await db.query(
+    `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'ordenes_compra' AND CONSTRAINT_NAME = 'chk_ordenes_monto_cobrado'`
+  );
+  if (chkMontoCobrado.length === 0) {
+    await db.query(`ALTER TABLE ordenes_compra ADD CONSTRAINT chk_ordenes_monto_cobrado CHECK (monto_cobrado >= 0)`);
   }
 
   // Gastos de la operación (módulo "Gastos", ver PROJECT_STATE.md):

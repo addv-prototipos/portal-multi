@@ -2373,6 +2373,11 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
    (.resumen-fin-utilidad-valor.es-positiva/es-negativa). */
 .resumen-fin-linea-punto-positiva { fill: #1FAE6B; }
 .resumen-fin-linea-punto-negativa { fill: var(--color-error); }
+/* Punto sin cifra propia (no es primero/último/máximo/mínimo) — mismo
+   color neutro en ambas gráficas, más chico y semi-transparente para
+   que los puntos CON cifra destaquen; su valor exacto sigue disponible
+   pasando el mouse encima (title nativo). */
+.resumen-fin-linea-punto-fantasma { fill: var(--color-ink-soft); opacity: 0.55; }
 .resumen-fin-linea-etiqueta-valor {
   font-family: var(--font-body);
   font-size: 9.5px;

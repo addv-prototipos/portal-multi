@@ -398,6 +398,15 @@ function asyncHandler(fn) {
 // es defensa en profundidad para el día que se agregue un CDN/proxy
 // compartido delante de nginx.
 // Swagger — UI y JSON (punto 137). No requiere auth para listar, probar sí pide credenciales según ruta.
+// CSP fix: Swagger UI inyecta JS/CSS inline — helmet por defecto lo bloquea (script-src 'self' sin 'unsafe-inline') y la UI queda en blanco.
+app.use('/api/docs', (req, res, next) => {
+  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
+  next();
+});
+app.use('/api/swagger', (req, res, next) => {
+  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
+  next();
+});
 app.get('/api/docs.json', (req, res) => res.json(swaggerSpec));
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 // Alias legacy /api/swagger → /api/docs
@@ -3937,6 +3946,27 @@ app.post(
       return res.status(400).json({ error: 'La cantidad debe ser un número mayor a cero.' });
     }
 
+    // Cuentas por cobrar (punto 138): por defecto pagada, opción pendiente con vencimiento/notas
+    let estadoPago = String(body.estado_pago || 'pagada').toLowerCase();
+    if (!['pagada', 'pendiente'].includes(estadoPago)) estadoPago = 'pagada';
+    let fechaVencimiento = null;
+    let notasCobro = sanitizeTextoLibre(body.notas_cobro, 500) || null;
+    if (estadoPago === 'pendiente') {
+      const rawVto = sanitizeText(body.fecha_vencimiento, 10);
+      if (rawVto) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(rawVto)) {
+          return res.status(400).json({ error: 'La fecha de vencimiento debe ser YYYY-MM-DD.' });
+        }
+        const d = new Date(rawVto + 'T00:00:00Z');
+        if (Number.isNaN(d.getTime())) return res.status(400).json({ error: 'Fecha de vencimiento inválida.' });
+        fechaVencimiento = rawVto;
+      }
+    } else {
+      // Pagada: ignorar vencimiento/notas de cobro pendiente
+      fechaVencimiento = null;
+      notasCobro = null;
+    }
+
     // El correo ahora es opcional — modalidad "Imprimir ticket" (ver
     // PROJECT_STATE.md): la venta se registra sin correo, sin correo de
     // confirmación, y se le asigna uno después desde "Reenviar correo" si
@@ -3985,11 +4015,13 @@ app.post(
     // fallaba con COMPRA_NO_ENCONTRADA aunque los datos fueran correctos.
     const ahora = new Date();
     ahora.setMilliseconds(0);
+    const montoCobradoInicial = estadoPago === 'pagada' ? total : 0;
+    const fechaCobroInicial = estadoPago === 'pagada' ? ahora : null;
     const [resultado] = await pool.query(
       `INSERT INTO ordenes_compra
-        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['TEMP', ahora, concepto, cantidad, ivaPorcentaje, total, email, ahora, ahora]
+        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['TEMP', ahora, concepto, cantidad, ivaPorcentaje, total, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, ahora, ahora]
     );
 
     const numeroCompra = generarNumeroCompra(resultado.insertId);
@@ -4040,6 +4072,11 @@ app.post(
       iva_porcentaje: ivaPorcentaje,
       total,
       email,
+      estado_pago: estadoPago,
+      fecha_vencimiento: fechaVencimiento,
+      monto_cobrado: montoCobradoInicial,
+      fecha_cobro: fechaCobroInicial,
+      notas_cobro: notasCobro,
       mensaje: 'Venta registrada correctamente.',
     });
   })
@@ -4056,7 +4093,7 @@ app.get(
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
     const [ordenes] = await pool.query(
-      `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.email, o.creado_en,
+      `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
         EXISTS(
           SELECT 1 FROM tickets t
           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
@@ -4077,6 +4114,43 @@ app.get(
     }));
 
     res.json({ total: ordenesFormateadas.length, ordenes: ordenesFormateadas });
+  })
+);
+
+// Cuentas por cobrar (punto 138): registrar cobro (abono parcial o total) sobre una venta pendiente
+app.put(
+  '/api/admin/ordenes-compra/:id/cobro',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const body = req.body || {};
+    const monto = Number(body.monto);
+    if (!Number.isFinite(monto) || monto <= 0) return res.status(400).json({ error: 'El monto a cobrar debe ser mayor a cero.' });
+    const notas = body.notas_cobro != null ? sanitizeTextoLibre(body.notas_cobro, 500) : null;
+
+    const [filas] = await pool.query('SELECT id, total, monto_cobrado, estado_pago FROM ordenes_compra WHERE id = ? AND eliminado_en IS NULL LIMIT 1', [id]);
+    if (filas.length === 0) return res.status(404).json({ error: 'Venta no encontrada.' });
+    const orden = filas[0];
+    const saldo = Math.round((Number(orden.total) - Number(orden.monto_cobrado)) * 100) / 100;
+    if (saldo <= 0) return res.status(400).json({ error: 'Esta venta ya está pagada.' });
+    if (monto - saldo > 0.01) return res.status(400).json({ error: `El monto excede el saldo pendiente ($${saldo.toFixed(2)}).` });
+
+    const nuevoCobrado = Math.round((Number(orden.monto_cobrado) + monto) * 100) / 100;
+    const nuevoSaldo = Math.round((Number(orden.total) - nuevoCobrado) * 100) / 100;
+    const pagada = nuevoSaldo <= 0.01;
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+
+    await pool.query(
+      `UPDATE ordenes_compra SET monto_cobrado = ?, estado_pago = ?, fecha_cobro = ?, notas_cobro = COALESCE(?, notas_cobro), actualizado_en = ? WHERE id = ?`,
+      [nuevoCobrado, pagada ? 'pagada' : 'pendiente', pagada ? ahora : null, notas, ahora, id]
+    );
+
+    const [actualizada] = await pool.query('SELECT id, numero_compra, total, monto_cobrado, estado_pago, fecha_cobro FROM ordenes_compra WHERE id = ? LIMIT 1', [id]);
+    res.json({ ok: true, orden: actualizada[0], saldo: nuevoSaldo });
   })
 );
 

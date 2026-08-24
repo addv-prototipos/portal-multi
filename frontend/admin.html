@@ -104,6 +104,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Ventas</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-cxc" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 8h18M3 12h18M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M12 14v4" stroke-linecap="round" stroke-width="1.8"/><circle cx="12" cy="14" r="2" stroke-width="1.8"/></svg>
+          <span>Cuentas por cobrar</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-gastos" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Gastos</span>
@@ -166,6 +170,10 @@
         <button type="button" class="admin-menu-movil-btn" data-vista="ordenes">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Ventas</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="cxc">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 8h18M3 12h18M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M12 14v4" stroke-linecap="round" stroke-width="1.8"/><circle cx="12" cy="14" r="2" stroke-width="1.8"/></svg>
+          <span>Cuentas por cobrar</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="gastos">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
@@ -864,6 +872,26 @@
 
             <div class="orden-wizard-paso" data-paso="3">
               <div class="field">
+                <label>Estado de pago</label>
+                <div class="view-toggle" role="tablist" aria-label="Estado de pago">
+                  <button type="button" class="view-toggle-btn is-active" id="btn-orden-pago-pagada" role="tab" aria-selected="true">✅ Pagada</button>
+                  <button type="button" class="view-toggle-btn" id="btn-orden-pago-pendiente" role="tab" aria-selected="false">⏳ Pendiente de pago</button>
+                </div>
+              </div>
+              <div id="orden-pago-pendiente-wrap" hidden>
+                <div class="field">
+                  <label for="orden-fecha-vencimiento">Fecha de vencimiento</label>
+                  <input type="date" id="orden-fecha-vencimiento" />
+                  <p class="field-hint">Opcional — si vence, se marca como vencida en Cuentas por cobrar.</p>
+                  <p class="field-error" id="error-orden-fecha-vencimiento" role="alert"></p>
+                </div>
+                <div class="field">
+                  <label for="orden-notas-cobro">Notas de cobro</label>
+                  <textarea id="orden-notas-cobro" rows="2" maxlength="500" placeholder="Ej. Crédito 15 días, contactar a..."></textarea>
+                </div>
+              </div>
+
+              <div class="field">
                 <label>¿Cómo se entrega?</label>
                 <div class="view-toggle" role="tablist" aria-label="Método de entrega de esta venta">
                   <button type="button" class="view-toggle-btn is-active" id="btn-orden-entrega-correo" role="tab" aria-selected="true">📧 Enviar por correo</button>
@@ -924,6 +952,45 @@
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div id="vista-cxc" hidden>
+        <div class="inicio-bienvenida">
+          <h1>Cuentas por cobrar</h1>
+          <p class="panel-subtitle">Ventas pendientes de pago y vencimientos — por defecto toda venta es pagada.</p>
+        </div>
+        <div class="admin-toolbar">
+          <div class="admin-toolbar-title">
+            <h1>Cuentas por cobrar</h1>
+            <div class="view-toggle" role="tablist" aria-label="Vista CxC">
+              <button type="button" class="view-toggle-btn is-active" id="btn-ver-cxc-pendientes" role="tab" aria-selected="true">Pendientes</button>
+              <button type="button" class="view-toggle-btn" id="btn-ver-cxc-cobradas" role="tab" aria-selected="false">Cobradas</button>
+            </div>
+          </div>
+          <div class="admin-toolbar-right">
+            <span class="admin-count" id="cxc-count">0 por cobrar</span>
+            <button type="button" class="btn btn-secondary" id="btn-refresh-cxc">Actualizar</button>
+          </div>
+        </div>
+        <div class="inicio-stats-grid" id="cxc-kpis">
+          <div class="inicio-stat-card"><div class="inicio-stat-header"><span class="inicio-stat-titulo">Por cobrar</span><span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">💰</span></div><p class="inicio-stat-numero" id="cxc-kpi-por-cobrar">$0.00</p><p class="inicio-stat-tendencia">Saldos pendientes</p></div>
+          <div class="inicio-stat-card"><div class="inicio-stat-header"><span class="inicio-stat-titulo">Vencidas</span><span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">🔴</span></div><p class="inicio-stat-numero" id="cxc-kpi-vencidas">0</p><p class="inicio-stat-tendencia">Pendientes vencidas</p></div>
+          <div class="inicio-stat-card"><div class="inicio-stat-header"><span class="inicio-stat-titulo">Por vencer</span><span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">⏳</span></div><p class="inicio-stat-numero" id="cxc-kpi-por-vencer">0</p><p class="inicio-stat-tendencia">Sin vencer</p></div>
+          <div class="inicio-stat-card"><div class="inicio-stat-header"><span class="inicio-stat-titulo">Cobrado mes</span><span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">✅</span></div><p class="inicio-stat-numero" id="cxc-kpi-cobrado-mes">$0.00</p><p class="inicio-stat-tendencia">Cobrado este mes</p></div>
+        </div>
+        <div class="ordenes-filtros" id="cxc-filtros">
+          <div class="field"><label for="cxc-filtro-cliente">Cliente / correo</label><input type="text" id="cxc-filtro-cliente" placeholder="Buscar…" /></div>
+          <div class="field"><label for="cxc-filtro-vencimiento">Vencimiento</label><select id="cxc-filtro-vencimiento"><option value="">Todos</option><option value="vencidas">Vencidas</option><option value="por_vencer">Por vencer</option><option value="sin_fecha">Sin fecha</option></select></div>
+          <div class="field"><label>&nbsp;</label><button type="button" class="btn btn-secondary" id="btn-limpiar-filtros-cxc">Limpiar filtros</button></div>
+        </div>
+        <div class="admin-table-wrap" id="cxc-table-wrap">
+          <table class="admin-table" id="cxc-table">
+            <thead><tr><th>No. Venta</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Saldo</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="cxc-table-body"></tbody>
+          </table>
+          <p class="admin-empty" id="cxc-empty" hidden>No hay cuentas por cobrar.</p>
+          <p class="admin-empty" id="cxc-filtro-empty" hidden>Ninguna cuenta coincide con los filtros.</p>
         </div>
       </div>
 
@@ -2403,6 +2470,19 @@
           </section>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal Registrar cobro (CxC) -->
+  <div class="modal-overlay" id="cxc-cobro-modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cxc-cobro-modal-title">
+      <h2 id="cxc-cobro-modal-title">Registrar cobro</h2>
+      <p class="panel-subtitle" id="cxc-cobro-modal-subtitulo"></p>
+      <div class="field"><label>Saldo pendiente</label><p class="orden-total-preview" id="cxc-cobro-saldo">$0.00</p></div>
+      <div class="field"><label for="cxc-cobro-monto">Monto a cobrar (MXN) <span class="required">*</span></label><input type="text" inputmode="decimal" id="cxc-cobro-monto" placeholder="0.00" /><p class="field-error" id="error-cxc-cobro-monto" role="alert"></p><p class="field-hint">Debe ser ≤ saldo.</p></div>
+      <div class="field"><label for="cxc-cobro-notas">Notas de cobro</label><textarea id="cxc-cobro-notas" rows="2" maxlength="500" placeholder="Referencia, forma de pago..."></textarea></div>
+      <div class="btn-row"><button type="button" class="btn btn-secondary" id="btn-cxc-cobro-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="btn-cxc-cobro-guardar"><span id="btn-cxc-cobro-guardar-label">Guardar cobro</span></button></div>
+      <p class="field-hint"><button type="button" class="btn btn-secondary" id="btn-cxc-cobro-total" style="margin-top:8px">Cobro total (saldo completo)</button></p>
     </div>
   </div>
 

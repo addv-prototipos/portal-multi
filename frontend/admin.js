@@ -257,6 +257,12 @@
     ordenEmailNuevoWrap: document.getElementById('orden-email-nuevo-wrap'),
     ordenEmailNuevo: document.getElementById('orden-email-nuevo'),
     ordenErrorGeneral: document.getElementById('orden-error-general'),
+    // Estado de pago (CxC) — punto 138
+    btnOrdenPagoPagada: document.getElementById('btn-orden-pago-pagada'),
+    btnOrdenPagoPendiente: document.getElementById('btn-orden-pago-pendiente'),
+    ordenPagoPendienteWrap: document.getElementById('orden-pago-pendiente-wrap'),
+    ordenFechaVencimiento: document.getElementById('orden-fecha-vencimiento'),
+    ordenNotasCobro: document.getElementById('orden-notas-cobro'),
     // Ticket de impresión + asignar correo a una venta sin uno
     ticketImprimir: document.getElementById('ticket-imprimir'),
     btnOrdenModalImprimir: document.getElementById('btn-orden-modal-imprimir'),
@@ -268,6 +274,34 @@
     btnRegistrarOrdenLabel: document.getElementById('btn-registrar-orden-label'),
     ordenesError: document.getElementById('ordenes-error'),
     ordenesTableBody: document.getElementById('ordenes-table-body'),
+    ordenesEmpty: document.getElementById('ordenes-empty'),
+    // CxC — punto 138
+    btnVistaCxc: document.getElementById('btn-vista-cxc'),
+    vistaCxc: document.getElementById('vista-cxc'),
+    btnVerCxcPendientes: document.getElementById('btn-ver-cxc-pendientes'),
+    btnVerCxcCobradas: document.getElementById('btn-ver-cxc-cobradas'),
+    cxcCount: document.getElementById('cxc-count'),
+    btnRefreshCxc: document.getElementById('btn-refresh-cxc'),
+    cxcKpiPorCobrar: document.getElementById('cxc-kpi-por-cobrar'),
+    cxcKpiVencidas: document.getElementById('cxc-kpi-vencidas'),
+    cxcKpiPorVencer: document.getElementById('cxc-kpi-por-vencer'),
+    cxcKpiCobradoMes: document.getElementById('cxc-kpi-cobrado-mes'),
+    cxcFiltroCliente: document.getElementById('cxc-filtro-cliente'),
+    cxcFiltroVencimiento: document.getElementById('cxc-filtro-vencimiento'),
+    btnLimpiarFiltrosCxc: document.getElementById('btn-limpiar-filtros-cxc'),
+    cxcTableBody: document.getElementById('cxc-table-body'),
+    cxcEmpty: document.getElementById('cxc-empty'),
+    cxcFiltroEmpty: document.getElementById('cxc-filtro-empty'),
+    cxcCobroModalOverlay: document.getElementById('cxc-cobro-modal-overlay'),
+    cxcCobroModalSubtitulo: document.getElementById('cxc-cobro-modal-subtitulo'),
+    cxcCobroSaldo: document.getElementById('cxc-cobro-saldo'),
+    cxcCobroMonto: document.getElementById('cxc-cobro-monto'),
+    cxcCobroNotas: document.getElementById('cxc-cobro-notas'),
+    btnCxcCobroCancelar: document.getElementById('btn-cxc-cobro-cancelar'),
+    btnCxcCobroGuardar: document.getElementById('btn-cxc-cobro-guardar'),
+    btnCxcCobroGuardarLabel: document.getElementById('btn-cxc-cobro-guardar-label'),
+    btnCxcCobroTotal: document.getElementById('btn-cxc-cobro-total'),
+    errorCxcCobroMonto: document.getElementById('error-cxc-cobro-monto'),
     // Modal de detalle de una venta
     ordenModalOverlay: document.getElementById('orden-modal-overlay'),
     ordenModalTitle: document.getElementById('orden-modal-title'),
@@ -1027,7 +1061,7 @@
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['resumen-financiero', 'ordenes', 'gastos', 'usuarios', 'lectura-reportes', 'configuraciones'],
+      vistasPermitidas: ['resumen-financiero', 'ordenes', 'cxc', 'gastos', 'usuarios', 'lectura-reportes', 'configuraciones'],
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card'],
     },
     fiscal: {
@@ -1050,6 +1084,7 @@
       tickets: els.btnVistaTickets,
       'resumen-financiero': els.btnVistaResumenFinanciero,
       ordenes: els.btnVistaOrdenes,
+      cxc: els.btnVistaCxc,
       gastos: els.btnVistaGastos,
       usuarios: els.btnVistaUsuarios,
       configuraciones: els.btnVistaConfiguraciones,
@@ -3465,6 +3500,8 @@
     els.btnVistaResumenFinanciero.setAttribute('aria-selected', String(vista === 'resumen-financiero'));
     els.btnVistaOrdenes.classList.toggle('is-active', vista === 'ordenes');
     els.btnVistaOrdenes.setAttribute('aria-selected', String(vista === 'ordenes'));
+    els.btnVistaCxc.classList.toggle('is-active', vista === 'cxc');
+    els.btnVistaCxc.setAttribute('aria-selected', String(vista === 'cxc'));
     els.btnVistaGastos.classList.toggle('is-active', vista === 'gastos');
     els.btnVistaGastos.setAttribute('aria-selected', String(vista === 'gastos'));
     els.btnVistaUsuarios.classList.toggle('is-active', vista === 'usuarios');
@@ -3478,6 +3515,7 @@
     els.vistaTickets.hidden = vista !== 'tickets';
     els.vistaResumenFinanciero.hidden = vista !== 'resumen-financiero';
     els.vistaOrdenes.hidden = vista !== 'ordenes';
+    els.vistaCxc.hidden = vista !== 'cxc';
     els.vistaGastos.hidden = vista !== 'gastos';
     els.vistaUsuarios.hidden = vista !== 'usuarios';
     els.vistaConfiguraciones.hidden = vista !== 'configuraciones';
@@ -3507,6 +3545,7 @@
     // (CLS) — por eso va en paralelo a la carga de datos, no después.
     cargarPreferenciasDashboard();
   }
+    if (vista === 'cxc') cargarCxc();
     if (vista === 'gastos') {
       (async () => {
         await cargarCategoriasGastos();
@@ -3534,6 +3573,7 @@
   els.btnVistaTickets.addEventListener('click', () => cambiarVistaPrincipal('tickets'));
   els.btnVistaResumenFinanciero.addEventListener('click', () => cambiarVistaPrincipal('resumen-financiero'));
   els.btnVistaOrdenes.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
+  els.btnVistaCxc.addEventListener('click', () => cambiarVistaPrincipal('cxc'));
   els.btnVistaGastos.addEventListener('click', () => cambiarVistaPrincipal('gastos'));
   els.btnVistaUsuarios.addEventListener('click', () => cambiarVistaPrincipal('usuarios'));
   els.btnVistaConfiguraciones.addEventListener('click', () => cambiarVistaPrincipal('configuraciones'));
@@ -4361,6 +4401,24 @@
   els.btnOrdenEntregaCorreo.addEventListener('click', () => aplicarMetodoEntregaOrden(false));
   els.btnOrdenEntregaImprimir.addEventListener('click', () => aplicarMetodoEntregaOrden(true));
 
+  // Estado de pago (CxC punto 138): pagada (default verde) / pendiente (ámbar)
+  let ordenEstadoPago = 'pagada';
+  function aplicarEstadoPago(estado) {
+    ordenEstadoPago = estado;
+    const esPendiente = estado === 'pendiente';
+    if (els.btnOrdenPagoPagada) {
+      els.btnOrdenPagoPagada.classList.toggle('is-active', !esPendiente);
+      els.btnOrdenPagoPagada.setAttribute('aria-selected', String(!esPendiente));
+    }
+    if (els.btnOrdenPagoPendiente) {
+      els.btnOrdenPagoPendiente.classList.toggle('is-active', esPendiente);
+      els.btnOrdenPagoPendiente.setAttribute('aria-selected', String(esPendiente));
+    }
+    if (els.ordenPagoPendienteWrap) els.ordenPagoPendienteWrap.hidden = !esPendiente;
+  }
+  if (els.btnOrdenPagoPagada) els.btnOrdenPagoPagada.addEventListener('click', () => aplicarEstadoPago('pagada'));
+  if (els.btnOrdenPagoPendiente) els.btnOrdenPagoPendiente.addEventListener('click', () => aplicarEstadoPago('pendiente'));
+
   // Correo es obligatorio SOLO si el método de entrega es "correo" — con
   // "imprimir" no hay nada que validar aquí (ver POST /ordenes-compra,
   // acepta email vacío).
@@ -4555,6 +4613,9 @@
     els.ordenEmailNuevo.value = '';
     aplicarModoClienteOrden(false);
     aplicarMetodoEntregaOrden(false);
+    aplicarEstadoPago('pagada');
+    if (els.ordenFechaVencimiento) els.ordenFechaVencimiento.value = '';
+    if (els.ordenNotasCobro) els.ordenNotasCobro.value = '';
     els.ordenErrorGeneral.textContent = '';
     setFieldError('orden-concepto', '');
     setFieldError('orden-cantidad', '');
@@ -4595,6 +4656,8 @@
     // temporizador de mostrarExitoRegistrarOrden) regrese el toggle a
     // "correo" por defecto para la siguiente venta.
     const imprimirAlGuardar = ordenMetodoEntregaImprimir;
+    const fechaVencimiento = els.ordenFechaVencimiento ? els.ordenFechaVencimiento.value : '';
+    const notasCobro = els.ordenNotasCobro ? els.ordenNotasCobro.value.trim() : '';
 
     let valido = true;
     if (!concepto) {
@@ -4624,6 +4687,9 @@
         cantidad,
         email,
         es_cliente_nuevo: ordenModoClienteNuevo,
+        estado_pago: ordenEstadoPago,
+        fecha_vencimiento: ordenEstadoPago === 'pendiente' ? fechaVencimiento : null,
+        notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null,
       });
       mostrarExitoRegistrarOrden('Guardado — se enviará al recuperar conexión');
       aplicarFiltrosOrdenes();
@@ -4635,7 +4701,7 @@
       const res = await fetch(`${API_BASE}/admin/ordenes-compra`, {
         method: 'POST',
         headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concepto, cantidad, email, es_cliente_nuevo: ordenModoClienteNuevo }),
+        body: JSON.stringify({ concepto, cantidad, email, es_cliente_nuevo: ordenModoClienteNuevo, estado_pago: ordenEstadoPago, fecha_vencimiento: ordenEstadoPago === 'pendiente' ? fechaVencimiento : null, notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -4947,6 +5013,12 @@
       const iconoFacturado = orden.facturado
         ? '<span class="orden-facturado-icono" data-tooltip="Venta facturada" aria-label="Venta facturada">✅</span>'
         : '';
+      const estadoPago = orden.estado_pago || 'pagada';
+      const esPendiente = estadoPago === 'pendiente';
+      const vencida = esPendiente && orden.fecha_vencimiento && new Date(orden.fecha_vencimiento + 'T00:00:00') < new Date(new Date().toISOString().slice(0,10)+'T00:00:00');
+      const badgeEstadoPago = esPendiente
+        ? `<span class="estatus-badge ${vencida ? 'estatus-cancelado' : 'estatus-pendiente'}" style="margin-left:6px">${vencida ? '🔴 Vencida' : '⏳ Pendiente'}</span>`
+        : '<span class="estatus-badge estatus-listo" style="margin-left:6px">✅ Pagada</span>';
       // Razón social asociada al correo, para el tooltip — se busca en
       // la misma caché ya cargada para el desplegable del formulario
       // (ver cargarCorreosRegistrados), no hace falta pedirla de nuevo.
@@ -4958,7 +5030,7 @@
           : 'Razón social no disponible';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="No. Venta" data-col="numero">${iconoFacturado}<button type="button" class="orden-numero-link">${escapeHtml(orden.numero_compra || '—')}</button></td>
+        <td data-label="No. Venta" data-col="numero">${iconoFacturado}<button type="button" class="orden-numero-link">${escapeHtml(orden.numero_compra || '—')}</button>${badgeEstadoPago}</td>
         <td data-label="Fecha" data-col="fecha">${fechaCeldaHtml}</td>
         <td data-label="Concepto" data-col="concepto">${renderConceptoPreviewOrden(orden.concepto)}</td>
         <td data-label="Total" data-col="total"><strong>$${formatearMoneda(orden.total)}</strong></td>
@@ -6663,29 +6735,31 @@
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
-  // Decide, punto por punto, si su cifra debe alejarse más de lo normal
-  // para no encimarse con la del vecino anterior. Compara el ANCHO DE
-  // TEXTO estimado (por cantidad de caracteres, ya que SVG no permite
-  // medir el ancho real antes de insertarlo) contra el espacio horizontal
-  // real entre puntos — a diferencia de alternar a ciegas por índice
-  // par/impar (que solo separaba bien en zigzag; con varios meses
-  // seguidos subiendo juntos, ej. "Ago→Sep→Oct" en Proyección de ventas,
-  // el hueco horizontal entre puntos resultó MENOR que el ancho de las
-  // dos cifras vecinas, así que igual se encimaban). Si dos cifras
-  // consecutivas no caben una junto a otra, la segunda se aleja más de
-  // su punto; si la anterior ya se alejó, esta se queda cerca (el hueco
-  // vertical que dejó la anterior ya alcanza).
-  function calcularEtiquetasLejos(puntos, textos, anchoPorCaracter = 6) {
-    const resultado = [false];
-    for (let i = 1; i < puntos.length; i++) {
-      const medioAnchoPrevio = (textos[i - 1].length * anchoPorCaracter) / 2;
-      const medioAnchoActual = (textos[i].length * anchoPorCaracter) / 2;
-      const huecoNecesario = medioAnchoPrevio + medioAnchoActual;
-      const huecoReal = puntos[i].x - puntos[i - 1].x;
-      const cerca = huecoReal < huecoNecesario;
-      resultado.push(cerca && !resultado[i - 1]);
-    }
-    return resultado;
+  // Qué puntos de una serie se etiquetan directo en la gráfica — ver
+  // PROJECT_STATE.md: etiquetar CADA punto (lo que había antes) se veía
+  // "tosco" y chocaba en series de 6-8 meses sin garantía de arreglo
+  // permanente (el primer/último punto usan alineación de texto
+  // distinta a los del medio, así que ni el cálculo de colisión por
+  // ancho de texto los cubría bien). Ahora solo se etiquetan los puntos
+  // que cuentan una historia — primero, último (+ último REAL si hay
+  // proyección, para no perder el punto donde el pronóstico arranca),
+  // el más alto y el más bajo — máximo 4-5 cifras por tarjeta sin
+  // importar cuántos meses traiga la serie. El resto son puntos
+  // normales: sin cifra pegada, pero con su <title> (tooltip nativo del
+  // navegador al pasar el mouse) intacto — nada se pierde, solo deja de
+  // competir por espacio.
+  function calcularIndicesClave(valores, cantidadReal) {
+    const claves = new Set([0, valores.length - 1]);
+    if (cantidadReal && cantidadReal < valores.length) claves.add(cantidadReal - 1);
+    let iMax = 0;
+    let iMin = 0;
+    valores.forEach((v, i) => {
+      if (v > valores[iMax]) iMax = i;
+      if (v < valores[iMin]) iMin = i;
+    });
+    claves.add(iMax);
+    claves.add(iMin);
+    return claves;
   }
 
   // Utilidad neta mensual (ver PROJECT_STATE.md) — cada mes por separado,
@@ -6708,13 +6782,8 @@
     els.resumenFinBalanceEmpty.hidden = true;
 
     const valores = serie.map((m) => m.utilidad_neta);
-    // pad=22 (en vez del default 14): dos meses seguidos que zigzaguean
-    // (uno arriba, uno abajo) quedan más separados en Y, así sus cifras
-    // no se encima — reportado por el usuario ("se distorsionan") con la
-    // separación por defecto en series de 6+ meses.
     const { puntos, yCero } = construirPuntosLinea(valores, 300, 120, 22);
-    const textosEtiquetas = valores.map((v) => formatearMonedaCompacta(v));
-    const etiquetasLejos = calcularEtiquetasLejos(puntos, textosEtiquetas);
+    const indicesClave = calcularIndicesClave(valores);
 
     const lineaCero = document.createElementNS(SVG_NS, 'line');
     lineaCero.setAttribute('x1', '0');
@@ -6736,31 +6805,36 @@
       // criterio que el número grande de "Utilidad neta del mes"
       // (.resumen-fin-utilidad-valor.es-positiva/es-negativa).
       const esPositiva = valores[i] >= 0;
+      const esClave = indicesClave.has(i);
       const claseSigno = esPositiva ? 'es-positiva' : 'es-negativa';
 
       const circle = document.createElementNS(SVG_NS, 'circle');
       circle.setAttribute('cx', String(p.x));
       circle.setAttribute('cy', String(p.y));
-      circle.setAttribute('r', '3.5');
-      circle.setAttribute('class', `resumen-fin-linea-punto resumen-fin-linea-punto-${esPositiva ? 'positiva' : 'negativa'}`);
+      circle.setAttribute('r', esClave ? '3.5' : '3');
+      circle.setAttribute(
+        'class',
+        esClave
+          ? `resumen-fin-linea-punto resumen-fin-linea-punto-${esPositiva ? 'positiva' : 'negativa'}`
+          : 'resumen-fin-linea-punto resumen-fin-linea-punto-fantasma'
+      );
       const titulo = document.createElementNS(SVG_NS, 'title');
       titulo.textContent = `${serie[i].mes}: $${formatearMoneda(valores[i])}`;
       circle.appendChild(titulo);
       svg.appendChild(circle);
 
-      // Cifra compacta arriba del punto (abajo si es negativo, para no
-      // encimarse con la línea de referencia en cero) — el primer/último
-      // punto se alinean hacia adentro para no salirse del viewBox.
-      // calcularEtiquetasLejos() decide si esta cifra necesita despegarse
-      // más de su punto para no encimarse con la del vecino anterior.
-      const lejos = etiquetasLejos[i];
+      // Cifra compacta SOLO en los puntos clave (primero/último/máximo/
+      // mínimo, ver calcularIndicesClave) — el resto se consulta pasando
+      // el mouse sobre su punto (title de arriba). Arriba del punto, o
+      // abajo si es negativo, para no encimarse con la línea de cero.
+      if (!esClave) return;
       const anclaje = i === 0 ? 'start' : i === puntos.length - 1 ? 'end' : 'middle';
       const texto = document.createElementNS(SVG_NS, 'text');
       texto.setAttribute('x', String(p.x));
-      texto.setAttribute('y', String(esPositiva ? p.y - (lejos ? 22 : 9) : p.y + (lejos ? 29 : 16)));
+      texto.setAttribute('y', String(esPositiva ? p.y - 10 : p.y + 17));
       texto.setAttribute('text-anchor', anclaje);
       texto.setAttribute('class', `resumen-fin-linea-etiqueta-valor ${claseSigno}`);
-      texto.textContent = textosEtiquetas[i];
+      texto.textContent = formatearMonedaCompacta(valores[i]);
       svg.appendChild(texto);
     });
 
@@ -6790,10 +6864,8 @@
     const meses = [...serie.map((m) => m.mes), ...(proyeccion || []).map((m) => m.mes)];
     const valores = [...serie.map((m) => m.ventas), ...(proyeccion || []).map((m) => m.ventas)];
     const cantidadReal = serie.length;
-    // Mismo pad=22 que "Utilidad neta mensual" — más aire vertical para
-    // que las cifras de meses zigzagueantes no se encimen entre sí.
     const { puntos } = construirPuntosLinea(valores, 300, 120, 22);
-    const etiquetasLejos = calcularEtiquetasLejos(puntos);
+    const indicesClave = calcularIndicesClave(valores, cantidadReal);
 
     const trazarSegmento = (desde, hasta, clase) => {
       const sub = puntos.slice(desde, hasta + 1);
@@ -6811,31 +6883,32 @@
 
     puntos.forEach((p, i) => {
       const esProyectado = i >= cantidadReal;
+      const esClave = indicesClave.has(i);
       const circle = document.createElementNS(SVG_NS, 'circle');
       circle.setAttribute('cx', String(p.x));
       circle.setAttribute('cy', String(p.y));
-      circle.setAttribute('r', '3.5');
+      circle.setAttribute('r', esClave ? '3.5' : '3');
       circle.setAttribute(
         'class',
-        `resumen-fin-linea-punto ${esProyectado ? 'resumen-fin-linea-punto-proyeccion' : 'resumen-fin-linea-punto-ventas'}`
+        esClave
+          ? `resumen-fin-linea-punto ${esProyectado ? 'resumen-fin-linea-punto-proyeccion' : 'resumen-fin-linea-punto-ventas'}`
+          : 'resumen-fin-linea-punto resumen-fin-linea-punto-fantasma'
       );
       const titulo = document.createElementNS(SVG_NS, 'title');
       titulo.textContent = `${meses[i]}${esProyectado ? ' (proyectado)' : ''}: $${formatearMoneda(valores[i])}`;
       circle.appendChild(titulo);
       svg.appendChild(circle);
 
-      // Cifra compacta arriba de cada punto — mismo color que el punto
-      // (navy real / naranja proyectado), siempre son ventas (nunca
-      // negativas), así que siempre va arriba, sin variante "negativa".
-      // Mismo calcularEtiquetasLejos() que "Utilidad neta mensual" — se
-      // aleja del punto solo cuando de verdad quedó cerca del vecino
-      // anterior (cubre tanto zigzag como una racha de meses seguidos
-      // subiendo/bajando juntos, ej. Ago→Sep→Oct).
-      const lejos = etiquetasLejos[i];
+      // Cifra compacta SOLO en los puntos clave (primero/último real/
+      // último proyectado/máximo/mínimo, ver calcularIndicesClave) —
+      // siempre arriba del punto, mismo color que el punto (navy real /
+      // naranja proyectado); nunca negativas, así que no hay variante
+      // "abajo". El resto se consulta con el mouse sobre su punto.
+      if (!esClave) return;
       const anclaje = i === 0 ? 'start' : i === puntos.length - 1 ? 'end' : 'middle';
       const texto = document.createElementNS(SVG_NS, 'text');
       texto.setAttribute('x', String(p.x));
-      texto.setAttribute('y', String(p.y - (lejos ? 18 : 9)));
+      texto.setAttribute('y', String(p.y - 10));
       texto.setAttribute('text-anchor', anclaje);
       texto.setAttribute('class', `resumen-fin-linea-etiqueta-valor ${esProyectado ? 'es-proyectado' : 'es-real'}`);
       texto.textContent = formatearMonedaCompacta(valores[i]);
@@ -7844,6 +7917,129 @@
     confirmarMoverGastoAPapelera(gastoDetalleActual.id, gastoDetalleActual.concepto);
   });
 
+  // ---------- Cuentas por cobrar (punto 138) — nueva vista entre Ventas y Gastos ----------
+  let cxcVista = 'pendientes'; // 'pendientes' | 'cobradas'
+  let cxcOrdenActualCobro = null;
+
+  function esVencida(orden) {
+    if (!orden.fecha_vencimiento) return false;
+    const hoy = new Date().toISOString().slice(0, 10);
+    return orden.fecha_vencimiento < hoy;
+  }
+
+  async function cargarCxc() {
+    // Reusa ordenesCache si ya se cargó Ventas, si no la carga
+    if (!ordenesCache || ordenesCache.length === 0) {
+      await cargarOrdenes();
+    }
+    renderCxc();
+  }
+
+  function aplicarFiltrosCxc(lista) {
+    const q = (els.cxcFiltroCliente ? els.cxcFiltroCliente.value.trim().toLowerCase() : '');
+    const fVto = els.cxcFiltroVencimiento ? els.cxcFiltroVencimiento.value : '';
+    return lista.filter((o) => {
+      const esPendiente = (o.estado_pago || 'pagada') === 'pendiente';
+      const coincideVista = cxcVista === 'pendientes' ? esPendiente : !esPendiente;
+      if (!coincideVista) return false;
+      if (q) {
+        const hay = (o.numero_compra && o.numero_compra.toLowerCase().includes(q)) || (o.email && o.email.toLowerCase().includes(q)) || (o.concepto && o.concepto.toLowerCase().includes(q));
+        if (!hay) return false;
+      }
+      if (fVto === 'vencidas' && !esVencida(o)) return false;
+      if (fVto === 'por_vencer' && (esVencida(o) || !o.fecha_vencimiento)) return false;
+      if (fVto === 'sin_fecha' && o.fecha_vencimiento) return false;
+      return true;
+    });
+  }
+
+  function renderCxc() {
+    if (!els.cxcTableBody) return;
+    const todas = ordenesCache || [];
+    const pendientes = todas.filter((o) => (o.estado_pago || 'pagada') === 'pendiente');
+    const cobradas = todas.filter((o) => (o.estado_pago || 'pagada') !== 'pendiente');
+    // KPIs
+    const porCobrar = pendientes.reduce((s, o) => s + (Number(o.total) - Number(o.monto_cobrado || 0)), 0);
+    const vencidas = pendientes.filter(esVencida).length;
+    const porVencer = pendientes.length - vencidas;
+    const mesActual = new Date().toISOString().slice(0, 7);
+    const cobradoMes = cobradas.filter((o) => o.fecha_cobro && String(o.fecha_cobro).slice(0, 7) === mesActual).reduce((s, o) => s + Number(o.monto_cobrado || o.total), 0);
+    if (els.cxcKpiPorCobrar) els.cxcKpiPorCobrar.textContent = `$${formatearMoneda(porCobrar)}`;
+    if (els.cxcKpiVencidas) els.cxcKpiVencidas.textContent = String(vencidas);
+    if (els.cxcKpiPorVencer) els.cxcKpiPorVencer.textContent = String(porVencer);
+    if (els.cxcKpiCobradoMes) els.cxcKpiCobradoMes.textContent = `$${formatearMoneda(cobradoMes)}`;
+    if (els.cxcCount) els.cxcCount.textContent = cxcVista === 'pendientes' ? `${pendientes.length} por cobrar` : `${cobradas.length} cobradas`;
+    // Filtros
+    const filtradas = aplicarFiltrosCxc(todas);
+    els.cxcTableBody.innerHTML = '';
+    filtradas.forEach((orden) => {
+      const saldo = Math.round((Number(orden.total) - Number(orden.monto_cobrado || 0)) * 100) / 100;
+      const vencida = esVencida(orden);
+      const estadoBadge = (orden.estado_pago === 'pendiente') ? (vencida ? '<span class="estatus-badge estatus-cancelado">🔴 Vencida</span>' : '<span class="estatus-badge estatus-pendiente">⏳ Pendiente</span>') : '<span class="estatus-badge estatus-listo">✅ Pagada</span>';
+      const vencimientoTxt = orden.fecha_vencimiento ? escapeHtml(orden.fecha_vencimiento) : '—';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td data-label="No. Venta">${escapeHtml(orden.numero_compra || '—')}</td><td data-label="Cliente">${escapeHtml(orden.email || 'Sin correo')}</td><td data-label="Total">$${formatearMoneda(orden.total)}</td><td data-label="Cobrado">$${formatearMoneda(orden.monto_cobrado || 0)}</td><td data-label="Saldo"><strong>$${formatearMoneda(saldo)}</strong></td><td data-label="Vencimiento">${vencimientoTxt}</td><td data-label="Estado">${estadoBadge}</td><td data-label=""></td>`;
+      const tdAcciones = tr.lastElementChild;
+      const wrap = document.createElement('div');
+      wrap.className = 'admin-row-actions admin-row-actions-iconos';
+      const btnVer = document.createElement('button'); btnVer.type='button'; btnVer.className='btn-icono-accion'; btnVer.setAttribute('data-tooltip','Ver venta'); btnVer.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'; btnVer.addEventListener('click', ()=>abrirOrdenModal(orden)); wrap.appendChild(btnVer);
+      if ((orden.estado_pago || 'pagada') === 'pendiente') {
+        const btnCobro = document.createElement('button'); btnCobro.type='button'; btnCobro.className='btn-icono-accion'; btnCobro.setAttribute('data-tooltip','Registrar cobro'); btnCobro.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'; btnCobro.addEventListener('click', ()=>abrirCobroModal(orden)); wrap.appendChild(btnCobro);
+      }
+      const btnNotif = document.createElement('button'); btnNotif.type='button'; btnNotif.className='btn-icono-accion'; btnNotif.setAttribute('data-tooltip','Copiar recordatorio'); btnNotif.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>'; btnNotif.addEventListener('click', ()=>{ const txt=`Recordatorio: venta ${orden.numero_compra} por $${formatearMoneda(orden.total)} — saldo $${formatearMoneda(saldo)}${orden.fecha_vencimiento ? ' — vence '+orden.fecha_vencimiento : ''}.`; navigator.clipboard.writeText(txt); showToast('Recordatorio copiado'); }); wrap.appendChild(btnNotif);
+      tdAcciones.appendChild(wrap);
+      els.cxcTableBody.appendChild(tr);
+    });
+    if (els.cxcEmpty) els.cxcEmpty.hidden = filtradas.length > 0 || todas.length > 0;
+    if (els.cxcFiltroEmpty) els.cxcFiltroEmpty.hidden = !(filtradas.length === 0 && todas.length > 0);
+  }
+
+  function abrirCobroModal(orden) {
+    cxcOrdenActualCobro = orden;
+    const saldo = Math.round((Number(orden.total) - Number(orden.monto_cobrado || 0)) * 100) / 100;
+    if (els.cxcCobroModalSubtitulo) els.cxcCobroModalSubtitulo.textContent = `${orden.numero_compra} — ${orden.email || 'Sin correo'} — Total $${formatearMoneda(orden.total)}`;
+    if (els.cxcCobroSaldo) els.cxcCobroSaldo.textContent = `$${formatearMoneda(saldo)}`;
+    if (els.cxcCobroMonto) { els.cxcCobroMonto.value = ''; els.cxcCobroMonto.focus(); }
+    if (els.cxcCobroNotas) els.cxcCobroNotas.value = '';
+    if (els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent = '';
+    els.cxcCobroModalOverlay.hidden = false;
+  }
+  function cerrarCobroModal() { if (els.cxcCobroModalOverlay) els.cxcCobroModalOverlay.hidden = true; cxcOrdenActualCobro = null; }
+  if (els.btnCxcCobroCancelar) els.btnCxcCobroCancelar.addEventListener('click', cerrarCobroModal);
+  if (els.cxcCobroModalOverlay) els.cxcCobroModalOverlay.addEventListener('click', (e)=>{ if(e.target===els.cxcCobroModalOverlay) cerrarCobroModal(); });
+  if (els.btnCxcCobroTotal) els.btnCxcCobroTotal.addEventListener('click', ()=>{ if(!cxcOrdenActualCobro) return; const saldo = Math.round((Number(cxcOrdenActualCobro.total) - Number(cxcOrdenActualCobro.monto_cobrado||0))*100)/100; if(els.cxcCobroMonto) els.cxcCobroMonto.value = String(saldo); });
+  if (els.btnCxcCobroGuardar) els.btnCxcCobroGuardar.addEventListener('click', async ()=>{
+    if (!cxcOrdenActualCobro) return;
+    const authHeader = getAuthHeader(); if (!authHeader) { showLogin(); return; }
+    const monto = Number(String(els.cxcCobroMonto.value).replace(/,/g,''));
+    if (!Number.isFinite(monto) || monto <=0) { if(els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent='Monto inválido'; return; }
+    const saldo = Math.round((Number(cxcOrdenActualCobro.total) - Number(cxcOrdenActualCobro.monto_cobrado||0))*100)/100;
+    if (monto - saldo > 0.01) { if(els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent=`Excede saldo $${formatearMoneda(saldo)}`; return; }
+    els.btnCxcCobroGuardar.disabled=true; if(els.btnCxcCobroGuardarLabel) els.btnCxcCobroGuardarLabel.textContent='Guardando…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/ordenes-compra/${cxcOrdenActualCobro.id}/cobro`, { method:'PUT', headers:{ Authorization: authHeader, 'Content-Type':'application/json' }, body: JSON.stringify({ monto, notas_cobro: els.cxcCobroNotas.value.trim() || null }) });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) { if(els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent = data.error || 'No se pudo registrar'; return; }
+      showToast(`Cobro registrado — saldo $${formatearMoneda(data.saldo)}`);
+      cerrarCobroModal();
+      await cargarOrdenes();
+      renderCxc();
+    } catch(_) { if(els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent='No se pudo conectar'; }
+    finally { els.btnCxcCobroGuardar.disabled=false; if(els.btnCxcCobroGuardarLabel) els.btnCxcCobroGuardarLabel.textContent='Guardar cobro'; }
+  });
+  // Filtros y toggle CxC
+  if (els.btnVerCxcPendientes) els.btnVerCxcPendientes.addEventListener('click', ()=>{ cxcVista='pendientes'; els.btnVerCxcPendientes.classList.add('is-active'); els.btnVerCxcCobradas.classList.remove('is-active'); renderCxc(); });
+  if (els.btnVerCxcCobradas) els.btnVerCxcCobradas.addEventListener('click', ()=>{ cxcVista='cobradas'; els.btnVerCxcCobradas.classList.add('is-active'); els.btnVerCxcPendientes.classList.remove('is-active'); renderCxc(); });
+  if (els.btnRefreshCxc) els.btnRefreshCxc.addEventListener('click', ()=>cargarCxc());
+  if (els.cxcFiltroCliente) els.cxcFiltroCliente.addEventListener('input', ()=>renderCxc());
+  if (els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.addEventListener('change', ()=>renderCxc());
+  if (els.btnLimpiarFiltrosCxc) els.btnLimpiarFiltrosCxc.addEventListener('click', ()=>{ if(els.cxcFiltroCliente) els.cxcFiltroCliente.value=''; if(els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.value=''; renderCxc(); });
+  // Recargar CxC cuando se registra una venta nueva
+  const _cargarOrdenesOriginal = cargarOrdenes;
+  const _cargarOrdenesConCxc = async function(){ const r = await _cargarOrdenesOriginal(); try{ renderCxc(); }catch(_){} return r; };
+  // monkey-patch cargarOrdenes para que CxC se refresque sola
+  if (typeof cargarOrdenes === 'function') { const orig = cargarOrdenes; cargarOrdenes = async function(){ const res = await orig.apply(this, arguments); try{ if (els.vistaCxc && !els.vistaCxc.hidden) renderCxc(); }catch(_){} return res; }; }
+
   // ---------- Inicialización ----------
 
   (function init() {
@@ -7870,6 +8066,7 @@
                 tickets: els.btnVistaTickets,
                 'resumen-financiero': els.btnVistaResumenFinanciero,
                 ordenes: els.btnVistaOrdenes,
+                cxc: els.btnVistaCxc,
                 gastos: els.btnVistaGastos,
                 usuarios: els.btnVistaUsuarios,
                 configuraciones: els.btnVistaConfiguraciones,

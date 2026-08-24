@@ -131,6 +131,11 @@ app.use((req, res, next) => {
 });
 
 // Swagger — UI y JSON (punto 137). Público para listar, probar requiere Basic super.
+// CSP fix: Swagger UI necesita 'unsafe-inline'/'unsafe-eval' — helmet por defecto lo bloquea.
+app.use('/api/control/docs', (req, res, next) => {
+  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
+  next();
+});
 app.get('/api/control/docs.json', (req, res) => res.json(swaggerSpec));
 app.use('/api/control/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 

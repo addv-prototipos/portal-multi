@@ -717,6 +717,39 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
     (no sobrevive un reload sin haber cargado antes esa vista) — la
     cola de pendientes por crear sí sobrevive un reload (IndexedDB).
     Sin commit/push todavía.
+- **Sidebar fijo + cifras sin encimarse en Resumen financiero (ver
+  PROJECT_STATE.md punto 140, 2026-08-24, IMPLEMENTADO Y VALIDADO)**:
+  `.admin-sidebar` pasó de flex-child (se estiraba al alto de
+  `.admin-content`, se perdía en vistas largas junto con "Cerrar
+  sesión") a `position:fixed; height:100vh` en escritorio (sticky solo
+  en móvil <900px). `calcularEtiquetasLejos()` nueva en `admin.js`
+  reemplaza el alternar por paridad de índice (solo servía en zigzag)
+  por comparación real de ancho de texto vs. espacio entre puntos —
+  arregla el encimado en rachas de meses consecutivos subiendo/bajando
+  juntos. **Incidente de coordinación documentado**: otra herramienta
+  (claude-flow/ruflo) corriendo en paralelo sobre el mismo working tree
+  desplegó `admin.js` a medio editar de este lado, causando
+  `TypeError` al abrir Resumen financiero y dejando en blanco todo lo
+  que renderea después en la cadena — mal etiquetado como "No se pudo
+  conectar con el servidor" (era JS roto, no red). Ver punto 140 para
+  la auditoría completa de lo que esa herramienta cambió (Swagger +
+  credenciales API por tenant ya en `main`, 2 hallazgos de seguridad
+  sin corregir; Cuentas por cobrar sin commitear pese a su propia nota
+  de "no implementar sin confirmación"). **Rediseño final el mismo
+  día**: `calcularEtiquetasLejos()` (colisión por ancho de texto) se
+  abandonó por completo — el primer/último punto usan `text-anchor`
+  distinto a los del medio, así que ni ese cálculo los medía bien
+  (captura real del usuario: "$264.6k" cortado a "$26"). Reemplazada
+  por **etiquetado selectivo** (`calcularIndicesClave()`): solo
+  primero/último(+último real si hay proyección)/máximo/mínimo llevan
+  cifra en el trazo — nunca más de 4-5 por tarjeta sin importar cuántos
+  meses traiga la serie; el resto son puntos discretos
+  (`.resumen-fin-linea-punto-fantasma`) con su valor disponible por
+  `title` nativo al pasar el mouse. Propuesta visual (Artifact
+  antes/después reproduciendo el bug real) aprobada antes de
+  implementar. Elimina la clase de bug entera en vez de parchar el
+  caso puntual. Validado en navegador real, tarjeta normal y modal
+  expandido.
 - **Categorías de gastos editables desde el popup de "Registrar gasto"
   (ver PROJECT_STATE.md punto 135, 2026-08-23, COMPLETA e IMPLEMENTADA Y
   VALIDADA)**: la lista cerrada de categorías (CHECK de MySQL +
