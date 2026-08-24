@@ -252,11 +252,13 @@ function temaAVariables(tema) {
   for (const [clave, valor] of Object.entries(colores)) {
     variables[`--color-${clave}`] = valor;
   }
+  // Tipografía congelada a Inter (regla 2026-08-24): todo como menú/botones,
+  // incluso si el tema guardado trae otra clave del catálogo histórico.
   if (t.tipografia) {
     const display = FUENTES[t.tipografia.display];
     const cuerpo = FUENTES[t.tipografia.cuerpo];
-    if (display) variables['--font-display'] = `'${display.familia}', Georgia, serif`;
-    if (cuerpo) variables['--font-body'] = `'${cuerpo.familia}', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+    if (display) variables['--font-display'] = `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+    if (cuerpo) variables['--font-body'] = `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
   }
   if (t.radio) {
     const radios = RADIOS[t.radio];

@@ -114,8 +114,10 @@ describe('GET /api/tema/:slug', () => {
     expect(res.body.marcaLoGoUrl).toBe('/api/marca-logo/cliente1');
     expect(res.body.tema.colores.accent).toBe('#0f6e5d');
     expect(res.body.tema.faviconUrl).toBe('/api/favicon/cliente1');
+    // Tipografía congelada a Inter (2026-08-24)
     expect(res.body.variables['--color-accent']).toBe('#0f6e5d');
-    expect(res.body.variables['--font-display']).toContain('Lora');
+    expect(res.body.variables['--font-display']).toContain('Inter');
+    expect(res.body.variables['--font-body']).toContain('Inter');
     expect(res.body.variables['--radius-lg']).toBe('20px');
     expect(res.body.fuentesGoogle.length).toBe(2);
   });

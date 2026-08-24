@@ -107,8 +107,9 @@ describe('utils/tenantTema.js', () => {
 
       expect(variables['--color-accent']).toBe('#0f6e5d');
       expect(variables['--color-ink']).toBe('#21261f');
-      expect(variables['--font-display']).toContain('Lora');
-      expect(variables['--font-body']).toContain('Open Sans');
+      // Tipografía congelada a Inter (2026-08-24) — ambos mapean a Inter
+      expect(variables['--font-display']).toContain('Inter');
+      expect(variables['--font-body']).toContain('Inter');
       expect(variables['--radius-lg']).toBe('20px');
     });
 

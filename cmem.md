@@ -795,3 +795,15 @@ factura SVG 14×14 doc, admin.js:5030/7988 badges 🔴/⏳/✅→solo texto
 .orden-facturado-icono inline-flex. Jest 595/595, rebuild frontend y
 verificación HTTP (/admin 200 sin emojis con SVG, /admin.js con factura).
 Detalle: PROJECT_STATE.md punto 141. Sin cambios de esquema/API.
+
+C063 2026-08-24 ◆ Tipografía unificada a Inter en toda la app (a pedido:
+"mismo tipo de letra que tiene el menú derecho"). `frontend/style.css`
+`@import` reducido a solo Inter; `:root` `--font-body` y `--font-display`
+ambas Inter (`--font-display: var(--font-body)` alias para no romper
+referencias ni el sistema de temas por tenant); `frontend/mantenimiento.html`
+replicado. Cero mezcla serif/sans en ningún CSS/HTML nuevo — aplica a
+control y lado del cliente (portal/login/csf/tickets/dashboard) por igual.
+Docs persistentes actualizados: `CLAUDE.md`, `AGENTS.md` (convención en
+"Convenciones establecidas"), `PROJECT_STATE.md` (nueva sección
+"Convención persistente de tipografía") y este `cmem.md`. TenantTema
+congelado en esta default. Verificación `node --check` y grep.

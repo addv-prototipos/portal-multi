@@ -308,9 +308,15 @@ async function generarExcelBuffer(items, zonaHoraria, opciones) {
   // concepto (texto libre, potencialmente largo) de una orden de
   // compra, no solo el estatus corto de un ticket.
   hoja.columns = encabezados.map((titulo) => ({ header: titulo, width: titulo === 'Estatus' ? 32 : 20 }));
-  hoja.getRow(1).font = { bold: true };
+  hoja.getRow(1).font = { name: 'Inter', bold: true };
 
   itemsAFilas(items, zonaHoraria, opciones).forEach((fila) => hoja.addRow(fila));
+  // Tipografía unificada a Inter también en números/celdas del Excel
+  hoja.eachRow((row) => {
+    row.eachCell((cell) => {
+      cell.font = cell.font ? { ...cell.font, name: 'Inter' } : { name: 'Inter' };
+    });
+  });
 
   // La columna de Monto se le da formato de moneda solo en las filas que
   // de verdad traen un número (las de tipo "Ticket" se quedan vacías).

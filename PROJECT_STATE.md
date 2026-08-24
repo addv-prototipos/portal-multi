@@ -20,6 +20,20 @@ segmento acotado, esperar confirmación explícita del usuario e implementar
 solo el segmento aprobado, manteniendo el piso obligatorio de UX/accesibilidad/
 rendimiento/seguridad/Docker/pruebas/calidad.
 
+## Convención persistente de tipografía (2026-08-24)
+
+Toda la app usa **una sola familia tipográfica — Inter**, la misma del menú
+lateral del panel admin (`.admin-sidebar-nav .admin-vista-btn`). `frontend/
+style.css` define `--font-body` y `--font-display` ambas como `Inter`
+(`--font-display` es alias de `--font-body`); `frontend/mantenimiento.html`
+replica el mismo par. No se mezcla serif/sans ni se introducen otras familias
+en ningún CSS/HTML nuevo — aplica a **control** (`/control`) y **lado del
+cliente** (portal, login, csf, tickets, dashboard) por igual. El sistema de
+temas por tenant (`backend/utils/tenantTema.js`, `control/utils/tenantTema.js`,
+catálogo de 8 fuentes) queda congelado en esta default; si se reactiva, debe
+respetar esta regla. Documentado también en `CLAUDE.md`, `AGENTS.md` y
+`cmem.md`.
+
 ## Qué es esto
 
 App web para que clientes suban su Constancia de Situación Fiscal (PDF) y

@@ -1101,6 +1101,9 @@
   function aplicarPreviewTema() {
     const tema = construirTemaDesdeFormulario();
     const radios = TEMA_RADIOS[tema.radio] || TEMA_RADIOS.md;
+    // Tipografía congelada a Inter (regla 2026-08-24) — preview también
+    // usa la misma sans que menú/botones/reportes, aunque el formulario
+    // aún conserve el selector histórico.
     const variables = {
       '--color-bg': tema.colores.bg,
       '--color-surface': tema.colores.surface,
@@ -1117,8 +1120,8 @@
       '--radius-sm': radios.sm,
       '--radius-md': radios.md,
       '--radius-lg': radios.lg,
-      '--font-display': `'${TEMA_FUENTES[tema.tipografia.display] || 'Source Serif 4'}', Georgia, serif`,
-      '--font-body': `'${TEMA_FUENTES[tema.tipografia.cuerpo] || 'Inter'}', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
+      '--font-display': `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
+      '--font-body': `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
     };
     Object.entries(variables).forEach(([clave, valor]) => {
       els.temaPreview.style.setProperty(clave, valor);

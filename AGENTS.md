@@ -71,6 +71,17 @@ node --check backend/ruta/al/archivo.js
   sesiones. Admin: HTTP Basic Auth de 3 niveles (ver `backend/utils/auth.js`).
 - Todas las páginas del frontend reutilizan `style.css` como base; los
   demás `.css` son extensiones, no reemplazos.
+- **Tipografía unificada (2026-08-24)**: toda la app usa **una sola
+  familia tipográfica — Inter** (la misma del menú lateral del panel
+  admin, `.admin-sidebar-nav .admin-vista-btn`). `style.css` define
+  `--font-body` y `--font-display` ambas como `Inter` (`--font-display`
+  es alias de `--font-body`); `mantenimiento.html` replica el mismo par.
+  No se mezcla serif/sans ni se introducen otras familias en ningún
+  CSS/HTML nuevo — aplica a **control** (`/control`) y **lado del
+  cliente** (portal, login, csf, tickets, dashboard) por igual. El
+  sistema de temas por tenant (`backend/utils/tenantTema.js`,
+  `control/utils/tenantTema.js`) queda congelado en esta default; si se
+  reactiva, debe respetar esta regla.
 - Después de cualquier cambio: `node --check` en los `.js` tocados +
   suite Jest existente sin regresiones + actualizar `PROJECT_STATE.md`.
 - Antes de dar por "no disponible" una skill/herramienta mencionada por el
