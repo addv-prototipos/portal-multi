@@ -398,13 +398,19 @@ function asyncHandler(fn) {
 // es defensa en profundidad para el día que se agregue un CDN/proxy
 // compartido delante de nginx.
 // Swagger — UI y JSON (punto 137). No requiere auth para listar, probar sí pide credenciales según ruta.
-// CSP fix: Swagger UI inyecta JS/CSS inline — helmet por defecto lo bloquea (script-src 'self' sin 'unsafe-inline') y la UI queda en blanco.
+// CSP para Swagger UI: sus <script> son src= externos servidos por el
+// mismo origen (swagger-ui-bundle.js/standalone-preset.js/init.js), así
+// que script-src 'self' ya los permite sin 'unsafe-inline'. El único
+// new Function() del bundle es un fallback de globalThis para navegadores
+// viejos (inalcanzable en la práctica) — no hace falta 'unsafe-eval'.
+// style-src SÍ necesita 'unsafe-inline': el HTML de swagger-ui-express trae
+// bloques <style> literales.
 app.use('/api/docs', (req, res, next) => {
-  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
+  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https:; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
   next();
 });
 app.use('/api/swagger', (req, res, next) => {
-  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
+  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https:; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
   next();
 });
 app.get('/api/docs.json', (req, res) => res.json(swaggerSpec));

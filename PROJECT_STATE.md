@@ -8578,13 +8578,35 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        (`frontend/control.js`) se quitó — ahora solo enseña header y
        cookie. Sigue funcionando exactamente igual por header/cookie (no
        había tests que cubrieran esto — cero regresión posible ahí).
-       Jest 584/584 sin cambios, `node --check` limpio en los 3
-       archivos, validado contra Docker real (rebuild + redeploy de
-       backend/control/frontend, health OK). **Hallazgo 2 sigue sin
-       corregir, pendiente de decisión del usuario**: las rutas de
-       Swagger (`/api/docs`, `/api/control/docs`) ponen CSP con
-       `'unsafe-inline' 'unsafe-eval'` — acotado a esas rutas nada más,
-       no global, pero amplía la superficie de XSS ahí.
+       **Hallazgo 2 CORREGIDO (mismo día)**: la CSP de `/api/docs` y
+       `/api/control/docs` traía `'unsafe-inline' 'unsafe-eval'` en
+       `script-src` sin necesitarlo — se investigó el HTML real que
+       genera `swagger-ui-express` (`generateHTML()` en su
+       `node_modules`): sus 3 `<script>` son todos `src=` externos del
+       mismo origen (`swagger-ui-bundle.js`/`standalone-preset.js`/
+       `init.js`, servidos por la misma ruta), nunca código inline —
+       `script-src 'self'` ya los permite sin `'unsafe-inline'`. El
+       único `new Function("return this")()` del bundle (grep directo
+       al `.js` de `swagger-ui-dist`) es un fallback de `globalThis`
+       para navegadores sin esa API — inalcanzable en la práctica, así
+       que tampoco hace falta `'unsafe-eval'`. `style-src` SÍ conserva
+       `'unsafe-inline'` (el HTML trae bloques `<style>` literales,
+       riesgo bajo comparado con script). CSP final: `script-src 'self'
+       https:; style-src 'self' https: 'unsafe-inline'`. Un `curl -I`
+       inicial pareció mostrar dos CSP distintas (`default-src 'none'`
+       + la nueva) — investigado y descartado como falso positivo: es
+       el paquete `send` (usado por `express.static` dentro de
+       `swagger-ui-express`) poniendo `'none'` en su PROPIA página de
+       redirect 301 autogenerada (`/api/docs` → `/api/docs/`, sin
+       contenido que necesite permisos) — la página real (200) siempre
+       tuvo la CSP correcta, confirmado con `curl` a los 4 assets
+       (`swagger-ui-bundle.js`/`standalone-preset.js`/`init.js`/`.css`)
+       en backend Y control, los 4 con 200 y content-type correcto.
+       Validación visual en navegador real NO disponible esta vez
+       (extensión Claude in Chrome desconectada) — pendiente que el
+       usuario confirme visualmente `/api/docs` y `/api/control/docs`
+       cuando pueda. Jest 584/584, `node --check` limpio, rebuild +
+       redeploy de backend/control contra Docker real, health OK.
        Aparte, el punto 138 (Cuentas por cobrar) sigue **sin commitear**
        en el working tree (schema `estado_pago`/`monto_cobrado`/etc. en
        `ordenes_compra`, endpoint `PUT /api/admin/ordenes-compra/:id/cobro`,

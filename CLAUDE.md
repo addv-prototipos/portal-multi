@@ -733,12 +733,16 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   que renderea después en la cadena — mal etiquetado como "No se pudo
   conectar con el servidor" (era JS roto, no red). Ver punto 140 para
   la auditoría completa de lo que esa herramienta cambió (Swagger +
-  credenciales API por tenant ya en `main`; hallazgo de seguridad #1
-  YA CORREGIDO — `?api_key=` por URL ya no se acepta, solo header/
-  cookie (`backend/utils/auth.js`), quitado también de la doc pública
-  de Swagger y del ejemplo curl en `/control`; #2 sigue pendiente, CSP
-  unsafe-inline/unsafe-eval en rutas de Swagger. Cuentas por cobrar
-  sin commitear pese a su propia nota de "no implementar sin
+  credenciales API por tenant ya en `main`; 2 hallazgos de seguridad
+  YA CORREGIDOS — #1: `?api_key=` por URL ya no se acepta, solo
+  header/cookie (`backend/utils/auth.js`); #2: CSP de `/api/docs`/
+  `/api/control/docs` sin `unsafe-inline`/`unsafe-eval` en script-src
+  (sus `<script>` son todos `src=` externos del mismo origen, nunca
+  inline; el único `new Function()` del bundle es un fallback de
+  `globalThis` inalcanzable en navegadores modernos) — style-src
+  conserva `unsafe-inline` a propósito (bloques `<style>` literales del
+  HTML, riesgo bajo). Cuentas por cobrar sin commitear pese a su
+  propia nota de "no implementar sin
   confirmación"). **Rediseño final el mismo
   día**: `calcularEtiquetasLejos()` (colisión por ancho de texto) se
   abandonó por completo — el primer/último punto usan `text-anchor`

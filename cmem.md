@@ -734,3 +734,24 @@ archivos, rebuild+redeploy de backend/control/frontend contra Docker
 real, health OK. Hallazgo #2 (CSP unsafe-inline/unsafe-eval en rutas
 de Swagger) sigue pendiente, sin tocar. Detalle: PROJECT_STATE.md
 punto 140.
+
+C059 10:05 ●bugfix Corregido hallazgo #2 del audit de seguridad (C055):
+CSP de /api/docs y /api/control/docs traía 'unsafe-inline' 'unsafe-eval'
+en script-src sin necesitarlo. Investigué el HTML real de
+swagger-ui-express (generateHTML() en su node_modules): los 3 <script>
+son src= externos del mismo origen, nunca inline — script-src 'self'
+ya los permite. El único new Function() del bundle (grep directo al
+.js de swagger-ui-dist) es fallback de globalThis, inalcanzable en
+navegadores modernos — tampoco hace falta unsafe-eval. style-src
+conserva unsafe-inline a propósito (bloques <style> literales, riesgo
+bajo). Falso positivo detectado y descartado en el camino: un curl -I
+inicial pareció mostrar 'default-src none' compitiendo con mi CSP —
+era el paquete `send` (dentro de express.static/swagger-ui-express)
+poniendo 'none' en SU PROPIA página de redirect 301 autogenerada, sin
+contenido que necesite permisos; la página real (200) siempre tuvo la
+CSP correcta, confirmado por curl a los 4 assets en backend y control,
+los 8 con 200. Sin validación visual en navegador real esta vez
+(extensión Claude in Chrome desconectada) — pendiente que el usuario
+confirme /api/docs y /api/control/docs cuando pueda. Jest 584/584,
+rebuild+redeploy backend/control contra Docker real, health OK.
+Detalle: PROJECT_STATE.md punto 140.

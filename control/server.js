@@ -131,9 +131,13 @@ app.use((req, res, next) => {
 });
 
 // Swagger — UI y JSON (punto 137). Público para listar, probar requiere Basic super.
-// CSP fix: Swagger UI necesita 'unsafe-inline'/'unsafe-eval' — helmet por defecto lo bloquea.
+// CSP para Swagger UI: sus <script> son src= externos del mismo origen,
+// script-src 'self' ya los permite sin 'unsafe-inline'; el único
+// new Function() del bundle es un fallback de globalThis para navegadores
+// viejos, inalcanzable en la práctica — no hace falta 'unsafe-eval'.
+// style-src SÍ necesita 'unsafe-inline' (bloques <style> literales del HTML).
 app.use('/api/control/docs', (req, res, next) => {
-  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
+  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https:; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
   next();
 });
 app.get('/api/control/docs.json', (req, res) => res.json(swaggerSpec));
