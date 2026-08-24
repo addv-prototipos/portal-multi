@@ -27,7 +27,7 @@ La v1 entrega un **motor de existencias mínimo útil**: catálogo simple, un al
 | D5 | **Costeo: promedio ponderado móvil**, recalculado al registrar cada entrada (`costo_unitario DECIMAL(12,2)` en cada movimiento). El producto conserva `costo_promedio` y `ultimo_costo`. | PEPS/FIFO exige control por lotes (fase 3); el promedio ponderado es correcto contablemente y no depende de ninguna otra pieza. | §32 queda limitado a promedio ponderado en v1. Margen = precio − costo promedio. Cambios manuales de costo auditados (ya cubre §37). |
 | D6 | **Granularidad de existencia**: `existencias(producto_id, almacen_id)` UNIQUE. El saldo es **derivado** del libro append-only `movimientos_inventario`. | Una sola fuente de verdad auditable; los saldos son caché recomputable y jamás editables a mano (coherente con §55). | Se incluye un mecanismo de conciliación que recomputa saldos desde movimientos y reporta divergencias (se detalla en la sección de concurrencia, bloque 3). |
 | D7 | **Roles v1: perfiles existentes únicamente** (administrador / fiscal / super). | Los roles nuevos (Operador de almacén, Compras) exigen cambios en `auth.js`, UI y auditoría; su valor real aparece cuando hay personal de bodega operando el sistema. | administrador = todo Inventarios; fiscal = sin acceso al módulo; super = soporte técnico con operaciones registradas en la auditoría del tenant. §3.4 y §3.5 pasan a fase 2. |
-| D8 | **Integración con Ventas — CERRADA**: columna nullable `producto_id` sobre `ordenes_compra` + interruptor **GLOBAL de plataforma** `ventas_afectan_inventario` en Configuraciones globales. Con el switch ACTIVO: la captura de venta gana autocompletado de producto (nombre/SKU) y lectura por código de barras (escáner; si falla, captura manual del código); toda venta con producto genera su salida automática validando stock (D4). Con el switch INACTIVO: el módulo Inventarios se oculta por completo y Ventas opera exactamente como hoy. Detalle operativo en §22 (US-INV-025). | Una tabla de partidas rediseñaría un módulo de Ventas vivo en producción sin necesidad inmediata; el switch permite activar inventario cuando la migración esté lista. Decisión explícita del dueño: la regla es **igual para todos los tenants, no cambia por tenant**. | Introduce la PRIMERA configuración global de plataforma: vivirá FUERA de las tablas `configuracion` por tenant (mecanismo concreto al implementar; candidato natural: BD de control). Limitación honesta v1: venta de línea única (1 producto por venta); carrito multi-producto queda como evolución futura con partidas. |
+| D8 | **Integración con Ventas — CERRADA (por tenant)**: columna nullable `producto_id` sobre `ordenes_compra` + interruptor **por tenant** `inventario_activo` en Configuraciones globales del tenant. Con el switch **ACTIVO** en ese tenant: la captura de venta gana autocompletado de producto (nombre/SKU al ir escribiendo) y lectura por código de barras (escáner HID; si falla, captura manual del código); toda venta con producto genera su salida automática validando stock (D4). Con el switch **INACTIVO** en ese tenant: el módulo Inventarios se oculta por completo y Ventas opera exactamente como hoy (captura manual del concepto, sin búsqueda ni escáner). Detalle operativo en §22 (US-INV-025). | Una tabla de partidas rediseñaría un módulo de Ventas vivo en producción sin necesidad inmediata; el switch por tenant permite a cada empresa activar inventario cuando su migración esté lista, sin afectar a las demás. Decisión actualizada a pedido del dueño: **se activa/desactiva por tenant, no global**. | El flag vive en la tabla `configuracion` **por tenant** (clave `inventario_activo`, `0`/`1`, default `0`), coherente con el resto de `configuracion` por tenant. No requiere BD de control. Limitación honesta v1: venta de línea única (1 producto por venta); carrito multi-producto queda como evolución futura con partidas. |
 | D9 | **El importador masivo entra en v1** (reescrito en §34): CSV/XLSX con wizard de mapeo de cabeceras; SKU duplicado **actualiza** el producto existente (upsert, conserva lo no mapeado); existencias iniciales viajan **en el mismo archivo** y generan entradas automáticas tipo "inventario inicial". | La migración desde el sistema actual del negocio es la razón de ser del módulo; dar de alta cientos/miles de SKUs a mano es inviable y anularía la v1. | Sustituye al antiguo "importador genérico" de esta misma sección; la entrada manual tipo "inventario inicial" sigue existiendo como alternativa para altas puntuales. |
 | D10 | **Imágenes de producto condicionadas por empresa + compresión obligatoria**: el derecho a usar imágenes se habilita POR EMPRESA desde `/control` (columna nueva en la BD de control, default desactivado, mismo patrón que el segmento Marca); todo archivo subido pasa por un pipeline de optimización en el servidor (redimensionado + WebP + miniatura + descarte del original) con cuota de disco por tenant. Especificación completa en §6. | Una foto de celular pesa ~4 MB; sin procesamiento, miles de SKUs saturan MinIO. Pedido explícito del dueño: gate desde la app de control + algoritmo de compresión para no crecer el disco sin control. | Empresa sin el flag → UI sin sección de imágenes y API con `INV_IMAGENES_DESHABILITADAS`. §6 deja de decir "Conservar imagen original": solo se persisten las variantes optimizadas. |
 | D11 | **Catálogo de dos tipos**: campo `tipo` en productos — `producto` (físico, inventariable) y `servicio` (no inventariable: sin existencias, sin movimientos, sin kardex; sí aparece en catálogo, búsqueda y venta). Líquidos y gramaje NO requieren campos extra: cantidades `DECIMAL(12,3)` + unidades kg/g/L/ml + conversiones (§9) los cubren; venta por peso = captura decimal manual (báscula conectada = fase futura). | Cubrir la gran mayoría de negocios (productos, servicios, líquidos, gramaje) sin abrir variantes/lotes en v1; un servicio solo necesita no tocar stock. | Los servicios participan en ventas (§22) sin generar salida aunque el switch global esté activo; "ventas de servicios no afectan stock" (§49) se vuelve regla estructural del modelo. |
@@ -123,42 +123,41 @@ Mismo formato `{ error: 'CODIGO', mensaje }` del API existente:
 - Prueba de concurrencia: N escrituras simultáneas (`Promise.all`) sobre el mismo producto verifican saldo final exacto y cero sobregiro.
 - Prueba de conciliación: fixture con un saldo corrupto a mano → el verificador lo detecta y reporta.
 
-## 0.6 Configuración global de plataforma
+## 0.6 Configuración por tenant para Inventarios (D8)
 
-La decisión D8 introduce la PRIMERA configuración que NO vive en las bases de datos por tenant. Esta sección define el mecanismo y queda como patrón obligatorio para cualquier futuro ajuste de alcance plataforma (incluidas las credenciales globales anotadas como pendiente en PROJECT_STATE.md punto 137).
+La decisión D8 se resuelve **por tenant** (no global): cada empresa decide si su inventario está activo. Esta sección define el mecanismo.
 
 ### Dónde vive
 
-- Tabla nueva `configuracion_global` en la BD **de control** (esquema `control_tenants`): `clave` UNIQUE, `valor`, `descripcion`, `actualizado_por`, `actualizado_en`.
-- Fuente única de verdad: los tenants NUNCA guardan copia de estas claves — no existe sincronización que mantener ni estados divergentes.
-- Regla de exclusividad: una clave es **global O por tenant**, jamás ambas. Las claves ya existentes en las tablas `configuracion` por tenant NO se migran ni se tocan.
+- Clave `inventario_activo` en la tabla `configuracion` **por tenant** (misma tabla que `iva_porcentaje`, `zona_horaria`, etc.): `clave='inventario_activo'`, `valor='0'`/`'1'`.
+- Default `'0'` (inactivo): hasta que la migración (importador D9) se haya ejecutado y revisado en ese tenant, no hay catálogo que descontar. Los datos ya capturados (productos, existencias, movimientos) quedan intactos aunque luego se desactive.
+- No requiere BD de control ni sincronización entre tenants.
 
 ### Claves iniciales
 
 | Clave | Valores | Default | Efecto |
 |---|---|---|---|
-| `ventas_afectan_inventario` | `'1'` / `'0'` | `'0'` | D8 completo (§22): activa Inventarios + salidas automáticas por venta; inactivo oculta el módulo y deja Ventas manual |
-
-Default `'0'` porque hasta que la migración (importador D9) se haya ejecutado y revisado, no hay catálogo que descontar.
+| `inventario_activo` | `'1'` / `'0'` | `'0'` | D8 completo (§22): `1` activa Inventarios + autocompletado/barcode en Ventas y salidas automáticas; `0` oculta el módulo y deja Ventas manual |
 
 ### Quién la edita
 
-- **Escritura**: solo el perfil de plataforma (super) desde la vista **Configuraciones globales** del panel — ahí aparece el switch pedido por el dueño, con aviso visible: *"Este ajuste afecta a TODAS las empresas"*.
-- Los administradores de empresa lo ven **en solo lectura** con explicación breve — coherente con "no cambia por tenant".
-- `/control` lo muestra en solo lectura, para visibilidad del estado de plataforma.
+- **Escritura**: `administrador` del tenant (y `super` cuando opera como admin del tenant) desde **Configuraciones globales** del panel — switch `Inventario activo` con ayuda: *"Activa el módulo Inventarios para esta empresa. Con inventario activo, Ventas sugiere productos al escribir y por escáner; con inventario inactivo, la captura es manual como hoy."*
+- `fiscal` no ve el switch ni el módulo (coherente con D7: fiscal sin acceso a Inventarios).
+- `/control` no edita este flag (es decisión operativa del tenant, no de plataforma).
 
 ### Lectura y propagación
 
-- El backend la lee con caché en memoria de TTL ≤ 60 segundos: un cambio surte efecto en todos los tenants sin reinicio y a más tardar en 60 s.
-- Con valor `'0'`: sidebar sin Inventarios, API del módulo responde deshabilitado, Ventas opera exactamente como hoy; los datos quedan intactos para reactivación.
+- El backend lee `inventario_activo` del tenant en cada request (vía `pool` del tenant, sin caché global). Un cambio surte efecto al siguiente request sin reinicio.
+- Con valor `'0'`: sidebar sin `Inventarios`, API ` /api/admin/inventarios/*` responde `{error:'INV_MODULO_INACTIVO'}` (o `INV_INVENTARIO_INACTIVO`), y Ventas omite autocompletado/barcode y no genera salidas; los datos quedan para reactivación.
+- Con valor `'1'`: sidebar muestra `Inventarios`, Ventas gana búsqueda al escribir + escáner, y cada venta con `producto_id` genera salida `SA-` validando `D4`.
 
 ### Auditoría
 
-Cada cambio registra en el plano de control: usuario de plataforma, IP, valor anterior, valor nuevo y fecha/hora.
+Cada cambio registra en `admin_auditoria` del tenant (mismo middleware que el resto de Configuraciones globales): usuario, IP, valor anterior/nuevo, fecha/hora.
 
 ### Regla de extensión
 
-Toda necesidad futura de configuración debe declarar su alcance explícitamente (global vs por tenant) en este documento o en el de su módulo antes de implementarse.
+Toda necesidad futura de configuración debe declarar su alcance explícitamente (global vs por tenant) en este documento o en el de su módulo antes de implementarse. Este caso deja claro que **la regla por defecto es por tenant**; lo global es la excepción y debe justificarse (ej. credenciales API por tenant ya es la norma).
 
 ### 0.6.1 Decisiones pendientes v1 — responder antes de implementar
 
@@ -170,7 +169,7 @@ Toda necesidad futura de configuración debe declarar su alcance explícitamente
 | P2 | Costo al archivar/reactivar | §32 promedio ponderado + §38 papelera | A) Congelar `costo_promedio` al archivar B) Recalcular al reactivar | **A** — congela, reanuda promedio al reactivar |
 | P3 | Cuota imágenes D10 | Gate por empresa + compresión obligatoria | Definir `500 MB tenant` / `20 imgs prod` / `5 MB por archivo` | **500 MB / 20 / 5 MB** |
 | P4 | Entradas/Salidas v1 | §0.3:5-6 dice 4+4 sin nombrarlas | Entradas: `compra, devolucion_cliente, inventario_inicial, ajuste+`; Salidas: `venta, consumo, merma, ajuste-` | Confirmar lista |
-| P5 | Visibilidad fiscal | §0.6 switch solo lectura para admin empresa | `fiscal` no ve Inventarios ni el switch; `administrador` lo ve solo lectura; `super` edita en Configuraciones globales | Confirmar matriz |
+| P5 | Visibilidad fiscal | §0.6 switch por tenant `inventario_activo` | `fiscal` no ve Inventarios ni el switch; `administrador` **edita** el switch de su tenant en Configuraciones globales; `super` edita igual cuando opera el tenant | **Confirmado por dueño 2026-08-24: por tenant** — actualizar matriz si cambia |
 | P6 | Valor inventario en Resumen financiero | §42 vs §50 | A) KPI nuevo en Resumen financiero (`Valor inmovilizado`) B) Solo Dashboard Inventarios | **B** en v1 — evita mezclar valorización con flujo caja |
 | P7 | Almacén en importador | D2/D9 `ALM-1` hardcodeado | `existencia_inicial` siempre a `ALM-1` en v1 (sin selector) | Confirmar |
 | P8 | Categorías con imagen | US-INV-009 dice imagen opcional vs §0.3:1 sin imagen | Fuera en v1 | Confirmar fuera |
@@ -952,25 +951,25 @@ Una recepción confirmada genera automáticamente los movimientos correspondient
 
 ---
 
-# 22. Ventas — 1 (US-INV-025, D8)
+# 22. Ventas — `v1` (US-INV-025, D8 por tenant)
 
-> Reescrito tras cerrar la decisión D8 (§0.2); sustituye por completo la versión genérica anterior.
+> Reescrito tras actualizar D8 a **por tenant** (§0.2/§0.6); sustituye por completo la versión global anterior.
 
-## US-INV-025 — Venta que descuenta inventario
+## US-INV-025 — Venta que descuenta inventario (por tenant)
 
-Como **administrador**, quiero que al registrar una venta con producto seleccionado se descargue automáticamente el inventario, para no capturar la salida dos veces.
+Como **administrador**, quiero que **si el inventario de mi empresa está activo**, al registrar una venta con producto seleccionado se descargue automáticamente el inventario (búsqueda al escribir + escáner), y **si está inactivo**, la captura siga manual como hoy, para no mezclar flujos.
 
-### Interruptor global de plataforma
+### Interruptor por tenant
 
-- `ventas_afectan_inventario`: configuración GLOBAL en Configuraciones globales — decisión explícita del dueño: **igual para todos los tenants, no cambia por tenant**.
-- **ACTIVO** → flujo descrito abajo; el módulo Inventarios visible.
-- **INACTIVO** → el módulo Inventarios se oculta por completo (sidebar y API) y Ventas opera exactamente como existe hoy (captura manual del concepto). Los datos ya capturados se conservan intactos para cuando se reactive.
+- `inventario_activo` (`0`/`1`, default `0`) en **Configuraciones globales del tenant** (§0.6, tabla `configuracion` por tenant).
+- **ACTIVO (`1`) en este tenant** → flujo descrito abajo; el módulo Inventarios visible solo en este tenant.
+- **INACTIVO (`0`) en este tenant** → el módulo Inventarios se oculta por completo (sidebar y API `INV_MODULO_INACTIVO`) y Ventas opera exactamente como existe hoy (captura manual del concepto, sin búsqueda ni escáner). Los datos ya capturados se conservan intactos para cuando se reactive. Otros tenants no se ven afectados.
 
-### Captura de producto en Ventas (switch activo)
+### Captura de producto en Ventas (solo con inventario activo)
 
-- Campo opcional de producto con **autocompletado mientras se escribe** (nombre o SKU): sugerencias con miniatura, existencia disponible y precio sugerido tomado del producto.
-- **Lectura por código de barras**: un escáner HID teclea el código + Enter → búsqueda por `codigo_barras`/SKU que llena el campo. Si la lectura falla o el código no existe, el código se puede escribir manualmente.
-- Cantidad con default 1; valida `disponible >= cantidad` ANTES de registrar (D4 prohíbe negativos).
+- Campo opcional de producto con **autocompletado mientras se escribe** (nombre o SKU): sugerencias con miniatura, existencia disponible y precio sugerido tomado del producto. **Solo si `inventario_activo=1`; si `0`, el campo no existe y la venta es manual.**
+- **Lectura por código de barras** (solo con inventario activo): un escáner HID teclea el código + Enter → búsqueda por `codigo_barras`/SKU que llena el campo. Si la lectura falla o el código no existe, el código se puede escribir manualmente. **Con inventario inactivo, el escáner no hace nada (no hay catálogo que buscar).**
+- Cantidad con default 1; valida `disponible >= cantidad` ANTES de registrar (D4 prohíbe negativos) — **solo cuando hay producto seleccionado y el módulo está activo**.
 
 ### Al guardar la venta
 

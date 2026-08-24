@@ -64,7 +64,7 @@ Copia `.env.example` a `.env` y ajusta si lo necesitas:
 
 | Variable | Descripción | Valor por defecto |
 |---|---|---|
-| `FRONTEND_PORT` | Puerto del host donde se expone la app | `80` |
+| `FRONTEND_PORT` | Puerto del host donde se expone la app | `8088` |
 | `MYSQL_ROOT_PASSWORD` | Contraseña de root de MySQL — **cámbiala en producción** | `changeme_root_password` |
 | `MYSQL_DATABASE` | Nombre de la base de datos de la aplicación | `portal_facturacion` |
 | `MYSQL_USER` | Usuario (no root) que usa el backend para conectarse | `app` |
@@ -101,10 +101,10 @@ El backend se conecta a MySQL usando `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWO
    ```
    La primera vez, `docker-compose` levanta MySQL, espera a que su *healthcheck* pase (puede tardar unos segundos mientras MySQL inicializa la base de datos), y solo entonces arranca el backend — que además espera activamente a poder conectarse antes de aceptar tráfico, con varios reintentos con espera. No deberías ver errores de conexión durante el arranque normal.
 4. Abre el navegador en:
-   ```
-   http://localhost
-   ```
-   (o `http://localhost:8088` si cambiaste `FRONTEND_PORT` a `8088` en tu `.env` — el valor por defecto de `FRONTEND_PORT` es `80`, así que no hace falta indicar puerto salvo que lo hayas cambiado).
+    ```
+    http://localhost:8088
+    ```
+    (`FRONTEND_PORT=8088` por defecto en `.env.example`/`.env`; `http://localhost` solo si lo cambias a `80`).
 
 Los archivos subidos (constancias, tickets, facturas) se guardan en **MinIO** (bucket `MINIO_BUCKET`, volumen Docker `minio_data`) — puedes inspeccionarlos desde la consola web de MinIO en `http://localhost:9001` (o el `MINIO_CONSOLE_PORT` que hayas configurado) con las credenciales `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` de tu `.env`. La carpeta `./uploads` del proyecto ya no se usa para guardar nada (vestigial, ver PROJECT_STATE.md punto 92). La base de datos MySQL vive en el volumen Docker con nombre `mysql_data` — no es un archivo que puedas copiar directamente como con SQLite, pero puedes inspeccionarla con cualquier cliente MySQL apuntando a `localhost:3306` (o el `MYSQL_PORT` que hayas configurado) con el usuario/contraseña de tu `.env`. Tanto MinIO como la base de datos persisten entre reinicios y reconstrucciones (`docker-compose up --build`).
 
@@ -238,12 +238,10 @@ Diseño mobile-first en todas las páginas, con foco visible para navegación po
    # Edita .env: define CORS_ORIGIN con tu dominio real, y cambia
    # MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD por contraseñas robustas y únicas.
    # Si vas a seguir el paso 4 (Nginx del host + dominio real + HTTPS),
-   # agrega también FRONTEND_PORT=8080 — el contenedor "frontend" escucha
-   # en el puerto 80 del host por defecto (pensado para acceder
-   # directamente en http://localhost sin agregar ningún puerto a la URL,
-   # útil en desarrollo o en un servidor sin dominio propio), pero en
-   # producción con Nginx del host el 80 lo necesita ESE Nginx para sí
-   # mismo — dejarlos a ambos en el mismo puerto sería un conflicto.
+    # agrega también FRONTEND_PORT=8088 — el contenedor "frontend" escucha
+    # en el puerto 80 del host por defecto en la imagen base, pero el mapeo
+    # publicado es 8088 (ver .env.example) para evitar colisión con el Nginx
+    # del host en producción — dejarlos a ambos en 80 sería un conflicto.
    ```
 
 3. **Levantar en modo producción**
@@ -251,14 +249,14 @@ Diseño mobile-first en todas las páginas, con foco visible para navegación po
    docker compose up -d --build
    ```
 
-4. **Configurar Nginx como reverse proxy del host** (frente al contenedor `frontend` — con `FRONTEND_PORT=8080` configurado en el paso 2, expone ese puerto en vez del 80 por defecto):
+4. **Configurar Nginx como reverse proxy del host** (frente al contenedor `frontend` — con `FRONTEND_PORT=8088` configurado en el paso 2, expone ese puerto en vez del 80 por defecto):
    ```nginx
    server {
        listen 80;
        server_name facturacion.midominio.com;
 
        location / {
-           proxy_pass http://127.0.0.1:8080;
+            proxy_pass http://127.0.0.1:8088;
            proxy_set_header Host $host;
            proxy_set_header X-Real-IP $remote_addr;
            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
