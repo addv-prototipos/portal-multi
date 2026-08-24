@@ -54,4 +54,34 @@ async function asegurarColumnasCicloVidaTenant(db) {
   }
 }
 
-module.exports = { asegurarColumnasCicloVidaTenant };
+async function asegurarTablaApiCredenciales(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS api_credenciales (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenant_slug VARCHAR(50) NOT NULL,
+      api_usuario VARCHAR(100) NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      api_key_hash VARCHAR(255) NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 1,
+      creado_por VARCHAR(100) NULL,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_api_credenciales_usuario (api_usuario),
+      KEY idx_api_credenciales_tenant (tenant_slug)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  // Migración: instalaciones que ya crearon la tabla antes de cookieAuth (clave API)
+  const [cols] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_credenciales'`
+  );
+  const nombres = cols.map((c) => c.COLUMN_NAME);
+  if (!nombres.includes('api_key_hash')) {
+    await db.query('ALTER TABLE api_credenciales ADD COLUMN api_key_hash VARCHAR(255) NULL');
+  }
+  if (!nombres.includes('api_key')) {
+    // columna legacy por si se usó nombre sin _hash en pruebas locales
+    await db.query('ALTER TABLE api_credenciales ADD COLUMN api_key VARCHAR(255) NULL');
+  }
+}
+
+module.exports = { asegurarColumnasCicloVidaTenant, asegurarTablaApiCredenciales };

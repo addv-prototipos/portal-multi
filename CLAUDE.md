@@ -717,6 +717,86 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
     (no sobrevive un reload sin haber cargado antes esa vista) — la
     cola de pendientes por crear sí sobrevive un reload (IndexedDB).
     Sin commit/push todavía.
+- **Categorías de gastos editables desde el popup de "Registrar gasto"
+  (ver PROJECT_STATE.md punto 135, 2026-08-23, COMPLETA e IMPLEMENTADA Y
+  VALIDADA)**: la lista cerrada de categorías (CHECK de MySQL +
+  diccionario duplicado en `admin.js`) pasó a tabla editable
+  `categorias_gastos` (slug estable, etiqueta, `activa`, `protegida`,
+  `orden`); renombrar y agregar confirmados por el usuario ("Ambas"), y
+  categoría nueva sin color propio usa el gris de "Otro" en la dona de
+  Resumen financiero (fallback ya existente, sin cambios ahí). Backend:
+  `backend/utils/gastos.js` reescrito (CRUD + `generarSlugCategoria()` +
+  `reactivarCategoriaGasto()`, agregada tras preguntar al usuario porque
+  desactivar sin poder reactivar era una puerta de un solo sentido) + 5
+  endpoints en `server.js`. Panel "✏️ Categorías" inline en el modal de
+  Registrar gasto (renombrar en línea, borrar solo si 0 gastos, "Otro"
+  protegida, reactivar si inactiva, "+ Agregar"). **2 bugs reales
+  encontrados y corregidos en la validación contra Docker/navegador
+  reales, ninguno detectable con `node --check`/Jest mockeado**: (1)
+  dependencia circular `db.js`↔`utils/gastos.js` dejaba `pool`
+  `undefined` en gastos.js (500 en los 5 endpoints nuevos) — fix:
+  `require('../db')` perezoso dentro de cada función
+  (`obtenerPool()`); (2) `#confirm-modal-overlay` compartía
+  `z-index:50` con el resto de `.modal-overlay` — al confirmar desde
+  DENTRO de otro modal ya abierto (Eliminar categoría desde Registrar
+  gasto; mismo riesgo preexistente con "Quitar comprobante" desde el
+  detalle de un gasto) el diálogo quedaba invisible detrás del modal
+  padre — fix: `#confirm-modal-overlay { z-index: 70; }` en `style.css`.
+  Jest backend **584/584 (36 suites)**, validado de punta a punta contra
+  Docker/MySQL reales por `curl` y en navegador real (Claude in Chrome:
+  crear/renombrar/eliminar/reactivar categoría, registrar un gasto con
+  categoría nueva, limpieza completa verificada por SQL de vuelta al
+  estado base). Sin commit/push todavía.
+- **Datos de prueba históricos para reportes + serie mensual de ~6 meses
+  en Resumen financiero (ver PROJECT_STATE.md punto 134, 2026-08-23,
+  VALIDADO CONTRA DOCKER REAL)**: usuario pidió histórico para
+  validar las tarjetas (balance acumulado/proyección). Dos causas de raíz
+  encontradas: retención a 5 días que purgaba todo lo viejo (subida a
+  **365** por decisión del usuario) y la gráfica del Resumen recortada al
+  mes en curso por diseño (`server.js`: nueva `inicioSerie` = mes actual
+  −5, solo para las queries de la serie; KPIs intactos). Siembra vía
+  script nuevo `backend/scripts/sembrar-datos-prueba.js` (determinista,
+  transaccional, anti-doble-siembra): **175 ventas** (ids 94..268) +
+  **85 tickets 'listo' vinculados** (ids 82..166, imagen placeholder sin
+  MinIO) + **86 gastos marcados** (nota `'Dato de prueba (validacion de
+  reportes)'`), ventana mar–jul completos + ago 1–22; KPIs/tendencias/
+  distribución/listas YA reflejan los datos contra la API viva. Cuando la
+  sesión paralela terminó "Categorías editables" (suite 584/584), se
+  corrió el rebuild único y quedó verificado por HTTP: serie de 6 llaves
+  mar–ago + proyección activa (Sep ≈ 342,850 / Oct ≈ 376,521). SQL de
+  limpieza impreso por el script.     Sin commit/push todavía.
+- **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
+  los servicios API + credenciales de acceso por empresa dadas de alta en
+  `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un
+  par de credenciales global. Solo anotado: requiere análisis y
+  confirmación antes de implementarse.
+
+- **Maduración del requerimiento de Inventarios (`inventarios.md`) — EN
+  CURSO, solo análisis/documentación (ver PROJECT_STATE.md punto 136,
+  2026-08-23)**: agregada Sección 0 "Alcance v1 y decisiones cerradas"
+  (prevalece sobre el resto del doc). Decisiones con el usuario: D1 sin
+  variantes en v1; D2 multi-almacén preparado (almacen_id NOT NULL +
+  "ALM-1" auto) pero UI con uno; D3 sin ubicaciones; D4 negativos
+  prohibidos; D5 costeo promedio ponderado; D6 existencias derivadas del
+  libro de movimientos; D7 solo perfiles existentes en v1. **D8
+  CERRADA**: Ventas integra vía `producto_id` nullable +
+  interruptor GLOBAL `ventas_afectan_inventario` (igual para todos los
+  tenants — primera config global de plataforma, candidato BD de
+  control); switch activo = autocompletado/código de barras en venta +
+  salida automática validando stock; inactivo = Inventarios oculto y
+  Ventas como hoy. **D9**: importador masivo CSV/XLSX entra en v1
+  (§34 reescrito: wizard 6 pasos, mapeo por sinónimos, campo `extra`
+  JSON para columnas no mapeadas, upsert por SKU, existencias iniciales
+  → entradas 'inventario inicial', chunks async, MinIO + auditoría).
+  §0.5 agregada: concurrencia (FOR UPDATE anti-sobrevende, atomicidad
+  movimiento+saldo), DECIMAL(12,3)/(12,2), libro append-only,
+  conciliación saldos↔kardex, errores INV_*. §0.6 agregada: config
+  GLOBAL de plataforma (`configuracion_global` en BD de control,
+  `ventas_afectan_inventario` default '0', switch solo para perfil
+  plataforma en Configuraciones globales, caché TTL ≤60 s) — patrón
+  base del punto 137.
+  NADA implementado todavía.
+
 - **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver
   PROJECT_STATE.md punto 133, 2026-08-23, IMPLEMENTADO Y VALIDADO)**:
   usuario pidió recolorear `construirCorreoOrdenCompra`
@@ -765,44 +845,45 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   el usuario contra un correo real** ("ya llegó bien"). Sin
   commit/push todavía.
 - **"Lectura de reportes" rediseñada para auditorías (ver
-  PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
-  `reporte_items.accion` ya distinguía "eliminado" (borrado real) de
-  `NULL` (fotografía activa) pero se mostraba mezclado — ahora 2 tablas
-  separadas ("Movimientos"/"Eliminados", acento rojo), export CSV/Excel
-  independiente por tabla (`accion=activo|eliminado` en
-  `/exportar`/`/items`), cabecera "Detalle" con badges de color
-  reutilizados de Tickets/Ventas, KPIs de auditoría arriba (histórico +
-  tendencia mensual, endpoint nuevo `GET /api/admin/reportes/estadisticas`),
-  y refuerzo frontend de que "Eliminar reporte" es solo admin/super
-  (backend ya lo exigía). Sin cambios de esquema. Jest 560/560, validado
-  en navegador real con datos reales de la siembra. **Ajuste de diseño
-  en vivo** tras revisar la captura: las 3 tarjetas KPI son cuadradas
-  fijas de 230×230px (no estiradas), centradas, con texto+número +40%
-  en las 2 numéricas — mismo gotcha de especificidad CSS que el punto
-  121 (`.resumen-fin-chart-body` ya fija `min-height:220px`; hubo que
-  usar id, no clase, para ganar). Título de las 3 tarjetas fijo arriba
-  a la izquierda, resto (número/nota/barra) centrado en el espacio
-  sobrante vía `margin-top/bottom:auto`. Commit `f7b26d4`, push a
-  `fact`. **Regla nueva del usuario, guardada en memoria persistente**:
-  todo cambio de diseño visual (nuevo o ajuste) siempre lleva propuesta
-  antes/después en markdown antes de implementar, sin que se pida cada
-  vez. Después del push: "Configuraciones globales" movido al final del
-  sidebar (ancla fija, comentario en el HTML para vistas nuevas), y
-  número centrado (no todo el contenido) en los KPIs de "Inicio" y
-  "Resumen financiero", mismo criterio que Reportes. Commit `fa0906e`,
-  push a `fact`. **B+C+D del punto 122 implementadas y validadas**: B —
-  pestaña "Todo lo eliminado" (ledger cruzado de todos los reportes,
-  endpoints `/reportes/eliminados` y `/reportes/eliminados-exportar`,
-  columna "Reporte de origen"); C — "Generado por" en el resumen del
-  reporte, cruzando `admin_auditoria` (segmento 7) por ruta+ventana de
-  5s (`/reportes/:id/generado-por`), mejor esfuerzo, nunca bloquea; D —
-  botón "Ver historial" por identificador, modal con su timeline en
-  todos los reportes (`/reportes/timeline/:tipo/:identificador`). 2 bugs
-  reales encontrados y corregidos en el camino: `map(renderFilaReporteItem)`
-  pasaba el índice del array como segundo argumento (columna de más en
-  Movimientos), y el timeline desbordaba con descripciones largas
-  (faltaba `flex:1;min-width:0`). Sin cambios de esquema. Jest 560/560.
-  Sin commit/push todavía este segmento (B+C+D).
+   PROJECT_STATE.md punto 122, 2026-08-21, IMPLEMENTADO Y VALIDADO)**:
+   `reporte_items.accion` ya distinguía "eliminado" (borrado real) de
+   `NULL` (fotografía activa) pero se mostraba mezclado — ahora 2 tablas
+   separadas ("Movimientos"/"Eliminados", acento rojo), export CSV/Excel
+   independiente por tabla (`accion=activo|eliminado` en
+   `/exportar`/`/items`), cabecera "Detalle" con badges de color
+   reutilizados de Tickets/Ventas, KPIs de auditoría arriba (histórico +
+   tendencia mensual, endpoint nuevo `GET /api/admin/reportes/estadisticas`),
+   y refuerzo frontend de que "Eliminar reporte" es solo admin/super
+   (backend ya lo exigía). Sin cambios de esquema. Jest 560/560, validado
+   en navegador real con datos reales de la siembra. **Ajuste de diseño
+   en vivo** tras revisar la captura: las 3 tarjetas KPI son cuadradas
+   fijas de 230×230px (no estiradas), centradas, con texto+número +40%
+   en las 2 numéricas — mismo gotcha de especificidad CSS que el punto
+   121 (`.resumen-fin-chart-body` ya fija `min-height:220px`; hubo que
+   usar id, no clase, para ganar). Título de las 3 tarjetas fijo arriba
+   a la izquierda, resto (número/nota/barra) centrado en el espacio
+   sobrante vía `margin-top/bottom:auto`. Commit `f7b26d4`, push a
+   `fact`. **Regla nueva del usuario, guardada en memoria persistente**:
+   todo cambio de diseño visual (nuevo o ajuste) siempre lleva propuesta
+   antes/después en markdown antes de implementar, sin que se pida cada
+   vez. Después del push: "Configuraciones globales" movido al final del
+   sidebar (ancla fija, comentario en el HTML para vistas nuevas), y
+   número centrado (no todo el contenido) en los KPIs de "Inicio" y
+   "Resumen financiero", mismo criterio que Reportes. Commit `fa0906e`,
+   push a `fact`. **B+C+D del punto 122 implementadas y validadas**: B —
+   pestaña "Todo lo eliminado" (ledger cruzado de todos los reportes,
+   endpoints `/reportes/eliminados` y `/reportes/eliminados-exportar`,
+   columna "Reporte de origen"); C — "Generado por" en el resumen del
+   reporte, cruzando `admin_auditoria` (segmento 7) por ruta+ventana de
+   5s (`/reportes/:id/generado-por`), mejor esfuerzo, nunca bloquea; D —
+   botón "Ver historial" por identificador, modal con su timeline en
+   todos los reportes (`/reportes/timeline/:tipo/:identificador`). 2 bugs
+   reales encontrados y corregidos en el camino: `map(renderFilaReporteItem)`
+   pasaba el índice del array como segundo argumento (columna de más en
+   Movimientos), y el timeline desbordaba con descripciones largas
+   (faltaba `flex:1;min-width:0`). Sin cambios de esquema. Jest 560/560.
+   Sin commit/push todavía este segmento (B+C+D).
+- **PENDIENTE — Cuentas por cobrar (ver PROJECT_STATE.md punto 138, 2026-08-24, PROPUESTA NO IMPLEMENTADA)**: a pedido del usuario, venta por defecto "pagada" + opción "pendiente de pago" gestionada en nueva vista "Cuentas por cobrar" (inexistente hoy). Propuesta UX/UI documentada y en espera de confirmación explícita — **cero código tocado**. Modal "Registrar venta": radio Pagada (default verde) / Pendiente de pago (ámbar) que al elegir Pendiente revela Vencimiento + Notas de cobro; nueva vista entre Ventas y Gastos con 4 KPIs (Por cobrar/Vencidas/Por vencer/Cobrado mes), tabla con badges ⏳/🔴/✅ y acciones Ver venta / Registrar cobro (abonos parciales, `monto <= saldo`) / Recordatorio, filtros client-side. Modelo propuesto: `ordenes_compra.estado_pago ENUM('pagada','pendiente') DEFAULT 'pagada'` + `fecha_vencimiento/monto_cobrado/fecha_cobro/notas_cobro`, saldo derivado. API propuesta `PUT /:id/cobro`. Pendiente confirmar: posición del toggle en wizard, vencimiento obligatorio, abonos parciales en v1.
 - **Auditoría de consistencia de documentación (ver PROJECT_STATE.md
   punto 120, 2026-08-21)**: a pedido explícito del usuario ("revisa la
   documentación"), revisión de salud de los 3 entregables obligatorios

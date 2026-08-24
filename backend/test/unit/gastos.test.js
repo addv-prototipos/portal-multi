@@ -1,49 +1,57 @@
+jest.mock('../../db', () => ({
+  pool: { query: jest.fn() },
+}));
+
 const {
-  CATEGORIAS_GASTOS,
-  ETIQUETAS_CATEGORIAS,
-  CLAVE_CHECK_CATEGORIA_GASTOS,
-  categoriaValida,
-  clausulaCheckCategoria,
+  CATEGORIAS_SEED,
+  ETIQUETAS_SEED,
+  SLUG_CATEGORIA_PROTEGIDA,
+  generarSlugCategoria,
 } = require('../../utils/gastos');
 
 describe('utils/gastos (módulo Gastos)', () => {
-  test('la lista de categorías no está vacía y contiene solo strings seguros', () => {
-    expect(CATEGORIAS_GASTOS.length).toBeGreaterThan(0);
-    CATEGORIAS_GASTOS.forEach((slug) => {
-      expect(typeof slug).toBe('string');
-      expect(slug).toMatch(/^[a-z]+$/); // slugs solo minúsculas, sin caracteres especiales
+  describe('semilla de categorías', () => {
+    test('la semilla no está vacía y contiene solo slugs seguros', () => {
+      expect(CATEGORIAS_SEED.length).toBeGreaterThan(0);
+      CATEGORIAS_SEED.forEach((slug) => {
+        expect(typeof slug).toBe('string');
+        expect(slug).toMatch(/^[a-z]+$/);
+      });
+    });
+
+    test('todas las categorías de la semilla tienen etiqueta en español', () => {
+      CATEGORIAS_SEED.forEach((slug) => {
+        expect(typeof ETIQUETAS_SEED[slug]).toBe('string');
+        expect(ETIQUETAS_SEED[slug].length).toBeGreaterThan(0);
+      });
+    });
+
+    test('"otro" es la categoría protegida (respaldo del sistema)', () => {
+      expect(SLUG_CATEGORIA_PROTEGIDA).toBe('otro');
+      expect(CATEGORIAS_SEED).toContain(SLUG_CATEGORIA_PROTEGIDA);
     });
   });
 
-  test('todas las categorías tienen etiqueta en español', () => {
-    CATEGORIAS_GASTOS.forEach((slug) => {
-      expect(typeof ETIQUETAS_CATEGORIAS[slug]).toBe('string');
-      expect(ETIQUETAS_CATEGORIAS[slug].length).toBeGreaterThan(0);
+  describe('generarSlugCategoria', () => {
+    test('normaliza acentos, espacios y mayúsculas', () => {
+      expect(generarSlugCategoria('Papelería y oficina')).toBe('papeleria_y_oficina');
+      expect(generarSlugCategoria('  Café  ')).toBe('cafe');
     });
-  });
 
-  test('la clave del CHECK es la esperada', () => {
-    expect(CLAVE_CHECK_CATEGORIA_GASTOS).toBe('chk_gastos_categoria');
-  });
+    test('quita caracteres especiales, dejando solo [a-z0-9_]', () => {
+      expect(generarSlugCategoria('Mantenimiento / Reparaciones!!')).toBe('mantenimiento_reparaciones');
+      expect(generarSlugCategoria('¿Qué es esto?')).toBe('que_es_esto');
+    });
 
-  test('categoriaValida acepta solo slugs de la lista cerrada', () => {
-    expect(categoriaValida('renta')).toBe(true);
-    expect(categoriaValida('nomina')).toBe(true);
-    expect(categoriaValida('otro')).toBe(true);
-    expect(categoriaValida('categoria-hackeada')).toBe(false);
-    expect(categoriaValida('RENTA')).toBe(false);
-    expect(categoriaValida('')).toBe(false);
-    expect(categoriaValida(null)).toBe(false);
-    expect(categoriaValida(42)).toBe(false);
-  });
+    test('recorta a 50 caracteres', () => {
+      const larga = 'a'.repeat(80);
+      expect(generarSlugCategoria(larga).length).toBeLessThanOrEqual(50);
+    });
 
-  test('clausulaCheckCategoria genera el IN con TODAS las categorías', () => {
-    const clausula = clausulaCheckCategoria();
-    expect(clausula.startsWith('categoria IN (')).toBe(true);
-    expect(clausula.endsWith(')')).toBe(true);
-    // Todas las categorías, escapadas como strings, aparecen exactamente una vez.
-    CATEGORIAS_GASTOS.forEach((slug) => {
-      expect(clausula.match(new RegExp(`'${slug}'`, 'g'))).toHaveLength(1);
+    test('nunca regresa un slug vacío, ni con entrada vacía o solo símbolos', () => {
+      expect(generarSlugCategoria('')).toBe('categoria');
+      expect(generarSlugCategoria('!!!')).toBe('categoria');
+      expect(generarSlugCategoria(null)).toBe('categoria');
     });
   });
 });

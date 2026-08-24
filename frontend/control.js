@@ -33,6 +33,29 @@
     tableBody: document.getElementById('control-table-body'),
     empty: document.getElementById('control-empty'),
     toast: document.getElementById('control-toast'),
+    btnMenuMovil: document.getElementById('btn-control-menu-movil'),
+    menuMovil: document.getElementById('control-menu-movil'),
+    authAnio: document.getElementById('auth-anio-control'),
+    credOverlay: document.getElementById('control-cred-modal-overlay'),
+    credSubtitulo: document.getElementById('control-cred-modal-subtitulo'),
+    credLista: document.getElementById('control-cred-lista'),
+    credNuevaWrap: document.getElementById('control-cred-nueva-wrap'),
+    credUsuario: document.getElementById('control-cred-usuario'),
+    credPassword: document.getElementById('control-cred-password'),
+    credClave: document.getElementById('control-cred-clave'),
+    credCurl: document.getElementById('control-cred-curl'),
+    credCurlClave: document.getElementById('control-cred-curl-clave'),
+    credSwaggerUrl: document.getElementById('control-cred-swagger-url'),
+    credSwaggerLink: document.getElementById('control-cred-swagger-link'),
+    credSwaggerControlLink: document.getElementById('control-cred-swagger-control-link'),
+    credError: document.getElementById('control-cred-error'),
+    credBtnGenerar: document.getElementById('control-cred-btn-generar'),
+    credBtnRotar: document.getElementById('control-cred-btn-rotar'),
+    credBtnRevocar: document.getElementById('control-cred-btn-revocar'),
+    credBtnCerrar: document.getElementById('control-cred-btn-cerrar'),
+    credBtnCopiarUsuario: document.getElementById('control-cred-btn-copiar-usuario'),
+    credBtnCopiarPass: document.getElementById('control-cred-btn-copiar-pass'),
+    credBtnCopiarClave: document.getElementById('control-cred-btn-copiar-clave'),
     confirmOverlay: document.getElementById('control-confirm-modal-overlay'),
     confirmTitle: document.getElementById('control-confirm-modal-title'),
     confirmMensaje: document.getElementById('control-confirm-modal-mensaje'),
@@ -309,9 +332,10 @@
       const contenedorAcciones = document.createElement('div');
       contenedorAcciones.className = 'admin-row-actions';
 
+      // Iconos compactos 30×30 con tooltip (mismo patrón que admin Usuarios — PROJECT_STATE.md:78)
       if (t.estado === 'activo') {
         contenedorAcciones.appendChild(
-          crearBotonAccion('btn-eliminar', 'Suspender', () =>
+          crearBotonAccion('btn-icono-accion', 'Suspender', 'M19 14v-4M5 14v-4M12 3v18', () =>
             confirmarAccion({
               titulo: '¿Suspender este tenant?',
               mensaje: `"${t.nombre_empresa}" (${t.slug}) dejará de ser accesible hasta que lo reactives. No se borra ningún dato.`,
@@ -324,7 +348,7 @@
 
       if (t.estado === 'suspendido' || t.estado === 'baja') {
         contenedorAcciones.appendChild(
-          crearBotonAccion('btn-restaurar', 'Reactivar', () =>
+          crearBotonAccion('btn-icono-accion', 'Reactivar', 'M5 12h14M12 5l7 7-7 7', () =>
             confirmarAccion({
               titulo: '¿Reactivar este tenant?',
               mensaje: `"${t.nombre_empresa}" (${t.slug}) volverá a ser accesible de inmediato.`,
@@ -337,7 +361,7 @@
 
       if (t.estado === 'activo' || t.estado === 'suspendido') {
         contenedorAcciones.appendChild(
-          crearBotonAccion('btn-eliminar-permanente', 'Dar de baja', () =>
+          crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Dar de baja', 'M19 7l-8.5 8.5-5-5', () =>
             confirmarAccion({
               titulo: '¿Dar de baja este tenant?',
               mensaje: `"${t.nombre_empresa}" (${t.slug}) dejará de ser accesible. No se borra su base de datos ni sus archivos — puedes reactivarlo después desde aquí mismo.`,
@@ -349,7 +373,12 @@
       }
 
       contenedorAcciones.appendChild(
-        crearBotonAccion('btn-editar', 'Editar', () => abrirEdicion(t))
+        crearBotonAccion('btn-icono-accion', 'Editar', 'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z', () => abrirEdicion(t))
+      );
+
+      // Credenciales API (para uso en Swagger y consumo directo) — especifica para uso de las APIs por empresa
+      contenedorAcciones.appendChild(
+        crearBotonAccion('btn-icono-accion', 'Credenciales API', 'M12 11V9a3 3 0 00-6 0v2m-3 0h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2zM12 15v2', () => abrirCredenciales(t))
       );
 
       celdaAcciones.appendChild(contenedorAcciones);
@@ -357,11 +386,15 @@
     });
   }
 
-  function crearBotonAccion(clase, texto, onClick) {
+  function crearBotonAccion(clase, texto, iconoPath, onClick) {
+    // Soporte dual: crearBotonAccion('btn-editar','Editar',fn) viejo → icono fallback
+    if (typeof iconoPath === 'function') { onClick = iconoPath; iconoPath = 'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z'; }
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = clase;
-    btn.textContent = texto;
+    btn.setAttribute('data-tooltip', texto);
+    btn.setAttribute('aria-label', texto);
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${iconoPath}"/></svg>`;
     btn.addEventListener('click', onClick);
     return btn;
   }
@@ -1185,6 +1218,134 @@
         }
       },
     });
+  });
+
+  // ---------- Menú móvil (mismo patrón que admin) ----------
+  if (els.btnMenuMovil && els.menuMovil) {
+    els.btnMenuMovil.addEventListener('click', () => {
+      els.menuMovil.hidden = !els.menuMovil.hidden;
+    });
+    els.menuMovil.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-vista]');
+      if (btn) els.menuMovil.hidden = true;
+    });
+  }
+  if (els.authAnio) els.authAnio.textContent = String(new Date().getFullYear());
+
+  // ---------- Credenciales API por empresa (para uso en Swagger y consumo directo) ----------
+  let credTenantActual = null;
+  let credActualLista = [];
+
+  function actualizarCredCurl(usuario, password, slug, clave) {
+    const base = window.location.origin;
+    const url = `${base}/${slug}/api/admin/registros`;
+    const curl = `curl -u "${usuario}:${password}" "${url}"`;
+    if (els.credCurl) els.credCurl.textContent = curl;
+    if (clave && els.credCurlClave) {
+      els.credCurlClave.textContent = `curl -H "X-API-Key: ${clave}" "${url}"\n# o como cookie: curl -b "api_key=${clave}" "${url}"\n# o como query:  curl "${url}?api_key=${clave}"`;
+    }
+    if (els.credSwaggerUrl) els.credSwaggerUrl.textContent = `${base}/${slug}/api/...`;
+    if (els.credSwaggerLink) els.credSwaggerLink.href = `${base}/api/docs/`;
+    if (els.credSwaggerControlLink) els.credSwaggerControlLink.href = `${base}/api/control/docs/`;
+  }
+
+  async function cargarCredenciales() {
+    if (!credTenantActual) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    els.credError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(credTenantActual.slug)}/credenciales`, { headers: { Authorization: authHeader } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { els.credError.textContent = data.error || 'No se pudo cargar.'; return; }
+      credActualLista = data.credenciales || [];
+      renderCredLista();
+    } catch (_) { els.credError.textContent = 'No se pudo conectar.'; }
+  }
+
+  function renderCredLista() {
+    if (!els.credLista) return;
+    if (credActualLista.length === 0) {
+      els.credLista.innerHTML = '<p class="admin-empty" style="display:block">Sin credencial activa. Genera una para uso en Swagger/APIs.</p>';
+      els.credBtnGenerar.hidden = false;
+      els.credBtnRotar.hidden = true;
+      els.credBtnRevocar.hidden = true;
+      return;
+    }
+    const c = credActualLista[0];
+    els.credLista.innerHTML = `<table class="admin-table" style="min-width:0"><thead><tr><th>Usuario API</th><th>Estado</th><th>Creado</th></tr></thead><tbody><tr><td><code>${escapeHtml(c.api_usuario)}</code></td><td>${c.activo ? 'Activa' : 'Revocada'}</td><td>${escapeHtml(formatFecha(c.creado_en))}</td></tr></tbody></table><p class="field-hint">Usa este usuario/password en <b>Swagger → Authorize (basicAuth)</b> o en <code>curl -u usuario:password</code> contra <code>/${escapeHtml(credTenantActual.slug)}/api/*</code>. Valida solo para esa empresa.</p>`;
+    els.credBtnGenerar.hidden = true;
+    els.credBtnRotar.hidden = false;
+    els.credBtnRevocar.hidden = false;
+  }
+
+  function abrirCredenciales(tenant) {
+    credTenantActual = tenant;
+    credActualLista = [];
+    els.credSubtitulo.textContent = `${tenant.nombre_empresa} (${tenant.slug}) — credencial para uso de las APIs (Basic + clave API)`;
+    els.credNuevaWrap.hidden = true;
+    els.credUsuario.value = '';
+    els.credPassword.value = '';
+    if (els.credClave) els.credClave.value = '';
+    els.credError.textContent = '';
+    els.credOverlay.hidden = false;
+    cargarCredenciales();
+  }
+  function cerrarCredenciales() { els.credOverlay.hidden = true; credTenantActual = null; }
+  if (els.credBtnCerrar) els.credBtnCerrar.addEventListener('click', cerrarCredenciales);
+  if (els.credOverlay) els.credOverlay.addEventListener('click', (e) => { if (e.target === els.credOverlay) cerrarCredenciales(); });
+  if (els.credBtnCopiarUsuario) els.credBtnCopiarUsuario.addEventListener('click', () => { if (els.credUsuario.value) { navigator.clipboard.writeText(els.credUsuario.value); showToast('Usuario copiado'); } });
+  if (els.credBtnCopiarPass) els.credBtnCopiarPass.addEventListener('click', () => { if (els.credPassword.value) { navigator.clipboard.writeText(els.credPassword.value); showToast('Contraseña copiada'); } });
+  if (els.credBtnCopiarClave) els.credBtnCopiarClave.addEventListener('click', () => { if (els.credClave && els.credClave.value) { navigator.clipboard.writeText(els.credClave.value); showToast('Clave API copiada'); } });
+
+  if (els.credBtnGenerar) els.credBtnGenerar.addEventListener('click', async () => {
+    const authHeader = getAuthHeader(); if (!authHeader || !credTenantActual) return;
+    els.credError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(credTenantActual.slug)}/credenciales`, { method: 'POST', headers: { Authorization: authHeader } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { els.credError.textContent = data.error || 'No se pudo generar.'; return; }
+      const c = data.credencial;
+      els.credUsuario.value = c.api_usuario;
+      els.credPassword.value = c.password_plano;
+      if (els.credClave) els.credClave.value = c.clave_api || '';
+      els.credNuevaWrap.hidden = false;
+      actualizarCredCurl(c.api_usuario, c.password_plano, credTenantActual.slug, c.clave_api);
+      showToast('Credencial API generada — copia la contraseña y clave ahora');
+      await cargarCredenciales();
+    } catch (_) { els.credError.textContent = 'No se pudo conectar.'; }
+  });
+
+  if (els.credBtnRotar) els.credBtnRotar.addEventListener('click', async () => {
+    if (!credActualLista[0] || !credTenantActual) return;
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(credTenantActual.slug)}/credenciales/${credActualLista[0].id}/rotar`, { method: 'POST', headers: { Authorization: authHeader } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { els.credError.textContent = data.error || 'No se pudo rotar.'; return; }
+      const c = data.credencial;
+      els.credUsuario.value = c.api_usuario || credActualLista[0].api_usuario;
+      els.credPassword.value = c.password_plano;
+      if (els.credClave) els.credClave.value = c.clave_api || '';
+      els.credNuevaWrap.hidden = false;
+      actualizarCredCurl(els.credUsuario.value, c.password_plano, credTenantActual.slug, c.clave_api);
+      showToast('Contraseña y clave rotadas — copia las nuevas');
+      await cargarCredenciales();
+    } catch (_) { els.credError.textContent = 'No se pudo conectar.'; }
+  });
+
+  if (els.credBtnRevocar) els.credBtnRevocar.addEventListener('click', async () => {
+    if (!credActualLista[0] || !credTenantActual) return;
+    if (!confirm('¿Revocar esta credencial API? Dejará de funcionar inmediatamente.')) return;
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(credTenantActual.slug)}/credenciales/${credActualLista[0].id}`, { method: 'DELETE', headers: { Authorization: authHeader } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { els.credError.textContent = data.error || 'No se pudo revocar.'; return; }
+      showToast('Credencial revocada');
+      els.credNuevaWrap.hidden = true;
+      await cargarCredenciales();
+    } catch (_) { els.credError.textContent = 'No se pudo conectar.'; }
   });
 
   // ---------- Inicialización ----------

@@ -268,6 +268,16 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   el 2026-08-18, los 53 commits previos quedaron huérfanos, la rama
   `prototipo` del remote sigue intacta). No asumir `origin` como destino
   de publicación sin verificar antes.
+- **Datos de prueba históricos + serie mensual de ~6 meses (ver
+   PROJECT_STATE.md punto 134, 2026-08-23)**: BD sembrada con 175 ventas +
+   85 tickets 'listo' + 86 gastos marcados (mar–ago, script reproducible
+   `backend/scripts/sembrar-datos-prueba.js`); retención de tickets subida
+   a 365 días; `server.js` amplía la serie del Resumen financiero a ~6
+   meses (`inicioSerie`). Rebuild del backend ejecutado y verificado por
+   HTTP (serie mar–ago + proyección Sep/Oct activa) una vez que la sesión
+   paralela completó "Categorías editables" con la suite en verde
+   (584/584).
+- **PENDIENTE — Cuentas por cobrar (ver PROJECT_STATE.md punto 138, 2026-08-24)**: a pedido del usuario, toda venta es por defecto "pagada" + opción "pendiente de pago" gestionada en nueva vista "Cuentas por cobrar" (no existe). Propuesta UX/UI documentada, en espera de confirmación explícita — **cero código tocado**. Ventas: radio Pagada (default verde) / Pendiente (ámbar) en el modal que revela Vencimiento + Notas; CxC entre Ventas y Gastos con 4 KPIs y tabla con badges ⏳/🔴/✅ + Registrar cobro (abonos, `monto <= saldo`). Modelo propuesto `estado_pago/monto_cobrado/fecha_vencimiento`. No avanzar sin aprobación.
 
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.

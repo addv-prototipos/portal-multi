@@ -364,6 +364,13 @@
     gastosModalConceptoContador: document.getElementById('gastos-modal-concepto-contador'),
     gastosModalProveedor: document.getElementById('gastos-modal-proveedor'),
     gastosModalCategoria: document.getElementById('gastos-modal-categoria'),
+    gastosModalCategoriaField: document.getElementById('gastos-modal-categoria-field'),
+    btnGastosCategoriasToggle: document.getElementById('btn-gastos-categorias-toggle'),
+    gastosCategoriasPanel: document.getElementById('gastos-categorias-panel'),
+    gastosCategoriasLista: document.getElementById('gastos-categorias-lista'),
+    gastosCategoriaNuevaInput: document.getElementById('gastos-categoria-nueva-input'),
+    btnGastosCategoriaAgregar: document.getElementById('btn-gastos-categoria-agregar'),
+    errorGastosCategoriaNueva: document.getElementById('error-gastos-categoria-nueva'),
     gastosModalMonto: document.getElementById('gastos-modal-monto'),
     gastosModalIvaIncluido: document.getElementById('gastos-modal-iva-incluido'),
     btnGastosModalConFactura: document.getElementById('btn-gastos-modal-con-factura'),
@@ -714,20 +721,12 @@
   const COLUMNAS_GASTOS_STORAGE_KEY = 'admin_gastos_columnas_visibles';
   const ANCHOS_GASTOS_STORAGE_KEY = 'admin_gastos_anchos_columnas';
 
-  // Categorías de gasto — lista cerrada, mapea el slug (lo que guarda la
-  // base de datos) a la etiqueta que se muestra en la interfaz.
-  const CATEGORIAS_GASTOS = {
-    renta: 'Renta',
-    nomina: 'Nómina',
-    software: 'Software',
-    hosting: 'Hosting y dominio',
-    servicios: 'Servicios',
-    papeleria: 'Papelería',
-    combustible: 'Combustible',
-    viaticos: 'Viáticos',
-    publicidad: 'Publicidad',
-    otro: 'Otro',
-  };
+  // Categorías de gasto — EDITABLES desde el propio popup de "Registrar
+  // gasto" (ver PROJECT_STATE.md, segmento "Categorías editables"); ya no
+  // es una lista cerrada en código, vive en `state.categoriasGastos`
+  // (cargada de GET /api/admin/gastos/categorias). "Otro" llega marcada
+  // `protegida` desde el servidor y no se puede renombrar ni borrar.
+  let categoriaGastoEditandoId = null;
 
   // Guarda todos los registros cargados del servidor para poder filtrarlos
   // en el cliente sin volver a pedirlos cada vez que el usuario escribe.
@@ -736,6 +735,7 @@
     vista: 'activos', // 'activos' | 'papelera' (constancias)
     vistaTickets: 'activos', // 'activos' | 'papelera' (tickets) — estado separado, es otra tabla
     vistaGastos: 'activos', // 'activos' | 'papelera' (gastos) — estado separado, es otra tabla
+    categoriasGastos: [], // { id, slug, etiqueta, activa, protegida, tieneGastos }
   };
 
   function showToast(message, isError = false) {
@@ -939,6 +939,18 @@
   // de órdenes registradas.
   function formatearMoneda(valor) {
     return Number(valor).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // Cifra compacta ($12.4k / $1.2M) para las etiquetas dentro de las
+  // gráficas de línea de Resumen financiero (Utilidad neta mensual /
+  // Proyección de ventas) — el monto completo con 2 decimales no cabe
+  // arriba de cada punto cuando hay hasta 6 meses en pantalla.
+  function formatearMonedaCompacta(valor) {
+    const signo = valor < 0 ? '-' : '';
+    const abs = Math.abs(Number(valor));
+    if (abs >= 1e6) return `${signo}$${(abs / 1e6).toFixed(1)}M`;
+    if (abs >= 1e3) return `${signo}$${(abs / 1e3).toFixed(1)}k`;
+    return `${signo}$${Math.round(abs)}`;
   }
 
   // Conecta el auto-formato a un <input>, preservando la posición del
@@ -3495,7 +3507,12 @@
     // (CLS) — por eso va en paralelo a la carga de datos, no después.
     cargarPreferenciasDashboard();
   }
-    if (vista === 'gastos') cargarGastos();
+    if (vista === 'gastos') {
+      (async () => {
+        await cargarCategoriasGastos();
+        cargarGastos();
+      })();
+    }
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'configuraciones') {
       cargarConfigCampos();
@@ -5925,20 +5942,212 @@
   }
 
   function etiquetaCategoriaGasto(slug) {
-    return CATEGORIAS_GASTOS[slug] || slug || '—';
+    const cat = state.categoriasGastos.find((c) => c.slug === slug);
+    return (cat && cat.etiqueta) || slug || '—';
   }
 
-  // Llena los dos desplegables de categorías (filtro de la tabla y
-  // selector del modal) con la lista cerrada definida arriba, sin pisar
-  // la selección que el usuario ya tenga hecha en el filtro.
+  // Llena el filtro de categoría de la tabla con TODAS las categorías
+  // (activas e inactivas — un gasto viejo puede seguir usando una ya
+  // desactivada y el filtro debe poder encontrarlo), sin pisar la
+  // selección que el usuario ya tenga hecha.
   function llenarSelectsCategoriaGasto() {
-    const opciones = Object.entries(CATEGORIAS_GASTOS)
-      .map(([slug, etiqueta]) => `<option value="${slug}">${escapeHtml(etiqueta)}</option>`)
+    const opciones = state.categoriasGastos
+      .map((c) => `<option value="${c.slug}">${escapeHtml(c.etiqueta)}${c.activa ? '' : ' (inactiva)'}</option>`)
       .join('');
     const seleccionFiltro = els.gastosFiltroCategoria.value;
     els.gastosFiltroCategoria.innerHTML = `<option value="">Todas</option>${opciones}`;
     els.gastosFiltroCategoria.value = seleccionFiltro;
-    els.gastosModalCategoria.innerHTML = opciones;
+  }
+
+  // El <select> de ALTA del modal solo ofrece categorías activas — salvo
+  // que se esté editando un gasto cuya categoría ya se desactivó, en cuyo
+  // caso se agrega igual para no perder/cambiar el valor guardado.
+  function poblarSelectModalCategoria(categoriaActual) {
+    const lista = state.categoriasGastos.filter((c) => c.activa || c.slug === categoriaActual);
+    els.gastosModalCategoria.innerHTML = lista
+      .map((c) => `<option value="${c.slug}">${escapeHtml(c.etiqueta)}${c.activa ? '' : ' (inactiva)'}</option>`)
+      .join('');
+  }
+
+  async function cargarCategoriasGastos() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/categorias`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.categorias)) {
+        state.categoriasGastos = data.categorias;
+        llenarSelectsCategoriaGasto();
+        poblarSelectModalCategoria(gastoModalEditando ? gastoModalEditando.categoria : null);
+        renderPanelCategoriasGastos();
+      }
+    } catch (err) {
+      // Silencioso: los selects se quedan con la última lista cargada.
+    }
+  }
+
+  function filaCategoriaGastoPanel(c) {
+    if (c.protegida) {
+      return `<div class="gastos-categoria-fila gastos-categoria-fila-protegida" data-id="${c.id}">
+        <span class="gastos-categoria-nombre">${escapeHtml(c.etiqueta)}</span>
+        <span class="gastos-categoria-tag">Protegida</span>
+      </div>`;
+    }
+    if (categoriaGastoEditandoId === c.id) {
+      return `<div class="gastos-categoria-fila" data-id="${c.id}">
+        <input type="text" class="gastos-categoria-input-editar" value="${escapeHtml(c.etiqueta)}" maxlength="100" />
+        <button type="button" class="btn-categoria-accion btn-categoria-guardar" data-id="${c.id}">Guardar</button>
+        <button type="button" class="btn-categoria-accion gastos-categoria-cancelar">Cancelar</button>
+      </div>`;
+    }
+    return `<div class="gastos-categoria-fila" data-id="${c.id}">
+      <span class="gastos-categoria-nombre">${escapeHtml(c.etiqueta)}${c.activa ? '' : ' <em>(inactiva)</em>'}</span>
+      ${c.activa ? '' : `<button type="button" class="btn-categoria-accion gastos-categoria-reactivar" data-id="${c.id}">Reactivar</button>`}
+      <button type="button" class="btn-icon gastos-categoria-renombrar" data-id="${c.id}" aria-label="Renombrar ${escapeHtml(c.etiqueta)}">✏️</button>
+      ${c.tieneGastos ? '' : `<button type="button" class="btn-icon gastos-categoria-borrar" data-id="${c.id}" aria-label="Eliminar ${escapeHtml(c.etiqueta)}">🗑️</button>`}
+    </div>`;
+  }
+
+  function renderPanelCategoriasGastos() {
+    if (!els.gastosCategoriasLista) return;
+    els.gastosCategoriasLista.innerHTML = state.categoriasGastos.map(filaCategoriaGastoPanel).join('')
+      || '<p class="field-hint">Sin categorías.</p>';
+  }
+
+  function toggleCategoriasPanel() {
+    const abierto = els.gastosCategoriasPanel.hidden;
+    els.gastosCategoriasPanel.hidden = !abierto;
+    els.gastosModalCategoriaField.classList.toggle('is-categorias-abierto', abierto);
+    els.btnGastosCategoriasToggle.setAttribute('aria-expanded', String(abierto));
+    categoriaGastoEditandoId = null;
+    if (abierto) renderPanelCategoriasGastos();
+  }
+
+  async function renombrarCategoriaGastoPanel(id, etiqueta) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/categorias/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ etiqueta }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo renombrar la categoría.', true);
+        return;
+      }
+      categoriaGastoEditandoId = null;
+      await cargarCategoriasGastos();
+      cargarGastos();
+      showToast(data.mensaje || 'Categoría actualizada.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  async function reactivarCategoriaGastoPanel(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/categorias/${id}/reactivar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo reactivar la categoría.', true);
+        return;
+      }
+      await cargarCategoriasGastos();
+      showToast(data.mensaje || 'Categoría reactivada.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  async function eliminarCategoriaGastoPanel(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/categorias/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo eliminar la categoría.', true);
+        return;
+      }
+      await cargarCategoriasGastos();
+      showToast(data.mensaje || 'Categoría eliminada.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  async function agregarCategoriaGastoPanel() {
+    const etiqueta = els.gastosCategoriaNuevaInput.value.trim();
+    els.errorGastosCategoriaNueva.textContent = '';
+    if (!etiqueta) {
+      els.errorGastosCategoriaNueva.textContent = 'El nombre de la categoría es obligatorio.';
+      return;
+    }
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/categorias`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ etiqueta }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        els.errorGastosCategoriaNueva.textContent = data.error || 'No se pudo crear la categoría.';
+        return;
+      }
+      els.gastosCategoriaNuevaInput.value = '';
+      await cargarCategoriasGastos();
+      showToast('Categoría creada.');
+    } catch (err) {
+      els.errorGastosCategoriaNueva.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function confirmarEliminarCategoriaGasto(id, nombre) {
+    abrirConfirmacion({
+      titulo: 'Eliminar categoría',
+      mensaje: `¿Eliminar la categoría "${nombre}"? Esta acción no se puede deshacer.`,
+      textoBoton: 'Eliminar',
+      onConfirmar: () => eliminarCategoriaGastoPanel(id),
+    });
   }
 
   // ---------- Vista Resumen financiero ----------
@@ -5978,7 +6187,7 @@
     { id: 'ventas-facturado-gastos', titulo: 'Ventas vs Facturado vs Gastos' },
     { id: 'gastos-categoria', titulo: 'Distribución de gastos por categoría' },
     { id: 'facturacion', titulo: 'Ventas facturadas vs sin facturar' },
-    { id: 'balance-acumulado', titulo: 'Balance acumulado' },
+    { id: 'balance-acumulado', titulo: 'Utilidad neta mensual' },
     { id: 'proyeccion', titulo: 'Proyección de ventas' },
     { id: 'proveedores', titulo: 'Top proveedores de gasto' },
   ];
@@ -6381,7 +6590,7 @@
     });
 
     renderResumenFinUtilidad(mes);
-    renderResumenFinBalanceAcumulado(serie);
+    renderResumenFinUtilidadMensual(serie);
     renderResumenFinProyeccion(serie, data.proyeccion_ventas);
     renderResumenFinGastosCategoria(data.gastos_por_categoria || []);
     renderResumenFinFacturacion(mes);
@@ -6454,10 +6663,41 @@
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
-  // Balance acumulado (Facturado − Gastos, mes a mes, sumado sobre la
-  // serie) — muestra si la tendencia del negocio es positiva o negativa
-  // en el tiempo, no solo el corte del mes actual.
-  function renderResumenFinBalanceAcumulado(serie) {
+  // Decide, punto por punto, si su cifra debe alejarse más de lo normal
+  // para no encimarse con la del vecino anterior. Compara el ANCHO DE
+  // TEXTO estimado (por cantidad de caracteres, ya que SVG no permite
+  // medir el ancho real antes de insertarlo) contra el espacio horizontal
+  // real entre puntos — a diferencia de alternar a ciegas por índice
+  // par/impar (que solo separaba bien en zigzag; con varios meses
+  // seguidos subiendo juntos, ej. "Ago→Sep→Oct" en Proyección de ventas,
+  // el hueco horizontal entre puntos resultó MENOR que el ancho de las
+  // dos cifras vecinas, así que igual se encimaban). Si dos cifras
+  // consecutivas no caben una junto a otra, la segunda se aleja más de
+  // su punto; si la anterior ya se alejó, esta se queda cerca (el hueco
+  // vertical que dejó la anterior ya alcanza).
+  function calcularEtiquetasLejos(puntos, textos, anchoPorCaracter = 6) {
+    const resultado = [false];
+    for (let i = 1; i < puntos.length; i++) {
+      const medioAnchoPrevio = (textos[i - 1].length * anchoPorCaracter) / 2;
+      const medioAnchoActual = (textos[i].length * anchoPorCaracter) / 2;
+      const huecoNecesario = medioAnchoPrevio + medioAnchoActual;
+      const huecoReal = puntos[i].x - puntos[i - 1].x;
+      const cerca = huecoReal < huecoNecesario;
+      resultado.push(cerca && !resultado[i - 1]);
+    }
+    return resultado;
+  }
+
+  // Utilidad neta mensual (ver PROJECT_STATE.md) — cada mes por separado,
+  // NO acumulado (antes esta tarjeta era "Balance acumulado", suma
+  // corrida de Facturado-Gastos). Usa serie[i].utilidad_neta, calculado
+  // en el backend con la MISMA fórmula que la tarjeta "Utilidad neta del
+  // mes" (subtotal de ventas sin IVA - gastos), para que el último punto
+  // de esta gráfica siempre coincida con ese KPI. IDs internos
+  // (resumen-fin-balance-*, data-dashboard-id="balance-acumulado") se
+  // quedan igual a propósito, para no invalidar el layout ya guardado
+  // por un usuario en el modo dashboard personalizable (punto 119).
+  function renderResumenFinUtilidadMensual(serie) {
     const svg = els.resumenFinBalanceSvg;
     svg.innerHTML = '';
     els.resumenFinBalanceEtiquetas.innerHTML = '';
@@ -6467,9 +6707,14 @@
     }
     els.resumenFinBalanceEmpty.hidden = true;
 
-    let acumulado = 0;
-    const valores = serie.map((m) => (acumulado += m.facturado - m.gastos));
-    const { puntos, yCero } = construirPuntosLinea(valores);
+    const valores = serie.map((m) => m.utilidad_neta);
+    // pad=22 (en vez del default 14): dos meses seguidos que zigzaguean
+    // (uno arriba, uno abajo) quedan más separados en Y, así sus cifras
+    // no se encima — reportado por el usuario ("se distorsionan") con la
+    // separación por defecto en series de 6+ meses.
+    const { puntos, yCero } = construirPuntosLinea(valores, 300, 120, 22);
+    const textosEtiquetas = valores.map((v) => formatearMonedaCompacta(v));
+    const etiquetasLejos = calcularEtiquetasLejos(puntos, textosEtiquetas);
 
     const lineaCero = document.createElementNS(SVG_NS, 'line');
     lineaCero.setAttribute('x1', '0');
@@ -6487,15 +6732,36 @@
     }
 
     puntos.forEach((p, i) => {
+      // Punto y cifra en verde/rojo según el signo del mes — mismo
+      // criterio que el número grande de "Utilidad neta del mes"
+      // (.resumen-fin-utilidad-valor.es-positiva/es-negativa).
+      const esPositiva = valores[i] >= 0;
+      const claseSigno = esPositiva ? 'es-positiva' : 'es-negativa';
+
       const circle = document.createElementNS(SVG_NS, 'circle');
       circle.setAttribute('cx', String(p.x));
       circle.setAttribute('cy', String(p.y));
       circle.setAttribute('r', '3.5');
-      circle.setAttribute('class', 'resumen-fin-linea-punto resumen-fin-linea-punto-balance');
+      circle.setAttribute('class', `resumen-fin-linea-punto resumen-fin-linea-punto-${esPositiva ? 'positiva' : 'negativa'}`);
       const titulo = document.createElementNS(SVG_NS, 'title');
       titulo.textContent = `${serie[i].mes}: $${formatearMoneda(valores[i])}`;
       circle.appendChild(titulo);
       svg.appendChild(circle);
+
+      // Cifra compacta arriba del punto (abajo si es negativo, para no
+      // encimarse con la línea de referencia en cero) — el primer/último
+      // punto se alinean hacia adentro para no salirse del viewBox.
+      // calcularEtiquetasLejos() decide si esta cifra necesita despegarse
+      // más de su punto para no encimarse con la del vecino anterior.
+      const lejos = etiquetasLejos[i];
+      const anclaje = i === 0 ? 'start' : i === puntos.length - 1 ? 'end' : 'middle';
+      const texto = document.createElementNS(SVG_NS, 'text');
+      texto.setAttribute('x', String(p.x));
+      texto.setAttribute('y', String(esPositiva ? p.y - (lejos ? 22 : 9) : p.y + (lejos ? 29 : 16)));
+      texto.setAttribute('text-anchor', anclaje);
+      texto.setAttribute('class', `resumen-fin-linea-etiqueta-valor ${claseSigno}`);
+      texto.textContent = textosEtiquetas[i];
+      svg.appendChild(texto);
     });
 
     els.resumenFinBalanceEtiquetas.innerHTML = serie.map((m) => `<span>${escapeHtml(m.mes)}</span>`).join('');
@@ -6524,7 +6790,10 @@
     const meses = [...serie.map((m) => m.mes), ...(proyeccion || []).map((m) => m.mes)];
     const valores = [...serie.map((m) => m.ventas), ...(proyeccion || []).map((m) => m.ventas)];
     const cantidadReal = serie.length;
-    const { puntos } = construirPuntosLinea(valores);
+    // Mismo pad=22 que "Utilidad neta mensual" — más aire vertical para
+    // que las cifras de meses zigzagueantes no se encimen entre sí.
+    const { puntos } = construirPuntosLinea(valores, 300, 120, 22);
+    const etiquetasLejos = calcularEtiquetasLejos(puntos);
 
     const trazarSegmento = (desde, hasta, clase) => {
       const sub = puntos.slice(desde, hasta + 1);
@@ -6554,6 +6823,23 @@
       titulo.textContent = `${meses[i]}${esProyectado ? ' (proyectado)' : ''}: $${formatearMoneda(valores[i])}`;
       circle.appendChild(titulo);
       svg.appendChild(circle);
+
+      // Cifra compacta arriba de cada punto — mismo color que el punto
+      // (navy real / naranja proyectado), siempre son ventas (nunca
+      // negativas), así que siempre va arriba, sin variante "negativa".
+      // Mismo calcularEtiquetasLejos() que "Utilidad neta mensual" — se
+      // aleja del punto solo cuando de verdad quedó cerca del vecino
+      // anterior (cubre tanto zigzag como una racha de meses seguidos
+      // subiendo/bajando juntos, ej. Ago→Sep→Oct).
+      const lejos = etiquetasLejos[i];
+      const anclaje = i === 0 ? 'start' : i === puntos.length - 1 ? 'end' : 'middle';
+      const texto = document.createElementNS(SVG_NS, 'text');
+      texto.setAttribute('x', String(p.x));
+      texto.setAttribute('y', String(p.y - (lejos ? 18 : 9)));
+      texto.setAttribute('text-anchor', anclaje);
+      texto.setAttribute('class', `resumen-fin-linea-etiqueta-valor ${esProyectado ? 'es-proyectado' : 'es-real'}`);
+      texto.textContent = formatearMonedaCompacta(valores[i]);
+      svg.appendChild(texto);
     });
 
     els.resumenFinProyeccionEtiquetas.innerHTML = meses
@@ -7046,6 +7332,7 @@
     els.gastosModalConcepto.value = gasto ? gasto.concepto : '';
     els.gastosModalConceptoContador.textContent = `${els.gastosModalConcepto.value.length} / 200`;
     els.gastosModalProveedor.value = gasto ? gasto.proveedor || '' : '';
+    poblarSelectModalCategoria(gasto ? gasto.categoria : null);
     els.gastosModalCategoria.value = gasto ? gasto.categoria : '';
     els.gastosModalMonto.value = gasto ? gasto.monto.toFixed(2) : '';
     els.gastosModalIvaIncluido.checked = gasto ? gasto.iva_incluido : false;
@@ -7062,6 +7349,11 @@
     setFieldError('gastos-modal-comprobante', '');
     setFieldError('gastos-modal-notas', '');
     els.gastosModalErrorGeneral.textContent = '';
+
+    els.gastosCategoriasPanel.hidden = true;
+    els.gastosModalCategoriaField.classList.remove('is-categorias-abierto');
+    els.btnGastosCategoriasToggle.setAttribute('aria-expanded', 'false');
+    categoriaGastoEditandoId = null;
 
     els.gastosModalOverlay.hidden = false;
     els.gastosModalFecha.focus();
@@ -7476,6 +7768,54 @@
   els.gastosBusqueda.addEventListener('input', debounce(() => cargarGastos(), 350));
   els.gastosModalConcepto.addEventListener('input', () => {
     els.gastosModalConceptoContador.textContent = `${els.gastosModalConcepto.value.length} / 200`;
+  });
+
+  els.btnGastosCategoriasToggle.addEventListener('click', toggleCategoriasPanel);
+  els.btnGastosCategoriaAgregar.addEventListener('click', agregarCategoriaGastoPanel);
+  els.gastosCategoriaNuevaInput.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      agregarCategoriaGastoPanel();
+    }
+  });
+  els.gastosCategoriasLista.addEventListener('click', (ev) => {
+    const btnRenombrar = ev.target.closest('.gastos-categoria-renombrar');
+    const btnGuardar = ev.target.closest('.btn-categoria-guardar');
+    const btnCancelar = ev.target.closest('.gastos-categoria-cancelar');
+    const btnBorrar = ev.target.closest('.gastos-categoria-borrar');
+    const btnReactivar = ev.target.closest('.gastos-categoria-reactivar');
+    if (btnReactivar) {
+      reactivarCategoriaGastoPanel(Number(btnReactivar.dataset.id));
+      return;
+    }
+    if (btnRenombrar) {
+      categoriaGastoEditandoId = Number(btnRenombrar.dataset.id);
+      renderPanelCategoriasGastos();
+      const input = els.gastosCategoriasLista.querySelector('.gastos-categoria-input-editar');
+      if (input) { input.focus(); input.select(); }
+      return;
+    }
+    if (btnCancelar) {
+      categoriaGastoEditandoId = null;
+      renderPanelCategoriasGastos();
+      return;
+    }
+    if (btnGuardar) {
+      const id = Number(btnGuardar.dataset.id);
+      const input = els.gastosCategoriasLista.querySelector('.gastos-categoria-input-editar');
+      const etiqueta = input ? input.value.trim() : '';
+      if (!etiqueta) {
+        showToast('El nombre de la categoría es obligatorio.', true);
+        return;
+      }
+      renombrarCategoriaGastoPanel(id, etiqueta);
+      return;
+    }
+    if (btnBorrar) {
+      const id = Number(btnBorrar.dataset.id);
+      const cat = state.categoriasGastos.find((c) => c.id === id);
+      confirmarEliminarCategoriaGasto(id, cat ? cat.etiqueta : 'esta categoría');
+    }
   });
   els.btnGastosModalConFactura.addEventListener('click', () => setGastoModalFactura(true));
   els.btnGastosModalSinFactura.addEventListener('click', () => setGastoModalFactura(false));

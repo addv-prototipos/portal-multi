@@ -1,11 +1,7 @@
 const { AsyncLocalStorage } = require('async_hooks');
 const mysql = require('mysql2/promise');
 const { hashPassword } = require('./utils/authUsuario');
-const {
-  CATEGORIAS_GASTOS,
-  CLAVE_CHECK_CATEGORIA_GASTOS,
-  clausulaCheckCategoria,
-} = require('./utils/gastos');
+const { CATEGORIAS_SEED, ETIQUETAS_SEED, SLUG_CATEGORIA_PROTEGIDA } = require('./utils/gastos');
 
 // Opciones de conexion compartidas por CUALQUIER pool que este modulo cree
 // (el de siempre, y cualquier pool de tenant que se agregue mas adelante) —
@@ -664,37 +660,70 @@ async function ensureSchema(db = pool) {
 
   // El CHECK de categoría se agrega aparte (mismo patrón que los demás
   // CHECK de este esquema) y se mantiene al día con la lista actual de
-  // backend/utils/gastos.js — si la restricción existe con la cláusula
-  // VIEJA (falta una categoría agregada después), se reemplaza. Sin este
-  // paso, una instalación ya desplegada se quedaría para siempre con la
-  // lista vieja y rechazaría la categoría nueva sin explicación aparente.
-  const [checksGastos] = await db.query(
+  // backend/utils/gastos.js. Migración: instalaciones de antes de este
+  // segmento tienen un CHECK `chk_gastos_categoria` fijando la lista —
+  // se quita si sigue existiendo, ya que la validación ahora vive en la
+  // tabla `categorias_gastos` de abajo, no en un CHECK estático.
+  const [checkViejoGastos] = await db.query(
     `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
      WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos'
-       AND CONSTRAINT_NAME = '${CLAVE_CHECK_CATEGORIA_GASTOS}'`
+       AND CONSTRAINT_NAME = 'chk_gastos_categoria'`
   );
-  if (checksGastos.length === 0) {
+  if (checkViejoGastos.length > 0) {
+    await db.query('ALTER TABLE gastos DROP CHECK chk_gastos_categoria');
+  }
+
+  // Categorías de gastos — EDITABLES desde el panel (ver PROJECT_STATE.md,
+  // segmento "Categorías editables"): antes era una lista cerrada en
+  // código + un CHECK de MySQL, ahora es esta tabla. `slug` es lo que
+  // sigue viviendo en `gastos.categoria` y NUNCA cambia una vez creado
+  // (renombrar una categoría solo actualiza `etiqueta`) — así un gasto ya
+  // guardado nunca queda huérfano de su categoría. `activa=0` es un
+  // borrado lógico ligero: la categoría deja de ofrecerse para altas
+  // NUEVAS pero los gastos que ya la usan la conservan tal cual (no hay
+  // papelera propia, a diferencia de gastos/tickets/constancias, porque
+  // no hay nada que "restaurar": solo se desactiva cuando ya tiene gastos
+  // asociados, nunca se borra de verdad en ese caso — ver
+  // POST/PUT/DELETE /api/admin/gastos/categorias en server.js).
+  // `protegida=1` (solo "otro") no se puede renombrar ni desactivar/
+  // borrar: es el color/etiqueta de respaldo de toda la gráfica de
+  // "Distribución de gastos por categoría" en Resumen financiero.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS categorias_gastos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(50) NOT NULL,
+      etiqueta VARCHAR(100) NOT NULL,
+      activa TINYINT(1) NOT NULL DEFAULT 1,
+      protegida TINYINT(1) NOT NULL DEFAULT 0,
+      orden INT NOT NULL DEFAULT 0,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_categorias_gastos_slug (slug)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Semilla idempotente: solo inserta los slugs que todavía no existan
+  // (una instalación ya usada puede tener gastos con estos 10 slugs, así
+  // que se siembran SIEMPRE con el mismo slug de antes — nunca se
+  // regeneran ni se tocan si ya existen).
+  const [slugsExistentes] = await db.query('SELECT slug FROM categorias_gastos');
+  const slugsYaSembrados = new Set(slugsExistentes.map((f) => f.slug));
+  const faltantes = CATEGORIAS_SEED.filter((slug) => !slugsYaSembrados.has(slug));
+  if (faltantes.length > 0) {
+    const ahoraSemilla = new Date();
+    const valores = faltantes.map((slug, indice) => [
+      slug,
+      ETIQUETAS_SEED[slug] || slug,
+      1,
+      slug === SLUG_CATEGORIA_PROTEGIDA ? 1 : 0,
+      CATEGORIAS_SEED.indexOf(slug),
+      ahoraSemilla,
+      ahoraSemilla,
+    ]);
     await db.query(
-      `ALTER TABLE gastos ADD CONSTRAINT ${CLAVE_CHECK_CATEGORIA_GASTOS}
-       CHECK (${clausulaCheckCategoria()})`
+      'INSERT INTO categorias_gastos (slug, etiqueta, activa, protegida, orden, creado_en, actualizado_en) VALUES ?',
+      [valores]
     );
-  } else {
-    const [definicionCheckGastos] = await db.query(
-      `SELECT CHECK_CLAUSE FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS
-       WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = '${CLAVE_CHECK_CATEGORIA_GASTOS}'`
-    );
-    const clausulaActualGastos = definicionCheckGastos[0] ? definicionCheckGastos[0].CHECK_CLAUSE : '';
-    const clausulaEsperadaGastos = clausulaCheckCategoria();
-    // Comparación por cantidad de categorías (los slugs son fijos y en
-    // orden): si cambió la lista, la cláusula guardada dejó de coincidir.
-    const contadorActual = (clausulaActualGastos.match(/'/g) || []).length / 2;
-    if (contadorActual !== CATEGORIAS_GASTOS.length || !clausulaActualGastos.includes(clausulaEsperadaGastos)) {
-      await db.query(`ALTER TABLE gastos DROP CHECK ${CLAVE_CHECK_CATEGORIA_GASTOS}`);
-      await db.query(
-        `ALTER TABLE gastos ADD CONSTRAINT ${CLAVE_CHECK_CATEGORIA_GASTOS}
-         CHECK (${clausulaEsperadaGastos})`
-      );
-    }
   }
 
   // Reportes: cada fila es UNA corrida de generación de reporte (ya sea

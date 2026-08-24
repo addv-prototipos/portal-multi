@@ -6,118 +6,152 @@
   <title>App de control | Portal de Facturación</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/auth.css" />
   <link rel="stylesheet" href="/admin.css" />
 </head>
 <body class="admin-body">
-  <!-- Pantalla de acceso -->
-  <div class="admin-login-screen" id="control-login-screen">
-    <div class="card admin-login-card">
-      <div class="brand admin-login-brand">
-        <span class="brand-mark" aria-hidden="true">FX</span>
-        <span class="brand-name">App de control</span>
-      </div>
-      <p class="panel-subtitle admin-login-subtitle">Acceso restringido a administradores de plataforma (perfil "super").</p>
-
-      <form id="control-form-login" novalidate>
-        <div class="field">
-          <label for="control-user">Usuario</label>
-          <input type="text" id="control-user" name="usuario" autocomplete="username" autofocus required />
-        </div>
-        <div class="field">
-          <label for="control-pass">Contraseña</label>
-          <div class="password-field">
-            <input type="password" id="control-pass" name="contrasena" autocomplete="current-password" required />
-            <button type="button" class="btn-toggle-pass" id="control-btn-toggle-pass" aria-label="Mostrar contraseña" aria-pressed="false">
-              <svg id="control-icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
-              </svg>
-            </button>
+  <!-- Pantalla de acceso — mismo auth-shell que /admin (split-screen CLARVO) -->
+  <div class="admin-login-screen auth-screen" id="control-login-screen">
+    <div class="auth-shell">
+      <aside class="auth-hero">
+        <!-- PENDIENTE branding: imagen debe decir "Clarvo Control by ADDV" (PROJECT_STATE.md:139).
+             Temporal: mismo branding.png de /admin hasta entregar PNG final. -->
+        <img class="auth-hero-branding" src="/assets/branding.png" alt="Clarvo Control by ADDV" />
+        <h2 class="auth-hero-headline">Control de plataforma — gestiona <span class="auth-hero-highlight">todas las empresas</span>.</h2>
+        <span class="auth-hero-divider" aria-hidden="true"></span>
+        <p class="auth-hero-copy">Alta, edición, suspensión y baja de tenants. Solo perfil super.</p>
+        <img class="auth-hero-decor" src="/assets/login-decoracion-marca.png" alt="" aria-hidden="true" loading="lazy" onerror="this.remove()" />
+        <p class="auth-hero-footer">© <span id="auth-anio-control"></span> Clarvo Control by ADDV. Todos los derechos reservados.</p>
+      </aside>
+      <div class="card auth-card admin-login-card">
+        <h1 id="control-login-title">Acceso control</h1>
+        <p class="panel-subtitle admin-login-subtitle">Solo administradores de plataforma (perfil “super”).</p>
+        <form id="control-form-login" novalidate>
+          <div class="field">
+            <label for="control-user">Usuario</label>
+            <input type="text" id="control-user" name="usuario" autocomplete="username" autofocus required />
           </div>
-        </div>
-        <p class="field-error" id="control-login-error" role="alert"></p>
-        <button type="submit" class="btn btn-primary btn-block" id="control-btn-login">
-          <span id="control-btn-login-label">Entrar</span>
-        </button>
-      </form>
-
-      <p class="admin-login-hint">Solo cuentas con perfil "super" (variable <code>ADMIN_USERS</code>) pueden entrar aquí. La cuenta de respaldo y los usuarios administrador/fiscal son exclusivos de <code>/admin</code>.</p>
+          <div class="field">
+            <label for="control-pass">Contraseña</label>
+            <div class="password-field">
+              <input type="password" id="control-pass" name="contrasena" autocomplete="current-password" required />
+              <button type="button" class="btn-toggle-pass" id="control-btn-toggle-pass" aria-label="Mostrar contraseña" aria-pressed="false">
+                <svg id="control-icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <p class="field-error" id="control-login-error" role="alert"></p>
+          <button type="submit" class="btn btn-primary btn-block" id="control-btn-login">
+            <span id="control-btn-login-label">Entrar</span>
+          </button>
+        </form>
+        <p class="admin-login-hint">Solo cuentas con perfil “super” (<code>ADMIN_USERS</code>) pueden entrar aquí. La cuenta de respaldo y los usuarios administrador/fiscal son exclusivos de <code>/admin</code>.</p>
+      </div>
     </div>
   </div>
 
-  <!-- App de control -->
+  <!-- App de control — shell con sidebar navy (misma identidad que /admin) -->
   <div class="admin-dashboard" id="control-dashboard" hidden>
-    <header class="admin-header">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">FX</span>
-        <span class="brand-name">App de control</span>
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-logo">
+        <!-- PENDIENTE: branding_bgo variant con texto "Clarvo Control by ADDV" -->
+        <img class="admin-sidebar-logo-img" src="/assets/branding_bgo.png" alt="Clarvo Control by ADDV" />
       </div>
-      <div class="admin-header-actions">
+      <button type="button" class="btn-menu-movil" id="btn-control-menu-movil" aria-label="Abrir menú">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke-width="2"/></svg>
+        <span>Menú</span>
+      </button>
+      <nav class="admin-sidebar-nav" role="tablist" aria-label="Vistas de control">
+        <button type="button" class="admin-vista-btn is-active" id="btn-vista-control-empresas" role="tab" aria-selected="true">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Empresas</span>
+        </button>
+      </nav>
+      <div class="admin-sidebar-footer">
+        <button type="button" class="admin-sidebar-logout" id="control-btn-logout" aria-label="Cerrar sesión">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Cerrar sesión</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="admin-content">
+      <header class="admin-header">
         <span class="admin-user-label" id="control-user-label"></span>
-        <button type="button" class="btn btn-secondary" id="control-btn-logout">Cerrar sesión</button>
-      </div>
-    </header>
+      </header>
 
-    <main class="admin-main">
-      <div class="admin-toolbar">
-        <div class="admin-toolbar-title">
-          <h1>Empresas (tenants)</h1>
+      <main class="admin-main">
+        <!-- Grid móvil — mismo patrón que admin (solo 1 card, pero mantiene tap target ≥44px) -->
+        <div id="control-menu-movil" class="admin-menu-movil" hidden>
+          <button type="button" class="admin-menu-movil-btn" data-vista="empresas">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+            <span>Empresas</span>
+          </button>
         </div>
-        <div class="admin-toolbar-right">
-          <span class="admin-count" id="control-count">0 tenants</span>
-          <select class="tickets-filtro-estatus" id="control-filtro-estado" aria-label="Filtrar por estado">
-            <option value="">Todos los estados</option>
-            <option value="provisioning">Provisionando</option>
-            <option value="activo">Activo</option>
-            <option value="suspendido">Suspendido</option>
-            <option value="baja">Baja</option>
-          </select>
-          <button type="button" class="btn btn-primary" id="control-btn-nueva-empresa">Nueva empresa</button>
-          <button type="button" class="btn btn-secondary" id="control-btn-refresh">Actualizar</button>
+
+        <div class="admin-toolbar">
+          <div class="admin-toolbar-title">
+            <h1>Empresas (tenants)</h1>
+          </div>
+          <div class="admin-toolbar-right">
+            <span class="admin-count" id="control-count">0 tenants</span>
+            <select class="tickets-filtro-estatus" id="control-filtro-estado" aria-label="Filtrar por estado">
+              <option value="">Todos los estados</option>
+              <option value="provisioning">Provisionando</option>
+              <option value="activo">Activo</option>
+              <option value="suspendido">Suspendido</option>
+              <option value="baja">Baja</option>
+            </select>
+            <button type="button" class="btn btn-primary" id="control-btn-nueva-empresa">Nueva empresa</button>
+            <button type="button" class="btn btn-secondary" id="control-btn-refresh">Actualizar</button>
+          </div>
         </div>
-      </div>
 
-      <div class="admin-search">
-        <svg class="admin-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/>
-          <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-        <input
-          type="search"
-          id="control-search-input"
-          class="admin-search-input"
-          placeholder="Buscar por slug o nombre de empresa…"
-          aria-label="Buscar tenants por slug o nombre de empresa"
-          autocomplete="off"
-        />
-        <button type="button" class="btn-icon admin-search-clear" id="control-btn-clear-search" aria-label="Limpiar búsqueda" hidden>✕</button>
-      </div>
+        <div class="admin-search">
+          <svg class="admin-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <input
+            type="search"
+            id="control-search-input"
+            class="admin-search-input"
+            placeholder="Buscar por slug o nombre de empresa…"
+            aria-label="Buscar tenants por slug o nombre de empresa"
+            autocomplete="off"
+          />
+          <button type="button" class="btn-icon admin-search-clear" id="control-btn-clear-search" aria-label="Limpiar búsqueda" hidden>✕</button>
+        </div>
 
-      <p class="field-error" id="control-error" role="alert"></p>
+        <p class="field-error" id="control-error" role="alert"></p>
 
-      <p class="admin-login-hint">
-        "Nueva empresa" solo registra la solicitud de alta (estado "Provisionando") — la base de datos física del tenant
-        se crea después con <code>backend/scripts/provisionar-tenant.js</code>, corrido a mano por un operador con acceso
-        root de MySQL. Ese script detecta la solicitud pendiente y la completa con los datos capturados aquí.
-      </p>
+        <p class="admin-login-hint">
+          "Nueva empresa" solo registra la solicitud de alta (estado "Provisionando") — la base de datos física del tenant
+          se crea después con <code>backend/scripts/provisionar-tenant.js</code>, corrido a mano por un operador con acceso
+          root de MySQL. Ese script detecta la solicitud pendiente y la completa con los datos capturados aquí.
+        </p>
 
-      <div class="admin-table-wrap">
-        <table class="admin-table" id="control-tabla-tenants">
-          <thead>
-            <tr>
-              <th>Slug</th>
-              <th>Empresa</th>
-              <th>Estado</th>
-              <th>Contacto</th>
-              <th>Creado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="control-table-body"></tbody>
-        </table>
-        <p class="admin-empty" id="control-empty" hidden>No hay tenants que coincidan con el filtro.</p>
-      </div>
-    </main>
+        <div class="admin-table-wrap">
+          <table class="admin-table" id="control-tabla-tenants">
+            <thead>
+              <tr>
+                <th>Slug</th>
+                <th>Empresa</th>
+                <th>Estado</th>
+                <th>Contacto</th>
+                <th>Creado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="control-table-body"></tbody>
+          </table>
+          <p class="admin-empty" id="control-empty" hidden>No hay tenants que coincidan con el filtro.</p>
+        </div>
+      </main>
+    </div>
   </div>
 
   <!-- Modal de confirmación genérico (suspender / reactivar / dar de baja) -->
@@ -513,6 +547,37 @@
   </div>
 
   <div class="toast" id="control-toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Modal Credenciales API por empresa (para uso en Swagger y consumo directo) -->
+  <div class="modal-overlay" id="control-cred-modal-overlay" hidden>
+    <div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="control-cred-modal-title">
+      <h2 id="control-cred-modal-title">Credenciales API</h2>
+      <p class="panel-subtitle" id="control-cred-modal-subtitulo"></p>
+      <div id="control-cred-lista" class="admin-table-wrap" style="margin:12px 0"></div>
+      <div class="field" id="control-cred-nueva-wrap" hidden>
+        <p class="admin-config-catalogo-info" style="background:var(--color-warn-soft);padding:10px;border-radius:8px;margin-bottom:8px">⚠️ Copia la contraseña y la <b>clave API</b> ahora — solo se muestran una vez. Autorizan el uso de las APIs como esta clave API por empresa (Basic o <code>X-API-Key</code> / cookieAuth).</p>
+        <label>Usuario API (Basic)</label>
+        <div class="admin-search" style="margin:6px 0"><input id="control-cred-usuario" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-usuario">Copiar</button></div>
+        <label>Contraseña API (Basic)</label>
+        <div class="admin-search" style="margin:6px 0"><input id="control-cred-password" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-pass">Copiar</button></div>
+        <label>Clave API (X-API-Key / cookieAuth)</label>
+        <div class="admin-search" style="margin:6px 0"><input id="control-cred-clave" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-clave">Copiar</button></div>
+        <label>Ejemplo cURL — Basic</label>
+        <pre id="control-cred-curl" style="background:var(--color-bg);padding:10px;border-radius:8px;overflow:auto;font-size:12px;white-space:pre-wrap"></pre>
+        <label>Ejemplo cURL — Clave API (header / cookie)</label>
+        <pre id="control-cred-curl-clave" style="background:var(--color-bg);padding:10px;border-radius:8px;overflow:auto;font-size:12px;white-space:pre-wrap"></pre>
+        <p class="field-hint">Usa <b>Basic</b> con usuario/password o <b>X-API-Key</b> / cookie <code>api_key</code> contra <code id="control-cred-swagger-url"></code>. En Swagger: <b>Authorize</b> → <code>basicAuth</code> o <code>apiKey</code> / <code>cookieAuth</code>. Para tenant: <code>/&lt;slug&gt;/api/*</code> con esta credencial.</p>
+        <p><a id="control-cred-swagger-link" href="/api/docs/" target="_blank" rel="noopener">Abrir Swagger backend</a> · <a id="control-cred-swagger-control-link" href="/api/control/docs/" target="_blank" rel="noopener">Swagger control</a></p>
+      </div>
+      <p class="field-error" id="control-cred-error" role="alert"></p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="control-cred-btn-generar">Generar credencial</button>
+        <button type="button" class="btn btn-secondary" id="control-cred-btn-rotar" hidden>Rotar contraseña</button>
+        <button type="button" class="btn btn-danger" id="control-cred-btn-revocar" hidden>Revocar</button>
+        <button type="button" class="btn btn-secondary" id="control-cred-btn-cerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/theme.js"></script>
   <script src="/control.js"></script>

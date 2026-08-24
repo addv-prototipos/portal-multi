@@ -152,6 +152,7 @@ describe('Admin: Gastos', () => {
   describe('POST /api/admin/gastos', () => {
     test('registra un gasto válido', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // categoriaGastoExiste
       pool.query.mockResolvedValueOnce([{ insertId: 42, affectedRows: 1 }]); // INSERT
       const res = await request(app)
         .post('/api/admin/gastos')
@@ -193,6 +194,7 @@ describe('Admin: Gastos', () => {
 
     test('categoría fuera de la lista cerrada responde 400', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[]]); // categoriaGastoExiste: no existe
       const res = await request(app)
         .post('/api/admin/gastos')
         .auth(usuario, password)
@@ -203,6 +205,7 @@ describe('Admin: Gastos', () => {
 
     test('monto no numérico responde 400', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // categoriaGastoExiste
       const res = await request(app)
         .post('/api/admin/gastos')
         .auth(usuario, password)
@@ -234,6 +237,7 @@ describe('Admin: Gastos', () => {
           },
         ],
       ]); // SELECT gasto
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // categoriaGastoExiste
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
       const res = await request(app)
         .put('/api/admin/gastos/1')
@@ -264,6 +268,7 @@ describe('Admin: Gastos', () => {
           },
         ],
       ]); // SELECT gasto
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // categoriaGastoExiste
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
       const res = await request(app)
         .put('/api/admin/gastos/1')

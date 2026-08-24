@@ -26,9 +26,9 @@
       <aside class="auth-hero">
         <img class="auth-hero-branding" src="/assets/branding.png" alt="CLARVO — Portal de Facturación by ADDV" />
 
-        <h2 class="auth-hero-headline">Gestiona tus solicitudes de factura de forma <span class="auth-hero-highlight">simple y segura</span>.</h2>
+        <h2 class="auth-hero-headline">Administra constancias, tickets y ventas de forma <span class="auth-hero-highlight">centralizada y segura</span>.</h2>
         <span class="auth-hero-divider" aria-hidden="true"></span>
-        <p class="auth-hero-copy">Un solo lugar para solicitar, dar seguimiento y administrar tus facturas.</p>
+        <p class="auth-hero-copy">Un solo panel para gestionar clientes, facturación, gastos y reportes.</p>
 
         <img class="auth-hero-decor" src="/assets/login-decoracion-marca.png" alt="" aria-hidden="true" loading="lazy" onerror="this.remove()" />
         <p class="auth-hero-footer">© <span id="auth-anio"></span> CLARVO by ADDV. Todos los derechos reservados.</p>
@@ -610,14 +610,14 @@
               <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
               </span>
-              <h2>Balance acumulado (Facturado − Gastos)</h2>
-              <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-balance-contenido" data-detalle-titulo="Balance acumulado (Facturado − Gastos)" aria-label="Ver Balance acumulado en grande">
+              <h2>Utilidad neta mensual</h2>
+              <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-balance-contenido" data-detalle-titulo="Utilidad neta mensual" aria-label="Ver Utilidad neta mensual en grande">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
               </button>
             </div>
             <div id="resumen-fin-balance-contenido">
               <div class="resumen-fin-line-wrap">
-                <svg class="resumen-fin-line-svg" id="resumen-fin-balance-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Balance acumulado por mes"></svg>
+                <svg class="resumen-fin-line-svg" id="resumen-fin-balance-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Utilidad neta por mes"></svg>
               </div>
               <div class="resumen-fin-line-etiquetas" id="resumen-fin-balance-etiquetas"></div>
               <p class="resumen-fin-proyeccion-nota" id="resumen-fin-balance-nota" hidden>Necesitas al menos 2 meses con actividad para ver la tendencia.</p>
@@ -2431,10 +2431,21 @@
             <input type="text" id="gastos-modal-proveedor" maxlength="150" placeholder="Opcional" autocomplete="off" />
             <p class="field-error" id="error-gastos-modal-proveedor" role="alert"></p>
           </div>
-          <div class="field">
+          <div class="field gastos-modal-categoria-field" id="gastos-modal-categoria-field">
             <label for="gastos-modal-categoria">Categoría <span class="required">*</span></label>
-            <select id="gastos-modal-categoria"></select>
+            <div class="gastos-categoria-select-row">
+              <select id="gastos-modal-categoria"></select>
+              <button type="button" class="btn-categorias-toggle" id="btn-gastos-categorias-toggle" aria-expanded="false" aria-controls="gastos-categorias-panel">✏️ Categorías</button>
+            </div>
             <p class="field-error" id="error-gastos-modal-categoria" role="alert"></p>
+            <div class="gastos-categorias-panel" id="gastos-categorias-panel" hidden>
+              <div class="gastos-categorias-lista" id="gastos-categorias-lista"></div>
+              <div class="gastos-categoria-nueva-row">
+                <input type="text" id="gastos-categoria-nueva-input" maxlength="100" placeholder="Nueva categoría…" autocomplete="off" />
+                <button type="button" class="btn-categoria-accion btn-categoria-agregar" id="btn-gastos-categoria-agregar">+ Agregar</button>
+              </div>
+              <p class="field-error" id="error-gastos-categoria-nueva" role="alert"></p>
+            </div>
           </div>
           <div class="field">
             <label for="gastos-modal-monto">Monto (MXN) <span class="required">*</span></label>

@@ -11,6 +11,8 @@ const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 
+const { swaggerSpec } = require('./utils/swagger');
+const swaggerUi = require('swagger-ui-express');
 const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl } = require('./db');
 const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant } = require('./utils/tenantContext');
 const { validarSlug } = require('./utils/tenant');
@@ -86,7 +88,14 @@ const {
   CLAVE_ULTIMA_LIMPIEZA_ORDENES,
 } = require('./utils/ticketsCleanup');
 const { generarYEnviarReporte, generarCSV, generarExcelBuffer } = require('./utils/reportes');
-const { categoriaValida } = require('./utils/gastos');
+const {
+  categoriaGastoExiste,
+  listarCategoriasGastos,
+  crearCategoriaGasto,
+  renombrarCategoriaGasto,
+  eliminarCategoriaGasto,
+  reactivarCategoriaGasto,
+} = require('./utils/gastos');
 
 const PORT = process.env.PORT || 4000;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 5);
@@ -388,6 +397,12 @@ function asyncHandler(fn) {
 // /<slug>/api/..., así que un cache por URL nunca mezcla tenants) — esto
 // es defensa en profundidad para el día que se agregue un CDN/proxy
 // compartido delante de nginx.
+// Swagger — UI y JSON (punto 137). No requiere auth para listar, probar sí pide credenciales según ruta.
+app.get('/api/docs.json', (req, res) => res.json(swaggerSpec));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
+// Alias legacy /api/swagger → /api/docs
+app.use('/api/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
+
 app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
@@ -4068,10 +4083,11 @@ app.get(
 // Resumen financiero (Ventas, Facturado, Gastos) para la vista "Resumen
 // financiero" del perfil administrador (ver PROJECT_STATE.md). Los KPIs
 // del mes en curso (con tendencia vs el mes anterior) se calculan aparte
-// de la gráfica: la gráfica arranca en el mes en curso y solo hacia
-// adelante (nunca mete meses pasados vacíos) y omite cualquier mes sin
-// ventas ni gastos — a propósito, para no ensuciarla con meses en cero de
-// antes de que el negocio empezara a usar el sistema. Todo agregado en
+// de la gráfica: la gráfica cubre una ventana de ~6 meses hacia atrás
+// (mes en curso + los 5 anteriores que tengan datos) — GROUP BY omite por
+// sí solo cualquier mes sin ventas ni gastos, así que los meses previos a
+// que el negocio empezara a usar el sistema nunca aparecen en cero. Todo
+// agregado en
 // SQL, nunca se manda una fila suelta de ordenes_compra ni de gastos al
 // frontend. "Facturado" usa el mismo criterio que el ícono de la tabla de
 // Ventas: existe un ticket vinculado en estatus 'listo'. "IVA Neto" no se
@@ -4094,6 +4110,12 @@ app.get(
   asyncHandler(async (req, res) => {
     const configGlobal = await getConfiguracionGlobal();
     const { inicio, fin, inicioAnterior, finAnterior } = limitesMes(configGlobal.zona_horaria);
+    // Ventana de la gráfica: primer día del mes hace 5 meses (6 meses de
+    // historia contando el mes en curso). Los KPIs de arriba siguen
+    // acotados al mes actual/anterior — solo la gráfica mira hacia atrás.
+    const inicioSerie = new Date(
+      Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() - 5, 1)
+    );
 
     const [[kpiVentas]] = await pool.query(
       `SELECT
@@ -4142,12 +4164,13 @@ app.get(
       return Math.round(((actual - anterior) / anterior) * 100);
     };
 
-    // Gráfica: desde el mes en curso hacia adelante — GROUP BY solo
-    // devuelve meses que sí tuvieron al menos una fila, así que un mes
-    // vacío simplemente no aparece (sin necesidad de filtrarlo aparte).
+    // Gráfica: ventana de ~6 meses hacia atrás (inicioSerie) — GROUP BY
+    // solo devuelve meses que sí tuvieron al menos una fila, así que un
+    // mes vacío simplemente no aparece (sin necesidad de filtrarlo aparte).
     const [filasVentasSerie] = await pool.query(
       `SELECT DATE_FORMAT(o.fecha_compra, '%Y-%m') AS mes,
          SUM(o.total) AS ventas,
+         SUM(o.cantidad) AS subtotal,
          SUM(CASE WHEN EXISTS(
            SELECT 1 FROM tickets t
            WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
@@ -4155,26 +4178,35 @@ app.get(
        FROM ordenes_compra o
        WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ?
        GROUP BY DATE_FORMAT(o.fecha_compra, '%Y-%m')`,
-      [inicio]
+      [inicioSerie]
     );
     const [filasGastosSerie] = await pool.query(
       `SELECT DATE_FORMAT(fecha, '%Y-%m') AS mes, SUM(monto) AS gastos
        FROM gastos
        WHERE eliminado_en IS NULL AND fecha >= ?
        GROUP BY DATE_FORMAT(fecha, '%Y-%m')`,
-      [inicio]
+      [inicioSerie]
     );
 
     const mapaVentasSerie = new Map(filasVentasSerie.map((f) => [f.mes, f]));
     const mapaGastosSerie = new Map(filasGastosSerie.map((f) => [f.mes, Number(f.gastos)]));
     const llavesMeses = [...new Set([...mapaVentasSerie.keys(), ...mapaGastosSerie.keys()])].sort();
+    // utilidad_neta por mes usa la MISMA fórmula que la tarjeta "Utilidad
+    // neta del mes" (punto 118): subtotal de ventas (todas, sin IVA) menos
+    // gastos — así el último punto de "Utilidad neta mensual" siempre
+    // coincide con el KPI grande de arriba, sin una segunda definición de
+    // "utilidad" en la misma pantalla (antes esta gráfica era "Balance
+    // acumulado" = suma corrida de Facturado-Gastos, ver PROJECT_STATE.md).
     const serie = llavesMeses.map((llave) => {
       const v = mapaVentasSerie.get(llave);
+      const subtotal = v ? Number(v.subtotal) : 0;
+      const gastosMes = mapaGastosSerie.get(llave) || 0;
       return {
         mes: etiquetaMes(llave),
         ventas: v ? Number(v.ventas) : 0,
         facturado: v ? Number(v.facturado) : 0,
-        gastos: mapaGastosSerie.get(llave) || 0,
+        gastos: gastosMes,
+        utilidad_neta: Math.round((subtotal - gastosMes) * 100) / 100,
       };
     });
 
@@ -4565,7 +4597,11 @@ app.get(
       condiciones.push('fecha <= ?');
       params.push(req.query.fecha_hasta);
     }
-    if (req.query.categoria && categoriaValida(req.query.categoria)) {
+    // Filtro de lectura: basta con la forma del slug (letras/números/
+    // guion bajo), no hace falta confirmar que exista en la tabla —
+    // filtrar por una categoría que ya no existe simplemente da 0 filas,
+    // sin riesgo, y evita una consulta extra en cada listado.
+    if (req.query.categoria && /^[a-z0-9_]{1,50}$/.test(req.query.categoria)) {
       condiciones.push('categoria = ?');
       params.push(req.query.categoria);
     }
@@ -4637,7 +4673,7 @@ app.get(
 // Valida los campos comunes de crear/actualizar un gasto y devuelve el
 // objeto ya normalizado listo para el INSERT/UPDATE, o `null` tras
 // responder con el error correspondiente.
-function validarCuerpoGasto(req, res) {
+async function validarCuerpoGasto(req, res) {
   const body = req.body || {};
 
   const fecha = String(body.fecha || '');
@@ -4658,7 +4694,7 @@ function validarCuerpoGasto(req, res) {
 
   const proveedor = sanitizeText(body.proveedor, 150) || null;
   const categoria = String(body.categoria || '');
-  if (!categoriaValida(categoria)) {
+  if (!(await categoriaGastoExiste(categoria))) {
     res.status(400).json({ error: 'Selecciona una categoría válida.' });
     return null;
   }
@@ -4693,7 +4729,7 @@ app.post(
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
-    const datos = validarCuerpoGasto(req, res);
+    const datos = await validarCuerpoGasto(req, res);
     if (!datos) return;
 
     const ahora = new Date();
@@ -4747,7 +4783,7 @@ app.put(
       return res.status(404).json({ error: 'Gasto no encontrado.' });
     }
 
-    const datos = validarCuerpoGasto(req, res);
+    const datos = await validarCuerpoGasto(req, res);
     if (!datos) return;
 
     let comprobanteNombreOriginal = gasto.comprobante_nombre_original;
@@ -5038,6 +5074,102 @@ app.get(
       `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(originalName)}`
     );
     await storage.enviarArchivoARespuesta(prefijoComprobanteGet, 'comprobantes', gasto.comprobante_nombre_guardado, res);
+  })
+);
+
+// Categorías de gastos, EDITABLES desde el popup de "Registrar gasto"
+// (ver PROJECT_STATE.md, segmento "Categorías editables") — antes era
+// una lista cerrada en código; ahora vive en la tabla categorias_gastos
+// (ver ensureSchema en db.js). Mismo perfil que el resto de Gastos.
+app.get(
+  '/api/admin/gastos/categorias',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const categorias = await listarCategoriasGastos();
+    res.json({ categorias });
+  })
+);
+
+app.post(
+  '/api/admin/gastos/categorias',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const resultado = await crearCategoriaGasto(req.body && req.body.etiqueta);
+    if (resultado.error) {
+      return res.status(400).json({ error: resultado.error });
+    }
+    res.status(201).json({ ok: true, categoria: resultado, mensaje: 'Categoría creada.' });
+  })
+);
+
+// Renombra una categoría — el slug interno NUNCA cambia, así que los
+// gastos que ya la usan simplemente ven la nueva etiqueta.
+app.put(
+  '/api/admin/gastos/categorias/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+    const resultado = await renombrarCategoriaGasto(id, req.body && req.body.etiqueta);
+    if (resultado.error) {
+      return res.status(resultado.status || 400).json({ error: resultado.error });
+    }
+    res.json({ ok: true, categoria: resultado, mensaje: 'Categoría actualizada.' });
+  })
+);
+
+// Con gastos asociados, solo se desactiva (deja de ofrecerse para altas
+// nuevas); sin gastos, se borra de verdad. Nunca aplica a la protegida
+// ("otro" — respaldo de toda la gráfica de categorías).
+app.delete(
+  '/api/admin/gastos/categorias/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+    const resultado = await eliminarCategoriaGasto(id);
+    if (resultado.error) {
+      return res.status(resultado.status || 400).json({ error: resultado.error });
+    }
+    res.json({
+      ok: true,
+      mensaje: resultado.desactivada
+        ? 'Categoría desactivada (tiene gastos asociados, ya no se ofrece para nuevas altas).'
+        : 'Categoría eliminada.',
+    });
+  })
+);
+
+// Contraparte de la desactivación de arriba — vuelve a ofrecer la
+// categoría en el <select> de alta sin tocar el slug ni los gastos
+// que ya la usan (mismo criterio de papelera+restaurar del resto de la app).
+app.post(
+  '/api/admin/gastos/categorias/:id/reactivar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+    const resultado = await reactivarCategoriaGasto(id);
+    if (resultado.error) {
+      return res.status(resultado.status || 400).json({ error: resultado.error });
+    }
+    res.json({ ok: true, mensaje: 'Categoría reactivada.' });
   })
 );
 

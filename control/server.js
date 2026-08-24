@@ -20,6 +20,14 @@ const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake')
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant, MAX_MARCA_LOGO_MB } = require('./utils/tenantMarca');
 const { actualizarTemaTenant, ErrorTemaTenant } = require('./utils/tenantTema');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('./utils/tenantEdicion');
+const { swaggerSpec } = require('./utils/swagger');
+const swaggerUi = require('swagger-ui-express');
+const {
+  listarCredencialesPorTenant,
+  crearCredencialApi,
+  rotarCredencialApi,
+  revocarCredencialApi,
+} = require('./utils/apiCredenciales');
 
 const PORT = Number(process.env.PORT || 4001);
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -121,6 +129,10 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Swagger — UI y JSON (punto 137). Público para listar, probar requiere Basic super.
+app.get('/api/control/docs.json', (req, res) => res.json(swaggerSpec));
+app.use('/api/control/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 
 // Health check real: confirma que control_tenants sí es alcanzable, no
 // solo que el proceso contestó — mismo criterio que backend/server.js.
@@ -316,6 +328,69 @@ app.put(
   })
 );
 
+// ---------- Credenciales API por empresa (para uso en Swagger y consumo directo de APIs) ----------
+// Solo super puede gestionarlas. Cada empresa tiene a lo más 1 activa; se muestra usuario + hash nunca en claro
+// salvo al crear/rotar (password_plano solo una vez). Especifica para uso de las APIs: el cliente usa
+// Basic Auth con este usuario/password contra /<slug>/api/* o /api/* con X-Tenant-Slug, y Swagger lo consume vía Authorize.
+app.get(
+  '/api/control/tenants/:slug/credenciales',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const lista = await listarCredencialesPorTenant(req.params.slug);
+    res.json({ credenciales: lista });
+  })
+);
+
+app.post(
+  '/api/control/tenants/:slug/credenciales',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const cred = await crearCredencialApi(req.params.slug, req.adminUser);
+      res.status(201).json({ ok: true, credencial: cred });
+    } catch (err) {
+      if (err.codigo === 'ya_existe') return res.status(409).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.post(
+  '/api/control/tenants/:slug/credenciales/:id/rotar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const cred = await rotarCredencialApi(Number(req.params.id), req.params.slug, req.adminUser);
+      res.json({ ok: true, credencial: cred });
+    } catch (err) {
+      if (err.codigo === 'no_encontrado') return res.status(404).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.delete(
+  '/api/control/tenants/:slug/credenciales/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await revocarCredencialApi(Number(req.params.id), req.params.slug);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.codigo === 'no_encontrado') return res.status(404).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada.' });
 });
@@ -323,6 +398,8 @@ app.use((req, res) => {
 async function iniciar() {
   await asegurarTablaAuditoria();
   await asegurarColumnasCicloVidaTenant(obtenerPool());
+  const { asegurarTablaApiCredenciales } = require('./scripts/ensureSchema');
+  await asegurarTablaApiCredenciales(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);

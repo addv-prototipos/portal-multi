@@ -81,6 +81,15 @@
   background: var(--color-bg);
 }
 
+/* position:fixed a propósito (no sticky): el usuario pidió explícitamente
+   que el menú de la izquierda NUNCA necesite su propio scroll ni pueda
+   perderse de la vista bajo ninguna circunstancia — con sticky, el
+   sidebar seguía siendo parte del flujo/alto de .admin-dashboard, lo que
+   dejaba casos límite reales; fixed lo saca por completo del documento y
+   lo clava exactamente a los límites del viewport, sin ambigüedad
+   posible. El scroll de una vista larga (Resumen financiero, etc.) queda
+   "embebido" del lado derecho: .admin-content es quien se desplaza
+   (scroll normal de documento), el sidebar simplemente no se mueve. */
 .admin-sidebar {
   width: 256px;
   flex-shrink: 0;
@@ -88,7 +97,16 @@
   flex-direction: column;
   background: #03285B;
   color: #fff;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 10;
 }
+/* Mientras la franja de "sin conexión"/"sincronizando" (offline en
+   Ventas/Gastos) está visible, empuja .admin-body 36px hacia abajo — el
+   sidebar fijo se corre lo mismo para no quedar tapado por ella. */
+.admin-body.tiene-banner-conexion .admin-sidebar { top: 36px; height: calc(100vh - 36px); }
 
 /* branding_bgo.png es la variante clara del logo, pensada para fondo
    oscuro (texto blanco) — directo sobre el navy del sidebar, sin tarjeta. */
@@ -179,6 +197,9 @@
 .admin-content {
   flex: 1;
   min-width: 0;
+  /* El sidebar es position:fixed (fuera del flujo) — sin este margen,
+     .admin-content arrancaría debajo de él, tapado por sus 256px. */
+  margin-left: 256px;
 }
 
 /* Botón "Menú" de la barra superior móvil — oculto en escritorio, la
@@ -201,11 +222,20 @@
 @media (max-width: 900px) {
   .admin-dashboard { flex-direction: column; min-height: 0; }
   .admin-sidebar {
+    /* En este ancho el sidebar ya es una barra horizontal angosta (logo +
+       botón "Menú"), no la columna completa — position:fixed +
+       height:100vh del bloque de escritorio la rompería. Vuelve a ser un
+       hijo normal del flujo, con sticky (la barra también vale la pena
+       fijarla al hacer scroll en móvil). */
+    position: sticky;
+    left: auto;
     width: 100%;
+    height: auto;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
   }
+  .admin-content { margin-left: 0; }
   .admin-sidebar-logo {
     padding: 10px 12px;
     flex-shrink: 0;
@@ -2029,7 +2059,12 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .inicio-donut { transform: rotate(-90deg); }
 .inicio-donut-segmento { transition: stroke-dasharray 0.6s ease; }
-#inicio-donut-proceso { stroke: var(--color-warn); }
+/* Naranja MÁS CLARO que --color-warn (#B4530C) solo aquí — a pedido del
+   usuario, "En proceso" se confundía con el rojo de "Rechazadas" en la
+   dona. Escopado a esta tarjeta nada más (no se toca --color-warn, que
+   sigue usándose tal cual en badges/Proyección de ventas/etc. en el
+   resto del panel). */
+#inicio-donut-proceso { stroke: #F59E0B; }
 #inicio-donut-completadas { stroke: #1FAE6B; }
 #inicio-donut-rechazadas { stroke: var(--color-error); }
 
@@ -2078,7 +2113,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   border-radius: 50%;
   flex-shrink: 0;
 }
-.inicio-donut-dot-proceso { background: var(--color-warn); }
+.inicio-donut-dot-proceso { background: #F59E0B; }
 .inicio-donut-dot-completadas { background: #1FAE6B; }
 .inicio-donut-dot-rechazadas { background: var(--color-error); }
 
@@ -2301,7 +2336,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   margin: 0;
 }
 
-/* Gráficas de línea (Balance acumulado / Proyección de ventas) — SVG
+/* Gráficas de línea (Utilidad neta mensual / Proyección de ventas) — SVG
    puro, sin librería externa, mismo criterio que el resto del sitio. */
 .resumen-fin-line-wrap { width: 100%; }
 .resumen-fin-line-svg {
@@ -2331,9 +2366,29 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   stroke-dasharray: 6 5;
 }
 .resumen-fin-linea-punto { stroke: var(--color-surface); stroke-width: 1.5; }
-.resumen-fin-linea-punto-balance,
 .resumen-fin-linea-punto-ventas { fill: var(--color-accent); }
 .resumen-fin-linea-punto-proyeccion { fill: var(--color-warn); }
+/* Utilidad neta mensual: punto verde/rojo según el signo del mes, mismo
+   criterio que el número grande de "Utilidad neta del mes"
+   (.resumen-fin-utilidad-valor.es-positiva/es-negativa). */
+.resumen-fin-linea-punto-positiva { fill: #1FAE6B; }
+.resumen-fin-linea-punto-negativa { fill: var(--color-error); }
+.resumen-fin-linea-etiqueta-valor {
+  font-family: var(--font-body);
+  font-size: 9.5px;
+  font-weight: 700;
+  /* Halo del color de la superficie detrás del texto — legible aunque
+     una cifra vecina o la línea del trazo queden cerca (SVG puro, sin
+     rect de fondo aparte). */
+  paint-order: stroke;
+  stroke: var(--color-surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.resumen-fin-linea-etiqueta-valor.es-positiva { fill: #1FAE6B; }
+.resumen-fin-linea-etiqueta-valor.es-negativa { fill: var(--color-error); }
+.resumen-fin-linea-etiqueta-valor.es-real { fill: var(--color-accent); }
+.resumen-fin-linea-etiqueta-valor.es-proyectado { fill: var(--color-warn); }
 .resumen-fin-line-etiquetas {
   display: flex;
   justify-content: space-between;
@@ -3453,6 +3508,149 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 @media (max-width: 560px) {
   .gastos-modal-grid { grid-template-columns: 1fr; }
+}
+
+/* Categorías de gasto editables desde el propio popup (ver
+   PROJECT_STATE.md, segmento "Categorías editables") — el campo se
+   expande a las 2 columnas del grid solo mientras el panel está abierto. */
+.gastos-modal-categoria-field.is-categorias-abierto {
+  grid-column: 1 / -1;
+}
+.gastos-categoria-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gastos-categoria-select-row select {
+  flex: 1;
+  min-width: 0;
+}
+.btn-categorias-toggle {
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-categorias-toggle:hover,
+.btn-categorias-toggle[aria-expanded="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent-dark);
+  background: var(--color-accent-soft);
+}
+.gastos-categorias-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+.gastos-categorias-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.gastos-categoria-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.gastos-categoria-nombre {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gastos-categoria-nombre em {
+  font-style: normal;
+  color: var(--color-ink-soft);
+}
+.gastos-categoria-fila-protegida {
+  background: transparent;
+  border-style: dashed;
+}
+.gastos-categoria-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+}
+.gastos-categoria-fila .btn-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 13px;
+}
+.gastos-categoria-fila .btn-icon:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.gastos-categoria-input-editar {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1.5px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-family: var(--font-body);
+}
+.btn-categoria-accion {
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-categoria-accion:hover { border-color: var(--color-ink-soft); color: var(--color-ink); }
+.btn-categoria-guardar { border-color: var(--color-accent); color: var(--color-accent-dark); background: var(--color-accent-soft); }
+.btn-categoria-agregar { border-color: var(--color-accent); color: var(--color-accent-dark); }
+.gastos-categoria-nueva-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+.gastos-categoria-nueva-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-family: var(--font-body);
+}
+.gastos-categoria-nueva-row input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 .gastos-detalle-body {

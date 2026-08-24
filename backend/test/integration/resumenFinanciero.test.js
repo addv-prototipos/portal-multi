@@ -42,7 +42,7 @@ describe('Admin: Resumen financiero', () => {
     pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
     pool.query.mockResolvedValueOnce([[{ ventas: '5000.00', subtotal: '4000.00', facturado: '3000.00', facturado_anterior: '2000.00' }]]); // KPI ventas
     pool.query.mockResolvedValueOnce([[{ gastos: '1200.00', gastos_anterior: '800.00' }]]); // KPI gastos
-    pool.query.mockResolvedValueOnce([[{ mes: '2026-08', ventas: '5000.00', facturado: '3000.00' }]]); // serie ventas
+    pool.query.mockResolvedValueOnce([[{ mes: '2026-08', ventas: '5000.00', subtotal: '4000.00', facturado: '3000.00' }]]); // serie ventas
     pool.query.mockResolvedValueOnce([[{ mes: '2026-08', gastos: '1200.00' }]]); // serie gastos
     pool.query.mockResolvedValueOnce([[{ categoria: 'renta', monto: '800.00' }, { categoria: 'software', monto: '400.00' }]]); // gastos por categoria
     pool.query.mockResolvedValueOnce([[{ proveedor: 'Arrendadora XYZ', monto: '800.00' }]]); // top proveedores
@@ -64,7 +64,9 @@ describe('Admin: Resumen financiero', () => {
       utilidad_neta: 2800,
     });
     expect(res.body.tendencia).toEqual({ facturado: 50, gastos: 50 });
-    expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 5000, facturado: 3000, gastos: 1200 }]);
+    // utilidad_neta (2800) = subtotal (4000) - gastos (1200), misma fórmula
+    // que mes_actual.utilidad_neta arriba — coinciden porque es el mismo mes.
+    expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 5000, facturado: 3000, gastos: 1200, utilidad_neta: 2800 }]);
     expect(res.body.gastos_por_categoria).toEqual([
       { categoria: 'renta', monto: 800 },
       { categoria: 'software', monto: 400 },
@@ -117,7 +119,7 @@ describe('Admin: Resumen financiero', () => {
     const res = await request(app).get('/api/admin/resumen-financiero').auth(usuario, password);
 
     expect(res.status).toBe(200);
-    expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 0, facturado: 0, gastos: 500 }]);
+    expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 0, facturado: 0, gastos: 500, utilidad_neta: -500 }]);
     // Solo gastos y sin ventas: utilidad negativa.
     expect(res.body.mes_actual.utilidad_neta).toBe(-500);
   });
@@ -129,9 +131,9 @@ describe('Admin: Resumen financiero', () => {
     pool.query.mockResolvedValueOnce([[{ gastos: '0.00', gastos_anterior: '0.00' }]]);
     pool.query.mockResolvedValueOnce([
       [
-        { mes: '2026-06', ventas: '1000.00', facturado: '1000.00' },
-        { mes: '2026-07', ventas: '2000.00', facturado: '2000.00' },
-        { mes: '2026-08', ventas: '3000.00', facturado: '3000.00' },
+        { mes: '2026-06', ventas: '1000.00', subtotal: '1000.00', facturado: '1000.00' },
+        { mes: '2026-07', ventas: '2000.00', subtotal: '2000.00', facturado: '2000.00' },
+        { mes: '2026-08', ventas: '3000.00', subtotal: '3000.00', facturado: '3000.00' },
       ],
     ]); // serie ventas: crecimiento constante de +1000/mes
     pool.query.mockResolvedValueOnce([[]]); // serie gastos

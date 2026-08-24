@@ -8085,6 +8085,415 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       por el usuario contra un correo real** ("ya llegó bien") tras un
       segundo envío de prueba real vía SMTP. Sin commit/push todavía.
 
+134. **Datos de prueba históricos para validar reportes (ventas + gastos +
+    tickets) y serie mensual de ~6 meses en Resumen financiero —
+    VALIDADO CONTRA DOCKER REAL (2026-08-23)**: usuario pidió
+    sembrar 5 meses de datos pasados ("quiero datos de 6 meses en la
+    tarjeta de balance acumulado… para probar las tarjetas, como
+    proyección de ventas") porque los reportes no mostraban nada del
+    pasado. Análisis previo encontró DOS causas reales de que no hubiera
+    historial:
+    - **Retención activa a 5 días** (`tickets_retencion_dias=5`): el job
+      horario (`ejecutarLimpiezaConReporte`) borra toda venta/ticket con
+      `creado_en` mayor a 5 días — por eso solo existían órdenes desde
+      el 2026-08-19. Decisión del usuario: **subirla a 365 días** (SQL
+      directo, revertible desde Configuraciones globales).
+    - **La gráfica del Resumen financiero recortaba la serie al mes en
+      curso por diseño** (`fecha_compra >= inicio`): aunque existieran
+      meses pasados, la API solo regresaba "Ago" y la proyección quedaba
+      en null (requiere ≥3 llaves). Fix en `server.js` (~4 líneas):
+      nueva constante `inicioSerie` = primer día del mes hace 5 meses,
+      usada SOLO por las 2 queries de la serie — KPIs del mes actual/
+      anterior intactos. Comentarios actualizados.
+    - **Siembra**: script nuevo `backend/scripts/sembrar-datos-prueba.js`
+      (PRNG determinista con semilla fija, transaccional, se niega a
+      correr si ya hay gastos con la nota marcadora). Ejecutado dentro
+      del contenedor contra `portal_facturacion`: **175 ventas**
+      (ids 94..268), **85 tickets 'listo' vinculados** (ids 82..166,
+      ~45% de las ventas, para que Facturado/Sin facturar tenga forma;
+      imagen placeholder — NO hay archivo en MinIO) y **86 gastos**
+      (renta+2 nóminas fijas/mes + variables de la lista cerrada con
+      proveedores plausibles, notas `'Dato de prueba (validacion de
+      reportes)'`). Ventana: mar–jul completos + ago 1–22. Totales
+      mensuales verificados por SQL: ventas 191k–309k, gastos 54k–189k.
+    - **Validado contra la API viva (build VIEJO)**: KPIs del mes,
+      tendencias (+113% facturado, +46% gastos vs julio), distribución
+      por 10 categorías y top proveedores ya reflejan la siembra; listas
+      de Ventas/Gastos muestran el histórico completo.
+    - **Cierre**: cuando la sesión paralela completó "Categorías
+      editables" (suite en verde: **584/584, 36 suites**), se corrió el
+      rebuild único acordado (`docker compose up -d --build backend`).
+      Verificado por HTTP contra MySQL real: health OK,
+      `serie_mensual` devuelve las **6 llaves mar–ago** con los totales
+      exactos del SQL de verificación, y `proyeccion_ventas` ya activa
+      (**Sep ≈ 342,850 / Oct ≈ 376,521**). El mismo deploy dejó vivo el
+      backend de categorías editables (su UI de frontend depende del
+      rebuild de frontend de esa sesión).
+    - SQL de limpieza cuando ya no se necesiten: rangos impresos por el
+      propio script (`ordenes_compra` 94..268, `tickets` 82..166,
+      `gastos` por nota). Sin commit/push todavía.
+
+135. **Categorías de gastos editables desde el propio popup de "Registrar
+    gasto" — COMPLETA e IMPLEMENTADA Y VALIDADA (2026-08-23)**: usuario
+    pidió poder editar/agregar categorías en el mismo popup; protocolo
+    completo — análisis de impacto (las categorías eran una lista CERRADA
+    en 3 capas: CHECK de MySQL `chk_gastos_categoria`, validación
+    backend, diccionario duplicado en `admin.js`), crítica propia (4
+    puntos: renombrar vs. agregar tienen riesgo distinto porque agregar
+    exige quitar el CHECK; una categoría con gastos existentes nunca debe
+    ser hard-delete, solo desactivarse — mismo principio de borrado suave
+    que tickets/constancias/reportes; "otro" debe quedar protegida como
+    respaldo de color/etiqueta; una categoría nueva no tiene color propio
+    en la dona de Resumen financiero) + propuesta visual (Artifact con
+    mockup antes/después del panel colapsado/expandido) + 2 preguntas
+    de alcance confirmadas explícitamente por el usuario: **"Ambas"**
+    (renombrar Y agregar, no solo una) y **"gris de Otro"** (categoría
+    nueva sin color propio en la dona, usa el fallback ya existente de
+    `RESUMEN_FIN_COLORES_CATEGORIA['otro']`, cero cambio necesario ahí).
+    - **Esquema**: `categorias_gastos` (tabla nueva, `slug` UNIQUE,
+      `etiqueta`, `activa`, `protegida`, `orden`) reemplaza la lista
+      cerrada; `ensureSchema()` en `db.js` migra (DROP del CHECK viejo si
+      existe) y siembra idempotente desde `CATEGORIAS_SEED`/
+      `ETIQUETAS_SEED` (10 categorías originales, "otro" con
+      `protegida=1`). La columna `gastos.categoria` (VARCHAR) NO cambia
+      — los slugs son estables para siempre, cero migración de datos
+      existentes.
+    - **Backend** (`backend/utils/gastos.js`, reescrito por completo):
+      `listarCategoriasGastos()` (con `tieneGastos` calculado por
+      `EXISTS` contra `gastos`), `categoriaGastoExiste()`,
+      `crearCategoriaGasto()` (slug generado de la etiqueta —
+      `generarSlugCategoria()`: minúsculas, sin acentos, `[a-z0-9_]`,
+      recortado a 50 — con sufijo numérico automático en colisión),
+      `renombrarCategoriaGasto()` (nunca toca el slug, solo `etiqueta`;
+      rechaza la protegida), `eliminarCategoriaGasto()` (con gastos →
+      desactiva; sin gastos → borra de verdad; rechaza la protegida),
+      `reactivarCategoriaGasto()` (agregada tras una pregunta explícita
+      al usuario — sin esto, desactivar era una puerta de un solo
+      sentido, inconsistente con el resto de la app). 4+1 endpoints
+      nuevos en `server.js` bajo `/api/admin/gastos/categorias`
+      (GET/POST, PUT/DELETE `:id`, POST `:id/reactivar`), todos
+      `requireAdminArea('administrador')`. `validarCuerpoGasto()` pasó a
+      `async` (ahora valida contra la tabla, no una función síncrona).
+    - **Bug real encontrado y corregido durante la validación en Docker
+      (no detectable con `node --check` ni Jest con mocks)**: dependencia
+      circular — `db.js` importa `utils/gastos.js` (para leer
+      `CATEGORIAS_SEED` al sembrar) ANTES de terminar de armar su propio
+      `module.exports`, y `gastos.js` hacía
+      `const { pool } = require('../db')` a nivel de módulo — capturaba
+      el `pool` de esa versión a medio construir (`undefined`) para
+      siempre. Toda request a los endpoints nuevos tiraba 500
+      (`TypeError: Cannot read properties of undefined (reading
+      'query')`). Fix: `require('../db')` perezoso dentro de cada
+      función (`obtenerPool()`), que en runtime real siempre cae a la
+      versión ya completa desde la caché de `require()` — los mocks de
+      Jest no exponen este tipo de bug porque no hay ciclo real ahí.
+    - **Bug real de UI encontrado y corregido durante la validación en
+      navegador (preexistente, no introducido por este segmento)**: el
+      modal de confirmación genérico (`#confirm-modal-overlay`,
+      reutilizado por Eliminar/Restaurar/etc. en toda la app) y los
+      demás `.modal-overlay` comparten `z-index: 50` sin diferenciación
+      — cuando se abre DESDE DENTRO de otro modal ya abierto (el caso
+      nuevo de "Eliminar categoría" desde el popup de Registrar gasto,
+      y ya existía el mismo riesgo latente con "Quitar comprobante"
+      desde el detalle de un gasto), gana visualmente el que aparece
+      más abajo en el DOM — no el que se abrió después — dejando el
+      diálogo de confirmación invisible detrás del modal padre (el clic
+      en "Eliminar" no hacía nada visible, aunque el elemento sí existía
+      en el DOM). Fix de una línea:
+      `#confirm-modal-overlay { z-index: 70; }` en `style.css`.
+    - **Frontend** (`admin.html`/`admin.js`/`admin.css`): el diccionario
+      estático `CATEGORIAS_GASTOS` de `admin.js` se eliminó — reemplazado
+      por `state.categoriasGastos` (cargado de
+      `GET /api/admin/gastos/categorias` al entrar a la vista Gastos, en
+      paralelo/antes de `cargarGastos()`, mismo patrón ya usado para la
+      caché de correos de Ventas). Selector de alta (`#gastos-modal-
+      categoria`) filtra a solo `activa` (con excepción: si se edita un
+      gasto cuya categoría ya se desactivó, se agrega igual para no
+      perder el valor); filtro de la tabla lista TODAS (activas e
+      inactivas, con sufijo "(inactiva)") porque un gasto viejo puede
+      seguir usándola. Botón "✏️ Categorías" junto al select expande un
+      panel inline (el campo pasa a las 2 columnas del grid del modal
+      mientras está abierto) con: fila por categoría (renombrar en línea
+      con Guardar/Cancelar; ícono de borrar SOLO si `tieneGastos` es
+      falso; "Otro" se muestra con badge "Protegida" sin íconos; fila
+      "Reactivar" en categorías inactivas), e input+botón "+ Agregar"
+      al final (Enter también agrega). Delegación de eventos sobre la
+      lista (se re-renderiza completa en cada cambio, no hay diffing).
+    - **Pruebas**: `backend/test/unit/gastos.test.js` reescrito por
+      completo (probaba exports que ya no existen: `CATEGORIAS_GASTOS`,
+      `categoriaValida`, `clausulaCheckCategoria` — ahora prueba
+      `generarSlugCategoria()` y la semilla); 5 tests de
+      `test/integration/gastos.test.js` parcheados (`validarCuerpoGasto`
+      ahora hace una consulta async extra, `categoriaGastoExiste`, que
+      había que insertar en la posición correcta de cada mock);
+      `backend/test/integration/gastos-categorias.test.js` NUEVO (14
+      tests: los 5 endpoints, incluida protegida/con-gastos/sin-gastos/
+      reactivar/404/403). Jest backend **584/584 (36 suites)**.
+    - **Validado contra Docker/MySQL reales de punta a punta**: rebuild
+      `--no-cache` + `--force-recreate` (2 veces, la segunda tras el fix
+      de la dependencia circular); ciclo completo por `curl` (crear con
+      colisión de slug → renombrar → eliminar sin gastos → rechazo de
+      renombrar/eliminar la protegida → desactivar con gastos →
+      reactivar), verificado en la tabla real. **Validado en navegador
+      real (Claude in Chrome)**: login, apertura del panel, crear
+      categoría (Enter y clic), renombrar en línea, eliminar (confirmó
+      el fix de z-index), registrar un gasto completo usando una
+      categoría recién creada (aparece correcta en la tabla), papelera →
+      eliminar permanente, limpieza completa de los datos de prueba
+      (tabla `gastos` y `categorias_gastos` verificadas de vuelta al
+      estado base: 101 filas totales = 99 activos + 2 en papelera
+       preexistentes, 10 categorías, "renta" activa). Cero errores de
+       consola. Sin commit/push todavía — pendiente de instrucción
+       explícita del usuario, mismo protocolo `addv-web-app`.
+
+136. **Maduración del requerimiento del módulo Inventarios
+    (`inventarios.md`) — EN CURSO (2026-08-23)**: trabajo exclusivamente
+    de análisis/documentación (el usuario lo marcó así: "todo este es
+    análisis de requerimientos y madurarlo para después ejecutar la
+    estrategia"; NADA implementado todavía). El documento base era una
+    visión amplia de 55 secciones sin carácter ejecutable; se agregó la
+    **Sección 0 "Alcance v1 y decisiones cerradas"** que prevalece sobre
+    el resto y cierra las decisiones madre con el usuario:
+    - **D1** producto simple como unidad mínima en v1 — SIN variantes ni
+      atributos configurables (fase 2). **D2** multi-almacén preparado no
+      operativo: `almacen_id NOT NULL` desde el día uno + almacén
+      auto-provisionado "ALM-1", UI solo lectura. **D3** ubicaciones fuera
+      de v1 (`ubicacion_nota` VARCHAR libre). **D4** inventario negativo
+      prohibido en v1. **D5** costeo promedio ponderado móvil.
+      **D6** `existencias(producto_id, almacen_id)` UNIQUE derivada del
+      libro append-only de movimientos. **D7** roles v1 = perfiles
+      existentes (operador de almacén/compras → fase 2).
+    - **D8 CERRADA** (misma sesión, tras análisis con el usuario):
+      integración Ventas vía columna nullable `producto_id` +
+      interruptor GLOBAL de plataforma `ventas_afectan_inventario` en
+      Configuraciones globales — decisión explícita: la regla es igual
+      para TODOS los tenants, no cambia por tenant (primera config
+      global fuera de las `configuracion` por tenant; candidato natural:
+      BD de control). Switch activo: autocompletado de producto
+      (nombre/SKU) + lectura por código de barras con fallback manual,
+      salida automática por venta validando stock disponible. Switch
+      inactivo: Inventarios oculto, Ventas como hoy, datos conservados.
+      §22 reescrito como US-INV-025; §49 corregido (premisa falsa
+      señalada). Limitación honesta v1: venta de línea única, sin
+      carrito multi-producto.
+    - **D9**: importador masivo ENTRA en v1 (era out-of-scope del primer
+      borrador de la Sección 0; el usuario lo pidió explícitamente para
+      migrar desde su sistema actual). Reescrito §34 completo: wizard de
+      6 pasos (subir → hoja/vista previa → mapear cabeceras → validar →
+      ejecutar → resultado), auto-mapeo por diccionario de sinónimos con
+      sugerencia preseleccionada/editable, campo `extra` (JSON) que
+      conserva columnas no mapeadas, upsert por SKU (actualiza campos
+      presentes, vacíos nunca borran), existencias iniciales en el mismo
+      archivo generando entradas 'inventario inicial' transaccionales,
+      chunks de 500 filas con async+polling >500, firma binaria,
+      archivo original archivado en MinIO
+      `inventarios/<slug>/imports/<id>/`, tablas nuevas
+      `imp_importaciones`/`imp_importacion_errores`, API de 5 endpoints
+      bajo `/api/admin/inventarios/importaciones`, criterios de
+      aceptación medibles. Dependencia técnica recomendada: exceljs +
+      csv-parse (puras JS, sin compilación nativa) — confirmar al
+      implementar.
+    - **§0.5 agregado (bloque 3 del plan)**: concurrencia e integridad
+      numérica — atomicidad movimiento+saldo en UNA transacción,
+      `SELECT ... FOR UPDATE` anti-sobrevende (timeout ~5 s →
+      INV_CONCURRENCIA reintentable), DECIMAL(12,3) cantidades /
+      DECIMAL(12,2) montos (FLOAT/DOUBLE prohibidos), libro append-only
+      con existencia_anterior/posterior por movimiento, conciliación
+      saldos↔kardex vía script `verificar-inventario.js` + botón admin
+      (corrección SOLO con movimiento compensatorio AJU-), códigos de
+      error INV_* y pruebas obligatorias de concurrencia/conciliación
+      dentro del DoD v1.
+    - **§0.6 agregada (bloque final)**: mecanismo de configuración GLOBAL
+      de plataforma — tabla `configuracion_global` en la BD de control
+      (`control_tenants`), fuente única sin réplicas por tenant, regla
+      "global O por tenant, jamás ambas", clave inicial
+      `ventas_afectan_inventario` default '0', switch editable SOLO por
+      perfil plataforma desde Configuraciones globales con aviso de
+      alcance total (admins de empresa solo lectura; /control solo
+      lectura), caché backend TTL ≤ 60 s sin reinicio, auditoría de cada
+      cambio en el plano de control. Queda como patrón base para el
+      punto 137 (credenciales de APIs).
+
+137. **Pendiente registrado: credenciales de acceso a las APIs por
+    empresa + Swagger — SOLO ANOTADO, sin analizar ni implementar
+    (2026-08-23)**: el usuario pidió dejar constancia como trabajo
+    futuro:
+    - Documentar los servicios API con **Swagger/OpenAPI**.
+    - Mecanismo de **login y password POR EMPRESA**, dado de alta desde
+      la app de control (`/control`): cada empresa/tenant recibe
+      credenciales propias para acceder a SUS APIs, de modo que los
+      servicios no queden expuestos sin autenticación específica.
+    - El **SUPER admin accede a todas las empresas con las MISMAS
+      credenciales** (par global).
+    - Decisiones abiertas para cuando se analice: dónde viven las
+      credenciales (BD de control vs BD del tenant), hash con scrypt
+      (convención del repo), rotación/revocación, rate limiting por
+      credencial, registro en auditoría, middleware Express de
+      validación, qué endpoints quedan cubiertos y relación con la
+      futura "API pública" (fase 5 del roadmap de inventarios).
+       Requerirá el flujo completo Analizar→Proponer→Confirmar antes de
+       implementarse.
+
+138. **PENDIENTE — Cuentas por cobrar: venta pagada por defecto +
+     opción "pendiente de pago" + nueva vista "Cuentas por cobrar" —
+     PROPUESTA UX/UI, NO IMPLEMENTAR hasta confirmación explícita
+     (2026-08-24)**: pedido del usuario: *"cuando se dé una venta, por
+     defecto es cuenta pagada, pero también está la opción pendiente de
+     pago, esta debe ser gestionada en una sección de cuentas por
+     cobrar, esta no existe, genera tu mejor propuesta UX UI, dame la
+     propuesta visual antes de implementar y espera por mi respuesta"*.
+     Protocolo `addv-web-app`: Analizar→Proponer detenido aquí, a la
+     espera de Confirmar. **Cero código tocado**.
+
+     **Análisis del estado real**: `ordenes_compra` (ventas) hoy NO
+     tiene estado de pago — toda venta se asume cobrada al registrarla
+     (el `total` se calcula con la foto de `iva_porcentaje` del momento,
+     ver punto 112). Ventas ya alimenta "Resumen financiero" (Facturado,
+     Ventas sin facturar, Utilidad neta) con el criterio
+     `EXISTS tickets.listos`, pero NO distingue si el dinero ya entró o
+     quedó a crédito. Inventarios v1 (`inventarios.md:22` §22 D8) usa
+     `producto_id` nullable + switch global `ventas_afectan_inventario`;
+     el nuevo `estado_pago` debe ser independiente de ese switch
+     (también hay ventas de servicios sin stock que pueden quedar a
+     crédito).
+
+     **Modelo de datos propuesto (sin migrar aún)**: `ordenes_compra`
+     + columnas `estado_pago ENUM('pagada','pendiente') NOT NULL DEFAULT
+     'pagada'`, `fecha_vencimiento DATE NULL`, `monto_cobrado
+     DECIMAL(12,2) NOT NULL DEFAULT 0`, `fecha_cobro DATETIME NULL`,
+     `notas_cobro TEXT NULL`, `saldo = total - monto_cobrado` derivado
+     (no columna). Migración idempotente vía
+     `INFORMATION_SCHEMA.COLUMNS` antes de `ALTER`, mismo patrón que
+     `email NULL` del punto 130. `monto_cobrado` permite abonos
+     parciales sin tabla de pagos extra en v1; un pago total pone
+     `estado_pago='pagada'` y `fecha_cobro=NOW()`. Auditoría automática
+     vía middleware existente + `admin_auditoria` (segmento 7).
+
+     **Propuesta visual — 1) Ventas: modal "Registrar venta"**
+     ```
+     ┌─ Registrar venta ───────────────────────────┐
+     │ Productos  [tabla/tarjetas ya existente]   │
+     │ Total: $1,232.00                            │
+     │ ──────────────────────────────────────────  │
+     │ Estado de pago                              │
+     │  (●) Pagada  ( ) Pendiente de pago          │ ← default Pagada
+     │  [si Pendiente →]                           │
+     │  Vencimiento [____/__/__]  (date)           │
+     │  Notas de cobro [........................]  │
+     │ ──────────────────────────────────────────  │
+     │ Entrega: (●) Enviar por correo  ( ) Imprimir│
+     │ [Registrar venta]                           │
+     └────────────────────────────────────────────┘
+     ```
+     - Toggle radio de 2 opciones (no switch), accesible por teclado,
+       color verde (`--color-success-soft`) para Pagada / ámbar
+       (`--color-warn-soft`) para Pendiente, mismo lenguaje que
+       `estatus-pendiente` vs `estatus-listo` de Tickets.
+     - Por defecto **Pagada** (una columna menos, un clic menos en el
+       flujo más común). Cambiar a Pendiente revela `fecha_vencimiento`
+       + `notas_cobro` con transición `height/opacity` (solo
+       `transform`/`opacity`, respeta `prefers-reduced-motion`).
+     - Validación: Pendiente exige `fecha_vencimiento` futura (no
+       pasada) si se captura; opcional pero recomendada.
+
+     **Propuesta visual — 2) Nueva vista "Cuentas por cobrar"**
+     Sidebar: entre **Ventas** y **Gastos** (`#btn-vista-cxc`,
+     ícono 💳/monedas, mismo `admin-sidebar-nav` navy). Solo perfil
+     `administrador`+`super` (igual que Ventas/Gastos, ver punto 114
+     `RESTRICCIONES_PERFIL`).
+
+     ```
+     ┌─ Cuentas por cobrar ────────────────────────┐
+     │ [Activos: Pendientes] [Cobradas]            │
+     │ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐│
+     │ │Por     │ │Vencidas│ │Por     │ │Cobrado ││
+     │ │cobrar  │ │  2     │ │vencer  │ │ mes    ││
+     │ │$12,430 │ │$3,200  │ │$9,230  │ │$8,100  ││
+     │ └────────┘ └────────┘ └────────┘ └────────┘│
+     │ Filtros: [Cliente/correo] [Vencimiento] [  ]│
+     │ Tabla: No.Venta | Cliente | Total | Cobrado  │
+     │        | Saldo  | Vencimiento | Estado | ●   │
+     │        | OC-000082 | ana@... | $1,232 | $0   │
+     │        | $1,232 | 2026-09-10 | ⏳ Pendiente  │
+     │        | [Ver venta] [Registrar cobro] [Recordatorio]│
+     │ Modal "Registrar cobro":                     │
+     │  Saldo $1,232  [Monto a cobrar $____]        │
+     │  [Cobro parcial] [Cobro total]  [Guardar]    │
+     └────────────────────────────────────────────┘
+     ```
+     - 4 KPIs del mes: Por cobrar (suma saldos pendientes), Vencidas
+       (`fecha_vencimiento < hoy`), Por vencer, Cobrado del mes
+       (`estado_pago='pagada' AND fecha_cobro en mes`). Reusa
+       `.inicio-stats-grid` (ya usado en Inicio/Gastos/Resumen).
+     - Tabla reutiliza `.admin-table` + columnas ocultables (mismo
+       controlador `crearControladorColumnas`) + toggle
+       Activos(pendientes)/Cobradas (papelera semántica pero sin
+       borrado físico — es estado de la venta). Badge `⏳ Pendiente`
+       (ámbar) / `🔴 Vencida` (rojo) / `✅ Cobrada` (verde).
+     - Acciones por fila: Ver venta (abre `#orden-modal-overlay`
+       existente), **Registrar cobro** (modal simple con monto, valida
+       `monto <= saldo`, crea abono → actualiza `monto_cobrado`,
+       si `saldo==0` pasa a `pagada`), Recordatorio (copia texto con
+       datos de la venta, sin enviar correo automático en v1 para no
+       agregar SMTP nuevo sin confirmar).
+     - Filtros 100% client-side (igual que Ventas p.126), sin backend
+       nuevo para listar — `GET /api/admin/ordenes-compra` ya trae
+       todo; CxC solo filtra `estado_pago='pendiente'` en cliente.
+       Export CSV/Excel propio con mismo patrón de reportes.
+
+     **Impacto en vistas existentes**:
+     - Ventas registradas: columna "Estado pago" + filtro, badge inline.
+       Offline (`frontend/offline.js`): `estado_pago` serializado en la
+       cola; imprimir deshabilitado para pendiente sin folio igual que
+       hoy.
+     - Resumen financiero: KPI nuevo "Por cobrar" opcional en la tira de
+       4 (no cambia gráfica existente, solo dato derivado).
+     - Reportes: `reporte_items` no cambia; el export de CxC es
+       independiente.
+
+     **API propuesta (no creada)**: `GET /api/admin/ordenes-compra`
+     ya sirve el campo nuevo; `PUT /api/admin/ordenes-compra/:id/cobro`
+     (`{monto, notas}`) con `requireAdminArea('administrador')` +
+     `adminApiLimiter`. Validación `monto >0 && monto <= saldo`.
+
+      **Decisión pendiente del usuario**: confirmar o ajustar (1) toggle
+      Pagada/Pendiente en el paso Entrega del wizard (¿junto a Entrega o
+      como 4º paso? Propuesta: junto a Entrega, no nuevo paso), (2)
+      posición exacta de "Cuentas por cobrar" en el sidebar y KPIs, (3)
+      si vencimiento es obligatorio o solo sugerido, (4) si abonos
+      parciales entran en v1 o solo cobro total. **No avanzar a
+      implementación sin respuesta explícita**.
+
+139. **App de control — misma identidad de marca que /admin + mejora UI
+     (2026-08-24, APLICADO)**: a pedido del usuario, `/control` no tenía
+     identidad de marca (login `FX` + header blanco fino, tabla con 3
+     botones de texto por fila que la ensanchaban) vs `/admin` ya con
+     sidebar navy `#03285B` + `branding_bgo.png` + `auth-shell` split
+     CLARVO. Crítica aplicada antes de implementar: clonar el sidebar
+     1:1 con 9 items habría sido ruido (control es 1 vista, no 8) — se
+     aplicó **misma marca, shell adaptado**.
+     - `frontend/control.html:1`: agregado `auth.css`, login migrado de
+       card centrada `FX` a `auth-shell` split-screen (mismo
+       `branding.png` + `login-decoracion-marca.png` + `© Clarvo
+       Control by ADDV`, id `auth-anio-control`), dashboard envuelto en
+       `admin-dashboard` con `admin-sidebar` navy + `branding_bgo.png`
+       (`alt="Clarvo Control by ADDV"`), 1 nav `Empresas` + menú móvil
+       `admin-menu-movil` con 1 card, mismos tokens `admin-body`.
+       **PENDIENTE branding**: imagen debe decir literal
+       "Clarvo Control by ADDV" — anotado aquí y en `control.html:1`
+       (`alt` ya dice eso); temporal se reutiliza `branding.png`/
+       `branding_bgo.png` de `/admin` hasta entregar PNG final con ese
+       texto. Sidebar no inventa vistas falsas.
+     - `frontend/control.js:1`: acciones de tabla de texto → íconos
+       compactos 30×30 `btn-icono-accion` con `data-tooltip` (mismo
+       patrón que Usuarios `PROJECT_STATE.md:78`), `crearBotonAccion`
+       ahora genera SVG + tooltip; handler menú móvil + año.
+     - Validado `node --check frontend/control.js` + `docker compose
+       build --no-cache frontend` + `up -d --force-recreate frontend`:
+       `GET /control` 200 con `branding_bgo.png` + `admin-sidebar`, sin
+       `FX`. Pendiente solo entrega de PNG "Clarvo Control by ADDV"
+       para reemplazar `branding*.png` sin tocar código.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

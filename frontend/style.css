@@ -846,6 +846,14 @@ body {
   padding: 20px;
   z-index: 50;
 }
+/* El modal de confirmación (Eliminar/Restaurar/etc.) se dispara seguido
+   desde DENTRO de otro modal ya abierto (ej. "Eliminar categoría" desde
+   el popup de Registrar gasto) — sin esto, al empatar z-index:50 gana el
+   que aparece más abajo en el DOM, no el que se abrió después, y el
+   diálogo de confirmación queda invisible detrás del modal padre. */
+#confirm-modal-overlay {
+  z-index: 70;
+}
 
 .modal {
   background: var(--color-surface);

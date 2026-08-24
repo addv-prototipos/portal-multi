@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { pool } = require('../db');
+const { pool, obtenerPoolControl } = require('../db');
 const { verifyPassword, hashPassword } = require('./authUsuario');
 
 // Hash de relleno para cuando el usuario/RFC administrativo no existe
@@ -84,6 +84,73 @@ async function verificarCuentaRespaldoAdmin(password) {
   return verifyPassword(password, filas[0].valor);
 }
 
+// ---------- Credencial API por empresa (para uso en Swagger y consumo directo) ----------
+// Cada empresa puede tener una credencial dedicada (api_usuario / password)
+// gestionada desde /control (tabla control_tenants.api_credenciales).
+// Solo es válida para EL tenant que indica req.tenant (slug de la URL
+// /<slug>/api/* o header X-Tenant-Slug). No es global: sin tenant no se
+// verifica. Hash con scrypt igual que usuarios.
+function hashApiPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${derived}`;
+}
+function verifyApiPassword(password, hash) {
+  if (!hash || !hash.includes(':')) return false;
+  const [salt, expected] = hash.split(':');
+  try {
+    const derived = crypto.scryptSync(password, salt, 64).toString('hex');
+    const a = Buffer.from(derived, 'hex');
+    const b = Buffer.from(expected, 'hex');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch (_) {
+    return false;
+  }
+}
+async function verificarCredencialApi(usuario, password, tenantSlug) {
+  if (!tenantSlug) return null;
+  try {
+    const poolControl = obtenerPoolControl();
+    const [filas] = await poolControl.query(
+      'SELECT api_usuario, password_hash, tenant_slug FROM api_credenciales WHERE api_usuario = ? AND tenant_slug = ? AND activo = 1 LIMIT 1',
+      [usuario, tenantSlug]
+    );
+    const fila = filas[0];
+    if (!fila) return null;
+    // timingSafe: verificar siempre aunque no exista es manejado por caller que también verifica hash dummy si no hay fila.
+    // Aquí si hay fila, verificar hash real.
+    if (!verifyApiPassword(password, fila.password_hash)) return null;
+    return { api_usuario: fila.api_usuario, tenant_slug: fila.tenant_slug };
+  } catch (err) {
+    console.error('Error verificando credencial API:', err.message);
+    return null;
+  }
+}
+
+async function verificarClaveApi(apiKey, tenantSlug) {
+  if (!tenantSlug || !apiKey) return null;
+  try {
+    const poolControl = obtenerPoolControl();
+    const [filas] = await poolControl.query(
+      'SELECT api_usuario, api_key_hash, tenant_slug FROM api_credenciales WHERE tenant_slug = ? AND activo = 1 LIMIT 10',
+      [tenantSlug]
+    );
+    for (const fila of filas) {
+      if (!fila.api_key_hash) continue;
+      if (verifyApiPassword(apiKey, fila.api_key_hash)) {
+        return { api_usuario: fila.api_usuario, tenant_slug: fila.tenant_slug };
+      }
+    }
+    // dummy timingSafe para no filtrar existencia
+    verifyApiPassword(apiKey, HASH_RELLENO_ADMIN);
+    return null;
+  } catch (err) {
+    console.error('Error verificando clave API:', err.message);
+    return null;
+  }
+}
+
 // ---------- Usuarios con perfil administrador/fiscal ----------
 // A diferencia de los clientes (perfil "cliente", que solo pueden entrar
 // al portal de usuario con cookie de sesión), estos perfiles pueden
@@ -122,6 +189,25 @@ async function requireAdminAuth(req, res, next) {
   // tenant resuelto (todo el tráfico real hoy), el realm es el de
   // siempre, sin cambios.
   const realm = req.tenant ? `Administracion-${req.tenant.slug}` : 'Administracion';
+
+  // 0. Clave API por empresa (cookieAuth / X-API-Key) — autoriza uso de las APIs como esta clave API por empresa.
+  // Se verifica ANTES de exigir Basic, para que `curl -H "X-API-Key: ..."` no necesite también Basic.
+  if (req.tenant && req.tenant.slug) {
+    const claveApiPrevia = req.get('X-API-Key') || (req.cookies && req.cookies.api_key) || req.query.api_key;
+    if (claveApiPrevia) {
+      try {
+        const credClave = await verificarClaveApi(String(claveApiPrevia), req.tenant.slug);
+        if (credClave) {
+          req.adminUser = credClave.api_usuario;
+          req.adminPerfil = 'super';
+          req.adminMecanismo = 'api_clave';
+          return next();
+        }
+      } catch (err) {
+        console.error('Error verificando clave API (pre-Basic):', err);
+      }
+    }
+  }
 
   const header = req.headers.authorization || '';
   const [scheme, encoded] = header.split(' ');
@@ -186,6 +272,37 @@ async function requireAdminAuth(req, res, next) {
     }
   } catch (err) {
     console.error('Error verificando usuario administrativo:', err);
+  }
+
+  // 4. Credencial API por empresa (para Swagger/consumo programático) — solo si hay tenant resuelto
+  if (req.tenant && req.tenant.slug) {
+    try {
+      const credApi = await verificarCredencialApi(username, password, req.tenant.slug);
+      if (credApi) {
+        req.adminUser = credApi.api_usuario;
+        // 'super' para que tenga acceso total al tenant (como ADMIN_USERS pero acotado al slug)
+        req.adminPerfil = 'super';
+        req.adminMecanismo = 'api_credencial';
+        return next();
+      }
+    } catch (err) {
+      console.error('Error verificando credencial API:', err);
+    }
+    // 4b. Clave API (cookieAuth / X-API-Key) — autoriza uso de las APIs como esta clave API por empresa
+    const claveApi = req.get('X-API-Key') || (req.cookies && req.cookies.api_key) || req.query.api_key;
+    if (claveApi) {
+      try {
+        const credClave = await verificarClaveApi(String(claveApi), req.tenant.slug);
+        if (credClave) {
+          req.adminUser = credClave.api_usuario;
+          req.adminPerfil = 'super';
+          req.adminMecanismo = 'api_clave';
+          return next();
+        }
+      } catch (err) {
+        console.error('Error verificando clave API:', err);
+      }
+    }
   }
 
   res.set('WWW-Authenticate', `Basic realm="${realm}"`);
