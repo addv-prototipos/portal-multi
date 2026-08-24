@@ -29,7 +29,7 @@ La v1 entrega un **motor de existencias mínimo útil**: catálogo simple, un al
 | D7 | **Roles v1: perfiles existentes únicamente** (administrador / fiscal / super). | Los roles nuevos (Operador de almacén, Compras) exigen cambios en `auth.js`, UI y auditoría; su valor real aparece cuando hay personal de bodega operando el sistema. | administrador = todo Inventarios; fiscal = sin acceso al módulo; super = soporte técnico con operaciones registradas en la auditoría del tenant. §3.4 y §3.5 pasan a fase 2. |
 | D8 | **Integración con Ventas — CERRADA (por tenant)**: columna nullable `producto_id` sobre `ordenes_compra` + interruptor **por tenant** `inventario_activo` en Configuraciones globales del tenant. Con el switch **ACTIVO** en ese tenant: la captura de venta gana autocompletado de producto (nombre/SKU al ir escribiendo) y lectura por código de barras (escáner HID; si falla, captura manual del código); toda venta con producto genera su salida automática validando stock (D4). Con el switch **INACTIVO** en ese tenant: el módulo Inventarios se oculta por completo y Ventas opera exactamente como hoy (captura manual del concepto, sin búsqueda ni escáner). Detalle operativo en §22 (US-INV-025). | Una tabla de partidas rediseñaría un módulo de Ventas vivo en producción sin necesidad inmediata; el switch por tenant permite a cada empresa activar inventario cuando su migración esté lista, sin afectar a las demás. Decisión actualizada a pedido del dueño: **se activa/desactiva por tenant, no global**. | El flag vive en la tabla `configuracion` **por tenant** (clave `inventario_activo`, `0`/`1`, default `0`), coherente con el resto de `configuracion` por tenant. No requiere BD de control. Limitación honesta v1: venta de línea única (1 producto por venta); carrito multi-producto queda como evolución futura con partidas. |
 | D9 | **El importador masivo entra en v1** (reescrito en §34): CSV/XLSX con wizard de mapeo de cabeceras; SKU duplicado **actualiza** el producto existente (upsert, conserva lo no mapeado); existencias iniciales viajan **en el mismo archivo** y generan entradas automáticas tipo "inventario inicial". | La migración desde el sistema actual del negocio es la razón de ser del módulo; dar de alta cientos/miles de SKUs a mano es inviable y anularía la v1. | Sustituye al antiguo "importador genérico" de esta misma sección; la entrada manual tipo "inventario inicial" sigue existiendo como alternativa para altas puntuales. |
-| D10 | **Imágenes de producto condicionadas por empresa + compresión obligatoria**: el derecho a usar imágenes se habilita POR EMPRESA desde `/control` (columna nueva en la BD de control, default desactivado, mismo patrón que el segmento Marca); todo archivo subido pasa por un pipeline de optimización en el servidor (redimensionado + WebP + miniatura + descarte del original) con cuota de disco por tenant. Especificación completa en §6. | Una foto de celular pesa ~4 MB; sin procesamiento, miles de SKUs saturan MinIO. Pedido explícito del dueño: gate desde la app de control + algoritmo de compresión para no crecer el disco sin control. | Empresa sin el flag → UI sin sección de imágenes y API con `INV_IMAGENES_DESHABILITADAS`. §6 deja de decir "Conservar imagen original": solo se persisten las variantes optimizadas. |
+| D10 | **Imágenes por tenant en 2 capas + 3 límites + pipeline obligatorio**: capa **control** `inventario_imagenes_habilitado` por empresa (gate maestro en `control_tenants.tenants`, `0`/`1`, default `0`, mismo patrón que Marca); capa **tenant** `inv_imagenes_activo` en `configuracion` por tenant (`0`/`1`, default `0`, solo visible/editable si gate control=`1`). 3 límites por tenant en `inventario_config`: `inv_imagen_max_mb` (5 MB por archivo), `inv_imagen_max_por_producto` (20 imgs), `inv_imagen_cuota_mb` (500 MB total disco variantes optimizadas). Pipeline servidor obligatorio: validar firma → redimensionar 1200px → WebP q80 → thumb 300×300 WebP → descartar original. Spec §6. | Una foto de celular pesa ~4 MB; sin procesamiento, 2000 SKUs saturan ~8 GB en MinIO. Pedido del dueño (2026-08-24): habilitar imágenes también por tenant + límite por archivo y por disco duro, no solo gate de control. | Gate control `0` → UI sin sección imágenes y API `INV_IMAGENES_DESHABILITADAS` aunque tenant diga `1`; cualquiera de los 3 límites excedido → `INV_IMAGEN_CUOTA_EXCEDIDA` (no deja subir hasta liberar). Solo se persisten variantes optimizadas, nunca el original. |
 | D11 | **Catálogo de dos tipos**: campo `tipo` en productos — `producto` (físico, inventariable) y `servicio` (no inventariable: sin existencias, sin movimientos, sin kardex; sí aparece en catálogo, búsqueda y venta). Líquidos y gramaje NO requieren campos extra: cantidades `DECIMAL(12,3)` + unidades kg/g/L/ml + conversiones (§9) los cubren; venta por peso = captura decimal manual (báscula conectada = fase futura). | Cubrir la gran mayoría de negocios (productos, servicios, líquidos, gramaje) sin abrir variantes/lotes en v1; un servicio solo necesita no tocar stock. | Los servicios participan en ventas (§22) sin generar salida aunque el switch global esté activo; "ventas de servicios no afectan stock" (§49) se vuelve regla estructural del modelo. |
 
 ## 0.3 Alcance v1
@@ -138,6 +138,12 @@ La decisión D8 se resuelve **por tenant** (no global): cada empresa decide si s
 | Clave | Valores | Default | Efecto |
 |---|---|---|---|
 | `inventario_activo` | `'1'` / `'0'` | `'0'` | D8 completo (§22): `1` activa Inventarios + autocompletado/barcode en Ventas y salidas automáticas; `0` oculta el módulo y deja Ventas manual |
+| `inv_imagenes_activo` | `'1'` / `'0'` | `'0'` | D10 capa tenant: `1` habilita UI/API imágenes (solo si `inventario_imagenes_habilitado=1` en control); `0` oculta sección imágenes aunque el módulo esté activo |
+| `inv_imagen_max_mb` | `1`–`20` | `'5'` | D10 límite por archivo (MB) — exceder → `INV_IMAGEN_CUOTA_EXCEDIDA` |
+| `inv_imagen_max_por_producto` | `1`–`50` | `'20'` | D10 límite de imgs por producto (principal+galería) — exceder → `INV_IMAGEN_CUOTA_EXCEDIDA` |
+| `inv_imagen_cuota_mb` | `100`–`5000` | `'500'` | D10 cuota total disco por tenant (MB, suma de variantes optimizadas en `inventarios/<slug>/productos/*`) — exceder → `INV_IMAGEN_CUOTA_EXCEDIDA` |
+
+> **Matriz de habilitación imágenes (D10):** `control.inventario_imagenes_habilitado=0` → tenant no ve switch ni API ( `INV_IMAGENES_DESHABILITADAS` ), sin importar `inv_imagenes_activo`. Con `control=1`, el tenant edita `inv_imagenes_activo` en **Configuraciones globales** y los 3 límites son solo lectura para él (editables desde `/control`).
 
 ### Quién la edita
 
@@ -452,29 +458,27 @@ Como **administrador**, quiero crear un producto, para poder controlarlo dentro 
 
 # 6. Imágenes y archivos de productos — 1 (principal+galería, D10) / Fase 2 (variantes, docs)
 
-## US-INV-002 — Cargar imagen principal
+## US-INV-002 — Cargar imagen principal `v1`
 
 Como **administrador**, quiero cargar una imagen principal del producto, para identificarlo visualmente en el catálogo y durante las operaciones.
 
 ### Formatos
 
-- JPG.
-- JPEG.
-- PNG.
-- WEBP.
+- JPG / JPEG / PNG / WEBP — validar firma binaria (magic bytes)
 
-### Reglas
+### Pipeline servidor obligatorio (D10)
 
-- Tamaño máximo configurable.
-- Validar Content-Type.
-- Validar firma binaria.
-- Generar nombre seguro.
-- No utilizar directamente el nombre original como path.
-- Guardar metadata del archivo.
-- Generar miniatura para listados.
-- Conservar imagen original.
-- Permitir reemplazarla.
-- Permitir eliminarla.
+1. Validar gate `control`+tenant → si no, `INV_IMAGENES_DESHABILITADAS`.
+2. Validar límites antes de procesar: `inv_imagen_max_mb` por archivo, `inv_imagen_max_por_producto` (¿cabe 1 más?), `inv_imagen_cuota_mb` (¿cabe estimado post-WebP?). Si excede → `INV_IMAGEN_CUOTA_EXCEDIDA` con `limite`/`actual`/`intentado`.
+3. Redimensionar lado mayor a **1200px**, convertir a **WebP q80**, generar **miniatura 300×300** WebP, **descartar original** (solo variantes optimizadas).
+4. Guardar `principal.webp` + `thumb_principal.webp` bajo `inventarios/<slug>/productos/<producto_id>/principal/` en MinIO.
+5. Guardar metadata: nombre original, mime origen, tamaños, dimensiones, `subido_por`, `subido_en`.
+
+### Reglas (límites por tenant D10)
+
+- Por archivo: `inv_imagen_max_mb` (default `5` MB); por producto: `inv_imagen_max_por_producto` (default `20`); disco total: `inv_imagen_cuota_mb` (default `500` MB).
+- Generar nombre seguro (uuid), no usar path original; permitir reemplazar/eliminar (libera cuota).
+- Validar **firma binaria** (no solo extensión/`Content-Type`).
 
 ### UX
 
@@ -490,20 +494,13 @@ La pantalla debe permitir:
 
 ---
 
-## US-INV-003 — Galería de imágenes
+## US-INV-003 — Galería de imágenes `v1`
 
 Como **administrador**, quiero cargar varias imágenes del producto, para mostrar diferentes vistas del artículo.
 
 La galería debe permitir:
 
-- Agregar imágenes.
-- Eliminar imágenes.
-- Reordenar.
-- Definir imagen principal.
-- Vista ampliada.
-- Miniaturas.
-- Drag & drop.
-- Carga múltiple.
+- Agregar/Eliminar/Reordenar, Definir imagen principal, Vista ampliada, Miniaturas (`thumb_*.webp`), Drag & drop, Carga múltiple (mismo pipeline y mismos 3 límites por cada archivo; contador `X / inv_imagen_max_por_producto` visible). Ruta: `inventarios/<slug>/productos/<producto_id>/galeria/<uuid>.webp` + thumb.
 
 ---
 
