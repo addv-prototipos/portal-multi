@@ -27,7 +27,7 @@ La v1 entrega un **motor de existencias mínimo útil**: catálogo simple, un al
 | D5 | **Costeo: promedio ponderado móvil**, recalculado al registrar cada entrada (`costo_unitario DECIMAL(12,2)` en cada movimiento). El producto conserva `costo_promedio` y `ultimo_costo`. | PEPS/FIFO exige control por lotes (fase 3); el promedio ponderado es correcto contablemente y no depende de ninguna otra pieza. | §32 queda limitado a promedio ponderado en v1. Margen = precio − costo promedio. Cambios manuales de costo auditados (ya cubre §37). |
 | D6 | **Granularidad de existencia**: `existencias(producto_id, almacen_id)` UNIQUE. El saldo es **derivado** del libro append-only `movimientos_inventario`. | Una sola fuente de verdad auditable; los saldos son caché recomputable y jamás editables a mano (coherente con §55). | Se incluye un mecanismo de conciliación que recomputa saldos desde movimientos y reporta divergencias (se detalla en la sección de concurrencia, bloque 3). |
 | D7 | **Roles v1: perfiles existentes únicamente** (administrador / fiscal / super). | Los roles nuevos (Operador de almacén, Compras) exigen cambios en `auth.js`, UI y auditoría; su valor real aparece cuando hay personal de bodega operando el sistema. | administrador = todo Inventarios; fiscal = sin acceso al módulo; super = soporte técnico con operaciones registradas en la auditoría del tenant. §3.4 y §3.5 pasan a fase 2. |
-| D8 | **Integración con Ventas — CERRADA (por tenant)**: columna nullable `producto_id` sobre `ordenes_compra` + interruptor **por tenant** `inventario_activo` en Configuraciones globales del tenant. Con el switch **ACTIVO** en ese tenant: la captura de venta gana autocompletado de producto (nombre/SKU al ir escribiendo) y lectura por código de barras (escáner HID; si falla, captura manual del código); toda venta con producto genera su salida automática validando stock (D4). Con el switch **INACTIVO** en ese tenant: el módulo Inventarios se oculta por completo y Ventas opera exactamente como hoy (captura manual del concepto, sin búsqueda ni escáner). Detalle operativo en §22 (US-INV-025). | Una tabla de partidas rediseñaría un módulo de Ventas vivo en producción sin necesidad inmediata; el switch por tenant permite a cada empresa activar inventario cuando su migración esté lista, sin afectar a las demás. Decisión actualizada a pedido del dueño: **se activa/desactiva por tenant, no global**. | El flag vive en la tabla `configuracion` **por tenant** (clave `inventario_activo`, `0`/`1`, default `0`), coherente con el resto de `configuracion` por tenant. No requiere BD de control. Limitación honesta v1: venta de línea única (1 producto por venta); carrito multi-producto queda como evolución futura con partidas. |
+| D8 | **Integración con Ventas — CERRADA (por tenant)**: columna nullable `producto_id` sobre `ordenes_compra` + interruptor **por tenant** `inventario_activo` en Configuraciones globales del tenant. Con el switch **ACTIVO** en ese tenant: la captura de venta gana autocompletado de producto (nombre/SKU al ir escribiendo) y lectura por código de barras (escáner HID; si falla, captura manual del código); toda venta con producto genera su salida automática validando stock (D4). Con el switch **INACTIVO** en ese tenant: el módulo Inventarios se oculta por completo y Ventas opera exactamente como hoy (captura manual del concepto, sin búsqueda ni escáner). Detalle operativo en §22 (US-INV-025). | Una tabla de partidas rediseñaría un módulo de Ventas vivo en producción sin necesidad inmediata; el switch por tenant permite a cada empresa activar inventario cuando su migración esté lista, sin afectar a las demás. Decisión actualizada a pedido del dueño: **se activa/desactiva por tenant, no global**. | El flag vive en la tabla `configuracion` **por tenant** (clave `inventario_activo`, `0`/`1`, default `0`), coherente con el resto de `configuracion` por tenant. No requiere BD de control. Limitación honesta v1: venta de línea única (1 producto por venta); carrito multi-producto queda como evolución futura con partidas. **P1 (§0.6.1) cerrada 2026-08-24: B — línea única confirmada.** D8 se mantiene sin cambios; multi-línea con inventario activo queda diferida a Fase 2 (§0.4.1). |
 | D9 | **El importador masivo entra en v1** (reescrito en §34): CSV/XLSX con wizard de mapeo de cabeceras; SKU duplicado **actualiza** el producto existente (upsert, conserva lo no mapeado); existencias iniciales viajan **en el mismo archivo** y generan entradas automáticas tipo "inventario inicial". | La migración desde el sistema actual del negocio es la razón de ser del módulo; dar de alta cientos/miles de SKUs a mano es inviable y anularía la v1. | Sustituye al antiguo "importador genérico" de esta misma sección; la entrada manual tipo "inventario inicial" sigue existiendo como alternativa para altas puntuales. |
 | D10 | **Imágenes por tenant en 2 capas + 3 límites + pipeline obligatorio**: capa **control** `inventario_imagenes_habilitado` por empresa (gate maestro en `control_tenants.tenants`, `0`/`1`, default `0`, mismo patrón que Marca); capa **tenant** `inv_imagenes_activo` en `configuracion` por tenant (`0`/`1`, default `0`, solo visible/editable si gate control=`1`). 3 límites por tenant en `inventario_config`: `inv_imagen_max_mb` (5 MB por archivo), `inv_imagen_max_por_producto` (20 imgs), `inv_imagen_cuota_mb` (500 MB total disco variantes optimizadas). Pipeline servidor obligatorio: validar firma → redimensionar 1200px → WebP q80 → thumb 300×300 WebP → descartar original. Spec §6. | Una foto de celular pesa ~4 MB; sin procesamiento, 2000 SKUs saturan ~8 GB en MinIO. Pedido del dueño (2026-08-24): habilitar imágenes también por tenant + límite por archivo y por disco duro, no solo gate de control. | Gate control `0` → UI sin sección imágenes y API `INV_IMAGENES_DESHABILITADAS` aunque tenant diga `1`; cualquiera de los 3 límites excedido → `INV_IMAGEN_CUOTA_EXCEDIDA` (no deja subir hasta liberar). Solo se persisten variantes optimizadas, nunca el original. |
 | D11 | **Catálogo de dos tipos**: campo `tipo` en productos — `producto` (físico, inventariable) y `servicio` (no inventariable: sin existencias, sin movimientos, sin kardex; sí aparece en catálogo, búsqueda y venta). Líquidos y gramaje NO requieren campos extra: cantidades `DECIMAL(12,3)` + unidades kg/g/L/ml + conversiones (§9) los cubren; venta por peso = captura decimal manual (báscula conectada = fase futura). | Cubrir la gran mayoría de negocios (productos, servicios, líquidos, gramaje) sin abrir variantes/lotes en v1; un servicio solo necesita no tocar stock. | Los servicios participan en ventas (§22) sin generar salida aunque el switch global esté activo; "ventas de servicios no afectan stock" (§49) se vuelve regla estructural del modelo. |
@@ -49,18 +49,46 @@ La v1 entrega un **motor de existencias mínimo útil**: catálogo simple, un al
 11. Alertas en pantalla (badges/lista "bajo mínimo"); notificaciones email/WhatsApp (§39) fuera.
 12. Exportación CSV únicamente; XLSX/PDF (§35) requieren decidir librerías nuevas y quedan fuera.
 13. Auditoría automática de mutaciones vía el middleware existente (§37) y papelera soft-delete con `eliminado_en` (§38).
-14. Importador masivo de migración CSV/XLSX con wizard de mapeo de cabeceras (decisión D9, especificación completa en §34): catálogo + existencias iniciales hacia el almacén `ALM-1`.
+14. Importador masivo de migración CSV/XLSX con wizard de mapeo de cabeceras (decisión D9, especificación completa en §34, mejorado en la auditoría 2026-08-24: mapeo en 3 niveles de confianza, perfiles de mapeo guardados por tenant, plantilla descargable, presets de sistema origen): catálogo + existencias iniciales hacia el almacén `ALM-1`.
+15. Página de ayuda con el diccionario de datos del módulo (§56, US-INV-026), misma fuente que el diccionario de sinónimos del importador.
 
 **Fuera de v1 (explícito):** variantes, atributos configurables, ubicaciones, multi-almacén operativo y transferencias, lotes, series, caducidades, kits, reservas, conteos físicos, etiquetas y códigos QR generados, notificaciones por correo, clasificación ABC, sugerencias de compra, API pública.
 
 ## 0.4 Re-mapeo del roadmap
 
-> **Leyenda de alcance v1:** \1\ entra en esta versión. \Fase 2\ / \Fase 3-5\ = fuera de v1 (ver §0.3). Prevalece §0.3 ante cualquier descripción aspiracional.
- (§53)
+> **Leyenda de alcance:** **v1** entra en esta versión. **Fase 2** / **Fase 3-5** = fuera de v1 (ver §0.3). Prevalece esta sección sobre la descripción aspiracional de §53.
 
 - **v1** — el motor mínimo descrito en §0.3.
 - **Fase 2** — variantes + atributos configurables, multi-almacén operativo (ABML + transferencias), ubicaciones, reservas, conteos físicos, ajustes con aprobación, roles Operador de almacén y Compras, códigos de barras/QR y etiquetas.
 - **Fase 3–5** — sin cambios respecto a §53, con la nota permanente de que el costeo avanzado (PEPS/FIFO) sigue dependiendo de lotes.
+
+### 0.4.1 Resumen consolidado — todo lo diferido de v1, en una sola tabla
+
+> Poda estructural (auditoría 2026-08-24): antes de esta tabla, cada feature diferida tenía su propia sección completa (campos, ejemplos, diagramas) mezclada entre las secciones v1, duplicando lo que esta tabla ya resume y arriesgando quedar desalineada (pasó con §15/§16, corregido en esta misma auditoría). Las secciones §7 a §41 quedan como **anexo breve** — 3-6 líneas cada una, con su US-INV-xxx y un señalamiento aquí — no como especificación completa; se desarrollan a detalle solo al iniciar la fase que les corresponde.
+
+| Feature | Fase | Por qué se difiere |
+|---|---|---|
+| Atributos configurables (§7) | 2 | Depende de que existan variantes primero (D1) |
+| Variantes (§8) | 2 | D1: recorta ~30% de la Fase 1 sin aportar al núcleo |
+| Almacenes ABML + tipos (§11) | 2 | D2: hoy opera un solo punto físico, `ALM-1` basta |
+| Ubicaciones (§12) | 2 | D3: sin valor con un solo almacén |
+| Transferencias (§17) | 2 | Depende de multi-almacén operativo (§11) |
+| Lotes (§18) | 3 | Costeo PEPS/FIFO y caducidad dependen de esto |
+| Series (§19) | 3 | Solo aplica a electrónica/equipo, no al núcleo |
+| Caducidades (§20) | 3 | Depende de lotes (§18) |
+| Compras/proveedores como entidad (§21) | 2 | `proveedor_principal` texto libre cubre v1 (D1/§5) |
+| Gastos↔Inventario trazable (§23) | 2 | Evita rediseñar Gastos sin necesidad inmediata |
+| Devoluciones de cliente con flujo propio (§24) | 2 | v1 ya cubre devolución como tipo de entrada simple |
+| Conteos físicos (§26) | 2 | Requiere ubicaciones/multi-almacén maduros primero |
+| Ajustes con flujo de aprobación (§27) | 2 | v1 ya trae ajuste directo con motivo (§0.3:7); lo que se difiere es el flujo de estados borrador→aprobado |
+| Códigos de barras — generación/QR/etiquetas (§29/§30) | 2 | v1 solo LEE código de barras existente (D8/§22), no lo genera |
+| Kits y productos compuestos (§31) | 3 | Exige resolver descuento en cascada, no trivial |
+| Reservas (§33) | 2 | Depende de checkout/pedidos con estado propio |
+| Notificaciones email/WhatsApp (§39) | 2 | Canal ya existe en el proyecto; falta solo el disparador |
+| Clasificación ABC (§41) | 2 | Requiere histórico de ventas/rotación acumulado |
+| Roles Operador de almacén / Compras (§3.4/§3.5) | 2 | D7: solo valen cuando hay personal de bodega operando |
+| Exportación XLSX/PDF (§35) | 2 | Requiere decidir librería nueva (fuera del núcleo) |
+| Venta multi-línea con inventario activo (§22) | 2 | P1 cerrada 2026-08-24 = línea única en v1; tabla `venta_partidas` y descuento por línea quedan para cuando se reabra el diseño de Ventas |
 
 ## 0.5 Concurrencia, precisión numérica e integridad del libro
 
@@ -99,6 +127,7 @@ COMMIT;
 
 - Prohibidos FLOAT/DOUBLE para cantidades o dinero.
 - Las comparaciones de stock se hacen EN SQL dentro de la transacción; JS solo formatea para presentación.
+- **Lock de `productos` en cada entrada (hallazgo de concurrencia, auditoría 2026-08-24)**: `costo_promedio` vive en `productos` (D5/§32), no en `existencias`. El bloqueo de fila del bloque B solo cubre `existencias` — dos entradas simultáneas del mismo producto pueden recalcular el promedio ponderado en paralelo y perder una de las dos actualizaciones (*lost update*, silencioso, sin error). Toda entrada agrega `SELECT costo_promedio FROM productos WHERE id=? FOR UPDATE` dentro de la MISMA transacción del bloque B, antes de recalcular.
 
 ### D. Invariantes del libro (append-only)
 
@@ -106,21 +135,32 @@ COMMIT;
 2. Cada movimiento conserva `existencia_anterior` y `existencia_posterior`: el estado del inventario es reconstruible a cualquier fecha.
 3. Invariante estructural garantizada por construcción: `posterior = anterior ± cantidad` se calcula dentro de la MISMA transacción del bloqueo — ninguna ruta de código puede romperla.
 
-### E. Conciliación saldos ↔ kardex
+### E. Idempotencia en reintentos (hallazgo de seguridad, auditoría 2026-08-24)
+
+El bloque B invita al cliente a reintentar tras `INV_CONCURRENCIA` ("reintentable"). Sin protección, un doble-click, un retry de red o un reintento automático del frontend duplica el movimiento (doble descuento/alta real, silencioso, sin error visible al usuario).
+
+- Toda mutación de stock que se origina en una acción de usuario (venta con producto, entrada, salida, ajuste) viaja con un **`Idempotency-Key`** (UUID generado en el cliente al abrir el formulario, no al reenviar).
+- El backend guarda `(tenant, idempotency_key)` con el resultado de la primera ejecución exitosa; una key repetida devuelve la MISMA respuesta guardada sin ejecutar de nuevo el movimiento — nunca `INV_IDEMPOTENCIA_DUPLICADA` como error duro al usuario, es una repetición transparente.
+- TTL de la key: 24 h (suficiente para cualquier reintento razonable, evita crecer la tabla indefinidamente).
+- Mismo mecanismo para el importador (D9): re-ejecutar `POST .../ejecutar` sobre una importación ya completada es no-op, no vuelve a correr las 500 filas del chunk.
+
+### F. Conciliación saldos ↔ kardex
 
 - Script `backend/scripts/verificar-inventario.js` (mismo patrón que `verificar-mysql.js`) + endpoint interno de administrador ("Verificar integridad" en la vista Inventarios).
 - Recomputa cada saldo desde el libro y reporta divergencias: `(producto, almacén, saldo_cacheado, saldo_recalculado)`.
 - Una divergencia se corrige ÚNICAMENTE con movimiento compensatorio `AJU-` generado por el administrador — nunca con `UPDATE` directo del saldo.
 - Ejecución sugerida: bajo demanda y siempre después de una importación masiva (D9).
 
-### F. Códigos de error nuevos
+### G. Códigos de error nuevos
 
 Mismo formato `{ error: 'CODIGO', mensaje }` del API existente:
-`INV_STOCK_INSUFICIENTE`, `INV_PRODUCTO_NO_ENCONTRADO`, `INV_SKU_DUPLICADO`, `INV_UNIDAD_INVALIDA`, `INV_CONCURRENCIA`, `INV_IMPORTACION_EN_CURSO`, `INV_IMAGENES_DESHABILITADAS`, `INV_IMAGEN_CUOTA_EXCEDIDA`.
+`INV_STOCK_INSUFICIENTE`, `INV_PRODUCTO_NO_ENCONTRADO`, `INV_SKU_DUPLICADO`, `INV_UNIDAD_INVALIDA`, `INV_CONCURRENCIA`, `INV_IMPORTACION_EN_CURSO`, `INV_IMAGENES_DESHABILITADAS`, `INV_IMAGEN_CUOTA_EXCEDIDA`, `INV_IMAGEN_DIMENSION_INVALIDA`, `INV_IMAGEN_PROCESO_FALLIDO`, `INV_EXTRA_CLAVE_PROHIBIDA` (§34.4).
 
-### G. Pruebas obligatorias (parte del DoD v1)
+### H. Pruebas obligatorias (parte del DoD v1)
 
 - Prueba de concurrencia: N escrituras simultáneas (`Promise.all`) sobre el mismo producto verifican saldo final exacto y cero sobregiro.
+- Prueba de concurrencia sobre `costo_promedio`: N entradas simultáneas del mismo producto verifican que el promedio ponderado final es matemáticamente correcto (ver bloque C/§32 — detecta el *lost update* si el lock de `productos` falta).
+- Prueba de idempotencia: reenviar la misma `Idempotency-Key` dos veces produce UN solo movimiento, misma respuesta ambas veces.
 - Prueba de conciliación: fixture con un saldo corrupto a mano → el verificador lo detecta y reporta.
 
 ## 0.6 Configuración por tenant para Inventarios (D8)
@@ -165,13 +205,26 @@ Cada cambio registra en `admin_auditoria` del tenant (mismo middleware que el re
 
 Toda necesidad futura de configuración debe declarar su alcance explícitamente (global vs por tenant) en este documento o en el de su módulo antes de implementarse. Este caso deja claro que **la regla por defecto es por tenant**; lo global es la excepción y debe justificarse (ej. credenciales API por tenant ya es la norma).
 
-### 0.6.1 Decisiones pendientes v1 — responder antes de implementar
+### 0.6.1 Decisiones v1 — CERRADAS (2026-08-24)
 
-> Responder por fila: `Confirma` / `Cambia: ...` / `Difiere a Fase 2`. Hasta cerrar esta tabla no se escribe código v1.
+> Las 8 filas se cerraron con el dueño del producto el 2026-08-24, todas con la opción recomendada. Tabla conservada como registro de decisión; ya no bloquea implementación.
+
+| # | Tema | Decisión cerrada |
+|---|---|---|
+| P1 | Venta multi-línea | **B — línea única en v1.** D8 se mantiene tal cual, sin reabrir. Multi-línea con inventario activo queda diferida a Fase 2 (agregada a §0.4.1). |
+| P2 | Costo al archivar/reactivar | **A — congelar `costo_promedio` al archivar**, reanuda el promedio ponderado normal al reactivar. |
+| P3 | Cuota imágenes D10 | **Confirmado: 500 MB/tenant · 20 imgs/producto · 5 MB/archivo** (defaults ya en §0.6). |
+| P4 | Entradas/Salidas v1 | **Confirmada** la lista de §15/§16: Entradas = compra, devolución de cliente, inventario inicial, ajuste positivo. Salidas = venta, consumo interno, merma, ajuste negativo. |
+| P5 | Visibilidad fiscal | Confirmado por dueño 2026-08-24: por tenant (ver §0.6). |
+| P6 | Valor inventario en Resumen financiero | **B — solo Dashboard Inventarios** en v1; no se agrega KPI a Resumen financiero. |
+| P7 | Almacén en importador | **Confirmado: `ALM-1` fijo, sin selector** en v1 (D2). |
+| P8 | Categorías con imagen | **Confirmado: fuera de v1** (coherente con §0.3:1). |
+
+<details><summary>Tabla original de opciones consideradas (referencia histórica)</summary>
 
 | # | Tema | Estado actual en el doc | Opciones | Recomendación |
 |---|---|---|---|---|
-| P1 | Venta multi-línea | D8 dice 1 producto/venta, pero Ventas ya es multi-producto (builder suma subtotales) | A) Multi-línea (usa tabla `venta_partidas` nueva, descuenta cada línea) B) Fuerza 1 producto | **A** — reutiliza builder existente, descuenta por línea en una sola transacción |
+| P1 | Venta multi-línea | D8 (§0.2) fija 1 producto/venta como decisión **cerrada**; Ventas ya es multi-producto en UI (builder suma subtotales) — tensión real sin resolver, no cosmética | A) Multi-línea vía tabla `venta_partidas` nueva, descuenta cada línea en una sola transacción B) Mantener línea única (D8 tal cual, sin tocar el builder actual para inventario) | **Pendiente — bloqueante**: elegir A **reabre y sustituye D8 por completo** (cambia el modelo de datos de Ventas, no es un matiz de UI); no implementar §22/US-INV-025 hasta cerrar esta fila explícitamente con el dueño del producto. |
 | P2 | Costo al archivar/reactivar | §32 promedio ponderado + §38 papelera | A) Congelar `costo_promedio` al archivar B) Recalcular al reactivar | **A** — congela, reanuda promedio al reactivar |
 | P3 | Cuota imágenes D10 | Gate por empresa + compresión obligatoria | Definir `500 MB tenant` / `20 imgs prod` / `5 MB por archivo` | **500 MB / 20 / 5 MB** |
 | P4 | Entradas/Salidas v1 | §0.3:5-6 dice 4+4 sin nombrarlas | Entradas: `compra, devolucion_cliente, inventario_inicial, ajuste+`; Salidas: `venta, consumo, merma, ajuste-` | Confirmar lista |
@@ -179,6 +232,8 @@ Toda necesidad futura de configuración debe declarar su alcance explícitamente
 | P6 | Valor inventario en Resumen financiero | §42 vs §50 | A) KPI nuevo en Resumen financiero (`Valor inmovilizado`) B) Solo Dashboard Inventarios | **B** en v1 — evita mezclar valorización con flujo caja |
 | P7 | Almacén en importador | D2/D9 `ALM-1` hardcodeado | `existencia_inicial` siempre a `ALM-1` en v1 (sin selector) | Confirmar |
 | P8 | Categorías con imagen | US-INV-009 dice imagen opcional vs §0.3:1 sin imagen | Fuera en v1 | Confirmar fuera |
+
+</details>
 
 ## 0.7 Definición de Hecho (DoD) v1
 
@@ -188,9 +243,10 @@ Checklist obligatorio antes de dar v1 por hecho (además de `addv-web-app`: Anal
 - [ ] Jest backend **≥595** sin regresiones + suites nuevas: concurrencia `Promise.all` sobre mismo producto (cero sobregiro), importador (parseo/auto-match/upsert/chunks/permisos), `verificar-inventario` con saldo corrupto
 - [ ] `verificar-mysql.js` + `verificar-inventario.js` contra MySQL real (incluye tenant nuevo con `ALM-1` auto-provisionado)
 - [ ] Importador validado contra MinIO real: CSV y XLSX con cabeceras desordenadas (auto-mapeo ≥80%), columnas no mapeadas en `extra`, re-import sin duplicar stock, `errores.csv` coincidente
-- [ ] Flujo Ventas→Inventario (D8) con switch `ventas_afectan_inventario` `0/1` validado en navegador real (autocompletado + escáner/barcode, `INV_STOCK_INSUFICIENTE` bloquea venta, `D4`)
+- [ ] Flujo Ventas→Inventario (D8) con switch por tenant `inventario_activo` `0/1` validado en navegador real (autocompletado + escáner/barcode, `INV_STOCK_INSUFICIENTE` bloquea venta, `D4`) — nombre de clave corregido en esta auditoría, antes decía `ventas_afectan_inventario` (nombre viejo previo a que D8 pasara de global a por-tenant)
 - [ ] Auditoría `admin_auditoria` + `tenant_eventos` para `ventas_afectan_inventario` y cada `EN-/SA-/AJU-`
 - [ ] Revisión visual en `http://localhost:8088/admin` (desktop + móvil 390×844) sin regresión Resumen financiero/Ventas/Gastos, sin `console.error`
+- [ ] Página de ayuda (§56, US-INV-026): tarjetas del diccionario cubren el 100% de campos mapeables del wizard (misma fuente, sin duplicar a mano), deep-link `?` desde el wizard probado, buscador y navegación por teclado validados
 - [ ] `PROJECT_STATE.md` + `US.md` + `cmem.md` actualizados + rebuild `frontend` con `--force-recreate` verificado por HTTP
 
 ---
@@ -379,7 +435,7 @@ Puede:
 
 ---
 
-# 4. Dashboard de inventarios — 1 (KPIs solo datos v1)
+# 4. Dashboard de inventarios — 1 (KPIs solo datos v1)
 
 Nueva vista:
 
@@ -456,7 +512,7 @@ Como **administrador**, quiero crear un producto, para poder controlarlo dentro 
 
 ---
 
-# 6. Imágenes y archivos de productos — 1 (principal+galería, D10) / Fase 2 (variantes, docs)
+# 6. Imágenes y archivos de productos — 1 (principal+galería, D10) / Fase 2 (variantes, docs)
 
 ## US-INV-002 — Cargar imagen principal `v1`
 
@@ -473,6 +529,14 @@ Como **administrador**, quiero cargar una imagen principal del producto, para id
 3. Redimensionar lado mayor a **1200px**, convertir a **WebP q80**, generar **miniatura 300×300** WebP, **descartar original** (solo variantes optimizadas).
 4. Guardar `principal.webp` + `thumb_principal.webp` bajo `inventarios/<slug>/productos/<producto_id>/principal/` en MinIO.
 5. Guardar metadata: nombre original, mime origen, tamaños, dimensiones, `subido_por`, `subido_en`.
+
+### Límites de recursos del pipeline (hallazgo de seguridad, auditoría 2026-08-24)
+
+Una imagen maliciosa (dimensión absurda tipo "bomba de descompresión", PNG/WebP crafteado) procesada en servidor puede tumbar el worker por memoria/CPU antes de llegar a los límites de §D10 (esos límites son de tamaño de archivo, no de dimensión ni de tiempo de proceso):
+
+- Rechazar la imagen **antes de decodificar** si sus dimensiones declaradas (leídas del header, no decodificando el pixel completo) superan **8000×8000px** → `INV_IMAGEN_DIMENSION_INVALIDA`.
+- Timeout duro de proceso por imagen (**10 s**); si se excede, aborta y responde `INV_IMAGEN_PROCESO_FALLIDO` (no deja el archivo a medio procesar en MinIO).
+- El paso de redimensionar/convertir corre con límite de memoria del proceso hijo (mismo patrón que los child processes ya usados en `provisionar-tenant.js`), nunca en el proceso principal del backend.
 
 ### Reglas (límites por tenant D10)
 
@@ -545,44 +609,7 @@ Los documentos deben almacenarse en MinIO y estar protegidos por tenant.
 
 ## US-INV-006 — Crear atributos personalizados
 
-Como **administrador**, quiero definir atributos propios, para adaptar el inventario a diferentes industrias.
-
-Tipos:
-
-- Texto.
-- Número.
-- Moneda.
-- Fecha.
-- Booleano.
-- Selección única.
-- Selección múltiple.
-- Color.
-
-Ejemplos:
-
-```text
-Ropa:
-Talla
-Color
-Material
-
-Electrónica:
-Voltaje
-Potencia
-Memoria
-
-Refacciones:
-Marca compatible
-Modelo
-Año
-
-Alimentos:
-Contenido
-Presentación
-Sabor
-```
-
-No se debe requerir modificar código para crear nuevos atributos.
+Como **administrador**, quiero definir atributos propios (texto, número, moneda, fecha, booleano, selección única/múltiple, color), para adaptar el inventario a industrias distintas (talla/color en ropa, voltaje/potencia en electrónica, etc.) sin modificar código. Ver resumen y razón de diferimiento en §0.4.1.
 
 ---
 
@@ -590,34 +617,11 @@ No se debe requerir modificar código para crear nuevos atributos.
 
 ## US-INV-007 — Crear variantes
 
-Como **administrador**, quiero crear variantes de un producto, para controlar inventario por combinación.
-
-Cada variante puede tener:
-
-- SKU.
-- Código de barras.
-- Atributos.
-- Precio.
-- Costo.
-- Imagen.
-- Peso.
-- Dimensiones.
-- Existencia independiente.
-
-Ejemplo:
-
-```text
-Producto: Camisa
-
-Color: Azul
-Talla: M
-
-SKU: CAM-AZ-M
-```
+Como **administrador**, quiero crear variantes de un producto (SKU/código de barras/precio/costo/imagen propios por combinación de atributos, ej. Camisa Azul/M = `CAM-AZ-M`), para controlar inventario por combinación. Depende de que existan atributos (§7). Ver §0.4.1.
 
 ---
 
-# 9. Unidades de medida — 1
+# 9. Unidades de medida — 1
 
 ## US-INV-008 — Administrar unidades
 
@@ -654,7 +658,7 @@ El sistema debe permitir conversiones configurables.
 
 ---
 
-# 10. Categorías — 1 (sin imagen)
+# 10. Categorías — 1 (sin imagen)
 
 ## US-INV-009 — Administrar categorías
 
@@ -674,24 +678,7 @@ Las categorías deben ser reutilizables en filtros, reportes y dashboard.
 
 ## US-INV-010 — Administrar almacenes
 
-Campos:
-
-- Nombre.
-- Código.
-- Dirección.
-- Responsable.
-- Estado.
-- Teléfono.
-- Notas.
-
-Tipos:
-
-- Bodega.
-- Sucursal.
-- Centro de distribución.
-- Punto de venta.
-- Consignación.
-- Inventario virtual.
+Como **administrador**, quiero dar de alta múltiples almacenes (nombre, código, dirección, responsable, tipo: bodega/sucursal/centro de distribución/punto de venta/consignación), para operar más de un punto físico. v1 ya prepara la columna `almacen_id` en existencias/movimientos (D2) — solo falta el ABML y la UI de selección, que entran en Fase 2. Ver §0.4.1.
 
 ---
 
@@ -699,29 +686,11 @@ Tipos:
 
 ## US-INV-011 — Administrar ubicaciones
 
-Jerarquía:
-
-```text
-Almacén
-  └── Zona
-      └── Pasillo
-          └── Rack
-              └── Nivel
-                  └── Posición
-```
-
-Cada ubicación puede tener:
-
-- Código.
-- Nombre.
-- Tipo.
-- Capacidad.
-- Estado.
-- Restricciones.
+Como **administrador**, quiero una jerarquía Almacén→Zona→Pasillo→Rack→Nivel→Posición para saber exactamente dónde está cada producto dentro del almacén. Sin valor con un solo almacén (D3); v1 solo ofrece `ubicacion_nota` de texto libre en movimientos. Ver §0.4.1.
 
 ---
 
-# 13. Existencias — 1 (física=disponible)
+# 13. Existencias — 1 (física=disponible)
 
 ## US-INV-012 — Consultar existencia
 
@@ -751,7 +720,7 @@ Toda modificación debe generar un movimiento.
 
 ---
 
-# 14. Kardex — 1
+# 14. Kardex — 1
 
 ## US-INV-013 — Consultar Kardex
 
@@ -783,47 +752,23 @@ Si existe un error, se genera un movimiento compensatorio.
 
 ---
 
-# 15. Entradas — 1 (4 tipos: compra, devolución, inventario inicial, ajuste+)
+# 15. Entradas — 1 (4 tipos: compra, devolución, inventario inicial, ajuste+)
 
-Tipos:
+> **Corrección (auditoría 2026-08-24)**: esta lista antes traía 7 tipos (incluía Producción, Traspaso recibido, Consignación) contradiciendo el encabezado "4 tipos" ya fijado por §0.3:5. Se poda a los 4 de v1; el resto queda en §0.4.1 (dependen de multi-almacén/transferencias, Fase 2).
 
-- Compra.
-- Devolución de cliente.
-- Producción.
-- Ajuste positivo.
-- Inventario inicial.
-- Traspaso recibido.
-- Consignación.
+Tipos v1: **Compra · Devolución de cliente · Inventario inicial · Ajuste positivo**.
 
-La recepción debe permitir:
-
-- Recepción completa.
-- Recepción parcial.
-- Faltantes.
-- Sobrantes.
-- Daños.
-- Lotes.
-- Series.
-- Caducidad.
-- Ubicación.
+Recepción v1: completa o parcial, con faltantes/sobrantes/daños registrados en `notas` del movimiento. Lotes/series/caducidad/ubicación estructurada quedan fuera de v1 (§0.3).
 
 ---
 
-# 16. Salidas — 1 (4 tipos: venta D8, consumo, merma, ajuste-)
+# 16. Salidas — 1 (4 tipos: venta D8, consumo, merma, ajuste-)
 
-Tipos:
+> **Corrección (auditoría 2026-08-24)**: esta lista antes traía 9 tipos (incluía Devolución a proveedor, Producción, Transferencia, Consignación) contradiciendo el encabezado "4 tipos" ya fijado por §0.3:6. Se poda a los 4 de v1; el resto queda en §0.4.1.
 
-- Venta.
-- Devolución a proveedor.
-- Consumo interno.
-- Merma.
-- Daño.
-- Ajuste negativo.
-- Producción.
-- Transferencia.
-- Consignación.
+Tipos v1: **Venta (D8) · Consumo interno · Merma · Ajuste negativo**.
 
-El sistema debe validar existencia disponible antes de permitir una salida, salvo que el tenant permita inventario negativo.
+El sistema valida existencia disponible antes de permitir una salida (D4); inventario negativo queda deshabilitado en v1 sin UI para cambiarlo.
 
 ---
 
@@ -831,29 +776,7 @@ El sistema debe validar existencia disponible antes de permitir una salida, salv
 
 ## US-INV-014 — Transferir inventario
 
-Flujo:
-
-```text
-Solicitud
-   ↓
-Autorización
-   ↓
-Preparación
-   ↓
-Enviado
-   ↓
-En tránsito
-   ↓
-Recibido
-```
-
-Ejemplo:
-
-```text
-Morelia → CDMX
-```
-
-Registrar diferencias entre enviado y recibido.
+Como **administrador**, quiero mover existencia entre almacenes (Solicitud→Autorización→Preparación→Enviado→En tránsito→Recibido, ej. Morelia→CDMX) registrando diferencias entre lo enviado y lo recibido. Depende de multi-almacén operativo (§11). Ver §0.4.1.
 
 ---
 
@@ -861,20 +784,7 @@ Registrar diferencias entre enviado y recibido.
 
 ## US-INV-015 — Control por lote
 
-Productos configurables como:
-
-- Sin lote.
-- Por lote.
-
-Datos:
-
-- Número de lote.
-- Fecha fabricación.
-- Fecha caducidad.
-- Proveedor.
-- Costo.
-- Cantidad.
-- Ubicación.
+Como **administrador**, quiero marcar un producto "por lote" y capturar número de lote/fecha de fabricación/caducidad/proveedor/costo/cantidad por cada entrada, para trazabilidad de origen. Habilita costeo PEPS/FIFO y caducidades (§20). Ver §0.4.1.
 
 ---
 
@@ -882,27 +792,7 @@ Datos:
 
 ## US-INV-016 — Control serializado
 
-Productos como:
-
-- Computadoras.
-- Celulares.
-- Equipos.
-- Maquinaria.
-- Herramientas.
-
-Cada número de serie debe ser único dentro del tenant.
-
-Registrar historial:
-
-```text
-Compra
-→ Almacén
-→ Transferencia
-→ Venta
-→ Cliente
-→ Garantía
-→ Devolución
-```
+Como **administrador**, quiero un número de serie único por unidad (equipo, maquinaria, electrónica) con historial completo Compra→Almacén→Transferencia→Venta→Cliente→Garantía→Devolución. Solo aplica a negocios con producto serializado, no al núcleo. Ver §0.4.1.
 
 ---
 
@@ -910,41 +800,13 @@ Compra
 
 ## US-INV-017 — Alertas de caducidad
 
-Configuración por tenant:
-
-- 180 días.
-- 90 días.
-- 60 días.
-- 30 días.
-- 15 días.
-- 7 días.
-
-Estados:
-
-- Vigente.
-- Próximo a caducar.
-- Caducado.
-
-Debe permitir filtros y reportes.
+Como **administrador**, quiero alertas configurables (180/90/60/30/15/7 días) con estados Vigente/Próximo a caducar/Caducado, filtrables y reportables. Depende de lotes (§18). Ver §0.4.1.
 
 ---
 
 # 21. Compras — Fase 2
 
-Integrar inventarios con la vista existente de compras/proveedores cuando se implemente.
-
-Flujo:
-
-```text
-Solicitud
-→ Cotización
-→ Orden de compra
-→ Recepción
-→ Inventario
-→ Factura
-```
-
-Una recepción confirmada genera automáticamente los movimientos correspondientes.
+Como **administrador**, quiero un flujo Solicitud→Cotización→Orden de compra→Recepción→Inventario→Factura donde una recepción confirmada genera automáticamente los movimientos de entrada. v1 cubre la migración de catálogo (importador, §34) y el registro manual de entradas (§15); la entidad Proveedores y el flujo de compras completo quedan para cuando exista esa área en el proyecto. Ver §0.4.1.
 
 ---
 
@@ -989,18 +851,7 @@ Si la validación de stock falla, la venta NO se registra.
 
 # 23. Gastos — Fase 2 (nota trazabilidad)
 
-Los gastos existentes no deben convertirse automáticamente en inventario.
-
-Sin embargo, una compra de mercancía puede vincular:
-
-- Proveedor.
-- Gasto.
-- Orden de compra.
-- Recepción.
-- Factura.
-- Movimiento de inventario.
-
-La relación debe ser trazable.
+Los gastos existentes (módulo Gastos ya en producción) no deben convertirse automáticamente en inventario. Cuando exista una compra de mercancía formal (proveedor/orden de compra/recepción/factura), esa relación con el movimiento de inventario debe quedar trazable. v1 no toca el módulo Gastos. Ver §0.4.1.
 
 ---
 
@@ -1008,26 +859,11 @@ La relación debe ser trazable.
 
 ## US-INV-018 — Devolución de cliente
 
-Registrar:
-
-- Venta original.
-- Producto.
-- Cantidad.
-- Motivo.
-- Condición.
-- Evidencia fotográfica.
-- Acción.
-
-Acciones:
-
-- Reingresar a inventario.
-- Cuarentena.
-- Reparación.
-- Desecho.
+Como **administrador**, quiero registrar una devolución ligada a la venta original (producto, cantidad, motivo, condición, evidencia) y decidir su destino (reingresar a inventario / cuarentena / reparación / desecho). v1 cubre devolución solo como tipo de entrada simple (§15), sin este flujo de decisión por condición. Ver §0.4.1.
 
 ---
 
-# 25. Mermas y daños — 1 (salida merma v1)
+# 25. Mermas y daños — 1 (salida merma v1)
 
 ## US-INV-019 — Registrar merma
 
@@ -1053,7 +889,7 @@ Motivos:
 - Destrucción.
 - Otro.
 
-Permitir cargar fotografías como evidencia.
+Permitir cargar fotografías como evidencia. **La evidencia fotográfica reutiliza el mismo pipeline y los mismos 3 límites de D10/§6** (firma binaria, redimensión, WebP, cuota por tenant) — no es un flujo de carga aparte; sin esto, "evidencia" sería una vía para subir archivos sin cuota ni compresión, hallazgo de la auditoría 2026-08-24.
 
 ---
 
@@ -1061,44 +897,11 @@ Permitir cargar fotografías como evidencia.
 
 ## US-INV-020 — Crear conteo
 
-Tipos:
-
-- General.
-- Cíclico.
-- Por categoría.
-- Por almacén.
-- Por ubicación.
-- Sorpresa.
-
-### Conteo ciego
-
-El operador no debe conocer la existencia teórica antes del conteo.
-
-Captura:
-
-```text
-Producto
-Cantidad contada
-Lote
-Serie
-Ubicación
-Observaciones
-Evidencia
-```
-
-Después:
-
-```text
-Sistema: 100
-Conteo: 97
-Diferencia: -3
-```
-
-El sistema debe generar propuesta de ajuste.
+Como **administrador**, quiero conteos físicos (general/cíclico/por categoría/por almacén/por ubicación) en modalidad ciega (el operador no ve la existencia teórica antes de contar) que comparen sistema vs. conteo y generen una propuesta de ajuste con la diferencia. Depende de ubicaciones/multi-almacén maduros (§11/§12). Ver §0.4.1.
 
 ---
 
-# 27. Ajustes — 1 simple (Fase 2: aprobación)
+# 27. Ajustes — 1 simple (Fase 2: aprobación)
 
 ## US-INV-021 — Aprobar ajuste
 
@@ -1122,9 +925,11 @@ Debe conservar:
 - Diferencia.
 - Movimiento generado.
 
+**Evidencia fotográfica del ajuste**: mismo pipeline y mismos 3 límites de D10/§6 que producto y mermas (§25) — regla única, sin excepción por tipo de evidencia.
+
 ---
 
-# 28. Inventario mínimo y abastecimiento — 1 (sin lead time/sugerencia auto)
+# 28. Inventario mínimo y abastecimiento — 1 (sin lead time/sugerencia auto)
 
 Por producto:
 
@@ -1154,41 +959,13 @@ La sugerencia no crea una compra automáticamente salvo configuración explícit
 
 # 29. Códigos de barras y QR — Fase 2
 
-Permitir:
-
-- Código de barras.
-- QR.
-- Código interno.
-- Código alternativo.
-
-Funciones:
-
-- Escanear.
-- Buscar.
-- Entrada.
-- Salida.
-- Conteo.
-- Transferencia.
-- Recepción.
+Generación de código interno/QR propio y su uso en entrada/salida/conteo/transferencia/recepción. **v1 ya LEE código de barras existente del producto** (escáner HID en Ventas, D8/§22) — lo que se difiere es que el sistema GENERE códigos/QR nuevos. Ver §0.4.1.
 
 ---
 
 # 30. Etiquetas — Fase 2
 
-Generar etiquetas con:
-
-- Logo del tenant.
-- Nombre.
-- SKU.
-- Código de barras.
-- QR.
-- Precio.
-- Lote.
-- Caducidad.
-- Serie.
-- Ubicación.
-
-La plantilla debe ser configurable.
+Generación de etiquetas imprimibles con logo del tenant, nombre, SKU, código de barras/QR, precio, lote/caducidad/serie/ubicación cuando apliquen, con plantilla configurable. Depende de §29 y de que existan lotes/series/ubicaciones. Ver §0.4.1.
 
 ---
 
@@ -1196,28 +973,11 @@ La plantilla debe ser configurable.
 
 ## US-INV-022 — Crear kit
 
-Ejemplo:
-
-```text
-Kit computadora
-
-1 Laptop
-1 Mouse
-1 Teclado
-1 Mochila
-```
-
-La venta puede descontar componentes automáticamente.
-
-Debe existir configuración:
-
-- Kit fijo.
-- Kit variable.
-- Producto compuesto.
+Como **administrador**, quiero armar kits (ej. "Kit computadora" = 1 laptop + 1 mouse + 1 teclado + 1 mochila, fijo o variable) donde la venta descuenta automáticamente cada componente. Exige resolver el descuento en cascada, no trivial sobre el motor de existencias v1. Ver §0.4.1.
 
 ---
 
-# 32. Costos y valorización — 1 (promedio ponderado)
+# 32. Costos y valorización — 1 (promedio ponderado)
 
 Métodos configurables:
 
@@ -1235,22 +995,15 @@ Conservar:
 
 Los cambios de costo deben quedar auditados.
 
+**Concurrencia (ver §0.5.C)**: recalcular `costo_promedio` exige bloquear la fila de `productos` (`FOR UPDATE`) en la misma transacción que registra la entrada — no es opcional, evita perder actualizaciones cuando dos entradas del mismo producto llegan al mismo tiempo.
+
 ---
 
 # 33. Reservas — Fase 2
 
 ## US-INV-023 — Reservar inventario
 
-Una venta/pedido puede reservar productos.
-
-Estados:
-
-- Disponible.
-- Reservado.
-- Liberado.
-- Consumido.
-
-Una reserva no debe descontar físicamente la existencia hasta que se confirme la salida.
+Como **administrador**, quiero que una venta/pedido pueda reservar producto (estados Disponible/Reservado/Liberado/Consumido) sin descontar físicamente la existencia hasta confirmar la salida. Depende de un flujo de pedido/checkout con estado propio que v1 no tiene (D6: v1 solo distingue física=disponible, §13). Ver §0.4.1.
 
 ---
 
@@ -1283,41 +1036,84 @@ Reglas transversales del wizard:
 - Confirmación explícita antes del paso 5 ("Se importarán X productos nuevos y se actualizarán Y existentes").
 - Accesibilidad: todo operable por teclado, focus management entre pasos, `aria-live="polite"` para progreso y errores, textos en español consistentes con el panel.
 - El mapeo se recomienda en desktop/tablet horizontal; en móvil (<768px) el paso 3 muestra aviso recomendando continuar en pantalla grande.
+- El preset de sistema origen (34.3.3) y el enlace a la plantilla descargable (34.3.4) viven dentro del **paso 1** (junto al botón de subir archivo) — no agregan un paso nuevo al wizard, siguen siendo 6 pasos. El perfil de mapeo guardado (34.3.2), si la firma de cabeceras calza, se aplica automáticamente al entrar al **paso 3**.
 
-### 34.3 Paso 3 — Mapeo de cabeceras
+### 34.3 Paso 3 — Mapeo de cabeceras (mejorado, auditoría 2026-08-24)
 
-El backend normaliza cada cabecera del archivo (minúsculas, sin acentos, recorte de espacios) y propone automáticamente una columna destino por coincidencia exacta o por diccionario de sinónimos. La sugerencia llega preseleccionada pero es editable.
+El backend normaliza cada cabecera del archivo (minúsculas, sin acentos, recorte de espacios, `_`/`-`/espacio equivalentes) y propone automáticamente una columna destino en 3 niveles de confianza, de mayor a menor:
 
-Campos mapeables v1:
+1. **Coincidencia exacta** contra el nombre de campo del sistema (`sku`, `sku`) → confianza alta, badge verde "Exacto".
+2. **Diccionario de sinónimos** (tabla de abajo, ampliada) → confianza alta, badge verde "Reconocido".
+3. **Coincidencia difusa** (distancia de Levenshtein normalizada, umbral ≥ 80% de similitud contra el nombre de campo o cualquiera de sus sinónimos — ej. `"Descripcion del Producto"` ≈ `descripcion` ≈ `nombre`) → confianza media, badge ámbar "Sugerido, revisa" — nunca se auto-confirma silenciosamente, siempre pide que el usuario la vea antes de continuar.
+
+Sin coincidencia en los 3 niveles: columna sin asignar, mapeo manual por el usuario (badge gris "Sin mapear").
+
+Campos mapeables v1 — diccionario de sinónimos ampliado (cubre exportaciones típicas de Excel genérico, CONTPAQi, Aspel SAE/COI, Bind ERP, Odoo y nombres en inglés; no es una lista cerrada, el fuzzy match de nivel 3 cubre variantes no listadas):
 
 | Campo sistema | Obligatorio | Sinónimos para auto-match |
 |---|---|---|
-| sku | sí | sku, codigo, clave, cve, codigo_producto, codigo_articulo |
-| nombre | sí | nombre, descripcion, producto, articulo, concepto |
-| codigo_barras | no | codigo_barras, barcode, ean, upc, gtin |
-| descripcion_corta / descripcion_larga | no | descripcion_corta, resumen / descripcion_larga, detalle, notas_comerciales |
-| marca / fabricante / modelo | no | marca, brand / fabricante, manufacturer / modelo, model |
-| categoria | no | categoria, familia, linea, rubro, grupo |
-| unidad_base | sí* | unidad, unidad_medida, um, presentacion (*default Pieza si viene vacía) |
-| costo / precio | no | costo, cost, ultimo_costo / precio, pvp, precio_venta |
-| stock_minimo / stock_maximo / punto_reorden | no | minimo, min / maximo, max / reorden, punto_reorden |
-| proveedor_principal | no | proveedor, distribuidor (texto libre, sin FK) |
-| existencia_inicial | no | existencia, stock, cantidad, inventario, existencias |
-| estado | no | estado, estatus, activo (valores "activo/inactivo"; default activo) |
-| notas | no | notas, observaciones, comentario |
+| sku | sí | sku, codigo, clave, cve, codigo_producto, codigo_articulo, clave_producto, clave_articulo, id_producto, product_code, product_sku, código de producto |
+| nombre | sí | nombre, descripcion, producto, articulo, concepto, nombre_producto, descripcion_producto, product_name, item, item_name, nombre_articulo |
+| codigo_barras | no | codigo_barras, barcode, ean, upc, gtin, cod_barras, código_de_barras, ean13 |
+| descripcion_corta / descripcion_larga | no | descripcion_corta, resumen, subtitulo / descripcion_larga, detalle, notas_comerciales, descripcion_completa, ficha |
+| marca / fabricante / modelo | no | marca, brand, marca_producto / fabricante, manufacturer, maker / modelo, model, referencia |
+| categoria | no | categoria, familia, linea, rubro, grupo, category, departamento, clasificacion |
+| unidad_base | sí* | unidad, unidad_medida, um, u_m, presentacion, unit, uom (*default Pieza si viene vacía) |
+| tipo | no | tipo, tipo_producto, tipo_articulo, es_servicio (valores producto/servicio; default producto) |
+| costo / precio | no | costo, cost, ultimo_costo, costo_unitario, precio_compra / precio, pvp, precio_venta, precio1, price, precio_publico |
+| stock_minimo / stock_maximo / punto_reorden | no | minimo, min, stock_min, existencia_minima / maximo, max, stock_max, existencia_maxima / reorden, punto_reorden, punto_de_reorden |
+| proveedor_principal | no | proveedor, distribuidor, supplier, vendor (texto libre, sin FK) |
+| existencia_inicial | no | existencia, stock, cantidad, inventario, existencias, existencia_actual, cant_disponible, qty, quantity |
+| estado | no | estado, estatus, activo, status (valores "activo/inactivo"; default activo) |
+| notas | no | notas, observaciones, comentario, comments, nota |
 
 Reglas de la interfaz de mapeo (patrón estándar de importadores):
 
 1. Un campo del sistema recibe a lo más UNA columna; asignar una columna ya usada muestra conflicto inline y desasigna la anterior.
 2. Debajo de cada selector se previsualizan las primeras 5 filas no vacías de esa columna — el usuario valida a simple vista que mapeó bien.
-3. Contador de cobertura visible: "Obligatorios cubiertos: 2/2 · Opcionales: 9/13".
+3. Contador de cobertura visible: "Obligatorios cubiertos: 2/2 · Opcionales: 9/14".
 4. Las columnas NO mapeadas no se descartan: van al campo `extra` (§34.4) si la casilla "Conservar columnas no mapeadas como datos extra" está activa (default activa).
+5. Cada sugerencia muestra su badge de confianza (Exacto/Reconocido/Sugerido); pasar el mouse o enfocar con teclado explica por qué se sugirió ("coincide con el sinónimo 'articulo'").
+
+### 34.3.1 Regla inicial de compatibilidad — hacer el mapeo predecible, no adivinado
+
+Para que el resultado del mapeo sea **consistente y auditable** (dos importaciones del mismo tipo de archivo deben mapear igual, sin sorpresas), el motor aplica siempre este orden de prioridad y nunca lo invierte:
+
+```text
+1) Perfil de mapeo guardado del tenant (34.3.2) — si la firma de cabeceras coincide, se aplica automático
+2) Preset de sistema origen elegido por el usuario (34.3.3) — si lo seleccionó en el paso 1
+3) Coincidencia exacta de nombre de campo
+4) Diccionario de sinónimos
+5) Coincidencia difusa (Levenshtein ≥80%)
+6) Sin mapear (manual)
+```
+
+Un campo **obligatorio** (`sku`, `nombre`, `unidad_base`) nunca se auto-asigna con confianza "Sugerido" (nivel 5): siempre pide confirmación explícita del usuario antes de continuar al paso 4, aunque el resto de campos opcionales sí se acepten automáticamente. Esto evita que un fuzzy-match equivocado en el campo llave (`sku`) corrompa silenciosamente cientos de filas.
+
+### 34.3.2 Perfil de mapeo guardado por tenant (mejora UX, auditoría 2026-08-24)
+
+La migración inicial no es la única vez que un tenant importa: negocios que ya usan otro sistema en paralelo (o hacen altas masivas periódicas) reexportan el MISMO formato una y otra vez. Remapear a mano cada mes es fricción evitable.
+
+- Al completar el paso 3 con éxito, el wizard ofrece "Guardar este mapeo para la próxima vez" (checkbox, default activado).
+- Se guarda `inv_perfiles_mapeo` (tenant, nombre del perfil, firma de cabeceras normalizada — hash del set ordenado de cabeceras del archivo —, mapeo JSON, creado_por, creado_en, usado_por_ultima_vez).
+- En una importación futura, si la firma de cabeceras del archivo nuevo coincide con un perfil guardado, el paso 3 llega **pre-mapeado al 100%** con un aviso "Se aplicó tu perfil «Exportación mensual Aspel» — revisa y continúa" — el usuario sigue pudiendo editar, nunca se ejecuta sin pasar por el paso 4 de validación.
+- Firma de cabeceras ligeramente distinta (una columna de más/menos) → coincidencia parcial, se pre-mapean solo las cabeceras que sí calzan, el resto sigue el flujo normal (34.3.1).
+- Gestión de perfiles: lista simple en Configuraciones del módulo (nombre, fecha, cuántas veces usado, eliminar).
+
+### 34.3.3 Preset de sistema origen (opcional, acelera el primer mapeo)
+
+Antes del paso 3, un selector opcional "¿De qué sistema exportaste este archivo?" con presets: **CONTPAQi**, **Aspel SAE/COI**, **Excel genérico / plantilla ADDV** (34.3.4), **Otro / no sé**. Elegir un preset distinto de "Otro" reordena el diccionario de sinónimos (34.3) priorizando los nombres de columna típicos de ese sistema, subiendo la tasa de auto-match inicial antes incluso de correr el fuzzy match. Es una ayuda de arranque, no una regla nueva: si el preset no calza, el flujo normal (exacto → sinónimo → difuso) sigue aplicando igual.
+
+### 34.3.4 Plantilla descargable — la forma más rápida de llegar a 100% de mapeo
+
+Junto al botón de subir archivo (paso 1), un enlace **"Descargar plantilla (CSV / XLSX)"**: archivo pre-formateado con las cabeceras EXACTAS del sistema (columna por columna, en el mismo orden de la tabla de 34.3), 2 filas de ejemplo con datos ficticios válidos, y comentarios/validación de celda en la versión XLSX indicando formato esperado por columna (ej. `unidad_base`: lista desplegable con las unidades de §9). Un tenant que llena la plantilla directamente llega al paso 3 con **mapeo exacto al 100%**, sin necesidad de sinónimos ni fuzzy match — es la ruta recomendada para catálogos nuevos capturados a mano; los presets de 34.3.3 son para quien ya tiene el archivo exportado de otro sistema y no puede recapturar.
 
 ### 34.4 Campo `extra` — nada de la migración se pierde
 
 - Toda columna no mapeada se persiste por producto en `productos.extra` (columna JSON, MySQL 8) bajo su cabecera original normalizada.
 - En el detalle del producto se muestra como sección colapsable "Datos migrados (extra)", editable como JSON con validación sintáctica.
 - El contenido de `extra` jamás participa en lógica de negocio, validaciones ni reportes: es dato conservado para consulta y futura promoción a campo formal.
+- **Guardia contra prototype pollution (hallazgo de seguridad, auditoría 2026-08-24)**: las cabeceras del archivo del cliente se vuelven claves de un objeto JSON que luego se lee/edita en JS. Una cabecera literal `__proto__`, `constructor` o `prototype` es un vector real si algún flujo posterior mezcla ese JSON con `Object.assign`/spread sin filtrar. Al normalizar cabeceras (paso 3) se **rechazan** esas 3 claves antes de escribir en `extra` → error `INV_EXTRA_CLAVE_PROHIBIDA` en el reporte de validación (fila afectada, no aborta todo el archivo en modo tolerante).
 
 ### 34.5 Paso 4 — Validación completa
 
@@ -1355,20 +1151,26 @@ Un fallo de la fila revierte SU producto Y SU entrada juntos (transacción por f
 ### 34.9 Seguridad, almacenamiento y auditoría
 
 - Validación de firma binaria obligatoria (XLSX = magic bytes `PK\x03\x04`; CSV = texto válido UTF-8/Latin-1). Nunca confiar en la extensión.
-- El archivo original se archiva en MinIO bajo `inventarios/<slug>/imports/<importacion-id>/original.<ext>` (extiende la estructura de §2.3) para auditoría y reprocesamiento; protegido por tenant igual que cualquier objeto.
+- El archivo original se archiva en MinIO bajo `inventarios/<slug>/imports/<importacion-id>/original.<ext>` (extiende la estructura de §2.3) para auditoría y reprocesamiento; protegido por tenant igual que cualquier objeto. **Retención (hallazgo de auditoría 2026-08-24, gap sin definir en la versión anterior del doc)**: el archivo original puede traer columnas/datos de otro sistema del cliente sin filtrar — no se conserva indefinidamente. Retención **365 días** (mismo criterio que el resto de retención de archivos del proyecto, punto 134 de `PROJECT_STATE.md`), borrado automático tras ese plazo; la importación en sí (`imp_importaciones`/`imp_importacion_errores`) permanece como registro histórico aunque el archivo original ya se haya purgado.
 - Tabla `imp_importaciones` registra: usuario, formato, nombre original, key MinIO, hoja, fila de encabezados, mapeo aplicado (JSON), modo de errores y duplicados, contadores (total/ok/error), estado (`validando → validado → ejecutando → completada`, o `error_validacion/error`) y progreso %.
 - `imp_importacion_errores` conserva cada rechazo (importación, fila, columna, valor, motivo) — respalda el CSV descargable y la consulta histórica.
 - Auditoría global: la acción `IMPORTACION_MASIVA` registra quién, cuándo, IP e id de importación; cada producto creado/actualizado hereda la auditoría estándar de mutación.
 - Rate limiting: máximo 1 importación activa por tenant simultánea.
+- Idempotencia (§0.5.E): reintentar `POST .../ejecutar` sobre una importación ya `completada` es no-op, devuelve el mismo resultado sin volver a correr los chunks.
 
 ### 34.10 API
 
 ```text
-POST /api/admin/inventarios/importaciones            (multipart: sube, parsea, sugiere mapeo)
+GET  /api/admin/inventarios/importaciones/plantilla.csv    (plantilla 34.3.4, cabeceras exactas + 2 filas ejemplo)
+GET  /api/admin/inventarios/importaciones/plantilla.xlsx   (idem, con validación de celda por columna)
+GET  /api/admin/inventarios/perfiles-mapeo                 (perfiles guardados del tenant, 34.3.2)
+DELETE /api/admin/inventarios/perfiles-mapeo/:id
+
+POST /api/admin/inventarios/importaciones            (multipart: sube, parsea, sugiere mapeo — aplica 34.3.1: perfil guardado → preset → exacto → sinónimo → difuso)
 GET  /api/admin/inventarios/importaciones/:id        (estado, progreso, contadores)
-PUT  /api/admin/inventarios/importaciones/:id/mapeo  (mapeo final del usuario + revalida)
+PUT  /api/admin/inventarios/importaciones/:id/mapeo  (mapeo final del usuario + revalida; guarda perfil si el checkbox de 34.3.2 está activo)
 GET  /api/admin/inventarios/importaciones/:id/errores.csv
-POST /api/admin/inventarios/importaciones/:id/ejecutar
+POST /api/admin/inventarios/importaciones/:id/ejecutar   (Idempotency-Key, §0.5.E)
 ```
 
 Todos bajo `/api/admin/inventarios` con sesión, permiso administrador, tenant resuelto y payload validado (reglas de §46).
@@ -1379,20 +1181,28 @@ Todos bajo `/api/admin/inventarios` con sesión, permiso administrador, tenant r
 productos.extra                JSON NULL          -- datos migrados no mapeados
 imp_importaciones              -- encabezado de cada importación (ver §34.9)
 imp_importacion_errores        -- detalle de rechazos (índice por importacion_id)
+inv_perfiles_mapeo             -- perfiles de mapeo guardados por tenant (ver §34.3.2):
+                                --   tenant, nombre, firma_cabeceras (hash), mapeo_json,
+                                --   creado_por, creado_en, usado_ultima_vez
 ```
 
 ### 34.12 Criterios de aceptación
 
-- Un CSV y un XLSX con cabeceras renombradas/desordenadas logran auto-mapeo ≥ 80% de campos reconocidos y completarse manualmente hasta 100% de los obligatorios.
-- Columnas no mapeadas quedan íntegras y consultables en `extra` de cada producto.
+- Un CSV y un XLSX con cabeceras renombradas/desordenadas logran auto-mapeo ≥ 80% de campos reconocidos (exacto+sinónimo+difuso combinados) y completarse manualmente hasta 100% de los obligatorios.
+- La plantilla descargable (34.3.4), llenada tal cual, logra auto-mapeo del 100% sin intervención manual.
+- Un segundo archivo con la MISMA firma de cabeceras que uno ya mapeado antes llega al paso 3 pre-mapeado al 100% vía perfil guardado (34.3.2), sin repetir el trabajo de mapeo.
+- Un campo obligatorio (`sku`/`nombre`/`unidad_base`) resuelto solo por coincidencia difusa (nivel 3) SIEMPRE pide confirmación explícita antes de avanzar — nunca se auto-acepta en silencio (34.3.1).
+- Columnas no mapeadas quedan íntegras y consultables en `extra` de cada producto; cabeceras `__proto__`/`constructor`/`prototype` se rechazan (`INV_EXTRA_CLAVE_PROHIBIDA`, §34.4).
 - Re-importar el mismo archivo dos veces no duplica productos (upsert) ni duplica stock inicial.
 - Un fallo a mitad de archivo no deja saldos parciales: los chunks completados quedan consistentes y el reintento completa lo faltante.
 - El reporte de errores descargable coincide exactamente con las filas omitidas.
-- Suite Jest del importador (parseo, auto-match, upsert, chunks, permisos) + prueba E2E del wizard completo contra Docker real.
+- Suite Jest del importador (parseo, auto-match en sus 3 niveles, perfiles de mapeo, upsert, chunks, permisos, idempotencia) + prueba E2E del wizard completo contra Docker real.
 
 ---
 
-# 35. Exportación — 1 CSV / Fase 2 XLSX/PDF
+# 35. Exportación — 1 CSV / Fase 2 XLSX/PDF
+
+**Protección obligatoria contra inyección de fórmulas CSV (hallazgo de seguridad, auditoría 2026-08-24)**: cualquier valor exportado que empiece con `=`, `+`, `-`, `@`, tab o CR (fórmula de Excel/Sheets — ej. un `nombre` de producto capturado o migrado como `=cmd|'/c calc'!A1`) se antepone con un apóstrofo (`'`) antes de escribir la celda. Aplica a TODAS las columnas exportables de este módulo (§35/§40), no solo a `nombre`/`notas` — un dato migrado vía `extra` (§34.4) también puede traer el patrón. Sin esto, abrir el CSV exportado en Excel ejecuta la fórmula con los permisos del usuario que lo abre (OWASP CSV Injection).
 
 Permitir:
 
@@ -1445,7 +1255,7 @@ Filtros combinables:
 
 ---
 
-# 37. Auditoría — 1
+# 37. Auditoría — 1
 
 Todas las mutaciones deben integrarse con la auditoría existente.
 
@@ -1476,7 +1286,7 @@ Acciones críticas:
 
 ---
 
-# 38. Papelera — 1
+# 38. Papelera — 1
 
 Los productos no deben eliminarse físicamente si tienen movimientos históricos.
 
@@ -1492,28 +1302,11 @@ Un producto con movimientos debe conservarse para mantener la integridad histór
 
 # 39. Notificaciones — Fase 2
 
-Alertas configurables:
-
-- Stock bajo.
-- Producto agotado.
-- Caducidad próxima.
-- Producto caducado.
-- Transferencia pendiente.
-- Conteo pendiente.
-- Ajuste pendiente.
-- Compra recomendada.
-- Diferencia de inventario.
-
-Canales futuros:
-
-- Notificación interna.
-- Email.
-- WhatsApp.
-- Push.
+Alertas configurables (stock bajo, agotado, caducidad próxima/vencida, transferencia/conteo/ajuste pendiente, compra recomendada, diferencia de inventario) enviadas por email/WhatsApp/push, además de la notificación interna. v1 solo muestra badges/lista en pantalla (§0.3:11) — el canal de email/WhatsApp ya existe en el proyecto, falta solo el disparador de este módulo. Ver §0.4.1.
 
 ---
 
-# 40. Reportes — 1 parcial
+# 40. Reportes — 1 parcial
 
 ## Inventario
 
@@ -1554,27 +1347,12 @@ Canales futuros:
 
 # 41. Clasificación ABC — Fase 2
 
-Clasificar productos:
-
-### A
-Alta importancia económica.
-
-### B
-Importancia media.
-
-### C
-Baja importancia.
-
-El criterio debe ser configurable por:
-
-- Valor.
-- Ventas.
-- Margen.
+Clasificar productos en A (alta importancia económica) / B (media) / C (baja), con criterio configurable por valor, ventas, margen o unidades. Requiere histórico de ventas/rotación acumulado que v1 recién empieza a generar. Ver §0.4.1.
 - Unidades.
 
 ---
 
-# 42. Indicadores de inventario — 1 parcial (solo datos v1)
+# 42. Indicadores de inventario — 1 parcial (solo datos v1)
 
 Mostrar únicamente indicadores respaldados por datos reales:
 
@@ -1612,7 +1390,7 @@ El módulo debe respetar la experiencia ADDV existente:
 
 ---
 
-# 44. Diseño de catálogo — 1
+# 44. Diseño de catálogo — 1
 
 La tabla de productos debe mostrar:
 
@@ -1693,7 +1471,7 @@ Cuando sea posible:
 
 ---
 
-# 46. API propuesta — 1
+# 46. API propuesta — 1
 
 Prefijo:
 
@@ -1760,7 +1538,7 @@ Todos los endpoints deben:
 
 ---
 
-# 47. Modelo de datos conceptual — 1 (Fase 2/3 tablas en anexo)
+# 47. Modelo de datos conceptual — 1 (Fase 2/3 tablas en anexo)
 
 Tablas principales:
 
@@ -1929,41 +1707,35 @@ La cámara del dispositivo puede utilizarse como futura fuente para escaneo QR/c
 
 # 53. Roadmap de implementación
 
-## Fase 1 — Inventario base
+> **Corrección (auditoría 2026-08-24)**: la "Fase 1" de esta sección quedó obsoleta el día que se cerró §0 — incluía Variantes/Almacenes/Ubicaciones como si fueran v1, cuando D1/D2/D3 los difirieron explícitamente a Fase 2. §0.4 ya es la fuente vigente de qué entra en v1; esta sección se corrige para no contradecirla. El roadmap real de v1 es la lista de §0.3, no la de abajo.
 
-- Productos.
-- Categorías.
-- Unidades.
-- Imágenes.
-- Variantes.
-- Almacenes.
-- Ubicaciones.
-- Existencias.
-- Entradas.
-- Salidas.
-- Kardex.
+## v1 — Motor mínimo de existencias (ver §0.3 para el detalle completo)
 
-## Fase 2 — Control operativo
+Productos (simple + tipo producto/servicio), categorías, unidades con conversiones, imágenes (gate por tenant), almacén único `ALM-1`, existencias física=disponible, entradas/salidas (4 tipos c/u), kardex, ajustes simples, mín./máx./reorden, importador masivo con wizard mejorado (§34), página de ayuda (§56).
 
+## Fase 2 — Control operativo (incluye lo antes mal-etiquetado como "Fase 1": variantes, almacenes, ubicaciones)
+
+- Variantes y atributos configurables.
+- Almacenes (ABML) operativo y ubicaciones.
 - Transferencias.
 - Conteos.
-- Ajustes.
-- Mermas.
+- Ajustes con flujo de aprobación.
 - Reservas.
-- Código de barras.
-- QR.
-- Etiquetas.
+- Generación de código de barras/QR y etiquetas.
+- Notificaciones (email/WhatsApp/push).
+- Clasificación ABC.
+- Roles Operador de almacén y Compras.
+- Exportación XLSX/PDF.
 
 ## Fase 3 — Control avanzado
 
 - Lotes.
 - Series.
 - Caducidades.
-- Costeo.
-- Kits.
-- Compras.
-- Recepciones.
-- Devoluciones.
+- Costeo avanzado (PEPS/FIFO, depende de lotes).
+- Kits y productos compuestos.
+
+> Compras/proveedores como entidad, recepciones formales y devoluciones con flujo de decisión por condición se movieron a **Fase 2** (§0.4.1) en esta auditoría — no dependen de lotes/series, solo de que exista la entidad Proveedores en el proyecto.
 
 ## Fase 4 — Inteligencia
 
@@ -2061,3 +1833,83 @@ La existencia es consecuencia de los movimientos; no debe ser un número editabl
 La imagen debe considerarse parte del catálogo del producto, no un accesorio. Esto permite que el mismo componente visual sea utilizado en catálogo, ventas, recepción, conteos, picking, reportes y futuras experiencias móviles.
 
 **Resultado esperado:** un módulo de inventarios suficientemente flexible para cubrir la mayoría de negocios sin perder simplicidad de uso, integrado nativamente con el Portal de Facturación ADDV y preparado para evolucionar hacia compras, ventas, e-commerce, BI, automatizaciones e IA.
+
+---
+
+# 56. Página de ayuda — Diccionario de datos de Inventarios `v1`
+
+> Agregado en la auditoría 2026-08-24, entra a **§0.3 alcance v1** (punto 15). Objetivo: que una persona sin vocabulario técnico entienda cada campo del módulo antes de capturarlo o de armar su archivo de importación, sin depender de que alguien de soporte se lo explique.
+
+## US-INV-026 — Consultar el diccionario de datos
+
+Como **cualquier usuario con acceso al módulo Inventarios** (administrador, super), quiero una página de ayuda que explique en español simple qué es cada campo, qué formato espera y un ejemplo correcto e incorrecto, para capturar o importar mi catálogo sin adivinar ni llamar a soporte.
+
+### 56.1 Principio: una sola fuente de verdad, no una página aparte que se desactualiza
+
+El riesgo real de un diccionario de datos escrito a mano es que se desalinee del sistema real (un campo cambia y nadie actualiza la página). Para evitarlo:
+
+- Los metadatos de cada campo (nombre, obligatoriedad, tipo, sinónimos, ejemplos) viven en **un único módulo fuente** `backend/utils/inventarioCampos.js` (o `.json`), el MISMO que alimenta el diccionario de sinónimos del wizard de importación (§34.3).
+- La página de ayuda **renderiza** ese catálogo (vía `GET /api/admin/inventarios/diccionario`, público solo dentro de sesión admin, sin mutación) — no es texto estático copiado en el frontend. Un campo nuevo agregado al sistema aparece automáticamente en la página de ayuda y en los sinónimos del wizard el mismo día, sin tocar dos lugares.
+- Cada entrada agrega, sobre los metadatos técnicos ya existentes en §34.3, 3 campos exclusivos de la ayuda (no usados por el wizard): `explicacion_simple` (1-2 frases sin jerga), `ejemplo_valido`, `ejemplo_invalido_comun` (el error que la gente comete seguido con ese campo).
+
+### 56.2 Dónde vive y cómo se llega
+
+- Ruta: `/<slug>/admin/inventarios/ayuda`.
+- **3 puntos de entrada**, todos al mismo contenido:
+  1. Sidebar del módulo Inventarios → ítem "Ayuda y diccionario de datos" (icono `?`, mismo patrón visual que el resto del sidebar navy).
+  2. Dentro del wizard de importación (§34.3), un ícono `?` junto a CADA campo del paso "Mapear cabeceras" abre la página de ayuda **directo en el ancla de ese campo** (`/ayuda#campo-sku`), en panel lateral o pestaña nueva según el tamaño de pantalla — nunca interrumpe el wizard en curso.
+  3. Tooltip corto (`title`/`aria-describedby`) en cada campo del formulario "Crear producto" (§5) con la `explicacion_simple` + enlace "Ver más" que abre la ayuda en esa ancla.
+
+### 56.3 Estructura de contenido
+
+Organizada por las mismas 3 agrupaciones que ya usa el módulo, para que el mapa mental coincida con lo que el usuario ya ve en la UI:
+
+```text
+1. Catálogo (nombre, sku, código de barras, categoría, unidad, tipo, costo, precio, mínimos...)
+2. Existencias y movimientos (existencia, disponible, kardex, entradas, salidas...)
+3. Importación masiva (qué es la fila de encabezados, qué es "extra", cómo funciona el mapeo)
+```
+
+Cada campo se presenta como una tarjeta compacta:
+
+```text
+┌───────────────────────────────────────────────┐
+│ SKU                            [Obligatorio]   │
+│ Código único que usas para identificar este    │
+│ producto. Tú lo eliges — no lo genera el       │
+│ sistema. No se puede repetir.                  │
+│                                                 │
+│ ✓ Correcto:  TORN-M6-25MM                      │
+│ ✗ Común:     dejarlo igual que "nombre"        │
+│                                                 │
+│ En tu archivo de importación, estas columnas   │
+│ se reconocen solas: sku, codigo, clave, cve…   │
+└───────────────────────────────────────────────┘
+```
+
+### 56.4 UX / UI / CX — decisiones aplicadas (no genéricas, resueltas para esta página)
+
+- **Lenguaje llano primero, término técnico después**: cada tarjeta abre con la explicación en palabras de dueño de negocio ("el código que TÚ usas para identificar el producto"), nunca con la definición de columna de base de datos. El nombre técnico (`sku`) queda como etiqueta pequeña, no como titular.
+- **Ejemplo correcto + error común, siempre los dos juntos**: mostrar solo el caso válido no previene el error típico; el "✗ Común" nombra el error real que la gente comete con ESE campo (no un genérico "no lo dejes vacío").
+- **Buscador client-side** arriba de la página (el catálogo de v1 es corto, filtra en memoria sin ir al servidor) con `aria-live="polite"` anunciando "3 resultados para 'costo'"; estado vacío con sugerencia ("¿Buscabas 'costo_promedio'? Prueba con 'costo'").
+- **Navegación**: tabla de contenido pegajosa (sticky) a la izquierda en escritorio (>900px, mismo breakpoint que el resto del panel — lección de los puntos 128/131 de `PROJECT_STATE.md`); en móvil colapsa a un `<select>` de salto rápido debajo del buscador, no un menú lateral que compite por espacio.
+- **Reutiliza componentes existentes**, cero CSS nuevo de fondo: tarjetas con el mismo patrón que "Datos migrados (extra)" (§34.4, colapsable), hints con `.field-hint` ya establecido (punto 129), badges Obligatorio/Opcional/Condicional con la misma semántica de color que los badges de estado de Ventas/Tickets (nunca un color inventado).
+- **Accesibilidad WCAG 2.1 AA**: cada tarjeta es una región navegable por teclado (`tabindex`, `aria-labelledby`), contraste verificado en los 2 ejemplos (✓/✗ nunca dependen solo del color verde/rojo — llevan el símbolo ✓/✗ como refuerzo no-cromático), `prefers-reduced-motion` respetado si el scroll a un ancla anima.
+- **Deep-linking real**: cada tarjeta tiene un ancla estable (`#campo-sku`) para que el ícono `?` del wizard (56.2.2) y cualquier mensaje de error futuro puedan apuntar directo al campo relevante, no a la página genérica.
+- **Nunca bloquea el flujo de trabajo**: abrir la ayuda desde el wizard no pierde el progreso del import en curso (panel lateral/pestaña nueva, nunca navegación que abandona el wizard a medio llenar).
+
+### 56.5 API
+
+```text
+GET /api/admin/inventarios/diccionario     (catálogo completo, JSON — misma fuente que §34.3)
+```
+
+Sesión + permiso administrador + tenant resuelto (reglas de §46); contenido no depende del tenant (es el mismo diccionario del sistema para todos), así que es cacheable en el cliente sin invalidación especial.
+
+### 56.6 Criterios de aceptación
+
+- Todo campo mapeable del wizard (§34.3) tiene su tarjeta correspondiente en el diccionario — verificado por una prueba que compara ambas listas contra la misma fuente (`inventarioCampos.js`), no a mano.
+- El ícono `?` de cada campo del wizard abre la ayuda exactamente en la tarjeta de ese campo.
+- Buscar "costo" encuentra `costo`, `costo_unitario`, `costo_promedio` y `ultimo_costo` (coincidencia parcial, no exacta).
+- Navegación completa por teclado sin mouse, verificada con lector de pantalla en la revisión visual.
+- Página funcional en escritorio y móvil (390×844), sin `console.error`, sin regresión al resto del panel.
