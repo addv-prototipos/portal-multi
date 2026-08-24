@@ -211,6 +211,7 @@
     ordenesFiltroFechaHasta: document.getElementById('ordenes-filtro-fecha-hasta'),
     ordenesFiltroTotalMin: document.getElementById('ordenes-filtro-total-min'),
     ordenesFiltroTotalMax: document.getElementById('ordenes-filtro-total-max'),
+    ordenesFiltroEstadoPago: document.getElementById('ordenes-filtro-estado-pago'),
     btnLimpiarFiltrosOrdenes: document.getElementById('btn-limpiar-filtros-ordenes'),
     ordenesFiltroEmpty: document.getElementById('ordenes-filtro-empty'),
     // Modal "Registrar venta" (antes formulario sticky)
@@ -4826,6 +4827,7 @@
     const fechaHasta = els.ordenesFiltroFechaHasta.value;
     const totalMin = els.ordenesFiltroTotalMin.value ? Number(els.ordenesFiltroTotalMin.value) : null;
     const totalMax = els.ordenesFiltroTotalMax.value ? Number(els.ordenesFiltroTotalMax.value) : null;
+    const estadoPagoFiltro = els.ordenesFiltroEstadoPago ? els.ordenesFiltroEstadoPago.value : '';
 
     const filtradas = ordenesCache.filter((orden) => {
       if (concepto && !normalizar(orden.concepto).includes(concepto)) return false;
@@ -4835,6 +4837,12 @@
       const total = Number(orden.total);
       if (totalMin !== null && total < totalMin) return false;
       if (totalMax !== null && total > totalMax) return false;
+      if (estadoPagoFiltro) {
+        const esPendiente = (orden.estado_pago || 'pagada') === 'pendiente';
+        if (estadoPagoFiltro === 'pagada' && esPendiente) return false;
+        if (estadoPagoFiltro === 'pendiente' && !esPendiente) return false;
+        if (estadoPagoFiltro === 'vencida' && !(esPendiente && esVencida(orden))) return false;
+      }
       return true;
     });
 
@@ -4852,19 +4860,21 @@
     }
 
     renderOrdenes([...pendientes, ...filtradas]);
-    const hayFiltro = Boolean(concepto || fechaDesde || fechaHasta || totalMin !== null || totalMax !== null);
+    const hayFiltro = Boolean(concepto || fechaDesde || fechaHasta || totalMin !== null || totalMax !== null || estadoPagoFiltro);
     els.ordenesEmpty.hidden = ordenesCache.length > 0 || pendientes.length > 0;
     els.ordenesFiltroEmpty.hidden = !(hayFiltro && ordenesCache.length > 0 && filtradas.length === 0);
   }
   [els.ordenesFiltroConcepto, els.ordenesFiltroFechaDesde, els.ordenesFiltroFechaHasta, els.ordenesFiltroTotalMin, els.ordenesFiltroTotalMax].forEach((el) => {
     el.addEventListener('input', () => aplicarFiltrosOrdenes());
   });
+  if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.addEventListener('change', () => aplicarFiltrosOrdenes());
   els.btnLimpiarFiltrosOrdenes.addEventListener('click', () => {
     els.ordenesFiltroConcepto.value = '';
     els.ordenesFiltroFechaDesde.value = '';
     els.ordenesFiltroFechaHasta.value = '';
     els.ordenesFiltroTotalMin.value = '';
     els.ordenesFiltroTotalMax.value = '';
+    if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.value = '';
     aplicarFiltrosOrdenes();
   });
 
@@ -8034,11 +8044,19 @@
   if (els.cxcFiltroCliente) els.cxcFiltroCliente.addEventListener('input', ()=>renderCxc());
   if (els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.addEventListener('change', ()=>renderCxc());
   if (els.btnLimpiarFiltrosCxc) els.btnLimpiarFiltrosCxc.addEventListener('click', ()=>{ if(els.cxcFiltroCliente) els.cxcFiltroCliente.value=''; if(els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.value=''; renderCxc(); });
-  // Recargar CxC cuando se registra una venta nueva
-  const _cargarOrdenesOriginal = cargarOrdenes;
-  const _cargarOrdenesConCxc = async function(){ const r = await _cargarOrdenesOriginal(); try{ renderCxc(); }catch(_){} return r; };
-  // monkey-patch cargarOrdenes para que CxC se refresque sola
-  if (typeof cargarOrdenes === 'function') { const orig = cargarOrdenes; cargarOrdenes = async function(){ const res = await orig.apply(this, arguments); try{ if (els.vistaCxc && !els.vistaCxc.hidden) renderCxc(); }catch(_){} return res; }; }
+  // Recargar CxC cuando se registra una venta nueva: monkey-patch de
+  // cargarOrdenes para que la vista CxC se refresque sola si está
+  // visible en ese momento (sin duplicar la lógica de fetch de Ventas).
+  if (typeof cargarOrdenes === 'function') {
+    const cargarOrdenesOriginal = cargarOrdenes;
+    cargarOrdenes = async function () {
+      const res = await cargarOrdenesOriginal.apply(this, arguments);
+      try {
+        if (els.vistaCxc && !els.vistaCxc.hidden) renderCxc();
+      } catch (_) {}
+      return res;
+    };
+  }
 
   // ---------- Inicialización ----------
 

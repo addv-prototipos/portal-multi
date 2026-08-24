@@ -717,6 +717,26 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
     (no sobrevive un reload sin haber cargado antes esa vista) — la
     cola de pendientes por crear sí sobrevive un reload (IndexedDB).
     Sin commit/push todavía.
+- **Auditoría + correcciones de Cuentas por cobrar, punto 138 (ver
+  PROJECT_STATE.md, 2026-08-24, a pedido explícito del usuario)**:
+  revisión del código que la otra herramienta ya había escrito para
+  este punto (pese a que su propia documentación decía "cero código
+  tocado"). Bug de datos real y grave confirmado contra la BD real:
+  la migración de `monto_cobrado` nunca hizo backfill — **207 de 212
+  ventas históricas** quedaron "pagada" con `monto_cobrado=$0`.
+  Corregido con un `UPDATE` idempotente en `db.js` (self-limiting,
+  fuera del bloque "columna nueva" para que sí corriera contra la BD
+  ya migrada). Agregados 11 tests Jest nuevos al endpoint `/cobro` y
+  a la validación de `estado_pago` (antes: cero cobertura, solo un
+  Playwright feliz-camino que no tocaba datos históricos). Agregada
+  validación de fecha de vencimiento futura (backend la aceptaba en
+  el pasado). Limpiado código muerto en `admin.js`. Agregado filtro
+  "Estado de pago" en Ventas (el badge inline ya existía). Jest
+  **595/595 (36 suites)**, validado contra Docker/MySQL reales —
+  backfill confirmado por SQL directo (212/212 correctas), filtro y
+  vista CxC probados en navegador real sin errores de consola. Las 4
+  preguntas de diseño de la propuesta original siguen sin respuesta
+  explícita del usuario.
 - **Sidebar fijo + cifras sin encimarse en Resumen financiero (ver
   PROJECT_STATE.md punto 140, 2026-08-24, IMPLEMENTADO Y VALIDADO)**:
   `.admin-sidebar` pasó de flex-child (se estiraba al alto de

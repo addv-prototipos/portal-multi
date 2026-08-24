@@ -8464,6 +8464,68 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       parciales entran en v1 o solo cobro total. **No avanzar a
       implementación sin respuesta explícita**.
 
+     **Auditoría + correcciones sobre el código YA EXISTENTE en el
+     working tree (2026-08-24, a pedido explícito del usuario:
+     "revisa el punto 138")**: pese a que este punto dice "cero código
+     tocado", la otra herramienta SÍ había implementado la mayor parte
+     (schema en `db.js`, endpoint `PUT .../cobro`, vista completa
+     `Cuentas por cobrar` en `admin.js`/`admin.html`, integración con
+     `offline.js`) y la migración ya había corrido contra la BD real.
+     Coincide bien con lo documentado arriba (KPIs, filtros, tabla,
+     modal de cobro, endpoint con queries parametrizadas). Se encontró
+     y corrigió, con datos reales:
+     - **Bug de datos real, confirmado contra la BD real, el más
+       grave**: la migración agrega `monto_cobrado DEFAULT 0` pero
+       nunca hace backfill para las ventas que ya existían — **207 de
+       212 ventas reales** quedaron con `estado_pago='pagada'` pero
+       `monto_cobrado=$0`. La pestaña "Cobradas" de CxC habría
+       mostrado $0 cobrado en casi todo el historial. Fix: backfill
+       `UPDATE ordenes_compra SET monto_cobrado = total, fecha_cobro =
+       COALESCE(fecha_cobro, creado_en) WHERE estado_pago = 'pagada'
+       AND monto_cobrado = 0` en `db.js`, fuera del bloque
+       `if (!nombresCxc.includes(...))` (esa rama solo corre la
+       primera vez que se crea la columna, no habría arreglado una BD
+       donde ya existía) — self-limiting, después del primer backfill
+       ninguna fila real vuelve a cumplir la condición. Verificado
+       contra Docker real: 212/212 ventas correctas después (antes
+       207 rotas), `fecha_cobro` poblado desde `creado_en`.
+     - **Cero pruebas Jest** para el endpoint `/cobro` ni para la
+       validación de `estado_pago`/`fecha_vencimiento` del POST — solo
+       había un spec de Playwright (feliz camino, venta nueva, no
+       tocaba datos históricos, por eso no atrapó el bug de arriba).
+       Se agregaron 11 tests nuevos a
+       `backend/test/integration/ordenes-compra.test.js` (venta
+       pendiente con vencimiento futuro, vencimiento pasado, estado
+       inválido cae a pagada, y 8 casos del endpoint `/cobro`: auth
+       401/403, monto inválido, venta inexistente, ya pagada, excede
+       saldo, cobro parcial, cobro total).
+     - **Validación faltante**: la propuesta pedía "vencimiento
+       futuro, opcional pero recomendada" — el backend aceptaba
+       fechas pasadas. Agregado el rechazo (400) en
+       `POST /api/admin/ordenes-compra`.
+     - **Código muerto** en `admin.js`: dos variables
+       (`_cargarOrdenesOriginal`/`_cargarOrdenesConCxc`) se definían y
+       nunca se usaban, justo antes del monkey-patch real de
+       `cargarOrdenes` que sí hace el trabajo — limpiado a una sola
+       versión clara.
+     - **Columna "Estado pago" en Ventas**: ya existía como badge
+       inline en la celda "No. Venta" (corrección a mi propio hallazgo
+       anterior, que decía que faltaba por completo) — se le agregó el
+       filtro que sí faltaba (`#ordenes-filtro-estado-pago`: Todas/
+       Pagada/Pendiente/Vencida), 100% cliente, mismo patrón que el
+       resto de filtros de Ventas.
+     - Jest backend **595/595 (36 suites)**, `node --check` limpio en
+       los 3 archivos. Validado contra Docker/MySQL reales: backfill
+       confirmado por SQL directo, filtro nuevo probado en navegador
+       real (4 pendientes correctas), vista Cuentas por cobrar sin
+       errores de consola, KPI "Cobrado mes" ahora refleja el
+       histórico real ($309,411.17) en vez de casi cero.
+     - Las 4 preguntas de diseño abiertas de arriba (toggle en el
+       wizard, posición en sidebar, vencimiento obligatorio u
+       opcional, abonos parciales en v1) siguen **sin respuesta
+       explícita del usuario** — esta revisión corrigió calidad/datos
+       del código ya escrito, no reemplaza esa confirmación pendiente.
+
 139. **App de control — misma identidad de marca que /admin + mejora UI
      (2026-08-24, APLICADO)**: a pedido del usuario, `/control` no tenía
      identidad de marca (login `FX` + header blanco fino, tabla con 3

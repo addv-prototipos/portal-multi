@@ -761,3 +761,23 @@ C060 10:18 ✓ Usuario confirmó visualmente: "ya lo revisé, se ve bien"
 endurecida de C059 (sin unsafe-inline/unsafe-eval en script-src).
 Cierra el pendiente de validación visual que había quedado abierto.
 Detalle: PROJECT_STATE.md punto 140.
+
+C061 10:40 ●bugfix Revisé el punto 138 (Cuentas por cobrar) a pedido
+del usuario — código ya escrito por la otra herramienta pese a que su
+doc dice "cero código tocado". Bug de datos real y grave, confirmado
+contra la BD real: 207 de 212 ventas históricas quedaron "pagada" con
+monto_cobrado=$0 (la migración nunca hizo backfill). Fix: UPDATE
+idempotente en db.js fuera del bloque "columna nueva" (para que sí
+corriera contra la BD ya migrada) — verificado 212/212 correctas
+después, fecha_cobro poblado desde creado_en. Agregados 11 tests Jest
+al endpoint /cobro y a la validación de estado_pago (antes: cero
+cobertura Jest, solo un Playwright feliz-camino que no tocaba datos
+históricos). Agregada validación de vencimiento futuro en el backend
+(aceptaba fechas pasadas). Limpiado código muerto en admin.js
+(_cargarOrdenesOriginal/_cargarOrdenesConCxc sin usar). Agregado
+filtro "Estado de pago" en Ventas (corregí mi propio hallazgo previo:
+el badge inline ya existía, solo faltaba el filtro). Jest 595/595 (36
+suites), validado contra Docker/MySQL reales y en navegador real (0
+errores de consola, filtro y vista CxC funcionando con datos reales).
+Las 4 preguntas de diseño originales del punto 138 siguen sin
+respuesta explícita del usuario. Detalle: PROJECT_STATE.md punto 138.

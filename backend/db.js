@@ -655,6 +655,23 @@ async function ensureSchema(db = pool) {
   if (chkMontoCobrado.length === 0) {
     await db.query(`ALTER TABLE ordenes_compra ADD CONSTRAINT chk_ordenes_monto_cobrado CHECK (monto_cobrado >= 0)`);
   }
+  // Backfill: toda venta registrada ANTES de este segmento quedó con
+  // estado_pago='pagada' (default correcto) pero monto_cobrado=0
+  // (default de la columna nueva, nunca reflejaba lo ya cobrado bajo el
+  // modelo viejo de una sola etapa). Sin este backfill, "Cuentas por
+  // cobrar" mostraría $0 cobrado en todo el historial. No va dentro del
+  // `if (!nombresCxc.includes(...))` de arriba porque esa rama solo
+  // corre la primera vez que se crea la columna — en una BD donde la
+  // columna ya existía (como esta) nunca se habría ejecutado. Es
+  // self-limiting y segura de re-correr: after el primer backfill
+  // ninguna fila vuelve a cumplir la condición (una venta 'pagada' con
+  // total>0 real nunca queda con monto_cobrado=0 por el flujo normal de
+  // POST /ordenes-compra).
+  await db.query(
+    `UPDATE ordenes_compra
+        SET monto_cobrado = total, fecha_cobro = COALESCE(fecha_cobro, creado_en)
+      WHERE estado_pago = 'pagada' AND monto_cobrado = 0`
+  );
 
   // Gastos de la operación (módulo "Gastos", ver PROJECT_STATE.md):
   // control administrativo/financiero de egresos, con o sin factura/CFDI.

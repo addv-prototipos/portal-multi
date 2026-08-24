@@ -718,6 +718,15 @@
               <input type="number" min="0" step="0.01" id="ordenes-filtro-total-max" placeholder="Máximo" aria-label="Total máximo" />
             </div>
           </div>
+          <div class="field">
+            <label for="ordenes-filtro-estado-pago">Estado de pago</label>
+            <select id="ordenes-filtro-estado-pago">
+              <option value="">Todas</option>
+              <option value="pagada">Pagada</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="vencida">Vencida</option>
+            </select>
+          </div>
           <div class="lectura-reportes-filtros-acciones">
             <button type="button" class="btn btn-secondary" id="btn-limpiar-filtros-ordenes">Limpiar filtros</button>
           </div>

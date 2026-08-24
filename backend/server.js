@@ -3965,6 +3965,10 @@ app.post(
         }
         const d = new Date(rawVto + 'T00:00:00Z');
         if (Number.isNaN(d.getTime())) return res.status(400).json({ error: 'Fecha de vencimiento inválida.' });
+        const hoyUtc = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+        if (d < hoyUtc) {
+          return res.status(400).json({ error: 'La fecha de vencimiento no puede ser anterior a hoy.' });
+        }
         fechaVencimiento = rawVto;
       }
     } else {
