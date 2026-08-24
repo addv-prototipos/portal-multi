@@ -53,7 +53,10 @@ La v1 entrega un **motor de existencias mínimo útil**: catálogo simple, un al
 
 **Fuera de v1 (explícito):** variantes, atributos configurables, ubicaciones, multi-almacén operativo y transferencias, lotes, series, caducidades, kits, reservas, conteos físicos, etiquetas y códigos QR generados, notificaciones por correo, clasificación ABC, sugerencias de compra, API pública.
 
-## 0.4 Re-mapeo del roadmap (§53)
+## 0.4 Re-mapeo del roadmap
+
+> **Leyenda de alcance v1:** \1\ entra en esta versión. \Fase 2\ / \Fase 3-5\ = fuera de v1 (ver §0.3). Prevalece §0.3 ante cualquier descripción aspiracional.
+ (§53)
 
 - **v1** — el motor mínimo descrito en §0.3.
 - **Fase 2** — variantes + atributos configurables, multi-almacén operativo (ABML + transferencias), ubicaciones, reservas, conteos físicos, ajustes con aprobación, roles Operador de almacén y Compras, códigos de barras/QR y etiquetas.
@@ -156,6 +159,34 @@ Cada cambio registra en el plano de control: usuario de plataforma, IP, valor an
 ### Regla de extensión
 
 Toda necesidad futura de configuración debe declarar su alcance explícitamente (global vs por tenant) en este documento o en el de su módulo antes de implementarse.
+
+### 0.6.1 Decisiones pendientes v1 — responder antes de implementar
+
+> Responder por fila: `Confirma` / `Cambia: ...` / `Difiere a Fase 2`. Hasta cerrar esta tabla no se escribe código v1.
+
+| # | Tema | Estado actual en el doc | Opciones | Recomendación |
+|---|---|---|---|---|
+| P1 | Venta multi-línea | D8 dice 1 producto/venta, pero Ventas ya es multi-producto (builder suma subtotales) | A) Multi-línea (usa tabla `venta_partidas` nueva, descuenta cada línea) B) Fuerza 1 producto | **A** — reutiliza builder existente, descuenta por línea en una sola transacción |
+| P2 | Costo al archivar/reactivar | §32 promedio ponderado + §38 papelera | A) Congelar `costo_promedio` al archivar B) Recalcular al reactivar | **A** — congela, reanuda promedio al reactivar |
+| P3 | Cuota imágenes D10 | Gate por empresa + compresión obligatoria | Definir `500 MB tenant` / `20 imgs prod` / `5 MB por archivo` | **500 MB / 20 / 5 MB** |
+| P4 | Entradas/Salidas v1 | §0.3:5-6 dice 4+4 sin nombrarlas | Entradas: `compra, devolucion_cliente, inventario_inicial, ajuste+`; Salidas: `venta, consumo, merma, ajuste-` | Confirmar lista |
+| P5 | Visibilidad fiscal | §0.6 switch solo lectura para admin empresa | `fiscal` no ve Inventarios ni el switch; `administrador` lo ve solo lectura; `super` edita en Configuraciones globales | Confirmar matriz |
+| P6 | Valor inventario en Resumen financiero | §42 vs §50 | A) KPI nuevo en Resumen financiero (`Valor inmovilizado`) B) Solo Dashboard Inventarios | **B** en v1 — evita mezclar valorización con flujo caja |
+| P7 | Almacén en importador | D2/D9 `ALM-1` hardcodeado | `existencia_inicial` siempre a `ALM-1` en v1 (sin selector) | Confirmar |
+| P8 | Categorías con imagen | US-INV-009 dice imagen opcional vs §0.3:1 sin imagen | Fuera en v1 | Confirmar fuera |
+
+## 0.7 Definición de Hecho (DoD) v1
+
+Checklist obligatorio antes de dar v1 por hecho (además de `addv-web-app`: Analizar→Proponer→Confirmar→Implementar y `node --check`):
+
+- [ ] `node --check` en todo `.js` tocado
+- [ ] Jest backend **≥595** sin regresiones + suites nuevas: concurrencia `Promise.all` sobre mismo producto (cero sobregiro), importador (parseo/auto-match/upsert/chunks/permisos), `verificar-inventario` con saldo corrupto
+- [ ] `verificar-mysql.js` + `verificar-inventario.js` contra MySQL real (incluye tenant nuevo con `ALM-1` auto-provisionado)
+- [ ] Importador validado contra MinIO real: CSV y XLSX con cabeceras desordenadas (auto-mapeo ≥80%), columnas no mapeadas en `extra`, re-import sin duplicar stock, `errores.csv` coincidente
+- [ ] Flujo Ventas→Inventario (D8) con switch `ventas_afectan_inventario` `0/1` validado en navegador real (autocompletado + escáner/barcode, `INV_STOCK_INSUFICIENTE` bloquea venta, `D4`)
+- [ ] Auditoría `admin_auditoria` + `tenant_eventos` para `ventas_afectan_inventario` y cada `EN-/SA-/AJU-`
+- [ ] Revisión visual en `http://localhost:8088/admin` (desktop + móvil 390×844) sin regresión Resumen financiero/Ventas/Gastos, sin `console.error`
+- [ ] `PROJECT_STATE.md` + `US.md` + `cmem.md` actualizados + rebuild `frontend` con `--force-recreate` verificado por HTTP
 
 ---
 
@@ -343,7 +374,7 @@ Puede:
 
 ---
 
-# 4. Dashboard de inventarios
+# 4. Dashboard de inventarios — 1 (KPIs solo datos v1)
 
 Nueva vista:
 
@@ -380,55 +411,47 @@ No mostrar gráficas cuando no exista suficiente información para respaldarlas.
 
 ---
 
-# 5. Catálogo de productos
+# 5. Catálogo de productos — `v1` (Fase 2/3: variantes, lotes, series)
 
-## US-INV-001 — Crear producto
+## US-INV-001 — Crear producto `v1`
+
+> **Alcance v1 efectivo** (D1, D11, §0.3:1): producto simple con campo `tipo` (`producto`|`servicio`), sin variantes/lote/serie/caducidad. `proveedor_principal` texto libre sin FK.
 
 Como **administrador**, quiero crear un producto, para poder controlarlo dentro del inventario.
 
-### Campos
+### Campos v1 (efectivos)
 
-- Nombre.
-- SKU.
-- Código de barras.
-- Código alternativo.
-- Descripción corta.
-- Descripción completa.
-- Marca.
-- Fabricante.
-- Modelo.
-- Categoría.
-- Subcategoría.
-- Unidad base.
-- Unidad de compra.
-- Unidad de venta.
-- Costo.
-- Precio.
-- Stock mínimo.
-- Stock máximo.
-- Punto de reorden.
-- Stock de seguridad.
-- Control de lote.
-- Control de serie.
-- Control de caducidad.
-- Estado.
-- Proveedor principal.
-- Notas.
+| Campo | Obligatorio | Nota |
+|---|---|---|
+| nombre | sí | único no, pero validado no vacío |
+| sku | sí | UNIQUE por tenant |
+| codigo_barras | no | UNIQUE si se informa |
+| categoria | no | configurable, sin imagen en v1 |
+| unidad_base | sí | default `Pieza` si no se informa (`§34.3`) |
+| tipo | sí | `producto` físico (inventariable) / `servicio` (no toca stock) — D11 |
+| costo | no | `DECIMAL(12,2)`, alimenta promedio ponderado D5 |
+| precio | no | `DECIMAL(12,2)` |
+| stock_minimo / stock_maximo / punto_reorden | no | alertas §28 sin lead time v1 |
+| estado | no | `activo`/`inactivo`/`archivado` (§38), default `activo` |
+| proveedor_principal | no | texto libre, sin FK (entidad proveedores fase 2) |
+| notas | no | texto libre |
 
-### Criterios
+### Criterios v1
 
-- SKU único dentro del tenant.
-- Código de barras único cuando exista.
-- Nombre obligatorio.
-- Categoría configurable.
-- Unidad base obligatoria.
-- Producto activo por defecto.
-- El backend debe validar todos los campos.
-- No se debe permitir duplicidad lógica.
+- SKU único dentro del tenant; código de barras único cuando exista.
+- Nombre obligatorio; unidad base obligatoria.
+- Producto activo por defecto; `tipo=servicio` no genera existencias/movimientos/kardex.
+- El backend valida todos los campos; no duplicidad lógica.
+
+<details><summary>Anexo aspiracional — campos fuera de v1 (Fase 2/3)</summary>
+
+- Código alternativo, Descripción corta/completa, Marca, Fabricante, Modelo, Subcategoría, Unidad de compra/venta, Stock de seguridad, Control de lote/serie/caducidad — se modelan en Fase 2/3 cuando existan variantes/lotes/series y entidad proveedores. No crear columnas en v1.
+
+</details>
 
 ---
 
-# 6. Imágenes y archivos de productos
+# 6. Imágenes y archivos de productos — 1 (principal+galería, D10) / Fase 2 (variantes, docs)
 
 ## US-INV-002 — Cargar imagen principal
 
@@ -522,7 +545,7 @@ Los documentos deben almacenarse en MinIO y estar protegidos por tenant.
 
 ---
 
-# 7. Atributos configurables
+# 7. Atributos configurables — Fase 2
 
 ## US-INV-006 — Crear atributos personalizados
 
@@ -567,7 +590,7 @@ No se debe requerir modificar código para crear nuevos atributos.
 
 ---
 
-# 8. Variantes
+# 8. Variantes — Fase 2
 
 ## US-INV-007 — Crear variantes
 
@@ -598,7 +621,7 @@ SKU: CAM-AZ-M
 
 ---
 
-# 9. Unidades de medida
+# 9. Unidades de medida — 1
 
 ## US-INV-008 — Administrar unidades
 
@@ -635,7 +658,7 @@ El sistema debe permitir conversiones configurables.
 
 ---
 
-# 10. Categorías
+# 10. Categorías — 1 (sin imagen)
 
 ## US-INV-009 — Administrar categorías
 
@@ -651,7 +674,7 @@ Las categorías deben ser reutilizables en filtros, reportes y dashboard.
 
 ---
 
-# 11. Almacenes
+# 11. Almacenes — Fase 2 (v1 solo ALM-1, D2)
 
 ## US-INV-010 — Administrar almacenes
 
@@ -676,7 +699,7 @@ Tipos:
 
 ---
 
-# 12. Ubicaciones
+# 12. Ubicaciones — Fase 2
 
 ## US-INV-011 — Administrar ubicaciones
 
@@ -702,7 +725,7 @@ Cada ubicación puede tener:
 
 ---
 
-# 13. Existencias
+# 13. Existencias — 1 (física=disponible)
 
 ## US-INV-012 — Consultar existencia
 
@@ -732,7 +755,7 @@ Toda modificación debe generar un movimiento.
 
 ---
 
-# 14. Kardex
+# 14. Kardex — 1
 
 ## US-INV-013 — Consultar Kardex
 
@@ -764,7 +787,7 @@ Si existe un error, se genera un movimiento compensatorio.
 
 ---
 
-# 15. Entradas
+# 15. Entradas — 1 (4 tipos: compra, devolución, inventario inicial, ajuste+)
 
 Tipos:
 
@@ -790,7 +813,7 @@ La recepción debe permitir:
 
 ---
 
-# 16. Salidas
+# 16. Salidas — 1 (4 tipos: venta D8, consumo, merma, ajuste-)
 
 Tipos:
 
@@ -808,7 +831,7 @@ El sistema debe validar existencia disponible antes de permitir una salida, salv
 
 ---
 
-# 17. Transferencias
+# 17. Transferencias — Fase 2
 
 ## US-INV-014 — Transferir inventario
 
@@ -838,7 +861,7 @@ Registrar diferencias entre enviado y recibido.
 
 ---
 
-# 18. Lotes
+# 18. Lotes — Fase 3
 
 ## US-INV-015 — Control por lote
 
@@ -859,7 +882,7 @@ Datos:
 
 ---
 
-# 19. Series
+# 19. Series — Fase 3
 
 ## US-INV-016 — Control serializado
 
@@ -887,7 +910,7 @@ Compra
 
 ---
 
-# 20. Caducidades
+# 20. Caducidades — Fase 3
 
 ## US-INV-017 — Alertas de caducidad
 
@@ -910,7 +933,7 @@ Debe permitir filtros y reportes.
 
 ---
 
-# 21. Compras
+# 21. Compras — Fase 2
 
 Integrar inventarios con la vista existente de compras/proveedores cuando se implemente.
 
@@ -929,7 +952,7 @@ Una recepción confirmada genera automáticamente los movimientos correspondient
 
 ---
 
-# 22. Ventas
+# 22. Ventas — 1 (US-INV-025, D8)
 
 > Reescrito tras cerrar la decisión D8 (§0.2); sustituye por completo la versión genérica anterior.
 
@@ -968,7 +991,7 @@ Si la validación de stock falla, la venta NO se registra.
 
 ---
 
-# 23. Gastos
+# 23. Gastos — Fase 2 (nota trazabilidad)
 
 Los gastos existentes no deben convertirse automáticamente en inventario.
 
@@ -985,7 +1008,7 @@ La relación debe ser trazable.
 
 ---
 
-# 24. Devoluciones
+# 24. Devoluciones — Fase 2
 
 ## US-INV-018 — Devolución de cliente
 
@@ -1008,7 +1031,7 @@ Acciones:
 
 ---
 
-# 25. Mermas y daños
+# 25. Mermas y daños — 1 (salida merma v1)
 
 ## US-INV-019 — Registrar merma
 
@@ -1038,7 +1061,7 @@ Permitir cargar fotografías como evidencia.
 
 ---
 
-# 26. Conteos físicos
+# 26. Conteos físicos — Fase 2
 
 ## US-INV-020 — Crear conteo
 
@@ -1079,7 +1102,7 @@ El sistema debe generar propuesta de ajuste.
 
 ---
 
-# 27. Ajustes
+# 27. Ajustes — 1 simple (Fase 2: aprobación)
 
 ## US-INV-021 — Aprobar ajuste
 
@@ -1105,7 +1128,7 @@ Debe conservar:
 
 ---
 
-# 28. Inventario mínimo y abastecimiento
+# 28. Inventario mínimo y abastecimiento — 1 (sin lead time/sugerencia auto)
 
 Por producto:
 
@@ -1133,7 +1156,7 @@ La sugerencia no crea una compra automáticamente salvo configuración explícit
 
 ---
 
-# 29. Códigos de barras y QR
+# 29. Códigos de barras y QR — Fase 2
 
 Permitir:
 
@@ -1154,7 +1177,7 @@ Funciones:
 
 ---
 
-# 30. Etiquetas
+# 30. Etiquetas — Fase 2
 
 Generar etiquetas con:
 
@@ -1173,7 +1196,7 @@ La plantilla debe ser configurable.
 
 ---
 
-# 31. Kits y productos compuestos
+# 31. Kits y productos compuestos — Fase 3
 
 ## US-INV-022 — Crear kit
 
@@ -1198,7 +1221,7 @@ Debe existir configuración:
 
 ---
 
-# 32. Costos y valorización
+# 32. Costos y valorización — 1 (promedio ponderado)
 
 Métodos configurables:
 
@@ -1218,7 +1241,7 @@ Los cambios de costo deben quedar auditados.
 
 ---
 
-# 33. Reservas
+# 33. Reservas — Fase 2
 
 ## US-INV-023 — Reservar inventario
 
@@ -1373,7 +1396,7 @@ imp_importacion_errores        -- detalle de rechazos (índice por importacion_i
 
 ---
 
-# 35. Exportación
+# 35. Exportación — 1 CSV / Fase 2 XLSX/PDF
 
 Permitir:
 
@@ -1426,7 +1449,7 @@ Filtros combinables:
 
 ---
 
-# 37. Auditoría
+# 37. Auditoría — 1
 
 Todas las mutaciones deben integrarse con la auditoría existente.
 
@@ -1457,7 +1480,7 @@ Acciones críticas:
 
 ---
 
-# 38. Papelera
+# 38. Papelera — 1
 
 Los productos no deben eliminarse físicamente si tienen movimientos históricos.
 
@@ -1471,7 +1494,7 @@ Un producto con movimientos debe conservarse para mantener la integridad histór
 
 ---
 
-# 39. Notificaciones
+# 39. Notificaciones — Fase 2
 
 Alertas configurables:
 
@@ -1494,7 +1517,7 @@ Canales futuros:
 
 ---
 
-# 40. Reportes
+# 40. Reportes — 1 parcial
 
 ## Inventario
 
@@ -1533,7 +1556,7 @@ Canales futuros:
 
 ---
 
-# 41. Clasificación ABC
+# 41. Clasificación ABC — Fase 2
 
 Clasificar productos:
 
@@ -1555,7 +1578,7 @@ El criterio debe ser configurable por:
 
 ---
 
-# 42. Indicadores de inventario
+# 42. Indicadores de inventario — 1 parcial (solo datos v1)
 
 Mostrar únicamente indicadores respaldados por datos reales:
 
@@ -1593,7 +1616,7 @@ El módulo debe respetar la experiencia ADDV existente:
 
 ---
 
-# 44. Diseño de catálogo
+# 44. Diseño de catálogo — 1
 
 La tabla de productos debe mostrar:
 
@@ -1674,7 +1697,7 @@ Cuando sea posible:
 
 ---
 
-# 46. API propuesta
+# 46. API propuesta — 1
 
 Prefijo:
 
@@ -1741,7 +1764,7 @@ Todos los endpoints deben:
 
 ---
 
-# 47. Modelo de datos conceptual
+# 47. Modelo de datos conceptual — 1 (Fase 2/3 tablas en anexo)
 
 Tablas principales:
 
