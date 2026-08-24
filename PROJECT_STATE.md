@@ -8613,7 +8613,12 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
      financiero + zoom a la gráfica + expandida en el modal grande):
      ambas tarjetas limpias, sin cortes ni encimados, puntos fantasma
      visibles pero discretos. Jest backend 584/584 (sin cambios,
-     segmento 100% frontend). Sin commit/push todavía.
+     segmento 100% frontend). **Commiteado y pusheado** (`f1b395a` →
+     `fact/master`, junto con el trabajo en curso de la otra
+     herramienta — ver arriba). Limpieza aparte: se borró
+     `e2e/tests/temp-resumen2.spec.ts`, un script de depuración suelto
+     (nombre "temp", sin relación con ningún segmento documentado) que
+     había quedado sin commitear en el working tree.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

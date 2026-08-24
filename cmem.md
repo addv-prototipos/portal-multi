@@ -711,3 +711,10 @@ propuesta... aplícala") antes de tocar código. Elimina la clase de bug
 entera, no un caso puntual. Validado en navegador real, tarjeta normal
 y modal expandido, ambas limpias. Jest 584/584. Detalle:
 PROJECT_STATE.md punto 140 (subsección "Rediseño final").
+
+C057 09:31 ✓ Commit f1b395a → fact/master: sidebar fijo + cifras
+selectivas (C055/C056) + trabajo en curso de la otra herramienta
+(Swagger, credenciales API por tenant, inicio de CxC). Borrado
+e2e/tests/temp-resumen2.spec.ts (script de depuración suelto, sin
+relación con ningún segmento documentado, quedó fuera del commit
+original a propósito y luego el usuario pidió borrarlo).
