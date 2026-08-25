@@ -391,6 +391,87 @@
     gastosError: document.getElementById('gastos-error'),
     gastosTableBody: document.getElementById('gastos-table-body'),
     gastosEmpty: document.getElementById('gastos-empty'),
+    // ---------- Inventarios (segmento 3) ----------
+    btnVistaInventarios: document.getElementById('btn-vista-inventarios'),
+    vistaInventarios: document.getElementById('vista-inventarios'),
+    btnVerInvActivos: document.getElementById('btn-ver-inv-activos'),
+    btnVerInvPapelera: document.getElementById('btn-ver-inv-papelera'),
+    invProductosCount: document.getElementById('inv-productos-count'),
+    btnInvVerificarIntegridad: document.getElementById('btn-inv-verificar-integridad'),
+    btnRefreshInventarios: document.getElementById('btn-refresh-inventarios'),
+    btnNuevoProducto: document.getElementById('btn-nuevo-producto'),
+    invKpiValor: document.getElementById('inv-kpi-valor'),
+    invKpiActivos: document.getElementById('inv-kpi-activos'),
+    invKpiUnidades: document.getElementById('inv-kpi-unidades'),
+    invKpiBajoMinimo: document.getElementById('inv-kpi-bajo-minimo'),
+    invKpiSinExistencia: document.getElementById('inv-kpi-sin-existencia'),
+    invKpiSinMovimiento: document.getElementById('inv-kpi-sin-movimiento'),
+    invKpiMermas: document.getElementById('inv-kpi-mermas'),
+    invKpiMermasCantidad: document.getElementById('inv-kpi-mermas-cantidad'),
+    invFiltroCategoria: document.getElementById('inv-filtro-categoria'),
+    invFiltroEstado: document.getElementById('inv-filtro-estado'),
+    invFiltroTipo: document.getElementById('inv-filtro-tipo'),
+    invBusqueda: document.getElementById('inv-busqueda'),
+    btnLimpiarFiltrosInv: document.getElementById('btn-limpiar-filtros-inv'),
+    invError: document.getElementById('inv-error'),
+    invTableBody: document.getElementById('inv-table-body'),
+    invEmpty: document.getElementById('inv-empty'),
+    // Modal de crear/editar producto
+    invProductoModalOverlay: document.getElementById('inv-producto-modal-overlay'),
+    invProductoModalTitle: document.getElementById('inv-producto-modal-title'),
+    btnInvProductoModalCerrar: document.getElementById('btn-inv-producto-modal-cerrar'),
+    btnInvTipoProducto: document.getElementById('btn-inv-tipo-producto'),
+    btnInvTipoServicio: document.getElementById('btn-inv-tipo-servicio'),
+    invModalNombre: document.getElementById('inv-modal-nombre'),
+    invModalSku: document.getElementById('inv-modal-sku'),
+    invModalCodigoBarras: document.getElementById('inv-modal-codigo-barras'),
+    invModalCategoria: document.getElementById('inv-modal-categoria'),
+    btnInvCategoriasToggle: document.getElementById('btn-inv-categorias-toggle'),
+    invCategoriasPanel: document.getElementById('inv-categorias-panel'),
+    invCategoriasLista: document.getElementById('inv-categorias-lista'),
+    invCategoriaNuevaInput: document.getElementById('inv-categoria-nueva-input'),
+    btnInvCategoriaAgregar: document.getElementById('btn-inv-categoria-agregar'),
+    errorInvCategoriaNueva: document.getElementById('error-inv-categoria-nueva'),
+    invModalUnidad: document.getElementById('inv-modal-unidad'),
+    invModalCosto: document.getElementById('inv-modal-costo'),
+    invModalPrecio: document.getElementById('inv-modal-precio'),
+    invModalStockMinimo: document.getElementById('inv-modal-stock-minimo'),
+    invModalStockMaximo: document.getElementById('inv-modal-stock-maximo'),
+    invModalPuntoReorden: document.getElementById('inv-modal-punto-reorden'),
+    invModalEstado: document.getElementById('inv-modal-estado'),
+    invModalProveedor: document.getElementById('inv-modal-proveedor'),
+    invModalNotas: document.getElementById('inv-modal-notas'),
+    invModalErrorGeneral: document.getElementById('inv-modal-error-general'),
+    btnInvModalCancelar: document.getElementById('btn-inv-modal-cancelar'),
+    btnInvModalGuardar: document.getElementById('btn-inv-modal-guardar'),
+    btnInvModalGuardarLabel: document.getElementById('btn-inv-modal-guardar-label'),
+    // Modal de movimiento (entrada/salida)
+    invMovimientoModalOverlay: document.getElementById('inv-movimiento-modal-overlay'),
+    invMovimientoModalSubtitulo: document.getElementById('inv-movimiento-modal-subtitulo'),
+    btnInvMovEntrada: document.getElementById('btn-inv-mov-entrada'),
+    btnInvMovSalida: document.getElementById('btn-inv-mov-salida'),
+    invMovTipo: document.getElementById('inv-mov-tipo'),
+    invMovCantidad: document.getElementById('inv-mov-cantidad'),
+    invMovCostoWrap: document.getElementById('inv-mov-costo-wrap'),
+    invMovCosto: document.getElementById('inv-mov-costo'),
+    invMovMotivo: document.getElementById('inv-mov-motivo'),
+    invMovNotas: document.getElementById('inv-mov-notas'),
+    invMovErrorGeneral: document.getElementById('inv-mov-error-general'),
+    btnInvMovCancelar: document.getElementById('btn-inv-mov-cancelar'),
+    btnInvMovGuardar: document.getElementById('btn-inv-mov-guardar'),
+    btnInvMovGuardarLabel: document.getElementById('btn-inv-mov-guardar-label'),
+    // Modal de kardex
+    invKardexModalOverlay: document.getElementById('inv-kardex-modal-overlay'),
+    btnInvKardexCerrar: document.getElementById('btn-inv-kardex-cerrar'),
+    invKardexSubtitulo: document.getElementById('inv-kardex-subtitulo'),
+    invKardexTableBody: document.getElementById('inv-kardex-table-body'),
+    invKardexEmpty: document.getElementById('inv-kardex-empty'),
+    // Toggle "Inventario activo" (vista Usuarios)
+    btnToggleInvCard: document.getElementById('btn-toggle-inv-card'),
+    invToggleChevron: document.getElementById('inv-toggle-chevron'),
+    invToggleBody: document.getElementById('inv-toggle-body'),
+    configInventarioActivo: document.getElementById('config-inventario-activo'),
+    invActivoAutoguardado: document.getElementById('inv-activo-autoguardado'),
     // Modal de registro/edición de gasto
     gastosModalOverlay: document.getElementById('gastos-modal-overlay'),
     gastosModalTitle: document.getElementById('gastos-modal-title'),
@@ -1059,10 +1140,14 @@
   // dentro de aplicarRestriccionesPerfil() para que ninguna de las dos
   // condiciones pueda pisar a la otra (ver aplicarVisibilidadOrdenesCompra).
   let ventasHabilitadaGlobalmente = true;
+  // D8/§0.6: Inventarios se activa/desactiva por tenant, default '0'
+  // (inactivo) hasta que el administrador lo prenda desde "Usuarios" —
+  // ver cargarConfigInventario() más abajo.
+  let inventarioActivoGlobalmente = false;
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['resumen-financiero', 'ordenes', 'cxc', 'gastos', 'usuarios', 'lectura-reportes', 'configuraciones'],
+      vistasPermitidas: ['resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'configuraciones'],
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card'],
     },
     fiscal: {
@@ -1087,13 +1172,19 @@
       ordenes: els.btnVistaOrdenes,
       cxc: els.btnVistaCxc,
       gastos: els.btnVistaGastos,
+      inventarios: els.btnVistaInventarios,
       usuarios: els.btnVistaUsuarios,
       configuraciones: els.btnVistaConfiguraciones,
       'lectura-reportes': els.btnVistaLecturaReportes,
     };
     Object.entries(navPorVista).forEach(([vista, boton]) => {
       const permitidaPorPerfil = sinRestricciones || restriccion.vistasPermitidas.includes(vista);
-      const permitidaPorConfig = vista !== 'ordenes' || ventasHabilitadaGlobalmente;
+      // D8/§0.6: "Inventarios" además depende del switch por tenant —
+      // igual patrón que "Ventas" con ventasHabilitadaGlobalmente, ver
+      // cargarConfigInventario()/aplicarVisibilidadInventarios() más abajo.
+      const permitidaPorConfig =
+        (vista !== 'ordenes' || ventasHabilitadaGlobalmente) &&
+        (vista !== 'inventarios' || inventarioActivoGlobalmente);
       const permitida = permitidaPorPerfil && permitidaPorConfig;
       boton.hidden = !permitida;
       // Mismo permiso, botón espejo en el launcher de íconos del menú
@@ -1159,6 +1250,11 @@
       cargarInfoUsoCfdi();
       revisarTicketsPendientesSinContador();
     }
+    // D7: fiscal no tiene NINGÚN acceso a Inventarios — evita pedirle al
+    // backend algo que le respondería 403 de fondo sin que la persona
+    // hiciera nada para provocarlo (mismo criterio que puedeVerAreaFiscal
+    // arriba, pero en sentido inverso).
+    if (perfilActual !== 'fiscal') cargarConfigInventario();
   }
 
   function showLogin() {
@@ -3505,6 +3601,8 @@
     els.btnVistaCxc.setAttribute('aria-selected', String(vista === 'cxc'));
     els.btnVistaGastos.classList.toggle('is-active', vista === 'gastos');
     els.btnVistaGastos.setAttribute('aria-selected', String(vista === 'gastos'));
+    els.btnVistaInventarios.classList.toggle('is-active', vista === 'inventarios');
+    els.btnVistaInventarios.setAttribute('aria-selected', String(vista === 'inventarios'));
     els.btnVistaUsuarios.classList.toggle('is-active', vista === 'usuarios');
     els.btnVistaUsuarios.setAttribute('aria-selected', String(vista === 'usuarios'));
     els.btnVistaConfiguraciones.classList.toggle('is-active', vista === 'configuraciones');
@@ -3518,6 +3616,7 @@
     els.vistaOrdenes.hidden = vista !== 'ordenes';
     els.vistaCxc.hidden = vista !== 'cxc';
     els.vistaGastos.hidden = vista !== 'gastos';
+    els.vistaInventarios.hidden = vista !== 'inventarios';
     els.vistaUsuarios.hidden = vista !== 'usuarios';
     els.vistaConfiguraciones.hidden = vista !== 'configuraciones';
     els.vistaLecturaReportes.hidden = vista !== 'lectura-reportes';
@@ -3553,6 +3652,13 @@
         cargarGastos();
       })();
     }
+    if (vista === 'inventarios') {
+      (async () => {
+        await Promise.all([cargarCategoriasInventario(), cargarUnidadesInventario()]);
+        cargarInventarios();
+        cargarDashboardInventario();
+      })();
+    }
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'configuraciones') {
       cargarConfigCampos();
@@ -3576,6 +3682,7 @@
   els.btnVistaOrdenes.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
   els.btnVistaCxc.addEventListener('click', () => cambiarVistaPrincipal('cxc'));
   els.btnVistaGastos.addEventListener('click', () => cambiarVistaPrincipal('gastos'));
+  els.btnVistaInventarios.addEventListener('click', () => cambiarVistaPrincipal('inventarios'));
   els.btnVistaUsuarios.addEventListener('click', () => cambiarVistaPrincipal('usuarios'));
   els.btnVistaConfiguraciones.addEventListener('click', () => cambiarVistaPrincipal('configuraciones'));
   els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));
@@ -8058,6 +8165,1039 @@
     };
   }
 
+  // ---------- Inventarios (segmento 3) ----------
+  // Mismo patrón que Gastos (panel de categorías, tabla activos/papelera,
+  // modal de alta/edición) — ver inventarios.md §0.3/§0.6. El motor de
+  // existencias real vive en el backend (segmento 1/2); esta capa solo
+  // captura, valida en el cliente y muestra lo que el servidor calcula.
+
+  let categoriasInventarioActuales = [];
+  let productosInventarioActuales = [];
+  let unidadesInventarioActuales = [];
+  let vistaInventarios = 'activos'; // 'activos' | 'papelera'
+  let categoriaInvEditandoId = null;
+  let inventarioModalEditando = null; // producto en edición, o null = crear
+  let inventarioModalTipoSeleccionado = 'producto'; // 'producto' | 'servicio'
+  let inventarioMovimientoProducto = null;
+  let inventarioMovimientoDireccion = 'entrada'; // 'entrada' | 'salida'
+
+  // 4+4 tipos de v1 (P4 cerrada 2026-08-24, §0.6.1) — "venta" NO aparece
+  // aquí porque esa salida solo la genera D8 (Ventas con inventario
+  // activo), nunca a mano desde este modal.
+  const TIPOS_MOV_ENTRADA = [
+    { valor: 'compra', etiqueta: 'Compra' },
+    { valor: 'devolucion_cliente', etiqueta: 'Devolución de cliente' },
+    { valor: 'inventario_inicial', etiqueta: 'Inventario inicial' },
+    { valor: 'ajuste_positivo', etiqueta: 'Ajuste positivo' },
+  ];
+  const TIPOS_MOV_SALIDA = [
+    { valor: 'consumo_interno', etiqueta: 'Consumo interno' },
+    { valor: 'merma', etiqueta: 'Merma' },
+    { valor: 'ajuste_negativo', etiqueta: 'Ajuste negativo' },
+  ];
+  const ETIQUETAS_TIPO_MOV = Object.fromEntries(
+    [...TIPOS_MOV_ENTRADA, ...TIPOS_MOV_SALIDA, { valor: 'venta', etiqueta: 'Venta' }].map((t) => [t.valor, t.etiqueta])
+  );
+  function etiquetaTipoMovimiento(tipo) {
+    return ETIQUETAS_TIPO_MOV[tipo] || tipo;
+  }
+  // Quita el ".00" de una cantidad de existencia (no es dinero, no
+  // siempre tiene sentido mostrar 2 decimales fijos — 5 piezas se ve
+  // mejor que "5.00" — pero si trae fracción real (kg/L) sí se conserva).
+  function formatearCantidadInv(valor) {
+    return formatearMoneda(valor).replace(/\.00$/, '');
+  }
+
+  // ---------- Config por tenant (D8/§0.6) ----------
+
+  async function cargarConfigInventario() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/configuracion`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const activo = Boolean(data.configuracion && data.configuracion.inventario_activo === '1');
+      if (els.configInventarioActivo) els.configInventarioActivo.checked = activo;
+      aplicarVisibilidadInventarios(activo);
+    } catch (err) {
+      // Silencioso — el botón del sidebar simplemente se queda oculto
+      // hasta el próximo intento (mismo criterio que cargarConfigGlobal).
+    }
+  }
+
+  // Mismo patrón que aplicarVisibilidadOrdenesCompra(): delega en
+  // aplicarRestriccionesPerfil() en vez de tocar els.btnVistaInventarios
+  // directamente, para no reactivar el botón para un perfil que ya lo
+  // tenía oculto por D7.
+  function aplicarVisibilidadInventarios(activo) {
+    inventarioActivoGlobalmente = activo;
+    aplicarRestriccionesPerfil();
+  }
+
+  let timeoutAutoguardadoInv = null;
+  if (els.configInventarioActivo) {
+    els.configInventarioActivo.addEventListener('change', async () => {
+      const nuevoValor = els.configInventarioActivo.checked;
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+
+      clearTimeout(timeoutAutoguardadoInv);
+      els.configInventarioActivo.disabled = true;
+      els.invActivoAutoguardado.textContent = 'Guardando…';
+      els.invActivoAutoguardado.setAttribute('data-estado', 'guardando');
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/inventarios/configuracion/inventario_activo`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valor: nuevoValor ? '1' : '0' }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'No se pudo guardar.');
+        }
+        aplicarVisibilidadInventarios(nuevoValor);
+        els.invActivoAutoguardado.textContent = 'Guardado ✓';
+        els.invActivoAutoguardado.setAttribute('data-estado', 'guardado');
+        timeoutAutoguardadoInv = setTimeout(() => {
+          els.invActivoAutoguardado.textContent = '';
+          els.invActivoAutoguardado.removeAttribute('data-estado');
+        }, 2500);
+      } catch (err) {
+        els.configInventarioActivo.checked = !nuevoValor;
+        els.invActivoAutoguardado.textContent = 'No se pudo guardar — inténtalo de nuevo.';
+        els.invActivoAutoguardado.setAttribute('data-estado', 'error');
+      } finally {
+        els.configInventarioActivo.disabled = false;
+      }
+    });
+  }
+
+  if (els.btnToggleInvCard) {
+    els.btnToggleInvCard.addEventListener('click', () => {
+      const abierto = els.btnToggleInvCard.getAttribute('aria-expanded') === 'true';
+      els.btnToggleInvCard.setAttribute('aria-expanded', String(!abierto));
+      els.invToggleBody.hidden = abierto;
+    });
+  }
+
+  // ---------- Categorías (mismo patrón que Gastos, sin "protegida") ----------
+
+  async function cargarCategoriasInventario() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/categorias`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.categorias)) {
+        categoriasInventarioActuales = data.categorias;
+        poblarSelectsCategoriaInventario();
+        renderPanelCategoriasInventario();
+      }
+    } catch (err) {
+      // Silencioso: los selects se quedan con la última lista cargada.
+    }
+  }
+
+  function poblarSelectsCategoriaInventario() {
+    const opciones = categoriasInventarioActuales
+      .filter((c) => c.activa)
+      .map((c) => `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`)
+      .join('');
+    if (els.invFiltroCategoria) {
+      const valorActual = els.invFiltroCategoria.value;
+      els.invFiltroCategoria.innerHTML = '<option value="">Todas</option>' + opciones;
+      els.invFiltroCategoria.value = valorActual;
+    }
+    if (els.invModalCategoria) {
+      const valorActual = els.invModalCategoria.value;
+      els.invModalCategoria.innerHTML = '<option value="">Sin categoría</option>' + opciones;
+      els.invModalCategoria.value = valorActual;
+    }
+  }
+
+  function filaCategoriaInvPanel(c) {
+    if (categoriaInvEditandoId === c.id) {
+      return `<div class="gastos-categoria-fila" data-id="${c.id}">
+        <input type="text" class="gastos-categoria-input-editar" value="${escapeHtml(c.nombre)}" maxlength="100" />
+        <button type="button" class="btn-categoria-accion btn-categoria-guardar" data-id="${c.id}">Guardar</button>
+        <button type="button" class="btn-categoria-accion gastos-categoria-cancelar">Cancelar</button>
+      </div>`;
+    }
+    return `<div class="gastos-categoria-fila" data-id="${c.id}">
+      <span class="gastos-categoria-nombre">${escapeHtml(c.nombre)}${c.activa ? '' : ' <em>(inactiva)</em>'}</span>
+      ${c.activa ? '' : `<button type="button" class="btn-categoria-accion gastos-categoria-reactivar" data-id="${c.id}">Reactivar</button>`}
+      <button type="button" class="btn-icon gastos-categoria-renombrar" data-id="${c.id}" aria-label="Renombrar ${escapeHtml(c.nombre)}">✏️</button>
+      ${c.tieneProductos ? '' : `<button type="button" class="btn-icon gastos-categoria-borrar" data-id="${c.id}" aria-label="Eliminar ${escapeHtml(c.nombre)}">🗑️</button>`}
+    </div>`;
+  }
+
+  function renderPanelCategoriasInventario() {
+    if (!els.invCategoriasLista) return;
+    els.invCategoriasLista.innerHTML =
+      categoriasInventarioActuales.map(filaCategoriaInvPanel).join('') || '<p class="field-hint">Sin categorías.</p>';
+  }
+
+  function toggleCategoriasInvPanel() {
+    const abierto = els.invCategoriasPanel.hidden;
+    els.invCategoriasPanel.hidden = !abierto;
+    els.btnInvCategoriasToggle.setAttribute('aria-expanded', String(abierto));
+    categoriaInvEditandoId = null;
+    if (abierto) renderPanelCategoriasInventario();
+  }
+
+  async function renombrarCategoriaInvPanel(id, nombre) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/categorias/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ nombre }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo renombrar la categoría.', true);
+        return;
+      }
+      categoriaInvEditandoId = null;
+      await cargarCategoriasInventario();
+      cargarInventarios();
+      showToast(data.mensaje || 'Categoría actualizada.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  async function reactivarCategoriaInvPanel(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/categorias/${id}/reactivar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo reactivar la categoría.', true);
+        return;
+      }
+      await cargarCategoriasInventario();
+      showToast(data.mensaje || 'Categoría reactivada.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  async function eliminarCategoriaInvPanel(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/categorias/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo eliminar la categoría.', true);
+        return;
+      }
+      await cargarCategoriasInventario();
+      showToast(data.mensaje || 'Categoría eliminada.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  async function agregarCategoriaInvPanel() {
+    const nombre = els.invCategoriaNuevaInput.value.trim();
+    els.errorInvCategoriaNueva.textContent = '';
+    if (!nombre) {
+      els.errorInvCategoriaNueva.textContent = 'El nombre de la categoría es obligatorio.';
+      return;
+    }
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/categorias`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ nombre }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        els.errorInvCategoriaNueva.textContent = data.error || 'No se pudo crear la categoría.';
+        return;
+      }
+      els.invCategoriaNuevaInput.value = '';
+      await cargarCategoriasInventario();
+      showToast('Categoría creada.');
+    } catch (err) {
+      els.errorInvCategoriaNueva.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function confirmarEliminarCategoriaInv(id, nombre) {
+    abrirConfirmacion({
+      titulo: 'Eliminar categoría',
+      mensaje: `¿Eliminar la categoría "${nombre}"? Esta acción no se puede deshacer.`,
+      textoBoton: 'Eliminar',
+      onConfirmar: () => eliminarCategoriaInvPanel(id),
+    });
+  }
+
+  // ---------- Unidades de medida (§9, solo lectura + alta en v1) ----------
+
+  async function cargarUnidadesInventario() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/unidades`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.unidades)) {
+        unidadesInventarioActuales = data.unidades;
+        if (els.invModalUnidad) {
+          const valorActual = els.invModalUnidad.value;
+          els.invModalUnidad.innerHTML = unidadesInventarioActuales
+            .map((u) => `<option value="${u.id}">${escapeHtml(u.nombre)} (${escapeHtml(u.abreviatura)})</option>`)
+            .join('');
+          if (valorActual) els.invModalUnidad.value = valorActual;
+        }
+      }
+    } catch (err) {
+      // Silencioso.
+    }
+  }
+
+  function nombreCategoriaInv(id) {
+    if (!id) return '—';
+    const c = categoriasInventarioActuales.find((x) => x.id === id);
+    return c ? c.nombre : '—';
+  }
+  function abreviaturaUnidadInv(id) {
+    const u = unidadesInventarioActuales.find((x) => x.id === id);
+    return u ? u.abreviatura : '—';
+  }
+
+  // ---------- Dashboard (7 KPIs de v1, §0.3:10) ----------
+
+  async function cargarDashboardInventario() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/dashboard`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return;
+      const d = await res.json();
+      els.invKpiValor.textContent = `$${formatearMoneda(d.valor_total_inventario)}`;
+      els.invKpiActivos.textContent = String(d.productos_activos);
+      els.invKpiUnidades.textContent = formatearCantidadInv(d.unidades_disponibles);
+      els.invKpiBajoMinimo.textContent = String(d.productos_bajo_minimo);
+      els.invKpiSinExistencia.textContent = String(d.productos_sin_existencia);
+      els.invKpiSinMovimiento.textContent = String(d.productos_sin_movimiento);
+      els.invKpiMermas.textContent = `$${formatearMoneda(d.mermas_periodo_valor)}`;
+      els.invKpiMermasCantidad.textContent = `${d.mermas_periodo_cantidad} movimiento${d.mermas_periodo_cantidad === 1 ? '' : 's'} este mes`;
+    } catch (err) {
+      // Silencioso — las tarjetas se quedan con el último valor mostrado.
+    }
+  }
+
+  // ---------- Lista de productos (tabla activos/papelera) ----------
+
+  async function cargarInventarios() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.invError.textContent = '';
+    try {
+      const params = new URLSearchParams();
+      if (vistaInventarios === 'papelera') params.set('papelera', 'true');
+      if (els.invFiltroCategoria.value) params.set('categoria_id', els.invFiltroCategoria.value);
+      if (els.invFiltroEstado.value) params.set('estado', els.invFiltroEstado.value);
+      if (els.invFiltroTipo.value) params.set('tipo', els.invFiltroTipo.value);
+      if (els.invBusqueda.value.trim()) params.set('busqueda', els.invBusqueda.value.trim());
+      params.set('por_pagina', '200');
+
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos?${params.toString()}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (res.status === 403) {
+        // El interruptor pudo apagarse desde otra pestaña/sesión mientras
+        // esta seguía abierta — el sidebar ya debería haberse ocultado,
+        // esto es solo la red de seguridad del lado del servidor.
+        els.invError.textContent = 'El módulo de Inventarios no está activo para esta empresa.';
+        return;
+      }
+      if (!res.ok) {
+        els.invError.textContent = 'No se pudieron cargar los productos.';
+        return;
+      }
+      const data = await res.json();
+      productosInventarioActuales = data.productos || [];
+      renderInvTabla(productosInventarioActuales, data.total);
+    } catch (err) {
+      els.invError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function botonAccionInv({ tooltip, peligro, icono, onClick }) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = peligro ? 'btn-icono-accion btn-icono-accion-peligro' : 'btn-icono-accion';
+    btn.setAttribute('data-tooltip', tooltip);
+    btn.setAttribute('aria-label', tooltip);
+    btn.innerHTML = icono;
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  const ICONO_ENTRADA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 19V5m0 0l-6 6m6-6l6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_SALIDA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14m0 0l-6-6m6 6l6-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_KARDEX = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 17V9m3 8V5m3 12v-5M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_EDITAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+  const ICONO_PAPELERA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_RESTAURAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  function renderInvTabla(productos, total) {
+    const esPapelera = vistaInventarios === 'papelera';
+    const cuenta = Number.isFinite(total) ? total : productos.length;
+    els.invProductosCount.textContent = `${cuenta} producto${cuenta === 1 ? '' : 's'}`;
+    els.invEmpty.hidden = productos.length > 0;
+    els.invEmpty.textContent = esPapelera
+      ? 'La papelera de Inventarios está vacía.'
+      : 'No hay productos que coincidan con la búsqueda.';
+
+    els.invTableBody.innerHTML = '';
+    productos.forEach((p) => {
+      const esServicio = p.tipo === 'servicio';
+      const estadoBadgeClase = p.estado === 'activo' ? 'estatus-listo' : p.estado === 'archivado' ? 'estatus-rechazado' : 'estatus-proceso';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td data-label="SKU"><strong>${escapeHtml(p.sku)}</strong></td>
+        <td data-label="Nombre"><button type="button" class="gasto-concepto-link inv-producto-link">${escapeHtml(p.nombre)}</button>${esServicio ? ' <span class="estatus-badge estatus-proceso">Servicio</span>' : ''}</td>
+        <td data-label="Categoría">${escapeHtml(nombreCategoriaInv(p.categoria_id))}</td>
+        <td data-label="Unidad">${escapeHtml(abreviaturaUnidadInv(p.unidad_id))}</td>
+        <td data-label="Disponible" class="col-num">${esServicio ? '—' : formatearCantidadInv(p.disponible || 0)}</td>
+        <td data-label="Costo prom." class="col-num">$${formatearMoneda(p.costo_promedio)}</td>
+        <td data-label="Precio" class="col-num">${p.precio === null ? '—' : '$' + formatearMoneda(p.precio)}</td>
+        <td data-label="Estado"><span class="estatus-badge ${estadoBadgeClase}">${escapeHtml(p.estado)}</span></td>
+        <td data-label=""></td>
+      `;
+      tr.querySelector('.inv-producto-link').addEventListener('click', () => abrirProductoModal(p));
+
+      const celdaAcciones = tr.lastElementChild;
+      const contenedor = document.createElement('div');
+      contenedor.className = 'admin-row-actions admin-row-actions-iconos';
+
+      if (esPapelera) {
+        contenedor.appendChild(botonAccionInv({ tooltip: 'Restaurar producto', icono: ICONO_RESTAURAR, onClick: () => restaurarProductoInv(p.id, p.nombre) }));
+        contenedor.appendChild(botonAccionInv({ tooltip: 'Eliminar permanentemente', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminarProductoPermanente(p.id, p.nombre) }));
+      } else {
+        if (!esServicio) {
+          contenedor.appendChild(botonAccionInv({ tooltip: 'Registrar entrada', icono: ICONO_ENTRADA, onClick: () => abrirMovimientoModal(p, 'entrada') }));
+          contenedor.appendChild(botonAccionInv({ tooltip: 'Registrar salida', icono: ICONO_SALIDA, onClick: () => abrirMovimientoModal(p, 'salida') }));
+          contenedor.appendChild(botonAccionInv({ tooltip: 'Ver kardex', icono: ICONO_KARDEX, onClick: () => abrirKardexModal(p) }));
+        }
+        contenedor.appendChild(botonAccionInv({ tooltip: 'Editar producto', icono: ICONO_EDITAR, onClick: () => abrirProductoModal(p) }));
+        contenedor.appendChild(botonAccionInv({ tooltip: 'Mover a papelera', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminarProducto(p.id, p.nombre) }));
+      }
+      celdaAcciones.appendChild(contenedor);
+      els.invTableBody.appendChild(tr);
+    });
+  }
+
+  function cambiarVistaInventarios(nuevaVista) {
+    if (vistaInventarios === nuevaVista) return;
+    vistaInventarios = nuevaVista;
+    const esPapelera = nuevaVista === 'papelera';
+    els.btnVerInvActivos.classList.toggle('is-active', !esPapelera);
+    els.btnVerInvActivos.setAttribute('aria-selected', String(!esPapelera));
+    els.btnVerInvPapelera.classList.toggle('is-active', esPapelera);
+    els.btnVerInvPapelera.classList.toggle('is-danger-context', esPapelera);
+    els.btnVerInvPapelera.setAttribute('aria-selected', String(esPapelera));
+    els.btnNuevoProducto.hidden = esPapelera;
+    document.getElementById('inv-kpis-wrap').hidden = esPapelera;
+    document.getElementById('inv-filtros').hidden = esPapelera;
+    cargarInventarios();
+  }
+
+  function limpiarFiltrosInv() {
+    els.invFiltroCategoria.value = '';
+    els.invFiltroEstado.value = '';
+    els.invFiltroTipo.value = '';
+    els.invBusqueda.value = '';
+    cargarInventarios();
+  }
+
+  // ---------- Modal de crear/editar producto ----------
+
+  function setInvModalTipo(tipo) {
+    inventarioModalTipoSeleccionado = tipo;
+    els.btnInvTipoProducto.classList.toggle('is-active', tipo === 'producto');
+    els.btnInvTipoProducto.setAttribute('aria-selected', String(tipo === 'producto'));
+    els.btnInvTipoServicio.classList.toggle('is-active', tipo === 'servicio');
+    els.btnInvTipoServicio.setAttribute('aria-selected', String(tipo === 'servicio'));
+  }
+
+  function abrirProductoModal(producto) {
+    inventarioModalEditando = producto || null;
+    els.invProductoModalTitle.textContent = producto ? 'Editar producto' : 'Nuevo producto';
+    els.btnInvModalGuardarLabel.textContent = producto ? 'Guardar cambios' : 'Guardar producto';
+
+    setInvModalTipo(producto ? producto.tipo : 'producto');
+    els.invModalNombre.value = producto ? producto.nombre : '';
+    els.invModalSku.value = producto ? producto.sku : '';
+    els.invModalCodigoBarras.value = producto ? producto.codigo_barras || '' : '';
+    poblarSelectsCategoriaInventario();
+    els.invModalCategoria.value = producto && producto.categoria_id ? String(producto.categoria_id) : '';
+    if (unidadesInventarioActuales.length === 0) cargarUnidadesInventario();
+    els.invModalUnidad.value = producto
+      ? String(producto.unidad_id)
+      : els.invModalUnidad.options[0]
+        ? els.invModalUnidad.options[0].value
+        : '';
+    els.invModalCosto.value = producto && producto.costo !== null ? String(producto.costo) : '';
+    els.invModalPrecio.value = producto && producto.precio !== null ? String(producto.precio) : '';
+    els.invModalStockMinimo.value = producto && producto.stock_minimo !== null ? String(producto.stock_minimo) : '';
+    els.invModalStockMaximo.value = producto && producto.stock_maximo !== null ? String(producto.stock_maximo) : '';
+    els.invModalPuntoReorden.value = producto && producto.punto_reorden !== null ? String(producto.punto_reorden) : '';
+    els.invModalEstado.value = producto ? producto.estado : 'activo';
+    els.invModalProveedor.value = producto ? producto.proveedor_principal || '' : '';
+    els.invModalNotas.value = producto ? producto.notas || '' : '';
+
+    ['inv-modal-nombre', 'inv-modal-sku', 'inv-modal-codigo-barras', 'inv-modal-unidad', 'inv-modal-costo', 'inv-modal-precio'].forEach((id) =>
+      setFieldError(id, '')
+    );
+    els.invModalErrorGeneral.textContent = '';
+    els.invCategoriasPanel.hidden = true;
+    els.btnInvCategoriasToggle.setAttribute('aria-expanded', 'false');
+    categoriaInvEditandoId = null;
+
+    els.invProductoModalOverlay.hidden = false;
+    els.invModalNombre.focus();
+  }
+
+  function cerrarProductoModal() {
+    els.invProductoModalOverlay.hidden = true;
+    inventarioModalEditando = null;
+  }
+
+  function setGuardarProductoLoading(cargando) {
+    els.btnInvModalGuardar.disabled = cargando;
+    els.btnInvModalGuardarLabel.textContent = cargando ? 'Guardando…' : inventarioModalEditando ? 'Guardar cambios' : 'Guardar producto';
+  }
+
+  async function guardarProductoInv() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    ['inv-modal-nombre', 'inv-modal-sku', 'inv-modal-codigo-barras', 'inv-modal-unidad', 'inv-modal-costo', 'inv-modal-precio'].forEach((id) =>
+      setFieldError(id, '')
+    );
+    els.invModalErrorGeneral.textContent = '';
+
+    const nombre = els.invModalNombre.value.trim();
+    if (!nombre) {
+      setFieldError('inv-modal-nombre', 'El nombre es obligatorio.');
+      return;
+    }
+    const sku = els.invModalSku.value.trim();
+    if (!sku) {
+      setFieldError('inv-modal-sku', 'El SKU es obligatorio.');
+      return;
+    }
+    if (!els.invModalUnidad.value) {
+      setFieldError('inv-modal-unidad', 'Selecciona una unidad.');
+      return;
+    }
+
+    const payload = {
+      nombre,
+      sku,
+      codigo_barras: els.invModalCodigoBarras.value.trim() || null,
+      categoria_id: els.invModalCategoria.value || null,
+      unidad_id: Number(els.invModalUnidad.value),
+      tipo: inventarioModalTipoSeleccionado,
+      costo: els.invModalCosto.value.trim() || null,
+      precio: els.invModalPrecio.value.trim() || null,
+      stock_minimo: els.invModalStockMinimo.value.trim() || null,
+      stock_maximo: els.invModalStockMaximo.value.trim() || null,
+      punto_reorden: els.invModalPuntoReorden.value.trim() || null,
+      estado: els.invModalEstado.value,
+      proveedor_principal: els.invModalProveedor.value.trim() || null,
+      notas: els.invModalNotas.value.trim() || null,
+    };
+
+    setGuardarProductoLoading(true);
+    try {
+      const url = inventarioModalEditando
+        ? `${API_BASE}/admin/inventarios/productos/${inventarioModalEditando.id}`
+        : `${API_BASE}/admin/inventarios/productos`;
+      const res = await fetch(url, {
+        method: inventarioModalEditando ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        if (data.error === 'INV_SKU_DUPLICADO') setFieldError('inv-modal-sku', data.mensaje || 'Ya existe un producto con ese SKU.');
+        else if (data.error === 'INV_UNIDAD_INVALIDA') setFieldError('inv-modal-unidad', data.mensaje || 'Unidad inválida.');
+        else els.invModalErrorGeneral.textContent = data.mensaje || data.error || 'No se pudo guardar el producto.';
+        return;
+      }
+      showToast(data.mensaje || 'Producto guardado.');
+      cerrarProductoModal();
+      await cargarInventarios();
+      cargarDashboardInventario();
+    } catch (err) {
+      els.invModalErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      setGuardarProductoLoading(false);
+    }
+  }
+
+  // ---------- Papelera de productos ----------
+
+  function confirmarEliminarProducto(id, nombre) {
+    abrirConfirmacion({
+      titulo: 'Mover a papelera',
+      mensaje: `¿Mover "${nombre}" a la papelera? Se puede restaurar después.`,
+      textoBoton: 'Mover a papelera',
+      onConfirmar: () => eliminarProductoInv(id),
+    });
+  }
+  async function eliminarProductoInv(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo mover a la papelera.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Producto movido a la papelera.');
+      await cargarInventarios();
+      cargarDashboardInventario();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+  async function restaurarProductoInv(id, nombre) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/${id}/restaurar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo restaurar.', true);
+        return;
+      }
+      showToast(data.mensaje || `"${nombre}" restaurado.`);
+      await cargarInventarios();
+      cargarDashboardInventario();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+  function confirmarEliminarProductoPermanente(id, nombre) {
+    abrirConfirmacion({
+      titulo: 'Eliminar permanentemente',
+      mensaje: `¿Eliminar "${nombre}" para siempre? Esta acción no se puede deshacer. Si el producto tiene movimientos registrados, no se podrá eliminar (§38).`,
+      textoBoton: 'Eliminar permanentemente',
+      onConfirmar: () => eliminarProductoPermanenteInv(id),
+    });
+  }
+  async function eliminarProductoPermanenteInv(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/${id}/permanente`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.mensaje || data.error || 'No se pudo eliminar.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Producto eliminado permanentemente.');
+      await cargarInventarios();
+      cargarDashboardInventario();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  // ---------- Modal de movimiento (entrada/salida) ----------
+
+  function poblarSelectTipoMov() {
+    const opciones = inventarioMovimientoDireccion === 'entrada' ? TIPOS_MOV_ENTRADA : TIPOS_MOV_SALIDA;
+    els.invMovTipo.innerHTML = opciones.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join('');
+    els.invMovCostoWrap.hidden = inventarioMovimientoDireccion !== 'entrada';
+  }
+
+  function setMovimientoDireccion(direccion) {
+    inventarioMovimientoDireccion = direccion;
+    els.btnInvMovEntrada.classList.toggle('is-active', direccion === 'entrada');
+    els.btnInvMovEntrada.setAttribute('aria-selected', String(direccion === 'entrada'));
+    els.btnInvMovSalida.classList.toggle('is-active', direccion === 'salida');
+    els.btnInvMovSalida.setAttribute('aria-selected', String(direccion === 'salida'));
+    poblarSelectTipoMov();
+  }
+
+  function abrirMovimientoModal(producto, direccion) {
+    inventarioMovimientoProducto = producto;
+    setMovimientoDireccion(direccion || 'entrada');
+    els.invMovimientoModalSubtitulo.textContent = `${producto.nombre} (${producto.sku}) — disponible: ${formatearCantidadInv(producto.disponible || 0)}`;
+    els.invMovCantidad.value = '';
+    els.invMovCosto.value = '';
+    els.invMovMotivo.value = '';
+    els.invMovNotas.value = '';
+    setFieldError('inv-mov-cantidad', '');
+    els.invMovErrorGeneral.textContent = '';
+    els.invMovimientoModalOverlay.hidden = false;
+    els.invMovCantidad.focus();
+  }
+
+  function cerrarMovimientoModal() {
+    els.invMovimientoModalOverlay.hidden = true;
+    inventarioMovimientoProducto = null;
+  }
+
+  async function guardarMovimientoInv() {
+    if (!inventarioMovimientoProducto) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    setFieldError('inv-mov-cantidad', '');
+    els.invMovErrorGeneral.textContent = '';
+
+    const cantidad = Number(String(els.invMovCantidad.value).replace(/,/g, ''));
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      setFieldError('inv-mov-cantidad', 'La cantidad debe ser mayor a cero.');
+      return;
+    }
+
+    const payload = {
+      producto_id: inventarioMovimientoProducto.id,
+      tipo: els.invMovTipo.value,
+      cantidad,
+      costo_unitario: inventarioMovimientoDireccion === 'entrada' && els.invMovCosto.value.trim() ? Number(els.invMovCosto.value) : null,
+      motivo: els.invMovMotivo.value.trim() || null,
+      notas: els.invMovNotas.value.trim() || null,
+    };
+
+    els.btnInvMovGuardar.disabled = true;
+    els.btnInvMovGuardarLabel.textContent = 'Guardando…';
+    try {
+      const ruta = inventarioMovimientoDireccion === 'entrada' ? 'entradas' : 'salidas';
+      // Idempotency-Key (§0.5.E): generada UNA vez al abrir el modal se
+      // quedaría igual entre reintentos reales, pero como este flujo no
+      // guarda la key entre aperturas, un doble clic dentro de la misma
+      // llamada queda cubierto igual por deshabilitar el botón arriba —
+      // la key sirve sobre todo contra un reintento de RED (mismo clic,
+      // la petición se reenvía sola), no contra un segundo clic humano.
+      const idempotencyKey =
+        window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const res = await fetch(`${API_BASE}/admin/inventarios/${ruta}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader, 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        els.invMovErrorGeneral.textContent = data.mensaje || data.error || 'No se pudo registrar el movimiento.';
+        return;
+      }
+      showToast(`${data.folio} registrado — existencia: ${formatearCantidadInv(data.existenciaPosterior)}`);
+      cerrarMovimientoModal();
+      await cargarInventarios();
+      cargarDashboardInventario();
+    } catch (err) {
+      els.invMovErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      els.btnInvMovGuardar.disabled = false;
+      els.btnInvMovGuardarLabel.textContent = 'Registrar';
+    }
+  }
+
+  // ---------- Modal de kardex ----------
+
+  async function abrirKardexModal(producto) {
+    els.invKardexModalOverlay.hidden = false;
+    els.invKardexSubtitulo.textContent = `${producto.nombre} (${producto.sku})`;
+    els.invKardexTableBody.innerHTML = '';
+    els.invKardexEmpty.hidden = true;
+
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/kardex?producto_id=${producto.id}&por_pagina=100`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.invKardexEmpty.hidden = false;
+        els.invKardexEmpty.textContent = 'No se pudo cargar el kardex.';
+        return;
+      }
+      const movimientos = data.movimientos || [];
+      els.invKardexEmpty.hidden = movimientos.length > 0;
+      movimientos.forEach((m) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td data-label="Folio">${escapeHtml(m.folio || '—')}</td>
+          <td data-label="Tipo">${escapeHtml(etiquetaTipoMovimiento(m.tipo))}</td>
+          <td data-label="Cantidad" class="col-num">${formatearCantidadInv(m.cantidad)}</td>
+          <td data-label="Costo" class="col-num">${m.costo_unitario === null ? '—' : '$' + formatearMoneda(m.costo_unitario)}</td>
+          <td data-label="Anterior" class="col-num">${formatearCantidadInv(m.existencia_anterior)}</td>
+          <td data-label="Posterior" class="col-num">${formatearCantidadInv(m.existencia_posterior)}</td>
+          <td data-label="Motivo">${escapeHtml(m.motivo || '—')}</td>
+          <td data-label="Usuario">${escapeHtml(m.usuario || '—')}</td>
+          <td data-label="Fecha">${escapeHtml(m.creado_en || '—')}</td>
+        `;
+        els.invKardexTableBody.appendChild(tr);
+      });
+    } catch (err) {
+      els.invKardexEmpty.hidden = false;
+      els.invKardexEmpty.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+  function cerrarKardexModal() {
+    els.invKardexModalOverlay.hidden = true;
+  }
+
+  // ---------- Verificar integridad (§0.5.F) ----------
+
+  async function verificarIntegridadInv() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.btnInvVerificarIntegridad.disabled = true;
+    const textoOriginal = els.btnInvVerificarIntegridad.textContent;
+    els.btnInvVerificarIntegridad.textContent = 'Verificando…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/verificar-integridad`, {
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo verificar.', true);
+        return;
+      }
+      if (data.ok) {
+        showToast('Integridad verificada — sin divergencias.');
+      } else {
+        showToast(`${data.divergencias.length} divergencia(s) encontrada(s) — revisa la consola para el detalle.`, true);
+        console.warn('Divergencias de inventario (§0.5.F):', data.divergencias);
+      }
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    } finally {
+      els.btnInvVerificarIntegridad.disabled = false;
+      els.btnInvVerificarIntegridad.textContent = textoOriginal;
+    }
+  }
+
+  // ---------- Enlaces de eventos ----------
+
+  if (els.btnVerInvActivos) els.btnVerInvActivos.addEventListener('click', () => cambiarVistaInventarios('activos'));
+  if (els.btnVerInvPapelera) els.btnVerInvPapelera.addEventListener('click', () => cambiarVistaInventarios('papelera'));
+  if (els.btnRefreshInventarios)
+    els.btnRefreshInventarios.addEventListener('click', () => {
+      cargarInventarios();
+      cargarDashboardInventario();
+    });
+  if (els.btnInvVerificarIntegridad) els.btnInvVerificarIntegridad.addEventListener('click', verificarIntegridadInv);
+  if (els.btnNuevoProducto) els.btnNuevoProducto.addEventListener('click', () => abrirProductoModal(null));
+  if (els.invFiltroCategoria) els.invFiltroCategoria.addEventListener('change', () => cargarInventarios());
+  if (els.invFiltroEstado) els.invFiltroEstado.addEventListener('change', () => cargarInventarios());
+  if (els.invFiltroTipo) els.invFiltroTipo.addEventListener('change', () => cargarInventarios());
+  if (els.invBusqueda) els.invBusqueda.addEventListener('input', debounce(() => cargarInventarios(), 350));
+  if (els.btnLimpiarFiltrosInv) els.btnLimpiarFiltrosInv.addEventListener('click', limpiarFiltrosInv);
+
+  if (els.btnInvTipoProducto) els.btnInvTipoProducto.addEventListener('click', () => setInvModalTipo('producto'));
+  if (els.btnInvTipoServicio) els.btnInvTipoServicio.addEventListener('click', () => setInvModalTipo('servicio'));
+  if (els.btnInvCategoriasToggle) els.btnInvCategoriasToggle.addEventListener('click', toggleCategoriasInvPanel);
+  if (els.btnInvCategoriaAgregar) els.btnInvCategoriaAgregar.addEventListener('click', agregarCategoriaInvPanel);
+  if (els.invCategoriasLista)
+    els.invCategoriasLista.addEventListener('click', (ev) => {
+      const btnRenombrar = ev.target.closest('.gastos-categoria-renombrar');
+      const btnGuardar = ev.target.closest('.btn-categoria-guardar');
+      const btnCancelar = ev.target.closest('.gastos-categoria-cancelar');
+      const btnBorrar = ev.target.closest('.gastos-categoria-borrar');
+      const btnReactivar = ev.target.closest('.gastos-categoria-reactivar');
+      if (btnReactivar) {
+        reactivarCategoriaInvPanel(Number(btnReactivar.dataset.id));
+        return;
+      }
+      if (btnRenombrar) {
+        categoriaInvEditandoId = Number(btnRenombrar.dataset.id);
+        renderPanelCategoriasInventario();
+        const input = els.invCategoriasLista.querySelector('.gastos-categoria-input-editar');
+        if (input) {
+          input.focus();
+          input.select();
+        }
+        return;
+      }
+      if (btnCancelar) {
+        categoriaInvEditandoId = null;
+        renderPanelCategoriasInventario();
+        return;
+      }
+      if (btnGuardar) {
+        const id = Number(btnGuardar.dataset.id);
+        const input = els.invCategoriasLista.querySelector('.gastos-categoria-input-editar');
+        const nombre = input ? input.value.trim() : '';
+        if (!nombre) {
+          showToast('El nombre de la categoría es obligatorio.', true);
+          return;
+        }
+        renombrarCategoriaInvPanel(id, nombre);
+        return;
+      }
+      if (btnBorrar) {
+        const id = Number(btnBorrar.dataset.id);
+        const cat = categoriasInventarioActuales.find((c) => c.id === id);
+        confirmarEliminarCategoriaInv(id, cat ? cat.nombre : 'esta categoría');
+      }
+    });
+
+  if (els.btnInvProductoModalCerrar) els.btnInvProductoModalCerrar.addEventListener('click', cerrarProductoModal);
+  if (els.btnInvModalCancelar) els.btnInvModalCancelar.addEventListener('click', cerrarProductoModal);
+  if (els.invProductoModalOverlay)
+    els.invProductoModalOverlay.addEventListener('click', (e) => {
+      if (e.target === els.invProductoModalOverlay) cerrarProductoModal();
+    });
+  if (els.btnInvModalGuardar) els.btnInvModalGuardar.addEventListener('click', guardarProductoInv);
+
+  if (els.btnInvMovEntrada) els.btnInvMovEntrada.addEventListener('click', () => setMovimientoDireccion('entrada'));
+  if (els.btnInvMovSalida) els.btnInvMovSalida.addEventListener('click', () => setMovimientoDireccion('salida'));
+  if (els.btnInvMovCancelar) els.btnInvMovCancelar.addEventListener('click', cerrarMovimientoModal);
+  if (els.invMovimientoModalOverlay)
+    els.invMovimientoModalOverlay.addEventListener('click', (e) => {
+      if (e.target === els.invMovimientoModalOverlay) cerrarMovimientoModal();
+    });
+  if (els.btnInvMovGuardar) els.btnInvMovGuardar.addEventListener('click', guardarMovimientoInv);
+
+  if (els.btnInvKardexCerrar) els.btnInvKardexCerrar.addEventListener('click', cerrarKardexModal);
+  if (els.invKardexModalOverlay)
+    els.invKardexModalOverlay.addEventListener('click', (e) => {
+      if (e.target === els.invKardexModalOverlay) cerrarKardexModal();
+    });
+
+  // Auto-formato de comas de miles, mismo componente que ya usa Gastos/Ventas.
+  [
+    els.invModalCosto,
+    els.invModalPrecio,
+    els.invModalStockMinimo,
+    els.invModalStockMaximo,
+    els.invModalPuntoReorden,
+    els.invMovCantidad,
+    els.invMovCosto,
+  ].forEach((input) => {
+    if (input) formatearCampoDinero(input);
+  });
+
   // ---------- Inicialización ----------
 
   (function init() {
@@ -8086,6 +9226,7 @@
                 ordenes: els.btnVistaOrdenes,
                 cxc: els.btnVistaCxc,
                 gastos: els.btnVistaGastos,
+                inventarios: els.btnVistaInventarios,
                 usuarios: els.btnVistaUsuarios,
                 configuraciones: els.btnVistaConfiguraciones,
                 'lectura-reportes': els.btnVistaLecturaReportes,

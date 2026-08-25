@@ -112,6 +112,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Gastos</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-inventarios" role="tab" aria-selected="false" hidden>
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Inventarios</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-usuarios" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Usuarios</span>
@@ -178,6 +182,10 @@
         <button type="button" class="admin-menu-movil-btn" data-vista="gastos">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Gastos</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="inventarios" hidden>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Inventarios</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="usuarios">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
@@ -1135,6 +1143,150 @@
         </div>
       </div>
 
+      <div id="vista-inventarios" hidden>
+        <div class="admin-toolbar">
+          <div class="admin-toolbar-title">
+            <h1>Inventarios</h1>
+          </div>
+          <div class="admin-toolbar-right">
+            <div class="view-toggle" role="tablist" aria-label="Ver productos activos o papelera">
+              <button type="button" class="view-toggle-btn is-active" id="btn-ver-inv-activos" role="tab" aria-selected="true">Activos</button>
+              <button type="button" class="view-toggle-btn" id="btn-ver-inv-papelera" role="tab" aria-selected="false">Papelera</button>
+            </div>
+            <span class="admin-count" id="inv-productos-count">0 productos</span>
+            <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" title="Recomputa cada saldo desde el kardex y compara contra el guardado (§0.5.F)">Verificar integridad</button>
+            <button type="button" class="btn btn-secondary" id="btn-refresh-inventarios">Actualizar</button>
+            <button type="button" class="btn btn-primary" id="btn-nuevo-producto">+ Nuevo producto</button>
+          </div>
+        </div>
+
+        <div class="inicio-stats-grid" id="inv-kpis-wrap">
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Valor del inventario</span>
+              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inv-kpi-valor">$0.00</p>
+            <p class="inicio-stat-tendencia">Existencia × costo promedio (D5)</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Productos activos</span>
+              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inv-kpi-activos">0</p>
+            <p class="inicio-stat-tendencia">Catálogo (§0.3)</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Unidades disponibles</span>
+              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inv-kpi-unidades">0</p>
+            <p class="inicio-stat-tendencia">En ALM-1 (D2)</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Bajo mínimo</span>
+              <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inv-kpi-bajo-minimo">0</p>
+            <p class="inicio-stat-tendencia">§28, sin lead time v1</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Sin existencia</span>
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inv-kpi-sin-existencia">0</p>
+            <p class="inicio-stat-tendencia">Disponible = 0</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Sin movimiento</span>
+              <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inv-kpi-sin-movimiento">0</p>
+            <p class="inicio-stat-tendencia">Nunca tuvo un movimiento</p>
+          </div>
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Mermas del mes</span>
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inv-kpi-mermas">$0.00</p>
+            <p class="inicio-stat-tendencia" id="inv-kpi-mermas-cantidad">0 movimientos</p>
+          </div>
+        </div>
+
+        <div class="gastos-filtros" id="inv-filtros">
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="inv-filtro-categoria">Categoría</label>
+            <select id="inv-filtro-categoria">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="inv-filtro-estado">Estado</label>
+            <select id="inv-filtro-estado">
+              <option value="">Todos</option>
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+              <option value="archivado">Archivado</option>
+            </select>
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="inv-filtro-tipo">Tipo</label>
+            <select id="inv-filtro-tipo">
+              <option value="">Todos</option>
+              <option value="producto">Producto</option>
+              <option value="servicio">Servicio</option>
+            </select>
+          </div>
+          <div class="field gastos-filtro-campo gastos-filtro-busqueda">
+            <label class="gastos-filtro-label" for="inv-busqueda">Buscar</label>
+            <input type="text" id="inv-busqueda" placeholder="Nombre, SKU o código de barras" maxlength="200" autocomplete="off" />
+          </div>
+          <button type="button" class="btn btn-secondary gastos-filtro-limpiar" id="btn-limpiar-filtros-inv">Limpiar filtros</button>
+        </div>
+
+        <p class="field-error" id="inv-error" role="alert"></p>
+
+        <div class="admin-table-wrap" id="inv-table-wrap">
+          <table class="admin-table inv-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Nombre</th>
+                <th>Categoría</th>
+                <th>Unidad</th>
+                <th class="col-num">Disponible</th>
+                <th class="col-num">Costo prom.</th>
+                <th class="col-num">Precio</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="inv-table-body"></tbody>
+          </table>
+          <p class="admin-empty" id="inv-empty" hidden>No hay productos registrados todavía.</p>
+        </div>
+      </div>
+
       <div id="vista-usuarios" hidden>
         <!-- "Ventas" y "Cuenta de respaldo admin" van una junto a
              la otra en una cuadrícula de 2 columnas — ambas tienen poco
@@ -1173,6 +1325,36 @@
                 <span class="switch-toggle-label">Habilitar Ventas</span>
                 <span class="switch-toggle-hint">Con esto apagado, se oculta el botón "Ventas" del panel, y subir un ticket ya no exige verificar la venta. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
                 <span class="switch-toggle-autoguardado" id="ordenes-habilitado-autoguardado" role="status" aria-live="polite"></span>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Inventario activo (D8, §0.6) — misma razón que "Habilitar
+             Ventas" de arriba: administrador/super son los únicos
+             perfiles con acceso a Inventarios (D7), así que el
+             interruptor vive junto al resto de lo que ese perfil ve, no
+             en "Configuraciones globales" donde Fiscal también entra. -->
+        <section class="admin-config-card" id="inv-toggle-card">
+          <button type="button" class="admin-config-toggle" id="btn-toggle-inv-card" aria-expanded="false" aria-controls="inv-toggle-body">
+            <span class="admin-config-toggle-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              </svg>
+              Inventarios
+            </span>
+            <svg class="admin-config-chevron" id="inv-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div class="admin-config-body" id="inv-toggle-body" hidden>
+            <label class="switch-toggle">
+              <input type="checkbox" id="config-inventario-activo" />
+              <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+              <span class="switch-toggle-texto">
+                <span class="switch-toggle-label">Inventario activo</span>
+                <span class="switch-toggle-hint">Activa el módulo Inventarios para esta empresa. Con inventario activo, Ventas sugiere productos al escribir y por escáner; con inventario inactivo, la captura es manual como hoy. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
+                <span class="switch-toggle-autoguardado" id="inv-activo-autoguardado" role="status" aria-live="polite"></span>
               </span>
             </label>
           </div>
@@ -2644,6 +2826,180 @@
             <button type="button" class="btn btn-danger btn-block" id="btn-gastos-detalle-eliminar">Mover a papelera</button>
           </section>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de crear/editar un producto (Inventarios) -->
+  <div class="modal-overlay" id="inv-producto-modal-overlay" hidden>
+    <div class="modal gastos-modal" role="dialog" aria-modal="true" aria-labelledby="inv-producto-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="inv-producto-modal-title">Nuevo producto</h2>
+        <button type="button" class="btn-icon" id="btn-inv-producto-modal-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="gastos-modal-body">
+        <div class="gastos-modal-grid">
+          <div class="field">
+            <label>Tipo</label>
+            <div class="view-toggle" role="tablist" aria-label="¿Producto físico o servicio?">
+              <button type="button" class="view-toggle-btn is-active" id="btn-inv-tipo-producto" role="tab" aria-selected="true">Producto</button>
+              <button type="button" class="view-toggle-btn" id="btn-inv-tipo-servicio" role="tab" aria-selected="false">Servicio</button>
+            </div>
+            <p class="field-hint">Un servicio no genera existencias ni kardex (D11).</p>
+          </div>
+          <div class="field">
+            <label for="inv-modal-nombre">Nombre <span class="required">*</span></label>
+            <input type="text" id="inv-modal-nombre" maxlength="200" placeholder="Ej. Tornillo M6 25mm" autocomplete="off" />
+            <p class="field-error" id="error-inv-modal-nombre" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="inv-modal-sku">SKU <span class="required">*</span></label>
+            <input type="text" id="inv-modal-sku" maxlength="60" placeholder="Ej. TORN-M6-25MM" autocomplete="off" />
+            <p class="field-hint">Tú lo eliges — no lo genera el sistema. No se puede repetir.</p>
+            <p class="field-error" id="error-inv-modal-sku" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="inv-modal-codigo-barras">Código de barras</label>
+            <input type="text" id="inv-modal-codigo-barras" maxlength="60" placeholder="Opcional" autocomplete="off" />
+            <p class="field-error" id="error-inv-modal-codigo-barras" role="alert"></p>
+          </div>
+          <div class="field inv-modal-categoria-field">
+            <label for="inv-modal-categoria">Categoría</label>
+            <div class="gastos-categoria-select-row">
+              <select id="inv-modal-categoria"><option value="">Sin categoría</option></select>
+              <button type="button" class="btn-categorias-toggle" id="btn-inv-categorias-toggle" aria-expanded="false" aria-controls="inv-categorias-panel">✏️ Categorías</button>
+            </div>
+            <div class="gastos-categorias-panel" id="inv-categorias-panel" hidden>
+              <div class="gastos-categorias-lista" id="inv-categorias-lista"></div>
+              <div class="gastos-categoria-nueva-row">
+                <input type="text" id="inv-categoria-nueva-input" maxlength="100" placeholder="Nueva categoría…" autocomplete="off" />
+                <button type="button" class="btn-categoria-accion btn-categoria-agregar" id="btn-inv-categoria-agregar">+ Agregar</button>
+              </div>
+              <p class="field-error" id="error-inv-categoria-nueva" role="alert"></p>
+            </div>
+          </div>
+          <div class="field">
+            <label for="inv-modal-unidad">Unidad de medida <span class="required">*</span></label>
+            <select id="inv-modal-unidad"></select>
+            <p class="field-error" id="error-inv-modal-unidad" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="inv-modal-costo">Costo (MXN)</label>
+            <input type="text" inputmode="decimal" id="inv-modal-costo" placeholder="0.00" autocomplete="off" />
+            <p class="field-hint">Referencia — el costo promedio real lo calcula cada entrada (D5).</p>
+            <p class="field-error" id="error-inv-modal-costo" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="inv-modal-precio">Precio de venta (MXN)</label>
+            <input type="text" inputmode="decimal" id="inv-modal-precio" placeholder="0.00" autocomplete="off" />
+            <p class="field-error" id="error-inv-modal-precio" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="inv-modal-stock-minimo">Stock mínimo</label>
+            <input type="text" inputmode="decimal" id="inv-modal-stock-minimo" placeholder="Opcional" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="inv-modal-stock-maximo">Stock máximo</label>
+            <input type="text" inputmode="decimal" id="inv-modal-stock-maximo" placeholder="Opcional" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="inv-modal-punto-reorden">Punto de reorden</label>
+            <input type="text" inputmode="decimal" id="inv-modal-punto-reorden" placeholder="Opcional" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="inv-modal-estado">Estado</label>
+            <select id="inv-modal-estado">
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
+              <option value="archivado">Archivado</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="inv-modal-proveedor">Proveedor principal</label>
+            <input type="text" id="inv-modal-proveedor" maxlength="200" placeholder="Opcional, texto libre" autocomplete="off" />
+          </div>
+          <div class="field inv-modal-notas">
+            <label for="inv-modal-notas">Notas</label>
+            <textarea id="inv-modal-notas" maxlength="2000" rows="3" placeholder="Opcional"></textarea>
+          </div>
+        </div>
+        <p class="field-error" id="inv-modal-error-general" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-inv-modal-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-inv-modal-guardar">
+            <span id="btn-inv-modal-guardar-label">Guardar producto</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de registrar un movimiento (entrada/salida) sobre un producto -->
+  <div class="modal-overlay" id="inv-movimiento-modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="inv-movimiento-modal-title">
+      <h2 id="inv-movimiento-modal-title">Registrar movimiento</h2>
+      <p class="panel-subtitle" id="inv-movimiento-modal-subtitulo"></p>
+      <div class="view-toggle" role="tablist" aria-label="¿Entrada o salida?">
+        <button type="button" class="view-toggle-btn is-active" id="btn-inv-mov-entrada" role="tab" aria-selected="true">Entrada</button>
+        <button type="button" class="view-toggle-btn" id="btn-inv-mov-salida" role="tab" aria-selected="false">Salida</button>
+      </div>
+      <div class="field">
+        <label for="inv-mov-tipo">Tipo <span class="required">*</span></label>
+        <select id="inv-mov-tipo"></select>
+      </div>
+      <div class="field">
+        <label for="inv-mov-cantidad">Cantidad <span class="required">*</span></label>
+        <input type="text" inputmode="decimal" id="inv-mov-cantidad" placeholder="0" autocomplete="off" />
+        <p class="field-error" id="error-inv-mov-cantidad" role="alert"></p>
+      </div>
+      <div class="field" id="inv-mov-costo-wrap">
+        <label for="inv-mov-costo">Costo unitario (MXN)</label>
+        <input type="text" inputmode="decimal" id="inv-mov-costo" placeholder="Opcional — alimenta el costo promedio (D5)" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="inv-mov-motivo">Motivo</label>
+        <input type="text" id="inv-mov-motivo" maxlength="255" placeholder="Opcional" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="inv-mov-notas">Notas</label>
+        <textarea id="inv-mov-notas" maxlength="2000" rows="2" placeholder="Opcional"></textarea>
+      </div>
+      <p class="field-error" id="inv-mov-error-general" role="alert"></p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-inv-mov-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-inv-mov-guardar">
+          <span id="btn-inv-mov-guardar-label">Registrar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Kardex (historial de movimientos de un producto) -->
+  <div class="modal-overlay" id="inv-kardex-modal-overlay" hidden>
+    <div class="modal inv-kardex-modal" role="dialog" aria-modal="true" aria-labelledby="inv-kardex-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="inv-kardex-modal-title">Kardex</h2>
+        <button type="button" class="btn-icon" id="btn-inv-kardex-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <p class="panel-subtitle" id="inv-kardex-subtitulo"></p>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Tipo</th>
+              <th class="col-num">Cantidad</th>
+              <th class="col-num">Costo</th>
+              <th class="col-num">Anterior</th>
+              <th class="col-num">Posterior</th>
+              <th>Motivo</th>
+              <th>Usuario</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody id="inv-kardex-table-body"></tbody>
+        </table>
+        <p class="admin-empty" id="inv-kardex-empty" hidden>Este producto todavía no tiene movimientos.</p>
       </div>
     </div>
   </div>

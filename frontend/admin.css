@@ -3485,6 +3485,45 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .gastos-detalle-modal {
   max-width: 760px;
 }
+/* Inventarios (segmento 3): kardex es una tabla ancha (9 columnas), el
+   ancho base de .gastos-modal se queda corto — mismo patrón de extender
+   con una segunda clase que ya usa .gastos-detalle-modal arriba. */
+.inv-kardex-modal {
+  max-width: 1080px;
+  width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+/* Bug real encontrado en la validación visual (2026-08-25): .admin-table
+   trae table-layout:fixed pensado para las tablas con columnas
+   redimensionables (data-col + JS), que sí definen un ancho por columna
+   — sin eso, fixed reparte las 9 columnas del kardex en partes iguales y
+   los encabezados largos ("Cantidad", "Anterior", "Posterior", "Usuario")
+   se truncaban con "…". Un primer intento con table-layout:auto lo
+   empeoró (el navegador comprimía Folio/Tipo a 2-3 líneas en vez de
+   respetar su contenido) — la solución real es la misma que ya usa el
+   resto del proyecto: anchos explícitos por columna, no dejarlo al
+   layout automático. */
+.inv-kardex-modal .admin-table {
+  min-width: 1030px;
+}
+/* .admin-table th trae padding 14px por lado + mayúsculas — un ancho
+   menor al que necesita el propio texto del encabezado ("POSTERIOR",
+   "CANTIDAD"...) trunca con "…" sin importar table-layout. Los anchos de
+   abajo ya incluyen ese margen (medido contra el primer intento, que se
+   quedó corto en ~85px). */
+.inv-kardex-modal .admin-table th:nth-child(1) { width: 110px; }
+.inv-kardex-modal .admin-table th:nth-child(2) { width: 110px; }
+.inv-kardex-modal .admin-table th:nth-child(3) { width: 105px; }
+.inv-kardex-modal .admin-table th:nth-child(4) { width: 90px; }
+.inv-kardex-modal .admin-table th:nth-child(5) { width: 105px; }
+.inv-kardex-modal .admin-table th:nth-child(6) { width: 110px; }
+.inv-kardex-modal .admin-table th:nth-child(7) { width: 130px; }
+.inv-kardex-modal .admin-table th:nth-child(8) { width: 100px; }
+.inv-kardex-modal .admin-table th:nth-child(9) { width: 170px; }
+.col-num {
+  text-align: right;
+}
 .gastos-modal-header {
   display: flex;
   align-items: flex-start;
