@@ -825,6 +825,35 @@
                 <button type="button" class="btn btn-secondary btn-block" id="btn-agregar-producto-orden">+ Agregar producto</button>
               </div>
 
+              <!-- D8 (Inventarios, §22): vincular UN producto real del
+                   catálogo de Inventarios — independiente del builder de
+                   texto de arriba, que sigue funcionando igual. Solo
+                   visible si el tenant tiene Inventarios activo (D8/§0.6,
+                   ver aplicarVisibilidadInventarioEnVentas() en admin.js).
+                   Línea única (P1 cerrada 2026-08-24): un producto de
+                   inventario por venta como máximo. -->
+              <div class="orden-inventario-vincular" id="orden-inventario-vincular" hidden>
+                <p class="field-hint orden-inventario-titulo">Vincular producto de inventario (opcional) — descuenta existencia automáticamente</p>
+                <div class="field orden-inventario-buscar-field" id="orden-inventario-buscar-wrap">
+                  <label for="orden-inventario-buscar">Producto — nombre, SKU o escanea el código de barras</label>
+                  <input type="text" id="orden-inventario-buscar" placeholder="Escribe para buscar…" autocomplete="off" />
+                  <div class="orden-inventario-sugerencias" id="orden-inventario-sugerencias" hidden></div>
+                </div>
+                <div class="orden-inventario-seleccionado" id="orden-inventario-seleccionado" hidden>
+                  <div class="orden-inventario-seleccionado-info">
+                    <strong id="orden-inventario-seleccionado-nombre"></strong>
+                    <span id="orden-inventario-seleccionado-detalle"></span>
+                  </div>
+                  <button type="button" class="btn-icon" id="btn-orden-inventario-quitar" aria-label="Quitar producto vinculado">✕</button>
+                </div>
+                <div class="field" id="orden-inventario-unidades-field" hidden>
+                  <label for="orden-inventario-unidades">Unidades vendidas <span class="required">*</span></label>
+                  <input type="number" id="orden-inventario-unidades" min="0.001" step="0.001" value="1" />
+                  <p class="field-hint" id="orden-inventario-disponible-hint"></p>
+                  <p class="field-error" id="error-orden-inventario-unidades" role="alert"></p>
+                </div>
+              </div>
+
               <div class="orden-productos-lista-wrap" id="orden-productos-lista-wrap" hidden>
                 <table class="admin-table orden-productos-tabla orden-productos-tabla-escritorio">
                   <thead>

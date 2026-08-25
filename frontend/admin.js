@@ -240,6 +240,18 @@
     ordenProductosListaWrap: document.getElementById('orden-productos-lista-wrap'),
     ordenProductosListaBody: document.getElementById('orden-productos-lista-body'),
     ordenProductosListaMovil: document.getElementById('orden-productos-lista-movil'),
+    // D8 (Inventarios, §22): vincular producto de inventario en Ventas
+    ordenInventarioVincular: document.getElementById('orden-inventario-vincular'),
+    ordenInventarioBuscarWrap: document.getElementById('orden-inventario-buscar-wrap'),
+    ordenInventarioBuscar: document.getElementById('orden-inventario-buscar'),
+    ordenInventarioSugerencias: document.getElementById('orden-inventario-sugerencias'),
+    ordenInventarioSeleccionado: document.getElementById('orden-inventario-seleccionado'),
+    ordenInventarioSeleccionadoNombre: document.getElementById('orden-inventario-seleccionado-nombre'),
+    ordenInventarioSeleccionadoDetalle: document.getElementById('orden-inventario-seleccionado-detalle'),
+    btnOrdenInventarioQuitar: document.getElementById('btn-orden-inventario-quitar'),
+    ordenInventarioUnidadesField: document.getElementById('orden-inventario-unidades-field'),
+    ordenInventarioUnidades: document.getElementById('orden-inventario-unidades'),
+    ordenInventarioDisponibleHint: document.getElementById('orden-inventario-disponible-hint'),
     ordenIvaInfo: document.getElementById('orden-iva-info'),
     ordenTotalPreview: document.getElementById('orden-total-preview'),
     ordenEmail: document.getElementById('orden-email'),
@@ -4707,6 +4719,129 @@
     els.ordenProductoConcepto.focus();
   });
 
+  // ---------- D8 (Inventarios, §22): vincular producto en Ventas ----------
+  // Independiente del builder de conceptos de texto de arriba — este
+  // campo vincula UN producto real del catálogo de Inventarios (línea
+  // única, P1 cerrada 2026-08-24) para que la venta descuente existencia
+  // automáticamente. Solo visible/activo si inventarioActivoGlobalmente
+  // es true (D8/§0.6, ver aplicarVisibilidadInventarios() arriba).
+
+  let ordenInventarioProductoSeleccionado = null; // {id, sku, nombre, precio, disponible, tipo} | null
+  let ordenInventarioBusquedaTimeout = null;
+
+  function aplicarVisibilidadInventarioEnVentas() {
+    if (els.ordenInventarioVincular) els.ordenInventarioVincular.hidden = !inventarioActivoGlobalmente;
+  }
+
+  function formatearCantidadOrdenInv(valor) {
+    return formatearMoneda(valor).replace(/\.00$/, '');
+  }
+
+  function renderSugerenciasInventarioOrden(productos) {
+    if (!els.ordenInventarioSugerencias) return;
+    if (!productos.length) {
+      els.ordenInventarioSugerencias.hidden = true;
+      els.ordenInventarioSugerencias.innerHTML = '';
+      return;
+    }
+    els.ordenInventarioSugerencias.innerHTML = productos
+      .map(
+        (p) => `
+      <button type="button" class="orden-inventario-sugerencia" data-id="${p.id}">
+        <span class="orden-inventario-sugerencia-nombre">${escapeHtml(p.nombre)}</span>
+        <span class="orden-inventario-sugerencia-detalle">${escapeHtml(p.sku)} · ${p.tipo === 'servicio' ? 'Servicio' : `Disponible: ${formatearCantidadOrdenInv(p.disponible)}`}${p.precio !== null ? ' · $' + formatearMoneda(p.precio) : ''}</span>
+      </button>`
+      )
+      .join('');
+    els.ordenInventarioSugerencias.hidden = false;
+    els.ordenInventarioSugerencias.querySelectorAll('.orden-inventario-sugerencia').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const producto = productos.find((p) => p.id === Number(btn.dataset.id));
+        if (producto) seleccionarProductoInventarioOrden(producto);
+      });
+    });
+  }
+
+  async function buscarProductosInventarioOrden(termino) {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !termino) {
+      renderSugerenciasInventarioOrden([]);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/buscar?q=${encodeURIComponent(termino)}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) {
+        renderSugerenciasInventarioOrden([]);
+        return;
+      }
+      const data = await res.json();
+      const productos = data.productos || [];
+      // Escáner de código de barras (HID, código + Enter): coincidencia
+      // EXACTA y única se selecciona sola, sin esperar un clic.
+      if (productos.length === 1 && productos[0].codigo_barras && productos[0].codigo_barras === termino) {
+        seleccionarProductoInventarioOrden(productos[0]);
+        return;
+      }
+      renderSugerenciasInventarioOrden(productos);
+    } catch (err) {
+      renderSugerenciasInventarioOrden([]);
+    }
+  }
+
+  function actualizarHintDisponibleOrdenInv() {
+    if (!ordenInventarioProductoSeleccionado || !els.ordenInventarioDisponibleHint) return;
+    els.ordenInventarioDisponibleHint.textContent =
+      ordenInventarioProductoSeleccionado.tipo === 'servicio'
+        ? 'Un servicio no descuenta existencia (D11).'
+        : `Disponible: ${formatearCantidadOrdenInv(ordenInventarioProductoSeleccionado.disponible)}`;
+  }
+
+  function seleccionarProductoInventarioOrden(producto) {
+    ordenInventarioProductoSeleccionado = producto;
+    renderSugerenciasInventarioOrden([]);
+    els.ordenInventarioBuscarWrap.hidden = true;
+    els.ordenInventarioSeleccionado.hidden = false;
+    els.ordenInventarioSeleccionadoNombre.textContent = producto.nombre;
+    els.ordenInventarioSeleccionadoDetalle.textContent =
+      producto.tipo === 'servicio' ? `${producto.sku} · Servicio` : `${producto.sku} · Disponible: ${formatearCantidadOrdenInv(producto.disponible)}`;
+    els.ordenInventarioUnidadesField.hidden = false;
+    els.ordenInventarioUnidades.value = '1';
+    setFieldError('orden-inventario-unidades', '');
+    actualizarHintDisponibleOrdenInv();
+  }
+
+  function quitarProductoInventarioOrden() {
+    ordenInventarioProductoSeleccionado = null;
+    els.ordenInventarioBuscarWrap.hidden = false;
+    els.ordenInventarioBuscar.value = '';
+    els.ordenInventarioSeleccionado.hidden = true;
+    els.ordenInventarioUnidadesField.hidden = true;
+    setFieldError('orden-inventario-unidades', '');
+    renderSugerenciasInventarioOrden([]);
+  }
+
+  if (els.ordenInventarioBuscar) {
+    els.ordenInventarioBuscar.addEventListener('input', () => {
+      clearTimeout(ordenInventarioBusquedaTimeout);
+      const termino = els.ordenInventarioBuscar.value.trim();
+      if (!termino) {
+        renderSugerenciasInventarioOrden([]);
+        return;
+      }
+      ordenInventarioBusquedaTimeout = setTimeout(() => buscarProductosInventarioOrden(termino), 300);
+    });
+    els.ordenInventarioBuscar.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(ordenInventarioBusquedaTimeout);
+        buscarProductosInventarioOrden(els.ordenInventarioBuscar.value.trim());
+      }
+    });
+  }
+  if (els.btnOrdenInventarioQuitar) els.btnOrdenInventarioQuitar.addEventListener('click', quitarProductoInventarioOrden);
+
   function limpiarFormularioOrden() {
     productosOrdenActual = [];
     els.ordenProductoConcepto.value = '';
@@ -4730,6 +4865,7 @@
     setFieldError('orden-email', '');
     setFieldError('orden-email-nuevo', '');
     actualizarDatosClienteOrden();
+    quitarProductoInventarioOrden();
     irAPasoOrdenWizard(1);
   }
 
@@ -4750,6 +4886,7 @@
     setFieldError('orden-cantidad', '');
     setFieldError('orden-email', '');
     setFieldError('orden-email-nuevo', '');
+    setFieldError('orden-inventario-unidades', '');
 
     const concepto = els.ordenConcepto.value.trim();
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
@@ -4777,10 +4914,24 @@
       valido = false;
     }
     if (!validarPasoClienteOrden()) valido = false;
+    // D8/§22: cantidad de unidades del producto vinculado — campo
+    // completamente distinto de "cantidad" (el monto en MXN de arriba).
+    let unidadesInventario = null;
+    if (ordenInventarioProductoSeleccionado) {
+      unidadesInventario = Number(els.ordenInventarioUnidades.value);
+      if (!Number.isFinite(unidadesInventario) || unidadesInventario <= 0) {
+        setFieldError('orden-inventario-unidades', 'Captura cuántas unidades se vendieron.');
+        valido = false;
+      }
+    }
     if (!valido) return;
 
     // Sin conexión: se encola en IndexedDB en vez de intentar guardar
-    // (fallaría de todas formas) — ver PROJECT_STATE.md punto 132.
+    // (fallaría de todas formas) — ver PROJECT_STATE.md punto 132. Un
+    // producto de inventario vinculado NO se encola: la validación de
+    // existencia (D4) necesita conexión real, y encolar sin validar
+    // arriesgaría un descuento de stock incorrecto al sincronizar más
+    // tarde sin que el administrador lo supiera en el momento.
     // "Imprimir" no aplica sin folio real, así que si de alguna forma
     // llegó hasta aquí en ese estado (no debería, el botón se deshabilita
     // al quedarse sin conexión) se bloquea aquí también, por seguridad.
@@ -4788,6 +4939,11 @@
       if (imprimirAlGuardar) {
         els.ordenErrorGeneral.textContent =
           'No se puede imprimir sin conexión. Cambia a "Enviar por correo" o espera a recuperar internet.';
+        return;
+      }
+      if (ordenInventarioProductoSeleccionado) {
+        els.ordenErrorGeneral.textContent =
+          'No se puede vincular un producto de inventario sin conexión. Quita el producto o espera a recuperar internet.';
         return;
       }
       await OfflineQueue.agregarPendiente('ordenes', {
@@ -4806,14 +4962,26 @@
 
     setRegistrarOrdenLoading(true);
     try {
+      const idempotencyKeyOrden =
+        window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const res = await fetch(`${API_BASE}/admin/ordenes-compra`, {
         method: 'POST',
-        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ concepto, cantidad, email, es_cliente_nuevo: ordenModoClienteNuevo, estado_pago: ordenEstadoPago, fecha_vencimiento: ordenEstadoPago === 'pendiente' ? fechaVencimiento : null, notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null }),
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKeyOrden },
+        body: JSON.stringify({
+          concepto,
+          cantidad,
+          email,
+          es_cliente_nuevo: ordenModoClienteNuevo,
+          estado_pago: ordenEstadoPago,
+          fecha_vencimiento: ordenEstadoPago === 'pendiente' ? fechaVencimiento : null,
+          notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null,
+          producto_id: ordenInventarioProductoSeleccionado ? ordenInventarioProductoSeleccionado.id : undefined,
+          producto_cantidad: ordenInventarioProductoSeleccionado ? unidadesInventario : undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        els.ordenErrorGeneral.textContent = data.error || 'No se pudo registrar la venta.';
+        els.ordenErrorGeneral.textContent = data.mensaje || data.error || 'No se pudo registrar la venta.';
         return;
       }
       mostrarExitoRegistrarOrden();
@@ -8235,6 +8403,10 @@
   function aplicarVisibilidadInventarios(activo) {
     inventarioActivoGlobalmente = activo;
     aplicarRestriccionesPerfil();
+    // D8/§22: el campo de "vincular producto" en Ventas sigue el mismo
+    // interruptor — función declarada más abajo, junto al resto del
+    // código de Ventas (hoisted, se puede llamar aquí sin problema).
+    aplicarVisibilidadInventarioEnVentas();
   }
 
   let timeoutAutoguardadoInv = null;

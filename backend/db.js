@@ -678,6 +678,29 @@ async function ensureSchema(db = pool) {
       WHERE estado_pago = 'pagada' AND monto_cobrado = 0`
   );
 
+  // D8 (Inventarios, inventarios.md §22, segmento 4): venta con producto
+  // opcional. `producto_id` referencia `productos.id` PERO SIN
+  // `CONSTRAINT FOREIGN KEY` a propósito — la tabla `productos` se crea
+  // más abajo en este mismo ensureSchema() (bloque de Inventarios), así
+  // que un FK aquí fallaría en una base de datos nueva por orden de
+  // creación; la pertenencia al tenant y la existencia del producto ya
+  // se validan en la aplicación (mismo criterio que
+  // `preferencias_dashboard`, que tampoco usa FK). `producto_cantidad`
+  // es la cantidad de UNIDADES del producto vendidas — un campo
+  // completamente distinto de `cantidad` (que es el monto en MXN de la
+  // venta, columna preexistente, nunca se renombra).
+  const [colsOrdenProducto] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ordenes_compra'`
+  );
+  const nombresOrdenProducto = colsOrdenProducto.map((c) => c.COLUMN_NAME);
+  if (!nombresOrdenProducto.includes('producto_id')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN producto_id INT NULL`);
+    await db.query(`ALTER TABLE ordenes_compra ADD KEY idx_ordenes_compra_producto (producto_id)`);
+  }
+  if (!nombresOrdenProducto.includes('producto_cantidad')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN producto_cantidad DECIMAL(12,3) NULL`);
+  }
+
   // Gastos de la operación (módulo "Gastos", ver PROJECT_STATE.md):
   // control administrativo/financiero de egresos, con o sin factura/CFDI.
   // NO es un sistema contable — se guarda el monto tal cual se pagó y un

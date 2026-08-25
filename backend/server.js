@@ -3975,6 +3975,39 @@ app.post(
       return res.status(400).json({ error: 'La cantidad debe ser un número mayor a cero.' });
     }
 
+    // D8 (Inventarios, §22): producto opcional — SOLO se procesa si el
+    // módulo está activo para este tenant; si está inactivo, cualquier
+    // producto_id que llegue en el body se ignora por completo y la
+    // venta se registra manual como siempre (nunca un error 403 aquí,
+    // esta ruta no está gateada por requireInventarioActivo a propósito
+    // — Ventas debe seguir funcionando sin Inventarios).
+    let productoId = null;
+    let productoCantidad = null;
+    let productoSeleccionado = null;
+    // El chequeo de body.producto_id va PRIMERO, antes de tocar la BD:
+    // la inmensa mayoría de ventas no llevan producto (D8 es opt-in por
+    // tenant), así que inventarioActivo() —una consulta más— solo se
+    // paga cuando de verdad hace falta decidir algo.
+    if (body.producto_id !== undefined && body.producto_id !== null && body.producto_id !== '') {
+      const inventarioEstaActivo = await inventarioActivo();
+      if (inventarioEstaActivo) {
+        const idCandidato = Number(body.producto_id);
+        if (!Number.isInteger(idCandidato)) {
+          return res.status(400).json({ error: 'Producto inválido.' });
+        }
+        productoSeleccionado = await obtenerProductoPorId(idCandidato);
+        if (!productoSeleccionado) {
+          return res.status(400).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'El producto seleccionado no existe.' });
+        }
+        const unidades = Number(body.producto_cantidad);
+        if (!Number.isFinite(unidades) || unidades <= 0) {
+          return res.status(400).json({ error: 'Indica cuántas unidades de este producto se vendieron.' });
+        }
+        productoId = productoSeleccionado.id;
+        productoCantidad = unidades;
+      }
+    }
+
     // Cuentas por cobrar (punto 138): por defecto pagada, opción pendiente con vencimiento/notas
     let estadoPago = String(body.estado_pago || 'pagada').toLowerCase();
     if (!['pagada', 'pendiente'].includes(estadoPago)) estadoPago = 'pagada';
@@ -4052,13 +4085,44 @@ app.post(
     const fechaCobroInicial = estadoPago === 'pagada' ? ahora : null;
     const [resultado] = await pool.query(
       `INSERT INTO ordenes_compra
-        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['TEMP', ahora, concepto, cantidad, ivaPorcentaje, total, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, ahora, ahora]
+        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['TEMP', ahora, concepto, cantidad, ivaPorcentaje, total, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, ahora, ahora]
     );
 
     const numeroCompra = generarNumeroCompra(resultado.insertId);
     await pool.query('UPDATE ordenes_compra SET numero_compra = ? WHERE id = ?', [numeroCompra, resultado.insertId]);
+
+    // D8: producto tipo "producto" (no "servicio", D11) genera su salida
+    // automática — validando stock DENTRO de registrarMovimiento (D4).
+    // La venta ya se insertó arriba (necesitábamos su id para el No.
+    // Venta, que sirve de documento_origen del movimiento) — si el stock
+    // no alcanza, se compensa borrando esa fila de verdad: nadie llegó a
+    // verla, no hay nada que conservar en papelera (mismo criterio que
+    // "Eliminar" en Ventas ya es borrado físico, no lógico).
+    if (productoId && productoSeleccionado.tipo === 'producto') {
+      const almacenIdVenta = await obtenerAlmacenDefectoId();
+      const idempotencyKeyVenta = req.get('Idempotency-Key') || null;
+      const resultadoMovimiento = await registrarMovimiento({
+        productoId,
+        almacenId: almacenIdVenta,
+        tipo: 'venta',
+        cantidad: productoCantidad,
+        documentoOrigen: numeroCompra,
+        usuario: req.adminUser,
+        idempotencyKey: idempotencyKeyVenta,
+      });
+      if (resultadoMovimiento.error) {
+        await pool.query('DELETE FROM ordenes_compra WHERE id = ?', [resultado.insertId]);
+        const mapaEstatusInv = {
+          INV_STOCK_INSUFICIENTE: 409,
+          INV_CONCURRENCIA: 409,
+          INV_PRODUCTO_NO_ENCONTRADO: 400,
+          INV_PRODUCTO_SERVICIO: 400,
+        };
+        return res.status(mapaEstatusInv[resultadoMovimiento.error] || 400).json(resultadoMovimiento);
+      }
+    }
 
     const fechaFormateada = formatearFechaHoraMexico(ahora, configGlobal.zona_horaria);
 
@@ -4110,6 +4174,8 @@ app.post(
       monto_cobrado: montoCobradoInicial,
       fecha_cobro: fechaCobroInicial,
       notas_cobro: notasCobro,
+      producto_id: productoId,
+      producto_cantidad: productoCantidad,
       mensaje: 'Venta registrada correctamente.',
     });
   })
@@ -4127,11 +4193,13 @@ app.get(
   asyncHandler(async (req, res) => {
     const [ordenes] = await pool.query(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
+        o.producto_id, o.producto_cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre,
         EXISTS(
           SELECT 1 FROM tickets t
           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
         ) AS facturado
        FROM ordenes_compra o
+       LEFT JOIN productos p ON p.id = o.producto_id
        WHERE o.eliminado_en IS NULL
        ORDER BY o.creado_en DESC`
     );
@@ -4649,6 +4717,41 @@ app.delete(
       });
     } catch (err) {
       return res.status(502).json({ error: `No se pudo generar el reporte antes de eliminar: ${err.message}` });
+    }
+
+    // D8: si la venta tenía un producto y ese producto sigue existiendo
+    // (no está en la papelera de Inventarios), reingresa las unidades
+    // antes de borrar — la venta ya no existe, pero el movimiento de
+    // salida original nunca se borra (§14), así que esto es un
+    // compensatorio nuevo (`devolucion_cliente`), no una corrección del
+    // movimiento viejo. Si el producto ya no existe, no hay a dónde
+    // reingresar — se omite en silencio y la venta se borra igual (el
+    // dato ya es histórico y el producto fue un borrado consciente
+    // aparte, no algo que esta ruta deba bloquear).
+    if (orden.producto_id && orden.producto_cantidad) {
+      const productoDeLaVenta = await obtenerProductoPorId(orden.producto_id);
+      if (productoDeLaVenta && productoDeLaVenta.tipo === 'producto') {
+        const almacenIdReingreso = await obtenerAlmacenDefectoId();
+        const resultadoReingreso = await registrarMovimiento({
+          productoId: orden.producto_id,
+          almacenId: almacenIdReingreso,
+          tipo: 'devolucion_cliente',
+          cantidad: Number(orden.producto_cantidad),
+          documentoOrigen: orden.numero_compra,
+          motivo: 'Venta eliminada — reingreso automático',
+          usuario: req.adminUser,
+        });
+        if (resultadoReingreso.error) {
+          console.error(
+            `No se pudo reingresar producto_id=${orden.producto_id} al eliminar la venta ${orden.numero_compra}:`,
+            resultadoReingreso
+          );
+          return res.status(409).json({
+            error: resultadoReingreso.error,
+            mensaje: 'No se pudo reingresar el producto al inventario; la venta no se eliminó.',
+          });
+        }
+      }
     }
 
     await pool.query('DELETE FROM ordenes_compra WHERE id = ?', [id]);
@@ -5654,6 +5757,47 @@ app.post(
     );
 
     res.status(201).json({ ok: true, id: resultado.insertId, mensaje: 'Producto creado correctamente.' });
+  })
+);
+
+// D8/§22: autocompletado de producto en Ventas (nombre/SKU al escribir) +
+// lectura por código de barras (escáner HID, coincidencia exacta). Debe
+// registrarse ANTES de GET /productos/:id — si no, Express interpretaría
+// "buscar" como si fuera un :id.
+app.get(
+  '/api/admin/inventarios/productos/buscar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const termino = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!termino || termino.length > 100) {
+      return res.json({ productos: [] });
+    }
+    const almacenId = await obtenerAlmacenDefectoId();
+    const patron = `%${termino}%`;
+    const [filas] = await pool.query(
+      `SELECT p.id, p.sku, p.nombre, p.codigo_barras, p.precio, p.tipo, e.disponible
+         FROM productos p
+         LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = ?
+        WHERE p.eliminado_en IS NULL AND p.estado = 'activo'
+          AND (p.nombre LIKE ? OR p.sku LIKE ? OR p.codigo_barras = ?)
+        ORDER BY p.nombre ASC
+        LIMIT 15`,
+      [almacenId, patron, patron, termino]
+    );
+    res.json({
+      productos: filas.map((p) => ({
+        id: p.id,
+        sku: p.sku,
+        nombre: p.nombre,
+        codigo_barras: p.codigo_barras,
+        precio: p.precio === null ? null : Number(p.precio),
+        tipo: p.tipo,
+        disponible: p.disponible === null ? 0 : Number(p.disponible),
+      })),
+    });
   })
 );
 
