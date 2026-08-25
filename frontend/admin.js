@@ -8644,7 +8644,7 @@
         if (!esServicio) {
           contenedor.appendChild(botonAccionInv({ tooltip: 'Registrar entrada', icono: ICONO_ENTRADA, onClick: () => abrirMovimientoModal(p, 'entrada') }));
           contenedor.appendChild(botonAccionInv({ tooltip: 'Registrar salida', icono: ICONO_SALIDA, onClick: () => abrirMovimientoModal(p, 'salida') }));
-          contenedor.appendChild(botonAccionInv({ tooltip: 'Ver kardex', icono: ICONO_KARDEX, onClick: () => abrirKardexModal(p) }));
+          contenedor.appendChild(botonAccionInv({ tooltip: 'Ver historial de movimientos', icono: ICONO_KARDEX, onClick: () => abrirKardexModal(p) }));
         }
         contenedor.appendChild(botonAccionInv({ tooltip: 'Editar producto', icono: ICONO_EDITAR, onClick: () => abrirProductoModal(p) }));
         contenedor.appendChild(botonAccionInv({ tooltip: 'Mover a papelera', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminarProducto(p.id, p.nombre) }));
@@ -9029,7 +9029,7 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         els.invKardexEmpty.hidden = false;
-        els.invKardexEmpty.textContent = 'No se pudo cargar el kardex.';
+        els.invKardexEmpty.textContent = 'No se pudo cargar el historial de movimientos.';
         return;
       }
       const movimientos = data.movimientos || [];

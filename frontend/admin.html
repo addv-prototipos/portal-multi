@@ -1154,7 +1154,7 @@
               <button type="button" class="view-toggle-btn" id="btn-ver-inv-papelera" role="tab" aria-selected="false">Papelera</button>
             </div>
             <span class="admin-count" id="inv-productos-count">0 productos</span>
-            <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" title="Recomputa cada saldo desde el kardex y compara contra el guardado (§0.5.F)">Verificar integridad</button>
+            <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" title="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
             <button type="button" class="btn btn-secondary" id="btn-refresh-inventarios">Actualizar</button>
             <button type="button" class="btn btn-primary" id="btn-nuevo-producto">+ Nuevo producto</button>
           </div>
@@ -2845,7 +2845,7 @@
               <button type="button" class="view-toggle-btn is-active" id="btn-inv-tipo-producto" role="tab" aria-selected="true">Producto</button>
               <button type="button" class="view-toggle-btn" id="btn-inv-tipo-servicio" role="tab" aria-selected="false">Servicio</button>
             </div>
-            <p class="field-hint">Un servicio no genera existencias ni kardex (D11).</p>
+            <p class="field-hint">Un servicio no genera existencias ni historial de movimientos (D11).</p>
           </div>
           <div class="field">
             <label for="inv-modal-nombre">Nombre <span class="required">*</span></label>
@@ -2978,7 +2978,7 @@
   <div class="modal-overlay" id="inv-kardex-modal-overlay" hidden>
     <div class="modal inv-kardex-modal" role="dialog" aria-modal="true" aria-labelledby="inv-kardex-modal-title">
       <div class="gastos-modal-header">
-        <h2 id="inv-kardex-modal-title">Kardex</h2>
+        <h2 id="inv-kardex-modal-title">Historial de movimientos</h2>
         <button type="button" class="btn-icon" id="btn-inv-kardex-cerrar" aria-label="Cerrar">✕</button>
       </div>
       <p class="panel-subtitle" id="inv-kardex-subtitulo"></p>
