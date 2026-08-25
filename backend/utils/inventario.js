@@ -1,10 +1,13 @@
 // Módulo "Inventarios" — motor de existencias (ver inventarios.md, segmento
 // v1). Este archivo centraliza lo que comparten el esquema (backend/db.js),
-// las rutas del CRUD (segmento 2, todavía no escrito) y el script de
+// las rutas del CRUD (segmento 2, backend/server.js) y el script de
 // verificación (backend/scripts/verificar-inventario.js): folios, tipos de
 // movimiento válidos, y sobre todo `registrarMovimiento()` — la ÚNICA forma
 // permitida de alterar una existencia (D6/§48 regla 1: nunca modificar
-// existencia sin movimiento).
+// existencia sin movimiento). También trae el CRUD de categorías, mismo
+// patrón que backend/utils/gastos.js (slug estable, activa=0 en vez de
+// borrar si ya tiene productos) — pero sin "protegida": Inventarios no
+// tiene una categoría de respaldo del sistema como "otro" en Gastos.
 //
 // require() perezoso de '../db' dentro de cada función (no a nivel de
 // módulo): mismo motivo que backend/utils/gastos.js — db.js importa este
@@ -340,6 +343,159 @@ async function purgarIdempotenciaVencida() {
   return resultado.affectedRows || 0;
 }
 
+// Genera un slug estable [a-z0-9_] a partir del nombre capturado — MISMA
+// lógica que generarSlugCategoria() de gastos.js, sin duplicar el require
+// porque ese archivo no exporta la función de forma reutilizable fuera de
+// su propio dominio (categorías de Gastos y de Inventarios son conceptos
+// separados, con sus propias tablas, aunque el slugging sea idéntico).
+function generarSlugCategoriaInventario(nombre) {
+  const base = String(nombre || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60);
+  return base || 'categoria';
+}
+
+async function listarCategoriasInventario() {
+  const [filas] = await obtenerPool().query(`
+    SELECT c.id, c.slug, c.nombre, c.activa,
+      EXISTS(SELECT 1 FROM productos p WHERE p.categoria_id = c.id AND p.eliminado_en IS NULL) AS tiene_productos
+    FROM categorias_inventario c
+    ORDER BY c.orden ASC, c.nombre ASC
+  `);
+  return filas.map((f) => ({
+    id: f.id,
+    slug: f.slug,
+    nombre: f.nombre,
+    activa: Boolean(f.activa),
+    tieneProductos: Boolean(f.tiene_productos),
+  }));
+}
+
+async function categoriaInventarioExisteId(id) {
+  if (!Number.isInteger(Number(id))) return false;
+  const [filas] = await obtenerPool().query('SELECT id FROM categorias_inventario WHERE id = ? LIMIT 1', [id]);
+  return filas.length > 0;
+}
+
+async function crearCategoriaInventario(nombreCrudo) {
+  const nombre = sanitizeText(nombreCrudo, 100);
+  if (!nombre) {
+    return { error: 'El nombre de la categoría es obligatorio.' };
+  }
+  let slug = generarSlugCategoriaInventario(nombre);
+  const pool = obtenerPool();
+  let sufijo = 2;
+  // eslint-disable-next-line no-await-in-loop
+  while ((await pool.query('SELECT id FROM categorias_inventario WHERE slug = ? LIMIT 1', [slug]))[0].length > 0) {
+    slug = `${generarSlugCategoriaInventario(nombre).slice(0, 56)}_${sufijo}`;
+    sufijo += 1;
+  }
+  const ahora = new Date();
+  const [resultado] = await pool.query(
+    `INSERT INTO categorias_inventario (slug, nombre, activa, orden, creado_en, actualizado_en)
+     VALUES (?, ?, 1, 999, ?, ?)`,
+    [slug, nombre, ahora, ahora]
+  );
+  return { id: resultado.insertId, slug, nombre };
+}
+
+async function renombrarCategoriaInventario(id, nombreCrudo) {
+  const nombre = sanitizeText(nombreCrudo, 100);
+  if (!nombre) {
+    return { error: 'El nombre de la categoría es obligatorio.' };
+  }
+  if (!(await categoriaInventarioExisteId(id))) {
+    return { error: 'Categoría no encontrada.', status: 404 };
+  }
+  await obtenerPool().query('UPDATE categorias_inventario SET nombre = ?, actualizado_en = ? WHERE id = ?', [
+    nombre,
+    new Date(),
+    id,
+  ]);
+  return { id, nombre };
+}
+
+// Con productos asociados: solo se desactiva (deja de ofrecerse para
+// altas nuevas). Sin productos: se borra de verdad.
+async function eliminarCategoriaInventario(id) {
+  const pool = obtenerPool();
+  const [filas] = await pool.query(
+    `SELECT c.id,
+       EXISTS(SELECT 1 FROM productos p WHERE p.categoria_id = c.id AND p.eliminado_en IS NULL) AS tiene_productos
+     FROM categorias_inventario c WHERE c.id = ? LIMIT 1`,
+    [id]
+  );
+  if (filas.length === 0) {
+    return { error: 'Categoría no encontrada.', status: 404 };
+  }
+  if (filas[0].tiene_productos) {
+    await pool.query('UPDATE categorias_inventario SET activa = 0, actualizado_en = ? WHERE id = ?', [new Date(), id]);
+    return { desactivada: true };
+  }
+  await pool.query('DELETE FROM categorias_inventario WHERE id = ?', [id]);
+  return { eliminada: true };
+}
+
+async function reactivarCategoriaInventario(id) {
+  if (!(await categoriaInventarioExisteId(id))) {
+    return { error: 'Categoría no encontrada.', status: 404 };
+  }
+  await obtenerPool().query('UPDATE categorias_inventario SET activa = 1, actualizado_en = ? WHERE id = ?', [new Date(), id]);
+  return { reactivada: true };
+}
+
+// ---------------------------------------------------------------------
+// Productos — helpers puros de datos usados por las rutas de server.js
+// (validación de negocio + INSERT/UPDATE quedan en server.js, mismo
+// patrón que validarCuerpoGasto()).
+// ---------------------------------------------------------------------
+
+async function obtenerProductoPorId(id) {
+  if (!Number.isInteger(Number(id))) return null;
+  const [filas] = await obtenerPool().query('SELECT * FROM productos WHERE id = ? AND eliminado_en IS NULL LIMIT 1', [id]);
+  return filas[0] || null;
+}
+
+async function skuEnUso(sku, excluirId = null) {
+  const pool = obtenerPool();
+  const params = excluirId ? [sku, excluirId] : [sku];
+  const [filas] = await pool.query(
+    `SELECT id FROM productos WHERE sku = ?${excluirId ? ' AND id != ?' : ''} LIMIT 1`,
+    params
+  );
+  return filas.length > 0;
+}
+
+async function codigoBarrasEnUso(codigoBarras, excluirId = null) {
+  if (!codigoBarras) return false;
+  const pool = obtenerPool();
+  const params = excluirId ? [codigoBarras, excluirId] : [codigoBarras];
+  const [filas] = await pool.query(
+    `SELECT id FROM productos WHERE codigo_barras = ?${excluirId ? ' AND id != ?' : ''} LIMIT 1`,
+    params
+  );
+  return filas.length > 0;
+}
+
+async function unidadExisteId(id) {
+  if (!Number.isInteger(Number(id))) return false;
+  const [filas] = await obtenerPool().query('SELECT id FROM unidades_medida WHERE id = ? LIMIT 1', [id]);
+  return filas.length > 0;
+}
+
+// §38: un producto con movimientos históricos no debe eliminarse
+// físicamente — se conserva en papelera para siempre. Solo un producto
+// SIN ningún movimiento puede borrarse de verdad.
+async function productoTieneMovimientos(id) {
+  const [filas] = await obtenerPool().query('SELECT id FROM movimientos_inventario WHERE producto_id = ? LIMIT 1', [id]);
+  return filas.length > 0;
+}
+
 module.exports = {
   UNIDADES_SEED,
   UNIDAD_BASE_DEFECTO,
@@ -353,4 +509,16 @@ module.exports = {
   registrarMovimiento,
   conciliarInventario,
   purgarIdempotenciaVencida,
+  generarSlugCategoriaInventario,
+  listarCategoriasInventario,
+  categoriaInventarioExisteId,
+  crearCategoriaInventario,
+  renombrarCategoriaInventario,
+  eliminarCategoriaInventario,
+  reactivarCategoriaInventario,
+  obtenerProductoPorId,
+  skuEnUso,
+  codigoBarrasEnUso,
+  unidadExisteId,
+  productoTieneMovimientos,
 };

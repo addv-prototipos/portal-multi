@@ -96,6 +96,29 @@ const {
   eliminarCategoriaGasto,
   reactivarCategoriaGasto,
 } = require('./utils/gastos');
+const {
+  TIPOS_ENTRADA,
+  TIPOS_SALIDA,
+  registrarMovimiento,
+  conciliarInventario,
+  listarCategoriasInventario,
+  crearCategoriaInventario,
+  renombrarCategoriaInventario,
+  eliminarCategoriaInventario,
+  reactivarCategoriaInventario,
+  obtenerProductoPorId,
+  skuEnUso,
+  codigoBarrasEnUso,
+  unidadExisteId,
+  productoTieneMovimientos,
+  ALMACEN_DEFECTO_CODIGO,
+} = require('./utils/inventario');
+const {
+  obtenerConfigInventario,
+  inventarioActivo,
+  setValorConfig,
+  CLAVES: CLAVES_CONFIG_INVENTARIO,
+} = require('./utils/inventarioConfig');
 
 const PORT = process.env.PORT || 4000;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 5);
@@ -5254,6 +5277,715 @@ app.post(
       return res.status(resultado.status || 400).json({ error: resultado.error });
     }
     res.json({ ok: true, mensaje: 'Categoría reactivada.' });
+  })
+);
+
+// ---------------------------------------------------------------------
+// Inventarios — segmento 2: CRUD backend + kardex (ver inventarios.md).
+// Motor de existencias/concurrencia ya vive en utils/inventario.js
+// (segmento 1); este bloque solo valida entrada HTTP y arma respuestas,
+// mismo patrón que Gastos arriba. Auditoría de POST/PUT/DELETE es
+// automática (middleware global de /api/admin más arriba, segmento 7).
+// ---------------------------------------------------------------------
+
+// D8/§0.6: con el switch apagado, el módulo completo responde
+// INV_MODULO_INACTIVO — NUNCA se aplica a /configuracion (si no, nadie
+// podría prender el switch desde ahí mismo).
+async function requireInventarioActivo(req, res, next) {
+  try {
+    if (await inventarioActivo()) return next();
+    return res.status(403).json({ error: 'INV_MODULO_INACTIVO', mensaje: 'El módulo de Inventarios no está activo para esta empresa.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function obtenerAlmacenDefectoId() {
+  const [filas] = await pool.query('SELECT id FROM almacenes WHERE codigo = ? LIMIT 1', [ALMACEN_DEFECTO_CODIGO]);
+  return filas.length > 0 ? filas[0].id : null;
+}
+
+// ---------- Configuración (D8/D10, §0.6) — SIN requireInventarioActivo ----------
+
+app.get(
+  '/api/admin/inventarios/configuracion',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    res.json({ configuracion: await obtenerConfigInventario() });
+  })
+);
+
+app.put(
+  '/api/admin/inventarios/configuracion/:clave',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const { clave } = req.params;
+    if (!CLAVES_CONFIG_INVENTARIO[clave]) {
+      return res.status(400).json({ error: `Clave de configuración no reconocida: ${clave}.` });
+    }
+    const valor = req.body && typeof req.body.valor !== 'undefined' ? String(req.body.valor) : '';
+    const resultado = await setValorConfig(clave, valor);
+    if (resultado.error) {
+      return res.status(400).json({ error: resultado.error });
+    }
+    res.json({ ok: true, ...resultado });
+  })
+);
+
+// ---------- Categorías ----------
+
+app.get(
+  '/api/admin/inventarios/categorias',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    res.json({ categorias: await listarCategoriasInventario() });
+  })
+);
+
+app.post(
+  '/api/admin/inventarios/categorias',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const resultado = await crearCategoriaInventario(req.body && req.body.nombre);
+    if (resultado.error) {
+      return res.status(resultado.status || 400).json({ error: resultado.error });
+    }
+    res.status(201).json({ ok: true, categoria: resultado, mensaje: 'Categoría creada.' });
+  })
+);
+
+app.put(
+  '/api/admin/inventarios/categorias/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const resultado = await renombrarCategoriaInventario(id, req.body && req.body.nombre);
+    if (resultado.error) {
+      return res.status(resultado.status || 400).json({ error: resultado.error });
+    }
+    res.json({ ok: true, categoria: resultado, mensaje: 'Categoría actualizada.' });
+  })
+);
+
+app.delete(
+  '/api/admin/inventarios/categorias/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const resultado = await eliminarCategoriaInventario(id);
+    if (resultado.error) {
+      return res.status(resultado.status || 400).json({ error: resultado.error });
+    }
+    res.json({
+      ok: true,
+      mensaje: resultado.desactivada
+        ? 'Categoría desactivada (tiene productos asociados, ya no se ofrece para nuevas altas).'
+        : 'Categoría eliminada.',
+    });
+  })
+);
+
+app.post(
+  '/api/admin/inventarios/categorias/:id/reactivar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const resultado = await reactivarCategoriaInventario(id);
+    if (resultado.error) {
+      return res.status(resultado.status || 400).json({ error: resultado.error });
+    }
+    res.json({ ok: true, mensaje: 'Categoría reactivada.' });
+  })
+);
+
+// ---------- Unidades de medida (§9) ----------
+
+app.get(
+  '/api/admin/inventarios/unidades',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const [filas] = await pool.query('SELECT id, nombre, abreviatura FROM unidades_medida ORDER BY nombre ASC');
+    res.json({ unidades: filas });
+  })
+);
+
+app.post(
+  '/api/admin/inventarios/unidades',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const nombre = sanitizeText(req.body && req.body.nombre, 50);
+    const abreviatura = sanitizeText(req.body && req.body.abreviatura, 10);
+    if (!nombre || !abreviatura) {
+      return res.status(400).json({ error: 'Nombre y abreviatura son obligatorios.' });
+    }
+    const [existente] = await pool.query('SELECT id FROM unidades_medida WHERE nombre = ? LIMIT 1', [nombre]);
+    if (existente.length > 0) {
+      return res.status(400).json({ error: 'Ya existe una unidad con ese nombre.' });
+    }
+    const [resultado] = await pool.query(
+      'INSERT INTO unidades_medida (nombre, abreviatura, creado_en) VALUES (?, ?, ?)',
+      [nombre, abreviatura, new Date()]
+    );
+    res.status(201).json({ ok: true, id: resultado.insertId, nombre, abreviatura });
+  })
+);
+
+// ---------- Productos ----------
+
+function formatearProducto(p, existenciaDisponible) {
+  return {
+    id: p.id,
+    sku: p.sku,
+    codigo_barras: p.codigo_barras,
+    nombre: p.nombre,
+    categoria_id: p.categoria_id,
+    unidad_id: p.unidad_id,
+    tipo: p.tipo,
+    costo: p.costo === null ? null : Number(p.costo),
+    costo_promedio: Number(p.costo_promedio),
+    ultimo_costo: p.ultimo_costo === null ? null : Number(p.ultimo_costo),
+    precio: p.precio === null ? null : Number(p.precio),
+    stock_minimo: p.stock_minimo === null ? null : Number(p.stock_minimo),
+    stock_maximo: p.stock_maximo === null ? null : Number(p.stock_maximo),
+    punto_reorden: p.punto_reorden === null ? null : Number(p.punto_reorden),
+    estado: p.estado,
+    proveedor_principal: p.proveedor_principal,
+    notas: p.notas,
+    creado_en: p.creado_en,
+    actualizado_en: p.actualizado_en,
+    disponible: existenciaDisponible === undefined || existenciaDisponible === null ? null : Number(existenciaDisponible),
+  };
+}
+
+// Valida el cuerpo de crear/editar un producto y devuelve el objeto ya
+// normalizado, o `null` tras responder con el error correspondiente —
+// mismo patrón que validarCuerpoGasto() de arriba.
+async function validarCuerpoProducto(req, res, idExcluir = null) {
+  const body = req.body || {};
+
+  const nombre = sanitizeText(body.nombre, 200);
+  if (!nombre) {
+    res.status(400).json({ error: 'El nombre del producto es obligatorio.' });
+    return null;
+  }
+
+  const sku = sanitizeText(body.sku, 60);
+  if (!sku) {
+    res.status(400).json({ error: 'El SKU es obligatorio.' });
+    return null;
+  }
+  if (await skuEnUso(sku, idExcluir)) {
+    res.status(400).json({ error: 'INV_SKU_DUPLICADO', mensaje: 'Ya existe un producto con ese SKU.' });
+    return null;
+  }
+
+  const codigoBarras = sanitizeText(body.codigo_barras, 60) || null;
+  if (codigoBarras && (await codigoBarrasEnUso(codigoBarras, idExcluir))) {
+    res.status(400).json({ error: 'Ya existe un producto con ese código de barras.' });
+    return null;
+  }
+
+  const tipo = body.tipo === 'servicio' ? 'servicio' : 'producto';
+
+  const unidadId = Number(body.unidad_id);
+  if (!Number.isInteger(unidadId) || !(await unidadExisteId(unidadId))) {
+    res.status(400).json({ error: 'INV_UNIDAD_INVALIDA', mensaje: 'Selecciona una unidad de medida válida.' });
+    return null;
+  }
+
+  let categoriaId = null;
+  if (body.categoria_id !== undefined && body.categoria_id !== null && body.categoria_id !== '') {
+    categoriaId = Number(body.categoria_id);
+    if (!Number.isInteger(categoriaId)) {
+      res.status(400).json({ error: 'Categoría inválida.' });
+      return null;
+    }
+  }
+
+  function numeroOpcional(valor) {
+    if (valor === undefined || valor === null || valor === '') return null;
+    const n = Number(valor);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  const costo = numeroOpcional(body.costo);
+  const precio = numeroOpcional(body.precio);
+  const stockMinimo = numeroOpcional(body.stock_minimo);
+  const stockMaximo = numeroOpcional(body.stock_maximo);
+  const puntoReorden = numeroOpcional(body.punto_reorden);
+  if ([costo, precio, stockMinimo, stockMaximo, puntoReorden].some((v) => Number.isNaN(v))) {
+    res.status(400).json({ error: 'Alguno de los campos numéricos no es válido.' });
+    return null;
+  }
+  if ((costo !== null && costo < 0) || (precio !== null && precio < 0)) {
+    res.status(400).json({ error: 'Costo y precio deben ser mayores o iguales a cero.' });
+    return null;
+  }
+
+  const estado = ['activo', 'inactivo', 'archivado'].includes(body.estado) ? body.estado : 'activo';
+  const proveedorPrincipal = sanitizeText(body.proveedor_principal, 200) || null;
+  const notas = sanitizeTextoLibre(body.notas, 2000) || null;
+
+  return {
+    nombre,
+    sku,
+    codigoBarras,
+    categoriaId,
+    unidadId,
+    tipo,
+    costo,
+    precio,
+    stockMinimo,
+    stockMaximo,
+    puntoReorden,
+    estado,
+    proveedorPrincipal,
+    notas,
+  };
+}
+
+app.get(
+  '/api/admin/inventarios/productos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const verPapelera = req.query.papelera === 'true';
+    const pagina = Math.max(1, Number(req.query.pagina) || 1);
+    const porPagina = Math.min(200, Math.max(5, Number(req.query.por_pagina) || 50));
+
+    const condiciones = ['1=1'];
+    const params = [];
+    if (req.query.categoria_id && Number.isInteger(Number(req.query.categoria_id))) {
+      condiciones.push('p.categoria_id = ?');
+      params.push(Number(req.query.categoria_id));
+    }
+    if (['activo', 'inactivo', 'archivado'].includes(req.query.estado)) {
+      condiciones.push('p.estado = ?');
+      params.push(req.query.estado);
+    }
+    if (['producto', 'servicio'].includes(req.query.tipo)) {
+      condiciones.push('p.tipo = ?');
+      params.push(req.query.tipo);
+    }
+    const busqueda = typeof req.query.busqueda === 'string' ? req.query.busqueda.trim() : '';
+    if (busqueda) {
+      const patron = `%${busqueda}%`;
+      condiciones.push('(p.nombre LIKE ? OR p.sku LIKE ? OR p.codigo_barras LIKE ?)');
+      params.push(patron, patron, patron);
+    }
+    condiciones.push(verPapelera ? 'p.eliminado_en IS NOT NULL' : 'p.eliminado_en IS NULL');
+    const where = condiciones.join(' AND ');
+
+    const [contador] = await pool.query(`SELECT COUNT(*) AS total FROM productos p WHERE ${where}`, params);
+    const total = Number(contador[0].total);
+
+    const [filas] = await pool.query(
+      `SELECT p.*, e.disponible AS disponible
+         FROM productos p
+         LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = (SELECT id FROM almacenes WHERE codigo = ? LIMIT 1)
+        WHERE ${where}
+        ORDER BY p.nombre ASC
+        LIMIT ? OFFSET ?`,
+      [ALMACEN_DEFECTO_CODIGO, ...params, porPagina, (pagina - 1) * porPagina]
+    );
+
+    res.json({
+      total,
+      pagina,
+      por_pagina: porPagina,
+      productos: filas.map((p) => formatearProducto(p, p.disponible)),
+    });
+  })
+);
+
+app.post(
+  '/api/admin/inventarios/productos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const datos = await validarCuerpoProducto(req, res);
+    if (!datos) return;
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    const [resultado] = await pool.query(
+      `INSERT INTO productos
+        (sku, codigo_barras, nombre, categoria_id, unidad_id, tipo, costo, precio,
+         stock_minimo, stock_maximo, punto_reorden, estado, proveedor_principal, notas,
+         creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        datos.sku, datos.codigoBarras, datos.nombre, datos.categoriaId, datos.unidadId, datos.tipo,
+        datos.costo, datos.precio, datos.stockMinimo, datos.stockMaximo, datos.puntoReorden,
+        datos.estado, datos.proveedorPrincipal, datos.notas, ahora, ahora,
+      ]
+    );
+
+    res.status(201).json({ ok: true, id: resultado.insertId, mensaje: 'Producto creado correctamente.' });
+  })
+);
+
+app.get(
+  '/api/admin/inventarios/productos/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const producto = await obtenerProductoPorId(id);
+    if (!producto) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });
+    const almacenId = await obtenerAlmacenDefectoId();
+    const [[existencia]] = await pool.query('SELECT disponible FROM existencias WHERE producto_id = ? AND almacen_id = ?', [
+      id,
+      almacenId,
+    ]);
+    res.json({ producto: formatearProducto(producto, existencia ? existencia.disponible : 0) });
+  })
+);
+
+app.put(
+  '/api/admin/inventarios/productos/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const existente = await obtenerProductoPorId(id);
+    if (!existente) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });
+
+    const datos = await validarCuerpoProducto(req, res, id);
+    if (!datos) return;
+
+    // costo_promedio / ultimo_costo NUNCA se editan desde este endpoint
+    // (D5) — solo registrarMovimiento() los mantiene, al procesar una
+    // entrada real.
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query(
+      `UPDATE productos SET sku = ?, codigo_barras = ?, nombre = ?, categoria_id = ?, unidad_id = ?, tipo = ?,
+         costo = ?, precio = ?, stock_minimo = ?, stock_maximo = ?, punto_reorden = ?, estado = ?,
+         proveedor_principal = ?, notas = ?, actualizado_en = ?
+       WHERE id = ?`,
+      [
+        datos.sku, datos.codigoBarras, datos.nombre, datos.categoriaId, datos.unidadId, datos.tipo,
+        datos.costo, datos.precio, datos.stockMinimo, datos.stockMaximo, datos.puntoReorden,
+        datos.estado, datos.proveedorPrincipal, datos.notas, ahora, id,
+      ]
+    );
+
+    res.json({ ok: true, mensaje: 'Producto actualizado correctamente.' });
+  })
+);
+
+// Borrado lógico: manda el producto a la papelera. No toca existencias
+// ni movimientos — se puede restaurar después (§38).
+app.delete(
+  '/api/admin/inventarios/productos/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const existente = await obtenerProductoPorId(id);
+    if (!existente) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query('UPDATE productos SET eliminado_en = ?, actualizado_en = ? WHERE id = ?', [ahora, ahora, id]);
+    res.json({ ok: true, mensaje: 'Producto movido a la papelera.' });
+  })
+);
+
+app.post(
+  '/api/admin/inventarios/productos/:id/restaurar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const [filas] = await pool.query('SELECT id FROM productos WHERE id = ? AND eliminado_en IS NOT NULL', [id]);
+    if (!filas[0]) return res.status(404).json({ error: 'Producto no encontrado en la papelera.' });
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query('UPDATE productos SET eliminado_en = NULL, actualizado_en = ? WHERE id = ?', [ahora, id]);
+    res.json({ ok: true, mensaje: 'Producto restaurado.' });
+  })
+);
+
+// §38: solo se permite el borrado físico si el producto NUNCA tuvo
+// movimientos — con historial, se queda en papelera para siempre.
+app.delete(
+  '/api/admin/inventarios/productos/:id/permanente',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const [filas] = await pool.query('SELECT id FROM productos WHERE id = ? AND eliminado_en IS NOT NULL', [id]);
+    if (!filas[0]) return res.status(404).json({ error: 'Producto no encontrado en la papelera.' });
+
+    if (await productoTieneMovimientos(id)) {
+      return res.status(400).json({
+        error: 'INV_PRODUCTO_CON_HISTORIAL',
+        mensaje: 'Este producto tiene movimientos registrados y no puede eliminarse de forma permanente (§38).',
+      });
+    }
+
+    await pool.query('DELETE FROM existencias WHERE producto_id = ?', [id]);
+    await pool.query('DELETE FROM productos WHERE id = ?', [id]);
+    res.json({ ok: true, mensaje: 'Producto eliminado permanentemente.' });
+  })
+);
+
+// ---------- Movimientos: entradas / salidas ----------
+
+async function manejarMovimiento(req, res, tiposPermitidos) {
+  const body = req.body || {};
+  const productoId = Number(body.producto_id);
+  const tipo = String(body.tipo || '');
+  if (!tiposPermitidos.includes(tipo)) {
+    return res.status(400).json({ error: 'INV_TIPO_INVALIDO', mensaje: `Tipo de movimiento no permitido en esta ruta: ${tipo}.` });
+  }
+  const almacenId = await obtenerAlmacenDefectoId();
+  const idempotencyKey = req.get('Idempotency-Key') || null;
+
+  const resultado = await registrarMovimiento({
+    productoId,
+    almacenId,
+    tipo,
+    cantidad: body.cantidad,
+    costoUnitario: body.costo_unitario,
+    motivo: body.motivo,
+    notas: body.notas,
+    ubicacionNota: body.ubicacion_nota,
+    usuario: req.adminUser,
+    idempotencyKey,
+  });
+
+  if (resultado.error) {
+    const mapaEstatus = {
+      INV_TIPO_INVALIDO: 400,
+      INV_CANTIDAD_INVALIDA: 400,
+      INV_PRODUCTO_NO_ENCONTRADO: 404,
+      INV_PRODUCTO_SERVICIO: 400,
+      INV_ALMACEN_NO_ENCONTRADO: 404,
+      INV_STOCK_INSUFICIENTE: 409,
+      INV_CONCURRENCIA: 409,
+    };
+    return res.status(mapaEstatus[resultado.error] || 400).json(resultado);
+  }
+
+  res.status(201).json({ ok: true, ...resultado });
+}
+
+// Entradas manuales: compra, devolución de cliente, inventario inicial,
+// ajuste positivo (P4 cerrada). §0.3:5.
+app.post(
+  '/api/admin/inventarios/entradas',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    await manejarMovimiento(req, res, TIPOS_ENTRADA);
+  })
+);
+
+// Salidas manuales: consumo interno, merma, ajuste negativo. "venta" NO
+// se acepta aquí — esa salida la genera el flujo de Ventas con
+// inventario activo (D8, segmento 4), nunca a mano, para no romper la
+// trazabilidad con la orden de compra origen.
+app.post(
+  '/api/admin/inventarios/salidas',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    await manejarMovimiento(req, res, ['consumo_interno', 'merma', 'ajuste_negativo']);
+  })
+);
+
+// ---------- Kardex y existencias ----------
+
+app.get(
+  '/api/admin/inventarios/kardex',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const productoId = Number(req.query.producto_id);
+    if (!Number.isInteger(productoId)) {
+      return res.status(400).json({ error: 'Indica producto_id.' });
+    }
+    const pagina = Math.max(1, Number(req.query.pagina) || 1);
+    const porPagina = Math.min(200, Math.max(10, Number(req.query.por_pagina) || 50));
+
+    const condiciones = ['producto_id = ?'];
+    const params = [productoId];
+    if (typeof req.query.tipo === 'string' && req.query.tipo) {
+      condiciones.push('tipo = ?');
+      params.push(req.query.tipo);
+    }
+    const where = condiciones.join(' AND ');
+
+    const [contador] = await pool.query(`SELECT COUNT(*) AS total FROM movimientos_inventario WHERE ${where}`, params);
+    const [filas] = await pool.query(
+      `SELECT * FROM movimientos_inventario WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
+      [...params, porPagina, (pagina - 1) * porPagina]
+    );
+
+    res.json({
+      total: Number(contador[0].total),
+      pagina,
+      por_pagina: porPagina,
+      movimientos: filas.map((m) => ({
+        ...m,
+        cantidad: Number(m.cantidad),
+        costo_unitario: m.costo_unitario === null ? null : Number(m.costo_unitario),
+        existencia_anterior: Number(m.existencia_anterior),
+        existencia_posterior: Number(m.existencia_posterior),
+      })),
+    });
+  })
+);
+
+app.get(
+  '/api/admin/inventarios/existencias',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const [filas] = await pool.query(
+      `SELECT e.producto_id, e.almacen_id, e.disponible, p.sku, p.nombre, a.codigo AS almacen_codigo
+         FROM existencias e
+         JOIN productos p ON p.id = e.producto_id AND p.eliminado_en IS NULL
+         JOIN almacenes a ON a.id = e.almacen_id
+        WHERE e.eliminado_en IS NULL
+        ORDER BY p.nombre ASC`
+    );
+    res.json({ existencias: filas.map((f) => ({ ...f, disponible: Number(f.disponible) })) });
+  })
+);
+
+app.get(
+  '/api/admin/inventarios/verificar-integridad',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const divergencias = await conciliarInventario();
+    res.json({ ok: divergencias.length === 0, divergencias });
+  })
+);
+
+// ---------- Dashboard (§4/§0.3:10 — solo KPIs respaldados por datos v1) ----------
+
+app.get(
+  '/api/admin/inventarios/dashboard',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const [[valorInventario]] = await pool.query(`
+      SELECT COALESCE(SUM(e.disponible * p.costo_promedio), 0) AS valor
+        FROM existencias e
+        JOIN productos p ON p.id = e.producto_id
+       WHERE p.eliminado_en IS NULL AND p.tipo = 'producto'
+    `);
+    const [[productosActivos]] = await pool.query(
+      "SELECT COUNT(*) AS total FROM productos WHERE eliminado_en IS NULL AND estado = 'activo'"
+    );
+    const [[unidadesDisponibles]] = await pool.query(`
+      SELECT COALESCE(SUM(e.disponible), 0) AS total
+        FROM existencias e
+        JOIN productos p ON p.id = e.producto_id
+       WHERE p.eliminado_en IS NULL AND p.tipo = 'producto'
+    `);
+    const [[bajoMinimo]] = await pool.query(`
+      SELECT COUNT(*) AS total
+        FROM productos p
+        JOIN existencias e ON e.producto_id = p.id
+       WHERE p.eliminado_en IS NULL AND p.tipo = 'producto' AND p.stock_minimo IS NOT NULL
+         AND e.disponible < p.stock_minimo
+    `);
+    const [[sinExistencia]] = await pool.query(`
+      SELECT COUNT(*) AS total
+        FROM productos p
+        JOIN existencias e ON e.producto_id = p.id
+       WHERE p.eliminado_en IS NULL AND p.tipo = 'producto' AND e.disponible = 0
+    `);
+    const [[sinMovimiento]] = await pool.query(`
+      SELECT COUNT(*) AS total
+        FROM productos p
+       WHERE p.eliminado_en IS NULL AND p.tipo = 'producto'
+         AND NOT EXISTS (SELECT 1 FROM movimientos_inventario m WHERE m.producto_id = p.id)
+    `);
+    const [[mermasPeriodo]] = await pool.query(`
+      SELECT COALESCE(SUM(m.cantidad * COALESCE(m.costo_unitario, p.costo_promedio)), 0) AS valor,
+             COUNT(*) AS cantidad
+        FROM movimientos_inventario m
+        JOIN productos p ON p.id = m.producto_id
+       WHERE m.tipo = 'merma' AND m.creado_en >= DATE_FORMAT(NOW(), '%Y-%m-01')
+    `);
+
+    res.json({
+      valor_total_inventario: Number(valorInventario.valor),
+      productos_activos: Number(productosActivos.total),
+      unidades_disponibles: Number(unidadesDisponibles.total),
+      productos_bajo_minimo: Number(bajoMinimo.total),
+      productos_sin_existencia: Number(sinExistencia.total),
+      productos_sin_movimiento: Number(sinMovimiento.total),
+      mermas_periodo_valor: Number(mermasPeriodo.valor),
+      mermas_periodo_cantidad: Number(mermasPeriodo.cantidad),
+    });
   })
 );
 
