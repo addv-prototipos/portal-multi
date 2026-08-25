@@ -1186,6 +1186,7 @@
             <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" title="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
             <button type="button" class="btn btn-secondary" id="btn-refresh-inventarios">Actualizar</button>
             <button type="button" class="btn btn-secondary" id="btn-inv-importar">Importar catálogo</button>
+            <button type="button" class="btn-icon" id="btn-inv-ayuda-abrir" aria-label="Ayuda y diccionario de datos de Inventarios" title="Ayuda y diccionario de datos">?</button>
             <button type="button" class="btn btn-primary" id="btn-nuevo-producto">+ Nuevo producto</button>
           </div>
         </div>
@@ -3165,6 +3166,43 @@
         <span class="inv-import-nav-spacer"></span>
         <button type="button" class="btn btn-secondary" id="btn-inv-import-atras" hidden>Atrás</button>
         <button type="button" class="btn btn-primary" id="btn-inv-import-siguiente">Siguiente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ayuda y diccionario de datos de Inventarios (inventarios.md §56,
+       segmento 8). Implementado como modal (no como página/ruta propia —
+       este panel es un SPA de un solo HTML sin ruteo real) para poder
+       abrirse tanto desde el sidebar como desde el wizard de importación
+       SIN interrumpir lo que esté en curso (56.4 "nunca bloquea el flujo
+       de trabajo"). -->
+  <div class="modal-overlay" id="inv-ayuda-modal-overlay" hidden>
+    <div class="modal inv-ayuda-modal" role="dialog" aria-modal="true" aria-labelledby="inv-ayuda-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="inv-ayuda-modal-title">Ayuda y diccionario de datos — Inventarios</h2>
+        <button type="button" class="btn-icon" id="btn-inv-ayuda-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="field">
+        <label for="inv-ayuda-buscar">Buscar un campo</label>
+        <input type="text" id="inv-ayuda-buscar" placeholder="Ej. costo, unidad, existencia…" autocomplete="off" />
+      </div>
+      <p class="inv-ayuda-resultados" id="inv-ayuda-resultados-texto" aria-live="polite"></p>
+      <div class="inv-ayuda-select-salto" id="inv-ayuda-select-wrap">
+        <label for="inv-ayuda-salto">Saltar a</label>
+        <select id="inv-ayuda-salto">
+          <option value="">Elige un grupo…</option>
+          <option value="inv-ayuda-grupo-catalogo">Catálogo</option>
+          <option value="inv-ayuda-grupo-existencias">Existencias y movimientos</option>
+          <option value="inv-ayuda-grupo-importacion">Importación masiva</option>
+        </select>
+      </div>
+      <div class="inv-ayuda-cuerpo" id="inv-ayuda-cuerpo">
+        <nav class="inv-ayuda-toc" aria-label="Tabla de contenido">
+          <a href="#inv-ayuda-grupo-catalogo">Catálogo</a>
+          <a href="#inv-ayuda-grupo-existencias">Existencias y movimientos</a>
+          <a href="#inv-ayuda-grupo-importacion">Importación masiva</a>
+        </nav>
+        <div class="inv-ayuda-contenido" id="inv-ayuda-contenido"></div>
       </div>
     </div>
   </div>

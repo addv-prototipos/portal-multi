@@ -905,10 +905,28 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   (`eliminado_en` nunca se limpiaba al actualizar — bug del motor, no
   del frontend, solo visible probando el flujo completo con datos
   reales). Jest backend 693/693. Con esto §34 completo (motor+API+wizard)
-  queda funcionalmente terminado — pendiente real: camino asíncrono
-  >500 filas nunca probado en vivo, y la página de ayuda §56 (Segmento
-  8) sin código todavía. **SIN COMMITEAR** — pedir confirmación explícita
-  antes de commit/push, mismo protocolo `addv-web-app`.
+  queda funcionalmente terminado. **Ya commiteado y pusheado** (`d813206`
+  → `fact/master`, tras confirmación explícita).
+- **Inventarios — Segmento 8: Ayuda y diccionario de datos (2026-08-25,
+  §56, PROJECT_STATE.md punto 144)**: hecho y validado en navegador real.
+  Implementado como MODAL (no página/ruta propia — confirmado con el
+  usuario antes de codificar: este panel es un SPA de un solo HTML sin
+  ruteo real), abrible desde el sidebar de Inventarios y desde un ícono
+  "?" por campo dentro del wizard de importación (paso 3) SIN cerrar el
+  wizard — validado en vivo: el ícono "?" de "SKU" abrió la ayuda encima
+  del wizard en curso, y al cerrarla el wizard seguía intacto en el mismo
+  paso con el archivo ya subido. `backend/utils/inventarioCampos.js`
+  ganó `explicacion_simple`/`ejemplo_valido`/`ejemplo_invalido_comun` en
+  los 20 campos + `CONCEPTOS_AYUDA` (10 entradas: existencia, historial
+  de movimientos, entrada/salida/ajuste, costo promedio, y mecánica de
+  importación) + `GET /api/admin/inventarios/diccionario`. Jest backend
+  702/702 (41 suites). Con esto el plan completo de `inventarios.md`
+  (segmentos 1-8) queda funcionalmente terminado — pendiente real, no
+  bloqueante: camino asíncrono >500 filas nunca probado en vivo, y
+  tooltips de ayuda en "Crear producto" (3ra entrada de §56.2,
+  deliberadamente pospuesta, confirmado con el usuario). **SIN
+  COMMITEAR** — pedir confirmación explícita antes de commit/push, mismo
+  protocolo `addv-web-app`.
 
 - **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver
   PROJECT_STATE.md punto 133, 2026-08-23, IMPLEMENTADO Y VALIDADO)**:

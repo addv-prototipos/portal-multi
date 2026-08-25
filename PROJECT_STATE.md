@@ -9057,9 +9057,110 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       motor, API y wizard) queda funcionalmente completo**, salvo: (1) el
       camino asíncrono >500 filas nunca se probó en vivo (solo por
       revisión de código, ver punto 142), y (2) la página de ayuda §56
-      (Segmento 8, diccionario de datos) sigue sin código. Sin
-      commitear al cierre de este punto — pedir confirmación explícita
-      antes de commit/push, mismo protocolo `addv-web-app`.
+      (Segmento 8, diccionario de datos) sigue sin código.
+
+      **Actualización — el segmento 6 SÍ se commiteó y pusheó** (commit
+      `d813206` → `fact/master`) tras confirmación explícita. Ver el
+      punto 144 para el Segmento 8 (página de ayuda §56).
+
+ 144. **Segmento 8 — Ayuda y diccionario de datos de Inventarios
+      (2026-08-25, `inventarios.md` §56). IMPLEMENTADO Y VALIDADO en
+      navegador real.** Cierra el plan original de `inventarios.md`
+      salvo la validación en vivo del camino asíncrono >500 filas (punto
+      142) — no bloqueante, documentado como pendiente.
+
+      **2 desviaciones de diseño confirmadas con el usuario ANTES de
+      implementar** (protocolo `addv-web-app`, pregunta explícita):
+      1. El doc pide una página con ruta propia
+         (`/<slug>/admin/inventarios/ayuda`). Este panel admin es un SPA
+         de un solo HTML sin ruteo real (todas las vistas son divs que
+         se muestran/ocultan) — se implementó como **modal** en vez de
+         vista/ruta, mismo patrón que el resto del panel, sin tocar
+         nginx. El deep-linking (`#campo-sku`) se resuelve con scroll +
+         foco dentro del modal, no con un fragmento de URL real.
+      2. De los 3 puntos de entrada del doc (sidebar, ícono `?` en el
+         wizard, tooltip en "Crear producto"), se implementaron **solo
+         los 2 primeros** — el tercero (20 tooltips más en un formulario
+         ya construido) queda pendiente, valor menor frente a los otros
+         dos.
+
+      **Archivos modificados** (sin archivos nuevos en backend — todo
+      dentro de `inventarioCampos.js`, ya existente desde el segmento 5):
+      - `backend/utils/inventarioCampos.js` — cada uno de los 20 campos
+        de `CAMPOS_IMPORTABLES` ganó `etiqueta`/`explicacion_simple`/
+        `ejemplo_valido`/`ejemplo_invalido_comun` (los 3 campos
+        exclusivos de la ayuda que pide §56.1, sobre los metadatos
+        técnicos que ya usaba el wizard). Array nuevo `CONCEPTOS_AYUDA`
+        (10 entradas) para los conceptos operativos de los grupos 2 y 3
+        de §56.3 que NO son columnas mapeables (existencia disponible,
+        historial de movimientos, entrada, salida, ajuste, costo
+        promedio, fila de encabezados, mapeo de cabeceras, datos extra,
+        perfil de mapeo guardado) — separado a propósito de
+        `CAMPOS_IMPORTABLES` para no complicar `sugerirMapeoCompleto()`
+        con conceptos que el wizard de mapeo no necesita. Función nueva
+        `obtenerDiccionarioInventario()` combina ambos arreglos con un
+        `id`/`grupo` uniforme (ancla estable `#campo-<id>`, §56.4
+        "deep-linking real"). `costo_promedio` se agregó como concepto
+        propio (no solo sinónimo) para que el ejemplo literal del doc
+        ("buscar 'costo' encuentra costo, costo_unitario, costo_promedio
+        y ultimo_costo") funcione — costo_unitario/ultimo_costo viven
+        como sinónimos DENTRO de la tarjeta "costo" (no son tarjetas
+        aparte), así que buscar "costo" devuelve 2 tarjetas relevantes
+        (costo, costo_promedio), no 4 — decisión de diseño razonada, no
+        un déficit: el usuario ve los 4 términos igual, 2 como tarjetas
+        y 2 como sinónimos listados dentro de la tarjeta "costo".
+      - `backend/server.js` — `GET /api/admin/inventarios/diccionario`
+        (sin `requireInventarioActivo` a propósito, mismo criterio que
+        `/configuracion` — ayuda a entender el módulo antes de
+        activarlo; no depende del tenant, cacheable en el cliente).
+      - `backend/test/unit/inventarioCampos.test.js` (nuevo) — 9 pruebas:
+        metadatos completos en los 20 campos y los 10 conceptos, el
+        criterio de aceptación literal de §56.6 ("todo campo mapeable
+        tiene su tarjeta, verificado contra la misma fuente, no a
+        mano"), sin ids duplicados, y el caso de búsqueda "costo".
+      - `frontend/admin.html` — modal `#inv-ayuda-modal-overlay` (buscador,
+        tabla de contenido sticky en escritorio/`<select>` de salto en
+        móvil — mismo breakpoint 900px que el resto del panel, lección de
+        los puntos 128/131), botón "?" nuevo en la barra de Inventarios
+        (entrada 1), botón "?" agregado dinámicamente en cada fila del
+        wizard de mapeo (entrada 2, `frontend/admin.js`).
+      - `frontend/admin.css` — `.inv-ayuda-*` (modal, tarjetas, TOC
+        sticky, badges Obligatorio/Opcional reusando `.estatus-badge`
+        existente — "nunca un color inventado", §56.4) y
+        `.inv-import-mapeo-ayuda` (el círculo "?" por fila del wizard).
+      - `frontend/admin.js` — `obtenerDiccionarioInv()` (fetch +
+        cache en memoria de la sesión de pestaña), `renderAyudaInventario()`
+        (agrupa por catalogo/existencias/importacion), `filtrarAyudaInventario()`
+        (búsqueda client-side sobre un `data-buscable` precalculado por
+        tarjeta — etiqueta + explicación + sinónimos, coincidencia
+        parcial), `abrirAyudaInventario(anclaId)` (abre el modal ENCIMA
+        de cualquier otro modal abierto sin cerrarlo — scroll + foco +
+        resaltado temporal de 2s a la tarjeta, respeta
+        `prefers-reduced-motion`).
+
+      **Validado en navegador real (Claude in Chrome)**: `GET
+      /diccionario` por API confirma 30 entradas (20 catálogo + 10
+      conceptos) en 3 grupos; modal abierto desde el sidebar muestra las
+      3 secciones con tarjetas completas (badge Obligatorio, ✓/✗,
+      sinónimos reconocidos); buscador "costo" → "2 resultado(s)"
+      correctos; **el ícono "?" de la fila "SKU" dentro del wizard de
+      importación (paso 3, en curso) abrió el modal de ayuda ENCIMA del
+      wizard sin cerrarlo, con scroll automático a la tarjeta "SKU /
+      Clave"** — al cerrar la ayuda, el wizard seguía exactamente en el
+      mismo paso 3 con el archivo ya subido, confirmando §56.4 "nunca
+      bloquea el flujo de trabajo". Consola sin errores. Jest backend
+      **702/702 (41 suites)**, `verificar-mysql.js` 305/305. Limpieza:
+      fila de importación de prueba (subida hasta el paso 3, nunca
+      ejecutada) borrada de `imp_importaciones` + MinIO,
+      `inventario_activo` regresado a `'0'`.
+
+      **Con esto, el plan completo de `inventarios.md` (segmentos 1-8)
+      queda funcionalmente terminado.** Pendiente real, no bloqueante:
+      (1) el camino asíncrono >500 filas del importador nunca se probó
+      en vivo (punto 142), y (2) tooltips de ayuda en el formulario
+      "Crear producto" (entrada 3 de §56.2, deliberadamente pospuesta).
+      Sin commitear al cierre de este punto — pedir confirmación
+      explícita antes de commit/push, mismo protocolo `addv-web-app`.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

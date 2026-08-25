@@ -3675,6 +3675,138 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   margin-top: 14px;
 }
 
+/* Ícono "?" que abre una tarjeta específica del diccionario, junto a cada
+   fila del mapeo (§56.2.2) */
+.inv-import-mapeo-ayuda {
+  margin-left: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.inv-import-mapeo-ayuda:hover,
+.inv-import-mapeo-ayuda:focus-visible {
+  color: var(--color-accent-dark);
+  border-color: var(--color-accent);
+}
+
+/* Ayuda y diccionario de datos de Inventarios (§56, segmento 8) */
+.inv-ayuda-modal {
+  max-width: 860px;
+  width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+.inv-ayuda-resultados {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+.inv-ayuda-select-wrap {
+  margin-bottom: 14px;
+}
+@media (min-width: 901px) {
+  .inv-ayuda-select-wrap { display: none; }
+}
+.inv-ayuda-cuerpo {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+@media (min-width: 901px) {
+  .inv-ayuda-cuerpo { grid-template-columns: 190px 1fr; }
+}
+.inv-ayuda-toc {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+}
+@media (min-width: 901px) {
+  .inv-ayuda-toc {
+    display: flex;
+    position: sticky;
+    top: 0;
+    align-self: start;
+  }
+}
+.inv-ayuda-toc a {
+  color: var(--color-ink-soft);
+  text-decoration: none;
+  padding: 4px 0;
+}
+.inv-ayuda-toc a:hover,
+.inv-ayuda-toc a:focus-visible {
+  color: var(--color-accent-dark);
+  text-decoration: underline;
+}
+.inv-ayuda-grupo-titulo {
+  margin: 18px 0 10px;
+  font-size: 15px;
+  scroll-margin-top: 8px;
+}
+.inv-ayuda-grupo-titulo:first-child {
+  margin-top: 0;
+}
+.inv-ayuda-tarjeta {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 12px;
+  scroll-margin-top: 8px;
+}
+.inv-ayuda-tarjeta:focus-visible,
+.inv-ayuda-tarjeta.inv-ayuda-resaltada {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.inv-ayuda-tarjeta-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.inv-ayuda-tarjeta-titulo {
+  margin: 0;
+  font-size: 14.5px;
+}
+.inv-ayuda-tarjeta-explicacion {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  color: var(--color-ink);
+}
+.inv-ayuda-ejemplo {
+  font-size: 13px;
+  margin: 4px 0;
+}
+.inv-ayuda-ejemplo-ok { color: #146C43; }
+.inv-ayuda-ejemplo-mal { color: var(--color-error); }
+.inv-ayuda-tarjeta-sinonimos {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+.inv-ayuda-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--color-ink-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .inv-ayuda-tarjeta { scroll-behavior: auto; }
+}
+
 /* D8 (Inventarios, §22): vincular producto en el modal "Registrar venta" */
 .orden-inventario-vincular {
   border: 1.5px solid var(--color-border);

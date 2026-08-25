@@ -141,6 +141,7 @@ const {
   generarCSVErrores,
   TAMANO_CHUNK,
 } = require('./utils/inventarioImportacion');
+const { obtenerDiccionarioInventario } = require('./utils/inventarioCampos');
 
 const PORT = process.env.PORT || 4000;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 5);
@@ -5550,6 +5551,21 @@ app.put(
       return res.status(400).json({ error: resultado.error });
     }
     res.json({ ok: true, ...resultado });
+  })
+);
+
+// ---------- Diccionario de datos (§56, página de ayuda) — SIN
+// requireInventarioActivo: sirve para entender el módulo ANTES de
+// activarlo. No depende del tenant (mismo diccionario para todos), así
+// que el cliente puede cachearlo sin invalidación especial. ----------
+
+app.get(
+  '/api/admin/inventarios/diccionario',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    res.json({ diccionario: obtenerDiccionarioInventario() });
   })
 );
 

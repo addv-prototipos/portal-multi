@@ -514,6 +514,15 @@
     btnInvImportCancelar: document.getElementById('btn-inv-import-cancelar'),
     btnInvImportAtras: document.getElementById('btn-inv-import-atras'),
     btnInvImportSiguiente: document.getElementById('btn-inv-import-siguiente'),
+    // Ayuda y diccionario de datos (§56, segmento 8)
+    btnInvAyudaAbrir: document.getElementById('btn-inv-ayuda-abrir'),
+    invAyudaModalOverlay: document.getElementById('inv-ayuda-modal-overlay'),
+    btnInvAyudaCerrar: document.getElementById('btn-inv-ayuda-cerrar'),
+    invAyudaBuscar: document.getElementById('inv-ayuda-buscar'),
+    invAyudaResultadosTexto: document.getElementById('inv-ayuda-resultados-texto'),
+    invAyudaSalto: document.getElementById('inv-ayuda-salto'),
+    invAyudaCuerpo: document.getElementById('inv-ayuda-cuerpo'),
+    invAyudaContenido: document.getElementById('inv-ayuda-contenido'),
     // Toggle "Inventario activo" (vista Usuarios)
     btnToggleInvCard: document.getElementById('btn-toggle-inv-card'),
     invToggleChevron: document.getElementById('inv-toggle-chevron'),
@@ -9579,7 +9588,7 @@
       const necesitaConfirmar = asignacion && asignacion.requiereConfirmacion && !asignacion.confirmado;
       return `
         <tr>
-          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}</td>
+          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}<button type="button" class="inv-import-mapeo-ayuda" data-campo="${c.campo}" aria-label="Ver ayuda de ${escapeHtml(c.etiqueta)}" title="Ver ayuda de este campo">?</button></td>
           <td><select class="inv-import-mapeo-select" data-campo="${c.campo}" aria-label="Columna para ${escapeHtml(c.etiqueta)}">${opciones}</select></td>
           <td class="inv-import-mapeo-preview" title="${escapeHtml(previewValores)}">${escapeHtml(previewValores)}</td>
           <td>
@@ -9893,6 +9902,129 @@
     if (estadoImport.paso > 1) irAPasoImport(estadoImport.paso - 1);
   }
 
+  // ---------- Ayuda y diccionario de datos (§56, segmento 8) ----------
+  // Modal (no una página/ruta propia — este panel es un SPA de un solo
+  // HTML sin ruteo real) para poder abrirse desde el sidebar Y desde el
+  // wizard de importación sin cerrar lo que esté en curso (56.4).
+
+  const INV_AYUDA_GRUPOS = [
+    { grupo: 'catalogo', titulo: 'Catálogo' },
+    { grupo: 'existencias', titulo: 'Existencias y movimientos' },
+    { grupo: 'importacion', titulo: 'Importación masiva' },
+  ];
+
+  let inventarioDiccionarioCache = null;
+
+  async function obtenerDiccionarioInv() {
+    if (inventarioDiccionarioCache) return inventarioDiccionarioCache;
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return [];
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/diccionario`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return [];
+      }
+      const data = await res.json().catch(() => ({}));
+      inventarioDiccionarioCache = data.diccionario || [];
+      return inventarioDiccionarioCache;
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function renderTarjetaAyuda(d) {
+    return `
+      <article class="inv-ayuda-tarjeta" id="campo-${d.id}" tabindex="-1" aria-labelledby="campo-${d.id}-titulo" data-buscable="${escapeHtml(`${d.etiqueta} ${d.explicacion_simple} ${(d.sinonimos || []).join(' ')}`.toLowerCase())}">
+        <div class="inv-ayuda-tarjeta-header">
+          <h4 class="inv-ayuda-tarjeta-titulo" id="campo-${d.id}-titulo">${escapeHtml(d.etiqueta)}</h4>
+          ${d.obligatorio === true ? '<span class="estatus-badge estatus-cancelado">Obligatorio</span>' : d.obligatorio === false ? '<span class="estatus-badge estatus-neutro">Opcional</span>' : ''}
+        </div>
+        <p class="inv-ayuda-tarjeta-explicacion">${escapeHtml(d.explicacion_simple)}</p>
+        <p class="inv-ayuda-ejemplo inv-ayuda-ejemplo-ok"><strong>✓ Correcto:</strong> ${escapeHtml(d.ejemplo_valido)}</p>
+        <p class="inv-ayuda-ejemplo inv-ayuda-ejemplo-mal"><strong>✗ Común:</strong> ${escapeHtml(d.ejemplo_invalido_comun)}</p>
+        ${d.sinonimos && d.sinonimos.length > 0 ? `<p class="inv-ayuda-tarjeta-sinonimos">En tu archivo de importación, estas columnas se reconocen solas: ${escapeHtml(d.sinonimos.join(', '))}…</p>` : ''}
+      </article>`;
+  }
+
+  async function renderAyudaInventario() {
+    const diccionario = await obtenerDiccionarioInv();
+    const html = INV_AYUDA_GRUPOS.map((g) => {
+      const items = diccionario.filter((d) => d.grupo === g.grupo);
+      if (items.length === 0) return '';
+      return `
+        <h3 class="inv-ayuda-grupo-titulo" id="inv-ayuda-grupo-${g.grupo}">${escapeHtml(g.titulo)}</h3>
+        ${items.map(renderTarjetaAyuda).join('')}`;
+    }).join('');
+    els.invAyudaContenido.innerHTML = html || '<p class="inv-ayuda-empty">No se pudo cargar el diccionario.</p>';
+    els.invAyudaResultadosTexto.textContent = '';
+  }
+
+  function filtrarAyudaInventario(termino) {
+    const normalizado = termino.trim().toLowerCase();
+    const tarjetas = els.invAyudaContenido.querySelectorAll('.inv-ayuda-tarjeta');
+    let visibles = 0;
+    tarjetas.forEach((tarjeta) => {
+      const coincide = !normalizado || tarjeta.dataset.buscable.includes(normalizado);
+      tarjeta.hidden = !coincide;
+      if (coincide) visibles += 1;
+    });
+    // Un grupo sin ninguna tarjeta visible también se oculta, para no
+    // dejar un título de grupo huérfano en los resultados de búsqueda.
+    els.invAyudaContenido.querySelectorAll('.inv-ayuda-grupo-titulo').forEach((titulo) => {
+      let siguiente = titulo.nextElementSibling;
+      let algunaVisible = false;
+      while (siguiente && !siguiente.classList.contains('inv-ayuda-grupo-titulo')) {
+        if (!siguiente.hidden) algunaVisible = true;
+        siguiente = siguiente.nextElementSibling;
+      }
+      titulo.hidden = !algunaVisible;
+    });
+    if (!normalizado) {
+      els.invAyudaResultadosTexto.textContent = '';
+    } else if (visibles === 0) {
+      els.invAyudaResultadosTexto.textContent = `Sin resultados para "${termino}". Prueba con otra palabra o revisa cómo se llama el campo en el sistema.`;
+    } else {
+      els.invAyudaResultadosTexto.textContent = `${visibles} resultado(s) para "${termino}".`;
+    }
+  }
+
+  async function abrirAyudaInventario(anclaId) {
+    if (els.invAyudaContenido.innerHTML.trim() === '') {
+      await renderAyudaInventario();
+    }
+    els.invAyudaBuscar.value = '';
+    filtrarAyudaInventario('');
+    els.invAyudaModalOverlay.hidden = false;
+    if (anclaId) {
+      setTimeout(() => {
+        const tarjeta = document.getElementById(`campo-${anclaId}`);
+        if (tarjeta) {
+          tarjeta.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+          tarjeta.classList.add('inv-ayuda-resaltada');
+          tarjeta.focus();
+          setTimeout(() => tarjeta.classList.remove('inv-ayuda-resaltada'), 2000);
+        }
+      }, 50);
+    } else {
+      setTimeout(() => els.invAyudaBuscar.focus(), 30);
+    }
+  }
+
+  function cerrarAyudaInventario() {
+    els.invAyudaModalOverlay.hidden = true;
+  }
+
+  function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
   // ---------- Enlaces de eventos ----------
 
   if (els.btnVerInvActivos) els.btnVerInvActivos.addEventListener('click', () => cambiarVistaInventarios('activos'));
@@ -9915,6 +10047,21 @@
   if (els.btnInvImportPlantillaXlsx) els.btnInvImportPlantillaXlsx.addEventListener('click', () => descargarPlantillaImport('xlsx'));
   if (els.invImportHojaSelect) els.invImportHojaSelect.addEventListener('change', cambiarHojaImport);
   if (els.invImportMapeoBody) els.invImportMapeoBody.addEventListener('change', manejarCambioMapeoImport);
+  if (els.invImportMapeoBody)
+    els.invImportMapeoBody.addEventListener('click', (e) => {
+      if (e.target.classList.contains('inv-import-mapeo-ayuda')) {
+        abrirAyudaInventario(e.target.dataset.campo);
+      }
+    });
+  if (els.btnInvAyudaAbrir) els.btnInvAyudaAbrir.addEventListener('click', () => abrirAyudaInventario(null));
+  if (els.btnInvAyudaCerrar) els.btnInvAyudaCerrar.addEventListener('click', cerrarAyudaInventario);
+  if (els.invAyudaBuscar)
+    els.invAyudaBuscar.addEventListener('input', debounce((e) => filtrarAyudaInventario(e.target.value), 200));
+  if (els.invAyudaSalto)
+    els.invAyudaSalto.addEventListener('change', (e) => {
+      const destino = document.getElementById(e.target.value);
+      if (destino) destino.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    });
   if (els.invImportGuardarPerfil)
     els.invImportGuardarPerfil.addEventListener('change', () => {
       els.invImportNombrePerfilField.hidden = !els.invImportGuardarPerfil.checked;
