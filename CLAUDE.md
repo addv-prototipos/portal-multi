@@ -893,10 +893,22 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   — con un bug real corregido ahí mismo: `__proto__` no disparaba la
   guardia porque `normalizarCabecera()` le quitaba los guiones bajos
   antes de compararla —, firma binaria/gate de módulo). Jest backend
-  693/693. **SIN COMMITEAR TODAVÍA** — pedir confirmación explícita del
-  usuario antes de commit/push, mismo protocolo `addv-web-app`. Pendiente
-  inmediato: Segmento 6 (wizard de 6 pasos en el frontend, sin código
-  todavía) y validar en vivo el camino asíncrono de >500 filas.
+  693/693. **Ya commiteado y pusheado** (`65c9eec` → `fact/master`, tras
+  confirmación explícita). **Segmento 6 — wizard de 6 pasos en el
+  frontend (2026-08-25, PROJECT_STATE.md punto 143)**: hecho y validado
+  en navegador real de punta a punta (Claude in Chrome) — subir CSV con
+  sinónimos → auto-mapeo con badges → validación → confirmación →
+  ejecución → resultado, con datos reales. 2 bugs reales encontrados y
+  corregidos en la validación: botón "Siguiente" no cambiaba de texto al
+  avanzar de paso (bug de frontend, `finally` pisaba el label nuevo), y
+  el upsert por SKU del Segmento 5 no revivía productos en papelera
+  (`eliminado_en` nunca se limpiaba al actualizar — bug del motor, no
+  del frontend, solo visible probando el flujo completo con datos
+  reales). Jest backend 693/693. Con esto §34 completo (motor+API+wizard)
+  queda funcionalmente terminado — pendiente real: camino asíncrono
+  >500 filas nunca probado en vivo, y la página de ayuda §56 (Segmento
+  8) sin código todavía. **SIN COMMITEAR** — pedir confirmación explícita
+  antes de commit/push, mismo protocolo `addv-web-app`.
 
 - **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver
   PROJECT_STATE.md punto 133, 2026-08-23, IMPLEMENTADO Y VALIDADO)**:

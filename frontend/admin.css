@@ -3525,6 +3525,156 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   text-align: right;
 }
 
+/* Botón de texto tipo enlace, sin fondo — para acciones secundarias
+   dentro de un párrafo (plantillas descargables del importador, §34.3.4).
+   No es un <a>: dispara un fetch autenticado con Basic Auth, así que un
+   href real no serviría (mismo motivo que el resto de descargas del
+   panel, ver descargarComprobante() en admin.js). */
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-accent-dark);
+  font-weight: 600;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.btn-link:hover,
+.btn-link:focus-visible {
+  color: var(--color-accent);
+}
+
+/* Importador masivo CSV/XLSX (§34, segmento 6) — wizard de 6 pasos,
+   SIEMPRE visible en escritorio/tablet (a diferencia del wizard de Ventas,
+   que solo existe en móvil) — 34.2 lo pide como flujo permanente con
+   indicador de progreso. */
+.inv-importacion-modal {
+  max-width: 820px;
+  width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.inv-import-progreso {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+.inv-import-progreso li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.inv-import-progreso li.is-active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+  border-color: var(--color-accent);
+  font-weight: 600;
+}
+.inv-import-progreso li.is-done {
+  color: var(--color-ink-soft);
+  text-decoration: line-through;
+}
+.inv-import-cuerpo {
+  flex: 1;
+  min-height: 0;
+}
+.inv-import-paso {
+  display: none;
+}
+.inv-import-paso.is-active {
+  display: block;
+}
+.inv-import-paso-titulo {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+.inv-import-paso-titulo:focus {
+  outline: none;
+}
+.inv-import-plantillas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  color: var(--color-ink-soft);
+}
+.inv-import-cobertura {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+.inv-import-mapeo-tabla td {
+  vertical-align: middle;
+}
+.inv-import-mapeo-select {
+  width: 100%;
+  min-width: 160px;
+}
+.inv-import-mapeo-preview {
+  color: var(--color-ink-soft);
+  font-size: 12.5px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inv-import-confirmar {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-warn);
+}
+.estatus-neutro {
+  background: var(--color-bg);
+  color: var(--color-ink-soft);
+  border: 1px solid var(--color-border);
+}
+/* 34.2: el mapeo se recomienda en desktop/tablet horizontal; en móvil
+   se muestra un aviso en vez de intentar la tabla de mapeo comprimida. */
+.inv-import-mapeo-mobile-aviso {
+  display: none;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+@media (max-width: 768px) {
+  .inv-import-mapeo-mobile-aviso { display: block; }
+}
+.inv-import-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+.inv-import-nav-spacer {
+  flex: 1;
+}
+#inv-import-progreso-ejecucion {
+  margin-top: 14px;
+}
+
 /* D8 (Inventarios, §22): vincular producto en el modal "Registrar venta" */
 .orden-inventario-vincular {
   border: 1.5px solid var(--color-border);

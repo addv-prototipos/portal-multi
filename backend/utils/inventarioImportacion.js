@@ -540,6 +540,15 @@ async function procesarFilaImportacion(fila, opciones) {
       sets.push(`${columna} = ?`);
       params.push(vacio ? null : valorNuevo);
     }
+    // Un SKU con un producto en papelera sigue "ocupado" (uq_productos_sku
+    // no distingue eliminado_en) — sin esto, re-importar el mismo archivo
+    // actualizaba los campos pero el producto seguía invisible en la
+    // papelera, un estado inconsistente. Traerlo de vuelta a activo es el
+    // comportamiento esperado de una migración real. Bug real encontrado
+    // en la validación visual del segmento 6 (2026-08-25).
+    if (productoExistente.eliminado_en) {
+      sets.push('eliminado_en = NULL');
+    }
     if (sets.length > 0) {
       sets.push('actualizado_en = ?');
       params.push(ahora, productoId);

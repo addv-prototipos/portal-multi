@@ -478,6 +478,42 @@
     invKardexSubtitulo: document.getElementById('inv-kardex-subtitulo'),
     invKardexTableBody: document.getElementById('inv-kardex-table-body'),
     invKardexEmpty: document.getElementById('inv-kardex-empty'),
+    // Importador masivo CSV/XLSX (§34, segmento 6)
+    btnInvImportar: document.getElementById('btn-inv-importar'),
+    invImportacionModalOverlay: document.getElementById('inv-importacion-modal-overlay'),
+    btnInvImportacionCerrar: document.getElementById('btn-inv-importacion-cerrar'),
+    invImportErrorGeneral: document.getElementById('inv-import-error-general'),
+    btnInvImportPlantillaCsv: document.getElementById('btn-inv-import-plantilla-csv'),
+    btnInvImportPlantillaXlsx: document.getElementById('btn-inv-import-plantilla-xlsx'),
+    invImportPreset: document.getElementById('inv-import-preset'),
+    invImportArchivo: document.getElementById('inv-import-archivo'),
+    invImportHojaField: document.getElementById('inv-import-hoja-field'),
+    invImportHojaSelect: document.getElementById('inv-import-hoja-select'),
+    invImportInfoArchivo: document.getElementById('inv-import-info-archivo'),
+    invImportPreviewThead: document.getElementById('inv-import-preview-thead'),
+    invImportPreviewTbody: document.getElementById('inv-import-preview-tbody'),
+    invImportPerfilAviso: document.getElementById('inv-import-perfil-aviso'),
+    invImportCobertura: document.getElementById('inv-import-cobertura'),
+    invImportMapeoBody: document.getElementById('inv-import-mapeo-body'),
+    invImportConservarExtra: document.getElementById('inv-import-conservar-extra'),
+    invImportGuardarPerfil: document.getElementById('inv-import-guardar-perfil'),
+    invImportNombrePerfilField: document.getElementById('inv-import-nombre-perfil-field'),
+    invImportNombrePerfil: document.getElementById('inv-import-nombre-perfil'),
+    invImportSobrescribirVacios: document.getElementById('inv-import-sobrescribir-vacios'),
+    invImportResultadoValidacion: document.getElementById('inv-import-resultado-validacion'),
+    invImportValidacionResumen: document.getElementById('inv-import-validacion-resumen'),
+    invImportErroresBody: document.getElementById('inv-import-errores-body'),
+    btnInvImportDescargarErrores: document.getElementById('btn-inv-import-descargar-errores'),
+    invImportConfirmacionEjecutar: document.getElementById('inv-import-confirmacion-ejecutar'),
+    invImportProgresoEjecucion: document.getElementById('inv-import-progreso-ejecucion'),
+    invImportProgresoTexto: document.getElementById('inv-import-progreso-texto'),
+    invImportResultadoTexto: document.getElementById('inv-import-resultado-texto'),
+    btnInvImportOtra: document.getElementById('btn-inv-import-otra'),
+    btnInvImportTerminar: document.getElementById('btn-inv-import-terminar'),
+    invImportNav: document.getElementById('inv-import-nav'),
+    btnInvImportCancelar: document.getElementById('btn-inv-import-cancelar'),
+    btnInvImportAtras: document.getElementById('btn-inv-import-atras'),
+    btnInvImportSiguiente: document.getElementById('btn-inv-import-siguiente'),
     // Toggle "Inventario activo" (vista Usuarios)
     btnToggleInvCard: document.getElementById('btn-toggle-inv-card'),
     invToggleChevron: document.getElementById('inv-toggle-chevron'),
@@ -9269,6 +9305,594 @@
     }
   }
 
+  // ---------- Importador masivo CSV/XLSX (§34, segmento 6) ----------
+  // Duplicación intencional del catálogo de campos de
+  // backend/utils/inventarioCampos.js — mismo criterio que el diccionario
+  // de categorías de Gastos (código pequeño compartido se duplica a
+  // propósito en vez de importar entre backend/ y frontend/, que no
+  // comparten build).
+  const INV_IMPORT_CAMPOS = [
+    { campo: 'sku', etiqueta: 'SKU / Clave', obligatorio: true },
+    { campo: 'nombre', etiqueta: 'Nombre', obligatorio: true },
+    { campo: 'codigo_barras', etiqueta: 'Código de barras', obligatorio: false },
+    { campo: 'descripcion_corta', etiqueta: 'Descripción corta', obligatorio: false },
+    { campo: 'descripcion_larga', etiqueta: 'Descripción larga', obligatorio: false },
+    { campo: 'marca', etiqueta: 'Marca', obligatorio: false },
+    { campo: 'fabricante', etiqueta: 'Fabricante', obligatorio: false },
+    { campo: 'modelo', etiqueta: 'Modelo', obligatorio: false },
+    { campo: 'categoria', etiqueta: 'Categoría', obligatorio: false },
+    { campo: 'unidad_base', etiqueta: 'Unidad de medida', obligatorio: true },
+    { campo: 'tipo', etiqueta: 'Tipo (producto/servicio)', obligatorio: false },
+    { campo: 'costo', etiqueta: 'Costo', obligatorio: false },
+    { campo: 'precio', etiqueta: 'Precio', obligatorio: false },
+    { campo: 'stock_minimo', etiqueta: 'Stock mínimo', obligatorio: false },
+    { campo: 'stock_maximo', etiqueta: 'Stock máximo', obligatorio: false },
+    { campo: 'punto_reorden', etiqueta: 'Punto de reorden', obligatorio: false },
+    { campo: 'proveedor_principal', etiqueta: 'Proveedor principal', obligatorio: false },
+    { campo: 'existencia_inicial', etiqueta: 'Existencia inicial', obligatorio: false },
+    { campo: 'estado', etiqueta: 'Estado (activo/inactivo)', obligatorio: false },
+    { campo: 'notas', etiqueta: 'Notas', obligatorio: false },
+  ];
+
+  const INV_IMPORT_CONFIANZA = {
+    perfil: { texto: 'Desde tu perfil', clase: 'estatus-listo' },
+    exacto: { texto: 'Exacto', clase: 'estatus-listo' },
+    reconocido: { texto: 'Reconocido', clase: 'estatus-listo' },
+    sugerido: { texto: 'Sugerido, revisa', clase: 'estatus-pendiente' },
+    manual: { texto: 'Asignado a mano', clase: 'estatus-listo' },
+  };
+
+  let estadoImport = null;
+
+  function estadoImportInicial() {
+    return {
+      paso: 1,
+      archivo: null,
+      importacionId: null,
+      formato: null,
+      hojas: null,
+      hojaSeleccionada: null,
+      cabeceras: [],
+      vistaPrevia: [],
+      totalFilas: 0,
+      mapeo: {},
+      modo: 'tolerante',
+      validado: false,
+      validacionAbortada: false,
+      polling: null,
+    };
+  }
+
+  function mostrarErrorImport(mensaje) {
+    els.invImportErrorGeneral.textContent = mensaje;
+    els.invImportErrorGeneral.hidden = false;
+  }
+
+  function limpiarErrorImport() {
+    els.invImportErrorGeneral.hidden = true;
+    els.invImportErrorGeneral.textContent = '';
+  }
+
+  function abrirImportacionModal() {
+    if (estadoImport && estadoImport.polling) clearInterval(estadoImport.polling);
+    estadoImport = estadoImportInicial();
+    els.invImportArchivo.value = '';
+    els.invImportPreset.value = 'otro';
+    els.invImportGuardarPerfil.checked = true;
+    els.invImportConservarExtra.checked = true;
+    els.invImportNombrePerfil.value = '';
+    els.invImportSobrescribirVacios.checked = false;
+    els.invImportResultadoValidacion.hidden = true;
+    els.invImportProgresoEjecucion.hidden = true;
+    els.invImportPerfilAviso.hidden = true;
+    const radioTolerante = document.querySelector('input[name="inv-import-modo"][value="tolerante"]');
+    if (radioTolerante) radioTolerante.checked = true;
+    limpiarErrorImport();
+    irAPasoImport(1);
+    els.invImportacionModalOverlay.hidden = false;
+    setTimeout(() => els.invImportArchivo && els.invImportArchivo.focus(), 30);
+  }
+
+  function cerrarImportacionModal() {
+    if (estadoImport && estadoImport.polling) clearInterval(estadoImport.polling);
+    els.invImportacionModalOverlay.hidden = true;
+    estadoImport = null;
+  }
+
+  function irAPasoImport(n) {
+    estadoImport.paso = n;
+    document.querySelectorAll('.inv-import-paso').forEach((el) => {
+      el.classList.toggle('is-active', Number(el.dataset.paso) === n);
+    });
+    document.querySelectorAll('#inv-import-progreso li').forEach((li) => {
+      const p = Number(li.dataset.paso);
+      li.classList.toggle('is-active', p === n);
+      li.classList.toggle('is-done', p < n);
+    });
+    limpiarErrorImport();
+    els.invImportNav.hidden = n === 6;
+    els.btnInvImportAtras.hidden = n === 1 || n === 6;
+    actualizarBotonSiguienteImport();
+    const titulo = document.getElementById(`inv-import-paso-${n}-titulo`);
+    if (titulo) titulo.focus();
+  }
+
+  function actualizarBotonSiguienteImport() {
+    const btn = els.btnInvImportSiguiente;
+    btn.disabled = false;
+    switch (estadoImport.paso) {
+      case 1:
+        btn.textContent = 'Subir y continuar';
+        break;
+      case 2:
+        btn.textContent = 'Continuar al mapeo';
+        break;
+      case 3:
+        btn.textContent = 'Continuar a validación';
+        btn.disabled = !mapeoListoParaSiguienteImport();
+        break;
+      case 4:
+        btn.textContent = estadoImport.validado ? 'Continuar' : 'Validar archivo';
+        btn.disabled = estadoImport.validado && estadoImport.validacionAbortada;
+        break;
+      case 5:
+        btn.textContent = 'Ejecutar importación';
+        break;
+      default:
+        break;
+    }
+  }
+
+  function mapeoListoParaSiguienteImport() {
+    const obligatorios = INV_IMPORT_CAMPOS.filter((c) => c.obligatorio);
+    for (const c of obligatorios) {
+      const a = estadoImport.mapeo[c.campo];
+      if (!a) return false;
+      if (a.requiereConfirmacion && !a.confirmado) return false;
+    }
+    return true;
+  }
+
+  // ---------- Paso 1: subir archivo ----------
+
+  async function avanzarDesdePasoImport1() {
+    const archivo = els.invImportArchivo.files[0];
+    if (!archivo) {
+      mostrarErrorImport('Selecciona un archivo CSV o XLSX.');
+      return;
+    }
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    await subirArchivoImport(archivo, null);
+  }
+
+  async function subirArchivoImport(archivo, hojaElegida) {
+    const authHeader = getAuthHeader();
+    const formData = new FormData();
+    formData.append('archivo', archivo);
+    const preset = els.invImportPreset.value;
+    if (preset && preset !== 'otro') formData.append('preset_sistema', preset);
+    if (hojaElegida) formData.append('hoja', hojaElegida);
+
+    els.btnInvImportSiguiente.disabled = true;
+    els.btnInvImportSiguiente.textContent = 'Subiendo…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/importaciones`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        mostrarErrorImport(data.mensaje || data.error || 'No se pudo subir el archivo.');
+        return;
+      }
+      estadoImport.archivo = archivo;
+      estadoImport.importacionId = data.importacionId;
+      estadoImport.formato = data.formato;
+      estadoImport.hojas = data.hojas;
+      estadoImport.hojaSeleccionada = data.hojaSeleccionada;
+      estadoImport.cabeceras = data.cabeceras;
+      estadoImport.vistaPrevia = data.vistaPrevia;
+      estadoImport.totalFilas = data.totalFilas;
+      estadoImport.mapeo = {};
+      Object.entries(data.mapeoSugerido || {}).forEach(([campo, info]) => {
+        estadoImport.mapeo[campo] = { ...info, confirmado: false };
+      });
+      estadoImport.validado = false;
+      estadoImport.validacionAbortada = false;
+      renderPasoImport2();
+      renderMapeoTablaImport(data.perfilAplicado);
+      irAPasoImport(2);
+    } catch (err) {
+      mostrarErrorImport('No se pudo conectar con el servidor.');
+    } finally {
+      // actualizarBotonSiguienteImport() (llamado dentro de irAPasoImport en
+      // el camino feliz) ya deja la etiqueta correcta para el paso actual —
+      // restaurar aquí un texto fijo la pisaría de vuelta al label viejo
+      // ("Subir y continuar") justo después de avanzar de paso. Bug real
+      // encontrado en la validación visual (2026-08-25).
+      actualizarBotonSiguienteImport();
+    }
+  }
+
+  // ---------- Paso 2: hoja y vista previa ----------
+
+  function renderPasoImport2() {
+    const multiHoja = Array.isArray(estadoImport.hojas) && estadoImport.hojas.length > 1;
+    els.invImportHojaField.hidden = !multiHoja;
+    if (multiHoja) {
+      els.invImportHojaSelect.innerHTML = estadoImport.hojas
+        .map((h) => `<option value="${escapeHtml(h)}" ${h === estadoImport.hojaSeleccionada ? 'selected' : ''}>${escapeHtml(h)}</option>`)
+        .join('');
+    }
+    els.invImportInfoArchivo.textContent = `${estadoImport.archivo ? estadoImport.archivo.name : 'Archivo'} — ${estadoImport.totalFilas} fila(s) de datos, ${estadoImport.cabeceras.length} columna(s).`;
+    els.invImportPreviewThead.innerHTML = `<tr>${estadoImport.cabeceras.map((c) => `<th>${escapeHtml(String(c))}</th>`).join('')}</tr>`;
+    els.invImportPreviewTbody.innerHTML = estadoImport.vistaPrevia
+      .map((fila) => `<tr>${estadoImport.cabeceras.map((_, idx) => `<td>${escapeHtml(fila[idx] === undefined ? '' : String(fila[idx]))}</td>`).join('')}</tr>`)
+      .join('') || `<tr><td colspan="${estadoImport.cabeceras.length || 1}">Sin filas de datos.</td></tr>`;
+  }
+
+  async function cambiarHojaImport() {
+    if (!estadoImport.archivo) return;
+    await subirArchivoImport(estadoImport.archivo, els.invImportHojaSelect.value);
+  }
+
+  // ---------- Paso 3: mapear cabeceras ----------
+
+  function renderMapeoTablaImport(perfilAplicado) {
+    if (perfilAplicado) {
+      els.invImportPerfilAviso.hidden = false;
+      els.invImportPerfilAviso.textContent = perfilAplicado.coincidenciaCompleta
+        ? `Se aplicó tu perfil «${perfilAplicado.nombre}» — revisa y continúa.`
+        : `Se aplicó parcialmente tu perfil «${perfilAplicado.nombre}» (algunas columnas no coinciden) — revisa el resto.`;
+    } else {
+      els.invImportPerfilAviso.hidden = true;
+    }
+
+    const filasHtml = INV_IMPORT_CAMPOS.map((c) => {
+      const asignacion = estadoImport.mapeo[c.campo];
+      const columnaIdx = asignacion ? asignacion.columnaIndice : '';
+      const opciones = ['<option value="">— Sin mapear —</option>']
+        .concat(
+          estadoImport.cabeceras.map(
+            (cab, idx) => `<option value="${idx}" ${idx === columnaIdx ? 'selected' : ''}>${escapeHtml(String(cab))}</option>`
+          )
+        )
+        .join('');
+      const previewValores = columnaIdx !== '' && estadoImport.vistaPrevia.length > 0
+        ? estadoImport.vistaPrevia
+          .slice(0, 3)
+          .map((fila) => fila[columnaIdx])
+          .filter((v) => v !== undefined && v !== '')
+          .join(', ')
+        : '—';
+      const badge = asignacion ? (INV_IMPORT_CONFIANZA[asignacion.confianza] || INV_IMPORT_CONFIANZA.manual) : { texto: 'Sin mapear', clase: 'estatus-neutro' };
+      const necesitaConfirmar = asignacion && asignacion.requiereConfirmacion && !asignacion.confirmado;
+      return `
+        <tr>
+          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}</td>
+          <td><select class="inv-import-mapeo-select" data-campo="${c.campo}" aria-label="Columna para ${escapeHtml(c.etiqueta)}">${opciones}</select></td>
+          <td class="inv-import-mapeo-preview" title="${escapeHtml(previewValores)}">${escapeHtml(previewValores)}</td>
+          <td>
+            <span class="estatus-badge ${badge.clase}">${escapeHtml(badge.texto)}</span>
+            ${necesitaConfirmar ? `<label class="inv-import-confirmar"><input type="checkbox" class="inv-import-confirmar-check" data-campo="${c.campo}" /> Confirmo</label>` : ''}
+          </td>
+        </tr>`;
+    }).join('');
+    els.invImportMapeoBody.innerHTML = filasHtml;
+    actualizarCoberturaImport();
+  }
+
+  function actualizarCoberturaImport() {
+    const obligatorios = INV_IMPORT_CAMPOS.filter((c) => c.obligatorio);
+    const opcionales = INV_IMPORT_CAMPOS.filter((c) => !c.obligatorio);
+    const cubiertosObligatorios = obligatorios.filter((c) => estadoImport.mapeo[c.campo]).length;
+    const cubiertosOpcionales = opcionales.filter((c) => estadoImport.mapeo[c.campo]).length;
+    els.invImportCobertura.textContent = `Obligatorios cubiertos: ${cubiertosObligatorios}/${obligatorios.length} · Opcionales: ${cubiertosOpcionales}/${opcionales.length}`;
+    actualizarBotonSiguienteImport();
+  }
+
+  function manejarCambioMapeoImport(e) {
+    if (e.target.classList.contains('inv-import-mapeo-select')) {
+      const campo = e.target.dataset.campo;
+      const val = e.target.value;
+      if (val !== '') {
+        const idx = Number(val);
+        // Un campo recibe a lo más una columna (34.3 regla 1) — si otro
+        // campo ya usaba esta columna, se desasigna.
+        Object.keys(estadoImport.mapeo).forEach((otroCampo) => {
+          if (otroCampo !== campo && estadoImport.mapeo[otroCampo] && estadoImport.mapeo[otroCampo].columnaIndice === idx) {
+            delete estadoImport.mapeo[otroCampo];
+          }
+        });
+        const def = INV_IMPORT_CAMPOS.find((c) => c.campo === campo);
+        estadoImport.mapeo[campo] = {
+          columnaIndice: idx,
+          confianza: 'manual',
+          esObligatorio: def ? def.obligatorio : false,
+          requiereConfirmacion: false,
+          confirmado: true,
+        };
+      } else {
+        delete estadoImport.mapeo[campo];
+      }
+      estadoImport.validado = false;
+      renderMapeoTablaImport(null);
+    } else if (e.target.classList.contains('inv-import-confirmar-check')) {
+      const campo = e.target.dataset.campo;
+      if (estadoImport.mapeo[campo]) estadoImport.mapeo[campo].confirmado = e.target.checked;
+      actualizarCoberturaImport();
+    }
+  }
+
+  function avanzarDesdePasoImport3() {
+    els.invImportNombrePerfilField.hidden = !els.invImportGuardarPerfil.checked;
+    irAPasoImport(4);
+  }
+
+  // ---------- Paso 4: validación ----------
+
+  function mapeoFinalParaEnviar() {
+    const mapeoFinal = {};
+    Object.entries(estadoImport.mapeo).forEach(([campo, info]) => {
+      mapeoFinal[campo] = info.columnaIndice;
+    });
+    return mapeoFinal;
+  }
+
+  async function validarImportacion() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    const modoInput = document.querySelector('input[name="inv-import-modo"]:checked');
+    estadoImport.modo = modoInput ? modoInput.value : 'tolerante';
+    const body = {
+      mapeo: mapeoFinalParaEnviar(),
+      modo: estadoImport.modo,
+      sobrescribirVacios: els.invImportSobrescribirVacios.checked,
+      conservarExtra: els.invImportConservarExtra.checked,
+      guardarPerfil: els.invImportGuardarPerfil.checked,
+      nombrePerfil: els.invImportNombrePerfil.value,
+    };
+    els.btnInvImportSiguiente.disabled = true;
+    els.btnInvImportSiguiente.textContent = 'Validando…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/importaciones/${estadoImport.importacionId}/mapeo`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok && !data.estado) {
+        mostrarErrorImport(data.error || 'No se pudo validar el archivo.');
+        return;
+      }
+      estadoImport.validado = true;
+      estadoImport.validacionAbortada = Boolean(data.abortado);
+      estadoImport.productosNuevosEstimado = data.productosNuevosEstimado;
+      estadoImport.productosActualizarEstimado = data.productosActualizarEstimado;
+      renderResultadoValidacionImport(data);
+      actualizarBotonSiguienteImport();
+    } catch (err) {
+      mostrarErrorImport('No se pudo conectar con el servidor.');
+    } finally {
+      if (!estadoImport.validado) {
+        els.btnInvImportSiguiente.disabled = false;
+        els.btnInvImportSiguiente.textContent = 'Validar archivo';
+      }
+    }
+  }
+
+  function renderResultadoValidacionImport(data) {
+    els.invImportResultadoValidacion.hidden = false;
+    if (data.abortado) {
+      els.invImportValidacionResumen.textContent = `Se abortó la validación (modo estricto): ${data.motivoAborto || 'error en una fila'}. Corrige el archivo o cambia a modo tolerante.`;
+    } else {
+      els.invImportValidacionResumen.textContent = `${data.filasOk} de ${data.totalFilas} fila(s) válida(s)${data.filasError > 0 ? `, ${data.filasError} con error` : ''}.`;
+    }
+    const errores = data.erroresPreview || [];
+    els.invImportErroresBody.innerHTML = errores.length > 0
+      ? errores.map((e) => `<tr><td>${e.fila}</td><td>${escapeHtml(e.columna || '')}</td><td>${escapeHtml(e.valor || '')}</td><td>${escapeHtml(e.motivo)}</td></tr>`).join('')
+      : '<tr><td colspan="4">Sin errores.</td></tr>';
+    els.btnInvImportDescargarErrores.hidden = data.filasError === 0;
+  }
+
+  async function descargarErroresImport() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/importaciones/${estadoImport.importacionId}/errores.csv`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) {
+        showToast('No se pudo descargar el archivo de errores.', true);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `errores-importacion-${estadoImport.importacionId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  // ---------- Paso 5: ejecutar ----------
+
+  function avanzarDesdePasoImport4() {
+    if (estadoImport.validacionAbortada) return;
+    els.invImportConfirmacionEjecutar.textContent =
+      `Se importarán ${estadoImport.productosNuevosEstimado} producto(s) nuevo(s) y se actualizarán ${estadoImport.productosActualizarEstimado} existente(s).`;
+    els.invImportProgresoEjecucion.hidden = true;
+    irAPasoImport(5);
+  }
+
+  async function ejecutarImportacionUI() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.btnInvImportSiguiente.disabled = true;
+    els.btnInvImportAtras.hidden = true;
+    els.btnInvImportSiguiente.textContent = 'Ejecutando…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/importaciones/${estadoImport.importacionId}/ejecutar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Idempotency-Key': `imp-${estadoImport.importacionId}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        mostrarErrorImport(data.mensaje || data.error || 'No se pudo ejecutar la importación.');
+        els.btnInvImportSiguiente.disabled = false;
+        els.btnInvImportSiguiente.textContent = 'Ejecutar importación';
+        return;
+      }
+      if (data.estado === 'completada') {
+        mostrarResultadoFinalImport(data);
+        return;
+      }
+      // >500 filas: job en segundo plano — poll cada 2s (§34.8).
+      els.invImportProgresoEjecucion.hidden = false;
+      els.invImportProgresoTexto.textContent = `Procesando… ${data.totalFilas || ''} fila(s) en curso.`;
+      estadoImport.polling = setInterval(() => pollImportacionEjecucion(authHeader), 2000);
+    } catch (err) {
+      mostrarErrorImport('No se pudo conectar con el servidor.');
+      els.btnInvImportSiguiente.disabled = false;
+      els.btnInvImportSiguiente.textContent = 'Ejecutar importación';
+    }
+  }
+
+  async function pollImportacionEjecucion(authHeader) {
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/importaciones/${estadoImport.importacionId}`, {
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      if (data.estado === 'ejecutando') {
+        els.invImportProgresoTexto.textContent = `Procesando… ${data.progreso || 0}%`;
+        return;
+      }
+      clearInterval(estadoImport.polling);
+      estadoImport.polling = null;
+      if (data.estado === 'completada') {
+        mostrarResultadoFinalImport(data);
+      } else {
+        mostrarErrorImport('La importación terminó con un error inesperado. Revisa el registro del servidor.');
+        els.btnInvImportSiguiente.disabled = false;
+        els.btnInvImportSiguiente.textContent = 'Ejecutar importación';
+      }
+    } catch (err) {
+      // Un fallo transitorio de red al hacer polling no cancela el job en
+      // el servidor — simplemente se reintenta en el siguiente tick.
+    }
+  }
+
+  // ---------- Paso 6: resultado ----------
+
+  function mostrarResultadoFinalImport(data) {
+    els.invImportResultadoTexto.textContent =
+      `Importación completada: ${data.productos_creados} producto(s) nuevo(s), ${data.productos_actualizados} actualizado(s)` +
+      (data.existencias_iniciales_ignoradas ? `, ${data.existencias_iniciales_ignoradas} existencia(s) inicial(es) ignorada(s) por re-importación` : '') +
+      (data.errores_ejecucion ? `, ${data.errores_ejecucion} error(es) durante la ejecución` : '') +
+      '.';
+    irAPasoImport(6);
+    cargarInventarios();
+    cargarDashboardInventario();
+  }
+
+  // ---------- Descargar plantilla ----------
+
+  async function descargarPlantillaImport(formato) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/importaciones/plantilla.${formato}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) {
+        showToast('No se pudo descargar la plantilla.', true);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `plantilla-inventarios.${formato}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  // ---------- Navegación del wizard ----------
+
+  function manejarSiguienteImport() {
+    switch (estadoImport.paso) {
+      case 1:
+        avanzarDesdePasoImport1();
+        break;
+      case 2:
+        irAPasoImport(3);
+        break;
+      case 3:
+        avanzarDesdePasoImport3();
+        break;
+      case 4:
+        if (estadoImport.validado && !estadoImport.validacionAbortada) {
+          avanzarDesdePasoImport4();
+        } else {
+          validarImportacion();
+        }
+        break;
+      case 5:
+        ejecutarImportacionUI();
+        break;
+      default:
+        break;
+    }
+  }
+
+  function manejarAtrasImport() {
+    if (estadoImport.paso > 1) irAPasoImport(estadoImport.paso - 1);
+  }
+
   // ---------- Enlaces de eventos ----------
 
   if (els.btnVerInvActivos) els.btnVerInvActivos.addEventListener('click', () => cambiarVistaInventarios('activos'));
@@ -9280,6 +9904,22 @@
     });
   if (els.btnInvVerificarIntegridad) els.btnInvVerificarIntegridad.addEventListener('click', verificarIntegridadInv);
   if (els.btnNuevoProducto) els.btnNuevoProducto.addEventListener('click', () => abrirProductoModal(null));
+  if (els.btnInvImportar) els.btnInvImportar.addEventListener('click', abrirImportacionModal);
+  if (els.btnInvImportacionCerrar) els.btnInvImportacionCerrar.addEventListener('click', cerrarImportacionModal);
+  if (els.btnInvImportCancelar) els.btnInvImportCancelar.addEventListener('click', cerrarImportacionModal);
+  if (els.btnInvImportOtra) els.btnInvImportOtra.addEventListener('click', abrirImportacionModal);
+  if (els.btnInvImportTerminar) els.btnInvImportTerminar.addEventListener('click', cerrarImportacionModal);
+  if (els.btnInvImportSiguiente) els.btnInvImportSiguiente.addEventListener('click', manejarSiguienteImport);
+  if (els.btnInvImportAtras) els.btnInvImportAtras.addEventListener('click', manejarAtrasImport);
+  if (els.btnInvImportPlantillaCsv) els.btnInvImportPlantillaCsv.addEventListener('click', () => descargarPlantillaImport('csv'));
+  if (els.btnInvImportPlantillaXlsx) els.btnInvImportPlantillaXlsx.addEventListener('click', () => descargarPlantillaImport('xlsx'));
+  if (els.invImportHojaSelect) els.invImportHojaSelect.addEventListener('change', cambiarHojaImport);
+  if (els.invImportMapeoBody) els.invImportMapeoBody.addEventListener('change', manejarCambioMapeoImport);
+  if (els.invImportGuardarPerfil)
+    els.invImportGuardarPerfil.addEventListener('change', () => {
+      els.invImportNombrePerfilField.hidden = !els.invImportGuardarPerfil.checked;
+    });
+  if (els.btnInvImportDescargarErrores) els.btnInvImportDescargarErrores.addEventListener('click', descargarErroresImport);
   if (els.invFiltroCategoria) els.invFiltroCategoria.addEventListener('change', () => cargarInventarios());
   if (els.invFiltroEstado) els.invFiltroEstado.addEventListener('change', () => cargarInventarios());
   if (els.invFiltroTipo) els.invFiltroTipo.addEventListener('change', () => cargarInventarios());

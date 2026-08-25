@@ -8951,6 +8951,116 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       confirmación explícita del usuario primero, mismo protocolo
       `addv-web-app`.
 
+      **Actualización — el segmento 5 SÍ se commiteó y pusheó** (commit
+      `65c9eec` → `fact/master`) tras confirmación explícita del usuario.
+      Ver el punto 143 para el segmento 6 (wizard frontend), completado
+      en la misma sesión.
+
+ 143. **Importador masivo CSV/XLSX — Segmento 6: wizard de 6 pasos en el
+      frontend (2026-08-25, `inventarios.md` §34.2). IMPLEMENTADO Y
+      VALIDADO en navegador real de punta a punta.** Continúa el
+      Segmento 5 (motor + API, punto 142, ya commiteado en `65c9eec`).
+
+      **Archivos modificados** (sin archivos nuevos — todo dentro de los
+      3 archivos ya establecidos del panel admin):
+      - `frontend/admin.html` — modal `#inv-importacion-modal-overlay`
+        (reusa `.modal-overlay`/`.gastos-modal-header`, patrón ya
+        establecido) con indicador de progreso de 6 pasos siempre
+        visible (`<ol class="inv-import-progreso">`, a diferencia del
+        wizard de Ventas que solo existe en móvil — 34.2 lo pide como
+        flujo permanente), botón "Importar catálogo" nuevo en la
+        barra de Inventarios.
+      - `frontend/admin.css` — `.inv-importacion-modal`/
+        `.inv-import-progreso`/`.inv-import-mapeo-tabla`/etc., más
+        `.btn-link` (nuevo, genérico — botón de texto sin fondo para
+        las plantillas descargables, reusable a futuro) y
+        `.estatus-neutro` (badge gris "Sin mapear", falta que tenía la
+        familia `.estatus-badge` existente).
+      - `frontend/admin.js` — ~650 líneas: `INV_IMPORT_CAMPOS` (catálogo
+        de 20 campos duplicado a propósito, mismo criterio que el
+        diccionario de categorías de Gastos — backend/frontend no
+        comparten build), estado `estadoImport` de todo el wizard,
+        `sugerirMapeoCompleto`-consumer (`renderMapeoTablaImport`,
+        `manejarCambioMapeoImport` — "un campo recibe a lo más una
+        columna" reforzado también en el cliente al reasignar),
+        subida multipart (`subirArchivoImport`), validación
+        (`validarImportacion`), ejecución con polling cada 2s para el
+        camino asíncrono >500 filas (`ejecutarImportacionUI`/
+        `pollImportacionEjecucion`), descarga de plantilla/errores
+        (mismo patrón fetch+blob+`<a download>` que
+        `descargarComprobante()`).
+      - `backend/server.js` — pequeño complemento al Segmento 5:
+        `PUT .../mapeo` ahora calcula `productosNuevosEstimado`/
+        `productosActualizarEstimado` (cuenta SKUs ya existentes) para
+        que el paso 5 muestre la confirmación explícita que pide 34.2
+        ("Se importarán X productos nuevos y se actualizarán Y
+        existentes") antes de ejecutar.
+
+      **2 bugs reales encontrados y corregidos en la validación visual
+      (ninguno detectable con `node --check`/Jest mockeado)**:
+      1. El botón "Siguiente" no cambiaba de texto al pasar del paso 1
+         al 2 — el bloque `finally` de `subirArchivoImport()` restauraba
+         el label VIEJO ("Subir y continuar") justo después de que
+         `irAPasoImport(2)` ya había puesto el correcto
+         ("Continuar al mapeo"), porque `finally` corre después de
+         cualquier `return` dentro del `try`. Fix: el `finally` llama a
+         `actualizarBotonSiguienteImport()` (que deriva el label del
+         paso ACTUAL) en vez de restaurar un texto capturado al inicio
+         de la función.
+      2. **El upsert por SKU (motor del segmento 5) no revivía productos
+         en papelera**: `uq_productos_sku` no distingue `eliminado_en`,
+         así que re-importar un SKU que estaba en la papelera SÍ lo
+         encontraba y actualizaba sus campos, pero nunca limpiaba
+         `eliminado_en` — el producto quedaba con datos frescos pero
+         seguía invisible en "Activos". Encontrado al importar dos
+         productos de prueba que habían quedado en papelera de una
+         sesión anterior: el resultado decía "2 actualizados" pero el
+         contador de "Productos activos" no subió. Fix en
+         `backend/utils/inventarioImportacion.js`
+         (`procesarFilaImportacion`): si `productoExistente.eliminado_en`
+         no es null, el UPDATE agrega `eliminado_en = NULL`. Este bug
+         vive en el motor del Segmento 5, no en el frontend — se
+         corrigió aquí porque solo se hizo evidente al probar el flujo
+         completo con datos reales en vez de un archivo siempre-nuevo.
+
+      **Validación real de punta a punta en navegador (Claude in Chrome,
+      tras un tramo de la sesión sin conexión — reconectada a petición
+      del usuario)**: login → Inventarios → "Importar catálogo" → CSV
+      con cabeceras en sinónimos y delimitador `;` real → auto-mapeo
+      visible con badges correctos (Reconocido/Exacto) y cobertura
+      "3/3 obligatorios · 3/17 opcionales" → validación "2 de 2 fila(s)
+      válida(s), sin errores" → confirmación "se importarán 0 nuevos,
+      se actualizarán 2 existentes" → ejecución → resultado → **verificado
+      por API que los 2 productos salieron de la papelera con su
+      existencia intacta (15/8)** tras el fix del bug #2 → consola sin
+      errores. **Gotcha de metodología, ya documentado en el proyecto,
+      reencontrado aquí**: tras el primer rebuild de `frontend`, el botón
+      "Importar catálogo" no existía en el DOM pese a estar en el HTML
+      servido — caché de disco del navegador con el HTML viejo,
+      `Ctrl+Shift+R` lo resolvió (mismo patrón que puntos 108/117).
+      Limpieza tras la prueba: productos de prueba devueltos a papelera,
+      `imp_importaciones`/`imp_importacion_errores`/`inv_perfiles_mapeo`
+      vaciadas, archivos de MinIO borrados y confirmados en 0,
+      `inventario_activo` regresado a `'0'`. Jest backend 693/693,
+      `verificar-mysql.js` 305/305, `verificar-inventario.js` 19/19.
+
+      **Nota de UX no bloqueante, no corregida por tiempo**: la barra de
+      navegación del wizard (Cancelar/Atrás/Siguiente) no tiene posición
+      fija al fondo del modal — en un paso con tabla larga (paso 3, 20
+      filas de mapeo) el usuario tiene que hacer scroll hasta el fondo
+      del modal para verla, en vez de quedar anclada. Funciona
+      correctamente (confirmado con clics reales), solo no es la
+      experiencia ideal — candidato a pulido visual futuro con su propia
+      propuesta antes/después, no se tocó en este segmento.
+
+      **Con esto, el segmento "Importador masivo CSV/XLSX" (§34 completo:
+      motor, API y wizard) queda funcionalmente completo**, salvo: (1) el
+      camino asíncrono >500 filas nunca se probó en vivo (solo por
+      revisión de código, ver punto 142), y (2) la página de ayuda §56
+      (Segmento 8, diccionario de datos) sigue sin código. Sin
+      commitear al cierre de este punto — pedir confirmación explícita
+      antes de commit/push, mismo protocolo `addv-web-app`.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

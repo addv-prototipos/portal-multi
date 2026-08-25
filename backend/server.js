@@ -6506,6 +6506,21 @@ app.put(
       res.locals.perfilGuardado = perfil;
     }
 
+    // Confirmación explícita antes de ejecutar (§34.2: "Se importarán X
+    // productos nuevos y se actualizarán Y existentes") — estimado contra
+    // el catálogo actual; puede desactualizarse si otra sesión da de alta
+    // el mismo SKU entre este cálculo y el ejecutar real, sin consecuencia
+    // real porque el upsert de ejecutarFilasImportacion() decide de nuevo
+    // en ese momento, esto es solo texto informativo para el usuario.
+    let productosNuevosEstimado = resultado.filasValidas.length;
+    let productosActualizarEstimado = 0;
+    if (resultado.filasValidas.length > 0) {
+      const skus = resultado.filasValidas.map((f) => f.sku);
+      const [existentes] = await pool.query('SELECT COUNT(*) AS total FROM productos WHERE sku IN (?)', [skus]);
+      productosActualizarEstimado = existentes[0].total;
+      productosNuevosEstimado = resultado.filasValidas.length - productosActualizarEstimado;
+    }
+
     res.json({
       ok: !resultado.abortado,
       estado: nuevoEstado,
@@ -6516,6 +6531,8 @@ app.put(
       motivoAborto: resultado.motivoAborto,
       erroresPreview: resultado.errores.slice(0, 50),
       perfilGuardado: res.locals.perfilGuardado || null,
+      productosNuevosEstimado,
+      productosActualizarEstimado,
     });
   })
 );

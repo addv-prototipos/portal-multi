@@ -1185,6 +1185,7 @@
             <span class="admin-count" id="inv-productos-count">0 productos</span>
             <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" title="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
             <button type="button" class="btn btn-secondary" id="btn-refresh-inventarios">Actualizar</button>
+            <button type="button" class="btn btn-secondary" id="btn-inv-importar">Importar catálogo</button>
             <button type="button" class="btn btn-primary" id="btn-nuevo-producto">+ Nuevo producto</button>
           </div>
         </div>
@@ -3029,6 +3030,141 @@
           <tbody id="inv-kardex-table-body"></tbody>
         </table>
         <p class="admin-empty" id="inv-kardex-empty" hidden>Este producto todavía no tiene movimientos.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Importador masivo CSV/XLSX (inventarios.md §34, segmento 6) — wizard
+       de 6 pasos, siempre visible en escritorio/tablet (a diferencia del
+       wizard de Ventas, que solo aparece en móvil). -->
+  <div class="modal-overlay" id="inv-importacion-modal-overlay" hidden>
+    <div class="modal inv-importacion-modal" role="dialog" aria-modal="true" aria-labelledby="inv-importacion-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="inv-importacion-modal-title">Importar catálogo</h2>
+        <button type="button" class="btn-icon" id="btn-inv-importacion-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+
+      <ol class="inv-import-progreso" id="inv-import-progreso" aria-label="Progreso de la importación">
+        <li data-paso="1">1. Subir archivo</li>
+        <li data-paso="2">2. Hoja y vista previa</li>
+        <li data-paso="3">3. Mapear cabeceras</li>
+        <li data-paso="4">4. Validación</li>
+        <li data-paso="5">5. Ejecutar</li>
+        <li data-paso="6">6. Resultado</li>
+      </ol>
+
+      <p class="field-error" id="inv-import-error-general" role="alert" hidden></p>
+
+      <div class="inv-import-cuerpo">
+        <div class="inv-import-paso" data-paso="1" id="inv-import-paso-1">
+          <h3 class="inv-import-paso-titulo" id="inv-import-paso-1-titulo" tabindex="-1">Subir archivo</h3>
+          <p class="field-hint">Acepta CSV o XLSX. Cabeceras desordenadas o con nombres distintos se auto-mapean solas en el siguiente paso.</p>
+          <div class="inv-import-plantillas">
+            <span>¿Catálogo nuevo? Empieza con la plantilla:</span>
+            <button type="button" class="btn-link" id="btn-inv-import-plantilla-csv">Descargar CSV</button>
+            <button type="button" class="btn-link" id="btn-inv-import-plantilla-xlsx">Descargar XLSX</button>
+          </div>
+          <div class="field">
+            <label for="inv-import-preset">¿De qué sistema exportaste este archivo? (opcional)</label>
+            <select id="inv-import-preset">
+              <option value="otro">Otro / no sé</option>
+              <option value="contpaqi">CONTPAQi</option>
+              <option value="aspel">Aspel SAE/COI</option>
+              <option value="excel_generico">Excel genérico / plantilla ADDV</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="inv-import-archivo">Archivo (CSV o XLSX)</label>
+            <input type="file" id="inv-import-archivo" accept=".csv,.xlsx" />
+          </div>
+        </div>
+
+        <div class="inv-import-paso" data-paso="2" id="inv-import-paso-2">
+          <h3 class="inv-import-paso-titulo" id="inv-import-paso-2-titulo" tabindex="-1">Hoja y vista previa</h3>
+          <div class="field" id="inv-import-hoja-field" hidden>
+            <label for="inv-import-hoja-select">Hoja del libro</label>
+            <select id="inv-import-hoja-select"></select>
+          </div>
+          <p class="field-hint" id="inv-import-info-archivo"></p>
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="inv-import-preview-tabla">
+              <thead id="inv-import-preview-thead"></thead>
+              <tbody id="inv-import-preview-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="inv-import-paso" data-paso="3" id="inv-import-paso-3">
+          <h3 class="inv-import-paso-titulo" id="inv-import-paso-3-titulo" tabindex="-1">Mapear cabeceras</h3>
+          <p class="field-hint" id="inv-import-perfil-aviso" hidden></p>
+          <p class="inv-import-mapeo-mobile-aviso" id="inv-import-mapeo-mobile-aviso">Para mapear cabeceras con comodidad, te recomendamos continuar desde una pantalla más grande (tablet horizontal o escritorio).</p>
+          <p class="inv-import-cobertura" id="inv-import-cobertura" aria-live="polite"></p>
+          <div class="admin-table-wrap">
+            <table class="admin-table inv-import-mapeo-tabla">
+              <thead>
+                <tr><th>Campo del sistema</th><th>Columna de tu archivo</th><th>Vista previa</th><th>Confianza</th></tr>
+              </thead>
+              <tbody id="inv-import-mapeo-body"></tbody>
+            </table>
+          </div>
+          <div class="field-check">
+            <label><input type="checkbox" id="inv-import-conservar-extra" checked /> Conservar columnas no mapeadas como datos extra</label>
+          </div>
+          <div class="field-check">
+            <label><input type="checkbox" id="inv-import-guardar-perfil" checked /> Guardar este mapeo para la próxima vez</label>
+          </div>
+          <div class="field" id="inv-import-nombre-perfil-field">
+            <label for="inv-import-nombre-perfil">Nombre del perfil</label>
+            <input type="text" id="inv-import-nombre-perfil" placeholder="Ej. Exportación mensual Aspel" maxlength="100" />
+          </div>
+        </div>
+
+        <div class="inv-import-paso" data-paso="4" id="inv-import-paso-4">
+          <h3 class="inv-import-paso-titulo" id="inv-import-paso-4-titulo" tabindex="-1">Validación</h3>
+          <div class="field-check">
+            <label><input type="radio" name="inv-import-modo" value="tolerante" checked /> Tolerante — importa las filas válidas y reporta las demás (recomendado)</label>
+          </div>
+          <div class="field-check">
+            <label><input type="radio" name="inv-import-modo" value="estricto" /> Estricto — un solo error cancela toda la importación</label>
+          </div>
+          <div class="field-check">
+            <label><input type="checkbox" id="inv-import-sobrescribir-vacios" /> Sobrescribir también con valores vacíos (para SKUs que ya existen)</label>
+          </div>
+          <div id="inv-import-resultado-validacion" hidden>
+            <p id="inv-import-validacion-resumen" aria-live="polite"></p>
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead><tr><th>Fila</th><th>Columna</th><th>Valor</th><th>Motivo</th></tr></thead>
+                <tbody id="inv-import-errores-body"></tbody>
+              </table>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-inv-import-descargar-errores" hidden>Descargar errores (CSV)</button>
+          </div>
+        </div>
+
+        <div class="inv-import-paso" data-paso="5" id="inv-import-paso-5">
+          <h3 class="inv-import-paso-titulo" id="inv-import-paso-5-titulo" tabindex="-1">Ejecutar importación</h3>
+          <p id="inv-import-confirmacion-ejecutar" aria-live="polite"></p>
+          <div id="inv-import-progreso-ejecucion" hidden>
+            <p id="inv-import-progreso-texto" aria-live="polite"></p>
+          </div>
+        </div>
+
+        <div class="inv-import-paso" data-paso="6" id="inv-import-paso-6">
+          <h3 class="inv-import-paso-titulo" id="inv-import-paso-6-titulo" tabindex="-1">Resultado</h3>
+          <p id="inv-import-resultado-texto" aria-live="polite"></p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-secondary" id="btn-inv-import-otra">Importar otro archivo</button>
+            <button type="button" class="btn btn-primary" id="btn-inv-import-terminar">Terminar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inv-import-nav" id="inv-import-nav">
+        <button type="button" class="btn btn-secondary" id="btn-inv-import-cancelar">Cancelar</button>
+        <span class="inv-import-nav-spacer"></span>
+        <button type="button" class="btn btn-secondary" id="btn-inv-import-atras" hidden>Atrás</button>
+        <button type="button" class="btn btn-primary" id="btn-inv-import-siguiente">Siguiente</button>
       </div>
     </div>
   </div>
