@@ -9162,6 +9162,60 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       Sin commitear al cierre de este punto — pedir confirmación
       explícita antes de commit/push, mismo protocolo `addv-web-app`.
 
+ 145. **Tooltips de "Resumen financiero" pasados al componente estilizado
+      del panel (2026-08-25, IMPLEMENTADO Y VALIDADO)**: a pedido del
+      usuario ("los tooltips de resumen financiero siguen simples, no
+      como los de tickets o constancias") — 3 puntos usaban el tooltip
+      NATIVO del navegador (globo gris sin estilo) en vez del componente
+      `.tooltip-personalizado` ya establecido (`inicializarTooltips()`,
+      activado por el atributo `data-tooltip`, usado en el resto del
+      panel desde antes de este segmento): los puntos de la gráfica
+      "Balance acumulado" y "Proyección de ventas" (`<title>` SVG hijo
+      del `<circle>`) y el nombre de proveedor truncado en "Top
+      proveedores de gasto" (atributo `title` HTML). Fix: se reemplazan
+      los 3 por `data-tooltip` en `frontend/admin.js`
+      (`renderResumenFinUtilidadMensual`/`renderResumenFinProyeccion`/
+      `renderResumenFinProveedores`); el nombre de proveedor gana
+      `tabindex="0"` para que también sea alcanzable por teclado (el
+      sistema de tooltips ya escucha `focusin`/`focusout`, no solo
+      mouse). Cero cambios de backend. Validado en navegador real: el
+      atributo `data-tooltip` se genera con el texto correcto y, al
+      disparar el hover, aparece el mismo globo oscuro estilizado que ya
+      usan Tickets/Constancias (confirmado visualmente sobre "Prestaciones
+      de per..." → "Prestaciones de personal"). Jest backend 702/702
+      (sin cambios, segmento 100% frontend). Sin commitear.
+
+ 146. **Validación en vivo del camino asíncrono >500 filas del importador
+      (2026-08-25, cierra el pendiente del punto 142)**: CSV real de 520
+      filas (`sku,nombre,unidad_base,precio,existencia_inicial`, 100%
+      mapeo exacto) subido y ejecutado contra Docker/MySQL/MinIO reales
+      por API. `POST .../ejecutar` respondió **202 Accepted** con
+      `estado:"ejecutando"` de inmediato (no bloqueó la petición); el
+      primer poll de `GET .../:id` (2s después) ya mostró
+      `estado:"completada", progreso:100` — el job en segundo plano
+      (`reanudarContextoTenant` + `ejecutarFilasImportacion`) procesó las
+      520 filas en menos de 2 segundos. Verificado contra MySQL real con
+      SQL directo: **520 productos creados, 494 movimientos de tipo
+      "inventario_inicial"** (las 26 filas con `existencia_inicial=0`,
+      múltiplos de 20 en el generador de datos, correctamente NO generan
+      movimiento — regla ya existente, confirmada aquí con datos reales)
+      y **suma total de existencias = 4940**, que coincide exactamente
+      con la suma matemática esperada (26 bloques de 0+1+...+19=190 cada
+      uno). Sin bugs encontrados — el diseño del segmento 5 (job
+      asíncrono vía `res.status(202)` + reentrada al contexto del tenant)
+      se sostuvo tal cual bajo carga real. Limpieza: 520 productos + sus
+      movimientos/existencias borrados por SQL directo (tenían
+      movimientos, no elegibles para el borrado permanente normal del
+      panel — §38), `imp_importaciones` vaciada, MinIO confirmado en 0,
+      `inventario_activo` regresado a `'0'`. `verificar-mysql.js`
+      305/305, `verificar-inventario.js` 19/19.
+
+      **Con esto, el único pendiente real que quedaba del plan de
+      `inventarios.md` (segmentos 1-8) es la entrada 3 de §56.2 (tooltips
+      en "Crear producto"), deliberadamente pospuesta.** Sin
+      commitear (puntos 145 y 146) — pedir confirmación explícita antes
+      de commit/push, mismo protocolo `addv-web-app`.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

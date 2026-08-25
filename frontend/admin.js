@@ -7148,9 +7148,11 @@
           ? `resumen-fin-linea-punto resumen-fin-linea-punto-${esPositiva ? 'positiva' : 'negativa'}`
           : 'resumen-fin-linea-punto resumen-fin-linea-punto-fantasma'
       );
-      const titulo = document.createElementNS(SVG_NS, 'title');
-      titulo.textContent = `${serie[i].mes}: $${formatearMoneda(valores[i])}`;
-      circle.appendChild(titulo);
+      // data-tooltip (no <title> nativo) para usar el tooltip estilizado
+      // del panel (mismo componente de Tickets/Constancias, ver
+      // inicializarTooltips() en admin.js) en vez del globo gris sin
+      // estilo del navegador.
+      circle.setAttribute('data-tooltip', `${serie[i].mes}: $${formatearMoneda(valores[i])}`);
       svg.appendChild(circle);
 
       // Cifra compacta SOLO en los puntos clave (primero/último/máximo/
@@ -7224,9 +7226,10 @@
           ? `resumen-fin-linea-punto ${esProyectado ? 'resumen-fin-linea-punto-proyeccion' : 'resumen-fin-linea-punto-ventas'}`
           : 'resumen-fin-linea-punto resumen-fin-linea-punto-fantasma'
       );
-      const titulo = document.createElementNS(SVG_NS, 'title');
-      titulo.textContent = `${meses[i]}${esProyectado ? ' (proyectado)' : ''}: $${formatearMoneda(valores[i])}`;
-      circle.appendChild(titulo);
+      // data-tooltip (no <title> nativo) — mismo motivo que el punto de
+      // "Balance acumulado" arriba: tooltip estilizado del panel en vez
+      // del globo gris sin estilo del navegador.
+      circle.setAttribute('data-tooltip', `${meses[i]}${esProyectado ? ' (proyectado)' : ''}: $${formatearMoneda(valores[i])}`);
       svg.appendChild(circle);
 
       // Cifra compacta SOLO en los puntos clave (primero/último real/
@@ -7370,7 +7373,7 @@
       .map(
         (f) => `
       <li class="resumen-fin-proveedor-fila">
-        <span class="resumen-fin-proveedor-nombre" title="${escapeHtml(f.proveedor)}">${escapeHtml(f.proveedor)}</span>
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.proveedor)}" tabindex="0">${escapeHtml(f.proveedor)}</span>
         <div class="resumen-fin-proveedor-barra-wrap">
           <span class="resumen-fin-proveedor-barra" style="width:${(f.monto / maximo) * 100}%"></span>
         </div>

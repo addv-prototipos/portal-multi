@@ -922,10 +922,22 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   importación) + `GET /api/admin/inventarios/diccionario`. Jest backend
   702/702 (41 suites). Con esto el plan completo de `inventarios.md`
   (segmentos 1-8) queda funcionalmente terminado — pendiente real, no
-  bloqueante: camino asíncrono >500 filas nunca probado en vivo, y
-  tooltips de ayuda en "Crear producto" (3ra entrada de §56.2,
-  deliberadamente pospuesta, confirmado con el usuario). **SIN
-  COMMITEAR** — pedir confirmación explícita antes de commit/push, mismo
+  bloqueante: tooltips de ayuda en "Crear producto" (3ra entrada de
+  §56.2, deliberadamente pospuesta, confirmado con el usuario).
+- **Tooltips de "Resumen financiero" pasados al componente estilizado
+  (2026-08-25, PROJECT_STATE.md punto 145)**: a pedido del usuario, 3
+  puntos que usaban el tooltip nativo del navegador (2 puntos de gráfica
+  de línea + nombre de proveedor truncado) pasaron a `data-tooltip` (el
+  mismo componente ya usado en Tickets/Constancias). Validado
+  visualmente en navegador real. Cero cambios de backend.
+- **Camino asíncrono >500 filas del importador, validado en vivo
+  (2026-08-25, PROJECT_STATE.md punto 146)**: CSV real de 520 filas
+  contra Docker/MySQL/MinIO reales — `POST .../ejecutar` respondió 202
+  de inmediato, completó en <2s, 520 productos + 494 movimientos con
+  conteos matemáticamente exactos verificados por SQL. Sin bugs
+  encontrados. Con esto el único pendiente real del plan de
+  `inventarios.md` es la entrada 3 de §56.2. **SIN COMMITEAR** (puntos
+  145 y 146) — pedir confirmación explícita antes de commit/push, mismo
   protocolo `addv-web-app`.
 
 - **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver
