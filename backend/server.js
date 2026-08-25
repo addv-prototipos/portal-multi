@@ -62,6 +62,9 @@ const {
   ALLOWED_ZIP_EXTENSIONS,
   ALLOWED_COMPROBANTE_MIME_TYPES,
   ALLOWED_COMPROBANTE_EXTENSIONS,
+  ALLOWED_IMPORTACION_MIME_TYPES,
+  ALLOWED_IMPORTACION_EXTENSIONS,
+  esCSVValido,
   detectRealMimeType,
   detectRealImageMimeType,
   esZipValido,
@@ -115,10 +118,29 @@ const {
 } = require('./utils/inventario');
 const {
   obtenerConfigInventario,
+  obtenerValorConfig,
   inventarioActivo,
   setValorConfig,
   CLAVES: CLAVES_CONFIG_INVENTARIO,
 } = require('./utils/inventarioConfig');
+const {
+  sugerirMapeoCompleto,
+  firmaCabeceras,
+  parsearArchivoCSV,
+  listarHojasXLSX,
+  parsearArchivoXLSX,
+  validarFilasImportacion,
+  ejecutarFilasImportacion,
+  listarPerfilesMapeo,
+  crearPerfilMapeo,
+  eliminarPerfilMapeo,
+  buscarPerfilParaCabeceras,
+  marcarPerfilUsado,
+  generarPlantillaCSV,
+  generarPlantillaXLSX,
+  generarCSVErrores,
+  TAMANO_CHUNK,
+} = require('./utils/inventarioImportacion');
 
 const PORT = process.env.PORT || 4000;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 5);
@@ -390,6 +412,25 @@ const uploadComprobante = multer({
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
     if (!ALLOWED_COMPROBANTE_MIME_TYPES.has(file.mimetype) || !ALLOWED_COMPROBANTE_EXTENSIONS.has(ext)) {
+      cb(new Error('TIPO_NO_PERMITIDO'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+// Uploader del archivo de importación masiva de Inventarios (§34): CSV o
+// XLSX. El límite de tamaño real es inv_import_max_mb (configurable por
+// tenant, default 5) — se valida DENTRO del handler porque multer necesita
+// un límite fijo en bytes antes de conocer la config del tenant; aquí se
+// usa el máximo global del backend como techo duro, y el límite real más
+// chico se aplica después de leer el archivo completo.
+const uploadImportacion = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_IMPORTACION_MIME_TYPES.has(file.mimetype) || !ALLOWED_IMPORTACION_EXTENSIONS.has(ext)) {
       cb(new Error('TIPO_NO_PERMITIDO'));
       return;
     }
@@ -5408,6 +5449,79 @@ async function obtenerAlmacenDefectoId() {
   return filas.length > 0 ? filas[0].id : null;
 }
 
+// ---------- Importador masivo CSV/XLSX (§34, segmento 5) ----------
+
+function streamABuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const trozos = [];
+    stream.on('data', (trozo) => trozos.push(trozo));
+    stream.on('end', () => resolve(Buffer.concat(trozos)));
+    stream.on('error', reject);
+  });
+}
+
+function carpetaImportacion(id) {
+  return `inventarios/imports/${id}`;
+}
+
+function nombreArchivoImportacion(formato) {
+  return formato === 'xlsx' ? 'original.xlsx' : 'original.csv';
+}
+
+async function obtenerImportacionOResponder(id, res) {
+  const importacionId = Number(id);
+  if (!Number.isInteger(importacionId)) {
+    res.status(400).json({ error: 'Identificador inválido.' });
+    return null;
+  }
+  const [filas] = await pool.query('SELECT * FROM imp_importaciones WHERE id = ? LIMIT 1', [importacionId]);
+  if (filas.length === 0) {
+    res.status(404).json({ error: 'Importación no encontrada.' });
+    return null;
+  }
+  return filas[0];
+}
+
+function serializarImportacion(fila) {
+  return {
+    id: fila.id,
+    formato: fila.formato,
+    nombre_original: fila.nombre_original,
+    hoja: fila.hoja,
+    fila_encabezados: fila.fila_encabezados,
+    encoding_usado: fila.encoding_usado,
+    cabeceras: fila.cabeceras_json ? (typeof fila.cabeceras_json === 'string' ? JSON.parse(fila.cabeceras_json) : fila.cabeceras_json) : [],
+    mapeo: fila.mapeo_json ? (typeof fila.mapeo_json === 'string' ? JSON.parse(fila.mapeo_json) : fila.mapeo_json) : null,
+    modo_errores: fila.modo_errores,
+    sobrescribir_vacios: Boolean(fila.sobrescribir_vacios),
+    conservar_extra: Boolean(fila.conservar_extra),
+    estado: fila.estado,
+    total_filas: fila.total_filas,
+    filas_ok: fila.filas_ok,
+    filas_error: fila.filas_error,
+    progreso: fila.progreso,
+    productos_creados: fila.productos_creados,
+    productos_actualizados: fila.productos_actualizados,
+    creado_en: fila.creado_en,
+    actualizado_en: fila.actualizado_en,
+  };
+}
+
+// Relee el archivo original desde MinIO y lo vuelve a parsear con los MISMOS
+// parámetros guardados (hoja, fila de encabezados) — el archivo archivado en
+// §34.9 existe justo para esto ("auditoría y reprocesamiento"): ni el mapeo
+// confirmado ni las filas validadas se duplican en MySQL, se reconstruyen
+// bajo demanda cada vez que hacen falta (PUT /mapeo y POST /ejecutar).
+async function releerArchivoImportacion(req, importacion) {
+  const prefijo = storage.prefijoTenant(req);
+  const { stream } = await storage.obtenerArchivo(prefijo, carpetaImportacion(importacion.id), nombreArchivoImportacion(importacion.formato));
+  const buffer = await streamABuffer(stream);
+  if (importacion.formato === 'xlsx') {
+    return parsearArchivoXLSX(buffer, importacion.hoja);
+  }
+  return parsearArchivoCSV(buffer);
+}
+
 // ---------- Configuración (D8/D10, §0.6) — SIN requireInventarioActivo ----------
 
 app.get(
@@ -5582,6 +5696,9 @@ function formatearProducto(p, existenciaDisponible) {
     estado: p.estado,
     proveedor_principal: p.proveedor_principal,
     notas: p.notas,
+    // Datos migrados por el importador masivo (§34.4) que todavía no tienen
+    // campo formal — nunca participa en lógica de negocio, solo consulta.
+    extra: p.extra ? (typeof p.extra === 'string' ? JSON.parse(p.extra) : p.extra) : null,
     creado_en: p.creado_en,
     actualizado_en: p.actualizado_en,
     disponible: existenciaDisponible === undefined || existenciaDisponible === null ? null : Number(existenciaDisponible),
@@ -6129,6 +6246,395 @@ app.get(
       productos_sin_movimiento: Number(sinMovimiento.total),
       mermas_periodo_valor: Number(mermasPeriodo.valor),
       mermas_periodo_cantidad: Number(mermasPeriodo.cantidad),
+    });
+  })
+);
+
+// ---------- Importador masivo — plantilla y perfiles de mapeo (§34.3.2/34.3.4) ----------
+
+app.get(
+  '/api/admin/inventarios/importaciones/plantilla.csv',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla-inventarios.csv"');
+    res.send(generarPlantillaCSV());
+  })
+);
+
+app.get(
+  '/api/admin/inventarios/importaciones/plantilla.xlsx',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const buffer = await generarPlantillaXLSX();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla-inventarios.xlsx"');
+    res.send(Buffer.from(buffer));
+  })
+);
+
+app.get(
+  '/api/admin/inventarios/perfiles-mapeo',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    res.json({ perfiles: await listarPerfilesMapeo() });
+  })
+);
+
+app.delete(
+  '/api/admin/inventarios/perfiles-mapeo/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const eliminado = await eliminarPerfilMapeo(id);
+    if (!eliminado) return res.status(404).json({ error: 'Perfil no encontrado.' });
+    res.json({ ok: true, mensaje: 'Perfil de mapeo eliminado.' });
+  })
+);
+
+// ---------- Importador masivo — subir, mapear, validar, ejecutar (§34) ----------
+
+// Sube el archivo, lo parsea y sugiere el mapeo (34.3.1: perfil guardado →
+// preset → exacto → sinónimo → difuso). No importa nada todavía — el
+// resultado es solo la vista previa del paso 3 del wizard.
+app.post(
+  '/api/admin/inventarios/importaciones',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  (req, res) => {
+    subirConTenant(uploadImportacion, 'archivo', req, res, async (err) => {
+      try {
+        if (err) {
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({ error: `El archivo excede el tamaño máximo permitido de ${MAX_FILE_SIZE_MB} MB.` });
+          }
+          if (err.message === 'TIPO_NO_PERMITIDO') {
+            return res.status(400).json({ error: 'Solo se acepta un archivo CSV o XLSX.' });
+          }
+          console.error('Error al subir el archivo de importación:', err);
+          return res.status(400).json({ error: 'No se pudo procesar el archivo.' });
+        }
+        if (!req.file) return res.status(400).json({ error: 'Debes adjuntar un archivo.' });
+
+        // Solo una importación EJECUTÁNDOSE a la vez por tenant (§34.9) — el
+        // riesgo real de concurrencia está en la fase de escritura masiva,
+        // no en subir/previsualizar un archivo nuevo mientras otro sigue en
+        // borrador sin ejecutar.
+        const [enCurso] = await pool.query("SELECT id FROM imp_importaciones WHERE estado = 'ejecutando' LIMIT 1");
+        if (enCurso.length > 0) {
+          return res.status(409).json({ error: 'INV_IMPORTACION_EN_CURSO', mensaje: 'Ya hay una importación ejecutándose; espera a que termine antes de iniciar otra.' });
+        }
+
+        const maxMb = Number(await obtenerValorConfig('inv_import_max_mb'));
+        if (req.file.buffer.length > maxMb * 1024 * 1024) {
+          return res.status(413).json({ error: `El archivo excede el límite configurado de ${maxMb} MB.` });
+        }
+
+        const ext = path.extname(req.file.originalname || '').toLowerCase();
+        let formato;
+        if (ext === '.xlsx') {
+          if (!esZipValido(req.file.buffer)) {
+            return res.status(400).json({ error: 'El contenido del archivo no es un XLSX válido.' });
+          }
+          formato = 'xlsx';
+        } else if (ext === '.csv') {
+          if (!esCSVValido(req.file.buffer)) {
+            return res.status(400).json({ error: 'El contenido del archivo no es un CSV de texto válido.' });
+          }
+          formato = 'csv';
+        } else {
+          return res.status(400).json({ error: 'Solo se acepta un archivo CSV o XLSX.' });
+        }
+
+        let hojas = null;
+        let hojaElegida = req.body && req.body.hoja ? String(req.body.hoja) : null;
+        let parseado;
+        if (formato === 'xlsx') {
+          hojas = await listarHojasXLSX(req.file.buffer);
+          if (!hojaElegida || !hojas.includes(hojaElegida)) hojaElegida = hojas[0] || null;
+          parseado = await parsearArchivoXLSX(req.file.buffer, hojaElegida);
+        } else {
+          parseado = parsearArchivoCSV(req.file.buffer);
+        }
+
+        if (!parseado.cabeceras || parseado.cabeceras.length === 0) {
+          return res.status(400).json({ error: 'El archivo no tiene cabeceras reconocibles.' });
+        }
+
+        const maxFilas = Number(await obtenerValorConfig('inv_import_max_filas'));
+        if (parseado.filas.length > maxFilas) {
+          return res.status(413).json({ error: `El archivo trae ${parseado.filas.length} filas, más del límite configurado de ${maxFilas}.` });
+        }
+
+        const cabecerasLimpias = parseado.cabeceras.map((c) => sanitizeText(String(c || ''), 150));
+        const presetSistema = req.body && req.body.preset_sistema ? String(req.body.preset_sistema) : 'otro';
+        const perfilEncontrado = await buscarPerfilParaCabeceras(cabecerasLimpias);
+        const { mapeo, columnasSinMapear } = sugerirMapeoCompleto(cabecerasLimpias, {
+          presetSistema,
+          perfilMapeo: perfilEncontrado ? perfilEncontrado.mapeoAplicable : null,
+        });
+
+        const ahora = new Date();
+        const [insercion] = await pool.query(
+          `INSERT INTO imp_importaciones
+            (formato, nombre_original, hoja, fila_encabezados, encoding_usado, delimitador, cabeceras_json,
+             estado, total_filas, usuario, ip, creado_en, actualizado_en)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            formato, sanitizeText(req.file.originalname || 'archivo', 255), hojaElegida, parseado.filaEncabezados,
+            parseado.encoding || null, parseado.delimitador || null, JSON.stringify(cabecerasLimpias),
+            'validando', parseado.filas.length, req.adminUser || null, req.ip || null, ahora, ahora,
+          ]
+        );
+        const importacionId = insercion.insertId;
+
+        const storageKey = await storage.guardarArchivo(
+          storage.prefijoTenant(req),
+          carpetaImportacion(importacionId),
+          nombreArchivoImportacion(formato),
+          req.file.buffer,
+          formato === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv'
+        );
+        await pool.query('UPDATE imp_importaciones SET storage_key = ? WHERE id = ?', [storageKey, importacionId]);
+
+        res.status(201).json({
+          ok: true,
+          importacionId,
+          formato,
+          hojas,
+          hojaSeleccionada: hojaElegida,
+          cabeceras: cabecerasLimpias,
+          vistaPrevia: parseado.filas.slice(0, 5),
+          totalFilas: parseado.filas.length,
+          presetSistema,
+          perfilAplicado: perfilEncontrado ? { perfilId: perfilEncontrado.perfilId, nombre: perfilEncontrado.nombre, coincidenciaCompleta: perfilEncontrado.coincidenciaCompleta } : null,
+          mapeoSugerido: mapeo,
+          columnasSinMapear,
+        });
+      } catch (errInterno) {
+        console.error('Error al procesar la importación:', errInterno);
+        res.status(500).json({ error: 'No se pudo procesar el archivo de importación.' });
+      }
+    });
+  }
+);
+
+app.get(
+  '/api/admin/inventarios/importaciones/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const importacion = await obtenerImportacionOResponder(req.params.id, res);
+    if (!importacion) return;
+    res.json(serializarImportacion(importacion));
+  })
+);
+
+// Paso 3→4 del wizard: recibe el mapeo final confirmado por el usuario y
+// corre la validación completa (§34.5) ANTES de importar nada. Puede
+// llamarse varias veces mientras la importación siga en 'validando'/
+// 'validado'/'error_validacion' (el usuario ajusta el mapeo y revalida).
+app.put(
+  '/api/admin/inventarios/importaciones/:id/mapeo',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const importacion = await obtenerImportacionOResponder(req.params.id, res);
+    if (!importacion) return;
+    if (importacion.estado === 'ejecutando' || importacion.estado === 'completada') {
+      return res.status(409).json({ error: 'Esta importación ya se ejecutó y no admite remapeo.' });
+    }
+
+    const body = req.body || {};
+    const mapeoFinal = body.mapeo && typeof body.mapeo === 'object' ? body.mapeo : {};
+    if (mapeoFinal.sku === undefined || mapeoFinal.sku === null || mapeoFinal.nombre === undefined || mapeoFinal.nombre === null) {
+      return res.status(400).json({ error: 'Debes mapear al menos las columnas "sku" y "nombre".' });
+    }
+    const modo = body.modo === 'estricto' ? 'estricto' : 'tolerante';
+    const sobrescribirVacios = Boolean(body.sobrescribirVacios);
+    const conservarExtra = body.conservarExtra !== false;
+
+    const cabecerasOriginales = importacion.cabeceras_json
+      ? (typeof importacion.cabeceras_json === 'string' ? JSON.parse(importacion.cabeceras_json) : importacion.cabeceras_json)
+      : [];
+    const { filas: filasCrudas } = await releerArchivoImportacion(req, importacion);
+
+    const resultado = await validarFilasImportacion(cabecerasOriginales, filasCrudas, { mapeoFinal, modo, conservarExtra });
+
+    await pool.query('DELETE FROM imp_importacion_errores WHERE importacion_id = ?', [importacion.id]);
+    if (resultado.errores.length > 0) {
+      const ahora = new Date();
+      await pool.query(
+        'INSERT INTO imp_importacion_errores (importacion_id, fila, columna, valor, motivo, creado_en) VALUES ?',
+        [resultado.errores.slice(0, 5000).map((e) => [importacion.id, e.fila, e.columna || null, e.valor === undefined ? null : String(e.valor).slice(0, 500), e.motivo, ahora])]
+      );
+    }
+
+    const nuevoEstado = resultado.abortado ? 'error_validacion' : 'validado';
+    await pool.query(
+      `UPDATE imp_importaciones SET mapeo_json = ?, modo_errores = ?, sobrescribir_vacios = ?, conservar_extra = ?,
+         estado = ?, filas_ok = ?, filas_error = ?, actualizado_en = ? WHERE id = ?`,
+      [JSON.stringify(mapeoFinal), modo, sobrescribirVacios ? 1 : 0, conservarExtra ? 1 : 0, nuevoEstado, resultado.filasOk, resultado.filasError, new Date(), importacion.id]
+    );
+
+    if (body.guardarPerfil) {
+      const perfil = await crearPerfilMapeo({
+        nombre: body.nombrePerfil || importacion.nombre_original,
+        cabecerasOriginales,
+        mapeoFinal,
+        creadoPor: req.adminUser,
+      });
+      res.locals.perfilGuardado = perfil;
+    }
+
+    res.json({
+      ok: !resultado.abortado,
+      estado: nuevoEstado,
+      totalFilas: resultado.totalFilas,
+      filasOk: resultado.filasOk,
+      filasError: resultado.filasError,
+      abortado: resultado.abortado,
+      motivoAborto: resultado.motivoAborto,
+      erroresPreview: resultado.errores.slice(0, 50),
+      perfilGuardado: res.locals.perfilGuardado || null,
+    });
+  })
+);
+
+app.get(
+  '/api/admin/inventarios/importaciones/:id/errores.csv',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const importacion = await obtenerImportacionOResponder(req.params.id, res);
+    if (!importacion) return;
+    const [errores] = await pool.query(
+      'SELECT fila, columna, valor, motivo FROM imp_importacion_errores WHERE importacion_id = ? ORDER BY fila ASC',
+      [importacion.id]
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="errores-importacion-${importacion.id}.csv"`);
+    res.send(generarCSVErrores(errores));
+  })
+);
+
+// Paso 5 del wizard: importa de verdad. ≤500 filas corre síncrono dentro de
+// esta petición (§34.8); más de eso responde 202 de inmediato y sigue en
+// segundo plano — el cliente hace polling de GET /importaciones/:id cada
+// 2s. Reintentar sobre una importación 'completada' es no-op (§34.9).
+app.post(
+  '/api/admin/inventarios/importaciones/:id/ejecutar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const importacion = await obtenerImportacionOResponder(req.params.id, res);
+    if (!importacion) return;
+
+    if (importacion.estado === 'completada') {
+      return res.json({
+        ok: true,
+        estado: 'completada',
+        mensaje: 'Esta importación ya se ejecutó — no se vuelve a correr (idempotencia).',
+        productos_creados: importacion.productos_creados,
+        productos_actualizados: importacion.productos_actualizados,
+      });
+    }
+    if (importacion.estado === 'ejecutando') {
+      return res.status(202).json({ ok: true, estado: 'ejecutando', progreso: importacion.progreso });
+    }
+    if (importacion.estado !== 'validado') {
+      return res.status(400).json({ error: 'Debes completar el mapeo y la validación (sin abortar) antes de ejecutar.' });
+    }
+
+    const idempotencyKey = req.get('Idempotency-Key') || null;
+    const mapeoFinal = typeof importacion.mapeo_json === 'string' ? JSON.parse(importacion.mapeo_json) : importacion.mapeo_json;
+    const cabecerasOriginales = typeof importacion.cabeceras_json === 'string' ? JSON.parse(importacion.cabeceras_json) : importacion.cabeceras_json;
+    const { filas: filasCrudas } = await releerArchivoImportacion(req, importacion);
+    const resultadoValidacion = await validarFilasImportacion(cabecerasOriginales, filasCrudas, {
+      mapeoFinal,
+      modo: importacion.modo_errores,
+      conservarExtra: Boolean(importacion.conservar_extra),
+    });
+
+    const almacenId = await obtenerAlmacenDefectoId();
+    const opcionesEjecucion = { almacenId, usuario: req.adminUser, sobrescribirVacios: Boolean(importacion.sobrescribir_vacios) };
+
+    if (resultadoValidacion.filasValidas.length <= TAMANO_CHUNK) {
+      await pool.query("UPDATE imp_importaciones SET estado = 'ejecutando', idempotency_key = ?, actualizado_en = ? WHERE id = ?", [idempotencyKey, new Date(), importacion.id]);
+      const resultadoEjecucion = await ejecutarFilasImportacion(importacion.id, resultadoValidacion.filasValidas, opcionesEjecucion);
+      if (resultadoEjecucion.erroresEjecucion.length > 0) {
+        const ahora = new Date();
+        await pool.query(
+          'INSERT INTO imp_importacion_errores (importacion_id, fila, columna, valor, motivo, creado_en) VALUES ?',
+          [resultadoEjecucion.erroresEjecucion.map((e) => [importacion.id, e.fila, e.columna, e.valor, e.motivo, ahora])]
+        );
+      }
+      await pool.query(
+        "UPDATE imp_importaciones SET estado = 'completada', progreso = 100, productos_creados = ?, productos_actualizados = ?, actualizado_en = ? WHERE id = ?",
+        [resultadoEjecucion.creados, resultadoEjecucion.actualizados, new Date(), importacion.id]
+      );
+      return res.json({
+        ok: true,
+        estado: 'completada',
+        productos_creados: resultadoEjecucion.creados,
+        productos_actualizados: resultadoEjecucion.actualizados,
+        existencias_iniciales_ignoradas: resultadoEjecucion.ignorados,
+        errores_ejecucion: resultadoEjecucion.erroresEjecucion.length,
+      });
+    }
+
+    // > 500 filas: job en segundo plano (§34.8) — se responde de inmediato y
+    // se procesa fuera del ciclo request/response, re-entrando al contexto
+    // del tenant a mano (mismo motivo que subirConTenant: el ALS no se
+    // propaga de forma confiable fuera del callback original de la request).
+    await pool.query("UPDATE imp_importaciones SET estado = 'ejecutando', idempotency_key = ?, progreso = 0, actualizado_en = ? WHERE id = ?", [idempotencyKey, new Date(), importacion.id]);
+    res.status(202).json({ ok: true, estado: 'ejecutando', totalFilas: resultadoValidacion.filasValidas.length });
+
+    const idImportacion = importacion.id;
+    const filasParaProcesar = resultadoValidacion.filasValidas;
+    reanudarContextoTenant(req, async () => {
+      try {
+        const resultadoEjecucion = await ejecutarFilasImportacion(idImportacion, filasParaProcesar, opcionesEjecucion);
+        if (resultadoEjecucion.erroresEjecucion.length > 0) {
+          const ahora = new Date();
+          await pool.query(
+            'INSERT INTO imp_importacion_errores (importacion_id, fila, columna, valor, motivo, creado_en) VALUES ?',
+            [resultadoEjecucion.erroresEjecucion.map((e) => [idImportacion, e.fila, e.columna, e.valor, e.motivo, ahora])]
+          );
+        }
+        await pool.query(
+          "UPDATE imp_importaciones SET estado = 'completada', progreso = 100, productos_creados = ?, productos_actualizados = ?, actualizado_en = ? WHERE id = ?",
+          [resultadoEjecucion.creados, resultadoEjecucion.actualizados, new Date(), idImportacion]
+        );
+      } catch (errFondo) {
+        console.error(`Error ejecutando importación #${idImportacion} en segundo plano:`, errFondo);
+        await pool.query("UPDATE imp_importaciones SET estado = 'error', actualizado_en = ? WHERE id = ?", [new Date(), idImportacion]).catch(() => {});
+      }
+    }).catch((errFondo) => {
+      console.error(`Error inesperado al reanudar el contexto de tenant para la importación #${idImportacion}:`, errFondo);
     });
   })
 );

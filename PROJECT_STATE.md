@@ -8789,6 +8789,168 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         `inicio-stat-icono-total`, `GET /admin.js` con factura SVG y badges
         limpios. `FRONTEND_PORT=8088` conservado. No se tocó esquema/API.
 
+ 142. **Importador masivo CSV/XLSX — Segmento 5: motor + API backend
+      (2026-08-25, `inventarios.md` §34, decisión D9). IMPLEMENTADO Y
+      VALIDADO contra Docker/MySQL/MinIO reales. SIN COMMITEAR TODAVÍA
+      (working tree) — pendiente confirmación del usuario para
+      commit/push.** Continúa el trabajo de Inventarios (segmentos 1-4 ya
+      commiteados y pusheados en sesiones previas: motor de existencias,
+      CRUD+kardex, frontend, integración D8 con Ventas). Este segmento es
+      SOLO backend — el wizard de 6 pasos del frontend (paso 1 subir → 2
+      hoja/vista previa → 3 mapear → 4 validación → 5 ejecutar → 6
+      resultado) es el **Segmento 6, siguiente, todavía sin empezar**.
+      Antes de implementar: se leyó completo el §34 de `inventarios.md`
+      (mapeo en 3 niveles + regla de prioridad 34.3.1, perfiles de mapeo
+      guardados 34.3.2, presets de sistema origen 34.3.3, plantilla
+      descargable 34.3.4, campo `extra` + guardia anti-prototype-pollution
+      34.4, validación completa 34.5, upsert 34.6, existencias iniciales
+      34.7, chunks >500 filas 34.8, seguridad/retención/auditoría 34.9,
+      API 34.10, modelo de datos 34.11).
+
+      **Archivos nuevos**:
+      - `backend/utils/inventarioCampos.js` — catálogo ÚNICO de los 20
+        campos importables (campo, obligatorio, sinónimos) + presets de
+        sistema origen (`contpaqi`/`aspel`/`excel_generico`/`otro`, como
+        reordenamiento del MISMO diccionario, sin sinónimos inventados sin
+        verificar). Módulo fuente a propósito para que la página de ayuda
+        del Segmento 8 (§56) lo reutilice sin duplicar la lista.
+      - `backend/utils/inventarioImportacion.js` — el motor: normalización
+        de cabeceras, Levenshtein/similitud, `sugerirMapeoCompleto()`
+        (campo-céntrico: recorre CAMPOS_IMPORTABLES, no cabeceras, así "un
+        campo recibe a lo más una columna" sale gratis de la estructura),
+        `firmaCabeceras()` (hash del set ORDENADO, orden de columnas no
+        importa), parseo CSV (`csv-parse`, delimitador autodetectado
+        `,`/`;`/tab/`|`, encoding UTF-8 con reintento Latin-1) y XLSX
+        (`exceljs`, detección de fila de encabezados por densidad de
+        celdas no vacías entre las primeras 10 filas — heurística simple,
+        no NLP), `parsearNumeroTolerante()` (coma/punto decimal y de
+        miles), `validarFilasImportacion()` (SKU vacío/duplicado, unidad
+        desconocida sin crear implícita, existencia negativa, números
+        inválidos, guardia `INV_EXTRA_CLAVE_PROHIBIDA`, modo
+        tolerante/estricto), `ejecutarFilasImportacion()` (upsert por SKU
+        + existencia inicial), CRUD de perfiles de mapeo (coincidencia
+        completa Y parcial), `generarPlantillaCSV`/`XLSX` (con validación
+        de celda por columna vía `exceljs` dataValidation), `errores.csv`
+        con protección OWASP CSV Injection (`protegerCeldaCSV`, apóstrofo
+        antes de `= + - @` tab/CR — anticipa §35, reutilizable ahí).
+      - `backend/test/unit/inventarioImportacion.test.js` — 39 pruebas
+        nuevas (mapeo en 3 niveles, prioridad de perfil, firma
+        order-independent, parseo CSV, números tolerantes, validación
+        completa, guardia extra, plantilla).
+
+      **Archivos modificados**:
+      - `backend/db.js` — 3 tablas nuevas: `imp_importaciones` (una fila
+        por corrida, `storage_key` a MinIO, `mapeo_json`, contadores,
+        `estado` con CHECK), `imp_importacion_errores` (FK CASCADE),
+        `inv_perfiles_mapeo`. `productos.extra` (JSON) ya existía desde el
+        segmento 1 (anticipado).
+      - `backend/utils/validate.js` — `ALLOWED_IMPORTACION_MIME_TYPES`/
+        `_EXTENSIONS` + `esCSVValido()` (rechaza por byte NUL, firma
+        binaria real — "nunca confiar en la extensión", §34.9; XLSX
+        reutiliza `esZipValido()` ya existente).
+      - `backend/server.js` — uploader `uploadImportacion` (multer,
+        memoria); helpers `streamABuffer`/`carpetaImportacion`/
+        `releerArchivoImportacion` (relee el original desde MinIO en CADA
+        llamada a `PUT /mapeo` y `POST /ejecutar` — el archivo archivado
+        en §34.9 existe justo para esto, "auditoría y reprocesamiento": ni
+        el mapeo ni las filas validadas se duplican en MySQL); 9 rutas
+        nuevas bajo `/api/admin/inventarios/importaciones*` +
+        `/perfiles-mapeo*` (`requireInventarioActivo`, mismo patrón que el
+        resto del módulo). `formatearProducto()` (del segmento 2) ganó el
+        campo `extra` en su respuesta — omisión preexistente detectada
+        durante la validación de este segmento, no algo que este segmento
+        rompiera; se corrigió porque bloqueaba el criterio de aceptación
+        "columnas no mapeadas consultables en el detalle del producto".
+
+      **Decisiones de diseño no explícitas en el documento (documentadas
+      aquí para que no se rederiven)**:
+      1. **Reprocesamiento en vez de persistir filas validadas**: el
+         archivo original se relee de MinIO en cada paso (mapeo/ejecutar)
+         en vez de guardar las filas parseadas en MySQL — más simple,
+         nunca diverge del archivo real, y el §34.9 ya exigía archivar el
+         original "para auditoría y reprocesamiento".
+      2. **Reintento = reprocesar TODO el set de filas válidas**, sin
+         marca de progreso por fila — es naturalmente idempotente (upsert
+         por SKU + guardia anti-doble-stock-inicial), así que
+         "completa lo faltante" (criterio de aceptación) sale gratis sin
+         tracking adicional.
+      3. **Atomicidad producto+entrada por COMPENSACIÓN**, no transacción
+         SQL única — mismo patrón ya establecido en el segmento 4 (D8
+         Ventas): `registrarMovimiento()` abre/cierra su propia
+         transacción, así que si falla se revierte el producto a mano
+         (DELETE si era nuevo, restaurar snapshot si era un UPDATE).
+      4. **"1 importación activa por tenant" se interpreta como
+         `estado='ejecutando'` solamente** (no bloquea subir/mapear un
+         borrador nuevo mientras otro sigue sin ejecutar) — evita un
+         candado permanente si el usuario abandona un borrador con error.
+      5. **Categorías SÍ se auto-crean por nombre** durante la ejecución
+         (a diferencia de unidades, que el documento prohíbe crear
+         implícitas explícitamente) — el documento no lo prohíbe para
+         categorías y es el comportamiento esperable de una migración.
+      6. **Presets de sistema origen NO inventan sinónimos nuevos** sin
+         verificar contra un archivo real de CONTPAQi/Aspel — reordenan el
+         MISMO diccionario ya escrito en el documento. Es una limitación
+         consciente: la mejora real de auto-mapeo viene del diccionario
+         amplio + plantilla + fuzzy match, el preset es solo "ayuda de
+         arranque" como el propio documento lo describe.
+      7. **Job asíncrono >500 filas**: sin librería de colas — `res.status(202)`
+         inmediato + `reanudarContextoTenant(req, fn)` (mismo helper que ya
+         resuelve el bug de ALS/multer documentado en el punto 102) para
+         que el procesamiento en segundo plano escriba en la BD del
+         tenant correcto. **No probado en vivo en esta sesión** (crear un
+         CSV de 501+ filas no se justificó dado el tiempo disponible) —
+         validado por revisión de código y porque reutiliza la MISMA
+         función `ejecutarFilasImportacion()` ya probada en el camino
+         síncrono; queda como pendiente de validación en vivo si se
+         quiere blindar del todo.
+
+      **Bug real encontrado y corregido en la validación (no visible con
+      Jest mockeado)**: `CLAVES_EXTRA_PROHIBIDAS.has(col.normalizada)`
+      nunca disparaba para una cabecera literal `__proto__` — la propia
+      `normalizarCabecera()` recorta guiones bajos al inicio/fin
+      (`"__proto__"` → `"proto"`) ANTES de la comparación, así que la
+      clave peligrosa nunca llegaba a coincidir con la lista prohibida.
+      Fix: comparación adicional contra una versión ligera
+      (`trim().toLowerCase()`, sin el recorte de guiones) guardada como
+      `col.claveParaVerificarProhibicion`. Encontrado por un test unitario
+      que fallaba (`filasOk` era 1 en vez de 0), no por inspección visual.
+
+      **Validación real contra Docker/MySQL/MinIO (2026-08-25, vía
+      `curl`, sesión sin acceso a Claude in Chrome en este tramo)**:
+      rebuild `--no-cache` + `force-recreate` backend, `verificar-mysql.js`
+      305/305, `verificar-inventario.js` 19/19, Jest backend 693/693 (39
+      suites, 39 pruebas nuevas). Smoke test end-to-end real: plantilla
+      CSV/XLSX descargada y confirmada (CSV con cabeceras exactas + 2
+      ejemplos; XLSX con `dataValidation` por columna); CSV con cabeceras
+      en sinónimos + delimitador `;` autodetectado → auto-mapeo 6/6 sin
+      intervención manual; plantilla XLSX descargada → auto-mapeo 20/20
+      (100%, criterio de aceptación de 34.3.4); perfil de mapeo guardado
+      → segunda importación con la MISMA firma llegó pre-mapeada 100%
+      (`coincidenciaCompleta:true`) y una tercera con firma DISTINTA pero
+      2 columnas en común llegó pre-mapeada PARCIAL
+      (`coincidenciaCompleta:false`); ejecución real creó 2 productos con
+      existencia/categoría/unidad correctas; **re-importar el MISMO
+      archivo NO duplicó stock** (`existencias_iniciales_ignoradas:2`,
+      disponible se mantuvo en 15/8, no saltó a 30/16 — criterio de
+      aceptación crítico de 34.6 confirmado con datos reales, no solo
+      mock); fila con SKU vacío rechazada y visible en `errores.csv`
+      exportado; firma binaria falsa (bytes NUL disfrazados de `.csv`)
+      rechazada con 400; gate `INV_MODULO_INACTIVO` (403) confirmado con
+      el módulo apagado. **Limpieza completa tras la prueba**: productos
+      de prueba a papelera (tienen movimientos, no se pueden purgar
+      permanentemente — mismo criterio §38 ya documentado), filas de
+      `imp_importaciones`/`imp_importacion_errores`/`inv_perfiles_mapeo`
+      de prueba borradas por SQL directo, archivos de MinIO bajo
+      `_default/inventarios/imports/*` borrados y confirmados en 0,
+      `inventario_activo` regresado a `'0'`.
+
+      **Pendiente explícito para la siguiente sesión**: (1) Segmento 6 —
+      wizard de 6 pasos en el frontend, todavía sin ningún código; (2)
+      validar en vivo el camino asíncrono >500 filas; (3) commit + push
+      de este segmento 5 (working tree, sin commitear) — pedir
+      confirmación explícita del usuario primero, mismo protocolo
+      `addv-web-app`.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

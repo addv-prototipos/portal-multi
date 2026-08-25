@@ -238,6 +238,30 @@ function isValidTipoPersona(tipo) {
   return tipo === 'fisica' || tipo === 'moral';
 }
 
+// Importador masivo de Inventarios (inventarios.md §34): CSV o XLSX. El MIME
+// que reporta el navegador para .csv varía mucho entre sistemas (a veces
+// "text/plain", a veces "application/vnd.ms-excel" en Windows/Excel) — el
+// filtro real de seguridad es la firma binaria (ver esCSVValido/esZipValido
+// en utils/inventarioImportacion.js y server.js), no este valor declarado.
+const ALLOWED_IMPORTACION_MIME_TYPES = new Set([
+  'text/csv',
+  'application/csv',
+  'text/plain',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/octet-stream',
+]);
+const ALLOWED_IMPORTACION_EXTENSIONS = new Set(['.csv', '.xlsx']);
+
+// Firma binaria de un CSV (§34.9): "nunca confiar en la extensión". Un CSV
+// real es texto — la señal fiable de que en realidad es otra cosa (binario
+// disfrazado) es la presencia de bytes NUL, que jamás aparecen en texto
+// UTF-8/Latin-1 genuino.
+function esCSVValido(buffer) {
+  if (!buffer || buffer.length === 0) return false;
+  return !buffer.includes(0x00);
+}
+
 module.exports = {
   ALLOWED_MIME_TYPES,
   ALLOWED_EXTENSIONS,
@@ -247,6 +271,9 @@ module.exports = {
   ALLOWED_ZIP_EXTENSIONS,
   ALLOWED_COMPROBANTE_MIME_TYPES,
   ALLOWED_COMPROBANTE_EXTENSIONS,
+  ALLOWED_IMPORTACION_MIME_TYPES,
+  ALLOWED_IMPORTACION_EXTENSIONS,
+  esCSVValido,
   detectRealMimeType,
   detectRealImageMimeType,
   esZipValido,

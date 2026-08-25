@@ -877,7 +877,26 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   `ventas_afectan_inventario` default '0', switch solo para perfil
   plataforma en Configuraciones globales, caché TTL ≤60 s) — patrón
   base del punto 137.
-  NADA implementado todavía.
+  **Actualización:** la fase de solo-análisis terminó; implementación en
+  curso — ver el bullet de abajo con el estado real por segmento
+  (1-5 hechos y validados, 6 en adelante pendiente).
+- **Inventarios — IMPLEMENTACIÓN EN CURSO (ver PROJECT_STATE.md puntos
+  138-142)**: Segmentos 1-4 (motor de existencias, CRUD+historial de
+  movimientos backend, frontend completo, integración D8 con Ventas)
+  hechos, validados contra Docker/MySQL/MinIO/navegador reales, **y ya
+  commiteados y pusheados a `fact/master`**. **Segmento 5 — motor + API
+  del importador masivo CSV/XLSX (`inventarios.md` §34, 2026-08-25,
+  detalle completo en PROJECT_STATE.md punto 142)**: hecho y validado
+  contra Docker/MySQL/MinIO reales por `curl` (auto-mapeo en 3 niveles,
+  perfiles de mapeo completo/parcial, plantilla CSV/XLSX 100% mapeo,
+  re-importación sin duplicar stock, guardia `INV_EXTRA_CLAVE_PROHIBIDA`
+  — con un bug real corregido ahí mismo: `__proto__` no disparaba la
+  guardia porque `normalizarCabecera()` le quitaba los guiones bajos
+  antes de compararla —, firma binaria/gate de módulo). Jest backend
+  693/693. **SIN COMMITEAR TODAVÍA** — pedir confirmación explícita del
+  usuario antes de commit/push, mismo protocolo `addv-web-app`. Pendiente
+  inmediato: Segmento 6 (wizard de 6 pasos en el frontend, sin código
+  todavía) y validar en vivo el camino asíncrono de >500 filas.
 
 - **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver
   PROJECT_STATE.md punto 133, 2026-08-23, IMPLEMENTADO Y VALIDADO)**:

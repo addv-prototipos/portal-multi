@@ -1013,6 +1013,82 @@ async function ensureSchema(db = pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // Importador masivo CSV/XLSX (§34, decisión D9, segmento 5). Una fila por
+  // corrida de importación; el archivo original vive en MinIO
+  // (storage_key) para auditoría/reprocesamiento — 34.9 fija su retención
+  // en 365 días, esta fila de metadatos permanece como registro histórico
+  // aunque el archivo original ya se haya purgado.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS imp_importaciones (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      formato VARCHAR(10) NOT NULL,
+      nombre_original VARCHAR(255) NOT NULL,
+      storage_key VARCHAR(500) NULL,
+      hoja VARCHAR(100) NULL,
+      fila_encabezados INT NOT NULL DEFAULT 1,
+      encoding_usado VARCHAR(20) NULL,
+      delimitador VARCHAR(5) NULL,
+      cabeceras_json JSON NULL,
+      mapeo_json JSON NULL,
+      modo_errores VARCHAR(20) NOT NULL DEFAULT 'tolerante',
+      sobrescribir_vacios TINYINT(1) NOT NULL DEFAULT 0,
+      conservar_extra TINYINT(1) NOT NULL DEFAULT 1,
+      estado VARCHAR(30) NOT NULL DEFAULT 'validando',
+      total_filas INT NOT NULL DEFAULT 0,
+      filas_ok INT NOT NULL DEFAULT 0,
+      filas_error INT NOT NULL DEFAULT 0,
+      progreso INT NOT NULL DEFAULT 0,
+      productos_creados INT NOT NULL DEFAULT 0,
+      productos_actualizados INT NOT NULL DEFAULT 0,
+      idempotency_key VARCHAR(64) NULL,
+      usuario VARCHAR(100) NULL,
+      ip VARCHAR(64) NULL,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_imp_importaciones_idempotency (idempotency_key),
+      KEY idx_imp_importaciones_estado (estado),
+      CONSTRAINT chk_imp_importaciones_formato CHECK (formato IN ('csv', 'xlsx')),
+      CONSTRAINT chk_imp_importaciones_modo CHECK (modo_errores IN ('tolerante', 'estricto')),
+      CONSTRAINT chk_imp_importaciones_estado CHECK (estado IN (
+        'validando', 'validado', 'error_validacion', 'ejecutando', 'completada', 'error'
+      ))
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Detalle de cada rechazo — respalda la tabla en pantalla y el
+  // errores-importacion.csv descargable (§34.5).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS imp_importacion_errores (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      importacion_id INT NOT NULL,
+      fila INT NOT NULL,
+      columna VARCHAR(150) NULL,
+      valor TEXT NULL,
+      motivo VARCHAR(500) NOT NULL,
+      creado_en DATETIME NOT NULL,
+      KEY idx_imp_errores_importacion (importacion_id),
+      CONSTRAINT fk_imp_errores_importacion FOREIGN KEY (importacion_id) REFERENCES imp_importaciones(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Perfiles de mapeo guardados por tenant (§34.3.2) — reexportaciones
+  // periódicas del mismo formato llegan pre-mapeadas al paso 3 sin
+  // remapear a mano cada vez. `firma_cabeceras` es un hash del set
+  // ORDENADO de cabeceras normalizadas (ver firmaCabeceras() en
+  // utils/inventarioImportacion.js).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS inv_perfiles_mapeo (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nombre VARCHAR(100) NOT NULL,
+      firma_cabeceras VARCHAR(64) NOT NULL,
+      mapeo_json JSON NOT NULL,
+      creado_por VARCHAR(100) NULL,
+      creado_en DATETIME NOT NULL,
+      usado_ultima_vez DATETIME NULL,
+      KEY idx_inv_perfiles_firma (firma_cabeceras)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   // Reportes: cada fila es UNA corrida de generación de reporte (ya sea
   // "automatico" —justo antes de que el borrado por retención elimine
   // tickets/órdenes vencidos, para no perder esa información para
