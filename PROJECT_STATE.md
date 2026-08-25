@@ -9212,9 +9212,40 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
       **Con esto, el único pendiente real que quedaba del plan de
       `inventarios.md` (segmentos 1-8) es la entrada 3 de §56.2 (tooltips
-      en "Crear producto"), deliberadamente pospuesta.** Sin
-      commitear (puntos 145 y 146) — pedir confirmación explícita antes
-      de commit/push, mismo protocolo `addv-web-app`.
+      en "Crear producto"), deliberadamente pospuesta.** Ver el punto
+      147: se implementó a pedido del usuario el mismo día.
+
+ 147. **Entrada 3 de §56.2 — tooltips en "Crear producto" (2026-08-25,
+      IMPLEMENTADO Y VALIDADO)**: a pedido explícito del usuario, cierra
+      el último pendiente del plan de `inventarios.md`. Los 14 campos
+      del formulario "Crear/Editar producto" (Tipo, Nombre, SKU, Código
+      de barras, Categoría, Unidad de medida, Costo, Precio, Stock
+      mínimo/máximo, Punto de reorden, Estado, Proveedor principal,
+      Notas) ganan un ícono "?" junto a su etiqueta — reusa el MISMO
+      componente ya construido para el wizard de importación (segmento
+      8, entrada 2), renombrado de `.inv-import-mapeo-ayuda` a
+      `.inv-campo-ayuda` (genérico, ya no es solo del wizard) en
+      `frontend/admin.css`/`admin.js`. Consolida en un solo control las
+      2 conductas que pide el doc por separado ("tooltip corto" +
+      "enlace Ver más"): hover muestra `explicacion_simple` vía
+      `data-tooltip` (mismo componente estilizado del punto 145), click
+      abre la ayuda completa en esa ancla sin cerrar el formulario en
+      curso — mismo patrón "apilar modal sobre modal" ya validado en el
+      wizard. Función nueva `aplicarTooltipsCampoAyuda(raiz)` (genérica,
+      recibe cualquier contenedor) puebla los `data-tooltip` desde el
+      diccionario cacheado — se llama tanto en `abrirProductoModal()`
+      como en `renderMapeoTablaImport()` (el wizard ganó de regalo el
+      mismo hover corto que antes solo tenía el click). Sin cambios de
+      backend ni de esquema. Validado en navegador real: los 14 íconos
+      visibles con su tooltip poblado correctamente (confirmado con SKU:
+      texto completo de `explicacion_simple`); click en el ícono de SKU
+      abrió la ayuda ENCIMA del formulario "Nuevo producto" sin cerrarlo
+      (formulario intacto al cerrar la ayuda, campo Nombre conservó su
+      valor). Consola sin errores. Jest backend 702/702 (sin cambios).
+      **Con esto, el plan completo de `inventarios.md` (segmentos 1-8,
+      incluidas las 3 entradas de §56.2) queda 100% implementado y
+      validado.** Sin commitear — pedir confirmación explícita antes de
+      commit/push, mismo protocolo `addv-web-app`.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

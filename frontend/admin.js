@@ -8911,6 +8911,7 @@
     inventarioModalEditando = producto || null;
     els.invProductoModalTitle.textContent = producto ? 'Editar producto' : 'Nuevo producto';
     els.btnInvModalGuardarLabel.textContent = producto ? 'Guardar cambios' : 'Guardar producto';
+    aplicarTooltipsCampoAyuda(els.invProductoModalOverlay);
 
     setInvModalTipo(producto ? producto.tipo : 'producto');
     els.invModalNombre.value = producto ? producto.nombre : '';
@@ -9591,7 +9592,7 @@
       const necesitaConfirmar = asignacion && asignacion.requiereConfirmacion && !asignacion.confirmado;
       return `
         <tr>
-          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}<button type="button" class="inv-import-mapeo-ayuda" data-campo="${c.campo}" aria-label="Ver ayuda de ${escapeHtml(c.etiqueta)}" title="Ver ayuda de este campo">?</button></td>
+          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}<button type="button" class="inv-campo-ayuda" data-campo="${c.campo}" aria-label="Ver ayuda de ${escapeHtml(c.etiqueta)}" title="Ver ayuda de este campo">?</button></td>
           <td><select class="inv-import-mapeo-select" data-campo="${c.campo}" aria-label="Columna para ${escapeHtml(c.etiqueta)}">${opciones}</select></td>
           <td class="inv-import-mapeo-preview" title="${escapeHtml(previewValores)}">${escapeHtml(previewValores)}</td>
           <td>
@@ -9601,6 +9602,7 @@
         </tr>`;
     }).join('');
     els.invImportMapeoBody.innerHTML = filasHtml;
+    aplicarTooltipsCampoAyuda(els.invImportMapeoBody);
     actualizarCoberturaImport();
   }
 
@@ -9956,6 +9958,20 @@
       </article>`;
   }
 
+  // Aplica el hover corto (explicacion_simple) a cualquier ícono
+  // .inv-campo-ayuda[data-campo] dentro de `raiz` — usado tanto por el
+  // wizard de importación (entrada 2, §56.2.2) como por el formulario
+  // "Crear producto" (entrada 3, §56.2.3). El click de ambos abre la
+  // ayuda completa en esa ancla (delegado por separado en cada
+  // contenedor, ver "Enlaces de eventos").
+  async function aplicarTooltipsCampoAyuda(raiz) {
+    const diccionario = await obtenerDiccionarioInv();
+    raiz.querySelectorAll('.inv-campo-ayuda[data-campo]').forEach((btn) => {
+      const entrada = diccionario.find((d) => d.id === btn.dataset.campo);
+      if (entrada) btn.setAttribute('data-tooltip', entrada.explicacion_simple);
+    });
+  }
+
   async function renderAyudaInventario() {
     const diccionario = await obtenerDiccionarioInv();
     const html = INV_AYUDA_GRUPOS.map((g) => {
@@ -10052,7 +10068,7 @@
   if (els.invImportMapeoBody) els.invImportMapeoBody.addEventListener('change', manejarCambioMapeoImport);
   if (els.invImportMapeoBody)
     els.invImportMapeoBody.addEventListener('click', (e) => {
-      if (e.target.classList.contains('inv-import-mapeo-ayuda')) {
+      if (e.target.classList.contains('inv-campo-ayuda')) {
         abrirAyudaInventario(e.target.dataset.campo);
       }
     });
@@ -10129,6 +10145,7 @@
   if (els.invProductoModalOverlay)
     els.invProductoModalOverlay.addEventListener('click', (e) => {
       if (e.target === els.invProductoModalOverlay) cerrarProductoModal();
+      if (e.target.classList.contains('inv-campo-ayuda')) abrirAyudaInventario(e.target.dataset.campo);
     });
   if (els.btnInvModalGuardar) els.btnInvModalGuardar.addEventListener('click', guardarProductoInv);
 

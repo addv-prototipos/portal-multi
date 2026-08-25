@@ -935,9 +935,21 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   contra Docker/MySQL/MinIO reales — `POST .../ejecutar` respondió 202
   de inmediato, completó en <2s, 520 productos + 494 movimientos con
   conteos matemáticamente exactos verificados por SQL. Sin bugs
-  encontrados. Con esto el único pendiente real del plan de
-  `inventarios.md` es la entrada 3 de §56.2. **SIN COMMITEAR** (puntos
-  145 y 146) — pedir confirmación explícita antes de commit/push, mismo
+  encontrados.
+- **Entrada 3 de §56.2 — tooltips en "Crear producto" (2026-08-25,
+  PROJECT_STATE.md punto 147)**: cierra el último pendiente del plan de
+  `inventarios.md`. Los 14 campos del formulario ganan el mismo ícono
+  "?" ya construido para el wizard de importación (clase renombrada de
+  `.inv-import-mapeo-ayuda` a `.inv-campo-ayuda`, ahora genérica) —
+  hover muestra la explicación corta, click abre la ayuda completa
+  encima del formulario sin cerrarlo. `aplicarTooltipsCampoAyuda(raiz)`
+  nueva, reutilizada también por el wizard (que de regalo ganó el mismo
+  hover corto). Sin cambios de backend. Validado en navegador real: 14
+  íconos con tooltip poblado, click en SKU abrió la ayuda sin perder el
+  formulario. Jest backend 702/702. **Con esto, el plan completo de
+  `inventarios.md` (segmentos 1-8, las 3 entradas de §56.2 incluidas)
+  queda 100% implementado y validado.** **SIN COMMITEAR** (puntos 145,
+  146 y 147) — pedir confirmación explícita antes de commit/push, mismo
   protocolo `addv-web-app`.
 
 - **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver

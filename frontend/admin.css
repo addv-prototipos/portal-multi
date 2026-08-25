@@ -3675,9 +3675,12 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   margin-top: 14px;
 }
 
-/* Ícono "?" que abre una tarjeta específica del diccionario, junto a cada
-   fila del mapeo (§56.2.2) */
-.inv-import-mapeo-ayuda {
+/* Ícono "?" que abre una tarjeta específica del diccionario de datos
+   (§56): junto a cada fila del mapeo del wizard de importación (§56.2.2,
+   entrada 2) y junto a cada label del formulario "Crear producto"
+   (§56.2.3, entrada 3) — el hover muestra la explicación corta
+   (data-tooltip), el click abre la ayuda completa en esa ancla. */
+.inv-campo-ayuda {
   margin-left: 6px;
   width: 20px;
   height: 20px;
@@ -3691,8 +3694,8 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   cursor: pointer;
   vertical-align: middle;
 }
-.inv-import-mapeo-ayuda:hover,
-.inv-import-mapeo-ayuda:focus-visible {
+.inv-campo-ayuda:hover,
+.inv-campo-ayuda:focus-visible {
   color: var(--color-accent-dark);
   border-color: var(--color-accent);
 }
