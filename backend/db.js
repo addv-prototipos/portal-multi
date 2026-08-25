@@ -2,6 +2,11 @@ const { AsyncLocalStorage } = require('async_hooks');
 const mysql = require('mysql2/promise');
 const { hashPassword } = require('./utils/authUsuario');
 const { CATEGORIAS_SEED, ETIQUETAS_SEED, SLUG_CATEGORIA_PROTEGIDA } = require('./utils/gastos');
+const {
+  UNIDADES_SEED,
+  ALMACEN_DEFECTO_CODIGO,
+  ALMACEN_DEFECTO_NOMBRE,
+} = require('./utils/inventario');
 
 // Opciones de conexion compartidas por CUALQUIER pool que este modulo cree
 // (el de siempre, y cualquier pool de tenant que se agregue mas adelante) —
@@ -781,6 +786,209 @@ async function ensureSchema(db = pool) {
       [valores]
     );
   }
+
+  // ---------------------------------------------------------------------
+  // Inventarios — motor de existencias v1 (ver inventarios.md §0.2-§0.7).
+  // Solo el núcleo mínimo: catálogo simple (D1), un almacén auto-
+  // provisionado (D2), existencias derivadas de un libro append-only
+  // (D6), costeo por promedio ponderado (D5). El detalle de concurrencia
+  // (bloqueo de fila, lock de costo_promedio, idempotencia) vive en
+  // backend/utils/inventario.js — este bloque solo crea el esquema.
+  // ---------------------------------------------------------------------
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS unidades_medida (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nombre VARCHAR(50) NOT NULL,
+      abreviatura VARCHAR(10) NOT NULL,
+      creado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_unidades_medida_nombre (nombre)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Semilla idempotente de las 16 unidades de §9 (pieza, volumen, peso —
+  // cubren líquidos y gramaje sin campos adicionales, decisión D11).
+  const [unidadesExistentes] = await db.query('SELECT nombre FROM unidades_medida');
+  const nombresUnidadesExistentes = new Set(unidadesExistentes.map((f) => f.nombre));
+  const unidadesFaltantes = UNIDADES_SEED.filter(([nombre]) => !nombresUnidadesExistentes.has(nombre));
+  if (unidadesFaltantes.length > 0) {
+    const ahoraUnidades = new Date();
+    await db.query('INSERT INTO unidades_medida (nombre, abreviatura, creado_en) VALUES ?', [
+      unidadesFaltantes.map(([nombre, abreviatura]) => [nombre, abreviatura, ahoraUnidades]),
+    ]);
+  }
+
+  // Conversiones configurables entre unidades (§9) — datos puros en v1,
+  // no consumidas todavía por el motor de movimientos (que siempre
+  // registra en la unidad propia del producto); preparado para cuando
+  // una fase futura decida usarlas en captura de compra/venta.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS conversiones_unidad (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      unidad_origen_id INT NOT NULL,
+      unidad_destino_id INT NOT NULL,
+      factor DECIMAL(14,6) NOT NULL,
+      creado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_conversion_par (unidad_origen_id, unidad_destino_id),
+      CONSTRAINT fk_conversion_origen FOREIGN KEY (unidad_origen_id) REFERENCES unidades_medida(id),
+      CONSTRAINT fk_conversion_destino FOREIGN KEY (unidad_destino_id) REFERENCES unidades_medida(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Categorías de Inventarios — plano, sin jerarquía ni imagen en v1
+  // (§10, P8 cerrada). Empieza vacía (a diferencia de categorias_gastos,
+  // que sí trae una semilla fija): el catálogo de categorías de un
+  // negocio es demasiado variable para adivinar una lista de fábrica.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS categorias_inventario (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(60) NOT NULL,
+      nombre VARCHAR(100) NOT NULL,
+      activa TINYINT(1) NOT NULL DEFAULT 1,
+      orden INT NOT NULL DEFAULT 0,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_categorias_inventario_slug (slug)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Almacenes — v1 solo opera ALM-1 (D2): multi-almacén preparado en el
+  // esquema (almacen_id NOT NULL en existencias/movimientos) pero sin
+  // ABML ni UI de selección todavía (Fase 2, §11).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS almacenes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      codigo VARCHAR(20) NOT NULL,
+      nombre VARCHAR(100) NOT NULL,
+      creado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_almacenes_codigo (codigo)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  const [almacenDefecto] = await db.query('SELECT id FROM almacenes WHERE codigo = ? LIMIT 1', [
+    ALMACEN_DEFECTO_CODIGO,
+  ]);
+  if (almacenDefecto.length === 0) {
+    await db.query('INSERT INTO almacenes (codigo, nombre, creado_en) VALUES (?, ?, ?)', [
+      ALMACEN_DEFECTO_CODIGO,
+      ALMACEN_DEFECTO_NOMBRE,
+      new Date(),
+    ]);
+  }
+
+  // Catálogo (D1: producto simple, sin variantes/lote/serie/caducidad).
+  // `tipo` distingue producto físico de servicio (D11: un servicio no
+  // genera existencias/movimientos/kardex). `costo_promedio`/
+  // `ultimo_costo` los mantiene ÚNICAMENTE registrarMovimiento() al
+  // procesar una entrada (D5) — nunca se editan a mano desde un CRUD.
+  // `extra` (JSON) es el campo de aterrizaje del importador masivo (D9,
+  // §34.4) para columnas migradas que todavía no tienen campo formal.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS productos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      sku VARCHAR(60) NOT NULL,
+      codigo_barras VARCHAR(60) NULL,
+      nombre VARCHAR(200) NOT NULL,
+      categoria_id INT NULL,
+      unidad_id INT NOT NULL,
+      tipo VARCHAR(20) NOT NULL DEFAULT 'producto',
+      costo DECIMAL(12,2) NULL,
+      costo_promedio DECIMAL(12,2) NOT NULL DEFAULT 0,
+      ultimo_costo DECIMAL(12,2) NULL,
+      precio DECIMAL(12,2) NULL,
+      stock_minimo DECIMAL(12,3) NULL,
+      stock_maximo DECIMAL(12,3) NULL,
+      punto_reorden DECIMAL(12,3) NULL,
+      estado VARCHAR(20) NOT NULL DEFAULT 'activo',
+      proveedor_principal VARCHAR(200) NULL,
+      notas TEXT NULL,
+      extra JSON NULL,
+      eliminado_en DATETIME NULL,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_productos_sku (sku),
+      UNIQUE KEY uq_productos_codigo_barras (codigo_barras),
+      KEY idx_productos_estado (estado),
+      KEY idx_productos_categoria (categoria_id),
+      CONSTRAINT fk_productos_unidad FOREIGN KEY (unidad_id) REFERENCES unidades_medida(id),
+      CONSTRAINT fk_productos_categoria FOREIGN KEY (categoria_id) REFERENCES categorias_inventario(id),
+      CONSTRAINT chk_productos_tipo CHECK (tipo IN ('producto', 'servicio')),
+      CONSTRAINT chk_productos_estado CHECK (estado IN ('activo', 'inactivo', 'archivado'))
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Existencias — D6: granularidad producto×almacén, saldo DERIVADO del
+  // libro de movimientos (nunca editable a mano). `eliminado_en` existe
+  // por simetría con el resto del esquema y para que el bloqueo de fila
+  // de registrarMovimiento() pueda filtrar por él (§0.5.B) — en v1 nunca
+  // se escribe (no hay flujo que borre una existencia).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS existencias (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      producto_id INT NOT NULL,
+      almacen_id INT NOT NULL,
+      disponible DECIMAL(12,3) NOT NULL DEFAULT 0,
+      eliminado_en DATETIME NULL,
+      actualizado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_existencias_producto_almacen (producto_id, almacen_id),
+      CONSTRAINT fk_existencias_producto FOREIGN KEY (producto_id) REFERENCES productos(id),
+      CONSTRAINT fk_existencias_almacen FOREIGN KEY (almacen_id) REFERENCES almacenes(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Kardex — libro append-only (§14, §48 regla 2): ningún flujo debe
+  // hacer UPDATE/DELETE sobre una fila ya confirmada, únicamente
+  // registrarMovimiento() en utils/inventario.js inserta aquí. `folio`
+  // es NULL brevemente entre el INSERT y el UPDATE que lo fija (mismo
+  // patrón insertar→generar→actualizar que ya usa OC-/TK-).
+  // `documento_origen` referencia, por ejemplo, el "No. Venta" (OC-...)
+  // cuando el movimiento viene de una venta con inventario activo (D8).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS movimientos_inventario (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      folio VARCHAR(20) NULL,
+      producto_id INT NOT NULL,
+      almacen_id INT NOT NULL,
+      tipo VARCHAR(30) NOT NULL,
+      cantidad DECIMAL(12,3) NOT NULL,
+      costo_unitario DECIMAL(12,2) NULL,
+      existencia_anterior DECIMAL(12,3) NOT NULL,
+      existencia_posterior DECIMAL(12,3) NOT NULL,
+      motivo VARCHAR(255) NULL,
+      notas TEXT NULL,
+      ubicacion_nota VARCHAR(255) NULL,
+      documento_origen VARCHAR(50) NULL,
+      usuario VARCHAR(100) NULL,
+      creado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_movimientos_folio (folio),
+      KEY idx_movimientos_producto_almacen (producto_id, almacen_id),
+      KEY idx_movimientos_tipo (tipo),
+      KEY idx_movimientos_documento_origen (documento_origen),
+      CONSTRAINT fk_movimientos_producto FOREIGN KEY (producto_id) REFERENCES productos(id),
+      CONSTRAINT fk_movimientos_almacen FOREIGN KEY (almacen_id) REFERENCES almacenes(id),
+      CONSTRAINT chk_movimientos_tipo CHECK (tipo IN (
+        'compra', 'devolucion_cliente', 'inventario_inicial', 'ajuste_positivo',
+        'venta', 'consumo_interno', 'merma', 'ajuste_negativo'
+      ))
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Idempotencia (§0.5.E): una fila por Idempotency-Key recibida en una
+  // mutación de stock. `respuesta_json` queda NULL mientras la operación
+  // está en vuelo (placeholder reclamado por el INSERT único dentro de
+  // la misma transacción del movimiento) y se llena justo antes del
+  // COMMIT — ver registrarMovimiento(). TTL 24h, purgado por
+  // purgarIdempotenciaVencida().
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS inv_idempotencia (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      idempotency_key VARCHAR(64) NOT NULL,
+      respuesta_json JSON NULL,
+      creado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_inv_idempotencia_key (idempotency_key),
+      KEY idx_inv_idempotencia_creado_en (creado_en)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 
   // Reportes: cada fila es UNA corrida de generación de reporte (ya sea
   // "automatico" —justo antes de que el borrado por retención elimine

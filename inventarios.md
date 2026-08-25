@@ -244,7 +244,7 @@ Checklist obligatorio antes de dar v1 por hecho (además de `addv-web-app`: Anal
 - [ ] `verificar-mysql.js` + `verificar-inventario.js` contra MySQL real (incluye tenant nuevo con `ALM-1` auto-provisionado)
 - [ ] Importador validado contra MinIO real: CSV y XLSX con cabeceras desordenadas (auto-mapeo ≥80%), columnas no mapeadas en `extra`, re-import sin duplicar stock, `errores.csv` coincidente
 - [ ] Flujo Ventas→Inventario (D8) con switch por tenant `inventario_activo` `0/1` validado en navegador real (autocompletado + escáner/barcode, `INV_STOCK_INSUFICIENTE` bloquea venta, `D4`) — nombre de clave corregido en esta auditoría, antes decía `ventas_afectan_inventario` (nombre viejo previo a que D8 pasara de global a por-tenant)
-- [ ] Auditoría `admin_auditoria` + `tenant_eventos` para `ventas_afectan_inventario` y cada `EN-/SA-/AJU-`
+- [ ] Auditoría `admin_auditoria` + `tenant_eventos` para `inventario_activo` y cada `EN-/SA-/AJU-`
 - [ ] Revisión visual en `http://localhost:8088/admin` (desktop + móvil 390×844) sin regresión Resumen financiero/Ventas/Gastos, sin `console.error`
 - [ ] Página de ayuda (§56, US-INV-026): tarjetas del diccionario cubren el 100% de campos mapeables del wizard (misma fuente, sin duplicar a mano), deep-link `?` desde el wizard probado, buscador y navegación por teclado validados
 - [ ] `PROJECT_STATE.md` + `US.md` + `cmem.md` actualizados + rebuild `frontend` con `--force-recreate` verificado por HTTP
@@ -1348,7 +1348,6 @@ Alertas configurables (stock bajo, agotado, caducidad próxima/vencida, transfer
 # 41. Clasificación ABC — Fase 2
 
 Clasificar productos en A (alta importancia económica) / B (media) / C (baja), con criterio configurable por valor, ventas, margen o unidades. Requiere histórico de ventas/rotación acumulado que v1 recién empieza a generar. Ver §0.4.1.
-- Unidades.
 
 ---
 
