@@ -1,6 +1,6 @@
 # Portal de Facturación ADDV — Multi-tenant (constancia fiscal, tickets, ventas, gastos y facturación)
 
-Plataforma web multi-tenant (múltiples empresas cliente, cada una con su propia base de datos, sus propias URLs `/<slug>` y `/<slug>/admin`, y su propia identidad visual) para que clientes y proveedores capturen sus datos de facturación y suban su **constancia de situación fiscal** (solo PDF; el sistema valida que sea un documento genuino del SAT y extrae automáticamente el nombre/razón social, el régimen fiscal y el código postal). Cada usuario, identificado por su correo electrónico, puede mantener **un solo archivo activo**; si ya existe uno, la app pide confirmación antes de reemplazarlo. Incluye además tickets de venta con verificación de compra, un panel de administración con gráficas de Business Intelligence y auditoría, control de gastos de la operación, y una app de control (`/control`) cross-tenant para gestionar el ciclo de vida de las empresas dadas de alta.
+Plataforma web multi-tenant (múltiples empresas cliente, cada una con su propia base de datos, sus propias URLs `/<slug>` y `/<slug>/admin`, y su propia identidad visual) para que clientes y proveedores capturen sus datos de facturación y suban su **constancia de situación fiscal** (solo PDF; el sistema valida que sea un documento genuino del SAT y extrae automáticamente el nombre/razón social, el régimen fiscal y el código postal). Cada usuario, identificado por su correo electrónico, puede mantener **un solo archivo activo**; si ya existe uno, la app pide confirmación antes de reemplazarlo. Incluye además tickets de venta con verificación de compra, un panel de administración con gráficas de Business Intelligence y auditoría, control de gastos de la operación, un módulo de inventarios con costeo promedio ponderado y trazabilidad completa (incluida moneda extranjera), y una app de control (`/control`) cross-tenant para gestionar el ciclo de vida de las empresas dadas de alta, incluida la asociación de empresas como sucursales del mismo negocio con usuarios de acceso compartidos.
 
 ## 🧱 Tecnologías usadas
 
@@ -79,6 +79,7 @@ Copia `.env.example` a `.env` y ajusta si lo necesitas:
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Credenciales de MinIO (almacenamiento de archivos) — **cámbialas en producción** | `minioadmin` / `changeme_minio_password` |
 | `MINIO_BUCKET` | Bucket compartido donde se guardan constancias/tickets/facturas (se crea solo si no existe) | `portal-facturacion` |
 | `MINIO_CONSOLE_PORT` | Puerto del host para la consola web de administración de MinIO — publicado solo en `127.0.0.1`, no en toda la LAN/interfaz pública | `9001` |
+| `BANXICO_TOKEN` | Token gratuito de la API SIE de Banco de México (para el tipo de cambio automático USD/MXN de productos de Inventarios en moneda extranjera — ver "Vista Inventarios") | sin definir (sin él, el tipo de cambio se captura a mano, sin bloquear nada) |
 
 El backend se conecta a MySQL usando `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` y `DB_NAME` — en `docker-compose.yml` ya están configuradas automáticamente a partir de las variables `MYSQL_*` de arriba (`DB_HOST` apunta al servicio `mysql` dentro de la red interna de Docker), así que normalmente no necesitas tocarlas directamente.
 
@@ -487,6 +488,19 @@ Control administrativo de los gastos de la operación — **exclusivo del perfil
 - **Auditoría**: todas las rutas de gastos pasan por `requireAdminAuth` + `requireAdminArea('administrador')` y quedan registradas en `admin_auditoria` como el resto del panel.
 - Detalle en `PROJECT_STATE.md` punto 109 y en `US.md` (US-066/US-067).
 
+### Vista "Inventarios"
+
+Módulo de catálogo y existencias — **exclusivo del perfil "Administrador"** (D7: el perfil Fiscal no tiene ningún acceso, ni siquiera de lectura), con un interruptor global (**"Inventario activo"**, en Configuraciones globales) que lo prende/apaga por completo, incluida su integración opcional con Ventas. Detalle completo, decisiones de diseño y toda la bitácora de implementación en `inventarios.md`.
+
+- **Catálogo simple** (D1, sin variantes/lote/serie/caducidad): SKU, código de barras opcional, nombre, categoría (editable igual que Gastos), unidad de medida, tipo (`producto`/`servicio` — un servicio nunca genera existencia ni movimientos, D11), costo de referencia, precio, mínimos/máximo/punto de reorden, proveedor y notas. Papelera con restaurar/eliminar permanente (un producto con movimientos históricos nunca se borra físicamente).
+- **Existencias derivadas del kardex** (D6): el saldo disponible nunca se edita a mano — sube o baja únicamente registrando una **entrada** (compra, devolución de cliente, inventario inicial, ajuste positivo) o una **salida** (venta, consumo interno, merma, ajuste negativo). El motor (`registrarMovimiento()`) es atómico y a prueba de concurrencia (bloqueo de fila + reintento), con idempotencia real vía `Idempotency-Key`.
+- **Costeo promedio ponderado** (D5): cada entrada con costo recalcula sola el costo promedio del producto — nunca se edita directamente.
+- **Moneda extranjera por producto** (§57): un producto puede marcarse en USD; sus entradas capturan el costo en dólares + tipo de cambio (precargado automáticamente del día vía la API SIE de Banco de México — ver `BANXICO_TOKEN` arriba, con captura manual como respaldo si no hay token o el servicio no responde) y el sistema calcula el costo en pesos que alimenta el costeo promedio. El historial de movimientos conserva el desglose completo (moneda, tipo de cambio, costo original) para siempre.
+- **Integración opcional con Ventas** (D8): con "Inventario activo" encendido, "Registrar venta" permite vincular productos del catálogo — la venta descuenta existencia automáticamente (todo o nada si hay varias líneas), valida stock disponible y revierte con una devolución de cliente si la venta se cancela o falla a medio camino.
+- **Importador masivo CSV/XLSX** (§34, D9): wizard de 6 pasos con auto-mapeo de columnas por sinónimos (reconoce exportaciones de sistemas como CONTPAQi/Aspel sin configuración manual), perfiles de mapeo guardables, upsert por SKU (no duplica stock al reimportar el mismo catálogo), y modo asíncrono para archivos grandes (>500 filas).
+- **Ayuda contextual y diccionario de datos** (§56): ícono "?" en cada campo del formulario y del wizard de importación, con explicación en lenguaje simple, ejemplo válido y error común — sin salir de donde estás capturando.
+- **Verificar integridad**: botón que recalcula cada existencia desde cero contra el libro de movimientos y reporta cualquier divergencia (nunca corrige sola — la corrección siempre es un ajuste explícito hecho por el administrador).
+
 ### Vista "Usuarios"
 
 **Habilitar Ventas**: el interruptor que activa o desactiva la funcionalidad completa de "Ventas" (ver "Configuraciones fiscales" antes) vive aquí, al inicio de esta vista, **al mismo nivel que "Cuenta de respaldo admin"** — las dos tarjetas se acomodan lado a lado en una cuadrícula de 2 columnas (colapsa a una sola columna en pantallas angostas), ya que ambas tienen poco contenido (un interruptor la una, un campo de contraseña la otra) y apiladas una debajo de otra dejaban una franja angosta con mucho espacio vacío a los lados. Se movió desde "Configuraciones fiscales" porque "Ventas" es un área exclusiva del perfil Administrador (igual que "Usuarios" en sí), así que el control que la prende o apaga ahora vive junto al resto de lo que ese mismo perfil puede ver, en vez de estar en una tarjeta a la que un perfil Fiscal también tiene acceso. Se sigue guardando solo, al momento de cambiarlo (sin necesitar ningún botón de "Guardar"); si falla, vuelve a su valor anterior y muestra un error que no desaparece solo. "Perfiles y roles de acceso" (con una tabla ancha adentro) se queda fuera de esta cuadrícula, en su propia fila completa por debajo.
@@ -821,6 +835,25 @@ reemplazar/quitar el logo). El backend usa `req.tenant.marca` (con
 fallback `'ADDV'`) en los 7 correos que antes tenían "ADDV" incrustado:
 ticket nuevo, venta, invitación al portal, ticket nuevo al
 contador, factura lista y la plantilla de correo por defecto.
+
+**Sucursales — usuarios de acceso compartidos entre empresas del mismo
+negocio (§58, ver `inventarios.md`)**: `/control` puede agrupar varios
+tenants como "sucursales" del mismo negocio (vista "Sucursales" en el
+sidebar) y dar de alta usuarios compartidos que entran a `/admin` de
+CUALQUIER sucursal del grupo con la misma contraseña. Lo único que se
+comparte es el login — cada tenant conserva su propia base de datos,
+inventario y ventas 100% aislados, sin excepción. La credencial vive
+SOLO en la BD de control (tabla `usuarios_sucursal`, nunca en la tabla
+`usuarios` de cada tenant) y `backend` la verifica en vivo reutilizando
+la misma conexión que ya usa para resolver cualquier tenant por slug —
+sin llamada nueva entre servicios, sin duplicar la credencial. Un tenant
+vive en máximo un grupo a la vez. "Eliminar" un grupo es una baja lógica
+(el usuario `control_app` no tiene privilegio `DELETE` ni `REFERENCES`
+en MySQL, a propósito — credencial angosta): suelta sus sucursales y
+desactiva sus usuarios compartidos, sin borrar ninguna fila. Cuando un
+tenant pertenece a un grupo con más de una sucursal, `/admin` muestra un
+switcher en el sidebar para saltar entre ellas sin volver a iniciar
+sesión.
 
 **Antes de la primera vez que uses `/control`**: el usuario MySQL
 `control_app` no existe hasta que corras (una vez)
