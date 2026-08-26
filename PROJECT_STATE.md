@@ -9611,12 +9611,24 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        `tipoCambio.js` (sin token, respuesta válida con caché, HTTP
        no-ok, "N/E" sin dato publicado el fin de semana, caché vencido
        de un día para otro → `banxico_caducado`, con `jest.setSystemTime`).
-     - **Sin validar contra Docker/MySQL/Banxico reales en esta
-       sesión** (mismo patrón que otros segmentos recientes) — antes de
-       producción: correr la migración contra MySQL real y probar con
-       un `BANXICO_TOKEN` real (alta, entrada con conversión, historial
-       con tooltip). Sin commit/push todavía — pedir confirmación
-       explícita antes, mismo protocolo `addv-web-app`.
+     - **Commiteado y pusheado** (`2245311` → `fact/master`, junto con
+       el Segmento A arrastrado de la sesión anterior, confirmado
+       explícitamente por el usuario).
+     - **Validado contra Docker/MySQL reales (2026-08-26)**: rebuild
+       `--no-cache` + `--force-recreate` backend/frontend, esquema
+       confirmado por `INFORMATION_SCHEMA` (columna + 2 CHECK), sin
+       `BANXICO_TOKEN` configurado → `GET /tipo-cambio/usd` degrada a
+       `manual_requerido` en vivo tal como diseñado. Flujo HTTP
+       completo: producto USD real (costo_original=25, tipo_cambio=18.5)
+       → `costo_promedio=462.5` exacto, kardex expone el desglose;
+       producto MXN sin regresión (costo_unitario directo,
+       `monedaOriginal:null`); los 2 errores (`INV_CANTIDAD_INVALIDA`,
+       `INV_TIPO_CAMBIO_INVALIDO`) confirmados con HTTP 400 reales.
+       `scripts/verificar-inventario.js` **19/19** contra MySQL real
+       (concurrencia, idempotencia, conciliación, D11) — cero regresión
+       en `registrarMovimiento()`. Datos de prueba limpiados. Pendiente
+       real: probar el camino AUTOMÁTICO con un `BANXICO_TOKEN` real
+       (solo se validó por código + la degradación manual en vivo).
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

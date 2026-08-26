@@ -899,10 +899,13 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   para un producto USD (`costoOriginal × tipoCambio`, validado ANTES de
   abrir la transacción en `registrarMovimiento()` para no romper el
   contrato "sin tocar la BD" que ya cubrían los tests existentes).
-  Jest backend 716/716. Detalle completo en PROJECT_STATE.md punto 152.
-  Sin validar contra Docker/MySQL/Banxico reales — antes de producción,
-  correr la migración y probar con un `BANXICO_TOKEN` real. Sin
-  commit/push todavía.
+  Jest backend 716/716. **Commiteado y pusheado** (`2245311` →
+  `fact/master`) y **validado contra Docker/MySQL reales (2026-08-26)**:
+  esquema confirmado, degradación sin `BANXICO_TOKEN` en vivo, flujo USD
+  real (462.5 = 25×18.5 exacto), MXN sin regresión, errores 400 reales,
+  `verificar-inventario.js` 19/19. Detalle completo en PROJECT_STATE.md
+  punto 152. Pendiente real: probar el camino automático con un
+  `BANXICO_TOKEN` real cuando exista.
 
 - **Maduración del requerimiento de Inventarios (`inventarios.md`) — EN
   CURSO, solo análisis/documentación (ver PROJECT_STATE.md punto 136,
