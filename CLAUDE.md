@@ -948,9 +948,31 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   íconos con tooltip poblado, click en SKU abrió la ayuda sin perder el
   formulario. Jest backend 702/702. **Con esto, el plan completo de
   `inventarios.md` (segmentos 1-8, las 3 entradas de §56.2 incluidas)
-  queda 100% implementado y validado.** **SIN COMMITEAR** (puntos 145,
-  146 y 147) — pedir confirmación explícita antes de commit/push, mismo
-  protocolo `addv-web-app`.
+  queda 100% implementado y validado.**
+- **Unificación de TODOS los tooltips del sitio (2026-08-25,
+  PROJECT_STATE.md punto 148)**: a pedido explícito del usuario ("que
+  todo el sitio tenga el mismo tooltip, que no se vea sencillo"),
+  auditoría completa de `frontend/` + `control/` (sin `node_modules`).
+  9 spots más con `title` nativo corregidos (barras de "Ventas vs
+  Facturado vs Gastos", segmentos de "Utilidad neta del mes", barra de
+  "Eliminados por mes", celda de vista previa del wizard, botones
+  "Verificar integridad"/"Ayuda") + un bug sutil en los 15 íconos "?" ya
+  construidos (llevaban `title` Y `data-tooltip` a la vez — se quitó el
+  `title` duplicado). **Segundo componente de tooltip totalmente
+  distinto encontrado y consolidado**: `.tooltip-trigger`/
+  `.tooltip-popover` (CSS puro, con toggle táctil a mano en JS), usado
+  en un solo lugar (ícono de "Correo de quien va a facturar" en SMTP) —
+  migrado al mismo `data-tooltip`, clase renombrada de
+  `.inv-campo-ayuda` a `.campo-ayuda` (genérica) y movida a `style.css`
+  (compartida). El único `title` que se dejó intacto a propósito: el
+  `<iframe>` de vista previa (accesibilidad, no es un tooltip visual).
+  Validado en navegador real: el ícono de SMTP ya muestra el mismo
+  globo oscuro que el resto del sitio (antes era un popover blanco
+  distinto). Jest backend 702/702 (sin cambios). **Con esto, todo
+  tooltip visible del sitio usa exactamente el mismo componente
+  estilizado, sin excepción.** **SIN COMMITEAR** (puntos 145-148) —
+  pedir confirmación explícita antes de commit/push, mismo protocolo
+  `addv-web-app`.
 
 - **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver
   PROJECT_STATE.md punto 133, 2026-08-23, IMPLEMENTADO Y VALIDADO)**:

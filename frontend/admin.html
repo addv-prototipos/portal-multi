@@ -1183,10 +1183,10 @@
               <button type="button" class="view-toggle-btn" id="btn-ver-inv-papelera" role="tab" aria-selected="false">Papelera</button>
             </div>
             <span class="admin-count" id="inv-productos-count">0 productos</span>
-            <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" title="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
+            <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" data-tooltip="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
             <button type="button" class="btn btn-secondary" id="btn-refresh-inventarios">Actualizar</button>
             <button type="button" class="btn btn-secondary" id="btn-inv-importar">Importar catálogo</button>
-            <button type="button" class="btn-icon" id="btn-inv-ayuda-abrir" aria-label="Ayuda y diccionario de datos de Inventarios" title="Ayuda y diccionario de datos">?</button>
+            <button type="button" class="btn-icon" id="btn-inv-ayuda-abrir" aria-label="Ayuda y diccionario de datos de Inventarios" data-tooltip="Ayuda y diccionario de datos">?</button>
             <button type="button" class="btn btn-primary" id="btn-nuevo-producto">+ Nuevo producto</button>
           </div>
         </div>
@@ -1813,14 +1813,7 @@
               <label for="smtp-correo-contador">
                 Correo de quien va a facturar
                 <span class="field-mark optional">(opcional)</span>
-                <button type="button" class="tooltip-trigger" id="tooltip-correo-contador" aria-label="Más información sobre este campo">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/>
-                    <path d="M12 11v5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                    <circle cx="12" cy="7.75" r="1" fill="currentColor"/>
-                  </svg>
-                  <span class="tooltip-popover" role="tooltip">Este correo debe ser el de su contador: la persona encargada de generar la factura. Se le avisa automáticamente cada vez que un cliente sube un ticket nuevo para facturar.</span>
-                </button>
+                <button type="button" class="campo-ayuda" id="tooltip-correo-contador" aria-label="Más información sobre este campo" data-tooltip="Este correo debe ser el de su contador: la persona encargada de generar la factura. Se le avisa automáticamente cada vez que un cliente sube un ticket nuevo para facturar.">?</button>
               </label>
               <input type="email" id="smtp-correo-contador" placeholder="contador@ejemplo.com" autocomplete="off" />
               <p class="field-hint">Recibe un correo automático cada vez que se sube un ticket nuevo. Si lo dejas vacío, te lo notificamos a ti con un aviso emergente al iniciar sesión.</p>
@@ -2871,7 +2864,7 @@
       <div class="gastos-modal-body">
         <div class="gastos-modal-grid">
           <div class="field">
-            <label>Tipo<button type="button" class="inv-campo-ayuda" data-campo="tipo" aria-label="Ver ayuda de Tipo" title="Ver ayuda de este campo">?</button></label>
+            <label>Tipo<button type="button" class="campo-ayuda" data-campo="tipo" aria-label="Ver ayuda de Tipo">?</button></label>
             <div class="view-toggle" role="tablist" aria-label="¿Producto físico o servicio?">
               <button type="button" class="view-toggle-btn is-active" id="btn-inv-tipo-producto" role="tab" aria-selected="true">Producto</button>
               <button type="button" class="view-toggle-btn" id="btn-inv-tipo-servicio" role="tab" aria-selected="false">Servicio</button>
@@ -2879,23 +2872,23 @@
             <p class="field-hint">Un servicio no genera existencias ni historial de movimientos (D11).</p>
           </div>
           <div class="field">
-            <label for="inv-modal-nombre">Nombre <span class="required">*</span><button type="button" class="inv-campo-ayuda" data-campo="nombre" aria-label="Ver ayuda de Nombre" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-nombre">Nombre <span class="required">*</span><button type="button" class="campo-ayuda" data-campo="nombre" aria-label="Ver ayuda de Nombre">?</button></label>
             <input type="text" id="inv-modal-nombre" maxlength="200" placeholder="Ej. Tornillo M6 25mm" autocomplete="off" />
             <p class="field-error" id="error-inv-modal-nombre" role="alert"></p>
           </div>
           <div class="field">
-            <label for="inv-modal-sku">SKU <span class="required">*</span><button type="button" class="inv-campo-ayuda" data-campo="sku" aria-label="Ver ayuda de SKU" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-sku">SKU <span class="required">*</span><button type="button" class="campo-ayuda" data-campo="sku" aria-label="Ver ayuda de SKU">?</button></label>
             <input type="text" id="inv-modal-sku" maxlength="60" placeholder="Ej. TORN-M6-25MM" autocomplete="off" />
             <p class="field-hint">Tú lo eliges — no lo genera el sistema. No se puede repetir.</p>
             <p class="field-error" id="error-inv-modal-sku" role="alert"></p>
           </div>
           <div class="field">
-            <label for="inv-modal-codigo-barras">Código de barras<button type="button" class="inv-campo-ayuda" data-campo="codigo_barras" aria-label="Ver ayuda de Código de barras" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-codigo-barras">Código de barras<button type="button" class="campo-ayuda" data-campo="codigo_barras" aria-label="Ver ayuda de Código de barras">?</button></label>
             <input type="text" id="inv-modal-codigo-barras" maxlength="60" placeholder="Opcional" autocomplete="off" />
             <p class="field-error" id="error-inv-modal-codigo-barras" role="alert"></p>
           </div>
           <div class="field inv-modal-categoria-field">
-            <label for="inv-modal-categoria">Categoría<button type="button" class="inv-campo-ayuda" data-campo="categoria" aria-label="Ver ayuda de Categoría" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-categoria">Categoría<button type="button" class="campo-ayuda" data-campo="categoria" aria-label="Ver ayuda de Categoría">?</button></label>
             <div class="gastos-categoria-select-row">
               <select id="inv-modal-categoria"><option value="">Sin categoría</option></select>
               <button type="button" class="btn-categorias-toggle" id="btn-inv-categorias-toggle" aria-expanded="false" aria-controls="inv-categorias-panel">✏️ Categorías</button>
@@ -2910,35 +2903,35 @@
             </div>
           </div>
           <div class="field">
-            <label for="inv-modal-unidad">Unidad de medida <span class="required">*</span><button type="button" class="inv-campo-ayuda" data-campo="unidad_base" aria-label="Ver ayuda de Unidad de medida" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-unidad">Unidad de medida <span class="required">*</span><button type="button" class="campo-ayuda" data-campo="unidad_base" aria-label="Ver ayuda de Unidad de medida">?</button></label>
             <select id="inv-modal-unidad"></select>
             <p class="field-error" id="error-inv-modal-unidad" role="alert"></p>
           </div>
           <div class="field">
-            <label for="inv-modal-costo">Costo (MXN)<button type="button" class="inv-campo-ayuda" data-campo="costo" aria-label="Ver ayuda de Costo" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-costo">Costo (MXN)<button type="button" class="campo-ayuda" data-campo="costo" aria-label="Ver ayuda de Costo">?</button></label>
             <input type="text" inputmode="decimal" id="inv-modal-costo" placeholder="0.00" autocomplete="off" />
             <p class="field-hint">Referencia — el costo promedio real lo calcula cada entrada (D5).</p>
             <p class="field-error" id="error-inv-modal-costo" role="alert"></p>
           </div>
           <div class="field">
-            <label for="inv-modal-precio">Precio de venta (MXN)<button type="button" class="inv-campo-ayuda" data-campo="precio" aria-label="Ver ayuda de Precio" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-precio">Precio de venta (MXN)<button type="button" class="campo-ayuda" data-campo="precio" aria-label="Ver ayuda de Precio">?</button></label>
             <input type="text" inputmode="decimal" id="inv-modal-precio" placeholder="0.00" autocomplete="off" />
             <p class="field-error" id="error-inv-modal-precio" role="alert"></p>
           </div>
           <div class="field">
-            <label for="inv-modal-stock-minimo">Stock mínimo<button type="button" class="inv-campo-ayuda" data-campo="stock_minimo" aria-label="Ver ayuda de Stock mínimo" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-stock-minimo">Stock mínimo<button type="button" class="campo-ayuda" data-campo="stock_minimo" aria-label="Ver ayuda de Stock mínimo">?</button></label>
             <input type="text" inputmode="decimal" id="inv-modal-stock-minimo" placeholder="Opcional" autocomplete="off" />
           </div>
           <div class="field">
-            <label for="inv-modal-stock-maximo">Stock máximo<button type="button" class="inv-campo-ayuda" data-campo="stock_maximo" aria-label="Ver ayuda de Stock máximo" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-stock-maximo">Stock máximo<button type="button" class="campo-ayuda" data-campo="stock_maximo" aria-label="Ver ayuda de Stock máximo">?</button></label>
             <input type="text" inputmode="decimal" id="inv-modal-stock-maximo" placeholder="Opcional" autocomplete="off" />
           </div>
           <div class="field">
-            <label for="inv-modal-punto-reorden">Punto de reorden<button type="button" class="inv-campo-ayuda" data-campo="punto_reorden" aria-label="Ver ayuda de Punto de reorden" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-punto-reorden">Punto de reorden<button type="button" class="campo-ayuda" data-campo="punto_reorden" aria-label="Ver ayuda de Punto de reorden">?</button></label>
             <input type="text" inputmode="decimal" id="inv-modal-punto-reorden" placeholder="Opcional" autocomplete="off" />
           </div>
           <div class="field">
-            <label for="inv-modal-estado">Estado<button type="button" class="inv-campo-ayuda" data-campo="estado" aria-label="Ver ayuda de Estado" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-estado">Estado<button type="button" class="campo-ayuda" data-campo="estado" aria-label="Ver ayuda de Estado">?</button></label>
             <select id="inv-modal-estado">
               <option value="activo">Activo</option>
               <option value="inactivo">Inactivo</option>
@@ -2946,11 +2939,11 @@
             </select>
           </div>
           <div class="field">
-            <label for="inv-modal-proveedor">Proveedor principal<button type="button" class="inv-campo-ayuda" data-campo="proveedor_principal" aria-label="Ver ayuda de Proveedor principal" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-proveedor">Proveedor principal<button type="button" class="campo-ayuda" data-campo="proveedor_principal" aria-label="Ver ayuda de Proveedor principal">?</button></label>
             <input type="text" id="inv-modal-proveedor" maxlength="200" placeholder="Opcional, texto libre" autocomplete="off" />
           </div>
           <div class="field inv-modal-notas">
-            <label for="inv-modal-notas">Notas<button type="button" class="inv-campo-ayuda" data-campo="notas" aria-label="Ver ayuda de Notas" title="Ver ayuda de este campo">?</button></label>
+            <label for="inv-modal-notas">Notas<button type="button" class="campo-ayuda" data-campo="notas" aria-label="Ver ayuda de Notas">?</button></label>
             <textarea id="inv-modal-notas" maxlength="2000" rows="3" placeholder="Opcional"></textarea>
           </div>
         </div>

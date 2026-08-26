@@ -1262,8 +1262,8 @@
 }
 
 /* Ícono de "ya facturado" junto al No. Compra en la tabla de órdenes —
-   el tooltip nativo del navegador (atributo title) ya explica su
-   significado al pasar el mouse, sin necesidad de JS adicional. */
+   usa data-tooltip (tooltip estilizado del sitio, ver style.css), no el
+   atributo title nativo. */
 .orden-facturado-icono {
   display: inline-flex;
   align-items: center;
@@ -3675,30 +3675,9 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   margin-top: 14px;
 }
 
-/* Ícono "?" que abre una tarjeta específica del diccionario de datos
-   (§56): junto a cada fila del mapeo del wizard de importación (§56.2.2,
-   entrada 2) y junto a cada label del formulario "Crear producto"
-   (§56.2.3, entrada 3) — el hover muestra la explicación corta
-   (data-tooltip), el click abre la ayuda completa en esa ancla. */
-.inv-campo-ayuda {
-  margin-left: 6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-border);
-  background: var(--color-bg);
-  color: var(--color-ink-soft);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  vertical-align: middle;
-}
-.inv-campo-ayuda:hover,
-.inv-campo-ayuda:focus-visible {
-  color: var(--color-accent-dark);
-  border-color: var(--color-accent);
-}
+/* .campo-ayuda (el ícono "?" que abre el diccionario de datos, §56) vive
+   en style.css — es compartido por Inventarios y por Configuraciones
+   globales (correo del contador), no exclusivo de este archivo. */
 
 /* Ayuda y diccionario de datos de Inventarios (§56, segmento 8) */
 .inv-ayuda-modal {

@@ -9244,8 +9244,89 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       valor). Consola sin errores. Jest backend 702/702 (sin cambios).
       **Con esto, el plan completo de `inventarios.md` (segmentos 1-8,
       incluidas las 3 entradas de §56.2) queda 100% implementado y
-      validado.** Sin commitear — pedir confirmación explícita antes de
-      commit/push, mismo protocolo `addv-web-app`.
+      validado.**
+
+ 148. **Unificación de TODOS los tooltips del sitio (2026-08-25,
+      IMPLEMENTADO Y VALIDADO)**: a pedido explícito del usuario tras el
+      fix puntual del punto 145 ("quiero que revises los tooltips de
+      resumen financiero y de TODO el sitio... que no se vea sencillo"),
+      auditoría completa de `frontend/*.html`/`*.js` y `control/`
+      (excluyendo `node_modules`) buscando cualquier tooltip nativo del
+      navegador (atributo `title`) o cualquier componente de tooltip
+      DISTINTO al estilizado `.tooltip-personalizado`/`data-tooltip` ya
+      establecido (`inicializarTooltips()`, definido en paralelo en
+      `admin.js` y `portal.js` — este último ya usado correctamente por
+      Tickets/Constancias/Dashboard desde antes, confirmado sin cambios).
+
+      **9 spots reales encontrados y corregidos** (más allá de los 3 ya
+      arreglados en el punto 145), todos en `admin.js`/`admin.html`:
+      - Gráfica "Ventas vs Facturado vs Gastos": las 4 barras (Ventas/
+        Gastos/Facturado/Sin facturar) usaban `title` nativo.
+      - Tarjeta "Utilidad neta del mes": los 3 segmentos apilados (IVA/
+        Subtotal/Gastos) usaban `title` nativo.
+      - "Eliminados por mes" (vista Lectura de reportes): la barra usaba
+        `title` nativo.
+      - Celda de vista previa del wizard de importación
+        (`.inv-import-mapeo-preview`, columna truncada): `title` nativo.
+      - Botón "Verificar integridad" (Inventarios) y botón de abrir la
+        ayuda (Inventarios): `title` nativo, redundante con su
+        `aria-label`.
+      - **Los 15 íconos "?" ya construidos en los puntos 144/147**
+        (wizard + "Crear producto") tenían un bug sutil: llevaban A LA
+        VEZ `title="Ver ayuda de este campo"` (nativo, genérico) Y
+        `data-tooltip` (estilizado, poblado dinámicamente con la
+        explicación real) — el navegador podía mostrar el globo GRIS
+        nativo antes de que el JS aplicara el estilizado, o ambos en
+        conflicto. Se quitó el `title` duplicado; el `aria-label` ya
+        cubre accesibilidad.
+
+      **Segundo componente de tooltip completamente distinto,
+      encontrado y consolidado**: `.tooltip-trigger`/`.tooltip-popover`
+      en `style.css` — un sistema CSS-puro (con `:hover`/`:focus-visible`
+      + una clase `.is-active` alternada por JS para "tocar" en móvil),
+      visualmente parecido (burbuja oscura con flecha) pero
+      IMPLEMENTADO DISTINTO y usado en un solo lugar de todo el sitio:
+      el ícono de información junto a "Correo de quien va a facturar"
+      (Configuraciones globales → SMTP). Consolidado al mismo componente
+      `data-tooltip` (reutilizando el ícono "?" ya construido,
+      renombrado de `.inv-campo-ayuda` a `.campo-ayuda` — genérico,
+      movido de `admin.css` a `style.css` por ser compartido entre
+      Inventarios y Configuraciones globales). El toggle táctil a mano
+      (11 líneas de JS en `admin.js`) se volvió código muerto y se
+      eliminó — el sistema unificado ya cubre `focusin`/`focusout`
+      (un tap en un `<button>` dispara foco en la gran mayoría de
+      navegadores móviles), cubriendo el mismo caso sin JS dedicado.
+      El bloque CSS viejo (~65 líneas) se reemplazó por el
+      `.campo-ayuda` compartido.
+
+      **2 spots verificados como correctos y sin tocar** (comentario
+      desactualizado nada más, código ya migrado antes de esta sesión):
+      `.orden-facturado-icono` (ícono de venta facturada) y
+      `.orden-correo-con-tooltip` (celda de correo en Ventas) ya usaban
+      `data-tooltip` — solo el comentario en `admin.css` seguía diciendo
+      "tooltip nativo del navegador", corregido para reflejar la
+      realidad.
+
+      **1 uso de `title` dejado intacto a propósito**: el `<iframe>` de
+      vista previa de documentos (`#preview-frame`) — es metadata de
+      accesibilidad para lectores de pantalla (describe el propósito del
+      iframe embebido), no un tooltip visual al pasar el mouse; no aplica
+      el mismo criterio.
+
+      Validado en navegador real: el ícono de "Correo de quien va a
+      facturar" muestra el mismo globo oscuro estilizado que el resto
+      del sitio (antes era un popover blanco con flecha, visualmente
+      distinto); las barras de "Ventas vs Facturado vs Gastos" y
+      "Eliminados por mes" (Lectura de reportes) confirmadas con
+      `data-tooltip` poblado correctamente por API/DOM. Consola sin
+      errores en todo el recorrido. Balance de `<div>`/`<button>`/
+      `<label>` y llaves CSS verificado en los 3 archivos tocados
+      (`admin.html`/`admin.css`/`style.css`). Jest backend 702/702 (sin
+      cambios, segmento 100% frontend). Con esto, **todo tooltip visible
+      del sitio (panel admin + portal de cliente) usa exactamente el
+      mismo componente estilizado, sin excepción documentada.** Sin
+      commitear — pedir confirmación explícita antes de commit/push,
+      mismo protocolo `addv-web-app`.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 
