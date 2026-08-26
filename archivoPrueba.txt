@@ -1,0 +1,4 @@
+Archivo de prueba — generado por Spark para Tony
+Fecha: 2026-08-26
+Repo: ADDVportalFact
+Propósito: prueba de commit/push
