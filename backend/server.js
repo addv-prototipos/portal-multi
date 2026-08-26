@@ -2508,6 +2508,37 @@ app.get(
   })
 );
 
+// §58: sucursales asociadas al tenant actual (mismo grupo de sucursales,
+// ver backend/utils/auth.js) — alimenta el switcher del sidebar en
+// admin.js. Cualquier perfil autenticado puede verlo (no solo
+// administrador): un usuario de sucursal compartida puede tener perfil
+// "fiscal". Sin tenant resuelto o sin grupo, responde lista vacía sin
+// tocar la BD de control.
+app.get(
+  '/api/admin/sucursales-hermanas',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!req.tenant || !req.tenant.grupoSucursalId) {
+      return res.json({ sucursales: [] });
+    }
+    const poolControl = obtenerPoolControl();
+    const [filas] = await poolControl.query(
+      `SELECT slug, nombre_empresa FROM tenants
+        WHERE grupo_sucursal_id = ? AND estado = 'activo'
+        ORDER BY nombre_empresa ASC`,
+      [req.tenant.grupoSucursalId]
+    );
+    res.json({
+      sucursales: filas.map((f) => ({
+        slug: f.slug,
+        nombre_empresa: f.nombre_empresa,
+        actual: f.slug === req.tenant.slug,
+      })),
+    });
+  })
+);
+
 // ---------- Administración de usuarios (clientes, administradores y fiscales) ----------
 
 // Lista todas las cuentas de usuario, sin exponer el hash de la

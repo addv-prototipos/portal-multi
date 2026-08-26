@@ -2004,20 +2004,112 @@ migración contra MySQL real y probar con un `BANXICO_TOKEN` real.
 
 ---
 
-# 58. Asociar tenants como sucursales — Fase 2
+# 58. Asociar tenants como sucursales — IMPLEMENTADO
 
-> Agregado 2026-08-25 a pedido del usuario, como pendiente de funcionalidad — **solo anotado, sin analizar a fondo ni implementar**. Requiere la misma sesión de Analizar → Proponer → Confirmar antes de tocar código (protocolo `addv-web-app`).
+> Agregado 2026-08-25 como pendiente; analizado, propuesto (6 preguntas
+> cerradas vía cuestionario, incluido un fork de arquitectura con 3
+> alternativas) y confirmado explícitamente por el usuario ("Implementar
+> ahora") el 2026-08-26. Ver PROJECT_STATE.md para el punto de bitácora
+> completo.
 
-## US-INV-028 (borrador) — Asociar sucursales del mismo negocio
+## US-INV-028 — Asociar sucursales del mismo negocio
 
-Surgió del requerimiento de multi-inventario offline (§ propuesta "Ventas con inventario activo v2"): el catálogo cifrado local asume **una sola tienda activa**; si un negocio tiene varias tiendas, cada una debe darse de alta como su propio tenant (BD/existencias independientes, sin mezclar stock). El usuario pidió ahora poder **asociar** esos tenants entre sí como sucursales del mismo negocio, con **los mismos usuarios de acceso válidos en todas las sucursales asociadas**.
+Como **super** (solo `/control`), puedo agrupar varios tenants del mismo
+negocio en un "grupo de sucursales" y dar de alta usuarios compartidos
+que entran a `/admin` de CUALQUIER sucursal del grupo con la misma
+contraseña. Cada tenant sigue con su BD/inventario/ventas 100% aislados
+— lo único compartido es el login.
 
-Puntos que quedan pendientes de cerrar con el usuario antes de proponer un diseño (no asumir ninguno de estos):
+Decisiones cerradas (2026-08-26):
 
-- **Qué significa "asociar" en términos de datos**: cada tenant sigue con su propia BD/inventario/ventas separados (eso no cambia — es justo lo que motivó "multi-tienda = tenant nuevo"). Lo que se comparte es solo el **inicio de sesión**: un usuario administrador se autentica una vez y puede moverse entre las sucursales asociadas sin credenciales nuevas. A confirmar que esta lectura es correcta.
-- **Choca con el aislamiento por tenant ya establecido**: hoy cada tenant tiene su propio pool de MySQL, sus propias credenciales, y la sesión de admin (`auth.js`) vive por tenant (HKDF derivado por slug). Compartir usuarios entre tenants es una excepción real a ese diseño — hay que decidir dónde vive el usuario compartido (¿tabla nueva a nivel de la BD de control, separada de la tabla `usuarios` de cada tenant?) y cómo cambia el flujo de login (¿elige sucursal antes o después de autenticarse?).
-- **Alcance de "los mismos usuarios"**: ¿todos los usuarios de una sucursal ven automáticamente las demás asociadas, o se marca por usuario cuáles sucursales puede ver (ej. un cajero de la sucursal Centro no necesita ver Norte)? El pedido dice "los usuarios de acceso son los mismos para todas las asociadas" — sugiere sin distinción, pero conviene confirmar antes de cerrar el diseño.
-- **Auditoría**: `admin_auditoria` hoy es por tenant — si un usuario actúa en 2 sucursales asociadas, ¿la auditoría de cada una se queda separada (cada acción se audita donde ocurrió) o se necesita una vista cruzada? (Nota: ya existe un patrón similar — `/control`, cross-tenant, solo perfil `super` — puede servir de referencia, aunque ese caso es soporte técnico, no operación diaria de un usuario `administrador`.)
-- **Quién puede asociar/desasociar sucursales**: ¿lo hace el propio administrador del tenant, o solo `/control` (super)? Dado que `/control` ya es el único lugar que gestiona el ciclo de vida de tenants, es el candidato natural — a confirmar.
+- **Qué se comparte**: solo el login. Cero cambio a aislamiento de
+  datos por tenant.
+- **Dónde vive el usuario compartido**: tabla nueva en la BD de
+  control (`usuarios_sucursal`), NO en la tabla `usuarios` de cada
+  tenant — una sola fuente de verdad.
+- **Alcance de visibilidad**: todos los usuarios de un grupo ven todas
+  las sucursales asociadas, sin distinción por usuario.
+- **Quién asocia/desasocia**: solo `/control` (super).
+- **Auditoría**: sin cambios — sigue por tenant, cada acción se audita
+  donde ocurrió.
+- **Mecanismo de verificación** (fork de arquitectura, 3 alternativas
+  evaluadas: credenciales replicadas por fan-out / verificación en vivo
+  / sesión cross-tenant real): **verificación en vivo**, reutilizando
+  `obtenerPoolControl()` — la conexión que el backend YA mantiene
+  abierta para resolver cualquier tenant por slug en cada request. Cero
+  fan-out, cero endpoint interno nuevo, una sola fuente de verdad.
 
-Sin diseño de esquema, API ni UI todavía — depende de las respuestas de arriba.
+### Esquema (BD de control)
+
+`grupos_sucursal` (id, nombre, activo, creado_en, actualizado_en) +
+`tenants.grupo_sucursal_id` (NULL, un tenant en máximo 1 grupo) +
+`usuarios_sucursal` (grupo_sucursal_id, usuario, password_hash scrypt,
+perfil, activo). **Sin FOREIGN KEY y sin DELETE real, a propósito** —
+hallazgo real validando contra MySQL real (no detectable con `node
+--check`/Jest mockeado): el usuario `control_app` solo tiene
+`SELECT/INSERT/UPDATE/CREATE/ALTER` (credencial angosta, decisión de
+seguridad del segmento 9b) — sin `REFERENCES` (no puede crear FK) ni
+`DELETE` (no puede borrar filas). "Eliminar" un grupo es soft-delete
+(`activo = 0`) que además suelta sus tenants
+(`grupo_sucursal_id = NULL`) y desactiva sus usuarios a mano, ya que no
+hay `ON DELETE CASCADE` posible — mismo patrón ya usado en
+`api_credenciales.revocarCredencialApi()` y en `orden_productos` (sin
+FK "porque productos se crea después").
+
+### Backend
+
+`backend/utils/tenantContext.js` expone `req.tenant.grupoSucursalId`.
+`backend/utils/auth.js` gana un 5º nivel de autenticación en
+`requireAdminAuth()`: si el tenant resuelto pertenece a un grupo,
+verifica usuario/password contra `usuarios_sucursal` vía
+`obtenerPoolControl()` — timing-safe con hash de relleno, igual que el
+resto de los niveles. Endpoint nuevo `GET /api/admin/sucursales-hermanas`
+(cualquier perfil autenticado) para el switcher del frontend.
+
+`control/utils/sucursales.js` (nuevo): CRUD de grupos (crear/listar/
+obtener/actualizar/eliminar) + usuarios compartidos (crear/actualizar/
+activar-desactivar), asociación todo-o-nada de tenants a un grupo
+(rechaza si un slug ya pertenece a OTRO grupo), invalidación de caché
+del backend por cada tenant afectado (mismo patrón que marca/tema),
+auditoría en `tenant_eventos`. API REST en `control/server.js`:
+`GET/POST/PUT/DELETE /api/control/grupos-sucursal[/:id]` +
+`POST/PUT /grupos-sucursal/:id/usuarios[/:usuarioId]`.
+
+### Frontend
+
+`/control`: vista nueva "Sucursales" en el sidebar (segunda pestaña,
+patrón `cambiarVistaPrincipal` de admin.js) — tabla de grupos + modal
+crear/editar con checklist de tenants activos y panel de usuarios
+compartidos embebido (alta/activar/desactivar, sin botón "eliminar"
+duro por la misma razón de privilegios de arriba). `/admin`: switcher
+de sucursales en el sidebar (`admin-sucursales-switcher`, solo visible
+si el tenant pertenece a un grupo con ≥2 sucursales) — navegación real
+(`<a href>`) a `/<slug>/admin` de cada sucursal hermana, no un cambio de
+vista SPA.
+
+### Pruebas
+
+Jest backend **728/728** (12 tests nuevos: tenantContext + 7 casos de
+tier 5 en auth.test.js + 4 de integración del endpoint hermanas). Jest
+control **117/117** (21 tests nuevos de `sucursales.js` + 6 de esquema +
+7 de integración de rutas).
+
+### Validado contra Docker/MySQL reales (2026-08-26)
+
+Rebuild `--no-cache` + `--force-recreate` backend/control/frontend.
+**Bug real encontrado y corregido en el camino** (imposible de detectar
+sin MySQL real): el diseño original usaba `FOREIGN KEY`/`ON DELETE
+CASCADE` y `DELETE FROM` — control arrancó en crash-loop
+(`ER_TABLEACCESS_DENIED_ERROR: REFERENCES command denied`) porque
+`control_app` nunca tuvo ese privilegio. Rediseñado a soft-delete sin FK
+(detalle arriba) en vez de ampliar los privilegios de una credencial
+deliberadamente angosta. Flujo real completo por HTTP: grupo creado
+asociando 2 tenants activos reales (`piloto9c`+`pruebaadmin`), usuario
+compartido dado de alta, **la MISMA credencial autenticó contra los dos
+paneles `/admin` distintos** (cada uno devolviendo SU PROPIA lista de
+usuarios, aislamiento de datos confirmado intacto), password incorrecta
+→ 401, switcher de sucursales correcto en ambas direcciones (`actual`
+marca la sucursal correcta en cada una), eliminar grupo → credencial
+revocada de inmediato en ambos tenants (caché invalidada en tiempo
+real, sin esperar el TTL), estado final en BD confirmado por SQL directo
+(tenants sueltos, grupo y usuario desactivados, cero filas borradas).

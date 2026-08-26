@@ -4,7 +4,7 @@
 // a mano, sin mockear ningún módulo — la función recibe la conexión como
 // parámetro explícito, mismo patrón que backend/test/unit/controlDb.test.js.
 
-const { asegurarColumnasCicloVidaTenant } = require('../../scripts/ensureSchema');
+const { asegurarColumnasCicloVidaTenant, asegurarTablasSucursales } = require('../../scripts/ensureSchema');
 
 function mockDb() {
   return { query: jest.fn() };
@@ -76,6 +76,60 @@ describe('scripts/ensureSchema.js', () => {
       expect(db.query.mock.calls[7][0]).toMatch(/ADD COLUMN marca/);
       expect(db.query.mock.calls[8][0]).toMatch(/ADD COLUMN marca_logo_url/);
       expect(db.query.mock.calls[9][0]).toMatch(/ADD COLUMN tema_json/);
+    });
+  });
+
+  describe('asegurarTablasSucursales (§58)', () => {
+    test('crea grupos_sucursal, agrega grupo_sucursal_id a tenants si falta, y crea usuarios_sucursal', async () => {
+      const db = mockDb();
+      db.query
+        .mockResolvedValueOnce([{}]) // CREATE TABLE grupos_sucursal
+        .mockResolvedValueOnce([[{ COLUMN_NAME: 'id' }, { COLUMN_NAME: 'nombre' }, { COLUMN_NAME: 'activo' }]]) // SELECT columnas grupos_sucursal (ya trae "activo")
+        .mockResolvedValueOnce([[{ COLUMN_NAME: 'id' }, { COLUMN_NAME: 'slug' }]]) // SELECT columnas tenants
+        .mockResolvedValueOnce([{}]) // ALTER ADD COLUMN grupo_sucursal_id
+        .mockResolvedValueOnce([{}]) // ALTER ADD KEY
+        .mockResolvedValueOnce([{}]); // CREATE TABLE usuarios_sucursal
+
+      await asegurarTablasSucursales(db);
+
+      // Sin FOREIGN KEY a propósito — control_app no tiene privilegio
+      // REFERENCES (validado contra MySQL real, ver comentario en
+      // ensureSchema.js).
+      expect(db.query).toHaveBeenCalledTimes(6);
+      expect(db.query.mock.calls[0][0]).toMatch(/CREATE TABLE IF NOT EXISTS grupos_sucursal/);
+      expect(db.query.mock.calls[3][0]).toMatch(/ALTER TABLE tenants ADD COLUMN grupo_sucursal_id INT NULL/);
+      expect(db.query.mock.calls[4][0]).toMatch(/ADD KEY idx_tenants_grupo_sucursal/);
+      expect(db.query.mock.calls[5][0]).toMatch(/CREATE TABLE IF NOT EXISTS usuarios_sucursal/);
+      expect(db.query.mock.calls.some(([sql]) => /FOREIGN KEY/.test(sql))).toBe(false);
+    });
+
+    // Instalación que ya tenía `grupos_sucursal` de un intento anterior de
+    // este mismo segmento, de antes de que existiera `activo`.
+    test('agrega la columna "activo" a grupos_sucursal si una instalación previa no la tenía', async () => {
+      const db = mockDb();
+      db.query
+        .mockResolvedValueOnce([{}]) // CREATE TABLE grupos_sucursal (no-op, ya existe)
+        .mockResolvedValueOnce([[{ COLUMN_NAME: 'id' }, { COLUMN_NAME: 'nombre' }]]) // sin "activo" todavía
+        .mockResolvedValueOnce([{}]) // ALTER ADD COLUMN activo
+        .mockResolvedValueOnce([[{ COLUMN_NAME: 'grupo_sucursal_id' }]]) // tenants ya tiene la columna
+        .mockResolvedValueOnce([{}]); // CREATE TABLE usuarios_sucursal
+
+      await asegurarTablasSucursales(db);
+
+      expect(db.query.mock.calls[2][0]).toMatch(/ALTER TABLE grupos_sucursal ADD COLUMN activo TINYINT\(1\) NOT NULL DEFAULT 1/);
+    });
+
+    test('no agrega grupo_sucursal_id si ya existe (idempotente)', async () => {
+      const db = mockDb();
+      db.query
+        .mockResolvedValueOnce([{}]) // CREATE TABLE grupos_sucursal
+        .mockResolvedValueOnce([[{ COLUMN_NAME: 'activo' }]]) // grupos_sucursal ya tiene "activo"
+        .mockResolvedValueOnce([[{ COLUMN_NAME: 'grupo_sucursal_id' }]]) // ya existe
+        .mockResolvedValueOnce([{}]); // CREATE TABLE usuarios_sucursal
+
+      await asegurarTablasSucursales(db);
+
+      expect(db.query).toHaveBeenCalledTimes(4);
     });
   });
 });

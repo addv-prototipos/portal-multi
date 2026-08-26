@@ -9630,6 +9630,76 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        real: probar el camino AUTOMÁTICO con un `BANXICO_TOKEN` real
        (solo se validó por código + la degradación manual en vivo).
 
+153. **Asociar tenants como sucursales — §58, IMPLEMENTADO Y VALIDADO
+     (2026-08-26)**: retomado el pendiente del punto 150 — 6 preguntas
+     cerradas vía cuestionario, incluido un fork de arquitectura con 3
+     alternativas evaluadas (credenciales replicadas por fan-out /
+     verificación en vivo / sesión cross-tenant real), y confirmado
+     explícitamente por el usuario ("Implementar ahora"), protocolo
+     `addv-web-app` completo.
+     - **Decisiones cerradas**: solo se comparte el LOGIN (BD/inventario/
+       ventas de cada tenant 100% aislados, sin cambios); usuario
+       compartido vive en tabla nueva de la BD de control
+       (`usuarios_sucursal`), no en la tabla `usuarios` de cada tenant;
+       todos los usuarios de un grupo ven todas las sucursales asociadas
+       sin distinción; solo `/control` (super) asocia/desasocia y
+       administra usuarios compartidos; auditoría sin cambios (sigue por
+       tenant); mecanismo de verificación **en vivo** vía
+       `obtenerPoolControl()` — la conexión que el backend YA mantiene
+       abierta para resolver cualquier tenant por slug — descartando el
+       fan-out inicialmente propuesto una vez confirmado que esa
+       conexión ya existía (cero llamada HTTP nueva entre servicios).
+     - **Esquema (BD de control)**: `grupos_sucursal`
+       (id/nombre/activo/fechas) + `tenants.grupo_sucursal_id` (NULL, un
+       tenant en máximo 1 grupo) + `usuarios_sucursal`
+       (grupo_sucursal_id/usuario/password_hash scrypt/perfil/activo).
+     - **Backend**: `tenantContext.js` expone
+       `req.tenant.grupoSucursalId`; `auth.js` gana un 5º nivel en
+       `requireAdminAuth()` — verifica contra `usuarios_sucursal` con
+       hash de relleno timing-safe, igual que los otros 4 niveles.
+       Endpoint nuevo `GET /api/admin/sucursales-hermanas` para el
+       switcher.
+     - **Control**: `utils/sucursales.js` nuevo (CRUD grupos + usuarios
+       compartidos, asociación todo-o-nada, invalidación de caché por
+       tenant afectado, auditoría en `tenant_eventos`). API REST
+       `/api/control/grupos-sucursal[...]`.
+     - **Frontend**: `/control` gana vista "Sucursales" (tabla de
+       grupos + modal con checklist de tenants y panel de usuarios
+       embebido); `/admin` gana switcher de sucursales en el sidebar
+       (navegación real `<a href>` a `/<slug>/admin`, solo visible con
+       ≥2 sucursales en el grupo).
+     - **Pruebas**: Jest backend **728/728** (12 nuevos), Jest control
+       **117/117** (34 nuevos).
+     - **Bug real encontrado y corregido validando contra Docker/MySQL
+       reales** (imposible de detectar sin MySQL real): el diseño
+       original usaba `FOREIGN KEY`/`ON DELETE CASCADE` y
+       `DELETE FROM` — control entró en crash-loop
+       (`ER_TABLEACCESS_DENIED_ERROR: REFERENCES command denied`) porque
+       el usuario MySQL `control_app` (credencial angosta, decisión de
+       seguridad del segmento 9b) solo tiene
+       `SELECT/INSERT/UPDATE/CREATE/ALTER` — sin `REFERENCES` (no puede
+       crear FK) ni `DELETE` (no puede borrar filas). Rediseñado a
+       **soft-delete sin FK** (`activo = 0` + soltar tenants a mano +
+       desactivar usuarios a mano, ya que no hay `ON DELETE CASCADE`
+       posible) en vez de ampliar los privilegios de una credencial
+       deliberadamente angosta — mismo patrón ya usado en
+       `api_credenciales.revocarCredencialApi()` y en `orden_productos`
+       (sin FK por diseño). Botón "Eliminar usuario" removido de la UI
+       (queda solo Activar/Desactivar) por el mismo motivo.
+     - **Validación E2E real completa por HTTP**: grupo creado
+       asociando 2 tenants activos reales (`piloto9c`+`pruebaadmin`),
+       usuario compartido dado de alta, la MISMA credencial autenticó
+       contra los DOS paneles `/admin` distintos (cada uno devolviendo
+       su propia lista de usuarios — aislamiento de datos confirmado
+       intacto), password incorrecta → 401 real, switcher de
+       sucursales correcto en ambas direcciones, eliminar grupo →
+       credencial revocada de inmediato en ambos tenants (invalidación
+       de caché en tiempo real, sin esperar el TTL de 45s), estado
+       final verificado por SQL directo (tenants sueltos, grupo y
+       usuario desactivados, cero filas borradas). Con esto, los 2
+       pendientes de arquitectura del punto 150 (§57 tipo de cambio,
+       §58 sucursales) quedan ambos implementados y validados.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

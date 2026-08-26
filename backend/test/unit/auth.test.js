@@ -2,6 +2,7 @@ const { hashPassword } = require('../../utils/authUsuario');
 
 jest.mock('../../db', () => ({
   pool: { query: jest.fn() },
+  obtenerPoolControl: jest.fn(),
 }));
 
 // `pool` se re-obtiene después de cada jest.resetModules() (ver beforeEach
@@ -277,6 +278,153 @@ describe('auth.js', () => {
       await requireAdminAuth(req, res, next);
 
       expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+  });
+
+  describe('requireAdminAuth: usuario de sucursal compartido (§58)', () => {
+    let requireAdminAuth;
+    let poolControl;
+
+    beforeEach(() => {
+      jest.resetModules();
+      delete process.env.ADMIN_USERS;
+      pool = require('../../db').pool;
+      pool.query.mockReset().mockResolvedValue([[]]); // tier 3 (perfil_bd): sin match local, siempre
+      poolControl = { query: jest.fn() };
+      require('../../db').obtenerPoolControl.mockReturnValue(poolControl);
+      ({ requireAdminAuth } = require('../../utils/auth'));
+    });
+
+    // Encola primero el "sin match" de tier 4 (api_credenciales, que
+    // también vive en la BD de control y se prueba ANTES que tier 5 en
+    // requireAdminAuth) para que el mock de tier 5 (usuarios_sucursal)
+    // sea la SEGUNDA llamada a poolControl.query, no la primera.
+    function mockTier5(filaTier5) {
+      poolControl.query
+        .mockResolvedValueOnce([[]]) // tier 4: api_credenciales, sin match
+        .mockResolvedValueOnce([filaTier5 ? [filaTier5] : []]); // tier 5: usuarios_sucursal
+    }
+
+    test('sin req.tenant.grupoSucursalId, nunca consulta usuarios_sucursal (solo tier 4, api_credenciales, que no depende del grupo)', async () => {
+      poolControl.query.mockResolvedValueOnce([[]]); // tier 4: api_credenciales, sin match
+
+      const req = {
+        headers: { authorization: basicAuthHeader('gerente', 'Abcdefg1') },
+        tenant: { slug: 'norte', grupoSucursalId: null },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(poolControl.query).toHaveBeenCalledTimes(1); // solo tier 4, tier 5 nunca se dispara
+      expect(poolControl.query.mock.calls[0][0]).not.toMatch(/usuarios_sucursal/);
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('usuario y contraseña correctos del grupo autentican con el perfil de la credencial compartida', async () => {
+      const hashGuardado = hashPassword('Abcdefg1');
+      mockTier5({ usuario: 'gerente', password_hash: hashGuardado, perfil: 'administrador' });
+
+      const req = {
+        headers: { authorization: basicAuthHeader('gerente', 'Abcdefg1') },
+        tenant: { slug: 'norte', grupoSucursalId: 7 },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.adminUser).toBe('gerente');
+      expect(req.adminPerfil).toBe('administrador');
+      expect(req.adminMecanismo).toBe('usuario_sucursal');
+      // Consulta ACOTADA al grupo del tenant resuelto — un usuario de OTRO
+      // grupo nunca podría entrar solo por adivinar el usuario/password.
+      expect(poolControl.query).toHaveBeenLastCalledWith(expect.stringContaining('grupo_sucursal_id'), [7, 'gerente']);
+    });
+
+    test('funciona igual en CUALQUIER tenant del mismo grupo (misma credencial, distinto slug)', async () => {
+      const hashGuardado = hashPassword('Abcdefg1');
+      mockTier5({ usuario: 'gerente', password_hash: hashGuardado, perfil: 'fiscal' });
+
+      const req = {
+        headers: { authorization: basicAuthHeader('gerente', 'Abcdefg1') },
+        tenant: { slug: 'sur', grupoSucursalId: 7 },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(req.adminPerfil).toBe('fiscal');
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    test('usuario que existe pero en OTRO grupo responde 401 (nunca cruza sucursales de otro negocio)', async () => {
+      mockTier5(null); // la query ya filtra por grupo_sucursal_id, no hay fila
+
+      const req = {
+        headers: { authorization: basicAuthHeader('gerente', 'Abcdefg1') },
+        tenant: { slug: 'norte', grupoSucursalId: 7 },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('password incorrecta responde 401', async () => {
+      const hashGuardado = hashPassword('Abcdefg1');
+      mockTier5({ usuario: 'gerente', password_hash: hashGuardado, perfil: 'administrador' });
+
+      const req = {
+        headers: { authorization: basicAuthHeader('gerente', 'incorrecta') },
+        tenant: { slug: 'norte', grupoSucursalId: 7 },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('usuario desactivado (activo=0) no aparece en la consulta, responde 401', async () => {
+      // La query real ya filtra "AND activo = 1" — sin fila, se comporta
+      // igual que "no existe".
+      mockTier5(null);
+
+      const req = {
+        headers: { authorization: basicAuthHeader('gerente', 'Abcdefg1') },
+        tenant: { slug: 'norte', grupoSucursalId: 7 },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('un error consultando la BD de control no lanza, responde 401', async () => {
+      poolControl.query
+        .mockResolvedValueOnce([[]]) // tier 4: api_credenciales, sin match
+        .mockRejectedValueOnce(new Error('conexión perdida')); // tier 5: falla
+
+      const req = {
+        headers: { authorization: basicAuthHeader('gerente', 'Abcdefg1') },
+        tenant: { slug: 'norte', grupoSucursalId: 7 },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await expect(requireAdminAuth(req, res, next)).resolves.not.toThrow();
       expect(res.status).toHaveBeenCalledWith(401);
     });
   });

@@ -469,6 +469,74 @@ describe('Control standalone (/api/control)', () => {
     });
   });
 
+  describe('Sucursales (§58): /api/control/grupos-sucursal', () => {
+    test('401 sin credenciales', async () => {
+      const res = await request(app).get('/api/control/grupos-sucursal');
+      expect(res.status).toBe(401);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    test('POST crea un grupo y responde 201', async () => {
+      pool.query
+        .mockResolvedValueOnce([{ insertId: 3 }]) // INSERT grupos_sucursal
+        .mockResolvedValueOnce([[{ id: 3, nombre: 'Grupo Norte' }]]) // obtenerGrupoSucursal: SELECT grupo
+        .mockResolvedValueOnce([[]]) // SELECT tenants del grupo
+        .mockResolvedValueOnce([[]]); // SELECT usuarios del grupo
+
+      const res = await request(app)
+        .post('/api/control/grupos-sucursal')
+        .auth('admin', 'admin')
+        .send({ nombre: 'Grupo Norte' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.grupo.id).toBe(3);
+    });
+
+    test('POST con nombre vacío responde 400', async () => {
+      const res = await request(app)
+        .post('/api/control/grupos-sucursal')
+        .auth('admin', 'admin')
+        .send({ nombre: '' });
+
+      expect(res.status).toBe(400);
+    });
+
+    test('GET :id inexistente responde 404', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      const res = await request(app).get('/api/control/grupos-sucursal/999').auth('admin', 'admin');
+      expect(res.status).toBe(404);
+    });
+
+    test('GET lista grupos con sus tenants y conteo de usuarios', async () => {
+      pool.query
+        .mockResolvedValueOnce([[{ id: 1, nombre: 'Grupo Norte' }]]) // SELECT grupos
+        .mockResolvedValueOnce([[{ slug: 'norte', nombre_empresa: 'Norte SA', grupo_sucursal_id: 1 }]]) // tenants asociados
+        .mockResolvedValueOnce([[{ grupo_sucursal_id: 1, total: 2 }]]); // conteo usuarios
+
+      const res = await request(app).get('/api/control/grupos-sucursal').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.grupos[0].total_usuarios).toBe(2);
+      expect(res.body.grupos[0].tenants).toEqual([{ slug: 'norte', nombre_empresa: 'Norte SA' }]);
+    });
+
+    test('POST usuarios con perfil inválido responde 400', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // el grupo existe
+      const res = await request(app)
+        .post('/api/control/grupos-sucursal/1/usuarios')
+        .auth('admin', 'admin')
+        .send({ usuario: 'gerente', password: 'Abcdefg1', perfil: 'cliente' });
+
+      expect(res.status).toBe(400);
+    });
+
+    test('DELETE grupo inexistente responde 404', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      const res = await request(app).delete('/api/control/grupos-sucursal/999').auth('admin', 'admin');
+      expect(res.status).toBe(404);
+    });
+  });
+
   describe('GET /health', () => {
     test('200 cuando la BD responde', async () => {
       pool.query.mockResolvedValueOnce([[{ '1': 1 }]]);

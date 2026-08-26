@@ -883,9 +883,8 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   todavía — hoy no existe esa validación, alcance sin definir; (3)
   asociar tenants como sucursales del mismo negocio con usuarios de
   acceso compartidos — surgió del requerimiento de multi-inventario
-  offline (una tienda = un tenant), choca con el aislamiento por tenant
-  ya establecido, preguntas abiertas en `inventarios.md` §58. Ninguno
-  analizado a fondo ni implementado.
+  offline (una tienda = un tenant). **Retomado e IMPLEMENTADO el
+  2026-08-26, ver bullet de §58 más abajo.**
 - **Tipo de cambio para productos en moneda extranjera (§57,
   IMPLEMENTADO 2026-08-26)**: retomado el pendiente de arriba —
   `productos.moneda` (MXN/USD, por producto), tipo de cambio automático
@@ -906,6 +905,32 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   `verificar-inventario.js` 19/19. Detalle completo en PROJECT_STATE.md
   punto 152. Pendiente real: probar el camino automático con un
   `BANXICO_TOKEN` real cuando exista.
+- **Asociar tenants como sucursales (§58, IMPLEMENTADO Y VALIDADO
+  2026-08-26)**: retomado el pendiente de arriba — un grupo asocia
+  varios tenants del mismo negocio; usuarios compartidos (tabla nueva
+  `usuarios_sucursal` en la BD de control, NO en `usuarios` de cada
+  tenant) entran a `/admin` de CUALQUIER sucursal del grupo con la misma
+  contraseña; cada tenant sigue con su BD/inventario/ventas 100%
+  aislados — solo se comparte el login. Verificación **en vivo** vía
+  `obtenerPoolControl()` (la conexión que el backend YA mantiene para
+  resolver tenants por slug) — se descartó el fan-out de credenciales
+  propuesto inicialmente al confirmar que esa conexión ya existía, cero
+  llamada HTTP nueva entre servicios. `auth.js` gana un 5º nivel en
+  `requireAdminAuth()`; switcher de sucursales en el sidebar de
+  `/admin`; vista nueva "Sucursales" en `/control`. Jest backend
+  728/728, control 117/117. **Bug real encontrado y corregido validando
+  contra Docker/MySQL reales** (imposible de detectar sin MySQL real):
+  el diseño original usaba `FOREIGN KEY`/`DELETE` — control entró en
+  crash-loop (`ER_TABLEACCESS_DENIED_ERROR`) porque `control_app`
+  (credencial angosta, segmento 9b) no tiene privilegio `REFERENCES` ni
+  `DELETE`. Rediseñado a soft-delete sin FK (mismo patrón que
+  `api_credenciales.revocarCredencialApi()`) en vez de ampliar
+  privilegios de una credencial deliberadamente angosta. Validación E2E
+  real completa: la MISMA credencial autenticó contra 2 tenants
+  distintos (`piloto9c`+`pruebaadmin`) sin mezclar sus datos, switcher
+  correcto en ambas direcciones, revocación de acceso instantánea al
+  eliminar el grupo. Detalle completo en PROJECT_STATE.md punto 153. Sin
+  commit/push todavía.
 
 - **Maduración del requerimiento de Inventarios (`inventarios.md`) — EN
   CURSO, solo análisis/documentación (ver PROJECT_STATE.md punto 136,

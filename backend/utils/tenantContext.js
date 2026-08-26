@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -87,6 +87,11 @@ async function resolverTenantMiddleware(req, res, next) {
       // nombre genérico por defecto ("ADDV") en los puntos de uso, no aquí.
       marca: tenant.marca || null,
       marcaLogoUrl: tenant.marca_logo_url || null,
+      // §58: si el tenant pertenece a un grupo de sucursales, requireAdminAuth
+      // acepta también las credenciales compartidas de ese grupo (ver
+      // utils/auth.js) y GET /api/admin/sucursales-hermanas puede armar el
+      // switcher del sidebar.
+      grupoSucursalId: tenant.grupo_sucursal_id || null,
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas

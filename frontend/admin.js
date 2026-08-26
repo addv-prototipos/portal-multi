@@ -32,6 +32,8 @@
     btnLogin: document.getElementById('btn-login'),
     btnLoginLabel: document.getElementById('btn-login-label'),
     btnLogout: document.getElementById('btn-logout'),
+    sucursalesSwitcher: document.getElementById('admin-sucursales-switcher'),
+    sucursalesSwitcherLista: document.getElementById('admin-sucursales-switcher-lista'),
     btnRefresh: document.getElementById('btn-refresh'),
     adminUserLabel: document.getElementById('admin-user-label'),
     adminCount: document.getElementById('admin-count'),
@@ -1323,6 +1325,37 @@
     // hiciera nada para provocarlo (mismo criterio que puedeVerAreaFiscal
     // arriba, pero en sentido inverso).
     if (perfilActual !== 'fiscal') cargarConfigInventario();
+    cargarSucursalesHermanas();
+  }
+
+  // §58: switcher de sucursales — solo se muestra si este tenant pertenece
+  // a un grupo de sucursales asociadas (mismo login en todas). Silencioso
+  // si falla o no aplica: nunca bloquea el resto del panel por esto.
+  async function cargarSucursalesHermanas() {
+    if (!els.sucursalesSwitcher) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/sucursales-hermanas`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const sucursales = data.sucursales || [];
+      if (sucursales.length <= 1) {
+        els.sucursalesSwitcher.hidden = true;
+        return;
+      }
+      els.sucursalesSwitcherLista.innerHTML = sucursales
+        .map((s) =>
+          s.actual
+            ? `<span class="admin-sucursal-link es-actual" aria-current="page">${escapeHtml(s.nombre_empresa)}</span>`
+            : `<a class="admin-sucursal-link" href="/${encodeURIComponent(s.slug)}/admin">${escapeHtml(s.nombre_empresa)}</a>`
+        )
+        .join('');
+      els.sucursalesSwitcher.hidden = false;
+    } catch (err) {
+      // Silencioso a propósito — el switcher es una comodidad, no algo
+      // crítico para poder usar el panel.
+    }
   }
 
   function showLogin() {

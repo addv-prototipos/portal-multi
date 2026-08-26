@@ -28,6 +28,16 @@ const {
   rotarCredencialApi,
   revocarCredencialApi,
 } = require('./utils/apiCredenciales');
+const {
+  listarGruposSucursal,
+  obtenerGrupoSucursal,
+  crearGrupoSucursal,
+  actualizarGrupoSucursal,
+  eliminarGrupoSucursal,
+  crearUsuarioSucursal,
+  actualizarUsuarioSucursal,
+  ErrorSucursal,
+} = require('./utils/sucursales');
 
 const PORT = Number(process.env.PORT || 4001);
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -400,6 +410,125 @@ app.delete(
   })
 );
 
+// ---------- Sucursales (§58): agrupar tenants del mismo negocio con ----------
+// usuarios de acceso compartidos, válidos en cualquier sucursal asociada.
+// Solo /control (este servicio) asocia/desasocia sucursales y administra
+// los usuarios compartidos (decisión cerrada) — la credencial vive SOLO
+// en la BD de control, el backend la verifica en vivo contra esta misma
+// tabla (ver backend/utils/auth.js), sin duplicarla en cada tenant.
+function mapearErrorSucursal(err) {
+  if (err.codigo === 'no_encontrado') return 404;
+  if (err.codigo === 'conflicto') return 409;
+  return 400;
+}
+
+app.get(
+  '/api/control/grupos-sucursal',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const grupos = await listarGruposSucursal();
+    res.json({ grupos });
+  })
+);
+
+app.post(
+  '/api/control/grupos-sucursal',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const grupo = await crearGrupoSucursal(req.body || {}, { actor: req.adminUser });
+      res.status(201).json({ ok: true, grupo });
+    } catch (err) {
+      if (err instanceof ErrorSucursal) return res.status(mapearErrorSucursal(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.get(
+  '/api/control/grupos-sucursal/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const grupo = await obtenerGrupoSucursal(Number(req.params.id));
+      res.json({ grupo });
+    } catch (err) {
+      if (err instanceof ErrorSucursal) return res.status(mapearErrorSucursal(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/grupos-sucursal/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const grupo = await actualizarGrupoSucursal(Number(req.params.id), req.body || {}, { actor: req.adminUser });
+      res.json({ ok: true, grupo });
+    } catch (err) {
+      if (err instanceof ErrorSucursal) return res.status(mapearErrorSucursal(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.delete(
+  '/api/control/grupos-sucursal/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await eliminarGrupoSucursal(Number(req.params.id), { actor: req.adminUser });
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorSucursal) return res.status(mapearErrorSucursal(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.post(
+  '/api/control/grupos-sucursal/:id/usuarios',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const usuario = await crearUsuarioSucursal(Number(req.params.id), req.body || {}, { actor: req.adminUser });
+      res.status(201).json({ ok: true, usuario });
+    } catch (err) {
+      if (err instanceof ErrorSucursal) return res.status(mapearErrorSucursal(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/grupos-sucursal/:id/usuarios/:usuarioId',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await actualizarUsuarioSucursal(Number(req.params.id), Number(req.params.usuarioId), req.body || {});
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorSucursal) return res.status(mapearErrorSucursal(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada.' });
 });
@@ -407,8 +536,9 @@ app.use((req, res) => {
 async function iniciar() {
   await asegurarTablaAuditoria();
   await asegurarColumnasCicloVidaTenant(obtenerPool());
-  const { asegurarTablaApiCredenciales } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales } = require('./scripts/ensureSchema');
   await asegurarTablaApiCredenciales(obtenerPool());
+  await asegurarTablasSucursales(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);

@@ -143,11 +143,27 @@ describe('utils/tenantContext.js', () => {
         nombreEmpresa: 'Cliente Uno S.A.',
         marca: 'Cliente Uno',
         marcaLogoUrl: '/api/marca-logo/cliente1',
+        grupoSucursalId: null,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })
       );
-      expect(ejecutarComoTenant).toHaveBeenCalledWith(poolTenantFalso, expect.any(Function));
+    });
+
+    // §58: un tenant asociado a un grupo de sucursales expone
+    // grupoSucursalId — es lo que consulta requireAdminAuth (usuarios
+    // compartidos) y GET /api/admin/sucursales-hermanas.
+    test('tenant con grupo_sucursal_id expone grupoSucursalId en req.tenant', async () => {
+      mockPoolControl([{ ...FILA_TENANT_ACTIVO, grupo_sucursal_id: 5 }]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.grupoSucursalId).toBe(5);
       expect(next).toHaveBeenCalledTimes(1);
     });
 

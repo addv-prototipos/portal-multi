@@ -116,6 +116,34 @@
     btnEditarCancelar: document.getElementById('control-btn-editar-cancelar'),
     btnEditarGuardar: document.getElementById('control-btn-editar-guardar'),
     btnEditarGuardarLabel: document.getElementById('control-btn-editar-guardar-label'),
+
+    // §58: Sucursales
+    btnVistaEmpresas: document.getElementById('btn-vista-control-empresas'),
+    btnVistaSucursales: document.getElementById('btn-vista-control-sucursales'),
+    vistaEmpresas: document.getElementById('vista-control-empresas'),
+    vistaSucursales: document.getElementById('vista-control-sucursales'),
+    sucursalesCount: document.getElementById('sucursales-count'),
+    sucursalesError: document.getElementById('sucursales-error'),
+    sucursalesTableBody: document.getElementById('sucursales-table-body'),
+    sucursalesEmpty: document.getElementById('sucursales-empty'),
+    btnSucursalesNuevoGrupo: document.getElementById('btn-sucursales-nuevo-grupo'),
+    sucursalesGrupoOverlay: document.getElementById('sucursales-grupo-modal-overlay'),
+    sucursalesGrupoModalTitle: document.getElementById('sucursales-grupo-modal-title'),
+    btnSucursalesGrupoModalCerrar: document.getElementById('btn-sucursales-grupo-modal-cerrar'),
+    sucursalesGrupoNombre: document.getElementById('sucursales-grupo-nombre'),
+    sucursalesGrupoTenantsLista: document.getElementById('sucursales-grupo-tenants-lista'),
+    sucursalesGrupoError: document.getElementById('sucursales-grupo-error'),
+    btnSucursalesGrupoCancelar: document.getElementById('btn-sucursales-grupo-cancelar'),
+    btnSucursalesGrupoGuardar: document.getElementById('btn-sucursales-grupo-guardar'),
+    btnSucursalesGrupoGuardarLabel: document.getElementById('btn-sucursales-grupo-guardar-label'),
+    sucursalesGrupoUsuariosWrap: document.getElementById('sucursales-grupo-usuarios-wrap'),
+    sucursalesUsuariosTableBody: document.getElementById('sucursales-usuarios-table-body'),
+    sucursalesUsuariosEmpty: document.getElementById('sucursales-usuarios-empty'),
+    sucursalesUsuarioNuevo: document.getElementById('sucursales-usuario-nuevo'),
+    sucursalesUsuarioNuevoPassword: document.getElementById('sucursales-usuario-nuevo-password'),
+    sucursalesUsuarioNuevoPerfil: document.getElementById('sucursales-usuario-nuevo-perfil'),
+    sucursalesUsuarioNuevoError: document.getElementById('sucursales-usuario-nuevo-error'),
+    btnSucursalesUsuarioAgregar: document.getElementById('btn-sucursales-usuario-agregar'),
   };
 
   function getAuthHeader() {
@@ -1349,6 +1377,347 @@
       els.credNuevaWrap.hidden = true;
       await cargarCredenciales();
     } catch (_) { els.credError.textContent = 'No se pudo conectar.'; }
+  });
+
+  // ---------- §58: Sucursales (grupos + usuarios compartidos) ----------
+  // Decisión cerrada (ver inventarios.md §58): lo único que comparten los
+  // tenants asociados es el LOGIN — sus BD/inventario/ventas siguen 100%
+  // separados. Este panel solo administra el grupo y sus usuarios; el
+  // backend verifica la credencial en vivo (no hay nada que sincronizar).
+
+  let grupoSucursalEditandoId = null; // null = modal en modo "crear"
+  let grupoSucursalTenantsOriginales = []; // slugs ya asociados al abrir el modal, para calcular el diff al guardar
+
+  function cambiarVistaPrincipalControl(vista) {
+    els.menuMovil.hidden = true;
+    els.btnVistaEmpresas.classList.toggle('is-active', vista === 'empresas');
+    els.btnVistaEmpresas.setAttribute('aria-selected', String(vista === 'empresas'));
+    els.btnVistaSucursales.classList.toggle('is-active', vista === 'sucursales');
+    els.btnVistaSucursales.setAttribute('aria-selected', String(vista === 'sucursales'));
+    els.vistaEmpresas.hidden = vista !== 'empresas';
+    els.vistaSucursales.hidden = vista !== 'sucursales';
+    if (vista === 'sucursales') cargarSucursales();
+  }
+
+  els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
+  els.btnVistaSucursales.addEventListener('click', () => cambiarVistaPrincipalControl('sucursales'));
+  els.menuMovil.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-vista]');
+    if (btn) cambiarVistaPrincipalControl(btn.dataset.vista);
+  });
+
+  async function cargarSucursales() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.sucursalesError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/grupos-sucursal`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        els.sucursalesError.textContent = 'No se pudieron cargar los grupos de sucursales.';
+        return;
+      }
+      const data = await res.json();
+      renderGruposSucursal(data.grupos || []);
+    } catch (err) {
+      els.sucursalesError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function renderGruposSucursal(grupos) {
+    els.sucursalesCount.textContent = `${grupos.length} grupo${grupos.length === 1 ? '' : 's'}`;
+    els.sucursalesTableBody.innerHTML = '';
+    els.sucursalesEmpty.hidden = grupos.length > 0;
+
+    grupos.forEach((g) => {
+      const tr = document.createElement('tr');
+      const listaSucursales = g.tenants.length > 0
+        ? g.tenants.map((t) => escapeHtml(t.nombre_empresa)).join(', ')
+        : '—';
+      tr.innerHTML = `
+        <td data-label="Grupo"><strong>${escapeHtml(g.nombre)}</strong></td>
+        <td data-label="Sucursales asociadas">${listaSucursales}</td>
+        <td data-label="Usuarios" class="col-num">${g.total_usuarios}</td>
+        <td data-label=""></td>
+      `;
+      const celdaAcciones = tr.lastElementChild;
+      const contenedorAcciones = document.createElement('div');
+      contenedorAcciones.className = 'admin-row-actions';
+      contenedorAcciones.appendChild(
+        crearBotonAccion(
+          'btn-icono-accion',
+          'Editar',
+          'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z',
+          () => abrirGrupoModal(g.id)
+        )
+      );
+      contenedorAcciones.appendChild(
+        crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar grupo', 'M19 7l-8.5 8.5-5-5', () =>
+          confirmarAccion({
+            titulo: '¿Eliminar este grupo de sucursales?',
+            mensaje: `"${g.nombre}" deja de asociar sus ${g.tenants.length} sucursal(es) y se pierden sus ${g.total_usuarios} usuario(s) compartido(s). Ningún tenant ni su información se borra — solo dejan de compartir el login.`,
+            textoBoton: 'Eliminar grupo',
+            onConfirmar: () => eliminarGrupoSucursal(g.id),
+          })
+        )
+      );
+      celdaAcciones.appendChild(contenedorAcciones);
+      els.sucursalesTableBody.appendChild(tr);
+    });
+  }
+
+  async function eliminarGrupoSucursal(id) {
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/grupos-sucursal/${id}`, { method: 'DELETE', headers: { Authorization: authHeader } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo eliminar el grupo.', true);
+        return;
+      }
+      showToast('Grupo de sucursales eliminado.');
+      cargarSucursales();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  // ---------- Modal de grupo (crear/editar) ----------
+
+  function limpiarErroresGrupoModal() {
+    els.sucursalesGrupoError.textContent = '';
+    document.getElementById('error-sucursales-grupo-nombre').textContent = '';
+  }
+
+  async function poblarChecklistTenants(slugsAsociados) {
+    els.sucursalesGrupoTenantsLista.innerHTML = '<p class="field-hint">Cargando empresas…</p>';
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/tenants`, { headers: { Authorization: authHeader } });
+      const data = await res.json().catch(() => ({}));
+      const tenants = (data.tenants || []).filter((t) => t.estado === 'activo');
+      els.sucursalesGrupoTenantsLista.innerHTML = '';
+      if (tenants.length === 0) {
+        els.sucursalesGrupoTenantsLista.innerHTML = '<p class="field-hint">No hay empresas activas para asociar.</p>';
+        return;
+      }
+      tenants.forEach((t) => {
+        const yaAsociado = slugsAsociados.includes(t.slug);
+        const label = document.createElement('label');
+        label.className = 'gastos-categoria-fila';
+        label.innerHTML = `
+          <input type="checkbox" value="${escapeHtml(t.slug)}" ${yaAsociado ? 'checked' : ''} />
+          <span class="gastos-categoria-nombre">${escapeHtml(t.nombre_empresa)} (${escapeHtml(t.slug)})</span>
+        `;
+        els.sucursalesGrupoTenantsLista.appendChild(label);
+      });
+    } catch (err) {
+      els.sucursalesGrupoTenantsLista.innerHTML = '<p class="field-error">No se pudo cargar la lista de empresas.</p>';
+    }
+  }
+
+  function tenantsSeleccionadosEnModal() {
+    return Array.from(els.sucursalesGrupoTenantsLista.querySelectorAll('input[type="checkbox"]:checked')).map(
+      (input) => input.value
+    );
+  }
+
+  async function abrirGrupoModal(grupoId) {
+    grupoSucursalEditandoId = grupoId || null;
+    limpiarErroresGrupoModal();
+    els.sucursalesGrupoModalTitle.textContent = grupoId ? 'Editar grupo de sucursales' : 'Nuevo grupo de sucursales';
+    els.btnSucursalesGrupoGuardarLabel.textContent = grupoId ? 'Guardar cambios' : 'Guardar grupo';
+    els.sucursalesGrupoNombre.value = '';
+    els.sucursalesGrupoUsuariosWrap.hidden = !grupoId; // un grupo nuevo no existe todavía — no hay a quién agregar usuarios
+    els.sucursalesUsuarioNuevo.value = '';
+    els.sucursalesUsuarioNuevoPassword.value = '';
+    els.sucursalesUsuarioNuevoError.textContent = '';
+    grupoSucursalTenantsOriginales = [];
+
+    els.sucursalesGrupoOverlay.hidden = false;
+
+    if (grupoId) {
+      const authHeader = getAuthHeader();
+      try {
+        const res = await fetch(`${API_BASE}/grupos-sucursal/${grupoId}`, { headers: { Authorization: authHeader } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.sucursalesGrupoError.textContent = data.error || 'No se pudo cargar el grupo.';
+          return;
+        }
+        els.sucursalesGrupoNombre.value = data.grupo.nombre;
+        grupoSucursalTenantsOriginales = data.grupo.tenants.map((t) => t.slug);
+        renderUsuariosSucursalModal(data.grupo.usuarios || []);
+        await poblarChecklistTenants(grupoSucursalTenantsOriginales);
+      } catch (err) {
+        els.sucursalesGrupoError.textContent = 'No se pudo conectar con el servidor.';
+      }
+    } else {
+      await poblarChecklistTenants([]);
+    }
+    els.sucursalesGrupoNombre.focus();
+  }
+
+  function cerrarGrupoModal() {
+    els.sucursalesGrupoOverlay.hidden = true;
+    grupoSucursalEditandoId = null;
+  }
+
+  els.btnSucursalesNuevoGrupo.addEventListener('click', () => abrirGrupoModal(null));
+  els.btnSucursalesGrupoModalCerrar.addEventListener('click', cerrarGrupoModal);
+  els.btnSucursalesGrupoCancelar.addEventListener('click', cerrarGrupoModal);
+  els.sucursalesGrupoOverlay.addEventListener('click', (e) => {
+    if (e.target === els.sucursalesGrupoOverlay) cerrarGrupoModal();
+  });
+
+  els.btnSucursalesGrupoGuardar.addEventListener('click', async () => {
+    limpiarErroresGrupoModal();
+    const nombre = els.sucursalesGrupoNombre.value.trim();
+    if (!nombre) {
+      document.getElementById('error-sucursales-grupo-nombre').textContent = 'El nombre del grupo es obligatorio.';
+      return;
+    }
+
+    const authHeader = getAuthHeader();
+    els.btnSucursalesGrupoGuardar.disabled = true;
+    els.btnSucursalesGrupoGuardarLabel.textContent = 'Guardando…';
+    try {
+      const seleccionados = tenantsSeleccionadosEnModal();
+      let res;
+      if (grupoSucursalEditandoId) {
+        const agregarSlugs = seleccionados.filter((s) => !grupoSucursalTenantsOriginales.includes(s));
+        const quitarSlugs = grupoSucursalTenantsOriginales.filter((s) => !seleccionados.includes(s));
+        res = await fetch(`${API_BASE}/grupos-sucursal/${grupoSucursalEditandoId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+          body: JSON.stringify({ nombre, agregarSlugs, quitarSlugs }),
+        });
+      } else {
+        res = await fetch(`${API_BASE}/grupos-sucursal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+          body: JSON.stringify({ nombre, slugs: seleccionados }),
+        });
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.sucursalesGrupoError.textContent = data.error || 'No se pudo guardar el grupo.';
+        return;
+      }
+      showToast(grupoSucursalEditandoId ? 'Grupo actualizado.' : 'Grupo creado.');
+      const idParaReabrir = grupoSucursalEditandoId || data.grupo.id;
+      cargarSucursales();
+      // Se reabre en modo edición para poder agregar usuarios de inmediato
+      // tras crear el grupo, sin un paso intermedio de "buscar el grupo en
+      // la tabla y volver a entrar".
+      await abrirGrupoModal(idParaReabrir);
+    } catch (err) {
+      els.sucursalesGrupoError.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      els.btnSucursalesGrupoGuardar.disabled = false;
+      els.btnSucursalesGrupoGuardarLabel.textContent = grupoSucursalEditandoId ? 'Guardar cambios' : 'Guardar grupo';
+    }
+  });
+
+  // ---------- Usuarios compartidos (dentro del modal de grupo) ----------
+
+  const ETIQUETA_PERFIL_SUCURSAL = { administrador: 'Administrador', fiscal: 'Fiscal' };
+
+  function renderUsuariosSucursalModal(usuarios) {
+    els.sucursalesUsuariosTableBody.innerHTML = '';
+    els.sucursalesUsuariosEmpty.hidden = usuarios.length > 0;
+    usuarios.forEach((u) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td data-label="Usuario"><strong>${escapeHtml(u.usuario)}</strong></td>
+        <td data-label="Perfil">${ETIQUETA_PERFIL_SUCURSAL[u.perfil] || escapeHtml(u.perfil)}</td>
+        <td data-label="Estado"><span class="estatus-badge estatus-${u.activo ? 'activo' : 'suspendido'}">${u.activo ? 'Activo' : 'Desactivado'}</span></td>
+        <td data-label=""></td>
+      `;
+      const celdaAcciones = tr.lastElementChild;
+      const contenedorAcciones = document.createElement('div');
+      contenedorAcciones.className = 'admin-row-actions';
+      contenedorAcciones.appendChild(
+        crearBotonAccion(
+          'btn-icono-accion',
+          u.activo ? 'Desactivar' : 'Reactivar',
+          u.activo ? 'M19 14v-4M5 14v-4M12 3v18' : 'M5 12h14M12 5l7 7-7 7',
+          () => cambiarActivoUsuarioSucursal(u.id, !u.activo)
+        )
+      );
+      celdaAcciones.appendChild(contenedorAcciones);
+      els.sucursalesUsuariosTableBody.appendChild(tr);
+    });
+  }
+
+  async function recargarUsuariosSucursalModal() {
+    const authHeader = getAuthHeader();
+    const res = await fetch(`${API_BASE}/grupos-sucursal/${grupoSucursalEditandoId}`, { headers: { Authorization: authHeader } });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) renderUsuariosSucursalModal(data.grupo.usuarios || []);
+  }
+
+  async function cambiarActivoUsuarioSucursal(usuarioId, activo) {
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/grupos-sucursal/${grupoSucursalEditandoId}/usuarios/${usuarioId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ activo }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo actualizar el usuario.', true);
+        return;
+      }
+      showToast(activo ? 'Usuario reactivado.' : 'Usuario desactivado.');
+      await recargarUsuariosSucursalModal();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  els.btnSucursalesUsuarioAgregar.addEventListener('click', async () => {
+    els.sucursalesUsuarioNuevoError.textContent = '';
+    const usuario = els.sucursalesUsuarioNuevo.value.trim();
+    const password = els.sucursalesUsuarioNuevoPassword.value;
+    const perfil = els.sucursalesUsuarioNuevoPerfil.value;
+    if (!usuario) {
+      els.sucursalesUsuarioNuevoError.textContent = 'El usuario es obligatorio.';
+      return;
+    }
+    if (password.length < 8) {
+      els.sucursalesUsuarioNuevoError.textContent = 'La contraseña debe tener al menos 8 caracteres.';
+      return;
+    }
+
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/grupos-sucursal/${grupoSucursalEditandoId}/usuarios`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+        body: JSON.stringify({ usuario, password, perfil }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.sucursalesUsuarioNuevoError.textContent = data.error || 'No se pudo agregar el usuario.';
+        return;
+      }
+      showToast(`Usuario "${usuario}" agregado.`);
+      els.sucursalesUsuarioNuevo.value = '';
+      els.sucursalesUsuarioNuevoPassword.value = '';
+      await recargarUsuariosSucursalModal();
+      cargarSucursales();
+    } catch (err) {
+      els.sucursalesUsuarioNuevoError.textContent = 'No se pudo conectar con el servidor.';
+    }
   });
 
   // ---------- Inicialización ----------

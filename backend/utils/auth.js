@@ -151,6 +151,37 @@ async function verificarClaveApi(apiKey, tenantSlug) {
   }
 }
 
+// §58: usuario de sucursal compartido — dado de alta en /control para un
+// GRUPO de tenants asociados, válido en CUALQUIERA de ellos sin
+// credenciales nuevas. La credencial vive SOLO en la BD de control
+// (tabla usuarios_sucursal, gestionada por /control); se verifica en vivo
+// contra esa misma tabla usando la conexión que este proceso YA mantiene
+// abierta para resolver cualquier tenant por slug (obtenerPoolControl())
+// — decisión cerrada: ni fan-out ni endpoint interno nuevo, una sola
+// fuente de verdad. `verifyApiPassword` es compatible byte a byte con el
+// hash que genera control/utils/apiCredenciales.js:hashPasswordApi()
+// (mismo formato salt:hash de scrypt).
+async function verificarUsuarioSucursal(usuario, password, grupoSucursalId) {
+  if (!grupoSucursalId) return null;
+  try {
+    const poolControl = obtenerPoolControl();
+    const [filas] = await poolControl.query(
+      'SELECT usuario, password_hash, perfil FROM usuarios_sucursal WHERE grupo_sucursal_id = ? AND usuario = ? AND activo = 1 LIMIT 1',
+      [grupoSucursalId, usuario]
+    );
+    const fila = filas[0];
+    // verifyApiPassword() SIEMPRE se llama (con el hash real o con el de
+    // relleno) para no filtrar por temporización si el usuario de
+    // sucursal existe — mismo criterio que verificarUsuarioAdministrativo.
+    const passwordValida = verifyApiPassword(password, fila ? fila.password_hash : HASH_RELLENO_ADMIN);
+    if (!fila || !passwordValida) return null;
+    return { usuario: fila.usuario, perfil: fila.perfil };
+  } catch (err) {
+    console.error('Error verificando usuario de sucursal:', err.message);
+    return null;
+  }
+}
+
 // ---------- Usuarios con perfil administrador/fiscal ----------
 // A diferencia de los clientes (perfil "cliente", que solo pueden entrar
 // al portal de usuario con cookie de sesión), estos perfiles pueden
@@ -301,6 +332,22 @@ async function requireAdminAuth(req, res, next) {
         }
       } catch (err) {
         console.error('Error verificando clave API:', err);
+      }
+    }
+
+    // 5. Usuario de sucursal compartido (§58) — solo si el tenant resuelto
+    // pertenece a un grupo de sucursales asociadas.
+    if (req.tenant.grupoSucursalId) {
+      try {
+        const usuarioSucursal = await verificarUsuarioSucursal(username, password, req.tenant.grupoSucursalId);
+        if (usuarioSucursal) {
+          req.adminUser = usuarioSucursal.usuario;
+          req.adminPerfil = usuarioSucursal.perfil;
+          req.adminMecanismo = 'usuario_sucursal';
+          return next();
+        }
+      } catch (err) {
+        console.error('Error verificando usuario de sucursal:', err);
       }
     }
   }

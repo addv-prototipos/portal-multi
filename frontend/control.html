@@ -69,6 +69,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Empresas</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-sucursales" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Sucursales</span>
+        </button>
       </nav>
       <div class="admin-sidebar-footer">
         <button type="button" class="admin-sidebar-logout" id="control-btn-logout" aria-label="Cerrar sesión">
@@ -90,8 +94,13 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
             <span>Empresas</span>
           </button>
+          <button type="button" class="admin-menu-movil-btn" data-vista="sucursales">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+            <span>Sucursales</span>
+          </button>
         </div>
 
+        <div id="vista-control-empresas">
         <div class="admin-toolbar">
           <div class="admin-toolbar-title">
             <h1>Empresas (tenants)</h1>
@@ -150,7 +159,121 @@
           </table>
           <p class="admin-empty" id="control-empty" hidden>No hay tenants que coincidan con el filtro.</p>
         </div>
+        </div>
+
+        <!-- §58: Sucursales — agrupar tenants del mismo negocio con usuarios
+             de acceso compartidos, válidos en cualquier sucursal asociada.
+             Lo único compartido es el LOGIN — cada tenant sigue con su
+             propia BD/inventario/ventas 100% aislados (decisión cerrada,
+             ver inventarios.md §58). -->
+        <div id="vista-control-sucursales" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Sucursales</h1>
+            </div>
+            <div class="admin-toolbar-right">
+              <span class="admin-count" id="sucursales-count">0 grupos</span>
+              <button type="button" class="btn btn-primary" id="btn-sucursales-nuevo-grupo">Nuevo grupo</button>
+            </div>
+          </div>
+
+          <p class="admin-login-hint">
+            Un grupo asocia varias empresas (tenants) del mismo negocio. Cada una conserva su propia base de datos,
+            inventario y ventas — lo único que se comparte es el inicio de sesión: los usuarios que des de alta aquí
+            pueden entrar a <code>/admin</code> de CUALQUIER sucursal del grupo con la misma contraseña.
+          </p>
+
+          <p class="field-error" id="sucursales-error" role="alert"></p>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="sucursales-tabla-grupos">
+              <thead>
+                <tr>
+                  <th>Grupo</th>
+                  <th>Sucursales asociadas</th>
+                  <th class="col-num">Usuarios</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="sucursales-table-body"></tbody>
+            </table>
+            <p class="admin-empty" id="sucursales-empty" hidden>Todavía no hay grupos de sucursales.</p>
+          </div>
+        </div>
       </main>
+    </div>
+  </div>
+
+  <!-- Modal: crear/editar grupo de sucursales -->
+  <div class="modal-overlay" id="sucursales-grupo-modal-overlay" hidden>
+    <div class="modal gastos-modal" role="dialog" aria-modal="true" aria-labelledby="sucursales-grupo-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="sucursales-grupo-modal-title">Nuevo grupo de sucursales</h2>
+        <button type="button" class="btn-icon" id="btn-sucursales-grupo-modal-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="gastos-modal-body">
+        <div class="field">
+          <label for="sucursales-grupo-nombre">Nombre del grupo <span class="required">*</span></label>
+          <input type="text" id="sucursales-grupo-nombre" maxlength="200" placeholder="Ej. Ferretería El Tornillo" autocomplete="off" />
+          <p class="field-error" id="error-sucursales-grupo-nombre" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label>Sucursales asociadas</label>
+          <div class="gastos-categorias-lista" id="sucursales-grupo-tenants-lista"></div>
+          <p class="field-hint">Marca las empresas que pertenecen a este grupo. Una empresa solo puede estar en un grupo a la vez.</p>
+        </div>
+
+        <p class="field-error" id="sucursales-grupo-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-sucursales-grupo-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-sucursales-grupo-guardar">
+            <span id="btn-sucursales-grupo-guardar-label">Guardar grupo</span>
+          </button>
+        </div>
+
+        <div id="sucursales-grupo-usuarios-wrap" hidden>
+          <hr class="gastos-modal-separador" />
+          <h3 class="inv-ayuda-grupo-titulo">Usuarios compartidos</h3>
+          <p class="field-hint">Válidos para entrar a <code>/admin</code> de cualquier sucursal de este grupo.</p>
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="sucursales-usuarios-tabla">
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Perfil</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="sucursales-usuarios-table-body"></tbody>
+            </table>
+            <p class="admin-empty" id="sucursales-usuarios-empty" hidden>Sin usuarios compartidos todavía.</p>
+          </div>
+
+          <div class="gastos-modal-grid">
+            <div class="field">
+              <label for="sucursales-usuario-nuevo">Usuario</label>
+              <input type="text" id="sucursales-usuario-nuevo" maxlength="100" placeholder="Ej. gerente_norte" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="sucursales-usuario-nuevo-password">Contraseña</label>
+              <input type="password" id="sucursales-usuario-nuevo-password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" />
+            </div>
+            <div class="field">
+              <label for="sucursales-usuario-nuevo-perfil">Perfil</label>
+              <select id="sucursales-usuario-nuevo-perfil">
+                <option value="administrador">Administrador</option>
+                <option value="fiscal">Fiscal</option>
+              </select>
+            </div>
+          </div>
+          <p class="field-error" id="sucursales-usuario-nuevo-error" role="alert"></p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-secondary" id="btn-sucursales-usuario-agregar">+ Agregar usuario</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
