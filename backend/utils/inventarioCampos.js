@@ -277,6 +277,32 @@ const CONCEPTOS_AYUDA = [
     ejemplo_valido: 'Guardar el perfil "Exportación mensual Aspel" para no volver a mapear cada mes.',
     ejemplo_invalido_comun: 'Esperar que un perfil guardado funcione si tu archivo nuevo trae columnas distintas — solo se reaplica cuando las columnas coinciden.',
   },
+  // §57: moneda del producto + conversión en la entrada. NO son columnas
+  // del importador masivo (§34 sigue MXN-only, fuera de alcance de este
+  // segmento) — viven aquí, no en CAMPOS_IMPORTABLES, pero SÍ tienen su
+  // ícono "?" en "Crear producto" y en "Registrar entrada" (mismo
+  // mecanismo .campo-ayuda[data-campo] del resto de la ayuda).
+  {
+    id: 'moneda', grupo: 'moneda_extranjera',
+    etiqueta: 'Moneda',
+    explicacion_simple: 'En qué moneda compras este producto: pesos (MXN, la mayoría) o dólares (USD, típico en importados). Se define por producto — puedes tener unos en MXN y otros en USD en el mismo catálogo.',
+    ejemplo_valido: 'Un producto importado de EE.UU. en USD; el resto de tu catálogo nacional en MXN.',
+    ejemplo_invalido_comun: 'Cambiar la moneda de un producto solo para "probar" — no rompe tu historial (ya quedó en pesos), pero sí puede confundir la próxima entrada si se te olvida que ahora pide dólares.',
+  },
+  {
+    id: 'tipo_cambio', grupo: 'moneda_extranjera',
+    etiqueta: 'Tipo de cambio aplicado',
+    explicacion_simple: 'Cuántos pesos vale 1 dólar el día que registras una entrada de un producto en USD. El sistema lo precarga con el valor del día (Banco de México) pero lo puedes corregir antes de guardar. Queda guardado en esa entrada para siempre, aunque el tipo de cambio cambie después.',
+    ejemplo_valido: '18.3542',
+    ejemplo_invalido_comun: 'Dejarlo en blanco pensando que se calcula solo — sin tipo de cambio, no se puede convertir el costo a pesos.',
+  },
+  {
+    id: 'costo_original', grupo: 'moneda_extranjera',
+    etiqueta: 'Costo en la moneda original',
+    explicacion_simple: 'Lo que pagaste por unidad en la moneda real de la compra (USD), antes de convertirlo a pesos. El sistema hace la multiplicación por ti: costo en USD × tipo de cambio = costo en pesos, que es el que alimenta tu costo promedio.',
+    ejemplo_valido: '25.00 (USD)',
+    ejemplo_invalido_comun: 'Capturar ahí el costo ya convertido a pesos — el campo espera el número tal cual viene en la factura del proveedor, en dólares.',
+  },
 ];
 
 // Diccionario completo (§56): 20 campos importables (grupo "catalogo",

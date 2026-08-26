@@ -803,7 +803,11 @@
             </div>
 
             <div class="orden-wizard-paso is-active" data-paso="1">
-              <div class="orden-productos-captura">
+              <!-- Captura manual (texto libre): visible solo si el tenant
+                   NO tiene Inventarios activo — con inventario activo se
+                   oculta por completo (ver aplicarVisibilidadInventarioEnVentas()
+                   en admin.js) para no duplicar el bloque de abajo. -->
+              <div class="orden-productos-captura" id="orden-productos-captura-manual">
                 <div class="field">
                   <label for="orden-producto-concepto">Concepto del producto <span class="required">*</span></label>
                   <input type="text" id="orden-producto-concepto" maxlength="150" placeholder="Ej. Toner para impresora HP" autocomplete="off" />
@@ -825,15 +829,16 @@
                 <button type="button" class="btn btn-secondary btn-block" id="btn-agregar-producto-orden">+ Agregar producto</button>
               </div>
 
-              <!-- D8 (Inventarios, §22): vincular UN producto real del
-                   catálogo de Inventarios — independiente del builder de
-                   texto de arriba, que sigue funcionando igual. Solo
-                   visible si el tenant tiene Inventarios activo (D8/§0.6,
-                   ver aplicarVisibilidadInventarioEnVentas() en admin.js).
-                   Línea única (P1 cerrada 2026-08-24): un producto de
-                   inventario por venta como máximo. -->
+              <!-- D8 (Inventarios, §22) + Segmento A ("Ventas con
+                   inventario activo v2"): reemplaza por completo al bloque
+                   manual de arriba cuando Inventarios está activo — ya no
+                   coexisten. Admite varias líneas (P1 reabierta): cada
+                   producto agregado cae en la MISMA tabla/lista de abajo
+                   que antes solo recibía líneas manuales (productosOrdenActual
+                   en admin.js), con precio autocompletado (editable) desde
+                   el catálogo. -->
               <div class="orden-inventario-vincular" id="orden-inventario-vincular" hidden>
-                <p class="field-hint orden-inventario-titulo">Vincular producto de inventario (opcional) — descuenta existencia automáticamente</p>
+                <p class="field-hint orden-inventario-titulo">Producto de inventario — descuenta existencia automáticamente</p>
                 <div class="field orden-inventario-buscar-field" id="orden-inventario-buscar-wrap">
                   <label for="orden-inventario-buscar">Producto — nombre, SKU o escanea el código de barras</label>
                   <input type="text" id="orden-inventario-buscar" placeholder="Escribe para buscar…" autocomplete="off" />
@@ -844,14 +849,22 @@
                     <strong id="orden-inventario-seleccionado-nombre"></strong>
                     <span id="orden-inventario-seleccionado-detalle"></span>
                   </div>
-                  <button type="button" class="btn-icon" id="btn-orden-inventario-quitar" aria-label="Quitar producto vinculado">✕</button>
+                  <button type="button" class="btn-icon" id="btn-orden-inventario-quitar" aria-label="Quitar selección">✕</button>
                 </div>
-                <div class="field" id="orden-inventario-unidades-field" hidden>
-                  <label for="orden-inventario-unidades">Unidades vendidas <span class="required">*</span></label>
-                  <input type="number" id="orden-inventario-unidades" min="0.001" step="0.001" value="1" />
-                  <p class="field-hint" id="orden-inventario-disponible-hint"></p>
-                  <p class="field-error" id="error-orden-inventario-unidades" role="alert"></p>
+                <div class="orden-productos-captura-fila" id="orden-inventario-unidades-field" hidden>
+                  <div class="field">
+                    <label for="orden-inventario-precio">Precio unitario (MXN) <span class="badge-auto" data-tooltip="Autocompletado desde el catálogo, editable">AUTO</span></label>
+                    <input type="text" inputmode="decimal" id="orden-inventario-precio" placeholder="0.00" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="orden-inventario-unidades">Cantidad (piezas) <span class="required">*</span></label>
+                    <input type="number" id="orden-inventario-unidades" min="0.001" step="0.001" value="1" />
+                    <p class="field-hint" id="orden-inventario-disponible-hint"></p>
+                    <p class="field-error" id="error-orden-inventario-unidades" role="alert"></p>
+                  </div>
                 </div>
+                <p class="field-error" id="error-orden-inventario-general" role="alert"></p>
+                <button type="button" class="btn btn-secondary btn-block" id="btn-agregar-producto-inventario-orden" hidden>+ Agregar producto</button>
               </div>
 
               <div class="orden-productos-lista-wrap" id="orden-productos-lista-wrap" hidden>
@@ -2922,6 +2935,14 @@
             <p class="field-error" id="error-inv-modal-unidad" role="alert"></p>
           </div>
           <div class="field">
+            <label for="inv-modal-moneda">Moneda<button type="button" class="campo-ayuda" data-campo="moneda" aria-label="Ver ayuda de Moneda">?</button></label>
+            <select id="inv-modal-moneda">
+              <option value="MXN">Pesos mexicanos (MXN)</option>
+              <option value="USD">Dólares estadounidenses (USD)</option>
+            </select>
+            <p class="field-hint">Define en qué moneda vas a capturar el costo cada vez que registres una entrada de este producto.</p>
+          </div>
+          <div class="field">
             <label for="inv-modal-costo">Costo (MXN)<button type="button" class="campo-ayuda" data-campo="costo" aria-label="Ver ayuda de Costo">?</button></label>
             <input type="text" inputmode="decimal" id="inv-modal-costo" placeholder="0.00" autocomplete="off" />
             <p class="field-hint">Referencia — el costo promedio real lo calcula cada entrada (D5).</p>
@@ -2993,6 +3014,19 @@
       <div class="field" id="inv-mov-costo-wrap">
         <label for="inv-mov-costo">Costo unitario (MXN)</label>
         <input type="text" inputmode="decimal" id="inv-mov-costo" placeholder="Opcional — alimenta el costo promedio (D5)" autocomplete="off" />
+      </div>
+      <div id="inv-mov-costo-usd-wrap" hidden>
+        <div class="field">
+          <label for="inv-mov-costo-original">Costo en USD<button type="button" class="campo-ayuda" data-campo="costo_original" aria-label="Ver ayuda de Costo en la moneda original">?</button></label>
+          <input type="text" inputmode="decimal" id="inv-mov-costo-original" placeholder="Opcional — ej. 25.00" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="inv-mov-tipo-cambio">Tipo de cambio (MXN por USD)<button type="button" class="campo-ayuda" data-campo="tipo_cambio" aria-label="Ver ayuda de Tipo de cambio aplicado">?</button></label>
+          <input type="text" inputmode="decimal" id="inv-mov-tipo-cambio" placeholder="Ej. 18.35" autocomplete="off" />
+          <p class="field-hint" id="inv-mov-tipo-cambio-fuente"></p>
+          <p class="field-hint" id="inv-mov-costo-mxn-preview"></p>
+          <p class="field-error" id="error-inv-mov-costo-usd" role="alert"></p>
+        </div>
       </div>
       <div class="field">
         <label for="inv-mov-motivo">Motivo</label>

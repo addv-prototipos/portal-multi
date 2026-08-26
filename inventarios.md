@@ -90,6 +90,7 @@ La v1 entrega un **motor de existencias mínimo útil**: catálogo simple, un al
 | Exportación XLSX/PDF (§35) | 2 | Requiere decidir librería nueva (fuera del núcleo) |
 | Venta multi-línea con inventario activo (§22) | 2 | P1 cerrada 2026-08-24 = línea única en v1; tabla `venta_partidas` y descuento por línea quedan para cuando se reabra el diseño de Ventas |
 | Tipo de cambio para productos en moneda extranjera (§57) | 2 | Agregado 2026-08-25, solo anotado — activar/desactivar por definir su alcance (¿global, por producto?), fuente del tipo de cambio y relación con el costeo promedio ponderado (D5) sin cerrar; requiere su propia ronda de Analizar → Proponer → Confirmar antes de diseñar |
+| Asociar tenants como sucursales de un mismo negocio, usuarios de acceso compartidos (§58) | 2 | Agregado 2026-08-25, solo anotado — motivado por el requerimiento de multi-inventario (offline v2: una tienda = un tenant, varias tiendas = tenants asociados); cruza el aislamiento por tenant ya establecido (BD/credenciales/pool separados por tenant), requiere su propia ronda de Analizar → Proponer → Confirmar antes de diseñar |
 
 ## 0.5 Concurrencia, precisión numérica e integridad del libro
 
@@ -1916,20 +1917,107 @@ Sesión + permiso administrador + tenant resuelto (reglas de §46); contenido no
 
 ---
 
-# 57. Tipo de cambio para productos en moneda extranjera — Fase 2
+# 57. Tipo de cambio para productos en moneda extranjera — IMPLEMENTADO
+
+> Agregado 2026-08-25 como pendiente; analizado, propuesto (4 preguntas
+> cerradas vía cuestionario) y confirmado explícitamente por el usuario
+> ("Sí, implementa todo el segmento") el 2026-08-26. Ver PROJECT_STATE.md
+> para el punto de bitácora completo.
+
+## US-INV-027 — Costear productos comprados en otra moneda
+
+Como **administrador**, puedo marcar un producto como comprado en USD y,
+al registrar una entrada de ese producto, capturar el costo en dólares
+más el tipo de cambio aplicado (precargado del día, editable) — el
+sistema convierte a pesos y ESE es el único valor que alimenta el costeo
+promedio ponderado (D5). El detalle de la conversión (moneda, tipo de
+cambio, costo en USD) queda guardado para siempre en esa entrada del
+libro de movimientos (D6), sin tabla nueva.
+
+Decisiones cerradas (2026-08-26):
+
+- **Alcance**: por producto (`productos.moneda`, ENUM 'MXN'/'USD',
+  default 'MXN') — no global ni por categoría. Cambiar la moneda de un
+  producto con historial es válido: el histórico ya quedó en pesos, el
+  cambio solo afecta entradas futuras.
+- **Fuente del tipo de cambio**: automático (Banxico SIE, serie
+  `SF43718`, USD/MXN FIX) con opción de sobreescribir — requiere
+  `BANXICO_TOKEN` en `.env` (gratis, lo genera el usuario). Sin token o
+  con el servicio caído, degrada a captura manual sin bloquear nada
+  (`fuente: 'manual_requerido'`/`'banxico_caducado'`).
+- **Moneda soportada**: solo USD (además de MXN).
+- **Histórico**: dentro de `movimientos_inventario`
+  (`moneda_original`/`tipo_cambio`/`costo_original`, las 3 nullable) —
+  solo las entradas de un producto USD las llenan.
+- **Fuera de alcance**: el importador masivo (§34) sigue MXN-only —
+  columnas nuevas no forman parte de `CAMPOS_IMPORTABLES`.
+
+### Esquema
+
+`productos.moneda` VARCHAR(3) NOT NULL DEFAULT 'MXN' + CHECK
+`chk_productos_moneda`. `movimientos_inventario.moneda_original`
+VARCHAR(3) NULL, `.tipo_cambio` DECIMAL(10,4) NULL, `.costo_original`
+DECIMAL(12,4) NULL + CHECK `chk_movimientos_moneda_original`.
+
+### Backend
+
+`backend/utils/tipoCambio.js` (nuevo) — `obtenerTipoCambioUSD()`, caché
+en memoria por fecha, nunca lanza. `registrarMovimiento()` (en
+`utils/inventario.js`) acepta `costoOriginal`/`tipoCambio`; valida forma
+ANTES de abrir la transacción (mismo criterio que el resto de la
+función), decide dentro de la transacción cuál costo aplica según la
+moneda REAL del producto (ya con la fila bloqueada) y calcula
+`costo = costoOriginal × tipoCambio` — error nuevo
+`INV_TIPO_CAMBIO_INVALIDO`. Endpoint nuevo
+`GET /api/admin/tipo-cambio/usd`; `POST/PUT /productos` aceptan/
+devuelven `moneda`; `POST /entradas` acepta `costo_original`/
+`tipo_cambio`; kardex devuelve las 3 columnas nuevas.
+
+### Frontend
+
+Selector "Moneda" en "Crear/editar producto" (con tooltip). Modal de
+movimiento: si el producto es USD y la dirección es entrada, sustituye
+"Costo unitario (MXN)" por "Costo en USD" + "Tipo de cambio" (precargado,
+editable, con vista previa "= $X MXN" en vivo). Historial de movimientos:
+costo con tooltip del desglose USD × TC = MXN cuando aplica (componente
+unificado del sitio, punto 148).
+
+### Diccionario de datos (§56)
+
+3 tarjetas nuevas (`moneda`, `tipo_cambio`, `costo_original`), grupo
+nuevo "Moneda extranjera" — no forman parte de `CAMPOS_IMPORTABLES` (no
+son columnas del importador) pero sí tienen ícono `?` en los formularios
+correspondientes, mismo mecanismo `.campo-ayuda[data-campo]` del resto.
+
+### Pruebas
+
+Jest backend **716/716**. Casos nuevos: validación de forma de
+`costoOriginal`/`tipoCambio` sin tocar la BD, conversión USD→MXN en el
+camino feliz (incluye que un producto MXN ignora esos campos si llegaran
+por error), y suite completa de `tipoCambio.js` (sin token, respuesta
+válida con caché, HTTP no-ok, "N/E" sin dato publicado, caché vencido de
+un día para otro → `banxico_caducado`).
+
+Sin validar contra Docker/MySQL/Banxico reales en esta sesión (mismo
+patrón de otros segmentos recientes) — antes de producción, correr la
+migración contra MySQL real y probar con un `BANXICO_TOKEN` real.
+
+---
+
+# 58. Asociar tenants como sucursales — Fase 2
 
 > Agregado 2026-08-25 a pedido del usuario, como pendiente de funcionalidad — **solo anotado, sin analizar a fondo ni implementar**. Requiere la misma sesión de Analizar → Proponer → Confirmar antes de tocar código (protocolo `addv-web-app`).
 
-## US-INV-027 (borrador) — Costear productos comprados en otra moneda
+## US-INV-028 (borrador) — Asociar sucursales del mismo negocio
 
-Como **administrador**, quiero poder activar el uso de tipo de cambio para mis productos (por producto o para todo el catálogo — a decidir), y que el sistema guarde un histórico de cada tipo de cambio aplicado, para saber a qué costo real en pesos entró cada producto al inventario desde la primera vez que se dio de alta, aunque el tipo de cambio del día haya cambiado después.
+Surgió del requerimiento de multi-inventario offline (§ propuesta "Ventas con inventario activo v2"): el catálogo cifrado local asume **una sola tienda activa**; si un negocio tiene varias tiendas, cada una debe darse de alta como su propio tenant (BD/existencias independientes, sin mezclar stock). El usuario pidió ahora poder **asociar** esos tenants entre sí como sucursales del mismo negocio, con **los mismos usuarios de acceso válidos en todas las sucursales asociadas**.
 
 Puntos que quedan pendientes de cerrar con el usuario antes de proponer un diseño (no asumir ninguno de estos):
 
-- **Alcance del interruptor**: ¿global de la empresa, por producto, o por categoría? El pedido dice "activar o inhabilitarlo para aplicar a los productos" — sugiere que no todos los productos lo necesitan (ej. un negocio con productos nacionales e importados a la vez).
-- **Fuente del tipo de cambio**: ¿captura manual en cada entrada, un tipo de cambio del día consultado a un servicio externo (banco de México u otro), o ambos (automático con opción de sobreescribir)?
-- **Moneda(s) soportada(s)**: ¿solo USD, o cualquier moneda?
-- **Qué significa "histórico desde la primera vez que se puso en inventario"**: ¿el histórico vive a nivel de producto (cada vez que ese producto recibe una entrada, se guarda el tipo de cambio usado ese día) o es una tabla de tipos de cambio general por fecha, independiente del producto, que luego se consulta? La decisión de costeo ya cerrada en este documento es **promedio ponderado en pesos** (D5) — hay que decidir si el tipo de cambio se aplica ANTES de calcular ese promedio (convierte a pesos en cada entrada, el promedio ponderado sigue siendo en pesos) o si se necesita además conservar el costo en la moneda original por transacción.
-- **Relación con `movimientos_inventario`**: lo más natural con el diseño actual es agregar el tipo de cambio aplicado como un dato más de cada movimiento de tipo entrada (junto a `costo_unitario`), que ya es un libro append-only (D6) — eso daría el histórico "gratis" sin tabla nueva. A confirmar si esto cubre el pedido o si se necesita algo adicional (ej. un catálogo de tipos de cambio por fecha, reutilizable aunque no haya movimiento ese día).
+- **Qué significa "asociar" en términos de datos**: cada tenant sigue con su propia BD/inventario/ventas separados (eso no cambia — es justo lo que motivó "multi-tienda = tenant nuevo"). Lo que se comparte es solo el **inicio de sesión**: un usuario administrador se autentica una vez y puede moverse entre las sucursales asociadas sin credenciales nuevas. A confirmar que esta lectura es correcta.
+- **Choca con el aislamiento por tenant ya establecido**: hoy cada tenant tiene su propio pool de MySQL, sus propias credenciales, y la sesión de admin (`auth.js`) vive por tenant (HKDF derivado por slug). Compartir usuarios entre tenants es una excepción real a ese diseño — hay que decidir dónde vive el usuario compartido (¿tabla nueva a nivel de la BD de control, separada de la tabla `usuarios` de cada tenant?) y cómo cambia el flujo de login (¿elige sucursal antes o después de autenticarse?).
+- **Alcance de "los mismos usuarios"**: ¿todos los usuarios de una sucursal ven automáticamente las demás asociadas, o se marca por usuario cuáles sucursales puede ver (ej. un cajero de la sucursal Centro no necesita ver Norte)? El pedido dice "los usuarios de acceso son los mismos para todas las asociadas" — sugiere sin distinción, pero conviene confirmar antes de cerrar el diseño.
+- **Auditoría**: `admin_auditoria` hoy es por tenant — si un usuario actúa en 2 sucursales asociadas, ¿la auditoría de cada una se queda separada (cada acción se audita donde ocurrió) o se necesita una vista cruzada? (Nota: ya existe un patrón similar — `/control`, cross-tenant, solo perfil `super` — puede servir de referencia, aunque ese caso es soporte técnico, no operación diaria de un usuario `administrador`.)
+- **Quién puede asociar/desasociar sucursales**: ¿lo hace el propio administrador del tenant, o solo `/control` (super)? Dado que `/control` ya es el único lugar que gestiona el ciclo de vida de tenants, es el candidato natural — a confirmar.
 
 Sin diseño de esquema, API ni UI todavía — depende de las respuestas de arriba.

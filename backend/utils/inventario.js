@@ -97,6 +97,12 @@ async function registrarMovimiento(opts) {
     tipo,
     cantidad,
     costoUnitario = null,
+    // §57: para un producto en USD, la entrada llega en costoOriginal
+    // (USD) + tipoCambio en vez de costoUnitario directo — el costo en
+    // pesos que alimenta el promedio ponderado (D5) se calcula aquí
+    // mismo, una vez conocida la moneda real del producto (ver abajo).
+    costoOriginal = null,
+    tipoCambio = null,
     motivo = null,
     notas = null,
     usuario = null,
@@ -115,11 +121,29 @@ async function registrarMovimiento(opts) {
   if (!Number.isInteger(Number(productoId)) || !Number.isInteger(Number(almacenId))) {
     return { error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto o almacén no válido.' };
   }
-  let costo = null;
+  // Validación de forma (no depende de la BD, corre antes de abrir la
+  // transacción — mismo criterio que el resto de esta función). CUÁL de
+  // los dos costos aplica de verdad (MXN directo vs. USD convertido)
+  // depende de la moneda REAL del producto, que solo se conoce ya con la
+  // fila bloqueada más abajo (§57).
+  let costoUnitarioNum = null;
   if (costoUnitario !== null && costoUnitario !== undefined && costoUnitario !== '') {
-    costo = Number(costoUnitario);
-    if (!Number.isFinite(costo) || costo < 0) {
+    costoUnitarioNum = Number(costoUnitario);
+    if (!Number.isFinite(costoUnitarioNum) || costoUnitarioNum < 0) {
       return { error: 'INV_CANTIDAD_INVALIDA', mensaje: 'El costo unitario debe ser un número mayor o igual a cero.' };
+    }
+  }
+  let costoOriginalNum = null;
+  let tipoCambioNum = null;
+  const hayCostoOriginal = costoOriginal !== null && costoOriginal !== undefined && costoOriginal !== '';
+  if (hayCostoOriginal) {
+    costoOriginalNum = Number(costoOriginal);
+    if (!Number.isFinite(costoOriginalNum) || costoOriginalNum < 0) {
+      return { error: 'INV_CANTIDAD_INVALIDA', mensaje: 'El costo en USD debe ser un número mayor o igual a cero.' };
+    }
+    tipoCambioNum = Number(tipoCambio);
+    if (!Number.isFinite(tipoCambioNum) || tipoCambioNum <= 0) {
+      return { error: 'INV_TIPO_CAMBIO_INVALIDO', mensaje: 'El tipo de cambio debe ser un número mayor a cero.' };
     }
   }
 
@@ -169,7 +193,7 @@ async function registrarMovimiento(opts) {
     }
 
     const [productos] = await conexion.query(
-      "SELECT id, tipo AS tipo_producto, costo_promedio FROM productos WHERE id = ? AND eliminado_en IS NULL FOR UPDATE",
+      "SELECT id, tipo AS tipo_producto, costo_promedio, moneda FROM productos WHERE id = ? AND eliminado_en IS NULL FOR UPDATE",
       [productoId]
     );
     if (productos.length === 0) {
@@ -180,6 +204,28 @@ async function registrarMovimiento(opts) {
     if (producto.tipo_producto === 'servicio') {
       await conexion.rollback();
       return { error: 'INV_PRODUCTO_SERVICIO', mensaje: 'Un servicio no genera movimientos de inventario (D11).' };
+    }
+
+    // §57: si el producto está marcado en USD y esta es una entrada con
+    // costo en la moneda original, se convierte a pesos aquí (una sola
+    // vez, ya con la moneda REAL del producto confirmada bajo el lock de
+    // arriba) — `costo` sigue siendo lo único que usa el costeo promedio
+    // ponderado (D5), sin cambios en esa lógica. Ambos números ya se
+    // validaron antes de abrir la transacción; aquí solo se decide cuál
+    // de los dos aplica.
+    let costo = null;
+    let monedaOriginalGuardar = null;
+    let tipoCambioGuardar = null;
+    let costoOriginalGuardar = null;
+    const monedaProducto = producto.moneda || 'MXN';
+
+    if (monedaProducto === 'USD' && esEntrada && hayCostoOriginal) {
+      costo = Math.round(costoOriginalNum * tipoCambioNum * 100) / 100;
+      monedaOriginalGuardar = 'USD';
+      tipoCambioGuardar = tipoCambioNum;
+      costoOriginalGuardar = costoOriginalNum;
+    } else if (costoUnitarioNum !== null) {
+      costo = costoUnitarioNum;
     }
 
     // Asegura que exista la fila de existencia antes de bloquearla — un
@@ -243,12 +289,14 @@ async function registrarMovimiento(opts) {
       `INSERT INTO movimientos_inventario
         (folio, producto_id, almacen_id, tipo, cantidad, costo_unitario,
          existencia_anterior, existencia_posterior, motivo, notas,
-         ubicacion_nota, documento_origen, usuario, creado_en)
-       VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ubicacion_nota, documento_origen, usuario, creado_en,
+         moneda_original, tipo_cambio, costo_original)
+       VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         productoId, almacenId, tipo, cant, costo,
         existenciaAnterior, existenciaPosterior, motivoLimpio, notasLimpias,
         ubicacionLimpia, documentoLimpio, usuarioLimpio, ahora,
+        monedaOriginalGuardar, tipoCambioGuardar, costoOriginalGuardar,
       ]
     );
     const movimientoId = insercion.insertId;
@@ -270,6 +318,9 @@ async function registrarMovimiento(opts) {
       existenciaAnterior,
       existenciaPosterior,
       costoPromedio: costoPromedioResultante,
+      monedaOriginal: monedaOriginalGuardar,
+      tipoCambio: tipoCambioGuardar,
+      costoOriginal: costoOriginalGuardar,
     };
 
     if (idempotencyKey && placeholderIdempotenciaInsertado) {

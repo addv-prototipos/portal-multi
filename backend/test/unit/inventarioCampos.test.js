@@ -21,7 +21,7 @@ describe('CAMPOS_IMPORTABLES — metadatos de ayuda (§56.1)', () => {
 
 describe('CONCEPTOS_AYUDA — conceptos operativos (§56.3 grupos 2 y 3)', () => {
   test('cada concepto trae id único, grupo válido y los mismos 3 campos de ayuda', () => {
-    const gruposValidos = ['existencias', 'importacion'];
+    const gruposValidos = ['existencias', 'importacion', 'moneda_extranjera'];
     const idsVistos = new Set();
     CONCEPTOS_AYUDA.forEach((c) => {
       expect(idsVistos.has(c.id)).toBe(false);

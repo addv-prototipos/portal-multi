@@ -116,6 +116,7 @@ const {
   productoTieneMovimientos,
   ALMACEN_DEFECTO_CODIGO,
 } = require('./utils/inventario');
+const { obtenerTipoCambioUSD } = require('./utils/tipoCambio');
 const {
   obtenerConfigInventario,
   obtenerValorConfig,
@@ -4019,18 +4020,60 @@ app.post(
 
     // D8 (Inventarios, §22): producto opcional — SOLO se procesa si el
     // módulo está activo para este tenant; si está inactivo, cualquier
-    // producto_id que llegue en el body se ignora por completo y la
-    // venta se registra manual como siempre (nunca un error 403 aquí,
-    // esta ruta no está gateada por requireInventarioActivo a propósito
-    // — Ventas debe seguir funcionando sin Inventarios).
+    // producto_id/productos_inventario que lleguen en el body se ignoran
+    // por completo y la venta se registra manual como siempre (nunca un
+    // error 403 aquí, esta ruta no está gateada por requireInventarioActivo
+    // a propósito — Ventas debe seguir funcionando sin Inventarios).
+    //
+    // Segmento A ("Ventas con inventario activo v2"): admite el campo
+    // NUEVO `productos_inventario` (array, varias líneas) además del
+    // campo legacy `producto_id`/`producto_cantidad` (una sola línea). Si
+    // llega el array, manda sobre los campos legacy — se mantienen intactos
+    // sin tocar para no romper datos/integraciones existentes de una sola
+    // línea (ver `ordenes_compra.producto_id`/`producto_cantidad`, ya no
+    // se vuelven a escribir cuando se usa el array).
     let productoId = null;
     let productoCantidad = null;
     let productoSeleccionado = null;
-    // El chequeo de body.producto_id va PRIMERO, antes de tocar la BD:
-    // la inmensa mayoría de ventas no llevan producto (D8 es opt-in por
-    // tenant), así que inventarioActivo() —una consulta más— solo se
-    // paga cuando de verdad hace falta decidir algo.
-    if (body.producto_id !== undefined && body.producto_id !== null && body.producto_id !== '') {
+    let lineasInventario = []; // [{ productoId, cantidad, producto }]
+    const sePidioArrayInventario =
+      Array.isArray(body.productos_inventario) && body.productos_inventario.length > 0;
+
+    if (sePidioArrayInventario) {
+      const inventarioEstaActivo = await inventarioActivo();
+      if (inventarioEstaActivo) {
+        if (body.productos_inventario.length > 50) {
+          return res.status(400).json({ error: 'Demasiadas líneas de inventario en una sola venta.' });
+        }
+        const idsVistos = new Set();
+        for (const linea of body.productos_inventario) {
+          const idCandidato = Number(linea && linea.producto_id);
+          if (!Number.isInteger(idCandidato)) {
+            return res.status(400).json({ error: 'Uno de los productos de inventario es inválido.' });
+          }
+          if (idsVistos.has(idCandidato)) {
+            return res.status(400).json({ error: 'El mismo producto aparece en más de una línea; súmalas en una sola.' });
+          }
+          idsVistos.add(idCandidato);
+          const unidades = Number(linea && linea.cantidad);
+          if (!Number.isFinite(unidades) || unidades <= 0) {
+            return res.status(400).json({ error: 'Indica cuántas unidades se vendieron de cada producto de inventario.' });
+          }
+          // eslint-disable-next-line no-await-in-loop
+          const producto = await obtenerProductoPorId(idCandidato);
+          if (!producto) {
+            return res.status(400).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Uno de los productos seleccionados ya no existe.' });
+          }
+          lineasInventario.push({ productoId: producto.id, cantidad: unidades, producto });
+        }
+      }
+      // Si el módulo está inactivo, se ignora igual que el path legacy de
+      // abajo: la venta se registra manual, `lineasInventario` se queda vacío.
+    } else if (body.producto_id !== undefined && body.producto_id !== null && body.producto_id !== '') {
+      // El chequeo de body.producto_id va PRIMERO, antes de tocar la BD:
+      // la inmensa mayoría de ventas no llevan producto (D8 es opt-in por
+      // tenant), así que inventarioActivo() —una consulta más— solo se
+      // paga cuando de verdad hace falta decidir algo.
       const inventarioEstaActivo = await inventarioActivo();
       if (inventarioEstaActivo) {
         const idCandidato = Number(body.producto_id);
@@ -4142,7 +4185,71 @@ app.post(
     // no alcanza, se compensa borrando esa fila de verdad: nadie llegó a
     // verla, no hay nada que conservar en papelera (mismo criterio que
     // "Eliminar" en Ventas ya es borrado físico, no lógico).
-    if (productoId && productoSeleccionado.tipo === 'producto') {
+    if (lineasInventario.length > 0) {
+      // Segmento A: varias líneas de inventario. registrarMovimiento()
+      // abre su propia transacción por línea (no hay una transacción
+      // compartida entre productos distintos), así que "todo o nada" se
+      // logra revirtiendo con un compensatorio (`devolucion_cliente`,
+      // mismo patrón que "eliminar venta" más abajo) las líneas que sí
+      // alcanzaron a descontarse antes de encontrar la que falló.
+      const almacenIdVenta = await obtenerAlmacenDefectoId();
+      const lineasAplicadas = [];
+      let errorLinea = null;
+      for (const linea of lineasInventario) {
+        if (linea.producto.tipo !== 'producto') continue; // servicios no generan movimiento (D11)
+        // eslint-disable-next-line no-await-in-loop
+        const resultadoMovimiento = await registrarMovimiento({
+          productoId: linea.productoId,
+          almacenId: almacenIdVenta,
+          tipo: 'venta',
+          cantidad: linea.cantidad,
+          documentoOrigen: numeroCompra,
+          usuario: req.adminUser,
+        });
+        if (resultadoMovimiento.error) {
+          errorLinea = resultadoMovimiento;
+          break;
+        }
+        lineasAplicadas.push(linea);
+      }
+
+      if (errorLinea) {
+        for (const aplicada of lineasAplicadas) {
+          // eslint-disable-next-line no-await-in-loop
+          const reingreso = await registrarMovimiento({
+            productoId: aplicada.productoId,
+            almacenId: almacenIdVenta,
+            tipo: 'devolucion_cliente',
+            cantidad: aplicada.cantidad,
+            documentoOrigen: numeroCompra,
+            motivo: 'Venta rechazada por falta de stock en otra línea — reingreso automático',
+            usuario: req.adminUser,
+          });
+          if (reingreso.error) {
+            console.error(
+              `No se pudo revertir producto_id=${aplicada.productoId} tras rechazar la venta ${numeroCompra}:`,
+              reingreso
+            );
+          }
+        }
+        await pool.query('DELETE FROM ordenes_compra WHERE id = ?', [resultado.insertId]);
+        const mapaEstatusInv = {
+          INV_STOCK_INSUFICIENTE: 409,
+          INV_CONCURRENCIA: 409,
+          INV_PRODUCTO_NO_ENCONTRADO: 400,
+          INV_PRODUCTO_SERVICIO: 400,
+        };
+        return res.status(mapaEstatusInv[errorLinea.error] || 400).json(errorLinea);
+      }
+
+      for (const linea of lineasInventario) {
+        // eslint-disable-next-line no-await-in-loop
+        await pool.query(
+          'INSERT INTO orden_productos (orden_id, producto_id, cantidad, creado_en) VALUES (?, ?, ?, ?)',
+          [resultado.insertId, linea.productoId, linea.cantidad, ahora]
+        );
+      }
+    } else if (productoId && productoSeleccionado.tipo === 'producto') {
       const almacenIdVenta = await obtenerAlmacenDefectoId();
       const idempotencyKeyVenta = req.get('Idempotency-Key') || null;
       const resultadoMovimiento = await registrarMovimiento({
@@ -4218,6 +4325,12 @@ app.post(
       notas_cobro: notasCobro,
       producto_id: productoId,
       producto_cantidad: productoCantidad,
+      productos_inventario: lineasInventario.map((l) => ({
+        producto_id: l.productoId,
+        cantidad: l.cantidad,
+        sku: l.producto.sku,
+        nombre: l.producto.nombre,
+      })),
       mensaje: 'Venta registrada correctamente.',
     });
   })
@@ -4246,10 +4359,37 @@ app.get(
        ORDER BY o.creado_en DESC`
     );
 
+    // Segmento A: líneas de inventario (0, 1 o varias) por venta, en una
+    // segunda consulta aparte — mismo criterio que el resto del proyecto
+    // (SQL crudo simple, sin mezclar JSON_ARRAYAGG con el resto de la
+    // fila principal).
+    const idsOrdenes = ordenes.map((o) => o.id);
+    const lineasPorOrden = new Map();
+    if (idsOrdenes.length > 0) {
+      const [lineas] = await pool.query(
+        `SELECT op.orden_id, op.producto_id, op.cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre
+           FROM orden_productos op
+           LEFT JOIN productos p ON p.id = op.producto_id
+          WHERE op.orden_id IN (?)
+          ORDER BY op.id ASC`,
+        [idsOrdenes]
+      );
+      for (const l of lineas) {
+        if (!lineasPorOrden.has(l.orden_id)) lineasPorOrden.set(l.orden_id, []);
+        lineasPorOrden.get(l.orden_id).push({
+          producto_id: l.producto_id,
+          cantidad: Number(l.cantidad),
+          sku: l.producto_sku,
+          nombre: l.producto_nombre,
+        });
+      }
+    }
+
     const configGlobal = await getConfiguracionGlobal();
     const ordenesFormateadas = ordenes.map((orden) => ({
       ...orden,
       facturado: Boolean(orden.facturado),
+      productos_inventario: lineasPorOrden.get(orden.id) || [],
       fecha_compra_formateada: formatearFechaHoraMexico(
         new Date(`${orden.fecha_compra.replace(' ', 'T')}Z`),
         configGlobal.zona_horaria
@@ -4796,6 +4936,44 @@ app.delete(
       }
     }
 
+    // Segmento A: mismo reingreso, pero por cada línea de orden_productos
+    // (0, 1 o varias) en vez de una sola columna. Si alguna línea no se
+    // puede reingresar, la venta no se elimina — igual que el caso de
+    // arriba, para no perder trazabilidad de stock a medias.
+    const [lineasDeLaVenta] = await pool.query(
+      'SELECT producto_id, cantidad FROM orden_productos WHERE orden_id = ?',
+      [id]
+    );
+    if (lineasDeLaVenta.length > 0) {
+      const almacenIdReingreso = await obtenerAlmacenDefectoId();
+      for (const linea of lineasDeLaVenta) {
+        // eslint-disable-next-line no-await-in-loop
+        const productoDeLaLinea = await obtenerProductoPorId(linea.producto_id);
+        if (!productoDeLaLinea || productoDeLaLinea.tipo !== 'producto') continue;
+        // eslint-disable-next-line no-await-in-loop
+        const resultadoReingreso = await registrarMovimiento({
+          productoId: linea.producto_id,
+          almacenId: almacenIdReingreso,
+          tipo: 'devolucion_cliente',
+          cantidad: Number(linea.cantidad),
+          documentoOrigen: orden.numero_compra,
+          motivo: 'Venta eliminada — reingreso automático',
+          usuario: req.adminUser,
+        });
+        if (resultadoReingreso.error) {
+          console.error(
+            `No se pudo reingresar producto_id=${linea.producto_id} al eliminar la venta ${orden.numero_compra}:`,
+            resultadoReingreso
+          );
+          return res.status(409).json({
+            error: resultadoReingreso.error,
+            mensaje: 'No se pudo reingresar el producto al inventario; la venta no se eliminó.',
+          });
+        }
+      }
+    }
+
+    await pool.query('DELETE FROM orden_productos WHERE orden_id = ?', [id]);
     await pool.query('DELETE FROM ordenes_compra WHERE id = ?', [id]);
 
     res.json({
@@ -5702,6 +5880,7 @@ function formatearProducto(p, existenciaDisponible) {
     categoria_id: p.categoria_id,
     unidad_id: p.unidad_id,
     tipo: p.tipo,
+    moneda: p.moneda || 'MXN',
     costo: p.costo === null ? null : Number(p.costo),
     costo_promedio: Number(p.costo_promedio),
     ultimo_costo: p.ultimo_costo === null ? null : Number(p.ultimo_costo),
@@ -5750,6 +5929,7 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
   }
 
   const tipo = body.tipo === 'servicio' ? 'servicio' : 'producto';
+  const moneda = body.moneda === 'USD' ? 'USD' : 'MXN';
 
   const unidadId = Number(body.unidad_id);
   if (!Number.isInteger(unidadId) || !(await unidadExisteId(unidadId))) {
@@ -5797,6 +5977,7 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
     categoriaId,
     unidadId,
     tipo,
+    moneda,
     costo,
     precio,
     stockMinimo,
@@ -5878,12 +6059,12 @@ app.post(
     ahora.setMilliseconds(0);
     const [resultado] = await pool.query(
       `INSERT INTO productos
-        (sku, codigo_barras, nombre, categoria_id, unidad_id, tipo, costo, precio,
+        (sku, codigo_barras, nombre, categoria_id, unidad_id, tipo, moneda, costo, precio,
          stock_minimo, stock_maximo, punto_reorden, estado, proveedor_principal, notas,
          creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        datos.sku, datos.codigoBarras, datos.nombre, datos.categoriaId, datos.unidadId, datos.tipo,
+        datos.sku, datos.codigoBarras, datos.nombre, datos.categoriaId, datos.unidadId, datos.tipo, datos.moneda,
         datos.costo, datos.precio, datos.stockMinimo, datos.stockMaximo, datos.puntoReorden,
         datos.estado, datos.proveedorPrincipal, datos.notas, ahora, ahora,
       ]
@@ -5975,12 +6156,12 @@ app.put(
     const ahora = new Date();
     ahora.setMilliseconds(0);
     await pool.query(
-      `UPDATE productos SET sku = ?, codigo_barras = ?, nombre = ?, categoria_id = ?, unidad_id = ?, tipo = ?,
+      `UPDATE productos SET sku = ?, codigo_barras = ?, nombre = ?, categoria_id = ?, unidad_id = ?, tipo = ?, moneda = ?,
          costo = ?, precio = ?, stock_minimo = ?, stock_maximo = ?, punto_reorden = ?, estado = ?,
          proveedor_principal = ?, notas = ?, actualizado_en = ?
        WHERE id = ?`,
       [
-        datos.sku, datos.codigoBarras, datos.nombre, datos.categoriaId, datos.unidadId, datos.tipo,
+        datos.sku, datos.codigoBarras, datos.nombre, datos.categoriaId, datos.unidadId, datos.tipo, datos.moneda,
         datos.costo, datos.precio, datos.stockMinimo, datos.stockMaximo, datos.puntoReorden,
         datos.estado, datos.proveedorPrincipal, datos.notas, ahora, id,
       ]
@@ -6057,6 +6238,23 @@ app.delete(
   })
 );
 
+// §57: tipo de cambio USD/MXN del día, para precargar (editable) el campo
+// de conversión al registrar un producto o una entrada en USD. Nunca
+// falla con 5xx por el proveedor externo caído — degrada a
+// `fuente: 'manual_requerido'`/`'banxico_caducado'` y el frontend pide
+// captura manual.
+app.get(
+  '/api/admin/tipo-cambio/usd',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const resultado = await obtenerTipoCambioUSD();
+    res.json(resultado);
+  })
+);
+
 // ---------- Movimientos: entradas / salidas ----------
 
 async function manejarMovimiento(req, res, tiposPermitidos) {
@@ -6075,6 +6273,11 @@ async function manejarMovimiento(req, res, tiposPermitidos) {
     tipo,
     cantidad: body.cantidad,
     costoUnitario: body.costo_unitario,
+    // §57: entrada de un producto en USD — costo en la moneda original +
+    // tipo de cambio aplicado, ambos opcionales (solo aplican si el
+    // producto está marcado en USD y esto es una entrada con costo).
+    costoOriginal: body.costo_original,
+    tipoCambio: body.tipo_cambio,
     motivo: body.motivo,
     notas: body.notas,
     ubicacionNota: body.ubicacion_nota,
@@ -6091,6 +6294,7 @@ async function manejarMovimiento(req, res, tiposPermitidos) {
       INV_ALMACEN_NO_ENCONTRADO: 404,
       INV_STOCK_INSUFICIENTE: 409,
       INV_CONCURRENCIA: 409,
+      INV_TIPO_CAMBIO_INVALIDO: 400,
     };
     return res.status(mapaEstatus[resultado.error] || 400).json(resultado);
   }
@@ -6166,6 +6370,8 @@ app.get(
         costo_unitario: m.costo_unitario === null ? null : Number(m.costo_unitario),
         existencia_anterior: Number(m.existencia_anterior),
         existencia_posterior: Number(m.existencia_posterior),
+        tipo_cambio: m.tipo_cambio === null ? null : Number(m.tipo_cambio),
+        costo_original: m.costo_original === null ? null : Number(m.costo_original),
       })),
     });
   })

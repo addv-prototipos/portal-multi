@@ -3866,6 +3866,42 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   font-size: 12.5px;
   color: var(--color-ink-soft);
 }
+#orden-inventario-unidades-field {
+  margin-top: 12px;
+}
+#btn-agregar-producto-inventario-orden {
+  margin-top: 10px;
+}
+/* Segmento A ("Ventas con inventario activo v2"): precio autocompletado
+   desde el catálogo (editable) y badge de línea vinculada a inventario en
+   la tabla/lista de productos capturados — mismo lenguaje visual que el
+   resto del sitio (acento de marca, texto en mayúsculas chico). */
+.badge-auto {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-radius: 5px;
+  padding: 1px 6px;
+  vertical-align: middle;
+  cursor: help;
+}
+.line-badge-inv {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-radius: 5px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 .gastos-modal-header {
   display: flex;
   align-items: flex-start;

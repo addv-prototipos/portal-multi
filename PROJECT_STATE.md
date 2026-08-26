@@ -9388,7 +9388,7 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       commitear — pedir confirmación explícita antes de commit/push,
       mismo protocolo `addv-web-app`.
 
-150. **2 pendientes de funcionalidad registrados — SOLO ANOTADOS, sin
+150. **3 pendientes de funcionalidad registrados — SOLO ANOTADOS, sin
      analizar ni implementar (2026-08-25)**:
      - **Tipo de cambio para productos en moneda extranjera
        (Inventarios)**: el usuario pidió poder activar/desactivar el uso
@@ -9412,6 +9412,211 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        Analizar → Proponer → Confirmar antes de tocar código, mismo
        protocolo `addv-web-app`. Relacionado con Cuentas por Cobrar,
        puntos 138/141 de este mismo archivo.
+     - **Asociar tenants como sucursales de un mismo negocio, con
+       usuarios de acceso compartidos** — surgió al madurar el
+       requerimiento de "Ventas con inventario activo" (propuesta v2,
+       mismo día): el catálogo cifrado local para vender offline asume
+       una sola tienda activa; varias tiendas del mismo negocio se dan
+       de alta como tenants separados (sin mezclar inventario/BD), y
+       ahora se pide poder asociarlos entre sí para que el mismo usuario
+       inicie sesión en todas las sucursales asociadas. Choca con el
+       aislamiento por tenant ya establecido (BD/credenciales/pool
+       separados) — preguntas de diseño abiertas documentadas en
+       `inventarios.md` **§58** (qué significa "asociar" en términos de
+       datos, dónde vive el usuario compartido, alcance de la
+       auditoría cruzada, quién puede asociar/desasociar). Sin analizar
+       a fondo, mismo protocolo `addv-web-app`.
+
+151. **"Ventas con inventario activo v2" — Segmento A (varias líneas de
+     inventario por venta), CÓDIGO COMPLETO, tests 707/707, VALIDACIÓN
+     CONTRA DOCKER REAL INTERRUMPIDA por un problema de infraestructura
+     no relacionado (2026-08-25/26)**. Contexto: se maduró con el usuario
+     el requerimiento de unificar el bloque manual y el vínculo de
+     inventario del modal "Registrar venta" (propuesta con 2 rondas,
+     Artifact `propuesta-ventas-inventario.html` con antes/después) — el
+     usuario decidió explícitamente (1) permitir **varias** líneas de
+     inventario por venta (reabre P1, antes "línea única") y (2) para el
+     modo offline con inventario, una idea nueva de catálogo cifrado en
+     local (Segmento B, todavía sin tocar, depende de que A exista
+     primero). Este punto documenta el estado de **Segmento A solamente**.
+
+     **Backend**:
+     - Tabla nueva `orden_productos` (`backend/db.js`, junto al bloque
+       `producto_id`/`producto_cantidad` de `ordenes_compra`): una fila
+       por producto de INVENTARIO vinculado a una venta —
+       `orden_id, producto_id, cantidad, creado_en`. Sin
+       `CONSTRAINT FOREIGN KEY` (mismo criterio ya usado ahí: `productos`
+       se crea después en el mismo `ensureSchema()`). Las columnas
+       legacy `ordenes_compra.producto_id`/`producto_cantidad` NO se
+       borran ni se migran — quedan congeladas para el historial de
+       ventas de una sola línea y ya no se vuelven a escribir. Las
+       líneas MANUALES (sin producto de catálogo) siguen sin guardarse
+       estructuradas, igual que siempre — solo viven en el texto de
+       `concepto` (decisión deliberada para no ampliar el alcance del
+       segmento: la propuesta original sugería una tabla que también
+       guardara líneas manuales, se simplificó a solo lo que necesita
+       trazabilidad de stock real).
+     - `POST /api/admin/ordenes-compra` (`backend/server.js`): acepta el
+       campo NUEVO `productos_inventario` (array `[{producto_id,
+       cantidad}]`) — si llega y tiene al menos 1 elemento, manda sobre
+       los campos legacy `producto_id`/`producto_cantidad` (que se dejan
+       en `NULL` para esa venta). Si NO llega, el código legacy de una
+       sola línea sigue exactamente igual (cero riesgo de regresión,
+       los tests viejos de `producto_id` singular no se tocaron).
+       Valida: producto entero, cantidad > 0, máximo 50 líneas, mismo
+       producto no puede repetirse en 2 líneas de la misma venta.
+       Descuento de stock: `registrarMovimiento()` abre su propia
+       transacción POR LÍNEA (no hay transacción compartida entre
+       productos distintos — no se tocó ese motor, es compartido con
+       Inventarios §0.5 y está fuera del alcance de este segmento);
+       "todo o nada" se logra a mano — si la línea N falla (sin stock),
+       se revierten con un compensatorio `devolucion_cliente` las líneas
+       1..N-1 que sí alcanzaron a descontarse (mismo patrón que ya usa
+       "eliminar venta" desde D8) y se borra la fila de la venta.
+     - `GET /api/admin/ordenes-compra`: segunda consulta (`orden_productos`
+       LEFT JOIN `productos`) agrupada en JS por `orden_id`, expuesta
+       como `productos_inventario: [{producto_id, cantidad, sku,
+       nombre}]` en cada fila — SQL crudo simple, sin `JSON_ARRAYAGG`
+       (mismo criterio del resto del proyecto).
+     - `DELETE /api/admin/ordenes-compra/:id`: el reingreso automático
+       existente (columna legacy) se mantiene intacto; se agregó un
+       segundo bloque que recorre `orden_productos` y reingresa cada
+       línea con el mismo patrón `devolucion_cliente` — si cualquier
+       línea no se puede reingresar, la venta NO se borra (409), igual
+       que el caso legacy. `orden_productos` se limpia con un
+       `DELETE ... WHERE orden_id = ?` antes del `DELETE` final de la
+       venta.
+     - **Tests nuevos** en `backend/test/integration/ordenes-compra.test.js`
+       (11 casos): POST con 2 líneas (éxito), POST todo-o-nada (2da
+       línea sin stock → revierte la 1ra y borra la venta), POST
+       producto repetido (400 sin tocar inventario), GET con
+       `productos_inventario`, DELETE con varias líneas (reingresa cada
+       una). Los 3 tests DELETE legacy que llegan hasta el `DELETE`
+       final se actualizaron para mockear las 2 consultas nuevas
+       (`SELECT`/`DELETE` de `orden_productos`) que ahora corren siempre
+       — sin esto habrían quedado rotos por el cambio, no por un bug.
+
+     **Frontend** (`frontend/admin.html`/`admin.js`/`admin.css`): el
+     bloque manual (Concepto/Precio/Cantidad) ahora tiene
+     `id="orden-productos-captura-manual"` y se OCULTA POR COMPLETO
+     cuando Inventarios está activo (`aplicarVisibilidadInventarioEnVentas()`,
+     ya no coexisten); el bloque de inventario ganó un campo "Precio
+     unitario" nuevo (autocompletado desde el catálogo al seleccionar,
+     editable, badge "AUTO") y "Unidades vendidas" se renombró a
+     "Cantidad (piezas)" + botón "+ Agregar producto" propio. Cada
+     producto agregado cae en la MISMA lista/tabla que antes solo recibía
+     líneas manuales (`productosOrdenActual` en `admin.js`, con un campo
+     nuevo `producto_id` en el objeto de línea) — se reutilizó
+     `recalcularOrdenDesdeProductos()`/`textoProductoOrden()` sin
+     tocarlos, solo se agregó un badge "Inventario" (`.line-badge-inv`)
+     junto al nombre en las líneas que vienen del catálogo. Un mismo
+     producto no se puede agregar 2 veces (mismo criterio que el
+     backend, error inline). El envío ahora manda
+     `productos_inventario` (array) en vez de los campos legacy
+     singulares. El bloqueo de modo offline con inventario vinculado
+     (punto 132) se preservó tal cual, solo migrado a revisar la lista
+     completa (`productosOrdenActual.some(p => p.producto_id)`) en vez
+     de una sola variable — sigue sin poder encolarse offline una venta
+     con producto de inventario (eso es exactamente lo que resuelve el
+     Segmento B, todavía no implementado).
+
+     **Verificación hecha**: `node --check` limpio en los 3 `.js`
+     tocados, CSS balanceado (807/807 llaves), **Jest backend 707/707
+     (40 suites)** — sin regresiones en el resto de la suite.
+
+     **Verificación INTERRUMPIDA (pendiente para la próxima sesión)**:
+     se rehicieron las imágenes (`docker compose build backend frontend`)
+     y al recrear los contenedores, `ensureSchema()` corrió limpio contra
+     MySQL real (log: "Esquema de MySQL listo" — confirma que la tabla
+     `orden_productos` se creó bien), PERO el backend quedó en ciclo de
+     reinicio con `Error: getaddrinfo ENOTFOUND minio`. Diagnóstico:
+     **no es un bug de este segmento** — el contenedor `pfacturacion-minio`
+     tiene fecha de creación 2026-08-20 (mucho antes de esta sesión) y
+     quedó con `NetworkMode` legacy apuntando al nombre de red en vez de
+     estar conectado como el resto de contenedores
+     (`docker network inspect portalfac_fiscal-net` no lo lista entre
+     sus miembros, aunque `docker compose ps`/`docker ps` lo reportan
+     "healthy" — el propio MinIO responde, pero no está en la red donde
+     el backend lo busca por nombre DNS). Deriva/drift de infraestructura
+     preexistente, no causado por ningún cambio de código de esta
+     sesión (Segmento A no toca `storage.js` ni MinIO en absoluto).
+     **Siguiente paso concreto para retomar**: `docker compose rm -sf
+     minio` (con el servicio detenido primero, para no perder el volumen
+     con nombre `minio_data` que persiste aparte) y
+     `docker compose up -d minio` para que Compose lo recree con la
+     red correcta; si con eso no basta, revisar si quedó algún
+     `docker run` manual viejo por fuera de compose para ese nombre de
+     contenedor. Una vez el backend arranque sano (`curl
+     http://localhost:8088/api/health` → 200), falta la validación real
+     pendiente: POST con `productos_inventario` de 2+ líneas (caso éxito
+     y caso todo-o-nada), GET mostrando el array, DELETE con reingreso
+     multi-línea, y la prueba en navegador real del modal "Registrar
+     venta" ya unificado (bloque manual oculto con inventario activo,
+     buscador con precio auto-completado, botón "+ Agregar producto",
+     badge "Inventario" en la tabla).
+
+     **Sin commit/push todavía** — pedir confirmación explícita antes,
+     mismo protocolo `addv-web-app`. **Segmento B** (catálogo cifrado en
+     local para vender offline con inventario activo) sigue sin
+     empezar, correctamente secuenciado después de A. Los 2 pendientes
+     de arquitectura que surgieron de esta misma conversación (tipo de
+     cambio §57, asociar tenants como sucursales §58) ya quedaron
+     registrados en el punto 150 de este mismo archivo y en
+     `inventarios.md` — no requieren nada más en este cierre.
+
+152. **Tipo de cambio para productos en moneda extranjera — §57,
+     IMPLEMENTADO (2026-08-26)**: retomado el pendiente del punto 150 —
+     4 preguntas cerradas vía cuestionario (alcance por producto, fuente
+     automática con sobreescritura, solo USD, histórico dentro de
+     `movimientos_inventario`) y confirmado explícitamente por el
+     usuario ("Sí, implementa todo el segmento"), protocolo
+     `addv-web-app` completo.
+     - **Esquema**: `productos.moneda` VARCHAR(3) NOT NULL DEFAULT
+       'MXN' + CHECK; `movimientos_inventario.moneda_original`/
+       `.tipo_cambio`/`.costo_original` (las 3 nullable) + CHECK.
+     - **Backend**: `backend/utils/tipoCambio.js` nuevo —
+       `obtenerTipoCambioUSD()` contra Banxico SIE (serie `SF43718`,
+       requiere `BANXICO_TOKEN` en `.env`, gratis), caché en memoria
+       por fecha, nunca lanza — sin token o con el servicio caído
+       degrada a `fuente: 'manual_requerido'`/`'banxico_caducado'`, el
+       usuario captura a mano sin que nada se bloquee.
+       `registrarMovimiento()` (`utils/inventario.js`) acepta
+       `costoOriginal`/`tipoCambio` — valida forma ANTES de abrir la
+       transacción (mismo criterio que el resto de la función, para no
+       romper el contrato "sin tocar la BD" que ya probaban los tests
+       existentes), decide DENTRO de la transacción cuál costo aplica
+       según la moneda REAL del producto ya con la fila bloqueada, y
+       calcula `costo = costoOriginal × tipoCambio` — error nuevo
+       `INV_TIPO_CAMBIO_INVALIDO`. Endpoint nuevo
+       `GET /api/admin/tipo-cambio/usd`; `POST/PUT /productos`
+       aceptan/devuelven `moneda`; `POST /entradas` acepta
+       `costo_original`/`tipo_cambio`; kardex expone las 3 columnas
+       nuevas.
+     - **Frontend**: selector "Moneda" en "Crear/editar producto"; en
+       el modal de movimiento, un producto USD con dirección entrada
+       sustituye "Costo unitario (MXN)" por "Costo en USD" + "Tipo de
+       cambio" (precargado del día, editable, vista previa "= $X MXN"
+       en vivo); historial de movimientos muestra el costo con tooltip
+       de desglose USD × TC = MXN cuando aplica (componente unificado
+       del sitio, punto 148).
+     - **Diccionario de datos (§56)**: 3 tarjetas nuevas (`moneda`,
+       `tipo_cambio`, `costo_original`), grupo nuevo "Moneda
+       extranjera" — fuera de `CAMPOS_IMPORTABLES` a propósito (el
+       importador masivo §34 sigue MXN-only, decisión de alcance
+       explícita), pero con el mismo ícono `?` en los formularios.
+     - **Pruebas**: Jest backend **716/716**. Nuevos: validación de
+       forma de `costoOriginal`/`tipoCambio` sin tocar la BD, conversión
+       USD→MXN en el camino feliz (+ caso "producto MXN ignora esos
+       campos si llegaran por error"), y suite completa de
+       `tipoCambio.js` (sin token, respuesta válida con caché, HTTP
+       no-ok, "N/E" sin dato publicado el fin de semana, caché vencido
+       de un día para otro → `banxico_caducado`, con `jest.setSystemTime`).
+     - **Sin validar contra Docker/MySQL/Banxico reales en esta
+       sesión** (mismo patrón que otros segmentos recientes) — antes de
+       producción: correr la migración contra MySQL real y probar con
+       un `BANXICO_TOKEN` real (alta, entrada con conversión, historial
+       con tooltip). Sin commit/push todavía — pedir confirmación
+       explícita antes, mismo protocolo `addv-web-app`.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

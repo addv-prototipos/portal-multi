@@ -412,6 +412,127 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
     });
   });
 
+  describe('POST /api/admin/ordenes-compra con productos_inventario (Segmento A, varias líneas)', () => {
+    test('2 líneas de inventario: descuenta ambas y las guarda en orden_productos', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      inventarioActivo.mockResolvedValue(true);
+      obtenerProductoPorId.mockImplementation((id) =>
+        Promise.resolve(id === 5 ? { id: 5, tipo: 'producto', sku: 'TNR-5', nombre: 'Toner' } : { id: 6, tipo: 'producto', sku: 'PAP-6', nombre: 'Papel' })
+      );
+      registrarMovimiento.mockResolvedValue({ movimientoId: 1, folio: 'SA-000001' });
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      pool.query.mockResolvedValueOnce([{ insertId: 60 }]); // INSERT ordenes_compra
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // obtenerAlmacenDefectoId (ALM-1)
+      pool.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT orden_productos línea 1
+      pool.query.mockResolvedValueOnce([{ insertId: 2 }]); // INSERT orden_productos línea 2
+
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({
+          concepto: '2 x Toner ($450.00 c/u)\n1 x Papel ($320.00 c/u)',
+          cantidad: 1220,
+          productos_inventario: [
+            { producto_id: 5, cantidad: 2 },
+            { producto_id: 6, cantidad: 1 },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.producto_id).toBeNull();
+      expect(res.body.productos_inventario).toEqual([
+        { producto_id: 5, cantidad: 2, sku: 'TNR-5', nombre: 'Toner' },
+        { producto_id: 6, cantidad: 1, sku: 'PAP-6', nombre: 'Papel' },
+      ]);
+      expect(registrarMovimiento).toHaveBeenCalledTimes(2);
+      expect(registrarMovimiento).toHaveBeenNthCalledWith(1, expect.objectContaining({ productoId: 5, tipo: 'venta', cantidad: 2 }));
+      expect(registrarMovimiento).toHaveBeenNthCalledWith(2, expect.objectContaining({ productoId: 6, tipo: 'venta', cantidad: 1 }));
+      expect(pool.query).toHaveBeenCalledWith('INSERT INTO orden_productos (orden_id, producto_id, cantidad, creado_en) VALUES (?, ?, ?, ?)', expect.arrayContaining([60, 5, 2]));
+    });
+
+    test('todo o nada: si la 2da línea no tiene stock, revierte la 1ra (devolucion_cliente) y borra la venta', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      inventarioActivo.mockResolvedValue(true);
+      obtenerProductoPorId.mockImplementation((id) =>
+        Promise.resolve(id === 5 ? { id: 5, tipo: 'producto', sku: 'TNR-5', nombre: 'Toner' } : { id: 6, tipo: 'producto', sku: 'PAP-6', nombre: 'Papel' })
+      );
+      registrarMovimiento
+        .mockResolvedValueOnce({ movimientoId: 1, folio: 'SA-000001' }) // línea 1: OK
+        .mockResolvedValueOnce({ error: 'INV_STOCK_INSUFICIENTE', mensaje: 'sin stock', disponible: 0 }) // línea 2: falla
+        .mockResolvedValueOnce({ movimientoId: 2, folio: 'EN-000002' }); // reversión de la línea 1
+      pool.query.mockResolvedValueOnce([[]]); // config
+      pool.query.mockResolvedValueOnce([{ insertId: 61 }]); // INSERT ordenes_compra
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // obtenerAlmacenDefectoId
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // DELETE compensatorio de la venta
+
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({
+          concepto: '2 x Toner ($450.00 c/u)\n99 x Papel ($320.00 c/u)',
+          cantidad: 32580,
+          productos_inventario: [
+            { producto_id: 5, cantidad: 2 },
+            { producto_id: 6, cantidad: 99 },
+          ],
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('INV_STOCK_INSUFICIENTE');
+      expect(registrarMovimiento).toHaveBeenCalledTimes(3);
+      expect(registrarMovimiento).toHaveBeenNthCalledWith(3, expect.objectContaining({ productoId: 5, tipo: 'devolucion_cliente', cantidad: 2 }));
+      expect(pool.query).toHaveBeenCalledWith('DELETE FROM ordenes_compra WHERE id = ?', [61]);
+    });
+
+    test('el mismo producto repetido en 2 líneas: 400, sin tocar inventario', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      inventarioActivo.mockResolvedValue(true);
+      obtenerProductoPorId.mockResolvedValue({ id: 5, tipo: 'producto', sku: 'TNR-5', nombre: 'Toner' });
+
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({
+          concepto: '2 x Toner ($450.00 c/u)\n1 x Toner ($450.00 c/u)',
+          cantidad: 1350,
+          productos_inventario: [
+            { producto_id: 5, cantidad: 2 },
+            { producto_id: 5, cantidad: 1 },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(obtenerProductoPorId).toHaveBeenCalledTimes(1);
+      expect(registrarMovimiento).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/admin/ordenes-compra con productos_inventario (Segmento A)', () => {
+    test('incluye la lista de líneas de inventario por venta', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 70, numero_compra: 'OC-000070', fecha_compra: '2026-08-25 10:00:00', concepto: 'x', cantidad: '1220.00', iva_porcentaje: '16.00', total: '1415.20', email: null, estado_pago: 'pagada', producto_id: null, producto_cantidad: null, facturado: 0 }],
+      ]); // SELECT ordenes
+      pool.query.mockResolvedValueOnce([
+        [
+          { orden_id: 70, producto_id: 5, cantidad: '2.000', producto_sku: 'TNR-5', producto_nombre: 'Toner' },
+          { orden_id: 70, producto_id: 6, cantidad: '1.000', producto_sku: 'PAP-6', producto_nombre: 'Papel' },
+        ],
+      ]); // SELECT orden_productos
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+
+      const res = await request(app).get('/api/admin/ordenes-compra').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body.ordenes[0].productos_inventario).toEqual([
+        { producto_id: 5, cantidad: 2, sku: 'TNR-5', nombre: 'Toner' },
+        { producto_id: 6, cantidad: 1, sku: 'PAP-6', nombre: 'Papel' },
+      ]);
+    });
+  });
+
   describe('DELETE /api/admin/ordenes-compra/:id con producto (reingreso automático)', () => {
     test('producto sigue existiendo: reingresa las unidades (devolucion_cliente) antes de borrar', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
@@ -421,6 +542,8 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
       obtenerProductoPorId.mockResolvedValue({ id: 5, tipo: 'producto' });
       registrarMovimiento.mockResolvedValue({ movimientoId: 20, folio: 'EN-000020' });
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // obtenerAlmacenDefectoId (ALM-1)
+      pool.query.mockResolvedValueOnce([[]]); // SELECT orden_productos (Segmento A) — sin líneas
+      pool.query.mockResolvedValueOnce([{ affectedRows: 0 }]); // DELETE FROM orden_productos (Segmento A)
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // DELETE final
 
       const res = await request(app).delete('/api/admin/ordenes-compra/7').auth(usuario, password);
@@ -452,6 +575,8 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
         [{ id: 9, numero_compra: 'OC-000009', fecha_compra: '2026-08-22 10:00:00', concepto: 'x', cantidad: '50.00', iva_porcentaje: '16.00', total: '58.00', email: null, producto_id: 999, producto_cantidad: '5.000' }],
       ]);
       obtenerProductoPorId.mockResolvedValue(null);
+      pool.query.mockResolvedValueOnce([[]]); // SELECT orden_productos (Segmento A) — sin líneas
+      pool.query.mockResolvedValueOnce([{ affectedRows: 0 }]); // DELETE FROM orden_productos (Segmento A)
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // DELETE final
 
       const res = await request(app).delete('/api/admin/ordenes-compra/9').auth(usuario, password);
@@ -465,12 +590,35 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
       pool.query.mockResolvedValueOnce([
         [{ id: 10, numero_compra: 'OC-000010', fecha_compra: '2026-08-22 10:00:00', concepto: 'x', cantidad: '50.00', iva_porcentaje: '16.00', total: '58.00', email: null, producto_id: null, producto_cantidad: null }],
       ]);
+      pool.query.mockResolvedValueOnce([[]]); // SELECT orden_productos (Segmento A) — sin líneas
+      pool.query.mockResolvedValueOnce([{ affectedRows: 0 }]); // DELETE FROM orden_productos (Segmento A)
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // DELETE final
 
       const res = await request(app).delete('/api/admin/ordenes-compra/10').auth(usuario, password);
 
       expect(res.status).toBe(200);
       expect(obtenerProductoPorId).not.toHaveBeenCalled();
+    });
+
+    test('varias líneas de inventario (Segmento A): reingresa cada una y borra orden_productos', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 11, numero_compra: 'OC-000011', fecha_compra: '2026-08-25 10:00:00', concepto: 'x', cantidad: '1220.00', iva_porcentaje: '16.00', total: '1415.20', email: null, producto_id: null, producto_cantidad: null }],
+      ]); // SELECT orden
+      pool.query.mockResolvedValueOnce([[{ producto_id: 5, cantidad: '2.000' }, { producto_id: 6, cantidad: '1.000' }]]); // SELECT orden_productos
+      obtenerProductoPorId.mockImplementation((id) => Promise.resolve({ id, tipo: 'producto' }));
+      registrarMovimiento.mockResolvedValue({ movimientoId: 99, folio: 'EN-000099' });
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // obtenerAlmacenDefectoId
+      pool.query.mockResolvedValueOnce([{ affectedRows: 2 }]); // DELETE FROM orden_productos
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // DELETE final
+
+      const res = await request(app).delete('/api/admin/ordenes-compra/11').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(registrarMovimiento).toHaveBeenCalledTimes(2);
+      expect(registrarMovimiento).toHaveBeenCalledWith(expect.objectContaining({ productoId: 5, tipo: 'devolucion_cliente', cantidad: 2 }));
+      expect(registrarMovimiento).toHaveBeenCalledWith(expect.objectContaining({ productoId: 6, tipo: 'devolucion_cliente', cantidad: 1 }));
+      expect(pool.query).toHaveBeenCalledWith('DELETE FROM orden_productos WHERE orden_id = ?', [11]);
     });
   });
 });

@@ -93,6 +93,30 @@ describe('registrarMovimiento — validación de entrada (sin tocar la BD)', () 
     const resultado = await registrarMovimiento({ productoId: 'x', almacenId: 1, tipo: 'venta', cantidad: 1 });
     expect(resultado.error).toBe('INV_PRODUCTO_NO_ENCONTRADO');
   });
+
+  // §57: validación de forma de costoOriginal/tipoCambio — no depende de
+  // la moneda real del producto (eso se decide después, con la fila ya
+  // bloqueada), así que corre sin tocar la BD igual que el resto de este
+  // describe.
+  test('rechaza costoOriginal negativo', async () => {
+    const resultado = await registrarMovimiento({
+      productoId: 1, almacenId: 1, tipo: 'compra', cantidad: 1, costoOriginal: -5, tipoCambio: 18,
+    });
+    expect(resultado.error).toBe('INV_CANTIDAD_INVALIDA');
+    expect(pool.getConnection).not.toHaveBeenCalled();
+  });
+
+  test('rechaza tipo de cambio faltante o inválido cuando se manda costoOriginal', async () => {
+    const sinTipoCambio = await registrarMovimiento({
+      productoId: 1, almacenId: 1, tipo: 'compra', cantidad: 1, costoOriginal: 25,
+    });
+    const tipoCambioCero = await registrarMovimiento({
+      productoId: 1, almacenId: 1, tipo: 'compra', cantidad: 1, costoOriginal: 25, tipoCambio: 0,
+    });
+    expect(sinTipoCambio.error).toBe('INV_TIPO_CAMBIO_INVALIDO');
+    expect(tipoCambioCero.error).toBe('INV_TIPO_CAMBIO_INVALIDO');
+    expect(pool.getConnection).not.toHaveBeenCalled();
+  });
 });
 
 // Simula una conexión real (query/beginTransaction/commit/rollback/release)
@@ -100,7 +124,13 @@ describe('registrarMovimiento — validación de entrada (sin tocar la BD)', () 
 // fila real (FOR UPDATE bajo concurrencia genuina) solo lo valida
 // scripts/verificar-inventario.js contra MySQL real (ver inventarios.md
 // §0.5, "un mock no puede probar locking real").
-function crearConexionFalsa({ productoExiste = true, tipoProducto = 'producto', disponibleActual = 10, costoPromedioActual = 0 } = {}) {
+function crearConexionFalsa({
+  productoExiste = true,
+  tipoProducto = 'producto',
+  disponibleActual = 10,
+  costoPromedioActual = 0,
+  monedaProducto = 'MXN',
+} = {}) {
   const llamadas = [];
   const conexion = {
     beginTransaction: jest.fn(async () => {}),
@@ -113,7 +143,7 @@ function crearConexionFalsa({ productoExiste = true, tipoProducto = 'producto', 
       if (s.startsWith('SET SESSION')) return [{}];
       if (s.startsWith('SELECT id, tipo AS tipo_producto')) {
         return productoExiste
-          ? [[{ id: params[0], tipo_producto: tipoProducto, costo_promedio: costoPromedioActual }]]
+          ? [[{ id: params[0], tipo_producto: tipoProducto, costo_promedio: costoPromedioActual, moneda: monedaProducto }]]
           : [[]];
       }
       if (s.startsWith('INSERT IGNORE INTO existencias')) return [{}];
@@ -160,6 +190,46 @@ describe('registrarMovimiento — camino feliz (transacción simulada)', () => {
     const sqlEjecutados = llamadas.map((l) => l.sql.trim().split('\n')[0]);
     expect(sqlEjecutados.some((s) => s.startsWith('SELECT id, tipo AS tipo_producto'))).toBe(true);
     expect(sqlEjecutados.some((s) => s.includes('FOR UPDATE') || s.startsWith('SELECT disponible'))).toBe(true);
+  });
+
+  // §57: entrada de un producto en USD — costo original + tipo de cambio
+  // se convierten a pesos y ESE es el valor que alimenta el costeo
+  // promedio ponderado (D5); las 3 columnas nuevas de la fila quedan con
+  // el detalle de la conversión.
+  test('entrada de producto en USD convierte costoOriginal × tipoCambio a pesos', async () => {
+    const { conexion, llamadas } = crearConexionFalsa({
+      disponibleActual: 0, costoPromedioActual: 0, monedaProducto: 'USD',
+    });
+    pool.getConnection.mockResolvedValue(conexion);
+
+    const resultado = await registrarMovimiento({
+      productoId: 20, almacenId: 1, tipo: 'compra', cantidad: 10,
+      costoOriginal: 25, tipoCambio: 18.5, usuario: 'admin',
+    });
+
+    expect(resultado.error).toBeUndefined();
+    // 25 * 18.5 = 462.5, costo promedio con existencia previa en 0 = 462.5
+    expect(resultado.costoPromedio).toBe(462.5);
+    expect(resultado.monedaOriginal).toBe('USD');
+    expect(resultado.tipoCambio).toBe(18.5);
+    expect(resultado.costoOriginal).toBe(25);
+
+    const insercion = llamadas.find((l) => l.sql.trim().startsWith('INSERT INTO movimientos_inventario'));
+    expect(insercion.params).toEqual(expect.arrayContaining([462.5, 'USD', 18.5, 25]));
+  });
+
+  test('entrada de producto en MXN ignora costoOriginal/tipoCambio si llegaran por error — usa costoUnitario', async () => {
+    const { conexion } = crearConexionFalsa({ disponibleActual: 0, costoPromedioActual: 0, monedaProducto: 'MXN' });
+    pool.getConnection.mockResolvedValue(conexion);
+
+    const resultado = await registrarMovimiento({
+      productoId: 21, almacenId: 1, tipo: 'compra', cantidad: 1,
+      costoUnitario: 100, costoOriginal: 25, tipoCambio: 18.5,
+    });
+
+    expect(resultado.error).toBeUndefined();
+    expect(resultado.costoPromedio).toBe(100);
+    expect(resultado.monedaOriginal).toBeNull();
   });
 
   test('salida que deja el producto en servicio se rechaza sin llegar a existencias', async () => {

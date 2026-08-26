@@ -542,6 +542,28 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   toca la tarjeta vecina) — ambas tarjetas comparten línea base tras
   validar con zoom a pixel. Sin commit/push — working tree para
   revisión del usuario.
+- **"Ventas con inventario activo v2" — Segmento A (varias líneas de
+  inventario por venta) — CÓDIGO COMPLETO, Jest 707/707, VALIDACIÓN
+  CONTRA DOCKER INTERRUMPIDA (ver PROJECT_STATE.md punto 151,
+  2026-08-25/26)**: tabla nueva `orden_productos` (sin FK, mismo
+  criterio que el resto del proyecto), `POST/GET/DELETE
+  /api/admin/ordenes-compra` extendidos para aceptar/devolver
+  `productos_inventario` (array, todo-o-nada con reversión
+  `devolucion_cliente` si una línea falla), campos legacy
+  `producto_id`/`producto_cantidad` intactos y sin regresión. Frontend:
+  bloque manual de "Registrar venta" se oculta por completo con
+  inventario activo (ya no coexisten), precio autocompletado editable,
+  "+ Agregar producto" reutilizado, badge "Inventario" en la tabla.
+  **Bloqueado por infraestructura, no por código**: el contenedor
+  `pfacturacion-minio` (creado 2026-08-20, antes de esta sesión) quedó
+  con `NetworkMode` legacy fuera de `portalfac_fiscal-net` — el backend
+  no lo resuelve por DNS y entra en ciclo de reinicio
+  (`ENOTFOUND minio`). Siguiente sesión: `docker compose rm -sf minio`
+  + `docker compose up -d minio` para que Compose lo recree en la red
+  correcta, luego terminar de validar por HTTP/navegador (detalle
+  completo en el punto 151). Sin commit/push. Segmento B (catálogo
+  cifrado en local para vender offline con inventario activo) sigue sin
+  empezar, depende de A.
 - **Rediseño de "Ventas" — APROBADO POR EL USUARIO, PENDIENTE DE
   IMPLEMENTAR (ver PROJECT_STATE.md punto 126, 2026-08-21)**: NADA
   implementado todavía — es la especificación completa ya aprobada
@@ -852,14 +874,35 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un
   par de credenciales global. Solo anotado: requiere análisis y
   confirmación antes de implementarse.
-- **2 pendientes más registrados (ver PROJECT_STATE.md punto 150,
+- **3 pendientes más registrados (ver PROJECT_STATE.md punto 150,
   2026-08-25), solo anotados**: (1) tipo de cambio para productos en
   moneda extranjera en Inventarios, con histórico de cada tipo de cambio
   aplicado desde el alta del producto — detalle completo y preguntas de
   diseño abiertas en `inventarios.md` §57; (2) regla de negocio: una
   venta con Cuenta por Cobrar pendiente no debería poder facturarse
-  todavía — hoy no existe esa validación, alcance sin definir. Ninguno
+  todavía — hoy no existe esa validación, alcance sin definir; (3)
+  asociar tenants como sucursales del mismo negocio con usuarios de
+  acceso compartidos — surgió del requerimiento de multi-inventario
+  offline (una tienda = un tenant), choca con el aislamiento por tenant
+  ya establecido, preguntas abiertas en `inventarios.md` §58. Ninguno
   analizado a fondo ni implementado.
+- **Tipo de cambio para productos en moneda extranjera (§57,
+  IMPLEMENTADO 2026-08-26)**: retomado el pendiente de arriba —
+  `productos.moneda` (MXN/USD, por producto), tipo de cambio automático
+  (Banxico SIE, `BANXICO_TOKEN` en `.env`, degrada a captura manual sin
+  bloquear si falta el token o el servicio cae) con opción de
+  sobreescribir, histórico dentro de `movimientos_inventario`
+  (`moneda_original`/`tipo_cambio`/`costo_original`, nullable) — el
+  importador masivo (§34) sigue MXN-only a propósito. `costo_unitario`
+  en pesos sigue siendo lo único que alimenta el costeo promedio
+  ponderado (D5), sin cambios en esa lógica; solo se calcula distinto
+  para un producto USD (`costoOriginal × tipoCambio`, validado ANTES de
+  abrir la transacción en `registrarMovimiento()` para no romper el
+  contrato "sin tocar la BD" que ya cubrían los tests existentes).
+  Jest backend 716/716. Detalle completo en PROJECT_STATE.md punto 152.
+  Sin validar contra Docker/MySQL/Banxico reales — antes de producción,
+  correr la migración y probar con un `BANXICO_TOKEN` real. Sin
+  commit/push todavía.
 
 - **Maduración del requerimiento de Inventarios (`inventarios.md`) — EN
   CURSO, solo análisis/documentación (ver PROJECT_STATE.md punto 136,

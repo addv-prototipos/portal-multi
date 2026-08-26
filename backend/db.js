@@ -701,6 +701,28 @@ async function ensureSchema(db = pool) {
     await db.query(`ALTER TABLE ordenes_compra ADD COLUMN producto_cantidad DECIMAL(12,3) NULL`);
   }
 
+  // orden_productos (Segmento A, "Ventas con inventario activo" —
+  // permite varias líneas de inventario por venta). producto_id/
+  // producto_cantidad de arriba quedan congeladas para el historial de
+  // ventas de una sola línea y ya no se vuelven a escribir; esta tabla es
+  // la que soporta 1 o más líneas desde este segmento en adelante. Las
+  // líneas MANUALES (sin producto de catálogo) siguen sin guardarse
+  // estructuradas, igual que siempre — solo viven en el texto de
+  // `concepto`. Sin `CONSTRAINT FOREIGN KEY`, mismo motivo que arriba
+  // (orden de creación de tablas en una base nueva: `productos` se crea
+  // más abajo en este mismo ensureSchema()).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS orden_productos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      orden_id INT NOT NULL,
+      producto_id INT NOT NULL,
+      cantidad DECIMAL(12,3) NOT NULL,
+      creado_en DATETIME NOT NULL,
+      KEY idx_orden_productos_orden (orden_id),
+      KEY idx_orden_productos_producto (producto_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   // Gastos de la operación (módulo "Gastos", ver PROJECT_STATE.md):
   // control administrativo/financiero de egresos, con o sin factura/CFDI.
   // NO es un sistema contable — se guarda el monto tal cual se pagó y un
@@ -995,6 +1017,58 @@ async function ensureSchema(db = pool) {
       ))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // §57: tipo de cambio para productos en moneda extranjera. `moneda` vive
+  // en el producto (alcance por producto, decisión cerrada 2026-08-26);
+  // `moneda_original`/`tipo_cambio`/`costo_original` en el movimiento
+  // (histórico "gratis" dentro del libro append-only ya existente, D6) —
+  // solo las entradas de un producto en USD los llenan, `costo_unitario`
+  // (ya en pesos) sigue siendo la única fuente que usa el costeo
+  // promedio ponderado (D5), sin cambios en esa lógica.
+  const [columnasProductos] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos'`
+  );
+  const nombresColumnasProductos = columnasProductos.map((c) => c.COLUMN_NAME);
+  if (!nombresColumnasProductos.includes('moneda')) {
+    await db.query("ALTER TABLE productos ADD COLUMN moneda VARCHAR(3) NOT NULL DEFAULT 'MXN'");
+  }
+  const [checkMonedaProducto] = await db.query(
+    `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'productos'
+       AND CONSTRAINT_NAME = 'chk_productos_moneda'`
+  );
+  if (checkMonedaProducto.length === 0) {
+    await db.query(
+      `ALTER TABLE productos ADD CONSTRAINT chk_productos_moneda CHECK (moneda IN ('MXN', 'USD'))`
+    );
+  }
+
+  const [columnasMovimientos] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movimientos_inventario'`
+  );
+  const nombresColumnasMovimientos = columnasMovimientos.map((c) => c.COLUMN_NAME);
+  if (!nombresColumnasMovimientos.includes('moneda_original')) {
+    await db.query('ALTER TABLE movimientos_inventario ADD COLUMN moneda_original VARCHAR(3) NULL');
+  }
+  if (!nombresColumnasMovimientos.includes('tipo_cambio')) {
+    await db.query('ALTER TABLE movimientos_inventario ADD COLUMN tipo_cambio DECIMAL(10,4) NULL');
+  }
+  if (!nombresColumnasMovimientos.includes('costo_original')) {
+    await db.query('ALTER TABLE movimientos_inventario ADD COLUMN costo_original DECIMAL(12,4) NULL');
+  }
+  const [checkMonedaMovimiento] = await db.query(
+    `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'movimientos_inventario'
+       AND CONSTRAINT_NAME = 'chk_movimientos_moneda_original'`
+  );
+  if (checkMonedaMovimiento.length === 0) {
+    await db.query(
+      `ALTER TABLE movimientos_inventario ADD CONSTRAINT chk_movimientos_moneda_original
+       CHECK (moneda_original IS NULL OR moneda_original IN ('MXN', 'USD'))`
+    );
+  }
 
   // Idempotencia (§0.5.E): una fila por Idempotency-Key recibida en una
   // mutación de stock. `respuesta_json` queda NULL mientras la operación

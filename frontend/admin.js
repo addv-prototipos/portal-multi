@@ -241,6 +241,7 @@
     ordenProductosListaBody: document.getElementById('orden-productos-lista-body'),
     ordenProductosListaMovil: document.getElementById('orden-productos-lista-movil'),
     // D8 (Inventarios, §22): vincular producto de inventario en Ventas
+    ordenProductosCapturaManual: document.getElementById('orden-productos-captura-manual'),
     ordenInventarioVincular: document.getElementById('orden-inventario-vincular'),
     ordenInventarioBuscarWrap: document.getElementById('orden-inventario-buscar-wrap'),
     ordenInventarioBuscar: document.getElementById('orden-inventario-buscar'),
@@ -250,8 +251,10 @@
     ordenInventarioSeleccionadoDetalle: document.getElementById('orden-inventario-seleccionado-detalle'),
     btnOrdenInventarioQuitar: document.getElementById('btn-orden-inventario-quitar'),
     ordenInventarioUnidadesField: document.getElementById('orden-inventario-unidades-field'),
+    ordenInventarioPrecio: document.getElementById('orden-inventario-precio'),
     ordenInventarioUnidades: document.getElementById('orden-inventario-unidades'),
     ordenInventarioDisponibleHint: document.getElementById('orden-inventario-disponible-hint'),
+    btnAgregarProductoInventarioOrden: document.getElementById('btn-agregar-producto-inventario-orden'),
     ordenIvaInfo: document.getElementById('orden-iva-info'),
     ordenTotalPreview: document.getElementById('orden-total-preview'),
     ordenEmail: document.getElementById('orden-email'),
@@ -445,6 +448,7 @@
     btnInvCategoriaAgregar: document.getElementById('btn-inv-categoria-agregar'),
     errorInvCategoriaNueva: document.getElementById('error-inv-categoria-nueva'),
     invModalUnidad: document.getElementById('inv-modal-unidad'),
+    invModalMoneda: document.getElementById('inv-modal-moneda'),
     invModalCosto: document.getElementById('inv-modal-costo'),
     invModalPrecio: document.getElementById('inv-modal-precio'),
     invModalStockMinimo: document.getElementById('inv-modal-stock-minimo'),
@@ -466,6 +470,11 @@
     invMovCantidad: document.getElementById('inv-mov-cantidad'),
     invMovCostoWrap: document.getElementById('inv-mov-costo-wrap'),
     invMovCosto: document.getElementById('inv-mov-costo'),
+    invMovCostoUsdWrap: document.getElementById('inv-mov-costo-usd-wrap'),
+    invMovCostoOriginal: document.getElementById('inv-mov-costo-original'),
+    invMovTipoCambio: document.getElementById('inv-mov-tipo-cambio'),
+    invMovTipoCambioFuente: document.getElementById('inv-mov-tipo-cambio-fuente'),
+    invMovCostoMxnPreview: document.getElementById('inv-mov-costo-mxn-preview'),
     invMovMotivo: document.getElementById('inv-mov-motivo'),
     invMovNotas: document.getElementById('inv-mov-notas'),
     invMovErrorGeneral: document.getElementById('inv-mov-error-general'),
@@ -4678,9 +4687,13 @@
         recalcularOrdenDesdeProductos();
       };
 
+      // Segmento A: badge "Inventario" en las líneas que vienen del
+      // catálogo (producto_id presente) — las manuales no lo llevan.
+      const badgeInv = producto.producto_id ? ' <span class="line-badge-inv">Inventario</span>' : '';
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${escapeHtml(producto.concepto)}</td>
+        <td>${escapeHtml(producto.concepto)}${badgeInv}</td>
         <td>$${formatearMoneda(producto.precio)}</td>
         <td>${producto.cantidad}</td>
         <td>$${formatearMoneda(subtotalProductoOrden(producto))}</td>
@@ -4695,7 +4708,7 @@
       const li = document.createElement('li');
       li.className = 'orden-productos-lista-movil-item';
       li.innerHTML = `
-        <p class="orden-productos-lista-movil-concepto">${escapeHtml(textoProductoOrden(producto))}</p>
+        <p class="orden-productos-lista-movil-concepto">${escapeHtml(textoProductoOrden(producto))}${badgeInv}</p>
         <div class="orden-productos-lista-movil-fila">
           <span class="orden-productos-lista-movil-precio">${producto.cantidad} pza${producto.cantidad === 1 ? '' : 's'}</span>
           <div class="orden-productos-lista-movil-derecha">
@@ -4757,11 +4770,17 @@
   // automáticamente. Solo visible/activo si inventarioActivoGlobalmente
   // es true (D8/§0.6, ver aplicarVisibilidadInventarios() arriba).
 
-  let ordenInventarioProductoSeleccionado = null; // {id, sku, nombre, precio, disponible, tipo} | null
+  let ordenInventarioProductoSeleccionado = null; // {id, sku, nombre, precio, disponible, tipo} | null — selección EN CURSO, todavía sin agregar a la lista
   let ordenInventarioBusquedaTimeout = null;
 
+  // Segmento A ("Ventas con inventario activo v2"): con inventario activo
+  // el bloque manual desaparece por completo (nunca coexisten) y el
+  // buscador de inventario queda como única forma de agregar productos —
+  // ya admite varias líneas (P1 reabierta), cada una cae en la misma
+  // tabla/lista que antes solo recibía líneas manuales.
   function aplicarVisibilidadInventarioEnVentas() {
     if (els.ordenInventarioVincular) els.ordenInventarioVincular.hidden = !inventarioActivoGlobalmente;
+    if (els.ordenProductosCapturaManual) els.ordenProductosCapturaManual.hidden = inventarioActivoGlobalmente;
   }
 
   function formatearCantidadOrdenInv(valor) {
@@ -4838,8 +4857,16 @@
     els.ordenInventarioSeleccionadoDetalle.textContent =
       producto.tipo === 'servicio' ? `${producto.sku} · Servicio` : `${producto.sku} · Disponible: ${formatearCantidadOrdenInv(producto.disponible)}`;
     els.ordenInventarioUnidadesField.hidden = false;
+    // Precio autocompletado desde el catálogo (editable, ver propuesta
+    // "Ventas con inventario activo v2") — si el producto no tiene precio
+    // capturado en Inventarios, se deja vacío para que el usuario lo escriba.
+    if (els.ordenInventarioPrecio) {
+      els.ordenInventarioPrecio.value = producto.precio !== null && producto.precio !== undefined ? formatearMoneda(producto.precio) : '';
+    }
     els.ordenInventarioUnidades.value = '1';
     setFieldError('orden-inventario-unidades', '');
+    document.getElementById('error-orden-inventario-general').textContent = '';
+    if (els.btnAgregarProductoInventarioOrden) els.btnAgregarProductoInventarioOrden.hidden = false;
     actualizarHintDisponibleOrdenInv();
   }
 
@@ -4849,8 +4876,54 @@
     els.ordenInventarioBuscar.value = '';
     els.ordenInventarioSeleccionado.hidden = true;
     els.ordenInventarioUnidadesField.hidden = true;
+    if (els.btnAgregarProductoInventarioOrden) els.btnAgregarProductoInventarioOrden.hidden = true;
     setFieldError('orden-inventario-unidades', '');
+    document.getElementById('error-orden-inventario-general').textContent = '';
     renderSugerenciasInventarioOrden([]);
+  }
+
+  // Segmento A: agrega la selección en curso a productosOrdenActual —
+  // misma lista/tabla que ya usaban las líneas manuales (reusa
+  // recalcularOrdenDesdeProductos()/textoProductoOrden() sin cambios).
+  // Un mismo producto no se agrega 2 veces (mismo criterio que valida el
+  // backend) — para cambiar la cantidad hay que quitar la línea y
+  // agregarla de nuevo.
+  function agregarProductoInventarioOrden() {
+    const errorGeneral = document.getElementById('error-orden-inventario-general');
+    errorGeneral.textContent = '';
+    if (!ordenInventarioProductoSeleccionado) return;
+
+    const yaAgregado = productosOrdenActual.some((p) => p.producto_id === ordenInventarioProductoSeleccionado.id);
+    if (yaAgregado) {
+      errorGeneral.textContent = 'Ya agregaste este producto — quítalo de la lista de abajo para cambiar la cantidad.';
+      return;
+    }
+
+    const precio = obtenerValorNumerico(els.ordenInventarioPrecio);
+    if (!Number.isFinite(precio) || precio < 0) {
+      errorGeneral.textContent = 'Captura un precio unitario válido.';
+      return;
+    }
+    const unidades = Number(els.ordenInventarioUnidades.value);
+    if (!Number.isFinite(unidades) || unidades <= 0) {
+      setFieldError('orden-inventario-unidades', 'Captura cuántas unidades se vendieron.');
+      return;
+    }
+    setFieldError('orden-inventario-unidades', '');
+
+    productosOrdenActual.push({
+      concepto: ordenInventarioProductoSeleccionado.nombre,
+      precio,
+      cantidad: unidades,
+      producto_id: ordenInventarioProductoSeleccionado.id,
+    });
+    recalcularOrdenDesdeProductos();
+    quitarProductoInventarioOrden();
+    els.ordenInventarioBuscar.focus();
+  }
+
+  if (els.btnAgregarProductoInventarioOrden) {
+    els.btnAgregarProductoInventarioOrden.addEventListener('click', agregarProductoInventarioOrden);
   }
 
   if (els.ordenInventarioBuscar) {
@@ -4945,24 +5018,19 @@
       valido = false;
     }
     if (!validarPasoClienteOrden()) valido = false;
-    // D8/§22: cantidad de unidades del producto vinculado — campo
-    // completamente distinto de "cantidad" (el monto en MXN de arriba).
-    let unidadesInventario = null;
-    if (ordenInventarioProductoSeleccionado) {
-      unidadesInventario = Number(els.ordenInventarioUnidades.value);
-      if (!Number.isFinite(unidadesInventario) || unidadesInventario <= 0) {
-        setFieldError('orden-inventario-unidades', 'Captura cuántas unidades se vendieron.');
-        valido = false;
-      }
-    }
     if (!valido) return;
 
+    // Segmento A: líneas de inventario ya validadas y comprometidas al
+    // presionar "+ Agregar producto" (agregarProductoInventarioOrden) —
+    // aquí solo se extraen de la lista ya armada, misma que las manuales.
+    const lineasInventarioEnLista = productosOrdenActual.filter((p) => p.producto_id);
+
     // Sin conexión: se encola en IndexedDB en vez de intentar guardar
-    // (fallaría de todas formas) — ver PROJECT_STATE.md punto 132. Un
-    // producto de inventario vinculado NO se encola: la validación de
-    // existencia (D4) necesita conexión real, y encolar sin validar
-    // arriesgaría un descuento de stock incorrecto al sincronizar más
-    // tarde sin que el administrador lo supiera en el momento.
+    // (fallaría de todas formas) — ver PROJECT_STATE.md punto 132. Una
+    // venta con producto de inventario vinculado NO se encola: la
+    // validación de existencia (D4) necesita conexión real, y encolar sin
+    // validar arriesgaría un descuento de stock incorrecto al sincronizar
+    // más tarde sin que el administrador lo supiera en el momento.
     // "Imprimir" no aplica sin folio real, así que si de alguna forma
     // llegó hasta aquí en ese estado (no debería, el botón se deshabilita
     // al quedarse sin conexión) se bloquea aquí también, por seguridad.
@@ -4972,9 +5040,9 @@
           'No se puede imprimir sin conexión. Cambia a "Enviar por correo" o espera a recuperar internet.';
         return;
       }
-      if (ordenInventarioProductoSeleccionado) {
+      if (lineasInventarioEnLista.length > 0) {
         els.ordenErrorGeneral.textContent =
-          'No se puede vincular un producto de inventario sin conexión. Quita el producto o espera a recuperar internet.';
+          'No se puede vincular producto de inventario sin conexión. Quita los productos de inventario de la lista o espera a recuperar internet.';
         return;
       }
       await OfflineQueue.agregarPendiente('ordenes', {
@@ -5006,8 +5074,10 @@
           estado_pago: ordenEstadoPago,
           fecha_vencimiento: ordenEstadoPago === 'pendiente' ? fechaVencimiento : null,
           notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null,
-          producto_id: ordenInventarioProductoSeleccionado ? ordenInventarioProductoSeleccionado.id : undefined,
-          producto_cantidad: ordenInventarioProductoSeleccionado ? unidadesInventario : undefined,
+          productos_inventario:
+            lineasInventarioEnLista.length > 0
+              ? lineasInventarioEnLista.map((p) => ({ producto_id: p.producto_id, cantidad: p.cantidad }))
+              : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -8916,6 +8986,7 @@
       : els.invModalUnidad.options[0]
         ? els.invModalUnidad.options[0].value
         : '';
+    els.invModalMoneda.value = producto ? producto.moneda || 'MXN' : 'MXN';
     els.invModalCosto.value = producto && producto.costo !== null ? String(producto.costo) : '';
     els.invModalPrecio.value = producto && producto.precio !== null ? String(producto.precio) : '';
     els.invModalStockMinimo.value = producto && producto.stock_minimo !== null ? String(producto.stock_minimo) : '';
@@ -8981,6 +9052,7 @@
       categoria_id: els.invModalCategoria.value || null,
       unidad_id: Number(els.invModalUnidad.value),
       tipo: inventarioModalTipoSeleccionado,
+      moneda: els.invModalMoneda.value,
       costo: els.invModalCosto.value.trim() || null,
       precio: els.invModalPrecio.value.trim() || null,
       stock_minimo: els.invModalStockMinimo.value.trim() || null,
@@ -9123,7 +9195,52 @@
   function poblarSelectTipoMov() {
     const opciones = inventarioMovimientoDireccion === 'entrada' ? TIPOS_MOV_ENTRADA : TIPOS_MOV_SALIDA;
     els.invMovTipo.innerHTML = opciones.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join('');
-    els.invMovCostoWrap.hidden = inventarioMovimientoDireccion !== 'entrada';
+    const esEntrada = inventarioMovimientoDireccion === 'entrada';
+    // §57: un producto en USD captura el costo en su moneda original +
+    // tipo de cambio en vez del costo unitario directo en pesos.
+    const monedaUsd = Boolean(inventarioMovimientoProducto && inventarioMovimientoProducto.moneda === 'USD');
+    els.invMovCostoWrap.hidden = !esEntrada || monedaUsd;
+    els.invMovCostoUsdWrap.hidden = !esEntrada || !monedaUsd;
+  }
+
+  function actualizarPreviewCostoUsdMovimiento() {
+    const co = Number(String(els.invMovCostoOriginal.value).replace(/,/g, ''));
+    const tc = Number(String(els.invMovTipoCambio.value).replace(/,/g, ''));
+    if (Number.isFinite(co) && co >= 0 && Number.isFinite(tc) && tc > 0) {
+      els.invMovCostoMxnPreview.textContent = `= $${formatearMoneda(Math.round(co * tc * 100) / 100)} MXN por unidad`;
+    } else {
+      els.invMovCostoMxnPreview.textContent = '';
+    }
+  }
+
+  // Precarga el tipo de cambio del día (Banxico), editable siempre —
+  // degrada a captura manual sin bloquear el flujo si no hay dato
+  // automático disponible (§57).
+  async function precargarTipoCambioMovimiento() {
+    els.invMovTipoCambioFuente.textContent = 'Consultando tipo de cambio del día…';
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/tipo-cambio/usd`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (data.valor) {
+        els.invMovTipoCambio.value = data.valor;
+        els.invMovTipoCambioFuente.textContent =
+          data.fuente === 'banxico'
+            ? `Tipo de cambio del día (Banxico, ${data.fecha}) — puedes corregirlo.`
+            : `Último tipo de cambio conocido (${data.fecha}) — verifica que siga vigente.`;
+      } else {
+        els.invMovTipoCambioFuente.textContent = 'No se pudo obtener el tipo de cambio automático — captúralo a mano.';
+      }
+      actualizarPreviewCostoUsdMovimiento();
+    } catch (err) {
+      els.invMovTipoCambioFuente.textContent = 'No se pudo obtener el tipo de cambio automático — captúralo a mano.';
+    }
   }
 
   function setMovimientoDireccion(direccion) {
@@ -9141,12 +9258,19 @@
     els.invMovimientoModalSubtitulo.textContent = `${producto.nombre} (${producto.sku}) — disponible: ${formatearCantidadInv(producto.disponible || 0)}`;
     els.invMovCantidad.value = '';
     els.invMovCosto.value = '';
+    els.invMovCostoOriginal.value = '';
+    els.invMovTipoCambio.value = '';
+    els.invMovTipoCambioFuente.textContent = '';
+    els.invMovCostoMxnPreview.textContent = '';
     els.invMovMotivo.value = '';
     els.invMovNotas.value = '';
     setFieldError('inv-mov-cantidad', '');
+    setFieldError('inv-mov-costo-usd', '');
     els.invMovErrorGeneral.textContent = '';
+    aplicarTooltipsCampoAyuda(els.invMovimientoModalOverlay);
     els.invMovimientoModalOverlay.hidden = false;
     els.invMovCantidad.focus();
+    if (producto.moneda === 'USD') precargarTipoCambioMovimiento();
   }
 
   function cerrarMovimientoModal() {
@@ -9163,6 +9287,7 @@
     }
 
     setFieldError('inv-mov-cantidad', '');
+    setFieldError('inv-mov-costo-usd', '');
     els.invMovErrorGeneral.textContent = '';
 
     const cantidad = Number(String(els.invMovCantidad.value).replace(/,/g, ''));
@@ -9171,11 +9296,39 @@
       return;
     }
 
+    // §57: producto en USD — costo en la moneda original + tipo de cambio,
+    // en vez del costo unitario directo en pesos. Ambos opcionales (una
+    // entrada puede no traer costo), pero si se captura uno, el otro se
+    // vuelve obligatorio para poder convertir.
+    const monedaUsd = inventarioMovimientoDireccion === 'entrada' && inventarioMovimientoProducto.moneda === 'USD';
+    let costoOriginal = null;
+    let tipoCambio = null;
+    if (monedaUsd) {
+      const coTexto = els.invMovCostoOriginal.value.trim();
+      const tcTexto = els.invMovTipoCambio.value.trim();
+      if (coTexto) {
+        const co = Number(coTexto);
+        const tc = Number(tcTexto);
+        if (!Number.isFinite(co) || co < 0) {
+          setFieldError('inv-mov-costo-usd', 'El costo en USD debe ser un número mayor o igual a cero.');
+          return;
+        }
+        if (!tcTexto || !Number.isFinite(tc) || tc <= 0) {
+          setFieldError('inv-mov-costo-usd', 'Captura un tipo de cambio válido (mayor a cero).');
+          return;
+        }
+        costoOriginal = co;
+        tipoCambio = tc;
+      }
+    }
+
     const payload = {
       producto_id: inventarioMovimientoProducto.id,
       tipo: els.invMovTipo.value,
       cantidad,
-      costo_unitario: inventarioMovimientoDireccion === 'entrada' && els.invMovCosto.value.trim() ? Number(els.invMovCosto.value) : null,
+      costo_unitario: !monedaUsd && inventarioMovimientoDireccion === 'entrada' && els.invMovCosto.value.trim() ? Number(els.invMovCosto.value) : null,
+      costo_original: costoOriginal,
+      tipo_cambio: tipoCambio,
       motivo: els.invMovMotivo.value.trim() || null,
       notas: els.invMovNotas.value.trim() || null,
     };
@@ -9248,11 +9401,20 @@
       els.invKardexEmpty.hidden = movimientos.length > 0;
       movimientos.forEach((m) => {
         const tr = document.createElement('tr');
+        // §57: si la entrada trae tipo_cambio, el costo se muestra con el
+        // desglose USD × TC = MXN en el mismo tooltip unificado del sitio
+        // (punto 148) en vez de un texto largo fijo en la celda.
+        const costoCelda =
+          m.costo_unitario === null
+            ? '—'
+            : m.tipo_cambio
+              ? `<span data-tooltip="${escapeHtml(`$${formatearMoneda(m.costo_original)} USD × ${formatearMoneda(m.tipo_cambio)} = $${formatearMoneda(m.costo_unitario)} MXN`)}">$${formatearMoneda(m.costo_unitario)}</span>`
+              : `$${formatearMoneda(m.costo_unitario)}`;
         tr.innerHTML = `
           <td data-label="Folio">${escapeHtml(m.folio || '—')}</td>
           <td data-label="Tipo">${escapeHtml(etiquetaTipoMovimiento(m.tipo))}</td>
           <td data-label="Cantidad" class="col-num">${formatearCantidadInv(m.cantidad)}</td>
-          <td data-label="Costo" class="col-num">${m.costo_unitario === null ? '—' : '$' + formatearMoneda(m.costo_unitario)}</td>
+          <td data-label="Costo" class="col-num">${costoCelda}</td>
           <td data-label="Anterior" class="col-num">${formatearCantidadInv(m.existencia_anterior)}</td>
           <td data-label="Posterior" class="col-num">${formatearCantidadInv(m.existencia_posterior)}</td>
           <td data-label="Motivo">${escapeHtml(m.motivo || '—')}</td>
@@ -9905,6 +10067,7 @@
 
   const INV_AYUDA_GRUPOS = [
     { grupo: 'catalogo', titulo: 'Catálogo' },
+    { grupo: 'moneda_extranjera', titulo: 'Moneda extranjera' },
     { grupo: 'existencias', titulo: 'Existencias y movimientos' },
     { grupo: 'importacion', titulo: 'Importación masiva' },
   ];
@@ -10146,8 +10309,11 @@
   if (els.invMovimientoModalOverlay)
     els.invMovimientoModalOverlay.addEventListener('click', (e) => {
       if (e.target === els.invMovimientoModalOverlay) cerrarMovimientoModal();
+      if (e.target.classList.contains('campo-ayuda')) abrirAyudaInventario(e.target.dataset.campo);
     });
   if (els.btnInvMovGuardar) els.btnInvMovGuardar.addEventListener('click', guardarMovimientoInv);
+  if (els.invMovCostoOriginal) els.invMovCostoOriginal.addEventListener('input', actualizarPreviewCostoUsdMovimiento);
+  if (els.invMovTipoCambio) els.invMovTipoCambio.addEventListener('input', actualizarPreviewCostoUsdMovimiento);
 
   if (els.btnInvKardexCerrar) els.btnInvKardexCerrar.addEventListener('click', cerrarKardexModal);
   if (els.invKardexModalOverlay)
