@@ -89,6 +89,7 @@ La v1 entrega un **motor de existencias mínimo útil**: catálogo simple, un al
 | Roles Operador de almacén / Compras (§3.4/§3.5) | 2 | D7: solo valen cuando hay personal de bodega operando |
 | Exportación XLSX/PDF (§35) | 2 | Requiere decidir librería nueva (fuera del núcleo) |
 | Venta multi-línea con inventario activo (§22) | 2 | P1 cerrada 2026-08-24 = línea única en v1; tabla `venta_partidas` y descuento por línea quedan para cuando se reabra el diseño de Ventas |
+| Tipo de cambio para productos en moneda extranjera (§57) | 2 | Agregado 2026-08-25, solo anotado — activar/desactivar por definir su alcance (¿global, por producto?), fuente del tipo de cambio y relación con el costeo promedio ponderado (D5) sin cerrar; requiere su propia ronda de Analizar → Proponer → Confirmar antes de diseñar |
 
 ## 0.5 Concurrencia, precisión numérica e integridad del libro
 
@@ -1912,3 +1913,23 @@ Sesión + permiso administrador + tenant resuelto (reglas de §46); contenido no
 - Buscar "costo" encuentra `costo`, `costo_unitario`, `costo_promedio` y `ultimo_costo` (coincidencia parcial, no exacta).
 - Navegación completa por teclado sin mouse, verificada con lector de pantalla en la revisión visual.
 - Página funcional en escritorio y móvil (390×844), sin `console.error`, sin regresión al resto del panel.
+
+---
+
+# 57. Tipo de cambio para productos en moneda extranjera — Fase 2
+
+> Agregado 2026-08-25 a pedido del usuario, como pendiente de funcionalidad — **solo anotado, sin analizar a fondo ni implementar**. Requiere la misma sesión de Analizar → Proponer → Confirmar antes de tocar código (protocolo `addv-web-app`).
+
+## US-INV-027 (borrador) — Costear productos comprados en otra moneda
+
+Como **administrador**, quiero poder activar el uso de tipo de cambio para mis productos (por producto o para todo el catálogo — a decidir), y que el sistema guarde un histórico de cada tipo de cambio aplicado, para saber a qué costo real en pesos entró cada producto al inventario desde la primera vez que se dio de alta, aunque el tipo de cambio del día haya cambiado después.
+
+Puntos que quedan pendientes de cerrar con el usuario antes de proponer un diseño (no asumir ninguno de estos):
+
+- **Alcance del interruptor**: ¿global de la empresa, por producto, o por categoría? El pedido dice "activar o inhabilitarlo para aplicar a los productos" — sugiere que no todos los productos lo necesitan (ej. un negocio con productos nacionales e importados a la vez).
+- **Fuente del tipo de cambio**: ¿captura manual en cada entrada, un tipo de cambio del día consultado a un servicio externo (banco de México u otro), o ambos (automático con opción de sobreescribir)?
+- **Moneda(s) soportada(s)**: ¿solo USD, o cualquier moneda?
+- **Qué significa "histórico desde la primera vez que se puso en inventario"**: ¿el histórico vive a nivel de producto (cada vez que ese producto recibe una entrada, se guarda el tipo de cambio usado ese día) o es una tabla de tipos de cambio general por fecha, independiente del producto, que luego se consulta? La decisión de costeo ya cerrada en este documento es **promedio ponderado en pesos** (D5) — hay que decidir si el tipo de cambio se aplica ANTES de calcular ese promedio (convierte a pesos en cada entrada, el promedio ponderado sigue siendo en pesos) o si se necesita además conservar el costo en la moneda original por transacción.
+- **Relación con `movimientos_inventario`**: lo más natural con el diseño actual es agregar el tipo de cambio aplicado como un dato más de cada movimiento de tipo entrada (junto a `costo_unitario`), que ya es un libro append-only (D6) — eso daría el histórico "gratis" sin tabla nueva. A confirmar si esto cubre el pedido o si se necesita algo adicional (ej. un catálogo de tipos de cambio por fecha, reutilizable aunque no haya movimiento ese día).
+
+Sin diseño de esquema, API ni UI todavía — depende de las respuestas de arriba.

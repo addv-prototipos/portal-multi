@@ -9324,9 +9324,94 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       (`admin.html`/`admin.css`/`style.css`). Jest backend 702/702 (sin
       cambios, segmento 100% frontend). Con esto, **todo tooltip visible
       del sitio (panel admin + portal de cliente) usa exactamente el
-      mismo componente estilizado, sin excepción documentada.** Sin
+      mismo componente estilizado, sin excepción documentada.**
+      **Commiteado y pusheado** (`f88a429` → `fact/master`).
+
+ 149. **3 rediseños de UI en la vista "Usuarios"/"Configuraciones
+      globales" (2026-08-25, a pedido explícito del usuario, con
+      propuesta visual — Artifacts — para los 2 primeros antes de
+      implementar; el 3ro llegó con instrucción directa + captura
+      anotada). Cero cambios de backend en los 3.**
+
+      1. **"Habilitar Ventas" e "Inventario activo" se mueven de
+         "Usuarios" a "Configuraciones globales"** (propuesta previa vía
+         Artifact, aprobada al pedir "muévelo... falta mover el modal de
+         inventarios y ventas... sigue respetando sus roles de acceso").
+         Mismos ids (`ordenes-toggle-card`/`inv-toggle-card`,
+         `config-ordenes-habilitado`/`config-inventario-activo`) — pura
+         reubicación de HTML, cero cambio de lógica de guardado/API.
+         Acceso: se agregaron ambos ids a
+         `administrador.tarjetasConfigPermitidas` y a la lista de "6
+         tarjetas" gateadas en `aplicarRestriccionesPerfil()`
+         (`admin.js`) — **Fiscal sigue sin verlas** (su array no se
+         tocó), Super/admin-fallback las ve como siempre
+         (`sinRestricciones`). "Configuraciones globales" pasa de 4 a 6
+         tarjetas (3 filas parejas, sin huérfana). "Usuarios" queda solo
+         con "Cuenta de respaldo admin" — se quitó la cuadrícula
+         `.usuarios-tarjetas-compactas` (ya no tenía sentido con un solo
+         elemento adentro).
+      2. **"Perfiles y roles de acceso" pasa de tarjeta acordeón de
+         ancho completo a un ícono junto al conteo de usuarios que abre
+         la misma tabla en una ventana emergente** (instrucción directa
+         del usuario con captura anotada, reemplaza una propuesta previa
+         de badge "Solo lectura" que quedó descartada). Nuevo botón
+         `#btn-perfiles-acceso-abrir` (ícono, `data-tooltip`) junto a
+         `#usuarios-count`; nuevo modal `#perfiles-acceso-overlay`
+         (`.gastos-modal .gastos-detalle-modal`, 760px) con el mismo
+         contenido/tabla de siempre. Sigue siendo visible solo para el
+         usuario `"admin"` exacto (`esUsuarioAdminExacto`, sin cambios en
+         esa regla).
+      3. **Modal "Crear usuario" rediseñado en 2 columnas, mismo patrón
+         que "Gestionar ticket"** (`.ticket-modal`, 820px) — pasa de
+         `max-width:380px` en una sola columna larga a
+         `.ticket-modal-main` (Perfil/RFC/Correo/Teléfono) +
+         `.ticket-modal-sidebar` (tarjeta "Contraseña": generar
+         automática, campo+reglas, forzar cambio). Gana un botón de
+         cierre "✕" en el header que no tenía antes (mismo patrón que el
+         resto de modales de este estilo). Mismos ids en todos los
+         campos — cero cambio de la lógica de validación/envío.
+
+      **Validado en navegador real las 3** (Claude in Chrome — los
+      screenshots fallaron un tramo de la sesión por un bug de la
+      extensión, `window.innerWidth` reportaba 0, resuelto solo tras
+      recargar): "Usuarios" con una sola tarjeta limpia, "Configuraciones
+      globales" con 6 tarjetas en 3 filas parejas, el ícono de perfiles
+      abre el modal con la tabla completa, "Crear usuario" en 2 columnas
+      con "Generar automática" funcionando en la barra lateral angosta.
+      Consola sin errores en los 3. Jest backend 702/702 (sin cambios).
+      **Nota de infraestructura, no relacionada con el código**: un
+      `docker compose up` de rutina chocó con el puerto 9001 porque OTRO
+      proyecto del mismo servidor (`appprestamos-minio`) ya lo tenía
+      tomado — se resolvió con `--no-deps` en vez de tocar el contenedor
+      ajeno; MinIO de este proyecto no se necesitaba para validar estos
+      3 cambios (ninguno toca almacenamiento de archivos). Sin
       commitear — pedir confirmación explícita antes de commit/push,
       mismo protocolo `addv-web-app`.
+
+150. **2 pendientes de funcionalidad registrados — SOLO ANOTADOS, sin
+     analizar ni implementar (2026-08-25)**:
+     - **Tipo de cambio para productos en moneda extranjera
+       (Inventarios)**: el usuario pidió poder activar/desactivar el uso
+       de tipo de cambio para aplicar a los productos, con histórico de
+       cada tipo de cambio usado desde que el producto entró al
+       inventario por primera vez (para poder reconstruir el costo real
+       en pesos de cualquier entrada pasada). Documentado a detalle,
+       con las preguntas de diseño todavía abiertas (alcance del
+       interruptor, fuente del tipo de cambio, relación con el costeo
+       promedio ponderado D5), en `inventarios.md` **§57** y en la tabla
+       de pendientes §0.4.1 de ese mismo documento — ahí vive el detalle
+       completo, este punto es solo el puntero.
+     - **Regla de negocio: una Cuenta por Cobrar (venta con
+       `estado_pago='pendiente'`) no se debería poder facturar todavía**
+       — el usuario señaló que hoy no existe esa validación. Sin
+       analizar el alcance exacto (¿bloquear el botón de facturar en la
+       UI, o también en el backend? ¿aplica a `estado_pago='pendiente'`
+       solamente o también a "vencida"? ¿qué mensaje ve el admin al
+       intentarlo?) ni dónde vive hoy el flujo de "facturar" una venta
+       para saber qué tocar exactamente. Pendiente de una ronda de
+       Analizar → Proponer → Confirmar antes de tocar código, mismo
+       protocolo `addv-web-app`. Relacionado con Cuentas por Cobrar,
+       puntos 138/141 de este mismo archivo.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

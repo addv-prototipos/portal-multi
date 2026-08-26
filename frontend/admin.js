@@ -695,9 +695,9 @@
     btnToggleAdminFallback: document.getElementById('btn-toggle-admin-fallback'),
     adminFallbackCard: document.getElementById('admin-fallback-card'),
     adminFallbackBody: document.getElementById('admin-fallback-body'),
-    perfilesAccesoCard: document.getElementById('perfiles-acceso-card'),
-    btnTogglePerfilesAcceso: document.getElementById('btn-toggle-perfiles-acceso'),
-    perfilesAccesoBody: document.getElementById('perfiles-acceso-body'),
+    btnPerfilesAccesoAbrir: document.getElementById('btn-perfiles-acceso-abrir'),
+    perfilesAccesoOverlay: document.getElementById('perfiles-acceso-overlay'),
+    btnPerfilesAccesoCerrar: document.getElementById('btn-perfiles-acceso-cerrar'),
     ordenesToggleCard: document.getElementById('ordenes-toggle-card'),
     btnToggleOrdenesCard: document.getElementById('btn-toggle-ordenes-card'),
     ordenesToggleBody: document.getElementById('ordenes-toggle-body'),
@@ -724,6 +724,7 @@
     crearUsuarioForzarCambio: document.getElementById('crear-usuario-forzar-cambio'),
     crearUsuarioErrorGeneral: document.getElementById('crear-usuario-error-general'),
     btnCrearUsuarioCancelar: document.getElementById('btn-crear-usuario-cancelar'),
+    btnCrearUsuarioCerrar: document.getElementById('btn-crear-usuario-cerrar'),
     // Editar usuario
     editarUsuarioOverlay: document.getElementById('editar-usuario-overlay'),
     editarUsuarioPerfil: document.getElementById('editar-usuario-perfil'),
@@ -1205,7 +1206,7 @@
   const RESTRICCIONES_PERFIL = {
     administrador: {
       vistasPermitidas: ['resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'configuraciones'],
-      tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card'],
+      tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card'],
     },
     fiscal: {
       vistasPermitidas: ['inicio', 'constancias', 'tickets', 'configuraciones'],
@@ -1251,8 +1252,9 @@
       if (botonMovil) botonMovil.hidden = !permitida;
     });
 
-    // Las 4 tarjetas de "Configuraciones globales".
-    ['admin-config-card', 'global-config-card', 'smtp-config-card', 'reportes-config-card'].forEach((idTarjeta) => {
+    // Las 6 tarjetas de "Configuraciones globales" ("Ventas" e
+    // "Inventarios" se movieron aquí desde "Usuarios").
+    ['admin-config-card', 'global-config-card', 'smtp-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card'].forEach((idTarjeta) => {
       const tarjeta = document.getElementById(idTarjeta);
       if (!tarjeta) return;
       tarjeta.hidden = !(sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta));
@@ -1264,7 +1266,7 @@
     // viven dentro de la vista "Usuarios".
     const esUsuarioAdminExacto = usuarioSesionActual === 'admin';
     if (els.adminFallbackCard) els.adminFallbackCard.hidden = !esUsuarioAdminExacto;
-    if (els.perfilesAccesoCard) els.perfilesAccesoCard.hidden = !esUsuarioAdminExacto;
+    if (els.btnPerfilesAccesoAbrir) els.btnPerfilesAccesoAbrir.hidden = !esUsuarioAdminExacto;
 
     // Si el botón de la vista actualmente activa (por defecto,
     // "Constancias" — ver el HTML) quedó oculto por la restricción de
@@ -5781,6 +5783,7 @@
 
   els.btnCrearUsuario.addEventListener('click', abrirCrearUsuarioModal);
   els.btnCrearUsuarioCancelar.addEventListener('click', cerrarCrearUsuarioModal);
+  els.btnCrearUsuarioCerrar.addEventListener('click', cerrarCrearUsuarioModal);
   els.crearUsuarioOverlay.addEventListener('click', (e) => {
     if (e.target === els.crearUsuarioOverlay) cerrarCrearUsuarioModal();
   });
@@ -6014,10 +6017,14 @@
     els.adminFallbackBody.hidden = abierto;
   });
 
-  els.btnTogglePerfilesAcceso.addEventListener('click', () => {
-    const abierto = els.btnTogglePerfilesAcceso.getAttribute('aria-expanded') === 'true';
-    els.btnTogglePerfilesAcceso.setAttribute('aria-expanded', String(!abierto));
-    els.perfilesAccesoBody.hidden = abierto;
+  els.btnPerfilesAccesoAbrir.addEventListener('click', () => {
+    els.perfilesAccesoOverlay.hidden = false;
+  });
+  els.btnPerfilesAccesoCerrar.addEventListener('click', () => {
+    els.perfilesAccesoOverlay.hidden = true;
+  });
+  els.perfilesAccesoOverlay.addEventListener('click', (e) => {
+    if (e.target === els.perfilesAccesoOverlay) els.perfilesAccesoOverlay.hidden = true;
   });
 
   els.btnToggleOrdenesCard.addEventListener('click', () => {

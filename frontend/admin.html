@@ -1319,78 +1319,13 @@
       </div>
 
       <div id="vista-usuarios" hidden>
-        <!-- "Ventas" y "Cuenta de respaldo admin" van una junto a
-             la otra en una cuadrícula de 2 columnas — ambas tienen poco
-             contenido (un interruptor la una, un campo de contraseña la
-             otra), así que apiladas una debajo de otra dejaban mucho
-             espacio vacío a los lados; puestas al mismo nivel se ven
-             parejas, igual que ya se hizo en "Configuraciones globales".
-             "Perfiles y roles de acceso" (con una tabla ancha adentro) se
-             queda fuera de esta cuadrícula, en su propia fila completa. -->
-        <div class="usuarios-tarjetas-compactas">
-        <!-- Habilitar Ventas — se movió aquí desde "Configuraciones
-             fiscales": "Ventas" es un área exclusiva del perfil
-             Administrador (igual que "Usuarios"), así que activarla/
-             desactivarla vive junto al resto de los controles que ese
-             mismo perfil puede ver — un perfil Fiscal, que no ve "Ventas"
-             como vista, tampoco debería ver el interruptor que la
-             prende o apaga. -->
-        <section class="admin-config-card" id="ordenes-toggle-card">
-          <button type="button" class="admin-config-toggle" id="btn-toggle-ordenes-card" aria-expanded="false" aria-controls="ordenes-toggle-body">
-            <span class="admin-config-toggle-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                <path d="M8 7V5a4 4 0 0 1 8 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-              </svg>
-              Ventas
-            </span>
-            <svg class="admin-config-chevron" id="ordenes-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <div class="admin-config-body" id="ordenes-toggle-body" hidden>
-            <label class="switch-toggle">
-              <input type="checkbox" id="config-ordenes-habilitado" checked />
-              <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
-              <span class="switch-toggle-texto">
-                <span class="switch-toggle-label">Habilitar Ventas</span>
-                <span class="switch-toggle-hint">Con esto apagado, se oculta el botón "Ventas" del panel, y subir un ticket ya no exige verificar la venta. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
-                <span class="switch-toggle-autoguardado" id="ordenes-habilitado-autoguardado" role="status" aria-live="polite"></span>
-              </span>
-            </label>
-          </div>
-        </section>
-
-        <!-- Inventario activo (D8, §0.6) — misma razón que "Habilitar
-             Ventas" de arriba: administrador/super son los únicos
-             perfiles con acceso a Inventarios (D7), así que el
-             interruptor vive junto al resto de lo que ese perfil ve, no
-             en "Configuraciones globales" donde Fiscal también entra. -->
-        <section class="admin-config-card" id="inv-toggle-card">
-          <button type="button" class="admin-config-toggle" id="btn-toggle-inv-card" aria-expanded="false" aria-controls="inv-toggle-body">
-            <span class="admin-config-toggle-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-              </svg>
-              Inventarios
-            </span>
-            <svg class="admin-config-chevron" id="inv-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-          <div class="admin-config-body" id="inv-toggle-body" hidden>
-            <label class="switch-toggle">
-              <input type="checkbox" id="config-inventario-activo" />
-              <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
-              <span class="switch-toggle-texto">
-                <span class="switch-toggle-label">Inventario activo</span>
-                <span class="switch-toggle-hint">Activa el módulo Inventarios para esta empresa. Con inventario activo, Ventas sugiere productos al escribir y por escáner; con inventario inactivo, la captura es manual como hoy. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
-                <span class="switch-toggle-autoguardado" id="inv-activo-autoguardado" role="status" aria-live="polite"></span>
-              </span>
-            </label>
-          </div>
-        </section>
-
+        <!-- "Habilitar Ventas" e "Inventario activo" se movieron a
+             Configuraciones globales — solo faltaba agregar sus ids a la
+             lista de tarjetas permitidas del perfil Administrador ahí
+             (ver aplicarRestriccionesPerfil() en admin.js); Fiscal sigue
+             sin verlas, igual que antes. Con eso, "Cuenta de respaldo
+             admin" queda sola aquí — ya no hace falta la cuadrícula de 2
+             columnas que existía para emparejarla con "Ventas". -->
         <!-- Cuenta de respaldo "admin" -->
         <section class="admin-config-card" id="admin-fallback-card">
           <button type="button" class="admin-config-toggle" id="btn-toggle-admin-fallback" aria-expanded="false" aria-controls="admin-fallback-body">
@@ -1452,103 +1387,6 @@
             </div>
           </div>
         </section>
-        </div><!-- /usuarios-tarjetas-compactas -->
-
-        <!-- Perfiles y roles de acceso — solo visible para el usuario "admin" -->
-        <section class="admin-config-card" id="perfiles-acceso-card">
-          <button type="button" class="admin-config-toggle" id="btn-toggle-perfiles-acceso" aria-expanded="false" aria-controls="perfiles-acceso-body">
-            <span class="admin-config-toggle-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.6"/>
-                <path d="M3.5 19c.6-3.4 2.9-5.2 5.5-5.2s4.9 1.8 5.5 5.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                <circle cx="17.5" cy="7.5" r="2.4" stroke="currentColor" stroke-width="1.5"/>
-                <path d="M14.8 13.3c2.3.3 3.9 1.8 4.4 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-              Perfiles y roles de acceso
-            </span>
-            <svg class="admin-config-chevron" id="perfiles-acceso-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-
-          <div class="admin-config-body" id="perfiles-acceso-body" hidden>
-            <p class="panel-subtitle admin-config-subtitle">
-              Referencia de qué puede ver cada perfil en este panel — solo tú, como usuario <strong>"admin"</strong>, puedes ver esta tabla. No es un formulario: los permisos no se editan aquí, están definidos en el código del panel.
-            </p>
-
-            <div class="tabla-perfiles-wrap">
-              <table class="tabla-perfiles">
-                <thead>
-                  <tr>
-                    <th scope="col">Perfil</th>
-                    <th scope="col">Constancias</th>
-                    <th scope="col">Tickets</th>
-                    <th scope="col">Ventas</th>
-                    <th scope="col">Usuarios</th>
-                    <th scope="col">Reportes</th>
-                    <th scope="col">Configuraciones globales</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr class="fila-perfil-super">
-                    <td>
-                      <span class="perfil-badge perfil-administrador">Super</span>
-                      <span class="perfil-descripcion">Cuenta "admin" y ADMIN_USERS</span>
-                    </td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si">
-                      <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
-                      <span class="detalle-acceso">Todas las tarjetas</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span class="perfil-badge perfil-administrador">Administrador</span>
-                      <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
-                    </td>
-                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si">
-                      <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
-                      <span class="detalle-acceso">Solo Configuraciones fiscales y Configuración Reportes</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span class="perfil-badge perfil-fiscal">Fiscal</span>
-                      <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
-                    </td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-                    <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
-                    <td class="celda-acceso-si">
-                      <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
-                      <span class="detalle-acceso">Solo Campos obligatorios y Configuraciones fiscales</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span class="perfil-badge perfil-cliente">Cliente</span>
-                      <span class="perfil-descripcion">Solo entra a login.html</span>
-                    </td>
-                    <td class="celda-acceso-no" colspan="6">
-                      <span class="detalle-acceso detalle-acceso-ancho">Sin acceso al panel de administración — este perfil solo puede iniciar sesión en el portal de usuario (login.html y sus páginas).</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
 
         <div class="admin-toolbar">
           <div class="admin-toolbar-title">
@@ -1556,6 +1394,19 @@
           </div>
           <div class="admin-toolbar-right">
             <span class="admin-count" id="usuarios-count">0 usuarios</span>
+            <!-- Perfiles y roles de acceso — antes una tarjeta acordeón de
+                 ancho completo (se veía asimétrica junto a las tarjetas
+                 angostas de arriba); ahora un botón junto al conteo que
+                 abre la misma tabla en una ventana emergente, solo
+                 visible para el usuario "admin". -->
+            <button type="button" class="btn-icon" id="btn-perfiles-acceso-abrir" aria-label="Ver perfiles y roles de acceso" data-tooltip="Perfiles y roles de acceso">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M3.5 19c.6-3.4 2.9-5.2 5.5-5.2s4.9 1.8 5.5 5.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                <circle cx="17.5" cy="7.5" r="2.4" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M14.8 13.3c2.3.3 3.9 1.8 4.4 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
             <select class="tickets-filtro-estatus" id="usuarios-filtro-perfil" aria-label="Filtrar por perfil">
               <option value="">Todos los perfiles</option>
               <option value="cliente">Clientes</option>
@@ -1911,6 +1762,67 @@
           <p class="field-error" id="error-enviar-reporte-manual" role="alert"></p>
         </div>
       </section>
+
+      <!-- Habilitar Ventas — movida aquí desde "Usuarios". "Ventas" es un
+           área exclusiva del perfil Administrador (igual que "Usuarios"),
+           así que esta tarjeta solo se agrega a la lista de tarjetas
+           permitidas de Administrador en aplicarRestriccionesPerfil()
+           (admin.js) — Fiscal, que no ve "Ventas" como vista, tampoco ve
+           el interruptor que la prende o apaga. -->
+      <section class="admin-config-card" id="ordenes-toggle-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-ordenes-card" aria-expanded="false" aria-controls="ordenes-toggle-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              <path d="M8 7V5a4 4 0 0 1 8 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            Ventas
+          </span>
+          <svg class="admin-config-chevron" id="ordenes-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="admin-config-body" id="ordenes-toggle-body" hidden>
+          <label class="switch-toggle">
+            <input type="checkbox" id="config-ordenes-habilitado" checked />
+            <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+            <span class="switch-toggle-texto">
+              <span class="switch-toggle-label">Habilitar Ventas</span>
+              <span class="switch-toggle-hint">Con esto apagado, se oculta el botón "Ventas" del panel, y subir un ticket ya no exige verificar la venta. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
+              <span class="switch-toggle-autoguardado" id="ordenes-habilitado-autoguardado" role="status" aria-live="polite"></span>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Inventario activo (D8, §0.6) — movida aquí desde "Usuarios",
+           mismo criterio que "Ventas" de arriba: solo Administrador la
+           ve (se agrega a su lista de tarjetas permitidas en admin.js),
+           Fiscal sigue sin verla. -->
+      <section class="admin-config-card" id="inv-toggle-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-inv-card" aria-expanded="false" aria-controls="inv-toggle-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            </svg>
+            Inventarios
+          </span>
+          <svg class="admin-config-chevron" id="inv-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="admin-config-body" id="inv-toggle-body" hidden>
+          <label class="switch-toggle">
+            <input type="checkbox" id="config-inventario-activo" />
+            <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+            <span class="switch-toggle-texto">
+              <span class="switch-toggle-label">Inventario activo</span>
+              <span class="switch-toggle-hint">Activa el módulo Inventarios para esta empresa. Con inventario activo, Ventas sugiere productos al escribir y por escáner; con inventario inactivo, la captura es manual como hoy. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
+              <span class="switch-toggle-autoguardado" id="inv-activo-autoguardado" role="status" aria-live="polite"></span>
+            </span>
+          </label>
+        </div>
+      </section>
       </div><!-- /config-dashboard-grid -->
       </div>
 
@@ -2177,78 +2089,180 @@
 
   <!-- Modal de confirmación genérico (eliminar / eliminar permanentemente) -->
   <!-- Crear usuario ============================================================================ -->
+  <!-- Perfiles y roles de acceso — solo visible para el usuario "admin" -->
+  <div class="modal-overlay" id="perfiles-acceso-overlay" hidden>
+    <div class="modal gastos-modal gastos-detalle-modal" role="dialog" aria-modal="true" aria-labelledby="perfiles-acceso-title">
+      <div class="gastos-modal-header">
+        <h2 id="perfiles-acceso-title">Perfiles y roles de acceso</h2>
+        <button type="button" class="btn-icon" id="btn-perfiles-acceso-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+
+      <p class="panel-subtitle admin-config-subtitle">
+        Referencia de qué puede ver cada perfil en este panel — solo tú, como usuario <strong>"admin"</strong>, puedes ver esta tabla. No es un formulario: los permisos no se editan aquí, están definidos en el código del panel.
+      </p>
+
+      <div class="tabla-perfiles-wrap">
+        <table class="tabla-perfiles">
+          <thead>
+            <tr>
+              <th scope="col">Perfil</th>
+              <th scope="col">Constancias</th>
+              <th scope="col">Tickets</th>
+              <th scope="col">Ventas</th>
+              <th scope="col">Usuarios</th>
+              <th scope="col">Reportes</th>
+              <th scope="col">Configuraciones globales</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="fila-perfil-super">
+              <td>
+                <span class="perfil-badge perfil-administrador">Super</span>
+                <span class="perfil-descripcion">Cuenta "admin" y ADMIN_USERS</span>
+              </td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si">
+                <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
+                <span class="detalle-acceso">Todas las tarjetas</span>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="perfil-badge perfil-administrador">Administrador</span>
+                <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
+              </td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si">
+                <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
+                <span class="detalle-acceso">Solo Configuraciones fiscales y Configuración Reportes</span>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="perfil-badge perfil-fiscal">Fiscal</span>
+                <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
+              </td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-si">
+                <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
+                <span class="detalle-acceso">Solo Campos obligatorios y Configuraciones fiscales</span>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="perfil-badge perfil-cliente">Cliente</span>
+                <span class="perfil-descripcion">Solo entra a login.html</span>
+              </td>
+              <td class="celda-acceso-no" colspan="6">
+                <span class="detalle-acceso detalle-acceso-ancho">Sin acceso al panel de administración — este perfil solo puede iniciar sesión en el portal de usuario (login.html y sus páginas).</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="crear-usuario-overlay" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="crear-usuario-title">
-      <h2 id="crear-usuario-title">Crear usuario</h2>
-      <p class="panel-subtitle">Los perfiles "Administrador" y "Fiscal" pueden entrar al panel de administración; "Cliente" solo entra al portal público.</p>
-
-      <div class="field">
-        <label for="crear-usuario-perfil">Perfil</label>
-        <select id="crear-usuario-perfil">
-          <option value="cliente">Cliente</option>
-          <option value="administrador">Administrador</option>
-          <option value="fiscal">Fiscal</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="crear-usuario-rfc" id="crear-usuario-rfc-label">RFC</label>
-        <input type="text" id="crear-usuario-rfc" maxlength="50" autocapitalize="characters" />
-        <p class="field-hint" id="crear-usuario-rfc-hint">RFC del cliente, con el que iniciará sesión en el portal.</p>
-        <p class="field-error" id="error-crear-usuario-rfc" role="alert"></p>
-      </div>
-
-      <div class="field">
-        <label for="crear-usuario-email">Correo electrónico <span class="required">*</span></label>
-        <input type="email" id="crear-usuario-email" maxlength="200" autocomplete="off" />
-        <p class="field-hint">A este correo se le envía la invitación al portal, con su usuario y contraseña temporal.</p>
-        <p class="field-error" id="error-crear-usuario-email" role="alert"></p>
-      </div>
-
-      <div class="field" id="crear-usuario-telefono-field">
-        <label for="crear-usuario-telefono">Teléfono</label>
-        <input type="text" id="crear-usuario-telefono" maxlength="20" />
-        <p class="field-error" id="error-crear-usuario-telefono" role="alert"></p>
-      </div>
-
-      <button type="button" class="btn btn-secondary btn-generar-password" id="btn-generar-password-crear-usuario">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M4.5 15a8 8 0 0 0 14.5 3.5M19.5 9A8 8 0 0 0 5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        Generar contraseña automática
-      </button>
-
-      <div class="field">
-        <label for="crear-usuario-password">Contraseña</label>
-        <div class="password-field password-field-con-copiar">
-          <input type="password" id="crear-usuario-password" autocomplete="new-password" />
-          <button type="button" class="btn-toggle-pass" id="btn-toggle-crear-usuario-password" aria-label="Mostrar contraseña" aria-pressed="false">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
-            </svg>
-          </button>
-          <button type="button" class="btn-copiar-pass" id="btn-copiar-crear-usuario-password" aria-label="Copiar contraseña al portapapeles" hidden>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/>
-              <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.7"/>
-            </svg>
-          </button>
+    <div class="modal ticket-modal crear-usuario-modal" role="dialog" aria-modal="true" aria-labelledby="crear-usuario-title">
+      <div class="ticket-modal-header">
+        <div class="ticket-modal-header-title">
+          <h2 id="crear-usuario-title">Crear usuario</h2>
         </div>
-        <ul class="password-reglas" id="crear-usuario-reglas">
-          <li data-regla="longitud">Al menos 8 caracteres</li>
-          <li data-regla="numero">Al menos un número</li>
-          <li data-regla="minuscula">Al menos una minúscula</li>
-          <li data-regla="mayuscula">Al menos una mayúscula</li>
-        </ul>
-        <p class="field-error" id="error-crear-usuario-password" role="alert"></p>
+        <button type="button" class="btn-icon" id="btn-crear-usuario-cerrar" aria-label="Cerrar">✕</button>
       </div>
 
-      <label class="checkbox-row password-modal-forzar">
-        <input type="checkbox" id="crear-usuario-forzar-cambio" />
-        <span>Forzar cambio de contraseña en el siguiente inicio de sesión</span>
-      </label>
+      <div class="ticket-modal-body">
+        <div class="ticket-modal-main">
+          <p class="panel-subtitle">Los perfiles "Administrador" y "Fiscal" pueden entrar al panel de administración; "Cliente" solo entra al portal público.</p>
+
+          <div class="field">
+            <label for="crear-usuario-perfil">Perfil</label>
+            <select id="crear-usuario-perfil">
+              <option value="cliente">Cliente</option>
+              <option value="administrador">Administrador</option>
+              <option value="fiscal">Fiscal</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="crear-usuario-rfc" id="crear-usuario-rfc-label">RFC</label>
+            <input type="text" id="crear-usuario-rfc" maxlength="50" autocapitalize="characters" />
+            <p class="field-hint" id="crear-usuario-rfc-hint">RFC del cliente, con el que iniciará sesión en el portal.</p>
+            <p class="field-error" id="error-crear-usuario-rfc" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="crear-usuario-email">Correo electrónico <span class="required">*</span></label>
+            <input type="email" id="crear-usuario-email" maxlength="200" autocomplete="off" />
+            <p class="field-hint">A este correo se le envía la invitación al portal, con su usuario y contraseña temporal.</p>
+            <p class="field-error" id="error-crear-usuario-email" role="alert"></p>
+          </div>
+
+          <div class="field" id="crear-usuario-telefono-field">
+            <label for="crear-usuario-telefono">Teléfono</label>
+            <input type="text" id="crear-usuario-telefono" maxlength="20" />
+            <p class="field-error" id="error-crear-usuario-telefono" role="alert"></p>
+          </div>
+        </div>
+
+        <div class="ticket-modal-sidebar">
+          <section class="ticket-modal-side-card">
+            <h3 class="ticket-modal-section-titulo">Contraseña</h3>
+
+            <button type="button" class="btn btn-secondary btn-block btn-generar-password" id="btn-generar-password-crear-usuario">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4.5 15a8 8 0 0 0 14.5 3.5M19.5 9A8 8 0 0 0 5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Generar automática
+            </button>
+
+            <div class="field">
+              <label for="crear-usuario-password">Contraseña</label>
+              <div class="password-field password-field-con-copiar">
+                <input type="password" id="crear-usuario-password" autocomplete="new-password" />
+                <button type="button" class="btn-toggle-pass" id="btn-toggle-crear-usuario-password" aria-label="Mostrar contraseña" aria-pressed="false">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                </button>
+                <button type="button" class="btn-copiar-pass" id="btn-copiar-crear-usuario-password" aria-label="Copiar contraseña al portapapeles" hidden>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/>
+                    <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                </button>
+              </div>
+              <ul class="password-reglas" id="crear-usuario-reglas">
+                <li data-regla="longitud">Al menos 8 caracteres</li>
+                <li data-regla="numero">Al menos un número</li>
+                <li data-regla="minuscula">Al menos una minúscula</li>
+                <li data-regla="mayuscula">Al menos una mayúscula</li>
+              </ul>
+              <p class="field-error" id="error-crear-usuario-password" role="alert"></p>
+            </div>
+
+            <label class="checkbox-row password-modal-forzar">
+              <input type="checkbox" id="crear-usuario-forzar-cambio" />
+              <span>Forzar cambio de contraseña en el siguiente inicio de sesión</span>
+            </label>
+          </section>
+        </div>
+      </div>
 
       <p class="field-error" id="crear-usuario-error-general" role="alert"></p>
 

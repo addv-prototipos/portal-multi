@@ -852,6 +852,14 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un
   par de credenciales global. Solo anotado: requiere análisis y
   confirmación antes de implementarse.
+- **2 pendientes más registrados (ver PROJECT_STATE.md punto 150,
+  2026-08-25), solo anotados**: (1) tipo de cambio para productos en
+  moneda extranjera en Inventarios, con histórico de cada tipo de cambio
+  aplicado desde el alta del producto — detalle completo y preguntas de
+  diseño abiertas en `inventarios.md` §57; (2) regla de negocio: una
+  venta con Cuenta por Cobrar pendiente no debería poder facturarse
+  todavía — hoy no existe esa validación, alcance sin definir. Ninguno
+  analizado a fondo ni implementado.
 
 - **Maduración del requerimiento de Inventarios (`inventarios.md`) — EN
   CURSO, solo análisis/documentación (ver PROJECT_STATE.md punto 136,
@@ -970,8 +978,22 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   globo oscuro que el resto del sitio (antes era un popover blanco
   distinto). Jest backend 702/702 (sin cambios). **Con esto, todo
   tooltip visible del sitio usa exactamente el mismo componente
-  estilizado, sin excepción.** **SIN COMMITEAR** (puntos 145-148) —
-  pedir confirmación explícita antes de commit/push, mismo protocolo
+  estilizado, sin excepción.** **Commiteado y pusheado** (`f88a429` →
+  `fact/master`).
+- **3 rediseños de UI en Usuarios/Configuraciones globales (2026-08-25,
+  PROJECT_STATE.md punto 149)**: (1) "Habilitar Ventas" e "Inventario
+  activo" se mueven de "Usuarios" a "Configuraciones globales" (mismos
+  ids, cero cambio de API — Fiscal sigue sin verlas, Administrador las
+  gana agregando los 2 ids a su `tarjetasConfigPermitidas` en
+  `admin.js`); "Configuraciones globales" pasa de 4 a 6 tarjetas, 3
+  filas parejas. (2) "Perfiles y roles de acceso" pasa de tarjeta
+  acordeón de ancho completo a un ícono junto a "9 usuarios" que abre la
+  misma tabla en una ventana emergente (instrucción directa con captura
+  anotada del usuario). (3) Modal "Crear usuario" rediseñado en 2
+  columnas igual que "Gestionar ticket" (`.ticket-modal`, 820px en vez
+  de 380px de una sola columna). Validado en navegador real los 3, Jest
+  702/702, cero cambios de backend. **SIN COMMITEAR** — pedir
+  confirmación explícita antes de commit/push, mismo protocolo
   `addv-web-app`.
 
 - **Rediseño del ticket de correo de Ventas con la marca CLARVO (ver
