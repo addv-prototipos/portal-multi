@@ -8,7 +8,7 @@
   // build step, cada página trae sus propias constantes). Debe coincidir
   // exactamente con la detección de portal.js y con las rutas de
   // frontend/nginx.conf.
-  const RUTAS_PAGINA_MULTITENANT = ['admin', 'dashboard', 'tickets', 'login', 'csf'];
+  const RUTAS_PAGINA_MULTITENANT = ['admin', 'dashboard', 'tickets', 'login', 'csf', 'restablecer'];
 
   function detectarTenantSlug() {
     const segmentos = window.location.pathname.split('/').filter(Boolean);
@@ -56,6 +56,16 @@
     btnCambiarPasswordLabel: document.getElementById('btn-cambiar-password-label'),
     cambiarPasswordErrorGeneral: document.getElementById('cambiar-password-error-general'),
 
+    panelRecuperar: document.getElementById('panel-recuperar'),
+    btnIrRecuperar: document.getElementById('btn-ir-recuperar'),
+    btnRecuperarVolver: document.getElementById('btn-recuperar-volver'),
+    formRecuperar: document.getElementById('form-recuperar'),
+    recuperarIdentificador: document.getElementById('recuperar-identificador'),
+    btnRecuperar: document.getElementById('btn-recuperar'),
+    btnRecuperarLabel: document.getElementById('btn-recuperar-label'),
+    recuperarErrorGeneral: document.getElementById('recuperar-error-general'),
+    recuperarConfirmacion: document.getElementById('recuperar-confirmacion'),
+
     toast: document.getElementById('toast'),
   };
 
@@ -96,12 +106,26 @@
     els.panelLogin.classList.toggle('is-active', panel === 'login');
     els.panelRegistro.classList.toggle('is-active', panel === 'registro');
     els.panelCambiarPassword.classList.toggle('is-active', panel === 'cambiar-password');
-    const foco = { login: els.loginRfc, registro: els.registroRfc, 'cambiar-password': els.cambiarPasswordNueva }[panel];
+    els.panelRecuperar.classList.toggle('is-active', panel === 'recuperar');
+    const foco = {
+      login: els.loginRfc,
+      registro: els.registroRfc,
+      'cambiar-password': els.cambiarPasswordNueva,
+      recuperar: els.recuperarIdentificador,
+    }[panel];
     if (foco) foco.focus();
   }
 
   els.btnIrRegistro.addEventListener('click', () => mostrarPanel('registro'));
   els.btnIrLogin.addEventListener('click', () => mostrarPanel('login'));
+  els.btnIrRecuperar.addEventListener('click', () => {
+    els.recuperarErrorGeneral.textContent = '';
+    els.recuperarConfirmacion.hidden = true;
+    els.formRecuperar.hidden = false;
+    els.formRecuperar.reset();
+    mostrarPanel('recuperar');
+  });
+  els.btnRecuperarVolver.addEventListener('click', () => mostrarPanel('login'));
 
   // ---------- Mostrar/ocultar contraseña (todos los campos) ----------
 
@@ -335,6 +359,47 @@
       els.cambiarPasswordErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
     } finally {
       setCambiarPasswordLoading(false);
+    }
+  });
+
+  // ---------- Recuperar acceso ----------
+  function setRecuperarLoading(cargando) {
+    els.btnRecuperar.disabled = cargando;
+    els.btnRecuperar.setAttribute('aria-busy', String(cargando));
+    els.btnRecuperarLabel.textContent = cargando ? 'Enviando…' : 'Enviar enlace de recuperación';
+  }
+
+  els.formRecuperar.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setFieldError('recuperar-identificador', '');
+    els.recuperarErrorGeneral.textContent = '';
+
+    const identificador = els.recuperarIdentificador.value.trim();
+    if (!identificador) {
+      setFieldError('recuperar-identificador', 'Escribe tu correo o tu RFC.');
+      return;
+    }
+
+    setRecuperarLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/recuperar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identificador }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.recuperarErrorGeneral.textContent = data.error || 'No se pudo procesar la solicitud.';
+        return;
+      }
+      // Mensaje siempre genérico (exista o no la cuenta) — se muestra tal
+      // cual venga del backend, es el mismo texto sin importar el resultado.
+      els.formRecuperar.hidden = true;
+      els.recuperarConfirmacion.hidden = false;
+    } catch (err) {
+      els.recuperarErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      setRecuperarLoading(false);
     }
   });
 

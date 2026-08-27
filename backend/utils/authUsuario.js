@@ -53,6 +53,22 @@ function validarPassword(password) {
   return null;
 }
 
+// ---------- Tokens de recuperación de contraseña ----------
+// De un solo uso: el valor que viaja en el link del correo (32 bytes de
+// entropía, imposible de adivinar) NUNCA se guarda tal cual en la base de
+// datos — se guarda su hash (sha256, aquí NO hace falta scrypt: no es una
+// contraseña de humano con entropía baja que haya que proteger de fuerza
+// bruta offline, ya trae 256 bits de aleatoriedad real). Comparar
+// `hashTokenRecuperacion(token)` contra la columna es suficiente y barato
+// de verificar en cada intento sin abrir una ventana de fuerza bruta útil.
+function generarTokenRecuperacion() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function hashTokenRecuperacion(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 // ---------- Tokens de sesión ----------
 // Token firmado con HMAC-SHA256, sin estado en el servidor (no requiere
 // tabla de sesiones ni limpieza periódica). Formato: base64url(payload) +
@@ -179,6 +195,8 @@ module.exports = {
   hashPassword,
   verifyPassword,
   validarPassword,
+  generarTokenRecuperacion,
+  hashTokenRecuperacion,
   crearTokenSesion,
   verificarTokenSesion,
   requireUserAuth,

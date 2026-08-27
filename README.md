@@ -323,8 +323,8 @@ contra infraestructura real y confirma cada uno.
    construidas con los nombres que espera el stack (o los que definas en
    `BACKEND_IMAGE`/`FRONTEND_IMAGE`):
    ```bash
-   docker build -t pfacturacion-backend:latest ./backend
-   docker build -t pfacturacion-frontend:latest ./frontend
+   docker build -t portalManager-backend:latest ./backend
+   docker build -t portalManager-frontend:latest ./frontend
    # Si el clúster tiene más de un nodo, súbelas a un registry accesible
    # por todos (Docker Hub, GHCR, un registry privado) en vez de solo
    # construirlas localmente en el manager.

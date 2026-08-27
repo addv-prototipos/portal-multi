@@ -178,7 +178,7 @@ services:
           memory: 512m
 
   backend:
-    image: ${BACKEND_IMAGE:-pfacturacion-backend:latest}
+    image: ${BACKEND_IMAGE:-portalManager-backend:latest}
     environment:
       PORT: 4000
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
@@ -235,7 +235,7 @@ services:
   # motivo (las escrituras de /control también deben ir siempre al
   # primario vigente).
   control:
-    image: ${CONTROL_IMAGE:-pfacturacion-control:latest}
+    image: ${CONTROL_IMAGE:-portalManager-control:latest}
     environment:
       PORT: 4001
       ADMIN_USERS: ${ADMIN_USERS:?falta ADMIN_USERS}
@@ -261,7 +261,7 @@ services:
           memory: 256m
 
   frontend:
-    image: ${FRONTEND_IMAGE:-pfacturacion-frontend:latest}
+    image: ${FRONTEND_IMAGE:-portalManager-frontend:latest}
     environment:
       CONTROL_UPSTREAM_HOST: ${CONTROL_UPSTREAM_HOST:-control}
       CONTROL_UPSTREAM_PORT: ${CONTROL_UPSTREAM_PORT:-4001}

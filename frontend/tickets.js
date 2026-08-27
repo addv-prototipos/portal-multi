@@ -332,6 +332,11 @@
           data.error || 'Esa venta ya fue facturada.',
           'Cada venta solo se puede facturar una vez. Si crees que esto es un error, contacta a tu administrador.'
         );
+      } else if (data.codigo === 'PAGO_PENDIENTE') {
+        abrirModalVerificacionCompra(
+          data.error || 'Esta venta tiene saldo pendiente por cobrar. No se puede facturar hasta liquidar el pago completo.',
+          'En cuanto se registre el pago completo de esta venta, podrás subir tu ticket para facturarla.'
+        );
       } else {
         showToast(data.error || 'No se pudo subir tu ticket.', true);
       }

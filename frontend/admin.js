@@ -7,7 +7,7 @@
   // de duplicación ya usado para API_BASE en este proyecto. Debe
   // coincidir exactamente con la detección de portal.js/login.js y con
   // las rutas de frontend/nginx.conf.
-  const RUTAS_PAGINA_MULTITENANT = ['admin', 'dashboard', 'tickets', 'login', 'csf'];
+  const RUTAS_PAGINA_MULTITENANT = ['admin', 'dashboard', 'tickets', 'login', 'csf', 'restablecer'];
 
   function detectarTenantSlug() {
     const segmentos = window.location.pathname.split('/').filter(Boolean);
@@ -31,6 +31,16 @@
     loginError: document.getElementById('login-error'),
     btnLogin: document.getElementById('btn-login'),
     btnLoginLabel: document.getElementById('btn-login-label'),
+    adminLoginNormal: document.getElementById('admin-login-normal'),
+    adminRecuperarPanel: document.getElementById('admin-recuperar-panel'),
+    btnAdminIrRecuperar: document.getElementById('btn-admin-ir-recuperar'),
+    btnAdminRecuperarVolver: document.getElementById('btn-admin-recuperar-volver'),
+    formAdminRecuperar: document.getElementById('form-admin-recuperar'),
+    adminRecuperarIdentificador: document.getElementById('admin-recuperar-identificador'),
+    btnAdminRecuperar: document.getElementById('btn-admin-recuperar'),
+    btnAdminRecuperarLabel: document.getElementById('btn-admin-recuperar-label'),
+    adminRecuperarErrorGeneral: document.getElementById('admin-recuperar-error-general'),
+    adminRecuperarConfirmacion: document.getElementById('admin-recuperar-confirmacion'),
     btnLogout: document.getElementById('btn-logout'),
     sucursalesSwitcher: document.getElementById('admin-sucursales-switcher'),
     sucursalesSwitcherLista: document.getElementById('admin-sucursales-switcher-lista'),
@@ -672,6 +682,25 @@
     btnReportesVistaLedger: document.getElementById('btn-reportes-vista-ledger'),
     reportesVistaPorReporte: document.getElementById('reportes-vista-por-reporte'),
     reportesVistaLedger: document.getElementById('reportes-vista-ledger'),
+    btnReportesVistaEstadoInventario: document.getElementById('btn-reportes-vista-estado-inventario'),
+    reportesVistaEstadoInventario: document.getElementById('reportes-vista-estado-inventario'),
+    invEstadoKpiValor: document.getElementById('inv-estado-kpi-valor'),
+    invEstadoKpiRotacion: document.getElementById('inv-estado-kpi-rotacion'),
+    invEstadoKpiSinMovimiento: document.getElementById('inv-estado-kpi-sin-movimiento'),
+    invEstadoTopLista: document.getElementById('inv-estado-top-lista'),
+    invEstadoBottomLista: document.getElementById('inv-estado-bottom-lista'),
+    invEstadoRankEmpty: document.getElementById('inv-estado-rank-empty'),
+    invEstadoRotacionLista: document.getElementById('inv-estado-rotacion-lista'),
+    invEstadoRotacionLinea: document.getElementById('inv-estado-rotacion-linea'),
+    invEstadoRotacionCaption: document.getElementById('inv-estado-rotacion-caption'),
+    invEstadoRotacionEmpty: document.getElementById('inv-estado-rotacion-empty'),
+    invEstadoDonutCategoria: document.getElementById('inv-estado-donut-categoria'),
+    invEstadoDonutCategoriaTotal: document.getElementById('inv-estado-donut-categoria-total'),
+    invEstadoDonutCategoriaLeyenda: document.getElementById('inv-estado-donut-categoria-leyenda'),
+    invEstadoDonutCategoriaEmpty: document.getElementById('inv-estado-donut-categoria-empty'),
+    invEstadoCoberturaBarra: document.getElementById('inv-estado-cobertura-barra'),
+    invEstadoCoberturaLeyenda: document.getElementById('inv-estado-cobertura-leyenda'),
+    invEstadoCoberturaEmpty: document.getElementById('inv-estado-cobertura-empty'),
     ledgerFiltroTipo: document.getElementById('ledger-filtro-tipo'),
     ledgerFiltroEstatus: document.getElementById('ledger-filtro-estatus'),
     ledgerFiltroRfc: document.getElementById('ledger-filtro-rfc'),
@@ -1428,6 +1457,58 @@
       els.loginError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
       setLoginLoading(false);
+    }
+  });
+
+  // ---------- Recuperar acceso (solo cuentas creadas en "Usuarios") ----------
+  els.btnAdminIrRecuperar.addEventListener('click', () => {
+    els.adminRecuperarErrorGeneral.textContent = '';
+    els.adminRecuperarConfirmacion.hidden = true;
+    els.formAdminRecuperar.hidden = false;
+    els.formAdminRecuperar.reset();
+    els.adminLoginNormal.hidden = true;
+    els.adminRecuperarPanel.hidden = false;
+    els.adminRecuperarIdentificador.focus();
+  });
+  els.btnAdminRecuperarVolver.addEventListener('click', () => {
+    els.adminRecuperarPanel.hidden = true;
+    els.adminLoginNormal.hidden = false;
+  });
+
+  function setAdminRecuperarLoading(cargando) {
+    els.btnAdminRecuperar.disabled = cargando;
+    els.btnAdminRecuperar.setAttribute('aria-busy', String(cargando));
+    els.btnAdminRecuperarLabel.textContent = cargando ? 'Enviando…' : 'Enviar enlace de recuperación';
+  }
+
+  els.formAdminRecuperar.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    els.adminRecuperarErrorGeneral.textContent = '';
+
+    const identificador = els.adminRecuperarIdentificador.value.trim();
+    if (!identificador) {
+      els.adminRecuperarErrorGeneral.textContent = 'Escribe tu correo o tu usuario.';
+      return;
+    }
+
+    setAdminRecuperarLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/recuperar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identificador }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.adminRecuperarErrorGeneral.textContent = data.error || 'No se pudo procesar la solicitud.';
+        return;
+      }
+      els.formAdminRecuperar.hidden = true;
+      els.adminRecuperarConfirmacion.hidden = false;
+    } catch (err) {
+      els.adminRecuperarErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      setAdminRecuperarLoading(false);
     }
   });
 
@@ -2384,17 +2465,39 @@
     els.btnReportesVistaPorReporte.setAttribute('aria-selected', 'true');
     els.btnReportesVistaLedger.classList.remove('is-active');
     els.btnReportesVistaLedger.setAttribute('aria-selected', 'false');
+    els.btnReportesVistaEstadoInventario.classList.remove('is-active');
+    els.btnReportesVistaEstadoInventario.setAttribute('aria-selected', 'false');
     els.reportesVistaPorReporte.hidden = false;
     els.reportesVistaLedger.hidden = true;
+    els.reportesVistaEstadoInventario.hidden = true;
   });
   els.btnReportesVistaLedger.addEventListener('click', () => {
     els.btnReportesVistaLedger.classList.add('is-active');
     els.btnReportesVistaLedger.setAttribute('aria-selected', 'true');
     els.btnReportesVistaPorReporte.classList.remove('is-active');
     els.btnReportesVistaPorReporte.setAttribute('aria-selected', 'false');
+    els.btnReportesVistaEstadoInventario.classList.remove('is-active');
+    els.btnReportesVistaEstadoInventario.setAttribute('aria-selected', 'false');
     els.reportesVistaLedger.hidden = false;
     els.reportesVistaPorReporte.hidden = true;
+    els.reportesVistaEstadoInventario.hidden = true;
     cargarLedgerEliminados();
+  });
+  let invEstadoCargado = false;
+  els.btnReportesVistaEstadoInventario.addEventListener('click', () => {
+    els.btnReportesVistaEstadoInventario.classList.add('is-active');
+    els.btnReportesVistaEstadoInventario.setAttribute('aria-selected', 'true');
+    els.btnReportesVistaPorReporte.classList.remove('is-active');
+    els.btnReportesVistaPorReporte.setAttribute('aria-selected', 'false');
+    els.btnReportesVistaLedger.classList.remove('is-active');
+    els.btnReportesVistaLedger.setAttribute('aria-selected', 'false');
+    els.reportesVistaEstadoInventario.hidden = false;
+    els.reportesVistaPorReporte.hidden = true;
+    els.reportesVistaLedger.hidden = true;
+    if (!invEstadoCargado) {
+      invEstadoCargado = true;
+      cargarEstadoInventario();
+    }
   });
 
   // ---------- Historial por identificador (idea D) ----------
@@ -7473,6 +7576,158 @@
         </div>
         <span class="resumen-fin-proveedor-monto">$${formatearMoneda(f.monto)}</span>
       </li>`
+      )
+      .join('');
+  }
+
+  // ---------- Reportes: "Estado del inventario" (3ra pestaña) ----------
+  const INV_ESTADO_COLOR_TOP = '#3D6FB4';
+  const INV_ESTADO_COLOR_BOTTOM = '#C97A2E';
+  const INV_ESTADO_COLOR_RIESGO = '#C97A2E';
+  const INV_ESTADO_COLOR_SALUDABLE = '#1FAE6B'; // mismo verde "positivo" ya usado en Utilidad neta/donut de facturación
+  const INV_ESTADO_COLOR_SOBRESTOCK = '#3D6FB4';
+  // Categorías de INVENTARIO no tienen color propio en el esquema (a
+  // diferencia de RESUMEN_FIN_COLORES_CATEGORIA, que es de gastos) —
+  // se asigna por índice sobre la lista ya ordenada por categoria_id que
+  // manda el backend, reusando los mismos tonos pastel ya validados (no
+  // se inventan hexadecimales nuevos).
+  const INV_ESTADO_COLORES_DONUT = ['#8FADD9', '#A9C4E3', '#719FD4', '#C0D3EB', '#9BB8DE'];
+
+  async function cargarEstadoInventario() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/reportes/estado`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const kpis = data.kpis || {};
+      els.invEstadoKpiValor.textContent = `$${formatearMoneda(kpis.valor_total_existencia || 0)}`;
+      els.invEstadoKpiRotacion.textContent = `${Number(kpis.rotacion_promedio_catalogo || 0).toFixed(1)}×`;
+      els.invEstadoKpiSinMovimiento.textContent = kpis.productos_sin_movimiento_90d || 0;
+
+      renderInvEstadoRank(data.top_ventas_90d || [], data.bottom_ventas_90d || []);
+      renderInvEstadoRotacion(data.rotacion || [], kpis.rotacion_promedio_catalogo || 0);
+      renderInvEstadoDonutCategoria(data.valor_por_categoria || []);
+      renderInvEstadoCobertura(data.cobertura || null);
+    } catch (err) {
+      // Las 4 gráficas se quedan en su estado vacío/anterior; se puede
+      // reintentar volviendo a entrar a la pestaña.
+    }
+  }
+
+  function renderInvEstadoRankLista(el, filas, color) {
+    if (!filas || filas.length === 0) {
+      el.innerHTML = '';
+      return;
+    }
+    const maximo = Math.max(...filas.map((f) => f.unidades_vendidas_90d), 1);
+    el.innerHTML = filas
+      .map(
+        (f) => `
+      <li class="resumen-fin-proveedor-fila">
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.nombre)}" tabindex="0">${escapeHtml(f.nombre)}</span>
+        <div class="resumen-fin-proveedor-barra-wrap">
+          <span class="resumen-fin-proveedor-barra" style="width:${(f.unidades_vendidas_90d / maximo) * 100}%;background:${color}"></span>
+        </div>
+        <span class="resumen-fin-proveedor-monto">${f.unidades_vendidas_90d} pz</span>
+      </li>`
+      )
+      .join('');
+  }
+
+  function renderInvEstadoRank(top, bottom) {
+    if (top.length === 0 && bottom.length === 0) {
+      els.invEstadoTopLista.innerHTML = '';
+      els.invEstadoBottomLista.innerHTML = '';
+      els.invEstadoRankEmpty.hidden = false;
+      return;
+    }
+    els.invEstadoRankEmpty.hidden = true;
+    renderInvEstadoRankLista(els.invEstadoTopLista, top, INV_ESTADO_COLOR_TOP);
+    renderInvEstadoRankLista(els.invEstadoBottomLista, bottom, INV_ESTADO_COLOR_BOTTOM);
+  }
+
+  function renderInvEstadoRotacion(filas, promedioCatalogo) {
+    if (!filas || filas.length === 0) {
+      els.invEstadoRotacionLista.innerHTML = '';
+      els.invEstadoRotacionLinea.hidden = true;
+      els.invEstadoRotacionCaption.textContent = '';
+      els.invEstadoRotacionEmpty.hidden = false;
+      return;
+    }
+    els.invEstadoRotacionEmpty.hidden = true;
+    const maximo = Math.max(...filas.map((f) => f.rotacion), promedioCatalogo, 1);
+    els.invEstadoRotacionLista.innerHTML = filas
+      .map(
+        (f) => `
+      <li class="resumen-fin-proveedor-fila">
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.nombre)}" tabindex="0">${escapeHtml(f.nombre)}</span>
+        <div class="resumen-fin-proveedor-barra-wrap">
+          <span class="resumen-fin-proveedor-barra" style="width:${(f.rotacion / maximo) * 100}%"></span>
+        </div>
+        <span class="resumen-fin-proveedor-monto">${f.rotacion.toFixed(1)}×</span>
+      </li>`
+      )
+      .join('');
+    // Track de la barra: arranca en 140px (columna de nombre) + 12px
+    // (gap), y termina 56px + 12px antes del borde derecho (columna de
+    // valor) — mismo layout fijo que la regla CSS
+    // "#inv-estado-rotacion-lista .resumen-fin-proveedor-fila". Evita
+    // medir el DOM (getBoundingClientRect) para algo que ya es fijo por
+    // CSS.
+    const fraccion = Math.min(promedioCatalogo / maximo, 1);
+    els.invEstadoRotacionLinea.hidden = false;
+    els.invEstadoRotacionLinea.style.left = `calc(152px + ${fraccion} * (100% - 220px))`;
+    els.invEstadoRotacionCaption.textContent = `Promedio del catálogo: ${promedioCatalogo.toFixed(1)}×`;
+  }
+
+  function renderInvEstadoDonutCategoria(filas) {
+    if (!filas || filas.length === 0) {
+      els.invEstadoDonutCategoria.innerHTML = '';
+      els.invEstadoDonutCategoriaLeyenda.innerHTML = '';
+      els.invEstadoDonutCategoriaTotal.textContent = '$0';
+      els.invEstadoDonutCategoriaEmpty.hidden = false;
+      return;
+    }
+    els.invEstadoDonutCategoriaEmpty.hidden = true;
+    const segmentos = filas.map((f, i) => ({
+      valor: f.valor,
+      color: INV_ESTADO_COLORES_DONUT[i % INV_ESTADO_COLORES_DONUT.length],
+    }));
+    const total = renderDonutGenerico(els.invEstadoDonutCategoria, segmentos);
+    els.invEstadoDonutCategoriaTotal.textContent = `$${formatearMoneda(total)}`;
+    els.invEstadoDonutCategoriaLeyenda.innerHTML = filas
+      .map((f, i) => {
+        const color = INV_ESTADO_COLORES_DONUT[i % INV_ESTADO_COLORES_DONUT.length];
+        const porcentaje = total > 0 ? Math.round((f.valor / total) * 100) : 0;
+        return `<li><span class="resumen-fin-donut-dot" style="background:${color}" aria-hidden="true"></span><span>${escapeHtml(f.categoria_nombre)}</span><strong>$${formatearMoneda(f.valor)} (${porcentaje}%)</strong></li>`;
+      })
+      .join('');
+  }
+
+  function renderInvEstadoCobertura(cobertura) {
+    if (!cobertura || cobertura.total_productos === 0) {
+      els.invEstadoCoberturaBarra.innerHTML = '';
+      els.invEstadoCoberturaLeyenda.innerHTML = '';
+      els.invEstadoCoberturaEmpty.hidden = false;
+      return;
+    }
+    els.invEstadoCoberturaEmpty.hidden = true;
+    const segmentos = [
+      { etiqueta: 'En riesgo (<7 días)', color: INV_ESTADO_COLOR_RIESGO, dato: cobertura.riesgo },
+      { etiqueta: 'Saludable (7-60 días)', color: INV_ESTADO_COLOR_SALUDABLE, dato: cobertura.saludable },
+      { etiqueta: 'Sobrestock (>60 días o sin ventas)', color: INV_ESTADO_COLOR_SOBRESTOCK, dato: cobertura.sobrestock },
+    ];
+    els.invEstadoCoberturaBarra.innerHTML = segmentos
+      .filter((s) => s.dato.porcentaje > 0)
+      .map((s) => `<span style="width:${s.dato.porcentaje}%;background:${s.color}" data-tooltip="${escapeHtml(s.etiqueta)}: ${s.dato.porcentaje}%"></span>`)
+      .join('');
+    els.invEstadoCoberturaLeyenda.innerHTML = segmentos
+      .map(
+        (s) =>
+          `<li><span class="resumen-fin-donut-dot" style="background:${s.color}" aria-hidden="true"></span><span>${escapeHtml(s.etiqueta)}</span><strong>${s.dato.productos} (${s.dato.porcentaje}%)</strong></li>`
       )
       .join('');
   }

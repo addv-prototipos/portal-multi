@@ -13,7 +13,7 @@
   // exactamente con la de ahí. Sin ese patrón (todas las URLs de hoy,
   // ej. "/dashboard" a secas), TENANT_SLUG es null y todo se comporta
   // IDÉNTICO a antes de este segmento.
-  const RUTAS_PAGINA_MULTITENANT = ['admin', 'dashboard', 'tickets', 'login', 'csf'];
+  const RUTAS_PAGINA_MULTITENANT = ['admin', 'dashboard', 'tickets', 'login', 'csf', 'restablecer'];
 
   function detectarTenantSlug() {
     const segmentos = window.location.pathname.split('/').filter(Boolean);

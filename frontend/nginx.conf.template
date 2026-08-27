@@ -150,6 +150,9 @@ server {
     location = /csf {
         try_files /csf.html =404;
     }
+    location = /restablecer {
+        try_files /restablecer.html =404;
+    }
 
     # Compatibilidad: esta pagina (constancia de situacion fiscal) se
     # llamaba "index.html" antes de renombrarse a "csf.html". Si alguien
@@ -187,7 +190,7 @@ server {
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/admin$" {
         try_files /admin.html =404;
     }
-    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/(?<pagina_tenant>dashboard|tickets|login|csf)$" {
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/(?<pagina_tenant>dashboard|tickets|login|csf|restablecer)$" {
         try_files /$pagina_tenant.html =404;
     }
 

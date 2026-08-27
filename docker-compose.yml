@@ -13,7 +13,7 @@
 services:
   mysql:
     image: mysql:8.0
-    container_name: pfacturacion-mysql
+    container_name: portalManager-mysql
     restart: unless-stopped
     # Limite de memoria: sin esto, un pico de memoria en cualquiera de los
     # tres contenedores puede dejar sin RAM al host completo, y el OOM
@@ -78,7 +78,7 @@ services:
   # PROJECT_STATE.md, punto del segmento 5).
   minio:
     image: minio/minio:latest
-    container_name: pfacturacion-minio
+    container_name: portalManager-minio
     restart: unless-stopped
     mem_limit: 512m
     command: server /data --console-address ":9001"
@@ -112,7 +112,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: pfacturacion-backend
+    container_name: portalManager-backend
     restart: unless-stopped
     # 512m era razonable cuando se fijó este límite por primera vez, pero
     # desde entonces se agregaron exceljs (genera archivos .xlsx
@@ -187,7 +187,7 @@ services:
     build:
       context: ./control
       dockerfile: Dockerfile
-    container_name: pfacturacion-control
+    container_name: portalManager-control
     restart: unless-stopped
     mem_limit: 256m
     stop_grace_period: 10s
@@ -221,7 +221,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: pfacturacion-frontend
+    container_name: portalManager-frontend
     restart: unless-stopped
     mem_limit: 128m
     depends_on:

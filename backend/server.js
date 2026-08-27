@@ -28,6 +28,8 @@ const {
   hashPassword,
   verifyPassword,
   validarPassword,
+  generarTokenRecuperacion,
+  hashTokenRecuperacion,
   requireUserAuth,
   obtenerRfcSesionOpcional,
   establecerCookieSesion,
@@ -1076,6 +1078,115 @@ app.put(
   })
 );
 
+// Mensaje SIEMPRE genérico, exista o no la cuenta — mismo principio
+// anti-enumeración que ya usa /api/auth/login (ver HASH_RELLENO_LOGIN):
+// revelar "esa cuenta no existe" le regala a un atacante una forma barata
+// de enumerar RFCs/correos válidos.
+const MENSAJE_RECUPERAR_GENERICO = 'Si el dato coincide con una cuenta, en unos minutos te llega un correo con instrucciones.';
+
+// Solicita un enlace de recuperación de contraseña. Sirve tanto para
+// clientes como para cuentas administrador/fiscal — es la MISMA tabla
+// `usuarios`, la columna `rfc` ya se usa como "usuario" también para
+// admin/fiscal (ver comentario en POST /api/auth/login). Fuera de
+// alcance a propósito (no tienen forma de recuperación por este medio,
+// documentado en PROJECT_STATE.md): la cuenta de respaldo "admin"
+// (compartida, sin correo propio), ADMIN_USERS (variable de entorno),
+// /control (mismo caso) y los usuarios de sucursal compartidos (sin
+// columna de correo hoy).
+app.post(
+  '/api/auth/recuperar',
+  authLimiter,
+  tenantAggregateAuthLimiter,
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const identificador = sanitizeText(body.identificador, 200);
+    if (!identificador) {
+      return res.status(400).json({ error: 'Escribe tu correo o tu usuario.' });
+    }
+
+    const [filas] = await pool.query('SELECT * FROM usuarios WHERE rfc = ? OR email = ? LIMIT 1', [
+      identificador.toUpperCase(),
+      identificador.toLowerCase(),
+    ]);
+    const usuario = filas[0];
+
+    // Costo artificial: SIEMPRE hace el mismo trabajo "caro" exista o no
+    // la cuenta, para que el tiempo de respuesta no delate por sí solo si
+    // el dato coincide con algo — mismo criterio que HASH_RELLENO_LOGIN.
+    hashPassword('costo-artificial-anti-enumeracion');
+
+    if (usuario && usuario.email) {
+      const token = generarTokenRecuperacion();
+      const tokenHash = hashTokenRecuperacion(token);
+      const expira = new Date(Date.now() + DURACION_TOKEN_RECUPERACION_MS);
+      await pool.query('UPDATE usuarios SET reset_token_hash = ?, reset_token_expira = ? WHERE id = ?', [
+        tokenHash,
+        expira,
+        usuario.id,
+      ]);
+
+      const urlPortal = detectarUrlPortal(req);
+      enviarCorreoRecuperacion({
+        email: usuario.email,
+        urlPortal,
+        marca: marcaDelTenant(req),
+        token,
+      }).catch((err) => {
+        console.error('No se pudo enviar el correo de recuperación:', err.message);
+      });
+    }
+
+    res.json({ ok: true, mensaje: MENSAJE_RECUPERAR_GENERICO });
+  })
+);
+
+// Consume el token del enlace de recuperación y fija la nueva contraseña.
+// Público a propósito (el token ES la prueba de identidad) — no requiere
+// sesión activa. Un solo uso: el UPDATE limpia el token en la misma
+// operación que actualiza la contraseña.
+app.post(
+  '/api/auth/restablecer',
+  authLimiter,
+  tenantAggregateAuthLimiter,
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const token = sanitizeText(body.token, 64);
+    const password = typeof body.password === 'string' ? body.password : '';
+
+    if (!token) {
+      return res.status(400).json({ error: 'Enlace inválido.', codigo: 'TOKEN_INVALIDO' });
+    }
+    const errorPassword = validarPassword(password);
+    if (errorPassword) {
+      return res.status(400).json({ error: errorPassword });
+    }
+
+    const tokenHash = hashTokenRecuperacion(token);
+    const [filas] = await pool.query(
+      'SELECT id, perfil FROM usuarios WHERE reset_token_hash = ? AND reset_token_expira > ? LIMIT 1',
+      [tokenHash, new Date()]
+    );
+    const usuario = filas[0];
+    if (!usuario) {
+      return res.status(400).json({
+        error: 'Este enlace ya no es válido o ya expiró. Solicita uno nuevo.',
+        codigo: 'TOKEN_INVALIDO',
+      });
+    }
+
+    const passwordHash = hashPassword(password);
+    await pool.query(
+      `UPDATE usuarios
+          SET password_hash = ?, debe_cambiar_password = 0,
+              reset_token_hash = NULL, reset_token_expira = NULL, actualizado_en = ?
+        WHERE id = ?`,
+      [passwordHash, new Date(), usuario.id]
+    );
+
+    res.json({ ok: true, perfil: usuario.perfil });
+  })
+);
+
 // ---------- Tickets (comprobantes de compra para facturar) ----------
 // Requieren sesion de usuario. Un ticket siempre queda asociado al RFC de
 // la sesion que lo sube — nunca se manda un RFC distinto en el cuerpo de
@@ -1101,8 +1212,20 @@ function generarNumeroCompra(id) {
 // refleje el protocolo real detrás de nginx. Devuelve cadena vacía si por
 // alguna razón no se pudo detectar el host, para que el llamador pueda
 // omitir el enlace en vez de mandar una URL rota.
+// Multi-tenant: si la petición ya resolvió un tenant (req.tenant, puesto
+// por resolverTenantMiddleware), la URL pública real de ese tenant es
+// SIEMPRE .../<slug>, no la raíz — las rutas del frontend para un tenant
+// viven ahí (nginx + resolverTenantMiddleware ya sirven /<slug>/login,
+// /<slug>/admin, etc. de punta a punta, ver PROJECT_STATE.md segmento 4).
+// Antes de este fix, todo enlace armado con esta función (invitación,
+// notificación de ticket nuevo, correo de venta) llegaba SIN el slug en
+// instalaciones con tenant — un bug real, no solo de recuperación de
+// contraseña (corregido aquí una sola vez para los 5 llamadores).
 function detectarUrlPortal(req) {
-  return req.get('host') ? `${req.protocol}://${req.get('host')}` : '';
+  const base = req.get('host') ? `${req.protocol}://${req.get('host')}` : '';
+  if (!base) return '';
+  const slug = req.tenant && req.tenant.slug;
+  return slug ? `${base}/${slug}` : base;
 }
 
 // Opciones válidas del dropdown "Tipo de pago" al subir un ticket. Se
@@ -1292,6 +1415,20 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
 
         if (!coincideFecha || !coincideHora || !coincideTotal) {
           return res.status(400).json({ error: MENSAJE_COMPRA_NO_ENCONTRADA, codigo: 'COMPRA_NO_ENCONTRADA' });
+        }
+
+        // Cuentas por cobrar (§ regla de negocio, ver PROJECT_STATE.md): una
+        // venta con saldo pendiente no se puede facturar todavía. estado_pago
+        // solo avanza pendiente -> pagada (ver PUT /:id/cobro), nunca al
+        // revés, así que no hace falta revalidar esto de nuevo más adelante
+        // (ej. al subir la factura desde /admin) — si el ticket llegó a
+        // crearse es porque en ese momento la venta ya estaba pagada, y no
+        // hay forma de que deje de estarlo después.
+        if (ordenCompra.estado_pago === 'pendiente') {
+          return res.status(400).json({
+            error: 'Esta venta tiene saldo pendiente por cobrar. No se puede facturar hasta liquidar el pago completo.',
+            codigo: 'PAGO_PENDIENTE',
+          });
         }
 
         // No se puede volver a facturar la misma orden de compra. Se
@@ -1660,6 +1797,54 @@ async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal,
           `Ingresa ahí con estas credenciales y cambia tu contraseña en cuanto puedas.\n\n`
         : `Ingresa con estas credenciales y cambia tu contraseña en cuanto puedas.\n\n`) +
       `Si no esperabas este correo, contacta a tu administrador.`,
+  });
+}
+
+// Duración del token del enlace de recuperación de contraseña — 30
+// minutos, mismo criterio estándar que usan la mayoría de los flujos de
+// "olvidé mi contraseña" (suficiente para revisar el correo sin dejar la
+// ventana de ataque abierta mucho tiempo).
+const DURACION_TOKEN_RECUPERACION_MS = 30 * 60 * 1000;
+
+// Correo de "recupera tu acceso" — sirve TANTO a clientes como a cuentas
+// administrador/fiscal (misma tabla `usuarios`, mismo token), el enlace
+// de destino es siempre /restablecer?token=... (una sola página nueva que
+// no distingue perfil todavía); el perfil solo decide a dónde mandar al
+// usuario DESPUÉS de que ya puso su nueva contraseña (ver
+// POST /api/auth/restablecer, que sí devuelve el perfil). Mismo patrón de
+// URL con slug que enviarInvitacionPortal.
+async function enviarCorreoRecuperacion({ email, urlPortal, marca, token }) {
+  const marcaCorreo = marca || MARCA_DEFECTO;
+  const enlaceRestablecer = urlPortal ? `${urlPortal}/restablecer?token=${token}` : '';
+  // Sin host detectable no hay forma de armar un enlace usable — mejor no
+  // mandar un correo roto que el usuario no pueda seguir.
+  if (!enlaceRestablecer) return;
+
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;">
+      <div style="background:#03285B;color:#ffffff;padding:18px 24px;font-weight:bold;font-size:16px;">${marcaCorreo}</div>
+      <div style="padding:24px;background:#ffffff;">
+        <h2 style="color:#10182B;font-size:17px;margin:0 0 10px;">Recupera tu acceso</h2>
+        <p style="color:#4A5468;font-size:13px;line-height:1.6;margin:0 0 16px;">
+          Recibimos una solicitud para restablecer tu contraseña en el Portal de Facturación ${marcaCorreo}.
+          Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.
+        </p>
+        <a href="${enlaceRestablecer}" style="display:inline-block;background:#03285B;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:600;font-size:13.5px;">Elegir nueva contraseña</a>
+        <p style="color:#8992A0;font-size:11.5px;margin-top:20px;line-height:1.5;">
+          Este enlace expira en 30 minutos y solo se puede usar una vez.<br/>
+          Si el botón no funciona, copia y pega este link: ${enlaceRestablecer}
+        </p>
+      </div>
+    </div>`;
+
+  await enviarCorreo({
+    destinatario: email,
+    asunto: `Recupera tu acceso — Portal de Facturación ${marcaCorreo}`,
+    cuerpo:
+      `Recibimos una solicitud para restablecer tu contraseña en el Portal de Facturación ${marcaCorreo}.\n\n` +
+      `Elige tu nueva contraseña aquí (el enlace expira en 30 minutos y solo se puede usar una vez):\n${enlaceRestablecer}\n\n` +
+      `Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.`,
+    html,
   });
 }
 
@@ -6499,6 +6684,147 @@ app.get(
       productos_sin_movimiento: Number(sinMovimiento.total),
       mermas_periodo_valor: Number(mermasPeriodo.valor),
       mermas_periodo_cantidad: Number(mermasPeriodo.cantidad),
+    });
+  })
+);
+
+// ---------- Reportes de estado ("Estado del inventario", 3ra pestaña de
+// Reportes en admin.html) — 4 gráficas + 3 KPIs, todo de solo lectura.
+// Ventana fija de 90 días desde NOW(). Vive bajo /inventarios/* (no
+// /reportes/*) porque lee exclusivamente tablas del dominio de
+// Inventarios y necesita el mismo gate requireInventarioActivo que
+// /dashboard arriba, aunque el frontend la muestre dentro de la vista
+// "Reportes" — la URL sigue el dominio de datos, no la superficie de UI.
+app.get(
+  '/api/admin/inventarios/reportes/estado',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const almacenId = await obtenerAlmacenDefectoId();
+
+    const [[valorInventario]] = await pool.query(
+      `SELECT COALESCE(SUM(e.disponible * p.costo_promedio), 0) AS valor
+         FROM existencias e
+         JOIN productos p ON p.id = e.producto_id
+        WHERE e.almacen_id = ?
+          AND p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'producto'`,
+      [almacenId]
+    );
+
+    const [[sinMovimiento90d]] = await pool.query(
+      `SELECT COUNT(*) AS total
+         FROM productos p
+        WHERE p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'producto'
+          AND NOT EXISTS (
+            SELECT 1 FROM movimientos_inventario m
+             WHERE m.producto_id = p.id AND m.almacen_id = ?
+               AND m.creado_en >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+          )`,
+      [almacenId]
+    );
+
+    // Query base compartida por el KPI de rotación y las 4 gráficas — una
+    // sola fuente de verdad, para que nunca puedan desincronizarse entre
+    // sí (mismo criterio que /resumen-financiero con utilidad_neta).
+    const [filasProductos] = await pool.query(
+      `SELECT p.id, p.nombre,
+              COALESCE(e.disponible, 0) AS existencia_actual,
+              COALESCE(SUM(CASE WHEN m.tipo = 'venta'
+                                 AND m.creado_en >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+                            THEN m.cantidad ELSE 0 END), 0) AS unidades_vendidas_90d
+         FROM productos p
+         LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = ?
+         LEFT JOIN movimientos_inventario m ON m.producto_id = p.id AND m.almacen_id = ?
+        WHERE p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'producto'
+        GROUP BY p.id, p.nombre, e.disponible`,
+      [almacenId, almacenId]
+    );
+
+    const [filasCategoria] = await pool.query(
+      `SELECT c.id AS categoria_id, c.nombre AS categoria_nombre,
+              COALESCE(SUM(e.disponible * p.costo_promedio), 0) AS valor
+         FROM categorias_inventario c
+         JOIN productos p ON p.categoria_id = c.id
+           AND p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'producto'
+         JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = ?
+        GROUP BY c.id, c.nombre
+       HAVING valor > 0
+        ORDER BY c.id ASC`,
+      [almacenId]
+    );
+
+    const productosConNumeros = filasProductos.map((f) => ({
+      id: f.id,
+      nombre: f.nombre,
+      existencia_actual: Number(f.existencia_actual),
+      unidades_vendidas_90d: Number(f.unidades_vendidas_90d),
+    }));
+
+    const totalUnidades90d = productosConNumeros.reduce((acc, f) => acc + f.unidades_vendidas_90d, 0);
+    const totalExistencia = productosConNumeros.reduce((acc, f) => acc + f.existencia_actual, 0);
+    // Ratio de sumas (promedio PONDERADO), no promedio aritmético de
+    // rotaciones individuales — un producto con existencia≈0 no puede
+    // disparar un outlier absurdo que arrastre el promedio del catálogo.
+    const rotacionPromedioCatalogo = totalUnidades90d / Math.max(totalExistencia, 1);
+
+    const ordenadoPorVentas = [...productosConNumeros].sort((a, b) => b.unidades_vendidas_90d - a.unidades_vendidas_90d);
+    const topVentas = ordenadoPorVentas.slice(0, 5);
+    const bottomVentas = [...ordenadoPorVentas].reverse().slice(0, 5);
+
+    const conRotacion = productosConNumeros.map((f) => ({
+      ...f,
+      // Aproximación honesta: unidades vendidas en 90 días ÷ existencia
+      // actual — NO es rotación de inventario contable real (que usaría
+      // existencia PROMEDIO del periodo, dato que este esquema no
+      // guarda). Documentado también en el frontend junto a la gráfica.
+      rotacion: f.unidades_vendidas_90d / Math.max(f.existencia_actual, 1),
+    }));
+    const rotacionTop8 = [...conRotacion].sort((a, b) => b.rotacion - a.rotacion).slice(0, 8);
+
+    let riesgo = 0;
+    let saludable = 0;
+    let sobrestock = 0;
+    productosConNumeros.forEach((f) => {
+      if (f.unidades_vendidas_90d === 0) {
+        sobrestock += 1;
+        return;
+      }
+      const diasCobertura = f.existencia_actual / (f.unidades_vendidas_90d / 90);
+      if (diasCobertura < 7) riesgo += 1;
+      else if (diasCobertura <= 60) saludable += 1;
+      else sobrestock += 1;
+    });
+    const totalProductos = productosConNumeros.length;
+    const pct = (n) => (totalProductos > 0 ? Math.round((n / totalProductos) * 1000) / 10 : 0);
+
+    res.json({
+      kpis: {
+        valor_total_existencia: Math.round(Number(valorInventario.valor) * 100) / 100,
+        rotacion_promedio_catalogo: Math.round(rotacionPromedioCatalogo * 100) / 100,
+        productos_sin_movimiento_90d: Number(sinMovimiento90d.total),
+      },
+      top_ventas_90d: topVentas.map((f) => ({ producto_id: f.id, nombre: f.nombre, unidades_vendidas_90d: f.unidades_vendidas_90d })),
+      bottom_ventas_90d: bottomVentas.map((f) => ({ producto_id: f.id, nombre: f.nombre, unidades_vendidas_90d: f.unidades_vendidas_90d })),
+      rotacion: rotacionTop8.map((f) => ({
+        producto_id: f.id,
+        nombre: f.nombre,
+        rotacion: Math.round(f.rotacion * 100) / 100,
+        unidades_vendidas_90d: f.unidades_vendidas_90d,
+        existencia_actual: f.existencia_actual,
+      })),
+      valor_por_categoria: filasCategoria.map((c) => ({
+        categoria_id: c.categoria_id,
+        categoria_nombre: c.categoria_nombre,
+        valor: Math.round(Number(c.valor) * 100) / 100,
+      })),
+      cobertura: {
+        riesgo: { productos: riesgo, porcentaje: pct(riesgo) },
+        saludable: { productos: saludable, porcentaje: pct(saludable) },
+        sobrestock: { productos: sobrestock, porcentaje: pct(sobrestock) },
+        total_productos: totalProductos,
+      },
     });
   })
 );

@@ -45,9 +45,10 @@ Docker/pruebas/calidad.
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
 Nginx sirviendo frontend estático (HTML/CSS/JS vanilla, sin build step),
 todo sobre Docker/Docker Compose. Ver README para la lista completa de
-dependencias. Prefijo de contenedores: `pfacturacion-*` (renombrado desde
-`fiscal-uploads-*`, ver PROJECT_STATE.md punto 98 — nombre viejo de una
-etapa anterior del proyecto, cosmético, sin efecto en comportamiento).
+dependencias. Prefijo de contenedores: `portalManager-*` (renombrado
+desde `pfacturacion-*`, que a su vez venía de `fiscal-uploads-*` — ver
+PROJECT_STATE.md puntos 98 y 156, ambos cosméticos, sin efecto en
+comportamiento).
 
 **Tres servicios de aplicación, tres directorios de build separados**
 (segmento 9b, ver PROJECT_STATE.md punto 99): `backend/` (portal de
@@ -1154,6 +1155,58 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
    (faltaba `flex:1;min-width:0`). Sin cambios de esquema. Jest 560/560.
    Sin commit/push todavía este segmento (B+C+D).
 - **Cuentas por cobrar (ver PROJECT_STATE.md puntos 138 y 141, 2026-08-24, IMPLEMENTADO Y VALIDADO)**: venta por defecto `pagada` + opción `pendiente` con vencimiento/notas, nueva vista "Cuentas por cobrar" entre Ventas y Gastos (4 KPIs: Por cobrar/Vencidas/Por vencer/Cobrado mes, con icono SVG 18×18 tintado igual que Resumen financiero: $/x-circle/clock/check-circle). Toggle Pagada/Pendiente en modal Registrar venta (solo texto), tabla con badges solo texto `Pendiente`/`Vencida`/`Pagada` (sin emojis), factura junto a `OC-000001` como SVG de documento (no ✅). Modelo `ordenes_compra.estado_pago ENUM('pagada','pendiente')` + `fecha_vencimiento/monto_cobrado/fecha_cobro/notas_cobro`, backfill histórico corregido (207/212), endpoint `PUT /:id/cobro`, filtros client-side. **Pulido 2026-08-24 (punto 141)**: retirados todos los emojis de KPIs/badges/toggle y reemplazados por SVG — verificado `node --check` + Jest 595/595 + rebuild frontend `GET /admin` 200 sin emojis.
+- **Regla: no facturar con saldo pendiente por cobrar (ver PROJECT_STATE.md
+  punto 154, 2026-08-27, IMPLEMENTADO, Jest 730/730, sin validar contra
+  Docker real todavía)**: `POST /api/tickets` rechaza (código
+  `PAGO_PENDIENTE`) la solicitud de factura de un cliente si la orden
+  ligada tiene `ordenes_compra.estado_pago = 'pendiente'`. Bloqueo
+  deliberadamente solo ahí (no en `POST /api/admin/tickets/:id/factura`)
+  porque `estado_pago` solo avanza `pendiente -> pagada`, nunca al revés
+  (`PUT /:id/cobro`) — un ticket que llegó a crearse no puede quedar
+  ligado después a una venta que "regresa" a pendiente. **Ojo con el
+  nombre**: `tickets.estatus = 'pendiente'` (estado de la SOLICITUD, sin
+  relación con dinero) y `ordenes_compra.estado_pago = 'pendiente'`
+  (falta COBRAR esa venta) son columnas distintas que comparten texto
+  literal — esta regla usa solo la segunda, no confundir con la primera
+  en trabajo futuro.
+- **Datos de demo (wipe + reseed) + "Estado del inventario" en Reportes
+  (ver PROJECT_STATE.md punto 155, 2026-08-27, IMPLEMENTADO Y VALIDADO
+  contra Docker/MySQL reales y en navegador real)**: `backend/scripts/
+  sembrar-demo.js` (nuevo, reemplaza y borra a `sembrar-datos-prueba.js`/
+  `poblar-tony.js`) borra+resiembra TODO lo transaccional de
+  `portal_facturacion` (config/usuarios intactos), requiere
+  `--confirmar`, determinista. Endpoint nuevo `GET
+  /api/admin/inventarios/reportes/estado` (gate `requireInventarioActivo`)
+  + 3ra pestaña "Estado del inventario" en Reportes (4 gráficas: más
+  vendido/menos movido, rotación con línea de promedio, valor por
+  categoría, cobertura). Jest backend **739/739**. **2 hallazgos para no
+  repetir**: (1) este panel **NO tiene modo oscuro** — cero
+  `data-theme`/`prefers-color-scheme` en `frontend/*.css`, no confundir
+  con el tema-por-tenant (otro sistema, congelado); (2) si los clics del
+  tool `computer` de Claude in Chrome no disparan nada en este panel
+  (login atorado en "Entrando…", sidebar sin reaccionar), es un problema
+  de la herramienta de automatización, no de `admin.js` — probar
+  `document.getElementById(id).click()` vía `javascript_tool` como
+  rodeo, ya confirmado que sí dispara los listeners reales sin errores.
+- **Recuperar contraseña — cliente y admin/fiscal (ver PROJECT_STATE.md
+  punto 157, 2026-08-27, IMPLEMENTADO, Jest 747/747, ciclo completo
+  validado contra MySQL real — SMTP real sin probar, sin salida a
+  internet en esta sesión)**: `POST /api/auth/recuperar` +
+  `POST /api/auth/restablecer` en `backend/server.js`, token de un solo
+  uso (sha256, 30 min) en 2 columnas nuevas de `usuarios`. **Alcance real,
+  no "para todos" pese al pedido original** — solo cliente +
+  administrador/fiscal (tabla `usuarios`) son recuperables; la cuenta de
+  respaldo `admin`, `ADMIN_USERS`, `/control` y los usuarios de sucursal
+  compartidos NO tienen forma de recuperación por correo (sin BD/sin
+  correo propio, ver el punto 157 completo para el detalle exacto). Página
+  nueva `frontend/restablecer.html`/`.js` — agregado a los 5 arreglos
+  `RUTAS_PAGINA_MULTITENANT` duplicados y a `nginx.conf.template` (mismo
+  patrón de `dashboard|tickets|login|csf`). **Bug corregido de paso,
+  aprobado por el usuario**: `detectarUrlPortal()` no incluía el slug del
+  tenant — afectaba también al correo de invitación existente
+  (`enviarInvitacionPortal`), no solo a esta función nueva. **Cuenta de
+  prueba con password real cambiada durante la validación**: `FREDY`
+  (`aprado13@gmail.com`, perfil fiscal) quedó con password `NuevaClave9`.
 - **Auditoría de consistencia de documentación (ver PROJECT_STATE.md
   punto 120, 2026-08-21)**: a pedido explícito del usuario ("revisa la
   documentación"), revisión de salud de los 3 entregables obligatorios

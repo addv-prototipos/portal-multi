@@ -15,7 +15,7 @@
   // Misma detección de slug que portal.js (duplicada a propósito: las
   // páginas del frontend se sirven sin bundler y cada script debe poder
   // funcionar solo; el control no tiene slug y usa el diseño base).
-  var RUTAS_PAGINA_MULTITENANT = ['dashboard', 'tickets', 'login', 'csf', 'admin'];
+  var RUTAS_PAGINA_MULTITENANT = ['dashboard', 'tickets', 'login', 'csf', 'admin', 'restablecer'];
   function detectarTenantSlug() {
     var segmentos = window.location.pathname.split('/').filter(Boolean);
     if (segmentos.length >= 2 && RUTAS_PAGINA_MULTITENANT.indexOf(segmentos[1]) !== -1) {

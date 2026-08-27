@@ -9700,6 +9700,305 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        pendientes de arquitectura del punto 150 (§57 tipo de cambio,
        §58 sucursales) quedan ambos implementados y validados.
 
+154. **Regla de negocio: no facturar ventas con saldo pendiente por cobrar
+     (2026-08-27, IMPLEMENTADO Y VALIDADO con Jest)**: cierra el pendiente
+     #2 del punto 150. A pedido explícito del usuario, si un cliente
+     intenta solicitar la factura (subir ticket) de una venta ligada a una
+     orden de compra con `estado_pago = 'pendiente'` (Cuentas por cobrar,
+     punto 138), el backend rechaza la solicitud con un mensaje claro en
+     vez de aceptarla.
+     - **Alcance decidido con el usuario** (analizado y confirmado antes de
+       implementar, protocolo `addv-web-app`): el bloqueo va SOLO en el
+       punto donde el cliente solicita la factura (`POST /api/tickets`),
+       no en `POST /api/admin/tickets/:id/factura` (donde el admin sube la
+       factura ya generada). Razón, confirmada revisando
+       `PUT /api/admin/ordenes-compra/:id/cobro` (línea ~4457): `estado_pago`
+       solo avanza `pendiente -> pagada`, nunca al revés — si un ticket
+       llegó a crearse es porque en ese momento la venta ya estaba pagada,
+       y no hay forma de que una orden "regrese" a pendiente después. No
+       existe el hueco de "admin factura algo que nunca debió pedirse".
+     - **Aclaración de nombres importante para no confundir en trabajo
+       futuro** (el usuario pidió dejarlo registrado explícitamente): hay
+       DOS columnas distintas que usan el mismo texto literal `'pendiente'`
+       y significan cosas distintas — `tickets.estatus = 'pendiente'` es el
+       estado de la SOLICITUD (el ticket todavía no se atiende/factura, sin
+       relación con dinero) vs. `ordenes_compra.estado_pago = 'pendiente'`
+       es el estado del COBRO (falta dinero por cobrar de esa venta, sin
+       relación con si ya se facturó o no). Esta regla nueva usa
+       exclusivamente la segunda columna (`estado_pago`); no tocar ni
+       confundir con `tickets.estatus`.
+     - **Backend**: 1 check nuevo en `POST /api/tickets`
+       (`backend/server.js`, dentro del bloque que solo corre con "Ventas"
+       — `ordenes_compra_habilitado` — activo), justo después de validar
+       que fecha/hora/total coinciden con la orden y ANTES de la consulta
+       de "ya facturada" (ahorra una consulta si aplica). Código de error
+       nuevo `PAGO_PENDIENTE`, mismo patrón que `SIN_CONSTANCIA`/
+       `COMPRA_NO_ENCONTRADA`/`COMPRA_YA_FACTURADA`.
+     - **Frontend**: `tickets.js` gana el `else if` correspondiente,
+       reutilizando `abrirModalVerificacionCompra()` ya existente — cero
+       componente nuevo.
+     - **Pruebas**: 2 casos nuevos en `tickets.test.js` (orden pendiente →
+       400/`PAGO_PENDIENTE` sin llegar a insertar el ticket; orden pagada →
+       201, sin regresión). Jest backend **730/730 (42 suites)**.
+     - **Sin validar contra Docker/MySQL reales todavía** en esta sesión —
+       pendiente antes de dar por cerrado en producción, mismo patrón que
+       otros segmentos recientes.
+     - Sin commit/push todavía.
+
+155. **Datos de demo (wipe + reseed) + "Estado del inventario" en Reportes
+     (2026-08-27, IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales y en
+     navegador real)**: a pedido del usuario, para poder validar correos
+     reales contra un estado de datos limpio — protocolo `addv-web-app`
+     completo (análisis de impacto + crítica de la petición + propuesta
+     visual vía Artifact + preguntas de una sola respuesta antes de
+     implementar).
+     - **Alcance confirmado con el usuario**: solo `portal_facturacion`
+       (BD sin tenant), NO los tenants de prueba. "Cuentas" = cuentas por
+       cobrar (`ordenes_compra.estado_pago`), NO `usuarios` (se hubiera
+       perdido el acceso al panel). Se incluyeron las 4 gráficas (las 2
+       pedidas + 2 ideas opcionales ofrecidas en la propuesta: valor por
+       categoría, cobertura de inventario). Se dejaron 2 RFC de prueba con
+       correo real para pruebas manuales posteriores de envío de correo.
+     - **`backend/scripts/sembrar-demo.js` (nuevo)**: reemplaza a
+       `sembrar-datos-prueba.js` (punto 134) y `poblar-tony.js` — ambos
+       hacían siembras parecidas sin borrar antes ni tocar inventario a la
+       vez; quedaron eliminados (`git rm`). Borra (`DELETE`, no `TRUNCATE`
+       por los FK de inventario) + resetea `AUTO_INCREMENT` de
+       registros/tickets/ordenes_compra/orden_productos/gastos/
+       movimientos_inventario/existencias/productos/reportes/
+       reporte_items/imp_*, sin tocar config
+       (configuracion/usuarios/categorias_*/unidades_medida/
+       conversiones_unidad/almacenes/inv_perfiles_mapeo/
+       preferencias_dashboard). Requiere `--confirmar` explícito
+       (destructivo). Determinista (PRNG con semilla fija) — corrido con
+       `SEMILLA_PRNG=20240401` tras probar varias semillas hasta que los
+       6 meses de utilidad neta dieran positivos (26.8%-79.8% de margen,
+       verificado por SQL directo: `subtotal_ventas - gastos` por mes,
+       misma fórmula que la tarjeta "Utilidad neta del mes" del punto
+       118). 12 productos en 4 categorías con **popularidad deliberadamente
+       desigual** (`peso` por producto en el catálogo del script — algunos
+       en 0, dead stock real, nunca se venden) para que existan un top-5 y
+       un bottom-5 claros en la gráfica nueva. 2 registros (constancias)
+       con RFC `XAXX010101000`→`aprado13@gmail.com` (con historial de
+       ventas/tickets) y `XEXX010101000`→`aprado13+demo2@gmail.com`
+       (limpio) — **ninguna fila de la siembra dispara correos reales**
+       (INSERT directos a la base, no pasan por los endpoints); las
+       constancias no tienen archivo real en MinIO (placeholder).
+     - **Backend — endpoint nuevo** `GET
+       /api/admin/inventarios/reportes/estado`
+       (`requireAdminArea('administrador')` + `requireInventarioActivo`,
+       mismo patrón que `/inventarios/dashboard` — vive bajo
+       `/inventarios/*` y no `/reportes/*` porque lee exclusivamente
+       tablas de ese dominio y necesita ese gate, aunque el frontend lo
+       muestre dentro de "Reportes"). 4 queries (ventana fija 90 días),
+       una de ellas COMPARTIDA entre el KPI de rotación y las 4 gráficas
+       (una sola fuente de verdad, mismo criterio que `utilidad_neta` en
+       `/resumen-financiero`). Rotación = aproximación honesta (unidades
+       vendidas 90d ÷ existencia actual, `GREATEST(...,1)` contra
+       división entre cero) — documentada como tal en el JSON y en el
+       frontend, NO es rotación de inventario contable real (necesitaría
+       existencia promedio del periodo, dato que este esquema no guarda).
+       Cobertura en días bucketizada riesgo(<7)/saludable(7-60)/
+       sobrestock(>60 o sin ventas). SQL inline en `server.js`, sin util
+       nuevo (mismo criterio que `/resumen-financiero` e
+       `/inventarios/dashboard`).
+     - **Frontend**: 3ra pestaña "Estado del inventario" en Reportes
+       (`view-toggle-btn`, junto a "Por reporte"/"Todo lo eliminado"),
+       fetch perezoso al primer clic (mismo patrón que "Todo lo
+       eliminado"). 3 KPI + 4 tarjetas reusando componentes existentes al
+       máximo: `renderDonutGenerico()` tal cual para el donut de
+       categoría, lista de barras modelada en `renderResumenFinProveedores`
+       para los rankings. Único pedazo de UI genuinamente nuevo: línea
+       punteada vertical de "promedio del catálogo" sobre la gráfica de
+       rotación — sin precedente en el código (confirmado, no supuesto);
+       resuelto con columnas de grid FIJAS (no `minmax`) solo en esa
+       lista + un `calc()` en CSS, para no tener que medir el DOM en JS.
+       Paleta nueva azul `#3D6FB4`/ámbar `#C97A2E` (claro) —
+       `#5B8FD6`/`#BC7433` (oscuro, sin uso actual — ver corrección de
+       diseño abajo) validada con el script oficial de la skill `dataviz`
+       (contraste + daltonismo). Verde "saludable"/categorías del donut
+       reusan tonos ya existentes en el panel (`#1FAE6B` y la paleta
+       pastel de `RESUMEN_FIN_COLORES_CATEGORIA`), nunca inventados de
+       cero.
+     - **Corrección de diseño importante encontrada durante el proceso**:
+       el plan inicial (subagente Plan) asumió un sistema de modo oscuro
+       inexistente en este código — verificado por grep, **CERO**
+       ocurrencias de `data-theme`/`prefers-color-scheme` en
+       `frontend/*.css`. El "tema por tenant" (paleta elegida en
+       `/control`) es un sistema totalmente distinto y congelado (punto
+       23-35 de este archivo). La implementación real usa una sola
+       paleta, sin bloques de tema oscuro nuevos — **para trabajo futuro:
+       no asumir que existe modo oscuro en este panel**.
+     - **Pruebas**: archivo nuevo
+       `backend/test/integration/inventarioReportesEstado.test.js` (9
+       casos: 401/403 perfil/403 módulo inactivo, datos reales con
+       `rotacion_promedio_catalogo` consistente contra el array de
+       rotación, estado vacío sin NaN/Infinity, proxy de rotación con
+       existencia=0, bordes exactos de cobertura en 7 y 60 días, guarda de
+       regresión de la ventana de 90 días). Jest backend **739/739 (43
+       suites)**.
+     - **Validado contra Docker/MySQL reales**: rebuild `--no-cache` +
+       `--force-recreate` backend+frontend; `curl` al endpoint nuevo con
+       los datos reales ya sembrados (números coherentes, KPI de rotación
+       = línea punteada de la gráfica). **Gotcha de infraestructura NO
+       relacionado con el código**: el contenedor `pfacturacion-minio` no
+       pudo recrearse en el puerto 9001 por defecto — otro proyecto sin
+       relación (`appprestamos-minio`, contenedor de otro proyecto en la
+       misma máquina) ya lo tenía ocupado en `0.0.0.0:9000-9001`. Resuelto
+       pasando `MINIO_CONSOLE_PORT=9012` como variable de entorno inline
+       al `docker compose up` (sin tocar `.env`, sin permiso de lectura
+       sobre ese archivo en esta sesión) — **si se recrea el contenedor
+       `minio` de portalFac otra vez sin esa variable, va a volver a
+       fallar por el mismo conflicto de puerto** hasta que alguien fije
+       `MINIO_CONSOLE_PORT` de forma permanente en `.env`.
+     - **Validado en navegador real** (Claude in Chrome): login, sidebar,
+       las 4 gráficas y los 3 KPI confirmados visualmente con datos reales
+       (top 5/bottom 5 correctos según el `peso` sembrado, línea de
+       rotación alineada con zoom a pixel, donut y cobertura correctos),
+       cero errores de JS. **Gotcha de la herramienta de automatización de
+       navegador (no del código)**: los clics sintéticos del tool
+       `computer` (`left_click`, por coordenada Y por `ref`) no
+       disparaban los `addEventListener` reales de la página en esta
+       sesión (login se quedó en "Entrando…" indefinidamente con la
+       petición en `pending`; clics al sidebar no cambiaban de vista) —
+       confirmado que el bug era de la herramienta, no de `admin.js`,
+       ejecutando `document.getElementById(...).click()` vía
+       `javascript_tool`, que sí disparó los mismos listeners
+       correctamente y sin errores. Si una sesión futura ve "los clics no
+       hacen nada" en este panel, probar ese mismo rodeo antes de asumir
+       un bug de la app.
+     - Sin commit/push todavía.
+
+156. **Renombrado el prefijo de los contenedores: `pfacturacion-*` →
+     `portalManager-*` (2026-08-27).** Pedido explícito del usuario, solo
+     cosmético (mismo criterio que el punto 98, que hizo el rename
+     anterior `fiscal-uploads-*` → `pfacturacion-*`) — no cambia
+     comportamiento, solo el `container_name:`/`image:` visible en
+     `docker ps`/Docker Desktop. Tocado en 4 archivos:
+     - `docker-compose.yml`: los 5 `container_name:`
+       (mysql/minio/backend/control/frontend).
+     - `docker-stack.yml`: los 3 `image:` por defecto
+       (`BACKEND_IMAGE`/`CONTROL_IMAGE`/`FRONTEND_IMAGE`) — nunca
+       desplegado contra Swarm real, cambio solo por consistencia.
+     - `README.md`: los 2 `docker build -t` de ejemplo en la sección de
+       Swarm.
+     - `CLAUDE.md`: la línea que documenta el prefijo actual.
+     - Los mensajes históricos de este archivo (puntos 92/97/98/108/109/
+       151/155, etc.) que mencionan `pfacturacion-*` se dejan tal cual —
+       son registro de lo que era cierto en ese momento, no se reescribe
+       historia.
+     - Aplicado contra Docker real: `docker compose up -d
+       --force-recreate` en los 5 servicios, verificado por `docker ps`
+       (los 5 contenedores con el nombre nuevo) y `curl
+       http://localhost:8088/api/health` (200 OK) después del recreate.
+     - Sin commit/push todavía.
+
+157. **Recuperar contraseña — cliente y admin/fiscal (2026-08-27,
+     IMPLEMENTADO Y VALIDADO contra MySQL real; SMTP real NO disponible en
+     esta sesión).** Pedido explícito del usuario ("tanto el cliente como
+     el portal administrador... tanto el tenant como el individual"),
+     protocolo `addv-web-app` completo: mapeo exhaustivo del sistema de
+     auth actual (subagente Explore) + análisis de impacto/crítica +
+     propuesta visual vía Artifact + preguntas de una sola respuesta antes
+     de implementar.
+     - **Alcance real, confirmado con el usuario** (no todo es
+       recuperable — está en el propio código, no es interpretación):
+       SOLO cliente + administrador/fiscal creados en "Usuarios" (misma
+       tabla `usuarios`) son recuperables por correo. Fuera de alcance a
+       propósito, sin excepción posible: la cuenta de respaldo `admin`
+       (compartida, sin correo propio, vive en `configuracion`),
+       `ADMIN_USERS` (variable de entorno/Docker Compose, no BD),
+       `/control` (100% `ADMIN_USERS`, sin excepción) y los usuarios de
+       sucursal compartidos (BD control, `usuarios_sucursal` sin columna
+       de correo hoy). La app ya les dice hoy dónde ir a cada uno (mensaje
+       actualizado en el login de `/admin`).
+     - **Diseño**: un solo backend sirve cliente y admin/fiscal a la vez
+       (misma tabla `usuarios`, la columna `rfc` ya se usaba como "usuario"
+       para ambos). Token de un solo uso: 32 bytes de entropía real
+       (`crypto.randomBytes`), se guarda HASHEADO (sha256, no scrypt —
+       no hace falta, ya trae 256 bits de aleatoriedad) en 2 columnas
+       nuevas `usuarios.reset_token_hash`/`reset_token_expira` (nullable,
+       migración segura de re-correr). Expira en 30 minutos. Mensaje de
+       respuesta SIEMPRE genérico exista o no la cuenta (anti-enumeración,
+       mismo principio que ya usa `POST /api/auth/login` con
+       `HASH_RELLENO_LOGIN` — aquí con un `hashPassword()` de costo
+       artificial equivalente).
+     - **Backend** (`backend/server.js`): `POST /api/auth/recuperar`
+       (identificador → correo o RFC/usuario, busca en `usuarios`, genera
+       token, envía correo) y `POST /api/auth/restablecer` (token+password
+       → valida hash+expira, actualiza `password_hash`, limpia el token —
+       un solo uso —, devuelve `perfil` para que el frontend sepa a dónde
+       mandar al usuario después). Ambos con `authLimiter` +
+       `tenantAggregateAuthLimiter` (mismo limitador que el login real).
+       `enviarCorreoRecuperacion()` nueva, mismo patrón que
+       `enviarInvitacionPortal` (ruta de destino según perfil).
+     - **Bug real corregido de paso, aprobado explícitamente por el
+       usuario** (mismo código compartido): `detectarUrlPortal(req)`
+       (`backend/server.js:1104`) nunca incluía el slug del tenant en la
+       URL — armaba `protocolo://host` en vez de `protocolo://host/<slug>`
+       — así que en una instalación CON tenant, el link del correo de
+       INVITACIÓN existente (`enviarInvitacionPortal`, ver también
+       notificación de ticket nuevo y correos de venta — 5 llamadores en
+       total) llegaba roto. Corregido una sola vez en la función
+       compartida: si `req.tenant` existe, antepone `/${req.tenant.slug}`.
+       Las URLs con slug ya funcionaban de punta a punta (nginx +
+       `resolverTenantMiddleware`, segmento 4) — solo faltaba que el
+       backend las armara así.
+     - **Frontend**: `login.html`/`login.js` gana un 4º panel
+       "Recuperar acceso" (mismo patrón `.auth-panel`/`is-active` que ya
+       usan login/registro/cambiar-password) con link "¿Olvidaste tu
+       contraseña?" en el panel de login. `admin.html`/`admin.js` gana un
+       link equivalente + panel inline (con `hidden`, esa pantalla no
+       tenía el sistema de paneles de login.html) — mensaje honesto sobre
+       qué cuentas SÍ aplican. Página nueva `restablecer.html`/
+       `restablecer.js` (mismo patrón visual que login.html, detección de
+       tenant propia) — lee `?token=` de la URL, formulario de nueva
+       contraseña con las mismas reglas visuales ya usadas en
+       registro/cambio forzado, y redirige a `/login` o `/admin` (con
+       slug si aplica) según el `perfil` que devuelve el backend. 3 clases
+       CSS nuevas en `auth.css` (`.auth-forgot-link`, `.auth-back-link`,
+       `.auth-hint`, `.auth-success-icon`), reusando el resto de
+       componentes existentes.
+     - **Multi-tenant "gratis"**: mismo patrón de rutas que
+       `dashboard|tickets|login|csf` (segmento 4) — `restablecer` agregado
+       al regex de `nginx.conf.template` (con y sin slug) y a los 5
+       arreglos `RUTAS_PAGINA_MULTITENANT` duplicados
+       (`login.js`/`admin.js`/`portal.js`/`theme.js`/`restablecer.js`,
+       mismo patrón de duplicación deliberada ya usado en este proyecto).
+       `frontend/Dockerfile` actualizado con los 2 archivos nuevos.
+     - **Pruebas**: 8 casos nuevos en
+       `backend/test/integration/auth-usuario.test.js` (identificador
+       vacío, cuenta inexistente/sin correo — mismo mensaje genérico sin
+       generar token —, cuenta con correo sí genera y guarda el token,
+       token ausente/inválido/expirado, contraseña débil, token válido
+       actualiza y limpia). Jest backend **747/747 (43 suites)**.
+     - **Validado contra Docker/MySQL reales, ciclo completo por HTTP**:
+       columnas nuevas confirmadas por `INFORMATION_SCHEMA`; `recuperar`
+       con cuenta inexistente responde genérico sin tocar más que 1
+       SELECT; `recuperar` con la cuenta real `FREDY`/`aprado13@gmail.com`
+       (perfil `fiscal`) generó y guardó el token correctamente en
+       `usuarios.reset_token_hash` (confirmado por SQL directo) — el
+       INTENTO de envío real falló (`No se pudo conectar con
+       smtp.gmail.com:587`, log limpio y claro, exactamente el
+       comportamiento esperado del código) **porque este entorno de
+       generación no tiene salida a internet hacia Gmail**, no por un bug;
+       ciclo completo verificado con un token fabricado directamente en
+       MySQL (equivalente a "recibir el correo"): `restablecer` actualizó
+       la contraseña, `login` con la contraseña nueva funcionó, y un
+       segundo intento con el MISMO token fue rechazado (un solo uso,
+       confirmado). **Nota importante para el usuario**: la contraseña
+       real de la cuenta `FREDY` (`aprado13@gmail.com`, perfil fiscal)
+       quedó en `NuevaClave9` tras esta prueba.
+     - **Sin validar en navegador real** — la extensión Claude in Chrome
+       se desconectó a mitad de la validación de esta sesión y no volvió a
+       conectar; verificado en su lugar por `curl` que las 3 páginas
+       (`/login`, `/admin`, `/restablecer`, con y sin slug) sirven el
+       marcado esperado (200, IDs de los elementos nuevos presentes).
+       Pendiente: clic real en los 3 flujos (abrir el panel, enviar el
+       formulario, ver la pantalla de éxito) y un envío SMTP real de
+       punta a punta cuando haya salida a internet disponible.
+     - Sin commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

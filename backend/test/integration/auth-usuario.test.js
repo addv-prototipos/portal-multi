@@ -188,4 +188,85 @@ describe('Auth de usuario', () => {
       expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE usuarios'), expect.any(Array));
     });
   });
+
+  describe('POST /api/auth/recuperar', () => {
+    test('sin identificador responde 400 sin tocar la base de datos', async () => {
+      const res = await request(app).post('/api/auth/recuperar').send({});
+      expect(res.status).toBe(400);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    test('cuenta inexistente: responde 200 con el mismo mensaje genérico (anti-enumeración), sin generar token', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // SELECT ... WHERE rfc = ? OR email = ?
+      const res = await request(app).post('/api/auth/recuperar').send({ identificador: 'no-existe@example.com' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.mensaje).toMatch(/Si el dato coincide con una cuenta/);
+      // Un solo SELECT — nunca llega al UPDATE de reset_token_hash porque no hay usuario.
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+
+    test('cuenta existente pero sin email guardado: mismo mensaje genérico, sin generar token', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 5, email: null, perfil: 'cliente' }]]);
+      const res = await request(app).post('/api/auth/recuperar').send({ identificador: RFC_VALIDO });
+
+      expect(res.status).toBe(200);
+      expect(res.body.mensaje).toMatch(/Si el dato coincide con una cuenta/);
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+
+    test('cuenta existente con email: mismo mensaje genérico, SÍ genera y guarda el token', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 7, email: 'cliente@example.com', perfil: 'cliente' }]]);
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE usuarios SET reset_token_hash = ...
+      pool.query.mockResolvedValueOnce([[]]); // getConfigSmtp() dentro del envío fire-and-forget (sin configurar, no truena)
+
+      const res = await request(app).post('/api/auth/recuperar').send({ identificador: 'cliente@example.com' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.mensaje).toMatch(/Si el dato coincide con una cuenta/);
+      expect(pool.query).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('UPDATE usuarios SET reset_token_hash'),
+        expect.arrayContaining([expect.any(String), expect.any(Date), 7])
+      );
+    });
+  });
+
+  describe('POST /api/auth/restablecer', () => {
+    test('sin token responde 400 TOKEN_INVALIDO sin tocar la base de datos', async () => {
+      const res = await request(app).post('/api/auth/restablecer').send({ password: PASSWORD_VALIDA });
+      expect(res.status).toBe(400);
+      expect(res.body.codigo).toBe('TOKEN_INVALIDO');
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    test('contraseña que no cumple las reglas responde 400 sin tocar la base de datos', async () => {
+      const res = await request(app).post('/api/auth/restablecer').send({ token: 'abc123', password: 'debil' });
+      expect(res.status).toBe(400);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    test('token inexistente o expirado responde 400 TOKEN_INVALIDO', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // SELECT ... WHERE reset_token_hash = ? AND reset_token_expira > ?
+      const res = await request(app).post('/api/auth/restablecer').send({ token: 'abc123', password: PASSWORD_VALIDA });
+
+      expect(res.status).toBe(400);
+      expect(res.body.codigo).toBe('TOKEN_INVALIDO');
+    });
+
+    test('token válido: actualiza password_hash, limpia el token (un solo uso) y devuelve el perfil', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 9, perfil: 'administrador' }]]);
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE usuarios SET password_hash = ..., reset_token_hash = NULL ...
+
+      const res = await request(app).post('/api/auth/restablecer').send({ token: 'abc123', password: PASSWORD_VALIDA });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true, perfil: 'administrador' });
+      expect(pool.query).toHaveBeenNthCalledWith(
+        2,
+        expect.stringMatching(/UPDATE usuarios[\s\S]*reset_token_hash = NULL/),
+        expect.arrayContaining([expect.any(String), expect.any(Date), 9])
+      );
+    });
+  });
 });

@@ -146,6 +146,70 @@ describe('Tickets', () => {
       expect(res.status).toBe(400);
       expect(res.body.codigo).toBe('COMPRA_NO_ENCONTRADA');
     });
+
+    test('con orden de compra pendiente por cobrar, responde con código PAGO_PENDIENTE', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro existe
+      pool.query.mockResolvedValueOnce([[]]); // config global defaults
+      pool.query.mockResolvedValueOnce([
+        [
+          {
+            id: 55,
+            numero_compra: 'OC-000099',
+            fecha_compra: '2026-07-24 15:30:45', // UTC; America/Mexico_City (UTC-6) por defecto -> 09:30:45 local
+            total: 100,
+            estado_pago: 'pendiente',
+          },
+        ],
+      ]); // orden de compra coincidente, sin liquidar
+
+      const res = await request(app)
+        .post('/api/tickets')
+        .set('Cookie', COOKIE)
+        .field('numero_compra', 'OC-000099')
+        .field('fecha_compra', '24/jul/2026')
+        .field('hora_compra', '09:30:45')
+        .field('total_compra', '100.00')
+        .attach('imagen', JPEG_BUFFER_VALIDO, { filename: 'ticket.jpg', contentType: 'image/jpeg' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.codigo).toBe('PAGO_PENDIENTE');
+      // No debe llegar a consultar si ya fue facturada ni a insertar el ticket.
+      expect(pool.query).toHaveBeenCalledTimes(3);
+    });
+
+    test('con orden de compra pagada, sigue aceptando el ticket (sin regresión)', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro existe
+      pool.query.mockResolvedValueOnce([[]]); // config global defaults
+      pool.query.mockResolvedValueOnce([
+        [
+          {
+            id: 56,
+            numero_compra: 'OC-000100',
+            fecha_compra: '2026-07-24 15:30:45', // UTC; America/Mexico_City (UTC-6) por defecto -> 09:30:45 local
+            total: 100,
+            estado_pago: 'pagada',
+          },
+        ],
+      ]); // orden de compra coincidente, liquidada
+      pool.query.mockResolvedValueOnce([[]]); // sin ticket ya facturado para esta orden
+      pool.query.mockResolvedValueOnce([[]]); // getCamposObligatorios
+      pool.query.mockResolvedValueOnce([[]]); // getUsosCfdi
+      pool.query.mockResolvedValueOnce([{ insertId: 8 }]); // INSERT tickets
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE folio
+      mockNotificacionContadorSinConfigurar();
+
+      const res = await request(app)
+        .post('/api/tickets')
+        .set('Cookie', COOKIE)
+        .field('numero_compra', 'OC-000100')
+        .field('fecha_compra', '24/jul/2026')
+        .field('hora_compra', '09:30:45')
+        .field('total_compra', '100.00')
+        .attach('imagen', JPEG_BUFFER_VALIDO, { filename: 'ticket.jpg', contentType: 'image/jpeg' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.folio).toBe('TK-000008');
+    });
   });
 
   describe('GET /api/tickets', () => {

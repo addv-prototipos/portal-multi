@@ -395,6 +395,17 @@ async function ensureSchema(db = pool) {
   if (!nombresColumnasUsuarios.includes('email')) {
     await db.query('ALTER TABLE usuarios ADD COLUMN email VARCHAR(200) NULL');
   }
+  // Recuperación de contraseña: token de un solo uso, se guarda HASHEADO
+  // (sha256, ver hashTokenRecuperacion en utils/authUsuario.js) — nunca el
+  // token en claro, mismo principio que password_hash. NULL en reposo;
+  // se llenan al solicitar recuperación y se limpian al usarse (o al
+  // generarse uno nuevo, que sobreescribe el anterior).
+  if (!nombresColumnasUsuarios.includes('reset_token_hash')) {
+    await db.query('ALTER TABLE usuarios ADD COLUMN reset_token_hash VARCHAR(64) NULL');
+  }
+  if (!nombresColumnasUsuarios.includes('reset_token_expira')) {
+    await db.query('ALTER TABLE usuarios ADD COLUMN reset_token_expira DATETIME NULL');
+  }
   // El campo "rfc" se usa como nombre de usuario también para perfiles
   // administrador/fiscal, que no necesariamente tienen un RFC real — se
   // ensancha por si la instalación existente todavía tiene la columna en

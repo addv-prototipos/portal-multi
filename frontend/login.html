@@ -49,6 +49,10 @@
             <p class="field-error" id="error-login-password" role="alert"></p>
           </div>
 
+          <p class="auth-forgot-link">
+            <button type="button" class="auth-switch-link" id="btn-ir-recuperar">¿Olvidaste tu contraseña?</button>
+          </p>
+
           <p class="field-error" id="login-error-general" role="alert"></p>
 
           <button type="submit" class="btn btn-primary btn-block" id="btn-login">
@@ -179,6 +183,32 @@
             <span id="btn-cambiar-password-label">Guardar y continuar</span>
           </button>
         </form>
+      </section>
+
+      <!-- ---------- Recuperar acceso ---------- -->
+      <section class="auth-panel" id="panel-recuperar" aria-labelledby="recuperar-title">
+        <button type="button" class="auth-back-link" id="btn-recuperar-volver">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 19l-7-7 7-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Volver a inicio de sesión
+        </button>
+        <h1 id="recuperar-title">Recupera tu acceso</h1>
+        <p class="panel-subtitle">Escribe el correo o el RFC con el que te registraste.</p>
+
+        <form id="form-recuperar" novalidate>
+          <div class="field">
+            <label for="recuperar-identificador">Correo o RFC</label>
+            <input type="text" id="recuperar-identificador" name="identificador" required maxlength="200" placeholder="correo@ejemplo.com" autocomplete="username" />
+            <p class="field-error" id="error-recuperar-identificador" role="alert"></p>
+          </div>
+
+          <p class="field-error" id="recuperar-error-general" role="alert"></p>
+
+          <button type="submit" class="btn btn-primary btn-block" id="btn-recuperar">
+            <span id="btn-recuperar-label">Enviar enlace de recuperación</span>
+          </button>
+        </form>
+
+        <p class="auth-hint" id="recuperar-confirmacion" hidden>Si el dato coincide con una cuenta, en unos minutos te llega un correo con instrucciones.</p>
       </section>
     </div>
     </div>
