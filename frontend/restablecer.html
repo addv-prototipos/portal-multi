@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Restablecer contraseña | Portal de Facturación</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Elige una nueva contraseña para tu cuenta." />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/auth.css" />
+</head>
+<body class="auth-body">
+  <div class="auth-screen">
+    <div class="auth-shell">
+      <aside class="auth-hero">
+        <img class="auth-hero-branding" src="/assets/branding.png" alt="CLARVO — Portal de Facturación by ADDV" />
+
+        <h2 class="auth-hero-headline">Gestiona tus solicitudes de factura de forma <span class="auth-hero-highlight">simple y segura</span>.</h2>
+        <span class="auth-hero-divider" aria-hidden="true"></span>
+        <p class="auth-hero-copy">Un solo lugar para solicitar, dar seguimiento y administrar tus facturas.</p>
+
+        <img class="auth-hero-decor" src="/assets/login-decoracion-marca.png" alt="" aria-hidden="true" loading="lazy" onerror="this.remove()" />
+        <p class="auth-hero-footer">© <span id="auth-anio"></span> CLARVO by ADDV. Todos los derechos reservados.</p>
+      </aside>
+
+    <div class="card auth-card">
+      <!-- ---------- Elegir nueva contraseña ---------- -->
+      <section class="auth-panel is-active" id="panel-restablecer" aria-labelledby="restablecer-title">
+        <h1 id="restablecer-title">Elige tu nueva contraseña</h1>
+        <p class="panel-subtitle">Este enlace expira 30 minutos después de haberlo solicitado.</p>
+
+        <form id="form-restablecer" novalidate>
+          <div class="field">
+            <label for="restablecer-password">Nueva contraseña</label>
+            <div class="password-field">
+              <input type="password" id="restablecer-password" required autocomplete="new-password" aria-describedby="restablecer-password-reglas" />
+              <button type="button" class="btn-toggle-pass" data-target="restablecer-password" aria-label="Mostrar contraseña" aria-pressed="false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                </svg>
+              </button>
+            </div>
+            <ul class="password-reglas" id="restablecer-password-reglas">
+              <li data-regla="longitud">Al menos 8 caracteres</li>
+              <li data-regla="numero">Al menos un número</li>
+              <li data-regla="minuscula">Al menos una minúscula</li>
+              <li data-regla="mayuscula">Al menos una mayúscula</li>
+            </ul>
+            <p class="field-error" id="error-restablecer-password" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="restablecer-password-confirmar">Confirma tu nueva contraseña</label>
+            <div class="password-field">
+              <input type="password" id="restablecer-password-confirmar" required autocomplete="new-password" />
+              <button type="button" class="btn-toggle-pass" data-target="restablecer-password-confirmar" aria-label="Mostrar contraseña" aria-pressed="false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                </svg>
+              </button>
+            </div>
+            <p class="field-error" id="error-restablecer-password-confirmar" role="alert"></p>
+          </div>
+
+          <p class="field-error" id="restablecer-error-general" role="alert"></p>
+
+          <button type="submit" class="btn btn-primary btn-block" id="btn-restablecer">
+            <span id="btn-restablecer-label">Guardar y continuar</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- ---------- Enlace inválido/expirado (token ausente o rechazado por el backend) ---------- -->
+      <section class="auth-panel" id="panel-restablecer-invalido" aria-labelledby="restablecer-invalido-title">
+        <h1 id="restablecer-invalido-title">Este enlace ya no es válido</h1>
+        <p class="panel-subtitle">Pudo haber expirado (30 minutos) o ya haberse usado. Solicita uno nuevo desde la pantalla de inicio de sesión.</p>
+        <a class="btn btn-primary btn-block" id="link-restablecer-invalido-login" href="/login">Ir a iniciar sesión</a>
+      </section>
+
+      <!-- ---------- Éxito ---------- -->
+      <section class="auth-panel" id="panel-restablecer-exito" aria-labelledby="restablecer-exito-title">
+        <div class="auth-success-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1FAE6B" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h1 id="restablecer-exito-title" style="text-align:center;">Contraseña actualizada</h1>
+        <p class="panel-subtitle" style="text-align:center;">Ya puedes iniciar sesión con tu nueva contraseña.</p>
+        <a class="btn btn-primary btn-block" id="link-restablecer-exito-login" href="/login">Ir a iniciar sesión</a>
+      </section>
+    </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script>document.getElementById('auth-anio').textContent = new Date().getFullYear();</script>
+  <script src="/theme.js"></script>
+  <script src="/restablecer.js"></script>
+</body>
+</html>
