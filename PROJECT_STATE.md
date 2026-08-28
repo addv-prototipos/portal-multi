@@ -9997,7 +9997,106 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
        Pendiente: clic real en los 3 flujos (abrir el panel, enviar el
        formulario, ver la pantalla de éxito) y un envío SMTP real de
        punta a punta cuando haya salida a internet disponible.
-     - Sin commit/push todavía.
+      - Sin commit/push todavía.
+
+  158. **Cierre mensual archivado (Ventas + Gastos) y retención solo-Tickets
+      — REQUERIMIENTO MADURADO, DOCUMENTADO, PENDIENTE DE IMPLEMENTACIÓN
+      (2026-08-28, protocolo `addv-web-app` Analizar→Proponer→Confirmar,
+      cero código tocado):** a pedido del usuario, la retención por días
+      deja de borrar Ventas/Gastos y el cierre de mes los archiva hacia
+      Reportes, preservando métricas. Aplica **dual: base ADDV sin tenant
+      (`portal_facturacion` / `PREFIJO_DEFECTO`) + cada tenant activo
+      (`control.tenants`)** — pedido explícito "tanto el tenant como el
+      individual".
+      - **Estado hoy (crítica, `backend/utils/ticketsCleanup.js:7`,
+        `backend/utils/config.js:68`, `backend/server.js:3233`,
+        `frontend/admin.html:438`):** una sola clave
+        `tickets_retencion_dias` → un solo input "Días antes de eliminar
+        un ticket o venta" → borra ambos por `creado_en < NOW() - dias`
+        cada hora (`ejecutarLimpiezaConReporte()` genera un reporte
+        `tipo='automatico'` con tickets+ventas vencidas y hace `DELETE`
+        de ambos). Ventas no tienen archivos, solo filas; el borrado es
+        `DELETE FROM ordenes_compra WHERE id IN (?)`. Reportes hoy solo
+        guarda `ticket`+`orden_compra` (`reportes.js:56`, `db.js:1201`
+        `chk_reportes_tipo IN ('automatico','manual')`,
+        `db.js:1240` `chk_reporte_items_tipo_registro IN
+        ('ticket','orden_compra')`); Gastos no entra a reportes.
+        `resumen-financiero` (`server.js:4678`, KPIs `4729`, serie 6 meses
+        `4743`) lee directo de `ordenes_compra`/`gastos` con
+        `eliminado_en IS NULL` — si se borra/archiva filtrando, las
+        métricas colapsan.
+      - **"Archivar" definido (corrección del gap):** NO es `DELETE` ni
+        reutilizar `eliminado_en` (papelera). Es `archivado_en DATETIME
+        NULL` + `periodo_archivado CHAR(7) NULL ('YYYY-MM')` en
+        `ordenes_compra` y `gastos` (índice por periodo), + ampliación de
+        `reporte_items.tipo_registro` a `('ticket','orden_compra','gasto')`
+        y `reportes.tipo` a `('automatico','manual','cierre_mensual')`,
+        con `accion='archivado'` en `reporte_items` (no `'eliminado'`).
+        Comprobantes de Gastos en MinIO se conservan. Todo con guard
+        `INFORMATION_SCHEMA` como `db.js`.
+      - **Cierre mensual automático:** día 1 02:00 en
+        `configuracion_global.zona_horaria` (`config.js:103`), guard
+        `ultimo_cierre_mensual` por DB para idempotencia + reintento
+        horario ese día 1 si el proceso estuvo caído. Snapshot del mes
+        anterior calendario completo:
+        `WHERE archivado_en IS NULL AND
+        DATE_FORMAT(fecha_compra|fecha,'%Y-%m')=mesAnterior` →
+        `generarYEnviarReporte({tipo:'cierre_mensual', items:
+        [...ventas.map(ordenAItemReporte), ...gastos.map(gastoAItemReporte)],
+        rangoInicio/rangoFin: mes anterior})` con `generarContenidoMD`
+        tabla Gastos nueva (`reportes.js`) →
+        `UPDATE ... SET archivado_en=NOW(),
+        periodo_archivado=mesAnterior`. Incluye todo el mes, sin excluir
+        por `estado_pago` ni comprobante; papelera (`eliminado_en IS NOT
+        NULL`) siempre excluida. Venta pendiente archivada sigue cobrable
+        desde vista archivada (se ampliará
+        `PUT /api/admin/ordenes-compra/:id/cobro`).
+      - **Visibilidad:** `GET /api/admin/ordenes-compra` y
+        `GET /api/admin/gastos` filtran por defecto
+        `archivado_en IS NULL` (operativo del mes en curso). Param
+        `?periodo=YYYY-MM` | `?incluirArchivadas=true` para histórico.
+        `GET /api/admin/reportes` lista `cierre_mensual` junto a los
+        otros; "Lectura de reportes" muestra 3 tablas cuando aplica.
+      - **Métricas preservadas — Opción A elegida:** `GET
+        /api/admin/resumen-financiero` sigue agregando sobre
+        `ordenes_compra`/`gastos` **incluyendo archivados** en serie 6
+        meses, KPIs históricos y `top_proveedores`/`gastos_por_categoria`.
+        El Reporte es evidencia/descarga, no nueva fuente de SUMs — evita
+        doble verdad y reescribir 4 queries a `UNION reporte_items`.
+        Opción B (UNION) queda como fase 2 si se exige.
+      - **Multi-tenant dual:** `ticketsCleanup.js:62` hoy usa
+        `PREFIJO_DEFECTO` porque el `setInterval` no tiene `req.tenant`.
+        El nuevo job `ejecutarCierresMensualesParaTodos()` iterará
+        `control.tenants` activos vía `obtenerPoolControl()` + base ADDV,
+        con `ejecutarComoTenant(slug, ...)` por cada DB (su `pool` y
+        `storage_prefix`), paginado 5 concurrentes para N>1000.
+        `tickets_retencion_dias`, `ultimo_cierre_mensual` y
+        `configuracion_global` ya viven por DB, así que retención/hora son
+        por empresa sin clave global.
+      - **Plan de ejecución (segmentos secuenciales, con confirmación
+        explícita antes de cada uno, `node --check` + Jest + `verificar-
+        mysql.js` + E2E contra Docker real):**
+        Fase 1 — Desacople retención (sin migración, reversible):
+        `ticketsCleanup.js` deja de borrar órdenes, copy
+        `admin.html:438`/`admin.js:2956` a "solo ticket", `US.md:324`.
+        Fase 2 — Esquema archivo + ampliación Reportes (`db.js`
+        `ensureSchema`, `reportes.js` tabla Gastos).
+        Fase 3 — Listados + Resumen compatible (`server.js` filtros
+        `periodo`, `resumen-financiero` incluye archivados, frontend
+        toggle Mes actual/periodo).
+        Fase 4 — Job cierre mensual tenant-aware (`cierreMensual.js`,
+        `server.js` cron día 1 02:00 + guard por DB, iteración paginada).
+        Fase 5 — Docs + rollout (`PROJECT_STATE.md`/`README.md`/`US.md`,
+        `sembrar-datos-prueba.js`, `docker compose up --build`).
+      - **Criterios de aceptación:** retención no borra ventas/gastos
+        (F1); cierre genera `cierre_mensual` y marca `periodo_archivado`
+        en cada DB (F4); listados operativos solo mes en curso, histórico
+        vía periodo (F3); serie 6 meses y `utilidad_neta` no caen tras
+        archivar (F3/F4).
+      - **Pendiente:** confirmación explícita del usuario sobre hora
+        02:00 fija vs configurable y sobre si ventas `pendiente` deben
+        excluirse del cierre (propuesta: incluirlas). Cero código tocado
+        en esta sesión — solo documentación.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

@@ -1343,6 +1343,8 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   (health OK, `/admin` y `/tickets` sirven el nuevo texto);
   `FRONTEND_PORT=8088` conservado. Commit `a34c877` pusheado a `fact`.
 
+- **PENDIENTE — Cierre mensual archivado Ventas+Gastos + retención solo-Tickets (ver PROJECT_STATE.md punto 158, 2026-08-28)**: retención `tickets_retencion_dias` queda solo tickets; Ventas/Gastos se archivan (no se borran) al día 1 02:00 `zona_horaria` hacia Reportes (`tipo='cierre_mensual'`, `accion='archivado'`), con `archivado_en`+`periodo_archivado` en ambas tablas. Listados filtran por defecto `archivado_en IS NULL`; Resumen financiero incluye archivados (Opción A). Aplica dual: base ADDV sin slug + cada tenant activo (job itera `control.tenants` vía `ejecutarComoTenant`). Fases 1-5 documentadas, cero código tocado, en espera de confirmación explícita.
+
 Las tres superficies de la app: portal de cliente (sin prefijo o
 `/<slug>/...`), panel admin por tenant (`/admin` o `/<slug>/admin`), y
 app de control cross-tenant super-only (`/control`, segmento 9). El plan
