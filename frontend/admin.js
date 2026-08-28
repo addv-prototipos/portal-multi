@@ -218,7 +218,6 @@
     ordenesColumnTogglePanel: document.getElementById('ordenes-column-toggle-panel'),
     btnRefreshOrdenes: document.getElementById('btn-refresh-ordenes'),
     // Filtros de la lista (concepto/fechas/total) — 100% client-side
-    ordenesFiltroPeriodo: document.getElementById('ordenes-filtro-periodo'),
     ordenesFiltroConcepto: document.getElementById('ordenes-filtro-concepto'),
     ordenesFiltroFechaDesde: document.getElementById('ordenes-filtro-fecha-desde'),
     ordenesFiltroFechaHasta: document.getElementById('ordenes-filtro-fecha-hasta'),
@@ -409,7 +408,6 @@
     btnRestablecerDashboard: document.getElementById('btn-restablecer-dashboard'),
     resumenFinDashboardAyuda: document.getElementById('resumen-fin-dashboard-ayuda'),
     resumenFinTablero: document.getElementById('resumen-fin-tablero'),
-    gastosFiltroPeriodo: document.getElementById('gastos-filtro-periodo'),
     gastosFiltroCategoria: document.getElementById('gastos-filtro-categoria'),
     gastosFiltroFactura: document.getElementById('gastos-filtro-factura'),
     gastosFiltroRecurrente: document.getElementById('gastos-filtro-recurrente'),
@@ -2956,7 +2954,11 @@
 
       els.retencionDias.value = data.dias || '';
       els.retencionInfo.textContent = formatearInfoUltimaLimpieza(data.ultimaLimpieza, 'tickets');
-      els.retencionInfoOrdenes.textContent = formatearInfoUltimaLimpieza(data.ultimaLimpiezaOrdenes, 'ventas');
+      // Desde punto 158 ventas ya no se limpia por retención (se archiva a Reportes)
+      if (els.retencionInfoOrdenes) {
+        els.retencionInfoOrdenes.textContent = '';
+        els.retencionInfoOrdenes.hidden = true;
+      }
       els.retencionEstadoBadge.hidden = false;
       els.retencionEstadoBadge.textContent = data.dias ? `Activo: ${data.dias} días` : 'Desactivado';
       els.retencionEstadoBadge.className = `smtp-estado-badge ${data.dias ? 'is-ok' : 'is-pendiente'}`;
@@ -3818,7 +3820,6 @@
     }
     if (vista === 'ordenes') {
       cargarConfigGlobalParaOrden();
-      cargarPeriodosArchivados();
       // Se espera a que la caché de correos (con su razón social) esté
       // lista ANTES de cargar/renderizar la tabla, para que el tooltip
       // de "Correo" tenga los datos disponibles desde el primer render
@@ -3838,7 +3839,6 @@
   }
     if (vista === 'cxc') cargarCxc();
     if (vista === 'gastos') {
-      cargarPeriodosArchivados();
       (async () => {
         await cargarCategoriasGastos();
         cargarGastos();
@@ -5285,11 +5285,7 @@
 
     els.ordenesError.textContent = '';
     try {
-      const periodoSel = els.ordenesFiltroPeriodo ? els.ordenesFiltroPeriodo.value : '';
-      const urlOrdenes = periodoSel
-        ? `${API_BASE}/admin/ordenes-compra?periodo=${encodeURIComponent(periodoSel)}`
-        : `${API_BASE}/admin/ordenes-compra`;
-      const res = await fetch(urlOrdenes, {
+      const res = await fetch(`${API_BASE}/admin/ordenes-compra`, {
         headers: { Authorization: authHeader },
       });
       if (res.status === 401) {
@@ -7868,7 +7864,6 @@
     try {
       const params = new URLSearchParams();
       if (state.vistaGastos === 'papelera') params.set('papelera', 'true');
-      if (els.gastosFiltroPeriodo && els.gastosFiltroPeriodo.value) params.set('periodo', els.gastosFiltroPeriodo.value);
       if (els.gastosFiltroCategoria.value) params.set('categoria', els.gastosFiltroCategoria.value);
       if (els.gastosFiltroFactura.value !== '') params.set('tiene_factura', els.gastosFiltroFactura.value);
       if (els.gastosFiltroRecurrente.value !== '') params.set('recurrente', els.gastosFiltroRecurrente.value);
