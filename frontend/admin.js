@@ -218,6 +218,7 @@
     ordenesColumnTogglePanel: document.getElementById('ordenes-column-toggle-panel'),
     btnRefreshOrdenes: document.getElementById('btn-refresh-ordenes'),
     // Filtros de la lista (concepto/fechas/total) — 100% client-side
+    ordenesFiltroPeriodo: document.getElementById('ordenes-filtro-periodo'),
     ordenesFiltroConcepto: document.getElementById('ordenes-filtro-concepto'),
     ordenesFiltroFechaDesde: document.getElementById('ordenes-filtro-fecha-desde'),
     ordenesFiltroFechaHasta: document.getElementById('ordenes-filtro-fecha-hasta'),
@@ -408,6 +409,7 @@
     btnRestablecerDashboard: document.getElementById('btn-restablecer-dashboard'),
     resumenFinDashboardAyuda: document.getElementById('resumen-fin-dashboard-ayuda'),
     resumenFinTablero: document.getElementById('resumen-fin-tablero'),
+    gastosFiltroPeriodo: document.getElementById('gastos-filtro-periodo'),
     gastosFiltroCategoria: document.getElementById('gastos-filtro-categoria'),
     gastosFiltroFactura: document.getElementById('gastos-filtro-factura'),
     gastosFiltroRecurrente: document.getElementById('gastos-filtro-recurrente'),
@@ -3816,6 +3818,7 @@
     }
     if (vista === 'ordenes') {
       cargarConfigGlobalParaOrden();
+      cargarPeriodosArchivados();
       // Se espera a que la caché de correos (con su razón social) esté
       // lista ANTES de cargar/renderizar la tabla, para que el tooltip
       // de "Correo" tenga los datos disponibles desde el primer render
@@ -3835,6 +3838,7 @@
   }
     if (vista === 'cxc') cargarCxc();
     if (vista === 'gastos') {
+      cargarPeriodosArchivados();
       (async () => {
         await cargarCategoriasGastos();
         cargarGastos();
@@ -5281,7 +5285,11 @@
 
     els.ordenesError.textContent = '';
     try {
-      const res = await fetch(`${API_BASE}/admin/ordenes-compra`, {
+      const periodoSel = els.ordenesFiltroPeriodo ? els.ordenesFiltroPeriodo.value : '';
+      const urlOrdenes = periodoSel
+        ? `${API_BASE}/admin/ordenes-compra?periodo=${encodeURIComponent(periodoSel)}`
+        : `${API_BASE}/admin/ordenes-compra`;
+      const res = await fetch(urlOrdenes, {
         headers: { Authorization: authHeader },
       });
       if (res.status === 401) {
@@ -5380,6 +5388,14 @@
     el.addEventListener('input', () => aplicarFiltrosOrdenes());
   });
   if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.addEventListener('change', () => aplicarFiltrosOrdenes());
+  if (els.ordenesFiltroPeriodo) {
+    els.ordenesFiltroPeriodo.addEventListener('change', () => {
+      // Periodo archivado vive en el servidor — hay que volver a pedir la lista
+      cargarOrdenes();
+      // Refresca también el selector de gastos por si el cierre creó un periodo nuevo
+      cargarPeriodosArchivados();
+    });
+  }
   els.btnLimpiarFiltrosOrdenes.addEventListener('click', () => {
     els.ordenesFiltroConcepto.value = '';
     els.ordenesFiltroFechaDesde.value = '';
@@ -5387,7 +5403,9 @@
     els.ordenesFiltroTotalMin.value = '';
     els.ordenesFiltroTotalMax.value = '';
     if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.value = '';
-    aplicarFiltrosOrdenes();
+    if (els.ordenesFiltroPeriodo) els.ordenesFiltroPeriodo.value = '';
+    if (els.ordenesFiltroPeriodo) cargarOrdenes();
+    else aplicarFiltrosOrdenes();
   });
 
   // Intenta leer una línea "N x Concepto ($X.XX c/u)" (el formato exacto
@@ -6566,6 +6584,41 @@
     els.gastosModalCategoria.innerHTML = lista
       .map((c) => `<option value="${c.slug}">${escapeHtml(c.etiqueta)}${c.activa ? '' : ' (inactiva)'}</option>`)
       .join('');
+  }
+
+  // Punto 158 — Periodos archivados (Ventas+Gastos). Pobla los <select>
+  // de periodo en ambas vistas con los YYYY-MM distintos que ya tienen
+  // al menos una fila archivada. Mes actual = sin periodo.
+  function formatearPeriodoEtiqueta(periodo) {
+    const [y, m] = periodo.split('-');
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const idx = Number(m) - 1;
+    return idx >= 0 && idx < 12 ? `${meses[idx]} ${y}` : periodo;
+  }
+  async function cargarPeriodosArchivados() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/periodos-archivados`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const periodos = data.periodos || [];
+      const selV = els.ordenesFiltroPeriodo ? els.ordenesFiltroPeriodo.value : '';
+      const selG = els.gastosFiltroPeriodo ? els.gastosFiltroPeriodo.value : '';
+      const opciones = periodos.map((p) => `<option value="${p}">${formatearPeriodoEtiqueta(p)}</option>`).join('');
+      if (els.ordenesFiltroPeriodo) {
+        els.ordenesFiltroPeriodo.innerHTML = `<option value="">Mes actual</option>${opciones}`;
+        els.ordenesFiltroPeriodo.value = selV;
+      }
+      if (els.gastosFiltroPeriodo) {
+        els.gastosFiltroPeriodo.innerHTML = `<option value="">Mes actual</option>${opciones}`;
+        els.gastosFiltroPeriodo.value = selG;
+      }
+    } catch (err) {
+      // Silencioso: si falla, el usuario sigue viendo Mes actual.
+    }
   }
 
   async function cargarCategoriasGastos() {
@@ -7815,6 +7868,7 @@
     try {
       const params = new URLSearchParams();
       if (state.vistaGastos === 'papelera') params.set('papelera', 'true');
+      if (els.gastosFiltroPeriodo && els.gastosFiltroPeriodo.value) params.set('periodo', els.gastosFiltroPeriodo.value);
       if (els.gastosFiltroCategoria.value) params.set('categoria', els.gastosFiltroCategoria.value);
       if (els.gastosFiltroFactura.value !== '') params.set('tiene_factura', els.gastosFiltroFactura.value);
       if (els.gastosFiltroRecurrente.value !== '') params.set('recurrente', els.gastosFiltroRecurrente.value);
@@ -8062,11 +8116,13 @@
     els.btnVerGastosPapelera.setAttribute('aria-selected', String(esPapelera));
     els.btnNuevoGasto.hidden = esPapelera;
     els.gastosResumenWrap.hidden = esPapelera;
+    if (els.gastosFiltroPeriodo) els.gastosFiltroPeriodo.disabled = esPapelera;
 
     cargarGastos();
   }
 
   function limpiarFiltrosGastos() {
+    if (els.gastosFiltroPeriodo) els.gastosFiltroPeriodo.value = '';
     els.gastosFiltroCategoria.value = '';
     els.gastosFiltroFactura.value = '';
     els.gastosFiltroRecurrente.value = '';
@@ -8515,6 +8571,7 @@
   els.btnRefreshGastos.addEventListener('click', cargarGastos);
   els.btnNuevoGasto.addEventListener('click', () => abrirGastoModal(null));
   els.btnLimpiarFiltrosGastos.addEventListener('click', limpiarFiltrosGastos);
+  if (els.gastosFiltroPeriodo) els.gastosFiltroPeriodo.addEventListener('change', cargarGastos);
   els.gastosFiltroCategoria.addEventListener('change', cargarGastos);
   els.gastosFiltroFactura.addEventListener('change', cargarGastos);
   els.gastosFiltroRecurrente.addEventListener('change', cargarGastos);

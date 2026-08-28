@@ -5852,6 +5852,27 @@ app.post(
 // automática (middleware global de /api/admin más arriba, segmento 7).
 // ---------------------------------------------------------------------
 
+// Punto 158 — Periodos archivados (Ventas+Gastos) para poblar el
+// selector de "Mes actual / periodo" en el frontend. Devuelve los
+// YYYY-MM distintos que ya tienen al menos una fila archivada.
+app.get(
+  '/api/admin/periodos-archivados',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const [vRows] = await pool.query(
+      "SELECT DISTINCT periodo_archivado AS periodo FROM ordenes_compra WHERE periodo_archivado IS NOT NULL ORDER BY periodo DESC"
+    );
+    const [gRows] = await pool.query(
+      "SELECT DISTINCT periodo_archivado AS periodo FROM gastos WHERE periodo_archivado IS NOT NULL ORDER BY periodo DESC"
+    );
+    const set = new Set([...vRows.map((r) => r.periodo), ...gRows.map((r) => r.periodo)]);
+    const periodos = [...set].sort().reverse();
+    res.json({ periodos, ventas: vRows.map((r) => r.periodo), gastos: gRows.map((r) => r.periodo) });
+  })
+);
+
 // D8/§0.6: con el switch apagado, el módulo completo responde
 // INV_MODULO_INACTIVO — NUNCA se aplica a /configuracion (si no, nadie
 // podría prender el switch desde ahí mismo).
