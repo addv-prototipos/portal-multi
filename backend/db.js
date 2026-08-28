@@ -568,11 +568,15 @@ async function ensureSchema(db = pool) {
       fecha_cobro DATETIME NULL,
       notas_cobro TEXT NULL,
       eliminado_en DATETIME NULL,
+      archivado_en DATETIME NULL,
+      periodo_archivado CHAR(7) NULL,
       creado_en DATETIME NOT NULL,
       actualizado_en DATETIME NOT NULL,
       UNIQUE KEY uq_ordenes_compra_numero (numero_compra),
       KEY idx_ordenes_compra_email (email),
       KEY idx_ordenes_compra_eliminado_en (eliminado_en),
+      KEY idx_ordenes_compra_archivado_en (archivado_en),
+      KEY idx_ordenes_compra_periodo (periodo_archivado),
       KEY idx_ordenes_compra_estado_pago (estado_pago),
       KEY idx_ordenes_compra_vencimiento (fecha_vencimiento),
       CONSTRAINT chk_ordenes_monto_cobrado CHECK (monto_cobrado >= 0)
@@ -689,6 +693,22 @@ async function ensureSchema(db = pool) {
       WHERE estado_pago = 'pagada' AND monto_cobrado = 0`
   );
 
+  // Punto 158 — Cierre mensual archivado: ventas y gastos se archivan (no
+  // se borran) hacia Reportes. Migración segura para instalaciones ya
+  // existentes: agrega archivado_en/periodo_archivado si no existen.
+  const [colsArchivadoOrdenes] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ordenes_compra'`
+  );
+  const nombresArchivadoOrdenes = colsArchivadoOrdenes.map((c) => c.COLUMN_NAME);
+  if (!nombresArchivadoOrdenes.includes('archivado_en')) {
+    await db.query('ALTER TABLE ordenes_compra ADD COLUMN archivado_en DATETIME NULL');
+    await db.query('ALTER TABLE ordenes_compra ADD KEY idx_ordenes_compra_archivado_en (archivado_en)');
+  }
+  if (!nombresArchivadoOrdenes.includes('periodo_archivado')) {
+    await db.query('ALTER TABLE ordenes_compra ADD COLUMN periodo_archivado CHAR(7) NULL');
+    await db.query('ALTER TABLE ordenes_compra ADD KEY idx_ordenes_compra_periodo (periodo_archivado)');
+  }
+
   // D8 (Inventarios, inventarios.md §22, segmento 4): venta con producto
   // opcional. `producto_id` referencia `productos.id` PERO SIN
   // `CONSTRAINT FOREIGN KEY` a propósito — la tabla `productos` se crea
@@ -766,14 +786,33 @@ async function ensureSchema(db = pool) {
       notas TEXT NULL,
       creado_por VARCHAR(100) NULL,
       eliminado_en DATETIME NULL,
+      archivado_en DATETIME NULL,
+      periodo_archivado CHAR(7) NULL,
       creado_en DATETIME NOT NULL,
       actualizado_en DATETIME NOT NULL,
       KEY idx_gastos_fecha (fecha),
       KEY idx_gastos_categoria (categoria),
       KEY idx_gastos_tiene_factura (tiene_factura),
-      KEY idx_gastos_eliminado_en (eliminado_en)
+      KEY idx_gastos_eliminado_en (eliminado_en),
+      KEY idx_gastos_archivado_en (archivado_en),
+      KEY idx_gastos_periodo (periodo_archivado)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Punto 158 — Cierre mensual: gastos también se archivan. Migración para
+  // instalaciones ya existentes.
+  const [colsArchivadoGastos] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gastos'`
+  );
+  const nombresArchivadoGastos = colsArchivadoGastos.map((c) => c.COLUMN_NAME);
+  if (!nombresArchivadoGastos.includes('archivado_en')) {
+    await db.query('ALTER TABLE gastos ADD COLUMN archivado_en DATETIME NULL');
+    await db.query('ALTER TABLE gastos ADD KEY idx_gastos_archivado_en (archivado_en)');
+  }
+  if (!nombresArchivadoGastos.includes('periodo_archivado')) {
+    await db.query('ALTER TABLE gastos ADD COLUMN periodo_archivado CHAR(7) NULL');
+    await db.query('ALTER TABLE gastos ADD KEY idx_gastos_periodo (periodo_archivado)');
+  }
 
   // El CHECK de categoría se agrega aparte (mismo patrón que los demás
   // CHECK de este esquema) y se mantiene al día con la lista actual de
@@ -1195,10 +1234,11 @@ async function ensureSchema(db = pool) {
       correo_enviado TINYINT(1) NOT NULL DEFAULT 0,
       total_tickets INT NOT NULL DEFAULT 0,
       total_ordenes INT NOT NULL DEFAULT 0,
+      total_gastos INT NOT NULL DEFAULT 0,
       md_contenido LONGTEXT NOT NULL,
       creado_en DATETIME NOT NULL,
       KEY idx_reportes_fecha_generacion (fecha_generacion),
-      CONSTRAINT chk_reportes_tipo CHECK (tipo IN ('automatico', 'manual'))
+      CONSTRAINT chk_reportes_tipo CHECK (tipo IN ('automatico', 'manual', 'cierre_mensual'))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
@@ -1231,13 +1271,14 @@ async function ensureSchema(db = pool) {
       monto DECIMAL(12,2) NULL,
       fecha_registro DATETIME NULL,
       atendido_por VARCHAR(100) NULL,
+      categoria VARCHAR(50) NULL,
       accion VARCHAR(20) NULL,
       creado_en DATETIME NOT NULL,
       CONSTRAINT fk_reporte_items_reporte FOREIGN KEY (reporte_id) REFERENCES reportes(id) ON DELETE CASCADE,
       KEY idx_reporte_items_reporte_id (reporte_id),
       KEY idx_reporte_items_tipo_registro (tipo_registro),
       KEY idx_reporte_items_rfc (rfc),
-      CONSTRAINT chk_reporte_items_tipo_registro CHECK (tipo_registro IN ('ticket', 'orden_compra'))
+      CONSTRAINT chk_reporte_items_tipo_registro CHECK (tipo_registro IN ('ticket', 'orden_compra', 'gasto'))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
@@ -1273,6 +1314,37 @@ async function ensureSchema(db = pool) {
   // nada) — ver "Lectura de reportes" en el frontend, badge "Eliminado".
   if (!nombresColumnasReporteItems.includes('accion')) {
     await db.query('ALTER TABLE reporte_items ADD COLUMN accion VARCHAR(20) NULL');
+  }
+  // Punto 158 — Cierre mensual: gastos necesita su categoría en el snapshot.
+  // Se guarda en una columna propia `categoria` (nullable) para no mezclar
+  // semántica con `atendido_por` (que en gastos no aplica).
+  if (!nombresColumnasReporteItems.includes('categoria')) {
+    await db.query('ALTER TABLE reporte_items ADD COLUMN categoria VARCHAR(50) NULL');
+  }
+
+  // Punto 158 — Cierre mensual: reportes 'cierre_mensual' y tipo 'gasto'.
+  // Migraciones para instalaciones que ya tienen las tablas con CHECK viejo.
+  const [chkReportesTipo] = await db.query(
+    `SELECT CHECK_CLAUSE FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_reportes_tipo'`
+  );
+  if (chkReportesTipo.length > 0 && !chkReportesTipo[0].CHECK_CLAUSE.includes('cierre_mensual')) {
+    await db.query('ALTER TABLE reportes DROP CHECK chk_reportes_tipo');
+    await db.query(`ALTER TABLE reportes ADD CONSTRAINT chk_reportes_tipo CHECK (tipo IN ('automatico', 'manual', 'cierre_mensual'))`);
+  }
+  const [chkReporteItemsTipo] = await db.query(
+    `SELECT CHECK_CLAUSE FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_reporte_items_tipo_registro'`
+  );
+  if (chkReporteItemsTipo.length > 0 && !chkReporteItemsTipo[0].CHECK_CLAUSE.includes('gasto')) {
+    await db.query('ALTER TABLE reporte_items DROP CHECK chk_reporte_items_tipo_registro');
+    await db.query(`ALTER TABLE reporte_items ADD CONSTRAINT chk_reporte_items_tipo_registro CHECK (tipo_registro IN ('ticket', 'orden_compra', 'gasto'))`);
+  }
+  // Migración: reportes con instalaciones viejas no tienen total_gastos.
+  const [colsReportes] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reportes'`
+  );
+  const nombresReportes = colsReportes.map((c) => c.COLUMN_NAME);
+  if (!nombresReportes.includes('total_gastos')) {
+    await db.query('ALTER TABLE reportes ADD COLUMN total_gastos INT NOT NULL DEFAULT 0');
   }
 
   // Preferencias de dashboard por usuario administrador ("Modo dashboard",

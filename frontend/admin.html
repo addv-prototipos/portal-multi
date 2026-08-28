@@ -420,7 +420,7 @@
                 <path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m3 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
               </svg>
-              Borrado automático de tickets y ventas
+              Borrado automático de tickets
               <span class="smtp-estado-badge" id="retencion-estado-badge" hidden></span>
             </span>
             <svg class="admin-config-chevron" id="retencion-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -430,12 +430,12 @@
 
           <div class="admin-config-body" id="retencion-config-body" hidden>
             <p class="panel-subtitle admin-config-subtitle">
-              Define después de cuántos días se elimina automáticamente un ticket (imagen, factura si ya la tiene, y su registro) — <strong>y, con el mismo número de días, también una venta</strong> (su registro; no tiene archivos que limpiar). Se aplica a ambos sin importar su estatus. Los clientes ven un aviso de esto en su tablero.
+              Define después de cuántos días se elimina automáticamente un ticket (imagen, factura si ya la tiene, y su registro). Se aplica sin importar su estatus. Las ventas y los gastos ya no se eliminan por esta retención: se archivan al cierre de cada mes hacia Reportes. Los clientes ven un aviso de esto en su tablero.
             </p>
 
             <div class="retencion-config-fila">
               <div class="field retencion-config-input">
-                <label for="retencion-dias">Días antes de eliminar un ticket o venta</label>
+                <label for="retencion-dias">Días antes de eliminar un ticket</label>
                 <input type="number" id="retencion-dias" min="0" max="3650" placeholder="0 = desactivado" />
               </div>
               <button type="button" class="btn btn-primary" id="btn-guardar-retencion">

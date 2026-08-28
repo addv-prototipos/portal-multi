@@ -218,17 +218,13 @@ describe('ticketsCleanup.js', () => {
 
     test('con tickets y órdenes vencidos, genera el reporte ANTES de borrar', async () => {
       getRetencionTicketsDias.mockResolvedValue(30);
-      // obtenerTicketsVencidos, luego obtenerOrdenesVencidas
+      // obtenerTicketsVencidos (solo tickets desde punto 158)
       pool.query.mockResolvedValueOnce([[ticketVencido]]);
-      pool.query.mockResolvedValueOnce([[ordenVencida]]);
 
       generarYEnviarReporte.mockResolvedValue({ reporteId: 99, correoEnviado: true, errorCorreo: null });
 
       // eliminarTickets: DELETE + registrarLimpieza
       pool.query.mockResolvedValueOnce([{}]);
-      pool.query.mockResolvedValueOnce([{}]);
-      // eliminarOrdenes: DELETE + registrarLimpieza
-      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
       pool.query.mockResolvedValueOnce([{}]);
 
       const resultado = await ejecutarLimpiezaConReporte();
@@ -238,14 +234,15 @@ describe('ticketsCleanup.js', () => {
           tipo: 'automatico',
           items: expect.arrayContaining([
             expect.objectContaining({ tipo_registro: 'ticket', identificador: 'F-001' }),
-            expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-100' }),
           ]),
         })
       );
+      // Desde punto 158 ya no incluye órdenes vencidas en el reporte
+      expect(generarYEnviarReporte.mock.calls[0][0].items).toHaveLength(1);
       expect(resultado.reporteId).toBe(99);
       expect(resultado.correoEnviado).toBe(true);
       expect(resultado.eliminadosTickets).toBe(1);
-      expect(resultado.eliminadosOrdenes).toBe(1);
+      expect(resultado.eliminadosOrdenes).toBe(0);
 
       // Confirma el orden: generarYEnviarReporte se llamó antes que el DELETE de tickets/órdenes.
       const ordenLlamadas = generarYEnviarReporte.mock.invocationCallOrder[0];
@@ -256,7 +253,6 @@ describe('ticketsCleanup.js', () => {
     test('si generar el reporte falla, igual continúa con el borrado', async () => {
       getRetencionTicketsDias.mockResolvedValue(30);
       pool.query.mockResolvedValueOnce([[ticketVencido]]);
-      pool.query.mockResolvedValueOnce([[]]); // sin órdenes vencidas
 
       generarYEnviarReporte.mockRejectedValue(new Error('fallo al generar reporte'));
 

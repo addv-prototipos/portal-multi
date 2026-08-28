@@ -57,7 +57,13 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
   const fechaGeneracionFormateada = formatearFechaHoraMexico(aFechaSegura(fechaGeneracion) || new Date(), zonaHoraria);
   const tickets = items.filter((i) => i.tipo_registro === 'ticket');
   const ordenes = items.filter((i) => i.tipo_registro === 'orden_compra');
-  const tipoTexto = tipo === 'automatico' ? 'Automático (antes de borrado por retención)' : 'Manual';
+  const gastos = items.filter((i) => i.tipo_registro === 'gasto');
+  const tipoTexto =
+    tipo === 'automatico'
+      ? 'Automático (antes de borrado por retención)'
+      : tipo === 'cierre_mensual'
+      ? 'Cierre mensual (archivado)'
+      : 'Manual';
 
   const lineas = [];
   lineas.push(`# Reporte de tickets y ventas`);
@@ -76,6 +82,7 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
   lineas.push('');
   lineas.push(`- **Tickets:** ${tickets.length}`);
   lineas.push(`- **Ventas:** ${ordenes.length}`);
+  if (gastos.length > 0 || tipo === 'cierre_mensual') lineas.push(`- **Gastos:** ${gastos.length}`);
   lineas.push(`- **Total de registros:** ${items.length}`);
   lineas.push('');
 
@@ -116,6 +123,22 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
     });
   }
   lineas.push('');
+  if (gastos.length > 0) {
+    lineas.push(`## Gastos (${gastos.length})`);
+    lineas.push('');
+    lineas.push('| Concepto | Categoría | Proveedor | Monto | Fecha |');
+    lineas.push('|---|---|---|---|---|');
+    gastos.forEach((g) => {
+      const fechaSegura = aFechaSegura(g.fecha_registro);
+      const fechaFormateada = fechaSegura ? formatearFechaHoraMexico(fechaSegura, zonaHoraria) : null;
+      lineas.push(
+        `| ${escaparCeldaMD(g.estatus_o_concepto)} | ${escaparCeldaMD(g.categoria || '—')} | ${escaparCeldaMD(g.rfc || '—')} | ${formatearMonto(
+          g.monto
+        )} | ${fechaFormateada ? `${fechaFormateada.fecha} ${fechaFormateada.hora}` : '—'} |`
+      );
+    });
+    lineas.push('');
+  }
 
   return lineas.join('\n');
 }
@@ -129,11 +152,12 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
 async function guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, items, mdContenido, correoEnviadoA, correoEnviado }) {
   const tickets = items.filter((i) => i.tipo_registro === 'ticket');
   const ordenes = items.filter((i) => i.tipo_registro === 'orden_compra');
+  const gastos = items.filter((i) => i.tipo_registro === 'gasto');
 
   const [resultado] = await pool.query(
     `INSERT INTO reportes
-      (tipo, fecha_generacion, rango_inicio, rango_fin, correo_enviado_a, correo_enviado, total_tickets, total_ordenes, md_contenido, creado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (tipo, fecha_generacion, rango_inicio, rango_fin, correo_enviado_a, correo_enviado, total_tickets, total_ordenes, total_gastos, md_contenido, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       tipo,
       fechaGeneracion,
@@ -143,6 +167,7 @@ async function guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, it
       correoEnviado ? 1 : 0,
       tickets.length,
       ordenes.length,
+      gastos.length,
       mdContenido,
       fechaGeneracion,
     ]
@@ -159,12 +184,13 @@ async function guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, it
       item.monto === undefined ? null : item.monto,
       item.fecha_registro || null,
       item.atendido_por || null,
+      item.categoria || null,
       item.accion || null,
       fechaGeneracion,
     ]);
     await pool.query(
       `INSERT INTO reporte_items
-        (reporte_id, tipo_registro, identificador, rfc, estatus_o_concepto, monto, fecha_registro, atendido_por, accion, creado_en)
+        (reporte_id, tipo_registro, identificador, rfc, estatus_o_concepto, monto, fecha_registro, atendido_por, categoria, accion, creado_en)
        VALUES ?`,
       [valores]
     );
@@ -203,12 +229,15 @@ async function generarYEnviarReporte({ tipo, items, rangoInicio, rangoFin }) {
   if (correoDestino) {
     try {
       const fechaGeneracionFormateada = formatearFechaHoraMexico(fechaGeneracion, configGlobal.zona_horaria);
+      const titulo = tipo === 'cierre_mensual' ? 'Cierre mensual' : 'Reporte de tickets y ventas';
       await enviarCorreo({
         destinatario: correoDestino,
-        asunto: `Reporte de tickets y ventas — ${fechaGeneracionFormateada.fecha}`,
+        asunto: `${titulo} — ${fechaGeneracionFormateada.fecha}`,
         cuerpo: `Se adjunta el reporte generado el ${fechaGeneracionFormateada.fecha} a las ${fechaGeneracionFormateada.hora}.\n\nTickets: ${
           items.filter((i) => i.tipo_registro === 'ticket').length
-        }\nVentas: ${items.filter((i) => i.tipo_registro === 'orden_compra').length}`,
+        }\nVentas: ${items.filter((i) => i.tipo_registro === 'orden_compra').length}\nGastos: ${
+          items.filter((i) => i.tipo_registro === 'gasto').length
+        }`,
         adjuntos: [
           {
             filename: `reporte-${fechaGeneracion.toISOString().slice(0, 10)}.md`,
@@ -260,15 +289,17 @@ function itemsAFilas(items, zonaHoraria, opciones) {
   return items.map((item) => {
     const fechaSegura = aFechaSegura(item.fecha_registro);
     const fechaFormateada = fechaSegura ? formatearFechaHoraMexico(fechaSegura, zonaHoraria) : null;
+    const tipoLabel = item.tipo_registro === 'ticket' ? 'Ticket' : item.tipo_registro === 'gasto' ? 'Gasto' : 'Ventas';
+    const accionLabel = item.accion === 'eliminado' ? 'Eliminado' : item.accion === 'archivado' ? 'Archivado' : '';
     const fila = [
-      item.tipo_registro === 'ticket' ? 'Ticket' : 'Ventas',
+      tipoLabel,
       item.identificador,
       item.rfc || '',
       item.estatus_o_concepto || '',
       item.monto === null || item.monto === undefined ? '' : Number(item.monto),
       item.atendido_por || '',
       fechaFormateada ? `${fechaFormateada.fecha} ${fechaFormateada.hora}` : '',
-      item.accion === 'eliminado' ? 'Eliminado' : '',
+      accionLabel,
     ];
     if (incluirOrigen) {
       const origenSeguro = aFechaSegura(item.reporte_fecha_generacion);

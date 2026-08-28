@@ -14,6 +14,7 @@ const cookieParser = require('cookie-parser');
 const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
 const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl } = require('./db');
+const { ejecutarCierresMensualesParaTodos } = require('./utils/cierreMensual');
 const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant } = require('./utils/tenantContext');
 const { validarSlug } = require('./utils/tenant');
 const storage = require('./utils/storage');
@@ -3224,11 +3225,10 @@ app.get(
 // ---------- Administración de tickets ----------
 
 // Consulta y actualiza cada cuántos días se eliminan automáticamente los
-// tickets (imagen + factura + fila) — y, con la MISMA configuración, las
-// órdenes de compra también. `dias: null` desactiva el borrado
-// automático de ambas. También informa cuándo corrió la última limpieza
-// de cada una y cuántos elementos eliminó, para que el administrador
-// tenga visibilidad de que sí está funcionando.
+// tickets (imagen + factura + fila). Desde punto 158 ya NO borra órdenes
+// ni gastos — esos se archivan al cierre mensual. `dias: null` desactiva
+// el borrado. `ultimaLimpiezaOrdenes` se conserva por compatibilidad
+// (ya no se actualiza).
 app.get(
   '/api/admin/config/tickets-retencion',
   adminApiLimiter,
@@ -4552,27 +4552,40 @@ app.post(
   })
 );
 
-// Lista las órdenes de compra activas. La fecha se muestra siempre con la
-// zona horaria ACTUALMENTE configurada (no la que estaba vigente cuando
-// se creó cada orden) — la hora exacta en UTC nunca cambia en la base de
-// datos, solo cambia con qué zona horaria se le da formato al mostrarla.
+// Lista las órdenes de compra activas. Por defecto solo el mes operativo
+// (`archivado_en IS NULL`); con `?periodo=YYYY-MM` muestra el cierre
+// archivado de ese periodo, con `?incluirArchivadas=true` muestra todo.
+// La fecha se muestra con la zona horaria ACTUALMENTE configurada.
 app.get(
   '/api/admin/ordenes-compra',
   adminApiLimiter,
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
+    const periodo = typeof req.query.periodo === 'string' ? req.query.periodo.trim() : '';
+    const incluirArchivadas = req.query.incluirArchivadas === 'true';
+    const esPeriodoValido = /^\d{4}-\d{2}$/.test(periodo);
+    let whereArchivado = 'o.archivado_en IS NULL';
+    const paramsArchivado = [];
+    if (esPeriodoValido) {
+      whereArchivado = 'o.periodo_archivado = ?';
+      paramsArchivado.push(periodo);
+    } else if (incluirArchivadas) {
+      whereArchivado = '1=1';
+    }
     const [ordenes] = await pool.query(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
         o.producto_id, o.producto_cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre,
+        o.archivado_en, o.periodo_archivado,
         EXISTS(
           SELECT 1 FROM tickets t
           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
         ) AS facturado
        FROM ordenes_compra o
        LEFT JOIN productos p ON p.id = o.producto_id
-       WHERE o.eliminado_en IS NULL
-       ORDER BY o.creado_en DESC`
+       WHERE o.eliminado_en IS NULL AND ${whereArchivado}
+       ORDER BY o.creado_en DESC`,
+      paramsArchivado
     );
 
     // Segmento A: líneas de inventario (0, 1 o varias) por venta, en una
@@ -5266,6 +5279,18 @@ app.get(
       params.push(patron, patron);
     }
     condiciones.push(verPapelera ? 'eliminado_en IS NOT NULL' : 'eliminado_en IS NULL');
+    // Punto 158 — Cierre mensual archivado: por defecto oculta archivados;
+    // ?periodo=YYYY-MM muestra ese cierre; ?incluirArchivadas=true muestra todo.
+    const periodoGasto = typeof req.query.periodo === 'string' ? req.query.periodo.trim() : '';
+    const incluirArchivadasGasto = req.query.incluirArchivadas === 'true';
+    if (!verPapelera) {
+      if (/^\d{4}-\d{2}$/.test(periodoGasto)) {
+        condiciones.push('periodo_archivado = ?');
+        params.push(periodoGasto);
+      } else if (!incluirArchivadasGasto) {
+        condiciones.push('archivado_en IS NULL');
+      }
+    }
     const where = condiciones.join(' AND ');
 
     const [contador] = await pool.query(`SELECT COUNT(*) AS total FROM gastos WHERE ${where}`, params);
@@ -7253,11 +7278,11 @@ app.use((req, res) => {
 // crítica para servir tráfico.
 async function ejecutarLimpiezaAutomatica() {
   try {
-    const { eliminadosTickets, eliminadosOrdenes, retencionActiva, reporteId, correoEnviado, errorCorreo } =
+    const { eliminadosTickets, retencionActiva, reporteId, correoEnviado, errorCorreo } =
       await ejecutarLimpiezaConReporte();
-    if (retencionActiva && (eliminadosTickets > 0 || eliminadosOrdenes > 0)) {
+    if (retencionActiva && eliminadosTickets > 0) {
       console.log(
-        `Limpieza automática: ${eliminadosTickets} ticket(s) y ${eliminadosOrdenes} orden(es) de compra vencidos eliminados.` +
+        `Limpieza automática: ${eliminadosTickets} ticket(s) vencidos eliminados.` +
           (reporteId ? ` Reporte #${reporteId} generado${correoEnviado ? ' y enviado por correo' : ''}.` : '')
       );
       if (errorCorreo) {
@@ -7265,7 +7290,30 @@ async function ejecutarLimpiezaAutomatica() {
       }
     }
   } catch (err) {
-    console.error('Error en la limpieza automática (tickets y órdenes de compra):', err);
+    console.error('Error en la limpieza automática (tickets):', err);
+  }
+}
+
+// Punto 158 — Cierre mensual archivado (Ventas + Gastos, día 1 02:00 zona_horaria)
+async function ejecutarCierreMensualAutomatico() {
+  const ahora = new Date();
+  // Solo día 1 — evita correr cada hora el resto del mes (el guard por DB
+  // `ultimo_cierre_mensual` ya evita duplicar, pero este filtro ahorra
+  // N consultas a todos los tenants el resto del mes).
+  if (ahora.getUTCDate() !== 1) return;
+  const hourUtc = ahora.getUTCHours();
+  // 02:00 en America/Mexico_City = 08:00 UTC (horario estándar) o 07:00 UTC
+  // en horario de verano. Para no fallar por esa hora de diferencia, se
+  // permite ventana 07:00-09:00 UTC.
+  if (hourUtc < 7 || hourUtc > 9) return;
+  try {
+    const resultados = await ejecutarCierresMensualesParaTodos();
+    const archivadas = resultados.filter((r) => (r.archivadasVentas || 0) > 0 || (r.archivadosGastos || 0) > 0);
+    if (archivadas.length > 0) {
+      console.log(`[cierreMensual] Cierre ${archivadas[0].periodo}: ${JSON.stringify(archivadas.map((r) => ({ slug: r.slug || 'base', periodo: r.periodo, ventas: r.archivadasVentas, gastos: r.archivadosGastos })))}`);
+    }
+  } catch (err) {
+    console.error('[cierreMensual] Error en cierre mensual automático:', err);
   }
 }
 
@@ -7294,9 +7342,12 @@ async function iniciar() {
   // mientras la limpieza corre — y si de verdad falla o se cuelga, ya no
   // se lleva de encuentro el arranque completo del backend.
   ejecutarLimpiezaAutomatica();
+  // Cierre mensual: se chequea cada hora pero solo actúa día 1 02:00 zona.
+  ejecutarCierreMensualAutomatico();
   // Se repite cada hora; con la retención medida en días, no hace falta
   // una frecuencia mayor, y así se evita sobrecargar la base de datos.
   const intervaloLimpieza = setInterval(ejecutarLimpiezaAutomatica, 60 * 60 * 1000);
+  const intervaloCierreMensual = setInterval(ejecutarCierreMensualAutomatico, 60 * 60 * 1000);
 
   // ---------- Apagado ordenado (graceful shutdown) ----------
   // Sin esto, cuando Docker manda SIGTERM para detener o reiniciar el
@@ -7317,6 +7368,7 @@ async function iniciar() {
     console.log(`\nSeñal ${señal} recibida — cerrando ordenadamente...`);
 
     clearInterval(intervaloLimpieza);
+    clearInterval(intervaloCierreMensual);
 
     const cierreForzado = setTimeout(() => {
       console.error('El cierre ordenado tardó demasiado — forzando salida.');

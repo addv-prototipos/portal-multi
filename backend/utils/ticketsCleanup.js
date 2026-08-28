@@ -3,11 +3,10 @@ const { getRetencionTicketsDias } = require('./config');
 const { generarYEnviarReporte } = require('./reportes');
 const storage = require('./storage');
 
-// Misma configuración de días para ambas limpiezas (tickets y órdenes de
-// compra) — un solo número de retención que el administrador configura
-// una vez, aplicado a las dos. Se registra la última limpieza de cada
-// una por separado (claves distintas), para poder mostrar información
-// específica de cada una en el panel, aunque compartan el mismo "cuándo".
+// Retención por días — SOLO tickets (peticiones de factura). Desde el
+// punto 158 (2026-08-28) ya NO borra ventas/gastos: esos se archivan al
+// cierre mensual hacia Reportes (ver cierreMensual.js). Se conserva la
+// clave de órdenes por compatibilidad (no se escribe más).
 const CLAVE_ULTIMA_LIMPIEZA_TICKETS = 'tickets_ultima_limpieza';
 const CLAVE_ULTIMA_LIMPIEZA_ORDENES = 'ordenes_compra_ultima_limpieza';
 
@@ -41,6 +40,11 @@ async function obtenerTicketsVencidos() {
   return { ticketsVencidos: vencidos, retencionActiva: true, diasConfigurados: dias };
 }
 
+/**
+ * @deprecated desde punto 158 — retención ya no borra órdenes. Se conserva
+ * por compatibilidad (tests / scripts viejos) pero NO se usa en el flujo
+ * real (`ejecutarLimpiezaConReporte` ya no la llama).
+ */
 async function obtenerOrdenesVencidas() {
   const dias = await getRetencionTicketsDias();
   if (!dias) return { ordenesVencidas: [], retencionActiva: false, diasConfigurados: null };
@@ -81,10 +85,8 @@ async function eliminarTickets(ticketsVencidos) {
   return eliminados;
 }
 
-// Borra en lote las órdenes de compra ya obtenidas con
-// obtenerOrdenesVencidas() — a diferencia de un ticket, una orden no
-// tiene ningún archivo en disco que limpiar, así que no hace falta
-// procesarlas una por una.
+// @deprecated desde punto 158 — ver obtenerOrdenesVencidas. No se llama en
+// el flujo real; solo wrapper para compatibilidad.
 async function eliminarOrdenes(ordenesVencidas) {
   if (ordenesVencidas.length === 0) return 0;
   const ids = ordenesVencidas.map((o) => o.id);
@@ -107,6 +109,7 @@ async function limpiarTicketsVencidos() {
   return { eliminados, retencionActiva: true, diasConfigurados };
 }
 
+/** @deprecated desde punto 158 — ver obtenerOrdenesVencidas. */
 async function limpiarOrdenesVencidas() {
   const { ordenesVencidas, retencionActiva, diasConfigurados } = await obtenerOrdenesVencidas();
   if (!retencionActiva) return { eliminados: 0, retencionActiva: false };
@@ -146,28 +149,21 @@ function ordenAItemReporte(orden) {
   };
 }
 
-// Flujo real que corre cada hora (ver server.js): obtiene los tickets y
-// órdenes vencidos SIN borrarlos todavía, genera y envía (si hay correo
-// configurado) UN SOLO reporte combinado con toda esa información —
-// "reporte del mes" pedido explícitamente, para no perder ese historial
-// para siempre justo antes de que el borrado automático lo elimine — y
-// SOLO DESPUÉS de que el reporte ya quedó guardado, borra ambos. Si no
-// hay nada vencido de ningún tipo, no se genera ningún reporte (un
-// reporte vacío no le sirve a nadie).
+// Flujo real que corre cada hora (ver server.js): obtiene los tickets
+// vencidos SIN borrarlos todavía, genera y envía (si hay correo
+// configurado) UN reporte con esos tickets — y SOLO DESPUÉS de que el
+// reporte ya quedó guardado, borra los tickets. Desde el punto 158 ya NO
+// toca órdenes/gastos (se archivan al cierre mensual hacia Reportes).
+// Si no hay nada vencido, no se genera ningún reporte.
 async function ejecutarLimpiezaConReporte() {
-  const { ticketsVencidos, retencionActiva: retencionTickets, diasConfigurados } = await obtenerTicketsVencidos();
-  const { ordenesVencidas, retencionActiva: retencionOrdenes } = await obtenerOrdenesVencidas();
+  const { ticketsVencidos, retencionActiva, diasConfigurados } = await obtenerTicketsVencidos();
 
   let reporteId = null;
   let correoEnviado = false;
   let errorCorreo = null;
 
-  if (ticketsVencidos.length > 0 || ordenesVencidas.length > 0) {
-    const items = [...ticketsVencidos.map(ticketAItemReporte), ...ordenesVencidas.map(ordenAItemReporte)];
-    // El rango cubierto es "desde el registro más antiguo hasta el más
-    // reciente" de lo que se está a punto de borrar en esta corrida —
-    // más útil para el administrador que un rango de calendario fijo,
-    // ya que refleja exactamente lo que trae el reporte.
+  if (ticketsVencidos.length > 0) {
+    const items = ticketsVencidos.map(ticketAItemReporte);
     const fechas = items.map((i) => new Date(i.fecha_registro)).filter((f) => !Number.isNaN(f.getTime()));
     const rangoInicio = fechas.length ? new Date(Math.min(...fechas)) : null;
     const rangoFin = fechas.length ? new Date(Math.max(...fechas)) : null;
@@ -178,23 +174,17 @@ async function ejecutarLimpiezaConReporte() {
       correoEnviado = resultado.correoEnviado;
       errorCorreo = resultado.errorCorreo;
     } catch (err) {
-      // Si el reporte en sí falla al generarse/guardarse (no solo el
-      // correo, que ya se maneja aparte dentro de generarYEnviarReporte),
-      // se registra el error pero NO se detiene el borrado — perder el
-      // reporte de una corrida es mejor que dejar acumulándose
-      // indefinidamente tickets/órdenes que ya deberían haberse borrado
-      // por la retención configurada.
       console.error('No se pudo generar el reporte antes de la limpieza automática:', err);
     }
   }
 
-  const eliminadosTickets = retencionTickets ? await eliminarTickets(ticketsVencidos) : 0;
-  const eliminadosOrdenes = retencionOrdenes ? await eliminarOrdenes(ordenesVencidas) : 0;
+  const eliminadosTickets = retencionActiva ? await eliminarTickets(ticketsVencidos) : 0;
+  const eliminadosOrdenes = 0; // deprecated desde punto 158 — retención ya no borra órdenes
 
   return {
     eliminadosTickets,
     eliminadosOrdenes,
-    retencionActiva: retencionTickets || retencionOrdenes,
+    retencionActiva,
     diasConfigurados,
     reporteId,
     correoEnviado,
