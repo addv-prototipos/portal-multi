@@ -10000,9 +10000,60 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       - Sin commit/push todavía.
 
   158. **Cierre mensual archivado (Ventas + Gastos) y retención solo-Tickets
-      — REQUERIMIENTO MADURADO, DOCUMENTADO, PENDIENTE DE IMPLEMENTACIÓN
-      (2026-08-28, protocolo `addv-web-app` Analizar→Proponer→Confirmar,
-      cero código tocado):** a pedido del usuario, la retención por días
+      — IMPLEMENTADO (Fases 1-4), 2 bugs corregidos en auditoría posterior,
+      Jest 762/762, SIN VALIDAR contra MySQL real todavía.** Documentado
+      abajo como plan original (2026-08-28); implementado el mismo día por
+      una sesión paralela (commits `ebd9c6d`/`cf21e4b`/`0327fd9`, ya
+      pusheados a `fact/master`) sin pasar por la confirmación explícita
+      de esta sesión sobre las 2 decisiones abiertas del final de este
+      punto — mismo patrón de incidente que el punto 140. Auditoría
+      posterior (2026-08-29) encontró y corrigió 2 bugs reales, ninguno
+      detectable con `node --check`:
+      - **Zona horaria ignorada de facto**: `periodoMesAnterior(zonaHoraria)`
+        recibía el parámetro pero nunca lo usaba (calculaba sobre UTC
+        crudo); el gate de disparo en `server.js` estaba hardcodeado a una
+        ventana fija 07:00-09:00 UTC asumiendo siempre
+        `America/Mexico_City`, ignorando `configuracion_global.zona_horaria`
+        por tenant — con esto, un tenant en otra zona de
+        `ZONAS_HORARIAS_MEXICO` (`utils/config.js`, UTC-6 a UTC-8) podía
+        cerrar el mes equivocado o en la hora local equivocada. Fix:
+        `fechaLocal()`/`esDia1EnZona()` nuevas en `cierreMensual.js`
+        (`Intl.DateTimeFormat` con `timeZone`), gate real movido DENTRO de
+        `ejecutarCierreMensualParaDB()` (decide "es día 1" con LA zona de
+        esa DB, no la de quien llama); `server.js` solo conserva un
+        pre-filtro amplio UTC día 1-2 (ahorra consultas el resto del mes,
+        cubre sin riesgo el rango de offsets de las 11 zonas mexicanas
+        soportadas).
+      - **Frontend "Lectura de reportes" no reconocía `tipo_registro='gasto'`**
+        (nuevo en este punto): una fila de gasto archivado se etiquetaba
+        como "Ventas" (`admin.js` `renderFilaReporteItem`/
+        `abrirTimelineItem`, ternario `ticket`/`Ventas` sin caso `gasto`)
+        y el filtro "Tipo de registro" no tenía la opción "Gastos" en
+        ninguno de los 2 selects (`admin.html`, reporte normal + ledger
+        "Todo lo eliminado"). Fix: mapa `TIPO_REGISTRO_ETIQUETA` y opción
+        `gasto` agregada en ambos selects.
+      - **Cero pruebas unitarias para `cierreMensual.js`** (idempotencia,
+        archivado, cálculo de fechas por zona, iteración multi-tenant) —
+        el commit original solo ajustó las de `ticketsCleanup`. Agregado
+        `test/unit/cierreMensual.test.js`, 15 casos nuevos.
+      - **Pendiente real**: nunca validado contra MySQL real (migración
+        `archivado_en`/`periodo_archivado`, `chk_reportes_tipo`/
+        `chk_reporte_items_tipo_registro` ampliados) — correr
+        `docker compose up -d --build` + confirmar `ensureSchema()` en la
+        BD real antes de producción. Las 2 decisiones que quedaron
+        "pendientes de confirmación explícita" al final de este punto
+        (hora fija vs configurable, ventas `pendiente` incluidas en el
+        cierre) se resolvieron en el código con los valores por defecto
+        ya propuestos aquí mismo (hora fija 02:00 por zona, sí incluidas)
+        — sin que el usuario las confirmara palabra por palabra; si
+        alguna no es la deseada, es un ajuste chico sobre lo ya construido,
+        no un rediseño.
+
+      Plan original (documentado 2026-08-28, antes de la implementación
+      paralela) — se conserva íntegro abajo como referencia de las
+      decisiones de diseño ya tomadas:
+
+      A pedido del usuario, la retención por días
       deja de borrar Ventas/Gastos y el cierre de mes los archiva hacia
       Reportes, preservando métricas. Aplica **dual: base ADDV sin tenant
       (`portal_facturacion` / `PREFIJO_DEFECTO`) + cada tenant activo
@@ -10093,10 +10144,47 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         en cada DB (F4); listados operativos solo mes en curso, histórico
         vía periodo (F3); serie 6 meses y `utilidad_neta` no caen tras
         archivar (F3/F4).
-      - **Pendiente:** confirmación explícita del usuario sobre hora
-        02:00 fija vs configurable y sobre si ventas `pendiente` deben
-        excluirse del cierre (propuesta: incluirlas). Cero código tocado
-        en esta sesión — solo documentación.
+      - **Estado real de estas 2 decisiones: ver el bloque de auditoría al
+        inicio de este mismo punto 158** — se implementaron con los
+        valores propuestos (hora fija, ventas `pendiente` incluidas) sin
+        pasar por esta confirmación explícita.
+
+  159. **Pendiente registrado — cámara para código de barras (alta en
+      Inventarios + búsqueda en Ventas) e imágenes de producto
+      (2026-08-29), solo anotado, cero código tocado:** a pedido del
+      usuario, se investigó por qué no aparece "subir imágenes" ni
+      "lector de código de barras" en Inventarios/Ventas. Confirmado por
+      grep en todo el repo, no es una regresión — nunca se construyó:
+      - **Código de barras**: existe SOLO como campo de texto manual
+        (`productos.codigo_barras`, alta/edición en `frontend/admin.html`
+        `#inv-modal-codigo-barras`, búsqueda exacta en Ventas
+        `server.js:6361`, sinónimo del importador masivo
+        `inventarioCampos.js`). Nunca hubo lectura por cámara — cero
+        referencia en el repo a `BarcodeDetector`, `getUserMedia` ni
+        ninguna librería de escaneo (zxing/quagga/html5-qrcode). Falta
+        agregar: (1) en Inventarios, botón "Escanear" en el alta/edición
+        de producto que abra la cámara del celular y rellene
+        `codigo_barras` automáticamente; (2) en Ventas, lector de código
+        de barras desde la cámara del celular para buscar/agregar un
+        producto al vuelo (hoy solo se busca por texto). **Confirmado con
+        el usuario (2026-08-29): cámara del celular como lector, sin
+        hardware dedicado, al menos en esta primera fase.** Requiere
+        HTTPS (`getUserMedia` no funciona en HTTP salvo `localhost`) y
+        decidir si vía `BarcodeDetector` nativo (Chrome/Edge Android, sin
+        librería, sin soporte en iOS Safari) o una librería JS pura
+        (funciona en todos, pesa más) — análisis pendiente antes de
+        proponer segmento.
+      - **Imágenes de producto**: D10 en `inventarios.md` (§6) tiene la
+        especificación COMPLETA ya escrita (gate por control + tenant,
+        3 límites, pipeline de redimensionado/WebP, tabla
+        `producto_imagenes`, endpoints `POST/DELETE/PUT
+        /productos/:id/imagenes*`) pero es solo documento — cero tabla,
+        cero endpoint, cero UI construida todavía. No es un bug, es un
+        segmento de `inventarios.md` nunca empezado. Retomar D10 tal cual
+        ya está especificado cuando se confirme el segmento.
+      - Sin análisis de alcance/segmento todavía — solo el hallazgo y el
+        pendiente anotados aquí, protocolo `addv-web-app` de
+        Analizar→Proponer→Confirmar antes de tocar código.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

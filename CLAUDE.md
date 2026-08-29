@@ -870,6 +870,11 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   corrió el rebuild único y quedó verificado por HTTP: serie de 6 llaves
   mar–ago + proyección activa (Sep ≈ 342,850 / Oct ≈ 376,521). SQL de
   limpieza impreso por el script.     Sin commit/push todavía.
+- **Pendiente registrado (ver PROJECT_STATE.md punto 159, 2026-08-29)**:
+  código de barras vía cámara del celular (alta en Inventarios + buscar
+  producto en Ventas) e imágenes de producto (D10 de `inventarios.md`,
+  ya especificado, cero código) — ninguno es una regresión, nunca se
+  construyeron. `codigo_barras` hoy es solo campo de texto manual.
 - **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un
@@ -1343,7 +1348,25 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   (health OK, `/admin` y `/tickets` sirven el nuevo texto);
   `FRONTEND_PORT=8088` conservado. Commit `a34c877` pusheado a `fact`.
 
-- **PENDIENTE — Cierre mensual archivado Ventas+Gastos + retención solo-Tickets (ver PROJECT_STATE.md punto 158, 2026-08-28)**: retención `tickets_retencion_dias` queda solo tickets; Ventas/Gastos se archivan (no se borran) al día 1 02:00 `zona_horaria` hacia Reportes (`tipo='cierre_mensual'`, `accion='archivado'`), con `archivado_en`+`periodo_archivado` en ambas tablas. Listados filtran por defecto `archivado_en IS NULL`; Resumen financiero incluye archivados (Opción A). Aplica dual: base ADDV sin slug + cada tenant activo (job itera `control.tenants` vía `ejecutarComoTenant`). Fases 1-5 documentadas, cero código tocado, en espera de confirmación explícita.
+- **Cierre mensual archivado Ventas+Gastos + retención solo-Tickets (ver
+  PROJECT_STATE.md punto 158) — IMPLEMENTADO, 2 bugs corregidos,
+  Jest 762/762, sin validar contra MySQL real todavía**: retención
+  `tickets_retencion_dias` queda solo tickets; Ventas/Gastos se archivan
+  (no se borran) al día 1 hacia Reportes (`tipo='cierre_mensual'`,
+  `accion='archivado'`), con `archivado_en`+`periodo_archivado` en ambas
+  tablas. Listados filtran por defecto `archivado_en IS NULL`; Resumen
+  financiero incluye archivados (Opción A). Dual: base ADDV sin slug +
+  cada tenant activo (`ejecutarCierresMensualesParaTodos()`,
+  `backend/utils/cierreMensual.js`). Implementado por una sesión paralela
+  sin confirmación explícita de las 2 decisiones abiertas del plan
+  (bugs 158 mismo patrón que el incidente del punto 140) — auditado y
+  corregido después: el gate de "es día 1" ahora respeta la
+  `zona_horaria` real de CADA DB (`esDia1EnZona()`/`fechaLocal()`, antes
+  hardcodeado a America/Mexico_City vía ventana UTC fija), "Lectura de
+  reportes" ahora reconoce `tipo_registro='gasto'` (antes se mostraba
+  como "Ventas", faltaba en los 2 selects de filtro), y se agregó
+  `test/unit/cierreMensual.test.js` (antes cero cobertura del módulo).
+  Pendiente real: correr contra Docker/MySQL real antes de producción.
 
 Las tres superficies de la app: portal de cliente (sin prefijo o
 `/<slug>/...`), panel admin por tenant (`/admin` o `/<slug>/admin`), y

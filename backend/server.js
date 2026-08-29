@@ -7315,18 +7315,18 @@ async function ejecutarLimpiezaAutomatica() {
   }
 }
 
-// Punto 158 — Cierre mensual archivado (Ventas + Gastos, día 1 02:00 zona_horaria)
+// Punto 158 — Cierre mensual archivado (Ventas + Gastos, día 1 en la zona
+// horaria de cada DB — ver `configuracion_global.zona_horaria`).
 async function ejecutarCierreMensualAutomatico() {
   const ahora = new Date();
-  // Solo día 1 — evita correr cada hora el resto del mes (el guard por DB
-  // `ultimo_cierre_mensual` ya evita duplicar, pero este filtro ahorra
-  // N consultas a todos los tenants el resto del mes).
-  if (ahora.getUTCDate() !== 1) return;
-  const hourUtc = ahora.getUTCHours();
-  // 02:00 en America/Mexico_City = 08:00 UTC (horario estándar) o 07:00 UTC
-  // en horario de verano. Para no fallar por esa hora de diferencia, se
-  // permite ventana 07:00-09:00 UTC.
-  if (hourUtc < 7 || hourUtc > 9) return;
+  // Pre-filtro amplio en UTC: solo ahorra consultas a N tenants el resto
+  // del mes. Las zonas horarias válidas (`ZONAS_HORARIAS_MEXICO`, ver
+  // utils/config.js) van de UTC-6 a UTC-8, así que el día 1 local cae
+  // siempre dentro de UTC 1 o UTC 2 — nunca se restringe más que eso.
+  // La decisión real y precisa de "es día 1 en SU zona" la toma cada DB
+  // por separado dentro de `ejecutarCierreMensualParaDB()`.
+  const diaUtc = ahora.getUTCDate();
+  if (diaUtc !== 1 && diaUtc !== 2) return;
   try {
     const resultados = await ejecutarCierresMensualesParaTodos();
     const archivadas = resultados.filter((r) => (r.archivadasVentas || 0) > 0 || (r.archivadosGastos || 0) > 0);

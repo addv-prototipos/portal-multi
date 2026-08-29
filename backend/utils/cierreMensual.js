@@ -4,11 +4,26 @@ const { generarYEnviarReporte } = require('./reportes');
 
 const CLAVE_ULTIMO_CIERRE = 'ultimo_cierre_mensual';
 
-function periodoMesAnterior(zonaHoraria) {
-  // Cálculo en UTC es suficiente porque el cron corre día 1 02:00 en la
-  // zona configurada — a esa hora UTC sigue siendo día 1, mismo mes.
-  const ahora = new Date();
-  const base = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() - 1, 1));
+/** Año/mes/día actuales en `zonaHoraria` (IANA), sin depender de la hora UTC. */
+function fechaLocal(zonaHoraria, fecha = new Date()) {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: zonaHoraria,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(fecha);
+  const obtener = (tipo) => partes.find((p) => p.type === tipo).value;
+  return { anio: Number(obtener('year')), mes: Number(obtener('month')), dia: Number(obtener('day')) };
+}
+
+/** true si "ahora" es día 1 del mes en `zonaHoraria` — gate real por DB/tenant. */
+function esDia1EnZona(zonaHoraria, fecha = new Date()) {
+  return fechaLocal(zonaHoraria, fecha).dia === 1;
+}
+
+function periodoMesAnterior(zonaHoraria, fecha = new Date()) {
+  const { anio, mes } = fechaLocal(zonaHoraria, fecha);
+  const base = new Date(Date.UTC(anio, mes - 1 - 1, 1));
   const y = base.getUTCFullYear();
   const m = String(base.getUTCMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
@@ -92,6 +107,15 @@ async function setUltimoCierre(periodo) {
  */
 async function ejecutarCierreMensualParaDB(periodoForzado = null) {
   const configGlobal = await getConfiguracionGlobal();
+
+  // Gate real: día 1 en la zona horaria de ESTA DB (no la de quien llama).
+  // El pre-filtro amplio de server.js solo ahorra consultas el resto del
+  // mes — la decisión correcta de "es día 1" siempre se toma aquí, por
+  // tenant, porque cada uno puede tener una zona distinta.
+  if (!periodoForzado && !esDia1EnZona(configGlobal.zona_horaria)) {
+    return { periodo: null, fueraDeVentana: true, archivadasVentas: 0, archivadosGastos: 0, reporteId: null };
+  }
+
   const periodo = periodoForzado || periodoMesAnterior(configGlobal.zona_horaria);
 
   if (!/^\d{4}-\d{2}$/.test(periodo)) {
@@ -209,5 +233,7 @@ module.exports = {
   rangoDelPeriodo,
   ordenAItemArchivado,
   gastoAItemArchivado,
+  fechaLocal,
+  esDia1EnZona,
   CLAVE_ULTIMO_CIERRE,
 };

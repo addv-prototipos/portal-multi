@@ -2298,6 +2298,11 @@
     cancelado: 'estatus-cancelado',
     listo: 'estatus-listo',
   };
+  const TIPO_REGISTRO_ETIQUETA = {
+    ticket: 'Ticket',
+    orden_compra: 'Ventas',
+    gasto: 'Gasto',
+  };
   function renderDetalleItemReporte(item) {
     if (item.tipo_registro === 'ticket' && ESTATUS_BADGE_CLASE[item.estatus_o_concepto]) {
       return `<span class="estatus-badge ${ESTATUS_BADGE_CLASE[item.estatus_o_concepto]}">${escapeHtml(item.estatus_o_concepto)}</span>`;
@@ -2314,7 +2319,7 @@
       : '';
     return `
       <tr>
-        <td data-label="Tipo">${item.tipo_registro === 'ticket' ? 'Ticket' : 'Ventas'}</td>
+        <td data-label="Tipo">${TIPO_REGISTRO_ETIQUETA[item.tipo_registro] || item.tipo_registro}</td>
         <td data-label="Identificador">
           <strong>${escapeHtml(item.identificador)}</strong>
           <button type="button" class="btn-ver-historial" data-tipo="${item.tipo_registro}" data-identificador="${escapeHtml(item.identificador)}" data-tooltip="Ver historial en todos los reportes" aria-label="Ver historial de ${escapeHtml(item.identificador)}">
@@ -2526,7 +2531,7 @@
   }
 
   async function abrirTimelineItem(tipo, identificador) {
-    els.reportesTimelineSubtitulo.textContent = `${tipo === 'ticket' ? 'Ticket' : 'Ventas'} ${identificador} — en todos los reportes donde apareció, del más antiguo al más reciente.`;
+    els.reportesTimelineSubtitulo.textContent = `${TIPO_REGISTRO_ETIQUETA[tipo] || tipo} ${identificador} — en todos los reportes donde apareció, del más antiguo al más reciente.`;
     els.reportesTimelineLista.innerHTML = '';
     els.reportesTimelineEmpty.hidden = true;
     els.reportesTimelineOverlay.hidden = false;
