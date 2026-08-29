@@ -1349,8 +1349,9 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   `FRONTEND_PORT=8088` conservado. Commit `a34c877` pusheado a `fact`.
 
 - **Cierre mensual archivado Ventas+Gastos + retención solo-Tickets (ver
-  PROJECT_STATE.md punto 158) — IMPLEMENTADO, 2 bugs corregidos,
-  Jest 762/762, sin validar contra MySQL real todavía**: retención
+  PROJECT_STATE.md punto 158) — IMPLEMENTADO, VALIDADO CONTRA
+  DOCKER/MySQL REAL, 4 bugs corregidos en total, Jest 764/764**:
+  retención
   `tickets_retencion_dias` queda solo tickets; Ventas/Gastos se archivan
   (no se borran) al día 1 hacia Reportes (`tipo='cierre_mensual'`,
   `accion='archivado'`), con `archivado_en`+`periodo_archivado` en ambas
@@ -1366,7 +1367,15 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   reportes" ahora reconoce `tipo_registro='gasto'` (antes se mostraba
   como "Ventas", faltaba en los 2 selects de filtro), y se agregó
   `test/unit/cierreMensual.test.js` (antes cero cobertura del módulo).
-  Pendiente real: correr contra Docker/MySQL real antes de producción.
+  Validado contra Docker/MySQL real (2026-08-29): encontró 2 bugs más,
+  ambos solo visibles con infraestructura real — `ejecutarComoTenant()`
+  recibía el slug crudo en vez del pool real del tenant (`pool.query is
+  not a function`, cierre mensual de CUALQUIER tenant estaba roto de
+  raíz, fix vía `obtenerPoolTenant()`), y el filtro "Gastos" de Reportes
+  no filtraba nada (whitelist de `tipo_registro` en 4 endpoints sin
+  `'gasto'`). Cierre real de julio 2026 probado end-to-end (29
+  ventas + 11 gastos archivados, correo real, resumen financiero
+  intacto).
 
 Las tres superficies de la app: portal de cliente (sin prefijo o
 `/<slug>/...`), panel admin por tenant (`/admin` o `/<slug>/admin`), y

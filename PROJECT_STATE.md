@@ -10036,18 +10036,50 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         archivado, cálculo de fechas por zona, iteración multi-tenant) —
         el commit original solo ajustó las de `ticketsCleanup`. Agregado
         `test/unit/cierreMensual.test.js`, 15 casos nuevos.
-      - **Pendiente real**: nunca validado contra MySQL real (migración
-        `archivado_en`/`periodo_archivado`, `chk_reportes_tipo`/
-        `chk_reporte_items_tipo_registro` ampliados) — correr
-        `docker compose up -d --build` + confirmar `ensureSchema()` en la
-        BD real antes de producción. Las 2 decisiones que quedaron
-        "pendientes de confirmación explícita" al final de este punto
-        (hora fija vs configurable, ventas `pendiente` incluidas en el
-        cierre) se resolvieron en el código con los valores por defecto
-        ya propuestos aquí mismo (hora fija 02:00 por zona, sí incluidas)
-        — sin que el usuario las confirmara palabra por palabra; si
-        alguna no es la deseada, es un ajuste chico sobre lo ya construido,
-        no un rediseño.
+      - Las 2 decisiones que quedaron "pendientes de confirmación
+        explícita" al final de este punto (hora fija vs configurable,
+        ventas `pendiente` incluidas en el cierre) se resolvieron en el
+        código con los valores por defecto ya propuestos aquí mismo (hora
+        fija 02:00 por zona, sí incluidas) — sin que el usuario las
+        confirmara palabra por palabra; si alguna no es la deseada, es un
+        ajuste chico sobre lo ya construido, no un rediseño.
+
+      **VALIDADO CONTRA DOCKER/MySQL REAL (2026-08-29)** — 2 bugs más
+      encontrados y corregidos, ninguno detectable con `node --check` ni
+      Jest mockeado:
+      - **Cierre mensual multi-tenant roto de raíz**: `ejecutarComoTenant(
+        pool, fn)` (`db.js`) espera un OBJETO pool (mete `{pool}` en el
+        AsyncLocalStorage), no un slug — `ejecutarCierresMensualesParaTodos()`
+        le pasaba el slug crudo. Contra MySQL real: `pool.query is not a
+        function` en CADA tenant (la base ADDV sí funcionaba, por no pasar
+        por `ejecutarComoTenant`). Sin este fix, ningún tenant real habría
+        podido cerrar un mes jamás. Fix: construir el pool real con
+        `obtenerPoolTenant({slug, host: db_host, user: db_user,
+        database: db_name, ...})` antes de `ejecutarComoTenant()` — mismo
+        patrón que `tenantContext.js:resolverTenantMiddleware()`. La
+        query a `control.tenants` ahora trae `db_host`/`db_name`/
+        `db_user` además de `slug`.
+      - **Filtro "Gastos" en Reportes no filtraba nada**: el whitelist de
+        `tipo_registro` en los 4 endpoints (`/reportes/:id/items`,
+        `/reportes/:id/exportar`, ledger cruzado `/reportes/items`,
+        `/reportes/timeline/:tipo/:id`) solo aceptaba
+        `['ticket', 'orden_compra']` — `gasto` se ignoraba en silencio
+        (la query corría sin el `AND tipo_registro = ?`). Agregado
+        `'gasto'` a los 4.
+      - Confirmado por HTTP/SQL directos contra el stack real: esquema
+        migrado limpio; cierre real de julio 2026 archivó exacto 29
+        ventas + 11 gastos con correo real enviado y reporte
+        `cierre_mensual` guardado; idempotencia (reintento no duplica);
+        `resumen-financiero` intacto tras archivar (Opción A); filtros
+        `?periodo=`/`incluirArchivadas`/`periodos-archivados` correctos;
+        filtro "Gastos" en Reportes ya filtra 11/29 exacto; multi-tenant
+        real (`piloto9c`+`pruebaadmin`, tras `ensureSchema()` manual en
+        cada uno — mismo gap ya documentado en el punto 115, no nuevo de
+        este punto) corre sin error; gate automático confirmado sin
+        disparar fuera de día 1. Jest 764/764 (2 tests nuevos en
+        `admin.test.js` para el whitelist, mocks de
+        `cierreMensual.test.js` corregidos para reflejar el pool real —
+        antes mockeaban mal y no habrían atrapado el bug del pool).
 
       Plan original (documentado 2026-08-28, antes de la implementación
       paralela) — se conserva íntegro abajo como referencia de las

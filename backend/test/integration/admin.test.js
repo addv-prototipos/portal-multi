@@ -234,6 +234,31 @@ describe('Admin', () => {
       expect(res.status).toBe(200);
       expect(res.body.eliminado).toBe(true);
     });
+
+    test('GET /:id/items?tipo_registro=gasto SÍ filtra (punto 158: whitelist incluye gasto)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ id: 1, tipo_registro: 'gasto' }]]);
+
+      const res = await request(app)
+        .get('/api/admin/reportes/3/items?tipo_registro=gasto')
+        .auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      const llamadaItems = pool.query.mock.calls.find(([sql]) => sql.includes('FROM reporte_items'));
+      expect(llamadaItems[0]).toMatch(/AND tipo_registro = \?/);
+      expect(llamadaItems[1]).toContain('gasto');
+    });
+
+    test('GET /timeline/gasto/:identificador acepta "gasto" (punto 158)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const res = await request(app)
+        .get('/api/admin/reportes/timeline/gasto/G-000007')
+        .auth(usuario, password);
+
+      expect(res.status).toBe(200);
+    });
   });
 
   describe('/api/admin/config/smtp/prueba', () => {

@@ -1,4 +1,4 @@
-const { pool, ejecutarComoTenant, obtenerPoolControl } = require('../db');
+const { pool, ejecutarComoTenant, obtenerPoolControl, obtenerPoolTenant } = require('../db');
 const { getConfiguracionGlobal } = require('./config');
 const { generarYEnviarReporte } = require('./reportes');
 
@@ -197,12 +197,18 @@ async function ejecutarCierresMensualesParaTodos(periodoForzado = null) {
     resultados.push({ slug: null, base: true, error: err.message, periodo: periodoForzado || 'auto' });
   }
 
-  // 2) Tenants activos desde BD de control
+  // 2) Tenants activos desde BD de control — mismos campos que
+  // `tenantContext.js:resolverTenantPorSlug()` para construir su pool real
+  // con `obtenerPoolTenant()` (`ejecutarComoTenant` espera un OBJETO pool,
+  // no el slug — pasar el slug crudo deja `pool.query` apuntando a un
+  // string y revienta con "pool.query is not a function").
   let tenants = [];
   try {
     const poolControl = obtenerPoolControl();
-    const [filas] = await poolControl.query(`SELECT slug FROM tenants WHERE estado = 'activo' ORDER BY slug ASC`);
-    tenants = filas.map((f) => f.slug);
+    const [filas] = await poolControl.query(
+      `SELECT slug, db_host, db_name, db_user FROM tenants WHERE estado = 'activo' ORDER BY slug ASC`
+    );
+    tenants = filas;
   } catch (err) {
     console.error('[cierreMensual] No se pudo listar tenants de control:', err.message);
     return resultados;
@@ -211,12 +217,20 @@ async function ejecutarCierresMensualesParaTodos(periodoForzado = null) {
   // Paginado 5 a la vez
   for (let i = 0; i < tenants.length; i += 5) {
     const lote = tenants.slice(i, i + 5);
-    const promesas = lote.map(async (slug) => {
+    const promesas = lote.map(async (tenant) => {
       try {
-        const r = await ejecutarComoTenant(slug, () => ejecutarCierreMensualParaDB(periodoForzado));
-        return { slug, ...r };
+        const tenantPool = obtenerPoolTenant({
+          slug: tenant.slug,
+          host: tenant.db_host,
+          port: Number(process.env.DB_PORT || 3306),
+          user: tenant.db_user,
+          password: process.env.DB_PASSWORD || '',
+          database: tenant.db_name,
+        });
+        const r = await ejecutarComoTenant(tenantPool, () => ejecutarCierreMensualParaDB(periodoForzado));
+        return { slug: tenant.slug, ...r };
       } catch (err) {
-        return { slug, error: err.message, periodo: periodoForzado || 'auto' };
+        return { slug: tenant.slug, error: err.message, periodo: periodoForzado || 'auto' };
       }
     });
     const resLote = await Promise.all(promesas);

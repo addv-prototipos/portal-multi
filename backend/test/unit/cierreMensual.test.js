@@ -1,4 +1,4 @@
-const { pool, ejecutarComoTenant, obtenerPoolControl } = require('../../db');
+const { pool, ejecutarComoTenant, obtenerPoolControl, obtenerPoolTenant } = require('../../db');
 const { getConfiguracionGlobal } = require('../../utils/config');
 const { generarYEnviarReporte } = require('../../utils/reportes');
 const {
@@ -11,8 +11,12 @@ const {
 
 jest.mock('../../db', () => ({
   pool: { query: jest.fn() },
-  ejecutarComoTenant: jest.fn((slug, fn) => fn()),
+  // OJO: `ejecutarComoTenant` recibe un POOL real (objeto), nunca el slug
+  // — pasar el slug crudo fue exactamente el bug que esta suite atrapa
+  // (ver el assert de "se llama con el pool de obtenerPoolTenant" abajo).
+  ejecutarComoTenant: jest.fn((tenantPool, fn) => fn()),
   obtenerPoolControl: jest.fn(),
+  obtenerPoolTenant: jest.fn((cfg) => ({ __poolTenantMock: cfg.slug })),
 }));
 
 jest.mock('../../utils/config', () => ({
@@ -182,7 +186,11 @@ describe('cierreMensual — ejecutarCierresMensualesParaTodos (dual base + tenan
       .mockResolvedValueOnce([[{ valor: '2026-08' }]]) // tenant a: ya cerrado
       .mockResolvedValueOnce([[{ valor: '2026-08' }]]); // tenant b: ya cerrado
 
-    const poolControlMock = { query: jest.fn().mockResolvedValue([[{ slug: 'a' }, { slug: 'b' }]]) };
+    const filasTenants = [
+      { slug: 'a', db_host: 'host-a', db_name: 'tenant_a', db_user: 'user_a' },
+      { slug: 'b', db_host: 'host-b', db_name: 'tenant_b', db_user: 'user_b' },
+    ];
+    const poolControlMock = { query: jest.fn().mockResolvedValue([filasTenants]) };
     obtenerPoolControl.mockReturnValue(poolControlMock);
 
     const resultados = await ejecutarCierresMensualesParaTodos('2026-08');
@@ -191,8 +199,14 @@ describe('cierreMensual — ejecutarCierresMensualesParaTodos (dual base + tenan
     expect(resultados[0]).toEqual(expect.objectContaining({ slug: null, base: true, yaEjecutado: true }));
     expect(resultados[1]).toEqual(expect.objectContaining({ slug: 'a', yaEjecutado: true }));
     expect(resultados[2]).toEqual(expect.objectContaining({ slug: 'b', yaEjecutado: true }));
-    expect(ejecutarComoTenant).toHaveBeenCalledWith('a', expect.any(Function));
-    expect(ejecutarComoTenant).toHaveBeenCalledWith('b', expect.any(Function));
+    // Regresión del bug real (Docker/MySQL real, punto 158): ejecutarComoTenant
+    // DEBE recibir el objeto pool de obtenerPoolTenant(), nunca el slug crudo
+    // — pasar el slug dejaba `pool.query` apuntando a un string y reventaba
+    // con "pool.query is not a function" solo contra MySQL real.
+    expect(obtenerPoolTenant).toHaveBeenCalledWith(expect.objectContaining({ slug: 'a', host: 'host-a', database: 'tenant_a', user: 'user_a' }));
+    expect(obtenerPoolTenant).toHaveBeenCalledWith(expect.objectContaining({ slug: 'b', host: 'host-b', database: 'tenant_b', user: 'user_b' }));
+    expect(ejecutarComoTenant).toHaveBeenCalledWith({ __poolTenantMock: 'a' }, expect.any(Function));
+    expect(ejecutarComoTenant).toHaveBeenCalledWith({ __poolTenantMock: 'b' }, expect.any(Function));
   });
 
   test('un tenant que falla no detiene a los demás', async () => {
@@ -201,7 +215,12 @@ describe('cierreMensual — ejecutarCierresMensualesParaTodos (dual base + tenan
       .mockRejectedValueOnce(new Error('DB del tenant caída')) // tenant roto: getUltimoCierre falla
       .mockResolvedValueOnce([[{ valor: '2026-08' }]]); // tenant sano
 
-    const poolControlMock = { query: jest.fn().mockResolvedValue([[{ slug: 'roto' }, { slug: 'sano' }]]) };
+    const poolControlMock = {
+      query: jest.fn().mockResolvedValue([[
+        { slug: 'roto', db_host: 'h', db_name: 'd1', db_user: 'u' },
+        { slug: 'sano', db_host: 'h', db_name: 'd2', db_user: 'u' },
+      ]]),
+    };
     obtenerPoolControl.mockReturnValue(poolControlMock);
 
     const resultados = await ejecutarCierresMensualesParaTodos('2026-08');

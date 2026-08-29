@@ -3441,7 +3441,7 @@ app.get(
 
     let sql = 'SELECT * FROM reporte_items WHERE reporte_id = ?';
     const params = [id];
-    if (tipoRegistro && ['ticket', 'orden_compra'].includes(tipoRegistro)) {
+    if (tipoRegistro && ['ticket', 'orden_compra', 'gasto'].includes(tipoRegistro)) {
       sql += ' AND tipo_registro = ?';
       params.push(tipoRegistro);
     }
@@ -3499,7 +3499,7 @@ app.get(
 
     let sql = 'SELECT * FROM reporte_items WHERE reporte_id = ?';
     const params = [id];
-    if (tipoRegistro && ['ticket', 'orden_compra'].includes(tipoRegistro)) {
+    if (tipoRegistro && ['ticket', 'orden_compra', 'gasto'].includes(tipoRegistro)) {
       sql += ' AND tipo_registro = ?';
       params.push(tipoRegistro);
     }
@@ -3588,7 +3588,7 @@ function filtrosLedgerEliminados(req) {
   const estatusValidos = ['pendiente', 'en_curso', 'cancelado', 'listo'];
   let sql = "WHERE ri.accion = 'eliminado'";
   const params = [];
-  if (tipoRegistro && ['ticket', 'orden_compra'].includes(tipoRegistro)) {
+  if (tipoRegistro && ['ticket', 'orden_compra', 'gasto'].includes(tipoRegistro)) {
     sql += ' AND ri.tipo_registro = ?';
     params.push(tipoRegistro);
   }
@@ -3685,7 +3685,7 @@ app.get(
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
     const { tipoRegistro, identificador } = req.params;
-    if (!['ticket', 'orden_compra'].includes(tipoRegistro)) {
+    if (!['ticket', 'orden_compra', 'gasto'].includes(tipoRegistro)) {
       return res.status(400).json({ error: 'Tipo de registro inválido.' });
     }
     const [entradas] = await pool.query(
