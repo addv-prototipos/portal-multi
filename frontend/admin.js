@@ -257,6 +257,7 @@
     ordenInventarioVincular: document.getElementById('orden-inventario-vincular'),
     ordenInventarioBuscarWrap: document.getElementById('orden-inventario-buscar-wrap'),
     ordenInventarioBuscar: document.getElementById('orden-inventario-buscar'),
+    btnOrdenInventarioEscanear: document.getElementById('btn-orden-inventario-escanear'),
     ordenInventarioSugerencias: document.getElementById('orden-inventario-sugerencias'),
     ordenInventarioSeleccionado: document.getElementById('orden-inventario-seleccionado'),
     ordenInventarioSeleccionadoNombre: document.getElementById('orden-inventario-seleccionado-nombre'),
@@ -452,6 +453,7 @@
     invModalNombre: document.getElementById('inv-modal-nombre'),
     invModalSku: document.getElementById('inv-modal-sku'),
     invModalCodigoBarras: document.getElementById('inv-modal-codigo-barras'),
+    btnInvModalEscanear: document.getElementById('btn-inv-modal-escanear'),
     invModalCategoria: document.getElementById('inv-modal-categoria'),
     btnInvCategoriasToggle: document.getElementById('btn-inv-categorias-toggle'),
     invCategoriasPanel: document.getElementById('inv-categorias-panel'),
@@ -5090,6 +5092,22 @@
     });
   }
   if (els.btnOrdenInventarioQuitar) els.btnOrdenInventarioQuitar.addEventListener('click', quitarProductoInventarioOrden);
+
+  // Punto 159 (Segmento A): el valor leído por cámara se trata igual que
+  // si se hubiera tecleado o venido de un lector físico USB/Bluetooth —
+  // reusa buscarProductosInventarioOrden() tal cual, mismo auto-select
+  // por coincidencia exacta que ya existe para el lector físico.
+  if (els.btnOrdenInventarioEscanear && window.ScannerCodigoBarras) {
+    els.btnOrdenInventarioEscanear.addEventListener('click', () => {
+      window.ScannerCodigoBarras.abrir({
+        onDetectado: (valor) => {
+          els.ordenInventarioBuscar.value = valor;
+          clearTimeout(ordenInventarioBusquedaTimeout);
+          buscarProductosInventarioOrden(valor);
+        },
+      });
+    });
+  }
 
   function limpiarFormularioOrden() {
     productosOrdenActual = [];
@@ -10638,6 +10656,17 @@
         confirmarEliminarCategoriaInv(id, cat ? cat.nombre : 'esta categoría');
       }
     });
+
+  // Punto 159 (Segmento A): llena el campo igual que si se hubiera
+  // tecleado o venido de un lector físico — el input sigue siendo la
+  // única fuente de verdad al guardar.
+  if (els.btnInvModalEscanear && window.ScannerCodigoBarras) {
+    els.btnInvModalEscanear.addEventListener('click', () => {
+      window.ScannerCodigoBarras.abrir({
+        onDetectado: (valor) => { els.invModalCodigoBarras.value = valor; },
+      });
+    });
+  }
 
   if (els.btnInvProductoModalCerrar) els.btnInvProductoModalCerrar.addEventListener('click', cerrarProductoModal);
   if (els.btnInvModalCancelar) els.btnInvModalCancelar.addEventListener('click', cerrarProductoModal);

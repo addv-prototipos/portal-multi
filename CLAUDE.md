@@ -14,6 +14,16 @@ sin aprobación explícita del segmento, piso no negociable de UX/accesibilidad/
 rendimiento/seguridad/Docker/pruebas unitarias/calidad de código. Mantener
 siempre actualizados `PROJECT_STATE.md`, este archivo y `README.md`.
 
+**Regla persistente — refinar un requerimiento (2026-08-29, ya en la
+skill `addv-web-app` global)**: cuando se pide madurar/refinar un
+requerimiento (no un fix acotado), la respuesta siempre trae, en este
+orden, antes de tocar código: (1) análisis de impacto, (2) crítica del
+planteamiento actual, (3) versión mejorada del requerimiento, (4)
+recomendación explícita (no solo opciones neutras), (5) propuesta visual
+si toca UI (mockup/antes-después/diagrama) — y espera confirmación
+explícita antes de implementar. Sin que el usuario tenga que pedirlo
+cada vez.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
@@ -870,11 +880,19 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   corrió el rebuild único y quedó verificado por HTTP: serie de 6 llaves
   mar–ago + proyección activa (Sep ≈ 342,850 / Oct ≈ 376,521). SQL de
   limpieza impreso por el script.     Sin commit/push todavía.
-- **Pendiente registrado (ver PROJECT_STATE.md punto 159, 2026-08-29)**:
-  código de barras vía cámara del celular (alta en Inventarios + buscar
-  producto en Ventas) e imágenes de producto (D10 de `inventarios.md`,
-  ya especificado, cero código) — ninguno es una regresión, nunca se
-  construyeron. `codigo_barras` hoy es solo campo de texto manual.
+- **Código de barras por cámara — Segmento A IMPLEMENTADO Y VALIDADO en
+  navegador real (ver PROJECT_STATE.md punto 159, 2026-08-29)**:
+  `frontend/scanner.js` (nuevo, compartido Ventas+Inventarios) —
+  `BarcodeDetector` nativo primero, `html5-qrcode` vendorizado
+  (`frontend/assets/vendor/`, nunca CDN) como respaldo para iOS. Cero
+  endpoint nuevo — reusa 100% la búsqueda/campo ya existentes. Bug real
+  corregido (mismo patrón del punto 135): el modal del escáner quedaba
+  detrás del modal padre por z-index empatado — fix en `style.css`
+  (`#scanner-modal-overlay { z-index: 70; }`). Jest backend 764/764 (sin
+  cambios de backend). Pendiente real: probar con celular físico contra
+  HTTPS real (aquí solo se validó el camino de error, sin cámara
+  física). Segmento B (imagen principal de producto, D10) sin empezar.
+  Sin commit/push todavía.
 - **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un

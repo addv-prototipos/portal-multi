@@ -10218,6 +10218,75 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         pendiente anotados aquí, protocolo `addv-web-app` de
         Analizar→Proponer→Confirmar antes de tocar código.
 
+      **Refinamiento + Segmento A — IMPLEMENTADO Y VALIDADO en navegador
+      real (2026-08-29)**: propuesta con análisis de impacto, crítica,
+      requerimiento mejorado, recomendación y mockup visual (Artifact)
+      presentada y aprobada por el usuario ("Segmento A primero"). Esta
+      sesión estableció además una regla persistente nueva para CUALQUIER
+      refinamiento de requerimiento futuro (no solo este): impacto +
+      crítica + mejora + recomendación + propuesta visual antes de
+      confirmar — ya incorporada a la skill global `addv-web-app`
+      (`~/.claude/skills/addv-web-app/SKILL.md`, paso 1 del flujo
+      obligatorio) y a este `CLAUDE.md`.
+      - **Hallazgo que cambió el alcance**: Ventas YA reconocía un lector
+        físico USB/Bluetooth (coincidencia exacta se autoselecciona sin
+        clic, `admin.js` `buscarProductosInventarioOrden()`) — cero
+        código nuevo necesario para ese camino. Cámara por celular
+        confirmada como el camino a construir de todas formas (decisión
+        explícita del usuario), sin que compita con el lector físico.
+      - **`frontend/scanner.js` (nuevo)**: componente compartido entre
+        Ventas e Inventarios. Decodificación progresiva: `BarcodeDetector`
+        nativo primero (Chrome/Edge Android, cero KB); si no está
+        disponible, carga perezosa de `html5-qrcode` (v2.3.8, Apache-2.0,
+        vendorizado en `frontend/assets/vendor/html5-qrcode.min.js` —
+        revisado antes de usarse: sin `eval`, único `new Function()` es
+        el mismo patrón benigno de detección de `globalThis` ya
+        documentado en el punto 140, cero llamada a dominio externo).
+        Nunca por CDN, mismo criterio que el resto del sitio. Cero
+        endpoint nuevo — el valor decodificado se inyecta como si se
+        hubiera tecleado, reusando 100% la lógica ya existente en ambos
+        flujos.
+      - **UI**: modal compartido `#scanner-modal-overlay` en
+        `admin.html` (visor con marco navy + línea de barrido cian,
+        estados de error/retry, respeta `prefers-reduced-motion`), botón
+        "Escanear" (SVG, no emoji — el sitio ya los quitó de la UI en el
+        punto 141) junto al buscador de producto en Ventas
+        (`#btn-orden-inventario-escanear`) y junto al campo "Código de
+        barras" en el alta/edición de Inventarios
+        (`#btn-inv-modal-escanear`).
+      - **Bug real encontrado y corregido en la validación en navegador
+        real, mismo patrón que el punto 135**: `#scanner-modal-overlay`
+        compartía `z-index:50` con el resto de `.modal-overlay` — al
+        abrirse desde DENTRO de otro modal ya abierto (Registrar venta,
+        Nuevo producto — el único uso real de este botón) quedaba
+        invisible detrás del modal padre. Fix: `#scanner-modal-overlay {
+        z-index: 70; }` en `style.css`, mismo valor ya usado por
+        `#confirm-modal-overlay` para el mismo problema.
+      - **Validado en navegador real (Claude in Chrome)**: botón visible
+        y bien alineado en los 2 flujos; modal abre encima del modal
+        padre tras el fix (confirmado con `getComputedStyle` real:
+        z-index 70 vs 50 del padre); sin cámara física en este entorno,
+        el camino de error se dispara con gracia ("No se pudo iniciar la
+        cámara. Escribe el código a mano o usa un lector físico." +
+        botón "Reintentar", sin crash); Reintentar funciona; Escape
+        cierra y limpia el estado; cero errores de consola en todo el
+        flujo. **Gotcha de la herramienta de automatización, no del
+        código** (mismo patrón ya documentado en el punto 155): el tool
+        `computer` de Claude in Chrome no disparaba los clics de
+        navegación del sidebar en este entorno — rodeo confirmado:
+        `document.getElementById(id).click()` vía `javascript_tool` sí
+        dispara los listeners reales.
+      - **Pendiente real, no bloqueante**: no se pudo probar el camino
+        feliz completo (decodificar un código de verdad) por no haber
+        cámara física en este entorno de validación — probar con un
+        celular real contra un despliegue con HTTPS antes de dar el
+        segmento por cerrado en producción. `node --check` limpio, CSS
+        balanceado (`admin.css` 846/846, `style.css` 140/140), Jest
+        backend 764/764 (sin cambios de backend, segmento 100%
+        frontend). Sin commit/push todavía.
+      - Segmento B (imagen principal de producto, recorte de D10) sigue
+        sin empezar.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

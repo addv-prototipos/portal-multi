@@ -883,8 +883,13 @@
               <div class="orden-inventario-vincular" id="orden-inventario-vincular" hidden>
                 <p class="field-hint orden-inventario-titulo">Producto de inventario — descuenta existencia automáticamente</p>
                 <div class="field orden-inventario-buscar-field" id="orden-inventario-buscar-wrap">
-                  <label for="orden-inventario-buscar">Producto — nombre, SKU o escanea el código de barras</label>
-                  <input type="text" id="orden-inventario-buscar" placeholder="Escribe para buscar…" autocomplete="off" />
+                  <label for="orden-inventario-buscar">Producto — nombre, SKU o código de barras</label>
+                  <div class="input-con-boton">
+                    <input type="text" id="orden-inventario-buscar" placeholder="Escribe para buscar…" autocomplete="off" />
+                    <button type="button" class="btn-icon btn-escanear" id="btn-orden-inventario-escanear" aria-label="Escanear código de barras con la cámara" data-tooltip="Escanear con la cámara">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2m8 0h2a2 2 0 0 1 2 2v2m0 8v2a2 2 0 0 1-2 2h-2m-8 0H6a2 2 0 0 1-2-2v-2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><circle cx="12" cy="12" r="3.2" stroke-width="2"/></svg>
+                    </button>
+                  </div>
                   <div class="orden-inventario-sugerencias" id="orden-inventario-sugerencias" hidden></div>
                 </div>
                 <div class="orden-inventario-seleccionado" id="orden-inventario-seleccionado" hidden>
@@ -2510,6 +2515,28 @@
     </div>
   </div>
 
+  <!-- Escáner de código de barras por cámara (punto 159, Segmento A):
+       un solo modal compartido entre Ventas (buscar/agregar producto) e
+       Inventarios (alta/edición) — ver frontend/scanner.js. -->
+  <div class="modal-overlay" id="scanner-modal-overlay" hidden>
+    <div class="modal scanner-modal" role="dialog" aria-modal="true" aria-labelledby="scanner-modal-titulo">
+      <div class="ticket-modal-header">
+        <h2 id="scanner-modal-titulo">Escanear código de barras</h2>
+        <button type="button" class="btn-icon" id="btn-scanner-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="scanner-viewport">
+        <video id="scanner-video" class="scanner-video" hidden playsinline muted></video>
+        <div id="scanner-fallback-contenedor" class="scanner-fallback-contenedor" hidden></div>
+        <div class="scanner-viewfinder" aria-hidden="true"><span class="scanner-scan-line"></span></div>
+      </div>
+      <p id="scanner-hint" class="scanner-hint">Apunta al código de barras del producto.</p>
+      <p id="scanner-error" class="scanner-error" role="alert" hidden></p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-scanner-reintentar" hidden>Reintentar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Aviso al iniciar sesión: faltan los datos fiscales de la compañía -->
   <div class="modal-overlay" id="config-fiscal-faltante-overlay" hidden>
     <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="config-fiscal-faltante-title">
@@ -3058,7 +3085,12 @@
           </div>
           <div class="field">
             <label for="inv-modal-codigo-barras">Código de barras<button type="button" class="campo-ayuda" data-campo="codigo_barras" aria-label="Ver ayuda de Código de barras">?</button></label>
-            <input type="text" id="inv-modal-codigo-barras" maxlength="60" placeholder="Opcional" autocomplete="off" />
+            <div class="input-con-boton">
+              <input type="text" id="inv-modal-codigo-barras" maxlength="60" placeholder="Opcional" autocomplete="off" />
+              <button type="button" class="btn-icon btn-escanear" id="btn-inv-modal-escanear" aria-label="Escanear código de barras con la cámara" data-tooltip="Escanear con la cámara">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2m8 0h2a2 2 0 0 1 2 2v2m0 8v2a2 2 0 0 1-2 2h-2m-8 0H6a2 2 0 0 1-2-2v-2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><circle cx="12" cy="12" r="3.2" stroke-width="2"/></svg>
+              </button>
+            </div>
             <p class="field-error" id="error-inv-modal-codigo-barras" role="alert"></p>
           </div>
           <div class="field inv-modal-categoria-field">
@@ -3441,6 +3473,7 @@
   <script>document.getElementById('auth-anio').textContent = new Date().getFullYear();</script>
   <script src="/theme.js"></script>
   <script src="/offline.js"></script>
+  <script src="/scanner.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

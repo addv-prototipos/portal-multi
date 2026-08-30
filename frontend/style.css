@@ -809,6 +809,12 @@ body {
 #confirm-modal-overlay {
   z-index: 70;
 }
+/* Mismo motivo que #confirm-modal-overlay: el escáner de código de
+   barras (punto 159) también se abre desde DENTRO de otro modal ya
+   abierto (Registrar venta, Nuevo producto). */
+#scanner-modal-overlay {
+  z-index: 70;
+}
 
 .modal {
   background: var(--color-surface);
