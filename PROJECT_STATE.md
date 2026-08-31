@@ -10850,8 +10850,33 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       empíricamente con el mismo script Playwright tras el rebuild**:
       track ahora mide 40px reales, sin overlap con el input ni con el
       texto (coordenadas antes/después comparadas) — captura de pantalla
-      real confirmó el switch limpio. Control Jest 117/117. Sin
-      commit/push todavía.
+      real confirmó el switch limpio. Control Jest 117/117.
+      **Commiteado y pusheado** (`c65b6a4` → `fact/master`).
+
+  167. **PENDIENTE — Generador de etiquetas de código de barras para
+      productos de Inventarios (2026-08-31, solo registrado, SIN
+      analizar/criticar/implementar todavía)**: petición textual del
+      usuario — generar la plantilla de etiqueta con el código de barras
+      de cada producto YA dado de alta en Inventarios (no altas nuevas,
+      son productos existentes), y que el usuario pueda elegir el
+      formato de impresión al generarla: impresora térmica (rollo de
+      etiquetas, formato angosto) o una hoja tamaño carta (varias
+      etiquetas por hoja, para impresora normal). Sin decidir todavía: qué
+      simbología de código de barras usar (los productos ya tienen un
+      campo `codigo_barras`/SKU del motor de Inventarios — confirmar
+      cuál se usa y si ya es compatible con una simbología estándar
+      tipo Code128/EAN antes de generar el gráfico), tamaño exacto de
+      etiqueta térmica (depende del modelo de impresora del cliente,
+      no asumido), cuántas etiquetas por hoja carta y con qué
+      márgenes, si permite elegir 1 producto o un lote/selección
+      múltiple, si arrastra también nombre/precio en la etiqueta o solo
+      el código, y si esto vive dentro de la vista "Inventarios" o como
+      herramienta aparte. **Siguiente sesión**: aplicar el protocolo
+      completo (analizar código real de Inventarios, revisar impacto,
+      criticar y mejorar el requerimiento con las preguntas de arriba,
+      propuesta visual antes/después, esperar confirmación explícita)
+      antes de tocar código — instrucción explícita del usuario de NO
+      implementar nada en esta sesión.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

@@ -1043,7 +1043,18 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   correos. Jest 781/781 de nuevo, control 117/117. Validado con un
   envío real del reporte automático a la misma cuenta Gmail. Sin
   commit/push todavía.
-- **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
+- **PENDIENTE — Generador de etiquetas de código de barras para productos
+de Inventarios (2026-08-31, ver PROJECT_STATE.md punto 167, SOLO
+REGISTRADO)**: petición textual — plantilla de etiqueta con el código de
+barras de productos YA existentes en Inventarios, con opción de formato
+de impresión (impresora térmica de rollo, o una hoja tamaño carta con
+varias etiquetas). Instrucción explícita del usuario: nada de analizar/
+criticar/implementar en esta sesión — la siguiente retoma el protocolo
+completo (analizar, revisar impacto, criticar y mejorar el
+requerimiento, propuesta visual, confirmar) antes de tocar código. Ver
+el punto 167 para las preguntas de diseño abiertas.
+
+**Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un
   par de credenciales global. Solo anotado: requiere análisis y
