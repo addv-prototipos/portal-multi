@@ -10526,7 +10526,37 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         **781/781** de nuevo, control 117/117. Rebuild real,
         **validado con un envío real del reporte automático** a la
         misma cuenta Gmail (correo_reportes temporal, restaurado
-        después, reporte de prueba borrado). Sin commit/push todavía.
+        después, reporte de prueba borrado). **Commiteado y pusheado**
+        (`b6f4fe2` → `fact/master`).
+
+  162. **Skill `addv-web-app` actualizada + herramientas de eficiencia
+      instaladas (2026-08-31)**: a pedido del usuario, la skill global
+      `~/.claude/skills/addv-web-app/SKILL.md` se reemplazó con la
+      versión más reciente de su repo propio
+      (`github.com/antonioprado-sketch/addv-web-app`, antes vivía en otra
+      ruta) — flujo obligatorio pasó de 4 a **8 pasos explícitos**
+      (Analizar → Revisar impacto → Criticar y mejorar → Propuesta visual
+      → Confirmar → Implementar → Probar → Asegurar), formalizando lo que
+      antes era una regla aparte solo para "refinar un requerimiento".
+      Estándares nuevos como bullets propios (antes implícitos): "nada
+      sensible en el frontend" y "cifrado siempre" (tránsito+reposo);
+      "pruebas unitarias" pasó a "pruebas unitarias **y** funcionales".
+      Tabla nueva de origen/repositorio de cada skill nativa, y 2
+      herramientas de eficiencia nuevas en la lista (`agent-skills`,
+      `prompt-master`), ambas instaladas la misma sesión tras revisar su
+      código/contenido primero (regla anti-hackeo del propio protocolo):
+      `agent-skills` vía el CLI oficial `skills` de vercel-labs
+      (`npm view skills` confirmó MIT, sin `eval` ni pipe-a-shell, solo
+      fetch a GitHub/su registro) — 24 skills symlinkeadas a Claude Code
+      en `.agents/skills/`; `prompt-master` clonado directo a
+      `~/.claude/skills/prompt-master` (repo revisado antes: solo
+      Markdown, sin scripts). `.agents/` ya estaba en `.gitignore`
+      (de un incidente previo, ver punto 140); se agregó
+      `skills-lock.json` (manifiesto del CLI `skills`, creado en la raíz
+      del repo por correr `npx` desde aquí) al mismo criterio — estado
+      del entorno local, no código del sitio. Ambas skills (global +
+      este proyecto) documentadas en `CLAUDE.md`. Sin cambios de código
+      de la aplicación en este punto — solo tooling/documentación.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

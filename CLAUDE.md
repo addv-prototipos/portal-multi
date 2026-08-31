@@ -7,22 +7,32 @@ archivo). Para instrucciones de instalación/operación, ver `README.md`.
 
 ## Protocolo de trabajo
 
-Este proyecto opera bajo el protocolo `addv-web-app` (skill de Claude Code):
-sitio corporativo/reputacional, flujo obligatorio **Analizar → Proponer →
-Confirmar → Implementar** — no asumir requisitos ambiguos, no implementar
-sin aprobación explícita del segmento, piso no negociable de UX/accesibilidad/
-rendimiento/seguridad/Docker/pruebas unitarias/calidad de código. Mantener
-siempre actualizados `PROJECT_STATE.md`, este archivo y `README.md`.
+Este proyecto opera bajo el protocolo `addv-web-app` (skill de Claude Code,
+`~/.claude/skills/addv-web-app/SKILL.md`, global — actualizada 2026-08-31
+desde su repo propio `github.com/antonioprado-sketch/addv-web-app`): sitio
+corporativo/reputacional, flujo obligatorio de **8 pasos** — Analizar →
+Revisar impacto → Criticar y mejorar el requerimiento → Propuesta visual
+(antes/después) → Confirmar → Implementar → Probar (unitarias **y**
+funcionales) → Asegurar (nada sensible en el frontend, todo cifrado en
+tránsito/reposo) — no asumir requisitos ambiguos, no implementar sin
+aprobación explícita del segmento, piso no negociable de UX/accesibilidad/
+rendimiento/seguridad/Docker/pruebas/calidad de código. Mantener siempre
+actualizados `PROJECT_STATE.md`, este archivo y `README.md`. (Versión
+anterior de esta nota, ya superada por la actualización de la skill: el
+flujo de 4 pasos "Analizar → Proponer → Confirmar → Implementar" con la
+regla aparte de "refinar un requerimiento" — esos 5 bloques quedaron
+formalizados como los pasos 2-4 del flujo de 8 pasos, no hace falta
+invocarlos por separado.)
 
-**Regla persistente — refinar un requerimiento (2026-08-29, ya en la
-skill `addv-web-app` global)**: cuando se pide madurar/refinar un
-requerimiento (no un fix acotado), la respuesta siempre trae, en este
-orden, antes de tocar código: (1) análisis de impacto, (2) crítica del
-planteamiento actual, (3) versión mejorada del requerimiento, (4)
-recomendación explícita (no solo opciones neutras), (5) propuesta visual
-si toca UI (mockup/antes-después/diagrama) — y espera confirmación
-explícita antes de implementar. Sin que el usuario tenga que pedirlo
-cada vez.
+**Herramientas de eficiencia instaladas para este protocolo (2026-08-31,
+ver la skill `addv-web-app` sección "Herramientas complementarias")**:
+`agent-skills` (24 skills de vercel-labs/addyosmani, symlinkeadas en
+`.agents/skills/` — gitignored, igual que `skills-lock.json`, ambos son
+estado del entorno local, no código del sitio) y `prompt-master` (clonado
+en `~/.claude/skills/prompt-master`, solo se activa si se pide
+explícitamente redactar/mejorar un prompt). Ambas revisadas antes de
+instalar (paquete/repo sin `eval`/scripts sospechosos) por la regla
+anti-hackeo del propio protocolo.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
