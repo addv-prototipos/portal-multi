@@ -1132,12 +1132,21 @@ app.post(
       ]);
 
       const urlPortal = detectarUrlPortal(req);
-      enviarCorreoRecuperacion({
-        email: usuario.email,
-        urlPortal,
-        marca: marcaDelTenant(req),
-        token,
-      }).catch((err) => {
+      // El fetch de configGlobal (para el logo por defecto) se hace DENTRO
+      // del fire-and-forget, nunca bloqueando la respuesta — mismo criterio
+      // que el resto de estos correos: si algo aquí falla, el usuario ya
+      // recibió su token guardado, solo el correo no salió.
+      (async () => {
+        const configGlobalRecuperar = await getConfiguracionGlobal();
+        await enviarCorreoRecuperacion({
+          email: usuario.email,
+          urlPortal,
+          marca: marcaDelTenant(req),
+          token,
+          logoUrl: logoUrlDelTenant(req, urlPortal, configGlobalRecuperar),
+          colores: coloresCorreoTenant(req),
+        });
+      })().catch((err) => {
         console.error('No se pudo enviar el correo de recuperación:', err.message);
       });
     }
@@ -1541,7 +1550,17 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
       // GET /api/admin/tickets/pendientes-sin-contador la próxima vez que
       // inicie sesión.
       const urlPortalTicket = detectarUrlPortal(req);
-      notificarNuevoTicketAlContador(req.userRfc, folio, urlPortalTicket, marcaDelTenant(req)).catch((err) => {
+      (async () => {
+        const configGlobalContador = await getConfiguracionGlobal();
+        await notificarNuevoTicketAlContador(
+          req.userRfc,
+          folio,
+          urlPortalTicket,
+          marcaDelTenant(req),
+          logoUrlDelTenant(req, urlPortalTicket, configGlobalContador),
+          coloresCorreoTenant(req)
+        );
+      })().catch((err) => {
         console.error('No se pudo notificar el nuevo ticket al contador:', err.message);
       });
 
@@ -1570,6 +1589,39 @@ const MARCA_DEFECTO = 'ADDV';
 
 function marcaDelTenant(req) {
   return (req && req.tenant && req.tenant.marca) || MARCA_DEFECTO;
+}
+
+// Color de marca para los correos homologados (ver construirCorreoBase):
+// reutiliza el mismo Look & Feel que ya edita cada tenant desde /control
+// (segmento 105, tema_json.colores.accentDark/accent, ya validado contra
+// contraste WCAG AA para texto blanco sobre ellos) — cero UI nueva, cero
+// columna nueva. Sin tema personalizado (o si el JSON guardado no trae
+// esos dos colores), cae al navy/cyan de CLARVO, igual que ya hace el
+// ticket de venta.
+function coloresCorreoTenant(req) {
+  let tema = null;
+  try {
+    if (req && req.tenant && req.tenant.temaJson) {
+      tema = parsearTemaDesdeFila({ tema_json: req.tenant.temaJson, slug: req.tenant.slug });
+    }
+  } catch (err) {
+    tema = null; // tema_json corrupto: se degrada al color por defecto, nunca rompe el correo
+  }
+  const colores = (tema && tema.colores) || {};
+  return {
+    primario: colores.accentDark || '#03285B',
+    acento: colores.accent || '#05DBF2',
+  };
+}
+
+// Misma resolución de logo que ya usa la confirmación de venta (logo del
+// tenant si configuró uno en "Marca"; si no, el logo global de la
+// configuración fiscal) — extraída aquí para no repetirla en cada correo
+// nuevo que se homologa al mismo diseño.
+function logoUrlDelTenant(req, urlPortal, configGlobal) {
+  const marcaLogoUrl = req && req.tenant && req.tenant.marcaLogoUrl;
+  if (marcaLogoUrl && urlPortal) return `${urlPortal}${marcaLogoUrl}`;
+  return (configGlobal && configGlobal.logo_url) || null;
 }
 
 // Logo real de CLARVO para el correo, INCRUSTADO como adjunto CID en vez
@@ -1625,6 +1677,135 @@ function logoTicketHtml(logoUrl, marca) {
   };
 }
 
+// Una fila de la "tabla tipo ticket" (etiqueta a la izquierda, valor a la
+// derecha, con una variante "destacado" para el total) — compartida entre
+// el ticket de venta y el resto de correos homologados (construirCorreoBase),
+// para que ambos rendericen exactamente igual sin duplicar el markup.
+function filaCorreoTabla(etiqueta, valor, destacado) {
+  return `
+    <tr>
+      <td style="padding:${destacado ? '9px 10px' : '6px 0'}; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:13px; color:${destacado ? '#03285B' : '#5B6472'}; ${destacado ? 'font-weight:bold; background:#E7ECF3; border-radius:8px 0 0 8px;' : ''}">${etiqueta}</td>
+      <td style="padding:${destacado ? '9px 10px' : '6px 0'}; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:${destacado ? '15px' : '13px'}; color:${destacado ? '#03285B' : '#0B1320'}; text-align:right; ${destacado ? 'font-weight:bold; background:#E7ECF3; border-radius:0 8px 8px 0;' : ''}">${valor}</td>
+    </tr>`;
+}
+
+// Cascarón compartido de correo (auditoría de correos de salida, ver
+// PROJECT_STATE.md): mismo lenguaje visual del ticket de venta — logo,
+// franja degradada, tarjeta punteada, botón — para los correos que sí
+// interactúan con alguien de cara al cliente o a un tercero externo
+// (invitación, recuperación de acceso, aviso al contador, factura lista).
+// El reporte automático (utils/reportes.js) se deja fuera a propósito: es
+// tráfico interno con adjunto, no representa la marca frente a nadie
+// externo. `colorPrimario`/`colorAccent` parametrizan SOLO la franja y el
+// botón (los dos elementos que Look & Feel ya valida con contraste AA
+// para texto blanco) — el resto de la tarjeta se queda con los mismos
+// tonos neutros del ticket, para no arriesgar contraste con un color de
+// tenant arbitrario en texto pequeño.
+function construirCorreoBase({
+  marca,
+  logoUrl,
+  colorPrimario,
+  colorAccent,
+  eyebrow,
+  titulo,
+  filas = [],
+  parrafos = [],
+  cta,
+  piePersonalizado,
+}) {
+  const marcaMostrada = marca === MARCA_DEFECTO ? 'CLARVO by ADDV' : marca;
+  const logo = logoTicketHtml(logoUrl, marca);
+  const primario = colorPrimario || '#03285B';
+  const acento = colorAccent || '#05DBF2';
+
+  const filasHtml = filas.map((f) => filaCorreoTabla(f.etiqueta, f.valor, f.destacado)).join('');
+  const parrafosHtml = parrafos
+    .map((p) => `<p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#2A3342;">${p}</p>`)
+    .join('');
+  const ctaHtml =
+    cta && cta.href
+      ? `
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto;">
+          <tr>
+            <td style="border-radius:8px; background:${primario};">
+              <a href="${cta.href}" style="display:inline-block; padding:12px 28px; font-size:14.5px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:8px;">${escapeHtmlCorreo(cta.texto)}</a>
+            </td>
+          </tr>
+        </table>`
+      : '';
+
+  const html = `
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0; padding:24px 12px; background:#F4F6FA; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; margin:0 auto;">
+    <tr>
+      <td style="text-align:center; padding-bottom:18px;">
+        ${logo.html}
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff; border:1px dashed #C7CDD9; border-radius:12px; box-shadow:0 2px 14px rgba(11,19,32,0.10);">
+          <tr>
+            <td style="height:4px; line-height:4px; font-size:0; background:${primario}; background:linear-gradient(90deg,${primario} 0%,${acento} 100%); border-radius:11px 11px 0 0;">&nbsp;</td>
+          </tr>
+          ${
+            eyebrow || titulo
+              ? `
+          <tr>
+            <td style="padding:24px 28px 6px; text-align:center;">
+              ${eyebrow ? `<p style="margin:0; font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#5B6472;">${escapeHtmlCorreo(eyebrow)}</p>` : ''}
+              ${titulo ? `<p style="margin:6px 0 0; font-size:20px; font-weight:bold; color:#0B1320;">${escapeHtmlCorreo(titulo)}</p>` : ''}
+            </td>
+          </tr>`
+              : ''
+          }
+          ${
+            filas.length
+              ? `
+          <tr><td style="padding:14px 28px 0;"><div style="border-top:1px dashed #DCE2EC;"></div></td></tr>
+          <tr>
+            <td style="padding:16px 28px ${parrafos.length ? '4px' : '24px'};">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${filasHtml}</table>
+            </td>
+          </tr>`
+              : ''
+          }
+          ${
+            parrafos.length
+              ? `<tr><td style="padding:${filas.length ? '4px' : '20px'} 28px 20px;">${parrafosHtml}</td></tr>`
+              : ''
+          }
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:22px 10px 0;">
+        ${ctaHtml}
+        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A93A3; text-align:center;">${piePersonalizado ? `${escapeHtmlCorreo(piePersonalizado)} ` : ''}Portal de Facturación ${escapeHtmlCorreo(marcaMostrada)}.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const texto = [
+    eyebrow ? eyebrow.toUpperCase() : null,
+    titulo,
+    filas.length ? filas.map((f) => `${f.etiqueta}: ${f.valor}`).join('\n') : null,
+    parrafos.length ? parrafos.map((p) => p.replace(/<[^>]+>/g, '')).join('\n\n') : null,
+    cta && cta.href ? `${cta.texto}: ${cta.href}` : null,
+    piePersonalizado || null,
+    `Portal de Facturación ${marcaMostrada}.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  return { html, texto, adjuntos: logo.adjunto ? [logo.adjunto] : [] };
+}
+
 // Arma el correo de confirmación de una orden de compra, con diseño
 // tipo "ticket" (recibo) — pensado para que el cliente lo identifique de
 // un vistazo como comprobante, guarde el No. Compra, y sepa exactamente
@@ -1641,12 +1822,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
   // propia marca sigue viendo su propio nombre tal cual.
   const marcaMostrada = marca === MARCA_DEFECTO ? 'CLARVO by ADDV' : marca;
   const logo = logoTicketHtml(logoUrl, marca);
-
-  const filaTicket = (etiqueta, valor, destacado) => `
-    <tr>
-      <td style="padding:${destacado ? '9px 10px' : '6px 0'}; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:13px; color:${destacado ? '#03285B' : '#5B6472'}; ${destacado ? 'font-weight:bold; background:#E7ECF3; border-radius:8px 0 0 8px;' : ''}">${etiqueta}</td>
-      <td style="padding:${destacado ? '9px 10px' : '6px 0'}; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:${destacado ? '15px' : '13px'}; color:${destacado ? '#03285B' : '#0B1320'}; text-align:right; ${destacado ? 'font-weight:bold; background:#E7ECF3; border-radius:0 8px 8px 0;' : ''}">${valor}</td>
-    </tr>`;
+  const filaTicket = filaCorreoTabla;
 
   const html = `
 <!DOCTYPE html>
@@ -1769,7 +1945,7 @@ const PERFIL_TEXTO = {
   fiscal: 'Fiscal',
 };
 
-async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal, marca }) {
+async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal, marca, logoUrl, colores }) {
   const perfilTexto = PERFIL_TEXTO[perfil] || perfil;
   const marcaCorreo = marca || MARCA_DEFECTO;
 
@@ -1787,22 +1963,33 @@ async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal,
   const etiquetaAcceso = perfil === 'cliente' ? 'Portal' : 'Panel de administración';
   const enlacePortal = urlPortal ? `${urlPortal}${rutaSegunPerfil}` : '';
 
-  // Si por alguna razón no se pudo detectar el host de la petición, se
-  // omite la línea del enlace en vez de mandar una URL rota — el
-  // usuario/contraseña siguen siendo suficientes para entrar manualmente.
+  // Homologado al diseño del ticket de venta (auditoría de correos de
+  // salida): mismo cascarón, logo y color de marca del tenant. Si por
+  // alguna razón no se pudo detectar el host de la petición, se omite el
+  // botón en vez de mandar una URL rota — el usuario/contraseña siguen
+  // siendo suficientes para entrar manualmente.
+  const { html, texto, adjuntos } = construirCorreoBase({
+    marca: marcaCorreo,
+    logoUrl,
+    colorPrimario: colores && colores.primario,
+    colorAccent: colores && colores.acento,
+    eyebrow: 'Bienvenido',
+    titulo: 'Tu cuenta ya está lista',
+    filas: [
+      { etiqueta: 'Perfil', valor: escapeHtmlCorreo(perfilTexto) },
+      { etiqueta: 'Usuario', valor: escapeHtmlCorreo(rfc) },
+      { etiqueta: 'Contraseña temporal', valor: escapeHtmlCorreo(password), destacado: true },
+    ],
+    parrafos: ['Ingresa con estos datos y cambia tu contraseña en cuanto puedas.'],
+    cta: enlacePortal ? { href: enlacePortal, texto: `Entrar al ${etiquetaAcceso}` } : null,
+  });
+
   await enviarCorreo({
     destinatario: email,
     asunto: `Te invitamos al Portal de Facturación ${marcaCorreo}`,
-    cuerpo:
-      `Hola,\n\n` +
-      `Se creó una cuenta para ti en el Portal de Facturación ${marcaCorreo}, con perfil "${perfilTexto}".\n\n` +
-      `Usuario: ${rfc}\n` +
-      `Contraseña temporal: ${password}\n\n` +
-      (enlacePortal
-        ? `${etiquetaAcceso}: ${enlacePortal}\n\n` +
-          `Ingresa ahí con estas credenciales y cambia tu contraseña en cuanto puedas.\n\n`
-        : `Ingresa con estas credenciales y cambia tu contraseña en cuanto puedas.\n\n`) +
-      `Si no esperabas este correo, contacta a tu administrador.`,
+    cuerpo: texto,
+    html,
+    adjuntos,
   });
 }
 
@@ -1819,38 +2006,36 @@ const DURACION_TOKEN_RECUPERACION_MS = 30 * 60 * 1000;
 // usuario DESPUÉS de que ya puso su nueva contraseña (ver
 // POST /api/auth/restablecer, que sí devuelve el perfil). Mismo patrón de
 // URL con slug que enviarInvitacionPortal.
-async function enviarCorreoRecuperacion({ email, urlPortal, marca, token }) {
+async function enviarCorreoRecuperacion({ email, urlPortal, marca, token, logoUrl, colores }) {
   const marcaCorreo = marca || MARCA_DEFECTO;
   const enlaceRestablecer = urlPortal ? `${urlPortal}/restablecer?token=${token}` : '';
   // Sin host detectable no hay forma de armar un enlace usable — mejor no
   // mandar un correo roto que el usuario no pueda seguir.
   if (!enlaceRestablecer) return;
 
-  const html = `
-    <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;">
-      <div style="background:#03285B;color:#ffffff;padding:18px 24px;font-weight:bold;font-size:16px;">${marcaCorreo}</div>
-      <div style="padding:24px;background:#ffffff;">
-        <h2 style="color:#10182B;font-size:17px;margin:0 0 10px;">Recupera tu acceso</h2>
-        <p style="color:#4A5468;font-size:13px;line-height:1.6;margin:0 0 16px;">
-          Recibimos una solicitud para restablecer tu contraseña en el Portal de Facturación ${marcaCorreo}.
-          Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.
-        </p>
-        <a href="${enlaceRestablecer}" style="display:inline-block;background:#03285B;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:600;font-size:13.5px;">Elegir nueva contraseña</a>
-        <p style="color:#8992A0;font-size:11.5px;margin-top:20px;line-height:1.5;">
-          Este enlace expira en 30 minutos y solo se puede usar una vez.<br/>
-          Si el botón no funciona, copia y pega este link: ${enlaceRestablecer}
-        </p>
-      </div>
-    </div>`;
+  // Homologado al diseño del ticket de venta (auditoría de correos de
+  // salida) — antes era HTML mínimo en Arial genérico, sin logo real ni
+  // color de marca.
+  const { html, texto, adjuntos } = construirCorreoBase({
+    marca: marcaCorreo,
+    logoUrl,
+    colorPrimario: colores && colores.primario,
+    colorAccent: colores && colores.acento,
+    eyebrow: 'Seguridad',
+    titulo: 'Recupera tu acceso',
+    parrafos: [
+      `Recibimos una solicitud para restablecer tu contraseña en el Portal de Facturación ${escapeHtmlCorreo(marcaCorreo)}. Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.`,
+    ],
+    cta: { href: enlaceRestablecer, texto: 'Elegir nueva contraseña' },
+    piePersonalizado: `Este enlace expira en 30 minutos y solo se puede usar una vez. Si el botón no funciona, copia y pega: ${enlaceRestablecer}`,
+  });
 
   await enviarCorreo({
     destinatario: email,
     asunto: `Recupera tu acceso — Portal de Facturación ${marcaCorreo}`,
-    cuerpo:
-      `Recibimos una solicitud para restablecer tu contraseña en el Portal de Facturación ${marcaCorreo}.\n\n` +
-      `Elige tu nueva contraseña aquí (el enlace expira en 30 minutos y solo se puede usar una vez):\n${enlaceRestablecer}\n\n` +
-      `Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.`,
+    cuerpo: texto,
     html,
+    adjuntos,
   });
 }
 
@@ -1863,7 +2048,7 @@ async function enviarCorreoRecuperacion({ email, urlPortal, marca, token }) {
 // El "correo de quien va a facturar" (contador) ahora es un valor único y
 // global que captura el administrador dentro de la configuración de
 // correo SMTP — no un campo por cliente/RFC como en una versión anterior.
-async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca) {
+async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca, logoUrl, colores) {
   const config = await getConfigSmtp();
   const correoContador = config && config.correo_contador;
   if (!correoContador) return;
@@ -1878,16 +2063,30 @@ async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca) {
   // Basic Auth en /admin — así que el enlace apunta ahí.
   const enlacePanel = urlPortal ? `${urlPortal}/admin` : '';
 
+  // Homologado al diseño del ticket de venta (auditoría de correos de
+  // salida): lo ve el contador del tenant, un tercero externo — primera
+  // impresión de marca frente a alguien fuera de la empresa.
+  const { html, texto, adjuntos } = construirCorreoBase({
+    marca: marcaCorreo,
+    logoUrl,
+    colorPrimario: colores && colores.primario,
+    colorAccent: colores && colores.acento,
+    eyebrow: 'Facturación',
+    titulo: 'Nuevo ticket para facturar',
+    filas: [
+      { etiqueta: 'RFC', valor: escapeHtmlCorreo(rfc) },
+      { etiqueta: 'Folio', valor: escapeHtmlCorreo(folio), destacado: true },
+    ],
+    parrafos: ['Revísalo y genera la factura correspondiente desde el panel de administración.'],
+    cta: enlacePanel ? { href: enlacePanel, texto: 'Ir al panel' } : null,
+  });
+
   await enviarCorreo({
     destinatario: correoContador,
     asunto: `Nuevo ticket para facturar — Folio ${folio}`,
-    cuerpo:
-      `Se subió un nuevo ticket de venta para facturar.\n\n` +
-      `RFC: ${rfc}\n` +
-      `Folio: ${folio}\n\n` +
-      (enlacePanel
-        ? `Ingresa al panel de administración del Portal de Facturación ${marcaCorreo} para revisarlo y generar la factura correspondiente:\n${enlacePanel}`
-        : `Ingresa al panel de administración del Portal de Facturación ${marcaCorreo} para revisarlo y generar la factura correspondiente.`),
+    cuerpo: texto,
+    html,
+    adjuntos,
   });
 }
 
@@ -2843,7 +3042,19 @@ app.post(
     // habilitado arriba para que `req.protocol` refleje el protocolo real
     // detrás de nginx.
     const urlPortal = detectarUrlPortal(req);
-    enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal, marca: marcaDelTenant(req) }).catch((err) => {
+    (async () => {
+      const configGlobalInvitacion = await getConfiguracionGlobal();
+      await enviarInvitacionPortal({
+        email,
+        rfc,
+        password,
+        perfil,
+        urlPortal,
+        marca: marcaDelTenant(req),
+        logoUrl: logoUrlDelTenant(req, urlPortal, configGlobalInvitacion),
+        colores: coloresCorreoTenant(req),
+      });
+    })().catch((err) => {
       console.error('No se pudo enviar la invitación al portal:', err.message);
     });
 
@@ -4077,7 +4288,18 @@ app.post(
       // Igual que con la notificación al contador: no se espera (await)
       // ni se deja que una falla aquí afecte la respuesta al
       // administrador — la factura ya se guardó correctamente.
-      notificarFacturaListaAlCliente(ticket.rfc, ticket.folio, marcaDelTenant(req)).catch((err) => {
+      const urlPortalFactura = detectarUrlPortal(req);
+      (async () => {
+        const configGlobalFactura = await getConfiguracionGlobal();
+        await notificarFacturaListaAlCliente(
+          ticket.rfc,
+          ticket.folio,
+          marcaDelTenant(req),
+          urlPortalFactura,
+          logoUrlDelTenant(req, urlPortalFactura, configGlobalFactura),
+          coloresCorreoTenant(req)
+        );
+      })().catch((err) => {
         console.error('No se pudo notificar la factura lista al cliente:', err.message);
       });
 
@@ -4098,7 +4320,7 @@ app.post(
 // a diferencia del cuerpo, que sí se puede personalizar desde el panel.
 const ASUNTO_FACTURA_LISTA = 'Factura lista — Folio {folio}';
 
-async function notificarFacturaListaAlCliente(rfc, folio, marca) {
+async function notificarFacturaListaAlCliente(rfc, folio, marca, urlPortal, logoUrl, colores) {
   const [filas] = await pool.query(
     'SELECT email FROM registros WHERE rfc = ? AND eliminado_en IS NULL LIMIT 1',
     [rfc]
@@ -4113,14 +4335,39 @@ async function notificarFacturaListaAlCliente(rfc, folio, marca) {
   // backend/utils/email.js). El asunto siempre es el mensaje fijo de
   // arriba — no es configurable.
   const config = await getConfigSmtp();
-  const variables = { folio, rfc, marca: marca || MARCA_DEFECTO };
+  const marcaCorreo = marca || MARCA_DEFECTO;
+  const variables = { folio, rfc, marca: marcaCorreo };
   const asunto = aplicarPlantilla(ASUNTO_FACTURA_LISTA, variables);
-  const cuerpo = aplicarPlantilla((config && config.cuerpo_cliente) || DEFAULTS_SMTP.cuerpo_cliente, variables);
+  const cuerpoPersonalizado = aplicarPlantilla((config && config.cuerpo_cliente) || DEFAULTS_SMTP.cuerpo_cliente, variables);
+
+  // Homologado al diseño del ticket de venta (auditoría de correos de
+  // salida): el marco (logo, franja, botón) se comparte con los demás
+  // correos, pero el texto del admin (`cuerpo_cliente`) se envuelve TAL
+  // CUAL — cada línea que capturó se muestra como su propio párrafo,
+  // nunca se reescribe. El botón hacia el portal es nuevo (antes este
+  // correo no tenía ningún enlace).
+  const enlacePortal = urlPortal ? `${urlPortal}/login` : '';
+  const { html, texto, adjuntos } = construirCorreoBase({
+    marca: marcaCorreo,
+    logoUrl,
+    colorPrimario: colores && colores.primario,
+    colorAccent: colores && colores.acento,
+    eyebrow: 'Facturación',
+    titulo: 'Factura lista',
+    parrafos: cuerpoPersonalizado
+      .split('\n')
+      .map((linea) => linea.trim())
+      .filter(Boolean)
+      .map((linea) => escapeHtmlCorreo(linea)),
+    cta: enlacePortal ? { href: enlacePortal, texto: 'Entrar al Portal' } : null,
+  });
 
   await enviarCorreo({
     destinatario: correoCliente,
     asunto,
-    cuerpo,
+    cuerpo: texto,
+    html,
+    adjuntos,
   });
 }
 

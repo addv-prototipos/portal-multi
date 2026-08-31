@@ -143,6 +143,7 @@ describe('utils/tenantContext.js', () => {
         nombreEmpresa: 'Cliente Uno S.A.',
         marca: 'Cliente Uno',
         marcaLogoUrl: '/api/marca-logo/cliente1',
+        temaJson: null,
         grupoSucursalId: null,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(

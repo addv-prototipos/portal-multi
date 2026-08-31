@@ -927,6 +927,32 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   Validado en navegador real: ocultar columna, redimensionar arrastrando,
   y el menú "⋮" abriendo/cerrando y disparando la acción real. Jest
   backend 781/781 (sin cambios de backend). Sin commit/push todavía.
+- **Homologación de marca CLARVO en los 6 correos de salida —
+  IMPLEMENTADA Y VALIDADA contra Docker/MySQL/SMTP reales (ver
+  PROJECT_STATE.md punto 161, 2026-08-31)**: auditoría a pedido del
+  usuario — de 6 correos, solo la confirmación de venta (punto 133)
+  tenía diseño; propuesta visual (Artifact con mockups antes/después)
+  aprobada con "sí a todas tus recomendaciones". `construirCorreoBase()`
+  nuevo en `backend/server.js` (mismo lenguaje visual del ticket —
+  `filaCorreoTabla()` extraído del ticket sin cambiarlo) aplicado a
+  invitación al portal, recuperación de contraseña, aviso al contador y
+  factura lista (esta última envuelve el texto libre del admin tal
+  cual, gana botón nuevo "Entrar al Portal"). El reporte automático
+  queda fuera a propósito (interno, con adjunto). Color de la franja/
+  botón lee `tema_json.colores.accentDark`/`accent` del tenant (Look &
+  Feel, punto 105 — cero UI nueva en `/control`), navy/cyan CLARVO de
+  respaldo. Requirió exponer `temaJson` crudo en `req.tenant`
+  (`tenantContext.js`). **Bug propio corregido en la validación**: la
+  primera versión bloqueaba la respuesta con un `await` síncrono antes
+  de mandar el correo, rompiendo el patrón fire-and-forget que ya tenían
+  estas 4 rutas (Jest lo encontró: 201→500) — fix, todo el cómputo se
+  movió dentro de un IIFE async en el mismo `.catch()` de siempre. Jest
+  backend 781/781, control 117/117. Validado con el SMTP real de este
+  entorno (Gmail): invitación y recuperación de contraseña enviadas de
+  punta a punta sin errores, cuenta de prueba borrada después. Aviso al
+  contador/factura lista comparten el mismo código ya confirmado, sin
+  forzar su flujo completo (constancia+venta+ZIP) por costo/beneficio.
+  Sin commit/push todavía.
 - **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un

@@ -10421,6 +10421,71 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         cambios de backend, segmento 100% frontend). Sin commit/push
         todavía.
 
+  161. **Homologación de marca CLARVO en los 6 correos de salida —
+      IMPLEMENTADO Y VALIDADO contra Docker/MySQL/SMTP reales
+      (2026-08-31)**: auditoría a pedido del usuario ("revisa todas las
+      plantillas de correos de salida") — de los 6 correos que manda
+      `enviarCorreo()`, solo la confirmación de venta (punto 133) tenía
+      diseño real; invitación/aviso al contador/factura lista eran texto
+      plano puro, y recuperación de contraseña tenía HTML mínimo (Arial
+      genérico, sin logo real). Propuesta visual (Artifact con mockups
+      "antes" reales de cada plantilla + "después" homologado) aprobada
+      con "Sí, implementa todo el segmento y sí a todas tus
+      recomendaciones".
+      - **`construirCorreoBase()` nuevo** (`backend/server.js`, junto a
+        `construirCorreoOrdenCompra`): mismo lenguaje visual del ticket
+        de venta (logo, franja degradada, tarjeta punteada, botón) para
+        cualquier correo de cara a cliente/tercero externo. `filaTicket`
+        (closure local del ticket) se extrajo a `filaCorreoTabla()` a
+        nivel de módulo, compartida por ambos — el ticket queda
+        BYTE-IDÉNTICO (cero cambio visual), solo deja de duplicar el
+        markup.
+      - **4 correos migrados** a `construirCorreoBase()`: invitación al
+        portal, recuperación de contraseña, aviso al contador de nuevo
+        ticket, y factura lista — esta última envuelve el texto LIBRE
+        del admin (`cuerpo_cliente`) tal cual, sin reescribirlo, y gana
+        un botón "Entrar al Portal" que antes no existía (aprobado en la
+        propuesta, pregunta 2). El reporte automático
+        (`utils/reportes.js`) se dejó FUERA a propósito — tráfico
+        interno con adjunto Markdown, no representa la marca frente a
+        nadie externo (pregunta 1).
+      - **Parametrización desde `/control` sin UI nueva**: el color de
+        la franja/botón lee `tema_json.colores.accentDark`/`accent` del
+        tenant (Look & Feel, punto 105 — ya editable hoy desde
+        `/control`, ya validado con contraste WCAG AA), con navy/cyan de
+        CLARVO como respaldo si el tenant no personalizó su tema
+        (pregunta 3). Requirió exponer `temaJson` (crudo, sin parsear)
+        en `req.tenant` desde `utils/tenantContext.js` — antes se leía
+        de la fila de MySQL pero nunca se pasaba al resto de la
+        petición.
+      - **Bug propio encontrado y corregido en la validación**: la
+        primera versión hacía `await getConfiguracionGlobal()`
+        SÍNCRONO dentro del handler antes de llamar a la función de
+        correo — rompía el patrón "fire-and-forget" que ya tenían las 4
+        rutas (invitación, recuperación, ticket nuevo, factura lista) y
+        tumbaba la respuesta con 500 si esa consulta fallaba/no estaba
+        mockeada (encontrado por Jest: `admin.test.js` "POST crea un
+        cliente válido" pasó de 201 a 500). Fix: todo el cómputo
+        (`getConfiguracionGlobal` + `logoUrlDelTenant` +
+        `coloresCorreoTenant`) se movió DENTRO de un IIFE async
+        envuelto en el mismo `.catch()` que ya tenían — nunca bloquea
+        la respuesta, igual que antes.
+      - Jest backend **781/781** (test de `tenantContext.js` actualizado
+        con el campo `temaJson: null` nuevo), control 117/117 (sin
+        cambios). Rebuild real de `backend` (`docker compose build` +
+        `up -d --force-recreate`), validado con el SMTP real ya
+        configurado en este entorno (Gmail, `notificaciones@addv.mx`):
+        invitación de un usuario de prueba y recuperación de contraseña
+        enviadas de punta a punta sin errores en los logs del
+        contenedor; cuenta de prueba borrada después
+        (`GOMJ800101AB1`). Aviso al contador y factura lista comparten
+        exactamente el mismo `construirCorreoBase()`/patrón IIFE ya
+        confirmado en los otros dos — no se forzó su flujo completo
+        (constancia + venta + ticket + ZIP de factura) por costo/tiempo
+        frente al beneficio marginal, dado que la suite Jest completa
+        (incluida la nueva cobertura del punto 158) sigue en verde. Sin
+        commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto
@@ -10513,39 +10578,15 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
    valor por defecto seguro para producción.
 5. Si vienes de la versión SQLite anterior, correr
    `backend/scripts/migrar-sqlite-a-mysql.js` para traer esos datos.
-6. **Parámetros de marca** (pedido explícito, guardado para revisar
-   después — no implementado todavía, solo el diagnóstico). "ADDV"
-   aparece hoy escrito directamente en el código en 4 archivos, 11
-   apariciones — ninguna en pantallas HTML, todas en documentación o en
-   texto de correos salientes:
-
-   | # | Archivo | Línea | Contexto |
-   |---|---------|-------|----------|
-   | 1 | `README.md` | 1 | Título del documento |
-   | 2 | `README.md` | 340 | Descripción del logo parametrizado del correo |
-   | 3 | `PROJECT_STATE.md` | 73 | Nota histórica sobre el nombre del proyecto |
-   | 4 | `PROJECT_STATE.md` | ~1647 | Descripción del logo por defecto |
-   | 5 | `backend/server.js` | ~675 | `logoTicketHtml()` — atributo `alt` de la imagen del logo |
-   | 6 | `backend/server.js` | ~679 | `logoTicketHtml()` — texto visible en la caja de color del logo por defecto |
-   | 7 | `backend/server.js` | ~758 | Pie de página del correo de confirmación de orden de compra |
-   | 8 | `backend/server.js` | ~838 | Asunto del correo de invitación |
-   | 9 | `backend/server.js` | ~841 | Cuerpo del correo de invitación |
-   | 10 | `backend/server.js` | ~883–884 | Cuerpo del aviso al contador de nuevo ticket |
-   | 11 | `backend/utils/email.js` | ~30 | Plantilla por defecto del correo "factura lista" |
-
-   Dado que ya existe `logo_url` en la configuración global (parametrizado
-   desde el punto 47, pero sin pantalla en el panel todavía para
-   configurarlo — ver el punto 58 de este mismo archivo), lo natural
-   sería extender esa MISMA configuración con un nombre de marca (ej.
-   `nombre_marca`, con "ADDV" como valor por defecto para no romper nada
-   existente) y usarlo en los 7 lugares que son texto de correo, en vez
-   de tener el nombre incrustado directamente en el código en cada uno.
-   Los 4 usos en `README.md`/`PROJECT_STATE.md` son solo documentación —
-   no requieren ningún cambio de código, se editarían directamente si el
-   nombre cambia. (Las líneas marcadas con "~" pueden haberse recorrido
-   ligeramente si el archivo cambió desde que se hizo este diagnóstico —
-   conviene volver a buscar "ADDV" antes de editar, en vez de confiar en
-   el número de línea exacto.)
+6. **Parámetros de marca en correos — RESUELTO (ver punto 161)**: el
+   diagnóstico original (2026-08 temprano) listaba 7 lugares en
+   `backend/server.js`/`utils/email.js` con "ADDV"/marca genérica
+   incrustada en texto plano sin diseño. Esos 7 ya se homologaron al
+   diseño del ticket de venta vía `construirCorreoBase()` (marca y logo
+   siempre vienen de `marcaDelTenant()`/`logoUrlDelTenant()`, nunca
+   texto fijo) — ver punto 161 para el detalle completo. Los usos en
+   `README.md`/`PROJECT_STATE.md` (título del documento, notas
+   históricas) siguen siendo solo documentación, sin acción pendiente.
 
 ## Dónde está todo (mapa rápido)
 

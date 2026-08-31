@@ -87,6 +87,12 @@ async function resolverTenantMiddleware(req, res, next) {
       // nombre genérico por defecto ("ADDV") en los puntos de uso, no aquí.
       marca: tenant.marca || null,
       marcaLogoUrl: tenant.marca_logo_url || null,
+      // Look & Feel (segmento 105): JSON crudo del tema del tenant, sin
+      // parsear aquí — los consumidores (ej. los correos de marca, ver
+      // coloresCorreoTenant en server.js) lo pasan por
+      // parsearTemaDesdeFila() bajo demanda, mismo criterio que ya usa
+      // GET /api/tema/:slug.
+      temaJson: tenant.tema_json || null,
       // §58: si el tenant pertenece a un grupo de sucursales, requireAdminAuth
       // acepta también las credenciales compartidas de ese grupo (ver
       // utils/auth.js) y GET /api/admin/sucursales-hermanas puede armar el
