@@ -998,6 +998,9 @@ async function ensureSchema(db = pool) {
       proveedor_principal VARCHAR(200) NULL,
       notas TEXT NULL,
       extra JSON NULL,
+      imagen_key VARCHAR(255) NULL,
+      imagen_thumb_key VARCHAR(255) NULL,
+      imagen_actualizada_en DATETIME NULL,
       eliminado_en DATETIME NULL,
       creado_en DATETIME NOT NULL,
       actualizado_en DATETIME NOT NULL,
@@ -1092,6 +1095,21 @@ async function ensureSchema(db = pool) {
     await db.query(
       `ALTER TABLE productos ADD CONSTRAINT chk_productos_moneda CHECK (moneda IN ('MXN', 'USD'))`
     );
+  }
+
+  // Punto 159, Segmento B: imagen principal de producto (recorte de
+  // inventarios.md D10/US-INV-002 — solo 1 imagen por producto en v1,
+  // galería multi-imagen queda para un segmento posterior). Las 2 keys
+  // apuntan a MinIO (`inventarios/<slug>/productos/<id>/principal.webp`
+  // y `.../thumb_principal.webp`); nunca el archivo original.
+  if (!nombresColumnasProductos.includes('imagen_key')) {
+    await db.query('ALTER TABLE productos ADD COLUMN imagen_key VARCHAR(255) NULL');
+  }
+  if (!nombresColumnasProductos.includes('imagen_thumb_key')) {
+    await db.query('ALTER TABLE productos ADD COLUMN imagen_thumb_key VARCHAR(255) NULL');
+  }
+  if (!nombresColumnasProductos.includes('imagen_actualizada_en')) {
+    await db.query('ALTER TABLE productos ADD COLUMN imagen_actualizada_en DATETIME NULL');
   }
 
   const [columnasMovimientos] = await db.query(

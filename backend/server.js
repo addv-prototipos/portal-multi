@@ -146,6 +146,11 @@ const {
   TAMANO_CHUNK,
 } = require('./utils/inventarioImportacion');
 const { obtenerDiccionarioInventario } = require('./utils/inventarioCampos');
+const {
+  ErrorImagenProducto,
+  guardarImagenProducto,
+  eliminarImagenProducto,
+} = require('./utils/inventarioImagen');
 
 const PORT = process.env.PORT || 4000;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 5);
@@ -6159,6 +6164,15 @@ function formatearProducto(p, existenciaDisponible) {
     creado_en: p.creado_en,
     actualizado_en: p.actualizado_en,
     disponible: existenciaDisponible === undefined || existenciaDisponible === null ? null : Number(existenciaDisponible),
+    // Punto 159 (Segmento B): solo la URL, nunca la key de MinIO —
+    // mismo criterio que marca_logo_url. null si el producto no tiene
+    // imagen todavía (evita una petición al backend que solo daría 404).
+    // "?t=" es cache-busting: reemplazar la imagen sobreescribe la MISMA
+    // key en MinIO (nombre de archivo fijo, no uuid), así que sin esto
+    // el navegador seguiría mostrando la versión vieja hasta agotar
+    // Cache-Control.
+    imagen_url: p.imagen_key ? `/api/admin/inventarios/productos/${p.id}/imagen?t=${new Date(p.imagen_actualizada_en).getTime()}` : null,
+    imagen_thumb_url: p.imagen_thumb_key ? `/api/admin/inventarios/productos/${p.id}/imagen?v=thumb&t=${new Date(p.imagen_actualizada_en).getTime()}` : null,
   };
 }
 
@@ -6354,7 +6368,7 @@ app.get(
     const almacenId = await obtenerAlmacenDefectoId();
     const patron = `%${termino}%`;
     const [filas] = await pool.query(
-      `SELECT p.id, p.sku, p.nombre, p.codigo_barras, p.precio, p.tipo, e.disponible
+      `SELECT p.id, p.sku, p.nombre, p.codigo_barras, p.precio, p.tipo, p.imagen_thumb_key, p.imagen_actualizada_en, e.disponible
          FROM productos p
          LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = ?
         WHERE p.eliminado_en IS NULL AND p.estado = 'activo'
@@ -6372,6 +6386,9 @@ app.get(
         precio: p.precio === null ? null : Number(p.precio),
         tipo: p.tipo,
         disponible: p.disponible === null ? 0 : Number(p.disponible),
+        imagen_thumb_url: p.imagen_thumb_key
+          ? `/api/admin/inventarios/productos/${p.id}/imagen?v=thumb&t=${new Date(p.imagen_actualizada_en).getTime()}`
+          : null,
       })),
     });
   })
@@ -6451,6 +6468,115 @@ app.delete(
     ahora.setMilliseconds(0);
     await pool.query('UPDATE productos SET eliminado_en = ?, actualizado_en = ? WHERE id = ?', [ahora, ahora, id]);
     res.json({ ok: true, mensaje: 'Producto movido a la papelera.' });
+  })
+);
+
+// Imagen principal de producto (punto 159, Segmento B). Solo después de
+// que el producto ya existe — mismo criterio que el comprobante de
+// Gastos: crear es JSON, el archivo es una petición aparte una vez que
+// hay un :id al que asociarlo.
+app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requireAdminAuth, requireAdminArea('administrador'), requireInventarioActivo, (req, res) => {
+  subirConTenant(uploadImagen, 'imagen', req, res, async (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: `La imagen excede el tamaño máximo permitido de ${MAX_FILE_SIZE_MB} MB.` });
+      }
+      if (err.message === 'TIPO_NO_PERMITIDO') {
+        return res.status(400).json({ error: 'Solo se aceptan imágenes en formato JPG, PNG o WEBP.' });
+      }
+      console.error('Error al subir la imagen de producto:', err);
+      return res.status(400).json({ error: 'No se pudo procesar la imagen.' });
+    }
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+      if (!req.file) return res.status(400).json({ error: 'Debes adjuntar una imagen.' });
+
+      const producto = await obtenerProductoPorId(id);
+      if (!producto) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });
+
+      const prefijo = storage.prefijoTenant(req);
+      let resultado;
+      try {
+        resultado = await guardarImagenProducto(prefijo, id, req.file.buffer);
+      } catch (errImagen) {
+        if (errImagen instanceof ErrorImagenProducto) {
+          return res.status(400).json({ error: errImagen.codigo, mensaje: errImagen.message });
+        }
+        throw errImagen;
+      }
+
+      const ahora = new Date();
+      ahora.setMilliseconds(0);
+      await pool.query(
+        'UPDATE productos SET imagen_key = ?, imagen_thumb_key = ?, imagen_actualizada_en = ?, actualizado_en = ? WHERE id = ?',
+        [resultado.imagenKey, resultado.thumbKey, ahora, ahora, id]
+      );
+
+      res.json({
+        ok: true,
+        imagen_url: `/api/admin/inventarios/productos/${id}/imagen`,
+        imagen_thumb_url: `/api/admin/inventarios/productos/${id}/imagen?v=thumb`,
+      });
+    } catch (errGeneral) {
+      console.error('Error guardando la imagen de producto:', errGeneral);
+      res.status(500).json({ error: 'No se pudo guardar la imagen.' });
+    }
+  });
+});
+
+app.get(
+  '/api/admin/inventarios/productos/:id/imagen',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const producto = await obtenerProductoPorId(id);
+    if (!producto) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });
+
+    const esThumb = req.query.v === 'thumb';
+    const key = esThumb ? producto.imagen_thumb_key : producto.imagen_key;
+    if (!key) return res.status(404).json({ error: 'Este producto no tiene imagen.' });
+
+    const prefijo = storage.prefijoTenant(req);
+    const carpeta = `productos/${id}`;
+    const nombreArchivo = esThumb ? 'thumb_principal.webp' : 'principal.webp';
+    try {
+      res.setHeader('Content-Type', 'image/webp');
+      res.setHeader('Cache-Control', 'private, max-age=86400');
+      await storage.enviarArchivoARespuesta(prefijo, carpeta, nombreArchivo, res);
+    } catch (err) {
+      console.error(`Error sirviendo la imagen del producto ${id}:`, err);
+      res.status(500).json({ error: 'No se pudo leer la imagen.' });
+    }
+  })
+);
+
+app.delete(
+  '/api/admin/inventarios/productos/:id/imagen',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const producto = await obtenerProductoPorId(id);
+    if (!producto) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });
+
+    const prefijo = storage.prefijoTenant(req);
+    await eliminarImagenProducto(prefijo, id);
+
+    const ahora = new Date();
+    ahora.setMilliseconds(0);
+    await pool.query(
+      'UPDATE productos SET imagen_key = NULL, imagen_thumb_key = NULL, imagen_actualizada_en = NULL, actualizado_en = ? WHERE id = ?',
+      [ahora, id]
+    );
+    res.json({ ok: true, mensaje: 'Imagen eliminada.' });
   })
 );
 

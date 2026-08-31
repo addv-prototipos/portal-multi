@@ -23,9 +23,36 @@ jest.mock('../../utils/inventario', () => {
   };
 });
 
+// Imagen principal de producto (punto 159, Segmento B): el pipeline real
+// de sharp/MinIO ya tiene su propia suite (test/unit/inventarioImagen.test.js)
+// — aquí solo se prueba la CAPA HTTP, mismo criterio que registrarMovimiento
+// arriba.
+jest.mock('../../utils/inventarioImagen', () => {
+  const actual = jest.requireActual('../../utils/inventarioImagen');
+  return {
+    ...actual,
+    guardarImagenProducto: jest.fn(),
+    eliminarImagenProducto: jest.fn(),
+  };
+});
+
+jest.mock('../../utils/storage', () => ({
+  PREFIJO_DEFECTO: '_default',
+  prefijoTenant: jest.fn(() => '_default'),
+  guardarArchivo: jest.fn().mockResolvedValue(undefined),
+  existeArchivo: jest.fn().mockResolvedValue(true),
+  eliminarArchivo: jest.fn().mockResolvedValue(undefined),
+  enviarArchivoARespuesta: jest.fn((prefijo, carpeta, nombreArchivo, res) => {
+    res.end(Buffer.from('contenido-simulado'));
+    return Promise.resolve();
+  }),
+}));
+
 const { pool } = require('../../db');
 const { hashPassword } = require('../../utils/authUsuario');
 const { registrarMovimiento, conciliarInventario, ALMACEN_DEFECTO_CODIGO } = require('../../utils/inventario');
+const { guardarImagenProducto, eliminarImagenProducto, ErrorImagenProducto } = require('../../utils/inventarioImagen');
+const storage = require('../../utils/storage');
 const app = require('../../server');
 
 function mockUsuarioAdministrativo(perfil, { usuario = 'admin1', password = 'ClaveAdmin1' } = {}) {
@@ -255,6 +282,122 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       const res = await request(app).delete('/api/admin/inventarios/productos/5/permanente').auth(usuario, password);
       expect(res.status).toBe(200);
       expect(res.body.mensaje).toMatch(/permanentemente/i);
+    });
+  });
+
+  // Imagen principal de producto (punto 159, Segmento B). El pipeline real
+  // (sharp/MinIO) va mockeado — ver test/unit/inventarioImagen.test.js
+  // para la lógica de procesamiento real.
+  describe('Imagen de producto (Segmento B)', () => {
+    const IMAGEN_BUFFER = Buffer.from('contenido-de-prueba-no-es-una-imagen-real');
+
+    beforeEach(() => {
+      guardarImagenProducto.mockReset();
+      eliminarImagenProducto.mockReset().mockResolvedValue(undefined);
+    });
+
+    test('POST /:id/imagen sin archivo adjunto responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO]);
+      const res = await request(app).post('/api/admin/inventarios/productos/1/imagen').auth(usuario, password);
+      expect(res.status).toBe(400);
+    });
+
+    test('POST /:id/imagen con extensión no permitida responde 400 (filtro de multer)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos/1/imagen')
+        .auth(usuario, password)
+        .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.exe', contentType: 'application/octet-stream' });
+      expect(res.status).toBe(400);
+    });
+
+    test('POST /:id/imagen a un producto inexistente responde 404', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[]]]]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos/999/imagen')
+        .auth(usuario, password)
+        .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.jpg', contentType: 'image/jpeg' });
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('INV_PRODUCTO_NO_ENCONTRADO');
+      expect(guardarImagenProducto).not.toHaveBeenCalled();
+    });
+
+    test('POST /:id/imagen procesa, guarda las keys y responde con las URLs', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      guardarImagenProducto.mockResolvedValue({ imagenKey: 'a/productos/1/principal.webp', thumbKey: 'a/productos/1/thumb_principal.webp', ancho: 800, alto: 600 });
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT * FROM productos WHERE id', [[{ id: 1, nombre: 'Tornillo' }]]],
+        ['UPDATE productos SET imagen_key', [{ affectedRows: 1 }]],
+      ]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos/1/imagen')
+        .auth(usuario, password)
+        .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.jpg', contentType: 'image/jpeg' });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.imagen_url).toMatch(/\/imagen$/);
+      expect(res.body.imagen_thumb_url).toMatch(/v=thumb/);
+      expect(guardarImagenProducto).toHaveBeenCalledWith('_default', 1, expect.any(Buffer));
+    });
+
+    test('POST /:id/imagen con imagen inválida (dimensión/tipo) responde 400 con el código real', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      guardarImagenProducto.mockRejectedValue(new ErrorImagenProducto('INV_IMAGEN_DIMENSION_INVALIDA', 'Demasiado grande.'));
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[{ id: 1 }]]]]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos/1/imagen')
+        .auth(usuario, password)
+        .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.jpg', contentType: 'image/jpeg' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('INV_IMAGEN_DIMENSION_INVALIDA');
+    });
+
+    test('GET /:id/imagen de un producto sin imagen responde 404', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[{ id: 1, imagen_key: null, imagen_thumb_key: null }]]]]);
+      const res = await request(app).get('/api/admin/inventarios/productos/1/imagen').auth(usuario, password);
+      expect(res.status).toBe(404);
+    });
+
+    test('GET /:id/imagen sirve la variante principal desde MinIO', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[{ id: 1, imagen_key: 'k.webp', imagen_thumb_key: 't.webp' }]]]]);
+      const res = await request(app).get('/api/admin/inventarios/productos/1/imagen').auth(usuario, password);
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('image/webp');
+      expect(storage.enviarArchivoARespuesta).toHaveBeenCalledWith('_default', 'productos/1', 'principal.webp', expect.anything());
+    });
+
+    test('GET /:id/imagen?v=thumb sirve la miniatura', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[{ id: 1, imagen_key: 'k.webp', imagen_thumb_key: 't.webp' }]]]]);
+      const res = await request(app).get('/api/admin/inventarios/productos/1/imagen?v=thumb').auth(usuario, password);
+      expect(res.status).toBe(200);
+      expect(storage.enviarArchivoARespuesta).toHaveBeenCalledWith('_default', 'productos/1', 'thumb_principal.webp', expect.anything());
+    });
+
+    test('DELETE /:id/imagen de un producto inexistente responde 404', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[]]]]);
+      const res = await request(app).delete('/api/admin/inventarios/productos/999/imagen').auth(usuario, password);
+      expect(res.status).toBe(404);
+      expect(eliminarImagenProducto).not.toHaveBeenCalled();
+    });
+
+    test('DELETE /:id/imagen borra de MinIO y limpia las columnas', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT * FROM productos WHERE id', [[{ id: 1, imagen_key: 'k.webp' }]]],
+        ['UPDATE productos SET imagen_key = NULL', [{ affectedRows: 1 }]],
+      ]);
+      const res = await request(app).delete('/api/admin/inventarios/productos/1/imagen').auth(usuario, password);
+      expect(res.status).toBe(200);
+      expect(eliminarImagenProducto).toHaveBeenCalledWith('_default', 1);
     });
   });
 
