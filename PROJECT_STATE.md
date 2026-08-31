@@ -10284,8 +10284,142 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         balanceado (`admin.css` 846/846, `style.css` 140/140), Jest
         backend 764/764 (sin cambios de backend, segmento 100%
         frontend). Sin commit/push todavía.
-      - Segmento B (imagen principal de producto, recorte de D10) sigue
-        sin empezar.
+      - **Segmento B — Imagen principal de producto — IMPLEMENTADO Y
+        VALIDADO contra Docker/MySQL/MinIO real (2026-08-30)**: recorte
+        de D10/US-INV-002 — solo 1 imagen por producto en v1 (galería
+        US-INV-003 y el gate control+tenant de la spec completa quedan
+        para cuando haya tenants reales con costo de almacenamiento que
+        justifique esa complejidad; sí se conservan las 2 protecciones
+        de seguridad no negociables: límite de dimensión 8000×8000px
+        antes de decodificar y timeout duro de 10s por imagen).
+        - **Backend**: dependencia nueva `sharp` (procesamiento de
+          imagen — resize + WebP, sin librería de firma binaria nueva
+          porque ya existía `detectRealImageMimeType()` en
+          `utils/validate.js`, reusada tal cual). 3 columnas nuevas en
+          `productos` (`imagen_key`/`imagen_thumb_key`/
+          `imagen_actualizada_en`, migración guardada por
+          INFORMATION_SCHEMA). `utils/inventarioImagen.js` nuevo:
+          `procesarImagenProducto()` (valida firma → límite de
+          dimensión ANTES de decodificar → 1200px + miniatura 300×300,
+          ambas WebP q80, timeout 10s vía `Promise.race`) +
+          `guardarImagenProducto()`/`eliminarImagenProducto()` (MinIO,
+          nombre de archivo FIJO por producto — `principal.webp`/
+          `thumb_principal.webp` — así reemplazar sobreescribe la misma
+          key sin dejar huérfanos, a diferencia de una galería con
+          nombres uuid). 3 endpoints nuevos bajo
+          `/api/admin/inventarios/productos/:id/imagen` (POST/GET/
+          DELETE, mismo patrón de auth que el resto de Inventarios);
+          igual que el comprobante de Gastos, subir una imagen es una
+          petición APARTE después de crear el producto (nunca en el
+          mismo POST de alta) — por eso la UI solo la muestra editando.
+          `formatearProducto()` y `/productos/buscar` (usado por
+          Ventas) extendidos con `imagen_url`/`imagen_thumb_url`,
+          con `?t=<timestamp>` de cache-busting (necesario porque la
+          key de MinIO es fija y se sobreescribe).
+        - **Frontend**: sección "Imagen del producto" (dropzone +
+          drag&drop, mismo componente `.dropzone` ya en `style.css`)
+          en el modal de edición de Inventarios — oculta al dar de alta
+          (sin id todavía). Miniatura en la tabla de Inventarios y en
+          las sugerencias de búsqueda de Ventas.
+        - **Bug real encontrado y corregido en la validación en
+          navegador real, no detectable de otra forma**: un
+          `<img src="...">` normal NUNCA manda el header
+          `Authorization` (este panel usa Basic Auth manual vía
+          `fetch()`, sin diálogo nativo del navegador que el browser
+          pueda cachear) — las miniaturas se veían como huecos vacíos
+          pese a que la API devolvía todo bien. Fix:
+          `cargarImagenAutenticada()` nueva en `admin.js` — trae el
+          archivo con `fetch()` + header, lo convierte a blob URL
+          (cacheado por URL exacta) y recién ahí llena `img.src`.
+          Aplicado a la tabla de Inventarios, las sugerencias de Ventas
+          y el preview del modal de edición.
+        - **Validado de punta a punta contra Docker/MySQL/MinIO
+          reales**: `npm install sharp` compiló bien dentro de la
+          imagen Alpine (sin agregar herramientas de build); subida
+          real de una foto (1600×900 → WebP 1200×675 + thumb WebP
+          300×300 confirmados con `sharp().metadata()`), columnas
+          reales en MySQL, rechazo real de un archivo no-imagen
+          (`INV_IMAGEN_TIPO_INVALIDO`), borrado real, y en navegador
+          real (Claude in Chrome): miniatura visible en la tabla de
+          Inventarios, preview en el modal de edición, "Quitar imagen"
+          alternando dropzone↔preview sin reabrir el modal, y
+          miniatura visible en la sugerencia de búsqueda de Ventas —
+          los 3 puntos que antes se veían vacíos por el bug de arriba.
+        - Jest backend **781/781 (45 suites)**, 17 tests nuevos (10
+          integración de la capa HTTP con el pipeline mockeado + 7
+          unitarios del pipeline real de `sharp` contra imágenes reales
+          generadas en el propio test, sin mockear `sharp`). `node
+          --check` limpio, CSS balanceado.
+        - **Fix de regresión visual encontrado y corregido el mismo día
+          (reportado por el usuario con captura real)**: la miniatura se
+          había metido DENTRO de la celda "Nombre" de `.inv-table`, una
+          tabla `table-layout: fixed` (`admin.css:1600-1605`) que nunca
+          tuvo ancho explícito por columna — dependía de adivinar el
+          ancho a partir del texto corto del encabezado, no del
+          contenido real. Con el thumbnail compitiendo por ese mismo
+          presupuesto ya ajustado, nombres largos se partían en 3-4
+          líneas ("Cable UTP Cat6 305m" → 4 líneas). Propuesta
+          antes/después (Artifact) presentada y aprobada antes de
+          tocar código, usando la skill `impeccable` (sin correr su
+          flujo completo de crítica dual-agente — ese es para auditar
+          una superficie entera, no una regresión de CSS puntual y
+          acotada). Fix: columna "Imagen" propia y fija (48px,
+          `th.inv-th-imagen`) separada de "Nombre" en
+          `admin.html`/`admin.js`, que recupera su ancho completo.
+          Validado en navegador real: nombres antes en 4 líneas ahora en
+          máximo 2, imagen real sigue cargando bien en su celda nueva
+          (`cargarImagenAutenticada()` intacto), cero errores de
+          consola. Jest backend 781/781 sin cambios (100% frontend).
+        - Con esto, el requerimiento del punto 159 (código de barras +
+          imágenes) queda completo: Segmento A (cámara) + Segmento B
+          (imagen principal) + el fix de columna. Sin commit/push
+          todavía.
+
+  160. **Cabeceras ajustables en todas las tablas + acciones de
+      Inventarios compactas — IMPLEMENTADO Y VALIDADO en navegador real
+      (2026-08-30)**: pedido explícito del usuario, propuesta
+      antes/después (Artifact) aprobada primero.
+      - **Ajuste de cabeceras generalizado**: el mecanismo ya existía
+        (`crearControladorColumnas()` en `admin.js` — botón "Columnas"
+        para ocultar/mostrar + arrastrar el borde de cada encabezado
+        para redimensionar, con memoria en `localStorage`) en
+        Constancias/Ventas/Gastos. Se conectó, SIN reescribir la
+        función, a las 4 tablas que faltaban: Tickets, Cuentas por
+        cobrar, Usuarios e Inventarios — cada una con su botón "Columnas"
+        propio, su lista `COLUMNAS_TABLA_X` y sus claves de
+        `localStorage` separadas para no mezclar preferencias entre
+        tablas. Cada `<th>` ganó `data-col`/`<span class="col-resizer">`
+        y cada `<td>` generado por JS ganó su `data-col` correspondiente
+        (el selector CSS `.admin-table-wrap.hide-X [data-col="X"]` que
+        ya existía es genérico — reutiliza automáticamente claves
+        repetidas entre tablas como "rfc"/"categoria"/"estado", sin
+        duplicar reglas). En Inventarios, la columna "Imagen" (punto
+        159, Segmento B) queda deliberadamente FUERA del sistema — es
+        fija de 48px, sin texto que ocultar ni ancho que negociar.
+      - **Acciones de Inventarios, de 5 botones a 2 + menú "⋮"**: los 5
+        íconos (Entrada/Salida/Historial/Editar/Eliminar) ya usaban el
+        mismo componente compacto de 30×30px que Usuarios
+        (`.btn-icono-accion`) — el problema no era el tamaño, era la
+        cantidad forzando ~200px de columna. Quedan visibles Entrada y
+        Salida (uso diario en D8); Historial/Editar/Eliminar se agrupan
+        en un menú "⋮" nuevo y reutilizable
+        (`crearMenuAccionesInv()`/`.inv-acciones-menu*` en
+        `admin.js`/`admin.css`) — cierra con Escape o clic afuera, igual
+        que los demás popovers del panel. Los casos de papelera/servicio
+        (que ya tenían solo 2 botones) quedan intactos, sin tocar.
+      - **Validado en navegador real (Claude in Chrome)** en las 4
+        tablas: botón "Columnas" abre el panel correcto por tabla
+        (8/7/4/8 checkboxes respectivamente), ocultar una columna
+        (`hide-uso` en Tickets) la oculta de verdad, arrastrar el borde
+        de un encabezado cambia su ancho en vivo (Folio 110→170px), el
+        menú "⋮" de Inventarios abre con los 3 ítems correctos y
+        "Editar producto" dispara la acción real y cierra el menú solo.
+        Cero errores de consola en todo el recorrido.
+      - `node --check` limpio, CSS balanceado (`admin.css` 882/882),
+        HTML balanceado (114/114 `<th>`, el conteo ingenuo con
+        `<thead>` daba un falso 132/114). Jest backend 781/781 (sin
+        cambios de backend, segmento 100% frontend). Sin commit/push
+        todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

@@ -469,6 +469,22 @@
             <select class="tickets-filtro-estatus" id="tickets-filtro-usuario" aria-label="Filtrar por usuario que hizo el último cambio">
               <option value="">Todos los usuarios</option>
             </select>
+            <div class="column-toggle" id="tickets-column-toggle">
+              <button type="button" class="btn btn-secondary" id="btn-tickets-columns" aria-haspopup="true" aria-expanded="false" aria-controls="tickets-column-toggle-panel">
+                Columnas
+              </button>
+              <div class="column-toggle-panel" id="tickets-column-toggle-panel" hidden>
+                <p class="column-toggle-title">Mostrar columnas</p>
+                <label class="checkbox-row"><input type="checkbox" data-col="folio" checked /><span>Folio</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="rfc" checked /><span>RFC</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="uso" checked /><span>Uso de CFDI</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="ticket" checked /><span>Ticket</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="estatus" checked /><span>Estatus</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="asignado" checked /><span>Asignado a</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="notas" checked /><span>Notas</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="actualizado" checked /><span>Actualizado</span></label>
+              </div>
+            </div>
             <button type="button" class="btn btn-secondary" id="btn-refresh-tickets">Actualizar</button>
           </div>
         </div>
@@ -476,17 +492,17 @@
         <p class="field-error" id="tickets-error" role="alert"></p>
 
         <div class="admin-table-wrap">
-          <table class="admin-table tickets-table">
+          <table class="admin-table tickets-table" id="tickets-table">
             <thead>
               <tr>
-                <th>Folio</th>
-                <th>RFC</th>
-                <th>Uso de CFDI</th>
-                <th>Ticket</th>
-                <th>Estatus</th>
-                <th>Asignado a</th>
-                <th>Notas</th>
-                <th>Actualizado</th>
+                <th data-col="folio"><span class="th-label">Folio</span><span class="col-resizer" data-resizer="folio"></span></th>
+                <th data-col="rfc"><span class="th-label">RFC</span><span class="col-resizer" data-resizer="rfc"></span></th>
+                <th data-col="uso"><span class="th-label">Uso de CFDI</span><span class="col-resizer" data-resizer="uso"></span></th>
+                <th data-col="ticket"><span class="th-label">Ticket</span><span class="col-resizer" data-resizer="ticket"></span></th>
+                <th data-col="estatus"><span class="th-label">Estatus</span><span class="col-resizer" data-resizer="estatus"></span></th>
+                <th data-col="asignado"><span class="th-label">Asignado a</span><span class="col-resizer" data-resizer="asignado"></span></th>
+                <th data-col="notas"><span class="th-label">Notas</span><span class="col-resizer" data-resizer="notas"></span></th>
+                <th data-col="actualizado"><span class="th-label">Actualizado</span><span class="col-resizer" data-resizer="actualizado"></span></th>
                 <th></th>
               </tr>
             </thead>
@@ -1077,6 +1093,21 @@
           </div>
           <div class="admin-toolbar-right">
             <span class="admin-count" id="cxc-count">0 por cobrar</span>
+            <div class="column-toggle" id="cxc-column-toggle">
+              <button type="button" class="btn btn-secondary" id="btn-cxc-columns" aria-haspopup="true" aria-expanded="false" aria-controls="cxc-column-toggle-panel">
+                Columnas
+              </button>
+              <div class="column-toggle-panel" id="cxc-column-toggle-panel" hidden>
+                <p class="column-toggle-title">Mostrar columnas</p>
+                <label class="checkbox-row"><input type="checkbox" data-col="numero" checked /><span>No. Venta</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="cliente" checked /><span>Cliente</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="total" checked /><span>Total</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="cobrado" checked /><span>Cobrado</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="saldo" checked /><span>Saldo</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="vencimiento" checked /><span>Vencimiento</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="estado" checked /><span>Estado</span></label>
+              </div>
+            </div>
             <button type="button" class="btn btn-secondary" id="btn-refresh-cxc">Actualizar</button>
           </div>
         </div>
@@ -1093,7 +1124,16 @@
         </div>
         <div class="admin-table-wrap" id="cxc-table-wrap">
           <table class="admin-table" id="cxc-table">
-            <thead><tr><th>No. Venta</th><th>Cliente</th><th>Total</th><th>Cobrado</th><th>Saldo</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr>
+              <th data-col="numero"><span class="th-label">No. Venta</span><span class="col-resizer" data-resizer="numero"></span></th>
+              <th data-col="cliente"><span class="th-label">Cliente</span><span class="col-resizer" data-resizer="cliente"></span></th>
+              <th data-col="total"><span class="th-label">Total</span><span class="col-resizer" data-resizer="total"></span></th>
+              <th data-col="cobrado"><span class="th-label">Cobrado</span><span class="col-resizer" data-resizer="cobrado"></span></th>
+              <th data-col="saldo"><span class="th-label">Saldo</span><span class="col-resizer" data-resizer="saldo"></span></th>
+              <th data-col="vencimiento"><span class="th-label">Vencimiento</span><span class="col-resizer" data-resizer="vencimiento"></span></th>
+              <th data-col="estado"><span class="th-label">Estado</span><span class="col-resizer" data-resizer="estado"></span></th>
+              <th></th>
+            </tr></thead>
             <tbody id="cxc-table-body"></tbody>
           </table>
           <p class="admin-empty" id="cxc-empty" hidden>No hay cuentas por cobrar.</p>
@@ -1245,6 +1285,22 @@
             </div>
             <span class="admin-count" id="inv-productos-count">0 productos</span>
             <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" data-tooltip="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
+            <div class="column-toggle" id="inv-column-toggle">
+              <button type="button" class="btn btn-secondary" id="btn-inv-columns" aria-haspopup="true" aria-expanded="false" aria-controls="inv-column-toggle-panel">
+                Columnas
+              </button>
+              <div class="column-toggle-panel" id="inv-column-toggle-panel" hidden>
+                <p class="column-toggle-title">Mostrar columnas</p>
+                <label class="checkbox-row"><input type="checkbox" data-col="sku" checked /><span>SKU</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="nombre" checked /><span>Nombre</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="categoria" checked /><span>Categoría</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="unidad" checked /><span>Unidad</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="disponible" checked /><span>Disponible</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="costo" checked /><span>Costo prom.</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="precio" checked /><span>Precio</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="estado" checked /><span>Estado</span></label>
+              </div>
+            </div>
             <button type="button" class="btn btn-secondary" id="btn-refresh-inventarios">Actualizar</button>
             <button type="button" class="btn btn-secondary" id="btn-inv-importar">Importar catálogo</button>
             <button type="button" class="btn-icon" id="btn-inv-ayuda-abrir" aria-label="Ayuda y diccionario de datos de Inventarios" data-tooltip="Ayuda y diccionario de datos">?</button>
@@ -1359,17 +1415,18 @@
         <p class="field-error" id="inv-error" role="alert"></p>
 
         <div class="admin-table-wrap" id="inv-table-wrap">
-          <table class="admin-table inv-table">
+          <table class="admin-table inv-table" id="inv-table">
             <thead>
               <tr>
-                <th>SKU</th>
-                <th>Nombre</th>
-                <th>Categoría</th>
-                <th>Unidad</th>
-                <th class="col-num">Disponible</th>
-                <th class="col-num">Costo prom.</th>
-                <th class="col-num">Precio</th>
-                <th>Estado</th>
+                <th class="inv-th-imagen" aria-label="Imagen"></th>
+                <th data-col="sku"><span class="th-label">SKU</span><span class="col-resizer" data-resizer="sku"></span></th>
+                <th data-col="nombre"><span class="th-label">Nombre</span><span class="col-resizer" data-resizer="nombre"></span></th>
+                <th data-col="categoria"><span class="th-label">Categoría</span><span class="col-resizer" data-resizer="categoria"></span></th>
+                <th data-col="unidad"><span class="th-label">Unidad</span><span class="col-resizer" data-resizer="unidad"></span></th>
+                <th data-col="disponible" class="col-num"><span class="th-label">Disponible</span><span class="col-resizer" data-resizer="disponible"></span></th>
+                <th data-col="costo" class="col-num"><span class="th-label">Costo prom.</span><span class="col-resizer" data-resizer="costo"></span></th>
+                <th data-col="precio" class="col-num"><span class="th-label">Precio</span><span class="col-resizer" data-resizer="precio"></span></th>
+                <th data-col="estado"><span class="th-label">Estado</span><span class="col-resizer" data-resizer="estado"></span></th>
                 <th></th>
               </tr>
             </thead>
@@ -1474,6 +1531,18 @@
               <option value="administrador">Administradores</option>
               <option value="fiscal">Fiscales</option>
             </select>
+            <div class="column-toggle" id="usuarios-column-toggle">
+              <button type="button" class="btn btn-secondary" id="btn-usuarios-columns" aria-haspopup="true" aria-expanded="false" aria-controls="usuarios-column-toggle-panel">
+                Columnas
+              </button>
+              <div class="column-toggle-panel" id="usuarios-column-toggle-panel" hidden>
+                <p class="column-toggle-title">Mostrar columnas</p>
+                <label class="checkbox-row"><input type="checkbox" data-col="rfc" checked /><span>RFC / usuario</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="perfil" checked /><span>Perfil</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="contacto" checked /><span>Contacto</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="registrado" checked /><span>Registrado</span></label>
+              </div>
+            </div>
             <button type="button" class="btn btn-secondary" id="btn-refresh-usuarios">Actualizar</button>
             <button type="button" class="btn btn-primary" id="btn-crear-usuario">+ Crear usuario</button>
           </div>
@@ -1482,13 +1551,13 @@
         <p class="field-error" id="usuarios-error" role="alert"></p>
 
         <div class="admin-table-wrap">
-          <table class="admin-table usuarios-table">
+          <table class="admin-table usuarios-table" id="usuarios-table">
             <thead>
               <tr>
-                <th>RFC / usuario</th>
-                <th>Perfil</th>
-                <th>Contacto</th>
-                <th>Registrado</th>
+                <th data-col="rfc"><span class="th-label">RFC / usuario</span><span class="col-resizer" data-resizer="rfc"></span></th>
+                <th data-col="perfil"><span class="th-label">Perfil</span><span class="col-resizer" data-resizer="perfil"></span></th>
+                <th data-col="contacto"><span class="th-label">Contacto</span><span class="col-resizer" data-resizer="contacto"></span></th>
+                <th data-col="registrado"><span class="th-label">Registrado</span><span class="col-resizer" data-resizer="registrado"></span></th>
                 <th></th>
               </tr>
             </thead>
@@ -3093,6 +3162,28 @@
             </div>
             <p class="field-error" id="error-inv-modal-codigo-barras" role="alert"></p>
           </div>
+
+          <!-- Imagen principal de producto (punto 159, Segmento B) — solo
+               visible editando un producto ya guardado (necesita su id
+               para asociar el archivo, igual que el comprobante de
+               Gastos). -->
+          <div class="field inv-modal-imagen-field" id="inv-modal-imagen-field" hidden>
+            <label>Imagen del producto</label>
+            <div class="inv-imagen-actual" id="inv-imagen-actual" hidden>
+              <img id="inv-imagen-actual-preview" alt="Imagen del producto" />
+              <button type="button" class="btn btn-secondary" id="btn-inv-imagen-quitar">Quitar imagen</button>
+            </div>
+            <label class="dropzone" id="inv-imagen-dropzone" for="inv-imagen-input">
+              <span class="dropzone-icono" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 16V4m0 0L7 9m5-5l5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </span>
+              <span>Arrastra una imagen o haz clic para seleccionar</span>
+              <span class="field-hint">JPG, PNG o WEBP · máx. <span id="inv-imagen-limite-mb">5</span> MB</span>
+            </label>
+            <input type="file" id="inv-imagen-input" accept="image/jpeg,image/png,image/webp" hidden />
+            <p class="field-error" id="error-inv-modal-imagen" role="alert"></p>
+          </div>
+
           <div class="field inv-modal-categoria-field">
             <label for="inv-modal-categoria">Categoría<button type="button" class="campo-ayuda" data-campo="categoria" aria-label="Ver ayuda de Categoría">?</button></label>
             <div class="gastos-categoria-select-row">

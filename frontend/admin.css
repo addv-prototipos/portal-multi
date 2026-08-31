@@ -1585,7 +1585,26 @@
 .admin-table-wrap.hide-proveedor [data-col="proveedor"],
 .admin-table-wrap.hide-categoria [data-col="categoria"],
 .admin-table-wrap.hide-factura [data-col="factura"],
-.admin-table-wrap.hide-monto [data-col="monto"] {
+.admin-table-wrap.hide-monto [data-col="monto"],
+.admin-table-wrap.hide-folio [data-col="folio"],
+.admin-table-wrap.hide-uso [data-col="uso"],
+.admin-table-wrap.hide-ticket [data-col="ticket"],
+.admin-table-wrap.hide-estatus [data-col="estatus"],
+.admin-table-wrap.hide-asignado [data-col="asignado"],
+.admin-table-wrap.hide-notas [data-col="notas"],
+.admin-table-wrap.hide-cliente [data-col="cliente"],
+.admin-table-wrap.hide-cobrado [data-col="cobrado"],
+.admin-table-wrap.hide-saldo [data-col="saldo"],
+.admin-table-wrap.hide-vencimiento [data-col="vencimiento"],
+.admin-table-wrap.hide-estado [data-col="estado"],
+.admin-table-wrap.hide-perfil [data-col="perfil"],
+.admin-table-wrap.hide-contacto [data-col="contacto"],
+.admin-table-wrap.hide-registrado [data-col="registrado"],
+.admin-table-wrap.hide-sku [data-col="sku"],
+.admin-table-wrap.hide-unidad [data-col="unidad"],
+.admin-table-wrap.hide-disponible [data-col="disponible"],
+.admin-table-wrap.hide-costo [data-col="costo"],
+.admin-table-wrap.hide-precio [data-col="precio"] {
   display: none !important;
 }
 
@@ -1625,6 +1644,25 @@
 .admin-table th[data-col="categoria"] { width: 150px; }
 .admin-table th[data-col="factura"] { width: 120px; }
 .admin-table th[data-col="monto"] { width: 120px; }
+.admin-table th[data-col="folio"] { width: 110px; }
+.admin-table th[data-col="uso"] { width: 130px; }
+.admin-table th[data-col="ticket"] { width: 160px; }
+.admin-table th[data-col="estatus"] { width: 110px; }
+.admin-table th[data-col="asignado"] { width: 140px; }
+.admin-table th[data-col="notas"] { width: 90px; }
+.admin-table th[data-col="cliente"] { width: 190px; }
+.admin-table th[data-col="cobrado"] { width: 110px; }
+.admin-table th[data-col="saldo"] { width: 110px; }
+.admin-table th[data-col="vencimiento"] { width: 120px; }
+.admin-table th[data-col="estado"] { width: 110px; }
+.admin-table th[data-col="perfil"] { width: 130px; }
+.admin-table th[data-col="contacto"] { width: 190px; }
+.admin-table th[data-col="registrado"] { width: 140px; }
+.admin-table th[data-col="sku"] { width: 130px; }
+.admin-table th[data-col="unidad"] { width: 90px; }
+.admin-table th[data-col="disponible"] { width: 100px; }
+.admin-table th[data-col="costo"] { width: 110px; }
+.admin-table th[data-col="precio"] { width: 110px; }
 .admin-table th:last-child { width: 210px; }
 
 .admin-table th,
@@ -1801,6 +1839,52 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   border-color: var(--color-error);
   background: var(--color-error-soft);
   color: var(--color-error);
+}
+
+/* Menú "⋮" de acciones secundarias en Inventarios (2026-08-30): agrupa
+   Historial/Editar/Eliminar detrás de un solo botón, dejando visibles
+   solo Entrada/Salida — antes eran 5 botones sueltos peleando por el
+   ancho de la columna de acciones. */
+.inv-acciones-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.inv-acciones-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 180px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.inv-acciones-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.inv-acciones-menu-item:hover {
+  background: var(--color-accent-soft);
+}
+.inv-acciones-menu-item-peligro {
+  color: var(--color-error);
+}
+.inv-acciones-menu-item-peligro:hover {
+  background: var(--color-error-soft);
 }
 
 /* Celda "Contacto" (correo + teléfono combinados) en la tabla de
@@ -4045,7 +4129,8 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .orden-inventario-sugerencia {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   text-align: left;
   padding: 10px 12px;
@@ -4060,6 +4145,11 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .orden-inventario-sugerencia:focus-visible {
   background: var(--color-accent-soft);
 }
+.orden-inventario-sugerencia-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 .orden-inventario-sugerencia-nombre {
   font-weight: 600;
   color: var(--color-ink);
@@ -4067,6 +4157,63 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .orden-inventario-sugerencia-detalle {
   font-size: 12.5px;
   color: var(--color-ink-soft);
+}
+
+/* Imagen principal de producto (punto 159, Segmento B) */
+.inv-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  flex: none;
+  background: var(--color-bg);
+}
+.inv-thumb-vacia {
+  display: inline-block;
+}
+.inv-thumb-chica {
+  width: 28px;
+  height: 28px;
+}
+/* Columna "Imagen" propia y angosta (fix 2026-08-30): antes vivía DENTRO
+   de la celda "Nombre" en una tabla table-layout:fixed sin ancho
+   explícito — el thumbnail se comía el poco espacio que le quedaba al
+   texto y los nombres largos se partían en 3-4 líneas. Separada aquí,
+   "Nombre" recupera su ancho completo. */
+.inv-table th.inv-th-imagen {
+  width: 48px;
+}
+.inv-imagen-celda {
+  text-align: center;
+}
+.inv-modal-imagen-field .dropzone {
+  padding: 20px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.inv-modal-imagen-field .dropzone.is-dragover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.inv-modal-imagen-field .dropzone-icono {
+  color: var(--color-ink-soft);
+  margin-bottom: 4px;
+}
+.inv-imagen-actual {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.inv-imagen-actual img {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
 }
 .orden-inventario-seleccionado {
   display: flex;

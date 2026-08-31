@@ -889,10 +889,44 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   corregido (mismo patrón del punto 135): el modal del escáner quedaba
   detrás del modal padre por z-index empatado — fix en `style.css`
   (`#scanner-modal-overlay { z-index: 70; }`). Jest backend 764/764 (sin
-  cambios de backend). Pendiente real: probar con celular físico contra
-  HTTPS real (aquí solo se validó el camino de error, sin cámara
-  física). Segmento B (imagen principal de producto, D10) sin empezar.
-  Sin commit/push todavía.
+  cambios de backend). **Segmento B (imagen principal de producto) — TAMBIÉN
+  IMPLEMENTADO Y VALIDADO contra Docker/MySQL/MinIO reales (2026-08-30)**:
+  `sharp` nuevo en backend (resize+WebP, firma binaria reusa
+  `detectRealImageMimeType()` ya existente), 3 columnas en `productos`,
+  `utils/inventarioImagen.js` (límite de dimensión 8000×8000 ANTES de
+  decodificar + timeout 10s, nombre de archivo FIJO por producto en
+  MinIO — reemplazar sobreescribe, sin huérfanos), 3 endpoints
+  `/api/admin/inventarios/productos/:id/imagen` (igual que el
+  comprobante de Gastos: subir es petición aparte después de crear el
+  producto). Bug real corregido en la validación: `<img src>` no manda
+  `Authorization` (Basic Auth manual, sin diálogo nativo cacheable) —
+  fix `cargarImagenAutenticada()` en `admin.js` (fetch con header →
+  blob URL), aplicado a tabla de Inventarios/sugerencias de Ventas/
+  preview del modal. Jest backend 781/781 (45 suites). **Fix de
+  regresión el mismo día** (reportado por el usuario con captura): la
+  miniatura vivía dentro de la celda "Nombre" de una tabla
+  `table-layout:fixed` sin ancho explícito, apretando el texto a 3-4
+  líneas — columna "Imagen" propia (48px) separada en `admin.html`/
+  `admin.js`/`admin.css`, propuesta antes/después aprobada primero (skill
+  `impeccable`, sin correr su crítica dual-agente completa por ser un
+  fix acotado). Con esto el punto 159 completo queda implementado.
+  Pendiente real: probar con celular físico contra HTTPS real (aquí solo
+  se validó el camino de error del Segmento A, sin cámara física). Sin
+  commit/push todavía.
+- **Cabeceras ajustables en todas las tablas + acciones de Inventarios
+  compactas — IMPLEMENTADO Y VALIDADO en navegador real (ver
+  PROJECT_STATE.md punto 160, 2026-08-30)**: el mecanismo de
+  ocultar/mostrar + redimensionar columnas (`crearControladorColumnas()`,
+  ya usado en Constancias/Ventas/Gastos) se conectó a las 4 tablas que
+  faltaban — Tickets, Cuentas por cobrar, Usuarios, Inventarios — sin
+  reescribirlo, cada una con su botón "Columnas" y claves de
+  `localStorage` propias. En Inventarios, además, los 5 íconos de acción
+  (ya del tamaño correcto, `.btn-icono-accion`) bajaron a 2 visibles
+  (Entrada/Salida) + un menú "⋮" nuevo (`crearMenuAccionesInv()`) para
+  Historial/Editar/Eliminar. Propuesta antes/después aprobada primero.
+  Validado en navegador real: ocultar columna, redimensionar arrastrando,
+  y el menú "⋮" abriendo/cerrando y disparando la acción real. Jest
+  backend 781/781 (sin cambios de backend). Sin commit/push todavía.
 - **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un

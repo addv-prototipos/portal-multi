@@ -178,6 +178,8 @@
     btnRefreshTickets: document.getElementById('btn-refresh-tickets'),
     ticketsError: document.getElementById('tickets-error'),
     ticketsTableBody: document.getElementById('tickets-table-body'),
+    btnTicketsColumns: document.getElementById('btn-tickets-columns'),
+    ticketsColumnTogglePanel: document.getElementById('tickets-column-toggle-panel'),
     ticketsEmpty: document.getElementById('tickets-empty'),
     // Modal de gestión de ticket
     ticketModalOverlay: document.getElementById('ticket-modal-overlay'),
@@ -319,6 +321,8 @@
     cxcFiltroVencimiento: document.getElementById('cxc-filtro-vencimiento'),
     btnLimpiarFiltrosCxc: document.getElementById('btn-limpiar-filtros-cxc'),
     cxcTableBody: document.getElementById('cxc-table-body'),
+    btnCxcColumns: document.getElementById('btn-cxc-columns'),
+    cxcColumnTogglePanel: document.getElementById('cxc-column-toggle-panel'),
     cxcEmpty: document.getElementById('cxc-empty'),
     cxcFiltroEmpty: document.getElementById('cxc-filtro-empty'),
     cxcCobroModalOverlay: document.getElementById('cxc-cobro-modal-overlay'),
@@ -443,6 +447,8 @@
     btnLimpiarFiltrosInv: document.getElementById('btn-limpiar-filtros-inv'),
     invError: document.getElementById('inv-error'),
     invTableBody: document.getElementById('inv-table-body'),
+    btnInvColumns: document.getElementById('btn-inv-columns'),
+    invColumnTogglePanel: document.getElementById('inv-column-toggle-panel'),
     invEmpty: document.getElementById('inv-empty'),
     // Modal de crear/editar producto
     invProductoModalOverlay: document.getElementById('inv-producto-modal-overlay'),
@@ -454,6 +460,13 @@
     invModalSku: document.getElementById('inv-modal-sku'),
     invModalCodigoBarras: document.getElementById('inv-modal-codigo-barras'),
     btnInvModalEscanear: document.getElementById('btn-inv-modal-escanear'),
+    invModalImagenField: document.getElementById('inv-modal-imagen-field'),
+    invImagenActual: document.getElementById('inv-imagen-actual'),
+    invImagenActualPreview: document.getElementById('inv-imagen-actual-preview'),
+    btnInvImagenQuitar: document.getElementById('btn-inv-imagen-quitar'),
+    invImagenDropzone: document.getElementById('inv-imagen-dropzone'),
+    invImagenInput: document.getElementById('inv-imagen-input'),
+    errorInvModalImagen: document.getElementById('error-inv-modal-imagen'),
     invModalCategoria: document.getElementById('inv-modal-categoria'),
     btnInvCategoriasToggle: document.getElementById('btn-inv-categorias-toggle'),
     invCategoriasPanel: document.getElementById('inv-categorias-panel'),
@@ -732,6 +745,8 @@
     btnCrearUsuario: document.getElementById('btn-crear-usuario'),
     usuariosError: document.getElementById('usuarios-error'),
     usuariosTableBody: document.getElementById('usuarios-table-body'),
+    btnUsuariosColumns: document.getElementById('btn-usuarios-columns'),
+    usuariosColumnTogglePanel: document.getElementById('usuarios-column-toggle-panel'),
     usuariosEmpty: document.getElementById('usuarios-empty'),
     // Cuenta de respaldo "admin"
     btnToggleAdminFallback: document.getElementById('btn-toggle-admin-fallback'),
@@ -936,6 +951,23 @@
   const COLUMNAS_TABLA_GASTOS = ['fecha', 'concepto', 'proveedor', 'categoria', 'factura', 'monto'];
   const COLUMNAS_GASTOS_STORAGE_KEY = 'admin_gastos_columnas_visibles';
   const ANCHOS_GASTOS_STORAGE_KEY = 'admin_gastos_anchos_columnas';
+  // Mismo mecanismo, generalizado a las 4 tablas que todavía no lo tenían
+  // (Tickets, Cuentas por cobrar, Usuarios, Inventarios) — pedido explícito
+  // del usuario para que todas las tablas del panel se comporten igual.
+  const COLUMNAS_TABLA_TICKETS = ['folio', 'rfc', 'uso', 'ticket', 'estatus', 'asignado', 'notas', 'actualizado'];
+  const COLUMNAS_TICKETS_STORAGE_KEY = 'admin_tickets_columnas_visibles';
+  const ANCHOS_TICKETS_STORAGE_KEY = 'admin_tickets_anchos_columnas';
+  const COLUMNAS_TABLA_CXC = ['numero', 'cliente', 'total', 'cobrado', 'saldo', 'vencimiento', 'estado'];
+  const COLUMNAS_CXC_STORAGE_KEY = 'admin_cxc_columnas_visibles';
+  const ANCHOS_CXC_STORAGE_KEY = 'admin_cxc_anchos_columnas';
+  const COLUMNAS_TABLA_USUARIOS = ['rfc', 'perfil', 'contacto', 'registrado'];
+  const COLUMNAS_USUARIOS_STORAGE_KEY = 'admin_usuarios_columnas_visibles';
+  const ANCHOS_USUARIOS_STORAGE_KEY = 'admin_usuarios_anchos_columnas';
+  // "imagen" no entra aquí a propósito: es una columna fija de 48px, sin
+  // texto que ocultar ni ancho que negociar (ver punto 159, Segmento B).
+  const COLUMNAS_TABLA_INVENTARIOS = ['sku', 'nombre', 'categoria', 'unidad', 'disponible', 'costo', 'precio', 'estado'];
+  const COLUMNAS_INVENTARIOS_STORAGE_KEY = 'admin_inventarios_columnas_visibles';
+  const ANCHOS_INVENTARIOS_STORAGE_KEY = 'admin_inventarios_anchos_columnas';
 
   // Categorías de gasto — EDITABLES desde el propio popup de "Registrar
   // gasto" (ver PROJECT_STATE.md, segmento "Categorías editables"); ya no
@@ -968,6 +1000,34 @@
   function getAuthHeader() {
     const creds = sessionStorage.getItem(SESSION_KEY);
     return creds ? `Basic ${creds}` : null;
+  }
+
+  // Imágenes de producto (punto 159, Segmento B): son endpoints admin
+  // protegidos por Basic Auth manual (sin diálogo nativo del navegador),
+  // así que un <img src="..."> normal nunca manda el header
+  // Authorization y siempre recibe 401 — hay que traer el archivo con
+  // fetch() (que sí lleva el header) y convertirlo a blob URL. Cache por
+  // URL exacta (incluye "?t=" de cache-busting) para no re-descargar la
+  // misma miniatura en cada render de la tabla.
+  const cacheImagenesAutenticadas = new Map();
+  async function cargarImagenAutenticada(imgEl, url) {
+    if (!imgEl || !url) return;
+    if (cacheImagenesAutenticadas.has(url)) {
+      imgEl.src = cacheImagenesAutenticadas.get(url);
+      return;
+    }
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(url, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      cacheImagenesAutenticadas.set(url, blobUrl);
+      imgEl.src = blobUrl;
+    } catch (err) {
+      // Sin imagen visible, la tabla/lista sigue funcionando igual.
+    }
   }
 
   function setSession(username, password) {
@@ -1335,6 +1395,14 @@
     controladorColumnasOrdenes.aplicarAnchosGuardados();
     controladorColumnasGastos.aplicarColumnasVisibles(controladorColumnasGastos.cargarColumnasGuardadas());
     controladorColumnasGastos.aplicarAnchosGuardados();
+    controladorColumnasTickets.aplicarColumnasVisibles(controladorColumnasTickets.cargarColumnasGuardadas());
+    controladorColumnasTickets.aplicarAnchosGuardados();
+    controladorColumnasCxc.aplicarColumnasVisibles(controladorColumnasCxc.cargarColumnasGuardadas());
+    controladorColumnasCxc.aplicarAnchosGuardados();
+    controladorColumnasUsuarios.aplicarColumnasVisibles(controladorColumnasUsuarios.cargarColumnasGuardadas());
+    controladorColumnasUsuarios.aplicarAnchosGuardados();
+    controladorColumnasInventarios.aplicarColumnasVisibles(controladorColumnasInventarios.cargarColumnasGuardadas());
+    controladorColumnasInventarios.aplicarAnchosGuardados();
     // "Configuraciones fiscales" (cargarConfigGlobal) la puede ver
     // cualquier perfil que entra al panel (super/administrador/fiscal),
     // así que se precarga siempre. Los otros tres son específicamente
@@ -3344,6 +3412,42 @@
     panel: els.gastosColumnTogglePanel,
   });
 
+  const controladorColumnasTickets = crearControladorColumnas({
+    tableWrap: els.ticketsTableBody ? els.ticketsTableBody.closest('.admin-table-wrap') : null,
+    columnas: COLUMNAS_TABLA_TICKETS,
+    storageKeyVisibles: COLUMNAS_TICKETS_STORAGE_KEY,
+    storageKeyAnchos: ANCHOS_TICKETS_STORAGE_KEY,
+    btnColumnas: els.btnTicketsColumns,
+    panel: els.ticketsColumnTogglePanel,
+  });
+
+  const controladorColumnasCxc = crearControladorColumnas({
+    tableWrap: els.cxcTableBody ? els.cxcTableBody.closest('.admin-table-wrap') : null,
+    columnas: COLUMNAS_TABLA_CXC,
+    storageKeyVisibles: COLUMNAS_CXC_STORAGE_KEY,
+    storageKeyAnchos: ANCHOS_CXC_STORAGE_KEY,
+    btnColumnas: els.btnCxcColumns,
+    panel: els.cxcColumnTogglePanel,
+  });
+
+  const controladorColumnasUsuarios = crearControladorColumnas({
+    tableWrap: els.usuariosTableBody ? els.usuariosTableBody.closest('.admin-table-wrap') : null,
+    columnas: COLUMNAS_TABLA_USUARIOS,
+    storageKeyVisibles: COLUMNAS_USUARIOS_STORAGE_KEY,
+    storageKeyAnchos: ANCHOS_USUARIOS_STORAGE_KEY,
+    btnColumnas: els.btnUsuariosColumns,
+    panel: els.usuariosColumnTogglePanel,
+  });
+
+  const controladorColumnasInventarios = crearControladorColumnas({
+    tableWrap: els.invTableBody ? els.invTableBody.closest('.admin-table-wrap') : null,
+    columnas: COLUMNAS_TABLA_INVENTARIOS,
+    storageKeyVisibles: COLUMNAS_INVENTARIOS_STORAGE_KEY,
+    storageKeyAnchos: ANCHOS_INVENTARIOS_STORAGE_KEY,
+    btnColumnas: els.btnInvColumns,
+    panel: els.invColumnTogglePanel,
+  });
+
   // ---------- Carga de registros ----------
 
   async function cargarRegistros() {
@@ -4114,14 +4218,14 @@
         : '';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="Folio"><strong>${escapeHtml(t.folio)}</strong></td>
-        <td data-label="RFC">${escapeHtml(t.rfc)}</td>
-        <td data-label="Uso de CFDI">${escapeHtml(t.uso_cfdi || '—')}</td>
-        <td data-label="Ticket">${escapeHtml(t.imagen_nombre_original)}</td>
-        <td data-label="Estatus"><span class="estatus-badge ${info.clase}">${escapeHtml(info.texto)}</span></td>
-        <td data-label="Asignado a">${t.actualizado_por ? escapeHtml(t.actualizado_por) : '—'}</td>
-        <td data-label="Notas">${tieneNota ? '<button type="button" class="btn-nota-icono" data-tooltip="Ver nota interna" aria-label="Ver nota interna"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M15 3v5h5M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>' : '—'}</td>
-        <td data-label="Actualizado">${formatFecha(t.actualizado_en)}${actualizadoPorTexto}</td>
+        <td data-label="Folio" data-col="folio"><strong>${escapeHtml(t.folio)}</strong></td>
+        <td data-label="RFC" data-col="rfc">${escapeHtml(t.rfc)}</td>
+        <td data-label="Uso de CFDI" data-col="uso">${escapeHtml(t.uso_cfdi || '—')}</td>
+        <td data-label="Ticket" data-col="ticket">${escapeHtml(t.imagen_nombre_original)}</td>
+        <td data-label="Estatus" data-col="estatus"><span class="estatus-badge ${info.clase}">${escapeHtml(info.texto)}</span></td>
+        <td data-label="Asignado a" data-col="asignado">${t.actualizado_por ? escapeHtml(t.actualizado_por) : '—'}</td>
+        <td data-label="Notas" data-col="notas">${tieneNota ? '<button type="button" class="btn-nota-icono" data-tooltip="Ver nota interna" aria-label="Ver nota interna"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M15 3v5h5M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>' : '—'}</td>
+        <td data-label="Actualizado" data-col="actualizado">${formatFecha(t.actualizado_en)}${actualizadoPorTexto}</td>
         <td data-label=""></td>
       `;
 
@@ -4945,8 +5049,11 @@
       .map(
         (p) => `
       <button type="button" class="orden-inventario-sugerencia" data-id="${p.id}">
-        <span class="orden-inventario-sugerencia-nombre">${escapeHtml(p.nombre)}</span>
-        <span class="orden-inventario-sugerencia-detalle">${escapeHtml(p.sku)} · ${p.tipo === 'servicio' ? 'Servicio' : `Disponible: ${formatearCantidadOrdenInv(p.disponible)}`}${p.precio !== null ? ' · $' + formatearMoneda(p.precio) : ''}</span>
+        ${p.imagen_thumb_url ? '<img class="inv-thumb inv-thumb-chica" alt="" />' : ''}
+        <span class="orden-inventario-sugerencia-texto">
+          <span class="orden-inventario-sugerencia-nombre">${escapeHtml(p.nombre)}</span>
+          <span class="orden-inventario-sugerencia-detalle">${escapeHtml(p.sku)} · ${p.tipo === 'servicio' ? 'Servicio' : `Disponible: ${formatearCantidadOrdenInv(p.disponible)}`}${p.precio !== null ? ' · $' + formatearMoneda(p.precio) : ''}</span>
+        </span>
       </button>`
       )
       .join('');
@@ -4956,6 +5063,8 @@
         const producto = productos.find((p) => p.id === Number(btn.dataset.id));
         if (producto) seleccionarProductoInventarioOrden(producto);
       });
+      const producto = productos.find((p) => p.id === Number(btn.dataset.id));
+      if (producto && producto.imagen_thumb_url) cargarImagenAutenticada(btn.querySelector('img.inv-thumb'), producto.imagen_thumb_url);
     });
   }
 
@@ -5891,10 +6000,10 @@
         .join('') || '—';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="RFC / usuario"><strong>${escapeHtml(u.rfc)}</strong>${pendienteCambio ? ' <span class="estatus-badge estatus-pendiente" data-tooltip="Debe cambiar su contraseña en el siguiente inicio de sesión">Cambio pendiente</span>' : ''}</td>
-        <td data-label="Perfil"><span class="perfil-badge ${perfilInfo.clase}">${escapeHtml(perfilInfo.texto)}</span></td>
-        <td data-label="Contacto">${contactoHtml}</td>
-        <td data-label="Registrado">${formatFecha(u.creado_en)}</td>
+        <td data-label="RFC / usuario" data-col="rfc"><strong>${escapeHtml(u.rfc)}</strong>${pendienteCambio ? ' <span class="estatus-badge estatus-pendiente" data-tooltip="Debe cambiar su contraseña en el siguiente inicio de sesión">Cambio pendiente</span>' : ''}</td>
+        <td data-label="Perfil" data-col="perfil"><span class="perfil-badge ${perfilInfo.clase}">${escapeHtml(perfilInfo.texto)}</span></td>
+        <td data-label="Contacto" data-col="contacto">${contactoHtml}</td>
+        <td data-label="Registrado" data-col="registrado">${formatFecha(u.creado_en)}</td>
         <td data-label=""></td>
       `;
 
@@ -8735,7 +8844,7 @@
       const estadoBadge = (orden.estado_pago === 'pendiente') ? (vencida ? '<span class="estatus-badge estatus-cancelado">Vencida</span>' : '<span class="estatus-badge estatus-pendiente">Pendiente</span>') : '<span class="estatus-badge estatus-listo">Pagada</span>';
       const vencimientoTxt = orden.fecha_vencimiento ? escapeHtml(orden.fecha_vencimiento) : '—';
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td data-label="No. Venta">${escapeHtml(orden.numero_compra || '—')}</td><td data-label="Cliente">${escapeHtml(orden.email || 'Sin correo')}</td><td data-label="Total">$${formatearMoneda(orden.total)}</td><td data-label="Cobrado">$${formatearMoneda(orden.monto_cobrado || 0)}</td><td data-label="Saldo"><strong>$${formatearMoneda(saldo)}</strong></td><td data-label="Vencimiento">${vencimientoTxt}</td><td data-label="Estado">${estadoBadge}</td><td data-label=""></td>`;
+      tr.innerHTML = `<td data-label="No. Venta" data-col="numero">${escapeHtml(orden.numero_compra || '—')}</td><td data-label="Cliente" data-col="cliente">${escapeHtml(orden.email || 'Sin correo')}</td><td data-label="Total" data-col="total">$${formatearMoneda(orden.total)}</td><td data-label="Cobrado" data-col="cobrado">$${formatearMoneda(orden.monto_cobrado || 0)}</td><td data-label="Saldo" data-col="saldo"><strong>$${formatearMoneda(saldo)}</strong></td><td data-label="Vencimiento" data-col="vencimiento">${vencimientoTxt}</td><td data-label="Estado" data-col="estado">${estadoBadge}</td><td data-label=""></td>`;
       const tdAcciones = tr.lastElementChild;
       const wrap = document.createElement('div');
       wrap.className = 'admin-row-actions admin-row-actions-iconos';
@@ -9249,6 +9358,62 @@
   const ICONO_EDITAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   const ICONO_PAPELERA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICONO_RESTAURAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_KEBAB = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
+
+  // Menú "⋮" reutilizable para acciones secundarias (punto: 2026-08-30,
+  // acomodo de espacio en Inventarios) — deja visibles solo las 2
+  // acciones de uso diario (Entrada/Salida) y agrupa el resto, en vez de
+  // 5 botones sueltos peleando por el mismo ancho de columna.
+  function cerrarMenusAccionesInv() {
+    document.querySelectorAll('.inv-acciones-menu:not([hidden])').forEach((m) => { m.hidden = true; });
+    document.querySelectorAll('.inv-acciones-menu-trigger[aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+  }
+  document.addEventListener('click', cerrarMenusAccionesInv);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarMenusAccionesInv(); });
+
+  function crearMenuAccionesInv(items) {
+    const wrap = document.createElement('div');
+    wrap.className = 'inv-acciones-menu-wrap';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-icono-accion inv-acciones-menu-trigger';
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Más acciones');
+    btn.setAttribute('data-tooltip', 'Más acciones');
+    btn.innerHTML = ICONO_KEBAB;
+
+    const menu = document.createElement('div');
+    menu.className = 'inv-acciones-menu';
+    menu.hidden = true;
+    items.forEach((item) => {
+      const opcion = document.createElement('button');
+      opcion.type = 'button';
+      opcion.className = item.peligro ? 'inv-acciones-menu-item inv-acciones-menu-item-peligro' : 'inv-acciones-menu-item';
+      opcion.innerHTML = `${item.icono}<span>${item.texto}</span>`;
+      opcion.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cerrarMenusAccionesInv();
+        item.onClick();
+      });
+      menu.appendChild(opcion);
+    });
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const yaAbierto = !menu.hidden;
+      cerrarMenusAccionesInv();
+      if (!yaAbierto) {
+        menu.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+      }
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    return wrap;
+  }
 
   function renderInvTabla(productos, total) {
     const esPapelera = vistaInventarios === 'papelera';
@@ -9265,17 +9430,21 @@
       const estadoBadgeClase = p.estado === 'activo' ? 'estatus-listo' : p.estado === 'archivado' ? 'estatus-rechazado' : 'estatus-proceso';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="SKU"><strong>${escapeHtml(p.sku)}</strong></td>
-        <td data-label="Nombre"><button type="button" class="gasto-concepto-link inv-producto-link">${escapeHtml(p.nombre)}</button>${esServicio ? ' <span class="estatus-badge estatus-proceso">Servicio</span>' : ''}</td>
-        <td data-label="Categoría">${escapeHtml(nombreCategoriaInv(p.categoria_id))}</td>
-        <td data-label="Unidad">${escapeHtml(abreviaturaUnidadInv(p.unidad_id))}</td>
-        <td data-label="Disponible" class="col-num">${esServicio ? '—' : formatearCantidadInv(p.disponible || 0)}</td>
-        <td data-label="Costo prom." class="col-num">$${formatearMoneda(p.costo_promedio)}</td>
-        <td data-label="Precio" class="col-num">${p.precio === null ? '—' : '$' + formatearMoneda(p.precio)}</td>
-        <td data-label="Estado"><span class="estatus-badge ${estadoBadgeClase}">${escapeHtml(p.estado)}</span></td>
+        <td data-label="" class="inv-imagen-celda">${p.imagen_thumb_url ? '<img class="inv-thumb" alt="" />' : '<span class="inv-thumb inv-thumb-vacia" aria-hidden="true"></span>'}</td>
+        <td data-label="SKU" data-col="sku"><strong>${escapeHtml(p.sku)}</strong></td>
+        <td data-label="Nombre" data-col="nombre">
+          <button type="button" class="gasto-concepto-link inv-producto-link">${escapeHtml(p.nombre)}</button>${esServicio ? ' <span class="estatus-badge estatus-proceso">Servicio</span>' : ''}
+        </td>
+        <td data-label="Categoría" data-col="categoria">${escapeHtml(nombreCategoriaInv(p.categoria_id))}</td>
+        <td data-label="Unidad" data-col="unidad">${escapeHtml(abreviaturaUnidadInv(p.unidad_id))}</td>
+        <td data-label="Disponible" data-col="disponible" class="col-num">${esServicio ? '—' : formatearCantidadInv(p.disponible || 0)}</td>
+        <td data-label="Costo prom." data-col="costo" class="col-num">$${formatearMoneda(p.costo_promedio)}</td>
+        <td data-label="Precio" data-col="precio" class="col-num">${p.precio === null ? '—' : '$' + formatearMoneda(p.precio)}</td>
+        <td data-label="Estado" data-col="estado"><span class="estatus-badge ${estadoBadgeClase}">${escapeHtml(p.estado)}</span></td>
         <td data-label=""></td>
       `;
       tr.querySelector('.inv-producto-link').addEventListener('click', () => abrirProductoModal(p));
+      if (p.imagen_thumb_url) cargarImagenAutenticada(tr.querySelector('img.inv-thumb'), p.imagen_thumb_url);
 
       const celdaAcciones = tr.lastElementChild;
       const contenedor = document.createElement('div');
@@ -9284,12 +9453,15 @@
       if (esPapelera) {
         contenedor.appendChild(botonAccionInv({ tooltip: 'Restaurar producto', icono: ICONO_RESTAURAR, onClick: () => restaurarProductoInv(p.id, p.nombre) }));
         contenedor.appendChild(botonAccionInv({ tooltip: 'Eliminar permanentemente', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminarProductoPermanente(p.id, p.nombre) }));
+      } else if (!esServicio) {
+        contenedor.appendChild(botonAccionInv({ tooltip: 'Registrar entrada', icono: ICONO_ENTRADA, onClick: () => abrirMovimientoModal(p, 'entrada') }));
+        contenedor.appendChild(botonAccionInv({ tooltip: 'Registrar salida', icono: ICONO_SALIDA, onClick: () => abrirMovimientoModal(p, 'salida') }));
+        contenedor.appendChild(crearMenuAccionesInv([
+          { texto: 'Ver historial', icono: ICONO_KARDEX, onClick: () => abrirKardexModal(p) },
+          { texto: 'Editar producto', icono: ICONO_EDITAR, onClick: () => abrirProductoModal(p) },
+          { texto: 'Mover a papelera', icono: ICONO_PAPELERA, peligro: true, onClick: () => confirmarEliminarProducto(p.id, p.nombre) },
+        ]));
       } else {
-        if (!esServicio) {
-          contenedor.appendChild(botonAccionInv({ tooltip: 'Registrar entrada', icono: ICONO_ENTRADA, onClick: () => abrirMovimientoModal(p, 'entrada') }));
-          contenedor.appendChild(botonAccionInv({ tooltip: 'Registrar salida', icono: ICONO_SALIDA, onClick: () => abrirMovimientoModal(p, 'salida') }));
-          contenedor.appendChild(botonAccionInv({ tooltip: 'Ver historial de movimientos', icono: ICONO_KARDEX, onClick: () => abrirKardexModal(p) }));
-        }
         contenedor.appendChild(botonAccionInv({ tooltip: 'Editar producto', icono: ICONO_EDITAR, onClick: () => abrirProductoModal(p) }));
         contenedor.appendChild(botonAccionInv({ tooltip: 'Mover a papelera', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminarProducto(p.id, p.nombre) }));
       }
@@ -9359,10 +9531,17 @@
     els.invModalProveedor.value = producto ? producto.proveedor_principal || '' : '';
     els.invModalNotas.value = producto ? producto.notas || '' : '';
 
+    // Punto 159 (Segmento B): la imagen se asocia por id — igual que el
+    // comprobante de Gastos, solo aplica editando un producto que ya
+    // existe, nunca al dar de alta uno nuevo.
+    els.invModalImagenField.hidden = !producto;
+    if (producto) mostrarEstadoImagenProducto(producto);
+
     ['inv-modal-nombre', 'inv-modal-sku', 'inv-modal-codigo-barras', 'inv-modal-unidad', 'inv-modal-costo', 'inv-modal-precio'].forEach((id) =>
       setFieldError(id, '')
     );
     els.invModalErrorGeneral.textContent = '';
+    els.errorInvModalImagen.textContent = '';
     els.invCategoriasPanel.hidden = true;
     els.btnInvCategoriasToggle.setAttribute('aria-expanded', 'false');
     categoriaInvEditandoId = null;
@@ -9375,6 +9554,89 @@
     els.invProductoModalOverlay.hidden = true;
     inventarioModalEditando = null;
   }
+
+  // Punto 159 (Segmento B): alterna entre "ya tiene imagen" (preview +
+  // Quitar) y "sin imagen todavía" (dropzone) — mismo elemento del modal,
+  // sin reabrir nada, para que subir/quitar se sienta inmediato.
+  function mostrarEstadoImagenProducto(producto) {
+    const tieneImagen = Boolean(producto && producto.imagen_thumb_url);
+    els.invImagenActual.hidden = !tieneImagen;
+    els.invImagenDropzone.hidden = tieneImagen;
+    if (tieneImagen) cargarImagenAutenticada(els.invImagenActualPreview, producto.imagen_thumb_url);
+  }
+
+  async function subirImagenProducto(archivo) {
+    if (!inventarioModalEditando) return;
+    els.errorInvModalImagen.textContent = '';
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+
+    const formData = new FormData();
+    formData.append('imagen', archivo);
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/${inventarioModalEditando.id}/imagen`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.errorInvModalImagen.textContent = data.mensaje || data.error || 'No se pudo subir la imagen.';
+        return;
+      }
+      inventarioModalEditando.imagen_url = data.imagen_url;
+      inventarioModalEditando.imagen_thumb_url = data.imagen_thumb_url;
+      mostrarEstadoImagenProducto(inventarioModalEditando);
+      cargarInventarios();
+    } catch (err) {
+      els.errorInvModalImagen.textContent = 'No se pudo subir la imagen. Revisa tu conexión.';
+    } finally {
+      els.invImagenInput.value = '';
+    }
+  }
+
+  async function quitarImagenProducto() {
+    if (!inventarioModalEditando) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/${inventarioModalEditando.id}/imagen`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) {
+        els.errorInvModalImagen.textContent = 'No se pudo quitar la imagen.';
+        return;
+      }
+      inventarioModalEditando.imagen_url = null;
+      inventarioModalEditando.imagen_thumb_url = null;
+      mostrarEstadoImagenProducto(inventarioModalEditando);
+      cargarInventarios();
+    } catch (err) {
+      els.errorInvModalImagen.textContent = 'No se pudo quitar la imagen. Revisa tu conexión.';
+    }
+  }
+
+  if (els.invImagenInput) {
+    els.invImagenInput.addEventListener('change', () => {
+      const archivo = els.invImagenInput.files && els.invImagenInput.files[0];
+      if (archivo) subirImagenProducto(archivo);
+    });
+  }
+  if (els.invImagenDropzone) {
+    els.invImagenDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      els.invImagenDropzone.classList.add('is-dragover');
+    });
+    els.invImagenDropzone.addEventListener('dragleave', () => els.invImagenDropzone.classList.remove('is-dragover'));
+    els.invImagenDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      els.invImagenDropzone.classList.remove('is-dragover');
+      const archivo = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (archivo) subirImagenProducto(archivo);
+    });
+  }
+  if (els.btnInvImagenQuitar) els.btnInvImagenQuitar.addEventListener('click', quitarImagenProducto);
 
   function setGuardarProductoLoading(cargando) {
     els.btnInvModalGuardar.disabled = cargando;
