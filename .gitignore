@@ -51,6 +51,7 @@ e2e/.slug-e2e.txt
 .claude-flow/
 .agents/
 .mcp.json
+.swarm/
 
 # vercel-labs `skills` CLI (agent-skills, instalado 2026-08-31) — manifiesto
 # local de qué skills/versión están symlinkeadas en .agents/skills, mismo
