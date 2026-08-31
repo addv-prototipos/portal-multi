@@ -34,6 +34,24 @@ explícitamente redactar/mejorar un prompt). Ambas revisadas antes de
 instalar (paquete/repo sin `eval`/scripts sospechosos) por la regla
 anti-hackeo del propio protocolo.
 
+**PENDIENTE — revisión de `/control` (UI + funcionalidad), pausada a media
+sesión (2026-08-31, ver PROJECT_STATE.md punto 163)**: retomar en la
+siguiente sesión. Nada implementado todavía. Petición: mejorar UI de
+`/control`, proponer mejoras adicionales, revisar funcionalidad completa
+por si algo quedó pendiente, y arreglar el modal "Editar empresa" que
+sale muy chico — usa `.modal-ancho` (560px, 1 columna) en vez de
+`.ticket-modal` (820px, 2 columnas, ya usado en `/admin`), aplicar el
+mismo patrón en ambos modales largos de `/control` (Nueva empresa,
+Editar empresa) y agregar `backdrop-filter` (blur) a `.modal-overlay`
+en `style.css` — hoy no existe en ningún lado del frontend, es
+funcionalidad nueva, aplicaría tanto a `/admin` como a `/control`.
+Un agente `Explore` en segundo plano quedó auditando
+`control/server.js` vs `frontend/control.js` vs tests, buscando
+endpoints sin usar/botones rotos/flujos a medio terminar — relanzar si
+no sigue corriendo. Falta: recoger esa auditoría, armar propuesta
+visual (antes/después) y esperar confirmación explícita antes de
+tocar código.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

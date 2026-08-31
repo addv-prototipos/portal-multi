@@ -10558,6 +10558,69 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       este proyecto) documentadas en `CLAUDE.md`. Sin cambios de código
       de la aplicación en este punto — solo tooling/documentación.
 
+  163. **PENDIENTE — Revisión completa de `/control` (UI + funcionalidad),
+      EN CURSO, sin implementar nada todavía (2026-08-31)**: petición del
+      usuario, pausada a media sesión para retomar en la siguiente.
+      Petición textual: revisar toda la funcionalidad de `/control`
+      (identificar algo que se haya pasado por alto), mejorar la UI,
+      proponer mejoras adicionales, y arreglar un bug concreto de
+      diseño con captura de pantalla — el modal "Editar empresa" sale
+      muy chico (comparado con el resto de la página, casi vacío
+      alrededor). Pide aplicar el mismo patrón que ya usa `/admin`
+      (modal "Gestionar ticket", `.ticket-modal`, 820px/94vw, 2
+      columnas) tanto en `/admin` como en `/control`, y agregar fondo
+      con blur (`backdrop-filter`) a los modales de ambas apps.
+      **Confirmado durante el análisis, antes de la pausa** (sin tocar
+      código — la skill `addv-web-app` actualizada del punto 162 exige
+      propuesta visual + confirmación explícita antes de implementar):
+      - Los 3 modales de `/control` (`Nueva empresa`, `Editar empresa`,
+        `Credenciales API` — `frontend/control.html` líneas ~294, ~422,
+        ~676) usan la clase `.modal-ancho` (`frontend/admin.css:3471`,
+        `max-width: 560px`, una sola columna) en vez de `.ticket-modal`
+        (`admin.css:2938`, `max-width: 820px`, 2 columnas) que ya usa
+        `/admin` para su modal más grande — `control.html` YA importa
+        `admin.css` (línea 10), así que `.ticket-modal` ya está
+        disponible ahí sin agregar nada, es cuestión de cambiar de
+        clase y reestructurar el HTML interno a 2 columnas.
+      - El modal "Editar empresa" es el más largo con diferencia:
+        identidad (nombre/marca/logo/slug) + contacto (email/notas) +
+        DOS secciones colapsables largas apiladas debajo — "Datos
+        fiscales" (6 campos) e "Identidad visual" (12 colores +
+        tipografía + favicon + vista previa en vivo, segmento Look &
+        Feel del punto 105). Propuesta de diseño esbozada (sin
+        implementar): columna izquierda = identidad+contacto (siempre
+        visible), columna derecha = las 2 secciones colapsables
+        (avanzado/opcional) — reduce el scroll vertical sin esconder
+        nada. El modal de "Nueva empresa" tiene la misma estructura
+        pero sin la sección de tema (solo aplica a tenants ya
+        existentes). El de "Credenciales API" es distinto — flujo
+        lineal (lista → generar → revelar secretos + ejemplos curl),
+        no se presta a 2 columnas igual de natural; candidato a solo
+        ensancharse (~640-680px) y limpiar los estilos inline que tiene
+        hoy (`style="..."` sueltos en el HTML, código smell aparte del
+        tamaño).
+      - **Blur de fondo es funcionalidad NUEVA**, no existe hoy: cero
+        usos de `backdrop-filter` en todo `frontend/*.css` (verificado
+        por grep). Se agregaría a `.modal-overlay` en `style.css`
+        (compartida por admin y control), con fallback/degradación
+        elegante en navegadores sin soporte (el `rgba()` de fondo ya
+        existente sigue funcionando solo, el blur es una mejora
+        progresiva encima).
+      - **Agente `Explore` en segundo plano lanzado** para auditar
+        `control/server.js` (rutas backend) vs `frontend/control.js`
+        (llamadas del frontend) vs `control/test/**` — busca endpoints
+        sin usar desde la UI, botones que llaman a algo que no existe,
+        flujos a medio terminar, accesibilidad, e inconsistencias entre
+        `/admin` y `/control`. **La sesión se pausó antes de que este
+        agente terminara/se recogiera su resultado** — la siguiente
+        sesión debe relanzarlo si no sigue corriendo (no se guardó su
+        salida en ningún archivo del proyecto).
+      **Siguiente sesión**: recoger/relanzar la auditoría funcional,
+      armar la propuesta visual completa (Artifact con antes/después
+      del modal + blur + cualquier hallazgo de la auditoría), esperar
+      confirmación explícita del usuario antes de tocar código — nada
+      de esto está implementado, es 100% análisis hasta este punto.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto
