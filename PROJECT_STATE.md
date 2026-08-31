@@ -10815,6 +10815,43 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       lugares donde vivía (sidebar de escritorio y grid del menú móvil).
       Validado por HTTP contra el contenedor real tras rebuild. Sin
       commit/push todavía.
+      **Fix del campo Slug encimado en "Editar empresa" (mismo día,
+      reportado por el usuario con captura)**: el grid de 2 columnas del
+      punto 164 no consideró que Slug es el único de los 6 campos con
+      layout compuesto (input + switch "Cambiar slug (avanzado)",
+      `.control-slug-fila`) — necesita ~420px, media columna solo daba
+      ~380px, se encimaba. Fix: clase nueva `.control-form-grid-full`
+      (`grid-column: 1 / -1`) en Slug y Notas (ambos a ancho completo,
+      su propia fila); Logo se reacomoda junto a Correo de contacto.
+      "Nueva empresa" no tenía el bug (su slug no lleva switch) y no se
+      tocó. Propuesta antes/después en Artifact aprobada antes de
+      implementar. Control Jest 117/117, validado por HTTP contra Docker
+      real tras rebuild.
+      **Ese primer fix NO era la causa real — el usuario lo confirmó
+      seguía encimado incluso en incógnito.** Se armó un script Playwright
+      desechable (`e2e/diag-slug.js`, login real + abrir "Editar empresa"
+      + `getBoundingClientRect`/`getComputedStyle` de cada pieza contra
+      el contenedor real, borrado al terminar) para medir el layout de
+      verdad en vez de seguir adivinando por lectura de código — reveló
+      la causa real: `.field label { display: block; }` (`style.css`)
+      le gana en especificidad a `.control-switch { display: inline-flex; }`
+      (`admin.css`) porque el switch ES un `<label>` dentro de un
+      `.field` — el switch perdía su layout flex por completo, su
+      track (`.control-switch-track`) colapsaba a **0px de ancho** (un
+      `<span>` sin `display` explícito es `inline`, ignora `width/height`
+      fuera de un contexto flex) y el círculo del toggle (`::after`,
+      `position:absolute`) quedaba flotando encima del texto de al lado
+      — el encimado real, sin ninguna relación con el ancho de columna.
+      Este bug existía desde que se creó el switch (segmento "Edición",
+      punto 104), la corrección de ancho completo de arriba nunca lo iba
+      a arreglar. Fix real: `.field .control-switch` (especificidad
+      mayor, no depende del orden de las hojas de estilo) fuerza
+      `display: inline-flex` a pesar de `.field label`. **Validado
+      empíricamente con el mismo script Playwright tras el rebuild**:
+      track ahora mide 40px reales, sin overlap con el input ni con el
+      texto (coordenadas antes/después comparadas) — captura de pantalla
+      real confirmó el switch limpio. Control Jest 117/117. Sin
+      commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

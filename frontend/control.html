@@ -454,6 +454,17 @@
           </div>
 
           <div class="field">
+            <label for="control-editar-email">Correo de contacto</label>
+            <input type="email" id="control-editar-email" autocomplete="off" placeholder="contacto@empresa.com" />
+            <p class="field-error" id="error-editar-email" role="alert"></p>
+          </div>
+
+          <!-- Ancho completo (no comparte columna, punto 166/audit): a
+               diferencia de los demás campos de este grid, este trae un
+               layout compuesto (input + switch .control-slug-fila, ~420px
+               mínimos) que en media columna (~380px) se encimaba con lo
+               de al lado — ver PROJECT_STATE.md, hallazgo del usuario. -->
+          <div class="field control-form-grid-full">
             <label for="control-editar-slug">Slug (Contexto URL único)</label>
             <div class="control-slug-fila">
               <input type="text" id="control-editar-slug" maxlength="50" autocomplete="off" inputmode="text"
@@ -470,13 +481,7 @@
             <p class="field-error" id="error-editar-slug" role="alert"></p>
           </div>
 
-          <div class="field">
-            <label for="control-editar-email">Correo de contacto</label>
-            <input type="email" id="control-editar-email" autocomplete="off" placeholder="contacto@empresa.com" />
-            <p class="field-error" id="error-editar-email" role="alert"></p>
-          </div>
-
-          <div class="field">
+          <div class="field control-form-grid-full">
             <label for="control-editar-notas">Notas</label>
             <textarea id="control-editar-notas" rows="3" placeholder="Cualquier contexto para el operador…"></textarea>
           </div>

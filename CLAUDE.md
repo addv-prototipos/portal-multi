@@ -64,7 +64,20 @@ de sección discretos (Producto/Pago y entrega/Cliente, solo ≥901px,
 cero campos movidos); grid de 2 columnas en escritorio
 (`.orden-wizard-grid`, CSS puro, el wizard móvil de 3 pasos no cambia).
 Jest 781/781 backend, 117/117 control. Validado por HTTP contra Docker
-real. Sin commit/push todavía.
+real. **Fix del mismo día**: el grid de 2 columnas encimaba el campo
+Slug (único con layout compuesto, input+switch) — pasado a ancho
+completo (`.control-form-grid-full`), Logo se reacomoda junto a Correo.
+**Ese fix no era la causa real** (usuario confirmó seguía encimado) —
+diagnosticado con un script Playwright desechable (login real +
+getBoundingClientRect contra Docker, borrado al terminar): el switch
+ES un `<label>` dentro de `.field`, así que `.field label {
+display:block }` (style.css) le ganaba en especificidad a
+`.control-switch { display:inline-flex }` (admin.css), colapsando el
+track a 0px y dejando su círculo (`::after` absoluto) flotando sobre
+el texto — bug preexistente desde el segmento "Edición" (punto 104),
+sin relación con el ancho de columna. Fix real: `.field .control-switch`
+(más específico). Validado empíricamente con el mismo script + captura
+real tras rebuild. Control Jest 117/117. Sin commit/push todavía.
 
 **"Configuraciones globales" (/admin) como ventana emergente (2026-08-31,
 ver PROJECT_STATE.md punto 166)**: de 6 tarjetas plegables independientes

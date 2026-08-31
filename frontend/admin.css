@@ -3709,6 +3709,9 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 @media (max-width: 760px) {
   .control-form-grid { grid-template-columns: 1fr; }
 }
+/* Campo que necesita las 2 columnas completas (ej. Slug, con su switch
+   .control-slug-fila) en vez de compartir media columna con otro campo. */
+.control-form-grid-full { grid-column: 1 / -1; }
 
 /* Switch "Cambiar slug (avanzado)" del modal de edición de empresa
    (segmento "edición"): el slug es la identidad pública del tenant, así
@@ -3728,6 +3731,15 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   flex: 1 1 200px;
 }
 
+/* `.field label { display: block; ... }` (style.css) gana por
+   especificidad sobre `.control-switch { display: inline-flex }`
+   (control-switch es un <label> dentro de .field) — el switch perdía su
+   layout flex, el track colapsaba a 0px de ancho y su ::after (círculo,
+   position:absolute) quedaba flotando encima del texto de al lado. La
+   causa real del "se ve encimado" reportado, nada que ver con el ancho
+   de columna. `.field .control-switch` gana con más especificidad sin
+   depender del orden de las hojas de estilo. */
+.field .control-switch,
 .control-switch {
   display: inline-flex;
   align-items: center;
