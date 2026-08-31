@@ -291,55 +291,57 @@
 
   <!-- Modal de captura de empresa nueva (segmento 9c, ver PROJECT_STATE.md) -->
   <div class="modal-overlay" id="control-intake-modal-overlay" hidden>
-    <div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="control-intake-modal-title">
+    <div class="modal control-modal-ancha" role="dialog" aria-modal="true" aria-labelledby="control-intake-modal-title">
       <h2 id="control-intake-modal-title">Nueva empresa</h2>
       <p class="panel-subtitle">
         Registra la solicitud de alta. El slug no se puede cambiar después: define las URLs de la empresa.
       </p>
 
       <form id="control-form-intake" novalidate>
-        <div class="field">
-          <label for="control-intake-nombre">Nombre de la empresa</label>
-          <input type="text" id="control-intake-nombre" maxlength="255" autocomplete="off" required />
-          <p class="field-error" id="error-intake-nombre" role="alert"></p>
-        </div>
+        <div class="control-form-grid">
+          <div class="field">
+            <label for="control-intake-nombre">Nombre de la empresa</label>
+            <input type="text" id="control-intake-nombre" maxlength="255" autocomplete="off" required />
+            <p class="field-error" id="error-intake-nombre" role="alert"></p>
+          </div>
 
-        <div class="field">
-          <label for="control-intake-marca">Marca</label>
-          <input type="text" id="control-intake-marca" maxlength="255" autocomplete="off"
-            placeholder="ej. Mi Empresa S.A." />
-          <p class="field-hint">
-            Nombre con el que quieren ser reconocidos en los correos del portal (logo o texto). Si no lo capturas, se usa el nombre genérico de la plataforma.
-          </p>
-          <p class="field-error" id="error-intake-marca" role="alert"></p>
-        </div>
+          <div class="field">
+            <label for="control-intake-marca">Marca</label>
+            <input type="text" id="control-intake-marca" maxlength="255" autocomplete="off"
+              placeholder="ej. Mi Empresa S.A." />
+            <p class="field-hint">
+              Nombre con el que quieren ser reconocidos en los correos del portal (logo o texto). Si no lo capturas, se usa el nombre genérico de la plataforma.
+            </p>
+            <p class="field-error" id="error-intake-marca" role="alert"></p>
+          </div>
 
-        <div class="field">
-          <label for="control-intake-logo">Logo de la marca</label>
-          <input type="file" id="control-intake-logo" accept="image/png,image/jpeg,image/webp" />
-          <p class="field-hint">
-            Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
-          </p>
-          <p class="field-error" id="error-intake-logo" role="alert"></p>
-        </div>
+          <div class="field">
+            <label for="control-intake-logo">Logo de la marca</label>
+            <input type="file" id="control-intake-logo" accept="image/png,image/jpeg,image/webp" />
+            <p class="field-hint">
+              Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
+            </p>
+            <p class="field-error" id="error-intake-logo" role="alert"></p>
+          </div>
 
-        <div class="field">
-          <label for="control-intake-slug">Slug (Contexto URL único)</label>
-          <input type="text" id="control-intake-slug" maxlength="50" autocomplete="off" inputmode="text"
-            placeholder="ej. empresa-uno" required />
-          <p class="field-hint" id="control-intake-url-preview"></p>
-          <p class="field-error" id="error-intake-slug" role="alert"></p>
-        </div>
+          <div class="field">
+            <label for="control-intake-slug">Slug (Contexto URL único)</label>
+            <input type="text" id="control-intake-slug" maxlength="50" autocomplete="off" inputmode="text"
+              placeholder="ej. empresa-uno" required />
+            <p class="field-hint" id="control-intake-url-preview"></p>
+            <p class="field-error" id="error-intake-slug" role="alert"></p>
+          </div>
 
-        <div class="field">
-          <label for="control-intake-email">Correo de contacto</label>
-          <input type="email" id="control-intake-email" autocomplete="off" placeholder="contacto@empresa.com" />
-          <p class="field-error" id="error-intake-email" role="alert"></p>
-        </div>
+          <div class="field">
+            <label for="control-intake-email">Correo de contacto</label>
+            <input type="email" id="control-intake-email" autocomplete="off" placeholder="contacto@empresa.com" />
+            <p class="field-error" id="error-intake-email" role="alert"></p>
+          </div>
 
-        <div class="field">
-          <label for="control-intake-notas">Notas</label>
-          <textarea id="control-intake-notas" rows="3" placeholder="Cualquier contexto para el operador que apruebe el alta…"></textarea>
+          <div class="field">
+            <label for="control-intake-notas">Notas</label>
+            <textarea id="control-intake-notas" rows="3" placeholder="Cualquier contexto para el operador que apruebe el alta…"></textarea>
+          </div>
         </div>
 
         <button type="button" class="admin-config-toggle" id="control-btn-toggle-fiscal" aria-expanded="false">
@@ -419,63 +421,65 @@
        "Cambiar slug" (avanzado): al guardar, el sistema migra los
        archivos al slug nuevo y las URLs /<slug>/... quedan activas. -->
   <div class="modal-overlay" id="control-editar-modal-overlay" hidden>
-    <div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="control-editar-modal-title">
+    <div class="modal control-modal-ancha" role="dialog" aria-modal="true" aria-labelledby="control-editar-modal-title">
       <h2 id="control-editar-modal-title">Editar empresa</h2>
       <p class="panel-subtitle" id="control-editar-modal-empresa"></p>
 
       <form id="control-form-editar" novalidate>
-        <div class="field">
-          <label for="control-editar-nombre">Nombre de la empresa</label>
-          <input type="text" id="control-editar-nombre" maxlength="255" autocomplete="off" required />
-          <p class="field-error" id="error-editar-nombre" role="alert"></p>
-        </div>
-
-        <div class="field">
-          <label for="control-editar-marca">Marca</label>
-          <input type="text" id="control-editar-marca" maxlength="255" autocomplete="off"
-            placeholder="ej. Mi Empresa S.A." />
-          <p class="field-hint">
-            Nombre con el que quieren ser reconocidos en los correos del portal (logo o texto). Vacío = nombre genérico de la plataforma.
-          </p>
-          <p class="field-error" id="error-editar-marca" role="alert"></p>
-        </div>
-
-        <div class="field">
-          <label for="control-editar-logo">Logo de la marca</label>
-          <input type="file" id="control-editar-logo" accept="image/png,image/jpeg,image/webp" />
-          <p class="field-hint">
-            Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
-          </p>
-          <p class="field-hint" id="control-editar-logo-actual" hidden></p>
-          <p class="field-error" id="error-editar-logo" role="alert"></p>
-        </div>
-
-        <div class="field">
-          <label for="control-editar-slug">Slug (Contexto URL único)</label>
-          <div class="control-slug-fila">
-            <input type="text" id="control-editar-slug" maxlength="50" autocomplete="off" inputmode="text"
-              placeholder="ej. empresa-uno" readonly />
-            <label class="control-switch" for="control-editar-slug-switch">
-              <input type="checkbox" id="control-editar-slug-switch" />
-              <span class="control-switch-track" aria-hidden="true"></span>
-              <span class="control-switch-label">Cambiar slug (avanzado)</span>
-            </label>
+        <div class="control-form-grid">
+          <div class="field">
+            <label for="control-editar-nombre">Nombre de la empresa</label>
+            <input type="text" id="control-editar-nombre" maxlength="255" autocomplete="off" required />
+            <p class="field-error" id="error-editar-nombre" role="alert"></p>
           </div>
-          <p class="field-hint" id="control-editar-slug-hint">
-            Define las URLs de la empresa. Solo puede cambiarse activando el switch; al guardar, los archivos se migran al slug nuevo.
-          </p>
-          <p class="field-error" id="error-editar-slug" role="alert"></p>
-        </div>
 
-        <div class="field">
-          <label for="control-editar-email">Correo de contacto</label>
-          <input type="email" id="control-editar-email" autocomplete="off" placeholder="contacto@empresa.com" />
-          <p class="field-error" id="error-editar-email" role="alert"></p>
-        </div>
+          <div class="field">
+            <label for="control-editar-marca">Marca</label>
+            <input type="text" id="control-editar-marca" maxlength="255" autocomplete="off"
+              placeholder="ej. Mi Empresa S.A." />
+            <p class="field-hint">
+              Nombre con el que quieren ser reconocidos en los correos del portal (logo o texto). Vacío = nombre genérico de la plataforma.
+            </p>
+            <p class="field-error" id="error-editar-marca" role="alert"></p>
+          </div>
 
-        <div class="field">
-          <label for="control-editar-notas">Notas</label>
-          <textarea id="control-editar-notas" rows="3" placeholder="Cualquier contexto para el operador…"></textarea>
+          <div class="field">
+            <label for="control-editar-logo">Logo de la marca</label>
+            <input type="file" id="control-editar-logo" accept="image/png,image/jpeg,image/webp" />
+            <p class="field-hint">
+              Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
+            </p>
+            <p class="field-hint" id="control-editar-logo-actual" hidden></p>
+            <p class="field-error" id="error-editar-logo" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-editar-slug">Slug (Contexto URL único)</label>
+            <div class="control-slug-fila">
+              <input type="text" id="control-editar-slug" maxlength="50" autocomplete="off" inputmode="text"
+                placeholder="ej. empresa-uno" readonly />
+              <label class="control-switch" for="control-editar-slug-switch">
+                <input type="checkbox" id="control-editar-slug-switch" />
+                <span class="control-switch-track" aria-hidden="true"></span>
+                <span class="control-switch-label">Cambiar slug (avanzado)</span>
+              </label>
+            </div>
+            <p class="field-hint" id="control-editar-slug-hint">
+              Define las URLs de la empresa. Solo puede cambiarse activando el switch; al guardar, los archivos se migran al slug nuevo.
+            </p>
+            <p class="field-error" id="error-editar-slug" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-editar-email">Correo de contacto</label>
+            <input type="email" id="control-editar-email" autocomplete="off" placeholder="contacto@empresa.com" />
+            <p class="field-error" id="error-editar-email" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-editar-notas">Notas</label>
+            <textarea id="control-editar-notas" rows="3" placeholder="Cualquier contexto para el operador…"></textarea>
+          </div>
         </div>
 
         <button type="button" class="admin-config-toggle" id="control-btn-toggle-fiscal-editar" aria-expanded="false">
@@ -680,11 +684,11 @@
       <div class="field" id="control-cred-nueva-wrap" hidden>
         <p class="admin-config-catalogo-info" style="background:var(--color-warn-soft);padding:10px;border-radius:8px;margin-bottom:8px">⚠️ Copia la contraseña y la <b>clave API</b> ahora — solo se muestran una vez. Autorizan el uso de las APIs como esta clave API por empresa (Basic o <code>X-API-Key</code> / cookieAuth).</p>
         <label>Usuario API (Basic)</label>
-        <div class="admin-search" style="margin:6px 0"><input id="control-cred-usuario" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-usuario">Copiar</button></div>
+        <div class="admin-search" style="margin:6px 0"><input id="control-cred-usuario" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-usuario" aria-label="Copiar usuario API">Copiar</button></div>
         <label>Contraseña API (Basic)</label>
-        <div class="admin-search" style="margin:6px 0"><input id="control-cred-password" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-pass">Copiar</button></div>
+        <div class="admin-search" style="margin:6px 0"><input id="control-cred-password" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-pass" aria-label="Copiar contraseña API">Copiar</button></div>
         <label>Clave API (X-API-Key / cookieAuth)</label>
-        <div class="admin-search" style="margin:6px 0"><input id="control-cred-clave" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-clave">Copiar</button></div>
+        <div class="admin-search" style="margin:6px 0"><input id="control-cred-clave" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-clave" aria-label="Copiar clave API">Copiar</button></div>
         <label>Ejemplo cURL — Basic</label>
         <pre id="control-cred-curl" style="background:var(--color-bg);padding:10px;border-radius:8px;overflow:auto;font-size:12px;white-space:pre-wrap"></pre>
         <label>Ejemplo cURL — Clave API (header / cookie)</label>

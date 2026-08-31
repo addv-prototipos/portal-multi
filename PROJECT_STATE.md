@@ -10621,6 +10621,79 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       confirmación explícita del usuario antes de tocar código — nada
       de esto está implementado, es 100% análisis hasta este punto.
 
+  164. **Revisión de `/control` (punto 163) retomada y su parte mecánica
+      COMPLETA, IMPLEMENTADA Y VALIDADA (2026-08-31)**: el usuario dio
+      permiso explícito de ejecutar sin esperar confirmación en cada
+      paso ("tienes permiso de ejecutar todo lo que requieras") al
+      salir, pidiendo dejar la propuesta visual abierta en el navegador
+      para revisar al volver. Se relanzó el agente `Explore` de
+      auditoría (control/server.js vs frontend/control.js vs tests) —
+      resultado completo en las categorías A-G (endpoints sin usar,
+      botones/UI, flujos a medio terminar, cobertura de tests,
+      inconsistencias visuales, accesibilidad, funcionalidad sin UI).
+      **Implementado solo lo mecánico/sin decisión de producto de por
+      medio** (los hallazgos que sí son decisión de producto se dejaron
+      documentados sin tocar, ver abajo):
+      - Modales "Nueva empresa" y "Editar empresa": clase nueva
+        `.control-modal-ancha` (`admin.css`, mismo tamaño que
+        `.ticket-modal` — 820px/94vw/2 col via `.control-form-grid`
+        nuevo, breakpoint a 1 columna <760px) reemplaza `.modal-ancho`
+        en esos 2 modales (`control.html`). **Diseño real distinto al
+        esbozado en el punto 163**: en vez de partir el modal en
+        "columna fija + columna con las 2 secciones colapsables", se
+        pusieron en grid de 2 columnas solo los campos base (Nombre/
+        Marca, Logo/Slug, Correo/Notas) y las secciones colapsables
+        (Datos fiscales, Identidad visual) se dejaron a ancho completo
+        debajo — más simple de implementar y sin riesgo, porque
+        `.tema-grid-colores` (`auto-fill, minmax(140px,1fr)`) y
+        `.tema-fila-selects` (`auto-fit, minmax(160px,1fr)`) YA eran
+        grids responsivos: con el modal más ancho pasan solas de ~3 a
+        ~5 columnas por fila sin tocar una sola regla de esas 2 clases.
+        Modal "Credenciales API" se dejó en `.modal-ancho` (560px) a
+        propósito — no estaba en el alcance ya escrito del punto 163
+        (que solo nombra Nueva/Editar empresa) y su flujo es lineal, no
+        de 2 columnas.
+      - `backdrop-filter: blur(4px)` (+ prefijo `-webkit-`) en
+        `.modal-overlay` (`style.css`) — un solo punto de cambio,
+        aplica a `/admin` y `/control` por igual, tal cual pedido.
+      - 3 hallazgos de accesibilidad/consistencia de la auditoría,
+        de bajo riesgo, corregidos de paso: click-fuera-para-cerrar en
+        `#control-confirm-modal-overlay` (era el único modal de
+        `/control` sin ese comportamiento, mismo patrón que los otros
+        4); Escape genérico nuevo en `control.js` que cierra el overlay
+        visible de los 5 (`admin.js` ya lo tenía en los suyos,
+        `/control` no tenía ninguno); `aria-label` diferenciado en los
+        3 botones "Copiar" del modal de credenciales (antes los 3
+        decían solo "Copiar", ambiguo para lector de pantalla).
+      - `node --check` limpio en `control.js`, Jest `control/`
+        **117/117 (8 suites)** sin regresión (cero cambios de backend).
+        Rebuild real del frontend (`--no-cache` + `--force-recreate`,
+        gotcha ya conocido del punto 108) y **validado por HTTP contra
+        el contenedor real**: `admin.css`/`control.html`/`control.js`
+        sirviendo las 3 clases/funciones nuevas. Sin clics en navegador
+        real en esta sesión (sin extensión de automatización
+        disponible) — se abrió `http://localhost:8088/control` en el
+        navegador del usuario para que lo revise al volver.
+      **Dejado sin tocar, documentado en un Artifact (antes/después +
+      tabla de hallazgos) para que el usuario decida al volver** — son
+      decisiones de producto, no bugs mecánicos:
+      1. Selector de tipografía en "Identidad visual" no hace nada (la
+         fuente elegida nunca se aplica, congelada a Inter desde el
+         punto de la regla 2026-08-24) — ¿quitar el selector o
+         reactivar la funcionalidad real?
+      2. Usuario de sucursal (§58): el backend
+         (`actualizarUsuarioSucursal`) ya soporta cambiar password/
+         perfil, la UI solo expone activar/desactivar — ¿agregar el
+         campo?
+      3. Endpoint `PUT /tenants/:slug/marca` sin ningún uso desde la
+         UI real (solo tests/Swagger, la edición real pasa por el PUT
+         general) — ¿dejarlo documentado como acceso directo por API o
+         retirarlo?
+      4. Sin test unitario propio en `control/` para `tenantTema.js`
+         (contraste WCAG AA) ni `apiCredenciales.js` (hash/rotación de
+         credenciales) — ¿prioridad para la siguiente sesión?
+      Sin commit/push todavía — mismo protocolo de siempre.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

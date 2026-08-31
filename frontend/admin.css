@@ -3463,15 +3463,38 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   .admin-row-actions-iconos { flex-direction: row; }
 }
 
-/* Extension del modal base (style.css) para el formulario de captura de
-   empresa nueva en la app de control (segmento 9c) � el modal por defecto
-   mide 380px, insuficiente para el formulario con preview de URLs y la
-   seccion fiscal plegable. Se limita el alto para que en pantallas chicas
-   el formulario haga scroll dentro del modal en vez de desbordar. */
+/* Extensión del modal base (style.css) para formularios más chicos de la
+   app de control (segmento 9c) — el modal por defecto mide 380px,
+   insuficiente para un formulario con preview de URLs. */
 .modal-ancho {
   max-width: 560px;
   max-height: min(90vh, 680px);
   overflow-y: auto;
+}
+
+/* Modales largos de /control (Nueva empresa, Editar empresa): mismo
+   patrón de tamaño que .ticket-modal (Gestionar ticket, en /admin) — el
+   formulario de edición incluye datos fiscales + identidad visual
+   completa (12 selectores de color) y .modal-ancho (560px) lo dejaba
+   forzado a una sola columna angosta con scroll interno excesivo. */
+.control-modal-ancha {
+  max-width: 820px;
+  width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* Pares de campo a 2 columnas dentro de los modales largos de /control
+   (Nombre+Marca, Logo+Slug, Correo+Notas) — mismo criterio de romper a 1
+   columna en pantallas chicas que .ticket-modal-info-grid. */
+.control-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 20px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .control-form-grid { grid-template-columns: 1fr; }
 }
 
 /* Switch "Cambiar slug (avanzado)" del modal de edición de empresa

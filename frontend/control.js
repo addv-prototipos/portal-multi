@@ -473,6 +473,9 @@
   }
 
   els.btnConfirmCancelar.addEventListener('click', cerrarConfirmacion);
+  els.confirmOverlay.addEventListener('click', (e) => {
+    if (e.target === els.confirmOverlay) cerrarConfirmacion();
+  });
 
   els.btnConfirmAceptar.addEventListener('click', async () => {
     const accion = accionConfirmada;
@@ -1718,6 +1721,19 @@
     } catch (err) {
       els.sucursalesUsuarioNuevoError.textContent = 'No se pudo conectar con el servidor.';
     }
+  });
+
+  // ---------- Cierre con Escape (todos los modales) ----------
+  // Mismo estándar que admin.js (un listener por overlay comprobando
+  // !overlay.hidden): aquí se agrupan los 5 overlays de /control en uno
+  // solo porque ninguno tenía esta tecla implementada todavía.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!els.confirmOverlay.hidden) cerrarConfirmacion();
+    else if (!els.intakeOverlay.hidden) cerrarIntake();
+    else if (!els.editarOverlay.hidden) cerrarEdicion();
+    else if (els.credOverlay && !els.credOverlay.hidden) cerrarCredenciales();
+    else if (els.sucursalesGrupoOverlay && !els.sucursalesGrupoOverlay.hidden) cerrarGrupoModal();
   });
 
   // ---------- Inicialización ----------

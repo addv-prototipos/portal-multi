@@ -34,23 +34,25 @@ explícitamente redactar/mejorar un prompt). Ambas revisadas antes de
 instalar (paquete/repo sin `eval`/scripts sospechosos) por la regla
 anti-hackeo del propio protocolo.
 
-**PENDIENTE — revisión de `/control` (UI + funcionalidad), pausada a media
-sesión (2026-08-31, ver PROJECT_STATE.md punto 163)**: retomar en la
-siguiente sesión. Nada implementado todavía. Petición: mejorar UI de
-`/control`, proponer mejoras adicionales, revisar funcionalidad completa
-por si algo quedó pendiente, y arreglar el modal "Editar empresa" que
-sale muy chico — usa `.modal-ancho` (560px, 1 columna) en vez de
-`.ticket-modal` (820px, 2 columnas, ya usado en `/admin`), aplicar el
-mismo patrón en ambos modales largos de `/control` (Nueva empresa,
-Editar empresa) y agregar `backdrop-filter` (blur) a `.modal-overlay`
-en `style.css` — hoy no existe en ningún lado del frontend, es
-funcionalidad nueva, aplicaría tanto a `/admin` como a `/control`.
-Un agente `Explore` en segundo plano quedó auditando
-`control/server.js` vs `frontend/control.js` vs tests, buscando
-endpoints sin usar/botones rotos/flujos a medio terminar — relanzar si
-no sigue corriendo. Falta: recoger esa auditoría, armar propuesta
-visual (antes/después) y esperar confirmación explícita antes de
-tocar código.
+**Revisión de `/control` (UI + funcionalidad) — parte mecánica COMPLETA
+(2026-08-31, ver PROJECT_STATE.md punto 164, con permiso explícito del
+usuario para ejecutar sin confirmar cada paso)**: auditoría `Explore`
+relanzada y recogida; modales "Nueva empresa"/"Editar empresa" pasaron
+de `.modal-ancho` (560px, 1 col) a `.control-modal-ancha` (820px, 2 col
+en los campos base — mismo patrón que `.ticket-modal` de `/admin`, ver
+detalle de por qué el diseño final difiere del esbozado originalmente
+en el punto 163); `backdrop-filter: blur(4px)` agregado a
+`.modal-overlay` en `style.css` (aplica a `/admin` y `/control`); 3
+fixes de accesibilidad/consistencia de bajo riesgo (click-fuera y
+Escape en el modal de confirmación + los otros 4 modales, aria-label
+diferenciado en los 3 botones "Copiar" de Credenciales API). Jest
+`control/` 117/117, validado contra Docker real por HTTP (rebuild
+`--no-cache`+`--force-recreate`). **Pendiente, son decisión de producto,
+NO tocado — documentado en un Artifact (antes/después) para el usuario**:
+selector de tipografía muerto en Identidad visual, falta reset de
+password/perfil de usuario de sucursal en la UI, endpoint de marca sin
+uso desde la UI, y falta de test unitario propio en `control/` para
+`tenantTema.js`/`apiCredenciales.js`. Sin commit/push todavía.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
