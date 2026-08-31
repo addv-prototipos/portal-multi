@@ -66,6 +66,25 @@ cero campos movidos); grid de 2 columnas en escritorio
 Jest 781/781 backend, 117/117 control. Validado por HTTP contra Docker
 real. Sin commit/push todavía.
 
+**"Configuraciones globales" (/admin) como ventana emergente (2026-08-31,
+ver PROJECT_STATE.md punto 166)**: de 6 tarjetas plegables independientes
+(vista de página) a un modal con barra lateral + buscador, una sección a
+la vez — mismos permisos por perfil, mismo HTML/lógica de guardado de
+cada sección, solo cambia el contenedor. Los 6 botones de acordeón viejos
+se dejaron en el DOM pero inertes (`pointer-events:none`) en vez de
+borrarlos, para no arriesgar sus handlers ni el badge de estado de SMTP.
+Móvil: lista → toca → contenido con flecha de regreso. Jest 781/781.
+Validado por HTTP contra Docker real, sin clics en navegador real (sin
+extensión de automatización disponible). **Bug real corregido el mismo
+día** (reportado por el usuario: "no puedo configurar nada"): la regla
+global `[hidden] { display: none !important; }` de `style.css` le
+ganaba a la regla CSS que intentaba forzar visible la sección activa —
+como el botón viejo que le quitaba `hidden` a `.admin-config-body`
+quedó inerte, nada volvía a mostrarla nunca. Fix: `seleccionarSeccionConfig()`
+quita/pone `hidden` por JS directamente. Jest 781/781, rebuild y
+validado por HTTP de nuevo. **Confirmado por el usuario en navegador
+real** ("ya lo revisé, ya funciona"). Sin commit/push todavía.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

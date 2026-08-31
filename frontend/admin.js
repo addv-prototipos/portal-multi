@@ -145,8 +145,18 @@
     vistaOrdenes: document.getElementById('vista-ordenes'),
     vistaGastos: document.getElementById('vista-gastos'),
     vistaUsuarios: document.getElementById('vista-usuarios'),
-    vistaConfiguraciones: document.getElementById('vista-configuraciones'),
+    vistaConfiguraciones: document.getElementById('config-modal-overlay'),
     vistaLecturaReportes: document.getElementById('vista-lectura-reportes'),
+    // Modal "Configuraciones globales" (antes vista de página, ver
+    // PROJECT_STATE.md): barra lateral + buscador + panel de contenido.
+    configModalSidebar: document.getElementById('config-modal-sidebar'),
+    configModalMain: document.getElementById('config-modal-main'),
+    configModalBuscar: document.getElementById('config-modal-buscar'),
+    configModalNavEmpty: document.getElementById('config-modal-nav-empty'),
+    configModalMainBody: document.getElementById('config-modal-main-body'),
+    configModalTitle: document.getElementById('config-modal-title'),
+    configModalBtnVolver: document.getElementById('config-modal-btn-volver'),
+    btnCerrarConfigModal: document.getElementById('btn-cerrar-config-modal'),
     // Vista Inicio: bienvenida, tarjetas de estatísticas, recientes y dona
     inicioTituloBienvenida: document.getElementById('inicio-titulo-bienvenida'),
     inicioError: document.getElementById('inicio-error'),
@@ -3883,6 +3893,118 @@
     }
   }
 
+  // ---------- Modal "Configuraciones globales" ----------
+  // Antes era una vista de página con 6 tarjetas plegables independientes
+  // (podían quedar varias abiertas a la vez); ahora es un modal con barra
+  // lateral + buscador, una sección visible a la vez (ver PROJECT_STATE.md).
+  // Las 6 <section class="admin-config-card"> y todo su contenido/lógica de
+  // guardado NO se tocan — solo se selecciona cuál de las 6 se muestra.
+
+  const CONFIG_SECCIONES = [
+    { id: 'admin-config-card', label: 'Campos obligatorios de los formularios' },
+    { id: 'global-config-card', label: 'Configuraciones fiscales' },
+    { id: 'smtp-config-card', label: 'Correo electrónico (SMTP)' },
+    { id: 'reportes-config-card', label: 'Configuración Reportes' },
+    { id: 'ordenes-toggle-card', label: 'Ventas' },
+    { id: 'inv-toggle-card', label: 'Inventarios' },
+  ];
+
+  function mostrarSeccionMovilConfig() {
+    els.configModalSidebar.classList.add('is-oculta-movil');
+    els.configModalMain.classList.remove('is-oculta-movil');
+  }
+  function mostrarListaMovilConfig() {
+    els.configModalSidebar.classList.remove('is-oculta-movil');
+    els.configModalMain.classList.add('is-oculta-movil');
+  }
+
+  function seleccionarSeccionConfig(idTarjeta) {
+    const seccion = CONFIG_SECCIONES.find((s) => s.id === idTarjeta);
+    if (!seccion) return;
+    document.querySelectorAll('#config-modal-main-body .admin-config-card').forEach((el) => {
+      const activo = el.id === idTarjeta;
+      el.classList.toggle('is-active-config-section', activo);
+      // El acordeón viejo (ahora inerte, ver admin.css) era quien le
+      // quitaba/ponía `hidden` a esta caja al hacer clic — sin eso, se
+      // quedaba oculta para siempre (el atributo `hidden` gana con
+      // `!important` sin importar el CSS de la sección activa) y ningún
+      // campo era visible ni interactuable. Se maneja aquí, igual que
+      // antes.
+      const body = el.querySelector('.admin-config-body');
+      if (body) body.hidden = !activo;
+    });
+    document.querySelectorAll('.config-modal-nav-item').forEach((btn) => {
+      const activo = btn.dataset.tarjeta === idTarjeta;
+      btn.classList.toggle('is-active', activo);
+      btn.setAttribute('aria-current', activo ? 'true' : 'false');
+    });
+    els.configModalTitle.textContent = seccion.label;
+    if (els.configModalMainBody) els.configModalMainBody.scrollTop = 0;
+  }
+
+  function primeraSeccionConfigVisible() {
+    const primera = CONFIG_SECCIONES.find((s) => {
+      const el = document.getElementById(s.id);
+      return el && !el.hidden;
+    });
+    return primera ? primera.id : null;
+  }
+
+  function filtrarNavConfig() {
+    const q = els.configModalBuscar.value.trim().toLowerCase();
+    let algunaVisible = false;
+    document.querySelectorAll('.config-modal-nav-item').forEach((btn) => {
+      const tarjeta = document.getElementById(btn.dataset.tarjeta);
+      if (!tarjeta || tarjeta.hidden) {
+        btn.hidden = true;
+        return;
+      }
+      const coincide = !q || btn.textContent.trim().toLowerCase().includes(q);
+      btn.hidden = !coincide;
+      if (coincide) algunaVisible = true;
+    });
+    els.configModalNavEmpty.hidden = algunaVisible;
+  }
+  els.configModalBuscar.addEventListener('input', filtrarNavConfig);
+
+  document.querySelectorAll('.config-modal-nav-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      seleccionarSeccionConfig(btn.dataset.tarjeta);
+      mostrarSeccionMovilConfig();
+    });
+  });
+
+  function abrirConfigModal() {
+    // Los 4 "cargar" de abajo son los mismos que antes se disparaban al
+    // entrar a la vista "configuraciones"; cargarConfigSmtp() antes solo
+    // se disparaba al abrir su acordeón (ya no existe ese gesto), así que
+    // se agrega aquí para no perder el precargado de sus campos.
+    cargarConfigCampos();
+    cargarInfoUsoCfdi();
+    cargarConfigGlobal();
+    cargarConfigReportes();
+    cargarConfigSmtp();
+    els.configModalBuscar.value = '';
+    filtrarNavConfig();
+    const primera = primeraSeccionConfigVisible();
+    if (primera) seleccionarSeccionConfig(primera);
+    mostrarListaMovilConfig();
+    els.vistaConfiguraciones.hidden = false;
+  }
+
+  function cerrarConfigModal() {
+    els.vistaConfiguraciones.hidden = true;
+  }
+
+  els.btnCerrarConfigModal.addEventListener('click', cerrarConfigModal);
+  els.configModalBtnVolver.addEventListener('click', mostrarListaMovilConfig);
+  els.vistaConfiguraciones.addEventListener('click', (e) => {
+    if (e.target === els.vistaConfiguraciones) cerrarConfigModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !els.vistaConfiguraciones.hidden) cerrarConfigModal();
+  });
+
   // ---------- Vista Constancias / Tickets / Usuarios ----------
 
   function cambiarVistaPrincipal(vista) {
@@ -3908,8 +4030,6 @@
     els.btnVistaInventarios.setAttribute('aria-selected', String(vista === 'inventarios'));
     els.btnVistaUsuarios.classList.toggle('is-active', vista === 'usuarios');
     els.btnVistaUsuarios.setAttribute('aria-selected', String(vista === 'usuarios'));
-    els.btnVistaConfiguraciones.classList.toggle('is-active', vista === 'configuraciones');
-    els.btnVistaConfiguraciones.setAttribute('aria-selected', String(vista === 'configuraciones'));
     els.btnVistaLecturaReportes.classList.toggle('is-active', vista === 'lectura-reportes');
     els.btnVistaLecturaReportes.setAttribute('aria-selected', String(vista === 'lectura-reportes'));
     els.vistaInicio.hidden = vista !== 'inicio';
@@ -3921,7 +4041,6 @@
     els.vistaGastos.hidden = vista !== 'gastos';
     els.vistaInventarios.hidden = vista !== 'inventarios';
     els.vistaUsuarios.hidden = vista !== 'usuarios';
-    els.vistaConfiguraciones.hidden = vista !== 'configuraciones';
     els.vistaLecturaReportes.hidden = vista !== 'lectura-reportes';
     if (vista === 'inicio') cargarInicio();
     if (vista === 'constancias') cargarRegistros();
@@ -3963,15 +4082,6 @@
       })();
     }
     if (vista === 'usuarios') cargarUsuarios();
-    if (vista === 'configuraciones') {
-      cargarConfigCampos();
-      cargarInfoUsoCfdi();
-      cargarConfigGlobal();
-      // "Configuración Reportes" ahora vive como una tarjeta más dentro
-      // de "Configuraciones globales" (junto a "Correo electrónico"),
-      // así que se carga al mismo tiempo que el resto de esta vista.
-      cargarConfigReportes();
-    }
     if (vista === 'lectura-reportes') {
       cargarListaReportes();
       cargarEstadisticasReportes();
@@ -3987,7 +4097,10 @@
   els.btnVistaGastos.addEventListener('click', () => cambiarVistaPrincipal('gastos'));
   els.btnVistaInventarios.addEventListener('click', () => cambiarVistaPrincipal('inventarios'));
   els.btnVistaUsuarios.addEventListener('click', () => cambiarVistaPrincipal('usuarios'));
-  els.btnVistaConfiguraciones.addEventListener('click', () => cambiarVistaPrincipal('configuraciones'));
+  els.btnVistaConfiguraciones.addEventListener('click', () => {
+    els.adminMenuMovil.hidden = true;
+    abrirConfigModal();
+  });
   els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));
 
   // Menú móvil (launcher de íconos) — "Menú" en la barra superior
@@ -4005,13 +4118,22 @@
     els.vistaOrdenes.hidden = true;
     els.vistaGastos.hidden = true;
     els.vistaUsuarios.hidden = true;
-    els.vistaConfiguraciones.hidden = true;
     els.vistaLecturaReportes.hidden = true;
     els.adminMenuMovil.hidden = false;
   }
   els.btnMenuMovil.addEventListener('click', mostrarMenuMovil);
   document.querySelectorAll('.admin-menu-movil-btn').forEach((boton) => {
-    boton.addEventListener('click', () => cambiarVistaPrincipal(boton.dataset.vista));
+    boton.addEventListener('click', () => {
+      // "Configuraciones globales" ya no es una vista de página — abre el
+      // modal en vez de intentar cambiarVistaPrincipal('configuraciones'),
+      // que ya no existe como caso válido.
+      if (boton.dataset.vista === 'configuraciones') {
+        els.adminMenuMovil.hidden = true;
+        abrirConfigModal();
+        return;
+      }
+      cambiarVistaPrincipal(boton.dataset.vista);
+    });
   });
   els.ticketsFiltroEstatus.addEventListener('change', () => cargarTickets());
   els.ticketsFiltroUsuario.addEventListener('change', () => cargarTickets());
@@ -11000,7 +11122,6 @@
                 gastos: els.btnVistaGastos,
                 inventarios: els.btnVistaInventarios,
                 usuarios: els.btnVistaUsuarios,
-                configuraciones: els.btnVistaConfiguraciones,
                 'lectura-reportes': els.btnVistaLecturaReportes,
               };
               const vistaGuardada = obtenerVistaGuardada();

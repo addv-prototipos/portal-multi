@@ -139,7 +139,7 @@
           <span>Ventas</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-cxc" role="tab" aria-selected="false">
-          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 8h18M3 12h18M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M12 14v4" stroke-linecap="round" stroke-width="1.8"/><circle cx="12" cy="14" r="2" stroke-width="1.8"/></svg>
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/><path d="M14 2v5a1 1 0 0 0 1 1h5" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/><path d="M8 14v2.2l1.6 1" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"/><circle cx="8" cy="16" r="6" stroke-width="1.7"/></svg>
           <span>Cuentas por cobrar</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-gastos" role="tab" aria-selected="false">
@@ -161,7 +161,7 @@
         <!-- "Configuraciones globales" siempre AL FINAL del sidebar (pedido
              explícito del usuario, 2026-08-21) — cualquier vista nueva que
              se agregue va ANTES de este botón, nunca después. -->
-        <button type="button" class="admin-vista-btn" id="btn-vista-configuraciones" role="tab" aria-selected="false">
+        <button type="button" class="admin-vista-btn" id="btn-vista-configuraciones" aria-haspopup="dialog">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round" stroke-width="1.3"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Configuraciones globales</span>
         </button>
@@ -219,7 +219,7 @@
           <span>Ventas</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="cxc">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 8h18M3 12h18M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M12 14v4" stroke-linecap="round" stroke-width="1.8"/><circle cx="12" cy="14" r="2" stroke-width="1.8"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/><path d="M14 2v5a1 1 0 0 0 1 1h5" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/><path d="M8 14v2.2l1.6 1" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"/><circle cx="8" cy="16" r="6" stroke-width="1.7"/></svg>
           <span>Cuentas por cobrar</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="gastos">
@@ -1584,8 +1584,57 @@
         </div>
       </div>
 
-      <div id="vista-configuraciones" hidden>
-      <div class="config-dashboard-grid">
+      <!-- "Configuraciones globales" como ventana emergente (antes era una
+           vista más del sidebar con 6 tarjetas plegables independientes,
+           ver PROJECT_STATE.md): barra lateral minimalista + buscador,
+           selecciona una sección a la vez en vez de acordeón. Las 6
+           secciones de abajo conservan su HTML/ids/lógica de guardado
+           intactos — solo cambia el contenedor que decide cuál se ve. -->
+      <div class="modal-overlay" id="config-modal-overlay" hidden>
+        <div class="modal config-modal" role="dialog" aria-modal="true" aria-labelledby="config-modal-title">
+          <div class="config-modal-sidebar" id="config-modal-sidebar">
+            <div class="config-modal-search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4" stroke-linecap="round"/></svg>
+              <input type="search" id="config-modal-buscar" placeholder="Buscar…" aria-label="Buscar sección de configuración" autocomplete="off" />
+            </div>
+            <nav class="config-modal-nav" id="config-modal-nav" aria-label="Secciones de configuración">
+              <button type="button" class="config-modal-nav-item" data-tarjeta="admin-config-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 13.5C19.4 13 19.5 12.5 19.5 12C19.5 11.5 19.4 11 19.4 10.5L21.4 9C21.6 8.8 21.6 8.5 21.5 8.3L19.6 5C19.5 4.8 19.2 4.7 19 4.8L16.6 5.8C16.1 5.4 15.6 5.1 15 4.9L14.7 2.3C14.6 2.1 14.4 2 14.2 2H9.8C9.6 2 9.4 2.1 9.3 2.3L9 4.9C8.4 5.1 7.9 5.4 7.4 5.8L5 4.8C4.8 4.7 4.5 4.8 4.4 5L2.5 8.3C2.4 8.5 2.4 8.8 2.6 9L4.6 10.5C4.6 11 4.5 11.5 4.5 12C4.5 12.5 4.6 13 4.6 13.5L2.6 15C2.4 15.2 2.4 15.5 2.5 15.7L4.4 19C4.5 19.2 4.8 19.3 5 19.2L7.4 18.2C7.9 18.6 8.4 18.9 9 19.1L9.3 21.7C9.4 21.9 9.6 22 9.8 22H14.2C14.4 22 14.6 21.9 14.7 21.7L15 19.1C15.6 18.9 16.1 18.6 16.6 18.2L19 19.2C19.2 19.3 19.5 19.2 19.6 19L21.5 15.7C21.6 15.5 21.6 15.2 21.4 15L19.4 13.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                Campos obligatorios de los formularios
+              </button>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="global-config-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/></svg>
+                Configuraciones fiscales
+              </button>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="smtp-config-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m3.5 6 8.5 7 8.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Correo electrónico (SMTP)
+              </button>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="reportes-config-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M15 3v5h5M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                Configuración Reportes
+              </button>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="ordenes-toggle-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                Ventas
+              </button>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="inv-toggle-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                Inventarios
+              </button>
+            </nav>
+            <p class="config-modal-nav-empty" id="config-modal-nav-empty" hidden>Ninguna sección coincide con tu búsqueda.</p>
+          </div>
+
+          <div class="config-modal-main is-oculta-movil" id="config-modal-main">
+            <div class="config-modal-main-header">
+              <button type="button" class="config-modal-btn-volver" id="config-modal-btn-volver" aria-label="Volver a la lista de secciones">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <h2 id="config-modal-title">Configuraciones globales</h2>
+              <button type="button" class="btn-icon" id="btn-cerrar-config-modal" aria-label="Cerrar">✕</button>
+            </div>
+            <div class="config-modal-main-body" id="config-modal-main-body">
       <!-- Configuración de campos obligatorios del formulario público -->
       <section class="admin-config-card" id="admin-config-card">
         <button type="button" class="admin-config-toggle" id="btn-toggle-config" aria-expanded="false" aria-controls="admin-config-body">
@@ -1970,8 +2019,10 @@
           </label>
         </div>
       </section>
-      </div><!-- /config-dashboard-grid -->
-      </div>
+            </div><!-- /config-modal-main-body -->
+          </div><!-- /config-modal-main -->
+        </div><!-- /.config-modal -->
+      </div><!-- /config-modal-overlay -->
 
 
 

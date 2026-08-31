@@ -10731,6 +10731,91 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       servidos). Sin clics en navegador real en esta sesión (sin
       extensión de automatización disponible). Sin commit/push todavía.
 
+  166. **"Configuraciones globales" (/admin) rediseñada como ventana
+      emergente — IMPLEMENTADA, VALIDADA POR HTTP contra Docker real
+      (2026-08-31)**: a partir de 2 capturas del usuario (la vista actual
+      de 6 tarjetas plegables + el modal de Configuración de Claude como
+      referencia de patrón), propuesta antes/después en Artifact aprobada
+      completa ("Sí, implementa todo el segmento"). Pasa de ser una vista
+      más del sidebar (6 `.admin-config-card` independientes, cualquier
+      combinación podía quedar abierta a la vez) a un modal con barra
+      lateral minimalista + buscador — una sección visible a la vez.
+      **Cero cambio de contenido**: las 6 secciones (Campos obligatorios,
+      Configuraciones fiscales, Correo SMTP, Configuración Reportes,
+      Ventas, Inventarios) conservan su HTML/ids/lógica de guardado
+      intactos, solo cambia el contenedor que decide cuál se ve — mismos
+      permisos por perfil de siempre (`tarjetasConfigPermitidas`, Fiscal
+      solo ve 2 de las 6, Administrador ve otras 4, SMTP solo perfil
+      super) ahora también deciden qué aparece en la barra lateral del
+      modal (misma fuente de verdad, un solo `forEach` en
+      `aplicarRestriccionesPerfil()` sin duplicar la lista).
+      **Decisión técnica clave para minimizar riesgo**: en vez de borrar
+      los 6 botones `.admin-config-toggle` (acordeón viejo) y sus 6
+      `addEventListener` dispersos por todo `admin.js`, se dejaron intactos
+      en el DOM pero inertes (`pointer-events: none` + chevron oculto por
+      CSS, solo dentro de `.config-modal-main-body`) — cero riesgo de
+      romper el badge de estado de SMTP (`smtp-estado-badge`, vive dentro
+      de ese mismo botón) ni ninguno de los 6 handlers ya probados.
+      `cargarConfigSmtp()` antes solo se disparaba al abrir su acordeón
+      (gesto que ya no existe) — se agregó a la carga eager de
+      `abrirConfigModal()` junto con los otros 4 `cargar*` que ya se
+      disparaban al entrar a la vista. Móvil: lista primero (con
+      buscador), al tocar una sección se reemplaza por su contenido con
+      flecha "← Volver" (mismo criterio que el menú de `/control`) — CSS
+      puro (`.is-oculta-movil`, sin JS de matchMedia/resize). Buscador
+      v1 filtra solo por nombre de sección (no por contenido de campos).
+      Sección que se ve al abrir = la primera visible para el perfil de
+      quien entra (nunca hardcodeada). Cambios de `admin.js`: nuevo
+      bloque "Modal Configuraciones globales" (`CONFIG_SECCIONES`,
+      `seleccionarSeccionConfig`, `filtrarNavConfig`, `abrirConfigModal`/
+      `cerrarConfigModal`), quitado el caso `'configuraciones'` de
+      `cambiarVistaPrincipal()` (ya no es una vista — evita el bug de
+      "todas las vistas ocultas" si `sessionStorage` tuviera guardado ese
+      valor viejo, por eso también se quitó de `botonesPorVista` en el
+      restore de sesión), el botón del sidebar y el ícono del launcher
+      móvil ahora llaman a `abrirConfigModal()` en vez de
+      `cambiarVistaPrincipal('configuraciones')`. HTML: `id` del
+      contenedor renombrado de `vista-configuraciones` a
+      `config-modal-overlay` (mismo patrón `*-modal-overlay` del resto
+      del sitio); `role="tab"` del botón del sidebar cambiado a
+      `aria-haspopup="dialog"` (ya no participa del sistema de tabs de
+      vistas). Jest backend **781/781** (sin cambios de backend).
+      Rebuild `--no-cache`+`--force-recreate` y validado por HTTP contra
+      el contenedor real (los 6 nav items, las clases CSS nuevas y las 3
+      referencias a `abrirConfigModal` confirmadas en lo servido; el
+      `id="vista-configuraciones"` viejo confirmado ausente). **Sin
+      clics en navegador real en esta sesión** (sin extensión de
+      automatización disponible, mismo aviso que los puntos 164/165) —
+      pendiente que el usuario lo confirme visualmente. Sin commit/push
+      todavía.
+      **Bug real reportado por el usuario y corregido el mismo día**: al
+      probar en vivo, ningún campo de ninguna sección era interactuable
+      ("no puedo configurar nada") — causa raíz: `style.css` tiene una
+      regla global `[hidden] { display: none !important; }` (a propósito,
+      para que `hidden` siempre gane sin importar otro `display` — ver el
+      comentario ahí mismo) que le ganaba a la regla CSS de este punto
+      que intentaba forzar visible `.admin-config-body` de la sección
+      activa; como el botón viejo que le quitaba el atributo `hidden` a
+      esa caja quedó inerte a propósito (`pointer-events:none`), nada
+      volvía a quitárselo nunca, así que TODAS las secciones se quedaban
+      con su contenido real oculto para siempre — solo se veía el título
+      de la sección activa, cero campos. Fix: `seleccionarSeccionConfig()`
+      ahora quita/pone `hidden` en `.admin-config-body` por JS
+      directamente (mismo mecanismo exacto que ya usaba el acordeón
+      viejo), la regla CSS quedó solo cosmética (padding/borde). Jest
+      781/781 de nuevo, rebuild y validado por HTTP contra el contenedor
+      real (JS servido con el fix, CSS viejo confirmado ausente).
+      **Confirmado por el usuario en navegador real** ("ya lo revisé, ya
+      funciona"). Sin commit/push todavía.
+      **Ícono de "Cuentas por cobrar" mejorado el mismo día**: usuario
+      reportó que el ícono (tarjeta con una moneda) no comunicaba
+      "pendiente por cobrar". Reemplazado por "documento + reloj"
+      (geometría de Lucide `file-clock`, MIT, adaptada al stroke-width
+      1.6-1.7 ya usado en el resto de íconos del sidebar) en los 2 únicos
+      lugares donde vivía (sidebar de escritorio y grid del menú móvil).
+      Validado por HTTP contra el contenedor real tras rebuild. Sin
+      commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

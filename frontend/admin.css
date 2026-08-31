@@ -733,6 +733,163 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* "Configuraciones globales" como modal (antes vista de página con 6
+   tarjetas plegables) — cada .admin-config-card sigue existiendo tal
+   cual dentro de .config-modal-main-body, pero solo una se muestra a
+   la vez (controlado por seleccionarSeccionConfig() en admin.js) y su
+   .admin-config-toggle interno queda inerte (era el disparador del
+   acordeón; ahora esa función la cumple el nav de la izquierda) — se
+   deja en el DOM sin click para no tocar sus 6 handlers existentes ni
+   el badge de estado de SMTP, que sigue viviendo ahí adentro. */
+.config-modal {
+  max-width: 900px;
+  width: 94vw;
+  height: min(680px, calc(100vh - 40px));
+  padding: 0;
+  display: flex;
+  overflow: hidden;
+}
+.config-modal-sidebar {
+  width: 260px;
+  flex: 0 0 260px;
+  background: var(--color-bg);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.config-modal-search {
+  margin: 14px 14px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+.config-modal-search svg { color: var(--color-ink-soft); flex-shrink: 0; }
+.config-modal-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  width: 100%;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+.config-modal-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 12px;
+}
+.config-modal-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  text-align: left;
+}
+.config-modal-nav-item svg { flex-shrink: 0; }
+.config-modal-nav-item:hover { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.config-modal-nav-item.is-active { background: #05DBF2; color: #03285B; }
+.config-modal-nav-empty {
+  padding: 6px 14px 14px;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+}
+.config-modal-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.config-modal-main-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+.config-modal-main-header h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  flex: 1;
+  min-width: 0;
+}
+.config-modal-btn-volver {
+  display: none;
+  border: none;
+  background: transparent;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  padding: 4px;
+}
+.config-modal-main-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+/* Las 6 secciones reales: solo la activa se muestra; el header interno
+   (icono+título+chevron) que traía cada una se apaga por completo, ya
+   es redundante con el nav de la izquierda — salvo el badge de estado
+   de SMTP, que se queda visible junto al título. */
+.config-modal-main-body .admin-config-card {
+  display: none;
+  margin-bottom: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+.config-modal-main-body .admin-config-card.is-active-config-section { display: block; }
+.config-modal-main-body .admin-config-toggle {
+  pointer-events: none;
+  cursor: default;
+  padding: 0 0 10px;
+}
+.config-modal-main-body .admin-config-chevron { display: none; }
+.config-modal-main-body .admin-config-toggle-label {
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+.config-modal-main-body .admin-config-toggle-label svg { display: none; }
+/* Visibilidad real la maneja JS quitando/poniendo `hidden` (ver
+   seleccionarSeccionConfig en admin.js) — el atributo `hidden` gana con
+   `!important` sin importar cualquier `display` que se intente forzar
+   aquí, así que esta regla es solo cosmética (quita el padding/borde
+   pensado para el acordeón viejo). */
+.config-modal-main-body .admin-config-body {
+  padding: 0;
+  border-top: none;
+}
+
+@media (max-width: 760px) {
+  .config-modal {
+    max-width: 100vw;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+  .config-modal-sidebar.is-oculta-movil,
+  .config-modal-main.is-oculta-movil {
+    display: none;
+  }
+  .config-modal-btn-volver { display: inline-flex; }
+}
+
 .admin-config-subtitle {
   margin: 14px 0 14px;
 }
