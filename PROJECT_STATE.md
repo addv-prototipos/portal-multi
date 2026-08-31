@@ -10483,8 +10483,50 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         confirmado en los otros dos — no se forzó su flujo completo
         (constancia + venta + ticket + ZIP de factura) por costo/tiempo
         frente al beneficio marginal, dado que la suite Jest completa
-        (incluida la nueva cobertura del punto 158) sigue en verde. Sin
-        commit/push todavía.
+        (incluida la nueva cobertura del punto 158) sigue en verde. **Los
+        6 correos se probaron enviándolos de verdad, todos en el mismo
+        recorrido, a una cuenta Gmail real del usuario** (venta,
+        invitación, recuperación, aviso al contador, factura lista y
+        reporte automático — este último antes de la extensión de abajo
+        —, con datos de prueba insertados/creados vía API y SQL directo,
+        y borrados por completo al terminar, incluida la restauración de
+        `correo_contador`/`correo_reportes` a sus valores reales).
+      - **Extensión same-day: el reporte automático (#6) también se
+        homologó**, a pedido del usuario tras ver el correo real sin
+        diseño ("puedes revisarlo por favor?" + confirmó homologar en
+        vez de dejarlo como estaba). `construirCorreoBase()` y sus
+        piezas (`MARCA_DEFECTO`, `escapeHtmlCorreo`, `logoTicketHtml`,
+        `filaCorreoTabla`) se **extrajeron de `server.js` a un módulo
+        nuevo `backend/utils/correoMarca.js`** (única fuente de verdad),
+        porque `utils/reportes.js` (usado también por `cierreMensual.js`
+        y `ticketsCleanup.js`, ninguno con acceso a `req`) necesitaba las
+        mismas piezas sin crear una dependencia circular con `server.js`.
+        `generarYEnviarReporte()` gana parámetros opcionales
+        `marca`/`urlPortal`/`marcaLogoUrlTenant`/`colorPrimario`/
+        `colorAccent` — los 2 llamadores con `req` real (`POST
+        /api/admin/reportes/enviar`, `DELETE /ordenes-compra/:id`) los
+        resuelven del tenant; los 2 llamadores en segundo plano
+        (`cierreMensual.js`, `ticketsCleanup.js`) se dejan sin tocar —
+        sin esos parámetros, cae a marca/logo/color CLARVO por defecto,
+        nunca se rompe. El adjunto `.md` del reporte se conserva igual,
+        ahora junto al adjunto CID del logo. **Bug propio corregido en
+        la validación** (mismo patrón de fragilidad del punto 161
+        original): la primera versión hacía un `getConfiguracionGlobal()`
+        EXTRA y redundante directo en los 2 handlers de `server.js` antes
+        de llamar a `generarYEnviarReporte()` (que YA hace su propio
+        fetch de configGlobal internamente) — el `pool.query` de más
+        corrió la cola de mocks de Jest y tumbó 3 tests de
+        `ordenes-compra.test.js` que no tienen nada que ver con correos
+        (aserciones de `registrarMovimiento`/reingreso de inventario
+        leyendo datos mockeados para la llamada equivocada). Fix: se
+        quitó el fetch redundante — `generarYEnviarReporte()` ahora
+        resuelve `logoUrl` internamente con el `configGlobal` que ya
+        tenía, recibiendo solo `marcaLogoUrlTenant` (crudo, sin
+        prefijo) + `urlPortal` en vez de una URL ya armada. Jest backend
+        **781/781** de nuevo, control 117/117. Rebuild real,
+        **validado con un envío real del reporte automático** a la
+        misma cuenta Gmail (correo_reportes temporal, restaurado
+        después, reporte de prueba borrado). Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

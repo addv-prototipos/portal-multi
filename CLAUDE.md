@@ -952,7 +952,23 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   punta a punta sin errores, cuenta de prueba borrada después. Aviso al
   contador/factura lista comparten el mismo código ya confirmado, sin
   forzar su flujo completo (constancia+venta+ZIP) por costo/beneficio.
-  Sin commit/push todavía.
+  **Extensión same-day**: el usuario vio los 6 correos reales (probados
+  todos de punta a punta contra su Gmail) y pidió homologar también el
+  reporte automático (#6), que se había dejado en texto plano a
+  propósito. `construirCorreoBase()` y piezas relacionadas se
+  extrajeron de `server.js` a `backend/utils/correoMarca.js` (única
+  fuente de verdad, sin dependencia circular) para que `utils/
+  reportes.js` (usado también en segundo plano por `cierreMensual.js`/
+  `ticketsCleanup.js`, sin `req`) las reutilizara.
+  `generarYEnviarReporte()` gana parámetros opcionales de marca/logo/
+  color — sin ellos (llamadores en segundo plano) cae a CLARVO por
+  defecto. Bug propio corregido: la primera versión duplicaba el fetch
+  de `getConfiguracionGlobal()` en las 2 rutas con `req`, cuando la
+  función ya lo hacía internamente — el `pool.query` de más corrió la
+  cola de mocks de Jest y tumbó 3 tests de inventario sin relación con
+  correos. Jest 781/781 de nuevo, control 117/117. Validado con un
+  envío real del reporte automático a la misma cuenta Gmail. Sin
+  commit/push todavía.
 - **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un

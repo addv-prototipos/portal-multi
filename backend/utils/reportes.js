@@ -1,6 +1,7 @@
 const { pool } = require('../db');
 const { getConfiguracionGlobal, formatearFechaHoraMexico } = require('./config');
 const { enviarCorreo } = require('./email');
+const { MARCA_DEFECTO, construirCorreoBase } = require('./correoMarca');
 
 // Este módulo es el motor central de "Reportes": arma el contenido en
 // Markdown, guarda los datos estructurados para poder filtrarlos/
@@ -209,9 +210,24 @@ async function guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, it
  * quien llame a esta función (ej. la limpieza automática) decida si debe
  * detener el borrado o no.
  */
-async function generarYEnviarReporte({ tipo, items, rangoInicio, rangoFin }) {
+async function generarYEnviarReporte({
+  tipo,
+  items,
+  rangoInicio,
+  rangoFin,
+  marca,
+  urlPortal,
+  marcaLogoUrlTenant,
+  colorPrimario,
+  colorAccent,
+}) {
   const configGlobal = await getConfiguracionGlobal();
   const fechaGeneracion = new Date();
+  // Mismo cálculo que logoUrlDelTenant() en server.js, reimplementado
+  // aquí para no depender de `req` (los llamadores en segundo plano —
+  // cierreMensual.js, ticketsCleanup.js — no tienen uno) y para no
+  // repetir el fetch de configGlobal que esta función ya hace arriba.
+  const logoUrl = marcaLogoUrlTenant && urlPortal ? `${urlPortal}${marcaLogoUrlTenant}` : configGlobal.logo_url || null;
 
   const mdContenido = generarContenidoMD({
     tipo,
@@ -230,15 +246,41 @@ async function generarYEnviarReporte({ tipo, items, rangoInicio, rangoFin }) {
     try {
       const fechaGeneracionFormateada = formatearFechaHoraMexico(fechaGeneracion, configGlobal.zona_horaria);
       const titulo = tipo === 'cierre_mensual' ? 'Cierre mensual' : 'Reporte de tickets y ventas';
+
+      // Homologado al mismo cascarón de marca que el resto de correos
+      // (ver PROJECT_STATE.md punto 161) — a pedido del usuario, que lo
+      // vio llegar en texto plano y pidió el mismo diseño. `marca`/
+      // `logoUrl`/`colorPrimario`/`colorAccent` son opcionales: los
+      // llamadores en un contexto de petición real (POST
+      // /api/admin/reportes/enviar, DELETE /ordenes-compra/:id) los
+      // resuelven del tenant; los llamadores en segundo plano
+      // (cierreMensual.js, ticketsCleanup.js — sin un req del que
+      // detectar la URL del logo) los dejan sin definir y el correo cae
+      // al logo/color CLARVO por defecto, nunca se rompe por su ausencia.
+      const { html, texto, adjuntos: adjuntosMarca } = construirCorreoBase({
+        marca: marca || MARCA_DEFECTO,
+        logoUrl,
+        colorPrimario,
+        colorAccent,
+        eyebrow: 'Reportes',
+        titulo,
+        filas: [
+          { etiqueta: 'Tickets', valor: String(items.filter((i) => i.tipo_registro === 'ticket').length) },
+          { etiqueta: 'Ventas', valor: String(items.filter((i) => i.tipo_registro === 'orden_compra').length) },
+          { etiqueta: 'Gastos', valor: String(items.filter((i) => i.tipo_registro === 'gasto').length) },
+        ],
+        parrafos: [
+          `Se adjunta el reporte generado el ${fechaGeneracionFormateada.fecha} a las ${fechaGeneracionFormateada.hora}.`,
+        ],
+      });
+
       await enviarCorreo({
         destinatario: correoDestino,
         asunto: `${titulo} — ${fechaGeneracionFormateada.fecha}`,
-        cuerpo: `Se adjunta el reporte generado el ${fechaGeneracionFormateada.fecha} a las ${fechaGeneracionFormateada.hora}.\n\nTickets: ${
-          items.filter((i) => i.tipo_registro === 'ticket').length
-        }\nVentas: ${items.filter((i) => i.tipo_registro === 'orden_compra').length}\nGastos: ${
-          items.filter((i) => i.tipo_registro === 'gasto').length
-        }`,
+        cuerpo: texto,
+        html,
         adjuntos: [
+          ...adjuntosMarca,
           {
             filename: `reporte-${fechaGeneracion.toISOString().slice(0, 10)}.md`,
             content: mdContenido,
