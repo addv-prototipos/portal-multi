@@ -10692,7 +10692,44 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       4. Sin test unitario propio en `control/` para `tenantTema.js`
          (contraste WCAG AA) ni `apiCredenciales.js` (hash/rotación de
          credenciales) — ¿prioridad para la siguiente sesión?
-      Sin commit/push todavía — mismo protocolo de siempre.
+      **Commiteado** (a pedido explícito del usuario, mismo día):
+      `65940cc` (modales + blur + accesibilidad) y `08a3ea7` (limpieza
+      de `archivoPrueba.txt` + `.swarm/` a `.gitignore`). Sin push.
+
+  165. **Modal "Registrar venta" (/admin) — 3 mejoras de UI IMPLEMENTADAS
+      Y VALIDADAS contra Docker real (2026-08-31)**: usuario compartió
+      captura del modal (con inventario activo) pidiendo propuesta de
+      mejora. Propuesta en Artifact (antes/después) con 3 cambios
+      independientes, aprobados los 3 ("Me encanta tu propuesta,
+      aplicala"):
+      - **A — Emoji → SVG**: el toggle "¿Cómo se entrega?" era el único
+        lugar del panel que todavía usaba emoji (📧/🖨️) como ícono real
+        de UI — inconsistente con Cuentas por cobrar (punto 141), que ya
+        los había quitado en todos lados. Reemplazados por 2 SVG inline
+        (`currentColor`, heredan el color activo/inactivo del toggle sin
+        CSS nuevo por estado).
+      - **B — Encabezados de sección** (`.orden-seccion-label`, solo
+        ≥901px): "Producto" / "Pago y entrega" / "Cliente" — puramente
+        visuales, cero campos movidos de posición relativa. Colocado el
+        de "Cliente" como primer hijo de `#orden-entrega-correo-wrap`
+        para que se oculte solo junto con esa sección cuando el método
+        de entrega es "Imprimir" (sin JS nuevo, efecto gratis de la
+        lógica que ya existía).
+      - **C — Grid de 2 columnas en escritorio**: nuevo wrapper
+        `.orden-wizard-grid` alrededor de los 3 `.orden-wizard-paso`
+        (Producto+Total apilados a la izquierda vía `grid-row`, Pago/
+        Entrega/Cliente a la derecha con `grid-row: 1 / span 2`) — el
+        modal ya media 820px (`.ticket-modal`) y se usaba en 1 sola
+        columna de punta a punta. El wrapper es puro CSS (`display:grid`
+        solo dentro de `@media (min-width: 901px)`); en móvil sigue
+        `display:block` normal y el wizard de 3 pasos de siempre
+        (`admin.js` selecciona `.orden-wizard-paso` por clase, sin
+        asumir el padre) sigue funcionando sin ningún cambio de JS.
+      Jest backend 781/781, control 117/117 (ningún cambio de backend).
+      Rebuild `--no-cache`+`--force-recreate` y validado por HTTP contra
+      el contenedor real (las 3 clases nuevas confirmadas en el HTML/CSS
+      servidos). Sin clics en navegador real en esta sesión (sin
+      extensión de automatización disponible). Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

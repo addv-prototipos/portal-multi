@@ -861,7 +861,15 @@
               <p class="orden-campo-automatico" id="orden-fecha-auto">Se genera automáticamente al guardar, con la zona horaria configurada.</p>
             </div>
 
+            <!-- Grid de 2 columnas solo en escritorio (≥901px, ver admin.css):
+                 paso 1 (Producto) + paso 2 (Total) apilados a la izquierda,
+                 paso 3 (Pago/Entrega/Cliente) a la derecha. En móvil el
+                 wrapper es solo un div normal — el wizard de 3 pasos de
+                 siempre sigue mostrando un .orden-wizard-paso a la vez sin
+                 ningún cambio. -->
+            <div class="orden-wizard-grid" id="orden-wizard-grid">
             <div class="orden-wizard-paso is-active" data-paso="1">
+              <p class="orden-seccion-label">Producto</p>
               <!-- Captura manual (texto libre): visible solo si el tenant
                    NO tiene Inventarios activo — con inventario activo se
                    oculta por completo (ver aplicarVisibilidadInventarioEnVentas()
@@ -994,6 +1002,7 @@
             </div>
 
             <div class="orden-wizard-paso" data-paso="3">
+              <p class="orden-seccion-label">Pago y entrega</p>
               <div class="field">
                 <label>Estado de pago</label>
                 <div class="view-toggle" role="tablist" aria-label="Estado de pago">
@@ -1017,12 +1026,19 @@
               <div class="field">
                 <label>¿Cómo se entrega?</label>
                 <div class="view-toggle" role="tablist" aria-label="Método de entrega de esta venta">
-                  <button type="button" class="view-toggle-btn is-active" id="btn-orden-entrega-correo" role="tab" aria-selected="true">📧 Enviar por correo</button>
-                  <button type="button" class="view-toggle-btn" id="btn-orden-entrega-imprimir" role="tab" aria-selected="false">🖨️ Imprimir ticket</button>
+                  <button type="button" class="view-toggle-btn is-active" id="btn-orden-entrega-correo" role="tab" aria-selected="true">
+                    <svg class="view-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 6 10 7 10-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Enviar por correo
+                  </button>
+                  <button type="button" class="view-toggle-btn" id="btn-orden-entrega-imprimir" role="tab" aria-selected="false">
+                    <svg class="view-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Imprimir ticket
+                  </button>
                 </div>
               </div>
 
               <div id="orden-entrega-correo-wrap">
+                <p class="orden-seccion-label">Cliente</p>
                 <div class="field">
                   <label>Tipo de cliente</label>
                   <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta venta">
@@ -1060,6 +1076,7 @@
               </div>
 
               <p class="field-hint" id="orden-entrega-imprimir-hint" hidden>Se guarda sin correo. El ticket se abre para imprimir en cuanto termines de registrar la venta — también puedes asignarle un correo después desde "Reenviar correo".</p>
+            </div>
             </div>
 
             <p class="field-error" id="orden-error-general" role="alert"></p>

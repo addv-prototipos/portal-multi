@@ -52,7 +52,19 @@ NO tocado — documentado en un Artifact (antes/después) para el usuario**:
 selector de tipografía muerto en Identidad visual, falta reset de
 password/perfil de usuario de sucursal en la UI, endpoint de marca sin
 uso desde la UI, y falta de test unitario propio en `control/` para
-`tenantTema.js`/`apiCredenciales.js`. Sin commit/push todavía.
+`tenantTema.js`/`apiCredenciales.js`. **Commiteado** (`65940cc` +
+`08a3ea7`), sin push.
+
+**Modal "Registrar venta" (/admin) — 3 mejoras de UI (2026-08-31, ver
+PROJECT_STATE.md punto 165)**: a partir de una captura del usuario,
+propuesta antes/después aprobada completa — emoji 📧/🖨️ del toggle
+"¿Cómo se entrega?" reemplazados por SVG (único lugar del panel que
+aún usaba emoji real, inconsistente con Cuentas por cobrar); encabezados
+de sección discretos (Producto/Pago y entrega/Cliente, solo ≥901px,
+cero campos movidos); grid de 2 columnas en escritorio
+(`.orden-wizard-grid`, CSS puro, el wizard móvil de 3 pasos no cambia).
+Jest 781/781 backend, 117/117 control. Validado por HTTP contra Docker
+real. Sin commit/push todavía.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

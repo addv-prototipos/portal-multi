@@ -1136,6 +1136,62 @@
   .orden-wizard-nav { display: flex; }
 }
 
+/* Etiqueta de sección discreta (Producto / Pago y entrega / Cliente):
+   solo escritorio — en móvil el indicador de pasos (.steps de arriba) ya
+   cumple ese rol, repetirla ahí sería ruido. */
+.orden-seccion-label {
+  display: none;
+}
+@media (min-width: 901px) {
+  .orden-seccion-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-ink-soft);
+    margin: 0 0 12px;
+  }
+  .orden-seccion-label::before {
+    content: '';
+    width: 14px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--color-accent);
+  }
+  #orden-entrega-correo-wrap .orden-seccion-label { margin-top: 18px; }
+}
+
+/* Grid de 2 columnas en escritorio para "Registrar venta": paso 1
+   (Producto) + paso 2 (Total) apilados a la izquierda, paso 3 (Pago,
+   entrega, cliente) a la derecha — el modal ya mide 820px (.ticket-modal)
+   y antes se usaba en 1 sola columna de punta a punta. En móvil el
+   wrapper se queda en flujo normal: cada .orden-wizard-paso lo sigue
+   mostrando/ocultando el wizard de 3 pasos de siempre, sin cambios. */
+@media (min-width: 901px) {
+  .orden-wizard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 28px;
+    align-items: start;
+  }
+  .orden-wizard-grid .orden-wizard-paso[data-paso="1"] { grid-column: 1; grid-row: 1; }
+  .orden-wizard-grid .orden-wizard-paso[data-paso="2"] { grid-column: 1; grid-row: 2; }
+  .orden-wizard-grid .orden-wizard-paso[data-paso="3"] { grid-column: 2; grid-row: 1 / span 2; }
+}
+
+/* Íconos del toggle "¿Cómo se entrega?" (antes emoji 📧/🖨️, ver
+   PROJECT_STATE.md) — mismo criterio de Cuentas por cobrar: sin emoji
+   como ícono real de UI, SVG con currentColor para heredar el color
+   activo/inactivo del toggle sin reglas nuevas. */
+.view-toggle-icon {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
 /* Modal "Registrar venta" a pantalla completa en móvil — clase propia
    (no toca el resto de usos de .ticket-modal en Tickets/Gastos/etc). */
 @media (max-width: 900px) {
