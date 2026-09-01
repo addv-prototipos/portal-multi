@@ -11270,7 +11270,41 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         tecleo real vía el tool `computer`): decimal bloqueado en vivo
         para Pieza, "+ Agregar producto" con 12 piezas entra
         correctamente ($1,800.00 = 12 × $150), cero errores de consola.
-        Datos de prueba limpiados. Sin commit/push todavía.
+        Datos de prueba limpiados. **Commiteado y pusheado** (`3ebcd09`
+        → `fact/master`).
+  177. **Bug real de layout — "Precio unitario"/"Cantidad" desparejos
+      en Ventas (2026-09-01, ENCONTRADO Y CORREGIDO, reportado por el
+      usuario con una captura marcada a mano con línea roja)**: el
+      primer reporte de "este elemento sigue desajustándose" no se
+      pudo reproducir a simple vista (probado con tecleo real, sin
+      encontrar nada raro) — el usuario mandó una SEGUNDA captura
+      marcando el desajuste exacto con una línea roja, que sí lo hizo
+      evidente: dentro de `.orden-productos-captura-fila` (grid de 2
+      columnas, Precio unitario | Cantidad), SOLO la columna "Cantidad"
+      tenía el texto `#orden-inventario-disponible-hint` ("Disponible:
+      17") debajo de su input — "Precio unitario" no tenía nada
+      equivalente, así que esa columna terminaba más arriba y las 2
+      columnas no emparejaban en altura. No relacionado a los puntos
+      175/176 (que sí estaban correctos) — un desajuste de layout
+      preexistente, sin relación con la regla de enteros/decimales,
+      que quedó más visible al estar mirando de cerca este mismo
+      bloque.
+      - **Fix**: el hint sale de la fila de 2 columnas — ahora vive
+        debajo de AMBAS, a lo ancho completo (semánticamente correcto
+        también: describe al producto seleccionado, no es exclusivo de
+        la columna Cantidad). El error de validación por campo
+        (`#error-orden-inventario-unidades`) se queda DENTRO de la
+        columna Cantidad a propósito (un error debe anclarse a su
+        campo, y es condicional/oculto por defecto — no causaba el
+        desajuste en el estado normal).
+      - Cambio 100% HTML (`admin.html`), sin CSS ni JS. Jest backend
+        794/794 (sin cambios, corrido por sanidad). Validado contra
+        Docker real y en navegador real: diferencia de altura entre
+        ambas columnas medida en 0px (antes tenían un desnivel real,
+        confirmado con `getBoundingClientRect()`), "Disponible: 17"
+        ahora a ancho completo debajo de las 2 columnas, "+ Agregar
+        producto" sigue funcionando igual, cero errores de consola.
+        Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

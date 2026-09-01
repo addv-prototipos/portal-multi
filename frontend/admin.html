@@ -932,10 +932,16 @@
                   <div class="field">
                     <label for="orden-inventario-unidades" id="orden-inventario-unidades-label">Cantidad (piezas) <span class="required">*</span></label>
                     <input type="number" id="orden-inventario-unidades" min="0.001" step="0.001" value="1" />
-                    <p class="field-hint" id="orden-inventario-disponible-hint"></p>
                     <p class="field-error" id="error-orden-inventario-unidades" role="alert"></p>
                   </div>
                 </div>
+                <!-- Fuera de la fila de 2 columnas a propósito (punto 177):
+                     solo "Cantidad" tenía este texto debajo, dejando esa
+                     columna más alta que "Precio unitario" — reportado por
+                     el usuario con captura anotada. Ancho completo, debajo
+                     de las 2 columnas, ya que describe al producto
+                     seleccionado, no es exclusivo de la columna Cantidad. -->
+                <p class="field-hint" id="orden-inventario-disponible-hint"></p>
                 <p class="field-error" id="error-orden-inventario-general" role="alert"></p>
                 <button type="button" class="btn btn-secondary btn-block" id="btn-agregar-producto-inventario-orden" hidden>+ Agregar producto</button>
               </div>

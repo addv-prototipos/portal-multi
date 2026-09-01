@@ -1194,7 +1194,26 @@ vía CDP, para una prueba fiel). 100% frontend, Jest backend 794/794
 (sin cambios, corrido por sanidad). Validado en navegador real con
 tecleo real: "3.001" en un producto Pieza nunca deja aparecer el punto,
 "12" entra sin perder dígitos, venta de 12 piezas se agrega correcto
-($1,800.00), cero errores de consola. Sin commit/push todavía.
+($1,800.00), cero errores de consola. **Commiteado y pusheado**
+(`3ebcd09` → `fact/master`).
+
+**Bug real de layout — "Precio unitario"/"Cantidad" desparejos en
+Ventas (ver PROJECT_STATE.md punto 177, 2026-09-01, ENCONTRADO Y
+CORREGIDO, reportado por el usuario con una captura marcada a mano)**:
+sin relación con los puntos 175/176 (esos sí estaban correctos) — un
+desajuste de layout preexistente en `.orden-productos-captura-fila`
+(grid de 2 columnas): solo "Cantidad" tenía el texto
+`#orden-inventario-disponible-hint` ("Disponible: N") debajo de su
+input, "Precio unitario" no tenía nada equivalente, así que las 2
+columnas no emparejaban en altura. Fix: el hint sale de la fila de 2
+columnas, ahora a ancho completo debajo de ambas (semánticamente
+correcto — describe al producto, no es exclusivo de "Cantidad"). El
+error de validación por campo se queda dentro de su columna a
+propósito (condicional, no causaba el desajuste). 100% HTML, Jest
+backend 794/794 (sin cambios). Validado en navegador real: diferencia
+de altura entre columnas 0px (antes había desnivel real, medido con
+`getBoundingClientRect()`), "+ Agregar producto" sigue funcionando,
+cero errores de consola. Sin commit/push todavía.
 
 **PENDIENTE — Correo de contacto de empresa + burbuja "Solicitar
 aclaraciones" (2026-09-01, ver PROJECT_STATE.md punto 170, SOLO
