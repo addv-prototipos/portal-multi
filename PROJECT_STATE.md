@@ -10877,6 +10877,71 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       propuesta visual antes/después, esperar confirmación explícita)
       antes de tocar código — instrucción explícita del usuario de NO
       implementar nada en esta sesión.
+  168. **"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en
+      navegador real (2026-08-31/09-01)**: usuario pidió un botón para
+      "hacer el corte del día o varios días", manual, con selector de
+      días, que genera un reporte de lo vendido. Protocolo completo
+      aplicado — Artifact con antes/después + 2 alternativas (Opción A:
+      reporte de consulta repetible, sin marcar nada; Opción B: corte de
+      caja real, exclusivo, marcando las ventas incluidas) — usuario
+      eligió explícitamente, por preguntas separadas: **Opción A**,
+      rango de fechas libre (desde-hasta, no "últimos N días"), **solo
+      Ventas** (sin Gastos/CxC), salida **pantalla + imprimir** (sin
+      correo), y **sí persiste** en "Lectura de reportes". Al aprobar,
+      el usuario avisó que deja el equipo — ver memoria persistente
+      `project_handoff_equipo.md`, documentar con doble cuidado de aquí
+      en adelante.
+      - **Backend**: `POST /api/admin/reportes/corte`
+        (`requireAdminArea('administrador')`, mismo candado que el
+        resto de Ventas) — recibe `{desde, hasta}` (YYYY-MM-DD),
+        valida rango, consulta `ordenes_compra` en `[desde, hasta+1día)`
+        (incluye archivadas por cierre mensual a propósito — mismo
+        criterio que `/resumen-financiero`: es histórico de lo vendido,
+        no una lista de pendientes), calcula subtotal/IVA/total/
+        facturado/sin-facturar/cobrado/pendiente-de-cobro en JS a partir
+        de una sola consulta (mismo patrón `EXISTS ticket estatus=
+        'listo'` que ya usa el listado de Ventas), y persiste vía
+        `guardarReporte()` (ya existía en `utils/reportes.js`, no manda
+        correo) con `tipo:'corte'` — reutiliza la infraestructura de
+        reportes existente en vez de duplicarla (la crítica del paso 3
+        del protocolo señaló que `/reportes/enviar` ya existía pero
+        fijo a "desde inicio de mes" + tickets+ventas + correo siempre;
+        el corte necesitaba algo distinto, no un reporte nuevo desde
+        cero). Migración de `chk_reportes_tipo` (CHECK constraint) para
+        aceptar `'corte'`, con rama de migración para instalaciones que
+        ya tenían `'cierre_mensual'` pero no `'corte'`.
+      - **Frontend**: botón "Corte del día" junto a "+ Registrar venta"
+        en Ventas; modal con desde/hasta + resultado (grid de 8 cifras)
+        + "Imprimir" (mismo patrón `@media print` de un solo elemento
+        visible que el ticket de venta del punto 130 — `#corte-imprimir`,
+        hijo directo de `<body>`, sin ventana nueva). "Lectura de
+        reportes" reconoce el tipo `'corte'` con su propia etiqueta
+        ("Corte de ventas") en los 3 lugares donde se mostraba
+        "Automático"/"Manual"/"Cierre mensual".
+      - **Pruebas**: 5 tests nuevos en
+        `test/integration/ordenes-compra.test.js` (400 sin fechas, 400
+        desde>hasta, 403 perfil fiscal, cálculo correcto con 2 ventas
+        mixtas — una pagada+facturada, otra pendiente+sin facturar —,
+        rango vacío). Jest backend **786/786 (45 suites)**.
+      - **Validado contra Docker/MySQL reales**: rebuild `--no-cache` +
+        `--force-recreate` backend+frontend, ciclo completo por curl
+        (2 ventas de prueba, corte con cifras exactas, aparece en
+        `GET /reportes` con `tipo:'corte'`), limpieza de los datos de
+        prueba después. **Validado en navegador real** (Claude in
+        Chrome): login, abrir modal, generar corte vacío (empty state
+        correcto) y con datos reales (cifras exactas: $125 subtotal/$20
+        IVA/$145 total/$58 cobrado/$87 pendiente), botón Imprimir
+        confirmado que llena `#corte-imprimir` y llama a `window.print()`
+        (interceptado en la prueba, sin bloquear), aparece en "Lectura
+        de reportes" con la etiqueta "Corte de ventas", cero errores de
+        consola. **Gotcha de esta sesión, no del código**: el primer
+        intento de login vía el tool `computer` (clicks/screenshot)
+        dejó el botón en "Entrando…" indefinidamente y las screenshots
+        empezaron a fallar con timeout de CDP — mismo síntoma que el
+        punto 155 (rodeo ya documentado: usar `javascript_tool` con
+        `.click()` directo funciona limpio). Datos de prueba limpiados
+        al terminar (ventas OC-000168/169/170/171 y sus reportes de
+        corte). Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

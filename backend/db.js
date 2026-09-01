@@ -1256,7 +1256,7 @@ async function ensureSchema(db = pool) {
       md_contenido LONGTEXT NOT NULL,
       creado_en DATETIME NOT NULL,
       KEY idx_reportes_fecha_generacion (fecha_generacion),
-      CONSTRAINT chk_reportes_tipo CHECK (tipo IN ('automatico', 'manual', 'cierre_mensual'))
+      CONSTRAINT chk_reportes_tipo CHECK (tipo IN ('automatico', 'manual', 'cierre_mensual', 'corte'))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
@@ -1347,7 +1347,12 @@ async function ensureSchema(db = pool) {
   );
   if (chkReportesTipo.length > 0 && !chkReportesTipo[0].CHECK_CLAUSE.includes('cierre_mensual')) {
     await db.query('ALTER TABLE reportes DROP CHECK chk_reportes_tipo');
-    await db.query(`ALTER TABLE reportes ADD CONSTRAINT chk_reportes_tipo CHECK (tipo IN ('automatico', 'manual', 'cierre_mensual'))`);
+    await db.query(`ALTER TABLE reportes ADD CONSTRAINT chk_reportes_tipo CHECK (tipo IN ('automatico', 'manual', 'cierre_mensual', 'corte'))`);
+  } else if (chkReportesTipo.length > 0 && !chkReportesTipo[0].CHECK_CLAUSE.includes('corte')) {
+    // Punto 168 — "Corte del día" en Ventas: instalaciones que ya tenían
+    // el CHECK con 'cierre_mensual' pero sin 'corte' todavía.
+    await db.query('ALTER TABLE reportes DROP CHECK chk_reportes_tipo');
+    await db.query(`ALTER TABLE reportes ADD CONSTRAINT chk_reportes_tipo CHECK (tipo IN ('automatico', 'manual', 'cierre_mensual', 'corte'))`);
   }
   const [chkReporteItemsTipo] = await db.query(
     `SELECT CHECK_CLAUSE FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_reporte_items_tipo_registro'`

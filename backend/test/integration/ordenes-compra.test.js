@@ -33,10 +33,12 @@ jest.mock('../../utils/reportes', () => {
   return {
     ...actual,
     generarYEnviarReporte: jest.fn().mockResolvedValue({ correoEnviado: false, correoDestino: null }),
+    guardarReporte: jest.fn().mockResolvedValue(999),
   };
 });
 
 const { pool } = require('../../db');
+const { guardarReporte } = require('../../utils/reportes');
 const { hashPassword } = require('../../utils/authUsuario');
 const { registrarMovimiento, obtenerProductoPorId } = require('../../utils/inventario');
 const { inventarioActivo } = require('../../utils/inventarioConfig');
@@ -620,5 +622,116 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
       expect(registrarMovimiento).toHaveBeenCalledWith(expect.objectContaining({ productoId: 6, tipo: 'devolucion_cliente', cantidad: 1 }));
       expect(pool.query).toHaveBeenCalledWith('DELETE FROM orden_productos WHERE orden_id = ?', [11]);
     });
+  });
+});
+
+describe('POST /api/admin/reportes/corte (punto 168: "Corte del día" en Ventas)', () => {
+  afterEach(() => {
+    pool.query.mockReset();
+    guardarReporte.mockClear();
+  });
+
+  test('sin fechas responde 400', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('administrador');
+    const res = await request(app).post('/api/admin/reportes/corte').auth(usuario, password).send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/fecha/i);
+  });
+
+  test('desde posterior a hasta responde 400', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('administrador');
+    const res = await request(app)
+      .post('/api/admin/reportes/corte')
+      .auth(usuario, password)
+      .send({ desde: '2026-08-31', hasta: '2026-08-01' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/anterior o igual/i);
+  });
+
+  test('perfil "fiscal" no tiene acceso (403) — misma restricción que el resto de Ventas', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('fiscal', { usuario: 'fiscal1' });
+    const res = await request(app)
+      .post('/api/admin/reportes/corte')
+      .auth(usuario, password)
+      .send({ desde: '2026-08-01', hasta: '2026-08-31' });
+    expect(res.status).toBe(403);
+  });
+
+  test('calcula subtotal/IVA/facturado/cobrado correctamente y guarda el reporte (tipo "corte")', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('administrador');
+    pool.query.mockResolvedValueOnce([
+      [
+        {
+          id: 1,
+          numero_compra: 'OC-000001',
+          fecha_compra: '2026-08-15 10:00:00',
+          concepto: 'Venta 1',
+          cantidad: '100.00',
+          total: '116.00',
+          email: 'cliente1@ejemplo.com',
+          estado_pago: 'pagada',
+          monto_cobrado: '116.00',
+          facturado: 1,
+        },
+        {
+          id: 2,
+          numero_compra: 'OC-000002',
+          fecha_compra: '2026-08-16 12:00:00',
+          concepto: 'Venta 2',
+          cantidad: '200.00',
+          total: '232.00',
+          email: 'cliente2@ejemplo.com',
+          estado_pago: 'pendiente',
+          monto_cobrado: '0.00',
+          facturado: 0,
+        },
+      ],
+    ]); // SELECT ordenes en rango
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+
+    const res = await request(app)
+      .post('/api/admin/reportes/corte')
+      .auth(usuario, password)
+      .send({ desde: '2026-08-01', hasta: '2026-08-31' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.resumen).toEqual({
+      ventas: 2,
+      subtotal: 300,
+      iva: 48,
+      total: 348,
+      facturado: 116,
+      sin_facturar: 232,
+      cobrado: 116,
+      pendiente_cobro: 232,
+    });
+    expect(res.body.ordenes).toHaveLength(2);
+    expect(res.body.ordenes[0].facturado).toBe(true);
+    expect(res.body.ordenes[1].facturado).toBe(false);
+    expect(guardarReporte).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tipo: 'corte',
+        items: expect.arrayContaining([
+          expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-000001' }),
+          expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-000002' }),
+        ]),
+      })
+    );
+  });
+
+  test('sin ventas en el rango: resumen en ceros, reporte igual se guarda', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('administrador');
+    pool.query.mockResolvedValueOnce([[]]); // SELECT ordenes -> ninguna
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+
+    const res = await request(app)
+      .post('/api/admin/reportes/corte')
+      .auth(usuario, password)
+      .send({ desde: '2026-01-01', hasta: '2026-01-31' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.resumen.ventas).toBe(0);
+    expect(res.body.ordenes).toEqual([]);
+    expect(guardarReporte).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'corte', items: [] }));
   });
 });

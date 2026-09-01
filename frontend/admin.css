@@ -1414,6 +1414,81 @@
   margin-top: 8px;
 }
 
+/* Resultado de "Corte del día" (Ventas, punto 168) dentro del modal —
+   mismo lenguaje visual que .control-form-grid (2 columnas, 1 en móvil). */
+.corte-resultado-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 14px 0;
+}
+@media (max-width: 480px) {
+  .corte-resultado-grid { grid-template-columns: 1fr; }
+}
+.corte-resultado-kv { display: flex; flex-direction: column; gap: 1px; }
+.corte-resultado-k {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+}
+.corte-resultado-v {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.corte-resultado-total .corte-resultado-v { color: var(--color-accent-dark); }
+
+/* Corte imprimible — mismo patrón que .ticket-imprimir (armado por JS
+   justo antes de window.print(), oculto en pantalla, único visible dentro
+   de @media print). A diferencia del ticket (recibo angosto), este es un
+   reporte a ancho de hoja normal. */
+.corte-imprimir { display: none; }
+@media print {
+  body > *:not(#ticket-imprimir):not(#corte-imprimir) { display: none !important; }
+  #corte-imprimir {
+    display: block !important;
+    position: static;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 0;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: #000;
+  }
+}
+.corte-imprimir-titulo {
+  font-weight: 700;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.corte-imprimir-rango { color: #333; margin-bottom: 14px; }
+.corte-imprimir-resumen {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 10px 16px;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+  padding: 10px 0;
+  margin-bottom: 14px;
+}
+.corte-imprimir-resumen div { display: flex; flex-direction: column; }
+.corte-imprimir-resumen span:first-child { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; color: #444; }
+.corte-imprimir-resumen span:last-child { font-weight: 700; font-size: 14px; }
+.corte-imprimir-tabla { width: 100%; border-collapse: collapse; }
+.corte-imprimir-tabla th, .corte-imprimir-tabla td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid #ccc;
+  font-size: 12px;
+}
+.corte-imprimir-tabla th { border-bottom: 1.5px solid #000; }
+
 /* Captura de productos de una orden de compra: se arma el concepto final
    y la cantidad (MXN) sumando productos, en vez de escribirlos a mano
    directamente — ver #orden-concepto/#orden-cantidad, que pasan a ser

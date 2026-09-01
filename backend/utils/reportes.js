@@ -64,6 +64,8 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
       ? 'Automático (antes de borrado por retención)'
       : tipo === 'cierre_mensual'
       ? 'Cierre mensual (archivado)'
+      : tipo === 'corte'
+      ? 'Corte de ventas'
       : 'Manual';
 
   const lineas = [];

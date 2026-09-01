@@ -238,6 +238,27 @@
     ordenesFiltroEstadoPago: document.getElementById('ordenes-filtro-estado-pago'),
     btnLimpiarFiltrosOrdenes: document.getElementById('btn-limpiar-filtros-ordenes'),
     ordenesFiltroEmpty: document.getElementById('ordenes-filtro-empty'),
+    // Modal "Corte del día" (punto 168)
+    btnAbrirCorteModal: document.getElementById('btn-abrir-corte-modal'),
+    corteModalOverlay: document.getElementById('corte-modal-overlay'),
+    btnCerrarCorteModal: document.getElementById('btn-cerrar-corte-modal'),
+    corteFiltroDesde: document.getElementById('corte-filtro-desde'),
+    corteFiltroHasta: document.getElementById('corte-filtro-hasta'),
+    corteError: document.getElementById('corte-error'),
+    btnGenerarCorte: document.getElementById('btn-generar-corte'),
+    btnGenerarCorteLabel: document.getElementById('btn-generar-corte-label'),
+    corteResultado: document.getElementById('corte-resultado'),
+    corteResultadoEmpty: document.getElementById('corte-resultado-empty'),
+    corteResultadoVentas: document.getElementById('corte-resultado-ventas'),
+    corteResultadoSubtotal: document.getElementById('corte-resultado-subtotal'),
+    corteResultadoIva: document.getElementById('corte-resultado-iva'),
+    corteResultadoTotal: document.getElementById('corte-resultado-total'),
+    corteResultadoFacturado: document.getElementById('corte-resultado-facturado'),
+    corteResultadoSinFacturar: document.getElementById('corte-resultado-sin-facturar'),
+    corteResultadoCobrado: document.getElementById('corte-resultado-cobrado'),
+    corteResultadoPendiente: document.getElementById('corte-resultado-pendiente'),
+    btnImprimirCorte: document.getElementById('btn-imprimir-corte'),
+    corteImprimir: document.getElementById('corte-imprimir'),
     // Modal "Registrar venta" (antes formulario sticky)
     btnAbrirOrdenModal: document.getElementById('btn-abrir-orden-modal'),
     ordenRegistrarModalOverlay: document.getElementById('orden-registrar-modal-overlay'),
@@ -1798,6 +1819,129 @@
     if (e.target === els.ordenRegistrarModalOverlay) cerrarOrdenRegistrarModal();
   });
 
+  // "Corte del día" (Ventas, PROJECT_STATE.md punto 168): reporte de
+  // consulta bajo demanda, rango de fechas libre, SOLO ventas — pantalla
+  // + imprimir, sin correo. No marca ni excluye ventas a propósito
+  // (Opción A de la propuesta aprobada: se puede repetir el mismo rango
+  // las veces que sea, sin doble-conteo real de caja).
+  let corteUltimoResultado = null;
+
+  function abrirCorteModal() {
+    els.corteError.textContent = '';
+    els.corteResultado.hidden = true;
+    els.corteResultadoEmpty.hidden = true;
+    corteUltimoResultado = null;
+    const hoy = new Date().toISOString().slice(0, 10);
+    if (!els.corteFiltroDesde.value) els.corteFiltroDesde.value = hoy;
+    if (!els.corteFiltroHasta.value) els.corteFiltroHasta.value = hoy;
+    els.corteModalOverlay.hidden = false;
+  }
+  function cerrarCorteModal() {
+    els.corteModalOverlay.hidden = true;
+  }
+  els.btnAbrirCorteModal.addEventListener('click', abrirCorteModal);
+  els.btnCerrarCorteModal.addEventListener('click', cerrarCorteModal);
+  els.corteModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.corteModalOverlay) cerrarCorteModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !els.corteModalOverlay.hidden) cerrarCorteModal();
+  });
+
+  els.btnGenerarCorte.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    els.corteError.textContent = '';
+    const desde = els.corteFiltroDesde.value;
+    const hasta = els.corteFiltroHasta.value;
+    if (!desde || !hasta) {
+      els.corteError.textContent = 'Elige la fecha "desde" y "hasta".';
+      return;
+    }
+    if (desde > hasta) {
+      els.corteError.textContent = 'La fecha "desde" debe ser anterior o igual a "hasta".';
+      return;
+    }
+
+    els.btnGenerarCorte.disabled = true;
+    els.btnGenerarCorteLabel.textContent = 'Generando…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/reportes/corte`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ desde, hasta }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.corteError.textContent = data.error || 'No se pudo generar el corte.';
+        return;
+      }
+      corteUltimoResultado = data;
+      const r = data.resumen;
+      els.corteResultadoVentas.textContent = r.ventas;
+      els.corteResultadoSubtotal.textContent = `$${formatearMoneda(r.subtotal)}`;
+      els.corteResultadoIva.textContent = `$${formatearMoneda(r.iva)}`;
+      els.corteResultadoTotal.textContent = `$${formatearMoneda(r.total)}`;
+      els.corteResultadoFacturado.textContent = `$${formatearMoneda(r.facturado)}`;
+      els.corteResultadoSinFacturar.textContent = `$${formatearMoneda(r.sin_facturar)}`;
+      els.corteResultadoCobrado.textContent = `$${formatearMoneda(r.cobrado)}`;
+      els.corteResultadoPendiente.textContent = `$${formatearMoneda(r.pendiente_cobro)}`;
+      els.corteResultado.hidden = false;
+      els.corteResultadoEmpty.hidden = r.ventas > 0;
+    } catch (err) {
+      els.corteError.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      els.btnGenerarCorte.disabled = false;
+      els.btnGenerarCorteLabel.textContent = 'Generar corte';
+    }
+  });
+
+  // Arma el corte imprimible (ancho de hoja, no recibo) del último
+  // resultado ya generado — mismo criterio que imprimirTicketOrden: llenar
+  // un contenedor oculto y llamar a window.print() en la misma página, sin
+  // ventana nueva (los popups se bloquean seguido tras un fetch async).
+  els.btnImprimirCorte.addEventListener('click', () => {
+    if (!corteUltimoResultado) return;
+    const { desde, hasta, resumen, ordenes } = corteUltimoResultado;
+    const filasHtml = ordenes.length
+      ? ordenes
+          .map(
+            (o) => `
+              <tr>
+                <td>${escapeHtml(o.numero_compra)}</td>
+                <td>${escapeHtml(o.fecha_compra_formateada.fecha)}</td>
+                <td>${o.email ? escapeHtml(o.email) : 'Sin correo'}</td>
+                <td>${o.facturado ? 'Facturado' : 'Sin facturar'}</td>
+                <td>$${formatearMoneda(o.total)}</td>
+              </tr>`
+          )
+          .join('')
+      : '<tr><td colspan="5">Sin ventas en este rango.</td></tr>';
+    els.corteImprimir.innerHTML = `
+      <div class="corte-imprimir-titulo">Corte de ventas</div>
+      <div class="corte-imprimir-rango">${escapeHtml(desde)} — ${escapeHtml(hasta)}</div>
+      <div class="corte-imprimir-resumen">
+        <div><span>Ventas</span><span>${resumen.ventas}</span></div>
+        <div><span>Subtotal</span><span>$${formatearMoneda(resumen.subtotal)}</span></div>
+        <div><span>IVA</span><span>$${formatearMoneda(resumen.iva)}</span></div>
+        <div><span>Total</span><span>$${formatearMoneda(resumen.total)}</span></div>
+        <div><span>Facturado</span><span>$${formatearMoneda(resumen.facturado)}</span></div>
+        <div><span>Sin facturar</span><span>$${formatearMoneda(resumen.sin_facturar)}</span></div>
+        <div><span>Cobrado</span><span>$${formatearMoneda(resumen.cobrado)}</span></div>
+        <div><span>Pendiente de cobro</span><span>$${formatearMoneda(resumen.pendiente_cobro)}</span></div>
+      </div>
+      <table class="corte-imprimir-tabla">
+        <thead><tr><th>No. Venta</th><th>Fecha</th><th>Correo</th><th>Facturación</th><th>Total</th></tr></thead>
+        <tbody>${filasHtml}</tbody>
+      </table>
+    `;
+    window.print();
+  });
+
   // Las zonas horarias son un catálogo fijo (no cambia entre peticiones),
   // así que se piden una sola vez y se reutilizan tanto aquí como en la
   // vista de Ventas.
@@ -2294,7 +2438,7 @@
       reportesDisponibles.forEach((r) => {
         const option = document.createElement('option');
         option.value = r.id;
-        const tipoTexto = r.tipo === 'automatico' ? 'Automático' : 'Manual';
+        const tipoTexto = r.tipo === 'automatico' ? 'Automático' : r.tipo === 'cierre_mensual' ? 'Cierre mensual' : r.tipo === 'corte' ? 'Corte de ventas' : 'Manual';
         option.textContent = `${formatearFechaCorta(r.fecha_generacion)} — ${tipoTexto} (${r.total_tickets} tickets, ${r.total_ordenes} ventas)`;
         els.reportesSelector.appendChild(option);
       });
@@ -2664,7 +2808,14 @@
 
     const reporte = reportesDisponibles.find((r) => String(r.id) === String(reporteSeleccionadoId));
     if (reporte) {
-      els.resumenReporteTipo.textContent = reporte.tipo === 'automatico' ? 'Automático (antes de borrado)' : 'Manual';
+      els.resumenReporteTipo.textContent =
+        reporte.tipo === 'automatico'
+          ? 'Automático (antes de borrado)'
+          : reporte.tipo === 'cierre_mensual'
+          ? 'Cierre mensual'
+          : reporte.tipo === 'corte'
+          ? 'Corte de ventas'
+          : 'Manual';
       els.resumenReporteFecha.textContent = formatearFechaCorta(reporte.fecha_generacion);
       els.resumenReporteTickets.textContent = reporte.total_tickets;
       els.resumenReporteOrdenes.textContent = reporte.total_ordenes;

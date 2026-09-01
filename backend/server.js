@@ -100,7 +100,7 @@ const {
   CLAVE_ULTIMA_LIMPIEZA_TICKETS,
   CLAVE_ULTIMA_LIMPIEZA_ORDENES,
 } = require('./utils/ticketsCleanup');
-const { generarYEnviarReporte, generarCSV, generarExcelBuffer } = require('./utils/reportes');
+const { generarYEnviarReporte, generarContenidoMD, guardarReporte, generarCSV, generarExcelBuffer } = require('./utils/reportes');
 const {
   categoriaGastoExiste,
   listarCategoriasGastos,
@@ -3372,6 +3372,123 @@ app.post(
       correoEnviado: resultado.correoEnviado,
       correoDestino: resultado.correoDestino,
     });
+  })
+);
+
+// "Corte del día" (Ventas, PROJECT_STATE.md punto 168): a diferencia de
+// /reportes/enviar (fijo a "desde inicio de mes", mezcla tickets+ventas y
+// siempre intenta correo), este es bajo demanda con rango de fechas libre,
+// SOLO ventas, sin correo — pantalla + imprimir. Opción A de la propuesta:
+// reporte de consulta repetible, no marca nada ni es exclusivo (dos cortes
+// sobre fechas encimadas pueden repetir la misma venta a propósito).
+// Incluye ventas archivadas por el cierre mensual (mismo criterio que
+// /resumen-financiero: es un reporte histórico de lo vendido, no una lista
+// de pendientes por gestionar).
+app.post(
+  '/api/admin/reportes/corte',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const desdeTexto = typeof req.body.desde === 'string' ? req.body.desde.trim() : '';
+    const hastaTexto = typeof req.body.hasta === 'string' ? req.body.hasta.trim() : '';
+    const patronFecha = /^(\d{4})-(\d{2})-(\d{2})$/;
+    const desdeMatch = patronFecha.exec(desdeTexto);
+    const hastaMatch = patronFecha.exec(hastaTexto);
+    if (!desdeMatch || !hastaMatch) {
+      return res.status(400).json({ error: 'Indica un rango de fechas válido (desde y hasta).' });
+    }
+
+    const inicio = new Date(Date.UTC(+desdeMatch[1], +desdeMatch[2] - 1, +desdeMatch[3]));
+    // Límite superior EXCLUSIVO: el día siguiente a "hasta", para incluir
+    // el día completo sin depender de la hora exacta guardada.
+    const finExclusivo = new Date(Date.UTC(+hastaMatch[1], +hastaMatch[2] - 1, +hastaMatch[3] + 1));
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(finExclusivo.getTime()) || inicio >= finExclusivo) {
+      return res.status(400).json({ error: 'La fecha "desde" debe ser anterior o igual a "hasta".' });
+    }
+
+    const [ordenes] = await pool.query(
+      `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.total, o.email,
+              o.estado_pago, o.monto_cobrado,
+              EXISTS(
+                SELECT 1 FROM tickets t
+                WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
+              ) AS facturado
+         FROM ordenes_compra o
+        WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ? AND o.fecha_compra < ?
+        ORDER BY o.fecha_compra ASC`,
+      [inicio, finExclusivo]
+    );
+
+    const configGlobal = await getConfiguracionGlobal();
+    let subtotal = 0;
+    let total = 0;
+    let facturadoMonto = 0;
+    let cobrado = 0;
+    const ordenesFormateadas = ordenes.map((orden) => {
+      const totalOrden = Number(orden.total);
+      const facturadoOrden = Boolean(orden.facturado);
+      subtotal += Number(orden.cantidad);
+      total += totalOrden;
+      if (facturadoOrden) facturadoMonto += totalOrden;
+      cobrado += Number(orden.monto_cobrado || 0);
+      return {
+        id: orden.id,
+        numero_compra: orden.numero_compra,
+        email: orden.email,
+        total: totalOrden,
+        estado_pago: orden.estado_pago,
+        facturado: facturadoOrden,
+        fecha_compra_formateada: formatearFechaHoraMexico(
+          new Date(`${orden.fecha_compra.replace(' ', 'T')}Z`),
+          configGlobal.zona_horaria
+        ),
+      };
+    });
+    subtotal = Math.round(subtotal * 100) / 100;
+    total = Math.round(total * 100) / 100;
+    facturadoMonto = Math.round(facturadoMonto * 100) / 100;
+    cobrado = Math.round(cobrado * 100) / 100;
+    const resumen = {
+      ventas: ordenes.length,
+      subtotal,
+      iva: Math.round((total - subtotal) * 100) / 100,
+      total,
+      facturado: facturadoMonto,
+      sin_facturar: Math.round((total - facturadoMonto) * 100) / 100,
+      cobrado,
+      pendiente_cobro: Math.round((total - cobrado) * 100) / 100,
+    };
+
+    const items = ordenes.map((orden) => ({
+      tipo_registro: 'orden_compra',
+      identificador: orden.numero_compra,
+      rfc: orden.email,
+      estatus_o_concepto: orden.concepto,
+      monto: Number(orden.total),
+      fecha_registro: orden.fecha_compra,
+    }));
+    const fechaGeneracion = new Date();
+    const mdContenido = generarContenidoMD({
+      tipo: 'corte',
+      fechaGeneracion,
+      rangoInicio: inicio,
+      rangoFin: finExclusivo,
+      items,
+      zonaHoraria: configGlobal.zona_horaria,
+    });
+    const reporteId = await guardarReporte({
+      tipo: 'corte',
+      fechaGeneracion,
+      rangoInicio: inicio,
+      rangoFin: finExclusivo,
+      items,
+      mdContenido,
+      correoEnviadoA: null,
+      correoEnviado: false,
+    });
+
+    res.json({ reporteId, desde: desdeTexto, hasta: hastaTexto, resumen, ordenes: ordenesFormateadas });
   })
 );
 

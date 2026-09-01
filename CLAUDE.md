@@ -1054,6 +1054,25 @@ completo (analizar, revisar impacto, criticar y mejorar el
 requerimiento, propuesta visual, confirmar) antes de tocar código. Ver
 el punto 167 para las preguntas de diseño abiertas.
 
+**"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en navegador real
+(ver PROJECT_STATE.md punto 168, 2026-08-31/09-01)**: botón "Corte del
+día" junto a "+ Registrar venta" — reporte de consulta bajo demanda,
+rango de fechas libre (desde-hasta), SOLO ventas, pantalla + imprimir
+(sin correo), sí persiste en "Lectura de reportes" (todo decidido por
+el usuario tras el Artifact de propuesta A/B). `POST /api/admin/
+reportes/corte` reusa `guardarReporte()`/`generarContenidoMD()` ya
+existentes en `utils/reportes.js` con `tipo:'corte'` nuevo (migración de
+`chk_reportes_tipo`) — no duplica la infraestructura de `/reportes/
+enviar`. Imprimir reusa el patrón `@media print` de un solo elemento
+visible del ticket de venta (punto 130), `#corte-imprimir` hijo directo
+de `<body>`. Jest backend 786/786 (45 suites, 5 tests nuevos). Validado
+contra Docker/MySQL reales por curl y en navegador real (Claude in
+Chrome) con datos reales y estado vacío, sin errores de consola.
+**El usuario avisó al aprobar este segmento que deja el equipo** — ver
+memoria persistente `project_handoff_equipo.md`: documentar con doble
+cuidado de aquí en adelante, sin asumir que habrá alguien disponible
+para resolver ambigüedades futuras. Sin commit/push todavía.
+
 **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un
