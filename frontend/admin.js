@@ -5594,6 +5594,7 @@
       els.ordenInventarioUnidadesLabel.innerHTML = `Cantidad (${escapeHtml(etiquetaUnidad)}) <span class="required">*</span>`;
     }
     els.ordenInventarioUnidades.step = permiteDecimales ? '0.001' : '1';
+    els.ordenInventarioUnidades.min = permiteDecimales ? '0.001' : '1';
     els.ordenInventarioUnidades.value = '1';
     setFieldError('orden-inventario-unidades', '');
     document.getElementById('error-orden-inventario-general').textContent = '';
@@ -5663,6 +5664,27 @@
 
   if (els.btnAgregarProductoInventarioOrden) {
     els.btnAgregarProductoInventarioOrden.addEventListener('click', agregarProductoInventarioOrden);
+  }
+
+  // Punto 176: el `step` que ajusta seleccionarProductoInventarioOrden()
+  // solo cambia el incremento de las flechitas del input — un
+  // <input type="number"> NUNCA bloquea escribir o pegar un "." a mano,
+  // sin importar `step`/`min` (eso solo lo checa el navegador al hacer
+  // submit de un <form>, que este modal no usa). Bug real reportado por
+  // el usuario con captura: un producto de unidad de conteo (Pieza)
+  // seguía mostrando un valor con decimales en el campo. Se corta en
+  // vivo mientras se teclea, además de la validación que ya existía al
+  // presionar "+ Agregar producto" (que sigue ahí, defensa en
+  // profundidad) — así el campo nunca deja ver un decimal para empezar.
+  if (els.ordenInventarioUnidades) {
+    els.ordenInventarioUnidades.setAttribute('autocomplete', 'off');
+    els.ordenInventarioUnidades.addEventListener('input', () => {
+      if (!ordenInventarioProductoSeleccionado || ordenInventarioProductoSeleccionado.permite_decimales !== false) return;
+      const soloEntero = els.ordenInventarioUnidades.value.split('.')[0];
+      if (soloEntero !== els.ordenInventarioUnidades.value) {
+        els.ordenInventarioUnidades.value = soloEntero;
+      }
+    });
   }
 
   if (els.ordenInventarioBuscar) {

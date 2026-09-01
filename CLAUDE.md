@@ -1171,8 +1171,30 @@ ninguna validación real, para cualquier producto). 7 tests nuevos (6
 unit + 1 integración), Jest backend 794/794. Validado contra
 Docker/MySQL reales y en navegador real: producto en Litro con
 decimales acepta, producto en Pieza con decimales rechaza (cliente Y
-servidor), Pieza con entero acepta, cero errores de consola. Sin
-commit/push todavía.
+servidor), Pieza con entero acepta, cero errores de consola.
+**Commiteado y pusheado** (`3aeb1b8` → `fact/master`).
+
+**Bug real del punto 175 — el campo seguía dejando escribir un decimal
+a mano (ver PROJECT_STATE.md punto 176, 2026-09-01, ENCONTRADO Y
+CORREGIDO, reportado por el usuario con captura)**: el fix anterior
+solo tocaba `step`, que jamás bloquea escribir/pegar un "." a mano (eso
+solo lo checa el navegador al hacer submit de un `<form>` real, no
+aplica a este modal) — la validación al presionar "+ Agregar producto"
+seguía atrapándolo al final, pero el campo dejaba VERSE con el decimal
+hasta ese punto. Fix: listener de `input` en vivo que corta cualquier
+cosa después de un "." apenas aparece, para productos de unidad de
+conteo — mientras se teclea, no hasta el submit. De paso, `min` también
+se ajusta junto con `step` (antes fijo en 0.001) y `autocomplete="off"`
+explícito. **Gotcha de esta sesión, no del código**: probar con
+`.value =` (setter nativo) en vez de teclas reales da resultados sin
+sentido — un `<input type="number">` sanea silenciosamente a "" un
+valor intermedio inválido ("3.") cuando se asigna así, algo que NO pasa
+con tecleo real (hay que probar con el tool `computer`, teclas reales
+vía CDP, para una prueba fiel). 100% frontend, Jest backend 794/794
+(sin cambios, corrido por sanidad). Validado en navegador real con
+tecleo real: "3.001" en un producto Pieza nunca deja aparecer el punto,
+"12" entra sin perder dígitos, venta de 12 piezas se agrega correcto
+($1,800.00), cero errores de consola. Sin commit/push todavía.
 
 **PENDIENTE — Correo de contacto de empresa + burbuja "Solicitar
 aclaraciones" (2026-09-01, ver PROJECT_STATE.md punto 170, SOLO

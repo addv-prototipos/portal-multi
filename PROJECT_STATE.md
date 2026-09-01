@@ -11229,7 +11229,48 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         error inline en cliente para Pieza+decimales sin llegar al
         servidor, ambos productos agregados correctamente a la lista de
         la venta con sus subtotales exactos, cero errores de consola.
-        Datos de prueba limpiados al terminar. Sin commit/push todavía.
+        Datos de prueba limpiados al terminar. **Commiteado y pusheado**
+        (`3aeb1b8` → `fact/master`).
+  176. **Bug real del punto 175 — el campo seguía dejando escribir un
+      decimal a mano (2026-09-01, ENCONTRADO Y CORREGIDO, reportado por
+      el usuario con captura: "Cantidad (pz)" mostrando "3.001")**: el
+      fix del punto 175 solo cambiaba el atributo `step` del input —
+      eso únicamente ajusta el incremento de las flechitas nativas del
+      `<input type="number">`, **nunca** bloquea escribir o pegar un
+      "." a mano (el navegador solo checa `step`/`min` al hacer submit
+      de un `<form>` real, y este modal no usa uno) — la validación de
+      "+ Agregar producto" seguía atrapándolo al final, pero el campo
+      mismo dejaba verse/quedarse con el decimal hasta ese punto,
+      justo lo que reportó el usuario.
+      - **Fix**: listener de `input` en vivo sobre
+        `#orden-inventario-unidades` — para un producto de unidad de
+        conteo, cada tecla corta cualquier cosa después de un "."
+        apenas aparece (mientras se teclea, no hasta el submit). De
+        paso, `min` del campo también se ajusta junto con `step` (antes
+        se quedaba fijo en 0.001 sin importar la unidad) y
+        `autocomplete="off"` explícito (el campo no lo tenía, así que
+        el navegador podía sugerir un valor decimal recordado de otro
+        producto).
+      - **Gotcha de esta sesión, no del código**: la primera prueba con
+        tecleo simulado (sobreescribiendo `.value` con el setter nativo
+        en vez de teclas reales) dio resultados sin sentido ("001") —
+        un `<input type="number">` sanea silenciosamente a "" cualquier
+        valor intermedio inválido (ej. "3.") cuando se asigna por
+        `.value`, algo que NO pasa con tecleo real de teclado (el
+        navegador sí deja ver el estado intermedio). Repetido con el
+        tool `computer` (teclas reales vía CDP) para una prueba fiel —
+        confirmó el fix: "3.001" tecleado en un producto Pieza nunca
+        deja aparecer el punto, y "12" tecleado normal entra sin perder
+        ningún dígito.
+      - Cambio 100% frontend (`admin.js`), sin tocar backend (que ya
+        rechazaba correctamente desde el punto 175 — esto cierra el
+        hueco de que el campo lo mostrara ANTES de rechazarlo). Jest
+        backend 794/794 (sin cambios, corrido por sanidad). Validado
+        contra Docker real y en navegador real (Claude in Chrome, con
+        tecleo real vía el tool `computer`): decimal bloqueado en vivo
+        para Pieza, "+ Agregar producto" con 12 piezas entra
+        correctamente ($1,800.00 = 12 × $150), cero errores de consola.
+        Datos de prueba limpiados. Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 
