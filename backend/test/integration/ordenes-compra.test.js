@@ -363,6 +363,33 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
       expect(pool.query).toHaveBeenCalledWith('DELETE FROM ordenes_compra WHERE id = ?', [51]);
     });
 
+    // Punto 175: la validación real vive en registrarMovimiento() (ver
+    // test/unit/inventario.test.js) — aquí solo se confirma que el error
+    // se propaga con el status correcto (400, no 409 — no es un problema
+    // de stock) hasta la respuesta HTTP de Ventas.
+    test('cantidad con decimales en un producto de unidad de conteo: responde 400 con INV_CANTIDAD_DEBE_SER_ENTERA', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      inventarioActivo.mockResolvedValue(true);
+      obtenerProductoPorId.mockResolvedValue({ id: 5, tipo: 'producto', nombre: 'Tornillo' });
+      registrarMovimiento.mockResolvedValue({
+        error: 'INV_CANTIDAD_DEBE_SER_ENTERA',
+        mensaje: '"Pieza" es una unidad de conteo — la cantidad debe ser un número entero, sin decimales.',
+      });
+      pool.query.mockResolvedValueOnce([[]]); // config
+      pool.query.mockResolvedValueOnce([{ insertId: 52 }]); // INSERT
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // DELETE compensatorio
+
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({ concepto: '1.5 x Tornillo M6', cantidad: 50, producto_id: 5, producto_cantidad: 1.5 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('INV_CANTIDAD_DEBE_SER_ENTERA');
+      expect(pool.query).toHaveBeenCalledWith('DELETE FROM ordenes_compra WHERE id = ?', [52]);
+    });
+
     test('producto tipo "servicio": no llama a registrarMovimiento (D11)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       inventarioActivo.mockResolvedValue(true);

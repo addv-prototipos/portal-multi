@@ -22,23 +22,29 @@ const { negativoPermitido } = require('./inventarioConfig');
 // Unidades de medida sembradas por ensureSchema() la primera vez (§9 de
 // inventarios.md) — cubren pieza, volumen y peso para que líquidos y
 // gramaje no necesiten campos adicionales (decisión D11).
+// 3er elemento = permite_decimales (punto 175): unidades de conteo
+// (pieza, caja, paquete, bolsa, par, juego, rollo, tarima — incluye
+// "bultos"/"costales" del pedido del usuario, que se venden como
+// unidades discretas del mismo tipo que caja/bolsa) exigen cantidad
+// ENTERA; unidades de medida continua (peso, volumen, longitud, área)
+// sí admiten decimales.
 const UNIDADES_SEED = [
-  ['Pieza', 'pz'],
-  ['Caja', 'caja'],
-  ['Paquete', 'paq'],
-  ['Bolsa', 'bolsa'],
-  ['Kilogramo', 'kg'],
-  ['Gramo', 'g'],
-  ['Litro', 'L'],
-  ['Mililitro', 'ml'],
-  ['Metro', 'm'],
-  ['Centímetro', 'cm'],
-  ['Metro cuadrado', 'm2'],
-  ['Metro cúbico', 'm3'],
-  ['Par', 'par'],
-  ['Juego', 'juego'],
-  ['Rollo', 'rollo'],
-  ['Tarima', 'tarima'],
+  ['Pieza', 'pz', 0],
+  ['Caja', 'caja', 0],
+  ['Paquete', 'paq', 0],
+  ['Bolsa', 'bolsa', 0],
+  ['Kilogramo', 'kg', 1],
+  ['Gramo', 'g', 1],
+  ['Litro', 'L', 1],
+  ['Mililitro', 'ml', 1],
+  ['Metro', 'm', 1],
+  ['Centímetro', 'cm', 1],
+  ['Metro cuadrado', 'm2', 1],
+  ['Metro cúbico', 'm3', 1],
+  ['Par', 'par', 0],
+  ['Juego', 'juego', 0],
+  ['Rollo', 'rollo', 0],
+  ['Tarima', 'tarima', 0],
 ];
 
 const UNIDAD_BASE_DEFECTO = 'Pieza';
@@ -193,7 +199,12 @@ async function registrarMovimiento(opts) {
     }
 
     const [productos] = await conexion.query(
-      "SELECT id, tipo AS tipo_producto, costo_promedio, moneda FROM productos WHERE id = ? AND eliminado_en IS NULL FOR UPDATE",
+      `SELECT p.id, p.tipo AS tipo_producto, p.costo_promedio, p.moneda,
+              um.nombre AS unidad_nombre, um.permite_decimales
+         FROM productos p
+         JOIN unidades_medida um ON um.id = p.unidad_id
+        WHERE p.id = ? AND p.eliminado_en IS NULL
+        FOR UPDATE`,
       [productoId]
     );
     if (productos.length === 0) {
@@ -204,6 +215,19 @@ async function registrarMovimiento(opts) {
     if (producto.tipo_producto === 'servicio') {
       await conexion.rollback();
       return { error: 'INV_PRODUCTO_SERVICIO', mensaje: 'Un servicio no genera movimientos de inventario (D11).' };
+    }
+    // Punto 175: la cantidad respeta la unidad de medida del producto — de
+    // conteo (pieza, caja, bulto, costal...) exige entero; de medida
+    // continua (litro, gramo, kilo, metro...) sí admite decimales. Se
+    // valida aquí (con el producto YA bloqueado, así que se conoce su
+    // unidad real) para todos los tipos de movimiento por igual — venta,
+    // entrada, ajuste — un solo lugar, sin duplicar la regla por llamador.
+    if (!producto.permite_decimales && !Number.isInteger(cant)) {
+      await conexion.rollback();
+      return {
+        error: 'INV_CANTIDAD_DEBE_SER_ENTERA',
+        mensaje: `"${producto.unidad_nombre}" es una unidad de conteo — la cantidad debe ser un número entero, sin decimales.`,
+      };
     }
 
     // §57: si el producto está marcado en USD y esta es una entrada con

@@ -130,6 +130,11 @@ function crearConexionFalsa({
   disponibleActual = 10,
   costoPromedioActual = 0,
   monedaProducto = 'MXN',
+  // Punto 175: por defecto la unidad simulada admite decimales — así
+  // ningún test existente (que ya usa cantidades enteras o no le importa
+  // el punto decimal) se ve afectado por agregar este parámetro.
+  permiteDecimales = true,
+  unidadNombre = 'Pieza',
 } = {}) {
   const llamadas = [];
   const conexion = {
@@ -141,9 +146,16 @@ function crearConexionFalsa({
       llamadas.push({ sql, params });
       const s = sql.trim();
       if (s.startsWith('SET SESSION')) return [{}];
-      if (s.startsWith('SELECT id, tipo AS tipo_producto')) {
+      if (s.startsWith('SELECT p.id, p.tipo AS tipo_producto')) {
         return productoExiste
-          ? [[{ id: params[0], tipo_producto: tipoProducto, costo_promedio: costoPromedioActual, moneda: monedaProducto }]]
+          ? [[{
+              id: params[0],
+              tipo_producto: tipoProducto,
+              costo_promedio: costoPromedioActual,
+              moneda: monedaProducto,
+              unidad_nombre: unidadNombre,
+              permite_decimales: permiteDecimales ? 1 : 0,
+            }]]
           : [[]];
       }
       if (s.startsWith('INSERT IGNORE INTO existencias')) return [{}];
@@ -188,7 +200,7 @@ describe('registrarMovimiento — camino feliz (transacción simulada)', () => {
     expect(conexion.release).toHaveBeenCalledTimes(1);
 
     const sqlEjecutados = llamadas.map((l) => l.sql.trim().split('\n')[0]);
-    expect(sqlEjecutados.some((s) => s.startsWith('SELECT id, tipo AS tipo_producto'))).toBe(true);
+    expect(sqlEjecutados.some((s) => s.startsWith('SELECT p.id, p.tipo AS tipo_producto'))).toBe(true);
     expect(sqlEjecutados.some((s) => s.includes('FOR UPDATE') || s.startsWith('SELECT disponible'))).toBe(true);
   });
 
@@ -251,6 +263,77 @@ describe('registrarMovimiento — camino feliz (transacción simulada)', () => {
 
     expect(resultado.error).toBe('INV_PRODUCTO_NO_ENCONTRADO');
     expect(conexion.rollback).toHaveBeenCalledTimes(1);
+  });
+
+  // Punto 175: la cantidad respeta la unidad de medida del producto — de
+  // conteo (pieza, caja, bulto, costal...) exige entero, de medida
+  // continua (litro, gramo, kilo...) admite decimales. Cubre venta
+  // (el caso pedido explícitamente) y una entrada, para confirmar que la
+  // regla es del motor, no de un tipo de movimiento en particular.
+  describe('cantidad entera vs. decimal según la unidad de medida (punto 175)', () => {
+    test('unidad de conteo (Pieza) + cantidad con decimales: se rechaza sin llegar a existencias', async () => {
+      const { conexion } = crearConexionFalsa({ permiteDecimales: false, unidadNombre: 'Pieza' });
+      pool.getConnection.mockResolvedValue(conexion);
+
+      const resultado = await registrarMovimiento({ productoId: 10, almacenId: 1, tipo: 'venta', cantidad: 1.5 });
+
+      expect(resultado.error).toBe('INV_CANTIDAD_DEBE_SER_ENTERA');
+      expect(resultado.mensaje).toMatch(/Pieza/);
+      expect(conexion.rollback).toHaveBeenCalledTimes(1);
+      expect(conexion.commit).not.toHaveBeenCalled();
+    });
+
+    test('unidad de conteo (Costal, ejemplo del usuario) + cantidad con decimales: se rechaza', async () => {
+      const { conexion } = crearConexionFalsa({ permiteDecimales: false, unidadNombre: 'Costal' });
+      pool.getConnection.mockResolvedValue(conexion);
+
+      const resultado = await registrarMovimiento({ productoId: 10, almacenId: 1, tipo: 'venta', cantidad: 2.25 });
+
+      expect(resultado.error).toBe('INV_CANTIDAD_DEBE_SER_ENTERA');
+      expect(conexion.rollback).toHaveBeenCalledTimes(1);
+    });
+
+    test('unidad de conteo (Pieza) + cantidad entera: se acepta normal', async () => {
+      const { conexion } = crearConexionFalsa({ permiteDecimales: false, unidadNombre: 'Pieza', disponibleActual: 10 });
+      pool.getConnection.mockResolvedValue(conexion);
+
+      const resultado = await registrarMovimiento({ productoId: 10, almacenId: 1, tipo: 'venta', cantidad: 3 });
+
+      expect(resultado.error).toBeUndefined();
+      expect(resultado.existenciaPosterior).toBe(7);
+      expect(conexion.commit).toHaveBeenCalledTimes(1);
+    });
+
+    test('unidad de medida continua (Litro) + cantidad con decimales: se acepta (no aplica la regla)', async () => {
+      const { conexion } = crearConexionFalsa({ permiteDecimales: true, unidadNombre: 'Litro', disponibleActual: 10 });
+      pool.getConnection.mockResolvedValue(conexion);
+
+      const resultado = await registrarMovimiento({ productoId: 10, almacenId: 1, tipo: 'venta', cantidad: 2.75 });
+
+      expect(resultado.error).toBeUndefined();
+      expect(resultado.existenciaPosterior).toBe(7.25);
+      expect(conexion.commit).toHaveBeenCalledTimes(1);
+    });
+
+    test('unidad de medida continua (Kilogramo) + entrada con decimales: se acepta', async () => {
+      const { conexion } = crearConexionFalsa({ permiteDecimales: true, unidadNombre: 'Kilogramo', disponibleActual: 0 });
+      pool.getConnection.mockResolvedValue(conexion);
+
+      const resultado = await registrarMovimiento({ productoId: 10, almacenId: 1, tipo: 'compra', cantidad: 12.5, costoUnitario: 10 });
+
+      expect(resultado.error).toBeUndefined();
+      expect(resultado.existenciaPosterior).toBe(12.5);
+    });
+
+    test('la regla se aplica igual en una entrada (compra) con unidad de conteo', async () => {
+      const { conexion } = crearConexionFalsa({ permiteDecimales: false, unidadNombre: 'Caja' });
+      pool.getConnection.mockResolvedValue(conexion);
+
+      const resultado = await registrarMovimiento({ productoId: 10, almacenId: 1, tipo: 'compra', cantidad: 4.5, costoUnitario: 10 });
+
+      expect(resultado.error).toBe('INV_CANTIDAD_DEBE_SER_ENTERA');
+      expect(conexion.commit).not.toHaveBeenCalled();
+    });
   });
 
   test('salida sin stock suficiente (permitir negativo apagado por defecto) se rechaza y hace rollback', async () => {

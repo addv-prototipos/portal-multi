@@ -1153,7 +1153,26 @@ Efecto secundario encontrado y corregido: "Cuentas por cobrar" tenía
 el título duplicado (uno en cada sistema, antes disimulado por el
 tamaño distinto) — se quitó el `<h1>` redundante de la barra de
 herramientas. Jest backend 787/787, validado en navegador real, cero
-errores de consola. Sin commit/push.
+errores de consola. **Commiteado y pusheado** (`c831b36` →
+`fact/master`, junto con los puntos 171-173).
+
+**Cantidad entera vs. decimal según la unidad de medida — Ventas (ver
+PROJECT_STATE.md punto 175, 2026-09-01)**: columna nueva
+`unidades_medida.permite_decimales` (16 unidades clasificadas: conteo
+—pieza/caja/paquete/bolsa/par/juego/rollo/tarima— exige entero, medida
+continua —kilogramo/gramo/litro/mililitro/metro/cm/m2/m3— admite
+decimales). Validación centralizada DENTRO de `registrarMovimiento()`
+(un solo choke-point, cubre venta/entrada/ajuste por igual, sin
+duplicar la regla por llamador). Error nuevo
+`INV_CANTIDAD_DEBE_SER_ENTERA` (400). `/productos/buscar` expone la
+unidad del producto — el campo "Cantidad" de Ventas ajusta su
+`step`/etiqueta al seleccionar (antes fijo en "piezas" siempre, sin
+ninguna validación real, para cualquier producto). 7 tests nuevos (6
+unit + 1 integración), Jest backend 794/794. Validado contra
+Docker/MySQL reales y en navegador real: producto en Litro con
+decimales acepta, producto en Pieza con decimales rechaza (cliente Y
+servidor), Pieza con entero acepta, cero errores de consola. Sin
+commit/push todavía.
 
 **PENDIENTE — Correo de contacto de empresa + burbuja "Solicitar
 aclaraciones" (2026-09-01, ver PROJECT_STATE.md punto 170, SOLO

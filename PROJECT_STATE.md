@@ -11181,7 +11181,55 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       documentado varias veces en este archivo); un reload con
       query-string nuevo lo confirmó corregido. Jest backend 787/787,
       validado en navegador real (Ventas, Cuentas por cobrar), cero
-      errores de consola. Sin commit/push todavía.
+      errores de consola. **Commiteado y pusheado** (`c831b36` →
+      `fact/master`, junto con los puntos 171-173).
+  175. **Cantidad entera vs. decimal según la unidad de medida — Ventas
+      (2026-09-01, IMPLEMENTADO Y VALIDADO)**: usuario pidió que la
+      cantidad capturada al vender un producto de inventario respete su
+      unidad de medida — de conteo (piezas, bultos, costales, cajas)
+      exige entero; de medida continua (litros, gramos, kilos) admite
+      decimales. Antes `#orden-inventario-unidades` aceptaba decimales
+      para CUALQUIER producto sin importar su unidad (`step="0.001"`
+      fijo) — ninguna validación real, ni en frontend ni en backend.
+      - **Columna nueva** `unidades_medida.permite_decimales` (TINYINT,
+        default 1) — `UNIDADES_SEED` en `utils/inventario.js` ahora
+        clasifica las 16 unidades: conteo (Pieza/Caja/Paquete/Bolsa/Par/
+        Juego/Rollo/Tarima) = 0, medida continua (Kilogramo/Gramo/
+        Litro/Mililitro/Metro/Centímetro/Metro cuadrado/Metro cúbico) =
+        1. Migración + backfill idempotente por nombre en `db.js` (las
+        instalaciones que ya tenían las 16 unidades sembradas con el
+        default se corrigen a la clasificación real).
+      - **Un solo choke-point**: la validación vive DENTRO de
+        `registrarMovimiento()` (con el producto ya bloqueado, así se
+        conoce su unidad real) — cubre venta, entrada, ajuste por
+        igual, sin duplicar la regla por cada llamador. Error nuevo
+        `INV_CANTIDAD_DEBE_SER_ENTERA` (400) agregado a los 3 mapas de
+        status HTTP que ya traducían errores de `registrarMovimiento()`.
+      - **Frontend**: `/productos/buscar` (usado por el buscador de
+        Ventas) ahora expone `unidad_nombre`/`unidad_abreviatura`/
+        `permite_decimales` por producto — al seleccionar uno, el campo
+        "Cantidad" ajusta su `step` (1 vs 0.001) y su etiqueta muestra
+        la unidad real (antes fija en "piezas" sin importar el
+        producto) — ej. "Cantidad (L)" para un producto en litros.
+        Validación duplicada en cliente (mismo criterio que el backend)
+        para no esperar el viaje de ida y vuelta con un error evitable.
+      - **Pruebas**: 6 tests nuevos en `test/unit/inventario.test.js`
+        (rechazo/aceptación cruzando unidad de conteo/continua × venta/
+        entrada, incluido el ejemplo textual del usuario — "Costal") +
+        1 test de integración en `test/integration/ordenes-compra.test.js`
+        confirmando que el error llega como 400 (no 409) hasta la
+        respuesta HTTP de Ventas. Jest backend **794/794 (45 suites)**.
+      - **Validado contra Docker/MySQL reales**: columna y backfill
+        confirmados en MySQL real (las 16 unidades con la clasificación
+        correcta), ciclo completo por curl (producto en Litro + entrada
+        decimal + venta decimal → aceptado; producto en Pieza + entrada/
+        venta con decimales → `INV_CANTIDAD_DEBE_SER_ENTERA`; Pieza con
+        entero → aceptado). **Validado en navegador real** (Claude in
+        Chrome): label y `step` cambian al seleccionar cada producto,
+        error inline en cliente para Pieza+decimales sin llegar al
+        servidor, ambos productos agregados correctamente a la lista de
+        la venta con sus subtotales exactos, cero errores de consola.
+        Datos de prueba limpiados al terminar. Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

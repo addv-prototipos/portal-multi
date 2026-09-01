@@ -299,6 +299,7 @@
     ordenInventarioUnidadesField: document.getElementById('orden-inventario-unidades-field'),
     ordenInventarioPrecio: document.getElementById('orden-inventario-precio'),
     ordenInventarioUnidades: document.getElementById('orden-inventario-unidades'),
+    ordenInventarioUnidadesLabel: document.getElementById('orden-inventario-unidades-label'),
     ordenInventarioDisponibleHint: document.getElementById('orden-inventario-disponible-hint'),
     btnAgregarProductoInventarioOrden: document.getElementById('btn-agregar-producto-inventario-orden'),
     ordenIvaInfo: document.getElementById('orden-iva-info'),
@@ -5583,6 +5584,16 @@
     if (els.ordenInventarioPrecio) {
       els.ordenInventarioPrecio.value = producto.precio !== null && producto.precio !== undefined ? formatearMoneda(producto.precio) : '';
     }
+    // Punto 175: la cantidad respeta la unidad de medida del producto —
+    // de conteo (pieza, caja, bulto, costal...) exige entero, de medida
+    // continua (litro, gramo, kilo...) admite decimales. El campo se
+    // ajusta al seleccionar el producto, no queda fijo en "piezas".
+    const permiteDecimales = producto.permite_decimales !== false;
+    if (els.ordenInventarioUnidadesLabel) {
+      const etiquetaUnidad = producto.unidad_abreviatura || producto.unidad_nombre || 'piezas';
+      els.ordenInventarioUnidadesLabel.innerHTML = `Cantidad (${escapeHtml(etiquetaUnidad)}) <span class="required">*</span>`;
+    }
+    els.ordenInventarioUnidades.step = permiteDecimales ? '0.001' : '1';
     els.ordenInventarioUnidades.value = '1';
     setFieldError('orden-inventario-unidades', '');
     document.getElementById('error-orden-inventario-general').textContent = '';
@@ -5627,6 +5638,14 @@
     const unidades = Number(els.ordenInventarioUnidades.value);
     if (!Number.isFinite(unidades) || unidades <= 0) {
       setFieldError('orden-inventario-unidades', 'Captura cuántas unidades se vendieron.');
+      return;
+    }
+    // Punto 175: mismo criterio que valida el backend (registrarMovimiento) —
+    // se revisa también aquí para no esperar el viaje de ida y vuelta al
+    // servidor con un error evitable.
+    if (ordenInventarioProductoSeleccionado.permite_decimales === false && !Number.isInteger(unidades)) {
+      const etiquetaUnidad = ordenInventarioProductoSeleccionado.unidad_nombre || 'esta unidad';
+      setFieldError('orden-inventario-unidades', `"${etiquetaUnidad}" es una unidad de conteo — captura un número entero, sin decimales.`);
       return;
     }
     setFieldError('orden-inventario-unidades', '');

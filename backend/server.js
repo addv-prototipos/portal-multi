@@ -4653,6 +4653,7 @@ app.post(
           INV_CONCURRENCIA: 409,
           INV_PRODUCTO_NO_ENCONTRADO: 400,
           INV_PRODUCTO_SERVICIO: 400,
+          INV_CANTIDAD_DEBE_SER_ENTERA: 400,
         };
         return res.status(mapaEstatusInv[errorLinea.error] || 400).json(errorLinea);
       }
@@ -4683,6 +4684,7 @@ app.post(
           INV_CONCURRENCIA: 409,
           INV_PRODUCTO_NO_ENCONTRADO: 400,
           INV_PRODUCTO_SERVICIO: 400,
+          INV_CANTIDAD_DEBE_SER_ENTERA: 400,
         };
         return res.status(mapaEstatusInv[resultadoMovimiento.error] || 400).json(resultadoMovimiento);
       }
@@ -6307,8 +6309,10 @@ app.get(
   requireAdminArea('administrador'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
-    const [filas] = await pool.query('SELECT id, nombre, abreviatura FROM unidades_medida ORDER BY nombre ASC');
-    res.json({ unidades: filas });
+    const [filas] = await pool.query('SELECT id, nombre, abreviatura, permite_decimales FROM unidades_medida ORDER BY nombre ASC');
+    res.json({
+      unidades: filas.map((u) => ({ id: u.id, nombre: u.nombre, abreviatura: u.abreviatura, permite_decimales: Boolean(u.permite_decimales) })),
+    });
   })
 );
 
@@ -6568,9 +6572,11 @@ app.get(
     const almacenId = await obtenerAlmacenDefectoId();
     const patron = `%${termino}%`;
     const [filas] = await pool.query(
-      `SELECT p.id, p.sku, p.nombre, p.codigo_barras, p.precio, p.tipo, p.imagen_thumb_key, p.imagen_actualizada_en, e.disponible
+      `SELECT p.id, p.sku, p.nombre, p.codigo_barras, p.precio, p.tipo, p.imagen_thumb_key, p.imagen_actualizada_en, e.disponible,
+              um.nombre AS unidad_nombre, um.abreviatura AS unidad_abreviatura, um.permite_decimales
          FROM productos p
          LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = ?
+         JOIN unidades_medida um ON um.id = p.unidad_id
         WHERE p.eliminado_en IS NULL AND p.estado = 'activo'
           AND (p.nombre LIKE ? OR p.sku LIKE ? OR p.codigo_barras = ?)
         ORDER BY p.nombre ASC
@@ -6586,6 +6592,11 @@ app.get(
         precio: p.precio === null ? null : Number(p.precio),
         tipo: p.tipo,
         disponible: p.disponible === null ? 0 : Number(p.disponible),
+        // Punto 175: la unidad de medida del producto decide si la
+        // cantidad en Ventas admite decimales o exige entero.
+        unidad_nombre: p.unidad_nombre,
+        unidad_abreviatura: p.unidad_abreviatura,
+        permite_decimales: Boolean(p.permite_decimales),
         imagen_thumb_url: p.imagen_thumb_key
           ? `/api/admin/inventarios/productos/${p.id}/imagen?v=thumb&t=${new Date(p.imagen_actualizada_en).getTime()}`
           : null,
@@ -6883,6 +6894,7 @@ async function manejarMovimiento(req, res, tiposPermitidos) {
       INV_STOCK_INSUFICIENTE: 409,
       INV_CONCURRENCIA: 409,
       INV_TIPO_CAMBIO_INVALIDO: 400,
+      INV_CANTIDAD_DEBE_SER_ENTERA: 400,
     };
     return res.status(mapaEstatus[resultado.error] || 400).json(resultado);
   }

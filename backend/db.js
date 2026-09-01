@@ -896,10 +896,21 @@ async function ensureSchema(db = pool) {
       id INT AUTO_INCREMENT PRIMARY KEY,
       nombre VARCHAR(50) NOT NULL,
       abreviatura VARCHAR(10) NOT NULL,
+      permite_decimales TINYINT(1) NOT NULL DEFAULT 1,
       creado_en DATETIME NOT NULL,
       UNIQUE KEY uq_unidades_medida_nombre (nombre)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Migración: instalaciones que ya tenían "unidades_medida" creada antes
+  // de "permite_decimales" (punto 175 — cantidad entera vs. decimal según
+  // la unidad al vender/mover inventario).
+  const [colsUnidadesMedida] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'unidades_medida'`
+  );
+  if (!colsUnidadesMedida.map((c) => c.COLUMN_NAME).includes('permite_decimales')) {
+    await db.query('ALTER TABLE unidades_medida ADD COLUMN permite_decimales TINYINT(1) NOT NULL DEFAULT 1');
+  }
 
   // Semilla idempotente de las 16 unidades de §9 (pieza, volumen, peso —
   // cubren líquidos y gramaje sin campos adicionales, decisión D11).
@@ -908,8 +919,21 @@ async function ensureSchema(db = pool) {
   const unidadesFaltantes = UNIDADES_SEED.filter(([nombre]) => !nombresUnidadesExistentes.has(nombre));
   if (unidadesFaltantes.length > 0) {
     const ahoraUnidades = new Date();
-    await db.query('INSERT INTO unidades_medida (nombre, abreviatura, creado_en) VALUES ?', [
-      unidadesFaltantes.map(([nombre, abreviatura]) => [nombre, abreviatura, ahoraUnidades]),
+    await db.query('INSERT INTO unidades_medida (nombre, abreviatura, permite_decimales, creado_en) VALUES ?', [
+      unidadesFaltantes.map(([nombre, abreviatura, permiteDecimales]) => [nombre, abreviatura, permiteDecimales, ahoraUnidades]),
+    ]);
+  }
+  // Backfill idempotente: instalaciones que ya tenían las 16 unidades
+  // sembradas ANTES de esta columna las tienen todas en el default 1
+  // (permite decimales) — se corrige a la clasificación real de
+  // UNIDADES_SEED, por nombre, sin tocar unidades personalizadas que el
+  // usuario haya agregado a mano (esas se quedan en el default).
+  for (const [nombre, , permiteDecimales] of UNIDADES_SEED) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.query('UPDATE unidades_medida SET permite_decimales = ? WHERE nombre = ? AND permite_decimales <> ?', [
+      permiteDecimales,
+      nombre,
+      permiteDecimales,
     ]);
   }
 
