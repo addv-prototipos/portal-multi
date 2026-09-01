@@ -3469,11 +3469,19 @@ app.post(
       fecha_registro: orden.fecha_compra,
     }));
     const fechaGeneracion = new Date();
+    // "finExclusivo" es el límite REAL de la consulta (el día siguiente a
+    // "hasta", para incluirlo completo) — pero guardar ESE valor como
+    // rango_fin del reporte lo mostraría como si cubriera un día de más
+    // (un corte de un solo día se vería "01 sep – 02 sep"). Se guarda 1
+    // segundo antes (23:59:59 de "hasta") solo para que el rango se
+    // muestre correctamente — la consulta de arriba ya corrió con el
+    // límite exclusivo real, esto no la afecta.
+    const finParaMostrar = new Date(finExclusivo.getTime() - 1000);
     const mdContenido = generarContenidoMD({
       tipo: 'corte',
       fechaGeneracion,
       rangoInicio: inicio,
-      rangoFin: finExclusivo,
+      rangoFin: finParaMostrar,
       items,
       zonaHoraria: configGlobal.zona_horaria,
     });
@@ -3481,11 +3489,12 @@ app.post(
       tipo: 'corte',
       fechaGeneracion,
       rangoInicio: inicio,
-      rangoFin: finExclusivo,
+      rangoFin: finParaMostrar,
       items,
       mdContenido,
       correoEnviadoA: null,
       correoEnviado: false,
+      totalMonto: resumen.total,
     });
 
     res.json({ reporteId, desde: desdeTexto, hasta: hastaTexto, resumen, ordenes: ordenesFormateadas });
@@ -3503,7 +3512,7 @@ app.get(
   asyncHandler(async (req, res) => {
     const [reportes] = await pool.query(
       `SELECT id, tipo, fecha_generacion, rango_inicio, rango_fin, correo_enviado_a, correo_enviado,
-              total_tickets, total_ordenes, creado_en
+              total_tickets, total_ordenes, total_monto, creado_en
        FROM reportes ORDER BY fecha_generacion DESC`
     );
     res.json({ reportes });

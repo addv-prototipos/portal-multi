@@ -1150,9 +1150,13 @@
           <h1>Cuentas por cobrar</h1>
           <p class="panel-subtitle">Ventas pendientes de pago y vencimientos — por defecto toda venta es pagada.</p>
         </div>
+        <!-- Punto 174: el <h1> de esta barra se quitó — "Cuentas por
+             cobrar" ya lo dice el título de arriba (.inicio-bienvenida);
+             al homologar tamaños (20px→24px) el duplicado, antes
+             disimulado por ser más chico, quedó idéntico y se veía
+             repetido dos veces seguidas. -->
         <div class="admin-toolbar">
           <div class="admin-toolbar-title">
-            <h1>Cuentas por cobrar</h1>
             <div class="view-toggle" role="tablist" aria-label="Vista CxC">
               <button type="button" class="view-toggle-btn is-active" id="btn-ver-cxc-pendientes" role="tab" aria-selected="true">Pendientes</button>
               <button type="button" class="view-toggle-btn" id="btn-ver-cxc-cobradas" role="tab" aria-selected="false">Cobradas</button>
@@ -2081,47 +2085,24 @@
         <div class="lectura-reportes-header">
           <div>
             <h2 class="lectura-reportes-titulo">Lectura de reportes</h2>
-            <p class="panel-subtitle">Consulta cualquier reporte ya generado, filtra sus registros y expórtalos — pensado para auditorías: qué pasó, cuándo y con qué evidencia.</p>
+            <p class="panel-subtitle">Consulta cualquier reporte ya generado, filtra sus registros y expórtalos. Pensado para auditorías: qué pasó, cuándo y con qué evidencia.</p>
           </div>
         </div>
 
-        <div class="reportes-kpi-grid" id="reportes-kpi-grid">
-          <div class="inicio-stat-card">
-            <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Eliminados (histórico)</span>
-              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-            </div>
-            <p class="inicio-stat-numero" id="reportes-kpi-eliminados">0</p>
-            <p class="inicio-stat-tendencia">Tickets + ventas realmente borrados de la base de datos</p>
-          </div>
-          <div class="inicio-stat-card">
-            <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Movimientos (histórico)</span>
-              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round" stroke-width="2"/></svg>
-              </span>
-            </div>
-            <p class="inicio-stat-numero" id="reportes-kpi-activos">0</p>
-            <p class="inicio-stat-tendencia">Fotografías de registros que seguían activos al reportarse</p>
-          </div>
-          <div class="resumen-fin-chart-card reportes-kpi-chart-card">
-            <div class="resumen-fin-card-header">
-              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              </span>
-              <h2>Eliminados por mes</h2>
-            </div>
-            <div id="reportes-kpi-chart-contenido">
-              <div class="resumen-fin-chart-body reportes-kpi-chart-body" id="reportes-kpi-chart-body"></div>
-              <p class="admin-empty" id="reportes-kpi-chart-empty" hidden>Aún no hay eliminados registrados en los últimos 6 meses.</p>
-            </div>
-          </div>
-        </div>
+        <!-- Punto 172: el letrero de una línea (por segmento) va PEGADO al
+             subtítulo de arriba — se leen como un solo bloque de texto — y
+             las pestañas bajan debajo de los dos, justo antes del
+             contenido. Antes las pestañas partían el subtítulo del
+             letrero, se veían como 2 textos sueltos sin relación. -->
+        <p class="panel-subtitle lectura-reportes-tab-caption" id="reportes-tab-caption">Elige un reporte automático, manual o de cierre mensual para ver su contenido completo.</p>
 
-        <div class="view-toggle" role="tablist" aria-label="Ver por reporte o todo lo eliminado">
+        <!-- Orden y contenido de pestañas — punto 169: cada pestaña es su
+             propio segmento, nada se muestra fuera de la pestaña a la que
+             pertenece (antes las 3 tarjetas de auditoría de abajo se veían
+             en las 4 pestañas por igual). -->
+        <div class="view-toggle lectura-reportes-tabs" role="tablist" aria-label="Segmento de Lectura de reportes">
           <button type="button" class="view-toggle-btn is-active" id="btn-reportes-vista-por-reporte" role="tab" aria-selected="true">Por reporte</button>
+          <button type="button" class="view-toggle-btn" id="btn-reportes-vista-cortes" role="tab" aria-selected="false">Cortes</button>
           <button type="button" class="view-toggle-btn" id="btn-reportes-vista-ledger" role="tab" aria-selected="false">Todo lo eliminado</button>
           <button type="button" class="view-toggle-btn" id="btn-reportes-vista-estado-inventario" role="tab" aria-selected="false">Estado del inventario</button>
         </div>
@@ -2263,10 +2244,123 @@
         <p class="lectura-reportes-vacio" id="lectura-reportes-sin-seleccion">Selecciona un reporte de la lista para ver su contenido.</p>
         </div>
 
+        <!-- Cortes (punto 169): historial de "Corte del día" (punto 168),
+             separado de "Por reporte" — ya no aparecen en ese selector.
+             Detalle propio y más simple (una sola tabla de ventas, sin
+             split Movimientos/Eliminados) porque un corte nunca borra
+             nada. -->
+        <div id="reportes-vista-cortes" hidden>
+          <div id="reportes-cortes-lista-wrap">
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Generado</th>
+                    <th>Rango cubierto</th>
+                    <th>Ventas</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody id="reportes-cortes-table-body"></tbody>
+              </table>
+              <p class="admin-empty" id="reportes-cortes-empty" hidden>Aún no has generado ningún corte de ventas — el botón "Corte del día" vive en Ventas.</p>
+            </div>
+          </div>
+
+          <div id="reportes-cortes-detalle-wrap" hidden>
+            <button type="button" class="btn btn-secondary lectura-reportes-volver" id="btn-cortes-volver-lista">← Volver a la lista de cortes</button>
+
+            <div class="lectura-reportes-resumen">
+              <div class="lectura-reportes-resumen-item">
+                <span class="lectura-reportes-resumen-label">Rango</span>
+                <span class="lectura-reportes-resumen-valor" id="cortes-detalle-rango"></span>
+              </div>
+              <div class="lectura-reportes-resumen-item">
+                <span class="lectura-reportes-resumen-label">Generado el</span>
+                <span class="lectura-reportes-resumen-valor" id="cortes-detalle-fecha"></span>
+              </div>
+              <div class="lectura-reportes-resumen-item">
+                <span class="lectura-reportes-resumen-label">Ventas</span>
+                <span class="lectura-reportes-resumen-valor" id="cortes-detalle-ventas"></span>
+              </div>
+              <div class="lectura-reportes-resumen-item">
+                <span class="lectura-reportes-resumen-label">Total</span>
+                <span class="lectura-reportes-resumen-valor" id="cortes-detalle-total"></span>
+              </div>
+            </div>
+
+            <div class="lectura-reportes-subtabla">
+              <div class="lectura-reportes-subtabla-header">
+                <h3>Ventas de este corte <span class="lectura-reportes-conteo" id="cortes-detalle-conteo">0</span></h3>
+                <div class="lectura-reportes-exportar">
+                  <button type="button" class="btn btn-secondary" id="btn-exportar-corte-csv">Exportar CSV</button>
+                  <button type="button" class="btn btn-secondary" id="btn-exportar-corte-excel">Exportar Excel</button>
+                </div>
+              </div>
+              <div class="admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Tipo</th>
+                      <th>Identificador</th>
+                      <th>RFC / Correo</th>
+                      <th>Detalle</th>
+                      <th>Monto</th>
+                      <th>Atendido por</th>
+                      <th>Fecha de registro</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportes-cortes-detalle-table-body"></tbody>
+                </table>
+                <p class="admin-empty" id="reportes-cortes-detalle-empty" hidden>Este corte no tiene ventas.</p>
+              </div>
+            </div>
+
+            <div class="btn-row" style="margin-top: 14px;">
+              <button type="button" class="btn btn-danger" id="btn-eliminar-corte" hidden>Eliminar este corte</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Ledger cruzado: todos los eliminados de TODOS los reportes en un
              solo lugar filtrable — a diferencia de "Por reporte" (arriba),
              no depende de abrir cada reporte uno por uno para encontrar algo. -->
         <div id="reportes-vista-ledger" hidden>
+          <div class="reportes-kpi-grid" id="reportes-kpi-grid">
+            <div class="inicio-stat-card">
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Eliminados (histórico)</span>
+                <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="reportes-kpi-eliminados">0</p>
+              <p class="inicio-stat-tendencia">Tickets + ventas realmente borrados de la base de datos</p>
+            </div>
+            <div class="inicio-stat-card">
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Movimientos (histórico)</span>
+                <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="reportes-kpi-activos">0</p>
+              <p class="inicio-stat-tendencia">Fotografías de registros que seguían activos al reportarse</p>
+            </div>
+            <div class="resumen-fin-chart-card reportes-kpi-chart-card">
+              <div class="resumen-fin-card-header">
+                <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                </span>
+                <h2>Eliminados por mes</h2>
+              </div>
+              <div id="reportes-kpi-chart-contenido">
+                <div class="resumen-fin-chart-body reportes-kpi-chart-body" id="reportes-kpi-chart-body"></div>
+                <p class="admin-empty" id="reportes-kpi-chart-empty" hidden>Aún no hay eliminados registrados en los últimos 6 meses.</p>
+              </div>
+            </div>
+          </div>
+
           <div class="lectura-reportes-filtros" id="ledger-filtros">
             <div class="field">
               <label for="ledger-filtro-tipo">Tipo de registro</label>

@@ -142,6 +142,16 @@ describe('reportes.js', () => {
 
       expect(pool.query).toHaveBeenCalledTimes(1);
     });
+
+    test('totalMonto (punto 169, Cortes): se guarda cuando se manda, NULL cuando no', async () => {
+      pool.query.mockResolvedValueOnce([{ insertId: 1 }]);
+      await guardarReporte({ tipo: 'corte', fechaGeneracion: new Date(), items: [], mdContenido: '# md', totalMonto: 348 });
+      expect(pool.query.mock.calls[0][1]).toContain(348);
+
+      pool.query.mockResolvedValueOnce([{ insertId: 2 }]);
+      await guardarReporte({ tipo: 'manual', fechaGeneracion: new Date(), items: [], mdContenido: '# md' });
+      expect(pool.query.mock.calls[1][1]).toContain(null);
+    });
   });
 
   describe('generarYEnviarReporte', () => {

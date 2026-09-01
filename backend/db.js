@@ -1253,6 +1253,7 @@ async function ensureSchema(db = pool) {
       total_tickets INT NOT NULL DEFAULT 0,
       total_ordenes INT NOT NULL DEFAULT 0,
       total_gastos INT NOT NULL DEFAULT 0,
+      total_monto DECIMAL(12,2) NULL,
       md_contenido LONGTEXT NOT NULL,
       creado_en DATETIME NOT NULL,
       KEY idx_reportes_fecha_generacion (fecha_generacion),
@@ -1368,6 +1369,11 @@ async function ensureSchema(db = pool) {
   const nombresReportes = colsReportes.map((c) => c.COLUMN_NAME);
   if (!nombresReportes.includes('total_gastos')) {
     await db.query('ALTER TABLE reportes ADD COLUMN total_gastos INT NOT NULL DEFAULT 0');
+  }
+  // Punto 169 — pestaña "Cortes": total $ del corte, para mostrarlo en la
+  // lista sin abrir cada uno. NULL para todo lo que no sea un corte.
+  if (!nombresReportes.includes('total_monto')) {
+    await db.query('ALTER TABLE reportes ADD COLUMN total_monto DECIMAL(12,2) NULL');
   }
 
   // Preferencias de dashboard por usuario administrador ("Modo dashboard",

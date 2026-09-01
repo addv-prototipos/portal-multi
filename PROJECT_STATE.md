@@ -10941,7 +10941,247 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         punto 155 (rodeo ya documentado: usar `javascript_tool` con
         `.click()` directo funciona limpio). Datos de prueba limpiados
         al terminar (ventas OC-000168/169/170/171 y sus reportes de
-        corte). Sin commit/push todavía.
+        corte). **Commiteado y pusheado** (`664b36e` → `fact/master`).
+  169. **"Lectura de reportes" reorganizada por segmento + pestaña
+      "Cortes" — IMPLEMENTADO Y VALIDADO en navegador real
+      (2026-09-01)**: a partir de 2 capturas del usuario (pestañas
+      "Por reporte/Todo lo eliminado/Estado del inventario" + las 3
+      tarjetas de auditoría de arriba), pidió que todo se agrupe por
+      segmento (nada fuera de su pestaña), una pestaña "Cortes" nueva, y
+      auditoría UX/UI/CX pensada para un dueño de negocio sin formación
+      en sistemas. Protocolo completo — Artifact con 4 hallazgos +
+      antes/después + decisión A/B — aprobado con "Opción A, orden así,
+      textos bien" (pregunta 4, simplificar jerga de las tarjetas, se
+      dejó sin resolver — sigue como "Movimientos (histórico)"/
+      "fotografías de registros..." tal cual, nadie lo confirmó).
+      - **Hallazgo #1 corregido**: las 3 tarjetas de auditoría
+        (`#reportes-kpi-grid`) vivían ANTES del switch de pestañas — se
+        veían en las 4 sin importar cuál estuviera activa. Se movieron
+        DENTRO de "Todo lo eliminado" (única dueña real de esos datos) y
+        su carga (`cargarEstadisticasReportes()`) pasó de dispararse
+        siempre al entrar a la vista, a perezosa (una sola vez, al
+        entrar por primera vez a esa pestaña — mismo patrón
+        `invEstadoCargado` que ya usaba "Estado del inventario").
+      - **Hallazgo #2 corregido**: letrero de una línea
+        (`#reportes-tab-caption`, reusa `.panel-subtitle`) bajo las 4
+        pestañas, cambia de texto según cuál esté activa.
+      - **Hallazgo #3 corregido — pestaña "Cortes" nueva**: los cortes de
+        ventas (punto 168) ya NO aparecen en el selector de "Por
+        reporte" (`cargarListaReportes()` los filtra) — tienen su propia
+        lista (`GET /admin/reportes` ya devuelve todo, se filtra en
+        cliente por `tipo==='corte'`) con Generado/Rango cubierto/
+        Ventas/Total, click → detalle. El detalle de un corte es MÁS
+        SIMPLE que el de "Por reporte" a propósito (una sola tabla de
+        ventas, sin split Movimientos/Eliminados) porque un corte nunca
+        borra nada — reusa `renderFilaReporteItem()` tal cual (cero
+        duplicación de lógica de fila) y el botón "Ver historial" de
+        cada fila ya funciona solo (delegado a nivel documento, no hace
+        falta enganche nuevo). Exportar CSV/Excel y Eliminar reusan los
+        endpoints genéricos `/reportes/:id/exportar` y
+        `DELETE /reportes/:id` que ya existían, sin cambios ahí.
+      - **Opción A (decisión del usuario)**: columna nueva
+        `reportes.total_monto` (DECIMAL NULL, solo se llena para
+        `tipo='corte'`, vía `guardarReporte({..., totalMonto})` —
+        parámetro nuevo, NULL por defecto para todos los demás tipos)
+        para que la lista de Cortes muestre el Total $ sin abrir cada
+        uno. Migración + CREATE TABLE actualizados en `db.js`.
+      - **Bug propio corregido en el camino, no reportado por el
+        usuario**: `rango_fin` de un corte se guardaba con el límite
+        EXCLUSIVO real de la consulta (el día siguiente a "hasta") — un
+        corte de un solo día se habría mostrado como "01 sep – 02 sep"
+        en la lista nueva. Nunca se notó antes porque ningún lugar
+        mostraba `rango_fin` a un humano hasta esta pestaña. Fix: se
+        guarda 1 segundo antes (23:59:59 de "hasta") solo para
+        mostrar/Markdown, la consulta real ya había corrido con el
+        límite exclusivo correcto — cero impacto en qué ventas entran al
+        corte, sí en cómo se ve la fecha. Validado en vivo: rango de un
+        corte de un solo día se ve "01 sep 2026 – 01 sep 2026", correcto.
+      - **Pruebas**: 2 tests nuevos (`totalMonto` se guarda/es NULL en
+        `test/unit/reportes.test.js`; aserción `totalMonto: 348` agregada
+        al test existente del endpoint de corte). Jest backend
+        **787/787 (45 suites)**.
+      - **Validado contra Docker/MySQL reales**: rebuild `--no-cache` +
+        `--force-recreate`, columna `total_monto` confirmada en MySQL
+        real, corte generado por curl con rango de un día mostrando
+        fechas correctas (`rango_fin` = 23:59:59 del mismo día).
+        **Validado en navegador real** (Claude in Chrome, vía
+        `javascript_tool` desde el login para evitar el gotcha del punto
+        155): las 4 pestañas en el orden aprobado, caption correcto por
+        pestaña, "Por reporte" ya sin cortes en su selector, "Cortes"
+        mostrando el corte real ($116.00, rango correcto), detalle con
+        la venta real renderizada, "Todo lo eliminado" con las 3
+        tarjetas ahí y solo ahí, ciclo completo de "Eliminar este corte"
+        (modal de confirmación → eliminado → lista vacía), cero errores
+        de consola en toda la sesión. Datos de prueba limpiados al
+        terminar (ventas OC-000172/173, el corte de prueba se borró
+        desde la propia UI como parte de la validación). Sin
+        commit/push todavía.
+  170. **PENDIENTE — Correo de contacto de la empresa (alta en `/control`)
+      + burbuja "Solicitar aclaraciones" en el portal del cliente
+      (2026-09-01, SOLO REGISTRADO, sin analizar/criticar/implementar)**:
+      requerimiento textual del usuario, la siguiente sesión retoma el
+      protocolo completo (analizar, revisar impacto, criticar y mejorar
+      el requerimiento, propuesta visual, confirmar) antes de tocar
+      código. Resumen:
+      - El campo "correo de contacto" YA EXISTE en el alta de empresa en
+        `/control` pero sin funcionalidad ninguna todavía (no está claro
+        en el requerimiento si se refiere al campo `email`/marca ya
+        existente en `tenantIntake.js`/`tenantMarca.js`, o si hace falta
+        una columna nueva — verificar antes de proponer).
+      - Debe volverse **obligatorio** al dar de alta una empresa.
+      - Es el correo DE LA EMPRESA CLIENTE (para dudas/seguimiento de su
+        negocio), NO de CLARVO — el formulario de alta debe traer
+        ejemplos guía tipo `contacto@miempresa.com`/
+        `contador@miempresa.com` para dejarlo claro.
+      - CLARVO usa ese correo para mandar reportes de seguimiento de
+        alguna situación puntual del tenant.
+      - Ese mismo correo se expone del lado del cliente (portal, no
+        admin) en una **burbuja flotante** de "Solicitar aclaraciones".
+      - Al hacer click en la burbuja, abre un **formulario**: RFC
+        pre-llenado (de la sesión del cliente ya autenticado), pide
+        **Nombre**, **Teléfono de contacto** y **Detalle del problema**.
+      - Al enviar, genera un **reporte** con número = **ID + RFC** (para
+        poder identificarlo fácil buscando por correo).
+      - Preguntas de diseño abiertas para la siguiente sesión (no
+        respondidas todavía por el usuario): ¿el reporte se guarda en
+        BD (tabla nueva) o solo se envía por correo sin persistir? ¿a
+        qué dirección(es) llega — la de la empresa, la de CLARVO, o
+        ambas? ¿el admin del tenant tiene alguna vista para ver estos
+        reportes o solo llegan por correo? ¿aplica a los 6 correos ya
+        homologados con marca del punto 161 (mismo `construirCorreoBase()`)?
+  171. **"Lectura de reportes" — espaciado suelto corregido en TODA la
+      sección (encabezado + tarjetas de Estado del inventario) —
+      IMPLEMENTADO Y VALIDADO en navegador real (2026-09-01)**: a
+      partir de 2 capturas del usuario ("desperdiciamos espacio con
+      esas leyendas"), pidió extender el fix del punto 169 (tarjetas
+      230×230px) a TODA la sección, no solo las tarjetas. Protocolo
+      completo — Artifact con causa raíz MEDIDA EN VIVO (JS en el
+      navegador, no estimada) + antes/después, corregido una vez por
+      pedido del usuario para usar los SVG reales de las 3 tarjetas
+      (política de cero emojis del sitio, que también aplica a los
+      mockups — ver memoria persistente
+      `feedback_sin_emojis_en_mockups.md`) en vez de emoji placeholder
+      que se habían colado en el primer borrador. Aprobado tal cual.
+      - **Causa #1 — encabezado**: `.lectura-reportes-header` usa
+        `display:flex` con un solo hijo adentro (vestigio de un botón a
+        la derecha que nunca se agregó) — eso rompe el colapso de
+        márgenes normal entre el subtítulo (22px) y el contenedor
+        (18px propios), dejando 40px reales medidos en el navegador en
+        vez de los ~22px que usa el resto del panel (Ventas, CxC,
+        Gastos). Fix: se quita el `margin-bottom:18px` del contenedor —
+        el subtítulo ya aporta su propio margen, igual que en las demás
+        vistas. Afecta a las 4 pestañas por igual (el hueco era del
+        encabezado completo).
+      - **Causa #2 — tarjetas**: mismo hallazgo del punto 169
+        (`#inv-estado-kpi-grid` heredaba el cuadrado 230×230px de
+        `.reportes-kpi-grid`, pensado para una fila que en "Todo lo
+        eliminado" sí incluye una gráfica) — ahora tiene su propio
+        override por id (`grid-template-columns:1fr` en vez de 230px
+        fijo, alto natural en vez de forzado, con su propio breakpoint
+        móvil espejo del original) sin tocar la clase compartida.
+        "Todo lo eliminado" se queda exactamente igual (230×230px,
+        justificado ahí por la gráfica "Eliminados por mes").
+      - **Medido en vivo, antes → después**: hueco encabezado→pestañas
+        40px → **22px**; alto de las 3 tarjetas de inventario 230px →
+        **122px** (las 3 iguales, se estiran a la que tiene más texto).
+        ~126px menos de alto total antes de llegar a las gráficas de
+        abajo, sin perder ni reordenar ningún contenido.
+      - Cambio 100% CSS (`admin.css`), sin tocar HTML ni JS. Jest
+        backend 787/787 (sin cambios ahí, corrido por sanidad). Validado
+        contra Docker real (rebuild `--no-cache` + `--force-recreate`
+        frontend) y en navegador real (Claude in Chrome): mediciones
+        confirmadas exactas contra lo prometido en la propuesta, "Todo
+        lo eliminado" confirmado intacto (230×230px sin cambios), cero
+        errores de consola. Sin commit/push todavía.
+  172. **"Lectura de reportes" — letrero pegado al subtítulo, pestañas
+      abajo (2026-09-01, IMPLEMENTADO Y VALIDADO)**: a pedido del
+      usuario (2 capturas: pestañas vs. letrero "para que no parezca
+      separado los textos"), se reordena el bloque — antes
+      subtítulo→pestañas→letrero, ahora subtítulo→letrero→pestañas→
+      contenido — para que las 2 líneas de texto (subtítulo del
+      encabezado + letrero de la pestaña activa) se lean como un solo
+      bloque, con las pestañas como frontera clara antes del contenido
+      interactivo. Clase nueva `.lectura-reportes-tabs` (además de
+      `.view-toggle`, compartida por 11+ lugares del panel, sin tocar
+      su margen general) para el espacio antes del contenido. De paso,
+      a pedido explícito ("elimina —"), se quitó el guión largo del
+      subtítulo del encabezado ("...expórtalos — pensado para
+      auditorías..." → "...expórtalos. Pensado para auditorías...").
+      Medido en vivo: subtítulo→letrero 22px (mismo ritmo que el resto
+      del panel), letrero→pestañas 22px, pestañas→contenido 22px — las
+      4 pestañas siguen cambiando de contenido correctamente tras el
+      reorden. Cambio 100% HTML/CSS. Jest backend 787/787 (sin
+      cambios). Sin commit/push todavía.
+  173. **Bug real — "Registrar venta" desbordaba horizontalmente al
+      agregar el primer producto (2026-09-01, ENCONTRADO Y CORREGIDO,
+      reportado por el usuario con captura)**: `.admin-table` fija
+      `min-width: 760px` (pensada para las tablas grandes con columnas
+      arrastrables de Ventas/Tickets/etc., que sí tienen esa función) —
+      la tabla chica de productos dentro del modal "Registrar venta"
+      (`.orden-productos-tabla-escritorio`, 5 columnas, sin resize) la
+      hereda sin necesitarla. Ya existía un override
+      `.orden-productos-tabla { min-width: 0; }` en el archivo, pero
+      **nunca ganaba** — misma especificidad que `.admin-table` pero
+      declarado ANTES en la hoja de estilos, así que `.admin-table`
+      (declarado después) se lo comía por orden de cascada. Efecto
+      real, solo visible AL AGREGAR el primer producto (antes de eso la
+      tabla ni existe en el DOM): dentro de `.orden-wizard-grid` (2
+      columnas `1fr 1fr` en escritorio), la tabla forzaba su columna a
+      760px y la columna vecina ("Pago y entrega"/"Cliente") se
+      aplastaba a ~175px, desbordando el modal completo — scrollbar
+      horizontal, campos del lado derecho ilegibles/cortados. Fix en 2
+      pasos (el primero, `min-width:0` con más especificidad, generó
+      un bug DISTINTO — la tabla colapsó tanto que el texto del
+      producto se envolvía letra por letra, porque `table-layout:fixed`
+      -heredado también de `.admin-table`, pensado para anchos de
+      columna guardados por JS que esta tabla no tiene- repartía el
+      ancho en 5 franjas iguales sin sentido): (1)
+      `.orden-productos-tabla.orden-productos-tabla-escritorio` (2
+      clases, gana sin depender del orden del archivo) con
+      `table-layout: auto` (deja que cada columna respete su
+      contenido real) + `min-width: 320px` (piso razonable, ni 0 ni
+      760px). Validado en navegador real tras el fix real: sin
+      scrollbar horizontal (`modal.scrollWidth === modal.clientWidth`),
+      2 columnas parejas, tabla de productos legible, Total calculado
+      correcto ($2,146.00 = $1,850 × 1.16 IVA). Cambio 100% CSS,
+      cero riesgo a otras tablas (selector de 2 clases, solo afecta
+      este elemento exacto). Jest backend 787/787. Sin commit/push
+      todavía.
+  174. **Títulos de página homologados a 24px/700 en todo el panel
+      (2026-09-01, IMPLEMENTADO Y VALIDADO)**: usuario reportó, con 3
+      capturas, que algunos títulos ("Resumen financiero", "Ventas") se
+      veían más grandes que "¡Bienvenido, admin!" (Inicio) y pidió
+      homologarlos. **Medido en vivo antes de tocar nada** (la premisa
+      literal no cuadraba): Inicio y "Resumen financiero" YA eran
+      idénticos (24px/700, `.inicio-bienvenida h1`); "Ventas"/"Tickets"
+      eran en realidad más CHICOS (20px/600, `.admin-toolbar h1`), no
+      más grandes — probablemente las capturas se veían distintas por
+      zoom del navegador al pegarlas, no por CSS real. Encontrado el
+      patrón real: 2 sistemas de título coexistiendo (24px para el
+      bloque de bienvenida de Inicio/Resumen financiero/CxC/Gastos,
+      20px para la barra `.admin-toolbar` de Ventas/Tickets/
+      Constancias/Usuarios/Cuentas por cobrar/"Lectura de reportes").
+      Usuario confirmó explícitamente subir todo a 24px como Inicio.
+      Fix: `.admin-toolbar h1` y `.lectura-reportes-titulo` (h2 propio)
+      pasan de 20px/600(sin peso) a 24px/700, igualando
+      `.inicio-bienvenida h1`. **Efecto secundario real encontrado y
+      corregido de paso**: "Cuentas por cobrar" tenía el título
+      DUPLICADO (un `<h1>` en `.inicio-bienvenida` arriba + OTRO
+      `<h1>` idéntico dentro de `.admin-toolbar-title`, junto al
+      toggle Pendientes/Cobradas) — antes disimulado porque uno era
+      24px y el otro 20px, ahora que ambos quedan en 24px/700 se veían
+      dos títulos idénticos apilados. Se quitó el `<h1>` redundante de
+      la barra de herramientas (el de arriba ya cumple esa función),
+      dejando solo el view-toggle ahí. Verificado que Inicio/Resumen
+      financiero/Gastos no tienen ese mismo problema (un solo `<h1>`
+      cada uno). Cambio 100% HTML/CSS. **Gotcha de esta sesión**: el
+      primer screenshot después del rebuild seguía mostrando el título
+      duplicado — el HTML servido por curl ya estaba correcto, era
+      caché de disco del navegador en esta misma pestaña (gotcha ya
+      documentado varias veces en este archivo); un reload con
+      query-string nuevo lo confirmó corregido. Jest backend 787/787,
+      validado en navegador real (Ventas, Cuentas por cobrar), cero
+      errores de consola. Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

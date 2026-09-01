@@ -724,12 +724,31 @@
     btnExportarEliminadosCsv: document.getElementById('btn-exportar-eliminados-csv'),
     btnExportarEliminadosExcel: document.getElementById('btn-exportar-eliminados-excel'),
     lecturaReportesSinSeleccion: document.getElementById('lectura-reportes-sin-seleccion'),
+    reportesTabCaption: document.getElementById('reportes-tab-caption'),
     btnReportesVistaPorReporte: document.getElementById('btn-reportes-vista-por-reporte'),
     btnReportesVistaLedger: document.getElementById('btn-reportes-vista-ledger'),
     reportesVistaPorReporte: document.getElementById('reportes-vista-por-reporte'),
     reportesVistaLedger: document.getElementById('reportes-vista-ledger'),
     btnReportesVistaEstadoInventario: document.getElementById('btn-reportes-vista-estado-inventario'),
     reportesVistaEstadoInventario: document.getElementById('reportes-vista-estado-inventario'),
+    // Pestaña "Cortes" (punto 169)
+    btnReportesVistaCortes: document.getElementById('btn-reportes-vista-cortes'),
+    reportesVistaCortes: document.getElementById('reportes-vista-cortes'),
+    reportesCortesListaWrap: document.getElementById('reportes-cortes-lista-wrap'),
+    reportesCortesTableBody: document.getElementById('reportes-cortes-table-body'),
+    reportesCortesEmpty: document.getElementById('reportes-cortes-empty'),
+    reportesCortesDetalleWrap: document.getElementById('reportes-cortes-detalle-wrap'),
+    btnCortesVolverLista: document.getElementById('btn-cortes-volver-lista'),
+    cortesDetalleRango: document.getElementById('cortes-detalle-rango'),
+    cortesDetalleFecha: document.getElementById('cortes-detalle-fecha'),
+    cortesDetalleVentas: document.getElementById('cortes-detalle-ventas'),
+    cortesDetalleTotal: document.getElementById('cortes-detalle-total'),
+    cortesDetalleConteo: document.getElementById('cortes-detalle-conteo'),
+    reportesCortesDetalleTableBody: document.getElementById('reportes-cortes-detalle-table-body'),
+    reportesCortesDetalleEmpty: document.getElementById('reportes-cortes-detalle-empty'),
+    btnExportarCorteCsv: document.getElementById('btn-exportar-corte-csv'),
+    btnExportarCorteExcel: document.getElementById('btn-exportar-corte-excel'),
+    btnEliminarCorte: document.getElementById('btn-eliminar-corte'),
     invEstadoKpiValor: document.getElementById('inv-estado-kpi-valor'),
     invEstadoKpiRotacion: document.getElementById('inv-estado-kpi-rotacion'),
     invEstadoKpiSinMovimiento: document.getElementById('inv-estado-kpi-sin-movimiento'),
@@ -2434,14 +2453,21 @@
       const data = await res.json();
       reportesDisponibles = data.reportes || [];
 
+      // Punto 169: los cortes de ventas ya no aparecen en este selector —
+      // tienen su propia pestaña ("Cortes"), para no mezclar 4 tipos
+      // distintos en una sola lista plana que solo crece.
       els.reportesSelector.innerHTML = '<option value="">Selecciona un reporte…</option>';
-      reportesDisponibles.forEach((r) => {
-        const option = document.createElement('option');
-        option.value = r.id;
-        const tipoTexto = r.tipo === 'automatico' ? 'Automático' : r.tipo === 'cierre_mensual' ? 'Cierre mensual' : r.tipo === 'corte' ? 'Corte de ventas' : 'Manual';
-        option.textContent = `${formatearFechaCorta(r.fecha_generacion)} — ${tipoTexto} (${r.total_tickets} tickets, ${r.total_ordenes} ventas)`;
-        els.reportesSelector.appendChild(option);
-      });
+      reportesDisponibles
+        .filter((r) => r.tipo !== 'corte')
+        .forEach((r) => {
+          const option = document.createElement('option');
+          option.value = r.id;
+          const tipoTexto = r.tipo === 'automatico' ? 'Automático' : r.tipo === 'cierre_mensual' ? 'Cierre mensual' : 'Manual';
+          option.textContent = `${formatearFechaCorta(r.fecha_generacion)} — ${tipoTexto} (${r.total_tickets} tickets, ${r.total_ordenes} ventas)`;
+          els.reportesSelector.appendChild(option);
+        });
+
+      renderListaCortes();
     } catch (err) {
       // El selector se queda vacío; se puede reintentar cambiando de vista.
     }
@@ -2689,45 +2715,211 @@
   els.btnExportarLedgerCsv.addEventListener('click', () => exportarLedger('csv'));
   els.btnExportarLedgerExcel.addEventListener('click', () => exportarLedger('excel'));
 
-  els.btnReportesVistaPorReporte.addEventListener('click', () => {
-    els.btnReportesVistaPorReporte.classList.add('is-active');
-    els.btnReportesVistaPorReporte.setAttribute('aria-selected', 'true');
-    els.btnReportesVistaLedger.classList.remove('is-active');
-    els.btnReportesVistaLedger.setAttribute('aria-selected', 'false');
-    els.btnReportesVistaEstadoInventario.classList.remove('is-active');
-    els.btnReportesVistaEstadoInventario.setAttribute('aria-selected', 'false');
-    els.reportesVistaPorReporte.hidden = false;
-    els.reportesVistaLedger.hidden = true;
-    els.reportesVistaEstadoInventario.hidden = true;
-  });
-  els.btnReportesVistaLedger.addEventListener('click', () => {
-    els.btnReportesVistaLedger.classList.add('is-active');
-    els.btnReportesVistaLedger.setAttribute('aria-selected', 'true');
-    els.btnReportesVistaPorReporte.classList.remove('is-active');
-    els.btnReportesVistaPorReporte.setAttribute('aria-selected', 'false');
-    els.btnReportesVistaEstadoInventario.classList.remove('is-active');
-    els.btnReportesVistaEstadoInventario.setAttribute('aria-selected', 'false');
-    els.reportesVistaLedger.hidden = false;
-    els.reportesVistaPorReporte.hidden = true;
-    els.reportesVistaEstadoInventario.hidden = true;
-    cargarLedgerEliminados();
-  });
-  let invEstadoCargado = false;
-  els.btnReportesVistaEstadoInventario.addEventListener('click', () => {
-    els.btnReportesVistaEstadoInventario.classList.add('is-active');
-    els.btnReportesVistaEstadoInventario.setAttribute('aria-selected', 'true');
-    els.btnReportesVistaPorReporte.classList.remove('is-active');
-    els.btnReportesVistaPorReporte.setAttribute('aria-selected', 'false');
-    els.btnReportesVistaLedger.classList.remove('is-active');
-    els.btnReportesVistaLedger.setAttribute('aria-selected', 'false');
-    els.reportesVistaEstadoInventario.hidden = false;
-    els.reportesVistaPorReporte.hidden = true;
-    els.reportesVistaLedger.hidden = true;
-    if (!invEstadoCargado) {
-      invEstadoCargado = true;
-      cargarEstadoInventario();
+  // ---------- Cortes de ventas (punto 169) ----------
+  // Pestaña propia, separada de "Por reporte" — un corte nunca borra
+  // nada, así que su detalle es más simple que el genérico (una sola
+  // tabla de ventas, sin split Movimientos/Eliminados). "renderFilaReporteItem"
+  // se reusa tal cual (misma forma de item que cualquier otro reporte), y
+  // el botón "Ver historial" de cada fila ya funciona solo — está
+  // delegado a nivel documento (ver más abajo), no hace falta engancharlo
+  // de nuevo aquí.
+
+  let corteSeleccionadoId = '';
+
+  function formatearFechaSoloDia(fechaISO) {
+    if (!fechaISO) return '—';
+    const fecha = new Date(fechaISO);
+    if (Number.isNaN(fecha.getTime())) return '—';
+    return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  function renderListaCortes() {
+    const cortes = reportesDisponibles.filter((r) => r.tipo === 'corte');
+    els.reportesCortesEmpty.hidden = cortes.length > 0;
+    els.reportesCortesTableBody.innerHTML = cortes
+      .map(
+        (r) => `
+        <tr>
+          <td data-label="Generado">
+            <button type="button" class="orden-numero-link" data-corte-id="${r.id}">${formatearFechaCorta(r.fecha_generacion)}</button>
+          </td>
+          <td data-label="Rango cubierto">${formatearFechaSoloDia(r.rango_inicio)} – ${formatearFechaSoloDia(r.rango_fin)}</td>
+          <td data-label="Ventas">${r.total_ordenes}</td>
+          <td data-label="Total">${r.total_monto === null || r.total_monto === undefined ? '—' : `$${formatearMoneda(r.total_monto)}`}</td>
+        </tr>`
+      )
+      .join('');
+  }
+
+  async function abrirDetalleCorte(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
     }
+    const reporte = reportesDisponibles.find((r) => String(r.id) === String(id));
+    if (!reporte) return;
+
+    corteSeleccionadoId = String(id);
+    els.cortesDetalleRango.textContent = `${formatearFechaSoloDia(reporte.rango_inicio)} – ${formatearFechaSoloDia(reporte.rango_fin)}`;
+    els.cortesDetalleFecha.textContent = formatearFechaCorta(reporte.fecha_generacion);
+    els.cortesDetalleVentas.textContent = reporte.total_ordenes;
+    els.cortesDetalleTotal.textContent =
+      reporte.total_monto === null || reporte.total_monto === undefined ? '—' : `$${formatearMoneda(reporte.total_monto)}`;
+    els.btnEliminarCorte.hidden = !puedeEliminarReporte();
+
+    els.reportesCortesListaWrap.hidden = true;
+    els.reportesCortesDetalleWrap.hidden = false;
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/reportes/${id}/items`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = data.items || [];
+      els.cortesDetalleConteo.textContent = items.length;
+      els.reportesCortesDetalleTableBody.innerHTML = items.map((item) => renderFilaReporteItem(item, false)).join('');
+      els.reportesCortesDetalleEmpty.hidden = items.length > 0;
+    } catch (err) {
+      // La tabla se queda vacía; se puede reintentar volviendo a abrir el detalle.
+    }
+  }
+
+  function volverListaCortes() {
+    corteSeleccionadoId = '';
+    els.reportesCortesDetalleWrap.hidden = true;
+    els.reportesCortesListaWrap.hidden = false;
+  }
+
+  els.reportesCortesTableBody.addEventListener('click', (e) => {
+    const boton = e.target.closest('[data-corte-id]');
+    if (boton) abrirDetalleCorte(boton.dataset.corteId);
   });
+  els.btnCortesVolverLista.addEventListener('click', volverListaCortes);
+
+  async function exportarCorte(formato) {
+    if (!corteSeleccionadoId) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const params = new URLSearchParams({ formato });
+      const res = await fetch(`${API_BASE}/admin/reportes/${corteSeleccionadoId}/exportar?${params.toString()}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) {
+        showToast('No se pudo exportar el corte.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `corte-${corteSeleccionadoId}.${formato === 'excel' ? 'xlsx' : 'csv'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast('No se pudo exportar el corte.');
+    }
+  }
+  els.btnExportarCorteCsv.addEventListener('click', () => exportarCorte('csv'));
+  els.btnExportarCorteExcel.addEventListener('click', () => exportarCorte('excel'));
+
+  els.btnEliminarCorte.addEventListener('click', () => {
+    if (!corteSeleccionadoId) return;
+    const reporte = reportesDisponibles.find((r) => String(r.id) === String(corteSeleccionadoId));
+    const etiqueta = reporte ? `del ${formatearFechaCorta(reporte.fecha_generacion)}` : '';
+    abrirConfirmacion({
+      titulo: '¿Eliminar este corte?',
+      mensaje: `Se eliminará el corte ${etiqueta} de forma permanente, junto con todas sus ventas registradas en él. Esta acción no se puede deshacer.`,
+      textoBoton: 'Eliminar',
+      onConfirmar: async () => {
+        const authHeader = getAuthHeader();
+        if (!authHeader) {
+          showLogin();
+          return;
+        }
+        try {
+          const res = await fetch(`${API_BASE}/admin/reportes/${corteSeleccionadoId}`, {
+            method: 'DELETE',
+            headers: { Authorization: authHeader },
+          });
+          if (!res.ok) {
+            showToast('No se pudo eliminar el corte.');
+            return;
+          }
+          showToast('Corte eliminado.');
+          reportesDisponibles = reportesDisponibles.filter((r) => String(r.id) !== String(corteSeleccionadoId));
+          volverListaCortes();
+          renderListaCortes();
+        } catch (err) {
+          showToast('No se pudo eliminar el corte.');
+        }
+      },
+    });
+  });
+
+  // Punto 169: las 4 pestañas de "Lectura de reportes" comparten el mismo
+  // mecanismo (activar botón + mostrar su contenedor + ocultar los otros
+  // 3 + letrero de una línea) — un solo switcher genérico en vez de 4
+  // handlers casi idénticos, y cada pestaña se encarga de su propia carga
+  // perezosa (las estadísticas de auditoría y el estado del inventario no
+  // se piden hasta que alguien de verdad entra a esa pestaña).
+  const PESTANAS_REPORTES = {
+    'por-reporte': {
+      boton: 'btnReportesVistaPorReporte',
+      vista: 'reportesVistaPorReporte',
+      caption: 'Elige un reporte automático, manual o de cierre mensual para ver su contenido completo.',
+    },
+    cortes: {
+      boton: 'btnReportesVistaCortes',
+      vista: 'reportesVistaCortes',
+      caption: 'Historial de cortes de ventas que has generado — consulta o imprime cualquiera de nuevo.',
+      alEntrar: () => renderListaCortes(),
+    },
+    ledger: {
+      boton: 'btnReportesVistaLedger',
+      vista: 'reportesVistaLedger',
+      caption: 'Todo lo que se ha borrado del sistema, cruzando todos los reportes — tu evidencia de auditoría.',
+      alEntrar: () => {
+        cargarLedgerEliminados();
+        if (!reportesEstadisticasCargadas) {
+          reportesEstadisticasCargadas = true;
+          cargarEstadisticasReportes();
+        }
+      },
+    },
+    'estado-inventario': {
+      boton: 'btnReportesVistaEstadoInventario',
+      vista: 'reportesVistaEstadoInventario',
+      caption: 'Salud de tu inventario ahora mismo: qué se vende, qué no se mueve y cuánto vale.',
+      alEntrar: () => {
+        if (!invEstadoCargado) {
+          invEstadoCargado = true;
+          cargarEstadoInventario();
+        }
+      },
+    },
+  };
+  let invEstadoCargado = false;
+  let reportesEstadisticasCargadas = false;
+
+  function activarPestanaReportes(nombre) {
+    const activa = PESTANAS_REPORTES[nombre];
+    Object.entries(PESTANAS_REPORTES).forEach(([clave, def]) => {
+      const esActiva = clave === nombre;
+      els[def.boton].classList.toggle('is-active', esActiva);
+      els[def.boton].setAttribute('aria-selected', String(esActiva));
+      els[def.vista].hidden = !esActiva;
+    });
+    els.reportesTabCaption.textContent = activa.caption;
+    if (activa.alEntrar) activa.alEntrar();
+  }
+
+  els.btnReportesVistaPorReporte.addEventListener('click', () => activarPestanaReportes('por-reporte'));
+  els.btnReportesVistaCortes.addEventListener('click', () => activarPestanaReportes('cortes'));
+  els.btnReportesVistaLedger.addEventListener('click', () => activarPestanaReportes('ledger'));
+  els.btnReportesVistaEstadoInventario.addEventListener('click', () => activarPestanaReportes('estado-inventario'));
 
   // ---------- Historial por identificador (idea D) ----------
   // Delegado en document: el botón "Ver historial" vive en 3 tablas
@@ -4235,7 +4427,6 @@
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'lectura-reportes') {
       cargarListaReportes();
-      cargarEstadisticasReportes();
     }
   }
 

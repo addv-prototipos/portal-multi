@@ -148,19 +148,22 @@ function generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, item
 
 /**
  * Guarda el reporte (metadatos + Markdown en `reportes`, y cada item en
- * `reporte_items`) y devuelve el id insertado. No manda ningún correo —
+ * `reporte_items`) y devuelve el id insertado. `totalMonto` es opcional
+ * (NULL para todo lo que no sea un corte de ventas — punto 169) — así la
+ * pestaña "Cortes" puede mostrar el total $ de cada corte en la lista sin
+ * abrir el detalle. No manda ningún correo —
  * eso lo hace generarYEnviarReporte(), que es la función que de verdad
  * se llama desde fuera de este módulo.
  */
-async function guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, items, mdContenido, correoEnviadoA, correoEnviado }) {
+async function guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, items, mdContenido, correoEnviadoA, correoEnviado, totalMonto }) {
   const tickets = items.filter((i) => i.tipo_registro === 'ticket');
   const ordenes = items.filter((i) => i.tipo_registro === 'orden_compra');
   const gastos = items.filter((i) => i.tipo_registro === 'gasto');
 
   const [resultado] = await pool.query(
     `INSERT INTO reportes
-      (tipo, fecha_generacion, rango_inicio, rango_fin, correo_enviado_a, correo_enviado, total_tickets, total_ordenes, total_gastos, md_contenido, creado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (tipo, fecha_generacion, rango_inicio, rango_fin, correo_enviado_a, correo_enviado, total_tickets, total_ordenes, total_gastos, total_monto, md_contenido, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       tipo,
       fechaGeneracion,
@@ -171,6 +174,7 @@ async function guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, it
       tickets.length,
       ordenes.length,
       gastos.length,
+      totalMonto === undefined || totalMonto === null ? null : totalMonto,
       mdContenido,
       fechaGeneracion,
     ]

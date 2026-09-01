@@ -711,6 +711,7 @@ describe('POST /api/admin/reportes/corte (punto 168: "Corte del día" en Ventas)
     expect(guardarReporte).toHaveBeenCalledWith(
       expect.objectContaining({
         tipo: 'corte',
+        totalMonto: 348,
         items: expect.arrayContaining([
           expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-000001' }),
           expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-000002' }),

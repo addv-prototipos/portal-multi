@@ -488,10 +488,15 @@
   margin-bottom: 16px;
 }
 
+/* Punto 174: homologado a .inicio-bienvenida h1 (24px/700 — Inicio,
+   Resumen financiero, y el bloque de bienvenida de Cuentas por cobrar/
+   Gastos) — antes esta barra (Ventas, Tickets, Constancias, Usuarios, y
+   la propia barra de Cuentas por cobrar) usaba 20px/600, más chico que
+   el resto del panel sin ninguna razón documentada. */
 .admin-toolbar h1 {
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   margin: 0;
 }
 
@@ -976,16 +981,25 @@
 .reportes-envio-manual-texto .field-hint { margin: 0; }
 
 /* ---------- Lectura de reportes ---------- */
+/* Sin margin-bottom propio (punto 171): el subtítulo de adentro
+   (.panel-subtitle) ya aporta 22px por su cuenta, igual que en el resto
+   del panel (Ventas, Cuentas por cobrar, Gastos) — antes se sumaba un
+   18px extra porque display:flex evita el colapso de márgenes normal
+   entre el subtítulo y este contenedor, dejando 40px reales (medido en
+   vivo) en vez de los ~22px de siempre. */
 .lectura-reportes-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
 }
+/* Punto 174: mismo 24px/700 que .inicio-bienvenida h1 en el resto del
+   panel — este título (h2 propio de "Lectura de reportes") también
+   estaba en 20px, sin razón documentada. */
 .lectura-reportes-titulo {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 24px;
+  font-weight: 700;
   margin: 0 0 4px;
 }
 
@@ -1044,6 +1058,31 @@
 .reportes-kpi-chart-body .resumen-fin-chart-barras { height: 70px; }
 @media (max-width: 900px) {
   .reportes-kpi-grid { grid-template-columns: 1fr; }
+}
+
+/* Punto 171: "Estado del inventario" no comparte fila con ninguna
+   gráfica (a diferencia de "Todo lo eliminado", donde el cuadrado
+   230×230 sí tiene sentido — una de sus 3 tarjetas es la gráfica
+   "Eliminados por mes") — sus 3 tarjetas usan alto natural en vez de
+   heredar el cuadrado fijo. Por id, mismo criterio que el resto de
+   este bloque, para ganarle a .reportes-kpi-grid sin tocarla ("Todo lo
+   eliminado" la sigue usando tal cual, cuadrada). */
+#inv-estado-kpi-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+#inv-estado-kpi-grid .inicio-stat-card {
+  width: auto;
+  height: auto;
+}
+#inv-estado-kpi-grid .inicio-stat-numero {
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+#inv-estado-kpi-grid .inicio-stat-tendencia {
+  margin-bottom: 0;
+}
+@media (max-width: 900px) {
+  #inv-estado-kpi-grid { grid-template-columns: 1fr; }
 }
 
 .lectura-reportes-selector-wrap {
@@ -1239,6 +1278,29 @@
   text-align: center;
   color: var(--color-ink-soft);
   font-size: 14px;
+}
+
+/* Letrero de una línea, ahora PEGADO al subtítulo de arriba (punto 172,
+   antes vivía debajo de las pestañas) — se leen como un solo bloque de
+   texto explicando la sección, y las pestañas quedan como frontera clara
+   antes del contenido interactivo. Margen superior chico a propósito
+   (no el ~22px de siempre entre bloques) para que no se sienta como un
+   párrafo aparte del subtítulo. */
+.lectura-reportes-tab-caption {
+  margin: 0 0 22px;
+}
+/* Pestañas de "Lectura de reportes" — clase propia (además de la
+   .view-toggle compartida por 11+ lugares del panel) para separarlas del
+   contenido de abajo sin tocar el margen de .view-toggle en general. */
+.lectura-reportes-tabs {
+  margin-bottom: 22px;
+}
+
+/* Botón "Volver a la lista" del detalle de un corte (pestaña "Cortes") —
+   mismo criterio visual que un link de regreso, sin inventar un
+   componente nuevo. */
+.lectura-reportes-volver {
+  margin-bottom: 16px;
 }
 
 /* Modal de "Ver Markdown completo" */
@@ -1516,8 +1578,32 @@
   overflow-x: auto;
 }
 .orden-productos-tabla {
-  min-width: 0;
   font-size: 13px;
+}
+/* Punto 173 — bug real: .admin-table fija min-width:760px (pensado para
+   las tablas grandes con columnas ajustables, ver más abajo) y esta
+   tabla del modal de Ventas la hereda sin necesitarla (5 columnas
+   angostas) — el min-width:0 de arriba nunca ganaba porque tiene la
+   MISMA especificidad que .admin-table pero está declarado ANTES en la
+   hoja de estilos. Efecto real: al agregar el primer producto, la tabla
+   se plantaba en 760px dentro de .orden-wizard-grid (2 columnas 1fr 1fr,
+   grid.js:1385) y la columna de al lado (Pago y entrega/Cliente) se
+   aplastaba a ~175px, desbordando el modal completo (scrollbar
+   horizontal, campos ilegibles). Por 2 clases (ambas ya están en el
+   elemento real), no 1, para ganarle a .admin-table sin depender del
+   orden en el archivo. */
+.orden-productos-tabla.orden-productos-tabla-escritorio {
+  /* table-layout:fixed (heredado de .admin-table) está pensado para las
+     tablas grandes con columnas ARRASTRABLES (anchos guardados por JS) —
+     esta tabla de 5 columnas no tiene esa función ni anchos definidos en
+     sus <th>, así que fixed solo la partía en 5 franjas IGUALES sin
+     sentido (Concepto tan angosto como "Cant."), forzando el texto a
+     envolver letra por letra. auto deja que cada columna respete su
+     contenido real (Concepto ancho, numéricas angostas por el
+     white-space:nowrap de abajo). min-width modesto — ni 0 (colapsaba
+     ilegible) ni los 760px heredados (rompía el grid de 2 columnas). */
+  table-layout: auto;
+  min-width: 320px;
 }
 .orden-productos-tabla th,
 .orden-productos-tabla td {

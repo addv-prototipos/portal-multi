@@ -1071,7 +1071,102 @@ Chrome) con datos reales y estado vacío, sin errores de consola.
 **El usuario avisó al aprobar este segmento que deja el equipo** — ver
 memoria persistente `project_handoff_equipo.md`: documentar con doble
 cuidado de aquí en adelante, sin asumir que habrá alguien disponible
-para resolver ambigüedades futuras. Sin commit/push todavía.
+para resolver ambigüedades futuras. **Commiteado y pusheado**
+(`664b36e` → `fact/master`).
+
+**"Lectura de reportes" reorganizada por segmento + pestaña "Cortes"
+(ver PROJECT_STATE.md punto 169, 2026-09-01)**: auditoría UX/UI/CX a
+partir de 2 capturas del usuario (Artifact con 4 hallazgos + antes/
+después, aprobado "Opción A, orden así, textos bien"). Las 3 tarjetas
+de auditoría (`#reportes-kpi-grid`) que antes se veían en las 4
+pestañas por igual ahora viven SOLO dentro de "Todo lo eliminado"
+(carga perezosa, mismo patrón que "Estado del inventario"); letrero de
+una línea (`#reportes-tab-caption`) bajo las pestañas, cambia por
+segmento; pestaña "Cortes" nueva — los cortes de ventas (punto 168) ya
+no aparecen en el selector de "Por reporte", tienen su propia lista +
+detalle simplificado (reusa `renderFilaReporteItem()`, sin duplicar
+lógica). Columna `reportes.total_monto` (DECIMAL NULL, solo cortes) vía
+`guardarReporte({..., totalMonto})` para mostrar el Total $ en la lista
+sin abrir cada uno. Bug propio corregido en el camino: `rango_fin` de
+un corte se guardaba con el límite exclusivo de la consulta (mostraría
+"01 sep – 02 sep" para un corte de un solo día) — se ajusta 1 segundo
+antes solo para mostrar/Markdown, sin tocar qué ventas entran al corte.
+Jest backend 787/787 (45 suites). Validado contra Docker/MySQL reales y
+en navegador real (Claude in Chrome): las 4 pestañas, caption por
+segmento, Cortes con datos reales y ciclo completo de eliminar, KPIs
+solo en su pestaña, cero errores de consola. Pregunta 4 de la propuesta
+(simplificar el lenguaje de las tarjetas de auditoría) quedó sin
+resolver — nadie la confirmó, se dejó el texto tal cual. Sin
+commit/push todavía.
+
+**"Lectura de reportes" — espaciado suelto en toda la sección (ver
+PROJECT_STATE.md punto 171, 2026-09-01, IMPLEMENTADO Y VALIDADO)**:
+extiende el fix del punto 169 (tarjetas 230×230px de "Estado del
+inventario") a TODO el encabezado, a pedido del usuario. Causa raíz
+medida EN VIVO en el navegador (no estimada): `.lectura-reportes-header`
+usa `display:flex` con un solo hijo, lo que rompe el colapso de
+márgenes normal y deja 40px de hueco donde el resto del panel usa
+~22px — fix de una línea (quitar su `margin-bottom` propio). Tarjetas
+de "Estado del inventario" con override por id (`#inv-estado-kpi-grid`)
+para alto natural en vez del cuadrado heredado de `.reportes-kpi-grid`
+— "Todo lo eliminado" queda intacto (230×230px, justificado ahí por la
+gráfica). Medido antes→después: 40px→22px, 230px→122px de alto de
+tarjeta. 100% CSS, sin tocar HTML/JS. Corrección de proceso durante la
+propuesta: el primer borrador del Artifact usó emoji como placeholder
+de los íconos — el usuario recordó que el sitio tiene política de cero
+emojis (también aplica a mockups), corregido a los SVG reales antes de
+aprobar — ver memoria persistente `feedback_sin_emojis_en_mockups.md`.
+Jest backend 787/787, validado contra Docker/MySQL reales y en
+navegador real, cero errores de consola. Sin commit/push todavía.
+
+**"Lectura de reportes" — letrero pegado al subtítulo (ver
+PROJECT_STATE.md punto 172, 2026-09-01)**: reorden a pedido del usuario
+(subtítulo→letrero→pestañas→contenido, antes el letrero vivía debajo de
+las pestañas partiendo los 2 textos) + guión largo quitado del
+subtítulo del encabezado. 100% HTML/CSS, medido en vivo (22px parejo en
+las 3 transiciones), 4 pestañas siguen funcionando. Sin commit/push.
+
+**Bug real en "Registrar venta" — desbordaba al agregar el primer
+producto (ver PROJECT_STATE.md punto 173, 2026-09-01, reportado por el
+usuario con captura, ENCONTRADO Y CORREGIDO)**: `.admin-table`
+(`min-width:760px`, pensada para tablas grandes con columnas
+arrastrables) se heredaba en la tabla chica de productos del modal —
+dentro del grid de 2 columnas del wizard, forzaba su columna a 760px y
+aplastaba la vecina a ~175px, desbordando el modal (scrollbar
+horizontal, campos ilegibles). Un primer intento de fix
+(`min-width:0`) generó un bug DISTINTO (texto envuelto letra por letra,
+por `table-layout:fixed` heredado sin sentido en una tabla sin anchos
+de columna definidos). Fix real: `table-layout:auto` +
+`min-width:320px`, selector de 2 clases para ganarle a `.admin-table`
+sin depender del orden del archivo. Validado en navegador real: sin
+overflow, columnas parejas, Total correcto. Jest backend 787/787. Sin
+commit/push.
+
+**Títulos de página homologados a 24px/700 (ver PROJECT_STATE.md punto
+174, 2026-09-01)**: `.admin-toolbar h1` y `.lectura-reportes-titulo`
+pasan de 20px/600 a 24px/700, igualando `.inicio-bienvenida h1`
+(Inicio/Resumen financiero). Medido en vivo antes de tocar nada — la
+premisa literal del usuario no cuadraba (Resumen financiero ya era
+igual a Inicio, Ventas era más chico no más grande) pero sí había una
+inconsistencia real (2 sistemas de tamaño de título coexistiendo).
+Efecto secundario encontrado y corregido: "Cuentas por cobrar" tenía
+el título duplicado (uno en cada sistema, antes disimulado por el
+tamaño distinto) — se quitó el `<h1>` redundante de la barra de
+herramientas. Jest backend 787/787, validado en navegador real, cero
+errores de consola. Sin commit/push.
+
+**PENDIENTE — Correo de contacto de empresa + burbuja "Solicitar
+aclaraciones" (2026-09-01, ver PROJECT_STATE.md punto 170, SOLO
+REGISTRADO)**: campo "correo de contacto" (ya existe en alta de empresa
+en `/control`, sin funcionalidad) pasa a obligatorio, es correo DE LA
+EMPRESA cliente (no de CLARVO, con ejemplos guía en el formulario) para
+que CLARVO le mande seguimiento de situaciones puntuales. Ese correo se
+expone en el portal del cliente vía burbuja flotante "Solicitar
+aclaraciones" → formulario (RFC pre-llenado + Nombre + Teléfono +
+Detalle del problema) → genera reporte con número = ID + RFC. Instrucción
+explícita del usuario: nada de analizar/criticar/implementar en esta
+sesión — la siguiente retoma el protocolo completo. Ver el punto 170
+para las preguntas de diseño abiertas.
 
 **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
