@@ -505,6 +505,7 @@ Como **administrador**, quiero crear un producto, para poder controlarlo dentro 
 - Nombre obligatorio; unidad base obligatoria.
 - Producto activo por defecto; `tipo=servicio` no genera existencias/movimientos/kardex.
 - El backend valida todos los campos; no duplicidad lógica.
+- **PENDIENTE (registrado 2026-09-01, NO implementado)**: con `tipo=servicio` (servicio profesional, unidad = horas), los campos `codigo_barras`, `stock_minimo` y `stock_maximo` NO aplican y no deben mostrarse/pedirse en el formulario — un servicio no se escanea ni tiene mínimos/máximos de existencia. A diferencia de un `producto` de unidad de conteo, un servicio en horas SÍ admite decimales en cantidad (mismo criterio que las unidades de medida continuas del punto 175 de `PROJECT_STATE.md` — pieza/caja exigen entero, litro/kg/hora admiten decimales). Falta decidir: si `stock_minimo`/`stock_maximo` se ocultan solo en la UI o también se anulan a nivel de esquema para `tipo=servicio`, y si `unidad_base` para un servicio debe restringirse a "Hora" o queda libre. Seguir el protocolo `addv-web-app` (analizar → proponer → confirmar) antes de tocar código.
 
 <details><summary>Anexo aspiracional — campos fuera de v1 (Fase 2/3)</summary>
 
