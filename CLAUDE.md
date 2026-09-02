@@ -212,7 +212,35 @@ el `SELECT` de `GET /admin/reportes` — el selector de "Lectura de
 reportes" solo mostraba tickets/ventas, nunca gastos, aunque cada
 cierre mensual sí los archiva. Fix de una línea en cada lado (backend +
 `option.textContent` en `admin.js`). Validado por HTTP real: los 5
-cortes ya sembrados muestran 13/13/14/9/18 gastos.
+cortes ya sembrados muestran 13/13/14/9/18 gastos. **Commiteado y
+pusheado** (`5dcb910`+`5e6a458` → `fact/master`).
+
+**4to fix, más grande — selector "Periodo" en Ventas/Gastos construido
+a medias, nunca terminado**: el usuario reportó "no veo el reporte de
+los gastos, en la sección de gastos" — con `archivado_en IS NULL` por
+defecto, cerrar un mes deja la vista activa vacía sin forma de ver lo
+archivado. El backend (`GET /api/admin/periodos-archivados`) y buena
+parte del JS (listeners, reset, disable en papelera) ya existían de
+antes, pero el `<select>` NUNCA se agregó al HTML (`els.xxxFiltroPeriodo`
+resolvía `null`, toda esa lógica ya escrita nunca se activaba) y
+`cargarOrdenes()`/`cargarGastos()` tampoco mandaban el valor al
+backend. Fix: 2 `<select>` agregados a los paneles de filtros
+existentes + wiring completo. Validado por HTTP real:
+`?periodo=2026-08` trae 32 ventas/18 gastos archivados de agosto. Jest
+backend 809/809. Sin commit/push todavía.
+
+**Punto 184 (mismo día)**: leyenda de "Ventas vs Facturado vs Gastos"
+ahora es filtro clicable — pero SOLO dentro de la ventana emergente (en
+la tarjeta chica sigue solo informativa). Clic oculta/muestra esa serie
+en todos los meses, con animación (fundido+colapso, respeta reduce-
+motion), accesible por teclado. Protocolo completo: crítica + demo
+interactiva en Artifact + confirmación explícita ("confirmo me
+encanta"). Gancho: la misma clase que ya usa `abrirDetalleGrafica()`
+para el contenedor movido al modal, sin estado nuevo. No se guarda qué
+ocultaste entre aperturas (reset automático al cerrar). Jest backend
+809/809 (100% frontend). Sin herramienta de navegador esta sesión —
+validado por despliegue vía curl, falta confirmación visual del
+usuario.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

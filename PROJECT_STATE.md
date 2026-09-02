@@ -11739,8 +11739,64 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
          (`frontend/admin.js`) ahora incluye "N gastos". Validado por
          HTTP real: los 5 cortes muestran 13/13/14/9/18 gastos
          respectivamente. Jest backend 809/809 (sin test dedicado, sin
-         asserts previos sobre esos campos exactos). Sin commit/push
-         todavía.
+         asserts previos sobre esos campos exactos). **Commiteado y
+         pusheado** (`5dcb910`+`5e6a458` → `fact/master`).
+      4. **Selector "Periodo" en Ventas/Gastos — construido a medias,
+         nunca terminado (mismo día, reportado por el usuario: "no veo
+         el reporte de los gastos, en la sección de gastos")**: el
+         backend (`GET /api/admin/periodos-archivados`,
+         `?periodo=YYYY-MM` en ambos listados) y BUENA parte del JS
+         (event listeners, disable en papelera, reset de filtros — todos
+         ya con guardas `if (els.xxxFiltroPeriodo)`) ya existían de una
+         sesión anterior — pero los `<select>` nunca se agregaron al
+         HTML (`els.ordenesFiltroPeriodo`/`els.gastosFiltroPeriodo`
+         resolvían a `null`, así que TODA esa lógica ya escrita nunca se
+         activaba) y `cargarOrdenes()`/`cargarGastos()` tampoco leían su
+         valor para mandarlo al backend. Con `archivado_en IS NULL` por
+         defecto, cerrar un mes (punto 183 de arriba) dejaba la vista
+         activa de Ventas/Gastos vacía sin ninguna forma de ver lo
+         archivado — exactamente el síntoma reportado. Fix: 2
+         `<select id="ordenes-filtro-periodo">`/`<select id="gastos-
+         filtro-periodo">` agregados a sus paneles de filtros existentes
+         (mismo patrón `.field` que "Estado de pago"/"Categoría"), los 2
+         `els` agregados, `periodo` sumado a los `params` de ambos
+         `cargar*()`, y `cargarPeriodosArchivados()` llamado al entrar a
+         cada vista (antes solo se llamaba desde dentro de un listener
+         que nunca se registraba). Validado por HTTP real:
+         `?periodo=2026-08` trae los 32 ventas/18 gastos archivados de
+         agosto; sin periodo sigue en 0 (mes actual, correcto). Jest
+         backend 809/809. Sin commit/push todavía.
+
+  184. **Leyenda como filtro en "Ventas vs Facturado vs Gastos" — SOLO
+      dentro de la ventana emergente (2026-09-02, protocolo completo:
+      crítica + demo interactiva en Artifact + confirmación explícita
+      del usuario, "confirmo me encanta")**: dar clic en un ítem de la
+      leyenda (Ventas/Gastos/Facturado/Sin facturar) oculta/muestra esa
+      serie en TODOS los meses a la vez, con animación (fundido +
+      colapso vertical, 220-300ms, `cubic-bezier` con rebote sutil,
+      respeta `prefers-reduced-motion`); en la tarjeta chica del
+      dashboard la leyenda se queda solo informativa, igual que
+      siempre. Gancho de activación: la MISMA clase
+      `resumen-fin-detalle-contenido-grande` que `abrirDetalleGrafica()`
+      ya le pone al contenedor movido al modal — sin estado nuevo, la
+      interactividad se detecta con `li.closest(...)` en cada clic. 2
+      decisiones confirmadas por el usuario en la demo: ocultar las 4 a
+      la vez deja la gráfica en blanco (reversible con un clic, sin
+      botón "Mostrar todo" extra) y el estado NO se guarda entre
+      aperturas del modal (`resetearLeyendaFiltroChart()` en
+      `cerrarDetalleGrafica()`, siempre arranca con las 4 visibles).
+      Accesible: cada `<li>` gana `role="button"`/`tabindex="0"`/
+      `aria-pressed`, funciona con Enter/Espacio además de clic, foco
+      visible. HTML: 4to `data-serie` en los `<li>` de la leyenda +
+      clase `resumen-fin-chart-leyenda-filtrable` (para no afectar la
+      leyenda de "Utilidad neta del mes", que comparte la clase base
+      `.resumen-fin-chart-leyenda` pero son segmentos apilados de la
+      MISMA barra, no series independientes — filtrarla no aplicaría
+      igual, fuera de alcance a propósito). Jest backend 809/809 (sin
+      cambios de backend, 100% frontend). Validado por despliegue
+      confirmado vía curl (JS/CSS/HTML servidos) — sin herramienta de
+      navegador esta sesión, falta que el usuario lo confirme en vivo.
+      Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 
