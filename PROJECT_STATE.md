@@ -11432,6 +11432,23 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       pestañas de distintos tenants. Cookies con nombre/path por tenant
       quedan como mejora futura, no bloqueante. Sin commit/push todavía.
 
+  179. **PENDIENTE — campos ocultos/decimales para `tipo=servicio` en
+      "Crear producto" de Inventarios (registrado 2026-09-01, ver
+      `inventarios.md` §55, SOLO REGISTRADO, sin implementar)**: con
+      `tipo=servicio` (servicio profesional, unidad = horas), los campos
+      `codigo_barras`/`stock_minimo`/`stock_maximo` no aplican (un
+      servicio no se escanea ni tiene mínimos/máximos de existencia) y a
+      diferencia de un `producto` de unidad de conteo, la cantidad en
+      horas SÍ debe admitir decimales (mismo criterio que las unidades de
+      medida continuas del punto 175 — litro/kg/hora admiten decimales,
+      pieza/caja exigen entero). Preguntas de diseño abiertas: si
+      `stock_minimo`/`stock_maximo` se ocultan solo en la UI o también se
+      anulan a nivel de esquema para `tipo=servicio`, y si `unidad_base`
+      para un servicio debe restringirse a "Hora" o queda libre. Seguir
+      el protocolo `addv-web-app` completo (analizar → revisar impacto →
+      criticar y mejorar el requerimiento → propuesta visual → confirmar)
+      antes de tocar código, mismo patrón que el punto 167.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto
