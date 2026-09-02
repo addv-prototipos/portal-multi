@@ -238,6 +238,7 @@
     ordenesFiltroTotalMin: document.getElementById('ordenes-filtro-total-min'),
     ordenesFiltroTotalMax: document.getElementById('ordenes-filtro-total-max'),
     ordenesFiltroEstadoPago: document.getElementById('ordenes-filtro-estado-pago'),
+    ordenesFiltroPeriodo: document.getElementById('ordenes-filtro-periodo'),
     btnLimpiarFiltrosOrdenes: document.getElementById('btn-limpiar-filtros-ordenes'),
     ordenesFiltroEmpty: document.getElementById('ordenes-filtro-empty'),
     // Modal "Corte del día" (punto 168)
@@ -416,6 +417,7 @@
     resumenFinKpiSinFacturar: document.getElementById('resumen-fin-kpi-sin-facturar'),
     resumenFinChartBody: document.getElementById('resumen-fin-chart-body'),
     resumenFinChartEmpty: document.getElementById('resumen-fin-chart-empty'),
+    resumenFinChartLeyendaFiltrable: document.getElementById('resumen-fin-chart-leyenda-filtrable'),
     resumenFinUtilidadValor: document.getElementById('resumen-fin-utilidad-valor'),
     resumenFinUtilidadBody: document.getElementById('resumen-fin-utilidad-body'),
     resumenFinUtilidadEmpty: document.getElementById('resumen-fin-utilidad-empty'),
@@ -447,6 +449,7 @@
     btnRestablecerDashboard: document.getElementById('btn-restablecer-dashboard'),
     resumenFinDashboardAyuda: document.getElementById('resumen-fin-dashboard-ayuda'),
     resumenFinTablero: document.getElementById('resumen-fin-tablero'),
+    gastosFiltroPeriodo: document.getElementById('gastos-filtro-periodo'),
     gastosFiltroCategoria: document.getElementById('gastos-filtro-categoria'),
     gastosFiltroFactura: document.getElementById('gastos-filtro-factura'),
     gastosFiltroRecurrente: document.getElementById('gastos-filtro-recurrente'),
@@ -4407,6 +4410,7 @@
     }
     if (vista === 'ordenes') {
       cargarConfigGlobalParaOrden();
+      cargarPeriodosArchivados();
       // Se espera a que la caché de correos (con su razón social) esté
       // lista ANTES de cargar/renderizar la tabla, para que el tooltip
       // de "Correo" tenga los datos disponibles desde el primer render
@@ -4426,6 +4430,7 @@
   }
     if (vista === 'cxc') cargarCxc();
     if (vista === 'gastos') {
+      cargarPeriodosArchivados();
       (async () => {
         await cargarCategoriasGastos();
         cargarGastos();
@@ -5937,7 +5942,9 @@
 
     els.ordenesError.textContent = '';
     try {
-      const res = await fetch(`${API_BASE}/admin/ordenes-compra`, {
+      const params = new URLSearchParams();
+      if (els.ordenesFiltroPeriodo && els.ordenesFiltroPeriodo.value) params.set('periodo', els.ordenesFiltroPeriodo.value);
+      const res = await fetch(`${API_BASE}/admin/ordenes-compra?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
       if (res.status === 401) {
@@ -8478,6 +8485,52 @@
       detalleGraficaOrigen = null;
     }
     els.resumenFinDetalleOverlay.hidden = true;
+    // La leyenda-filtro no guarda estado entre aperturas — siempre arranca
+    // con las 4 series visibles la próxima vez que se abra el modal.
+    resetearLeyendaFiltroChart();
+  }
+
+  // Leyenda de "Ventas vs Facturado vs Gastos" como filtro — SOLO
+  // funciona dentro de la ventana emergente (gancho:
+  // .resumen-fin-detalle-contenido-grande, la misma clase que
+  // abrirDetalleGrafica() ya le pone al contenedor movido). En la
+  // tarjeta chica un clic no hace nada, la leyenda se queda informativa
+  // como siempre.
+  function resetearLeyendaFiltroChart() {
+    if (!els.resumenFinChartLeyendaFiltrable) return;
+    els.resumenFinChartLeyendaFiltrable.querySelectorAll('li').forEach((li) => {
+      li.classList.remove('resumen-fin-serie-apagada');
+      li.setAttribute('aria-pressed', 'false');
+    });
+    els.resumenFinChartBody.querySelectorAll('.resumen-fin-chart-barra').forEach((barra) => {
+      barra.classList.remove('resumen-fin-barra-oculta');
+    });
+  }
+
+  if (els.resumenFinChartLeyendaFiltrable) {
+    const itemsLeyendaChart = els.resumenFinChartLeyendaFiltrable.querySelectorAll('li');
+    itemsLeyendaChart.forEach((li) => {
+      li.setAttribute('role', 'button');
+      li.setAttribute('tabindex', '0');
+      li.setAttribute('aria-pressed', 'false');
+      const alternarSerie = () => {
+        // Fuera de la ventana emergente, la leyenda es solo informativa.
+        if (!li.closest('.resumen-fin-detalle-contenido-grande')) return;
+        const serie = li.dataset.serie;
+        const apagada = li.classList.toggle('resumen-fin-serie-apagada');
+        li.setAttribute('aria-pressed', String(apagada));
+        els.resumenFinChartBody.querySelectorAll(`.resumen-fin-chart-barra-${serie}`).forEach((barra) => {
+          barra.classList.toggle('resumen-fin-barra-oculta', apagada);
+        });
+      };
+      li.addEventListener('click', alternarSerie);
+      li.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          alternarSerie();
+        }
+      });
+    });
   }
 
   document.querySelectorAll('.resumen-fin-expandir-btn').forEach((boton) => {
@@ -8516,6 +8569,7 @@
     try {
       const params = new URLSearchParams();
       if (state.vistaGastos === 'papelera') params.set('papelera', 'true');
+      if (els.gastosFiltroPeriodo && els.gastosFiltroPeriodo.value) params.set('periodo', els.gastosFiltroPeriodo.value);
       if (els.gastosFiltroCategoria.value) params.set('categoria', els.gastosFiltroCategoria.value);
       if (els.gastosFiltroFactura.value !== '') params.set('tiene_factura', els.gastosFiltroFactura.value);
       if (els.gastosFiltroRecurrente.value !== '') params.set('recurrente', els.gastosFiltroRecurrente.value);

@@ -629,11 +629,11 @@
           <div id="resumen-fin-chart-contenido">
             <div class="resumen-fin-chart-body" id="resumen-fin-chart-body"></div>
             <p class="admin-empty" id="resumen-fin-chart-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
-            <ul class="resumen-fin-chart-leyenda">
-              <li><span class="resumen-fin-dot resumen-fin-dot-ventas" aria-hidden="true"></span>Ventas</li>
-              <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
-              <li><span class="resumen-fin-dot resumen-fin-dot-facturado" aria-hidden="true"></span>Facturado</li>
-              <li><span class="resumen-fin-dot resumen-fin-dot-sin-facturar" aria-hidden="true"></span>Sin facturar</li>
+            <ul class="resumen-fin-chart-leyenda resumen-fin-chart-leyenda-filtrable" id="resumen-fin-chart-leyenda-filtrable">
+              <li data-serie="ventas"><span class="resumen-fin-dot resumen-fin-dot-ventas" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Ventas</span></li>
+              <li data-serie="gastos"><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Gastos</span></li>
+              <li data-serie="facturado"><span class="resumen-fin-dot resumen-fin-dot-facturado" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Facturado</span></li>
+              <li data-serie="sin-facturar"><span class="resumen-fin-dot resumen-fin-dot-sin-facturar" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Sin facturar</span></li>
             </ul>
           </div>
         </section>
@@ -801,6 +801,12 @@
               <option value="pagada">Pagada</option>
               <option value="pendiente">Pendiente</option>
               <option value="vencida">Vencida</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ordenes-filtro-periodo">Periodo</label>
+            <select id="ordenes-filtro-periodo">
+              <option value="">Mes actual</option>
             </select>
           </div>
           <div class="lectura-reportes-filtros-acciones">
@@ -1300,6 +1306,12 @@
         </div>
 
         <div class="gastos-filtros">
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="gastos-filtro-periodo">Periodo</label>
+            <select id="gastos-filtro-periodo">
+              <option value="">Mes actual</option>
+            </select>
+          </div>
           <div class="field gastos-filtro-campo">
             <label class="gastos-filtro-label" for="gastos-filtro-categoria">Categoría</label>
             <select id="gastos-filtro-categoria">
