@@ -282,12 +282,7 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   completo por HTTP (null→PUT→GET→400s→404→401→DELETE) + tabla real +
   auditoría automática. Pendiente solo revisión visual del usuario.
 - **Remotes git (ver PROJECT_STATE.md punto 107)**: `origin` apunta a
-  `portal-multi.git` y `fact` a `ADDVportalFact.git` (el repo donde se
-  publica el trabajo real). Publicar = `git push fact main:master` (la
-  rama local es `main`; el master remoto fue reemplazado por force push
-  el 2026-08-18, los 53 commits previos quedaron huérfanos, la rama
-  `prototipo` del remote sigue intacta). No asumir `origin` como destino
-  de publicación sin verificar antes.
+  `portal-multi.git` y `fact` a `addv-prototipos/ADDVportalFact.git` (actualizado 2026-09-01, antes `antonioprado-sketch/ADDVportalFact.git` — el repo donde se publica el trabajo real). Publicar = `git push fact main:master` (la rama local es `main`; el master remoto fue reemplazado por force push el 2026-08-18, los 53 commits previos quedaron huérfanos, la rama `prototipo` del remote sigue intacta). No asumir `origin` como destino de publicación sin verificar antes.
 - **Datos de prueba históricos + serie mensual de ~6 meses (ver
    PROJECT_STATE.md punto 134, 2026-08-23)**: BD sembrada con 175 ventas +
    85 tickets 'listo' + 86 gastos marcados (mar–ago, script reproducible

@@ -98,6 +98,24 @@ quita/pone `hidden` por JS directamente. Jest 781/781, rebuild y
 validado por HTTP de nuevo. **Confirmado por el usuario en navegador
 real** ("ya lo revisé, ya funciona"). Sin commit/push todavía.
 
+**Bug real de seguridad/aislamiento multi-tenant — "/<slug>" sin página
+caía al sitio sin tenant — ENCONTRADO Y CORREGIDO (2026-09-01, ver
+PROJECT_STATE.md punto 178)**: reportado por el usuario ("me redirecciona
+al principal sin tenant... no respeta el slug"). Auditoría completa
+confirmó login/registro/cross-tenant-nav/admin fallback correctos — el
+bug real era en `frontend/nginx.conf.template`: visitar SOLO `/<slug>`
+(sin página) no matcheaba ningún `location` multi-tenant, caía al
+catch-all y servía `login.html` SIN cambiar la URL — la barra seguía
+mostrando `/<slug>` pero `login.js` (`segmentos.length >= 2`) no
+detectaba tenant, autenticando contra la BD base. Con el mismo RFC en 2
+tenants, el login succedía contra la empresa equivocada. Fix: nuevo
+`location` regex que redirige 302 `/<slug>` → `/<slug>/login`, usando
+`$proxy_x_forwarded_proto://$http_host` (no `$scheme://$host`, que pierde
+el puerto en Docker). Validado en Docker/navegador real. Hallazgo
+secundario sin corregir (no es el bug reportado, no hay fuga de datos):
+cookie de sesión de cliente compartida entre tenants (mismo nombre/path),
+se pisa entre pestañas de distintos tenants. Sin commit/push.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
@@ -1215,18 +1233,27 @@ de altura entre columnas 0px (antes había desnivel real, medido con
 `getBoundingClientRect()`), "+ Agregar producto" sigue funcionando,
 cero errores de consola. Sin commit/push todavía.
 
-**PENDIENTE — Correo de contacto de empresa + burbuja "Solicitar
-aclaraciones" (2026-09-01, ver PROJECT_STATE.md punto 170, SOLO
-REGISTRADO)**: campo "correo de contacto" (ya existe en alta de empresa
-en `/control`, sin funcionalidad) pasa a obligatorio, es correo DE LA
-EMPRESA cliente (no de CLARVO, con ejemplos guía en el formulario) para
-que CLARVO le mande seguimiento de situaciones puntuales. Ese correo se
-expone en el portal del cliente vía burbuja flotante "Solicitar
-aclaraciones" → formulario (RFC pre-llenado + Nombre + Teléfono +
-Detalle del problema) → genera reporte con número = ID + RFC. Instrucción
-explícita del usuario: nada de analizar/criticar/implementar en esta
-sesión — la siguiente retoma el protocolo completo. Ver el punto 170
-para las preguntas de diseño abiertas.
+**Correo de contacto de empresa + burbuja "Solicitar aclaraciones" —
+IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales y en navegador real
+(2026-09-01, ver PROJECT_STATE.md punto 170)**: correo de contacto
+(`contacto_email`) pasó de opcional a obligatorio en alta/edición de
+empresa en `/control` (`normalizarDatosBase()`, compartida por
+`tenantIntake.js`/`tenantEdicion.js`), expuesto en `req.tenant.
+contactoEmail`. Burbuja flotante "Solicitar aclaraciones" nueva
+(`frontend/aclaraciones.js`, inyectada en dashboard/tickets/csf del
+portal de cliente) → modal con RFC de sesión pre-llenado + Nombre +
+Teléfono + Detalle → `POST /api/aclaraciones` (backend, `requireUserAuth`)
+arma el correo con `construirCorreoBase()` (mismo lenguaje del punto 161)
+y lo manda AL CORREO DE CONTACTO DEL TENANT, esperando el envío (`await`,
+no fire-and-forget como el resto de correos de la app — aquí no hay fila
+de BD de respaldo si falla). Sin persistencia en BD (decisión explícita
+del usuario). Folio = timestamp+RFC. `GET /api/tema/:slug` gana el
+booleano público `tieneAclaraciones` para que el frontend sepa si pintar
+la burbuja. **Bug real corregido en la validación**: el error de envío
+fallido usaba 502, que `nginx.conf.template` intercepta globalmente
+(`error_page 502 503 504 =503 /mantenimiento.html`) y disfraza de "sitio
+caído" — cambiado a 500. Jest backend 804/804, control 119/119. Sin
+commit/push todavía.
 
 **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
@@ -1637,7 +1664,7 @@ para las preguntas de diseño abiertas.
 - **Todavía no hay ningún tenant real dado de alta** — nada de esto
   recibe tráfico real hoy.
 - **Remotes git (ver PROJECT_STATE.md punto 107)**: `origin` apunta a
-  `portal-multi.git` y `fact` a `ADDVportalFact.git` (el repo donde se
+  `portal-multi.git` y `fact` a `addv-prototipos/ADDVportalFact.git` (actualizado 2026-09-01, antes `antonioprado-sketch/ADDVportalFact.git` — el repo donde se
   publica el trabajo real). Publicar = `git push fact main:master` (la
   rama local es `main`; el master remoto fue reemplazado por force push
   el 2026-08-18, los 53 commits previos quedaron huérfanos, la rama

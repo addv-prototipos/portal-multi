@@ -5600,8 +5600,8 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     (2026-08-18): el repo local tenía un solo remote `origin` apuntando a
     `https://github.com/antonioprado-sketch/portal-multi.git`, con la rama
     local `main`. Por pedido explícito del usuario se agregó el remote
-    `fact` apuntando a `https://github.com/antonioprado-sketch/ADDVportalFact.git`
-    y se publicó el historial completo (`main` → `master` del remote):
+    `fact` apuntando a `https://github.com/addv-prototipos/ADDVportalFact.git`
+     (actualizado 2026-09-01 — antes `antonioprado-sketch/ADDVportalFact.git`) y se publicó el historial completo (`main` → `master` del remote):
     - **El master remoto tenía 53 commits con historial INDEPENDIENTE**
       (proyecto previo del usuario, ramas `master` y `prototipo`), sin
       ninguna relación de ancestría con este repo local — el push normal
@@ -11016,39 +11016,80 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         terminar (ventas OC-000172/173, el corte de prueba se borró
         desde la propia UI como parte de la validación). Sin
         commit/push todavía.
-  170. **PENDIENTE — Correo de contacto de la empresa (alta en `/control`)
-      + burbuja "Solicitar aclaraciones" en el portal del cliente
-      (2026-09-01, SOLO REGISTRADO, sin analizar/criticar/implementar)**:
-      requerimiento textual del usuario, la siguiente sesión retoma el
-      protocolo completo (analizar, revisar impacto, criticar y mejorar
-      el requerimiento, propuesta visual, confirmar) antes de tocar
-      código. Resumen:
-      - El campo "correo de contacto" YA EXISTE en el alta de empresa en
-        `/control` pero sin funcionalidad ninguna todavía (no está claro
-        en el requerimiento si se refiere al campo `email`/marca ya
-        existente en `tenantIntake.js`/`tenantMarca.js`, o si hace falta
-        una columna nueva — verificar antes de proponer).
-      - Debe volverse **obligatorio** al dar de alta una empresa.
-      - Es el correo DE LA EMPRESA CLIENTE (para dudas/seguimiento de su
-        negocio), NO de CLARVO — el formulario de alta debe traer
-        ejemplos guía tipo `contacto@miempresa.com`/
-        `contador@miempresa.com` para dejarlo claro.
-      - CLARVO usa ese correo para mandar reportes de seguimiento de
-        alguna situación puntual del tenant.
-      - Ese mismo correo se expone del lado del cliente (portal, no
-        admin) en una **burbuja flotante** de "Solicitar aclaraciones".
-      - Al hacer click en la burbuja, abre un **formulario**: RFC
-        pre-llenado (de la sesión del cliente ya autenticado), pide
-        **Nombre**, **Teléfono de contacto** y **Detalle del problema**.
-      - Al enviar, genera un **reporte** con número = **ID + RFC** (para
-        poder identificarlo fácil buscando por correo).
-      - Preguntas de diseño abiertas para la siguiente sesión (no
-        respondidas todavía por el usuario): ¿el reporte se guarda en
-        BD (tabla nueva) o solo se envía por correo sin persistir? ¿a
-        qué dirección(es) llega — la de la empresa, la de CLARVO, o
-        ambas? ¿el admin del tenant tiene alguna vista para ver estos
-        reportes o solo llegan por correo? ¿aplica a los 6 correos ya
-        homologados con marca del punto 161 (mismo `construirCorreoBase()`)?
+  170. **Correo de contacto de la empresa (alta en `/control`) + burbuja
+      "Solicitar aclaraciones" en el portal del cliente — IMPLEMENTADO Y
+      VALIDADO contra Docker/MySQL reales y en navegador real (2026-09-01)**:
+      retomado el pendiente de arriba con el protocolo completo. Antes de
+      implementar se resolvieron las 4 preguntas de diseño que habían
+      quedado abiertas, vía `AskUserQuestion`: **sin persistencia en BD**
+      (el correo ES el único registro), destino **el correo de contacto
+      del tenant** (no el de CLARVO), **sin vista nueva en `/admin`** (solo
+      llega por correo), y **sí reutiliza `construirCorreoBase()`** (mismo
+      lenguaje visual homologado del punto 161).
+      - **Segmento A — correo de contacto obligatorio**: el campo
+        `contacto_email` YA EXISTÍA en `control_tenants.tenants` (columna
+        nullable) con UI ya construida en `/control` pero sin validación
+        real — pasó de opcional a **obligatorio** en `normalizarDatosBase()`
+        (`control/utils/tenantIntake.js`, reutilizada tal cual por
+        `tenantEdicion.js` — el alta Y la edición quedan cubiertas con un
+        solo cambio). Frontend: asterisco + `field-hint` con ejemplo
+        (`contacto@miempresa.com`) en los 2 modales de `/control`
+        (alta/editar), validación bloqueante en JS espejo de la del
+        backend. `req.tenant.contactoEmail` expuesto en
+        `backend/utils/tenantContext.js` (columna agregada al SELECT del
+        segmento 3) para que cualquier ruta del backend lo use sin
+        resolver el tenant de nuevo.
+      - **Segmento B — burbuja "Solicitar aclaraciones"**: `POST
+        /api/aclaraciones` (`backend/server.js`, `requireUserAuth` +
+        `submitLimiter`) — a diferencia del resto de correos de esta app
+        (fire-and-forget con `.catch()`, porque siempre hay una fila de
+        BD de respaldo si el envío falla), este SÍ espera (`await`) el
+        envío y responde con el error real si falla, precisamente porque
+        aquí no hay ninguna fila de respaldo — un fallo silencioso
+        perdería la solicitud sin dejar rastro. RFC tomado de la sesión
+        (`req.userRfc`), nunca del body (blindado contra que alguien
+        mande un RFC ajeno). "Número = ID + RFC" (requerimiento textual,
+        sin fila autoincremental posible sin persistencia): se arma con
+        `Date.now().toString(36).toUpperCase()-RFC`. 404 si el tenant no
+        tiene `contactoEmail` configurado (tenants viejos que nunca lo
+        llenaron). `GET /api/tema/:slug` (público, ya consumido por
+        `theme.js` en las 3 páginas del portal) ganó el booleano
+        `tieneAclaraciones` para que el frontend sepa si pintar la
+        burbuja, sin exponer el correo real. Frontend: `frontend/
+        aclaraciones.js` (nuevo, self-contained como `theme.js`/
+        `offline.js`) se inyecta en `dashboard.html`/`tickets.html`/
+        `csf.html` (las 3 páginas autenticadas del portal de cliente, no
+        `/admin` ni `/control`) — burbuja fija inferior-derecha, modal
+        reutilizando `.modal-overlay`/`.modal`/`.field` de `style.css`
+        (no el `.ticket-modal` de admin, que es de otra app), vista de
+        éxito con folio o error inline sin perder los datos capturados.
+      - **Bug real encontrado y corregido en la validación contra Docker
+        real (no detectable con Jest mockeado)**: el primer borrador
+        devolvía `502` cuando el envío de correo fallaba — pero
+        `frontend/nginx.conf.template` tiene `proxy_intercept_errors on`
+        + `error_page 502 503 504 =503 /mantenimiento.html` en los 3
+        `location` de API (líneas 218-219, 243-244, 296-297), pensado
+        para una caída real del backend — intercepta CUALQUIER 502 de
+        cualquier endpoint y lo reemplaza por la página estática de
+        mantenimiento, disfrazando un fallo de aplicación (SMTP mal
+        configurado) de "sitio caído completo". Cambiado a `500` (fuera
+        de esa lista), confirmado en navegador real: el modal ahora
+        muestra el mensaje real ("No se pudo enviar tu solicitud...")
+        en vez de redirigir a mantenimiento.
+      - **Validado de punta a punta contra Docker/MySQL reales y en
+        navegador real (Claude in Chrome)**: login real en `piloto9c`
+        (cuenta demo `GARC800101AB1`, password de prueba fijado para la
+        validación), burbuja visible en dashboard Y tickets, modal abre
+        con RFC pre-llenado y foco en Nombre, envío real dispara el
+        pipeline completo (tenant→sesión→validación→plantilla de
+        correo→intento de envío SMTP) y responde 500 con mensaje claro
+        sin perder los datos capturados (SMTP no está configurado para
+        ese tenant en este entorno — gap de infraestructura del entorno
+        de prueba, no del código; el armado del correo en sí —
+        destinatario/asunto/HTML con nombre/teléfono/detalle escapados —
+        ya está cubierto por Jest con SMTP mockeado). Cero errores de
+        consola. Jest backend **804/804 (46 suites)**, control 119/119
+        sin cambios. Sin commit/push todavía.
   171. **"Lectura de reportes" — espaciado suelto corregido en TODA la
       sección (encabezado + tarjetas de Estado del inventario) —
       IMPLEMENTADO Y VALIDADO en navegador real (2026-09-01)**: a
@@ -11305,6 +11346,91 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
         ahora a ancho completo debajo de las 2 columnas, "+ Agregar
         producto" sigue funcionando igual, cero errores de consola.
         Sin commit/push todavía.
+  178. **Bug real de seguridad/aislamiento multi-tenant — "/<slug>" sin
+      página caía silenciosamente al sitio SIN tenant (2026-09-01,
+      ENCONTRADO Y CORREGIDO, reportado por el usuario: "cuando entro por
+      medio del contexto Slug, me redirecciona al principal sin tenant...
+      puedo tener el mismo RFC en diferentes empresas, pero al
+      direccionarme siempre a un sitio sin tenant, no respeta el slug")**:
+      auditoría completa a pedido explícito del usuario. Antes de
+      encontrar el bug real, se probaron y confirmaron CORRECTOS (contra
+      Docker/MySQL reales, navegador real, mismo RFC registrado en 2
+      tenants distintos con contraseñas distintas): login normal
+      (`/<slug>/login`), registro con el mismo RFC en 2 tenants
+      simultáneos (aislamiento de BD perfecto, cero mezcla), navegación
+      cruzada mientras hay sesión de OTRO tenant (rebota correctamente al
+      login DEL SLUG ACTUAL, nunca al sitio sin tenant),
+      `admin`/`ADMIN_USERS` fallback en `/<slug>/admin` (scoping de BD
+      correcto), y los links de "Ir a iniciar sesión" de
+      `restablecer.html` (ya eran tenant-aware vía JS pese a que el HTML
+      estático de respaldo dice `href="/login"` sin slug). **Causa raíz
+      real**, en `frontend/nginx.conf.template`: los 2 `location` regex
+      del segmento 4 (multi-tenant) solo cubren `/<slug>/admin` y
+      `/<slug>/(dashboard|tickets|login|csf|restablecer)` — visitar
+      **solo** `/<slug>` (sin página después, ej. un favorito guardado a
+      la raíz del tenant, o alguien escribiendo la URL "obvia") no
+      matchea ninguno de los dos, ni el `location = /login` de arriba
+      (ese es exacto, sin slug) — cae al catch-all `location /` de más
+      abajo, que sirve `login.html` vía `try_files` **sin cambiar la
+      URL**. La barra de direcciones sigue mostrando `/<slug>` (parece
+      estar en el contexto del tenant) pero el HTML servido es el mismo
+      de siempre, y como esta ruta NO tiene forma `/<slug>/algo`,
+      `frontend/login.js` (con la misma `RUTAS_PAGINA_MULTITENANT` +
+      `segmentos.length >= 2` que usan `portal.js`/`admin.js`/
+      `theme.js`/`aclaraciones.js`/`restablecer.js`, las 6 copias
+      duplicadas a propósito del mismo patrón) no detecta ningún
+      tenant — el formulario de login que VISUALMENTE parece del tenant
+      en realidad autentica contra la BD base sin tenant
+      (`portal_facturacion`). Si el RFC no existe ahí: "RFC o contraseña
+      incorrectos" con credenciales que sí son válidas en el tenant real
+      (confusión pura). Si el MISMO RFC sí existe en ambos — el escenario
+      exacto que describió el usuario —, el login succede contra la
+      empresa EQUIVOCADA y el JS redirige a `/dashboard` sin slug: el
+      "sitio sin tenant" que reportó. **Reproducido en vivo antes de
+      corregir**: `http://localhost:8088/piloto9c` sirve el login sin
+      detectar tenant (confirmado con `window.Portal` inexistente y
+      fallo de login con credenciales reales de `piloto9c`); tras el fix,
+      el mismo login funciona. **Fix**: nuevo `location` regex
+      `^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/?$` (con o sin `/`
+      final) que **redirige 302** a `/<slug>/login` — mismo criterio que
+      ya usa `/` a secas (index `login.html`), pero explícito en la URL
+      para que la detección de tenant SIEMPRE tenga 2 segmentos. **Bug
+      propio encontrado y corregido en la validación**: la primera
+      versión usaba `return 302 /$tenant_slug/login` (path absoluto) —
+      nginx arma el `Location` con `$scheme://$host`, y `$host` NUNCA
+      incluye el puerto; en este entorno de desarrollo (Docker mapeado a
+      `:8088`) el navegador terminaba redirigido a `:80` (nada
+      escuchando ahí), confirmado con `curl -D-`. Fix real:
+      `$proxy_x_forwarded_proto://$http_host/$tenant_slug/login`
+      (reutiliza el `map` que ya define este archivo para
+      `X-Forwarded-Proto`, mismo criterio que `detectarUrlPortal` en el
+      backend — respeta HTTPS real detrás del segundo nginx en
+      producción). Validado contra Docker real: `/piloto9c` y
+      `/pruebaadmin` → 302 con `Location` correcto (puerto incluido);
+      las 8 rutas reservadas sin slug (`/`, `/login`, `/admin`,
+      `/control`, `/dashboard`, `/tickets`, `/csf`, `/restablecer`)
+      siguen en 200 sin regresión (ganan por `location =`, máxima
+      prioridad de nginx, sin importar el nuevo regex); un slug
+      inventado (`/totally-random-slug`) también redirige — consistente
+      con el criterio ya documentado de que nginx nunca valida
+      existencia de tenant, eso lo hace el backend. Validado en
+      navegador real de punta a punta: `/piloto9c` → redirige a
+      `/piloto9c/login` → login con RFC real de `piloto9c` → aterriza en
+      `/piloto9c/dashboard`. Jest backend 804/804, control 119/119 (sin
+      cambios, cambio 100% nginx). **Hallazgo secundario, NO corregido
+      (fuera de alcance de este bug puntual, documentado para revisión
+      futura)**: la cookie de sesión de cliente (`sesion_usuario`) usa el
+      mismo nombre y `path=/` para TODOS los tenants — iniciar sesión en
+      el tenant B en una pestaña SOBREESCRIBE la cookie de una sesión ya
+      abierta en el tenant A en otra pestaña (confirmado en vivo: volver
+      a la pestaña de A tras loguearse en B fuerza un 401 y redirige a
+      `/A/login`, sin pérdida de datos pero con un logout silencioso e
+      inesperado). No es el bug reportado (el redirect SÍ respeta el
+      slug correcto en ese caso) y la firma del token igual se verifica
+      contra el tenant correcto (HKDF por slug, segmento 3) — así que no
+      hay fuga de datos entre tenants, solo una sesión que se pisa entre
+      pestañas de distintos tenants. Cookies con nombre/path por tenant
+      quedan como mejora futura, no bloqueante. Sin commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

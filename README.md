@@ -89,7 +89,7 @@ El backend se conecta a MySQL usando `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWO
 
 1. Clona el repositorio:
    ```bash
-   git clone https://github.com/antonioprado-sketch/ADDVportalFact.git
+   git clone https://github.com/addv-prototipos/ADDVportalFact.git
    cd app
    ```
 2. Copia el archivo de variables de entorno:
@@ -233,7 +233,7 @@ Diseño mobile-first en todas las páginas, con foco visible para navegación po
 
 2. **Clonar el proyecto y configurar variables**
    ```bash
-   git clone https://github.com/antonioprado-sketch/ADDVportalFact.git
+   git clone https://github.com/addv-prototipos/ADDVportalFact.git
    cd app
    cp .env.example .env
    # Edita .env: define CORS_ORIGIN con tu dominio real, y cambia
@@ -974,7 +974,7 @@ mismo host.
 
 ## 🗂️ Repositorio y ramas (git)
 
-- Repositorio público de este trabajo: `https://github.com/antonioprado-sketch/ADDVportalFact.git`
+- Repositorio público de este trabajo: `https://github.com/addv-prototipos/ADDVportalFact.git`
   (remote `fact`, rama destino `master`).
 - `origin` apunta a `https://github.com/antonioprado-sketch/portal-multi.git` (repo previo, ya no es el destino de publicación).
 - La rama local por defecto es `main`; publicar = `git push fact main:master`.
