@@ -159,7 +159,7 @@ describe('utils/tenantEdicion.js', () => {
 
       const resultado = await actualizarDatosTenant(
         'cliente1',
-        { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' },
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' },
         { actor: 'admin' }
       );
 
@@ -200,7 +200,11 @@ describe('utils/tenantEdicion.js', () => {
       const pool = mockPool(tenant, true, { ...tenant, slug: 'cliente2' });
       global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true, copiados: 0, borrados: 0, logoMovido: false }) });
 
-      await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, { actor: 'admin' });
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' },
+        { actor: 'admin' }
+      );
 
       const paramsUpdate = pool.query.mock.calls[2][1];
       expect(paramsUpdate[0]).toBe('cliente2');
@@ -214,7 +218,11 @@ describe('utils/tenantEdicion.js', () => {
         .mockResolvedValueOnce([[{ id: 99 }]]); // SELECT de duplicados: YA existe
       obtenerPool.mockReturnValue(pool);
 
-      const error = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, {}).catch((e) => e);
+      const error = await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' },
+        {}
+      ).catch((e) => e);
 
       expect(error).toBeInstanceOf(ErrorEdicionTenant);
       expect(error.codigo).toBe('slug_existe');
@@ -248,6 +256,20 @@ describe('utils/tenantEdicion.js', () => {
       expect(pool.query.mock.calls.length).toBe(1); // solo el SELECT, nunca el UPDATE
     });
 
+    // Punto 170: obligatorio también al editar — cierra el hueco de tenants
+    // viejos que no lo tenían, forzándolos a llenarlo la próxima vez que
+    // se guarde cualquier cambio (el formulario real siempre lo reenvía,
+    // ver frontend/control.js).
+    test('sin correo de contacto -> ErrorEdicionTenant "validacion"', async () => {
+      const pool = mockPool(filaTenant());
+      const error = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno' }, {}).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(error.message).toMatch(/correo de contacto/);
+      expect(pool.query.mock.calls.length).toBe(1); // solo el SELECT, nunca el UPDATE
+    });
+
     test('slug inexistente -> ErrorEdicionTenant "no_encontrado"', async () => {
       const pool = mockPool(null);
       const error = await actualizarDatosTenant('nadie', { nombreEmpresa: 'X' }, {}).catch((e) => e);
@@ -264,7 +286,11 @@ describe('utils/tenantEdicion.js', () => {
         json: async () => ({ error: 'No se pudo migrar el almacenamiento del tenant al slug nuevo.' }),
       });
 
-      const error = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, {}).catch((e) => e);
+      const error = await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' },
+        {}
+      ).catch((e) => e);
 
       expect(error).toBeInstanceOf(ErrorEdicionTenant);
       expect(error.codigo).toBe('backend');
@@ -275,7 +301,11 @@ describe('utils/tenantEdicion.js', () => {
       const pool = mockPool(filaTenant(), true);
       global.fetch.mockRejectedValue(new Error('ECONNREFUSED'));
 
-      const error = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, {}).catch((e) => e);
+      const error = await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' },
+        {}
+      ).catch((e) => e);
 
       expect(error).toBeInstanceOf(ErrorEdicionTenant);
       expect(error.codigo).toBe('backend');
@@ -294,7 +324,12 @@ describe('utils/tenantEdicion.js', () => {
 
       await actualizarDatosTenant(
         'cliente1',
-        { nombreEmpresa: 'Empresa Uno', slug: 'cliente2', logoBase64: bufferPng().toString('base64') },
+        {
+          nombreEmpresa: 'Empresa Uno',
+          contactoEmail: 'contacto@uno.com',
+          slug: 'cliente2',
+          logoBase64: bufferPng().toString('base64'),
+        },
         { actor: 'admin' }
       );
 
@@ -316,7 +351,11 @@ describe('utils/tenantEdicion.js', () => {
         .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, copiados: 0, borrados: 0, logoMovido: true }) })
         .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
 
-      await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2', quitarLogo: true }, { actor: 'admin' });
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2', quitarLogo: true },
+        { actor: 'admin' }
+      );
 
       const borrarFetch = global.fetch.mock.calls[1];
       expect(borrarFetch[0]).toMatch(/\/internal\/marca-logo\/cliente2$/);
@@ -330,7 +369,11 @@ describe('utils/tenantEdicion.js', () => {
       const pool = mockPool(filaTenant());
       const error = await actualizarDatosTenant(
         'cliente1',
-        { nombreEmpresa: 'Empresa Uno', logoBase64: Buffer.alloc(3 * 1024 * 1024).toString('base64') },
+        {
+          nombreEmpresa: 'Empresa Uno',
+          contactoEmail: 'contacto@uno.com',
+          logoBase64: Buffer.alloc(3 * 1024 * 1024).toString('base64'),
+        },
         {}
       ).catch((e) => e);
 
@@ -347,7 +390,11 @@ describe('utils/tenantEdicion.js', () => {
         .mockRejectedValueOnce(new Error('backend caído'))
         .mockResolvedValueOnce(undefined);
 
-      const resultado = await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', slug: 'cliente2' }, { actor: 'admin' });
+      const resultado = await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' },
+        { actor: 'admin' }
+      );
 
       expect(resultado.slug).toBe('cliente2');
       expect(notificarInvalidacionCache).toHaveBeenCalledTimes(2);

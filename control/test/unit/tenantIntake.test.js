@@ -101,6 +101,7 @@ describe('utils/tenantIntake.js', () => {
         {
           nombreEmpresa: 'X',
           slug: 'empresa',
+          contactoEmail: 'contacto@empresa.com',
           marca: '   ',
           marcaLoGoUrl: 'http://sitio-malicioso.com/logo.png',
         },
@@ -125,6 +126,7 @@ describe('utils/tenantIntake.js', () => {
         {
           nombreEmpresa: 'X',
           slug: 'empresa',
+          contactoEmail: 'contacto@empresa.com',
           marca: 'Marca X',
           marcaLoGoUrl: '/api/marca-logo/empresa',
         },
@@ -145,7 +147,10 @@ describe('utils/tenantIntake.js', () => {
         .mockResolvedValueOnce([{ insertId: 1 }])
         .mockResolvedValueOnce([{}]);
 
-      await crearTenantIntake({ nombreEmpresa: 'X', slug: 'x' }, { actor: 'admin' });
+      await crearTenantIntake(
+        { nombreEmpresa: 'X', slug: 'x', contactoEmail: 'contacto@empresa.com' },
+        { actor: 'admin' }
+      );
 
       const paramsInsert = pool.query.mock.calls[1][1];
       expect(paramsInsert).toContain('mysql-remoto.example.com');
@@ -160,7 +165,10 @@ describe('utils/tenantIntake.js', () => {
         .mockResolvedValueOnce([{ insertId: 1 }])
         .mockResolvedValueOnce([{}]);
 
-      await crearTenantIntake({ nombreEmpresa: 'X', slug: 'x' }, { actor: 'admin' });
+      await crearTenantIntake(
+        { nombreEmpresa: 'X', slug: 'x', contactoEmail: 'contacto@empresa.com' },
+        { actor: 'admin' }
+      );
 
       expect(pool.query.mock.calls[1][1]).toContain('control-mysql');
     });
@@ -175,7 +183,10 @@ describe('utils/tenantIntake.js', () => {
     });
 
     test('slug inválido -> ErrorIntakeTenant de validación', async () => {
-      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'Admin' }, {}).catch((e) => e);
+      const error = await crearTenantIntake(
+        { nombreEmpresa: 'X', slug: 'Admin', contactoEmail: 'contacto@empresa.com' },
+        {}
+      ).catch((e) => e);
 
       expect(error).toBeInstanceOf(ErrorIntakeTenant);
       expect(error.codigo).toBe('validacion');
@@ -186,11 +197,25 @@ describe('utils/tenantIntake.js', () => {
       const pool = mockPool();
       pool.query.mockResolvedValueOnce([[{ id: 9 }]]);
 
-      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'cliente1' }, {}).catch((e) => e);
+      const error = await crearTenantIntake(
+        { nombreEmpresa: 'X', slug: 'cliente1', contactoEmail: 'contacto@empresa.com' },
+        {}
+      ).catch((e) => e);
 
       expect(error).toBeInstanceOf(ErrorIntakeTenant);
       expect(error.codigo).toBe('slug_existe');
       expect(pool.query).toHaveBeenCalledTimes(1); // solo el SELECT, sin INSERT
+    });
+
+    // Punto 170: el correo de contacto pasa de opcional a obligatorio.
+    test('sin correo de contacto -> ErrorIntakeTenant de validación', async () => {
+      const pool = mockPool();
+      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'empresa' }, { actor: 'admin' }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorIntakeTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(error.message).toMatch(/correo de contacto/);
+      expect(pool.query).not.toHaveBeenCalled(); // no toca la BD
     });
 
     test('correo de contacto inválido -> ErrorIntakeTenant de validación', async () => {
@@ -205,7 +230,12 @@ describe('utils/tenantIntake.js', () => {
 
     test('dato fiscal inválido (RFC) -> ErrorIntakeTenant de validación', async () => {
       const error = await crearTenantIntake(
-        { nombreEmpresa: 'X', slug: 'empresa', rfcCompania: 'RFC-INVALIDO-!!!' },
+        {
+          nombreEmpresa: 'X',
+          slug: 'empresa',
+          contactoEmail: 'contacto@empresa.com',
+          rfcCompania: 'RFC-INVALIDO-!!!',
+        },
         {}
       ).catch((e) => e);
 
@@ -225,6 +255,7 @@ describe('utils/tenantIntake.js', () => {
         {
           nombreEmpresa: 'X',
           slug: 'empresa',
+          contactoEmail: 'contacto@empresa.com',
           rfcCompania: 'aaa010101aaa',
           tipoPersonaCompania: 'moral',
           claveSat: '12345678',
@@ -249,7 +280,10 @@ describe('utils/tenantIntake.js', () => {
         .mockResolvedValueOnce([[]]) // SELECT: no existía aún
         .mockRejectedValueOnce(errDuplicado); // INSERT: otro proceso ganó la carrera
 
-      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'empresa' }, {}).catch((e) => e);
+      const error = await crearTenantIntake(
+        { nombreEmpresa: 'X', slug: 'empresa', contactoEmail: 'contacto@empresa.com' },
+        {}
+      ).catch((e) => e);
 
       expect(error).toBeInstanceOf(ErrorIntakeTenant);
       expect(error.codigo).toBe('slug_existe');
@@ -259,7 +293,10 @@ describe('utils/tenantIntake.js', () => {
       const pool = mockPool();
       pool.query.mockResolvedValueOnce([[]]).mockRejectedValueOnce(new Error('conexión perdida'));
 
-      const error = await crearTenantIntake({ nombreEmpresa: 'X', slug: 'empresa' }, {}).catch((e) => e);
+      const error = await crearTenantIntake(
+        { nombreEmpresa: 'X', slug: 'empresa', contactoEmail: 'contacto@empresa.com' },
+        {}
+      ).catch((e) => e);
 
       expect(error).not.toBeInstanceOf(ErrorIntakeTenant);
       expect(error.message).toBe('conexión perdida');

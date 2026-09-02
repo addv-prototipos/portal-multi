@@ -898,6 +898,11 @@ app.get('/api/tema/:slug', async (req, res) => {
       tema,
       variables: temaAVariables(tema),
       fuentesGoogle: fuentesAUrlGoogle(tema),
+      // Punto 170: la burbuja "Solicitar aclaraciones" del portal solo se
+      // pinta si el tenant tiene correo de contacto configurado — cero
+      // dato sensible expuesto (booleano nomás), mismo endpoint público
+      // que ya consume theme.js en las 3 páginas del portal de cliente.
+      tieneAclaraciones: Boolean(tenant && tenant.contacto_email),
     });
   } catch (err) {
     console.error(`Error sirviendo el tema del tenant "${slug}":`, err);
@@ -1206,6 +1211,81 @@ app.post(
     );
 
     res.json({ ok: true, perfil: usuario.perfil });
+  })
+);
+
+// ---------- Aclaraciones (punto 170) ----------
+// Burbuja "Solicitar aclaraciones" del portal de cliente: sin persistencia
+// en BD (decisión explícita del usuario) — el correo ES el único registro
+// de la solicitud. Por eso, a diferencia del resto de los correos de esta
+// app (fire-and-forget con un `.catch()`, porque ya hay una fila en BD de
+// respaldo si el envío falla), aquí SÍ se espera el envío y se le informa
+// al cliente si falló, para que pueda reintentar en vez de creer que su
+// solicitud se mandó cuando en realidad se perdió en silencio.
+app.post(
+  '/api/aclaraciones',
+  requireUserAuth,
+  submitLimiter,
+  asyncHandler(async (req, res) => {
+    if (!req.tenant || !req.tenant.contactoEmail) {
+      return res.status(404).json({ error: 'Esta empresa no tiene un correo de contacto configurado todavía.' });
+    }
+
+    const body = req.body || {};
+    const nombre = sanitizeText(body.nombre, 150);
+    const telefono = sanitizeText(body.telefono, 30);
+    const detalle = sanitizeTextoLibre(body.detalle, 2000);
+
+    if (!nombre) return res.status(400).json({ error: 'Escribe tu nombre.' });
+    if (!telefono) return res.status(400).json({ error: 'Escribe un teléfono de contacto.' });
+    if (!detalle) return res.status(400).json({ error: 'Describe tu situación o duda.' });
+
+    // "número = ID + RFC" (requerimiento textual): sin fila de BD que dé un
+    // id autoincremental, se arma uno corto a partir del timestamp — único
+    // en la práctica (a la resolución de milisegundos) y suficiente para
+    // que el cliente lo cite si necesita dar seguimiento por correo.
+    const numero = `${Date.now().toString(36).toUpperCase()}-${req.userRfc}`;
+    const urlPortal = detectarUrlPortal(req);
+    const configGlobalAclaracion = await getConfiguracionGlobal();
+    const colores = coloresCorreoTenant(req);
+
+    const { html, texto, adjuntos } = construirCorreoBase({
+      marca: marcaDelTenant(req),
+      logoUrl: logoUrlDelTenant(req, urlPortal, configGlobalAclaracion),
+      colorPrimario: colores.primario,
+      colorAccent: colores.acento,
+      eyebrow: 'Solicitud de aclaración',
+      titulo: `Folio ${numero}`,
+      filas: [
+        { etiqueta: 'RFC', valor: escapeHtmlCorreo(req.userRfc) },
+        { etiqueta: 'Nombre', valor: escapeHtmlCorreo(nombre) },
+        { etiqueta: 'Teléfono', valor: escapeHtmlCorreo(telefono) },
+      ],
+      parrafos: detalle
+        .split('\n')
+        .map((linea) => linea.trim())
+        .filter(Boolean)
+        .map((linea) => escapeHtmlCorreo(linea)),
+    });
+
+    try {
+      await enviarCorreo({
+        destinatario: req.tenant.contactoEmail,
+        asunto: `Solicitud de aclaración ${numero}`,
+        cuerpo: texto,
+        html,
+        adjuntos,
+      });
+    } catch (err) {
+      console.error('No se pudo enviar la solicitud de aclaración:', err.message);
+      // 500, NO 502/503/504: nginx (frontend/nginx.conf.template) intercepta
+      // esos tres códigos y los reemplaza por la página de mantenimiento
+      // estática — un fallo real de este endpoint (SMTP mal configurado, no
+      // una caída del backend) quedaría disfrazado de 'sitio caído'.
+      return res.status(500).json({ error: 'No se pudo enviar tu solicitud. Intenta de nuevo en unos minutos.' });
+    }
+
+    res.json({ ok: true, numero });
   })
 );
 

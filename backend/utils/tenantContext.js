@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -98,6 +98,11 @@ async function resolverTenantMiddleware(req, res, next) {
       // utils/auth.js) y GET /api/admin/sucursales-hermanas puede armar el
       // switcher del sidebar.
       grupoSucursalId: tenant.grupo_sucursal_id || null,
+      // Punto 170: correo DE LA EMPRESA CLIENTE (obligatorio en altas
+      // nuevas desde /control), usado por la burbuja "Solicitar
+      // aclaraciones" del portal — null en tenants viejos que no lo
+      // llenaron todavía, la burbuja se oculta en ese caso.
+      contactoEmail: tenant.contacto_email || null,
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas

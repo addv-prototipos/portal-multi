@@ -70,10 +70,13 @@ function normalizarDatosBase(datos = {}) {
   normalizado.slug = slug;
 
   const contactoEmail = typeof datos.contactoEmail === 'string' ? datos.contactoEmail.trim().toLowerCase() : '';
-  if (contactoEmail && !isValidEmail(contactoEmail)) {
+  if (!contactoEmail) {
+    throw new Error('El correo de contacto de la empresa es obligatorio.');
+  }
+  if (!isValidEmail(contactoEmail)) {
     throw new Error('El correo de contacto no tiene un formato válido.');
   }
-  normalizado.contactoEmail = contactoEmail || null;
+  normalizado.contactoEmail = contactoEmail;
 
   const notas = typeof datos.notas === 'string' ? datos.notas.trim() : '';
   normalizado.notas = notas ? notas.slice(0, 65535) : null;

@@ -591,7 +591,12 @@
       return;
     }
     const email = els.intakeEmail.value.trim();
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email) {
+      setFieldErrorIntake('intake-email', 'El correo de contacto de la empresa es obligatorio.');
+      els.intakeEmail.focus();
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setFieldErrorIntake('intake-email', 'El correo de contacto no tiene un formato válido.');
       els.intakeEmail.focus();
       return;
@@ -840,7 +845,12 @@
       }
     }
     const email = els.editarEmail.value.trim();
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email) {
+      setFieldErrorEditar('editar-email', 'El correo de contacto de la empresa es obligatorio.');
+      els.editarEmail.focus();
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setFieldErrorEditar('editar-email', 'El correo de contacto no tiene un formato válido.');
       els.editarEmail.focus();
       return;

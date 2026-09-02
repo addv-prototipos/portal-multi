@@ -145,6 +145,7 @@ describe('utils/tenantContext.js', () => {
         marcaLogoUrl: '/api/marca-logo/cliente1',
         temaJson: null,
         grupoSucursalId: null,
+        contactoEmail: null,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })
@@ -166,6 +167,35 @@ describe('utils/tenantContext.js', () => {
 
       expect(req.tenant.grupoSucursalId).toBe(5);
       expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    // Punto 170: correo de contacto de la empresa cliente, usado por la
+    // burbuja "Solicitar aclaraciones" del portal. Null en tenants viejos
+    // que no lo llenaron todavía (la burbuja se oculta en ese caso).
+    test('tenant con contacto_email lo expone como contactoEmail en req.tenant', async () => {
+      mockPoolControl([{ ...FILA_TENANT_ACTIVO, contacto_email: 'contacto@cliente1.com' }]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.contactoEmail).toBe('contacto@cliente1.com');
+    });
+
+    test('tenant sin contacto_email expone contactoEmail null', async () => {
+      mockPoolControl([FILA_TENANT_ACTIVO]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.contactoEmail).toBeNull();
     });
 
     test('el slug del encabezado se normaliza a minúsculas', async () => {

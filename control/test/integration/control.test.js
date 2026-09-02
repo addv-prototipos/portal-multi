@@ -225,7 +225,7 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app)
         .put('/api/control/tenants/cliente1')
         .auth('admin', 'admin')
-        .send({ nombreEmpresa: 'Empresa Uno Nueva', notas: 'nota' });
+        .send({ nombreEmpresa: 'Empresa Uno Nueva', contactoEmail: 'contacto@uno.com', notas: 'nota' });
 
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
@@ -249,7 +249,7 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app)
         .put('/api/control/tenants/cliente1')
         .auth('admin', 'admin')
-        .send({ nombreEmpresa: 'Empresa Uno', slug: 'cliente2' });
+        .send({ nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' });
 
       expect(res.status).toBe(200);
       expect(res.body.tenant.slug).toBe('cliente2');
@@ -267,7 +267,7 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app)
         .put('/api/control/tenants/cliente1')
         .auth('admin', 'admin')
-        .send({ nombreEmpresa: 'Empresa Uno', slug: 'cliente2' });
+        .send({ nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' });
 
       expect(res.status).toBe(409);
       expect(global.fetch).not.toHaveBeenCalled();
@@ -309,7 +309,7 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app)
         .put('/api/control/tenants/cliente1')
         .auth('admin', 'admin')
-        .send({ nombreEmpresa: 'Empresa Uno', slug: 'cliente2' });
+        .send({ nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente2' });
 
       expect(res.status).toBe(502);
     });
@@ -331,7 +331,7 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app)
         .post('/api/control/tenants')
         .auth('admin', 'admin')
-        .send({ nombreEmpresa: 'Empresa Nueva', slug: 'empresa-nueva' });
+        .send({ nombreEmpresa: 'Empresa Nueva', slug: 'empresa-nueva', contactoEmail: 'contacto@empresa-nueva.com' });
 
       expect(res.status).toBe(201);
       expect(res.body.ok).toBe(true);
@@ -362,7 +362,7 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app)
         .post('/api/control/tenants')
         .auth('admin', 'admin')
-        .send({ nombreEmpresa: 'X', slug: 'empresa', rfcCompania: '!!!' });
+        .send({ nombreEmpresa: 'X', slug: 'empresa', contactoEmail: 'contacto@empresa.com', rfcCompania: '!!!' });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/RFC/);
@@ -387,6 +387,7 @@ describe('Control standalone (/api/control)', () => {
         .send({
           nombreEmpresa: 'Empresa Nueva',
           slug: 'empresa-nueva',
+          contactoEmail: 'contacto@empresa-nueva.com',
           marca: 'Marca Nueva',
           logoBase64: png.toString('base64'),
         });
@@ -453,7 +454,7 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app)
         .post('/api/control/tenants')
         .auth('admin', 'admin')
-        .send({ nombreEmpresa: 'X', slug: 'cliente1' });
+        .send({ nombreEmpresa: 'X', slug: 'cliente1', contactoEmail: 'contacto@cliente1.com' });
 
       expect(res.status).toBe(409);
       expect(res.body.error).toMatch(/ya está registrado/);

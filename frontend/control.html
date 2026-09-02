@@ -333,8 +333,9 @@
           </div>
 
           <div class="field">
-            <label for="control-intake-email">Correo de contacto</label>
-            <input type="email" id="control-intake-email" autocomplete="off" placeholder="contacto@empresa.com" />
+            <label for="control-intake-email">Correo de contacto <span aria-hidden="true">*</span></label>
+            <input type="email" id="control-intake-email" autocomplete="off" placeholder="contacto@miempresa.com" required />
+            <p class="field-hint">Correo de la empresa cliente, para dudas y seguimiento de su negocio (no es el correo de CLARVO). Ej. contacto@miempresa.com</p>
             <p class="field-error" id="error-intake-email" role="alert"></p>
           </div>
 
@@ -400,6 +401,7 @@
           <div class="field">
             <label for="control-intake-correo-reportes">Correo de reportes</label>
             <input type="email" id="control-intake-correo-reportes" placeholder="reportes@empresa.com" autocomplete="off" />
+            <p class="field-hint">Recibe el reporte automático periódico (ventas/gastos). Puede ser el mismo correo de contacto u otro distinto.</p>
             <p class="field-error" id="error-intake-correo-reportes" role="alert"></p>
           </div>
         </div>
@@ -454,8 +456,9 @@
           </div>
 
           <div class="field">
-            <label for="control-editar-email">Correo de contacto</label>
-            <input type="email" id="control-editar-email" autocomplete="off" placeholder="contacto@empresa.com" />
+            <label for="control-editar-email">Correo de contacto <span aria-hidden="true">*</span></label>
+            <input type="email" id="control-editar-email" autocomplete="off" placeholder="contacto@miempresa.com" required />
+            <p class="field-hint">Correo de la empresa cliente, para dudas y seguimiento de su negocio (no es el correo de CLARVO). Ej. contacto@miempresa.com</p>
             <p class="field-error" id="error-editar-email" role="alert"></p>
           </div>
 
@@ -538,6 +541,7 @@
           <div class="field">
             <label for="control-editar-correo-reportes">Correo de reportes</label>
             <input type="email" id="control-editar-correo-reportes" placeholder="reportes@empresa.com" autocomplete="off" />
+            <p class="field-hint">Recibe el reporte automático periódico (ventas/gastos). Puede ser el mismo correo de contacto u otro distinto.</p>
             <p class="field-error" id="error-editar-correo-reportes" role="alert"></p>
           </div>
         </div>

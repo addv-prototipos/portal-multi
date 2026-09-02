@@ -99,7 +99,17 @@ describe('GET /api/tema/:slug', () => {
       tema: null,
       variables: {},
       fuentesGoogle: [],
+      tieneAclaraciones: false,
     });
+  });
+
+  test('tenant con contacto_email expone tieneAclaraciones true (punto 170)', async () => {
+    mockControlPool([{ ...TENANT_SIN_TEMA, contacto_email: 'contacto@cliente1.com' }]);
+
+    const res = await request(app).get('/api/tema/cliente1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.tieneAclaraciones).toBe(true);
   });
 
   test('tenant con tema responde tema normalizado + variables + fuentes', async () => {
