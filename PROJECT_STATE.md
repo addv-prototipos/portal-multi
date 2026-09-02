@@ -11432,22 +11432,315 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       pestañas de distintos tenants. Cookies con nombre/path por tenant
       quedan como mejora futura, no bloqueante. Sin commit/push todavía.
 
-  179. **PENDIENTE — campos ocultos/decimales para `tipo=servicio` en
-      "Crear producto" de Inventarios (registrado 2026-09-01, ver
-      `inventarios.md` §55, SOLO REGISTRADO, sin implementar)**: con
-      `tipo=servicio` (servicio profesional, unidad = horas), los campos
-      `codigo_barras`/`stock_minimo`/`stock_maximo` no aplican (un
-      servicio no se escanea ni tiene mínimos/máximos de existencia) y a
-      diferencia de un `producto` de unidad de conteo, la cantidad en
-      horas SÍ debe admitir decimales (mismo criterio que las unidades de
-      medida continuas del punto 175 — litro/kg/hora admiten decimales,
-      pieza/caja exigen entero). Preguntas de diseño abiertas: si
-      `stock_minimo`/`stock_maximo` se ocultan solo en la UI o también se
-      anulan a nivel de esquema para `tipo=servicio`, y si `unidad_base`
-      para un servicio debe restringirse a "Hora" o queda libre. Seguir
-      el protocolo `addv-web-app` completo (analizar → revisar impacto →
-      criticar y mejorar el requerimiento → propuesta visual → confirmar)
-      antes de tocar código, mismo patrón que el punto 167.
+  179. **Campos reducidos para `tipo=servicio` en Inventarios + carga
+      masiva solo-producto (2026-09-01, ver `inventarios.md` §55,
+      IMPLEMENTADO Y VALIDADO — Jest backend 807/807, control 119/119)**:
+      protocolo completo (crítica del requerimiento + propuesta visual
+      antes/después en Artifact + confirmación explícita del usuario, que
+      además ajustó el alcance dos veces en vivo). Con `tipo=servicio`
+      solo se piden/muestran 10 de los 14 campos —
+      `nombre`/`sku`/`categoria`/`unidad_base` (fija en "Hora", nueva
+      unidad del catálogo, la única con `permite_decimales=0` para este
+      caso: **horas ENTERAS**, resuelve invirtiendo la duda que había
+      quedado abierta)/`moneda`/`costo`/`precio`/`estado`/
+      `proveedor_principal`/`notas`. `codigo_barras`/`stock_minimo`/
+      `stock_maximo`/`punto_reorden` (los 4, el usuario sacó también
+      `punto_reorden` de la lista original en la segunda ronda) quedan
+      `NULL` sin importar lo que mande el body — forzado en
+      `validarCuerpoProducto()` del lado del servidor (no solo oculto en
+      el modal), así que tampoco se puede colar por API directa.
+      **La carga masiva CSV/XLSX (§34) pasó a ser SOLO para
+      `tipo=producto`** (pedido explícito del usuario, "los servicios sí
+      o sí se configuran manualmente") — tiene su propio `INSERT`/
+      `UPDATE` que NO pasaba por `validarCuerpoProducto()`, así que sin
+      este ajuste el invariante de arriba no habría sido real por esa
+      vía; una fila `tipo=servicio` se rechaza completa
+      (`INV_IMPORT_SERVICIO_NO_PERMITIDO`), la plantilla CSV/XLSX ya no
+      trae ejemplo de servicio ni lo ofrece en el desplegable de "tipo",
+      y `inventarioCampos.js` (diccionario de ayuda del wizard) quedó
+      anotado explícitamente. Migración idempotente en `ensureSchema()`
+      (backfill de los 4 campos a NULL + unidad forzada a "Hora" para
+      cualquier servicio que ya exista — nada en producción real hoy,
+      solo tenants de prueba). 5 tests nuevos (2 en
+      `test/integration/inventarios.test.js` para
+      `validarCuerpoProducto`, 1 en `test/unit/inventarioImportacion.test.js`
+      para el rechazo de la carga masiva, más el ajuste del ejemplo de
+      plantilla a 2 filas producto-only). **Validado contra Docker/MySQL
+      reales el mismo día** (usuario reportó con captura que no veía el
+      cambio): causa real era el contenedor `frontend` corriendo la
+      versión vieja (3h sin rebuild) — rebuild + `up -d --force-recreate`
+      backend+frontend, y confirmado por curl real (no mockeado):
+      `POST /productos` con `tipo=servicio` mandando código de barras/
+      stock/unidad a propósito → la fila quedó con esos 4 campos en
+      `NULL` y `unidad_id=17` ("Hora", recién sembrada), producto de
+      prueba borrado después. **3 refinamientos de UX el mismo día, tras
+      ver la captura real del usuario**: (1) placeholders de "Nombre"/
+      "SKU" cambian de ejemplo según el tipo (`Ej. Consultoría fiscal`/
+      `Ej. SERV-CONS-01` en servicio, en vez de mantener el ejemplo de
+      tornillo); (2) la leyenda bajo el toggle "Tipo" pasó de 4 líneas a
+      1 corta por tipo (el detalle completo sigue en el ícono "?"
+      vecino, que no había cambiado); (3) botón "Guardar producto" →
+      simplemente "Guardar" en alta (edición conserva "Guardar
+      cambios", sin pedir eso). **Colapso animado de los 4 campos**
+      (pedido explícito, "ajusta el tamaño de la ventana... responsivas
+      a celular también"): se descartó la técnica de `grid-template-rows`
+      del Artifact de propuesta (ambigua en un grid de 2 columnas real —
+      el campo vecino en la misma fila puede sostener alto el track vía
+      `align-items:stretch`, sin forma de confirmarlo sin navegador esta
+      sesión) por un fundido de opacidad simple (150ms, clase
+      `.inv-campo-colapsable`/`.inv-campo-saliendo` en `admin.css`,
+      `hidden` real se pone/quita justo antes/después del fundido, nunca
+      junto — `colapsarCampoInv()` en `admin.js`) — no elimina el
+      reacomodo de layout, pero un campo ya invisible no se percibe como
+      brinco; respeta `prefers-reduced-motion`; sin animación al abrir
+      el modal (`animar` solo en los clics del toggle, no en
+      `abrirProductoModal()`, para no parpadear al abrir). El modal
+      (`.gastos-modal`) ya era responsivo antes de este punto (94vw +
+      `max-height:calc(100vh-40px)` con scroll + grid a 1 columna
+      <560px) — sin cambios ahí, mismo comportamiento en escritorio y
+      celular. **Pendiente real**: la animación del fundido se validó
+      solo por lectura de código + despliegue confirmado por curl (JS/
+      CSS servidos), NO con clics reales en navegador — sin herramienta
+      de navegador disponible en esta sesión (a diferencia de sesiones
+      anteriores con la extensión Claude in Chrome). Jest backend
+      807/807 (sin cambios de backend en esta ronda). **Extensión
+      confirmada NO disponible en esta sesión de Claude Code CLI**
+      (`ToolSearch` corrido 2 veces, cero resultado) — el usuario la
+      tiene conectada en OTRA sesión suya en paralelo, imposible de
+      tomar prestada entre sesiones distintas.
+
+      **2 ajustes más el mismo día, a partir de 2 capturas nuevas del
+      usuario**: (1) modal "Nuevo producto"/"Editar producto" ensanchado
+      de 640px a 820px (clase nueva `.inv-producto-modal-ancho`, mismo
+      ancho que `.ticket-modal` de Tickets — NO se tocó `.gastos-modal`
+      base, que se queda en 640px para el popup de Gastos); (2) **bug
+      real encontrado y corregido**: la tarjeta "Productos activos" del
+      dashboard de Inventarios (`GET /inventarios/dashboard`) contaba
+      TODOS los productos activos sin filtrar `tipo`, servicios
+      incluidos — era la única de las 7 consultas del dashboard sin el
+      filtro `tipo='producto'` que ya tenían las otras 6 (esas nunca
+      contaban servicios de todos modos, porque `existencias`/
+      `movimientos_inventario` nunca tienen filas de un servicio, D11 —
+      exclusión estructural, no por filtro explícito). Corregido
+      agregando `AND tipo = 'producto'`; tarjeta nueva e independiente
+      "Servicios activos" (8va tarjeta, llena el hueco de la fila 2 en
+      `#inv-kpis-wrap` — el grid ya era de 4 columnas, sin cambios de
+      layout). **Validado en Docker/MySQL reales por curl**: estado base
+      `productos_activos:12, servicios_activos:0` (coincide con la
+      captura real del usuario); servicio de prueba creado →
+      `servicios_activos:1` sin mover `productos_activos`; borrado
+      después, contador de vuelta a 0. Jest backend 807/807 (test de
+      Dashboard actualizado para diferenciar las 2 consultas — antes
+      compartían el mismo mock por prefijo de SQL, ahora habría fallado
+      con la clave nueva `servicios_activos` sin distinguir).
+      **Confirmado por el usuario en navegador real** ("ya lo revisé, ya
+      funciona") — modal ancho, fundido de los 4 campos, placeholders/
+      leyenda/botón "Guardar" y la tarjeta "Servicios activos" todos
+      validados con clics reales, no solo por curl. **Ajuste final el
+      mismo día**: ícono de "Servicios activos" (maletín) cambiado a una
+      persona (círculo + hombros, mismo estilo feather del resto del
+      sitio) — pedido explícito del usuario, "los servicios son dados
+      por personas". Rebuild frontend, confirmado servido y **validado
+      por el usuario en navegador real** de nuevo. Con esto el punto 179
+      completo (feature + los 3 refinamientos + el bug del dashboard +
+      el ícono) queda implementado y validado de punta a punta. Sin
+      commit/push todavía.
+
+  180. **PENDIENTE — alta de proveedores como entidad propia en
+      Inventarios (registrado 2026-09-01, ver `inventarios.md`,
+      SOLO documentado, sin implementar)**: hoy `proveedor_principal` es
+      texto libre por producto, sin FK — pedido explícito del usuario de
+      anotar como mejora futura un catálogo de proveedores real
+      (habilitaría, por ejemplo, filtrar/reportar por proveedor sin
+      depender de que el texto se escriba idéntico cada vez). Sin
+      preguntas de diseño resueltas todavía — seguir el protocolo
+      `addv-web-app` completo antes de tocar código, mismo patrón que el
+      punto 167.
+
+  181. **"Proveedores" nuevo en el sidebar de `/admin` — solo placeholder
+      "en construcción", IMPLEMENTADO Y VALIDADO en navegador real
+      (2026-09-02)**: pedido explícito del usuario — segmento acotado a
+      propósito, deja el CRUD real (que se conecta con el pendiente del
+      punto 180) para una ronda de refinamiento aparte. Protocolo
+      `addv-web-app` completo: propuesta visual antes/después en Artifact
+      (mockup del sidebar actual vs. con el botón nuevo + vista de
+      construcción) aprobada explícitamente ("Sí, implementa todo el
+      segmento") antes de tocar código.
+      - **Botón nuevo** `#btn-vista-proveedores` en `admin-sidebar-nav`
+        (`frontend/admin.html`) — después de "Reportes", antes de
+        "Configuraciones globales" (esa última siempre al final, regla
+        ya establecida desde el punto 122). Espejo exacto en la grilla
+        de íconos del menú móvil (`#admin-menu-movil`,
+        `data-vista="proveedores"`), mismo patrón que el resto de las 10
+        vistas — un solo botón nuevo por superficie, sin lista de
+        restricciones aparte que mantener sincronizada.
+      - **Ícono**: caja/paquete (`stroke-width:2`, 24×24), mismo lenguaje
+        visual que los demás íconos del sidebar — evoca proveedor/insumo
+        sin usar emoji (política del sitio, también aplica a mockups —
+        ver memoria persistente `feedback_sin_emojis_en_mockups.md`).
+      - **Vista destino** `#vista-proveedores`: placeholder puro, cero
+        tabla/formulario/endpoint nuevo. Ícono en caja navy+cyan con
+        animación de pulso (`@keyframes en-construccion-pulso`, solo
+        `transform`/`box-shadow`, respeta `prefers-reduced-motion`) +
+        texto "Proveedores está en construcción" + 3 puntos animados.
+      - **Visibilidad**: mismo criterio que "Gastos" —
+        `RESTRICCIONES_PERFIL.administrador.vistasPermitidas` gana
+        `'proveedores'` (perfil `fiscal` no la ve); perfil `super` sin
+        restricciones, la ve siempre. Cableado en `admin.js`:
+        `els.btnVistaProveedores`/`els.vistaProveedores`, entrada en
+        `navPorVista` (dentro de `aplicarRestriccionesPerfil()`), toggle
+        de `is-active`/`hidden` en `cambiarVistaPrincipal()`, oculta
+        también en `mostrarMenuMovil()` (mismo patrón que las demás
+        vistas de negocio), y su propio listener de clic.
+      - **Bug real encontrado y corregido en la validación (no era del
+        código, era de despliegue)**: el usuario reportó "no me deja dar
+        clic, no veo mi animación" — el HTML servido por el contenedor
+        `portalManager-frontend` ya traía el botón nuevo (visible,
+        clicable en apariencia) pero el `admin.js` servido era una
+        versión A MEDIO CAMINO de esta sesión (el contenedor se había
+        reconstruido entre dos de los `Edit` de esta sesión, capturando
+        los cambios de `els`/`navPorVista` pero NO los de
+        `cambiarVistaPrincipal()`/el listener de clic, agregados
+        después) — el botón existía en el DOM pero sin ningún
+        `addEventListener` atado, así que un clic (real o programático
+        vía `btn.click()`) no hacía absolutamente nada, sin lanzar
+        ningún error de consola. Diagnosticado confirmando con `curl`
+        que el HTML/JS servido por HTTP coincidía con el archivo en
+        disco (no coincidía) y descartando con Claude in Chrome que
+        otro botón (p. ej. "Ventas") sí respondía normal — deploy
+        parcial, no bug de lógica. Fix: `docker compose build --no-cache
+        frontend` + `up -d --force-recreate frontend` (mismo comando ya
+        documentado como gotcha en el punto 108/109), sin tocar código
+        de nuevo. Validado en navegador real (Claude in Chrome) tras el
+        rebuild: clic selecciona el botón (cyan), vista placeholder con
+        animación visible, cero errores de consola. Jest backend
+        807/807, control 119/119 (sin cambios de backend/control). Sin
+        commit/push todavía.
+
+  182. **Switch "Solamente servicios" en Inventarios — EN CURSO, PAUSADO
+      a medio implementar (2026-09-02)**: pedido del usuario con
+      protocolo completo (crítica + demo interactiva en Artifact + 4
+      recomendaciones confirmadas explícitamente: ranking de servicios
+      por cantidad no por ingreso exacto, switch por empresa junto a
+      "Inventario activo" — no config de plataforma como
+      `ventas_afectan_inventario` —, bloqueo si ya hay productos activos,
+      la regla "si tienen ambas se conservan todos los indicadores"
+      depende solo del estado del switch). **Backend completo**: config
+      nueva `inv_solo_servicios` (`backend/utils/inventarioConfig.js`,
+      mismo mecanismo que `inventario_activo`) + guard en el `PUT` de
+      configuración (rechaza encenderlo con productos activos,
+      `INV_HAY_PRODUCTOS_ACTIVOS`) + guard en `validarCuerpoProducto()`
+      (rechaza alta de `tipo=producto` con el switch activo,
+      `INV_SOLO_SERVICIOS_ACTIVO`, solo en creación — no en edición de
+      uno inactivo/archivado que ya existiera) + bloqueo completo de la
+      carga masiva (`INV_SOLO_SERVICIOS_ACTIVO` desde el primer paso,
+      antes de subir el archivo) + `GET /inventarios/reportes/estado`
+      extendido con bloque `servicios` (top/bottom 5 por cantidad
+      vendida 90 días desde `orden_productos` — única fuente real, ya
+      que un servicio nunca genera `movimientos_inventario`, D11 —
+      ingreso estimado con precio ACTUAL, documentado como
+      aproximación). **Frontend a medio terminar**: HTML listo (switch
+      en "Configuraciones globales", clases `.inv-kpi-solo-producto`/
+      `.inv-estado-solo-producto` en las 7+4 tarjetas/secciones que
+      dejan de aplicar, bloque nuevo `#inv-estado-servicios-kpi-grid`/
+      `#inv-estado-servicios-grid` para el reemplazo, campo Tipo del
+      modal con hint fijo `#inv-modal-tipo-fijo-hint`) — **falta todo el
+      JS de `admin.js`** (cargar/guardar el switch, ocultar/mostrar
+      según su estado, renderizar el bloque de servicios del reporte).
+      Interrumpido dos veces por bugs reales más urgentes reportados por
+      el usuario (puntos 183 de abajo) — retomar el JS antes de dar esto
+      por completo. Sin `node --check` corrido sobre HTML nuevo desde la
+      pausa, sin rebuild/deploy, sin Jest nuevo para esta parte
+      específica. Sin commit/push.
+
+  183. **2 bugs reales en "Resumen financiero", encontrados por
+      diagnóstico contra Docker/MySQL reales y corregidos (2026-09-02,
+      reportados por el usuario con capturas tras el cierre mensual de
+      agosto) — Jest backend 809/809**:
+      1. **Proyección de ventas (Oct/Nov) mostraba $0/$0**: el mes EN
+         CURSO (parcial, apenas empieza) se trataba como un mes cerrado
+         más al calcular la tendencia de los "últimos 3 meses" —
+         comparar "2 días de septiembre" contra meses completos hundía
+         la proyección a cero de forma artificial, más notorio justo
+         después de cualquier cierre de mes (que es exactamente cuándo
+         el usuario lo reportó). Fix en `GET /resumen-financiero`
+         (`backend/server.js`): la tendencia usa solo `mesesCerrados`
+         (excluye el mes en curso); las ETIQUETAS de la proyección
+         siguen ancladas al último mes con CUALQUIER dato (igual que
+         siempre, puede ser el mes en curso) para no romper el
+         contrato visible de "los 2 meses después de hoy"; el desfase
+         real entre el último mes cerrado y el mes proyectado se
+         compensa en el multiplicador de la tendencia. La barra real
+         del mes en curso en `serie_mensual` NO se toca — sigue
+         mostrando su dato parcial, correcto. Test nuevo en
+         `test/integration/resumenFinanciero.test.js` que arma 3 meses
+         cerrados + 1 mes en curso con valor bajo (usando la fecha real
+         del sistema, no una fija) y confirma que la proyección sigue
+         la tendencia de los cerrados. **Nota**: con los datos de
+         prueba actuales (Jun→Jul→Ago genuinamente a la baja: 344k→
+         221k→128k) la proyección corregida SIGUE dando $0/$0 para
+         Oct/Nov — es matemáticamente correcto dado ese declive real de
+         meses YA cerrados, no queda ningún artefacto del mes parcial.
+      2. **"Facturado" desaparecía del histórico — bug más grave, no
+         solo de la gráfica**: se calculaba en VIVO con
+         `EXISTS(SELECT ticket WHERE estatus='listo')` — en cuanto la
+         retención automática BORRA el ticket (`tickets_retencion_dias`,
+         diseñado para ser efímero), la venta "olvidaba" haber sido
+         facturada para siempre, en CUALQUIER consulta. Confirmado
+         contra la BD real: `tickets_retencion_dias=1` día en este
+         entorno, **0 tickets** ligados a ninguna de las 24+30+29+29+24
+         órdenes de abril-agosto (todos ya purgados) — coincide exacto
+         con por qué "Facturado" se veía en ~$0 en las 6 barras.
+         Afectaba: esta gráfica, la insignia "✓ facturado" por fila en
+         Ventas (`GET /ordenes-compra`), el "Corte del día", Y el guard
+         anti-doble-factura (`POST /tickets`, `COMPRA_YA_FACTURADA` —
+         dejaba re-facturar una venta ya facturada si su ticket viejo ya
+         se había purgado). Fix: columna nueva `facturado_en DATETIME
+         NULL` en `ordenes_compra` (hecho histórico PERMANENTE, nunca se
+         borra) — se fija UNA SOLA VEZ en
+         `POST /admin/tickets/:id/factura` (con `COALESCE`, no se pisa
+         si ya tenía fecha de una factura reemplazada), los 5 lugares
+         que antes preguntaban al ticket en vivo ahora leen
+         `facturado_en IS NOT NULL`. Migración con backfill idempotente
+         en `ensureSchema()` — **límite honesto documentado en el
+         propio comentario del código**: solo recupera lo que el
+         ticket TODAVÍA existente permita (JOIN a `tickets` con
+         `estatus='listo'`); lo ya purgado antes de este fix quedó
+         perdido para siempre (el archivo de auditoría de tickets
+         purgados, `reporte_items`, no guarda el id de la orden de
+         compra, solo el folio del ticket — sin vínculo posible). En
+         este entorno el backfill recuperó 0 filas (consistente con
+         los 0 tickets confirmados arriba). **Validado con una
+         simulación real contra Docker/MySQL** (a pedido explícito del
+         usuario, "haremos simulaciones para validar tus correcciones"):
+         se fijó `facturado_en` a mano en una orden real de agosto SIN
+         ningún ticket ligado (demuestra independencia total del
+         ticket), confirmado que la insignia de Ventas y el total
+         "Facturado" de agosto en Resumen financiero lo reflejaron
+         correctamente ($2,774.64), revertido después para dejar la BD
+         de vuelta a su estado base. Test nuevo en
+         `test/integration/tickets.test.js` para el guard
+         `COMPRA_YA_FACTURADA` vía `facturado_en` (antes sin cobertura
+         dedicada). Rebuild `--no-cache`+`--force-recreate` backend,
+         validado por HTTP real.
+      3. **`total_gastos` faltaba en la lista de "Lectura de reportes"**
+         (mismo día, reportado por el usuario tras ver los 5 cortes
+         mensuales recién generados): la columna `total_gastos` de
+         `reportes` existe y `guardarReporte()` (`backend/utils/
+         reportes.js`) siempre la calcula bien — el `SELECT` explícito
+         de `GET /admin/reportes` (`backend/server.js`) simplemente
+         nunca la pedía, así que el selector de reportes en el frontend
+         solo mostraba "(N tickets, N ventas)", sin gastos, aunque cada
+         cierre mensual sí archiva gastos (13-18 por mes en la siembra
+         de prueba). El detalle de cada reporte (tabla "Movimientos") sí
+         los mostraba bien — el hueco era solo en el resumen de la
+         lista. Fix de una línea en cada lado: columna agregada al
+         `SELECT`, `option.textContent` del selector
+         (`frontend/admin.js`) ahora incluye "N gastos". Validado por
+         HTTP real: los 5 cortes muestran 13/13/14/9/18 gastos
+         respectivamente. Jest backend 809/809 (sin test dedicado, sin
+         asserts previos sobre esos campos exactos). Sin commit/push
+         todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

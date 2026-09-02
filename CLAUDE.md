@@ -116,6 +116,104 @@ secundario sin corregir (no es el bug reportado, no hay fuga de datos):
 cookie de sesión de cliente compartida entre tenants (mismo nombre/path),
 se pisa entre pestañas de distintos tenants. Sin commit/push.
 
+**Campos reducidos para `tipo=servicio` + carga masiva solo-producto
+(2026-09-01, ver PROJECT_STATE.md punto 179, IMPLEMENTADO Y VALIDADO
+contra Docker/MySQL reales — Jest backend 807/807, control 119/119)**:
+protocolo completo (crítica + propuesta visual antes/después
+en Artifact + confirmación, con el usuario ajustando el alcance dos veces
+en vivo). Un `tipo=servicio` en Inventarios ahora solo pide/muestra 10 de
+los 14 campos del formulario — código de barras/stock mínimo/stock
+máximo/punto de reorden quedan `NULL` sin importar lo que mande el body
+(forzado en `validarCuerpoProducto()` del lado del servidor, no solo
+oculto en el modal) y la unidad de medida se restringe a una unidad
+nueva, "Hora", **entera** (horas enteras, sin decimales — invierte la
+duda que había quedado abierta en el registro anterior de este mismo
+pendiente). La carga masiva CSV/XLSX (§34 de `inventarios.md`) pasó a
+ser SOLO para productos — un servicio siempre se da de alta a mano;
+una fila `tipo=servicio` en el CSV/XLSX se rechaza completa
+(`INV_IMPORT_SERVICIO_NO_PERMITIDO`), tenía su propio INSERT/UPDATE que
+NO pasaba por la validación del formulario web. Migración idempotente
+en `ensureSchema()` (backfill de servicios ya existentes, solo en
+tenants de prueba hoy). De paso, registrado como pendiente futuro (solo
+documentado, sin implementar, ver punto 180) el alta de proveedores como
+entidad propia en vez de texto libre.
+
+**Refinamientos de UX del mismo punto 179, mismo día**: el usuario
+reportó con captura que no veía el cambio — causa real era el
+contenedor `frontend` corriendo 3h viejo, sin rebuild; corregido
+(rebuild+recreate backend+frontend) y confirmado por `curl` real (no
+Jest mockeado) contra Docker/MySQL: `POST /productos` con
+`tipo=servicio` + código de barras/stock a propósito → guardó con esos
+4 campos en `NULL` y unidad forzada a "Hora". Tras eso, 3 ajustes de
+copy (placeholders "Nombre"/"SKU" según tipo, leyenda del toggle de 4
+líneas a 1, botón "Guardar producto" → "Guardar") y un fundido de
+opacidad de 150ms para los 4 campos que se ocultan (`.inv-campo-
+colapsable`, respeta `prefers-reduced-motion`, sin animar al abrir el
+modal) — se descartó la técnica de `grid-template-rows` del Artifact
+original por ser ambigua en un grid de 2 columnas real sin forma de
+confirmarla sin navegador. El modal ya era responsivo antes de esto
+(94vw + scroll + 1 columna <560px), sin cambios ahí. **Sin herramienta
+de navegador disponible esta sesión** — la animación se validó por
+lectura de código + despliegue confirmado por curl, NO con clics
+reales; pedir al usuario que confirme visualmente. Confirmado con
+`ToolSearch` (2 veces) que la extensión de Chrome NO está conectada en
+esta sesión de Claude Code CLI — el usuario la tiene abierta en otra
+sesión suya en paralelo, no se puede tomar prestada entre sesiones.
+
+**2 ajustes más el mismo día (ver PROJECT_STATE.md punto 179), a partir
+de 2 capturas nuevas del usuario**: modal "Nuevo producto" ensanchado de
+640px a 820px (`.inv-producto-modal-ancho`, mismo ancho que
+`.ticket-modal` de Tickets, sin tocar `.gastos-modal` base que usa
+Gastos); y **bug real corregido**: "Productos activos" del dashboard de
+Inventarios contaba también servicios (única de las 7 consultas sin
+`tipo='producto'`, las otras 6 ya excluían servicios de forma
+estructural vía `existencias`/`movimientos_inventario`, que un servicio
+nunca puebla) — tarjeta nueva independiente "Servicios activos" (8va,
+llena el hueco de la fila 2). Validado por curl contra Docker/MySQL
+reales: base 12/0, servicio de prueba → 12/1, borrado → 12/0. Jest
+807/807. **Confirmado por el usuario en navegador real** ("ya lo
+revisé, ya funciona"). **Ajuste final**: ícono de "Servicios activos"
+(maletín → persona, mismo estilo feather del sitio, "los servicios son
+dados por personas") — también confirmado en navegador real. Punto 179
+completo queda implementado y validado de punta a punta.
+
+**Switch "Solamente servicios" (ver PROJECT_STATE.md punto 182) — EN
+CURSO, PAUSADO a medio implementar**: backend completo (config
+`inv_solo_servicios` mismo mecanismo que `inventario_activo`, guards en
+alta de producto/carga masiva/PUT de configuración, bloque `servicios`
+en el reporte "Estado del inventario" desde `orden_productos`). Falta
+TODO el JS de `admin.js` (cargar/guardar el switch, ocultar tarjetas/
+botones, renderizar el bloque de servicios) — el HTML ya tiene las
+clases/ids listos. Interrumpido dos veces por bugs más urgentes
+reportados por el usuario. Retomar el JS antes de darlo por completo.
+
+**2 bugs reales en Resumen financiero, encontrados por diagnóstico y
+corregidos (ver PROJECT_STATE.md punto 183, 2026-09-02) — Jest backend
+809/809, validado con simulación real contra Docker/MySQL**: (1)
+proyección de ventas daba $0/$0 porque el mes en curso (parcial) se
+trataba como mes cerrado al calcular la tendencia — fix la excluye de
+la tendencia sin tocar la barra real parcial en la gráfica; (2) mucho
+más grave — "facturado" se leía en VIVO de un `EXISTS` contra
+`tickets`, y en cuanto la retención automática borra el ticket (efímero
+a propósito), la venta olvidaba haber sido facturada PARA SIEMPRE, en
+esta gráfica, la insignia de Ventas, el Corte del día, Y el guard
+anti-doble-factura. Fix: columna permanente `facturado_en` en
+`ordenes_compra`, se fija una sola vez al subir el ZIP de la factura,
+nunca se borra. Backfill honesto: solo recupera lo que el ticket
+TODAVÍA existente permita — lo ya purgado antes del fix quedó perdido
+para siempre (sin vínculo posible vía el archivo de auditoría). En este
+entorno de prueba (`tickets_retencion_dias=1` día) el backfill recuperó
+0 filas — confirmado por SQL directo que las 130 órdenes de
+abril-agosto tienen 0 tickets ligados, ninguno purgable.
+
+**3er fix chico el mismo día**: `total_gastos` (columna real de
+`reportes`, siempre bien calculada por `guardarReporte()`) faltaba en
+el `SELECT` de `GET /admin/reportes` — el selector de "Lectura de
+reportes" solo mostraba tickets/ventas, nunca gastos, aunque cada
+cierre mensual sí los archiva. Fix de una línea en cada lado (backend +
+`option.textContent` en `admin.js`). Validado por HTTP real: los 5
+cortes ya sembrados muestran 13/13/14/9/18 gastos.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
@@ -1254,6 +1352,27 @@ fallido usaba 502, que `nginx.conf.template` intercepta globalmente
 (`error_page 502 503 504 =503 /mantenimiento.html`) y disfraza de "sitio
 caído" — cambiado a 500. Jest backend 804/804, control 119/119. Sin
 commit/push todavía.
+
+**"Proveedores" nuevo en el sidebar de `/admin` — solo placeholder "en
+construcción" (ver PROJECT_STATE.md punto 181, 2026-09-02, IMPLEMENTADO Y
+VALIDADO en navegador real)**: segmento acotado a propósito (protocolo
+completo, propuesta visual antes/después aprobada primero) — botón nuevo
+tras "Reportes"/antes de "Configuraciones globales" en sidebar+menú
+móvil, ícono caja, vista placeholder puro (ícono navy/cyan con pulso +
+texto, respeta `prefers-reduced-motion`), cero CRUD/endpoint todavía.
+Mismo criterio de visibilidad que Gastos (`administrador`+super, no
+`fiscal`). **Bug real de despliegue, no de código, encontrado y
+corregido en la validación**: el contenedor `portalManager-frontend` se
+reconstruyó a medio camino de esta sesión, sirviendo un `admin.js` con
+el botón agregado a `els`/`navPorVista` pero SIN el listener de clic
+(agregado en un edit posterior) — el botón se veía y parecía clicable
+pero no hacía nada, sin error de consola (mismo patrón de "deploy
+parcial" ya documentado, no un bug de lógica). Fix: rebuild `--no-cache`
++ `up -d --force-recreate frontend`. Conecta con el pendiente ya
+registrado del punto 180 (proveedores como entidad propia en vez de
+texto libre) — ese sigue sin implementar, es la ronda de refinamiento
+que falta. Jest backend 807/807, control 119/119. Sin commit/push
+todavía.
 
 **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en

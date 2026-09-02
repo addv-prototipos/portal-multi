@@ -496,7 +496,7 @@ Como **administrador**, quiero crear un producto, para poder controlarlo dentro 
 | precio | no | `DECIMAL(12,2)` |
 | stock_minimo / stock_maximo / punto_reorden | no | alertas §28 sin lead time v1 |
 | estado | no | `activo`/`inactivo`/`archivado` (§38), default `activo` |
-| proveedor_principal | no | texto libre, sin FK (entidad proveedores fase 2) |
+| proveedor_principal | no | texto libre, sin FK — **PENDIENTE mejora futura (registrado 2026-09-01, SOLO documentado, sin implementar): alta de proveedores como entidad propia** (catálogo con FK real en vez de texto libre repetido por producto — habilitaría, por ejemplo, filtrar/reportar por proveedor sin depender de que el texto se escriba idéntico cada vez). Seguir el protocolo `addv-web-app` completo antes de tocar código. |
 | notas | no | texto libre |
 
 ### Criterios v1
@@ -505,7 +505,18 @@ Como **administrador**, quiero crear un producto, para poder controlarlo dentro 
 - Nombre obligatorio; unidad base obligatoria.
 - Producto activo por defecto; `tipo=servicio` no genera existencias/movimientos/kardex.
 - El backend valida todos los campos; no duplicidad lógica.
-- **PENDIENTE (registrado 2026-09-01, NO implementado)**: con `tipo=servicio` (servicio profesional, unidad = horas), los campos `codigo_barras`, `stock_minimo` y `stock_maximo` NO aplican y no deben mostrarse/pedirse en el formulario — un servicio no se escanea ni tiene mínimos/máximos de existencia. A diferencia de un `producto` de unidad de conteo, un servicio en horas SÍ admite decimales en cantidad (mismo criterio que las unidades de medida continuas del punto 175 de `PROJECT_STATE.md` — pieza/caja exigen entero, litro/kg/hora admiten decimales). Falta decidir: si `stock_minimo`/`stock_maximo` se ocultan solo en la UI o también se anulan a nivel de esquema para `tipo=servicio`, y si `unidad_base` para un servicio debe restringirse a "Hora" o queda libre. Seguir el protocolo `addv-web-app` (analizar → proponer → confirmar) antes de tocar código.
+- **RESUELTO (2026-09-01, ver PROJECT_STATE.md punto 179 — IMPLEMENTADO)**: `tipo=servicio` solo pide/muestra 10 de los 14 campos del formulario —
+  `nombre`, `sku`, `categoria`, `unidad_base` (fija en "Hora", única unidad
+  del catálogo con `permite_decimales=0` para este caso — **horas
+  ENTERAS**, invierte el supuesto anterior de esta nota), `moneda`,
+  `costo`, `precio`, `estado`, `proveedor_principal`, `notas`.
+  `codigo_barras`/`stock_minimo`/`stock_maximo`/`punto_reorden` quedan
+  `NULL` (NA) sin importar lo que mande el body — validado en
+  `validarCuerpoProducto()` del lado del servidor, no solo oculto en el
+  modal, así que tampoco se puede forzar por API directa. **Un servicio
+  siempre se da de alta a mano — la carga masiva CSV/XLSX (§34) es
+  SOLO para `tipo=producto`**; una fila marcada "servicio" se rechaza
+  completa (`INV_IMPORT_SERVICIO_NO_PERMITIDO`).
 
 <details><summary>Anexo aspiracional — campos fuera de v1 (Fase 2/3)</summary>
 
