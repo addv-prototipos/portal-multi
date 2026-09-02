@@ -149,4 +149,62 @@ describe('Admin: Resumen financiero', () => {
       { mes: 'Oct', ventas: 5000 },
     ]);
   });
+
+  // Bug real (2026-09-02, reportado por el usuario tras un cierre
+  // mensual): el mes EN CURSO —parcial, recién empieza— se trataba como
+  // un mes cerrado más para calcular la tendencia, hundiendo la
+  // proyección a $0 los primeros días de cualquier mes. Este caso arma
+  // 3 meses CERRADOS con tendencia +1000/mes y agrega el mes en curso
+  // (relativo a la fecha real de hoy, sin fijar un mes fijo) con un
+  // valor bajísimo — la proyección debe seguir la tendencia de los 3
+  // meses cerrados, ignorando el dato parcial de hoy.
+  test('el mes en curso (parcial) no distorsiona la proyección', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('administrador');
+    const hoy = new Date();
+    const llave = (offsetMeses) => {
+      const f = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() + offsetMeses, 1));
+      return `${f.getUTCFullYear()}-${String(f.getUTCMonth() + 1).padStart(2, '0')}`;
+    };
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
+    pool.query.mockResolvedValueOnce([[{ ventas: '15.00', subtotal: '15.00', facturado: '0.00', facturado_anterior: '3000.00' }]]);
+    pool.query.mockResolvedValueOnce([[{ gastos: '0.00', gastos_anterior: '0.00' }]]);
+    pool.query.mockResolvedValueOnce([
+      [
+        { mes: llave(-3), ventas: '1000.00', subtotal: '1000.00', facturado: '1000.00' },
+        { mes: llave(-2), ventas: '2000.00', subtotal: '2000.00', facturado: '2000.00' },
+        { mes: llave(-1), ventas: '3000.00', subtotal: '3000.00', facturado: '3000.00' },
+        // Mes en curso: apenas $15, un par de días de actividad — NO debe
+        // contar como el "último mes cerrado" de la tendencia.
+        { mes: llave(0), ventas: '15.00', subtotal: '15.00', facturado: '0.00' },
+      ],
+    ]);
+    pool.query.mockResolvedValueOnce([[]]); // serie gastos
+    pool.query.mockResolvedValueOnce([[]]); // gastos por categoria
+    pool.query.mockResolvedValueOnce([[]]); // top proveedores
+
+    const res = await request(app).get('/api/admin/resumen-financiero').auth(usuario, password);
+
+    expect(res.status).toBe(200);
+    // El mes en curso SÍ se sigue mostrando en la serie con su dato real
+    // parcial — eso es correcto, no se toca.
+    expect(res.body.serie_mensual[res.body.serie_mensual.length - 1]).toMatchObject({ ventas: 15 });
+    // La proyección (2 meses después de HOY) sigue la tendencia real de
+    // los 3 meses cerrados (+1000/mes desde 3000), NO desde $15.
+    // Misma lógica que etiquetaMes() (server.js, no exportada) — se
+    // replica aquí en vez de duplicar solo el formato para no depender
+    // de un export nuevo únicamente para la prueba.
+    const nombreMes = (f) => {
+      const corta = new Intl.DateTimeFormat('es-MX', { month: 'short', timeZone: 'UTC' }).format(f).replace('.', '');
+      return corta.charAt(0).toUpperCase() + corta.slice(1);
+    };
+    // Ancla de etiqueta = el mes en curso (SÍ tiene dato, el de $15) —
+    // Oct/Nov, 2/3 saltos de tendencia desde el último mes CERRADO (el
+    // de -1, con $3000): 3000+1000*2=5000, 3000+1000*3=6000.
+    const fProy1 = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() + 1, 1));
+    const fProy2 = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() + 2, 1));
+    expect(res.body.proyeccion_ventas).toEqual([
+      { mes: nombreMes(fProy1), ventas: 5000 },
+      { mes: nombreMes(fProy2), ventas: 6000 },
+    ]);
+  });
 });

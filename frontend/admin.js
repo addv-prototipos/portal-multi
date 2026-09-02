@@ -135,6 +135,7 @@
     btnVistaUsuarios: document.getElementById('btn-vista-usuarios'),
     btnVistaConfiguraciones: document.getElementById('btn-vista-configuraciones'),
     btnVistaLecturaReportes: document.getElementById('btn-vista-lectura-reportes'),
+    btnVistaProveedores: document.getElementById('btn-vista-proveedores'),
     // Menú móvil (launcher de íconos, reemplaza el nav de fila en <900px)
     btnMenuMovil: document.getElementById('btn-menu-movil'),
     adminMenuMovil: document.getElementById('admin-menu-movil'),
@@ -147,6 +148,7 @@
     vistaUsuarios: document.getElementById('vista-usuarios'),
     vistaConfiguraciones: document.getElementById('config-modal-overlay'),
     vistaLecturaReportes: document.getElementById('vista-lectura-reportes'),
+    vistaProveedores: document.getElementById('vista-proveedores'),
     // Modal "Configuraciones globales" (antes vista de página, ver
     // PROJECT_STATE.md): barra lateral + buscador + panel de contenido.
     configModalSidebar: document.getElementById('config-modal-sidebar'),
@@ -466,6 +468,7 @@
     btnNuevoProducto: document.getElementById('btn-nuevo-producto'),
     invKpiValor: document.getElementById('inv-kpi-valor'),
     invKpiActivos: document.getElementById('inv-kpi-activos'),
+    invKpiServicios: document.getElementById('inv-kpi-servicios'),
     invKpiUnidades: document.getElementById('inv-kpi-unidades'),
     invKpiBajoMinimo: document.getElementById('inv-kpi-bajo-minimo'),
     invKpiSinExistencia: document.getElementById('inv-kpi-sin-existencia'),
@@ -488,9 +491,11 @@
     btnInvProductoModalCerrar: document.getElementById('btn-inv-producto-modal-cerrar'),
     btnInvTipoProducto: document.getElementById('btn-inv-tipo-producto'),
     btnInvTipoServicio: document.getElementById('btn-inv-tipo-servicio'),
+    invModalTipoHint: document.getElementById('inv-modal-tipo-hint'),
     invModalNombre: document.getElementById('inv-modal-nombre'),
     invModalSku: document.getElementById('inv-modal-sku'),
     invModalCodigoBarras: document.getElementById('inv-modal-codigo-barras'),
+    invModalCodigoBarrasField: document.getElementById('inv-modal-codigo-barras-field'),
     btnInvModalEscanear: document.getElementById('btn-inv-modal-escanear'),
     invModalImagenField: document.getElementById('inv-modal-imagen-field'),
     invImagenActual: document.getElementById('inv-imagen-actual'),
@@ -507,12 +512,16 @@
     btnInvCategoriaAgregar: document.getElementById('btn-inv-categoria-agregar'),
     errorInvCategoriaNueva: document.getElementById('error-inv-categoria-nueva'),
     invModalUnidad: document.getElementById('inv-modal-unidad'),
+    invModalUnidadHintServicio: document.getElementById('inv-modal-unidad-hint-servicio'),
     invModalMoneda: document.getElementById('inv-modal-moneda'),
     invModalCosto: document.getElementById('inv-modal-costo'),
     invModalPrecio: document.getElementById('inv-modal-precio'),
     invModalStockMinimo: document.getElementById('inv-modal-stock-minimo'),
+    invModalStockMinimoField: document.getElementById('inv-modal-stock-minimo-field'),
     invModalStockMaximo: document.getElementById('inv-modal-stock-maximo'),
+    invModalStockMaximoField: document.getElementById('inv-modal-stock-maximo-field'),
     invModalPuntoReorden: document.getElementById('inv-modal-punto-reorden'),
+    invModalPuntoReordenField: document.getElementById('inv-modal-punto-reorden-field'),
     invModalEstado: document.getElementById('inv-modal-estado'),
     invModalProveedor: document.getElementById('inv-modal-proveedor'),
     invModalNotas: document.getElementById('inv-modal-notas'),
@@ -1358,7 +1367,7 @@
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'configuraciones'],
+      vistasPermitidas: ['resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'configuraciones'],
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card'],
     },
     fiscal: {
@@ -1387,6 +1396,7 @@
       usuarios: els.btnVistaUsuarios,
       configuraciones: els.btnVistaConfiguraciones,
       'lectura-reportes': els.btnVistaLecturaReportes,
+      proveedores: els.btnVistaProveedores,
     };
     Object.entries(navPorVista).forEach(([vista, boton]) => {
       const permitidaPorPerfil = sinRestricciones || restriccion.vistasPermitidas.includes(vista);
@@ -2464,7 +2474,7 @@
           const option = document.createElement('option');
           option.value = r.id;
           const tipoTexto = r.tipo === 'automatico' ? 'Automático' : r.tipo === 'cierre_mensual' ? 'Cierre mensual' : 'Manual';
-          option.textContent = `${formatearFechaCorta(r.fecha_generacion)} — ${tipoTexto} (${r.total_tickets} tickets, ${r.total_ordenes} ventas)`;
+          option.textContent = `${formatearFechaCorta(r.fecha_generacion)} — ${tipoTexto} (${r.total_tickets} tickets, ${r.total_ordenes} ventas, ${r.total_gastos} gastos)`;
           els.reportesSelector.appendChild(option);
         });
 
@@ -4376,6 +4386,8 @@
     els.btnVistaUsuarios.setAttribute('aria-selected', String(vista === 'usuarios'));
     els.btnVistaLecturaReportes.classList.toggle('is-active', vista === 'lectura-reportes');
     els.btnVistaLecturaReportes.setAttribute('aria-selected', String(vista === 'lectura-reportes'));
+    els.btnVistaProveedores.classList.toggle('is-active', vista === 'proveedores');
+    els.btnVistaProveedores.setAttribute('aria-selected', String(vista === 'proveedores'));
     els.vistaInicio.hidden = vista !== 'inicio';
     els.vistaConstancias.hidden = vista !== 'constancias';
     els.vistaTickets.hidden = vista !== 'tickets';
@@ -4386,6 +4398,7 @@
     els.vistaInventarios.hidden = vista !== 'inventarios';
     els.vistaUsuarios.hidden = vista !== 'usuarios';
     els.vistaLecturaReportes.hidden = vista !== 'lectura-reportes';
+    els.vistaProveedores.hidden = vista !== 'proveedores';
     if (vista === 'inicio') cargarInicio();
     if (vista === 'constancias') cargarRegistros();
     if (vista === 'tickets') {
@@ -4445,6 +4458,7 @@
     abrirConfigModal();
   });
   els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));
+  els.btnVistaProveedores.addEventListener('click', () => cambiarVistaPrincipal('proveedores'));
 
   // Menú móvil (launcher de íconos) — "Menú" en la barra superior
   // siempre regresa aquí, sin importar el perfil ni qué vista estaba
@@ -4462,6 +4476,7 @@
     els.vistaGastos.hidden = true;
     els.vistaUsuarios.hidden = true;
     els.vistaLecturaReportes.hidden = true;
+    els.vistaProveedores.hidden = true;
     els.adminMenuMovil.hidden = false;
   }
   els.btnMenuMovil.addEventListener('click', mostrarMenuMovil);
@@ -9754,17 +9769,27 @@
       const data = await res.json().catch(() => ({}));
       if (res.ok && Array.isArray(data.unidades)) {
         unidadesInventarioActuales = data.unidades;
-        if (els.invModalUnidad) {
-          const valorActual = els.invModalUnidad.value;
-          els.invModalUnidad.innerHTML = unidadesInventarioActuales
-            .map((u) => `<option value="${u.id}">${escapeHtml(u.nombre)} (${escapeHtml(u.abreviatura)})</option>`)
-            .join('');
-          if (valorActual) els.invModalUnidad.value = valorActual;
-        }
+        renderOpcionesUnidadInv();
       }
     } catch (err) {
       // Silencioso.
     }
+  }
+
+  // Punto 179: un servicio solo admite la unidad "Hora" — se filtra el
+  // desplegable a esa única opción cuando el toggle de tipo está en
+  // "Servicio"; producto sigue viendo el catálogo completo.
+  function renderOpcionesUnidadInv() {
+    if (!els.invModalUnidad) return;
+    const lista = inventarioModalTipoSeleccionado === 'servicio'
+      ? unidadesInventarioActuales.filter((u) => u.nombre === 'Hora')
+      : unidadesInventarioActuales;
+    const valorActual = els.invModalUnidad.value;
+    els.invModalUnidad.innerHTML = lista
+      .map((u) => `<option value="${u.id}">${escapeHtml(u.nombre)} (${escapeHtml(u.abreviatura)})</option>`)
+      .join('');
+    const sigueDisponible = lista.some((u) => String(u.id) === valorActual);
+    els.invModalUnidad.value = sigueDisponible ? valorActual : lista[0] ? String(lista[0].id) : '';
   }
 
   function nombreCategoriaInv(id) {
@@ -9790,6 +9815,7 @@
       const d = await res.json();
       els.invKpiValor.textContent = `$${formatearMoneda(d.valor_total_inventario)}`;
       els.invKpiActivos.textContent = String(d.productos_activos);
+      els.invKpiServicios.textContent = String(d.servicios_activos);
       els.invKpiUnidades.textContent = formatearCantidadInv(d.unidades_disponibles);
       els.invKpiBajoMinimo.textContent = String(d.productos_bajo_minimo);
       els.invKpiSinExistencia.textContent = String(d.productos_sin_existencia);
@@ -10000,18 +10026,65 @@
 
   // ---------- Modal de crear/editar producto ----------
 
-  function setInvModalTipo(tipo) {
+  // Punto 179: oculta/muestra un campo del modal con un fundido corto en
+  // vez de un salto instantáneo — `animar=false` (default) lo aplica de
+  // golpe, sin transición (para cuando el modal apenas se está abriendo,
+  // donde una animación se vería como parpadeo). `hidden` real se
+  // pone/quita JUSTO antes/después del fundido, nunca junto con él.
+  function colapsarCampoInv(el, ocultar, animar) {
+    if (!el || el.hidden === ocultar) return;
+    const reducida = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!animar || reducida) {
+      el.hidden = ocultar;
+      el.classList.remove('inv-campo-saliendo');
+      return;
+    }
+    if (ocultar) {
+      el.classList.add('inv-campo-saliendo');
+      window.setTimeout(() => {
+        el.hidden = true;
+      }, 150);
+    } else {
+      el.hidden = false;
+      el.classList.add('inv-campo-saliendo');
+      void el.offsetWidth; // fuerza el reflow para que el navegador registre el estado inicial (opacidad 0) antes de animar
+      requestAnimationFrame(() => el.classList.remove('inv-campo-saliendo'));
+    }
+  }
+
+  function setInvModalTipo(tipo, animar) {
     inventarioModalTipoSeleccionado = tipo;
     els.btnInvTipoProducto.classList.toggle('is-active', tipo === 'producto');
     els.btnInvTipoProducto.setAttribute('aria-selected', String(tipo === 'producto'));
     els.btnInvTipoServicio.classList.toggle('is-active', tipo === 'servicio');
     els.btnInvTipoServicio.setAttribute('aria-selected', String(tipo === 'servicio'));
+
+    // Punto 179: un servicio no tiene código de barras ni mínimos/
+    // máximos/punto de reorden de existencia — se ocultan (quedan NA en
+    // la base de datos) y la unidad de medida se restringe a "Hora".
+    const esServicio = tipo === 'servicio';
+    colapsarCampoInv(els.invModalCodigoBarrasField, esServicio, animar);
+    colapsarCampoInv(els.invModalStockMinimoField, esServicio, animar);
+    colapsarCampoInv(els.invModalStockMaximoField, esServicio, animar);
+    colapsarCampoInv(els.invModalPuntoReordenField, esServicio, animar);
+    els.invModalUnidadHintServicio.hidden = !esServicio;
+    renderOpcionesUnidadInv();
+
+    // Leyenda corta bajo el toggle — el detalle completo ya vive en el
+    // ícono "?" de al lado, así que aquí solo va lo mínimo por tipo.
+    els.invModalTipoHint.textContent = esServicio
+      ? 'Alta manual — no aplica en carga masiva.'
+      : 'Un servicio no genera existencias ni historial de movimientos.';
+
+    // Ejemplos de placeholder acordes al tipo elegido.
+    els.invModalNombre.placeholder = esServicio ? 'Ej. Consultoría fiscal' : 'Ej. Tornillo M6 25mm';
+    els.invModalSku.placeholder = esServicio ? 'Ej. SERV-CONS-01' : 'Ej. TORN-M6-25MM';
   }
 
   function abrirProductoModal(producto) {
     inventarioModalEditando = producto || null;
     els.invProductoModalTitle.textContent = producto ? 'Editar producto' : 'Nuevo producto';
-    els.btnInvModalGuardarLabel.textContent = producto ? 'Guardar cambios' : 'Guardar producto';
+    els.btnInvModalGuardarLabel.textContent = producto ? 'Guardar cambios' : 'Guardar';
     aplicarTooltipsCampoAyuda(els.invProductoModalOverlay);
 
     setInvModalTipo(producto ? producto.tipo : 'producto');
@@ -10145,7 +10218,7 @@
 
   function setGuardarProductoLoading(cargando) {
     els.btnInvModalGuardar.disabled = cargando;
-    els.btnInvModalGuardarLabel.textContent = cargando ? 'Guardando…' : inventarioModalEditando ? 'Guardar cambios' : 'Guardar producto';
+    els.btnInvModalGuardarLabel.textContent = cargando ? 'Guardando…' : inventarioModalEditando ? 'Guardar cambios' : 'Guardar';
   }
 
   async function guardarProductoInv() {
@@ -11376,8 +11449,8 @@
   if (els.invBusqueda) els.invBusqueda.addEventListener('input', debounce(() => cargarInventarios(), 350));
   if (els.btnLimpiarFiltrosInv) els.btnLimpiarFiltrosInv.addEventListener('click', limpiarFiltrosInv);
 
-  if (els.btnInvTipoProducto) els.btnInvTipoProducto.addEventListener('click', () => setInvModalTipo('producto'));
-  if (els.btnInvTipoServicio) els.btnInvTipoServicio.addEventListener('click', () => setInvModalTipo('servicio'));
+  if (els.btnInvTipoProducto) els.btnInvTipoProducto.addEventListener('click', () => setInvModalTipo('producto', true));
+  if (els.btnInvTipoServicio) els.btnInvTipoServicio.addEventListener('click', () => setInvModalTipo('servicio', true));
   if (els.btnInvCategoriasToggle) els.btnInvCategoriasToggle.addEventListener('click', toggleCategoriasInvPanel);
   if (els.btnInvCategoriaAgregar) els.btnInvCategoriaAgregar.addEventListener('click', agregarCategoriaInvPanel);
   if (els.invCategoriasLista)

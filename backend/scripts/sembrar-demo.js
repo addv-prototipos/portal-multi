@@ -291,7 +291,12 @@ async function principal() {
   const anioActual = hoyUtc.getUTCFullYear();
   const mesActual = hoyUtc.getUTCMonth();
   const inicio = new Date(Date.UTC(anioActual, mesActual - 5, 1));
-  const ayer = new Date(Date.UTC(anioActual, mesActual, hoyUtc.getUTCDate() - 1));
+  // El mes EN CURSO se deja completamente vacío a propósito — se registra
+  // a mano (pedido explícito del usuario) para probar el flujo real, no
+  // datos sembrados. `Date.UTC(anio, mesActual, 0)` = día 0 del mes
+  // actual = último día del mes ANTERIOR, sin importar cuántos días
+  // lleve corriendo el mes actual.
+  const finMesAnterior = new Date(Date.UTC(anioActual, mesActual, 0));
   const fechaInicial = new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), inicio.getUTCDate(), 9, 0, 0));
 
   const conexion = await pool.getConnection();
@@ -313,7 +318,7 @@ async function principal() {
 
     for (
       let d = new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), inicio.getUTCDate()));
-      d <= ayer;
+      d <= finMesAnterior;
       d.setUTCDate(d.getUTCDate() + 1)
     ) {
       const anio = d.getUTCFullYear();
@@ -407,6 +412,10 @@ async function principal() {
           );
           const idTicket = resultadoTicket.insertId;
           await conexion.query('UPDATE tickets SET folio = ? WHERE id = ?', [`TK-${String(idTicket).padStart(6, '0')}`, idTicket]);
+          // Punto 183: "facturado" ya no se lee del ticket en vivo (se
+          // borra por retención) — se fija aquí el hecho permanente,
+          // igual que lo haría POST /admin/tickets/:id/factura de verdad.
+          await conexion.query('UPDATE ordenes_compra SET facturado_en = ? WHERE id = ?', [fechaTicket, idVenta]);
           contadorTickets += 1;
           acumularMes(llaveMes, 'tickets', 1);
         } else if (probabilidad(0.6)) {

@@ -709,6 +709,37 @@ async function ensureSchema(db = pool) {
     await db.query('ALTER TABLE ordenes_compra ADD KEY idx_ordenes_compra_periodo (periodo_archivado)');
   }
 
+  // Bug real corregido (2026-09-02, reportado por el usuario — ver
+  // PROJECT_STATE.md): "facturado" se calculaba en vivo con un EXISTS
+  // contra `tickets` (estatus='listo') — en cuanto la limpieza automática
+  // por retención BORRA el ticket (es efímero a propósito), la venta
+  // "perdía" su factura para siempre en Resumen financiero, la insignia
+  // de Ventas y el Corte del día, aunque de verdad sí se facturó.
+  // `facturado_en` es un hecho histórico PERMANENTE — se fija una sola
+  // vez cuando se sube el ZIP de la factura (POST /tickets/:id/factura),
+  // nunca se borra ni se toca de nuevo (ni la retención de tickets ni el
+  // cierre mensual lo tocan).
+  const [colsFacturadoOrdenes] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ordenes_compra'`
+  );
+  if (!colsFacturadoOrdenes.map((c) => c.COLUMN_NAME).includes('facturado_en')) {
+    await db.query('ALTER TABLE ordenes_compra ADD COLUMN facturado_en DATETIME NULL');
+    await db.query('ALTER TABLE ordenes_compra ADD KEY idx_ordenes_compra_facturado_en (facturado_en)');
+  }
+  // Backfill idempotente: recupera lo que todavía se pueda recuperar —
+  // solo alcanza a las órdenes cuyo ticket 'listo' SIGUE existiendo hoy
+  // (no purgado por la retención). Lo ya purgado antes de este fix quedó
+  // perdido para siempre (el archivo de auditoría de tickets purgados no
+  // guarda el id de la orden de compra, solo el folio del ticket — sin
+  // vínculo posible). El WHERE evita re-tocar filas ya marcadas, seguro
+  // de re-correr.
+  await db.query(
+    `UPDATE ordenes_compra o
+       JOIN tickets t ON t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
+        SET o.facturado_en = COALESCE(o.facturado_en, t.actualizado_en, t.creado_en)
+      WHERE o.facturado_en IS NULL`
+  );
+
   // D8 (Inventarios, inventarios.md §22, segmento 4): venta con producto
   // opcional. `producto_id` referencia `productos.id` PERO SIN
   // `CONSTRAINT FOREIGN KEY` a propósito — la tabla `productos` se crea
@@ -1038,6 +1069,22 @@ async function ensureSchema(db = pool) {
       CONSTRAINT chk_productos_estado CHECK (estado IN ('activo', 'inactivo', 'archivado'))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Punto 179: backfill idempotente — cualquier servicio que ya exista
+  // (nunca en producción real hoy, solo posible en tenants de prueba)
+  // queda sin código de barras/stock mínimo/stock máximo/punto de
+  // reorden y con su unidad forzada a "Hora", igual que exige ahora
+  // validarCuerpoProducto() para altas y ediciones nuevas. El WHERE
+  // evita tocar filas que ya cumplen, para que sea seguro re-correr.
+  await db.query(
+    `UPDATE productos p
+       JOIN unidades_medida uh ON uh.nombre = 'Hora'
+        SET p.codigo_barras = NULL, p.stock_minimo = NULL, p.stock_maximo = NULL,
+            p.punto_reorden = NULL, p.unidad_id = uh.id
+      WHERE p.tipo = 'servicio'
+        AND (p.codigo_barras IS NOT NULL OR p.stock_minimo IS NOT NULL OR p.stock_maximo IS NOT NULL
+             OR p.punto_reorden IS NOT NULL OR p.unidad_id <> uh.id)`
+  );
 
   // Existencias — D6: granularidad producto×almacén, saldo DERIVADO del
   // libro de movimientos (nunca editable a mano). `eliminado_en` existe

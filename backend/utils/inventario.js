@@ -45,7 +45,13 @@ const UNIDADES_SEED = [
   ['Juego', 'juego', 0],
   ['Rollo', 'rollo', 0],
   ['Tarima', 'tarima', 0],
+  // Punto 179: única unidad válida para tipo=servicio — horas ENTERAS
+  // (sin decimales), a diferencia del resto del catálogo donde "hora"
+  // podría parecer una medida continua.
+  ['Hora', 'hr', 0],
 ];
+
+const UNIDAD_SERVICIO_NOMBRE = 'Hora';
 
 const UNIDAD_BASE_DEFECTO = 'Pieza';
 
@@ -563,6 +569,15 @@ async function unidadExisteId(id) {
   return filas.length > 0;
 }
 
+// Punto 179: id de la única unidad válida para tipo=servicio ("Hora").
+// Sembrada por ensureSchema() — si por algún motivo no existiera todavía
+// (instalación a medio migrar), regresa null y el llamador debe tratarlo
+// como error de configuración, no asumir un id por default.
+async function obtenerUnidadServicioId() {
+  const [filas] = await obtenerPool().query('SELECT id FROM unidades_medida WHERE nombre = ? LIMIT 1', [UNIDAD_SERVICIO_NOMBRE]);
+  return filas.length > 0 ? filas[0].id : null;
+}
+
 // §38: un producto con movimientos históricos no debe eliminarse
 // físicamente — se conserva en papelera para siempre. Solo un producto
 // SIN ningún movimiento puede borrarse de verdad.
@@ -574,6 +589,7 @@ async function productoTieneMovimientos(id) {
 module.exports = {
   UNIDADES_SEED,
   UNIDAD_BASE_DEFECTO,
+  UNIDAD_SERVICIO_NOMBRE,
   ALMACEN_DEFECTO_CODIGO,
   ALMACEN_DEFECTO_NOMBRE,
   TIPOS_ENTRADA,
@@ -595,5 +611,6 @@ module.exports = {
   skuEnUso,
   codigoBarrasEnUso,
   unidadExisteId,
+  obtenerUnidadServicioId,
   productoTieneMovimientos,
 };

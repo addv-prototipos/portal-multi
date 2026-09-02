@@ -177,6 +177,42 @@ describe('Tickets', () => {
       expect(pool.query).toHaveBeenCalledTimes(3);
     });
 
+    // Bug real corregido (2026-09-02, punto 183): antes se buscaba un
+    // ticket 'listo' en vivo — si la retención lo purgaba, la orden
+    // "olvidaba" que ya se había facturado y dejaba re-facturar. Ahora
+    // depende de `ordenes_compra.facturado_en` (hecho permanente).
+    test('con orden de compra ya facturada (facturado_en fijo), responde COMPRA_YA_FACTURADA', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro existe
+      pool.query.mockResolvedValueOnce([[]]); // config global defaults
+      pool.query.mockResolvedValueOnce([
+        [
+          {
+            id: 57,
+            numero_compra: 'OC-000101',
+            fecha_compra: '2026-07-24 15:30:45',
+            total: 100,
+            estado_pago: 'pagada',
+            facturado_en: '2026-07-25 10:00:00',
+          },
+        ],
+      ]); // orden de compra coincidente, YA facturada antes
+
+      const res = await request(app)
+        .post('/api/tickets')
+        .set('Cookie', COOKIE)
+        .field('numero_compra', 'OC-000101')
+        .field('fecha_compra', '24/jul/2026')
+        .field('hora_compra', '09:30:45')
+        .field('total_compra', '100.00')
+        .attach('imagen', JPEG_BUFFER_VALIDO, { filename: 'ticket.jpg', contentType: 'image/jpeg' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.codigo).toBe('COMPRA_YA_FACTURADA');
+      // No debe consultar tickets en vivo ni insertar uno nuevo — la
+      // respuesta sale del campo ya traído en la fila de la orden.
+      expect(pool.query).toHaveBeenCalledTimes(3);
+    });
+
     test('con orden de compra pagada, sigue aceptando el ticket (sin regresión)', async () => {
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro existe
       pool.query.mockResolvedValueOnce([[]]); // config global defaults
@@ -190,8 +226,7 @@ describe('Tickets', () => {
             estado_pago: 'pagada',
           },
         ],
-      ]); // orden de compra coincidente, liquidada
-      pool.query.mockResolvedValueOnce([[]]); // sin ticket ya facturado para esta orden
+      ]); // orden de compra coincidente, liquidada, sin facturado_en (no requiere query aparte, ver punto 183)
       pool.query.mockResolvedValueOnce([[]]); // getCamposObligatorios
       pool.query.mockResolvedValueOnce([[]]); // getUsosCfdi
       pool.query.mockResolvedValueOnce([{ insertId: 8 }]); // INSERT tickets

@@ -256,6 +256,21 @@ describe('validarFilasImportacion (§34.5)', () => {
     const resultado = await validarFilasImportacion(cabeceras, filas, { mapeoFinal, modo: 'tolerante' });
     expect(resultado.filasValidas[0]).toMatchObject({ sku: 'A1', nombre: 'Producto A', unidad_id: 1, existencia_inicial: 10, tipo: 'producto', estado: 'activo' });
   });
+
+  // Punto 179: la carga masiva es SOLO para productos — un servicio
+  // siempre se da de alta a mano desde "Nuevo producto".
+  test('fila con tipo=servicio se rechaza (INV_IMPORT_SERVICIO_NO_PERMITIDO), no aborta el resto en modo tolerante', async () => {
+    const cabecerasConTipo = [...cabeceras, 'tipo'];
+    const mapeoConTipo = { ...mapeoFinal, tipo: 4 };
+    const filas = [
+      ['A1', 'Producto A', 'Pieza', '1', 'servicio'],
+      ['B1', 'Producto B', 'Pieza', '1', 'producto'],
+    ];
+    const resultado = await validarFilasImportacion(cabecerasConTipo, filas, { mapeoFinal: mapeoConTipo, modo: 'tolerante' });
+    expect(resultado.filasOk).toBe(1);
+    expect(resultado.filasValidas[0].sku).toBe('B1');
+    expect(resultado.errores.some((e) => e.motivo.includes('INV_IMPORT_SERVICIO_NO_PERMITIDO'))).toBe(true);
+  });
 });
 
 describe('protegerCeldaCSV — OWASP CSV Injection (§35, reutilizado en errores.csv)', () => {

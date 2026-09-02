@@ -219,10 +219,30 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       expect(res.body.error).toBe('INV_SKU_DUPLICADO');
     });
 
+    // "SELECT valor FROM configuracion WHERE clave = ? LIMIT 1" es el
+    // MISMO texto SQL para "inventario_activo" (gate del módulo) y para
+    // "inv_solo_servicios" (punto 182, guard de validarCuerpoProducto en
+    // altas de producto) — mockPoolPorPatron solo distingue por prefijo
+    // de SQL, no por el parámetro, así que estas 2 pruebas necesitan
+    // mirar `params` para no confundir una con la otra (inv_solo_servicios
+    // debe caer a su default '0'/desactivado en ambas).
+    function mockPoolConfigPorClave(mapaAdicional) {
+      pool.query.mockImplementation(async (sql, params) => {
+        const s = String(sql).trim();
+        if (s.startsWith('SELECT valor FROM configuracion')) {
+          if (params && params[0] === 'inv_solo_servicios') return [[]]; // sin fila -> default '0'
+          return [[{ valor: '1' }]]; // inventario_activo
+        }
+        for (const [patron, valor] of mapaAdicional) {
+          if (s.startsWith(patron)) return typeof valor === 'function' ? valor() : valor;
+        }
+        return [[]];
+      });
+    }
+
     test('POST /productos con unidad inexistente responde INV_UNIDAD_INVALIDA', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
-      mockPoolPorPatron([
-        MODULO_ACTIVO,
+      mockPoolConfigPorClave([
         ['SELECT id FROM productos WHERE sku', [[]]],
         ['SELECT id FROM unidades_medida WHERE id', [[]]],
       ]);
@@ -236,8 +256,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
 
     test('POST /productos válido crea (tipo default "producto")', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
-      mockPoolPorPatron([
-        MODULO_ACTIVO,
+      mockPoolConfigPorClave([
         ['SELECT id FROM productos WHERE sku', [[]]],
         ['SELECT id FROM unidades_medida WHERE id', [[{ id: 1 }]]],
         ['INSERT INTO productos', [{ insertId: 42 }]],
@@ -248,6 +267,53 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
         .send({ nombre: 'Tornillo M6', sku: 'TORN-M6', unidad_id: 1 });
       expect(res.status).toBe(201);
       expect(res.body.id).toBe(42);
+    });
+
+    // Punto 179: tipo=servicio ignora codigo_barras/stock_minimo/
+    // stock_maximo/punto_reorden (quedan NA) y fuerza la unidad "Hora",
+    // sin importar lo que mande el body — validado del lado del servidor.
+    test('POST /productos tipo=servicio fuerza unidad "Hora" e ignora codigo_barras/stock/punto_reorden', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT id FROM productos WHERE sku', [[]]],
+        ['SELECT id FROM unidades_medida WHERE nombre', [[{ id: 9 }]]],
+        ['INSERT INTO productos', [{ insertId: 55 }]],
+      ]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos')
+        .auth(usuario, password)
+        .send({
+          nombre: 'Consultoría fiscal', sku: 'SERV-1', tipo: 'servicio', unidad_id: 1,
+          codigo_barras: '7501234567890', stock_minimo: '5', stock_maximo: '20', punto_reorden: '3',
+          costo: '100', precio: '250',
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBe(55);
+
+      const insert = pool.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO productos'));
+      const params = insert[1];
+      // Orden de columnas: sku, codigo_barras, nombre, categoria_id, unidad_id, tipo, ...
+      expect(params[1]).toBeNull(); // codigo_barras
+      expect(params[4]).toBe(9); // unidad_id forzada a "Hora", no la 1 del body
+      expect(params[9]).toBeNull(); // stock_minimo
+      expect(params[10]).toBeNull(); // stock_maximo
+      expect(params[11]).toBeNull(); // punto_reorden
+    });
+
+    test('POST /productos tipo=servicio sin unidad "Hora" configurada responde INV_UNIDAD_SERVICIO_NO_CONFIGURADA', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT id FROM productos WHERE sku', [[]]],
+        ['SELECT id FROM unidades_medida WHERE nombre', [[]]],
+      ]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos')
+        .auth(usuario, password)
+        .send({ nombre: 'Consultoría', sku: 'SERV-2', tipo: 'servicio' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('INV_UNIDAD_SERVICIO_NO_CONFIGURADA');
     });
 
     test('GET /productos/:id inexistente responde 404 INV_PRODUCTO_NO_ENCONTRADO', async () => {
@@ -505,13 +571,14 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
   });
 
   describe('Dashboard', () => {
-    test('responde los 7 KPIs de v1 (§0.3:10)', async () => {
+    test('responde los KPIs de v1 (§0.3:10) + "Servicios activos" (punto 179)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       pool.query.mockImplementation(async (sql) => {
         const s = String(sql).trim();
         if (s.startsWith('SELECT valor FROM configuracion')) return [[{ valor: '1' }]];
         if (s.includes('COALESCE(SUM(e.disponible * p.costo_promedio)')) return [[{ valor: '1500.00' }]];
-        if (s.startsWith("SELECT COUNT(*) AS total FROM productos WHERE eliminado_en IS NULL AND estado")) return [[{ total: 10 }]];
+        if (s.includes("AND estado = 'activo' AND tipo = 'producto'")) return [[{ total: 10 }]];
+        if (s.includes("AND estado = 'activo' AND tipo = 'servicio'")) return [[{ total: 4 }]];
         if (s.includes('COALESCE(SUM(e.disponible), 0) AS total')) return [[{ total: 200 }]];
         if (s.includes('e.disponible < p.stock_minimo')) return [[{ total: 2 }]];
         if (s.includes('e.disponible = 0')) return [[{ total: 1 }]];
@@ -525,6 +592,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       expect(res.body).toEqual({
         valor_total_inventario: 1500,
         productos_activos: 10,
+        servicios_activos: 4,
         unidades_disponibles: 200,
         productos_bajo_minimo: 2,
         productos_sin_existencia: 1,

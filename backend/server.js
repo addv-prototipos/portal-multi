@@ -123,6 +123,7 @@ const {
   skuEnUso,
   codigoBarrasEnUso,
   unidadExisteId,
+  obtenerUnidadServicioId,
   productoTieneMovimientos,
   ALMACEN_DEFECTO_CODIGO,
 } = require('./utils/inventario');
@@ -131,6 +132,7 @@ const {
   obtenerConfigInventario,
   obtenerValorConfig,
   inventarioActivo,
+  soloServiciosActivo,
   setValorConfig,
   CLAVES: CLAVES_CONFIG_INVENTARIO,
 } = require('./utils/inventarioConfig');
@@ -1534,17 +1536,12 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
         }
 
         // No se puede volver a facturar la misma orden de compra. Se
-        // considera "ya facturada" si ya existe un ticket vinculado a esta
-        // orden (por numero_compra + fecha, ya confirmados arriba) cuya
-        // factura ya se subió (estatus = 'listo') — el mismo criterio que
-        // ya usa el ícono de "facturado" en la tabla del admin.
-        const [ticketsYaFacturados] = await pool.query(
-          `SELECT id FROM tickets
-           WHERE orden_compra_id = ? AND estatus = 'listo' AND eliminado_en IS NULL
-           LIMIT 1`,
-          [ordenCompra.id]
-        );
-        if (ticketsYaFacturados.length > 0) {
+        // considera "ya facturada" leyendo `facturado_en` (hecho
+        // histórico permanente en la propia orden, ver bug corregido
+        // 2026-09-02) — antes se buscaba un ticket 'listo' en vivo, que
+        // dejaba de encontrarse en cuanto la retención lo purgaba,
+        // permitiendo re-facturar una orden que sí ya se había facturado.
+        if (ordenCompra.facturado_en) {
           return res.status(400).json({
             error: 'Esa venta ya fue facturada.',
             codigo: 'COMPRA_YA_FACTURADA',
@@ -3490,10 +3487,7 @@ app.post(
     const [ordenes] = await pool.query(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.total, o.email,
               o.estado_pago, o.monto_cobrado,
-              EXISTS(
-                SELECT 1 FROM tickets t
-                WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
-              ) AS facturado
+              (o.facturado_en IS NOT NULL) AS facturado
          FROM ordenes_compra o
         WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ? AND o.fecha_compra < ?
         ORDER BY o.fecha_compra ASC`,
@@ -3592,7 +3586,7 @@ app.get(
   asyncHandler(async (req, res) => {
     const [reportes] = await pool.query(
       `SELECT id, tipo, fecha_generacion, rango_inicio, rango_fin, correo_enviado_a, correo_enviado,
-              total_tickets, total_ordenes, total_monto, creado_en
+              total_tickets, total_ordenes, total_gastos, total_monto, creado_en
        FROM reportes ORDER BY fecha_generacion DESC`
     );
     res.json({ reportes });
@@ -4310,6 +4304,18 @@ app.post(
         [req.file.originalname.slice(0, 255), storedFilename, 'application/zip', req.adminUser, new Date(), id]
       );
 
+      // Bug real corregido (2026-09-02): "facturado" se leía en vivo del
+      // ticket — en cuanto la retención lo borra, la venta perdía su
+      // factura para siempre. `facturado_en` es el hecho histórico
+      // PERMANENTE, se fija aquí UNA SOLA VEZ (COALESCE no lo pisa si ya
+      // tenía fecha de una factura anterior reemplazada).
+      if (ticket.orden_compra_id) {
+        await pool.query(
+          'UPDATE ordenes_compra SET facturado_en = COALESCE(facturado_en, ?) WHERE id = ?',
+          [new Date(), ticket.orden_compra_id]
+        );
+      }
+
       // Notifica al cliente (correo de "recibir facturas" asociado al RFC
       // del ticket, ver registros.email) que su factura ya está lista.
       // Igual que con la notificación al contador: no se espera (await)
@@ -4858,10 +4864,7 @@ app.get(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
         o.producto_id, o.producto_cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre,
         o.archivado_en, o.periodo_archivado,
-        EXISTS(
-          SELECT 1 FROM tickets t
-          WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
-        ) AS facturado
+        (o.facturado_en IS NOT NULL) AS facturado
        FROM ordenes_compra o
        LEFT JOIN productos p ON p.id = o.producto_id
        WHERE o.eliminado_en IS NULL AND ${whereArchivado}
@@ -4988,14 +4991,8 @@ app.get(
       `SELECT
          COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? THEN o.total END), 0) AS ventas,
          COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? THEN o.cantidad END), 0) AS subtotal,
-         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND EXISTS(
-           SELECT 1 FROM tickets t
-           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
-         ) THEN o.total END), 0) AS facturado,
-         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND EXISTS(
-           SELECT 1 FROM tickets t
-           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
-         ) THEN o.total END), 0) AS facturado_anterior
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND o.facturado_en IS NOT NULL THEN o.total END), 0) AS facturado,
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND o.facturado_en IS NOT NULL THEN o.total END), 0) AS facturado_anterior
        FROM ordenes_compra o
        WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ?`,
       [inicio, fin, inicio, fin, inicio, fin, inicioAnterior, finAnterior, inicioAnterior]
@@ -5038,10 +5035,7 @@ app.get(
       `SELECT DATE_FORMAT(o.fecha_compra, '%Y-%m') AS mes,
          SUM(o.total) AS ventas,
          SUM(o.cantidad) AS subtotal,
-         SUM(CASE WHEN EXISTS(
-           SELECT 1 FROM tickets t
-           WHERE t.orden_compra_id = o.id AND t.estatus = 'listo' AND t.eliminado_en IS NULL
-         ) THEN o.total ELSE 0 END) AS facturado
+         SUM(CASE WHEN o.facturado_en IS NOT NULL THEN o.total ELSE 0 END) AS facturado
        FROM ordenes_compra o
        WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ?
        GROUP BY DATE_FORMAT(o.fecha_compra, '%Y-%m')`,
@@ -5106,25 +5100,48 @@ app.get(
     );
 
     // Proyección de ventas de los próximos 2 meses: estimación estadística
-    // simple (promedio del cambio mes a mes de los últimos 3 meses CON
-    // datos reales, extendido hacia adelante), NO un pronóstico
-    // financiero — se etiqueta como tal en el frontend. Sin al menos 3
-    // meses reales para calcular una tendencia, no se inventa nada (mismo
-    // criterio que calcularTendencia() de arriba con el mes anterior).
+    // simple (promedio del cambio mes a mes de los últimos 3 meses
+    // CERRADOS, extendido hacia adelante), NO un pronóstico financiero —
+    // se etiqueta como tal en el frontend. Sin al menos 3 meses cerrados
+    // para calcular una tendencia, no se inventa nada (mismo criterio que
+    // calcularTendencia() de arriba con el mes anterior).
+    //
+    // Bug real corregido (2026-09-02, reportado por el usuario tras un
+    // cierre mensual): el mes EN CURSO (parcial — recién empieza) se
+    // trataba como un mes cerrado más al calcular la tendencia. Los
+    // primeros días de cualquier mes, eso compara "2 días de ventas" con
+    // meses completos anteriores y hunde la proyección a $0 de forma
+    // artificial — el bug se nota más justo después de un cierre porque
+    // es cuando el mes en curso está más incompleto. La gráfica de barras
+    // (serie_mensual) SIGUE mostrando el mes en curso con su dato real
+    // parcial — eso es correcto, solo la tendencia lo excluye.
     let proyeccionVentas = null;
-    if (llavesMeses.length >= 3) {
-      const ultimasLlaves = llavesMeses.slice(-3);
+    const mesActualLlave = `${inicio.getUTCFullYear()}-${String(inicio.getUTCMonth() + 1).padStart(2, '0')}`;
+    const mesesCerrados = llavesMeses.filter((llave) => llave !== mesActualLlave);
+    if (mesesCerrados.length >= 3) {
+      const ultimasLlaves = mesesCerrados.slice(-3);
       const ultimosValores = ultimasLlaves.map((llave) => Number(mapaVentasSerie.get(llave)?.ventas || 0));
       const promedioDelta = ((ultimosValores[1] - ultimosValores[0]) + (ultimosValores[2] - ultimosValores[1])) / 2;
-      const ultimaLlave = llavesMeses[llavesMeses.length - 1];
       const ultimoValor = ultimosValores[2];
+      // Ancla de las ETIQUETAS: el último mes con CUALQUIER dato (mismo
+      // criterio de siempre, `llavesMeses`, no `mesesCerrados`) — puede
+      // ser el mes en curso (caso normal: hay actividad hoy) o uno
+      // anterior (caso raro: cero actividad todavía este mes). Solo el
+      // NÚMERO sale de la tendencia de meses cerrados; el desfase entre
+      // el ancla de etiqueta y el último mes cerrado usado en la
+      // tendencia se compensa abajo (normalmente 1 salto más).
+      const ultimaLlave = llavesMeses[llavesMeses.length - 1];
+      const [anioAncla, mesAncla] = ultimaLlave.split('-').map(Number);
+      const [anioUltimoCerrado, mesUltimoCerrado] = ultimasLlaves[2].split('-').map(Number);
       proyeccionVentas = [1, 2].map((n) => {
-        const [anio, mesNum] = ultimaLlave.split('-').map(Number);
-        const fechaProyectada = new Date(Date.UTC(anio, mesNum - 1 + n, 1));
+        const fechaProyectada = new Date(Date.UTC(anioAncla, mesAncla - 1 + n, 1));
         const llaveProyectada = `${fechaProyectada.getUTCFullYear()}-${String(fechaProyectada.getUTCMonth() + 1).padStart(2, '0')}`;
+        const mesesDesdeUltimoCerrado =
+          (fechaProyectada.getUTCFullYear() * 12 + fechaProyectada.getUTCMonth()) -
+          (anioUltimoCerrado * 12 + (mesUltimoCerrado - 1));
         return {
           mes: etiquetaMes(llaveProyectada),
-          ventas: Math.max(0, Math.round((ultimoValor + promedioDelta * n) * 100) / 100),
+          ventas: Math.max(0, Math.round((ultimoValor + promedioDelta * mesesDesdeUltimoCerrado) * 100) / 100),
         };
       });
     }
@@ -6273,6 +6290,23 @@ app.put(
       return res.status(400).json({ error: `Clave de configuración no reconocida: ${clave}.` });
     }
     const valor = req.body && typeof req.body.valor !== 'undefined' ? String(req.body.valor) : '';
+
+    // "Solamente servicios": no se puede encender con productos físicos
+    // ya activos en el catálogo — se sentiría como que el inventario
+    // "desapareció" aunque los datos sigan intactos. Dar de baja/archivar
+    // esos productos primero (mismo criterio ya aprobado en la propuesta).
+    if (clave === 'inv_solo_servicios' && valor === '1') {
+      const [[fila]] = await pool.query(
+        "SELECT COUNT(*) AS total FROM productos WHERE eliminado_en IS NULL AND estado = 'activo' AND tipo = 'producto'"
+      );
+      if (Number(fila.total) > 0) {
+        return res.status(400).json({
+          error: 'INV_HAY_PRODUCTOS_ACTIVOS',
+          mensaje: `No puedes activar "Solamente servicios" con ${fila.total} producto${Number(fila.total) === 1 ? '' : 's'} activo${Number(fila.total) === 1 ? '' : 's'} en el catálogo. Da de baja o archiva esos productos primero.`,
+        });
+      }
+    }
+
     const resultado = await setValorConfig(clave, valor);
     if (resultado.error) {
       return res.status(400).json({ error: resultado.error });
@@ -6482,19 +6516,47 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
     return null;
   }
 
-  const codigoBarras = sanitizeText(body.codigo_barras, 60) || null;
+  const tipo = body.tipo === 'servicio' ? 'servicio' : 'producto';
+  const moneda = body.moneda === 'USD' ? 'USD' : 'MXN';
+
+  // "Solamente servicios": bloquea la ALTA de un producto físico nuevo
+  // (no la edición de uno que ya existiera de antes del switch — el
+  // guard del PUT de configuración ya garantiza que no había productos
+  // ACTIVOS al encenderlo, pero uno inactivo/archivado podría seguir
+  // editándose sin que esto lo estorbe).
+  if (tipo === 'producto' && idExcluir === null && (await soloServiciosActivo())) {
+    res.status(400).json({
+      error: 'INV_SOLO_SERVICIOS_ACTIVO',
+      mensaje: 'Con "Solamente servicios" activo solo puedes dar de alta servicios.',
+    });
+    return null;
+  }
+
+  // Punto 179: un servicio no tiene código de barras (nunca se escanea) —
+  // se ignora lo que mande el body sin siquiera validar duplicidad.
+  const codigoBarras = tipo === 'servicio' ? null : sanitizeText(body.codigo_barras, 60) || null;
   if (codigoBarras && (await codigoBarrasEnUso(codigoBarras, idExcluir))) {
     res.status(400).json({ error: 'Ya existe un producto con ese código de barras.' });
     return null;
   }
 
-  const tipo = body.tipo === 'servicio' ? 'servicio' : 'producto';
-  const moneda = body.moneda === 'USD' ? 'USD' : 'MXN';
-
-  const unidadId = Number(body.unidad_id);
-  if (!Number.isInteger(unidadId) || !(await unidadExisteId(unidadId))) {
-    res.status(400).json({ error: 'INV_UNIDAD_INVALIDA', mensaje: 'Selecciona una unidad de medida válida.' });
-    return null;
+  // Punto 179: un servicio SOLO admite la unidad "Hora" (horas enteras) —
+  // se ignora lo que mande el body y se fuerza aquí, del lado del
+  // servidor, para que no se pueda forzar otra unidad por API directa
+  // aunque el modal del frontend ya la restrinja visualmente.
+  let unidadId;
+  if (tipo === 'servicio') {
+    unidadId = await obtenerUnidadServicioId();
+    if (!unidadId) {
+      res.status(400).json({ error: 'INV_UNIDAD_SERVICIO_NO_CONFIGURADA', mensaje: 'La unidad "Hora" no está configurada en el catálogo.' });
+      return null;
+    }
+  } else {
+    unidadId = Number(body.unidad_id);
+    if (!Number.isInteger(unidadId) || !(await unidadExisteId(unidadId))) {
+      res.status(400).json({ error: 'INV_UNIDAD_INVALIDA', mensaje: 'Selecciona una unidad de medida válida.' });
+      return null;
+    }
   }
 
   let categoriaId = null;
@@ -6514,9 +6576,9 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
 
   const costo = numeroOpcional(body.costo);
   const precio = numeroOpcional(body.precio);
-  const stockMinimo = numeroOpcional(body.stock_minimo);
-  const stockMaximo = numeroOpcional(body.stock_maximo);
-  const puntoReorden = numeroOpcional(body.punto_reorden);
+  let stockMinimo = numeroOpcional(body.stock_minimo);
+  let stockMaximo = numeroOpcional(body.stock_maximo);
+  let puntoReorden = numeroOpcional(body.punto_reorden);
   if ([costo, precio, stockMinimo, stockMaximo, puntoReorden].some((v) => Number.isNaN(v))) {
     res.status(400).json({ error: 'Alguno de los campos numéricos no es válido.' });
     return null;
@@ -6529,6 +6591,15 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
   const estado = ['activo', 'inactivo', 'archivado'].includes(body.estado) ? body.estado : 'activo';
   const proveedorPrincipal = sanitizeText(body.proveedor_principal, 200) || null;
   const notas = sanitizeTextoLibre(body.notas, 2000) || null;
+
+  // Punto 179: un servicio no tiene mínimos/máximos/punto de reorden de
+  // existencia (nunca genera movimientos, D11) — se ignora cualquier
+  // valor que mande el body y queda NA en la base de datos.
+  if (tipo === 'servicio') {
+    stockMinimo = null;
+    stockMaximo = null;
+    puntoReorden = null;
+  }
 
   return {
     nombre,
@@ -7103,8 +7174,18 @@ app.get(
         JOIN productos p ON p.id = e.producto_id
        WHERE p.eliminado_en IS NULL AND p.tipo = 'producto'
     `);
+    // Punto 179: "Productos activos" es un medidor de INVENTARIO — un
+    // servicio nunca genera existencias/movimientos (D11), así que no
+    // debe contarse aquí (bug real: antes de esta línea sí se contaba,
+    // esta consulta era la única de las 7 sin el filtro `tipo='producto'`
+    // que ya tenían las otras 6, vía JOIN a existencias/movimientos que
+    // un servicio nunca puebla). "Servicios activos" es su propio
+    // contador, independiente, abajo.
     const [[productosActivos]] = await pool.query(
-      "SELECT COUNT(*) AS total FROM productos WHERE eliminado_en IS NULL AND estado = 'activo'"
+      "SELECT COUNT(*) AS total FROM productos WHERE eliminado_en IS NULL AND estado = 'activo' AND tipo = 'producto'"
+    );
+    const [[serviciosActivos]] = await pool.query(
+      "SELECT COUNT(*) AS total FROM productos WHERE eliminado_en IS NULL AND estado = 'activo' AND tipo = 'servicio'"
     );
     const [[unidadesDisponibles]] = await pool.query(`
       SELECT COALESCE(SUM(e.disponible), 0) AS total
@@ -7142,6 +7223,7 @@ app.get(
     res.json({
       valor_total_inventario: Number(valorInventario.valor),
       productos_activos: Number(productosActivos.total),
+      servicios_activos: Number(serviciosActivos.total),
       unidades_disponibles: Number(unidadesDisponibles.total),
       productos_bajo_minimo: Number(bajoMinimo.total),
       productos_sin_existencia: Number(sinExistencia.total),
@@ -7263,6 +7345,31 @@ app.get(
     const totalProductos = productosConNumeros.length;
     const pct = (n) => (totalProductos > 0 ? Math.round((n / totalProductos) * 1000) / 10 : 0);
 
+    // "Solamente servicios" (propuesta aprobada, ver PROJECT_STATE.md
+    // punto 182): un servicio nunca genera movimientos_inventario (D11),
+    // así que "más/menos vendido" sale de orden_productos (líneas de
+    // Ventas) en vez de movimientos — única fuente real disponible.
+    // cantidad es un dato exacto; el ingreso es una APROXIMACIÓN con el
+    // precio ACTUAL del servicio (orden_productos no guarda el precio de
+    // esa venta en particular), documentado también en el frontend.
+    const [filasServicios] = await pool.query(
+      `SELECT p.id, p.nombre, p.precio,
+              COALESCE(SUM(op.cantidad), 0) AS cantidad_vendida_90d
+         FROM productos p
+         LEFT JOIN orden_productos op ON op.producto_id = p.id
+           AND op.creado_en >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+        WHERE p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'servicio'
+        GROUP BY p.id, p.nombre, p.precio`
+    );
+    const serviciosConNumeros = filasServicios.map((f) => ({
+      id: f.id,
+      nombre: f.nombre,
+      cantidad_vendida_90d: Number(f.cantidad_vendida_90d),
+      ingreso_estimado_90d: Math.round(Number(f.cantidad_vendida_90d) * Number(f.precio || 0) * 100) / 100,
+    }));
+    const serviciosOrdenados = [...serviciosConNumeros].sort((a, b) => b.cantidad_vendida_90d - a.cantidad_vendida_90d);
+    const serviciosSinVentas90d = serviciosConNumeros.filter((f) => f.cantidad_vendida_90d === 0).length;
+
     res.json({
       kpis: {
         valor_total_existencia: Math.round(Number(valorInventario.valor) * 100) / 100,
@@ -7288,6 +7395,18 @@ app.get(
         saludable: { productos: saludable, porcentaje: pct(saludable) },
         sobrestock: { productos: sobrestock, porcentaje: pct(sobrestock) },
         total_productos: totalProductos,
+      },
+      servicios: {
+        kpis: {
+          total_servicios: serviciosConNumeros.length,
+          servicios_sin_ventas_90d: serviciosSinVentas90d,
+        },
+        top_ventas_90d: serviciosOrdenados.slice(0, 5).map((f) => ({
+          servicio_id: f.id, nombre: f.nombre, cantidad_vendida_90d: f.cantidad_vendida_90d, ingreso_estimado_90d: f.ingreso_estimado_90d,
+        })),
+        bottom_ventas_90d: [...serviciosOrdenados].reverse().slice(0, 5).map((f) => ({
+          servicio_id: f.id, nombre: f.nombre, cantidad_vendida_90d: f.cantidad_vendida_90d, ingreso_estimado_90d: f.ingreso_estimado_90d,
+        })),
       },
     });
   })
@@ -7359,6 +7478,19 @@ app.post(
   requireAdminAuth,
   requireAdminArea('administrador'),
   requireInventarioActivo,
+  asyncHandler(async (req, res, next) => {
+    // "Solamente servicios": la carga masiva es exclusivamente para
+    // productos (ya rechazaba filas tipo=servicio, punto 179) — con el
+    // switch encendido no hay NADA que importar, así que se cierra el
+    // flujo completo desde el primer paso, antes de subir el archivo.
+    if (await soloServiciosActivo()) {
+      return res.status(400).json({
+        error: 'INV_SOLO_SERVICIOS_ACTIVO',
+        mensaje: 'La carga masiva es solo para productos — con "Solamente servicios" activo no hay nada que importar.',
+      });
+    }
+    next();
+  }),
   (req, res) => {
     subirConTenant(uploadImportacion, 'archivo', req, res, async (err) => {
       try {

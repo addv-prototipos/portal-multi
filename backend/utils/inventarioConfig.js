@@ -18,6 +18,13 @@ function obtenerPool() {
 
 const CLAVES = {
   inventario_activo: { default: '0', tipo: 'booleano01' },
+  // Solo bloquea la ALTA/vista de productos físicos — un servicio nunca
+  // generó existencias/movimientos de todos modos (D11). Cada empresa
+  // decide por sí misma (mismo mecanismo que inventario_activo, NO es
+  // config de plataforma como ventas_afectan_inventario). El guard de
+  // "no encender con productos activos" vive en el endpoint PUT de
+  // server.js, no aquí (necesita consultar la tabla productos).
+  inv_solo_servicios: { default: '0', tipo: 'booleano01' },
   inv_imagenes_activo: { default: '0', tipo: 'booleano01' },
   inv_imagen_max_mb: { default: '5', tipo: 'entero', min: 1, max: 20 },
   inv_imagen_max_por_producto: { default: '20', tipo: 'entero', min: 1, max: 50 },
@@ -59,6 +66,11 @@ async function negativoPermitido() {
   return valor === '1';
 }
 
+async function soloServiciosActivo() {
+  const valor = await obtenerValorConfig('inv_solo_servicios');
+  return valor === '1';
+}
+
 function validarValorConfig(clave, valorCrudo) {
   const definicion = CLAVES[clave];
   if (!definicion) return { error: `Clave de configuración no reconocida: ${clave}.` };
@@ -96,6 +108,7 @@ module.exports = {
   obtenerValorConfig,
   inventarioActivo,
   negativoPermitido,
+  soloServiciosActivo,
   validarValorConfig,
   setValorConfig,
 };

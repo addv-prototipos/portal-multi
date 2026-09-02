@@ -377,6 +377,20 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
     const nombre = sanitizeText(obtener('nombre'), 200);
     if (!nombre) erroresFila.push({ columna: 'nombre', valor: '', motivo: 'Nombre vacío.' });
 
+    // Punto 179: la carga masiva es SOLO para productos. Un servicio
+    // (unidad fija en horas, sin código de barras/stock) siempre se da de
+    // alta a mano desde "Nuevo producto" — no vía CSV/XLSX. Se rechaza la
+    // fila completa aquí, con el mismo mecanismo de error que el resto de
+    // validaciones, para que quede claro en el resultado por qué no entró.
+    const tipo = normalizarTipoProducto(obtener('tipo'));
+    if (tipo === 'servicio') {
+      erroresFila.push({
+        columna: 'tipo',
+        valor: obtener('tipo') || 'servicio',
+        motivo: 'INV_IMPORT_SERVICIO_NO_PERMITIDO: los servicios no se importan de forma masiva — se dan de alta manualmente desde "Nuevo producto".',
+      });
+    }
+
     const unidadTexto = obtener('unidad_base') || UNIDAD_BASE_DEFECTO;
     const unidadId = unidadesPorNombre.get(unidadTexto.trim().toLowerCase());
     if (!unidadId) {
@@ -433,7 +447,7 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
       codigo_barras: sanitizeText(obtener('codigo_barras'), 60) || null,
       categoria: sanitizeText(obtener('categoria'), 100) || null,
       unidad_id: unidadId,
-      tipo: normalizarTipoProducto(obtener('tipo')),
+      tipo,
       costo: Number.isFinite(numeros.costo) ? numeros.costo : null,
       precio: Number.isFinite(numeros.precio) ? numeros.precio : null,
       stock_minimo: Number.isFinite(numeros.stock_minimo) ? numeros.stock_minimo : null,
@@ -757,9 +771,14 @@ function filaACSV(valores) {
     .join(',');
 }
 
+// Punto 179: la carga masiva es SOLO para productos — un servicio siempre
+// se da de alta a mano desde "Nuevo producto" (unidad fija en horas, sin
+// código de barras/stock/punto de reorden). Por eso la plantilla ya no
+// trae un ejemplo de fila "servicio" ni permite elegirlo en el
+// desplegable de "tipo" del XLSX (ver idxTipo más abajo).
 const EJEMPLOS_PLANTILLA = [
   ['DEMO-001', 'Playera Azul Talla M', '7501234567890', '', '', '', '', '', 'Ropa', 'Pieza', 'producto', '120.00', '250.00', '5', '50', '10', 'Proveedor Ejemplo SA', '20', 'activo', 'Producto de ejemplo — bórralo antes de importar tu catálogo real.'],
-  ['DEMO-002', 'Servicio de instalación', '', '', '', '', '', '', 'Servicios', 'Pieza', 'servicio', '', '400.00', '', '', '', '', '', 'activo', ''],
+  ['DEMO-002', 'Aceite de motor 1L', '', '', '', '', '', '', 'Refacciones', 'Litro', 'producto', '85.00', '150.00', '', '', '', '', '', 'activo', ''],
 ];
 
 function generarPlantillaCSV() {
@@ -788,7 +807,7 @@ async function generarPlantillaXLSX() {
         type: 'list', allowBlank: true, formulae: [`"${listaUnidades.join(',')}"`],
       };
     }
-    hoja.getCell(fila, idxTipo).dataValidation = { type: 'list', allowBlank: true, formulae: ['"producto,servicio"'] };
+    hoja.getCell(fila, idxTipo).dataValidation = { type: 'list', allowBlank: true, formulae: ['"producto"'] };
     hoja.getCell(fila, idxEstado).dataValidation = { type: 'list', allowBlank: true, formulae: ['"activo,inactivo"'] };
   }
   hoja.columns.forEach((col) => { col.width = 22; });

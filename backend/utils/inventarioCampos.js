@@ -97,10 +97,10 @@ const CAMPOS_IMPORTABLES = [
   {
     campo: 'tipo', obligatorio: false,
     sinonimos: ['tipo', 'tipo_producto', 'tipo_articulo', 'es_servicio'],
-    etiqueta: 'Tipo (producto/servicio)',
-    explicacion_simple: 'Si es un artículo físico que se guarda en el almacén ("producto") o algo que se vende pero no ocupa espacio ni tiene existencia ("servicio", como una instalación o una revisión). Si no se especifica, se asume "producto".',
-    ejemplo_valido: 'servicio',
-    ejemplo_invalido_comun: 'Marcar como "producto" algo que en realidad es un servicio — el sistema le exigirá existencia, que nunca tendrá.',
+    etiqueta: 'Tipo (solo "producto")',
+    explicacion_simple: 'La carga masiva es solo para artículos físicos que se guardan en el almacén ("producto"). Los servicios (algo que se vende pero no tiene existencia, como una instalación o una revisión) siempre se dan de alta a mano desde "Nuevo producto" — una fila marcada "servicio" se rechaza aquí. Si no se especifica, se asume "producto".',
+    ejemplo_valido: 'producto',
+    ejemplo_invalido_comun: 'Marcar una fila como "servicio" — la carga masiva la rechaza completa (INV_IMPORT_SERVICIO_NO_PERMITIDO); da de alta ese servicio a mano.',
   },
   {
     campo: 'costo', obligatorio: false,
