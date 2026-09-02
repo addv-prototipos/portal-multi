@@ -194,6 +194,40 @@ server {
         try_files /$pagina_tenant.html =404;
     }
 
+    # Bug real encontrado en auditoría (2026-09-01): visitar SOLO "/<slug>"
+    # (sin página después, ej. favorito guardado a la raíz del tenant) no
+    # matcheaba NINGUNO de los dos locations de arriba ni el "location =
+    # /login" de arriba (ese es exacto, sin slug) — caía al catch-all
+    # "location /" de más abajo, que sirve login.html vía try_files SIN
+    # cambiar la URL. La barra de direcciones seguía mostrando "/<slug>"
+    # (parecía estar en el contexto del tenant) pero el HTML servido era
+    # el mismo login.html de siempre, y como esta ruta NO tiene forma
+    # "/<slug>/algo", frontend/login.js (con la MISMA lista
+    # RUTAS_PAGINA_MULTITENANT y el mismo `segmentos.length >= 2` que
+    # portal.js) no detectaba ningún tenant — el login que parecía ser del
+    # tenant en realidad autenticaba contra la base SIN tenant
+    # (`portal_facturacion`), y si el RFC no existía ahí fallaba con "RFC
+    # o contraseña incorrectos" pese a ser válido en el tenant real; si el
+    # MISMO RFC sí existía en ambos (el caso que reportó el usuario:
+    # "puedo tener el mismo RFC en diferentes empresas"), el login
+    # succedía contra la empresa equivocada y el JS redirigía a
+    # "/dashboard" sin slug — el sitio "sin tenant" que describió. Fix:
+    # redirigir "/<slug>" (con o sin "/" final) a "/<slug>/login" — mismo
+    # criterio que ya usa "/" a secas (index login.html) pero explícito en
+    # la URL, para que login.js SIEMPRE detecte el tenant correctamente.
+    # $http_host (no $host) + $proxy_x_forwarded_proto (definidos arriba,
+    # mismo criterio que detectarUrlPortal en el backend): un "return 302
+    # /ruta" con path absoluto deja que nginx arme el Location con
+    # $scheme://$host, pero $host NUNCA incluye el puerto — en este
+    # entorno de desarrollo (mapeo de Docker a :8088) el navegador
+    # terminaba redirigido a :80 (nada escuchando ahí), confirmado con
+    # curl -D- durante la validación. $http_host es el encabezado Host tal
+    # cual lo mandó el cliente (incluye el puerto si no es el estándar) —
+    # nunca falla el reenvío sin importar el puerto externo.
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/?$" {
+        return 302 $proxy_x_forwarded_proto://$http_host/$tenant_slug/login;
+    }
+
     # Version con tenant de la API — mismo backend, mismo proxy_pass que
     # "location /api/" de abajo, con el slug capturado reenviado como
     # encabezado X-Tenant-Slug (el backend nunca ve el prefijo en la URL,
