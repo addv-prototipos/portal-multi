@@ -12368,6 +12368,55 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
    `README.md`/`PROJECT_STATE.md` (título del documento, notas
    históricas) siguen siendo solo documentación, sin acción pendiente.
 
+- **Fase 4 de la auditoría UX "que nadie necesite un manual" — portal de
+  cliente (login/registro, CSF, tickets, dashboard) (ver punto 191 y 193
+  para las fases previas; punto 194, 2026-09-03, IMPLEMENTADA Y VALIDADA
+  por HTTP contra Docker real, cierra el ciclo de las 4 fases)**: auditoría
+  async (agente `Explore`) sobre las 5 páginas del portal de cliente
+  encontró 7 puntos de confusión reales — mismo criterio que las fases
+  1-3 (reuso 100% de `.campo-ayuda`/`data-tooltip`, cero componente
+  nuevo). (1) RFC sin explicar en login y registro — tooltip nuevo en
+  ambos formularios. (2) "Uso de CFDI" sin explicar — tooltip en la
+  cabecera de la tabla del dashboard y en el campo del formulario de
+  tickets. (3) badges de estatus del dashboard (Pendiente/En curso/
+  Cancelado/Listo) sin explicar qué significan ni qué hacer — tooltip
+  por estatus vía `data-tooltip` dinámico en `dashboard.js`
+  (`ESTATUS_INFO` gana la llave `tooltip`). (4) estado vacío del
+  dashboard era una sola línea de texto — reemplazado por
+  `.solicitudes-empty-rica` (ícono + título + guía + botón "Subir
+  ticket", mismo patrón que `.admin-empty-rica` del punto 191, CSS
+  nuevo en `portal.css`). (5) campo "Hora" de tickets sin indicar
+  formato — `field-hint` nuevo bajo el campo. (6) sección "Verifica tu
+  venta" de tickets sin explicar por qué se piden esos datos —
+  `field-hint` nuevo arriba del bloque. (7) paso de subir CSF sin decir
+  qué hacer si el cliente no la tiene — `field-hint` nuevo con la
+  indicación de generarla gratis en el portal del SAT.
+  **Detalle técnico único de esta fase**: `login.html` es la ÚNICA
+  página del portal de cliente que NO carga `portal.js` (arranca su
+  propio `login.js` independiente, ver el mapa de archivos más abajo)
+  — así que el componente de tooltips (`inicializarTooltips()`, idéntico
+  byte a byte al de `portal.js`/`admin.js`/`control.js`) se duplicó ahí
+  a propósito, mismo criterio de duplicación ya establecido para el
+  resto del archivo. Las otras 4 páginas (csf/tickets/dashboard) ya
+  cargaban `portal.js`, así que sus tooltips nuevos funcionan sin tocar
+  JS ahí. Cero cambios de backend. `node --check` limpio en
+  `login.js`/`dashboard.js`, CSS de `portal.css` balanceado (66/66
+  llaves), Jest backend **823/823** (sin cambios, corrido por sanidad).
+  Validado por HTTP contra Docker real tras rebuild `--no-cache` +
+  `--force-recreate` del frontend (el primer intento de rebuild no
+  recogió `login.js`, confirmado con `grep` dentro del contenedor —
+  mismo gotcha de rebuild ya documentado varias veces en este archivo):
+  los 7 textos nuevos confirmados presentes en el HTML servido, `login.js`/
+  `dashboard.js` responden 200. **Sin herramienta de navegador en esta
+  sesión** (mismo hueco ya documentado en puntos anteriores) — falta
+  confirmación visual del usuario con clics reales. Con esto, las 4
+  fases de la auditoría UX completa (`/admin` puntos 191-192, `/control`
+  punto 193, portal de cliente punto 194) quedan implementadas. Sin
+  commit/push todavía — pendiente decidir con el usuario si se
+  commitea junto con el resto de trabajo sin publicar de esta sesión
+  (puntos 188-193 varios ya commiteados/pusheados por separado, revisar
+  working tree antes de agrupar).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

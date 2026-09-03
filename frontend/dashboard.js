@@ -11,10 +11,10 @@
   };
 
   const ESTATUS_INFO = {
-    pendiente: { texto: 'Pendiente', clase: 'estatus-pendiente' },
-    en_curso: { texto: 'En curso', clase: 'estatus-en-curso' },
-    cancelado: { texto: 'Cancelado', clase: 'estatus-cancelado' },
-    listo: { texto: 'Listo', clase: 'estatus-listo' },
+    pendiente: { texto: 'Pendiente', clase: 'estatus-pendiente', tooltip: 'Tu ticket llegó y está en espera de revisión.' },
+    en_curso: { texto: 'En curso', clase: 'estatus-en-curso', tooltip: 'Tu factura se está generando — no necesitas hacer nada.' },
+    cancelado: { texto: 'Cancelado', clase: 'estatus-cancelado', tooltip: 'Esta solicitud fue cancelada. Usa "Solicitar aclaraciones" para saber por qué.' },
+    listo: { texto: 'Listo', clase: 'estatus-listo', tooltip: 'Tu factura ya está lista — descárgala con el botón de esta fila.' },
   };
 
   function escapeHtml(str) {
@@ -63,13 +63,13 @@
     els.empty.hidden = tickets.length > 0;
 
     tickets.forEach((t) => {
-      const info = ESTATUS_INFO[t.estatus] || { texto: t.estatus, clase: '' };
+      const info = ESTATUS_INFO[t.estatus] || { texto: t.estatus, clase: '', tooltip: '' };
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td data-label="Folio"><strong>${escapeHtml(t.folio)}</strong></td>
         <td data-label="Uso de CFDI">${escapeHtml(t.uso_cfdi || '—')}</td>
         <td data-label="Ticket">${escapeHtml(t.imagen_nombre_original)}</td>
-        <td data-label="Estatus"><span class="estatus-badge ${info.clase}">${escapeHtml(info.texto)}</span></td>
+        <td data-label="Estatus"><span class="estatus-badge ${info.clase}" data-tooltip="${escapeHtml(info.tooltip)}">${escapeHtml(info.texto)}</span></td>
         <td data-label="Fecha">${formatFecha(t.actualizado_en)}</td>
         <td data-label=""></td>
       `;

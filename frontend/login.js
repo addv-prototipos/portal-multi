@@ -403,6 +403,73 @@
     }
   });
 
+  // ---------- Tooltips (Fase 4 UX, paridad con portal.js/admin.js/control.js) ----------
+  // login.html es la única página del portal de cliente que no carga
+  // portal.js (ver nota de RUTAS_PAGINA_MULTITENANT arriba), así que este
+  // componente se repite aquí — mismo criterio de duplicación del resto
+  // del archivo. Idéntico a inicializarTooltips() de portal.js.
+  function inicializarTooltips() {
+    const tooltipEl = document.createElement('div');
+    tooltipEl.className = 'tooltip-personalizado';
+    tooltipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(tooltipEl);
+
+    function posicionar(target) {
+      const margen = 8;
+      const targetRect = target.getBoundingClientRect();
+      const tooltipRect = tooltipEl.getBoundingClientRect();
+
+      let top = targetRect.top - tooltipRect.height - margen;
+      let flechaArriba = false;
+      if (top < margen) {
+        top = targetRect.bottom + margen;
+        flechaArriba = true;
+      }
+
+      let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+      left = Math.max(margen, Math.min(left, window.innerWidth - tooltipRect.width - margen));
+
+      tooltipEl.style.top = `${top}px`;
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.classList.toggle('tooltip-flecha-arriba', flechaArriba);
+    }
+
+    function mostrar(target) {
+      const texto = target.getAttribute('data-tooltip');
+      if (!texto) return;
+      tooltipEl.textContent = texto;
+      tooltipEl.classList.remove('is-visible');
+      posicionar(target);
+      requestAnimationFrame(() => {
+        posicionar(target);
+        requestAnimationFrame(() => tooltipEl.classList.add('is-visible'));
+      });
+    }
+
+    function ocultar() {
+      tooltipEl.classList.remove('is-visible');
+    }
+
+    document.addEventListener('mouseover', (e) => {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) mostrar(target);
+    });
+    document.addEventListener('mouseout', (e) => {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) ocultar();
+    });
+    document.addEventListener('focusin', (e) => {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) mostrar(target);
+    });
+    document.addEventListener('focusout', (e) => {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) ocultar();
+    });
+    document.addEventListener('scroll', ocultar, true);
+  }
+  inicializarTooltips();
+
   // ---------- Inicialización ----------
   // Si ya hay una sesión activa, no tiene sentido mostrar el login: se
   // manda directo al tablero — salvo que esa cuenta todavía tenga

@@ -373,6 +373,29 @@ modales), tooltip abre con el texto correcto, cero errores de consola.
 Jest control 119/119 (sin cambios de backend). Ver PROJECT_STATE.md
 punto 193. Sin commit/push todavía.
 
+**Punto 194 (2026-09-03, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: Fase 4 — portal de cliente (login/registro, CSF, tickets,
+dashboard), cierra las 4 fases de la auditoría UX del punto 191. 7
+hallazgos de una auditoría async (`Explore`): RFC sin explicar en
+login/registro, "Uso de CFDI" sin explicar (dashboard+tickets), badges
+de estatus del dashboard sin explicar significado/acción (tooltip
+dinámico por estatus en `dashboard.js`), estado vacío del dashboard
+como una sola línea reemplazado por `.solicitudes-empty-rica`
+(ícono+guía+botón, mismo patrón que `.admin-empty-rica` del punto 191),
+hint de formato en "Hora" de tickets, hint de por-qué en "Verifica tu
+venta", hint de qué hacer si no se tiene la CSF. 100% reuso de
+`.campo-ayuda`/`data-tooltip`, cero componente nuevo. Detalle único:
+`login.html` es la ÚNICA página del portal sin `portal.js` — el
+componente de tooltips se duplicó ahí (idéntico a
+`portal.js`/`admin.js`/`control.js`), mismo criterio de duplicación ya
+usado en el resto de ese archivo. Cero cambios de backend. Jest backend
+823/823 (sin cambios). Validado por HTTP tras rebuild `--no-cache`+
+`--force-recreate` frontend (el primer rebuild no recogió `login.js`,
+mismo gotcha de siempre): los 7 textos confirmados en el HTML servido.
+**Sin herramienta de navegador esta sesión** — falta confirmación
+visual del usuario. Ver PROJECT_STATE.md punto 194. Sin commit/push
+todavía.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

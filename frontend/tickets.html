@@ -36,6 +36,7 @@
         <div class="compra-verificacion" id="compra-verificacion-seccion">
           <p class="compra-verificacion-titulo">Verifica tu venta</p>
           <p class="panel-subtitle compra-verificacion-subtitulo">Captura los datos tal como te llegaron en el correo de confirmación cuando se registró tu venta.</p>
+          <p class="field-hint">Usamos estos datos para confirmar que tu venta existe antes de generar tu factura.</p>
 
           <div class="compra-verificacion-grid">
             <div class="field">
@@ -59,13 +60,14 @@
             <div class="field">
               <label for="ticket-hora-compra">Hora <span class="required">*</span></label>
               <input type="text" id="ticket-hora-compra" name="hora_compra" placeholder="09:30:45" maxlength="8" autocomplete="off" />
+              <p class="field-hint">Cópiala tal cual del correo de confirmación, incluidos los segundos.</p>
               <p class="field-error" id="error-ticket-hora-compra" role="alert"></p>
             </div>
           </div>
         </div>
 
         <div class="field">
-          <label for="ticket-uso-cfdi">Uso de CFDI <span class="field-mark optional" data-field="uso_cfdi" id="mark-uso-cfdi">(opcional)</span></label>
+          <label for="ticket-uso-cfdi">Uso de CFDI <span class="field-mark optional" data-field="uso_cfdi" id="mark-uso-cfdi">(opcional)</span><button type="button" class="campo-ayuda" aria-label="Más información sobre Uso de CFDI" data-tooltip="Indica para qué usarás la factura ante el SAT. Si no lo sabes, deja la opción por defecto o pregúntale a tu contador.">?</button></label>
           <select id="ticket-uso-cfdi" name="uso_cfdi">
             <option value="">Selecciona una opción</option>
           </select>

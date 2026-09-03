@@ -67,7 +67,7 @@
           <thead>
             <tr>
               <th>Folio</th>
-              <th>Uso de CFDI</th>
+              <th>Uso de CFDI<button type="button" class="campo-ayuda" aria-label="Más información sobre Uso de CFDI" data-tooltip="Indica para qué usarás la factura ante el SAT. Si no lo sabes, deja la opción por defecto o pregúntale a tu contador.">?</button></th>
               <th>Ticket</th>
               <th>Estatus</th>
               <th>Fecha</th>
@@ -76,7 +76,12 @@
           </thead>
           <tbody id="solicitudes-tbody"></tbody>
         </table>
-        <p class="solicitudes-empty" id="solicitudes-empty" hidden>Todavía no has subido ningún ticket.</p>
+        <div class="solicitudes-empty-rica" id="solicitudes-empty" hidden>
+          <svg class="solicitudes-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 3h14v17l-3-2-2 2-2-2-2 2-2-2-3 2V3Z" stroke-linejoin="round"/><path d="M8 8h8M8 12h8M8 16h4" stroke-linecap="round"/></svg>
+          <p class="solicitudes-empty-titulo">Aún no tienes solicitudes</p>
+          <p>Sube tu primer ticket para generar tu factura.</p>
+          <a class="btn btn-primary" href="tickets.html">Subir ticket</a>
+        </div>
       </div>
     </div>
   </main>
