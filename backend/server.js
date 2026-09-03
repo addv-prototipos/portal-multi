@@ -6566,11 +6566,14 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
   const moneda = body.moneda === 'USD' ? 'USD' : 'MXN';
 
   // "Solamente servicios": bloquea la ALTA de un producto físico nuevo
-  // (no la edición de uno que ya existiera de antes del switch — el
-  // guard del PUT de configuración ya garantiza que no había productos
-  // ACTIVOS al encenderlo, pero uno inactivo/archivado podría seguir
-  // editándose sin que esto lo estorbe).
-  if (tipo === 'producto' && idExcluir === null && (await soloServiciosActivo())) {
+  // por completo (sin importar el estado que traiga). La edición de uno
+  // que ya existiera de antes del switch (inactivo/archivado) sigue
+  // permitida para corregir datos — el segundo guard, más abajo una vez
+  // calculado `estado`, cierra el hueco real de REACTIVARLO mientras el
+  // switch sigue encendido (editar y mandar estado:'activo' se saltaba
+  // este primer guard por completo, idExcluir !== null).
+  const soloServicios = await soloServiciosActivo();
+  if (tipo === 'producto' && idExcluir === null && soloServicios) {
     res.status(400).json({
       error: 'INV_SOLO_SERVICIOS_ACTIVO',
       mensaje: 'Con "Solamente servicios" activo solo puedes dar de alta servicios.',
@@ -6635,6 +6638,21 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
   }
 
   const estado = ['activo', 'inactivo', 'archivado'].includes(body.estado) ? body.estado : 'activo';
+
+  // Cierra el hueco del guard de arriba: reactivar (editar → estado
+  // 'activo') un producto físico archivado/inactivo mientras "Solamente
+  // servicios" sigue encendido reintroduce exactamente el estado que el
+  // switch de configuración impide encender en primer lugar. Editar OTROS
+  // campos de ese mismo producto sin tocar su estado (o dejándolo
+  // inactivo/archivado) sigue permitido.
+  if (tipo === 'producto' && estado === 'activo' && idExcluir !== null && soloServicios) {
+    res.status(400).json({
+      error: 'INV_SOLO_SERVICIOS_ACTIVO',
+      mensaje: 'Con "Solamente servicios" activo no puedes reactivar un producto — solo los servicios pueden estar activos.',
+    });
+    return null;
+  }
+
   const proveedorPrincipal = sanitizeText(body.proveedor_principal, 200) || null;
   const notas = sanitizeTextoLibre(body.notas, 2000) || null;
 
@@ -7233,6 +7251,20 @@ app.get(
     const [[serviciosActivos]] = await pool.query(
       "SELECT COUNT(*) AS total FROM productos WHERE eliminado_en IS NULL AND estado = 'activo' AND tipo = 'servicio'"
     );
+    // Punto 182 ("Solamente servicios"): mismo cálculo que el bloque
+    // `servicios.kpis.servicios_sin_ventas_90d` de
+    // GET /inventarios/reportes/estado — un servicio sin ninguna línea en
+    // `orden_productos` en los últimos 90 días. Se duplica aquí (consulta
+    // barata, un solo COUNT) en vez de llamar a ese otro endpoint interno,
+    // para que el dashboard de "Inicio" no dependa de él.
+    const [[serviciosSinVentas]] = await pool.query(`
+      SELECT COUNT(*) AS total FROM productos p
+       WHERE p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'servicio'
+         AND NOT EXISTS (
+           SELECT 1 FROM orden_productos op
+            WHERE op.producto_id = p.id AND op.creado_en >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+         )
+    `);
     const [[unidadesDisponibles]] = await pool.query(`
       SELECT COALESCE(SUM(e.disponible), 0) AS total
         FROM existencias e
@@ -7270,6 +7302,7 @@ app.get(
       valor_total_inventario: Number(valorInventario.valor),
       productos_activos: Number(productosActivos.total),
       servicios_activos: Number(serviciosActivos.total),
+      servicios_sin_ventas_90d: Number(serviciosSinVentas.total),
       unidades_disponibles: Number(unidadesDisponibles.total),
       productos_bajo_minimo: Number(bajoMinimo.total),
       productos_sin_existencia: Number(sinExistencia.total),

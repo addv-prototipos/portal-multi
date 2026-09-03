@@ -11939,7 +11939,9 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       (administrador/super, fiscal bloqueado). Oculto por completo en
       el sitio base (sin fila en `control_tenants`). Propuesta
       antes/después en Artifact aprobada antes de implementar (regla
-      persistente del usuario). **Segundo pedido, mismo día**: modal
+      persistente del usuario).
+
+      **Segundo pedido, mismo día**: modal
       "Perfiles y roles de acceso" (`/admin` › Usuarios) desactualizado
       — solo tenía 6 de las 12 columnas reales (faltaban Inicio,
       Resumen financiero, Cuentas por cobrar, Gastos, Inventarios,
@@ -11956,6 +11958,58 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       `control_tenants.tenants` por SQL directo) y la ocultación
       correcta en el sitio base. Jest backend **811/811** (2 tests
       nuevos para el endpoint de contacto). Commiteado y pusheado.
+
+  187. **Cierre del punto 182 — switch "Solamente servicios" en Inventarios,
+      completo de punta a punta (2026-09-02)**: el backend ya estaba
+      construido desde el punto 182 (guard de activación, guard de alta,
+      bloque `servicios` en "Estado del inventario"); faltaba TODO el
+      frontend (confirmado con una auditoría de código real antes de
+      tocar nada, no por memoria). Protocolo completo: crítica +
+      propuesta visual antes/después en Artifact + 4 preguntas de diseño
+      confirmadas por el usuario (recomendado en las 4) antes de
+      implementar. **Hueco real de seguridad encontrado y cerrado, no
+      solo frontend**: el guard de alta (`validarCuerpoProducto()`) solo
+      bloqueaba la CREACIÓN de un producto físico — reactivar uno
+      archivado vía "Editar" (`estado: 'activo'`) se saltaba el guard
+      por completo (`idExcluir !== null`). Fix: segundo guard, evaluado
+      después de calcular `estado`, que bloquea `tipo==='producto' &&
+      estado==='activo'` en CUALQUIER guardado (alta o edición) mientras
+      el switch esté encendido — editar otros campos de un producto
+      archivado sin tocar su estado sigue permitido. Validado real contra
+      Docker/MySQL: `PUT` reactivando → 400 `INV_SOLO_SERVICIOS_ACTIVO`
+      con el mensaje real; el mismo `PUT` dejando `estado:'archivado'` →
+      200. **Frontend**: switch conectado
+      (`cargarConfigInventario()`/`aplicarVisibilidadSoloServicios()`),
+      grisado mientras "Inventario activo" esté apagado (dependencia
+      confirmada por el usuario), mensaje 400 real inline junto al
+      switch (no toast). Con el switch encendido: 7 tarjetas de producto
+      del dashboard "Inicio" ocultas, quedan las 2 de servicio
+      ("Servicios activos" ya existía, "Servicios sin ventas 90d" es
+      tarjeta nueva — requirió un query nuevo, barato, en
+      `GET /inventarios/dashboard`); en "Estado del inventario" se oculta
+      el bloque de producto y se pinta el bloque `servicios` que el
+      backend ya devolvía sin que nada lo leyera; botón "Importar
+      catálogo" oculto; modal de alta pasa a "Nuevo servicio" con la
+      pill "Producto" deshabilitada/tachada + hint fijo (`#inv-modal-
+      tipo-fijo-hint`, ya existía en el HTML) — SOLO al dar de alta, NO
+      al editar un producto físico ya existente (ese conserva su tipo
+      real). Decisión confirmada: los productos ya archivados SIGUEN
+      visibles en la tabla de Inventarios (el switch solo restringe alta
+      nueva, no oculta el catálogo legado). Validado de punta a punta en
+      navegador real (Claude in Chrome) contra el tenant `pruebaadmin`:
+      bloqueo con 12 productos activos → mensaje real inline; grisado de
+      "Solamente servicios" con "Inventario activo" apagado; archivado
+      de los 12 productos (SQL directo, dato de prueba) → activación
+      exitosa; alta de un servicio real (`SERV-TEST-01`) con el modal
+      fijo en "Servicio"; dashboard con solo 2 tarjetas de servicio;
+      "Estado del inventario" con solo el bloque de servicios y datos
+      reales del servicio recién creado; hueco de reactivación cerrado
+      confirmado por `curl` real. Datos de prueba limpiados al final
+      (switch apagado, 12 productos reactivados, servicio de prueba
+      borrado) — tenant `pruebaadmin` quedó igual que antes de esta
+      sesión. Jest backend **813/813** (4 tests nuevos: 2 del hueco de
+      reactivación, 1 del nuevo campo del dashboard actualizado). Sin
+      commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)
 

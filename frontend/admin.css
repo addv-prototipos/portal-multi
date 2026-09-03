@@ -541,6 +541,24 @@
   color: var(--color-error);
 }
 
+/* Punto 186: pill "Producto" del modal de alta, grisada cuando el
+   catálogo está en modo "Solamente servicios" — no se retira del DOM
+   (el usuario ve por qué no puede elegirla, vía #inv-modal-tipo-fijo-hint
+   al lado) ni se le quita is-active a la vecina. */
+.view-toggle-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+/* Switch "Solamente servicios" grisado mientras "Inventario activo"
+   esté apagado (dependencia entre ambos, punto 186). */
+.switch-toggle.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.switch-toggle.is-disabled .switch-toggle-track { cursor: not-allowed; }
+
 .admin-toolbar-right {
   display: flex;
   align-items: center;

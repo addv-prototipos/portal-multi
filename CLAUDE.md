@@ -1463,6 +1463,32 @@ duplicar; oculto en el sitio base. Modal "Perfiles y roles de acceso"
 corregido (le faltaban 6 de 12 columnas) y ampliado a 1180px. Jest
 backend 811/811. Commiteado y pusheado.
 
+**Cierre del punto 182 — switch "Solamente servicios" en Inventarios (ver
+PROJECT_STATE.md punto 187, 2026-09-02, IMPLEMENTADO Y VALIDADO en
+navegador real)**: el backend ya estaba completo desde el punto 182;
+faltaba todo el frontend (confirmado por auditoría de código, no por
+memoria). Protocolo completo: crítica + propuesta visual antes/después +
+4 decisiones de diseño confirmadas por el usuario antes de implementar.
+**Hueco real de seguridad cerrado de paso**: el guard de alta solo
+bloqueaba CREAR un producto físico — reactivar uno archivado vía
+"Editar" (`estado:'activo'`) se saltaba el guard por completo. Segundo
+guard agregado, evaluado en alta Y edición, validado real contra
+Docker/MySQL (`PUT` reactivando → 400; mismo `PUT` sin reactivar → 200).
+Frontend: switch grisado si "Inventario activo" está apagado, mensaje
+400 real inline (no toast), 7 tarjetas de producto del dashboard
+ocultas dejando 2 de servicio (una nueva: "Servicios sin ventas 90d"),
+bloque `servicios` del reporte "Estado del inventario" conectado
+(el backend ya lo devolvía sin que nada lo leyera), botón "Importar
+catálogo" oculto, modal de alta fijo en "Nuevo servicio" solo al DAR DE
+ALTA (editar un producto existente conserva su tipo real). Decisión:
+productos archivados siguen visibles en la tabla (el switch solo
+restringe alta nueva). Validado de punta a punta en navegador real
+contra `pruebaadmin` (bloqueo con 12 productos activos, archivado de
+esos 12, activación exitosa, alta de servicio real, dashboard/reportes
+correctos, hueco de reactivación confirmado por curl) — datos de
+prueba limpiados al final, tenant quedó igual que antes. Jest backend
+813/813 (4 tests nuevos). Sin commit/push todavía.
+
 **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un

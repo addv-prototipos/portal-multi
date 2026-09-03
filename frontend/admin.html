@@ -1489,6 +1489,18 @@
             <p class="inicio-stat-numero" id="inv-kpi-servicios">0</p>
             <p class="inicio-stat-tendencia">Independiente del inventario</p>
           </div>
+          <!-- Punto 186: mismo criterio que "Servicios activos" — siempre
+               visible, no lleva la clase inv-kpi-solo-producto. -->
+          <div class="inicio-stat-card">
+            <div class="inicio-stat-header">
+              <span class="inicio-stat-titulo">Servicios sin ventas (90d)</span>
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+              </span>
+            </div>
+            <p class="inicio-stat-numero" id="inv-kpi-servicios-sin-ventas">0</p>
+            <p class="inicio-stat-tendencia">Servicios candidatos a revisar</p>
+          </div>
         </div>
 
         <div class="gastos-filtros" id="inv-filtros">
@@ -2136,6 +2148,7 @@
               <span class="switch-toggle-label">Solamente servicios</span>
               <span class="switch-toggle-hint">Este negocio solo vende servicios, no productos físicos — oculta la alta de productos, la carga masiva y las tarjetas/reportes que solo aplican a inventario físico. No se puede encender si ya hay productos activos en el catálogo.</span>
               <span class="switch-toggle-autoguardado" id="inv-solo-servicios-autoguardado" role="status" aria-live="polite"></span>
+              <p class="field-error" id="inv-solo-servicios-error" role="alert"></p>
             </span>
           </label>
         </div>

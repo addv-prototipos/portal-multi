@@ -609,6 +609,19 @@
     invToggleBody: document.getElementById('inv-toggle-body'),
     configInventarioActivo: document.getElementById('config-inventario-activo'),
     invActivoAutoguardado: document.getElementById('inv-activo-autoguardado'),
+    // Punto 186 (cierra el punto 182): switch "Solamente servicios"
+    configInvSoloServicios: document.getElementById('config-inv-solo-servicios'),
+    invSoloServiciosAutoguardado: document.getElementById('inv-solo-servicios-autoguardado'),
+    invSoloServiciosError: document.getElementById('inv-solo-servicios-error'),
+    invModalTipoFijoHint: document.getElementById('inv-modal-tipo-fijo-hint'),
+    invKpiServiciosSinVentas: document.getElementById('inv-kpi-servicios-sin-ventas'),
+    invEstadoServiciosKpiGrid: document.getElementById('inv-estado-servicios-kpi-grid'),
+    invEstadoServKpiTotal: document.getElementById('inv-estado-serv-kpi-total'),
+    invEstadoServKpiSinVentas: document.getElementById('inv-estado-serv-kpi-sin-ventas'),
+    invEstadoServiciosGrid: document.getElementById('inv-estado-servicios-grid'),
+    invEstadoServTopLista: document.getElementById('inv-estado-serv-top-lista'),
+    invEstadoServBottomLista: document.getElementById('inv-estado-serv-bottom-lista'),
+    invEstadoServRankEmpty: document.getElementById('inv-estado-serv-rank-empty'),
     // Modal de registro/edición de gasto
     gastosModalOverlay: document.getElementById('gastos-modal-overlay'),
     gastosModalTitle: document.getElementById('gastos-modal-title'),
@@ -1372,6 +1385,10 @@
   // (inactivo) hasta que el administrador lo prenda desde "Usuarios" —
   // ver cargarConfigInventario() más abajo.
   let inventarioActivoGlobalmente = false;
+  // Punto 186: "Solamente servicios" — negocio sin catálogo físico,
+  // default '0' hasta que el administrador lo prenda (ver
+  // cargarConfigInventario()/aplicarVisibilidadSoloServicios() más abajo).
+  let soloServiciosGlobalmente = false;
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
@@ -8378,10 +8395,54 @@
       renderInvEstadoRotacion(data.rotacion || [], kpis.rotacion_promedio_catalogo || 0);
       renderInvEstadoDonutCategoria(data.valor_por_categoria || []);
       renderInvEstadoCobertura(data.cobertura || null);
+      renderInvEstadoServicios(data.servicios || null);
     } catch (err) {
       // Las 4 gráficas se quedan en su estado vacío/anterior; se puede
       // reintentar volviendo a entrar a la pestaña.
     }
+  }
+
+  // Punto 186 (cierra el punto 182): bloque "servicios" que el backend ya
+  // devolvía sin que nada de esto lo leyera — visibilidad de este bloque
+  // vs. el de producto la decide aplicarVisibilidadSoloServicios(), esta
+  // función solo rellena los números, sin importar cuál esté oculto.
+  function renderInvEstadoServicios(servicios) {
+    const kpis = (servicios && servicios.kpis) || {};
+    if (els.invEstadoServKpiTotal) els.invEstadoServKpiTotal.textContent = kpis.total_servicios || 0;
+    if (els.invEstadoServKpiSinVentas) els.invEstadoServKpiSinVentas.textContent = kpis.servicios_sin_ventas_90d || 0;
+
+    const top = (servicios && servicios.top_ventas_90d) || [];
+    const bottom = (servicios && servicios.bottom_ventas_90d) || [];
+    if (top.length === 0 && bottom.length === 0) {
+      if (els.invEstadoServTopLista) els.invEstadoServTopLista.innerHTML = '';
+      if (els.invEstadoServBottomLista) els.invEstadoServBottomLista.innerHTML = '';
+      if (els.invEstadoServRankEmpty) els.invEstadoServRankEmpty.hidden = false;
+      return;
+    }
+    if (els.invEstadoServRankEmpty) els.invEstadoServRankEmpty.hidden = true;
+    renderInvEstadoServRankLista(els.invEstadoServTopLista, top, INV_ESTADO_COLOR_TOP);
+    renderInvEstadoServRankLista(els.invEstadoServBottomLista, bottom, INV_ESTADO_COLOR_BOTTOM);
+  }
+
+  function renderInvEstadoServRankLista(el, filas, color) {
+    if (!el) return;
+    if (!filas || filas.length === 0) {
+      el.innerHTML = '';
+      return;
+    }
+    const maximo = Math.max(...filas.map((f) => f.cantidad_vendida_90d), 1);
+    el.innerHTML = filas
+      .map(
+        (f) => `
+      <li class="resumen-fin-proveedor-fila">
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.nombre)}" tabindex="0">${escapeHtml(f.nombre)}</span>
+        <div class="resumen-fin-proveedor-barra-wrap">
+          <span class="resumen-fin-proveedor-barra" style="width:${(f.cantidad_vendida_90d / maximo) * 100}%;background:${color}"></span>
+        </div>
+        <span class="resumen-fin-proveedor-monto">${f.cantidad_vendida_90d} venta${f.cantidad_vendida_90d === 1 ? '' : 's'}</span>
+      </li>`
+      )
+      .join('');
   }
 
   function renderInvEstadoRankLista(el, filas, color) {
@@ -9602,8 +9663,11 @@
       if (!res.ok) return;
       const data = await res.json();
       const activo = Boolean(data.configuracion && data.configuracion.inventario_activo === '1');
+      const soloServicios = Boolean(data.configuracion && data.configuracion.inv_solo_servicios === '1');
       if (els.configInventarioActivo) els.configInventarioActivo.checked = activo;
+      if (els.configInvSoloServicios) els.configInvSoloServicios.checked = soloServicios;
       aplicarVisibilidadInventarios(activo);
+      aplicarVisibilidadSoloServicios(soloServicios);
     } catch (err) {
       // Silencioso — el botón del sidebar simplemente se queda oculto
       // hasta el próximo intento (mismo criterio que cargarConfigGlobal).
@@ -9621,6 +9685,31 @@
     // interruptor — función declarada más abajo, junto al resto del
     // código de Ventas (hoisted, se puede llamar aquí sin problema).
     aplicarVisibilidadInventarioEnVentas();
+    // Punto 186: "Solamente servicios" depende de "Inventario activo" —
+    // sin inventario activo no tiene sentido encenderlo (la vista entera
+    // está oculta), así que se grisa para no dejar un estado confuso.
+    if (els.configInvSoloServicios) {
+      els.configInvSoloServicios.disabled = !activo;
+      const envoltorio = els.configInvSoloServicios.closest('.switch-toggle');
+      if (envoltorio) envoltorio.classList.toggle('is-disabled', !activo);
+    }
+  }
+
+  // Punto 186 (cierra el punto 182): con el switch encendido, todo lo que
+  // solo aplica a inventario FÍSICO se oculta (7 tarjetas de Inicio + los
+  // 2 bloques de producto en "Estado del inventario" + alta manual/carga
+  // masiva de producto) — lo que aplica a servicio queda como única
+  // opción visible. Las 2 tarjetas de servicio (Inicio) NO llevan la
+  // clase inv-kpi-solo-producto: se quedan visibles siempre, con o sin el
+  // switch, igual que ya hacía "Servicios activos" desde el punto 179.
+  function aplicarVisibilidadSoloServicios(activo) {
+    soloServiciosGlobalmente = activo;
+    document.querySelectorAll('.inv-kpi-solo-producto').forEach((el) => { el.hidden = activo; });
+    document.querySelectorAll('.inv-estado-solo-producto').forEach((el) => { el.hidden = activo; });
+    if (els.invEstadoServiciosKpiGrid) els.invEstadoServiciosKpiGrid.hidden = !activo;
+    if (els.invEstadoServiciosGrid) els.invEstadoServiciosGrid.hidden = !activo;
+    if (els.btnInvImportar) els.btnInvImportar.hidden = activo;
+    if (els.btnNuevoProducto) els.btnNuevoProducto.textContent = activo ? '+ Nuevo servicio' : '+ Nuevo producto';
   }
 
   let timeoutAutoguardadoInv = null;
@@ -9661,6 +9750,52 @@
         els.invActivoAutoguardado.setAttribute('data-estado', 'error');
       } finally {
         els.configInventarioActivo.disabled = false;
+      }
+    });
+  }
+
+  // Punto 186 (cierra el punto 182): el 400 real del backend
+  // (INV_HAY_PRODUCTOS_ACTIVOS) se muestra inline, junto al switch — un
+  // toast se pierde apenas se cierra, y este mensaje explica exactamente
+  // qué hacer (archivar productos) antes de reintentar.
+  let timeoutAutoguardadoInvSolo = null;
+  if (els.configInvSoloServicios) {
+    els.configInvSoloServicios.addEventListener('change', async () => {
+      const nuevoValor = els.configInvSoloServicios.checked;
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+
+      clearTimeout(timeoutAutoguardadoInvSolo);
+      els.invSoloServiciosError.textContent = '';
+      els.configInvSoloServicios.disabled = true;
+      els.invSoloServiciosAutoguardado.textContent = 'Guardando…';
+      els.invSoloServiciosAutoguardado.setAttribute('data-estado', 'guardando');
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/inventarios/configuracion/inv_solo_servicios`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valor: nuevoValor ? '1' : '0' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.mensaje || data.error || 'No se pudo guardar.');
+        aplicarVisibilidadSoloServicios(nuevoValor);
+        els.invSoloServiciosAutoguardado.textContent = 'Guardado ✓';
+        els.invSoloServiciosAutoguardado.setAttribute('data-estado', 'guardado');
+        timeoutAutoguardadoInvSolo = setTimeout(() => {
+          els.invSoloServiciosAutoguardado.textContent = '';
+          els.invSoloServiciosAutoguardado.removeAttribute('data-estado');
+        }, 2500);
+      } catch (err) {
+        els.configInvSoloServicios.checked = !nuevoValor;
+        els.invSoloServiciosAutoguardado.textContent = '';
+        els.invSoloServiciosAutoguardado.removeAttribute('data-estado');
+        els.invSoloServiciosError.textContent = err.message;
+      } finally {
+        els.configInvSoloServicios.disabled = !inventarioActivoGlobalmente;
       }
     });
   }
@@ -9929,6 +10064,7 @@
       els.invKpiValor.textContent = `$${formatearMoneda(d.valor_total_inventario)}`;
       els.invKpiActivos.textContent = String(d.productos_activos);
       els.invKpiServicios.textContent = String(d.servicios_activos);
+      if (els.invKpiServiciosSinVentas) els.invKpiServiciosSinVentas.textContent = String(d.servicios_sin_ventas_90d);
       els.invKpiUnidades.textContent = formatearCantidadInv(d.unidades_disponibles);
       els.invKpiBajoMinimo.textContent = String(d.productos_bajo_minimo);
       els.invKpiSinExistencia.textContent = String(d.productos_sin_existencia);
@@ -10196,11 +10332,19 @@
 
   function abrirProductoModal(producto) {
     inventarioModalEditando = producto || null;
-    els.invProductoModalTitle.textContent = producto ? 'Editar producto' : 'Nuevo producto';
+    // Punto 186: solo se fija el tipo al DAR DE ALTA (producto === null)
+    // — editar un producto físico que ya existiera de antes (archivado)
+    // sigue mostrando su tipo real, el backend ya cierra por su cuenta el
+    // hueco de reactivarlo (ver validarCuerpoProducto()).
+    const tipoFijoServicio = !producto && soloServiciosGlobalmente;
+    els.invProductoModalTitle.textContent = producto ? 'Editar producto' : (tipoFijoServicio ? 'Nuevo servicio' : 'Nuevo producto');
     els.btnInvModalGuardarLabel.textContent = producto ? 'Guardar cambios' : 'Guardar';
     aplicarTooltipsCampoAyuda(els.invProductoModalOverlay);
 
-    setInvModalTipo(producto ? producto.tipo : 'producto');
+    setInvModalTipo(producto ? producto.tipo : (tipoFijoServicio ? 'servicio' : 'producto'));
+    if (els.btnInvTipoProducto) els.btnInvTipoProducto.disabled = tipoFijoServicio;
+    if (els.invModalTipoFijoHint) els.invModalTipoFijoHint.hidden = !tipoFijoServicio;
+    if (els.invModalTipoHint) els.invModalTipoHint.hidden = tipoFijoServicio;
     els.invModalNombre.value = producto ? producto.nombre : '';
     els.invModalSku.value = producto ? producto.sku : '';
     els.invModalCodigoBarras.value = producto ? producto.codigo_barras || '' : '';

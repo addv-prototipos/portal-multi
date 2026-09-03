@@ -316,6 +316,46 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       expect(res.body.error).toBe('INV_UNIDAD_SERVICIO_NO_CONFIGURADA');
     });
 
+    // Punto 186 (cierre del hueco del punto 182): el guard de ALTA por sí
+    // solo no bastaba — reactivar un producto archivado vía PUT (estado
+    // -> 'activo') se saltaba el guard por completo (idExcluir !== null).
+    test('PUT /productos/:id reactivando (estado=activo) con "Solamente servicios" activo responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockImplementation(async (sql, params) => {
+        const s = String(sql).trim();
+        if (s.startsWith('SELECT valor FROM configuracion')) return [[{ valor: '1' }]]; // inventario_activo E inv_solo_servicios, ambos '1'
+        if (s.startsWith('SELECT * FROM productos WHERE id')) return [[{ id: 5 }]];
+        if (s.startsWith('SELECT id FROM productos WHERE sku')) return [[]];
+        if (s.startsWith('SELECT id FROM unidades_medida WHERE id')) return [[{ id: 1 }]];
+        return [[]];
+      });
+      const res = await request(app)
+        .put('/api/admin/inventarios/productos/5')
+        .auth(usuario, password)
+        .send({ nombre: 'Tornillo', sku: 'TORN-1', unidad_id: 1, tipo: 'producto', estado: 'activo' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('INV_SOLO_SERVICIOS_ACTIVO');
+      expect(res.body.mensaje).toMatch(/reactivar/);
+    });
+
+    test('PUT /productos/:id sin reactivar (estado sigue archivado) con "Solamente servicios" activo sí se permite', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockImplementation(async (sql) => {
+        const s = String(sql).trim();
+        if (s.startsWith('SELECT valor FROM configuracion')) return [[{ valor: '1' }]];
+        if (s.startsWith('SELECT * FROM productos WHERE id')) return [[{ id: 5 }]];
+        if (s.startsWith('SELECT id FROM productos WHERE sku')) return [[]];
+        if (s.startsWith('SELECT id FROM unidades_medida WHERE id')) return [[{ id: 1 }]];
+        if (s.startsWith('UPDATE productos SET')) return [{}];
+        return [[]];
+      });
+      const res = await request(app)
+        .put('/api/admin/inventarios/productos/5')
+        .auth(usuario, password)
+        .send({ nombre: 'Tornillo', sku: 'TORN-1', unidad_id: 1, tipo: 'producto', estado: 'archivado' });
+      expect(res.status).toBe(200);
+    });
+
     test('GET /productos/:id inexistente responde 404 INV_PRODUCTO_NO_ENCONTRADO', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[]]]]);
@@ -579,6 +619,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
         if (s.includes('COALESCE(SUM(e.disponible * p.costo_promedio)')) return [[{ valor: '1500.00' }]];
         if (s.includes("AND estado = 'activo' AND tipo = 'producto'")) return [[{ total: 10 }]];
         if (s.includes("AND estado = 'activo' AND tipo = 'servicio'")) return [[{ total: 4 }]];
+        if (s.includes('NOT EXISTS') && s.includes('orden_productos')) return [[{ total: 1 }]];
         if (s.includes('COALESCE(SUM(e.disponible), 0) AS total')) return [[{ total: 200 }]];
         if (s.includes('e.disponible < p.stock_minimo')) return [[{ total: 2 }]];
         if (s.includes('e.disponible = 0')) return [[{ total: 1 }]];
@@ -593,6 +634,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
         valor_total_inventario: 1500,
         productos_activos: 10,
         servicios_activos: 4,
+        servicios_sin_ventas_90d: 1,
         unidades_disponibles: 200,
         productos_bajo_minimo: 2,
         productos_sin_existencia: 1,
