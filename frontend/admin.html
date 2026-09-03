@@ -753,6 +753,7 @@
             <h1>Ventas</h1>
           </div>
           <div class="admin-toolbar-right">
+            <button type="button" class="btn-icon" id="btn-ayuda-vista-ordenes" aria-label="Ayuda sobre Ventas" data-tooltip="Ayuda sobre esta sección">?</button>
             <span class="admin-count" id="ordenes-count">0 ventas</span>
             <div class="column-toggle" id="ordenes-column-toggle">
               <button type="button" class="btn btn-secondary" id="btn-ordenes-columns" aria-haspopup="true" aria-expanded="false" aria-controls="ordenes-column-toggle-panel">
@@ -831,7 +832,12 @@
               </thead>
               <tbody id="ordenes-table-body"></tbody>
             </table>
-            <p class="admin-empty" id="ordenes-empty" hidden>No hay ventas registradas todavía.</p>
+            <div class="admin-empty admin-empty-rica" id="ordenes-empty" hidden>
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round"/></svg>
+              <p class="admin-empty-titulo">Todavía no tienes ninguna venta</p>
+              <p>Registra tu primera venta y aparecerá aquí, lista para facturar cuando el cliente la pida.</p>
+              <button type="button" class="btn btn-primary" id="btn-ordenes-empty-registrar">+ Registrar venta</button>
+            </div>
             <p class="admin-empty" id="ordenes-filtro-empty" hidden>Ninguna venta coincide con los filtros.</p>
           </div>
         </section>
@@ -1183,6 +1189,7 @@
             </div>
           </div>
           <div class="admin-toolbar-right">
+            <button type="button" class="btn-icon" id="btn-ayuda-vista-cxc" aria-label="Ayuda sobre Cuentas por cobrar" data-tooltip="Ayuda sobre esta sección">?</button>
             <span class="admin-count" id="cxc-count">0 por cobrar</span>
             <div class="column-toggle" id="cxc-column-toggle">
               <button type="button" class="btn btn-secondary" id="btn-cxc-columns" aria-haspopup="true" aria-expanded="false" aria-controls="cxc-column-toggle-panel">
@@ -1227,7 +1234,12 @@
             </tr></thead>
             <tbody id="cxc-table-body"></tbody>
           </table>
-          <p class="admin-empty" id="cxc-empty" hidden>No hay cuentas por cobrar.</p>
+          <div class="admin-empty admin-empty-rica" id="cxc-empty" hidden>
+            <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="16" r="6"/><path d="M8 14v2.2l1.6 1" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <p class="admin-empty-titulo">No tienes nada pendiente de cobrar</p>
+            <p>Por defecto, toda venta se registra como pagada. Cuando registres una venta y marques su pago como "Pendiente", aparecerá aquí hasta que la cobres.</p>
+            <button type="button" class="btn btn-primary" id="btn-cxc-empty-registrar">+ Registrar venta</button>
+          </div>
           <p class="admin-empty" id="cxc-filtro-empty" hidden>Ninguna cuenta coincide con los filtros.</p>
         </div>
       </div>
@@ -1238,6 +1250,7 @@
             <h1>Gastos</h1>
           </div>
           <div class="admin-toolbar-right">
+            <button type="button" class="btn-icon" id="btn-ayuda-vista-gastos" aria-label="Ayuda sobre Gastos" data-tooltip="Ayuda sobre esta sección">?</button>
             <div class="view-toggle" role="tablist" aria-label="Ver gastos activos o papelera">
               <button type="button" class="view-toggle-btn is-active" id="btn-ver-gastos-activos" role="tab" aria-selected="true">Activos</button>
               <button type="button" class="view-toggle-btn" id="btn-ver-gastos-papelera" role="tab" aria-selected="false">Papelera</button>
@@ -1366,7 +1379,14 @@
             </thead>
             <tbody id="gastos-table-body"></tbody>
           </table>
-          <p class="admin-empty" id="gastos-empty" hidden>No hay gastos registrados todavía.</p>
+          <div class="admin-empty admin-empty-rica" id="gastos-empty" hidden>
+            <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <p class="admin-empty-titulo">Todavía no tienes ningún gasto</p>
+            <p>Registra la renta, la luz o cualquier compra del negocio y podrás ver en qué se te va el dinero cada mes.</p>
+            <button type="button" class="btn btn-primary" id="btn-gastos-empty-registrar">+ Registrar gasto</button>
+          </div>
+          <p class="admin-empty" id="gastos-filtro-empty" hidden>Ningún gasto coincide con los filtros.</p>
+          <p class="admin-empty" id="gastos-papelera-empty" hidden>La papelera de gastos está vacía.</p>
         </div>
       </div>
 
@@ -1765,6 +1785,7 @@
             <label class="checkbox-row">
               <input type="checkbox" id="config-tipo_persona" data-campo="tipo_persona" />
               <span>Tipo de persona</span>
+              <button type="button" class="campo-ayuda" aria-label="Más información sobre Tipo de persona" data-tooltip="Persona Física = trabajas a tu nombre (con o sin negocio registrado). Persona Moral = tienes una empresa constituida (S.A. de C.V., etc.). Se calcula solo de la constancia fiscal.">?</button>
             </label>
             <label class="checkbox-row">
               <input type="checkbox" id="config-rfc" data-campo="rfc" />
@@ -1773,6 +1794,7 @@
             <label class="checkbox-row">
               <input type="checkbox" id="config-uso_cfdi" data-campo="uso_cfdi" />
               <span>Uso de CFDI (al subir tickets)</span>
+              <button type="button" class="campo-ayuda" aria-label="Más información sobre Uso de CFDI" data-tooltip="Le dice al SAT para qué va a usar tu cliente la factura (ej. 'Gastos en general', 'Equipo de cómputo'). Lo elige tu cliente al pedir su factura — tú solo decides si es obligatorio que lo indique.">?</button>
             </label>
             <label class="checkbox-row">
               <input type="checkbox" id="config-tipo_pago" data-campo="tipo_pago" />
@@ -1832,7 +1854,7 @@
           </div>
 
           <div class="field">
-            <label>Régimen fiscal</label>
+            <label>Régimen fiscal<button type="button" class="campo-ayuda" aria-label="Más información sobre Régimen fiscal" data-tooltip="La forma en que el SAT clasifica fiscalmente tu negocio (ej. 'Persona Física con Actividad Empresarial', 'Régimen Simplificado de Confianza'). No lo eliges aquí — se lee solo de tu Constancia de Situación Fiscal.">?</button></label>
             <div class="admin-config-readonly-box" id="regimen-fiscal-compania-box">
               <span class="admin-config-readonly-vacio">Todavía no se ha subido ninguna constancia.</span>
             </div>
@@ -1840,7 +1862,7 @@
           </div>
 
           <div class="field">
-            <label>Razón Social</label>
+            <label>Razón Social<button type="button" class="campo-ayuda" aria-label="Más información sobre Razón Social" data-tooltip="El nombre legal completo de tu negocio ante el SAT — puede ser distinto del nombre comercial con el que te conocen tus clientes.">?</button></label>
             <div class="admin-config-readonly-box" id="razon-social-compania-box">
               <span class="admin-config-readonly-vacio">Todavía no se ha subido ninguna constancia.</span>
             </div>
@@ -1852,7 +1874,7 @@
           </p>
 
           <div class="field">
-            <label for="config-clave-sat">Clave SAT</label>
+            <label for="config-clave-sat">Clave SAT<button type="button" class="campo-ayuda" aria-label="Más información sobre Clave SAT" data-tooltip="El código de 8 dígitos que identifica el giro de tu negocio ante el SAT (ej. venta de ropa, servicios de diseño). La encuentras en tu Constancia de Situación Fiscal, sección 'Actividades económicas'.">?</button></label>
             <input type="text" id="config-clave-sat" inputmode="numeric" maxlength="8" placeholder="12345678" />
             <p class="field-hint">Exactamente 8 dígitos.</p>
             <p class="field-error" id="error-config-clave-sat" role="alert"></p>
@@ -3919,6 +3941,22 @@
         </nav>
         <div class="inv-ayuda-contenido" id="inv-ayuda-contenido"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- Ayuda por vista (punto 191, Fase 1 UX) — versión ligera del mismo
+       patrón de "Ayuda y diccionario de datos" de Inventarios, sin
+       buscador/tabla de contenido (cada vista tiene solo 3-5 conceptos,
+       no 20 campos). Contenido 100% en el frontend (AYUDA_VISTAS en
+       admin.js) — a diferencia de Inventarios, estos conceptos no
+       cambian por tenant, así que no hace falta un endpoint propio. -->
+  <div class="modal-overlay" id="ayuda-vista-modal-overlay" hidden>
+    <div class="modal ayuda-vista-modal" role="dialog" aria-modal="true" aria-labelledby="ayuda-vista-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="ayuda-vista-modal-title">Ayuda</h2>
+        <button type="button" class="btn-icon" id="btn-ayuda-vista-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="inv-ayuda-contenido" id="ayuda-vista-contenido"></div>
     </div>
   </div>
 

@@ -603,6 +603,19 @@
     invAyudaSalto: document.getElementById('inv-ayuda-salto'),
     invAyudaCuerpo: document.getElementById('inv-ayuda-cuerpo'),
     invAyudaContenido: document.getElementById('inv-ayuda-contenido'),
+    // Ayuda por vista (punto 191, Fase 1 UX) — Ventas/Cuentas por cobrar/Gastos
+    btnAyudaVistaOrdenes: document.getElementById('btn-ayuda-vista-ordenes'),
+    btnAyudaVistaCxc: document.getElementById('btn-ayuda-vista-cxc'),
+    btnAyudaVistaGastos: document.getElementById('btn-ayuda-vista-gastos'),
+    ayudaVistaModalOverlay: document.getElementById('ayuda-vista-modal-overlay'),
+    ayudaVistaModalTitle: document.getElementById('ayuda-vista-modal-title'),
+    ayudaVistaContenido: document.getElementById('ayuda-vista-contenido'),
+    btnAyudaVistaCerrar: document.getElementById('btn-ayuda-vista-cerrar'),
+    btnOrdenesEmptyRegistrar: document.getElementById('btn-ordenes-empty-registrar'),
+    btnCxcEmptyRegistrar: document.getElementById('btn-cxc-empty-registrar'),
+    btnGastosEmptyRegistrar: document.getElementById('btn-gastos-empty-registrar'),
+    gastosFiltroEmpty: document.getElementById('gastos-filtro-empty'),
+    gastosPapeleraEmpty: document.getElementById('gastos-papelera-empty'),
     // Toggle "Inventario activo" (vista Usuarios)
     btnToggleInvCard: document.getElementById('btn-toggle-inv-card'),
     invToggleChevron: document.getElementById('inv-toggle-chevron'),
@@ -8822,15 +8835,32 @@
     return tr;
   }
 
+  // Punto 191 (Fase 1 UX): distingue "nunca has registrado un gasto" (con
+  // guía + botón) de "tus filtros no encontraron nada" (mensaje simple) —
+  // mismo criterio que ya usaban Ventas/Cuentas por cobrar
+  // (ordenes-filtro-empty/cxc-filtro-empty), que Gastos no tenía.
+  function hayFiltrosGastosActivos() {
+    return Boolean(
+      els.gastosFiltroCategoria.value ||
+      els.gastosFiltroFactura.value !== '' ||
+      els.gastosFiltroRecurrente.value !== '' ||
+      els.gastosFiltroDesde.value ||
+      els.gastosFiltroHasta.value ||
+      els.gastosBusqueda.value.trim()
+    );
+  }
+
   function renderGastos(gastos, resumen, total) {
     const esPapelera = state.vistaGastos === 'papelera';
     const cuenta = Number.isFinite(total) ? total : gastos.length;
     els.gastosResumenWrap.hidden = esPapelera;
     els.gastosCount.textContent = `${cuenta} gasto${cuenta === 1 ? '' : 's'}`;
-    els.gastosEmpty.hidden = gastos.length > 0;
-    els.gastosEmpty.textContent = esPapelera
-      ? 'La papelera de gastos está vacía.'
-      : 'No hay gastos que coincidan con la búsqueda.';
+
+    const vacio = gastos.length === 0;
+    const hayFiltro = hayFiltrosGastosActivos();
+    els.gastosEmpty.hidden = !(vacio && !esPapelera && !hayFiltro);
+    els.gastosFiltroEmpty.hidden = !(vacio && !esPapelera && hayFiltro);
+    els.gastosPapeleraEmpty.hidden = !(vacio && esPapelera);
 
     if (!esPapelera && resumen) {
       const { mes_actual, con_factura, sin_factura, mes_anterior, cantidad } = resumen;
@@ -11676,6 +11706,64 @@
     els.invAyudaModalOverlay.hidden = true;
   }
 
+  // Ayuda por vista (punto 191, Fase 1 UX) — mismo lenguaje visual que la
+  // ayuda de Inventarios (reusa .inv-ayuda-tarjeta/-titulo/-explicacion),
+  // pero con contenido fijo en el frontend: 3-5 conceptos por vista, sin
+  // buscador ni backend propio — a diferencia de Inventarios, estos
+  // conceptos no cambian por tenant.
+  const AYUDA_VISTAS = {
+    ordenes: {
+      titulo: 'Ayuda — Ventas',
+      items: [
+        { titulo: 'No. de venta (OC-000001)', texto: 'Es el folio interno de este sistema, para que tú identifiques cada venta — no es tu folio fiscal del SAT (ese lo genera la factura, aparte).' },
+        { titulo: 'Estado de pago: Pagada', texto: 'El cliente ya te pagó por completo. Es el estado por defecto de toda venta nueva.' },
+        { titulo: 'Estado de pago: Pendiente', texto: 'Todavía falta que te paguen. La venta aparece en "Cuentas por cobrar" hasta que registres el cobro — y no se puede facturar mientras siga pendiente.' },
+        { titulo: 'Facturar', texto: 'El ícono de documento junto al folio abre el formulario para subir la factura ya generada de esa venta.' },
+        { titulo: 'Corte del día', texto: 'Genera un resumen de tus ventas en un rango de fechas, listo para imprimir — no envía nada por correo.' },
+      ],
+    },
+    cxc: {
+      titulo: 'Ayuda — Cuentas por cobrar',
+      items: [
+        { titulo: 'Por cobrar', texto: 'La suma de lo que todos tus clientes con ventas "Pendientes" todavía te deben.' },
+        { titulo: 'Vencida', texto: 'Ya pasó la fecha de vencimiento que le pusiste a esa venta y sigue sin cobrarse.' },
+        { titulo: 'Por vencer', texto: 'Todavía está a tiempo — se acerca su fecha de vencimiento pero no ha pasado.' },
+        { titulo: '¿Cómo marco algo como cobrado?', texto: 'Abre la venta desde la tabla y registra el cobro (total o parcial) — el saldo se actualiza solo.' },
+      ],
+    },
+    gastos: {
+      titulo: 'Ayuda — Gastos',
+      items: [
+        { titulo: 'Con factura / Sin factura', texto: 'Indica si ese gasto tiene un comprobante fiscal (factura) adjunto o no — te sirve para saber qué gastos podrías deducir.' },
+        { titulo: 'IVA incluido', texto: 'Marca si el monto que capturaste ya trae el IVA sumado, o si es el monto antes de impuestos.' },
+        { titulo: 'Recurrente', texto: 'Gastos que se repiten cada mes (renta, luz, internet) — es solo para tu referencia, no genera el gasto automáticamente.' },
+        { titulo: 'Categoría', texto: 'Cómo clasificas tus gastos, para ver después en qué se te va más el dinero — puedes crear las tuyas desde "Registrar gasto".' },
+      ],
+    },
+  };
+
+  function renderTarjetaAyudaVista(item) {
+    return `
+      <article class="inv-ayuda-tarjeta">
+        <div class="inv-ayuda-tarjeta-header">
+          <h4 class="inv-ayuda-tarjeta-titulo">${escapeHtml(item.titulo)}</h4>
+        </div>
+        <p class="inv-ayuda-tarjeta-explicacion">${escapeHtml(item.texto)}</p>
+      </article>`;
+  }
+
+  function abrirAyudaVista(vista) {
+    const datos = AYUDA_VISTAS[vista];
+    if (!datos || !els.ayudaVistaModalOverlay) return;
+    els.ayudaVistaModalTitle.textContent = datos.titulo;
+    els.ayudaVistaContenido.innerHTML = datos.items.map(renderTarjetaAyudaVista).join('');
+    els.ayudaVistaModalOverlay.hidden = false;
+  }
+
+  function cerrarAyudaVista() {
+    els.ayudaVistaModalOverlay.hidden = true;
+  }
+
   function prefersReducedMotion() {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
@@ -11710,6 +11798,24 @@
     });
   if (els.btnInvAyudaAbrir) els.btnInvAyudaAbrir.addEventListener('click', () => abrirAyudaInventario(null));
   if (els.btnInvAyudaCerrar) els.btnInvAyudaCerrar.addEventListener('click', cerrarAyudaInventario);
+  if (els.btnAyudaVistaOrdenes) els.btnAyudaVistaOrdenes.addEventListener('click', () => abrirAyudaVista('ordenes'));
+  if (els.btnAyudaVistaCxc) els.btnAyudaVistaCxc.addEventListener('click', () => abrirAyudaVista('cxc'));
+  if (els.btnAyudaVistaGastos) els.btnAyudaVistaGastos.addEventListener('click', () => abrirAyudaVista('gastos'));
+  if (els.btnAyudaVistaCerrar) els.btnAyudaVistaCerrar.addEventListener('click', cerrarAyudaVista);
+  if (els.ayudaVistaModalOverlay) {
+    els.ayudaVistaModalOverlay.addEventListener('click', (e) => {
+      if (e.target === els.ayudaVistaModalOverlay) cerrarAyudaVista();
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && els.ayudaVistaModalOverlay && !els.ayudaVistaModalOverlay.hidden) cerrarAyudaVista();
+  });
+  // Estados vacíos "de verdad" (punto 191): el botón de la tarjeta abre
+  // directo el modal de alta correspondiente, mismo mecanismo que el
+  // botón "+ Registrar..." del toolbar.
+  if (els.btnOrdenesEmptyRegistrar) els.btnOrdenesEmptyRegistrar.addEventListener('click', abrirOrdenRegistrarModal);
+  if (els.btnCxcEmptyRegistrar) els.btnCxcEmptyRegistrar.addEventListener('click', abrirOrdenRegistrarModal);
+  if (els.btnGastosEmptyRegistrar) els.btnGastosEmptyRegistrar.addEventListener('click', () => abrirGastoModal(null));
   if (els.invAyudaBuscar)
     els.invAyudaBuscar.addEventListener('input', debounce((e) => filtrarAyudaInventario(e.target.value), 200));
   if (els.invAyudaSalto)

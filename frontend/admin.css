@@ -3878,6 +3878,33 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   margin: 0;
 }
 
+/* Estado vacío "de verdad" (punto 191, Fase 1 UX) — a diferencia del
+   "sin resultados para tu filtro" (que se queda como .admin-empty
+   simple, ya es autoexplicativo), este es el primer momento real de un
+   negocio nuevo: ícono + qué es + qué hacer, en vez de una frase seca. */
+.admin-empty-rica {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px;
+  gap: 4px;
+}
+.admin-empty-icono {
+  color: var(--color-accent);
+  margin-bottom: 10px;
+}
+.admin-empty-titulo {
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+.admin-empty-rica p:not(.admin-empty-titulo) {
+  max-width: 40ch;
+  margin: 0 0 16px;
+}
+.admin-empty-rica .btn { margin: 0; }
+
 @media (max-width: 640px) {
   .admin-header { padding: 14px 16px; }
   .admin-main { padding: 18px 12px 40px; }
@@ -4510,6 +4537,17 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .inv-ayuda-modal {
   max-width: 860px;
   width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+/* Ayuda por vista (punto 191) — versión chica del modal de arriba, sin
+   buscador/TOC: reusa .inv-ayuda-tarjeta/-titulo/-explicacion tal cual
+   para verse igual, solo más angosto porque el contenido es 3-5 tarjetas,
+   no 20 campos. */
+.ayuda-vista-modal {
+  max-width: 520px;
+  width: 92vw;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
 }

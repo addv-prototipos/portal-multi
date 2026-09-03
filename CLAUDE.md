@@ -315,6 +315,20 @@ reutilizado, 3 selects de perfil, fila nueva en "Perfiles y roles de
 acceso". Jest backend 823/823. Ver PROJECT_STATE.md punto 190 para el
 detalle línea por línea. Sin commit/push todavía.
 
+**Punto 191 (2026-09-03, IMPLEMENTADO Y VALIDADO en navegador real)**:
+Fase 1 de la auditoría UX "que nadie necesite un manual" (Fases 2 y 3
+propuestas pero SIN implementar, pendientes de confirmación aparte).
+Tooltips en 5 campos fiscales sin explicar (Régimen fiscal, Razón
+Social, Clave SAT, Tipo de persona, Uso de CFDI) — 100% reuso de
+`.campo-ayuda`/`data-tooltip`, cero JS nuevo. Botón "?" de ayuda por
+vista (Ventas/Cuentas por cobrar/Gastos), contenido 100% frontend
+(`AYUDA_VISTAS`), mismo estilo visual que la ayuda de Inventarios.
+Estados vacíos reales (Ventas/CxC/Gastos) con ícono+guía+botón de
+acción. Bug real corregido de paso: Gastos no distinguía "vacío de
+verdad" de "tu filtro no encontró nada" (Ventas/CxC ya lo hacían) —
+ahora tiene sus 3 estados propios. Ver PROJECT_STATE.md punto 191.
+Cambios 100% frontend, sin tocar backend. Sin commit/push todavía.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

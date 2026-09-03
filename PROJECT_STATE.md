@@ -12124,6 +12124,56 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       errores de consola tras refresh completo de página. Usuario de
       prueba creado y borrado al final, sin dejar residuos.
 
+  191. **Fase 1 de la auditoría UX "hacerlo intuitivo sin entrenamiento"
+      (2026-09-03, IMPLEMENTADA Y VALIDADA en navegador real)**: pedido
+      explícito del usuario — auditoría completa de /admin y /control
+      pensando en emprendedores sin formación administrativa. Protocolo
+      completo (análisis + crítica + propuesta visual antes/después en
+      Artifact) resultó en 3 fases; el usuario confirmó empezar solo por
+      la Fase 1 ("auto-explicado, cero componentes nuevos"). Fases 2
+      (checklist "Primeros pasos" + recorrido de bienvenida) y 3 (paridad
+      en /control) quedan SIN implementar, pendientes de que el usuario
+      las confirme por separado.
+      **Tooltips fiscales/financieros** (reusa `.campo-ayuda`/
+      `data-tooltip`, componente 100% existente desde el punto 148 — cero
+      JS nuevo, delegado global en `document`): Régimen fiscal, Razón
+      Social y Clave SAT (Configuraciones fiscales); Tipo de persona y
+      Uso de CFDI (Campos obligatorios). Verificado que un `<button>`
+      dentro de un `.checkbox-row` (que es un `<label>`) NO togglea el
+      checkbox al hacer clic — comportamiento estándar del navegador,
+      confirmado en vivo.
+      **Ayuda por vista** (`AYUDA_VISTAS` en `admin.js`, contenido 100%
+      frontend — a diferencia del diccionario de Inventarios, estos
+      conceptos no cambian por tenant, así que no hace falta endpoint):
+      botón "?" nuevo en el toolbar de Ventas/Cuentas por cobrar/Gastos,
+      abre un modal reusando el lenguaje visual exacto de "Ayuda y
+      diccionario de datos" de Inventarios (`.inv-ayuda-tarjeta`) pero sin
+      buscador/TOC (solo 4-5 conceptos por vista) — clase CSS nueva
+      `.ayuda-vista-modal` (más angosta), sin tocar el modal de
+      Inventarios. Cubre: folio interno vs. fiscal, Pagada/Pendiente (y la
+      regla real de que no se puede facturar pendiente, punto 154),
+      Vencida/Por vencer, Con factura/Sin factura, IVA incluido,
+      Recurrente, Categoría.
+      **Estados vacíos reales, con guía + botón de acción** (ícono +
+      título + texto + CTA que abre el modal de alta correspondiente):
+      Ventas, Cuentas por cobrar (aclara que se llena solo marcando una
+      venta como "Pendiente"), Gastos. **Bug real encontrado y corregido
+      de paso**: Ventas y Cuentas por cobrar YA distinguían "vacío de
+      verdad" de "tu filtro no encontró nada" (2 elementos separados,
+      `ordenes-filtro-empty`/`cxc-filtro-empty`) — Gastos NO, mostraba
+      "No hay gastos que coincidan con la búsqueda" incluso sin ningún
+      filtro activo. Ahora Gastos tiene 3 estados propios (vacío real con
+      CTA / filtro sin resultados / papelera vacía), función nueva
+      `hayFiltrosGastosActivos()`. Validado en navegador real: los 3
+      tooltips fiscales muestran su globo sin togglear checkboxes, los 3
+      modales de ayuda por vista abren con su contenido real, el botón
+      del estado vacío de Ventas abre "Registrar venta" correctamente, y
+      escribir un texto sin coincidencias en Gastos muestra el mensaje
+      simple (no el rico) — confirmando el fix. Cero errores de consola
+      tras recarga completa de sesión. Backend intacto (cambios 100%
+      frontend: `admin.html`/`admin.js`/`admin.css`). Sin commit/push
+      todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto
