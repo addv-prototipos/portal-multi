@@ -2183,6 +2183,17 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  align-items: center;
+}
+
+/* Separador antes de las acciones de cambio de estado en /control (punto
+   189) — marca visualmente que lo que sigue (Suspender/Reactivar/Dar de
+   baja) es distinto de Editar/Credenciales, sin depender solo del color. */
+.admin-row-actions-divisor {
+  width: 1px;
+  align-self: stretch;
+  background: var(--color-border);
+  margin: 2px 2px;
 }
 
 /* Ícono de nota interna en la lista de tickets — solo aparece cuando el

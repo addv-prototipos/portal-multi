@@ -1389,6 +1389,12 @@
   // default '0' hasta que el administrador lo prenda (ver
   // cargarConfigInventario()/aplicarVisibilidadSoloServicios() más abajo).
   let soloServiciosGlobalmente = false;
+  // Punto 187/188: último valor REAL guardado de "Solamente servicios" —
+  // con Inventario inactivo el switch se muestra apagado (cosmético, no se
+  // manda al backend) sin perder la preferencia; al reactivar Inventario se
+  // restaura este valor tal cual estaba, sin resurrección sorpresa ni
+  // pérdida silenciosa.
+  let ultimoValorSoloServiciosGuardado = false;
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
@@ -9664,10 +9670,9 @@
       const data = await res.json();
       const activo = Boolean(data.configuracion && data.configuracion.inventario_activo === '1');
       const soloServicios = Boolean(data.configuracion && data.configuracion.inv_solo_servicios === '1');
+      ultimoValorSoloServiciosGuardado = soloServicios;
       if (els.configInventarioActivo) els.configInventarioActivo.checked = activo;
-      if (els.configInvSoloServicios) els.configInvSoloServicios.checked = soloServicios;
       aplicarVisibilidadInventarios(activo);
-      aplicarVisibilidadSoloServicios(soloServicios);
     } catch (err) {
       // Silencioso — el botón del sidebar simplemente se queda oculto
       // hasta el próximo intento (mismo criterio que cargarConfigGlobal).
@@ -9685,13 +9690,17 @@
     // interruptor — función declarada más abajo, junto al resto del
     // código de Ventas (hoisted, se puede llamar aquí sin problema).
     aplicarVisibilidadInventarioEnVentas();
-    // Punto 186: "Solamente servicios" depende de "Inventario activo" —
-    // sin inventario activo no tiene sentido encenderlo (la vista entera
-    // está oculta), así que se grisa para no dejar un estado confuso.
+    // Punto 187/188: "Solamente servicios" depende de "Inventario activo".
+    // Sin inventario activo se muestra APAGADO (cosmético, no se persiste)
+    // para no leerse como "algo sigue activo" — al reactivar Inventario se
+    // restaura el último valor REAL guardado, sin perder la preferencia.
     if (els.configInvSoloServicios) {
       els.configInvSoloServicios.disabled = !activo;
       const envoltorio = els.configInvSoloServicios.closest('.switch-toggle');
       if (envoltorio) envoltorio.classList.toggle('is-disabled', !activo);
+      const valorMostrado = activo && ultimoValorSoloServiciosGuardado;
+      els.configInvSoloServicios.checked = valorMostrado;
+      aplicarVisibilidadSoloServicios(valorMostrado);
     }
   }
 
@@ -9782,6 +9791,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.mensaje || data.error || 'No se pudo guardar.');
+        ultimoValorSoloServiciosGuardado = nuevoValor;
         aplicarVisibilidadSoloServicios(nuevoValor);
         els.invSoloServiciosAutoguardado.textContent = 'Guardado ✓';
         els.invSoloServiciosAutoguardado.setAttribute('data-estado', 'guardado');

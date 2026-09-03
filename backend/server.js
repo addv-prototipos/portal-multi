@@ -6342,6 +6342,12 @@ app.put(
     // "desapareció" aunque los datos sigan intactos. Dar de baja/archivar
     // esos productos primero (mismo criterio ya aprobado en la propuesta).
     if (clave === 'inv_solo_servicios' && valor === '1') {
+      if (!(await inventarioActivo())) {
+        return res.status(400).json({
+          error: 'INV_MODULO_INACTIVO',
+          mensaje: 'Activa primero "Inventario activo" antes de encender "Solamente servicios".',
+        });
+      }
       const [[fila]] = await pool.query(
         "SELECT COUNT(*) AS total FROM productos WHERE eliminado_en IS NULL AND estado = 'activo' AND tipo = 'producto'"
       );

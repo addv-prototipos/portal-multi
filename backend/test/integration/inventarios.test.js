@@ -144,6 +144,36 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
         .send({ valor: '50' });
       expect(res.status).toBe(400);
     });
+
+    test('PUT /configuracion/inv_solo_servicios con "1" e inventario inactivo responde 400 INV_MODULO_INACTIVO (punto 188)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_INACTIVO]);
+
+      const res = await request(app)
+        .put('/api/admin/inventarios/configuracion/inv_solo_servicios')
+        .auth(usuario, password)
+        .send({ valor: '1' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('INV_MODULO_INACTIVO');
+    });
+
+    test('PUT /configuracion/inv_solo_servicios con "1" e inventario activo sin productos físicos activa (punto 188)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT COUNT(*) AS total FROM productos', [[{ total: 0 }]]],
+        ['INSERT INTO configuracion', [{ affectedRows: 1 }]],
+      ]);
+
+      const res = await request(app)
+        .put('/api/admin/inventarios/configuracion/inv_solo_servicios')
+        .auth(usuario, password)
+        .send({ valor: '1' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.valor).toBe('1');
+    });
   });
 
   describe('Categorías', () => {

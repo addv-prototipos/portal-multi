@@ -360,10 +360,33 @@
       const contenedorAcciones = document.createElement('div');
       contenedorAcciones.className = 'admin-row-actions';
 
-      // Iconos compactos 30×30 con tooltip (mismo patrón que admin Usuarios — PROJECT_STATE.md:78)
+      // Iconos compactos 30×30 con tooltip (mismo patrón que admin Usuarios —
+      // PROJECT_STATE.md:78). Orden e íconos revisados (punto 189): acciones
+      // frecuentes/seguras primero (Editar, Credenciales API), separador, y
+      // cambios de estado al final (Suspender/Reactivar, Dar de baja) — la
+      // más delicada queda al final para reducir el riesgo de clic accidental.
+      // Íconos con forma semánticamente correcta: pausa (Suspender), llave
+      // (Credenciales API) y X (Dar de baja) en vez del ecualizador/candado/
+      // palomita anteriores, que no comunicaban la acción sin pasar el mouse.
+      contenedorAcciones.appendChild(
+        crearBotonAccion('btn-icono-accion', 'Editar', 'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z', () => abrirEdicion(t))
+      );
+
+      // Credenciales API (para uso en Swagger y consumo directo) — específica para uso de las APIs por empresa
+      contenedorAcciones.appendChild(
+        crearBotonAccion('btn-icono-accion', 'Credenciales API', 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4', () => abrirCredenciales(t))
+      );
+
+      const hayAccionesDeEstado = t.estado === 'activo' || t.estado === 'suspendido' || t.estado === 'baja';
+      if (hayAccionesDeEstado) {
+        const divisor = document.createElement('div');
+        divisor.className = 'admin-row-actions-divisor';
+        contenedorAcciones.appendChild(divisor);
+      }
+
       if (t.estado === 'activo') {
         contenedorAcciones.appendChild(
-          crearBotonAccion('btn-icono-accion', 'Suspender', 'M19 14v-4M5 14v-4M12 3v18', () =>
+          crearBotonAccion('btn-icono-accion', 'Suspender', 'M8 4v16M16 4v16', () =>
             confirmarAccion({
               titulo: '¿Suspender este tenant?',
               mensaje: `"${t.nombre_empresa}" (${t.slug}) dejará de ser accesible hasta que lo reactives. No se borra ningún dato.`,
@@ -389,7 +412,7 @@
 
       if (t.estado === 'activo' || t.estado === 'suspendido') {
         contenedorAcciones.appendChild(
-          crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Dar de baja', 'M19 7l-8.5 8.5-5-5', () =>
+          crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Dar de baja', 'M18 6L6 18M6 6l12 12', () =>
             confirmarAccion({
               titulo: '¿Dar de baja este tenant?',
               mensaje: `"${t.nombre_empresa}" (${t.slug}) dejará de ser accesible. No se borra su base de datos ni sus archivos — puedes reactivarlo después desde aquí mismo.`,
@@ -399,15 +422,6 @@
           )
         );
       }
-
-      contenedorAcciones.appendChild(
-        crearBotonAccion('btn-icono-accion', 'Editar', 'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z', () => abrirEdicion(t))
-      );
-
-      // Credenciales API (para uso en Swagger y consumo directo) — especifica para uso de las APIs por empresa
-      contenedorAcciones.appendChild(
-        crearBotonAccion('btn-icono-accion', 'Credenciales API', 'M12 11V9a3 3 0 00-6 0v2m-3 0h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2zM12 15v2', () => abrirCredenciales(t))
-      );
 
       celdaAcciones.appendChild(contenedorAcciones);
       els.tableBody.appendChild(tr);
