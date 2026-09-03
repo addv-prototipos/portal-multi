@@ -253,6 +253,28 @@ server {
         error_page 502 503 504 =503 /mantenimiento.html;
     }
 
+    # Extensión del fix del punto 178 (ver PROJECT_STATE.md punto 185):
+    # aquel fix solo cubrió "/<slug>" solo (sin nada después), pero
+    # "/<slug>/<algo-no-reconocido>" (ej. "/<slug>/control" -- control es
+    # cross-tenant, nunca existe por tenant -- o cualquier página vieja/
+    # typo) tenía el MISMO problema: no matcheaba ninguno de los
+    # locations de arriba (admin/página de tenant/slug solo/api de
+    # tenant, todos ya evaluados antes que este por estar definidos
+    # primero) y caía al catch-all "location /" de más abajo, que sirve
+    # login.html vía try_files SIN cambiar la URL ni devolver 404. La
+    # barra de direcciones seguía mostrando "/<slug>/algo" pero
+    # frontend/login.js (RUTAS_PAGINA_MULTITENANT, "control" no está en
+    # esa lista) no detectaba tenant, autenticando contra la base SIN
+    # tenant -- confirmado con curl (200, sirve login.html) antes de este
+    # fix. Este location va DESPUÉS de todos los anteriores a propósito
+    # (nginx evalúa locations con regex en el orden en que aparecen en el
+    # archivo, el primero que matchea gana) para no interceptar ninguna
+    # ruta válida ya cubierta arriba -- solo lo que ninguna otra regla
+    # reconoció.
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/.+$" {
+        return 404;
+    }
+
     # Segmento 9b: API de la app de control, reenviada a su propio
     # contenedor (control_upstream, ver arriba) en vez de a
     # backend_upstream. "^~" y el prefijo "/api/control/" (más largo y

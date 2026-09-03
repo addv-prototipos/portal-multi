@@ -11798,6 +11798,98 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       navegador esta sesión, falta que el usuario lo confirme en vivo.
       Sin commit/push todavía.
 
+  185. **Bug reportado por el usuario, SIN REPRODUCIR TODAVÍA — "no me
+      deja entrar a un tenant con la cuenta del admin, que es super
+      usuario" (2026-09-02)**: usuario usa la credencial `admin:admin` de
+      `ADMIN_USERS` (confirmado idéntica dentro del contenedor real vía
+      `docker compose exec backend printenv ADMIN_USERS` → `admin:admin`,
+      coincide con `.env.example`). Revisión de `backend/utils/auth.js`
+      (`requireAdminAuth()`) no encontró ninguna restricción de tenant
+      para el mecanismo 1 (`ADMIN_USERS` → perfil `super`, `checkCredentials()`
+      se evalúa ANTES de cualquier lógica de tenant/perfil) — en teoría
+      debería entrar a `/<slug>/admin` de cualquier tenant sin
+      distinción. **Sin poder confirmar la causa real**: la sesión pidió
+      2 veces la URL exacta y el síntoma exacto (401 de nuevo / 404 /
+      pantalla en blanco / entra pero con datos de otro tenant) y el
+      usuario no lo precisó, pasó a pedir datos de prueba en su lugar.
+      Hipótesis sin descartar para la próxima sesión: (a) rate-limit
+      (`adminLoginLimiter`/`tenantAggregateAuthLimiter` en `server.js`,
+      ambos por tenant+IP, si hubo muchos intentos previos de prueba);
+      (b) resolución de tenant en `nginx.conf.template`/`tenantContext.js`
+      fallando para el slug específico que probó (404 antes de llegar al
+      middleware de auth); (c) confusión de UI — el switcher de
+      sucursales (§58) es un mecanismo DISTINTO (`usuarios_sucursal`,
+      perfil ligado a `grupoSucursalId`) que no aplica a `ADMIN_USERS`.
+      **Retomar pidiendo la URL exacta + captura del error antes que
+      nada** — no se tocó código de auth en este punto.
+      **De paso, mientras se aclaraba lo anterior**: se generaron ~5
+      meses de datos de demo reales en los 2 tenants activos que existen
+      hoy (`pruebaadmin`→`tenant_pruebaadmin`, `piloto9c`→
+      `tenant_piloto9c`, confirmados por `SELECT slug, db_name, estado
+      FROM tenants` contra la BD de control — los otros 5 tenants
+      registrados, `e2e9c00212093`/`e2e9c00416557`/`e2e9c51585451`/
+      `e2e9c51709395`/`test170`, quedaron atorados en
+      `estado='provisioning'` de corridas E2E viejas, sin admin
+      funcional, se dejaron sin tocar). Mecanismo: `ensureSchema(pool)` +
+      `node scripts/sembrar-demo.js --confirmar` (el mismo script del
+      punto 155/158, sin cambios) corridos DOS VECES dentro del
+      contenedor `backend`, cada vez con `docker compose exec -e
+      DB_NAME=tenant_<slug> backend ...` para apuntar el pool por
+      defecto a la BD de ese tenant en vez de `portal_facturacion` —
+      mismo patrón ya usado en el punto 115. Misma semilla de PRNG fija
+      → **los 2 tenants quedaron con cifras idénticas** (143 ventas / 93
+      tickets / 67 gastos / 115 líneas de inventario cada uno, abr-ago
+      2026) — es el comportamiento esperado del script (determinista),
+      no un bug. `portal_facturacion` (sin tenant) ya tenía su propia
+      resiembra de esta misma mañana (punto 183/184, sin tocar de
+      nuevo aquí).
+      **Al cierre de este punto, el usuario avisó que va a correr
+      `docker compose down -v` para "probar desde cero"** — esto borra
+      el volumen de MySQL completo (las 2 siembras de arriba + la BD de
+      control con el registro de los 7 tenants) y el de MinIO (logos,
+      comprobantes, CSFs); un reset así requiere volver a
+      `provisionar-tenant.js` cada tenant que se quiera recuperar. Sin
+      ejecutar todavía al momento de escribir esto — pendiente confirmar
+      si lo corrió el usuario mismo o si lo corre esta sesión, y
+      retomar el diagnóstico del bug de arriba una vez que el entorno
+      esté estable de nuevo (un reset de infraestructura a medio camino
+      podría confundirse con el síntoma original si no se distingue con
+      cuidado).
+
+      **Actualización, mismo día — bug real encontrado y CORREGIDO**:
+      el usuario aclaró el diseño esperado (`ADMIN_USERS` debe entrar a
+      TODOS los `/admin` de tenant + sin tenant + el único `/control`
+      global; NO debe existir `/control` por tenant, porque control
+      configura a los tenants). Verificado con pruebas reales que las 2
+      primeras partes YA funcionaban (`curl -u admin:admin` con tenant
+      en la URL → `perfil:"super"` 200 en `pruebaadmin` Y `piloto9c`;
+      `control/utils/auth.js` es una copia aparte, SOLO `ADMIN_USERS`,
+      sin concepto de tenant) y que nginx no tiene ninguna ruta
+      `/<slug>/control` — coincide con lo pedido. **Pero se encontró un
+      bug real de la 3ra parte, MISMA clase que el ya corregido en el
+      punto 178**: `curl http://localhost:8088/pruebaadmin/control` →
+      HTTP 200, servía `login.html` en silencio (sin 404, sin redirect).
+      El fix del punto 178 solo cubrió `/<slug>` solo (sin nada
+      después); `/<slug>/control` (y cualquier `/<slug>/<algo-no-
+      reconocido>`, no solo "control") caía al catch-all porque
+      `'control'` no está en `RUTAS_PAGINA_MULTITENANT` de
+      `frontend/login.js` — `TENANT_SLUG` quedaba `null` y el login se
+      autenticaba contra la base SIN tenant, con la URL mostrando
+      `/<slug>/control` como si fuera del tenant. Fix: nuevo
+      `location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/.+$"` en
+      `frontend/nginx.conf.template` que devuelve 404 — colocado
+      DESPUÉS de los 4 locations con regex de tenant ya existentes
+      (admin/página de tenant/slug-solo/api-de-tenant, nginx evalúa
+      regex en el orden del archivo, primero que matchea gana) para no
+      interceptar ninguna ruta válida. Validado por curl real tras
+      rebuild `--no-cache`+`--force-recreate` del frontend: `/pruebaadmin/
+      control` y `/pruebaadmin/algo-inventado` → 404; `/control` (global),
+      `/pruebaadmin/admin`, `/pruebaadmin/login`, `/pruebaadmin` (302 a
+      login), `/pruebaadmin/api/health`, `/pruebaadmin/api/admin/login`
+      (admin:admin → super), `/piloto9c/api/admin/login` (admin:admin →
+      super), `/admin` sin tenant — los 9 sin cambios, cero regresión.
+      Sin commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

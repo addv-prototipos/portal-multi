@@ -242,6 +242,45 @@ ocultaste entre aperturas (reset automático al cerrar). Jest backend
 validado por despliegue vía curl, falta confirmación visual del
 usuario.
 
+**Bug reportado, SIN REPRODUCIR — acceso a tenant con `ADMIN_USERS`
+(2026-09-02, ver PROJECT_STATE.md punto 185)**: usuario reporta que
+`admin:admin` (confirmado idéntico dentro del contenedor real) no lo
+deja "entrar a un tenant" siendo super usuario. Revisión de
+`backend/utils/auth.js` no encontró restricción de tenant en el
+mecanismo `ADMIN_USERS` (perfil `super`, sin gate por slug) — no se
+pudo reproducir por falta de URL/síntoma exacto, pedido dos veces sin
+respuesta. **Retomar pidiendo eso primero**, sin asumir causa. De paso,
+se sembraron ~5 meses de datos demo reales en los 2 únicos tenants
+activos (`pruebaadmin`, `piloto9c` — los otros 5 registrados en la BD
+de control quedaron a medias en `provisioning` de E2E viejos, se
+dejaron intactos) vía `sembrar-demo.js --confirmar` + `ensureSchema()`
+apuntando `DB_NAME` a cada tenant dentro del contenedor `backend`
+(mismo patrón del punto 115) — misma semilla de PRNG, cifras idénticas
+en ambos a propósito (143 ventas/93 tickets/67 gastos/115 líneas de
+inventario, abr-ago 2026). **El usuario avisó que va a correr `docker
+compose down -v`** (reset completo de MySQL+MinIO, incluida la BD de
+control con el registro de tenants) para probar desde cero — sin
+confirmar si ya se ejecutó al momento de este commit; si se corrió,
+las 2 siembras de arriba y los 7 tenants registrados ya no existen,
+hay que reprovisionar antes de retomar el diagnóstico del bug.
+**Actualización mismo día — bug real encontrado y CORREGIDO**: el
+usuario confirmó el diseño esperado (`ADMIN_USERS` entra a todos los
+`/admin` de tenant+sin tenant+el único `/control` global; NO debe
+existir `/control` por tenant). Las 2 primeras partes ya funcionaban
+(validado por curl real). La 3ra tenía un bug real, misma clase que el
+punto 178: `/<slug>/control` (y cualquier `/<slug>/<algo-no-
+reconocido>`) devolvía 200 con `login.html` en silencio en vez de 404
+— `'control'` no está en `RUTAS_PAGINA_MULTITENANT` de `login.js`, así
+que `TENANT_SLUG` quedaba `null` y autenticaba contra la base SIN
+tenant con la URL mostrando el slug. Fix en
+`frontend/nginx.conf.template`: nuevo `location` con regex que
+devuelve 404 para `/<slug>/.+` no reconocido, colocado DESPUÉS de los
+4 locations de tenant existentes para no interceptarlos. Validado por
+curl tras rebuild `--no-cache`+`--force-recreate`: 404 en las rutas
+basura, cero regresión en admin/login/api/control (9 rutas probadas).
+Detalle completo en PROJECT_STATE.md punto 185. Sin commit/push
+todavía.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
