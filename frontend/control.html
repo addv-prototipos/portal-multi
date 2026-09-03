@@ -104,6 +104,7 @@
         <div class="admin-toolbar">
           <div class="admin-toolbar-title">
             <h1>Empresas (tenants)</h1>
+            <button type="button" class="btn-icon" id="btn-ayuda-vista-empresas" aria-label="Ayuda sobre Empresas" data-tooltip="Ayuda sobre esta sección">?</button>
           </div>
           <div class="admin-toolbar-right">
             <span class="admin-count" id="control-count">0 tenants</span>
@@ -149,7 +150,7 @@
               <tr>
                 <th>Slug</th>
                 <th>Empresa</th>
-                <th>Estado</th>
+                <th>Estado<button type="button" class="campo-ayuda" aria-label="Más información sobre Estado" data-tooltip="Suspender: pausa temporal, para intermitencias o falta de pago — se revierte con Reactivar. Dar de baja: fin de la relación comercial — también se revierte con Reactivar, no borra nada, solo cambia cómo se ve reflejado el estado.">?</button></th>
                 <th>Contacto</th>
                 <th>Creado</th>
                 <th></th>
@@ -157,7 +158,13 @@
             </thead>
             <tbody id="control-table-body"></tbody>
           </table>
-          <p class="admin-empty" id="control-empty" hidden>No hay tenants que coincidan con el filtro.</p>
+          <div class="admin-empty admin-empty-rica" id="control-empty" hidden>
+            <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linejoin="round"/></svg>
+            <p class="admin-empty-titulo">Aún no hay empresas dadas de alta</p>
+            <p>Crea la primera para empezar a operar — queda en "Provisionando" hasta correr el script de aprovisionamiento.</p>
+            <button type="button" class="btn btn-primary" id="btn-control-empty-nueva-empresa">Nueva empresa</button>
+          </div>
+          <p class="admin-empty" id="control-filtro-empty" hidden>Ningún tenant coincide con el filtro.</p>
         </div>
         </div>
 
@@ -170,6 +177,7 @@
           <div class="admin-toolbar">
             <div class="admin-toolbar-title">
               <h1>Sucursales</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-sucursales" aria-label="Ayuda sobre Sucursales" data-tooltip="Ayuda sobre esta sección">?</button>
             </div>
             <div class="admin-toolbar-right">
               <span class="admin-count" id="sucursales-count">0 grupos</span>
@@ -197,7 +205,12 @@
               </thead>
               <tbody id="sucursales-table-body"></tbody>
             </table>
-            <p class="admin-empty" id="sucursales-empty" hidden>Todavía no hay grupos de sucursales.</p>
+            <div class="admin-empty admin-empty-rica" id="sucursales-empty" hidden>
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p class="admin-empty-titulo">Todavía no hay grupos de sucursales</p>
+              <p>Agrupa empresas del mismo negocio para compartir el inicio de sesión entre sus usuarios.</p>
+              <button type="button" class="btn btn-primary" id="btn-sucursales-empty-nuevo-grupo">+ Nuevo grupo</button>
+            </div>
           </div>
         </div>
       </main>
@@ -248,7 +261,11 @@
               </thead>
               <tbody id="sucursales-usuarios-table-body"></tbody>
             </table>
-            <p class="admin-empty" id="sucursales-usuarios-empty" hidden>Sin usuarios compartidos todavía.</p>
+            <div class="admin-empty admin-empty-rica" id="sucursales-usuarios-empty" hidden>
+              <svg class="admin-empty-icono" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p class="admin-empty-titulo">Sin usuarios compartidos todavía</p>
+              <p>Agrega uno abajo — podrá entrar a <code>/admin</code> de cualquier sucursal de este grupo.</p>
+            </div>
           </div>
 
           <div class="gastos-modal-grid">
@@ -268,6 +285,7 @@
               </select>
             </div>
           </div>
+          <p class="field-hint">Administrador entra a todas las secciones habilitadas de la sucursal; Fiscal solo ve Inicio, Tickets y Constancias.</p>
           <p class="field-error" id="sucursales-usuario-nuevo-error" role="alert"></p>
           <div class="btn-row">
             <button type="button" class="btn btn-secondary" id="btn-sucursales-usuario-agregar">+ Agregar usuario</button>
@@ -342,6 +360,7 @@
           <div class="field">
             <label for="control-intake-notas">Notas</label>
             <textarea id="control-intake-notas" rows="3" placeholder="Cualquier contexto para el operador que apruebe el alta…"></textarea>
+            <p class="field-hint">Solo visible para operadores de /control — la empresa cliente nunca la ve.</p>
           </div>
         </div>
 
@@ -487,6 +506,7 @@
           <div class="field control-form-grid-full">
             <label for="control-editar-notas">Notas</label>
             <textarea id="control-editar-notas" rows="3" placeholder="Cualquier contexto para el operador…"></textarea>
+            <p class="field-hint">Solo visible para operadores de /control — la empresa cliente nunca la ve.</p>
           </div>
         </div>
 
@@ -712,6 +732,17 @@
         <button type="button" class="btn btn-danger" id="control-cred-btn-revocar" hidden>Revocar</button>
         <button type="button" class="btn btn-secondary" id="control-cred-btn-cerrar">Cerrar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Ayuda por vista (Fase 5 UX, mismo componente que /admin) -->
+  <div class="modal-overlay" id="ayuda-vista-modal-overlay" hidden>
+    <div class="modal ayuda-vista-modal" role="dialog" aria-modal="true" aria-labelledby="ayuda-vista-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="ayuda-vista-modal-title">Ayuda</h2>
+        <button type="button" class="btn-icon" id="btn-ayuda-vista-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="inv-ayuda-contenido" id="ayuda-vista-contenido"></div>
     </div>
   </div>
 

@@ -396,6 +396,29 @@ mismo gotcha de siempre): los 7 textos confirmados en el HTML servido.
 visual del usuario. Ver PROJECT_STATE.md punto 194. Sin commit/push
 todavía.
 
+**Punto 195 (2026-09-03, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: Fase 5 — `/control`, extiende la Fase 3/punto 193 (que había
+quedado acotada a solo tooltips fiscales). 8 hallazgos de una auditoría
+async: estados vacíos de tenants y sucursales (x2) eran texto plano →
+`.admin-empty-rica` con la misma distinción vacío-real vs filtro-sin-
+resultados ya usada en Ventas/Gastos; cero ayuda por vista → se portó
+`AYUDA_VISTAS`/modal de admin.js con entradas "empresas"/"sucursales";
+tooltip nuevo en "Estado" (Suspender vs Dar de baja — corregido de la
+propuesta original: ambos son igual de reversibles vía "Reactivar",
+sin el paso intermedio que el Artifact sugería, verificado contra
+`control.js:400`); badge de estatus gana tooltip por estado
+(`TOOLTIP_ESTADO`); select "Perfil" de sucursales gana `field-hint`;
+subtítulo de "Credenciales API" (ya existía pero sin explicar el
+propósito) aclara que son para integraciones externas, no el login del
+operador; campo "Notas" gana `field-hint` de visibilidad interna. 100%
+reuso de componentes de `admin.css`/`admin.js`, cero CSS nuevo. Jest
+control 119/119 (sin cambios de backend). Validado por HTTP tras
+rebuild `--no-cache`+`--force-recreate` frontend: los 8 hallazgos
+confirmados en el HTML/JS servido. **Sin herramienta de navegador esta
+sesión** — falta confirmación visual del usuario. Con esto, las 5 fases
+de la auditoría UX completa quedan implementadas. Ver PROJECT_STATE.md
+punto 195. Sin commit/push todavía.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

@@ -12417,6 +12417,53 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   (puntos 188-193 varios ya commiteados/pusheados por separado, revisar
   working tree antes de agrupar).
 
+- **Fase 5 de la auditoría UX "que nadie necesite un manual" — `/control`
+  (punto 195, 2026-09-03, IMPLEMENTADA Y VALIDADA por HTTP contra Docker
+  real, extiende la Fase 3/punto 193 que había quedado deliberadamente
+  acotada a solo tooltips fiscales)**: auditoría async (agente `Explore`)
+  sobre `control.html`/`control.js` completos encontró 8 puntos de
+  confusión reales, mismo criterio que las fases anteriores — 100% reuso
+  de componentes ya existentes en `admin.css`/`admin.js`, cero CSS nuevo.
+  (1-2) estados vacíos de la tabla de tenants y de las 2 listas de
+  Sucursales eran texto plano — pasan a `.admin-empty-rica` (ícono+
+  guía+CTA, mismo patrón que Ventas/Gastos), con la distinción ya
+  establecida entre "de verdad vacío" (`control-empty`/rica) y "el
+  filtro no encontró nada" (`control-filtro-empty`/plano, mismo bug que
+  se evitó explícitamente aquí — ver el fix del punto 191 para Gastos).
+  El estado vacío de usuarios compartidos de un grupo se dejó sin botón
+  CTA a propósito (el formulario de alta ya está justo debajo). (3)
+  cero ayuda por vista — se portó tal cual `AYUDA_VISTAS`/
+  `renderTarjetaAyudaVista`/el modal de admin.js, con 2 entradas nuevas
+  ("empresas": Provisionando/Suspender/Dar de baja/Credenciales API/
+  Slug, "sucursales": qué es un grupo/qué se comparte/perfiles/quitar
+  el grupo). (4) tooltip nuevo en la cabecera "Estado" aclarando
+  Suspender vs Dar de baja — **corrección de precisión sobre la
+  propuesta original**: el Artifact de propuesta decía que Dar de baja
+  requería pasar primero por Suspender para reactivar, pero
+  `control.js:400` confirma que ambos estados (`suspendido` y `baja`)
+  muestran el botón "Reactivar" directo — el texto final dice que las
+  dos acciones son igual de reversibles, sin ese paso intermedio
+  inventado. (5) badge de estatus (antes solo "Provisionando" en texto
+  de ayuda aparte, fácil de pasar por alto) gana `data-tooltip` propio
+  por estado vía `TOOLTIP_ESTADO` en `control.js`. (6) select "Perfil"
+  de usuarios compartidos de sucursal gana `field-hint` (mismo texto
+  que ya usa `admin.html:2845`, adaptado a los 2 perfiles reales que
+  ofrece este select). (7) modal "Credenciales API" — el subtítulo
+  (`els.credSubtitulo`, `control.js:1343`) ya existía pero solo decía
+  el nombre del tenant, sin explicar el propósito; ahora aclara que son
+  para integraciones externas (Swagger, sistemas propios), no el login
+  del operador. (8) campo "Notas" en ambos modales (alta y edición)
+  gana `field-hint` aclarando que es interno, la empresa cliente nunca
+  lo ve. `node --check` limpio en `control.js`, IDs sin duplicar en
+  `control.html` (verificado), Jest control **119/119** (sin cambios de
+  backend, corrido por sanidad). Validado por HTTP contra Docker real
+  tras rebuild `--no-cache`+`--force-recreate` del frontend: los 8
+  hallazgos confirmados presentes en el HTML/JS servido. **Sin
+  herramienta de navegador en esta sesión** — falta confirmación visual
+  del usuario con clics reales. Con esto, las 5 fases de la auditoría UX
+  completa (`/admin` 191-192, `/control` 193+195, portal cliente 194)
+  quedan implementadas. Sin commit/push todavía.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

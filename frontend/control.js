@@ -32,6 +32,8 @@
     error: document.getElementById('control-error'),
     tableBody: document.getElementById('control-table-body'),
     empty: document.getElementById('control-empty'),
+    filtroEmpty: document.getElementById('control-filtro-empty'),
+    btnEmptyNuevaEmpresa: document.getElementById('btn-control-empty-nueva-empresa'),
     toast: document.getElementById('control-toast'),
     btnMenuMovil: document.getElementById('btn-control-menu-movil'),
     menuMovil: document.getElementById('control-menu-movil'),
@@ -62,6 +64,12 @@
     btnConfirmCancelar: document.getElementById('control-btn-confirm-cancelar'),
     btnConfirmAceptar: document.getElementById('control-btn-confirm-aceptar'),
     btnNuevaEmpresa: document.getElementById('control-btn-nueva-empresa'),
+    btnAyudaVistaEmpresas: document.getElementById('btn-ayuda-vista-empresas'),
+    btnAyudaVistaSucursales: document.getElementById('btn-ayuda-vista-sucursales'),
+    ayudaVistaModalOverlay: document.getElementById('ayuda-vista-modal-overlay'),
+    ayudaVistaModalTitle: document.getElementById('ayuda-vista-modal-title'),
+    ayudaVistaContenido: document.getElementById('ayuda-vista-contenido'),
+    btnAyudaVistaCerrar: document.getElementById('btn-ayuda-vista-cerrar'),
     intakeOverlay: document.getElementById('control-intake-modal-overlay'),
     formIntake: document.getElementById('control-form-intake'),
     intakeError: document.getElementById('control-intake-error'),
@@ -127,6 +135,7 @@
     sucursalesTableBody: document.getElementById('sucursales-table-body'),
     sucursalesEmpty: document.getElementById('sucursales-empty'),
     btnSucursalesNuevoGrupo: document.getElementById('btn-sucursales-nuevo-grupo'),
+    btnSucursalesEmptyNuevoGrupo: document.getElementById('btn-sucursales-empty-nuevo-grupo'),
     sucursalesGrupoOverlay: document.getElementById('sucursales-grupo-modal-overlay'),
     sucursalesGrupoModalTitle: document.getElementById('sucursales-grupo-modal-title'),
     btnSucursalesGrupoModalCerrar: document.getElementById('btn-sucursales-grupo-modal-cerrar'),
@@ -339,18 +348,31 @@
     baja: 'Baja',
   };
 
+  // Tooltip por estado (Fase 5 UX, punto 194) — "Provisionando" en
+  // particular no tenía ninguna explicación visible salvo el hint de
+  // texto de la parte de arriba de la vista, fácil de pasar por alto.
+  const TOOLTIP_ESTADO = {
+    provisioning: 'La empresa se está creando en segundo plano (base de datos + acceso). No requiere acción tuya — ver el aviso de arriba para completarla con el script de aprovisionamiento.',
+    activo: 'La empresa opera con normalidad, accesible para sus usuarios.',
+    suspendido: 'Pausa temporal — la empresa no es accesible. Reversible con "Reactivar".',
+    baja: 'Dada de baja — la empresa no es accesible. No se borró ningún dato; reversible con "Reactivar".',
+  };
+
   function renderTenants(tenants) {
     els.count.textContent = `${tenants.length} tenant${tenants.length === 1 ? '' : 's'}`;
     els.tableBody.innerHTML = '';
-    els.empty.hidden = tenants.length > 0;
+    const hayFiltro = Boolean(els.filtroEstado.value || els.searchInput.value.trim());
+    els.empty.hidden = tenants.length > 0 || hayFiltro;
+    if (els.filtroEmpty) els.filtroEmpty.hidden = tenants.length > 0 || !hayFiltro;
 
     tenants.forEach((t) => {
       const tr = document.createElement('tr');
       const etiquetaEstado = ETIQUETA_ESTADO[t.estado] || t.estado;
+      const tooltipEstado = TOOLTIP_ESTADO[t.estado] || '';
       tr.innerHTML = `
         <td data-label="Slug"><strong>${escapeHtml(t.slug)}</strong></td>
         <td data-label="Empresa">${escapeHtml(t.nombre_empresa)}</td>
-        <td data-label="Estado"><span class="estatus-badge estatus-${escapeHtml(t.estado)}">${escapeHtml(etiquetaEstado)}</span></td>
+        <td data-label="Estado"><span class="estatus-badge estatus-${escapeHtml(t.estado)}" data-tooltip="${escapeHtml(tooltipEstado)}">${escapeHtml(etiquetaEstado)}</span></td>
         <td data-label="Contacto">${escapeHtml(t.contacto_email) || '—'}</td>
         <td data-label="Creado">${formatFecha(t.creado_en)}</td>
         <td data-label=""></td>
@@ -526,6 +548,7 @@
   }
 
   els.btnNuevaEmpresa.addEventListener('click', abrirIntake);
+  if (els.btnEmptyNuevaEmpresa) els.btnEmptyNuevaEmpresa.addEventListener('click', abrirIntake);
   els.btnIntakeCancelar.addEventListener('click', cerrarIntake);
   els.intakeOverlay.addEventListener('click', (e) => {
     if (e.target === els.intakeOverlay) cerrarIntake();
@@ -1340,7 +1363,7 @@
   function abrirCredenciales(tenant) {
     credTenantActual = tenant;
     credActualLista = [];
-    els.credSubtitulo.textContent = `${tenant.nombre_empresa} (${tenant.slug}) — credencial para uso de las APIs (Basic + clave API)`;
+    els.credSubtitulo.textContent = `${tenant.nombre_empresa} (${tenant.slug}) — para integraciones externas (Swagger, sistemas propios de la empresa), no es el login de operadores de /admin. Basic + clave API.`;
     els.credNuevaWrap.hidden = true;
     els.credUsuario.value = '';
     els.credPassword.value = '';
@@ -1598,6 +1621,7 @@
   }
 
   els.btnSucursalesNuevoGrupo.addEventListener('click', () => abrirGrupoModal(null));
+  if (els.btnSucursalesEmptyNuevoGrupo) els.btnSucursalesEmptyNuevoGrupo.addEventListener('click', () => abrirGrupoModal(null));
   els.btnSucursalesGrupoModalCerrar.addEventListener('click', cerrarGrupoModal);
   els.btnSucursalesGrupoCancelar.addEventListener('click', cerrarGrupoModal);
   els.sucursalesGrupoOverlay.addEventListener('click', (e) => {
@@ -1758,7 +1782,65 @@
     else if (!els.editarOverlay.hidden) cerrarEdicion();
     else if (els.credOverlay && !els.credOverlay.hidden) cerrarCredenciales();
     else if (els.sucursalesGrupoOverlay && !els.sucursalesGrupoOverlay.hidden) cerrarGrupoModal();
+    else if (els.ayudaVistaModalOverlay && !els.ayudaVistaModalOverlay.hidden) cerrarAyudaVista();
   });
+
+  // ---------- Ayuda por vista (Fase 5 UX, paridad con admin.js punto 191) ----------
+  // Mismo componente que AYUDA_VISTAS/renderTarjetaAyudaVista de admin.js
+  // (.inv-ayuda-tarjeta, ya en admin.css), duplicado tal cual — /control es
+  // un contenedor/build de Docker aparte, sin código compartido con /admin.
+  const AYUDA_VISTAS = {
+    empresas: {
+      titulo: 'Ayuda — Empresas',
+      items: [
+        { titulo: 'Provisionando', texto: 'La solicitud de alta ya se registró, pero la base de datos física del tenant todavía no existe — falta correr el script de aprovisionamiento (acceso root de MySQL). No requiere nada del operador de /control.' },
+        { titulo: 'Suspender', texto: 'Pausa temporal y reversible — la empresa deja de ser accesible hasta que la reactives. Útil para intermitencias o falta de pago, sin perder ningún dato.' },
+        { titulo: 'Dar de baja', texto: 'Fin de la relación comercial. Igual de reversible que Suspender (el botón "Reactivar" la revive) — no borra la base de datos ni los archivos del tenant.' },
+        { titulo: 'Credenciales API', texto: 'Son para integraciones externas (Swagger, sistemas propios de la empresa) — nunca son el usuario/contraseña que un operador usa para entrar a /admin.' },
+        { titulo: 'Slug', texto: 'Define las URLs de la empresa (/<slug>/admin, etc.). Se puede cambiar después desde "Editar", pero migra todos sus archivos — mejor no cambiarlo seguido.' },
+      ],
+    },
+    sucursales: {
+      titulo: 'Ayuda — Sucursales',
+      items: [
+        { titulo: '¿Qué es un grupo?', texto: 'Asocia varias empresas (tenants) del mismo negocio. Cada una conserva su propia base de datos, inventario y ventas 100% aislados.' },
+        { titulo: '¿Qué se comparte?', texto: 'Solo el inicio de sesión — los usuarios que des de alta en un grupo pueden entrar a /admin de CUALQUIER sucursal asociada con la misma contraseña.' },
+        { titulo: 'Perfil de un usuario compartido', texto: 'Administrador entra a todas las secciones habilitadas de la sucursal; Fiscal solo ve Inicio, Tickets y Constancias.' },
+        { titulo: 'Quitar el grupo', texto: 'Revoca el acceso compartido de inmediato — cada tenant sigue funcionando normal por su cuenta, con su propio login si ya tenía uno.' },
+      ],
+    },
+  };
+
+  function renderTarjetaAyudaVista(item) {
+    return `
+      <article class="inv-ayuda-tarjeta">
+        <div class="inv-ayuda-tarjeta-header">
+          <h4 class="inv-ayuda-tarjeta-titulo">${escapeHtml(item.titulo)}</h4>
+        </div>
+        <p class="inv-ayuda-tarjeta-explicacion">${escapeHtml(item.texto)}</p>
+      </article>`;
+  }
+
+  function abrirAyudaVista(vista) {
+    const datos = AYUDA_VISTAS[vista];
+    if (!datos || !els.ayudaVistaModalOverlay) return;
+    els.ayudaVistaModalTitle.textContent = datos.titulo;
+    els.ayudaVistaContenido.innerHTML = datos.items.map(renderTarjetaAyudaVista).join('');
+    els.ayudaVistaModalOverlay.hidden = false;
+  }
+
+  function cerrarAyudaVista() {
+    els.ayudaVistaModalOverlay.hidden = true;
+  }
+
+  if (els.btnAyudaVistaEmpresas) els.btnAyudaVistaEmpresas.addEventListener('click', () => abrirAyudaVista('empresas'));
+  if (els.btnAyudaVistaSucursales) els.btnAyudaVistaSucursales.addEventListener('click', () => abrirAyudaVista('sucursales'));
+  if (els.btnAyudaVistaCerrar) els.btnAyudaVistaCerrar.addEventListener('click', cerrarAyudaVista);
+  if (els.ayudaVistaModalOverlay) {
+    els.ayudaVistaModalOverlay.addEventListener('click', (e) => {
+      if (e.target === els.ayudaVistaModalOverlay) cerrarAyudaVista();
+    });
+  }
 
   // ---------- Tooltips (Fase 3 UX, paridad con admin.js — punto 191/193) ----------
   // Idéntico a inicializarTooltips() de admin.js: mismo componente
