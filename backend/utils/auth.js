@@ -182,7 +182,7 @@ async function verificarUsuarioSucursal(usuario, password, grupoSucursalId) {
   }
 }
 
-// ---------- Usuarios con perfil administrador/fiscal ----------
+// ---------- Usuarios con perfil administrador/fiscal/ventas ----------
 // A diferencia de los clientes (perfil "cliente", que solo pueden entrar
 // al portal de usuario con cookie de sesión), estos perfiles pueden
 // autenticarse con Basic Auth para entrar al panel de administración,
@@ -192,7 +192,7 @@ async function verificarUsuarioSucursal(usuario, password, grupoSucursalId) {
 // restablecer desde la vista "Usuarios" del panel, igual que a un cliente.
 async function verificarUsuarioAdministrativo(usuario, password) {
   const [filas] = await pool.query(
-    "SELECT rfc, password_hash, perfil FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal')",
+    "SELECT rfc, password_hash, perfil FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas')",
     [usuario]
   );
   const fila = filas[0];
@@ -209,7 +209,7 @@ async function verificarUsuarioAdministrativo(usuario, password) {
  * Acepta credenciales de CUALQUIERA de estos tres mecanismos:
  *   1. ADMIN_USERS (variable de entorno, sin cambios respecto a antes).
  *   2. La cuenta de respaldo "admin" guardada en MySQL.
- *   3. Un usuario con perfil "administrador" o "fiscal" en la tabla usuarios.
+ *   3. Un usuario con perfil "administrador", "fiscal" o "ventas" en la tabla usuarios.
  */
 async function requireAdminAuth(req, res, next) {
   // Multi-tenant (segmento 3 del plan): con dominio único compartido entre

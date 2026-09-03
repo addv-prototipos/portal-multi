@@ -1013,6 +1013,7 @@
     cliente: { texto: 'Cliente', clase: 'perfil-cliente' },
     administrador: { texto: 'Administrador', clase: 'perfil-administrador' },
     fiscal: { texto: 'Fiscal', clase: 'perfil-fiscal' },
+    ventas: { texto: 'Ventas', clase: 'perfil-ventas' },
   };
 
   // Campos configurables como obligatorios/opcionales en el formulario público.
@@ -1404,6 +1405,17 @@
     fiscal: {
       vistasPermitidas: ['inicio', 'constancias', 'tickets', 'configuraciones'],
       tarjetasConfigPermitidas: ['admin-config-card', 'global-config-card'],
+    },
+    // Punto 190: perfil "Ventas" — solo Ventas/Cuentas por cobrar/Gastos,
+    // sin entrar nunca a "Configuraciones globales" (cero tarjetas
+    // permitidas, ni siquiera de solo lectura: el botón de esa vista
+    // queda oculto por completo). El % de IVA/zona horaria que necesita
+    // el formulario de "Registrar venta" se leen vía GET
+    // /admin/config/global directamente (permitido en el backend para
+    // este perfil), sin pasar por la UI de Configuraciones.
+    ventas: {
+      vistasPermitidas: ['ordenes', 'cxc', 'gastos'],
+      tarjetasConfigPermitidas: [],
     },
   };
 

@@ -1652,6 +1652,7 @@
               <option value="cliente">Clientes</option>
               <option value="administrador">Administradores</option>
               <option value="fiscal">Fiscales</option>
+              <option value="ventas">Ventas</option>
             </select>
             <div class="column-toggle" id="usuarios-column-toggle">
               <button type="button" class="btn btn-secondary" id="btn-usuarios-columns" aria-haspopup="true" aria-expanded="false" aria-controls="usuarios-column-toggle-panel">
@@ -2774,6 +2775,27 @@
             </tr>
             <tr>
               <td>
+                <span class="perfil-badge perfil-ventas">Ventas</span>
+                <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
+              </td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no">
+                <span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span>
+                <span class="detalle-acceso">Solo lectura de IVA/zona horaria (para el total de la venta) y del buscador de productos si Inventarios está activo — nunca entra a Configuraciones ni a Inventarios.</span>
+              </td>
+            </tr>
+            <tr>
+              <td>
                 <span class="perfil-badge perfil-cliente">Cliente</span>
                 <span class="perfil-descripcion">Solo entra a login.html</span>
               </td>
@@ -2798,7 +2820,7 @@
 
       <div class="ticket-modal-body">
         <div class="ticket-modal-main">
-          <p class="panel-subtitle">Los perfiles "Administrador" y "Fiscal" pueden entrar al panel de administración; "Cliente" solo entra al portal público.</p>
+          <p class="panel-subtitle">Los perfiles "Administrador", "Fiscal" y "Ventas" pueden entrar al panel de administración; "Cliente" solo entra al portal público.</p>
 
           <div class="field">
             <label for="crear-usuario-perfil">Perfil</label>
@@ -2806,6 +2828,7 @@
               <option value="cliente">Cliente</option>
               <option value="administrador">Administrador</option>
               <option value="fiscal">Fiscal</option>
+              <option value="ventas">Ventas</option>
             </select>
           </div>
 
@@ -2899,6 +2922,7 @@
           <option value="cliente">Cliente</option>
           <option value="administrador">Administrador</option>
           <option value="fiscal">Fiscal</option>
+          <option value="ventas">Ventas</option>
         </select>
       </div>
 

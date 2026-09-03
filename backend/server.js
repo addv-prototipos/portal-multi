@@ -2826,7 +2826,7 @@ app.get(
 // Lista todas las cuentas de usuario, sin exponer el hash de la
 // contraseña. Sirve tanto para ubicar a un cliente y restablecer su
 // contraseña, como para administrar las cuentas de administradores/fiscales
-// creadas desde este mismo panel. Filtro opcional ?perfil=cliente|administrador|fiscal.
+// creadas desde este mismo panel. Filtro opcional ?perfil=cliente|administrador|fiscal|ventas.
 app.get(
   '/api/admin/usuarios',
   adminApiLimiter,
@@ -2834,7 +2834,7 @@ app.get(
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
     const perfil = sanitizeText(req.query.perfil, 20);
-    const perfilesValidos = ['cliente', 'administrador', 'fiscal'];
+    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas'];
 
     let sql = `SELECT id, rfc, telefono, email, debe_cambiar_password, perfil, creado_en, actualizado_en FROM usuarios`;
     const params = [];
@@ -2852,10 +2852,10 @@ app.get(
 // Crea una cuenta de usuario directamente desde el panel de administración
 // (a diferencia del alta de "cliente" normal, que el propio usuario hace
 // en login.html). Es la única forma de crear cuentas con perfil
-// "administrador" o "fiscal" — no hay registro público para esos perfiles,
-// a propósito, para que solo un administrador ya autenticado pueda otorgar
-// ese nivel de acceso. Para "cliente", el campo se valida como un RFC real;
-// para "administrador"/"fiscal", se trata como un nombre de usuario
+// "administrador", "fiscal" o "ventas" — no hay registro público para esos
+// perfiles, a propósito, para que solo un administrador ya autenticado
+// pueda otorgar ese nivel de acceso. Para "cliente", el campo se valida
+// como un RFC real; para los otros 3, se trata como un nombre de usuario
 // flexible (no todos tienen o quieren usar su RFC real para esto).
 app.post(
   '/api/admin/usuarios',
@@ -2865,9 +2865,9 @@ app.post(
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const perfil = sanitizeText(body.perfil, 20);
-    const perfilesValidos = ['cliente', 'administrador', 'fiscal'];
+    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas'];
     if (!perfilesValidos.includes(perfil)) {
-      return res.status(400).json({ error: 'Selecciona un perfil válido (cliente, administrador o fiscal).' });
+      return res.status(400).json({ error: 'Selecciona un perfil válido (cliente, administrador, fiscal o ventas).' });
     }
 
     let rfc = sanitizeText(body.rfc, 50).toUpperCase();
@@ -3013,9 +3013,9 @@ app.put(
 
     const body = req.body || {};
     const perfil = sanitizeText(body.perfil, 20);
-    const perfilesValidos = ['cliente', 'administrador', 'fiscal'];
+    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas'];
     if (!perfilesValidos.includes(perfil)) {
-      return res.status(400).json({ error: 'Selecciona un perfil válido (cliente, administrador o fiscal).' });
+      return res.status(400).json({ error: 'Selecciona un perfil válido (cliente, administrador, fiscal o ventas).' });
     }
 
     let rfc = sanitizeText(body.rfc, 50).toUpperCase();
@@ -3046,13 +3046,13 @@ app.put(
     }
 
     // Evita que un administrador se quite a sí mismo el acceso al panel
-    // por accidente, cambiando su propio perfil de administrador/fiscal a
-    // cliente mientras tiene la sesión iniciada con esa misma cuenta —
-    // mismo espíritu que ya protege a DELETE /api/admin/usuarios/:id
+    // por accidente, cambiando su propio perfil de administrador/fiscal/
+    // ventas a cliente mientras tiene la sesión iniciada con esa misma
+    // cuenta — mismo espíritu que ya protege a DELETE /api/admin/usuarios/:id
     // contra la auto-eliminación.
     if (
       usuarioActual.rfc === req.adminUser &&
-      ['administrador', 'fiscal'].includes(usuarioActual.perfil) &&
+      ['administrador', 'fiscal', 'ventas'].includes(usuarioActual.perfil) &&
       perfil === 'cliente'
     ) {
       return res.status(400).json({
@@ -3165,7 +3165,7 @@ app.get(
   '/api/admin/config/global',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador', 'fiscal'),
+  requireAdminArea('administrador', 'fiscal', 'ventas'),
   asyncHandler(async (req, res) => {
     const config = await getConfiguracionGlobal();
     // Punto 186: "Correo de contacto de la empresa" es un campo aparte de
@@ -3370,7 +3370,7 @@ app.get(
   '/api/admin/config/zonas-horarias',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador', 'fiscal'),
+  requireAdminArea('administrador', 'fiscal', 'ventas'),
   asyncHandler(async (req, res) => {
     res.json({ zonas: ZONAS_HORARIAS_MEXICO });
   })
@@ -3511,7 +3511,7 @@ app.post(
   '/api/admin/reportes/corte',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const desdeTexto = typeof req.body.desde === 'string' ? req.body.desde.trim() : '';
     const hastaTexto = typeof req.body.hasta === 'string' ? req.body.hasta.trim() : '';
@@ -4551,7 +4551,7 @@ app.post(
   '/api/admin/ordenes-compra',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
 
@@ -4893,7 +4893,7 @@ app.get(
   '/api/admin/ordenes-compra',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const periodo = typeof req.query.periodo === 'string' ? req.query.periodo.trim() : '';
     const incluirArchivadas = req.query.incluirArchivadas === 'true';
@@ -4964,7 +4964,7 @@ app.put(
   '/api/admin/ordenes-compra/:id/cobro',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
@@ -5357,7 +5357,7 @@ app.post(
   '/api/admin/ordenes-compra/:id/reenviar-correo',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -5448,7 +5448,7 @@ app.delete(
   '/api/admin/ordenes-compra/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -5590,7 +5590,7 @@ app.get(
   '/api/admin/gastos',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const verPapelera = req.query.papelera === 'true';
     const pagina = Math.max(1, Number(req.query.pagina) || 1);
@@ -5748,7 +5748,7 @@ app.post(
   '/api/admin/gastos',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const datos = await validarCuerpoGasto(req, res);
     if (!datos) return;
@@ -5791,7 +5791,7 @@ app.put(
   '/api/admin/gastos/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -5857,7 +5857,7 @@ app.delete(
   '/api/admin/gastos/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -5881,7 +5881,7 @@ app.post(
   '/api/admin/gastos/:id/restaurar',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -5908,7 +5908,7 @@ app.delete(
   '/api/admin/gastos/:id/permanente',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -5943,7 +5943,7 @@ app.post(
   '/api/admin/gastos/:id/comprobante',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   (req, res) => {
     subirConTenant(uploadComprobante, 'comprobante', req, res, async (err) => {
       if (err) {
@@ -6030,7 +6030,7 @@ app.delete(
   '/api/admin/gastos/:id/comprobante',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -6066,7 +6066,7 @@ app.get(
   '/api/admin/gastos/:id/comprobante',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -6106,7 +6106,7 @@ app.get(
   '/api/admin/gastos/categorias',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const categorias = await listarCategoriasGastos();
     res.json({ categorias });
@@ -6117,7 +6117,7 @@ app.post(
   '/api/admin/gastos/categorias',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const resultado = await crearCategoriaGasto(req.body && req.body.etiqueta);
     if (resultado.error) {
@@ -6133,7 +6133,7 @@ app.put(
   '/api/admin/gastos/categorias/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -6154,7 +6154,7 @@ app.delete(
   '/api/admin/gastos/categorias/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -6180,7 +6180,7 @@ app.post(
   '/api/admin/gastos/categorias/:id/reactivar',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -6209,7 +6209,7 @@ app.get(
   '/api/admin/periodos-archivados',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const [vRows] = await pool.query(
       "SELECT DISTINCT periodo_archivado AS periodo FROM ordenes_compra WHERE periodo_archivado IS NOT NULL ORDER BY periodo DESC"
@@ -6783,7 +6783,7 @@ app.get(
   '/api/admin/inventarios/productos/buscar',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const termino = typeof req.query.q === 'string' ? req.query.q.trim() : '';

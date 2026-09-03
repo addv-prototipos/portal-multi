@@ -3280,6 +3280,9 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .perfil-cliente { background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border); }
 .perfil-administrador { background: var(--color-accent-soft); color: var(--color-accent-dark); }
 .perfil-fiscal { background: var(--color-warn-soft); color: var(--color-warn); }
+/* Mismo verde ya validado para "listo"/éxito (.estatus-listo) — el perfil
+   "Ventas" no necesita un color nuevo, reutiliza la asociación existente. */
+.perfil-ventas { background: #DCEFE3; color: #146C43; }
 
 /* ---------- Tabla "Perfiles y roles de acceso" (solo para "admin") ----------
    Diseñada para escanearse de un vistazo: cada columna es un área del

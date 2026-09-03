@@ -265,6 +265,23 @@ describe('auth.js', () => {
       expect(req.adminMecanismo).toBe('perfil_bd');
     });
 
+    test('usuario administrativo real con perfil "ventas" puede autenticarse (punto 190)', async () => {
+      const hashGuardado = hashPassword('miClave123');
+      pool.query.mockResolvedValueOnce([
+        [{ rfc: 'ventas1', password_hash: hashGuardado, perfil: 'ventas' }],
+      ]);
+
+      const req = { headers: { authorization: basicAuthHeader('ventas1', 'miClave123') } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.adminPerfil).toBe('ventas');
+      expect(req.adminMecanismo).toBe('perfil_bd');
+    });
+
     test('password incorrecta para usuario administrativo real responde 401', async () => {
       const hashGuardado = hashPassword('miClave123');
       pool.query.mockResolvedValueOnce([

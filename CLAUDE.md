@@ -298,6 +298,23 @@ contra Docker real por curl tras rebuild `--no-cache`+`--force-recreate`
 del frontend y confirmado por el usuario en navegador real. Ver
 PROJECT_STATE.md puntos 188-189 para el detalle completo.
 
+**Punto 190 (2026-09-03, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
+reales y en navegador real)**: nuevo perfil de usuario "Ventas" — acceso
+solo a Ventas/Cuentas por cobrar/Gastos, nada más. Crítica real aplicada
+antes de implementar: Ventas depende de 3 datos ajenos a esas 3 pantallas
+(IVA%/zona horaria de Configuraciones, buscador de productos de
+Inventarios, "Corte del día" que usa el mismo endpoint que Reportes) —
+se dio acceso de SOLO LECTURA a esos 3 puntos sin abrir las secciones
+completas. 24 rutas backend ampliadas (`requireAdminArea`), CHECK
+`chk_usuarios_perfil` migrado (bug real encontrado contra MySQL real:
+sin la migración, crear el usuario daba 500 pese a que la capa de
+aplicación ya lo aceptaba), login (`verificarUsuarioAdministrativo`)
+ampliado, `PUT /config/global` deliberadamente SIN tocar (sin escritura
+para este perfil). Frontend: `RESTRICCIONES_PERFIL.ventas`, badge verde
+reutilizado, 3 selects de perfil, fila nueva en "Perfiles y roles de
+acceso". Jest backend 823/823. Ver PROJECT_STATE.md punto 190 para el
+detalle línea por línea. Sin commit/push todavía.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

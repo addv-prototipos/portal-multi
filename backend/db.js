@@ -423,8 +423,24 @@ async function ensureSchema(db = pool) {
   if (checkPerfil.length === 0) {
     await db.query(
       `ALTER TABLE usuarios ADD CONSTRAINT chk_usuarios_perfil
-       CHECK (perfil IN ('cliente', 'administrador', 'fiscal'))`
+       CHECK (perfil IN ('cliente', 'administrador', 'fiscal', 'ventas'))`
     );
+  } else {
+    // Punto 190 — perfil "Ventas": instalaciones que ya tenían el CHECK
+    // sin 'ventas' todavía (mismo patrón que chk_reportes_tipo/
+    // chk_gastos_categoria — MySQL no permite "ALTER CHECK", hay que
+    // tirarlo y volver a crearlo con la lista completa).
+    const [clausulaPerfil] = await db.query(
+      `SELECT CHECK_CLAUSE FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS
+       WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_usuarios_perfil'`
+    );
+    if (clausulaPerfil.length > 0 && !clausulaPerfil[0].CHECK_CLAUSE.includes('ventas')) {
+      await db.query('ALTER TABLE usuarios DROP CHECK chk_usuarios_perfil');
+      await db.query(
+        `ALTER TABLE usuarios ADD CONSTRAINT chk_usuarios_perfil
+         CHECK (perfil IN ('cliente', 'administrador', 'fiscal', 'ventas'))`
+      );
+    }
   }
 
   // Solicitudes de facturación de tickets/comprobantes de compra. Cada

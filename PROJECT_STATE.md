@@ -12072,6 +12072,58 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       **confirmado por el usuario en navegador real** ("ya lo revisé, ya
       funciona"). Commiteado y pusheado (`94d019e` → `fact/master`).
 
+  190. **Nuevo perfil "Ventas" — solo Ventas/Cuentas por cobrar/Gastos
+      (2026-09-03, IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales y en
+      navegador real)**: pedido explícito del usuario — protocolo completo
+      (análisis + crítica + propuesta visual antes/después en Artifact +
+      confirmación). **Crítica real aplicada**: "solo esas 3 pantallas" no
+      alcanzaba por sí solo — Ventas depende de 3 datos que viven fuera de
+      esas 3 vistas (IVA%/zona horaria de Configuraciones globales,
+      buscador de productos de Inventarios si está activo, "Corte del
+      día" que pega al mismo endpoint que Reportes) — se dio acceso
+      quirúrgico de SOLO LECTURA a esos 3 puntos sin exponer las secciones
+      completas de donde vienen. **Backend**: `chk_usuarios_perfil` (CHECK
+      de MySQL en `usuarios.perfil`) ampliado a incluir `'ventas'`, con
+      migración idempotente en `db.js` (mismo patrón que
+      `chk_reportes_tipo`/`chk_gastos_categoria` — DROP CHECK + ADD
+      CONSTRAINT si la instalación ya tenía el CHECK viejo). **Bug real
+      encontrado por la validación contra MySQL real, invisible para
+      Jest mockeado**: sin esta migración, crear un usuario "ventas" daba
+      500 (`ER_CHECK_CONSTRAINT_VIOLATED`) pese a que toda la capa de
+      aplicación (whitelist de `perfilesValidos`, `requireAdminArea`) ya
+      lo aceptaba — el CHECK de MySQL seguía con la lista vieja de 3
+      valores. `verificarUsuarioAdministrativo()` en `auth.js` ampliado
+      (sin esto, un usuario "ventas" ni podría iniciar sesión). 24 rutas
+      de `requireAdminArea('administrador')` ampliadas a incluir
+      `'ventas'` (familia `ordenes-compra` ×5, `gastos` ×14, `reportes/
+      corte`, `periodos-archivados`, `config/global` GET, `config/
+      zonas-horarias` GET, `inventarios/productos/buscar`) — **a
+      propósito NO se tocó el `PUT /config/global`** ni `PUT /config/
+      contacto-cliente` (el perfil nunca puede escribir configuración,
+      solo Ventas/CxC/Gastos manda datos). Guard de auto-protección de
+      perfil (evita que un admin se quite el acceso a sí mismo) ampliado
+      a considerar `'ventas'` como perfil de panel. **Frontend**:
+      `RESTRICCIONES_PERFIL.ventas` nuevo en `admin.js`
+      (`vistasPermitidas: ['ordenes','cxc','gastos']`, cero tarjetas de
+      configuración — el botón "Configuraciones globales" queda oculto
+      por completo, no solo grisado); badge nuevo `.perfil-ventas`
+      (mismo verde ya usado en `.estatus-listo`, sin inventar color);
+      opción "Ventas" agregada a los 3 `<select>` de perfil (filtro de
+      Usuarios, Crear usuario, Editar usuario); fila nueva en la tabla
+      "Perfiles y roles de acceso" (✓ solo en Ventas/CxC/Gastos, con nota
+      explicando la dependencia de solo lectura). Jest backend
+      **823/823** (9 tests nuevos: acceso 200 a ordenes-compra/gastos/
+      cobro/corte, acceso 403 a usuarios/config-global-PUT, login vía
+      `perfil_bd`). Validado de punta a punta contra Docker/MySQL reales
+      por `curl` (matriz completa: 200 en ordenes-compra/gastos/cobro/
+      corte/config-global-GET, 403 en config-global-PUT/usuarios/
+      inventarios-dashboard/reportes-estadisticas) y **en navegador real**
+      (Claude in Chrome): login real, sidebar con solo las 3 vistas
+      permitidas, aterriza directo en "Ventas", modal "Registrar venta"
+      carga el IVA sin error, Cuentas por cobrar y Gastos funcionan sin
+      errores de consola tras refresh completo de página. Usuario de
+      prueba creado y borrado al final, sin dejar residuos.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

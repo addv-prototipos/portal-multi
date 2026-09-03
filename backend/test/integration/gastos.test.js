@@ -68,6 +68,18 @@ describe('Admin: Gastos', () => {
       expect(res.status).toBe(403);
     });
 
+    test('perfil "ventas" sí tiene acceso (punto 190)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+      pool.query.mockResolvedValueOnce([[{ total: 0 }]]); // COUNT
+      pool.query.mockResolvedValueOnce([[]]); // filas
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      pool.query.mockResolvedValueOnce([
+        [{ mes_actual: '0', con_factura: '0', sin_factura: '0', mes_anterior: '0', cantidad: 0 }],
+      ]); // resumen
+      const res = await request(app).get('/api/admin/gastos').auth(usuario, password);
+      expect(res.status).toBe(200);
+    });
+
     test('lista gastos activos con resumen de KPIs (perfil administrador)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       pool.query.mockResolvedValueOnce([[{ total: 1 }]]); // COUNT

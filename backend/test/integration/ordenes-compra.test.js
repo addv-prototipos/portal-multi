@@ -181,6 +181,13 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       expect(res.status).toBe(403);
     });
 
+    test('perfil "ventas" sí tiene acceso (punto 190) — pasa el gate y llega a la lógica real', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+      pool.query.mockResolvedValueOnce([[]]); // SELECT -> no existe, prueba que no fue un 403
+      const res = await request(app).put('/api/admin/ordenes-compra/999/cobro').auth(usuario, password).send({ monto: 100 });
+      expect(res.status).toBe(404);
+    });
+
     test('monto inválido (cero o negativo) responde 400', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       const res = await request(app).put('/api/admin/ordenes-compra/1/cobro').auth(usuario, password).send({ monto: 0 });
@@ -560,6 +567,16 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
         { producto_id: 6, cantidad: 1, sku: 'PAP-6', nombre: 'Papel' },
       ]);
     });
+
+    test('perfil "ventas" sí tiene acceso (punto 190)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+      pool.query.mockResolvedValueOnce([[]]); // SELECT ordenes -> ninguna
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+
+      const res = await request(app).get('/api/admin/ordenes-compra').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+    });
   });
 
   describe('DELETE /api/admin/ordenes-compra/:id con producto (reingreso automático)', () => {
@@ -682,6 +699,17 @@ describe('POST /api/admin/reportes/corte (punto 168: "Corte del día" en Ventas)
       .auth(usuario, password)
       .send({ desde: '2026-08-01', hasta: '2026-08-31' });
     expect(res.status).toBe(403);
+  });
+
+  test('perfil "ventas" sí tiene acceso (punto 190) — el botón "Corte del día" vive dentro de Ventas', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+    pool.query.mockResolvedValueOnce([[]]); // SELECT ordenes -> ninguna
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+    const res = await request(app)
+      .post('/api/admin/reportes/corte')
+      .auth(usuario, password)
+      .send({ desde: '2026-08-01', hasta: '2026-08-31' });
+    expect(res.status).toBe(200);
   });
 
   test('calcula subtotal/IVA/facturado/cobrado correctamente y guarda el reporte (tipo "corte")', async () => {

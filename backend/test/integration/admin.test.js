@@ -75,6 +75,22 @@ describe('Admin', () => {
       expect(res.body.iva_porcentaje).toBe(16);
     });
 
+    test('perfil "ventas" puede LEER la configuración global (punto 190, IVA/zona horaria para Registrar venta)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      const res = await request(app).get('/api/admin/config/global').auth(usuario, password);
+      expect(res.status).toBe(200);
+    });
+
+    test('perfil "ventas" NO puede ESCRIBIR la configuración global (403, punto 190)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+      const res = await request(app)
+        .put('/api/admin/config/global')
+        .auth(usuario, password)
+        .send({ iva_porcentaje: 8 });
+      expect(res.status).toBe(403);
+    });
+
     test('perfil "fiscal" puede cambiar el IVA pero NO correo_reportes (403)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
       const res = await request(app)
@@ -140,6 +156,12 @@ describe('Admin', () => {
   describe('/api/admin/usuarios', () => {
     test('GET requiere perfil administrador (fiscal responde 403)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      const res = await request(app).get('/api/admin/usuarios').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+
+    test('GET requiere perfil administrador (ventas responde 403, punto 190)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
       const res = await request(app).get('/api/admin/usuarios').auth(usuario, password);
       expect(res.status).toBe(403);
     });
