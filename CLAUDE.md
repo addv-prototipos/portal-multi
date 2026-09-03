@@ -352,8 +352,26 @@ de GUARDAR dentro del modal en vez del botón real del toolbar — fix de
 selector (`#btn-abrir-orden-modal`). Validado con 3 cuentas de prueba
 temporales por perfil, creadas y borradas en la misma sesión, sin dejar
 residuos. Jest backend 823/823 (sin cambios de backend). Ver
-PROJECT_STATE.md punto 192 para el detalle línea por línea. Sin
-commit/push todavía.
+PROJECT_STATE.md punto 192 para el detalle línea por línea.
+**Commiteada y pusheada** (`e32be42` → `fact/master`, 2026-09-03).
+
+**Punto 193 (2026-09-03, IMPLEMENTADO Y VALIDADO contra Docker real y en
+navegador real)**: Fase 3 — paridad de tooltips en `/control` (cierra las
+3 fases de la auditoría UX del punto 191). Alcance acotado a propósito
+(solo tooltips — `/control` no tiene vistas tipo Ventas/CxC/Gastos, así
+que "ayuda por vista"/estados vacíos con guía no aplican). **Hallazgo
+real**: el componente `[data-tooltip]` ya vivía en `style.css`
+(compartido), pero el JS que lo activa solo existía en `admin.js` —
+`/control` nunca tuvo NINGÚN tooltip funcionando. Portado tal cual a
+`control.js` (`inicializarTooltips()`, sin adaptar). 4 campos fiscales
+sin explicar en "Nueva empresa"/"Editar empresa" (Razón Social, Régimen
+fiscal, Tipo de persona, Clave SAT — mismos 4 de la Fase 1 en `/admin`)
+ganan el ícono "?", con texto ADAPTADO al contexto real (un operador
+tecleando a mano al dar de alta, no el dueño del tenant con su CSF ya
+autocompletada). Validado en navegador real: 8 íconos (4 campos × 2
+modales), tooltip abre con el texto correcto, cero errores de consola.
+Jest control 119/119 (sin cambios de backend). Ver PROJECT_STATE.md
+punto 193. Sin commit/push todavía.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

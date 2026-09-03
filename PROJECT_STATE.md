@@ -12232,7 +12232,38 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       residuos) — los 3 perfiles confirmados en navegador real: checklist
       con el conteo/orden correcto, "Ir →" navega, "Ocultar" persiste tras
       reload, tour completo (3 pasos) sin recortes, no se repite tras
-      reload. Jest backend 823/823 (sin cambios de backend). Sin
+      reload. Jest backend 823/823 (sin cambios de backend).
+      **Commiteado y pusheado** (`e32be42` → `fact/master`, 2026-09-03).
+
+  193. **Fase 3 de la auditoría UX — paridad de tooltips en `/control`
+      (2026-09-03, IMPLEMENTADA Y VALIDADA contra Docker real y en
+      navegador real, punto 191 completo — las 3 fases quedan cerradas)**:
+      alcance acotado a propósito (memoria persistente lo describía como
+      "riesgo bajo, 100% reuso de la Fase 1") — `/control` es un solo CRUD
+      de tenants (sin vistas Ventas/CxC/Gastos como `/admin`), así que no
+      aplica "ayuda por vista" ni estados vacíos con guía, solo tooltips.
+      **Hallazgo real**: el componente `[data-tooltip]`/`.tooltip-
+      personalizado` ya vivía en `style.css` (compartido por `/admin` y
+      `/control`), pero el JS que lo activa (`inicializarTooltips()`,
+      listeners delegados de mouseover/focusin/scroll) solo existía dentro
+      de `admin.js` — `/control` nunca tuvo NINGÚN tooltip funcionando
+      pese a tener la CSS disponible gratis. Portado tal cual a
+      `control.js` (mismo código, sin adaptar — ya era genérico) y llamado
+      en `init()`. 4 campos fiscales sin explicar en los modales "Nueva
+      empresa" y "Editar empresa" (Razón Social, Régimen fiscal, Tipo de
+      persona, Clave SAT — los mismos 4 que ya tenían tooltip en
+      `/admin` › Configuraciones fiscales desde la Fase 1) ganan el mismo
+      ícono "?" — **texto adaptado, no copiado literal**: la versión de
+      `/admin` dice "se lee solo de tu Constancia de Situación Fiscal"
+      (el dueño del tenant ya subió su CSF y el campo se autocompleta),
+      pero en `/control` es un operador tecleando estos datos A MANO al
+      dar de alta un tenant nuevo — el texto dice en cambio "está en la
+      Constancia de Situación Fiscal que te dé el cliente". Contenido
+      conceptual idéntico (qué es cada campo), tono ajustado al contexto
+      real de quien lo lee. Validado en navegador real: 8 íconos "?" (4
+      campos × 2 modales) confirmados, tooltip de "Razón Social" abre con
+      el texto correcto y el mismo globo oscuro que `/admin`, cero errores
+      de consola. Jest control 119/119 (sin cambios de backend). Sin
       commit/push todavía.
 
 ## Limitaciones de ESTE entorno de generación (importante)

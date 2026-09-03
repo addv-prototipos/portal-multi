@@ -1760,9 +1760,76 @@
     else if (els.sucursalesGrupoOverlay && !els.sucursalesGrupoOverlay.hidden) cerrarGrupoModal();
   });
 
+  // ---------- Tooltips (Fase 3 UX, paridad con admin.js — punto 191/193) ----------
+  // Idéntico a inicializarTooltips() de admin.js: mismo componente
+  // [data-tooltip]/.tooltip-personalizado, ya definido en style.css
+  // (compartido por /admin y /control) — aquí solo faltaba el JS que lo
+  // activa, /control nunca lo tuvo.
+  function inicializarTooltips() {
+    const tooltipEl = document.createElement('div');
+    tooltipEl.className = 'tooltip-personalizado';
+    tooltipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(tooltipEl);
+
+    function posicionar(target) {
+      const margen = 8;
+      const targetRect = target.getBoundingClientRect();
+      const tooltipRect = tooltipEl.getBoundingClientRect();
+
+      let top = targetRect.top - tooltipRect.height - margen;
+      let flechaArriba = false;
+      if (top < margen) {
+        top = targetRect.bottom + margen;
+        flechaArriba = true;
+      }
+
+      let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+      left = Math.max(margen, Math.min(left, window.innerWidth - tooltipRect.width - margen));
+
+      tooltipEl.style.top = `${top}px`;
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.classList.toggle('tooltip-flecha-arriba', flechaArriba);
+    }
+
+    function mostrar(target) {
+      const texto = target.getAttribute('data-tooltip');
+      if (!texto) return;
+      tooltipEl.textContent = texto;
+      tooltipEl.classList.remove('is-visible');
+      posicionar(target);
+      requestAnimationFrame(() => {
+        posicionar(target);
+        requestAnimationFrame(() => tooltipEl.classList.add('is-visible'));
+      });
+    }
+
+    function ocultar() {
+      tooltipEl.classList.remove('is-visible');
+    }
+
+    document.addEventListener('mouseover', (e) => {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) mostrar(target);
+    });
+    document.addEventListener('mouseout', (e) => {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) ocultar();
+    });
+    document.addEventListener('focusin', (e) => {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) mostrar(target);
+    });
+    document.addEventListener('focusout', (e) => {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) ocultar();
+    });
+    document.addEventListener('scroll', ocultar, true);
+  }
+
   // ---------- Inicialización ----------
 
   (function init() {
+    inicializarTooltips();
     const authHeader = getAuthHeader();
     if (authHeader) {
       fetch(`${API_BASE}/tenants`, { headers: { Authorization: authHeader } })
