@@ -12263,8 +12263,8 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       real de quien lo lee. Validado en navegador real: 8 íconos "?" (4
       campos × 2 modales) confirmados, tooltip de "Razón Social" abre con
       el texto correcto y el mismo globo oscuro que `/admin`, cero errores
-      de consola. Jest control 119/119 (sin cambios de backend). Sin
-      commit/push todavía.
+      de consola. Jest control 119/119 (sin cambios de backend).
+      **Commiteado y pusheado** (`5837751` → `fact/master`).
 
 ## Limitaciones de ESTE entorno de generación (importante)
 
@@ -12411,11 +12411,8 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   sesión** (mismo hueco ya documentado en puntos anteriores) — falta
   confirmación visual del usuario con clics reales. Con esto, las 4
   fases de la auditoría UX completa (`/admin` puntos 191-192, `/control`
-  punto 193, portal de cliente punto 194) quedan implementadas. Sin
-  commit/push todavía — pendiente decidir con el usuario si se
-  commitea junto con el resto de trabajo sin publicar de esta sesión
-  (puntos 188-193 varios ya commiteados/pusheados por separado, revisar
-  working tree antes de agrupar).
+  punto 193, portal de cliente punto 194) quedan implementadas.
+  **Commiteado y pusheado** (`4b75fea` → `fact/master`).
 
 - **Fase 5 de la auditoría UX "que nadie necesite un manual" — `/control`
   (punto 195, 2026-09-03, IMPLEMENTADA Y VALIDADA por HTTP contra Docker
@@ -12462,7 +12459,8 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   herramienta de navegador en esta sesión** — falta confirmación visual
   del usuario con clics reales. Con esto, las 5 fases de la auditoría UX
   completa (`/admin` 191-192, `/control` 193+195, portal cliente 194)
-  quedan implementadas. Sin commit/push todavía.
+  quedan implementadas. **Commiteado y pusheado** (`f8ca6b3` →
+  `fact/master`).
 
 - **Centro de conocimiento — manual completo de `/admin` (punto 196,
   2026-09-03, IMPLEMENTADO Y VALIDADO por HTTP contra Docker real)**:
@@ -12519,8 +12517,8 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   presentes en el HTML/JS servido. **Sin herramienta de navegador en
   esta sesión** — falta confirmación visual del usuario con clics
   reales, sobre todo la animación de entrada por paso y el resaltado de
-  búsqueda (ambos solo verificables interactuando de verdad). Sin
-  commit/push todavía.
+  búsqueda (ambos solo verificables interactuando de verdad).
+  **Commiteado y pusheado** (`28875ed` → `fact/master`).
 
 ## Dónde está todo (mapa rápido)
 

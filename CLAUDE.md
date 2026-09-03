@@ -393,8 +393,8 @@ usado en el resto de ese archivo. Cero cambios de backend. Jest backend
 `--force-recreate` frontend (el primer rebuild no recogió `login.js`,
 mismo gotcha de siempre): los 7 textos confirmados en el HTML servido.
 **Sin herramienta de navegador esta sesión** — falta confirmación
-visual del usuario. Ver PROJECT_STATE.md punto 194. Sin commit/push
-todavía.
+visual del usuario. Ver PROJECT_STATE.md punto 194. **Commiteado y
+pusheado** (`4b75fea` → `fact/master`).
 
 **Punto 195 (2026-09-03, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
 real)**: Fase 5 — `/control`, extiende la Fase 3/punto 193 (que había
@@ -417,7 +417,7 @@ rebuild `--no-cache`+`--force-recreate` frontend: los 8 hallazgos
 confirmados en el HTML/JS servido. **Sin herramienta de navegador esta
 sesión** — falta confirmación visual del usuario. Con esto, las 5 fases
 de la auditoría UX completa quedan implementadas. Ver PROJECT_STATE.md
-punto 195. Sin commit/push todavía.
+punto 195. **Commiteado y pusheado** (`f8ca6b3` → `fact/master`).
 
 **Punto 196 (2026-09-03, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
 real)**: Centro de conocimiento — manual completo de `/admin`, pedido
@@ -442,7 +442,7 @@ backend 823/823 (sin cambios). Validado por HTTP tras rebuild
 `--no-cache`+`--force-recreate` frontend. **Sin herramienta de
 navegador esta sesión** — falta confirmación visual del usuario, en
 particular la animación de entrada por paso. Ver PROJECT_STATE.md
-punto 196. Sin commit/push todavía.
+punto 196. **Commiteado y pusheado** (`28875ed` → `fact/master`).
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
