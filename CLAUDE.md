@@ -419,6 +419,31 @@ sesión** — falta confirmación visual del usuario. Con esto, las 5 fases
 de la auditoría UX completa quedan implementadas. Ver PROJECT_STATE.md
 punto 195. Sin commit/push todavía.
 
+**Punto 196 (2026-09-03, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: Centro de conocimiento — manual completo de `/admin`, pedido
+explícito del usuario pidiendo React/Next y ubicación dentro de
+Configuraciones globales. Protocolo completo (impacto+crítica+Artifact
+con demo interactivo antes/después+cuestionario) con **2 correcciones
+confirmadas por el usuario**: (1) vanilla JS/CSS en vez de React/Next
+— rompía el principio "sin build step" del sitio y exigía un 4º
+servicio Docker con runtime Node para contenido estático; las mismas
+animaciones (entrada escalonada, resaltado de búsqueda) se lograron con
+CSS + JS puro, cero dependencia nueva; (2) ícono fijo en el sidebar en
+vez de dentro de Configuraciones globales — esa vista está oculta por
+completo para el perfil "Ventas" (`admin.js:1441-1444`), así que ahí el
+manual habría quedado inaccesible para ese perfil. 13 categorías (todas
+las vistas reales de `/admin`, incluidas Inicio/Tickets/Constancias del
+perfil Fiscal que la propuesta inicial no cubría) en
+`CONOCIMIENTO_CATEGORIAS`, mismo shell que "Configuraciones globales"
+(`.config-modal-sidebar`/`-main` reusados) pero con clase de nav item
+propia (`.conocimiento-nav-item`) para no engancharse a los listeners
+globales del modal de Configuraciones. Cero cambio de backend. Jest
+backend 823/823 (sin cambios). Validado por HTTP tras rebuild
+`--no-cache`+`--force-recreate` frontend. **Sin herramienta de
+navegador esta sesión** — falta confirmación visual del usuario, en
+particular la animación de entrada por paso. Ver PROJECT_STATE.md
+punto 196. Sin commit/push todavía.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

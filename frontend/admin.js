@@ -611,6 +611,18 @@
     ayudaVistaModalTitle: document.getElementById('ayuda-vista-modal-title'),
     ayudaVistaContenido: document.getElementById('ayuda-vista-contenido'),
     btnAyudaVistaCerrar: document.getElementById('btn-ayuda-vista-cerrar'),
+    // Centro de conocimiento (Fase 6 UX) — manual completo de /admin
+    btnAbrirConocimiento: document.getElementById('btn-abrir-conocimiento'),
+    conocimientoOverlay: document.getElementById('conocimiento-modal-overlay'),
+    conocimientoSidebar: document.getElementById('conocimiento-modal-sidebar'),
+    conocimientoBuscar: document.getElementById('conocimiento-modal-buscar'),
+    conocimientoNav: document.getElementById('conocimiento-modal-nav'),
+    conocimientoNavEmpty: document.getElementById('conocimiento-modal-nav-empty'),
+    conocimientoMain: document.getElementById('conocimiento-modal-main'),
+    conocimientoTitle: document.getElementById('conocimiento-modal-title'),
+    conocimientoMainBody: document.getElementById('conocimiento-modal-main-body'),
+    conocimientoBtnVolver: document.getElementById('conocimiento-modal-btn-volver'),
+    btnCerrarConocimiento: document.getElementById('btn-cerrar-conocimiento-modal'),
     btnOrdenesEmptyRegistrar: document.getElementById('btn-ordenes-empty-registrar'),
     btnCxcEmptyRegistrar: document.getElementById('btn-cxc-empty-registrar'),
     btnGastosEmptyRegistrar: document.getElementById('btn-gastos-empty-registrar'),
@@ -11820,6 +11832,257 @@
   function prefersReducedMotion() {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
+
+  // ---------- Centro de conocimiento (Fase 6 UX) ----------
+  // Manual completo de /admin — mismo shell que "Configuraciones globales"
+  // (config-modal-sidebar/main reusados tal cual) pero con contenido propio
+  // aquí, 100% frontend, cero endpoint nuevo (mismo criterio que
+  // AYUDA_VISTAS). Acceso desde un ícono fijo en el sidebar, NUNCA dentro
+  // de Configuraciones globales — el perfil "Ventas" no tiene esa vista
+  // (RESTRICCIONES_PERFIL más arriba), así que un manual completo ahí
+  // habría quedado inalcanzable para ese perfil.
+  const CONOCIMIENTO_CATEGORIAS = {
+    'primeros-pasos': {
+      titulo: 'Primeros pasos',
+      lead: 'Lo mínimo para dejar el panel operando el primer día.',
+      pasos: [
+        { t: 'Completa tus datos fiscales', d: 'Configuraciones globales → Configuraciones fiscales. Sin esto, tickets y facturas no se pueden generar.' },
+        { t: 'Da de alta a tu equipo', d: 'Usuarios → Crear usuario. Elige el perfil correcto (Administrador, Fiscal o Ventas) según lo que esa persona necesite hacer — cada perfil ve solo sus secciones.' },
+        { t: 'Revisa el checklist de Inicio', d: 'Aparece solo ahí hasta que completes sus 3-4 pasos según tu perfil — te va guiando, no hace falta memorizar nada.' },
+        { t: 'Vuelve aquí cuando lo necesites', d: 'Este manual queda siempre a un clic, en el ícono de libro junto a "Cerrar sesión" — en cualquier vista, con cualquier perfil.' },
+      ],
+    },
+    inicio: {
+      titulo: 'Inicio',
+      lead: 'La pantalla de entrada del perfil Fiscal — estado general de los tickets.',
+      pasos: [
+        { t: 'Qué muestra', d: 'Estadísticas y una dona de tickets por estatus (pendiente, en curso, listo, cancelado) — la foto del día.' },
+        { t: 'Checklist "Primeros pasos"', d: 'Se muestra solo mientras te falten pasos por completar — desaparece solo cuando terminas.' },
+        { t: 'Accesos rápidos', d: 'Desde aquí saltas directo a Tickets o Constancias sin pasar por el sidebar.' },
+      ],
+    },
+    tickets: {
+      titulo: 'Tickets',
+      lead: 'Revisar solicitudes de factura y generar la factura final.',
+      pasos: [
+        { t: 'Revisar una solicitud', d: 'Ábrela desde la tabla — verás la venta ligada, la imagen del ticket y los datos que capturó el cliente.' },
+        { t: 'Generar la factura', d: 'Sube el ZIP con XML+PDF ya generados en tu sistema de facturación — el cliente recibe el correo y puede descargarla desde su portal.' },
+        { t: 'Pago pendiente bloquea la factura', d: 'Si la venta ligada sigue "Pendiente" de cobro (Cuentas por cobrar), no se puede facturar hasta registrar el pago.' },
+        { t: 'Retención automática', d: 'Los tickets se borran solos después de los días configurados en Configuraciones globales — es a propósito, no es un error si uno desaparece.' },
+      ],
+    },
+    constancias: {
+      titulo: 'Constancias',
+      lead: 'Registros de clientes con su Constancia de Situación Fiscal.',
+      pasos: [
+        { t: 'Buscar una constancia', d: 'Por RFC, nombre o correo — el buscador filtra al instante.' },
+        { t: 'Verificar los datos extraídos', d: 'El sistema lee el PDF automáticamente (RFC, régimen, razón social) — revisa que coincidan antes de generar una factura con esos datos.' },
+        { t: 'Reenviar invitación al portal', d: 'Si el cliente perdió su acceso, desde aquí se reenvía el correo con el enlace de nuevo.' },
+      ],
+    },
+    ventas: {
+      titulo: 'Ventas',
+      lead: 'Registrar, cobrar y hacer el corte del día.',
+      pasos: [
+        { t: 'Registrar una venta', d: 'Botón "+ Registrar venta" → Productos → Confirmar → Entrega (correo o imprimir). El modal se limpia y se queda abierto para varias ventas seguidas.' },
+        { t: 'Marcar como pendiente de cobro', d: 'En el paso de Confirmar, cambia el toggle a "Pendiente" y define fecha de vencimiento — aparecerá en Cuentas por cobrar hasta que la cobres.' },
+        { t: 'Generar el corte del día', d: 'Botón "Corte del día" junto a Registrar venta → elige el rango de fechas → imprime o consulta en pantalla. Queda guardado en Reportes → pestaña Cortes.' },
+        { t: 'Filtrar y buscar', d: 'Filtros de concepto, fecha, total y estado de pago arriba de la tabla — funcionan al instante, sin recargar la página.' },
+        { t: 'Modo sin conexión', d: 'Si se va el internet, la venta se guarda localmente y se sincroniza sola al reconectar — la franja de arriba avisa cuándo pasa cada cosa.' },
+      ],
+    },
+    cxc: {
+      titulo: 'Cuentas por cobrar',
+      lead: 'Ventas pendientes de cobro y su seguimiento.',
+      pasos: [
+        { t: 'Los 4 indicadores', d: 'Por cobrar (total pendiente), Vencidas (ya pasó la fecha), Por vencer (a tiempo) y Cobrado del mes.' },
+        { t: 'Registrar un cobro', d: 'Abre la venta desde la tabla y captura el pago — total o parcial, el saldo se actualiza solo.' },
+        { t: 'No se puede facturar mientras esté pendiente', d: 'Una venta con saldo por cobrar no se puede facturar en Tickets hasta que se registre el cobro completo.' },
+      ],
+    },
+    gastos: {
+      titulo: 'Gastos',
+      lead: 'Control administrativo de los gastos de la operación.',
+      pasos: [
+        { t: 'Registrar un gasto', d: 'Botón "Registrar gasto" — categoría, monto, si el IVA ya está incluido, y si es recurrente (solo para tu referencia, no se genera automático).' },
+        { t: 'Categorías editables', d: 'Desde el mismo modal, ícono "✏️ Categorías" — renombra, crea nuevas o desactiva las que no uses. "Otro" nunca se puede borrar.' },
+        { t: 'Adjuntar comprobante', d: 'PDF o ZIP opcional, se guarda junto al gasto y se puede descargar o quitar después.' },
+        { t: 'Papelera', d: 'Un gasto eliminado va a la papelera — se puede restaurar o borrar en definitivo desde ahí.' },
+      ],
+    },
+    inventarios: {
+      titulo: 'Inventarios',
+      lead: 'Productos, servicios y existencias — módulo opcional.',
+      pasos: [
+        { t: 'Actívalo primero', d: 'Configuraciones globales → interruptor "Inventario activo". Antes de eso, la sección permanece oculta para todos los perfiles.' },
+        { t: 'Dar de alta un producto o servicio', d: 'Botón "Nuevo producto/servicio" — un servicio pide solo 10 de los 14 campos (sin stock ni código de barras) y su unidad siempre es "Hora".' },
+        { t: 'Registrar entradas y salidas', d: 'Menú "⋮" de cada fila — cada movimiento queda en el historial permanente, nunca editable una vez guardado.' },
+        { t: 'Importar catálogo', d: 'Botón "Importar catálogo" → sube un CSV/XLSX → el sistema detecta las columnas solo, con vista previa antes de confirmar. Solo para productos, no servicios.' },
+        { t: 'Código de barras con la cámara', d: 'En Ventas o al dar de alta un producto, el ícono de cámara escanea el código y llena el campo solo.' },
+        { t: '"Solamente servicios"', d: 'Si tu negocio no maneja stock físico, actívalo en Configuraciones — oculta todo lo relacionado a productos y existencias.' },
+      ],
+    },
+    proveedores: {
+      titulo: 'Proveedores',
+      lead: 'Sección en construcción.',
+      pasos: [
+        { t: 'Disponible próximamente', d: 'Por ahora es solo un aviso — los proveedores de un gasto se siguen capturando como texto libre dentro de Gastos.' },
+      ],
+    },
+    reportes: {
+      titulo: 'Reportes',
+      lead: '"Lectura de reportes" — todo lo que se archivó o eliminó, con auditoría.',
+      pasos: [
+        { t: 'Las 4 pestañas', d: 'Por reporte (mensuales), Cortes (Corte del día de Ventas), Todo lo eliminado (ledger cruzado) y Estado del inventario.' },
+        { t: 'Corte del día vs. cierre mensual', d: 'El corte es una consulta bajo demanda que tú generas; el cierre mensual es automático, el día 1 de cada mes, y archiva Ventas/Gastos del mes anterior.' },
+        { t: 'Exportar', d: 'Cada tabla (Movimientos/Eliminados) tiene su propio botón de exportar a CSV o Excel.' },
+        { t: 'Ver quién generó un reporte', d: 'Botón "Ver historial" cruza contra la auditoría del sistema — mejor esfuerzo, no siempre hay dato disponible.' },
+      ],
+    },
+    usuarios: {
+      titulo: 'Usuarios y perfiles',
+      lead: 'Quién entra al panel y qué puede hacer.',
+      pasos: [
+        { t: 'Los 3 perfiles', d: 'Administrador (todo salvo Tickets/Constancias), Fiscal (solo Inicio/Tickets/Constancias/Configuraciones limitadas), Ventas (solo Ventas/Cuentas por cobrar/Gastos).' },
+        { t: 'Crear un usuario', d: 'Botón "Crear usuario" — usuario, contraseña y perfil. El acceso es inmediato, sin correo de confirmación.' },
+        { t: 'Restablecer contraseña', d: 'El propio usuario puede pedirlo desde la pantalla de login con "¿Olvidaste tu contraseña?" — llega un enlace de un solo uso, válido 30 minutos.' },
+      ],
+    },
+    'resumen-financiero': {
+      titulo: 'Resumen financiero',
+      lead: 'La foto completa del mes, con gráficas — perfil Administrador.',
+      pasos: [
+        { t: 'Los 4 KPIs del mes', d: 'Total facturado, total gastos, balance ventas vs. gastos y ventas sin facturar.' },
+        { t: '"Utilidad neta del mes"', d: 'La cifra más completa: ventas totales (con y sin facturar) menos gastos — separa el IVA cobrado antes de restar.' },
+        { t: 'Gráficas y su detalle', d: 'Cada tarjeta tiene un ícono de expandir que la abre en grande, con más contexto y la leyenda como filtro clicable.' },
+        { t: 'Personalizar tu tablero', d: 'Arrastra cualquier tarjeta para moverla o cambiar su ancho — se guarda automático, por usuario. Botón "Restablecer" regresa al orden original.' },
+      ],
+    },
+    configuraciones: {
+      titulo: 'Configuraciones globales',
+      lead: 'Ajustes que cambian el comportamiento de todo el panel.',
+      pasos: [
+        { t: 'Las 6 secciones', d: 'Campos obligatorios, Configuraciones fiscales, SMTP, Configuración de reportes, Ventas e Inventarios — un buscador arriba filtra entre ellas.' },
+        { t: 'Interruptores globales', d: '"Habilitar Ventas" y "Inventario activo" — apagados, esas secciones se ocultan por completo para todos los perfiles, sin excepción.' },
+        { t: 'Correo (SMTP)', d: 'De aquí sale cada correo automático de la app — confirmaciones de venta, factura lista, invitaciones. Sin configurarlo, esos correos no se envían.' },
+      ],
+    },
+  };
+
+  function renderCategoriaConocimiento(catKey, termino) {
+    const datos = CONOCIMIENTO_CATEGORIAS[catKey];
+    if (!datos || !els.conocimientoMainBody) return;
+    const reducido = prefersReducedMotion();
+    let html = `<h3 class="conocimiento-cat-titulo">${escapeHtml(datos.titulo)}</h3><p class="conocimiento-cat-lead">${escapeHtml(datos.lead)}</p>`;
+    datos.pasos.forEach((p, i) => {
+      let t = escapeHtml(p.t);
+      let d = escapeHtml(p.d);
+      let esMatch = false;
+      if (termino) {
+        const re = new RegExp(`(${termino.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig');
+        if (re.test(t) || re.test(d)) {
+          esMatch = true;
+          t = t.replace(re, '<mark>$1</mark>');
+          d = d.replace(re, '<mark>$1</mark>');
+        }
+      }
+      html += `
+        <div class="conocimiento-paso" style="transition-delay:${reducido ? 0 : i * 55}ms">
+          <div class="conocimiento-paso-rail"><div class="conocimiento-paso-num">${i + 1}</div><div class="conocimiento-paso-linea"></div></div>
+          <div class="conocimiento-paso-tarjeta${esMatch ? ' is-match' : ''}"><b>${t}</b><p>${d}</p></div>
+        </div>`;
+    });
+    els.conocimientoMainBody.innerHTML = html;
+    els.conocimientoTitle.textContent = datos.titulo;
+    els.conocimientoMainBody.scrollTop = 0;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        els.conocimientoMainBody.querySelectorAll('.conocimiento-paso').forEach((el) => el.classList.add('is-in'));
+      });
+    });
+  }
+
+  let conocimientoCatActual = 'primeros-pasos';
+
+  function seleccionarCategoriaConocimiento(catKey) {
+    if (!CONOCIMIENTO_CATEGORIAS[catKey]) return;
+    conocimientoCatActual = catKey;
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.cat === catKey);
+    });
+    renderCategoriaConocimiento(catKey, els.conocimientoBuscar.value.trim());
+  }
+
+  function mostrarCategoriaMovilConocimiento() {
+    els.conocimientoSidebar.classList.add('is-oculta-movil');
+    els.conocimientoMain.classList.remove('is-oculta-movil');
+  }
+  function mostrarListaMovilConocimiento() {
+    els.conocimientoSidebar.classList.remove('is-oculta-movil');
+    els.conocimientoMain.classList.add('is-oculta-movil');
+  }
+
+  function filtrarConocimiento() {
+    const q = els.conocimientoBuscar.value.trim().toLowerCase();
+    if (!q) {
+      els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => { btn.hidden = false; });
+      els.conocimientoNavEmpty.hidden = true;
+      renderCategoriaConocimiento(conocimientoCatActual, '');
+      return;
+    }
+    const coincidencias = new Set();
+    Object.entries(CONOCIMIENTO_CATEGORIAS).forEach(([key, datos]) => {
+      const texto = (datos.titulo + ' ' + datos.pasos.map((p) => `${p.t} ${p.d}`).join(' ')).toLowerCase();
+      if (texto.includes(q)) coincidencias.add(key);
+    });
+    let algunaVisible = false;
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+      const visible = coincidencias.has(btn.dataset.cat);
+      btn.hidden = !visible;
+      if (visible) algunaVisible = true;
+    });
+    els.conocimientoNavEmpty.hidden = algunaVisible;
+    if (coincidencias.size && !coincidencias.has(conocimientoCatActual)) {
+      conocimientoCatActual = coincidencias.values().next().value;
+      els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.cat === conocimientoCatActual);
+      });
+    }
+    renderCategoriaConocimiento(conocimientoCatActual, q);
+  }
+
+  function abrirConocimiento() {
+    els.conocimientoBuscar.value = '';
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => { btn.hidden = false; });
+    els.conocimientoNavEmpty.hidden = true;
+    seleccionarCategoriaConocimiento('primeros-pasos');
+    mostrarListaMovilConocimiento();
+    els.conocimientoOverlay.hidden = false;
+  }
+  function cerrarConocimiento() {
+    els.conocimientoOverlay.hidden = true;
+  }
+
+  if (els.btnAbrirConocimiento) els.btnAbrirConocimiento.addEventListener('click', abrirConocimiento);
+  if (els.btnCerrarConocimiento) els.btnCerrarConocimiento.addEventListener('click', cerrarConocimiento);
+  if (els.conocimientoOverlay) {
+    els.conocimientoOverlay.addEventListener('click', (e) => {
+      if (e.target === els.conocimientoOverlay) cerrarConocimiento();
+    });
+  }
+  if (els.conocimientoBtnVolver) els.conocimientoBtnVolver.addEventListener('click', mostrarListaMovilConocimiento);
+  if (els.conocimientoBuscar) els.conocimientoBuscar.addEventListener('input', filtrarConocimiento);
+  if (els.conocimientoNav) {
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        seleccionarCategoriaConocimiento(btn.dataset.cat);
+        mostrarCategoriaMovilConocimiento();
+      });
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && els.conocimientoOverlay && !els.conocimientoOverlay.hidden) cerrarConocimiento();
+  });
 
   // ---------- Primeros pasos + recorrido de bienvenida (Fase 2 UX, punto 191) ----------
   // Todo 100% frontend, cero endpoint nuevo: los pasos se derivan de datos que

@@ -202,7 +202,8 @@
   padding: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
-.admin-sidebar-logout {
+.admin-sidebar-logout,
+.admin-sidebar-ayuda {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -219,10 +220,12 @@
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.admin-sidebar-logout:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.admin-sidebar-logout:hover, .admin-sidebar-ayuda:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.admin-sidebar-ayuda { margin-bottom: 4px; }
 
 .admin-sidebar-nav .admin-vista-btn:focus-visible,
-.admin-sidebar-logout:focus-visible {
+.admin-sidebar-logout:focus-visible,
+.admin-sidebar-ayuda:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px #05DBF2;
 }
@@ -293,9 +296,11 @@
     border-left: 1px solid rgba(255, 255, 255, 0.1);
     padding: 8px 10px;
     flex-shrink: 0;
+    display: flex;
+    gap: 4px;
   }
-  .admin-sidebar-logout span:last-child { display: none; }
-  .admin-sidebar-logout { padding: 8px; justify-content: center; }
+  .admin-sidebar-logout span:last-child, .admin-sidebar-ayuda span:last-child { display: none; }
+  .admin-sidebar-logout, .admin-sidebar-ayuda { width: auto; padding: 8px; justify-content: center; margin-bottom: 0; }
 }
 
 /* Launcher de íconos (menú móvil) — grid simétrico de 2 columnas,
@@ -826,7 +831,8 @@
   gap: 2px;
   padding: 4px 8px 12px;
 }
-.config-modal-nav-item {
+.config-modal-nav-item,
+.conocimiento-nav-item {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -840,10 +846,11 @@
   font-weight: 600;
   color: var(--color-ink-soft);
   text-align: left;
+  width: 100%;
 }
-.config-modal-nav-item svg { flex-shrink: 0; }
-.config-modal-nav-item:hover { background: var(--color-accent-soft); color: var(--color-accent-dark); }
-.config-modal-nav-item.is-active { background: #05DBF2; color: #03285B; }
+.config-modal-nav-item svg, .conocimiento-nav-item svg { flex-shrink: 0; }
+.config-modal-nav-item:hover, .conocimiento-nav-item:hover { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.config-modal-nav-item.is-active, .conocimiento-nav-item.is-active { background: #05DBF2; color: #03285B; }
 .config-modal-nav-empty {
   padding: 6px 14px 14px;
   font-size: 12.5px;
@@ -915,6 +922,68 @@
 .config-modal-main-body .admin-config-body {
   padding: 0;
   border-top: none;
+}
+
+/* Centro de conocimiento (Fase 6 UX) — contenido de cada categoría es un
+   "stepper" numerado (mismo lenguaje visual navy/cyan del panel), con
+   entrada escalonada por paso vía IntersectionObserver (ver admin.js) y
+   resaltado de coincidencias de búsqueda. Solo depende de .config-modal-
+   main-body como contenedor — ver reglas arriba. */
+.conocimiento-cat-titulo {
+  font-family: var(--font-display);
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+.conocimiento-cat-lead {
+  font-size: 13.5px;
+  color: var(--color-ink-soft);
+  margin: 0 0 20px;
+  max-width: 58ch;
+}
+.conocimiento-paso {
+  display: flex;
+  gap: 13px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.32s cubic-bezier(0.2, 0.7, 0.3, 1), transform 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.conocimiento-paso.is-in { opacity: 1; transform: translateY(0); }
+.conocimiento-paso-rail { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.conocimiento-paso-num {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #03285B;
+  color: #05DBF2;
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.conocimiento-paso-linea { width: 2px; flex: 1; background: var(--color-border); margin: 4px 0; min-height: 14px; }
+.conocimiento-paso:last-child .conocimiento-paso-linea { display: none; }
+.conocimiento-paso-tarjeta {
+  flex: 1;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+  margin-bottom: 14px;
+}
+.conocimiento-paso-tarjeta.is-match { box-shadow: 0 0 0 2px #05DBF2; animation: conocimientoPulso 1.1s ease 1; }
+@keyframes conocimientoPulso {
+  0% { box-shadow: 0 0 0 2px #05DBF2; }
+  50% { box-shadow: 0 0 0 5px rgba(5, 219, 242, 0.35); }
+  100% { box-shadow: 0 0 0 2px #05DBF2; }
+}
+.conocimiento-paso-tarjeta b { display: block; font-size: 13.5px; margin-bottom: 3px; }
+.conocimiento-paso-tarjeta p { font-size: 13px; color: var(--color-ink-soft); margin: 0; }
+.conocimiento-paso-tarjeta mark { background: #FFE9A8; color: var(--color-ink); border-radius: 3px; padding: 0 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .conocimiento-paso { transition: none; opacity: 1; transform: none; }
+  .conocimiento-paso-tarjeta.is-match { animation: none; }
 }
 
 @media (max-width: 760px) {

@@ -12464,6 +12464,64 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   completa (`/admin` 191-192, `/control` 193+195, portal cliente 194)
   quedan implementadas. Sin commit/push todavía.
 
+- **Centro de conocimiento — manual completo de `/admin` (punto 196,
+  2026-09-03, IMPLEMENTADO Y VALIDADO por HTTP contra Docker real)**:
+  pedido explícito del usuario ("agrega un centro de conocimiento para
+  el uso completo de la app... utiliza react o next"), con protocolo
+  completo — impacto + crítica + propuesta visual en Artifact con demo
+  interactivo (antes/después con animaciones reales funcionando) +
+  cuestionario de confirmación. **2 correcciones sobre el pedido
+  original, ambas confirmadas por el usuario**: (1) tecnología — React/
+  Next rompía el principio de arquitectura del sitio (100% vanilla, sin
+  build step, documentado a propósito en `CLAUDE.md`) y habría exigido
+  un 4º servicio Docker con runtime Node.js solo para servir contenido
+  estático; se construyó con CSS + JS vanilla, mismas técnicas de
+  animación ya probadas en el sitio (entrada escalonada, resaltado de
+  búsqueda) — cero dependencia nueva, cero build, cero contenedor
+  nuevo; (2) ubicación — el pedido original era dentro de
+  "Configuraciones globales" como última tarjeta, pero esa vista está
+  **completamente oculta para el perfil "Ventas"**
+  (`RESTRICCIONES_PERFIL.ventas.vistasPermitidas` no incluye
+  `'configuraciones'`, `admin.js:1441-1444`) — un manual ahí habría
+  dejado a ese perfil sin acceso. Se movió a un ícono fijo en el pie
+  del sidebar (`#btn-abrir-conocimiento`, junto a "Cerrar sesión"),
+  visible para los 4 perfiles sin excepción, en cualquier vista.
+  **Alcance**: las 13 vistas reales de `/admin` (Primeros pasos, Inicio,
+  Tickets, Constancias, Ventas, Cuentas por cobrar, Gastos, Inventarios,
+  Proveedores, Reportes, Usuarios y perfiles, Resumen financiero,
+  Configuraciones globales) — más amplio que las "9 categorías" del
+  Artifact de propuesta porque el usuario eligió la opción "todas de
+  una vez" y el manual debe cubrir "todo el admin", incluidas las 3
+  vistas propias del perfil Fiscal que la propuesta inicial había
+  omitido. **Técnico**: mismo shell que "Configuraciones globales"
+  (`.config-modal`/`.config-modal-sidebar`/`.config-modal-main`
+  reusados tal cual — sidebar+buscador+panel, comportamiento móvil con
+  botón "volver" incluido gratis) pero con clase de nav item PROPIA
+  (`.conocimiento-nav-item`, nunca `.config-modal-nav-item`) para no
+  engancharse a los listeners globales `seleccionarSeccionConfig()`/
+  `filtrarNavConfig()` que ya existen para el modal de Configuraciones.
+  Contenido en `CONOCIMIENTO_CATEGORIAS` (objeto JS, mismo patrón que
+  `AYUDA_VISTAS` del punto 191) — 13 categorías × 3-6 pasos cada una,
+  numerados con conector vertical (mismo lenguaje visual navy/cyan del
+  panel). Animación: cada paso entra con fade+traslado escalonado
+  (`transition-delay` por índice, igual que el prototipo del Artifact)
+  al cambiar de categoría o al abrir el modal; búsqueda en vivo filtra
+  categorías Y resalta coincidencias dentro de cada paso con un pulso
+  de contorno cyan; todo respeta `prefers-reduced-motion` (sin
+  transición, sin animación, contenido visible de inmediato). Cero
+  cambio de backend. `node --check` limpio, CSS balanceado (1050/1050
+  llaves), HTML balanceado (661/661 `<div>`), IDs sin duplicar
+  (verificado), Jest backend **823/823** (sin cambios, corrido por
+  sanidad). Validado por HTTP contra Docker real tras rebuild
+  `--no-cache`+`--force-recreate` del frontend: ícono, modal, 13
+  categorías y las 3 funciones JS (`CONOCIMIENTO_CATEGORIAS`,
+  `renderCategoriaConocimiento`, `abrirConocimiento`) confirmados
+  presentes en el HTML/JS servido. **Sin herramienta de navegador en
+  esta sesión** — falta confirmación visual del usuario con clics
+  reales, sobre todo la animación de entrada por paso y el resaltado de
+  búsqueda (ambos solo verificables interactuando de verdad). Sin
+  commit/push todavía.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
