@@ -114,6 +114,29 @@ describe('Admin', () => {
     });
   });
 
+  describe('PUT /api/admin/config/contacto-cliente (punto 186)', () => {
+    test('perfil "fiscal" no tiene acceso (403), misma regla que correo_reportes', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      const res = await request(app)
+        .put('/api/admin/config/contacto-cliente')
+        .auth(usuario, password)
+        .send({ contacto_email: 'contacto@empresa.com' });
+
+      expect(res.status).toBe(403);
+    });
+
+    test('sin contexto de tenant (sitio base) responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      const res = await request(app)
+        .put('/api/admin/config/contacto-cliente')
+        .auth(usuario, password)
+        .send({ contacto_email: 'contacto@empresa.com' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/tenant/);
+    });
+  });
+
   describe('/api/admin/usuarios', () => {
     test('GET requiere perfil administrador (fiscal responde 403)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');

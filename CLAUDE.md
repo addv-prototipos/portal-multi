@@ -1441,6 +1441,28 @@ texto libre) — ese sigue sin implementar, es la ronda de refinamiento
 que falta. Jest backend 807/807, control 119/119. Sin commit/push
 todavía.
 
+**Reset completo del entorno local + correo de contacto de clientes en
+"Configuración Reportes" + fix de "Perfiles y roles de acceso" (ver
+PROJECT_STATE.md punto 186, 2026-09-02, IMPLEMENTADO Y VALIDADO en
+navegador real)**: `docker compose down -v` + `up -d --build` a pedido
+del usuario, reaprovisionamiento de `pruebaadmin`/`piloto9c` +
+`sembrar-demo.js` (margen positivo confirmado los 5 meses). **2 bugs
+reales de infraestructura, sin relación con código de la app**: (1)
+`control_app` no existe en un volumen nuevo hasta correr el bootstrap de
+`asegurarControlYPrivilegios()` a mano; (2) reaprovisionar con
+`DB_HOST=127.0.0.1` (necesario desde el host) dejó ese mismo valor
+grabado en `control_tenants.tenants.db_host`, que el backend necesita
+como `mysql` — corregido con `UPDATE` + restart de `backend` (limpia el
+pool de tenant cacheado en memoria). Feature: "Correo de contacto de la
+empresa" (`contacto_email`, antes solo editable en `/control`) ahora
+también en `/admin` › Configuraciones globales › Configuración
+Reportes, subsección aparte "Contacto con clientes" (propio botón de
+guardado, no se mezcla con "correo_reportes" — conceptos distintos).
+Escribe el MISMO dato que `/control` vía `obtenerPoolControl()`, sin
+duplicar; oculto en el sitio base. Modal "Perfiles y roles de acceso"
+corregido (le faltaban 6 de 12 columnas) y ampliado a 1180px. Jest
+backend 811/811. Commiteado y pusheado.
+
 **Pendiente registrado (ver PROJECT_STATE.md punto 137)**: Swagger para
   los servicios API + credenciales de acceso por empresa dadas de alta en
   `/control` — cada tenant accede solo a sus APIs; el SUPER admin con un

@@ -11890,6 +11890,73 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       super), `/admin` sin tenant — los 9 sin cambios, cero regresión.
       Sin commit/push todavía.
 
+  186. **Reset completo del entorno local + reaprovisionamiento + correo
+      de contacto de clientes en "Configuración Reportes" + fix de la
+      tabla "Perfiles y roles de acceso" (2026-09-02)**: a pedido del
+      usuario, `docker compose down -v` (borró MySQL+MinIO completos,
+      incluidos los 7 tenants registrados) + `up -d --build` desde cero.
+      **Bug real de primer arranque encontrado y corregido**: en un
+      volumen nuevo, `control_app` (usuario MySQL angosto del segmento
+      9b) no existe hasta correr el bootstrap de
+      `asegurarControlYPrivilegios()` (mismo mecanismo de
+      `provisionar-tenant.js`) — el contenedor `control` entraba en
+      crash-loop (`ER_ACCESS_DENIED_ERROR`) hasta correrlo a mano una
+      vez contra el puerto 3306 expuesto. Reaprovisionados
+      `pruebaadmin`/`piloto9c` vía `provisionar-tenant.js` +
+      `sembrar-demo.js --confirmar` (mismo script/semilla del punto
+      155/158/185 — cifras idénticas en ambos a propósito). Margen
+      positivo verificado por SQL directo los 5 meses (abr–ago 2026:
+      +$177,299 / +$156,164 / +$55,722 / +$175,353 / +$90,564).
+      **Segundo bug real, encontrado validando la feature de abajo**: el
+      reaprovisionamiento se corrió con `DB_HOST=127.0.0.1` (necesario
+      para que el script raíz conecte desde el host) — pero ese mismo
+      valor quedó grabado como `tenants.db_host` en `control_tenants`,
+      que el backend usa DESDE DENTRO del contenedor para armar el pool
+      de cada tenant (`obtenerPoolTenant()`, cacheado por slug para
+      siempre en memoria) — cualquier ruta admin de esos 2 tenants daba
+      `ECONNREFUSED 127.0.0.1:3306`. Fix: `UPDATE control_tenants.tenants
+      SET db_host='mysql'` + restart de `backend` (única forma de
+      invalidar el pool ya cacheado, no hay un evict expuesto para
+      esto). **Feature nueva**: "Correo de contacto de la empresa"
+      (`contacto_email`) — hasta ahora solo editable desde `/control`
+      (punto 170) — ahora también desde `/admin` › Configuraciones
+      globales › Configuración Reportes, en una subsección aparte
+      ("Contacto con clientes", con su propio botón de guardado) para
+      no mezclarse con "correo_reportes" (concepto distinto: uno es el
+      envío interno en Markdown antes del borrado, el otro es a dónde
+      llegan las aclaraciones de un cliente sobre sus movimientos).
+      Escribe directo en `control_tenants.tenants.contacto_email` vía
+      `obtenerPoolControl()` (mismo pool que ya usa
+      `admin_auditoria`) — sin duplicar el dato, con
+      `invalidarCacheTenant()` in-process tras guardar (no hace falta el
+      salto HTTP `/internal/cache-tenant/invalidar` que usa `/control`
+      porque este escritor vive en el mismo proceso que la caché).
+      `GET /api/admin/config/global` gana `tenant_activo`/
+      `contacto_email_cliente` de solo lectura; `PUT
+      /api/admin/config/contacto-cliente` nuevo, mismas reglas que
+      `normalizarDatosBase()` de `/control` (obligatorio, formato
+      válido), mismo perfil permitido que `correo_reportes`
+      (administrador/super, fiscal bloqueado). Oculto por completo en
+      el sitio base (sin fila en `control_tenants`). Propuesta
+      antes/después en Artifact aprobada antes de implementar (regla
+      persistente del usuario). **Segundo pedido, mismo día**: modal
+      "Perfiles y roles de acceso" (`/admin` › Usuarios) desactualizado
+      — solo tenía 6 de las 12 columnas reales (faltaban Inicio,
+      Resumen financiero, Cuentas por cobrar, Gastos, Inventarios,
+      Proveedores) y el detalle de "Administrador" en Configuraciones
+      globales no mencionaba "Ventas"/"Inventarios" (sí las tiene,
+      confirmado contra `RESTRICCIONES_PERFIL` en `admin.js`). Modal
+      ampliado 760px→1180px (`.perfiles-acceso-modal-ancho`, mismo
+      patrón que `.inv-kardex-modal`) + tabla reconstruida con las 12
+      columnas reales + `min-width:1100px` con scroll horizontal de
+      respaldo (`.tabla-perfiles-wrap`, ya lo tenía). Ambos cambios
+      validados de punta a punta en navegador real (Claude in Chrome)
+      contra Docker/MySQL reales, incluido el ciclo de guardado real del
+      correo de contacto (confirmado el mismo dato en
+      `control_tenants.tenants` por SQL directo) y la ocultación
+      correcta en el sitio base. Jest backend **811/811** (2 tests
+      nuevos para el endpoint de contacto). Commiteado y pusheado.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

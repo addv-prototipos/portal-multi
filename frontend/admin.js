@@ -699,6 +699,11 @@
     reportesConfigError: document.getElementById('reportes-config-error'),
     btnGuardarConfigReportes: document.getElementById('btn-guardar-config-reportes'),
     btnGuardarConfigReportesLabel: document.getElementById('btn-guardar-config-reportes-label'),
+    contactoClienteBloque: document.getElementById('contacto-cliente-bloque'),
+    configContactoCliente: document.getElementById('config-contacto-cliente'),
+    contactoClienteError: document.getElementById('contacto-cliente-error'),
+    btnGuardarContactoCliente: document.getElementById('btn-guardar-contacto-cliente'),
+    btnGuardarContactoClienteLabel: document.getElementById('btn-guardar-contacto-cliente-label'),
     btnEnviarReporteManual: document.getElementById('btn-enviar-reporte-manual'),
     btnEnviarReporteManualLabel: document.getElementById('btn-enviar-reporte-manual-label'),
     errorEnviarReporteManual: document.getElementById('error-enviar-reporte-manual'),
@@ -2365,6 +2370,13 @@
       if (!res.ok) return;
       const config = await res.json();
       els.configCorreoReportes.value = config.correo_reportes || '';
+      // Punto 186: "Contacto con clientes" solo existe dentro de un tenant
+      // real (control_tenants no tiene fila para el sitio base) — se
+      // oculta el bloque entero en vez de mostrarlo vacío/deshabilitado.
+      els.contactoClienteBloque.hidden = !config.tenant_activo;
+      if (config.tenant_activo) {
+        els.configContactoCliente.value = config.contacto_email_cliente || '';
+      }
     } catch (err) {
       // El formulario se queda con lo que ya tenía; se puede reintentar guardando de nuevo.
     }
@@ -2405,6 +2417,53 @@
     } finally {
       els.btnGuardarConfigReportes.disabled = false;
       els.btnGuardarConfigReportesLabel.textContent = 'Guardar cambios';
+    }
+  });
+
+  // Punto 186: "Correo de contacto de la empresa" — mismo dato que
+  // control_tenants.tenants.contacto_email (el que edita /control),
+  // endpoint propio porque escribe en otra base, no en la config de este
+  // tenant. Obligatorio a diferencia de "correo de reportes".
+  els.btnGuardarContactoCliente.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    els.contactoClienteError.textContent = '';
+    setFieldError('config-contacto-cliente', '');
+
+    const contactoCliente = els.configContactoCliente.value.trim();
+    if (!contactoCliente) {
+      setFieldError('config-contacto-cliente', 'El correo de contacto es obligatorio.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactoCliente)) {
+      setFieldError('config-contacto-cliente', 'Captura un correo válido.');
+      return;
+    }
+
+    els.btnGuardarContactoCliente.disabled = true;
+    els.btnGuardarContactoClienteLabel.textContent = 'Guardando…';
+    try {
+      const res = await fetch(`${API_BASE}/admin/config/contacto-cliente`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contacto_email: contactoCliente }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.contactoClienteError.textContent = data.error || 'No se pudo guardar el correo de contacto.';
+        return;
+      }
+      els.configContactoCliente.value = data.contacto_email || contactoCliente;
+      showToast('Correo de contacto guardado.');
+    } catch (err) {
+      els.contactoClienteError.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      els.btnGuardarContactoCliente.disabled = false;
+      els.btnGuardarContactoClienteLabel.textContent = 'Guardar correo de contacto';
     }
   });
 

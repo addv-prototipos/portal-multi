@@ -738,6 +738,24 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* Punto 186: subsección "Contacto con clientes" dentro de "Configuración
+   Reportes" — separada por línea punteada del correo de reportes (dato
+   distinto, con su propio botón de guardado) en vez de mezclarse en un
+   solo bloque. */
+.admin-config-divider {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--color-border);
+}
+.admin-config-subsection-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  margin: 0 0 12px;
+}
+
 /* "Configuraciones globales" como modal (antes vista de página con 6
    tarjetas plegables) — cada .admin-config-card sigue existiendo tal
    cual dentro de .config-modal-main-body, pero solo una se muestra a
@@ -3250,7 +3268,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   width: 100%;
   border-collapse: collapse;
   font-size: 12.5px;
-  min-width: 640px;
+  min-width: 1100px;
 }
 .tabla-perfiles thead th {
   text-align: left;
@@ -4256,6 +4274,17 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
    con una segunda clase que ya usa .gastos-detalle-modal arriba. */
 .inv-kardex-modal {
   max-width: 1080px;
+  width: 94vw;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+/* "Perfiles y roles de acceso" (12 columnas: 11 vistas + Configuraciones
+   globales) — .gastos-detalle-modal (760px) se quedaba corto y truncaba
+   columnas a la derecha; mismo patrón que .inv-kardex-modal para una
+   tabla ancha, con scroll horizontal de respaldo (.tabla-perfiles-wrap)
+   si aun así no cabe en una pantalla angosta. */
+.perfiles-acceso-modal-ancho {
+  max-width: 1180px;
   width: 94vw;
   max-height: calc(100vh - 40px);
   overflow-y: auto;

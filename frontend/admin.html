@@ -2039,6 +2039,22 @@
             </button>
           </div>
 
+          <div class="admin-config-divider" id="contacto-cliente-bloque" hidden>
+            <p class="admin-config-subsection-titulo">Contacto con clientes</p>
+            <div class="field">
+              <label for="config-contacto-cliente">Correo de contacto de la empresa</label>
+              <input type="email" id="config-contacto-cliente" placeholder="contacto@empresa.com" autocomplete="off" />
+              <p class="field-hint">A este correo llegan las aclaraciones que un cliente manda desde el portal sobre sus movimientos con la empresa ("Solicitar aclaraciones"). Es el mismo dato que se edita en /control — cambiarlo aquí o allá actualiza lo mismo. No se puede dejar vacío.</p>
+              <p class="field-error" id="error-config-contacto-cliente" role="alert"></p>
+            </div>
+            <p class="field-error" id="contacto-cliente-error" role="alert"></p>
+            <div class="btn-row admin-config-actions">
+              <button type="button" class="btn btn-primary" id="btn-guardar-contacto-cliente">
+                <span id="btn-guardar-contacto-cliente-label">Guardar correo de contacto</span>
+              </button>
+            </div>
+          </div>
+
           <div class="reportes-envio-manual">
             <div class="reportes-envio-manual-texto">
               <strong>Enviar reporte ahora</strong>
@@ -2647,7 +2663,7 @@
   <!-- Crear usuario ============================================================================ -->
   <!-- Perfiles y roles de acceso — solo visible para el usuario "admin" -->
   <div class="modal-overlay" id="perfiles-acceso-overlay" hidden>
-    <div class="modal gastos-modal gastos-detalle-modal" role="dialog" aria-modal="true" aria-labelledby="perfiles-acceso-title">
+    <div class="modal gastos-modal gastos-detalle-modal perfiles-acceso-modal-ancho" role="dialog" aria-modal="true" aria-labelledby="perfiles-acceso-title">
       <div class="gastos-modal-header">
         <h2 id="perfiles-acceso-title">Perfiles y roles de acceso</h2>
         <button type="button" class="btn-icon" id="btn-perfiles-acceso-cerrar" aria-label="Cerrar">✕</button>
@@ -2656,17 +2672,26 @@
       <p class="panel-subtitle admin-config-subtitle">
         Referencia de qué puede ver cada perfil en este panel — solo tú, como usuario <strong>"admin"</strong>, puedes ver esta tabla. No es un formulario: los permisos no se editan aquí, están definidos en el código del panel.
       </p>
+      <p class="panel-subtitle admin-config-subtitle">
+        "Ventas" e "Inventarios" además dependen de sus interruptores globales propios (Configuraciones globales) — si están apagados, no se muestran a nadie sin importar el perfil.
+      </p>
 
       <div class="tabla-perfiles-wrap">
         <table class="tabla-perfiles">
           <thead>
             <tr>
               <th scope="col">Perfil</th>
-              <th scope="col">Constancias</th>
+              <th scope="col">Inicio</th>
               <th scope="col">Tickets</th>
+              <th scope="col">Constancias</th>
+              <th scope="col">Resumen financiero</th>
               <th scope="col">Ventas</th>
+              <th scope="col">Cuentas por cobrar</th>
+              <th scope="col">Gastos</th>
+              <th scope="col">Inventarios</th>
               <th scope="col">Usuarios</th>
               <th scope="col">Reportes</th>
+              <th scope="col">Proveedores</th>
               <th scope="col">Configuraciones globales</th>
             </tr>
           </thead>
@@ -2676,6 +2701,12 @@
                 <span class="perfil-badge perfil-administrador">Super</span>
                 <span class="perfil-descripcion">Cuenta "admin" y ADMIN_USERS</span>
               </td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
               <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
               <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
               <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
@@ -2693,12 +2724,18 @@
               </td>
               <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
               <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
               <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
               <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
               <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
               <td class="celda-acceso-si">
                 <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Solo Configuraciones fiscales y Configuración Reportes</span>
+                <span class="detalle-acceso">Configuraciones fiscales, Configuración Reportes, Ventas, Inventarios</span>
               </td>
             </tr>
             <tr>
@@ -2708,12 +2745,18 @@
               </td>
               <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
               <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
               <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
               <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
               <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
               <td class="celda-acceso-si">
                 <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Solo Campos obligatorios y Configuraciones fiscales</span>
+                <span class="detalle-acceso">Campos obligatorios, Configuraciones fiscales</span>
               </td>
             </tr>
             <tr>
@@ -2721,7 +2764,7 @@
                 <span class="perfil-badge perfil-cliente">Cliente</span>
                 <span class="perfil-descripcion">Solo entra a login.html</span>
               </td>
-              <td class="celda-acceso-no" colspan="6">
+              <td class="celda-acceso-no" colspan="12">
                 <span class="detalle-acceso detalle-acceso-ancho">Sin acceso al panel de administración — este perfil solo puede iniciar sesión en el portal de usuario (login.html y sus páginas).</span>
               </td>
             </tr>

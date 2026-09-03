@@ -3168,6 +3168,16 @@ app.get(
   requireAdminArea('administrador', 'fiscal'),
   asyncHandler(async (req, res) => {
     const config = await getConfiguracionGlobal();
+    // Punto 186: "Correo de contacto de la empresa" es un campo aparte de
+    // "correo_reportes" (ese es interno, este es el que ve /control y usa
+    // la burbuja "Solicitar aclaraciones" del portal) — vive en
+    // control_tenants.tenants, no en la config de este tenant, así que se
+    // agrega aquí solo de lectura junto con la config normal para que el
+    // frontend arme la tarjeta con una sola llamada. `tenant_activo` le
+    // dice al frontend si mostrar la sección (no aplica al sitio base,
+    // que no tiene fila en control_tenants).
+    config.tenant_activo = !!req.tenant;
+    config.contacto_email_cliente = req.tenant ? req.tenant.contactoEmail || null : null;
     res.json(config);
   })
 );
@@ -3213,6 +3223,42 @@ app.put(
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
+  })
+);
+
+// Punto 186: "Correo de contacto de la empresa" — a propósito un endpoint
+// aparte de PUT /api/admin/config/global (esta escritura va a
+// control_tenants.tenants, no a la config del tenant). Mismo campo que
+// edita /control (segmento 170, tenantEdicion.js/normalizarDatosBase):
+// obligatorio, formato de correo válido, nunca vacío — mismas reglas, sin
+// duplicar dato. Solo administrador/super, igual que "correo_reportes".
+app.put(
+  '/api/admin/config/contacto-cliente',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador', 'fiscal'),
+  asyncHandler(async (req, res) => {
+    if (req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar el correo de contacto.' });
+    }
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Esta configuración solo aplica dentro de una empresa (tenant).' });
+    }
+    const contactoEmail = typeof req.body.contacto_email === 'string'
+      ? req.body.contacto_email.trim().toLowerCase()
+      : '';
+    if (!contactoEmail) {
+      return res.status(400).json({ error: 'El correo de contacto de la empresa es obligatorio.' });
+    }
+    if (!isValidEmail(contactoEmail)) {
+      return res.status(400).json({ error: 'El correo de contacto no tiene un formato válido.' });
+    }
+    await obtenerPoolControl().query(
+      'UPDATE tenants SET contacto_email = ? WHERE slug = ?',
+      [contactoEmail, req.tenant.slug]
+    );
+    invalidarCacheTenant(req.tenant.slug);
+    res.json({ ok: true, contacto_email: contactoEmail });
   })
 );
 
