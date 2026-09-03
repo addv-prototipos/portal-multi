@@ -616,6 +616,15 @@
     btnGastosEmptyRegistrar: document.getElementById('btn-gastos-empty-registrar'),
     gastosFiltroEmpty: document.getElementById('gastos-filtro-empty'),
     gastosPapeleraEmpty: document.getElementById('gastos-papelera-empty'),
+    // Recorrido de bienvenida (Fase 2 UX, punto 191)
+    onboardingTourOverlay: document.getElementById('onboarding-tour-overlay'),
+    onboardingTourHueco: document.getElementById('onboarding-tour-hueco'),
+    onboardingTourGlobo: document.getElementById('onboarding-tour-globo'),
+    onboardingTourContador: document.getElementById('onboarding-tour-contador'),
+    onboardingTourTitulo: document.getElementById('onboarding-tour-titulo'),
+    onboardingTourDesc: document.getElementById('onboarding-tour-desc'),
+    btnOnboardingTourSaltar: document.getElementById('btn-onboarding-tour-saltar'),
+    btnOnboardingTourSiguiente: document.getElementById('btn-onboarding-tour-siguiente'),
     // Toggle "Inventario activo" (vista Usuarios)
     btnToggleInvCard: document.getElementById('btn-toggle-inv-card'),
     invToggleChevron: document.getElementById('inv-toggle-chevron'),
@@ -1390,6 +1399,9 @@
   // tarjetas — el resto ni siquiera se muestra, no solo se deshabilita.
   let perfilActual = null;
   let usuarioSesionActual = null;
+  // Primeros pasos (Fase 2 UX, punto 191): null mientras no se sabe todavía
+  // (recién entrando, antes de que cargarConfigGlobal resuelva).
+  let datosFiscalesCompletos = null;
   // Si "Ventas" está deshabilitada globalmente (interruptor "Habilitar
   // Ventas" en Configuraciones) — combinado con la restricción de perfil
   // dentro de aplicarRestriccionesPerfil() para que ninguna de las dos
@@ -1542,6 +1554,12 @@
     // arriba, pero en sentido inverso).
     if (perfilActual !== 'fiscal') cargarConfigInventario();
     cargarSucursalesHermanas();
+    // Primeros pasos (Fase 2 UX): la vista "Inicio" de fiscal no siempre
+    // dispara cambiarVistaPrincipal() al iniciar sesión (ya es la vista
+    // activa por defecto, sin necesidad de redirigir) — se llama aquí
+    // también para no depender de eso. verificarDatosFiscalesFaltantes()
+    // la vuelve a llamar en cuanto ese dato esté listo.
+    renderOnboardingChecklist();
   }
 
   // §58: switcher de sucursales — solo se muestra si este tenant pertenece
@@ -1753,6 +1771,13 @@
     cerrarPreview();
     cerrarTicketModal();
     cerrarPasswordModal();
+    // Primeros pasos (Fase 2 UX): si otra cuenta inicia sesión en esta
+    // misma pestaña, debe poder ver su propio checklist/tour desde cero
+    // (cada uno tiene su propia clave en localStorage, pero el "ya se
+    // disparó" del tour y el dato fiscal viven en memoria de esta pestaña).
+    datosFiscalesCompletos = null;
+    tourDisparadoEnEstaSesion = false;
+    cerrarTourBienvenida();
     cambiarVistaPrincipal('inicio');
     state.vista = 'activos';
     els.btnVerActivos.classList.add('is-active');
@@ -2150,9 +2175,11 @@
   function verificarDatosFiscalesFaltantes(config) {
     const faltaRfc = !(config.rfc_compania || '').trim();
     const faltaClaveSat = !(config.clave_sat || '').trim();
+    datosFiscalesCompletos = !(faltaRfc || faltaClaveSat);
     if (faltaRfc || faltaClaveSat) {
       els.configFiscalFaltanteOverlay.hidden = false;
     }
+    renderOnboardingChecklist();
   }
 
   els.btnConfigFiscalFaltanteCerrar.addEventListener('click', () => {
@@ -4554,6 +4581,12 @@
     if (vista === 'lectura-reportes') {
       cargarListaReportes();
     }
+    // Primeros pasos (Fase 2 UX): "revisar" tickets/Constancias/CxC cuenta
+    // como paso completado con solo entrar a esa vista una vez.
+    if (vista === 'tickets') marcarOnboardingVisto('tickets');
+    if (vista === 'constancias') marcarOnboardingVisto('constancias');
+    if (vista === 'cxc') marcarOnboardingVisto('cxc');
+    renderOnboardingChecklist();
   }
 
   els.btnVistaInicio.addEventListener('click', () => cambiarVistaPrincipal('inicio'));
@@ -6014,6 +6047,11 @@
   // dura ~1.3s en total, y el modal se queda abierto y se limpia solo,
   // listo para la siguiente venta (no hay que volver a abrirlo).
   function mostrarExitoRegistrarOrden(mensaje) {
+    // Primeros pasos (Fase 2 UX): además de ordenesCache (que ya refleja la
+    // venta real cuando hay conexión), esta bandera cubre el caso offline
+    // encolado — se guarda para siempre por cuenta, no hace falta un fetch.
+    guardarEstadoOnboarding({ ventaCreada: true });
+    renderOnboardingChecklist();
     els.ordenFormExitoTexto.textContent = mensaje || 'Guardado con éxito';
     els.ordenFormBody.hidden = true;
     els.ordenFormExito.hidden = false;
@@ -6882,6 +6920,9 @@
       showToast(`Usuario ${data.rfc} creado correctamente. Se envió una invitación a ${email}.`);
       cerrarCrearUsuarioModal();
       cargarUsuarios();
+      // Primeros pasos (Fase 2 UX): "invita a tu primer usuario".
+      guardarEstadoOnboarding({ usuarioCreado: true });
+      renderOnboardingChecklist();
     } catch (err) {
       els.crearUsuarioErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -9065,6 +9106,10 @@
       showLogin();
       return;
     }
+    // Primeros pasos (Fase 2 UX): solo un gasto NUEVO cuenta como el paso
+    // "registra tu primer gasto" — capturado antes del guardado porque
+    // gastoModalEditando se limpia al cerrar el modal más abajo.
+    const esGastoNuevoParaOnboarding = !gastoModalEditando;
 
     setFieldError('gastos-modal-fecha', '');
     setFieldError('gastos-modal-concepto', '');
@@ -9200,6 +9245,10 @@
 
       cerrarGastoModal();
       cargarGastos();
+      if (esGastoNuevoParaOnboarding) {
+        guardarEstadoOnboarding({ gastoCreado: true });
+        renderOnboardingChecklist();
+      }
     } catch (err) {
       els.gastosModalErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -9728,6 +9777,10 @@
   function aplicarVisibilidadInventarios(activo) {
     inventarioActivoGlobalmente = activo;
     aplicarRestriccionesPerfil();
+    // Primeros pasos (Fase 2 UX): este valor llega async (cargarConfigInventario)
+    // después del primer render del checklist — se corrige aquí en cuanto
+    // se sabe, mismo patrón que verificarDatosFiscalesFaltantes().
+    renderOnboardingChecklist();
     // D8/§22: el campo de "vincular producto" en Ventas sigue el mismo
     // interruptor — función declarada más abajo, junto al resto del
     // código de Ventas (hoisted, se puede llamar aquí sin problema).
@@ -11767,6 +11820,243 @@
   function prefersReducedMotion() {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
+
+  // ---------- Primeros pasos + recorrido de bienvenida (Fase 2 UX, punto 191) ----------
+  // Todo 100% frontend, cero endpoint nuevo: los pasos se derivan de datos que
+  // el panel ya carga (datosFiscalesCompletos, ordenesCache,
+  // inventarioActivoGlobalmente) más banderas de eventos ("ya creaste tu
+  // primer X") guardadas en localStorage — nunca se pide nada extra al
+  // backend solo para pintar esta tarjeta. "Por cuenta" (no por sesión):
+  // la clave incluye el tenant y el usuario, así que ocultar/terminar el
+  // tour no vuelve a molestar aunque cierre e inicie sesión de nuevo, y no
+  // se mezcla entre dos cuentas "admin" de tenants distintos.
+  function claveOnboarding() {
+    return `onboarding_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+  function leerEstadoOnboarding() {
+    try {
+      const raw = localStorage.getItem(claveOnboarding());
+      return raw ? JSON.parse(raw) : {};
+    } catch (err) {
+      return {};
+    }
+  }
+  function guardarEstadoOnboarding(parcial) {
+    try {
+      const actual = leerEstadoOnboarding();
+      localStorage.setItem(claveOnboarding(), JSON.stringify({ ...actual, ...parcial }));
+    } catch (err) {
+      // localStorage lleno o bloqueado: la tarjeta se sigue mostrando, sin
+      // recordar el "Ocultar" — no es crítico para poder usar el panel.
+    }
+  }
+  function marcarOnboardingVisto(clave) {
+    const estado = leerEstadoOnboarding();
+    const vistos = estado.vistos || {};
+    if (vistos[clave]) return;
+    guardarEstadoOnboarding({ vistos: { ...vistos, [clave]: true } });
+  }
+
+  function definirPasosOnboarding() {
+    const estado = leerEstadoOnboarding();
+    const vistos = estado.vistos || {};
+    const ventaHecha = ordenesCache.length > 0 || !!estado.ventaCreada;
+    const mapa = {
+      fiscal: [
+        { texto: 'Completa tus datos fiscales', vista: 'configuraciones', hecho: datosFiscalesCompletos === true },
+        { texto: 'Revisa tu primer ticket', vista: 'tickets', hecho: !!vistos.tickets },
+        { texto: 'Consulta el catálogo de Constancias', vista: 'constancias', hecho: !!vistos.constancias },
+      ],
+      administrador: [
+        { texto: 'Completa tus datos fiscales', vista: 'configuraciones', hecho: datosFiscalesCompletos === true },
+        { texto: 'Registra tu primera venta', vista: 'ordenes', hecho: ventaHecha },
+        { texto: 'Invita a tu primer usuario', vista: 'usuarios', hecho: !!estado.usuarioCreado },
+        { texto: 'Activa Inventarios si vendes producto físico', vista: 'configuraciones', hecho: inventarioActivoGlobalmente === true, opcional: true },
+      ],
+      ventas: [
+        { texto: 'Registra tu primera venta', vista: 'ordenes', hecho: ventaHecha },
+        { texto: 'Revisa Cuentas por cobrar', vista: 'cxc', hecho: !!vistos.cxc },
+        { texto: 'Registra tu primer gasto', vista: 'gastos', hecho: !!estado.gastoCreado },
+      ],
+    };
+    return mapa[perfilActual] || null;
+  }
+
+  function contenedorOnboarding() {
+    if (perfilActual === 'fiscal') return els.vistaInicio;
+    if (perfilActual === 'administrador') return els.vistaResumenFinanciero;
+    if (perfilActual === 'ventas') return els.vistaOrdenes;
+    return null; // "super": sin checklist propio, es una cuenta de operación/depuración
+  }
+
+  function renderOnboardingChecklist() {
+    const contenedor = contenedorOnboarding();
+    let tarjeta = document.getElementById('onboarding-checklist-card');
+    if (!contenedor) {
+      if (tarjeta) tarjeta.hidden = true;
+      return;
+    }
+    const pasos = definirPasosOnboarding();
+    const estado = leerEstadoOnboarding();
+    const pasosObligatorios = pasos ? pasos.filter((p) => !p.opcional) : [];
+    const todoListo = pasosObligatorios.length > 0 && pasosObligatorios.every((p) => p.hecho);
+    const debeMostrarse = !!pasos && !estado.checklistOculto && !todoListo;
+
+    if (!debeMostrarse) {
+      if (tarjeta) tarjeta.hidden = true;
+      iniciarTourBienvenidaSiAplica();
+      return;
+    }
+
+    // Si otra cuenta con OTRO perfil inició sesión en esta misma pestaña
+    // (encontrado probando en navegador real: admin → logout → fiscal), la
+    // tarjeta puede seguir viviendo dentro del contenedor de la sesión
+    // anterior, ahora oculto — se reubica en el contenedor correcto.
+    if (tarjeta && tarjeta.parentElement !== contenedor) {
+      contenedor.insertBefore(tarjeta, contenedor.firstChild);
+    }
+
+    const completados = pasos.filter((p) => p.hecho).length;
+    const porcentaje = Math.round((completados / pasos.length) * 100);
+    const contenidoHtml = `
+      <div class="onboarding-checklist-head">
+        <span class="onboarding-checklist-titulo">Primeros pasos</span>
+        <button type="button" class="onboarding-checklist-ocultar" id="btn-onboarding-ocultar">Ocultar</button>
+      </div>
+      <p class="onboarding-checklist-sub">${completados} de ${pasos.length} completados</p>
+      <div class="onboarding-checklist-progreso"><i style="width:${porcentaje}%"></i></div>
+      ${pasos
+        .map(
+          (p) => `
+        <div class="onboarding-paso">
+          <span class="onboarding-paso-dot${p.hecho ? ' is-done' : ''}" aria-hidden="true">${p.hecho ? '✓' : ''}</span>
+          <div class="onboarding-paso-body">
+            <span class="onboarding-paso-titulo${p.hecho ? ' is-done' : ''}">${escapeHtml(p.texto)}</span>
+            ${p.hecho ? '' : `<button type="button" class="onboarding-paso-link" data-onboarding-ir="${p.vista}">Ir →</button>`}
+          </div>
+        </div>`
+        )
+        .join('')}
+    `;
+
+    if (!tarjeta) {
+      tarjeta = document.createElement('div');
+      tarjeta.id = 'onboarding-checklist-card';
+      tarjeta.className = 'onboarding-checklist';
+      contenedor.insertBefore(tarjeta, contenedor.firstChild);
+      tarjeta.addEventListener('click', (e) => {
+        if (e.target.id === 'btn-onboarding-ocultar') {
+          guardarEstadoOnboarding({ checklistOculto: true });
+          renderOnboardingChecklist();
+          return;
+        }
+        const irVista = e.target.closest('[data-onboarding-ir]');
+        if (irVista) cambiarVistaPrincipal(irVista.dataset.onboardingIr);
+      });
+    }
+    tarjeta.hidden = false;
+    tarjeta.innerHTML = contenidoHtml;
+    iniciarTourBienvenidaSiAplica();
+  }
+
+  // ---------- Recorrido de bienvenida: spotlight sobre elementos reales ----------
+  const ONBOARDING_TOUR_PASOS = {
+    fiscal: [
+      { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Constancias, Tickets, y más según tu perfil.' },
+      { selector: '#btn-vista-tickets', titulo: 'Tickets de facturación', desc: 'Aquí llegan las solicitudes de tus clientes para generarles su factura.' },
+      { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
+    ],
+    administrador: [
+      { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Ventas, Cuentas por cobrar, Gastos, y más.' },
+      { selector: '#btn-vista-ordenes', titulo: 'Registra tus ventas aquí', desc: 'Desde "Ventas" registras cada venta y controlas si ya se facturó.' },
+      { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
+    ],
+    ventas: [
+      { selector: '.admin-sidebar-nav', titulo: 'Tus 3 secciones', desc: 'Ventas, Cuentas por cobrar y Gastos — todo lo que necesitas para tu día a día.' },
+      { selector: '#btn-abrir-orden-modal', titulo: 'Registra una venta nueva', desc: 'Este botón abre el formulario para capturar cada venta.' },
+      { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
+    ],
+  };
+
+  let tourDisparadoEnEstaSesion = false;
+  let tourPasosActuales = [];
+  let tourIndiceActual = 0;
+
+  function iniciarTourBienvenidaSiAplica() {
+    if (tourDisparadoEnEstaSesion) return;
+    if (!perfilActual || !ONBOARDING_TOUR_PASOS[perfilActual]) return;
+    // Solo escritorio: en móvil no existe .admin-sidebar-nav (reemplazada
+    // por el launcher de íconos, punto 127) y el globo no cabría bien.
+    if (window.matchMedia && !window.matchMedia('(min-width: 900px)').matches) return;
+    const estado = leerEstadoOnboarding();
+    if (estado.tourVisto) return;
+    tourDisparadoEnEstaSesion = true;
+    // Se marca ANTES de mostrar el primer frame: "una sola vez en la vida
+    // de la cuenta", con o sin terminarlo — un reload a medio tour no debe
+    // volver a dispararlo.
+    guardarEstadoOnboarding({ tourVisto: true });
+    const pasos = ONBOARDING_TOUR_PASOS[perfilActual]
+      .map((p) => ({ ...p, el: document.querySelector(p.selector) }))
+      .filter((p) => p.el && !p.el.hidden && p.el.offsetParent !== null);
+    if (pasos.length === 0) return;
+    mostrarPasoTour(pasos, 0);
+  }
+
+  function mostrarPasoTour(pasos, indice) {
+    tourPasosActuales = pasos;
+    tourIndiceActual = indice;
+    const paso = pasos[indice];
+    const rect = paso.el.getBoundingClientRect();
+
+    els.onboardingTourHueco.style.left = `${rect.left - 6}px`;
+    els.onboardingTourHueco.style.top = `${rect.top - 6}px`;
+    els.onboardingTourHueco.style.width = `${rect.width + 12}px`;
+    els.onboardingTourHueco.style.height = `${rect.height + 12}px`;
+
+    const globo = els.onboardingTourGlobo;
+    const anchoGlobo = 300;
+    const altoGloboEstimado = 170;
+    // Objetivos altos (ej. el sidebar completo, .admin-sidebar-nav) no
+    // tienen un "arriba/abajo" sensato — el globo se pondría fuera de
+    // pantalla (encontrado probando en navegador real). Para esos se
+    // coloca al lado en vez de arriba/abajo.
+    const cabeALaDerecha = rect.right + 12 + anchoGlobo <= window.innerWidth;
+    if (rect.height > 120 && cabeALaDerecha) {
+      globo.style.left = `${rect.right + 12}px`;
+      globo.style.top = `${Math.min(Math.max(12, rect.top), window.innerHeight - altoGloboEstimado - 12)}px`;
+      globo.style.transform = 'none';
+    } else {
+      const espacioDebajo = window.innerHeight - rect.bottom;
+      const vaArriba = espacioDebajo < 220 && rect.top > 220;
+      globo.style.top = vaArriba ? `${Math.max(12, rect.top - 12)}px` : `${rect.bottom + 12}px`;
+      globo.style.transform = vaArriba ? 'translateY(-100%)' : 'none';
+      globo.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - anchoGlobo - 12)}px`;
+    }
+
+    els.onboardingTourContador.textContent = `Paso ${indice + 1} de ${pasos.length}`;
+    els.onboardingTourTitulo.textContent = paso.titulo;
+    els.onboardingTourDesc.textContent = paso.desc;
+    els.btnOnboardingTourSiguiente.textContent = indice === pasos.length - 1 ? 'Entendido' : 'Siguiente →';
+
+    els.onboardingTourOverlay.hidden = false;
+    paso.el.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }
+
+  function cerrarTourBienvenida() {
+    els.onboardingTourOverlay.hidden = true;
+  }
+
+  els.btnOnboardingTourSaltar.addEventListener('click', cerrarTourBienvenida);
+  els.btnOnboardingTourSiguiente.addEventListener('click', () => {
+    if (tourIndiceActual >= tourPasosActuales.length - 1) {
+      cerrarTourBienvenida();
+      return;
+    }
+    mostrarPasoTour(tourPasosActuales, tourIndiceActual + 1);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !els.onboardingTourOverlay.hidden) cerrarTourBienvenida();
+  });
 
   // ---------- Enlaces de eventos ----------
 

@@ -12174,6 +12174,67 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       frontend: `admin.html`/`admin.js`/`admin.css`). Sin commit/push
       todavía.
 
+  192. **Fase 2 de la auditoría UX — checklist "Primeros pasos" + recorrido
+      de bienvenida (2026-09-03, IMPLEMENTADA Y VALIDADA contra Docker real
+      y en navegador real, punto 191 completo)**: protocolo completo
+      (análisis + crítica + propuesta visual antes/después en Artifact,
+      con 3 preguntas de alcance confirmadas explícitamente por el
+      usuario: contenido del checklist tal cual, checklist+tour juntos en
+      esta ronda, persistencia "por cuenta"). 100% frontend, cero endpoint
+      nuevo — los pasos se derivan de datos que el panel ya carga
+      (`datosFiscalesCompletos`, `ordenesCache`, `inventarioActivoGlobalmente`)
+      más banderas de evento ("ya creaste tu primer X") en `localStorage`,
+      clave `onboarding_v1_<tenant>_<usuario>` (namespaced por tenant+usuario
+      a propósito — dos cuentas "admin" de tenants distintos no deben
+      compartir estado).
+      **Checklist**: tarjeta `#onboarding-checklist-card`, insertada como
+      primer hijo de la vista de aterrizaje de cada perfil (fiscal→Inicio,
+      administrador/super sin restricción→Resumen financiero,
+      ventas→Ventas; "super" queda sin checklist propio a propósito, es
+      cuenta de operación/depuración). 3-4 pasos por perfil (fiscal: datos
+      fiscales/ticket revisado/Constancias revisado; administrador: + venta
+      registrada/usuario invitado/Inventarios activado —opcional—; ventas:
+      venta registrada/CxC revisado/gasto registrado). Botón "Ocultar"
+      persiste para siempre por cuenta; se autooculta sola cuando los pasos
+      obligatorios quedan completos.
+      **Tour**: overlay `#onboarding-tour-overlay` con spotlight real
+      (`getBoundingClientRect()` en vivo, nunca coordenadas fijas) sobre 3
+      elementos reales por perfil (sidebar completo, botón de acción
+      primaria de la vista, la tarjeta de checklist), "Siguiente/Saltar/
+      Entendido", `Esc` cierra. Solo escritorio (≥900px, no existe
+      `.admin-sidebar-nav` en el launcher móvil). Se dispara una sola vez
+      en la vida de la cuenta — la bandera se graba ANTES de mostrar el
+      primer frame, así que un reload a medio tour no lo vuelve a disparar.
+      **4 bugs reales encontrados y corregidos validando en navegador real
+      (ninguno detectable con `node --check`)**: (1) el globo del tour se
+      salía de pantalla al apuntar a un objetivo alto (el sidebar
+      completo) — la heurística "arriba/abajo" no tiene sentido para un
+      elemento que ocupa casi toda la altura de la ventana; fix: objetivos
+      con `rect.height > 120` se colocan AL LADO, no arriba/abajo; (2) el
+      paso "Activa Inventarios" del checklist mostraba el estado viejo
+      (pendiente) hasta la siguiente interacción porque
+      `inventarioActivoGlobalmente` llega async y nada re-renderizaba el
+      checklist cuando por fin resolvía — fix: hook en
+      `aplicarVisibilidadInventarios()`, mismo patrón que
+      `verificarDatosFiscalesFaltantes()` ya usaba para el paso de datos
+      fiscales; (3) si una cuenta con OTRO perfil inicia sesión en la
+      MISMA pestaña (probado con logout→login entre 3 cuentas de prueba),
+      la tarjeta del checklist se quedaba viviendo dentro del contenedor
+      de la sesión anterior (ahora oculto) — invisible para el perfil
+      nuevo aunque `hidden` diga `false` — fix: reparenta la tarjeta al
+      contenedor correcto en cada render si cambió; (4) el paso 2 del tour
+      para "ventas" apuntaba a `#btn-registrar-orden`, que en realidad es
+      el botón de GUARDAR dentro del modal (invisible hasta abrirlo) — el
+      botón real del toolbar es `#btn-abrir-orden-modal` — fix de
+      selector. Validado de punta a punta contra Docker/MySQL reales con
+      3 cuentas de prueba temporales (`FASE2_ADMINISTRADOR`/`FASE2_FISCAL`/
+      `FASE2_VENTAS`, creadas y borradas en esta misma sesión, sin dejar
+      residuos) — los 3 perfiles confirmados en navegador real: checklist
+      con el conteo/orden correcto, "Ir →" navega, "Ocultar" persiste tras
+      reload, tour completo (3 pasos) sin recortes, no se repite tras
+      reload. Jest backend 823/823 (sin cambios de backend). Sin
+      commit/push todavía.
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

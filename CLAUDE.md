@@ -327,7 +327,33 @@ Estados vacíos reales (Ventas/CxC/Gastos) con ícono+guía+botón de
 acción. Bug real corregido de paso: Gastos no distinguía "vacío de
 verdad" de "tu filtro no encontró nada" (Ventas/CxC ya lo hacían) —
 ahora tiene sus 3 estados propios. Ver PROJECT_STATE.md punto 191.
-Cambios 100% frontend, sin tocar backend. Sin commit/push todavía.
+Cambios 100% frontend, sin tocar backend. **Commiteada y pusheada**
+(`d785d07` → `fact/master`, 2026-09-03).
+
+**Punto 192 (2026-09-03, IMPLEMENTADO Y VALIDADO contra Docker real y en
+navegador real)**: Fase 2 — checklist "Primeros pasos" + recorrido de
+bienvenida. 100% frontend, cero endpoint nuevo — 3-4 pasos por perfil
+(fiscal/administrador/ventas) derivados de datos ya cargados + banderas
+de evento en `localStorage` (`onboarding_v1_<tenant>_<usuario>`, "por
+cuenta" no por sesión, confirmado por el usuario). Tour con spotlight
+real (`getBoundingClientRect()`, no coordenadas fijas) sobre 3 elementos
+por perfil, solo escritorio, una vez en la vida de la cuenta. **4 bugs
+reales encontrados y corregidos validando en navegador real** (ninguno
+detectable con `node --check`): globo del tour se salía de pantalla
+apuntando a un objetivo alto (el sidebar completo, la heurística
+arriba/abajo no aplica) — fix, objetivos con `rect.height > 120` se
+colocan al lado; paso "Inventarios" del checklist mostraba estado viejo
+hasta la siguiente interacción porque el dato llega async — fix, hook en
+`aplicarVisibilidadInventarios()`; la tarjeta del checklist se quedaba
+en el contenedor de la sesión anterior si otra cuenta con OTRO perfil
+iniciaba sesión en la MISMA pestaña — fix, se reparenta al contenedor
+correcto en cada render; selector del tour de "ventas" apuntaba al botón
+de GUARDAR dentro del modal en vez del botón real del toolbar — fix de
+selector (`#btn-abrir-orden-modal`). Validado con 3 cuentas de prueba
+temporales por perfil, creadas y borradas en la misma sesión, sin dejar
+residuos. Jest backend 823/823 (sin cambios de backend). Ver
+PROJECT_STATE.md punto 192 para el detalle línea por línea. Sin
+commit/push todavía.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

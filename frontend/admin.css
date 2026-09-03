@@ -4541,6 +4541,176 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   overflow-y: auto;
 }
 
+/* Primeros pasos + recorrido de bienvenida (Fase 2 UX, punto 191) */
+.onboarding-checklist {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+  max-width: 480px;
+  margin-bottom: 22px;
+}
+.onboarding-checklist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.onboarding-checklist-titulo {
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--color-ink);
+}
+.onboarding-checklist-ocultar {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 2px;
+}
+.onboarding-checklist-sub {
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  margin: 0 0 12px;
+}
+.onboarding-checklist-progreso {
+  height: 6px;
+  border-radius: 99px;
+  background: #EEF2FB;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.onboarding-checklist-progreso i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-accent), #05DBF2);
+}
+.onboarding-paso {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--color-border);
+}
+.onboarding-paso:first-of-type { border-top: none; padding-top: 0; }
+.onboarding-paso-dot {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.onboarding-paso-dot.is-done {
+  border-color: transparent;
+  background: #DCEFE3;
+  color: #146C43;
+}
+.onboarding-paso-body { flex: 1; min-width: 0; }
+.onboarding-paso-titulo {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+  display: block;
+}
+.onboarding-paso-titulo.is-done {
+  color: var(--color-ink-soft);
+  text-decoration: line-through;
+}
+.onboarding-paso-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* Recorrido de bienvenida: spotlight con getBoundingClientRect en vivo
+   sobre elementos reales del panel, nunca sobre un mockup estático. Solo
+   se dispara en escritorio (ver iniciarTourBienvenidaSiAplica en admin.js)
+   — en móvil no existe .admin-sidebar-nav para apuntar. */
+.onboarding-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+.onboarding-tour-hueco {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(3, 10, 24, 0.55);
+  transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-tour-hueco { transition: none; }
+}
+.onboarding-tour-globo {
+  position: fixed;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  box-shadow: 0 16px 32px rgba(3, 10, 24, 0.3);
+}
+.onboarding-tour-contador {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+  margin: 0 0 6px;
+}
+.onboarding-tour-titulo {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+.onboarding-tour-desc {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  margin: 0 0 14px;
+}
+.onboarding-tour-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.onboarding-tour-saltar {
+  background: none;
+  border: none;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px;
+}
+.onboarding-tour-siguiente {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.onboarding-tour-siguiente:hover { opacity: 0.9; }
+
 /* Ayuda por vista (punto 191) — versión chica del modal de arriba, sin
    buscador/TOC: reusa .inv-ayuda-tarjeta/-titulo/-explicacion tal cual
    para verse igual, solo más angosto porque el contenido es 3-5 tarjetas,
