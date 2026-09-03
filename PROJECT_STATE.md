@@ -12011,6 +12011,67 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       reactivación, 1 del nuevo campo del dashboard actualizado). Sin
       commit/push todavía.
 
+  188. **Punto 187 cerrado del todo — apagar "Inventario activo" ya no deja
+      "Solamente servicios" en un estado confuso (2026-09-02, IMPLEMENTADO
+      Y VALIDADO)**: el usuario preguntó, antes de tocar el switch, si
+      apagar "Inventario activo" también apagaba "Solamente servicios" —
+      auditoría de código confirmó que NO: solo se grisaba (`disabled`),
+      el `checked` y el valor persistido en BD se quedaban intactos, así
+      que reactivar Inventario después resucitaba "Solamente servicios"
+      encendido sin que nadie lo volviera a decidir. Cuestionario con 3
+      opciones (mantener grisado tal cual / apagar y resetear de verdad /
+      apagar visual conservando la preferencia) — el usuario eligió la
+      híbrida: **apagar visual, conservar preferencia**. Frontend:
+      `ultimoValorSoloServiciosGuardado` nueva en `admin.js` — con
+      Inventario inactivo el switch se muestra apagado (cosmético, nunca
+      se manda al backend) y al reactivar Inventario se restaura tal cual
+      estaba guardado, sin pérdida ni resurrección sorpresa.
+      **Hueco de backend cerrado de paso, confirmado también por el
+      usuario**: `PUT /inventarios/configuracion/inv_solo_servicios`
+      solo confiaba en que la UI grisara el switch — una llamada directa
+      a la API podía encender "Solamente servicios" con Inventario
+      apagado, sin ningún guard de servidor. Fix: el mismo endpoint ahora
+      responde 400 `INV_MODULO_INACTIVO` si `inventario_activo` está en
+      `'0'`, antes de siquiera revisar productos activos. Jest backend
+      **815/815** (2 tests nuevos: guard nuevo + camino feliz con
+      inventario activo). Validado por `node --check` + suite completa;
+      pendiente confirmación visual del switch en navegador (el guard de
+      backend sí se probó por Jest real, no solo mock trivial).
+      Commiteado y pusheado (`94d019e` → `fact/master`, junto con el
+      punto 189).
+
+  189. **Íconos de acción en `/control` sin ambigüedad semántica
+      (2026-09-02, IMPLEMENTADO Y VALIDADO en navegador real)**: el
+      usuario reportó que los 4 íconos de acción por tenant ("Suspender",
+      "Dar de baja", "Editar", "Credenciales API") no ayudaban a entender
+      su función pese al tooltip unificado ya existente (`data-tooltip`,
+      punto 148) — pidió crítica + propuesta visual antes/después.
+      Diagnóstico real, no solo falta de contexto: 2 de los 4 íconos
+      contradecían activamente su función — "Dar de baja" (acción roja,
+      la más delicada) se dibujaba con una **palomita** (símbolo de
+      "confirmado", lo opuesto de dar de baja), y "Credenciales API" con
+      un **candado** (lee como "bloqueo/seguridad", no "aquí están tus
+      llaves"); "Suspender" usaba un ecualizador de audio sin relación
+      con pausar. Propuesta (Artifact con mockup antes/después,
+      reproduciendo la fila real de `/control` con las clases/colores
+      reales del sitio) aprobada tal cual. Fix en `control.js`
+      (`crearBotonAccion`, mismo mecanismo, sin componente nuevo): X para
+      "Dar de baja", llave (path oficial del ícono "key" de Feather) para
+      "Credenciales API", 2 barras verticales (pausa) para "Suspender" —
+      "Reactivar" (flecha) y "Editar" (lápiz) sin cambios, ya eran claros.
+      Reorden: Editar/Credenciales API (uso frecuente) primero, separador
+      visual nuevo (`.admin-row-actions-divisor` en `admin.css`), Suspender/
+      Reactivar y Dar de baja (cambios de estado) al final — reduce el
+      riesgo de clic accidental en la acción más delicada. Cero cambio de
+      comportamiento (mismos endpoints, mismos modales de confirmación).
+      Sin suite Jest propia (frontend vanilla sin build, `/control` no
+      tiene pruebas de UI) — validado por `curl` contra el HTML/JS real
+      servido por Docker tras rebuild `--no-cache` + `--force-recreate`
+      del frontend (el primer intento de revisión del usuario mostró la
+      versión vieja — mismo gotcha de siempre, contenedor sin rebuild) y
+      **confirmado por el usuario en navegador real** ("ya lo revisé, ya
+      funciona"). Commiteado y pusheado (`94d019e` → `fact/master`).
+
 ## Limitaciones de ESTE entorno de generación (importante)
 
 > **Nota (2026-08-13):** esta sección describe la limitación por defecto

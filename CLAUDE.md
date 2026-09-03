@@ -281,6 +281,23 @@ basura, cero regresión en admin/login/api/control (9 rutas probadas).
 Detalle completo en PROJECT_STATE.md punto 185. Sin commit/push
 todavía.
 
+**Puntos 188-189 (2026-09-02, IMPLEMENTADOS Y COMMITEADOS/PUSHEADOS —
+`94d019e` → `fact/master`)**: (188) apagar "Inventario activo" ya no deja
+"Solamente servicios" en un estado confuso — el switch se muestra apagado
+mientras Inventario está inactivo (cosmético, no se persiste) y se restaura
+al reactivar, sin resurrección sorpresa; guard nuevo en el backend
+(`PUT .../inv_solo_servicios` responde 400 `INV_MODULO_INACTIVO` si
+`inventario_activo` está apagado — antes solo la UI lo evitaba, la API
+directa lo dejaba pasar). Jest backend 815/815. (189) los 4 íconos de
+acción por tenant en `/control` corregidos — "Dar de baja" (rojo) dejó de
+ser una palomita (leía "confirmado"), "Credenciales API" dejó de ser un
+candado (leía "bloqueo"), "Suspender" dejó de ser un ecualizador de audio;
+ahora X/llave/pausa respectivamente, reordenados (Editar/Credenciales
+primero, separador, Suspender-Reactivar/Dar de baja al final). Validado
+contra Docker real por curl tras rebuild `--no-cache`+`--force-recreate`
+del frontend y confirmado por el usuario en navegador real. Ver
+PROJECT_STATE.md puntos 188-189 para el detalle completo.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
