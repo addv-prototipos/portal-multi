@@ -12644,6 +12644,59 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   haya SMTP real configurado, un envío de correo de prueba real con
   nodemailer 9.1.1.
 
+- **Retest de la auditoría de seguridad — 1 fix real corregido, resto
+  confirmado (punto 198, 2026-09-03/04)**: a pedido del usuario ("realiza
+  de nuevo el diagnóstico de hacking, para ver como salen ahora los
+  resultados"), se relanzaron las mismas 6 auditorías del punto 197 en
+  modo retest (verificar cada fix contra el código actual + buscar algo
+  nuevo roto por los propios parches). 3 de las 6 terminaron completas
+  antes de que la sesión tocara su límite de cuota (resetea 10:20pm
+  hora CDMX) — las otras 3 quedaron parciales/sin terminar; el resto de
+  la verificación se hizo directo (grep/lectura de código) en vez de
+  relanzar más agentes, para no volver a chocar con el límite.
+
+  **Hallazgo real del retest — el fix #4 (cookie `api_key`) del punto
+  197 había quedado INCOMPLETO**: solo se había quitado el fallback a
+  `req.cookies.api_key` de la rama "4b. Clave API" (dentro del bloque
+  `if (req.tenant && req.tenant.slug)`, después de la credencial API),
+  pero la rama "0. Clave API por empresa" — que corre ANTES de exigir
+  Basic Auth, para que `curl -H "X-API-Key: ..."` no necesite Basic —
+  seguía leyendo `req.cookies.api_key` sin ningún cambio
+  (`backend/utils/auth.js`, línea ~230 antes del fix de este punto). El
+  riesgo de CSRF que el punto 197 daba por cerrado seguía vivo por ese
+  segundo camino — una cookie `api_key` puesta a mano (como la propia UI
+  vieja sugería) seguía siendo aceptada por una petición cross-site.
+  **Corregido**: se quitó también el fallback de esa rama, dejando las
+  DOS únicamente con header `X-API-Key`. Jest backend 826/826 sin
+  regresión. Rebuild `--no-cache`+`--force-recreate` de `backend`,
+  validado healthy.
+
+  **Resto de los 13 hallazgos del punto 197, CONFIRMADOS sin
+  regresión** (verificado por los 3 agentes que sí terminaron + lectura
+  directa del resto): timing leak en `verificarCredencialApi()` sigue
+  corregido (mismo patrón que sus 3 hermanas); los 9 logs de `auth.js`
+  usan `.message`; PII recortada en `/api/registro/buscar`/`:email`
+  sigue recortada; `correos-registrados` sigue con `'ventas'` (y las
+  otras 24 rutas hermanas de Ventas intactas); flujo de 5 niveles de
+  `requireAdminAuth` intacto en su orden/estructura; `sharp` con
+  `limitInputPixels` en los 3 lugares con la misma constante;
+  `uuid@11.1.1`/`exceljs@4.4.0` (sin downgrade)/`nodemailer@9.1.1`
+  confirmados instalados vía `npm ls`; formato de `attachments` de
+  `email.js` sigue siendo el que nodemailer 9.x espera (verificado
+  contra el código fuente instalado del paquete); CSP nueva confirmada
+  completa (cero script/handler inline en las 8 páginas, `theme.js` con
+  el orden correcto — antes del `return` sin tenant —, Google Fonts y
+  `data:` permitidos por motivos reales y verificados, los 3 `location`
+  de proxy sin la CSP nueva); `X-Tenant-Slug` se sigue fijando/blanqueando
+  igual que antes en los 3 `location` de API; el `location` de
+  `/<slug>/restablecer` (separado del combinado en el punto 197) sigue
+  en el orden correcto de evaluación de nginx, antes del catch-all 404.
+  **Sin hallazgos nuevos** más allá del fix de la cookie.
+
+  Commiteado y pusheado por separado de este punto — ver el commit
+  inmediato siguiente. Ningún hallazgo nuevo pendiente de las 6 áreas
+  auditadas dos veces.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

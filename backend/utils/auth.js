@@ -224,10 +224,15 @@ async function requireAdminAuth(req, res, next) {
   // siempre, sin cambios.
   const realm = req.tenant ? `Administracion-${req.tenant.slug}` : 'Administracion';
 
-  // 0. Clave API por empresa (header X-API-Key) — autoriza uso de las APIs como esta clave API por empresa.
+  // 0. Clave API por empresa (SOLO header X-API-Key) — autoriza uso de las APIs como esta clave API por empresa.
   // Se verifica ANTES de exigir Basic, para que `curl -H "X-API-Key: ..."` no necesite también Basic.
+  // Auditoría 2026-09-03 (retest del hallazgo #4): esta rama también leía
+  // `req.cookies.api_key` como alternativa al header — se quitó de aquí
+  // también (el primer intento solo lo había quitado de la rama "4b" más
+  // abajo, dejando este camino vivo, mismo riesgo de CSRF que se creía
+  // cerrado).
   if (req.tenant && req.tenant.slug) {
-    const claveApiPrevia = (req.get ? req.get('X-API-Key') : req.headers['x-api-key'] || req.headers['X-API-Key']) || (req.cookies && req.cookies.api_key);
+    const claveApiPrevia = req.get ? req.get('X-API-Key') : (req.headers['x-api-key'] || req.headers['X-API-Key']);
     if (claveApiPrevia) {
       try {
         const credClave = await verificarClaveApi(String(claveApiPrevia), req.tenant.slug);

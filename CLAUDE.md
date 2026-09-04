@@ -482,6 +482,19 @@ ambos, `nginx -t` limpio, rebuild `--no-cache`+`--force-recreate` de los
 confirmación visual de que la CSP no rompa nada, y un envío SMTP real
 cuando el usuario lo configure. Ver PROJECT_STATE.md punto 197.
 
+**Punto 198 (2026-09-03/04, retest de la auditoría del punto 197)**:
+usuario pidió repetir el diagnóstico para ver cómo salían los resultados
+tras los parches. **1 fix real encontrado incompleto**: el punto 197
+había quitado la auth por cookie `api_key` solo de la rama "4b" de
+`requireAdminAuth()` (`backend/utils/auth.js`) — la rama "0" (corre antes
+de exigir Basic) seguía leyendo `req.cookies.api_key` sin cambios, mismo
+riesgo de CSRF que se daba por cerrado. Corregido, ambas ramas ahora solo
+header `X-API-Key`. Jest backend 826/826, rebuild `--no-cache`+
+`--force-recreate` de `backend`. Resto de los 13 hallazgos del punto 197
+CONFIRMADOS sin regresión (verificado por 3 agentes que terminaron antes
+de que la sesión tocara su límite de cuota + lectura directa del resto).
+Ver PROJECT_STATE.md punto 198.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
