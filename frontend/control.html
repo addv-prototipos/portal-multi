@@ -20,7 +20,7 @@
         <h2 class="auth-hero-headline">Control de plataforma — gestiona <span class="auth-hero-highlight">todas las empresas</span>.</h2>
         <span class="auth-hero-divider" aria-hidden="true"></span>
         <p class="auth-hero-copy">Alta, edición, suspensión y baja de tenants. Solo perfil super.</p>
-        <img class="auth-hero-decor" src="/assets/login-decoracion-marca.png" alt="" aria-hidden="true" loading="lazy" onerror="this.remove()" />
+        <img class="auth-hero-decor" src="/assets/login-decoracion-marca.png" alt="" aria-hidden="true" loading="lazy" />
         <p class="auth-hero-footer">© <span id="auth-anio-control"></span> Clarvo Control by ADDV. Todos los derechos reservados.</p>
       </aside>
       <div class="card auth-card admin-login-card">
@@ -722,7 +722,7 @@
         <pre id="control-cred-curl" style="background:var(--color-bg);padding:10px;border-radius:8px;overflow:auto;font-size:12px;white-space:pre-wrap"></pre>
         <label>Ejemplo cURL — Clave API (header / cookie)</label>
         <pre id="control-cred-curl-clave" style="background:var(--color-bg);padding:10px;border-radius:8px;overflow:auto;font-size:12px;white-space:pre-wrap"></pre>
-        <p class="field-hint">Usa <b>Basic</b> con usuario/password o <b>X-API-Key</b> / cookie <code>api_key</code> contra <code id="control-cred-swagger-url"></code>. En Swagger: <b>Authorize</b> → <code>basicAuth</code> o <code>apiKey</code> / <code>cookieAuth</code>. Para tenant: <code>/&lt;slug&gt;/api/*</code> con esta credencial.</p>
+        <p class="field-hint">Usa <b>Basic</b> con usuario/password o header <b>X-API-Key</b> contra <code id="control-cred-swagger-url"></code>. En Swagger: <b>Authorize</b> → <code>basicAuth</code> o <code>apiKey</code>. Para tenant: <code>/&lt;slug&gt;/api/*</code> con esta credencial.</p>
         <p><a id="control-cred-swagger-link" href="/api/docs/" target="_blank" rel="noopener">Abrir Swagger backend</a> · <a id="control-cred-swagger-control-link" href="/api/control/docs/" target="_blank" rel="noopener">Swagger control</a></p>
       </div>
       <p class="field-error" id="control-cred-error" role="alert"></p>

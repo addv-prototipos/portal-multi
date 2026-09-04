@@ -1,6 +1,12 @@
 (() => {
   'use strict';
 
+  // CSP (auditoría 2026-09-03, hallazgo #11): movido aquí desde un
+  // <script> inline en restablecer.html — script-src ya no necesita
+  // 'unsafe-inline'.
+  const authAnioEl = document.getElementById('auth-anio');
+  if (authAnioEl) authAnioEl.textContent = String(new Date().getFullYear());
+
   // Multi-tenant (segmento 4, ver PROJECT_STATE.md): misma detección que
   // login.js/portal.js, duplicada aquí a propósito (sin build step, cada
   // página trae sus propias constantes). Debe coincidir exactamente con

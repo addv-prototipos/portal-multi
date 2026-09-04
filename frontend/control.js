@@ -1323,7 +1323,7 @@
     const curl = `curl -u "${usuario}:${password}" "${url}"`;
     if (els.credCurl) els.credCurl.textContent = curl;
     if (clave && els.credCurlClave) {
-      els.credCurlClave.textContent = `curl -H "X-API-Key: ${clave}" "${url}"\n# o como cookie: curl -b "api_key=${clave}" "${url}"`;
+      els.credCurlClave.textContent = `curl -H "X-API-Key: ${clave}" "${url}"`;
     }
     if (els.credSwaggerUrl) els.credSwaggerUrl.textContent = `${base}/${slug}/api/...`;
     if (els.credSwaggerLink) els.credSwaggerLink.href = `${base}/api/docs/`;

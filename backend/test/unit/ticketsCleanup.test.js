@@ -1,4 +1,4 @@
-const { pool } = require('../../db');
+const { pool, ejecutarComoTenant, obtenerPoolControl, obtenerPoolTenant } = require('../../db');
 const { getRetencionTicketsDias } = require('../../utils/config');
 const { generarYEnviarReporte } = require('../../utils/reportes');
 const {
@@ -9,6 +9,7 @@ const {
   eliminarTickets,
   eliminarOrdenes,
   ejecutarLimpiezaConReporte,
+  ejecutarLimpiezaParaTodos,
   getInfoUltimaLimpieza,
   CLAVE_ULTIMA_LIMPIEZA_TICKETS,
   CLAVE_ULTIMA_LIMPIEZA_ORDENES,
@@ -16,6 +17,11 @@ const {
 
 jest.mock('../../db', () => ({
   pool: { query: jest.fn() },
+  // Mismo criterio que cierreMensual.test.js: ejecutarComoTenant recibe un
+  // POOL real (objeto), nunca el slug crudo.
+  ejecutarComoTenant: jest.fn((tenantPool, fn) => fn()),
+  obtenerPoolControl: jest.fn(),
+  obtenerPoolTenant: jest.fn((cfg) => ({ __poolTenantMock: cfg.slug })),
 }));
 
 jest.mock('../../utils/config', () => ({
@@ -263,6 +269,64 @@ describe('ticketsCleanup.js', () => {
 
       expect(resultado.reporteId).toBeNull();
       expect(resultado.eliminadosTickets).toBe(1); // el borrado no se detuvo por el fallo del reporte
+    });
+  });
+
+  // Auditoría 2026-09-03 (hallazgo #8): antes de este fix, la limpieza
+  // automática solo corría contra el pool por defecto — los tickets de
+  // cualquier tenant real nunca se purgaban por retención. Mismo patrón de
+  // prueba que cierreMensual.test.js (dual base + tenants).
+  describe('ejecutarLimpiezaParaTodos (dual base + tenants, punto de la auditoría #8)', () => {
+    test('ejecuta la limpieza contra base ADDV Y cada tenant activo, con su propio prefijo de storage', async () => {
+      getRetencionTicketsDias.mockResolvedValue(null); // retención inactiva en todas — solo importa la orquestación
+      obtenerPoolControl.mockReturnValue({
+        query: jest.fn().mockResolvedValue([[
+          { slug: 'tenant1', db_host: 'mysql', db_name: 'tenant_1', db_user: 'app' },
+          { slug: 'tenant2', db_host: 'mysql', db_name: 'tenant_2', db_user: 'app' },
+        ]]),
+      });
+
+      const resultados = await ejecutarLimpiezaParaTodos();
+
+      expect(resultados).toHaveLength(3);
+      expect(resultados[0]).toMatchObject({ slug: null, base: true, retencionActiva: false });
+      expect(resultados[1]).toMatchObject({ slug: 'tenant1', retencionActiva: false });
+      expect(resultados[2]).toMatchObject({ slug: 'tenant2', retencionActiva: false });
+
+      expect(obtenerPoolTenant).toHaveBeenCalledWith(expect.objectContaining({ slug: 'tenant1', database: 'tenant_1' }));
+      expect(obtenerPoolTenant).toHaveBeenCalledWith(expect.objectContaining({ slug: 'tenant2', database: 'tenant_2' }));
+      expect(ejecutarComoTenant).toHaveBeenCalledTimes(2);
+    });
+
+    test('un error al listar/ejecutar un tenant no detiene la limpieza de los demás', async () => {
+      getRetencionTicketsDias.mockResolvedValue(null);
+      obtenerPoolControl.mockReturnValue({
+        query: jest.fn().mockResolvedValue([[
+          { slug: 'tenant-malo', db_host: 'mysql', db_name: 'tenant_malo', db_user: 'app' },
+          { slug: 'tenant-bueno', db_host: 'mysql', db_name: 'tenant_bueno', db_user: 'app' },
+        ]]),
+      });
+      ejecutarComoTenant
+        .mockImplementationOnce(() => { throw new Error('tenant-malo caído'); })
+        .mockImplementationOnce((tenantPool, fn) => fn());
+
+      const resultados = await ejecutarLimpiezaParaTodos();
+
+      expect(resultados).toHaveLength(3);
+      expect(resultados[1]).toMatchObject({ slug: 'tenant-malo', error: 'tenant-malo caído' });
+      expect(resultados[2]).toMatchObject({ slug: 'tenant-bueno', retencionActiva: false });
+    });
+
+    test('si no se puede listar tenants de control, igual devuelve el resultado de la base', async () => {
+      getRetencionTicketsDias.mockResolvedValue(null);
+      obtenerPoolControl.mockReturnValue({
+        query: jest.fn().mockRejectedValue(new Error('control caído')),
+      });
+
+      const resultados = await ejecutarLimpiezaParaTodos();
+
+      expect(resultados).toHaveLength(1);
+      expect(resultados[0]).toMatchObject({ slug: null, base: true });
     });
   });
 });

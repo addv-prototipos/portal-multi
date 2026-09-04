@@ -12489,6 +12489,12 @@
   // ---------- Inicialización ----------
 
   (function init() {
+    // CSP (auditoría 2026-09-03, hallazgo #11): movido aquí desde un
+    // <script> inline en admin.html — script-src ya no necesita
+    // 'unsafe-inline'.
+    const authAnioEl = document.getElementById('auth-anio');
+    if (authAnioEl) authAnioEl.textContent = String(new Date().getFullYear());
+
     const authHeader = getAuthHeader();
     if (authHeader) {
       // Verifica que la sesión guardada siga siendo válida.

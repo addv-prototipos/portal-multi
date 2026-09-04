@@ -40,7 +40,10 @@ const {
 } = require('./utils/sucursales');
 
 const PORT = Number(process.env.PORT || 4001);
-const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
+// Auditoría 2026-09-03 (hallazgo #9, mismo criterio que backend/server.js):
+// default `false` (CORS deshabilitado) en vez de '*' — el despliegue normal
+// sirve todo bajo el mismo origen vía nginx.
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || false;
 
 const app = express();
 app.set('trust proxy', 1);

@@ -1,6 +1,12 @@
 (() => {
   'use strict';
 
+  // CSP (auditoría 2026-09-03, hallazgo #11): movido aquí desde un
+  // <script> inline en login.html — script-src ya no necesita
+  // 'unsafe-inline'.
+  const authAnioEl = document.getElementById('auth-anio');
+  if (authAnioEl) authAnioEl.textContent = String(new Date().getFullYear());
+
   // Multi-tenant (segmento 4, ver PROJECT_STATE.md): misma detección que
   // frontend/portal.js — este archivo no lo carga (login.html es la única
   // página que no lo hace), así que se repite aquí, siguiendo el mismo

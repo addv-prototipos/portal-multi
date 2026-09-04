@@ -85,11 +85,7 @@ server {
     client_max_body_size 20m;
 
     # Segmento 7 (seguridad multi-tenant): cabeceras de defensa aplicables
-    # a TODA respuesta sin riesgo de romper nada existente. CSP queda
-    # fuera a propósito — requeriría inventariar cada script/estilo
-    # inline de las 6 páginas del frontend, y no hay forma de verificar
-    # visualmente en este entorno que una política mal calibrada no rompa
-    # algo (ver PROJECT_STATE.md, pendiente documentado).
+    # a TODA respuesta sin riesgo de romper nada existente.
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
@@ -100,6 +96,24 @@ server {
     # real en frente; queda listo para cuando lo haya (mismo criterio ya
     # usado para X-Forwarded-Proto en este archivo).
     add_header Strict-Transport-Security $hsts_header_valor always;
+    # Content-Security-Policy (auditoría 2026-09-03, hallazgo #11) — antes
+    # quedaba fuera a propósito por no poder inventariar cada script/
+    # estilo inline de las páginas. Inventario real hecho para esta
+    # revisión: CERO <script> inline y CERO onclick/onerror inline en las
+    # 8 páginas de /admin, /control y el portal de cliente (el único
+    # onerror que había, en la imagen decorativa del login, se movió a
+    # theme.js) — así que script-src no necesita 'unsafe-inline' ni
+    # 'unsafe-eval'. style-src SÍ lo lleva: hay ~11 atributos style="..."
+    # estáticos (sin datos de usuario, verificado) y sería mucho trabajo
+    # para poco beneficio real convertirlos a clases — mismo criterio ya
+    # aceptado en la CSP de Swagger (server.js) para su propio bundle.
+    # https://fonts.googleapis.com/https://fonts.gstatic.com: style.css
+    # (cargado en TODAS las páginas) importa la tipografía Inter desde
+    # Google Fonts — sin esto, el sitio completo perdería su tipografía.
+    # mantenimiento.html tiene su PROPIA política más permisiva (ver su
+    # location dedicado abajo, antes del catch-all) porque es la única
+    # página con un <script> inline real (el polling de /api/health).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
 
     # JS y CSS propios de la app cambian con cada despliegue: se permite
     # cachear, pero SIEMPRE se revalida con el servidor antes de usar la
@@ -117,6 +131,26 @@ server {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
         try_files $uri =404;
+    }
+
+    # Location dedicado para mantenimiento.html (auditoría 2026-09-03,
+    # hallazgo #11): es la única página con un <script> inline real (el
+    # polling de /api/health) — necesita su PROPIA CSP más permisiva en
+    # script-src, en vez de relajar la del resto del sitio por una sola
+    # página que ni siquiera se visita directo casi nunca (solo cuando el
+    # backend/control no responde). Antes de este location no hacía falta
+    # ninguno propio porque el catch-all de abajo ya la servía igual de
+    # bien — pero declarar add_header aquí exige repetir TODOS los que
+    # aplican (nginx no hereda ninguno del server si el location define
+    # al menos uno propio).
+    location = /mantenimiento.html {
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+        add_header Strict-Transport-Security $hsts_header_valor always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
+        try_files /mantenimiento.html =404;
     }
 
     location / {
@@ -150,7 +184,15 @@ server {
     location = /csf {
         try_files /csf.html =404;
     }
+    # Sin access_log (auditoría 2026-09-03, hallazgo #10): el enlace de
+    # restablecimiento lleva el token como query string
+    # (?token=...) — el formato de log combinado de nginx incluye la
+    # query completa en $request, así que sin esto el token de un solo
+    # uso quedaría en texto plano en access.log durante su ventana de
+    # validez (30 min). El token igual se invalida al usarse
+    # (server.js), esto es defensa en profundidad, no el único control.
     location = /restablecer {
+        access_log off;
         try_files /restablecer.html =404;
     }
 
@@ -190,8 +232,15 @@ server {
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/admin$" {
         try_files /admin.html =404;
     }
-    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/(?<pagina_tenant>dashboard|tickets|login|csf|restablecer)$" {
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/(?<pagina_tenant>dashboard|tickets|login|csf)$" {
         try_files /$pagina_tenant.html =404;
+    }
+    # Separado del location de arriba (mismo motivo que "location =
+    # /restablecer" sin slug): access_log off para no persistir el token
+    # de restablecimiento en texto plano.
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/restablecer$" {
+        access_log off;
+        try_files /restablecer.html =404;
     }
 
     # Bug real encontrado en auditoría (2026-09-01): visitar SOLO "/<slug>"
@@ -238,6 +287,17 @@ server {
     # limite de tamaño, pagina de mantenimiento), replicar el cambio en
     # "location /api/" también.
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/api/(?<resto_api>.*)$" {
+        # Auditoría 2026-09-03 (hallazgo #11): esta ruta se reenvía al
+        # backend, que ya manda su propia Content-Security-Policy (helmet
+        # + la calibrada a mano para /api/docs) — sin repetir aquí los
+        # otros 5 headers, la respuesta se quedaría sin ellos (declarar
+        # add_header en un location apaga la herencia del server para
+        # TODOS, no solo para el que se agrega).
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+        add_header Strict-Transport-Security $hsts_header_valor always;
         proxy_pass http://backend_upstream/api/$resto_api$is_args$args;
         proxy_set_header X-Tenant-Slug $tenant_slug;
         proxy_http_version 1.1;
@@ -285,6 +345,13 @@ server {
     # "/api/": /control es cross-tenant por definición, nunca debe
     # resolver un tenant a partir de un header que mande el cliente.
     location ^~ /api/control/ {
+        # Auditoría 2026-09-03 (hallazgo #11): mismo motivo que en la ruta
+        # de API con tenant — control ya manda su propia CSP.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+        add_header Strict-Transport-Security $hsts_header_valor always;
         proxy_pass http://control_upstream/api/control/;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -309,6 +376,13 @@ server {
     # comportamiento de hoy (antes de este segmento no existia ningun
     # location con regex con el que pudiera competir).
     location ^~ /api/ {
+        # Auditoría 2026-09-03 (hallazgo #11): mismo motivo que las otras 2
+        # rutas de API — el backend ya manda su propia CSP.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+        add_header Strict-Transport-Security $hsts_header_valor always;
         proxy_pass http://backend_upstream/api/;
         proxy_http_version 1.1;
         # Necesario para que el "keepalive" del upstream de arriba

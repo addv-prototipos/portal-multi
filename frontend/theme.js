@@ -12,6 +12,27 @@
 (function () {
   'use strict';
 
+  // CSP (auditoría 2026-09-03, hallazgo #11): reemplaza el
+  // onerror="this.remove()" inline que traían las 4 páginas con hero
+  // split-screen (admin/login/control/restablecer) — script-src ya no
+  // necesita 'unsafe-inline'. theme.js se carga en todas, así que esto
+  // corre siempre; querySelectorAll no encuentra nada en las páginas sin
+  // esa imagen (dashboard/tickets/csf), sin efecto ahí.
+  Array.prototype.forEach.call(document.querySelectorAll('.auth-hero-decor'), function (img) {
+    // theme.js corre al final del body, después de que el navegador ya
+    // empezó a cargar la imagen — si el error ya ocurrió antes de que este
+    // script se ejecute, `complete` es true con `naturalWidth` en 0 (a
+    // diferencia de una carga exitosa). Cubre ambos casos: ya falló, o
+    // falla más tarde.
+    if (img.complete && img.naturalWidth === 0) {
+      img.remove();
+    } else {
+      img.addEventListener('error', function () {
+        img.remove();
+      });
+    }
+  });
+
   // Misma detección de slug que portal.js (duplicada a propósito: las
   // páginas del frontend se sirven sin bundler y cada script debe poder
   // funcionar solo; el control no tiene slug y usa el diseño base).

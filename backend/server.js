@@ -94,7 +94,7 @@ const {
 } = require('./utils/usoCfdi');
 const { getConfigSmtp, setConfigSmtp, configSmtpParaMostrar, enviarCorreo, aplicarPlantilla, DEFAULTS_SMTP } = require('./utils/email');
 const {
-  ejecutarLimpiezaConReporte,
+  ejecutarLimpiezaParaTodos,
   getInfoUltimaLimpieza,
   ordenAItemReporte,
   CLAVE_ULTIMA_LIMPIEZA_TICKETS,
@@ -176,7 +176,16 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
 const TICKETS_UPLOAD_DIR = path.join(UPLOAD_DIR, 'tickets');
 const FACTURAS_UPLOAD_DIR = path.join(UPLOAD_DIR, 'facturas');
-const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
+// Auditoría 2026-09-03 (hallazgo #9): el default anterior era '*', que
+// combinado con `credentials: true` es una configuración que los
+// navegadores ya rechazan por spec (no explotable hoy) pero es frágil —
+// si alguna vez CORS_ORIGIN se define con un valor no estándar, deja de
+// haber ningún respaldo. Sin CORS_ORIGIN, ahora el default es `false`
+// (cors deshabilitado del todo), que es lo correcto para el despliegue
+// normal: nginx sirve frontend y backend bajo el mismo origen, así que
+// CORS no debería aplicar nunca salvo que se consuma la API desde un
+// dominio externo a propósito.
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || false;
 
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -2077,15 +2086,21 @@ app.get(
 // formulario público para mostrar la vista previa antes de reemplazar.
 // IMPORTANTE: esta ruta debe declararse ANTES que "/api/registro/:email",
 // o Express interpretaría "buscar" como el valor del parámetro :email.
-// submitLimiter (Seguridad, ver auditoría OWASP): esta ruta es pública y
-// devuelve datos completos del registro (nombre/razón social, RFC,
-// indicaciones) para cualquier correo o RFC que se le mande, sin
-// autenticación — necesario para que el formulario público detecte "ya
-// existe una constancia con estos datos" antes de reemplazarla. Sin un
-// límite de tasa, esto permitía enumerar en masa qué RFC/nombre
-// corresponde a qué correo (o viceversa) con peticiones ilimitadas. El
-// límite no cambia el comportamiento para el uso legítimo (una consulta
-// puntual antes de subir un archivo), solo frena el raspado masivo.
+// submitLimiter (Seguridad, ver auditoría OWASP) + PII acotada (auditoría
+// 2026-09-03, hallazgo #3): esta ruta sigue siendo pública y sin sesión
+// —es necesaria para que el formulario público muestre "ya existe una
+// constancia con estos datos" ANTES de que exista una cuenta/sesión con la
+// que proteger el endpoint— pero ya no devuelve TODO el registro. Antes
+// exponía también `email`/`indicaciones`/`archivo_mime`, ninguno de los
+// 3 usado por el frontend (`app.js:mostrarModalConDatosPrevios` solo lee
+// nombre/tipo_persona/rfc/archivo_nombre_original/actualizado_en) — se
+// recortó a exactamente esos 5 campos. `indicaciones` en particular es
+// texto libre que podría contener notas internas, sin ninguna razón de
+// negocio para exponerlo aquí. El límite de tasa (30 req/15min) sigue
+// siendo la defensa principal contra raspado masivo — reducir a un
+// booleano puro (como sí se hizo en la ruta legacy de abajo) rompería la
+// vista previa de "esto es lo que se va a reemplazar" que el formulario
+// necesita mostrarle al usuario ANTES de confirmar.
 app.get(
   '/api/registro/buscar',
   submitLimiter,
@@ -2100,8 +2115,7 @@ app.get(
       return res.status(400).json({ error: 'Correo electronico invalido.' });
     }
 
-    const columnas = `nombre, tipo_persona, rfc, email, indicaciones,
-                       archivo_nombre_original, archivo_mime, actualizado_en`;
+    const columnas = `nombre, tipo_persona, rfc, archivo_nombre_original, actualizado_en`;
     let registro = null;
 
     if (rfc) {
@@ -2157,10 +2171,10 @@ app.get(
 // Consulta si ya existe un registro/archivo para un correo dado.
 // Se conserva por retrocompatibilidad; el formulario público ahora usa
 // GET /api/registro/buscar (arriba), que también considera el RFC.
-// submitLimiter (Seguridad, ver auditoría OWASP): mismo motivo que en
-// GET /api/registro/buscar — es pública y devuelve datos completos del
-// registro, así que sin límite de tasa permite enumeración masiva por
-// correo.
+// Sin llamador real en el frontend actual (verificado, auditoría
+// 2026-09-03 hallazgo #3) — a diferencia de /api/registro/buscar, esta sí
+// se reduce a un booleano puro sin PII, porque nada depende de que
+// devuelva el detalle.
 app.get(
   '/api/registro/:email',
   submitLimiter,
@@ -2170,17 +2184,10 @@ app.get(
       return res.status(400).json({ error: 'Correo electronico invalido.' });
     }
     const [filas] = await pool.query(
-      `SELECT nombre, tipo_persona, rfc, email, indicaciones,
-              archivo_nombre_original, archivo_mime, actualizado_en
-       FROM registros WHERE email = ? AND eliminado_en IS NULL`,
+      'SELECT id FROM registros WHERE email = ? AND eliminado_en IS NULL LIMIT 1',
       [email]
     );
-    const registro = filas[0] || null;
-
-    if (!registro) {
-      return res.json({ existe: false });
-    }
-    return res.json({ existe: true, registro });
+    return res.json({ existe: filas.length > 0 });
   })
 );
 
@@ -4533,7 +4540,7 @@ app.get(
   '/api/admin/correos-registrados',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query(
       'SELECT email, rfc, nombre FROM registros WHERE eliminado_en IS NULL ORDER BY email ASC'
@@ -7924,27 +7931,35 @@ app.use((req, res) => {
 // El esquema de la base de datos se garantiza (crea tablas si no existen,
 // espera a que MySQL este listo) ANTES de aceptar trafico, para no atender
 // peticiones contra tablas que todavia no existen.
-// Corre la limpieza de tickets Y de órdenes de compra vencidos (borrado
-// automático según la MISMA retención configurada por el administrador).
-// No hace nada si no hay una retención configurada. Antes de borrar
-// nada, ejecutarLimpiezaConReporte() ya generó y (si hay correo
-// configurado) envió un reporte combinado con todo lo que está a punto
-// de eliminarse — ver utils/ticketsCleanup.js. Los errores se registran
-// pero nunca tumban el proceso — es una tarea de mantenimiento, no
-// crítica para servir tráfico.
+// Corre la limpieza de tickets vencidos (borrado automático según la
+// retención configurada por el administrador de CADA base — base ADDV y
+// todos los tenants activos, auditoría 2026-09-03 hallazgo #8: antes solo
+// corría contra el pool por defecto, los tickets de tenants reales nunca
+// se purgaban). No hace nada donde no haya retención configurada. Antes de
+// borrar nada en cada base, ya se generó y (si hay correo configurado)
+// envió un reporte combinado con todo lo que está a punto de eliminarse —
+// ver utils/ticketsCleanup.js. Los errores por base no detienen a las
+// demás ni tumban el proceso — es una tarea de mantenimiento, no crítica
+// para servir tráfico.
 async function ejecutarLimpiezaAutomatica() {
   try {
-    const { eliminadosTickets, retencionActiva, reporteId, correoEnviado, errorCorreo } =
-      await ejecutarLimpiezaConReporte();
-    if (retencionActiva && eliminadosTickets > 0) {
-      console.log(
-        `Limpieza automática: ${eliminadosTickets} ticket(s) vencidos eliminados.` +
-          (reporteId ? ` Reporte #${reporteId} generado${correoEnviado ? ' y enviado por correo' : ''}.` : '')
-      );
-      if (errorCorreo) {
-        console.error(`El reporte #${reporteId} se generó, pero no se pudo enviar por correo:`, errorCorreo);
+    const resultados = await ejecutarLimpiezaParaTodos();
+    resultados.forEach((r) => {
+      const etiqueta = r.slug || 'base';
+      if (r.error) {
+        console.error(`Error en la limpieza automática (tickets) — ${etiqueta}:`, r.error);
+        return;
       }
-    }
+      if (r.retencionActiva && r.eliminadosTickets > 0) {
+        console.log(
+          `Limpieza automática (${etiqueta}): ${r.eliminadosTickets} ticket(s) vencidos eliminados.` +
+            (r.reporteId ? ` Reporte #${r.reporteId} generado${r.correoEnviado ? ' y enviado por correo' : ''}.` : '')
+        );
+        if (r.errorCorreo) {
+          console.error(`El reporte #${r.reporteId} (${etiqueta}) se generó, pero no se pudo enviar por correo:`, r.errorCorreo);
+        }
+      }
+    });
   } catch (err) {
     console.error('Error en la limpieza automática (tickets):', err);
   }

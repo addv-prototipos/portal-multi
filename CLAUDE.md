@@ -444,6 +444,44 @@ navegador esta sesión** — falta confirmación visual del usuario, en
 particular la animación de entrada por paso. Ver PROJECT_STATE.md
 punto 196. **Commiteado y pusheado** (`28875ed` → `fact/master`).
 
+**Punto 197 (2026-09-03, IMPLEMENTADO Y VALIDADO contra Docker real)**:
+auditoría de seguridad estilo pentest (6 auditorías paralelas, solo
+lectura) + parches en 3 fases, las 3 aprobadas y aplicadas completas.
+Resultado: cero inyección explotable, cero fuga cross-tenant, cero IDOR
+— 13 hallazgos reales, ninguno crítico. Alta: `nodemailer` desactualizado
+(`^6.9.14`→`^9.1.1`, el plan viejo de "subir a v9" se quedaba corto —
+el rango vulnerable llega hasta 9.0.0 inclusive; sin SMTP real en este
+entorno para probar un envío de punta a punta). Medias: timing leak en
+`verificarCredencialApi()` (reordenado, mismo patrón que sus 3 funciones
+hermanas), PII completa expuesta en `/api/registro/buscar`/`:email` (el
+`/buscar` recortado a 5 campos reales en vez de a booleano puro — la vista
+previa de "reemplazar constancia" sí los necesita, verificado en
+`app.js` antes de aplicar; la ruta legacy `:email`, sin llamador real,
+sí a booleano), CSRF latente vía cookie `api_key` opcional (eliminada,
+solo header `X-API-Key`), bug de autorización que bloqueaba a "Ventas"
+de `correos-registrados`, `qs`/`uuid` vulnerables vía `express`/`exceljs`
+(resueltos con `overrides` en `package.json` en vez de downgrade de
+`exceljs`, verificado con smoke test real de lectura/escritura `.xlsx`).
+Bajas: retención automática de tickets ahora sí itera tenants reales
+(`ejecutarLimpiezaParaTodos()`, mismo patrón que `cierreMensual.js`, 3
+tests nuevos), `CORS_ORIGIN` — **el fix real estaba en
+`docker-compose.yml`/`docker-stack.yml`** (ambos inyectaban
+`${CORS_ORIGIN:-*}` a nivel Compose, el código nunca veía la variable
+vacía; encontrado validando contra Docker real cuando el header seguía
+saliendo `*` tras el primer rebuild), `access_log off` para
+`/restablecer` (token de un solo uso en la URL), CSP completa en
+`nginx.conf.template` para las 8 páginas estáticas (inventario real
+primero: cero script/handler inline tras mover los 4 que había a
+`theme.js`/`admin.js`/`login.js`/`restablecer.js` — `script-src 'self'`
+sin `unsafe-inline`; `mantenimiento.html` con su propia CSP más
+permisiva; las 3 rutas `/api/*` re-declaran los otros 5 headers sin la
+CSP nueva para no duplicarla sobre la de Swagger, verificado por curl).
+Jest backend 826/826, control 119/119, `npm audit` 0 vulnerabilidades en
+ambos, `nginx -t` limpio, rebuild `--no-cache`+`--force-recreate` de los
+3 servicios. **Sin herramienta de navegador esta sesión** — falta
+confirmación visual de que la CSP no rompa nada, y un envío SMTP real
+cuando el usuario lo configure. Ver PROJECT_STATE.md punto 197.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
@@ -820,8 +858,8 @@ arquitectura ya aprobadas y su justificación: **`PROJECT_STATE.md`, punto
   expuesto en el build público del frontend (reubicado fuera de
   `frontend/assets/`), cabeceras `server_tokens off`/HSTS condicional en
   nginx, `.gitignore`/`.env.example`/README con advertencias reforzadas.
-  **Pendiente (alto, no corregido)**: `nodemailer@6.10.1` vulnerable
-  (CRLF/SMTP injection, SSRF vía opción `raw`) — requiere salto de major
+  **RESUELTO, ver punto 197**: `nodemailer@6.10.1` vulnerable
+  (CRLF/SMTP injection, SSRF vía opción `raw`) — requería salto de major
   a v9 con prueba de envío SMTP real antes de mergear, fuera del alcance
   de un fix seguro sin esa validación. **Bug real de producto encontrado
   y corregido de paso** (no de seguridad): typo `marcaLoGoUrl` en
@@ -2003,8 +2041,9 @@ prueba limpiados al final, tenant quedó igual que antes. Jest backend
   6877-6944) contradice puntos posteriores del mismo archivo (dice
   "marca no implementada" cuando el punto 103 ya la hizo, dice "falta
   probar /control en navegador" cuando el punto 100 ya lo hizo).
-  Confirmado vigente y sin resolver: `nodemailer` vulnerable (punto
-  116), Swarm multi-nodo real nunca probado (95/97), `/control` en dos
+  Confirmado vigente y sin resolver en ese momento: `nodemailer`
+  vulnerable (punto 116, resuelto después en el punto 197), Swarm
+  multi-nodo real nunca probado (95/97), `/control` en dos
   servidores físicos nunca probado (99), red Docker sin segmentar
   (116). Ningún comando/script de este archivo está roto — todos
   verificados. No avanzar con la corrección sin aprobación explícita

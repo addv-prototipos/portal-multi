@@ -117,10 +117,13 @@ async function verificarCredencialApi(usuario, password, tenantSlug) {
       [usuario, tenantSlug]
     );
     const fila = filas[0];
-    if (!fila) return null;
-    // timingSafe: verificar siempre aunque no exista es manejado por caller que también verifica hash dummy si no hay fila.
-    // Aquí si hay fila, verificar hash real.
-    if (!verifyApiPassword(password, fila.password_hash)) return null;
+    // timing-safe: siempre se paga el costo de scrypt, exista o no la fila
+    // (mismo patrón que verificarClaveApi/verificarUsuarioSucursal/
+    // verificarUsuarioAdministrativo en este archivo) — un corto-circuito
+    // antes de verifyApiPassword() dejaría una diferencia de tiempo medible
+    // que permitiría enumerar qué api_usuario existen por tenant.
+    const passwordValida = verifyApiPassword(password, fila ? fila.password_hash : HASH_RELLENO_ADMIN);
+    if (!fila || !passwordValida) return null;
     return { api_usuario: fila.api_usuario, tenant_slug: fila.tenant_slug };
   } catch (err) {
     console.error('Error verificando credencial API:', err.message);
@@ -221,7 +224,7 @@ async function requireAdminAuth(req, res, next) {
   // siempre, sin cambios.
   const realm = req.tenant ? `Administracion-${req.tenant.slug}` : 'Administracion';
 
-  // 0. Clave API por empresa (cookieAuth / X-API-Key) — autoriza uso de las APIs como esta clave API por empresa.
+  // 0. Clave API por empresa (header X-API-Key) — autoriza uso de las APIs como esta clave API por empresa.
   // Se verifica ANTES de exigir Basic, para que `curl -H "X-API-Key: ..."` no necesite también Basic.
   if (req.tenant && req.tenant.slug) {
     const claveApiPrevia = (req.get ? req.get('X-API-Key') : req.headers['x-api-key'] || req.headers['X-API-Key']) || (req.cookies && req.cookies.api_key);
@@ -235,7 +238,7 @@ async function requireAdminAuth(req, res, next) {
           return next();
         }
       } catch (err) {
-        console.error('Error verificando clave API (pre-Basic):', err);
+        console.error('Error verificando clave API (pre-Basic):', err.message);
       }
     }
   }
@@ -288,7 +291,7 @@ async function requireAdminAuth(req, res, next) {
         return next();
       }
     } catch (err) {
-      console.error('Error verificando la cuenta de respaldo "admin":', err);
+      console.error('Error verificando la cuenta de respaldo "admin":', err.message);
     }
   }
 
@@ -302,7 +305,7 @@ async function requireAdminAuth(req, res, next) {
       return next();
     }
   } catch (err) {
-    console.error('Error verificando usuario administrativo:', err);
+    console.error('Error verificando usuario administrativo:', err.message);
   }
 
   // 4. Credencial API por empresa (para Swagger/consumo programático) — solo si hay tenant resuelto
@@ -317,10 +320,16 @@ async function requireAdminAuth(req, res, next) {
         return next();
       }
     } catch (err) {
-      console.error('Error verificando credencial API:', err);
+      console.error('Error verificando credencial API:', err.message);
     }
-    // 4b. Clave API (cookieAuth / X-API-Key) — autoriza uso de las APIs como esta clave API por empresa
-    const claveApi = (req.get ? req.get('X-API-Key') : req.headers['x-api-key'] || req.headers['X-API-Key']) || (req.cookies && req.cookies.api_key);
+    // 4b. Clave API vía header X-API-Key — autoriza uso de las APIs como esta
+    // clave API por empresa. Ya NO se acepta por cookie (`api_key`): esa
+    // cookie nunca la fija el servidor, así que solo llegaba si un operador
+    // la guardaba a mano siguiendo la sugerencia vieja de la UI/Swagger —
+    // sin SameSite/token CSRF propios, un sitio malicioso podía disparar una
+    // petición cross-site que el navegador acompañara con esa cookie. El
+    // header no tiene ese problema (el navegador nunca lo adjunta solo).
+    const claveApi = req.get ? req.get('X-API-Key') : (req.headers['x-api-key'] || req.headers['X-API-Key']);
     if (claveApi) {
       try {
         const credClave = await verificarClaveApi(String(claveApi), req.tenant.slug);
@@ -331,7 +340,7 @@ async function requireAdminAuth(req, res, next) {
           return next();
         }
       } catch (err) {
-        console.error('Error verificando clave API:', err);
+        console.error('Error verificando clave API:', err.message);
       }
     }
 
@@ -347,7 +356,7 @@ async function requireAdminAuth(req, res, next) {
           return next();
         }
       } catch (err) {
-        console.error('Error verificando usuario de sucursal:', err);
+        console.error('Error verificando usuario de sucursal:', err.message);
       }
     }
   }

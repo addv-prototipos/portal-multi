@@ -1,4 +1,4 @@
-const { pool } = require('../db');
+const { pool, obtenerPoolControl, obtenerPoolTenant, ejecutarComoTenant } = require('../db');
 const { getRetencionTicketsDias } = require('./config');
 const { generarYEnviarReporte } = require('./reportes');
 const storage = require('./storage');
@@ -56,21 +56,19 @@ async function obtenerOrdenesVencidas() {
 // obtenerTicketsVencidos(). Los errores al borrar un ticket individual
 // (ej. el archivo ya no existe) no detienen el resto del lote.
 //
-// Multi-tenant (segmento 5 del plan, ver PROJECT_STATE.md): esta función
-// corre desde un `setInterval` en server.js, FUERA de cualquier request
-// HTTP — no hay un `req.tenant` que leer. Usa `storage.PREFIJO_DEFECTO`
-// (el mismo tenant único de siempre) a propósito; iterar la limpieza
-// sobre todos los tenants reales es trabajo pendiente, ya anotado desde
-// el segmento 2 como una extensión futura de este mismo mecanismo, no
-// algo que este segmento (solo migración de almacenamiento) deba resolver.
-async function eliminarTickets(ticketsVencidos) {
+// Multi-tenant: `prefijoStorage` identifica la carpeta de MinIO del tenant
+// cuyo pool ya está activo en el AsyncLocalStorage (ver
+// ejecutarLimpiezaParaTodos() más abajo) — default PREFIJO_DEFECTO para no
+// romper llamadores existentes (tests, uso directo contra la base sin
+// tenant).
+async function eliminarTickets(ticketsVencidos, prefijoStorage = storage.PREFIJO_DEFECTO) {
   let eliminados = 0;
   for (const ticket of ticketsVencidos) {
     try {
-      await storage.eliminarArchivo(storage.PREFIJO_DEFECTO, 'tickets', ticket.imagen_nombre_guardado);
+      await storage.eliminarArchivo(prefijoStorage, 'tickets', ticket.imagen_nombre_guardado);
 
       if (ticket.factura_nombre_guardado) {
-        await storage.eliminarArchivo(storage.PREFIJO_DEFECTO, 'facturas', ticket.factura_nombre_guardado);
+        await storage.eliminarArchivo(prefijoStorage, 'facturas', ticket.factura_nombre_guardado);
       }
 
       await pool.query('DELETE FROM tickets WHERE id = ?', [ticket.id]);
@@ -155,7 +153,7 @@ function ordenAItemReporte(orden) {
 // reporte ya quedó guardado, borra los tickets. Desde el punto 158 ya NO
 // toca órdenes/gastos (se archivan al cierre mensual hacia Reportes).
 // Si no hay nada vencido, no se genera ningún reporte.
-async function ejecutarLimpiezaConReporte() {
+async function ejecutarLimpiezaConReporte(prefijoStorage = storage.PREFIJO_DEFECTO) {
   const { ticketsVencidos, retencionActiva, diasConfigurados } = await obtenerTicketsVencidos();
 
   let reporteId = null;
@@ -178,7 +176,7 @@ async function ejecutarLimpiezaConReporte() {
     }
   }
 
-  const eliminadosTickets = retencionActiva ? await eliminarTickets(ticketsVencidos) : 0;
+  const eliminadosTickets = retencionActiva ? await eliminarTickets(ticketsVencidos, prefijoStorage) : 0;
   const eliminadosOrdenes = 0; // deprecated desde punto 158 — retención ya no borra órdenes
 
   return {
@@ -192,6 +190,62 @@ async function ejecutarLimpiezaConReporte() {
   };
 }
 
+// Auditoría 2026-09-03 (hallazgo #8): itera la limpieza automática sobre
+// base ADDV + todos los tenants activos — antes solo corría contra el pool
+// por defecto, así que los tickets de cualquier tenant real nunca se
+// purgaban por retención. Mismo patrón que
+// cierreMensual.ejecutarCierresMensualesParaTodos() (paginado 5 a la vez,
+// pool real vía obtenerPoolTenant() + ejecutarComoTenant(), errores por
+// tenant no detienen a los demás). El prefijo de MinIO de cada corrida es
+// el slug real del tenant (o PREFIJO_DEFECTO para la base sin tenant), no
+// el slug crudo del listado de control.
+async function ejecutarLimpiezaParaTodos() {
+  const resultados = [];
+
+  try {
+    const r = await ejecutarLimpiezaConReporte(storage.PREFIJO_DEFECTO);
+    resultados.push({ slug: null, base: true, ...r });
+  } catch (err) {
+    resultados.push({ slug: null, base: true, error: err.message });
+  }
+
+  let tenants = [];
+  try {
+    const poolControl = obtenerPoolControl();
+    const [filas] = await poolControl.query(
+      `SELECT slug, db_host, db_name, db_user FROM tenants WHERE estado = 'activo' ORDER BY slug ASC`
+    );
+    tenants = filas;
+  } catch (err) {
+    console.error('[ticketsCleanup] No se pudo listar tenants de control:', err.message);
+    return resultados;
+  }
+
+  for (let i = 0; i < tenants.length; i += 5) {
+    const lote = tenants.slice(i, i + 5);
+    const promesas = lote.map(async (tenant) => {
+      try {
+        const tenantPool = obtenerPoolTenant({
+          slug: tenant.slug,
+          host: tenant.db_host,
+          port: Number(process.env.DB_PORT || 3306),
+          user: tenant.db_user,
+          password: process.env.DB_PASSWORD || '',
+          database: tenant.db_name,
+        });
+        const r = await ejecutarComoTenant(tenantPool, () => ejecutarLimpiezaConReporte(tenant.slug));
+        return { slug: tenant.slug, ...r };
+      } catch (err) {
+        return { slug: tenant.slug, error: err.message };
+      }
+    });
+    const resLote = await Promise.all(promesas);
+    resultados.push(...resLote);
+  }
+
+  return resultados;
+}
+
 module.exports = {
   limpiarTicketsVencidos,
   limpiarOrdenesVencidas,
@@ -200,6 +254,7 @@ module.exports = {
   eliminarTickets,
   eliminarOrdenes,
   ejecutarLimpiezaConReporte,
+  ejecutarLimpiezaParaTodos,
   getInfoUltimaLimpieza,
   ordenAItemReporte,
   CLAVE_ULTIMA_LIMPIEZA_TICKETS,

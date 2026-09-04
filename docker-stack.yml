@@ -188,7 +188,7 @@ services:
       DB_USER: ${MYSQL_USER:-app}
       DB_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE:-portal_facturacion}
-      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
       ADMIN_USERS: ${ADMIN_USERS:?falta ADMIN_USERS}
       USO_CFDI_SYNC_URL: ${USO_CFDI_SYNC_URL:-}
       SESSION_SECRET: ${SESSION_SECRET:?falta SESSION_SECRET}
@@ -246,7 +246,7 @@ services:
       CONTROL_DB_NAME: control_tenants
       BACKEND_INTERNAL_URL: http://backend:4000
       INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:?falta INTERNAL_CACHE_SECRET}
-      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
     networks:
       - fiscal-net
     security_opt:

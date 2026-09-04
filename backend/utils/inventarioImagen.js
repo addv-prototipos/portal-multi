@@ -47,7 +47,7 @@ async function procesarImagenProducto(buffer) {
     (async () => {
       let metadata;
       try {
-        metadata = await sharp(buffer).metadata();
+        metadata = await sharp(buffer, { limitInputPixels: DIMENSION_MAXIMA_PX * DIMENSION_MAXIMA_PX }).metadata();
       } catch (err) {
         throw new ErrorImagenProducto('INV_IMAGEN_PROCESO_FALLIDO', 'No se pudo leer la imagen.');
       }

@@ -12520,6 +12520,130 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   búsqueda (ambos solo verificables interactuando de verdad).
   **Commiteado y pusheado** (`28875ed` → `fact/master`).
 
+- **Auditoría de seguridad estilo pentest + parches, las 3 fases completas
+  (punto 197, 2026-09-03, IMPLEMENTADO Y VALIDADO contra Docker real —
+  Jest backend 826/826, control 119/119, 0 vulnerabilidades npm en ambos)**:
+  a pedido explícito del usuario ("actúa como un hacker profesional..."),
+  6 auditorías de código en paralelo (auth/sesiones, aislamiento
+  multi-tenant, inyección SQL/XSS/path traversal, autorización/IDOR,
+  subida de archivos/MinIO, infraestructura) — solo lectura, sin explotar
+  nada contra el sistema corriendo. **Resultado real**: código con buena
+  higiene de base — cero inyección explotable, cero fuga cross-tenant,
+  cero IDOR. 13 hallazgos reales (1 alta, 5 medias, 5 bajas, 2
+  cosméticos), documentados en bitácora + Artifact con impacto/
+  consecuencia/fix/plan de 3 fases, aprobadas las 3 completas por el
+  usuario.
+
+  **Fase 1 (bajo riesgo)**: (1) `GET /api/admin/correos-registrados`
+  (`server.js`) ganó `'ventas'` en `requireAdminArea` — bloqueaba al
+  perfil Ventas de una función que ya debía tener, el selector de
+  clientes registrados en "Registrar venta" quedaba vacío en silencio.
+  (2) `verificarCredencialApi()` (`auth.js:111-129`) tenía un
+  corto-circuito antes de `verifyApiPassword()` que permitía enumerar por
+  temporización qué `api_usuario` existen por tenant — reordenado para
+  pagar siempre el costo de `scrypt` (mismo patrón que las 3 funciones
+  hermanas del archivo, con `HASH_RELLENO_ADMIN`). (3)
+  `/api/registro/buscar` y `/api/registro/:email` exponían PII completa
+  (nombre, RFC, correo, indicaciones, mime del archivo) sin sesión —
+  **corrección sobre la propuesta original** tras verificar el uso real
+  en `app.js`: `/buscar` SIGUE devolviendo el detalle (lo necesita la
+  vista previa "esto es lo que se va a reemplazar" del formulario
+  público, sin sesión posible en ese punto del flujo) pero recortado a
+  solo los 5 campos que el frontend de verdad usa (se quitaron
+  `email`/`indicaciones`/`archivo_mime`, ninguno consumido); la ruta
+  legacy `/api/registro/:email` (sin ningún llamador real, confirmado)
+  sí se redujo a `{existe: bool}` puro. (4) `npm audit fix` en
+  `backend/`+`control/` resolvió `qs`/`body-parser` (vulnerable vía
+  `express@4.22.2`, sin breaking changes reales — se agregó
+  `"overrides": {"qs": "^6.16.0"}` en ambos `package.json` porque
+  `npm audit fix` normal no lo resolvía solo). (5) `CORS_ORIGIN` — el
+  default cambió de `'*'` a "sin origen" en `backend/server.js` y
+  `control/server.js`, **pero el fix real estaba en
+  `docker-compose.yml`/`docker-stack.yml`**: ambos ya inyectaban
+  `CORS_ORIGIN: ${CORS_ORIGIN:-*}` a nivel Compose, así que el código
+  nunca veía la variable vacía — encontrado validando contra Docker real
+  (el header seguía saliendo `*` tras el primer rebuild), corregido a
+  `${CORS_ORIGIN:-}` en los 4 lugares (2 servicios × 2 archivos).
+  (6) `sharp(buffer).metadata()` en `inventarioImagen.js:50` ganó
+  `limitInputPixels` (ya lo tenían los `.resize()` posteriores).
+  (7) 6 logs con objeto `Error` completo en `auth.js` (no 3 como se
+  había estimado inicialmente) cambiados a `err.message`, igual que el
+  resto del archivo.
+
+  **Fase 2 (con prueba dirigida)**: (8) auth por cookie `api_key`
+  eliminada por completo (`auth.js`, `backend/utils/swagger.js`,
+  `control/utils/swagger.js`, `frontend/control.js`, `control.html`) —
+  quedaba documentada/sugerida en la propia UI y Swagger pese a no tener
+  `SameSite`/token CSRF propios; solo queda el header `X-API-Key`. (9)
+  la retención automática de tickets ahora SÍ itera tenants reales —
+  `ticketsCleanup.js` ganó `ejecutarLimpiezaParaTodos()` (mismo patrón
+  que `cierreMensual.ejecutarCierresMensualesParaTodos()`: base ADDV +
+  tenants activos vía `obtenerPoolTenant`/`ejecutarComoTenant`, paginado
+  5 a la vez, error de un tenant no detiene a los demás); `eliminarTickets`/
+  `ejecutarLimpiezaConReporte` ganaron un parámetro `prefijoStorage`
+  (default `PREFIJO_DEFECTO`, compatible con los llamadores existentes)
+  para que las keys de MinIO borradas sean las del tenant correcto, no
+  siempre `_default`. 3 tests nuevos en `ticketsCleanup.test.js` (dual
+  base+tenants, error aislado, fallo al listar tenants de control).
+  (10) `frontend/nginx.conf.template`: `access_log off` en los 2
+  `location` de `/restablecer` (con y sin slug) — el token de un solo uso
+  viajaba en la query string, el formato de log combinado de nginx lo
+  habría dejado en texto plano en `access.log` durante su ventana de
+  validez.
+
+  **Fase 3 (segmento aparte, mayor riesgo de parche)**: (11)
+  `nodemailer` `^6.9.14` → `^9.1.1` (el rango vulnerable llega hasta
+  9.0.0 inclusive, el plan viejo de "subir a v9" se quedaba corto) —
+  API usada (`createTransport`/`sendMail` con opciones básicas) sin
+  cambios entre mayores, Jest 826/826 sin tocar. **Sin SMTP real
+  configurado en este entorno** (`configurado:false` en
+  `/api/admin/config/smtp` al momento de validar) — no se pudo probar un
+  envío real de punta a punta, queda pendiente que el usuario lo
+  confirme cuando configure SMTP. (12) `uuid` (vulnerable vía `exceljs`)
+  — en vez de bajar `exceljs` de 4.4.0 a 3.4.0 (lo que sugería
+  `npm audit fix --force`, downgrade real de una librería en uso activo
+  para reportes/importador), se agregó `"overrides": {"uuid": "^11.1.1"}`
+  forzando la versión parcheada dentro del árbol de `exceljs` sin tocar
+  su versión — `exceljs` solo usa `uuid.v4()` (API estable entre
+  versiones), verificado con un smoke test real (escribir+leer un
+  `.xlsx` con la librería real, sin mocks) antes de dar el fix por
+  bueno. (13) CSP en `nginx.conf.template` para las 8 páginas estáticas
+  — inventario real hecho primero (cero `<script>` inline, cero
+  `onclick`/`onerror` inline tras mover los 4 que había: el
+  `onerror="this.remove()"` de la imagen decorativa del login pasó a
+  `theme.js` — un solo punto, ya se carga en las 8 páginas — y el
+  `<script>` de pie de página con el año se movió a
+  `admin.js`/`login.js`/`restablecer.js`, mismo patrón que ya usaba
+  `control.js`). Resultado: `script-src 'self'` SIN `unsafe-inline` en
+  ninguna parte. `style-src` sí conserva `unsafe-inline` (~11 atributos
+  `style="..."` estáticos sin datos de usuario, mismo criterio ya
+  aceptado en la CSP de Swagger) + `https://fonts.googleapis.com`
+  (`style.css`, cargado en TODO el sitio, importa Inter de ahí — sin
+  esto se pierde la tipografía del sitio completo). `mantenimiento.html`
+  (la única página con un `<script>` inline real, el polling de
+  `/api/health`) gana su PROPIO `location` con una CSP más permisiva
+  solo para ella, en vez de relajar la del resto del sitio. Los 3
+  `location` de proxy a `/api/*` ganaron re-declaración explícita de los
+  otros 5 headers de seguridad SIN la nueva CSP — evita que la respuesta
+  de Swagger (que ya manda su propia CSP calibrada, ver punto 116) o
+  cualquier JSON de la API terminen con 2 cabeceras `Content-Security-
+  Policy` distintas; validado por curl que `/api/docs/` sigue mandando
+  exactamente 1 CSP (la suya). `nginx -t` limpio tras rebuild
+  `--no-cache`+`--force-recreate`.
+
+  **Validación de conjunto**: Jest backend 826/826 (46 suites), control
+  119/119 (8 suites), `node --check` limpio en los 13 archivos JS
+  tocados, HTML balanceado en las 4 páginas tocadas, `npm audit
+  --production` en 0 vulnerabilidades en ambos paquetes, `nginx -t`
+  exitoso, las 6 páginas HTML+`/admin`+`/control` responden 200 tras el
+  rebuild completo (`--no-cache`+`--force-recreate` de frontend+backend+
+  control). **Sin herramienta de navegador esta sesión** — falta
+  confirmación visual del usuario, sobre todo que ninguna página se vea
+  rota por la CSP nueva (verificar la consola del navegador sin errores
+  de `Content-Security-Policy` bloqueando algo no previsto) y, cuando
+  haya SMTP real configurado, un envío de correo de prueba real con
+  nodemailer 9.1.1.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

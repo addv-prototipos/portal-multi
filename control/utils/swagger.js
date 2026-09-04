@@ -14,8 +14,7 @@ const swaggerDefinition = {
   components: {
     securitySchemes: {
       basicAuth: { type: 'http', scheme: 'basic' },
-      apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key', description: 'Clave API por empresa (generada en /control → Credenciales API). Autoriza uso de las APIs como esta clave API por empresa.' },
-      cookieAuth: { type: 'apiKey', in: 'cookie', name: 'api_key' },
+      apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key', description: 'Clave API por empresa (generada en /control → Credenciales API). Autoriza uso de las APIs como esta clave API por empresa. Solo por header — ya no se acepta como cookie (retirado por seguridad, riesgo de CSRF).' },
     },
     schemas: {
       Tenant: { type: 'object', properties: { slug: { type: 'string' }, nombre_empresa: { type: 'string' }, estado: { type: 'string', enum: ['provisioning', 'activo', 'suspendido', 'baja'] } } },

@@ -17,7 +17,7 @@ const swaggerDefinition = {
     securitySchemes: {
       basicAuth: { type: 'http', scheme: 'basic' },
       cookieAuth: { type: 'apiKey', in: 'cookie', name: 'session' },
-      apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key', description: 'Clave API por empresa (gestionada en /control → Credenciales API). También se puede enviar como cookie api_key. No se acepta por query string (?api_key=), queda expuesta en logs/historial del navegador.' },
+      apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key', description: 'Clave API por empresa (gestionada en /control → Credenciales API). Solo por header — ya no se acepta como cookie (retirado por seguridad, riesgo de CSRF) ni por query string (?api_key=, quedaba expuesta en logs/historial del navegador).' },
     },
     schemas: {
       Error: { type: 'object', properties: { error: { type: 'string' }, codigo: { type: 'string' } } },
