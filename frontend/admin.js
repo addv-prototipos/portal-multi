@@ -78,6 +78,8 @@
     smtpCorreoRemitente: document.getElementById('smtp-correo-remitente'),
     smtpCorreoContador: document.getElementById('smtp-correo-contador'),
     smtpCuerpoCliente: document.getElementById('smtp-cuerpo-cliente'),
+    btnGuiaSmtpGmail: document.getElementById('btn-guia-smtp-gmail'),
+    guiaSmtpGmailCuerpo: document.getElementById('guia-smtp-gmail-cuerpo'),
     smtpConfigError: document.getElementById('smtp-config-error'),
     btnGuardarSmtp: document.getElementById('btn-guardar-smtp'),
     btnGuardarSmtpLabel: document.getElementById('btn-guardar-smtp-label'),
@@ -3349,6 +3351,28 @@
     els.smtpConfigBody.hidden = abierto;
     if (!abierto) cargarConfigSmtp();
   });
+
+  // Guía Gmail paso a paso, inline en la tarjeta (Fase 7 UX, 2026-09-04) —
+  // mismo contenido y misma animación que el Centro de conocimiento
+  // (GUIA_SMTP_GMAIL/renderPasoTarjeta, definidos más abajo en este
+  // archivo — funciones hoisted, se puede llamar desde aquí sin problema).
+  if (els.btnGuiaSmtpGmail) {
+    els.btnGuiaSmtpGmail.addEventListener('click', () => {
+      const abierta = els.btnGuiaSmtpGmail.classList.toggle('is-open');
+      els.btnGuiaSmtpGmail.setAttribute('aria-expanded', String(abierta));
+      els.guiaSmtpGmailCuerpo.classList.toggle('is-open', abierta);
+      if (abierta && !els.guiaSmtpGmailCuerpo.dataset.render) {
+        const reducido = prefersReducedMotion();
+        els.guiaSmtpGmailCuerpo.innerHTML = GUIA_SMTP_GMAIL.map((p, i) => renderPasoTarjeta(p, i, '', reducido)).join('');
+        els.guiaSmtpGmailCuerpo.dataset.render = '1';
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            els.guiaSmtpGmailCuerpo.querySelectorAll('.conocimiento-paso').forEach((el) => el.classList.add('is-in'));
+          });
+        });
+      }
+    });
+  }
 
   els.btnToggleSmtpPassword.addEventListener('click', () => {
     const mostrando = els.smtpPassword.type === 'password';
@@ -11833,6 +11857,41 @@
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
+  // Guía Gmail paso a paso (Fase 7 UX, 2026-09-04) — fuente ÚNICA reusada
+  // en 2 lugares: el Centro de conocimiento (categoría "configuraciones")
+  // y el toggle inline de la tarjeta SMTP. `enlace` es opcional y SIEMPRE
+  // un dato fijo escrito aquí (nunca texto de usuario/tenant) — se arma
+  // como <a href> directo en el render, no hay riesgo de inyección porque
+  // no hay ningún dato dinámico entrando a esa URL.
+  // soporte@addv.mx: canal TEMPORAL confirmado por el usuario — cuando
+  // exista el canal definitivo, cambiar solo esta constante.
+  const CORREO_SOPORTE_TEMPORAL = 'soporte@addv.mx';
+  const GUIA_SMTP_GMAIL = [
+    {
+      t: 'Activa la verificación en 2 pasos',
+      d: 'En la cuenta de Google que vas a usar (personal o de tu empresa) — sin esto, Google no deja crear una contraseña de aplicación.',
+      enlace: { texto: 'Activar verificación en 2 pasos', url: 'https://myaccount.google.com/security' },
+    },
+    {
+      t: 'Genera una contraseña de aplicación',
+      d: 'Con la verificación ya activa, genera una — Google te da 16 caracteres. Esa es la que va en el campo "Contraseña" de este formulario, NUNCA la contraseña normal de tu cuenta.',
+      enlace: { texto: 'Generar contraseña de aplicación', url: 'https://myaccount.google.com/apppasswords' },
+    },
+    {
+      t: 'Llena estos 5 campos',
+      d: 'Host: smtp.gmail.com · Puerto: 587 · Seguridad: STARTTLS · Usuario: tu correo completo · Contraseña: la de 16 caracteres del paso anterior.',
+    },
+    {
+      t: '¿No usas Gmail?',
+      d: 'Outlook, hosting propio u otro proveedor — pide host, puerto, usuario y contraseña a quien administre ese correo. Los mismos 5 campos de arriba aplican igual.',
+    },
+    {
+      t: '¿Sigues sin poder configurarlo?',
+      d: 'Escríbenos y te ayudamos a dejarlo funcionando.',
+      enlace: { texto: CORREO_SOPORTE_TEMPORAL, url: `mailto:${CORREO_SOPORTE_TEMPORAL}` },
+    },
+  ];
+
   // ---------- Centro de conocimiento (Fase 6 UX) ----------
   // Manual completo de /admin — mismo shell que "Configuraciones globales"
   // (config-modal-sidebar/main reusados tal cual) pero con contenido propio
@@ -11965,9 +12024,38 @@
         { t: 'Las 6 secciones', d: 'Campos obligatorios, Configuraciones fiscales, SMTP, Configuración de reportes, Ventas e Inventarios — un buscador arriba filtra entre ellas.' },
         { t: 'Interruptores globales', d: '"Habilitar Ventas" y "Inventario activo" — apagados, esas secciones se ocultan por completo para todos los perfiles, sin excepción.' },
         { t: 'Correo (SMTP)', d: 'De aquí sale cada correo automático de la app — confirmaciones de venta, factura lista, invitaciones. Sin configurarlo, esos correos no se envían.' },
+        ...GUIA_SMTP_GMAIL,
       ],
     },
   };
+
+  // Compartido entre el Centro de conocimiento y el toggle inline de la
+  // tarjeta SMTP (`renderGuiaSmtpGmail`, ver más abajo) — un solo lugar
+  // que arma el HTML de un "paso" numerado con su línea conectora, con
+  // resaltado de búsqueda opcional y enlace opcional. `p.enlace.url`
+  // SIEMPRE viene de una constante fija del propio código (nunca de
+  // input del usuario/tenant), así que interpolarla es seguro.
+  function renderPasoTarjeta(p, i, termino, reducido) {
+    let t = escapeHtml(p.t);
+    let d = escapeHtml(p.d);
+    let esMatch = false;
+    if (termino) {
+      const re = new RegExp(`(${termino.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig');
+      if (re.test(t) || re.test(d)) {
+        esMatch = true;
+        t = t.replace(re, '<mark>$1</mark>');
+        d = d.replace(re, '<mark>$1</mark>');
+      }
+    }
+    const enlaceHtml = p.enlace
+      ? `<a href="${p.enlace.url}" target="_blank" rel="noopener">${escapeHtml(p.enlace.texto)} ↗</a>`
+      : '';
+    return `
+      <div class="conocimiento-paso" style="transition-delay:${reducido ? 0 : i * 55}ms">
+        <div class="conocimiento-paso-rail"><div class="conocimiento-paso-num">${i + 1}</div><div class="conocimiento-paso-linea"></div></div>
+        <div class="conocimiento-paso-tarjeta${esMatch ? ' is-match' : ''}"><b>${t}</b><p>${d}</p>${enlaceHtml}</div>
+      </div>`;
+  }
 
   function renderCategoriaConocimiento(catKey, termino) {
     const datos = CONOCIMIENTO_CATEGORIAS[catKey];
@@ -11975,22 +12063,7 @@
     const reducido = prefersReducedMotion();
     let html = `<h3 class="conocimiento-cat-titulo">${escapeHtml(datos.titulo)}</h3><p class="conocimiento-cat-lead">${escapeHtml(datos.lead)}</p>`;
     datos.pasos.forEach((p, i) => {
-      let t = escapeHtml(p.t);
-      let d = escapeHtml(p.d);
-      let esMatch = false;
-      if (termino) {
-        const re = new RegExp(`(${termino.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig');
-        if (re.test(t) || re.test(d)) {
-          esMatch = true;
-          t = t.replace(re, '<mark>$1</mark>');
-          d = d.replace(re, '<mark>$1</mark>');
-        }
-      }
-      html += `
-        <div class="conocimiento-paso" style="transition-delay:${reducido ? 0 : i * 55}ms">
-          <div class="conocimiento-paso-rail"><div class="conocimiento-paso-num">${i + 1}</div><div class="conocimiento-paso-linea"></div></div>
-          <div class="conocimiento-paso-tarjeta${esMatch ? ' is-match' : ''}"><b>${t}</b><p>${d}</p></div>
-        </div>`;
+      html += renderPasoTarjeta(p, i, termino, reducido);
     });
     els.conocimientoMainBody.innerHTML = html;
     els.conocimientoTitle.textContent = datos.titulo;

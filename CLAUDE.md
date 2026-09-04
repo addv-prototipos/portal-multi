@@ -495,6 +495,24 @@ CONFIRMADOS sin regresión (verificado por 3 agentes que terminaron antes
 de que la sesión tocara su límite de cuota + lectura directa del resto).
 Ver PROJECT_STATE.md punto 198.
 
+**Punto 199 (2026-09-04, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: guía Gmail paso a paso (verificación en 2 pasos + contraseña de
+aplicación), a raíz de una duda del usuario sobre por qué solo Gmail
+corporativo parecía funcionar — no era el código (`crearTransportador()`
+es genérico), es política de Google desde 2022, igual para cuenta
+personal o de empresa. 5 pasos con links reales, fuente única
+(`GUIA_SMTP_GMAIL` + `CORREO_SOPORTE_TEMPORAL='soporte@addv.mx'` en
+`admin.js`) reusada en 2 lugares: el Centro de conocimiento
+("Configuraciones globales") y un toggle nuevo dentro de la tarjeta SMTP
+de `/admin` (reemplaza el aviso estático `.smtp-aviso-gmail`).
+`renderPasoTarjeta()` extraída como función compartida, ahora soporta
+`p.enlace` opcional — URLs siempre constantes fijas del código, nunca
+dato de usuario. Cero backend. Jest 826/826 sin cambios. Validado por
+HTTP tras rebuild `--no-cache`+`--force-recreate` frontend. **Sin
+herramienta de navegador esta sesión** — falta confirmación visual.
+`soporte@addv.mx` es temporal, cambiar cuando haya canal definitivo. Ver
+PROJECT_STATE.md punto 199.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

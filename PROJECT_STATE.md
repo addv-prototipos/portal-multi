@@ -12697,6 +12697,47 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   inmediato siguiente. Ningún hallazgo nuevo pendiente de las 6 áreas
   auditadas dos veces.
 
+- **Guía Gmail paso a paso — Fase 7 UX (punto 199, 2026-09-04,
+  IMPLEMENTADA Y VALIDADA por HTTP contra Docker real)**: a raíz de una
+  duda real del usuario sobre por qué solo cuentas Gmail corporativas
+  parecían funcionar (investigado: no era una restricción del código —
+  `crearTransportador()` es 100% genérico, sin nada específico de
+  dominio — es una política de Google: desde 2022 Gmail exige
+  Contraseña de aplicación, disponible solo con verificación en 2 pasos
+  activa, igual para cuenta personal o de empresa), se agregó una guía
+  de 5 pasos con links reales, en dos lugares con una **fuente única**:
+  `GUIA_SMTP_GMAIL` (nuevo arreglo en `admin.js`, junto a
+  `CORREO_SOPORTE_TEMPORAL = 'soporte@addv.mx'` — canal confirmado por
+  el usuario como temporal, 1 constante para cambiarlo cuando exista el
+  definitivo). (1) Centro de conocimiento → categoría "Configuraciones
+  globales", los 5 pasos se anexan al paso existente "Correo (SMTP)".
+  (2) Tarjeta SMTP de `/admin` → Configuraciones globales: el aviso
+  estático `.smtp-aviso-gmail` (texto plano, sin pasos, sin links) se
+  reemplazó por un toggle "¿Cómo configuro Gmail paso a paso?" que
+  revela los mismos 5 pasos con la misma animación. Protocolo completo
+  (crítica: se corrigió el encuadre de "solo cuentas personales" del
+  usuario original — la Contraseña de aplicación aplica igual a Gmail
+  corporativo, no sería justo decir que es solo para personal; propuesta
+  visual con demo interactivo real en Artifact, aprobada). **Refactor
+  técnico**: `renderPasoTarjeta()` extraída de
+  `renderCategoriaConocimiento()` como función compartida (antes vivía
+  inline) — ahora soporta un campo opcional `p.enlace` ({texto, url})
+  que arma un `<a target="_blank" rel="noopener">`, usada por las dos
+  superficies. Los 2 links a Google (`myaccount.google.com/security`,
+  `myaccount.google.com/apppasswords`) y el `mailto:` de soporte son
+  SIEMPRE constantes fijas del propio código, nunca dato de
+  usuario/tenant — sin riesgo de inyección al interpolarlos. Cero
+  cambios de backend. `node --check` limpio, HTML/CSS balanceados, Jest
+  backend 826/826 (sin cambios, corrido por sanidad). Validado por HTTP
+  contra Docker real tras rebuild `--no-cache`+`--force-recreate` del
+  frontend: toggle presente, aviso viejo ausente, los 5 pasos +
+  ambos links de Google + el correo de soporte confirmados en el JS
+  servido. **Sin herramienta de navegador esta sesión** — falta
+  confirmación visual de que la animación de entrada se vea bien al
+  abrir el toggle (mismo patrón ya usado y confirmado en el Centro de
+  conocimiento, riesgo bajo). Pendiente registrado: `soporte@addv.mx`
+  es temporal, cambiar cuando el usuario confirme el canal definitivo.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

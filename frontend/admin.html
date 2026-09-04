@@ -1948,9 +1948,18 @@
             Configura el servidor SMTP que usará la app para enviar correos. Pensado para Gmail (<code>smtp.gmail.com</code>), pero funciona con cualquier proveedor SMTP estándar.
           </p>
 
-          <div class="smtp-aviso-gmail">
-            <strong>¿Usas Gmail?</strong> No uses la contraseña normal de la cuenta: Google la rechaza para SMTP. Activa la verificación en dos pasos y genera una <strong>«Contraseña de aplicación»</strong> desde la configuración de seguridad de tu cuenta de Google — esa es la que va en el campo "Contraseña" de aquí abajo.
-          </div>
+          <!-- Guía Gmail paso a paso (Fase 7 UX, 2026-09-04): reemplaza el
+               aviso estático de texto plano que había aquí — mismo
+               contenido que la categoría "Configuraciones globales" del
+               Centro de conocimiento (fuente única, ver GUIA_SMTP_GMAIL en
+               admin.js), con pasos numerados, links reales y animación de
+               entrada al abrir. -->
+          <button type="button" class="guia-smtp-toggle" id="btn-guia-smtp-gmail" aria-expanded="false" aria-controls="guia-smtp-gmail-cuerpo">
+            <span class="guia-smtp-toggle-icon">?</span>
+            <span>¿Cómo configuro Gmail paso a paso?</span>
+            <svg class="guia-smtp-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="guia-smtp-gmail-cuerpo" id="guia-smtp-gmail-cuerpo"></div>
 
           <div class="smtp-config-grid">
             <div class="field">

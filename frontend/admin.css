@@ -979,8 +979,22 @@
   100% { box-shadow: 0 0 0 2px #05DBF2; }
 }
 .conocimiento-paso-tarjeta b { display: block; font-size: 13.5px; margin-bottom: 3px; }
-.conocimiento-paso-tarjeta p { font-size: 13px; color: var(--color-ink-soft); margin: 0; }
+.conocimiento-paso-tarjeta p { font-size: 13px; color: var(--color-ink-soft); margin: 0 0 6px; }
+.conocimiento-paso-tarjeta p:last-child { margin-bottom: 0; }
 .conocimiento-paso-tarjeta mark { background: #FFE9A8; color: var(--color-ink); border-radius: 3px; padding: 0 2px; }
+/* Enlace opcional de un paso (Fase 7 UX, guía Gmail) — mismo criterio de
+   color que el resto de enlaces de acento del panel. */
+.conocimiento-paso-tarjeta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #03285B;
+  text-decoration: none;
+}
+.conocimiento-paso-tarjeta a:hover,
+.conocimiento-paso-tarjeta a:focus-visible { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .conocimiento-paso { transition: none; opacity: 1; transform: none; }
   .conocimiento-paso-tarjeta.is-match { animation: none; }
@@ -1957,16 +1971,47 @@
 .smtp-estado-badge.is-ok { background: #DCEFE3; color: #146C43; }
 .smtp-estado-badge.is-pendiente { background: var(--color-warn-soft); color: var(--color-warn); }
 
-.smtp-aviso-gmail {
+/* Guía Gmail paso a paso, inline (Fase 7 UX, 2026-09-04) — reemplaza el
+   antiguo .smtp-aviso-gmail (texto plano estático). El cuerpo reusa
+   .conocimiento-paso* tal cual (ya global, definidas para el Centro de
+   conocimiento) — cero CSS de stepper duplicado aquí. */
+.guia-smtp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
   background: var(--color-accent-soft);
   border: 1px solid var(--color-accent);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  margin-bottom: 18px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--color-ink);
+  padding: 11px 14px;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #03285B;
+  cursor: pointer;
+  margin-bottom: 0;
 }
+.guia-smtp-toggle-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #03285B;
+  color: #05DBF2;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.guia-smtp-toggle-chevron { margin-left: auto; flex-shrink: 0; transition: transform 0.2s ease; }
+.guia-smtp-toggle.is-open .guia-smtp-toggle-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .guia-smtp-toggle-chevron { transition: none; }
+}
+.guia-smtp-gmail-cuerpo { display: none; padding: 18px 4px 4px; margin-bottom: 0; }
+.guia-smtp-gmail-cuerpo.is-open { display: block; margin-bottom: 18px; }
 
 .smtp-config-grid {
   display: grid;
