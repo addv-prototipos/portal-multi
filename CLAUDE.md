@@ -513,6 +513,24 @@ herramienta de navegador esta sesión** — falta confirmación visual.
 `soporte@addv.mx` es temporal, cambiar cuando haya canal definitivo. Ver
 PROJECT_STATE.md punto 199.
 
+**Punto 200 (2026-09-04, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: botón "Ver el recorrido de nuevo" en el Centro de conocimiento
+(categoría "Primeros pasos") — el recorrido guiado del punto 192 solo se
+disparaba una vez en la vida de la cuenta, sin forma de repetirlo.
+Refactor: `construirYMostrarTour()` extraída de
+`iniciarTourBienvenidaSiAplica()`, reusada por la nueva
+`reiniciarTourBienvenidaManual()` (ignora el estado "ya visto" a
+propósito, conserva la restricción de escritorio con aviso vía
+`showToast()`, cierra el Centro de conocimiento antes de arrancar).
+`renderPasoTarjeta()` ganó `p.accion` (botón real, delegación de eventos
+en `els.conocimientoMainBody`, nunca `onclick` inline — mantiene la CSP
+del punto 197). De paso, confirmado por HTTP que la guía SMTP del punto
+199 sigue desplegada correctamente — el usuario no la veía por caché de
+navegador o por no haber expandido la tarjeta SMTP, no por un problema
+de código. Jest backend 826/826 sin cambios. **Sin herramienta de
+navegador esta sesión** — falta confirmación visual. Ver PROJECT_STATE.md
+punto 200.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

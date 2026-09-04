@@ -12738,6 +12738,49 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   conocimiento, riesgo bajo). Pendiente registrado: `soporte@addv.mx`
   es temporal, cambiar cuando el usuario confirme el canal definitivo.
 
+- **Botón para repetir el recorrido guiado, desde el Centro de
+  conocimiento (punto 200, 2026-09-04, IMPLEMENTADO Y VALIDADO por HTTP
+  contra Docker real)**: usuario preguntó si el recorrido con spotlight
+  del punto 192 seguía en el sitio — confirmado que sí (`e32be42`, en
+  producción, verificado corriendo en el contenedor real) — y pidió
+  poder relanzarlo manualmente desde el Centro de conocimiento, ya que
+  antes solo se disparaba una vez en la vida de la cuenta sin forma de
+  volver a verlo. Nuevo paso "Repite el recorrido guiado" en la
+  categoría "Primeros pasos", con un botón real (`Ver el recorrido de
+  nuevo`) — no un link, dispara JS. **Refactor**: se extrajo
+  `construirYMostrarTour()` de `iniciarTourBienvenidaSiAplica()` (la
+  parte de "armar los pasos reales + mostrarlos", separada de la lógica
+  de "solo una vez en la vida de la cuenta"), reusada por la nueva
+  `reiniciarTourBienvenidaManual()` — esta última SÍ ignora el estado
+  "ya visto" a propósito (es justo el botón para volver a verlo), pero
+  conserva la restricción de escritorio (el spotlight no tiene sentido
+  sobre el launcher de íconos móvil) con aviso vía `showToast()` si no
+  aplica, y cierra el modal del Centro de conocimiento antes de
+  arrancar (el spotlight apunta a elementos reales de la barra lateral,
+  que quedarían tapados por el modal). `renderPasoTarjeta()` ganó un
+  segundo campo opcional `p.accion` (botón real) además de `p.enlace`
+  (link) ya agregado en el punto 199 — resuelto por delegación de
+  eventos en `els.conocimientoMainBody` con un mapa
+  `ACCIONES_CONOCIMIENTO`, nunca `onclick` inline (mantiene la CSP
+  `script-src 'self'` del punto 197 sin abrir de nuevo la necesidad de
+  `unsafe-inline`). De paso, se confirmó por HTTP que la guía Gmail del
+  punto 199 sigue desplegada correctamente (el usuario reportó no
+  verla) — el reporte fue de despliegue/caché de su lado, no del
+  código: confirmado presente tanto en el HTML servido como dentro del
+  contenedor real; vive DENTRO de la tarjeta "Correo electrónico
+  (SMTP)" ya expandida, no a simple vista al solo abrir Configuraciones
+  globales — se le pidió al usuario hacer `Ctrl+Shift+R` (gotcha de
+  caché de navegador ya documentado varias veces en este archivo) y
+  confirmar que expandió esa tarjeta específica. Cero cambios de
+  backend. `node --check` limpio, CSS balanceado (1062/1062 llaves),
+  Jest backend 826/826 (sin cambios, corrido por sanidad). Validado por
+  HTTP contra Docker real tras rebuild `--no-cache`+`--force-recreate`
+  del frontend: función, botón y delegación de eventos confirmados en
+  el JS servido. **Sin herramienta de navegador esta sesión** — falta
+  confirmación visual del usuario, tanto de este botón como de la guía
+  SMTP del punto 199 (pendiente que confirme si el hard refresh
+  resolvió lo que reportó).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

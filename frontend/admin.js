@@ -11909,6 +11909,7 @@
         { t: 'Da de alta a tu equipo', d: 'Usuarios → Crear usuario. Elige el perfil correcto (Administrador, Fiscal o Ventas) según lo que esa persona necesite hacer — cada perfil ve solo sus secciones.' },
         { t: 'Revisa el checklist de Inicio', d: 'Aparece solo ahí hasta que completes sus 3-4 pasos según tu perfil — te va guiando, no hace falta memorizar nada.' },
         { t: 'Vuelve aquí cuando lo necesites', d: 'Este manual queda siempre a un clic, en el ícono de libro junto a "Cerrar sesión" — en cualquier vista, con cualquier perfil.' },
+        { t: 'Repite el recorrido guiado', d: 'La primera vez que entraste, un recorrido con globos señaló las partes clave del panel para tu perfil — si quieres volver a verlo, aquí mismo. Solo disponible en escritorio.', accion: 'reiniciar-tour', textoAccion: 'Ver el recorrido de nuevo' },
       ],
     },
     inicio: {
@@ -12050,10 +12051,18 @@
     const enlaceHtml = p.enlace
       ? `<a href="${p.enlace.url}" target="_blank" rel="noopener">${escapeHtml(p.enlace.texto)} ↗</a>`
       : '';
+    // `accion` es un botón real (no un link) — dispara una función de JS
+    // por `data-accion`, resuelta por delegación de eventos (ver el
+    // listener de `els.conocimientoMainBody` más abajo). Nunca un
+    // `onclick` inline, para no reabrir la necesidad de 'unsafe-inline'
+    // en script-src que la CSP del punto 197 cerró a propósito.
+    const accionHtml = p.accion
+      ? `<button type="button" class="conocimiento-paso-boton" data-accion="${escapeHtml(p.accion)}">${escapeHtml(p.textoAccion || 'Repetir')}</button>`
+      : '';
     return `
       <div class="conocimiento-paso" style="transition-delay:${reducido ? 0 : i * 55}ms">
         <div class="conocimiento-paso-rail"><div class="conocimiento-paso-num">${i + 1}</div><div class="conocimiento-paso-linea"></div></div>
-        <div class="conocimiento-paso-tarjeta${esMatch ? ' is-match' : ''}"><b>${t}</b><p>${d}</p>${enlaceHtml}</div>
+        <div class="conocimiento-paso-tarjeta${esMatch ? ' is-match' : ''}"><b>${t}</b><p>${d}</p>${enlaceHtml}${accionHtml}</div>
       </div>`;
   }
 
@@ -12156,6 +12165,23 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && els.conocimientoOverlay && !els.conocimientoOverlay.hidden) cerrarConocimiento();
   });
+
+  // Botones de acción dentro de un "paso" del Centro de conocimiento
+  // (`p.accion`, ver renderPasoTarjeta) — delegado en el contenedor en
+  // vez de re-atar un listener cada vez que se renderiza una categoría.
+  // `reiniciarTourBienvenidaManual` está definida más abajo en este
+  // archivo (function declaration, hoisted — se puede referenciar aquí).
+  const ACCIONES_CONOCIMIENTO = {
+    'reiniciar-tour': () => reiniciarTourBienvenidaManual(),
+  };
+  if (els.conocimientoMainBody) {
+    els.conocimientoMainBody.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-accion]');
+      if (!btn) return;
+      const accion = ACCIONES_CONOCIMIENTO[btn.dataset.accion];
+      if (accion) accion();
+    });
+  }
 
   // ---------- Primeros pasos + recorrido de bienvenida (Fase 2 UX, punto 191) ----------
   // Todo 100% frontend, cero endpoint nuevo: los pasos se derivan de datos que
@@ -12318,6 +12344,20 @@
   let tourPasosActuales = [];
   let tourIndiceActual = 0;
 
+  // Construye la lista real de pasos del tour para el perfil actual
+  // (filtra selectores que no existan/estén ocultos en este momento) y
+  // los muestra — compartido entre el disparo automático (una vez en la
+  // vida de la cuenta) y el botón manual "Ver el recorrido de nuevo" del
+  // Centro de conocimiento (Fase 7 UX, 2026-09-04).
+  function construirYMostrarTour() {
+    const pasos = ONBOARDING_TOUR_PASOS[perfilActual]
+      .map((p) => ({ ...p, el: document.querySelector(p.selector) }))
+      .filter((p) => p.el && !p.el.hidden && p.el.offsetParent !== null);
+    if (pasos.length === 0) return false;
+    mostrarPasoTour(pasos, 0);
+    return true;
+  }
+
   function iniciarTourBienvenidaSiAplica() {
     if (tourDisparadoEnEstaSesion) return;
     if (!perfilActual || !ONBOARDING_TOUR_PASOS[perfilActual]) return;
@@ -12331,11 +12371,26 @@
     // de la cuenta", con o sin terminarlo — un reload a medio tour no debe
     // volver a dispararlo.
     guardarEstadoOnboarding({ tourVisto: true });
-    const pasos = ONBOARDING_TOUR_PASOS[perfilActual]
-      .map((p) => ({ ...p, el: document.querySelector(p.selector) }))
-      .filter((p) => p.el && !p.el.hidden && p.el.offsetParent !== null);
-    if (pasos.length === 0) return;
-    mostrarPasoTour(pasos, 0);
+    construirYMostrarTour();
+  }
+
+  // Disparo manual desde el Centro de conocimiento — a diferencia del
+  // automático, ignora a propósito "ya visto" (es justo el botón para
+  // volver a verlo) pero conserva la misma restricción de escritorio: el
+  // spotlight no tiene sentido sobre el launcher de íconos móvil.
+  function reiniciarTourBienvenidaManual() {
+    if (!perfilActual || !ONBOARDING_TOUR_PASOS[perfilActual]) {
+      showToast('El recorrido guiado no está disponible para tu perfil.', true);
+      return;
+    }
+    if (window.matchMedia && !window.matchMedia('(min-width: 900px)').matches) {
+      showToast('El recorrido guiado solo está disponible en escritorio.', true);
+      return;
+    }
+    cerrarConocimiento();
+    tourDisparadoEnEstaSesion = true;
+    const mostrado = construirYMostrarTour();
+    if (!mostrado) showToast('No se pudo mostrar el recorrido — vuelve a intentarlo desde Inicio.', true);
   }
 
   function mostrarPasoTour(pasos, indice) {
