@@ -12781,6 +12781,41 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   SMTP del punto 199 (pendiente que confirme si el hard refresh
   resolvió lo que reportó).
 
+- **Perfil "administrador" ahora ve "Inicio" (punto 201, 2026-09-04,
+  IMPLEMENTADO Y VALIDADO por HTTP contra Docker real)**: pedido directo
+  del usuario. No era solo agregar `'inicio'` a
+  `RESTRICCIONES_PERFIL.administrador.vistasPermitidas` en `admin.js` —
+  esa vista carga sus datos desde `GET /api/admin/tickets`, que en el
+  backend exigía `requireAdminArea('fiscal')` exclusivo — sin ese
+  segundo cambio, el botón habría aparecido pero la vista se habría
+  quedado en "No se pudieron cargar las solicitudes" (403). Se agregó
+  `'administrador'` a esa ruta (`requireAdminArea('fiscal',
+  'administrador')`, `server.js`). **Encontrado y cerrado de paso, sin
+  que el usuario lo pidiera**: "Inicio" no es solo una foto de
+  estadísticas — el botón "Ver todas" navega a la vista Tickets completa
+  (que administrador NO tiene, y no se agregó a propósito — sigue siendo
+  exclusiva de fiscal) y cada fila de "Solicitudes recientes" trae un
+  botón "Gestionar" que abre el modal de gestión de tickets, cuyos
+  endpoints (aceptar, subir factura, etc.) siguen siendo 100%
+  exclusivos de `fiscal` en el backend (verificado: `/tickets/:id`,
+  `/tickets/:id/estatus`, `/tickets/:id/factura`, sin tocar). Dejar esos
+  2 controles visibles para administrador habría ofrecido acciones que
+  el servidor rechazaría con 403 — se ocultan específicamente para ese
+  perfil (`els.btnInicioVerTodas.hidden` + la celda "Gestionar" vacía en
+  `renderInicio()`), dejando "Inicio" como resumen de solo lectura para
+  administrador, gestión completa solo para fiscal — sin tocar el
+  comportamiento de fiscal en nada. 3 tests nuevos en `admin.test.js`
+  (fiscal 200, administrador 200, ventas sigue en 403) — el endpoint no
+  tenía NINGUNA prueba antes de este cambio (hallazgo aparte, gap
+  preexistente no introducido por este punto). `node --check` limpio,
+  Jest backend **829/829** (3 nuevos). Validado por HTTP contra Docker
+  real tras rebuild `--no-cache`+`--force-recreate` de backend+frontend:
+  el middleware confirmado con los dos perfiles en el `server.js` real
+  del contenedor, el cambio de `admin.js` confirmado en el JS servido.
+  **Sin herramienta de navegador esta sesión** — falta confirmación
+  visual del usuario, en particular que "Ver todas"/"Gestionar" en
+  efecto no aparezcan para ese perfil.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

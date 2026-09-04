@@ -4051,7 +4051,7 @@ app.get(
   '/api/admin/tickets',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('fiscal'),
+  requireAdminArea('fiscal', 'administrador'),
   asyncHandler(async (req, res) => {
     const estatus = sanitizeText(req.query.estatus, 20);
     const estatusValidos = ['pendiente', 'en_curso', 'cancelado', 'listo'];

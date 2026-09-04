@@ -531,6 +531,23 @@ de código. Jest backend 826/826 sin cambios. **Sin herramienta de
 navegador esta sesión** — falta confirmación visual. Ver PROJECT_STATE.md
 punto 200.
 
+**Punto 201 (2026-09-04, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: perfil "administrador" ahora ve "Inicio" — pedido directo del
+usuario. No bastaba con agregar `'inicio'` a
+`RESTRICCIONES_PERFIL.administrador` en `admin.js`: esa vista carga vía
+`GET /api/admin/tickets`, que en el backend exigía
+`requireAdminArea('fiscal')` exclusivo — se amplió a `('fiscal',
+'administrador')`. **Encontrado y cerrado de paso**: "Ver todas" y
+"Gestionar" en Inicio llevan a acciones/vistas que siguen siendo
+exclusivas de fiscal (Tickets completo, aceptar/facturar un ticket) —
+se ocultan específicamente para administrador para no ofrecer botones
+que el servidor rechazaría con 403; fiscal sin cambios. 3 tests nuevos
+en `admin.test.js` (el endpoint no tenía ninguno antes — gap
+preexistente, no introducido aquí). Jest backend 829/829. Validado por
+HTTP tras rebuild `--no-cache`+`--force-recreate` backend+frontend.
+**Sin herramienta de navegador esta sesión** — falta confirmación
+visual. Ver PROJECT_STATE.md punto 201.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

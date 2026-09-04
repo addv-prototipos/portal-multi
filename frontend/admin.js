@@ -1438,7 +1438,7 @@
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'configuraciones'],
+      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'configuraciones'],
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card'],
     },
     fiscal: {
@@ -1496,6 +1496,14 @@
       const botonMovil = document.querySelector(`.admin-menu-movil-btn[data-vista="${vista}"]`);
       if (botonMovil) botonMovil.hidden = !permitida;
     });
+
+    // Inicio para el perfil "administrador" (2026-09-04): ve el resumen de
+    // tickets (dona/estadísticas), pero NO puede actuar sobre ellos — los
+    // endpoints de gestión de tickets (aceptar, subir factura, etc.) siguen
+    // siendo exclusivos de "fiscal" en el backend. "Ver todas" llevaría a
+    // la vista Tickets completa, que este perfil tampoco tiene — se oculta
+    // en vez de dejar un botón que no lleva a ningún lado.
+    if (els.btnInicioVerTodas) els.btnInicioVerTodas.hidden = perfilActual === 'administrador';
 
     // Las 6 tarjetas de "Configuraciones globales" ("Ventas" e
     // "Inventarios" se movieron aquí desde "Usuarios").
@@ -4812,6 +4820,11 @@
     const recientes = [...tickets].sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en)).slice(0, 5);
     els.inicioRecientesBody.innerHTML = '';
     els.inicioRecientesEmpty.hidden = recientes.length > 0;
+    // Perfil "administrador" (2026-09-04): ve el resumen, pero gestionar
+    // un ticket (aceptar, subir factura) sigue siendo exclusivo de
+    // "fiscal" en el backend — sin botón "Gestionar" para no ofrecer una
+    // acción que el servidor rechazaría con 403.
+    const puedeGestionar = perfilActual !== 'administrador';
     recientes.forEach((t) => {
       const info = ESTATUS_INFO[t.estatus] || { texto: t.estatus, clase: '' };
       const tr = document.createElement('tr');
@@ -4820,9 +4833,9 @@
         <td data-label="Cliente (RFC)">${escapeHtml(t.rfc)}</td>
         <td data-label="Fecha de solicitud">${formatFecha(t.creado_en)}</td>
         <td data-label="Estatus"><span class="estatus-badge ${info.clase}">${escapeHtml(info.texto)}</span></td>
-        <td data-label=""><button type="button" class="btn-ver">Gestionar</button></td>
+        <td data-label="">${puedeGestionar ? '<button type="button" class="btn-ver">Gestionar</button>' : ''}</td>
       `;
-      tr.querySelector('.btn-ver').addEventListener('click', () => abrirTicketModal(t));
+      if (puedeGestionar) tr.querySelector('.btn-ver').addEventListener('click', () => abrirTicketModal(t));
       els.inicioRecientesBody.appendChild(tr);
     });
   }

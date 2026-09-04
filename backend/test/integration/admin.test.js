@@ -51,6 +51,30 @@ describe('Admin', () => {
     });
   });
 
+  describe('GET /api/admin/tickets (Inicio del perfil administrador, 2026-09-04)', () => {
+    test('perfil "fiscal" tiene acceso (200)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([[]]); // SELECT tickets
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
+      const res = await request(app).get('/api/admin/tickets').auth(usuario, password);
+      expect(res.status).toBe(200);
+    });
+
+    test('perfil "administrador" ahora también tiene acceso — Inicio le muestra el resumen de tickets', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // SELECT tickets
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
+      const res = await request(app).get('/api/admin/tickets').auth(usuario, password);
+      expect(res.status).toBe(200);
+    });
+
+    test('perfil "ventas" sigue sin acceso (403) — Inicio/Tickets no son parte de su alcance', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+      const res = await request(app).get('/api/admin/tickets').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('GET /api/admin/config/smtp (requireAdminArea() sin perfiles = solo "super")', () => {
     test('perfil "fiscal" NO tiene acceso (403), aunque esté autenticado', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
