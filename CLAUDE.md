@@ -546,7 +546,10 @@ en `admin.test.js` (el endpoint no tenía ninguno antes — gap
 preexistente, no introducido aquí). Jest backend 829/829. Validado por
 HTTP tras rebuild `--no-cache`+`--force-recreate` backend+frontend.
 **Sin herramienta de navegador esta sesión** — falta confirmación
-visual. Ver PROJECT_STATE.md punto 201.
+visual. **Corrección same-day**: faltaba actualizar la tabla estática
+"Perfiles y roles de acceso" en `admin.html` (usuario lo notó con
+captura) — fila Administrador/columna Inicio a "✓". Ver PROJECT_STATE.md
+punto 201.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

@@ -12816,6 +12816,16 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   visual del usuario, en particular que "Ver todas"/"Gestionar" en
   efecto no aparezcan para ese perfil.
 
+  **Corrección same-day**: quedó sin actualizar la tabla de referencia
+  "Perfiles y roles de acceso" (modal solo visible para el usuario
+  "admin", `admin.html`, HTML estático — no se edita solo cambiando
+  `RESTRICCIONES_PERFIL`, es una tabla aparte a mano). El usuario lo
+  notó con una captura de pantalla. Fila "Administrador" → columna
+  "Inicio" pasó de "—" a "✓", con la misma nota aclaratoria que ya usa
+  la fila "Super" para casos con matiz (`.detalle-acceso`): "Solo
+  lectura — sin 'Gestionar'/'Ver todas'". Validado por HTTP contra
+  Docker real tras rebuild `--no-cache`+`--force-recreate` frontend.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
