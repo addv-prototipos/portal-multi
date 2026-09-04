@@ -12826,6 +12826,98 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   lectura — sin 'Gestionar'/'Ver todas'". Validado por HTTP contra
   Docker real tras rebuild `--no-cache`+`--force-recreate` frontend.
 
+- **Automatización del catálogo "Clave de Producto o Servicio" del SAT
+  en el campo "Clave SAT" de Configuraciones fiscales (punto 202,
+  2026-09-04, IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales, con
+  el catálogo REAL del SAT ya sincronizado, no solo el de ejemplo)**:
+  petición original del usuario — automatizar
+  `pys.sat.gob.mx/PyS/catPyS.aspx` para no salir del portal. Análisis
+  descartó scraping en vivo del ASP.NET WebForms del SAT (frágil, sin
+  API pública, alto riesgo de romperse sin aviso) a favor de un
+  catálogo local cacheado + sincronización manual disparada por un
+  admin — exactamente el mismo patrón ya usado por Uso de CFDI
+  (`backend/utils/usoCfdi.js`), reutilizado en vez de reinventado.
+  Propuesta visual (Artifact, antes/después: input de texto plano vs.
+  combobox con búsqueda en vivo) aprobada como "alternativas 1+3"
+  (catálogo local + autocompletar, con link de respaldo al sitio del
+  SAT si no se encuentra). Implementado primero con un catálogo de
+  ejemplo (10 claves) mientras se confirmaba una fuente real gratuita;
+  el usuario confirmó la fuente esa misma sesión, más rápido de lo
+  esperado, pidiendo explícitamente analizarla ANTES de aplicarla:
+  `github.com/phpcfdi/resources-sat-pys` (Unlicense). Esa investigación
+  encontró que ese repo solo publica la TAXONOMÍA (División/Segmento/
+  Familia/Clase, hasta 6 dígitos) — el propio README del repo confirma
+  que "una clase no contiene hijos", es decir, las claves reales de 8
+  dígitos (`SSFFCCXX`) NO están ahí. Se investigó el resto de repos
+  públicos de la organización `phpcfdi` (misma organización confiable,
+  también Unlicense) y se encontró la fuente correcta:
+  `github.com/phpcfdi/resources-sat-catalogs`, tabla
+  `cfdi_40_productos_servicios` — el catálogo real completo de CFDI 4.0,
+  52,513 claves de 8 dígitos con descripción, publicado como dump SQL
+  de SQLite (`INSERT INTO ... VALUES(...)`), no como JSON/CSV plano.
+  **Backend**: `backend/utils/catalogoTexto.js` (parser compartido ya
+  extraído para Uso de CFDI/Clave de Producto o Servicio) ganó un
+  tercer formato — `dividirTuplaSql()`/`normalizarCatalogoDesdeInsertsSql()`
+  interpretan un dump SQL de INSERTs por posición de columna (sin
+  nombres de columna en un dump SQL), respetando comillas simples
+  escapadas (`''` → `'`, estilo SQLite/Postgres — confirmado necesario:
+  el catálogo real trae al menos 2 descripciones con apóstrofe interno,
+  ej. "Manzana pomme d'api seca"). `claveProdServ.js` sin cambios de
+  contrato (mismo `sincronizarDesdeOrigen()`, mismo criterio de
+  seguridad: la URL SOLO sale de la variable de entorno
+  `CLAVE_PROD_SERV_SYNC_URL`, nunca de la petición HTTP). A diferencia
+  de `USO_CFDI_SYNC_URL` (sin default a propósito, "un origen adivinado
+  sin verificar" es el riesgo que evita), `CLAVE_PROD_SERV_SYNC_URL` SÍ
+  tiene un valor por defecto en `docker-compose.yml`/`docker-stack.yml`
+  apuntando a esa URL real — porque en este caso el usuario mismo
+  verificó y aprobó la fuente exacta antes de fijarla, no es una
+  suposición. La sincronización sigue siendo 100% manual (botón
+  "Actualizar catálogo SAT", nunca automática al arrancar el backend) —
+  mismo criterio de "sin llamadas de red sorpresa" que Uso de CFDI.
+  18 tests unitarios nuevos/ajustados en `claveProdServ.test.js`
+  (incluye un caso con el dump SQL real, apóstrofe escapado incluido).
+  **Frontend**: el input de texto plano `#config-clave-sat`
+  (`inputmode="numeric" maxlength="8"`) se volvió `<input type="hidden">`
+  — mismo id, mismo contrato de lectura/guardado (el botón "Guardar
+  cambios" no cambió una sola línea, sigue validando exactamente 8
+  dígitos desde ese mismo campo). Delante de él, un combobox nuevo
+  (`#config-clave-sat-buscador`) busca por texto o clave contra
+  `GET /api/admin/catalogo-clave-sat/buscar` (debounce 300ms, con
+  `AbortController` para cancelar búsquedas obsoletas), mismo lenguaje
+  visual que el buscador de productos de Inventarios en Ventas
+  (`.orden-inventario-sugerencias`, duplicado a propósito — frontend sin
+  build step, mismo criterio ya documentado del proyecto). Escribir los
+  8 dígitos exactos a mano SIEMPRE funciona como captura manual directa
+  (alternativa "3" aprobada), sin depender de que el catálogo tenga esa
+  clave — el buscador ayuda, no bloquea. Si no hay resultados con texto
+  de 2+ caracteres, aparece un link de respaldo a
+  `pys.sat.gob.mx/PyS/catPyS.aspx`. Al cargar la configuración, si ya
+  hay una clave guardada se busca por coincidencia exacta para mostrar
+  "clave — descripción" en vez de solo el número crudo. Combobox con
+  teclado completo (flechas/Enter/Escape) y atributos ARIA
+  (`role="combobox"`/`listbox`/`aria-activedescendant`). Se corrigió de
+  paso el texto del tooltip del campo, que describía el catálogo
+  equivocado ("el giro de tu negocio... Actividades económicas" es otro
+  catálogo del SAT, no este) — ahora describe correctamente "QUÉ vendes,
+  obligatorio en cada factura". Nuevo botón "Actualizar catálogo SAT" +
+  texto de estado (`total`/`sincronizado el`/aviso si sigue siendo el de
+  ejemplo), mismo patrón que Uso de CFDI. **Validado end-to-end contra
+  Docker/MySQL reales**: `node --check` limpio en los 3 archivos JS
+  tocados, CSS balanceado, Jest backend **852/852** (47 suites) y
+  control **119/119** sin regresión, rebuild `--no-cache`+
+  `--force-recreate` de backend y frontend, sincronización real disparada
+  por HTTP contra la fuente de GitHub (52,513 claves en ~2.3s), búsquedas
+  reales confirmadas por HTTP (`43211508` → "Computadores personales",
+  "contabilidad" → 11 resultados reales, incluida coincidencia con
+  apóstrofe). **Sin herramienta de navegador esta sesión** — la
+  interacción del combobox (clicks, teclado, blur) se armó siguiendo el
+  mismo patrón ya validado visualmente en Ventas/Inventarios, pero no se
+  confirmó con clics reales; pedir al usuario que confirme visualmente
+  cuando pueda. El usuario se ausentó a media sesión autorizando aplicar
+  el segmento completo en automático ("no estaré, modo automático"),
+  así que se completó implementación + pruebas + documentación sin
+  pausar a confirmar cada paso.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

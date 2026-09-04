@@ -726,6 +726,13 @@
     configOrdenesHabilitado: document.getElementById('config-ordenes-habilitado'),
     ordenesHabilitadoAutoguardado: document.getElementById('ordenes-habilitado-autoguardado'),
     configClaveSat: document.getElementById('config-clave-sat'),
+    configClaveSatBuscador: document.getElementById('config-clave-sat-buscador'),
+    configClaveSatSugerencias: document.getElementById('config-clave-sat-sugerencias'),
+    configClaveSatHint: document.getElementById('config-clave-sat-hint'),
+    configClaveSatSinResultados: document.getElementById('config-clave-sat-sin-resultados'),
+    claveSatCatalogoInfo: document.getElementById('clave-sat-catalogo-info'),
+    btnActualizarClaveSat: document.getElementById('btn-actualizar-clave-sat'),
+    btnActualizarClaveSatLabel: document.getElementById('btn-actualizar-clave-sat-label'),
     constanciaCompaniaInput: document.getElementById('constancia-compania-input'),
     btnSubirConstanciaCompania: document.getElementById('btn-subir-constancia-compania'),
     btnSubirConstanciaCompaniaLabel: document.getElementById('btn-subir-constancia-compania-label'),
@@ -1922,6 +1929,256 @@
     }
   });
 
+  // ---------- Clave de Producto o Servicio (SAT) — combobox con búsqueda ----------
+  // El input visible (#config-clave-sat-buscador) es solo de búsqueda/lectura
+  // amigable; el valor real que se guarda vive en el input oculto
+  // #config-clave-sat (mismo id de siempre, para no tocar la validación ni
+  // el PUT de abajo). Escribir 8 dígitos exactos siempre funciona como
+  // captura manual (alternativa "3" ya aprobada), aunque no haya match en
+  // el catálogo local — el buscador es una ayuda, no un candado.
+
+  let claveSatSugerenciasActuales = [];
+  let claveSatIndiceActivo = -1;
+  let claveSatTimeoutBusqueda = null;
+  let claveSatControladorBusqueda = null;
+
+  function formatearInfoCatalogoClaveSat(info) {
+    const partes = [`${info.total} claves cargadas`];
+    if (info.esEjemplo) {
+      partes.push('catálogo de ejemplo — usa "Actualizar catálogo SAT" para traer el real');
+    } else if (info.actualizadoEn) {
+      partes.push(`sincronizado el ${formatFecha(info.actualizadoEn)}`);
+    }
+    return partes.join(' · ');
+  }
+
+  async function cargarInfoCatalogoClaveSat() {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !els.claveSatCatalogoInfo) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/catalogo-clave-sat/info`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) {
+        els.claveSatCatalogoInfo.textContent = 'No se pudo cargar la información del catálogo.';
+        return;
+      }
+      const info = await res.json();
+      els.claveSatCatalogoInfo.textContent = formatearInfoCatalogoClaveSat(info);
+    } catch (err) {
+      els.claveSatCatalogoInfo.textContent = 'No se pudo cargar la información del catálogo.';
+    }
+  }
+
+  function setActualizarClaveSatLoading(isLoading) {
+    if (!els.btnActualizarClaveSat) return;
+    els.btnActualizarClaveSat.disabled = isLoading;
+    els.btnActualizarClaveSat.setAttribute('aria-busy', String(isLoading));
+    els.btnActualizarClaveSatLabel.textContent = isLoading ? 'Actualizando…' : 'Actualizar catálogo SAT';
+  }
+
+  if (els.btnActualizarClaveSat) {
+    els.btnActualizarClaveSat.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+      setActualizarClaveSatLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/admin/catalogo-clave-sat/actualizar`, {
+          method: 'POST',
+          headers: { Authorization: authHeader },
+        });
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(data.error || 'No se pudo actualizar el catálogo.', true);
+          return;
+        }
+        showToast(data.mensaje || 'Catálogo actualizado.');
+        els.claveSatCatalogoInfo.textContent = formatearInfoCatalogoClaveSat(data);
+      } catch (err) {
+        showToast('No se pudo conectar con el servidor.', true);
+      } finally {
+        setActualizarClaveSatLoading(false);
+      }
+    });
+  }
+
+  function ocultarSugerenciasClaveSat() {
+    claveSatSugerenciasActuales = [];
+    claveSatIndiceActivo = -1;
+    if (!els.configClaveSatSugerencias) return;
+    els.configClaveSatSugerencias.hidden = true;
+    els.configClaveSatSugerencias.innerHTML = '';
+    els.configClaveSatBuscador.setAttribute('aria-expanded', 'false');
+    els.configClaveSatBuscador.removeAttribute('aria-activedescendant');
+  }
+
+  function marcarSugerenciaActivaClaveSat() {
+    if (!els.configClaveSatSugerencias) return;
+    els.configClaveSatSugerencias.querySelectorAll('.clave-sat-sugerencia').forEach((btn, i) => {
+      const activa = i === claveSatIndiceActivo;
+      btn.classList.toggle('is-activa', activa);
+      if (activa) {
+        btn.id = 'clave-sat-sugerencia-activa';
+        btn.scrollIntoView({ block: 'nearest' });
+        els.configClaveSatBuscador.setAttribute('aria-activedescendant', btn.id);
+      }
+    });
+  }
+
+  function seleccionarClaveSat(item) {
+    els.configClaveSat.value = item.clave;
+    els.configClaveSatBuscador.value = `${item.clave} — ${item.descripcion}`;
+    if (els.configClaveSatHint) {
+      els.configClaveSatHint.textContent = 'Clave seleccionada del catálogo del SAT.';
+    }
+    if (els.configClaveSatSinResultados) els.configClaveSatSinResultados.hidden = true;
+    setFieldError('config-clave-sat', '');
+    ocultarSugerenciasClaveSat();
+  }
+
+  function renderSugerenciasClaveSat(resultados, termino) {
+    claveSatSugerenciasActuales = resultados;
+    claveSatIndiceActivo = -1;
+    if (!els.configClaveSatSugerencias) return;
+    if (!resultados.length) {
+      els.configClaveSatSugerencias.hidden = true;
+      els.configClaveSatSugerencias.innerHTML = '';
+      els.configClaveSatBuscador.setAttribute('aria-expanded', 'false');
+      if (els.configClaveSatSinResultados) {
+        els.configClaveSatSinResultados.hidden = !(termino && termino.trim().length >= 2);
+      }
+      return;
+    }
+    if (els.configClaveSatSinResultados) els.configClaveSatSinResultados.hidden = true;
+    els.configClaveSatSugerencias.innerHTML = resultados
+      .map(
+        (item, i) => `
+      <button type="button" class="clave-sat-sugerencia" role="option" id="clave-sat-sugerencia-${i}" data-indice="${i}">
+        <span class="clave-sat-sugerencia-clave">${escapeHtml(item.clave)}</span>
+        <span class="clave-sat-sugerencia-descripcion">${escapeHtml(item.descripcion)}</span>
+      </button>`
+      )
+      .join('');
+    els.configClaveSatSugerencias.hidden = false;
+    els.configClaveSatBuscador.setAttribute('aria-expanded', 'true');
+    els.configClaveSatSugerencias.querySelectorAll('.clave-sat-sugerencia').forEach((btn) => {
+      btn.addEventListener('mousedown', (ev) => {
+        // mousedown (no click) para adelantarse al blur del input y no
+        // perder la selección antes de que el handler de clic corra.
+        ev.preventDefault();
+        const item = claveSatSugerenciasActuales[Number(btn.dataset.indice)];
+        if (item) seleccionarClaveSat(item);
+      });
+    });
+  }
+
+  async function buscarClaveSat(termino) {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !termino || termino.trim().length < 2) {
+      renderSugerenciasClaveSat([], termino);
+      return;
+    }
+    if (claveSatControladorBusqueda) claveSatControladorBusqueda.abort();
+    claveSatControladorBusqueda = new AbortController();
+    try {
+      const res = await fetch(`${API_BASE}/admin/catalogo-clave-sat/buscar?q=${encodeURIComponent(termino.trim())}`, {
+        headers: { Authorization: authHeader },
+        signal: claveSatControladorBusqueda.signal,
+      });
+      if (!res.ok) {
+        renderSugerenciasClaveSat([], termino);
+        return;
+      }
+      const data = await res.json();
+      renderSugerenciasClaveSat(data.resultados || [], termino);
+    } catch (err) {
+      if (err.name !== 'AbortError') renderSugerenciasClaveSat([], termino);
+    }
+  }
+
+  if (els.configClaveSatBuscador) {
+    els.configClaveSatBuscador.addEventListener('input', () => {
+      const texto = els.configClaveSatBuscador.value;
+      setFieldError('config-clave-sat', '');
+      // 8 dígitos exactos: captura manual directa (alternativa "3"), sin
+      // esperar a que se elija una sugerencia — el catálogo local puede no
+      // tener una clave real todavía, o el usuario ya la trae anotada.
+      const soloDigitos = texto.trim();
+      if (/^\d{8}$/.test(soloDigitos)) {
+        els.configClaveSat.value = soloDigitos;
+        if (els.configClaveSatHint) els.configClaveSatHint.textContent = 'Clave capturada manualmente (8 dígitos).';
+      } else {
+        els.configClaveSat.value = '';
+      }
+      clearTimeout(claveSatTimeoutBusqueda);
+      claveSatTimeoutBusqueda = setTimeout(() => buscarClaveSat(texto), 300);
+    });
+
+    els.configClaveSatBuscador.addEventListener('keydown', (ev) => {
+      if (els.configClaveSatSugerencias.hidden) return;
+      if (ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        claveSatIndiceActivo = Math.min(claveSatIndiceActivo + 1, claveSatSugerenciasActuales.length - 1);
+        marcarSugerenciaActivaClaveSat();
+      } else if (ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        claveSatIndiceActivo = Math.max(claveSatIndiceActivo - 1, 0);
+        marcarSugerenciaActivaClaveSat();
+      } else if (ev.key === 'Enter') {
+        if (claveSatIndiceActivo >= 0 && claveSatSugerenciasActuales[claveSatIndiceActivo]) {
+          ev.preventDefault();
+          seleccionarClaveSat(claveSatSugerenciasActuales[claveSatIndiceActivo]);
+        }
+      } else if (ev.key === 'Escape') {
+        ocultarSugerenciasClaveSat();
+      }
+    });
+
+    els.configClaveSatBuscador.addEventListener('blur', () => {
+      // Pequeño margen para que el mousedown de una sugerencia corra antes.
+      setTimeout(ocultarSugerenciasClaveSat, 150);
+    });
+  }
+
+  // Prefill al cargar: si ya hay una clave guardada, se busca por coincidencia
+  // exacta para mostrar "clave — descripción"; si no está en el catálogo
+  // local (valor histórico o catálogo desactualizado), se muestra solo la
+  // clave cruda, igual que antes de este cambio.
+  async function aplicarClaveSatCargada(clave) {
+    els.configClaveSat.value = clave || '';
+    if (!els.configClaveSatBuscador) return;
+    if (!clave) {
+      els.configClaveSatBuscador.value = '';
+      if (els.configClaveSatHint) els.configClaveSatHint.textContent = 'Elige un resultado de la lista o captura los 8 dígitos si ya los conoces.';
+      return;
+    }
+    els.configClaveSatBuscador.value = clave;
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/catalogo-clave-sat/buscar?q=${encodeURIComponent(clave)}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const match = (data.resultados || []).find((item) => item.clave === clave);
+      if (match) {
+        els.configClaveSatBuscador.value = `${match.clave} — ${match.descripcion}`;
+        if (els.configClaveSatHint) els.configClaveSatHint.textContent = 'Clave seleccionada del catálogo del SAT.';
+      }
+    } catch (err) {
+      // Se queda mostrando solo la clave cruda — no es un error bloqueante.
+    }
+  }
+
   // ---------- Configuración global (IVA y zona horaria) ----------
 
   els.btnToggleGlobalConfig.addEventListener('click', () => {
@@ -2296,7 +2553,8 @@
       const config = await res.json();
       els.configIva.value = config.iva_porcentaje;
       els.configOrdenesHabilitado.checked = config.ordenes_compra_habilitado;
-      els.configClaveSat.value = config.clave_sat || '';
+      aplicarClaveSatCargada(config.clave_sat || '');
+      cargarInfoCatalogoClaveSat();
       els.configLinkCodigosSat.value = config.link_codigos_sat || '';
       aplicarVistaLinkCodigosSat(config.link_codigos_sat);
       aplicarRegimenFiscalCompaniaBox(config.regimen_fiscal_compania);

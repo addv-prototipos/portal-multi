@@ -74,6 +74,7 @@ Copia `.env.example` a `.env` y ajusta si lo necesitas:
 | `CORS_ORIGIN` | Origen permitido para CORS en el backend | `*` |
 | `ADMIN_USERS` | Usuarios administradores, formato `usuario:contrasena,usuario2:contrasena2` — **cámbialo en producción** (el valor por defecto es público, da acceso a `/admin` y `/control`) | `admin:admin` |
 | `USO_CFDI_SYNC_URL` | Origen desde donde se sincroniza el catálogo de Uso de CFDI | sin definir (requiere configurarse explícitamente) |
+| `CLAVE_PROD_SERV_SYNC_URL` | Origen desde donde se sincroniza el catálogo "Clave de Producto o Servicio" del SAT | dump SQL real de `phpcfdi/resources-sat-catalogs` (Unlicense, verificado) |
 | `SESSION_SECRET` | Clave para firmar las sesiones de usuario (login por RFC) | aleatoria al arrancar (fija esta para producción) |
 | `COOKIE_SECURE` | Pon `true` **solo** si el sitio ya se sirve por HTTPS real (ver despliegue a producción) | `false` |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Credenciales de MinIO (almacenamiento de archivos) — **cámbialas en producción** | `minioadmin` / `changeme_minio_password` |
@@ -935,6 +936,9 @@ mismo host.
   - `POST /api/admin/ordenes-compra/:id/reenviar-correo` — reenvía el correo de confirmación (el "ticket") de una orden ya registrada, al mismo correo asociado; a diferencia del envío original, este SÍ espera el resultado y lo reporta de vuelta (protegido).
   - `GET /api/admin/catalogos/uso-cfdi` — consulta el catálogo y cuándo se sincronizó por última vez (protegido).
   - `POST /api/admin/catalogos/uso-cfdi/actualizar` — sincroniza el catálogo desde `USO_CFDI_SYNC_URL` (protegido).
+  - `GET /api/admin/catalogo-clave-sat/buscar?q=...` — busca en el catálogo "Clave de Producto o Servicio" del SAT por clave o descripción, hasta 20 resultados (protegido, administrador/fiscal).
+  - `GET /api/admin/catalogo-clave-sat/info` — consulta el total de claves cargadas y cuándo se sincronizó por última vez (protegido, administrador/fiscal).
+  - `POST /api/admin/catalogo-clave-sat/actualizar` — sincroniza el catálogo desde `CLAVE_PROD_SERV_SYNC_URL` (por defecto, el dump real de `phpcfdi/resources-sat-catalogs`) (protegido, administrador/fiscal).
   - `GET /api/admin/config/smtp` — consulta la configuración de correo SMTP (sin exponer la contraseña) (protegido).
   - `PUT /api/admin/config/smtp` — guarda/actualiza la configuración de correo SMTP (protegido).
   - `POST /api/admin/config/smtp/prueba` — envía un correo de prueba con asunto y cuerpo capturados (protegido).

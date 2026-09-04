@@ -92,6 +92,12 @@ const {
   getInfoSincronizacion,
   sincronizarDesdeOrigen,
 } = require('./utils/usoCfdi');
+const {
+  sembrarCatalogoEjemploSiVacio: sembrarCatalogoClaveProdServSiVacio,
+  buscarClaveProdServ,
+  getInfoCatalogoClaveProdServ,
+  sincronizarDesdeOrigen: sincronizarClaveProdServDesdeOrigen,
+} = require('./utils/claveProdServ');
 const { getConfigSmtp, setConfigSmtp, configSmtpParaMostrar, enviarCorreo, aplicarPlantilla, DEFAULTS_SMTP } = require('./utils/email');
 const {
   ejecutarLimpiezaParaTodos,
@@ -2546,6 +2552,62 @@ app.post(
     });
   }
 });
+
+// Búsqueda en el catálogo "Clave de Producto o Servicio" (c_ClaveProdServ)
+// para el autocompletar del campo "Clave SAT" en Configuraciones fiscales.
+// Mismos perfiles que pueden editar ese campo (PUT /api/admin/config/global)
+// — administrador y fiscal, ver ese endpoint para el porqué. Catálogo de
+// EJEMPLO hasta que se confirme una fuente oficial gratuita (ver
+// utils/claveProdServ.js) — `esEjemplo` en la respuesta le avisa al
+// frontend para mostrar el aviso correspondiente, nunca en silencio.
+app.get(
+  '/api/admin/catalogo-clave-sat/buscar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador', 'fiscal'),
+  asyncHandler(async (req, res) => {
+    const termino = sanitizeText(req.query.q, 200);
+    const resultados = await buscarClaveProdServ(termino);
+    res.json({ resultados });
+  })
+);
+
+app.get(
+  '/api/admin/catalogo-clave-sat/info',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador', 'fiscal'),
+  asyncHandler(async (req, res) => {
+    res.json(await getInfoCatalogoClaveProdServ());
+  })
+);
+
+// Sincroniza el catálogo desde CLAVE_PROD_SERV_SYNC_URL — NUNCA acepta una
+// URL desde la petición, mismo criterio de seguridad que
+// /catalogos/uso-cfdi/actualizar (evita exponer un punto de fetch a URLs
+// arbitrarias). Sin esa variable configurada, responde 502 con un mensaje
+// claro; el catálogo de ejemplo sigue funcionando mientras tanto.
+app.post(
+  '/api/admin/catalogo-clave-sat/actualizar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador', 'fiscal'),
+  async (req, res) => {
+    try {
+      const catalogo = await sincronizarClaveProdServDesdeOrigen();
+      const info = await getInfoCatalogoClaveProdServ();
+      res.json({
+        ok: true,
+        mensaje: `Catálogo actualizado: ${catalogo.length} claves de producto/servicio.`,
+        ...info,
+      });
+    } catch (err) {
+      res.status(502).json({
+        error: err.message || 'No se pudo sincronizar el catálogo. Intenta de nuevo más tarde.',
+      });
+    }
+  }
+);
 
 // ---------- Configuración de correo SMTP ----------
 // Pensado principalmente para Gmail (smtp.gmail.com), pero funciona con
@@ -7992,6 +8054,7 @@ async function iniciar() {
   await ensureSchema();
   await storage.asegurarBucket();
   await asegurarTablaAuditoria();
+  await sembrarCatalogoClaveProdServSiVacio();
 
   const server = app.listen(PORT, () => {
     console.log(`Backend escuchando en el puerto ${PORT}`);

@@ -1883,10 +1883,36 @@
           </p>
 
           <div class="field">
-            <label for="config-clave-sat">Clave SAT<button type="button" class="campo-ayuda" aria-label="Más información sobre Clave SAT" data-tooltip="El código de 8 dígitos que identifica el giro de tu negocio ante el SAT (ej. venta de ropa, servicios de diseño). La encuentras en tu Constancia de Situación Fiscal, sección 'Actividades económicas'.">?</button></label>
-            <input type="text" id="config-clave-sat" inputmode="numeric" maxlength="8" placeholder="12345678" />
-            <p class="field-hint">Exactamente 8 dígitos.</p>
+            <label for="config-clave-sat-buscador">Clave de Producto o Servicio (SAT)<button type="button" class="campo-ayuda" aria-label="Más información sobre Clave de Producto o Servicio" data-tooltip="El código de 8 dígitos que identifica QUÉ vendes ante el SAT (ej. 'Servicios de diseño gráfico', 'Computadoras'), obligatorio en cada factura. Búscalo escribiendo el nombre o el número — es el mismo catálogo de pys.sat.gob.mx.">?</button></label>
+            <div class="clave-sat-buscar-field">
+              <input
+                type="text"
+                id="config-clave-sat-buscador"
+                placeholder="Busca por nombre (ej. &quot;servicios de diseño&quot;) o captura la clave de 8 dígitos"
+                autocomplete="off"
+                role="combobox"
+                aria-expanded="false"
+                aria-controls="config-clave-sat-sugerencias"
+                aria-autocomplete="list"
+              />
+              <div class="clave-sat-sugerencias" id="config-clave-sat-sugerencias" role="listbox" hidden></div>
+            </div>
+            <input type="hidden" id="config-clave-sat" />
+            <p class="field-hint" id="config-clave-sat-hint">Elige un resultado de la lista o captura los 8 dígitos si ya los conoces.</p>
+            <p class="field-hint clave-sat-sin-resultados" id="config-clave-sat-sin-resultados" hidden>
+              ¿No lo encuentras? <a href="http://pys.sat.gob.mx/PyS/catPyS.aspx" target="_blank" rel="noopener noreferrer">Búscalo en el sitio del SAT</a> y captura la clave de 8 dígitos aquí mismo.
+            </p>
             <p class="field-error" id="error-config-clave-sat" role="alert"></p>
+          </div>
+
+          <div class="admin-config-catalogo">
+            <div class="admin-config-catalogo-texto">
+              <p class="admin-config-catalogo-titulo">Catálogo de Clave de Producto o Servicio</p>
+              <p class="admin-config-catalogo-info" id="clave-sat-catalogo-info">Cargando información…</p>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-actualizar-clave-sat">
+              <span id="btn-actualizar-clave-sat-label">Actualizar catálogo SAT</span>
+            </button>
           </div>
 
           <div class="field">

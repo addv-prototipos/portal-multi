@@ -551,6 +551,48 @@ visual. **Corrección same-day**: faltaba actualizar la tabla estática
 captura) — fila Administrador/columna Inicio a "✓". Ver PROJECT_STATE.md
 punto 201.
 
+**Punto 202 (2026-09-04, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
+reales, con el catálogo REAL del SAT ya sincronizado)**: automatización
+del catálogo "Clave de Producto o Servicio" del SAT en el campo "Clave
+SAT" de Configuraciones fiscales — pedido original del usuario
+(automatizar `pys.sat.gob.mx/PyS/catPyS.aspx` sin salir del portal).
+Se descartó scraping en vivo a favor de catálogo local + sincronización
+manual, mismo patrón de `usoCfdi.js`. Implementado primero con catálogo
+de ejemplo; el usuario confirmó la fuente real esa misma sesión
+(`github.com/phpcfdi/resources-sat-pys`) pidiendo analizarla ANTES de
+aplicar — esa investigación encontró que ese repo solo tiene la
+taxonomía hasta 6 dígitos (el propio README dice "una clase no contiene
+hijos"), sin las claves reales de 8 dígitos. Se ubicó la fuente correcta
+en la misma organización confiable: `github.com/phpcfdi/resources-sat-
+catalogs`, tabla `cfdi_40_productos_servicios` (52,513 claves reales,
+Unlicense), publicada como dump SQL de SQLite, no JSON/CSV.
+`backend/utils/catalogoTexto.js` ganó un parser de dumps SQL de INSERTs
+(por posición de columna, con comillas escapadas `''`→`'`) sin tocar el
+contrato de seguridad existente (`CLAVE_PROD_SERV_SYNC_URL` sigue siendo
+la ÚNICA fuente de la URL, nunca la petición HTTP) — a diferencia de
+`USO_CFDI_SYNC_URL`, esta variable SÍ tiene un valor por defecto en
+`docker-compose.yml`/`docker-stack.yml` porque el usuario mismo verificó
+y aprobó esa URL exacta. Sincronización sigue siendo 100% manual (botón
+"Actualizar catálogo SAT"). Frontend: `#config-clave-sat` pasó a
+`<input type="hidden">` (mismo id/contrato de guardado, sin tocar la
+validación de 8 dígitos) con un combobox nuevo delante
+(`#config-clave-sat-buscador`) que busca por texto o clave contra
+`GET /api/admin/catalogo-clave-sat/buscar`, mismo lenguaje visual que el
+buscador de productos de Inventarios en Ventas. Escribir 8 dígitos a
+mano sigue funcionando siempre como captura manual directa (fallback
+aprobado), con link de respaldo a `pys.sat.gob.mx` si no hay resultados.
+Tooltip del campo corregido de paso (describía otro catálogo del SAT,
+"Actividades económicas", por error). Jest backend **852/852** (47
+suites), control 119/119, sin regresión. Validado con la sincronización
+REAL disparada por HTTP (52,513 claves en ~2.3s) y búsquedas reales
+confirmadas (`43211508` → "Computadores personales", "contabilidad" →
+11 resultados). **Sin herramienta de navegador esta sesión** — falta
+confirmación visual del combobox (clicks/teclado), aunque sigue el mismo
+patrón ya validado visualmente en Ventas/Inventarios. El usuario se
+ausentó a media sesión autorizando modo automático para completar este
+segmento ya aprobado. Ver PROJECT_STATE.md punto 202 para el detalle
+línea por línea.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

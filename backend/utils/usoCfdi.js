@@ -86,94 +86,14 @@ async function guardarCatalogo(catalogo, origen) {
   return ahora;
 }
 
-// Valida que la lista tenga forma de catalogo real antes de aceptarla,
-// para nunca sobreescribir con datos basura si el origen remoto cambia de
-// formato inesperadamente.
-function esCatalogoValido(catalogo) {
-  if (!Array.isArray(catalogo) || catalogo.length < 5) return false;
-  return catalogo.every(
-    (item) =>
-      item &&
-      typeof item.clave === 'string' &&
-      item.clave.trim().length > 0 &&
-      item.clave.trim().length <= 10 &&
-      typeof item.descripcion === 'string' &&
-      item.descripcion.trim().length > 0
-  );
-}
+// Parseo de JSON/CSV compartido con claveProdServ.js — ver
+// utils/catalogoTexto.js. `esCatalogoValido`/`normalizarCatalogoRemoto` se
+// re-exportan con la MISMA firma de un solo argumento que ya tenían, para
+// no romper los tests existentes ni ningún llamador.
+const { esCatalogoValido, normalizarCatalogoDesdeTexto } = require('./catalogoTexto');
 
-// Intenta interpretar la respuesta remota como JSON (varias formas
-// conocidas) o como CSV/TSV con encabezado y al menos 2 columnas
-// (clave, descripcion), que es como suelen publicarse estos catálogos.
 function normalizarCatalogoRemoto(texto) {
-  const contenido = String(texto || '').trim();
-  if (!contenido) return null;
-
-  // Intento 1: JSON (array directo, o { data: [...] })
-  try {
-    const data = JSON.parse(contenido);
-    const lista = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : null;
-    if (lista) {
-      const normalizado = lista
-        .map((item) => {
-          const clave = item.clave ?? item.value ?? item.c_UsoCFDI ?? item.id ?? item.codigo;
-          const descripcion = item.descripcion ?? item.text ?? item.nombre ?? item.label ?? item.name;
-          if (clave == null || descripcion == null) return null;
-          return { clave: String(clave).trim(), descripcion: String(descripcion).trim() };
-        })
-        .filter(Boolean);
-      if (esCatalogoValido(normalizado)) return normalizado;
-    }
-  } catch (e) {
-    // No era JSON valido; se intenta como CSV/TSV abajo.
-  }
-
-  // Intento 2: CSV/TSV con encabezado en la primera linea
-  const lineas = contenido.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lineas.length > 1) {
-    const separador = lineas[0].includes('\t') ? '\t' : ',';
-    const filas = lineas.slice(1);
-    const normalizado = filas
-      .map((linea) => {
-        const columnas = dividirLineaCsv(linea, separador);
-        if (columnas.length < 2) return null;
-        const [clave, descripcion] = columnas;
-        if (!clave || !descripcion) return null;
-        return { clave, descripcion };
-      })
-      .filter(Boolean);
-    if (esCatalogoValido(normalizado)) return normalizado;
-  }
-
-  return null;
-}
-
-// Divide una linea CSV/TSV respetando campos entre comillas (para que una
-// descripcion como "Intereses reales, efectivamente pagados" no se corte
-// en la coma). Soporta comillas dobles escapadas ("") dentro del campo.
-function dividirLineaCsv(linea, separador) {
-  const columnas = [];
-  let actual = '';
-  let dentroDeComillas = false;
-
-  for (let i = 0; i < linea.length; i += 1) {
-    const char = linea[i];
-    if (char === '"') {
-      if (dentroDeComillas && linea[i + 1] === '"') {
-        actual += '"';
-        i += 1;
-      } else {
-        dentroDeComillas = !dentroDeComillas;
-      }
-    } else if (char === separador && !dentroDeComillas) {
-      columnas.push(actual.trim());
-      actual = '';
-    } else {
-      actual += char;
-    }
-  }
-  columnas.push(actual.trim());
-  return columnas;
+  return normalizarCatalogoDesdeTexto(texto, { claveMaxLen: 10, aliasClave: ['c_UsoCFDI'] });
 }
 
 async function sincronizarDesdeOrigen(urlPersonalizada) {

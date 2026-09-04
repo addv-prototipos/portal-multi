@@ -148,6 +148,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       ADMIN_USERS: ${ADMIN_USERS:-admin:admin}
       USO_CFDI_SYNC_URL: ${USO_CFDI_SYNC_URL:-}
+      CLAVE_PROD_SERV_SYNC_URL: ${CLAVE_PROD_SERV_SYNC_URL:-https://raw.githubusercontent.com/phpcfdi/resources-sat-catalogs/master/database/data/cfdi_40_productos_servicios.sql}
       SESSION_SECRET: ${SESSION_SECRET:-}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       NODE_ENV: production

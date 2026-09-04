@@ -75,6 +75,47 @@ describe('Admin', () => {
     });
   });
 
+  describe('GET /api/admin/catalogo-clave-sat/buscar (autocompletar de Clave SAT, 2026-09-04)', () => {
+    test('sin credenciales responde 401', async () => {
+      const res = await request(app).get('/api/admin/catalogo-clave-sat/buscar?q=diseno');
+      expect(res.status).toBe(401);
+    });
+
+    test('perfil "ventas" no tiene acceso (403) — no edita Configuraciones fiscales', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+      const res = await request(app).get('/api/admin/catalogo-clave-sat/buscar?q=diseno').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+
+    test('perfil "fiscal" busca y recibe resultados', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([[{ clave: '81112501', descripcion: 'Servicios de diseño gráfico' }]]);
+      const res = await request(app).get('/api/admin/catalogo-clave-sat/buscar?q=diseno').auth(usuario, password);
+      expect(res.status).toBe(200);
+      expect(res.body.resultados).toEqual([{ clave: '81112501', descripcion: 'Servicios de diseño gráfico' }]);
+    });
+
+    test('perfil "administrador" también puede buscar', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]);
+      const res = await request(app).get('/api/admin/catalogo-clave-sat/buscar?q=xyz').auth(usuario, password);
+      expect(res.status).toBe(200);
+      expect(res.body.resultados).toEqual([]);
+    });
+  });
+
+  describe('GET /api/admin/catalogo-clave-sat/info', () => {
+    test('perfil "fiscal" ve que el catálogo sigue siendo el de ejemplo', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([[]]); // SELECT configuracion
+      pool.query.mockResolvedValueOnce([[{ total: 10 }]]); // COUNT
+      const res = await request(app).get('/api/admin/catalogo-clave-sat/info').auth(usuario, password);
+      expect(res.status).toBe(200);
+      expect(res.body.esEjemplo).toBe(true);
+      expect(res.body.total).toBe(10);
+    });
+  });
+
   describe('GET /api/admin/config/smtp (requireAdminArea() sin perfiles = solo "super")', () => {
     test('perfil "fiscal" NO tiene acceso (403), aunque esté autenticado', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');

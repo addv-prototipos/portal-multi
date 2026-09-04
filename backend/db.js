@@ -355,6 +355,22 @@ async function ensureSchema(db = pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // Catálogo "Clave de Producto o Servicio" (c_ClaveProdServ del SAT) —
+  // tabla propia (no la clave-valor genérica de "configuracion") porque el
+  // catálogo real tiene ~52,000 filas y necesita buscarse por texto, no
+  // guardarse como un solo JSON. Arranca sembrada con un catálogo de
+  // EJEMPLO (10 claves reales, ver utils/claveProdServ.js) mientras se
+  // confirma una fuente oficial gratuita verificada — mismo criterio de
+  // "nunca adivinar un origen externo" que ya usa USO_CFDI_SYNC_URL.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS catalogo_clave_prod_serv (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      clave VARCHAR(10) NOT NULL,
+      descripcion VARCHAR(500) NOT NULL,
+      UNIQUE KEY uq_catalogo_clave_prod_serv (clave)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   // Cuentas de usuario para el portal (login por RFC + contraseña). Son
   // independientes de los administradores (que usan HTTP Basic Auth por
   // separado) y de los registros de constancia fiscal: un usuario puede
