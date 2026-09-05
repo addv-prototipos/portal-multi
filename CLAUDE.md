@@ -698,6 +698,12 @@ fallaba); 6 call sites corregidos. Ver PROJECT_STATE.md punto 208 (y
 la nota agregada al punto 205 original) para el detalle línea por
 línea.
 
+**Centro de conocimiento actualizado el mismo día (punto 208)**: paso
+nuevo "Imprimir etiqueta de código de barras" en la categoría
+"Inventarios" del manual — menú "⋮" → "Imprimir etiqueta", formatos
+térmica/carta, código o SKU de respaldo sin captura manual. 100%
+texto. Validado por HTTP tras rebuild frontend.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

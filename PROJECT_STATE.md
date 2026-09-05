@@ -10936,7 +10936,16 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       sites corregidos a pasar el id sin prefijo. Confirmado en
       navegador real: borde rojo + texto de error visibles en ambos
       modales. Jest backend 872/872 sin cambios (bug 100% frontend).
-      Sin commit/push todavía.
+      **Commiteado y pusheado** (`e305e5d`+`c03441f` → `fact/master`).
+
+      **Centro de conocimiento actualizado (mismo día, a pedido del
+      usuario)**: paso nuevo "Imprimir etiqueta de código de barras" en
+      la categoría "Inventarios" del manual (`CONOCIMIENTO_CATEGORIAS`,
+      `frontend/admin.js`) — describe el menú "⋮" → "Imprimir etiqueta",
+      los 2 formatos y que el código sale solo (código de barras o SKU
+      de respaldo), sin necesidad de capturarlo a mano. 100% texto, cero
+      UI/endpoint nuevo. Validado por HTTP tras rebuild `--no-cache`+
+      `--force-recreate` frontend. Sin commit/push todavía.
   168. **"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en
       navegador real (2026-08-31/09-01)**: usuario pidió un botón para
       "hacer el corte del día o varios días", manual, con selector de

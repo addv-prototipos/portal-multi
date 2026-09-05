@@ -12423,6 +12423,7 @@
         { t: 'Registrar entradas y salidas', d: 'Menú "⋮" de cada fila — cada movimiento queda en el historial permanente, nunca editable una vez guardado.' },
         { t: 'Importar catálogo', d: 'Botón "Importar catálogo" → sube un CSV/XLSX → el sistema detecta las columnas solo, con vista previa antes de confirmar. Solo para productos, no servicios.' },
         { t: 'Código de barras con la cámara', d: 'En Ventas o al dar de alta un producto, el ícono de cámara escanea el código y llena el campo solo.' },
+        { t: 'Imprimir etiqueta de código de barras', d: 'Menú "⋮" de cada fila → "Imprimir etiqueta" — elige térmica (rollo, 40×30mm) o carta (24 por hoja), cuántas copias, y listo. Se genera solo a partir del código de barras del producto (o su SKU si no tiene uno capturado), sin necesidad de escribirlo a mano.' },
         { t: '"Solamente servicios"', d: 'Si tu negocio no maneja stock físico, actívalo en Configuraciones — oculta todo lo relacionado a productos y existencias.' },
       ],
     },
