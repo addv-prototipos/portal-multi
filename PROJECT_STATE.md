@@ -13046,6 +13046,35 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   punto 205 queda validado de punta a punta contra infraestructura real.
   Sin commit/push todavía.
 
+- **Centro de conocimiento (punto 196) — al día con los cambios recientes
+  (punto 206, 2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+  real)**: a pedido explícito del usuario ("revisa los nuevos cambios y
+  actualiza todos los centros de conocimiento"), auditoría de
+  `CONOCIMIENTO_CATEGORIAS` (`frontend/admin.js`) contra el estado real del
+  código — 3 vacíos encontrados y cerrados, 100% contenido de texto, cero
+  UI/endpoint nuevo (mismo criterio del punto 196: el manual describe lo
+  que YA existe, no dispara cambios de comportamiento): (1) categoría
+  "Tickets" no mencionaba el punto 205 (extracción automática del Total
+  del CFDI) — paso nuevo "Monto facturado" explicando que se lee solo del
+  XML y que la captura manual es solo el respaldo cuando eso falla; (2)
+  categoría "Inicio" decía "la pantalla de entrada del perfil Fiscal" —
+  desactualizado desde el punto 201 (2026-09-04), que le dio acceso de
+  solo lectura también a Administrador — lead y paso de "Accesos rápidos"
+  corregidos para reflejar los 2 perfiles y la diferencia real (Fiscal
+  tiene "Ver todas"/"Gestionar", Administrador no); (3) categoría
+  "Configuraciones globales" no mencionaba el punto 202 (buscador del
+  catálogo real del SAT para "Clave de Producto o Servicio") — paso nuevo
+  agregado. Auditadas y confirmadas SIN cambios necesarios: `/control`
+  (puntos 193/195, solo tooltips de campo — nada nuevo que documentar ahí
+  esta sesión), portal de cliente (punto 194, tooltips — `monto_factura`
+  nunca se expone al cliente, confirmado por grep en todo `frontend/`),
+  resto de categorías del Centro (Ventas/CxC/Gastos/Inventarios/Usuarios/
+  Reportes/Resumen financiero/Proveedores/Primeros pasos) revisadas
+  contra el código real, sin más desactualizaciones encontradas. `node
+  --check` limpio, validado por HTTP tras rebuild `--no-cache`+
+  `--force-recreate` frontend: los 3 textos nuevos confirmados en el
+  `admin.js` servido. Sin commit/push todavía.
+
 - **PENDIENTE — Redirección automática a configuración fiscal cuando faltan datos (2026-09-04):** a pedido del usuario, cuando los datos fiscales de la compañía no están configurados y aparece el aviso de "no configurado", el flujo debe mandar directamente al menú para subir la Constancia de Situación Fiscal y completar la configuración. Estado actual: el aviso existe (`frontend/admin.html`/`admin.js` punto 62 — modal al iniciar sesión si falta `rfc_compania`/`clave_sat`, `cargarConfigGlobal()` con `{ verificarFiscalFaltante: true }` solo desde `showDashboard()`, barra de sesión vía `aplicarInfoFiscalBarra()`), pero es solo informativo — no navega ni abre el destino. Destino pedido: tarjeta "Configuraciones fiscales" dentro de la vista "Configuraciones globales" (`frontend/admin.html`/`admin.js`), botón "Subir constancia de situación fiscal" (`POST /api/admin/config/constancia-compania` en `backend/server.js` que reutiliza `backend/utils/pdfExtract.js`: `extraerRFC`/`extraerNombreRazonSocial`/`extraerRegimenesFiscales`/`determinarTipoPersona` para autocompletar `rfc_compania`/`regimen_fiscal_compania`/`razon_social_compania`/`clave_sat`/`tipo_persona`, ver puntos 65-69). Alcance propuesto sin código tocado en este turno: al cerrar/aceptar el modal de "faltan datos fiscales", navegar automáticamente a `vista-configuraciones` + expandir la tarjeta "Configuraciones fiscales" + poner foco/scroll en el control de subida de constancia. Detalles a confirmar explícitamente antes de implementar (protocolo `addv-web-app`): si la navegación es automática al cerrar el modal o inmediata sin esperar interacción, si solo aplica a perfiles con permiso sobre esa tarjeta (`administrador`/`fiscal`/`super` según `RESTRICCIONES_PERFIL` y `requireAdminArea` en `backend/utils/auth.js`), y si el aviso debe reaparecer en cada login hasta completar los datos o solo la primera vez. Cero código tocado — solo documentación de pendiente, no avanzar sin confirmación explícita.
 
 ## Dónde está todo (mapa rápido)

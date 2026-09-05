@@ -631,6 +631,18 @@ Total + manual → `origen:"manual"`; XML con Total + manual enviado igual
 → gana el XML (`1450`, no `1.00`). Tickets de prueba restaurados a su
 estado original. Falta aún: confirmación visual en navegador.
 
+**Punto 206 (2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: Centro de conocimiento (`/admin`) puesto al día — 3 vacíos
+encontrados auditando `CONOCIMIENTO_CATEGORIAS` contra el código real:
+"Tickets" no mencionaba la extracción automática del Total del CFDI
+(punto 205), "Inicio" seguía diciendo "pantalla del perfil Fiscal" pese
+a que Administrador también la ve desde el punto 201 (solo lectura, sin
+"Ver todas"/"Gestionar"), y "Configuraciones globales" no mencionaba el
+buscador del catálogo real del SAT (punto 202). Los 3 cerrados, 100%
+texto, cero UI/endpoint nuevo. `/control` y el portal de cliente
+confirmados sin nada nuevo que documentar esta sesión. Ver
+PROJECT_STATE.md punto 206.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

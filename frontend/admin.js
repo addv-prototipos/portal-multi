@@ -12202,11 +12202,11 @@
     },
     inicio: {
       titulo: 'Inicio',
-      lead: 'La pantalla de entrada del perfil Fiscal — estado general de los tickets.',
+      lead: 'Estado general de los tickets — perfiles Fiscal y Administrador.',
       pasos: [
         { t: 'Qué muestra', d: 'Estadísticas y una dona de tickets por estatus (pendiente, en curso, listo, cancelado) — la foto del día.' },
         { t: 'Checklist "Primeros pasos"', d: 'Se muestra solo mientras te falten pasos por completar — desaparece solo cuando terminas.' },
-        { t: 'Accesos rápidos', d: 'Desde aquí saltas directo a Tickets o Constancias sin pasar por el sidebar.' },
+        { t: 'Accesos rápidos (solo Fiscal)', d: 'Los botones "Ver todas" y "Gestionar" abren Tickets completo — Administrador ve la misma foto general, pero de solo lectura, sin esos 2 botones.' },
       ],
     },
     tickets: {
@@ -12215,6 +12215,7 @@
       pasos: [
         { t: 'Revisar una solicitud', d: 'Ábrela desde la tabla — verás la venta ligada, la imagen del ticket y los datos que capturó el cliente.' },
         { t: 'Generar la factura', d: 'Sube el ZIP con XML+PDF ya generados en tu sistema de facturación — el cliente recibe el correo y puede descargarla desde su portal.' },
+        { t: 'Monto facturado', d: 'El sistema lo lee solo del XML dentro del ZIP en cuanto lo subes — no captures nada a mano. Solo si no lo pudo leer, te pide el monto y avisa "Capturado manualmente"; si sí lo leyó, dice "Leído automáticamente del XML" y ya no se puede corregir a mano.' },
         { t: 'Pago pendiente bloquea la factura', d: 'Si la venta ligada sigue "Pendiente" de cobro (Cuentas por cobrar), no se puede facturar hasta registrar el pago.' },
         { t: 'Retención automática', d: 'Los tickets se borran solos después de los días configurados en Configuraciones globales — es a propósito, no es un error si uno desaparece.' },
       ],
@@ -12311,6 +12312,7 @@
       lead: 'Ajustes que cambian el comportamiento de todo el panel.',
       pasos: [
         { t: 'Las 6 secciones', d: 'Campos obligatorios, Configuraciones fiscales, SMTP, Configuración de reportes, Ventas e Inventarios — un buscador arriba filtra entre ellas.' },
+        { t: 'Clave SAT con buscador', d: 'En Configuraciones fiscales, el campo "Clave de Producto o Servicio" busca por texto o número contra el catálogo real del SAT (52,513 claves) — ya no hace falta memorizar el número de 8 dígitos.' },
         { t: 'Interruptores globales', d: '"Habilitar Ventas" y "Inventario activo" — apagados, esas secciones se ocultan por completo para todos los perfiles, sin excepción.' },
         { t: 'Correo (SMTP)', d: 'De aquí sale cada correo automático de la app — confirmaciones de venta, factura lista, invitaciones. Sin configurarlo, esos correos no se envían.' },
         ...GUIA_SMTP_GMAIL,
