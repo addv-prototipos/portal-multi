@@ -1,5 +1,5 @@
 // Script de demo unificado: BORRA los datos transaccionales de la base SIN
-// tenant (portal_facturacion) y vuelve a sembrar ~5 meses de historia
+// tenant (portal_facturacion) y vuelve a sembrar ~6 meses de historia
 // realista (ventas, tickets, gastos, inventario con movimientos y CxC).
 //
 // Reemplaza a scripts/sembrar-datos-prueba.js y scripts/poblar-tony.js —
@@ -290,7 +290,7 @@ async function principal() {
   const hoyUtc = new Date();
   const anioActual = hoyUtc.getUTCFullYear();
   const mesActual = hoyUtc.getUTCMonth();
-  const inicio = new Date(Date.UTC(anioActual, mesActual - 5, 1));
+  const inicio = new Date(Date.UTC(anioActual, mesActual - 6, 1));
   // El mes EN CURSO se deja completamente vacío a propósito — se registra
   // a mano (pedido explícito del usuario) para probar el flujo real, no
   // datos sembrados. `Date.UTC(anio, mesActual, 0)` = día 0 del mes
@@ -327,6 +327,15 @@ async function principal() {
       const diaSemana = d.getUTCDay();
       const llaveMes = `${anio}-${String(mes + 1).padStart(2, '0')}`;
 
+      // Escenario favorable: crecimiento mensual constante (~16%/mes desde
+      // el primer mes de la ventana) para que la tendencia de los últimos
+      // 3 meses cerrados sea siempre ascendente — la proyección de ventas
+      // de Resumen financiero (server.js, solo extrapola meses CERRADOS)
+      // necesita esa forma para no clavarse en $0 con un trimestre plano
+      // o descendente.
+      const indiceMes = (anio * 12 + mes) - (inicio.getUTCFullYear() * 12 + inicio.getUTCMonth());
+      const factorCrecimiento = 1 + indiceMes * 0.16;
+
       let ventasDelDia = 0;
       if (diaSemana >= 1 && diaSemana <= 5) {
         ventasDelDia = probabilidad(0.72) ? azarEntero(1, 2) : azarEntero(0, 1);
@@ -336,7 +345,7 @@ async function principal() {
       }
 
       for (let v = 0; v < ventasDelDia; v += 1) {
-        const cantidad = Math.round(montoVenta() * 100) / 100;
+        const cantidad = Math.round(montoVenta() * factorCrecimiento * 100) / 100;
         const ivaPorcentaje = 16;
         const total = Math.round(cantidad * (1 + ivaPorcentaje / 100) * 100) / 100;
         const fechaCompra = fechaUtc(anio, mes, dia, azarEntero(9, 18), azarEntero(0, 59));
@@ -459,6 +468,38 @@ async function principal() {
           }
         }
       }
+    }
+
+    // Escenario favorable: garantiza que cada mes cerrado facture al menos
+    // 12% más que el anterior — el ruido diario del PRNG por sí solo puede
+    // dar un trimestre plano o descendente, y la proyección de ventas de
+    // Resumen financiero (server.js, solo extrapola los últimos 3 meses
+    // CERRADOS) se clava en $0 en ese caso. Solo EMPUJA hacia arriba (nunca
+    // hacia abajo), escalando cantidad/total/monto_cobrado del mes completo
+    // por el mismo factor — conserva el ratio IVA/subtotal y el % ya
+    // cobrado de cada venta.
+    const CRECIMIENTO_MINIMO_MES = 1.12;
+    const llavesVentaOrdenadas = [...resumenPorMes.keys()].sort();
+    let pisoAnterior = null;
+    for (const llave of llavesVentaOrdenadas) {
+      const fila = resumenPorMes.get(llave);
+      const pisoMinimo = pisoAnterior !== null ? pisoAnterior * CRECIMIENTO_MINIMO_MES : null;
+      if (pisoMinimo !== null && fila.ventas < pisoMinimo) {
+        const factor = pisoMinimo / fila.ventas;
+        const [anioLlave, mesLlave] = llave.split('-').map(Number);
+        const desde = new Date(Date.UTC(anioLlave, mesLlave - 1, 1));
+        const hasta = new Date(Date.UTC(anioLlave, mesLlave, 1));
+        await conexion.query(
+          `UPDATE ordenes_compra
+              SET cantidad = ROUND(cantidad * ?, 2),
+                  total = ROUND(total * ?, 2),
+                  monto_cobrado = ROUND(monto_cobrado * ?, 2)
+            WHERE eliminado_en IS NULL AND fecha_compra >= ? AND fecha_compra < ?`,
+          [factor, factor, factor, desde, hasta]
+        );
+        fila.ventas *= factor;
+      }
+      pisoAnterior = fila.ventas;
     }
 
     await conexion.commit();
