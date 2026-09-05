@@ -12814,21 +12814,32 @@
   }
 
   // ---------- Recorrido de bienvenida: spotlight sobre elementos reales ----------
+  // El paso "Ayuda a la mano" es el mismo texto/selector en los 3
+  // perfiles (punto 210: el ícono es idéntico y visible para los 4
+  // perfiles, sin distinción) — evita repetirlo 3 veces a mano.
+  const TOUR_PASO_AYUDA = {
+    selector: '#btn-abrir-conocimiento-topbar',
+    titulo: 'Ayuda a la mano',
+    desc: 'Este ícono abre el Centro de conocimiento — el manual completo del panel, con buscador. Siempre está aquí, sin importar en qué sección estés.',
+  };
   const ONBOARDING_TOUR_PASOS = {
     fiscal: [
       { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Constancias, Tickets, y más según tu perfil.' },
       { selector: '#btn-vista-tickets', titulo: 'Tickets de facturación', desc: 'Aquí llegan las solicitudes de tus clientes para generarles su factura.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
+      TOUR_PASO_AYUDA,
     ],
     administrador: [
       { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Ventas, Cuentas por cobrar, Gastos, y más.' },
       { selector: '#btn-vista-ordenes', titulo: 'Registra tus ventas aquí', desc: 'Desde "Ventas" registras cada venta y controlas si ya se facturó.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
+      TOUR_PASO_AYUDA,
     ],
     ventas: [
       { selector: '.admin-sidebar-nav', titulo: 'Tus 3 secciones', desc: 'Ventas, Cuentas por cobrar y Gastos — todo lo que necesitas para tu día a día.' },
       { selector: '#btn-abrir-orden-modal', titulo: 'Registra una venta nueva', desc: 'Este botón abre el formulario para capturar cada venta.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
+      TOUR_PASO_AYUDA,
     ],
   };
 

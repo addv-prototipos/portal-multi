@@ -736,8 +736,12 @@ acepta a propósito (mismo tooltip/destino); mejora agregada: este atajo
 enfoca el buscador interno del modal al abrir (`abrirConocimiento()`
 ganó el parámetro `enfocarBuscador`). Botón nuevo
 `#btn-abrir-conocimiento-topbar` + clase `.admin-header-ayuda`. Visible
-para los 4 perfiles. Validado por HTTP — falta confirmación visual con
-clics reales. Ver PROJECT_STATE.md punto 210.
+para los 4 perfiles. **Ajuste mismo día**: el usuario preguntó "¿sabrá
+el usuario qué es el botón?" — riesgo real (ícono sin texto, tooltip
+hover-only, sin pista en móvil al tap) — agregado como 4to paso del
+recorrido guiado de bienvenida (punto 192), `TOUR_PASO_AYUDA`
+compartido por los 3 perfiles con tour. Validado por HTTP — falta
+confirmación visual con clics reales. Ver PROJECT_STATE.md punto 210.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

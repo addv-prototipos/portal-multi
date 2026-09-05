@@ -11033,7 +11033,24 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   implementarlo). Pedir al usuario que confirme visualmente: el ícono
   aparece siempre a la izquierda de la barra de sesión (con o sin RFC
   visible), abre el mismo Centro de conocimiento, y el cursor cae en su
-  buscador. Sin commit/push todavía.
+  buscador.
+
+  **Ajuste mismo día — 4to paso del recorrido guiado**: el usuario
+  preguntó directamente "¿va a dar el usuario fácil con el botón? ¿sabrá
+  qué es?" — riesgo real reconocido tal cual (ícono sin texto visible;
+  el tooltip de `data-tooltip` es hover-only, no se activa con tap en
+  móvil, así que ahí no hay ninguna pista antes del primer clic).
+  Mitigado agregando el botón como 4to paso del recorrido guiado de
+  bienvenida (punto 192) — `TOUR_PASO_AYUDA` nuevo (mismo texto/selector
+  compartido por los 3 perfiles con tour, evita repetirlo 3 veces),
+  agregado al final de `ONBOARDING_TOUR_PASOS.fiscal/administrador/
+  ventas`. El contador "Paso X de Y" ya se calcula dinámicamente del
+  largo del arreglo (`mostrarPasoTour`), así que pasar de 3 a 4 pasos no
+  rompió nada. `node --check` limpio, Jest backend 872/872 (sin
+  cambios). Validado por HTTP tras rebuild `--no-cache`+
+  `--force-recreate` frontend (texto confirmado en el JS servido) —
+  sin clics reales, mismo bloqueo de extensión de Chrome desconectada.
+  Sin commit/push todavía.
 
   168. **"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en
       navegador real (2026-08-31/09-01)**: usuario pidió un botón para
