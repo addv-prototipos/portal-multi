@@ -12918,6 +12918,101 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   así que se completó implementación + pruebas + documentación sin
   pausar a confirmar cada paso.
 
+- **Layout por defecto de "Resumen financiero" actualizado al orden/anchos ya
+  en uso (punto 203, 2026-09-04, IMPLEMENTADO Y VALIDADO — Jest backend
+  864/864)**: el dashboard personalizable (punto 119) ya guardaba el
+  reacomodo del usuario en `preferencias_dashboard`, pero "Restablecer"
+  regresaba a un orden/tamaño de fábrica que ya no coincidía con cómo el
+  usuario lo tenía acomodado en la práctica — se congeló su acomodo actual
+  como el nuevo default de fábrica. Reordenado en el HTML (KPIs:
+  facturado/sin-facturar/balance/gastos; tarjetas: utilidad/facturación/
+  gastos-categoría/ventas-facturado-gastos/balance-acumulado/proyección/
+  proveedores) y en `DASHBOARD_TARJETAS`/`DASHBOARD_SPAN_DEFECTO` de
+  `admin.js` (mismo orden de array = mismo orden de "Restablecer"). Anchos
+  nuevos: `utilidad`/`ventas-facturado-gastos` de 12 a 6 columnas,
+  `balance-acumulado`/`proyeccion`/`proveedores` de 6/6/12 a 4/4/4 —
+  3 tarjetas por fila en vez de 1-2. Reordenar el HTML no mueve nada para
+  quien YA tiene un layout guardado (la lectura de `preferencias_dashboard`
+  sigue ganando vía `style.order`, nunca por posición del DOM) — solo
+  cambia lo que ve alguien SIN preferencia guardada o que presiona
+  "Restablecer". 100% HTML/CSS/JS, sin cambios de esquema/API. Sin
+  commit/push todavía.
+
+- **`sembrar-demo.js` — ventana de 6 meses (antes 5) + garantía de
+  tendencia ascendente (punto 204, 2026-09-04, IMPLEMENTADO — Jest backend
+  864/864, sin validar contra Docker real en esta sesión)**: a raíz de un
+  reset completo del entorno (`docker compose down -v` + reaprovisionar,
+  ver S829/S830), el usuario pidió datos de demo con "ventas, gastos e
+  inventario saludables" en escenario favorable. Dos cambios: (1) ventana
+  de siembra ampliada de `mesActual - 5` a `mesActual - 6` (el mes en curso
+  sigue vacío a propósito, se llena a mano); (2) `factorCrecimiento` diario
+  (~16%/mes desde el primer mes de la ventana) más un segundo paso que
+  garantiza un piso de **+12% mes contra mes** en el total facturado de
+  cada mes ya cerrado (`CRECIMIENTO_MINIMO_MES = 1.12`, un `UPDATE` que
+  solo escala HACIA ARRIBA — nunca hacia abajo — `cantidad`/`total`/
+  `monto_cobrado` del mes completo si el ruido del PRNG lo dejó plano o
+  descendente contra el mes anterior, conservando el ratio IVA/subtotal y
+  el % ya cobrado de cada venta). Motivo: la proyección de ventas de
+  "Resumen financiero" (`server.js`) solo extrapola los últimos 3 meses
+  CERRADOS — un trimestre plano/descendente la clava en $0. Sin cambios de
+  esquema. Sin commit/push todavía.
+
+- **Extracción automática del Total del CFDI (XML dentro del ZIP de
+  factura) — negocios "solo facturas" (punto 205, 2026-09-04, IMPLEMENTADO
+  Y VALIDADO con Jest — backend 864/864, 46 tests nuevos/ajustados; SIN
+  validar contra Docker/MySQL reales ni en navegador esta sesión)**:
+  propuesto por esta sesión (`S839`) tras auditar que un tenant con Ventas
+  apagada (sin inventario/servicios) no tenía NINGÚN registro de cuánto
+  costó una factura — el ticket solo guardaba el archivo. En vez de pedir
+  captura manual siempre, se lee el nodo `Total` del comprobante CFDI real
+  dentro del XML dentro del ZIP ya subido (formato estándar SAT — CFDI 3.3
+  y 4.0 usan el mismo atributo `Total` en el elemento raíz
+  `cfdi:Comprobante`), sin ninguna librería nueva de ZIP/XML — el proyecto
+  ya valida la estructura del ZIP a mano (`esZipValido` en
+  `backend/utils/validate.js`, sin dependencias externas) así que se
+  reutilizó ese mismo criterio: `zlib` nativo de Node para inflar la
+  entrada `DEFLATE`/`STORED` del ZIP y una extracción del atributo por
+  regex sobre el buffer XML (sin parser XML completo, mismo criterio de
+  "sin dependencia nueva para un solo campo" ya usado en el proyecto).
+  **Backend**: `extraerTotalFacturaDeZip(buffer)` nueva en
+  `backend/utils/validate.js` (exportada), retorna el Total en centavos
+  redondeados o `null` si no se pudo leer (ZIP corrupto, sin XML adentro,
+  XML sin CFDI válido, Total no numérico, etc. — nunca lanza). Columnas
+  nuevas `tickets.monto_factura` (`DECIMAL(12,2) NULL`) y
+  `monto_factura_origen` (`VARCHAR(10) NULL`, CHECK
+  `chk_tickets_monto_factura_origen` en `('xml','manual')`) vía
+  `ensureSchema()`. En `POST /api/admin/tickets/:id/factura`: intenta
+  `extraerTotalFacturaDeZip()` primero — si funciona, ese es el monto
+  (`origen='xml'`) y CUALQUIER `montoFacturaManual` que mande el cliente se
+  ignora a propósito (un CFDI ya timbrado no es "corregible" a mano); si
+  falla, exige `montoFacturaManual` en el body (400
+  `FACTURA_MONTO_REQUERIDO` si falta/inválido, `origen='manual'`) — el
+  monto NUNCA queda vacío. Respuesta y `GET /api/admin/tickets` exponen
+  ambos campos. **Frontend**: el modal de gestión de tickets intenta subir
+  sin pedir nada; si el servidor responde `FACTURA_MONTO_REQUERIDO`, revela
+  in-place (sin cerrar el modal ni perder el archivo ya elegido) un aviso +
+  campo "Monto de la factura (MXN)" y el operador solo repite el clic en
+  "Subir factura" — el `<input>` de monto manual solo se manda en el
+  `FormData` si ya está visible. El ticket ya facturado muestra "Monto
+  facturado: $X MXN" + "Leído automáticamente del XML" / "Capturado
+  manualmente" (`.ticket-modal-monto-factura`, nuevo en `admin.css`).
+  **Pruebas**: 12 unitarias nuevas en `validate.test.js` (ZIPs mínimos
+  armados a mano con `zlib.deflateRawSync`, incluye Total con separador de
+  miles, decimales, CFDI 3.3 vs 4.0, XML sin `Total`, ZIP corrupto,
+  entrada `STORED` sin comprimir) + 8 de integración en `admin.test.js`
+  (200 con XML válido ignora `montoFacturaManual` del body, 400 sin XML ni
+  manual, 200 con XML inválido + manual válido, persistencia del origen en
+  BD). `node --check` limpio en los 3 `.js` backend + 1 frontend tocados,
+  Jest backend **864/864 (47 suites)**. **Sin validar contra Docker/MySQL
+  reales ni en navegador esta sesión** — falta: migración real de las 2
+  columnas nuevas contra MySQL, subir un ZIP con un CFDI real de punta a
+  punta (XML con namespace/orden de atributos real del SAT, no solo los
+  ZIPs mínimos armados a mano de las pruebas unitarias), y confirmación
+  visual del aviso/campo manual y del badge de origen en el modal. Sin
+  commit/push todavía.
+
+- **PENDIENTE — Redirección automática a configuración fiscal cuando faltan datos (2026-09-04):** a pedido del usuario, cuando los datos fiscales de la compañía no están configurados y aparece el aviso de "no configurado", el flujo debe mandar directamente al menú para subir la Constancia de Situación Fiscal y completar la configuración. Estado actual: el aviso existe (`frontend/admin.html`/`admin.js` punto 62 — modal al iniciar sesión si falta `rfc_compania`/`clave_sat`, `cargarConfigGlobal()` con `{ verificarFiscalFaltante: true }` solo desde `showDashboard()`, barra de sesión vía `aplicarInfoFiscalBarra()`), pero es solo informativo — no navega ni abre el destino. Destino pedido: tarjeta "Configuraciones fiscales" dentro de la vista "Configuraciones globales" (`frontend/admin.html`/`admin.js`), botón "Subir constancia de situación fiscal" (`POST /api/admin/config/constancia-compania` en `backend/server.js` que reutiliza `backend/utils/pdfExtract.js`: `extraerRFC`/`extraerNombreRazonSocial`/`extraerRegimenesFiscales`/`determinarTipoPersona` para autocompletar `rfc_compania`/`regimen_fiscal_compania`/`razon_social_compania`/`clave_sat`/`tipo_persona`, ver puntos 65-69). Alcance propuesto sin código tocado en este turno: al cerrar/aceptar el modal de "faltan datos fiscales", navegar automáticamente a `vista-configuraciones` + expandir la tarjeta "Configuraciones fiscales" + poner foco/scroll en el control de subida de constancia. Detalles a confirmar explícitamente antes de implementar (protocolo `addv-web-app`): si la navegación es automática al cerrar el modal o inmediata sin esperar interacción, si solo aplica a perfiles con permiso sobre esa tarjeta (`administrador`/`fiscal`/`super` según `RESTRICCIONES_PERFIL` y `requireAdminArea` en `backend/utils/auth.js`), y si el aviso debe reaparecer en cada login hasta completar los datos o solo la primera vez. Cero código tocado — solo documentación de pendiente, no avanzar sin confirmación explícita.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

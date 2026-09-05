@@ -565,15 +565,15 @@
             <p class="inicio-stat-numero" id="resumen-fin-kpi-facturado">$0.00</p>
             <p class="inicio-stat-tendencia" id="resumen-fin-kpi-facturado-tendencia">—</p>
           </div>
-          <div class="inicio-stat-card" data-dashboard-id="kpi-gastos">
+          <div class="inicio-stat-card" data-dashboard-id="kpi-sin-facturar">
             <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Total gastos</span>
-              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6h15l-1.5 9H8L6 6Zm0 0-1-3H2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg>
+              <span class="inicio-stat-titulo">Ventas sin facturar</span>
+              <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
               </span>
             </div>
-            <p class="inicio-stat-numero" id="resumen-fin-kpi-gastos">$0.00</p>
-            <p class="inicio-stat-tendencia" id="resumen-fin-kpi-gastos-tendencia">—</p>
+            <p class="inicio-stat-numero" id="resumen-fin-kpi-sin-facturar">$0.00</p>
+            <p class="inicio-stat-tendencia">Ventas del mes aún sin facturar</p>
           </div>
           <div class="inicio-stat-card" data-dashboard-id="kpi-balance">
             <div class="inicio-stat-header">
@@ -585,15 +585,15 @@
             <p class="inicio-stat-numero" id="resumen-fin-kpi-balance">$0.00</p>
             <p class="inicio-stat-tendencia">Facturado − Gastos del mes</p>
           </div>
-          <div class="inicio-stat-card" data-dashboard-id="kpi-sin-facturar">
+          <div class="inicio-stat-card" data-dashboard-id="kpi-gastos">
             <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Ventas sin facturar</span>
-              <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              <span class="inicio-stat-titulo">Total gastos</span>
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6h15l-1.5 9H8L6 6Zm0 0-1-3H2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/></svg>
               </span>
             </div>
-            <p class="inicio-stat-numero" id="resumen-fin-kpi-sin-facturar">$0.00</p>
-            <p class="inicio-stat-tendencia">Ventas del mes aún sin facturar</p>
+            <p class="inicio-stat-numero" id="resumen-fin-kpi-gastos">$0.00</p>
+            <p class="inicio-stat-tendencia" id="resumen-fin-kpi-gastos-tendencia">—</p>
           </div>
 
         <!-- Tarjeta "Utilidad neta del mes (ventas totales vs gastos)"
@@ -625,27 +625,30 @@
           </div>
         </section>
 
-        <section class="resumen-fin-chart-card" data-dashboard-id="ventas-facturado-gastos">
-          <div class="resumen-fin-card-header">
-            <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 11l3 3 4-6 4 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-            </span>
-            <h2>Ventas vs Facturado vs Gastos</h2>
-            <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-chart-contenido" data-detalle-titulo="Ventas vs Facturado vs Gastos" aria-label="Ver Ventas vs Facturado vs Gastos en grande">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-            </button>
-          </div>
-          <div id="resumen-fin-chart-contenido">
-            <div class="resumen-fin-chart-body" id="resumen-fin-chart-body"></div>
-            <p class="admin-empty" id="resumen-fin-chart-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
-            <ul class="resumen-fin-chart-leyenda resumen-fin-chart-leyenda-filtrable" id="resumen-fin-chart-leyenda-filtrable">
-              <li data-serie="ventas"><span class="resumen-fin-dot resumen-fin-dot-ventas" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Ventas</span></li>
-              <li data-serie="gastos"><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Gastos</span></li>
-              <li data-serie="facturado"><span class="resumen-fin-dot resumen-fin-dot-facturado" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Facturado</span></li>
-              <li data-serie="sin-facturar"><span class="resumen-fin-dot resumen-fin-dot-sin-facturar" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Sin facturar</span></li>
-            </ul>
-          </div>
-        </section>
+        <section class="resumen-fin-donut-card" data-dashboard-id="facturacion">
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
+              </span>
+              <h2>Ventas facturadas vs sin facturar</h2>
+              <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-donut-facturacion-contenido" data-detalle-titulo="Ventas facturadas vs sin facturar" aria-label="Ver Ventas facturadas vs sin facturar en grande">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              </button>
+            </div>
+            <div id="resumen-fin-donut-facturacion-contenido">
+              <div class="resumen-fin-donut-body">
+                <div class="resumen-fin-donut-wrap">
+                  <svg class="resumen-fin-donut" id="resumen-fin-donut-facturacion" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
+                  <div class="resumen-fin-donut-centro">
+                    <span class="resumen-fin-donut-total" id="resumen-fin-donut-facturacion-total">$0</span>
+                    <span class="resumen-fin-donut-total-label">Ventas</span>
+                  </div>
+                </div>
+                <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-facturacion-leyenda"></ul>
+              </div>
+              <p class="admin-empty" id="resumen-fin-donut-facturacion-empty" hidden>Aún no hay ventas registradas este mes.</p>
+            </div>
+          </section>
 
         <section class="resumen-fin-donut-card" data-dashboard-id="gastos-categoria">
             <div class="resumen-fin-card-header">
@@ -672,30 +675,27 @@
             </div>
           </section>
 
-        <section class="resumen-fin-donut-card" data-dashboard-id="facturacion">
-            <div class="resumen-fin-card-header">
-              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
-              </span>
-              <h2>Ventas facturadas vs sin facturar</h2>
-              <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-donut-facturacion-contenido" data-detalle-titulo="Ventas facturadas vs sin facturar" aria-label="Ver Ventas facturadas vs sin facturar en grande">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              </button>
-            </div>
-            <div id="resumen-fin-donut-facturacion-contenido">
-              <div class="resumen-fin-donut-body">
-                <div class="resumen-fin-donut-wrap">
-                  <svg class="resumen-fin-donut" id="resumen-fin-donut-facturacion" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
-                  <div class="resumen-fin-donut-centro">
-                    <span class="resumen-fin-donut-total" id="resumen-fin-donut-facturacion-total">$0</span>
-                    <span class="resumen-fin-donut-total-label">Ventas</span>
-                  </div>
-                </div>
-                <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-facturacion-leyenda"></ul>
-              </div>
-              <p class="admin-empty" id="resumen-fin-donut-facturacion-empty" hidden>Aún no hay ventas registradas este mes.</p>
-            </div>
-          </section>
+        <section class="resumen-fin-chart-card" data-dashboard-id="ventas-facturado-gastos">
+          <div class="resumen-fin-card-header">
+            <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18M7 11l3 3 4-6 4 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            </span>
+            <h2>Ventas vs Facturado vs Gastos</h2>
+            <button type="button" class="resumen-fin-expandir-btn" data-detalle-contenido="resumen-fin-chart-contenido" data-detalle-titulo="Ventas vs Facturado vs Gastos" aria-label="Ver Ventas vs Facturado vs Gastos en grande">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            </button>
+          </div>
+          <div id="resumen-fin-chart-contenido">
+            <div class="resumen-fin-chart-body" id="resumen-fin-chart-body"></div>
+            <p class="admin-empty" id="resumen-fin-chart-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
+            <ul class="resumen-fin-chart-leyenda resumen-fin-chart-leyenda-filtrable" id="resumen-fin-chart-leyenda-filtrable">
+              <li data-serie="ventas"><span class="resumen-fin-dot resumen-fin-dot-ventas" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Ventas</span></li>
+              <li data-serie="gastos"><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Gastos</span></li>
+              <li data-serie="facturado"><span class="resumen-fin-dot resumen-fin-dot-facturado" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Facturado</span></li>
+              <li data-serie="sin-facturar"><span class="resumen-fin-dot resumen-fin-dot-sin-facturar" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Sin facturar</span></li>
+            </ul>
+          </div>
+        </section>
 
         <section class="resumen-fin-line-card" data-dashboard-id="balance-acumulado">
             <div class="resumen-fin-card-header">
@@ -3262,6 +3262,28 @@
               <p class="ticket-modal-factura-hint">Factura actual: <strong id="ticket-modal-factura-actual-nombre"></strong></p>
               <button type="button" class="btn btn-secondary btn-block" id="btn-ticket-descargar-factura">Descargar factura actual</button>
             </div>
+
+            <!-- Monto facturado: leído del XML al subir la factura (o
+                 capturado a mano si el XML no traía un Total legible).
+                 Solo visible cuando el ticket ya tiene uno guardado. -->
+            <div class="ticket-modal-monto-factura" id="ticket-modal-monto-factura" hidden>
+              <span class="ticket-modal-monto-factura-etiqueta">Monto facturado</span>
+              <span class="ticket-modal-monto-factura-valor" id="ticket-modal-monto-factura-valor"></span>
+              <span class="ticket-modal-monto-factura-fuente" id="ticket-modal-monto-factura-fuente"></span>
+            </div>
+
+            <!-- Aviso: el sistema no pudo leer el Total del XML — se
+                 revela junto con el campo de captura manual. -->
+            <div class="ticket-modal-factura-aviso" id="ticket-modal-factura-aviso" hidden role="alert">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 8v5m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>No se pudo leer el monto de la factura desde el XML. Captúralo abajo para continuar.</span>
+            </div>
+            <div class="field" id="ticket-modal-monto-manual-wrap" hidden>
+              <label for="ticket-modal-monto-manual">Monto de la factura (MXN)</label>
+              <input type="number" id="ticket-modal-monto-manual" min="0.01" step="0.01" placeholder="0.00" />
+              <p class="field-error" id="error-ticket-modal-monto-manual" role="alert"></p>
+            </div>
+
             <label for="ticket-modal-factura-input" id="label-ticket-modal-factura-input">Subir factura</label>
             <p class="ticket-modal-factura-hint" id="ticket-modal-factura-hint">Solo se acepta un archivo <strong>.zip</strong> que contenga, adentro, tanto el <strong>PDF</strong> como el <strong>XML</strong> de la factura — si falta alguno de los dos, se rechaza. Al subirlo correctamente, el ticket se marca automáticamente como "Listo".</p>
             <input type="file" id="ticket-modal-factura-input" accept=".zip" />

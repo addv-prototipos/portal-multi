@@ -593,6 +593,32 @@ ausentó a media sesión autorizando modo automático para completar este
 segmento ya aprobado. Ver PROJECT_STATE.md punto 202 para el detalle
 línea por línea.
 
+**Puntos 203-205 (2026-09-04, IMPLEMENTADOS con Jest 864/864, SIN validar
+contra Docker/MySQL real ni en navegador esta sesión, sin commit/push)**:
+(203) layout por defecto de "Resumen financiero" congelado al orden/anchos
+que el usuario ya tenía acomodado (antes "Restablecer" regresaba a un
+default de fábrica desactualizado) — reordenado en `admin.html` y en
+`DASHBOARD_TARJETAS`/`DASHBOARD_SPAN_DEFECTO` de `admin.js`, sin afectar a
+quien ya tiene `preferencias_dashboard` guardado. (204)
+`backend/scripts/sembrar-demo.js` a ventana de 6 meses (antes 5) + garantía
+de +12% mes-contra-mes en el total facturado de cada mes cerrado
+(`CRECIMIENTO_MINIMO_MES`), para que la proyección de ventas de Resumen
+financiero (solo extrapola 3 meses cerrados) nunca se clave en $0 por un
+trimestre plano del PRNG. (205) extracción automática del `Total` del CFDI
+real (XML dentro del ZIP de factura) para negocios "solo facturas" sin
+inventario/Ventas — `extraerTotalFacturaDeZip()` nueva en
+`backend/utils/validate.js` (zlib nativo + regex sobre el XML, sin
+dependencia nueva, mismo criterio que `esZipValido`), columnas
+`tickets.monto_factura`/`monto_factura_origen` (CHECK
+`xml`/`manual`), captura manual solo si la extracción falla
+(400 `FACTURA_MONTO_REQUERIDO`) — un XML leído nunca se deja pisar por un
+valor manual. Frontend revela el campo manual in-place sin cerrar el modal
+ni perder el archivo. 20 tests nuevos (12 unit + 8 integración). Ver
+PROJECT_STATE.md puntos 203-205 para el detalle línea por línea. **Falta
+antes de dar esto por cerrado**: rebuild Docker + migración real de las 2
+columnas + subir un ZIP con un CFDI real (no solo los ZIPs mínimos armados
+a mano de las pruebas) + confirmación visual.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

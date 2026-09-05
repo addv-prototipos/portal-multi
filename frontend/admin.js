@@ -227,6 +227,12 @@
     ticketModalFacturaInput: document.getElementById('ticket-modal-factura-input'),
     btnTicketSubirFactura: document.getElementById('btn-ticket-subir-factura'),
     btnTicketSubirFacturaLabel: document.getElementById('btn-ticket-subir-factura-label'),
+    ticketModalMontoFactura: document.getElementById('ticket-modal-monto-factura'),
+    ticketModalMontoFacturaValor: document.getElementById('ticket-modal-monto-factura-valor'),
+    ticketModalMontoFacturaFuente: document.getElementById('ticket-modal-monto-factura-fuente'),
+    ticketModalFacturaAviso: document.getElementById('ticket-modal-factura-aviso'),
+    ticketModalMontoManualWrap: document.getElementById('ticket-modal-monto-manual-wrap'),
+    ticketModalMontoManual: document.getElementById('ticket-modal-monto-manual'),
     // Ventas
     ordenesCount: document.getElementById('ordenes-count'),
     ordenesTableWrap: document.getElementById('ordenes-table-wrap'),
@@ -5347,6 +5353,23 @@
     els.ticketModalEstatusSelect.value = ticket.estatus === 'listo' ? 'listo' : ticket.estatus;
     els.ticketModalFacturaInput.value = '';
 
+    // Monto facturado (punto: negocios "solo facturas", sin venta que
+    // verificar) — leído del XML al subir la factura, o capturado a mano
+    // si el XML no traía un Total legible. El aviso/campo manual siempre
+    // arrancan ocultos: solo se revelan si una subida real los necesita.
+    if (ticket.monto_factura !== null && ticket.monto_factura !== undefined) {
+      els.ticketModalMontoFacturaValor.textContent = `$${formatearMoneda(ticket.monto_factura)} MXN`;
+      els.ticketModalMontoFacturaFuente.textContent =
+        ticket.monto_factura_origen === 'manual' ? 'Capturado manualmente' : 'Leído automáticamente del XML';
+      els.ticketModalMontoFactura.hidden = false;
+    } else {
+      els.ticketModalMontoFactura.hidden = true;
+    }
+    els.ticketModalFacturaAviso.hidden = true;
+    els.ticketModalMontoManualWrap.hidden = true;
+    els.ticketModalMontoManual.value = '';
+    setFieldError('error-ticket-modal-monto-manual', '');
+
     // Si el ticket ya tiene una factura subida, se ofrece descargarla, y
     // el botón/label de subir deja claro que un nuevo archivo la
     // REEMPLAZA — no que se está subiendo una factura por primera vez.
@@ -5550,8 +5573,27 @@
       return;
     }
 
+    // El campo de monto manual solo se manda si ya está visible (una
+    // subida anterior de este mismo archivo avisó que el XML no traía un
+    // Total legible) — mientras no se necesite, no se manda nada, y el
+    // servidor intenta leerlo del XML primero siempre.
+    let montoManual = null;
+    if (!els.ticketModalMontoManualWrap.hidden) {
+      const valor = Number(els.ticketModalMontoManual.value);
+      if (!els.ticketModalMontoManual.value || !Number.isFinite(valor) || valor <= 0) {
+        setFieldError('error-ticket-modal-monto-manual', 'Captura el monto de la factura (mayor a $0).');
+        els.ticketModalMontoManual.focus();
+        return;
+      }
+      montoManual = valor;
+      setFieldError('error-ticket-modal-monto-manual', '');
+    }
+
     const formData = new FormData();
     formData.append('factura', archivo);
+    if (montoManual !== null) {
+      formData.append('montoFacturaManual', String(montoManual));
+    }
 
     setSubiendoFacturaLoading(true);
     try {
@@ -5562,6 +5604,17 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // El sistema no pudo leer el Total del XML: en vez de solo un
+        // toast que desaparece, se revela un aviso persistente + el
+        // campo para capturarlo a mano, sin cerrar el modal ni perder el
+        // archivo ya seleccionado — el operador solo tiene que llenar el
+        // monto y volver a dar clic en el mismo botón.
+        if (data.codigo === 'FACTURA_MONTO_REQUERIDO') {
+          els.ticketModalFacturaAviso.hidden = false;
+          els.ticketModalMontoManualWrap.hidden = false;
+          els.ticketModalMontoManual.focus();
+          return;
+        }
         showToast(data.error || 'No se pudo subir la factura.', true);
         return;
       }
@@ -7906,13 +7959,13 @@
   //    ←/→ ancho, Esc sale) — mismo resultado que el puntero.
   const DASHBOARD_TARJETAS = [
     { id: 'kpi-facturado', titulo: 'Total facturado' },
-    { id: 'kpi-gastos', titulo: 'Total gastos' },
-    { id: 'kpi-balance', titulo: 'Balance ventas vs gastos' },
     { id: 'kpi-sin-facturar', titulo: 'Ventas sin facturar' },
+    { id: 'kpi-balance', titulo: 'Balance ventas vs gastos' },
+    { id: 'kpi-gastos', titulo: 'Total gastos' },
     { id: 'utilidad', titulo: 'Utilidad neta del mes' },
-    { id: 'ventas-facturado-gastos', titulo: 'Ventas vs Facturado vs Gastos' },
-    { id: 'gastos-categoria', titulo: 'Distribución de gastos por categoría' },
     { id: 'facturacion', titulo: 'Ventas facturadas vs sin facturar' },
+    { id: 'gastos-categoria', titulo: 'Distribución de gastos por categoría' },
+    { id: 'ventas-facturado-gastos', titulo: 'Ventas vs Facturado vs Gastos' },
     { id: 'balance-acumulado', titulo: 'Utilidad neta mensual' },
     { id: 'proyeccion', titulo: 'Proyección de ventas' },
     { id: 'proveedores', titulo: 'Top proveedores de gasto' },
@@ -7924,13 +7977,13 @@
     'kpi-gastos': 3,
     'kpi-balance': 3,
     'kpi-sin-facturar': 3,
-    utilidad: 12,
-    'ventas-facturado-gastos': 12,
+    utilidad: 6,
+    'ventas-facturado-gastos': 6,
     'gastos-categoria': 6,
     facturacion: 6,
-    'balance-acumulado': 6,
-    proyeccion: 6,
-    proveedores: 12,
+    'balance-acumulado': 4,
+    proyeccion: 4,
+    proveedores: 4,
   };
   const DASHBOARD_VISTA = 'resumen-financiero';
   const DASHBOARD_GUARDADO_DEBOUNCE_MS = 800;

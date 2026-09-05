@@ -3902,6 +3902,56 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .ticket-modal-factura-actual .ticket-modal-factura-hint {
   margin-bottom: 8px;
 }
+
+/* Monto de la factura (leído del XML, o capturado a mano si no se pudo
+   leer) — mismo fondo/radio que ".ticket-modal-factura-actual", el valor
+   en tabular-nums para que las cifras no "brinquen" al reabrir distintos
+   tickets. */
+.ticket-modal-monto-factura {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.ticket-modal-monto-factura-etiqueta {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+.ticket-modal-monto-factura-valor {
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--color-accent-dark);
+}
+.ticket-modal-monto-factura-fuente {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+}
+
+/* Aviso: el XML no traía un Total legible, se pide captura manual —
+   mismo lenguaje visual que .inv-import-mapeo-mobile-aviso (color-warn). */
+.ticket-modal-factura-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+}
+.ticket-modal-factura-aviso svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .ticket-modal-factura label {
   display: block;
   font-size: 13.5px;
@@ -5481,11 +5531,16 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .resumen-fin-tablero > [data-dashboard-id="kpi-sin-facturar"] {
   grid-column: span 3;
 }
-.resumen-fin-tablero > [data-dashboard-id="gastos-categoria"],
+.resumen-fin-tablero > [data-dashboard-id="utilidad"],
 .resumen-fin-tablero > [data-dashboard-id="facturacion"],
-.resumen-fin-tablero > [data-dashboard-id="balance-acumulado"],
-.resumen-fin-tablero > [data-dashboard-id="proyeccion"] {
+.resumen-fin-tablero > [data-dashboard-id="gastos-categoria"],
+.resumen-fin-tablero > [data-dashboard-id="ventas-facturado-gastos"] {
   grid-column: span 6;
+}
+.resumen-fin-tablero > [data-dashboard-id="balance-acumulado"],
+.resumen-fin-tablero > [data-dashboard-id="proyeccion"],
+.resumen-fin-tablero > [data-dashboard-id="proveedores"] {
+  grid-column: span 4;
 }
 @media (max-width: 900px) {
   /* En pantallas chicas se ignora el ANCHO personalizado (todo a ancho
