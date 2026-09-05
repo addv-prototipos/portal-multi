@@ -151,44 +151,6 @@ function correrEsquemaEnProcesoHijo({ dbHost, dbPort, appUser, appPassword, dbNa
   );
 }
 
-// Pre-llena la configuración fiscal de un tenant recién aprovisionado con
-// los datos capturados en el intake de /control (segmento 9c, ver
-// PROJECT_STATE.md). Corre setConfiguracionGlobal() de backend/utils/
-// config.js en un proceso hijo contra la BD del tenant — reutiliza la
-// MISMA validación campo por campo que ya acepta el panel de cada
-// empresa, para que un dato que pasó el intake nunca sea rechazado aquí
-// por una regla distinta. `datosFiscales` usa los mismos nombres de
-// columna que la fila de control_tenants.tenants (rfc_compania,
-// clave_sat, ...) y que las claves de DEFAULTS_CONFIG_GLOBAL — copia
-// directa, sin mapear. A propósito NO se invoca si no hay ningún dato
-// fiscal capturado (tieneAlgunDatoFiscal del intake es false): el
-// tenant arranca con su config por defecto, igual que uno dado de alta
-// por CLI sin datos fiscales.
-function aplicarConfiguracionFiscalEnProcesoHijo({ dbHost, dbPort, appUser, appPassword, dbName, datosFiscales }) {
-  const backendDir = path.join(__dirname, '..', '..');
-  execFileSync(
-    process.execPath,
-    [
-      '-e',
-      "require('./utils/config').setConfiguracionGlobal(JSON.parse(process.env.DATOS_FISCALES_INTENTO))" +
-        '.then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); })',
-    ],
-    {
-      cwd: backendDir,
-      env: {
-        ...process.env,
-        DB_HOST: dbHost,
-        DB_PORT: String(dbPort),
-        DB_USER: appUser,
-        DB_PASSWORD: appPassword,
-        DB_NAME: dbName,
-        DATOS_FISCALES_INTENTO: JSON.stringify(datosFiscales),
-      },
-      stdio: 'inherit',
-    }
-  );
-}
-
 module.exports = {
   CONTROL_DB_NAME,
   NOMBRE_USUARIO_APP_REGEX,
@@ -197,5 +159,4 @@ module.exports = {
   asegurarControlYPrivilegios,
   registrarEvento,
   correrEsquemaEnProcesoHijo,
-  aplicarConfiguracionFiscalEnProcesoHijo,
 };

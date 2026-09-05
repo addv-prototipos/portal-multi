@@ -364,67 +364,6 @@
           </div>
         </div>
 
-        <button type="button" class="admin-config-toggle" id="control-btn-toggle-fiscal" aria-expanded="false">
-          <span>Datos fiscales (opcional)</span>
-          <svg class="admin-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div id="control-intake-fiscal-body" hidden>
-          <p class="panel-subtitle">
-            Se pre-llenan en la configuración fiscal de la empresa cuando se apruebe el alta — mismos campos y etiquetas
-            que el panel de administración de cada empresa.
-          </p>
-
-          <div class="field">
-            <label for="control-intake-rfc">RFC de la compañía</label>
-            <input type="text" id="control-intake-rfc" maxlength="13" autocomplete="off"
-              placeholder="AAA010101AAA" />
-            <p class="field-hint">12 o 13 caracteres alfanuméricos, opcional.</p>
-            <p class="field-error" id="error-intake-rfc" role="alert"></p>
-          </div>
-
-          <div class="field">
-            <label for="control-intake-razon-social">Razón Social<button type="button" class="campo-ayuda" aria-label="Más información sobre Razón Social" data-tooltip="El nombre legal completo del negocio ante el SAT — puede ser distinto del nombre comercial. Va en la Constancia de Situación Fiscal que te dé el cliente.">?</button></label>
-            <input type="text" id="control-intake-razon-social" maxlength="255" autocomplete="off" />
-          </div>
-
-          <div class="field">
-            <label for="control-intake-regimen-fiscal">Régimen fiscal<button type="button" class="campo-ayuda" aria-label="Más información sobre Régimen fiscal" data-tooltip="La forma en que el SAT clasifica fiscalmente al negocio (ej. 'Persona Física con Actividad Empresarial', 'Régimen Simplificado de Confianza'). Está en la Constancia de Situación Fiscal que te dé el cliente.">?</button></label>
-            <input type="text" id="control-intake-regimen-fiscal" maxlength="255" autocomplete="off" />
-          </div>
-
-          <div class="field">
-            <label for="control-intake-tipo-persona">Tipo de persona<button type="button" class="campo-ayuda" aria-label="Más información sobre Tipo de persona" data-tooltip="Persona Física = el negocio opera a nombre de alguien (con o sin actividad empresarial registrada). Persona Moral = es una empresa constituida (S.A. de C.V., etc.). Está en la Constancia de Situación Fiscal.">?</button></label>
-            <select id="control-intake-tipo-persona">
-              <option value="">—</option>
-              <option value="fisica">Persona Física</option>
-              <option value="moral">Persona Moral</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="control-intake-clave-sat">Clave SAT<button type="button" class="campo-ayuda" aria-label="Más información sobre Clave SAT" data-tooltip="El código de 8 dígitos que identifica el giro del negocio ante el SAT (ej. venta de ropa, servicios de diseño). Está en la Constancia de Situación Fiscal, sección 'Actividades económicas'.">?</button></label>
-            <input type="text" id="control-intake-clave-sat" inputmode="numeric" maxlength="8"
-              placeholder="12345678" autocomplete="off" />
-            <p class="field-hint">Exactamente 8 dígitos.</p>
-            <p class="field-error" id="error-intake-clave-sat" role="alert"></p>
-          </div>
-
-          <div class="field">
-            <label for="control-intake-link-sat">Link de códigos SAT</label>
-            <input type="url" id="control-intake-link-sat" placeholder="https://..." autocomplete="off" />
-            <p class="field-error" id="error-intake-link-sat" role="alert"></p>
-          </div>
-
-          <div class="field">
-            <label for="control-intake-correo-reportes">Correo de reportes</label>
-            <input type="email" id="control-intake-correo-reportes" placeholder="reportes@empresa.com" autocomplete="off" />
-            <p class="field-hint">Recibe el reporte automático periódico (ventas/gastos). Puede ser el mismo correo de contacto u otro distinto.</p>
-            <p class="field-error" id="error-intake-correo-reportes" role="alert"></p>
-          </div>
-        </div>
-
         <p class="field-error" id="control-intake-error" role="alert"></p>
         <div class="btn-row">
           <button type="button" class="btn btn-secondary" id="control-btn-intake-cancelar">Cancelar</button>
@@ -507,62 +446,6 @@
             <label for="control-editar-notas">Notas</label>
             <textarea id="control-editar-notas" rows="3" placeholder="Cualquier contexto para el operador…"></textarea>
             <p class="field-hint">Solo visible para operadores de /control — la empresa cliente nunca la ve.</p>
-          </div>
-        </div>
-
-        <button type="button" class="admin-config-toggle" id="control-btn-toggle-fiscal-editar" aria-expanded="false">
-          <span>Datos fiscales (opcional)</span>
-          <svg class="admin-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div id="control-editar-fiscal-body" hidden>
-          <div class="field">
-            <label for="control-editar-rfc">RFC de la compañía</label>
-            <input type="text" id="control-editar-rfc" maxlength="13" autocomplete="off"
-              placeholder="AAA010101AAA" />
-            <p class="field-hint">12 o 13 caracteres alfanuméricos, opcional.</p>
-            <p class="field-error" id="error-editar-rfc" role="alert"></p>
-          </div>
-
-          <div class="field">
-            <label for="control-editar-razon-social">Razón Social<button type="button" class="campo-ayuda" aria-label="Más información sobre Razón Social" data-tooltip="El nombre legal completo del negocio ante el SAT — puede ser distinto del nombre comercial. Va en la Constancia de Situación Fiscal que te dé el cliente.">?</button></label>
-            <input type="text" id="control-editar-razon-social" maxlength="255" autocomplete="off" />
-          </div>
-
-          <div class="field">
-            <label for="control-editar-regimen-fiscal">Régimen fiscal<button type="button" class="campo-ayuda" aria-label="Más información sobre Régimen fiscal" data-tooltip="La forma en que el SAT clasifica fiscalmente al negocio (ej. 'Persona Física con Actividad Empresarial', 'Régimen Simplificado de Confianza'). Está en la Constancia de Situación Fiscal que te dé el cliente.">?</button></label>
-            <input type="text" id="control-editar-regimen-fiscal" maxlength="255" autocomplete="off" />
-          </div>
-
-          <div class="field">
-            <label for="control-editar-tipo-persona">Tipo de persona<button type="button" class="campo-ayuda" aria-label="Más información sobre Tipo de persona" data-tooltip="Persona Física = el negocio opera a nombre de alguien (con o sin actividad empresarial registrada). Persona Moral = es una empresa constituida (S.A. de C.V., etc.). Está en la Constancia de Situación Fiscal.">?</button></label>
-            <select id="control-editar-tipo-persona">
-              <option value="">—</option>
-              <option value="fisica">Persona Física</option>
-              <option value="moral">Persona Moral</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="control-editar-clave-sat">Clave SAT<button type="button" class="campo-ayuda" aria-label="Más información sobre Clave SAT" data-tooltip="El código de 8 dígitos que identifica el giro del negocio ante el SAT (ej. venta de ropa, servicios de diseño). Está en la Constancia de Situación Fiscal, sección 'Actividades económicas'.">?</button></label>
-            <input type="text" id="control-editar-clave-sat" inputmode="numeric" maxlength="8"
-              placeholder="12345678" autocomplete="off" />
-            <p class="field-hint">Exactamente 8 dígitos.</p>
-            <p class="field-error" id="error-editar-clave-sat" role="alert"></p>
-          </div>
-
-          <div class="field">
-            <label for="control-editar-link-sat">Link de códigos SAT</label>
-            <input type="url" id="control-editar-link-sat" placeholder="https://..." autocomplete="off" />
-            <p class="field-error" id="error-editar-link-sat" role="alert"></p>
-          </div>
-
-          <div class="field">
-            <label for="control-editar-correo-reportes">Correo de reportes</label>
-            <input type="email" id="control-editar-correo-reportes" placeholder="reportes@empresa.com" autocomplete="off" />
-            <p class="field-hint">Recibe el reporte automático periódico (ventas/gastos). Puede ser el mismo correo de contacto u otro distinto.</p>
-            <p class="field-error" id="error-editar-correo-reportes" role="alert"></p>
           </div>
         </div>
 

@@ -3265,7 +3265,7 @@ app.put(
     // compra" (movido a la vista "Usuarios", también exclusiva de
     // administrador) — ninguno de los dos lo puede tocar un perfil
     // fiscal, aunque sí tenga acceso al resto de los campos de esta
-    // misma ruta (IVA, zona horaria, Clave SAT, link). Cada uno necesita
+    // misma ruta (IVA, zona horaria, Clave SAT). Cada uno necesita
     // su propio chequeo aparte del área general ya aplicada arriba
     // (requireAdminArea solo cubre el caso común de los demás campos).
     if (body.correo_reportes !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
@@ -3285,7 +3285,6 @@ app.put(
         zona_horaria: body.zona_horaria,
         ordenes_compra_habilitado: body.ordenes_compra_habilitado,
         clave_sat: body.clave_sat,
-        link_codigos_sat: body.link_codigos_sat,
         correo_reportes: body.correo_reportes,
       });
       res.json(actualizado);

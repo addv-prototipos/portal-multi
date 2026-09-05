@@ -739,10 +739,6 @@
     errorConstanciaCompania: document.getElementById('error-constancia-compania'),
     regimenFiscalCompaniaBox: document.getElementById('regimen-fiscal-compania-box'),
     razonSocialCompaniaBox: document.getElementById('razon-social-compania-box'),
-    configLinkCodigosSat: document.getElementById('config-link-codigos-sat'),
-    linkCodigosSatVista: document.getElementById('link-codigos-sat-vista'),
-    linkCodigosSatHref: document.getElementById('link-codigos-sat-href'),
-    btnEditarLinkCodigosSat: document.getElementById('btn-editar-link-codigos-sat'),
     brandFiscalInfo: document.getElementById('brand-fiscal-info'),
     configFiscalFaltanteOverlay: document.getElementById('config-fiscal-faltante-overlay'),
     btnConfigFiscalFaltanteCerrar: document.getElementById('btn-config-fiscal-faltante-cerrar'),
@@ -2365,28 +2361,6 @@
     if (seleccionActual) select.value = seleccionActual;
   }
 
-  // Alterna entre mostrar el link de códigos SAT como hipervínculo
-  // (modo vista, con botón "Editar") o como campo de texto (modo
-  // edición). Sin ningún valor guardado, no hay nada que mostrar como
-  // enlace — se deja directamente el campo de texto visible.
-  function aplicarVistaLinkCodigosSat(link) {
-    if (link) {
-      els.linkCodigosSatHref.href = link;
-      els.linkCodigosSatHref.textContent = link;
-      els.linkCodigosSatVista.hidden = false;
-      els.configLinkCodigosSat.hidden = true;
-    } else {
-      els.linkCodigosSatVista.hidden = true;
-      els.configLinkCodigosSat.hidden = false;
-    }
-  }
-
-  els.btnEditarLinkCodigosSat.addEventListener('click', () => {
-    els.linkCodigosSatVista.hidden = true;
-    els.configLinkCodigosSat.hidden = false;
-    els.configLinkCodigosSat.focus();
-  });
-
   // Muestra "RFC - Código SAT" junto a "Administración" en la barra de
   // sesión — SOLO si los dos están capturados. Con cualquiera de los dos
   // vacío, no se muestra nada extra (ni un "RFC -" ni un "- Código SAT"
@@ -2555,8 +2529,6 @@
       els.configOrdenesHabilitado.checked = config.ordenes_compra_habilitado;
       aplicarClaveSatCargada(config.clave_sat || '');
       cargarInfoCatalogoClaveSat();
-      els.configLinkCodigosSat.value = config.link_codigos_sat || '';
-      aplicarVistaLinkCodigosSat(config.link_codigos_sat);
       aplicarRegimenFiscalCompaniaBox(config.regimen_fiscal_compania);
       aplicarRazonSocialCompaniaBox(config.razon_social_compania);
       aplicarVisibilidadOrdenesCompra(config.ordenes_compra_habilitado);
@@ -2589,7 +2561,6 @@
     els.globalConfigError.textContent = '';
     setFieldError('config-iva', '');
     setFieldError('config-clave-sat', '');
-    setFieldError('config-link-codigos-sat', '');
 
     const iva = Number(els.configIva.value);
     if (!Number.isFinite(iva) || iva < 0 || iva > 100) {
@@ -2601,15 +2572,10 @@
     // aquí — se leen automáticamente de la constancia (ver el botón
     // "Subir constancia de situación fiscal" más arriba). Este botón
     // "Guardar cambios" solo sigue siendo responsable de IVA, zona
-    // horaria, el interruptor de Ventas, la Clave SAT y el link.
+    // horaria, el interruptor de Ventas y la Clave SAT.
     const claveSat = els.configClaveSat.value.trim();
     if (claveSat && !/^\d{8}$/.test(claveSat)) {
       setFieldError('config-clave-sat', 'La Clave SAT debe ser exactamente 8 dígitos.');
-      return;
-    }
-    const linkCodigosSat = els.configLinkCodigosSat.value.trim();
-    if (linkCodigosSat && !/^https?:\/\/.+/i.test(linkCodigosSat)) {
-      setFieldError('config-link-codigos-sat', 'Captura una URL válida (debe empezar con http:// o https://).');
       return;
     }
 
@@ -2623,7 +2589,6 @@
           zona_horaria: els.configZonaHoraria.value,
           ordenes_compra_habilitado: els.configOrdenesHabilitado.checked,
           clave_sat: claveSat,
-          link_codigos_sat: linkCodigosSat,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -2639,7 +2604,6 @@
       // pero que la barra de sesión sigue necesitando para mostrarse
       // completa.
       aplicarInfoFiscalBarra(data);
-      aplicarVistaLinkCodigosSat(linkCodigosSat);
     } catch (err) {
       els.globalConfigError.textContent = 'No se pudo conectar con el servidor.';
     } finally {

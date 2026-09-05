@@ -208,22 +208,6 @@ describe('config.js', () => {
       expect(resultado.clave_sat).toBe('');
     });
 
-    test('rechaza link_codigos_sat con protocolo distinto de http/https', async () => {
-      pool.query.mockResolvedValueOnce([[]]);
-      await expect(setConfiguracionGlobal({ link_codigos_sat: 'ftp://ejemplo.com' })).rejects.toThrow(/URL válida/);
-    });
-
-    test('rechaza link_codigos_sat mal formado', async () => {
-      pool.query.mockResolvedValueOnce([[]]);
-      await expect(setConfiguracionGlobal({ link_codigos_sat: 'no-es-una-url' })).rejects.toThrow(/URL válida/);
-    });
-
-    test('acepta link_codigos_sat https válido', async () => {
-      mockActualVacio();
-      const resultado = await setConfiguracionGlobal({ link_codigos_sat: 'https://sat.gob.mx/codigos' });
-      expect(resultado.link_codigos_sat).toBe('https://sat.gob.mx/codigos');
-    });
-
     test('rechaza correo_reportes con formato inválido', async () => {
       pool.query.mockResolvedValueOnce([[]]);
       await expect(setConfiguracionGlobal({ correo_reportes: 'no-es-correo' })).rejects.toThrow(/correo de reportes/);

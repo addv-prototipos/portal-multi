@@ -1046,37 +1046,6 @@
   font-size: 17px;
   margin: 0;
 }
-/* Link de códigos SAT: una vez guardado, se muestra como hipervínculo
-   real (clicable, abre en pestaña nueva) en vez de dejar el campo de
-   texto siempre editable — el botón "Editar" es lo único que revela el
-   <input> de nuevo. Ver aplicarVistaLinkCodigosSat() en admin.js. */
-.link-editable-vista {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  background: var(--color-bg);
-  border-radius: var(--radius-sm);
-  margin-bottom: 4px;
-}
-.link-editable-href {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-accent-dark);
-  font-size: 13.5px;
-  text-decoration: underline;
-  text-decoration-color: var(--color-border);
-}
-.link-editable-href:hover { text-decoration-color: var(--color-accent); }
-.btn-editar-link {
-  flex-shrink: 0;
-  padding: 6px 14px;
-  font-size: 12.5px;
-}
-
 /* Caja de solo lectura para el/los régimen(es) fiscal(es) leídos de la
    constancia de la compañía — puede tener más de una línea (un
    contribuyente puede tener varios regímenes activos a la vez), por eso

@@ -1,6 +1,6 @@
 // Edición de los datos de una empresa existente desde /control (segmento
 // "edición", ver PROJECT_STATE.md punto 104): los MISMOS campos que se
-// capturan en el alta (nombre, contacto, notas, fiscales, marca y logo)
+// capturan en el alta (nombre, contacto, notas, marca y logo)
 // más el slug — que solo puede cambiar si el operador lo habilita
 // explícitamente (switch "Cambiar slug (avanzado)" en la UI).
 //
@@ -17,7 +17,6 @@
 
 const { obtenerPool } = require('../db');
 const { validarSlug, nombreDbTenant } = require('./tenant');
-const { normalizarYValidarDatosFiscales } = require('./validateFiscal');
 const { normalizarDatosBase } = require('./tenantIntake');
 const { subirLogoAlBackend, borrarLogoDelBackend, MAX_MARCA_LOGO_MB } = require('./tenantMarca');
 const { notificarInvalidacionCache } = require('./notificarBackend');
@@ -68,19 +67,12 @@ async function migrarSlugEnBackend(slugAnterior, slugNuevo) {
 
 // Devuelve el detalle de qué campos cambiaron (para el evento de
 // auditoría), comparando la fila actual contra los valores normalizados.
-function construirDetalleCambios(tenant, base, fiscales, slugNuevo, logoAccion) {
+function construirDetalleCambios(tenant, base, slugNuevo, logoAccion) {
   const cambios = [];
   if (slugNuevo) cambios.push(`slug: ${tenant.slug} -> ${slugNuevo}`);
   if (base.nombreEmpresa !== tenant.nombre_empresa) cambios.push(`nombre: "${tenant.nombre_empresa}" -> "${base.nombreEmpresa}"`);
   if (base.contactoEmail !== (tenant.contacto_email || null)) cambios.push('contacto_email');
   if (base.notas !== (tenant.notas || null)) cambios.push('notas');
-  if (fiscales.rfcCompania !== (tenant.rfc_compania || null)) cambios.push('rfc_compania');
-  if (fiscales.razonSocialCompania !== (tenant.razon_social_compania || null)) cambios.push('razon_social_compania');
-  if (fiscales.regimenFiscalCompania !== (tenant.regimen_fiscal_compania || null)) cambios.push('regimen_fiscal_compania');
-  if (fiscales.tipoPersonaCompania !== (tenant.tipo_persona_compania || null)) cambios.push('tipo_persona_compania');
-  if (fiscales.claveSat !== (tenant.clave_sat || null)) cambios.push('clave_sat');
-  if (fiscales.linkCodigosSat !== (tenant.link_codigos_sat || null)) cambios.push('link_codigos_sat');
-  if (fiscales.correoReportes !== (tenant.correo_reportes || null)) cambios.push('correo_reportes');
   if (base.marca !== (tenant.marca || null)) cambios.push('marca');
   if (logoAccion === 'subido') cambios.push('logo: subido');
   if (logoAccion === 'quitado') cambios.push('logo: quitado');
@@ -89,9 +81,7 @@ function construirDetalleCambios(tenant, base, fiscales, slugNuevo, logoAccion) 
 
 // Actualiza los datos editables de un tenant existente.
 // `datos` (todos opcionales salvo nombreEmpresa):
-//   nombreEmpresa, contactoEmail, notas, rfcCompania, razonSocialCompania,
-//   regimenFiscalCompania, tipoPersonaCompania, claveSat, linkCodigosSat,
-//   correoReportes, marca, logoBase64?, quitarLogo?
+//   nombreEmpresa, contactoEmail, notas, marca, logoBase64?, quitarLogo?
 //   slug?: solo se aplica si viene un slug distinto al actual y el
 //     operador lo pidió explícitamente (validado como slug nuevo: formato
 //     + no reservado + no duplicado). Dispara la migración de archivos en
@@ -110,10 +100,8 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
   }
 
   let base;
-  let fiscales;
   try {
     base = normalizarDatosBase({ ...datos, slug: tenant.slug });
-    fiscales = normalizarYValidarDatosFiscales(datos);
   } catch (err) {
     throw new ErrorEdicionTenant(err.message, 'validacion');
   }
@@ -204,8 +192,6 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
     `UPDATE tenants SET
        slug = ?, nombre_empresa = ?, contacto_email = ?, notas = ?,
        db_name = ?, storage_prefix = ?,
-       rfc_compania = ?, razon_social_compania = ?, regimen_fiscal_compania = ?,
-       tipo_persona_compania = ?, clave_sat = ?, link_codigos_sat = ?, correo_reportes = ?,
        marca = ?, marca_logo_url = ?, tema_json = ?
      WHERE id = ?`,
     [
@@ -215,13 +201,6 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
       base.notas,
       dbNameFinal,
       storagePrefixFinal,
-      fiscales.rfcCompania,
-      fiscales.razonSocialCompania,
-      fiscales.regimenFiscalCompania,
-      fiscales.tipoPersonaCompania,
-      fiscales.claveSat,
-      fiscales.linkCodigosSat,
-      fiscales.correoReportes,
       base.marca,
       marcaLogoUrl,
       temaJsonFinal,
@@ -239,7 +218,7 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
     db,
     tenantActualizado.id,
     slugNuevo ? 'slug_cambiado' : 'datos_actualizados',
-    slugNuevo ? `slug: ${tenant.slug} -> ${slugNuevo}` : construirDetalleCambios(tenant, base, fiscales, null, logoAccion),
+    slugNuevo ? `slug: ${tenant.slug} -> ${slugNuevo}` : construirDetalleCambios(tenant, base, null, logoAccion),
     actor || null
   );
 

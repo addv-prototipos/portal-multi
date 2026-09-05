@@ -81,15 +81,6 @@
     intakeUrlPreview: document.getElementById('control-intake-url-preview'),
     intakeEmail: document.getElementById('control-intake-email'),
     intakeNotas: document.getElementById('control-intake-notas'),
-    btnToggleFiscal: document.getElementById('control-btn-toggle-fiscal'),
-    intakeFiscalBody: document.getElementById('control-intake-fiscal-body'),
-    intakeRfc: document.getElementById('control-intake-rfc'),
-    intakeRazonSocial: document.getElementById('control-intake-razon-social'),
-    intakeRegimenFiscal: document.getElementById('control-intake-regimen-fiscal'),
-    intakeTipoPersona: document.getElementById('control-intake-tipo-persona'),
-    intakeClaveSat: document.getElementById('control-intake-clave-sat'),
-    intakeLinkSat: document.getElementById('control-intake-link-sat'),
-    intakeCorreoReportes: document.getElementById('control-intake-correo-reportes'),
     intakeMarca: document.getElementById('control-intake-marca'),
     intakeLogo: document.getElementById('control-intake-logo'),
     editarOverlay: document.getElementById('control-editar-modal-overlay'),
@@ -104,8 +95,6 @@
     editarSlugHint: document.getElementById('control-editar-slug-hint'),
   editarEmail: document.getElementById('control-editar-email'),
   editarNotas: document.getElementById('control-editar-notas'),
-  btnToggleFiscalEditar: document.getElementById('control-btn-toggle-fiscal-editar'),
-  editarFiscalBody: document.getElementById('control-editar-fiscal-body'),
   btnToggleTemaEditar: document.getElementById('control-btn-toggle-tema-editar'),
   temaBody: document.getElementById('control-tema-body'),
   temaPreview: document.getElementById('control-tema-preview'),
@@ -113,13 +102,6 @@
   temaFaviconActual: document.getElementById('control-tema-favicon-actual'),
   temaError: document.getElementById('error-control-tema'),
   btnTemaRestablecer: document.getElementById('control-btn-tema-restablecer'),
-  editarRfc: document.getElementById('control-editar-rfc'),
-    editarRazonSocial: document.getElementById('control-editar-razon-social'),
-    editarRegimenFiscal: document.getElementById('control-editar-regimen-fiscal'),
-    editarTipoPersona: document.getElementById('control-editar-tipo-persona'),
-    editarClaveSat: document.getElementById('control-editar-clave-sat'),
-    editarLinkSat: document.getElementById('control-editar-link-sat'),
-    editarCorreoReportes: document.getElementById('control-editar-correo-reportes'),
     editarError: document.getElementById('control-editar-error'),
     btnEditarCancelar: document.getElementById('control-btn-editar-cancelar'),
     btnEditarGuardar: document.getElementById('control-btn-editar-guardar'),
@@ -536,8 +518,6 @@
   function abrirIntake() {
     limpiarErroresIntake();
     els.formIntake.reset();
-    els.btnToggleFiscal.setAttribute('aria-expanded', 'false');
-    els.intakeFiscalBody.hidden = true;
     actualizarPreviewUrls();
     els.intakeOverlay.hidden = false;
     els.intakeNombre.focus();
@@ -552,12 +532,6 @@
   els.btnIntakeCancelar.addEventListener('click', cerrarIntake);
   els.intakeOverlay.addEventListener('click', (e) => {
     if (e.target === els.intakeOverlay) cerrarIntake();
-  });
-
-  els.btnToggleFiscal.addEventListener('click', () => {
-    const abierto = els.btnToggleFiscal.getAttribute('aria-expanded') === 'true';
-    els.btnToggleFiscal.setAttribute('aria-expanded', String(!abierto));
-    els.intakeFiscalBody.hidden = abierto;
   });
 
   // Preview en vivo de las URLs que tendrá la empresa con el slug
@@ -638,31 +612,6 @@
       els.intakeEmail.focus();
       return;
     }
-    const rfc = els.intakeRfc.value.trim().toUpperCase();
-    if (rfc && !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) {
-      setFieldErrorIntake('intake-rfc', 'El RFC de la compañía no tiene un formato válido.');
-      els.intakeRfc.focus();
-      return;
-    }
-    const claveSat = els.intakeClaveSat.value.trim();
-    if (claveSat && !/^\d{8}$/.test(claveSat)) {
-      setFieldErrorIntake('intake-clave-sat', 'La Clave SAT debe ser exactamente 8 dígitos.');
-      els.intakeClaveSat.focus();
-      return;
-    }
-    const linkSat = els.intakeLinkSat.value.trim();
-    if (linkSat && !/^https?:\/\/.+/i.test(linkSat)) {
-      setFieldErrorIntake('intake-link-sat', 'El link de códigos SAT debe ser una URL válida (http:// o https://).');
-      els.intakeLinkSat.focus();
-      return;
-    }
-    const correoReportes = els.intakeCorreoReportes.value.trim();
-    if (correoReportes && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoReportes)) {
-      setFieldErrorIntake('intake-correo-reportes', 'El correo de reportes no tiene un formato válido.');
-      els.intakeCorreoReportes.focus();
-      return;
-    }
-
     setIntakeLoading(true);
     try {
       // Logo de marca (opcional): se lee como base64 y se manda junto con
@@ -692,13 +641,6 @@
           slug,
           contactoEmail: email || null,
           notas: els.intakeNotas.value.trim() || null,
-          rfcCompania: rfc || null,
-          razonSocialCompania: els.intakeRazonSocial.value.trim() || null,
-          regimenFiscalCompania: els.intakeRegimenFiscal.value.trim() || null,
-          tipoPersonaCompania: els.intakeTipoPersona.value || null,
-          claveSat: claveSat || null,
-          linkCodigosSat: linkSat || null,
-          correoReportes: correoReportes || null,
           marca: els.intakeMarca.value.trim() || null,
           logoBase64,
         }),
@@ -754,8 +696,6 @@
     slugActualEdicion = tenant.slug;
     limpiarErroresEditar();
     els.formEditar.reset();
-    els.btnToggleFiscalEditar.setAttribute('aria-expanded', 'false');
-    els.editarFiscalBody.hidden = true;
     cerrarSeccionTema();
 
     els.editarEmpresa.textContent = `Editando ${tenant.nombre_empresa} (${tenant.slug})`;
@@ -763,13 +703,6 @@
     els.editarMarca.value = tenant.marca || '';
     els.editarEmail.value = tenant.contacto_email || '';
     els.editarNotas.value = tenant.notas || '';
-    els.editarRfc.value = tenant.rfc_compania || '';
-    els.editarRazonSocial.value = tenant.razon_social_compania || '';
-    els.editarRegimenFiscal.value = tenant.regimen_fiscal_compania || '';
-    els.editarTipoPersona.value = tenant.tipo_persona_compania || '';
-    els.editarClaveSat.value = tenant.clave_sat || '';
-    els.editarLinkSat.value = tenant.link_codigos_sat || '';
-    els.editarCorreoReportes.value = tenant.correo_reportes || '';
     els.editarSlug.value = tenant.slug;
     els.editarSlugSwitch.checked = false;
     bloquearSlugEdicion();
@@ -826,12 +759,6 @@
   els.btnEditarCancelar.addEventListener('click', cerrarEdicion);
   els.editarOverlay.addEventListener('click', (e) => {
     if (e.target === els.editarOverlay) cerrarEdicion();
-  });
-
-  els.btnToggleFiscalEditar.addEventListener('click', () => {
-    const abierto = els.btnToggleFiscalEditar.getAttribute('aria-expanded') === 'true';
-    els.btnToggleFiscalEditar.setAttribute('aria-expanded', String(!abierto));
-    els.editarFiscalBody.hidden = abierto;
   });
 
   function setEdicionLoading(isLoading) {
@@ -892,31 +819,6 @@
       els.editarEmail.focus();
       return;
     }
-    const rfc = els.editarRfc.value.trim().toUpperCase();
-    if (rfc && !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(rfc)) {
-      setFieldErrorEditar('editar-rfc', 'El RFC de la compañía no tiene un formato válido.');
-      els.editarRfc.focus();
-      return;
-    }
-    const claveSat = els.editarClaveSat.value.trim();
-    if (claveSat && !/^\d{8}$/.test(claveSat)) {
-      setFieldErrorEditar('editar-clave-sat', 'La Clave SAT debe ser exactamente 8 dígitos.');
-      els.editarClaveSat.focus();
-      return;
-    }
-    const linkSat = els.editarLinkSat.value.trim();
-    if (linkSat && !/^https?:\/\/.+/i.test(linkSat)) {
-      setFieldErrorEditar('editar-link-sat', 'El link de códigos SAT debe ser una URL válida (http:// o https://).');
-      els.editarLinkSat.focus();
-      return;
-    }
-    const correoReportes = els.editarCorreoReportes.value.trim();
-    if (correoReportes && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoReportes)) {
-      setFieldErrorEditar('editar-correo-reportes', 'El correo de reportes no tiene un formato válido.');
-      els.editarCorreoReportes.focus();
-      return;
-    }
-
     setEdicionLoading(true);
     try {
       let logoBase64 = null;
@@ -943,13 +845,6 @@
           slug: els.editarSlugSwitch.checked ? slug : undefined,
           contactoEmail: email || null,
           notas: els.editarNotas.value.trim() || null,
-          rfcCompania: rfc || null,
-          razonSocialCompania: els.editarRazonSocial.value.trim() || null,
-          regimenFiscalCompania: els.editarRegimenFiscal.value.trim() || null,
-          tipoPersonaCompania: els.editarTipoPersona.value || null,
-          claveSat: claveSat || null,
-          linkCodigosSat: linkSat || null,
-          correoReportes: correoReportes || null,
           marca: els.editarMarca.value.trim() || null,
           logoBase64: logoBase64 || null,
           quitarLogo: logoBase64 ? false : !els.editarLogoActual.hidden,

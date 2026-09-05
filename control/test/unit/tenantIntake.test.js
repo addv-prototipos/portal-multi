@@ -54,7 +54,6 @@ describe('utils/tenantIntake.js', () => {
       const [sqlInsert, paramsInsert] = pool.query.mock.calls[1];
       expect(sqlInsert).toMatch(/INSERT INTO tenants/);
       expect(sqlInsert).toMatch(/estado/);
-      expect(sqlInsert).toMatch(/rfc_compania, razon_social_compania, regimen_fiscal_compania/);
       expect(sqlInsert).toMatch(/marca, marca_logo_url/);
       expect(paramsInsert).toContain('empresa-uno'); // slug normalizado
       expect(paramsInsert).toContain('Empresa Uno S.A. de C.V.'); // nombre recortado
@@ -64,10 +63,6 @@ describe('utils/tenantIntake.js', () => {
       expect(paramsInsert).toContain('app'); // db_user por defecto
       expect(paramsInsert).toContain('empresa-uno'); // storage_prefix = slug
       expect(paramsInsert).toContain('Marca Uno'); // marca recortada
-      // Los 7 campos fiscales van como null en el INSERT (no se mandaron)
-      expect(paramsInsert).toEqual(
-        expect.arrayContaining([null, null, null, null, null, null, null])
-      );
 
       // Evento de auditoría
       const [sqlEvento] = pool.query.mock.calls[2];
@@ -226,50 +221,6 @@ describe('utils/tenantIntake.js', () => {
       expect(error).toBeInstanceOf(ErrorIntakeTenant);
       expect(error.codigo).toBe('validacion');
       expect(error.message).toMatch(/correo/);
-    });
-
-    test('dato fiscal inválido (RFC) -> ErrorIntakeTenant de validación', async () => {
-      const error = await crearTenantIntake(
-        {
-          nombreEmpresa: 'X',
-          slug: 'empresa',
-          contactoEmail: 'contacto@empresa.com',
-          rfcCompania: 'RFC-INVALIDO-!!!',
-        },
-        {}
-      ).catch((e) => e);
-
-      expect(error).toBeInstanceOf(ErrorIntakeTenant);
-      expect(error.codigo).toBe('validacion');
-      expect(error.message).toMatch(/RFC/);
-    });
-
-    test('datos fiscales válidos se guardan normalizados', async () => {
-      const pool = mockPool();
-      pool.query
-        .mockResolvedValueOnce([[]])
-        .mockResolvedValueOnce([{ insertId: 5 }])
-        .mockResolvedValueOnce([{}]);
-
-      const resultado = await crearTenantIntake(
-        {
-          nombreEmpresa: 'X',
-          slug: 'empresa',
-          contactoEmail: 'contacto@empresa.com',
-          rfcCompania: 'aaa010101aaa',
-          tipoPersonaCompania: 'moral',
-          claveSat: '12345678',
-          correoReportes: 'REPORTES@EMPRESA.COM',
-        },
-        { actor: 'admin' }
-      );
-
-      expect(resultado.rfc_compania).toBe('AAA010101AAA'); // a mayúsculas
-      expect(resultado.tipo_persona_compania).toBe('moral');
-      expect(resultado.clave_sat).toBe('12345678');
-      expect(resultado.correo_reportes).toBe('reportes@empresa.com'); // a minúsculas
-      // El evento registra que la solicitud traía datos fiscales
-      expect(pool.query.mock.calls[2][1][2]).toMatch(/con datos fiscales/);
     });
 
     test('colisión de carrera en el INSERT (ER_DUP_ENTRY) -> "slug_existe"', async () => {

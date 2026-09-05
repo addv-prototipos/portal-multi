@@ -155,7 +155,6 @@ const DEFAULTS_CONFIG_GLOBAL = {
   regimen_fiscal_compania: '',
   tipo_persona_compania: null, // 'fisica' | 'moral' | null (todavía no se ha subido una constancia)
   clave_sat: '',
-  link_codigos_sat: '',
   // Correo al que se envían los reportes (automáticos, justo antes del
   // borrado por retención, y manuales, con el botón "Enviar reporte") —
   // ver utils/reportes.js. Vacío por defecto: sin este correo
@@ -202,9 +201,6 @@ async function getConfiguracionGlobal() {
       resultado.clave_sat = parsed.clave_sat.trim();
     } else if (typeof parsed.codigo_sat === 'string') {
       resultado.clave_sat = parsed.codigo_sat.trim();
-    }
-    if (typeof parsed.link_codigos_sat === 'string') {
-      resultado.link_codigos_sat = parsed.link_codigos_sat.trim();
     }
     if (typeof parsed.correo_reportes === 'string') {
       resultado.correo_reportes = parsed.correo_reportes.trim().toLowerCase();
@@ -275,21 +271,6 @@ async function setConfiguracionGlobal(cambios) {
       throw new Error('La Clave SAT debe ser exactamente 8 dígitos.');
     }
     nuevo.clave_sat = clave;
-  }
-
-  if (cambios.link_codigos_sat !== undefined) {
-    const link = typeof cambios.link_codigos_sat === 'string' ? cambios.link_codigos_sat.trim() : '';
-    if (link) {
-      try {
-        const url = new URL(link);
-        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-          throw new Error('protocolo inválido');
-        }
-      } catch (e) {
-        throw new Error('El link de códigos SAT debe ser una URL válida (http:// o https://).');
-      }
-    }
-    nuevo.link_codigos_sat = link;
   }
 
   if (cambios.correo_reportes !== undefined) {

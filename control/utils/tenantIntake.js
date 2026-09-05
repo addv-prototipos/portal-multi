@@ -8,15 +8,10 @@
 // provisionar-tenant.js, corrido a mano por un operador; ese script
 // detecta estas filas y las completa en vez de rechazarlas como "ya
 // existe".
-//
-// Los campos fiscales son todos OPCIONALES: el intake es especulativo
-// (la empresa ni siquiera tiene su propia BD todavía) y nada en la BD de
-// control los exige — mismo criterio que la config fiscal de cada tenant
-// (backend/utils/config.js, todos nullable).
 
 const { obtenerPool } = require('../db');
 const { validarSlug, nombreDbTenant } = require('./tenant');
-const { normalizarYValidarDatosFiscales, tieneAlgunDatoFiscal, isValidEmail } = require('./validateFiscal');
+const { isValidEmail } = require('./validateFiscal');
 
 // Error tipado para que la capa de rutas distinga "el slug ya está
 // registrado" (409) de "los datos no pasan la validación" (400).
@@ -106,10 +101,8 @@ function normalizarDatosBase(datos = {}) {
 // tener que recalcular nada ni asumir config distinta.
 async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {}) {
   let base;
-  let fiscales;
   try {
     base = normalizarDatosBase(datos);
-    fiscales = normalizarYValidarDatosFiscales(datos);
   } catch (err) {
     throw new ErrorIntakeTenant(err.message, 'validacion');
   }
@@ -130,13 +123,8 @@ async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {})
     const [insertResult] = await db.query(
       `INSERT INTO tenants
         (slug, nombre_empresa, estado, db_host, db_name, db_user, storage_prefix,
-         contacto_email, notas, creado_en,
-         rfc_compania, razon_social_compania, regimen_fiscal_compania,
-         tipo_persona_compania, clave_sat, link_codigos_sat, correo_reportes,
-         marca, marca_logo_url)
-       VALUES (?, ?, 'provisioning', ?, ?, ?, ?, ?, ?, ?,
-               ?, ?, ?, ?, ?, ?, ?,
-               ?, ?)`,
+         contacto_email, notas, creado_en, marca, marca_logo_url)
+       VALUES (?, ?, 'provisioning', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         base.slug,
         base.nombreEmpresa,
@@ -147,13 +135,6 @@ async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {})
         base.contactoEmail,
         base.notas,
         new Date(),
-        fiscales.rfcCompania,
-        fiscales.razonSocialCompania,
-        fiscales.regimenFiscalCompania,
-        fiscales.tipoPersonaCompania,
-        fiscales.claveSat,
-        fiscales.linkCodigosSat,
-        fiscales.correoReportes,
         base.marca,
         base.marcaLoGoUrl,
       ]
@@ -172,12 +153,11 @@ async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {})
     throw err;
   }
 
-  const tieneFiscales = tieneAlgunDatoFiscal(fiscales);
   await registrarEvento(
     db,
     tenantId,
     'alta_solicitada',
-    `slug=${base.slug} db=${db_name}${tieneFiscales ? ' con datos fiscales' : ''}`,
+    `slug=${base.slug} db=${db_name}`,
     actor || null
   );
 
@@ -196,13 +176,6 @@ async function crearTenantIntake(datos = {}, { actor, db = obtenerPool() } = {})
     activado_en: null,
     suspendido_en: null,
     baja_en: null,
-    rfc_compania: fiscales.rfcCompania,
-    razon_social_compania: fiscales.razonSocialCompania,
-    regimen_fiscal_compania: fiscales.regimenFiscalCompania,
-    tipo_persona_compania: fiscales.tipoPersonaCompania,
-    clave_sat: fiscales.claveSat,
-    link_codigos_sat: fiscales.linkCodigosSat,
-    correo_reportes: fiscales.correoReportes,
     marca: base.marca,
     marca_logo_url: base.marcaLoGoUrl,
   };

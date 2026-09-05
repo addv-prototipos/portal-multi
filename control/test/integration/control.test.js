@@ -358,16 +358,6 @@ describe('Control standalone (/api/control)', () => {
       expect(llamadas.some((sql) => sql.includes('SELECT id FROM tenants'))).toBe(false);
     });
 
-    test('400 con dato fiscal inválido (RFC)', async () => {
-      const res = await request(app)
-        .post('/api/control/tenants')
-        .auth('admin', 'admin')
-        .send({ nombreEmpresa: 'X', slug: 'empresa', contactoEmail: 'contacto@empresa.com', rfcCompania: '!!!' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/RFC/);
-    });
-
     test('201 con marca y logo (base64), guarda la ruta pública del logo', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,

@@ -1,9 +1,10 @@
 // E2E del flujo de alta de empresa nueva desde /control (segmento 9c,
 // ver PROJECT_STATE.md punto 101): login → "Nueva empresa" → modal con
-// preview de URLs → captura con datos fiscales → fila "Provisionando"
-// en la tabla. El slug se genera único por corrida y se guarda en
-// test-results/slug.txt para que el paso de aprovisionamiento (script
-// CLI, fuera de Playwright) y la validación de URLs puedan usarlo.
+// preview de URLs → captura → fila "Provisionando" en la tabla. El slug
+// se genera único por corrida y se guarda en test-results/slug.txt para
+// que el paso de aprovisionamiento (script CLI, fuera de Playwright) y la
+// validación de URLs puedan usarlo. La sección "Datos fiscales
+// (opcional)" se quitó del modal — este spec ya no la ejercita.
 
 import { test, expect } from '@playwright/test';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
@@ -14,7 +15,7 @@ const slug = `e2e9c${Date.now().toString().slice(-8)}`;
 
 test.describe.configure({ mode: 'serial' });
 
-test('alta de empresa desde /control: login, modal, captura con fiscales', async ({ page }) => {
+test('alta de empresa desde /control: login, modal, captura', async ({ page }) => {
   await page.goto('/control');
 
   // Login con ADMIN_USERS (default admin:admin)
@@ -39,17 +40,6 @@ test('alta de empresa desde /control: login, modal, captura con fiscales', async
 
   await page.fill('#control-intake-email', `contacto-${slug}@e2e.com`);
   await page.fill('#control-intake-notas', 'Alta capturada por test E2E del segmento 9c');
-
-  // Sección fiscal: plegable, se abre con el toggle y pre-llena los campos
-  await page.click('#control-btn-toggle-fiscal');
-  await expect(page.locator('#control-intake-fiscal-body')).toBeVisible();
-  await page.fill('#control-intake-rfc', 'EEME991231AB1');
-  await page.fill('#control-intake-razon-social', 'Empresa E2E 9c S.A. de C.V.');
-  await page.fill('#control-intake-regimen-fiscal', '601');
-  await page.selectOption('#control-intake-tipo-persona', 'moral');
-  await page.fill('#control-intake-clave-sat', '12345678');
-  await page.fill('#control-intake-link-sat', 'https://www.sat.gob.mx');
-  await page.fill('#control-intake-correo-reportes', `reportes-${slug}@e2e.com`);
 
   // Enviar
   await page.click('#control-btn-intake-guardar');

@@ -40,10 +40,9 @@
  * está en estado 'provisioning', quiere decir que la solicitud de alta se
  * capturó desde la app de control (/control, sin privilegios root) y este
  * script la COMPLETA en vez de rechazarla — reutiliza los valores de la
- * fila (incluida la infraestructura derivada por el intake) y pre-llena la
- * configuración fiscal de la empresa con los datos fiscales capturados,
- * si trae alguno. En ese caso el nombre de la empresa es opcional en el
- * CLI: si se pasa, actualiza el de la fila; si no, se usa el capturado.
+ * fila (incluida la infraestructura derivada por el intake). En ese caso
+ * el nombre de la empresa es opcional en el CLI: si se pasa, actualiza
+ * el de la fila; si no, se usa el capturado.
  */
 
 const mysql = require('mysql2/promise');
@@ -55,21 +54,7 @@ const {
   asegurarControlYPrivilegios,
   registrarEvento,
   correrEsquemaEnProcesoHijo,
-  aplicarConfiguracionFiscalEnProcesoHijo,
 } = require('./lib/controlDb');
-
-// Nombres de las columnas fiscales capturadas por el intake (segmento
-// 9c) — mismos nombres que las claves de DEFAULTS_CONFIG_GLOBAL en
-// backend/utils/config.js, para que el pre-llenado sea una copia directa.
-const COLUMNAS_FISCALES = [
-  'rfc_compania',
-  'razon_social_compania',
-  'regimen_fiscal_compania',
-  'tipo_persona_compania',
-  'clave_sat',
-  'link_codigos_sat',
-  'correo_reportes',
-];
 
 function leerArgumentos(argv) {
   const [, , slugArg, nombreEmpresaArg, ...resto] = argv;
@@ -86,21 +71,6 @@ function leerArgumentos(argv) {
     nombreEmpresa: nombreEmpresaArg,
     contactoEmail: contactoEmailFlag ? contactoEmailFlag.slice('--contacto-email='.length) : null,
   };
-}
-
-// Filtra de la fila de control_tenants.tenants solo las columnas
-// fiscales y devuelve un objeto listo para setConfiguracionGlobal() —
-// null en las vacías se deja como null (los defaults de la config son
-// string vacíos, pero setConfiguracionGlobal normaliza null/'' a '').
-function datosFiscalesDeFila(fila) {
-  const datos = {};
-  let alguno = false;
-  for (const columna of COLUMNAS_FISCALES) {
-    const valor = fila[columna];
-    datos[columna] = valor === null || valor === undefined ? null : String(valor);
-    if (datos[columna] !== null && datos[columna] !== '') alguno = true;
-  }
-  return { datos, alguno };
 }
 
 async function main() {
@@ -201,24 +171,6 @@ async function main() {
       appPassword,
       dbName: nombreDbFinal,
     });
-
-    // Pre-llenado fiscal (segmento 9c): solo si el intake capturó al
-    // menos un dato. En la rama CLI tradicional no hay fila fiscal y
-    // datosFiscales.alguno es false — este paso se salta igual.
-    if (fila) {
-      const { datos, alguno } = datosFiscalesDeFila(fila);
-      if (alguno) {
-        console.log('Aplicando datos fiscales capturados en el intake...');
-        aplicarConfiguracionFiscalEnProcesoHijo({
-          dbHost,
-          dbPort,
-          appUser,
-          appPassword,
-          dbName: nombreDbFinal,
-          datosFiscales: datos,
-        });
-      }
-    }
 
     await root.query(
       `UPDATE \`${CONTROL_DB_NAME}\`.tenants SET estado = 'activo', activado_en = ? WHERE id = ?`,
