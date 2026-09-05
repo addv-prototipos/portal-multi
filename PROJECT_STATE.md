@@ -13011,6 +13011,41 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   visual del aviso/campo manual y del badge de origen en el modal. Sin
   commit/push todavía.
 
+  **Validación contra Docker/MySQL reales (2026-09-05) — BUG REAL
+  ENCONTRADO Y CORREGIDO, imposible de detectar con las pruebas unitarias
+  originales**: rebuild `--no-cache`+`--force-recreate` de backend+
+  frontend, migración de `monto_factura`/`monto_factura_origen`/CHECK
+  confirmada contra MySQL real. Al probar con un ZIP armado con un XML que
+  SÍ trae la declaración `<?xml version="1.0" encoding="UTF-8"?>` antes de
+  `<cfdi:Comprobante ...>` (como trae CUALQUIER CFDI real del SAT, sin
+  excepción) `extraerTotalCfdi()` devolvía `null` siempre — el código
+  buscaba el primer `">"` del texto para acotar la búsqueda del atributo
+  `Total="..."` a la etiqueta raíz, pero ese primer `">"` es el cierre de
+  la declaración `<?xml ... ?>`, no el de `<cfdi:Comprobante>` — la
+  etiqueta raíz real nunca se llegaba a inspeccionar. Los 12 tests
+  unitarios originales de `extraerTotalCfdi` no tenían ningún caso con esa
+  declaración al inicio (gap real de cobertura, no un dato de prueba
+  descuidado) — la extracción automática NUNCA hubiera funcionado con un
+  CFDI real pese a los 864 tests en verde. Fix de una línea: se despoja la
+  declaración `<?xml ... ?>` (y un BOM inicial si lo hay) del texto ANTES
+  de buscar el primer `">"`. 2 tests de regresión nuevos (con declaración
+  simple, y con BOM+declaración). Jest backend **866/866**. Confirmado por
+  HTTP real contra 3 tickets reales de la BD sin tenant
+  (`portal_facturacion`): (1) ZIP con XML real (declaración incluida) +
+  `Total="1450.00"` → `200`, `monto_factura:1450`, `origen:"xml"`,
+  confirmado también por SQL directo; (2) ZIP con XML sin atributo `Total`
+  y SIN monto manual → `400 FACTURA_MONTO_REQUERIDO`, con monto manual
+  `777.50` en la 2da subida → `200`, `origen:"manual"`, confirmado por SQL;
+  (3) ZIP con XML válido (`Total="1450.00"`) + `montoFacturaManual=1.00`
+  enviado también → se guardó `1450`/`"xml"`, confirmando que un valor
+  leído del XML nunca se deja pisar por uno manual. Los 3 tickets de
+  prueba (129/136/146) se regresaron a su estado original (`estatus`,
+  `monto_factura*`, `factura_*` a `NULL`) tras la prueba — quedaron 3
+  archivos `.zip` huérfanos en MinIO (nombre aleatorio, sin ninguna fila
+  que los referencie; entorno de demo, sin impacto real). Con esto el
+  punto 205 queda validado de punta a punta contra infraestructura real.
+  Sin commit/push todavía.
+
 - **PENDIENTE — Redirección automática a configuración fiscal cuando faltan datos (2026-09-04):** a pedido del usuario, cuando los datos fiscales de la compañía no están configurados y aparece el aviso de "no configurado", el flujo debe mandar directamente al menú para subir la Constancia de Situación Fiscal y completar la configuración. Estado actual: el aviso existe (`frontend/admin.html`/`admin.js` punto 62 — modal al iniciar sesión si falta `rfc_compania`/`clave_sat`, `cargarConfigGlobal()` con `{ verificarFiscalFaltante: true }` solo desde `showDashboard()`, barra de sesión vía `aplicarInfoFiscalBarra()`), pero es solo informativo — no navega ni abre el destino. Destino pedido: tarjeta "Configuraciones fiscales" dentro de la vista "Configuraciones globales" (`frontend/admin.html`/`admin.js`), botón "Subir constancia de situación fiscal" (`POST /api/admin/config/constancia-compania` en `backend/server.js` que reutiliza `backend/utils/pdfExtract.js`: `extraerRFC`/`extraerNombreRazonSocial`/`extraerRegimenesFiscales`/`determinarTipoPersona` para autocompletar `rfc_compania`/`regimen_fiscal_compania`/`razon_social_compania`/`clave_sat`/`tipo_persona`, ver puntos 65-69). Alcance propuesto sin código tocado en este turno: al cerrar/aceptar el modal de "faltan datos fiscales", navegar automáticamente a `vista-configuraciones` + expandir la tarjeta "Configuraciones fiscales" + poner foco/scroll en el control de subida de constancia. Detalles a confirmar explícitamente antes de implementar (protocolo `addv-web-app`): si la navegación es automática al cerrar el modal o inmediata sin esperar interacción, si solo aplica a perfiles con permiso sobre esa tarjeta (`administrador`/`fiscal`/`super` según `RESTRICCIONES_PERFIL` y `requireAdminArea` en `backend/utils/auth.js`), y si el aviso debe reaparecer en cada login hasta completar los datos o solo la primera vez. Cero código tocado — solo documentación de pendiente, no avanzar sin confirmación explícita.
 
 ## Dónde está todo (mapa rápido)

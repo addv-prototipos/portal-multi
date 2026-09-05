@@ -613,11 +613,23 @@ dependencia nueva, mismo criterio que `esZipValido`), columnas
 `xml`/`manual`), captura manual solo si la extracción falla
 (400 `FACTURA_MONTO_REQUERIDO`) — un XML leído nunca se deja pisar por un
 valor manual. Frontend revela el campo manual in-place sin cerrar el modal
-ni perder el archivo. 20 tests nuevos (12 unit + 8 integración). Ver
-PROJECT_STATE.md puntos 203-205 para el detalle línea por línea. **Falta
-antes de dar esto por cerrado**: rebuild Docker + migración real de las 2
-columnas + subir un ZIP con un CFDI real (no solo los ZIPs mínimos armados
-a mano de las pruebas) + confirmación visual.
+ni perder el archivo. 22 tests (12+2 unit + 8 integración). Ver
+PROJECT_STATE.md puntos 203-205 para el detalle línea por línea.
+
+**Punto 205, validado contra Docker/MySQL reales (2026-09-05) — BUG REAL
+ENCONTRADO Y CORREGIDO**: `extraerTotalCfdi()` nunca leía el Total de un
+CFDI real — todo CFDI real trae `<?xml version="1.0" encoding="UTF-8"?>`
+antes de `<cfdi:Comprobante>`, y el código buscaba el primer `">"` del
+texto para acotar la etiqueta raíz, que es el cierre de esa declaración,
+no el de `<cfdi:Comprobante>`. Los 12 tests unitarios originales no tenían
+ningún caso con esa declaración (gap real de cobertura) — pese a 864
+tests en verde, la extracción jamás hubiera funcionado con un CFDI real.
+Fix de una línea (despojar `<?xml ...?>`/BOM antes de buscar `">"`). Jest
+866/866. Confirmado por HTTP real contra 3 tickets reales
+(`portal_facturacion`): XML con Total real → `origen:"xml"`; XML sin
+Total + manual → `origen:"manual"`; XML con Total + manual enviado igual
+→ gana el XML (`1450`, no `1.00`). Tickets de prueba restaurados a su
+estado original. Falta aún: confirmación visual en navegador.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

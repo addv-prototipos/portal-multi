@@ -220,6 +220,16 @@ describe('validate.js', () => {
       expect(extraerTotalCfdi(undefined)).toBeNull();
       expect(extraerTotalCfdi('')).toBeNull();
     });
+
+    test('CFDI real con declaración <?xml ...?> antes de la etiqueta raíz (bug real: el primer ">" del texto es el de la declaración, no el de <cfdi:Comprobante>)', () => {
+      const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0" SubTotal="1250.00" Total="1450.00">contenido</cfdi:Comprobante>';
+      expect(extraerTotalCfdi(xml)).toBe(1450);
+    });
+
+    test('CFDI real con BOM + declaración <?xml ...?>', () => {
+      const xml = '﻿<?xml version="1.0" encoding="UTF-8"?>\n<cfdi:Comprobante Total="99.90">contenido</cfdi:Comprobante>';
+      expect(extraerTotalCfdi(xml)).toBe(99.9);
+    });
   });
 
   describe('extraerTotalFacturaDeZip', () => {

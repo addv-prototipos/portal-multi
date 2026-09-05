@@ -243,9 +243,16 @@ function extraerArchivoDeZip(buffer, coincide) {
 function extraerTotalCfdi(xmlTexto) {
   if (typeof xmlTexto !== 'string' || !xmlTexto.trim()) return null;
 
-  const finEtiquetaRaiz = xmlTexto.indexOf('>');
+  // Un CFDI real SIEMPRE trae la declaración `<?xml version="1.0"...?>`
+  // antes de <cfdi:Comprobante> — buscar el primer ">" sin quitarla antes
+  // encontraba el cierre de esa declaración, no el de la etiqueta raíz
+  // real, así que NUNCA se leía el Total de un CFDI real (solo de los XML
+  // de prueba sin declaración usados en las pruebas unitarias).
+  const texto = xmlTexto.replace(/^﻿/, '').replace(/^\s*<\?xml[^>]*\?>\s*/i, '');
+
+  const finEtiquetaRaiz = texto.indexOf('>');
   if (finEtiquetaRaiz === -1) return null;
-  const etiquetaRaiz = xmlTexto.slice(0, finEtiquetaRaiz + 1);
+  const etiquetaRaiz = texto.slice(0, finEtiquetaRaiz + 1);
 
   const match = etiquetaRaiz.match(/\bTotal\s*=\s*"([0-9]+(?:\.[0-9]{1,6})?)"/);
   if (!match) return null;
