@@ -10,6 +10,7 @@ const helmet = require('helmet');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
+const bwipjs = require('bwip-js');
 
 const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
@@ -7131,6 +7132,43 @@ app.post(
     ahora.setMilliseconds(0);
     await pool.query('UPDATE productos SET eliminado_en = NULL, actualizado_en = ? WHERE id = ?', [ahora, id]);
     res.json({ ok: true, mensaje: 'Producto restaurado.' });
+  })
+);
+
+// Código de barras imprimible (punto 167) — Code128, el único formato del
+// set que ya lee scanner.js (punto 159) capaz de codificar TEXTO libre, no
+// solo dígitos: `codigo_barras` es VARCHAR(60) sin formato forzado (puede
+// traer letras/guiones si el cliente lo capturó así), y a falta de uno se
+// usa el `sku` (también único y obligatorio, siempre hay algo que
+// codificar). Generado en el servidor con bwip-js (MIT, sin dependencias,
+// sin `canvas`/compilación nativa) para no vendorizar en el frontend una
+// librería con lógica de checksum/character-set no trivial de auditar a
+// mano.
+app.get(
+  '/api/admin/inventarios/productos/:id/codigo-barras.svg',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const producto = await obtenerProductoPorId(id);
+    if (!producto) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });
+
+    const valor = ((producto.codigo_barras || producto.sku || '').trim());
+    if (!valor) {
+      return res.status(400).json({ error: 'Este producto no tiene código de barras ni SKU para generar la etiqueta.' });
+    }
+    try {
+      const svg = bwipjs.toSVG({ bcid: 'code128', text: valor, scale: 3, height: 12, includetext: false });
+      res.set('Content-Type', 'image/svg+xml');
+      res.set('Cache-Control', 'no-store');
+      res.send(svg);
+    } catch (err) {
+      console.error('No se pudo generar el código de barras:', err.message);
+      res.status(500).json({ error: 'No se pudo generar el código de barras para este producto.' });
+    }
   })
 );
 

@@ -10853,30 +10853,90 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       real confirmó el switch limpio. Control Jest 117/117.
       **Commiteado y pusheado** (`c65b6a4` → `fact/master`).
 
-  167. **PENDIENTE — Generador de etiquetas de código de barras para
-      productos de Inventarios (2026-08-31, solo registrado, SIN
-      analizar/criticar/implementar todavía)**: petición textual del
-      usuario — generar la plantilla de etiqueta con el código de barras
-      de cada producto YA dado de alta en Inventarios (no altas nuevas,
-      son productos existentes), y que el usuario pueda elegir el
-      formato de impresión al generarla: impresora térmica (rollo de
-      etiquetas, formato angosto) o una hoja tamaño carta (varias
-      etiquetas por hoja, para impresora normal). Sin decidir todavía: qué
-      simbología de código de barras usar (los productos ya tienen un
-      campo `codigo_barras`/SKU del motor de Inventarios — confirmar
-      cuál se usa y si ya es compatible con una simbología estándar
-      tipo Code128/EAN antes de generar el gráfico), tamaño exacto de
-      etiqueta térmica (depende del modelo de impresora del cliente,
-      no asumido), cuántas etiquetas por hoja carta y con qué
-      márgenes, si permite elegir 1 producto o un lote/selección
-      múltiple, si arrastra también nombre/precio en la etiqueta o solo
-      el código, y si esto vive dentro de la vista "Inventarios" o como
-      herramienta aparte. **Siguiente sesión**: aplicar el protocolo
-      completo (analizar código real de Inventarios, revisar impacto,
-      criticar y mejorar el requerimiento con las preguntas de arriba,
-      propuesta visual antes/después, esperar confirmación explícita)
-      antes de tocar código — instrucción explícita del usuario de NO
-      implementar nada en esta sesión.
+  167. **Generador de etiquetas de código de barras para productos de
+      Inventarios — CERRADO (punto 208, 2026-09-05, IMPLEMENTADO Y
+      VALIDADO contra Docker/MySQL reales y en navegador real)**: retoma
+      el pendiente del 2026-08-31. Protocolo completo — análisis del
+      código real (`codigo_barras` es `VARCHAR(60) NULL` sin formato
+      forzado, único; `sku` VARCHAR(60) NOT NULL, único, siempre
+      disponible como respaldo) + 4 preguntas de producto respondidas por
+      el usuario (todas las opciones recomendadas) + 1 decisión técnica
+      consultada aparte (dónde generar el gráfico del código de barras).
+      **Decisiones**: 1 producto a la vez (botón "Imprimir etiqueta" en
+      el menú "⋮" ya existente de cada fila, sin selección múltiple
+      nueva); etiqueta con código + nombre + precio; térmica a tamaño fijo
+      40×30mm (sin campos de configuración); hoja carta con 24 etiquetas
+      por hoja (grilla propia 3×8, NO es el estándar comercial "Avery
+      5160" pese a mencionarse así en la pregunta al usuario — ese
+      modelo real es 3×10/30 por hoja; la grilla implementada es genérica,
+      sin ligar a ninguna marca de papelería). Code128 elegida como
+      simbología (no era una decisión de producto sino técnica): el único
+      formato del set que ya lee `scanner.js` (punto 159) capaz de
+      codificar el texto LIBRE de `codigo_barras`, a diferencia de
+      EAN/UPC que exigen solo dígitos. **Generación server-side**
+      (decisión explícita del usuario sobre vendorizar una librería en
+      frontend): `bwip-js` nuevo en `backend/package.json` (MIT, CERO
+      dependencias, sin `canvas`/compilación nativa — verificado con
+      `npm ls`/lectura de su `package.json` antes de usarlo) — escribir
+      a mano el checksum/character-set-switching de Code128 se descartó
+      por el riesgo real de generar códigos no escaneables con un bug
+      silencioso. Endpoint nuevo `GET /api/admin/inventarios/productos/
+      :id/codigo-barras.svg` (mismo gate `requireAdminArea('administrador')`
+      + `requireInventarioActivo` que el resto de Inventarios), usa
+      `codigo_barras` o cae a `sku`, 400 si ninguno existe (caso
+      imposible en la práctica, `sku` es obligatorio). Frontend: modal
+      "Imprimir etiqueta" (formato + cantidad + vista previa en vivo)
+      reutiliza el patrón `#ticket-imprimir`/`#corte-imprimir` (puntos
+      130/168: contenedor hijo directo de `<body>`, oculto en pantalla,
+      único visible dentro de `@media print`, `window.print()` directo
+      sin ventana nueva) — se agregó como TERCER elemento a la cadena de
+      exclusión `body > *:not(#ticket-imprimir):not(#corte-imprimir)`
+      en `admin.css` (documentado en el código el porqué: la
+      especificidad de esa regla con 2 `:not()` le ganaba a un
+      `#inv-etiqueta-imprimir{display:block!important}` de un solo ID,
+      dejando el contenedor forzado a `display:none` pese a su propia
+      regla — hay que sumarlo ahí, no basta con escribir la regla nueva).
+      Cantidad 1-200 valida enteros; carta reparte en hojas de 24 con
+      `page-break-before` entre hojas (sin página en blanco al final,
+      usa selector de hermano adyacente en vez de "todas menos la
+      última"). 6 tests de integración nuevos (`inventarios.test.js`),
+      Jest backend **872/872**.
+
+      **2 bugs reales encontrados y corregidos en la validación contra
+      Docker/MySQL reales y en navegador real — ninguno detectable con
+      `node --check`/Jest mockeado**: (1) **CSP `img-src` sin `blob:`**
+      (regresión preexistente del punto 197, 2026-09-03, sin relación
+      directa con esta funcionalidad pero descubierta por ella) — la
+      vista previa del código de barras usa el mismo patrón de
+      `cargarImagenAutenticada()` (fetch autenticado → blob →
+      `URL.createObjectURL` → `<img src>`) que ya usan las miniaturas de
+      producto del punto 159, pero el CSP endurecido en el punto 197 solo
+      dejó `img-src 'self' data:` — sin `blob:`, CUALQUIER imagen cargada
+      así (la mía nueva Y las miniaturas de producto ya existentes)
+      falla en silencio (`img.onerror`, sin excepción de JS, `naturalWidth:
+      0`). Nadie lo notó antes porque ningún producto de la demo tiene
+      imagen subida — confirmado por SQL (`imagen_thumb_key IS NOT NULL`
+      → 0 filas). Fix: `img-src 'self' data: blob:` en
+      `frontend/nginx.conf.template` (las 2 ocurrencias — bloque general y
+      el de `/api/docs`). Validado con una prueba aislada (`new Image()` +
+      blob real del endpoint) antes y después del fix: `onerror` →
+      `onload` con dimensiones correctas. (2) **`setFieldError()` con
+      doble prefijo "error-"** — la función arma el id como
+      `` `error-${fieldId}` `` (recibe el id BASE, sin prefijo), pero esta
+      sesión (en 2 lugares — el nuevo modal de etiqueta, Y el modal de
+      monto manual de factura del punto 205, del mismo día) se le pasó
+      el id YA prefijado (`'error-inv-etiqueta-cantidad'`/
+      `'error-ticket-modal-monto-manual'`) — `getElementById` nunca
+      encontraba el elemento, `if (errorEl)` lo silenciaba sin excepción,
+      así que el mensaje de error de campo simplemente nunca aparecía
+      (el resto de la validación sí funcionaba: bloqueaba imprimir/subir,
+      solo el AVISO visual fallaba). El del punto 205 nunca se detectó
+      porque esa sesión solo lo probó por `curl` (backend), nunca
+      disparando el error en un clic real de navegador. Fix: los 6 call
+      sites corregidos a pasar el id sin prefijo. Confirmado en
+      navegador real: borde rojo + texto de error visibles en ambos
+      modales. Jest backend 872/872 sin cambios (bug 100% frontend).
+      Sin commit/push todavía.
   168. **"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en
       navegador real (2026-08-31/09-01)**: usuario pidió un botón para
       "hacer el corte del día o varios días", manual, con selector de

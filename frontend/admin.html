@@ -3830,6 +3830,47 @@
     </div>
   </div>
 
+  <!-- Etiqueta de código de barras imprimible (punto 167) — 1 producto a
+       la vez, código Code128 generado en el servidor (bwip-js). -->
+  <div class="modal-overlay" id="inv-etiqueta-modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="inv-etiqueta-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="inv-etiqueta-modal-title">Imprimir etiqueta</h2>
+        <button type="button" class="btn-icon" id="btn-inv-etiqueta-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <p class="panel-subtitle" id="inv-etiqueta-producto-nombre"></p>
+
+      <div class="field">
+        <label for="inv-etiqueta-formato">Formato de impresión</label>
+        <select id="inv-etiqueta-formato">
+          <option value="termica">Impresora térmica (rollo, 40×30mm)</option>
+          <option value="carta">Hoja carta (24 etiquetas por hoja)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="inv-etiqueta-cantidad">Cantidad de etiquetas</label>
+        <input type="number" id="inv-etiqueta-cantidad" min="1" max="200" step="1" value="1" />
+        <p class="field-error" id="error-inv-etiqueta-cantidad" role="alert"></p>
+      </div>
+
+      <p class="field-hint">Vista previa:</p>
+      <div class="inv-etiqueta-preview-wrap">
+        <div class="inv-etiqueta-preview" id="inv-etiqueta-preview">
+          <img id="inv-etiqueta-preview-barra" alt="Código de barras" />
+          <div class="inv-etiqueta-preview-nombre" id="inv-etiqueta-preview-nombre"></div>
+          <div class="inv-etiqueta-preview-precio" id="inv-etiqueta-preview-precio"></div>
+          <div class="inv-etiqueta-preview-codigo" id="inv-etiqueta-preview-codigo"></div>
+        </div>
+      </div>
+      <p class="field-error" id="inv-etiqueta-error-general" role="alert"></p>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-inv-etiqueta-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-inv-etiqueta-imprimir">Imprimir</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Importador masivo CSV/XLSX (inventarios.md §34, segmento 6) — wizard
        de 6 pasos, siempre visible en escritorio/tablet (a diferencia del
        wizard de Ventas, que solo aparece en móvil). -->
@@ -4163,6 +4204,10 @@
   <!-- Corte del día imprimible: mismo criterio que #ticket-imprimir (hijo
        directo de <body>, JS lo llena justo antes de window.print()). -->
   <div id="corte-imprimir" class="corte-imprimir" hidden></div>
+
+  <!-- Etiquetas de código de barras imprimibles (punto 167): mismo criterio
+       que #ticket-imprimir/#corte-imprimir. -->
+  <div id="inv-etiqueta-imprimir" class="inv-etiqueta-imprimir" hidden></div>
 
   <script src="/theme.js"></script>
   <script src="/offline.js"></script>

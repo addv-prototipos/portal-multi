@@ -631,6 +631,16 @@ Total + manual → `origen:"manual"`; XML con Total + manual enviado igual
 → gana el XML (`1450`, no `1.00`). Tickets de prueba restaurados a su
 estado original. Falta aún: confirmación visual en navegador.
 
+**Addendum al punto 205 (2026-09-05, encontrado validando el punto
+208)**: el aviso de campo "Captura el monto de la factura (mayor a
+$0)" nunca se mostraba — `setFieldError()` recibía el id YA prefijado
+con "error-" (`'error-ticket-modal-monto-manual'`), pero la función ya
+antepone ese prefijo sola; `getElementById` nunca encontraba el
+elemento, sin excepción. La validación sí bloqueaba subir el archivo,
+solo el aviso visual fallaba. No se detectó antes porque esa sesión
+solo probó este flujo por `curl` (backend), nunca con un clic real de
+navegador. Corregido junto con el mismo bug del punto 208.
+
 **Punto 206 (2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
 real)**: Centro de conocimiento (`/admin`) puesto al día — 3 vacíos
 encontrados auditando `CONOCIMIENTO_CATEGORIAS` contra el código real:
@@ -660,6 +670,33 @@ foco exacto confirmados con perfil `super`; con un usuario `ventas`
 temporal real, el aviso NO aparece pese a datos fiscales realmente
 vacíos — entorno restaurado exactamente a su estado previo al terminar.
 Ver PROJECT_STATE.md punto 207.
+
+**Punto 208 (2026-09-05, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
+reales y en navegador real)**: generador de etiquetas de código de
+barras para productos de Inventarios (cierra el pendiente del punto
+167). 1 producto a la vez desde el menú "⋮" ya existente; código +
+nombre + precio; térmica 40×30mm o carta 24/hoja. Code128 generado en
+el servidor con `bwip-js` (MIT, sin dependencias, sin `canvas`) —
+decisión explícita del usuario de no vendorizar una librería de
+checksum/character-set no trivial en el frontend. Endpoint nuevo
+`GET /api/admin/inventarios/productos/:id/codigo-barras.svg`, mismo
+gate que el resto de Inventarios. Frontend reutiliza el patrón
+`#ticket-imprimir`/`#corte-imprimir` (contenedor imprimible hijo de
+`<body>`). 6 tests nuevos, Jest backend 872/872.
+
+**2 bugs reales encontrados y corregidos validando, ninguno detectable
+sin Docker/navegador reales**: (1) CSP `img-src` sin `blob:` — regresión
+preexistente del punto 197 que ya rompía en silencio las miniaturas de
+producto del punto 159 (nadie lo notó porque ningún producto de la demo
+tiene imagen subida); fix `img-src 'self' data: blob:` en
+`nginx.conf.template`. (2) `setFieldError()` recibía el id YA prefijado
+con "error-" en 2 modales de esta misma sesión (el de etiqueta nuevo, y
+el de monto manual de factura del punto 205) — la función ya antepone
+ese prefijo sola, así que el mensaje de error de campo nunca se
+mostraba (la validación sí bloqueaba la acción, solo el aviso visual
+fallaba); 6 call sites corregidos. Ver PROJECT_STATE.md punto 208 (y
+la nota agregada al punto 205 original) para el detalle línea por
+línea.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

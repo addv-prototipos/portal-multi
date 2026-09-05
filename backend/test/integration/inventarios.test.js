@@ -537,6 +537,54 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
     });
   });
 
+  describe('Código de barras imprimible (punto 167)', () => {
+    test('GET /:id/codigo-barras.svg de un producto inexistente responde 404', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[]]]]);
+      const res = await request(app).get('/api/admin/inventarios/productos/999/codigo-barras.svg').auth(usuario, password);
+      expect(res.status).toBe(404);
+    });
+
+    test('sin codigo_barras ni sku responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[{ id: 1, sku: '', codigo_barras: null }]]]]);
+      const res = await request(app).get('/api/admin/inventarios/productos/1/codigo-barras.svg').auth(usuario, password);
+      expect(res.status).toBe(400);
+    });
+
+    test('con codigo_barras genera el SVG con ese valor', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[{ id: 1, sku: 'TORN-001', codigo_barras: '7501234567890' }]]]]);
+      const res = await request(app).get('/api/admin/inventarios/productos/1/codigo-barras.svg').auth(usuario, password);
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('image/svg+xml; charset=utf-8');
+      expect(Buffer.isBuffer(res.body) ? res.body.toString('utf8') : res.text).toContain('<svg');
+    });
+
+    test('sin codigo_barras usa el sku como respaldo', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[{ id: 1, sku: 'TORN-M6-25MM', codigo_barras: null }]]]]);
+      const res = await request(app).get('/api/admin/inventarios/productos/1/codigo-barras.svg').auth(usuario, password);
+      expect(res.status).toBe(200);
+      expect(Buffer.isBuffer(res.body) ? res.body.toString('utf8') : res.text).toContain('<svg');
+    });
+
+    test('perfil "ventas" no tiene acceso (403) — mismo gate que el resto de Inventarios', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas');
+      mockPoolPorPatron([MODULO_ACTIVO]);
+      const res = await request(app).get('/api/admin/inventarios/productos/1/codigo-barras.svg').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+
+    test('módulo de inventario inactivo responde 403 INV_MODULO_INACTIVO', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_INACTIVO]);
+      const res = await request(app).get('/api/admin/inventarios/productos/1/codigo-barras.svg').auth(usuario, password);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('INV_MODULO_INACTIVO');
+    });
+  });
+
   describe('Entradas / Salidas — delegación al motor (mockeado)', () => {
     test('POST /entradas con tipo de salida responde INV_TIPO_INVALIDO sin llamar al motor', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');

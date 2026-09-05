@@ -566,6 +566,21 @@
     invKardexSubtitulo: document.getElementById('inv-kardex-subtitulo'),
     invKardexTableBody: document.getElementById('inv-kardex-table-body'),
     invKardexEmpty: document.getElementById('inv-kardex-empty'),
+    // Etiqueta de código de barras imprimible (punto 167)
+    invEtiquetaModalOverlay: document.getElementById('inv-etiqueta-modal-overlay'),
+    btnInvEtiquetaCerrar: document.getElementById('btn-inv-etiqueta-cerrar'),
+    btnInvEtiquetaCancelar: document.getElementById('btn-inv-etiqueta-cancelar'),
+    btnInvEtiquetaImprimir: document.getElementById('btn-inv-etiqueta-imprimir'),
+    invEtiquetaProductoNombre: document.getElementById('inv-etiqueta-producto-nombre'),
+    invEtiquetaFormato: document.getElementById('inv-etiqueta-formato'),
+    invEtiquetaCantidad: document.getElementById('inv-etiqueta-cantidad'),
+    invEtiquetaPreview: document.getElementById('inv-etiqueta-preview'),
+    invEtiquetaPreviewBarra: document.getElementById('inv-etiqueta-preview-barra'),
+    invEtiquetaPreviewNombre: document.getElementById('inv-etiqueta-preview-nombre'),
+    invEtiquetaPreviewPrecio: document.getElementById('inv-etiqueta-preview-precio'),
+    invEtiquetaPreviewCodigo: document.getElementById('inv-etiqueta-preview-codigo'),
+    invEtiquetaErrorGeneral: document.getElementById('inv-etiqueta-error-general'),
+    invEtiquetaImprimirContenedor: document.getElementById('inv-etiqueta-imprimir'),
     // Importador masivo CSV/XLSX (§34, segmento 6)
     btnInvImportar: document.getElementById('btn-inv-importar'),
     invImportacionModalOverlay: document.getElementById('inv-importacion-modal-overlay'),
@@ -5391,7 +5406,7 @@
     els.ticketModalFacturaAviso.hidden = true;
     els.ticketModalMontoManualWrap.hidden = true;
     els.ticketModalMontoManual.value = '';
-    setFieldError('error-ticket-modal-monto-manual', '');
+    setFieldError('ticket-modal-monto-manual', '');
 
     // Si el ticket ya tiene una factura subida, se ofrece descargarla, y
     // el botón/label de subir deja claro que un nuevo archivo la
@@ -5604,12 +5619,12 @@
     if (!els.ticketModalMontoManualWrap.hidden) {
       const valor = Number(els.ticketModalMontoManual.value);
       if (!els.ticketModalMontoManual.value || !Number.isFinite(valor) || valor <= 0) {
-        setFieldError('error-ticket-modal-monto-manual', 'Captura el monto de la factura (mayor a $0).');
+        setFieldError('ticket-modal-monto-manual', 'Captura el monto de la factura (mayor a $0).');
         els.ticketModalMontoManual.focus();
         return;
       }
       montoManual = valor;
-      setFieldError('error-ticket-modal-monto-manual', '');
+      setFieldError('ticket-modal-monto-manual', '');
     }
 
     const formData = new FormData();
@@ -10591,6 +10606,8 @@
   const ICONO_PAPELERA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICONO_RESTAURAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICONO_KEBAB = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
+  // Mismo ícono de impresora ya usado en Ventas (imprimirTicketOrden).
+  const ICONO_IMPRIMIR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><rect x="4" y="9" width="16" height="8" rx="1.2" stroke="currentColor" stroke-width="1.6"/><path d="M6 14h12v7H6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 
   // Menú "⋮" reutilizable para acciones secundarias (punto: 2026-08-30,
   // acomodo de espacio en Inventarios) — deja visibles solo las 2
@@ -10691,6 +10708,7 @@
         contenedor.appendChild(crearMenuAccionesInv([
           { texto: 'Ver historial', icono: ICONO_KARDEX, onClick: () => abrirKardexModal(p) },
           { texto: 'Editar producto', icono: ICONO_EDITAR, onClick: () => abrirProductoModal(p) },
+          { texto: 'Imprimir etiqueta', icono: ICONO_IMPRIMIR, onClick: () => abrirEtiquetaModal(p) },
           { texto: 'Mover a papelera', icono: ICONO_PAPELERA, peligro: true, onClick: () => confirmarEliminarProducto(p.id, p.nombre) },
         ]));
       } else {
@@ -11343,6 +11361,120 @@
   function cerrarKardexModal() {
     els.invKardexModalOverlay.hidden = true;
   }
+
+  // ---------- Etiqueta de código de barras imprimible (punto 167) ----------
+  // Code128 (backend, bwip-js) — el único formato del set que ya lee
+  // scanner.js (punto 159) capaz de codificar el texto libre de
+  // `codigo_barras`, no solo dígitos. Sin `codigo_barras`, se usa el `sku`
+  // (siempre único y obligatorio). 1 producto a la vez — mismo patrón que
+  // el resto del menú "⋮" de la fila, sin selección múltiple nueva.
+  let etiquetaProductoActual = null;
+  let etiquetaBarraBlobUrl = null;
+
+  async function abrirEtiquetaModal(producto) {
+    etiquetaProductoActual = producto;
+    els.invEtiquetaProductoNombre.textContent = `${producto.nombre} · SKU ${producto.sku}`;
+    els.invEtiquetaFormato.value = 'termica';
+    els.invEtiquetaCantidad.value = '1';
+    setFieldError('inv-etiqueta-cantidad', '');
+    els.invEtiquetaErrorGeneral.textContent = '';
+    els.invEtiquetaPreviewNombre.textContent = producto.nombre;
+    els.invEtiquetaPreviewPrecio.textContent =
+      producto.precio === null || producto.precio === undefined ? '' : `$${formatearMoneda(producto.precio)}`;
+    const codigo = (producto.codigo_barras || producto.sku || '').trim();
+    els.invEtiquetaPreviewCodigo.textContent = codigo;
+    els.invEtiquetaPreviewBarra.removeAttribute('src');
+    els.invEtiquetaModalOverlay.hidden = false;
+    await cargarBarraEtiqueta(producto.id);
+  }
+
+  async function cargarBarraEtiqueta(productoId) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/${productoId}/codigo-barras.svg`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        els.invEtiquetaErrorGeneral.textContent = data.error || 'No se pudo generar el código de barras.';
+        return;
+      }
+      const blob = await res.blob();
+      if (etiquetaBarraBlobUrl) URL.revokeObjectURL(etiquetaBarraBlobUrl);
+      etiquetaBarraBlobUrl = URL.createObjectURL(blob);
+      els.invEtiquetaPreviewBarra.src = etiquetaBarraBlobUrl;
+    } catch (err) {
+      els.invEtiquetaErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function cerrarEtiquetaModal() {
+    els.invEtiquetaModalOverlay.hidden = true;
+    etiquetaProductoActual = null;
+  }
+
+  els.btnInvEtiquetaCerrar.addEventListener('click', cerrarEtiquetaModal);
+  els.btnInvEtiquetaCancelar.addEventListener('click', cerrarEtiquetaModal);
+  els.invEtiquetaModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.invEtiquetaModalOverlay) cerrarEtiquetaModal();
+  });
+
+  // Misma tarjeta que la vista previa del modal, reutilizada N veces en el
+  // contenedor imprimible — un solo lugar arma el marcado de una etiqueta.
+  function celdaEtiquetaHtml(producto, barraBlobUrl, codigo) {
+    const precioHtml =
+      producto.precio === null || producto.precio === undefined
+        ? ''
+        : `<div class="inv-etiqueta-precio">$${formatearMoneda(producto.precio)}</div>`;
+    return `
+      <div class="inv-etiqueta-celda">
+        <img class="inv-etiqueta-barra" src="${barraBlobUrl}" alt="" />
+        <div class="inv-etiqueta-nombre">${escapeHtml(producto.nombre)}</div>
+        ${precioHtml}
+        <div class="inv-etiqueta-codigo">${escapeHtml(codigo)}</div>
+      </div>`;
+  }
+
+  const ETIQUETAS_CARTA_POR_HOJA = 24;
+
+  function imprimirEtiquetas(producto, formato, cantidad, barraBlobUrl) {
+    const codigo = (producto.codigo_barras || producto.sku || '').trim();
+    const contenedor = els.invEtiquetaImprimirContenedor;
+    if (formato === 'termica') {
+      contenedor.innerHTML = Array.from(
+        { length: cantidad },
+        () => `<div class="inv-etiqueta-hoja-termica">${celdaEtiquetaHtml(producto, barraBlobUrl, codigo)}</div>`
+      ).join('');
+    } else {
+      const hojas = Math.ceil(cantidad / ETIQUETAS_CARTA_POR_HOJA);
+      let html = '';
+      for (let h = 0; h < hojas; h += 1) {
+        const enEstaHoja = Math.min(ETIQUETAS_CARTA_POR_HOJA, cantidad - h * ETIQUETAS_CARTA_POR_HOJA);
+        html += `<div class="inv-etiqueta-hoja-carta">${Array.from({ length: enEstaHoja }, () =>
+          celdaEtiquetaHtml(producto, barraBlobUrl, codigo)
+        ).join('')}</div>`;
+      }
+      contenedor.innerHTML = html;
+    }
+    contenedor.className = `inv-etiqueta-imprimir formato-${formato}`;
+    cerrarEtiquetaModal();
+    window.print();
+  }
+
+  els.btnInvEtiquetaImprimir.addEventListener('click', () => {
+    const cantidad = Number(els.invEtiquetaCantidad.value);
+    if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 200) {
+      setFieldError('inv-etiqueta-cantidad', 'Captura un número entero entre 1 y 200.');
+      return;
+    }
+    setFieldError('inv-etiqueta-cantidad', '');
+    if (!etiquetaBarraBlobUrl || !etiquetaProductoActual) {
+      els.invEtiquetaErrorGeneral.textContent = 'Todavía no se pudo generar el código de barras.';
+      return;
+    }
+    imprimirEtiquetas(etiquetaProductoActual, els.invEtiquetaFormato.value, cantidad, etiquetaBarraBlobUrl);
+  });
 
   // ---------- Verificar integridad (§0.5.F) ----------
 
