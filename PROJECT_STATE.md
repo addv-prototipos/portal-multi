@@ -10992,6 +10992,49 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   que la verificación de clics reales la hizo el propio usuario, no
   esta sesión. **Commiteado y pusheado** (`88779e5` → `fact/master`).
 
+- **Atajo al Centro de conocimiento en la barra de sesión (punto 210,
+  2026-09-05, IMPLEMENTADO — Jest backend 872/872 sin cambios, SIN
+  validar con clics reales en navegador esta sesión, extensión de
+  Chrome desconectada)**: usuario pidió una lupa junto al RFC de la
+  barra de sesión que disparara el mismo evento que "Centro de
+  conocimiento". Protocolo completo — crítica del planteamiento
+  original + propuesta visual (Artifact web, antes/después con
+  recreación fiel del topbar real) + confirmación explícita ("apruebo
+  así"). **4 ajustes sobre el pedido original, todos aprobados**: (1)
+  ícono de libro (el mismo de `#btn-abrir-conocimiento`) en vez de lupa
+  — una lupa promete un campo de búsqueda, no un manual completo; (2)
+  ancla a `.admin-header` misma (primer elemento, posición fija
+  siempre) en vez de "al lado del RFC" — `#brand-fiscal-info` se oculta
+  por completo cuando faltan `rfc_compania`/`clave_sat`, así que
+  anclarlo ahí lo haría saltar de lugar o desaparecer sin relación con
+  el botón; (3) la duplicación con el botón ya existente del pie del
+  menú lateral se acepta a propósito (mismo tooltip/destino, lee como
+  atajo, no como función nueva); (4) mejora real agregada: abrir desde
+  este atajo enfoca automáticamente el buscador interno del modal — el
+  botón del menú lateral sigue abriendo en "Primeros pasos" sin foco,
+  sin cambios ahí. **Implementación**: botón nuevo
+  `#btn-abrir-conocimiento-topbar` en `frontend/admin.html`, clase
+  `.admin-header-ayuda` nueva en `admin.css` (34×34px, `border` +
+  hover con `var(--color-accent-soft)`, ya navy en `/admin` desde el
+  override de `.admin-body`; `margin-right:auto` lo fija a la izquierda
+  del header pese a que este usa `justify-content:flex-end`). `data-
+  tooltip` reusa el componente de tooltip unificado del sitio (punto
+  148), sin JS nuevo para eso. `abrirConocimiento()` ganó un parámetro
+  `enfocarBuscador` (antes sin parámetros) — el botón del menú lateral
+  ahora llama `abrirConocimiento(false)` explícito, el del topbar
+  `abrirConocimiento(true)`. Visible para los 4 perfiles, sin
+  restricción nueva (mismo criterio que el botón del menú lateral,
+  fuera de `RESTRICCIONES_PERFIL`). `node --check` limpio, CSS
+  balanceado (1095/1095), Jest backend 872/872 (sin cambios, 100%
+  frontend). Validado por HTTP tras rebuild `--no-cache`+
+  `--force-recreate` frontend (botón/wiring confirmados en el HTML/JS
+  servido) — **sin clics reales**, la extensión de Chrome seguía
+  desconectada (mismo bloqueo que el punto 209 al momento de
+  implementarlo). Pedir al usuario que confirme visualmente: el ícono
+  aparece siempre a la izquierda de la barra de sesión (con o sin RFC
+  visible), abre el mismo Centro de conocimiento, y el cursor cae en su
+  buscador. Sin commit/push todavía.
+
   168. **"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en
       navegador real (2026-08-31/09-01)**: usuario pidió un botón para
       "hacer el corte del día o varios días", manual, con selector de

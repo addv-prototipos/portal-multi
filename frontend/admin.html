@@ -199,6 +199,14 @@
 
     <div class="admin-content">
       <header class="admin-header">
+        <!-- Atajo al Centro de conocimiento (mismo destino que el botón del
+             pie del menú lateral, #btn-abrir-conocimiento) — primer elemento
+             de la barra, NUNCA anclado al RFC (#brand-fiscal-info se oculta
+             cuando faltan datos fiscales; anclarlo ahí lo haría saltar de
+             lugar o desaparecer sin relación con este botón). -->
+        <button type="button" class="admin-header-ayuda" id="btn-abrir-conocimiento-topbar" aria-label="Centro de conocimiento" data-tooltip="Centro de conocimiento" aria-haspopup="dialog">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+        </button>
         <span class="brand-fiscal-info" id="brand-fiscal-info" hidden></span>
         <span class="admin-user-label" id="admin-user-label"></span>
       </header>

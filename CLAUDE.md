@@ -724,6 +724,21 @@ Claude Code, la verificación de clics reales la hizo el usuario.
 **Commiteado y pusheado** (`88779e5` → `fact/master`). Ver
 PROJECT_STATE.md punto 209.
 
+**Punto 210 (2026-09-05, IMPLEMENTADO — Jest backend 872/872 sin
+cambios, SIN clics reales en navegador esta sesión, extensión de Chrome
+desconectada)**: atajo al Centro de conocimiento en la barra de sesión.
+Usuario pidió una lupa junto al RFC — 4 ajustes aprobados sobre el
+pedido original: ícono de libro (mismo que el botón del menú lateral)
+en vez de lupa (una lupa promete búsqueda, no un manual); ancla a
+`.admin-header` misma, nunca a `#brand-fiscal-info` (se oculta si
+faltan datos fiscales); la duplicación con el botón del menú lateral se
+acepta a propósito (mismo tooltip/destino); mejora agregada: este atajo
+enfoca el buscador interno del modal al abrir (`abrirConocimiento()`
+ganó el parámetro `enfocarBuscador`). Botón nuevo
+`#btn-abrir-conocimiento-topbar` + clase `.admin-header-ayuda`. Visible
+para los 4 perfiles. Validado por HTTP — falta confirmación visual con
+clics reales. Ver PROJECT_STATE.md punto 210.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

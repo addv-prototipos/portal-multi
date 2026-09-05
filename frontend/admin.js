@@ -640,6 +640,7 @@
     btnAyudaVistaCerrar: document.getElementById('btn-ayuda-vista-cerrar'),
     // Centro de conocimiento (Fase 6 UX) — manual completo de /admin
     btnAbrirConocimiento: document.getElementById('btn-abrir-conocimiento'),
+    btnAbrirConocimientoTopbar: document.getElementById('btn-abrir-conocimiento-topbar'),
     conocimientoOverlay: document.getElementById('conocimiento-modal-overlay'),
     conocimientoSidebar: document.getElementById('conocimiento-modal-sidebar'),
     conocimientoBuscar: document.getElementById('conocimiento-modal-buscar'),
@@ -12617,19 +12618,26 @@
     renderCategoriaConocimiento(conocimientoCatActual, q);
   }
 
-  function abrirConocimiento() {
+  // `enfocarBuscador` (atajo de la barra de sesión, ver
+  // #btn-abrir-conocimiento-topbar): deja el cursor listo en el buscador
+  // del modal — un clic para llegar, cero clics extra para empezar a
+  // buscar. El botón del menú lateral no lo pide (abre siempre en
+  // "Primeros pasos", como antes).
+  function abrirConocimiento(enfocarBuscador) {
     els.conocimientoBuscar.value = '';
     els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => { btn.hidden = false; });
     els.conocimientoNavEmpty.hidden = true;
     seleccionarCategoriaConocimiento('primeros-pasos');
     mostrarListaMovilConocimiento();
     els.conocimientoOverlay.hidden = false;
+    if (enfocarBuscador) els.conocimientoBuscar.focus();
   }
   function cerrarConocimiento() {
     els.conocimientoOverlay.hidden = true;
   }
 
-  if (els.btnAbrirConocimiento) els.btnAbrirConocimiento.addEventListener('click', abrirConocimiento);
+  if (els.btnAbrirConocimiento) els.btnAbrirConocimiento.addEventListener('click', () => abrirConocimiento(false));
+  if (els.btnAbrirConocimientoTopbar) els.btnAbrirConocimientoTopbar.addEventListener('click', () => abrirConocimiento(true));
   if (els.btnCerrarConocimiento) els.btnCerrarConocimiento.addEventListener('click', cerrarConocimiento);
   if (els.conocimientoOverlay) {
     els.conocimientoOverlay.addEventListener('click', (e) => {
