@@ -1891,6 +1891,12 @@ async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal,
     ],
     parrafos: ['Ingresa con estos datos y cambia tu contraseña en cuanto puedas.'],
     cta: enlacePortal ? { href: enlacePortal, texto: `Entrar al ${etiquetaAcceso}` } : null,
+    // Punto 211: la invitación al portal DEL CLIENTE mantiene el logo
+    // viejo — es la misma marca que va a ver en cuanto entre a
+    // login.html/dashboard.html, sin ese cambio de logo se sentiría
+    // como una marca distinta a mitad del camino. administrador/fiscal
+    // sí ven el logo nuevo (entran al panel /admin, que ya lo usa).
+    usarLogoLegacy: perfil === 'cliente',
   });
 
   await enviarCorreo({

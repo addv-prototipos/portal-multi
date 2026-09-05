@@ -750,6 +750,25 @@ solo en `frontend/admin.html`; `/control` tiene su propio aviso
 distinto, sin tocar. Jest backend 872/872 (sin cambios, HTML estático).
 Ver PROJECT_STATE.md punto 211.
 
+**Punto 212 (2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: cambio de logo de marca ("CLARVO — Tu negocio bajo control by
+ADDV", reemplaza "Portal de Facturación"). Aplicado a `/admin` y
+`/control` (login hero + sidebar, según contraste de fondo —
+`logoLight.png` en claro, `logoDark.png` en oscuro/navy; el panel NO
+tiene modo oscuro real, esto es solo selección por fondo) y a la
+mayoría de los correos (`backend/utils/correoMarca.js`, parámetro
+`usarLogoLegacy` nuevo). Excluido a propósito (logo viejo
+`branding.png`/`branding_bgo.png` sin tocar): portal de cliente
+completo (login/dashboard/tickets/csf) y la invitación por correo
+cuando `perfil==='cliente'`. **Decisión propia sin pedirse
+explícitamente**: `restablecer.html` también se dejó con el logo
+viejo (comparte el mismo encabezado que `login.html`) — avisar al
+usuario por si prefiere lo contrario. Favicon nuevo agregado en las 8
+páginas del sitio (nunca existió ninguno antes), sin excepción. Jest
+backend 872/872. Sin SMTP configurado para probar un envío real; sin
+clics reales en navegador (extensión desconectada). Ver
+PROJECT_STATE.md punto 212 para el detalle línea por línea.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`

@@ -11052,6 +11052,80 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   sin clics reales, mismo bloqueo de extensión de Chrome desconectada.
   Sin commit/push todavía.
 
+- **Cambio de logo de marca (punto 212, 2026-09-05, IMPLEMENTADO Y
+  VALIDADO por HTTP contra Docker real)**: usuario depositó 2 logos
+  nuevos (`logoDark.png`/`logoLight.png`, "CLARVO — Tu negocio bajo
+  control by ADDV", reemplazan al "CLARVO — Portal de Facturación by
+  ADDV" anterior) + un favicon nuevo (el isotipo "V"). Pedido explícito:
+  cambiarlos en todo el sitio EXCEPTO el portal del cliente para pedir
+  factura (que se queda con el logo viejo), aplicarlos también en
+  correos "para todo" salvo la invitación al portal DEL CLIENTE
+  (esa mantiene el logo viejo), sí incluir la invitación a
+  administrador/fiscal, y usar la variante correcta según fondo
+  claro/oscuro. **El panel no tiene modo oscuro real** (sin
+  `prefers-color-scheme`/`data-theme` en `admin.css`, confirmado por
+  grep) — "dark/light" se interpretó como "según el CONTRASTE del fondo
+  donde va cada logo" (mismo criterio que ya usaba
+  `branding.png`/`branding_bgo.png`), no como un theme-switcher nuevo:
+  `logoLight.png` (texto navy) en fondos claros, `logoDark.png` (texto
+  blanco) en fondos oscuros/navy.
+  **Archivos**: renombrados sin el typo `.ong` →
+  `frontend/assets/logoLight.png`/`logoDark.png`/`favicon.png`; copia
+  nueva `backend/assets/logo-nuevo.png` (el correo no comparte
+  filesystem con el frontend, mismo criterio ya usado para
+  `branding.png`).
+  **Aplicado (logo nuevo)**: `/admin` (login hero → `logoLight.png`,
+  sidebar → `logoDark.png`) y `/control` (mismo patrón — de paso resuelve
+  un TODO viejo del código, `control.html` traía comentarios "PENDIENTE
+  branding"/"Temporal: mismo branding.png de /admin hasta entregar PNG
+  final" desde el punto 108, ya no aplica).
+  **Excluido (logo viejo, sin tocar)**: portal de cliente completo —
+  `login.html`/`dashboard.html`/`tickets.html`/`csf.html`, la ruta real
+  de "pedir factura". **Decisión propia, no explícita en el pedido**:
+  `restablecer.html` (recuperar contraseña) TAMBIÉN se dejó con el logo
+  viejo — comparte literalmente el mismo encabezado de
+  `.auth-hero-headline` que `login.html` ("Gestiona tus solicitudes de
+  factura de forma simple y segura"), visualmente es la misma
+  experiencia de cliente aunque también la usan cuentas
+  administrador/fiscal; se avisa aquí por si el usuario prefiere lo
+  contrario.
+  **Correos** (`backend/utils/correoMarca.js`): `logoTicketHtml()`/
+  `construirCorreoBase()` ganan un parámetro `usarLogoLegacy` — sin él
+  (default, la mayoría de los correos: recuperar contraseña, factura
+  lista, aviso al contador, reporte automático, ticket de venta,
+  invitación a administrador/fiscal) se incrusta el logo NUEVO como CID
+  (`logo-nuevo.png`); `enviarInvitacionPortal()` lo fuerza a `true` SOLO
+  cuando `perfil === 'cliente'` — su primera impresión debe coincidir
+  con el logo que verá en cuanto entre a `login.html`. Caché de buffer
+  cambiada de escalar a objeto por variante (`{legacy, nuevo}`), CIDs
+  renombrados (`logo-clarvo-nuevo`/`logo-clarvo-legacy`) para no
+  confundir ambos adjuntos en un mismo correo si algún día conviven.
+  **Favicon**: nunca existió ninguno en el sitio (confirmado, cero
+  `<link rel="icon">` en las 8 páginas antes de este punto) — agregado
+  en las 8 (`/admin`, `/control`, `login`, `dashboard`, `tickets`,
+  `csf`, `restablecer`, `mantenimiento`), sin excepción (el usuario no
+  pidió excluir al portal del cliente de esto, a diferencia del logo
+  grande). El favicon por-tenant de Look & Feel (punto 105) sigue
+  intacto — `theme.js` lo sobreescribe en tiempo de ejecución solo si el
+  tenant configuró uno propio, este es solo el default de plataforma.
+  **Validación**: `node --check` limpio en los 2 archivos backend
+  tocados, div balanceado en `admin.html`/`control.html`, Jest backend
+  **872/872** (sin cambios). Confirmado con un script real contra los 2
+  PNG reales (`logo-nuevo.png` 643,605 bytes vs `branding.png` 433,174
+  bytes — tamaños distintos confirmando que sí son 2 archivos
+  distintos) que `logoTicketHtml()`/`construirCorreoBase()` seleccionan
+  el CID/buffer correcto en ambas ramas. Validado por HTTP tras rebuild
+  `--no-cache`+`--force-recreate` de backend+frontend: los 3 assets
+  sirven 200 `image/png` real, `/admin` y `/control` sirven los 2 logos
+  nuevos + favicon, `/login` (cliente) sigue sirviendo `branding.png`
+  intacto. **Sin probar un envío SMTP real** — este entorno no tiene
+  SMTP configurado en este momento (confirmado por SQL, filas vacías).
+  **Sin clics reales en navegador** — extensión de Chrome seguía
+  desconectada. Pedir al usuario que confirme visualmente el tamaño/
+  legibilidad del logo nuevo en el sidebar angosto (140px de ancho) y,
+  cuando tenga SMTP configurado, que revise un correo real de cada
+  tipo. Sin commit/push todavía.
+
 - **Quita el aviso de "cuenta admin/ADMIN_USERS" del login de `/admin`
   (punto 211, 2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra
   Docker real)**: a pedido del usuario, con una captura mostrando el

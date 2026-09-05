@@ -25,22 +25,31 @@ function escapeHtmlCorreo(valor) {
 // desarrollo (localhost) o detrás de un proxy no expuesto, la imagen sale
 // rota. Incrustado como CID viaja DENTRO del correo, funciona siempre
 // (confirmado: se probó primero con URL absoluta y llegó rota en un
-// correo real, ver PROJECT_STATE.md punto 133). Copia propia del archivo
-// en backend/assets/ (mismo PNG que ya sirve el frontend en
-// /assets/branding.png) — el backend no tiene acceso al filesystem del
-// contenedor frontend, así que se duplica a propósito, mismo criterio ya
-// usado para otro código pequeño compartido entre ambos.
-const LOGO_CLARVO_CID = 'logo-clarvo-addv';
-let logoClarvoBufferCache = null;
-function obtenerLogoClarvoBuffer() {
-  if (logoClarvoBufferCache === null) {
+// correo real, ver PROJECT_STATE.md punto 133). Copias propias de los
+// archivos en backend/assets/ — el backend no tiene acceso al filesystem
+// del contenedor frontend, así que se duplican a propósito, mismo
+// criterio ya usado para otro código pequeño compartido entre ambos.
+//
+// 2 variantes (punto 211, 2026-09-05, cambio de logo de marca): "nuevo"
+// es el default para todo correo con MARCA_DEFECTO; "legacy" (el logo
+// viejo, `branding.png`, el mismo que sigue viendo el portal del cliente
+// en login/dashboard/tickets/csf) se usa SOLO en la invitación al portal
+// cuando el perfil es "cliente" — su primera impresión debe coincidir
+// con el logo que va a ver en cuanto entre a esa página, no con el nuevo
+// logo de plataforma que ve el resto del sitio.
+const LOGO_CLARVO_CID_NUEVO = 'logo-clarvo-nuevo';
+const LOGO_CLARVO_CID_LEGACY = 'logo-clarvo-legacy';
+const logoClarvoBufferCache = {};
+function obtenerLogoClarvoBuffer(variante) {
+  if (!(variante in logoClarvoBufferCache)) {
+    const archivo = variante === 'legacy' ? 'branding.png' : 'logo-nuevo.png';
     try {
-      logoClarvoBufferCache = fs.readFileSync(path.join(__dirname, '..', 'assets', 'branding.png'));
+      logoClarvoBufferCache[variante] = fs.readFileSync(path.join(__dirname, '..', 'assets', archivo));
     } catch (err) {
-      logoClarvoBufferCache = undefined; // no se pudo leer: se cae al texto de respaldo, nunca truena el correo
+      logoClarvoBufferCache[variante] = undefined; // no se pudo leer: se cae al texto de respaldo, nunca truena el correo
     }
   }
-  return logoClarvoBufferCache || null;
+  return logoClarvoBufferCache[variante] || null;
 }
 
 // Sin logo de tenant configurado: si la marca es la de por defecto
@@ -48,19 +57,22 @@ function obtenerLogoClarvoBuffer() {
 // de una caja de texto genérica. Un tenant con su propio nombre de marca
 // (pero sin logo todavía) sigue viendo su propio texto — nunca el logo de
 // CLARVO, que no le pertenece. Devuelve también el adjunto CID que hay
-// que mandar junto con el correo (null si no aplica).
-function logoTicketHtml(logoUrl, marca) {
+// que mandar junto con el correo (null si no aplica). `usarLogoLegacy`
+// (ver comentario arriba) fuerza el logo viejo en vez del nuevo default.
+function logoTicketHtml(logoUrl, marca, usarLogoLegacy) {
   if (logoUrl) {
     return {
       html: `<img src="${logoUrl}" alt="Portal de Facturación ${escapeHtmlCorreo(marca)}" style="max-width:180px; max-height:60px; display:block; margin:0 auto;" />`,
       adjunto: null,
     };
   }
-  const bufferLogo = marca === MARCA_DEFECTO ? obtenerLogoClarvoBuffer() : null;
+  const variante = usarLogoLegacy ? 'legacy' : 'nuevo';
+  const cid = usarLogoLegacy ? LOGO_CLARVO_CID_LEGACY : LOGO_CLARVO_CID_NUEVO;
+  const bufferLogo = marca === MARCA_DEFECTO ? obtenerLogoClarvoBuffer(variante) : null;
   if (bufferLogo) {
     return {
-      html: `<img src="cid:${LOGO_CLARVO_CID}" alt="CLARVO — Portal de Facturación by ADDV" style="max-width:170px; height:auto; display:block; margin:0 auto;" />`,
-      adjunto: { filename: 'clarvo-logo.png', content: bufferLogo, cid: LOGO_CLARVO_CID },
+      html: `<img src="cid:${cid}" alt="CLARVO — Tu negocio bajo control by ADDV" style="max-width:170px; height:auto; display:block; margin:0 auto;" />`,
+      adjunto: { filename: 'clarvo-logo.png', content: bufferLogo, cid },
     };
   }
   return {
@@ -104,9 +116,10 @@ function construirCorreoBase({
   parrafos = [],
   cta,
   piePersonalizado,
+  usarLogoLegacy,
 }) {
   const marcaMostrada = marca === MARCA_DEFECTO ? 'CLARVO by ADDV' : marca;
-  const logo = logoTicketHtml(logoUrl, marca);
+  const logo = logoTicketHtml(logoUrl, marca, usarLogoLegacy);
   const primario = colorPrimario || '#03285B';
   const acento = colorAccent || '#05DBF2';
 
