@@ -3429,13 +3429,29 @@
               <span id="btn-orden-modal-reenviar-label">Reenviar correo</span>
             </button>
             <button type="button" class="btn btn-secondary btn-block" id="btn-orden-modal-imprimir">
-              🖨️ Imprimir ticket
+              Imprimir ticket
             </button>
             <button type="button" class="btn btn-danger btn-block" id="btn-orden-modal-eliminar">
               Eliminar
             </button>
           </section>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vista previa del ticket antes de imprimir — mismo recibo que
+       #ticket-imprimir (comparte sus clases .ticket-imprimir-*, aquí sí
+       visibles en pantalla), único punto por el que pasan los 3
+       disparadores de impresión (guardar+imprimir, ícono de fila, "Ver
+       venta"). "Imprimir" recién ahí llama a window.print() real. -->
+  <div class="modal-overlay" id="ticket-preview-modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ticket-preview-modal-title">
+      <h2 id="ticket-preview-modal-title" class="ticket-preview-titulo-modal">Vista previa del ticket</h2>
+      <div class="ticket-preview-recibo" id="ticket-preview-recibo"></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-ticket-preview-cerrar">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-ticket-preview-imprimir">Imprimir</button>
       </div>
     </div>
   </div>

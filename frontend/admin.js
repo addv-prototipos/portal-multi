@@ -339,6 +339,10 @@
     ordenNotasCobro: document.getElementById('orden-notas-cobro'),
     // Ticket de impresión + asignar correo a una venta sin uno
     ticketImprimir: document.getElementById('ticket-imprimir'),
+    ticketPreviewModalOverlay: document.getElementById('ticket-preview-modal-overlay'),
+    ticketPreviewRecibo: document.getElementById('ticket-preview-recibo'),
+    btnTicketPreviewCerrar: document.getElementById('btn-ticket-preview-cerrar'),
+    btnTicketPreviewImprimir: document.getElementById('btn-ticket-preview-imprimir'),
     btnOrdenModalImprimir: document.getElementById('btn-orden-modal-imprimir'),
     ordenAsignarCorreoOverlay: document.getElementById('orden-asignar-correo-overlay'),
     ordenAsignarCorreoInput: document.getElementById('orden-asignar-correo-input'),
@@ -2308,9 +2312,10 @@
   });
 
   // Arma el corte imprimible (ancho de hoja, no recibo) del último
-  // resultado ya generado — mismo criterio que imprimirTicketOrden: llenar
+  // resultado ya generado — mismo criterio que #ticket-imprimir: llenar
   // un contenedor oculto y llamar a window.print() en la misma página, sin
-  // ventana nueva (los popups se bloquean seguido tras un fetch async).
+  // ventana nueva (los popups se bloquean seguido tras un fetch async). El
+  // corte no pasa por el preview del ticket (es otro documento, otro flujo).
   els.btnImprimirCorte.addEventListener('click', () => {
     if (!corteUltimoResultado) return;
     const { desde, hasta, resumen, ordenes } = corteUltimoResultado;
@@ -6384,19 +6389,22 @@
         els.ordenErrorGeneral.textContent = data.mensaje || data.error || 'No se pudo registrar la venta.';
         return;
       }
-      mostrarExitoRegistrarOrden();
+      mostrarExitoRegistrarOrden(
+        undefined,
+        imprimirAlGuardar
+          ? () =>
+              abrirPreviewTicket({
+                numero_compra: data.numero_compra,
+                concepto: data.concepto,
+                cantidad: data.cantidad,
+                iva_porcentaje: data.iva_porcentaje,
+                total: data.total,
+                email: data.email,
+                fecha_compra_formateada: data.fecha_compra,
+              })
+          : undefined
+      );
       cargarOrdenes();
-      if (imprimirAlGuardar) {
-        imprimirTicketOrden({
-          numero_compra: data.numero_compra,
-          concepto: data.concepto,
-          cantidad: data.cantidad,
-          iva_porcentaje: data.iva_porcentaje,
-          total: data.total,
-          email: data.email,
-          fecha_compra_formateada: data.fecha_compra,
-        });
-      }
     } catch (err) {
       els.ordenErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -6408,7 +6416,12 @@
   // nota", pedido explícito del usuario) — palomita animada + texto,
   // dura ~1.3s en total, y el modal se queda abierto y se limpia solo,
   // listo para la siguiente venta (no hay que volver a abrirlo).
-  function mostrarExitoRegistrarOrden(mensaje) {
+  // `alTerminar` (opcional) corre DESPUÉS de que la palomita termina y se
+  // oculta sola — nunca al mismo tiempo que ella. Antes, "guardar+imprimir"
+  // disparaba window.print() en paralelo con la animación (el diálogo de
+  // impresión competía con/tapaba la palomita); ahora la secuencia es
+  // estrictamente palomita completa → preview del ticket.
+  function mostrarExitoRegistrarOrden(mensaje, alTerminar) {
     // Primeros pasos (Fase 2 UX): además de ordenesCache (que ya refleja la
     // venta real cuando hay conexión), esta bandera cubre el caso offline
     // encolado — se guarda para siempre por cuenta, no hace falta un fetch.
@@ -6422,6 +6435,7 @@
       els.ordenFormBody.hidden = false;
       limpiarFormularioOrden();
       els.ordenProductoConcepto.focus();
+      if (typeof alTerminar === 'function') alTerminar();
     }, 1300);
   }
 
@@ -6590,7 +6604,7 @@
   // backend. Se llama desde 3 lugares: justo después de guardar (si el
   // método de entrega fue "imprimir"), el ícono de la fila, y el botón
   // "Imprimir ticket" del modal "Ver venta" — mismo componente, 3 entradas.
-  function imprimirTicketOrden(orden) {
+  function construirHtmlTicket(orden) {
     const fecha = orden.fecha_compra_formateada
       ? `${orden.fecha_compra_formateada.fecha} ${orden.fecha_compra_formateada.hora}`
       : '';
@@ -6610,7 +6624,7 @@
       : `<div class="ticket-imprimir-linea"><span>${escapeHtml(orden.concepto)}</span></div>`;
     const ivaMonto = Math.round((Number(orden.total) - Number(orden.cantidad)) * 100) / 100;
 
-    els.ticketImprimir.innerHTML = `
+    return `
       <div class="ticket-imprimir-titulo">Ticket de venta</div>
       <div class="ticket-imprimir-separador"></div>
       <div class="ticket-imprimir-meta">Folio: ${escapeHtml(orden.numero_compra || '—')}</div>
@@ -6625,8 +6639,32 @@
       ${orden.email ? `<div class="ticket-imprimir-meta">Cliente: ${escapeHtml(orden.email)}</div><div class="ticket-imprimir-separador"></div>` : ''}
       <div class="ticket-imprimir-gracias">¡Gracias por su compra!</div>
     `;
-    window.print();
   }
+
+  // Único punto de entrada de los 3 disparadores de impresión (guardar+
+  // imprimir, ícono de fila, "Ver venta") — antes cada uno llamaba a
+  // window.print() directo; ahora todos abren esta vista previa primero,
+  // y window.print() solo se dispara desde su botón "Imprimir".
+  let ticketPreviewOrdenActual = null;
+  function abrirPreviewTicket(orden) {
+    ticketPreviewOrdenActual = orden;
+    els.ticketPreviewRecibo.innerHTML = construirHtmlTicket(orden);
+    els.ticketPreviewModalOverlay.hidden = false;
+  }
+  function cerrarPreviewTicket() {
+    els.ticketPreviewModalOverlay.hidden = true;
+    ticketPreviewOrdenActual = null;
+  }
+  els.btnTicketPreviewCerrar.addEventListener('click', cerrarPreviewTicket);
+  els.ticketPreviewModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.ticketPreviewModalOverlay) cerrarPreviewTicket();
+  });
+  els.btnTicketPreviewImprimir.addEventListener('click', () => {
+    if (!ticketPreviewOrdenActual) return;
+    els.ticketImprimir.innerHTML = construirHtmlTicket(ticketPreviewOrdenActual);
+    cerrarPreviewTicket();
+    window.print();
+  });
 
   // Vista previa del concepto para la tabla (resumida): un concepto de
   // varios productos solo muestra el primero + "+N más" — el detalle
@@ -6764,7 +6802,7 @@
       btnImprimirOrden.setAttribute('aria-label', 'Imprimir ticket');
       btnImprimirOrden.innerHTML =
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><rect x="4" y="9" width="16" height="8" rx="1.2" stroke="currentColor" stroke-width="1.6"/><path d="M6 14h12v7H6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
-      btnImprimirOrden.addEventListener('click', () => imprimirTicketOrden(orden));
+      btnImprimirOrden.addEventListener('click', () => abrirPreviewTicket(orden));
       contenedorAccionesOrden.appendChild(btnImprimirOrden);
 
       const btnEliminarOrden = document.createElement('button');
@@ -6854,7 +6892,7 @@
   });
   els.btnOrdenModalImprimir.addEventListener('click', () => {
     if (!ordenModalActual) return;
-    imprimirTicketOrden(ordenModalActual);
+    abrirPreviewTicket(ordenModalActual);
   });
   els.btnOrdenModalEliminar.addEventListener('click', () => {
     if (!ordenModalActual) return;
@@ -10606,7 +10644,7 @@
   const ICONO_PAPELERA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICONO_RESTAURAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICONO_KEBAB = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
-  // Mismo ícono de impresora ya usado en Ventas (imprimirTicketOrden).
+  // Mismo ícono de impresora ya usado en Ventas (btnImprimirOrden).
   const ICONO_IMPRIMIR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><rect x="4" y="9" width="16" height="8" rx="1.2" stroke="currentColor" stroke-width="1.6"/><path d="M6 14h12v7H6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 
   // Menú "⋮" reutilizable para acciones secundarias (punto: 2026-08-30,

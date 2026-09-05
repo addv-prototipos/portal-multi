@@ -10946,6 +10946,55 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       de respaldo), sin necesidad de capturarlo a mano. 100% texto, cero
       UI/endpoint nuevo. Validado por HTTP tras rebuild `--no-cache`+
       `--force-recreate` frontend. Sin commit/push todavía.
+
+- **Preview del ticket antes de imprimir + secuencia palomita→imprimir en
+  Ventas (punto 209, 2026-09-05, IMPLEMENTADO — Jest backend 872/872 sin
+  cambios, SIN validar con clics reales en navegador esta sesión —
+  extensión de Chrome desconectada)**: a pedido del usuario. Protocolo
+  completo — 2 preguntas de aclaración respondidas antes de tocar código
+  (el problema real no era solo "cerrar ventanas", era que la palomita
+  "Guardado con éxito" y `window.print()` se disparaban casi al mismo
+  tiempo al guardar con "imprimir", compitiendo visualmente; y "sustituye
+  la app que abre el PDF" resultó ser, aclarado por el usuario, pedir un
+  preview propio ANTES de `window.print()` — el ticket nunca fue un PDF,
+  es HTML impreso directo, sin ninguna app externa de por medio) +
+  propuesta antes/después en chat, aprobada tal cual (unificar los 3
+  disparadores de impresión en el mismo preview, no solo el automático).
+  **Cambios**: `imprimirTicketOrden()` se parte en `construirHtmlTicket()`
+  (arma el HTML, sin efectos secundarios) + `abrirPreviewTicket()` (pinta
+  ese HTML dentro de un modal nuevo `#ticket-preview-modal-overlay`,
+  visible en pantalla, reusando tal cual las clases `.ticket-imprimir-*`
+  ya existentes — esas clases nunca tuvieron límite a "solo dentro de
+  `@media print`", su contenedor original simplemente nunca se mostraba
+  en pantalla). El botón "Imprimir" del preview es el ÚNICO lugar que
+  sigue llamando a `window.print()` real (llena `#ticket-imprimir`,
+  cierra el preview, imprime). Los 3 disparadores (ícono de fila, botón
+  "Imprimir ticket" de "Ver venta", y guardar+imprimir) ahora llaman a
+  `abrirPreviewTicket()` en vez de imprimir directo. Para el flujo
+  automático, `mostrarExitoRegistrarOrden(mensaje, alTerminar)` ganó un
+  2do parámetro opcional invocado DESDE DENTRO de su propio
+  `setTimeout` de 1300ms (el mismo que ya oculta la palomita y limpia el
+  formulario) — la secuencia queda estrictamente palomita completa → se
+  oculta sola → preview del ticket, nunca simultáneos. El corte del día
+  (punto 168) NO pasa por este preview a propósito (es una hoja de
+  reporte, no un recibo — documento distinto). **Hallazgo menor
+  corregido de paso**: el botón "Imprimir ticket" del modal "Ver venta"
+  todavía tenía el emoji 🖨️ real en el HTML (única excepción a la
+  política de cero emojis del sitio que quedaba en esta zona del
+  código) — quitado, ya no hacía falta con el ícono de impresora que el
+  botón de fila ya usa. `node --check` limpio, CSS balanceado
+  (1092/1092), Jest backend 872/872 (sin cambios, cambio 100%
+  frontend). Validado por HTTP tras rebuild `--no-cache`+
+  `--force-recreate` frontend (modal/funciones nuevas confirmadas en el
+  HTML/JS servido) — **sin confirmación visual con clics reales**, la
+  extensión de Chrome no estaba conectada esta sesión (2 intentos de
+  `tabs_context_mcp` fallaron). Pedir al usuario que confirme
+  visualmente: (1) guardar una venta con "imprimir" ya no compite
+  visualmente con la palomita, (2) el preview se ve bien y su botón
+  "Imprimir" sí abre el diálogo de impresión real, (3) el ícono de fila
+  y "Ver venta" también abren el preview en vez de imprimir directo.
+  Sin commit/push todavía.
+
   168. **"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en
       navegador real (2026-08-31/09-01)**: usuario pidió un botón para
       "hacer el corte del día o varios días", manual, con selector de
