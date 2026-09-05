@@ -704,9 +704,9 @@ nuevo "Imprimir etiqueta de código de barras" en la categoría
 térmica/carta, código o SKU de respaldo sin captura manual. 100%
 texto. Validado por HTTP tras rebuild frontend.
 
-**Punto 209 (2026-09-05, IMPLEMENTADO — Jest backend 872/872 sin
-cambios, SIN clics reales en navegador esta sesión, extensión de Chrome
-desconectada)**: preview del ticket antes de imprimir en Ventas. La
+**Punto 209 (2026-09-05, IMPLEMENTADO Y VALIDADO — Jest backend 872/872
+sin cambios, CONFIRMADO por el usuario en navegador real)**: preview
+del ticket antes de imprimir en Ventas. La
 palomita "Guardado con éxito" y `window.print()` se disparaban casi al
 mismo tiempo al guardar con "imprimir" (competían visualmente) — ahora
 la secuencia es estricta: palomita completa (~1.3s) → se oculta sola →
@@ -718,7 +718,10 @@ fila, "Ver venta") pasan por el mismo preview, a pedido explícito del
 usuario tras confirmar el diseño. De paso, se quitó el único emoji
 🖨️ real que quedaba en el panel (botón "Imprimir ticket" de "Ver
 venta"). Validado por HTTP (modal/funciones confirmadas en lo
-servido) — falta confirmación visual con clics reales. Ver
+servido) y **confirmado por el usuario en navegador real** ("todo
+bien") — la extensión de Chrome no estaba conectada esta sesión de
+Claude Code, la verificación de clics reales la hizo el usuario.
+**Commiteado y pusheado** (`88779e5` → `fact/master`). Ver
 PROJECT_STATE.md punto 209.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio

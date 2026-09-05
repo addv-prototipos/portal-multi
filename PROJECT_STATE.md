@@ -10948,9 +10948,9 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
       `--force-recreate` frontend. Sin commit/push todavía.
 
 - **Preview del ticket antes de imprimir + secuencia palomita→imprimir en
-  Ventas (punto 209, 2026-09-05, IMPLEMENTADO — Jest backend 872/872 sin
-  cambios, SIN validar con clics reales en navegador esta sesión —
-  extensión de Chrome desconectada)**: a pedido del usuario. Protocolo
+  Ventas (punto 209, 2026-09-05, IMPLEMENTADO Y VALIDADO — Jest backend
+  872/872 sin cambios, CONFIRMADO por el usuario en navegador real)**:
+  a pedido del usuario. Protocolo
   completo — 2 preguntas de aclaración respondidas antes de tocar código
   (el problema real no era solo "cerrar ventanas", era que la palomita
   "Guardado con éxito" y `window.print()` se disparaban casi al mismo
@@ -10986,14 +10986,11 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   (1092/1092), Jest backend 872/872 (sin cambios, cambio 100%
   frontend). Validado por HTTP tras rebuild `--no-cache`+
   `--force-recreate` frontend (modal/funciones nuevas confirmadas en el
-  HTML/JS servido) — **sin confirmación visual con clics reales**, la
-  extensión de Chrome no estaba conectada esta sesión (2 intentos de
-  `tabs_context_mcp` fallaron). Pedir al usuario que confirme
-  visualmente: (1) guardar una venta con "imprimir" ya no compite
-  visualmente con la palomita, (2) el preview se ve bien y su botón
-  "Imprimir" sí abre el diálogo de impresión real, (3) el ícono de fila
-  y "Ver venta" también abren el preview en vez de imprimir directo.
-  Sin commit/push todavía.
+  HTML/JS servido). **Confirmado por el usuario en navegador real**
+  ("todo bien") — la extensión de Chrome no estaba conectada esta
+  sesión de Claude Code (2 intentos de `tabs_context_mcp` fallaron), así
+  que la verificación de clics reales la hizo el propio usuario, no
+  esta sesión. **Commiteado y pusheado** (`88779e5` → `fact/master`).
 
   168. **"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en
       navegador real (2026-08-31/09-01)**: usuario pidió un botón para
