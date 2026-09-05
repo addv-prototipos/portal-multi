@@ -11052,6 +11052,22 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   sin clics reales, mismo bloqueo de extensión de Chrome desconectada.
   Sin commit/push todavía.
 
+- **Quita el aviso de "cuenta admin/ADMIN_USERS" del login de `/admin`
+  (punto 211, 2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra
+  Docker real)**: a pedido del usuario, con una captura mostrando el
+  párrafo exacto. Ese `<p class="admin-login-hint">` (explicando que
+  las cuentas `admin`/`ADMIN_USERS` no tienen correo propio) solo vivía
+  en `frontend/admin.html` — `frontend/control.html` tiene SU PROPIO
+  aviso, con texto distinto y correcto para ese contexto ("Solo cuentas
+  con perfil 'super' pueden entrar aquí..."), sin tocar. La clase CSS
+  `.admin-login-hint` se queda (todavía la usan 3 párrafos de
+  `control.html`), solo se quitó el `<p>` de `admin.html`. Cero JS
+  involucrado (el párrafo era estático, sin lógica de mostrar/ocultar).
+  Validado por HTTP tras rebuild `--no-cache`+`--force-recreate`
+  frontend: el aviso desapareció de `/admin`, sigue intacto (3
+  apariciones) en `/control`. Jest backend 872/872 (sin cambios). Sin
+  commit/push todavía.
+
   168. **"Corte del día" en Ventas — IMPLEMENTADO Y VALIDADO en
       navegador real (2026-08-31/09-01)**: usuario pidió un botón para
       "hacer el corte del día o varios días", manual, con selector de

@@ -743,6 +743,13 @@ recorrido guiado de bienvenida (punto 192), `TOUR_PASO_AYUDA`
 compartido por los 3 perfiles con tour. Validado por HTTP — falta
 confirmación visual con clics reales. Ver PROJECT_STATE.md punto 210.
 
+**Punto 211 (2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: quitado el aviso "¿Usas la cuenta admin o alguna de
+ADMIN_USERS?..." del login de `/admin` — a pedido del usuario. Vivía
+solo en `frontend/admin.html`; `/control` tiene su propio aviso
+distinto, sin tocar. Jest backend 872/872 (sin cambios, HTML estático).
+Ver PROJECT_STATE.md punto 211.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
