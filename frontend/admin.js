@@ -2427,22 +2427,45 @@
     }
   }
 
+  // El aviso solo tiene sentido para quien puede ACTUAR sobre él — un
+  // perfil sin acceso a la tarjeta "Configuraciones fiscales" (hoy solo
+  // "ventas") no tiene forma de completar esos datos, así que mostrarle
+  // un aviso sin salida (y, peor, intentar navegarlo a una vista que ni
+  // siquiera puede ver) es puro ruido. Mismo mapa que
+  // aplicarRestriccionesPerfil(): sin entrada en RESTRICCIONES_PERFIL
+  // ("super") equivale a sin restricciones.
+  function puedeCompletarDatosFiscales() {
+    const restriccion = RESTRICCIONES_PERFIL[perfilActual];
+    return !restriccion || (restriccion.tarjetasConfigPermitidas || []).includes('global-config-card');
+  }
+
   // Ventana emergente al iniciar sesión si falta el RFC de la compañía
   // y/o el Código SAT — ver dónde se llama (solo con
   // { verificarFiscalFaltante: true }, no en cada apertura de la
-  // tarjeta de configuración).
+  // tarjeta de configuración). Reaparece en cada login mientras falten
+  // datos (igual que el checklist "Primeros pasos" — no se calla hasta
+  // completarse), pero solo para quien puede completarlos.
   function verificarDatosFiscalesFaltantes(config) {
     const faltaRfc = !(config.rfc_compania || '').trim();
     const faltaClaveSat = !(config.clave_sat || '').trim();
     datosFiscalesCompletos = !(faltaRfc || faltaClaveSat);
-    if (faltaRfc || faltaClaveSat) {
+    if ((faltaRfc || faltaClaveSat) && puedeCompletarDatosFiscales()) {
       els.configFiscalFaltanteOverlay.hidden = false;
     }
     renderOnboardingChecklist();
   }
 
+  // El único botón del aviso YA es la acción, no un simple "cerrar": lleva
+  // directo a la tarjeta "Configuraciones fiscales" con el foco en el
+  // control de subida de la constancia — el mismo destino que el texto
+  // del aviso ya describía en palabras, ahora es un solo clic.
   els.btnConfigFiscalFaltanteCerrar.addEventListener('click', () => {
     els.configFiscalFaltanteOverlay.hidden = true;
+    abrirConfigModal();
+    seleccionarSeccionConfig('global-config-card');
+    mostrarSeccionMovilConfig();
+    els.btnSubirConstanciaCompania?.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    els.btnSubirConstanciaCompania?.focus();
   });
   els.configFiscalFaltanteOverlay.addEventListener('click', (e) => {
     if (e.target === els.configFiscalFaltanteOverlay) {

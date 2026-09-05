@@ -13075,7 +13075,57 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   `--force-recreate` frontend: los 3 textos nuevos confirmados en el
   `admin.js` servido. Sin commit/push todavía.
 
-- **PENDIENTE — Redirección automática a configuración fiscal cuando faltan datos (2026-09-04):** a pedido del usuario, cuando los datos fiscales de la compañía no están configurados y aparece el aviso de "no configurado", el flujo debe mandar directamente al menú para subir la Constancia de Situación Fiscal y completar la configuración. Estado actual: el aviso existe (`frontend/admin.html`/`admin.js` punto 62 — modal al iniciar sesión si falta `rfc_compania`/`clave_sat`, `cargarConfigGlobal()` con `{ verificarFiscalFaltante: true }` solo desde `showDashboard()`, barra de sesión vía `aplicarInfoFiscalBarra()`), pero es solo informativo — no navega ni abre el destino. Destino pedido: tarjeta "Configuraciones fiscales" dentro de la vista "Configuraciones globales" (`frontend/admin.html`/`admin.js`), botón "Subir constancia de situación fiscal" (`POST /api/admin/config/constancia-compania` en `backend/server.js` que reutiliza `backend/utils/pdfExtract.js`: `extraerRFC`/`extraerNombreRazonSocial`/`extraerRegimenesFiscales`/`determinarTipoPersona` para autocompletar `rfc_compania`/`regimen_fiscal_compania`/`razon_social_compania`/`clave_sat`/`tipo_persona`, ver puntos 65-69). Alcance propuesto sin código tocado en este turno: al cerrar/aceptar el modal de "faltan datos fiscales", navegar automáticamente a `vista-configuraciones` + expandir la tarjeta "Configuraciones fiscales" + poner foco/scroll en el control de subida de constancia. Detalles a confirmar explícitamente antes de implementar (protocolo `addv-web-app`): si la navegación es automática al cerrar el modal o inmediata sin esperar interacción, si solo aplica a perfiles con permiso sobre esa tarjeta (`administrador`/`fiscal`/`super` según `RESTRICCIONES_PERFIL` y `requireAdminArea` en `backend/utils/auth.js`), y si el aviso debe reaparecer en cada login hasta completar los datos o solo la primera vez. Cero código tocado — solo documentación de pendiente, no avanzar sin confirmación explícita.
+- **Redirección automática a configuración fiscal cuando faltan datos —
+  CERRADO (punto 207, 2026-09-05, IMPLEMENTADO Y VALIDADO en navegador
+  real contra Docker/MySQL reales)**: retoma el pendiente del
+  2026-09-04. Protocolo completo (análisis del código real + crítica +
+  propuesta antes/después en chat + confirmación explícita). **Bug real
+  encontrado en el análisis, sin relación directa con el pedido original
+  pero que lo bloqueaba**: `showDashboard()` llama
+  `cargarConfigGlobal({ verificarFiscalFaltante: true })` sin condición
+  de perfil — el aviso "Falta configurar los datos fiscales" ya se le
+  mostraba también al perfil `ventas`, que no tiene NINGÚN acceso a
+  "Configuraciones globales" (`RESTRICCIONES_PERFIL.ventas.
+  tarjetasConfigPermitidas = []`, vista completa oculta) — un aviso sin
+  ninguna acción posible. Agregar navegación automática encima de eso
+  habría intentado mandar a Ventas a una vista que ni siquiera puede ver.
+  **Decisiones confirmadas por el usuario** (opción recomendada,
+  aprobada tal cual): (1) el aviso deja de mostrarse por completo para
+  perfiles sin acceso a la tarjeta fiscal (hoy solo `ventas`) — fix real,
+  no solo alcance reducido; (2) el único botón del modal ("Entendido")
+  se convierte en la acción misma — ahora dice "Ir a completar" y al
+  hacer clic cierra el aviso, abre "Configuraciones globales", selecciona
+  la tarjeta "Configuraciones fiscales" y pone foco+scroll en el botón
+  "Subir constancia de situación fiscal"; (3) sigue reapareciendo en
+  cada login mientras falten datos — mismo criterio que el checklist
+  "Primeros pasos" (persiste hasta completarse, no se calla con un
+  "ya lo vi"). Implementación: `puedeCompletarDatosFiscales()` nueva en
+  `admin.js` (mismo mapa `RESTRICCIONES_PERFIL` que ya usa
+  `aplicarRestriccionesPerfil()` — sin entrada en el mapa, como "super",
+  cuenta como sin restricciones); `verificarDatosFiscalesFaltantes()`
+  gana esa condición antes de mostrar el overlay; el listener de click
+  del botón pasó de solo `hidden = true` a encadenar `abrirConfigModal()`
+  + `seleccionarSeccionConfig('global-config-card')` +
+  `mostrarSeccionMovilConfig()` + `scrollIntoView` + `.focus()` sobre
+  `els.btnSubirConstanciaCompania` (respeta `prefers-reduced-motion` vía
+  `prefersReducedMotion()` ya existente). Texto del botón en
+  `admin.html`: "Entendido" → "Ir a completar". Cero cambio de backend.
+  `node --check` limpio, Jest backend 866/866 (sin cambios, corrido por
+  sanidad). **Validado en navegador real contra Docker/MySQL reales**
+  (Claude in Chrome): se vació temporalmente `clave_sat` vía la API real
+  (con el valor real respaldado de antes,
+  rfc=`ADD200127D12`/clave=`80111713`, restaurados al terminar) — con
+  perfil `super` (equivalente a administrador/fiscal para este flujo) el
+  aviso apareció, el botón "Ir a completar" navegó y dejó el foco
+  EXACTO en `#btn-subir-constancia-compania` (confirmado por
+  `document.activeElement.id`); se creó un usuario `ventas` temporal vía
+  la API real, se inició sesión con él de verdad, y el aviso NO apareció
+  pese a que `clave_sat` seguía vacío (`config-fiscal-faltante-overlay.
+  hidden === true`) — el fix del bug de Ventas confirmado de punta a
+  punta, no solo por lectura de código. Usuario de prueba eliminado y
+  configuración restaurada al terminar, verificado por SQL/API que el
+  entorno quedó exactamente como antes (0 usuarios, mismos valores
+  fiscales). Sin commit/push todavía.
 
 ## Dónde está todo (mapa rápido)
 

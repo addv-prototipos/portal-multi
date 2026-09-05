@@ -643,6 +643,24 @@ texto, cero UI/endpoint nuevo. `/control` y el portal de cliente
 confirmados sin nada nuevo que documentar esta sesión. Ver
 PROJECT_STATE.md punto 206.
 
+**Punto 207 (2026-09-05, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales)**: cierra el pendiente de redirección automática a
+"Configuraciones fiscales" cuando faltan datos (2026-09-04). Bug real
+encontrado en el análisis: el aviso se mostraba también al perfil
+`ventas`, que no tiene NINGÚN acceso a "Configuraciones globales" — un
+aviso sin ninguna acción posible, que además habría roto la navegación
+automática. Fix: `puedeCompletarDatosFiscales()` nueva gatea el aviso
+por perfil (mismo mapa `RESTRICCIONES_PERFIL`); el único botón del modal
+pasó de "Entendido" (solo cerraba) a "Ir a completar" (cierra, abre
+Configuraciones globales, selecciona la tarjeta fiscal, foco+scroll en
+"Subir constancia"); sigue reapareciendo cada login hasta completarse
+(mismo criterio que el checklist "Primeros pasos"). Cero backend. Jest
+866/866. Validado con clics reales en Docker/MySQL reales: navegación +
+foco exacto confirmados con perfil `super`; con un usuario `ventas`
+temporal real, el aviso NO aparece pese a datos fiscales realmente
+vacíos — entorno restaurado exactamente a su estado previo al terminar.
+Ver PROJECT_STATE.md punto 207.
+
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
