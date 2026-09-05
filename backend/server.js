@@ -79,6 +79,7 @@ const {
   detectRealImageMimeType,
   esZipValido,
   zipContienePdfYXml,
+  extraerTotalFacturaDeZip,
   sanitizeText,
   sanitizeTextoLibre,
   isValidEmail,
@@ -4121,6 +4122,7 @@ app.get(
 
     let sql = `SELECT t.id, t.folio, t.rfc, t.uso_cfdi, t.tipo_pago, t.tipo_pago_otro, t.comentarios,
                       t.imagen_nombre_original, t.estatus, t.factura_nombre_original, t.notas_admin,
+                      t.monto_factura, t.monto_factura_origen,
                       t.actualizado_por, t.eliminado_en, t.creado_en, t.actualizado_en,
                       oc.numero_compra AS orden_numero_compra,
                       oc.fecha_compra AS orden_fecha_compra,
@@ -4396,6 +4398,32 @@ app.post(
 
       req.file.originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
+      // Monto de la factura: negocios "solo facturas" (Ventas apagado, sin
+      // inventario/servicios) no tienen ninguna venta contra la cual
+      // verificar el ticket — no hay otro lugar que registre cuánto costó.
+      // Se intenta leer el Total real del CFDI (XML dentro del ZIP, ver
+      // extraerTotalFacturaDeZip); si no se pudo leer, se exige captura
+      // manual — el monto NUNCA queda vacío. Un valor leído del XML nunca
+      // se deja pisar por uno manual (es un CFDI ya timbrado, no es
+      // "corregible" a mano).
+      const totalExtraido = extraerTotalFacturaDeZip(req.file.buffer);
+      let montoFactura;
+      let montoFacturaOrigen;
+      if (totalExtraido !== null) {
+        montoFactura = totalExtraido;
+        montoFacturaOrigen = 'xml';
+      } else {
+        const montoManual = Number(req.body.montoFacturaManual);
+        if (!req.body.montoFacturaManual || !Number.isFinite(montoManual) || montoManual <= 0) {
+          return res.status(400).json({
+            error: 'No se pudo leer el monto de la factura desde el XML. Captúralo manualmente para continuar.',
+            codigo: 'FACTURA_MONTO_REQUERIDO',
+          });
+        }
+        montoFactura = Math.round(montoManual * 100) / 100;
+        montoFacturaOrigen = 'manual';
+      }
+
       const prefijoFactura = storage.prefijoTenant(req);
 
       // Borra la factura anterior si se esta reemplazando. DeleteObject es
@@ -4413,9 +4441,11 @@ app.post(
 
       await pool.query(
         `UPDATE tickets SET estatus = 'listo', factura_nombre_original = ?,
-           factura_nombre_guardado = ?, factura_mime = ?, actualizado_por = ?, actualizado_en = ?
+           factura_nombre_guardado = ?, factura_mime = ?, monto_factura = ?,
+           monto_factura_origen = ?, actualizado_por = ?, actualizado_en = ?
          WHERE id = ?`,
-        [req.file.originalname.slice(0, 255), storedFilename, 'application/zip', req.adminUser, new Date(), id]
+        [req.file.originalname.slice(0, 255), storedFilename, 'application/zip', montoFactura,
+          montoFacturaOrigen, req.adminUser, new Date(), id]
       );
 
       // Bug real corregido (2026-09-02): "facturado" se leía en vivo del
@@ -4450,7 +4480,12 @@ app.post(
         console.error('No se pudo notificar la factura lista al cliente:', err.message);
       });
 
-      res.json({ ok: true, mensaje: 'Factura cargada. El ticket se marcó como "listo".' });
+      res.json({
+        ok: true,
+        mensaje: 'Factura cargada. El ticket se marcó como "listo".',
+        monto_factura: montoFactura,
+        monto_factura_origen: montoFacturaOrigen,
+      });
     } catch (innerErr) {
       console.error('Error al guardar la factura:', innerErr);
       res.status(500).json({ error: 'Ocurrió un error interno. Intenta de nuevo.' });

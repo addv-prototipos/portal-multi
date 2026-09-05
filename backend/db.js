@@ -525,6 +525,31 @@ async function ensureSchema(db = pool) {
   if (!nombresColumnasTickets.includes('actualizado_por')) {
     await db.query('ALTER TABLE tickets ADD COLUMN actualizado_por VARCHAR(100) NULL');
   }
+  // Monto de la factura para negocios "solo facturas" (Ventas apagado, sin
+  // venta que verificar): al subir el ZIP se intenta leer el Total real
+  // del XML del CFDI (ver utils/validate.js:extraerTotalFacturaDeZip); si
+  // no se pudo leer, se exige captura manual — nunca queda vacío.
+  // "origen" distingue uno de otro porque un valor leído del XML (CFDI ya
+  // timbrado) no debe poder corregirse a mano después, a diferencia de uno
+  // capturado manualmente.
+  if (!nombresColumnasTickets.includes('monto_factura')) {
+    await db.query('ALTER TABLE tickets ADD COLUMN monto_factura DECIMAL(12,2) NULL');
+  }
+  if (!nombresColumnasTickets.includes('monto_factura_origen')) {
+    await db.query('ALTER TABLE tickets ADD COLUMN monto_factura_origen VARCHAR(10) NULL');
+  }
+
+  const [checksMontoFacturaOrigen] = await db.query(
+    `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'tickets'
+       AND CONSTRAINT_NAME = 'chk_tickets_monto_factura_origen'`
+  );
+  if (checksMontoFacturaOrigen.length === 0) {
+    await db.query(
+      `ALTER TABLE tickets ADD CONSTRAINT chk_tickets_monto_factura_origen
+       CHECK (monto_factura_origen IS NULL OR monto_factura_origen IN ('xml', 'manual'))`
+    );
+  }
 
   const [checksTicket] = await db.query(
     `SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS

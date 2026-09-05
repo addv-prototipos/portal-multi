@@ -1,3 +1,4 @@
+const zlib = require('zlib');
 const {
   ALLOWED_MIME_TYPES,
   ALLOWED_EXTENSIONS,
@@ -7,6 +8,8 @@ const {
   detectRealImageMimeType,
   esZipValido,
   zipContienePdfYXml,
+  extraerTotalFacturaDeZip,
+  extraerTotalCfdi,
   sanitizeText,
   sanitizeTextoLibre,
   isValidEmail,
@@ -139,6 +142,123 @@ describe('validate.js', () => {
     test('zip corrupto no lanza error y devuelve ambos en false', () => {
       const resultado = zipContienePdfYXml(Buffer.from([0x00, 0x01, 0x02]));
       expect(resultado).toEqual({ tienePdf: false, tieneXml: false, valido: false });
+    });
+  });
+
+  // Construye un ZIP real (encabezado local + datos + directorio central +
+  // EOCD, con offsets correctos) para probar la extracción de contenido —
+  // a diferencia de construirZipConNombres (arriba), aquí sí hay bytes
+  // reales que descomprimir.
+  function construirZipConArchivos(archivos) {
+    const partesLocales = [];
+    const entradasCentral = [];
+    let offset = 0;
+
+    archivos.forEach(({ nombre, contenido, comprimir }) => {
+      const nombreBuf = Buffer.from(nombre, 'utf8');
+      const datos = comprimir ? zlib.deflateRawSync(contenido) : contenido;
+      const metodo = comprimir ? 8 : 0;
+
+      const localHeader = Buffer.alloc(30);
+      localHeader.write('PK\x03\x04', 0, 'binary');
+      localHeader.writeUInt16LE(metodo, 8);
+      localHeader.writeUInt32LE(datos.length, 18);
+      localHeader.writeUInt32LE(contenido.length, 22);
+      localHeader.writeUInt16LE(nombreBuf.length, 26);
+
+      const localOffset = offset;
+      const entradaLocal = Buffer.concat([localHeader, nombreBuf, datos]);
+      partesLocales.push(entradaLocal);
+      offset += entradaLocal.length;
+
+      const centralHeader = Buffer.alloc(46);
+      centralHeader.write('PK\x01\x02', 0, 'binary');
+      centralHeader.writeUInt16LE(metodo, 10);
+      centralHeader.writeUInt32LE(datos.length, 20);
+      centralHeader.writeUInt16LE(nombreBuf.length, 28);
+      centralHeader.writeUInt32LE(localOffset, 42);
+      entradasCentral.push(Buffer.concat([centralHeader, nombreBuf]));
+    });
+
+    const datosLocales = Buffer.concat(partesLocales);
+    const central = Buffer.concat(entradasCentral);
+
+    const eocd = Buffer.alloc(22);
+    eocd.write('PK\x05\x06', 0, 'binary');
+    eocd.writeUInt16LE(archivos.length, 10);
+    eocd.writeUInt32LE(datosLocales.length, 16); // offset del directorio central
+
+    return Buffer.concat([datosLocales, central, eocd]);
+  }
+
+  describe('extraerTotalCfdi', () => {
+    test('extrae el Total del ejemplo real', () => {
+      const xml = '<cfdi:Comprobante Version="4.0" SubTotal="14000.00" Total="16240.00" Fecha="2026-01-01T00:00:00">contenido</cfdi:Comprobante>';
+      expect(extraerTotalCfdi(xml)).toBe(16240);
+    });
+
+    test('no confunde "SubTotal=" con "Total=" (sin frontera de palabra)', () => {
+      const xml = '<cfdi:Comprobante Version="4.0" SubTotal="14000.00">sin total real</cfdi:Comprobante>';
+      expect(extraerTotalCfdi(xml)).toBeNull();
+    });
+
+    test('no confunde "TotalImpuestosTrasladados=" con "Total=" real', () => {
+      const xml = '<cfdi:Comprobante TotalImpuestosTrasladados="2240.00" Total="16240.00">x</cfdi:Comprobante>';
+      expect(extraerTotalCfdi(xml)).toBe(16240);
+    });
+
+    test('sin atributo Total en la etiqueta raíz devuelve null', () => {
+      expect(extraerTotalCfdi('<cfdi:Comprobante Version="4.0">sin total</cfdi:Comprobante>')).toBeNull();
+    });
+
+    test('Total en cero o negativo se descarta', () => {
+      expect(extraerTotalCfdi('<cfdi:Comprobante Total="0.00">x</cfdi:Comprobante>')).toBeNull();
+    });
+
+    test('entrada no-string o vacía devuelve null', () => {
+      expect(extraerTotalCfdi(null)).toBeNull();
+      expect(extraerTotalCfdi(undefined)).toBeNull();
+      expect(extraerTotalCfdi('')).toBeNull();
+    });
+  });
+
+  describe('extraerTotalFacturaDeZip', () => {
+    test('lee el Total desde un XML sin comprimir (método 0) dentro del ZIP', () => {
+      const xml = Buffer.from('<cfdi:Comprobante Version="4.0" Total="16240.00"></cfdi:Comprobante>', 'utf8');
+      const zip = construirZipConArchivos([{ nombre: 'factura.xml', contenido: xml, comprimir: false }]);
+      expect(extraerTotalFacturaDeZip(zip)).toBe(16240);
+    });
+
+    test('lee el Total desde un XML comprimido con deflate (método 8) dentro del ZIP', () => {
+      const xml = Buffer.from('<cfdi:Comprobante Version="4.0" Total="16240.00"></cfdi:Comprobante>', 'utf8');
+      const zip = construirZipConArchivos([{ nombre: 'factura.xml', contenido: xml, comprimir: true }]);
+      expect(extraerTotalFacturaDeZip(zip)).toBe(16240);
+    });
+
+    test('encuentra el XML aunque el PDF venga primero dentro del ZIP', () => {
+      const pdf = Buffer.from('%PDF-1.4 contenido falso');
+      const xml = Buffer.from('<cfdi:Comprobante Total="500.50"></cfdi:Comprobante>');
+      const zip = construirZipConArchivos([
+        { nombre: 'factura.pdf', contenido: pdf, comprimir: false },
+        { nombre: 'factura.xml', contenido: xml, comprimir: true },
+      ]);
+      expect(extraerTotalFacturaDeZip(zip)).toBe(500.5);
+    });
+
+    test('sin XML dentro del ZIP devuelve null', () => {
+      const pdf = Buffer.from('%PDF-1.4');
+      const zip = construirZipConArchivos([{ nombre: 'factura.pdf', contenido: pdf, comprimir: false }]);
+      expect(extraerTotalFacturaDeZip(zip)).toBeNull();
+    });
+
+    test('XML sin Total válido dentro del ZIP devuelve null', () => {
+      const xml = Buffer.from('<cfdi:Comprobante Version="4.0"></cfdi:Comprobante>');
+      const zip = construirZipConArchivos([{ nombre: 'factura.xml', contenido: xml, comprimir: false }]);
+      expect(extraerTotalFacturaDeZip(zip)).toBeNull();
+    });
+
+    test('zip corrupto no lanza error, devuelve null', () => {
+      expect(extraerTotalFacturaDeZip(Buffer.from([0x00, 0x01]))).toBeNull();
     });
   });
 

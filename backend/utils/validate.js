@@ -1,4 +1,5 @@
 const validator = require('validator');
+const zlib = require('zlib');
 
 // Solo se aceptan PDF para la constancia fiscal: la Constancia de Situación
 // Fiscal / Cédula de Identificación Fiscal del SAT siempre se emite en este
@@ -150,6 +151,130 @@ function zipContienePdfYXml(buffer) {
   return { tienePdf, tieneXml, valido: tienePdf && tieneXml };
 }
 
+// ---------- Extracción de contenido de un archivo dentro del ZIP ----------
+// Mismo criterio que listarArchivosEnZip: nada de librerías nuevas de ZIP.
+// El directorio central YA trae el método de compresión, el tamaño
+// comprimido y el offset real del encabezado LOCAL de cada archivo — con
+// eso alcanza para ubicar y descomprimir solo el archivo que interesa (el
+// XML de la factura), sin tocar el resto del ZIP.
+const FIRMA_LOCAL = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // "PK\x03\x04"
+
+function listarEntradasConOffset(buffer) {
+  try {
+    const offsetEOCD = encontrarEOCD(buffer);
+    if (offsetEOCD === -1) return [];
+
+    const totalEntradas = buffer.readUInt16LE(offsetEOCD + 10);
+    let offsetCD = buffer.readUInt32LE(offsetEOCD + 16);
+
+    const entradas = [];
+    for (let i = 0; i < totalEntradas; i++) {
+      if (offsetCD + 46 > buffer.length) break;
+      if (!buffer.slice(offsetCD, offsetCD + 4).equals(FIRMA_CENTRAL)) break;
+
+      const metodoCompresion = buffer.readUInt16LE(offsetCD + 10);
+      const tamanoComprimido = buffer.readUInt32LE(offsetCD + 20);
+      const longitudNombre = buffer.readUInt16LE(offsetCD + 28);
+      const longitudExtra = buffer.readUInt16LE(offsetCD + 30);
+      const longitudComentario = buffer.readUInt16LE(offsetCD + 32);
+      const offsetHeaderLocal = buffer.readUInt32LE(offsetCD + 42);
+
+      const inicioNombre = offsetCD + 46;
+      const finNombre = inicioNombre + longitudNombre;
+      if (finNombre > buffer.length) break;
+
+      entradas.push({
+        nombre: buffer.slice(inicioNombre, finNombre).toString('utf8'),
+        metodoCompresion,
+        tamanoComprimido,
+        offsetHeaderLocal,
+      });
+      offsetCD = finNombre + longitudExtra + longitudComentario;
+    }
+    return entradas;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Extrae y descomprime el contenido de la PRIMERA entrada del ZIP cuyo
+ * nombre cumpla `coincide(nombre)`. Devuelve un Buffer con el contenido ya
+ * descomprimido, o null si no se encontró la entrada, el ZIP está
+ * corrupto/truncado, o el método de compresión no es uno de los dos que
+ * soporta (0 = sin comprimir, 8 = deflate — el único que generan los CFDI
+ * reales) — nunca lanza error, mismo criterio que listarArchivosEnZip.
+ */
+function extraerArchivoDeZip(buffer, coincide) {
+  try {
+    const entradas = listarEntradasConOffset(buffer);
+    const entrada = entradas.find((e) => coincide(e.nombre));
+    if (!entrada) return null;
+
+    const offsetLocal = entrada.offsetHeaderLocal;
+    if (offsetLocal + 30 > buffer.length) return null;
+    if (!buffer.slice(offsetLocal, offsetLocal + 4).equals(FIRMA_LOCAL)) return null;
+
+    const longitudNombreLocal = buffer.readUInt16LE(offsetLocal + 26);
+    const longitudExtraLocal = buffer.readUInt16LE(offsetLocal + 28);
+    const inicioDatos = offsetLocal + 30 + longitudNombreLocal + longitudExtraLocal;
+    const finDatos = inicioDatos + entrada.tamanoComprimido;
+    if (finDatos > buffer.length) return null;
+
+    const datosComprimidos = buffer.slice(inicioDatos, finDatos);
+
+    if (entrada.metodoCompresion === 0) return datosComprimidos; // sin comprimir
+    if (entrada.metodoCompresion === 8) return zlib.inflateRawSync(datosComprimidos); // deflate
+    return null; // método no soportado (rarísimo en un CFDI real)
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Extrae el Total de un CFDI a partir del texto de su XML. El Total
+ * SIEMPRE vive como atributo del elemento raíz <cfdi:Comprobante ...>,
+ * nunca dentro de un Concepto o Complemento — la búsqueda se acota a esa
+ * sola etiqueta de apertura (hasta el primer ">") para no confundirlo con
+ * "SubTotal=" (sin frontera de palabra entre "Sub" y "Total", así que \b
+ * ya lo descarta) ni con "TotalImpuestosTrasladados="/"...Retenidos="
+ * (ahí, después de "Total", sigue "Impuestos", no el signo "=").
+ */
+function extraerTotalCfdi(xmlTexto) {
+  if (typeof xmlTexto !== 'string' || !xmlTexto.trim()) return null;
+
+  const finEtiquetaRaiz = xmlTexto.indexOf('>');
+  if (finEtiquetaRaiz === -1) return null;
+  const etiquetaRaiz = xmlTexto.slice(0, finEtiquetaRaiz + 1);
+
+  const match = etiquetaRaiz.match(/\bTotal\s*=\s*"([0-9]+(?:\.[0-9]{1,6})?)"/);
+  if (!match) return null;
+
+  const valor = Number(match[1]);
+  if (!Number.isFinite(valor) || valor <= 0) return null;
+
+  return Math.round(valor * 100) / 100; // 2 decimales, sin polvo flotante
+}
+
+/**
+ * Combina extraerArchivoDeZip + extraerTotalCfdi: busca el primer .xml
+ * dentro del ZIP de una factura, lo descomprime, y le extrae el Total.
+ * Devuelve null si cualquier paso falla (ZIP sin XML legible, o sin un
+ * Total válido en la etiqueta raíz) — el llamador decide qué hacer en ese
+ * caso (pedir el monto a mano, en vez de rechazar toda la subida).
+ */
+function extraerTotalFacturaDeZip(buffer) {
+  const xmlBuffer = extraerArchivoDeZip(buffer, (nombre) => nombre.toLowerCase().endsWith('.xml'));
+  if (!xmlBuffer) return null;
+  let xmlTexto;
+  try {
+    xmlTexto = xmlBuffer.toString('utf8');
+  } catch (e) {
+    return null;
+  }
+  return extraerTotalCfdi(xmlTexto);
+}
+
 function detectRealMimeType(buffer) {
   for (const sig of MAGIC_SIGNATURES) {
     if (buffer.length >= sig.bytes.length) {
@@ -278,6 +403,8 @@ module.exports = {
   detectRealImageMimeType,
   esZipValido,
   zipContienePdfYXml,
+  extraerTotalFacturaDeZip,
+  extraerTotalCfdi,
   sanitizeText,
   sanitizeTextoLibre,
   isValidEmail,

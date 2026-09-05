@@ -1,4 +1,5 @@
 const request = require('supertest');
+const zlib = require('zlib');
 
 jest.mock('../../db', () => ({
   pool: { query: jest.fn(), getConnection: jest.fn() },
@@ -9,9 +10,92 @@ jest.mock('nodemailer', () => ({
   createTransport: jest.fn(() => ({ sendMail: jest.fn().mockResolvedValue({}) })),
 }));
 
+// La subida de factura de un ticket usa MinIO (mismo criterio que
+// gastos.test.js/csf-publico.test.js) — sin mockear, estas llamadas
+// intentarían una conexión real.
+jest.mock('../../utils/storage', () => ({
+  PREFIJO_DEFECTO: '_default',
+  prefijoTenant: jest.fn(() => '_default'),
+  guardarArchivo: jest.fn().mockResolvedValue(undefined),
+  existeArchivo: jest.fn().mockResolvedValue(true),
+  eliminarArchivo: jest.fn().mockResolvedValue(undefined),
+  enviarArchivoARespuesta: jest.fn((prefijo, carpeta, nombreArchivo, res) => {
+    res.end(Buffer.from('contenido-simulado'));
+    return Promise.resolve();
+  }),
+}));
+
 const { pool } = require('../../db');
 const { hashPassword } = require('../../utils/authUsuario');
+const storage = require('../../utils/storage');
 const app = require('../../server');
+
+// Construye un ZIP real (encabezado local + datos + directorio central +
+// EOCD con offsets correctos) — mismo helper que
+// test/unit/validate.test.js, duplicado aquí porque son contextos de
+// prueba distintos (unit vs. integración con supertest).
+function construirZipConArchivos(archivos) {
+  const partesLocales = [];
+  const entradasCentral = [];
+  let offset = 0;
+
+  archivos.forEach(({ nombre, contenido, comprimir }) => {
+    const nombreBuf = Buffer.from(nombre, 'utf8');
+    const datos = comprimir ? zlib.deflateRawSync(contenido) : contenido;
+    const metodo = comprimir ? 8 : 0;
+
+    const localHeader = Buffer.alloc(30);
+    localHeader.write('PK\x03\x04', 0, 'binary');
+    localHeader.writeUInt16LE(metodo, 8);
+    localHeader.writeUInt32LE(datos.length, 18);
+    localHeader.writeUInt32LE(contenido.length, 22);
+    localHeader.writeUInt16LE(nombreBuf.length, 26);
+
+    const localOffset = offset;
+    const entradaLocal = Buffer.concat([localHeader, nombreBuf, datos]);
+    partesLocales.push(entradaLocal);
+    offset += entradaLocal.length;
+
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.write('PK\x01\x02', 0, 'binary');
+    centralHeader.writeUInt16LE(metodo, 10);
+    centralHeader.writeUInt32LE(datos.length, 20);
+    centralHeader.writeUInt16LE(nombreBuf.length, 28);
+    centralHeader.writeUInt32LE(localOffset, 42);
+    entradasCentral.push(Buffer.concat([centralHeader, nombreBuf]));
+  });
+
+  const datosLocales = Buffer.concat(partesLocales);
+  const central = Buffer.concat(entradasCentral);
+
+  const eocd = Buffer.alloc(22);
+  eocd.write('PK\x05\x06', 0, 'binary');
+  eocd.writeUInt16LE(archivos.length, 10);
+  eocd.writeUInt32LE(datosLocales.length, 16);
+
+  return Buffer.concat([datosLocales, central, eocd]);
+}
+
+const PDF_FACTURA_BUFFER = Buffer.from('%PDF-1.4 contenido simulado de factura');
+
+function zipFacturaConTotal(total) {
+  const xml = Buffer.from(
+    `<cfdi:Comprobante Version="4.0" SubTotal="0.00" Total="${total}"></cfdi:Comprobante>`,
+    'utf8'
+  );
+  return construirZipConArchivos([
+    { nombre: 'factura.pdf', contenido: PDF_FACTURA_BUFFER, comprimir: false },
+    { nombre: 'factura.xml', contenido: xml, comprimir: true },
+  ]);
+}
+
+function zipFacturaSinTotal() {
+  const xml = Buffer.from('<cfdi:Comprobante Version="4.0"></cfdi:Comprobante>', 'utf8');
+  return construirZipConArchivos([
+    { nombre: 'factura.pdf', contenido: PDF_FACTURA_BUFFER, comprimir: false },
+    { nombre: 'factura.xml', contenido: xml, comprimir: true },
+  ]);
+}
 
 // requireAdminAuth prueba, en orden, ADMIN_USERS -> cuenta de respaldo
 // "admin" en MySQL -> usuarios con perfil administrador/fiscal en MySQL.
@@ -29,6 +113,8 @@ describe('Admin', () => {
     // porque pool.query se encola por test y varias rutas de administración
     // tienen ramas que retornan antes de consumir todo lo encolado.
     pool.query.mockReset();
+    storage.eliminarArchivo.mockClear();
+    storage.guardarArchivo.mockClear();
   });
 
   describe('GET /api/admin/login (verificación de credenciales)', () => {
@@ -391,6 +477,100 @@ describe('Admin', () => {
 
       expect(res.status).toBe(502);
       expect(res.body.error).toMatch(/no está configurado/);
+    });
+  });
+
+  describe('POST /api/admin/tickets/:id/factura (monto de la factura, negocios sin venta que verificar)', () => {
+    test('con Total leíble en el XML, factura con monto_factura_origen "xml"', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 5, rfc: 'AAA010101AAA', folio: 'TK-000005', factura_nombre_guardado: null, orden_compra_id: null }],
+      ]); // SELECT ticket
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE tickets
+
+      const res = await request(app)
+        .post('/api/admin/tickets/5/factura')
+        .auth(usuario, password)
+        .attach('factura', zipFacturaConTotal('16240.00'), 'factura.zip');
+
+      expect(res.status).toBe(200);
+      expect(res.body.monto_factura).toBe(16240);
+      expect(res.body.monto_factura_origen).toBe('xml');
+
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate).toContain(16240);
+      expect(paramsUpdate).toContain('xml');
+    });
+
+    test('sin Total en el XML y sin monto manual, responde 400 FACTURA_MONTO_REQUERIDO', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 6, rfc: 'AAA010101AAA', folio: 'TK-000006', factura_nombre_guardado: null, orden_compra_id: null }],
+      ]); // SELECT ticket
+
+      const res = await request(app)
+        .post('/api/admin/tickets/6/factura')
+        .auth(usuario, password)
+        .attach('factura', zipFacturaSinTotal(), 'factura.zip');
+
+      expect(res.status).toBe(400);
+      expect(res.body.codigo).toBe('FACTURA_MONTO_REQUERIDO');
+    });
+
+    test('sin Total en el XML, con monto manual válido, factura con monto_factura_origen "manual"', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 7, rfc: 'AAA010101AAA', folio: 'TK-000007', factura_nombre_guardado: null, orden_compra_id: null }],
+      ]); // SELECT ticket
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE tickets
+
+      const res = await request(app)
+        .post('/api/admin/tickets/7/factura')
+        .auth(usuario, password)
+        .field('montoFacturaManual', '5000.75')
+        .attach('factura', zipFacturaSinTotal(), 'factura.zip');
+
+      expect(res.status).toBe(200);
+      expect(res.body.monto_factura).toBe(5000.75);
+      expect(res.body.monto_factura_origen).toBe('manual');
+
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate).toContain(5000.75);
+      expect(paramsUpdate).toContain('manual');
+    });
+
+    test('monto manual en cero o negativo, sin Total en el XML, responde 400 FACTURA_MONTO_REQUERIDO', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 8, rfc: 'AAA010101AAA', folio: 'TK-000008', factura_nombre_guardado: null, orden_compra_id: null }],
+      ]); // SELECT ticket
+
+      const res = await request(app)
+        .post('/api/admin/tickets/8/factura')
+        .auth(usuario, password)
+        .field('montoFacturaManual', '0')
+        .attach('factura', zipFacturaSinTotal(), 'factura.zip');
+
+      expect(res.status).toBe(400);
+      expect(res.body.codigo).toBe('FACTURA_MONTO_REQUERIDO');
+    });
+
+    test('un monto manual capturado se IGNORA si el XML sí trae un Total real (no es "corregible")', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 9, rfc: 'AAA010101AAA', folio: 'TK-000009', factura_nombre_guardado: null, orden_compra_id: null }],
+      ]); // SELECT ticket
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE tickets
+
+      const res = await request(app)
+        .post('/api/admin/tickets/9/factura')
+        .auth(usuario, password)
+        .field('montoFacturaManual', '1.00')
+        .attach('factura', zipFacturaConTotal('16240.00'), 'factura.zip');
+
+      expect(res.status).toBe(200);
+      expect(res.body.monto_factura).toBe(16240);
+      expect(res.body.monto_factura_origen).toBe('xml');
     });
   });
 });
