@@ -1,7 +1,7 @@
 const { pool } = require('../db');
 const { getConfiguracionGlobal, formatearFechaHoraMexico } = require('./config');
-const { enviarCorreo } = require('./email');
-const { MARCA_DEFECTO, construirCorreoBase } = require('./correoMarca');
+const { enviarCorreo, getConfigSmtp, aplicarPlantilla, DEFAULTS_SMTP } = require('./email');
+const { MARCA_DEFECTO, construirCorreoBase, escapeHtmlCorreo } = require('./correoMarca');
 
 // Este módulo es el motor central de "Reportes": arma el contenido en
 // Markdown, guarda los datos estructurados para poder filtrarlos/
@@ -263,6 +263,17 @@ async function generarYEnviarReporte({
       // (cierreMensual.js, ticketsCleanup.js — sin un req del que
       // detectar la URL del logo) los dejan sin definir y el correo cae
       // al logo/color CLARVO por defecto, nunca se rompe por su ausencia.
+      // Punto 214: texto personalizable por el administrador (super),
+      // mismo mecanismo que los demás correos con plantilla. Los
+      // llamadores en segundo plano (cierreMensual.js, ticketsCleanup.js)
+      // no tienen `req` del que leer nada más, pero `getConfigSmtp()` no
+      // depende de uno — funciona igual aquí.
+      const configSmtpReporte = await getConfigSmtp();
+      const cuerpoReporte = aplicarPlantilla(
+        (configSmtpReporte && configSmtpReporte.cuerpo_reporte) || DEFAULTS_SMTP.cuerpo_reporte,
+        { fecha: fechaGeneracionFormateada.fecha, hora: fechaGeneracionFormateada.hora }
+      );
+
       const { html, texto, adjuntos: adjuntosMarca } = construirCorreoBase({
         marca: marca || MARCA_DEFECTO,
         logoUrl,
@@ -275,9 +286,11 @@ async function generarYEnviarReporte({
           { etiqueta: 'Ventas', valor: String(items.filter((i) => i.tipo_registro === 'orden_compra').length) },
           { etiqueta: 'Gastos', valor: String(items.filter((i) => i.tipo_registro === 'gasto').length) },
         ],
-        parrafos: [
-          `Se adjunta el reporte generado el ${fechaGeneracionFormateada.fecha} a las ${fechaGeneracionFormateada.hora}.`,
-        ],
+        parrafos: cuerpoReporte
+          .split('\n')
+          .map((linea) => linea.trim())
+          .filter(Boolean)
+          .map((linea) => escapeHtmlCorreo(linea)),
       });
 
       await enviarCorreo({

@@ -77,7 +77,13 @@
     smtpNombreRemitente: document.getElementById('smtp-nombre-remitente'),
     smtpCorreoRemitente: document.getElementById('smtp-correo-remitente'),
     smtpCorreoContador: document.getElementById('smtp-correo-contador'),
-    smtpCuerpoCliente: document.getElementById('smtp-cuerpo-cliente'),
+    // Plantillas de correo (punto 214)
+    plantillasTabs: document.querySelectorAll('.plantillas-tab'),
+    plantillaTriggerDesc: document.getElementById('plantilla-trigger-desc'),
+    plantillaVars: document.getElementById('plantilla-vars'),
+    plantillaTexto: document.getElementById('plantilla-texto'),
+    btnRestablecerPlantilla: document.getElementById('btn-restablecer-plantilla'),
+    plantillaPreviewFrame: document.getElementById('plantilla-preview-frame'),
     btnGuiaSmtpGmail: document.getElementById('btn-guia-smtp-gmail'),
     guiaSmtpGmailCuerpo: document.getElementById('guia-smtp-gmail-cuerpo'),
     smtpConfigError: document.getElementById('smtp-config-error'),
@@ -3661,6 +3667,114 @@
     els.btnToggleSmtpPassword.classList.toggle('is-visible', mostrando);
   });
 
+  // ---------- Plantillas de correo (punto 214) ----------
+  // 5 correos que comparten el mismo cascarón de marca (construirCorreoBase
+  // en el backend) — el admin solo edita texto, nunca branding. Ticket de
+  // venta y aclaraciones quedan fuera (ver PROJECT_STATE.md punto 214: el
+  // primero tiene su propio diseño + instrucciones funcionales de las que
+  // depende el flujo de solicitar factura; el segundo es el mensaje del
+  // cliente, no una plantilla).
+  const PLANTILLAS_CORREO = {
+    invitacion: {
+      campo: 'cuerpo_invitacion',
+      desc: 'Se envía al dar de alta un usuario en "Usuarios" (administrador, fiscal o cliente). Asunto fijo: "Te invitamos a Portal Clarvo tu negocio en orden".',
+      vars: [
+        { nombre: '{perfil}', desc: 'Perfil de la cuenta creada' },
+        { nombre: '{usuario}', desc: 'RFC o nombre de usuario' },
+      ],
+    },
+    recuperacion: {
+      campo: 'cuerpo_recuperacion',
+      desc: 'Se envía cuando alguien pide "¿Olvidaste tu contraseña?" en el login. Asunto fijo: "Recupera tu acceso — Portal Clarvo tu negocio en orden".',
+      vars: [],
+    },
+    aviso_contador: {
+      campo: 'cuerpo_aviso_contador',
+      desc: 'Se envía al "Correo de quien va a facturar" (arriba) cada vez que un cliente sube un ticket nuevo.',
+      vars: [
+        { nombre: '{rfc}', desc: 'RFC del cliente' },
+        { nombre: '{folio}', desc: 'Folio del ticket' },
+      ],
+    },
+    cliente: {
+      campo: 'cuerpo_cliente',
+      desc: 'Se envía al cliente (el correo de su constancia) en cuanto subes su factura. Asunto fijo: "Factura lista — Folio ...".',
+      vars: [
+        { nombre: '{folio}', desc: 'Folio del ticket' },
+        { nombre: '{rfc}', desc: 'RFC del cliente' },
+        { nombre: '{marca}', desc: 'Nombre de marca' },
+      ],
+    },
+    reporte: {
+      campo: 'cuerpo_reporte',
+      desc: 'Se envía al correo de reportes (Configuración Reportes) cada vez que se genera o se envía un reporte manual.',
+      vars: [
+        { nombre: '{fecha}', desc: 'Fecha de generación' },
+        { nombre: '{hora}', desc: 'Hora de generación' },
+      ],
+    },
+  };
+
+  let plantillaActual = 'invitacion';
+  let plantillasTextos = {};
+  let plantillasDefaults = {};
+  let plantillaPreviewTimer = null;
+
+  async function actualizarPreviewPlantilla() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/config/smtp/preview`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo: plantillaActual, texto: els.plantillaTexto.value }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      els.plantillaPreviewFrame.srcdoc = data.html || '';
+    } catch (err) {
+      // Sin vista previa, el textarea sigue siendo editable con normalidad.
+    }
+  }
+
+  function programarPreviewPlantilla() {
+    clearTimeout(plantillaPreviewTimer);
+    plantillaPreviewTimer = setTimeout(actualizarPreviewPlantilla, 400);
+  }
+
+  function seleccionarPlantilla(id) {
+    plantillaActual = id;
+    els.plantillasTabs.forEach((btn) => {
+      const activo = btn.dataset.plantilla === id;
+      btn.classList.toggle('is-active', activo);
+      btn.setAttribute('aria-selected', activo ? 'true' : 'false');
+    });
+    const def = PLANTILLAS_CORREO[id];
+    els.plantillaTriggerDesc.textContent = def.desc;
+    els.plantillaVars.innerHTML = def.vars.length
+      ? def.vars.map((v) => `<span class="var-chip" data-tooltip="${escapeHtml(v.desc)}">${escapeHtml(v.nombre)}</span>`).join('')
+      : '';
+    els.plantillaTexto.value = plantillasTextos[id] || '';
+    actualizarPreviewPlantilla();
+  }
+
+  els.plantillasTabs.forEach((btn) => {
+    btn.addEventListener('click', () => seleccionarPlantilla(btn.dataset.plantilla));
+  });
+
+  els.plantillaTexto.addEventListener('input', () => {
+    plantillasTextos[plantillaActual] = els.plantillaTexto.value;
+    programarPreviewPlantilla();
+  });
+
+  els.btnRestablecerPlantilla.addEventListener('click', () => {
+    const campo = PLANTILLAS_CORREO[plantillaActual].campo;
+    const textoDefault = plantillasDefaults[campo] || '';
+    els.plantillaTexto.value = textoDefault;
+    plantillasTextos[plantillaActual] = textoDefault;
+    actualizarPreviewPlantilla();
+  });
+
   async function cargarConfigSmtp() {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
@@ -3678,7 +3792,17 @@
       els.smtpNombreRemitente.value = data.nombreRemitente || data.nombre_remitente || '';
       els.smtpCorreoRemitente.value = data.correoRemitente || data.correo_remitente || '';
       els.smtpCorreoContador.value = data.correo_contador || '';
-      els.smtpCuerpoCliente.value = data.cuerpo_cliente || '';
+
+      plantillasDefaults = data.defaultsPlantillas || {};
+      plantillasTextos = {
+        invitacion: data.cuerpo_invitacion || '',
+        recuperacion: data.cuerpo_recuperacion || '',
+        aviso_contador: data.cuerpo_aviso_contador || '',
+        cliente: data.cuerpo_cliente || '',
+        reporte: data.cuerpo_reporte || '',
+      };
+      seleccionarPlantilla(plantillaActual);
+
       els.smtpPassword.value = '';
       els.smtpPasswordHint.textContent = data.passwordConfigurada
         ? 'Ya hay una contraseña guardada. Déjala en blanco para conservarla, o escribe una nueva para reemplazarla.'
@@ -3714,7 +3838,6 @@
     const nombreRemitente = els.smtpNombreRemitente.value.trim();
     const correoRemitente = els.smtpCorreoRemitente.value.trim();
     const correoContador = els.smtpCorreoContador.value.trim();
-    const cuerpoCliente = els.smtpCuerpoCliente.value.trim();
 
     if (!host) {
       els.smtpConfigError.textContent = 'El host SMTP es obligatorio.';
@@ -3747,7 +3870,11 @@
           nombre_remitente: nombreRemitente,
           correo_remitente: correoRemitente,
           correo_contador: correoContador,
-          cuerpo_cliente: cuerpoCliente,
+          cuerpo_invitacion: plantillasTextos.invitacion,
+          cuerpo_recuperacion: plantillasTextos.recuperacion,
+          cuerpo_aviso_contador: plantillasTextos.aviso_contador,
+          cuerpo_cliente: plantillasTextos.cliente,
+          cuerpo_reporte: plantillasTextos.reporte,
         }),
       });
       const data = await res.json().catch(() => ({}));

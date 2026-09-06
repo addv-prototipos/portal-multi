@@ -480,6 +480,54 @@ describe('Admin', () => {
     });
   });
 
+  describe('POST /api/admin/config/smtp/preview (punto 214)', () => {
+    test('perfil "fiscal" NO tiene acceso (403), mismo gate que el resto de config/smtp', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      const res = await request(app)
+        .post('/api/admin/config/smtp/preview')
+        .auth(usuario, password)
+        .send({ tipo: 'invitacion', texto: 'Hola' });
+      expect(res.status).toBe(403);
+    });
+
+    test('tipo no reconocido responde 400', async () => {
+      const res = await request(app)
+        .post('/api/admin/config/smtp/preview')
+        .auth('admin', 'admin')
+        .send({ tipo: 'no-existe', texto: 'Hola' });
+      expect(res.status).toBe(400);
+    });
+
+    test('tipo "invitacion" arma el HTML real con el texto capturado', async () => {
+      const res = await request(app)
+        .post('/api/admin/config/smtp/preview')
+        .auth('admin', 'admin')
+        .send({ tipo: 'invitacion', texto: 'Texto de prueba de la plantilla' });
+      expect(res.status).toBe(200);
+      expect(res.body.html).toContain('Texto de prueba de la plantilla');
+      expect(res.body.html).toContain('Tu cuenta ya está lista');
+    });
+
+    test('sustituye variables de ejemplo en el texto (aviso al contador: {rfc}/{folio})', async () => {
+      const res = await request(app)
+        .post('/api/admin/config/smtp/preview')
+        .auth('admin', 'admin')
+        .send({ tipo: 'aviso_contador', texto: 'RFC: {rfc}, folio: {folio}' });
+      expect(res.status).toBe(200);
+      expect(res.body.html).toContain('RFC: XAXX010101000, folio: TK-000123');
+    });
+
+    test('escapa HTML del texto capturado (sin permitir inyectar markup)', async () => {
+      const res = await request(app)
+        .post('/api/admin/config/smtp/preview')
+        .auth('admin', 'admin')
+        .send({ tipo: 'reporte', texto: '<script>alert(1)</script>' });
+      expect(res.status).toBe(200);
+      expect(res.body.html).not.toContain('<script>');
+      expect(res.body.html).toContain('&lt;script&gt;');
+    });
+  });
+
   describe('POST /api/admin/tickets/:id/factura (monto de la factura, negocios sin venta que verificar)', () => {
     test('con Total leíble en el XML, factura con monto_factura_origen "xml"', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');

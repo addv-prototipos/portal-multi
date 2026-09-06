@@ -2209,19 +2209,78 @@
 }
 .smtp-prueba .admin-config-subtitle { margin-bottom: 14px; }
 
-.smtp-plantilla-cliente {
+.smtp-plantillas {
   margin-top: 22px;
   padding-top: 18px;
   border-top: 1px solid var(--color-border);
 }
-.smtp-plantilla-cliente .admin-config-subtitle {
+.smtp-plantillas .admin-config-subtitle {
   margin-bottom: 14px;
 }
-.smtp-plantilla-cliente .admin-config-subtitle code {
+.smtp-plantillas .admin-config-subtitle code {
   background: var(--color-bg);
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 12px;
+}
+
+/* Selector de plantilla (punto 214) — pills que envuelven en varias
+   líneas si no caben (5 etiquetas, algunas largas), a diferencia de
+   .view-toggle (pensado para 2 opciones fijas en una sola fila). */
+.plantillas-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.plantillas-tab {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.plantillas-tab:hover { border-color: var(--color-accent); color: var(--color-ink); }
+.plantillas-tab.is-active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.plantilla-vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.var-chip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.plantilla-preview-wrap {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 4px;
+}
+.plantilla-preview-frame {
+  display: block;
+  width: 100%;
+  height: 360px;
+  border: 0;
+  background: #fff;
+  border-radius: 6px;
 }
 
 /* Selector de columnas visibles */

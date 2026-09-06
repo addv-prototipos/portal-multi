@@ -788,10 +788,26 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
-**Punto 214 (2026-09-05, SOLO REGISTRADO, sin implementar)**: pendiente
-— vista previa de plantilla de correo con branding real, solo texto
-editable, para TODOS los correos (hoy solo existe una `<textarea>`
-plana para `cuerpo_cliente`). Ver PROJECT_STATE.md punto 214.
+**Punto 214 (2026-09-05, IMPLEMENTADO Y VALIDADO contra Docker real y con
+clics reales en navegador)**: "Plantillas de correo" — el mecanismo que
+antes solo existía para `cuerpo_cliente` (factura lista) se extendió a
+los 5 correos que comparten el cascarón `construirCorreoBase()`
+(invitación, recuperar contraseña, aviso al contador, factura lista,
+reporte) — 5 pestañas, texto editable por plantilla, vista previa REAL
+en `<iframe srcdoc>` (llama al mismo `construirCorreoBase()` real vía
+`POST /api/admin/config/smtp/preview`, gate solo-`super`), botón
+"Restablecer esta plantilla". Branding (logo/colores/estructura) sigue
+sin ser editable por diseño — el admin solo manda texto, nunca toca el
+cascarón. Asuntos quedan fijos a propósito. Excluidos con justificación:
+ticket de venta (cascarón propio, texto con instrucciones funcionales) y
+aclaraciones (contenido dinámico del cliente, sin plantilla que editar).
+Jest backend 877/877. Validado por HTTP (preview real, envío real de
+recuperar-contraseña sin errores) y con clics reales en navegador (5
+pestañas, preview en vivo, restablecer, guardar, cero errores de
+consola). Limitación cosmética conocida y aceptada: el logo CID no
+renderiza dentro de un `<iframe>` de navegador (sí en un correo real,
+ver punto 133) — el resto del cascarón se ve idéntico. Sin commit/push
+todavía. Ver PROJECT_STATE.md punto 214.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

@@ -11193,23 +11193,85 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   fijando los valores por JS en vez de tipeo simulado; no bloqueó la
   verificación de lo pedido.
 
-- **PENDIENTE — vista previa de la plantilla de correo, solo texto
-  editable (punto 214, 2026-09-05, SOLO REGISTRADO, sin analizar
-  impacto ni proponer todavía)**: a pedido del usuario, para la
-  pantalla "Correo que recibe el cliente cuando su factura está lista"
-  (Configuraciones globales → Correo electrónico (SMTP), el bloque que
-  hoy solo deja editar `cuerpo_cliente` en una `<textarea>` plana) — que
-  se muestre la plantilla POR DEFECTO completa (con su branding real:
-  logo, franja de color, tarjeta, botón — el mismo cascarón de
-  `construirCorreoBase()`) para TODOS los correos salientes, no solo
-  este, y que el administrador solo pueda editar el TEXTO del cuerpo,
-  nunca el branding (logo/colores/estructura). Sugiere una vista previa
-  en vivo del correo real en vez de (o además de) la `<textarea>` suelta
-  actual. **Siguiente sesión**: aplicar el protocolo completo (analizar
-  qué correos tienen hoy texto personalizable vs fijo, revisar impacto,
-  criticar y mejorar el requerimiento, propuesta visual antes/después,
-  esperar confirmación explícita) antes de tocar código — no se pidió
-  implementar todavía, solo dejarlo anotado.
+- **"Plantillas de correo" — vista previa REAL + texto editable para los
+  5 correos que comparten el cascarón de marca (punto 214, 2026-09-05,
+  IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales, con clics reales en
+  navegador)**: a pedido del usuario, extiende el mecanismo que antes
+  solo existía para `cuerpo_cliente` (factura lista) a **todos** los
+  correos que usan `construirCorreoBase()`. Protocolo completo:
+  auditados los 8 call-sites de `enviarCorreo()`, clasificados en 3
+  grupos — **5 incluidos** (invitación al portal, recuperar contraseña,
+  aviso al contador, factura lista, reporte automático — todos comparten
+  el cascarón), **2 excluidos con justificación técnica** (ticket de
+  venta: cascarón propio, su texto trae instrucciones funcionales que el
+  flujo de solicitar-factura depende de leer; aclaraciones: contenido
+  100% dinámico tecleado por el cliente, no hay plantilla que editar) y
+  1 excluido por ser solo diagnóstico (correo de prueba de la propia
+  pantalla SMTP). Propuesta visual (Artifact antes/después) aprobada
+  ("sí, así aprobado") junto con 2 decisiones mías: asuntos quedan FIJOS
+  (no editables, evita que un admin rompa el asunto sin darse cuenta) y
+  cada plantilla tiene su propio botón "Restablecer esta plantilla".
+  **Garantía estructural, no solo de UI**: el endpoint nuevo
+  `POST /api/admin/config/smtp/preview` (mismo gate `requireAdminArea()`
+  sin argumento = solo perfil `super`, igual que el resto de `config/
+  smtp`) llama a la MISMA función `construirCorreoBase()` que arma los
+  correos reales — el admin solo manda el texto del párrafo, todo lo
+  demás (logo, franja de color, estructura) lo sigue decidiendo el
+  código, nunca el input. `PLANTILLAS_CORREO_PREVIEW` en `server.js`
+  arma datos de ejemplo por tipo (ej. `aviso_contador` → `{rfc:
+  'XAXX010101000', folio: 'TK-000123'}`) para que la vista previa se vea
+  poblada sin depender de datos reales. **Backend**: 4 columnas nuevas
+  en la config JSON (`cuerpo_invitacion`, `cuerpo_recuperacion`,
+  `cuerpo_aviso_contador`, `cuerpo_reporte`, mismo patrón que
+  `cuerpo_cliente` ya existente) en `DEFAULTS_SMTP`/`setConfigSmtp()`/
+  `configSmtpParaMostrar()` (`backend/utils/email.js`); `DEFAULTS_
+  PLANTILLAS` expuesto como `defaultsPlantillas` en el GET para que el
+  botón "Restablecer" conozca el default real sin duplicar strings en
+  el frontend. Los 3 correos que antes tenían texto fijo hardcodeado
+  (`enviarInvitacionPortal`, `enviarCorreoRecuperacion`,
+  `notificarNuevoTicketAlContador` en `server.js`, y el reporte en
+  `backend/utils/reportes.js`) ahora leen su `cuerpo_*` vía
+  `aplicarPlantilla()` con sus variables reales antes de armar
+  `parrafos`. **Frontend**: el bloque `.smtp-plantilla-cliente` (una
+  sola textarea) se reemplazó por `.smtp-plantillas` — selector de 5
+  pestañas, descripción + chips de variables `{var}` por plantilla,
+  textarea, botón "Restablecer esta plantilla", y un `<iframe
+  srcdoc="...">` sandboxed con la vista previa real (debounce 400ms en
+  el evento `input`). Estado del texto de las 5 plantillas se mantiene
+  en memoria (`plantillasTextos`) para no perder ediciones al cambiar de
+  pestaña; "Guardar configuración" manda las 5 juntas. Jest backend
+  **877/877** (5 tests nuevos de integración: gate 403 para perfil
+  fiscal, 400 tipo no reconocido, HTML real con texto capturado,
+  sustitución de variables, escape de HTML en el texto para impedir
+  inyectar markup). Corregido en el camino: `reportes.test.js` mockeaba
+  `utils/email` con un solo export (`enviarCorreo`) — al agregar
+  `getConfigSmtp`/`aplicarPlantilla`/`DEFAULTS_SMTP` como imports reales
+  de `reportes.js`, el mock quedó incompleto (`getConfigSmtp is not a
+  function`); fix, `jest.requireActual()` para las 2 funciones puras +
+  mock explícito de la que sí toca la BD. **Validado por HTTP contra
+  Docker/MySQL reales**: preview real con texto de prueba (HTML devuelto
+  contenía el texto Y el título fijo real "Tu cuenta ya está lista"),
+  GET de config trae los 5 `cuerpo_*` + `defaultsPlantillas` correctos,
+  un envío real de `POST /api/auth/recuperar` a `aprado13@gmail.com` con
+  un texto de prueba guardado como `cuerpo_recuperacion` sin errores en
+  logs, config restaurada a su default real después. **Validado con
+  clics reales en navegador** (Claude in Chrome, login `admin:admin`):
+  las 5 pestañas cambian de texto/variables correctamente, tipear en la
+  textarea actualiza el `<iframe>` de vista previa en vivo (confirmado
+  vía `srcdoc`), "Restablecer esta plantilla" revierte solo la pestaña
+  activa al default real, "Guardar configuración" persiste sin corromper
+  las demás plantillas, cero errores de consola en todo el recorrido.
+  **Limitación cosmética conocida, no un bug**: el logo por defecto de
+  CLARVO viaja como adjunto CID (decisión ya tomada en el punto 133,
+  para que no salga roto en un cliente de correo real) — un `<iframe>`
+  de navegador no es un cliente de correo y no puede resolver
+  `cid:...`, así que la vista previa muestra el logo roto (ícono +
+  alt text) aunque el resto del cascarón (franja de color, título,
+  párrafo, botón) se ve exactamente igual que en un envío real. No se
+  intentó "arreglar" esto con una URL alterna solo para preview —
+  agregaría una rama de código nueva (URL vs. CID) para un problema
+  puramente cosmético que no afecta la garantía real del segmento (que
+  el admin no pueda tocar branding). Sin commit/push todavía.
 
 - **Quita el aviso de "cuenta admin/ADMIN_USERS" del login de `/admin`
   (punto 211, 2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra

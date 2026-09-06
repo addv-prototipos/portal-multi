@@ -21,6 +21,12 @@ jest.mock('../../utils/config', () => ({
 
 jest.mock('../../utils/email', () => ({
   enviarCorreo: jest.fn(),
+  // Punto 214: reportes.js ahora lee el texto personalizable del reporte
+  // vía este mismo módulo — se mockea sin config guardada (null), así el
+  // texto real usado en las pruebas sigue siendo el default de siempre.
+  getConfigSmtp: jest.fn().mockResolvedValue(null),
+  aplicarPlantilla: jest.requireActual('../../utils/email').aplicarPlantilla,
+  DEFAULTS_SMTP: jest.requireActual('../../utils/email').DEFAULTS_SMTP,
 }));
 
 const itemTicket = {

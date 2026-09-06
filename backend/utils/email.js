@@ -31,6 +31,20 @@ const DEFAULTS_SMTP = {
   cuerpo_cliente:
     'Tu factura para el ticket con folio {folio} ya está disponible.\n\n' +
     'Ingresa al Portal de Facturación {marca} y descárgala desde tu tablero de solicitudes.',
+  // Punto 214: mismo mecanismo que cuerpo_cliente, extendido a los otros 4
+  // correos que comparten el cascarón de marca (construirCorreoBase) —
+  // ticket de venta y aclaraciones quedan FUERA a propósito (el primero
+  // tiene su propio diseño con instrucciones funcionales de las que
+  // depende el flujo de solicitar factura; el segundo es el mensaje que
+  // escribe el cliente, no hay plantilla que personalizar). Los asuntos
+  // de estos correos siguen sin ser configurables, mismo criterio que
+  // cuerpo_cliente.
+  cuerpo_invitacion: 'Ingresa con estos datos y cambia tu contraseña en cuanto puedas.',
+  cuerpo_recuperacion:
+    'Recibimos una solicitud para restablecer tu contraseña en Portal Clarvo tu negocio en orden. ' +
+    'Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.',
+  cuerpo_aviso_contador: 'Revísalo y genera la factura correspondiente desde el panel de administración.',
+  cuerpo_reporte: 'Se adjunta el reporte generado el {fecha} a las {hora}.',
 };
 
 async function getConfigSmtp() {
@@ -53,7 +67,10 @@ async function setConfigSmtp(cambios) {
   const actual = (await getConfigSmtp()) || { ...DEFAULTS_SMTP };
   const nuevo = { ...actual };
 
-  ['host', 'usuario', 'nombre_remitente', 'correo_remitente', 'correo_contador', 'cuerpo_cliente'].forEach((campo) => {
+  [
+    'host', 'usuario', 'nombre_remitente', 'correo_remitente', 'correo_contador',
+    'cuerpo_cliente', 'cuerpo_invitacion', 'cuerpo_recuperacion', 'cuerpo_aviso_contador', 'cuerpo_reporte',
+  ].forEach((campo) => {
     if (typeof cambios[campo] === 'string') nuevo[campo] = cambios[campo].trim();
   });
   if (Number.isInteger(cambios.puerto)) nuevo.puerto = cambios.puerto;
@@ -73,15 +90,34 @@ async function setConfigSmtp(cambios) {
 // Nunca se devuelve la contraseña guardada al frontend — solo si hay una
 // configurada o no (para poder mostrar "•••••• (guardada)" en la interfaz
 // sin exponer el valor real).
+// Textos por defecto de los 5 correos con plantilla editable (punto 214) —
+// expuestos aparte (sin credenciales) para que el botón "Restablecer" de
+// cada plantilla en el frontend sepa a qué texto volver, sin duplicar
+// estas cadenas en el JS del panel.
+const DEFAULTS_PLANTILLAS = {
+  cuerpo_cliente: DEFAULTS_SMTP.cuerpo_cliente,
+  cuerpo_invitacion: DEFAULTS_SMTP.cuerpo_invitacion,
+  cuerpo_recuperacion: DEFAULTS_SMTP.cuerpo_recuperacion,
+  cuerpo_aviso_contador: DEFAULTS_SMTP.cuerpo_aviso_contador,
+  cuerpo_reporte: DEFAULTS_SMTP.cuerpo_reporte,
+};
+
 function configSmtpParaMostrar(config) {
   if (!config) {
-    return { configurado: false, ...DEFAULTS_SMTP, password: undefined, passwordConfigurada: false };
+    return {
+      configurado: false,
+      ...DEFAULTS_SMTP,
+      password: undefined,
+      passwordConfigurada: false,
+      defaultsPlantillas: DEFAULTS_PLANTILLAS,
+    };
   }
   const { password, ...resto } = config;
   return {
     configurado: Boolean(config.host && config.usuario && config.password),
     ...resto,
     passwordConfigurada: Boolean(password),
+    defaultsPlantillas: DEFAULTS_PLANTILLAS,
   };
 }
 

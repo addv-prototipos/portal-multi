@@ -2035,13 +2035,37 @@
             </div>
           </div>
 
-          <div class="smtp-plantilla-cliente">
-            <p class="smtp-prueba-titulo">Correo que recibe el cliente cuando su factura está lista</p>
-            <p class="panel-subtitle admin-config-subtitle">Se envía automáticamente al correo del cliente (el de su constancia) en cuanto subes su factura, con el asunto fijo "Factura lista — Folio ...". Puedes personalizar el cuerpo usando <code>{folio}</code> y <code>{rfc}</code> — se reemplazan por el folio y RFC reales de cada ticket al enviarse.</p>
+          <!-- Plantillas de correo (punto 214) — 5 correos que comparten el
+               mismo diseño de marca (logo/colores/estructura, nunca
+               editables aquí): el administrador solo cambia el texto del
+               párrafo, con vista previa REAL generada por el servidor
+               (mismo código que arma el correo de verdad). Ticket de venta
+               y aclaraciones quedan fuera a propósito — ver PROJECT_STATE.md
+               punto 214. -->
+          <div class="smtp-plantillas">
+            <p class="smtp-prueba-titulo">Plantillas de correo</p>
+            <p class="panel-subtitle admin-config-subtitle">El diseño (logo, colores, estructura) nunca cambia aquí — solo el texto del párrafo. Los asuntos son fijos.</p>
+
+            <div class="plantillas-tabs" role="tablist" aria-label="Plantilla de correo">
+              <button type="button" class="plantillas-tab is-active" data-plantilla="invitacion" role="tab" aria-selected="true">Invitación</button>
+              <button type="button" class="plantillas-tab" data-plantilla="recuperacion" role="tab" aria-selected="false">Recuperar contraseña</button>
+              <button type="button" class="plantillas-tab" data-plantilla="aviso_contador" role="tab" aria-selected="false">Aviso al contador</button>
+              <button type="button" class="plantillas-tab" data-plantilla="cliente" role="tab" aria-selected="false">Factura lista</button>
+              <button type="button" class="plantillas-tab" data-plantilla="reporte" role="tab" aria-selected="false">Reporte</button>
+            </div>
+
+            <p class="field-hint" id="plantilla-trigger-desc"></p>
+            <div class="plantilla-vars" id="plantilla-vars"></div>
 
             <div class="field">
-              <label for="smtp-cuerpo-cliente">Cuerpo del correo al cliente</label>
-              <textarea id="smtp-cuerpo-cliente" rows="4" maxlength="5000" placeholder="Tu factura para el ticket con folio {folio} ya está disponible..."></textarea>
+              <label for="plantilla-texto">Cuerpo del correo</label>
+              <textarea id="plantilla-texto" rows="4" maxlength="5000"></textarea>
+            </div>
+            <p class="field-hint"><button type="button" class="btn-link" id="btn-restablecer-plantilla">Restablecer esta plantilla</button></p>
+
+            <p class="field-hint">Vista previa real:</p>
+            <div class="plantilla-preview-wrap">
+              <iframe id="plantilla-preview-frame" class="plantilla-preview-frame" title="Vista previa del correo" sandbox=""></iframe>
             </div>
           </div>
 

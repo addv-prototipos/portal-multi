@@ -1851,6 +1851,13 @@ const PERFIL_TEXTO = {
 async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal, marca, logoUrl, colores }) {
   const perfilTexto = PERFIL_TEXTO[perfil] || perfil;
   const marcaCorreo = marca || MARCA_DEFECTO;
+  // Punto 214: texto personalizable por el administrador (super), mismo
+  // mecanismo que cuerpo_cliente — cae al default si no se configuró.
+  const configSmtpCorreo = await getConfigSmtp();
+  const cuerpoInvitacion = aplicarPlantilla(
+    (configSmtpCorreo && configSmtpCorreo.cuerpo_invitacion) || DEFAULTS_SMTP.cuerpo_invitacion,
+    { perfil: perfilTexto, usuario: rfc }
+  );
 
   // El enlace depende del perfil, porque cada uno entra por un lugar
   // distinto: "cliente" usa el portal público (RFC + contraseña, cookie
@@ -1883,7 +1890,11 @@ async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal,
       { etiqueta: 'Usuario', valor: escapeHtmlCorreo(rfc) },
       { etiqueta: 'Contraseña temporal', valor: escapeHtmlCorreo(password), destacado: true },
     ],
-    parrafos: ['Ingresa con estos datos y cambia tu contraseña en cuanto puedas.'],
+    parrafos: cuerpoInvitacion
+      .split('\n')
+      .map((linea) => linea.trim())
+      .filter(Boolean)
+      .map((linea) => escapeHtmlCorreo(linea)),
     cta: enlacePortal ? { href: enlacePortal, texto: `Entrar al ${etiquetaAcceso}` } : null,
     // Punto 211: la invitación al portal DEL CLIENTE mantiene el logo
     // viejo — es la misma marca que va a ver en cuanto entre a
@@ -1922,6 +1933,13 @@ async function enviarCorreoRecuperacion({ email, urlPortal, marca, token, logoUr
   // mandar un correo roto que el usuario no pueda seguir.
   if (!enlaceRestablecer) return;
 
+  // Punto 214: texto personalizable por el administrador (super).
+  const configSmtpCorreo = await getConfigSmtp();
+  const cuerpoRecuperacion = aplicarPlantilla(
+    (configSmtpCorreo && configSmtpCorreo.cuerpo_recuperacion) || DEFAULTS_SMTP.cuerpo_recuperacion,
+    {}
+  );
+
   // Homologado al diseño del ticket de venta (auditoría de correos de
   // salida) — antes era HTML mínimo en Arial genérico, sin logo real ni
   // color de marca.
@@ -1932,9 +1950,11 @@ async function enviarCorreoRecuperacion({ email, urlPortal, marca, token, logoUr
     colorAccent: colores && colores.acento,
     eyebrow: 'Seguridad',
     titulo: 'Recupera tu acceso',
-    parrafos: [
-      'Recibimos una solicitud para restablecer tu contraseña en Portal Clarvo tu negocio en orden. Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.',
-    ],
+    parrafos: cuerpoRecuperacion
+      .split('\n')
+      .map((linea) => linea.trim())
+      .filter(Boolean)
+      .map((linea) => escapeHtmlCorreo(linea)),
     cta: { href: enlaceRestablecer, texto: 'Elegir nueva contraseña' },
     piePersonalizado: `Este enlace expira en 30 minutos y solo se puede usar una vez. Si el botón no funciona, copia y pega: ${enlaceRestablecer}`,
   });
@@ -1975,6 +1995,14 @@ async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca, logo
   // Homologado al diseño del ticket de venta (auditoría de correos de
   // salida): lo ve el contador del tenant, un tercero externo — primera
   // impresión de marca frente a alguien fuera de la empresa.
+  // Punto 214: texto personalizable por el administrador (super) — `config`
+  // ya está en scope (se leyó arriba para `correo_contador`), no hace
+  // falta una segunda consulta.
+  const cuerpoAvisoContador = aplicarPlantilla(
+    (config && config.cuerpo_aviso_contador) || DEFAULTS_SMTP.cuerpo_aviso_contador,
+    { rfc, folio }
+  );
+
   const { html, texto, adjuntos } = construirCorreoBase({
     marca: marcaCorreo,
     logoUrl,
@@ -1986,7 +2014,11 @@ async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca, logo
       { etiqueta: 'RFC', valor: escapeHtmlCorreo(rfc) },
       { etiqueta: 'Folio', valor: escapeHtmlCorreo(folio), destacado: true },
     ],
-    parrafos: ['Revísalo y genera la factura correspondiente desde el panel de administración.'],
+    parrafos: cuerpoAvisoContador
+      .split('\n')
+      .map((linea) => linea.trim())
+      .filter(Boolean)
+      .map((linea) => escapeHtmlCorreo(linea)),
     cta: enlacePanel ? { href: enlacePanel, texto: 'Ir al panel' } : null,
   });
 
@@ -2639,10 +2671,16 @@ app.put(
     const nombreRemitente = sanitizeText(body.nombre_remitente, 200);
     const correoRemitente = sanitizeText(body.correo_remitente, 200);
     const correoContador = sanitizeText(body.correo_contador, 200).toLowerCase();
-    // El cuerpo del correo al cliente va dentro de un correo real, no de
+    // El cuerpo de estos correos va dentro de un correo real, no de
     // nuestras propias páginas — se usa sanitizeTextoLibre (sin escape de
-    // HTML) para no corromper el texto que verá el destinatario.
+    // HTML) para no corromper el texto que verá el destinatario. Punto 214:
+    // mismo criterio que cuerpo_cliente, extendido a los otros 4 correos
+    // que comparten el cascarón de marca.
     const cuerpoCliente = sanitizeTextoLibre(body.cuerpo_cliente, 5000);
+    const cuerpoInvitacion = sanitizeTextoLibre(body.cuerpo_invitacion, 5000);
+    const cuerpoRecuperacion = sanitizeTextoLibre(body.cuerpo_recuperacion, 5000);
+    const cuerpoAvisoContador = sanitizeTextoLibre(body.cuerpo_aviso_contador, 5000);
+    const cuerpoReporte = sanitizeTextoLibre(body.cuerpo_reporte, 5000);
     const password = typeof body.password === 'string' ? body.password : '';
     const puerto = Number(body.puerto);
     const seguridad = body.seguridad;
@@ -2676,8 +2714,98 @@ app.put(
       correo_remitente: correoRemitente,
       correo_contador: correoContador,
       cuerpo_cliente: cuerpoCliente,
+      cuerpo_invitacion: cuerpoInvitacion,
+      cuerpo_recuperacion: cuerpoRecuperacion,
+      cuerpo_aviso_contador: cuerpoAvisoContador,
+      cuerpo_reporte: cuerpoReporte,
     });
     res.json(configSmtpParaMostrar(nuevo));
+  })
+);
+
+// Punto 214: vista previa REAL de una plantilla — arma el HTML con la
+// MISMA función que usa el envío real (construirCorreoBase), con datos de
+// ejemplo en vez de los de un ticket/usuario real. El administrador nunca
+// ve ni controla el logo/colores/estructura como código: solo manda el
+// texto del párrafo, el servidor decide todo lo demás — el branding queda
+// garantizado por construcción, no por convención de la UI.
+const PLANTILLAS_CORREO_PREVIEW = {
+  invitacion: () => ({
+    eyebrow: 'Bienvenido',
+    titulo: 'Tu cuenta ya está lista',
+    filas: [
+      { etiqueta: 'Perfil', valor: 'Administrador' },
+      { etiqueta: 'Usuario', valor: 'EJEMPLO001' },
+      { etiqueta: 'Contraseña temporal', valor: 'Ab3xY9zQ', destacado: true },
+    ],
+    cta: { href: '#', texto: 'Entrar al Panel de administración' },
+    variables: { perfil: 'Administrador', usuario: 'EJEMPLO001' },
+  }),
+  recuperacion: () => ({
+    eyebrow: 'Seguridad',
+    titulo: 'Recupera tu acceso',
+    filas: [],
+    cta: { href: '#', texto: 'Elegir nueva contraseña' },
+    variables: {},
+  }),
+  aviso_contador: () => ({
+    eyebrow: 'Facturación',
+    titulo: 'Nuevo ticket para facturar',
+    filas: [
+      { etiqueta: 'RFC', valor: 'XAXX010101000' },
+      { etiqueta: 'Folio', valor: 'TK-000123', destacado: true },
+    ],
+    cta: { href: '#', texto: 'Ir al panel' },
+    variables: { rfc: 'XAXX010101000', folio: 'TK-000123' },
+  }),
+  cliente: () => ({
+    eyebrow: 'Facturación',
+    titulo: 'Factura lista',
+    filas: [],
+    cta: { href: '#', texto: 'Entrar al Portal' },
+    variables: { folio: 'TK-000123', rfc: 'XAXX010101000', marca: 'CLARVO by ADDV' },
+  }),
+  reporte: () => ({
+    eyebrow: 'Reportes',
+    titulo: 'Reporte de tickets y ventas',
+    filas: [
+      { etiqueta: 'Tickets', valor: '12' },
+      { etiqueta: 'Ventas', valor: '8' },
+      { etiqueta: 'Gastos', valor: '5' },
+    ],
+    cta: null,
+    variables: { fecha: '05/sep/2026', hora: '18:30:00' },
+  }),
+};
+
+app.post(
+  '/api/admin/config/smtp/preview',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const tipo = sanitizeText(body.tipo, 30);
+    const generador = PLANTILLAS_CORREO_PREVIEW[tipo];
+    if (!generador) {
+      return res.status(400).json({ error: 'Tipo de plantilla no reconocido.' });
+    }
+    const texto = sanitizeTextoLibre(body.texto, 5000);
+    const { eyebrow, titulo, filas, cta, variables } = generador();
+    const cuerpoConVariables = aplicarPlantilla(texto, variables);
+    const { html } = construirCorreoBase({
+      marca: MARCA_DEFECTO,
+      eyebrow,
+      titulo,
+      filas,
+      cta,
+      parrafos: cuerpoConVariables
+        .split('\n')
+        .map((linea) => linea.trim())
+        .filter(Boolean)
+        .map((linea) => escapeHtmlCorreo(linea)),
+    });
+    res.json({ html });
   })
 );
 
