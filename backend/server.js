@@ -1732,12 +1732,6 @@ function logoUrlDelTenant(req, urlPortal, configGlobal) {
 // siempre se manda ambas).
 function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, email, urlPortal, logoUrl, marca }) {
   const enlaceLogin = urlPortal ? `${urlPortal}/login` : '';
-  // Sin marca de tenant (caso de hoy — todavía no hay ningún tenant real
-  // dado de alta), el pie de página usa el nombre completo de la marca en
-  // vez del "ADDV" corto de MARCA_DEFECTO — mismo texto que ya se usa en
-  // el atributo alt del logo en el resto del sitio. Un tenant con su
-  // propia marca sigue viendo su propio nombre tal cual.
-  const marcaMostrada = marca === MARCA_DEFECTO ? 'CLARVO by ADDV' : marca;
   const logo = logoTicketHtml(logoUrl, marca);
   const filaTicket = filaCorreoTabla;
 
@@ -1803,7 +1797,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
             </td>
           </tr>
         </table>` : ''}
-        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A93A3; text-align:center;">Si no esperabas este correo, contacta a tu administrador. Portal de Facturación ${escapeHtmlCorreo(marcaMostrada)}.</p>
+        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A93A3; text-align:center;">Si no esperabas este correo, contacta a tu administrador. Portal Clarvo tu negocio en orden.</p>
       </td>
     </tr>
   </table>
@@ -1901,7 +1895,7 @@ async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal,
 
   await enviarCorreo({
     destinatario: email,
-    asunto: `Te invitamos al Portal de Facturación ${marcaCorreo}`,
+    asunto: 'Te invitamos a Portal Clarvo tu negocio en orden',
     cuerpo: texto,
     html,
     adjuntos,
@@ -1939,7 +1933,7 @@ async function enviarCorreoRecuperacion({ email, urlPortal, marca, token, logoUr
     eyebrow: 'Seguridad',
     titulo: 'Recupera tu acceso',
     parrafos: [
-      `Recibimos una solicitud para restablecer tu contraseña en el Portal de Facturación ${escapeHtmlCorreo(marcaCorreo)}. Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.`,
+      'Recibimos una solicitud para restablecer tu contraseña en Portal Clarvo tu negocio en orden. Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.',
     ],
     cta: { href: enlaceRestablecer, texto: 'Elegir nueva contraseña' },
     piePersonalizado: `Este enlace expira en 30 minutos y solo se puede usar una vez. Si el botón no funciona, copia y pega: ${enlaceRestablecer}`,
@@ -1947,7 +1941,7 @@ async function enviarCorreoRecuperacion({ email, urlPortal, marca, token, logoUr
 
   await enviarCorreo({
     destinatario: email,
-    asunto: `Recupera tu acceso — Portal de Facturación ${marcaCorreo}`,
+    asunto: 'Recupera tu acceso — Portal Clarvo tu negocio en orden',
     cuerpo: texto,
     html,
     adjuntos,

@@ -11118,13 +11118,86 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   `--no-cache`+`--force-recreate` de backend+frontend: los 3 assets
   sirven 200 `image/png` real, `/admin` y `/control` sirven los 2 logos
   nuevos + favicon, `/login` (cliente) sigue sirviendo `branding.png`
-  intacto. **Sin probar un envío SMTP real** — este entorno no tiene
-  SMTP configurado en este momento (confirmado por SQL, filas vacías).
-  **Sin clics reales en navegador** — extensión de Chrome seguía
-  desconectada. Pedir al usuario que confirme visualmente el tamaño/
-  legibilidad del logo nuevo en el sidebar angosto (140px de ancho) y,
-  cuando tenga SMTP configurado, que revise un correo real de cada
-  tipo. Sin commit/push todavía.
+  intacto. **Actualización (mismo día): SMTP configurado por el
+  usuario (Gmail, `notificaciones@addv.mx`) y validado con envíos
+  reales** — 5 de los 6 correos disparados de verdad a
+  `antonio.prado@addv.mx` sin errores en logs (ticket de venta,
+  invitación admin, invitación cliente, recuperar contraseña, factura
+  lista; "aviso al contador" no se pudo disparar por falta de un PDF de
+  constancia real parseable en esta sesión, pero comparte el mismo
+  código de logo ya confirmado en los otros 5). `correo_contador`/
+  `correo_reportes` se configuraron temporalmente para la prueba y se
+  regresaron a vacío al terminar; ticket 136 y la venta de prueba
+  restaurados a su estado original; 2 cuentas de prueba borradas.
+  **Confirmado visualmente por el usuario** ("ya lo revisé, ya
+  funciona"). Sin commit/push todavía (los cambios de código del punto
+  212 en sí, no la config de prueba — esa vive solo en la BD de este
+  entorno).
+
+- **Reemplazo global de "Portal de Facturación" → "Portal Clarvo tu
+  negocio en orden" — CERRADO (punto 213, 2026-09-05, IMPLEMENTADO Y
+  VALIDADO contra Docker real)**: a pedido del usuario, tras confirmar
+  visualmente el punto 212. Protocolo completo — auditoría entregada
+  primero (mapa de hallazgos por categoría) + propuesta visual en
+  Artifact web con el texto ANTES/DESPUÉS renderizado de cada correo +
+  3 decisiones explícitas marcadas ahí + confirmación ("sí implementa
+  por favor", adoptando mis 3 propuestas). **Aplicado**: (A) 8
+  `<title>` de página (SEO) — `admin.html`, `control.html`, `csf.html`,
+  `dashboard.html`, `login.html`, `mantenimiento.html`,
+  `restablecer.html`, `tickets.html`; (B) 4 textos visibles
+  (`mantenimiento.html` pie, preview de marca de `/control`, 2
+  placeholders de ejemplo en `/admin`); (C) `alt` de las 5 imágenes que
+  siguen mostrando el logo VIEJO en el portal de cliente — SÍ se
+  cambió el texto (decisión del usuario: "implementa" tal cual el
+  artifact, que ya mostraba el cambio); (D) 6 sitios en correos —
+  `server.js` (pie del ticket de venta, asunto+cuerpo de invitación,
+  asunto+cuerpo de recuperar contraseña) y `correoMarca.js` (pie
+  compartido de TODOS los correos con `construirCorreoBase`: factura
+  lista, aviso al contador, aclaraciones, reporte automático) — estos
+  6 son PROSA reescrita, no una sustitución de frase: el pie de
+  plataforma ahora dice "Portal Clarvo tu negocio en orden" SIEMPRE
+  (decisión #2, estilo "Powered by" — ya no depende de si el tenant
+  tiene marca propia, simplifica el código: se eliminaron las 2
+  variables `marcaMostrada` que quedaron sin uso); el `alt` del logo
+  cuando un TENANT define el suyo propio pasó a neutral "Logo de
+  {marca}" en vez de forzar "Portal de Facturación"/"Clarvo" sobre el
+  logo de otra empresa (decisión #3); (E) título de Swagger
+  (`/api/docs`, confirmado en el JSON real servido). **Excepción
+  respetada, sin tocar**: `email.js` → `DEFAULTS_SMTP.cuerpo_cliente`
+  (el cuerpo del correo "factura lista" que edita el admin en
+  Configuraciones SMTP) — "Portal de Facturación" ahí es correcto, es
+  la descripción de la acción, no el nombre de marca. `node --check`
+  limpio en los 3 archivos backend tocados, div balanceado en
+  `admin.html`/`control.html`, Jest backend **872/872** (sin cambios,
+  ningún test dependía de estas cadenas). Validado por HTTP tras
+  rebuild `--no-cache`+`--force-recreate` backend+frontend: los 8
+  `<title>`, el pie de `mantenimiento.html` y el título de Swagger
+  confirmados en lo servido; un envío real de "recuperar contraseña"
+  disparado de nuevo (a la cuenta de prueba real `aprado13@gmail.com`)
+  sin errores en logs, para confirmar que el asunto/cuerpo nuevos no
+  rompen el envío real. Grep final confirma CERO apariciones de
+  "Portal de Facturación" en todo `frontend/`+`backend/`+`control/`
+  salvo la única excepción aprobada. No incluye `PROJECT_STATE.md`/
+  `CLAUDE.md`/`README.md` (bitácora interna, fuera de alcance a
+  propósito). Sin commit/push todavía.
+
+- **PENDIENTE — vista previa de la plantilla de correo, solo texto
+  editable (punto 214, 2026-09-05, SOLO REGISTRADO, sin analizar
+  impacto ni proponer todavía)**: a pedido del usuario, para la
+  pantalla "Correo que recibe el cliente cuando su factura está lista"
+  (Configuraciones globales → Correo electrónico (SMTP), el bloque que
+  hoy solo deja editar `cuerpo_cliente` en una `<textarea>` plana) — que
+  se muestre la plantilla POR DEFECTO completa (con su branding real:
+  logo, franja de color, tarjeta, botón — el mismo cascarón de
+  `construirCorreoBase()`) para TODOS los correos salientes, no solo
+  este, y que el administrador solo pueda editar el TEXTO del cuerpo,
+  nunca el branding (logo/colores/estructura). Sugiere una vista previa
+  en vivo del correo real en vez de (o además de) la `<textarea>` suelta
+  actual. **Siguiente sesión**: aplicar el protocolo completo (analizar
+  qué correos tienen hoy texto personalizable vs fijo, revisar impacto,
+  criticar y mejorar el requerimiento, propuesta visual antes/después,
+  esperar confirmación explícita) antes de tocar código — no se pidió
+  implementar todavía, solo dejarlo anotado.
 
 - **Quita el aviso de "cuenta admin/ADMIN_USERS" del login de `/admin`
   (punto 211, 2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra

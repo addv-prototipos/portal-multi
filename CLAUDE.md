@@ -765,9 +765,30 @@ explícitamente**: `restablecer.html` también se dejó con el logo
 viejo (comparte el mismo encabezado que `login.html`) — avisar al
 usuario por si prefiere lo contrario. Favicon nuevo agregado en las 8
 páginas del sitio (nunca existió ninguno antes), sin excepción. Jest
-backend 872/872. Sin SMTP configurado para probar un envío real; sin
-clics reales en navegador (extensión desconectada). Ver
-PROJECT_STATE.md punto 212 para el detalle línea por línea.
+backend 872/872. **Actualización mismo día**: SMTP configurado por el
+usuario y validado con 5/6 envíos reales a `antonio.prado@addv.mx` sin
+errores, confirmado visualmente por el usuario. Entorno de prueba
+restaurado por completo (config temporal, ticket y venta de prueba,
+cuentas de prueba). Sin clics reales en navegador (extensión
+desconectada). Ver PROJECT_STATE.md punto 212.
+
+**Punto 213 (2026-09-05, IMPLEMENTADO Y VALIDADO contra Docker real)**:
+reemplazo global "Portal de Facturación" → "Portal Clarvo tu negocio en
+orden" — 8 `<title>` (SEO incluido), 4 textos visibles, 5 `alt` de
+imagen sobre el logo viejo del portal de cliente, 6 correos (prosa
+reescrita, no solo sustitución de frase — el pie de plataforma ahora
+dice siempre "Portal Clarvo tu negocio en orden", estilo "Powered by",
+sin importar si el tenant tiene marca propia), título de Swagger.
+Excepción respetada: `email.js` → `DEFAULTS_SMTP.cuerpo_cliente` (el
+cuerpo de "factura lista" editable en Configuraciones SMTP) sin tocar.
+Jest backend 872/872. Validado por HTTP tras rebuild + un envío real de
+"recuperar contraseña" con el asunto/cuerpo nuevos, sin errores. Ver
+PROJECT_STATE.md punto 213.
+
+**Punto 214 (2026-09-05, SOLO REGISTRADO, sin implementar)**: pendiente
+— vista previa de plantilla de correo con branding real, solo texto
+editable, para TODOS los correos (hoy solo existe una `<textarea>`
+plana para `cuerpo_cliente`). Ver PROJECT_STATE.md punto 214.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto

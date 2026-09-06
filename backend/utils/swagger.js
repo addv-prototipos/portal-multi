@@ -3,7 +3,7 @@ const swaggerJSDoc = require('swagger-jsdoc');
 const swaggerDefinition = {
   openapi: '3.0.3',
   info: {
-    title: 'Portal de Facturación ADDV — API',
+    title: 'Portal Clarvo tu negocio en orden — API',
     version: '1.0.0',
     description:
       'API del portal (backend). Todas las rutas bajo `/api` pasan por `frontend/nginx.conf.template` → `backend:4000`. ' +

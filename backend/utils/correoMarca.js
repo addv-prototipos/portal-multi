@@ -62,7 +62,7 @@ function obtenerLogoClarvoBuffer(variante) {
 function logoTicketHtml(logoUrl, marca, usarLogoLegacy) {
   if (logoUrl) {
     return {
-      html: `<img src="${logoUrl}" alt="Portal de Facturación ${escapeHtmlCorreo(marca)}" style="max-width:180px; max-height:60px; display:block; margin:0 auto;" />`,
+      html: `<img src="${logoUrl}" alt="Logo de ${escapeHtmlCorreo(marca)}" style="max-width:180px; max-height:60px; display:block; margin:0 auto;" />`,
       adjunto: null,
     };
   }
@@ -118,7 +118,6 @@ function construirCorreoBase({
   piePersonalizado,
   usarLogoLegacy,
 }) {
-  const marcaMostrada = marca === MARCA_DEFECTO ? 'CLARVO by ADDV' : marca;
   const logo = logoTicketHtml(logoUrl, marca, usarLogoLegacy);
   const primario = colorPrimario || '#03285B';
   const acento = colorAccent || '#05DBF2';
@@ -189,7 +188,7 @@ function construirCorreoBase({
     <tr>
       <td style="padding:22px 10px 0;">
         ${ctaHtml}
-        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A93A3; text-align:center;">${piePersonalizado ? `${escapeHtmlCorreo(piePersonalizado)} ` : ''}Portal de Facturación ${escapeHtmlCorreo(marcaMostrada)}.</p>
+        <p style="margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#8A93A3; text-align:center;">${piePersonalizado ? `${escapeHtmlCorreo(piePersonalizado)} ` : ''}Portal Clarvo tu negocio en orden.</p>
       </td>
     </tr>
   </table>
@@ -203,7 +202,7 @@ function construirCorreoBase({
     parrafos.length ? parrafos.map((p) => p.replace(/<[^>]+>/g, '')).join('\n\n') : null,
     cta && cta.href ? `${cta.texto}: ${cta.href}` : null,
     piePersonalizado || null,
-    `Portal de Facturación ${marcaMostrada}.`,
+    'Portal Clarvo tu negocio en orden.',
   ]
     .filter(Boolean)
     .join('\n\n');
