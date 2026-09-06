@@ -782,7 +782,10 @@ sin importar si el tenant tiene marca propia), título de Swagger.
 Excepción respetada: `email.js` → `DEFAULTS_SMTP.cuerpo_cliente` (el
 cuerpo de "factura lista" editable en Configuraciones SMTP) sin tocar.
 Jest backend 872/872. Validado por HTTP tras rebuild + un envío real de
-"recuperar contraseña" con el asunto/cuerpo nuevos, sin errores. Ver
+"recuperar contraseña" con el asunto/cuerpo nuevos, sin errores.
+**Commiteado y pusheado** (`06faa3a` → `fact/master`). **Confirmado con
+clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
+intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
 **Punto 214 (2026-09-05, SOLO REGISTRADO, sin implementar)**: pendiente

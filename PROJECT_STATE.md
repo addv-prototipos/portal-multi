@@ -11179,7 +11179,19 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   "Portal de Facturación" en todo `frontend/`+`backend/`+`control/`
   salvo la única excepción aprobada. No incluye `PROJECT_STATE.md`/
   `CLAUDE.md`/`README.md` (bitácora interna, fuera de alcance a
-  propósito). Sin commit/push todavía.
+  propósito). **Commiteado y pusheado** (`06faa3a` → `fact/master`).
+  **Confirmado con clics reales en navegador** (Claude in Chrome,
+  reconectada): `/admin` (título de pestaña + logo nuevo en el hero de
+  login + `src` del logo del sidebar apuntando a `logoDark.png`),
+  `/control` (título + logo nuevo, misma verificación), `/login`
+  (portal de cliente — título nuevo PERO logo sigue siendo el viejo
+  `branding.png` con su `alt` ya actualizado, exactamente como se
+  diseñó), y `/api/docs` (título de Swagger renderizado "Portal Clarvo
+  tu negocio en orden — API"). El login real con `admin:admin` tuvo
+  fricción de automatización (varios timeouts de captura de pantalla y
+  autofill del navegador interfiriendo con los campos) — se resolvió
+  fijando los valores por JS en vez de tipeo simulado; no bloqueó la
+  verificación de lo pedido.
 
 - **PENDIENTE — vista previa de la plantilla de correo, solo texto
   editable (punto 214, 2026-09-05, SOLO REGISTRADO, sin analizar
