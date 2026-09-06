@@ -809,9 +809,9 @@
    deja en el DOM sin click para no tocar sus 6 handlers existentes ni
    el badge de estado de SMTP, que sigue viviendo ahí adentro. */
 .config-modal {
-  max-width: 900px;
+  max-width: 1180px;
   width: 94vw;
-  height: min(680px, calc(100vh - 40px));
+  height: min(780px, calc(100vh - 40px));
   padding: 0;
   display: flex;
   overflow: hidden;

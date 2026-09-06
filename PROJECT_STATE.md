@@ -11271,7 +11271,18 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   intentó "arreglar" esto con una URL alterna solo para preview —
   agregaría una rama de código nueva (URL vs. CID) para un problema
   puramente cosmético que no afecta la garantía real del segmento (que
-  el admin no pueda tocar branding). Sin commit/push todavía.
+  el admin no pueda tocar branding). **Commiteado y pusheado**
+  (`a61758c` → `fact/master`). **Ajuste mismo día, reportado por el
+  usuario con captura**: el modal "Configuraciones globales"
+  (`.config-modal`, compartido con el Centro de conocimiento del punto
+  196) se veía amontonado con las 5 pestañas de "Plantillas de correo"
+  nuevas — `max-width: 900px → 1180px`, `height: min(680px,...) →
+  min(780px,...)` en `admin.css`. Balance de llaves verificado
+  (1103/1103), Jest backend 877/877 (sin cambios de lógica). Validado
+  con clics reales en navegador tras rebuild `--no-cache`+
+  `--force-recreate` frontend: modal a 1180px reales confirmado por
+  `getBoundingClientRect()`, sección SMTP/Plantillas con más aire, sin
+  scroll apretado.
 
 - **Quita el aviso de "cuenta admin/ADMIN_USERS" del login de `/admin`
   (punto 211, 2026-09-05, IMPLEMENTADO Y VALIDADO por HTTP contra

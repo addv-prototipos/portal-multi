@@ -806,8 +806,13 @@ recuperar-contraseña sin errores) y con clics reales en navegador (5
 pestañas, preview en vivo, restablecer, guardar, cero errores de
 consola). Limitación cosmética conocida y aceptada: el logo CID no
 renderiza dentro de un `<iframe>` de navegador (sí en un correo real,
-ver punto 133) — el resto del cascarón se ve idéntico. Sin commit/push
-todavía. Ver PROJECT_STATE.md punto 214.
+ver punto 133) — el resto del cascarón se ve idéntico. **Commiteado y
+pusheado** (`a61758c` → `fact/master`). **Ajuste mismo día**: el usuario
+reportó con captura que el modal "Configuraciones globales" (compartido
+con el Centro de conocimiento, `.config-modal`) se veía amontonado con
+las 5 pestañas de plantillas — `max-width` 900px→1180px, alto
+680px→780px. Confirmado en navegador real tras rebuild. Ver
+PROJECT_STATE.md punto 214.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
