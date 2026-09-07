@@ -294,6 +294,7 @@
     ordenConcepto: document.getElementById('orden-concepto'),
     ordenConceptoContador: document.getElementById('orden-concepto-contador'),
     ordenCantidad: document.getElementById('orden-cantidad'),
+    ordenDescuento: document.getElementById('orden-descuento'),
     // Captura de productos de una venta (arman concepto + cantidad)
     ordenProductoConcepto: document.getElementById('orden-producto-concepto'),
     ordenProductoPrecio: document.getElementById('orden-producto-precio'),
@@ -402,6 +403,8 @@
     ordenModalProductosBody: document.getElementById('orden-modal-productos-body'),
     ordenModalConceptoSimple: document.getElementById('orden-modal-concepto-simple'),
     ordenModalCantidad: document.getElementById('orden-modal-cantidad'),
+    ordenModalDescuentoWrap: document.getElementById('orden-modal-descuento-wrap'),
+    ordenModalDescuento: document.getElementById('orden-modal-descuento'),
     ordenModalIva: document.getElementById('orden-modal-iva'),
     ordenModalTotal: document.getElementById('orden-modal-total'),
     btnOrdenModalCerrar: document.getElementById('btn-orden-modal-cerrar'),
@@ -5996,6 +5999,18 @@
     irAPasoOrdenWizard(Math.max(1, ordenPasoActual - 1));
   });
 
+  // Punto 227: lee el % de descuento capturado (opcional, sobre el
+  // subtotal ANTES del IVA) — mismo redondeo a centavos que el resto de
+  // los montos de la orden. Devuelve null si el campo está vacío o no es
+  // un número válido (el guardado real lo revalida aparte).
+  function obtenerDescuentoPorcentajeOrden() {
+    const texto = els.ordenDescuento.value.trim();
+    if (!texto) return null;
+    const pct = Number(texto);
+    if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) return null;
+    return pct;
+  }
+
   function actualizarTotalPreviewOrden() {
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
@@ -6003,14 +6018,19 @@
       els.ordenMiniResumen.textContent = '';
       return;
     }
-    const total = Math.round(cantidad * (1 + ivaActualParaOrden / 100) * 100) / 100;
+    const descuentoPct = obtenerDescuentoPorcentajeOrden();
+    const descuentoMonto = descuentoPct ? Math.round(cantidad * (descuentoPct / 100) * 100) / 100 : 0;
+    const cantidadNeta = Math.round((cantidad - descuentoMonto) * 100) / 100;
+    const total = Math.round(cantidadNeta * (1 + ivaActualParaOrden / 100) * 100) / 100;
     els.ordenTotalPreview.textContent = `$${formatearMoneda(total)} MXN`;
     // Sustituye los campos "Cantidad (MXN)"/"IVA" (ocultos, ver
     // admin.html) por un resumen chico de una línea — mismo dato, sin
     // ocupar 2 bloques completos. La resta contra el total ya redondeado
     // evita que el IVA mostrado y el total mostrado se desfasen entre sí.
-    const ivaMonto = Math.round((total - cantidad) * 100) / 100;
-    els.ordenMiniResumen.textContent = `Subtotal $${formatearMoneda(cantidad)} · IVA $${formatearMoneda(ivaMonto)}`;
+    const ivaMonto = Math.round((total - cantidadNeta) * 100) / 100;
+    els.ordenMiniResumen.textContent = descuentoPct
+      ? `Subtotal $${formatearMoneda(cantidad)} · Descuento -$${formatearMoneda(descuentoMonto)} (${descuentoPct}%) · IVA $${formatearMoneda(ivaMonto)}`
+      : `Subtotal $${formatearMoneda(cantidad)} · IVA $${formatearMoneda(ivaMonto)}`;
   }
 
   async function cargarConfigGlobalParaOrden() {
@@ -6036,6 +6056,12 @@
   }
 
   formatearCampoDinero(els.ordenProductoPrecio);
+
+  // Punto 227: recalcula el preview en vivo al teclear el % de descuento.
+  els.ordenDescuento.addEventListener('input', () => {
+    setFieldError('orden-descuento', '');
+    actualizarTotalPreviewOrden();
+  });
 
   // Texto de un producto tal como aparece en la lista y en el concepto
   // final que se manda al backend — "2 x Toner ($850.00 c/u)".
@@ -6405,9 +6431,11 @@
     aplicarEstadoPago('pagada');
     if (els.ordenFechaVencimiento) els.ordenFechaVencimiento.value = '';
     if (els.ordenNotasCobro) els.ordenNotasCobro.value = '';
+    els.ordenDescuento.value = '';
     els.ordenErrorGeneral.textContent = '';
     setFieldError('orden-concepto', '');
     setFieldError('orden-cantidad', '');
+    setFieldError('orden-descuento', '');
     setFieldError('orden-email', '');
     setFieldError('orden-email-nuevo', '');
     actualizarDatosClienteOrden();
@@ -6430,12 +6458,15 @@
     els.ordenErrorGeneral.textContent = '';
     setFieldError('orden-concepto', '');
     setFieldError('orden-cantidad', '');
+    setFieldError('orden-descuento', '');
     setFieldError('orden-email', '');
     setFieldError('orden-email-nuevo', '');
     setFieldError('orden-inventario-unidades', '');
 
     const concepto = els.ordenConcepto.value.trim();
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
+    const descuentoTexto = els.ordenDescuento.value.trim();
+    let descuentoPorcentaje = null;
     // Sin correo cuando el método de entrega es "imprimir" (ver
     // PROJECT_STATE.md — el backend acepta email vacío en ese caso).
     const email = ordenMetodoEntregaImprimir
@@ -6458,6 +6489,15 @@
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
       setFieldError('orden-cantidad', 'Captura una cantidad mayor a cero.');
       valido = false;
+    }
+    if (descuentoTexto) {
+      const pct = Number(descuentoTexto);
+      if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+        setFieldError('orden-descuento', 'El descuento debe ser un porcentaje mayor a 0 y menor a 100.');
+        valido = false;
+      } else {
+        descuentoPorcentaje = pct;
+      }
     }
     if (!validarPasoClienteOrden()) valido = false;
     if (!valido) return;
@@ -6490,6 +6530,7 @@
       await OfflineQueue.agregarPendiente('ordenes', {
         concepto,
         cantidad,
+        descuento_porcentaje: descuentoPorcentaje,
         email,
         es_cliente_nuevo: ordenModoClienteNuevo,
         estado_pago: ordenEstadoPago,
@@ -6511,6 +6552,7 @@
         body: JSON.stringify({
           concepto,
           cantidad,
+          descuento_porcentaje: descuentoPorcentaje,
           email,
           es_cliente_nuevo: ordenModoClienteNuevo,
           estado_pago: ordenEstadoPago,
@@ -6537,6 +6579,8 @@
                 cantidad: data.cantidad,
                 iva_porcentaje: data.iva_porcentaje,
                 total: data.total,
+                descuento_porcentaje: data.descuento_porcentaje,
+                descuento_monto: data.descuento_monto,
                 email: data.email,
                 fecha_compra_formateada: data.fecha_compra,
               })
@@ -6638,7 +6682,10 @@
   function ordenPendienteAVista(item) {
     const cantidad = Number(item.datos.cantidad) || 0;
     const iva = typeof ivaActualParaOrden === 'number' ? ivaActualParaOrden : 16;
-    const totalEstimado = Math.round(cantidad * (1 + iva / 100) * 100) / 100;
+    const descuentoPct = Number(item.datos.descuento_porcentaje) || 0;
+    const descuentoMonto = descuentoPct ? Math.round(cantidad * (descuentoPct / 100) * 100) / 100 : 0;
+    const cantidadNeta = Math.round((cantidad - descuentoMonto) * 100) / 100;
+    const totalEstimado = Math.round(cantidadNeta * (1 + iva / 100) * 100) / 100;
     const fecha = new Date(item.creadoEn);
     return {
       __pendiente: true,
@@ -6761,6 +6808,18 @@
           .join('')
       : `<div class="ticket-imprimir-linea"><span>${escapeHtml(orden.concepto)}</span></div>`;
     const ivaMonto = Math.round((Number(orden.total) - Number(orden.cantidad)) * 100) / 100;
+    // Punto 227: `orden.cantidad` ya es el subtotal NETO (con descuento
+    // aplicado, si hubo uno) — se reconstruye el bruto sumando de vuelta
+    // `descuento_monto` (exacto, sin dividir entre nada) solo para
+    // mostrar la línea "Subtotal" tal como se vio antes del descuento.
+    const tieneDescuento = Boolean(orden.descuento_porcentaje);
+    const descuentoMonto = tieneDescuento ? Number(orden.descuento_monto) : 0;
+    const subtotalBruto = tieneDescuento
+      ? Math.round((Number(orden.cantidad) + descuentoMonto) * 100) / 100
+      : Number(orden.cantidad);
+    const filaDescuentoHtml = tieneDescuento
+      ? `<div class="ticket-imprimir-linea"><span>Descuento (${Number(orden.descuento_porcentaje)}%)</span><span>-$${formatearMoneda(descuentoMonto)}</span></div>`
+      : '';
 
     return `
       <div class="ticket-imprimir-titulo">Ticket de venta</div>
@@ -6770,7 +6829,8 @@
       <div class="ticket-imprimir-separador"></div>
       ${filasHtml}
       <div class="ticket-imprimir-separador"></div>
-      <div class="ticket-imprimir-linea"><span>Subtotal</span><span>$${formatearMoneda(orden.cantidad)}</span></div>
+      <div class="ticket-imprimir-linea"><span>Subtotal</span><span>$${formatearMoneda(subtotalBruto)}</span></div>
+      ${filaDescuentoHtml}
       <div class="ticket-imprimir-linea"><span>IVA (${Number(orden.iva_porcentaje)}%)</span><span>$${formatearMoneda(ivaMonto)}</span></div>
       <div class="ticket-imprimir-linea ticket-imprimir-total"><span>TOTAL</span><span>$${formatearMoneda(orden.total)}</span></div>
       <div class="ticket-imprimir-separador"></div>
@@ -7008,7 +7068,19 @@
       els.ordenModalConceptoSimple.textContent = orden.concepto;
     }
 
-    els.ordenModalCantidad.textContent = `$${formatearMoneda(orden.cantidad)}`;
+    // Punto 227: "Cantidad" muestra el subtotal BRUTO (antes del
+    // descuento) para que la línea "Descuento" de abajo tenga sentido —
+    // `orden.cantidad` guardado ya es el neto, se reconstruye sumando de
+    // vuelta `descuento_monto` (exacto, mismo criterio que el ticket).
+    const tieneDescuentoModal = Boolean(orden.descuento_porcentaje);
+    const subtotalBrutoModal = tieneDescuentoModal
+      ? Math.round((Number(orden.cantidad) + Number(orden.descuento_monto)) * 100) / 100
+      : Number(orden.cantidad);
+    els.ordenModalCantidad.textContent = `$${formatearMoneda(subtotalBrutoModal)}`;
+    els.ordenModalDescuentoWrap.hidden = !tieneDescuentoModal;
+    if (tieneDescuentoModal) {
+      els.ordenModalDescuento.textContent = `-$${formatearMoneda(Number(orden.descuento_monto))} (${Number(orden.descuento_porcentaje)}%)`;
+    }
     els.ordenModalIva.textContent = `${Number(orden.iva_porcentaje)}%`;
     els.ordenModalTotal.textContent = `$${formatearMoneda(orden.total)} MXN`;
 
@@ -12565,6 +12637,7 @@
       lead: 'Registrar, cobrar y hacer el corte del día.',
       pasos: [
         { t: 'Registrar una venta', d: 'Botón "+ Registrar venta" → Productos → Confirmar → Entrega (correo o imprimir). El modal se limpia y se queda abierto para varias ventas seguidas.' },
+        { t: 'Aplicar un descuento', d: 'En el paso de Confirmar, campo opcional "Descuento" — un porcentaje sobre el subtotal, antes del IVA. Se refleja en el Total, en el ticket impreso y en el correo de confirmación.' },
         { t: 'Marcar como pendiente de cobro', d: 'En el paso de Confirmar, cambia el toggle a "Pendiente" y define fecha de vencimiento — aparecerá en Cuentas por cobrar hasta que la cobres.' },
         { t: 'Generar el corte del día', d: 'Botón "Corte del día" junto a Registrar venta → elige el rango de fechas → imprime o consulta en pantalla. Queda guardado en Reportes → pestaña Cortes.' },
         { t: 'Filtrar y buscar', d: 'Filtros de concepto, fecha, total y estado de pago arriba de la tabla — funcionan al instante, sin recargar la página.' },

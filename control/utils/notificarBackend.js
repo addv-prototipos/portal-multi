@@ -23,4 +23,31 @@ async function notificarInvalidacionCache(slug) {
   });
 }
 
-module.exports = { notificarInvalidacionCache };
+// Completa el aprovisionamiento FÍSICO de un tenant en "provisioning" —
+// a diferencia de notificarInvalidacionCache() (fire-and-forget, un fallo
+// no revierte nada porque el estado en BD ya es correcto), esta llamada
+// SÍ debe esperarse y propagar el error: si el backend no pudo crear la
+// base de datos del tenant, control NUNCA debe marcarlo como "activo".
+class ErrorActivacionFisica extends Error {}
+
+async function activarTenantFisico(slug) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  let res;
+  try {
+    res = await fetch(`${url}/internal/activar-tenant/${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      headers: { 'X-Internal-Secret': secreto || '' },
+    });
+  } catch (err) {
+    throw new ErrorActivacionFisica('No se pudo conectar con el backend para crear la base de datos del tenant.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ErrorActivacionFisica(data.error || 'No se pudo crear la base de datos del tenant.');
+  }
+  return data;
+}
+
+module.exports = { notificarInvalidacionCache, activarTenantFisico, ErrorActivacionFisica };

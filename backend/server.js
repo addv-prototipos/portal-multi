@@ -14,10 +14,10 @@ const bwipjs = require('bwip-js');
 
 const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
-const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl } = require('./db');
+const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl, obtenerPoolTenant, crearBaseDeDatosTenant } = require('./db');
 const { ejecutarCierresMensualesParaTodos } = require('./utils/cierreMensual');
 const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant } = require('./utils/tenantContext');
-const { validarSlug } = require('./utils/tenant');
+const { validarSlug, nombreDbTenant } = require('./utils/tenant');
 const storage = require('./utils/storage');
 const {
   parsearTemaDesdeFila,
@@ -834,6 +834,53 @@ app.post('/internal/renombrar-slug', async (req, res) => {
   } catch (err) {
     console.error(`Error migrando archivos del slug "${slugAnterior}" a "${slugNuevo}":`, err);
     res.status(502).json({ error: 'No se pudo migrar el almacenamiento del tenant al slug nuevo.' });
+  }
+});
+
+// Completa el aprovisionamiento FÍSICO de un tenant que quedó en
+// "provisioning" (intake capturado desde /control, segmento 9c) — crea su
+// base de datos (`tenant_<slug>`) y le aplica el esquema completo. Usa las
+// mismas credenciales DB_* de aplicación que este contenedor ya tiene
+// montadas — NUNCA root (a diferencia de backend/scripts/
+// provisionar-tenant.js, el CLI tradicional). Solo funciona porque el
+// usuario de aplicación ya tiene un GRANT amplio tipo comodín sobre
+// `tenant_%` (otorgado una sola vez, con root, la primera vez que se
+// corrió ese CLI — ver asegurarControlYPrivilegios en
+// backend/scripts/lib/controlDb.js) — si ese privilegio faltara, esto
+// falla con un error de permisos real de MySQL, degradando al camino de
+// siempre (correr el CLI a mano). Deliberadamente NO toca
+// control_tenants.tenants.estado — eso lo hace /control (con su propia
+// credencial control_app) justo después de que este endpoint responde
+// 200, mismo reparto de responsabilidades que /internal/renombrar-slug.
+app.post('/internal/activar-tenant/:slug', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  const dbName = nombreDbTenant(slug);
+  try {
+    await crearBaseDeDatosTenant(dbName);
+    const poolTenant = obtenerPoolTenant({
+      slug,
+      host: process.env.DB_HOST || 'mysql',
+      port: Number(process.env.DB_PORT || 3306),
+      user: process.env.DB_USER || 'app',
+      password: process.env.DB_PASSWORD || '',
+      database: dbName,
+    });
+    await ensureSchema(poolTenant);
+    res.json({ ok: true, dbName });
+  } catch (err) {
+    console.error(`Error activando (aprovisionamiento físico de) el tenant "${slug}":`, err);
+    res.status(502).json({
+      error: 'No se pudo crear la base de datos del tenant. Revisa que el usuario de aplicación tenga privilegios sobre "tenant_%" (ver backend/scripts/provisionar-tenant.js) o complétalo con el CLI.',
+    });
   }
 });
 
@@ -1763,10 +1810,20 @@ function logoUrlDelTenant(req, urlPortal, configGlobal) {
 // Devuelve tanto la versión HTML (el ticket en sí) como una versión de
 // texto plano equivalente (ver la nota en utils/email.js sobre por qué
 // siempre se manda ambas).
-function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, email, urlPortal, logoUrl, marca }) {
+function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, urlPortal, logoUrl, marca }) {
   const enlaceLogin = urlPortal ? `${urlPortal}/login` : '';
   const logo = logoTicketHtml(logoUrl, marca);
   const filaTicket = filaCorreoTabla;
+  // Punto 227: "Cantidad" en este correo YA es el subtotal neto (con el
+  // descuento aplicado, si hubo uno) — la fila de descuento es solo
+  // informativa, no cambia el cálculo del Total que el cliente debe
+  // capturar al pedir su factura.
+  const filaDescuentoHtml = descuentoPorcentaje
+    ? filaTicket(`Descuento (${descuentoPorcentaje}%)`, `-$${descuentoMonto.toFixed(2)} MXN`)
+    : '';
+  const filaDescuentoTexto = descuentoPorcentaje
+    ? `Descuento (${descuentoPorcentaje}%): -$${descuentoMonto.toFixed(2)} MXN\n`
+    : '';
 
   const html = `
 <!DOCTYPE html>
@@ -1803,6 +1860,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
                 ${filaTicket('Hora', escapeHtmlCorreo(fechaFormateada.hora))}
                 ${filaTicket('Concepto', escapeHtmlCorreo(concepto))}
                 ${filaTicket('Cantidad', `$${cantidad.toFixed(2)} MXN`)}
+                ${filaDescuentoHtml}
                 ${filaTicket(`IVA (${ivaPorcentaje}%)`, `$${(total - cantidad).toFixed(2)} MXN`)}
               </table>
               <div style="border-top:1px dashed #DCE2EC; margin:10px 0;"></div>
@@ -1843,6 +1901,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     `Hora: ${fechaFormateada.hora}\n` +
     `Concepto: ${concepto}\n` +
     `Cantidad: $${cantidad.toFixed(2)} MXN\n` +
+    filaDescuentoTexto +
     `IVA (${ivaPorcentaje}%): $${(total - cantidad).toFixed(2)} MXN\n` +
     `TOTAL A FACTURAR: $${total.toFixed(2)} MXN\n` +
     `Correo: ${email}\n\n` +
@@ -4845,6 +4904,31 @@ app.post(
       return res.status(400).json({ error: 'La cantidad debe ser un número mayor a cero.' });
     }
 
+    // Punto 227: descuento opcional por porcentaje, sobre el subtotal
+    // ANTES del IVA. `descuentoPorcentaje`/`descuentoMonto` se guardan
+    // tal cual solo para reconstruir la línea "Descuento" en
+    // ticket/correo/detalle; el subtotal ya neto (`cantidadNeta`) es el
+    // que alimenta `total` — mismo invariante `total = cantidad*(1+iva%)`
+    // de siempre, así que Resumen financiero/Cuentas por
+    // cobrar/facturación no necesitan tocarse.
+    let descuentoPorcentaje = null;
+    let descuentoMonto = null;
+    let cantidadNeta = cantidad;
+    if (body.descuento_porcentaje !== undefined && body.descuento_porcentaje !== null && body.descuento_porcentaje !== '') {
+      const pct = Number(body.descuento_porcentaje);
+      // Estrictamente menor a 100: un descuento del 100% dejaría el
+      // subtotal neto en $0, violando el CHECK real de MySQL
+      // `chk_ordenes_compra_cantidad (cantidad > 0)` que ya protege
+      // cualquier venta (con o sin descuento) — encontrado validando
+      // contra MySQL real, ningún mock lo hubiera detectado.
+      if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+        return res.status(400).json({ error: 'El descuento debe ser un porcentaje mayor a 0 y menor a 100.' });
+      }
+      descuentoPorcentaje = pct;
+      descuentoMonto = Math.round(cantidad * (pct / 100) * 100) / 100;
+      cantidadNeta = Math.round((cantidad - descuentoMonto) * 100) / 100;
+    }
+
     // D8 (Inventarios, §22): producto opcional — SOLO se procesa si el
     // módulo está activo para este tenant; si está inactivo, cualquier
     // producto_id/productos_inventario que lleguen en el body se ignoran
@@ -4982,7 +5066,7 @@ app.post(
     const configGlobal = await getConfiguracionGlobal();
     const ivaPorcentaje = configGlobal.iva_porcentaje;
     // Redondeo a 2 decimales (centavos), como cualquier monto en pesos.
-    const total = Math.round(cantidad * (1 + ivaPorcentaje / 100) * 100) / 100;
+    const total = Math.round(cantidadNeta * (1 + ivaPorcentaje / 100) * 100) / 100;
 
     // `ahora` se normaliza a segundo exacto (sin milisegundos) para que la
     // BD (MySQL redondea DATETIME sin fracción), la respuesta a este
@@ -4997,9 +5081,9 @@ app.post(
     const fechaCobroInicial = estadoPago === 'pagada' ? ahora : null;
     const [resultado] = await pool.query(
       `INSERT INTO ordenes_compra
-        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['TEMP', ahora, concepto, cantidad, ivaPorcentaje, total, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, ahora, ahora]
+        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, descuento_porcentaje, descuento_monto, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['TEMP', ahora, concepto, cantidadNeta, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, ahora, ahora]
     );
 
     const numeroCompra = generarNumeroCompra(resultado.insertId);
@@ -5118,9 +5202,11 @@ app.post(
         numeroCompra,
         fechaFormateada,
         concepto,
-        cantidad,
+        cantidad: cantidadNeta,
         ivaPorcentaje,
         total,
+        descuentoPorcentaje,
+        descuentoMonto,
         email,
         urlPortal: urlPortalOrden,
         // El logo de la MARCA del tenant (si lo definió en control, ver el
@@ -5143,9 +5229,11 @@ app.post(
       numero_compra: numeroCompra,
       fecha_compra: fechaFormateada,
       concepto,
-      cantidad,
+      cantidad: cantidadNeta,
       iva_porcentaje: ivaPorcentaje,
       total,
+      descuento_porcentaje: descuentoPorcentaje,
+      descuento_monto: descuentoMonto,
       email,
       estado_pago: estadoPago,
       fecha_vencimiento: fechaVencimiento,
@@ -5187,7 +5275,7 @@ app.get(
       whereArchivado = '1=1';
     }
     const [ordenes] = await pool.query(
-      `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
+      `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.descuento_porcentaje, o.descuento_monto, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
         o.producto_id, o.producto_cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre,
         o.archivado_en, o.periodo_archivado,
         (o.facturado_en IS NOT NULL) AS facturado

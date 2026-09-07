@@ -92,6 +92,87 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       expect(pool.query).toHaveBeenCalledTimes(4);
     });
 
+    test('punto 227: descuento por porcentaje se aplica ANTES del IVA, sobre el subtotal', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults (iva 16%)
+      pool.query.mockResolvedValueOnce([{ insertId: 20, affectedRows: 1 }]); // INSERT
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({ concepto: '1 x Producto ($1000.00 c/u)', cantidad: 1000, descuento_porcentaje: 10 });
+
+      expect(res.status).toBe(201);
+      // 1000 - 10% = 900 (subtotal neto) -> +16% IVA = 1044
+      expect(res.body.cantidad).toBe(900);
+      expect(res.body.descuento_porcentaje).toBe(10);
+      expect(res.body.descuento_monto).toBe(100);
+      expect(res.body.total).toBe(1044);
+
+      // El INSERT debe guardar el subtotal ya neto (900), nunca el bruto (1000)
+      // — preserva el invariante total = cantidad*(1+iva%) para Resumen
+      // financiero/Cuentas por cobrar/facturación.
+      const insertCall = pool.query.mock.calls.find((c) => String(c[0]).includes('INSERT INTO ordenes_compra'));
+      expect(insertCall[1]).toContain(900);
+      expect(insertCall[1]).not.toContain(1000);
+    });
+
+    test('punto 227: sin descuento, cantidad/total se comportan exactamente igual que antes', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[]]);
+      pool.query.mockResolvedValueOnce([{ insertId: 21, affectedRows: 1 }]);
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({ concepto: '1 x Producto ($1000.00 c/u)', cantidad: 1000 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.cantidad).toBe(1000);
+      expect(res.body.descuento_porcentaje).toBeNull();
+      expect(res.body.descuento_monto).toBeNull();
+      expect(res.body.total).toBe(1160);
+    });
+
+    test('punto 227: descuento de 0% responde 400 (debe ser mayor a 0)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({ concepto: '1 x Producto ($10.00 c/u)', cantidad: 10, descuento_porcentaje: 0 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/descuento/i);
+    });
+
+    test('punto 227: descuento mayor a 100% responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({ concepto: '1 x Producto ($10.00 c/u)', cantidad: 10, descuento_porcentaje: 150 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/descuento/i);
+    });
+
+    // Encontrado validando contra MySQL real (no detectable con mocks): un
+    // descuento de exactamente 100% deja `cantidad` (subtotal neto) en $0,
+    // violando el CHECK real `chk_ordenes_compra_cantidad (cantidad > 0)`
+    // que ya protege cualquier venta. Se rechaza ANTES de llegar a la BD.
+    test('punto 227: descuento de exactamente 100% responde 400 (dejaría el subtotal en $0, viola el CHECK real de MySQL)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra')
+        .auth(usuario, password)
+        .send({ concepto: '1 x Producto ($10.00 c/u)', cantidad: 10, descuento_porcentaje: 100 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/descuento/i);
+    });
+
     test('correo inválido cuando SÍ se manda uno, responde 400', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       const res = await request(app)

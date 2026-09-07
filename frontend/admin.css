@@ -3576,6 +3576,18 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 
 /* Insignias de estatus (compartidas conceptualmente con portal.css, pero
    admin.css se mantiene autosuficiente ya que admin.html no carga portal.css) */
+/* Punto (2026-09-07): slug clicable en la tabla de empresas de /control,
+   directo a /<slug>/admin — solo para tenants "activo" (ver control.js). */
+.control-slug-link {
+  color: var(--color-accent-dark);
+  text-decoration: none;
+  border-bottom: 1.5px solid transparent;
+  transition: border-color 0.15s ease;
+}
+.control-slug-link:hover,
+.control-slug-link:focus-visible {
+  border-bottom-color: var(--color-accent);
+}
 .estatus-badge {
   display: inline-block;
   padding: 4px 10px;

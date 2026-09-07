@@ -351,8 +351,22 @@
       const tr = document.createElement('tr');
       const etiquetaEstado = ETIQUETA_ESTADO[t.estado] || t.estado;
       const tooltipEstado = TOOLTIP_ESTADO[t.estado] || '';
+      // Slug clicable directo a /<slug>/admin — solo si el tenant está
+      // "activo" (Provisionando/Suspendido/Baja no tienen un /admin
+      // realmente accesible, un link ahí prometería algo que falla).
+      // El dominio se detecta solo con window.location.origin — nunca se
+      // hardcodea, así que en dev resuelve a la IP/puerto real y en
+      // producción al dominio real sin ningún cambio de código. Funciona
+      // para cualquier super usuario (ADMIN_USERS del .env o la cuenta
+      // de respaldo "admin" gestionada desde /control) — ambos ya entran
+      // a cualquier /<slug>/admin (ver punto 185), este link no agrega
+      // acceso nuevo, solo un atajo.
+      const urlAdminTenant = `${window.location.origin}/${t.slug}/admin`;
+      const slugCelda = t.estado === 'activo'
+        ? `<a href="${escapeHtml(urlAdminTenant)}" target="_blank" rel="noopener noreferrer" class="control-slug-link" data-tooltip="${escapeHtml(urlAdminTenant)}"><strong>${escapeHtml(t.slug)}</strong></a>`
+        : `<strong>${escapeHtml(t.slug)}</strong>`;
       tr.innerHTML = `
-        <td data-label="Slug"><strong>${escapeHtml(t.slug)}</strong></td>
+        <td data-label="Slug">${slugCelda}</td>
         <td data-label="Empresa">${escapeHtml(t.nombre_empresa)}</td>
         <td data-label="Estado"><span class="estatus-badge estatus-${escapeHtml(t.estado)}" data-tooltip="${escapeHtml(tooltipEstado)}">${escapeHtml(etiquetaEstado)}</span></td>
         <td data-label="Contacto">${escapeHtml(t.contacto_email) || '—'}</td>

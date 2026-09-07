@@ -788,6 +788,32 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
+**Punto 248 (2026-09-07, IMPLEMENTADO Y VALIDADO por curl+inspección del
+build real)**: slug clicable en la tabla de empresas de `/control`,
+directo a `/<slug>/admin` — solo si el tenant está `activo`, dominio
+100% dinámico (`window.location.origin`, nunca hardcodeado), tooltip real
+vía `data-tooltip` con la URL completa. Confirmado por el usuario: el
+link no agrega acceso nuevo — `ADMIN_USERS`/cuenta `admin` ya entran a
+cualquier `/<slug>/admin` (punto 185). `.control-slug-link` en
+`admin.css`. Falta confirmación visual (sin navegador esta sesión, y sin
+tenant `activo` real para ejercitarlo). Ver PROJECT_STATE.md punto 248.
+
+**Punto 227 (2026-09-07, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
+reales)**: descuento opcional por porcentaje en Ventas (admin y sitio
+base), aplicado antes del IVA, reflejado en ticket/correo/modal "Ver
+venta". `cantidad` en `ordenes_compra` pasa a guardar el subtotal ya NETO
+(con descuento aplicado) — preserva el invariante `total =
+cantidad×(1+iva%)` que ya usan Resumen financiero/Cuentas por
+cobrar/facturación, cero cambios ahí. 2 columnas nuevas
+(`descuento_porcentaje`/`descuento_monto`, solo para reconstruir la línea
+en ticket/correo/detalle por suma exacta, nunca división). **Bug real
+encontrado validando contra MySQL real** (no detectable con mocks): 100%
+de descuento viola el CHECK real `chk_ordenes_compra_cantidad (cantidad >
+0)` — rango ajustado a "mayor a 0 y MENOR a 100" en las 3 capas. Jest
+backend 891/891 (6 tests nuevos). Centro de conocimiento (Ventas) al día.
+Sin herramienta de navegador esta sesión — falta confirmación visual. Ver
+PROJECT_STATE.md punto 227.
+
 **Punto 215 (2026-09-07, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
 real)**: homologación de "Correo de contacto de la empresa" — el sitio
 base (sin tenant) ahora también lo edita desde `/admin` › Configuraciones

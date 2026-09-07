@@ -63,6 +63,34 @@ const poolPorDefecto = crearPool({
   connectionLimit: 10,
 });
 
+// Crea (si no existe) la base de datos física de un tenant nuevo, usando
+// las MISMAS credenciales DB_* de aplicación que ya vive montadas en este
+// contenedor — nunca root. Solo funciona porque el usuario de aplicación
+// ya tiene un GRANT amplio tipo comodín sobre `tenant_%` (otorgado una
+// sola vez, con root, por backend/scripts/lib/controlDb.js —
+// asegurarControlYPrivilegios — la primera vez que se corrió el CLI de
+// aprovisionamiento). Si ese privilegio llegara a faltar (nunca se corrió
+// el CLI ni una sola vez, o se revocó a mano), esto falla con un error de
+// permisos real de MySQL — degradación esperada, hay que volver al CLI.
+// Conexión SUELTA (no un pool): se usa una sola vez y se cierra, la base
+// de datos destino todavía no existe así que no se le puede pasar
+// `database` a `crearPool()` como al resto de los pools de este módulo.
+async function crearBaseDeDatosTenant(dbName) {
+  const conexion = await mysql.createConnection({
+    host: process.env.DB_HOST || 'mysql',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'app',
+    password: process.env.DB_PASSWORD || '',
+  });
+  try {
+    await conexion.query(
+      `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+    );
+  } finally {
+    await conexion.end();
+  }
+}
+
 // Contexto de tenant por request. `almacenTenant.run({ pool }, fn)` hace
 // que, dentro de `fn` (y de cualquier función async que llame, sin
 // importar cuántos niveles de profundidad), `almacenTenant.getStore()`
@@ -618,6 +646,8 @@ async function ensureSchema(db = pool) {
       cantidad DECIMAL(12,2) NOT NULL,
       iva_porcentaje DECIMAL(5,2) NOT NULL,
       total DECIMAL(12,2) NOT NULL,
+      descuento_porcentaje DECIMAL(5,2) NULL,
+      descuento_monto DECIMAL(12,2) NULL,
       email VARCHAR(200) NULL,
       estado_pago ENUM('pagada','pendiente') NOT NULL DEFAULT 'pagada',
       fecha_vencimiento DATE NULL,
@@ -818,6 +848,23 @@ async function ensureSchema(db = pool) {
   }
   if (!nombresOrdenProducto.includes('producto_cantidad')) {
     await db.query(`ALTER TABLE ordenes_compra ADD COLUMN producto_cantidad DECIMAL(12,3) NULL`);
+  }
+
+  // Punto 227: descuento opcional por porcentaje, aplicado sobre el
+  // subtotal ANTES del IVA (mismo criterio que el nodo "Descuento" de un
+  // CFDI). `cantidad` sigue siendo el subtotal NETO ya con el descuento
+  // aplicado — se preserva el invariante `total = cantidad*(1+iva%)` que
+  // ya usan Resumen financiero/Cuentas por cobrar/Corte del día/
+  // facturación, así que ninguno de ellos necesita cambios. Las 2
+  // columnas son solo para reconstruir la línea "Descuento" en el
+  // ticket/correo/detalle sin tener que derivarla (evita el caso límite
+  // de dividir entre cero con un descuento del 100%). Ambas NULL = sin
+  // descuento, retrocompatible con toda venta ya existente.
+  if (!nombresOrdenProducto.includes('descuento_porcentaje')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN descuento_porcentaje DECIMAL(5,2) NULL`);
+  }
+  if (!nombresOrdenProducto.includes('descuento_monto')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN descuento_monto DECIMAL(12,2) NULL`);
   }
 
   // orden_productos (Segmento A, "Ventas con inventario activo" —
@@ -1558,4 +1605,5 @@ module.exports = {
   purgarPoolsInactivos,
   cerrarTodosLosPoolsTenant,
   obtenerPoolControl,
+  crearBaseDeDatosTenant,
 };

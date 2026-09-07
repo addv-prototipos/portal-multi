@@ -1037,10 +1037,17 @@
               </div>
 
               <div class="field">
+                <label for="orden-descuento">Descuento <span class="field-mark optional">(opcional)</span></label>
+                <input type="text" inputmode="decimal" id="orden-descuento" placeholder="0" autocomplete="off" />
+                <p class="field-hint">Porcentaje sobre el subtotal, antes del IVA (mayor a 0, menor a 100). Déjalo vacío si no aplica.</p>
+                <p class="field-error" id="error-orden-descuento" role="alert"></p>
+              </div>
+
+              <div class="field">
                 <label>Total</label>
                 <p class="field-hint" id="orden-mini-resumen"></p>
                 <p class="orden-total-preview" id="orden-total-preview">$0.00 MXN</p>
-                <p class="field-hint">Cantidad + IVA — <strong>esta es la cantidad que se va a facturar</strong>.</p>
+                <p class="field-hint"><strong>Esta es la cantidad que se va a facturar.</strong></p>
               </div>
             </div>
 
@@ -3443,6 +3450,10 @@
             <div class="field">
               <label>Cantidad</label>
               <p class="orden-campo-automatico" id="orden-modal-cantidad">—</p>
+            </div>
+            <div class="field" id="orden-modal-descuento-wrap" hidden>
+              <label>Descuento</label>
+              <p class="orden-campo-automatico" id="orden-modal-descuento">—</p>
             </div>
             <div class="field">
               <label>IVA</label>

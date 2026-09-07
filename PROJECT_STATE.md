@@ -13645,7 +13645,60 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 226. **PENDIENTE — Configuración SMTP global para mensajes de Clarvo o selección de servicios de mensajería / email marketing (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar configuración SMTP global para mensajes de Clarvo o para seleccionar servicios de mensajería o email marketing (proveedor externo). Requerimiento textual: "agrega la configuración de SMTP global para mensajes de clarvo o seleccionar servicios de mensajeria o email marketing". Estado: solo anotado como pendiente, ligado al punto 225 (selector Clarvo vs. propio por tenant). No se ha analizado dónde persistir (config global de `control` vs. `backend` `configuracion` SMTP ya existente por tenant), ni qué servicios candidatos (SMTP propio, SendGrid/Mailgun/SES, mensajería — WhatsApp/SMS), ni UX en `/control` (sección global de mensajería/email marketing con credenciales y test de envío), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
-227. **PENDIENTE — Campo opcional de descuento por porcentaje en Ventas (admin y sitio base), aplicado en impresión del ticket (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar en Ventas dentro del admin (`frontend/admin.html`/`admin.js` modal "Registrar venta", `backend/server.js` `POST /api/admin/ordenes-compra`, `ordenes_compra` en `backend/db.js`) y en sitio base (`portal_facturacion` sin slug — mismo código por tenant), a la hora de realizar una venta, un campo opcional de descuento por porcentaje; si está llenado aplica el descuento y este se considera en la impresión del ticket. Requerimiento textual: "Agrega en ventas dentro del admin y en sitio base, a la hora de realizar una venta un campo opcional de descuento, este es por porcentaje, si el campo esta llenado aplica el descuento y este es considerado en la impresión del ticket". Estado: solo anotado como pendiente. No se ha analizado el modelo (¿columna `descuento_porcentaje` DECIMAL en `ordenes_compra`? ¿sobre subtotal vs. total con IVA? ¿redondeo?), ni propuesto UX (campo % en el wizard de venta con preview), ni definido impresión (`utils/reportes`/impresión ticket — ¿línea de descuento y total neto?), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+227. **Descuento opcional por porcentaje en Ventas — IMPLEMENTADO Y VALIDADO
+    contra Docker/MySQL reales (2026-09-07)**: pedido original de un campo
+    opcional de descuento por porcentaje, aplicado en la impresión del
+    ticket. Protocolo completo: crítica + propuesta visual antes/después
+    en Artifact (5 decisiones documentadas ahí, aprobadas sin cambios) —
+    resumen: (1) el % se aplica sobre el subtotal, ANTES del IVA (criterio
+    fiscal real de México, mismo que el nodo "Descuento" de un CFDI); (2)
+    descuento por venta completa, no por línea de producto; (3) diseño
+    pensado para que `total`/`cantidad` sigan significando exactamente lo
+    mismo que hoy para todo lo que ya los consume (Resumen financiero,
+    Cuentas por cobrar, Corte del día, facturación) — cero cambios ahí;
+    (4) queda fijo al guardar (no hay "editar venta" hoy); (5) rango
+    validado, vacío = sin descuento.
+    **Backend**: 2 columnas nuevas en `ordenes_compra`
+    (`descuento_porcentaje` DECIMAL(5,2) NULL, `descuento_monto`
+    DECIMAL(12,2) NULL, migración idempotente en `db.js`, ambas NULL en
+    todo lo ya existente). `POST /api/admin/ordenes-compra` calcula
+    `descuentoMonto = subtotalBruto × pct/100` y guarda en la columna
+    `cantidad` el subtotal ya NETO (`subtotalBruto − descuentoMonto`) —
+    preserva el invariante `total = cantidad×(1+iva%)` que ya usan todos
+    los reportes, así que ninguno necesita tocarse. `GET
+    /api/admin/ordenes-compra` expone las 2 columnas nuevas.
+    `construirCorreoOrdenCompra()` gana una línea "Descuento" (HTML+texto
+    plano), solo cuando aplica. Cubre sitio base y cualquier tenant por
+    ser el mismo código tenant-aware — un solo endpoint tocado.
+    **Frontend**: campo "Descuento (opcional)" en el paso "Confirmar" del
+    wizard de Ventas, preview en vivo del Total; ticket impreso y modal
+    "Ver venta" reconstruyen el subtotal BRUTO sumando de vuelta
+    `descuento_monto` (suma exacta, nunca división) y muestran la línea
+    "Descuento" solo si aplica; modo offline (`OfflineQueue`) incluye el
+    campo en el payload encolado y en el total estimado mostrado mientras
+    no hay conexión. Centro de conocimiento (categoría "Ventas") gana un
+    paso explicando el campo.
+    **Bug real encontrado y corregido validando contra MySQL real, no
+    detectable con mocks**: un descuento de exactamente 100% deja el
+    subtotal neto en $0, violando el CHECK real `chk_ordenes_compra_cantidad
+    (cantidad > 0)` que ya protege cualquier venta — los 6 tests
+    unitarios/integración originales (con `pool.query` mockeado) pasaban
+    igual, la violación solo aparece contra el constraint real de MySQL.
+    Fix: rango ajustado de "mayor a 0 y hasta 100" a "mayor a 0 y MENOR a
+    100", en las 3 capas (validación backend, preview live del frontend,
+    validación del guardado del frontend) — rechazado ANTES de tocar la
+    BD, mensaje de error explícito. Jest backend **891/891** (6 tests
+    nuevos: cálculo correcto con descuento, sin descuento sin regresión,
+    0% rechazado, >100% rechazado, exactamente 100% rechazado —
+    reescrito tras el bug real —, INSERT guarda el neto nunca el bruto).
+    Validado por curl contra Docker/MySQL reales tras rebuild
+    `--no-cache`+`--force-recreate`: descuento de 10% sobre $1,000 → 900
+    neto/$100 descuento/$1,044 total exactos; 100% rechazado con el
+    mensaje correcto; 99% funciona ($1 neto); venta sin descuento sin
+    regresión ($500→$580). Entorno restaurado (3 ventas de prueba
+    eliminadas). **Sin herramienta de navegador esta sesión** — falta
+    confirmación visual del campo en el wizard, el ticket y el modal "Ver
+    venta". Sin commit/push todavía.
 
 228. **PENDIENTE — Barra del portal cliente (tenant y sitio base): mostrar si la constancia ya está subida y el correo asociado, con aviso de que actualizar el correo requiere resubir la constancia (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar en la parte de clientes, tanto tenant (`/<slug>/csf`, `/<slug>/dashboard`) como sitio base (`/csf`, `/dashboard`) — `frontend/csf.html`/`frontend/portal.js`/`frontend/app.js`/`dashboard.js`, `backend/server.js` `GET /api/registro/*` — que la barra muestre si ya está la constancia subida y el correo asociado, y mencionar que si quiere actualizar el correo se requiere subir de nuevo la constancia. Requerimiento textual: "En la parte de clientes tenant y sitio base, agregar que muestre en la barra si ya esta la constancia subida y el correo que se tiene asociado y mencionar que si quiere actualizar el correo se requiere subir de nuevo la constancia". Estado: solo anotado como pendiente. No se ha analizado de dónde tomar el estado (¿`registros` por `rfc`/`usuario` con `eliminado_en IS NULL`? ¿qué correo — `registros.email` vs. `usuarios.email`?), ni propuesto UX de la barra (badge/indicador + tooltip/aviso), ni definido flujo de actualización (¿resubir constancia pisa el correo existente?), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
@@ -13680,6 +13733,50 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 243. **PENDIENTE — Sección de tutoriales YouTube en `/control` (link + título) para biblioteca visible en todos los admins tenant y sitio base (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar en control la sección de tutoriales YouTube, donde se pone link y título para que se lea en todos los admins tenant (`/<slug>/admin`) o sitio base (`/admin` sin slug) — `frontend/control.html`/`control.js`, `control/server.js`/`control/db.js` tabla `control_tutoriales_youtube` o similar, consumo en `frontend/admin.html`/`admin.js` centro de conocimiento / biblioteca — y tengan la biblioteca de links para ver videos de cómo hacerlo. Requerimiento textual: "Agregar en control la sección de tutoriales youtube, donde se pone link y titulo para que se lea en todos los admins tenent o sitio base, y tengan la biblioteca de links para ver videos de como hacerlo". Estado: solo anotado como pendiente, ligado al punto 242 (centro de conocimiento → canal YouTube con mensaje vacío si no hay links en control). No se ha analizado el modelo (¿global para todos los tenants vs. por tenant? — este punto indica global para todos), ni UX en `/control` (CRUD link+título) y en el admin tenant/base (biblioteca de tutoriales), ni validación de URLs, ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar junto con 242. Sin commit/push todavía.
 
 244. **PENDIENTE — Configuraciones de empresa en `/control`: switches para activar/inactivar qué opciones del menú tienen activas (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar en control dentro de las configuraciones de empresa (`frontend/control.html`/`control.js` modal/detalle de tenant, `control/server.js`/`control/utils/tenantIntake.js`/`tenantEdicion.js`, `control_tenants.tenants` o `control_tenant_features`), todos los switches para activar o inactivar el ver qué opciones del menú tienen activas. Requerimiento textual: "En control dentro de las configuraciones de empresa, estan todos los switches para activar o inactivar el ver que opciones del menú tienen activas". Estado: solo anotado como pendiente, ligado a 210/211 (personalización/factura), 214 (sitio base), 239 (inventario↔sitio web) y demás switches por tenant (209 trial, 225 mensajería, etc.). No se ha analizado el modelo (¿flags por opción de menú — Ventas, Gastos, CxC, Inventarios, Reportes, etc. — por tenant? ¿lista cerrada vs. dinámica?), ni propuesto UX (matriz de switches por empresa en `/control`), ni definido comportamiento en `frontend/admin.html`/`admin.js` (`RESTRICCIONES_PERFIL` + visibilidad de menú por tenant), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+
+245. **PENDIENTE — Refinar y revisar reportes: falta colocar la persona que hizo la venta en algunos reportes (campos vacíos) (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar — nota interna para el usuario)**: en algunos reportes falta colocar la persona que hizo la venta en el campo porque salen vacíos; pendiente refinar y revisar los reportes por favor. Requerimiento textual: "agrega en los pendientes, que falta en algunos reportes colocar la persona que hizo la venta en el campo porque salen vacios, este es mas para mi, refinar y revisar los reportes por favor". Estado: solo anotado como pendiente (nota interna del usuario para refinar reportes). No se ha analizado qué reportes (¿`reportes`/`reporte_items` del punto 71-77, exportaciones CSV/Excel, vista Lectura de reportes? ¿campo "Atendido por" del punto 76/154 vs. creador de la venta `ordenes_compra.actualizado_por`/vendedor?), ni propuesto corrección (¿popular el campo al generar el reporte o al exportar?), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+
+246. **PENDIENTE — Nota: configuraciones de control por desarrollar más — seguimiento de facturas sin ventas (con imagen) como producto básico con upscale (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar — nota)**: pendiente son configuración de control, como nota, falta desarrollarlo más, cuando se piden seguimiento de facturas sin ventas, que es con imagen, es un producto el básico con upscale. Requerimiento textual: "agrega pendiente son configuracion de control, como nota, falta desarrollarlo mas, cuando se piden seguimento de facturas sin ventas, que es con imagen, es un producto el basico con upscale". Estado: solo anotado como pendiente/nota para desarrollar más en control. No se ha analizado el alcance (¿producto "seguimiento sin ventas" como paquete básico vs. addon upscale? ¿qué seguimiento — estado de factura con imagen de ticket sin venta asociada?), ni modelo en `/control` (productos/paquetes del punto 229), ni UX, ni tocado código. Siguiente paso cuando se defina a detalle: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+
+248. **Slug clicable en la tabla de empresas de `/control`, directo a
+    `/<slug>/admin` (2026-09-07, IMPLEMENTADO Y VALIDADO por curl+
+    inspección del build real contra Docker)**: pedido a partir de una
+    captura del usuario (celda "SLUG" de la tabla de tenants, vista
+    colapsada en móvil vía `data-label`) — que el slug se autogenere como
+    link clicable, con hover mostrando la URL completa automáticamente,
+    detectando el dominio (IP en este entorno dev). Crítica aplicada:
+    (1) dominio 100% dinámico vía `window.location.origin` — nunca
+    hardcodeado, resuelve solo a la IP/puerto real en dev y al dominio
+    real en producción sin ningún cambio de código; (2) solo clicable si
+    `estado === 'activo'` — Provisionando/Suspendido/Baja no tienen un
+    `/admin` realmente accesible, un link ahí prometería algo que falla;
+    (3) tooltip real vía `data-tooltip` (mismo componente estilizado ya
+    usado en todo el sitio, punto 148), no solo el hover nativo del
+    navegador. Destino confirmado por el usuario: `/<slug>/admin`
+    directo (no la raíz) — y confirmó explícitamente que cualquier super
+    usuario (`ADMIN_USERS` del `.env`, o la cuenta de respaldo "admin"
+    gestionada desde `/control`) ya puede entrar a cualquier `/<slug>/
+    admin` (mecanismo existente desde el punto 185, sin tocar) — este
+    link solo es un atajo, no agrega acceso nuevo. `control.js` arma
+    `urlAdminTenant` por fila y decide `<a>` vs. texto plano según
+    `estado`; `.control-slug-link` nuevo en `admin.css` (compartido por
+    `/control`). `node --check` limpio, CSS balanceado (1105/1105),
+    control Jest 116/116 (sin cambios de backend). Validado tras rebuild
+    `--no-cache`+`--force-recreate` frontend: el JS/CSS servidos
+    confirmados por curl, y la lógica de los 4 estados confirmada con un
+    script Node aislado (`provisioning`/`suspendido`/`baja` → texto
+    plano; `activo` → `<a href="http://<origin>/<slug>/admin"
+    data-tooltip="...">`). **No se pudo ejercitar un tenant real en
+    estado "activo" en esta sesión** — el único tenant existente
+    (`abarroteslulu`) sigue en `provisioning`. **Sin herramienta de
+    navegador esta sesión** — falta confirmación visual (hover/clic
+    reales). Sin commit/push todavía.
+
+247. **PENDIENTE — Gestión del super admin solo desde `/control` (no desde tenants) y tabla de permisos visible solo para perfil administrador (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar como pendiente que el cambio o gestión del super admin ya no es posible en los tenants, solamente desde control y la tabla de permisos solamente la puede ver el perfil administrador. Requerimiento textual: "agrega como pendiente que el cambio o gestion del super admin ya no es posible en los tenant, solamente desde control y la tabla de permisos solamente lo puede ver el perfil administrador". Estado: solo anotado como pendiente. No se ha analizado el estado actual (`frontend/admin.html`/`admin.js` gestión de usuarios y tabla "Perfiles y roles" del punto 83/84, `backend/utils/auth.js` `ADMIN_USERS`/`super`), ni propuesto guard en `backend/server.js` (`PUT /api/admin/usuarios` y tabla permisos), ni definido qué cuenta como "gestión del super admin" (¿crear/editar/borrar usuarios `super`, cambiar `ADMIN_USERS`, tabla `admin_auditoria`?), ni dónde vive la gestión en `/control` (`frontend/control.html`), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+
+248. **PENDIENTE — Mensaje de suspensión de cuenta con ventana emergente cuando se suspende desde `/control` (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar mensaje de suspensión de cuenta, cuando desde el control se suspende, para que el usuario sepa qué ha sucedido, con ventana emergente para notificar. Requerimiento textual: "agregar pendiente, mensaje de suspención de cuenta, cuando desde el control se supende, para que el usuario sepa que ha sucedido, agrega una ventana emergente para notificar". Estado: solo anotado como pendiente, ligado a 218 (mensajes globales — suspensión por pagos) y 212/214 (suspensión/activación de tenant/sitio base). No se ha analizado el disparador (¿cambio de `tenants.estado` a `suspendido` en `/control`? ¿qué ven `frontend/admin.html` y portal cliente `frontend/dashboard.html`/`login.html`?), ni contenido del mensaje/popup, ni si es bloqueante o informativo, ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+
+249. **PENDIENTE — Clave o producto del SAT obligatorio — sin esa configuración no permite usar el sistema (oculta menús y exige configurarlo), validado contra si tiene activo el uso de facturar en `/control`; si está apagado no aparece Configuraciones fiscales ni bloquea el uso; además, al enviar por correo o imprimir no colocar URL de facturación ni mensaje para facturar (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar como pendiente agregar como obligatorio clave o producto del SAT y sin esta configuración no les permita usar el sistema, debe ocultar todos los menús y configurarlo, validar con control si tiene activo el uso de facturar, si está apagado no debe aparecer configuraciones fiscales ni impedir su uso, adicional, que cuando se manden por correo o se imprima, no coloque la URL de facturación ni mande mensaje para facturar. Requerimiento textual: "agrega pendiente sobre agregar como obligatorio clave o producto del SAT y sin esta configuración no les permita usar el sistema, debe ocultar todos los menús y configurarlo, validar con control si tiene activo el uso de facturar, si esta apagado no debe aparecer configuraciones fiscales ni impedir su uso, adicional, que cuando se manden por correo o se imprima, no coloque la URL de facturación ni mande mensaje para facturar". Estado: solo anotado como pendiente, ligado a 62/65 (Clave SAT `clave_sat`), 244 (switches de menú por empresa), 210/211 (factura personalizada), 212 (suscripción), 47-52 (URL/ticket de venta y correo). No se ha analizado el modelo (¿flag `clave_sat_obligatoria` por tenant en `control_tenants.tenants`? ¿qué campo exacto — `clave_sat` de Configuraciones fiscales?), ni propuesto UX de bloqueo (ocultar menús y forzar configuración), ni definido guard por tenant (si `usar_facturar` OFF en `/control` se salta todo el bloqueo y se oculta Configuraciones fiscales), ni definido supresión de URL/mensaje de facturación en `enviarCorreoOrdenCompra` e impresión de ticket, ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
 ## Dónde está todo (mapa rápido)
 
