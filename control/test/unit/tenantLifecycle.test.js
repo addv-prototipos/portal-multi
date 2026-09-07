@@ -13,14 +13,16 @@ jest.mock('../../db', () => ({
 }));
 jest.mock('../../utils/notificarBackend', () => ({
   notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
+  activarTenantFisico: jest.fn().mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' }),
 }));
 
 const { obtenerPool } = require('../../db');
-const { notificarInvalidacionCache } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico } = require('../../utils/notificarBackend');
 const {
   ErrorTransicionTenant,
   listarTenants,
   obtenerTenantPorSlug,
+  activarTenant,
   suspenderTenant,
   reactivarTenant,
   darDeBajaTenant,
@@ -88,6 +90,63 @@ describe('utils/tenantLifecycle.js', () => {
       const resultado = await obtenerTenantPorSlug('cliente1');
 
       expect(resultado).toEqual(TENANT_FILA);
+    });
+  });
+
+  describe('activarTenant', () => {
+    test('provisioning -> activo: verifica estado, crea la BD física en el backend y actualiza', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'provisioning' }]]) // obtenerTenantPorSlug inicial
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE (aplicarTransicion)
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]) // obtenerTenantPorSlug posterior
+        .mockResolvedValueOnce([{}]); // registrarEvento (INSERT)
+
+      const resultado = await activarTenant('cliente1', { actor: 'admin' });
+
+      expect(activarTenantFisico).toHaveBeenCalledWith('cliente1');
+      const [sqlUpdate, paramsUpdate] = pool.query.mock.calls[1];
+      expect(sqlUpdate).toMatch(/SET estado = \?, activado_en = NOW\(\) WHERE slug = \? AND estado IN \(\?\)/);
+      expect(paramsUpdate).toEqual(['activo', 'cliente1', 'provisioning']);
+      const [, paramsInsert] = pool.query.mock.calls[3];
+      expect(paramsInsert).toEqual([7, 'alta_completada', expect.any(String), 'admin', expect.any(Date)]);
+      expect(resultado.estado).toBe('activo');
+    });
+
+    test('slug inexistente -> ErrorTransicionTenant "no_encontrado", nunca llama al backend', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const error = await activarTenant('fantasma', { actor: 'admin' }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorTransicionTenant);
+      expect(error.codigo).toBe('no_encontrado');
+      expect(activarTenantFisico).not.toHaveBeenCalled();
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+
+    test('estado distinto de "provisioning" -> ErrorTransicionTenant "estado_invalido", nunca llama al backend', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]);
+
+      const error = await activarTenant('cliente1', { actor: 'admin' }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorTransicionTenant);
+      expect(error.codigo).toBe('estado_invalido');
+      expect(activarTenantFisico).not.toHaveBeenCalled();
+    });
+
+    test('el backend falla al crear la BD física -> ErrorTransicionTenant "error_fisico", nunca marca "activo"', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'provisioning' }]]);
+      activarTenantFisico.mockRejectedValueOnce(new Error('No se pudo crear la base de datos del tenant.'));
+
+      const error = await activarTenant('cliente1', { actor: 'admin' }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorTransicionTenant);
+      expect(error.codigo).toBe('error_fisico');
+      // Ningún UPDATE se disparó tras el fallo físico — solo la consulta inicial.
+      expect(pool.query).toHaveBeenCalledTimes(1);
     });
   });
 

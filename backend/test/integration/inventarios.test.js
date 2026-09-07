@@ -331,6 +331,89 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       expect(params[11]).toBeNull(); // punto_reorden
     });
 
+    // Punto 213: fecha de expiración opcional, por producto (no servicio).
+    test('POST /productos con fecha_expiracion válida la guarda', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolConfigPorClave([
+        ['SELECT id FROM productos WHERE sku', [[]]],
+        ['SELECT id FROM unidades_medida WHERE id', [[{ id: 1 }]]],
+        ['INSERT INTO productos', [{ insertId: 60 }]],
+      ]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos')
+        .auth(usuario, password)
+        .send({ nombre: 'Yogurt natural', sku: 'LAC-YOG-1L', unidad_id: 1, fecha_expiracion: '2026-12-15' });
+
+      expect(res.status).toBe(201);
+      const insert = pool.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO productos'));
+      expect(insert[1][14]).toBe('2026-12-15'); // fecha_expiracion
+    });
+
+    test('POST /productos con fecha_expiracion en formato inválido responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolConfigPorClave([
+        ['SELECT id FROM productos WHERE sku', [[]]],
+        ['SELECT id FROM unidades_medida WHERE id', [[{ id: 1 }]]],
+      ]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos')
+        .auth(usuario, password)
+        .send({ nombre: 'Yogurt natural', sku: 'LAC-YOG-1L', unidad_id: 1, fecha_expiracion: '15/12/2026' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/fecha de expiración/i);
+    });
+
+    test('POST /productos tipo=servicio ignora fecha_expiracion aunque venga en el body', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT id FROM productos WHERE sku', [[]]],
+        ['SELECT id FROM unidades_medida WHERE nombre', [[{ id: 9 }]]],
+        ['INSERT INTO productos', [{ insertId: 61 }]],
+      ]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos')
+        .auth(usuario, password)
+        .send({ nombre: 'Consultoría fiscal', sku: 'SERV-3', tipo: 'servicio', unidad_id: 1, fecha_expiracion: '2026-12-15' });
+
+      expect(res.status).toBe(201);
+      const insert = pool.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO productos'));
+      expect(insert[1][14]).toBeNull(); // fecha_expiracion ignorada
+    });
+
+    test('GET /productos con ?vencimiento=por_vencer filtra vencidos+próximos 30 días, solo producto activo', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT COUNT(*) AS total FROM productos', [[{ total: 2 }]]],
+        ['SELECT p.*, e.disponible', [[]]],
+      ]);
+      const res = await request(app)
+        .get('/api/admin/inventarios/productos?vencimiento=por_vencer')
+        .auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(2);
+      const countCall = pool.query.mock.calls.find(([sql]) => String(sql).startsWith('SELECT COUNT(*) AS total FROM productos'));
+      expect(countCall[0]).toMatch(/fecha_expiracion IS NOT NULL AND p\.fecha_expiracion <= DATE_ADD\(CURDATE\(\), INTERVAL \? DAY\)/);
+      expect(countCall[1]).toContain(30);
+    });
+
+    test('GET /productos sin el filtro NO aplica ninguna condición de expiración', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT COUNT(*) AS total FROM productos', [[{ total: 10 }]]],
+        ['SELECT p.*, e.disponible', [[]]],
+      ]);
+      const res = await request(app).get('/api/admin/inventarios/productos').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      const countCall = pool.query.mock.calls.find(([sql]) => String(sql).startsWith('SELECT COUNT(*) AS total FROM productos'));
+      expect(countCall[0]).not.toMatch(/fecha_expiracion/);
+    });
+
     test('POST /productos tipo=servicio sin unidad "Hora" configurada responde INV_UNIDAD_SERVICIO_NO_CONFIGURADA', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       mockPoolPorPatron([
@@ -703,6 +786,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
         if (s.includes('e.disponible = 0')) return [[{ total: 1 }]];
         if (s.includes('NOT EXISTS (SELECT 1 FROM movimientos_inventario')) return [[{ total: 3 }]];
         if (s.includes("m.tipo = 'merma'")) return [[{ valor: '80.00', cantidad: 2 }]];
+        if (s.includes('fecha_expiracion IS NOT NULL')) return [[{ total: 5 }]];
         return [[]];
       });
 
@@ -717,6 +801,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
         productos_bajo_minimo: 2,
         productos_sin_existencia: 1,
         productos_sin_movimiento: 3,
+        productos_por_vencer: 5,
         mermas_periodo_valor: 80,
         mermas_periodo_cantidad: 2,
       });

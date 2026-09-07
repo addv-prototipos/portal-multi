@@ -499,6 +499,12 @@
     invKpiSinMovimiento: document.getElementById('inv-kpi-sin-movimiento'),
     invKpiMermas: document.getElementById('inv-kpi-mermas'),
     invKpiMermasCantidad: document.getElementById('inv-kpi-mermas-cantidad'),
+    invKpiPorVencer: document.getElementById('inv-kpi-por-vencer'),
+    invKpiPorVencerCard: document.getElementById('inv-kpi-por-vencer-card'),
+    invPorVencerModalOverlay: document.getElementById('inv-por-vencer-modal-overlay'),
+    invPorVencerTableBody: document.getElementById('inv-por-vencer-table-body'),
+    invPorVencerEmpty: document.getElementById('inv-por-vencer-empty'),
+    btnInvPorVencerCerrar: document.getElementById('btn-inv-por-vencer-cerrar'),
     invFiltroCategoria: document.getElementById('inv-filtro-categoria'),
     invFiltroEstado: document.getElementById('inv-filtro-estado'),
     invFiltroTipo: document.getElementById('inv-filtro-tipo'),
@@ -546,6 +552,8 @@
     invModalStockMaximoField: document.getElementById('inv-modal-stock-maximo-field'),
     invModalPuntoReorden: document.getElementById('inv-modal-punto-reorden'),
     invModalPuntoReordenField: document.getElementById('inv-modal-punto-reorden-field'),
+    invModalFechaExpiracion: document.getElementById('inv-modal-fecha-expiracion'),
+    invModalFechaExpiracionField: document.getElementById('inv-modal-fecha-expiracion-field'),
     invModalEstado: document.getElementById('inv-modal-estado'),
     invModalProveedor: document.getElementById('inv-modal-proveedor'),
     invModalNotas: document.getElementById('inv-modal-notas'),
@@ -10786,6 +10794,7 @@
       els.invKpiSinMovimiento.textContent = String(d.productos_sin_movimiento);
       els.invKpiMermas.textContent = `$${formatearMoneda(d.mermas_periodo_valor)}`;
       els.invKpiMermasCantidad.textContent = `${d.mermas_periodo_cantidad} movimiento${d.mermas_periodo_cantidad === 1 ? '' : 's'} este mes`;
+      els.invKpiPorVencer.textContent = String(d.productos_por_vencer);
     } catch (err) {
       // Silencioso — las tarjetas se quedan con el último valor mostrado.
     }
@@ -11027,13 +11036,15 @@
     els.btnInvTipoServicio.setAttribute('aria-selected', String(tipo === 'servicio'));
 
     // Punto 179: un servicio no tiene código de barras ni mínimos/
-    // máximos/punto de reorden de existencia — se ocultan (quedan NA en
+    // máximos/punto de reorden de existencia (y punto 213: tampoco fecha
+    // de expiración, no hay stock físico que caduque) — se ocultan (quedan NA en
     // la base de datos) y la unidad de medida se restringe a "Hora".
     const esServicio = tipo === 'servicio';
     colapsarCampoInv(els.invModalCodigoBarrasField, esServicio, animar);
     colapsarCampoInv(els.invModalStockMinimoField, esServicio, animar);
     colapsarCampoInv(els.invModalStockMaximoField, esServicio, animar);
     colapsarCampoInv(els.invModalPuntoReordenField, esServicio, animar);
+    colapsarCampoInv(els.invModalFechaExpiracionField, esServicio, animar);
     els.invModalUnidadHintServicio.hidden = !esServicio;
     renderOpcionesUnidadInv();
 
@@ -11080,6 +11091,7 @@
     els.invModalStockMinimo.value = producto && producto.stock_minimo !== null ? String(producto.stock_minimo) : '';
     els.invModalStockMaximo.value = producto && producto.stock_maximo !== null ? String(producto.stock_maximo) : '';
     els.invModalPuntoReorden.value = producto && producto.punto_reorden !== null ? String(producto.punto_reorden) : '';
+    els.invModalFechaExpiracion.value = producto && producto.fecha_expiracion ? producto.fecha_expiracion : '';
     els.invModalEstado.value = producto ? producto.estado : 'activo';
     els.invModalProveedor.value = producto ? producto.proveedor_principal || '' : '';
     els.invModalNotas.value = producto ? producto.notas || '' : '';
@@ -11236,6 +11248,7 @@
       stock_minimo: els.invModalStockMinimo.value.trim() || null,
       stock_maximo: els.invModalStockMaximo.value.trim() || null,
       punto_reorden: els.invModalPuntoReorden.value.trim() || null,
+      fecha_expiracion: els.invModalFechaExpiracion.value || null,
       estado: els.invModalEstado.value,
       proveedor_principal: els.invModalProveedor.value.trim() || null,
       notas: els.invModalNotas.value.trim() || null,
@@ -11608,6 +11621,64 @@
   }
   function cerrarKardexModal() {
     els.invKardexModalOverlay.hidden = true;
+  }
+
+  // ---------- Modal "Productos por vencer" (punto 213) ----------
+  // Reusa GET /productos con el filtro ?vencimiento=por_vencer — mismo
+  // dato exacto que ya alimenta la cuenta de la tarjeta (UMBRAL_POR_
+  // VENCER_DIAS en server.js), así que nunca puede desincronizarse.
+  // "YYYY-MM-DD" se reordena a mano (sin pasar por Date) — es una fecha
+  // sin hora, formatFecha() está pensada para DATETIME y le agregaría una
+  // "Z" a un texto sin hora, produciendo una fecha inválida.
+  function formatFechaSolo(fechaTexto) {
+    if (!fechaTexto) return '—';
+    const [anio, mes, dia] = String(fechaTexto).split('-');
+    return anio && mes && dia ? `${dia}/${mes}/${anio}` : fechaTexto;
+  }
+
+  async function abrirPorVencerModal() {
+    els.invPorVencerModalOverlay.hidden = false;
+    els.invPorVencerTableBody.innerHTML = '';
+    els.invPorVencerEmpty.hidden = true;
+
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos?vencimiento=por_vencer&por_pagina=200`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.invPorVencerEmpty.hidden = false;
+        els.invPorVencerEmpty.textContent = 'No se pudo cargar la lista.';
+        return;
+      }
+      const productos = data.productos || [];
+      els.invPorVencerEmpty.hidden = productos.length > 0;
+      const hoyTexto = new Date().toISOString().slice(0, 10);
+      productos.forEach((p) => {
+        const vencido = p.fecha_expiracion && p.fecha_expiracion < hoyTexto;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td data-label="Producto">${escapeHtml(p.nombre)}</td>
+          <td data-label="SKU">${escapeHtml(p.sku)}</td>
+          <td data-label="Vence">${formatFechaSolo(p.fecha_expiracion)}</td>
+          <td data-label="Estado"><span class="estatus-badge ${vencido ? 'estatus-cancelado' : 'estatus-pendiente'}">${vencido ? 'Vencido' : 'Por vencer'}</span></td>
+        `;
+        els.invPorVencerTableBody.appendChild(tr);
+      });
+    } catch (err) {
+      els.invPorVencerEmpty.hidden = false;
+      els.invPorVencerEmpty.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+  function cerrarPorVencerModal() {
+    els.invPorVencerModalOverlay.hidden = true;
   }
 
   // ---------- Etiqueta de código de barras imprimible (punto 167) ----------
@@ -12674,6 +12745,7 @@
         { t: 'Código de barras con la cámara', d: 'En Ventas o al dar de alta un producto, el ícono de cámara escanea el código y llena el campo solo.' },
         { t: 'Imprimir etiqueta de código de barras', d: 'Menú "⋮" de cada fila → "Imprimir etiqueta" — elige térmica (rollo, 40×30mm) o carta (24 por hoja), cuántas copias, y listo. Se genera solo a partir del código de barras del producto (o su SKU si no tiene uno capturado), sin necesidad de escribirlo a mano.' },
         { t: '"Solamente servicios"', d: 'Si tu negocio no maneja stock físico, actívalo en Configuraciones — oculta todo lo relacionado a productos y existencias.' },
+        { t: 'Fecha de expiración', d: 'Opcional, solo para productos físicos (no aplica a servicios) — déjala vacía si no caduca. La tarjeta "Por vencer" del tablero cuenta juntos los vencidos y los que vencen dentro de 30 días; clic ahí abre la lista completa. Solo es un aviso — no bloquea vender el producto.' },
       ],
     },
     proveedores: {
@@ -13312,6 +13384,13 @@
   if (els.invKardexModalOverlay)
     els.invKardexModalOverlay.addEventListener('click', (e) => {
       if (e.target === els.invKardexModalOverlay) cerrarKardexModal();
+    });
+
+  if (els.invKpiPorVencerCard) els.invKpiPorVencerCard.addEventListener('click', abrirPorVencerModal);
+  if (els.btnInvPorVencerCerrar) els.btnInvPorVencerCerrar.addEventListener('click', cerrarPorVencerModal);
+  if (els.invPorVencerModalOverlay)
+    els.invPorVencerModalOverlay.addEventListener('click', (e) => {
+      if (e.target === els.invPorVencerModalOverlay) cerrarPorVencerModal();
     });
 
   // Auto-formato de comas de miles, mismo componente que ya usa Gastos/Ventas.

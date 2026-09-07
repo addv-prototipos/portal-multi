@@ -1155,6 +1155,7 @@ async function ensureSchema(db = pool) {
       punto_reorden DECIMAL(12,3) NULL,
       estado VARCHAR(20) NOT NULL DEFAULT 'activo',
       proveedor_principal VARCHAR(200) NULL,
+      fecha_expiracion DATE NULL,
       notas TEXT NULL,
       extra JSON NULL,
       imagen_key VARCHAR(255) NULL,
@@ -1188,6 +1189,21 @@ async function ensureSchema(db = pool) {
       WHERE p.tipo = 'servicio'
         AND (p.codigo_barras IS NOT NULL OR p.stock_minimo IS NOT NULL OR p.stock_maximo IS NOT NULL
              OR p.punto_reorden IS NOT NULL OR p.unidad_id <> uh.id)`
+  );
+
+  // Punto 213: fecha de expiración opcional, POR PRODUCTO (no por lote —
+  // decisión explícita del usuario, este esquema no tiene concepto de
+  // lotes/remesas). Nunca aplica a servicios (mismo criterio que stock
+  // mínimo/máximo/punto de reorden arriba).
+  const [colsFechaExpiracion] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'productos'`
+  );
+  if (!colsFechaExpiracion.map((c) => c.COLUMN_NAME).includes('fecha_expiracion')) {
+    await db.query('ALTER TABLE productos ADD COLUMN fecha_expiracion DATE NULL');
+    await db.query('ALTER TABLE productos ADD KEY idx_productos_fecha_expiracion (fecha_expiracion)');
+  }
+  await db.query(
+    `UPDATE productos SET fecha_expiracion = NULL WHERE tipo = 'servicio' AND fecha_expiracion IS NOT NULL`
   );
 
   // Existencias — D6: granularidad producto×almacén, saldo DERIVADO del

@@ -13617,7 +13617,10 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 212. **PENDIENTE — Fecha de renovación de suscripción por empresa en `/control`, capturada en el enrolamiento, con cobros por Stripe (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar en `/control` (`frontend/control.html`/`control.js`, `control/server.js`/`control/db.js`, `control_tenants.tenants` + futuro `control_suscripciones`/`pagos` si aplica) el campo fecha de renovación de suscripción para cada empresa. El campo se pide en el momento del enrolamiento de la persona que contrata el servicio (flujo de alta en `/control` — modal "Nueva empresa" / `tenantIntake.js`). Cobros vía Stripe. Requerimiento textual: "En control, quiero la fecha de renovación de suscripción para cada empresa, este campo se pide cuando se da el enrolamiento de la persona que contrata el servicio, vamos a usar Stripe para los cobros". Estado: solo anotado como pendiente. No se ha analizado el modelo (¿fecha fija vs. calculada a partir de periodo de prueba del punto 209? ¿renovación mensual/anual configurable? ¿qué hace el sistema al vencer?), ni propuesto UX en `/control` (campo date en el intake + vista/listado de renovaciones), ni definido integración Stripe (qué producto/price, webhooks, custodia de `customer`/`subscription_id` por tenant, manejo de fallos de cobro), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
-213. **PENDIENTE — Fecha de expiración en Inventarios, aplica tanto para tenant como sitio base (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar en Inventarios (`backend/db.js` tabla `productos` + `producto_lotes`/`inventario_movimientos` si aplica, `backend/server.js` endpoints de productos/inventario, `frontend/admin.html`/`admin.js` vista Inventarios, y sus equivalentes por tenant vía `AsyncLocalStorage`/`control_tenants`) la regla de fecha de expiración. Aplica por igual al sitio base (BD `portal_facturacion` sin slug) y a cada tenant (`tenant_<slug>`). Requerimiento textual: "En inventarios tanto para tenant como sitio base aplica esta regla, fecha de expiración". Estado: solo anotado como pendiente. No se ha analizado el modelo (¿a nivel producto vs. lote? ¿fecha obligatoria/opcional? ¿qué pasa al vencer — bloqueo de venta, aviso, merma automática?), ni propuesto UX (campo date en alta/edición de producto/lote + badges/filtros de próximos a vencer), ni definido alcance (¿afecta a productos existentes sin fecha? ¿reportes?), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+213. **Fecha de expiración en Inventarios — IMPLEMENTADO (ver punto 252
+    para el detalle completo, número distinto para no chocar con el
+    punto 213 original de este mismo archivo, la migración de marca
+    "Portal Clarvo")**: aplica por igual a tenant y sitio base.
 
 214. **PENDIENTE — Switch global en `/control` para activar/inactivar el sitio base, fuera de las configuraciones por empresa (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar en `/control` (`control/server.js`/`control/db.js`, `frontend/control.html`/`control.js`, config global de control — no por tenant) un switch para activar o no el sitio base (`portal_facturacion` sin slug, acceso sin `/<slug>`). Este control está fuera de las configuraciones por empresa/tenant (no vive en `control_tenants.tenants` por fila ni en `tenantIntake`/`tenantEdicion` por tenant — es un flag global de la plataforma). Requerimiento textual: "agrega en control el activar el sitio base o no, este esta fuera de las configuraciones por empresa". Estado: solo anotado como pendiente. No se ha analizado dónde persistir el flag (tabla `control_config` o similar), ni propuesto UX en `/control` (sección global separada de la tabla de empresas), ni definido comportamiento (¿qué ve el visitante cuando el sitio base está inactivo — 404, mantenimiento, redirect —? ¿afecta a `/admin` base? ¿a APIs base?), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
@@ -13738,6 +13741,122 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 246. **PENDIENTE — Nota: configuraciones de control por desarrollar más — seguimiento de facturas sin ventas (con imagen) como producto básico con upscale (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar — nota)**: pendiente son configuración de control, como nota, falta desarrollarlo más, cuando se piden seguimiento de facturas sin ventas, que es con imagen, es un producto el básico con upscale. Requerimiento textual: "agrega pendiente son configuracion de control, como nota, falta desarrollarlo mas, cuando se piden seguimento de facturas sin ventas, que es con imagen, es un producto el basico con upscale". Estado: solo anotado como pendiente/nota para desarrollar más en control. No se ha analizado el alcance (¿producto "seguimiento sin ventas" como paquete básico vs. addon upscale? ¿qué seguimiento — estado de factura con imagen de ticket sin venta asociada?), ni modelo en `/control` (productos/paquetes del punto 229), ni UX, ni tocado código. Siguiente paso cuando se defina a detalle: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
+251. **Botón "Activar" en `/control` para completar el aprovisionamiento
+    de un tenant en "provisioning" SIN root de MySQL (2026-09-07,
+    IMPLEMENTADO Y VALIDADO de punta a punta contra Docker/MySQL reales)**:
+    surgió de una fricción real del usuario (el punto 248/slug-link exigía
+    un tenant "activo" para probarse, y el único existente estaba
+    "provisioning" sin forma de avanzarlo salvo el CLI). Investigación
+    previa a implementar: el CLI `provisionar-tenant.js` solo necesita
+    root para UN paso — otorgarle al usuario de aplicación (`app`, cuyas
+    credenciales el contenedor `backend` YA tiene montadas) un `GRANT ALL
+    PRIVILEGES ON \`tenant\_%\`.*` tipo comodín — y ese privilegio ya
+    estaba concedido (se otorga de forma idempotente en cada corrida del
+    CLI). Con eso, `app` ya puede crear cualquier `tenant_<slug>` y
+    aplicarle el esquema sin root; el hallazgo se validó ANTES de escribir
+    código y se le presentó al usuario, que aprobó.
+    **Backend**: `crearBaseDeDatosTenant(dbName)` nueva en `db.js`
+    (conexión suelta con las credenciales `DB_*` de siempre, `CREATE
+    DATABASE IF NOT EXISTS`, nunca root). Endpoint interno nuevo `POST
+    /internal/activar-tenant/:slug` (mismo patrón de secreto compartido
+    `X-Internal-Secret` que `/internal/renombrar-slug`/`/internal/
+    marca-logo`, no expuesto por nginx) que crea la BD y le aplica
+    `ensureSchema()` vía `obtenerPoolTenant()` — deliberadamente NO toca
+    `control_tenants.tenants.estado`, eso lo hace `/control` después.
+    **Control**: `activarTenant()` nueva en `tenantLifecycle.js` — a
+    diferencia de `aplicarTransicion()` (guarda atómica en un solo
+    UPDATE), verifica el estado ANTES de intentar el paso físico (que
+    puede fallar) para nunca dejar una escritura a medias; si
+    `activarTenantFisico()` (nuevo en `notificarBackend.js`, llamada al
+    endpoint interno de arriba) falla, nunca se llega al UPDATE. Ruta
+    nueva `POST /api/control/tenants/:slug/activar`; `manejarTransicionTenant()`
+    gana el código 502 para `error_fisico` (falla del paso en el
+    backend, distinto de 404/409). **Frontend**: botón "Activar" nuevo
+    en la fila de cada tenant (solo visible en "Provisionando"), modal de
+    confirmación explicando que puede tardar unos segundos; textos de
+    ayuda/tooltip actualizados (ya no dicen "requiere el CLI a mano" como
+    único camino — el CLI queda como respaldo si el privilegio llegara a
+    faltar). Jest backend **897/897** (6 tests nuevos: 403 sin/con secreto
+    incorrecto, 400 slug inválido, 200 crea+aplica esquema, 502 si falla
+    crear la BD, 502 si falla el esquema), control **125/125** (4 tests
+    unitarios de `activarTenant` + 5 de integración de la ruta). Validado
+    de punta a punta contra Docker/MySQL reales tras rebuild
+    `--no-cache`+`--force-recreate` de los 3 servicios: intake real
+    (`activartest`) → `POST .../activar` real → estado `activo`
+    confirmado → **23 tablas reales** verificadas por SQL directo en
+    `tenant_activartest` → `GET /activartest/admin` responde 200 real;
+    guard rails confirmados (reintentar activar un tenant ya activo → 409,
+    slug inexistente → 404). Entorno restaurado (BD y fila de prueba
+    eliminadas, solo queda el tenant real del usuario `abarroteslulu`,
+    activado con el CLI antes de que este botón existiera). **Sin
+    herramienta de navegador esta sesión** — falta confirmación visual del
+    botón/modal. Sin commit/push todavía.
+
+252. **Fecha de expiración en Inventarios + indicador "Por vencer"
+    (2026-09-07, IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales) —
+    cierra el punto 213 original de este archivo**: pedido textual "en
+    inventarios tanto para tenant como sitio base aplica esta regla,
+    fecha de expiración". Protocolo completo: crítica (el esquema actual
+    NO tiene concepto de lotes, así que lote-level sería un rediseño
+    grande) presentada como 3 preguntas al usuario, propuesta visual
+    Artifact antes/después, confirmación explícita. 3 decisiones
+    confirmadas: (1) **por producto**, no por lote — reabastecer pisa la
+    fecha anterior; (2) **opcional** — vacío = no aplica; (3) **solo
+    aviso**, nunca bloquea Ventas — más un detalle del usuario sobre el
+    "qué pasa al vencer": un solo indicador "Por vencer" (no dos como en
+    Cuentas por cobrar) que cuenta juntos vencidos+próximos, clic abre
+    ventana emergente con la lista filtrada (mismo `.modal-overlay` con
+    blur que ya usa todo el sitio).
+    **Backend**: 1 columna nueva `productos.fecha_expiracion` DATE NULL
+    (migración idempotente en `db.js`, nunca aplica a servicios — mismo
+    backfill que ya hacía lo mismo con código de barras/stock). Constante
+    compartida `UMBRAL_POR_VENCER_DIAS = 30` en `server.js`, usada
+    IDÉNTICA en 2 lugares (el conteo del dashboard y el filtro
+    `?vencimiento=por_vencer` de `GET /productos`) para que el número de
+    la tarjeta y la lista de su modal nunca puedan desincronizarse (mismo
+    criterio que `utilidad_neta` en Resumen financiero). Validación
+    YYYY-MM-DD en `validarCuerpoProducto()`, sin restricción de "no en el
+    pasado" (se puede capturar stock ya vencido a propósito). Cubre sitio
+    base y cualquier tenant por ser el mismo código tenant-aware, cero
+    trabajo extra.
+    **Frontend**: campo "Fecha de expiración (opcional)" en el modal de
+    producto, mismo grupo colapsable que Stock mínimo/máximo/Punto de
+    reorden (oculto para "Servicio"). 9na tarjeta "Por vencer" en el
+    tablero de Inventarios — única tarjeta que es un `<button>` real (el
+    resto son `<div>`), con su propio reset de estilos de botón
+    (`.inicio-stat-card-clickable`). Modal nuevo de solo lectura
+    (`#inv-por-vencer-modal-overlay`) con tabla simple (Producto/SKU/
+    Vence/Estado), badges reusados de CxC (`estatus-cancelado`=rojo para
+    Vencido, `estatus-pendiente`=ámbar para Por vencer, mismo lenguaje
+    visual ya establecido en el sitio, sin CSS nuevo de color).
+    Fecha formateada a mano (split de "YYYY-MM-DD", nunca vía `Date` —
+    `formatFecha()` existente asume DATETIME y le agregaría una "Z" a un
+    texto sin hora, produciendo una fecha inválida). Centro de
+    conocimiento ("Inventarios") gana un paso explicando el campo y el
+    indicador.
+    **Fuera de alcance a propósito** (no se pidió, evita scope creep):
+    la carga masiva CSV/XLSX (§34) NO incluye este campo — se agrega
+    producto por producto a mano; no se tocó `utils/inventarioCampos.js`
+    (el diccionario compartido de tooltips/importador) para no habilitar
+    sin querer una columna nueva en el importador sin haber probado ese
+    camino completo.
+    Jest backend **902/902** (34 suites, 6 tests nuevos: fecha válida se
+    guarda, formato inválido 400, servicio la ignora aunque venga en el
+    body, filtro `por_vencer` aplica la condición de 30 días con el
+    parámetro correcto, sin el filtro no aplica ninguna condición, y el
+    test preexistente del dashboard actualizado con la 9na tarjeta).
+    Validado de punta a punta contra Docker/MySQL reales tras rebuild
+    `--no-cache`+`--force-recreate`: 4 productos de prueba reales
+    (vencido/por vencer/lejano 90 días/sin fecha) + 1 servicio con
+    `fecha_expiracion` en el body — dashboard contó exactamente 2, el
+    filtro trajo exactamente esos 2 (no el lejano), formato inválido
+    rechazado con 400, servicio confirmado con `fecha_expiracion: null`
+    real vía `GET /productos/:id`. Entorno restaurado (los 5 productos de
+    prueba pasaron por papelera + borrado permanente, dashboard confirmó
+    0 de vuelta). **Sin herramienta de navegador esta sesión** — falta
+    confirmación visual del campo/tarjeta/modal. Sin commit/push
+    todavía.
+
 248. **Slug clicable en la tabla de empresas de `/control`, directo a
     `/<slug>/admin` (2026-09-07, IMPLEMENTADO Y VALIDADO por curl+
     inspección del build real contra Docker)**: pedido a partir de una
@@ -13777,6 +13896,8 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 248. **PENDIENTE — Mensaje de suspensión de cuenta con ventana emergente cuando se suspende desde `/control` (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar mensaje de suspensión de cuenta, cuando desde el control se suspende, para que el usuario sepa qué ha sucedido, con ventana emergente para notificar. Requerimiento textual: "agregar pendiente, mensaje de suspención de cuenta, cuando desde el control se supende, para que el usuario sepa que ha sucedido, agrega una ventana emergente para notificar". Estado: solo anotado como pendiente, ligado a 218 (mensajes globales — suspensión por pagos) y 212/214 (suspensión/activación de tenant/sitio base). No se ha analizado el disparador (¿cambio de `tenants.estado` a `suspendido` en `/control`? ¿qué ven `frontend/admin.html` y portal cliente `frontend/dashboard.html`/`login.html`?), ni contenido del mensaje/popup, ni si es bloqueante o informativo, ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
 249. **PENDIENTE — Clave o producto del SAT obligatorio — sin esa configuración no permite usar el sistema (oculta menús y exige configurarlo), validado contra si tiene activo el uso de facturar en `/control`; si está apagado no aparece Configuraciones fiscales ni bloquea el uso; además, al enviar por correo o imprimir no colocar URL de facturación ni mensaje para facturar (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar como pendiente agregar como obligatorio clave o producto del SAT y sin esta configuración no les permita usar el sistema, debe ocultar todos los menús y configurarlo, validar con control si tiene activo el uso de facturar, si está apagado no debe aparecer configuraciones fiscales ni impedir su uso, adicional, que cuando se manden por correo o se imprima, no coloque la URL de facturación ni mande mensaje para facturar. Requerimiento textual: "agrega pendiente sobre agregar como obligatorio clave o producto del SAT y sin esta configuración no les permita usar el sistema, debe ocultar todos los menús y configurarlo, validar con control si tiene activo el uso de facturar, si esta apagado no debe aparecer configuraciones fiscales ni impedir su uso, adicional, que cuando se manden por correo o se imprima, no coloque la URL de facturación ni mande mensaje para facturar". Estado: solo anotado como pendiente, ligado a 62/65 (Clave SAT `clave_sat`), 244 (switches de menú por empresa), 210/211 (factura personalizada), 212 (suscripción), 47-52 (URL/ticket de venta y correo). No se ha analizado el modelo (¿flag `clave_sat_obligatoria` por tenant en `control_tenants.tenants`? ¿qué campo exacto — `clave_sat` de Configuraciones fiscales?), ni propuesto UX de bloqueo (ocultar menús y forzar configuración), ni definido guard por tenant (si `usar_facturar` OFF en `/control` se salta todo el bloqueo y se oculta Configuraciones fiscales), ni definido supresión de URL/mensaje de facturación en `enviarCorreoOrdenCompra` e impresión de ticket, ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+
+250. **PENDIENTE — Restricción desde `/control` por empresa en el tamaño de almacenamiento de imágenes (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar restricción desde control por empresa en el tamaño de almacenamiento de imágenes. Requerimiento textual: "agrega la restricción desde control por empresa en el tamaño de almacenamiento de imagenes". Estado: solo anotado como pendiente. No se ha analizado el modelo (¿cuota por tenant `control_tenants.tenants` — límite en MB/GB? ¿por tipo de imagen — MinIO `marca/<slug>/logo`, tickets, facturas, constancias?), ni propuesto UX en `/control` (campo de límite por empresa), ni definido comportamiento (¿qué pasa al superar — bloqueo de subida con mensaje, aviso? ¿cálculo de uso actual?), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
 ## Dónde está todo (mapa rápido)
 

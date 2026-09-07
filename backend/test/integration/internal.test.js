@@ -8,7 +8,9 @@ const request = require('supertest');
 
 jest.mock('../../db', () => ({
   pool: { query: jest.fn(), getConnection: jest.fn() },
-  ensureSchema: jest.fn(),
+  ensureSchema: jest.fn().mockResolvedValue(undefined),
+  crearBaseDeDatosTenant: jest.fn().mockResolvedValue(undefined),
+  obtenerPoolTenant: jest.fn(() => ({ query: jest.fn(), getConnection: jest.fn() })),
 }));
 
 jest.mock('nodemailer', () => ({
@@ -42,6 +44,7 @@ jest.mock('../../utils/storage', () => ({
 
 const { invalidarCacheTenant } = require('../../utils/tenantContext');
 const storage = require('../../utils/storage');
+const { ensureSchema, crearBaseDeDatosTenant } = require('../../db');
 const app = require('../../server');
 
 describe('POST /internal/cache-tenant/invalidar', () => {
@@ -354,5 +357,81 @@ describe('POST /internal/renombrar-slug', () => {
 
     expect(res.status).toBe(502);
     expect(storage.eliminarPrefijo).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /internal/activar-tenant/:slug', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  beforeEach(() => {
+    crearBaseDeDatosTenant.mockClear();
+    ensureSchema.mockClear();
+    crearBaseDeDatosTenant.mockResolvedValue(undefined);
+    ensureSchema.mockResolvedValue(undefined);
+  });
+
+  test('sin el secreto responde 403 y no crea nada', async () => {
+    const res = await request(app).post('/internal/activar-tenant/cliente1');
+
+    expect(res.status).toBe(403);
+    expect(crearBaseDeDatosTenant).not.toHaveBeenCalled();
+  });
+
+  test('con el secreto incorrecto responde 403', async () => {
+    const res = await request(app)
+      .post('/internal/activar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-equivocado');
+
+    expect(res.status).toBe(403);
+    expect(crearBaseDeDatosTenant).not.toHaveBeenCalled();
+  });
+
+  test('slug inválido responde 400', async () => {
+    const res = await request(app)
+      .post('/internal/activar-tenant/Mal Slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(400);
+    expect(crearBaseDeDatosTenant).not.toHaveBeenCalled();
+  });
+
+  test('con el secreto correcto: crea la BD física y aplica el esquema', async () => {
+    const res = await request(app)
+      .post('/internal/activar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, dbName: 'tenant_cliente1' });
+    expect(crearBaseDeDatosTenant).toHaveBeenCalledWith('tenant_cliente1');
+    expect(ensureSchema).toHaveBeenCalledTimes(1);
+  });
+
+  test('si crear la base de datos falla (ej. sin privilegios), responde 502', async () => {
+    crearBaseDeDatosTenant.mockRejectedValueOnce(new Error('ER_DBACCESS_DENIED_ERROR'));
+
+    const res = await request(app)
+      .post('/internal/activar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(502);
+    expect(ensureSchema).not.toHaveBeenCalled();
+  });
+
+  test('si aplicar el esquema falla, responde 502', async () => {
+    ensureSchema.mockRejectedValueOnce(new Error('esquema inválido'));
+
+    const res = await request(app)
+      .post('/internal/activar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(502);
   });
 });

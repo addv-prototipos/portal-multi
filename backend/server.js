@@ -6876,6 +6876,14 @@ app.post(
 
 // ---------- Productos ----------
 
+// Punto 213: ventana del indicador "Por vencer" — cuenta juntos productos
+// YA vencidos y los que vencen dentro de esta cantidad de días, una sola
+// constante compartida entre el filtro de la lista (para la ventana
+// emergente) y el conteo del dashboard, para que nunca puedan
+// desincronizarse entre sí (mismo criterio que utilidad_neta en
+// /resumen-financiero).
+const UMBRAL_POR_VENCER_DIAS = 30;
+
 function formatearProducto(p, existenciaDisponible) {
   return {
     id: p.id,
@@ -6895,6 +6903,7 @@ function formatearProducto(p, existenciaDisponible) {
     punto_reorden: p.punto_reorden === null ? null : Number(p.punto_reorden),
     estado: p.estado,
     proveedor_principal: p.proveedor_principal,
+    fecha_expiracion: p.fecha_expiracion || null,
     notas: p.notas,
     // Datos migrados por el importador masivo (§34.4) que todavía no tienen
     // campo formal — nunca participa en lógica de negocio, solo consulta.
@@ -7030,6 +7039,20 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
   const proveedorPrincipal = sanitizeText(body.proveedor_principal, 200) || null;
   const notas = sanitizeTextoLibre(body.notas, 2000) || null;
 
+  // Punto 213: fecha de expiración opcional, POR PRODUCTO — nunca aplica
+  // a servicios (mismo criterio que stock mínimo/máximo/punto de
+  // reorden, forzado más abajo junto con esos 3). Sin restricción de
+  // "no en el pasado": se puede capturar stock ya vencido a propósito.
+  let fechaExpiracion = null;
+  const fechaExpiracionTexto = sanitizeText(body.fecha_expiracion, 10);
+  if (fechaExpiracionTexto) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaExpiracionTexto) || Number.isNaN(new Date(`${fechaExpiracionTexto}T00:00:00Z`).getTime())) {
+      res.status(400).json({ error: 'La fecha de expiración debe ser YYYY-MM-DD.' });
+      return null;
+    }
+    fechaExpiracion = fechaExpiracionTexto;
+  }
+
   // Punto 179: un servicio no tiene mínimos/máximos/punto de reorden de
   // existencia (nunca genera movimientos, D11) — se ignora cualquier
   // valor que mande el body y queda NA en la base de datos.
@@ -7037,6 +7060,7 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
     stockMinimo = null;
     stockMaximo = null;
     puntoReorden = null;
+    fechaExpiracion = null;
   }
 
   return {
@@ -7054,6 +7078,7 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
     puntoReorden,
     estado,
     proveedorPrincipal,
+    fechaExpiracion,
     notas,
   };
 }
@@ -7089,18 +7114,31 @@ app.get(
       condiciones.push('(p.nombre LIKE ? OR p.sku LIKE ? OR p.codigo_barras LIKE ?)');
       params.push(patron, patron, patron);
     }
+    // Punto 213: alimenta la ventana emergente del indicador "Por vencer"
+    // del dashboard — mismo umbral (UMBRAL_POR_VENCER_DIAS) y mismas
+    // restricciones (solo producto físico, activo) que ese conteo, para
+    // que la lista siempre coincida exactamente con el número mostrado.
+    if (req.query.vencimiento === 'por_vencer') {
+      condiciones.push(
+        "p.tipo = 'producto' AND p.estado = 'activo' AND p.fecha_expiracion IS NOT NULL AND p.fecha_expiracion <= DATE_ADD(CURDATE(), INTERVAL ? DAY)"
+      );
+      params.push(UMBRAL_POR_VENCER_DIAS);
+    }
     condiciones.push(verPapelera ? 'p.eliminado_en IS NOT NULL' : 'p.eliminado_en IS NULL');
     const where = condiciones.join(' AND ');
 
     const [contador] = await pool.query(`SELECT COUNT(*) AS total FROM productos p WHERE ${where}`, params);
     const total = Number(contador[0].total);
 
+    // "Por vencer": lo más urgente primero (el que vence antes, arriba)
+    // en vez del orden alfabético de siempre.
+    const orden = req.query.vencimiento === 'por_vencer' ? 'p.fecha_expiracion ASC' : 'p.nombre ASC';
     const [filas] = await pool.query(
       `SELECT p.*, e.disponible AS disponible
          FROM productos p
          LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = (SELECT id FROM almacenes WHERE codigo = ? LIMIT 1)
         WHERE ${where}
-        ORDER BY p.nombre ASC
+        ORDER BY ${orden}
         LIMIT ? OFFSET ?`,
       [ALMACEN_DEFECTO_CODIGO, ...params, porPagina, (pagina - 1) * porPagina]
     );
@@ -7129,13 +7167,13 @@ app.post(
     const [resultado] = await pool.query(
       `INSERT INTO productos
         (sku, codigo_barras, nombre, categoria_id, unidad_id, tipo, moneda, costo, precio,
-         stock_minimo, stock_maximo, punto_reorden, estado, proveedor_principal, notas,
+         stock_minimo, stock_maximo, punto_reorden, estado, proveedor_principal, fecha_expiracion, notas,
          creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         datos.sku, datos.codigoBarras, datos.nombre, datos.categoriaId, datos.unidadId, datos.tipo, datos.moneda,
         datos.costo, datos.precio, datos.stockMinimo, datos.stockMaximo, datos.puntoReorden,
-        datos.estado, datos.proveedorPrincipal, datos.notas, ahora, ahora,
+        datos.estado, datos.proveedorPrincipal, datos.fechaExpiracion, datos.notas, ahora, ahora,
       ]
     );
 
@@ -7237,12 +7275,12 @@ app.put(
     await pool.query(
       `UPDATE productos SET sku = ?, codigo_barras = ?, nombre = ?, categoria_id = ?, unidad_id = ?, tipo = ?, moneda = ?,
          costo = ?, precio = ?, stock_minimo = ?, stock_maximo = ?, punto_reorden = ?, estado = ?,
-         proveedor_principal = ?, notas = ?, actualizado_en = ?
+         proveedor_principal = ?, fecha_expiracion = ?, notas = ?, actualizado_en = ?
        WHERE id = ?`,
       [
         datos.sku, datos.codigoBarras, datos.nombre, datos.categoriaId, datos.unidadId, datos.tipo, datos.moneda,
         datos.costo, datos.precio, datos.stockMinimo, datos.stockMaximo, datos.puntoReorden,
-        datos.estado, datos.proveedorPrincipal, datos.notas, ahora, id,
+        datos.estado, datos.proveedorPrincipal, datos.fechaExpiracion, datos.notas, ahora, id,
       ]
     );
 
@@ -7708,6 +7746,17 @@ app.get(
         JOIN productos p ON p.id = m.producto_id
        WHERE m.tipo = 'merma' AND m.creado_en >= DATE_FORMAT(NOW(), '%Y-%m-01')
     `);
+    // Punto 213: cuenta juntos vencidos + por vencer dentro de
+    // UMBRAL_POR_VENCER_DIAS — mismas condiciones exactas que el filtro
+    // `?vencimiento=por_vencer` de GET /productos, para que el número de
+    // esta tarjeta y la lista de su ventana emergente siempre coincidan.
+    const [[porVencer]] = await pool.query(
+      `SELECT COUNT(*) AS total
+         FROM productos p
+        WHERE p.eliminado_en IS NULL AND p.tipo = 'producto' AND p.estado = 'activo'
+          AND p.fecha_expiracion IS NOT NULL AND p.fecha_expiracion <= DATE_ADD(CURDATE(), INTERVAL ? DAY)`,
+      [UMBRAL_POR_VENCER_DIAS]
+    );
 
     res.json({
       valor_total_inventario: Number(valorInventario.valor),
@@ -7718,6 +7767,7 @@ app.get(
       productos_bajo_minimo: Number(bajoMinimo.total),
       productos_sin_existencia: Number(sinExistencia.total),
       productos_sin_movimiento: Number(sinMovimiento.total),
+      productos_por_vencer: Number(porVencer.total),
       mermas_periodo_valor: Number(mermasPeriodo.valor),
       mermas_periodo_cantidad: Number(mermasPeriodo.cantidad),
     });

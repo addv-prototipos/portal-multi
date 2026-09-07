@@ -138,8 +138,8 @@
 
         <p class="admin-login-hint">
           "Nueva empresa" solo registra la solicitud de alta (estado "Provisionando") — la base de datos física del tenant
-          se crea después con <code>backend/scripts/provisionar-tenant.js</code>, corrido a mano por un operador con acceso
-          root de MySQL. Ese script detecta la solicitud pendiente y la completa con los datos capturados aquí.
+          se crea después con el botón <strong>"Activar"</strong> de esa fila. Si el botón falla, queda como respaldo
+          <code>backend/scripts/provisionar-tenant.js</code>, corrido a mano desde un operador.
         </p>
 
         <div class="admin-table-wrap">
@@ -159,7 +159,7 @@
           <div class="admin-empty admin-empty-rica" id="control-empty" hidden>
             <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linejoin="round"/></svg>
             <p class="admin-empty-titulo">Aún no hay empresas dadas de alta</p>
-            <p>Crea la primera para empezar a operar — queda en "Provisionando" hasta correr el script de aprovisionamiento.</p>
+            <p>Crea la primera para empezar a operar — queda en "Provisionando" hasta que le des clic a "Activar".</p>
             <button type="button" class="btn btn-primary" id="btn-control-empty-nueva-empresa">Nueva empresa</button>
           </div>
           <p class="admin-empty" id="control-filtro-empty" hidden>Ningún tenant coincide con el filtro.</p>

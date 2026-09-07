@@ -2843,6 +2843,22 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   box-shadow: var(--shadow-card);
   padding: 16px;
 }
+/* Punto 213: única tarjeta de estadística que es un <button> real (el
+   resto son <div>) — reset de los defaults de botón del navegador para
+   que se vea idéntica a las demás, más el afordance de que es clicable. */
+.inicio-stat-card-clickable {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.inicio-stat-card-clickable:hover,
+.inicio-stat-card-clickable:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
 .inicio-stat-header {
   display: flex;
   align-items: flex-start;

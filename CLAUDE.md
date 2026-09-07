@@ -788,6 +788,42 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
+**Punto 252 (2026-09-07, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
+reales — cierra el punto 213 original de este archivo)**: fecha de
+expiración opcional en Inventarios (por producto, no por lote — el
+esquema no tiene concepto de lotes), aplica a tenant y sitio base. Solo
+aviso, nunca bloquea Ventas — indicador "Por vencer" (9na tarjeta del
+tablero, único `<button>` real de las 9) cuenta juntos vencidos+próximos
+30 días (`UMBRAL_POR_VENCER_DIAS`, misma constante en el conteo del
+dashboard y el filtro `?vencimiento=por_vencer` de `GET /productos`, para
+que nunca se desincronicen), clic abre modal con la lista (badges
+reusados de Cuentas por cobrar). Fuera de alcance a propósito: la carga
+masiva CSV/XLSX no incluye el campo. Jest backend 902/902 (6 tests
+nuevos). Validado con 5 productos de prueba reales contra Docker/MySQL
+(dashboard contó 2, filtro trajo esos 2, servicio ignoró el campo,
+formato inválido rechazado) — entorno restaurado. Sin herramienta de
+navegador esta sesión — falta confirmación visual. Ver PROJECT_STATE.md
+punto 252.
+
+**Punto 251 (2026-09-07, IMPLEMENTADO Y VALIDADO de punta a punta contra
+Docker/MySQL reales)**: botón "Activar" en `/control` para completar el
+aprovisionamiento físico de un tenant en "Provisionando" — SIN root de
+MySQL. Hallazgo clave (validado antes de codificar): el usuario de
+aplicación `app` (credenciales ya montadas en `backend`) ya tenía un
+`GRANT ALL PRIVILEGES ON tenant\_%.*` tipo comodín (otorgado una sola vez
+por el CLI `provisionar-tenant.js`) — con eso puede crear cualquier
+`tenant_<slug>` y aplicarle el esquema sin root. Endpoint interno nuevo
+`POST /internal/activar-tenant/:slug` en backend (mismo patrón de
+`/internal/renombrar-slug`); `activarTenant()` nueva en
+`control/utils/tenantLifecycle.js` (verifica estado ANTES del paso
+físico, para nunca marcar "activo" si la creación de la BD falla); ruta
+`POST /api/control/tenants/:slug/activar`. El CLI sigue como respaldo si
+el privilegio llegara a faltar. Jest backend 897/897, control 125/125.
+Validado con un tenant de prueba real (`activartest`): intake → activar
+→ 23 tablas reales confirmadas por SQL → `/activartest/admin` responde
+200 → limpiado. Sin herramienta de navegador esta sesión — falta
+confirmación visual. Ver PROJECT_STATE.md punto 251.
+
 **Punto 248 (2026-09-07, IMPLEMENTADO Y VALIDADO por curl+inspección del
 build real)**: slug clicable en la tabla de empresas de `/control`,
 directo a `/<slug>/admin` — solo si el tenant está `activo`, dominio

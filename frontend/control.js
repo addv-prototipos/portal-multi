@@ -334,7 +334,7 @@
   // particular no tenía ninguna explicación visible salvo el hint de
   // texto de la parte de arriba de la vista, fácil de pasar por alto.
   const TOOLTIP_ESTADO = {
-    provisioning: 'La empresa se está creando en segundo plano (base de datos + acceso). No requiere acción tuya — ver el aviso de arriba para completarla con el script de aprovisionamiento.',
+    provisioning: 'La solicitud ya se guardó, falta crear su base de datos — usa el botón "Activar" de esta fila.',
     activo: 'La empresa opera con normalidad, accesible para sus usuarios.',
     suspendido: 'Pausa temporal — la empresa no es accesible. Reversible con "Reactivar".',
     baja: 'Dada de baja — la empresa no es accesible. No se borró ningún dato; reversible con "Reactivar".',
@@ -395,11 +395,25 @@
         crearBotonAccion('btn-icono-accion', 'Credenciales API', 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4', () => abrirCredenciales(t))
       );
 
-      const hayAccionesDeEstado = t.estado === 'activo' || t.estado === 'suspendido' || t.estado === 'baja';
+      const hayAccionesDeEstado =
+        t.estado === 'activo' || t.estado === 'suspendido' || t.estado === 'baja' || t.estado === 'provisioning';
       if (hayAccionesDeEstado) {
         const divisor = document.createElement('div');
         divisor.className = 'admin-row-actions-divisor';
         contenedorAcciones.appendChild(divisor);
+      }
+
+      if (t.estado === 'provisioning') {
+        contenedorAcciones.appendChild(
+          crearBotonAccion('btn-icono-accion', 'Activar', 'M5 12l5 5L20 7', () =>
+            confirmarAccion({
+              titulo: '¿Activar este tenant?',
+              mensaje: `Se creará la base de datos de "${t.nombre_empresa}" (${t.slug}) y quedará accesible en /${t.slug}/admin. Puede tardar unos segundos.`,
+              textoBoton: 'Activar',
+              onConfirmar: () => ejecutarAccion(t.slug, 'activar'),
+            })
+          )
+        );
       }
 
       if (t.estado === 'activo') {
@@ -1702,7 +1716,8 @@
     empresas: {
       titulo: 'Ayuda — Empresas',
       items: [
-        { titulo: 'Provisionando', texto: 'La solicitud de alta ya se registró, pero la base de datos física del tenant todavía no existe — falta correr el script de aprovisionamiento (acceso root de MySQL). No requiere nada del operador de /control.' },
+        { titulo: 'Provisionando', texto: 'La solicitud de alta ya se registró, pero la base de datos física del tenant todavía no existe — dale clic a "Activar" en esa fila para crearla. Si falla, queda como respaldo el script de aprovisionamiento (acceso root de MySQL).' },
+        { titulo: 'Activar', texto: 'Crea la base de datos física de la empresa y le aplica el esquema completo — solo visible mientras está "Provisionando". Puede tardar unos segundos.' },
         { titulo: 'Suspender', texto: 'Pausa temporal y reversible — la empresa deja de ser accesible hasta que la reactives. Útil para intermitencias o falta de pago, sin perder ningún dato.' },
         { titulo: 'Dar de baja', texto: 'Fin de la relación comercial. Igual de reversible que Suspender (el botón "Reactivar" la revive) — no borra la base de datos ni los archivos del tenant.' },
         { titulo: 'Credenciales API', texto: 'Son para integraciones externas (Swagger, sistemas propios de la empresa) — nunca son el usuario/contraseña que un operador usa para entrar a /admin.' },

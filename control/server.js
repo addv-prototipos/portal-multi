@@ -11,6 +11,7 @@ const { asegurarTablaAuditoria, registrarAccesoAdmin } = require('./utils/adminA
 const { asegurarColumnasCicloVidaTenant } = require('./scripts/ensureSchema');
 const {
   listarTenants,
+  activarTenant,
   suspenderTenant,
   reactivarTenant,
   darDeBajaTenant,
@@ -104,7 +105,9 @@ function asyncHandler(fn) {
 }
 
 // Traduce ErrorTransicionTenant al código HTTP correcto: 404 si el slug
-// no existe, 409 si existe pero está en un estado que no admite la
+// no existe, 502 si el paso físico en el backend falló (solo aplica a
+// "activar" — ver ErrorTransicionTenant.codigo 'error_fisico' en
+// tenantLifecycle.js), 409 para cualquier otro estado que no admite la
 // transición pedida.
 async function manejarTransicionTenant(res, ejecutarTransicion) {
   try {
@@ -112,7 +115,7 @@ async function manejarTransicionTenant(res, ejecutarTransicion) {
     res.json({ ok: true, tenant });
   } catch (err) {
     if (err instanceof ErrorTransicionTenant) {
-      const estatus = err.codigo === 'no_encontrado' ? 404 : 409;
+      const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'error_fisico' ? 502 : 409;
       return res.status(estatus).json({ error: err.message });
     }
     throw err;
@@ -237,6 +240,23 @@ app.post(
       }
       throw err;
     }
+  })
+);
+
+// Completa el aprovisionamiento de una empresa capturada desde el intake
+// (segmento 9c) que quedó en "provisioning" — delega la parte física
+// (CREATE DATABASE + esquema) al backend, ver tenantLifecycle.js/
+// notificarBackend.js para el detalle completo. Único mecanismo, junto
+// con el CLI backend/scripts/provisionar-tenant.js, que completa este
+// paso — ninguno de los dos requiere ya privilegios root para el 99% de
+// los casos (root solo se necesitó UNA vez, para el GRANT inicial).
+app.post(
+  '/api/control/tenants/:slug/activar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    await manejarTransicionTenant(res, () => activarTenant(req.params.slug, { actor: req.adminUser }));
   })
 );
 

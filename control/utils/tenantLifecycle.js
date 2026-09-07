@@ -1,13 +1,19 @@
 // Ciclo de vida de tenants ya existentes (segmento 9, movido a este
 // contenedor propio en el segmento 9b — ver PROJECT_STATE.md) —
-// listar/suspender/reactivar/dar de baja empresas ya provisionadas.
-// Deliberadamente NO incluye crear un tenant nuevo: eso requiere
-// privilegios root de MySQL (CREATE DATABASE + GRANT) que este
-// contenedor nunca tiene montados — sigue siendo el script CLI
-// backend/scripts/provisionar-tenant.js, corrido a mano por un operador.
+// listar/suspender/reactivar/dar de baja/activar empresas.
+// "Activar" (completar el aprovisionamiento físico de una fila en
+// "provisioning") es la única transición que este contenedor no puede
+// hacer con su propia credencial (`control_app`, sin acceso a
+// `tenant_*`) — delega esa parte al backend vía
+// notificarBackend.js:activarTenantFisico() (secreto compartido, mismo
+// patrón que la invalidación de caché), que la ejecuta con las
+// credenciales de aplicación que YA tiene montadas (nunca root — ver el
+// endpoint interno en backend/server.js para el detalle completo). El
+// CLI `backend/scripts/provisionar-tenant.js` sigue existiendo como
+// respaldo manual si ese privilegio llegara a faltar.
 
 const { obtenerPool } = require('../db');
-const { notificarInvalidacionCache } = require('./notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico } = require('./notificarBackend');
 
 // Error tipado para que la capa de rutas distinga "el tenant no existe"
 // (404) de "el tenant existe pero no está en un estado válido para esta
@@ -95,6 +101,47 @@ async function aplicarTransicion(db, { slug, estadosOrigen, estadoDestino, colum
   return tenant;
 }
 
+// A diferencia de aplicarTransicion() (guarda atómica en un solo UPDATE),
+// "activar" necesita un paso intermedio que SÍ puede fallar (crear la
+// base de datos física en el backend) — por eso se verifica el estado
+// ANTES de intentarlo, en vez de confiar solo en el UPDATE con guarda:
+// si el paso físico falla, no debe quedar ninguna escritura a medias en
+// `tenants`. Sigue siendo seguro ante 2 clics concurrentes: si ambos
+// pasan la verificación y ambos llaman a activarTenantFisico() (CREATE
+// DATABASE IF NOT EXISTS es idempotente, inofensivo repetirlo), solo uno
+// gana la carrera del UPDATE atómico de aplicarTransicion() — el otro
+// recibe 409 "ya no está en provisioning", nunca una doble aplicación.
+async function activarTenant(slug, { actor } = {}, db = obtenerPool()) {
+  const tenant = await obtenerTenantPorSlug(slug, db);
+  if (!tenant) {
+    throw new ErrorTransicionTenant(`El tenant "${slug}" no existe.`, 'no_encontrado');
+  }
+  if (tenant.estado !== 'provisioning') {
+    throw new ErrorTransicionTenant(
+      `El tenant "${slug}" está en estado "${tenant.estado}", no se puede activar desde ahí (solo aplica a "Provisionando").`,
+      'estado_invalido'
+    );
+  }
+
+  try {
+    await activarTenantFisico(slug);
+  } catch (err) {
+    throw new ErrorTransicionTenant(
+      err.message || 'No se pudo crear la base de datos del tenant.',
+      'error_fisico'
+    );
+  }
+
+  return aplicarTransicion(db, {
+    slug,
+    estadosOrigen: ['provisioning'],
+    estadoDestino: 'activo',
+    columnaTimestamp: 'activado_en',
+    tipoEvento: 'alta_completada',
+    actor,
+  });
+}
+
 async function suspenderTenant(slug, { actor } = {}, db = obtenerPool()) {
   return aplicarTransicion(db, {
     slug,
@@ -135,6 +182,7 @@ module.exports = {
   ErrorTransicionTenant,
   listarTenants,
   obtenerTenantPorSlug,
+  activarTenant,
   suspenderTenant,
   reactivarTenant,
   darDeBajaTenant,

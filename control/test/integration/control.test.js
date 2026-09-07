@@ -12,10 +12,11 @@ jest.mock('../../db', () => ({
 }));
 jest.mock('../../utils/notificarBackend', () => ({
   notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
+  activarTenantFisico: jest.fn().mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' }),
 }));
 
 const { obtenerPool } = require('../../db');
-const { notificarInvalidacionCache } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico } = require('../../utils/notificarBackend');
 const app = require('../../server');
 
 const TENANT_FILA = {
@@ -37,6 +38,8 @@ describe('Control standalone (/api/control)', () => {
     pool = { query: jest.fn() };
     obtenerPool.mockReturnValue(pool);
     notificarInvalidacionCache.mockClear();
+    activarTenantFisico.mockClear();
+    activarTenantFisico.mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' });
   });
 
   describe('GET /api/control/tenants', () => {
@@ -55,6 +58,59 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app).get('/api/control/tenants').auth('admin', 'admin');
       expect(res.status).toBe(200);
       expect(res.body.tenants).toEqual([TENANT_FILA]);
+    });
+  });
+
+  describe('POST /api/control/tenants/:slug/activar', () => {
+    test('200, delega en el backend (secreto interno) y marca "activo"', async () => {
+      pool.query
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'provisioning' }]]) // obtenerTenantPorSlug inicial
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]) // obtenerTenantPorSlug posterior
+        .mockResolvedValueOnce([{}]); // registrarEvento (INSERT)
+
+      const res = await request(app).post('/api/control/tenants/cliente1/activar').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.tenant.estado).toBe('activo');
+      expect(activarTenantFisico).toHaveBeenCalledWith('cliente1');
+    });
+
+    test('404 si el slug no existe', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const res = await request(app).post('/api/control/tenants/fantasma/activar').auth('admin', 'admin');
+
+      expect(res.status).toBe(404);
+      expect(activarTenantFisico).not.toHaveBeenCalled();
+    });
+
+    test('409 si el tenant ya no está en "provisioning"', async () => {
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]);
+
+      const res = await request(app).post('/api/control/tenants/cliente1/activar').auth('admin', 'admin');
+
+      expect(res.status).toBe(409);
+    });
+
+    test('502 si el backend no pudo crear la base de datos (nunca marca "activo")', async () => {
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'provisioning' }]]);
+      activarTenantFisico.mockRejectedValueOnce(new Error('No se pudo crear la base de datos del tenant.'));
+
+      const res = await request(app).post('/api/control/tenants/cliente1/activar').auth('admin', 'admin');
+
+      expect(res.status).toBe(502);
+      // Ningún UPDATE se disparó tras el fallo físico (la única consulta
+      // real fue la verificación inicial; la auditoría de acceso admin
+      // también consulta el mismo pool mockeado, así que no se cuenta el
+      // total de llamadas, solo se confirma que no hubo UPDATE).
+      expect(pool.query.mock.calls.some(([sql]) => /UPDATE tenants/.test(sql))).toBe(false);
+    });
+
+    test('401 sin credenciales válidas', async () => {
+      const res = await request(app).post('/api/control/tenants/cliente1/activar').auth('quien-sea', 'loquesea');
+      expect(res.status).toBe(401);
     });
   });
 
