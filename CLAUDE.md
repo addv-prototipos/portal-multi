@@ -788,6 +788,41 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
+**Punto 215 (2026-09-07, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: homologación de "Correo de contacto de la empresa" — el sitio
+base (sin tenant) ahora también lo edita desde `/admin` › Configuraciones
+globales › Configuración Reportes › "Contacto con clientes", igual que un
+tenant real (punto 186/170), con 2 diferencias confirmadas por el
+usuario: opcional en el sitio base (obligatorio en tenant) y la burbuja
+"Solicitar aclaraciones" del portal ahora también aparece en el sitio
+base (antes cortaba de raíz sin `TENANT_SLUG`). `contacto_email_cliente`
+nuevo en la config local (`backend/utils/config.js`, mismo patrón que
+`correo_reportes`); `PUT /api/admin/config/contacto-cliente` bifurca por
+`req.tenant`; endpoint público nuevo `GET /api/aclaraciones/disponible`
+(booleano nomás) para que el sitio base sepa si pintar la burbuja sin el
+mecanismo de `/api/tema/:slug` que solo aplica a tenants; `POST
+/api/aclaraciones` ya no exige tenant. Jest backend 886/886. Validado por
+curl contra Docker real (ciclo completo, entorno restaurado a vacío al
+terminar) — **no se pudo probar el camino CON tenant en vivo** (sin
+tenants activos en este entorno ahora mismo; esa rama de código no
+cambió de lógica y sigue cubierta por los tests existentes). Sin
+herramienta de navegador esta sesión — falta confirmación visual. Ver
+PROJECT_STATE.md punto 215.
+
+**Nota sobre punto 137 (Swagger + credenciales API por tenant)**: la
+entrada de más abajo lo describe como "solo anotado, pendiente de
+análisis" — quedó desactualizada. Confirmado en esta sesión (2026-09-07)
+que ya está implementado por completo (otra herramienta lo agregó en
+paralelo, ver incidente del punto 140) y endurecido en las auditorías de
+seguridad de los puntos 197/198: Swagger real en `/api/docs`, credenciales
+por tenant (`api_credenciales`, gestionadas 100% desde `/control`,
+aisladas por `tenant_slug`) y el SUPER con par de credenciales global ya
+existente vía `ADMIN_USERS` (funciona contra cualquier tenant sin nada
+nuevo que construir). Único hueco real encontrado: `control/` no tiene
+test unitario propio para `apiCredenciales.js` (tampoco para
+`tenantTema.js`, mismo hueco ya anotado en el punto 164) — sigue sin
+cerrarse, pendiente para una sesión futura si se decide cerrarlo.
+
 **Punto 214 (2026-09-05, IMPLEMENTADO Y VALIDADO contra Docker real y con
 clics reales en navegador)**: "Plantillas de correo" — el mecanismo que
 antes solo existía para `cuerpo_cliente` (factura lista) se extendió a

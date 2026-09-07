@@ -784,6 +784,7 @@
     btnGuardarConfigReportes: document.getElementById('btn-guardar-config-reportes'),
     btnGuardarConfigReportesLabel: document.getElementById('btn-guardar-config-reportes-label'),
     contactoClienteBloque: document.getElementById('contacto-cliente-bloque'),
+    contactoClienteHint: document.getElementById('contacto-cliente-hint'),
     configContactoCliente: document.getElementById('config-contacto-cliente'),
     contactoClienteError: document.getElementById('contacto-cliente-error'),
     btnGuardarContactoCliente: document.getElementById('btn-guardar-contacto-cliente'),
@@ -1456,6 +1457,11 @@
   // dentro de aplicarRestriccionesPerfil() para que ninguna de las dos
   // condiciones pueda pisar a la otra (ver aplicarVisibilidadOrdenesCompra).
   let ventasHabilitadaGlobalmente = true;
+  // Homologación sitio base/tenant de "Contacto con clientes": con tenant
+  // el correo es obligatorio (mismo dato que /control); sin tenant (sitio
+  // base) es opcional. Se guarda al cargar la config para que el handler
+  // de guardado sepa qué regla aplicar sin volver a pedirla.
+  let contactoClienteTenantActivo = false;
   // D8/§0.6: Inventarios se activa/desactiva por tenant, default '0'
   // (inactivo) hasta que el administrador lo prenda desde "Usuarios" —
   // ver cargarConfigInventario() más abajo.
@@ -2745,13 +2751,16 @@
       if (!res.ok) return;
       const config = await res.json();
       els.configCorreoReportes.value = config.correo_reportes || '';
-      // Punto 186: "Contacto con clientes" solo existe dentro de un tenant
-      // real (control_tenants no tiene fila para el sitio base) — se
-      // oculta el bloque entero en vez de mostrarlo vacío/deshabilitado.
-      els.contactoClienteBloque.hidden = !config.tenant_activo;
-      if (config.tenant_activo) {
-        els.configContactoCliente.value = config.contacto_email_cliente || '';
-      }
+      // Punto 186 (+ homologación sitio base): "Contacto con clientes" ya
+      // se muestra siempre — con tenant es obligatorio y viaja a
+      // control_tenants; sin tenant (sitio base) es opcional y viaja a la
+      // config local. El texto de ayuda y la regla de guardado cambian
+      // según cuál sea.
+      contactoClienteTenantActivo = !!config.tenant_activo;
+      els.configContactoCliente.value = config.contacto_email_cliente || '';
+      els.contactoClienteHint.textContent = contactoClienteTenantActivo
+        ? 'A este correo llegan las aclaraciones que un cliente manda desde el portal sobre sus movimientos con la empresa ("Solicitar aclaraciones"). Es el mismo dato que se edita en /control — cambiarlo aquí o allá actualiza lo mismo. No se puede dejar vacío.'
+        : 'A este correo llegan las aclaraciones que un cliente del sitio base manda desde el portal ("Solicitar aclaraciones"). Es opcional — mientras esté vacío, esa opción no aparece en el portal.';
     } catch (err) {
       // El formulario se queda con lo que ya tenía; se puede reintentar guardando de nuevo.
     }
@@ -2795,10 +2804,11 @@
     }
   });
 
-  // Punto 186: "Correo de contacto de la empresa" — mismo dato que
-  // control_tenants.tenants.contacto_email (el que edita /control),
-  // endpoint propio porque escribe en otra base, no en la config de este
-  // tenant. Obligatorio a diferencia de "correo de reportes".
+  // Punto 186: "Correo de contacto de la empresa" — con tenant, mismo dato
+  // que control_tenants.tenants.contacto_email (el que edita /control),
+  // endpoint propio porque escribe en otra base, obligatorio; sin tenant
+  // (sitio base) escribe en la config local de este mismo tenant, opcional
+  // (ver contactoClienteTenantActivo).
   els.btnGuardarContactoCliente.addEventListener('click', async () => {
     const authHeader = getAuthHeader();
     if (!authHeader) {
@@ -2810,11 +2820,11 @@
     setFieldError('config-contacto-cliente', '');
 
     const contactoCliente = els.configContactoCliente.value.trim();
-    if (!contactoCliente) {
+    if (!contactoCliente && contactoClienteTenantActivo) {
       setFieldError('config-contacto-cliente', 'El correo de contacto es obligatorio.');
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactoCliente)) {
+    if (contactoCliente && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactoCliente)) {
       setFieldError('config-contacto-cliente', 'Captura un correo válido.');
       return;
     }

@@ -162,6 +162,12 @@ describe('config.js', () => {
       const resultado = await getConfiguracionGlobal();
       expect(resultado.correo_reportes).toBe('admin@empresa.com');
     });
+
+    test('normaliza contacto_email_cliente a minúsculas (homologación sitio base)', async () => {
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ contacto_email_cliente: 'CONTACTO@Empresa.com' }) }]]);
+      const resultado = await getConfiguracionGlobal();
+      expect(resultado.contacto_email_cliente).toBe('contacto@empresa.com');
+    });
   });
 
   describe('setConfiguracionGlobal', () => {
@@ -211,6 +217,17 @@ describe('config.js', () => {
     test('rechaza correo_reportes con formato inválido', async () => {
       pool.query.mockResolvedValueOnce([[]]);
       await expect(setConfiguracionGlobal({ correo_reportes: 'no-es-correo' })).rejects.toThrow(/correo de reportes/);
+    });
+
+    test('acepta contacto_email_cliente vacío (opcional, homologación sitio base)', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ contacto_email_cliente: '' });
+      expect(resultado.contacto_email_cliente).toBe('');
+    });
+
+    test('rechaza contacto_email_cliente con formato inválido', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      await expect(setConfiguracionGlobal({ contacto_email_cliente: 'no-es-correo' })).rejects.toThrow(/correo de contacto/);
     });
 
     test('tipo_persona_compania solo acepta "fisica"/"moral", cualquier otra cosa se guarda como null', async () => {

@@ -292,15 +292,44 @@ describe('Admin', () => {
       expect(res.status).toBe(403);
     });
 
-    test('sin contexto de tenant (sitio base) responde 400', async () => {
+    test('sin contexto de tenant (sitio base): correo válido guarda 200 (opcional, no obligatorio)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // setConfiguracionGlobal: getConfiguracionGlobal interno
+      pool.query.mockResolvedValueOnce([{}]); // INSERT/UPDATE
+
       const res = await request(app)
         .put('/api/admin/config/contacto-cliente')
         .auth(usuario, password)
         .send({ contacto_email: 'contacto@empresa.com' });
 
+      expect(res.status).toBe(200);
+      expect(res.body.contacto_email).toBe('contacto@empresa.com');
+    });
+
+    test('sin contexto de tenant (sitio base): vacío también guarda 200 (opcional)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // setConfiguracionGlobal: getConfiguracionGlobal interno
+      pool.query.mockResolvedValueOnce([{}]); // INSERT/UPDATE
+
+      const res = await request(app)
+        .put('/api/admin/config/contacto-cliente')
+        .auth(usuario, password)
+        .send({ contacto_email: '' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.contacto_email).toBeNull();
+    });
+
+    test('sin contexto de tenant (sitio base): formato inválido responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+
+      const res = await request(app)
+        .put('/api/admin/config/contacto-cliente')
+        .auth(usuario, password)
+        .send({ contacto_email: 'no-es-un-correo' });
+
       expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/tenant/);
+      expect(res.body.error).toMatch(/formato/);
     });
   });
 

@@ -1241,12 +1241,43 @@ app.post(
 // respaldo si el envío falla), aquí SÍ se espera el envío y se le informa
 // al cliente si falló, para que pueda reintentar en vez de creer que su
 // solicitud se mandó cuando en realidad se perdió en silencio.
+// Homologación con tenants (que usan GET /<slug>/api/tema/<slug> para
+// esto): el sitio base no tiene slug ni fila en control_tenants, así que
+// necesita su propio endpoint público y minúsculo para que
+// frontend/aclaraciones.js sepa si pintar la burbuja — mismo criterio de
+// exponer solo un booleano, cero dato sensible. No aplica con tenant
+// resuelto (ese camino ya usa /api/tema/:slug, este solo cubre el hueco
+// del sitio base).
+app.get(
+  '/api/aclaraciones/disponible',
+  asyncHandler(async (req, res) => {
+    if (req.tenant) {
+      return res.json({ tieneAclaraciones: false });
+    }
+    const config = await getConfiguracionGlobal();
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json({ tieneAclaraciones: Boolean(config.contacto_email_cliente) });
+  })
+);
+
 app.post(
   '/api/aclaraciones',
   requireUserAuth,
   submitLimiter,
   asyncHandler(async (req, res) => {
-    if (!req.tenant || !req.tenant.contactoEmail) {
+    // Con tenant, el destino sale de req.tenant (ya resuelto por el
+    // middleware, sin consulta extra); sin tenant (sitio base), hace falta
+    // leer la config local — se guarda en la misma variable que más abajo
+    // ya necesita logoUrlDelTenant(), para no consultarla dos veces.
+    let configGlobalAclaracion = null;
+    let contactoDestino = null;
+    if (req.tenant) {
+      contactoDestino = req.tenant.contactoEmail || null;
+    } else {
+      configGlobalAclaracion = await getConfiguracionGlobal();
+      contactoDestino = configGlobalAclaracion.contacto_email_cliente || null;
+    }
+    if (!contactoDestino) {
       return res.status(404).json({ error: 'Esta empresa no tiene un correo de contacto configurado todavía.' });
     }
 
@@ -1265,7 +1296,9 @@ app.post(
     // que el cliente lo cite si necesita dar seguimiento por correo.
     const numero = `${Date.now().toString(36).toUpperCase()}-${req.userRfc}`;
     const urlPortal = detectarUrlPortal(req);
-    const configGlobalAclaracion = await getConfiguracionGlobal();
+    if (!configGlobalAclaracion) {
+      configGlobalAclaracion = await getConfiguracionGlobal();
+    }
     const colores = coloresCorreoTenant(req);
 
     const { html, texto, adjuntos } = construirCorreoBase({
@@ -1289,7 +1322,7 @@ app.post(
 
     try {
       await enviarCorreo({
-        destinatario: req.tenant.contactoEmail,
+        destinatario: contactoDestino,
         asunto: `Solicitud de aclaración ${numero}`,
         cuerpo: texto,
         html,
@@ -3369,14 +3402,16 @@ app.get(
     const config = await getConfiguracionGlobal();
     // Punto 186: "Correo de contacto de la empresa" es un campo aparte de
     // "correo_reportes" (ese es interno, este es el que ve /control y usa
-    // la burbuja "Solicitar aclaraciones" del portal) — vive en
-    // control_tenants.tenants, no en la config de este tenant, así que se
-    // agrega aquí solo de lectura junto con la config normal para que el
-    // frontend arme la tarjeta con una sola llamada. `tenant_activo` le
-    // dice al frontend si mostrar la sección (no aplica al sitio base,
-    // que no tiene fila en control_tenants).
+    // la burbuja "Solicitar aclaraciones" del portal). Con tenant, vive en
+    // control_tenants.tenants (se sobreescribe aquí, de solo lectura desde
+    // esta ruta); sin tenant (sitio base), vive en la config local de esta
+    // misma tabla — `config.contacto_email_cliente` ya trae ese valor tal
+    // cual de `getConfiguracionGlobal()`, no hace falta tocarlo.
+    // `tenant_activo` le dice al frontend cuál de los dos casos es este.
     config.tenant_activo = !!req.tenant;
-    config.contacto_email_cliente = req.tenant ? req.tenant.contactoEmail || null : null;
+    if (req.tenant) {
+      config.contacto_email_cliente = req.tenant.contactoEmail || null;
+    }
     res.json(config);
   })
 );
@@ -3425,11 +3460,18 @@ app.put(
 );
 
 // Punto 186: "Correo de contacto de la empresa" — a propósito un endpoint
-// aparte de PUT /api/admin/config/global (esta escritura va a
+// aparte de PUT /api/admin/config/global (con tenant, esta escritura va a
 // control_tenants.tenants, no a la config del tenant). Mismo campo que
 // edita /control (segmento 170, tenantEdicion.js/normalizarDatosBase):
-// obligatorio, formato de correo válido, nunca vacío — mismas reglas, sin
-// duplicar dato. Solo administrador/super, igual que "correo_reportes".
+// obligatorio, formato de correo válido, nunca vacío. Solo
+// administrador/super, igual que "correo_reportes".
+// Homologación con el sitio base (sin tenant, sin fila en
+// control_tenants): mismo endpoint, misma UI, pero guarda en la config
+// local (`contacto_email_cliente`, ver utils/config.js) y es OPCIONAL —
+// hoy ninguna otra empresa lo ve, así que exigirlo sería solo fricción
+// sin beneficio; mientras esté vacío, la burbuja "Solicitar
+// aclaraciones" del portal simplemente no aparece (igual que un tenant
+// sin este dato).
 app.put(
   '/api/admin/config/contacto-cliente',
   adminApiLimiter,
@@ -3439,24 +3481,30 @@ app.put(
     if (req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
       return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar el correo de contacto.' });
     }
-    if (!req.tenant) {
-      return res.status(400).json({ error: 'Esta configuración solo aplica dentro de una empresa (tenant).' });
-    }
     const contactoEmail = typeof req.body.contacto_email === 'string'
       ? req.body.contacto_email.trim().toLowerCase()
       : '';
-    if (!contactoEmail) {
-      return res.status(400).json({ error: 'El correo de contacto de la empresa es obligatorio.' });
+
+    if (req.tenant) {
+      if (!contactoEmail) {
+        return res.status(400).json({ error: 'El correo de contacto de la empresa es obligatorio.' });
+      }
+      if (!isValidEmail(contactoEmail)) {
+        return res.status(400).json({ error: 'El correo de contacto no tiene un formato válido.' });
+      }
+      await obtenerPoolControl().query(
+        'UPDATE tenants SET contacto_email = ? WHERE slug = ?',
+        [contactoEmail, req.tenant.slug]
+      );
+      invalidarCacheTenant(req.tenant.slug);
+      return res.json({ ok: true, contacto_email: contactoEmail });
     }
-    if (!isValidEmail(contactoEmail)) {
+
+    if (contactoEmail && !isValidEmail(contactoEmail)) {
       return res.status(400).json({ error: 'El correo de contacto no tiene un formato válido.' });
     }
-    await obtenerPoolControl().query(
-      'UPDATE tenants SET contacto_email = ? WHERE slug = ?',
-      [contactoEmail, req.tenant.slug]
-    );
-    invalidarCacheTenant(req.tenant.slug);
-    res.json({ ok: true, contacto_email: contactoEmail });
+    await setConfiguracionGlobal({ contacto_email_cliente: contactoEmail });
+    res.json({ ok: true, contacto_email: contactoEmail || null });
   })
 );
 

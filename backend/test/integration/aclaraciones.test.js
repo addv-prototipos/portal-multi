@@ -80,10 +80,27 @@ describe('POST /api/aclaraciones', () => {
     expect(res.status).toBe(401);
   });
 
-  test('sin tenant resuelto (sin X-Tenant-Slug) responde 404', async () => {
+  test('sin tenant resuelto (sitio base) y sin correo de contacto configurado responde 404', async () => {
+    pool.query.mockResolvedValueOnce(configGlobalDefault()); // getConfiguracionGlobal (sitio base)
     const cookieSinTenant = `sesion_usuario=${crearTokenSesion(RFC, null)}`;
     const res = await request(app).post('/api/aclaraciones').set('Cookie', cookieSinTenant);
     expect(res.status).toBe(404);
+  });
+
+  test('sin tenant resuelto (sitio base) con correo de contacto configurado: envía y responde 200', async () => {
+    pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ contacto_email_cliente: 'contacto@base.com' }) }]]); // getConfiguracionGlobal (destino, reusado también para logoUrlDelTenant)
+    pool.query.mockResolvedValueOnce(smtpConfigurado()); // getConfigSmtp (dentro de enviarCorreo)
+    const cookieSinTenant = `sesion_usuario=${crearTokenSesion(RFC, null)}`;
+
+    const res = await request(app)
+      .post('/api/aclaraciones')
+      .set('Cookie', cookieSinTenant)
+      .send({ nombre: 'Juan Pérez', telefono: '5512345678', detalle: 'Duda del sitio base.' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    const correoEnviado = mockSendMail.mock.calls[0][0];
+    expect(correoEnviado.to).toBe('contacto@base.com');
   });
 
   test('tenant sin correo de contacto configurado responde 404', async () => {
@@ -166,5 +183,32 @@ describe('POST /api/aclaraciones', () => {
     expect(res.status).toBe(500);
     expect(res.body.numero).toBeUndefined();
     logEspia.mockRestore();
+  });
+});
+
+describe('GET /api/aclaraciones/disponible', () => {
+  afterEach(() => {
+    pool.query.mockReset();
+  });
+
+  test('sitio base sin correo de contacto: tieneAclaraciones false', async () => {
+    pool.query.mockResolvedValueOnce(configGlobalDefault());
+    const res = await request(app).get('/api/aclaraciones/disponible');
+    expect(res.status).toBe(200);
+    expect(res.body.tieneAclaraciones).toBe(false);
+  });
+
+  test('sitio base con correo de contacto configurado: tieneAclaraciones true', async () => {
+    pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ contacto_email_cliente: 'contacto@base.com' }) }]]);
+    const res = await request(app).get('/api/aclaraciones/disponible');
+    expect(res.status).toBe(200);
+    expect(res.body.tieneAclaraciones).toBe(true);
+  });
+
+  test('con tenant resuelto: siempre false (ese camino usa /api/tema/:slug, no este)', async () => {
+    mockControlPool([TENANT_CON_CONTACTO]);
+    const res = await request(app).get('/api/aclaraciones/disponible').set('X-Tenant-Slug', SLUG);
+    expect(res.status).toBe(200);
+    expect(res.body.tieneAclaraciones).toBe(false);
   });
 });

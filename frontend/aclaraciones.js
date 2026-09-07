@@ -1,15 +1,19 @@
-// Burbuja flotante "Solicitar aclaraciones" (punto 170) — se carga en las
-// 3 páginas del portal de cliente ya autenticadas (dashboard, tickets,
-// csf). Sin funcionalidad ninguna si el tenant no tiene correo de
-// contacto configurado en /control (la burbuja simplemente no aparece) —
-// mismo criterio de degradación elegante que theme.js.
+// Burbuja flotante "Solicitar aclaraciones" (punto 170, extendida al sitio
+// base en un segmento posterior) — se carga en las 3 páginas del portal
+// de cliente ya autenticadas (dashboard, tickets, csf), con o sin tenant.
+// Sin funcionalidad ninguna si no hay correo de contacto configurado (la
+// burbuja simplemente no aparece) — mismo criterio de degradación
+// elegante que theme.js. Con tenant, la disponibilidad se lee de
+// GET /<slug>/api/tema/<slug> (ya la trae theme.js); sin tenant (sitio
+// base, sin fila en control_tenants), de GET /api/aclaraciones/disponible.
 (() => {
   'use strict';
 
   if (!window.Portal) return; // portal.js debe cargarse antes que este script
   const { API_BASE, TENANT_SLUG } = window.Portal;
-  if (!TENANT_SLUG) return; // sin tenant no hay correo de contacto que ofrecer
-  const API_TEMA = `/${TENANT_SLUG}/api/tema/${TENANT_SLUG}`;
+  const API_TEMA = TENANT_SLUG
+    ? `/${TENANT_SLUG}/api/tema/${TENANT_SLUG}`
+    : `${API_BASE}/aclaraciones/disponible`;
 
   function crearBurbuja() {
     const boton = document.createElement('button');

@@ -161,6 +161,15 @@ const DEFAULTS_CONFIG_GLOBAL = {
   // configurado, el reporte igual se genera y se guarda para "Lectura de
   // reportes", pero no se envía nada por correo.
   correo_reportes: '',
+  // Correo de contacto de la empresa — SOLO aplica al sitio base (sin
+  // tenant): para un tenant real, este mismo dato vive en
+  // control_tenants.tenants.contacto_email (editable desde /control o
+  // PUT /api/admin/config/contacto-cliente con req.tenant presente) y
+  // NUNCA se guarda aquí. Opcional a propósito (a diferencia del
+  // tenant, donde es obligatorio) — mientras esté vacío, la burbuja
+  // "Solicitar aclaraciones" del portal del sitio base simplemente no
+  // aparece (ver GET /api/aclaraciones/disponible).
+  contacto_email_cliente: '',
 };
 
 async function getConfiguracionGlobal() {
@@ -204,6 +213,9 @@ async function getConfiguracionGlobal() {
     }
     if (typeof parsed.correo_reportes === 'string') {
       resultado.correo_reportes = parsed.correo_reportes.trim().toLowerCase();
+    }
+    if (typeof parsed.contacto_email_cliente === 'string') {
+      resultado.contacto_email_cliente = parsed.contacto_email_cliente.trim().toLowerCase();
     }
     return resultado;
   } catch (e) {
@@ -279,6 +291,14 @@ async function setConfiguracionGlobal(cambios) {
       throw new Error('El correo de reportes no tiene un formato válido.');
     }
     nuevo.correo_reportes = correo;
+  }
+
+  if (cambios.contacto_email_cliente !== undefined) {
+    const contacto = typeof cambios.contacto_email_cliente === 'string' ? cambios.contacto_email_cliente.trim().toLowerCase() : '';
+    if (contacto && !isValidEmail(contacto)) {
+      throw new Error('El correo de contacto no tiene un formato válido.');
+    }
+    nuevo.contacto_email_cliente = contacto;
   }
 
   await pool.query(
