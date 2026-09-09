@@ -90,7 +90,25 @@ describe('Admin: preferencias de dashboard (Modo dashboard, punto 119)', () => {
     expect(JSON.parse(paramsInsert[2])).toEqual(layout);
   });
 
-  test('PUT rechaza layouts inválidos con 400 (id desconocido, duplicado, span fuera de rango, no-array)', async () => {
+  test('PUT guarda un layout con "height" (resize vertical) y lo devuelve normalizado', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('administrador');
+    pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    const layout = [
+      { id: 'utilidad', span: 6, height: 320 },
+      // Sin "height": se queda en alto automático, sigue siendo válido.
+      { id: 'proveedores', span: 6 },
+    ];
+    const res = await request(app)
+      .put('/api/admin/preferencias-dashboard/resumen-financiero')
+      .auth(usuario, password)
+      .send({ layout });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, layout });
+  });
+
+  test('PUT rechaza layouts inválidos con 400 (id desconocido, duplicado, span fuera de rango, height fuera de rango, no-array)', async () => {
     const casos = [
       [{ id: 'tarjeta-inventada', span: 6 }],
       [
@@ -100,6 +118,9 @@ describe('Admin: preferencias de dashboard (Modo dashboard, punto 119)', () => {
       [{ id: 'utilidad', span: 2 }],
       [{ id: 'utilidad', span: 13 }],
       [{ id: 'utilidad', span: 6.5 }],
+      [{ id: 'utilidad', span: 6, height: 100 }], // debajo de heightMin (160)
+      [{ id: 'utilidad', span: 6, height: 1000 }], // arriba de heightMax (900)
+      [{ id: 'utilidad', span: 6, height: 300.5 }],
       'no-soy-un-arreglo',
     ];
     for (const layout of casos) {

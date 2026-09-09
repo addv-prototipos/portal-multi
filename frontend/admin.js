@@ -8365,6 +8365,12 @@
   ];
   const DASHBOARD_SPAN_MIN = 3;
   const DASHBOARD_SPAN_MAX = 12;
+  // Resize vertical (pedido junto al de ancho ya existente) — mismos
+  // límites que valida el backend (VISTAS_DASHBOARD.heightMin/heightMax).
+  // Sin altura guardada = alto automático (comportamiento de siempre).
+  const DASHBOARD_HEIGHT_MIN = 160;
+  const DASHBOARD_HEIGHT_MAX = 900;
+  const DASHBOARD_HEIGHT_PASO_TECLADO = 24;
   const DASHBOARD_SPANS_DEFECTO = {
     'kpi-facturado': 3,
     'kpi-gastos': 3,
@@ -8391,20 +8397,38 @@
     );
   }
 
+  // Alto libre en px — con altura explícita se recorta lo que no quepa
+  // (overflow:hidden, no scroll interno): el handle ◢ vive como hijo
+  // directo de la tarjeta (position:absolute) y con scroll quedaría
+  // atrapado dentro del área que se desplaza, imposible de recuperar
+  // agrandando de nuevo. Recortar es menos vistoso pero deja el handle
+  // siempre alcanzable.
+  function aplicarAlturaTarjeta(tarjeta, alturaPx) {
+    if (alturaPx) {
+      tarjeta.style.height = `${alturaPx}px`;
+      tarjeta.style.overflow = 'hidden';
+    } else {
+      tarjeta.style.height = '';
+      tarjeta.style.overflow = '';
+    }
+  }
+
   function aplicarLayoutDashboard() {
     const tarjetas = obtenerTarjetasDashboard();
     if (!dashboardLayout) {
       tarjetas.forEach((t) => {
         t.style.order = '';
         t.style.gridColumn = '';
+        aplicarAlturaTarjeta(t, null);
       });
       return;
     }
-    const spansPorId = new Map(dashboardLayout.map((item) => [item.id, item.span]));
+    const itemsPorId = new Map(dashboardLayout.map((item) => [item.id, item]));
     tarjetas.forEach((t, indice) => {
       t.style.order = String(indice);
-      const span = spansPorId.get(t.dataset.dashboardId);
-      if (span) t.style.gridColumn = `span ${span}`;
+      const item = itemsPorId.get(t.dataset.dashboardId);
+      if (item && item.span) t.style.gridColumn = `span ${item.span}`;
+      aplicarAlturaTarjeta(t, item && item.height ? item.height : null);
     });
   }
 
@@ -8441,10 +8465,15 @@
     dashboardGuardadoTimer = setTimeout(async () => {
       const authHeader = getAuthHeader();
       if (!authHeader) return;
-      const layout = obtenerTarjetasDashboard().map((t) => ({
-        id: t.dataset.dashboardId,
-        span: parseInt(t.style.gridColumn.replace('span ', ''), 10) || DASHBOARD_SPANS_DEFECTO[t.dataset.dashboardId] || 12,
-      }));
+      const layout = obtenerTarjetasDashboard().map((t) => {
+        const item = {
+          id: t.dataset.dashboardId,
+          span: parseInt(t.style.gridColumn.replace('span ', ''), 10) || DASHBOARD_SPANS_DEFECTO[t.dataset.dashboardId] || 12,
+        };
+        const altura = parseInt(t.style.height, 10);
+        if (Number.isFinite(altura)) item.height = altura;
+        return item;
+      });
       try {
         const res = await fetch(`${API_BASE}/admin/preferencias-dashboard/${DASHBOARD_VISTA}`, {
           method: 'PUT',
@@ -8511,7 +8540,7 @@
     const boton = document.createElement('button');
     boton.type = 'button';
     boton.className = 'dashboard-handle-redimensionar';
-    boton.setAttribute('aria-label', `Cambiar ancho de tarjeta: ${titulo} (flechas izquierda/derecha con la tarjeta enfocada)`);
+    boton.setAttribute('aria-label', `Cambiar tamaño de tarjeta: ${titulo} — arrastra en diagonal, o con la tarjeta enfocada: flechas izquierda/derecha para ancho, Mayús+arriba/abajo para alto`);
     boton.tabIndex = -1;
     boton.innerHTML =
       '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 4v16H4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4"/></svg>';
@@ -8641,22 +8670,31 @@
     const handle = evento.currentTarget;
     handle.setPointerCapture(evento.pointerId);
     const xInicial = evento.clientX;
+    const yInicial = evento.clientY;
     const spanInicial =
       parseInt((tarjeta.style.gridColumn || '').replace('span ', ''), 10) ||
       DASHBOARD_SPANS_DEFECTO[tarjeta.dataset.dashboardId] ||
       12;
+    // Alto inicial: el explícito si ya había uno, si no el alto real
+    // renderizado ahora mismo (arranca el arrastre desde donde se ve la
+    // tarjeta, no desde 0).
+    const alturaInicial = parseInt(tarjeta.style.height, 10) || tarjeta.getBoundingClientRect().height;
     let spanFinal = spanInicial;
+    let alturaFinal = alturaInicial;
     const alMover = (e) => {
       const anchoColumna = els.resumenFinTablero.clientWidth / 12;
-      const delta = Math.round((e.clientX - xInicial) / anchoColumna);
-      spanFinal = Math.min(DASHBOARD_SPAN_MAX, Math.max(DASHBOARD_SPAN_MIN, spanInicial + delta));
+      const deltaSpan = Math.round((e.clientX - xInicial) / anchoColumna);
+      spanFinal = Math.min(DASHBOARD_SPAN_MAX, Math.max(DASHBOARD_SPAN_MIN, spanInicial + deltaSpan));
       tarjeta.style.gridColumn = `span ${spanFinal}`;
+      const deltaAltura = e.clientY - yInicial;
+      alturaFinal = Math.min(DASHBOARD_HEIGHT_MAX, Math.max(DASHBOARD_HEIGHT_MIN, Math.round(alturaInicial + deltaAltura)));
+      aplicarAlturaTarjeta(tarjeta, alturaFinal);
     };
     const alTerminar = () => {
       handle.removeEventListener('pointermove', alMover);
       handle.removeEventListener('pointerup', alTerminar);
       handle.removeEventListener('pointercancel', alTerminar);
-      if (spanFinal !== spanInicial) {
+      if (spanFinal !== spanInicial || alturaFinal !== alturaInicial) {
         guardarPreferenciasDashboard();
       }
     };
@@ -8679,6 +8717,15 @@
         12;
       const delta = evento.key === 'ArrowRight' ? 1 : -1;
       tarjeta.style.gridColumn = `span ${Math.min(DASHBOARD_SPAN_MAX, Math.max(DASHBOARD_SPAN_MIN, actual + delta))}`;
+      guardarPreferenciasDashboard();
+      return;
+    }
+    if (evento.shiftKey && (evento.key === 'ArrowUp' || evento.key === 'ArrowDown')) {
+      evento.preventDefault();
+      const alturaActual = parseInt(tarjeta.style.height, 10) || tarjeta.getBoundingClientRect().height;
+      const delta = evento.key === 'ArrowDown' ? DASHBOARD_HEIGHT_PASO_TECLADO : -DASHBOARD_HEIGHT_PASO_TECLADO;
+      const alturaNueva = Math.min(DASHBOARD_HEIGHT_MAX, Math.max(DASHBOARD_HEIGHT_MIN, Math.round(alturaActual + delta)));
+      aplicarAlturaTarjeta(tarjeta, alturaNueva);
       guardarPreferenciasDashboard();
       return;
     }

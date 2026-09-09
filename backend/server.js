@@ -5713,13 +5713,21 @@ const VISTAS_DASHBOARD = {
     ],
     spanMin: 3,
     spanMax: 12,
+    // Alto libre en píxeles (resize vertical, pedido por el usuario junto
+    // al resize de ancho ya existente) — rango generoso para que una
+    // tarjeta chica (KPI) y una con tabla larga (modal aparte, esto es
+    // solo la vista embebida) quepan ambas; sin `height` en el item se
+    // queda en alto automático (comportamiento de siempre).
+    heightMin: 160,
+    heightMax: 900,
   },
 };
 
 // Normaliza/valida un layout del cliente contra la whitelist de la vista.
-// Devuelve el arreglo limpio [{id, span}] o null si algo no cuadra —
-// un layout parcialmente válido se rechaza completo para que el frontend
-// nunca guarde a medias.
+// Devuelve el arreglo limpio [{id, span, height?}] o null si algo no
+// cuadra — un layout parcialmente válido se rechaza completo para que el
+// frontend nunca guarde a medias. `height` es opcional (ausente = alto
+// automático); si viene, debe ser un entero dentro del rango de la vista.
 function validarLayoutDashboard(configVista, layout) {
   if (!Array.isArray(layout) || layout.length === 0 || layout.length > configVista.elementos.length) {
     return null;
@@ -5732,8 +5740,15 @@ function validarLayoutDashboard(configVista, layout) {
     if (!Number.isInteger(item.span) || item.span < configVista.spanMin || item.span > configVista.spanMax) {
       return null;
     }
+    if (item.height !== undefined && item.height !== null) {
+      if (!Number.isInteger(item.height) || item.height < configVista.heightMin || item.height > configVista.heightMax) {
+        return null;
+      }
+    }
     vistos.add(item.id);
-    limpio.push({ id: item.id, span: item.span });
+    const limpioItem = { id: item.id, span: item.span };
+    if (item.height !== undefined && item.height !== null) limpioItem.height = item.height;
+    limpio.push(limpioItem);
   }
   return limpio;
 }

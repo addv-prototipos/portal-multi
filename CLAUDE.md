@@ -891,8 +891,22 @@ mockup) y tabla con "% con comprobante" real en vez de "Estado
 Presupuestal". Filtro interactivo de series (Ventas vs Facturado vs
 Gastos) habilitado también en la tarjeta chica, no solo en el modal.
 Filtro nuevo real "Facturación" en Ventas. Jest backend 905/905. Ver
-PROJECT_STATE.md punto 259 para el detalle línea por línea. Sin
-commit/push todavía.
+PROJECT_STATE.md punto 259 para el detalle línea por línea.
+**Commiteado y pusheado** (`bea33f5` → `fact/master`, junto con los
+puntos 257-258).
+
+**Punto 260 (2026-09-09, IMPLEMENTADO Y VALIDADO por HTTP contra Docker/
+MySQL reales)**: resize de ALTO en el "Modo dashboard" de Resumen
+financiero, junto al de ancho que ya existía — pedido explícito del
+usuario. El handle ◢ ahora también lee `e.clientY` y ajusta la altura en
+vivo (arrastre) o con `Mayús+↑/↓` (teclado, paso 24px). Backend:
+`heightMin`/`heightMax` (160-900px) en `VISTAS_DASHBOARD`, `height`
+opcional por item en `validarLayoutDashboard()` (ausente = alto
+automático, compatible con layouts guardados antes de este punto). Con
+alto explícito se usa `overflow:hidden` (no `overflow-y:auto`): el handle
+vive dentro de la tarjeta y con scroll interno quedaría atrapado sin
+forma de agrandarla de nuevo. 2 tests nuevos. Jest backend 906/906. Ver
+PROJECT_STATE.md punto 260. Sin commit/push todavía.
 
 **Punto 256 (2026-09-09, IMPLEMENTADO Y VALIDADO en navegador real contra
 Docker/MySQL reales)**: "Proyección de ventas" homologada con 2 mockups
