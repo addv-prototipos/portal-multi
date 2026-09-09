@@ -13793,6 +13793,24 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     habían quedado sueltos en el repo de una corrida anterior de esas
     specs (no se commitean). **Commiteado y pusheado.**
 
+    **Actualización — validado en navegador real contra Docker/MySQL
+    reales (2026-09-08, misma sesión, extensión Claude in Chrome sin
+    conectar de nuevo)**: rebuild `--no-cache` + `--force-recreate` de
+    `backend`+`frontend`, health OK, código nuevo confirmado servido.
+    Corridas las 2 specs Playwright ya incluidas
+    (`csf-208.spec.ts`/`registro-241.spec.ts`) contra el stack real vía
+    Chromium — **4/4 passed**: registro con CSF sube el PDF real,
+    precarga RFC/tipo persona, bloquea RFC y ambos radios
+    (`registro-tipo-fisica`/`-moral`, confirmando que el fix del bug de
+    esta sesión —radios ocultos/disabled hasta detectar el dato— no
+    rompió el flujo real), guarda la constancia, y el mismo RFC llega
+    con el radio bloqueado y el hint visible en `csf.html` y con el
+    aviso visible en `tickets.html`; subir CSF en `csf.html` redirige
+    solo al hacer clic en "Ir al inicio ahora" Y por auto-redirect a
+    1.8s sin clic, sin errores de JS en consola en ningún caso. PDFs
+    temporales y `test-results/` generados por la corrida borrados de
+    nuevo, no se commitean.
+
 251. **Botón "Activar" en `/control` para completar el aprovisionamiento
     de un tenant en "provisioning" SIN root de MySQL (2026-09-07,
     IMPLEMENTADO Y VALIDADO de punta a punta contra Docker/MySQL reales)**:

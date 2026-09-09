@@ -805,9 +805,13 @@ dropzone vecino ([[feedback_sin_emojis_en_mockups]]). `.env.example`
 tenía un typo (".cla" sobrante) que esta sesión no pudo tocar — el
 archivo está bloqueado por la política de permisos para dotfiles,
 pendiente que el usuario lo corrija a mano. Jest backend 902/902 sin
-regresión. **Sin validar contra Docker/navegador real esta sesión** —
+regresión. **Actualización, misma sesión — validado contra Docker/MySQL
+reales**: rebuild `--no-cache`+`--force-recreate` backend+frontend,
 las 2 specs E2E ya escritas (`csf-208.spec.ts`/`registro-241.spec.ts`)
-no se corrieron por no tener Docker activo. **Commiteado y pusheado.**
+corridas contra el stack real vía Playwright/Chromium — **4/4 passed**,
+confirma que el fix del radio (oculto/disabled hasta detectar el dato)
+no rompe el flujo real. Extensión Claude in Chrome seguía sin conectar.
+**Commiteado y pusheado.**
 
 **Punto 252 (2026-09-07, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
 reales — cierra el punto 213 original de este archivo)**: fecha de
