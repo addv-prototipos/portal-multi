@@ -13811,6 +13811,49 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     temporales y `test-results/` generados por la corrida borrados de
     nuevo, no se commitean.
 
+255. **Homologación visual de la tarjeta chica "Utilidad neta mensual" con
+    el modal rico del punto 254 (2026-09-08, IMPLEMENTADO Y VALIDADO en
+    navegador real contra Docker/MySQL reales)**: usuario aportó un
+    segundo mockup en `stitch/mini/code.html` (widget compacto con 2
+    KPIs, degradado, pulso, y el MISMO problema de contenido ficticio ya
+    resuelto en el punto 254 — footer con "Cierre Sep: Facturación
+    pendiente por reconocer" + link "Auditoría →" a algo que no existe).
+    Protocolo: propuesta antes/después con datos reales, aprobada, y al
+    llegar el mockup nuevo se aplicó el mismo criterio de honestidad ya
+    decidido para todo este feature sin volver a preguntar (el usuario ya
+    había elegido "reemplazar por honesto" como regla general) — el
+    footer ficticio se QUITÓ por completo, sin sustituto (la explicación
+    real ya vive a un clic en "ampliar", duplicar una versión recortada
+    sin fuente real no aportaba). "ATH" → "Récord", mismo criterio del
+    punto 254. **Bug real preexistente encontrado y corregido, no
+    causado por este cambio**: el SVG de esta tarjeta usaba
+    `preserveAspectRatio="none"` con un viewBox 300x120 dentro de un
+    contenedor de proporción real muy distinta (~5:1 en pantallas
+    anchas) — esto ESTIRABA el dibujo y dejaba los puntos ovalados en
+    vez de circulares, invisible a simple vista pero confirmado
+    midiendo el `boundingBox()` real del punto en Playwright antes del
+    fix. Corregido de raíz: viewBox nuevo 420x180 (mismo del mockup),
+    quitado `preserveAspectRatio="none"`, contenedor con
+    `aspect-ratio: 420/180` en CSS — el navegador ya no tiene que
+    estirar nada, proporción exacta garantizada sin importar el ancho
+    real de la tarjeta. Agregado: 2 KPIs chicas (Acumulado 6M, Máximo
+    con badge "Récord" — sin inventar ningún % contra una meta que no
+    existe, mismo criterio del punto 254), degradado navy bajo la línea,
+    halo con pulso suave (`prefers-reduced-motion` respetado) SOLO en el
+    punto máximo y el último punto (no en el primero, para no saturar
+    una tarjeta que debe seguir leyéndose rápido). Sigue sin tooltip
+    rico, sin tabla, sin toggle — eso se queda exclusivo del modal.
+    `data-dashboard-id="balance-acumulado"` y demás ids internos sin
+    tocar (compatibilidad con el modo dashboard personalizable, punto
+    119). Jest backend 902/902 (sin cambios de backend, 100%
+    frontend). Validado con Playwright/Chromium contra Docker real: los
+    2 KPIs con datos reales, relación de aspecto del SVG confirmada
+    (420/180 exacto, antes se habría medido ~5:1), `boundingBox()` del
+    punto confirmado circular (ratio ancho/alto ~1.0, no elíptico), el
+    modal "ampliar" (vista rica del punto 254) sigue funcionando sin
+    regresión tras el cambio, capturas reales revisadas. Sin errores de
+    consola. **Commiteado y pusheado.**
+
 254. **Rediseño de "Utilidad neta mensual" — vista rica en el modal, tarjeta
     chica sin tocar (2026-09-08, IMPLEMENTADO Y VALIDADO en navegador real
     contra Docker/MySQL reales)**: usuario pidió reemplazar el chart simple

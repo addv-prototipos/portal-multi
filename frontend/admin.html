@@ -715,8 +715,18 @@
               </button>
             </div>
             <div id="resumen-fin-balance-contenido">
+              <div class="resumen-fin-balance-kpis" id="resumen-fin-balance-kpis" hidden>
+                <div class="resumen-fin-balance-kpi">
+                  <span class="resumen-fin-balance-kpi-label">Acumulado 6M</span>
+                  <span class="resumen-fin-balance-kpi-val" id="resumen-fin-balance-kpi-acum">—</span>
+                </div>
+                <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-pos">
+                  <span class="resumen-fin-balance-kpi-label">Máximo <span id="resumen-fin-balance-kpi-max-mes"></span><span class="resumen-fin-balance-kpi-badge">Récord</span></span>
+                  <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-pos" id="resumen-fin-balance-kpi-max">—</span>
+                </div>
+              </div>
               <div class="resumen-fin-line-wrap">
-                <svg class="resumen-fin-line-svg" id="resumen-fin-balance-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Utilidad neta por mes"></svg>
+                <svg class="resumen-fin-line-svg resumen-fin-balance-svg-ancha" id="resumen-fin-balance-svg" viewBox="0 0 420 180" role="img" aria-label="Utilidad neta por mes"></svg>
               </div>
               <div class="resumen-fin-line-etiquetas" id="resumen-fin-balance-etiquetas"></div>
               <p class="resumen-fin-proyeccion-nota" id="resumen-fin-balance-nota" hidden>Necesitas al menos 2 meses con actividad para ver la tendencia.</p>

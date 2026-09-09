@@ -788,6 +788,23 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
+**Punto 255 (2026-09-08, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales — ver PROJECT_STATE.md punto 255)**: homologa la
+tarjeta chica de "Utilidad neta mensual" con el modal rico del punto
+254, a partir de un segundo mockup (`stitch/mini/code.html`) que traía
+el MISMO footer ficticio ya resuelto antes ("Auditoría →" a algo que no
+existe) — quitado sin sustituto, aplicando el criterio de honestidad ya
+aprobado sin re-preguntar. **Bug real preexistente encontrado**: el SVG
+de esta tarjeta usaba `preserveAspectRatio="none"` con un viewBox mucho
+más angosto que el contenedor real — estiraba el dibujo y dejaba los
+puntos ovalados en vez de circulares (confirmado midiendo
+`boundingBox()` en Playwright). Fix de raíz: viewBox nuevo 420x180 +
+`aspect-ratio` en CSS en vez de forzar el estiramiento. Agregadas 2 KPIs
+chicas (Acumulado/Máximo, sin inventar %), degradado, halo con pulso
+respetando `prefers-reduced-motion` — sigue sin tooltip/tabla/toggle,
+eso queda exclusivo del modal. Jest 902/902 sin cambios de backend.
+**Commiteado y pusheado.**
+
 **Punto 254 (2026-09-08, IMPLEMENTADO Y VALIDADO en navegador real contra
 Docker/MySQL reales — ver PROJECT_STATE.md punto 254)**: rediseño de
 "Utilidad neta mensual" a partir de un mockup en `stitch/code.html` con

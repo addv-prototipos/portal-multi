@@ -446,6 +446,10 @@
     resumenFinBalanceEtiquetas: document.getElementById('resumen-fin-balance-etiquetas'),
     resumenFinBalanceEmpty: document.getElementById('resumen-fin-balance-empty'),
     resumenFinBalanceNota: document.getElementById('resumen-fin-balance-nota'),
+    resumenFinBalanceKpis: document.getElementById('resumen-fin-balance-kpis'),
+    resumenFinBalanceKpiAcum: document.getElementById('resumen-fin-balance-kpi-acum'),
+    resumenFinBalanceKpiMax: document.getElementById('resumen-fin-balance-kpi-max'),
+    resumenFinBalanceKpiMaxMes: document.getElementById('resumen-fin-balance-kpi-max-mes'),
     resumenFinProyeccionSvg: document.getElementById('resumen-fin-proyeccion-svg'),
     resumenFinProyeccionEtiquetas: document.getElementById('resumen-fin-proyeccion-etiquetas'),
     resumenFinProyeccionNota: document.getElementById('resumen-fin-proyeccion-nota'),
@@ -8788,23 +8792,61 @@
     els.resumenFinBalanceEtiquetas.innerHTML = '';
     if (serie.length === 0) {
       els.resumenFinBalanceEmpty.hidden = false;
+      if (els.resumenFinBalanceKpis) els.resumenFinBalanceKpis.hidden = true;
       return;
     }
     els.resumenFinBalanceEmpty.hidden = true;
 
+    // 420x180: mismo viewBox del mockup homologado (stitch/mini) — antes
+    // era 300x120 con preserveAspectRatio="none", que ESTIRABA el SVG al
+    // ancho real de la tarjeta (~2x más ancho que el viewBox) y dejaba los
+    // puntos ovalados en vez de circulares. Ahora el contenedor fija
+    // aspect-ratio:420/180 en CSS (.resumen-fin-balance-svg-ancha) igual
+    // al viewBox, así que no hace falta preserveAspectRatio="none" ni se
+    // distorsiona nada.
+    const ANCHO = 420, ALTO = 180, PAD = 34;
     const valores = serie.map((m) => m.utilidad_neta);
-    const { puntos, yCero } = construirPuntosLinea(valores, 300, 120, 22);
+    const { puntos, yCero } = construirPuntosLinea(valores, ANCHO, ALTO, PAD);
     const indicesClave = calcularIndicesClave(valores);
+    let indiceMax = 0;
+    valores.forEach((v, i) => { if (v > valores[indiceMax]) indiceMax = i; });
+    const indiceUltimo = puntos.length - 1;
+
+    // ---- 2 KPI chicas (Acumulado / Máximo) — mismo criterio de "sin
+    // inventar comparativos" que la vista rica del modal: solo el monto,
+    // sin un % contra una meta que no existe. ----
+    if (els.resumenFinBalanceKpis) {
+      const acumulado = valores.reduce((a, b) => a + b, 0);
+      els.resumenFinBalanceKpiAcum.textContent = `$${formatearMoneda(acumulado)}`;
+      els.resumenFinBalanceKpiMax.textContent = `$${formatearMoneda(valores[indiceMax])}`;
+      els.resumenFinBalanceKpiMaxMes.textContent = serie[indiceMax].mes;
+      els.resumenFinBalanceKpis.hidden = false;
+    }
+
+    const defs = document.createElementNS(SVG_NS, 'defs');
+    defs.innerHTML = `
+      <linearGradient id="resumenFinBalanceAreaGrad" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="#03285B" stop-opacity="0.16"/>
+        <stop offset="100%" stop-color="#03285B" stop-opacity="0"/>
+      </linearGradient>
+    `;
+    svg.appendChild(defs);
 
     const lineaCero = document.createElementNS(SVG_NS, 'line');
     lineaCero.setAttribute('x1', '0');
-    lineaCero.setAttribute('x2', '300');
+    lineaCero.setAttribute('x2', String(ANCHO));
     lineaCero.setAttribute('y1', String(yCero));
     lineaCero.setAttribute('y2', String(yCero));
     lineaCero.setAttribute('class', 'resumen-fin-linea-cero');
     svg.appendChild(lineaCero);
 
     if (puntos.length > 1) {
+      const area = document.createElementNS(SVG_NS, 'polygon');
+      const areaPts = `${puntos.map((p) => `${p.x},${p.y}`).join(' ')} ${puntos[puntos.length - 1].x},${yCero} ${puntos[0].x},${yCero}`;
+      area.setAttribute('points', areaPts);
+      area.setAttribute('fill', 'url(#resumenFinBalanceAreaGrad)');
+      svg.appendChild(area);
+
       const polyline = document.createElementNS(SVG_NS, 'polyline');
       polyline.setAttribute('points', puntos.map((p) => `${p.x},${p.y}`).join(' '));
       polyline.setAttribute('class', 'resumen-fin-linea-trazo resumen-fin-linea-balance');
@@ -8818,11 +8860,27 @@
       const esPositiva = valores[i] >= 0;
       const esClave = indicesClave.has(i);
       const claseSigno = esPositiva ? 'es-positiva' : 'es-negativa';
+      // Halo + pulso SOLO en máximo y último punto (mismos 2 que resalta
+      // el mockup) — nunca en el primero, para no saturar una tarjeta que
+      // debe seguir leyéndose rápido.
+      const esDestacado = i === indiceMax || i === indiceUltimo;
+
+      if (esDestacado) {
+        const halo = document.createElementNS(SVG_NS, 'circle');
+        halo.setAttribute('cx', String(p.x));
+        halo.setAttribute('cy', String(p.y));
+        halo.setAttribute('r', '9');
+        halo.setAttribute(
+          'class',
+          `resumen-fin-linea-halo resumen-fin-linea-halo-${esPositiva ? 'positiva' : 'negativa'}`
+        );
+        svg.appendChild(halo);
+      }
 
       const circle = document.createElementNS(SVG_NS, 'circle');
       circle.setAttribute('cx', String(p.x));
       circle.setAttribute('cy', String(p.y));
-      circle.setAttribute('r', esClave ? '3.5' : '3');
+      circle.setAttribute('r', esClave ? '4' : '3');
       circle.setAttribute(
         'class',
         esClave
@@ -8844,7 +8902,7 @@
       const anclaje = i === 0 ? 'start' : i === puntos.length - 1 ? 'end' : 'middle';
       const texto = document.createElementNS(SVG_NS, 'text');
       texto.setAttribute('x', String(p.x));
-      texto.setAttribute('y', String(esPositiva ? p.y - 10 : p.y + 17));
+      texto.setAttribute('y', String(esPositiva ? p.y - 13 : p.y + 20));
       texto.setAttribute('text-anchor', anclaje);
       texto.setAttribute('class', `resumen-fin-linea-etiqueta-valor ${claseSigno}`);
       texto.textContent = formatearMonedaCompacta(valores[i]);

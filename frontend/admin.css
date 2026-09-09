@@ -3303,6 +3303,53 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   display: block;
   overflow: visible;
 }
+/* "Utilidad neta mensual" (homologada con stitch/mini) — antes compartía
+   el mismo height:100px fijo de arriba con preserveAspectRatio="none" en
+   el HTML, que ESTIRABA el viewBox 300x120 al ancho real de la tarjeta
+   (~2x más ancho que alto real) y dejaba los puntos ovalados en vez de
+   circulares. Ahora fija su propia proporción igual al viewBox
+   (420x180) — sin preserveAspectRatio="none" en el HTML, el navegador ya
+   no tiene que estirar nada. */
+.resumen-fin-line-svg.resumen-fin-balance-svg-ancha {
+  height: auto;
+  aspect-ratio: 420 / 180;
+}
+.resumen-fin-balance-kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.resumen-fin-balance-kpi {
+  background: var(--color-surface-2, #F7F9FB);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.resumen-fin-balance-kpi-pos { background: #EAFBF1; border-color: #B9E6CB; }
+.resumen-fin-balance-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  font-weight: 600;
+}
+.resumen-fin-balance-kpi-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  background: #D9F5E4;
+  color: #1FAE6B;
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.resumen-fin-balance-kpi-val { font-size: 16px; font-weight: 800; letter-spacing: -.01em; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.resumen-fin-balance-kpi-val-pos { color: #1FAE6B; }
 .resumen-fin-linea-cero {
   stroke: var(--color-border);
   stroke-width: 1;
@@ -3333,6 +3380,24 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
    que los puntos CON cifra destaquen; su valor exacto sigue disponible
    pasando el mouse encima (title nativo). */
 .resumen-fin-linea-punto-fantasma { fill: var(--color-ink-soft); opacity: 0.55; }
+/* Halo detrás del punto máximo y del último punto (homologado con el
+   modal ampliado, punto 254) — círculo semitransparente con pulso suave,
+   sin filtro de blur (a este tamaño se ve borroso/sucio). */
+.resumen-fin-linea-halo {
+  opacity: 0.22;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: resumenFinHaloPulso 2.4s ease-in-out infinite;
+}
+.resumen-fin-linea-halo-positiva { fill: #1FAE6B; }
+.resumen-fin-linea-halo-negativa { fill: var(--color-error); }
+@keyframes resumenFinHaloPulso {
+  0%, 100% { transform: scale(1); opacity: 0.22; }
+  50% { transform: scale(1.35); opacity: 0.08; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .resumen-fin-linea-halo { animation: none; }
+}
 .resumen-fin-linea-etiqueta-valor {
   font-family: var(--font-body);
   font-size: 9.5px;
