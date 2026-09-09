@@ -13741,6 +13741,58 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 246. **PENDIENTE — Nota: configuraciones de control por desarrollar más — seguimiento de facturas sin ventas (con imagen) como producto básico con upscale (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar — nota)**: pendiente son configuración de control, como nota, falta desarrollarlo más, cuando se piden seguimiento de facturas sin ventas, que es con imagen, es un producto el básico con upscale. Requerimiento textual: "agrega pendiente son configuracion de control, como nota, falta desarrollarlo mas, cuando se piden seguimento de facturas sin ventas, que es con imagen, es un producto el basico con upscale". Estado: solo anotado como pendiente/nota para desarrollar más en control. No se ha analizado el alcance (¿producto "seguimiento sin ventas" como paquete básico vs. addon upscale? ¿qué seguimiento — estado de factura con imagen de ticket sin venta asociada?), ni modelo en `/control` (productos/paquetes del punto 229), ni UX, ni tocado código. Siguiente paso cuando se defina a detalle: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
+253. **Puntos 208 y 241 — auditoría y corrección de código encontrado ya
+    escrito en el working tree sin commitear, sin protocolo previo
+    (2026-09-08)**: al pedir "revisa los cambios que hizo opencode",
+    esta sesión encontró 8 archivos modificados sin commit
+    (`backend/server.js`, `frontend/app.js`/`csf.html`/`login.html`/
+    `login.js`/`tickets.html`/`tickets.js`, `.env.example`) más 2 specs
+    Playwright nuevas (`e2e/tests/csf-208.spec.ts`,
+    `registro-241.spec.ts`) — implementación real y funcional de los
+    puntos 208 (CSF → redirige directo al dashboard, con botón "Ir al
+    inicio ahora" + auto-redirect a 1.8s) y 241 (alta con Constancia en
+    el registro: dropzone opcional en `login.html`, endpoint nuevo
+    `POST /api/auth/parse-csf` en `backend/server.js` — reusa 100%
+    `pdfExtract.js` sin INSERT — precarga RFC/tipo persona y guarda la
+    constancia real vía `POST /api/registro` tras crear la cuenta;
+    mismo prellenado/bloqueo de radio en `csf.html`/`app.js` si el RFC
+    de sesión ya tiene constancia, y aviso informativo en
+    `tickets.html`/`tickets.js`). Ambos puntos seguían marcados
+    "PENDIENTE, sin analizar ni implementar" en este archivo — el
+    código se saltó el protocolo `addv-web-app` (sin propuesta visual
+    ni confirmación explícita registradas), mismo patrón ya visto con
+    otras herramientas trabajando en paralelo (puntos 113/140/158).
+    **2 bugs reales encontrados y corregidos**: (1) el grupo de radios
+    "Tipo de persona" del registro (`registro_tipo_persona` en
+    `login.html`) quedaba habilitado y clicable por default pese a que
+    ninguna selección manual se envía nunca a ningún lado —
+    `/api/auth/registro` no acepta ese campo y `/api/registro` (que sí
+    lo acepta) exige un archivo, así que sin CSF subida no hay dónde
+    guardar una elección manual; el usuario podía marcar un radio
+    creyendo que hacía algo y esa elección se descartaba en silencio.
+    Fix: el grupo `#registro-tipo-field` empieza oculto y los 2 radios
+    `disabled` — solo se revelan (siempre disabled, solo lectura) desde
+    `aplicarRegistroCsf()` cuando el PDF sí trae un tipo detectado;
+    `limpiarRegistroCsf()` los vuelve a ocultar/deshabilitar en vez de
+    "liberarlos" para captura manual (el comentario original decía
+    "vuelve editable", intención que nunca tuvo dónde aterrizar). (2)
+    ícono de archivo nuevo en `login.html` usaba el emoji 📄 — contra la
+    política de cero emojis del sitio ([[feedback_sin_emojis_en_mockups]]) — reemplazado por el mismo SVG de documento que ya usa el dropzone
+    vecino. **Sin corregir, fuera del alcance de esta sesión**: typo
+    real en `.env.example` (línea de comentario sobre
+    `MYSQL_REPLICATION_PASSWORD` termina en ".cla" sobrante) — el
+    archivo está bloqueado por la política de permisos de esta sesión
+    para dotfiles (`Read`/`Edit`/`Bash` lo rechazan los 3), nadie pudo
+    tocarlo; pendiente que el usuario (u otra sesión sin ese bloqueo) lo
+    corrija a mano. `node --check` limpio en los 4 `.js` tocados, Jest
+    backend **902/902** (sin regresión, sin tests nuevos — el endpoint
+    `parse-csf` sale sin cobertura unitaria propia, solo cubierto por
+    las 2 specs E2E de Playwright ya existentes en el working tree, que
+    no se corrieron esta sesión por no tener Docker activo). Se
+    borraron 2 PDFs de prueba y `test-results/.last-run.json` que
+    habían quedado sueltos en el repo de una corrida anterior de esas
+    specs (no se commitean). **Commiteado y pusheado.**
+
 251. **Botón "Activar" en `/control` para completar el aprovisionamiento
     de un tenant en "provisioning" SIN root de MySQL (2026-09-07,
     IMPLEMENTADO Y VALIDADO de punta a punta contra Docker/MySQL reales)**:

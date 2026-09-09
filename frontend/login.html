@@ -73,6 +73,37 @@
         <p class="panel-subtitle">Necesitamos tu correo electrónico, tu teléfono y el RFC con el que vas a facturar.</p>
 
         <form id="form-registro" novalidate>
+          <div class="field" id="registro-csf-field">
+            <label>Alta con Constancia (opcional)</label>
+            <div class="dropzone" id="registro-csf-dropzone" tabindex="0" role="button" aria-label="Subir Constancia para prellenar RFC y tipo de persona">
+              <input type="file" id="registro-csf-input" accept=".pdf" hidden />
+              <div class="dropzone-content" id="registro-csf-empty">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                <p><strong>Arrastra tu Constancia (PDF)</strong><br/>RFC y tipo se llenan solos</p>
+              </div>
+              <div class="dropzone-file" id="registro-csf-file" hidden>
+                <span class="file-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+                <div class="file-info"><p class="file-name" id="registro-csf-file-name"></p><p class="file-size" id="registro-csf-file-size"></p></div>
+                <button type="button" class="btn-icon" id="registro-csf-btn-remove" aria-label="Quitar archivo">✕</button>
+              </div>
+            </div>
+            <p class="field-hint">Si la subes ahora, tomamos RFC y si eres Física/Moral de tu PDF — solo faltará correo, teléfono y contraseña.</p>
+            <div id="registro-csf-preview" hidden>
+              <p class="field-hint" style="color:var(--color-ink);margin-top:6px"><strong>RFC detectado:</strong> <span id="registro-csf-rfc">—</span> · <span id="registro-csf-tipo">—</span> <span id="registro-csf-nombre" style="color:var(--color-ink-soft)"></span></p>
+            </div>
+            <p class="field-error" id="error-registro-csf" role="alert"></p>
+          </div>
+
+          <div class="field" id="registro-tipo-field" hidden>
+            <label>Tipo de persona<button type="button" class="campo-ayuda" aria-label="Más información sobre Tipo de persona" data-tooltip="Se detecta automáticamente de tu Constancia al subirla.">?</button></label>
+            <div class="radio-group" role="radiogroup" aria-label="Tipo de persona registro">
+              <label class="radio-option"><input type="radio" name="registro_tipo_persona" value="fisica" id="registro-tipo-fisica" disabled /><span>Persona Física</span></label>
+              <label class="radio-option"><input type="radio" name="registro_tipo_persona" value="moral" id="registro-tipo-moral" disabled /><span>Persona Moral</span></label>
+            </div>
+            <p class="field-hint" id="registro-tipo-hint" hidden>Detectado de tu Constancia — ya no necesitas elegir.</p>
+            <p class="field-error" id="error-registro-tipo_persona" role="alert"></p>
+          </div>
+
           <div class="field">
             <label for="registro-rfc">RFC<button type="button" class="campo-ayuda" aria-label="Más información sobre RFC" data-tooltip="Es tu RFC (Registro Federal de Contribuyentes) — lo encuentras en tu Constancia de Situación Fiscal o en facturas que ya te hayan emitido.">?</button></label>
             <input type="text" id="registro-rfc" name="rfc" required maxlength="13" placeholder="XAXX010101000" autocapitalize="characters" autocomplete="off" />

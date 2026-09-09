@@ -447,11 +447,27 @@
     els.dropzone.tabIndex = -1;
   }
 
+  // 241 — mostrar tipo persona de la constancia si ya existe (precarga + hint)
+  async function mostrarTipoPersonaConstancia(rfc) {
+    try {
+      const res = await fetch(`${API_BASE}/registro/buscar?rfc=${encodeURIComponent(rfc)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.existe && data.registro && data.registro.tipo_persona) {
+        const tipo = data.registro.tipo_persona === 'moral' ? 'Persona Moral' : 'Persona Física';
+        const info = document.getElementById('tickets-tipo-persona-info');
+        const valor = document.getElementById('tickets-tipo-persona-valor');
+        if (info && valor) { valor.textContent = tipo; info.hidden = false; }
+      }
+    } catch (_) {}
+  }
+
   (async function init() {
     const rfc = await requireSession();
     if (!rfc) return;
 
     verificarConstancia();
+    mostrarTipoPersonaConstancia(rfc);
 
     try {
       const [configRes, catalogoRes] = await Promise.all([

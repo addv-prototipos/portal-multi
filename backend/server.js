@@ -1052,6 +1052,38 @@ app.post(
   })
 );
 
+// 241 — Parseo de Constancia para precargar RFC/tipo persona en registro (reuso 100% de pdfExtract, sin INSERT)
+// Pública, sin sesión, tenant-aware solo para respetar API_BASE. No crea registro ni usuario.
+app.post('/api/auth/parse-csf', submitLimiter, (req, res) => {
+  upload.single('archivo')(req, res, async (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: `El archivo excede el tamaño máximo de ${MAX_FILE_SIZE_MB} MB.` });
+      }
+      if (err.message === 'TIPO_NO_PERMITIDO') {
+        return res.status(400).json({ error: 'Solo se aceptan archivos en formato PDF.' });
+      }
+      return res.status(400).json({ error: 'No se pudo procesar el archivo.' });
+    }
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: 'Selecciona un archivo PDF.' });
+    }
+    try {
+      const texto = await extraerTextoPdf(req.file.buffer);
+      if (!texto || !pareceConstanciaFiscal(texto)) {
+        return res.status(400).json({ error: 'El archivo no parece ser una Constancia de Situación Fiscal válida.' });
+      }
+      const rfc = extraerRFC(texto);
+      const regimenes = extraerRegimenesFiscales(texto);
+      const nombre = extraerNombreRazonSocial(texto);
+      const tipo_persona = determinarTipoPersona(regimenes, nombre, texto);
+      return res.json({ rfc: rfc || null, tipo_persona: tipo_persona || null, nombre: nombre || null });
+    } catch (e) {
+      return res.status(400).json({ error: 'No se pudo leer el contenido del PDF.' });
+    }
+  });
+});
+
 // Hash de relleno para cuando el RFC no existe (Seguridad, ver auditoría
 // OWASP): sin esto, `!usuario || !verifyPassword(...)` hace corto-circuito
 // y NUNCA llama a verifyPassword (que corre scrypt, el paso costoso) si el

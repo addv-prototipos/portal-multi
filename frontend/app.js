@@ -37,7 +37,7 @@
     progressBar: document.getElementById('progress-bar'),
     progressPercent: document.getElementById('progress-percent'),
     mensajeConfirmacion: document.getElementById('mensaje-confirmacion'),
-    btnNuevoRegistro: document.getElementById('btn-nuevo-registro'),
+    btnIrInicio: document.getElementById('btn-ir-inicio'),
     modalOverlay: document.getElementById('modal-overlay'),
     btnModalCancelar: document.getElementById('btn-modal-cancelar'),
     btnModalConfirmar: document.getElementById('btn-modal-confirmar'),
@@ -52,6 +52,15 @@
   };
 
   let maxFileSizeMb = 5;
+
+  let redirectTimer = null;
+  function irAlInicio() {
+    if (redirectTimer) { clearTimeout(redirectTimer); redirectTimer = null; }
+    const destino = (window.Portal && typeof window.Portal.urlPagina === 'function')
+      ? window.Portal.urlPagina('dashboard')
+      : 'dashboard.html';
+    window.location.href = destino;
+  }
 
   // Configuracion de campos obligatorios: se sobreescribe con lo que
   // devuelva el servidor al iniciar. Estos son los valores por defecto
@@ -358,6 +367,8 @@
         if (xhr.status === 200) {
           els.mensajeConfirmacion.textContent = data.mensaje || 'Tu información fue registrada correctamente.';
           goToStep(3);
+          if (redirectTimer) clearTimeout(redirectTimer);
+          redirectTimer = setTimeout(irAlInicio, 1800);
         } else if (xhr.status === 409 && data.error === 'DUPLICADO') {
           const email = String(formData.get('email') || '').trim();
           const rfc = String(formData.get('rfc') || '').trim();
@@ -382,18 +393,10 @@
     });
   }
 
-  // ---------- Paso 3: Reinicio ----------
-
-  els.btnNuevoRegistro.addEventListener('click', () => {
-    state.datos = null;
-    state.archivo = null;
-    els.formDatos.reset();
-    els.inputArchivo.value = '';
-    els.dropzoneEmpty.hidden = false;
-    els.dropzoneFile.hidden = true;
-    clearFormErrors();
-    goToStep(1);
-  });
+  // ---------- Paso 3: Redirección al inicio ----------
+  if (els.btnIrInicio) {
+    els.btnIrInicio.addEventListener('click', () => irAlInicio());
+  }
 
   // ---------- Inicialización ----------
 
@@ -423,6 +426,21 @@
       els.rfcInput.classList.add('is-bloqueado');
       els.headerSesion.hidden = false;
       els.headerRfcLabel.textContent = sesionData.rfc;
+      // 241 — precargar tipo_persona de constancia existente y deshabilitar radio
+      try {
+        const regRes = await fetch(`${API_BASE}/registro/buscar?rfc=${encodeURIComponent(sesionData.rfc)}`);
+        if (regRes.ok) {
+          const regData = await regRes.json();
+          if (regData.existe && regData.registro && regData.registro.tipo_persona) {
+            const tipo = regData.registro.tipo_persona;
+            const radio = document.querySelector(`input[name="tipo_persona"][value="${tipo}"]`);
+            if (radio) radio.checked = true;
+            document.querySelectorAll('input[name="tipo_persona"]').forEach((r) => { r.disabled = true; });
+            const hint = document.getElementById('csf-tipo-hint');
+            if (hint) hint.hidden = false;
+          }
+        }
+      } catch (_) { /* no bloquea */ }
     }
 
     if (healthData && healthData.maxFileSizeMb) {

@@ -53,6 +53,21 @@
     btnRegistro: document.getElementById('btn-registro'),
     btnRegistroLabel: document.getElementById('btn-registro-label'),
     registroErrorGeneral: document.getElementById('registro-error-general'),
+    registroCsfDropzone: document.getElementById('registro-csf-dropzone'),
+    registroCsfInput: document.getElementById('registro-csf-input'),
+    registroCsfEmpty: document.getElementById('registro-csf-empty'),
+    registroCsfFile: document.getElementById('registro-csf-file'),
+    registroCsfFileName: document.getElementById('registro-csf-file-name'),
+    registroCsfFileSize: document.getElementById('registro-csf-file-size'),
+    registroCsfBtnRemove: document.getElementById('registro-csf-btn-remove'),
+    registroCsfPreview: document.getElementById('registro-csf-preview'),
+    registroCsfRfc: document.getElementById('registro-csf-rfc'),
+    registroCsfTipo: document.getElementById('registro-csf-tipo'),
+    registroCsfNombre: document.getElementById('registro-csf-nombre'),
+    registroTipoField: document.getElementById('registro-tipo-field'),
+    registroTipoFisica: document.getElementById('registro-tipo-fisica'),
+    registroTipoMoral: document.getElementById('registro-tipo-moral'),
+    registroTipoHint: document.getElementById('registro-tipo-hint'),
 
     panelCambiarPassword: document.getElementById('panel-cambiar-password'),
     formCambiarPassword: document.getElementById('form-cambiar-password'),
@@ -178,6 +193,113 @@
     return Object.values(reglas).every(Boolean);
   }
 
+  // ---------- Registro con Constancia (241) ----------
+  let registroCsfFile = null;
+  let registroCsfDatos = null;
+
+  function formatBytesSimple(b) {
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  function limpiarRegistroCsf() {
+    registroCsfFile = null;
+    registroCsfDatos = null;
+    if (els.registroCsfInput) els.registroCsfInput.value = '';
+    if (els.registroCsfFile) els.registroCsfFile.hidden = true;
+    if (els.registroCsfEmpty) els.registroCsfEmpty.hidden = false;
+    if (els.registroCsfPreview) els.registroCsfPreview.hidden = true;
+    const err = document.getElementById('error-registro-csf');
+    if (err) err.textContent = '';
+    // RFC vuelve editable
+    if (els.registroRfc) { els.registroRfc.readOnly = false; els.registroRfc.classList.remove('is-bloqueado'); }
+    // Tipo persona: solo se llena/muestra por detección automática (nunca
+    // manual — sin archivo no hay dónde guardarlo), así que se oculta de
+    // nuevo en vez de "liberarse" para captura a mano.
+    if (els.registroTipoField) els.registroTipoField.hidden = true;
+    if (els.registroTipoFisica) els.registroTipoFisica.disabled = true;
+    if (els.registroTipoMoral) els.registroTipoMoral.disabled = true;
+    if (els.registroTipoHint) els.registroTipoHint.hidden = true;
+    document.querySelectorAll('input[name="registro_tipo_persona"]').forEach((r) => { r.checked = false; });
+  }
+
+  function aplicarRegistroCsf(datos) {
+    registroCsfDatos = datos;
+    if (datos.rfc && els.registroRfc) {
+      els.registroRfc.value = datos.rfc;
+      els.registroRfc.readOnly = true;
+      els.registroRfc.classList.add('is-bloqueado');
+    }
+    if (datos.tipo_persona) {
+      const target = datos.tipo_persona === 'moral' ? els.registroTipoMoral : els.registroTipoFisica;
+      if (target) target.checked = true;
+      if (els.registroTipoField) els.registroTipoField.hidden = false;
+      if (els.registroTipoHint) els.registroTipoHint.hidden = false;
+    }
+    if (els.registroCsfRfc) els.registroCsfRfc.textContent = datos.rfc || '—';
+    if (els.registroCsfTipo) els.registroCsfTipo.textContent = datos.tipo_persona ? (datos.tipo_persona === 'moral' ? 'Persona Moral' : 'Persona Física') : '—';
+    if (els.registroCsfNombre) els.registroCsfNombre.textContent = datos.nombre ? `· ${datos.nombre}` : '';
+    if (els.registroCsfPreview) els.registroCsfPreview.hidden = false;
+  }
+
+  async function manejarRegistroCsf(file) {
+    const errEl = document.getElementById('error-registro-csf');
+    if (errEl) errEl.textContent = '';
+    if (!file || file.type !== 'application/pdf') {
+      if (errEl) errEl.textContent = 'Solo se acepta PDF.';
+      return;
+    }
+    // Preview archivo
+    registroCsfFile = file;
+    if (els.registroCsfFileName) els.registroCsfFileName.textContent = file.name;
+    if (els.registroCsfFileSize) els.registroCsfFileSize.textContent = formatBytesSimple(file.size);
+    if (els.registroCsfEmpty) els.registroCsfEmpty.hidden = true;
+    if (els.registroCsfFile) els.registroCsfFile.hidden = false;
+
+    const fd = new FormData();
+    fd.append('archivo', file);
+    try {
+      const res = await fetch(`${API_BASE}/auth/parse-csf`, { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (errEl) errEl.textContent = data.error || 'No se pudo leer la Constancia.';
+        // limpiar preview pero mantener archivo para reintento
+        if (els.registroCsfPreview) els.registroCsfPreview.hidden = true;
+        return;
+      }
+      aplicarRegistroCsf(data);
+    } catch (e) {
+      if (errEl) errEl.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  if (els.registroCsfDropzone) {
+    els.registroCsfDropzone.addEventListener('click', () => els.registroCsfInput && els.registroCsfInput.click());
+    els.registroCsfDropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.registroCsfInput && els.registroCsfInput.click(); }
+    });
+    ['dragover','dragenter'].forEach((evt) => {
+      els.registroCsfDropzone.addEventListener(evt, (e) => { e.preventDefault(); els.registroCsfDropzone.classList.add('is-dragover'); });
+    });
+    ['dragleave','drop'].forEach((evt) => {
+      els.registroCsfDropzone.addEventListener(evt, (e) => { e.preventDefault(); els.registroCsfDropzone.classList.remove('is-dragover'); });
+    });
+    els.registroCsfDropzone.addEventListener('drop', (e) => {
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) manejarRegistroCsf(f);
+    });
+  }
+  if (els.registroCsfInput) {
+    els.registroCsfInput.addEventListener('change', () => {
+      const f = els.registroCsfInput.files && els.registroCsfInput.files[0];
+      if (f) manejarRegistroCsf(f);
+    });
+  }
+  if (els.registroCsfBtnRemove) {
+    els.registroCsfBtnRemove.addEventListener('click', (e) => { e.stopPropagation(); limpiarRegistroCsf(); });
+  }
+
   // ---------- Login ----------
 
   function setLoginLoading(cargando) {
@@ -291,6 +413,20 @@
       if (!res.ok) {
         els.registroErrorGeneral.textContent = data.error || 'No se pudo crear la cuenta.';
         return;
+      }
+
+      // 241 — si se subió constancia en el registro, guardarla automáticamente (reuso POST /api/registro)
+      if (registroCsfFile && registroCsfDatos) {
+        try {
+          const fdCsf = new FormData();
+          // tipo_persona viene del PDF; si no se detectó, no se manda (backend lo trata como opcional)
+          if (registroCsfDatos.tipo_persona) fdCsf.append('tipo_persona', registroCsfDatos.tipo_persona);
+          if (registroCsfDatos.rfc) fdCsf.append('rfc', registroCsfDatos.rfc);
+          fdCsf.append('email', email);
+          fdCsf.append('archivo', registroCsfFile);
+          fdCsf.append('confirmar_reemplazo', 'false');
+          await fetch(`${API_BASE}/registro`, { method: 'POST', body: fdCsf, credentials: 'include' });
+        } catch (_) { /* no bloquea el registro, ya está creado */ }
       }
 
       showToast('Cuenta creada correctamente.');

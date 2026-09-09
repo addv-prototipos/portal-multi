@@ -788,6 +788,27 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
+**Punto 253 (2026-09-08, auditoría de código sin commitear encontrado en
+el working tree, sin protocolo previo — ver PROJECT_STATE.md punto
+253)**: puntos 208 (CSF → redirige directo al dashboard) y 241 (alta con
+Constancia en el registro, prellenado RFC/tipo persona) aparecían
+"PENDIENTE, sin analizar ni implementar" en `PROJECT_STATE.md` pero ya
+tenían código real sin commit en 8 archivos + 2 specs Playwright nuevas
+— mismo patrón de otra herramienta trabajando en paralelo sin avisar
+(puntos 113/140/158). Auditados y corregidos 2 bugs reales: radios
+"Tipo de persona" del registro quedaban clicables sin que esa selección
+fuera a ningún lado (ni `/api/auth/registro` ni `/api/registro` la
+leen, y el segundo exige archivo) — ahora el grupo empieza oculto y
+`disabled`, solo se revela de solo-lectura si el PDF trae el dato; y
+emoji 📄 nuevo en `login.html` reemplazado por el SVG ya usado en el
+dropzone vecino ([[feedback_sin_emojis_en_mockups]]). `.env.example`
+tenía un typo (".cla" sobrante) que esta sesión no pudo tocar — el
+archivo está bloqueado por la política de permisos para dotfiles,
+pendiente que el usuario lo corrija a mano. Jest backend 902/902 sin
+regresión. **Sin validar contra Docker/navegador real esta sesión** —
+las 2 specs E2E ya escritas (`csf-208.spec.ts`/`registro-241.spec.ts`)
+no se corrieron por no tener Docker activo. **Commiteado y pusheado.**
+
 **Punto 252 (2026-09-07, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
 reales — cierra el punto 213 original de este archivo)**: fecha de
 expiración opcional en Inventarios (por producto, no por lote — el
