@@ -788,6 +788,30 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
+**Punto 254 (2026-09-08, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales — ver PROJECT_STATE.md punto 254)**: rediseño de
+"Utilidad neta mensual" a partir de un mockup en `stitch/code.html` con
+datos ficticios. Protocolo completo: análisis dato-real-vs-inventado +
+cuestionario + propuesta antes/después con datos reales + confirmación.
+5 elementos ficticios (SAP/NetSuite, "anomalía"+auditoría contable,
+conciliación bancaria, aprobar cierre, meta/objetivo) reemplazados por
+honestos o quitados — el más importante: la "anomalía" pasó a ser el
+aviso real de "mes en curso, cifra parcial" (mismo concepto ya usado en
+Proyección de ventas). Decisión del usuario: la tarjeta chica del
+dashboard NO cambia (línea simple, tal cual) — toda la vista rica (4
+KPIs, tooltip por punto con ingresos/gastos/margen, tabla de desglose,
+toggle línea/barras, exportar CSV) vive SOLO en el modal de "ampliar",
+ahora casi pantalla completa (1320px/97vw). Backend: 1 campo nuevo
+(`subtotal`) expuesto en `serie_mensual` de `GET /resumen-financiero`
+(ya se calculaba, solo faltaba exponerlo). Bug real encontrado y
+corregido validando en navegador (no en Jest): doble signo de peso
+("$$84.7k") en 6 sitios por interpolar `$` a mano sobre un helper que ya
+lo antepone — corregido y reconfirmado con captura real. Jest backend
+902/902. Validado con Playwright/Chromium contra Docker real: tarjeta
+chica intacta, modal ancho con blur, KPIs/banner/tooltip/tabla/toggle/
+export todos con datos reales y funcionando, cierre sin dejar rastro.
+**Commiteado y pusheado.**
+
 **Punto 253 (2026-09-08, auditoría de código sin commitear encontrado en
 el working tree, sin protocolo previo — ver PROJECT_STATE.md punto
 253)**: puntos 208 (CSF → redirige directo al dashboard) y 241 (alta con

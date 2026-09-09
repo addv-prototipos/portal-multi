@@ -5511,6 +5511,7 @@ app.get(
       return {
         mes: etiquetaMes(llave),
         ventas: v ? Number(v.ventas) : 0,
+        subtotal,
         facturado: v ? Number(v.facturado) : 0,
         gastos: gastosMes,
         utilidad_neta: Math.round((subtotal - gastosMes) * 100) / 100,

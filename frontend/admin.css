@@ -3765,6 +3765,161 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .resumen-fin-detalle-contenido-grande .resumen-fin-proveedores-lista { max-width: none; }
 .resumen-fin-detalle-contenido-grande .resumen-fin-proveedor-fila { grid-template-columns: minmax(140px, 220px) 1fr auto; }
 
+/* "Utilidad neta mensual" en grande usa una vista propia, distinta de la
+   tarjeta chica (unm-*, abrirDetalleUtilidadNetaRica() en admin.js) — la
+   tarjeta chica se queda simple a propósito, pedido explícito del
+   usuario. Modal casi a pantalla completa solo para esta vista (las
+   demás gráficas siguen en .resumen-fin-detalle-modal normal, 920px). */
+.resumen-fin-detalle-modal-ancha {
+  max-width: 1320px;
+  width: 97vw;
+}
+
+.unm-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.unm-kpi {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #E3E7EC);
+  border-radius: 13px;
+  padding: 13px 14px;
+}
+.unm-kpi-pos { border-color: #9FDABB; background: linear-gradient(160deg, #fff, #EAFBF1 180%); }
+.unm-kpi-neg { border-color: #E8B3AD; background: linear-gradient(160deg, #fff, #FBEAE9 180%); }
+.unm-kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11.5px; color: var(--color-ink-soft); font-weight: 600; margin-bottom: 5px; }
+.unm-kpi-top-note { font-size: 10.5px; color: var(--color-ink-soft); font-weight: 500; }
+.unm-kpi-val { font-size: 21px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: var(--color-ink); }
+.unm-kpi-note { font-size: 11px; color: var(--color-ink-soft); margin: 4px 0 0; }
+.unm-c-pos { color: #1FAE6B !important; }
+.unm-c-neg { color: var(--color-error) !important; }
+.unm-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 2px 7px; border-radius: 6px; }
+.unm-badge-pos { background: #E4F6ED; color: #1FAE6B; }
+.unm-badge-neg { background: var(--color-error-soft); color: var(--color-error); }
+
+.unm-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #FBF1E1;
+  border: 1px solid #E8C48A;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 12.5px;
+  color: var(--color-ink);
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+.unm-banner-ic {
+  width: 20px; height: 20px; border-radius: 6px;
+  background: var(--color-warn, #B4530C); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 12px; flex-shrink: 0;
+}
+.unm-banner b { color: var(--color-warn, #B4530C); }
+
+.unm-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.unm-seg { display: flex; background: var(--color-surface-2, #F3F5F8); border: 1px solid var(--color-border, #E3E7EC); border-radius: 10px; padding: 3px; gap: 2px; }
+.unm-seg button { border: none; background: transparent; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--color-ink-soft); padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+.unm-seg button.is-active { background: #fff; color: var(--color-accent-dark); box-shadow: 0 1px 2px rgba(11,19,32,.1); }
+.unm-btn-export { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--color-ink-soft); background: #fff; border: 1px solid var(--color-border, #E3E7EC); border-radius: 9px; padding: 7px 12px; cursor: pointer; }
+.unm-btn-export:hover { border-color: var(--color-accent); color: var(--color-accent-dark); background: var(--color-accent-soft); }
+
+.unm-chart-wrap { position: relative; width: 100%; }
+.unm-svg { width: 100%; height: 400px; overflow: visible; display: block; }
+@media (max-width: 760px) { .unm-svg { height: 300px; } }
+
+.unm-linea-grid { stroke: var(--color-border, #E3E7EC); stroke-dasharray: 4 4; }
+.unm-linea-base { stroke: #B7C0CC; stroke-dasharray: 6 4; stroke-width: 1.4; }
+.unm-texto-grid { font-size: 11px; fill: var(--color-ink-soft); }
+.unm-texto-base { font-size: 11px; font-weight: 700; fill: var(--color-ink-soft); }
+.unm-linea-promedio { stroke: #05DBF2; stroke-opacity: .55; stroke-dasharray: 3 3; }
+.unm-texto-promedio { font-size: 9.5px; font-weight: 700; fill: #0389A0; }
+.unm-trazo { fill: none; stroke: var(--color-accent, #03285B); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.unm-guia-max { stroke: #1FAE6B; stroke-opacity: .5; stroke-dasharray: 3 3; }
+.unm-guia-actual { stroke: var(--color-error); stroke-opacity: .5; stroke-dasharray: 2 2; }
+.unm-eje-mes { font-size: 12px; font-weight: 600; fill: var(--color-ink-soft); }
+.unm-eje-mes-max { fill: #1FAE6B; font-weight: 700; font-size: 13px; }
+.unm-eje-mes-actual { fill: var(--color-error); font-weight: 700; font-size: 13px; }
+
+.unm-halo { opacity: .22; }
+.unm-halo-pos { fill: #1FAE6B; }
+.unm-halo-neg { fill: var(--color-error); }
+.unm-punto { fill: #fff; stroke: var(--color-ink-soft); stroke-width: 2.5; cursor: pointer; transition: r .15s ease, stroke-width .15s ease; }
+.unm-punto:hover, .unm-punto:focus-visible { stroke-width: 3.5; outline: none; }
+.unm-punto-max { fill: #1FAE6B; stroke: #fff; stroke-width: 3; }
+.unm-punto-actual { fill: var(--color-error); stroke: #fff; stroke-width: 3; }
+
+.unm-barra { transition: opacity .15s ease; }
+.unm-barra-pos { fill: var(--color-accent, #03285B); }
+.unm-barra-neg { fill: var(--color-error); }
+.unm-barra-max { fill: #1FAE6B; }
+.unm-g-barras { display: none; }
+.unm-modo-barras .unm-g-linea { display: none; }
+.unm-modo-barras .unm-g-barras { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .unm-punto { transition: none; }
+}
+
+.unm-tooltip {
+  position: absolute;
+  width: 190px;
+  background: var(--color-accent-dark, #0B1320);
+  color: #fff;
+  border-radius: 14px;
+  padding: 11px 13px;
+  box-shadow: 0 16px 32px rgba(0,0,0,.28);
+  pointer-events: none;
+  z-index: 5;
+}
+.unm-tt-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; border-bottom: 1px solid rgba(255,255,255,.14); padding-bottom: 6px; margin-bottom: 6px; }
+.unm-tt-mes { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: rgba(255,255,255,.62); font-weight: 700; }
+.unm-tt-badge { font-size: 9.5px; font-weight: 800; text-transform: uppercase; background: rgba(31,174,107,.22); color: #4ADE94; padding: 2px 6px; border-radius: 5px; }
+.unm-tt-val { font-size: 18px; font-weight: 800; color: #4ADE94; }
+.unm-tt-val-neg { color: #F3897E; }
+.unm-tt-row { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,.72); margin-top: 4px; }
+.unm-tt-margen { border-top: 1px solid rgba(255,255,255,.14); margin-top: 6px; padding-top: 5px; color: #4ADE94; font-weight: 700; }
+
+.unm-callout {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border: 1px solid var(--color-border, #E3E7EC);
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-ink);
+  box-shadow: 0 6px 16px rgba(11,19,32,.08);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.unm-callout-neg { border-color: #E8B3AD; }
+.unm-callout-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.unm-callout-pct { font-size: 10.5px; font-weight: 800; padding: 1px 5px; border-radius: 5px; }
+.unm-callout-pct.unm-c-pos { background: #E4F6ED; }
+.unm-callout-pct.unm-c-neg { background: var(--color-error-soft); }
+
+.unm-tabla-wrap { border-top: 1px solid var(--color-border, #E3E7EC); margin-top: 20px; padding-top: 16px; }
+.unm-tabla-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.unm-tabla-head h3 { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--color-ink-soft); margin: 0; display: flex; align-items: center; gap: 7px; }
+.unm-tabla-nota { font-size: 11.5px; color: var(--color-ink-soft); }
+.unm-tabla { min-width: 640px; table-layout: auto; }
+.unm-mes-cell { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.unm-mes-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+tr.unm-row-max { background: #EAFBF1; }
+tr.unm-row-actual { background: #FBEAE9; }
+
+@media (max-width: 780px) {
+  .unm-kpis { grid-template-columns: 1fr 1fr; }
+}
+
 /* ---------- Modal de gestión de ticket ----------
    Fiel al mockup de stitch (stitch/detalle_de_solicitud/code.html):
    encabezado con badge de estatus junto al título, cuerpo en 2 columnas

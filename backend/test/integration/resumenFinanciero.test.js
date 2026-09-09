@@ -66,7 +66,7 @@ describe('Admin: Resumen financiero', () => {
     expect(res.body.tendencia).toEqual({ facturado: 50, gastos: 50 });
     // utilidad_neta (2800) = subtotal (4000) - gastos (1200), misma fórmula
     // que mes_actual.utilidad_neta arriba — coinciden porque es el mismo mes.
-    expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 5000, facturado: 3000, gastos: 1200, utilidad_neta: 2800 }]);
+    expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 5000, subtotal: 4000, facturado: 3000, gastos: 1200, utilidad_neta: 2800 }]);
     expect(res.body.gastos_por_categoria).toEqual([
       { categoria: 'renta', monto: 800 },
       { categoria: 'software', monto: 400 },
@@ -119,7 +119,7 @@ describe('Admin: Resumen financiero', () => {
     const res = await request(app).get('/api/admin/resumen-financiero').auth(usuario, password);
 
     expect(res.status).toBe(200);
-    expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 0, facturado: 0, gastos: 500, utilidad_neta: -500 }]);
+    expect(res.body.serie_mensual).toEqual([{ mes: 'Ago', ventas: 0, subtotal: 0, facturado: 0, gastos: 500, utilidad_neta: -500 }]);
     // Solo gastos y sin ventas: utilidad negativa.
     expect(res.body.mes_actual.utilidad_neta).toBe(-500);
   });

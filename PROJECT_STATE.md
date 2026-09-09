@@ -13811,6 +13811,75 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     temporales y `test-results/` generados por la corrida borrados de
     nuevo, no se commitean.
 
+254. **Rediseño de "Utilidad neta mensual" — vista rica en el modal, tarjeta
+    chica sin tocar (2026-09-08, IMPLEMENTADO Y VALIDADO en navegador real
+    contra Docker/MySQL reales)**: usuario pidió reemplazar el chart simple
+    de la tarjeta por un mockup de `stitch/code.html` (dashboard "ejecutivo"
+    genérico de IA, con datos ficticios que coincidían casi exacto con los
+    reales de este entorno — mismo screenshot fue insumo del mockup).
+    Protocolo completo: análisis de qué había con datos reales vs qué era
+    inventado + cuestionario (4 decisiones) + propuesta visual antes/después
+    en Artifact con datos REALES (no ficticios) + confirmación. **5
+    elementos ficticios identificados y reemplazados por honestos** (no se
+    implementaron tal cual): "Sincronizado vía SAP/NetSuite" → "Datos en
+    vivo desde la base de datos"; banner de "anomalía detectada + auditoría
+    de asientos contables" (no existe motor de detección ni libro contable)
+    → aviso real de "mes en curso, cifra parcial" (mismo concepto que ya usa
+    Proyección de ventas); "Ver conciliación bancaria" y "Aprobar cierre
+    mensual" (no existen esas funciones, el cierre real es automático) →
+    quitados; "+18.4% / Objetivo H1 superado" (no hay metas configurables)
+    → quitado, sin comparación inventada; "ATH" (all-time high) → "Máximo
+    del periodo" (solo cubre 6 meses reales, no todo el historial).
+    **Decisión clave del usuario**: la tarjeta chica del dashboard se queda
+    IGUAL (línea simple, `renderResumenFinUtilidadMensual()` sin tocar) —
+    "no quiero perder la versión dashboard rápida"; toda la funcionalidad
+    rica (KPIs, tooltip, tabla, toggle, export) vive SOLO en el modal de
+    "ampliar", que ahora es casi pantalla completa (`.resumen-fin-detalle-
+    modal-ancha`, 1320px/97vw, el blur de fondo ya existía globalmente
+    desde el punto 164). Requirió romper el patrón de reutilización de nodo
+    de `abrirDetalleGrafica()` (las demás gráficas siguen igual) — nueva
+    `abrirDetalleUtilidadNetaRica()` arma HTML fresco cada vez que se abre
+    con los datos ya cacheados en memoria (`cacheSerieUtilidadNeta`, sin
+    volver a pedir el endpoint), y `cerrarDetalleGrafica()` gana una rama
+    (`detalleEsRico`) para vaciar el body en vez de reparentar un nodo.
+    **Backend**: 1 campo nuevo (`subtotal`) expuesto en cada mes de
+    `serie_mensual` de `GET /api/admin/resumen-financiero` — ya se
+    calculaba, solo faltaba exponerlo; es la base de "Ingresos" en
+    tabla/tooltip (Ingresos − Gastos = Utilidad neta, exacto, mismo criterio
+    que "Utilidad neta del mes"). 2 tests de integración actualizados
+    (`resumenFinanciero.test.js`, asserts `toEqual` desactualizados).
+    **Frontend**: 4 KPIs (acumulado, promedio/mediana/margen promedio —
+    estos 3 excluyen el mes en curso del cálculo, detectado comparando el
+    último valor de la serie contra `mes_actual.utilidad_neta`, mismo
+    criterio ya usado por Proyección de ventas para no ensuciar el promedio
+    con un mes a medio empezar—, máximo del periodo, cierre del último mes
+    con variación MoM); SVG con gradiente de área, halo/glow en el punto
+    máximo y en el mes en curso, guías verticales punteadas, línea de
+    promedio de referencia, tooltip rico posicionado por JS (`getScreenCTM()`
+    + `matrixTransform`, no el `data-tooltip` de una sola línea del resto
+    del sitio) con ingresos/gastos/margen por mes, callouts flotantes en
+    primer/último punto; toggle línea/barras (mismos datos, dos `<g>` en el
+    mismo SVG, toggle por clase); tabla de desglose con margen%/variación
+    MoM calculados en cliente; exportar CSV 100% client-side (Blob + BOM,
+    sin endpoint nuevo, reusa el patrón ya usado para exportar Markdown en
+    reportes). **Bug real encontrado y corregido validando en navegador
+    real** (invisible en Jest/`node --check`): doble signo de peso
+    ("$$84.7k") en 6 sitios — `formatearMonedaCompacta()` ya antepone "$"
+    internamente, el código nuevo lo volvía a anteponer en cada
+    interpolación de plantilla; corregido con `sed` global, confirmado con
+    captura real tras rebuild. Jest backend **902/902**. Validado con
+    Playwright/Chromium contra Docker/MySQL reales (extensión Claude in
+    Chrome sin conectar esta sesión): tarjeta chica confirmada intacta
+    (sin banner/KPIs dentro, screenshot real), modal ancho con blur de
+    fondo, los 4 KPIs con datos reales, banner honesto visible (Sep es el
+    mes en curso en este entorno), tooltip rico al hover del punto máximo,
+    tabla completa con las 6 filas y colores de fila (verde en el máximo,
+    rojo en el mes actual) correctos, toggle a barras funcionando, export
+    CSV disparando una descarga real, cierre del modal sin dejar rastro
+    (body vacío, clase ancha removida), tarjeta chica intacta después de
+    cerrar. Sin errores de consola reales en ningún paso. **Commiteado y
+    pusheado.**
+
 251. **Botón "Activar" en `/control` para completar el aprovisionamiento
     de un tenant en "provisioning" SIN root de MySQL (2026-09-07,
     IMPLEMENTADO Y VALIDADO de punta a punta contra Docker/MySQL reales)**:
