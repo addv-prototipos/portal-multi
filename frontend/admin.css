@@ -3980,10 +3980,37 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .unm-mes-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 tr.unm-row-max { background: #EAFBF1; }
 tr.unm-row-actual { background: #FBEAE9; }
+tr.unm-row-proy { background: var(--color-warn-soft); }
 
 @media (max-width: 780px) {
   .unm-kpis { grid-template-columns: 1fr 1fr; }
 }
+
+/* Variantes "proyectado" (naranja) de los componentes unm-* compartidos
+   con "Utilidad neta mensual" — reusa el mismo modal/tabla/toggle línea-
+   barras/tooltip/export CSV del punto 254/255 para "Proyección de
+   ventas" en vez de duplicarlo; solo agrega el color naranja donde el
+   dato es una estimación, nunca un real. */
+.unm-badge-proy { background: var(--color-warn-soft); color: var(--color-warn); }
+.unm-c-proy { color: var(--color-warn) !important; }
+.unm-punto-proy { fill: var(--color-warn); stroke: #fff; stroke-width: 3; }
+.unm-halo-proy { fill: var(--color-warn); }
+.unm-halo-ventas { fill: var(--color-accent); }
+.unm-barra-proy { fill: var(--color-warn); opacity: .85; }
+.unm-eje-mes-proy { fill: var(--color-warn); font-weight: 700; font-style: italic; }
+.unm-tt-val-proy { color: var(--color-warn); }
+.unm-callout-proy { border-color: #E8C7A0; }
+.unm-trazo-proy { stroke: var(--color-warn); stroke-dasharray: 10 8; }
+
+/* "Proyección de ventas", tarjeta chica (homologada con stitch/mini,
+   mismo tratamiento visual del punto 255) — halo navy en el último mes
+   real, halo naranja en el máximo proyectado, y la 2da KPI en tono
+   naranja cuando hay proyección disponible. */
+.resumen-fin-linea-halo-ventas { fill: var(--color-accent); }
+.resumen-fin-linea-halo-proyeccion { fill: var(--color-warn); }
+.resumen-fin-balance-kpi-proy { background: var(--color-warn-soft); border-color: #E8C7A0; }
+.resumen-fin-balance-kpi-badge-proy { background: #F3DBBB; color: var(--color-warn); }
+.resumen-fin-balance-kpi-val-proy { color: var(--color-warn); }
 
 /* ---------- Modal de gestión de ticket ----------
    Fiel al mockup de stitch (stitch/detalle_de_solicitud/code.html):

@@ -454,6 +454,11 @@
     resumenFinProyeccionEtiquetas: document.getElementById('resumen-fin-proyeccion-etiquetas'),
     resumenFinProyeccionNota: document.getElementById('resumen-fin-proyeccion-nota'),
     resumenFinProyeccionEmpty: document.getElementById('resumen-fin-proyeccion-empty'),
+    resumenFinProyeccionKpis: document.getElementById('resumen-fin-proyeccion-kpis'),
+    resumenFinProyeccionKpiAcum: document.getElementById('resumen-fin-proyeccion-kpi-acum'),
+    resumenFinProyeccionKpiProyCard: document.getElementById('resumen-fin-proyeccion-kpi-proy-card'),
+    resumenFinProyeccionKpiProyMes: document.getElementById('resumen-fin-proyeccion-kpi-proy-mes'),
+    resumenFinProyeccionKpiProy: document.getElementById('resumen-fin-proyeccion-kpi-proy'),
     resumenFinDonutCategorias: document.getElementById('resumen-fin-donut-categorias'),
     resumenFinDonutCategoriasTotal: document.getElementById('resumen-fin-donut-categorias-total'),
     resumenFinDonutCategoriasLeyenda: document.getElementById('resumen-fin-donut-categorias-leyenda'),
@@ -8670,6 +8675,7 @@
     renderResumenFinUtilidad(mes);
     cacheMesActualUtilidadNeta = typeof mes.utilidad_neta === 'number' ? mes.utilidad_neta : null;
     renderResumenFinUtilidadMensual(serie);
+    cacheMesActualVentasTotal = typeof mes.ventas === 'number' ? mes.ventas : null;
     renderResumenFinProyeccion(serie, data.proyeccion_ventas);
     renderResumenFinGastosCategoria(data.gastos_por_categoria || []);
     renderResumenFinFacturacion(mes);
@@ -8920,23 +8926,95 @@
   // punteada con la estimación de los próximos 2 meses (si el backend la
   // calculó — necesita al menos 3 meses reales, ver
   // GET /api/admin/resumen-financiero). Nunca se inventa una proyección
-  // sin datos suficientes.
+  // sin datos suficientes. Homologada con el mockup stitch/mini (mismo
+  // tratamiento visual que "Utilidad neta mensual", punto 255): 2 KPIs
+  // chicas + degradado bajo cada tramo (navy real / naranja proyectado)
+  // + halo en el último punto real y en el máximo proyectado. 420x180
+  // sin preserveAspectRatio="none" (antes 300x120 con ese atributo
+  // ESTIRABA el SVG y ovalaba los puntos — mismo bug ya corregido en el
+  // punto 255, aplicado aquí desde el inicio).
   function renderResumenFinProyeccion(serie, proyeccion) {
+    cacheSerieProyeccionReal = serie;
+    cacheProyeccionVentas = proyeccion || null;
     const svg = els.resumenFinProyeccionSvg;
     svg.innerHTML = '';
     els.resumenFinProyeccionEtiquetas.innerHTML = '';
     if (serie.length === 0) {
       els.resumenFinProyeccionEmpty.hidden = false;
       els.resumenFinProyeccionNota.hidden = true;
+      if (els.resumenFinProyeccionKpis) els.resumenFinProyeccionKpis.hidden = true;
       return;
     }
     els.resumenFinProyeccionEmpty.hidden = true;
 
+    const ANCHO = 420, ALTO = 180, PAD = 34;
     const meses = [...serie.map((m) => m.mes), ...(proyeccion || []).map((m) => m.mes)];
     const valores = [...serie.map((m) => m.ventas), ...(proyeccion || []).map((m) => m.ventas)];
     const cantidadReal = serie.length;
-    const { puntos } = construirPuntosLinea(valores, 300, 120, 22);
+    const { puntos, yCero } = construirPuntosLinea(valores, ANCHO, ALTO, PAD);
     const indicesClave = calcularIndicesClave(valores, cantidadReal);
+
+    // ---- 2 KPI chicas (Ventas acumuladas / Máx. proyectado) — mismo
+    // criterio de "sin inventar comparativos" que el resto del panel:
+    // solo montos reales o directamente derivados de la proyección ya
+    // calculada, nunca un % de crecimiento inventado. ----
+    if (els.resumenFinProyeccionKpis) {
+      const acumulado = serie.reduce((a, m) => a + m.ventas, 0);
+      els.resumenFinProyeccionKpiAcum.textContent = `$${formatearMoneda(acumulado)}`;
+      if (proyeccion && proyeccion.length && els.resumenFinProyeccionKpiProyCard) {
+        let iMax = 0;
+        proyeccion.forEach((m, i) => { if (m.ventas > proyeccion[iMax].ventas) iMax = i; });
+        els.resumenFinProyeccionKpiProyMes.textContent = proyeccion[iMax].mes;
+        els.resumenFinProyeccionKpiProy.textContent = `$${formatearMoneda(proyeccion[iMax].ventas)}`;
+        els.resumenFinProyeccionKpiProyCard.hidden = false;
+      } else if (els.resumenFinProyeccionKpiProyCard) {
+        els.resumenFinProyeccionKpiProyCard.hidden = true;
+      }
+      els.resumenFinProyeccionKpis.hidden = false;
+    }
+
+    const defs = document.createElementNS(SVG_NS, 'defs');
+    defs.innerHTML = `
+      <linearGradient id="resumenFinProyeccionAreaVentas" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="#03285B" stop-opacity="0.16"/>
+        <stop offset="100%" stop-color="#03285B" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="resumenFinProyeccionAreaProy" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="#B4530C" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#B4530C" stop-opacity="0"/>
+      </linearGradient>
+    `;
+    svg.appendChild(defs);
+
+    const lineaCero = document.createElementNS(SVG_NS, 'line');
+    lineaCero.setAttribute('x1', '0');
+    lineaCero.setAttribute('x2', String(ANCHO));
+    lineaCero.setAttribute('y1', String(yCero));
+    lineaCero.setAttribute('y2', String(yCero));
+    lineaCero.setAttribute('class', 'resumen-fin-linea-cero');
+    svg.appendChild(lineaCero);
+
+    const areaPoligono = (desde, hasta) => {
+      const sub = puntos.slice(desde, hasta + 1);
+      if (sub.length < 2) return null;
+      return `${sub.map((p) => `${p.x},${p.y}`).join(' ')} ${sub[sub.length - 1].x},${yCero} ${sub[0].x},${yCero}`;
+    };
+    const areaReal = areaPoligono(0, cantidadReal - 1);
+    if (areaReal) {
+      const poly = document.createElementNS(SVG_NS, 'polygon');
+      poly.setAttribute('points', areaReal);
+      poly.setAttribute('fill', 'url(#resumenFinProyeccionAreaVentas)');
+      svg.appendChild(poly);
+    }
+    if (proyeccion && proyeccion.length) {
+      const areaProy = areaPoligono(cantidadReal - 1, puntos.length - 1);
+      if (areaProy) {
+        const poly = document.createElementNS(SVG_NS, 'polygon');
+        poly.setAttribute('points', areaProy);
+        poly.setAttribute('fill', 'url(#resumenFinProyeccionAreaProy)');
+        svg.appendChild(poly);
+      }
+    }
 
     const trazarSegmento = (desde, hasta, clase) => {
       const sub = puntos.slice(desde, hasta + 1);
@@ -8952,13 +9030,40 @@
       trazarSegmento(cantidadReal - 1, puntos.length - 1, 'resumen-fin-linea-trazo resumen-fin-linea-proyeccion');
     }
 
+    // Halo solo en 2 puntos (mismo criterio del punto 255: nunca más de
+    // 2 para que la tarjeta chica siga leyéndose rápido) — el último mes
+    // real (donde arranca la proyección) y el máximo proyectado, si hay
+    // proyección. Sin proyección, ninguno lleva halo.
+    let indiceMaxProy = -1;
+    if (proyeccion && proyeccion.length) {
+      indiceMaxProy = cantidadReal;
+      for (let i = cantidadReal; i < valores.length; i++) {
+        if (valores[i] > valores[indiceMaxProy]) indiceMaxProy = i;
+      }
+    }
+    const indiceUltimoReal = cantidadReal - 1;
+
     puntos.forEach((p, i) => {
       const esProyectado = i >= cantidadReal;
       const esClave = indicesClave.has(i);
+      const esDestacado = proyeccion && proyeccion.length && (i === indiceUltimoReal || i === indiceMaxProy);
+
+      if (esDestacado) {
+        const halo = document.createElementNS(SVG_NS, 'circle');
+        halo.setAttribute('cx', String(p.x));
+        halo.setAttribute('cy', String(p.y));
+        halo.setAttribute('r', '9');
+        halo.setAttribute(
+          'class',
+          `resumen-fin-linea-halo ${esProyectado ? 'resumen-fin-linea-halo-proyeccion' : 'resumen-fin-linea-halo-ventas'}`
+        );
+        svg.appendChild(halo);
+      }
+
       const circle = document.createElementNS(SVG_NS, 'circle');
       circle.setAttribute('cx', String(p.x));
       circle.setAttribute('cy', String(p.y));
-      circle.setAttribute('r', esClave ? '3.5' : '3');
+      circle.setAttribute('r', esClave ? '4' : '3');
       circle.setAttribute(
         'class',
         esClave
@@ -8980,7 +9085,7 @@
       const anclaje = i === 0 ? 'start' : i === puntos.length - 1 ? 'end' : 'middle';
       const texto = document.createElementNS(SVG_NS, 'text');
       texto.setAttribute('x', String(p.x));
-      texto.setAttribute('y', String(p.y - 10));
+      texto.setAttribute('y', String(p.y - 13));
       texto.setAttribute('text-anchor', anclaje);
       texto.setAttribute('class', `resumen-fin-linea-etiqueta-valor ${esProyectado ? 'es-proyectado' : 'es-real'}`);
       texto.textContent = formatearMonedaCompacta(valores[i]);
@@ -9430,6 +9535,12 @@
   // endpoint. Nada de lo que muestra es inventado: cada número sale de
   // serie_mensual (mismo que ya usa la tarjeta chica).
   let cacheMesActualUtilidadNeta = null;
+  // "Proyección de ventas" rica (solo el modal, ver más abajo) — mismos
+  // 3 caches que utilidad neta arriba, con su propio nombre para no
+  // acoplar ambas tarjetas aunque compartan la misma serie_mensual.
+  let cacheSerieProyeccionReal = null;
+  let cacheProyeccionVentas = null;
+  let cacheMesActualVentasTotal = null;
 
   function unmEscalaMaxima(valor) {
     if (!(valor > 0)) return 100;
@@ -9898,9 +10009,468 @@
     });
   }
 
+  // ---------- Vista rica de "Proyección de ventas" (solo el modal) ----------
+  // Reutiliza al 100% el shell/CSS del modal de "Utilidad neta mensual"
+  // (clases unm-*, punto 254/255) — solo agrega variantes "-proy" para el
+  // tramo naranja proyectado, en vez de duplicar toolbar/tabla/tooltip/
+  // export CSV. Datos 100% reales de cacheSerieProyeccionReal +
+  // cacheProyeccionVentas (mismo endpoint ya cargado, sin re-pedir nada).
+  function proyConstruirHTML() {
+    return `
+      <div class="unm-kpis">
+        <div class="unm-kpi">
+          <div class="unm-kpi-top"><span id="proy-kpi-acum-titulo">Ventas acumuladas</span></div>
+          <div class="unm-kpi-val" id="proy-kpi-acum">—</div>
+          <p class="unm-kpi-note" id="proy-kpi-acum-nota"></p>
+        </div>
+        <div class="unm-kpi" id="proy-kpi-ultimo-card">
+          <div class="unm-kpi-top"><span id="proy-kpi-ultimo-titulo">Último mes real</span><span class="unm-badge" id="proy-kpi-ultimo-mom"></span></div>
+          <div class="unm-kpi-val" id="proy-kpi-ultimo">—</div>
+          <p class="unm-kpi-note" id="proy-kpi-ultimo-nota"></p>
+        </div>
+        <div class="unm-kpi" id="proy-kpi-m1-card" hidden>
+          <div class="unm-kpi-top"><span id="proy-kpi-m1-titulo">Proyección</span><span class="unm-badge unm-badge-proy">Estimado</span></div>
+          <div class="unm-kpi-val unm-c-proy" id="proy-kpi-m1">—</div>
+          <p class="unm-kpi-note" id="proy-kpi-m1-nota"></p>
+        </div>
+        <div class="unm-kpi" id="proy-kpi-m2-card" hidden>
+          <div class="unm-kpi-top"><span id="proy-kpi-m2-titulo">Proyección</span><span class="unm-badge unm-badge-proy">Estimado</span></div>
+          <div class="unm-kpi-val unm-c-proy" id="proy-kpi-m2">—</div>
+          <p class="unm-kpi-note" id="proy-kpi-m2-nota"></p>
+        </div>
+      </div>
+      <div class="unm-stage">
+        <p class="unm-banner" id="proy-banner-parcial" hidden><span class="unm-banner-ic">i</span><span id="proy-banner-texto"></span></p>
+        <div class="unm-toolbar">
+          <div class="unm-seg" role="tablist" aria-label="Tipo de gráfica">
+            <button type="button" class="is-active" id="proy-btn-linea" role="tab" aria-selected="true">Línea</button>
+            <button type="button" id="proy-btn-barras" role="tab" aria-selected="false">Barras</button>
+          </div>
+          <button type="button" class="unm-btn-export" id="proy-btn-exportar">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v13m0 0l-4-4m4 4l4-4M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Exportar CSV
+          </button>
+        </div>
+        <div class="unm-chart-wrap" id="proy-chart-wrap">
+          <svg class="unm-svg" id="proy-svg" viewBox="0 0 1000 400" preserveAspectRatio="none" role="img" aria-label="Proyección de ventas, vista detallada"></svg>
+          <div class="unm-tooltip" id="proy-tooltip" hidden></div>
+        </div>
+        <p class="admin-empty" id="proy-empty" hidden>Aún no hay suficientes datos para esta gráfica.</p>
+        <p class="unm-tabla-nota" id="proy-metodo-nota" style="margin-top:10px;"></p>
+      </div>
+      <div class="unm-tabla-wrap" id="proy-tabla-wrap">
+        <div class="unm-tabla-head">
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg> Desglose mensual</h3>
+          <span class="unm-tabla-nota">Valores en pesos, con IVA incluido</span>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table unm-tabla">
+            <thead><tr><th>Mes</th><th>Ventas</th><th>Variación</th><th>Estado</th></tr></thead>
+            <tbody id="proy-tabla-body"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function abrirDetalleProyeccionRica() {
+    const origenBoton = document.querySelector('[data-detalle-contenido="resumen-fin-proyeccion-contenido"]');
+    const header = origenBoton ? origenBoton.closest('.resumen-fin-card-header') : null;
+    const iconoOrigen = header ? header.querySelector('.inicio-stat-icono') : null;
+    els.resumenFinDetalleTitulo.textContent = 'Proyección de ventas';
+    els.resumenFinDetalleIcono.className = iconoOrigen ? iconoOrigen.className : 'inicio-stat-icono';
+    els.resumenFinDetalleIcono.innerHTML = iconoOrigen ? iconoOrigen.innerHTML : '';
+
+    detalleEsRico = true;
+    if (els.resumenFinDetalleModal) els.resumenFinDetalleModal.classList.add('resumen-fin-detalle-modal-ancha');
+    els.resumenFinDetalleBody.innerHTML = proyConstruirHTML();
+    els.resumenFinDetalleOverlay.hidden = false;
+    proyPintar(cacheSerieProyeccionReal, cacheProyeccionVentas);
+    els.btnResumenFinDetalleCerrar.focus();
+  }
+
+  function proyPintar(serieRealInput, proyeccionInput) {
+    const serieReal = serieRealInput || [];
+    const proyeccion = proyeccionInput || [];
+    const svg = document.getElementById('proy-svg');
+    const chartWrap = document.getElementById('proy-chart-wrap');
+    const tooltip = document.getElementById('proy-tooltip');
+    const empty = document.getElementById('proy-empty');
+    const tablaBody = document.getElementById('proy-tabla-body');
+    const tablaWrap = document.getElementById('proy-tabla-wrap');
+    const banner = document.getElementById('proy-banner-parcial');
+    const metodoNota = document.getElementById('proy-metodo-nota');
+
+    if (!serieReal.length) {
+      empty.hidden = false;
+      chartWrap.hidden = true;
+      tablaWrap.hidden = true;
+      document.querySelector('.unm-toolbar').hidden = true;
+      document.querySelector('.unm-kpis').hidden = true;
+      metodoNota.textContent = '';
+      return;
+    }
+    document.querySelector('.unm-kpis').hidden = false;
+
+    // ¿El último mes real es el mes en curso (parcial)? Mismo criterio
+    // que unmPintar(): comparar contra mes_actual.ventas (fuente
+    // autoritativa), no contra la etiqueta del mes.
+    const ultimo = serieReal[serieReal.length - 1];
+    const esMesEnCursoElUltimo =
+      cacheMesActualVentasTotal !== null &&
+      Math.abs(ultimo.ventas - cacheMesActualVentasTotal) < 0.005;
+
+    // ---- KPIs ----
+    const acumulado = serieReal.reduce((a, m) => a + m.ventas, 0);
+    document.getElementById('proy-kpi-acum-titulo').textContent = `Ventas acumuladas (${serieReal.length} ${serieReal.length === 1 ? 'mes' : 'meses'})`;
+    document.getElementById('proy-kpi-acum').textContent = `$${formatearMoneda(acumulado)}`;
+    document.getElementById('proy-kpi-acum-nota').textContent = esMesEnCursoElUltimo
+      ? `Incluye ${ultimo.mes} (parcial)`
+      : 'Suma de los meses mostrados';
+
+    const anterior = serieReal.length > 1 ? serieReal[serieReal.length - 2] : null;
+    const momUltimo = anterior && anterior.ventas !== 0
+      ? ((ultimo.ventas - anterior.ventas) / Math.abs(anterior.ventas)) * 100
+      : null;
+    document.getElementById('proy-kpi-ultimo-titulo').textContent = esMesEnCursoElUltimo ? `Mes en curso (${ultimo.mes})` : `Último mes real (${ultimo.mes})`;
+    document.getElementById('proy-kpi-ultimo').textContent = `$${formatearMoneda(ultimo.ventas)}`;
+    const badgeUltimo = document.getElementById('proy-kpi-ultimo-mom');
+    if (momUltimo !== null) {
+      badgeUltimo.textContent = `${momUltimo >= 0 ? '+' : ''}${momUltimo.toFixed(1)}% MoM`;
+      badgeUltimo.className = `unm-badge ${momUltimo >= 0 ? 'unm-badge-pos' : 'unm-badge-neg'}`;
+    } else {
+      badgeUltimo.textContent = '';
+      badgeUltimo.className = 'unm-badge';
+    }
+    document.getElementById('proy-kpi-ultimo-nota').textContent = esMesEnCursoElUltimo ? 'Cierre preliminar en curso' : '';
+
+    const m1Card = document.getElementById('proy-kpi-m1-card');
+    const m2Card = document.getElementById('proy-kpi-m2-card');
+    if (proyeccion.length >= 1) {
+      document.getElementById('proy-kpi-m1-titulo').textContent = `Proyección ${proyeccion[0].mes}`;
+      document.getElementById('proy-kpi-m1').textContent = `$${formatearMoneda(proyeccion[0].ventas)}`;
+      document.getElementById('proy-kpi-m1-nota').textContent = 'Estimado, aún no ocurre';
+      m1Card.hidden = false;
+    } else {
+      m1Card.hidden = true;
+    }
+    if (proyeccion.length >= 2) {
+      document.getElementById('proy-kpi-m2-titulo').textContent = `Proyección ${proyeccion[1].mes}`;
+      document.getElementById('proy-kpi-m2').textContent = `$${formatearMoneda(proyeccion[1].ventas)}`;
+      document.getElementById('proy-kpi-m2-nota').textContent = 'Estimado, aún no ocurre';
+      m2Card.hidden = false;
+    } else {
+      m2Card.hidden = true;
+    }
+
+    // ---- Aviso honesto (nada de "anomalía"/IA inventada del mockup) ----
+    if (esMesEnCursoElUltimo) {
+      banner.hidden = false;
+      document.getElementById('proy-banner-texto').innerHTML =
+        `<b>${escapeHtml(ultimo.mes)} es el mes en curso:</b> la cifra (${formatearMonedaCompacta(ultimo.ventas)}) es parcial y no se usa para calcular la tendencia de la proyección.`;
+    } else {
+      banner.hidden = true;
+    }
+
+    metodoNota.textContent = proyeccion.length
+      ? 'Método: promedio del cambio mensual de los últimos 3 meses cerrados, extendido hacia adelante — no es un modelo predictivo ni usa IA.'
+      : 'Necesitas al menos 3 meses cerrados con ventas para calcular una proyección.';
+
+    // ---- Gráfica ----
+    chartWrap.hidden = false;
+    tablaWrap.hidden = false;
+    document.querySelector('.unm-toolbar').hidden = false;
+    empty.hidden = true;
+    proyPintarSVG(svg, tooltip, chartWrap, serieReal, proyeccion, esMesEnCursoElUltimo);
+
+    // ---- Tabla ----
+    const todas = [...serieReal.map((m) => ({ ...m, esProy: false })), ...proyeccion.map((m) => ({ ...m, esProy: true }))];
+    tablaBody.innerHTML = todas.map((m, i) => {
+      const prev = i > 0 ? todas[i - 1] : null;
+      const variacion = prev && prev.ventas !== 0
+        ? ((m.ventas - prev.ventas) / Math.abs(prev.ventas)) * 100
+        : null;
+      const esUltimoParcial = esMesEnCursoElUltimo && !m.esProy && i === serieReal.length - 1;
+      const variacionTxt = i === 0 ? '— (Base)' : variacion === null ? '—' : `${variacion >= 0 ? '+' : ''}${variacion.toFixed(1)}%`;
+      const variacionClase = variacion === null ? '' : variacion >= 0 ? 'unm-c-pos' : 'unm-c-neg';
+      const estado = m.esProy
+        ? '<span class="unm-badge unm-badge-proy">Proyectado</span>'
+        : esUltimoParcial
+          ? '<span class="unm-badge unm-badge-neg">Cierre parcial</span>'
+          : '<span class="unm-badge unm-badge-pos">Real</span>';
+      return `<tr class="${m.esProy ? 'unm-row-proy' : ''}">
+        <td class="unm-mes-cell">${escapeHtml(m.mes)}${esUltimoParcial ? '*' : ''}</td>
+        <td>$${formatearMoneda(m.ventas)}</td>
+        <td class="${variacionClase}" style="font-weight:600;">${variacionTxt}</td>
+        <td>${estado}</td>
+      </tr>`;
+    }).join('');
+
+    // ---- Toggle línea/barras ----
+    const btnLinea = document.getElementById('proy-btn-linea');
+    const btnBarras = document.getElementById('proy-btn-barras');
+    btnLinea.onclick = () => {
+      btnLinea.classList.add('is-active'); btnLinea.setAttribute('aria-selected', 'true');
+      btnBarras.classList.remove('is-active'); btnBarras.setAttribute('aria-selected', 'false');
+      svg.classList.remove('unm-modo-barras');
+    };
+    btnBarras.onclick = () => {
+      btnBarras.classList.add('is-active'); btnBarras.setAttribute('aria-selected', 'true');
+      btnLinea.classList.remove('is-active'); btnLinea.setAttribute('aria-selected', 'false');
+      svg.classList.add('unm-modo-barras');
+    };
+
+    // ---- Exportar CSV (100% client-side, mismos datos ya en pantalla) ----
+    document.getElementById('proy-btn-exportar').onclick = () => {
+      const encabezados = ['Mes', 'Ventas', 'Variación MoM %', 'Estado'];
+      const filas = todas.map((m, i) => {
+        const prev = i > 0 ? todas[i - 1] : null;
+        const variacion = prev && prev.ventas !== 0
+          ? (((m.ventas - prev.ventas) / Math.abs(prev.ventas)) * 100).toFixed(1)
+          : '';
+        const esUltimoParcial = esMesEnCursoElUltimo && !m.esProy && i === serieReal.length - 1;
+        const estado = m.esProy ? 'Proyectado' : esUltimoParcial ? 'Cierre parcial' : 'Real';
+        return [m.mes, m.ventas.toFixed(2), variacion, estado];
+      });
+      const csv = [encabezados, ...filas]
+        .map((fila) => fila.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+        .join('\r\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'proyeccion-ventas.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    };
+  }
+
+  function proyPintarSVG(svg, tooltip, chartWrap, serieReal, proyeccion, esMesEnCursoElUltimo) {
+    svg.innerHTML = '';
+    svg.classList.remove('unm-modo-barras');
+    document.getElementById('proy-btn-linea').classList.add('is-active');
+    document.getElementById('proy-btn-linea').setAttribute('aria-selected', 'true');
+    document.getElementById('proy-btn-barras').classList.remove('is-active');
+    document.getElementById('proy-btn-barras').setAttribute('aria-selected', 'false');
+
+    const todos = [...serieReal, ...proyeccion];
+    const cantidadReal = serieReal.length;
+    const valores = todos.map((m) => m.ventas);
+    const maxAbs = Math.max(1, ...valores);
+    const yMax = unmEscalaMaxima(maxAbs);
+    const X0 = 70, X1 = 960, Y0 = 40, Y1 = 365, ALTO = Y1 - Y0;
+    const yFor = (v) => Y1 - (v / yMax) * ALTO;
+    const n = todos.length;
+    const xFor = (i) => (n <= 1 ? (X0 + X1) / 2 : X0 + 40 + ((X1 - X0 - 80) * i) / (n - 1));
+
+    const defs = document.createElementNS(SVG_NS, 'defs');
+    defs.innerHTML = `
+      <linearGradient id="proyAreaVentas" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="#03285B" stop-opacity="0.20"/>
+        <stop offset="100%" stop-color="#03285B" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="proyAreaProy" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="#B4530C" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#B4530C" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="proyGlowVentas" height="160%" width="160%" x="-30%" y="-30%">
+        <feDropShadow dx="0" dy="3" flood-color="#03285B" flood-opacity="0.35" stdDeviation="4"/>
+      </filter>
+      <filter id="proyGlowProy" height="160%" width="160%" x="-30%" y="-30%">
+        <feDropShadow dx="0" dy="3" flood-color="#B4530C" flood-opacity="0.4" stdDeviation="4"/>
+      </filter>
+    `;
+    svg.appendChild(defs);
+
+    // Gridlines 0..yMax (ventas siempre >= 0, sin necesidad de línea $0
+    // especial más que la de la base).
+    for (let i = 0; i <= 5; i++) {
+      const val = (yMax * i) / 5;
+      const y = yFor(val);
+      const linea = document.createElementNS(SVG_NS, 'line');
+      linea.setAttribute('x1', X0); linea.setAttribute('x2', X1);
+      linea.setAttribute('y1', y); linea.setAttribute('y2', y);
+      linea.setAttribute('class', i === 0 ? 'unm-linea-base' : 'unm-linea-grid');
+      svg.appendChild(linea);
+      const texto = document.createElementNS(SVG_NS, 'text');
+      texto.setAttribute('x', X0 - 10); texto.setAttribute('y', y + 4);
+      texto.setAttribute('text-anchor', 'end');
+      texto.setAttribute('class', i === 0 ? 'unm-texto-base' : 'unm-texto-grid');
+      texto.textContent = i === 0 ? '$0' : `${formatearMonedaCompacta(val)}`;
+      svg.appendChild(texto);
+    }
+
+    // Línea de promedio — SOLO de los meses reales mostrados (nunca
+    // mezcla la proyección en su propio promedio de referencia).
+    const promedioReal = serieReal.reduce((a, m) => a + m.ventas, 0) / serieReal.length;
+    const yProm = yFor(promedioReal);
+    const lineaProm = document.createElementNS(SVG_NS, 'line');
+    lineaProm.setAttribute('x1', X0); lineaProm.setAttribute('x2', X1);
+    lineaProm.setAttribute('y1', yProm); lineaProm.setAttribute('y2', yProm);
+    lineaProm.setAttribute('class', 'unm-linea-promedio');
+    svg.appendChild(lineaProm);
+    const textoProm = document.createElementNS(SVG_NS, 'text');
+    textoProm.setAttribute('x', X1); textoProm.setAttribute('y', yProm - 6);
+    textoProm.setAttribute('text-anchor', 'end');
+    textoProm.setAttribute('class', 'unm-texto-promedio');
+    textoProm.textContent = `Media histórica: ${formatearMonedaCompacta(promedioReal)}`;
+    svg.appendChild(textoProm);
+
+    const puntos = todos.map((m, i) => ({ x: xFor(i), y: yFor(m.ventas) }));
+
+    // ---- Grupo LÍNEA (2 tramos: real navy sólido + proyectado naranja
+    // punteado, cada uno con su propia área degradada) ----
+    const gLinea = document.createElementNS(SVG_NS, 'g');
+    gLinea.setAttribute('class', 'unm-g-linea');
+    const puntosReales = puntos.slice(0, cantidadReal);
+    const puntosProy = puntos.slice(cantidadReal - 1); // incluye el último real como ancla del tramo punteado
+
+    if (puntosReales.length > 1) {
+      const areaPts = `${puntosReales.map((p) => `${p.x},${p.y}`).join(' ')} ${puntosReales[puntosReales.length - 1].x},${Y1} ${puntosReales[0].x},${Y1}`;
+      const area = document.createElementNS(SVG_NS, 'polygon');
+      area.setAttribute('points', areaPts);
+      area.setAttribute('fill', 'url(#proyAreaVentas)');
+      gLinea.appendChild(area);
+
+      const trazo = document.createElementNS(SVG_NS, 'polyline');
+      trazo.setAttribute('points', puntosReales.map((p) => `${p.x},${p.y}`).join(' '));
+      trazo.setAttribute('class', 'unm-trazo');
+      gLinea.appendChild(trazo);
+    }
+    if (puntosProy.length > 1) {
+      const areaPts = `${puntosProy.map((p) => `${p.x},${p.y}`).join(' ')} ${puntosProy[puntosProy.length - 1].x},${Y1} ${puntosProy[0].x},${Y1}`;
+      const area = document.createElementNS(SVG_NS, 'polygon');
+      area.setAttribute('points', areaPts);
+      area.setAttribute('fill', 'url(#proyAreaProy)');
+      gLinea.appendChild(area);
+
+      const trazo = document.createElementNS(SVG_NS, 'polyline');
+      trazo.setAttribute('points', puntosProy.map((p) => `${p.x},${p.y}`).join(' '));
+      trazo.setAttribute('class', 'unm-trazo unm-trazo-proy');
+      gLinea.appendChild(trazo);
+    }
+    svg.appendChild(gLinea);
+
+    // ---- Grupo BARRAS (oculto por defecto vía CSS .unm-modo-barras) ----
+    const gBarras = document.createElementNS(SVG_NS, 'g');
+    gBarras.setAttribute('class', 'unm-g-barras');
+    const anchoBarra = Math.min(46, ((X1 - X0 - 80) / Math.max(1, n)) * 0.55);
+    const yCero = yFor(0);
+    puntos.forEach((p, i) => {
+      const esProy = i >= cantidadReal;
+      const barra = document.createElementNS(SVG_NS, 'rect');
+      barra.setAttribute('x', p.x - anchoBarra / 2);
+      barra.setAttribute('y', p.y);
+      barra.setAttribute('width', anchoBarra);
+      barra.setAttribute('height', Math.max(1, yCero - p.y));
+      barra.setAttribute('rx', 4);
+      barra.setAttribute('class', `unm-barra ${esProy ? 'unm-barra-proy' : 'unm-barra-pos'}`);
+      gBarras.appendChild(barra);
+    });
+    svg.appendChild(gBarras);
+
+    // ---- Puntos + tooltip rico (aplica a ambos modos) — halo solo en el
+    // último punto real y en el máximo proyectado, mismo criterio que la
+    // tarjeta chica. ----
+    let indiceMaxProy = -1;
+    if (proyeccion.length) {
+      indiceMaxProy = cantidadReal;
+      for (let i = cantidadReal; i < todos.length; i++) {
+        if (todos[i].ventas > todos[indiceMaxProy].ventas) indiceMaxProy = i;
+      }
+    }
+    const indiceUltimoReal = cantidadReal - 1;
+
+    puntos.forEach((p, i) => {
+      const m = todos[i];
+      const esProy = i >= cantidadReal;
+      const esDestacado = i === indiceUltimoReal || i === indiceMaxProy;
+      const esUltimoRealParcial = esMesEnCursoElUltimo && i === indiceUltimoReal;
+
+      if (esDestacado) {
+        const halo = document.createElementNS(SVG_NS, 'circle');
+        halo.setAttribute('cx', p.x); halo.setAttribute('cy', p.y); halo.setAttribute('r', 13);
+        halo.setAttribute('class', `unm-halo ${esProy ? 'unm-halo-proy' : 'unm-halo-ventas'}`);
+        svg.appendChild(halo);
+      }
+      const circle = document.createElementNS(SVG_NS, 'circle');
+      circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
+      circle.setAttribute('r', esDestacado ? 7 : 5.5);
+      circle.setAttribute('tabindex', '0');
+      circle.setAttribute('class', `unm-punto ${esProy ? 'unm-punto-proy' : ''}`);
+      if (esDestacado) circle.setAttribute('filter', esProy ? 'url(#proyGlowProy)' : 'url(#proyGlowVentas)');
+
+      const mostrarTooltip = () => {
+        const pos = unmPosicionEnPantalla(svg, chartWrap, p.x, p.y);
+        const prev = i > 0 ? todos[i - 1] : null;
+        const variacion = prev && prev.ventas !== 0 ? ((m.ventas - prev.ventas) / Math.abs(prev.ventas)) * 100 : null;
+        tooltip.innerHTML = `
+          <div class="unm-tt-head">
+            <span class="unm-tt-mes">${escapeHtml(m.mes)}${esUltimoRealParcial ? ' (parcial)' : esProy ? ' (proyectado)' : ''}</span>
+            ${i === indiceMaxProy ? '<span class="unm-tt-badge" style="background:var(--color-warn-soft);color:var(--color-warn);">Máx. proyectado</span>' : ''}
+          </div>
+          <div class="unm-tt-val ${esProy ? 'unm-tt-val-proy' : ''}">$${formatearMoneda(m.ventas)}</div>
+          ${variacion !== null ? `<div class="unm-tt-row"><span>Variación vs mes anterior:</span><span>${variacion >= 0 ? '+' : ''}${variacion.toFixed(1)}%</span></div>` : ''}
+        `;
+        tooltip.hidden = false;
+        const anchoTooltip = 190;
+        let left = pos.left - anchoTooltip / 2;
+        left = Math.max(4, Math.min(left, chartWrap.clientWidth - anchoTooltip - 4));
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${Math.max(4, pos.top - 110)}px`;
+      };
+      const ocultarTooltip = () => { tooltip.hidden = true; };
+      circle.addEventListener('mouseenter', mostrarTooltip);
+      circle.addEventListener('focus', mostrarTooltip);
+      circle.addEventListener('mouseleave', ocultarTooltip);
+      circle.addEventListener('blur', ocultarTooltip);
+      svg.appendChild(circle);
+    });
+
+    // ---- Callouts flotantes (primero y último) ----
+    document.querySelectorAll('.unm-callout').forEach((n) => n.remove());
+    const primero = puntos[0];
+    const posPrimero = unmPosicionEnPantalla(svg, chartWrap, primero.x, primero.y);
+    const calloutPrimero = document.createElement('div');
+    calloutPrimero.className = 'unm-callout';
+    calloutPrimero.style.left = `${posPrimero.left}px`;
+    calloutPrimero.style.top = `${posPrimero.top - 34}px`;
+    calloutPrimero.innerHTML = `<span class="unm-callout-dot" style="background:var(--color-accent)"></span>${formatearMonedaCompacta(todos[0].ventas)}`;
+    chartWrap.appendChild(calloutPrimero);
+
+    if (puntos.length > 1) {
+      const ultimoPt = puntos[puntos.length - 1];
+      const posUltimo = unmPosicionEnPantalla(svg, chartWrap, ultimoPt.x, ultimoPt.y);
+      const esUltimoProy = todos.length > cantidadReal;
+      const calloutUltimo = document.createElement('div');
+      calloutUltimo.className = `unm-callout ${esUltimoProy ? 'unm-callout-proy' : ''}`;
+      calloutUltimo.style.left = `${posUltimo.left}px`;
+      calloutUltimo.style.top = `${posUltimo.top - 34}px`;
+      calloutUltimo.innerHTML = `<span class="unm-callout-dot" style="background:${esUltimoProy ? 'var(--color-warn)' : 'var(--color-accent)'}"></span>${formatearMonedaCompacta(todos[todos.length - 1].ventas)}`;
+      chartWrap.appendChild(calloutUltimo);
+    }
+
+    // X-axis
+    todos.forEach((m, i) => {
+      const esProy = i >= cantidadReal;
+      const texto = document.createElementNS(SVG_NS, 'text');
+      texto.setAttribute('x', puntos[i].x); texto.setAttribute('y', '388');
+      texto.setAttribute('text-anchor', 'middle');
+      texto.setAttribute('class', `unm-eje-mes ${esProy ? 'unm-eje-mes-proy' : ''}`);
+      texto.textContent = m.mes + (esMesEnCursoElUltimo && i === indiceUltimoReal ? '*' : '');
+      svg.appendChild(texto);
+    });
+  }
+
   document.querySelectorAll('.resumen-fin-expandir-btn').forEach((boton) => {
     if (boton.dataset.detalleContenido === 'resumen-fin-balance-contenido') {
       boton.addEventListener('click', abrirDetalleUtilidadNetaRica);
+      return;
+    }
+    if (boton.dataset.detalleContenido === 'resumen-fin-proyeccion-contenido') {
+      boton.addEventListener('click', abrirDetalleProyeccionRica);
       return;
     }
     boton.addEventListener('click', () => abrirDetalleGrafica(boton));

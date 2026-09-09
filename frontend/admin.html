@@ -745,8 +745,18 @@
               </button>
             </div>
             <div id="resumen-fin-proyeccion-contenido">
+              <div class="resumen-fin-balance-kpis" id="resumen-fin-proyeccion-kpis" hidden>
+                <div class="resumen-fin-balance-kpi">
+                  <span class="resumen-fin-balance-kpi-label">Ventas acumuladas</span>
+                  <span class="resumen-fin-balance-kpi-val" id="resumen-fin-proyeccion-kpi-acum">—</span>
+                </div>
+                <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-proy" id="resumen-fin-proyeccion-kpi-proy-card" hidden>
+                  <span class="resumen-fin-balance-kpi-label">Máx. proyectado <span id="resumen-fin-proyeccion-kpi-proy-mes"></span><span class="resumen-fin-balance-kpi-badge resumen-fin-balance-kpi-badge-proy">Estimado</span></span>
+                  <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-proy" id="resumen-fin-proyeccion-kpi-proy">—</span>
+                </div>
+              </div>
               <div class="resumen-fin-line-wrap">
-                <svg class="resumen-fin-line-svg" id="resumen-fin-proyeccion-svg" viewBox="0 0 300 120" preserveAspectRatio="none" role="img" aria-label="Proyección de ventas"></svg>
+                <svg class="resumen-fin-line-svg resumen-fin-balance-svg-ancha" id="resumen-fin-proyeccion-svg" viewBox="0 0 420 180" role="img" aria-label="Proyección de ventas"></svg>
               </div>
               <div class="resumen-fin-line-etiquetas" id="resumen-fin-proyeccion-etiquetas"></div>
               <p class="resumen-fin-proyeccion-nota" id="resumen-fin-proyeccion-nota" hidden>Proyección estimada a partir de tu histórico — no es un pronóstico garantizado.</p>

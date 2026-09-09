@@ -788,6 +788,30 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
+**Punto 256 (2026-09-09, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales)**: "Proyección de ventas" homologada con 2 mockups
+nuevos de `stitch/` (tarjeta chica + modal ampliado). Auditoría dato-real-
+vs-inventado primero: "Modelo Predictivo IA"/Holt-Winters/confianza 92%/
+piso-techo/selector de rango 1T-6M-YTD/botones "Ajustar parámetros" y
+"Descargar informe ejecutivo" NO tienen respaldo real (el backend solo
+extrapola linealmente los últimos 3 meses cerrados) — quitados o
+reemplazados por su equivalente honesto. Implementado con datos 100%
+reales: tarjeta chica con 2 KPIs + degradado + halo (mismo tratamiento
+del punto 255, viewBox 420x180 sin distorsión desde el inicio), modal
+ampliado que REUTILIZA el shell de "Utilidad neta mensual" (clases
+`unm-*`, toggle Línea/Barras, tooltip, exportar CSV, tabla) con variantes
+`-proy` naranjas nuevas en vez de duplicar el componente. Banner honesto
+"mes en curso, cifra parcial" (mismo patrón ya establecido) + nota de
+método visible. Cero cambio de backend. Bug propio corregido antes de
+desplegar: halo del punto real reusaba por error `unm-halo-pos` (verde)
+en vez de navy — `.unm-halo-ventas` nueva. Jest backend 902/902. Validado
+de punta a punta en navegador real (Claude in Chrome) contra el sitio
+base (único con datos de demo reales tras el reset — `pruebaadmin`/
+`piloto9c` ya no existen, `abarroteslulu` es el único tenant real hoy,
+sin datos). Carpetas `stitch/proyeccion_de_ventas_widget_mini/` y
+`stitch/proyeccion_de_ventas_ux_redesign/` borradas tras implementar. Ver
+PROJECT_STATE.md punto 256. Sin commit/push todavía.
+
 **Punto 255 (2026-09-08, IMPLEMENTADO Y VALIDADO en navegador real contra
 Docker/MySQL reales — ver PROJECT_STATE.md punto 255)**: homologa la
 tarjeta chica de "Utilidad neta mensual" con el modal rico del punto
@@ -2570,7 +2594,9 @@ prueba limpiados al final, tenant quedó igual que antes. Jest backend
   esta sesión, `control/` Jest vuelve a 88/88.
 - **Rediseño de login (cliente y admin), ver PROJECT_STATE.md punto
   106**: split-screen fiel a un mock aportado por el usuario (carpeta
-  `stitch/` en la raíz, no borrar). Paleta propia contenida en
+  `stitch/` original ya eliminada 2026-09-09 — assets reales ya extraídos
+  a `frontend/assets/`, mockups consumidos por los puntos 254/255 también
+  ya implementados y commiteados, sin uso restante). Paleta propia contenida en
   `.auth-shell` (`frontend/auth.css`, variables CSS locales, no toca el
   verde base de `style.css`). Marca por defecto "CLARVO" como imagen
   estática (`frontend/assets/branding.png` + `login-decoracion-marca.png`,
