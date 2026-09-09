@@ -788,6 +788,30 @@ clics reales en navegador**: `/admin`, `/control`, `/login` (logo viejo
 intacto, título nuevo) y `/api/docs` (título de Swagger). Ver
 PROJECT_STATE.md punto 213.
 
+**Punto 257 (2026-09-09, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales)**: 16 gastos de prueba sembrados en septiembre (sitio
+base, $88,646.59, 10 categorías) para poblar 4 indicadores que estaban en
+$0 por falta de actividad en el mes en curso. Al revisar el resultado con
+las 10 categorías activas a la vez (nunca antes probado), la dona
+"Distribución de gastos por categoría" se veía como un solo arco azul —
+confirmado con `validate_palette.js` de la skill `dataviz`: la paleta
+pastel anterior fallaba las 4 comprobaciones duras (banda de luminosidad,
+piso de croma, separación CVD, piso de visión normal). El par
+facturado/sin-facturar de "Ventas facturadas vs sin facturar" también
+fallaba (ΔE 14.5, bajo el mínimo 15). Corregidos ambos con paletas
+validadas: categorías → 8 tonos fijos ordenados + agrupamiento real de la
+cola larga en "Otros" (mismo criterio que "Top proveedores de gasto",
+limitado a 5); facturado/sin-facturar → 2 tonos adyacentes de esa misma
+paleta. De paso, 2 mockups nuevos de `stitch/` para "Ventas facturadas vs
+sin facturar" (mini + modal) — auditados con el mismo criterio del punto
+256: casi todo aspiracional sin respaldo (PAC/SAT, pipeline de 3 etapas,
+tabla de operaciones ficticia, cuenta regresiva de cierre fiscal) —
+implementado solo lo real: 2 KPIs chicas + nota honesta sobre cuándo una
+venta cuenta como "Facturada", reusando el modal genérico existente (sin
+modal dedicado, los datos no lo justifican). Cero cambio de backend. Jest
+902/902 sin cambios. Carpetas de mockup borradas tras implementar. Ver
+PROJECT_STATE.md punto 257. Sin commit/push todavía.
+
 **Punto 256 (2026-09-09, IMPLEMENTADO Y VALIDADO en navegador real contra
 Docker/MySQL reales)**: "Proyección de ventas" homologada con 2 mockups
 nuevos de `stitch/` (tarjeta chica + modal ampliado). Auditoría dato-real-

@@ -643,6 +643,16 @@
               </button>
             </div>
             <div id="resumen-fin-donut-facturacion-contenido">
+              <div class="resumen-fin-balance-kpis" id="resumen-fin-donut-facturacion-kpis" hidden>
+                <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-pos">
+                  <span class="resumen-fin-balance-kpi-label">Facturado</span>
+                  <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-pos" id="resumen-fin-donut-facturacion-kpi-facturado">—</span>
+                </div>
+                <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-proy">
+                  <span class="resumen-fin-balance-kpi-label">Sin facturar</span>
+                  <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-proy" id="resumen-fin-donut-facturacion-kpi-sin-facturar">—</span>
+                </div>
+              </div>
               <div class="resumen-fin-donut-body">
                 <div class="resumen-fin-donut-wrap">
                   <svg class="resumen-fin-donut" id="resumen-fin-donut-facturacion" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
@@ -654,6 +664,7 @@
                 <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-facturacion-leyenda"></ul>
               </div>
               <p class="admin-empty" id="resumen-fin-donut-facturacion-empty" hidden>Aún no hay ventas registradas este mes.</p>
+              <p class="resumen-fin-proyeccion-nota" id="resumen-fin-donut-facturacion-nota" hidden>Una venta cuenta como "Facturada" en cuanto se sube el ZIP de su factura — para el detalle por venta, ve a Ventas.</p>
             </div>
           </section>
 

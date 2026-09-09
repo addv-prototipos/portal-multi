@@ -467,6 +467,10 @@
     resumenFinDonutFacturacionTotal: document.getElementById('resumen-fin-donut-facturacion-total'),
     resumenFinDonutFacturacionLeyenda: document.getElementById('resumen-fin-donut-facturacion-leyenda'),
     resumenFinDonutFacturacionEmpty: document.getElementById('resumen-fin-donut-facturacion-empty'),
+    resumenFinDonutFacturacionKpis: document.getElementById('resumen-fin-donut-facturacion-kpis'),
+    resumenFinDonutFacturacionKpiFacturado: document.getElementById('resumen-fin-donut-facturacion-kpi-facturado'),
+    resumenFinDonutFacturacionKpiSinFacturar: document.getElementById('resumen-fin-donut-facturacion-kpi-sin-facturar'),
+    resumenFinDonutFacturacionNota: document.getElementById('resumen-fin-donut-facturacion-nota'),
     resumenFinProveedoresLista: document.getElementById('resumen-fin-proveedores-lista'),
     resumenFinProveedoresEmpty: document.getElementById('resumen-fin-proveedores-empty'),
     resumenFinDetalleOverlay: document.getElementById('resumen-fin-detalle-overlay'),
@@ -9142,23 +9146,48 @@
   // mismo criterio que pidió el usuario tras revisar la vista en
   // producción (ver PROJECT_STATE.md, segmento de rediseño de esta
   // vista).
-  const RESUMEN_FIN_COLORES_CATEGORIA = {
-    renta: '#8FADD9',
-    nomina: '#A9C4E3',
-    software: '#719FD4',
-    hosting: '#C0D3EB',
-    servicios: '#9BB8DE',
-    combustible: '#D1DEED',
-    papeleria: '#B3C9E1',
-    publicidad: '#8ED6B7',
-    viaticos: '#E8B592',
-    otro: '#C7CAD1',
-  };
-  const RESUMEN_FIN_COLOR_FACTURADO = '#7FCBA8';
-  const RESUMEN_FIN_COLOR_SIN_FACTURAR = '#E4A97E';
+  // Paleta categórica de 8 tonos, orden fijo, validada con el validador
+  // oficial de la skill dataviz (lightness band/chroma floor/separación
+  // CVD/piso de visión normal — las 4 fallas duras — todas en PASS; el
+  // único WARN, contraste vs. superficie, ya está mitigado porque la
+  // leyenda SIEMPRE muestra nombre+monto+% en texto junto al punto de
+  // color, nunca solo el color). Reemplaza la paleta pastel anterior
+  // (7 de sus 10 tonos eran variaciones de un mismo azul casi
+  // indistinguibles entre sí — confirmado con
+  // `validate_palette.js`, FAIL en las 4 comprobaciones duras en cuanto
+  // el mes tiene actividad en más de 3-4 categorías a la vez, algo que
+  // ningún demo anterior había probado). Con más de 8 categorías con
+  // gasto el mismo mes (posible — las categorías son editables, punto
+  // 135), las de menor monto se agrupan en un renglón "Otros" con un
+  // gris neutro — mismo criterio que ya usa "Top proveedores de gasto"
+  // (limitado a 5) en vez de forzar un 9no/10mo tono que ya no se puede
+  // distinguir de los 8 anteriores.
+  const RESUMEN_FIN_PALETA_CATEGORICA = [
+    '#4488db', // azul
+    '#ed7a4c', // naranja
+    '#36b98a', // aqua
+    '#eda305', // amarillo
+    '#eb8baf', // magenta
+    '#1f921f', // verde
+    '#6052b2', // violeta
+    '#e65f5e', // rojo
+  ];
+  const RESUMEN_FIN_COLOR_OTROS_CATEGORIA = '#9AA0AC';
+  // Facturado/Sin facturar (donut de 2 segmentos): el par pastel anterior
+  // (#7FCBA8/#E4A97E) fallaba el piso de visión normal del validador
+  // (ΔE 14.5, bajo el mínimo 15 — de verdad cuesta distinguirlos incluso
+  // con visión de color completa) y el piso CVD quedaba en el rango
+  // "solo aceptable con codificación secundaria". Este par sí pasa las
+  // 4 comprobaciones duras (`validate_palette.js "#ed7a4c,#36b98a"
+  // --pairs all`) — mismos slots 2 y 3 (adyacentes) de la paleta
+  // categórica de gastos de arriba, reutilizados aquí para no inventar
+  // un tercer set de colores en la misma vista.
+  const RESUMEN_FIN_COLOR_FACTURADO = '#36b98a';
+  const RESUMEN_FIN_COLOR_SIN_FACTURAR = '#ed7a4c';
 
-  function renderResumenFinGastosCategoria(filas) {
-    if (!filas || filas.length === 0) {
+  function renderResumenFinGastosCategoria(filasEntrada) {
+    const filas = filasEntrada || [];
+    if (filas.length === 0) {
       els.resumenFinDonutCategorias.innerHTML = '';
       els.resumenFinDonutCategoriasLeyenda.innerHTML = '';
       els.resumenFinDonutCategoriasTotal.textContent = '$0';
@@ -9166,19 +9195,34 @@
       return;
     }
     els.resumenFinDonutCategoriasEmpty.hidden = true;
-    const segmentos = filas.map((f) => ({
-      valor: f.monto,
-      color: RESUMEN_FIN_COLORES_CATEGORIA[f.categoria] || RESUMEN_FIN_COLORES_CATEGORIA.otro,
-    }));
+
+    // El backend ya manda las filas ordenadas por monto DESC — las
+    // primeras 8 (más grandes) ganan un tono propio y distinguible; el
+    // resto (la "cola larga", normalmente montos chicos) se suma en un
+    // solo renglón "Otros" en vez de repetir/reciclar un tono ya usado.
+    const principales = filas.slice(0, RESUMEN_FIN_PALETA_CATEGORICA.length);
+    const resto = filas.slice(RESUMEN_FIN_PALETA_CATEGORICA.length);
+    const totalResto = resto.reduce((acc, f) => acc + f.monto, 0);
+
+    const segmentos = principales.map((f, i) => ({ valor: f.monto, color: RESUMEN_FIN_PALETA_CATEGORICA[i] }));
+    if (totalResto > 0) segmentos.push({ valor: totalResto, color: RESUMEN_FIN_COLOR_OTROS_CATEGORIA });
+
     const total = renderDonutGenerico(els.resumenFinDonutCategorias, segmentos);
     els.resumenFinDonutCategoriasTotal.textContent = `$${formatearMoneda(total)}`;
-    els.resumenFinDonutCategoriasLeyenda.innerHTML = filas
-      .map((f) => {
-        const color = RESUMEN_FIN_COLORES_CATEGORIA[f.categoria] || RESUMEN_FIN_COLORES_CATEGORIA.otro;
+
+    const filasLeyenda = principales
+      .map((f, i) => {
         const porcentaje = total > 0 ? Math.round((f.monto / total) * 100) : 0;
-        return `<li><span class="resumen-fin-donut-dot" style="background:${color}" aria-hidden="true"></span><span>${escapeHtml(etiquetaCategoriaGasto(f.categoria))}</span><strong>$${formatearMoneda(f.monto)} (${porcentaje}%)</strong></li>`;
+        return `<li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_PALETA_CATEGORICA[i]}" aria-hidden="true"></span><span>${escapeHtml(etiquetaCategoriaGasto(f.categoria))}</span><strong>$${formatearMoneda(f.monto)} (${porcentaje}%)</strong></li>`;
       })
       .join('');
+    const filaOtros = totalResto > 0
+      ? (() => {
+          const porcentaje = total > 0 ? Math.round((totalResto / total) * 100) : 0;
+          return `<li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_OTROS_CATEGORIA}" aria-hidden="true"></span><span>Otros (${resto.length} categoría${resto.length === 1 ? '' : 's'})</span><strong>$${formatearMoneda(totalResto)} (${porcentaje}%)</strong></li>`;
+        })()
+      : '';
+    els.resumenFinDonutCategoriasLeyenda.innerHTML = filasLeyenda + filaOtros;
   }
 
   function renderResumenFinFacturacion(mes) {
@@ -9190,6 +9234,8 @@
       els.resumenFinDonutFacturacionLeyenda.innerHTML = '';
       els.resumenFinDonutFacturacionTotal.textContent = '$0';
       els.resumenFinDonutFacturacionEmpty.hidden = false;
+      if (els.resumenFinDonutFacturacionKpis) els.resumenFinDonutFacturacionKpis.hidden = true;
+      if (els.resumenFinDonutFacturacionNota) els.resumenFinDonutFacturacionNota.hidden = true;
       return;
     }
     els.resumenFinDonutFacturacionEmpty.hidden = true;
@@ -9203,6 +9249,16 @@
       <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_FACTURADO}" aria-hidden="true"></span><span>Facturadas</span><strong>$${formatearMoneda(facturado)} (${pctFacturado}%)</strong></li>
       <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_SIN_FACTURAR}" aria-hidden="true"></span><span>Sin facturar</span><strong>$${formatearMoneda(sinFacturar)} (${Math.max(0, 100 - pctFacturado)}%)</strong></li>
     `;
+    // 2 KPIs chicas (mismo tratamiento que Utilidad neta mensual/
+    // Proyección de ventas) — solo los 2 montos reales, sin inventar
+    // conteo de operaciones/facturas (ese dato no lo expone este
+    // endpoint; el desglose por venta real ya vive en Ventas).
+    if (els.resumenFinDonutFacturacionKpis) {
+      els.resumenFinDonutFacturacionKpiFacturado.textContent = `$${formatearMoneda(facturado)}`;
+      els.resumenFinDonutFacturacionKpiSinFacturar.textContent = `$${formatearMoneda(sinFacturar)}`;
+      els.resumenFinDonutFacturacionKpis.hidden = false;
+    }
+    if (els.resumenFinDonutFacturacionNota) els.resumenFinDonutFacturacionNota.hidden = false;
   }
 
   function renderResumenFinProveedores(filas) {
