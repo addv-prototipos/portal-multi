@@ -812,6 +812,88 @@ modal dedicado, los datos no lo justifican). Cero cambio de backend. Jest
 902/902 sin cambios. Carpetas de mockup borradas tras implementar. Ver
 PROJECT_STATE.md punto 257. Sin commit/push todavía.
 
+**Punto 258 (2026-09-09, IMPLEMENTADO Y VALIDADO por HTTP contra Docker/
+MySQL reales, SIN herramienta de navegador esta sesión)**: 2da vuelta a la
+tarjeta "Ventas facturadas vs sin facturar" (el punto 257 había dejado casi
+todo el mockup fuera por falta de respaldo) — esta vez el usuario pidió,
+elemento por elemento vía `AskUserQuestion`, decidir qué sí construir:
+badge de trimestre real (Q calculado del mes en curso, informativo);
+"Conciliación fiscal activa" → aclarado como "conciliación de pagos"
+(buscar transferencias en estados de cuenta PDF), dejado como badge
+"Próximamente" (pendiente real, NO construido, con tooltip honesto);
+banner "cierre fiscal SAT"+Resolver → remapeado al cierre mensual REAL
+(`cierreMensual.js`, archiva Ventas/Gastos el día 1), cuenta regresiva al
+último día del mes, SIN botón (el archivado ya es automático); "PAC SAT
+Conectado"+"Facturar global" → quitados, sin sustituto (no existen). Backend
+ganó `ops_totales`/`ops_facturadas`/`ops_sin_facturar` en `mes_actual` de
+`GET /resumen-financiero` (conteo real de ventas/facturas, antes solo
+había montos) — alimenta el badge "N de M ops", "%pendiente (N por
+timbrar)" de la dona y los conteos de la leyenda. Jest backend 902/902 (test
+de integración actualizado con los 2 campos nuevos). **Segunda parte,
+alcance grande, pedido explícito del usuario en la misma conversación**: 3
+tenants de demo nuevos — `tiendauno` (favorable), `tiendados` (promedio),
+`tiendatres` (negativo) — 12 meses cada uno. `sembrar-demo.js`
+parametrizado vía env (`SEED_MESES`/`SEED_SEMILLA`/`SEED_PERFIL`, default
+sin variables = comportamiento histórico exacto) con `PERFIL_CONFIG` nueva
+(pendiente de crecimiento + multiplicador de gastos + ajuste piso/techo/
+ninguno mes-contra-mes). **Bug real encontrado y corregido, mismo patrón
+exacto del punto 186**: `provisionar-tenant.js` corrido con
+`DB_HOST=127.0.0.1` desde el host graba ese valor en
+`control_tenants.tenants.db_host` — el backend (dentro de Docker) necesita
+`mysql` ahí, no `127.0.0.1`; sin el fix, las rutas admin de los 3 tenants
+nuevos daban 500 `ECONNREFUSED`. Corregido con `UPDATE ... SET
+db_host='mysql'` + `docker compose restart backend`. Resultado confirmado
+por HTTP: `tiendauno` crece sostenido ($251,837→$1,327,087, utilidad neta
+positiva todo el año), `tiendados` fluctúa sin tendencia forzada
+($228,779↔$462,008, 1 mes negativo real por ruido natural), `tiendatres`
+declina sostenido ($215,689→$76,993, utilidad neta negativa 4 de 5 meses
+recientes) — cubre Ventas/Gastos/Tickets/CxC/Inventarios de los 3 tenants
+de un solo golpe. **3ra parte, misma conversación**: modal ampliado
+homologado con `stitch_ux_chart_optimization/ventas_facturadas_vs_sin_
+facturar_ux_redesign/code.html` (archivo local subido por el usuario,
+fuera del repo) — mucho más contenido ficticio del mencionado
+explícitamente (selector 1T/6M/YTD, "Tiempo Real", "Riesgo fiscal",
+"Objetivo ≥90%", "PAC Conectado", tabla de 5 operaciones inventadas) — 3
+preguntas más antes de tocar código. La caja "Resolución automatizada
+sugerida" que el usuario pidió mantener SE VOLVIÓ HONESTA (monto real de
+ventas sin facturar, sin la cifra inventada de "clientes con datos
+faltantes", botón real que navega a Ventas con un filtro nuevo
+"Facturación: Sin facturar" ya aplicado — filtro real agregado, mismo
+patrón que "Estado de pago"); el pipeline de 3 etapas se colapsó a 2
+barras reales (el sistema solo tiene 2 estados, nunca existió la etapa
+intermedia "solicitud recibida, datos por validar"); tabla nueva con
+datos reales (fecha/concepto/correo/monto, sin RFC/empresa/método de pago
+inventados, sin botones de acción por fila). Modal RICO dedicado (mismo
+patrón que Utilidad neta/Proyección, HTML fresco por apertura, ya NO el
+mecanismo genérico de reparentar la tarjeta chica). Jest backend 902/902
+(cero endpoint nuevo). Ver PROJECT_STATE.md punto 258 para el detalle
+línea por línea. Sin commit/push todavía.
+
+**Punto 259 (2026-09-09, IMPLEMENTADO Y VALIDADO por HTTP contra Docker/
+MySQL reales)**: homologación con 5 mockups más (ZIPs del Desktop del
+usuario, fuera del repo) para 4 tarjetas de Resumen financiero — Gastos
+(mini+extendida), Ventas vs Facturado vs Gastos (mini), Top proveedores
+(mini), Utilidad neta del mes (mini). Mismo patrón fictício de siempre
+(badges "Conciliación X activa", links sin destino) resuelto sin
+re-preguntar. 3 decisiones nuevas: "Desviación vs Presupuesto"/"Estado
+Presupuestal" en Gastos → **quitados**, pendiente para una etapa 3 futura
+junto con PAC/timbrado; KPI "Gastos Variables/Flexibles" → **construido**
+de verdad (columna `tipo` fijo/variable nueva en `categorias_gastos`,
+editable desde "✏️ Categorías"); categoría por proveedor en Top
+proveedores → **agregada** (dominante, real). Backend:
+`gastos_por_categoria` gana `cantidad`/`con_comprobante`/`tipo`/
+`variacion_mom` real; `top_proveedores` gana `categoria`; `mes_actual`
+gana `gastos_variables`/`gastos_sin_comprobante(_cantidad)`. Modal rico
+nuevo para Gastos (mismo patrón dedicado que Utilidad neta/Proyección/
+Facturación) con caja de sugerencia honesta (gastos sin comprobante
+reales, no la "conciliación automática con 10 XML" inventada del
+mockup) y tabla con "% con comprobante" real en vez de "Estado
+Presupuestal". Filtro interactivo de series (Ventas vs Facturado vs
+Gastos) habilitado también en la tarjeta chica, no solo en el modal.
+Filtro nuevo real "Facturación" en Ventas. Jest backend 905/905. Ver
+PROJECT_STATE.md punto 259 para el detalle línea por línea. Sin
+commit/push todavía.
+
 **Punto 256 (2026-09-09, IMPLEMENTADO Y VALIDADO en navegador real contra
 Docker/MySQL reales)**: "Proyección de ventas" homologada con 2 mockups
 nuevos de `stitch/` (tarjeta chica + modal ampliado). Auditoría dato-real-

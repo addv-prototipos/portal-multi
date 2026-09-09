@@ -116,6 +116,8 @@ const {
   renombrarCategoriaGasto,
   eliminarCategoriaGasto,
   reactivarCategoriaGasto,
+  mapaTipoPorCategoria,
+  actualizarTipoCategoriaGasto,
 } = require('./utils/gastos');
 const {
   TIPOS_ENTRADA,
@@ -5438,10 +5440,12 @@ app.get(
          COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? THEN o.total END), 0) AS ventas,
          COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? THEN o.cantidad END), 0) AS subtotal,
          COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND o.facturado_en IS NOT NULL THEN o.total END), 0) AS facturado,
-         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND o.facturado_en IS NOT NULL THEN o.total END), 0) AS facturado_anterior
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND o.facturado_en IS NOT NULL THEN o.total END), 0) AS facturado_anterior,
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? THEN 1 END), 0) AS ops_totales,
+         COALESCE(SUM(CASE WHEN o.fecha_compra >= ? AND o.fecha_compra < ? AND o.facturado_en IS NOT NULL THEN 1 END), 0) AS ops_facturadas
        FROM ordenes_compra o
        WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ?`,
-      [inicio, fin, inicio, fin, inicio, fin, inicioAnterior, finAnterior, inicioAnterior]
+      [inicio, fin, inicio, fin, inicio, fin, inicioAnterior, finAnterior, inicio, fin, inicio, fin, inicioAnterior]
     );
     const [[kpiGastos]] = await pool.query(
       `SELECT
@@ -5456,6 +5460,8 @@ app.get(
     const facturado = Number(kpiVentas.facturado);
     const facturadoAnterior = Number(kpiVentas.facturado_anterior);
     const subtotalVentas = Number(kpiVentas.subtotal);
+    const opsTotales = Number(kpiVentas.ops_totales);
+    const opsFacturadas = Number(kpiVentas.ops_facturadas);
     const gastos = Number(kpiGastos.gastos);
     const gastosAnterior = Number(kpiGastos.gastos_anterior);
 
@@ -5524,26 +5530,59 @@ app.get(
     // mapa de etiquetas (etiquetaCategoriaGasto en admin.js), mismo
     // criterio que la lista de gastos.
     const [filasGastosCategoria] = await pool.query(
-      `SELECT categoria, SUM(monto) AS monto
+      `SELECT categoria, SUM(monto) AS monto, COUNT(*) AS cantidad,
+              SUM(CASE WHEN tiene_factura = 1 THEN 1 ELSE 0 END) AS con_comprobante
          FROM gastos
         WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?
         GROUP BY categoria
         ORDER BY monto DESC`,
       [inicio, fin]
     );
+    // Mes anterior por categoría, para la Variación MoM real del modal
+    // ampliado (homologado con stitch/..._ux_redesign, columna "Variación
+    // MoM" de la tabla — antes era un % fijo inventado en el mockup).
+    const [filasGastosCategoriaAnterior] = await pool.query(
+      `SELECT categoria, SUM(monto) AS monto
+         FROM gastos
+        WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?
+        GROUP BY categoria`,
+      [inicioAnterior, finAnterior]
+    );
+    const mapaGastosCategoriaAnterior = new Map(filasGastosCategoriaAnterior.map((f) => [f.categoria, Number(f.monto)]));
+    const mapaTipoCategoria = await mapaTipoPorCategoria();
+
+    // Gastos sin comprobante fiscal del mes — mismo campo real
+    // `tiene_factura` que ya usa la vista Gastos (filtro "Comprobante"),
+    // reutilizado aquí para la caja de sugerencia honesta del modal
+    // ampliado (equivalente a "ventas sin facturar" pero del lado de
+    // Gastos).
+    const [[kpiGastosSinComprobante]] = await pool.query(
+      `SELECT COALESCE(SUM(CASE WHEN tiene_factura = 0 THEN monto END), 0) AS monto,
+              COALESCE(SUM(CASE WHEN tiene_factura = 0 THEN 1 END), 0) AS cantidad
+         FROM gastos
+        WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?`,
+      [inicio, fin]
+    );
 
     // Top 5 proveedores de gasto del mes en curso — dato accionable real
     // (columna `proveedor`, texto libre capturado en el alta del gasto);
-    // se excluyen los gastos sin proveedor capturado.
+    // se excluyen los gastos sin proveedor capturado. `categoria_top` es
+    // la categoría más frecuente de ESE proveedor en el mes (un proveedor
+    // real puede tener gastos en más de una categoría — se muestra la
+    // dominante, no todas, mismo criterio que "Mayor egreso").
     const [filasTopProveedores] = await pool.query(
-      `SELECT proveedor, SUM(monto) AS monto
-         FROM gastos
+      `SELECT proveedor, SUM(monto) AS monto,
+         (SELECT g2.categoria FROM gastos g2
+           WHERE g2.eliminado_en IS NULL AND g2.fecha >= ? AND g2.fecha < ?
+             AND g2.proveedor = g.proveedor
+           GROUP BY g2.categoria ORDER BY COUNT(*) DESC, SUM(g2.monto) DESC LIMIT 1) AS categoria_top
+         FROM gastos g
         WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?
           AND proveedor IS NOT NULL AND proveedor <> ''
         GROUP BY proveedor
         ORDER BY monto DESC
         LIMIT 5`,
-      [inicio, fin]
+      [inicio, fin, inicio, fin]
     );
 
     // Proyección de ventas de los próximos 2 meses: estimación estadística
@@ -5593,6 +5632,18 @@ app.get(
       });
     }
 
+    // "Gastos Variables/Flexibles" (KPI del modal ampliado): suma de las
+    // categorías con tipo='variable' (categorias_gastos.tipo, editable
+    // desde el panel "✏️ Categorías") — categorías sin fila en el mapa
+    // (no debería pasar, pero por seguridad) cuentan como variable, mismo
+    // default que la columna en MySQL.
+    let gastosVariables = 0;
+    for (const f of filasGastosCategoria) {
+      if ((mapaTipoCategoria.get(f.categoria) || 'variable') === 'variable') {
+        gastosVariables += Number(f.monto);
+      }
+    }
+
     res.json({
       mes_actual: {
         ventas,
@@ -5603,14 +5654,30 @@ app.get(
         subtotal_ventas: subtotalVentas,
         iva_ventas: ivaVentas,
         utilidad_neta: utilidadNeta,
+        ops_totales: opsTotales,
+        ops_facturadas: opsFacturadas,
+        ops_sin_facturar: opsTotales - opsFacturadas,
+        gastos_variables: Math.round(gastosVariables * 100) / 100,
+        gastos_sin_comprobante: Number(kpiGastosSinComprobante.monto),
+        gastos_sin_comprobante_cantidad: Number(kpiGastosSinComprobante.cantidad),
       },
       tendencia: {
         facturado: calcularTendencia(facturado, facturadoAnterior),
         gastos: calcularTendencia(gastos, gastosAnterior),
       },
       serie_mensual: serie,
-      gastos_por_categoria: filasGastosCategoria.map((f) => ({ categoria: f.categoria, monto: Number(f.monto) })),
-      top_proveedores: filasTopProveedores.map((f) => ({ proveedor: f.proveedor, monto: Number(f.monto) })),
+      gastos_por_categoria: filasGastosCategoria.map((f) => {
+        const montoAnterior = mapaGastosCategoriaAnterior.get(f.categoria) || 0;
+        return {
+          categoria: f.categoria,
+          monto: Number(f.monto),
+          cantidad: Number(f.cantidad),
+          con_comprobante: Number(f.con_comprobante),
+          tipo: mapaTipoCategoria.get(f.categoria) || 'variable',
+          variacion_mom: montoAnterior > 0 ? Math.round(((Number(f.monto) - montoAnterior) / montoAnterior) * 1000) / 10 : null,
+        };
+      }),
+      top_proveedores: filasTopProveedores.map((f) => ({ proveedor: f.proveedor, monto: Number(f.monto), categoria: f.categoria_top || null })),
       proyeccion_ventas: proyeccionVentas,
     });
   })
@@ -6592,6 +6659,28 @@ app.post(
       return res.status(resultado.status || 400).json({ error: resultado.error });
     }
     res.json({ ok: true, mensaje: 'Categoría reactivada.' });
+  })
+);
+
+// Clasificación fijo/variable (ver PROJECT_STATE.md, KPI "Gastos
+// Variables/Flexibles" del modal ampliado de "Distribución de gastos por
+// categoría") — no afecta el CHECK de negocio de `gastos`, es solo
+// metadata de la categoría para agrupar en Resumen financiero.
+app.put(
+  '/api/admin/gastos/categorias/:id/tipo',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+    const resultado = await actualizarTipoCategoriaGasto(id, req.body && req.body.tipo);
+    if (resultado.error) {
+      return res.status(resultado.status || 400).json({ error: resultado.error });
+    }
+    res.json({ ok: true, categoria: resultado, mensaje: 'Tipo actualizado.' });
   })
 );
 

@@ -993,6 +993,29 @@ async function ensureSchema(db = pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // Migración: `tipo` (fijo/variable) — pedido del usuario para la tarjeta
+  // "Distribución de gastos por categoría" (KPI "Gastos Variables/
+  // Flexibles" del modal ampliado, homologado con
+  // stitch/distribución_de_gastos_por_categoría_ux_redesign). Default
+  // 'variable' — más categorías reales (publicidad/combustible/software/
+  // viáticos/hosting/servicios/papeleria/otro) son variables que fijas
+  // (solo nómina/renta), así que el default no deja "fijo" mal clasificado
+  // por accidente en categorías nuevas que el admin no haya tocado.
+  const [columnasCategoriasGastos] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'categorias_gastos'`
+  );
+  const nombresColumnasCategoriasGastos = columnasCategoriasGastos.map((c) => c.COLUMN_NAME);
+  if (!nombresColumnasCategoriasGastos.includes('tipo')) {
+    await db.query(
+      "ALTER TABLE categorias_gastos ADD COLUMN tipo ENUM('fijo','variable') NOT NULL DEFAULT 'variable'"
+    );
+    // Backfill honesto de las 2 categorías sembradas que sí son
+    // predecibles como fijas (nómina/renta) — el resto se queda en el
+    // default 'variable', el admin puede corregir desde el editor.
+    await db.query("UPDATE categorias_gastos SET tipo = 'fijo' WHERE slug IN ('nomina', 'renta')");
+  }
+
   // Semilla idempotente: solo inserta los slugs que todavía no existan
   // (una instalación ya usada puede tener gastos con estos 10 slugs, así
   // que se siembran SIEMPRE con el mismo slug de antes — nunca se

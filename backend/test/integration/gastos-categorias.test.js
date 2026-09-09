@@ -38,15 +38,15 @@ describe('Admin: Categorías de gastos (editables, ver PROJECT_STATE.md)', () =>
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       pool.query.mockResolvedValueOnce([
         [
-          { id: 1, slug: 'renta', etiqueta: 'Renta', activa: 1, protegida: 0, tiene_gastos: 1 },
-          { id: 10, slug: 'otro', etiqueta: 'Otro', activa: 1, protegida: 1, tiene_gastos: 0 },
+          { id: 1, slug: 'renta', etiqueta: 'Renta', activa: 1, protegida: 0, tipo: 'fijo', tiene_gastos: 1 },
+          { id: 10, slug: 'otro', etiqueta: 'Otro', activa: 1, protegida: 1, tipo: 'variable', tiene_gastos: 0 },
         ],
       ]);
       const res = await request(app).get('/api/admin/gastos/categorias').auth(usuario, password);
       expect(res.status).toBe(200);
       expect(res.body.categorias).toEqual([
-        { id: 1, slug: 'renta', etiqueta: 'Renta', activa: true, protegida: false, tieneGastos: true },
-        { id: 10, slug: 'otro', etiqueta: 'Otro', activa: true, protegida: true, tieneGastos: false },
+        { id: 1, slug: 'renta', etiqueta: 'Renta', activa: true, protegida: false, tipo: 'fijo', tieneGastos: true },
+        { id: 10, slug: 'otro', etiqueta: 'Otro', activa: true, protegida: true, tipo: 'variable', tieneGastos: false },
       ]);
     });
   });
@@ -179,6 +179,35 @@ describe('Admin: Categorías de gastos (editables, ver PROJECT_STATE.md)', () =>
       expect(res.status).toBe(200);
       expect(res.body.mensaje).toMatch(/reactivada/i);
       expect(pool.query).toHaveBeenLastCalledWith(expect.stringMatching(/UPDATE categorias_gastos SET activa = 1/), [
+        expect.any(Date),
+        1,
+      ]);
+    });
+  });
+
+  describe('PUT /api/admin/gastos/categorias/:id/tipo', () => {
+    test('tipo inválido responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      const res = await request(app).put('/api/admin/gastos/categorias/1/tipo').auth(usuario, password).send({ tipo: 'otra-cosa' });
+      expect(res.status).toBe(400);
+    });
+
+    test('categoría no encontrada responde 404', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[]]);
+      const res = await request(app).put('/api/admin/gastos/categorias/999/tipo').auth(usuario, password).send({ tipo: 'fijo' });
+      expect(res.status).toBe(404);
+    });
+
+    test('actualiza el tipo de una categoría existente', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]);
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
+      const res = await request(app).put('/api/admin/gastos/categorias/1/tipo').auth(usuario, password).send({ tipo: 'fijo' });
+      expect(res.status).toBe(200);
+      expect(res.body.categoria).toEqual({ id: 1, tipo: 'fijo' });
+      expect(pool.query).toHaveBeenLastCalledWith(expect.stringMatching(/UPDATE categorias_gastos SET tipo = \?/), [
+        'fijo',
         expect.any(Date),
         1,
       ]);

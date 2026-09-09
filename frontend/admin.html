@@ -618,9 +618,27 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
             </button>
           </div>
+          <div class="resumen-fin-header-tags">
+            <span class="resumen-fin-header-tag" id="unm-mini-tag-q">—</span>
+          </div>
           <div id="resumen-fin-utilidad-contenido">
-            <p class="resumen-fin-utilidad-valor" id="resumen-fin-utilidad-valor">$0.00</p>
+            <div class="resumen-fin-utilidad-valor-fila">
+              <p class="resumen-fin-utilidad-valor" id="resumen-fin-utilidad-valor">$0.00</p>
+              <span class="resumen-fin-utilidad-badge" id="unm-mini-badge" hidden>—</span>
+            </div>
             <p class="resumen-fin-utilidad-nota">Subtotal de ventas (sin IVA) − gastos. El IVA mostrado es el cobrado en ventas, no una cifra fiscal.</p>
+            <div class="resumen-fin-balance-kpis" id="unm-mini-kpis" hidden>
+              <div class="resumen-fin-balance-kpi">
+                <span class="resumen-fin-balance-kpi-label">Ventas netas</span>
+                <span class="resumen-fin-balance-kpi-val" id="unm-mini-kpi-ventas">—</span>
+                <span class="resumen-fin-balance-kpi-nota" id="unm-mini-kpi-ventas-nota"></span>
+              </div>
+              <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-proy">
+                <span class="resumen-fin-balance-kpi-label">Gastos totales</span>
+                <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-proy" id="unm-mini-kpi-gastos">—</span>
+                <span class="resumen-fin-balance-kpi-nota" id="unm-mini-kpi-gastos-nota"></span>
+              </div>
+            </div>
             <div class="resumen-fin-chart-body resumen-fin-utilidad-body" id="resumen-fin-utilidad-body" role="img"></div>
             <p class="admin-empty" id="resumen-fin-utilidad-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
             <ul class="resumen-fin-chart-leyenda">
@@ -629,6 +647,15 @@
               <li><span class="resumen-fin-dot resumen-fin-dot-total" aria-hidden="true"></span>Ventas totales</li>
               <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
             </ul>
+            <div class="resumen-fin-alerta-banner" id="unm-mini-alerta" hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              <span id="unm-mini-alerta-texto">—</span>
+              <button type="button" class="btn btn-secondary resumen-fin-alerta-btn" id="unm-mini-btn-analizar">Analizar</button>
+            </div>
+            <div class="resumen-fin-cierre-banner" id="unm-mini-cierre-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              <span id="unm-mini-cierre-texto">—</span>
+            </div>
           </div>
         </section>
 
@@ -642,14 +669,18 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
               </button>
             </div>
+            <div class="resumen-fin-header-tags">
+              <span class="resumen-fin-header-tag" id="resumen-fin-donut-facturacion-tag-q">—</span>
+              <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Buscar transferencias en tus estados de cuenta (PDF) y conciliarlas contra tus ventas — función planeada, todavía no está construida.">Conciliación de pagos · Próximamente</span>
+            </div>
             <div id="resumen-fin-donut-facturacion-contenido">
               <div class="resumen-fin-balance-kpis" id="resumen-fin-donut-facturacion-kpis" hidden>
                 <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-pos">
-                  <span class="resumen-fin-balance-kpi-label">Facturado</span>
+                  <span class="resumen-fin-balance-kpi-label">Total ventas <span class="resumen-fin-balance-kpi-badge" id="resumen-fin-donut-facturacion-kpi-ops">0 ops</span></span>
                   <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-pos" id="resumen-fin-donut-facturacion-kpi-facturado">—</span>
                 </div>
                 <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-proy">
-                  <span class="resumen-fin-balance-kpi-label">Sin facturar</span>
+                  <span class="resumen-fin-balance-kpi-label">Sin facturar <span class="resumen-fin-balance-kpi-badge resumen-fin-balance-kpi-badge-proy" id="resumen-fin-donut-facturacion-kpi-pct">0%</span></span>
                   <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-proy" id="resumen-fin-donut-facturacion-kpi-sin-facturar">—</span>
                 </div>
               </div>
@@ -659,11 +690,16 @@
                   <div class="resumen-fin-donut-centro">
                     <span class="resumen-fin-donut-total" id="resumen-fin-donut-facturacion-total">$0</span>
                     <span class="resumen-fin-donut-total-label">Ventas</span>
+                    <span class="resumen-fin-donut-badge" id="resumen-fin-donut-facturacion-badge" hidden>0% pendiente</span>
                   </div>
                 </div>
                 <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-facturacion-leyenda"></ul>
               </div>
               <p class="admin-empty" id="resumen-fin-donut-facturacion-empty" hidden>Aún no hay ventas registradas este mes.</p>
+              <div class="resumen-fin-cierre-banner" id="resumen-fin-cierre-banner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                <span id="resumen-fin-cierre-banner-texto">—</span>
+              </div>
               <p class="resumen-fin-proyeccion-nota" id="resumen-fin-donut-facturacion-nota" hidden>Una venta cuenta como "Facturada" en cuanto se sube el ZIP de su factura — para el detalle por venta, ve a Ventas.</p>
             </div>
           </section>
@@ -678,7 +714,22 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
               </button>
             </div>
+            <div class="resumen-fin-header-tags">
+              <span class="resumen-fin-header-tag" id="gastos-cat-tag-q">—</span>
+              <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Buscar transferencias en tus estados de cuenta (PDF) y conciliarlas contra tus gastos — función planeada, todavía no está construida.">Conciliación de pagos · Próximamente</span>
+            </div>
             <div id="resumen-fin-donut-categorias-contenido">
+              <div class="resumen-fin-balance-kpis" id="gastos-cat-kpis" hidden>
+                <div class="resumen-fin-balance-kpi">
+                  <span class="resumen-fin-balance-kpi-label">Total gastos <span class="resumen-fin-balance-kpi-badge" id="gastos-cat-kpi-ncats">0 cats</span></span>
+                  <span class="resumen-fin-balance-kpi-val" id="gastos-cat-kpi-total">—</span>
+                </div>
+                <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-proy">
+                  <span class="resumen-fin-balance-kpi-label">Mayor egreso <span class="resumen-fin-balance-kpi-badge resumen-fin-balance-kpi-badge-proy" id="gastos-cat-kpi-mayor-pct">0%</span></span>
+                  <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-proy" id="gastos-cat-kpi-mayor-monto">—</span>
+                  <span class="resumen-fin-balance-kpi-nota" id="gastos-cat-kpi-mayor-nombre"></span>
+                </div>
+              </div>
               <div class="resumen-fin-donut-body">
                 <div class="resumen-fin-donut-wrap">
                   <svg class="resumen-fin-donut" id="resumen-fin-donut-categorias" viewBox="0 0 100 100" width="130" height="130" aria-hidden="true"></svg>
@@ -690,6 +741,14 @@
                 <ul class="resumen-fin-donut-leyenda" id="resumen-fin-donut-categorias-leyenda"></ul>
               </div>
               <p class="admin-empty" id="resumen-fin-donut-categorias-empty" hidden>Aún no hay gastos registrados este mes.</p>
+              <div class="resumen-fin-alerta-banner" id="gastos-cat-alerta" hidden>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                <span id="gastos-cat-alerta-texto">—</span>
+                <button type="button" class="btn btn-secondary resumen-fin-alerta-btn" id="gastos-cat-btn-ver-detalle">Ver detalle</button>
+              </div>
+              <div class="resumen-fin-footer-nav">
+                <button type="button" class="resumen-fin-footer-nav-link" id="gastos-cat-btn-ir-gastos">Ver en Gastos →</button>
+              </div>
             </div>
           </section>
 
@@ -703,7 +762,21 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
             </button>
           </div>
+          <div class="resumen-fin-header-tags">
+            <span class="resumen-fin-header-tag" id="chart-vfg-tag-q">—</span>
+            <span class="resumen-fin-header-tag" id="chart-vfg-tag-n">—</span>
+          </div>
           <div id="resumen-fin-chart-contenido">
+            <div class="resumen-fin-balance-kpis" id="chart-vfg-kpis" hidden>
+              <div class="resumen-fin-balance-kpi">
+                <span class="resumen-fin-balance-kpi-label">Ventas totales</span>
+                <span class="resumen-fin-balance-kpi-val" id="chart-vfg-kpi-ventas">—</span>
+              </div>
+              <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-proy">
+                <span class="resumen-fin-balance-kpi-label">Por facturar <span class="resumen-fin-balance-kpi-badge resumen-fin-balance-kpi-badge-proy" id="chart-vfg-kpi-pct">0%</span></span>
+                <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-proy" id="chart-vfg-kpi-sinfact">—</span>
+              </div>
+            </div>
             <div class="resumen-fin-chart-body" id="resumen-fin-chart-body"></div>
             <p class="admin-empty" id="resumen-fin-chart-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
             <ul class="resumen-fin-chart-leyenda resumen-fin-chart-leyenda-filtrable" id="resumen-fin-chart-leyenda-filtrable">
@@ -712,6 +785,13 @@
               <li data-serie="facturado"><span class="resumen-fin-dot resumen-fin-dot-facturado" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Facturado</span></li>
               <li data-serie="sin-facturar"><span class="resumen-fin-dot resumen-fin-dot-sin-facturar" aria-hidden="true"></span><span class="resumen-fin-leyenda-txt">Sin facturar</span></li>
             </ul>
+            <div class="resumen-fin-alerta-banner" id="chart-vfg-alerta" hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              <span id="chart-vfg-alerta-texto">—</span>
+            </div>
+            <div class="resumen-fin-footer-nav">
+              <button type="button" class="resumen-fin-footer-nav-link" id="chart-vfg-btn-ir-ventas">Ver en Ventas →</button>
+            </div>
           </div>
         </section>
 
@@ -785,9 +865,32 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
             </button>
           </div>
+          <div class="resumen-fin-header-tags">
+            <span class="resumen-fin-header-tag" id="proveedores-tag-q">—</span>
+            <span class="resumen-fin-header-tag" id="proveedores-tag-n">—</span>
+          </div>
           <div id="resumen-fin-proveedores-contenido">
+          <div class="resumen-fin-balance-kpis" id="proveedores-kpis" hidden>
+            <div class="resumen-fin-balance-kpi">
+              <span class="resumen-fin-balance-kpi-label">Total acumulado <span class="resumen-fin-balance-kpi-badge" id="proveedores-kpi-top5-badge">Top 5</span></span>
+              <span class="resumen-fin-balance-kpi-val" id="proveedores-kpi-top5-total">—</span>
+              <span class="resumen-fin-balance-kpi-nota" id="proveedores-kpi-top5-pct"></span>
+            </div>
+            <div class="resumen-fin-balance-kpi resumen-fin-balance-kpi-proy">
+              <span class="resumen-fin-balance-kpi-label">Mayor proveedor <span class="resumen-fin-balance-kpi-badge resumen-fin-balance-kpi-badge-proy" id="proveedores-kpi-mayor-pct">0%</span></span>
+              <span class="resumen-fin-balance-kpi-val resumen-fin-balance-kpi-val-proy" id="proveedores-kpi-mayor-monto">—</span>
+              <span class="resumen-fin-balance-kpi-nota" id="proveedores-kpi-mayor-nombre"></span>
+            </div>
+          </div>
           <ul class="resumen-fin-proveedores-lista" id="resumen-fin-proveedores-lista"></ul>
           <p class="admin-empty" id="resumen-fin-proveedores-empty" hidden>Aún no hay gastos con proveedor capturado este mes.</p>
+          <div class="resumen-fin-alerta-banner" id="proveedores-alerta" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            <span id="proveedores-alerta-texto">—</span>
+          </div>
+          <div class="resumen-fin-footer-nav">
+            <button type="button" class="resumen-fin-footer-nav-link" id="proveedores-btn-ir-gastos">Ver en Gastos →</button>
+          </div>
           </div>
         </section>
         </div>
@@ -849,6 +952,14 @@
               <option value="pagada">Pagada</option>
               <option value="pendiente">Pendiente</option>
               <option value="vencida">Vencida</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ordenes-filtro-facturacion">Facturación</label>
+            <select id="ordenes-filtro-facturacion">
+              <option value="">Todas</option>
+              <option value="facturada">Facturadas</option>
+              <option value="sin_facturar">Sin facturar</option>
             </select>
           </div>
           <div class="field">

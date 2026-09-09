@@ -252,6 +252,7 @@
     ordenesFiltroTotalMin: document.getElementById('ordenes-filtro-total-min'),
     ordenesFiltroTotalMax: document.getElementById('ordenes-filtro-total-max'),
     ordenesFiltroEstadoPago: document.getElementById('ordenes-filtro-estado-pago'),
+    ordenesFiltroFacturacion: document.getElementById('ordenes-filtro-facturacion'),
     ordenesFiltroPeriodo: document.getElementById('ordenes-filtro-periodo'),
     btnLimpiarFiltrosOrdenes: document.getElementById('btn-limpiar-filtros-ordenes'),
     ordenesFiltroEmpty: document.getElementById('ordenes-filtro-empty'),
@@ -438,10 +439,30 @@
     resumenFinKpiSinFacturar: document.getElementById('resumen-fin-kpi-sin-facturar'),
     resumenFinChartBody: document.getElementById('resumen-fin-chart-body'),
     resumenFinChartEmpty: document.getElementById('resumen-fin-chart-empty'),
+    chartVfgTagQ: document.getElementById('chart-vfg-tag-q'),
+    chartVfgTagN: document.getElementById('chart-vfg-tag-n'),
+    chartVfgKpis: document.getElementById('chart-vfg-kpis'),
+    chartVfgKpiVentas: document.getElementById('chart-vfg-kpi-ventas'),
+    chartVfgKpiPct: document.getElementById('chart-vfg-kpi-pct'),
+    chartVfgKpiSinfact: document.getElementById('chart-vfg-kpi-sinfact'),
+    chartVfgAlerta: document.getElementById('chart-vfg-alerta'),
+    chartVfgAlertaTexto: document.getElementById('chart-vfg-alerta-texto'),
+    chartVfgBtnIrVentas: document.getElementById('chart-vfg-btn-ir-ventas'),
     resumenFinChartLeyendaFiltrable: document.getElementById('resumen-fin-chart-leyenda-filtrable'),
     resumenFinUtilidadValor: document.getElementById('resumen-fin-utilidad-valor'),
     resumenFinUtilidadBody: document.getElementById('resumen-fin-utilidad-body'),
     resumenFinUtilidadEmpty: document.getElementById('resumen-fin-utilidad-empty'),
+    unmMiniTagQ: document.getElementById('unm-mini-tag-q'),
+    unmMiniBadge: document.getElementById('unm-mini-badge'),
+    unmMiniKpis: document.getElementById('unm-mini-kpis'),
+    unmMiniKpiVentas: document.getElementById('unm-mini-kpi-ventas'),
+    unmMiniKpiVentasNota: document.getElementById('unm-mini-kpi-ventas-nota'),
+    unmMiniKpiGastos: document.getElementById('unm-mini-kpi-gastos'),
+    unmMiniKpiGastosNota: document.getElementById('unm-mini-kpi-gastos-nota'),
+    unmMiniAlerta: document.getElementById('unm-mini-alerta'),
+    unmMiniAlertaTexto: document.getElementById('unm-mini-alerta-texto'),
+    unmMiniBtnAnalizar: document.getElementById('unm-mini-btn-analizar'),
+    unmMiniCierreTexto: document.getElementById('unm-mini-cierre-texto'),
     resumenFinBalanceSvg: document.getElementById('resumen-fin-balance-svg'),
     resumenFinBalanceEtiquetas: document.getElementById('resumen-fin-balance-etiquetas'),
     resumenFinBalanceEmpty: document.getElementById('resumen-fin-balance-empty'),
@@ -463,6 +484,17 @@
     resumenFinDonutCategoriasTotal: document.getElementById('resumen-fin-donut-categorias-total'),
     resumenFinDonutCategoriasLeyenda: document.getElementById('resumen-fin-donut-categorias-leyenda'),
     resumenFinDonutCategoriasEmpty: document.getElementById('resumen-fin-donut-categorias-empty'),
+    gastosCatTagQ: document.getElementById('gastos-cat-tag-q'),
+    gastosCatKpis: document.getElementById('gastos-cat-kpis'),
+    gastosCatKpiNcats: document.getElementById('gastos-cat-kpi-ncats'),
+    gastosCatKpiTotal: document.getElementById('gastos-cat-kpi-total'),
+    gastosCatKpiMayorPct: document.getElementById('gastos-cat-kpi-mayor-pct'),
+    gastosCatKpiMayorMonto: document.getElementById('gastos-cat-kpi-mayor-monto'),
+    gastosCatKpiMayorNombre: document.getElementById('gastos-cat-kpi-mayor-nombre'),
+    gastosCatAlerta: document.getElementById('gastos-cat-alerta'),
+    gastosCatAlertaTexto: document.getElementById('gastos-cat-alerta-texto'),
+    gastosCatBtnVerDetalle: document.getElementById('gastos-cat-btn-ver-detalle'),
+    gastosCatBtnIrGastos: document.getElementById('gastos-cat-btn-ir-gastos'),
     resumenFinDonutFacturacion: document.getElementById('resumen-fin-donut-facturacion'),
     resumenFinDonutFacturacionTotal: document.getElementById('resumen-fin-donut-facturacion-total'),
     resumenFinDonutFacturacionLeyenda: document.getElementById('resumen-fin-donut-facturacion-leyenda'),
@@ -470,9 +502,26 @@
     resumenFinDonutFacturacionKpis: document.getElementById('resumen-fin-donut-facturacion-kpis'),
     resumenFinDonutFacturacionKpiFacturado: document.getElementById('resumen-fin-donut-facturacion-kpi-facturado'),
     resumenFinDonutFacturacionKpiSinFacturar: document.getElementById('resumen-fin-donut-facturacion-kpi-sin-facturar'),
+    resumenFinDonutFacturacionKpiOps: document.getElementById('resumen-fin-donut-facturacion-kpi-ops'),
+    resumenFinDonutFacturacionKpiPct: document.getElementById('resumen-fin-donut-facturacion-kpi-pct'),
+    resumenFinDonutFacturacionTagQ: document.getElementById('resumen-fin-donut-facturacion-tag-q'),
+    resumenFinDonutFacturacionBadge: document.getElementById('resumen-fin-donut-facturacion-badge'),
+    resumenFinCierreBanner: document.getElementById('resumen-fin-cierre-banner'),
+    resumenFinCierreBannerTexto: document.getElementById('resumen-fin-cierre-banner-texto'),
     resumenFinDonutFacturacionNota: document.getElementById('resumen-fin-donut-facturacion-nota'),
     resumenFinProveedoresLista: document.getElementById('resumen-fin-proveedores-lista'),
     resumenFinProveedoresEmpty: document.getElementById('resumen-fin-proveedores-empty'),
+    proveedoresTagQ: document.getElementById('proveedores-tag-q'),
+    proveedoresTagN: document.getElementById('proveedores-tag-n'),
+    proveedoresKpis: document.getElementById('proveedores-kpis'),
+    proveedoresKpiTop5Total: document.getElementById('proveedores-kpi-top5-total'),
+    proveedoresKpiTop5Pct: document.getElementById('proveedores-kpi-top5-pct'),
+    proveedoresKpiMayorPct: document.getElementById('proveedores-kpi-mayor-pct'),
+    proveedoresKpiMayorMonto: document.getElementById('proveedores-kpi-mayor-monto'),
+    proveedoresKpiMayorNombre: document.getElementById('proveedores-kpi-mayor-nombre'),
+    proveedoresAlerta: document.getElementById('proveedores-alerta'),
+    proveedoresAlertaTexto: document.getElementById('proveedores-alerta-texto'),
+    proveedoresBtnIrGastos: document.getElementById('proveedores-btn-ir-gastos'),
     resumenFinDetalleOverlay: document.getElementById('resumen-fin-detalle-overlay'),
     resumenFinDetalleModal: document.querySelector('.resumen-fin-detalle-modal'),
     resumenFinDetalleBody: document.getElementById('resumen-fin-detalle-body'),
@@ -6731,6 +6780,7 @@
     const totalMin = els.ordenesFiltroTotalMin.value ? Number(els.ordenesFiltroTotalMin.value) : null;
     const totalMax = els.ordenesFiltroTotalMax.value ? Number(els.ordenesFiltroTotalMax.value) : null;
     const estadoPagoFiltro = els.ordenesFiltroEstadoPago ? els.ordenesFiltroEstadoPago.value : '';
+    const facturacionFiltro = els.ordenesFiltroFacturacion ? els.ordenesFiltroFacturacion.value : '';
 
     const filtradas = ordenesCache.filter((orden) => {
       if (concepto && !normalizar(orden.concepto).includes(concepto)) return false;
@@ -6746,6 +6796,8 @@
         if (estadoPagoFiltro === 'pendiente' && !esPendiente) return false;
         if (estadoPagoFiltro === 'vencida' && !(esPendiente && esVencida(orden))) return false;
       }
+      if (facturacionFiltro === 'facturada' && !orden.facturado) return false;
+      if (facturacionFiltro === 'sin_facturar' && orden.facturado) return false;
       return true;
     });
 
@@ -6763,7 +6815,7 @@
     }
 
     renderOrdenes([...pendientes, ...filtradas]);
-    const hayFiltro = Boolean(concepto || fechaDesde || fechaHasta || totalMin !== null || totalMax !== null || estadoPagoFiltro);
+    const hayFiltro = Boolean(concepto || fechaDesde || fechaHasta || totalMin !== null || totalMax !== null || estadoPagoFiltro || facturacionFiltro);
     els.ordenesEmpty.hidden = ordenesCache.length > 0 || pendientes.length > 0;
     els.ordenesFiltroEmpty.hidden = !(hayFiltro && ordenesCache.length > 0 && filtradas.length === 0);
   }
@@ -6771,6 +6823,7 @@
     el.addEventListener('input', () => aplicarFiltrosOrdenes());
   });
   if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.addEventListener('change', () => aplicarFiltrosOrdenes());
+  if (els.ordenesFiltroFacturacion) els.ordenesFiltroFacturacion.addEventListener('change', () => aplicarFiltrosOrdenes());
   if (els.ordenesFiltroPeriodo) {
     els.ordenesFiltroPeriodo.addEventListener('change', () => {
       // Periodo archivado vive en el servidor — hay que volver a pedir la lista
@@ -6786,6 +6839,7 @@
     els.ordenesFiltroTotalMin.value = '';
     els.ordenesFiltroTotalMax.value = '';
     if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.value = '';
+    if (els.ordenesFiltroFacturacion) els.ordenesFiltroFacturacion.value = '';
     if (els.ordenesFiltroPeriodo) els.ordenesFiltroPeriodo.value = '';
     if (els.ordenesFiltroPeriodo) cargarOrdenes();
     else aplicarFiltrosOrdenes();
@@ -8096,6 +8150,10 @@
     }
     return `<div class="gastos-categoria-fila" data-id="${c.id}">
       <span class="gastos-categoria-nombre">${escapeHtml(c.etiqueta)}${c.activa ? '' : ' <em>(inactiva)</em>'}</span>
+      <select class="gastos-categoria-tipo" data-id="${c.id}" aria-label="Tipo de gasto de ${escapeHtml(c.etiqueta)}" data-tooltip="Fijo/variable — usado en Resumen financiero (KPI \'Gastos Variables/Flexibles\')">
+        <option value="fijo" ${c.tipo === 'fijo' ? 'selected' : ''}>Fijo</option>
+        <option value="variable" ${c.tipo === 'variable' ? 'selected' : ''}>Variable</option>
+      </select>
       ${c.activa ? '' : `<button type="button" class="btn-categoria-accion gastos-categoria-reactivar" data-id="${c.id}">Reactivar</button>`}
       <button type="button" class="btn-icon gastos-categoria-renombrar" data-id="${c.id}" aria-label="Renombrar ${escapeHtml(c.etiqueta)}">✏️</button>
       ${c.tieneGastos ? '' : `<button type="button" class="btn-icon gastos-categoria-borrar" data-id="${c.id}" aria-label="Eliminar ${escapeHtml(c.etiqueta)}">🗑️</button>`}
@@ -8165,6 +8223,33 @@
       }
       await cargarCategoriasGastos();
       showToast(data.mensaje || 'Categoría reactivada.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  async function actualizarTipoCategoriaGastoPanel(id, tipo) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/gastos/categorias/${id}/tipo`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo actualizar el tipo.', true);
+        await cargarCategoriasGastos();
+        return;
+      }
+      await cargarCategoriasGastos();
+      showToast('Tipo actualizado.');
     } catch (err) {
       showToast('No se pudo conectar con el servidor.', true);
     }
@@ -8676,6 +8761,36 @@
       els.resumenFinChartBody.appendChild(columna);
     });
 
+    actualizarTagQGenerico(els.chartVfgTagQ);
+    if (els.chartVfgTagN) els.chartVfgTagN.textContent = `${serie.length} mes${serie.length === 1 ? '' : 'es'}`;
+    if (els.chartVfgKpis) {
+      if (serie.length > 0) {
+        const ventasTotales = serie.reduce((acc, m) => acc + m.ventas, 0);
+        const sinFacturarTotales = serie.reduce((acc, m) => acc + Math.max(0, m.ventas - m.facturado), 0);
+        els.chartVfgKpiVentas.textContent = `$${formatearMoneda(ventasTotales)}`;
+        els.chartVfgKpiPct.textContent = ventasTotales > 0 ? `${Math.round((sinFacturarTotales / ventasTotales) * 100)}%` : '0%';
+        els.chartVfgKpiSinfact.textContent = `$${formatearMoneda(sinFacturarTotales)}`;
+        els.chartVfgKpis.hidden = false;
+      } else {
+        els.chartVfgKpis.hidden = true;
+      }
+    }
+    if (els.chartVfgAlerta) {
+      const sinFacturarMes = mes.ventas_sin_facturar || 0;
+      if (sinFacturarMes > 0) {
+        els.chartVfgAlertaTexto.innerHTML = `<strong>Este mes:</strong> $${formatearMoneda(sinFacturarMes)} pendientes de timbrado`;
+        els.chartVfgAlerta.hidden = false;
+      } else {
+        els.chartVfgAlerta.hidden = true;
+      }
+    }
+    if (els.chartVfgBtnIrVentas) {
+      els.chartVfgBtnIrVentas.onclick = () => {
+        if (els.ordenesFiltroFacturacion) els.ordenesFiltroFacturacion.value = 'sin_facturar';
+        cambiarVistaPrincipal('ordenes');
+      };
+    }
+
     renderResumenFinUtilidad(mes);
     cacheMesActualUtilidadNeta = typeof mes.utilidad_neta === 'number' ? mes.utilidad_neta : null;
     renderResumenFinUtilidadMensual(serie);
@@ -8683,7 +8798,7 @@
     renderResumenFinProyeccion(serie, data.proyeccion_ventas);
     renderResumenFinGastosCategoria(data.gastos_por_categoria || []);
     renderResumenFinFacturacion(mes);
-    renderResumenFinProveedores(data.top_proveedores || []);
+    renderResumenFinProveedores(data.top_proveedores || [], mes);
   }
 
   // Tarjeta "Utilidad neta del mes (ventas totales vs gastos)" (punto
@@ -8705,10 +8820,53 @@
     els.resumenFinUtilidadValor.classList.toggle('es-positiva', utilidad > 0);
     els.resumenFinUtilidadValor.classList.toggle('es-negativa', utilidad < 0);
 
+    actualizarTagQGenerico(els.unmMiniTagQ);
+    if (els.unmMiniCierreTexto) {
+      const { diasRestantes, nombreMes } = calcularCierreMensual();
+      els.unmMiniCierreTexto.textContent = diasRestantes === 0
+        ? `Hoy cierra el mes — mañana se archivan Ventas y Gastos de ${nombreMes}.`
+        : `Faltan ${diasRestantes} día${diasRestantes === 1 ? '' : 's'} para el cierre de ${nombreMes}.`;
+    }
+    if (els.unmMiniBtnAnalizar) {
+      els.unmMiniBtnAnalizar.onclick = () => {
+        const boton = document.querySelector('[data-detalle-contenido="resumen-fin-balance-contenido"]');
+        if (boton) boton.click();
+      };
+    }
+
     const hayDatos = ventasTotales > 0 || gastos > 0;
     els.resumenFinUtilidadEmpty.hidden = hayDatos;
     els.resumenFinUtilidadBody.hidden = !hayDatos;
+    if (els.unmMiniBadge) els.unmMiniBadge.hidden = !hayDatos;
+    if (els.unmMiniKpis) els.unmMiniKpis.hidden = !hayDatos;
+    if (els.unmMiniAlerta) els.unmMiniAlerta.hidden = !hayDatos || gastos <= 0;
     if (!hayDatos) return;
+
+    if (els.unmMiniBadge) {
+      els.unmMiniBadge.textContent = utilidad >= 0 ? 'Superávit operativo' : 'Déficit operativo';
+      els.unmMiniBadge.classList.toggle('es-positiva', utilidad >= 0);
+      els.unmMiniBadge.classList.toggle('es-negativa', utilidad < 0);
+    }
+    if (els.unmMiniKpis) {
+      els.unmMiniKpiVentas.textContent = `$${formatearMoneda(subtotal)}`;
+      els.unmMiniKpiVentasNota.textContent = `+$${formatearMoneda(iva)} IVA incl.`;
+      els.unmMiniKpiGastos.textContent = `$${formatearMoneda(gastos)}`;
+      els.unmMiniKpiGastosNota.textContent = subtotal > 0
+        ? `${(gastos / subtotal).toFixed(1)}x sobre ventas`
+        : (gastos > 0 ? 'Sin ventas este mes' : '');
+    }
+    if (els.unmMiniAlerta && gastos > 0) {
+      if (subtotal > 0 && gastos > subtotal) {
+        els.unmMiniAlertaTexto.innerHTML = `Los gastos superan los ingresos en <strong>${(gastos / subtotal).toFixed(1)}x</strong> este mes.`;
+        els.unmMiniAlerta.hidden = false;
+      } else if (subtotal > 0 && utilidad > 0) {
+        const margen = Math.round((utilidad / subtotal) * 100);
+        els.unmMiniAlertaTexto.innerHTML = `Margen neto del <strong>${margen}%</strong> este mes.`;
+        els.unmMiniAlerta.hidden = false;
+      } else {
+        els.unmMiniAlerta.hidden = true;
+      }
+    }
 
     const maximo = Math.max(ventasTotales, gastos, 1);
     // Mínimo 1% para valores > 0: que un monto chico siga siendo visible
@@ -9185,16 +9343,64 @@
   const RESUMEN_FIN_COLOR_FACTURADO = '#36b98a';
   const RESUMEN_FIN_COLOR_SIN_FACTURAR = '#ed7a4c';
 
+  let cacheGastosPorCategoria = [];
+
+  function actualizarTagQGenerico(el) {
+    if (!el) return;
+    const hoy = new Date();
+    const trimestre = Math.floor(hoy.getMonth() / 3) + 1;
+    el.textContent = `Q${trimestre} ${hoy.getFullYear()}`;
+  }
+
+  function irAGastosSinComprobante() {
+    if (els.gastosFiltroFactura) els.gastosFiltroFactura.value = '0';
+    cambiarVistaPrincipal('gastos');
+    cerrarDetalleGrafica();
+  }
+
   function renderResumenFinGastosCategoria(filasEntrada) {
+    actualizarTagQGenerico(els.gastosCatTagQ);
     const filas = filasEntrada || [];
+    cacheGastosPorCategoria = filas;
+    if (els.gastosCatBtnIrGastos) {
+      els.gastosCatBtnIrGastos.onclick = () => {
+        if (els.gastosFiltroFactura) els.gastosFiltroFactura.value = '';
+        cambiarVistaPrincipal('gastos');
+      };
+    }
     if (filas.length === 0) {
       els.resumenFinDonutCategorias.innerHTML = '';
       els.resumenFinDonutCategoriasLeyenda.innerHTML = '';
       els.resumenFinDonutCategoriasTotal.textContent = '$0';
       els.resumenFinDonutCategoriasEmpty.hidden = false;
+      if (els.gastosCatKpis) els.gastosCatKpis.hidden = true;
+      if (els.gastosCatAlerta) els.gastosCatAlerta.hidden = true;
       return;
     }
     els.resumenFinDonutCategoriasEmpty.hidden = true;
+
+    const totalGeneral = filas.reduce((acc, f) => acc + f.monto, 0);
+    if (els.gastosCatKpis) {
+      els.gastosCatKpiNcats.textContent = `${filas.length} cat${filas.length === 1 ? '' : 's'}`;
+      els.gastosCatKpiTotal.textContent = `$${formatearMoneda(totalGeneral)}`;
+      const mayor = filas[0];
+      const pctMayor = totalGeneral > 0 ? Math.round((mayor.monto / totalGeneral) * 100) : 0;
+      els.gastosCatKpiMayorPct.textContent = `${pctMayor}%`;
+      els.gastosCatKpiMayorMonto.textContent = `$${formatearMoneda(mayor.monto)}`;
+      els.gastosCatKpiMayorNombre.textContent = etiquetaCategoriaGasto(mayor.categoria);
+      els.gastosCatKpis.hidden = false;
+    }
+    if (els.gastosCatAlerta && els.gastosCatAlertaTexto) {
+      if (filas.length >= 2 && totalGeneral > 0) {
+        const top2 = filas[0].monto + filas[1].monto;
+        const pctTop2 = Math.round((top2 / totalGeneral) * 100);
+        els.gastosCatAlertaTexto.innerHTML = `${escapeHtml(etiquetaCategoriaGasto(filas[0].categoria))} y ${escapeHtml(etiquetaCategoriaGasto(filas[1].categoria))} representan el <strong>${pctTop2}%</strong> del gasto`;
+        els.gastosCatAlerta.hidden = false;
+        if (els.gastosCatBtnVerDetalle) els.gastosCatBtnVerDetalle.onclick = abrirDetalleGastosCategoriaRica;
+      } else {
+        els.gastosCatAlerta.hidden = true;
+      }
+    }
 
     // El backend ya manda las filas ordenadas por monto DESC — las
     // primeras 8 (más grandes) ganan un tono propio y distinguible; el
@@ -9225,10 +9431,46 @@
     els.resumenFinDonutCategoriasLeyenda.innerHTML = filasLeyenda + filaOtros;
   }
 
+  // Trimestre real (Q1 ene-mar ... Q4 oct-dic) del mes en curso — solo
+  // informativo, no dispara ninguna lógica de negocio (no existe concepto
+  // de "cierre por trimestre" en la app). Banner: cuenta regresiva real al
+  // último día del mes, mismo día en que corre el cierre mensual real
+  // (archiva Ventas/Gastos, ver cierreMensual.js) — sin botón de acción
+  // porque ese archivado ya es automático, no hay nada que "resolver".
+  function calcularCierreMensual() {
+    const hoy = new Date();
+    const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    const diasRestantes = Math.max(0, Math.ceil((ultimoDiaMes - hoy) / 86400000));
+    const nombreMes = hoy.toLocaleDateString('es-MX', { month: 'long' });
+    return { diasRestantes, nombreMes };
+  }
+
+  function actualizarTagsFacturacion() {
+    const hoy = new Date();
+    const trimestre = Math.floor(hoy.getMonth() / 3) + 1;
+    if (els.resumenFinDonutFacturacionTagQ) {
+      els.resumenFinDonutFacturacionTagQ.textContent = `Q${trimestre} ${hoy.getFullYear()}`;
+    }
+    if (els.resumenFinCierreBanner && els.resumenFinCierreBannerTexto) {
+      const { diasRestantes, nombreMes } = calcularCierreMensual();
+      els.resumenFinCierreBannerTexto.textContent = diasRestantes === 0
+        ? `Hoy cierra el mes — mañana se archivan Ventas y Gastos de ${nombreMes}.`
+        : `Faltan ${diasRestantes} día${diasRestantes === 1 ? '' : 's'} para el cierre de ${nombreMes} — Ventas y Gastos se archivan automáticamente el día 1.`;
+    }
+  }
+
+  let cacheMesActualFacturacion = null;
+
   function renderResumenFinFacturacion(mes) {
+    actualizarTagsFacturacion();
+    cacheMesActualFacturacion = mes;
     const ventas = mes.ventas || 0;
     const facturado = mes.facturado || 0;
     const sinFacturar = mes.ventas_sin_facturar || 0;
+    const opsTotales = mes.ops_totales || 0;
+    const opsFacturadas = mes.ops_facturadas || 0;
+    const opsSinFacturar = mes.ops_sin_facturar || 0;
+    if (els.resumenFinDonutFacturacionBadge) els.resumenFinDonutFacturacionBadge.hidden = true;
     if (ventas <= 0) {
       els.resumenFinDonutFacturacion.innerHTML = '';
       els.resumenFinDonutFacturacionLeyenda.innerHTML = '';
@@ -9246,34 +9488,53 @@
     els.resumenFinDonutFacturacionTotal.textContent = `$${formatearMoneda(ventas)}`;
     const pctFacturado = Math.round((facturado / ventas) * 100);
     els.resumenFinDonutFacturacionLeyenda.innerHTML = `
-      <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_FACTURADO}" aria-hidden="true"></span><span>Facturadas</span><strong>$${formatearMoneda(facturado)} (${pctFacturado}%)</strong></li>
-      <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_SIN_FACTURAR}" aria-hidden="true"></span><span>Sin facturar</span><strong>$${formatearMoneda(sinFacturar)} (${Math.max(0, 100 - pctFacturado)}%)</strong></li>
+      <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_FACTURADO}" aria-hidden="true"></span><span>Facturadas <small>(${opsFacturadas} comprobante${opsFacturadas === 1 ? '' : 's'})</small></span><strong>$${formatearMoneda(facturado)} (${pctFacturado}%)</strong></li>
+      <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_SIN_FACTURAR}" aria-hidden="true"></span><span>Sin facturar <small>(${opsSinFacturar} por timbrar)</small></span><strong>$${formatearMoneda(sinFacturar)} (${Math.max(0, 100 - pctFacturado)}%)</strong></li>
     `;
     // 2 KPIs chicas (mismo tratamiento que Utilidad neta mensual/
-    // Proyección de ventas) — solo los 2 montos reales, sin inventar
-    // conteo de operaciones/facturas (ese dato no lo expone este
-    // endpoint; el desglose por venta real ya vive en Ventas).
+    // Proyección de ventas) + conteo real de operaciones como badge
+    // (ops_totales/ops_facturadas, expuestos por el backend desde este
+    // mismo punto — antes el endpoint no los mandaba).
     if (els.resumenFinDonutFacturacionKpis) {
+      // KPI "Total ventas" muestra el monto FACTURADO (mismo dato que ya
+      // mostraba, sin cambiar su significado) + conteo real de
+      // operaciones del mes como badge — antes solo la dona lo tenía.
       els.resumenFinDonutFacturacionKpiFacturado.textContent = `$${formatearMoneda(facturado)}`;
       els.resumenFinDonutFacturacionKpiSinFacturar.textContent = `$${formatearMoneda(sinFacturar)}`;
+      if (els.resumenFinDonutFacturacionKpiOps) {
+        els.resumenFinDonutFacturacionKpiOps.textContent = `${opsFacturadas} de ${opsTotales} ops`;
+      }
+      if (els.resumenFinDonutFacturacionKpiPct) {
+        els.resumenFinDonutFacturacionKpiPct.textContent = `${Math.max(0, 100 - pctFacturado)}%`;
+      }
       els.resumenFinDonutFacturacionKpis.hidden = false;
+    }
+    if (els.resumenFinDonutFacturacionBadge) {
+      els.resumenFinDonutFacturacionBadge.textContent = `${Math.max(0, 100 - pctFacturado)}% pendiente (${opsSinFacturar} por timbrar)`;
+      els.resumenFinDonutFacturacionBadge.hidden = false;
     }
     if (els.resumenFinDonutFacturacionNota) els.resumenFinDonutFacturacionNota.hidden = false;
   }
 
-  function renderResumenFinProveedores(filas) {
+  function renderResumenFinProveedores(filas, mes) {
+    actualizarTagQGenerico(els.proveedoresTagQ);
+    if (els.proveedoresBtnIrGastos) els.proveedoresBtnIrGastos.onclick = () => cambiarVistaPrincipal('gastos');
     if (!filas || filas.length === 0) {
       els.resumenFinProveedoresLista.innerHTML = '';
       els.resumenFinProveedoresEmpty.hidden = false;
+      if (els.proveedoresKpis) els.proveedoresKpis.hidden = true;
+      if (els.proveedoresAlerta) els.proveedoresAlerta.hidden = true;
+      if (els.proveedoresTagN) els.proveedoresTagN.textContent = '0 proveedores';
       return;
     }
     els.resumenFinProveedoresEmpty.hidden = true;
+    if (els.proveedoresTagN) els.proveedoresTagN.textContent = `${filas.length} principal${filas.length === 1 ? '' : 'es'}`;
     const maximo = Math.max(...filas.map((f) => f.monto), 1);
     els.resumenFinProveedoresLista.innerHTML = filas
       .map(
         (f) => `
       <li class="resumen-fin-proveedor-fila">
-        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.proveedor)}" tabindex="0">${escapeHtml(f.proveedor)}</span>
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.proveedor)}" tabindex="0">${escapeHtml(f.proveedor)}${f.categoria ? ` <small>· ${escapeHtml(etiquetaCategoriaGasto(f.categoria))}</small>` : ''}</span>
         <div class="resumen-fin-proveedor-barra-wrap">
           <span class="resumen-fin-proveedor-barra" style="width:${(f.monto / maximo) * 100}%"></span>
         </div>
@@ -9281,6 +9542,29 @@
       </li>`
       )
       .join('');
+
+    const totalTop = filas.reduce((acc, f) => acc + f.monto, 0);
+    const totalGastosMes = (mes && mes.gastos) || 0;
+    if (els.proveedoresKpis) {
+      els.proveedoresKpiTop5Total.textContent = `$${formatearMoneda(totalTop)}`;
+      els.proveedoresKpiTop5Pct.textContent = totalGastosMes > 0 ? `${Math.round((totalTop / totalGastosMes) * 100)}% del egreso total` : '';
+      const mayor = filas[0];
+      const pctMayor = totalTop > 0 ? Math.round((mayor.monto / totalTop) * 100) : 0;
+      els.proveedoresKpiMayorPct.textContent = `${pctMayor}%`;
+      els.proveedoresKpiMayorMonto.textContent = `$${formatearMoneda(mayor.monto)}`;
+      els.proveedoresKpiMayorNombre.textContent = mayor.proveedor;
+      els.proveedoresKpis.hidden = false;
+    }
+    if (els.proveedoresAlerta) {
+      if (filas.length >= 2 && totalTop > 0) {
+        const top2 = filas[0].monto + filas[1].monto;
+        const pctTop2 = Math.round((top2 / totalTop) * 100);
+        els.proveedoresAlertaTexto.innerHTML = `Top 2 proveedores concentran el <strong>${pctTop2}%</strong> de este ranking`;
+        els.proveedoresAlerta.hidden = false;
+      } else {
+        els.proveedoresAlerta.hidden = true;
+      }
+    }
   }
 
   // ---------- Reportes: "Estado del inventario" (3ra pestaña) ----------
@@ -9541,11 +9825,11 @@
   }
 
   // Leyenda de "Ventas vs Facturado vs Gastos" como filtro — SOLO
-  // funciona dentro de la ventana emergente (gancho:
-  // .resumen-fin-detalle-contenido-grande, la misma clase que
-  // abrirDetalleGrafica() ya le pone al contenedor movido). En la
-  // tarjeta chica un clic no hace nada, la leyenda se queda informativa
-  // como siempre.
+  // funciona en la tarjeta chica Y en la ventana emergente (mismo nodo del
+  // DOM en ambas — homologado con stitch/VentasVsMini, que trae los
+  // filtros interactivos directo en la mini). Se resetea a las 4 series
+  // visibles cada vez que se abre/cierra el modal, para no dejar una
+  // combinación rara oculta entre sesiones.
   function resetearLeyendaFiltroChart() {
     if (!els.resumenFinChartLeyendaFiltrable) return;
     els.resumenFinChartLeyendaFiltrable.querySelectorAll('li').forEach((li) => {
@@ -9564,8 +9848,6 @@
       li.setAttribute('tabindex', '0');
       li.setAttribute('aria-pressed', 'false');
       const alternarSerie = () => {
-        // Fuera de la ventana emergente, la leyenda es solo informativa.
-        if (!li.closest('.resumen-fin-detalle-contenido-grande')) return;
         const serie = li.dataset.serie;
         const apagada = li.classList.toggle('resumen-fin-serie-apagada');
         li.setAttribute('aria-pressed', String(apagada));
@@ -10520,13 +10802,439 @@
     });
   }
 
+  // Modal rico de "Ventas facturadas vs sin facturar" — homologado con
+  // stitch/ventas_facturadas_vs_sin_facturar_ux_redesign a partir de una
+  // auditoría dato-real-vs-inventado con el usuario (3 rondas de
+  // AskUserQuestion): se quitó selector de rango 1T/6M/YTD/1A, "Tiempo
+  // Real", "Riesgo fiscal"/"Objetivo ≥90% facturado" (sin respaldo), el
+  // pipeline de 3 etapas se colapsó a 2 barras reales (el sistema solo
+  // tiene 2 estados: facturado_en NULL o no — no existe "solicitud
+  // recibida, datos por validar"), "PAC Conectado"/"Generar factura
+  // global"/"Configuración de timbrado masivo" se quitaron (no hay
+  // integración PAC ni facturación en lote real), y la tabla de 5
+  // operaciones ficticias (empresas/RFC/método de pago inventados) se
+  // reemplazó por una tabla real de ventas sin facturar del mes (fecha,
+  // concepto, correo, monto — sin RFC/empresa/método de pago porque
+  // `ordenes_compra` no los guarda, sin botones de acción por fila
+  // porque no hay timbrado en 1 clic). La caja "Resolución automatizada
+  // sugerida" se volvió honesta: monto real de ventas sin facturar (no
+  // el $8,450 fijo del mockup), sin "clientes con datos faltantes"
+  // inventado, botón real que navega a Ventas con el filtro
+  // "Facturación: Sin facturar" ya aplicado (filtro nuevo, mismo patrón
+  // que "Estado de pago").
+  function facturacionConstruirHTML() {
+    return `
+      <div class="resumen-fin-header-tags">
+        <span class="resumen-fin-header-tag" id="fact-rica-tag-q">—</span>
+        <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Buscar transferencias en tus estados de cuenta (PDF) y conciliarlas contra tus ventas — función planeada, todavía no está construida.">Conciliación de pagos · Próximamente</span>
+      </div>
+      <div class="unm-kpis">
+        <div class="unm-kpi">
+          <div class="unm-kpi-top"><span>Total ventas</span><span class="unm-badge" id="fact-rica-kpi-ops">—</span></div>
+          <div class="unm-kpi-val" id="fact-rica-kpi-ventas">—</div>
+          <p class="unm-kpi-note" id="fact-rica-kpi-ventas-nota">Corte del mes en curso</p>
+        </div>
+        <div class="unm-kpi unm-kpi-pos">
+          <div class="unm-kpi-top"><span>Facturadas</span><span class="unm-badge unm-badge-pos" id="fact-rica-kpi-pct-fact">—</span></div>
+          <div class="unm-kpi-val unm-c-pos" id="fact-rica-kpi-facturado">—</div>
+          <p class="unm-kpi-note" id="fact-rica-kpi-facturado-nota"></p>
+        </div>
+        <div class="unm-kpi" id="fact-rica-kpi-sinfact-card">
+          <div class="unm-kpi-top"><span>Sin facturar</span><span class="unm-badge unm-badge-neg" id="fact-rica-kpi-pct-sinfact">—</span></div>
+          <div class="unm-kpi-val unm-c-neg" id="fact-rica-kpi-sinfacturado">—</div>
+          <p class="unm-kpi-note" id="fact-rica-kpi-sinfacturado-nota"></p>
+        </div>
+        <div class="unm-kpi">
+          <div class="unm-kpi-top"><span>Cierre mensual</span></div>
+          <div class="unm-kpi-val" id="fact-rica-kpi-cierre">—</div>
+          <p class="unm-kpi-note">Ventas y Gastos se archivan automáticamente el día 1</p>
+        </div>
+      </div>
+
+      <div class="fact-rica-grid">
+        <div class="fact-rica-donut-col">
+          <div class="resumen-fin-donut-body">
+            <div class="resumen-fin-donut-wrap">
+              <svg class="resumen-fin-donut" id="fact-rica-donut" viewBox="0 0 100 100" width="140" height="140" aria-hidden="true"></svg>
+              <div class="resumen-fin-donut-centro">
+                <span class="resumen-fin-donut-total" id="fact-rica-donut-total">$0</span>
+                <span class="resumen-fin-donut-total-label">Ventas</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fact-rica-barras-col">
+          <div class="fact-rica-barra">
+            <div class="fact-rica-barra-head">
+              <span><span class="fact-rica-barra-dot" style="background:${RESUMEN_FIN_COLOR_FACTURADO}"></span>Facturadas</span>
+              <strong id="fact-rica-barra-fact-val">$0 (0%)</strong>
+            </div>
+            <div class="fact-rica-barra-track"><div class="fact-rica-barra-fill" id="fact-rica-barra-fact-fill" style="background:${RESUMEN_FIN_COLOR_FACTURADO}"></div></div>
+            <p class="fact-rica-barra-nota">Comprobante fiscal ya subido</p>
+          </div>
+          <div class="fact-rica-barra">
+            <div class="fact-rica-barra-head">
+              <span><span class="fact-rica-barra-dot" style="background:${RESUMEN_FIN_COLOR_SIN_FACTURAR}"></span>Sin facturar</span>
+              <strong id="fact-rica-barra-sinfact-val">$0 (0%)</strong>
+            </div>
+            <div class="fact-rica-barra-track"><div class="fact-rica-barra-fill" id="fact-rica-barra-sinfact-fill" style="background:${RESUMEN_FIN_COLOR_SIN_FACTURAR}"></div></div>
+            <p class="fact-rica-barra-nota">Falta subir el ZIP de la factura</p>
+          </div>
+
+          <div class="fact-rica-sugerencia" id="fact-rica-sugerencia" hidden>
+            <span class="fact-rica-sugerencia-ic" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <div class="fact-rica-sugerencia-texto">
+              <div class="fact-rica-sugerencia-titulo">Ventas sin facturar este mes</div>
+              <div id="fact-rica-sugerencia-desc">—</div>
+            </div>
+            <button type="button" class="btn btn-secondary fact-rica-sugerencia-btn" id="fact-rica-btn-ir-ventas">Ver en Ventas</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="unm-tabla-wrap">
+        <div class="unm-tabla-head">
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg> Ventas sin facturar (más recientes)</h3>
+          <span class="unm-tabla-nota">Máximo 10 — para el resto, ve a Ventas</span>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table unm-tabla">
+            <thead><tr><th>Fecha</th><th>Concepto</th><th>Correo</th><th>Monto</th></tr></thead>
+            <tbody id="fact-rica-tabla-body"></tbody>
+          </table>
+        </div>
+        <p class="admin-empty" id="fact-rica-tabla-empty" hidden>No hay ventas sin facturar este mes.</p>
+      </div>
+
+      <p class="resumen-fin-proyeccion-nota">Una venta cuenta como "Facturada" en cuanto se sube el ZIP de su factura — para el detalle completo por venta, ve a Ventas.</p>
+    `;
+  }
+
+  function irAVentasSinFacturar() {
+    if (els.ordenesFiltroFacturacion) els.ordenesFiltroFacturacion.value = 'sin_facturar';
+    cambiarVistaPrincipal('ordenes');
+    cerrarDetalleGrafica();
+  }
+
+  async function facturacionCargarTablaSinFacturar() {
+    const tbody = document.getElementById('fact-rica-tabla-body');
+    const empty = document.getElementById('fact-rica-tabla-empty');
+    if (!tbody) return;
+    try {
+      const authHeader = getAuthHeader();
+      if (!authHeader) return;
+      const res = await fetch(`${API_BASE}/admin/ordenes-compra`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const ahora = new Date();
+      const inicioMes = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}`;
+      const filas = (data.ordenes || [])
+        .filter((o) => !o.facturado && String(o.fecha_compra || '').slice(0, 7) === inicioMes)
+        .sort((a, b) => String(b.fecha_compra).localeCompare(String(a.fecha_compra)))
+        .slice(0, 10);
+      empty.hidden = filas.length > 0;
+      tbody.innerHTML = filas.map((o) => `
+        <tr>
+          <td>${escapeHtml(o.fecha_compra_formateada || o.fecha_compra || '—')}</td>
+          <td>${escapeHtml(o.concepto || '—')}</td>
+          <td>${escapeHtml(o.email || '—')}</td>
+          <td>$${formatearMoneda(o.total)}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      empty.hidden = false;
+    }
+  }
+
+  function facturacionPintarRica(mes) {
+    const ventas = mes.ventas || 0;
+    const facturado = mes.facturado || 0;
+    const sinFacturar = mes.ventas_sin_facturar || 0;
+    const opsTotales = mes.ops_totales || 0;
+    const opsFacturadas = mes.ops_facturadas || 0;
+    const opsSinFacturar = mes.ops_sin_facturar || 0;
+    const pctFacturado = ventas > 0 ? Math.round((facturado / ventas) * 100) : 0;
+    const pctSinFacturar = Math.max(0, 100 - pctFacturado);
+
+    const hoy = new Date();
+    const trimestre = Math.floor(hoy.getMonth() / 3) + 1;
+    document.getElementById('fact-rica-tag-q').textContent = `Q${trimestre} ${hoy.getFullYear()}`;
+
+    document.getElementById('fact-rica-kpi-ops').textContent = `${opsTotales} ops`;
+    document.getElementById('fact-rica-kpi-ventas').textContent = `$${formatearMoneda(ventas)}`;
+    document.getElementById('fact-rica-kpi-pct-fact').textContent = `${pctFacturado}% cubierto`;
+    document.getElementById('fact-rica-kpi-facturado').textContent = `$${formatearMoneda(facturado)}`;
+    document.getElementById('fact-rica-kpi-facturado-nota').textContent = `${opsFacturadas} comprobante${opsFacturadas === 1 ? '' : 's'}`;
+    document.getElementById('fact-rica-kpi-pct-sinfact').textContent = `${pctSinFacturar}% pendiente`;
+    document.getElementById('fact-rica-kpi-sinfacturado').textContent = `$${formatearMoneda(sinFacturar)}`;
+    document.getElementById('fact-rica-kpi-sinfacturado-nota').textContent = `${opsSinFacturar} por timbrar`;
+    document.getElementById('fact-rica-kpi-sinfact-card').classList.toggle('unm-kpi-neg', sinFacturar > 0);
+
+    const { diasRestantes } = calcularCierreMensual();
+    document.getElementById('fact-rica-kpi-cierre').textContent = `${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`;
+
+    if (ventas > 0) {
+      renderDonutGenerico(document.getElementById('fact-rica-donut'), [
+        { valor: facturado, color: RESUMEN_FIN_COLOR_FACTURADO },
+        { valor: sinFacturar, color: RESUMEN_FIN_COLOR_SIN_FACTURAR },
+      ]);
+    }
+    document.getElementById('fact-rica-donut-total').textContent = `$${formatearMoneda(ventas)}`;
+
+    document.getElementById('fact-rica-barra-fact-val').textContent = `$${formatearMoneda(facturado)} (${pctFacturado}%)`;
+    document.getElementById('fact-rica-barra-fact-fill').style.width = `${pctFacturado}%`;
+    document.getElementById('fact-rica-barra-sinfact-val').textContent = `$${formatearMoneda(sinFacturar)} (${pctSinFacturar}%)`;
+    document.getElementById('fact-rica-barra-sinfact-fill').style.width = `${pctSinFacturar}%`;
+
+    const sugerencia = document.getElementById('fact-rica-sugerencia');
+    if (sugerencia) {
+      sugerencia.hidden = sinFacturar <= 0;
+      if (sinFacturar > 0) {
+        document.getElementById('fact-rica-sugerencia-desc').textContent =
+          `$${formatearMoneda(sinFacturar)} en ${opsSinFacturar} venta${opsSinFacturar === 1 ? '' : 's'} todavía sin comprobante fiscal.`;
+      }
+    }
+    const btnIrVentas = document.getElementById('fact-rica-btn-ir-ventas');
+    if (btnIrVentas) btnIrVentas.onclick = irAVentasSinFacturar;
+
+    facturacionCargarTablaSinFacturar();
+  }
+
+  function abrirDetalleFacturacionRica() {
+    const origenBoton = document.querySelector('[data-detalle-contenido="resumen-fin-donut-facturacion-contenido"]');
+    const header = origenBoton ? origenBoton.closest('.resumen-fin-card-header') : null;
+    const iconoOrigen = header ? header.querySelector('.inicio-stat-icono') : null;
+    els.resumenFinDetalleTitulo.textContent = 'Ventas facturadas vs sin facturar';
+    els.resumenFinDetalleIcono.className = iconoOrigen ? iconoOrigen.className : 'inicio-stat-icono';
+    els.resumenFinDetalleIcono.innerHTML = iconoOrigen ? iconoOrigen.innerHTML : '';
+
+    detalleEsRico = true;
+    if (els.resumenFinDetalleModal) els.resumenFinDetalleModal.classList.add('resumen-fin-detalle-modal-ancha');
+    els.resumenFinDetalleBody.innerHTML = facturacionConstruirHTML();
+    els.resumenFinDetalleOverlay.hidden = false;
+    facturacionPintarRica(cacheMesActualFacturacion || {});
+    els.btnResumenFinDetalleCerrar.focus();
+  }
+
+  // Modal rico de "Distribución de gastos por categoría" — homologado con
+  // stitch/distribución_de_gastos_por_categoría_ux_redesign a partir de
+  // otra ronda de AskUserQuestion: "Desviación vs Presupuesto"/"Estado
+  // Presupuestal"/"Configurar límites presupuestales" se QUITARON (no
+  // existe concepto de presupuesto en la app — pendiente para una etapa
+  // futura junto con PAC/timbrado, ver PROJECT_STATE.md); el KPI "Gastos
+  // Variables/Flexibles" SÍ se construyó (columna real `tipo` fijo/
+  // variable en categorias_gastos, editable desde el panel "✏️
+  // Categorías"); "Estado Presupuestal" de la tabla se reemplazó por "%
+  // con comprobante" real (`tiene_factura`, mismo campo que ya usa el
+  // filtro de Gastos); "Módulo Bancario Conectado"/"Conciliación
+  // automática... 10 complementos XML" se quitaron (no existe, mismo
+  // criterio que "PAC Conectado" en Ventas); la sugerencia se volvió
+  // honesta: gastos sin comprobante REALES del mes, botón real a Gastos
+  // filtrado.
+  function gastosCatConstruirHTML() {
+    return `
+      <div class="resumen-fin-header-tags">
+        <span class="resumen-fin-header-tag" id="gastos-cat-rica-tag-q">—</span>
+        <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Buscar transferencias en tus estados de cuenta (PDF) y conciliarlas contra tus gastos — función planeada, todavía no está construida.">Conciliación de pagos · Próximamente</span>
+      </div>
+      <div class="unm-kpis">
+        <div class="unm-kpi">
+          <div class="unm-kpi-top"><span>Total gastos</span><span class="unm-badge" id="gastos-cat-rica-kpi-ncats">—</span></div>
+          <div class="unm-kpi-val" id="gastos-cat-rica-kpi-total">—</div>
+          <p class="unm-kpi-note">Corte del mes en curso</p>
+        </div>
+        <div class="unm-kpi unm-kpi-neg">
+          <div class="unm-kpi-top"><span>Mayor centro de costo</span><span class="unm-badge unm-badge-neg" id="gastos-cat-rica-kpi-mayor-pct">—</span></div>
+          <div class="unm-kpi-val unm-c-neg" id="gastos-cat-rica-kpi-mayor-monto">—</div>
+          <p class="unm-kpi-note" id="gastos-cat-rica-kpi-mayor-nombre"></p>
+        </div>
+        <div class="unm-kpi">
+          <div class="unm-kpi-top"><span>Gastos variables</span><span class="unm-badge" id="gastos-cat-rica-kpi-var-pct">—</span></div>
+          <div class="unm-kpi-val" id="gastos-cat-rica-kpi-var-monto">—</div>
+          <p class="unm-kpi-note">Categorías marcadas "Variable" en Categorías</p>
+        </div>
+        <div class="unm-kpi">
+          <div class="unm-kpi-top"><span>Cierre mensual</span></div>
+          <div class="unm-kpi-val" id="gastos-cat-rica-kpi-cierre">—</div>
+          <p class="unm-kpi-note">Ventas y Gastos se archivan automáticamente el día 1</p>
+        </div>
+      </div>
+
+      <div class="fact-rica-grid">
+        <div class="fact-rica-donut-col">
+          <div class="resumen-fin-donut-body">
+            <div class="resumen-fin-donut-wrap">
+              <svg class="resumen-fin-donut" id="gastos-cat-rica-donut" viewBox="0 0 100 100" width="140" height="140" aria-hidden="true"></svg>
+              <div class="resumen-fin-donut-centro">
+                <span class="resumen-fin-donut-total" id="gastos-cat-rica-donut-total">$0</span>
+                <span class="resumen-fin-donut-total-label">Gastos</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fact-rica-barras-col" id="gastos-cat-rica-barras"></div>
+      </div>
+
+      <div class="fact-rica-sugerencia" id="gastos-cat-rica-sugerencia" hidden>
+        <span class="fact-rica-sugerencia-ic" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <div class="fact-rica-sugerencia-texto">
+          <div class="fact-rica-sugerencia-titulo">Gastos sin comprobante este mes</div>
+          <div id="gastos-cat-rica-sugerencia-desc">—</div>
+        </div>
+        <button type="button" class="btn btn-secondary fact-rica-sugerencia-btn" id="gastos-cat-rica-btn-ir-gastos">Ver en Gastos</button>
+      </div>
+
+      <div class="unm-tabla-wrap">
+        <div class="unm-tabla-head">
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg> Detalle por categoría</h3>
+          <span class="unm-tabla-nota">Variación vs. el mes anterior</span>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table unm-tabla">
+            <thead><tr><th>Categoría</th><th>Monto</th><th>%</th><th>Variación MoM</th><th>Con comprobante</th><th>Acción</th></tr></thead>
+            <tbody id="gastos-cat-rica-tabla-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="resumen-fin-proyeccion-nota">"Variable" o "Fijo" se asigna por categoría desde "✏️ Categorías" en Gastos — no es un cálculo automático.</p>
+    `;
+  }
+
+  function irACategoriaGasto(slug) {
+    if (els.gastosFiltroCategoria) els.gastosFiltroCategoria.value = slug;
+    if (els.gastosFiltroFactura) els.gastosFiltroFactura.value = '';
+    cambiarVistaPrincipal('gastos');
+    cerrarDetalleGrafica();
+  }
+
+  function gastosCatPintarRica(mes, filas) {
+    const totalGeneral = filas.reduce((acc, f) => acc + f.monto, 0);
+    const hoy = new Date();
+    const trimestre = Math.floor(hoy.getMonth() / 3) + 1;
+    document.getElementById('gastos-cat-rica-tag-q').textContent = `Q${trimestre} ${hoy.getFullYear()}`;
+
+    document.getElementById('gastos-cat-rica-kpi-ncats').textContent = `${filas.length} cat${filas.length === 1 ? '' : 's'}`;
+    document.getElementById('gastos-cat-rica-kpi-total').textContent = `$${formatearMoneda(totalGeneral)}`;
+
+    if (filas.length > 0) {
+      const mayor = filas[0];
+      const pctMayor = totalGeneral > 0 ? Math.round((mayor.monto / totalGeneral) * 100) : 0;
+      document.getElementById('gastos-cat-rica-kpi-mayor-pct').textContent = `${pctMayor}%`;
+      document.getElementById('gastos-cat-rica-kpi-mayor-monto').textContent = `$${formatearMoneda(mayor.monto)}`;
+      document.getElementById('gastos-cat-rica-kpi-mayor-nombre').textContent = etiquetaCategoriaGasto(mayor.categoria);
+    }
+
+    const gastosVariables = mes.gastos_variables || 0;
+    const pctVariables = totalGeneral > 0 ? Math.round((gastosVariables / totalGeneral) * 100) : 0;
+    document.getElementById('gastos-cat-rica-kpi-var-pct').textContent = `${pctVariables}%`;
+    document.getElementById('gastos-cat-rica-kpi-var-monto').textContent = `$${formatearMoneda(gastosVariables)}`;
+
+    const { diasRestantes } = calcularCierreMensual();
+    document.getElementById('gastos-cat-rica-kpi-cierre').textContent = `${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`;
+
+    const principales = filas.slice(0, RESUMEN_FIN_PALETA_CATEGORICA.length);
+    const resto = filas.slice(RESUMEN_FIN_PALETA_CATEGORICA.length);
+    const totalResto = resto.reduce((acc, f) => acc + f.monto, 0);
+    const segmentos = principales.map((f, i) => ({ valor: f.monto, color: RESUMEN_FIN_PALETA_CATEGORICA[i] }));
+    if (totalResto > 0) segmentos.push({ valor: totalResto, color: RESUMEN_FIN_COLOR_OTROS_CATEGORIA });
+    if (segmentos.length > 0) renderDonutGenerico(document.getElementById('gastos-cat-rica-donut'), segmentos);
+    document.getElementById('gastos-cat-rica-donut-total').textContent = `$${formatearMoneda(totalGeneral)}`;
+
+    const barrasCol = document.getElementById('gastos-cat-rica-barras');
+    barrasCol.innerHTML = principales.map((f, i) => {
+      const pct = totalGeneral > 0 ? Math.round((f.monto / totalGeneral) * 100) : 0;
+      const pctComprobante = f.cantidad > 0 ? Math.round((f.con_comprobante / f.cantidad) * 100) : 0;
+      return `
+        <div class="fact-rica-barra">
+          <div class="fact-rica-barra-head">
+            <span><span class="fact-rica-barra-dot" style="background:${RESUMEN_FIN_PALETA_CATEGORICA[i]}"></span>${escapeHtml(etiquetaCategoriaGasto(f.categoria))}</span>
+            <strong>$${formatearMoneda(f.monto)} (${pct}%)</strong>
+          </div>
+          <div class="fact-rica-barra-track"><div class="fact-rica-barra-fill" style="width:${pct}%;background:${RESUMEN_FIN_PALETA_CATEGORICA[i]}"></div></div>
+          <p class="fact-rica-barra-nota">${pctComprobante}% con comprobante (${f.con_comprobante} de ${f.cantidad})</p>
+        </div>
+      `;
+    }).join('') + (totalResto > 0 ? (() => {
+      const pctResto = totalGeneral > 0 ? Math.round((totalResto / totalGeneral) * 100) : 0;
+      return `
+        <div class="fact-rica-barra">
+          <div class="fact-rica-barra-head">
+            <span><span class="fact-rica-barra-dot" style="background:${RESUMEN_FIN_COLOR_OTROS_CATEGORIA}"></span>Otros (${resto.length} categoría${resto.length === 1 ? '' : 's'})</span>
+            <strong>$${formatearMoneda(totalResto)} (${pctResto}%)</strong>
+          </div>
+          <div class="fact-rica-barra-track"><div class="fact-rica-barra-fill" style="width:${pctResto}%;background:${RESUMEN_FIN_COLOR_OTROS_CATEGORIA}"></div></div>
+        </div>
+      `;
+    })() : '');
+
+    const sinComprobante = mes.gastos_sin_comprobante || 0;
+    const sinComprobanteCant = mes.gastos_sin_comprobante_cantidad || 0;
+    const sugerencia = document.getElementById('gastos-cat-rica-sugerencia');
+    sugerencia.hidden = sinComprobante <= 0;
+    if (sinComprobante > 0) {
+      document.getElementById('gastos-cat-rica-sugerencia-desc').textContent =
+        `$${formatearMoneda(sinComprobante)} en ${sinComprobanteCant} gasto${sinComprobanteCant === 1 ? '' : 's'} todavía sin comprobante fiscal.`;
+    }
+    document.getElementById('gastos-cat-rica-btn-ir-gastos').onclick = irAGastosSinComprobante;
+
+    document.getElementById('gastos-cat-rica-tabla-body').innerHTML = filas.map((f) => {
+      const pct = totalGeneral > 0 ? Math.round((f.monto / totalGeneral) * 100) : 0;
+      const pctComprobante = f.cantidad > 0 ? Math.round((f.con_comprobante / f.cantidad) * 100) : 0;
+      const mom = f.variacion_mom;
+      const momTexto = mom === null ? '—' : `${mom >= 0 ? '+' : ''}${mom}%`;
+      const momClase = mom === null ? '' : mom >= 0 ? 'unm-c-neg' : 'unm-c-pos';
+      return `
+        <tr>
+          <td>${escapeHtml(etiquetaCategoriaGasto(f.categoria))}</td>
+          <td>$${formatearMoneda(f.monto)}</td>
+          <td>${pct}%</td>
+          <td class="${momClase}">${momTexto}</td>
+          <td>${pctComprobante}% (${f.con_comprobante}/${f.cantidad})</td>
+          <td><button type="button" class="unm-btn-export" data-categoria="${escapeHtml(f.categoria)}">Ver en Gastos</button></td>
+        </tr>
+      `;
+    }).join('');
+    document.getElementById('gastos-cat-rica-tabla-body').querySelectorAll('button[data-categoria]').forEach((btn) => {
+      btn.addEventListener('click', () => irACategoriaGasto(btn.dataset.categoria));
+    });
+  }
+
+  function abrirDetalleGastosCategoriaRica() {
+    const origenBoton = document.querySelector('[data-detalle-contenido="resumen-fin-donut-categorias-contenido"]');
+    const header = origenBoton ? origenBoton.closest('.resumen-fin-card-header') : null;
+    const iconoOrigen = header ? header.querySelector('.inicio-stat-icono') : null;
+    els.resumenFinDetalleTitulo.textContent = 'Distribución de gastos por categoría';
+    els.resumenFinDetalleIcono.className = iconoOrigen ? iconoOrigen.className : 'inicio-stat-icono';
+    els.resumenFinDetalleIcono.innerHTML = iconoOrigen ? iconoOrigen.innerHTML : '';
+
+    detalleEsRico = true;
+    if (els.resumenFinDetalleModal) els.resumenFinDetalleModal.classList.add('resumen-fin-detalle-modal-ancha');
+    els.resumenFinDetalleBody.innerHTML = gastosCatConstruirHTML();
+    els.resumenFinDetalleOverlay.hidden = false;
+    gastosCatPintarRica(cacheMesActualFacturacion || {}, cacheGastosPorCategoria);
+    els.btnResumenFinDetalleCerrar.focus();
+  }
+
   document.querySelectorAll('.resumen-fin-expandir-btn').forEach((boton) => {
+    if (boton.dataset.detalleContenido === 'resumen-fin-donut-categorias-contenido') {
+      boton.addEventListener('click', abrirDetalleGastosCategoriaRica);
+      return;
+    }
     if (boton.dataset.detalleContenido === 'resumen-fin-balance-contenido') {
       boton.addEventListener('click', abrirDetalleUtilidadNetaRica);
       return;
     }
     if (boton.dataset.detalleContenido === 'resumen-fin-proyeccion-contenido') {
       boton.addEventListener('click', abrirDetalleProyeccionRica);
+      return;
+    }
+    if (boton.dataset.detalleContenido === 'resumen-fin-donut-facturacion-contenido') {
+      boton.addEventListener('click', abrirDetalleFacturacionRica);
       return;
     }
     boton.addEventListener('click', () => abrirDetalleGrafica(boton));
@@ -11349,6 +12057,11 @@
       const cat = state.categoriasGastos.find((c) => c.id === id);
       confirmarEliminarCategoriaGasto(id, cat ? cat.etiqueta : 'esta categoría');
     }
+  });
+  els.gastosCategoriasLista.addEventListener('change', (ev) => {
+    const select = ev.target.closest('.gastos-categoria-tipo');
+    if (!select) return;
+    actualizarTipoCategoriaGastoPanel(Number(select.dataset.id), select.value);
   });
   els.btnGastosModalConFactura.addEventListener('click', () => setGastoModalFactura(true));
   els.btnGastosModalSinFactura.addEventListener('click', () => setGastoModalFactura(false));

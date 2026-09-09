@@ -3188,6 +3188,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 
 /* ---------- Resumen financiero: tarjeta Utilidad neta (punto 118) ---------- */
+.resumen-fin-utilidad-valor-fila { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .resumen-fin-utilidad-valor {
   font-family: var(--font-display);
   font-size: 34px;
@@ -3196,6 +3197,14 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .resumen-fin-utilidad-valor.es-positiva { color: #1FAE6B; }
 .resumen-fin-utilidad-valor.es-negativa { color: var(--color-error); }
+.resumen-fin-utilidad-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.resumen-fin-utilidad-badge.es-positiva { background: #E4F6ED; color: #1FAE6B; }
+.resumen-fin-utilidad-badge.es-negativa { background: var(--color-error-soft); color: var(--color-error); }
 .resumen-fin-utilidad-nota {
   margin: 0 0 16px;
   font-size: 12.5px;
@@ -3291,6 +3300,28 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   margin: 0;
 }
 
+/* Tags de encabezado (trimestre real + feature futura marcada como tal,
+   nunca como si ya existiera) — "Ventas facturadas vs sin facturar". */
+.resumen-fin-header-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -10px 0 14px;
+}
+.resumen-fin-header-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--color-surface-2, #F7F9FB);
+  border: 1px solid var(--color-border);
+  color: var(--color-ink-soft);
+}
+.resumen-fin-header-tag-pendiente {
+  border-style: dashed;
+  cursor: help;
+}
+
 /* Gráficas de línea (Utilidad neta mensual / Proyección de ventas) — SVG
    puro, sin librería externa, mismo criterio que el resto del sitio. */
 .resumen-fin-line-wrap { width: 100%; }
@@ -3349,6 +3380,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   border-radius: 5px;
 }
 .resumen-fin-balance-kpi-val { font-size: 16px; font-weight: 800; letter-spacing: -.01em; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.resumen-fin-balance-kpi-nota { font-size: 10.5px; color: var(--color-ink-soft); margin-top: 1px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resumen-fin-balance-kpi-val-pos { color: #1FAE6B; }
 .resumen-fin-linea-cero {
   stroke: var(--color-border);
@@ -3432,6 +3464,120 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   color: var(--color-ink-soft);
   font-style: italic;
 }
+/* Aviso de cierre de mes (real: el día 1 se archivan Ventas y Gastos,
+   ver cierreMensual.js) — solo informativo, sin botón de acción porque
+   el archivado es automático, no hay nada que el usuario deba resolver. */
+.resumen-fin-cierre-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  font-size: 12px;
+  font-weight: 600;
+}
+.resumen-fin-cierre-banner svg { flex-shrink: 0; }
+
+/* Banner de alerta genérico (insight real + "Ver detalle") y link de
+   navegación de pie — reusados en las 4 tarjetas homologadas con stitch
+   (Gastos, Ventas vs Facturado vs Gastos, Top proveedores, Utilidad neta
+   del mes). Mismo tono que .resumen-fin-cierre-banner pero con acción. */
+.resumen-fin-alerta-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  font-size: 12px;
+  font-weight: 600;
+}
+.resumen-fin-alerta-banner svg { flex-shrink: 0; }
+.resumen-fin-alerta-banner span { flex: 1; min-width: 0; }
+.resumen-fin-alerta-btn { flex-shrink: 0; padding: 5px 10px; font-size: 11.5px; }
+.resumen-fin-footer-nav {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+  text-align: right;
+}
+.resumen-fin-footer-nav-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+  cursor: pointer;
+}
+.resumen-fin-footer-nav-link:hover { text-decoration: underline; }
+
+/* Modal rico de "Ventas facturadas vs sin facturar" — dona + 2 barras
+   reales (colapsadas del pipeline de 3 etapas del mockup, ver admin.js) +
+   caja de sugerencia honesta. */
+.fact-rica-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+.fact-rica-donut-col { display: flex; justify-content: center; }
+.fact-rica-barras-col { display: flex; flex-direction: column; gap: 16px; }
+.fact-rica-barra-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+.fact-rica-barra-head span:first-child { display: flex; align-items: center; gap: 7px; color: var(--color-ink-soft); }
+.fact-rica-barra-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.fact-rica-barra-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-surface-2, #F1F5F9);
+  overflow: hidden;
+}
+.fact-rica-barra-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
+.fact-rica-barra-nota { margin: 5px 0 0; font-size: 11.5px; color: var(--color-ink-soft); }
+.fact-rica-sugerencia {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-surface-2, #F7F9FB);
+  border: 1px solid var(--color-border);
+}
+.fact-rica-sugerencia-ic {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fact-rica-sugerencia-texto { flex: 1; min-width: 0; }
+.fact-rica-sugerencia-titulo { font-size: 12.5px; font-weight: 700; color: var(--color-ink); }
+.fact-rica-sugerencia-texto div#fact-rica-sugerencia-desc { font-size: 11.5px; color: var(--color-ink-soft); margin-top: 2px; }
+.fact-rica-sugerencia-btn { flex-shrink: 0; padding: 7px 12px; font-size: 12px; }
+@media (max-width: 720px) {
+  .fact-rica-grid { grid-template-columns: 1fr; }
+  .fact-rica-sugerencia { flex-wrap: wrap; }
+}
 
 /* Donas dinámicas (Distribución de gastos / Facturadas vs sin facturar)
    — a diferencia de la dona de "Inicio" (3 segmentos fijos en el HTML),
@@ -3477,6 +3623,17 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   font-size: 11px;
   color: var(--color-ink-soft);
 }
+.resumen-fin-donut-badge {
+  margin-top: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
 .resumen-fin-donut-leyenda {
   list-style: none;
   margin: 0;
@@ -3494,6 +3651,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .resumen-fin-donut-leyenda li span:nth-child(2) { flex: 1; }
 .resumen-fin-donut-leyenda li strong { color: var(--color-ink); font-weight: 600; }
+.resumen-fin-donut-leyenda li small { display: block; font-size: 11px; color: var(--color-ink-soft); font-weight: 400; }
 .resumen-fin-donut-dot {
   width: 10px;
   height: 10px;
@@ -3534,6 +3692,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.resumen-fin-proveedor-nombre small { color: var(--color-ink-soft); font-weight: 400; }
 .resumen-fin-proveedor-barra-wrap {
   background: var(--color-bg);
   border-radius: 999px;
@@ -5795,6 +5954,15 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .gastos-categoria-fila-protegida {
   background: transparent;
   border-style: dashed;
+}
+.gastos-categoria-tipo {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2, #F7F9FB);
+  color: var(--color-ink-soft);
 }
 .gastos-categoria-tag {
   flex-shrink: 0;

@@ -80,7 +80,7 @@ const { sanitizeText } = require('./validate');
 // verdad o solo desactivar.
 async function listarCategoriasGastos() {
   const [filas] = await obtenerPool().query(`
-    SELECT c.id, c.slug, c.etiqueta, c.activa, c.protegida,
+    SELECT c.id, c.slug, c.etiqueta, c.activa, c.protegida, c.tipo,
       EXISTS(SELECT 1 FROM gastos g WHERE g.categoria = c.slug) AS tiene_gastos
     FROM categorias_gastos c
     ORDER BY c.orden ASC, c.etiqueta ASC
@@ -91,8 +91,30 @@ async function listarCategoriasGastos() {
     etiqueta: f.etiqueta,
     activa: Boolean(f.activa),
     protegida: Boolean(f.protegida),
+    tipo: f.tipo,
     tieneGastos: Boolean(f.tiene_gastos),
   }));
+}
+
+// Mapa slug -> 'fijo'|'variable', para clasificar montos ya agrupados por
+// categoría (ver GET /resumen-financiero, KPI "Gastos Variables/Flexibles"
+// del modal ampliado) sin repetir el JOIN en cada query.
+async function mapaTipoPorCategoria() {
+  const [filas] = await obtenerPool().query('SELECT slug, tipo FROM categorias_gastos');
+  return new Map(filas.map((f) => [f.slug, f.tipo]));
+}
+
+async function actualizarTipoCategoriaGasto(id, tipoCrudo) {
+  const tipo = tipoCrudo === 'fijo' ? 'fijo' : tipoCrudo === 'variable' ? 'variable' : null;
+  if (!tipo) {
+    return { error: 'Tipo inválido — usa "fijo" o "variable".' };
+  }
+  const [filas] = await obtenerPool().query('SELECT id FROM categorias_gastos WHERE id = ? LIMIT 1', [id]);
+  if (filas.length === 0) {
+    return { error: 'Categoría no encontrada.', status: 404 };
+  }
+  await obtenerPool().query('UPDATE categorias_gastos SET tipo = ?, actualizado_en = ? WHERE id = ?', [tipo, new Date(), id]);
+  return { id, tipo };
 }
 
 // Cualquier categoría que EXISTA (activa o no) es válida como valor de
@@ -196,4 +218,6 @@ module.exports = {
   renombrarCategoriaGasto,
   eliminarCategoriaGasto,
   reactivarCategoriaGasto,
+  mapaTipoPorCategoria,
+  actualizarTipoCategoriaGasto,
 };

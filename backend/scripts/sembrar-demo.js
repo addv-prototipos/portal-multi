@@ -1,6 +1,11 @@
-// Script de demo unificado: BORRA los datos transaccionales de la base SIN
-// tenant (portal_facturacion) y vuelve a sembrar ~6 meses de historia
-// realista (ventas, tickets, gastos, inventario con movimientos y CxC).
+// Script de demo unificado: BORRA los datos transaccionales de la BD que
+// apunte DB_NAME (por defecto portal_facturacion, la base SIN tenant — se
+// puede apuntar a un tenant_<slug> igual que ensureSchema(), ver punto 115
+// de PROJECT_STATE.md) y vuelve a sembrar ~6 meses (configurable) de
+// historia realista (ventas, tickets, gastos, inventario con movimientos y
+// CxC). Ver SEED_MESES/SEED_SEMILLA/SEED_PERFIL más abajo para sembrar
+// varios tenants con escenarios financieros distintos sin duplicar el
+// script.
 //
 // Reemplaza a scripts/sembrar-datos-prueba.js y scripts/poblar-tony.js —
 // ambos hacían siembras parecidas pero sin borrar antes ni tocar
@@ -32,7 +37,38 @@
 const { pool } = require('../db');
 
 const NOTA_PRUEBA = 'Dato de demo (sembrar-demo.js)';
-const SEMILLA_PRNG = 20240401;
+
+// Parametrización vía env (todas con default = comportamiento histórico
+// exacto, sin cambios, cuando se corre sin ninguna variable):
+//   SEED_MESES=12          ventana de historia (default 6)
+//   SEED_SEMILLA=123       semilla del PRNG (default 20240401)
+//   SEED_PERFIL=negativo   favorable|promedio|negativo (default favorable)
+// Pensado para sembrar varios tenants con escenarios distintos (misma
+// mecánica de generación diaria, solo cambia la tendencia de ventas y el
+// peso de los gastos) sin duplicar el script.
+const PERFILES_VALIDOS = ['favorable', 'promedio', 'negativo'];
+const SEED_PERFIL = (process.env.SEED_PERFIL || 'favorable').toLowerCase();
+if (!PERFILES_VALIDOS.includes(SEED_PERFIL)) {
+  console.error(`SEED_PERFIL inválido: "${SEED_PERFIL}" — usa favorable, promedio o negativo.`);
+  process.exit(1);
+}
+const SEED_MESES = Number(process.env.SEED_MESES || 6);
+const SEMILLA_PRNG = Number(process.env.SEED_SEMILLA || 20240401);
+
+// pendiente: variación de la venta base por mes transcurrido (16% = mismo
+// crecimiento agresivo que ya tenía el script). gastoMultiplicador: escala
+// los gastos fijos/variables para que la utilidad neta del perfil tenga la
+// forma esperada (negativo = gastos pesan más que unas ventas que además
+// bajan). ajuste 'piso'/'techo': fuerza la tendencia mes contra mes más
+// allá del ruido del PRNG (igual que ya hacía el script solo para
+// favorable) — 'promedio' no fuerza nada, se queda con el ruido natural.
+const PERFIL_CONFIG = {
+  favorable: { pendiente: 0.16, gastoMultiplicador: 1.0, ajuste: 'piso', ajusteFactor: 1.12 },
+  promedio: { pendiente: 0.01, gastoMultiplicador: 1.32, ajuste: null, ajusteFactor: 1 },
+  negativo: { pendiente: -0.045, gastoMultiplicador: 1.75, ajuste: 'techo', ajusteFactor: 0.95 },
+};
+const perfilActivo = PERFIL_CONFIG[SEED_PERFIL];
+
 const RFC_DEMO_PRINCIPAL = 'XAXX010101000';
 const EMAIL_DEMO_PRINCIPAL = 'aprado13@gmail.com';
 const RFC_DEMO_SECUNDARIO = 'XEXX010101000';
@@ -141,7 +177,7 @@ const GASTOS_VARIABLES = [
 ];
 
 async function borrarDatosTransaccionales() {
-  console.log('Borrando datos transaccionales de portal_facturacion (config/usuarios NO se tocan)...');
+  console.log(`Borrando datos transaccionales de ${process.env.DB_NAME || 'portal_facturacion'} (config/usuarios NO se tocan)...`);
   for (const tabla of TABLAS_A_BORRAR) {
     const [r] = await pool.query(`DELETE FROM ${tabla}`);
     console.log(`  ${tabla}: ${r.affectedRows} filas borradas`);
@@ -285,12 +321,14 @@ async function principal() {
     process.exit(1);
   }
 
+  console.log(`Perfil: ${SEED_PERFIL} | Meses: ${SEED_MESES} | Semilla: ${SEMILLA_PRNG} | DB: ${process.env.DB_NAME || 'portal_facturacion'}\n`);
+
   await borrarDatosTransaccionales();
 
   const hoyUtc = new Date();
   const anioActual = hoyUtc.getUTCFullYear();
   const mesActual = hoyUtc.getUTCMonth();
-  const inicio = new Date(Date.UTC(anioActual, mesActual - 6, 1));
+  const inicio = new Date(Date.UTC(anioActual, mesActual - SEED_MESES, 1));
   // El mes EN CURSO se deja completamente vacío a propósito — se registra
   // a mano (pedido explícito del usuario) para probar el flujo real, no
   // datos sembrados. `Date.UTC(anio, mesActual, 0)` = día 0 del mes
@@ -327,14 +365,12 @@ async function principal() {
       const diaSemana = d.getUTCDay();
       const llaveMes = `${anio}-${String(mes + 1).padStart(2, '0')}`;
 
-      // Escenario favorable: crecimiento mensual constante (~16%/mes desde
-      // el primer mes de la ventana) para que la tendencia de los últimos
-      // 3 meses cerrados sea siempre ascendente — la proyección de ventas
-      // de Resumen financiero (server.js, solo extrapola meses CERRADOS)
-      // necesita esa forma para no clavarse en $0 con un trimestre plano
-      // o descendente.
+      // Tendencia base del perfil activo (favorable/promedio/negativo) —
+      // ver PERFIL_CONFIG arriba. Clamp a 0.15 como piso de seguridad: con
+      // muchos meses de ventana, un perfil "negativo" no debe llegar a
+      // ventas negativas o en cero por la pendiente sola.
       const indiceMes = (anio * 12 + mes) - (inicio.getUTCFullYear() * 12 + inicio.getUTCMonth());
-      const factorCrecimiento = 1 + indiceMes * 0.16;
+      const factorCrecimiento = Math.max(0.15, 1 + indiceMes * perfilActivo.pendiente);
 
       let ventasDelDia = 0;
       if (diaSemana >= 1 && diaSemana <= 5) {
@@ -449,7 +485,7 @@ async function principal() {
         await sembrarGasto(conexion, {
           fecha: fechaUtc(anio, mes, dia, azarEntero(9, 17), azarEntero(0, 59)),
           concepto: gastoFijo.concepto, proveedor: gastoFijo.proveedor, categoria: gastoFijo.categoria,
-          monto: azarEntre(gastoFijo.min, gastoFijo.max), recurrente: gastoFijo.recurrente,
+          monto: azarEntre(gastoFijo.min, gastoFijo.max) * perfilActivo.gastoMultiplicador, recurrente: gastoFijo.recurrente,
         });
         contadorGastos += 1;
         acumularMes(llaveMes, 'gastos', 1);
@@ -461,7 +497,7 @@ async function principal() {
             await sembrarGasto(conexion, {
               fecha: fechaUtc(anio, mes, azarEntero(1, 28), azarEntero(9, 19), azarEntero(0, 59)),
               concepto: variable.concepto, proveedor: elegir(variable.proveedores), categoria: variable.categoria,
-              monto: azarEntre(variable.min, variable.max), recurrente: variable.recurrente,
+              monto: azarEntre(variable.min, variable.max) * perfilActivo.gastoMultiplicador, recurrente: variable.recurrente,
             });
             contadorGastos += 1;
             acumularMes(llaveMes, 'gastos', 1);
@@ -470,36 +506,42 @@ async function principal() {
       }
     }
 
-    // Escenario favorable: garantiza que cada mes cerrado facture al menos
-    // 12% más que el anterior — el ruido diario del PRNG por sí solo puede
-    // dar un trimestre plano o descendente, y la proyección de ventas de
-    // Resumen financiero (server.js, solo extrapola los últimos 3 meses
-    // CERRADOS) se clava en $0 en ese caso. Solo EMPUJA hacia arriba (nunca
-    // hacia abajo), escalando cantidad/total/monto_cobrado del mes completo
-    // por el mismo factor — conserva el ratio IVA/subtotal y el % ya
-    // cobrado de cada venta.
-    const CRECIMIENTO_MINIMO_MES = 1.12;
-    const llavesVentaOrdenadas = [...resumenPorMes.keys()].sort();
-    let pisoAnterior = null;
-    for (const llave of llavesVentaOrdenadas) {
-      const fila = resumenPorMes.get(llave);
-      const pisoMinimo = pisoAnterior !== null ? pisoAnterior * CRECIMIENTO_MINIMO_MES : null;
-      if (pisoMinimo !== null && fila.ventas < pisoMinimo) {
-        const factor = pisoMinimo / fila.ventas;
-        const [anioLlave, mesLlave] = llave.split('-').map(Number);
-        const desde = new Date(Date.UTC(anioLlave, mesLlave - 1, 1));
-        const hasta = new Date(Date.UTC(anioLlave, mesLlave, 1));
-        await conexion.query(
-          `UPDATE ordenes_compra
-              SET cantidad = ROUND(cantidad * ?, 2),
-                  total = ROUND(total * ?, 2),
-                  monto_cobrado = ROUND(monto_cobrado * ?, 2)
-            WHERE eliminado_en IS NULL AND fecha_compra >= ? AND fecha_compra < ?`,
-          [factor, factor, factor, desde, hasta]
-        );
-        fila.ventas *= factor;
+    // Fuerza la tendencia mes contra mes más allá del ruido del PRNG —
+    // 'piso' (favorable) garantiza al menos +12% para que la proyección de
+    // ventas de Resumen financiero (solo extrapola los últimos 3 meses
+    // CERRADOS) nunca se clave en $0 con un trimestre plano; 'techo'
+    // (negativo) fuerza una baja real mes contra mes para que el
+    // escenario de resultados negativos no dependa de que el ruido
+    // aleatorio decida bajar por su cuenta. 'promedio' no define ajuste
+    // (perfilActivo.ajuste === null): se queda con el ruido natural.
+    // Solo escala cantidad/total/monto_cobrado del mes completo por el
+    // mismo factor — conserva el ratio IVA/subtotal y el % ya cobrado de
+    // cada venta.
+    if (perfilActivo.ajuste) {
+      const llavesVentaOrdenadas = [...resumenPorMes.keys()].sort();
+      let ventasAnterior = null;
+      for (const llave of llavesVentaOrdenadas) {
+        const fila = resumenPorMes.get(llave);
+        const limite = ventasAnterior !== null ? ventasAnterior * perfilActivo.ajusteFactor : null;
+        const violaPiso = perfilActivo.ajuste === 'piso' && limite !== null && fila.ventas < limite;
+        const violaTecho = perfilActivo.ajuste === 'techo' && limite !== null && fila.ventas > limite;
+        if (violaPiso || violaTecho) {
+          const factor = limite / fila.ventas;
+          const [anioLlave, mesLlave] = llave.split('-').map(Number);
+          const desde = new Date(Date.UTC(anioLlave, mesLlave - 1, 1));
+          const hasta = new Date(Date.UTC(anioLlave, mesLlave, 1));
+          await conexion.query(
+            `UPDATE ordenes_compra
+                SET cantidad = ROUND(cantidad * ?, 2),
+                    total = ROUND(total * ?, 2),
+                    monto_cobrado = ROUND(monto_cobrado * ?, 2)
+              WHERE eliminado_en IS NULL AND fecha_compra >= ? AND fecha_compra < ?`,
+            [factor, factor, factor, desde, hasta]
+          );
+          fila.ventas *= factor;
+        }
+        ventasAnterior = fila.ventas;
       }
-      pisoAnterior = fila.ventas;
     }
 
     await conexion.commit();
