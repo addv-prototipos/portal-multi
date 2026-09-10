@@ -14328,7 +14328,15 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     `antonio.prado@addv.mx`, mismo gotcha ya documentado — se
     sobreescribió explícitamente). Con esto, el punto (1) de este punto
     263 queda confirmado de punta a punta contra el navegador real, no
-    solo por HTTP. Sin commit/push todavía.
+    solo por HTTP.
+
+    **5to ajuste, mismo día**: el banner de "N ventas vencidas..." (con
+    "Ver vencidas"/"Enviar recordatorio") vivía ANTES del grid de
+    Antigüedad de saldos + Cobranza del mes — movido a DESPUÉS (justo
+    arriba de los filtros de la tabla), a pedido explícito del usuario
+    con 2 capturas marcando el orden deseado. Solo reorden de HTML, sin
+    tocar CSS/JS. Validado en navegador real (Claude in Chrome): banner
+    confirmado debajo del grid, arriba de los filtros.
 
 ## Dónde está todo (mapa rápido)
 
