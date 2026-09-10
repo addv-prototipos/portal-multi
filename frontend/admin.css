@@ -1464,6 +1464,166 @@
   font-weight: 700;
   color: var(--color-accent-dark);
 }
+/* Banner informativo (fecha/IVA auto-sincronizados) — homologado con
+   stitch/, solo escritorio (en móvil el subtítulo de arriba ya lo dice). */
+.orden-info-banner {
+  display: none;
+}
+@media (min-width: 901px) {
+  .orden-info-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    margin: 0 0 18px;
+    background: var(--color-accent-soft);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 12.5px;
+    color: var(--color-ink-soft);
+    line-height: 1.5;
+  }
+  .orden-info-banner svg { flex-shrink: 0; margin-top: 1px; color: var(--color-accent-dark); }
+}
+.orden-info-banner-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Tarjeta con borde para agrupar campos relacionados (Pago y entrega /
+   Cliente) — mismo lenguaje visual que .orden-inventario-vincular, sin
+   duplicar sus reglas exactas por si esa clase cambia por su cuenta. */
+.orden-tarjeta-campo {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 14px;
+  background: var(--color-bg);
+}
+.orden-tarjeta-campo .field:last-child { margin-bottom: 0; }
+
+.orden-campo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.orden-campo-header label { margin-bottom: 0; }
+.csf-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
+/* Descuento rápido (0/5/10/15%) — homologado con stitch/, atajo sobre el
+   mismo input de siempre (#orden-descuento), sin cambiar su validación. */
+.orden-descuento-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.orden-descuento-header label { margin-bottom: 0; }
+.orden-descuento-rapido { display: flex; gap: 5px; }
+.orden-descuento-rapido-btn {
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.orden-descuento-rapido-btn:hover { background: var(--color-accent-soft); }
+.orden-descuento-rapido-btn.is-active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+  border-color: var(--color-accent);
+}
+
+/* Desglose de costos (homologado con stitch/) — antes una sola línea de
+   texto (#orden-mini-resumen); ahora Subtotal/Descuento/IVA por
+   separado, con el Total ya destacado (mismo elemento #orden-total-preview
+   de siempre, solo reubicado dentro de esta caja). */
+.orden-resumen-caja {
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.orden-resumen-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  padding: 3px 0;
+}
+.orden-resumen-fila strong { color: var(--color-ink); font-weight: 600; }
+.orden-resumen-fila-descuento { color: var(--color-accent-dark); }
+.orden-resumen-fila-descuento strong { color: var(--color-accent-dark); }
+.orden-resumen-total {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+.orden-resumen-total-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-dark);
+}
+.orden-resumen-total .field-hint { margin: 2px 0 0; }
+.orden-resumen-total .orden-total-preview { margin: 0; white-space: nowrap; }
+
+/* Pie del formulario: "Vista previa" queda como acción secundaria a la
+   izquierda (separada con margin-right:auto), "Guardar borrador" y
+   "Registrar venta" agrupados a la derecha — mismo criterio del footer
+   de stitch/. */
+.orden-registrar-btn-row {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+.orden-registrar-btn-row .btn { flex: 0 0 auto; }
+.orden-btn-vista-previa {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-ink-soft);
+}
+.orden-btn-vista-previa:hover { color: var(--color-accent-dark); background: var(--color-accent-soft); }
+
+.ticket-preview-aviso-borrador {
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  margin: -6px 0 12px;
+}
+
 #orden-mini-resumen { margin: 0 0 6px; }
 
 /* Wizard de 3 pasos (Cliente/Productos/Confirmar) — SOLO en móvil

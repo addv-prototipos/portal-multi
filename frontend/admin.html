@@ -1074,6 +1074,16 @@
           <div class="orden-form-body" id="orden-form-body">
             <p class="panel-subtitle admin-config-subtitle">Captura los datos de la venta. La fecha y el IVA se toman automáticamente de "Configuraciones globales" — no se capturan a mano.</p>
 
+            <!-- Banner informativo (homologado con stitch/): mismo dato que
+                 ya mostraba el subtítulo de arriba, solo más visible y con
+                 el % de IVA real ya resuelto. Solo escritorio, mismo
+                 criterio que .orden-seccion-label (en móvil el wizard de
+                 pasos ya es guía suficiente). -->
+            <div class="orden-info-banner" id="orden-info-banner">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+              <span>La fecha de emisión y la tasa de IVA (<strong id="orden-info-banner-iva">16%</strong>) se toman de <button type="button" class="orden-info-banner-link" id="btn-orden-info-banner-config">Configuraciones globales</button> — no se capturan a mano.</span>
+            </div>
+
             <!-- Indicador de pasos: solo visible en móvil (<900px), reusa
                  el componente .steps/.step ya validado en csf.html. En
                  escritorio los 3 "pasos" de abajo se muestran todos juntos,
@@ -1233,22 +1243,46 @@
               </div>
 
               <div class="field">
-                <label for="orden-descuento">Descuento <span class="field-mark optional">(opcional)</span></label>
+                <div class="orden-descuento-header">
+                  <label for="orden-descuento">Descuento <span class="field-mark optional">(opcional)</span></label>
+                  <div class="orden-descuento-rapido" id="orden-descuento-rapido" role="group" aria-label="Descuento rápido">
+                    <button type="button" class="orden-descuento-rapido-btn is-active" data-pct="0">0%</button>
+                    <button type="button" class="orden-descuento-rapido-btn" data-pct="5">5%</button>
+                    <button type="button" class="orden-descuento-rapido-btn" data-pct="10">10%</button>
+                    <button type="button" class="orden-descuento-rapido-btn" data-pct="15">15%</button>
+                  </div>
+                </div>
                 <input type="text" inputmode="decimal" id="orden-descuento" placeholder="0" autocomplete="off" />
                 <p class="field-hint">Porcentaje sobre el subtotal, antes del IVA (mayor a 0, menor a 100). Déjalo vacío si no aplica.</p>
                 <p class="field-error" id="error-orden-descuento" role="alert"></p>
               </div>
 
-              <div class="field">
-                <label>Total</label>
-                <p class="field-hint" id="orden-mini-resumen"></p>
-                <p class="orden-total-preview" id="orden-total-preview">$0.00 MXN</p>
-                <p class="field-hint"><strong>Esta es la cantidad que se va a facturar.</strong></p>
+              <div class="orden-resumen-caja" id="orden-resumen-caja">
+                <div class="orden-resumen-fila">
+                  <span>Subtotal base</span>
+                  <strong id="orden-resumen-subtotal">$0.00 MXN</strong>
+                </div>
+                <div class="orden-resumen-fila orden-resumen-fila-descuento" id="orden-resumen-fila-descuento" hidden>
+                  <span id="orden-resumen-descuento-label">Descuento aplicado</span>
+                  <strong id="orden-resumen-descuento">-$0.00 MXN</strong>
+                </div>
+                <div class="orden-resumen-fila">
+                  <span id="orden-resumen-iva-label">IVA trasladado</span>
+                  <strong id="orden-resumen-iva">$0.00 MXN</strong>
+                </div>
+                <div class="orden-resumen-total">
+                  <div>
+                    <span class="orden-resumen-total-label">Total a facturar</span>
+                    <p class="field-hint">Esta es la cantidad que se va a facturar.</p>
+                  </div>
+                  <p class="orden-total-preview" id="orden-total-preview">$0.00 MXN</p>
+                </div>
               </div>
             </div>
 
             <div class="orden-wizard-paso" data-paso="3">
               <p class="orden-seccion-label">Pago y entrega</p>
+              <div class="orden-tarjeta-campo">
               <div class="field">
                 <label>Estado de pago</label>
                 <div class="view-toggle" role="tablist" aria-label="Estado de pago">
@@ -1282,9 +1316,11 @@
                   </button>
                 </div>
               </div>
+              </div>
 
               <div id="orden-entrega-correo-wrap">
                 <p class="orden-seccion-label">Cliente</p>
+                <div class="orden-tarjeta-campo">
                 <div class="field">
                   <label>Tipo de cliente</label>
                   <div class="view-toggle" role="tablist" aria-label="Tipo de cliente para esta venta">
@@ -1295,7 +1331,10 @@
 
                 <div id="orden-email-registrado-wrap">
                   <div class="field">
-                    <label for="orden-email">Correo electrónico <span class="required">*</span></label>
+                    <div class="orden-campo-header">
+                      <label for="orden-email">Correo electrónico <span class="required">*</span></label>
+                      <span class="csf-badge">CSF validada</span>
+                    </div>
                     <select id="orden-email">
                       <option value="">Selecciona un correo</option>
                     </select>
@@ -1319,6 +1358,7 @@
                     <p class="field-error" id="error-orden-email-nuevo" role="alert"></p>
                   </div>
                 </div>
+                </div>
               </div>
 
               <p class="field-hint" id="orden-entrega-imprimir-hint" hidden>Se guarda sin correo. El ticket se abre para imprimir en cuanto termines de registrar la venta — también puedes asignarle un correo después desde "Reenviar correo".</p>
@@ -1332,7 +1372,12 @@
               <button type="button" class="btn btn-primary" id="btn-orden-paso-siguiente">Siguiente</button>
             </div>
 
-            <div class="btn-row admin-config-actions" id="orden-registrar-btn-row">
+            <div class="btn-row admin-config-actions orden-registrar-btn-row" id="orden-registrar-btn-row">
+              <button type="button" class="btn btn-secondary orden-btn-vista-previa" id="btn-orden-vista-previa">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Vista previa
+              </button>
+              <button type="button" class="btn btn-secondary" id="btn-orden-guardar-borrador">Guardar borrador</button>
               <button type="button" class="btn btn-primary" id="btn-registrar-orden">
                 <span id="btn-registrar-orden-label">Registrar venta</span>
               </button>
@@ -3781,6 +3826,7 @@
   <div class="modal-overlay" id="ticket-preview-modal-overlay" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ticket-preview-modal-title">
       <h2 id="ticket-preview-modal-title" class="ticket-preview-titulo-modal">Vista previa del ticket</h2>
+      <p class="field-hint ticket-preview-aviso-borrador" id="ticket-preview-aviso-borrador" hidden>Vista previa con los datos capturados — el folio real se asigna hasta que registres la venta.</p>
       <div class="ticket-preview-recibo" id="ticket-preview-recibo"></div>
       <div class="btn-row">
         <button type="button" class="btn btn-secondary" id="btn-ticket-preview-cerrar">Cerrar</button>

@@ -291,7 +291,18 @@
     btnOrdenPasoAtras: document.getElementById('btn-orden-paso-atras'),
     btnOrdenPasoSiguiente: document.getElementById('btn-orden-paso-siguiente'),
     ordenRegistrarBtnRow: document.getElementById('orden-registrar-btn-row'),
-    ordenMiniResumen: document.getElementById('orden-mini-resumen'),
+    ordenInfoBannerIva: document.getElementById('orden-info-banner-iva'),
+    btnOrdenInfoBannerConfig: document.getElementById('btn-orden-info-banner-config'),
+    ordenDescuentoRapido: document.getElementById('orden-descuento-rapido'),
+    ordenResumenSubtotal: document.getElementById('orden-resumen-subtotal'),
+    ordenResumenFilaDescuento: document.getElementById('orden-resumen-fila-descuento'),
+    ordenResumenDescuentoLabel: document.getElementById('orden-resumen-descuento-label'),
+    ordenResumenDescuento: document.getElementById('orden-resumen-descuento'),
+    ordenResumenIvaLabel: document.getElementById('orden-resumen-iva-label'),
+    ordenResumenIva: document.getElementById('orden-resumen-iva'),
+    btnOrdenVistaPrevia: document.getElementById('btn-orden-vista-previa'),
+    btnOrdenGuardarBorrador: document.getElementById('btn-orden-guardar-borrador'),
+    ticketPreviewAvisoBorrador: document.getElementById('ticket-preview-aviso-borrador'),
     ordenConcepto: document.getElementById('orden-concepto'),
     ordenConceptoContador: document.getElementById('orden-concepto-contador'),
     ordenCantidad: document.getElementById('orden-cantidad'),
@@ -2351,6 +2362,16 @@
     els.ordenFormExito.hidden = true;
     els.ordenFormBody.hidden = false;
     els.ordenRegistrarModalOverlay.hidden = false;
+    const borrador = obtenerOrdenBorradorGuardado();
+    if (borrador) {
+      abrirConfirmacion({
+        titulo: 'Tienes un borrador guardado',
+        mensaje: `Guardaste ${borrador.productos.length} producto${borrador.productos.length === 1 ? '' : 's'} sin terminar de registrar. ¿Quieres continuarlo?`,
+        textoBoton: 'Continuar borrador',
+        onConfirmar: () => restaurarOrdenBorrador(borrador),
+        variante: 'primario',
+      });
+    }
   }
   function cerrarOrdenRegistrarModal() {
     els.ordenRegistrarModalOverlay.hidden = true;
@@ -4824,10 +4845,17 @@
 
   let accionConfirmada = null;
 
-  function abrirConfirmacion({ titulo, mensaje, textoBoton, onConfirmar }) {
+  // `variante` ('danger' por defecto, sin cambiar ningún llamador
+  // existente): "primario" pinta el botón de aceptar en azul en vez de
+  // rojo — para confirmaciones NO destructivas (ej. "Continuar
+  // borrador" de Registrar venta) donde un botón rojo leería como
+  // acción peligrosa sin serlo.
+  function abrirConfirmacion({ titulo, mensaje, textoBoton, onConfirmar, variante }) {
     els.confirmModalTitle.textContent = titulo;
     els.confirmModalMensaje.textContent = mensaje;
     els.btnConfirmAceptar.textContent = textoBoton;
+    els.btnConfirmAceptar.classList.toggle('btn-danger', variante !== 'primario');
+    els.btnConfirmAceptar.classList.toggle('btn-primary', variante === 'primario');
     accionConfirmada = onConfirmar;
     els.confirmModalOverlay.hidden = false;
   }
@@ -5959,7 +5987,11 @@
       correosRegistradosCache.forEach((correo) => {
         const option = document.createElement('option');
         option.value = correo.email;
-        option.textContent = correo.email;
+        // Homologado con stitch/: correo + razón social en la misma
+        // línea, cuando el registro trae nombre — antes solo el correo,
+        // había que abrir el detalle de solo lectura de abajo para ver
+        // a quién correspondía.
+        option.textContent = correo.nombre ? `${correo.email} — ${correo.nombre}` : correo.email;
         els.ordenEmail.appendChild(option);
       });
       if (seleccionPrevia) els.ordenEmail.value = seleccionPrevia;
@@ -6130,7 +6162,9 @@
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
       els.ordenTotalPreview.textContent = '$0.00 MXN';
-      els.ordenMiniResumen.textContent = '';
+      if (els.ordenResumenSubtotal) els.ordenResumenSubtotal.textContent = '$0.00 MXN';
+      if (els.ordenResumenIva) els.ordenResumenIva.textContent = '$0.00 MXN';
+      if (els.ordenResumenFilaDescuento) els.ordenResumenFilaDescuento.hidden = true;
       return;
     }
     const descuentoPct = obtenerDescuentoPorcentajeOrden();
@@ -6138,14 +6172,21 @@
     const cantidadNeta = Math.round((cantidad - descuentoMonto) * 100) / 100;
     const total = Math.round(cantidadNeta * (1 + ivaActualParaOrden / 100) * 100) / 100;
     els.ordenTotalPreview.textContent = `$${formatearMoneda(total)} MXN`;
-    // Sustituye los campos "Cantidad (MXN)"/"IVA" (ocultos, ver
-    // admin.html) por un resumen chico de una línea — mismo dato, sin
-    // ocupar 2 bloques completos. La resta contra el total ya redondeado
-    // evita que el IVA mostrado y el total mostrado se desfasen entre sí.
+    // Desglose (homologado con stitch/): Subtotal/Descuento/IVA por
+    // separado en vez del resumen de una sola línea de antes. La resta
+    // contra el total ya redondeado evita que el IVA mostrado y el total
+    // mostrado se desfasen entre sí.
     const ivaMonto = Math.round((total - cantidadNeta) * 100) / 100;
-    els.ordenMiniResumen.textContent = descuentoPct
-      ? `Subtotal $${formatearMoneda(cantidad)} · Descuento -$${formatearMoneda(descuentoMonto)} (${descuentoPct}%) · IVA $${formatearMoneda(ivaMonto)}`
-      : `Subtotal $${formatearMoneda(cantidad)} · IVA $${formatearMoneda(ivaMonto)}`;
+    if (els.ordenResumenSubtotal) els.ordenResumenSubtotal.textContent = `$${formatearMoneda(cantidad)} MXN`;
+    if (els.ordenResumenFilaDescuento) {
+      els.ordenResumenFilaDescuento.hidden = !descuentoPct;
+      if (descuentoPct) {
+        if (els.ordenResumenDescuentoLabel) els.ordenResumenDescuentoLabel.textContent = `Descuento aplicado (-${descuentoPct}%)`;
+        if (els.ordenResumenDescuento) els.ordenResumenDescuento.textContent = `-$${formatearMoneda(descuentoMonto)} MXN`;
+      }
+    }
+    if (els.ordenResumenIvaLabel) els.ordenResumenIvaLabel.textContent = `IVA trasladado (${ivaActualParaOrden}%)`;
+    if (els.ordenResumenIva) els.ordenResumenIva.textContent = `$${formatearMoneda(ivaMonto)} MXN`;
   }
 
   async function cargarConfigGlobalParaOrden() {
@@ -6160,6 +6201,7 @@
       const config = await res.json();
       ivaActualParaOrden = config.iva_porcentaje;
       els.ordenIvaInfo.textContent = `${config.iva_porcentaje}%`;
+      if (els.ordenInfoBannerIva) els.ordenInfoBannerIva.textContent = `${config.iva_porcentaje}%`;
       const zonaInfo = zonas.find((z) => z.id === config.zona_horaria);
       els.ordenFechaAuto.textContent = zonaInfo
         ? `Se genera automáticamente al guardar, con la zona horaria "${zonaInfo.etiqueta}".`
@@ -6175,8 +6217,45 @@
   // Punto 227: recalcula el preview en vivo al teclear el % de descuento.
   els.ordenDescuento.addEventListener('input', () => {
     setFieldError('orden-descuento', '');
+    sincronizarBotonesDescuentoRapido();
     actualizarTotalPreviewOrden();
   });
+
+  // Descuento rápido (homologado con stitch/) — mismo input de siempre,
+  // solo un atajo para no teclear el % a mano. "0%" limpia el campo (el
+  // backend interpreta vacío = sin descuento, no "0% de descuento").
+  function sincronizarBotonesDescuentoRapido() {
+    if (!els.ordenDescuentoRapido) return;
+    const actual = els.ordenDescuento.value.trim();
+    els.ordenDescuentoRapido.querySelectorAll('.orden-descuento-rapido-btn').forEach((btn) => {
+      const esCero = btn.dataset.pct === '0';
+      btn.classList.toggle('is-active', esCero ? actual === '' : actual === btn.dataset.pct);
+    });
+  }
+  if (els.ordenDescuentoRapido) {
+    els.ordenDescuentoRapido.querySelectorAll('.orden-descuento-rapido-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        els.ordenDescuento.value = btn.dataset.pct === '0' ? '' : btn.dataset.pct;
+        setFieldError('orden-descuento', '');
+        sincronizarBotonesDescuentoRapido();
+        actualizarTotalPreviewOrden();
+      });
+    });
+  }
+
+  // Banner informativo: el link solo lleva a Configuraciones globales
+  // (mismo criterio que el resto del sitio — cierra este modal primero,
+  // igual que "Ver en Gastos →"/"Ver cuentas por cobrar →" en otras
+  // vistas). Perfiles sin acceso a esa vista (ej. "ventas") no ven el
+  // botón "Configuraciones globales" en el sidebar, pero el link aquí no
+  // rompe nada — simplemente no hace nada visible si la vista no existe
+  // para ese perfil.
+  if (els.btnOrdenInfoBannerConfig) {
+    els.btnOrdenInfoBannerConfig.addEventListener('click', () => {
+      cerrarOrdenRegistrarModal();
+      if (els.btnVistaConfiguraciones) els.btnVistaConfiguraciones.click();
+    });
+  }
 
   // Texto de un producto tal como aparece en la lista y en el concepto
   // final que se manda al backend — "2 x Toner ($850.00 c/u)".
@@ -6547,6 +6626,7 @@
     if (els.ordenFechaVencimiento) els.ordenFechaVencimiento.value = '';
     if (els.ordenNotasCobro) els.ordenNotasCobro.value = '';
     els.ordenDescuento.value = '';
+    sincronizarBotonesDescuentoRapido();
     els.ordenErrorGeneral.textContent = '';
     setFieldError('orden-concepto', '');
     setFieldError('orden-cantidad', '');
@@ -6561,6 +6641,122 @@
   function setRegistrarOrdenLoading(isLoading) {
     els.btnRegistrarOrden.disabled = isLoading;
     els.btnRegistrarOrdenLabel.textContent = isLoading ? 'Registrando…' : 'Registrar venta';
+  }
+
+  // "Guardar borrador" (homologado con stitch/, pedido explícito del
+  // usuario — quedaba como idea sin decidir en el punto 126). Guarda EN
+  // EL NAVEGADOR (localStorage, por cuenta — mismo criterio que
+  // onboarding_v1_) lo capturado hasta ahora, SIN crear ninguna venta
+  // todavía. Un solo borrador a la vez (guardar uno nuevo sobrescribe al
+  // anterior) — no es un historial, solo "no perder lo que llevaba".
+  function claveOrdenBorrador() {
+    return `orden_borrador_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+
+  function guardarOrdenBorrador() {
+    if (productosOrdenActual.length === 0) {
+      showToast('Agrega al menos un producto antes de guardar el borrador', true);
+      return;
+    }
+    const borrador = {
+      productos: productosOrdenActual,
+      descuento: els.ordenDescuento.value,
+      estadoPago: ordenEstadoPago,
+      fechaVencimiento: els.ordenFechaVencimiento ? els.ordenFechaVencimiento.value : '',
+      notasCobro: els.ordenNotasCobro ? els.ordenNotasCobro.value : '',
+      metodoEntregaImprimir: ordenMetodoEntregaImprimir,
+      modoClienteNuevo: ordenModoClienteNuevo,
+      email: els.ordenEmail.value,
+      emailNuevo: els.ordenEmailNuevo.value,
+      guardadoEn: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(claveOrdenBorrador(), JSON.stringify(borrador));
+      showToast('Borrador guardado — lo verás la próxima vez que abras "Registrar venta"');
+    } catch (err) {
+      showToast('No se pudo guardar el borrador en este navegador', true);
+    }
+  }
+
+  function obtenerOrdenBorradorGuardado() {
+    try {
+      const crudo = localStorage.getItem(claveOrdenBorrador());
+      if (!crudo) return null;
+      const borrador = JSON.parse(crudo);
+      if (!borrador || !Array.isArray(borrador.productos) || borrador.productos.length === 0) return null;
+      return borrador;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function borrarOrdenBorradorGuardado() {
+    try {
+      localStorage.removeItem(claveOrdenBorrador());
+    } catch (err) {
+      // Sin localStorage disponible: no hay nada que borrar.
+    }
+  }
+
+  function restaurarOrdenBorrador(borrador) {
+    productosOrdenActual = borrador.productos;
+    recalcularOrdenDesdeProductos();
+    els.ordenDescuento.value = borrador.descuento || '';
+    sincronizarBotonesDescuentoRapido();
+    aplicarEstadoPago(borrador.estadoPago === 'pendiente' ? 'pendiente' : 'pagada');
+    if (els.ordenFechaVencimiento) els.ordenFechaVencimiento.value = borrador.fechaVencimiento || '';
+    if (els.ordenNotasCobro) els.ordenNotasCobro.value = borrador.notasCobro || '';
+    aplicarMetodoEntregaOrden(Boolean(borrador.metodoEntregaImprimir));
+    aplicarModoClienteOrden(Boolean(borrador.modoClienteNuevo));
+    if (borrador.modoClienteNuevo) {
+      els.ordenEmailNuevo.value = borrador.emailNuevo || '';
+    } else {
+      els.ordenEmail.value = borrador.email || '';
+      actualizarDatosClienteOrden();
+    }
+    actualizarTotalPreviewOrden();
+  }
+
+  if (els.btnOrdenGuardarBorrador) els.btnOrdenGuardarBorrador.addEventListener('click', guardarOrdenBorrador);
+
+  // "Vista previa" (homologado con stitch/, reemplaza el fantasma "Vista
+  // previa del CFDI" — aquí no se timbra nada, no existe esa integración).
+  // Arma un ticket de vista previa con lo capturado HASTA AHORA, sin
+  // folio real (se asigna hasta guardar de verdad) — reusa el mismo
+  // render de ticket ya construido (punto 209), con el aviso/botón
+  // "Imprimir" ajustados por abrirPreviewTicket(orden, esBorrador=true).
+  function construirOrdenPreviaDesdeFormulario() {
+    const cantidad = obtenerValorNumerico(els.ordenCantidad);
+    const descuentoPct = obtenerDescuentoPorcentajeOrden();
+    const descuentoMonto = descuentoPct ? Math.round(cantidad * (descuentoPct / 100) * 100) / 100 : 0;
+    const cantidadNeta = Math.round((cantidad - descuentoMonto) * 100) / 100;
+    const total = Math.round(cantidadNeta * (1 + ivaActualParaOrden / 100) * 100) / 100;
+    const email = ordenMetodoEntregaImprimir
+      ? ''
+      : ordenModoClienteNuevo
+        ? els.ordenEmailNuevo.value.trim()
+        : els.ordenEmail.value;
+    return {
+      numero_compra: 'Pendiente de guardar',
+      concepto: els.ordenConcepto.value || 'Sin productos capturados',
+      cantidad: cantidadNeta,
+      total,
+      iva_porcentaje: ivaActualParaOrden,
+      descuento_porcentaje: descuentoPct,
+      descuento_monto: descuentoMonto,
+      email,
+      fecha_compra_formateada: null,
+    };
+  }
+
+  if (els.btnOrdenVistaPrevia) {
+    els.btnOrdenVistaPrevia.addEventListener('click', () => {
+      if (productosOrdenActual.length === 0) {
+        els.ordenErrorGeneral.textContent = 'Agrega al menos un producto para ver la vista previa.';
+        return;
+      }
+      abrirPreviewTicket(construirOrdenPreviaDesdeFormulario(), true);
+    });
   }
 
   // Modal de error al registrar una venta (punto 261) — reemplaza el
@@ -6687,6 +6883,7 @@
         fecha_vencimiento: ordenEstadoPago === 'pendiente' ? fechaVencimiento : null,
         notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null,
       });
+      borrarOrdenBorradorGuardado();
       mostrarExitoRegistrarOrden('Guardado — se enviará al recuperar conexión');
       aplicarFiltrosOrdenes();
       return;
@@ -6719,6 +6916,7 @@
         mostrarErrorRegistrarOrden(data);
         return;
       }
+      borrarOrdenBorradorGuardado();
       mostrarExitoRegistrarOrden(
         undefined,
         imprimirAlGuardar
@@ -6999,9 +7197,17 @@
   // window.print() directo; ahora todos abren esta vista previa primero,
   // y window.print() solo se dispara desde su botón "Imprimir".
   let ticketPreviewOrdenActual = null;
-  function abrirPreviewTicket(orden) {
+  // `esBorrador` (punto "Vista previa" de Registrar venta, homologado con
+  // stitch/): vista previa ANTES de guardar, con los datos capturados
+  // hasta ahora — sin folio real todavía, así que se avisa y se oculta
+  // "Imprimir" (imprimir un folio inventado confundiría más que ayudar).
+  // Los 4 disparadores normales (después de guardar de verdad) no pasan
+  // este parámetro, se quedan exactamente igual que siempre.
+  function abrirPreviewTicket(orden, esBorrador) {
     ticketPreviewOrdenActual = orden;
     els.ticketPreviewRecibo.innerHTML = construirHtmlTicket(orden);
+    if (els.ticketPreviewAvisoBorrador) els.ticketPreviewAvisoBorrador.hidden = !esBorrador;
+    if (els.btnTicketPreviewImprimir) els.btnTicketPreviewImprimir.hidden = Boolean(esBorrador);
     els.ticketPreviewModalOverlay.hidden = false;
   }
   function cerrarPreviewTicket() {

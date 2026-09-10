@@ -1189,6 +1189,27 @@ acomodo real que el usuario ya tenía armado, sin congelar alturas
 PROJECT_STATE.md punto 263. **Sin herramienta de navegador esta
 sesión** — falta confirmación visual. Sin commit/push todavía.
 
+**Punto 264 (2026-09-10, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales)**: modal "Registrar venta" homologado con
+`stitch/code.html` (consumido, ya borrado) — pedido explícito: "aplicalo
+fiel, cualquier funcionalidad que no tengamos comentame para decidir, pero
+si la podemos aplicar, aplicalo". Sin preguntar (construible con datos
+reales): banner informativo de fecha/IVA (link a Configuraciones
+globales), botones de descuento rápido (0/5/10/15%, mismo input de
+siempre), caja de desglose rica (Subtotal/Descuento/IVA/Total, reemplaza
+el mini-resumen de una línea del punto 126), tarjetas con borde en "Pago
+y entrega"/"Cliente", badge "CSF validada" junto a correo. 2 preguntas
+vía `AskUserQuestion` para lo genuinamente nuevo: "Guardar borrador"
+(SÍ — localStorage por tenant/usuario, prompt de restauración en azul vía
+`abrirConfirmacion()` extendido con variante `'primario'`) y "Vista
+previa" (SÍ — reusa `abrirPreviewTicket(orden, esBorrador)`, folio
+"Pendiente de guardar", sin botón Imprimir). Cero cambios de backend.
+Jest backend 912/912. Validado de punta a punta en navegador real: línea
+de producto de inventario agregada, descuento 10% con matemática exacta
+($4,100→$4,280.40), Vista previa correcta, Guardar borrador persistido y
+restaurado exacto al reabrir, cero errores de consola. Ver
+PROJECT_STATE.md punto 264. Sin commit/push todavía.
+
 **Punto 261 (2026-09-09, IMPLEMENTADO Y VALIDADO en navegador real contra
 Docker/MySQL reales)**: modal de error al registrar una venta, reemplaza el
 texto plano casi invisible que quedaba al fondo del wizard/formulario

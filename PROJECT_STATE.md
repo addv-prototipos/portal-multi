@@ -14352,6 +14352,49 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     tocar CSS/JS. Validado en navegador real (Claude in Chrome): banner
     confirmado debajo del grid, arriba de los filtros.
 
+- **Punto 264 (2026-09-10, IMPLEMENTADO Y VALIDADO en navegador real contra
+  Docker/MySQL reales)**: modal "Registrar venta" homologado con
+  `stitch/code.html` (consumido, ya borrado) — pedido explícito: "aplicalo
+  fiel, cualquier funcionalidad que no tengamos comentame para decidir, pero
+  si la podemos aplicar, aplicalo". Auditoría real-vs-inventado sin
+  preguntar para lo obviamente construible con datos reales: banner
+  informativo ("La fecha de emisión y la tasa de IVA... se toman de
+  Configuraciones globales", con link a la vista real), botones de
+  descuento rápido (0/5/10/15%, escriben sobre el mismo input de descuento
+  ya existente, sin campo nuevo), caja de desglose rica
+  (Subtotal/Descuento/IVA/Total, reemplaza el mini-resumen de una sola
+  línea del punto 126), tarjetas con borde alrededor de "Pago y entrega"/
+  "Cliente" (`.orden-tarjeta-campo`), badge "CSF validada" junto al label
+  de correo (informativo — el correo ya viene filtrado a solo los que
+  tienen constancia subida, el badge solo lo hace visible). 2 preguntas
+  vía `AskUserQuestion` para funcionalidad genuinamente NUEVA: (1)
+  "Guardar borrador" — SÍ construir, localStorage con clave por tenant/
+  usuario (`orden_borrador_v1_<TENANT_SLUG||'base'>_<usuarioSesionActual>`,
+  mismo patrón que `onboarding_v1_`), ofrece restaurar al reabrir el modal
+  vía `abrirConfirmacion()` extendido con variante `'primario'` (azul, no
+  rojo peligro — no es una acción destructiva); (2) "Vista previa" — SÍ
+  agregarlo, reutiliza `abrirPreviewTicket(orden, esBorrador)` (mismo
+  render que el ticket real post-guardado, parámetro nuevo opcional
+  agrega el aviso "Vista previa con los datos capturados — el folio real
+  se asigna hasta que registres la venta" y oculta el botón "Imprimir").
+  Cero cambios de backend. `node --check` limpio, HTML 775/775 divs
+  balanceados, CSS 1340/1340 llaves balanceadas, Jest backend 912/912.
+  Validado de punta a punta en navegador real (Claude in Chrome) contra
+  Docker/MySQL reales: banner/botones/caja de desglose/tarjetas/badge
+  renderizados correctos; producto de inventario buscado y agregado
+  (Escáner de mesa, $4,100.00 disponible 29); descuento rápido 10%→
+  Subtotal $4,100/Descuento -$410/IVA $590.40/Total $4,280.40 (matemática
+  exacta); "Vista previa" mostró el ticket con folio "Pendiente de
+  guardar", aviso de borrador visible, botón Imprimir ausente; "Guardar
+  borrador" persistió en `localStorage` bajo
+  `orden_borrador_v1_base_admin` con el producto/descuento capturados;
+  cerrar y reabrir el modal mostró el prompt "Tienes un borrador
+  guardado" en azul (no rojo), "Continuar borrador" restauró el estado
+  exacto (producto, precio, cantidad, 10% de descuento). Cero errores de
+  consola en todo el flujo. Entorno de prueba limpiado (borrador de
+  `localStorage` borrado, ninguna venta real quedó registrada — el modal
+  se cerró sin guardar). Sin commit/push todavía.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
