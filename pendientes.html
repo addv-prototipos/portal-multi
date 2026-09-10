@@ -129,6 +129,86 @@
   td.col-item { font-weight: 600; width: 260px; }
   td.col-detalle { color: var(--ink-soft); }
 
+  .search-wrap {
+    position: relative;
+    max-width: 560px;
+    margin-bottom: 24px;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: var(--ink-soft);
+    pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    padding: 10px 36px 10px 36px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg-alt);
+    color: var(--ink);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .search-input::placeholder { color: var(--ink-soft); }
+  .search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .search-clear:hover { background: var(--bg); color: var(--ink); }
+  .search-clear.visible { display: inline-flex; }
+  .search-meta {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    min-height: 16px;
+  }
+  .search-meta strong { color: var(--ink); font-weight: 600; }
+  .section-hidden { display: none !important; }
+  .no-results {
+    display: none;
+    text-align: center;
+    padding: 32px 20px;
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    background: var(--bg-alt);
+    color: var(--ink-soft);
+    font-size: 14px;
+    margin-bottom: 40px;
+  }
+  .no-results.visible { display: block; }
+  mark.hl {
+    background: var(--amber-bg);
+    color: var(--amber-ink);
+    padding: 0 2px;
+    border-radius: 3px;
+  }
+  @media (prefers-color-scheme: dark) {
+    mark.hl { background: #5C4A20; color: #E8B368; }
+  }
+
   footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 12px; }
 </style>
 
@@ -138,7 +218,7 @@
       <h1>Pendientes — Portal Clarvo</h1>
       <p>Backlog vivo del proyecto: decisiones abiertas, funcionalidad pospuesta a propósito y validaciones que faltan. Se actualiza en el mismo archivo conforme avanza cada segmento — solo dale refresh.</p>
     </div>
-    <div class="updated">Última actualización: <strong>10 sep 2026, 10:34</strong></div>
+    <div class="updated">Última actualización: <strong>10 sep 2026, 12:20</strong> · mensajería global /control (226, nuevo) · proveedores: ícono+animación implementados (266/267/268)</div>
   </header>
 
   <div class="legend">
@@ -147,6 +227,16 @@
     <span class="pill pill-gray">Sin probar en infra real</span>
     <span class="pill pill-green">Pospuesto a propósito</span>
   </div>
+
+  <div class="search-wrap" role="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="buscador-pendientes" class="search-input" type="search" placeholder="Buscar por punto, pendiente, detalle o estado…  (ej. Banxico, 152, sin probar)" aria-label="Buscar pendientes" autocomplete="off" spellcheck="false">
+    <button id="buscador-limpiar" class="search-clear" type="button" aria-label="Limpiar búsqueda" title="Limpiar (Esc)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" width="14" height="14"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div id="buscador-meta" class="search-meta" aria-live="polite"></div>
+  </div>
+  <div id="sin-resultados" class="no-results">Sin resultados para esa búsqueda — prueba con otro término o <button type="button" onclick="document.getElementById('buscador-pendientes').value='';document.getElementById('buscador-pendientes').dispatchEvent(new Event('input'))" style="background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline;padding:0">limpiar filtro</button>.</div>
 
   <section>
     <h2>Ventas <span class="count">3 pendientes</span></h2>
@@ -178,7 +268,7 @@
   </section>
 
   <section>
-    <h2>Inventarios <span class="count">3 pendientes</span></h2>
+    <h2>Inventarios <span class="count">4 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -188,6 +278,12 @@
             <td class="col-item">Proveedores como entidad propia</td>
             <td class="col-detalle">Hoy es texto libre en Gastos/Ventas. Existe placeholder "en construcción" en el sidebar (punto 181) — falta el CRUD real.</td>
             <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
+          </tr>
+          <tr>
+            <td class="col-punto">266/267/268</td>
+            <td class="col-item">Animación 3D + ícono de "Proveedores" — implementado</td>
+            <td class="col-detalle">Ícono del sidebar/menú móvil/Centro de conocimiento cambiado de caja (se confundía con Inventarios) a camión de entrega. Placeholder "en construcción" ganó una escena CSS-only (3 cubos isométricos vía <code>clip-path</code> + 2 robots con brazo-martillo animado, "CLARVO" en la pancita), sin WebGL/librería nueva. De paso, punto 268: encabezado de "Lectura de reportes" con 2 párrafos apilados fusionado en 1 (~40px recuperados). Jest 912/912, validado por HTTP contra Docker real tras rebuild <code>--no-cache</code>+<code>--force-recreate</code>. Ver <code>PROJECT_STATE.md</code> puntos 267/268.</td>
+            <td class="col-estado"><span class="pill pill-gray">Falta confirmar visualmente (sin navegador esta sesión)</span></td>
           </tr>
           <tr>
             <td class="col-punto">159</td>
@@ -260,6 +356,98 @@
   </section>
 
   <section>
+    <h2>Inicio de sesión / Seguridad <span class="count">2 pendientes</span></h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="col-punto">—</td>
+            <td class="col-item">Una sola sesión activa por usuario</td>
+            <td class="col-detalle">Por seguridad, un mismo usuario no puede tener más de <strong>1 sesión abierta a la vez</strong>. Si inicia sesión en otro dispositivo/navegador, la sesión anterior debe invalidarse (o bloquear el segundo inicio hasta cerrar la primera — por decidir). Aplica a portal cliente y panel <code>/admin</code> / <code>/control</code>. Requiere almacenar identificador de sesión vigente por usuario (cookie firmada actual es stateless — habrá que agregar estado en BD con <code>sesion_id</code>/<code>sesion_expira</code> o tabla de sesiones) y validar en cada request. Sin código aún.</td>
+            <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
+          </tr>
+          <tr>
+            <td class="col-punto">—</td>
+            <td class="col-item">Bitácora de IP/zona + alerta por cambio de estado</td>
+            <td class="col-detalle">Registrar <strong>IP y zona</strong> (estado/ciudad) de cada inicio de sesión (portal + <code>/admin</code> / <code>/control</code>) en bitácora. Resolver ubicación por IP en servidor (GeoIP: MaxMind GeoLite2 / ip-api / ipinfo — por definir, con fallback si no resuelve). Si el login ocurre desde un <strong>estado distinto</strong> al último registrado para ese usuario, enviar <strong>correo de alerta</strong>: “Alguien accedió desde otra ubicación — ¿fuiste tú? Sí / No fui yo” con IP, ciudad/estado, fecha/hora (zona horaria del tenant) y dispositivo aproximado (UA). Requiere tabla <code>sesiones_log</code> + plantilla de correo + respeto a <code>trust proxy</code> para IP real. Sin código aún.</td>
+            <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Integración CRM externo <span class="count">1 pendiente</span></h2>
+    <p class="section-note">Clarvo consume APIs de un producto CRM que puede operar <strong>integrado</strong> o <strong>independiente</strong>. Clarvo es consumidor (no expone datos del CRM) — el CRM es sistema de origen.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="col-punto">—</td>
+            <td class="col-item">Clarvo → APIs del CRM (integrado / independiente)</td>
+            <td class="col-detalle">Clarvo consumirá las APIs del CRM. Debe funcionar en dos modos: <strong>integrado</strong> (CRM + Clarvo sincronizados) e <strong>independiente</strong> (cada uno opera solo, sin dependencia dura). Por definir: catálogo de endpoints a consumir, auth (API Key / OAuth), mapeo de entidades (clientes, ventas, cobranza), estrategia de sincronización (pull/webhook), manejo de fallos/reintentos, y qué dato es fuente de verdad por entidad. Sin código aún — solo registro del pendiente.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir contrato API</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Gestor de facturación <span class="count">1 pendiente</span></h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="col-punto">269</td>
+            <td class="col-item">Gestor de facturación desactivable</td>
+            <td class="col-detalle">Switch para desactivar el gestor de facturación (flujo cliente → ticket → factura: <code>csf.html</code>/<code>tickets.html</code>/<code>dashboard.html</code> + <code>POST /api/tickets</code>/<code>/registro</code> + notificaciones). Al estar OFF: definir <strong>reglas de envío</strong> (¿se suprimen/encolan <code>notificarNuevoTicketAlContador</code>, <code>notificarFacturaListaAlCliente</code>, invitación y correo de venta o se descartan?), <strong>quitar el link de cliente</strong> (tile/CTA en dashboard, ruta <code>/&lt;slug&gt;/tickets</code> y enlaces en correos) y servir página <strong>"no encontrada / desactivado"</strong> (404 vs. plantilla mantenimiento/construcción del punto 222 — guard en <code>frontend/nginx.conf</code> + <code>backend/server.js</code>/<code>tenantContext.js</code>), y definir <strong>qué hacer con los envíos/tickets existentes</strong> (¿bloqueo de <code>POST /api/tickets</code> con 403 <code>GESTOR_DESACTIVADO</code> + modal bloqueante — mismo patrón que <code>SIN_CONSTANCIA</code> — vs. solo ocultar UI? ¿pendientes se conservan/archivan/purgan? ¿afecta a Ventas/Gastos?). Sin modelo (<code>gestor_facturacion_activo</code> por tenant en <code>control_tenants.tenants</code>), sin UX en <code>/control</code>, sin guards. Ver <code>PROJECT_STATE.md</code> punto 269.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Mensajería global (/control) <span class="count">1 pendiente</span></h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="col-punto">226</td>
+            <td class="col-item">SMTP global de Clarvo / selector de proveedores</td>
+            <td class="col-detalle">Ligado al punto 225 (switch Clarvo/propio por tenant, tampoco construido). Análisis + propuesta visual (Artifact) ya listos: nueva vista "Mensajería" en <code>/control</code> con SMTP de Clarvo funcional (mismo mecanismo ya probado con Gmail) + bloque "Otros proveedores" (SendGrid/Mailgun/SES, WhatsApp/SMS) marcado "Próximamente", honesto, sin lógica. 3 opciones presentadas, ninguna confirmada: (1, recomendada) solo SMTP Clarvo; (2) SMTP + un proveedor externo real hoy; (3) solo tabla/endpoint, sin pantalla hasta que el 225 también esté listo. Ver <code>PROJECT_STATE.md</code> punto 226.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta elegir opción 1/2/3</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Despliegue / Empaquetado <span class="count">1 pendiente</span></h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="col-punto">270</td>
+            <td class="col-item">Script de despliegue + empaquetado</td>
+            <td class="col-detalle">Generar script para desplegar y el empaquetado también. Sin definir: destino (VPS <code>docker compose</code> vs. Swarm <code>docker-stack.yml</code>), pasos del script (<code>build --no-cache</code> / <code>up -d --force-recreate</code> + <code>ensureSchema</code> + <code>/api/health</code>), qué se empaqueta (<code>.zip</code> de entrega vs. imágenes Docker <code>portalManager-*</code> vía registry/<code>docker save</code>), versionado, manejo de <code>.env</code>/secretos (nunca en el paquete, validación previa), rollback/health post-deploy ni ubicación del artefacto. Ver <code>PROJECT_STATE.md</code> punto 270.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
     <h2>Documentación <span class="count">2 pendientes</span></h2>
     <div class="table-scroll">
       <table>
@@ -286,3 +474,95 @@
     Archivo local en <code>D:\srv\portalFac\pendientes.html</code> — Claude lo edita en el mismo lugar conforme se cierra o decide cada punto, sin reconstruirlo desde cero. Abre este archivo directo en el navegador y dale refresh para ver la versión más reciente.
   </footer>
 </div>
+<script>
+(function() {
+  var input = document.getElementById('buscador-pendientes');
+  var btnLimpiar = document.getElementById('buscador-limpiar');
+  var meta = document.getElementById('buscador-meta');
+  var sinResultados = document.getElementById('sin-resultados');
+  if (!input) return;
+
+  function norm(s) {
+    return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function filtrar() {
+    var q = norm(input.value.trim());
+    var palabras = q ? q.split(/\s+/).filter(Boolean) : [];
+    var secciones = document.querySelectorAll('section');
+    var totalVisibles = 0;
+    var totalFilas = 0;
+
+    btnLimpiar.classList.toggle('visible', !!input.value);
+
+    secciones.forEach(function(sec) {
+      var h2 = sec.querySelector('h2');
+      var tituloSeccion = norm(h2 ? h2.textContent : '');
+      var filas = sec.querySelectorAll('tbody tr');
+      var visiblesEnSeccion = 0;
+
+      // Si el título de la sección matchea, muestra todas sus filas
+      var seccionMatchea = palabras.length && palabras.every(function(p) { return tituloSeccion.indexOf(p) !== -1; });
+
+      filas.forEach(function(tr) {
+        totalFilas++;
+        if (!palabras.length) {
+          tr.hidden = false;
+          visiblesEnSeccion++;
+          return;
+        }
+        if (seccionMatchea) {
+          tr.hidden = false;
+          visiblesEnSeccion++;
+          return;
+        }
+        var texto = norm(tr.textContent);
+        var ok = palabras.every(function(p) { return texto.indexOf(p) !== -1; });
+        tr.hidden = !ok;
+        if (ok) visiblesEnSeccion++;
+      });
+
+      var ocultarSeccion = palabras.length && visiblesEnSeccion === 0;
+      sec.classList.toggle('section-hidden', ocultarSeccion);
+      if (!ocultarSeccion) totalVisibles += visiblesEnSeccion;
+
+      // Actualiza contador del h2: "3 pendientes" -> "1 / 3"
+      if (h2) {
+        var countEl = h2.querySelector('.count');
+        if (countEl) {
+          if (!countEl.dataset.orig) countEl.dataset.orig = countEl.textContent;
+          if (!palabras.length) {
+            countEl.textContent = countEl.dataset.orig;
+          } else {
+            var origNum = (countEl.dataset.orig.match(/\d+/) || [''])[0];
+            countEl.textContent = visiblesEnSeccion + ' / ' + origNum + ' visibles';
+          }
+        }
+      }
+    });
+
+    sinResultados.classList.toggle('visible', palabras.length > 0 && totalVisibles === 0);
+
+    if (!palabras.length) {
+      meta.textContent = '';
+    } else if (totalVisibles === 0) {
+      meta.textContent = 'Sin coincidencias.';
+    } else {
+      meta.innerHTML = 'Mostrando <strong>' + totalVisibles + '</strong> de <strong>' + totalFilas + '</strong> pendientes';
+    }
+  }
+
+  input.addEventListener('input', filtrar);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { input.value = ''; filtrar(); input.focus(); }
+  });
+  btnLimpiar.addEventListener('click', function() { input.value = ''; filtrar(); input.focus(); });
+
+  // Filtro vía ?q= en URL para poder compartir búsquedas
+  try {
+    var qUrl = new URLSearchParams(location.search).get('q');
+    if (qUrl) input.value = qUrl;
+  } catch(e) {}
+  filtrar();
+})();
+</script>

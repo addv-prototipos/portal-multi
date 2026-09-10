@@ -256,6 +256,8 @@
     ordenesFiltroPeriodo: document.getElementById('ordenes-filtro-periodo'),
     btnLimpiarFiltrosOrdenes: document.getElementById('btn-limpiar-filtros-ordenes'),
     ordenesFiltroEmpty: document.getElementById('ordenes-filtro-empty'),
+    ordenesFiltrosChips: document.getElementById('ordenes-filtros-chips'),
+    btnLimpiarOrdenesFiltroConcepto: document.getElementById('btn-limpiar-ordenes-filtro-concepto'),
     // Modal "Corte del día" (punto 168)
     btnAbrirCorteModal: document.getElementById('btn-abrir-corte-modal'),
     corteModalOverlay: document.getElementById('corte-modal-overlay'),
@@ -414,6 +416,8 @@
     cxcFiltroCliente: document.getElementById('cxc-filtro-cliente'),
     cxcFiltroVencimiento: document.getElementById('cxc-filtro-vencimiento'),
     btnLimpiarFiltrosCxc: document.getElementById('btn-limpiar-filtros-cxc'),
+    cxcFiltrosChips: document.getElementById('cxc-filtros-chips'),
+    btnLimpiarCxcFiltroCliente: document.getElementById('btn-limpiar-cxc-filtro-cliente'),
     cxcTableBody: document.getElementById('cxc-table-body'),
     btnCxcColumns: document.getElementById('btn-cxc-columns'),
     cxcColumnTogglePanel: document.getElementById('cxc-column-toggle-panel'),
@@ -596,6 +600,8 @@
     gastosFiltroHasta: document.getElementById('gastos-filtro-hasta'),
     gastosBusqueda: document.getElementById('gastos-busqueda'),
     btnLimpiarFiltrosGastos: document.getElementById('btn-limpiar-filtros-gastos'),
+    gastosFiltrosChips: document.getElementById('gastos-filtros-chips'),
+    btnLimpiarGastosBusqueda: document.getElementById('btn-limpiar-gastos-busqueda'),
     gastosError: document.getElementById('gastos-error'),
     gastosTableBody: document.getElementById('gastos-table-body'),
     gastosEmpty: document.getElementById('gastos-empty'),
@@ -628,6 +634,8 @@
     invFiltroTipo: document.getElementById('inv-filtro-tipo'),
     invBusqueda: document.getElementById('inv-busqueda'),
     btnLimpiarFiltrosInv: document.getElementById('btn-limpiar-filtros-inv'),
+    invFiltrosChips: document.getElementById('inv-filtros-chips'),
+    btnLimpiarInvBusqueda: document.getElementById('btn-limpiar-inv-busqueda'),
     invError: document.getElementById('inv-error'),
     invTableBody: document.getElementById('inv-table-body'),
     btnInvColumns: document.getElementById('btn-inv-columns'),
@@ -943,6 +951,8 @@
     filtroReporteFechaDesde: document.getElementById('filtro-reporte-fecha-desde'),
     filtroReporteFechaHasta: document.getElementById('filtro-reporte-fecha-hasta'),
     btnLimpiarFiltrosReporte: document.getElementById('btn-limpiar-filtros-reporte'),
+    reporteFiltrosChips: document.getElementById('reporte-filtros-chips'),
+    btnLimpiarFiltroReporteRfc: document.getElementById('btn-limpiar-filtro-reporte-rfc'),
     reportesMovimientosWrap: document.getElementById('reportes-movimientos-wrap'),
     reportesMovimientosConteo: document.getElementById('reportes-movimientos-conteo'),
     reportesMovimientosTableBody: document.getElementById('reportes-movimientos-table-body'),
@@ -955,6 +965,7 @@
     reportesEliminadosEmpty: document.getElementById('reportes-eliminados-empty'),
     btnExportarEliminadosCsv: document.getElementById('btn-exportar-eliminados-csv'),
     btnExportarEliminadosExcel: document.getElementById('btn-exportar-eliminados-excel'),
+    reportesEliminadosTotalMonto: document.getElementById('reportes-eliminados-total-monto'),
     lecturaReportesSinSeleccion: document.getElementById('lectura-reportes-sin-seleccion'),
     reportesTabCaption: document.getElementById('reportes-tab-caption'),
     btnReportesVistaPorReporte: document.getElementById('btn-reportes-vista-por-reporte'),
@@ -969,6 +980,7 @@
     reportesCortesListaWrap: document.getElementById('reportes-cortes-lista-wrap'),
     reportesCortesTableBody: document.getElementById('reportes-cortes-table-body'),
     reportesCortesEmpty: document.getElementById('reportes-cortes-empty'),
+    btnCortesIrVentas: document.getElementById('btn-cortes-ir-ventas'),
     reportesCortesDetalleWrap: document.getElementById('reportes-cortes-detalle-wrap'),
     btnCortesVolverLista: document.getElementById('btn-cortes-volver-lista'),
     cortesDetalleRango: document.getElementById('cortes-detalle-rango'),
@@ -976,8 +988,12 @@
     cortesDetalleVentas: document.getElementById('cortes-detalle-ventas'),
     cortesDetalleTotal: document.getElementById('cortes-detalle-total'),
     cortesDetalleConteo: document.getElementById('cortes-detalle-conteo'),
+    cortesDetalleBuscar: document.getElementById('cortes-detalle-buscar'),
+    cortesDetallePaginacion: document.getElementById('cortes-detalle-paginacion'),
     reportesCortesDetalleTableBody: document.getElementById('reportes-cortes-detalle-table-body'),
     reportesCortesDetalleEmpty: document.getElementById('reportes-cortes-detalle-empty'),
+    reportesCortesDetalleSinResultados: document.getElementById('reportes-cortes-detalle-sin-resultados'),
+    btnImprimirCorteHistorico: document.getElementById('btn-imprimir-corte-historico'),
     btnExportarCorteCsv: document.getElementById('btn-exportar-corte-csv'),
     btnExportarCorteExcel: document.getElementById('btn-exportar-corte-excel'),
     btnEliminarCorte: document.getElementById('btn-eliminar-corte'),
@@ -1004,6 +1020,8 @@
     ledgerFiltroFechaDesde: document.getElementById('ledger-filtro-fecha-desde'),
     ledgerFiltroFechaHasta: document.getElementById('ledger-filtro-fecha-hasta'),
     btnLimpiarFiltrosLedger: document.getElementById('btn-limpiar-filtros-ledger'),
+    ledgerFiltrosChips: document.getElementById('ledger-filtros-chips'),
+    btnLimpiarLedgerFiltroRfc: document.getElementById('btn-limpiar-ledger-filtro-rfc'),
     ledgerConteo: document.getElementById('ledger-conteo'),
     ledgerTableBody: document.getElementById('ledger-table-body'),
     ledgerEmpty: document.getElementById('ledger-empty'),
@@ -1460,6 +1478,85 @@
     div.textContent = str == null ? '' : String(str);
     return div.innerHTML;
   }
+
+  // ---------- Homologación de filtros y búsqueda (ver PROJECT_STATE.md) ----------
+  // 2 helpers compartidos por las 6 vistas con filtros (Ventas, Cuentas
+  // por cobrar, Gastos, Inventarios, Lectura de reportes, Todo lo
+  // eliminado) — evita reimplementar la misma lógica de "chip de filtro
+  // activo" y "botón x dentro del buscador" 6 veces.
+
+  // Limpia un campo de filtro y dispara los eventos que su propio
+  // listener ya escucha (algunos usan 'input', otros 'change' según el
+  // tipo de control) — así "quitar" un chip reusa el mismo camino de
+  // recarga/re-render que ya tenía el campo, sin tener que saber si esa
+  // vista filtra en cliente o vuelve a pedir datos al servidor.
+  function limpiarCampoFiltro(el) {
+    if (!el) return;
+    el.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Pinta la fila de chips "Filtros activos: X, Y, Z" a partir de una
+  // lista de descriptores {etiqueta, valor, campos}. Solo se pintan los
+  // que traen "valor" (los filtros en su estado por defecto no generan
+  // chip). Cada chip trae su propio botón "×" que limpia el/los campos
+  // asociados (un rango como "Fechas" limpia 2 campos a la vez).
+  function renderFiltrosChips(contenedor, definiciones) {
+    if (!contenedor) return;
+    const activos = definiciones.filter((d) => d.valor);
+    if (!activos.length) {
+      contenedor.innerHTML = '';
+      contenedor.hidden = true;
+      return;
+    }
+    contenedor.hidden = false;
+    contenedor.innerHTML =
+      '<span class="filtros-chips-label">Filtros activos:</span>' +
+      activos
+        .map(
+          (d, i) => `
+        <span class="filtro-chip">
+          <span class="filtro-chip-etiqueta">${escapeHtml(d.etiqueta)}:</span> ${escapeHtml(d.valor)}
+          <button type="button" data-chip-quitar="${i}" aria-label="Quitar filtro ${escapeHtml(d.etiqueta)}">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
+          </button>
+        </span>`
+        )
+        .join('');
+    contenedor.querySelectorAll('[data-chip-quitar]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.getAttribute('data-chip-quitar'));
+        activos[idx].campos.forEach(limpiarCampoFiltro);
+      });
+    });
+  }
+
+  // Texto de una opción seleccionada de un <select> (o '' si no hay
+  // selección) — para que el chip muestre "Pendiente" en vez de
+  // "pendiente" (el value crudo).
+  function textoOpcionSeleccionada(select) {
+    if (!select || !select.value) return '';
+    const opt = select.options[select.selectedIndex];
+    return opt ? opt.text : select.value;
+  }
+
+  // Conecta el botón "×" dentro de un campo de búsqueda con ícono
+  // (.filtro-busqueda): aparece solo con texto, y al hacer clic limpia
+  // el campo y reaplica el filtro (mismo camino que limpiarCampoFiltro).
+  function activarLimpiezaBusqueda(inputEl, btnEl) {
+    if (!inputEl || !btnEl) return;
+    const actualizar = () => { btnEl.hidden = inputEl.value.trim().length === 0; };
+    inputEl.addEventListener('input', actualizar);
+    btnEl.addEventListener('click', () => limpiarCampoFiltro(inputEl));
+    actualizar();
+  }
+  activarLimpiezaBusqueda(els.ordenesFiltroConcepto, els.btnLimpiarOrdenesFiltroConcepto);
+  activarLimpiezaBusqueda(els.cxcFiltroCliente, els.btnLimpiarCxcFiltroCliente);
+  activarLimpiezaBusqueda(els.gastosBusqueda, els.btnLimpiarGastosBusqueda);
+  activarLimpiezaBusqueda(els.invBusqueda, els.btnLimpiarInvBusqueda);
+  activarLimpiezaBusqueda(els.filtroReporteRfc, els.btnLimpiarFiltroReporteRfc);
+  activarLimpiezaBusqueda(els.ledgerFiltroRfc, els.btnLimpiarLedgerFiltroRfc);
 
   // ---------- Formato automático de campos de dinero (comas de miles) ----------
   // Los campos de dinero son <input type="text"> (no "number", que no
@@ -3157,25 +3254,39 @@
     return escapeHtml(item.estatus_o_concepto || '—');
   }
 
+  // Tipo de reporte de origen (solo real: viene del JOIN a "reportes" que
+  // ya hace el backend en el ledger cruzado) — nunca inventar un motivo de
+  // baja que el sistema no registra de verdad.
+  const REPORTE_TIPO_ETIQUETA = {
+    automatico: 'Automático',
+    manual: 'Manual',
+    cierre_mensual: 'Cierre mensual',
+    corte: 'Corte de ventas',
+  };
+
   // "conOrigen" agrega la columna "Reporte de origen" — solo la usa el
   // ledger cruzado (varios reportes a la vez); dentro de un solo reporte
   // sobra, ya sabes de cuál es.
   function renderFilaReporteItem(item, conOrigen) {
+    const tipoOrigenEtiqueta = REPORTE_TIPO_ETIQUETA[item.reporte_tipo];
     const celdaOrigen = conOrigen
-      ? `<td data-label="Reporte de origen">${formatearFechaCorta(item.reporte_fecha_generacion)}</td>`
+      ? `<td data-label="Reporte de origen">
+          ${formatearFechaCorta(item.reporte_fecha_generacion)}
+          ${tipoOrigenEtiqueta ? `<span class="reportes-origen-badge">${escapeHtml(tipoOrigenEtiqueta)}</span>` : ''}
+        </td>`
       : '';
     return `
       <tr>
         <td data-label="Tipo">${TIPO_REGISTRO_ETIQUETA[item.tipo_registro] || item.tipo_registro}</td>
         <td data-label="Identificador">
-          <strong>${escapeHtml(item.identificador)}</strong>
+          <span class="reportes-id-pill">${escapeHtml(item.identificador)}</span>
           <button type="button" class="btn-ver-historial" data-tipo="${item.tipo_registro}" data-identificador="${escapeHtml(item.identificador)}" data-tooltip="Ver historial en todos los reportes" aria-label="Ver historial de ${escapeHtml(item.identificador)}">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           </button>
         </td>
         <td data-label="RFC / Correo">${escapeHtml(item.rfc || '—')}</td>
         <td data-label="Detalle">${renderDetalleItemReporte(item)}</td>
-        <td data-label="Monto">${item.monto === null ? '—' : `$${formatearMoneda(item.monto)}`}</td>
+        <td data-label="Monto">${item.monto === null ? '—' : `<span class="reportes-monto-valor">$${formatearMoneda(item.monto)}</span><span class="reportes-monto-sub">MXN</span>`}</td>
         <td data-label="Atendido por">${escapeHtml(item.atendido_por || '—')}</td>
         <td data-label="Fecha de registro">${formatearFechaCorta(item.fecha_registro)}</td>
         ${celdaOrigen}
@@ -3201,6 +3312,10 @@
     els.reportesEliminadosConteo.textContent = eliminados.length;
     els.reportesEliminadosTableBody.innerHTML = eliminados.map((item) => renderFilaReporteItem(item, false)).join('');
     els.reportesEliminadosEmpty.hidden = eliminados.length > 0;
+
+    const totalEliminadosMonto = eliminados.reduce((acc, item) => acc + (Number(item.monto) || 0), 0);
+    els.reportesEliminadosTotalMonto.hidden = eliminados.length === 0;
+    els.reportesEliminadosTotalMonto.textContent = `Total eliminados: ${eliminados.length} registro${eliminados.length === 1 ? '' : 's'} ($${formatearMoneda(totalEliminadosMonto)})`;
   }
 
   // "Generado por" (idea C de auditoría) — no viene en la lista de
@@ -3264,6 +3379,12 @@
     } catch (err) {
       // La tabla se queda con lo último cargado; se puede reintentar ajustando un filtro.
     }
+    renderFiltrosChips(els.ledgerFiltrosChips, [
+      { etiqueta: 'Tipo', valor: textoOpcionSeleccionada(els.ledgerFiltroTipo), campos: [els.ledgerFiltroTipo] },
+      { etiqueta: 'Estatus', valor: textoOpcionSeleccionada(els.ledgerFiltroEstatus), campos: [els.ledgerFiltroEstatus] },
+      { etiqueta: 'RFC / correo', valor: els.ledgerFiltroRfc.value.trim(), campos: [els.ledgerFiltroRfc] },
+      { etiqueta: 'Fechas', valor: (els.ledgerFiltroFechaDesde.value || els.ledgerFiltroFechaHasta.value) ? `${els.ledgerFiltroFechaDesde.value || '…'} – ${els.ledgerFiltroFechaHasta.value || '…'}` : '', campos: [els.ledgerFiltroFechaDesde, els.ledgerFiltroFechaHasta] },
+    ]);
   }
 
   [els.ledgerFiltroTipo, els.ledgerFiltroEstatus, els.ledgerFiltroFechaDesde, els.ledgerFiltroFechaHasta].forEach((el) => {
@@ -3322,6 +3443,9 @@
   // de nuevo aquí.
 
   let corteSeleccionadoId = '';
+  let corteDetalleItems = [];
+  let corteDetallePagina = 1;
+  const CORTE_DETALLE_POR_PAGINA = 12;
 
   function formatearFechaSoloDia(fechaISO) {
     if (!fechaISO) return '—';
@@ -3329,6 +3453,68 @@
     if (Number.isNaN(fecha.getTime())) return '—';
     return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   }
+
+  // Búsqueda 100% client-side (mismo criterio que los filtros de
+  // Ventas/Constancias) — un corte ya trae todos sus items en una sola
+  // petición, sin paginar del lado del servidor.
+  function corteDetalleItemsFiltrados() {
+    const texto = (els.cortesDetalleBuscar.value || '').trim().toLowerCase();
+    if (!texto) return corteDetalleItems;
+    return corteDetalleItems.filter((item) => {
+      const campos = [item.identificador, item.rfc, item.estatus_o_concepto, item.atendido_por];
+      return campos.some((campo) => String(campo || '').toLowerCase().includes(texto));
+    });
+  }
+
+  function renderPaginacionCorteDetalle(totalPaginas) {
+    if (totalPaginas <= 1) {
+      els.cortesDetallePaginacion.hidden = true;
+      els.cortesDetallePaginacion.innerHTML = '';
+      return;
+    }
+    els.cortesDetallePaginacion.hidden = false;
+    const botones = [];
+    botones.push(
+      `<button type="button" class="btn btn-secondary" data-pagina="${corteDetallePagina - 1}" ${corteDetallePagina <= 1 ? 'disabled' : ''}>← Anterior</button>`
+    );
+    for (let p = 1; p <= totalPaginas; p += 1) {
+      botones.push(
+        `<button type="button" class="lectura-reportes-pagina-btn${p === corteDetallePagina ? ' is-active' : ''}" data-pagina="${p}">${p}</button>`
+      );
+    }
+    botones.push(
+      `<button type="button" class="btn btn-secondary" data-pagina="${corteDetallePagina + 1}" ${corteDetallePagina >= totalPaginas ? 'disabled' : ''}>Siguiente →</button>`
+    );
+    els.cortesDetallePaginacion.innerHTML = botones.join('');
+  }
+
+  function renderCorteDetalleTabla() {
+    const filtrados = corteDetalleItemsFiltrados();
+    const totalPaginas = Math.max(1, Math.ceil(filtrados.length / CORTE_DETALLE_POR_PAGINA));
+    corteDetallePagina = Math.min(corteDetallePagina, totalPaginas);
+    const inicio = (corteDetallePagina - 1) * CORTE_DETALLE_POR_PAGINA;
+    const pagina = filtrados.slice(inicio, inicio + CORTE_DETALLE_POR_PAGINA);
+
+    els.reportesCortesDetalleTableBody.innerHTML = pagina.map((item) => renderFilaReporteItem(item, false)).join('');
+    els.reportesCortesDetalleEmpty.hidden = corteDetalleItems.length > 0;
+    els.reportesCortesDetalleSinResultados.hidden = !(corteDetalleItems.length > 0 && filtrados.length === 0);
+    renderPaginacionCorteDetalle(totalPaginas);
+  }
+
+  els.cortesDetalleBuscar.addEventListener('input', () => {
+    corteDetallePagina = 1;
+    renderCorteDetalleTabla();
+  });
+  els.cortesDetallePaginacion.addEventListener('click', (e) => {
+    const boton = e.target.closest('[data-pagina]');
+    if (!boton || boton.disabled) return;
+    const pagina = Number(boton.dataset.pagina);
+    if (!Number.isFinite(pagina) || pagina < 1) return;
+    corteDetallePagina = pagina;
+    renderCorteDetalleTabla();
+  });
+
+  els.btnCortesIrVentas.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
 
   function renderListaCortes() {
     const cortes = reportesDisponibles.filter((r) => r.tipo === 'corte');
@@ -3367,15 +3553,16 @@
 
     els.reportesCortesListaWrap.hidden = true;
     els.reportesCortesDetalleWrap.hidden = false;
+    els.cortesDetalleBuscar.value = '';
+    corteDetallePagina = 1;
 
     try {
       const res = await fetch(`${API_BASE}/admin/reportes/${id}/items`, { headers: { Authorization: authHeader } });
       if (!res.ok) return;
       const data = await res.json();
-      const items = data.items || [];
-      els.cortesDetalleConteo.textContent = items.length;
-      els.reportesCortesDetalleTableBody.innerHTML = items.map((item) => renderFilaReporteItem(item, false)).join('');
-      els.reportesCortesDetalleEmpty.hidden = items.length > 0;
+      corteDetalleItems = data.items || [];
+      els.cortesDetalleConteo.textContent = corteDetalleItems.length;
+      renderCorteDetalleTabla();
     } catch (err) {
       // La tabla se queda vacía; se puede reintentar volviendo a abrir el detalle.
     }
@@ -3383,6 +3570,7 @@
 
   function volverListaCortes() {
     corteSeleccionadoId = '';
+    corteDetalleItems = [];
     els.reportesCortesDetalleWrap.hidden = true;
     els.reportesCortesListaWrap.hidden = false;
   }
@@ -3392,6 +3580,51 @@
     if (boton) abrirDetalleCorte(boton.dataset.corteId);
   });
   els.btnCortesVolverLista.addEventListener('click', volverListaCortes);
+
+  // Imprime un corte YA GUARDADO (historial de "Cortes"), a diferencia de
+  // #btn-imprimir-corte (Ventas) que imprime el corte recién generado —
+  // reusa el mismo elemento #corte-imprimir/CSS de impresión, con los
+  // únicos datos que un corte histórico sí conserva (rango, total,
+  // conteo y sus items) — sin el desglose de IVA/facturado/cobrado, que
+  // no se guarda por corte.
+  els.btnImprimirCorteHistorico.addEventListener('click', () => {
+    if (!corteDetalleItems.length && els.cortesDetalleConteo.textContent === '0') {
+      const filasVacias = '<tr><td colspan="5">Sin ventas en este rango.</td></tr>';
+      els.corteImprimir.innerHTML = `
+        <div class="corte-imprimir-titulo">Corte de ventas</div>
+        <div class="corte-imprimir-rango">${escapeHtml(els.cortesDetalleRango.textContent)}</div>
+        <table class="corte-imprimir-tabla"><thead><tr><th>No.</th><th>Fecha</th><th>Correo</th><th>Detalle</th><th>Total</th></tr></thead><tbody>${filasVacias}</tbody></table>
+      `;
+      window.print();
+      return;
+    }
+    const filasHtml = corteDetalleItems
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapeHtml(item.identificador)}</td>
+            <td>${formatearFechaCorta(item.fecha_registro)}</td>
+            <td>${escapeHtml(item.rfc || 'Sin correo')}</td>
+            <td>${renderDetalleItemReporte(item)}</td>
+            <td>${item.monto === null ? '—' : `$${formatearMoneda(item.monto)}`}</td>
+          </tr>`
+      )
+      .join('');
+    els.corteImprimir.innerHTML = `
+      <div class="corte-imprimir-titulo">Corte de ventas</div>
+      <div class="corte-imprimir-rango">${escapeHtml(els.cortesDetalleRango.textContent)}</div>
+      <div class="corte-imprimir-resumen">
+        <div><span>Generado el</span><span>${escapeHtml(els.cortesDetalleFecha.textContent)}</span></div>
+        <div><span>Ventas</span><span>${escapeHtml(els.cortesDetalleVentas.textContent)}</span></div>
+        <div><span>Total</span><span>${escapeHtml(els.cortesDetalleTotal.textContent)}</span></div>
+      </div>
+      <table class="corte-imprimir-tabla">
+        <thead><tr><th>No. Venta</th><th>Fecha</th><th>RFC / Correo</th><th>Detalle</th><th>Total</th></tr></thead>
+        <tbody>${filasHtml}</tbody>
+      </table>
+    `;
+    window.print();
+  });
 
   async function exportarCorte(formato) {
     if (!corteSeleccionadoId) return;
@@ -3586,6 +3819,12 @@
     } catch (err) {
       // La tabla se queda con lo último cargado; se puede reintentar ajustando un filtro.
     }
+    renderFiltrosChips(els.reporteFiltrosChips, [
+      { etiqueta: 'Tipo', valor: textoOpcionSeleccionada(els.filtroReporteTipo), campos: [els.filtroReporteTipo] },
+      { etiqueta: 'Estatus', valor: textoOpcionSeleccionada(els.filtroReporteEstatus), campos: [els.filtroReporteEstatus] },
+      { etiqueta: 'RFC / correo', valor: els.filtroReporteRfc.value.trim(), campos: [els.filtroReporteRfc] },
+      { etiqueta: 'Fechas', valor: (els.filtroReporteFechaDesde.value || els.filtroReporteFechaHasta.value) ? `${els.filtroReporteFechaDesde.value || '…'} – ${els.filtroReporteFechaHasta.value || '…'}` : '', campos: [els.filtroReporteFechaDesde, els.filtroReporteFechaHasta] },
+    ]);
   }
 
   els.reportesSelector.addEventListener('change', async () => {
@@ -7095,6 +7334,13 @@
     const hayFiltro = Boolean(concepto || fechaDesde || fechaHasta || totalMin !== null || totalMax !== null || estadoPagoFiltro || facturacionFiltro);
     els.ordenesEmpty.hidden = ordenesCache.length > 0 || pendientes.length > 0;
     els.ordenesFiltroEmpty.hidden = !(hayFiltro && ordenesCache.length > 0 && filtradas.length === 0);
+    renderFiltrosChips(els.ordenesFiltrosChips, [
+      { etiqueta: 'Buscar', valor: els.ordenesFiltroConcepto.value.trim(), campos: [els.ordenesFiltroConcepto] },
+      { etiqueta: 'Fechas', valor: (fechaDesde || fechaHasta) ? `${fechaDesde || '…'} – ${fechaHasta || '…'}` : '', campos: [els.ordenesFiltroFechaDesde, els.ordenesFiltroFechaHasta] },
+      { etiqueta: 'Total', valor: (totalMin !== null || totalMax !== null) ? `$${totalMin ?? 0} – $${totalMax ?? '∞'}` : '', campos: [els.ordenesFiltroTotalMin, els.ordenesFiltroTotalMax] },
+      { etiqueta: 'Estado de pago', valor: textoOpcionSeleccionada(els.ordenesFiltroEstadoPago), campos: [els.ordenesFiltroEstadoPago] },
+      { etiqueta: 'Facturación', valor: textoOpcionSeleccionada(els.ordenesFiltroFacturacion), campos: [els.ordenesFiltroFacturacion] },
+    ]);
   }
   [els.ordenesFiltroConcepto, els.ordenesFiltroFechaDesde, els.ordenesFiltroFechaHasta, els.ordenesFiltroTotalMin, els.ordenesFiltroTotalMax].forEach((el) => {
     el.addEventListener('input', () => aplicarFiltrosOrdenes());
@@ -11931,6 +12177,13 @@
     els.gastosEmpty.hidden = !(vacio && !esPapelera && !hayFiltro);
     els.gastosFiltroEmpty.hidden = !(vacio && !esPapelera && hayFiltro);
     els.gastosPapeleraEmpty.hidden = !(vacio && esPapelera);
+    renderFiltrosChips(els.gastosFiltrosChips, [
+      { etiqueta: 'Categoría', valor: textoOpcionSeleccionada(els.gastosFiltroCategoria), campos: [els.gastosFiltroCategoria] },
+      { etiqueta: 'Factura', valor: els.gastosFiltroFactura.value !== '' ? textoOpcionSeleccionada(els.gastosFiltroFactura) : '', campos: [els.gastosFiltroFactura] },
+      { etiqueta: 'Recurrente', valor: els.gastosFiltroRecurrente.value !== '' ? textoOpcionSeleccionada(els.gastosFiltroRecurrente) : '', campos: [els.gastosFiltroRecurrente] },
+      { etiqueta: 'Fechas', valor: (els.gastosFiltroDesde.value || els.gastosFiltroHasta.value) ? `${els.gastosFiltroDesde.value || '…'} – ${els.gastosFiltroHasta.value || '…'}` : '', campos: [els.gastosFiltroDesde, els.gastosFiltroHasta] },
+      { etiqueta: 'Buscar', valor: els.gastosBusqueda.value.trim(), campos: [els.gastosBusqueda] },
+    ]);
 
     if (!esPapelera && resumen) {
       const { mes_actual, con_factura, sin_factura, mes_anterior, cantidad } = resumen;
@@ -12899,6 +13152,10 @@
     if (els.cxcFiltroEmpty) els.cxcFiltroEmpty.hidden = !(filtradas.length === 0 && todas.length > 0);
     if (els.btnCxcExportar) els.btnCxcExportar.onclick = () => exportarCxcCsv(filtradas);
     renderResumenFinCobranza(todas);
+    renderFiltrosChips(els.cxcFiltrosChips, [
+      { etiqueta: 'Buscar', valor: els.cxcFiltroCliente ? els.cxcFiltroCliente.value.trim() : '', campos: [els.cxcFiltroCliente] },
+      { etiqueta: 'Vencimiento', valor: textoOpcionSeleccionada(els.cxcFiltroVencimiento), campos: [els.cxcFiltroVencimiento] },
+    ]);
   }
 
   function abrirCobroModal(orden) {
@@ -13473,6 +13730,12 @@
       const data = await res.json();
       productosInventarioActuales = data.productos || [];
       renderInvTabla(productosInventarioActuales, data.total);
+      renderFiltrosChips(els.invFiltrosChips, [
+        { etiqueta: 'Categoría', valor: textoOpcionSeleccionada(els.invFiltroCategoria), campos: [els.invFiltroCategoria] },
+        { etiqueta: 'Estado', valor: textoOpcionSeleccionada(els.invFiltroEstado), campos: [els.invFiltroEstado] },
+        { etiqueta: 'Tipo', valor: textoOpcionSeleccionada(els.invFiltroTipo), campos: [els.invFiltroTipo] },
+        { etiqueta: 'Buscar', valor: els.invBusqueda.value.trim(), campos: [els.invBusqueda] },
+      ]);
     } catch (err) {
       els.invError.textContent = 'No se pudo conectar con el servidor.';
     }

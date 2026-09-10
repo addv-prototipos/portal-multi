@@ -16,16 +16,16 @@ siempre actualizados `PROJECT_STATE.md`, este archivo y `README.md`.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
-o estado del proyecto, actualizar siempre `PROJECT_STATE.md`, `CLAUDE.md` y
-este archivo antes de cerrar el trabajo. Si la sesión tiene acceso de escritura
-a Claude Mem, registrar también ahí la decisión/estado para que futuras
-sesiones de Claude y Codex puedan coordinarse sin depender del historial del
-chat. Si solo hay acceso de lectura a Claude Mem, dejar constancia explícita
-en estos archivos. Esta regla se ejecuta junto con el protocolo
-`addv-web-app`: analizar primero, proponer un segmento acotado, esperar
-confirmación explícita del usuario e implementar solo el segmento aprobado,
-manteniendo el piso obligatorio de UX/accesibilidad/rendimiento/seguridad/
-Docker/pruebas/calidad.
+o estado del proyecto, actualizar siempre `PROJECT_STATE.md`, `CLAUDE.md`,
+`pendientes.html` y este archivo antes de cerrar el trabajo. Si la sesión
+tiene acceso de escritura a Claude Mem, registrar también ahí la
+decisión/estado para que futuras sesiones de Claude y Codex puedan
+coordinarse sin depender del historial del chat. Si solo hay acceso de lectura
+a Claude Mem, dejar constancia explícita en estos archivos. Esta regla se
+ejecuta junto con el protocolo `addv-web-app`: analizar primero, proponer un
+segmento acotado, esperar confirmación explícita del usuario e implementar solo
+el segmento aprobado, manteniendo el piso obligatorio de
+UX/accesibilidad/rendimiento/seguridad/Docker/pruebas/calidad.
 
 ## Stack
 
@@ -294,6 +294,8 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
    (584/584).
 - **PENDIENTE — Cuentas por cobrar (ver PROJECT_STATE.md punto 138, 2026-08-24)**: a pedido del usuario, toda venta es por defecto "pagada" + opción "pendiente de pago" gestionada en nueva vista "Cuentas por cobrar" (no existe). Propuesta UX/UI documentada, en espera de confirmación explícita — **cero código tocado**. Ventas: radio Pagada (default verde) / Pendiente (ámbar) en el modal que revela Vencimiento + Notas; CxC entre Ventas y Gastos con 4 KPIs y tabla con badges ⏳/🔴/✅ + Registrar cobro (abonos, `monto <= saldo`). Modelo propuesto `estado_pago/monto_cobrado/fecha_vencimiento`. No avanzar sin aprobación.
 - **PENDIENTE — Cierre mensual archivado Ventas+Gastos + retención solo-Tickets (ver PROJECT_STATE.md punto 158, 2026-08-28)**: retención `tickets_retencion_dias` queda solo tickets; Ventas/Gastos se archivan (no se borran) al día 1 02:00 `zona_horaria` hacia Reportes (`tipo='cierre_mensual'`, `accion='archivado'`), con `archivado_en`+`periodo_archivado` en ambas tablas. Listados filtran por defecto `archivado_en IS NULL`; Resumen financiero incluye archivados (Opción A). Aplica dual: base ADDV sin slug + cada tenant activo (job itera `control.tenants` vía `ejecutarComoTenant`, `PREFIJO_DEFECTO` corregido). Fases 1-5 documentadas, cero código tocado, en espera de confirmación explícita de hora y alcance de pendientes.
+- **PENDIENTE — Gestor de facturación desactivable (ver PROJECT_STATE.md punto 269, 2026-09-10)**: switch para desactivar el gestor de facturación; al estar OFF: definir reglas de envío (qué correos se suprimen/encolan), retirar el link de cliente y servir página "no encontrada/desactivado" (404 vs. mantenimiento del punto 222), y definir qué hacer con envíos/tickets existentes (bloqueo de `POST /api/tickets` vs. solo ocultar UI, destino de pendientes). Sin analizar modelo (`gestor_facturacion_activo` por tenant en `control_tenants.tenants`), UX en `/control` ni guards en `backend/server.js`/`frontend/nginx.conf` — cero código tocado, en espera de confirmación del alcance (tenant vs. global, qué flujos abarca).
+- **PENDIENTE — Script de despliegue + empaquetado (ver PROJECT_STATE.md punto 270, 2026-09-10)**: generar script de despliegue y empaquetado. Sin analizar destino (VPS `docker compose` vs. Swarm `docker-stack.yml`), pasos del script (`build --no-cache`/`up -d --force-recreate` + `ensureSchema` + `/api/health`), qué se empaqueta (`.zip` de entrega vs. imágenes `portalManager-*` vía registry/`docker save`), versionado, manejo de `.env`/secretos ni rollback — cero código tocado, en espera de confirmación del alcance.
 
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.

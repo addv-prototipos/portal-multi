@@ -1406,15 +1406,6 @@
   font-size: 14px;
 }
 
-/* Letrero de una línea, ahora PEGADO al subtítulo de arriba (punto 172,
-   antes vivía debajo de las pestañas) — se leen como un solo bloque de
-   texto explicando la sección, y las pestañas quedan como frontera clara
-   antes del contenido interactivo. Margen superior chico a propósito
-   (no el ~22px de siempre entre bloques) para que no se sienta como un
-   párrafo aparte del subtítulo. */
-.lectura-reportes-tab-caption {
-  margin: 0 0 22px;
-}
 /* Pestañas de "Lectura de reportes" — clase propia (además de la
    .view-toggle compartida por 11+ lugares del panel) para separarlas del
    contenido de abajo sin tocar el margen de .view-toggle en general. */
@@ -1428,6 +1419,162 @@
 .lectura-reportes-volver {
   margin-bottom: 16px;
 }
+
+/* Homologación con stitch (2026-09-10) — tarjeta blanca con borde para
+   agrupar "Selección de reporte" y "Parámetros de filtrado", fiel al
+   mockup, reusando el mismo borde/radio que el resto del panel. */
+.lectura-reportes-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.lectura-reportes-card-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+.lectura-reportes-card-label svg { flex-shrink: 0; color: var(--color-accent); }
+.lectura-reportes-card .lectura-reportes-selector-wrap,
+.lectura-reportes-card .lectura-reportes-resumen { margin: 0; }
+.lectura-reportes-card .lectura-reportes-filtros { padding: 0; border: 0; margin: 0; }
+
+/* Identificador de venta/ticket como "pill" monoespaciada — mismo
+   lenguaje visual navy/cyan del panel, en vez de texto plano en negritas. */
+.reportes-id-pill {
+  display: inline-block;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+/* Monto con su moneda debajo, chica — mismo patrón que otras tablas de
+   dinero del panel (ej. Ventas), aplicado aquí a las 4 tablas que
+   comparten renderFilaReporteItem(). */
+.reportes-monto-valor { display: block; font-weight: 700; }
+.reportes-monto-sub { display: block; font-size: 10.5px; color: var(--color-ink-soft); }
+
+/* Badge de tipo de reporte de origen (Automático/Manual/Cierre mensual/
+   Corte de ventas) — dato real vía JOIN a "reportes", solo se pinta en
+   el ledger cruzado ("Todo lo eliminado"), donde sí varía fila a fila. */
+.reportes-origen-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
+/* Total monetario real de la sub-tabla "Eliminados" (Por reporte) —
+   suma de los montos ya mostrados, nada nuevo que el backend no haya
+   dado ya. */
+.lectura-reportes-subtabla-total {
+  display: block;
+  margin-top: 4px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+/* Resumen destacado del detalle de un corte (pestaña "Cortes") — el
+   monto total recibe tratamiento de cifra grande, igual que un KPI,
+   sin inventar timbrado/hash/conciliación bancaria (eso no existe). */
+.corte-resumen-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: stretch;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-bottom: 18px;
+}
+.corte-resumen-datos {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+}
+.corte-resumen-etiqueta {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+.corte-resumen-destacado {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  padding-left: 18px;
+  border-left: 1px solid var(--color-border);
+}
+.corte-resumen-destacado-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+.corte-resumen-destacado-valor {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--color-accent);
+  line-height: 1.1;
+}
+@media (max-width: 640px) {
+  .corte-resumen-destacado { align-items: flex-start; border-left: 0; padding-left: 0; border-top: 1px solid var(--color-border); padding-top: 12px; }
+}
+
+/* Buscador dentro del detalle de un corte — mismo componente
+   .filtro-busqueda ya usado en el resto del panel, solo se ajusta el
+   ancho dentro de la cabecera de la sub-tabla. */
+.corte-detalle-buscar { flex: 1 1 220px; max-width: 320px; margin: 0; }
+.lectura-reportes-subtabla-header .corte-detalle-buscar { order: 1; }
+
+/* Paginación simple de la tabla de un corte (>12 ventas) — mismo botón
+   secundario del resto del panel para Anterior/Siguiente. */
+.lectura-reportes-paginacion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 14px 0 4px;
+}
+.lectura-reportes-pagina-btn {
+  min-width: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lectura-reportes-pagina-btn:hover { background: var(--color-accent-soft); }
+.lectura-reportes-pagina-btn.is-active { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 
 /* Modal de "Ver Markdown completo" */
 .ver-md-modal { max-width: 720px; width: 92vw; }
@@ -6180,22 +6327,86 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   min-height: 320px;
   gap: 4px;
 }
-.en-construccion-icono {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 10px;
-  border-radius: 14px;
-  background: #03285B;
-  color: #05DBF2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: en-construccion-pulso 2.2s ease-in-out infinite;
+/* Escena "robots construyendo" — cubos isométricos vía clip-path (sin
+   WebGL/librería, mismo criterio "ligero" del resto del panel). Solo
+   transform/opacity, respeta prefers-reduced-motion (ver media query
+   abajo). "CLARVO" en la pancita de cada robot es decorativo, por eso
+   la escena entera es aria-hidden y el texto no necesita legibilidad
+   perfecta a este tamaño. */
+.prov-construccion-escena {
+  position: relative;
+  width: 220px;
+  height: 190px;
+  margin: 0 auto 10px;
 }
-@keyframes en-construccion-pulso {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(5, 219, 242, 0.35); }
-  50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(5, 219, 242, 0); }
+.prov-cubo { position: absolute; width: 34px; height: 34px; left: 0; }
+.prov-cubo .cara { position: absolute; inset: 0; }
+.prov-cubo .cara-arriba { background: #0F4A93; clip-path: polygon(6.7% 25%, 50% 0%, 93.3% 25%, 50% 50%); }
+.prov-cubo .cara-izq { background: #0A3B7A; clip-path: polygon(50% 100%, 6.7% 75%, 6.7% 25%, 50% 50%); }
+.prov-cubo .cara-der { background: #092E5E; clip-path: polygon(93.3% 25%, 93.3% 75%, 50% 100%, 50% 50%); }
+.prov-torre { position: absolute; left: 18px; bottom: 14px; }
+.prov-torre .prov-cubo:nth-child(1) { bottom: 0; animation: prov-torre-crece 5s ease-in-out infinite; }
+.prov-torre .prov-cubo:nth-child(2) { bottom: 22px; animation: prov-torre-crece 5s ease-in-out 0.5s infinite; }
+.prov-torre .prov-cubo:nth-child(3) { bottom: 44px; animation: prov-torre-crece 5s ease-in-out 1s infinite; }
+@keyframes prov-torre-crece {
+  0%, 8% { transform: scale(0); opacity: 0; }
+  22%, 78% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
+.prov-chispa {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%;
+  background: #05DBF2; box-shadow: 0 0 8px #05DBF2;
+}
+.prov-chispa-1 { left: 78px; bottom: 58px; animation: prov-chispa-parpadeo 2.4s ease-in-out infinite; }
+.prov-chispa-2 { left: 88px; bottom: 66px; animation: prov-chispa-parpadeo 2.4s ease-in-out 0.6s infinite; }
+@keyframes prov-chispa-parpadeo {
+  0%, 100% { opacity: 0; transform: scale(0.4); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.prov-robot { position: absolute; bottom: 14px; }
+.prov-robot-izq { left: 118px; }
+.prov-robot-der { left: 158px; }
+.prov-robot-cabeza {
+  width: 16px; height: 14px; border-radius: 5px 5px 3px 3px;
+  background: linear-gradient(155deg, #FFFFFF, #D7E0EF);
+  margin: 0 auto 2px; position: relative;
+  box-shadow: 0 2px 3px rgba(3, 40, 91, 0.15);
+}
+.prov-robot-ojo { position: absolute; top: 5px; left: 3px; width: 10px; height: 4px; border-radius: 2px; background: #03285B; }
+.prov-robot-ojo::after {
+  content: ""; position: absolute; right: 1px; top: 1px; width: 2px; height: 2px;
+  border-radius: 50%; background: #05DBF2; animation: prov-robot-parpadeo 2.6s infinite;
+}
+@keyframes prov-robot-parpadeo {
+  0%, 88%, 100% { opacity: 1; }
+  92% { opacity: 0.15; }
+}
+.prov-robot-cuerpo {
+  width: 22px; height: 26px; border-radius: 6px;
+  background: linear-gradient(155deg, #F2F5FA, #C9D4E6);
+  box-shadow: inset 0 -3px 0 rgba(3, 40, 91, 0.18), 0 3px 5px rgba(3, 40, 91, 0.18);
+  display: flex; align-items: center; justify-content: center;
+}
+.prov-robot-marca {
+  font-family: var(--font-body, "Inter", sans-serif);
+  font-size: 4.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #03285B;
+}
+.prov-robot-brazo { position: absolute; top: 2px; width: 4px; height: 16px; border-radius: 3px; background: #B7C4DB; transform-origin: top center; }
+.prov-robot-brazo::after { content: ""; position: absolute; bottom: -3px; width: 10px; height: 6px; border-radius: 2px; background: #0A3B7A; }
+.prov-robot-izq .prov-robot-brazo { left: -3px; animation: prov-robot-martillo 1.4s ease-in-out infinite; }
+.prov-robot-izq .prov-robot-brazo::after { left: -3px; }
+.prov-robot-der .prov-robot-brazo { right: -3px; animation: prov-robot-martillo 1.4s ease-in-out 0.3s infinite reverse; }
+.prov-robot-der .prov-robot-brazo::after { right: -3px; }
+@keyframes prov-robot-martillo {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-42deg); }
+}
+.prov-robot-pierna { position: absolute; bottom: -8px; width: 5px; height: 8px; border-radius: 2px; background: #AEBBD3; }
+.prov-robot-pierna-izq { left: 2px; }
+.prov-robot-pierna-der { right: 2px; }
 .en-construccion-titulo {
   font-size: 15px;
   font-weight: 700;
@@ -6223,8 +6434,12 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   40% { opacity: 1; transform: translateY(-2px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .en-construccion-icono,
-  .en-construccion-puntos span { animation: none; }
+  .en-construccion-puntos span,
+  .prov-torre .prov-cubo,
+  .prov-chispa,
+  .prov-robot-ojo::after,
+  .prov-robot-brazo { animation: none; }
+  .prov-torre .prov-cubo { opacity: 1; transform: scale(1); }
 }
 .gastos-categoria-fila .btn-icon {
   width: 26px;
@@ -6678,4 +6893,131 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 
 @media (max-width: 900px) {
   .cxc-analytics-grid { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+   Homologación de filtros y búsqueda (ver PROJECT_STATE.md) — lenguaje
+   visual único para las 9 implementaciones de filtros del panel (Ventas,
+   Cuentas por cobrar, Gastos, Inventarios, Lectura de reportes, Todo lo
+   eliminado, Tickets, Usuarios, Constancias). Reskin sobre los tokens
+   reales del sitio (Inter, --color-accent navy) — NO se copia Tailwind/
+   Font Awesome/Plus Jakarta Sans del mockup de referencia, solo el
+   lenguaje de interacción (relieve sutil, ícono en buscadores, chips de
+   filtro activo). Las 3 cuadrículas ya existentes (.ordenes-filtros,
+   .gastos-filtros, .lectura-reportes-filtros) NO se tocan en su mecánica
+   de layout — solo se les homologa el cromado de sus controles, para no
+   arriesgar reflow en las 7 vistas que ya dependían de ellas. */
+.ordenes-filtros select,
+.ordenes-filtros input[type="text"],
+.ordenes-filtros input[type="date"],
+.ordenes-filtros input[type="number"],
+.gastos-filtros select,
+.gastos-filtros input[type="text"],
+.gastos-filtros input[type="date"],
+.lectura-reportes-filtros select,
+.lectura-reportes-filtros input[type="text"],
+.lectura-reportes-filtros input[type="date"],
+.tickets-filtro-estatus {
+  background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg) 100%);
+  box-shadow: 0 1px 2px rgba(3, 40, 91, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.ordenes-filtros select:hover,
+.ordenes-filtros input:hover,
+.gastos-filtros select:hover,
+.gastos-filtros input:hover,
+.lectura-reportes-filtros select:hover,
+.lectura-reportes-filtros input:hover,
+.tickets-filtro-estatus:hover {
+  border-color: #C7CDD6;
+}
+.ordenes-filtros select:focus,
+.ordenes-filtros input:focus,
+.gastos-filtros select:focus,
+.gastos-filtros input:focus,
+.lectura-reportes-filtros select:focus,
+.lectura-reportes-filtros input:focus,
+.tickets-filtro-estatus:focus {
+  background: var(--color-surface);
+}
+
+/* Buscador con ícono de lupa + botón "×" — generaliza el patrón que ya
+   existía solo en Constancias (.admin-search) a los 6 campos de texto
+   libre que hasta ahora eran un input plano sin ícono. */
+.filtro-busqueda { position: relative; display: flex; align-items: center; }
+.filtro-busqueda-icono {
+  position: absolute;
+  left: 11px;
+  color: var(--color-ink-soft);
+  pointer-events: none;
+  display: flex;
+}
+.filtro-busqueda input { padding-left: 32px !important; padding-right: 30px !important; }
+.filtro-busqueda-limpiar {
+  position: absolute;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+}
+.filtro-busqueda-limpiar:hover { background: var(--color-bg); color: var(--color-ink); }
+
+/* Botón "Limpiar filtros" con ícono homologado en las 6 vistas que lo
+   usan (Ventas, CxC, Gastos, Inventarios, Reportes, Ledger). */
+.btn-limpiar-filtros { display: inline-flex; align-items: center; gap: 7px; }
+.btn-limpiar-filtros svg { color: var(--color-ink-soft); flex-shrink: 0; }
+
+/* Chips de "filtros activos" — dato real leído del estado actual de cada
+   vista, nunca decorativo. Comparten fila con "Limpiar filtros" cuando
+   ambos viven dentro de .lectura-reportes-filtros-acciones (Ventas, CxC,
+   Reportes, Ledger); en Gastos/Inventarios (.gastos-filtros, flex-wrap)
+   ocupan su propia fila completa. */
+.filtros-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.gastos-filtros .filtros-chips { flex-basis: 100%; margin-top: 2px; }
+.filtros-chips[hidden] { display: none; }
+.filtros-chips-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+}
+.filtro-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.filtro-chip-etiqueta { color: var(--color-ink-soft); font-weight: 500; }
+.filtro-chip button {
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  display: flex;
+}
+.filtro-chip button:hover { opacity: 1; }
+
+@media (max-width: 560px) {
+  .filtros-chips { flex-basis: auto; }
 }

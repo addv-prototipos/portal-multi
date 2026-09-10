@@ -13646,7 +13646,70 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 225. **PENDIENTE — Selector en el alta de empresas en `/control` para activar sistema de mensajes de Clarvo o el propio del tenant (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar en `/control`, dentro de las altas de empresas (modal "Nueva empresa" y edición — `frontend/control.html`/`control.js`, `control/server.js`/`control/utils/tenantIntake.js`/`tenantEdicion.js`, `control_tenants.tenants`), la opción de activar el sistema de mensajes de Clarvo o el de ellos (propio del tenant). Requerimiento textual: "Agrega en control, dentro de las altas de empresas activar el sistema de mensajes de clarvo o el de ellos". Estado: solo anotado como pendiente. No se ha analizado el modelo (¿flag `mensajeria` ENUM `clarvo`/`propio` por tenant? ¿qué implica cada opción — transporte, plantillas, credenciales?), ni propuesto UX (radio/switch en el alta), ni definido comportamiento (¿qué mensajes usan ese sistema — los globales del punto 218, facturas, notificaciones? ¿fallback?), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
 
-226. **PENDIENTE — Configuración SMTP global para mensajes de Clarvo o selección de servicios de mensajería / email marketing (2026-09-07, registrado a pedido del usuario, sin analizar ni implementar)**: agregar configuración SMTP global para mensajes de Clarvo o para seleccionar servicios de mensajería o email marketing (proveedor externo). Requerimiento textual: "agrega la configuración de SMTP global para mensajes de clarvo o seleccionar servicios de mensajeria o email marketing". Estado: solo anotado como pendiente, ligado al punto 225 (selector Clarvo vs. propio por tenant). No se ha analizado dónde persistir (config global de `control` vs. `backend` `configuracion` SMTP ya existente por tenant), ni qué servicios candidatos (SMTP propio, SendGrid/Mailgun/SES, mensajería — WhatsApp/SMS), ni UX en `/control` (sección global de mensajería/email marketing con credenciales y test de envío), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Proponer → Confirmar → Implementar. Sin commit/push todavía.
+226. **PENDIENTE — Configuración SMTP global para mensajes de Clarvo o selección de servicios de mensajería / email marketing (2026-09-07, registrado a pedido del usuario; RETOMADO 2026-09-10, ANÁLISIS+PROPUESTA VISUAL LISTOS, sin implementar — falta confirmación del usuario)**: agregar configuración SMTP global para mensajes de Clarvo o para seleccionar servicios de mensajería o email marketing (proveedor externo). Requerimiento textual: "agrega la configuración de SMTP global para mensajes de clarvo o seleccionar servicios de mensajeria o email marketing". Ligado al punto 225 (selector Clarvo vs. propio por tenant, TAMBIÉN sin implementar).
+    **Análisis hecho 2026-09-10 (protocolo `addv-web-app` completo hasta la propuesta, cero código tocado)**:
+    - **Dónde está hoy**: SMTP por tenant ya existe y funciona (`/admin` › Configuraciones globales, probado con Gmail real, puntos 199/212). El switch Clarvo/propio del punto 225 sigue sin construirse. `/control` hoy no tiene NINGUNA configuración a nivel plataforma (ni por-tenant) — este sería el primer segmento de ese tipo ahí.
+    - **Impacto revisado**: el envío real de correos vive en `backend/`; ya existe `obtenerPoolControl()` (usado en Sucursales del punto 153 y en el correo de contacto del sitio base del punto 215) para que el backend lea directo la BD de control sin necesitar un secreto interno nuevo tipo `X-Internal-Secret`. Tabla nueva sería una fila única "singleton" de config global (no en `control_tenants.tenants`, que es por fila/tenant). **226 depende de 225**: sin el switch, la config global queda guardada pero sin ningún tenant consumiéndola todavía — se puede construir igual, deliberadamente "lista para cuando 225 se implemente".
+    - **Crítica al alcance pedido**: "servicios de mensajería o email marketing" tal cual mezcla integraciones muy distintas entre sí (SendGrid/Mailgun/SES vía API propia sin SMTP, WhatsApp Business, SMS) — ninguna existe hoy en el código, prometerlas todas de un golpe sería alcance sin respaldo (mismo criterio de honestidad ya aplicado en los puntos 257-259 del dashboard).
+    - **Propuesta visual antes/después** (Artifact, mockup fiel al sidebar/paleta real de `/control`): nueva vista "Mensajería" en el sidebar junto a Empresas/Sucursales, con un solo bloque SMTP (host/puerto/usuario/contraseña/remitente + botón "Probar conexión", mismo componente ya validado en `/admin`) y un bloque "Otros proveedores" (SendGrid/Mailgun/SES, WhatsApp/SMS) marcado **"Próximamente"**, sin campos ni lógica — no funcional a propósito.
+    - **3 opciones presentadas al usuario, sin resolver todavía**: (1, recomendada) solo SMTP de Clarvo funcional + resto como "Próximamente" honesto; (2) SMTP + un proveedor externo real ya integrado hoy (requiere elegir proveedor + SDK nuevo); (3) solo tabla+endpoint listos, sin pantalla en `/control` todavía, hasta que el punto 225 también esté listo para probarse de punta a punta.
+    Siguiente paso: esperar cuál opción (1/2/3) confirma el usuario, luego protocolo `addv-web-app` Confirmar → Implementar. Sin código tocado, sin commit/push.
+
+267. **Punto 266 cerrado — ícono "Proveedores" + animación 3D del placeholder
+    (2026-09-10, IMPLEMENTADO, sin validar en Docker/navegador real todavía)**:
+    usuario aprobó la propuesta visual del Artifact (`camión de entrega` +
+    la escena de robots) y pidió agregar "la frase de Clarvo" dentro de la
+    pancita de cada robot.
+    **Ícono**: cube isométrico (idéntico visualmente al de Inventarios,
+    confirmado comparando los 2 paths) reemplazado por un camión de entrega
+    (`rect`+`polygon`+2 `circle`, feather-style) en los 3 lugares que lo
+    usaban — sidebar (`#btn-vista-proveedores`), menú móvil
+    (`[data-vista="proveedores"]`) y Centro de conocimiento
+    (`[data-cat="proveedores"]`).
+    **Animación**: `.en-construccion-icono` (lápiz + pulso) reemplazado por
+    `.prov-construccion-escena` — 3 cubos isométricos apilados
+    (`clip-path: polygon()` sobre 3 rombos por cubo, matemática de
+    hexágono, sin WebGL/librería) que "crecen" en loop simulando una torre
+    construyéndose, 2 chispas cian parpadeantes, y 2 robots planos (cabeza+
+    ojo con parpadeo + cuerpo + brazo-martillo animado + piernas) a los
+    lados. Cada robot lleva `CLARVO` en la pancita (`.prov-robot-marca`,
+    4.5px/800/Inter, decorativo — la escena entera es `aria-hidden`). Solo
+    `transform`/`opacity` animados (mismo criterio "ligero" ya usado en el
+    resto del panel); `@media (prefers-reduced-motion: reduce)` congela
+    todo en pose fija (cubos ya visibles, sin parpadeo/martillo). Cero
+    dependencia nueva, cero cambio de backend/JS — 100% `admin.html`+
+    `admin.css`. Jest backend 912/912 (sin cambios, corrido por sanidad).
+    **Rebuild `--no-cache`+`--force-recreate` frontend hecho y validado por
+    HTTP contra Docker real (2026-09-10)**: camión ×3 (sidebar/menú móvil/
+    Centro de conocimiento), cube/pencil viejos en 0 apariciones, CSS de la
+    escena 3D servido, `CLARVO` ×2 en las pancitas. `/api/health` OK.
+    **Sigue faltando solo la confirmación visual con clics reales** (sin
+    herramienta de navegador esta sesión). Sin commit/push todavía.
+
+268. **Encabezado de "Lectura de reportes" — menos espacio muerto
+    (2026-09-10, IMPLEMENTADO, sin validar en Docker/navegador real
+    todavía)**: usuario reportó con captura que sentía espacio
+    desperdiciado. Causa real: era la ÚNICA vista del panel con 2
+    párrafos `.panel-subtitle` apilados (22px de margen cada uno) — el
+    resto (Ventas, CxC, Gastos, Usuarios…) usa un solo párrafo. El
+    segundo párrafo existía porque su texto cambia según la pestaña
+    activa (punto 169, letrero por segmento). Propuesta visual (Artifact
+    antes/después, réplica fiel con los tokens reales de `style.css`)
+    aprobada tal cual. Fix: los 2 `<p>` se fusionaron en uno solo — el
+    texto dinámico pasó de párrafo propio a `<span id="reportes-tab-
+    caption">` dentro del mismo párrafo; `admin.js` sigue usando
+    `.textContent` sobre ese mismo id, **sin tocarlo**. Se acortó
+    también la frase estática ("...pensado para auditorías: qué pasó,
+    cuándo y con qué evidencia" → "...pensado para auditorías") para que
+    las 2 ideas lean como una sola oración fluida. CSS: quitada
+    `.lectura-reportes-tab-caption` (regla ya sin ningún elemento que la
+    usara). Recupera ~40px de alto (un renglón de texto + un margen de
+    22px). Jest backend 912/912 (sin cambios, sanidad). 100% HTML/CSS,
+    cero cambio de JS/backend. **Rebuild `--no-cache`+`--force-recreate`
+    frontend hecho y validado por HTTP contra Docker real (2026-09-10)**:
+    párrafo fusionado servido, clase/CSS viejos en 0 apariciones,
+    `/api/health` OK. Falta solo la confirmación visual con clics reales.
+    Sin commit/push todavía.
 
 227. **Descuento opcional por porcentaje en Ventas — IMPLEMENTADO Y VALIDADO
     contra Docker/MySQL reales (2026-09-07)**: pedido original de un campo
@@ -14394,6 +14457,234 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   consola en todo el flujo. Entorno de prueba limpiado (borrador de
   `localStorage` borrado, ninguna venta real quedó registrada — el modal
   se cerró sin guardar). Sin commit/push todavía.
+
+- **Punto 265 (2026-09-10, IMPLEMENTADO Y VALIDADO en navegador real contra
+  Docker/MySQL reales)**: homologación de filtros y búsqueda en las 9
+  implementaciones que convivían en `/admin` (Ventas, Cuentas por cobrar,
+  Gastos, Inventarios, Lectura de reportes, Todo lo eliminado, Tickets,
+  Usuarios, Constancias), a partir de un mockup nuevo en `stitch/code.html`
+  (Tailwind/Font Awesome/Plus Jakarta Sans — consumido, ya borrado).
+  Protocolo completo: mapeo + auditoría real-vs-mockup + propuesta visual
+  antes/después publicada como Artifact, aprobada explícitamente
+  ("confirmo, implementa"). Del mockup se tomó el LENGUAJE de interacción,
+  reskineado con los tokens reales del sitio (Inter, navy `#03285B`) — NO
+  se copió Tailwind/Font Awesome/Plus Jakarta Sans. Construido: relieve
+  sutil (gradiente + sombra) en selects/inputs de las 3 cuadrículas ya
+  existentes (`.ordenes-filtros`, `.gastos-filtros`,
+  `.lectura-reportes-filtros`, sin tocar su mecánica de layout — solo
+  cromado, para no arriesgar reflow); ícono de lupa + botón "×" en los 6
+  buscadores de texto libre que no lo tenían (Ventas concepto, CxC
+  cliente/correo, Gastos buscar, Inventarios buscar, Reportes RFC/correo,
+  Ledger RFC/correo — generaliza el patrón que ya existía solo en
+  Constancias); ícono de reset en los 6 botones "Limpiar filtros"; chips
+  de "filtros activos" reales (dato leído en vivo del estado de cada
+  vista, removible con "×") en las 6 vistas con filtros — 2 helpers
+  compartidos en `admin.js` (`renderFiltrosChips()`,
+  `limpiarCampoFiltro()`, este último limpia el campo y dispara
+  `input`+`change` para reusar el mismo camino de recarga que cada campo
+  ya tenía, sin necesitar saber si esa vista filtra en cliente o vuelve a
+  pedir datos al servidor). Tickets/Usuarios se quedaron con su layout
+  compacto en el toolbar (no se volvieron card) — solo ganaron el mismo
+  cromado de `<select>`. **2 decisiones tomadas por default al confirmar
+  sin respuesta explícita** (documentadas en el Artifact de propuesta como
+  preguntas abiertas): NO se agregó el atajo de teclado Ctrl+K/⌘K, y
+  "Guardar vista" (marcar una combinación de filtros como favorita) queda
+  fuera de este segmento — ambas quedan disponibles para pedirse aparte si
+  se quieren más adelante. Cero cambios de backend. Jest backend 912/912,
+  `node --check` limpio, HTML 787/787 divs balanceados, CSS 1360/1360
+  llaves balanceadas. Validado de punta a punta en navegador real (Claude
+  in Chrome) tras rebuild `--no-cache`+`--force-recreate` frontend +
+  `Ctrl+Shift+R` (mismo gotcha de caché de siempre): Gastos (chip
+  "Buscar: publicidad" real, × lo quita y restaura 99 gastos), Ventas
+  (chip "Estado de pago: Pagada", 173→124 ventas), Cuentas por cobrar
+  (chip "Vencimiento: Vencidas", tabla filtrada correcta), Inventarios
+  (chip "Categoría: Cómputo", tabla filtrada correcta), Tickets (selects
+  compactos con el cromado nuevo, layout intacto) — cero errores de
+  consola en todo el recorrido. Reportes/Ledger comparten el mismo código
+  (`renderFiltrosChips` wired en `cargarItemsReporteSeleccionado()`/
+  `cargarLedgerEliminados()`) sin validación visual dedicada esta sesión
+  (mismo patrón ya confirmado en las 4 vistas anteriores). Sin commit/push
+  todavía.
+
+- **PENDIENTE — Animación 3D + ícono de "Proveedores" (2026-09-10, punto
+  266, SOLO REGISTRADO, nada analizado ni implementado)**: pedido textual
+  del usuario, con 2 capturas de referencia. (1) En el placeholder
+  "Proveedores está en construcción" (`frontend/admin.html`, div
+  `#vista-proveedores`, ícono actual `.en-construccion-icono` con un lápiz
+  — verificar antes de tocar si esa clase es compartida con otros
+  placeholders "en construcción" del sitio, para no romperlos de paso),
+  reemplazar el ícono estático por una animación 3D "impactante" con el
+  concepto "varios robots construyendo el sitio" — requisito explícito de
+  rendimiento: que NO consuma muchos recursos, lo más ligera posible,
+  cumpliendo igual la característica pedida (3D + robots construyendo).
+  (2) Ícono del botón del sidebar "Proveedores"
+  (`frontend/admin.html` línea ~161, `#btn-vista-proveedores`, SVG actual
+  parece una caja/paquete 3D) — el usuario reporta que ese ícono se
+  confunde con Inventarios, pide uno que denote claramente "proveedores"
+  (personas/relación comercial, no caja). Instrucción explícita del
+  usuario: solo anotar el requerimiento en esta sesión, sin analizar
+  impacto ni proponer ni implementar — retomar con el protocolo completo
+  `addv-web-app` (analizar → revisar impacto → criticar y mejorar →
+  propuesta visual antes/después → confirmar → implementar) antes de
+  tocar código, incluida la decisión técnica de CÓMO lograr "3D ligero"
+  sin librerías pesadas (candidatos a evaluar en su momento: CSS 3D
+  transforms puro, SVG animado, o un motor ligero tipo lottie/rive si no
+  viola la regla de "sin build step"/sin dependencias nuevas pesadas del
+  sitio — nada de esto decidido todavía).
+
+- **Punto 267 (2026-09-10, IMPLEMENTADO — Jest backend 573/573 en
+  `test/unit` sin regresión (no se tocó backend), SIN validar en
+  navegador/Docker esta sesión)**: 4 mockups nuevos de `stitch/` para
+  "Lectura de reportes" — `lectura_de_reportes_por_reporte_ux_redesign`,
+  `..._cortes_y_detalle_de_ventas_ux_redesign`,
+  `..._todo_lo_eliminado_ux_redesign`,
+  `..._estado_del_inventario_ux_redesign` (code.html + screen.png cada
+  uno). Pedido del usuario: aplicarlos fielmente, documentar como
+  pendiente lo que no exista todavía, decidir después.
+
+  **Auditoría dato-real-vs-inventado (los 4 archivos, antes de tocar
+  código)** — ninguno de estos elementos tiene respaldo real en el
+  sistema, todos quitados sin sustituto:
+  - "Modo Verificación Activo" (badge, Por reporte) y "Sistema de
+    auditoría verificado" (badge, Cortes): no existe ningún mecanismo de
+    verificación que respalde el badge.
+  - "Corte mensual consolidado & timbrado" + `HASH: 9a2f-b4c8-380d-e219`
+    + "100% conciliadas con banco" (resumen del detalle de un corte): no
+    hay timbrado CFDI de un corte (no es un documento fiscal), no hay
+    hash de integridad calculado en ningún lado, no hay conciliación
+    bancaria automatizada en el sistema.
+  - "Área de Auditoría Forense" + `HASH: 8f9b..c31e` + "Libro de actas
+    sellado criptográficamente" (encabezado de "Todo lo eliminado") +
+    footer "Registro de auditoría conforme a normativas de retención
+    fiscal..." + "Sello de tiempo autorizado: UTC-6 ...": mismo caso,
+    ninguna firma/sellado criptográfico existe.
+  - Badge por fila "Retención exp." con ícono de escudo (columna
+    "Auditoría", Por reporte) + footer "Los registros eliminados
+    conservan firma criptográfica SHA-256 de integridad...": no hay
+    SHA-256 ni ninguna firma por registro. Descartado también por
+    redundante dentro de "Por reporte" (todas las filas de un mismo
+    reporte comparten el mismo `tipo` — ya visible en el resumen de
+    arriba) — SÍ es información real y NO redundante en el ledger cruzado
+    ("Todo lo eliminado", ve abajo).
+  - Botón "Ver hash del evento" (Todo lo eliminado, por fila): mismo
+    caso — no hay hash. El propósito real que insinúa (ver de dónde
+    salió/trazabilidad) YA lo cubre el botón real "Ver historial" del
+    punto 122D (`renderFilaReporteItem`, `admin.js`), presente en la
+    celda "Identificador" de las 4 tablas.
+  - "Estado del inventario": auditado completo, resultó YA FIEL al
+    mockup de origen — mismos 3 KPIs (Valor total en existencia/
+    Rotación promedio/Sin movimiento 90 días), mismo top-5/bottom-5,
+    misma rotación con línea de promedio, mismo donut por categoría,
+    misma barra de cobertura — todo implementado desde el punto 155/181.
+    Sin cambios en esta pestaña.
+
+  Registrado como **pendiente futuro** (no analizado, no implementado):
+  si el usuario decide en algún momento que SÍ quiere un mecanismo real
+  de integridad criptográfica sobre `reporte_items` (encadenamiento de
+  hashes verificable), eso es un segmento propio con su propio diseño —
+  protocolo completo antes de tocar código.
+
+  **Implementado (real, sin inventar dato)**:
+  - `.lectura-reportes-card`/`.lectura-reportes-card-label`
+    (`admin.css`): tarjeta con borde + label uppercase, envuelve
+    "Selección de reporte" y "Parámetros de filtrado" en la pestaña
+    "Por reporte" y los filtros del ledger — mismo componente en los 2
+    lugares. `#lectura-reportes-filtros` pasó de ser el grid de filtros
+    en sí a ser la TARJETA completa (el grid interno ya no lleva id) —
+    el toggle `hidden` sigue funcionando igual, solo ahora esconde la
+    tarjeta entera con su label.
+  - `.reportes-id-pill` (`admin.css`) + `renderFilaReporteItem()`
+    (`admin.js`): el identificador (`OC-000178`, folio de ticket, etc.)
+    pasa de `<strong>` plano a una pill monoespaciada navy — mismo lugar
+    donde ya vivía el botón real "Ver historial", que se conserva tal
+    cual (es el reemplazo honesto del "hash"/"trazabilidad" del mockup).
+  - `.reportes-monto-valor`/`.reportes-monto-sub` (`admin.css`) +
+    `renderFilaReporteItem()`: el monto muestra "MXN" chico debajo,
+    mismo dato ya calculado, solo formato.
+  - `REPORTE_TIPO_ETIQUETA` + `.reportes-origen-badge` (`admin.js`/
+    `admin.css`): badge de tipo de reporte (Automático/Manual/Cierre
+    mensual/Corte de ventas) en la columna "Reporte de origen" del
+    ledger cruzado — dato 100% real, ya lo traía el JOIN de
+    `GET /api/admin/reportes/eliminados`
+    (`r.tipo AS reporte_tipo`, `backend/server.js` línea ~4250) sin que
+    nada lo mostrara. Solo se agrega en el ledger (`conOrigen=true`),
+    donde SÍ varía fila a fila — en "Por reporte" sería redundante.
+  - Total real de la sub-tabla "Eliminados" (Por reporte):
+    `reportes-eliminados-total-monto` nuevo en `admin.html`, calculado
+    en `renderReporteItems()` sumando los montos ya mostrados — mismo
+    dato, sin pedir nada nuevo al backend.
+  - Cortes — lista: `#reportes-cortes-empty` pasó de `<p class="admin-
+    empty">` a `.admin-empty-rica` (mismo componente del punto 191) con
+    botón real "Ir a Ventas" (`btnCortesIrVentas` → `cambiarVistaPrincipal
+    ('ordenes')`) — es un vacío "de verdad" (nunca se ha generado un
+    corte), no un "sin resultados de filtro", coincide con la
+    convención ya establecida del proyecto para distinguir ambos casos.
+  - Cortes — detalle: resumen reescrito a `.corte-resumen-card` (rango/
+    generado el/ventas a la izquierda, "Monto total" en cifra grande
+    `.corte-resumen-destacado-valor` a la derecha) — mismos 4 datos que
+    ya existían (`cortesDetalleRango/Fecha/Ventas/Total`), sin el
+    timbrado/hash falso. Buscador client-side nuevo
+    (`#cortes-detalle-buscar`, filtra por identificador/rfc/concepto/
+    atendido_por sobre los items YA cargados en una sola petición) +
+    paginación de 12 por página (`renderPaginacionCorteDetalle()`,
+    mismo patrón Anterior/números/Siguiente) — `corteDetalleItems`
+    nueva variable de closure guarda el array completo, `renderCorte
+    DetalleTabla()` aplica filtro+página en cada re-render. Botón
+    "Imprimir" nuevo (`btnImprimirCorteHistorico`) reusa el elemento
+    `#corte-imprimir`/CSS de impresión del punto 168 (Ventas), pero con
+    los únicos campos que un corte YA GUARDADO conserva (rango/total/
+    conteo/items vía `renderFilaReporteItem`) — sin el desglose IVA/
+    facturado/cobrado, que solo existe en el corte recién generado de
+    Ventas (`corteUltimoResultado`), no en el historial de Reportes.
+  - Nota de alcance: los KPIs+gráfica de barras de "Todo lo eliminado"
+    (`reportes-kpi-*`) YA usaban `data-tooltip` real en el hover de cada
+    barra (`cargarEstadisticasReportes()`, punto 122B) — el mockup no
+    aporta nada nuevo ahí, sin cambios.
+
+  Cero cambio de backend/esquema — 100% frontend
+  (`frontend/admin.html`/`admin.js`/`admin.css`). `node --check` limpio,
+  HTML con los `<div>` de la sección balanceados (101/101 en el rango
+  `vista-lectura-reportes`), CSS balanceado (1384/1384 llaves). Jest
+  backend sin regresión (no se tocó backend, corrido por sanidad).
+
+  **Validado por HTTP contra Docker real (mismo día, tras rebuild
+  `--no-cache`+`--force-recreate` frontend)**: `curl` confirmó los 4
+  archivos servidos con los cambios (HTML: `lectura-reportes-card-label`
+  ×3, `corte-resumen-destacado-valor`, `reportes-cortes-empty` ya como
+  `.admin-empty-rica`, `cortes-detalle-buscar`/`btn-imprimir-corte-
+  historico`/`cortes-detalle-paginacion`/`reportes-eliminados-total-
+  monto` presentes; JS: `reportes-id-pill`, `REPORTE_TIPO_ETIQUETA`,
+  `renderPaginacionCorteDetalle`/`renderCorteDetalleTabla`,
+  `btnImprimirCorteHistorico`; CSS: las 4 clases nuevas) y CERO rastro
+  de SHA-256/timbrado/"Modo Verificación Activo"/"Sistema de auditoría
+  verificado"/"Área de Auditoría Forense"/"conciliadas con banco" (grep
+  case-insensitive, 0 matches). Datos reales probados end-to-end:
+  `GET /api/admin/reportes/eliminados` devuelve `reporte_tipo:"manual"`
+  en los 6 items existentes — confirma que el badge de origen pinta un
+  dato real, no inventado; el corte real id=1 (sembrado antes de esta
+  sesión: 28 ventas, $640,319.95, rango 01–31 ago 2026 — el MISMO dato
+  que aparece en el mockup de origen) devuelve exactamente 28 items vía
+  `GET /admin/reportes/1/items`, cantidad que dispara la paginación
+  nueva de 12/página en 3 páginas — igual que el mockup, sin necesidad
+  de sembrar nada de prueba. Logs de `portalManager-backend`/
+  `-frontend` revisados tras el recreate: sin errores, todas las
+  peticiones 200. **Sin herramienta de navegador esta sesión** — sigue
+  faltando el clic real (buscador/paginación/imprimir del corte) y la
+  confirmación visual del layout de las 4 pestañas.
+
+- **PENDIENTE — Punto 268 (2026-09-10, SOLO REGISTRADO, sin analizar ni
+  implementar)**: si el usuario quiere en algún momento un mecanismo
+  real de integridad criptográfica (encadenamiento de hashes verificable
+  sobre `reporte_items`, idea que traían los 4 mockups del punto 267 y
+  que se descartó ahí por no tener respaldo) — retomar con el protocolo
+  completo `addv-web-app` (qué se firma exactamente, con qué algoritmo,
+  si debe ser verificable de forma independiente, qué valor agrega sobre
+  lo que "Ver historial"/timeline del punto 122D ya cubre) antes de
+  tocar código.
+
+269. **PENDIENTE — Gestor de facturación desactivable: reglas de envío, retiro del link de cliente y página "no encontrada/desactivado" + qué hacer con los envíos (2026-09-10, registrado a pedido del usuario, sin analizar ni implementar)**: que se pueda desactivar el gestor de facturación — al desactivarlo hay que definir reglas de envío, quitar el link de cliente y colocar página "no encontrada" o "desactivado", y definir qué hacer con los envíos. Requerimiento textual: "agrega a pendientes por favor, que se pueda desactivar el gestor de facturación, por lo tanto hay que definir reglas de envio, quitar el link de cliente y colocar pagina no encontrada o desactivado y que hacer con los envios". Estado: solo anotado como pendiente. No se ha analizado el alcance (¿"gestor de facturación" = flujo completo cliente→ticket→factura — `frontend/csf.html`/`tickets.html`/`dashboard.html` + `POST /api/tickets` + `POST /api/registro` + notificaciones — o solo una parte? ¿desactivable por tenant en `/control` (`control_tenants.tenants` flag por fila) vs. global para sitio base `portal_facturacion` vs. ambos? ¿quién puede activarlo/desactivarlo — solo `/control`?), ni las reglas de envío (¿se suprimen `notificarNuevoTicketAlContador`, `notificarFacturaListaAlCliente`, `enviarInvitacionPortal`, `enviarCorreoOrdenCompra` cuando está OFF? ¿se encolan para reenvío al reactivar o se descartan? ¿qué pasa con envíos ya programados/en tránsito?), ni qué "link de cliente" se retira (¿tile/CTA en `dashboard.html`, enlace en correos de invitación/orden, ruta `/<slug>/tickets` y `/<slug>/csf` completa? ¿se oculta también en el portal base sin slug?), ni qué página ve el cliente al intentar entrar con el gestor OFF (¿404 del punto 222 vs. plantilla "desactivado/mantenimiento/construcción" del mismo punto vs. `mantenimiento.html` dedicada? ¿respuesta 404/503 en `frontend/nginx.conf` y guard en `backend/server.js`/`tenantContext.js`?), ni qué hacer con los envíos/tickets ya existentes (¿se bloquea `POST /api/tickets` con 403/`GESTOR_DESACTIVADO` y se deshabilita el formulario con modal bloqueante — mismo patrón que `SIN_CONSTANCIA` del punto 23/24 — o solo se oculta la UI dejando la API abierta? ¿los tickets pendientes se conservan, se archivan a Reportes o se purgan? ¿afecta a Ventas/Gastos o solo a Tickets/Constancias?), ni el modelo en `/control` (columna `gestor_facturacion_activo` vs. JSON de features del punto 244, default ON para no romper tenants existentes, auditoría en `tenant_eventos`), ni UX en `/control` (switch en "Nueva empresa"/edición junto a los demás switches por tenant del punto 244, confirmación al desactivar), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Revisar impacto → Criticar y mejorar → Propuesta visual (antes/después) → Confirmar → Implementar → Probar → Asegurar. Sin commit/push todavía.
+
+270. **PENDIENTE — Script de despliegue + empaquetado para despliegue (2026-09-10, registrado a pedido del usuario, sin analizar ni implementar)**: generar el script para desplegar y el empaquetado también. Requerimiento textual: "para despliegue, generar el script para desplegar, el empaquetado también". Estado: solo anotado como pendiente. No se ha analizado el alcance (¿despliegue a qué destino — VPS Ubuntu single-node con `docker compose` vs. Swarm HA con `docker-stack.yml`? ¿script `scripts/deploy.sh` / `scripts/empaquetar.sh` vs. `Makefile` vs. GitHub Actions?), ni qué hace el script (¿`docker compose build --no-cache` + `up -d --force-recreate` de `backend`/`frontend`/`control` + `ensureSchema`/`verificar-mysql.js` + health check `/api/health` + invalidación de caché, o solo `up`?), ni qué se empaqueta (¿`.zip` de entrega con `backend/`+`frontend/`+`control/`+`docker-compose.yml`/`docker-stack.yml`+`.env.example` excluyendo `node_modules`/`.env`/volúmenes, o imágenes Docker `portalManager-backend`/`frontend`/`control` vía `docker save`/`registry`?), ni versionado (¿tag por fecha/commit `fact/master` vs. `latest`?), ni manejo de secretos (¿`.env` nunca dentro del paquete, validación de `ADMIN_USERS`/`SESSION_SECRET`/`MYSQL_*`/`MINIO_*` antes de desplegar?), ni rollback/health (¿verificación post-deploy y reversión si `/api/health` falla?), ni dónde vive el artefacto (¿`/mnt/user-data/outputs/` local vs. registry vs. VPS?), ni tocado código. Siguiente paso cuando se apruebe: protocolo `addv-web-app` Analizar → Revisar impacto → Criticar y mejorar → Propuesta visual → Confirmar → Implementar → Probar → Asegurar. Sin commit/push todavía.
 
 ## Dónde está todo (mapa rápido)
 

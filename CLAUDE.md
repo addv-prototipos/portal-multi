@@ -1123,12 +1123,12 @@ PROJECT_STATE.md punto 214.
 
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
-o estado del proyecto, actualizar siempre `PROJECT_STATE.md` y `CLAUDE.md`
-antes de cerrar el trabajo. Si la sesión tiene acceso de escritura a
-Claude Mem, registrar también ahí la decisión/estado para que futuras
-sesiones de Claude y Codex puedan coordinarse sin depender del historial del
-chat. Si solo hay acceso de lectura a Claude Mem, dejar constancia explícita
-en estos archivos.
+o estado del proyecto, actualizar siempre `PROJECT_STATE.md`, `CLAUDE.md`,
+`pendientes.html` y `AGENTS.md` antes de cerrar el trabajo. Si la sesión
+tiene acceso de escritura a Claude Mem, registrar también ahí la
+decisión/estado para que futuras sesiones de Claude y Codex puedan
+coordinarse sin depender del historial del chat. Si solo hay acceso de lectura
+a Claude Mem, dejar constancia explícita en estos archivos.
 
 **Constancia (2026-08-12)**: esta sesión de Claude verificó el catálogo de
 herramientas MCP de Claude Mem disponibles (`mcp__plugin_claude-mem_mcp-search__*`)
@@ -1189,6 +1189,84 @@ acomodo real que el usuario ya tenía armado, sin congelar alturas
 PROJECT_STATE.md punto 263. **Sin herramienta de navegador esta
 sesión** — falta confirmación visual. Sin commit/push todavía.
 
+**Punto 226 (2026-09-10, ANÁLISIS+PROPUESTA VISUAL LISTOS, SIN
+IMPLEMENTAR — falta confirmación del usuario)**: retomado el pendiente
+"Configuración SMTP global para mensajes de Clarvo o selección de
+servicios de mensajería/email marketing", ligado al punto 225 (switch
+Clarvo/propio por tenant, tampoco construido). Protocolo completo hasta
+la propuesta: `/control` hoy no tiene NINGUNA config global (ni por
+tenant) — sería el primer segmento de ese tipo ahí; el backend puede leer
+esa config directo vía `obtenerPoolControl()` (ya usado en Sucursales/
+correo de contacto), sin secreto interno nuevo; 226 depende de 225 (sin
+el switch, la config queda sin consumidor todavía, pero se puede dejar
+lista). Crítica aplicada al pedido: "servicios de mensajería/email
+marketing" mezclaba SMTP+SendGrid/Mailgun/SES+WhatsApp/SMS sin ninguno
+construido hoy — riesgo de prometer de más. Artifact con mockup fiel al
+sidebar/paleta real de `/control` (antes: sin sección; después: vista
+"Mensajería" con bloque SMTP funcional + "Otros proveedores" marcado
+"Próximamente", honesto, sin lógica). 3 opciones presentadas, ninguna
+confirmada todavía: (1, recomendada) solo SMTP Clarvo funcional + resto
+"Próximamente"; (2) SMTP + un proveedor externo real integrado hoy; (3)
+solo tabla+endpoint, sin pantalla hasta que el 225 también esté listo.
+Ver PROJECT_STATE.md punto 226 para el detalle línea por línea. Cero
+código tocado — esperando que el usuario elija 1/2/3 antes de
+implementar.
+
+**Punto 266 cerrado (2026-09-10, ver punto 267 de PROJECT_STATE.md,
+IMPLEMENTADO, falta validar en Docker/navegador real)**: usuario aprobó
+la propuesta visual (Artifact antes/después) — camión de entrega
+reemplaza el cube isométrico (idéntico al de Inventarios) en sidebar/
+menú móvil/Centro de conocimiento; el lápiz+pulso del placeholder
+"Proveedores está en construcción" se reemplazó por una escena CSS-only
+(3 cubos isométricos vía `clip-path`, sin WebGL/librería, que "crecen"
+en loop + 2 robots con brazo-martillo animado), con `CLARVO` en la
+pancita de cada robot (pedido explícito del usuario). Solo `transform`/
+`opacity`, `prefers-reduced-motion` respetado, cero dependencia nueva,
+100% `admin.html`+`admin.css`. Jest backend 912/912. Sin commit/push.
+
+**Punto 268 (2026-09-10, ver PROJECT_STATE.md, IMPLEMENTADO, falta
+validar en Docker/navegador real)**: encabezado de "Lectura de
+reportes" tenía 2 párrafos `.panel-subtitle` apilados (única vista del
+panel con ese patrón) — fusionados en uno, el letrero dinámico por
+pestaña (punto 169) pasó a `<span>` dentro del mismo párrafo con el
+mismo id, `admin.js` sin cambios. ~40px recuperados. Jest 912/912. Sin
+commit/push.
+
+**PENDIENTE — histórico, ya cerrado por el punto 267 de arriba
+(2026-09-10, punto 266 original, dejado solo como referencia de la
+petición textual)**: pedido textual, 2 partes. (1) placeholder
+"Proveedores está en construcción" — cambiar el ícono estático (lápiz)
+por animación 3D "impactante" (varios robots construyendo el sitio),
+requisito explícito de que sea ligera/bajo consumo de recursos. (2)
+ícono del botón del sidebar "Proveedores" — el actual (caja/paquete) se
+confunde con Inventarios, pide uno que denote proveedores de verdad
+(personas/relación comercial). Instrucción explícita: solo anotar, sin
+analizar/proponer/implementar esta sesión — retomar con protocolo
+completo `addv-web-app`, incluida la decisión técnica de cómo lograr
+"3D ligero" sin dependencias pesadas nuevas. Ver PROJECT_STATE.md punto
+266.
+
+**Punto 265 (2026-09-10, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales)**: homologación de filtros y búsqueda en las 9
+implementaciones que convivían en `/admin` (Ventas, CxC, Gastos,
+Inventarios, Reportes, Ledger, Tickets, Usuarios, Constancias), a partir
+de un mockup nuevo en `stitch/code.html` — se tomó el lenguaje de
+interacción (relieve sutil, ícono de lupa+"×" en buscadores, chips de
+filtro activo reales, botón "Limpiar filtros" con ícono), reskineado con
+Inter+navy reales, NO el Tailwind/Font Awesome/Plus Jakarta Sans del
+mockup. 2 helpers compartidos nuevos en `admin.js`
+(`renderFiltrosChips()`/`limpiarCampoFiltro()`) evitan reimplementar la
+lógica 6 veces — el "×" de un chip limpia el campo y dispara
+`input`+`change`, reusando el camino de recarga que cada vista ya tenía
+(cliente o servidor, sin diferenciar). Tickets/Usuarios se quedaron
+compactos en el toolbar (no se volvieron card). 2 cosas de la propuesta
+NO se construyeron por default sin respuesta explícita del usuario:
+atajo Ctrl+K/⌘K y "Guardar vista" — quedan disponibles para pedirse
+aparte. Cero backend. Jest 912/912. Validado en navegador real: Gastos/
+Ventas/CxC/Inventarios con chip real generado y removido correctamente,
+Tickets con el cromado nuevo sin romper el layout compacto, cero errores
+de consola. Ver PROJECT_STATE.md punto 265. Sin commit/push todavía.
+
 **Punto 264 (2026-09-10, IMPLEMENTADO Y VALIDADO en navegador real contra
 Docker/MySQL reales)**: modal "Registrar venta" homologado con
 `stitch/code.html` (consumido, ya borrado) — pedido explícito: "aplicalo
@@ -1223,6 +1301,103 @@ Validado con datos reales: venta de 500 pz de "Escáner de mesa" (29
 disponibles) → modal correcto, formulario conservado, sin dejar venta de
 prueba en la BD. Jest backend 912/912. Ver PROJECT_STATE.md punto 261.
 Sin commit/push todavía.
+
+**Punto 267 (2026-09-10, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real — rebuild `--no-cache`+`--force-recreate` frontend)**: 4 mockups
+nuevos de `stitch/` para "Lectura de reportes" (Por reporte, Cortes, Todo
+lo eliminado, Estado del inventario) — pedido del usuario de aplicarlos
+fielmente y documentar como pendiente lo que no exista todavía. Auditoría
+dato-real-vs-inventado primero (mismo criterio de siempre): "Modo
+Verificación Activo"/"Sistema de auditoría verificado", "Corte mensual
+consolidado & timbrado" + HASH + "100% conciliadas con banco", "Área de
+Auditoría Forense" + "Libro de actas sellado criptográficamente" + "Sello
+de tiempo autorizado", badge por fila "Retención exp." con ícono de
+escudo, y la frase "conservan firma criptográfica SHA-256" — NINGUNO
+tiene respaldo real (no hay timbrado, hash, conciliación bancaria ni
+firma criptográfica en el sistema) — todos quitados sin sustituto,
+registrados como pendiente futuro (punto 268) por si el usuario decide
+construir un encadenamiento de hashes real para `reporte_items` más
+adelante. "Estado del inventario" resultó ya fiel al mockup de origen
+(mismos 3 KPIs, top/bottom 5, rotación, donut por categoría, cobertura —
+implementados desde el punto 155) — sin cambios ahí. Implementado: tarjeta
+con borde + label uppercase para "Selección de reporte"/"Parámetros de
+filtrado" (Por reporte Y ledger), identificador como pill monoespaciada
+navy (reusa el botón "Ver historial" ya real del punto 122D en vez del
+hash falso del mockup), monto con "MXN" debajo, total real de la tabla
+"Eliminados" ($ suma de los montos ya mostrados), badge de tipo de
+reporte de origen en "Todo lo eliminado" (dato real vía JOIN a
+`reportes.tipo`, ya lo traía el backend sin usarlo — Automático/Manual/
+Cierre mensual/Corte de ventas). Cortes: estado vacío de la lista pasado
+a `.admin-empty-rica` con botón real "Ir a Ventas"; detalle rediseñado
+con el total en cifra grande destacada (sin timbrado ni hash); buscador
+client-side + paginación de 12 (mismo patrón que el resto del panel);
+botón "Imprimir" nuevo (`btnImprimirCorteHistorico`, reusa
+`#corte-imprimir` del punto 168 pero con los campos que un corte
+GUARDADO sí conserva — rango/total/conteo/items — sin el desglose IVA/
+facturado/cobrado que solo vive en el corte recién generado de Ventas,
+no en el historial). Cero cambio de backend/esquema. `node --check`
+limpio, CSS balanceado (1384/1384), Jest backend sin regresión (573/573
+en `test/unit`, no se tocó nada de backend). **Validado por HTTP contra
+Docker real tras el rebuild**: HTML/JS/CSS nuevos confirmados en lo
+servido, cero rastro de SHA-256/timbrado/hash/conciliación bancaria;
+badge de origen probado con dato real (`reporte_tipo:"manual"` desde
+`GET /api/admin/reportes/eliminados`); corte real id=1 (28 ventas,
+$640,319.95 — mismo dato que el mockup) vía `GET /admin/reportes/1/items`
+dispara la paginación nueva de 12/página tal cual (3 páginas, igual que
+el mockup); logs de `backend`/`frontend` limpios, sin errores. **Sin
+herramienta de navegador esta sesión** — falta el clic real (buscador/
+paginación/imprimir del corte) y la confirmación visual del layout de
+las 4 pestañas. Ver PROJECT_STATE.md punto 267 para el detalle línea por
+línea.
+
+**Punto 268 (registrado, SOLO PENDIENTE, sin analizar ni implementar)**:
+si el usuario quiere en algún momento un "hash de integridad" real por
+registro eliminado (idea que traían los 4 mockups del punto 263, hoy
+descartada por no tener respaldo) — implicaría diseñar un encadenamiento
+de hashes real sobre `reporte_items` (qué se firma, con qué algoritmo,
+si es verificable independientemente, qué valor de auditoría agrega
+sobre lo que "Ver historial"/timeline ya cubre) antes de tocar código,
+protocolo completo `addv-web-app`.
+
+**Punto 269 — PENDIENTE — Gestor de facturación desactivable (2026-09-10,
+registrado a pedido del usuario, sin analizar ni implementar)**: que se
+pueda desactivar el gestor de facturación — al estar OFF hay que definir
+reglas de envío, quitar el link de cliente y colocar página "no
+encontrada/desactivado" y definir qué hacer con los envíos. Requerimiento
+textual: "agrega a pendientes por favor, que se pueda desactivar el gestor
+de facturación, por lo tanto hay que definir reglas de envio, quitar el
+link de cliente y colocar pagina no encontrada o desactivado y que hacer
+con los envios". Sin analizar alcance (¿qué abarca "gestor" — Tickets/
+CSF/login/dashboard completo vs. solo `POST /api/tickets`? ¿flag por
+tenant en `control_tenants.tenants` vs. global para sitio base?),
+sin definir reglas de envío (¿se suprimen/encolan `notificarNuevoTicket`,
+`notificarFacturaLista`, invitación y correo de venta al estar OFF?),
+sin definir qué link de cliente se retira (¿tile/dashboard, `/tickets`,
+`/csf`, enlaces en correos?) y qué plantilla se sirve (404 vs.
+mantenimiento/construcción del punto 222, guard en `frontend/nginx.conf`
++ `backend/server.js`/`tenantContext.js`), ni qué hacer con envíos/
+tickets existentes (¿bloqueo de `POST /api/tickets` con modal
+`GESTOR_DESACTIVADO` — mismo patrón que `SIN_CONSTANCIA` — vs. solo ocultar
+UI? ¿destino de pendientes — conservar/archivar/purgar? ¿afecta a
+Ventas/Gastos?). Ver `PROJECT_STATE.md` punto 269. Cero código tocado,
+protocolo `addv-web-app` completo pendiente de confirmación antes de
+implementar.
+
+**Punto 270 — PENDIENTE — Script de despliegue + empaquetado (2026-09-10,
+registrado a pedido del usuario, sin analizar ni implementar)**: generar
+el script para desplegar y el empaquetado también. Requerimiento textual:
+"para despliegue, generar el script para desplegar, el empaquetado también".
+Sin analizar destino (¿VPS `docker compose` vs. Swarm `docker-stack.yml`?),
+sin definir qué hace el script (¿`build --no-cache`/`up -d --force-recreate`
++ `ensureSchema` + `/api/health`?), qué se empaqueta (¿`.zip` con
+`backend/`+`frontend/`+`control/`+`docker-compose.yml`/`docker-stack.yml`+
+`.env.example` excluyendo `node_modules`/`.env`, o imágenes Docker vía
+`docker save`/registry?), versionado (¿tag por fecha/commit vs. `latest`?),
+manejo de secretos (¿`.env` nunca en el paquete, validación previa de
+`ADMIN_USERS`/`SESSION_SECRET`/etc.?), rollback/health ni dónde vive el
+artefacto (¿`/mnt/user-data/outputs/` vs. registry?). Ver
+`PROJECT_STATE.md` punto 270. Cero código tocado, protocolo
+`addv-web-app` completo pendiente de confirmación antes de implementar.
 
 ## Stack
 
