@@ -5312,9 +5312,11 @@ app.get(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.descuento_porcentaje, o.descuento_monto, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
         o.producto_id, o.producto_cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre,
         o.archivado_en, o.periodo_archivado,
-        (o.facturado_en IS NOT NULL) AS facturado
+        (o.facturado_en IS NOT NULL) AS facturado,
+        r.nombre AS cliente_nombre, r.rfc AS cliente_rfc
        FROM ordenes_compra o
        LEFT JOIN productos p ON p.id = o.producto_id
+       LEFT JOIN registros r ON r.email = o.email AND r.eliminado_en IS NULL
        WHERE o.eliminado_en IS NULL AND ${whereArchivado}
        ORDER BY o.creado_en DESC`,
       paramsArchivado
@@ -5395,6 +5397,66 @@ app.put(
 
     const [actualizada] = await pool.query('SELECT id, numero_compra, total, monto_cobrado, estado_pago, fecha_cobro FROM ordenes_compra WHERE id = ? LIMIT 1', [id]);
     res.json({ ok: true, orden: actualizada[0], saldo: nuevoSaldo });
+  })
+);
+
+// Recordatorio de pago por correo (Cuentas por cobrar, homologación con
+// stitch/) — a diferencia de "Copiar recordatorio" (solo arma un texto
+// para pegar a mano en WhatsApp), esto envía un correo real al cliente,
+// con el mismo cascarón de marca que el resto de correos de salida
+// (construirCorreoBase). Solo tiene sentido sobre una venta pendiente con
+// correo — 400 explícito en los otros casos, nunca 404 genérico.
+app.post(
+  '/api/admin/ordenes-compra/:id/recordatorio',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const [filas] = await pool.query(
+      'SELECT id, numero_compra, email, total, monto_cobrado, estado_pago, fecha_vencimiento FROM ordenes_compra WHERE id = ? AND eliminado_en IS NULL LIMIT 1',
+      [id]
+    );
+    if (filas.length === 0) return res.status(404).json({ error: 'Venta no encontrada.' });
+    const orden = filas[0];
+    if (orden.estado_pago !== 'pendiente') return res.status(400).json({ error: 'Esta venta ya está pagada.' });
+    if (!orden.email) return res.status(400).json({ error: 'Esta venta no tiene correo registrado.' });
+
+    const saldo = Math.round((Number(orden.total) - Number(orden.monto_cobrado || 0)) * 100) / 100;
+    const urlPortal = detectarUrlPortal(req);
+    const configGlobal = await getConfiguracionGlobal();
+    const colores = coloresCorreoTenant(req);
+
+    const { html, texto, adjuntos } = construirCorreoBase({
+      marca: marcaDelTenant(req),
+      logoUrl: logoUrlDelTenant(req, urlPortal, configGlobal),
+      colorPrimario: colores.primario,
+      colorAccent: colores.acento,
+      eyebrow: 'Recordatorio de pago',
+      titulo: `Venta ${orden.numero_compra}`,
+      filas: [
+        { etiqueta: 'Total de la venta', valor: `$${Number(orden.total).toFixed(2)} MXN` },
+        { etiqueta: 'Saldo pendiente', valor: `$${saldo.toFixed(2)} MXN`, destacado: true },
+        ...(orden.fecha_vencimiento ? [{ etiqueta: 'Vencimiento', valor: escapeHtmlCorreo(orden.fecha_vencimiento) }] : []),
+      ],
+      parrafos: ['Este es un recordatorio de que tienes un saldo pendiente por esta compra. Si ya realizaste el pago, ignora este mensaje.'],
+      cta: urlPortal ? { href: `${urlPortal}/login`, texto: 'Entrar al Portal' } : null,
+    });
+
+    try {
+      await enviarCorreo({
+        destinatario: orden.email,
+        asunto: `Recordatorio de pago — Venta ${orden.numero_compra}`,
+        cuerpo: texto,
+        html,
+        adjuntos,
+      });
+    } catch (err) {
+      return res.status(502).json({ error: 'No se pudo enviar el recordatorio. Intenta de nuevo más tarde.' });
+    }
+
+    res.json({ ok: true });
   })
 );
 
@@ -5710,6 +5772,7 @@ const VISTAS_DASHBOARD = {
       'balance-acumulado',
       'proyeccion',
       'proveedores',
+      'cobranza',
     ],
     spanMin: 3,
     spanMax: 12,

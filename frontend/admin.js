@@ -369,9 +369,29 @@
     cxcCount: document.getElementById('cxc-count'),
     btnRefreshCxc: document.getElementById('btn-refresh-cxc'),
     cxcKpiPorCobrar: document.getElementById('cxc-kpi-por-cobrar'),
+    cxcKpiPorCobrarNota: document.getElementById('cxc-kpi-por-cobrar-nota'),
     cxcKpiVencidas: document.getElementById('cxc-kpi-vencidas'),
+    cxcKpiVencidasNota: document.getElementById('cxc-kpi-vencidas-nota'),
     cxcKpiPorVencer: document.getElementById('cxc-kpi-por-vencer'),
+    cxcKpiPorVencerNota: document.getElementById('cxc-kpi-por-vencer-nota'),
     cxcKpiCobradoMes: document.getElementById('cxc-kpi-cobrado-mes'),
+    cxcKpiCobradoMesNota: document.getElementById('cxc-kpi-cobrado-mes-nota'),
+    cxcAlertaVencidas: document.getElementById('cxc-alerta-vencidas'),
+    cxcAlertaVencidasTexto: document.getElementById('cxc-alerta-vencidas-texto'),
+    btnCxcAlertaVer: document.getElementById('btn-cxc-alerta-ver'),
+    btnCxcRecordatorioMasivo: document.getElementById('btn-cxc-recordatorio-masivo'),
+    cxcAnalyticsGrid: document.getElementById('cxc-analytics-grid'),
+    cxcAgingCard: document.getElementById('cxc-aging-card'),
+    cxcAgingTotal: document.getElementById('cxc-aging-total'),
+    cxcAgingBars: document.getElementById('cxc-aging-bars'),
+    cxcAgingMora: document.getElementById('cxc-aging-mora'),
+    cxcAgingPromedio: document.getElementById('cxc-aging-promedio'),
+    cxcGaugeDonut: document.getElementById('cxc-gauge-donut'),
+    cxcGaugeTotal: document.getElementById('cxc-gauge-total'),
+    cxcGaugeCobrado: document.getElementById('cxc-gauge-cobrado'),
+    cxcGaugePorcobrar: document.getElementById('cxc-gauge-porcobrar'),
+    cxcGaugeTotalCartera: document.getElementById('cxc-gauge-total-cartera'),
+    btnCxcExportar: document.getElementById('btn-cxc-exportar'),
     cxcFiltroCliente: document.getElementById('cxc-filtro-cliente'),
     cxcFiltroVencimiento: document.getElementById('cxc-filtro-vencimiento'),
     btnLimpiarFiltrosCxc: document.getElementById('btn-limpiar-filtros-cxc'),
@@ -522,6 +542,22 @@
     proveedoresAlerta: document.getElementById('proveedores-alerta'),
     proveedoresAlertaTexto: document.getElementById('proveedores-alerta-texto'),
     proveedoresBtnIrGastos: document.getElementById('proveedores-btn-ir-gastos'),
+    // "Cobranza del mes" — mini tarjeta homologada con stitch/cxc
+    cobranzaKpis: document.getElementById('cobranza-kpis'),
+    cobranzaKpiCobrado: document.getElementById('cobranza-kpi-cobrado'),
+    cobranzaKpiCobradoPct: document.getElementById('cobranza-kpi-cobrado-pct'),
+    cobranzaKpiPorcobrar: document.getElementById('cobranza-kpi-porcobrar'),
+    cobranzaKpiPorcobrarPct: document.getElementById('cobranza-kpi-porcobrar-pct'),
+    cobranzaKpiPorcobrarNota: document.getElementById('cobranza-kpi-porcobrar-nota'),
+    resumenFinDonutCobranza: document.getElementById('resumen-fin-donut-cobranza'),
+    resumenFinDonutCobranzaTotal: document.getElementById('resumen-fin-donut-cobranza-total'),
+    resumenFinDonutCobranzaBadge: document.getElementById('resumen-fin-donut-cobranza-badge'),
+    resumenFinDonutCobranzaLeyenda: document.getElementById('resumen-fin-donut-cobranza-leyenda'),
+    resumenFinDonutCobranzaEmpty: document.getElementById('resumen-fin-donut-cobranza-empty'),
+    cobranzaAlerta: document.getElementById('cobranza-alerta'),
+    cobranzaAlertaTexto: document.getElementById('cobranza-alerta-texto'),
+    cobranzaAlertaBtn: document.getElementById('cobranza-alerta-btn'),
+    cobranzaBtnIrCxc: document.getElementById('cobranza-btn-ir-cxc'),
     resumenFinDetalleOverlay: document.getElementById('resumen-fin-detalle-overlay'),
     resumenFinDetalleModal: document.querySelector('.resumen-fin-detalle-modal'),
     resumenFinDetalleBody: document.getElementById('resumen-fin-detalle-body'),
@@ -8350,18 +8386,29 @@
   //  - Accesibilidad: cada tarjeta es enfocable con el modo activo y se
   //    puede reordenar/redimensionar solo con teclado (↑/↓ posición,
   //    ←/→ ancho, Esc sale) — mismo resultado que el puntero.
+  // Orden por defecto (punto 262, 2026-09-09): reemplaza al orden
+  // original de fábrica por el acomodo que el usuario ya tenía armado a
+  // mano — pedido explícito ("que sea la de por defecto cuando se de
+  // restablecer"). El ORDEN de este arreglo es el orden visual real
+  // (coincide con el orden real del DOM en admin.html, que es lo que
+  // aplicarLayoutDashboard() usa cuando no hay layout guardado). Los
+  // altos NO se congelan aquí a propósito — ver
+  // igualarAlturaFilasDashboard() más abajo (punto 1 del mismo pedido):
+  // con eso, las filas se auto-igualan solas sin depender de píxeles
+  // guardados que dejarían de ser válidos en cuanto cambie el contenido.
   const DASHBOARD_TARJETAS = [
     { id: 'kpi-facturado', titulo: 'Total facturado' },
     { id: 'kpi-sin-facturar', titulo: 'Ventas sin facturar' },
     { id: 'kpi-balance', titulo: 'Balance ventas vs gastos' },
     { id: 'kpi-gastos', titulo: 'Total gastos' },
-    { id: 'utilidad', titulo: 'Utilidad neta del mes' },
-    { id: 'facturacion', titulo: 'Ventas facturadas vs sin facturar' },
-    { id: 'gastos-categoria', titulo: 'Distribución de gastos por categoría' },
-    { id: 'ventas-facturado-gastos', titulo: 'Ventas vs Facturado vs Gastos' },
     { id: 'balance-acumulado', titulo: 'Utilidad neta mensual' },
     { id: 'proyeccion', titulo: 'Proyección de ventas' },
+    { id: 'facturacion', titulo: 'Ventas facturadas vs sin facturar' },
+    { id: 'cobranza', titulo: 'Cobranza del mes' },
     { id: 'proveedores', titulo: 'Top proveedores de gasto' },
+    { id: 'ventas-facturado-gastos', titulo: 'Ventas vs Facturado vs Gastos' },
+    { id: 'utilidad', titulo: 'Utilidad neta del mes' },
+    { id: 'gastos-categoria', titulo: 'Distribución de gastos por categoría' },
   ];
   const DASHBOARD_SPAN_MIN = 3;
   const DASHBOARD_SPAN_MAX = 12;
@@ -8376,13 +8423,14 @@
     'kpi-gastos': 3,
     'kpi-balance': 3,
     'kpi-sin-facturar': 3,
-    utilidad: 6,
-    'ventas-facturado-gastos': 6,
-    'gastos-categoria': 6,
-    facturacion: 6,
-    'balance-acumulado': 4,
-    proyeccion: 4,
+    'balance-acumulado': 6,
+    proyeccion: 6,
+    facturacion: 4,
+    cobranza: 4,
     proveedores: 4,
+    'ventas-facturado-gastos': 12,
+    utilidad: 6,
+    'gastos-categoria': 6,
   };
   const DASHBOARD_VISTA = 'resumen-financiero';
   const DASHBOARD_GUARDADO_DEBOUNCE_MS = 800;
@@ -8432,6 +8480,79 @@
     });
   }
 
+  // Ancho actual de una tarjeta (span de 12), mismo cálculo que ya usan
+  // guardarPreferenciasDashboard()/iniciarRedimensionDashboard() —
+  // extraído aquí para no repetirlo una 4ta vez.
+  function obtenerSpanActualTarjeta(t) {
+    return (
+      parseInt((t.style.gridColumn || '').replace('span ', ''), 10) ||
+      DASHBOARD_SPANS_DEFECTO[t.dataset.dashboardId] ||
+      12
+    );
+  }
+
+  // Iguala el alto de las tarjetas que comparten fila (punto 262,
+  // 2026-09-09 — "no me deja alinearlas, busca que siempre queden
+  // alineadas"): hoy cada tarjeta guarda SU PROPIO alto (explícito o
+  // natural) sin relación con sus vecinas — si una tiene más contenido
+  // que otra, la fila se ve despareja aunque los anchos sean idénticos.
+  // Agrupa las tarjetas por fila simulando el auto-wrap de CSS Grid (suma
+  // de span en el orden VISUAL, nueva fila en cuanto se pasaría de 12) y
+  // sube las más bajas de cada fila al alto de la más alta vía
+  // `min-height` — nunca recorta la más alta ni toca su `height`
+  // explícito (el resize manual de una tarjeta se respeta tal cual,
+  // sigue pudiendo dejarla más corta que su contenido si el usuario así
+  // lo quiere; solo sus VECINAS se levantan para emparejar). Por debajo
+  // del breakpoint de 900px todo es una sola columna (sin filas que
+  // igualar). Se llama al cargar datos, al terminar cualquier arrastre/
+  // atajo de teclado del Modo dashboard, y al cambiar el tamaño de la
+  // ventana (debounced) — nunca se persiste el resultado, se recalcula
+  // solo con el contenido real de cada momento.
+  function igualarAlturaFilasDashboard() {
+    if (!els.resumenFinTablero) return;
+    const tarjetas = obtenerTarjetasDashboard();
+    tarjetas.forEach((t) => {
+      t.style.minHeight = '';
+    });
+    if (tarjetas.length === 0 || window.innerWidth <= 900) return;
+
+    const filas = [];
+    let filaActual = [];
+    let acumulado = 0;
+    tarjetas.forEach((t) => {
+      const span = obtenerSpanActualTarjeta(t);
+      if (acumulado + span > 12 && filaActual.length > 0) {
+        filas.push(filaActual);
+        filaActual = [];
+        acumulado = 0;
+      }
+      filaActual.push(t);
+      acumulado += span;
+    });
+    if (filaActual.length > 0) filas.push(filaActual);
+
+    filas.forEach((fila) => {
+      // `scrollHeight` (no `getBoundingClientRect().height`): mide el alto
+      // que el CONTENIDO real necesita, sin importar si ahora mismo está
+      // recortado por un `height` explícito + overflow:hidden de un resize
+      // manual viejo. Sin esto, una tarjeta con un alto guardado demasiado
+      // chico (de antes de que se le agregaran avisos/banners nuevos)
+      // nunca entraba en el cálculo del máximo con su tamaño REAL — el
+      // recorte pasaba inadvertido en vez de corregirse. Se aplica también
+      // a una tarjeta sola en su fila (sin vecinas) para que nunca se
+      // esconda información propia por un resize viejo.
+      const maxAltura = Math.max(...fila.map((t) => t.scrollHeight));
+      fila.forEach((t) => {
+        t.style.minHeight = `${Math.ceil(maxAltura)}px`;
+      });
+    });
+  }
+  let igualarAlturaFilasTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(igualarAlturaFilasTimer);
+    igualarAlturaFilasTimer = setTimeout(igualarAlturaFilasDashboard, 200);
+  });
+
   function sincronizarBotonRestablecerDashboard() {
     els.btnRestablecerDashboard.hidden = !dashboardLayout;
   }
@@ -8454,6 +8575,15 @@
         dashboardLayout = data.layout;
         aplicarLayoutDashboard();
         sincronizarBotonRestablecerDashboard();
+        // Esta carga (fetch de preferencias) y cargarResumenFinanciero()
+        // arrancan por separado sin orden garantizado — si esta termina
+        // DESPUÉS de que el contenido ya se pintó y el corrector de filas
+        // ya corrió, aplicarLayoutDashboard() reintroduce los altos
+        // explícitos guardados (potencialmente demasiado chicos para el
+        // contenido actual) sin que nadie los vuelva a corregir. Se repite
+        // aquí también — es idempotente, no pasa nada por llamarla dos
+        // veces.
+        requestAnimationFrame(igualarAlturaFilasDashboard);
       }
     } catch (err) {
       // Fallo de red: la vista funciona igual con el layout por defecto.
@@ -8519,6 +8649,7 @@
       dashboardLayout = null;
       aplicarLayoutDashboard();
       sincronizarBotonRestablecerDashboard();
+      requestAnimationFrame(igualarAlturaFilasDashboard);
       showToast('Layout restablecido.');
     } catch (err) {
       showToast('No se pudo restablecer el layout.', true);
@@ -8657,6 +8788,7 @@
       tarjeta.style.transform = '';
       const ordenFinal = Number(getComputedStyle(tarjeta).order);
       if (ordenFinal !== ordenInicial) {
+        igualarAlturaFilasDashboard();
         guardarPreferenciasDashboard();
       }
     };
@@ -8695,6 +8827,7 @@
       handle.removeEventListener('pointerup', alTerminar);
       handle.removeEventListener('pointercancel', alTerminar);
       if (spanFinal !== spanInicial || alturaFinal !== alturaInicial) {
+        igualarAlturaFilasDashboard();
         guardarPreferenciasDashboard();
       }
     };
@@ -8717,6 +8850,7 @@
         12;
       const delta = evento.key === 'ArrowRight' ? 1 : -1;
       tarjeta.style.gridColumn = `span ${Math.min(DASHBOARD_SPAN_MAX, Math.max(DASHBOARD_SPAN_MIN, actual + delta))}`;
+      igualarAlturaFilasDashboard();
       guardarPreferenciasDashboard();
       return;
     }
@@ -8726,6 +8860,7 @@
       const delta = evento.key === 'ArrowDown' ? DASHBOARD_HEIGHT_PASO_TECLADO : -DASHBOARD_HEIGHT_PASO_TECLADO;
       const alturaNueva = Math.min(DASHBOARD_HEIGHT_MAX, Math.max(DASHBOARD_HEIGHT_MIN, Math.round(alturaActual + delta)));
       aplicarAlturaTarjeta(tarjeta, alturaNueva);
+      igualarAlturaFilasDashboard();
       guardarPreferenciasDashboard();
       return;
     }
@@ -8741,6 +8876,7 @@
       nuevaSecuencia.forEach((t, i) => {
         t.style.order = String(i);
       });
+      igualarAlturaFilasDashboard();
       guardarPreferenciasDashboard();
     }
   }
@@ -8770,6 +8906,20 @@
       }
       const data = await res.json();
       renderResumenFinanciero(data);
+      // "Cobranza del mes" (mini tarjeta) reusa ordenesCache — se carga
+      // aparte si Ventas aún no se ha visitado esta sesión. Si el perfil
+      // no tiene acceso a Ventas o el módulo está deshabilitado, se
+      // degrada a la tarjeta vacía sin romper el resto del resumen.
+      try {
+        if (!ordenesCache || ordenesCache.length === 0) await cargarOrdenes();
+        renderResumenFinCobranza(ordenesCache);
+      } catch (_) {
+        renderResumenFinCobranza([]);
+      }
+      // Con todo el contenido ya renderizado (KPIs, donas, gráficas,
+      // cobranza), se igualan las filas — un frame después, para medir
+      // alturas ya pintadas de verdad (punto 262).
+      requestAnimationFrame(igualarAlturaFilasDashboard);
     } catch (err) {
       els.resumenFinError.textContent = 'No se pudo conectar con el servidor.';
     }
@@ -9612,6 +9762,78 @@
         els.proveedoresAlerta.hidden = true;
       }
     }
+  }
+
+  // Mismo verde/navy que ya usa el resto del panel para "cobrado"/"por
+  // cobrar" (accent + ink-soft oscuro) — homologado con stitch/cxc pero
+  // sin los hex sueltos del mockup (#059669/#0a2540), reusando tokens ya
+  // validados en el resto de esta vista.
+  const RESUMEN_FIN_COLOR_COBRADO = '#1FAE6B';
+  const RESUMEN_FIN_COLOR_PORCOBRAR = '#FBEAE9';
+
+  // "Cobranza del mes" (mini tarjeta homologada con stitch/cxc) — misma
+  // fuente de datos que la vista completa de Cuentas por cobrar
+  // (calcularMetricasCxc sobre ordenesCache), sin pedir nada al backend
+  // aparte. El "avance" del centro de la dona es Cobrado/(Cobrado+Por
+  // cobrar) — un dato 100% real, a diferencia de la "Meta del mes" del
+  // mockup original (esa parte se descartó, no hay meta capturable hoy).
+  function renderResumenFinCobranza(ordenes) {
+    if (!els.resumenFinDonutCobranza) return;
+    const m = calcularMetricasCxc(ordenes || []);
+    const totalCartera = Math.round((m.cobradoMes + m.porCobrar) * 100) / 100;
+    if (totalCartera <= 0) {
+      els.resumenFinDonutCobranza.innerHTML = '';
+      if (els.resumenFinDonutCobranzaLeyenda) els.resumenFinDonutCobranzaLeyenda.innerHTML = '';
+      if (els.resumenFinDonutCobranzaTotal) els.resumenFinDonutCobranzaTotal.textContent = '0%';
+      if (els.resumenFinDonutCobranzaEmpty) els.resumenFinDonutCobranzaEmpty.hidden = false;
+      if (els.cobranzaKpis) els.cobranzaKpis.hidden = true;
+      if (els.cobranzaAlerta) els.cobranzaAlerta.hidden = true;
+      if (els.resumenFinDonutCobranzaBadge) els.resumenFinDonutCobranzaBadge.hidden = true;
+      return;
+    }
+    if (els.resumenFinDonutCobranzaEmpty) els.resumenFinDonutCobranzaEmpty.hidden = true;
+    renderDonutGenerico(els.resumenFinDonutCobranza, [
+      // Gris/rosado primero (se pinta abajo), verde al final (encima) —
+      // con "por cobrar" siendo casi todo el círculo, su remate quedaba
+      // arriba tapando el arranque del verde; invertido, el remate visible
+      // en el punto más prominente del donut es el del verde (lo cobrado).
+      { valor: m.porCobrar, color: RESUMEN_FIN_COLOR_PORCOBRAR },
+      { valor: m.cobradoMes, color: RESUMEN_FIN_COLOR_COBRADO },
+    ]);
+    const pctCobrado = Math.round((m.cobradoMes / totalCartera) * 100);
+    const pctPorCobrar = Math.max(0, 100 - pctCobrado);
+    if (els.resumenFinDonutCobranzaTotal) els.resumenFinDonutCobranzaTotal.textContent = `${pctCobrado}%`;
+    if (els.resumenFinDonutCobranzaBadge) { els.resumenFinDonutCobranzaBadge.textContent = 'Cobrado'; els.resumenFinDonutCobranzaBadge.hidden = false; }
+    if (els.resumenFinDonutCobranzaLeyenda) {
+      els.resumenFinDonutCobranzaLeyenda.innerHTML = `
+        <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_COBRADO}" aria-hidden="true"></span><span>Cobrado este mes</span><strong>$${formatearMoneda(m.cobradoMes)} (${pctCobrado}%)</strong></li>
+        <li><span class="resumen-fin-donut-dot" style="background:${RESUMEN_FIN_COLOR_PORCOBRAR}" aria-hidden="true"></span><span>Por cobrar <small>(${m.pendientes.length} venta${m.pendientes.length === 1 ? '' : 's'})</small></span><strong>$${formatearMoneda(m.porCobrar)} (${pctPorCobrar}%)</strong></li>
+      `;
+    }
+    if (els.cobranzaKpis) {
+      if (els.cobranzaKpiCobrado) els.cobranzaKpiCobrado.textContent = `$${formatearMoneda(m.cobradoMes)}`;
+      if (els.cobranzaKpiCobradoPct) els.cobranzaKpiCobradoPct.textContent = `${pctCobrado}%`;
+      if (els.cobranzaKpiPorcobrar) els.cobranzaKpiPorcobrar.textContent = `$${formatearMoneda(m.porCobrar)}`;
+      if (els.cobranzaKpiPorcobrarPct) els.cobranzaKpiPorcobrarPct.textContent = `${pctPorCobrar}%`;
+      if (els.cobranzaKpiPorcobrarNota) els.cobranzaKpiPorcobrarNota.textContent = `${m.pendientes.length} venta${m.pendientes.length === 1 ? '' : 's'} pendiente${m.pendientes.length === 1 ? '' : 's'}`;
+      els.cobranzaKpis.hidden = false;
+    }
+    if (els.cobranzaAlerta) {
+      if (m.vencidasList.length > 0) {
+        if (els.cobranzaAlertaTexto) els.cobranzaAlertaTexto.textContent = `${m.vencidasList.length} venta${m.vencidasList.length === 1 ? '' : 's'} vencida${m.vencidasList.length === 1 ? '' : 's'} requiere${m.vencidasList.length === 1 ? '' : 'n'} gestión`;
+        els.cobranzaAlerta.hidden = false;
+        if (els.cobranzaAlertaBtn) {
+          els.cobranzaAlertaBtn.onclick = () => {
+            cambiarVistaPrincipal('cxc');
+            if (els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.value = 'vencidas';
+            renderCxc();
+          };
+        }
+      } else {
+        els.cobranzaAlerta.hidden = true;
+      }
+    }
+    if (els.cobranzaBtnIrCxc) els.cobranzaBtnIrCxc.onclick = () => cambiarVistaPrincipal('cxc');
   }
 
   // ---------- Reportes: "Estado del inventario" (3ra pestaña) ----------
@@ -12147,6 +12369,17 @@
     return orden.fecha_vencimiento < hoy;
   }
 
+  // Días de mora (vencida) o días para vencer (sin vencer todavía) — base
+  // de la antigüedad de saldos. Ambos en días de calendario, comparando
+  // solo la parte de fecha (sin hora) para no depender de a qué hora del
+  // día se cargó la vista.
+  function diasDesdeVencimiento(orden) {
+    if (!orden.fecha_vencimiento) return null;
+    const hoy = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+    const vto = new Date(orden.fecha_vencimiento + 'T00:00:00Z');
+    return Math.round((hoy - vto) / 86400000);
+  }
+
   async function cargarCxc() {
     // Reusa ordenesCache si ya se cargó Ventas, si no la carga
     if (!ordenesCache || ordenesCache.length === 0) {
@@ -12163,7 +12396,7 @@
       const coincideVista = cxcVista === 'pendientes' ? esPendiente : !esPendiente;
       if (!coincideVista) return false;
       if (q) {
-        const hay = (o.numero_compra && o.numero_compra.toLowerCase().includes(q)) || (o.email && o.email.toLowerCase().includes(q)) || (o.concepto && o.concepto.toLowerCase().includes(q));
+        const hay = (o.numero_compra && o.numero_compra.toLowerCase().includes(q)) || (o.email && o.email.toLowerCase().includes(q)) || (o.concepto && o.concepto.toLowerCase().includes(q)) || (o.cliente_nombre && o.cliente_nombre.toLowerCase().includes(q)) || (o.cliente_rfc && o.cliente_rfc.toLowerCase().includes(q));
         if (!hay) return false;
       }
       if (fVto === 'vencidas' && !esVencida(o)) return false;
@@ -12173,22 +12406,216 @@
     });
   }
 
+  // Métricas compartidas de Cuentas por cobrar — una sola fuente de
+  // verdad usada tanto por la vista completa como por la tarjeta mini
+  // "Cobranza del mes" de Resumen financiero, para no calcular lo mismo
+  // dos veces con criterios que puedan divergir. 4 rangos de antigüedad
+  // (no 5, a diferencia del mockup original) — colores reutilizados de
+  // los ya validados en el resto del panel (accent/warn/error), sin
+  // inventar tonos nuevos. "Índice de recuperación" y "DSO" del mockup se
+  // dejaron fuera a propósito: no hay una fórmula de negocio acordada
+  // para ninguno de los dos.
+  function calcularMetricasCxc(ordenes) {
+    const todas = ordenes || [];
+    const pendientes = todas.filter((o) => (o.estado_pago || 'pagada') === 'pendiente');
+    const cobradas = todas.filter((o) => (o.estado_pago || 'pagada') !== 'pendiente');
+    const saldoDe = (o) => Math.round((Number(o.total) - Number(o.monto_cobrado || 0)) * 100) / 100;
+
+    const porCobrar = Math.round(pendientes.reduce((s, o) => s + saldoDe(o), 0) * 100) / 100;
+    const vencidasList = pendientes.filter(esVencida);
+    const vencidasMonto = Math.round(vencidasList.reduce((s, o) => s + saldoDe(o), 0) * 100) / 100;
+    const porVencer = pendientes.length - vencidasList.length;
+    const porVencerMonto = Math.round((porCobrar - vencidasMonto) * 100) / 100;
+
+    const mesActual = new Date().toISOString().slice(0, 7);
+    const cobradoMes = Math.round(
+      cobradas
+        .filter((o) => o.fecha_cobro && String(o.fecha_cobro).slice(0, 7) === mesActual)
+        .reduce((s, o) => s + Number(o.monto_cobrado || o.total), 0) * 100
+    ) / 100;
+
+    const sinFecha = pendientes.filter((o) => !o.fecha_vencimiento);
+    const sinFechaMonto = Math.round(sinFecha.reduce((s, o) => s + saldoDe(o), 0) * 100) / 100;
+    const sinVencer = pendientes.filter((o) => o.fecha_vencimiento && !esVencida(o));
+    const sinVencerMonto = Math.round(sinVencer.reduce((s, o) => s + saldoDe(o), 0) * 100) / 100;
+    const vencido30 = vencidasList.filter((o) => diasDesdeVencimiento(o) <= 30);
+    const vencido30Monto = Math.round(vencido30.reduce((s, o) => s + saldoDe(o), 0) * 100) / 100;
+    const vencidoMas30 = vencidasList.filter((o) => diasDesdeVencimiento(o) > 30);
+    const vencidoMas30Monto = Math.round(vencidoMas30.reduce((s, o) => s + saldoDe(o), 0) * 100) / 100;
+
+    const moraPromedio = vencidasList.length > 0
+      ? Math.round(vencidasList.reduce((s, o) => s + diasDesdeVencimiento(o), 0) / vencidasList.length)
+      : null;
+    const saldoPromedio = pendientes.length > 0 ? Math.round((porCobrar / pendientes.length) * 100) / 100 : 0;
+
+    return {
+      pendientes, cobradas, vencidasList, sinVencer, sinFecha, vencido30, vencidoMas30,
+      porCobrar, vencidasMonto, porVencer, porVencerMonto, cobradoMes,
+      sinFechaMonto, sinVencerMonto, vencido30Monto, vencidoMas30Monto,
+      moraPromedio, saldoPromedio,
+    };
+  }
+
+  const CXC_AGING_BUCKETS = [
+    { key: 'sinFecha', label: 'Sin fecha de vencimiento', color: 'var(--color-ink-soft)' },
+    { key: 'sinVencer', label: 'Sin vencer', color: 'var(--color-accent)' },
+    { key: 'vencido30', label: 'Vencido ≤ 30 días', color: 'var(--color-warn)' },
+    { key: 'vencidoMas30', label: 'Vencido > 30 días', color: 'var(--color-error)' },
+  ];
+
+  function renderCxcAging(m) {
+    if (!els.cxcAgingCard || !els.cxcAgingBars) return;
+    const totalCartera = Math.round((m.cobradoMes + m.porCobrar) * 100) / 100;
+    if (cxcVista !== 'pendientes' || totalCartera <= 0) {
+      if (els.cxcAnalyticsGrid) els.cxcAnalyticsGrid.hidden = true;
+      return;
+    }
+    if (els.cxcAnalyticsGrid) els.cxcAnalyticsGrid.hidden = false;
+    els.cxcAgingCard.hidden = m.porCobrar <= 0;
+    if (m.porCobrar > 0) {
+      if (els.cxcAgingTotal) els.cxcAgingTotal.textContent = `Total: $${formatearMoneda(m.porCobrar)}`;
+      const montoPorBucket = { sinFecha: m.sinFechaMonto, sinVencer: m.sinVencerMonto, vencido30: m.vencido30Monto, vencidoMas30: m.vencidoMas30Monto };
+      const nPorBucket = { sinFecha: m.sinFecha.length, sinVencer: m.sinVencer.length, vencido30: m.vencido30.length, vencidoMas30: m.vencidoMas30.length };
+      els.cxcAgingBars.innerHTML = CXC_AGING_BUCKETS
+        .filter((b) => nPorBucket[b.key] > 0)
+        .map((b) => {
+          const monto = montoPorBucket[b.key];
+          const n = nPorBucket[b.key];
+          const pct = m.porCobrar > 0 ? Math.round((monto / m.porCobrar) * 1000) / 10 : 0;
+          return `
+            <div class="cxc-aging-bar">
+              <div class="cxc-aging-bar-top">
+                <span class="cxc-aging-bar-label"><span class="cxc-aging-bar-dot" style="background:${b.color}"></span>${b.label} — ${n} venta${n === 1 ? '' : 's'}</span>
+                <span class="cxc-aging-bar-valor"><strong>$${formatearMoneda(monto)}</strong> (${pct}%)</span>
+              </div>
+              <div class="cxc-aging-track"><div class="cxc-aging-fill" style="width:${pct}%;background:${b.color}"></div></div>
+            </div>`;
+        })
+        .join('');
+      if (els.cxcAgingMora) els.cxcAgingMora.textContent = m.moraPromedio === null ? '—' : `${m.moraPromedio} día${m.moraPromedio === 1 ? '' : 's'}`;
+      if (els.cxcAgingPromedio) els.cxcAgingPromedio.textContent = `$${formatearMoneda(m.saldoPromedio)}`;
+    }
+    renderCxcGauge(m, totalCartera);
+  }
+
+  // Gauge "Cobranza del mes" DENTRO de la vista completa de Cuentas por
+  // cobrar — misma fórmula/datos que la mini tarjeta de Resumen
+  // financiero (renderResumenFinCobranza), IDs propios porque un mismo
+  // <svg> no puede vivir en 2 lugares del DOM a la vez.
+  function renderCxcGauge(m, totalCartera) {
+    if (!els.cxcGaugeDonut) return;
+    renderDonutGenerico(els.cxcGaugeDonut, [
+      { valor: m.porCobrar, color: '#FBEAE9' },
+      { valor: m.cobradoMes, color: '#1FAE6B' },
+    ]);
+    const pctCobrado = totalCartera > 0 ? Math.round((m.cobradoMes / totalCartera) * 100) : 0;
+    if (els.cxcGaugeTotal) els.cxcGaugeTotal.textContent = `${pctCobrado}%`;
+    if (els.cxcGaugeCobrado) els.cxcGaugeCobrado.textContent = `$${formatearMoneda(m.cobradoMes)}`;
+    if (els.cxcGaugePorcobrar) els.cxcGaugePorcobrar.textContent = `$${formatearMoneda(m.porCobrar)}`;
+    if (els.cxcGaugeTotalCartera) els.cxcGaugeTotalCartera.textContent = `$${formatearMoneda(totalCartera)}`;
+  }
+
+  function renderCxcAlertaVencidas(m) {
+    if (!els.cxcAlertaVencidas) return;
+    if (cxcVista !== 'pendientes' || m.vencidasList.length === 0) {
+      els.cxcAlertaVencidas.hidden = true;
+      return;
+    }
+    els.cxcAlertaVencidas.hidden = false;
+    const pct = m.porCobrar > 0 ? Math.round((m.vencidasMonto / m.porCobrar) * 100) : 0;
+    if (els.cxcAlertaVencidasTexto) {
+      els.cxcAlertaVencidasTexto.innerHTML = `<strong>${m.vencidasList.length} venta${m.vencidasList.length === 1 ? '' : 's'} vencida${m.vencidasList.length === 1 ? '' : 's'}</strong> representan el <strong>${pct}% ($${formatearMoneda(m.vencidasMonto)})</strong> de tus saldos pendientes.`;
+    }
+    if (els.btnCxcAlertaVer) {
+      els.btnCxcAlertaVer.onclick = () => {
+        if (els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.value = 'vencidas';
+        renderCxc();
+      };
+    }
+    if (els.btnCxcRecordatorioMasivo) {
+      els.btnCxcRecordatorioMasivo.onclick = () => enviarRecordatorioMasivo(m.vencidasList);
+    }
+  }
+
+  async function enviarRecordatorioEmail(orden, boton) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return false; }
+    if (boton) boton.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/ordenes-compra/${orden.id}/recordatorio`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo enviar el recordatorio', 'error');
+        return false;
+      }
+      return true;
+    } catch (_) {
+      showToast('No se pudo conectar con el servidor', 'error');
+      return false;
+    } finally {
+      if (boton) boton.disabled = false;
+    }
+  }
+
+  async function enviarRecordatorioMasivo(lista) {
+    const conCorreo = lista.filter((o) => o.email);
+    if (conCorreo.length === 0) { showToast('Ninguna de estas ventas tiene correo registrado', 'error'); return; }
+    if (els.btnCxcRecordatorioMasivo) { els.btnCxcRecordatorioMasivo.disabled = true; els.btnCxcRecordatorioMasivo.textContent = 'Enviando…'; }
+    let enviados = 0;
+    for (const orden of conCorreo) {
+      const ok = await enviarRecordatorioEmail(orden);
+      if (ok) enviados += 1;
+    }
+    if (els.btnCxcRecordatorioMasivo) { els.btnCxcRecordatorioMasivo.disabled = false; els.btnCxcRecordatorioMasivo.textContent = 'Enviar recordatorio'; }
+    const sinCorreo = lista.length - conCorreo.length;
+    showToast(`Recordatorio enviado a ${enviados} de ${conCorreo.length}${sinCorreo > 0 ? ` (${sinCorreo} sin correo)` : ''}`);
+  }
+
+  function exportarCxcCsv(filas) {
+    const csvCelda = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const encabezado = ['No. Venta', 'Cliente', 'RFC', 'Total', 'Cobrado', 'Saldo', 'Vencimiento', 'Estado', 'Facturada'];
+    const lineas = filas.map((o) => {
+      const saldo = Math.round((Number(o.total) - Number(o.monto_cobrado || 0)) * 100) / 100;
+      const vencida = esVencida(o);
+      const estado = (o.estado_pago === 'pendiente') ? (vencida ? 'Vencida' : 'Pendiente') : 'Pagada';
+      return [
+        o.numero_compra || '', o.cliente_nombre || o.email || '', o.cliente_rfc || '',
+        Number(o.total).toFixed(2), Number(o.monto_cobrado || 0).toFixed(2), saldo.toFixed(2),
+        o.fecha_vencimiento || '', estado, o.facturado ? 'Sí' : 'No',
+      ].map(csvCelda).join(',');
+    });
+    const csv = [encabezado.map(csvCelda).join(','), ...lineas].join('\r\n');
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cuentas-por-cobrar-${cxcVista}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function renderCxc() {
     if (!els.cxcTableBody) return;
     const todas = ordenesCache || [];
-    const pendientes = todas.filter((o) => (o.estado_pago || 'pagada') === 'pendiente');
-    const cobradas = todas.filter((o) => (o.estado_pago || 'pagada') !== 'pendiente');
-    // KPIs
-    const porCobrar = pendientes.reduce((s, o) => s + (Number(o.total) - Number(o.monto_cobrado || 0)), 0);
-    const vencidas = pendientes.filter(esVencida).length;
-    const porVencer = pendientes.length - vencidas;
-    const mesActual = new Date().toISOString().slice(0, 7);
-    const cobradoMes = cobradas.filter((o) => o.fecha_cobro && String(o.fecha_cobro).slice(0, 7) === mesActual).reduce((s, o) => s + Number(o.monto_cobrado || o.total), 0);
-    if (els.cxcKpiPorCobrar) els.cxcKpiPorCobrar.textContent = `$${formatearMoneda(porCobrar)}`;
-    if (els.cxcKpiVencidas) els.cxcKpiVencidas.textContent = String(vencidas);
-    if (els.cxcKpiPorVencer) els.cxcKpiPorVencer.textContent = String(porVencer);
-    if (els.cxcKpiCobradoMes) els.cxcKpiCobradoMes.textContent = `$${formatearMoneda(cobradoMes)}`;
-    if (els.cxcCount) els.cxcCount.textContent = cxcVista === 'pendientes' ? `${pendientes.length} por cobrar` : `${cobradas.length} cobradas`;
+    const m = calcularMetricasCxc(todas);
+    if (els.cxcKpiPorCobrar) els.cxcKpiPorCobrar.textContent = `$${formatearMoneda(m.porCobrar)}`;
+    if (els.cxcKpiPorCobrarNota) els.cxcKpiPorCobrarNota.textContent = `${m.pendientes.length} venta${m.pendientes.length === 1 ? '' : 's'} pendiente${m.pendientes.length === 1 ? '' : 's'}`;
+    if (els.cxcKpiVencidas) els.cxcKpiVencidas.textContent = String(m.vencidasList.length);
+    if (els.cxcKpiVencidasNota) {
+      const pctVenc = m.porCobrar > 0 ? Math.round((m.vencidasMonto / m.porCobrar) * 100) : 0;
+      els.cxcKpiVencidasNota.textContent = m.vencidasList.length > 0 ? `${pctVenc}% de la cartera` : 'Pendientes vencidas';
+    }
+    if (els.cxcKpiPorVencer) els.cxcKpiPorVencer.textContent = String(m.porVencer);
+    if (els.cxcKpiPorVencerNota) els.cxcKpiPorVencerNota.textContent = m.porVencer > 0 ? `$${formatearMoneda(m.porVencerMonto)}` : 'Sin vencer';
+    if (els.cxcKpiCobradoMes) els.cxcKpiCobradoMes.textContent = `$${formatearMoneda(m.cobradoMes)}`;
+    if (els.cxcCount) els.cxcCount.textContent = cxcVista === 'pendientes' ? `${m.pendientes.length} por cobrar` : `${m.cobradas.length} cobradas`;
+    renderCxcAging(m);
+    renderCxcAlertaVencidas(m);
     // Filtros
     const filtradas = aplicarFiltrosCxc(todas);
     els.cxcTableBody.innerHTML = '';
@@ -12197,14 +12624,23 @@
       const vencida = esVencida(orden);
       const estadoBadge = (orden.estado_pago === 'pendiente') ? (vencida ? '<span class="estatus-badge estatus-cancelado">Vencida</span>' : '<span class="estatus-badge estatus-pendiente">Pendiente</span>') : '<span class="estatus-badge estatus-listo">Pagada</span>';
       const vencimientoTxt = orden.fecha_vencimiento ? escapeHtml(orden.fecha_vencimiento) : '—';
+      const clienteHtml = orden.cliente_nombre
+        ? `<span class="cxc-cliente-nombre">${escapeHtml(orden.cliente_nombre)}</span><small class="cxc-cliente-sub">${orden.cliente_rfc ? `RFC ${escapeHtml(orden.cliente_rfc)} · ` : ''}${escapeHtml(orden.email || '')}</small>`
+        : `${escapeHtml(orden.email || 'Sin correo')}<small class="cxc-cliente-sub">Sin constancia registrada</small>`;
+      const facturadaBadge = orden.facturado ? '<span class="estatus-badge cxc-fact-si">Sí</span>' : '<span class="estatus-badge cxc-fact-no">No</span>';
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td data-label="No. Venta" data-col="numero">${escapeHtml(orden.numero_compra || '—')}</td><td data-label="Cliente" data-col="cliente">${escapeHtml(orden.email || 'Sin correo')}</td><td data-label="Total" data-col="total">$${formatearMoneda(orden.total)}</td><td data-label="Cobrado" data-col="cobrado">$${formatearMoneda(orden.monto_cobrado || 0)}</td><td data-label="Saldo" data-col="saldo"><strong>$${formatearMoneda(saldo)}</strong></td><td data-label="Vencimiento" data-col="vencimiento">${vencimientoTxt}</td><td data-label="Estado" data-col="estado">${estadoBadge}</td><td data-label=""></td>`;
+      tr.innerHTML = `<td data-label="No. Venta" data-col="numero">${escapeHtml(orden.numero_compra || '—')}</td><td data-label="Cliente" data-col="cliente">${clienteHtml}</td><td data-label="Total" data-col="total">$${formatearMoneda(orden.total)}</td><td data-label="Cobrado" data-col="cobrado">$${formatearMoneda(orden.monto_cobrado || 0)}</td><td data-label="Saldo" data-col="saldo"><strong>$${formatearMoneda(saldo)}</strong></td><td data-label="Vencimiento" data-col="vencimiento">${vencimientoTxt}</td><td data-label="Estado" data-col="estado">${estadoBadge}</td><td data-label="Facturada" data-col="facturada">${facturadaBadge}</td><td data-label=""></td>`;
       const tdAcciones = tr.lastElementChild;
       const wrap = document.createElement('div');
       wrap.className = 'admin-row-actions admin-row-actions-iconos';
       const btnVer = document.createElement('button'); btnVer.type='button'; btnVer.className='btn-icono-accion'; btnVer.setAttribute('data-tooltip','Ver venta'); btnVer.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'; btnVer.addEventListener('click', ()=>abrirOrdenModal(orden)); wrap.appendChild(btnVer);
       if ((orden.estado_pago || 'pagada') === 'pendiente') {
         const btnCobro = document.createElement('button'); btnCobro.type='button'; btnCobro.className='btn-icono-accion'; btnCobro.setAttribute('data-tooltip','Registrar cobro'); btnCobro.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'; btnCobro.addEventListener('click', ()=>abrirCobroModal(orden)); wrap.appendChild(btnCobro);
+        if (orden.email) {
+          const btnEnviar = document.createElement('button'); btnEnviar.type='button'; btnEnviar.className='btn-icono-accion'; btnEnviar.setAttribute('data-tooltip','Enviar recordatorio por correo'); btnEnviar.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          btnEnviar.addEventListener('click', async () => { const ok = await enviarRecordatorioEmail(orden, btnEnviar); if (ok) showToast('Recordatorio enviado por correo'); });
+          wrap.appendChild(btnEnviar);
+        }
       }
       const btnNotif = document.createElement('button'); btnNotif.type='button'; btnNotif.className='btn-icono-accion'; btnNotif.setAttribute('data-tooltip','Copiar recordatorio'); btnNotif.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>'; btnNotif.addEventListener('click', ()=>{ const txt=`Recordatorio: venta ${orden.numero_compra} por $${formatearMoneda(orden.total)} — saldo $${formatearMoneda(saldo)}${orden.fecha_vencimiento ? ' — vence '+orden.fecha_vencimiento : ''}.`; navigator.clipboard.writeText(txt); showToast('Recordatorio copiado'); }); wrap.appendChild(btnNotif);
       tdAcciones.appendChild(wrap);
@@ -12212,6 +12648,8 @@
     });
     if (els.cxcEmpty) els.cxcEmpty.hidden = filtradas.length > 0 || todas.length > 0;
     if (els.cxcFiltroEmpty) els.cxcFiltroEmpty.hidden = !(filtradas.length === 0 && todas.length > 0);
+    if (els.btnCxcExportar) els.btnCxcExportar.onclick = () => exportarCxcCsv(filtradas);
+    renderResumenFinCobranza(todas);
   }
 
   function abrirCobroModal(orden) {
@@ -12263,6 +12701,7 @@
       const res = await cargarOrdenesOriginal.apply(this, arguments);
       try {
         if (els.vistaCxc && !els.vistaCxc.hidden) renderCxc();
+        else if (els.vistaResumenFinanciero && !els.vistaResumenFinanciero.hidden) renderResumenFinCobranza(ordenesCache);
       } catch (_) {}
       return res;
     };

@@ -335,6 +335,56 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
     });
   });
 
+  describe('POST /api/admin/ordenes-compra/:id/recordatorio (Cuentas por cobrar, homologación stitch/)', () => {
+    test('sin credenciales responde 401', async () => {
+      const res = await request(app).post('/api/admin/ordenes-compra/1/recordatorio');
+      expect(res.status).toBe(401);
+    });
+
+    test('perfil "fiscal" no tiene acceso (403)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal', { usuario: 'fiscal1' });
+      const res = await request(app).post('/api/admin/ordenes-compra/1/recordatorio').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+
+    test('venta inexistente responde 404', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[]]); // SELECT -> no existe
+      const res = await request(app).post('/api/admin/ordenes-compra/999/recordatorio').auth(usuario, password);
+      expect(res.status).toBe(404);
+    });
+
+    test('venta ya pagada responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[{ id: 5, numero_compra: 'OC-000005', email: 'cliente@test.com', total: '500.00', monto_cobrado: '500.00', estado_pago: 'pagada', fecha_vencimiento: null }]]);
+      const res = await request(app).post('/api/admin/ordenes-compra/5/recordatorio').auth(usuario, password);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/ya está pagada/i);
+    });
+
+    test('venta pendiente sin correo responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[{ id: 5, numero_compra: 'OC-000005', email: null, total: '500.00', monto_cobrado: '0.00', estado_pago: 'pendiente', fecha_vencimiento: null }]]);
+      const res = await request(app).post('/api/admin/ordenes-compra/5/recordatorio').auth(usuario, password);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/correo/i);
+    });
+
+    test('venta pendiente con correo: envía el recordatorio real (200)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[{ id: 5, numero_compra: 'OC-000005', email: 'cliente@test.com', total: '500.00', monto_cobrado: '200.00', estado_pago: 'pendiente', fecha_vencimiento: '2026-09-30' }]]); // SELECT
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
+      pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ host: 'smtp.ejemplo.com', usuario: 'x@ejemplo.com', password: 'x' }) }],
+      ]); // getConfigSmtp (dentro de enviarCorreo)
+
+      const res = await request(app).post('/api/admin/ordenes-compra/5/recordatorio').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+    });
+  });
+
   describe('POST /api/admin/ordenes-compra/:id/reenviar-correo', () => {
     test('venta que ya tiene correo: reenvía al mismo, ignora el body', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');

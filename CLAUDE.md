@@ -1147,6 +1147,48 @@ confirmación explícita del usuario e implementar solo el segmento aprobado,
 manteniendo el piso obligatorio de UX/accesibilidad/rendimiento/seguridad/
 Docker/pruebas/calidad.
 
+**Punto 262 (2026-09-09, IMPLEMENTADO Y VALIDADO por HTTP contra Docker/MySQL
+reales)**: "Cuentas por cobrar" restyle fiel a `stitch/code.html` (ya
+borrado, consumido) + tarjeta "Cobranza del mes" (donut real Cobrado/Por
+cobrar, sin meta inventada) en Resumen financiero Y dentro del propio
+segmento (grid 2/3+1/3 junto a "Antigüedad de saldos"). Nuevo: Aging Report
+(4 rangos reales), banner de vencidas con recordatorio real por correo
+(endpoint `POST /ordenes-compra/:id/recordatorio`), Cliente/RFC real vía
+`LEFT JOIN registros`, columna "Facturada", export CSV. Descartado por
+inventado (sin preguntar, obvio): sync SAT, WhatsApp, motor de conciliación
+bancaria, folio fiscal, selector de periodo, DSO/índice de recuperación.
+Color del segmento "Por cobrar" del donut, ajustado 2 veces por el usuario
+en la misma conversación: `#E7ECF3` → **`#FBEAE9`** (final). **Bug real de
+orden de pintado corregido** (propuesta antes/después vía Artifact
+aprobada primero): con "por cobrar" siendo la mayoría del círculo, su
+remate quedaba encima del arranque del verde en el punto más visible del
+donut ("se veía invertido") — arreglo de segmentos invertido a
+`[porCobrar, cobradoMes]` (gris abajo, verde encima) en las 2 instancias.
+Botón "Modo dashboard" (+Restablecer+ayuda) movido junto al título de
+Resumen financiero, a la derecha en la misma fila
+(`.resumen-fin-header-row`), a pedido explícito con captura marcada. Jest
+backend 912/912 (6 tests nuevos). Ver PROJECT_STATE.md punto 262 para el
+detalle línea por línea. **Sin herramienta de navegador esta sesión** —
+falta confirmación visual. Sin commit/push todavía.
+
+**Punto 263 (2026-09-09, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: 4 ajustes de "Modo dashboard" en Resumen financiero, propuesta
+antes/después aprobada primero. (1) Filas desalineadas — nueva
+`igualarAlturaFilasDashboard()` agrupa tarjetas por fila (simula el
+auto-wrap de grid) y sube las más bajas al alto de la más alta vía
+`min-height`, sin recortar ni tocar `height` explícito; se recalcula
+solo (nunca se persiste), en carga/resize/reorder/restablecer/resize de
+ventana. (2) "Utilidad neta del mes" recortaba datos al achicarla —
+`container-type: inline-size` + `font-size: clamp(...cqi...)` en el
+número grande y en `.resumen-fin-balance-kpi-val` (compartida por todas
+las tarjetas). (3) Cantidades centradas (`.resumen-fin-balance-kpi-val`
++ su nota) en todas las tarjetas del dashboard, etiqueta sin tocar. (4)
+Nuevo orden por defecto para "Restablecer" — DOM/CSS/JS reordenados al
+acomodo real que el usuario ya tenía armado, sin congelar alturas
+(las resuelve el punto 1). Jest backend 912/912 (sin cambios). Ver
+PROJECT_STATE.md punto 263. **Sin herramienta de navegador esta
+sesión** — falta confirmación visual. Sin commit/push todavía.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),

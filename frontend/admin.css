@@ -3191,7 +3191,10 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .resumen-fin-utilidad-valor-fila { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .resumen-fin-utilidad-valor {
   font-family: var(--font-display);
-  font-size: 34px;
+  /* Responsivo al ancho REAL de la tarjeta (nunca más grande que hoy,
+     34px) — antes era fijo y se recortaba contra el borde al achicar la
+     tarjeta en Modo dashboard (punto 262: "se privan los datos"). */
+  font-size: clamp(20px, 12cqi, 34px);
   font-weight: 700;
   margin: 4px 0 2px;
 }
@@ -3264,7 +3267,26 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   box-shadow: var(--shadow-card);
   padding: 20px 24px 24px;
 }
-.resumen-fin-proveedores-card { margin-top: 20px; }
+/* Cuando la tarjeta queda más alta que su contenido (p.ej. igualada a una
+   vecina de fila más alta — ver igualarAlturaFilasDashboard()), el cuerpo
+   se centra verticalmente en vez de quedarse pegado arriba con un hueco
+   abajo. El encabezado (título/tags) se queda fijo arriba, sin centrar —
+   mismo criterio ya usado en "Ventas vs Facturado vs Gastos"
+   (#resumen-fin-chart-contenido con margin-top:auto). */
+.resumen-fin-donut-card {
+  display: flex;
+  flex-direction: column;
+}
+.resumen-fin-donut-card > div[id$="-contenido"] {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+/* Punto 263: este margin-top era de cuando "Top proveedores" vivía como
+   sección suelta debajo de todo, antes de que existiera el tablero-grid
+   — ahora es una tarjeta más del grid (gap:20px ya la separa de la fila
+   de arriba) y el margen extra la empujaba 20px dentro de su propia
+   celda, rompiendo la alineación con sus vecinas de fila aunque los
+   altos ya estuvieran perfectamente iguales. */
 .resumen-fin-card-header {
   display: flex;
   align-items: center;
@@ -3379,8 +3401,20 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   padding: 1px 5px;
   border-radius: 5px;
 }
-.resumen-fin-balance-kpi-val { font-size: 16px; font-weight: 800; letter-spacing: -.01em; color: var(--color-ink); font-variant-numeric: tabular-nums; }
-.resumen-fin-balance-kpi-nota { font-size: 10.5px; color: var(--color-ink-soft); margin-top: 1px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resumen-fin-balance-kpi-val {
+  /* Responsivo, mismo criterio que .resumen-fin-utilidad-valor —
+     compartida por todas las tarjetas del dashboard (punto 262). Solo
+     la CANTIDAD se centra (a pedido del usuario) — la etiqueta de arriba
+     (.resumen-fin-balance-kpi-label) se queda alineada a la izquierda. */
+  display: block;
+  text-align: center;
+  font-size: clamp(11px, 6cqi, 16px);
+  font-weight: 800;
+  letter-spacing: -.01em;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.resumen-fin-balance-kpi-nota { font-size: 10.5px; color: var(--color-ink-soft); margin-top: 1px; display: block; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resumen-fin-balance-kpi-val-pos { color: #1FAE6B; }
 .resumen-fin-linea-cero {
   stroke: var(--color-border);
@@ -6150,6 +6184,12 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .resumen-fin-tablero > [data-dashboard-id] {
   grid-column: span 12;
   min-width: 0;
+  /* Habilita unidades cqi (ancho del contenedor) para que los números
+     grandes de las tarjetas puedan encogerse solos al redimensionar en
+     Modo dashboard, en vez de recortarse contra el borde — ver
+     .resumen-fin-utilidad-valor / .resumen-fin-balance-kpi-val (punto
+     262). No cambia nada por sí solo, solo habilita la unidad. */
+  container-type: inline-size;
 }
 .resumen-fin-tablero > [data-dashboard-id="kpi-facturado"],
 .resumen-fin-tablero > [data-dashboard-id="kpi-gastos"],
@@ -6158,15 +6198,18 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   grid-column: span 3;
 }
 .resumen-fin-tablero > [data-dashboard-id="utilidad"],
-.resumen-fin-tablero > [data-dashboard-id="facturacion"],
 .resumen-fin-tablero > [data-dashboard-id="gastos-categoria"],
-.resumen-fin-tablero > [data-dashboard-id="ventas-facturado-gastos"] {
+.resumen-fin-tablero > [data-dashboard-id="balance-acumulado"],
+.resumen-fin-tablero > [data-dashboard-id="proyeccion"] {
   grid-column: span 6;
 }
-.resumen-fin-tablero > [data-dashboard-id="balance-acumulado"],
-.resumen-fin-tablero > [data-dashboard-id="proyeccion"],
+.resumen-fin-tablero > [data-dashboard-id="facturacion"],
+.resumen-fin-tablero > [data-dashboard-id="cobranza"],
 .resumen-fin-tablero > [data-dashboard-id="proveedores"] {
   grid-column: span 4;
+}
+.resumen-fin-tablero > [data-dashboard-id="ventas-facturado-gastos"] {
+  grid-column: span 12;
 }
 @media (max-width: 900px) {
   /* En pantallas chicas se ignora el ANCHO personalizado (todo a ancho
@@ -6176,17 +6219,41 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   .resumen-fin-tablero > [data-dashboard-id] { grid-column: span 12; }
 }
 
+/* Fila del encabezado de Resumen financiero: título a la izquierda,
+   controles de "Modo dashboard" a la derecha (antes vivían en su propia
+   fila debajo — movidos junto al título a pedido del usuario). Se apila
+   en pantallas angostas, mismo breakpoint que el resto del panel. */
+.resumen-fin-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.resumen-fin-header-row .inicio-bienvenida { margin-bottom: 0; }
+@media (max-width: 700px) {
+  .resumen-fin-header-row { flex-direction: column; align-items: stretch; }
+}
+
 /* Barra de controles del modo */
 .resumen-fin-dashboard-bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
-  margin-bottom: 16px;
+  padding-top: 4px;
 }
 .resumen-fin-dashboard-ayuda {
   font-size: 12.5px;
   color: var(--color-ink-soft);
+  flex-basis: 100%;
+  text-align: right;
+}
+@media (max-width: 700px) {
+  .resumen-fin-dashboard-bar { justify-content: flex-start; }
+  .resumen-fin-dashboard-ayuda { text-align: left; }
 }
 
 /* Estado activo del modo: contorno punteado como affordance de que las
@@ -6308,4 +6375,147 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   .resumen-fin-proveedores-card, .lectura-reportes-subtabla, .admin-config-card {
     transition: none;
   }
+}
+
+/* ---------- Cuentas por cobrar — restyle fiel a stitch/ (2026-09-09) ----------
+   Banner de riesgo + antigüedad de saldos, homologados con el mockup pero
+   con datos 100% reales (nada de SAT/WhatsApp/meta inventados — ver
+   PROJECT_STATE.md). Reusa tokens de color ya validados del resto del
+   panel (--color-error/--color-warn/--color-accent), nunca hex nuevos. */
+.cxc-alerta-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-error-soft);
+  border: 1px solid #F3C6C2;
+}
+.cxc-alerta-texto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-error);
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 220px;
+}
+.cxc-alerta-texto svg { flex-shrink: 0; }
+.cxc-alerta-texto strong { color: var(--color-error); }
+.cxc-alerta-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.cxc-aging-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.cxc-aging-card .resumen-fin-card-header { margin-bottom: 2px; }
+.cxc-aging-card h2 { font-size: 15px; font-weight: 700; margin: 0; flex: 1; }
+.cxc-aging-total {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.cxc-aging-bars { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.cxc-aging-bar-top { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-bottom: 4px; }
+.cxc-aging-bar-label { display: flex; align-items: center; gap: 7px; font-weight: 600; color: var(--color-ink); }
+.cxc-aging-bar-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cxc-aging-bar-valor { color: var(--color-ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cxc-aging-bar-valor strong { color: var(--color-ink); font-weight: 700; }
+.cxc-aging-track {
+  width: 100%;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+.cxc-aging-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
+.cxc-aging-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--color-border);
+}
+.cxc-aging-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  text-align: center;
+}
+.cxc-aging-metric-n { font-size: 16px; font-weight: 700; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.cxc-aging-metric-l { font-size: 11px; color: var(--color-ink-soft); }
+
+/* Columna "Cliente" con nombre real + RFC (constancia) cuando existe —
+   sin registro cae a solo correo, como siempre. */
+.cxc-cliente-nombre { font-weight: 600; color: var(--color-ink); }
+.cxc-cliente-sub { display: block; font-size: 11px; color: var(--color-ink-soft); font-family: var(--mono, monospace); margin-top: 1px; }
+
+/* Badge "Facturada" — mismo verde de éxito ya usado en el sitio. */
+.cxc-fact-si { background: #DCEFE3; color: #146C43; }
+.cxc-fact-no { background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border); }
+
+@media (max-width: 900px) {
+  .cxc-alerta-banner { flex-direction: column; align-items: flex-start; }
+  .cxc-alerta-acciones { width: 100%; }
+  .cxc-alerta-acciones .btn { flex: 1; }
+  .cxc-aging-metrics { grid-template-columns: 1fr 1fr; }
+}
+
+/* Grid 2/3 + 1/3 (antigüedad + gauge de cobranza), fiel al layout del
+   mockup stitch/code.html — se apila en 1 columna en pantallas angostas. */
+.cxc-analytics-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin: 14px 0 16px;
+  align-items: start;
+}
+.cxc-analytics-grid .cxc-aging-card { margin-bottom: 0; }
+.cxc-gauge-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+}
+.cxc-gauge-card h2 { font-size: 15px; font-weight: 700; margin: 0; }
+.cxc-gauge-wrap { position: relative; width: 140px; height: 140px; margin: 6px auto 16px; }
+.cxc-gauge-filas { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+.cxc-gauge-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.cxc-gauge-fila span:nth-child(2) { flex: 1; }
+.cxc-gauge-fila strong { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.cxc-gauge-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cxc-gauge-fila-total { background: none; padding: 6px 10px 0; border-top: 1px dashed var(--color-border); border-radius: 0; }
+
+@media (max-width: 900px) {
+  .cxc-analytics-grid { grid-template-columns: 1fr; }
 }

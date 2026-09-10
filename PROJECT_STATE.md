@@ -14103,6 +14103,233 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 260. **"Modo dashboard" del Resumen financiero (punto 119) — resize de ALTO agregado, junto al de ancho ya existente — IMPLEMENTADO Y VALIDADO por HTTP contra Docker/MySQL reales (2026-09-09)**: pedido explícito del usuario ("agrega que se pueda el resize en ancho y alto en todas las tarjetas"). El handle ◢ ya existía (esquina inferior derecha, cursor `nwse-resize` diagonal) pero solo leía `e.clientX` (ancho); ahora también lee `e.clientY` y ajusta `tarjeta.style.height` en vivo (arrastre) o vía teclado (`Mayús+↑/↓`, paso 24px — `↑/↓` solos siguen siendo reordenar, sin cambiar ese atajo ya existente). Backend: `VISTAS_DASHBOARD['resumen-financiero']` gana `heightMin:160`/`heightMax:900`; `validarLayoutDashboard()` acepta `height` opcional por item (entero dentro del rango, ausente = alto automático — no rompe layouts guardados antes de este punto, que nunca traen esa clave). Frontend: `aplicarAlturaTarjeta()` nueva — con alto explícito usa `overflow:hidden` (NO `overflow-y:auto`): el handle de resize vive como hijo directo de la tarjeta (`position:absolute`), con scroll interno quedaría atrapado dentro del área que se desplaza y sería imposible agrandar la tarjeta de nuevo una vez encogida — se prefirió recortar el contenido que no quepa (menos vistoso, pero el handle SIEMPRE queda alcanzable). `aplicarLayoutDashboard()`/`guardarPreferenciasDashboard()`/`restablecerDashboard()` extendidos para leer/escribir/limpiar `height` igual que ya hacían con `span`. Texto de ayuda visible del modo actualizado. `backend/test/integration/preferenciasDashboard.test.js` +2 tests (`height` válido se guarda, `height` fuera de rango o no-entero rechaza 400). Jest backend **906/906**. Validado por HTTP: `PUT` con `height:420` → 200, `GET` lo devuelve igual; `height:50` (bajo el mínimo) → 400; `DELETE` limpia. **Sin herramienta de navegador esta sesión** — falta confirmar visualmente el arrastre diagonal real y que el contenido recortado (`overflow:hidden`) se vea razonable en las tarjetas con gráficas/tablas más altas. Sin commit/push todavía.
 
+261. **PENDIENTE REGISTRADO (2026-09-09) — mensaje "Existencia insuficiente" poco
+    visible en Ventas, SOLO ANOTADO, sin analizar/implementar**: usuario reportó
+    que al intentar vender más piezas de las disponibles, el error real del
+    backend (`INV_STOCK_INSUFICIENTE`, ej. "Existencia insuficiente: disponible
+    26, solicitado 50") sí se muestra pero pasa inadvertido — hoy cae en
+    `els.ordenErrorGeneral.textContent` (línea de texto plano dentro del modal/
+    wizard de "Registrar venta", `frontend/admin.js` ~línea 6670, mismo
+    contenedor genérico que cualquier otro error de guardado de la venta), sin
+    ningún tratamiento visual propio. Pedido explícito del usuario: que se
+    vuelva más visible — una ventana emergente (modal), no un texto que se
+    pierde — con propuesta visual antes/después cuando se pida resolver (mismo
+    protocolo `addv-web-app`, sin implementar todavía). Queda pendiente decidir
+    en ese momento: ¿modal de confirmación genérico reutilizado, o uno dedicado
+    con el detalle disponible/solicitado destacado?, ¿aplica solo a este error
+    o a otros códigos `INV_*` que hoy comparten el mismo contenedor de texto
+    plano (ej. `INV_CANTIDAD_DEBE_SER_ENTERA`, `INV_PRODUCTO_SERVICIO`)?
+
+262. **"Cuentas por cobrar" — restyle fiel a `stitch/code.html` + tarjeta
+    "Cobranza del mes" (mockup `stitch/cxc/`) en Resumen financiero Y dentro
+    del propio segmento — IMPLEMENTADO Y VALIDADO por HTTP contra Docker/MySQL
+    reales (2026-09-09)**: usuario pidió fidelidad visual al mockup, con la
+    funcionalidad actual conservada. Auditoría real-vs-inventado primero —
+    descartado sin construir: "Sincronizado"/"Última sync fiscal SAT",
+    "Recordatorio Masivo" por WhatsApp, "Motor de Conciliación Bancaria y
+    Facturación SAT 4.0" (footer), "Folio Fiscal" tipo F-2024-8841 (no existe
+    ese folio en el sistema), selector de periodo 30D/60D/90D/Histórico,
+    "Índice de Recuperación"/DSO (sin fórmula de negocio acordada). Confirmado
+    con el usuario vía `AskUserQuestion` antes de construir: **Aging Report**
+    (sí, con 4 rangos reales en vez de los 5 arbitrarios del mockup — Sin
+    fecha/Sin vencer/Vencido ≤30/Vencido >30 días, colores reutilizados de
+    `--color-accent`/`--color-warn`/`--color-error` ya validados en el resto
+    del sitio — + Mora promedio + Saldo promedio por factura), **meta de
+    cobranza mensual** (no — sin dato real que capturar), **recordatorio real
+    por correo** (sí, además de "Copiar recordatorio" que se conserva) y
+    **Cliente/RFC real en la tabla** (sí, vía constancia). Backend:
+    `GET /api/admin/ordenes-compra` gana `LEFT JOIN registros` por correo
+    (`cliente_nombre`/`cliente_rfc`, `null` si el cliente nunca se registró);
+    endpoint nuevo `POST /api/admin/ordenes-compra/:id/recordatorio` (mismo
+    patrón que `notificarFacturaListaAlCliente`/aclaraciones —
+    `construirCorreoBase()` + `marcaDelTenant`/`coloresCorreoTenant`/
+    `logoUrlDelTenant`, 400 si ya está pagada o sin correo, 502 si falla el
+    envío real); `'cobranza'` agregado a la whitelist
+    `VISTAS_DASHBOARD['resumen-financiero'].elementos`. Frontend:
+    `calcularMetricasCxc()` nueva (única fuente de verdad de los 4 KPIs +
+    aging + mora/saldo promedio, reusada por la vista completa Y la tarjeta
+    mini), banner de riesgo real ("N ventas vencidas representan X% ($Y) de
+    tus saldos" + botones "Ver vencidas"/"Enviar recordatorio" que manda el
+    correo real a cada vencida con correo, salta las que no tienen), columna
+    "Facturada" nueva en la tabla (dato `facturado` ya existía, no se
+    mostraba), botón "Exportar CSV" (100% cliente, de lo filtrado en
+    pantalla). **2do pedido en la misma sesión, mismo mockup**: el usuario
+    señaló que faltaba la tarjeta "Cobranza del mes" (gauge circular) DENTRO
+    del propio segmento de Cuentas por cobrar, no solo en Resumen financiero
+    — agregada junto a "Antigüedad de saldos" en un grid 2/3+1/3 (fiel al
+    layout de `stitch/code.html`), IDs propios (`cxc-gauge-*`, un `<svg>` no
+    puede vivir en 2 lugares del DOM a la vez) pero reusando
+    `calcularMetricasCxc()`/`renderDonutGenerico()` — sin meta inventada, el
+    "Avance" es Cobrado/(Cobrado+Por cobrar), 100% real. **3er ajuste**: color
+    del segmento "Por cobrar" del donut (ambas instancias — mini de Resumen
+    financiero y gauge de Cuentas por cobrar) cambiado a `#E7ECF3` a pedido
+    explícito del usuario (mismo tono neutro que ya usa la tarjeta "Por
+    cobrar" del mockup de KPIs) — con borde sutil agregado al punto de la
+    leyenda para que siga siendo legible sobre fondo claro. **4to ajuste,
+    mismo día — bug real de orden de pintado encontrado y corregido, con
+    propuesta antes/después vía Artifact aprobada primero**: el usuario
+    reportó que el diseño "se ve invertido" — con datos reales del sitio
+    base (cobrado 12.5% / por cobrar 87.5%), el arco de "por cobrar" da casi
+    toda la vuelta y su remate queda justo arriba (12 en punto); como
+    `renderDonutGenerico()` pinta los segmentos en el orden del arreglo y
+    "por cobrar" se pintaba DESPUÉS del verde, su remate quedaba encima,
+    tapando el arranque del verde en el punto más visible del donut — se
+    leía como si el gris (lo pendiente) fuera el dato protagonista.
+    Reproducido con el cálculo real (circunferencia, gap 2px, stroke-linecap
+    redondo, rotación -90°) en el Artifact de propuesta antes de tocar
+    código. Fix: arreglo invertido a `[porCobrar, cobradoMes]` (el gris se
+    pinta primero/abajo, el verde al final/encima) en las 2 instancias —
+    mismos porcentajes y colores por dato, solo cambia el orden de pintado.
+    Color final del segmento "Por cobrar", ajustado por el usuario en la
+    misma conversación: `#FBEAE9` (rojizo suave, ya usado en el sitio para
+    resaltar "periodo actual" en tablas — `tr.unm-row-actual`). **5to
+    ajuste, mismo día**: el botón "Modo dashboard" (+ "Restablecer" + el
+    texto de ayuda que aparece al activar el modo) vivía en su propia fila
+    debajo del título "Resumen financiero" — movido junto al título, a la
+    derecha, en la misma fila (`.resumen-fin-header-row` nueva, flex
+    `justify-content:space-between`, se apila en <700px), a pedido explícito
+    del usuario con una captura marcada con flecha. 6 tests nuevos
+    (`test/integration/ordenes-compra.test.js`), Jest backend **912/912**.
+    Propuesta antes/después publicada como Artifact antes de implementar
+    (regla persistente del usuario). Validado por HTTP tras rebuild
+    `--no-cache`+`--force-recreate` frontend (2 veces, tras cada ajuste): HTML/
+    JS servidos con todos los IDs/funciones nuevos confirmados, `GET
+    /ordenes-compra` devuelve `cliente_nombre`/`cliente_rfc`/`facturado` reales
+    contra datos del sitio base (172 ventas, 52 pendientes). **Sin herramienta
+    de navegador esta sesión** (extensión Chrome sin conectar) — falta
+    confirmación visual real de layout/donut/banner. Ver también el punto 261
+    (pendiente aparte, sin relación: mensaje "Existencia insuficiente" poco
+    visible en Ventas). Sin commit/push todavía.
+
+263. **4 ajustes de "Modo dashboard" en Resumen financiero — IMPLEMENTADOS Y
+    VALIDADOS por HTTP contra Docker real (2026-09-09)**: propuesta antes/
+    después vía Artifact aprobada primero (regla persistente del usuario),
+    con capturas reales del usuario mostrando cada problema. **(1) Filas
+    desalineadas**: causa real — cada tarjeta guarda SU PROPIO alto
+    (explícito por resize manual, o natural) sin relación con sus vecinas
+    de fila; si una tiene más contenido, la fila se ve despareja aunque
+    los anchos (span) sean idénticos. Fix: `igualarAlturaFilasDashboard()`
+    nueva en `admin.js` — agrupa las tarjetas por fila simulando el
+    auto-wrap de CSS Grid (suma de span en orden visual, nueva fila al
+    pasar de 12) y sube las más bajas de cada fila al alto de la más alta
+    vía `min-height` (nunca recorta la más alta, nunca toca su `height`
+    explícito). Se llama al cargar datos (`requestAnimationFrame`, para
+    medir con el contenido real ya pintado), al terminar cualquier
+    arrastre/atajo de teclado de reorden o resize (los 5 call-sites de
+    `guardarPreferenciasDashboard()`), al restablecer, y en resize de
+    ventana (debounced 200ms, invalida la agrupación por el breakpoint de
+    900px). Nunca se persiste el resultado — se recalcula solo, así no
+    depende de píxeles guardados que dejarían de ser válidos si cambia el
+    contenido. **(2) "Utilidad neta del mes" pierde datos al achicarla**:
+    el número grande (34px) y las 2 cifras de KPI (16px) eran de tamaño
+    fijo — al resize se recortaban contra el borde (`overflow:hidden` del
+    punto 260) en vez de encogerse. Fix: `container-type: inline-size` en
+    cada tarjeta del tablero (habilita unidades `cqi`) +
+    `font-size: clamp(20px, 12cqi, 34px)` / `clamp(11px, 6cqi, 16px)` —
+    nunca más grandes que hoy, se encogen solas si falta espacio. **(3)
+    Cantidades sin centrar**: `.resumen-fin-balance-kpi-val` (compartida
+    por TODAS las tarjetas del dashboard — Cobranza, Utilidad neta,
+    Proyección, Facturación, Gastos, etc.) ganó `text-align:center` +
+    `display:block` (era `<span>` inline, sin efecto visual antes); la
+    nota chica debajo (`.resumen-fin-balance-kpi-nota`, ej. "nómina")
+    también se centró para consistencia (así se aprobó en el Artifact) —
+    la ETIQUETA de arriba (título+badge) se queda alineada a la
+    izquierda, sin tocar. **(4) Nuevo orden por defecto**: "Restablecer"
+    regresaba al orden de fábrica original; ahora usa el acomodo que el
+    usuario ya tenía armado — DOM de `admin.html` reordenado (12
+    `<section>`/`<div>` con `data-dashboard-id` movidos, extraídos y
+    re-ensamblados por bloques completos con un script Node para no
+    alterar una sola línea de su contenido interno), reglas CSS de
+    `grid-column: span N` actualizadas por id, y `DASHBOARD_TARJETAS`/
+    `DASHBOARD_SPANS_DEFECTO` (JS) alineados al mismo orden/anchos. Los
+    altos NO se congelaron como default (a propósito — con el punto 1 ya
+    resuelto, se auto-igualan solos, más duradero que guardar píxeles de
+    hoy). El layout YA GUARDADO del usuario (`preferencias_dashboard` id
+    97, perfil `admin`) se dejó intacto sin tocar — puede volver a este
+    nuevo default cuando quiera con el botón "Restablecer" existente, no
+    se borró nada de su lado sin que lo pida. Jest backend 912/912 (sin
+    cambios, ningún fix de este punto tocó backend). Validado por HTTP
+    tras rebuild `--no-cache`+`--force-recreate` frontend: nuevo orden
+    confirmado en el HTML servido, función `igualarAlturaFilasDashboard`
+    y los 2 `clamp()` confirmados en el JS/CSS servidos. **Sin
+    herramienta de navegador esta sesión** (extensión Chrome sin
+    conectar) — falta confirmación visual real de que las filas
+    efectivamente se ven alineadas, la fuente se ve bien al achicar, y
+    los centrados se ven como en la propuesta.
+
+    **Corrección real encontrada el mismo día, con 2 capturas nuevas del
+    usuario**: seguía viendo tarjetas desalineadas Y la tarjeta "Utilidad
+    neta del mes" con el banner de alerta/cierre de mes AUSENTE pese a
+    estar en déficit (debería mostrarse). Causa real del punto (1):
+    `igualarAlturaFilasDashboard()` medía `getBoundingClientRect().height`
+    — el alto YA RECORTADO por un `height` explícito viejo guardado antes
+    de que existieran los banners de alerta/cierre en esa tarjeta (528px,
+    de una sesión anterior) — nunca veía cuánto necesitaba el contenido
+    REAL, solo confirmaba el recorte existente como si fuera correcto.
+    Fix: `t.scrollHeight` en vez de `getBoundingClientRect().height` —
+    mide el contenido real sin importar si `overflow:hidden` lo está
+    recortando ahora mismo, así una tarjeta con un alto viejo demasiado
+    chico SÍ entra al cálculo del máximo con su tamaño verdadero. Se quitó
+    también el `if (fila.length < 2) return`: la protección aplica incluso
+    a una tarjeta sola en su fila (sin vecinas), para que nunca se esconda
+    información propia por un resize viejo. Validado por HTTP tras
+    rebuild. Sigue sin herramienta de navegador — falta la confirmación
+    visual definitiva del usuario.
+
+    **2da corrección real el mismo día, con captura nueva confirmando que
+    seguía sin alinear pese al fix de `scrollHeight`**: causa raíz real —
+    `cargarResumenFinanciero()` y `cargarPreferenciasDashboard()` arrancan
+    EN PARALELO a propósito (comentario ya existente en el código: evitar
+    salto de layout/CLS esperando a que termine una para empezar la otra)
+    — sin orden garantizado entre ambas. Si `cargarPreferenciasDashboard()`
+    termina DESPUÉS de que el contenido ya se pintó y el corrector de
+    filas ya corrió una vez, su `aplicarLayoutDashboard()` reaplica los
+    altos explícitos VIEJOS guardados (455/457px, de antes de que
+    existieran los banners actuales) sin que nada los corrija de nuevo —
+    reintroduciendo el recorte que el corrector ya había arreglado. Fix:
+    `igualarAlturaFilasDashboard()` se llama también al final de
+    `cargarPreferenciasDashboard()` (función idempotente, sin costo por
+    llamarla 2 veces) — así, sin importar cuál de las 2 cargas gane la
+    carrera, la última en terminar deja las filas corregidas. Validado por
+    HTTP tras rebuild. Sigue pendiente la confirmación visual final del
+    usuario.
+
+    **3er ajuste el mismo día**: efecto secundario esperado de los puntos
+    (1)/(2) — al igualar "Distribución de gastos por categoría" a la
+    altura de su vecina de fila más alta ("Utilidad neta del mes", con sus
+    banners), el contenido (KPIs+dona+leyenda+banner+footer) se quedaba
+    pegado arriba con un hueco vacío grande abajo, información "hasta
+    arriba" en vez de repartida en el espacio nuevo. Fix: `.resumen-fin-
+    donut-card` pasa a flex column, y su div de contenido
+    (`div[id$="-contenido"]`, cubre las 3 tarjetas de esta clase —
+    facturación, cobranza, gastos por categoría) gana `margin: auto 0` —
+    se centra verticalmente en el espacio sobrante, el encabezado
+    (título/tags) se queda fijo arriba sin centrar. Mismo patrón ya
+    usado en "Ventas vs Facturado vs Gastos" (punto 117). Sin efecto
+    cuando el contenido ya llena la tarjeta (no hay espacio sobrante que
+    repartir). Validado por HTTP tras rebuild.
+
+    **4ta corrección real, esta vez validada EN NAVEGADOR REAL (Claude in
+    Chrome, extensión reconectada esta sesión)**: el usuario insistió en
+    que seguían chuecas y pidió comparar en vivo. Diagnóstico por
+    JavaScript directo en la página (no especulación): las 3 tarjetas
+    (`facturacion`/`cobranza`/`proveedores`) tenían
+    `getBoundingClientRect().height` IDÉNTICO (460px las 3) — el
+    corrector de alturas SÍ estaba funcionando — pero sus `top` no
+    coincidían: `proveedores` empezaba 20px más abajo que sus vecinas.
+    Causa real: `.resumen-fin-proveedores-card { margin-top: 20px; }`,
+    una regla vieja de cuando esa tarjeta vivía como sección suelta
+    debajo de todo el resumen, ANTES de que existiera el tablero-grid (el
+    `gap:20px` del grid ya la separa de la fila de arriba — el margen
+    quedó de más, empujándola dentro de su propia celda). Quitada la
+    regla. Revalidado con el mismo script JS: `top`/`bottom`/`height` de
+    las 3 tarjetas idénticos tras el fix. Login real con `admin`/`admin`
+    vía `form_input` (el autofill del navegador seguía llenando
+    `antonio.prado@addv.mx`, mismo gotcha ya documentado — se
+    sobreescribió explícitamente). Con esto, el punto (1) de este punto
+    263 queda confirmado de punta a punta contra el navegador real, no
+    solo por HTTP. Sin commit/push todavía.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
