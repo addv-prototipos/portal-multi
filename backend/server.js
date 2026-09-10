@@ -5152,6 +5152,14 @@ app.post(
           usuario: req.adminUser,
         });
         if (resultadoMovimiento.error) {
+          // Punto 261: el modal de "Existencia insuficiente" del frontend
+          // necesita el nombre del producto y la cantidad solicitada para
+          // mostrar la comparación — registrarMovimiento() no los conoce
+          // (solo recibe productoId/cantidad), pero aquí sí están a mano.
+          if (resultadoMovimiento.error === 'INV_STOCK_INSUFICIENTE') {
+            resultadoMovimiento.producto_nombre = linea.producto.nombre;
+            resultadoMovimiento.solicitado = linea.cantidad;
+          }
           errorLinea = resultadoMovimiento;
           break;
         }
@@ -5208,6 +5216,10 @@ app.post(
         idempotencyKey: idempotencyKeyVenta,
       });
       if (resultadoMovimiento.error) {
+        if (resultadoMovimiento.error === 'INV_STOCK_INSUFICIENTE') {
+          resultadoMovimiento.producto_nombre = productoSeleccionado.nombre;
+          resultadoMovimiento.solicitado = productoCantidad;
+        }
         await pool.query('DELETE FROM ordenes_compra WHERE id = ?', [resultado.insertId]);
         const mapaEstatusInv = {
           INV_STOCK_INSUFICIENTE: 409,

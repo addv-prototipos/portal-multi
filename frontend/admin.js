@@ -339,6 +339,14 @@
     ordenEmailNuevoWrap: document.getElementById('orden-email-nuevo-wrap'),
     ordenEmailNuevo: document.getElementById('orden-email-nuevo'),
     ordenErrorGeneral: document.getElementById('orden-error-general'),
+    ordenErrorModalOverlay: document.getElementById('orden-error-modal-overlay'),
+    ordenErrorModalTitle: document.getElementById('orden-error-modal-title'),
+    ordenErrorModalMensaje: document.getElementById('orden-error-modal-mensaje'),
+    ordenErrorModalStock: document.getElementById('orden-error-modal-stock'),
+    ordenErrorModalProducto: document.getElementById('orden-error-modal-producto'),
+    ordenErrorModalDisponible: document.getElementById('orden-error-modal-disponible'),
+    ordenErrorModalSolicitado: document.getElementById('orden-error-modal-solicitado'),
+    btnOrdenErrorModalCerrar: document.getElementById('btn-orden-error-modal-cerrar'),
     // Estado de pago (CxC) — punto 138
     btnOrdenPagoPagada: document.getElementById('btn-orden-pago-pagada'),
     btnOrdenPagoPendiente: document.getElementById('btn-orden-pago-pendiente'),
@@ -6555,6 +6563,41 @@
     els.btnRegistrarOrdenLabel.textContent = isLoading ? 'Registrando…' : 'Registrar venta';
   }
 
+  // Modal de error al registrar una venta (punto 261) — reemplaza el
+  // texto chico casi invisible que quedaba al fondo del wizard/formulario
+  // ("Existencia insuficiente..." pasaba inadvertido). Aplica a
+  // CUALQUIER error de guardado: con INV_STOCK_INSUFICIENTE muestra la
+  // comparación Disponible/Solicitaste (datos que server.js agrega a
+  // propósito a esta respuesta); para el resto, el mensaje normal. El
+  // formulario NO se limpia ni se cierra — la venta se queda tal cual la
+  // estaba capturando.
+  function mostrarErrorRegistrarOrden(data) {
+    const esStock = data && data.error === 'INV_STOCK_INSUFICIENTE';
+    els.ordenErrorModalTitle.textContent = esStock ? 'Existencia insuficiente' : 'No se pudo registrar la venta';
+    els.ordenErrorModalMensaje.hidden = esStock;
+    els.ordenErrorModalStock.hidden = !esStock;
+    if (esStock) {
+      els.ordenErrorModalProducto.textContent = (data && data.producto_nombre) || 'este producto';
+      els.ordenErrorModalDisponible.textContent = formatearCantidadInv((data && data.disponible) || 0);
+      els.ordenErrorModalSolicitado.textContent = formatearCantidadInv((data && data.solicitado) || 0);
+    } else {
+      els.ordenErrorModalMensaje.textContent = (data && (data.mensaje || data.error)) || 'No se pudo registrar la venta.';
+    }
+    els.ordenErrorModalOverlay.hidden = false;
+  }
+  function cerrarErrorRegistrarOrden() {
+    els.ordenErrorModalOverlay.hidden = true;
+  }
+  if (els.btnOrdenErrorModalCerrar) els.btnOrdenErrorModalCerrar.addEventListener('click', cerrarErrorRegistrarOrden);
+  if (els.ordenErrorModalOverlay) {
+    els.ordenErrorModalOverlay.addEventListener('click', (e) => {
+      if (e.target === els.ordenErrorModalOverlay) cerrarErrorRegistrarOrden();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !els.ordenErrorModalOverlay.hidden) cerrarErrorRegistrarOrden();
+    });
+  }
+
   els.btnRegistrarOrden.addEventListener('click', async () => {
     const authHeader = getAuthHeader();
     if (!authHeader) {
@@ -6673,7 +6716,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        els.ordenErrorGeneral.textContent = data.mensaje || data.error || 'No se pudo registrar la venta.';
+        mostrarErrorRegistrarOrden(data);
         return;
       }
       mostrarExitoRegistrarOrden(
@@ -6695,7 +6738,7 @@
       );
       cargarOrdenes();
     } catch (err) {
-      els.ordenErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
+      mostrarErrorRegistrarOrden({ error: 'SIN_CONEXION', mensaje: 'No se pudo conectar con el servidor.' });
     } finally {
       setRegistrarOrdenLoading(false);
     }

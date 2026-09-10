@@ -3328,6 +3328,33 @@
     </div>
   </div>
 
+  <!-- Modal de error al registrar una venta (punto 261) — reemplaza el
+       texto chico casi invisible que quedaba al fondo del wizard. Aplica
+       a CUALQUIER error de guardado, no solo falta de stock: con
+       INV_STOCK_INSUFICIENTE muestra la comparación Disponible/
+       Solicitaste (#orden-error-modal-stock); para el resto, el mensaje
+       normal (#orden-error-modal-mensaje). Se abre desde DENTRO del modal
+       de Registrar venta — mismo z-index:70 que #confirm-modal-overlay/
+       #scanner-modal-overlay (style.css). -->
+  <div class="modal-overlay" id="orden-error-modal-overlay" hidden>
+    <div class="modal orden-error-modal" role="alertdialog" aria-modal="true" aria-labelledby="orden-error-modal-title">
+      <div class="orden-error-modal-icono" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h2 id="orden-error-modal-title">No se pudo registrar la venta</h2>
+      <p class="orden-error-modal-mensaje" id="orden-error-modal-mensaje" hidden>—</p>
+      <div class="orden-error-modal-stock" id="orden-error-modal-stock" hidden>
+        <p class="orden-error-modal-producto">No hay suficiente stock de <strong id="orden-error-modal-producto">—</strong></p>
+        <div class="orden-error-modal-comparo">
+          <div class="orden-error-modal-stat orden-error-modal-stat-disp"><span class="l">Disponible</span><span class="v" id="orden-error-modal-disponible">0</span></div>
+          <div class="orden-error-modal-stat orden-error-modal-stat-sol"><span class="l">Solicitaste</span><span class="v" id="orden-error-modal-solicitado">0</span></div>
+        </div>
+        <p class="field-hint">Reduce la cantidad, o registra una entrada de inventario antes de continuar.</p>
+      </div>
+      <button type="button" class="btn btn-primary orden-error-modal-btn" id="btn-orden-error-modal-cerrar">Entendido</button>
+    </div>
+  </div>
+
   <!-- Detalle grande de una gráfica de "Resumen financiero": reubica el
        contenido ya renderizado de la tarjeta (mismo elemento, sin
        duplicar lógica de render) dentro de este modal y lo regresa a su

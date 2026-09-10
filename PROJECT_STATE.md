@@ -14103,22 +14103,36 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 260. **"Modo dashboard" del Resumen financiero (punto 119) — resize de ALTO agregado, junto al de ancho ya existente — IMPLEMENTADO Y VALIDADO por HTTP contra Docker/MySQL reales (2026-09-09)**: pedido explícito del usuario ("agrega que se pueda el resize en ancho y alto en todas las tarjetas"). El handle ◢ ya existía (esquina inferior derecha, cursor `nwse-resize` diagonal) pero solo leía `e.clientX` (ancho); ahora también lee `e.clientY` y ajusta `tarjeta.style.height` en vivo (arrastre) o vía teclado (`Mayús+↑/↓`, paso 24px — `↑/↓` solos siguen siendo reordenar, sin cambiar ese atajo ya existente). Backend: `VISTAS_DASHBOARD['resumen-financiero']` gana `heightMin:160`/`heightMax:900`; `validarLayoutDashboard()` acepta `height` opcional por item (entero dentro del rango, ausente = alto automático — no rompe layouts guardados antes de este punto, que nunca traen esa clave). Frontend: `aplicarAlturaTarjeta()` nueva — con alto explícito usa `overflow:hidden` (NO `overflow-y:auto`): el handle de resize vive como hijo directo de la tarjeta (`position:absolute`), con scroll interno quedaría atrapado dentro del área que se desplaza y sería imposible agrandar la tarjeta de nuevo una vez encogida — se prefirió recortar el contenido que no quepa (menos vistoso, pero el handle SIEMPRE queda alcanzable). `aplicarLayoutDashboard()`/`guardarPreferenciasDashboard()`/`restablecerDashboard()` extendidos para leer/escribir/limpiar `height` igual que ya hacían con `span`. Texto de ayuda visible del modo actualizado. `backend/test/integration/preferenciasDashboard.test.js` +2 tests (`height` válido se guarda, `height` fuera de rango o no-entero rechaza 400). Jest backend **906/906**. Validado por HTTP: `PUT` con `height:420` → 200, `GET` lo devuelve igual; `height:50` (bajo el mínimo) → 400; `DELETE` limpia. **Sin herramienta de navegador esta sesión** — falta confirmar visualmente el arrastre diagonal real y que el contenido recortado (`overflow:hidden`) se vea razonable en las tarjetas con gráficas/tablas más altas. Sin commit/push todavía.
 
-261. **PENDIENTE REGISTRADO (2026-09-09) — mensaje "Existencia insuficiente" poco
-    visible en Ventas, SOLO ANOTADO, sin analizar/implementar**: usuario reportó
-    que al intentar vender más piezas de las disponibles, el error real del
-    backend (`INV_STOCK_INSUFICIENTE`, ej. "Existencia insuficiente: disponible
-    26, solicitado 50") sí se muestra pero pasa inadvertido — hoy cae en
-    `els.ordenErrorGeneral.textContent` (línea de texto plano dentro del modal/
-    wizard de "Registrar venta", `frontend/admin.js` ~línea 6670, mismo
-    contenedor genérico que cualquier otro error de guardado de la venta), sin
-    ningún tratamiento visual propio. Pedido explícito del usuario: que se
-    vuelva más visible — una ventana emergente (modal), no un texto que se
-    pierde — con propuesta visual antes/después cuando se pida resolver (mismo
-    protocolo `addv-web-app`, sin implementar todavía). Queda pendiente decidir
-    en ese momento: ¿modal de confirmación genérico reutilizado, o uno dedicado
-    con el detalle disponible/solicitado destacado?, ¿aplica solo a este error
-    o a otros códigos `INV_*` que hoy comparten el mismo contenedor de texto
-    plano (ej. `INV_CANTIDAD_DEBE_SER_ENTERA`, `INV_PRODUCTO_SERVICIO`)?
+261. **Modal de error al registrar una venta (antes "Existencia insuficiente"
+    poco visible) — IMPLEMENTADO Y VALIDADO en navegador real contra Docker/
+    MySQL reales (2026-09-09)**: reemplaza el texto plano casi invisible
+    (`els.ordenErrorGeneral`, al fondo del wizard/formulario de "Registrar
+    venta") por un modal dedicado (`#orden-error-modal-overlay`, ícono+título+
+    botón "Entendido", mismo z-index:70 que `#confirm-modal-overlay`/
+    `#scanner-modal-overlay` por abrirse dentro de otro modal ya abierto).
+    Decisión de alcance (ambigüedad que había quedado abierta): aplica a
+    CUALQUIER error de guardado de la venta (no solo falta de stock) — con
+    `INV_STOCK_INSUFICIENTE` muestra una comparación real Disponible/
+    Solicitaste + nombre del producto (`#orden-error-modal-stock`); para el
+    resto, el mensaje normal (`#orden-error-modal-mensaje`). Backend:
+    `POST /api/admin/ordenes-compra` enriquece la respuesta de
+    `INV_STOCK_INSUFICIENTE` con `producto_nombre`/`solicitado` (ambos
+    caminos — línea única y `productos_inventario` Segmento A), datos que
+    `registrarMovimiento()` no conocía pero `server.js` sí tenía a la mano;
+    cambio aditivo, no rompe consumidores existentes. El formulario NO se
+    limpia ni se cierra al mostrar el error — la venta se queda tal cual se
+    estaba capturando. Propuesta antes/después vía Artifact aprobada primero
+    (protocolo `addv-web-app`), reproduciendo el caso real exacto que
+    reportó el usuario (disponible 26/solicitado 50). Jest backend 912/912
+    (sin tests nuevos — cambio puramente aditivo en la respuesta, ya
+    cubierto por las aserciones existentes sobre `res.body.error`). **Validado
+    de punta a punta con datos reales** (Claude in Chrome, extensión
+    reconectada): venta real intentada por 500 pz de "Escáner de mesa"
+    (disponible real 29) desde `/admin` → modal con el nombre real del
+    producto y la comparación 29/500 — confirmado visualmente, el
+    formulario conservó la línea capturada al cerrar el modal, sin dejar
+    ninguna venta de prueba creada en la base real. Sin commit/push
+    todavía.
 
 262. **"Cuentas por cobrar" — restyle fiel a `stitch/code.html` + tarjeta
     "Cobranza del mes" (mockup `stitch/cxc/`) en Resumen financiero Y dentro

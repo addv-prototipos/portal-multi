@@ -1189,6 +1189,20 @@ acomodo real que el usuario ya tenía armado, sin congelar alturas
 PROJECT_STATE.md punto 263. **Sin herramienta de navegador esta
 sesión** — falta confirmación visual. Sin commit/push todavía.
 
+**Punto 261 (2026-09-09, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales)**: modal de error al registrar una venta, reemplaza el
+texto plano casi invisible que quedaba al fondo del wizard/formulario
+("Existencia insuficiente..." pasaba inadvertido). Aplica a CUALQUIER
+error de guardado (no solo stock) — con `INV_STOCK_INSUFICIENTE` muestra
+nombre del producto + comparación Disponible/Solicitaste real (backend
+enriquece la respuesta con `producto_nombre`/`solicitado`, cambio
+aditivo); para el resto, mensaje normal. El formulario no se limpia al
+mostrar el error. Propuesta antes/después vía Artifact aprobada primero.
+Validado con datos reales: venta de 500 pz de "Escáner de mesa" (29
+disponibles) → modal correcto, formulario conservado, sin dejar venta de
+prueba en la BD. Jest backend 912/912. Ver PROJECT_STATE.md punto 261.
+Sin commit/push todavía.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
