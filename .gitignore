@@ -34,6 +34,9 @@ uploads/*
 .DS_Store
 Thumbs.db
 
+# Papelera local de limpieza de área de trabajo — nunca al repositorio
+.trash/
+
 # Editores / herramientas locales
 .idea/
 .claude/
