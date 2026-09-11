@@ -6198,6 +6198,140 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 }
 .inv-kpi-servicios-strip strong { color: var(--color-ink); }
 .inv-kpi-servicios-strip-sep { color: var(--color-border); }
+/* Punto 278: cada stat de la franja gana su propio ícono en círculo
+   (antes solo el primero tenía uno) — mismos tokens de color de
+   .inicio-stat-icono-*, solo redondeados y más chicos para caber en una
+   franja de una sola línea. */
+.inv-kpi-servicios-icono {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.inv-kpi-servicios-strip-nota {
+  color: var(--color-ink-soft);
+  font-style: italic;
+}
+.inv-kpi-servicios-link {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--color-accent-dark);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+.inv-kpi-servicios-link:hover { text-decoration: underline; }
+
+/* Punto 278: pill de conteo dentro de cada pestaña Activos/Papelera/
+   Servicios (antes el conteo vivía suelto junto al toggle, sin relación
+   visual con la pestaña activa). */
+.view-toggle-pill {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-border);
+  color: var(--color-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+.view-toggle-btn.is-active .view-toggle-pill {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+}
+
+/* Texto fijo "Base de cálculo…" a la derecha de las pestañas de
+   Inventarios — mismo patrón de punto de color que .inicio-donut-dot,
+   nunca un carácter Unicode "●" (política de cero emojis/glifos de
+   texto para indicadores, ver CLAUDE.md). */
+.inv-calculo-base-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+.inv-calculo-base-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1FAE6B;
+  flex-shrink: 0;
+}
+
+/* Etiquetas de sección (ícono a la izquierda + texto a la derecha) —
+   .inv-kpi-group-label ya trae el tamaño/peso/mayúsculas; aquí solo se
+   agrega el layout de fila. */
+.inv-kpi-group-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.inv-kpi-group-label-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.inv-kpi-group-label-left svg { flex-shrink: 0; color: var(--color-accent); }
+.inv-kpi-group-label-right {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Círculo decorativo sutil en las 3 tarjetas de "Salud financiera y
+   existencias" — puramente ornamental (mismo color de marca, opacidad
+   baja), replica el tratamiento de la referencia sin inventar dato
+   nuevo. */
+.inv-kpi-decorada {
+  position: relative;
+  overflow: hidden;
+}
+.inv-kpi-decorada::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: -30px;
+  right: -30px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.inv-kpi-decorada > * { position: relative; z-index: 1; }
+
+/* Grid de riesgo — 5 tarjetas reales, antes heredaba el grid de 4
+   columnas de .inicio-stats-grid y dejaba la 5ta sola en una 2ª fila con
+   3 huecos vacíos (mismo defecto ya corregido en Reportes/Estado del
+   inventario). */
+.inv-kpi-riesgo-grid {
+  grid-template-columns: repeat(5, 1fr);
+}
+@media (max-width: 1300px) {
+  .inv-kpi-riesgo-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 900px) {
+  .inv-kpi-riesgo-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .inv-kpi-riesgo-grid { grid-template-columns: 1fr; }
+}
+.inv-kpi-riesgo-warn { background: var(--color-warn-soft); border-color: #E8C7A0; }
+.inv-kpi-riesgo-bad { background: var(--color-error-soft); border-color: #E7B3AE; }
+.inv-kpi-riesgo-link {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+}
 
 /* Chips rápidos de estado de stock (Todos/Bajo mínimo/Sin existencia/
    Óptimo) — distintos de .filtro-chip (esos son resúmenes de filtro

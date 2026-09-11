@@ -611,7 +611,13 @@
     btnVerInvActivos: document.getElementById('btn-ver-inv-activos'),
     btnVerInvPapelera: document.getElementById('btn-ver-inv-papelera'),
     btnVerInvServicios: document.getElementById('btn-ver-inv-servicios'),
-    invProductosCount: document.getElementById('inv-productos-count'),
+    invTabPillActivos: document.getElementById('inv-tab-pill-activos'),
+    invTabPillPapelera: document.getElementById('inv-tab-pill-papelera'),
+    invTabPillServicios: document.getElementById('inv-tab-pill-servicios'),
+    btnInvServiciosAdministrar: document.getElementById('btn-inv-servicios-administrar'),
+    invKpiCostoProm: document.getElementById('inv-kpi-costo-prom'),
+    invKpiPiezasTotal: document.getElementById('inv-kpi-piezas-total'),
+    invKpiSinMovimientoNota: document.getElementById('inv-kpi-sin-movimiento-nota'),
     btnInvVerificarIntegridad: document.getElementById('btn-inv-verificar-integridad'),
     btnRefreshInventarios: document.getElementById('btn-refresh-inventarios'),
     btnInvExportarKardex: document.getElementById('btn-inv-exportar-kardex'),
@@ -13465,6 +13471,10 @@
   let productosInventarioActuales = [];
   let unidadesInventarioActuales = [];
   let vistaInventarios = 'activos'; // 'activos' | 'papelera' | 'servicios'
+  // Punto 278: pill de conteo dentro de cada pestaña — se llena solo con
+  // la vista que ya se visitó (sin pedir nada nuevo al servidor), las
+  // otras 2 se quedan en "—" hasta que el usuario las abra.
+  const invConteoPorVista = { activos: null, papelera: null, servicios: null };
   let invFiltroStock = ''; // '' | 'bajo_minimo' | 'sin_existencia' | 'optimo' — chips de stock
   let categoriaInvEditandoId = null;
   let inventarioModalEditando = null; // producto en edición, o null = crear
@@ -13928,6 +13938,8 @@
       if (!res.ok) return;
       const d = await res.json();
       els.invKpiValor.textContent = `$${formatearMoneda(d.valor_total_inventario)}`;
+      if (els.invKpiCostoProm) els.invKpiCostoProm.textContent = `$${formatearMoneda(d.costo_promedio_ponderado || 0)}`;
+      if (els.invKpiPiezasTotal) els.invKpiPiezasTotal.textContent = `${formatearCantidadInv(d.unidades_disponibles)} pz`;
       els.invKpiActivos.textContent = String(d.productos_activos);
       els.invKpiServicios.textContent = String(d.servicios_activos);
       if (els.invKpiServiciosSinVentas) els.invKpiServiciosSinVentas.textContent = String(d.servicios_sin_ventas_90d);
@@ -13935,8 +13947,17 @@
       els.invKpiBajoMinimo.textContent = String(d.productos_bajo_minimo);
       els.invKpiSinExistencia.textContent = String(d.productos_sin_existencia);
       els.invKpiSinMovimiento.textContent = String(d.productos_sin_movimiento);
+      // Punto 278: "Catálogo con alta rotación" es una lectura honesta de
+      // un conteo real en 0 — no inventa ningún dato nuevo.
+      if (els.invKpiSinMovimientoNota) {
+        els.invKpiSinMovimientoNota.textContent = Number(d.productos_sin_movimiento) === 0
+          ? 'Catálogo con alta rotación'
+          : 'Nunca tuvo un movimiento';
+      }
       els.invKpiMermas.textContent = `$${formatearMoneda(d.mermas_periodo_valor)}`;
-      els.invKpiMermasCantidad.textContent = `${d.mermas_periodo_cantidad} movimiento${d.mermas_periodo_cantidad === 1 ? '' : 's'} este mes`;
+      els.invKpiMermasCantidad.textContent = Number(d.mermas_periodo_cantidad) === 0
+        ? 'Sin mermas registradas este mes'
+        : `${d.mermas_periodo_cantidad} movimiento${d.mermas_periodo_cantidad === 1 ? '' : 's'} este mes`;
       els.invKpiPorVencer.textContent = String(d.productos_por_vencer);
       // Fila de totales de la tabla — mismos números de las tarjetas de
       // arriba, sin pedirle nada nuevo al servidor.
@@ -14089,7 +14110,10 @@
   function renderInvTabla(productos, total) {
     const esPapelera = vistaInventarios === 'papelera';
     const cuenta = Number.isFinite(total) ? total : productos.length;
-    els.invProductosCount.textContent = `${cuenta} producto${cuenta === 1 ? '' : 's'}`;
+    invConteoPorVista[vistaInventarios] = cuenta;
+    const pillPorVista = { activos: els.invTabPillActivos, papelera: els.invTabPillPapelera, servicios: els.invTabPillServicios };
+    const pillActiva = pillPorVista[vistaInventarios];
+    if (pillActiva) pillActiva.textContent = String(cuenta);
     els.invEmpty.hidden = productos.length > 0;
     els.invEmpty.textContent = esPapelera
       ? 'La papelera de Inventarios está vacía.'
@@ -16489,6 +16513,7 @@
   if (els.btnVerInvActivos) els.btnVerInvActivos.addEventListener('click', () => cambiarVistaInventarios('activos'));
   if (els.btnVerInvPapelera) els.btnVerInvPapelera.addEventListener('click', () => cambiarVistaInventarios('papelera'));
   if (els.btnVerInvServicios) els.btnVerInvServicios.addEventListener('click', () => cambiarVistaInventarios('servicios'));
+  if (els.btnInvServiciosAdministrar) els.btnInvServiciosAdministrar.addEventListener('click', () => cambiarVistaInventarios('servicios'));
   if (els.btnInvChipTodos) els.btnInvChipTodos.addEventListener('click', () => activarChipStockInv(''));
   if (els.btnInvChipBajoMinimo) els.btnInvChipBajoMinimo.addEventListener('click', () => activarChipStockInv('bajo_minimo'));
   if (els.btnInvChipSinExistencia) els.btnInvChipSinExistencia.addEventListener('click', () => activarChipStockInv('sin_existencia'));

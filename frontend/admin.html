@@ -1745,11 +1745,11 @@
           </div>
           <div class="admin-toolbar-right">
             <div class="view-toggle" role="tablist" aria-label="Ver activos, papelera o servicios">
-              <button type="button" class="view-toggle-btn is-active" id="btn-ver-inv-activos" role="tab" aria-selected="true">Activos</button>
-              <button type="button" class="view-toggle-btn" id="btn-ver-inv-papelera" role="tab" aria-selected="false">Papelera</button>
-              <button type="button" class="view-toggle-btn" id="btn-ver-inv-servicios" role="tab" aria-selected="false">Servicios</button>
+              <button type="button" class="view-toggle-btn is-active" id="btn-ver-inv-activos" role="tab" aria-selected="true">Activos <span class="view-toggle-pill" id="inv-tab-pill-activos">0</span></button>
+              <button type="button" class="view-toggle-btn" id="btn-ver-inv-papelera" role="tab" aria-selected="false">Papelera <span class="view-toggle-pill" id="inv-tab-pill-papelera">—</span></button>
+              <button type="button" class="view-toggle-btn" id="btn-ver-inv-servicios" role="tab" aria-selected="false">Servicios <span class="view-toggle-pill" id="inv-tab-pill-servicios">—</span></button>
             </div>
-            <span class="admin-count" id="inv-productos-count">0 productos</span>
+            <span class="inv-calculo-base-hint"><span class="inv-calculo-base-dot" aria-hidden="true"></span>Base de cálculo: Existencia física × Costo Promedio (D5)</span>
             <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" data-tooltip="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
             <div class="column-toggle" id="inv-column-toggle">
               <button type="button" class="btn btn-secondary" id="btn-inv-columns" aria-haspopup="true" aria-expanded="false" aria-controls="inv-column-toggle-panel">
@@ -1778,9 +1778,15 @@
         </div>
 
         <div id="inv-kpis-wrap">
-        <p class="inv-kpi-group-label inv-kpi-solo-producto">Salud financiera y existencias</p>
+        <div class="inv-kpi-group-label inv-kpi-group-label-row inv-kpi-solo-producto">
+          <span class="inv-kpi-group-label-left">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4Zm0 0v10l9 4 9-4V7M12 11v10" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            Salud financiera y existencias
+          </span>
+          <span class="inv-kpi-group-label-right">Valuación: promedio ponderado (D5)</span>
+        </div>
         <div class="inicio-stats-grid">
-          <div class="inicio-stat-card inv-kpi-solo-producto">
+          <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Valor del inventario</span>
               <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
@@ -1789,8 +1795,9 @@
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-valor">$0.00</p>
             <p class="inicio-stat-tendencia">Existencia × costo promedio (D5)</p>
+            <p class="inv-estado-kpi-extra"><span>Costo prom: <strong id="inv-kpi-costo-prom">$0.00</strong></span><span>Total: <strong id="inv-kpi-piezas-total">0 pz</strong></span></p>
           </div>
-          <div class="inicio-stat-card inv-kpi-solo-producto">
+          <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Productos activos</span>
               <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
@@ -1800,7 +1807,7 @@
             <p class="inicio-stat-numero" id="inv-kpi-activos">0</p>
             <p class="inicio-stat-tendencia">Catálogo (§0.3)</p>
           </div>
-          <div class="inicio-stat-card inv-kpi-solo-producto">
+          <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Unidades disponibles</span>
               <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
@@ -1812,12 +1819,18 @@
           </div>
         </div>
 
-        <p class="inv-kpi-group-label inv-kpi-solo-producto">Riesgo y control <span class="inv-kpi-group-hint">— clic filtra la tabla de abajo</span></p>
-        <div class="inicio-stats-grid">
+        <div class="inv-kpi-group-label inv-kpi-group-label-row inv-kpi-solo-producto">
+          <span class="inv-kpi-group-label-left">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            Riesgo y control
+          </span>
+          <span class="inv-kpi-group-label-right">— clic filtra la tabla de abajo</span>
+        </div>
+        <div class="inicio-stats-grid inv-kpi-riesgo-grid" id="inv-kpi-riesgo-grid">
           <!-- Punto: clicables (mismo patrón que "Por vencer") — filtran
                la tabla con el chip real equivalente en vez de solo
                informar el número. -->
-          <button type="button" class="inicio-stat-card inv-kpi-solo-producto inicio-stat-card-clickable inv-kpi-riesgo" id="inv-kpi-bajo-minimo-card" data-chip="bajo_minimo">
+          <button type="button" class="inicio-stat-card inv-kpi-solo-producto inicio-stat-card-clickable inv-kpi-riesgo inv-kpi-riesgo-warn" id="inv-kpi-bajo-minimo-card" data-chip="bajo_minimo">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Bajo mínimo</span>
               <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
@@ -1826,8 +1839,9 @@
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-bajo-minimo">0</p>
             <p class="inicio-stat-tendencia">§28, sin lead time v1</p>
+            <p class="inv-kpi-riesgo-link">Ver productos →</p>
           </button>
-          <button type="button" class="inicio-stat-card inv-kpi-solo-producto inicio-stat-card-clickable inv-kpi-riesgo" id="inv-kpi-sin-existencia-card" data-chip="sin_existencia">
+          <button type="button" class="inicio-stat-card inv-kpi-solo-producto inicio-stat-card-clickable inv-kpi-riesgo inv-kpi-riesgo-bad" id="inv-kpi-sin-existencia-card" data-chip="sin_existencia">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Sin existencia</span>
               <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
@@ -1836,6 +1850,7 @@
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-sin-existencia">0</p>
             <p class="inicio-stat-tendencia">Disponible = 0</p>
+            <p class="inv-kpi-riesgo-link">Ver productos →</p>
           </button>
           <div class="inicio-stat-card inv-kpi-solo-producto">
             <div class="inicio-stat-header">
@@ -1845,7 +1860,7 @@
               </span>
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-sin-movimiento">0</p>
-            <p class="inicio-stat-tendencia">Nunca tuvo un movimiento</p>
+            <p class="inicio-stat-tendencia" id="inv-kpi-sin-movimiento-nota">Nunca tuvo un movimiento</p>
           </div>
           <div class="inicio-stat-card inv-kpi-solo-producto">
             <div class="inicio-stat-header">
@@ -1869,7 +1884,8 @@
               </span>
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-por-vencer">0</p>
-            <p class="inicio-stat-tendencia">Vencidos + próximos 30 días — clic para ver la lista</p>
+            <p class="inicio-stat-tendencia">Vencidos + próximos 30 días</p>
+            <p class="inv-kpi-riesgo-link">Ver lista →</p>
           </button>
         </div>
 
@@ -1879,12 +1895,18 @@
              compacta (no grid de 4 col) para no dejar 2 tarjetas sueltas
              con hueco vacío al lado. -->
         <div class="inv-kpi-servicios-strip">
-          <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4" stroke-width="2"/><path d="M4.5 21a7.5 7.5 0 0115 0" stroke-linecap="round" stroke-width="2"/></svg>
+          <span class="inicio-stat-icono inicio-stat-icono-completadas inv-kpi-servicios-icono" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4" stroke-width="2"/><path d="M4.5 21a7.5 7.5 0 0115 0" stroke-linecap="round" stroke-width="2"/></svg>
           </span>
           <span><strong id="inv-kpi-servicios">0</strong> Servicios activos</span>
           <span class="inv-kpi-servicios-strip-sep">·</span>
+          <span class="inicio-stat-icono inicio-stat-icono-proceso inv-kpi-servicios-icono" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9" stroke-width="2"/><path d="M12 7v5l3.5 2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          </span>
           <span><strong id="inv-kpi-servicios-sin-ventas">0</strong> Servicios sin ventas (90d)</span>
+          <span class="inv-kpi-servicios-strip-sep">·</span>
+          <span class="inv-kpi-servicios-strip-nota">No generan existencias ni costeo de almacén</span>
+          <button type="button" class="inv-kpi-servicios-link" id="btn-inv-servicios-administrar">Administrar servicios →</button>
         </div>
         </div>
 

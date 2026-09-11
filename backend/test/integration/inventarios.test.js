@@ -794,6 +794,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
         valor_total_inventario: 1500,
+        costo_promedio_ponderado: 7.5,
         productos_activos: 10,
         servicios_activos: 4,
         servicios_sin_ventas_90d: 1,

@@ -8028,12 +8028,22 @@ app.get(
       [UMBRAL_POR_VENCER_DIAS]
     );
 
+    const unidadesDisponiblesNum = Number(unidadesDisponibles.total);
+    const valorTotalInventarioNum = Number(valorInventario.valor);
+    // Punto 278: mismo cálculo que "Estado del inventario"
+    // (kpis.costo_promedio_ponderado) — pie de la tarjeta "Valor del
+    // inventario", sin duplicar la fórmula del lado del frontend.
+    const costoPromedioPonderado = unidadesDisponiblesNum > 0
+      ? Math.round((valorTotalInventarioNum / unidadesDisponiblesNum) * 100) / 100
+      : 0;
+
     res.json({
-      valor_total_inventario: Number(valorInventario.valor),
+      valor_total_inventario: valorTotalInventarioNum,
+      costo_promedio_ponderado: costoPromedioPonderado,
       productos_activos: Number(productosActivos.total),
       servicios_activos: Number(serviciosActivos.total),
       servicios_sin_ventas_90d: Number(serviciosSinVentas.total),
-      unidades_disponibles: Number(unidadesDisponibles.total),
+      unidades_disponibles: unidadesDisponiblesNum,
       productos_bajo_minimo: Number(bajoMinimo.total),
       productos_sin_existencia: Number(sinExistencia.total),
       productos_sin_movimiento: Number(sinMovimiento.total),

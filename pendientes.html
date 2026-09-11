@@ -209,6 +209,27 @@
     mark.hl { background: #5C4A20; color: #E8B368; }
   }
 
+  .tabs { display: flex; gap: 6px; margin: 18px 0 0; border-bottom: 1.5px solid var(--line); }
+  .tab-btn { padding: 10px 18px; border: 1px solid transparent; border-bottom: none; background: transparent; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); border-radius: 10px 10px 0 0; transition: background 0.15s ease, color 0.15s ease; }
+  .tab-btn:hover { color: var(--ink); background: var(--bg-alt); }
+  .tab-btn.active { background: var(--bg-alt); border-color: var(--line); color: var(--ink); border-bottom: 1.5px solid var(--bg-alt); margin-bottom: -1.5px; }
+  .tab-btn .tab-count { font-weight: 500; color: var(--ink-soft); font-size: 12px; margin-left: 6px; }
+  .tab-btn.active .tab-count { color: var(--ink-soft); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .map-intro { background: var(--bg-alt); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 20px; font-size: 13.5px; line-height: 1.6; color: var(--ink-soft); }
+  .map-intro strong { color: var(--ink); }
+  .map-flow { display: flex; align-items: center; gap: 10px; justify-content: center; margin: 14px 0; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+  .map-flow .flow-box { padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-alt); }
+  .map-flow .flow-box.control { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .map-flow .flow-box.admin { background: var(--green-bg); border-color: var(--green-line); color: var(--green-ink); }
+  .map-flow .flow-arrow { color: var(--ink-soft); font-size: 18px; }
+  .map-table td.col-dependencia { color: var(--ink); font-size: 13px; }
+  .map-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
+  .map-badge-control { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .map-badge-admin { background: var(--green-bg); color: var(--green-ink); border-color: var(--green-line); }
+  .map-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; font-size: 12px; color: var(--ink-soft); }
+
   .app-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
   .app-filter-label { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-right: 4px; }
   .pill-app { cursor: pointer; background: var(--bg-alt); color: var(--ink-soft); border-color: var(--line); transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
@@ -228,7 +249,7 @@
       <h1>Pendientes — Portal Clarvo</h1>
       <p>Backlog vivo del proyecto: decisiones abiertas, funcionalidad pospuesta a propósito y validaciones que faltan. Se actualiza en el mismo archivo conforme avanza cada segmento — solo dale refresh.</p>
     </div>
-    <div class="updated">Última actualización: <strong>10 sep 2026, 13:30</strong> · centros conocimiento + recorrido (273) · 2FA correo toggle (274) · unificar switches si gestiona facturas (275, nuevo)</div>
+    <div class="updated">Última actualización: <strong>10 sep 2026, 13:40</strong> · centros conocimiento + recorrido (273) · 2FA correo toggle (274) · unificar switches (275) · diccionario §0.3/D5/D2 + tarjetas en lenguaje natural (279, nuevo)</div>
   </header>
 
   <div class="legend">
@@ -246,6 +267,11 @@
     <button type="button" class="pill pill-app" data-app="control" aria-pressed="false">Control <span class="app-count" id="app-count-control"></span></button>
   </div>
 
+  <div class="tabs" role="tablist" aria-label="Vistas de pendientes">
+    <button type="button" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-listado" data-tab="listado" id="tab-listado-btn">Listado completo <span class="tab-count" id="tab-count-listado"></span></button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-mapa" data-tab="mapa" id="tab-mapa-btn">Mapa Control → Admin <span class="tab-count">(dependencias)</span></button>
+  </div>
+
   <div class="search-wrap" role="search">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <input id="buscador-pendientes" class="search-input" type="search" placeholder="Buscar por punto, pendiente, detalle o estado…  (ej. Banxico, 152, sin probar)" aria-label="Buscar pendientes" autocomplete="off" spellcheck="false">
@@ -256,6 +282,7 @@
   </div>
   <div id="sin-resultados" class="no-results">Sin resultados para esa búsqueda — prueba con otro término o <button type="button" onclick="document.getElementById('buscador-pendientes').value='';document.getElementById('buscador-pendientes').dispatchEvent(new Event('input'))" style="background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline;padding:0">limpiar filtro</button>.</div>
 
+  <div id="tab-listado" class="tab-panel active" role="tabpanel" aria-labelledby="tab-listado-btn">
   <section>
     <h2>Ventas <span class="count">3 pendientes</span></h2>
     <div class="table-scroll">
@@ -286,7 +313,7 @@
   </section>
 
   <section>
-    <h2>Inventarios <span class="count">4 pendientes</span></h2>
+    <h2>Inventarios <span class="count">5 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -314,6 +341,12 @@
             <td class="col-item">Tests unitarios faltantes en <code>control/</code></td>
             <td class="col-detalle"><code>tenantTema.js</code> y <code>apiCredenciales.js</code> no tienen test propio ahí (sí en backend).</td>
             <td class="col-estado"><span class="pill pill-amber">Deuda técnica</span></td>
+          </tr>
+          <tr data-app="admin">
+            <td class="col-punto">278</td>
+            <td class="col-item">Rediseño gráfico de Inventarios fiel a referencia — implementado</td>
+            <td class="col-detalle">Pills de conteo por pestaña, caption "Base de cálculo…" con punto de color (CSS, sin emoji), círculo decorativo en las 3 tarjetas de salud, pie con divisor real en "Valor del inventario" (nuevo <code>costo_promedio_ponderado</code> en el backend), grid de riesgo a 5 columnas, tintado ámbar/rojo + "Ver productos →" en Bajo mínimo/Sin existencia, textos honestos condicionales en Sin movimiento/Mermas del mes, franja de Servicios con íconos circulares + link real "Administrar servicios →". Mismos íconos SVG del sitio, sin librería nueva. Jest 912/912, validado por HTTP contra Docker real tras rebuild <code>--no-cache</code>+<code>--force-recreate</code>. Ver <code>PROJECT_STATE.md</code> punto 278.</td>
+            <td class="col-estado"><span class="pill pill-gray">Falta confirmar visualmente (sin navegador esta sesión)</span></td>
           </tr>
         </tbody>
       </table>
@@ -502,8 +535,8 @@
   </section>
 
   <section>
-    <h2>Centro de conocimiento / Recorrido <span class="count">1 pendiente</span></h2>
-    <p class="section-note">Actualizar el Centro de conocimiento con todos los cambios recientes + incorporar el recorrido guiado.</p>
+    <h2>Centro de conocimiento / Recorrido <span class="count">2 pendientes</span></h2>
+    <p class="section-note">Actualizar el Centro de conocimiento con todos los cambios recientes + incorporar el recorrido guiado. Diccionario en lenguaje natural para emprendedores.</p>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -513,6 +546,12 @@
             <td class="col-item">Actualizar centros de conocimiento + recorrido</td>
             <td class="col-detalle">Actualizar los <strong>centros de conocimiento</strong> (<code>frontend/admin.html</code>/<code>admin.js</code> <code>CONOCIMIENTO_CATEGORIAS</code> + vista "Centro de conocimiento", <code>control</code> si aplica para gestión de contenidos) con <strong>todos los cambios</strong> recientes y el <strong>recorrido</strong>. Sin definir: qué cambios exactos (¿271/272 cotizador/market, 269/270, 256-260 financiero, 242/243 YouTube?), qué es "recorrido" (¿tour guiado/onboarding paso a paso — <code>intro.js</code>/<code>shepherd</code> vs. implementación propia — por <code>/admin</code>, <code>/control</code>, portal cliente?), cobertura (¿alta en <code>/control</code>, Ventas, Gastos, Inventarios, Reportes, Centro mismo?), formato (¿tooltips anclados + checklist de progreso vs. documentación estática + categorías con fichas/links?). Ver <code>PROJECT_STATE.md</code> punto 273.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir alcance</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">279</td>
+            <td class="col-item">Diccionario de datos: explicar §0.3, D5, D2 y textos de tarjetas en lenguaje natural</td>
+            <td class="col-detalle">En <strong>Centro de conocimiento y diccionario de datos</strong> agregar explicaciones en <strong>lenguaje natural y contexto básico</strong> de qué significa <code>§0.3</code>, <code>D5</code>, <code>D2</code> y <strong>todos los textos/símbolos que salen en las tarjetas</strong> (ej. "Utilidad neta", "Balance", "Rotación", "Días de cobertura", "Costo promedio ponderado", "SKU", "Existencia", "Lote/Caducidad", "Código de barras"), orientado a <strong>emprendedores sin preparación en inventarios</strong> para irlos educando. Sin definir: ¿qué tarjetas — <code>frontend/admin.html</code> Resumen/Ventas/Gastos/Inventarios/Reportes/Centro? ¿diccionario centralizado (<code>CONOCIMIENTO_CATEGORIAS</code> nueva categoría "Glosario") vs. tooltips inline (<code>data-tooltip</code>) vs. <code>diccionario.html</code> dedicado? ¿formato — ficha por término: término + 1 línea natural + ejemplo de changarro + link a video YouTube 242/243? ¿quién redacta — base <code>inventarios.md</code> traducida? Ver <code>PROJECT_STATE.md</code> punto 279.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir glosario</span></td>
           </tr>
         </tbody>
       </table>
@@ -541,6 +580,140 @@
       </table>
     </div>
   </section>
+
+  </div><!-- /tab-listado -->
+
+  <div id="tab-mapa" class="tab-panel" role="tabpanel" aria-labelledby="tab-mapa-btn">
+    <div class="map-intro">
+      <strong>Mapa de dependencias Control → Admin</strong> — todos los pendientes donde <code>/control</code> define la configuración que la app <code>/admin</code> consume. Si el switch/flag en Control está OFF o la cuota se excede, Admin oculta menú, bloquea API (<code>403</code>) o muestra página <em>desactivado</em>. Usa el filtro por app y el buscador en la pestaña "Listado" para el detalle; aquí ves el grafo de dependencias.
+      <div class="map-flow" aria-hidden="true">
+        <span class="flow-box control">/control — Operador Super</span>
+        <span class="flow-arrow">—→ define flag/cuota/contenido —→</span>
+        <span class="flow-box admin">/admin — Administrador / Fiscal</span>
+      </div>
+      <div class="map-legend">
+        <span class="map-badge map-badge-control">Control (origen)</span>
+        <span style="color:var(--ink-soft)">define</span>
+        <span class="map-badge map-badge-admin">Admin (consume)</span>
+        <span style="color:var(--ink-soft)">· 15 dependencias directas</span>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table class="map-table">
+        <thead><tr><th>#</th><th>Pendiente en Control</th><th>Qué ve/hace Admin (<code>/admin</code>)</th><th>Dependencia (flag/API)</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr data-app="control">
+            <td class="col-punto">244</td>
+            <td class="col-item">Switches por empresa: qué menús tiene activos</td>
+            <td class="col-dependencia">Muestra/oculta botones del sidebar (Ventas, Gastos, Inventarios, Reportes, etc.) según flags por tenant. Sin flag, Admin no ve la opción.</td>
+            <td><code>control_tenants.tenants</code> JSON flags → <code>frontend/admin.html</code> <code>RESTRICCIONES_PERFIL</code> + <code>requireAdminArea</code></td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">269 / 275</td>
+            <td class="col-item">Gestor de facturación desactivable + unificar switches</td>
+            <td class="col-dependencia">Si Control pone <code>gestor_facturacion_activo=0</code>, Admin oculta tile/CTA en <code>dashboard.html</code>, bloquea <code>POST /api/tickets</code> con <code>403 GESTOR_DESACTIVADO</code> y sirve página "desactivado" (404/503 en <code>nginx.conf</code>). 275 unifica este switch con los de 244.</td>
+            <td><code>gestor_facturacion_activo</code> → guard en <code>server.js</code>/<code>tenantContext.js</code> + <code>nginx.conf</code></td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">250</td>
+            <td class="col-item">Cuota de almacenamiento de imágenes por empresa</td>
+            <td class="col-dependencia">Control fija MB por empresa; Admin al subir imagen en Inventarios recibe <code>INV_IMAGEN_CUOTA_EXCEDIDA</code> si excede <code>inv_imagen_cuota_mb</code> / <code>inv_imagen_max_mb</code> / <code>max_por_producto</code>. UI deshabilita "Subir imagen" hasta liberar espacio.</td>
+            <td><code>control_tenants.tenants.inventario_cuota_mb</code> → <code>POST /api/admin/inventarios/productos/:id/imagen:7547</code> + <code>inventarioImagen.js</code></td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">D10 / 32</td>
+            <td class="col-item">Gate de imágenes 2 capas (control + tenant)</td>
+            <td class="col-dependencia">Si Control <code>inventario_imagenes_habilitado=0</code>, Admin no ve sección imágenes y API responde <code>INV_IMAGENES_DESHABILITADAS</code> aunque <code>inv_imagenes_activo=1</code>.</td>
+            <td><code>control.inventario_imagenes_habilitado</code> → <code>inv_imagenes_activo</code> en <code>inventarioConfig.js:28</code></td>
+            <td><span class="pill pill-amber">Implementado a medias</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">249</td>
+            <td class="col-item">Clave SAT obligatoria (si facturación activa)</td>
+            <td class="col-dependencia">Si Control dice "usar facturar OFF", Admin oculta <code>Configuraciones fiscales</code> y no bloquea. Si ON y falta <code>clave_sat</code>, Admin oculta todos los menús y fuerza configurar antes de operar.</td>
+            <td><code>control_tenants.tenants.usar_facturar</code> → <code>frontend/admin.html</code> validación</td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">239 / 240</td>
+            <td class="col-item">Conectar inventario ↔ sitio web</td>
+            <td class="col-dependencia">Switch en Control "inventario_sitio_web_habilitado" (solo para sitios comprados vía CLARVO o hechos por ADDV) → Admin expone stock/disponibilidad en el sitio del tenant.</td>
+            <td><code>inventario_sitio_web_habilitado</code> → <code>frontend/admin.html</code> inventario</td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">226</td>
+            <td class="col-item">Mensajería global (SMTP Clarvo / proveedores)</td>
+            <td class="col-dependencia">Control define SMTP global de Clarvo (y futuros SendGrid/SES/WhatsApp); Admin hereda remitente y no configura SMTP propio si switch Clarvo=ON (punto 225).</td>
+            <td><code>/control</code> vista Mensajería → <code>backend/utils/email.js</code></td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">242 / 243</td>
+            <td class="col-item">Tutoriales YouTube (links + título)</td>
+            <td class="col-dependencia">Control carga <code>control_tutoriales_youtube</code> (link+título); Admin Centro de conocimiento / Biblioteca los lista como hipervínculos; si vacío muestra "tutoriales vacíos".</td>
+            <td><code>control_tutoriales_youtube</code> → <code>frontend/admin.html#conocimiento</code></td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">273 / 279</td>
+            <td class="col-item">Centro de conocimiento + diccionario §0.3/D5/D2</td>
+            <td class="col-dependencia">Control gestiona contenidos (categorías <code>CONOCIMIENTO_CATEGORIAS</code>); Admin muestra fichas + recorrido guiado + glosario en lenguaje natural para emprendedores (ej. §0.3/D5/D2 → "qué es SKU").</td>
+            <td><code>control</code> CRUD → <code>frontend/admin.html</code> conocimiento</td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">247</td>
+            <td class="col-item">Gestión super admin solo desde /control</td>
+            <td class="col-dependencia">Admin ya no puede crear/editar <code>super</code>; solo Control gestiona super. Tabla de permisos visible solo para perfil <code>administrador</code> en Admin.</td>
+            <td><code>control_tenants</code> → <code>backend/utils/auth.js</code></td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">248</td>
+            <td class="col-item">Mensaje suspensión con popup</td>
+            <td class="col-dependencia">Cuando Control cambia <code>tenants.estado=suspendido</code>, Admin y portal cliente muestran ventana emergente "Cuenta suspendida" con motivo.</td>
+            <td><code>tenants.estado</code> → <code>frontend/admin.html</code> popup</td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="cliente,admin,control">
+            <td class="col-punto">271 / 272</td>
+            <td class="col-item">Cotizador + Site Market</td>
+            <td class="col-dependencia">Control base sin tenant gestiona inventario de costos y catálogo de addons; Admin del tenant ve funciones activadas y Market para comprar; Cliente ve portal a la medida según lo cotizado.</td>
+            <td><code>clarvo_funciones</code> en BD base → flags por tenant</td>
+            <td><span class="pill pill-red">Sin decidir — brainstorming</span></td>
+          </tr>
+          <tr data-app="control">
+            <td class="col-punto">6 / 8 / 9b</td>
+            <td class="col-item">Infra multi-tenant (cutover / HA / control remoto)</td>
+            <td class="col-dependencia">Control aprovisiona BD y pools (<code>provisionar-tenant.js</code>); Admin hereda <code>AsyncLocalStorage</code> + <code>pool.query</code> por tenant, y alta disponibilidad MySQL.</td>
+            <td><code>backend/db.js</code> pools + <code>tenantContext.js</code></td>
+            <td><span class="pill pill-gray">Sin probar en real</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">274</td>
+            <td class="col-item">2FA correo solo Administrador (toggle en Admin)</td>
+            <td class="col-dependencia">Control/Config define si <code>admin_2fa_habilitado</code> global/por tenant está ON; Admin al crear <code>administrador</code> exige OTP por email antes de crear cuenta.</td>
+            <td><code>configuracion.admin_2fa_habilitado</code> → <code>POST /api/admin/usuarios</code></td>
+            <td><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+          <tr data-app="control">
+            <td class="col-punto">180/258 / 266</td>
+            <td class="col-item">Proveedores como entidad (placeholder Control)</td>
+            <td class="col-dependencia">Placeholder "en construcción" hoy en Admin sidebar (ahora con camión + cubos 3D); CRUD real definido en Control → Admin lista de proveedores dejará de ser texto libre.</td>
+            <td>Control CRUD → <code>productos.proveedor</code> / gastos</td>
+            <td><span class="pill pill-amber">Construible</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:16px; font-size:12.5px; color:var(--ink-soft)">Tip: vuelve a "Listado completo" y usa <strong>Filtrar por app → Control</strong> para ver solo las filas de Control, o combina con el buscador (ej. <code>switch</code>, <code>imagen</code>, <code>factura</code>).</p>
+  </div>
 
   <footer>
     Archivo local en <code>D:\srv\portalFac\pendientes.html</code> — Claude lo edita en el mismo lugar conforme se cierra o decide cada punto, sin reconstruirlo desde cero. Abre este archivo directo en el navegador y dale refresh para ver la versión más reciente.
@@ -687,5 +860,42 @@
     if (qUrl) input.value = qUrl;
   } catch(e) {}
   filtrar();
+  // Tabs Control→Admin
+  (function(){
+    var btns = document.querySelectorAll('.tab-btn');
+    var panels = document.querySelectorAll('.tab-panel');
+    function activate(tab){
+      btns.forEach(function(b){ var on = b.getAttribute('data-tab')===tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', on?'true':'false'); });
+      panels.forEach(function(p){ p.classList.toggle('active', p.id==='tab-'+tab); });
+      // hide search when in mapa (es solo para listado)
+      var searchWrap = document.querySelector('.search-wrap');
+      var sinRes = document.getElementById('sin-resultados');
+      var appFilter = document.querySelector('.app-filter');
+      var isMapa = tab==='mapa';
+      if(searchWrap) searchWrap.style.display = isMapa ? 'none' : '';
+      if(sinRes) sinRes.style.display = isMapa ? 'none' : (sinRes.classList.contains('visible')?'block':'none');
+      if(appFilter) appFilter.style.display = isMapa ? 'none' : '';
+      // update URL ?vista=
+      try {
+        var url = new URL(location.href);
+        if(tab==='mapa') url.searchParams.set('vista','mapa'); else url.searchParams.delete('vista');
+        history.replaceState(null,'', url.toString());
+      } catch(e){}
+      // update tab count
+      var listadoCount = document.querySelectorAll('#tab-listado tbody tr').length;
+      var el = document.getElementById('tab-count-listado');
+      if(el) el.textContent = '('+listadoCount+')';
+    }
+    btns.forEach(function(b){ b.addEventListener('click', function(){ activate(b.getAttribute('data-tab')); }); });
+    // init from ?vista=mapa
+    try {
+      var vista = new URLSearchParams(location.search).get('vista');
+      if(vista==='mapa') activate('mapa'); else activate('listado');
+    } catch(e){ activate('listado'); }
+    // ensure listado count on load
+    var listadoCount = document.querySelectorAll('#tab-listado tbody tr').length;
+    var el = document.getElementById('tab-count-listado');
+    if(el) el.textContent = '('+listadoCount+')';
+  })();
 })();
 </script>

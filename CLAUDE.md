@@ -1486,6 +1486,22 @@ node --check backend/ruta/al/archivo.js
   `admin.css` bloque "Hover unificado" y `portal.css` `.tile:hover`). Aplica a
   tarjetas de Inicio/Resumen/Reportes/Configuraciones/Gastos y tiles del portal.
   Respeta `prefers-reduced-motion: reduce`.
+- **Cero emojis en todo el diseño (2026-09-10, directiva general del
+  proyecto)**: ningún emoji real (📧🖨️✅❌⏳🔴 etc.) en HTML/CSS/JS de
+  producción, correos, ni en propuestas/mockups/Artifacts de diseño —
+  regla ya venía aplicándose caso por caso desde 2026-08-31 (ver puntos
+  165, 188-189, 261), ahora es directiva persistente para CUALQUIER
+  trabajo futuro, sin excepción y sin que haga falta pedirla de nuevo.
+  Todo indicador visual (estatus, acción, alerta) se construye con los
+  **SVG inline ya existentes en el sitio** (mismo estilo feather-like de
+  `admin.js`/`admin.html`/`portal.js`) o, si es solo un punto de color,
+  con un `<span>` `border-radius:50%` + `background` (ver
+  `.inicio-donut-dot`/`.inv-calculo-base-dot` en `admin.css`) — nunca un
+  carácter Unicode tipo "●"/"✓" ni un emoji real. Al homologar con un
+  mockup/imagen de referencia que sí trae emojis o íconos de una
+  librería externa (Font Awesome, etc.), replicar la FORMA visual con
+  los SVG propios del sitio, respetando además el set de íconos ya en
+  uso salvo que el usuario pida explícitamente cambiarlos.
 - Después de cualquier cambio: `node --check` en los `.js` tocados +
   suite Jest existente sin regresiones + actualizar `PROJECT_STATE.md`.
 - Antes de dar por "no disponible" una skill/herramienta mencionada por el
@@ -3129,6 +3145,52 @@ compartido `#lupa-producto-flotante` (`position:fixed`, hijo de
 `overflow:auto` de la tabla/dropdown que lo contiene. Jest backend
 912/912 en todo. Ver PROJECT_STATE.md puntos 276-277 para el detalle
 línea por línea.
+
+**Punto 278 (2026-09-10, IMPLEMENTADO Y VALIDADO por HTTP contra Docker/MySQL
+reales)**: rediseño gráfico de Inventarios fiel a la referencia aprobada en
+la sesión anterior (Artifact
+`https://claude.ai/code/artifact/049d78c2-91c9-48ff-a33b-6f9e49e90899`,
+detalle línea por línea en PROJECT_STATE.md punto 278). Implementado: pills
+de conteo dentro de cada pestaña Activos/Papelera/Servicios (cacheadas por
+vista, sin pedir nada nuevo al servidor — la que no se ha visitado muestra
+"—"), texto fijo "Base de cálculo: Existencia física × Costo Promedio (D5)"
+junto a los tabs (punto de color con `<span>` CSS, nunca el carácter "●" del
+mockup — política de cero emojis), etiquetas de sección con ícono + texto
+honesto a la derecha (`Valuación: promedio ponderado (D5)` en vez de
+"Actualizado hace 2 min", que no existe), círculo decorativo (`::before`,
+opacidad baja, color de marca) en las 3 tarjetas de "Salud financiera y
+existencias", pie con divisor real ("Costo prom: $X · Total: Y pz") SOLO en
+"Valor del inventario" — "Productos activos"/"Unidades disponibles" se
+quedan sin pie porque sus footers de referencia ("100% con clave SAT"/"Ver
+desglose por anaquel") no tienen respaldo real y se descartaron sin
+sustituto. Backend: `costo_promedio_ponderado` nuevo en
+`GET /inventarios/dashboard` (mismo cálculo que "Estado del inventario",
+punto 271 — `valor_total_inventario / unidades_disponibles`). Grid de
+riesgo a 5 columnas real (`#inv-kpi-riesgo-grid`, con breakpoints 3/2/1,
+mismo defecto de "espacio sin usar" ya corregido en Reportes/Estado del
+inventario); "Bajo mínimo"/"Sin existencia" tintadas ámbar/rojo
+(`--color-warn-soft`/`--color-error-soft`) con link "Ver productos →" (la
+tarjeta ya era clicable desde el punto 277, solo faltaba el texto de
+affordance); "Sin movimiento"/"Mermas del mes" con texto condicional
+honesto (0 real → "Catálogo con alta rotación"/"Sin mermas registradas este
+mes", dato ya existente, sin inventar nada); "Por vencer" con caption
+("Vencidos + próximos 30 días") separado del link "Ver lista →". Franja de
+Servicios: los 2 stats ganan ícono circular propio (antes solo el primero
+tenía uno), nota honesta "No generan existencias ni costeo de almacén"
+(sustituye "Exentos de costeo PEPS" del mockup — el sistema usa costeo
+**promedio ponderado**, no PEPS) y link real nuevo "Administrar servicios
+→" que abre la pestaña Servicios (`cambiarVistaInventarios('servicios')`).
+Íconos: mismos SVG inline ya usados en el sitio (nunca Font Awesome del
+mockup ni un set nuevo), respetando el pedido explícito del usuario de
+mantener los íconos actuales. Jest backend 912/912 (test de dashboard
+actualizado con el campo nuevo). Validado por HTTP tras rebuild
+`--no-cache`+`--force-recreate` backend+frontend: HTML/JS/CSS nuevos
+confirmados en lo servido, `costo_promedio_ponderado` real contra el
+tenant con datos de demo (1831.34 = 957790/523, sin movimiento=0 →
+"Catálogo con alta rotación", mermas=0 → "Sin mermas registradas este
+mes"). **Sin herramienta de navegador esta sesión** (sin extensión
+conectada) — falta confirmación visual del usuario con clics reales. Sin
+commit/push todavía.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
