@@ -8062,7 +8062,7 @@
       : '';
 
     return `
-      <img class="ticket-imprimir-logo" src="/assets/logoLight.png" alt="CLARVO" />
+      <img class="ticket-imprimir-logo" src="/assets/logoImpresora.png" alt="CLARVO" />
       <div class="ticket-imprimir-titulo">Ticket de venta</div>
       <div class="ticket-imprimir-separador"></div>
       <div class="ticket-imprimir-meta">Folio: ${escapeHtml(orden.numero_compra || '—')}</div>
