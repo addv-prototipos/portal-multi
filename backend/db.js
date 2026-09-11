@@ -1,6 +1,5 @@
 const { AsyncLocalStorage } = require('async_hooks');
 const mysql = require('mysql2/promise');
-const { hashPassword } = require('./utils/authUsuario');
 const { CATEGORIAS_SEED, ETIQUETAS_SEED, SLUG_CATEGORIA_PROTEGIDA } = require('./utils/gastos');
 const {
   UNIDADES_SEED,
@@ -438,6 +437,12 @@ async function ensureSchema(db = pool) {
   }
   if (!nombresColumnasUsuarios.includes('email')) {
     await db.query('ALTER TABLE usuarios ADD COLUMN email VARCHAR(200) NULL');
+  }
+  // "Mi Cuenta" (autoservicio de perfil): nombre completo, opcional —
+  // ninguna cuenta creada antes de este punto lo tenía, así que empieza
+  // NULL/vacío y se completa cuando el propio usuario lo edita.
+  if (!nombresColumnasUsuarios.includes('nombre')) {
+    await db.query('ALTER TABLE usuarios ADD COLUMN nombre VARCHAR(200) NULL');
   }
   // Recuperación de contraseña: token de un solo uso, se guarda HASHEADO
   // (sha256, ver hashTokenRecuperacion en utils/authUsuario.js) — nunca el
@@ -1608,28 +1613,6 @@ async function ensureSchema(db = pool) {
       CONSTRAINT uq_preferencias_dashboard UNIQUE (usuario, vista)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
-
-
-  // contraseña vive fuera de ADMIN_USERS (el archivo/variable de entorno
-  // que ya existía) — sirve como medida de seguridad para no quedar fuera
-  // del panel si se pierde el acceso a ese archivo o se te olvida esa
-  // contraseña. Se siembra con la contraseña "admin" la primera vez que
-  // arranca el backend; después se puede cambiar desde la interfaz gráfica
-  // (ver PUT /api/admin/config/admin-password en server.js). Esta regla es
-  // exclusiva de esta cuenta — cualquier otro administrador que se cree
-  // después (perfil "administrador" o "fiscal" en la tabla usuarios) NO
-  // tiene este respaldo: si pierde su contraseña, otro administrador tiene
-  // que restablecérsela como a cualquier usuario.
-  const [filaAdminFallback] = await db.query(
-    "SELECT valor FROM configuracion WHERE clave = 'admin_fallback_password_hash'"
-  );
-  if (filaAdminFallback.length === 0) {
-    await db.query(
-      `INSERT INTO configuracion (clave, valor) VALUES ('admin_fallback_password_hash', ?)`,
-      [hashPassword('admin')]
-    );
-    console.log('Cuenta de respaldo "admin" creada con la contraseña por defecto ("admin"). Cámbiala desde el panel de administración.');
-  }
 
   console.log('Esquema de MySQL listo.');
 }

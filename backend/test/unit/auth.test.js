@@ -64,8 +64,7 @@ describe('auth.js', () => {
       expect(req.adminMecanismo).toBe('admin_users');
     });
 
-    test('credenciales ADMIN_USERS incorrectas, cae a cuenta de respaldo (MySQL) sin resultados -> 401', async () => {
-      pool.query.mockResolvedValueOnce([[]]); // verificarCuentaRespaldoAdmin: sin fila
+    test('credenciales ADMIN_USERS incorrectas, cae a verificarUsuarioAdministrativo sin resultados -> 401', async () => {
       pool.query.mockResolvedValueOnce([[]]); // verificarUsuarioAdministrativo: sin fila
 
       const req = { headers: { authorization: basicAuthHeader('admin', 'incorrecta') } };
@@ -192,47 +191,6 @@ describe('auth.js', () => {
     });
   });
 
-  describe('requireAdminAuth: cuenta de respaldo "admin" en MySQL', () => {
-    let requireAdminAuth;
-
-    beforeEach(() => {
-      jest.resetModules();
-      delete process.env.ADMIN_USERS; // admin:admin ya cubre username "admin" por ADMIN_USERS -> usar password distinta para forzar la ruta de respaldo
-      pool = require('../../db').pool;
-      pool.query.mockReset();
-      ({ requireAdminAuth } = require('../../utils/auth'));
-    });
-
-    test('password que no coincide con ADMIN_USERS pero sí con el hash guardado en MySQL', async () => {
-      const hashGuardado = hashPassword('claveDeRespaldo1');
-      pool.query.mockResolvedValueOnce([[{ valor: hashGuardado }]]); // verificarCuentaRespaldoAdmin
-
-      const req = { headers: { authorization: basicAuthHeader('admin', 'claveDeRespaldo1') } };
-      const res = mockRes();
-      const next = jest.fn();
-
-      await requireAdminAuth(req, res, next);
-
-      expect(next).toHaveBeenCalledTimes(1);
-      expect(req.adminUser).toBe('admin');
-      expect(req.adminPerfil).toBe('super');
-      expect(req.adminMecanismo).toBe('fallback_admin');
-    });
-
-    test('un error de MySQL en la cuenta de respaldo no tumba la petición, sigue a la siguiente capa', async () => {
-      pool.query.mockRejectedValueOnce(new Error('conexión perdida'));
-      pool.query.mockResolvedValueOnce([[]]); // verificarUsuarioAdministrativo
-
-      const req = { headers: { authorization: basicAuthHeader('admin', 'lo-que-sea') } };
-      const res = mockRes();
-      const next = jest.fn();
-
-      await expect(requireAdminAuth(req, res, next)).resolves.not.toThrow();
-      expect(next).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(401);
-    });
-  });
-
   describe('requireAdminAuth: usuarios administrador/fiscal desde MySQL', () => {
     let requireAdminAuth;
 
@@ -245,9 +203,6 @@ describe('auth.js', () => {
     });
 
     test('usuario con perfil "fiscal" autentica con ese perfil (no "super")', async () => {
-      // username !== 'admin', así que verificarCuentaRespaldoAdmin() ni
-      // siquiera se llama (ver el `if (username === 'admin')` en auth.js) —
-      // solo se necesita mockear la consulta de verificarUsuarioAdministrativo.
       const hashGuardado = hashPassword('miClave123');
       pool.query.mockResolvedValueOnce([
         [{ rfc: 'GOMJ800101ABC', password_hash: hashGuardado, perfil: 'fiscal' }],
@@ -476,31 +431,6 @@ describe('auth.js', () => {
       const next = jest.fn();
 
       requireAdminArea('administrador')(req, res, next);
-
-      expect(next).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(403);
-    });
-  });
-
-  describe('requireUsuarioAdminExacto', () => {
-    const { requireUsuarioAdminExacto } = require('../../utils/auth');
-
-    test('permite solo si req.adminUser === "admin"', () => {
-      const req = { adminUser: 'admin' };
-      const res = mockRes();
-      const next = jest.fn();
-
-      requireUsuarioAdminExacto(req, res, next);
-
-      expect(next).toHaveBeenCalledTimes(1);
-    });
-
-    test('rechaza cualquier otro usuario, incluyendo otro perfil "super"', () => {
-      const req = { adminUser: 'root' };
-      const res = mockRes();
-      const next = jest.fn();
-
-      requireUsuarioAdminExacto(req, res, next);
 
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(403);

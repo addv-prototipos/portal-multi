@@ -249,7 +249,7 @@
       <h1>Pendientes — Portal Clarvo</h1>
       <p>Backlog vivo del proyecto: decisiones abiertas, funcionalidad pospuesta a propósito y validaciones que faltan. Se actualiza en el mismo archivo conforme avanza cada segmento — solo dale refresh.</p>
     </div>
-    <div class="updated">Última actualización: <strong>10 sep 2026, 13:40</strong> · centros conocimiento + recorrido (273) · 2FA correo toggle (274) · unificar switches (275) · diccionario §0.3/D5/D2 + tarjetas en lenguaje natural (279, nuevo)</div>
+    <div class="updated">Última actualización: <strong>10 sep 2026, 13:45</strong> · centros conocimiento + recorrido (273) · 2FA correo toggle (274) · unificar switches (275) · diccionario §0.3/D5/D2 (279) · centro conocimiento cortado en móvil (280, nuevo)</div>
   </header>
 
   <div class="legend">
@@ -542,9 +542,9 @@
           </tr>
           <tr data-app="cliente,admin,control">
             <td class="col-punto">272</td>
-            <td class="col-item">Clarvo Site Market — marketplace de addons por cuenta</td>
-            <td class="col-detalle">Marketplace donde se compran <strong>addons asociados a la cuenta Clarvo</strong>. Ligado a 271 (el market es el canal de venta de lo cotizado), 229/246 (productos/upscale) y 244 (switches por empresa). Sin definir: dónde vive (¿en <code>/admin</code> del tenant vs. <code>market.clarvo.mx</code> vs. sitio base?), catálogo (¿qué addons — módulos, integraciones, almacenamiento del punto 250?), modelo (<code>market_addons</code>/<code>market_compras</code> por <code>tenant_id</code>/<code>slug</code> — precio, vigencia, asociación a <code>usuarios</code> vs. tenant), flujo de pago (¿Stripe/MercadoPago, suscripción?), ni si la compra activa flag inmediato en <code>control_tenants.tenants</code>. <strong>Nota del usuario: requiere ayuda para desarrollar la idea</strong> — no avanzar sin brainstorming. Ver <code>PROJECT_STATE.md</code> punto 272.</td>
-            <td class="col-estado"><span class="pill pill-red">Sin decidir — requiere brainstorming</span></td>
+            <td class="col-item">Clarvo Site Market — hub en https://clarvo.mx con SSO por fases</td>
+            <td class="col-detalle"><strong>Hub en <code>https://clarvo.mx</code></strong> (dashboard aparte) que conecta vía APIs los productos por <strong>fases</strong> (hoy solo Clarvo+Control; luego chatbots/CRM/QR/ShortLinks/on-demand, cada uno con BD propia, Control con BD independiente para cuentas compradoras). Login con <strong>correo o Gmail OAuth</strong> (tenant resuelve por correo como llave). <strong>Super interno ADDV</strong> para soporte. <strong>Onboarding reutilizable</strong> desde Market registra en tenant (periodo/días/API keys). Productos con <strong>dominio propio sin slug</strong>, asociados en <strong>Control (asociar productos)</strong> — viajan como una app con <strong>SSO sin login</strong>. Cobro <strong>Stripe configurable</strong> (pago único/suscripción) + <strong>gracia configurable en Control (default 3 días)</strong> → suspendido (solo Cuenta activa para renovar). Agrupa <strong>Control (no Clarvo)</strong> en servidor Docker separado; <strong>Control configura URLs MinIO por producto</strong> para storage separado/depurable. Vista <strong>A+B</strong>: tarjetas por comprador + tabla por producto.<br><strong>Refinado 2026-09-10 con crítica arquitectónica</strong> (10 huecos reales: SSO vago/riesgoso, correo-llave sin relación con <code>usuarios</code> por tenant, sin regla de fusión correo/Gmail, hueco fiscal — ADDV sin autofacturarse sus propios cobros —, ambigüedad de si Control BD independiente es tabla nueva o servicio aparte, MinIO-por-producto tratado como gratis cuando hoy es config por env vars al arrancar, dominio-sin-slug rompe el ruteo por regex de slug actual, gate de suspensión bespoke por producto, migración de tenants existentes sin ruta, Fase 1 original demasiado amplia). <strong>4 decisiones confirmadas</strong>: SSO = ticket firmado reusando el patrón <code>X-Internal-Secret</code> ya probado; ADDV SÍ se autofactura (CFDI) cada cobro de Stripe; Fase 1 = modelo+SSO+gracia/suspensión+UI A+B TODO junto, EXCEPTO Stripe real (queda para fase posterior); migración = auto-crear comprador desde <code>tenants.contacto_email</code>. Siguen sin resolver: alcance exacto de "Control BD independiente", mecanismo real de MinIO-por-producto, regla de fusión de cuenta, ruteo de dominio propio. Ver <code>PROJECT_STATE.md</code> punto 272.</td>
+            <td class="col-estado"><span class="pill pill-amber">Refinado + 4 decisiones — falta redactar plan de Fase 1</span></td>
           </tr>
         </tbody>
       </table>
@@ -552,8 +552,8 @@
   </section>
 
   <section>
-    <h2>Centro de conocimiento / Recorrido <span class="count">2 pendientes</span></h2>
-    <p class="section-note">Actualizar el Centro de conocimiento con todos los cambios recientes + incorporar el recorrido guiado. Diccionario en lenguaje natural para emprendedores.</p>
+    <h2>Centro de conocimiento / Recorrido <span class="count">3 pendientes</span></h2>
+    <p class="section-note">Actualizar el Centro de conocimiento con todos los cambios recientes + incorporar el recorrido guiado. Diccionario en lenguaje natural para emprendedores. Responsive en móvil pendiente.</p>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -569,6 +569,12 @@
             <td class="col-item">Diccionario de datos: explicar §0.3, D5, D2 y textos de tarjetas en lenguaje natural</td>
             <td class="col-detalle">En <strong>Centro de conocimiento y diccionario de datos</strong> agregar explicaciones en <strong>lenguaje natural y contexto básico</strong> de qué significa <code>§0.3</code>, <code>D5</code>, <code>D2</code> y <strong>todos los textos/símbolos que salen en las tarjetas</strong> (ej. "Utilidad neta", "Balance", "Rotación", "Días de cobertura", "Costo promedio ponderado", "SKU", "Existencia", "Lote/Caducidad", "Código de barras"), orientado a <strong>emprendedores sin preparación en inventarios</strong> para irlos educando. Sin definir: ¿qué tarjetas — <code>frontend/admin.html</code> Resumen/Ventas/Gastos/Inventarios/Reportes/Centro? ¿diccionario centralizado (<code>CONOCIMIENTO_CATEGORIAS</code> nueva categoría "Glosario") vs. tooltips inline (<code>data-tooltip</code>) vs. <code>diccionario.html</code> dedicado? ¿formato — ficha por término: término + 1 línea natural + ejemplo de changarro + link a video YouTube 242/243? ¿quién redacta — base <code>inventarios.md</code> traducida? Ver <code>PROJECT_STATE.md</code> punto 279.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir glosario</span></td>
+          </tr>
+          <tr data-app="admin">
+            <td class="col-punto">280</td>
+            <td class="col-item">Centro de conocimiento cortado / no operable en móvil</td>
+            <td class="col-detalle">El <strong>centro de conocimiento se ve cortado y no es operable en móvil</strong>. Ligado a 273/279 (centro+recorrido/diccionario) y 242/243 (YouTube). Sin analizar causa (¿overflow/grid sin <code>min-width:0</code>, <code>table-scroll</code> sin scroll táctil, modal fuera de viewport, <code>vh</code> vs <code>dvh</code>, sidebar/menú móvil tapando?). Probar en <code>http://192.168.68.60:8088/admin</code> (Centro de conocimiento) en celular físico + DevTools responsive. Ver <code>PROJECT_STATE.md</code> punto 280.</td>
+            <td class="col-estado"><span class="pill pill-red">Reportado — sin analizar</span></td>
           </tr>
         </tbody>
       </table>
@@ -686,9 +692,9 @@
           <tr data-app="admin,control">
             <td class="col-punto">247</td>
             <td class="col-item">Gestión super admin solo desde /control</td>
-            <td class="col-dependencia">Admin ya no puede crear/editar <code>super</code>; solo Control gestiona super. Tabla de permisos visible solo para perfil <code>administrador</code> en Admin.</td>
-            <td><code>control_tenants</code> → <code>backend/utils/auth.js</code></td>
-            <td><span class="pill pill-red">Sin decidir</span></td>
+            <td class="col-dependencia">Vista "Super Admins" en <code>/control</code>: alta/cambio de password/baja de cuentas <code>ADMIN_USERS</code>, escribiendo en el <code>.env</code> real del host y recargando <code>control</code>+<code>backend</code> sin reiniciar (<code>POST /internal/reload-admin-users</code>). 2 bugs reales de infraestructura encontrados y corregidos validando contra Docker real (ninguno detectable con Jest mockeado): ruta de montaje <code>/app/.env</code> apuntaba a un directorio que no existe en la imagen de <code>control</code> (WORKDIR real es <code>/usr/src/app</code>) → <code>EACCES</code> en cualquier escritura; y el patrón "temporal + <code>rename()</code>" para escritura atómica falla siempre con <code>EBUSY</code> quando el destino es un bind mount de un solo archivo (limitación real de Docker) → reemplazado por escritura directa con respaldo <code>.env.bak</code>. 42 tests nuevos (<code>control/test/unit/adminEnv.test.js</code> + <code>control/test/integration/superAdmins.test.js</code>). Jest control 167/167.</td>
+            <td><code>control/utils/adminEnv.js</code> → <code>backend/utils/auth.js</code> (<code>/internal/reload-admin-users</code>)</td>
+            <td><span class="pill pill-green">Implementado y validado contra Docker real</span></td>
           </tr>
           <tr data-app="admin,control">
             <td class="col-punto">248</td>

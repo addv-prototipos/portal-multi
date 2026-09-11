@@ -110,8 +110,10 @@
     // §58: Sucursales
     btnVistaEmpresas: document.getElementById('btn-vista-control-empresas'),
     btnVistaSucursales: document.getElementById('btn-vista-control-sucursales'),
+    btnVistaSuper: document.getElementById('btn-vista-control-super'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
     vistaSucursales: document.getElementById('vista-control-sucursales'),
+    vistaSuper: document.getElementById('vista-control-super'),
     sucursalesCount: document.getElementById('sucursales-count'),
     sucursalesError: document.getElementById('sucursales-error'),
     sucursalesTableBody: document.getElementById('sucursales-table-body'),
@@ -135,6 +137,24 @@
     sucursalesUsuarioNuevoPerfil: document.getElementById('sucursales-usuario-nuevo-perfil'),
     sucursalesUsuarioNuevoError: document.getElementById('sucursales-usuario-nuevo-error'),
     btnSucursalesUsuarioAgregar: document.getElementById('btn-sucursales-usuario-agregar'),
+
+    // Punto 247: Super Admins (.env)
+    superCount: document.getElementById('super-count'),
+    superError: document.getElementById('super-error'),
+    superTableBody: document.getElementById('super-table-body'),
+    superEmpty: document.getElementById('super-empty'),
+    btnSuperNuevo: document.getElementById('btn-super-nuevo'),
+    btnSuperRefresh: document.getElementById('btn-super-refresh'),
+    superModalOverlay: document.getElementById('super-modal-overlay'),
+    superForm: document.getElementById('super-form'),
+    superUsuario: document.getElementById('super-usuario'),
+    superPassword: document.getElementById('super-password'),
+    superModalError: document.getElementById('super-modal-error'),
+    superBtnCancelar: document.getElementById('super-btn-cancelar'),
+    superBtnGuardar: document.getElementById('super-btn-guardar'),
+    superBtnGuardarLabel: document.getElementById('super-btn-guardar-label'),
+    superModalTitle: document.getElementById('super-modal-title'),
+    btnAyudaVistaSuper: document.getElementById('btn-ayuda-vista-super'),
   };
 
   function getAuthHeader() {
@@ -1367,13 +1387,20 @@
     els.btnVistaEmpresas.setAttribute('aria-selected', String(vista === 'empresas'));
     els.btnVistaSucursales.classList.toggle('is-active', vista === 'sucursales');
     els.btnVistaSucursales.setAttribute('aria-selected', String(vista === 'sucursales'));
+    if (els.btnVistaSuper) {
+      els.btnVistaSuper.classList.toggle('is-active', vista === 'super');
+      els.btnVistaSuper.setAttribute('aria-selected', String(vista === 'super'));
+    }
     els.vistaEmpresas.hidden = vista !== 'empresas';
     els.vistaSucursales.hidden = vista !== 'sucursales';
+    if (els.vistaSuper) els.vistaSuper.hidden = vista !== 'super';
     if (vista === 'sucursales') cargarSucursales();
+    if (vista === 'super') cargarSuperAdmins();
   }
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
   els.btnVistaSucursales.addEventListener('click', () => cambiarVistaPrincipalControl('sucursales'));
+  if (els.btnVistaSuper) els.btnVistaSuper.addEventListener('click', () => cambiarVistaPrincipalControl('super'));
   els.menuMovil.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-vista]');
     if (btn) cambiarVistaPrincipalControl(btn.dataset.vista);
@@ -1694,9 +1721,113 @@
     }
   });
 
+  // ---------- Punto 247: Super Admins (.env) ----------
+  let superEditando = null;
+
+  async function cargarSuperAdmins() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    if (!els.superTableBody) return;
+    els.superError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/super-admins`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      if (!res.ok) { els.superError.textContent = 'No se pudieron cargar los super admins.'; return; }
+      const data = await res.json();
+      renderSuperAdmins(data.superAdmins || []);
+    } catch (_) {
+      els.superError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function renderSuperAdmins(lista) {
+    if (!els.superTableBody) return;
+    els.superCount.textContent = `${lista.length} super`;
+    els.superTableBody.innerHTML = '';
+    els.superEmpty.hidden = lista.length > 0;
+    lista.forEach((usuario) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td data-label="Usuario"><strong>${escapeHtml(usuario)}</strong></td><td data-label=""></td>`;
+      const celda = tr.lastElementChild;
+      const wrap = document.createElement('div');
+      wrap.className = 'admin-row-actions';
+      wrap.appendChild(crearBotonAccion('btn-icono-accion', 'Cambiar contraseña', 'M15 12a3 3 0 11-6 0 3 3 0 016 0z', () => abrirSuperModal(usuario)));
+      wrap.appendChild(crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar', 'M18 6L6 18M6 6l12 12', () => confirmarAccion({
+        titulo: '¿Eliminar super admin?',
+        mensaje: `"${usuario}" ya no podrá entrar a /control ni a /<slug>/admin como super. Debe quedar al menos uno.`,
+        textoBoton: 'Eliminar',
+        onConfirmar: () => eliminarSuperAdmin(usuario),
+      })));
+      celda.appendChild(wrap);
+      els.superTableBody.appendChild(tr);
+    });
+  }
+
+  async function eliminarSuperAdmin(usuario) {
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/super-admins/${encodeURIComponent(usuario)}`, { method: 'DELETE', headers: { Authorization: authHeader } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || 'No se pudo eliminar.', true); return; }
+      showToast(`Super "${usuario}" eliminado. .env actualizado.`);
+      cargarSuperAdmins();
+    } catch (_) { showToast('No se pudo conectar.', true); }
+  }
+
+  function abrirSuperModal(usuario) {
+    superEditando = usuario || null;
+    if (els.superModalTitle) els.superModalTitle.textContent = usuario ? `Cambiar contraseña — ${usuario}` : 'Nuevo super admin';
+    if (els.superUsuario) { els.superUsuario.value = usuario || ''; els.superUsuario.readOnly = !!usuario; }
+    if (els.superPassword) els.superPassword.value = '';
+    if (els.superModalError) els.superModalError.textContent = '';
+    document.getElementById('error-super-usuario').textContent = '';
+    document.getElementById('error-super-password').textContent = '';
+    if (els.superBtnGuardarLabel) els.superBtnGuardarLabel.textContent = usuario ? 'Actualizar' : 'Crear';
+    els.superModalOverlay.hidden = false;
+    (usuario ? els.superPassword : els.superUsuario).focus();
+  }
+
+  function cerrarSuperModal() {
+    els.superModalOverlay.hidden = true;
+    superEditando = null;
+  }
+
+  if (els.btnSuperNuevo) els.btnSuperNuevo.addEventListener('click', () => abrirSuperModal(null));
+  if (els.btnSuperRefresh) els.btnSuperRefresh.addEventListener('click', cargarSuperAdmins);
+  if (els.superBtnCancelar) els.superBtnCancelar.addEventListener('click', cerrarSuperModal);
+  if (els.superModalOverlay) els.superModalOverlay.addEventListener('click', (e) => { if (e.target === els.superModalOverlay) cerrarSuperModal(); });
+  if (els.superForm) els.superForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const usuario = els.superUsuario.value.trim();
+    const password = els.superPassword.value;
+    let ok = true;
+    document.getElementById('error-super-usuario').textContent = '';
+    document.getElementById('error-super-password').textContent = '';
+    if (!usuario) { document.getElementById('error-super-usuario').textContent = 'Usuario requerido.'; ok = false; }
+    if (!password || password.length < 6) { document.getElementById('error-super-password').textContent = 'Contraseña mínimo 6 caracteres.'; ok = false; }
+    if (!ok) return;
+    const authHeader = getAuthHeader();
+    els.superBtnGuardar.disabled = true;
+    if (els.superBtnGuardarLabel) els.superBtnGuardarLabel.textContent = 'Guardando…';
+    try {
+      let res;
+      if (superEditando) {
+        res = await fetch(`${API_BASE}/super-admins/${encodeURIComponent(superEditando)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: authHeader }, body: JSON.stringify({ password }) });
+      } else {
+        res = await fetch(`${API_BASE}/super-admins`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: authHeader }, body: JSON.stringify({ usuario, password }) });
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { els.superModalError.textContent = data.error || 'No se pudo guardar.'; return; }
+      showToast(superEditando ? `Contraseña de "${superEditando}" actualizada.` : `Super "${usuario}" creado.`);
+      cerrarSuperModal();
+      cargarSuperAdmins();
+    } catch (_) { els.superModalError.textContent = 'No se pudo conectar.'; }
+    finally { els.superBtnGuardar.disabled = false; if (els.superBtnGuardarLabel) els.superBtnGuardarLabel.textContent = superEditando ? 'Actualizar' : 'Crear'; }
+  });
+
   // ---------- Cierre con Escape (todos los modales) ----------
   // Mismo estándar que admin.js (un listener por overlay comprobando
-  // !overlay.hidden): aquí se agrupan los 5 overlays de /control en uno
+  // !overlay.hidden): aquí se agrupan los 6 overlays de /control en uno
   // solo porque ninguno tenía esta tecla implementada todavía.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
@@ -1705,6 +1836,7 @@
     else if (!els.editarOverlay.hidden) cerrarEdicion();
     else if (els.credOverlay && !els.credOverlay.hidden) cerrarCredenciales();
     else if (els.sucursalesGrupoOverlay && !els.sucursalesGrupoOverlay.hidden) cerrarGrupoModal();
+    else if (els.superModalOverlay && !els.superModalOverlay.hidden) cerrarSuperModal();
     else if (els.ayudaVistaModalOverlay && !els.ayudaVistaModalOverlay.hidden) cerrarAyudaVista();
   });
 
@@ -1733,6 +1865,15 @@
         { titulo: 'Quitar el grupo', texto: 'Revoca el acceso compartido de inmediato — cada tenant sigue funcionando normal por su cuenta, con su propio login si ya tenía uno.' },
       ],
     },
+    super: {
+      titulo: 'Ayuda — Super Admins',
+      items: [
+        { titulo: '¿Qué es un super?', texto: 'Cuenta ADDV con acceso a /control y a cualquier /<slug>/admin (perfil "super" sin restricciones). Vive en ADMIN_USERS del .env del host, no en la BD.' },
+        { titulo: '¿Dónde se gestiona?', texto: 'Solo aquí, en /control → Super Admins. No se puede crear/editar desde /admin (tenants) — 247 híbrido: .env + usuarios super en BD, pero alta solo aquí.' },
+        { titulo: '¿Por qué en .env?', texto: 'El .env es la fuente de verdad en disco si la UI falla — el servidor puede leerlo directo por SSH. Se escribe en /app/.env (volumen) y se recarga sin reiniciar vía POST /internal/reload-admin-users.' },
+        { titulo: '¿Qué pasa al guardar?', texto: 'Escribe .env (con backup .env.bak), recarga el Map en memoria de control y backend, y audita. Debe quedar al menos uno.' },
+      ],
+    },
   };
 
   function renderTarjetaAyudaVista(item) {
@@ -1759,6 +1900,7 @@
 
   if (els.btnAyudaVistaEmpresas) els.btnAyudaVistaEmpresas.addEventListener('click', () => abrirAyudaVista('empresas'));
   if (els.btnAyudaVistaSucursales) els.btnAyudaVistaSucursales.addEventListener('click', () => abrirAyudaVista('sucursales'));
+  if (els.btnAyudaVistaSuper) els.btnAyudaVistaSuper.addEventListener('click', () => abrirAyudaVista('super'));
   if (els.btnAyudaVistaCerrar) els.btnAyudaVistaCerrar.addEventListener('click', cerrarAyudaVista);
   if (els.ayudaVistaModalOverlay) {
     els.ayudaVistaModalOverlay.addEventListener('click', (e) => {

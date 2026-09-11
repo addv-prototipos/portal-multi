@@ -1399,6 +1399,132 @@ artefacto (¿`/mnt/user-data/outputs/` vs. registry?). Ver
 `PROJECT_STATE.md` punto 270. Cero código tocado, protocolo
 `addv-web-app` completo pendiente de confirmación antes de implementar.
 
+**Punto 272 — Clarvo Site Market, refinado con crítica arquitectónica + 4
+decisiones confirmadas por el usuario (2026-09-10, sin código tocado)**:
+revisión del pendiente 272 (marketplace hub cross-producto) encontró 10
+huecos reales antes de planear cualquier código: SSO descrito como
+"credenciales anotadas en Control" (suena a credencial cruda viajando);
+correo-como-llave sin relación definida con `usuarios` por tenant (cada
+producto tiene su propio login interno); sin regla de fusión de cuenta
+si el mismo correo entra primero por login directo y luego por Gmail
+OAuth; hueco fiscal irónico (ADDV cobrando vía Stripe sin autofacturarse,
+pese a que el producto ENTERO es un gestor de facturación); ambigüedad
+de si "Control con BD independiente para cuentas compradoras" son tablas
+nuevas dentro del `control` ya existente (segmento 9b) o un servicio
+aparte; "Control configura MinIO por producto" tratado como gratis
+cuando cada backend hoy lee su config de storage de variables de entorno
+al arrancar (`backend/utils/storage.js`) — dinámico por producto es
+cambio real de arquitectura en CADA producto, no solo en Control;
+dominio propio sin slug por producto rompe el ruteo actual (100% regex
+de slug en `nginx.conf.template`); gate de suspensión bespoke por
+producto en vez de un contrato único de entitlement; migración de
+tenants ya existentes (aprovisionados antes de que Market existiera) sin
+ruta definida; y la Fase 1 original (modelo+SSO+Stripe+gracia+UI A+B
+todo junto) demasiado amplia para un solo producto real (Clarvo) hoy.
+
+4 decisiones confirmadas por el usuario vía `AskUserQuestion`:
+1. **SSO** = ticket firmado de un solo uso, reusando el patrón
+   `X-Internal-Secret` ya probado en el proyecto (segmentos 99/103/104,
+   punto 153) — Control lo emite, el producto lo valida y crea su PROPIA
+   sesión. Nunca credencial cruda viajando entre servicios.
+2. **CFDI propia**: ADDV SÍ se autofactura cada cobro de Stripe —
+   coherente con que el producto entero es un gestor de facturación;
+   sin esto, ADDV mismo quedaría sin CFDI de sus propios ingresos.
+3. **Alcance de Fase 1**: TODO junto (modelo de datos + SSO + lógica de
+   gracia/suspensión + UI A+B en `/control`) **EXCEPTO Stripe real** — el
+   cobro/webhook queda para una fase posterior; mientras tanto el estado
+   de vencimiento/gracia se maneja SIN depender de un webhook de pago
+   real (mecanismo exacto — marcado manual desde Control vs. fecha de
+   vencimiento fija sin cobro automático todavía — a definir en el plan
+   de Fase 1, no bloquea el resto del modelo).
+4. **Migración de tenants existentes**: auto-crear el comprador maestro
+   desde `tenants.contacto_email` (backfill automático de los ya
+   aprovisionados, sin alta manual).
+
+Siguen SIN resolver, no bloquean escribir el plan de Fase 1 pero hay que
+decidirlos ahí antes de codear: (a) si "Control BD independiente" son
+tablas nuevas dentro del `control` ya existente (segmento 9b) o un
+servicio aparte; (b) mecanismo real de "MinIO por producto" — aplica hoy
+a Clarvo (que ya usa MinIO vía env vars) o solo a productos futuros
+todavía sin construir; (c) regla exacta de fusión de cuenta
+correo-directo vs. Gmail OAuth mismo correo; (d) ruteo del dominio
+propio sin slug (vhost/TLS por dominio vs. wildcard `*.clarvo.mx`).
+Modelo de datos propuesto para el plan de Fase 1 (a confirmar, NO
+implementado): `market_compradores` (correo como llave lógica,
+`google_sub` nullable, `creado_en`), `market_productos` (slug, nombre,
+dominio, tipo_facturacion), `market_asociaciones` (comprador_id,
+producto_id, tenant_ref, estado `activo`/`gracia`/`suspendido`,
+`vence_en`, `gracia_hasta`). Siguiente paso: redactar el plan completo
+de Fase 1 con protocolo `addv-web-app` (Analizar → Revisar impacto →
+Criticar y mejorar → Propuesta visual → Confirmar → Implementar) antes
+de tocar código. Ver `PROJECT_STATE.md` punto 272 para el detalle
+completo de la crítica.
+
+**Punto 283 — Segmento "Mi Cuenta" (2026-09-10, IMPLEMENTADO Y VALIDADO
+por HTTP contra Docker/MySQL reales)**: a partir del mockup `stitch/
+code.html`/`stitch/mi-cuenta-propuesta-visual.html`. Auditoría dato-real-
+vs-inventado primero — ~70% del mockup (2FA, bitácora de sesiones con IP,
+suscripción/Stripe, autofactura CFDI de ADDV, toggle de portal público)
+no tiene respaldo real y NO se construyó, ni como placeholder — 4
+decisiones confirmadas por el usuario (todas la opción recomendada): (1)
+alcance solo 100% real; (2) columna `nombre` agregada a `usuarios` (no
+existía); (3) todos los perfiles ven su perfil básico
+(nombre/teléfono/correo + password propio), identidad de
+empresa/conteo de operadores solo administrador+super; (4) zona horaria
+como espejo de solo lectura con link a Configuraciones globales (vive a
+nivel TENANT en `configuracion.zona_horaria`, no por usuario). Conflicto
+real resuelto sin re-preguntar: solo el mecanismo `'perfil_bd'` de
+`requireAdminAuth()` tiene fila real en `usuarios` — `ADMIN_USERS`/
+credenciales API/usuario de sucursal compartido no tienen datos
+editables aquí (`editable:false`, 403 en los PUT). 3 endpoints nuevos
+(`GET`/`PUT /api/admin/mi-cuenta`, `PUT /api/admin/mi-cuenta/password`
+con verificación de la contraseña ACTUAL, a diferencia del reseteo con
+privilegio que ya existía). Vista nueva en el sidebar (antes de
+"Configuraciones globales"), agregada a `RESTRICCIONES_PERFIL` y
+`mapaNavPorVista()` (única fuente de verdad ya establecida, cubre F5/
+menú móvil sin tocarlos aparte). CSS 100% primitivas ya existentes
+(`.field`/`.btn`/tokens de color), cero librería nueva. 11 tests nuevos,
+Jest backend 919/919. Validado de punta a punta contra Docker/MySQL
+reales (cuenta de prueba temporal, creada y borrada sin dejar residuo).
+**Sin herramienta de navegador esta sesión** — falta confirmación visual
+del usuario. Sin commit/push. Ver PROJECT_STATE.md punto 283.
+
+**Extensión de fidelidad visual de "Mi Cuenta" (2026-09-10, mismo día,
+pedido explícito del usuario)**: la sección solo tenía las 2 tarjetas
+100% reales — se agregaron 6 piezas más fieles al mockup de `stitch/`
+(2FA, sesiones activas, notificaciones críticas, plan de suscripción,
+facturación de Clarvo, banner/footer Clarvo Site Market), TODAS
+marcadas "Próximamente" (`.resumen-fin-header-tag-pendiente`, mismo
+componente de Resumen financiero) con controles deshabilitados — nunca
+afirman un estado activo que no existe. Identidad visual 100% real del
+sitio (navy `#03285B`/cyan `#05DBF2`, los mismos tokens del sidebar, no
+los del mockup Tailwind). Bug propio corregido antes de desplegar: 3
+botones con `class="btn"` a secas (patrón que no existe en el resto de
+`admin.html`, sin fondo/borde propio) → `btn btn-secondary`. Ver
+PROJECT_STATE.md punto 283 (addendum).
+
+**Punto 247 — Super Admins desde `/control`, auditado y corregido
+(2026-09-10, IMPLEMENTADO Y VALIDADO contra Docker real)**: otra sesión
+había implementado este pendiente en paralelo (mismo patrón de
+incidente ya documentado en 113/140/158/253) sin validar ni testear —
+2 bugs reales de infraestructura encontrados y corregidos: (1) el
+montaje de `.env` apuntaba a `/app/.env`, que no existe en la imagen de
+`control` (WORKDIR real `/usr/src/app`) — Docker creaba ese directorio
+como root, sin permiso de escritura para `appuser` → `EACCES`; (2) el
+patrón "temporal + `rename()`" para escritura atómica falla SIEMPRE con
+`EBUSY` sobre un bind mount de un solo archivo (limitación real de
+Docker) → reemplazado por `writeFileSync` directo + respaldo `.env.bak`.
+42 tests nuevos, Jest control 167/167. Validado de punta a punta contra
+Docker real con un super admin de prueba temporal (alta, login cruzado
+control+backend confirmando recarga sin reiniciar, cambio de password,
+409/404 de los guards, baja) — restaurado al mismo baseline
+`{"superAdmins":["admin"]}`. Efecto secundario esperado (no residuo):
+el `.env` real ganó la línea explícita `ADMIN_USERS=admin:admin` que
+antes no tenía (funcionalmente idéntica al default anterior) —
+`.env.bak` conserva el original si se prefiere revertir, no se pudo
+tocar el `.env` directo desde esta sesión (dotfile bloqueado). Ver
+PROJECT_STATE.md punto 284.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
@@ -3227,6 +3353,36 @@ por HTTP tras rebuild `--no-cache`+`--force-recreate` frontend. **Sin
 herramienta de navegador ni acceso al celular real del usuario esta
 sesión** — falta su confirmación en el dispositivo real. Sin
 commit/push todavía.
+
+**Punto 282 (2026-09-10, IMPLEMENTADO Y VALIDADO por HTTP contra Docker/
+MySQL reales)**: eliminada por completo la "Cuenta de respaldo admin"
+(tarjeta de cambio de contraseña en la vista "Usuarios") — pedido
+explícito del usuario con captura. Era el mecanismo #2 de
+`requireAdminAuth()` (`backend/utils/auth.js`), contraseña propia en
+MySQL (`configuracion.admin_fallback_password_hash`) independiente de
+`ADMIN_USERS`. Eliminado de punta a punta: `verificarCuentaRespaldoAdmin()`,
+la rama del mecanismo en `requireAdminAuth()` (ahora 2 mecanismos, no 3),
+`requireUsuarioAdminExacto()` completo, los 2 endpoints
+`GET`/`PUT /api/admin/config/admin-password`, el seed en `ensureSchema()`
+(`backend/db.js`), la tarjeta HTML/CSS/JS completa en
+`frontend/admin.html`/`admin.js`, y la fila huérfana en la tabla real
+(`DELETE` directo). `ADMIN_USERS` (mecanismo #1) intacto — `admin:admin`
+por defecto sigue funcionando. **Además**: la tabla "Perfiles y roles de
+acceso" ya no muestra la fila "Super" (pedido explícito) y el botón que
+la abre pasó de gatearse por `usuarioSesionActual === 'admin'` a
+gatearse por **perfil `administrador` o `super`** (corrección same-day:
+el usuario aclaró que "super" también debe verla, al no tener ninguna
+restricción — solo `fiscal`/`ventas`/`cliente` quedan fuera). **De
+paso**: 3 tooltips nuevos
+(`data-tooltip`, mecanismo ya existente, cero componente nuevo) en
+"Catálogo (§0.3)", "En ALM-1 (D2)" y "Existencia × costo promedio (D5)"
+de las tarjetas KPI de Inventarios, en lenguaje simple para emprendedores
+sin experiencia previa (porción acotada del punto 279, que sigue
+pendiente en su alcance completo). Jest backend 908/908 (4 tests menos,
+los de la cuenta eliminada). Validado por HTTP tras rebuild
+`--no-cache`+`--force-recreate` backend+frontend. **Sin herramienta de
+navegador esta sesión** — falta confirmación visual del usuario. Sin
+commit/push todavía. Ver PROJECT_STATE.md punto 282.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 

@@ -319,6 +319,68 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
 
 - **Punto 280 (ver PROJECT_STATE.md, 2026-09-10, IMPLEMENTADO Y VALIDADO por HTTP contra Docker real)**: 5 bugs reales de responsivo/móvil reportados con capturas reales de celular ("todo se encima" + cámara del escáner sin abrir). Causa raíz real: `aplicarLayoutDashboard()` (Modo dashboard) aplicaba ancho/alto de escritorio como estilo en línea sin condición de viewport — le gana a cualquier `@media`; fix con guard `window.innerWidth <= 900` + reaplicación en `resize`. Limpiado el parche manual que el usuario ya había guardado a mano (`DELETE preferencias-dashboard`, a pedido explícito). 2 bugs más del mismo patrón "lista duplicada sin actualizar": F5 no restauraba Proveedores/Configuraciones (mapa hardcodeado desactualizado, ahora `mapaNavPorVista()` única fuente de verdad); `mostrarMenuMovil()` no ocultaba Cuentas por cobrar/Inventarios. Features nuevas: back físico del celular = botón "Menú" (`history.pushState`+`popstate`, solo móvil); en Inicio (Fiscal) móvil, "Solicitudes por estatus" va primero. Escáner de código de barras: la cámara no abre por HTTP plano en LAN (`192.168.x.x`) — `navigator.mediaDevices` no existe fuera de HTTPS/localhost, no es un permiso que pedir; mensaje de error corregido para explicar la causa real. Jest backend 912/912 (sin cambios de backend). Validado por HTTP tras rebuild `--no-cache`+`--force-recreate` frontend. **Sin herramienta de navegador ni acceso al celular real esta sesión** — falta confirmación del usuario en su dispositivo. Sin commit/push todavía.
 
+- **Punto 282 (ver PROJECT_STATE.md, 2026-09-10, IMPLEMENTADO Y VALIDADO por HTTP contra Docker/MySQL reales)**: eliminada por completo la "Cuenta de respaldo admin" (tarjeta de cambio de contraseña en la vista "Usuarios", pedido explícito con captura) — mecanismo #2 de `requireAdminAuth()`, contraseña propia en MySQL independiente de `ADMIN_USERS`. Eliminado de punta a punta: `verificarCuentaRespaldoAdmin()`, la rama del mecanismo, `requireUsuarioAdminExacto()`, los 2 endpoints `GET`/`PUT /api/admin/config/admin-password`, el seed en `ensureSchema()`, la tarjeta HTML/CSS/JS completa, y la fila huérfana en la tabla real (`DELETE` directo). `ADMIN_USERS` intacto — `admin:admin` por defecto sigue funcionando. Además: la tabla "Perfiles y roles de acceso" ya no muestra la fila "Super" y el botón que la abre ahora gatea por perfil `administrador` o `super` (antes por `usuarioSesionActual === 'admin'`; corrección same-day: "super" también debe verla al no tener restricciones). De paso, 3 tooltips nuevos (`data-tooltip`, mecanismo existente) en "Catálogo (§0.3)"/"En ALM-1 (D2)"/"Existencia × costo promedio (D5)" de Inventarios, lenguaje simple para emprendedores (porción acotada del punto 279, pendiente en su alcance completo). Jest backend 908/908. Validado por HTTP tras rebuild `--no-cache`+`--force-recreate`. **Sin herramienta de navegador esta sesión** — falta confirmación visual. Sin commit/push todavía.
+
+- **Punto 272 — Clarvo Site Market, refinado con crítica arquitectónica
+  (ver PROJECT_STATE.md, 2026-09-10, sin código tocado)**: 10 huecos
+  reales encontrados en el pendiente original (SSO descrito como
+  "credenciales anotadas" — riesgo de credencial cruda; correo-llave sin
+  relación con `usuarios` por tenant; sin regla de fusión correo/Gmail;
+  hueco fiscal — ADDV sin autofacturarse sus propios cobros de Stripe;
+  ambigüedad de si "Control BD independiente" es tabla nueva en el
+  `control` ya existente o servicio aparte; MinIO-por-producto tratado
+  como gratis cuando hoy cada backend lee su storage de env vars al
+  arrancar; dominio-sin-slug rompe el ruteo actual 100% regex de slug;
+  gate de suspensión bespoke por producto en vez de un contrato único;
+  migración de tenants existentes sin ruta; Fase 1 original demasiado
+  amplia). 4 decisiones confirmadas por el usuario: SSO = ticket firmado
+  reusando el patrón `X-Internal-Secret` ya probado (segmentos
+  99/103/104, punto 153); ADDV SÍ se autofactura (CFDI) cada cobro de
+  Stripe; Fase 1 = modelo de datos + SSO + gracia/suspensión + UI A+B en
+  `/control` TODO junto, EXCEPTO Stripe real (queda para fase
+  posterior); migración = auto-crear comprador maestro desde
+  `tenants.contacto_email`. Siguen sin resolver: alcance exacto de
+  "Control BD independiente", mecanismo real de MinIO-por-producto,
+  regla de fusión de cuenta, ruteo de dominio propio sin slug —
+  quedan para cuando se redacte el plan completo de Fase 1 con
+  protocolo `addv-web-app`. Sin commit/push.
+
+- **Punto 283 — Segmento "Mi Cuenta" (ver PROJECT_STATE.md, 2026-09-10,
+  IMPLEMENTADO Y VALIDADO por HTTP contra Docker/MySQL reales)**: a
+  partir del mockup `stitch/code.html` — auditoría dato-real-vs-inventado
+  encontró ~70% sin respaldo (2FA, sesiones con IP, suscripción/Stripe,
+  autofactura CFDI, toggle de portal público) — NO construido, ni como
+  placeholder, a pedido explícito del usuario. Implementado solo lo
+  real: nombre/teléfono/correo propios (columna `nombre` nueva en
+  `usuarios`) + cambio de contraseña propio (verifica la actual) para
+  cualquier perfil; identidad de empresa (razón social/RFC/zona
+  horaria/URL del tenant/conteo de operadores, espejo de solo lectura)
+  solo para administrador/super. Solo el mecanismo `perfil_bd` de
+  `requireAdminAuth()` tiene fila editable — `ADMIN_USERS`/credenciales
+  API/sucursal compartida responden `editable:false`/403. 3 endpoints
+  nuevos (`GET`/`PUT /api/admin/mi-cuenta`, `PUT .../password`). Vista
+  nueva en el sidebar, CSS 100% primitivas ya existentes del sitio. 11
+  tests nuevos, Jest backend 919/919. Validado de punta a punta contra
+  Docker/MySQL reales con una cuenta de prueba temporal (creada y
+  borrada sin residuo). Sin herramienta de navegador esta sesión — falta
+  confirmación visual. Sin commit/push.
+
+- **Extensión visual de "Mi Cuenta" + Punto 247 auditado/corregido (ver
+  PROJECT_STATE.md, 2026-09-10)**: Mi Cuenta ganó 6 piezas más fieles al
+  mockup original (2FA, sesiones, notificaciones, suscripción,
+  facturación de Clarvo, banner/footer Market), todas marcadas
+  "Próximamente" y deshabilitadas — nunca afirman un estado activo
+  falso; identidad visual 100% tokens reales del sitio (navy `#03285B`/
+  cyan `#05DBF2`). Aparte, el pendiente 247 (Super Admins desde
+  `/control`, implementado en paralelo por otra sesión sin validar) fue
+  auditado, probado contra Docker real, y corregido: montaje de `.env`
+  apuntaba a una ruta que no existe en la imagen de `control`
+  (`EACCES`), y el patrón temporal+`rename()` falla siempre en un bind
+  mount de un solo archivo (`EBUSY`) — reemplazado por escritura
+  directa + `.env.bak`. 42 tests nuevos, Jest control 167/167. Validado
+  de punta a punta con un super admin de prueba temporal, restaurado al
+  baseline. Ver PROJECT_STATE.md puntos 283 (addendum) y 284.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 

@@ -552,6 +552,111 @@ app.put(
   })
 );
 
+// ---------- Punto 247: gestión de super admins (ADMIN_USERS en .env) ----------
+// Híbrido: super = ADMIN_USERS (.env) + usuarios perfil super en BD (si los hay),
+// pero la alta/edición/baja de ADMIN_USERS solo se hace aquí, en /control,
+// escribiendo en el .env del host (montado como volumen) para que el servidor
+// tenga acceso directo si la UI falla. El .env es la fuente de verdad en disco;
+// el Map en memoria se recarga sin reiniciar y se notifica al backend para
+// que recargue también (POST /internal/reload-admin-users).
+app.get(
+  '/api/control/super-admins',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const { listarSuperAdmins } = require('./utils/adminEnv');
+    const lista = listarSuperAdmins();
+    res.json({ superAdmins: lista });
+  })
+);
+
+app.post(
+  '/api/control/super-admins',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const { leerAdminUsersDeEnv, guardarAdminUsersEnEnv, parsearAdminUsers, validarUsuario, validarPassword, notificarBackendRecarga, ErrorAdminEnv } = require('./utils/adminEnv');
+    const { recargarAdminUsers } = require('./utils/auth');
+    const body = req.body || {};
+    const usuario = String(body.usuario || '').trim();
+    const password = String(body.password || '');
+    const errU = validarUsuario(usuario);
+    if (errU) return res.status(400).json({ error: errU });
+    const errP = validarPassword(password);
+    if (errP) return res.status(400).json({ error: errP });
+    const { valor } = leerAdminUsersDeEnv();
+    const map = parsearAdminUsers(valor);
+    if (map.has(usuario)) return res.status(409).json({ error: 'Ese usuario super ya existe.' });
+    map.set(usuario, password);
+    const nuevoValor = Array.from(map.entries()).map(([u, p]) => `${u}:${p}`).join(',');
+    try {
+      guardarAdminUsersEnEnv(nuevoValor);
+      recargarAdminUsers(nuevoValor);
+      await notificarBackendRecarga(nuevoValor);
+    } catch (e) {
+      return res.status(500).json({ error: 'No se pudo guardar en .env: ' + e.message });
+    }
+    res.status(201).json({ ok: true, superAdmins: Array.from(map.keys()).sort() });
+  })
+);
+
+app.put(
+  '/api/control/super-admins/:usuario',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const { leerAdminUsersDeEnv, guardarAdminUsersEnEnv, parsearAdminUsers, validarPassword, notificarBackendRecarga } = require('./utils/adminEnv');
+    const { recargarAdminUsers } = require('./utils/auth');
+    const usuario = String(req.params.usuario || '').trim();
+    const password = String((req.body || {}).password || '');
+    const errP = validarPassword(password);
+    if (errP) return res.status(400).json({ error: errP });
+    const { valor } = leerAdminUsersDeEnv();
+    const map = parsearAdminUsers(valor);
+    if (!map.has(usuario)) return res.status(404).json({ error: 'Usuario super no encontrado.' });
+    map.set(usuario, password);
+    const nuevoValor = Array.from(map.entries()).map(([u, p]) => `${u}:${p}`).join(',');
+    try {
+      guardarAdminUsersEnEnv(nuevoValor);
+      recargarAdminUsers(nuevoValor);
+      await notificarBackendRecarga(nuevoValor);
+    } catch (e) {
+      return res.status(500).json({ error: 'No se pudo guardar en .env: ' + e.message });
+    }
+    res.json({ ok: true, superAdmins: Array.from(map.keys()).sort() });
+  })
+);
+
+app.delete(
+  '/api/control/super-admins/:usuario',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const { leerAdminUsersDeEnv, guardarAdminUsersEnEnv, parsearAdminUsers, notificarBackendRecarga } = require('./utils/adminEnv');
+    const { recargarAdminUsers } = require('./utils/auth');
+    const usuario = String(req.params.usuario || '').trim();
+    const { valor } = leerAdminUsersDeEnv();
+    const map = parsearAdminUsers(valor);
+    if (!map.has(usuario)) return res.status(404).json({ error: 'Usuario super no encontrado.' });
+    if (usuario === req.adminUser) return res.status(409).json({ error: 'No puedes eliminar tu propia cuenta super.' });
+    if (map.size <= 1) return res.status(409).json({ error: 'Debe quedar al menos un super admin.' });
+    map.delete(usuario);
+    const nuevoValor = Array.from(map.entries()).map(([u, p]) => `${u}:${p}`).join(',');
+    try {
+      guardarAdminUsersEnEnv(nuevoValor);
+      recargarAdminUsers(nuevoValor);
+      await notificarBackendRecarga(nuevoValor);
+    } catch (e) {
+      return res.status(500).json({ error: 'No se pudo guardar en .env: ' + e.message });
+    }
+    res.json({ ok: true, superAdmins: Array.from(map.keys()).sort() });
+  })
+);
+
 app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada.' });
 });

@@ -31,7 +31,7 @@ const {
   filaCorreoTabla,
   construirCorreoBase,
 } = require('./utils/correoMarca');
-const { requireAdminAuth, requireAdminArea, requireUsuarioAdminExacto } = require('./utils/auth');
+const { requireAdminAuth, requireAdminArea, recargarAdminUsers } = require('./utils/auth');
 const { asegurarTablaAuditoria, registrarAccesoAdmin } = require('./utils/adminAuditoria');
 const {
   hashPassword,
@@ -598,6 +598,25 @@ app.post('/internal/cache-tenant/invalidar', (req, res) => {
     return res.status(403).json({ error: 'No autorizado.' });
   }
   invalidarCacheTenant((req.body && req.body.slug) || null);
+  res.json({ ok: true });
+});
+
+// Punto 247 — recarga en caliente de ADMIN_USERS sin reiniciar el contenedor.
+// Control escribe ADMIN_USERS en el .env del host y avisa a este proceso
+// para que recargue su Map en memoria (evita el reinicio y mantiene la
+// propiedad de "si falla la UI, el .env sigue siendo la fuente de verdad"
+// en disco). Protegido con el mismo X-Internal-Secret que los demás
+// /internal/*.
+app.post('/internal/reload-admin-users', (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+  const nuevoValor = typeof req.body?.adminUsers === 'string' ? req.body.adminUsers : null;
+  if (nuevoValor !== null) {
+    recargarAdminUsers(nuevoValor);
+  } else {
+    recargarAdminUsers();
+  }
   res.json({ ok: true });
 });
 
@@ -3437,47 +3456,145 @@ app.delete(
   })
 );
 
-// ---------- Cuenta de respaldo "admin" ----------
-// Es la única cuenta de administrador cuya contraseña vive en MySQL en vez
-// de en ADMIN_USERS — ver la explicación completa en
-// backend/utils/auth.js. Se siembra con "admin" al arrancar el backend
-// (ensureSchema en db.js); estos endpoints permiten cambiarla desde la
-// interfaz gráfica. No hay endpoint para "crear" esta cuenta — ya existe
-// siempre, desde el primer arranque.
-
+// ---------- Mi Cuenta (autoservicio de la sesión actual) ----------
+// A diferencia de "Usuarios" (administra CUALQUIER cuenta, solo perfil
+// administrador), esto es lo que la propia sesión autenticada puede ver/
+// editar de sí misma — disponible para cualquier perfil (administrador/
+// fiscal/ventas/super). Solo expone datos 100% reales: no hay 2FA,
+// bitácora de sesiones ni suscripción/Market implementados todavía (ver
+// PROJECT_STATE.md puntos 272/274) — se omiten aquí a propósito, en vez
+// de fabricarlos, hasta que esos pendientes se resuelvan aparte.
+//
+// Solo el mecanismo 'perfil_bd' (ver requireAdminAuth en utils/auth.js)
+// tiene una fila real en `usuarios` que editar — ADMIN_USERS (env var,
+// perfil 'super'), las credenciales API y el usuario de sucursal
+// compartido (BD de control) no tienen fila aquí, así que sus datos
+// personales no son editables desde esta ruta.
 app.get(
-  '/api/admin/config/admin-password',
+  '/api/admin/mi-cuenta',
   adminApiLimiter,
   requireAdminAuth,
-  requireUsuarioAdminExacto,
   asyncHandler(async (req, res) => {
-    const [filas] = await pool.query(
-      "SELECT valor FROM configuracion WHERE clave = 'admin_fallback_password_hash'"
-    );
-    res.json({ configurada: filas.length > 0 });
+    const editable = req.adminMecanismo === 'perfil_bd';
+    let datos = null;
+    if (editable) {
+      const [filas] = await pool.query(
+        'SELECT nombre, telefono, email FROM usuarios WHERE rfc = ? LIMIT 1',
+        [req.adminUser]
+      );
+      const fila = filas[0];
+      datos = fila
+        ? { nombre: fila.nombre || '', telefono: fila.telefono || '', email: fila.email || '' }
+        : null;
+    }
+
+    const respuesta = {
+      usuario: req.adminUser,
+      perfil: req.adminPerfil,
+      mecanismo: req.adminMecanismo,
+      editable: editable && !!datos,
+      datos,
+    };
+
+    // Identidad de la empresa/tenant + conteo de operadores: solo
+    // administrador/super (info de negocio, no de un operador cualquiera
+    // — mismo criterio de alcance que "Perfiles y roles de acceso").
+    if (req.adminPerfil === 'administrador' || req.adminPerfil === 'super') {
+      const config = await getConfiguracionGlobal();
+      const zona = ZONAS_HORARIAS_MEXICO.find((z) => z.id === config.zona_horaria);
+      const [[{ total_operadores: totalOperadores }]] = await pool.query(
+        "SELECT COUNT(*) AS total_operadores FROM usuarios WHERE perfil IN ('administrador', 'fiscal', 'ventas')"
+      );
+      respuesta.empresa = {
+        razonSocial: config.razon_social_compania || '',
+        rfc: config.rfc_compania || '',
+        regimenFiscal: config.regimen_fiscal_compania || '',
+        claveSat: config.clave_sat || '',
+        zonaHorariaId: config.zona_horaria,
+        zonaHorariaEtiqueta: zona ? zona.etiqueta : config.zona_horaria,
+        tenantSlug: req.tenant ? req.tenant.slug : null,
+        nombreEmpresaTenant: req.tenant ? req.tenant.nombreEmpresa : null,
+        urlPortal: detectarUrlPortal(req),
+        totalOperadores,
+      };
+    }
+
+    res.json(respuesta);
   })
 );
 
+// Edita SOLO nombre/teléfono/correo de la propia cuenta (mecanismo
+// 'perfil_bd'). Perfil, RFC/usuario y contraseña NO se tocan aquí —
+// perfil/RFC siguen siendo privilegio de "administrador" vía
+// PUT /api/admin/usuarios/:id, y la contraseña tiene su propio endpoint
+// abajo (con verificación de la contraseña actual, a diferencia de
+// PUT /api/admin/usuarios/:id/password que es un reseteo con privilegio).
 app.put(
-  '/api/admin/config/admin-password',
+  '/api/admin/mi-cuenta',
   adminApiLimiter,
   requireAdminAuth,
-  requireUsuarioAdminExacto,
   asyncHandler(async (req, res) => {
+    if (req.adminMecanismo !== 'perfil_bd') {
+      return res.status(403).json({ error: 'Esta cuenta no tiene datos de perfil editables desde aquí.' });
+    }
+
     const body = req.body || {};
-    const password = typeof body.password === 'string' ? body.password : '';
-    const errorPassword = validarPassword(password);
+    const nombre = sanitizeText(body.nombre, 200);
+    const telefono = sanitizeText(body.telefono, 20);
+    if (telefono && !isValidTelefono(telefono)) {
+      return res.status(400).json({ error: 'El teléfono no es válido.' });
+    }
+    const email = sanitizeText(body.email, 200).toLowerCase();
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({ error: 'El correo electrónico es obligatorio y debe ser válido.' });
+    }
+
+    const [resultado] = await pool.query(
+      'UPDATE usuarios SET nombre = ?, telefono = ?, email = ?, actualizado_en = ? WHERE rfc = ?',
+      [nombre, telefono || '', email, new Date(), req.adminUser]
+    );
+    if (resultado.affectedRows === 0) {
+      return res.status(404).json({ error: 'No se encontró tu cuenta.' });
+    }
+    res.json({ ok: true, mensaje: 'Tus datos se actualizaron correctamente.' });
+  })
+);
+
+// Cambio de contraseña propio — a diferencia de
+// PUT /api/admin/usuarios/:id/password (un administrador reseteando la
+// de CUALQUIER cuenta sin conocerla), esto exige la contraseña actual
+// correcta antes de aceptar la nueva, mismo criterio de autoservicio que
+// el resto del sitio ya usa en flujos parecidos.
+app.put(
+  '/api/admin/mi-cuenta/password',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (req.adminMecanismo !== 'perfil_bd') {
+      return res.status(403).json({ error: 'Esta cuenta no cambia su contraseña desde aquí.' });
+    }
+
+    const body = req.body || {};
+    const passwordActual = typeof body.password_actual === 'string' ? body.password_actual : '';
+    const passwordNueva = typeof body.password_nueva === 'string' ? body.password_nueva : '';
+
+    const [filas] = await pool.query('SELECT password_hash FROM usuarios WHERE rfc = ? LIMIT 1', [req.adminUser]);
+    const fila = filas[0];
+    if (!fila || !verifyPassword(passwordActual, fila.password_hash)) {
+      return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+    }
+
+    const errorPassword = validarPassword(passwordNueva);
     if (errorPassword) {
       return res.status(400).json({ error: errorPassword });
     }
 
-    const passwordHash = hashPassword(password);
+    const passwordHash = hashPassword(passwordNueva);
     await pool.query(
-      `INSERT INTO configuracion (clave, valor) VALUES ('admin_fallback_password_hash', ?)
-       ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
-      [passwordHash]
+      'UPDATE usuarios SET password_hash = ?, debe_cambiar_password = 0, actualizado_en = ? WHERE rfc = ?',
+      [passwordHash, new Date(), req.adminUser]
     );
-    res.json({ ok: true, mensaje: 'Contraseña de la cuenta "admin" actualizada correctamente.' });
+    res.json({ ok: true, mensaje: 'Contraseña actualizada correctamente.' });
   })
 );
 

@@ -243,7 +243,7 @@ para no acceder a áreas que no me corresponden.
 - Interfaz: los botones/tarjetas fuera de perfil se ocultan, no solo se deshabilitan.
 - Backend: todos los endpoints de `/api/admin/*` exigen `requireAdminAuth` + `requireAdminArea(...)` → 403 real.
 - Matriz de acceso: Super → todo; Administrador → Resumen financiero (su vista por defecto), Ventas, Gastos, Usuarios, Reportes, Config fiscales/reportes; Fiscal → Inicio, Constancias, Tickets, Campos obligatorios, Config fiscales.
-- "Cuenta de respaldo admin" solo visible/editable por el usuario `admin` exacto (`requireUsuarioAdminExacto`).
+- Tabla "Perfiles y roles de acceso" solo visible para el perfil `administrador`.
 - Si la vista por defecto no está permitida, se navega a la primera vista disponible (el administrador aterriza en "Resumen financiero"; fiscal en "Inicio").
 - Al refrescar el navegador (F5) se restaura la última vista visitada de la sesión activa (`sessionStorage`, solo si la vista sigue permitida para el perfil); un inicio de sesión nuevo siempre aterriza en la vista por defecto.
 

@@ -36,8 +36,8 @@ test('la API tenant-aware responde con el contexto del slug (admin del tenant)',
   test.skip(!slug, 'correr después del test de captura y del aprovisionamiento');
 
   // Basic Auth contra /<slug>/api/admin/login — nginx reescribe el
-  // X-Tenant-Slug y requireAdminAuth consulta la BD del tenant (clave
-  // admin_fallback_password_hash que siembra provisionar-tenant.js).
+  // X-Tenant-Slug y requireAdminAuth consulta la BD del tenant (tabla
+  // usuarios que siembra provisionar-tenant.js).
   // 200 = la petición se enrutó a la BD correcta; 404 = tenant no
   // resuelto; 401 = credenciales mal (pero el tenant sí se resolvió).
   const response = await request.get(`/${slug}/api/admin/login`, {

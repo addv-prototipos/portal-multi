@@ -71,6 +71,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Sucursales</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-super" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/><path d="M20 21a8 8 0 1 0-16 0"/><path d="M12 15v6"/><path d="M9 18h6"/></svg>
+          <span>Super Admins</span>
+        </button>
       </nav>
       <div class="admin-sidebar-footer">
         <button type="button" class="admin-sidebar-logout" id="control-btn-logout" aria-label="Cerrar sesión">
@@ -95,6 +99,10 @@
           <button type="button" class="admin-menu-movil-btn" data-vista="sucursales">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
             <span>Sucursales</span>
+          </button>
+          <button type="button" class="admin-menu-movil-btn" data-vista="super">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+            <span>Super Admins</span>
           </button>
         </div>
 
@@ -211,6 +219,42 @@
             </div>
           </div>
         </div>
+
+        <!-- Punto 247: Super Admins (ADMIN_USERS en .env, híbrido con BD) -->
+        <div id="vista-control-super" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Super Admins (ADMIN_USERS)</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-super" aria-label="Ayuda sobre Super Admins" data-tooltip="Cuentas super (ADDV) que entran a /control y a cualquier /<slug>/admin. Se guardan en el .env del host para acceso por servidor si falla la UI.">?</button>
+            </div>
+            <div class="admin-toolbar-right">
+              <span class="admin-count" id="super-count">0 super</span>
+              <button type="button" class="btn btn-primary" id="btn-super-nuevo">+ Nuevo super</button>
+              <button type="button" class="btn btn-secondary" id="btn-super-refresh">Actualizar</button>
+            </div>
+          </div>
+          <p class="admin-login-hint">
+            Gestión exclusiva en <code>/control</code> — escribe en <code>.env</code> (<code>ADMIN_USERS=usuario:pass,...</code>) y recarga sin reiniciar. Híbrido: mantiene usuarios super en BD, pero aquí solo se gestiona el .env. El <code>.env</code> es la fuente de verdad en disco si la UI falla.
+          </p>
+          <p class="field-error" id="super-error" role="alert"></p>
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="super-tabla">
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="super-table-body"></tbody>
+            </table>
+            <div class="admin-empty admin-empty-rica" id="super-empty" hidden>
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+              <p class="admin-empty-titulo">Sin super admins en .env</p>
+              <p>Debe quedar al menos uno — por defecto <code>admin:admin</code>.</p>
+            </div>
+          </div>
+          <p class="field-hint" style="margin-top:12px">Tras guardar, se escribe <code>.env</code> y se recarga en <code>control</code> y <code>backend</code> sin reiniciar (via <code>POST /internal/reload-admin-users</code>). Revisa <code>.env.bak</code> si necesitas revertir.</p>
+        </div>
       </main>
     </div>
   </div>
@@ -290,6 +334,32 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal Super Admin (punto 247, .env) -->
+  <div class="modal-overlay" id="super-modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="super-modal-title">
+      <h2 id="super-modal-title">Nuevo super admin</h2>
+      <form id="super-form" novalidate>
+        <div class="field">
+          <label for="super-usuario">Usuario <span class="required">*</span></label>
+          <input type="text" id="super-usuario" maxlength="64" autocomplete="off" placeholder="ej. admin2" required />
+          <p class="field-hint">Solo letras, números, punto, guión. 3-64 caracteres.</p>
+          <p class="field-error" id="error-super-usuario" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="super-password">Contraseña <span class="required">*</span></label>
+          <input type="password" id="super-password" autocomplete="new-password" placeholder="Mínimo 6 caracteres" required />
+          <p class="field-hint">No puede contener "," ni ":". Se guarda en .env como texto plano (acceso por servidor si falla la UI).</p>
+          <p class="field-error" id="error-super-password" role="alert"></p>
+        </div>
+        <p class="field-error" id="super-modal-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="super-btn-cancelar">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="super-btn-guardar"><span id="super-btn-guardar-label">Guardar</span></button>
+        </div>
+      </form>
     </div>
   </div>
 

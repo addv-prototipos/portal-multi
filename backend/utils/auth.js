@@ -46,7 +46,19 @@ function loadAdminUsers() {
   return users;
 }
 
-const adminUsers = loadAdminUsers();
+let adminUsers = loadAdminUsers();
+
+function recargarAdminUsers(nuevoValor) {
+  if (typeof nuevoValor === 'string') {
+    process.env.ADMIN_USERS = nuevoValor;
+  }
+  adminUsers = loadAdminUsers();
+  return adminUsers;
+}
+
+function listarAdminUsers() {
+  return Array.from(adminUsers.entries()).map(([usuario]) => usuario);
+}
 
 function timingSafeEqualStrings(a, b) {
   const bufA = Buffer.from(a);
@@ -64,24 +76,6 @@ function checkCredentials(username, password) {
   if (!adminUsers.has(username)) return false;
   const expectedPassword = adminUsers.get(username);
   return timingSafeEqualStrings(String(password), String(expectedPassword));
-}
-
-// ---------- Cuenta de respaldo "admin" (guardada en MySQL) ----------
-// Es la ÚNICA cuenta de administrador cuya contraseña vive fuera de
-// ADMIN_USERS — sirve como medida de seguridad ("break glass") para no
-// quedar fuera del panel si se pierde acceso al archivo/variable de
-// entorno o se olvida esa contraseña. Se siembra con "admin" la primera
-// vez que arranca el backend (ver ensureSchema() en db.js) y se puede
-// cambiar desde la interfaz gráfica (PUT /api/admin/config/admin-password
-// en server.js). Esta regla es EXCLUSIVA del usuario "admin" — cualquier
-// otro administrador (perfil "administrador"/"fiscal" en la tabla
-// usuarios, creados desde el panel) no tiene este respaldo.
-async function verificarCuentaRespaldoAdmin(password) {
-  const [filas] = await pool.query(
-    "SELECT valor FROM configuracion WHERE clave = 'admin_fallback_password_hash'"
-  );
-  if (filas.length === 0) return false;
-  return verifyPassword(password, filas[0].valor);
 }
 
 // ---------- Credencial API por empresa (para uso en Swagger y consumo directo) ----------
@@ -209,10 +203,9 @@ async function verificarUsuarioAdministrativo(usuario, password) {
 
 /**
  * Middleware de autenticacion HTTP Basic para las rutas /api/admin/*.
- * Acepta credenciales de CUALQUIERA de estos tres mecanismos:
+ * Acepta credenciales de CUALQUIERA de estos dos mecanismos:
  *   1. ADMIN_USERS (variable de entorno, sin cambios respecto a antes).
- *   2. La cuenta de respaldo "admin" guardada en MySQL.
- *   3. Un usuario con perfil "administrador", "fiscal" o "ventas" en la tabla usuarios.
+ *   2. Un usuario con perfil "administrador", "fiscal" o "ventas" en la tabla usuarios.
  */
 async function requireAdminAuth(req, res, next) {
   // Multi-tenant (segmento 3 del plan): con dominio único compartido entre
@@ -283,24 +276,7 @@ async function requireAdminAuth(req, res, next) {
     return next();
   }
 
-  // 2. Cuenta de respaldo "admin" (solo aplica a ese nombre de usuario exacto)
-  // — también "super": es justamente la cuenta de "no quedarse fuera del
-  // panel", así que no tendría sentido que ADEMÁS estuviera restringida
-  // por perfil.
-  if (username === 'admin') {
-    try {
-      if (await verificarCuentaRespaldoAdmin(password)) {
-        req.adminUser = 'admin';
-        req.adminPerfil = 'super';
-        req.adminMecanismo = 'fallback_admin';
-        return next();
-      }
-    } catch (err) {
-      console.error('Error verificando la cuenta de respaldo "admin":', err.message);
-    }
-  }
-
-  // 3. Usuarios administrativos (perfil administrador/fiscal) creados desde el panel
+  // 2. Usuarios administrativos (perfil administrador/fiscal) creados desde el panel
   try {
     const usuarioAdmin = await verificarUsuarioAdministrativo(username, password);
     if (usuarioAdmin) {
@@ -313,7 +289,7 @@ async function requireAdminAuth(req, res, next) {
     console.error('Error verificando usuario administrativo:', err.message);
   }
 
-  // 4. Credencial API por empresa (para Swagger/consumo programático) — solo si hay tenant resuelto
+  // 3. Credencial API por empresa (para Swagger/consumo programático) — solo si hay tenant resuelto
   if (req.tenant && req.tenant.slug) {
     try {
       const credApi = await verificarCredencialApi(username, password, req.tenant.slug);
@@ -327,7 +303,7 @@ async function requireAdminAuth(req, res, next) {
     } catch (err) {
       console.error('Error verificando credencial API:', err.message);
     }
-    // 4b. Clave API vía header X-API-Key — autoriza uso de las APIs como esta
+    // 3b. Clave API vía header X-API-Key — autoriza uso de las APIs como esta
     // clave API por empresa. Ya NO se acepta por cookie (`api_key`): esa
     // cookie nunca la fija el servidor, así que solo llegaba si un operador
     // la guardaba a mano siguiendo la sugerencia vieja de la UI/Swagger —
@@ -349,7 +325,7 @@ async function requireAdminAuth(req, res, next) {
       }
     }
 
-    // 5. Usuario de sucursal compartido (§58) — solo si el tenant resuelto
+    // 4. Usuario de sucursal compartido (§58) — solo si el tenant resuelto
     // pertenece a un grupo de sucursales asociadas.
     if (req.tenant.grupoSucursalId) {
       try {
@@ -378,9 +354,9 @@ async function requireAdminAuth(req, res, next) {
 // particular, replicando en el backend la misma restricción que
 // admin.js ya aplica visualmente (ocultando botones y tarjetas) — para
 // que ocultar el botón en la interfaz no sea la única barrera real.
-// "super" (la cuenta de respaldo "admin" y las cuentas de ADMIN_USERS)
-// pasa siempre, sin importar qué áreas se le pidan — mismo criterio que
-// ya usa el mapa de restricciones del frontend.
+// "super" (las cuentas de ADMIN_USERS) pasa siempre, sin importar qué
+// áreas se le pidan — mismo criterio que ya usa el mapa de restricciones
+// del frontend.
 //
 // SIEMPRE se usa DESPUÉS de requireAdminAuth en la cadena de middlewares
 // de una ruta (ej. `requireAdminAuth, requireAdminArea('tickets'), ...`),
@@ -395,15 +371,4 @@ function requireAdminArea(...perfilesPermitidos) {
   };
 }
 
-// Para las dos rutas de "Cuenta de respaldo admin" — ni siquiera un
-// perfil "super" que entró por ADMIN_USERS con otro nombre debe poder
-// leer o cambiar la contraseña de la cuenta "admin" en sí; mismo
-// criterio que ya aplica el frontend para mostrar esa tarjeta.
-function requireUsuarioAdminExacto(req, res, next) {
-  if (req.adminUser === 'admin') {
-    return next();
-  }
-  return res.status(403).json({ error: 'Solo el usuario "admin" puede acceder a esto.' });
-}
-
-module.exports = { requireAdminAuth, requireAdminArea, requireUsuarioAdminExacto };
+module.exports = { requireAdminAuth, requireAdminArea, recargarAdminUsers, listarAdminUsers, loadAdminUsers };

@@ -37,7 +37,19 @@ function loadAdminUsers() {
   return users;
 }
 
-const adminUsers = loadAdminUsers();
+let adminUsers = loadAdminUsers();
+
+function recargarAdminUsers(nuevoValor) {
+  if (typeof nuevoValor === 'string') {
+    process.env.ADMIN_USERS = nuevoValor;
+  }
+  adminUsers = loadAdminUsers();
+  return adminUsers;
+}
+
+function listarAdminUsers() {
+  return Array.from(adminUsers.keys()).sort();
+}
 
 function timingSafeEqualStrings(a, b) {
   const bufA = Buffer.from(a);
@@ -104,4 +116,4 @@ function requireAdminArea(...perfilesPermitidos) {
   };
 }
 
-module.exports = { requireAdminAuth, requireAdminArea };
+module.exports = { requireAdminAuth, requireAdminArea, recargarAdminUsers, listarAdminUsers, loadAdminUsers };

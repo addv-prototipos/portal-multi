@@ -195,8 +195,22 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+    # Punto 247 — .env montado para que /control pueda gestionar ADMIN_USERS
+    # escribiendo en el archivo del host (híbrido .env + BD, con .env como
+    # fuente de verdad en disco si la UI falla). Se le darán permisos de
+    # escritura en el host como indicó el usuario.
+    # Bug real corregido (2026-09-10): el montaje original apuntaba a
+    # "/app/.env" — el Dockerfile de control usa WORKDIR /usr/src/app (sin
+    # ningún directorio "/app"), así que Docker creaba "/app" como
+    # directorio nuevo, propiedad de root, sin permiso de escritura para
+    # "appuser" (el usuario sin privilegios con el que corre el proceso) —
+    # cualquier escritura fallaba con EACCES al crear el archivo temporal
+    # del guardado atómico. Corregido a la ruta real de la app.
+    volumes:
+      - ./.env:/usr/src/app/.env:rw
     environment:
       PORT: 4001
+      ADMIN_USERS_ENV_PATH: /usr/src/app/.env
       ADMIN_USERS: ${ADMIN_USERS:-admin:admin}
       CONTROL_DB_HOST: mysql
       CONTROL_DB_PORT: 3306

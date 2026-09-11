@@ -144,6 +144,7 @@
     btnVistaConfiguraciones: document.getElementById('btn-vista-configuraciones'),
     btnVistaLecturaReportes: document.getElementById('btn-vista-lectura-reportes'),
     btnVistaProveedores: document.getElementById('btn-vista-proveedores'),
+    btnVistaMiCuenta: document.getElementById('btn-vista-mi-cuenta'),
     // Menú móvil (launcher de íconos, reemplaza el nav de fila en <900px)
     btnMenuMovil: document.getElementById('btn-menu-movil'),
     adminMenuMovil: document.getElementById('admin-menu-movil'),
@@ -157,6 +158,42 @@
     vistaConfiguraciones: document.getElementById('config-modal-overlay'),
     vistaLecturaReportes: document.getElementById('vista-lectura-reportes'),
     vistaProveedores: document.getElementById('vista-proveedores'),
+    vistaMiCuenta: document.getElementById('vista-mi-cuenta'),
+    // Mi Cuenta
+    micuentaDatosForm: document.getElementById('micuenta-datos-form'),
+    micuentaSinDatosNota: document.getElementById('micuenta-sin-datos-nota'),
+    micuentaNombre: document.getElementById('micuenta-nombre'),
+    micuentaTelefono: document.getElementById('micuenta-telefono'),
+    micuentaEmail: document.getElementById('micuenta-email'),
+    micuentaUsuarioLabel: document.getElementById('micuenta-usuario-label'),
+    micuentaPerfilLabel: document.getElementById('micuenta-perfil-label'),
+    btnGuardarMiCuenta: document.getElementById('btn-guardar-micuenta'),
+    micuentaPasswordCard: document.getElementById('micuenta-password-card'),
+    micuentaPasswordActual: document.getElementById('micuenta-password-actual'),
+    micuentaPasswordNueva: document.getElementById('micuenta-password-nueva'),
+    btnCambiarMiCuentaPassword: document.getElementById('btn-cambiar-micuenta-password'),
+    micuentaEmpresaCard: document.getElementById('micuenta-empresa-card'),
+    micuentaRazonSocial: document.getElementById('micuenta-razon-social'),
+    micuentaRfc: document.getElementById('micuenta-rfc'),
+    micuentaRegimen: document.getElementById('micuenta-regimen'),
+    micuentaClaveSat: document.getElementById('micuenta-clave-sat'),
+    micuentaZonaHoraria: document.getElementById('micuenta-zona-horaria'),
+    micuentaTotalOperadores: document.getElementById('micuenta-total-operadores'),
+    micuentaUrlBar: document.getElementById('micuenta-url-bar'),
+    micuentaUrlTenant: document.getElementById('micuenta-url-tenant'),
+    btnCopiarUrlMiCuenta: document.getElementById('btn-copiar-url-micuenta'),
+    btnMiCuentaIrConfiguraciones: document.getElementById('btn-micuenta-ir-configuraciones'),
+    // Mi Cuenta — piezas visuales "Próximamente" (2FA/sesiones/
+    // notificaciones/Clarvo Site Market), ver PROJECT_STATE.md punto 283.
+    micuentaBannerMarket: document.getElementById('micuenta-banner-market'),
+    micuenta2faCard: document.getElementById('micuenta-2fa-card'),
+    micuentaSesionesCard: document.getElementById('micuenta-sesiones-card'),
+    micuentaSesionUsuario: document.getElementById('micuenta-sesion-usuario'),
+    micuentaSesionPerfil: document.getElementById('micuenta-sesion-perfil'),
+    micuentaNotifCard: document.getElementById('micuenta-notif-card'),
+    micuentaSuscripcionCard: document.getElementById('micuenta-suscripcion-card'),
+    micuentaFacturacionCard: document.getElementById('micuenta-facturacion-card'),
+    micuentaFooterMarket: document.getElementById('micuenta-footer-market'),
     // Modal "Configuraciones globales" (antes vista de página, ver
     // PROJECT_STATE.md): barra lateral + buscador + panel de contenido.
     configModalSidebar: document.getElementById('config-modal-sidebar'),
@@ -1085,23 +1122,12 @@
     btnUsuariosColumns: document.getElementById('btn-usuarios-columns'),
     usuariosColumnTogglePanel: document.getElementById('usuarios-column-toggle-panel'),
     usuariosEmpty: document.getElementById('usuarios-empty'),
-    // Cuenta de respaldo "admin"
-    btnToggleAdminFallback: document.getElementById('btn-toggle-admin-fallback'),
-    adminFallbackCard: document.getElementById('admin-fallback-card'),
-    adminFallbackBody: document.getElementById('admin-fallback-body'),
     btnPerfilesAccesoAbrir: document.getElementById('btn-perfiles-acceso-abrir'),
     perfilesAccesoOverlay: document.getElementById('perfiles-acceso-overlay'),
     btnPerfilesAccesoCerrar: document.getElementById('btn-perfiles-acceso-cerrar'),
     ordenesToggleCard: document.getElementById('ordenes-toggle-card'),
     btnToggleOrdenesCard: document.getElementById('btn-toggle-ordenes-card'),
     ordenesToggleBody: document.getElementById('ordenes-toggle-body'),
-    btnGenerarPasswordAdminFallback: document.getElementById('btn-generar-password-admin-fallback'),
-    adminFallbackPassword: document.getElementById('admin-fallback-password'),
-    btnToggleAdminFallbackPassword: document.getElementById('btn-toggle-admin-fallback-password'),
-    btnCopiarAdminFallbackPassword: document.getElementById('btn-copiar-admin-fallback-password'),
-    adminFallbackError: document.getElementById('admin-fallback-error'),
-    btnGuardarAdminFallback: document.getElementById('btn-guardar-admin-fallback'),
-    btnGuardarAdminFallbackLabel: document.getElementById('btn-guardar-admin-fallback-label'),
     // Modal de crear usuario
     crearUsuarioOverlay: document.getElementById('crear-usuario-overlay'),
     crearUsuarioPerfil: document.getElementById('crear-usuario-perfil'),
@@ -1772,11 +1798,11 @@
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'configuraciones'],
+      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'configuraciones'],
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card'],
     },
     fiscal: {
-      vistasPermitidas: ['inicio', 'constancias', 'tickets', 'configuraciones'],
+      vistasPermitidas: ['inicio', 'constancias', 'tickets', 'mi-cuenta', 'configuraciones'],
       tarjetasConfigPermitidas: ['admin-config-card', 'global-config-card'],
     },
     // Punto 190: perfil "Ventas" — solo Ventas/Cuentas por cobrar/Gastos,
@@ -1785,9 +1811,11 @@
     // queda oculto por completo). El % de IVA/zona horaria que necesita
     // el formulario de "Registrar venta" se leen vía GET
     // /admin/config/global directamente (permitido en el backend para
-    // este perfil), sin pasar por la UI de Configuraciones.
+    // este perfil), sin pasar por la UI de Configuraciones. "Mi Cuenta"
+    // SÍ se permite (punto "Mi Cuenta", 2026-09-10): perfil/datos propios
+    // y cambio de contraseña, no depende de Configuraciones globales.
     ventas: {
-      vistasPermitidas: ['ordenes', 'cxc', 'gastos'],
+      vistasPermitidas: ['ordenes', 'cxc', 'gastos', 'mi-cuenta'],
       tarjetasConfigPermitidas: [],
     },
   };
@@ -1814,6 +1842,7 @@
       configuraciones: els.btnVistaConfiguraciones,
       'lectura-reportes': els.btnVistaLecturaReportes,
       proveedores: els.btnVistaProveedores,
+      'mi-cuenta': els.btnVistaMiCuenta,
     };
   }
 
@@ -1859,13 +1888,11 @@
       tarjeta.hidden = !(sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta));
     });
 
-    // "Cuenta de respaldo admin" y la tabla de perfiles y roles: solo
-    // para el usuario "admin" EXACTO — ni siquiera para otras cuentas
-    // "super" que hayan entrado por ADMIN_USERS con otro nombre. Ambas
-    // viven dentro de la vista "Usuarios".
-    const esUsuarioAdminExacto = usuarioSesionActual === 'admin';
-    if (els.adminFallbackCard) els.adminFallbackCard.hidden = !esUsuarioAdminExacto;
-    if (els.btnPerfilesAccesoAbrir) els.btnPerfilesAccesoAbrir.hidden = !esUsuarioAdminExacto;
+    // Tabla de "Perfiles y roles de acceso": pedido explícito del
+    // usuario — visible para "administrador" y "super" (ADMIN_USERS,
+    // sin restricciones) — antes dependía de la cuenta de respaldo
+    // "admin", eliminada.
+    if (els.btnPerfilesAccesoAbrir) els.btnPerfilesAccesoAbrir.hidden = perfilActual !== 'administrador' && perfilActual !== 'super';
 
     // Si el botón de la vista actualmente activa (por defecto,
     // "Constancias" — ver el HTML) quedó oculto por la restricción de
@@ -2126,9 +2153,6 @@
     els.retencionConfigBody.hidden = true;
     els.retencionError.textContent = '';
     els.notifTicketsOverlay.hidden = true;
-    els.btnToggleAdminFallback.setAttribute('aria-expanded', 'false');
-    els.adminFallbackBody.hidden = true;
-    els.adminFallbackError.textContent = '';
     els.crearUsuarioOverlay.hidden = true;
     els.editarUsuarioOverlay.hidden = true;
     els.usuariosFiltroPerfil.value = '';
@@ -5470,6 +5494,8 @@
     els.btnVistaLecturaReportes.setAttribute('aria-selected', String(vista === 'lectura-reportes'));
     els.btnVistaProveedores.classList.toggle('is-active', vista === 'proveedores');
     els.btnVistaProveedores.setAttribute('aria-selected', String(vista === 'proveedores'));
+    els.btnVistaMiCuenta.classList.toggle('is-active', vista === 'mi-cuenta');
+    els.btnVistaMiCuenta.setAttribute('aria-selected', String(vista === 'mi-cuenta'));
     els.vistaInicio.hidden = vista !== 'inicio';
     els.vistaConstancias.hidden = vista !== 'constancias';
     els.vistaTickets.hidden = vista !== 'tickets';
@@ -5481,6 +5507,7 @@
     els.vistaUsuarios.hidden = vista !== 'usuarios';
     els.vistaLecturaReportes.hidden = vista !== 'lectura-reportes';
     els.vistaProveedores.hidden = vista !== 'proveedores';
+    els.vistaMiCuenta.hidden = vista !== 'mi-cuenta';
     if (vista === 'inicio') cargarInicio();
     if (vista === 'constancias') cargarRegistros();
     if (vista === 'tickets') {
@@ -5526,6 +5553,7 @@
     if (vista === 'lectura-reportes') {
       cargarListaReportes();
     }
+    if (vista === 'mi-cuenta') cargarMiCuenta();
     // Primeros pasos (Fase 2 UX): "revisar" tickets/Constancias/CxC cuenta
     // como paso completado con solo entrar a esa vista una vez.
     if (vista === 'tickets') marcarOnboardingVisto('tickets');
@@ -5549,6 +5577,192 @@
   });
   els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));
   els.btnVistaProveedores.addEventListener('click', () => cambiarVistaPrincipal('proveedores'));
+  els.btnVistaMiCuenta.addEventListener('click', () => cambiarVistaPrincipal('mi-cuenta'));
+
+  // ---------- Mi Cuenta ----------
+  // Autoservicio de la sesión actual: cualquier perfil ve/edita su propio
+  // nombre/teléfono/correo y cambia su contraseña; la identidad de la
+  // empresa (razón social/RFC/zona horaria/URL/conteo de operadores) solo
+  // se muestra a administrador/super (mismo backend, ver
+  // GET /api/admin/mi-cuenta en server.js). Solo datos 100% reales — sin
+  // 2FA/bitácora de sesiones/suscripción todavía (ver PROJECT_STATE.md
+  // puntos 272/274), a propósito, no fabricados.
+  async function cargarMiCuenta() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const resp = await fetch(`${API_BASE}/admin/mi-cuenta`, { headers: { Authorization: authHeader } });
+      if (resp.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!resp.ok) throw new Error('No se pudo cargar tu cuenta.');
+      const data = await resp.json();
+
+      els.micuentaUsuarioLabel.textContent = data.usuario || '—';
+      els.micuentaPerfilLabel.textContent = data.perfil || '—';
+
+      if (data.editable && data.datos) {
+        els.micuentaDatosForm.hidden = false;
+        els.micuentaSinDatosNota.hidden = true;
+        els.micuentaNombre.value = data.datos.nombre || '';
+        els.micuentaTelefono.value = data.datos.telefono || '';
+        els.micuentaEmail.value = data.datos.email || '';
+        els.micuentaPasswordCard.hidden = false;
+        // 2FA/Sesiones/Notificaciones son 100% visuales todavía (ver
+        // PROJECT_STATE.md punto 283) — solo se muestran donde hay una
+        // cuenta real de por medio (mismo criterio que "editable").
+        els.micuenta2faCard.hidden = false;
+        els.micuentaSesionesCard.hidden = false;
+        els.micuentaSesionUsuario.textContent = data.usuario || '—';
+        els.micuentaSesionPerfil.textContent = data.perfil || '—';
+        els.micuentaNotifCard.hidden = false;
+      } else {
+        els.micuentaDatosForm.hidden = true;
+        els.micuentaSinDatosNota.hidden = false;
+        els.micuentaPasswordCard.hidden = true;
+        els.micuenta2faCard.hidden = true;
+        els.micuentaSesionesCard.hidden = true;
+        els.micuentaNotifCard.hidden = true;
+      }
+
+      if (data.empresa) {
+        els.micuentaEmpresaCard.hidden = false;
+        // Banner/Suscripción/Facturación/Footer de Clarvo Site Market son
+        // 100% visuales (punto 272, sin construir) — mismo alcance que la
+        // tarjeta de identidad de la empresa (administrador/super).
+        els.micuentaBannerMarket.hidden = false;
+        els.micuentaSuscripcionCard.hidden = false;
+        els.micuentaFacturacionCard.hidden = false;
+        els.micuentaFooterMarket.hidden = false;
+        els.micuentaRazonSocial.textContent = data.empresa.razonSocial || 'Sin capturar';
+        els.micuentaRfc.textContent = data.empresa.rfc || 'Sin capturar';
+        els.micuentaRegimen.textContent = data.empresa.regimenFiscal || 'Sin capturar';
+        els.micuentaClaveSat.textContent = data.empresa.claveSat || 'Sin capturar';
+        els.micuentaZonaHoraria.textContent = data.empresa.zonaHorariaEtiqueta || 'Sin definir';
+        els.micuentaTotalOperadores.textContent = String(data.empresa.totalOperadores);
+        if (data.empresa.tenantSlug && data.empresa.urlPortal) {
+          els.micuentaUrlBar.hidden = false;
+          els.micuentaUrlTenant.textContent = data.empresa.urlPortal;
+          els.micuentaUrlTenant.href = data.empresa.urlPortal;
+        } else {
+          els.micuentaUrlBar.hidden = true;
+        }
+      } else {
+        els.micuentaEmpresaCard.hidden = true;
+        els.micuentaBannerMarket.hidden = true;
+        els.micuentaSuscripcionCard.hidden = true;
+        els.micuentaFacturacionCard.hidden = true;
+        els.micuentaFooterMarket.hidden = true;
+      }
+    } catch (err) {
+      showToast(err.message || 'No se pudo cargar Mi Cuenta.', true);
+    }
+  }
+
+  els.btnGuardarMiCuenta.addEventListener('click', async () => {
+    setFieldError('micuenta-nombre', '');
+    setFieldError('micuenta-telefono', '');
+    setFieldError('micuenta-email', '');
+
+    const body = {
+      nombre: els.micuentaNombre.value.trim(),
+      telefono: els.micuentaTelefono.value.trim(),
+      email: els.micuentaEmail.value.trim(),
+    };
+
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const resp = await fetch(`${API_BASE}/admin/mi-cuenta`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        setFieldError('micuenta-email', data.error || 'No se pudieron guardar tus datos.');
+        return;
+      }
+      showToast(data.mensaje || 'Tus datos se actualizaron correctamente.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  });
+
+  els.btnCambiarMiCuentaPassword.addEventListener('click', async () => {
+    setFieldError('micuenta-password-actual', '');
+    setFieldError('micuenta-password-nueva', '');
+
+    const passwordActual = els.micuentaPasswordActual.value;
+    const passwordNueva = els.micuentaPasswordNueva.value;
+    if (!passwordActual) {
+      setFieldError('micuenta-password-actual', 'Captura tu contraseña actual.');
+      return;
+    }
+
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const resp = await fetch(`${API_BASE}/admin/mi-cuenta/password`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password_actual: passwordActual, password_nueva: passwordNueva }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const enActual = /actual/i.test(data.error || '');
+        setFieldError(enActual ? 'micuenta-password-actual' : 'micuenta-password-nueva', data.error || 'No se pudo cambiar la contraseña.');
+        return;
+      }
+      els.micuentaPasswordActual.value = '';
+      els.micuentaPasswordNueva.value = '';
+      showToast(data.mensaje || 'Contraseña actualizada correctamente.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  });
+
+  if (els.btnCopiarUrlMiCuenta) {
+    els.btnCopiarUrlMiCuenta.addEventListener('click', async () => {
+      const valor = els.micuentaUrlTenant.textContent;
+      if (!valor) return;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(valor);
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = valor;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+        }
+        showToast('Enlace copiado al portapapeles.');
+      } catch (err) {
+        showToast('No se pudo copiar. Selecciona y copia el texto manualmente.', true);
+      }
+    });
+  }
+
+  if (els.btnMiCuentaIrConfiguraciones) {
+    els.btnMiCuentaIrConfiguraciones.addEventListener('click', () => {
+      abrirConfigModal();
+      seleccionarSeccionConfig('global-config-card');
+    });
+  }
 
   // Menú móvil (launcher de íconos) — "Menú" en la barra superior
   // siempre regresa aquí, sin importar el perfil ni qué vista estaba
@@ -5569,6 +5783,7 @@
     els.vistaUsuarios.hidden = true;
     els.vistaLecturaReportes.hidden = true;
     els.vistaProveedores.hidden = true;
+    els.vistaMiCuenta.hidden = true;
     els.adminMenuMovil.hidden = false;
   }
   // Punto: back físico del celular = mismo efecto que tocar "Menú"
@@ -8386,13 +8601,7 @@
     }
   });
 
-  // ---------- Cuenta de respaldo "admin" ----------
-
-  els.btnToggleAdminFallback.addEventListener('click', () => {
-    const abierto = els.btnToggleAdminFallback.getAttribute('aria-expanded') === 'true';
-    els.btnToggleAdminFallback.setAttribute('aria-expanded', String(!abierto));
-    els.adminFallbackBody.hidden = abierto;
-  });
+  // ---------- Tabla "Perfiles y roles de acceso" ----------
 
   els.btnPerfilesAccesoAbrir.addEventListener('click', () => {
     els.perfilesAccesoOverlay.hidden = false;
@@ -8408,95 +8617,6 @@
     const abierto = els.btnToggleOrdenesCard.getAttribute('aria-expanded') === 'true';
     els.btnToggleOrdenesCard.setAttribute('aria-expanded', String(!abierto));
     els.ordenesToggleBody.hidden = abierto;
-  });
-
-  els.btnToggleAdminFallbackPassword.addEventListener('click', () => {
-    const mostrando = els.adminFallbackPassword.type === 'password';
-    els.adminFallbackPassword.type = mostrando ? 'text' : 'password';
-    els.btnToggleAdminFallbackPassword.setAttribute('aria-pressed', String(mostrando));
-    els.btnToggleAdminFallbackPassword.classList.toggle('is-visible', mostrando);
-  });
-
-  els.adminFallbackPassword.addEventListener('input', () => {
-    actualizarReglasVisuales(els.adminFallbackPassword.value, 'admin-fallback-reglas');
-    els.btnCopiarAdminFallbackPassword.hidden = true;
-  });
-
-  els.btnGenerarPasswordAdminFallback.addEventListener('click', () => {
-    const nueva = generarPasswordAleatoria();
-    els.adminFallbackPassword.value = nueva;
-    els.adminFallbackPassword.type = 'text';
-    els.btnToggleAdminFallbackPassword.setAttribute('aria-pressed', 'true');
-    els.btnToggleAdminFallbackPassword.classList.add('is-visible');
-    actualizarReglasVisuales(nueva, 'admin-fallback-reglas');
-    els.btnCopiarAdminFallbackPassword.hidden = false;
-    els.btnCopiarAdminFallbackPassword.classList.remove('is-copiado');
-  });
-
-  els.btnCopiarAdminFallbackPassword.addEventListener('click', async () => {
-    const valor = els.adminFallbackPassword.value;
-    if (!valor) return;
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(valor);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = valor;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
-      showToast('Contraseña copiada al portapapeles.');
-      els.btnCopiarAdminFallbackPassword.classList.add('is-copiado');
-    } catch (err) {
-      showToast('No se pudo copiar. Selecciona y copia el texto manualmente.', true);
-    }
-  });
-
-  function setGuardandoAdminFallbackLoading(cargando) {
-    els.btnGuardarAdminFallback.disabled = cargando;
-    els.btnGuardarAdminFallbackLabel.textContent = cargando ? 'Guardando…' : 'Guardar contraseña';
-  }
-
-  els.btnGuardarAdminFallback.addEventListener('click', async () => {
-    const authHeader = getAuthHeader();
-    if (!authHeader) {
-      showLogin();
-      return;
-    }
-
-    els.adminFallbackError.textContent = '';
-    const password = els.adminFallbackPassword.value;
-    const reglas = evaluarReglasPassword(password);
-    if (!Object.values(reglas).every(Boolean)) {
-      els.adminFallbackError.textContent = 'La contraseña no cumple con los requisitos de arriba.';
-      return;
-    }
-
-    setGuardandoAdminFallbackLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/admin/config/admin-password`, {
-        method: 'PUT',
-        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        els.adminFallbackError.textContent = data.error || 'No se pudo actualizar la contraseña.';
-        return;
-      }
-      showToast('Contraseña de la cuenta "admin" actualizada. Úsala la próxima vez que inicies sesión con ese usuario.');
-      els.adminFallbackPassword.value = '';
-      els.btnCopiarAdminFallbackPassword.hidden = true;
-      document.querySelectorAll('#admin-fallback-reglas li').forEach((li) => li.classList.remove('is-cumplida'));
-    } catch (err) {
-      els.adminFallbackError.textContent = 'No se pudo conectar con el servidor.';
-    } finally {
-      setGuardandoAdminFallbackLoading(false);
-    }
   });
 
   // ---------- Modal de restablecer contraseña ----------

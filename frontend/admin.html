@@ -161,6 +161,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Proveedores</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-mi-cuenta" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Mi Cuenta</span>
+        </button>
         <!-- "Configuraciones globales" siempre AL FINAL del sidebar (pedido
              explícito del usuario, 2026-08-21) — cualquier vista nueva que
              se agregue va ANTES de este botón, nunca después. -->
@@ -261,6 +265,10 @@
         <button type="button" class="admin-menu-movil-btn" data-vista="proveedores">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Proveedores</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="mi-cuenta">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Mi Cuenta</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="configuraciones">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round" stroke-width="1.3"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
@@ -1794,7 +1802,7 @@
               </span>
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-valor">$0.00</p>
-            <p class="inicio-stat-tendencia">Existencia × costo promedio (D5)</p>
+            <p class="inicio-stat-tendencia" data-tooltip="Cuánto dinero tienes invertido ahora mismo en todo lo que guardas en tu inventario. Se calcula así: por cada producto, cuánto tienes × lo que en promedio te ha costado comprarlo (si a veces lo compras más caro y a veces más barato, se saca un promedio) — y luego se suma todo.">Existencia × costo promedio (D5)</p>
             <p class="inv-estado-kpi-extra"><span>Costo prom: <strong id="inv-kpi-costo-prom">$0.00</strong></span><span>Total: <strong id="inv-kpi-piezas-total">0 pz</strong></span></p>
           </div>
           <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
@@ -1805,7 +1813,7 @@
               </span>
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-activos">0</p>
-            <p class="inicio-stat-tendencia">Catálogo (§0.3)</p>
+            <p class="inicio-stat-tendencia" data-tooltip="Cuántos productos tienes dados de alta y activos en tu catálogo ahorita — no cuenta los que archivaste ni los servicios (esos se cuentan aparte).">Catálogo (§0.3)</p>
           </div>
           <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
             <div class="inicio-stat-header">
@@ -1815,7 +1823,7 @@
               </span>
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-unidades">0</p>
-            <p class="inicio-stat-tendencia">En ALM-1 (D2)</p>
+            <p class="inicio-stat-tendencia" data-tooltip="Piezas que tienes disponibles para vender ahora mismo. Hoy el sistema guarda todo en un solo almacén interno (le decimos 'ALM-1') — cuando crezcas y manejes varias bodegas o sucursales, este número podrá separarse por cada una.">En ALM-1 (D2)</p>
           </div>
         </div>
 
@@ -2001,75 +2009,6 @@
       </div>
 
       <div id="vista-usuarios" hidden>
-        <!-- "Habilitar Ventas" e "Inventario activo" se movieron a
-             Configuraciones globales — solo faltaba agregar sus ids a la
-             lista de tarjetas permitidas del perfil Administrador ahí
-             (ver aplicarRestriccionesPerfil() en admin.js); Fiscal sigue
-             sin verlas, igual que antes. Con eso, "Cuenta de respaldo
-             admin" queda sola aquí — ya no hace falta la cuadrícula de 2
-             columnas que existía para emparejarla con "Ventas". -->
-        <!-- Cuenta de respaldo "admin" -->
-        <section class="admin-config-card" id="admin-fallback-card">
-          <button type="button" class="admin-config-toggle" id="btn-toggle-admin-fallback" aria-expanded="false" aria-controls="admin-fallback-body">
-            <span class="admin-config-toggle-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 3 4 6v6c0 4.5 3.2 7.9 8 9 4.8-1.1 8-4.5 8-9V6l-8-3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                <path d="m9.5 12 2 2 3.5-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Cuenta de respaldo "admin"
-            </span>
-            <svg class="admin-config-chevron" id="admin-fallback-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-
-          <div class="admin-config-body" id="admin-fallback-body" hidden>
-            <p class="panel-subtitle admin-config-subtitle">
-              El usuario <strong>"admin"</strong> es una cuenta de respaldo independiente de cualquier otro administrador: sirve para no quedarte fuera del panel si olvidas una contraseña o pierdes acceso a la configuración del servidor. Viene con la contraseña <strong>"admin"</strong> por defecto — cámbiala aquí cuanto antes. Esta regla es exclusiva de esta cuenta: los demás administradores o fiscales que crees abajo no tienen este respaldo.
-            </p>
-
-            <button type="button" class="btn btn-secondary btn-generar-password" id="btn-generar-password-admin-fallback">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M4 4v5h5M20 20v-5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M4.5 15a8 8 0 0 0 14.5 3.5M19.5 9A8 8 0 0 0 5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Generar contraseña automática
-            </button>
-
-            <div class="field">
-              <label for="admin-fallback-password">Nueva contraseña para "admin"</label>
-              <div class="password-field password-field-con-copiar">
-                <input type="password" id="admin-fallback-password" autocomplete="new-password" />
-                <button type="button" class="btn-toggle-pass" id="btn-toggle-admin-fallback-password" aria-label="Mostrar contraseña" aria-pressed="false">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
-                  </svg>
-                </button>
-                <button type="button" class="btn-copiar-pass" id="btn-copiar-admin-fallback-password" aria-label="Copiar contraseña al portapapeles" hidden>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/>
-                    <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.7"/>
-                  </svg>
-                </button>
-              </div>
-              <ul class="password-reglas" id="admin-fallback-reglas">
-                <li data-regla="longitud">Al menos 8 caracteres</li>
-                <li data-regla="numero">Al menos un número</li>
-                <li data-regla="minuscula">Al menos una minúscula</li>
-                <li data-regla="mayuscula">Al menos una mayúscula</li>
-              </ul>
-              <p class="field-error" id="admin-fallback-error" role="alert"></p>
-            </div>
-
-            <div class="btn-row admin-config-actions">
-              <button type="button" class="btn btn-primary" id="btn-guardar-admin-fallback">
-                <span id="btn-guardar-admin-fallback-label">Guardar contraseña</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
         <div class="admin-toolbar">
           <div class="admin-toolbar-title">
             <h1>Usuarios</h1>
@@ -2079,8 +2018,10 @@
             <!-- Perfiles y roles de acceso — antes una tarjeta acordeón de
                  ancho completo (se veía asimétrica junto a las tarjetas
                  angostas de arriba); ahora un botón junto al conteo que
-                 abre la misma tabla en una ventana emergente, solo
-                 visible para el usuario "admin". -->
+                 abre la misma tabla en una ventana emergente, visible
+                 para "administrador" y "super" (pedido explícito del
+                 usuario — ya no depende de la cuenta de respaldo
+                 "admin", eliminada). -->
             <button type="button" class="btn-icon" id="btn-perfiles-acceso-abrir" aria-label="Ver perfiles y roles de acceso" data-tooltip="Perfiles y roles de acceso">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.6"/>
@@ -3229,7 +3170,7 @@
                 </span>
               </div>
               <p class="inicio-stat-numero" id="inv-estado-serv-kpi-total">0</p>
-              <p class="inicio-stat-tendencia">Catálogo (§0.3)</p>
+              <p class="inicio-stat-tendencia" data-tooltip="Cuántos servicios tienes dados de alta y activos en tu catálogo ahorita — no cuenta los archivados ni los productos físicos (esos se cuentan aparte).">Catálogo (§0.3)</p>
             </div>
             <div class="inicio-stat-card">
               <div class="inicio-stat-header">
@@ -3295,13 +3236,198 @@
           <p class="en-construccion-sub">Pronto vas a poder darlos de alta y gestionarlos aquí<span class="en-construccion-puntos"><span></span><span></span><span></span></span></p>
         </div>
       </div>
+
+      <!-- ========== Mi Cuenta ========== -->
+      <div id="vista-mi-cuenta" hidden>
+        <div class="admin-toolbar">
+          <h1>Mi Cuenta</h1>
+        </div>
+        <p class="panel-subtitle">Tus datos de acceso y, si administras la empresa, su identidad fiscal, plan y la URL del portal.</p>
+
+        <!-- Banner de cuenta raíz — visual, ligado al punto 272 (Clarvo Site
+             Market), todavía sin construir. Nunca afirma protección activa;
+             el tag "Próximamente" (mismo componente ya usado en Resumen
+             financiero para "Conciliación de pagos") deja claro que es
+             vista previa. -->
+        <div class="micuenta-banner-market" id="micuenta-banner-market" hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15v2M6 20h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zM8 10V7a4 4 0 018 0v3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div>
+            <p class="micuenta-banner-titulo">Cuenta administrador raíz de este tenant <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Clarvo Site Market (marketplace de addons/SSO entre productos Clarvo, punto 272) todavía no está construido — cuando exista, aquí verás el estado real de vínculo y protección de esta cuenta.">Próximamente</span></p>
+            <p class="micuenta-banner-texto">Cuando Clarvo Site Market esté disponible, esta cuenta podrá vincularse ahí para gestionar licencias y facturación central desde un solo lugar.</p>
+          </div>
+        </div>
+
+        <div class="micuenta-grid">
+          <section class="micuenta-card">
+            <h2 class="micuenta-card-titulo">Mis datos</h2>
+            <div id="micuenta-datos-form">
+              <div class="field">
+                <label for="micuenta-nombre">Nombre completo</label>
+                <input type="text" id="micuenta-nombre" maxlength="200" autocomplete="name" />
+                <span class="field-error" id="error-micuenta-nombre"></span>
+              </div>
+              <div class="field">
+                <label for="micuenta-telefono">Teléfono</label>
+                <input type="tel" id="micuenta-telefono" maxlength="20" autocomplete="tel" />
+                <span class="field-error" id="error-micuenta-telefono"></span>
+              </div>
+              <div class="field">
+                <label for="micuenta-email">Correo electrónico</label>
+                <input type="email" id="micuenta-email" maxlength="200" autocomplete="email" />
+                <span class="field-error" id="error-micuenta-email"></span>
+              </div>
+              <p class="field-hint">Usuario de acceso: <strong id="micuenta-usuario-label">—</strong> · Perfil: <span id="micuenta-perfil-label">—</span></p>
+              <button type="button" class="btn btn-primary" id="btn-guardar-micuenta">Guardar datos</button>
+            </div>
+            <p class="field-hint" id="micuenta-sin-datos-nota" hidden>Esta cuenta no tiene datos de perfil editables aquí — su acceso se gestiona por otro mecanismo (variable de entorno, credencial API o sucursal compartida).</p>
+          </section>
+
+          <section class="micuenta-card" id="micuenta-password-card">
+            <h2 class="micuenta-card-titulo">Cambiar mi contraseña</h2>
+            <div class="field">
+              <label for="micuenta-password-actual">Contraseña actual</label>
+              <input type="password" id="micuenta-password-actual" autocomplete="current-password" />
+              <span class="field-error" id="error-micuenta-password-actual"></span>
+            </div>
+            <div class="field">
+              <label for="micuenta-password-nueva">Nueva contraseña</label>
+              <input type="password" id="micuenta-password-nueva" autocomplete="new-password" />
+              <span class="field-error" id="error-micuenta-password-nueva"></span>
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-cambiar-micuenta-password">Cambiar contraseña</button>
+          </section>
+
+          <!-- Seguridad / Doble factor — visual, ligado al punto 274
+               (2FA por correo, 10 preguntas de diseño sin responder
+               todavía). Toggle deshabilitado y APAGADO a propósito: nunca
+               afirma "Activado" sin que sea real. -->
+          <section class="micuenta-card" id="micuenta-2fa-card" hidden>
+            <h2 class="micuenta-card-titulo">Seguridad y doble factor (2FA) <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Verificación en dos pasos por correo — punto 274, sin construir todavía.">Próximamente</span></h2>
+            <div class="micuenta-2fa-fila">
+              <div>
+                <p class="micuenta-2fa-texto"><strong>Doble factor por correo</strong></p>
+                <p class="field-hint" style="margin:2px 0 0">Cuando esté disponible, podrás exigir un código de un solo uso enviado a tu correo al entrar desde un equipo nuevo.</p>
+              </div>
+              <label class="control-switch" aria-disabled="true">
+                <input type="checkbox" disabled />
+                <span class="control-switch-track"></span>
+              </label>
+            </div>
+          </section>
+
+          <!-- Bitácora de sesiones — solo la fila real (esta sesión) trae
+               dato real; el resto (IP/dispositivo/revocar) no existe
+               todavía (sin tracking de sesión con IP en ningún perfil). -->
+          <section class="micuenta-card" id="micuenta-sesiones-card" hidden>
+            <h2 class="micuenta-card-titulo">Sesiones activas <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="El registro de dispositivo/IP por sesión está planeado, no implementado — hoy solo se puede confirmar la sesión con la que entraste.">Próximamente</span></h2>
+            <div class="micuenta-sesion-fila">
+              <div>
+                <p class="micuenta-2fa-texto"><strong>Esta sesión</strong></p>
+                <p class="field-hint" style="margin:2px 0 0">Usuario <strong id="micuenta-sesion-usuario">—</strong> · Perfil <span id="micuenta-sesion-perfil">—</span></p>
+              </div>
+              <span class="resumen-fin-header-tag">Activa ahora</span>
+            </div>
+            <button type="button" class="btn btn-secondary" disabled data-tooltip="Disponible cuando exista bitácora de sesiones por dispositivo.">Cerrar todas las demás</button>
+          </section>
+
+          <!-- Preferencias de notificaciones críticas — decorativo, sin
+               persistencia todavía (ninguna de las 2 alertas existe:
+               conteo de intentos fallidos de login, recordatorio de
+               renovación de suscripción). -->
+          <section class="micuenta-card" id="micuenta-notif-card" hidden>
+            <h2 class="micuenta-card-titulo">Notificaciones críticas <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Ninguna de estas 2 alertas existe todavía — se muestran para que veas qué se planea, sin persistencia real.">Próximamente</span></h2>
+            <label class="micuenta-check-fila">
+              <input type="checkbox" disabled />
+              <span>Avisarme de intentos de acceso fallidos repetidos</span>
+            </label>
+            <label class="micuenta-check-fila">
+              <input type="checkbox" disabled />
+              <span>Recordatorio de renovación de suscripción (30 y 7 días antes)</span>
+            </label>
+          </section>
+
+          <section class="micuenta-card micuenta-card-ancha" id="micuenta-empresa-card" hidden>
+            <h2 class="micuenta-card-titulo">Identidad de la empresa</h2>
+            <div class="micuenta-empresa-grid">
+              <div>
+                <span class="micuenta-empresa-label">Razón social</span>
+                <p class="micuenta-empresa-valor" id="micuenta-razon-social">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label">RFC</span>
+                <p class="micuenta-empresa-valor" id="micuenta-rfc">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label">Régimen fiscal</span>
+                <p class="micuenta-empresa-valor" id="micuenta-regimen">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label">Clave SAT</span>
+                <p class="micuenta-empresa-valor" id="micuenta-clave-sat">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label">Zona horaria</span>
+                <p class="micuenta-empresa-valor" id="micuenta-zona-horaria">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label">Cuentas de panel (operadores)</span>
+                <p class="micuenta-empresa-valor" id="micuenta-total-operadores">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label">Portal de clientes <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Apagar/prender el portal de clientes es el pendiente 269 (gestor de facturación desactivable) — sin construir.">Próximamente</span></span>
+                <label class="control-switch" style="margin-top:4px" aria-disabled="true">
+                  <input type="checkbox" checked disabled />
+                  <span class="control-switch-track"></span>
+                </label>
+              </div>
+            </div>
+            <p class="field-hint">Estos datos se editan en <button type="button" class="micuenta-link-inline" id="btn-micuenta-ir-configuraciones">Configuraciones globales</button>.</p>
+
+            <div class="micuenta-url-bar" id="micuenta-url-bar" hidden>
+              <div class="micuenta-url-bar-info">
+                <span class="micuenta-empresa-label">URL de acceso del tenant</span>
+                <a id="micuenta-url-tenant" href="#" target="_blank" rel="noopener"></a>
+              </div>
+              <button type="button" class="btn btn-secondary" id="btn-copiar-url-micuenta">Copiar enlace</button>
+            </div>
+          </section>
+
+          <!-- Plan de suscripción — visual, ligado al punto 272 Fase 2
+               (Stripe, explícitamente diferido). Sin cifras inventadas. -->
+          <section class="micuenta-card micuenta-card-ancha micuenta-card-navy" id="micuenta-suscripcion-card" hidden>
+            <h2 class="micuenta-card-titulo micuenta-card-titulo-navy">Plan de suscripción <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Cobro por suscripción vía Stripe — punto 272 Fase 2, diferido a propósito.">Próximamente</span></h2>
+            <p class="micuenta-suscripcion-texto">Cuando el cobro esté activo, aquí verás tu plan, fecha de renovación, método de cobro y consumo de recursos (almacenamiento, cuentas de panel) de este tenant.</p>
+          </section>
+
+          <!-- Facturación de Clarvo (autofactura de ADDV) — visual, ligado
+               al punto 272 Fase 2 (confirmado con el usuario: ADDV SÍ se
+               autofactura, pero depende de Stripe, todavía sin construir). -->
+          <section class="micuenta-card micuenta-card-ancha" id="micuenta-facturacion-card" hidden>
+            <h2 class="micuenta-card-titulo">Facturación de Clarvo <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="ADDV se autofacturará cada cobro de suscripción (confirmado) — depende de Stripe, punto 272 Fase 2, todavía sin construir.">Próximamente</span></h2>
+            <div class="admin-empty admin-empty-rica">
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p class="admin-empty-titulo">Sin comprobantes todavía</p>
+              <p>Se generarán aquí cuando el cobro de la suscripción esté activo.</p>
+            </div>
+          </section>
+        </div>
+
+        <!-- Footer Clarvo Site Market — visual, ligado al punto 272. -->
+        <div class="micuenta-footer-market" id="micuenta-footer-market" hidden>
+          <div>
+            <p class="micuenta-footer-market-marca">Clarvo Site Market <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Hub de addons/SSO entre productos Clarvo — punto 272, todavía sin construir.">Próximamente</span></p>
+            <p class="micuenta-footer-market-texto">Cuando esté disponible, desde aquí vas a poder explorar y activar módulos adicionales para este tenant.</p>
+          </div>
+          <button type="button" class="btn btn-secondary micuenta-footer-market-btn" disabled data-tooltip="Disponible cuando exista Clarvo Site Market.">Abrir Clarvo Market</button>
+        </div>
+      </div>
       </main>
     </div>
   </div>
 
   <!-- Modal de confirmación genérico (eliminar / eliminar permanentemente) -->
   <!-- Crear usuario ============================================================================ -->
-  <!-- Perfiles y roles de acceso — solo visible para el usuario "admin" -->
+  <!-- Perfiles y roles de acceso — visible para "administrador" y "super" -->
   <div class="modal-overlay" id="perfiles-acceso-overlay" hidden>
     <div class="modal gastos-modal gastos-detalle-modal perfiles-acceso-modal-ancho" role="dialog" aria-modal="true" aria-labelledby="perfiles-acceso-title">
       <div class="gastos-modal-header">
@@ -3310,7 +3436,7 @@
       </div>
 
       <p class="panel-subtitle admin-config-subtitle">
-        Referencia de qué puede ver cada perfil en este panel — solo tú, como usuario <strong>"admin"</strong>, puedes ver esta tabla. No es un formulario: los permisos no se editan aquí, están definidos en el código del panel.
+        Referencia de qué puede ver cada perfil en este panel. No es un formulario: los permisos no se editan aquí, están definidos en el código del panel.
       </p>
       <p class="panel-subtitle admin-config-subtitle">
         "Ventas" e "Inventarios" además dependen de sus interruptores globales propios (Configuraciones globales) — si están apagados, no se muestran a nadie sin importar el perfil.
@@ -3336,27 +3462,6 @@
             </tr>
           </thead>
           <tbody>
-            <tr class="fila-perfil-super">
-              <td>
-                <span class="perfil-badge perfil-administrador">Super</span>
-                <span class="perfil-descripcion">Cuenta "admin" y ADMIN_USERS</span>
-              </td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
-              <td class="celda-acceso-si">
-                <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
-                <span class="detalle-acceso">Todas las tarjetas</span>
-              </td>
-            </tr>
             <tr>
               <td>
                 <span class="perfil-badge perfil-administrador">Administrador</span>

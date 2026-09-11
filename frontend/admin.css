@@ -4311,7 +4311,6 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .tabla-perfiles tbody tr:last-child td { border-bottom: none; }
 .tabla-perfiles tbody tr:nth-child(even) { background: rgba(33, 38, 31, 0.015); }
-.fila-perfil-super { background: var(--color-accent-soft) !important; }
 
 .perfil-descripcion {
   display: block;
@@ -7347,4 +7346,176 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 
 @media (max-width: 560px) {
   .filtros-chips { flex-basis: auto; }
+}
+
+/* ---------- Mi Cuenta ---------- */
+.micuenta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+.micuenta-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+}
+.micuenta-card-ancha { grid-column: 1 / -1; }
+.micuenta-card-titulo {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.micuenta-empresa-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.micuenta-empresa-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+}
+.micuenta-empresa-valor {
+  margin: 3px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.micuenta-link-inline {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.micuenta-link-inline:hover { color: var(--color-accent-dark); }
+.micuenta-url-bar {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+.micuenta-url-bar-info a {
+  display: block;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+}
+@media (max-width: 900px) {
+  .micuenta-grid { grid-template-columns: 1fr; }
+  .micuenta-empresa-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .micuenta-empresa-grid { grid-template-columns: 1fr; }
+}
+
+/* Piezas visuales de Mi Cuenta ligadas a funcionalidad todavía sin
+   construir (2FA, sesiones, notificaciones, Clarvo Site Market/
+   suscripción) — nunca afirman un estado activo que no existe; siempre
+   llevan el tag "Próximamente" (`.resumen-fin-header-tag-pendiente`,
+   mismo componente ya usado en Resumen financiero) y sus controles
+   quedan deshabilitados. */
+.control-switch[aria-disabled="true"] { cursor: not-allowed; opacity: 0.55; }
+.control-switch[aria-disabled="true"] .control-switch-track { cursor: not-allowed; }
+#vista-mi-cuenta .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+#vista-mi-cuenta .btn:disabled:hover { background: var(--color-surface); border-color: var(--color-border); }
+
+.micuenta-banner-market {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: var(--color-warn-soft);
+  border: 1px solid var(--color-warn);
+  border-radius: var(--radius-md);
+  color: var(--color-warn);
+}
+.micuenta-banner-market svg { flex-shrink: 0; margin-top: 2px; }
+.micuenta-banner-titulo { margin: 0 0 4px; font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.micuenta-banner-texto { margin: 0; font-size: 12.5px; color: var(--color-ink-soft); }
+
+.micuenta-2fa-fila,
+.micuenta-sesion-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.micuenta-2fa-texto { margin: 0; font-size: 13.5px; color: var(--color-ink); }
+
+.micuenta-check-fila {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink);
+  margin-bottom: 10px;
+  cursor: not-allowed;
+}
+.micuenta-check-fila input { margin-top: 2px; }
+
+.micuenta-card-navy {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.micuenta-card-titulo-navy { color: #fff; }
+.micuenta-suscripcion-texto { margin: 0; font-size: 13px; color: rgba(255, 255, 255, 0.85); }
+.micuenta-card-navy .resumen-fin-header-tag-pendiente {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.micuenta-footer-market {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 22px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-dark));
+  color: #fff;
+}
+.micuenta-footer-market-marca {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.micuenta-footer-market-texto { margin: 0; font-size: 13px; color: rgba(255, 255, 255, 0.8); max-width: 52ch; }
+.micuenta-footer-market .resumen-fin-header-tag-pendiente {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+.micuenta-footer-market-btn:disabled {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+  cursor: not-allowed;
 }

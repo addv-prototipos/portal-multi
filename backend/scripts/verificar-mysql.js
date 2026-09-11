@@ -1133,13 +1133,14 @@ async function main() {
       '"fiscal" dentro de Configuraciones globales solo ve Campos obligatorios y Configuraciones fiscales'
     );
 
-    // "Cuenta de respaldo admin" y la tabla de "Perfiles y roles de
-    // acceso" son exclusivas del usuario "admin" EXACTO — ni siquiera de
-    // otras cuentas "super" que hayan entrado por ADMIN_USERS con otro
-    // nombre.
-    const esVisibleParaAdminFallback = (usuario) => usuario === 'admin';
-    log(esVisibleParaAdminFallback('admin') === true, 'El usuario "admin" exacto sí ve "Cuenta de respaldo admin" y la tabla de perfiles');
-    log(esVisibleParaAdminFallback('otro_super_por_env') === false, 'Una cuenta "super" distinta de "admin" (ej. por ADMIN_USERS) NO ve esas dos secciones');
+    // La tabla de "Perfiles y roles de acceso" es visible para
+    // "administrador" y "super" (antes dependía de la cuenta de respaldo
+    // "admin", eliminada) — mismo criterio que aplicarRestriccionesPerfil()
+    // en admin.js.
+    const esVisiblePerfilesAcceso = (perfil) => perfil === 'administrador' || perfil === 'super';
+    log(esVisiblePerfilesAcceso('administrador') === true, 'El perfil "administrador" sí ve la tabla de "Perfiles y roles de acceso"');
+    log(esVisiblePerfilesAcceso('super') === true, 'El perfil "super" (cuentas de ADMIN_USERS, sin restricciones) también ve esa tabla');
+    log(esVisiblePerfilesAcceso('fiscal') === false, 'El perfil "fiscal" NO ve esa tabla');
   } catch (err) {
     log(false, 'Restricción de acceso por perfil (lógica de vistas/tarjetas)', err.message);
   }
@@ -1368,32 +1369,6 @@ async function main() {
     );
   } catch (err) {
     log(false, 'Enlace al portal en la invitación (auto-detección de URL)', err.message);
-  }
-
-  // ---------- Cuenta de respaldo "admin" ----------
-  // Verifica exactamente la misma lógica que usa el mecanismo #2 de
-  // requireAdminAuth() en auth.js. No se toca la fila real en la base de
-  // datos (no se hace ningún UPDATE/INSERT aquí) — ensureSchema() ya la
-  // siembra con "admin" si nunca existió, así que esta prueba solo LEE.
-  try {
-    const [filas] = await pool.query(
-      "SELECT valor FROM configuracion WHERE clave = 'admin_fallback_password_hash'"
-    );
-    log(filas.length === 1, 'ensureSchema() siembra la cuenta de respaldo "admin" en la base de datos');
-    if (filas.length === 1) {
-      // No se puede asumir que la contraseña siga siendo "admin" (el
-      // administrador real de esta instalación pudo haberla cambiado ya),
-      // así que solo se confirma que el hash guardado tiene el formato
-      // esperado y que verifyPassword() lo puede procesar sin errores.
-      const formatoValido = typeof filas[0].valor === 'string' && filas[0].valor.includes(':');
-      log(formatoValido, 'El hash de la cuenta de respaldo "admin" tiene el formato esperado (salt:hash)');
-      log(
-        typeof verifyPassword('cualquier-cosa-claramente-incorrecta', filas[0].valor) === 'boolean',
-        'verifyPassword() puede procesar el hash guardado sin lanzar errores'
-      );
-    }
-  } catch (err) {
-    log(false, 'Cuenta de respaldo "admin"', err.message);
   }
 
   // ---------- Tabla tickets (solicitudes de facturación de compras) ----------
