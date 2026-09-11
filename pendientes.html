@@ -310,14 +310,14 @@
           <tr data-app="admin">
             <td class="col-punto">287</td>
             <td class="col-item">Impresión térmica — rollo en blanco</td>
-            <td class="col-detalle">Bug real corregido por código (medición del alto del ticket usaba ancho/tipografía de pantalla en vez de los 58mm reales — ver <code>PROJECT_STATE.md</code> punto 287). Sin impresora física ni navegador con hardware en esta sesión: falta que el usuario lo pruebe contra su POS-58 real. Si sigue quedando blanco, revisar el largo de papel fijo en el driver del sistema operativo.</td>
-            <td class="col-estado"><span class="pill pill-gray">Falta probar en impresora real</span></td>
+            <td class="col-detalle">Bug real corregido por código (medición del alto del ticket usaba ancho/tipografía de pantalla en vez de los 58mm reales — ver <code>PROJECT_STATE.md</code> punto 287). <strong>Confirmado por el usuario contra su POS-58 física (2026-09-11): imprime bien.</strong></td>
+            <td class="col-estado"><span class="pill pill-green">Confirmado en real</span></td>
           </tr>
           <tr data-app="admin">
             <td class="col-punto">288</td>
             <td class="col-item">3 bugs reales + logo/footer en ticket</td>
-            <td class="col-detalle">Etiqueta de código de barras imprimía el ticket viejo (2 bloques <code>@media print</code> desincronizados, corregido), logo CLARVO + "Visítanos https://clarvo.mx" agregados al ticket de venta, switch "Mostrar Auditoría" no aparecía (<code>CONFIG_SECCIONES</code> incompleto, corregido). Ver <code>PROJECT_STATE.md</code> punto 288. Validado por HTTP, falta confirmación visual/impresión real.</td>
-            <td class="col-estado"><span class="pill pill-gray">Falta confirmar en real</span></td>
+            <td class="col-detalle">Etiqueta de código de barras imprimía el ticket viejo (2 bloques <code>@media print</code> desincronizados, corregido), logo CLARVO (contorno blanco, <code>logoImpresora.png</code>) + "Visítanos https://clarvo.mx" agregados al ticket de venta — <strong>confirmado por el usuario en impresora real (2026-09-11)</strong>, switch "Mostrar Auditoría" no aparecía (<code>CONFIG_SECCIONES</code> incompleto, corregido). Ver <code>PROJECT_STATE.md</code> punto 288. Falta aún confirmación en navegador real de la etiqueta de Inventarios y del switch de Auditoría (no ejercitados por la prueba de impresión del ticket).</td>
+            <td class="col-estado"><span class="pill pill-amber">Ticket confirmado; falta etiqueta/auditoría</span></td>
           </tr>
         </tbody>
       </table>

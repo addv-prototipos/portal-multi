@@ -3525,9 +3525,13 @@ Corte/Estado del inventario. (3) El switch "Mostrar Auditoría" (punto
 286) no aparecía al abrir esa sección en Configuraciones globales —
 `CONFIG_SECCIONES` en `admin.js` se quedó con 6 entradas al agregar esa
 tarjeta, faltaba la 7ª; sin ella `seleccionarSeccionConfig()` retornaba
-sin hacer nada. Cero backend. Jest 946/946 sin cambios. **Sin
-herramienta de navegador esta sesión** — falta confirmación visual/
-impresión real del usuario. Ver PROJECT_STATE.md punto 288.
+sin hacer nada. Cero backend. Jest 946/946 sin cambios. Logo cambiado
+después a `logoImpresora.png` (contorno blanco, mejor legibilidad
+térmica) a pedido del usuario. **Confirmado por el usuario contra su
+POS-58 física ("ya lo probé en la impresora, funciona bien")**: el
+ticket (incluido el punto 287) imprime correcto. Sigue sin confirmar la
+etiqueta de Inventarios y el switch de Auditoría (no los ejercita
+imprimir un ticket). Ver PROJECT_STATE.md punto 288.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
