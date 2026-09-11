@@ -3189,7 +3189,43 @@ confirmados en lo servido, `costo_promedio_ponderado` real contra el
 tenant con datos de demo (1831.34 = 957790/523, sin movimiento=0 →
 "Catálogo con alta rotación", mermas=0 → "Sin mermas registradas este
 mes"). **Sin herramienta de navegador esta sesión** (sin extensión
-conectada) — falta confirmación visual del usuario con clics reales. Sin
+conectada) — falta confirmación visual del usuario con clics reales.
+**Commiteado y pusheado** (`f588d42` → `fact/master`).
+
+**Punto 280 (2026-09-10, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: 5 bugs reales de responsivo/móvil reportados por el usuario con
+capturas de su celular real ("todo se encima" + cámara del escáner no
+abre). Causa raíz real de "todo se encima": `aplicarLayoutDashboard()`
+(Modo dashboard, puntos 119/260/263) aplicaba el ancho/alto guardado de
+escritorio como **estilo en línea sin condición de viewport** — un
+inline style le gana a cualquier `@media` de `admin.css`, así que el
+`grid-column: span 12` de móvil nunca se aplicaba mientras hubiera un
+layout guardado. Fix: guard `window.innerWidth <= 900` limpia
+ancho/alto en móvil (conserva el orden), el `resize` ya existente
+(punto 263) ahora también reaplica esto. Se limpió además el parche
+manual que el usuario ya había guardado a mano intentando arreglarlo
+(`DELETE /api/admin/preferencias-dashboard/resumen-financiero`, a
+pedido explícito — "que sea la configuración por defecto"). 2 bugs más
+del mismo patrón "lista duplicada sin actualizar": el restore de F5
+(`init()`) tenía su propia copia hardcodeada de "vista → botón" sin
+`proveedores`/`configuraciones` — refrescar en Proveedores caía en
+silencio a Inicio ("ya la teníamos pero se perdió"); extraído
+`mapaNavPorVista()` como única fuente de verdad compartida con
+`aplicarRestriccionesPerfil()`. `mostrarMenuMovil()` tampoco ocultaba
+Cuentas por cobrar/Inventarios (mismo patrón). Features nuevas: back
+físico del celular = mismo efecto que tocar "Menú" (técnica
+`history.pushState`+`popstate`, solo en breakpoint móvil); en "Inicio"
+(Fiscal), en móvil la tarjeta "Solicitudes por estatus" (dona) va
+primero (`order:-1`, solo ≤900px). Cámara del escáner: la captura del
+usuario mostraba el sitio por `http://192.168.x.x:8088` — HTTP plano —
+`navigator.mediaDevices` no existe fuera de un contexto seguro
+(HTTPS/localhost), no hay ningún permiso que la app pueda pedir porque
+el navegador ni expone la API; mensaje de error corregido para explicar
+la causa real (antes genérico) en vez de prometer un permiso
+inexistente. Jest backend 912/912 (sin cambios de backend). Validado
+por HTTP tras rebuild `--no-cache`+`--force-recreate` frontend. **Sin
+herramienta de navegador ni acceso al celular real del usuario esta
+sesión** — falta su confirmación en el dispositivo real. Sin
 commit/push todavía.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real

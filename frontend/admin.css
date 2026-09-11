@@ -3232,6 +3232,11 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 @media (max-width: 900px) {
   .inicio-main-grid { grid-template-columns: 1fr; }
+  /* Pedido explícito del usuario: en móvil "Solicitudes por estatus"
+     (la dona) va primero, arriba de "Solicitudes recientes" — en
+     escritorio el orden del DOM no cambia (grid de 2 columnas, sin
+     necesidad de order). */
+  .inicio-donut-card { order: -1; }
 }
 
 .inicio-recientes-card,

@@ -206,7 +206,17 @@
     document.addEventListener('keydown', onKeydown);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      mostrarError('Este navegador no puede usar la cámara. Escribe el código a mano o usa un lector físico.');
+      // La API de cámara (getUserMedia) no existe en absoluto fuera de un
+      // "contexto seguro" (HTTPS o localhost) — no es un permiso que el
+      // usuario pueda conceder desde el navegador, el propio navegador
+      // ni siquiera expone la función. Detectado con datos reales
+      // (reporte del usuario: acceso por http://192.168.x.x:8088 desde
+      // el celular mostraba este mismo mensaje genérico, sin explicar la
+      // causa real).
+      var esContextoInseguro = typeof window.isSecureContext === 'boolean' && !window.isSecureContext;
+      mostrarError(esContextoInseguro
+        ? 'La cámara requiere una conexión segura (HTTPS) — este sitio se abrió por HTTP, así que el navegador la bloquea de raíz, sin mostrar ningún permiso que activar. Escribe el código a mano, usa un lector físico, o entra al sitio por HTTPS.'
+        : 'Este navegador no puede usar la cámara. Escribe el código a mano o usa un lector físico.');
       return;
     }
 

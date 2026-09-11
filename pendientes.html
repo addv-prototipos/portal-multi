@@ -477,6 +477,23 @@
   </section>
 
   <section>
+    <h2>Móvil / Responsivo <span class="count">1 pendiente</span></h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr data-app="admin">
+            <td class="col-punto">280</td>
+            <td class="col-item">HTTPS para que la cámara del escáner funcione en celular real</td>
+            <td class="col-detalle">Reportado por el usuario con captura real: el sitio se abre por <code>http://192.168.x.x:8088</code> (HTTP plano, IP de LAN) — <code>navigator.mediaDevices</code> no existe en absoluto fuera de un contexto seguro (HTTPS o <code>localhost</code>), así que la cámara del escáner de código de barras (punto 159) nunca podrá abrir así, no es un permiso que la app pueda solicitar. El mensaje de error ya se corrigió para explicar la causa real. Falta decidir cómo dar HTTPS al sitio en este entorno de prueba: (A) certificado autofirmado + <code>nginx</code> en 443 + confiar el certificado en el celular, o (B) solo para pruebas, activar el flag de Chrome "Insecure origins treated as secure" en el celular con la URL exacta del LAN (sin cambios de infraestructura). En producción real (dominio propio) esto no aplicaría — un dominio real con Let's Encrypt ya sirve por HTTPS de por sí.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta elegir A/B</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
     <h2>Mensajería global (/control) <span class="count">1 pendiente</span></h2>
     <div class="table-scroll">
       <table>

@@ -1792,15 +1792,16 @@
     },
   };
 
-  function aplicarRestriccionesPerfil() {
-    const restriccion = RESTRICCIONES_PERFIL[perfilActual];
-    // Sin entrada en el mapa (perfil "super", o cualquier valor que no
-    // se reconozca) equivale a "sin restricciones" — a propósito, para
-    // que un perfil nuevo que se agregue en el futuro sin actualizar
-    // este mapa no quede accidentalmente bloqueado de TODO el panel.
-    const sinRestricciones = !restriccion;
-
-    const navPorVista = {
+  // Única fuente de verdad "nombre de vista -> botón del sidebar" —
+  // antes vivía duplicada dentro de aplicarRestriccionesPerfil() Y en el
+  // restore de F5 de init() más abajo; la segunda copia se quedó
+  // desactualizada (le faltaban "configuraciones"/"proveedores") y por
+  // eso refrescar en Proveedores mandaba de vuelta a Inicio en silencio
+  // — bug real reportado por el usuario. Con un solo mapa, una vista
+  // nueva que se agregue aquí queda cubierta en ambos lugares sin nada
+  // más que tocar.
+  function mapaNavPorVista() {
+    return {
       inicio: els.btnVistaInicio,
       constancias: els.btnVistaConstancias,
       tickets: els.btnVistaTickets,
@@ -1814,6 +1815,17 @@
       'lectura-reportes': els.btnVistaLecturaReportes,
       proveedores: els.btnVistaProveedores,
     };
+  }
+
+  function aplicarRestriccionesPerfil() {
+    const restriccion = RESTRICCIONES_PERFIL[perfilActual];
+    // Sin entrada en el mapa (perfil "super", o cualquier valor que no
+    // se reconozca) equivale a "sin restricciones" — a propósito, para
+    // que un perfil nuevo que se agregue en el futuro sin actualizar
+    // este mapa no quede accidentalmente bloqueado de TODO el panel.
+    const sinRestricciones = !restriccion;
+
+    const navPorVista = mapaNavPorVista();
     Object.entries(navPorVista).forEach(([vista, boton]) => {
       const permitidaPorPerfil = sinRestricciones || restriccion.vistasPermitidas.includes(vista);
       // D8/§0.6: "Inventarios" además depende del switch por tenant —
@@ -1873,6 +1885,7 @@
     els.loginScreen.hidden = true;
     els.dashboard.hidden = false;
     els.adminUserLabel.textContent = `Sesión: ${username}`;
+    anclarHistorialMovil();
     aplicarRestriccionesPerfil();
     controladorColumnasConstancias.aplicarColumnasVisibles(controladorColumnasConstancias.cargarColumnasGuardadas());
     controladorColumnasConstancias.aplicarAnchosGuardados();
@@ -5550,12 +5563,34 @@
     els.vistaTickets.hidden = true;
     els.vistaResumenFinanciero.hidden = true;
     els.vistaOrdenes.hidden = true;
+    els.vistaCxc.hidden = true;
     els.vistaGastos.hidden = true;
+    els.vistaInventarios.hidden = true;
     els.vistaUsuarios.hidden = true;
     els.vistaLecturaReportes.hidden = true;
     els.vistaProveedores.hidden = true;
     els.adminMenuMovil.hidden = false;
   }
+  // Punto: back físico del celular = mismo efecto que tocar "Menú"
+  // (pedido explícito del usuario). Técnica estándar de SPA sin router:
+  // se empuja un estado "ancla" al entrar al panel; el `popstate` que
+  // dispara el back del sistema operativo se consume abriendo el menú
+  // en vez de dejar salir de la página, y se repone el ancla para que
+  // el siguiente back quede atrapado igual. Solo aplica en el
+  // breakpoint móvil — en escritorio el back del navegador se comporta
+  // normal.
+  function esMovilMenu() {
+    return window.matchMedia('(max-width: 900px)').matches;
+  }
+  function anclarHistorialMovil() {
+    if (esMovilMenu()) history.pushState({ adminMenuAncla: true }, '', location.href);
+  }
+  window.addEventListener('popstate', () => {
+    if (!esMovilMenu()) return;
+    mostrarMenuMovil();
+    anclarHistorialMovil();
+  });
+
   els.btnMenuMovil.addEventListener('click', mostrarMenuMovil);
   document.querySelectorAll('.admin-menu-movil-btn').forEach((boton) => {
     boton.addEventListener('click', () => {
@@ -9064,9 +9099,23 @@
       });
       return;
     }
+    // Bug real reportado por el usuario (capturas de celular, todo
+    // encimado): un ancho/alto guardado en escritorio se aplicaba aquí
+    // como estilo EN LÍNEA sin importar el viewport — un estilo en línea
+    // le gana a cualquier regla de @media de la hoja de estilos (el
+    // `@media (max-width:900px){ grid-column: span 12 }` de admin.css
+    // nunca tenía oportunidad de aplicarse). El ORDEN sí se conserva en
+    // móvil (mismo criterio ya documentado en el comentario del punto
+    // 911 de admin.css); ancho/alto personalizados solo aplican ≥900px.
+    const esMovil = window.innerWidth <= 900;
     const itemsPorId = new Map(dashboardLayout.map((item) => [item.id, item]));
     tarjetas.forEach((t, indice) => {
       t.style.order = String(indice);
+      if (esMovil) {
+        t.style.gridColumn = '';
+        aplicarAlturaTarjeta(t, null);
+        return;
+      }
       const item = itemsPorId.get(t.dataset.dashboardId);
       if (item && item.span) t.style.gridColumn = `span ${item.span}`;
       aplicarAlturaTarjeta(t, item && item.height ? item.height : null);
@@ -9143,7 +9192,14 @@
   let igualarAlturaFilasTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(igualarAlturaFilasTimer);
-    igualarAlturaFilasTimer = setTimeout(igualarAlturaFilasDashboard, 200);
+    igualarAlturaFilasTimer = setTimeout(() => {
+      // Recalcula también ancho/alto del layout guardado — cruzar el
+      // breakpoint de 900px (rotar el celular, achicar la ventana) debe
+      // limpiar/restaurar el estilo en línea de inmediato, no solo el
+      // día que se recargue la página.
+      aplicarLayoutDashboard();
+      igualarAlturaFilasDashboard();
+    }, 200);
   });
 
   function sincronizarBotonRestablecerDashboard() {
@@ -16727,18 +16783,7 @@
               // si sigue siendo una vista permitida para este perfil —
               // aplicarRestriccionesPerfil() (dentro de showDashboard) ya
               // ocultó el botón de cualquier vista no permitida.
-              const botonesPorVista = {
-                inicio: els.btnVistaInicio,
-                constancias: els.btnVistaConstancias,
-                tickets: els.btnVistaTickets,
-                'resumen-financiero': els.btnVistaResumenFinanciero,
-                ordenes: els.btnVistaOrdenes,
-                cxc: els.btnVistaCxc,
-                gastos: els.btnVistaGastos,
-                inventarios: els.btnVistaInventarios,
-                usuarios: els.btnVistaUsuarios,
-                'lectura-reportes': els.btnVistaLecturaReportes,
-              };
+              const botonesPorVista = mapaNavPorVista();
               const vistaGuardada = obtenerVistaGuardada();
               const botonGuardado = vistaGuardada && botonesPorVista[vistaGuardada];
               if (botonGuardado && !botonGuardado.hidden && !botonGuardado.classList.contains('is-active')) {
