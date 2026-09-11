@@ -39,6 +39,17 @@ const COLUMNAS_NUEVAS = [
   // base "ADDV" por defecto. TEXT (no JSON nativo) para que el esquema de
   // lectura del backend no dependa de la versión de MySQL.
   { nombre: 'tema_json', definicion: 'TEXT NULL' },
+  // Punto 244 (mapeo con CLARVO_Planes.md, 2026-09-10): gate de "marca" +
+  // "Look & Feel" — hasta ahora cualquier tenant podía usarlos sin
+  // restricción; con este switch, el backend cae al diseño/marca por
+  // defecto de CLARVO aunque la fila tenga marca/tema_json capturados.
+  // DEFAULT 1 (encendido) a propósito: ningún tenant ya configurado
+  // pierde su identidad visual solo por agregar esta columna.
+  { nombre: 'marca_lookfeel_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // Cuota de cuentas de panel (administrador/fiscal/ventas) por tenant —
+  // NULL = sin límite (comportamiento de siempre). Enforcement real en
+  // backend/server.js POST /api/admin/usuarios.
+  { nombre: 'max_usuarios', definicion: 'INT NULL' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {

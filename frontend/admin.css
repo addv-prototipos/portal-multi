@@ -800,6 +800,38 @@
   margin: 0 0 12px;
 }
 
+/* Radios de "Método de entrega por defecto" (Ventas) — mismo patrón de
+   tarjeta seleccionable ya usado en otras decisiones de una sola opción
+   del panel, con :has() para resaltar la fila marcada sin JS extra. */
+.config-radio-opt {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.config-radio-opt:last-of-type { margin-bottom: 12px; }
+.config-radio-opt:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.config-radio-opt input[type="radio"] { flex-shrink: 0; margin-top: 2px; accent-color: var(--color-accent); }
+.config-radio-opt-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.config-radio-opt-hint {
+  display: block;
+  font-size: 11.5px;
+  color: var(--color-ink-soft);
+  margin-top: 2px;
+}
+
 /* "Configuraciones globales" como modal (antes vista de página con 6
    tarjetas plegables) — cada .admin-config-card sigue existiendo tal
    cual dentro de .config-modal-main-body, pero solo una se muestra a
@@ -1860,6 +1892,26 @@
   margin-right: 4px;
 }
 
+/* "Registrar venta" más ancho que el resto de usos de .ticket-modal
+   (820px) — la fila de 2 columnas Precio unitario/Cantidad de un
+   producto de inventario se apretaba a ~190px cada una y el badge
+   "AUTO" quedaba casi pegado a la etiqueta "Cantidad" (reportado por el
+   usuario con captura). Nunca toca Tickets/Gastos/Cuentas por cobrar,
+   que siguen en 820px.
+   Bug real corregido (mismo día): el primer intento
+   (".orden-registrar-modal { max-width: 920px }") tenía la MISMA
+   especificidad que ".ticket-modal { max-width: 820px }" (una sola
+   clase cada uno) — como ".ticket-modal" está declarado MÁS ABAJO en
+   este archivo, ganaba por orden de cascada y el modal nunca se veía
+   más ancho (reportado de nuevo por el usuario con otra captura).
+   Selector combinado ".ticket-modal.orden-registrar-modal" (2 clases)
+   le gana a ".ticket-modal" solo sin importar el orden. Valor subido
+   además un 10% más sobre los 920px originales, a pedido explícito
+   (920 × 1.10 ≈ 1012px). */
+@media (min-width: 901px) {
+  .ticket-modal.orden-registrar-modal { max-width: 1012px; }
+}
+
 /* Modal "Registrar venta" a pantalla completa en móvil — clase propia
    (no toca el resto de usos de .ticket-modal en Tickets/Gastos/etc). */
 @media (max-width: 900px) {
@@ -1882,20 +1934,79 @@
    sobre todo en móvil) y sigue dando la vista previa nativa del
    navegador (Ctrl+P la muestra igual). */
 .ticket-imprimir { display: none; }
+/* Ancho/tipografía del recibo — a propósito FUERA de @media print (bug
+   real corregido 2026-09-11, reportado por el usuario con impresora
+   térmica física dejando mucho rollo en blanco): admin.js mide el alto
+   real del ticket (scrollHeight) ANTES de imprimir, mostrándolo un
+   instante fuera de pantalla (position:absolute; left:-9999px) para
+   calcular el alto exacto del @page del rollo continuo. Si estas reglas
+   solo existieran dentro de @media print, esa medición ocurría con el
+   ancho/tipografía de PANTALLA (mucho más ancho, letra más grande que
+   los 58mm reales), calculando un alto muy por debajo del real — el
+   @page terminaba usando el tamaño por default de la impresora (mucho
+   más largo que el ticket), de ahí el espacio en blanco. Unificado a
+   Inter — regla 2026-08-24. */
+#ticket-imprimir {
+  width: 58mm;
+  max-width: 58mm;
+  padding: 3mm 3mm 2mm;
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.35;
+  color: #000;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+/* Ajustes compactos para 58mm: menos aire, sin desbordes */
+#ticket-imprimir .ticket-imprimir-titulo { font-size: 12px; margin-bottom: 6px; letter-spacing: 0.02em; }
+#ticket-imprimir .ticket-imprimir-separador { margin: 6px 0; }
+#ticket-imprimir .ticket-imprimir-meta { font-size: 10px; margin: 1px 0; word-break: break-word; }
+#ticket-imprimir .ticket-imprimir-linea { gap: 6px; margin: 2px 0; font-size: 10.5px; }
+#ticket-imprimir .ticket-imprimir-linea span { min-width: 0; overflow-wrap: anywhere; }
+#ticket-imprimir .ticket-imprimir-total { font-size: 12px; margin-top: 4px; }
+#ticket-imprimir .ticket-imprimir-gracias { font-size: 10px; margin-top: 6px; }
+
+@page {
+  size: 58mm auto;
+  margin: 0;
+}
 @media print {
-  body > *:not(#ticket-imprimir) { display: none !important; }
+  @page {
+    size: 58mm auto;
+    margin: 1mm 0 0;
+  }
+  html, body {
+    width: 58mm !important;
+    max-width: 58mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+  body > *:not(#ticket-imprimir):not(#corte-imprimir):not(#inv-etiqueta-imprimir):not(#inv-estado-imprimir) { display: none !important; }
   #ticket-imprimir {
     display: block !important;
     position: static;
-    width: 300px;
-    margin: 0 auto;
-    padding: 12px 0;
-    /* Unificado a Inter — ticket impreso también en la misma sans
-       que menú/botones/reportes, regla 2026-08-24. */
-    font-family: var(--font-body);
-    font-size: 12.5px;
-    color: #000;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: avoid !important;
+    break-inside: avoid !important;
   }
+}
+.ticket-imprimir-logo {
+  display: block;
+  width: 34mm;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto 4px;
 }
 .ticket-imprimir-titulo {
   text-align: center;
@@ -1924,6 +2035,12 @@
   text-align: center;
   margin-top: 8px;
 }
+.ticket-imprimir-sitio {
+  text-align: center;
+  margin-top: 2px;
+  font-size: 10px;
+  color: #333;
+}
 
 /* Vista previa del ticket en pantalla (modal #ticket-preview-modal-overlay)
    — reusa tal cual las clases .ticket-imprimir-* de arriba (título/líneas/
@@ -1932,16 +2049,18 @@
    ancho/tipografía que el recibo real impreso. */
 .ticket-preview-titulo-modal { text-align: center; }
 .ticket-preview-recibo {
-  width: 300px;
+  width: 58mm;
   max-width: 100%;
   margin: 0 auto 16px;
-  padding: 14px 12px;
+  padding: 10px 8px;
   background: var(--color-bg);
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: 12.5px;
+  font-size: 11px;
+  line-height: 1.35;
   color: var(--color-ink);
+  overflow-wrap: anywhere;
 }
 
 /* Resultado de "Corte del día" (Ventas, punto 168) dentro del modal —
@@ -4271,6 +4390,16 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 /* Mismo verde ya validado para "listo"/éxito (.estatus-listo) — el perfil
    "Ventas" no necesita un color nuevo, reutiliza la asociación existente. */
 .perfil-ventas { background: #DCEFE3; color: #146C43; }
+/* Auditoría (punto 244): perfil "super" (ADMIN_USERS) — navy sólido a
+   propósito, para que destaque como el nivel de acceso más alto en la
+   tabla, distinto de los tonos pastel de los demás perfiles. */
+.perfil-super { background: var(--color-accent); color: #fff; }
+
+/* Auditoría (punto 244): estatus HTTP de cada acceso — mismos 3 tonos
+   semánticos ya usados en el resto del panel (éxito/aviso/error). */
+.estatus-http-ok { background: #DCEFE3; color: #146C43; }
+.estatus-http-warn { background: var(--color-warn-soft); color: var(--color-warn); }
+.estatus-http-error { background: var(--color-error-soft); color: var(--color-error); }
 
 /* ---------- Tabla "Perfiles y roles de acceso" (solo para "admin") ----------
    Diseñada para escanearse de un vistazo: cada columna es un área del

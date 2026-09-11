@@ -146,6 +146,8 @@ describe('utils/tenantContext.js', () => {
         temaJson: null,
         grupoSucursalId: null,
         contactoEmail: null,
+        marcaLookfeelHabilitado: true,
+        maxUsuarios: null,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })

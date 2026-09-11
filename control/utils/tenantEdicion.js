@@ -67,7 +67,7 @@ async function migrarSlugEnBackend(slugAnterior, slugNuevo) {
 
 // Devuelve el detalle de qué campos cambiaron (para el evento de
 // auditoría), comparando la fila actual contra los valores normalizados.
-function construirDetalleCambios(tenant, base, slugNuevo, logoAccion) {
+function construirDetalleCambios(tenant, base, slugNuevo, logoAccion, marcaLookfeelHabilitado, maxUsuariosFinal) {
   const cambios = [];
   if (slugNuevo) cambios.push(`slug: ${tenant.slug} -> ${slugNuevo}`);
   if (base.nombreEmpresa !== tenant.nombre_empresa) cambios.push(`nombre: "${tenant.nombre_empresa}" -> "${base.nombreEmpresa}"`);
@@ -76,7 +76,25 @@ function construirDetalleCambios(tenant, base, slugNuevo, logoAccion) {
   if (base.marca !== (tenant.marca || null)) cambios.push('marca');
   if (logoAccion === 'subido') cambios.push('logo: subido');
   if (logoAccion === 'quitado') cambios.push('logo: quitado');
+  if (marcaLookfeelHabilitado !== (tenant.marca_lookfeel_habilitado ? 1 : 0)) {
+    cambios.push(`marca_lookfeel_habilitado: ${marcaLookfeelHabilitado ? 'ON' : 'OFF'}`);
+  }
+  if (maxUsuariosFinal !== (tenant.max_usuarios ?? null)) {
+    cambios.push(`max_usuarios: ${maxUsuariosFinal ?? 'sin límite'}`);
+  }
   return cambios.length > 0 ? cambios.join(', ') : 'sin cambios';
+}
+
+// Punto 244 (mapeo con CLARVO_Planes.md, 2026-09-10): valida el límite
+// de usuarios — null/undefined/'' = sin límite (comportamiento de
+// siempre), cualquier otro valor debe ser un entero positivo.
+function normalizarMaxUsuarios(valor) {
+  if (valor === undefined || valor === null || valor === '') return { ok: true, valor: null };
+  const n = Number(valor);
+  if (!Number.isInteger(n) || n < 1) {
+    return { ok: false, error: 'El máximo de usuarios debe ser un número entero mayor a 0, o dejarse vacío para no limitar.' };
+  }
+  return { ok: true, valor: n };
 }
 
 // Actualiza los datos editables de un tenant existente.
@@ -188,11 +206,25 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
     }
   }
 
+  // Punto 244: gate de marca/Look & Feel (checkbox, default = valor
+  // actual si no viene en el body) y cuota de usuarios (validada).
+  const marcaLookfeelHabilitado =
+    typeof datos.marcaLookfeelHabilitado === 'boolean'
+      ? (datos.marcaLookfeelHabilitado ? 1 : 0)
+      : (tenant.marca_lookfeel_habilitado ? 1 : 0);
+  const resultadoMaxUsuarios = normalizarMaxUsuarios(datos.maxUsuarios);
+  if (!resultadoMaxUsuarios.ok) {
+    throw new ErrorEdicionTenant(resultadoMaxUsuarios.error, 'validacion');
+  }
+  const maxUsuariosFinal =
+    datos.maxUsuarios === undefined ? tenant.max_usuarios : resultadoMaxUsuarios.valor;
+
   const [resultado] = await db.query(
     `UPDATE tenants SET
        slug = ?, nombre_empresa = ?, contacto_email = ?, notas = ?,
        db_name = ?, storage_prefix = ?,
-       marca = ?, marca_logo_url = ?, tema_json = ?
+       marca = ?, marca_logo_url = ?, tema_json = ?,
+       marca_lookfeel_habilitado = ?, max_usuarios = ?
      WHERE id = ?`,
     [
       slugNuevo || tenant.slug,
@@ -204,6 +236,8 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
       base.marca,
       marcaLogoUrl,
       temaJsonFinal,
+      marcaLookfeelHabilitado,
+      maxUsuariosFinal,
       tenant.id,
     ]
   );
@@ -218,7 +252,9 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
     db,
     tenantActualizado.id,
     slugNuevo ? 'slug_cambiado' : 'datos_actualizados',
-    slugNuevo ? `slug: ${tenant.slug} -> ${slugNuevo}` : construirDetalleCambios(tenant, base, null, logoAccion),
+    slugNuevo
+      ? `slug: ${tenant.slug} -> ${slugNuevo}`
+      : construirDetalleCambios(tenant, base, null, logoAccion, marcaLookfeelHabilitado, maxUsuariosFinal),
     actor || null
   );
 

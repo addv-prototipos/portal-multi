@@ -371,5 +371,78 @@ describe('utils/tenantEdicion.js', () => {
       expect(resultado.slug).toBe('cliente2');
       expect(notificarInvalidacionCache).toHaveBeenCalledTimes(2);
     });
+
+    // Punto 244 (mapeo con CLARVO_Planes.md): gate de marca/Look & Feel +
+    // cuota de usuarios.
+    test('maxUsuarios: guarda un entero positivo tal cual', async () => {
+      const pool = mockPool(filaTenant(), false, { ...filaTenant(), max_usuarios: 5 });
+
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', maxUsuarios: 5 },
+        {}
+      );
+
+      const paramsUpdate = pool.query.mock.calls[1][1];
+      expect(paramsUpdate[10]).toBe(5); // max_usuarios
+    });
+
+    test('maxUsuarios vacío/null se guarda como sin límite (NULL)', async () => {
+      const pool = mockPool(filaTenant({ max_usuarios: 5 }), false, { ...filaTenant(), max_usuarios: null });
+
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', maxUsuarios: null },
+        {}
+      );
+
+      const paramsUpdate = pool.query.mock.calls[1][1];
+      expect(paramsUpdate[10]).toBeNull();
+    });
+
+    test('maxUsuarios ausente en el body conserva el valor actual de la fila (no lo resetea)', async () => {
+      const pool = mockPool(filaTenant({ max_usuarios: 7 }), false, { ...filaTenant(), max_usuarios: 7 });
+
+      await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com' }, {});
+
+      const paramsUpdate = pool.query.mock.calls[1][1];
+      expect(paramsUpdate[10]).toBe(7);
+    });
+
+    test('maxUsuarios inválido (0, negativo o no entero) -> ErrorEdicionTenant "validacion", sin tocar la BD', async () => {
+      const pool = mockPool(filaTenant());
+
+      const error = await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', maxUsuarios: 0 },
+        {}
+      ).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorEdicionTenant);
+      expect(error.codigo).toBe('validacion');
+      expect(pool.query).toHaveBeenCalledTimes(1); // solo el SELECT del tenant, nunca el UPDATE
+    });
+
+    test('marcaLookfeelHabilitado=false se guarda como 0', async () => {
+      const pool = mockPool(filaTenant(), false, { ...filaTenant(), marca_lookfeel_habilitado: 0 });
+
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', marcaLookfeelHabilitado: false },
+        {}
+      );
+
+      const paramsUpdate = pool.query.mock.calls[1][1];
+      expect(paramsUpdate[9]).toBe(0);
+    });
+
+    test('marcaLookfeelHabilitado ausente conserva el valor actual de la fila', async () => {
+      const pool = mockPool(filaTenant({ marca_lookfeel_habilitado: 1 }), false, { ...filaTenant(), marca_lookfeel_habilitado: 1 });
+
+      await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com' }, {});
+
+      const paramsUpdate = pool.query.mock.calls[1][1];
+      expect(paramsUpdate[9]).toBe(1);
+    });
   });
 });

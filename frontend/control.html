@@ -488,6 +488,15 @@
             <p class="field-error" id="error-editar-email" role="alert"></p>
           </div>
 
+          <!-- Punto 244 (mapeo con CLARVO_Planes.md): cuota de cuentas de
+               panel (administrador/fiscal/ventas) por tenant. -->
+          <div class="field">
+            <label for="control-editar-max-usuarios">Máximo de usuarios</label>
+            <input type="number" id="control-editar-max-usuarios" min="1" step="1" placeholder="Sin límite" />
+            <p class="field-hint">Cuentas de panel (administrador/fiscal/ventas) que puede crear esta empresa. Vacío = sin límite.</p>
+            <p class="field-error" id="error-editar-max-usuarios" role="alert"></p>
+          </div>
+
           <!-- Ancho completo (no comparte columna, punto 166/audit): a
                diferencia de los demás campos de este grid, este trae un
                layout compuesto (input + switch .control-slug-fila, ~420px
@@ -515,6 +524,18 @@
             <textarea id="control-editar-notas" rows="3" placeholder="Cualquier contexto para el operador…"></textarea>
             <p class="field-hint">Solo visible para operadores de /control — la empresa cliente nunca la ve.</p>
           </div>
+        </div>
+
+        <!-- Punto 244 (mapeo con CLARVO_Planes.md): gate real de marca +
+             Look & Feel — apagado, el backend usa la identidad CLARVO por
+             defecto aunque esta fila tenga marca/tema capturados. -->
+        <div class="field control-form-grid-full" style="margin-top:6px">
+          <label class="control-switch" for="control-editar-marca-lookfeel-switch">
+            <input type="checkbox" id="control-editar-marca-lookfeel-switch" checked />
+            <span class="control-switch-track" aria-hidden="true"></span>
+            <span class="control-switch-label">Marca y Look &amp; Feel habilitados</span>
+          </label>
+          <p class="field-hint">Apagado: el portal y los correos de esta empresa usan la identidad CLARVO por defecto, aunque abajo tenga marca o tema configurados.</p>
         </div>
 
         <button type="button" class="admin-config-toggle" id="control-btn-toggle-tema-editar" aria-expanded="false">

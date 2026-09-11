@@ -32,7 +32,7 @@ const {
   construirCorreoBase,
 } = require('./utils/correoMarca');
 const { requireAdminAuth, requireAdminArea, recargarAdminUsers } = require('./utils/auth');
-const { asegurarTablaAuditoria, registrarAccesoAdmin } = require('./utils/adminAuditoria');
+const { asegurarTablaAuditoria, registrarAccesoAdmin, listarAuditoria } = require('./utils/adminAuditoria');
 const {
   hashPassword,
   verifyPassword,
@@ -976,12 +976,18 @@ app.get('/api/tema/:slug', async (req, res) => {
 
   try {
     const tenant = await resolverTenantPorSlug(slug);
-    const tema = parsearTemaDesdeFila(tenant);
+    // Punto 244: con el switch apagado desde /control, este endpoint
+    // público se comporta como si el tenant nunca hubiera configurado
+    // marca/tema — mismo criterio que marcaDelTenant()/coloresCorreoTenant()
+    // en el resto del archivo.
+    const marcaLookfeelHabilitado = !tenant || tenant.marca_lookfeel_habilitado !== 0;
+    const tenantParaTema = marcaLookfeelHabilitado ? tenant : { ...tenant, tema_json: null };
+    const tema = parsearTemaDesdeFila(tenantParaTema);
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({
       slug,
-      marca: (tenant && tenant.marca) || null,
-      marcaLoGoUrl: (tenant && tenant.marca_logo_url) || null,
+      marca: (marcaLookfeelHabilitado && tenant && tenant.marca) || null,
+      marcaLoGoUrl: (marcaLookfeelHabilitado && tenant && tenant.marca_logo_url) || null,
       tema,
       variables: temaAVariables(tema),
       fuentesGoogle: fuentesAUrlGoogle(tema),
@@ -1819,7 +1825,16 @@ app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
 // `marca` (segmento "marca" de control): si el tenant definió su marca,
 // se usa en el `alt` de la imagen y en el logo de texto; si no, cae al
 // nombre por defecto de la app.
+// Punto 244 (mapeo con CLARVO_Planes.md): "marcaLookfeelHabilitado"
+// (apagable desde /control) es el gate real de marca+Look & Feel — con
+// el switch apagado, se cae a la identidad CLARVO por defecto aunque el
+// tenant tenga marca/tema_json capturados en la fila.
+function marcaLookfeelHabilitadoDelTenant(req) {
+  return !req || !req.tenant || req.tenant.marcaLookfeelHabilitado !== false;
+}
+
 function marcaDelTenant(req) {
+  if (!marcaLookfeelHabilitadoDelTenant(req)) return MARCA_DEFECTO;
   return (req && req.tenant && req.tenant.marca) || MARCA_DEFECTO;
 }
 
@@ -1833,7 +1848,7 @@ function marcaDelTenant(req) {
 function coloresCorreoTenant(req) {
   let tema = null;
   try {
-    if (req && req.tenant && req.tenant.temaJson) {
+    if (marcaLookfeelHabilitadoDelTenant(req) && req && req.tenant && req.tenant.temaJson) {
       tema = parsearTemaDesdeFila({ tema_json: req.tenant.temaJson, slug: req.tenant.slug });
     }
   } catch (err) {
@@ -1851,7 +1866,7 @@ function coloresCorreoTenant(req) {
 // configuración fiscal) — extraída aquí para no repetirla en cada correo
 // nuevo que se homologa al mismo diseño.
 function logoUrlDelTenant(req, urlPortal, configGlobal) {
-  const marcaLogoUrl = req && req.tenant && req.tenant.marcaLogoUrl;
+  const marcaLogoUrl = marcaLookfeelHabilitadoDelTenant(req) && req && req.tenant && req.tenant.marcaLogoUrl;
   if (marcaLogoUrl && urlPortal) return `${urlPortal}${marcaLogoUrl}`;
   return (configGlobal && configGlobal.logo_url) || null;
 }
@@ -3257,6 +3272,25 @@ app.post(
       return res.status(409).json({ error: 'Ya existe una cuenta con ese RFC o nombre de usuario.' });
     }
 
+    // Punto 244 (mapeo con CLARVO_Planes.md): cuota de cuentas de panel
+    // (administrador/fiscal/ventas) por tenant, configurada desde
+    // /control. Nunca aplica a "cliente" (esas cuentas son la base de
+    // clientes del negocio, no "asientos" del plan) ni al sitio base
+    // (sin req.tenant, sin cuota — comportamiento de siempre).
+    const PERFILES_CUOTA = ['administrador', 'fiscal', 'ventas'];
+    if (req.tenant && req.tenant.maxUsuarios != null && PERFILES_CUOTA.includes(perfil)) {
+      const [[{ total }]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM usuarios WHERE perfil IN (${PERFILES_CUOTA.map(() => '?').join(',')})`,
+        PERFILES_CUOTA
+      );
+      if (total >= req.tenant.maxUsuarios) {
+        return res.status(400).json({
+          error: `Llegaste al máximo de ${req.tenant.maxUsuarios} usuarios de panel permitidos para esta empresa. Contacta a soporte para ampliar tu cuota.`,
+          codigo: 'CUOTA_USUARIOS_EXCEDIDA',
+        });
+      }
+    }
+
     const passwordHash = hashPassword(password);
     const ahora = new Date();
     const [resultado] = await pool.query(
@@ -3402,6 +3436,30 @@ app.put(
       return res.status(400).json({
         error: 'No puedes cambiar tu propio perfil a "cliente" mientras tienes la sesión iniciada — perderías acceso al panel.',
       });
+    }
+
+    // Punto 244: mismo cierre de cuota que POST /api/admin/usuarios —
+    // sin esto, editar una cuenta "cliente" ya existente a
+    // administrador/fiscal/ventas sería una forma de saltarse el límite
+    // configurado en /control. Solo aplica cuando este PUT agrega una
+    // cuenta NUEVA a la cuota (el perfil anterior no contaba, el nuevo sí).
+    const PERFILES_CUOTA_EDIT = ['administrador', 'fiscal', 'ventas'];
+    if (
+      req.tenant &&
+      req.tenant.maxUsuarios != null &&
+      PERFILES_CUOTA_EDIT.includes(perfil) &&
+      !PERFILES_CUOTA_EDIT.includes(usuarioActual.perfil)
+    ) {
+      const [[{ total }]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM usuarios WHERE perfil IN (${PERFILES_CUOTA_EDIT.map(() => '?').join(',')})`,
+        PERFILES_CUOTA_EDIT
+      );
+      if (total >= req.tenant.maxUsuarios) {
+        return res.status(400).json({
+          error: `Llegaste al máximo de ${req.tenant.maxUsuarios} usuarios de panel permitidos para esta empresa. Contacta a soporte para ampliar tu cuota.`,
+          codigo: 'CUOTA_USUARIOS_EXCEDIDA',
+        });
+      }
     }
 
     // Unicidad del RFC/usuario, excluyendo la propia fila que se está editando.
@@ -3649,6 +3707,18 @@ app.put(
     if (body.ordenes_compra_habilitado !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
       return res.status(403).json({ error: 'Tu perfil no tiene acceso a habilitar o deshabilitar Ventas.' });
     }
+    // "entrega_venta_default" vive en la misma tarjeta "Ventas" que
+    // "Habilitar Ventas" (ambas exclusivas de administrador/super en el
+    // frontend, ver RESTRICCIONES_PERFIL) — mismo candado aquí, para que
+    // un perfil fiscal no pueda tocarlo pegándole directo a la API.
+    if (body.entrega_venta_default !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar el método de entrega por defecto.' });
+    }
+    // "auditoria_habilitada" (punto 244): mismo candado — solo
+    // administrador/super deciden si el menú "Auditoría" se muestra.
+    if (body.auditoria_habilitada !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a habilitar o deshabilitar la Auditoría.' });
+    }
     try {
       // rfc_compania / regimen_fiscal_compania / tipo_persona_compania
       // ya NO se mandan desde aquí — se quitó ese campo del formulario
@@ -3659,6 +3729,8 @@ app.put(
         iva_porcentaje: body.iva_porcentaje,
         zona_horaria: body.zona_horaria,
         ordenes_compra_habilitado: body.ordenes_compra_habilitado,
+        entrega_venta_default: body.entrega_venta_default,
+        auditoria_habilitada: body.auditoria_habilitada,
         clave_sat: body.clave_sat,
         correo_reportes: body.correo_reportes,
       });
@@ -4108,6 +4180,59 @@ app.get(
       return res.status(404).json({ error: 'Reporte no encontrado.' });
     }
     res.json({ id: filas[0].id, fechaGeneracion: filas[0].fecha_generacion, mdContenido: filas[0].md_contenido });
+  })
+);
+
+// ---------- Auditoría consultable (punto 244, mapeo con
+// CLARVO_Planes.md — "Auditoría consultable", Crece/Domina) ----------
+// La tabla `admin_auditoria` (segmento 7) ya registraba TODO acceso
+// administrativo desde entonces — esta es la primera pantalla que deja
+// consultarla. Alcance deliberado, nunca cross-tenant: solo lo que
+// ocurrió en ESTE tenant (o en el sitio base, sin tenant) — un acceso
+// "super" (ADMIN_USERS) contra este tenant SÍ aparece (tenant_slug
+// coincide), pero nada de lo que pasó en otros tenants.
+app.get(
+  '/api/admin/auditoria',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    // Aunque el perfil tenga acceso al área, el switch "Auditoría"
+    // (punto 244, Configuraciones globales) puede estar apagado — se
+    // revisa aquí también, no solo en el frontend, para que la API
+    // directa respete el mismo apagado que el menú.
+    const configGlobalAuditoria = await getConfiguracionGlobal();
+    if (configGlobalAuditoria.auditoria_habilitada === false) {
+      return res.status(403).json({ error: 'La Auditoría está desactivada en Configuraciones globales.' });
+    }
+    const actor = sanitizeText(req.query.actor, 100) || undefined;
+    const desde = sanitizeText(req.query.desde, 20) || undefined;
+    const hasta = sanitizeText(req.query.hasta, 20) || undefined;
+    const limite = req.query.limite ? Number(req.query.limite) : 100;
+
+    const filas = await listarAuditoria({
+      actor,
+      tenantSlug: req.tenant ? req.tenant.slug : undefined,
+      sinTenant: !req.tenant,
+      desde,
+      hasta,
+      limite,
+    });
+
+    res.json({
+      total: filas.length,
+      registros: filas.map((f) => ({
+        id: f.id,
+        ocurridoEn: f.ocurrido_en,
+        actor: f.actor,
+        mecanismo: f.mecanismo,
+        perfil: f.perfil,
+        metodo: f.metodo,
+        ruta: f.ruta,
+        estatus: f.resultado_estatus,
+        ip: f.ip,
+      })),
+    });
   })
 );
 

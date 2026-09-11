@@ -165,6 +165,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Mi Cuenta</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-auditoria" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Auditoría</span>
+        </button>
         <!-- "Configuraciones globales" siempre AL FINAL del sidebar (pedido
              explícito del usuario, 2026-08-21) — cualquier vista nueva que
              se agregue va ANTES de este botón, nunca después. -->
@@ -269,6 +273,10 @@
         <button type="button" class="admin-menu-movil-btn" data-vista="mi-cuenta">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Mi Cuenta</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="auditoria">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Auditoría</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="configuraciones">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round" stroke-width="1.3"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
@@ -1330,6 +1338,10 @@
                     <svg class="view-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="14" width="12" height="8"/></svg>
                     Imprimir ticket
                   </button>
+                  <button type="button" class="view-toggle-btn" id="btn-orden-entrega-sinticket" role="tab" aria-selected="false">
+                    <svg class="view-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12" stroke-linecap="round"/></svg>
+                    Sin ticket
+                  </button>
                 </div>
               </div>
               </div>
@@ -1378,6 +1390,7 @@
               </div>
 
               <p class="field-hint" id="orden-entrega-imprimir-hint" hidden>Se guarda sin correo. El ticket se abre para imprimir en cuanto termines de registrar la venta — también puedes asignarle un correo después desde "Reenviar correo".</p>
+              <p class="field-hint" id="orden-entrega-sinticket-hint" hidden>Se guarda sin correo y sin imprimir nada — solo verás la confirmación de "Guardado con éxito". Puedes asignarle un correo después desde "Reenviar correo".</p>
             </div>
             </div>
 
@@ -2111,6 +2124,10 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
                 Inventarios
               </button>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="auditoria-toggle-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Auditoría
+              </button>
             </nav>
             <p class="config-modal-nav-empty" id="config-modal-nav-empty" hidden>Ninguna sección coincide con tu búsqueda.</p>
           </div>
@@ -2543,6 +2560,37 @@
               <span class="switch-toggle-autoguardado" id="ordenes-habilitado-autoguardado" role="status" aria-live="polite"></span>
             </span>
           </label>
+
+          <!-- Punto: 3ra opción "Sin ticket" en Registrar venta + elegir
+               cuál queda por defecto. Se guarda solo, mismo patrón de
+               autoguardado que "Habilitar Ventas" de arriba — mismo
+               separador que "Contacto con clientes" (punto 186). -->
+          <div class="admin-config-divider" id="entrega-default-group">
+            <p class="admin-config-subsection-titulo">Método de entrega por defecto</p>
+            <p class="field-hint">Con qué opción abre siempre el modal "Registrar venta". Cada venta se puede cambiar igual desde ahí — esto solo decide el punto de partida.</p>
+            <label class="config-radio-opt">
+              <input type="radio" name="entrega-venta-default" id="config-entrega-default-correo" value="correo" />
+              <span>
+                <span class="config-radio-opt-label">Enviar por correo</span>
+                <span class="config-radio-opt-hint">Pide correo del cliente y envía la confirmación de la venta por email.</span>
+              </span>
+            </label>
+            <label class="config-radio-opt">
+              <input type="radio" name="entrega-venta-default" id="config-entrega-default-imprimir" value="imprimir" />
+              <span>
+                <span class="config-radio-opt-label">Imprimir ticket</span>
+                <span class="config-radio-opt-hint">Sin correo — abre el ticket para imprimir en cuanto se termina de registrar.</span>
+              </span>
+            </label>
+            <label class="config-radio-opt">
+              <input type="radio" name="entrega-venta-default" id="config-entrega-default-sinticket" value="sinticket" />
+              <span>
+                <span class="config-radio-opt-label">Sin ticket</span>
+                <span class="config-radio-opt-hint">Sin correo, sin imprimir — solo guarda la venta y muestra "Guardado con éxito".</span>
+              </span>
+            </label>
+            <span class="switch-toggle-autoguardado" id="entrega-default-autoguardado" role="status" aria-live="polite"></span>
+          </div>
         </div>
       </section>
 
@@ -2583,6 +2631,36 @@
               <span class="switch-toggle-hint">Este negocio solo vende servicios, no productos físicos — oculta la alta de productos, la carga masiva y las tarjetas/reportes que solo aplican a inventario físico. No se puede encender si ya hay productos activos en el catálogo.</span>
               <span class="switch-toggle-autoguardado" id="inv-solo-servicios-autoguardado" role="status" aria-live="polite"></span>
               <p class="field-error" id="inv-solo-servicios-error" role="alert"></p>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Auditoría (punto 244) — solo administrador/super. Apagar este
+           switch oculta el menú "Auditoría" para no saturar la navegación
+           en tenants chicos que no lo necesitan; la tabla admin_auditoria
+           sigue registrando todo acceso pase lo que pase (segmento 7). -->
+      <section class="admin-config-card" id="auditoria-toggle-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-auditoria-card" aria-expanded="false" aria-controls="auditoria-toggle-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Auditoría
+          </span>
+          <svg class="admin-config-chevron" id="auditoria-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="admin-config-body" id="auditoria-toggle-body" hidden>
+          <label class="switch-toggle">
+            <input type="checkbox" id="config-auditoria-habilitada" checked />
+            <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+            <span class="switch-toggle-texto">
+              <span class="switch-toggle-label">Mostrar Auditoría</span>
+              <span class="switch-toggle-hint">Con esto apagado, se oculta el menú "Auditoría" del panel (administrador/super). El registro de accesos sigue funcionando igual, solo deja de haber una pantalla para consultarlo. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
+              <span class="switch-toggle-autoguardado" id="auditoria-habilitada-autoguardado" role="status" aria-live="polite"></span>
             </span>
           </label>
         </div>
@@ -3419,6 +3497,72 @@
             <p class="micuenta-footer-market-texto">Cuando esté disponible, desde aquí vas a poder explorar y activar módulos adicionales para este tenant.</p>
           </div>
           <button type="button" class="btn btn-secondary micuenta-footer-market-btn" disabled data-tooltip="Disponible cuando exista Clarvo Site Market.">Abrir Clarvo Market</button>
+        </div>
+      </div>
+
+      <!-- ========== Auditoría (punto 244, mapeo con CLARVO_Planes.md) ==========
+           Consulta real de admin_auditoria (segmento 7) — nunca cross-tenant,
+           solo lo que pasó en este tenant (o en el sitio base). -->
+      <div id="vista-auditoria" hidden>
+        <div class="admin-toolbar">
+          <h1>Auditoría</h1>
+        </div>
+        <p class="panel-subtitle">Quién entró al panel, qué hizo y cuándo — accesos administrativos de este negocio.</p>
+
+        <div class="gastos-filtros">
+          <div class="field gastos-filtro-campo gastos-filtro-busqueda">
+            <label class="gastos-filtro-label" for="auditoria-filtro-actor">Usuario</label>
+            <div class="filtro-busqueda">
+              <span class="filtro-busqueda-icono" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+              <input type="text" id="auditoria-filtro-actor" placeholder="rfc o usuario exacto" maxlength="100" autocomplete="off" />
+              <button type="button" class="filtro-busqueda-limpiar" id="btn-limpiar-auditoria-actor" aria-label="Borrar texto" hidden>✕</button>
+            </div>
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="auditoria-filtro-desde">Desde</label>
+            <input type="date" id="auditoria-filtro-desde" />
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="auditoria-filtro-hasta">Hasta</label>
+            <input type="date" id="auditoria-filtro-hasta" />
+          </div>
+          <div class="field gastos-filtro-campo">
+            <label class="gastos-filtro-label" for="auditoria-filtro-limite">Mostrar</label>
+            <select id="auditoria-filtro-limite">
+              <option value="100">Últimos 100</option>
+              <option value="250">Últimos 250</option>
+              <option value="500">Últimos 500</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-secondary gastos-filtro-limpiar btn-limpiar-filtros" id="btn-limpiar-filtros-auditoria">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 1 3 6.7M3 12V6m0 6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Limpiar filtros
+          </button>
+          <div class="filtros-chips" id="auditoria-filtros-chips" hidden></div>
+        </div>
+
+        <p class="field-error" id="auditoria-error" role="alert"></p>
+
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Fecha y hora</th>
+                <th>Usuario</th>
+                <th>Perfil</th>
+                <th>Acceso</th>
+                <th>Acción</th>
+                <th>Estatus</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody id="auditoria-table-body"></tbody>
+          </table>
+          <div class="admin-empty admin-empty-rica" id="auditoria-empty" hidden>
+            <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <p class="admin-empty-titulo" id="auditoria-empty-titulo">Sin accesos registrados todavía</p>
+            <p id="auditoria-empty-texto">En cuanto alguien entre al panel, aparecerá aquí.</p>
+          </div>
         </div>
       </div>
       </main>

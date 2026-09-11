@@ -95,6 +95,8 @@
     editarSlugHint: document.getElementById('control-editar-slug-hint'),
   editarEmail: document.getElementById('control-editar-email'),
   editarNotas: document.getElementById('control-editar-notas'),
+  editarMaxUsuarios: document.getElementById('control-editar-max-usuarios'),
+  editarMarcaLookfeelSwitch: document.getElementById('control-editar-marca-lookfeel-switch'),
   btnToggleTemaEditar: document.getElementById('control-btn-toggle-tema-editar'),
   temaBody: document.getElementById('control-tema-body'),
   temaPreview: document.getElementById('control-tema-preview'),
@@ -751,6 +753,8 @@
     els.editarMarca.value = tenant.marca || '';
     els.editarEmail.value = tenant.contacto_email || '';
     els.editarNotas.value = tenant.notas || '';
+    els.editarMaxUsuarios.value = tenant.max_usuarios != null ? String(tenant.max_usuarios) : '';
+    els.editarMarcaLookfeelSwitch.checked = tenant.marca_lookfeel_habilitado !== 0 && tenant.marca_lookfeel_habilitado !== false;
     els.editarSlug.value = tenant.slug;
     els.editarSlugSwitch.checked = false;
     bloquearSlugEdicion();
@@ -867,6 +871,17 @@
       els.editarEmail.focus();
       return;
     }
+    const maxUsuariosTexto = els.editarMaxUsuarios.value.trim();
+    let maxUsuarios = null;
+    if (maxUsuariosTexto) {
+      const n = Number(maxUsuariosTexto);
+      if (!Number.isInteger(n) || n < 1) {
+        setFieldErrorEditar('editar-max-usuarios', 'Debe ser un número entero mayor a 0, o vacío para no limitar.');
+        els.editarMaxUsuarios.focus();
+        return;
+      }
+      maxUsuarios = n;
+    }
     setEdicionLoading(true);
     try {
       let logoBase64 = null;
@@ -896,6 +911,8 @@
           marca: els.editarMarca.value.trim() || null,
           logoBase64: logoBase64 || null,
           quitarLogo: logoBase64 ? false : !els.editarLogoActual.hidden,
+          maxUsuarios,
+          marcaLookfeelHabilitado: els.editarMarcaLookfeelSwitch.checked,
         }),
       });
       if (res.status === 401) {

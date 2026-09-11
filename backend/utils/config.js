@@ -135,6 +135,21 @@ const DEFAULTS_CONFIG_GLOBAL = {
   // campos — se puede enviar sin ellos, como funcionaba la app antes de
   // que existiera "Orden de compra".
   ordenes_compra_habilitado: true,
+  // Método de entrega con el que abre siempre el modal "Registrar venta"
+  // (ver PROJECT_STATE.md) — cada venta lo puede cambiar igual, esto solo
+  // decide el punto de partida. 'sinticket' por defecto a pedido
+  // explícito del usuario (ni correo ni impresión, solo confirma la
+  // venta) — antes solo existían 'correo'/'imprimir', ambos hardcodeados
+  // a 'correo' al abrir el modal.
+  entrega_venta_default: 'sinticket',
+  // Punto 244 (Auditoría consultable): interruptor para mostrar/ocultar
+  // el menú "Auditoría" (administrador/super) — la tabla `admin_auditoria`
+  // sigue registrando todo acceso pase lo que pase (segmento 7, sin
+  // relación con este switch), esto solo controla si hay una pantalla
+  // para consultarla. `true` por defecto — ya era visible antes de que
+  // este switch existiera, apagarlo es una decisión explícita del
+  // administrador, no el estado de fábrica.
+  auditoria_habilitada: true,
   // Datos fiscales de la propia compañía (no de un cliente) — se
   // muestran en la barra de sesión del panel de administrador junto a
   // "Administración", y si faltan, se avisa al iniciar sesión (ver
@@ -190,6 +205,12 @@ async function getConfiguracionGlobal() {
     }
     if (typeof parsed.ordenes_compra_habilitado === 'boolean') {
       resultado.ordenes_compra_habilitado = parsed.ordenes_compra_habilitado;
+    }
+    if (['correo', 'imprimir', 'sinticket'].includes(parsed.entrega_venta_default)) {
+      resultado.entrega_venta_default = parsed.entrega_venta_default;
+    }
+    if (typeof parsed.auditoria_habilitada === 'boolean') {
+      resultado.auditoria_habilitada = parsed.auditoria_habilitada;
     }
     if (typeof parsed.rfc_compania === 'string') {
       resultado.rfc_compania = parsed.rfc_compania.trim().toUpperCase();
@@ -249,6 +270,17 @@ async function setConfiguracionGlobal(cambios) {
 
   if (cambios.ordenes_compra_habilitado !== undefined) {
     nuevo.ordenes_compra_habilitado = Boolean(cambios.ordenes_compra_habilitado);
+  }
+
+  if (cambios.entrega_venta_default !== undefined) {
+    if (!['correo', 'imprimir', 'sinticket'].includes(cambios.entrega_venta_default)) {
+      throw new Error('Selecciona un método de entrega por defecto válido.');
+    }
+    nuevo.entrega_venta_default = cambios.entrega_venta_default;
+  }
+
+  if (cambios.auditoria_habilitada !== undefined) {
+    nuevo.auditoria_habilitada = Boolean(cambios.auditoria_habilitada);
   }
 
   // rfc_compania / regimen_fiscal_compania / tipo_persona_compania ya no

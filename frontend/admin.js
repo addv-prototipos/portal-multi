@@ -159,6 +159,20 @@
     vistaLecturaReportes: document.getElementById('vista-lectura-reportes'),
     vistaProveedores: document.getElementById('vista-proveedores'),
     vistaMiCuenta: document.getElementById('vista-mi-cuenta'),
+    btnVistaAuditoria: document.getElementById('btn-vista-auditoria'),
+    vistaAuditoria: document.getElementById('vista-auditoria'),
+    auditoriaFiltroActor: document.getElementById('auditoria-filtro-actor'),
+    btnLimpiarAuditoriaActor: document.getElementById('btn-limpiar-auditoria-actor'),
+    auditoriaFiltroDesde: document.getElementById('auditoria-filtro-desde'),
+    auditoriaFiltroHasta: document.getElementById('auditoria-filtro-hasta'),
+    auditoriaFiltroLimite: document.getElementById('auditoria-filtro-limite'),
+    btnLimpiarFiltrosAuditoria: document.getElementById('btn-limpiar-filtros-auditoria'),
+    auditoriaFiltrosChips: document.getElementById('auditoria-filtros-chips'),
+    auditoriaError: document.getElementById('auditoria-error'),
+    auditoriaTableBody: document.getElementById('auditoria-table-body'),
+    auditoriaEmpty: document.getElementById('auditoria-empty'),
+    auditoriaEmptyTitulo: document.getElementById('auditoria-empty-titulo'),
+    auditoriaEmptyTexto: document.getElementById('auditoria-empty-texto'),
     // Mi Cuenta
     micuentaDatosForm: document.getElementById('micuenta-datos-form'),
     micuentaSinDatosNota: document.getElementById('micuenta-sin-datos-nota'),
@@ -380,8 +394,10 @@
     // Método de entrega (correo / imprimir), paso final del wizard
     btnOrdenEntregaCorreo: document.getElementById('btn-orden-entrega-correo'),
     btnOrdenEntregaImprimir: document.getElementById('btn-orden-entrega-imprimir'),
+    btnOrdenEntregaSinTicket: document.getElementById('btn-orden-entrega-sinticket'),
     ordenEntregaCorreoWrap: document.getElementById('orden-entrega-correo-wrap'),
     ordenEntregaImprimirHint: document.getElementById('orden-entrega-imprimir-hint'),
+    ordenEntregaSinTicketHint: document.getElementById('orden-entrega-sinticket-hint'),
     // Toggle "Cliente ya registrado" / "Cliente nuevo" de la venta
     btnOrdenClienteRegistrado: document.getElementById('btn-orden-cliente-registrado'),
     btnOrdenClienteNuevo: document.getElementById('btn-orden-cliente-nuevo'),
@@ -951,6 +967,12 @@
     configZonaHoraria: document.getElementById('config-zona-horaria'),
     configOrdenesHabilitado: document.getElementById('config-ordenes-habilitado'),
     ordenesHabilitadoAutoguardado: document.getElementById('ordenes-habilitado-autoguardado'),
+    configEntregaDefaultRadios: document.querySelectorAll('input[name="entrega-venta-default"]'),
+    entregaDefaultAutoguardado: document.getElementById('entrega-default-autoguardado'),
+    btnToggleAuditoriaCard: document.getElementById('btn-toggle-auditoria-card'),
+    auditoriaToggleBody: document.getElementById('auditoria-toggle-body'),
+    configAuditoriaHabilitada: document.getElementById('config-auditoria-habilitada'),
+    auditoriaHabilitadaAutoguardado: document.getElementById('auditoria-habilitada-autoguardado'),
     configClaveSat: document.getElementById('config-clave-sat'),
     configClaveSatBuscador: document.getElementById('config-clave-sat-buscador'),
     configClaveSatSugerencias: document.getElementById('config-clave-sat-sugerencias'),
@@ -1193,8 +1215,8 @@
         document.body.classList.add('tiene-banner-conexion');
         // "Imprimir ticket" necesita un folio real, que no existe sin
         // conexión — se fuerza de vuelta a "Enviar por correo".
-        if (typeof aplicarMetodoEntregaOrden === 'function' && ordenMetodoEntregaImprimir) {
-          aplicarMetodoEntregaOrden(false);
+        if (typeof aplicarMetodoEntregaOrden === 'function' && ordenMetodoEntrega === 'imprimir') {
+          aplicarMetodoEntregaOrden('correo');
         }
         if (els.btnOrdenEntregaImprimir) {
           els.btnOrdenEntregaImprimir.disabled = true;
@@ -1795,11 +1817,16 @@
   // restaura este valor tal cual estaba, sin resurrección sorpresa ni
   // pérdida silenciosa.
   let ultimoValorSoloServiciosGuardado = false;
+  // Punto 244: switch "Mostrar Auditoría" en Configuraciones globales —
+  // mismo patrón que ventasHabilitadaGlobalmente/inventarioActivoGlobalmente,
+  // combinado dentro de aplicarRestriccionesPerfil() para que ni el perfil
+  // ni este switch puedan pisar al otro.
+  let auditoriaHabilitadaGlobalmente = true;
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'configuraciones'],
-      tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card'],
+      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'configuraciones'],
+      tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
     },
     fiscal: {
       vistasPermitidas: ['inicio', 'constancias', 'tickets', 'mi-cuenta', 'configuraciones'],
@@ -1843,6 +1870,7 @@
       'lectura-reportes': els.btnVistaLecturaReportes,
       proveedores: els.btnVistaProveedores,
       'mi-cuenta': els.btnVistaMiCuenta,
+      auditoria: els.btnVistaAuditoria,
     };
   }
 
@@ -1862,7 +1890,8 @@
       // cargarConfigInventario()/aplicarVisibilidadInventarios() más abajo.
       const permitidaPorConfig =
         (vista !== 'ordenes' || ventasHabilitadaGlobalmente) &&
-        (vista !== 'inventarios' || inventarioActivoGlobalmente);
+        (vista !== 'inventarios' || inventarioActivoGlobalmente) &&
+        (vista !== 'auditoria' || auditoriaHabilitadaGlobalmente);
       const permitida = permitidaPorPerfil && permitidaPorConfig;
       boton.hidden = !permitida;
       // Mismo permiso, botón espejo en el launcher de íconos del menú
@@ -1882,7 +1911,7 @@
 
     // Las 6 tarjetas de "Configuraciones globales" ("Ventas" e
     // "Inventarios" se movieron aquí desde "Usuarios").
-    ['admin-config-card', 'global-config-card', 'smtp-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card'].forEach((idTarjeta) => {
+    ['admin-config-card', 'global-config-card', 'smtp-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
       const tarjeta = document.getElementById(idTarjeta);
       if (!tarjeta) return;
       tarjeta.hidden = !(sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta));
@@ -2862,6 +2891,14 @@
     aplicarRestriccionesPerfil();
   }
 
+  // Mismo criterio para el switch "Mostrar Auditoría" (punto 244) — el
+  // botón/entrada del menú se oculta, la tabla admin_auditoria sigue
+  // registrando accesos sin importar este switch.
+  function aplicarVisibilidadAuditoria(habilitado) {
+    auditoriaHabilitadaGlobalmente = habilitado;
+    aplicarRestriccionesPerfil();
+  }
+
   // El interruptor "Habilitar Ventas" se guarda SOLO al
   // cambiarlo, sin depender del botón "Guardar cambios" general de esta
   // tarjeta (que sigue guardando IVA/zona horaria/Clave SAT/link como
@@ -2917,6 +2954,106 @@
     }
   });
 
+  // "Método de entrega por defecto" — mismo criterio de autoguardado que
+  // "Habilitar Ventas" arriba: una elección ya deliberada y completa al
+  // marcar el radio, sin esperar al botón "Guardar cambios" general.
+  let timeoutAutoguardadoEntregaDefault = null;
+  els.configEntregaDefaultRadios.forEach((radio) => {
+    radio.addEventListener('change', async () => {
+      if (!radio.checked) return;
+      const valorAnterior = ordenEntregaDefault;
+      const nuevoValor = radio.value;
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+
+      clearTimeout(timeoutAutoguardadoEntregaDefault);
+      els.configEntregaDefaultRadios.forEach((r) => { r.disabled = true; });
+      els.entregaDefaultAutoguardado.textContent = 'Guardando…';
+      els.entregaDefaultAutoguardado.setAttribute('data-estado', 'guardando');
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/config/global`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entrega_venta_default: nuevoValor }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'No se pudo guardar.');
+        }
+
+        ordenEntregaDefault = nuevoValor;
+        els.entregaDefaultAutoguardado.textContent = 'Guardado ✓';
+        els.entregaDefaultAutoguardado.setAttribute('data-estado', 'guardado');
+        timeoutAutoguardadoEntregaDefault = setTimeout(() => {
+          els.entregaDefaultAutoguardado.textContent = '';
+          els.entregaDefaultAutoguardado.removeAttribute('data-estado');
+        }, 2500);
+      } catch (err) {
+        els.configEntregaDefaultRadios.forEach((r) => {
+          r.checked = r.value === valorAnterior;
+        });
+        els.entregaDefaultAutoguardado.textContent = 'No se pudo guardar — inténtalo de nuevo.';
+        els.entregaDefaultAutoguardado.setAttribute('data-estado', 'error');
+      } finally {
+        els.configEntregaDefaultRadios.forEach((r) => { r.disabled = false; });
+      }
+    });
+  });
+
+  // "Mostrar Auditoría" — mismo autoguardado que "Habilitar Ventas".
+  let timeoutAutoguardadoAuditoria = null;
+  els.configAuditoriaHabilitada.addEventListener('change', async () => {
+    const nuevoValor = els.configAuditoriaHabilitada.checked;
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    clearTimeout(timeoutAutoguardadoAuditoria);
+    els.configAuditoriaHabilitada.disabled = true;
+    els.auditoriaHabilitadaAutoguardado.textContent = 'Guardando…';
+    els.auditoriaHabilitadaAutoguardado.setAttribute('data-estado', 'guardando');
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/config/global`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auditoria_habilitada: nuevoValor }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'No se pudo guardar.');
+      }
+
+      aplicarVisibilidadAuditoria(nuevoValor);
+      els.auditoriaHabilitadaAutoguardado.textContent = 'Guardado ✓';
+      els.auditoriaHabilitadaAutoguardado.setAttribute('data-estado', 'guardado');
+      timeoutAutoguardadoAuditoria = setTimeout(() => {
+        els.auditoriaHabilitadaAutoguardado.textContent = '';
+        els.auditoriaHabilitadaAutoguardado.removeAttribute('data-estado');
+      }, 2500);
+    } catch (err) {
+      els.configAuditoriaHabilitada.checked = !nuevoValor;
+      els.auditoriaHabilitadaAutoguardado.textContent = 'No se pudo guardar — inténtalo de nuevo.';
+      els.auditoriaHabilitadaAutoguardado.setAttribute('data-estado', 'error');
+    } finally {
+      els.configAuditoriaHabilitada.disabled = false;
+    }
+  });
+
+  if (els.btnToggleAuditoriaCard) {
+    els.btnToggleAuditoriaCard.addEventListener('click', () => {
+      const abierto = els.btnToggleAuditoriaCard.getAttribute('aria-expanded') === 'true';
+      els.btnToggleAuditoriaCard.setAttribute('aria-expanded', String(!abierto));
+      els.auditoriaToggleBody.hidden = abierto;
+    });
+  }
+
   async function cargarConfigGlobal(opciones = {}) {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
@@ -2929,11 +3066,16 @@
       const config = await res.json();
       els.configIva.value = config.iva_porcentaje;
       els.configOrdenesHabilitado.checked = config.ordenes_compra_habilitado;
+      els.configEntregaDefaultRadios.forEach((radio) => {
+        radio.checked = radio.value === (config.entrega_venta_default || 'sinticket');
+      });
+      els.configAuditoriaHabilitada.checked = config.auditoria_habilitada !== false;
       aplicarClaveSatCargada(config.clave_sat || '');
       cargarInfoCatalogoClaveSat();
       aplicarRegimenFiscalCompaniaBox(config.regimen_fiscal_compania);
       aplicarRazonSocialCompaniaBox(config.razon_social_compania);
       aplicarVisibilidadOrdenesCompra(config.ordenes_compra_habilitado);
+      aplicarVisibilidadAuditoria(config.auditoria_habilitada !== false);
       aplicarInfoFiscalBarra(config);
       // Solo se revisa (y se muestra la ventana emergente si hace falta)
       // justo al iniciar sesión — no cada vez que se abre esta misma
@@ -5367,6 +5509,7 @@
     { id: 'reportes-config-card', label: 'Configuración Reportes' },
     { id: 'ordenes-toggle-card', label: 'Ventas' },
     { id: 'inv-toggle-card', label: 'Inventarios' },
+    { id: 'auditoria-toggle-card', label: 'Auditoría' },
   ];
 
   function mostrarSeccionMovilConfig() {
@@ -5496,6 +5639,8 @@
     els.btnVistaProveedores.setAttribute('aria-selected', String(vista === 'proveedores'));
     els.btnVistaMiCuenta.classList.toggle('is-active', vista === 'mi-cuenta');
     els.btnVistaMiCuenta.setAttribute('aria-selected', String(vista === 'mi-cuenta'));
+    els.btnVistaAuditoria.classList.toggle('is-active', vista === 'auditoria');
+    els.btnVistaAuditoria.setAttribute('aria-selected', String(vista === 'auditoria'));
     els.vistaInicio.hidden = vista !== 'inicio';
     els.vistaConstancias.hidden = vista !== 'constancias';
     els.vistaTickets.hidden = vista !== 'tickets';
@@ -5508,6 +5653,7 @@
     els.vistaLecturaReportes.hidden = vista !== 'lectura-reportes';
     els.vistaProveedores.hidden = vista !== 'proveedores';
     els.vistaMiCuenta.hidden = vista !== 'mi-cuenta';
+    els.vistaAuditoria.hidden = vista !== 'auditoria';
     if (vista === 'inicio') cargarInicio();
     if (vista === 'constancias') cargarRegistros();
     if (vista === 'tickets') {
@@ -5554,6 +5700,7 @@
       cargarListaReportes();
     }
     if (vista === 'mi-cuenta') cargarMiCuenta();
+    if (vista === 'auditoria') cargarAuditoria();
     // Primeros pasos (Fase 2 UX): "revisar" tickets/Constancias/CxC cuenta
     // como paso completado con solo entrar a esa vista una vez.
     if (vista === 'tickets') marcarOnboardingVisto('tickets');
@@ -5578,6 +5725,7 @@
   els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));
   els.btnVistaProveedores.addEventListener('click', () => cambiarVistaPrincipal('proveedores'));
   els.btnVistaMiCuenta.addEventListener('click', () => cambiarVistaPrincipal('mi-cuenta'));
+  els.btnVistaAuditoria.addEventListener('click', () => cambiarVistaPrincipal('auditoria'));
 
   // ---------- Mi Cuenta ----------
   // Autoservicio de la sesión actual: cualquier perfil ve/edita su propio
@@ -5764,6 +5912,129 @@
     });
   }
 
+  // ---------- Auditoría (punto 244, mapeo con CLARVO_Planes.md) ----------
+  // Consulta real de admin_auditoria (GET /api/admin/auditoria) — nunca
+  // cross-tenant (el backend ya acota por tenant_slug del propio
+  // req.tenant). Filtrado en el SERVIDOR (no cliente): la tabla puede
+  // crecer sin límite práctico, a diferencia de Ventas/Gastos que sí
+  // traen todo de un jalón.
+  const MECANISMO_ETIQUETA = {
+    admin_users: 'Súper (ADMIN_USERS)',
+    perfil_bd: 'Cuenta del panel',
+    api_credencial: 'Credencial API',
+    api_clave: 'Clave API',
+    usuario_sucursal: 'Sucursal compartida',
+    fallback_admin: 'Cuenta de respaldo (retirada)',
+  };
+  const PERFIL_CLASE_BADGE = {
+    administrador: 'perfil-administrador',
+    fiscal: 'perfil-fiscal',
+    ventas: 'perfil-ventas',
+    cliente: 'perfil-cliente',
+    super: 'perfil-super',
+  };
+
+  function formatearFechaHoraAuditoria(valor) {
+    if (!valor) return '—';
+    // El backend manda "YYYY-MM-DD HH:MM:SS" (dateStrings:true) — se
+    // muestra tal cual, sin reinterpretar zona horaria (mismo criterio
+    // que el resto del panel).
+    const [fecha, hora] = String(valor).split(' ');
+    return hora ? `${fecha} ${hora.slice(0, 5)}` : fecha;
+  }
+
+  function claseEstatusHttp(estatus) {
+    if (estatus >= 500) return 'estatus-http-error';
+    if (estatus >= 400) return 'estatus-http-warn';
+    return 'estatus-http-ok';
+  }
+
+  function renderAuditoriaFiltrosChips() {
+    renderFiltrosChips(els.auditoriaFiltrosChips, [
+      { etiqueta: 'Usuario', valor: els.auditoriaFiltroActor.value.trim(), campos: [els.auditoriaFiltroActor] },
+      {
+        etiqueta: 'Fechas',
+        valor: (els.auditoriaFiltroDesde.value || els.auditoriaFiltroHasta.value)
+          ? `${els.auditoriaFiltroDesde.value || '…'} – ${els.auditoriaFiltroHasta.value || '…'}`
+          : '',
+        campos: [els.auditoriaFiltroDesde, els.auditoriaFiltroHasta],
+      },
+    ]);
+  }
+
+  async function cargarAuditoria() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.auditoriaError.textContent = '';
+    els.btnLimpiarAuditoriaActor.hidden = !els.auditoriaFiltroActor.value;
+    renderAuditoriaFiltrosChips();
+
+    const params = new URLSearchParams();
+    const actor = els.auditoriaFiltroActor.value.trim();
+    if (actor) params.set('actor', actor);
+    if (els.auditoriaFiltroDesde.value) params.set('desde', els.auditoriaFiltroDesde.value);
+    if (els.auditoriaFiltroHasta.value) params.set('hasta', els.auditoriaFiltroHasta.value);
+    params.set('limite', els.auditoriaFiltroLimite.value || '100');
+
+    try {
+      const resp = await fetch(`${API_BASE}/admin/auditoria?${params.toString()}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (resp.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!resp.ok) throw new Error('No se pudo cargar la auditoría.');
+      const data = await resp.json();
+      const registros = data.registros || [];
+
+      els.auditoriaTableBody.innerHTML = '';
+      const hayFiltros = Boolean(actor || els.auditoriaFiltroDesde.value || els.auditoriaFiltroHasta.value);
+      els.auditoriaEmpty.hidden = registros.length > 0;
+      if (registros.length === 0) {
+        els.auditoriaEmptyTitulo.textContent = hayFiltros ? 'Sin resultados para tu filtro' : 'Sin accesos registrados todavía';
+        els.auditoriaEmptyTexto.textContent = hayFiltros
+          ? 'Prueba con otro usuario o un rango de fechas distinto.'
+          : 'En cuanto alguien entre al panel, aparecerá aquí.';
+      }
+
+      registros.forEach((r) => {
+        const tr = document.createElement('tr');
+        const claseBadgePerfil = PERFIL_CLASE_BADGE[r.perfil] || 'perfil-cliente';
+        const mecanismo = MECANISMO_ETIQUETA[r.mecanismo] || r.mecanismo;
+        tr.innerHTML = `
+          <td data-label="Fecha y hora">${formatearFechaHoraAuditoria(r.ocurridoEn)}</td>
+          <td data-label="Usuario">${escapeHtml(r.actor)}</td>
+          <td data-label="Perfil"><span class="perfil-badge ${claseBadgePerfil}">${escapeHtml(r.perfil)}</span></td>
+          <td data-label="Acceso">${escapeHtml(mecanismo)}</td>
+          <td data-label="Acción"><code>${escapeHtml(r.metodo)} ${escapeHtml(r.ruta)}</code></td>
+          <td data-label="Estatus"><span class="estatus-badge ${claseEstatusHttp(r.estatus)}">${r.estatus}</span></td>
+          <td data-label="IP">${escapeHtml(r.ip || '—')}</td>
+        `;
+        els.auditoriaTableBody.appendChild(tr);
+      });
+    } catch (err) {
+      els.auditoriaError.textContent = err.message || 'No se pudo cargar la auditoría.';
+    }
+  }
+
+  els.auditoriaFiltroActor.addEventListener('input', cargarAuditoria);
+  els.auditoriaFiltroDesde.addEventListener('change', cargarAuditoria);
+  els.auditoriaFiltroHasta.addEventListener('change', cargarAuditoria);
+  els.auditoriaFiltroLimite.addEventListener('change', cargarAuditoria);
+  els.btnLimpiarAuditoriaActor.addEventListener('click', () => limpiarCampoFiltro(els.auditoriaFiltroActor));
+  els.btnLimpiarFiltrosAuditoria.addEventListener('click', () => {
+    els.auditoriaFiltroActor.value = '';
+    els.auditoriaFiltroDesde.value = '';
+    els.auditoriaFiltroHasta.value = '';
+    els.auditoriaFiltroLimite.value = '100';
+    cargarAuditoria();
+  });
+
   // Menú móvil (launcher de íconos) — "Menú" en la barra superior
   // siempre regresa aquí, sin importar el perfil ni qué vista estaba
   // abierta (a propósito: no es "Inicio", que el perfil administrador
@@ -5784,6 +6055,7 @@
     els.vistaLecturaReportes.hidden = true;
     els.vistaProveedores.hidden = true;
     els.vistaMiCuenta.hidden = true;
+    els.vistaAuditoria.hidden = true;
     els.adminMenuMovil.hidden = false;
   }
   // Punto: back físico del celular = mismo efecto que tocar "Menú"
@@ -6655,25 +6927,37 @@
     if (dialogo) dialogo.scrollTop = 0;
   }
 
-  // Método de entrega: correo (de siempre) o imprimir ticket (nuevo, sin
-  // correo — ver PROJECT_STATE.md). Imprimir oculta Tipo de cliente +
-  // Correo por completo, ya no aplican.
-  let ordenMetodoEntregaImprimir = false;
-  function aplicarMetodoEntregaOrden(esImprimir) {
-    ordenMetodoEntregaImprimir = esImprimir;
-    els.btnOrdenEntregaCorreo.classList.toggle('is-active', !esImprimir);
-    els.btnOrdenEntregaCorreo.setAttribute('aria-selected', String(!esImprimir));
+  // Método de entrega: 'correo' (de siempre), 'imprimir' (sin correo,
+  // abre el ticket para imprimir) o 'sinticket' (sin correo, sin
+  // imprimir — solo confirma la venta, ver PROJECT_STATE.md). Los 3
+  // ocultan Tipo de cliente + Correo salvo "correo". El punto de
+  // partida al abrir el modal lo decide "Configuraciones globales" →
+  // Ventas → "Método de entrega por defecto" (ordenEntregaDefault,
+  // cargado en cargarConfigGlobalParaOrden()).
+  let ordenMetodoEntrega = 'sinticket';
+  let ordenEntregaDefault = 'sinticket';
+  function aplicarMetodoEntregaOrden(modo) {
+    ordenMetodoEntrega = modo;
+    const esCorreo = modo === 'correo';
+    const esImprimir = modo === 'imprimir';
+    const esSinTicket = modo === 'sinticket';
+    els.btnOrdenEntregaCorreo.classList.toggle('is-active', esCorreo);
+    els.btnOrdenEntregaCorreo.setAttribute('aria-selected', String(esCorreo));
     els.btnOrdenEntregaImprimir.classList.toggle('is-active', esImprimir);
     els.btnOrdenEntregaImprimir.setAttribute('aria-selected', String(esImprimir));
-    els.ordenEntregaCorreoWrap.hidden = esImprimir;
+    els.btnOrdenEntregaSinTicket.classList.toggle('is-active', esSinTicket);
+    els.btnOrdenEntregaSinTicket.setAttribute('aria-selected', String(esSinTicket));
+    els.ordenEntregaCorreoWrap.hidden = !esCorreo;
     els.ordenEntregaImprimirHint.hidden = !esImprimir;
-    if (esImprimir) {
+    els.ordenEntregaSinTicketHint.hidden = !esSinTicket;
+    if (!esCorreo) {
       setFieldError('orden-email', '');
       setFieldError('orden-email-nuevo', '');
     }
   }
-  els.btnOrdenEntregaCorreo.addEventListener('click', () => aplicarMetodoEntregaOrden(false));
-  els.btnOrdenEntregaImprimir.addEventListener('click', () => aplicarMetodoEntregaOrden(true));
+  els.btnOrdenEntregaCorreo.addEventListener('click', () => aplicarMetodoEntregaOrden('correo'));
+  els.btnOrdenEntregaImprimir.addEventListener('click', () => aplicarMetodoEntregaOrden('imprimir'));
+  els.btnOrdenEntregaSinTicket.addEventListener('click', () => aplicarMetodoEntregaOrden('sinticket'));
 
   // Estado de pago (CxC punto 138): pagada (default verde) / pendiente (ámbar)
   let ordenEstadoPago = 'pagada';
@@ -6697,7 +6981,7 @@
   // "imprimir" no hay nada que validar aquí (ver POST /ordenes-compra,
   // acepta email vacío).
   function validarPasoClienteOrden() {
-    if (ordenMetodoEntregaImprimir) return true;
+    if (ordenMetodoEntrega !== 'correo') return true;
     setFieldError('orden-email', '');
     setFieldError('orden-email-nuevo', '');
     const email = ordenModoClienteNuevo
@@ -6783,6 +7067,9 @@
       if (!res.ok) return;
       const config = await res.json();
       ivaActualParaOrden = config.iva_porcentaje;
+      if (['correo', 'imprimir', 'sinticket'].includes(config.entrega_venta_default)) {
+        ordenEntregaDefault = config.entrega_venta_default;
+      }
       els.ordenIvaInfo.textContent = `${config.iva_porcentaje}%`;
       if (els.ordenInfoBannerIva) els.ordenInfoBannerIva.textContent = `${config.iva_porcentaje}%`;
       const zonaInfo = zonas.find((z) => z.id === config.zona_horaria);
@@ -7208,7 +7495,7 @@
     els.ordenEmail.value = '';
     els.ordenEmailNuevo.value = '';
     aplicarModoClienteOrden(false);
-    aplicarMetodoEntregaOrden(false);
+    aplicarMetodoEntregaOrden(ordenEntregaDefault);
     aplicarEstadoPago('pagada');
     if (els.ordenFechaVencimiento) els.ordenFechaVencimiento.value = '';
     if (els.ordenNotasCobro) els.ordenNotasCobro.value = '';
@@ -7251,7 +7538,7 @@
       estadoPago: ordenEstadoPago,
       fechaVencimiento: els.ordenFechaVencimiento ? els.ordenFechaVencimiento.value : '',
       notasCobro: els.ordenNotasCobro ? els.ordenNotasCobro.value : '',
-      metodoEntregaImprimir: ordenMetodoEntregaImprimir,
+      metodoEntrega: ordenMetodoEntrega,
       modoClienteNuevo: ordenModoClienteNuevo,
       email: els.ordenEmail.value,
       emailNuevo: els.ordenEmailNuevo.value,
@@ -7293,7 +7580,12 @@
     aplicarEstadoPago(borrador.estadoPago === 'pendiente' ? 'pendiente' : 'pagada');
     if (els.ordenFechaVencimiento) els.ordenFechaVencimiento.value = borrador.fechaVencimiento || '';
     if (els.ordenNotasCobro) els.ordenNotasCobro.value = borrador.notasCobro || '';
-    aplicarMetodoEntregaOrden(Boolean(borrador.metodoEntregaImprimir));
+    // "metodoEntrega" es el formato nuevo (3 estados); "metodoEntregaImprimir"
+    // es el formato viejo (booleano) — un borrador guardado en localStorage
+    // ANTES de este cambio sigue restaurándose sin romperse.
+    const modoEntregaBorrador =
+      borrador.metodoEntrega || (borrador.metodoEntregaImprimir ? 'imprimir' : 'correo');
+    aplicarMetodoEntregaOrden(modoEntregaBorrador);
     aplicarModoClienteOrden(Boolean(borrador.modoClienteNuevo));
     if (borrador.modoClienteNuevo) {
       els.ordenEmailNuevo.value = borrador.emailNuevo || '';
@@ -7318,7 +7610,7 @@
     const descuentoMonto = descuentoPct ? Math.round(cantidad * (descuentoPct / 100) * 100) / 100 : 0;
     const cantidadNeta = Math.round((cantidad - descuentoMonto) * 100) / 100;
     const total = Math.round(cantidadNeta * (1 + ivaActualParaOrden / 100) * 100) / 100;
-    const email = ordenMetodoEntregaImprimir
+    const email = ordenMetodoEntrega !== 'correo'
       ? ''
       : ordenModoClienteNuevo
         ? els.ordenEmailNuevo.value.trim()
@@ -7400,17 +7692,17 @@
     const cantidad = obtenerValorNumerico(els.ordenCantidad);
     const descuentoTexto = els.ordenDescuento.value.trim();
     let descuentoPorcentaje = null;
-    // Sin correo cuando el método de entrega es "imprimir" (ver
-    // PROJECT_STATE.md — el backend acepta email vacío en ese caso).
-    const email = ordenMetodoEntregaImprimir
+    // Sin correo cuando el método de entrega es "imprimir"/"sinticket"
+    // (ver PROJECT_STATE.md — el backend acepta email vacío en ambos).
+    const email = ordenMetodoEntrega !== 'correo'
       ? ''
       : ordenModoClienteNuevo
         ? els.ordenEmailNuevo.value.trim().toLowerCase()
         : els.ordenEmail.value;
     // Se captura ANTES de que limpiarFormularioOrden() (dentro del
-    // temporizador de mostrarExitoRegistrarOrden) regrese el toggle a
-    // "correo" por defecto para la siguiente venta.
-    const imprimirAlGuardar = ordenMetodoEntregaImprimir;
+    // temporizador de mostrarExitoRegistrarOrden) regrese el toggle al
+    // método por defecto para la siguiente venta.
+    const imprimirAlGuardar = ordenMetodoEntrega === 'imprimir';
     const fechaVencimiento = els.ordenFechaVencimiento ? els.ordenFechaVencimiento.value : '';
     const notasCobro = els.ordenNotasCobro ? els.ordenNotasCobro.value.trim() : '';
 
@@ -7740,7 +8032,8 @@
     const fecha = orden.fecha_compra_formateada
       ? `${orden.fecha_compra_formateada.fecha} ${orden.fecha_compra_formateada.hora}`
       : '';
-    const lineas = orden.concepto.split('\n').filter((linea) => linea.trim());
+    const conceptoLimpio = String(orden.concepto || '').replace(/\r/g, '').trim();
+    const lineas = conceptoLimpio.split('\n').map((l) => l.trim()).filter(Boolean);
     const productos = lineas.map(parsearProductoDeLinea);
     const todosParsearon = productos.length > 0 && productos.every((p) => p !== null);
     const filasHtml = todosParsearon
@@ -7769,6 +8062,7 @@
       : '';
 
     return `
+      <img class="ticket-imprimir-logo" src="/assets/logoLight.png" alt="CLARVO" />
       <div class="ticket-imprimir-titulo">Ticket de venta</div>
       <div class="ticket-imprimir-separador"></div>
       <div class="ticket-imprimir-meta">Folio: ${escapeHtml(orden.numero_compra || '—')}</div>
@@ -7783,6 +8077,7 @@
       <div class="ticket-imprimir-separador"></div>
       ${orden.email ? `<div class="ticket-imprimir-meta">Cliente: ${escapeHtml(orden.email)}</div><div class="ticket-imprimir-separador"></div>` : ''}
       <div class="ticket-imprimir-gracias">¡Gracias por su compra!</div>
+      <div class="ticket-imprimir-sitio">Visítanos https://clarvo.mx</div>
     `;
   }
 
@@ -7815,6 +8110,43 @@
   els.btnTicketPreviewImprimir.addEventListener('click', () => {
     if (!ticketPreviewOrdenActual) return;
     els.ticketImprimir.innerHTML = construirHtmlTicket(ticketPreviewOrdenActual);
+    // Ajuste dinámico del alto de página para rollo 58mm continuo:
+    // el ticket está oculto (display:none) en pantalla, así que lo hacemos
+    // visible fuera de pantalla solo para medir su alto real y fijar @page
+    // a esa altura exacta — sin esto queda 1 hoja enorme en blanco (A4).
+    // Bug real corregido 2026-09-11 (reportado con impresora térmica
+    // física): el ancho/tipografía de 58mm que definen este alto vivían
+    // SOLO dentro de @media print (admin.css) — la medición de aquí
+    // ocurría a un ancho de pantalla mucho más amplio y letra más grande,
+    // así que envolvía muchas menos líneas y calculaba un alto muy por
+    // debajo del real; la impresora/driver rechazaba ese tamaño de
+    // página tan chico y caía a su papel por default (mucho más largo
+    // que el ticket) — de ahí el rollo en blanco. Fix real: esas reglas
+    // de ancho/tipografía se movieron a `#ticket-imprimir` sin depender
+    // de @media print (ver admin.css), así esta medición ya usa el mismo
+    // layout compacto de 58mm que realmente se imprime.
+    try {
+      const prevHidden = els.ticketImprimir.hidden;
+      const prevDisplay = els.ticketImprimir.style.display;
+      const prevPos = els.ticketImprimir.style.position;
+      const prevLeft = els.ticketImprimir.style.left;
+      const prevVis = els.ticketImprimir.style.visibility;
+      els.ticketImprimir.hidden = false;
+      els.ticketImprimir.style.display = 'block';
+      els.ticketImprimir.style.position = 'absolute';
+      els.ticketImprimir.style.left = '-9999px';
+      els.ticketImprimir.style.visibility = 'hidden';
+      const hPx = els.ticketImprimir.scrollHeight || els.ticketImprimir.offsetHeight || 200;
+      els.ticketImprimir.hidden = prevHidden;
+      els.ticketImprimir.style.display = prevDisplay;
+      els.ticketImprimir.style.position = prevPos;
+      els.ticketImprimir.style.left = prevLeft;
+      els.ticketImprimir.style.visibility = prevVis;
+      const hMm = Math.max(32, Math.ceil(hPx * 0.264583 + 8));
+      let estilo = document.getElementById('print-page-size');
+      if (!estilo) { estilo = document.createElement('style'); estilo.id = 'print-page-size'; document.head.appendChild(estilo); }
+      estilo.textContent = `@page { size: 58mm ${hMm}mm; margin: 0; } @media print { @page { size: 58mm ${hMm}mm; margin: 0; } html, body { height: ${hMm}mm !important; } #ticket-imprimir { height: ${hMm}mm !important; max-height: ${hMm}mm !important; } }`;
+    } catch (_) {}
     cerrarPreviewTicket();
     window.print();
   });

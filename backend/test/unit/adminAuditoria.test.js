@@ -131,6 +131,27 @@ describe('utils/adminAuditoria.js', () => {
       expect(params).toEqual(['admin', 'cliente1']);
     });
 
+    test('sinTenant filtra por tenant_slug IS NULL (sitio base, punto 244)', async () => {
+      const poolControl = mockPoolControl();
+
+      await listarAuditoria({ sinTenant: true });
+
+      const [sql, params] = poolControl.query.mock.calls[0];
+      expect(sql).toMatch(/WHERE tenant_slug IS NULL/);
+      expect(params).toEqual([]);
+    });
+
+    test('tenantSlug tiene prioridad sobre sinTenant si ambos vienen (nunca debería pasar, pero no debe romperse)', async () => {
+      const poolControl = mockPoolControl();
+
+      await listarAuditoria({ tenantSlug: 'cliente1', sinTenant: true });
+
+      const [sql, params] = poolControl.query.mock.calls[0];
+      expect(sql).toMatch(/WHERE tenant_slug = \?/);
+      expect(sql).not.toMatch(/IS NULL/);
+      expect(params).toEqual(['cliente1']);
+    });
+
     test('el límite se acota entre 1 y 500', async () => {
       const poolControl = mockPoolControl();
 

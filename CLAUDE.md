@@ -1525,6 +1525,132 @@ antes no tenía (funcionalmente idéntica al default anterior) —
 tocar el `.env` directo desde esta sesión (dotfile bloqueado). Ver
 PROJECT_STATE.md punto 284.
 
+**Anotación al punto 244 (2026-09-10, solo registrada, sin analizar ni
+implementar)**: el pendiente 244 ("switches por empresa: qué menús
+tiene activos" en `/control`) queda asociado a **planes** (271/272 —
+cada plan de "Clarvo a la medida"/Site Market traería su propia matriz
+de switches) y gana como parte de su alcance el **número de usuarios
+permitidos por tenant** (cuota de cuentas de panel — hoy solo
+informativa, sin límite real, en "Mi Cuenta" → "Cuentas de panel", punto
+283; distinto de la cuota de almacenamiento del punto 250). Ver
+PROJECT_STATE.md punto 244 para el detalle y las preguntas abiertas.
+
+**Mapeo del punto 244 contra `CLARVO_Planes.md` + propuesta visual
+(2026-09-10, mismo día, SOLO mapeo/propuesta, cero código tocado)**:
+Artifact con la matriz módulo×plan (Solicita/Controla/Crece/Domina, sin
+precios) publicado en
+`https://claude.ai/code/artifact/112f0d33-5a11-458d-948e-8c981e8b040e`.
+6 hallazgos reales de la auditoría dato-real-vs-marketing: "Auditoría
+consultable" sin pantalla, "Automatizaciones" no existe, operación
+offline/Look & Feel/marca/recorrido guiado YA construidos sin gate por
+plan, "básico vs avanzado" de Dashboard/Reportes sin 2 versiones reales
+en código, usuarios/sucursales solo conteo informativo sin cuota real,
+"Soporte prioritario" no es funcionalidad de software. Ver
+PROJECT_STATE.md punto 244 para el detalle completo.
+
+**Punto 244 — piezas sueltas del mapeo con `CLARVO_Planes.md`
+implementadas (2026-09-11, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
+reales)**: de los 6 hallazgos del mapeo, decisión punto por punto —
+Automatizaciones y Soporte prioritario eliminados del alcance;
+Auditoría consultable construida (vista nueva "Auditoría" en `/admin`,
+`GET /api/admin/auditoria` sobre `admin_auditoria`, siempre acotada al
+tenant, nunca cross-tenant); marca/Look & Feel se quedan como upscale
+pero ganan switch real (`marca_lookfeel_habilitado` en
+`control_tenants.tenants`, gatea `marcaDelTenant()`/
+`coloresCorreoTenant()`/`logoUrlDelTenant()`/`GET /api/tema/:slug`);
+operación offline y recorrido guiado confirmados como CORE (nunca se
+gatean); "Dashboard/Reportes básico vs avanzado" diferido a propósito,
+solo documentado; cuota de usuarios (`max_usuarios` por tenant) real y
+enforced en `POST`/`PUT /api/admin/usuarios` (400
+`CUOTA_USUARIOS_EXCEDIDA`, solo cuentas administrador/fiscal/ventas,
+nunca cliente). Ambos campos nuevos editables desde el modal "Editar
+empresa" de `/control`. 16 tests nuevos, Jest backend 935/935, control
+173/173. Validado de punta a punta contra Docker/MySQL reales con el
+tenant real `abarroteslulu` (restaurado a su estado original en los 3
+casos probados). Artifact del mapeo actualizado:
+`https://claude.ai/code/artifact/112f0d33-5a11-458d-948e-8c981e8b040e`.
+Pendiente real: el catálogo de PLANES en sí (qué switches trae cada
+plan, cómo se asigna a un tenant) sigue sin existir, ligado a 271/272.
+Sin herramienta de navegador esta sesión. Ver PROJECT_STATE.md punto
+244.
+
+**Punto 285 — "Registrar venta" más ancho + "Sin ticket" por defecto +
+radios en Configuraciones globales (2026-09-11, IMPLEMENTADO Y
+VALIDADO contra Docker/MySQL reales)**: pedido con captura (Precio
+unitario/Cantidad se apretaban al meter productos de inventario).
+Propuesta visual antes/después confirmada primero
+(`https://claude.ai/code/artifact/97c765d7-2122-4d5b-9172-1bd88bc09f6b`).
+(1) `.orden-registrar-modal` 820px→920px en escritorio, clase propia
+(nunca toca `.ticket-modal` compartida con Tickets/Gastos/CxC). (2)
+Toggle "¿Cómo se entrega?" de 2 a 3 estados
+(`ordenMetodoEntrega`: `'correo'`/`'imprimir'`/`'sinticket'`) — "Sin
+ticket" igual que "Imprimir" (sin correo obligatorio) pero sin
+`window.print()`, solo la palomita de éxito de siempre; borrador viejo
+en `localStorage` retrocompatible. (3) Radios reales (no toggle) en
+Configuraciones globales → Ventas → "Método de entrega por defecto",
+mismo patrón de autoguardado que "Habilitar Ventas" — backend
+`entrega_venta_default` nuevo en `config.js` (default **`'sinticket'`**),
+mismo candado de perfil (solo administrador/super) que
+`ordenes_compra_habilitado`. 6 tests nuevos, Jest backend 941/941.
+Validado por HTTP contra Docker real. Sin herramienta de navegador
+esta sesión. Ver PROJECT_STATE.md punto 285.
+
+**Bug del punto 285 corregido el mismo día**: el ancho de 920px nunca se
+veía — `.orden-registrar-modal` y `.ticket-modal` empatan en
+especificidad CSS, y `.ticket-modal` (declarado más abajo en
+`admin.css`) ganaba por orden de cascada sin importar el valor de la
+otra regla. Fix real: selector combinado
+`.ticket-modal.orden-registrar-modal { max-width: 1012px; }` (2 clases,
+le gana a `.ticket-modal` solo sin depender del orden) — valor subido
+además un 10% sobre los 920px originales, a pedido explícito del
+usuario. Validado por HTTP tras rebuild frontend: regla confirmada en
+el CSS servido.
+
+**Punto 286 — Switch "Mostrar Auditoría" en Configuraciones globales
+(2026-09-11, IMPLEMENTADO Y VALIDADO por HTTP contra Docker real)**:
+pedido explícito del usuario — la pantalla "Auditoría" (punto 244)
+queda opcional para no saturar el menú en tenants chicos. Tarjeta
+colapsable nueva "Auditoría" en Configuraciones globales (mismo patrón
+que "Ventas"/"Inventarios"), switch `config-auditoria-habilitada`
+(checked por defecto) con autoguardado. Backend:
+`auditoria_habilitada` nuevo en `DEFAULTS_CONFIG_GLOBAL`
+(`backend/utils/config.js`, default `true`), mismo candado de perfil
+(403 si no es administrador/super) que `entrega_venta_default`. El
+switch oculta el botón del sidebar/menú móvil (`aplicarRestriccionesPerfil()`)
+Y bloquea `GET /api/admin/auditoria` server-side (403 si está apagado)
+— pegarle directo a la API no evita el switch. La tabla
+`admin_auditoria` (segmento 7) sigue registrando todo acceso pase lo
+que pase, el switch solo controla la pantalla de consulta. 8 tests
+nuevos, Jest backend 946/946. Validado de punta a punta por curl:
+encender/apagar/reencender confirmado con 200/403/200 reales. Sin
+herramienta de navegador esta sesión. Ver PROJECT_STATE.md punto 286.
+
+**Punto 287 — Bug real de impresión térmica: rollo en blanco (2026-09-11,
+CORREGIDO por análisis de código, SIN validar contra impresora física)**:
+usuario reportó con captura real (driver "POS-58" instalado, su propia
+prueba de impresión sí funciona) que el ticket de venta imprimía sobre
+una hoja larga con mucho espacio en blanco después del texto. El
+mecanismo de alto dinámico ya existía (punto 209: JS mide `scrollHeight`
+de `#ticket-imprimir` fuera de pantalla e inyecta `@page` con el alto
+exacto) pero medía mal: las reglas de ancho 58mm/tipografía compacta
+vivían SOLO dentro de `@media print`, así que la medición (fuera de ese
+contexto) corría con ancho/letra de pantalla normales — mucho menos
+wrap, alto calculado muy por debajo del real. Con un alto de página tan
+chico e inexacto, el driver probablemente lo rechaza y cae a su papel
+por default (mucho más largo) — coincide con la captura del usuario.
+Fix: esas reglas se movieron a una declaración incondicional de
+`#ticket-imprimir` (fuera de `@media print`, ver `admin.css`) — la
+medición ya usa el mismo layout de 58mm que realmente se imprime, sin
+duplicar números entre dos bloques. Cero cambio de backend. Validado
+por HTTP tras rebuild frontend: regla confirmada sin envolver en
+`@media print` en el CSS servido. **Sin impresora física ni navegador
+con hardware conectado en esta sesión** — no se pudo correr la prueba
+de impresión real que pidió el usuario; falta que la pruebe en su
+equipo. Si sigue quedando espacio en blanco después de este fix, el
+siguiente sospechoso es la configuración del driver POS-58 en el
+sistema operativo (largo de papel fijo en vez de "rollo continuo"), no
+el sitio. Ver PROJECT_STATE.md punto 287.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
@@ -3383,6 +3509,25 @@ los de la cuenta eliminada). Validado por HTTP tras rebuild
 `--no-cache`+`--force-recreate` backend+frontend. **Sin herramienta de
 navegador esta sesión** — falta confirmación visual del usuario. Sin
 commit/push todavía. Ver PROJECT_STATE.md punto 282.
+
+**Punto 288 (2026-09-11, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: 3 bugs reales reportados por el usuario con capturas, seguimiento
+al punto 287. (1) "Imprimir etiqueta" de Inventarios mostraba el ticket de
+venta viejo en vez de la etiqueta — 2 bloques `@media print` en
+`admin.css` con listas de excepciones desincronizadas (el más viejo, solo
+para `#ticket-imprimir`, ocultaba con `!important` los 3 contenedores
+imprimibles agregados después); fix: misma lista de excepciones en
+ambos bloques. (2) Logo CLARVO (`/assets/logoLight.png`) + "Visítanos
+https://clarvo.mx" agregados al ticket de venta (`construirHtmlTicket()`
+en `admin.js`, único punto de armado, cubre print+preview) — alcance
+confirmado explícitamente por el usuario como SOLO el ticket, no
+Corte/Estado del inventario. (3) El switch "Mostrar Auditoría" (punto
+286) no aparecía al abrir esa sección en Configuraciones globales —
+`CONFIG_SECCIONES` en `admin.js` se quedó con 6 entradas al agregar esa
+tarjeta, faltaba la 7ª; sin ella `seleccionarSeccionConfig()` retornaba
+sin hacer nada. Cero backend. Jest 946/946 sin cambios. **Sin
+herramienta de navegador esta sesión** — falta confirmación visual/
+impresión real del usuario. Ver PROJECT_STATE.md punto 288.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 

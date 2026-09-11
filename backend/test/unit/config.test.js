@@ -113,6 +113,21 @@ describe('config.js', () => {
       expect(resultado.iva_porcentaje).toBe(16);
       expect(resultado.zona_horaria).toBe('America/Mexico_City');
       expect(resultado.ordenes_compra_habilitado).toBe(true);
+      expect(resultado.entrega_venta_default).toBe('sinticket');
+      expect(resultado.auditoria_habilitada).toBe(true);
+    });
+
+    test('entrega_venta_default: respeta "correo"/"imprimir" guardados, ignora valores desconocidos', async () => {
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ entrega_venta_default: 'imprimir' }) }]]);
+      expect((await getConfiguracionGlobal()).entrega_venta_default).toBe('imprimir');
+
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ entrega_venta_default: 'algo-invalido' }) }]]);
+      expect((await getConfiguracionGlobal()).entrega_venta_default).toBe('sinticket');
+    });
+
+    test('auditoria_habilitada: respeta "false" guardado', async () => {
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ auditoria_habilitada: false }) }]]);
+      expect((await getConfiguracionGlobal()).auditoria_habilitada).toBe(false);
     });
 
     test('respeta valores guardados válidos', async () => {
@@ -240,6 +255,25 @@ describe('config.js', () => {
       mockActualVacio();
       const resultado = await setConfiguracionGlobal({ ordenes_compra_habilitado: 0 });
       expect(resultado.ordenes_compra_habilitado).toBe(false);
+    });
+
+    test('entrega_venta_default acepta "correo"/"imprimir"/"sinticket"', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ entrega_venta_default: 'imprimir' });
+      expect(resultado.entrega_venta_default).toBe('imprimir');
+    });
+
+    test('entrega_venta_default rechaza cualquier otro valor', async () => {
+      mockActualVacio();
+      await expect(setConfiguracionGlobal({ entrega_venta_default: 'whatsapp' })).rejects.toThrow(
+        /método de entrega por defecto válido/i
+      );
+    });
+
+    test('auditoria_habilitada se convierte a booleano explícito', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ auditoria_habilitada: 0 });
+      expect(resultado.auditoria_habilitada).toBe(false);
     });
   });
 

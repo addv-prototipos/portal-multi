@@ -1,0 +1,809 @@
+<!DOCTYPE html><html class="h-full bg-slate-50" lang="es"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Mi Cuenta de Administrador &amp; Clarvo Market | Clarvo Cloud ERP</title>
+<!-- Tailwind CSS v3 with Forms & Container Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Font: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<script data-purpose="tailwind-configuration">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              navy: '#0f2744',
+              navyDark: '#0a1a2f',
+              navyLight: '#163861',
+              cyan: '#00c3f8',
+              cyanHover: '#00a8d6',
+              cyanDark: '#0096c7',
+              accent: '#38bdf8',
+            },
+            surface: {
+              card: '#ffffff',
+              subtle: '#f8fafc',
+              border: '#e2e8f0',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-scroll-and-indicators">
+    /* Custom thin scrollbars for dashboard comfort */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0a1a2f;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e3a5f;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #38bdf8;
+    }
+  </style>
+</head>
+<body class="h-full font-sans text-slate-800 antialiased flex flex-row overflow-hidden bg-slate-100">
+<!-- BEGIN: NavigationSidebar -->
+<aside class="w-72 bg-[#0f2744] text-slate-200 flex flex-col justify-between flex-shrink-0 h-screen border-r border-[#163861] select-none z-30" data-purpose="sidebar-navigation">
+<!-- Top Header and Brand Logo Section -->
+<div class="px-5 pt-6 pb-4 border-b border-[#183a63]">
+<div class="flex items-center space-x-2">
+<div class="flex items-center">
+<span class="text-2xl font-extrabold tracking-tight text-white">CLAR</span>
+<span class="text-2xl font-black text-[#00c3f8] relative">VO
+            <span class="absolute -top-1 -right-2 flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-sky-300"></span>
+</span>
+</span>
+</div>
+</div>
+<div class="flex items-center justify-between mt-1">
+<p class="text-[11px] text-slate-300 font-medium tracking-wide">
+          Tu negocio <span class="text-[#00c3f8] font-bold">bajo control</span>
+</p>
+<span class="text-[10px] font-semibold tracking-wider text-slate-400 uppercase bg-[#0a1a2f] px-1.5 py-0.5 rounded border border-slate-700">by ADDV</span>
+</div>
+</div>
+<!-- Scrollable Navigation Items Matching System -->
+<nav aria-label="Navegación principal" class="flex-1 overflow-y-auto py-4 px-3 space-y-1 text-sm font-medium">
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Inicio
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Tickets
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Constancias
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Resumen financiero
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Ventas
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Cuentas por cobrar
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Gastos
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Inventarios
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Usuarios
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Reportes
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Proveedores
+      </a>
+<a class="flex items-center px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] transition-colors group" href="#">
+<svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Configuraciones globales
+      </a>
+<!-- Active Section: Mi Cuenta Admin -->
+<div class="pt-2 mt-2 border-t border-[#183a63]">
+<a aria-current="page" class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#00c3f8] text-[#0a1a2f] font-bold shadow-md shadow-cyan-900/30 group" href="#">
+<div class="flex items-center">
+<svg class="w-5 h-5 mr-3 text-[#0a1a2f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Mi Cuenta</span>
+</div>
+<span class="text-[10px] uppercase font-extrabold bg-[#0a1a2f] text-white px-1.5 py-0.5 rounded">Admin</span>
+</a>
+</div>
+</nav>
+<!-- Bottom Actions: Knowledge Base & Logout -->
+<div class="p-3 border-t border-[#183a63] bg-[#0c1f38] space-y-1">
+<a class="flex items-center px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-[#163861] text-xs font-medium transition-colors" href="#">
+<svg class="w-4 h-4 mr-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Centro de conocimiento
+      </a>
+<a class="flex items-center px-3 py-2 rounded-lg text-rose-300 hover:text-rose-100 hover:bg-rose-950/40 text-xs font-medium transition-colors" href="#">
+<svg class="w-4 h-4 mr-2.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+        Cerrar sesión
+      </a>
+</div>
+</aside>
+<!-- END: NavigationSidebar -->
+<!-- BEGIN: MainContentArea -->
+<main class="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-50 relative">
+<!-- Top Sticky Header Bar -->
+<header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 px-8 py-4 flex items-center justify-between shadow-xs" data-purpose="top-header">
+<div>
+<div class="flex items-center gap-2">
+<h1 class="text-2xl font-bold text-[#0f2744]">Mi Cuenta y Gestión de Suscripción</h1>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-200">
+            Tenant Raíz
+          </span>
+</div>
+<p class="text-xs text-slate-500 mt-0.5">
+          Configuración del perfil administrador, credenciales, enlace con Clarvo Site Market y estatus de servicio del tenant.
+        </p>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors shadow-xs" type="button">
+          Descartar cambios
+        </button>
+<button class="px-5 py-2 text-xs font-semibold text-white bg-[#0f2744] hover:bg-[#163861] active:bg-[#0a1a2f] rounded-lg transition-all shadow-sm flex items-center gap-2" type="button">
+<svg class="w-4 h-4 text-[#00c3f8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+          Guardar Actualizaciones
+        </button>
+</div>
+</header>
+<!-- Inner Scrollable Dashboard Content -->
+<div class="p-8 space-y-6 max-w-7xl mx-auto w-full">
+<!-- BEGIN: InstitutionalBannerMarket -->
+<section class="rounded-xl border border-amber-300 bg-amber-50/80 p-4 shadow-sm" data-purpose="critical-account-banner">
+<div class="flex items-start space-x-3">
+<div class="flex-shrink-0 mt-0.5">
+<div class="w-8 h-8 rounded-full bg-amber-200 flex items-center justify-center text-amber-900 shadow-xs">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+<div class="flex-1 text-xs">
+<div class="flex items-center gap-2">
+<h2 class="font-bold text-amber-950 text-sm">
+                Cuenta Administrador Raíz vinculada a Clarvo Site Market
+              </h2>
+<span class="font-mono bg-amber-200/80 px-2 py-0.5 rounded text-amber-900 font-semibold text-[11px]">
+                admin@distribuidoradelnorte.mx
+              </span>
+</div>
+<p class="text-amber-800/90 mt-1 leading-relaxed">
+              Esta cuenta no puede ser eliminada ni desvinculada desde el portal general de administración del tenant debido a que gestiona directamente las licencias activas, facturación central y aprovisionamiento automático de módulos en el marketplace de Clarvo.
+            </p>
+</div>
+<div class="flex-shrink-0">
+<span class="inline-flex items-center text-[11px] font-semibold text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-md">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
+              Protección Activa
+            </span>
+</div>
+</div>
+</section>
+<!-- END: InstitutionalBannerMarket -->
+<!-- BEGIN: TenantIdentitySection -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" data-purpose="tenant-identity-card">
+<div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+<div class="flex items-center gap-2">
+<svg class="w-5 h-5 text-[#00c3f8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<h2 class="text-sm font-bold text-[#0f2744]">Identidad del Tenant &amp; URL de Acceso Exclusivo</h2>
+</div>
+<span class="text-xs text-slate-400 font-medium">Tenant ID: #ADDV-MX-88910</span>
+</div>
+<div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Col 1: Legal Name -->
+<div>
+<label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Razón Social Registrada</label>
+<div class="text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
+<span class="">Distribuidora Industrial del Norte S.A. de C.V.</span>
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+<!-- Col 2: RFC & SAT Badge -->
+<div>
+<label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">RFC del Tenant</label>
+<div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+<span class="font-mono text-sm font-bold text-slate-800">DIN200812KM9</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                SAT Validado
+              </span>
+</div>
+</div>
+<!-- Col 3: Portal Toggle Status -->
+<div>
+<label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Estado del Portal de Clientes</label>
+<div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-xs font-semibold text-slate-700">Acceso Público Operativo</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox">
+<div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00c3f8]"></div>
+</label>
+</div>
+</div>
+<!-- URL Slug Bar (Full Width Inside) -->
+<div class="md:col-span-3 bg-sky-50/60 border border-sky-200/80 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-[#0f2744] text-[#00c3f8] rounded-lg">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<div>
+<p class="text-xs text-sky-900 font-semibold">Subdominio Dedicado del Tenant (Clarvo Site)</p>
+<a class="font-mono text-sm font-bold text-[#0f2744] hover:underline flex items-center gap-1" href="https://clarvo.mx/distribuidora-norte" target="_blank">
+                  https://clarvo.mx/distribuidora-norte
+                  <svg class="w-3.5 h-3.5 text-[#00c3f8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</a>
+</div>
+</div>
+<div class="flex items-center gap-2 self-end md:self-auto">
+<button class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md bg-white border border-sky-300 text-sky-900 hover:bg-sky-50 shadow-xs transition-colors" type="button">
+<svg class="w-3.5 h-3.5 mr-1.5 text-sky-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+                Copiar enlace
+              </button>
+<button class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md bg-[#0f2744] text-white hover:bg-[#163861] shadow-xs transition-colors" type="button">
+                Probar acceso público
+              </button>
+</div>
+</div>
+</div>
+</section>
+<!-- END: TenantIdentitySection -->
+<!-- BEGIN: GridProfileAndSecurity -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Column Left: Admin Personal Data (7 cols) -->
+<div class="lg:col-span-7 space-y-6">
+<!-- Admin Identity & Credentials Card -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-xs p-6" data-purpose="admin-credentials-card">
+<div class="flex items-center justify-between pb-4 border-b border-slate-100">
+<div class="flex items-center gap-2.5">
+<div class="w-9 h-9 rounded-lg bg-[#0f2744] text-[#00c3f8] flex items-center justify-center font-bold text-base">
+                  AD
+                </div>
+<div>
+<h3 class="text-sm font-bold text-[#0f2744]">Datos Personales del Administrador</h3>
+<p class="text-xs text-slate-500">Credenciales del titular autorizado por la empresa</p>
+</div>
+</div>
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+<svg class="w-3.5 h-3.5 mr-1 text-indigo-500" fill="currentColor" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 011.337 1.337l-.8 1.599L18.677 11H20a1 1 0 110 2h-1.323l-1.582 3.954.8 1.599a1 1 0 01-1.337 1.337l-1.599-.8L11 18.677V20a1 1 0 11-2 0v-1.323l-3.954-1.582-1.599.8a1 1 0 01-1.337-1.337l.8-1.599L1.323 13H0a1 1 0 110-2h1.323l1.582-3.954-.8-1.599a1 1 0 011.337-1.337l1.599.8L9 4.323V3a1 1 0 011-1zm0 5a5 5 0 100 10 5 5 0 000-10z" fill-rule="evenodd"></path>
+</svg>
+                Propietario / Master Admin
+              </span>
+</div>
+<form class="mt-5 space-y-4" onsubmit="event.preventDefault();">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Name -->
+<div>
+<label class="block text-xs font-semibold text-slate-700 mb-1">Nombre Completo</label>
+<input class="w-full text-xs rounded-lg border-slate-300 focus:border-[#0f2744] focus:ring-[#0f2744] font-medium text-slate-800" type="text" value="Lic. Alejandro Domínguez Vargas">
+</div>
+<!-- Phone -->
+<div>
+<label class="block text-xs font-semibold text-slate-700 mb-1">Teléfono / WhatsApp Crítico</label>
+<div class="relative">
+<input class="w-full text-xs rounded-lg border-slate-300 focus:border-[#0f2744] focus:ring-[#0f2744] font-medium text-slate-800" type="tel" value="+52 (81) 8345-9200">
+<span class="absolute right-2.5 top-2 text-[10px] text-slate-400 font-semibold">2FA SMS opcional</span>
+</div>
+</div>
+</div>
+<!-- Email Field linked to Clarvo Market -->
+<div>
+<div class="flex items-center justify-between mb-1">
+<label class="text-xs font-semibold text-slate-700">Correo Electrónico Administrador (Clarvo Market Account)</label>
+<span class="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded border border-sky-200">
+                    Vinculado a Clarvo Market
+                  </span>
+</div>
+<div class="relative">
+<input class="w-full text-xs rounded-lg bg-slate-100 border-slate-200 text-slate-600 font-mono cursor-not-allowed pl-8" readonly="" type="email" value="admin@distribuidoradelnorte.mx">
+<svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<p class="text-[11px] text-slate-500 mt-1">
+                  Este correo debe coincidir obligatoriamente con la cuenta en Clarvo Market para validar compras, módulos adicionales y activación de facturación multi-empresa.
+                </p>
+</div>
+<!-- Timezone -->
+<div class="pt-1">
+<label class="block text-xs font-semibold text-slate-700 mb-1">Zona Horaria Operativa del Administrador</label>
+<select class="w-full text-xs rounded-lg border-slate-300 focus:border-[#0f2744] focus:ring-[#0f2744] font-medium text-slate-800">
+<option selected="">América/Ciudad de México (GMT-6) - Horario Estándar</option>
+<option>América/Monterrey (GMT-6)</option>
+<option>América/Tijuana (GMT-8)</option>
+</select>
+</div>
+</form>
+<!-- Password Change Section Inside Profile -->
+<div class="mt-6 pt-5 border-t border-slate-200">
+<div class="flex items-center justify-between mb-3">
+<h4 class="text-xs font-bold text-[#0f2744] uppercase tracking-wider">Cambio de Contraseña de Acceso</h4>
+<button class="text-xs text-[#00c3f8] hover:text-[#0096c7] font-semibold flex items-center gap-1" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+                  Generar contraseña segura automática (12 car.)
+                </button>
+</div>
+<div class="space-y-3">
+<div>
+<label class="block text-xs font-medium text-slate-600 mb-1">Contraseña Actual</label>
+<input class="w-full text-xs rounded-lg border-slate-300 focus:ring-[#0f2744] focus:border-[#0f2744]" placeholder="••••••••••••••••" type="password">
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+<div>
+<label class="block text-xs font-medium text-slate-600 mb-1">Nueva Contraseña</label>
+<input class="w-full text-xs rounded-lg border-slate-300 focus:ring-[#0f2744] focus:border-[#0f2744]" type="password" value="ClarvoSecurity2025!">
+</div>
+<div>
+<label class="block text-xs font-medium text-slate-600 mb-1">Confirmar Nueva Contraseña</label>
+<input class="w-full text-xs rounded-lg border-slate-300 focus:ring-[#0f2744] focus:border-[#0f2744]" type="password" value="ClarvoSecurity2025!">
+</div>
+</div>
+<!-- Password strength checklist -->
+<div class="p-3 bg-slate-50 rounded-lg border border-slate-200">
+<p class="text-[11px] font-semibold text-slate-600 mb-2">Seguridad de la contraseña:</p>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+<span class="flex items-center text-emerald-600 font-medium">
+<svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill-rule="evenodd"></path></svg>
+                      8+ caracteres
+                    </span>
+<span class="flex items-center text-emerald-600 font-medium">
+<svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill-rule="evenodd"></path></svg>
+                      Un número
+                    </span>
+<span class="flex items-center text-emerald-600 font-medium">
+<svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill-rule="evenodd"></path></svg>
+                      Mayús. y minús.
+                    </span>
+<span class="flex items-center text-emerald-600 font-medium">
+<svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill-rule="evenodd"></path></svg>
+                      Coincidencia OK
+                    </span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Critical Alerts Preferences Card -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-xs p-6" data-purpose="admin-alert-preferences">
+<h4 class="text-xs font-bold text-[#0f2744] uppercase tracking-wider mb-3">Preferencias de Notificaciones Críticas para Administradores</h4>
+<div class="space-y-3">
+
+<label class="flex items-start space-x-3 cursor-pointer">
+<input checked="" class="rounded border-slate-300 text-[#0f2744] focus:ring-[#0f2744] mt-0.5" type="checkbox">
+<div class="text-xs">
+<span class="font-semibold text-slate-800">Alerta de intentos fallidos de autenticación (Más de 3 intentos)</span>
+<p class="text-slate-500 text-[11px]">Registra IP y bloquea preventivamente acceso por 15 minutos.</p>
+</div>
+</label>
+<label class="flex items-start space-x-3 cursor-pointer">
+<input checked="" class="rounded border-slate-300 text-[#0f2744] focus:ring-[#0f2744] mt-0.5" type="checkbox">
+<div class="text-xs">
+<span class="font-semibold text-slate-800">Recordatorio de renovación anual anticipada (30 y 7 días previos)</span>
+<p class="text-slate-500 text-[11px]">Garantiza la continuidad de respaldos automatizados en MinIO S3.</p>
+</div>
+</label>
+</div>
+</section>
+</div>
+<!-- Column Right: Security & 2FA (US-080) & Active Sessions (5 cols) -->
+<div class="lg:col-span-5 space-y-6">
+<!-- 2FA Security Card -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-xs p-6" data-purpose="two-factor-auth-card">
+<div class="flex items-center justify-between pb-3 border-b border-slate-100">
+<div class="flex items-center space-x-2">
+<div class="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<div>
+<h3 class="text-sm font-bold text-[#0f2744]">Seguridad &amp; Doble Factor (2FA)</h3>
+<span class="text-[10px] uppercase font-bold text-slate-400">Normativa US-080</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">Activado</span>
+</div>
+<div class="mt-4 space-y-4">
+<div class="flex items-start justify-between">
+<div>
+<p class="text-xs font-semibold text-slate-800">Autenticación de Dos Factores (2FA) vía Correo</p>
+<p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    Requiere un código OTP de 6 dígitos enviado a <strong class="text-slate-700">admin@distribuidoradelnorte.mx</strong> cada vez que ingreses desde un equipo desconocido o ejecutes acciones financieras sensibles.
+                  </p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer ml-3 flex-shrink-0">
+<input checked="" class="sr-only peer" type="checkbox">
+<div class="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+</label>
+</div>
+<!-- OTP Code Simulation Preview -->
+<div class="bg-slate-50 rounded-lg p-3 border border-slate-200 text-xs">
+<div class="flex justify-between items-center text-slate-600 mb-1">
+<span class="">Prueba de verificación OTP</span>
+<span class="text-[10px] text-slate-400">Expira en 4:58 min</span>
+</div>
+<div class="flex gap-2">
+<input class="font-mono text-center font-bold text-sm tracking-widest bg-white border border-slate-300 rounded-md py-1 px-3 w-full" maxlength="6" readonly="" type="text" value="7 4 9 2 0 1">
+<button class="px-3 py-1 bg-slate-200 text-slate-700 rounded-md font-semibold text-xs hover:bg-slate-300" type="button">Test</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Active Sessions Log Card -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-xs p-6" data-purpose="active-sessions-card">
+<div class="flex items-center justify-between pb-3 border-b border-slate-100">
+<h4 class="text-xs font-bold text-[#0f2744] uppercase tracking-wider">Bitácora de Sesiones Activas</h4>
+<button class="text-xs font-semibold text-rose-600 hover:text-rose-800" type="button">
+                Cerrar todas las demás
+              </button>
+</div>
+<div class="mt-3 divide-y divide-slate-100 text-xs">
+<!-- Session 1 -->
+<div class="py-2.5 flex items-center justify-between">
+<div class="flex items-center space-x-2.5">
+<svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<div>
+<p class="font-semibold text-slate-800">Chrome en macOS (Esta sesión)</p>
+<p class="text-[10px] text-slate-400">IP: 187.189.44.12 • Monterrey, MX</p>
+</div>
+</div>
+<span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 rounded">Activa ahora</span>
+</div>
+<!-- Session 2 -->
+<div class="py-2.5 flex items-center justify-between">
+<div class="flex items-center space-x-2.5">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<div>
+<p class="font-semibold text-slate-700">Clarvo App iOS (iPhone 15 Pro)</p>
+<p class="text-[10px] text-slate-400">IP: 187.189.44.18 • Hace 2 horas</p>
+</div>
+</div>
+<button class="text-slate-400 hover:text-rose-600 text-xs" type="button">Revocar</button>
+</div>
+<!-- Session 3 -->
+<div class="py-2.5 flex items-center justify-between">
+<div class="flex items-center space-x-2.5">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<div>
+<p class="font-semibold text-slate-700">Edge en Windows 11 (Sucursal)</p>
+<p class="text-[10px] text-slate-400">IP: 201.144.112.5 • Ayer a las 18:40</p>
+</div>
+</div>
+<button class="text-slate-400 hover:text-rose-600 text-xs" type="button">Revocar</button>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- END: GridProfileAndSecurity -->
+<!-- BEGIN: SubscriptionSection -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" data-purpose="subscription-management-card">
+<!-- Header of Subscription -->
+<div class="px-6 py-4 bg-gradient-to-r from-[#0f2744] to-[#163861] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-semibold uppercase tracking-wider text-[#00c3f8]">Plan de Suscripción Actual</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5"></span>
+                Suscripción Activa
+              </span>
+</div>
+<h3 class="text-xl font-extrabold tracking-tight mt-0.5">Clarvo Business Suite (Anual - Ahorro 20%)</h3>
+</div>
+<div class="flex items-center gap-2">
+<a class="px-4 py-2 text-xs font-bold rounded-lg bg-[#00c3f8] text-[#0a1a2f] hover:bg-[#38bdf8] transition-colors shadow-sm flex items-center gap-1.5" href="#clarvo-market-addons">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+              Explorar Addons en Clarvo Site Market
+            </a>
+</div>
+</div>
+<div class="p-6">
+<!-- Status Info Row -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 pb-6 border-b border-slate-200">
+<div>
+<p class="text-xs text-slate-500 font-medium">Próxima Fecha de Renovación</p>
+<p class="text-sm font-bold text-slate-900 mt-0.5">15 de Enero de 2027</p>
+<span class="text-[11px] text-emerald-600 font-semibold">Ciclo Anual Deducible</span>
+</div>
+<div>
+<p class="text-xs text-slate-500 font-medium">Tarifa Base Mensualizada</p>
+<p class="text-sm font-bold text-slate-900 mt-0.5">$1,490.00 MXN <span class="text-xs font-normal text-slate-500">/ mes</span></p>
+<span class="text-[11px] text-slate-400">Facturado anualmente ($17,880.00 MXN)</span>
+</div>
+<div>
+<p class="text-xs text-slate-500 font-medium">Método de Cobro Registrado</p>
+<p class="text-sm font-bold text-slate-900 mt-0.5 flex items-center gap-1.5">
+<span class="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-300 text-[10px] font-mono">VISA</span>
+                •••• 9402
+              </p>
+<span class="text-[11px] text-slate-500">Expira 11/2028</span>
+</div>
+<div>
+<p class="text-xs text-slate-500 font-medium">Estado del Servicio Clarvo</p>
+<div class="mt-1 flex items-center gap-1.5">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800">
+                  Activa
+                </span>
+<span class="text-[11px] text-slate-400">(Avisos: Suspendida / Cancelada inactivos)</span>
+</div>
+</div>
+</div>
+<!-- Quotas and Realtime Metrics -->
+<div class="mt-6">
+<h4 class="text-xs font-bold text-[#0f2744] uppercase tracking-wider mb-4">Cuotas y Consumo en Tiempo Real (Tenant DIN200812KM9)</h4>
+<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+<!-- Metric 1: CFDI -->
+
+<!-- Metric 2: MinIO S3 -->
+<div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+<div class="flex justify-between items-start mb-2">
+<div>
+<span class="text-xs font-semibold text-slate-700">Almacenamiento MinIO S3</span>
+<p class="text-lg font-bold text-slate-900">3.4 GB <span class="text-xs font-medium text-slate-500">/ 25 GB</span></p>
+</div>
+<span class="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">13.6%</span>
+</div>
+<div class="w-full bg-slate-200 rounded-full h-2">
+<div class="bg-emerald-500 h-2 rounded-full" style="width: 13.6%"></div>
+</div>
+<p class="text-[11px] text-slate-500 mt-2 flex justify-between">
+<span class="">XMLs, PDFs &amp; Constancias</span>
+<span class="text-slate-400">Respaldado diario</span>
+</p>
+</div>
+<!-- Metric 3: Panel Accounts -->
+<div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+<div class="flex justify-between items-start mb-2">
+<div>
+<span class="text-xs font-semibold text-slate-700">Cuentas de Panel (Operadores)</span>
+<p class="text-lg font-bold text-slate-900">3 <span class="text-xs font-medium text-slate-500">/ 5 Cuentas</span></p>
+</div>
+<span class="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">60%</span>
+</div>
+<div class="w-full bg-slate-200 rounded-full h-2">
+<div class="bg-amber-500 h-2 rounded-full" style="width: 60%"></div>
+</div>
+<p class="text-[11px] text-slate-500 mt-2 flex justify-between">
+<span class="">2 licencias disponibles</span>
+<a class="text-[#0096c7] font-semibold hover:underline" href="#">Invitar usuario</a>
+</p>
+</div>
+</div>
+</div>
+<!-- Pausing and Retention Actions Warning -->
+<div class="mt-6 pt-5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+<div class="text-xs text-slate-500">
+<span class="font-semibold text-slate-700">Política de Retención y Baja:</span> En caso de cancelación de servicio, el tenant conserva acceso de solo lectura durante 90 días para descarga de CFDI y bitácoras contables.
+            </div>
+<div class="flex items-center gap-2 flex-shrink-0">
+<button class="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors" type="button">
+                Pausar por 30 días
+              </button>
+<button class="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-200 rounded-lg transition-colors" type="button">
+                Cancelar Suscripción
+              </button>
+</div>
+</div>
+</div>
+</section>
+<!-- END: SubscriptionSection -->
+<!-- BEGIN: FiscalDataAndInvoicing -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-xs p-6" data-purpose="fiscal-data-and-clarvo-invoices">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+<div>
+<h3 class="text-sm font-bold text-[#0f2744]">Datos Fiscales de la Empresa &amp; Facturación de Clarvo</h3>
+<p class="text-xs text-slate-500">Información fiscal para la emisión de tus comprobantes deducibles de la suscripción de software</p>
+</div>
+<button class="inline-flex items-center px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors gap-2" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+            Solicitar Factura del Mes (CFDI 4.0)
+          </button>
+</div>
+<!-- 5 Registered Fiscal Fields -->
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 mt-5 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+<div>
+<span class="text-slate-400 font-semibold block text-[10px] uppercase">Razón Social</span>
+<p class="font-bold text-slate-800 mt-0.5 truncate" title="Distribuidora Industrial del Norte S.A. de C.V.">Distribuidora Ind. del Norte</p>
+</div>
+<div>
+<span class="text-slate-400 font-semibold block text-[10px] uppercase">RFC Emisor</span>
+<p class="font-mono font-bold text-slate-800 mt-0.5">DIN200812KM9</p>
+</div>
+<div>
+<span class="text-slate-400 font-semibold block text-[10px] uppercase">Régimen Fiscal</span>
+<p class="font-bold text-slate-800 mt-0.5">601 - Gral. Personas Morales</p>
+</div>
+<div>
+<span class="text-slate-400 font-semibold block text-[10px] uppercase">Código Postal</span>
+<p class="font-bold text-slate-800 mt-0.5">64000 (Monterrey, N.L.)</p>
+</div>
+<div>
+<span class="text-slate-400 font-semibold block text-[10px] uppercase">Uso de CFDI</span>
+<p class="font-bold text-slate-800 mt-0.5">G03 Gastos en general</p>
+</div>
+</div>
+<!-- Invoices List Table -->
+<div class="mt-6">
+<div class="flex items-center justify-between mb-3">
+<h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Historial de Recibos y Facturas de Suscripción Clarvo</h4>
+<span class="text-xs text-slate-500">Últimos 3 comprobantes</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse text-xs">
+<thead>
+<tr class="border-b border-slate-200 text-slate-500 bg-slate-50 font-semibold">
+<th class="py-2.5 px-3">Folio Fiscal</th>
+<th class="py-2.5 px-3">Fecha de Emisión</th>
+<th class="py-2.5 px-3">Concepto</th>
+<th class="py-2.5 px-3">Total (MXN)</th>
+<th class="py-2.5 px-3">Estatus SAT</th>
+<th class="py-2.5 px-3 text-right">Descargas</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 text-slate-700">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-2.5 px-3 font-mono font-semibold text-slate-800">FAC-2026-0091</td>
+<td class="py-2.5 px-3">15 Ene 2026</td>
+<td class="py-2.5 px-3">Clarvo Business Suite (Anualidad 2026-2027)</td>
+<td class="py-2.5 px-3 font-bold text-slate-900">$17,880.00</td>
+<td class="py-2.5 px-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      Timbrado SAT
+                    </span>
+</td>
+<td class="py-2.5 px-3 text-right space-x-2">
+<button class="text-sky-700 hover:text-sky-900 font-semibold" type="button">PDF</button>
+<span class="text-slate-300">|</span>
+<button class="text-sky-700 hover:text-sky-900 font-semibold" type="button">XML</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-2.5 px-3 font-mono font-semibold text-slate-800">FAC-2025-0842</td>
+<td class="py-2.5 px-3">10 Ago 2025</td>
+<td class="py-2.5 px-3">Paquete Adicional Almacenamiento y Conectividad API</td>
+<td class="py-2.5 px-3 font-bold text-slate-900">$850.00</td>
+<td class="py-2.5 px-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      Timbrado SAT
+                    </span>
+</td>
+<td class="py-2.5 px-3 text-right space-x-2">
+<button class="text-sky-700 hover:text-sky-900 font-semibold" type="button">PDF</button>
+<span class="text-slate-300">|</span>
+<button class="text-sky-700 hover:text-sky-900 font-semibold" type="button">XML</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-2.5 px-3 font-mono font-semibold text-slate-800">FAC-2025-0104</td>
+<td class="py-2.5 px-3">15 Ene 2025</td>
+<td class="py-2.5 px-3">Clarvo Business Suite (Anualidad Inicial)</td>
+<td class="py-2.5 px-3 font-bold text-slate-900">$17,880.00</td>
+<td class="py-2.5 px-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      Timbrado SAT
+                    </span>
+</td>
+<td class="py-2.5 px-3 text-right space-x-2">
+<button class="text-sky-700 hover:text-sky-900 font-semibold" type="button">PDF</button>
+<span class="text-slate-300">|</span>
+<button class="text-sky-700 hover:text-sky-900 font-semibold" type="button">XML</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- END: FiscalDataAndInvoicing -->
+<!-- Footer Help and Clarvo Market Link -->
+<footer class="p-6 rounded-xl bg-gradient-to-r from-slate-900 to-[#0f2744] text-white flex flex-col md:flex-row items-center justify-between gap-4" data-purpose="footer-clarvo-market-direct">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-[#00c3f8] uppercase tracking-wider">Clarvo Site Market</span>
+<span class="text-[10px] bg-[#00c3f8]/20 text-[#00c3f8] px-2 py-0.5 rounded font-mono">v4.2 Hub</span>
+</div>
+<h4 class="text-base font-bold">¿Necesitas módulos avanzados para tu tenant?</h4>
+<p class="text-xs text-slate-300">Explora en un clic: Nómina Timbrada, Control de Inventario PEPS con Lotes, Multi-sucursal y Portal de Pago Stripe.</p>
+</div>
+<div class="flex-shrink-0">
+<button class="px-5 py-2.5 rounded-lg bg-[#00c3f8] text-[#0a1a2f] font-bold text-xs hover:bg-sky-400 transition shadow-md" type="button">
+            Abrir Clarvo Market con esta cuenta
+          </button>
+</div>
+</footer>
+</div>
+</main>
+<!-- END: MainContentArea -->
+
+
+</body></html>

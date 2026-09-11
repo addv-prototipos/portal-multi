@@ -253,6 +253,69 @@ describe('Admin', () => {
       expect(res.body.error).toMatch(/correo de reportes/);
     });
 
+    test('perfil "fiscal" puede cambiar el IVA pero NO entrega_venta_default (403, mismo candado que ordenes_compra_habilitado)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      const res = await request(app)
+        .put('/api/admin/config/global')
+        .auth(usuario, password)
+        .send({ entrega_venta_default: 'correo' });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/método de entrega por defecto/);
+    });
+
+    test('perfil "administrador" sí puede cambiar entrega_venta_default', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // setConfiguracionGlobal: getConfiguracionGlobal interno
+      pool.query.mockResolvedValueOnce([{}]); // INSERT/UPDATE
+
+      const res = await request(app)
+        .put('/api/admin/config/global')
+        .auth(usuario, password)
+        .send({ entrega_venta_default: 'imprimir' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.entrega_venta_default).toBe('imprimir');
+    });
+
+    test('entrega_venta_default con valor inválido responde 400', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal interno
+
+      const res = await request(app)
+        .put('/api/admin/config/global')
+        .auth(usuario, password)
+        .send({ entrega_venta_default: 'whatsapp' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/método de entrega por defecto válido/i);
+    });
+
+    test('perfil "fiscal" NO puede cambiar auditoria_habilitada (403, punto 244)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      const res = await request(app)
+        .put('/api/admin/config/global')
+        .auth(usuario, password)
+        .send({ auditoria_habilitada: false });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/Auditoría/);
+    });
+
+    test('perfil "administrador" sí puede cambiar auditoria_habilitada', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // setConfiguracionGlobal: getConfiguracionGlobal interno
+      pool.query.mockResolvedValueOnce([{}]); // INSERT/UPDATE
+
+      const res = await request(app)
+        .put('/api/admin/config/global')
+        .auth(usuario, password)
+        .send({ auditoria_habilitada: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.auditoria_habilitada).toBe(false);
+    });
+
     test('perfil "administrador" sí puede cambiar correo_reportes', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
       pool.query.mockResolvedValueOnce([[]]); // setConfiguracionGlobal: getConfiguracionGlobal interno

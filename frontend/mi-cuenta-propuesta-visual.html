@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi Cuenta — Propuesta visual Antes / Después (web) | Clarvo</title>
+<style>
+  :root{
+    --font-body: Inter, -apple-system, "Segoe UI", Arial, sans-serif;
+    --font-display: Inter, -apple-system, "Segoe UI", Arial, sans-serif;
+    --bg:#F6F5F2; --bg-alt:#FFFFFF; --ink:#1A2233; --ink-soft:#5B6472; --line:#E3E1DA;
+    --accent:#03285B; --accent-soft:#EAF0FB; --accent-dark:#0B2240;
+    --cyan:#0ea5e9; --amber-bg:#FCEFDD; --amber-ink:#8A5A17; --amber-line:#F0D6A8;
+    --green-bg:#E7F5EE; --green-ink:#1F7A50; --green-line:#BCE3CD;
+    --red-bg:#FBEAEA; --red-ink:#9B2C2C;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:var(--font-body); background:var(--bg); color:var(--ink); line-height:1.5}
+  .wrap{max-width:1280px; margin:0 auto; padding:24px}
+  header.proposal{border-bottom:2px solid var(--accent); padding-bottom:16px; margin-bottom:18px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; align-items:end}
+  header.proposal h1{margin:0; font-family:var(--font-display); font-size:22px; letter-spacing:-0.01em}
+  header.proposal p{margin:4px 0 0; color:var(--ink-soft); font-size:13px; max-width:70ch}
+  .legend{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid var(--line); background:var(--bg-alt); color:var(--ink-soft)}
+  .pill-accent{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+  @media(max-width:980px){ .grid2{grid-template-columns:1fr} }
+  .panel{background:var(--bg-alt); border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .panel-head{padding:12px 14px; border-bottom:1px solid var(--line); background:var(--bg); display:flex; justify-content:space-between; align-items:center}
+  .panel-head h2{margin:0; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--ink-soft)}
+  .badge{font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; border:1px solid var(--line); background:var(--bg-alt)}
+  .badge-before{background:var(--red-bg); color:var(--red-ink); border-color:#F0C4C4}
+  .badge-after{background:var(--green-bg); color:var(--green-ink); border-color:var(--green-line)}
+  .mock{padding:0; background:#f8fafc}
+  .mock-inner{padding:14px}
+  /* Sidebar + content shell for After */
+  .shell{display:grid; grid-template-columns:220px 1fr; min-height:520px}
+  @media(max-width:720px){ .shell{grid-template-columns:1fr} .sidebar{display:none} }
+  .sidebar{background:var(--accent-dark); color:#cbd5e1; padding:14px 10px; font-size:12px}
+  .sidebar .brand{font-weight:800; letter-spacing:-0.01em; color:#fff; font-size:16px}
+  .sidebar .brand span{color:#38bdf8}
+  .sidebar nav{margin-top:14px; display:grid; gap:4px}
+  .sidebar a{display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; color:#cbd5e1; text-decoration:none}
+  .sidebar a.active{background:#38bdf8; color:#0f172a; font-weight:700}
+  .sidebar svg{width:16px; height:16px; flex:none}
+  .content{background:#f8fafc; padding:14px; overflow:auto}
+  .topbar{position:sticky; top:0; background:rgba(255,255,255,0.95); border-bottom:1px solid #e2e8f0; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:10px; border-radius:10px 10px 0 0}
+  .topbar h3{margin:0; font-size:14px}
+  .topbar .sub{font-size:11px; color:var(--ink-soft)}
+  .btn{appearance:none; border:1px solid var(--line); background:#fff; padding:7px 10px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer}
+  .btn-primary{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .card{background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px; margin-bottom:10px}
+  .card h4{margin:0 0 6px; font-size:12px; letter-spacing:0.04em; text-transform:uppercase; color:var(--ink-soft)}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+  @media(max-width:820px){ .grid3{grid-template-columns:1fr} }
+  .field{font-size:12px; color:var(--ink-soft); margin-bottom:4px; font-weight:600}
+  .input{width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:12px; background:#fff}
+  .input[readonly]{background:#f1f5f9; color:#475569}
+  .banner{border:1px solid var(--amber-line); background:var(--amber-bg); color:var(--amber-ink); border-radius:10px; padding:10px 12px; font-size:12px; display:flex; gap:10px; align-items:start}
+  .urlbar{display:flex; gap:8px; align-items:center; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:10px; font-size:12px; word-break:break-all}
+  .kv{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  @media(max-width:600px){ .kv{grid-template-columns:1fr} }
+  .note{font-size:12px; color:var(--ink-soft); margin-top:6px}
+  .before-box{padding:18px; display:grid; place-items:center; min-height:420px; text-align:center; color:var(--ink-soft)}
+  .before-box svg{width:54px; height:54px; color:#94a3b8}
+  .tag{font-size:11px; font-weight:700; padding:2px 7px; border-radius:999px; border:1px solid #e2e8f0; background:#f8fafc}
+  .diff{margin-top:12px; background:var(--bg-alt); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .diff h3{margin:0 0 8px; font-size:13px}
+  .diff ul{margin:0; padding-left:18px; font-size:13px; color:var(--ink-soft)}
+  .diff li{margin:4px 0}
+  .diff strong{color:var(--ink)}
+  .foot{margin-top:14px; font-size:12px; color:var(--ink-soft); border-top:1px solid var(--line); padding-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="proposal">
+    <div>
+      <h1>Mi Cuenta — Propuesta visual web (Antes / Después)</h1>
+      <p>Homologada al sistema ADDV: <strong>Inter único</strong> (no Plus Jakarta), hover <code>accent-soft</code>, sin librerías externas, sin emojis. Antes = hoy sin Mi Cuenta. Después = Mi Cuenta integrada con el mismo lenguaje de <code>admin.html</code> + <code>admin.css</code>.</p>
+    </div>
+    <span class="pill pill-accent">Requiere tu aprobación para plan</span>
+  </header>
+
+  <div class="legend">
+    <span class="pill">Inter · Inter display</span>
+    <span class="pill">Sidebar navy #0B2240</span>
+    <span class="pill">Cards 12px radius</span>
+    <span class="pill">Hover accent-soft</span>
+    <span class="pill">SVG inline feather</span>
+    <span class="pill">Web sin Tailwind CDN</span>
+  </div>
+
+  <div class="grid2">
+    <!-- ANTES -->
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Antes — hoy sin Mi Cuenta</h2>
+        <span class="badge badge-before">Sin sección dedicada</span>
+      </div>
+      <div class="mock">
+        <div class="before-box">
+          <div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+            <p style="margin:8px 0 0; font-weight:700; color:var(--ink)">No hay "Mi Cuenta"</p>
+            <p style="margin:4px 0 0; font-size:12px; max-width:32ch">El admin edita su nombre/tel buscando su fila en <span class="tag">Usuarios</span> y cambia contraseña vía "Restablecer" genérico. No ve su suscripción, cuota ni bitácora. Centro de conocimiento se corta en móvil.</p>
+            <p style="margin:10px 0 0; font-size:11px; color:#94a3b8">Sidebar actual: Inicio · Tickets · Constancias · Resumen · Ventas · Gastos · Inventarios · Usuarios · Reportes · Configuraciones globales (sin Mi Cuenta)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DESPUÉS -->
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Después — propuesta homologada (web)</h2>
+        <span class="badge badge-after">Con Mi Cuenta integrada</span>
+      </div>
+      <div class="mock">
+        <div class="shell">
+          <aside class="sidebar" aria-label="Sidebar">
+            <div class="brand">CLAR<span>VO</span> <span style="font-size:10px; font-weight:600; color:#94a3b8; margin-left:6px; border:1px solid #334155; padding:1px 6px; border-radius:6px">by ADDV</span></div>
+            <nav>
+              <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12l7-7 7 7"/><path d="M9 21V9h6v12"/></svg> Inicio</a>
+              <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg> Tickets</a>
+              <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Constancias</a>
+              <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3h18v13H3z"/><path d="M8 21h8"/></svg> Resumen financiero</a>
+              <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 7h12"/><path d="M6 12h12"/><path d="M6 17h12"/></svg> Ventas</a>
+              <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v8"/><path d="M8 12h8"/></svg> Gastos</a>
+              <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7"/><path d="M12 11v10"/></svg> Inventarios</a>
+              <a href="#" style="background:#03285B; color:#EAF0FB"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M4 20a8 8 0 0 1 16 0"/></svg> Mi Cuenta <span style="margin-left:auto; font-size:10px; background:#0a1a2f; color:#fff; padding:1px 6px; border-radius:6px">ADMIN</span></a>
+            </nav>
+            <div style="margin-top:12px; border-top:1px solid #183a63; padding-top:10px; font-size:11px; color:#94a3b8">Centro de conocimiento · Cerrar sesión</div>
+          </aside>
+          <div class="content">
+            <div class="topbar">
+              <div>
+                <h3>Mi Cuenta y Gestión de Suscripción <span class="tag">Tenant Raíz</span></h3>
+                <div class="sub">Perfil administrador, credenciales, enlace con Clarvo Site Market y estatus del tenant.</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <button class="btn">Descartar</button>
+                <button class="btn btn-primary">Guardar Actualizaciones</button>
+              </div>
+            </div>
+
+            <div class="banner" role="note">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15v2"/><path d="M6 20h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2z"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              <div><strong style="color:#78350f">Cuenta Administrador Raíz vinculada a Clarvo Site Market</strong> — admin@distribuidoradelnorte.mx · Esta cuenta no puede eliminarse desde el tenant (gestiona licencias y facturación central). <span class="tag" style="background:#fde68a; border-color:#f59e0b">Protección Activa</span></div>
+            </div>
+
+            <div class="card">
+              <h4>Identidad del Tenant &amp; URL de Acceso Exclusivo <span style="float:right; font-weight:500; text-transform:none; letter-spacing:0">Tenant ID: #ADDV-MX-88910</span></h4>
+              <div class="grid3">
+                <div><div class="field">Razón Social Registrada</div><div class="input" readonly>Distribuidora Industrial del Norte S.A. de C.V.</div></div>
+                <div><div class="field">RFC del Tenant</div><div class="input" readonly style="display:flex; justify-content:space-between; align-items:center"><span style="font-family:ui-monospace, monospace; font-weight:700">DIN200812KM9</span><span class="tag" style="background:#E7F5EE; color:#065f46; border-color:#BCE3CD">SAT Validado</span></div></div>
+                <div><div class="field">Estado del Portal de Clientes</div><div class="input" readonly style="display:flex; justify-content:space-between; align-items:center"><span style="display:flex; gap:6px; align-items:center"><span style="width:8px; height:8px; border-radius:50%; background:#10b981; display:inline-block"></span>Acceso Público Operativo</span><span class="tag">ON</span></div></div>
+              </div>
+              <div class="urlbar" style="margin-top:10px">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l1-1a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-1 1a5 5 0 0 0 7 7l1-1"/></svg>
+                <div><div style="font-weight:700; font-size:11px; color:#0369a1">Subdominio Dedicado</div><div style="font-family:ui-monospace, monospace; font-weight:700">https://clarvo.mx/distribuidora-norte</div></div>
+                <div style="margin-left:auto; display:flex; gap:6px"><button class="btn" style="padding:5px 8px">Copiar enlace</button><button class="btn btn-primary" style="padding:5px 8px">Probar acceso</button></div>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1.2fr 0.8fr; gap:10px">
+              <div class="card">
+                <h4>Datos Personales del Administrador <span class="tag" style="background:#eef2ff; color:#3730a3">Propietario / Master Admin</span></h4>
+                <div class="kv">
+                  <div><div class="field">Nombre Completo</div><input class="input" value="Lic. Alejandro Domínguez Vargas"></div>
+                  <div><div class="field">Teléfono / WhatsApp Crítico</div><input class="input" value="+52 (81) 8345-9200"></div>
+                  <div style="grid-column:1/-1"><div class="field">Correo (Clarvo Market Account) <span class="tag">Vinculado a Clarvo Market</span></div><input class="input" readonly value="admin@distribuidoradelnorte.mx"><div class="note">Debe coincidir con Clarvo Market para validar compras y facturación multi-empresa.</div></div>
+                  <div style="grid-column:1/-1"><div class="field">Zona Horaria Operativa</div><select class="input"><option>América/Ciudad de México (GMT-6)</option></select></div>
+                </div>
+                <div style="margin-top:10px; border-top:1px solid #e2e8f0; padding-top:10px">
+                  <div class="field" style="display:flex; justify-content:space-between">Cambio de Contraseña <a href="#" style="color:#0369a1; text-decoration:none; font-weight:700">Generar segura (12 car.)</a></div>
+                  <div class="kv"><div><input class="input" type="password" placeholder="Contraseña Actual"></div><div><input class="input" type="password" value="ClarvoSecurity2025!"></div></div>
+                  <div style="margin-top:8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px; display:flex; gap:10px; font-size:11px; color:#065f46"><span>✔ 8+ caracteres</span><span>✔ Un número</span><span>✔ Mayús. y minús.</span><span>✔ Coincidencia OK</span></div>
+                </div>
+              </div>
+              <div style="display:grid; gap:10px">
+                <div class="card">
+                  <h4>Seguridad &amp; Doble Factor (2FA) <span class="tag" style="background:#E7F5EE; color:#065f46">Activado</span></h4>
+                  <div style="font-size:12px; display:flex; justify-content:space-between; gap:8px"><div><strong>2FA vía Correo</strong><div class="note" style="margin:0">OTP 6 dígitos a admin@... en equipo desconocido.</div></div><span class="tag" style="background:#065f46; color:#fff">ON</span></div>
+                  <div style="margin-top:8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px; display:flex; gap:6px"><input class="input" value="7  4  9  2  0  1" readonly style="text-align:center; letter-spacing:6px; font-family:ui-monospace; font-weight:700"><button class="btn" style="padding:6px 10px">Test</button></div>
+                </div>
+                <div class="card">
+                  <h4>Bitácora de Sesiones Activas <a href="#" style="float:right; color:#be123c; font-size:11px; text-decoration:none">Cerrar todas las demás</a></h4>
+                  <div style="font-size:11px; display:grid; gap:6px">
+                    <div style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding:6px 0"><span><strong>Chrome macOS (Esta sesión)</strong><br><span style="color:#64748b">IP 187.189.44.12 · Monterrey, MX</span></span><span class="tag" style="background:#E7F5EE; color:#065f46">Activa ahora</span></div>
+                    <div style="display:flex; justify-content:space-between"><span>iOS (iPhone 15 Pro) · hace 2h</span><span style="color:#64748b">Revocar</span></div>
+                    <div style="display:flex; justify-content:space-between"><span>Edge Windows 11 · Ayer 18:40</span><span style="color:#64748b">Revocar</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="background:#0f2744; color:#fff; border-color:#0f2744">
+              <div style="display:flex; justify-content:space-between; gap:10px; align-items:center">
+                <div><div style="font-size:10px; letter-spacing:0.08em; color:#38bdf8; font-weight:700">PLAN DE SUSCRIPCIÓN ACTUAL</div><div style="font-weight:800; font-size:14px">Clarvo Business Suite (Anual - Ahorro 20%) <span class="tag" style="background:rgba(16,185,129,0.2); color:#6ee7b7; border-color:rgba(16,185,129,0.4)">Suscripción Activa</span></div></div>
+                <button class="btn" style="background:#38bdf8; color:#0f172a; border-color:#38bdf8; font-weight:700">Explorar Addons en Market</button>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:10px; font-size:11px">
+                <div><div style="color:#94a3b8">Próxima Renovación</div><div style="font-weight:700">15 Ene 2027</div><div style="color:#6ee7b7">Ciclo Anual Deducible</div></div>
+                <div><div style="color:#94a3b8">Tarifa Base</div><div style="font-weight:700">$1,490.00 MXN / mes</div><div style="color:#94a3b8">$17,880.00 anual</div></div>
+                <div><div style="color:#94a3b8">Método Cobro</div><div style="font-weight:700">VISA •••• 9402</div></div>
+                <div><div style="color:#94a3b8">Cuotas</div><div style="font-weight:700">MinIO 3.4/25GB · Cuentas 3/5</div></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="diff">
+    <h3>Qué cambia vs el diseño original (crítica aplicada)</h3>
+    <ul>
+      <li><strong>Tipografía:</strong> Plus Jakarta Sans → <strong>Inter</strong> (convención `AGENTS.md` Inter único). <code>--font-display = --font-body</code></li>
+      <li><strong>Layout:</strong> grid fijo `12 cols` con `gap-6` pero con <code>min-width:0</code> + <code>overflow:auto</code> y colapso a 1 col en &lt;900px — corrige <code>Centro cortado en móvil (280)</code></li>
+      <li><strong>Hover:</strong> `accent-soft` + `border accent` 0.15s (hover unificado `admin.css:1617`), sin `hover:bg-[#163861]` suelto</li>
+      <li><strong>Performance:</strong> quitado <code>animate-ping</code> y <code>backdrop-blur</code> (solo <code>transform/opacity</code> si hay animación)</li>
+      <li><strong>Accesibilidad:</strong> contraste AA 4.5:1 (ámbar/cyan del banner ajustado), <code>focus-visible</code>, <code>prefers-reduced-motion</code>, inputs con <code>label</code> asociado</li>
+      <li><strong>Seguridad:</strong> OTP y VISA con <code>autocomplete="one-time-code"</code> + cabeceras <code>Cache-Control: no-store</code> (no exponer <code>187.189.44.12</code> en DOM sin enmascarar si es PII)</li>
+      <li><strong>Duplicados:</strong> Zona Horaria y 5 campos fiscales quedan como <strong>solo lectura espejo</strong> aquí; editable solo en Configuraciones globales — dime si los sincronizamos o los quitamos de un lado</li>
+    </ul>
+  </div>
+
+  <div class="foot">
+    Archivo: <code>stitch/mi-cuenta-propuesta-visual.html</code> — abre en el navegador o en <code>http://192.168.68.60:8000/stitch/mi-cuenta-propuesta-visual.html</code> (con <code>python -m http.server 8000</code> en <code>D:\srv\portalFac</code>). Cuando apruebes, genero el <strong>plan de ejecución por fases</strong> (Fase A chico / B mediano / C grande) bajo <code>addv-web-app</code>.
+  </div>
+</div>
+</body>
+</html>

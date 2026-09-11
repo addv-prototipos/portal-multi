@@ -381,6 +381,90 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   de punta a punta con un super admin de prueba temporal, restaurado al
   baseline. Ver PROJECT_STATE.md puntos 283 (addendum) y 284.
 
+- **Anotación al punto 244 (ver PROJECT_STATE.md, 2026-09-10, solo
+  registrada)**: asociado a planes (271/272) + número de usuarios
+  permitidos por tenant (distinto de la cuota de almacenamiento del
+  punto 250). Sin analizar ni implementar. Mismo día: mapeo contra
+  `CLARVO_Planes.md` + propuesta visual (Artifact, matriz módulo×plan
+  sin precios) — 6 hallazgos reales (auditoría sin pantalla,
+  automatizaciones inexistentes, varias features ya construidas sin
+  gate por plan, dashboard/reportes sin 2 versiones reales, cuotas sin
+  enforcement, "soporte prioritario" no es software). Solo
+  mapeo/propuesta, cero código tocado.
+
+- **Punto 244 — piezas sueltas del mapeo con `CLARVO_Planes.md` (ver
+  PROJECT_STATE.md, 2026-09-11, IMPLEMENTADO Y VALIDADO contra
+  Docker/MySQL reales)**: Auditoría consultable (vista nueva en
+  `/admin`, `GET /api/admin/auditoria`, siempre acotada al tenant);
+  switch real `marca_lookfeel_habilitado` (marca/Look&Feel siguen como
+  upscale, ahora con gate real); cuota real `max_usuarios` por tenant,
+  enforced en `POST`/`PUT /api/admin/usuarios` (400
+  `CUOTA_USUARIOS_EXCEDIDA`, solo administrador/fiscal/ventas). Offline
+  y recorrido guiado confirmados como CORE (nunca se gatean);
+  "Dashboard/Reportes básico vs avanzado" diferido, solo documentado;
+  Automatizaciones y Soporte prioritario eliminados del alcance. 16
+  tests nuevos, Jest backend 935/935, control 173/173. Validado contra
+  Docker/MySQL reales con el tenant real `abarroteslulu`, restaurado a
+  su estado original. Pendiente real: el catálogo de PLANES en sí
+  sigue sin existir (ligado a 271/272). Sin herramienta de navegador
+  esta sesión.
+
+- **Punto 285 — "Registrar venta" más ancho + "Sin ticket" por defecto +
+  radios en Configuraciones globales (ver PROJECT_STATE.md, 2026-09-11,
+  IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales)**: modal
+  820px→920px en escritorio (clase propia, no toca `.ticket-modal`
+  compartida); toggle de entrega de 2 a 3 estados (`ordenMetodoEntrega`),
+  "Sin ticket" = sin correo, sin imprimir, solo confirma; radios reales
+  en Configuraciones globales → Ventas para elegir el default, mismo
+  autoguardado que "Habilitar Ventas" — backend `entrega_venta_default`
+  nuevo (default `'sinticket'`), mismo candado de perfil que
+  `ordenes_compra_habilitado`. 6 tests nuevos, Jest backend 941/941. Sin
+  herramienta de navegador esta sesión. **Bug corregido el mismo día**:
+  el ancho 920px nunca se veía (empate de especificidad CSS con
+  `.ticket-modal`, que ganaba por orden de cascada) — fix con selector
+  combinado `.ticket-modal.orden-registrar-modal { max-width: 1012px }`
+  (2 clases, gana sin depender del orden; +10% sobre 920px a pedido del
+  usuario).
+
+- **Punto 286 — Switch "Mostrar Auditoría" (ver PROJECT_STATE.md,
+  2026-09-11, IMPLEMENTADO Y VALIDADO por HTTP contra Docker real)**:
+  tarjeta nueva en Configuraciones globales, oculta el menú "Auditoría"
+  (punto 244) si está apagado — `auditoria_habilitada` nuevo en
+  `config.js` (default `true`), mismo candado de perfil que
+  `entrega_venta_default`. Gatea el botón del sidebar/menú móvil Y
+  `GET /api/admin/auditoria` server-side (403 si apagado, no solo
+  ocultar UI). La tabla `admin_auditoria` sigue registrando todo acceso
+  sin importar el switch. 8 tests nuevos, Jest backend 946/946.
+  Validado de punta a punta por curl (200/403/200). Sin herramienta de
+  navegador esta sesión.
+
+- **Punto 287 — Bug real de impresión térmica, rollo en blanco (ver
+  PROJECT_STATE.md, 2026-09-11, CORREGIDO por análisis de código, SIN
+  validar contra impresora física)**: usuario reportó con captura real
+  (driver "POS-58") que el ticket imprimía con mucho espacio en blanco
+  después del texto. El alto dinámico ya existía (punto 209) pero medía
+  mal — las reglas de ancho 58mm/tipografía compacta vivían solo dentro
+  de `@media print`, la medición (fuera de ese contexto) usaba
+  ancho/letra de pantalla normales, calculando un alto muy por debajo
+  del real; el driver probablemente rechazaba ese tamaño chico y caía a
+  su papel por default. Fix: esas reglas se movieron a una declaración
+  incondicional de `#ticket-imprimir` (fuera de `@media print`). Cero
+  backend. **Sin impresora física ni navegador con hardware en esta
+  sesión** — falta que el usuario lo pruebe en su equipo; si sigue
+  quedando blanco, revisar el largo de papel configurado en el driver
+  del sistema operativo.
+
+- **Punto 288 — 3 bugs reales corregidos + logo/footer en el ticket (ver
+  PROJECT_STATE.md, 2026-09-11)**: (1) "Imprimir etiqueta" de Inventarios
+  mostraba el ticket de venta viejo — 2 bloques `@media print` en
+  `admin.css` con listas de excepciones desincronizadas, fix: misma
+  lista en ambos. (2) Logo CLARVO + "Visítanos https://clarvo.mx"
+  agregados solo al ticket de venta (`construirHtmlTicket()`,
+  `admin.js`). (3) Switch "Mostrar Auditoría" (punto 286) no aparecía —
+  `CONFIG_SECCIONES` en `admin.js` le faltaba la entrada de Auditoría,
+  agregada. Cero backend, Jest 946/946 sin cambios. Sin herramienta de
+  navegador esta sesión.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 

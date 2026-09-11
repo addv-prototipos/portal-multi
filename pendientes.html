@@ -284,7 +284,7 @@
 
   <div id="tab-listado" class="tab-panel active" role="tabpanel" aria-labelledby="tab-listado-btn">
   <section>
-    <h2>Ventas <span class="count">3 pendientes</span></h2>
+    <h2>Ventas <span class="count">4 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -306,6 +306,18 @@
             <td class="col-item">Regla "no facturar con saldo pendiente"</td>
             <td class="col-detalle">Implementada y cubierta por Jest. Falta validar contra Docker/MySQL real de punta a punta.</td>
             <td class="col-estado"><span class="pill pill-gray">Falta validar en real</span></td>
+          </tr>
+          <tr data-app="admin">
+            <td class="col-punto">287</td>
+            <td class="col-item">Impresión térmica — rollo en blanco</td>
+            <td class="col-detalle">Bug real corregido por código (medición del alto del ticket usaba ancho/tipografía de pantalla en vez de los 58mm reales — ver <code>PROJECT_STATE.md</code> punto 287). Sin impresora física ni navegador con hardware en esta sesión: falta que el usuario lo pruebe contra su POS-58 real. Si sigue quedando blanco, revisar el largo de papel fijo en el driver del sistema operativo.</td>
+            <td class="col-estado"><span class="pill pill-gray">Falta probar en impresora real</span></td>
+          </tr>
+          <tr data-app="admin">
+            <td class="col-punto">288</td>
+            <td class="col-item">3 bugs reales + logo/footer en ticket</td>
+            <td class="col-detalle">Etiqueta de código de barras imprimía el ticket viejo (2 bloques <code>@media print</code> desincronizados, corregido), logo CLARVO + "Visítanos https://clarvo.mx" agregados al ticket de venta, switch "Mostrar Auditoría" no aparecía (<code>CONFIG_SECCIONES</code> incompleto, corregido). Ver <code>PROJECT_STATE.md</code> punto 288. Validado por HTTP, falta confirmación visual/impresión real.</td>
+            <td class="col-estado"><span class="pill pill-gray">Falta confirmar en real</span></td>
           </tr>
         </tbody>
       </table>
@@ -629,9 +641,9 @@
           <tr data-app="control">
             <td class="col-punto">244</td>
             <td class="col-item">Switches por empresa: qué menús tiene activos</td>
-            <td class="col-dependencia">Muestra/oculta botones del sidebar (Ventas, Gastos, Inventarios, Reportes, etc.) según flags por tenant. Sin flag, Admin no ve la opción.</td>
-            <td><code>control_tenants.tenants</code> JSON flags → <code>frontend/admin.html</code> <code>RESTRICCIONES_PERFIL</code> + <code>requireAdminArea</code></td>
-            <td><span class="pill pill-red">Sin decidir</span></td>
+            <td class="col-dependencia">Muestra/oculta botones del sidebar (Ventas, Gastos, Inventarios, Reportes, etc.) según flags por tenant. Sin flag, Admin no ve la opción.<br><strong>Mapeo + propuesta visual (2026-09-10)</strong>: <code>CLARVO_Planes.md</code> cruzado contra los módulos reales — <a href="https://claude.ai/code/artifact/112f0d33-5a11-458d-948e-8c981e8b040e" target="_blank" rel="noopener">Artifact con la matriz módulo×plan</a>, actualizado con las decisiones finales.<br><strong>Implementado 2026-09-11 (piezas sueltas, validado contra Docker/MySQL reales)</strong>: Auditoría consultable (vista nueva en <code>/admin</code>, <code>GET /api/admin/auditoria</code> sobre <code>admin_auditoria</code>, nunca cross-tenant); switch real <code>marca_lookfeel_habilitado</code> (marca/Look&amp;Feel se quedan como upscale pero con gate real); cuota real <code>max_usuarios</code> por tenant, enforced en <code>POST</code>/<code>PUT /api/admin/usuarios</code> (400 <code>CUOTA_USUARIOS_EXCEDIDA</code>). Decisiones sin código: operación offline/recorrido guiado confirmados como CORE (nunca se gatean); "Dashboard/Reportes básico vs avanzado" diferido a propósito, solo documentado; "Automatizaciones" y "Soporte prioritario" eliminados del alcance. Jest backend 935/935, control 173/173 (16 tests nuevos). El catálogo de PLANES en sí (qué switches trae cada nombre, cómo se asigna a un tenant) sigue sin existir — ligado a 271/272.</td>
+            <td><code>control_tenants.tenants</code> (<code>marca_lookfeel_habilitado</code>, <code>max_usuarios</code>) → <code>backend/server.js</code> (gate + cuota) + <code>frontend/admin.html</code> vista Auditoría</td>
+            <td><span class="pill pill-amber">Piezas reales implementadas — falta el catálogo de planes</span></td>
           </tr>
           <tr data-app="admin,control">
             <td class="col-punto">269 / 275</td>

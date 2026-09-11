@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -103,6 +103,15 @@ async function resolverTenantMiddleware(req, res, next) {
       // aclaraciones" del portal — null en tenants viejos que no lo
       // llenaron todavía, la burbuja se oculta en ese caso.
       contactoEmail: tenant.contacto_email || null,
+      // Punto 244 (mapeo con CLARVO_Planes.md): gate real de marca/Look &
+      // Feel — false = el backend ignora marca/temaJson de arriba y cae a
+      // la identidad CLARVO por defecto en todos los puntos de uso
+      // (correos, portal, favicon). DEFAULT en BD es 1, así que un tenant
+      // ya configurado antes de esta columna sigue viéndose igual.
+      marcaLookfeelHabilitado: tenant.marca_lookfeel_habilitado !== 0 && tenant.marca_lookfeel_habilitado !== false,
+      // Cuota de cuentas de panel (administrador/fiscal/ventas) — null =
+      // sin límite. Enforcement real en POST /api/admin/usuarios.
+      maxUsuarios: tenant.max_usuarios == null ? null : Number(tenant.max_usuarios),
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas

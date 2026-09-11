@@ -24,6 +24,8 @@ const TODAS_LAS_COLUMNAS = [
   { COLUMN_NAME: 'marca' },
   { COLUMN_NAME: 'marca_logo_url' },
   { COLUMN_NAME: 'tema_json' },
+  { COLUMN_NAME: 'marca_lookfeel_habilitado' },
+  { COLUMN_NAME: 'max_usuarios' },
 ];
 
 describe('scripts/ensureSchema.js', () => {
@@ -35,7 +37,7 @@ describe('scripts/ensureSchema.js', () => {
 
       await asegurarColumnasCicloVidaTenant(db);
 
-      expect(db.query).toHaveBeenCalledTimes(12);
+      expect(db.query).toHaveBeenCalledTimes(14);
       expect(db.query.mock.calls[1][0]).toMatch(/ALTER TABLE tenants ADD COLUMN baja_en DATETIME NULL/);
       expect(db.query.mock.calls[2][0]).toMatch(/ALTER TABLE tenants ADD COLUMN rfc_compania VARCHAR\(13\) NULL/);
       expect(db.query.mock.calls[3][0]).toMatch(/ALTER TABLE tenants ADD COLUMN razon_social_compania VARCHAR\(255\) NULL/);
@@ -47,6 +49,8 @@ describe('scripts/ensureSchema.js', () => {
       expect(db.query.mock.calls[9][0]).toMatch(/ALTER TABLE tenants ADD COLUMN marca VARCHAR\(255\) NULL/);
       expect(db.query.mock.calls[10][0]).toMatch(/ALTER TABLE tenants ADD COLUMN marca_logo_url VARCHAR\(500\) NULL/);
       expect(db.query.mock.calls[11][0]).toMatch(/ALTER TABLE tenants ADD COLUMN tema_json TEXT NULL/);
+      expect(db.query.mock.calls[12][0]).toMatch(/ALTER TABLE tenants ADD COLUMN marca_lookfeel_habilitado TINYINT\(1\) NOT NULL DEFAULT 1/);
+      expect(db.query.mock.calls[13][0]).toMatch(/ALTER TABLE tenants ADD COLUMN max_usuarios INT NULL/);
     });
 
     test('no agrega ninguna columna si todas existen (idempotente)', async () => {
@@ -66,7 +70,7 @@ describe('scripts/ensureSchema.js', () => {
 
       await asegurarColumnasCicloVidaTenant(db);
 
-      expect(db.query).toHaveBeenCalledTimes(10);
+      expect(db.query).toHaveBeenCalledTimes(12);
       expect(db.query.mock.calls[1][0]).toMatch(/ADD COLUMN razon_social_compania/);
       expect(db.query.mock.calls[2][0]).toMatch(/ADD COLUMN regimen_fiscal_compania/);
       expect(db.query.mock.calls[3][0]).toMatch(/ADD COLUMN tipo_persona_compania/);

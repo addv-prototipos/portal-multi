@@ -47,7 +47,14 @@ async function registrarAccesoAdmin(
   );
 }
 
-async function listarAuditoria({ actor, tenantSlug, desde, hasta, limite = 100 } = {}, db = obtenerPoolControl()) {
+// Punto 244 (mapeo con CLARVO_Planes.md, "Auditoría consultable"): la
+// pantalla nueva en /admin (ver GET /api/admin/auditoria en server.js)
+// SIEMPRE necesita acotar por tenant — nunca cross-tenant, a diferencia
+// de un futuro uso desde /control. `sinTenant` distingue explícitamente
+// "filtra por tenant_slug IS NULL" (sitio base) de "no filtres nada"
+// (tenantSlug/sinTenant ambos ausentes, el comportamiento de siempre
+// para el cruce de "generado-por").
+async function listarAuditoria({ actor, tenantSlug, sinTenant, desde, hasta, limite = 100 } = {}, db = obtenerPoolControl()) {
   const condiciones = [];
   const parametros = [];
 
@@ -58,6 +65,8 @@ async function listarAuditoria({ actor, tenantSlug, desde, hasta, limite = 100 }
   if (tenantSlug) {
     condiciones.push('tenant_slug = ?');
     parametros.push(tenantSlug);
+  } else if (sinTenant) {
+    condiciones.push('tenant_slug IS NULL');
   }
   if (desde) {
     condiciones.push('ocurrido_en >= ?');

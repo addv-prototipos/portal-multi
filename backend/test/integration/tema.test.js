@@ -132,6 +132,28 @@ describe('GET /api/tema/:slug', () => {
     expect(res.body.fuentesGoogle.length).toBe(2);
   });
 
+  test('punto 244: marca_lookfeel_habilitado=0 responde tema vacío y sin marca aunque el tenant los tenga configurados', async () => {
+    mockControlPool([{ ...TENANT_CON_TEMA, marca_lookfeel_habilitado: 0 }]);
+
+    const res = await request(app).get('/api/tema/cliente1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.marca).toBeNull();
+    expect(res.body.marcaLoGoUrl).toBeNull();
+    expect(res.body.tema).toBeNull();
+    expect(res.body.variables).toEqual({});
+  });
+
+  test('punto 244: marca_lookfeel_habilitado=1 (o ausente, default de la columna) se comporta como hoy', async () => {
+    mockControlPool([{ ...TENANT_CON_TEMA, marca_lookfeel_habilitado: 1 }]);
+
+    const res = await request(app).get('/api/tema/cliente1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.marca).toBe('Cliente Uno');
+    expect(res.body.tema.colores.accent).toBe('#0f6e5d');
+  });
+
   test('tenant inexistente responde 200 con tema vacío (sin enumerar)', async () => {
     mockControlPool([]);
 
