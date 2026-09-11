@@ -209,6 +209,16 @@
     mark.hl { background: #5C4A20; color: #E8B368; }
   }
 
+  .app-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .app-filter-label { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-right: 4px; }
+  .pill-app { cursor: pointer; background: var(--bg-alt); color: var(--ink-soft); border-color: var(--line); transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+  .pill-app:hover { border-color: var(--accent); color: var(--ink); }
+  .pill-app.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .pill-app .app-count { font-weight: 700; opacity: 0.85; }
+  @media (prefers-color-scheme: dark) {
+    .pill-app.active { background: var(--accent); color: #fff; }
+  }
+
   footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 12px; }
 </style>
 
@@ -218,7 +228,7 @@
       <h1>Pendientes — Portal Clarvo</h1>
       <p>Backlog vivo del proyecto: decisiones abiertas, funcionalidad pospuesta a propósito y validaciones que faltan. Se actualiza en el mismo archivo conforme avanza cada segmento — solo dale refresh.</p>
     </div>
-    <div class="updated">Última actualización: <strong>10 sep 2026, 12:20</strong> · mensajería global /control (226, nuevo) · proveedores: ícono+animación implementados (266/267/268)</div>
+    <div class="updated">Última actualización: <strong>10 sep 2026, 13:30</strong> · centros conocimiento + recorrido (273) · 2FA correo toggle (274) · unificar switches si gestiona facturas (275, nuevo)</div>
   </header>
 
   <div class="legend">
@@ -226,6 +236,14 @@
     <span class="pill pill-amber">Construible, sin empezar</span>
     <span class="pill pill-gray">Sin probar en infra real</span>
     <span class="pill pill-green">Pospuesto a propósito</span>
+  </div>
+
+  <div class="app-filter" role="group" aria-label="Filtrar por app">
+    <span class="app-filter-label">Filtrar por app:</span>
+    <button type="button" class="pill pill-app active" data-app="todos" aria-pressed="true">Todos <span class="app-count" id="app-count-todos"></span></button>
+    <button type="button" class="pill pill-app" data-app="cliente" aria-pressed="false">Cliente <span class="app-count" id="app-count-cliente"></span></button>
+    <button type="button" class="pill pill-app" data-app="admin" aria-pressed="false">Admin <span class="app-count" id="app-count-admin"></span></button>
+    <button type="button" class="pill pill-app" data-app="control" aria-pressed="false">Control <span class="app-count" id="app-count-control"></span></button>
   </div>
 
   <div class="search-wrap" role="search">
@@ -244,19 +262,19 @@
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="admin">
             <td class="col-punto">126</td>
             <td class="col-item">3 ideas opcionales sin decidir</td>
             <td class="col-detalle">Productos frecuentes (accesos rápidos al agregar), buscador de cliente por nombre/RFC (hoy solo correo), compartir venta por WhatsApp.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir</span></td>
           </tr>
-          <tr>
+          <tr data-app="admin">
             <td class="col-punto">152</td>
             <td class="col-item">Tipo de cambio automático (Banxico)</td>
             <td class="col-detalle">Camino manual y de degradación ya validados; falta probar el camino automático con un <code>BANXICO_TOKEN</code> real cuando exista.</td>
             <td class="col-estado"><span class="pill pill-gray">Sin probar con token real</span></td>
           </tr>
-          <tr>
+          <tr data-app="admin">
             <td class="col-punto">154</td>
             <td class="col-item">Regla "no facturar con saldo pendiente"</td>
             <td class="col-detalle">Implementada y cubierta por Jest. Falta validar contra Docker/MySQL real de punta a punta.</td>
@@ -273,25 +291,25 @@
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="admin,control">
             <td class="col-punto">180/258</td>
             <td class="col-item">Proveedores como entidad propia</td>
             <td class="col-detalle">Hoy es texto libre en Gastos/Ventas. Existe placeholder "en construcción" en el sidebar (punto 181) — falta el CRUD real.</td>
             <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
           </tr>
-          <tr>
+          <tr data-app="admin,control">
             <td class="col-punto">266/267/268</td>
             <td class="col-item">Animación 3D + ícono de "Proveedores" — implementado</td>
             <td class="col-detalle">Ícono del sidebar/menú móvil/Centro de conocimiento cambiado de caja (se confundía con Inventarios) a camión de entrega. Placeholder "en construcción" ganó una escena CSS-only (3 cubos isométricos vía <code>clip-path</code> + 2 robots con brazo-martillo animado, "CLARVO" en la pancita), sin WebGL/librería nueva. De paso, punto 268: encabezado de "Lectura de reportes" con 2 párrafos apilados fusionado en 1 (~40px recuperados). Jest 912/912, validado por HTTP contra Docker real tras rebuild <code>--no-cache</code>+<code>--force-recreate</code>. Ver <code>PROJECT_STATE.md</code> puntos 267/268.</td>
             <td class="col-estado"><span class="pill pill-gray">Falta confirmar visualmente (sin navegador esta sesión)</span></td>
           </tr>
-          <tr>
+          <tr data-app="admin">
             <td class="col-punto">159</td>
             <td class="col-item">Escáner de código de barras por cámara</td>
             <td class="col-detalle">Validado en navegador de escritorio (camino de error). Falta probar con un celular físico contra HTTPS real.</td>
             <td class="col-estado"><span class="pill pill-gray">Falta probar en celular</span></td>
           </tr>
-          <tr>
+          <tr data-app="control">
             <td class="col-punto">137/164</td>
             <td class="col-item">Tests unitarios faltantes en <code>control/</code></td>
             <td class="col-detalle"><code>tenantTema.js</code> y <code>apiCredenciales.js</code> no tienen test propio ahí (sí en backend).</td>
@@ -308,13 +326,13 @@
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="admin">
             <td class="col-punto">258</td>
             <td class="col-item">Conciliación de pagos</td>
             <td class="col-detalle">Badge "Próximamente" en Ventas facturadas vs sin facturar. Requeriría buscar transferencias en estados de cuenta PDF — sin diseñar.</td>
             <td class="col-estado"><span class="pill pill-green">Pospuesto</span></td>
           </tr>
-          <tr>
+          <tr data-app="admin">
             <td class="col-punto">259</td>
             <td class="col-item">Desviación vs Presupuesto (Gastos)</td>
             <td class="col-detalle">Quitado del mockup a propósito — pospuesto junto con PAC/timbrado para una "etapa 3" futura.</td>
@@ -332,19 +350,19 @@
       <table>
         <thead><tr><th>Segmento</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="control">
             <td class="col-punto">6</td>
             <td class="col-item">Cutover del tenant piloto</td>
             <td class="col-detalle"><code>cutover-tenant-piloto.js</code> escrito y no destructivo, pero nunca ejecutado contra un tenant real.</td>
             <td class="col-estado"><span class="pill pill-gray">Sin ejecutar</span></td>
           </tr>
-          <tr>
+          <tr data-app="control">
             <td class="col-punto">8</td>
             <td class="col-item">MySQL HA / Docker Swarm</td>
             <td class="col-detalle">Scripts de réplica/promoción listos, nunca desplegados contra un clúster Swarm real ni un failover simulado.</td>
             <td class="col-estado"><span class="pill pill-gray">Sin probar en real</span></td>
           </tr>
-          <tr>
+          <tr data-app="control">
             <td class="col-punto">9b</td>
             <td class="col-item">/control en dos servidores físicos</td>
             <td class="col-detalle">Diseñado para poder vivir en otro servidor (<code>CONTROL_UPSTREAM_HOST</code>), nunca probado separado de verdad.</td>
@@ -356,22 +374,28 @@
   </section>
 
   <section>
-    <h2>Inicio de sesión / Seguridad <span class="count">2 pendientes</span></h2>
+    <h2>Inicio de sesión / Seguridad <span class="count">3 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="cliente,admin,control">
             <td class="col-punto">—</td>
             <td class="col-item">Una sola sesión activa por usuario</td>
             <td class="col-detalle">Por seguridad, un mismo usuario no puede tener más de <strong>1 sesión abierta a la vez</strong>. Si inicia sesión en otro dispositivo/navegador, la sesión anterior debe invalidarse (o bloquear el segundo inicio hasta cerrar la primera — por decidir). Aplica a portal cliente y panel <code>/admin</code> / <code>/control</code>. Requiere almacenar identificador de sesión vigente por usuario (cookie firmada actual es stateless — habrá que agregar estado en BD con <code>sesion_id</code>/<code>sesion_expira</code> o tabla de sesiones) y validar en cada request. Sin código aún.</td>
             <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
           </tr>
-          <tr>
+          <tr data-app="cliente,admin,control">
             <td class="col-punto">—</td>
             <td class="col-item">Bitácora de IP/zona + alerta por cambio de estado</td>
             <td class="col-detalle">Registrar <strong>IP y zona</strong> (estado/ciudad) de cada inicio de sesión (portal + <code>/admin</code> / <code>/control</code>) en bitácora. Resolver ubicación por IP en servidor (GeoIP: MaxMind GeoLite2 / ip-api / ipinfo — por definir, con fallback si no resuelve). Si el login ocurre desde un <strong>estado distinto</strong> al último registrado para ese usuario, enviar <strong>correo de alerta</strong>: “Alguien accedió desde otra ubicación — ¿fuiste tú? Sí / No fui yo” con IP, ciudad/estado, fecha/hora (zona horaria del tenant) y dispositivo aproximado (UA). Requiere tabla <code>sesiones_log</code> + plantilla de correo + respeto a <code>trust proxy</code> para IP real. Sin código aún.</td>
             <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">274</td>
+            <td class="col-item">Doble factor por correo (2FA) solo para Administrador al registrar — toggle en admin</td>
+            <td class="col-detalle">Doble factor por <strong>correo</strong> solo para perfil <strong>Administrador</strong> cada que se quiera registrar; en la <strong>plataforma admin</strong> lo pueden <strong>habilitar/inhabilitar</strong>. Sin definir: ¿"al registrar" = al crear <code>administrador</code> desde <code>POST /api/admin/usuarios</code> vs. <code>POST /api/auth/registro</code> público? ¿solo <code>administrador</code> (no <code>fiscal</code>/<code>cliente</code>)? ¿qué correo recibe el OTP — <code>usuarios.email</code> del nuevo admin vs. del creador? ¿flujo OTP 6 dígitos con expiración/reenvío/límite vs. link mágico? ¿toggle global (<code>configuracion.admin_2fa_habilitado</code>) vs. por tenant (<code>control_tenants.tenants</code>) y dónde en UI (tarjeta "Seguridad" junto a cambio de contraseña <code>admin</code> del punto 17)? ¿guard en <code>POST /api/admin/usuarios</code> + <code>POST /api/admin/usuarios/verificar-2fa</code>? ¿si no hay SMTP, se bloquea o degrada? Ver <code>PROJECT_STATE.md</code> punto 274.<br><strong>Preguntas para definir luego:</strong> 1) ¿alta desde <code>/admin</code> o también registro público? 2) ¿solo <code>administrador</code>? 3) ¿qué correo recibe OTP? 4) OTP 6 dígitos vs link, expiración/reintentos 5) toggle global vs por tenant 6) ubicación UI 7) quién puede togglear 8) guard con <code>verificar-2fa</code> 9) fallback sin SMTP 10) ¿solo registro o también login? — no implementar sin responder.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir flujo/toggle</span></td>
           </tr>
         </tbody>
       </table>
@@ -385,7 +409,7 @@
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="admin,control">
             <td class="col-punto">—</td>
             <td class="col-item">Clarvo → APIs del CRM (integrado / independiente)</td>
             <td class="col-detalle">Clarvo consumirá las APIs del CRM. Debe funcionar en dos modos: <strong>integrado</strong> (CRM + Clarvo sincronizados) e <strong>independiente</strong> (cada uno opera solo, sin dependencia dura). Por definir: catálogo de endpoints a consumir, auth (API Key / OAuth), mapeo de entidades (clientes, ventas, cobranza), estrategia de sincronización (pull/webhook), manejo de fallos/reintentos, y qué dato es fuente de verdad por entidad. Sin código aún — solo registro del pendiente.</td>
@@ -397,17 +421,23 @@
   </section>
 
   <section>
-    <h2>Gestor de facturación <span class="count">1 pendiente</span></h2>
+    <h2>Gestor de facturación <span class="count">2 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
-        <tbody>
-          <tr>
+        <tbody><tr data-app="cliente,admin,control">
             <td class="col-punto">269</td>
             <td class="col-item">Gestor de facturación desactivable</td>
             <td class="col-detalle">Switch para desactivar el gestor de facturación (flujo cliente → ticket → factura: <code>csf.html</code>/<code>tickets.html</code>/<code>dashboard.html</code> + <code>POST /api/tickets</code>/<code>/registro</code> + notificaciones). Al estar OFF: definir <strong>reglas de envío</strong> (¿se suprimen/encolan <code>notificarNuevoTicketAlContador</code>, <code>notificarFacturaListaAlCliente</code>, invitación y correo de venta o se descartan?), <strong>quitar el link de cliente</strong> (tile/CTA en dashboard, ruta <code>/&lt;slug&gt;/tickets</code> y enlaces en correos) y servir página <strong>"no encontrada / desactivado"</strong> (404 vs. plantilla mantenimiento/construcción del punto 222 — guard en <code>frontend/nginx.conf</code> + <code>backend/server.js</code>/<code>tenantContext.js</code>), y definir <strong>qué hacer con los envíos/tickets existentes</strong> (¿bloqueo de <code>POST /api/tickets</code> con 403 <code>GESTOR_DESACTIVADO</code> + modal bloqueante — mismo patrón que <code>SIN_CONSTANCIA</code> — vs. solo ocultar UI? ¿pendientes se conservan/archivan/purgan? ¿afecta a Ventas/Gastos?). Sin modelo (<code>gestor_facturacion_activo</code> por tenant en <code>control_tenants.tenants</code>), sin UX en <code>/control</code>, sin guards. Ver <code>PROJECT_STATE.md</code> punto 269.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir</span></td>
           </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">275</td>
+            <td class="col-item">Unificar switches si gestiona peticiones de facturas</td>
+            <td class="col-detalle">Unificar los <strong>elementos switch entre ellos</strong> si va a <strong>gestionar peticiones de facturas</strong>. Ligado a 269 (gestor desactivable) y 244 (switches por tenant en <code>/control</code>). Sin definir: ¿qué switches — toggles de <code>/control</code> vs. <code>/admin</code> "Configuraciones globales" (Ventas <code>ordenes_compra_habilitado</code>, Inventario↔sitio web 239/240, Mensajería 225/226)? ¿"gestionar peticiones" = flujo <code>POST /api/tickets</code>/<code>csf.html</code>/<code>tickets.html</code> o también Ventas/Gastos? ¿unificar = un switch maestro que agrupa varios vs. switches separados sincronizados? ¿dónde vive — <code>control_tenants.tenants</code> vs. <code>configuracion</code>? ¿al alternar oculta menú + bloquea API 403 <code>GESTOR_DESACTIVADO</code> + página desactivado? Ver <code>PROJECT_STATE.md</code> punto 275.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir qué switches</span></td>
+          </tr>
+          
         </tbody>
       </table>
     </div>
@@ -419,7 +449,7 @@
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="admin,control">
             <td class="col-punto">226</td>
             <td class="col-item">SMTP global de Clarvo / selector de proveedores</td>
             <td class="col-detalle">Ligado al punto 225 (switch Clarvo/propio por tenant, tampoco construido). Análisis + propuesta visual (Artifact) ya listos: nueva vista "Mensajería" en <code>/control</code> con SMTP de Clarvo funcional (mismo mecanismo ya probado con Gmail) + bloque "Otros proveedores" (SendGrid/Mailgun/SES, WhatsApp/SMS) marcado "Próximamente", honesto, sin lógica. 3 opciones presentadas, ninguna confirmada: (1, recomendada) solo SMTP Clarvo; (2) SMTP + un proveedor externo real hoy; (3) solo tabla/endpoint, sin pantalla hasta que el 225 también esté listo. Ver <code>PROJECT_STATE.md</code> punto 226.</td>
@@ -436,11 +466,53 @@
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="control">
             <td class="col-punto">270</td>
             <td class="col-item">Script de despliegue + empaquetado</td>
             <td class="col-detalle">Generar script para desplegar y el empaquetado también. Sin definir: destino (VPS <code>docker compose</code> vs. Swarm <code>docker-stack.yml</code>), pasos del script (<code>build --no-cache</code> / <code>up -d --force-recreate</code> + <code>ensureSchema</code> + <code>/api/health</code>), qué se empaqueta (<code>.zip</code> de entrega vs. imágenes Docker <code>portalManager-*</code> vía registry/<code>docker save</code>), versionado, manejo de <code>.env</code>/secretos (nunca en el paquete, validación previa), rollback/health post-deploy ni ubicación del artefacto. Ver <code>PROJECT_STATE.md</code> punto 270.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cotizador &amp; Marketplace (Clarvo a la medida) <span class="count">2 pendientes</span></h2>
+    <p class="section-note">Cotizador para armar un Clarvo a la medida y marketplace de addons — el Clarvo base sin tenant es el inventario de costos y registro de ventas. Ideas por desarrollar antes de diseñar.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr data-app="cliente,admin,control">
+            <td class="col-punto">271</td>
+            <td class="col-item">Cotizador "Clarvo a la medida" — inventario de costos en Clarvo base</td>
+            <td class="col-detalle">Generar cotizador para crear un Clarvo a la medida; agregar funcionalidades para ello. El Clarvo <strong>base sin tenant</strong> (<code>portal_facturacion</code> sin slug) lleva el <strong>inventario de costos</strong> para dar de alta funciones/módulos y <strong>registrar las ventas</strong>. Sin definir: catálogo (<code>clarvo_funciones</code>/<code>clarvo_costos</code> en BD base — costo, categoría, dependencias), flujo (¿wizard en sitio público vs. <code>/control</code>? selección → cotización en vivo → pedido → <code>provisionar-tenant.js</code>), qué tabla registra la venta (<code>ordenes_compra</code> base vs. <code>clarvo_ventas</code>/<code>cotizaciones</code> + link a <code>control_tenants.tenants</code>), ni qué es "dar de alta" (¿catálogo base vs. activar flags por tenant del punto 244?). Ver <code>PROJECT_STATE.md</code> punto 271.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta desarrollar idea</span></td>
+          </tr>
+          <tr data-app="cliente,admin,control">
+            <td class="col-punto">272</td>
+            <td class="col-item">Clarvo Site Market — marketplace de addons por cuenta</td>
+            <td class="col-detalle">Marketplace donde se compran <strong>addons asociados a la cuenta Clarvo</strong>. Ligado a 271 (el market es el canal de venta de lo cotizado), 229/246 (productos/upscale) y 244 (switches por empresa). Sin definir: dónde vive (¿en <code>/admin</code> del tenant vs. <code>market.clarvo.mx</code> vs. sitio base?), catálogo (¿qué addons — módulos, integraciones, almacenamiento del punto 250?), modelo (<code>market_addons</code>/<code>market_compras</code> por <code>tenant_id</code>/<code>slug</code> — precio, vigencia, asociación a <code>usuarios</code> vs. tenant), flujo de pago (¿Stripe/MercadoPago, suscripción?), ni si la compra activa flag inmediato en <code>control_tenants.tenants</code>. <strong>Nota del usuario: requiere ayuda para desarrollar la idea</strong> — no avanzar sin brainstorming. Ver <code>PROJECT_STATE.md</code> punto 272.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — requiere brainstorming</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Centro de conocimiento / Recorrido <span class="count">1 pendiente</span></h2>
+    <p class="section-note">Actualizar el Centro de conocimiento con todos los cambios recientes + incorporar el recorrido guiado.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr data-app="admin,control">
+            <td class="col-punto">273</td>
+            <td class="col-item">Actualizar centros de conocimiento + recorrido</td>
+            <td class="col-detalle">Actualizar los <strong>centros de conocimiento</strong> (<code>frontend/admin.html</code>/<code>admin.js</code> <code>CONOCIMIENTO_CATEGORIAS</code> + vista "Centro de conocimiento", <code>control</code> si aplica para gestión de contenidos) con <strong>todos los cambios</strong> recientes y el <strong>recorrido</strong>. Sin definir: qué cambios exactos (¿271/272 cotizador/market, 269/270, 256-260 financiero, 242/243 YouTube?), qué es "recorrido" (¿tour guiado/onboarding paso a paso — <code>intro.js</code>/<code>shepherd</code> vs. implementación propia — por <code>/admin</code>, <code>/control</code>, portal cliente?), cobertura (¿alta en <code>/control</code>, Ventas, Gastos, Inventarios, Reportes, Centro mismo?), formato (¿tooltips anclados + checklist de progreso vs. documentación estática + categorías con fichas/links?). Ver <code>PROJECT_STATE.md</code> punto 273.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir alcance</span></td>
           </tr>
         </tbody>
       </table>
@@ -453,13 +525,13 @@
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr>
+          <tr data-app="admin,control">
             <td class="col-punto">120</td>
             <td class="col-item">Inconsistencias en README</td>
             <td class="col-detalle">Título no menciona multi-tenant; 3 features sin documentar (Utilidad neta, gráficas BI, Look & Feel); <code>FRONTEND_PORT</code> con 3 valores distintos entre docs y <code>.env</code> real.</td>
             <td class="col-estado"><span class="pill pill-amber">Diagnosticado, sin corregir</span></td>
           </tr>
-          <tr>
+          <tr data-app="control">
             <td class="col-punto">—</td>
             <td class="col-item">Typo en <code>.env.example</code></td>
             <td class="col-detalle">Sobra ".cla" en un comentario. Bloqueado por permisos de dotfiles en todas las sesiones — corregir a mano.</td>
@@ -486,6 +558,13 @@
     return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
+  var filtroApp = 'todos';
+  function appMatch(tr) {
+    if (filtroApp === 'todos') return true;
+    var apps = (tr.getAttribute('data-app') || '').split(',');
+    return apps.indexOf(filtroApp) !== -1;
+  }
+
   function filtrar() {
     var q = norm(input.value.trim());
     var palabras = q ? q.split(/\s+/).filter(Boolean) : [];
@@ -501,11 +580,13 @@
       var filas = sec.querySelectorAll('tbody tr');
       var visiblesEnSeccion = 0;
 
-      // Si el título de la sección matchea, muestra todas sus filas
+      // Si el título de la sección matchea, muestra todas sus filas (pero respeta filtro por app)
       var seccionMatchea = palabras.length && palabras.every(function(p) { return tituloSeccion.indexOf(p) !== -1; });
 
       filas.forEach(function(tr) {
         totalFilas++;
+        var porApp = appMatch(tr);
+        if (!porApp) { tr.hidden = true; return; }
         if (!palabras.length) {
           tr.hidden = false;
           visiblesEnSeccion++;
@@ -551,6 +632,48 @@
       meta.innerHTML = 'Mostrando <strong>' + totalVisibles + '</strong> de <strong>' + totalFilas + '</strong> pendientes';
     }
   }
+
+  function actualizarConteosApp() {
+    var counts = { todos: 0, cliente: 0, admin: 0, control: 0 };
+    document.querySelectorAll('tbody tr').forEach(function(tr){
+      counts.todos++;
+      var apps = (tr.getAttribute('data-app')||'').split(',');
+      if (apps.indexOf('cliente')!==-1) counts.cliente++;
+      if (apps.indexOf('admin')!==-1) counts.admin++;
+      if (apps.indexOf('control')!==-1) counts.control++;
+    });
+    var elTodos = document.getElementById('app-count-todos'); if(elTodos) elTodos.textContent = '('+counts.todos+')';
+    var elCliente = document.getElementById('app-count-cliente'); if(elCliente) elCliente.textContent = '('+counts.cliente+')';
+    var elAdmin = document.getElementById('app-count-admin'); if(elAdmin) elAdmin.textContent = '('+counts.admin+')';
+    var elControl = document.getElementById('app-count-control'); if(elControl) elControl.textContent = '('+counts.control+')';
+  }
+  document.querySelectorAll('.pill-app').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      filtroApp = btn.getAttribute('data-app');
+      document.querySelectorAll('.pill-app').forEach(function(b){ b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
+      btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
+      // update URL param ?app=
+      try {
+        var url = new URL(location.href);
+        if (filtroApp === 'todos') url.searchParams.delete('app'); else url.searchParams.set('app', filtroApp);
+        history.replaceState(null,'', url.toString());
+      } catch(e) {}
+      filtrar();
+    });
+  });
+  // init from ?app= param
+  try {
+    var appUrl = new URLSearchParams(location.search).get('app');
+    if (appUrl && ['cliente','admin','control','todos'].indexOf(appUrl)!==-1) {
+      filtroApp = appUrl;
+      document.querySelectorAll('.pill-app').forEach(function(b){
+        var isActive = b.getAttribute('data-app')===filtroApp;
+        b.classList.toggle('active', isActive);
+        b.setAttribute('aria-pressed', isActive?'true':'false');
+      });
+    }
+  } catch(e) {}
+  actualizarConteosApp();
 
   input.addEventListener('input', filtrar);
   input.addEventListener('keydown', function(e) {

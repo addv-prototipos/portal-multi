@@ -1741,11 +1741,13 @@
         <div class="admin-toolbar">
           <div class="admin-toolbar-title">
             <h1>Inventarios</h1>
+            <span class="estatus-badge estatus-listo inv-kpi-solo-producto" id="inv-costeo-pill">Costeo promedio ponderado</span>
           </div>
           <div class="admin-toolbar-right">
-            <div class="view-toggle" role="tablist" aria-label="Ver productos activos o papelera">
+            <div class="view-toggle" role="tablist" aria-label="Ver activos, papelera o servicios">
               <button type="button" class="view-toggle-btn is-active" id="btn-ver-inv-activos" role="tab" aria-selected="true">Activos</button>
               <button type="button" class="view-toggle-btn" id="btn-ver-inv-papelera" role="tab" aria-selected="false">Papelera</button>
+              <button type="button" class="view-toggle-btn" id="btn-ver-inv-servicios" role="tab" aria-selected="false">Servicios</button>
             </div>
             <span class="admin-count" id="inv-productos-count">0 productos</span>
             <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" data-tooltip="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
@@ -1762,17 +1764,22 @@
                 <label class="checkbox-row"><input type="checkbox" data-col="disponible" checked /><span>Disponible</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="costo" checked /><span>Costo prom.</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="precio" checked /><span>Precio</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="nivel_stock" checked /><span>Nivel de stock</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="valuacion" checked /><span>Valuación</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="estado" checked /><span>Estado</span></label>
               </div>
             </div>
             <button type="button" class="btn btn-secondary" id="btn-refresh-inventarios">Actualizar</button>
             <button type="button" class="btn btn-secondary" id="btn-inv-importar">Importar catálogo</button>
+            <button type="button" class="btn btn-secondary inv-kpi-solo-producto" id="btn-inv-exportar-kardex" data-tooltip="CSV con todos los movimientos reales del catálogo activo">Exportar Kardex</button>
             <button type="button" class="btn-icon" id="btn-inv-ayuda-abrir" aria-label="Ayuda y diccionario de datos de Inventarios" data-tooltip="Ayuda y diccionario de datos">?</button>
             <button type="button" class="btn btn-primary" id="btn-nuevo-producto">+ Nuevo producto</button>
           </div>
         </div>
 
-        <div class="inicio-stats-grid" id="inv-kpis-wrap">
+        <div id="inv-kpis-wrap">
+        <p class="inv-kpi-group-label inv-kpi-solo-producto">Salud financiera y existencias</p>
+        <div class="inicio-stats-grid">
           <div class="inicio-stat-card inv-kpi-solo-producto">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Valor del inventario</span>
@@ -1803,7 +1810,14 @@
             <p class="inicio-stat-numero" id="inv-kpi-unidades">0</p>
             <p class="inicio-stat-tendencia">En ALM-1 (D2)</p>
           </div>
-          <div class="inicio-stat-card inv-kpi-solo-producto">
+        </div>
+
+        <p class="inv-kpi-group-label inv-kpi-solo-producto">Riesgo y control <span class="inv-kpi-group-hint">— clic filtra la tabla de abajo</span></p>
+        <div class="inicio-stats-grid">
+          <!-- Punto: clicables (mismo patrón que "Por vencer") — filtran
+               la tabla con el chip real equivalente en vez de solo
+               informar el número. -->
+          <button type="button" class="inicio-stat-card inv-kpi-solo-producto inicio-stat-card-clickable inv-kpi-riesgo" id="inv-kpi-bajo-minimo-card" data-chip="bajo_minimo">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Bajo mínimo</span>
               <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
@@ -1812,8 +1826,8 @@
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-bajo-minimo">0</p>
             <p class="inicio-stat-tendencia">§28, sin lead time v1</p>
-          </div>
-          <div class="inicio-stat-card inv-kpi-solo-producto">
+          </button>
+          <button type="button" class="inicio-stat-card inv-kpi-solo-producto inicio-stat-card-clickable inv-kpi-riesgo" id="inv-kpi-sin-existencia-card" data-chip="sin_existencia">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Sin existencia</span>
               <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
@@ -1822,7 +1836,7 @@
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-sin-existencia">0</p>
             <p class="inicio-stat-tendencia">Disponible = 0</p>
-          </div>
+          </button>
           <div class="inicio-stat-card inv-kpi-solo-producto">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Sin movimiento</span>
@@ -1857,31 +1871,32 @@
             <p class="inicio-stat-numero" id="inv-kpi-por-vencer">0</p>
             <p class="inicio-stat-tendencia">Vencidos + próximos 30 días — clic para ver la lista</p>
           </button>
-          <!-- Punto 179: contador independiente — un servicio nunca genera
-               existencias/movimientos, así que no afecta ninguna de las 7
-               tarjetas de arriba (todas son de inventario físico). -->
-          <div class="inicio-stat-card">
-            <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Servicios activos</span>
-              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4" stroke-width="2"/><path d="M4.5 21a7.5 7.5 0 0115 0" stroke-linecap="round" stroke-width="2"/></svg>
-              </span>
-            </div>
-            <p class="inicio-stat-numero" id="inv-kpi-servicios">0</p>
-            <p class="inicio-stat-tendencia">Independiente del inventario</p>
-          </div>
-          <!-- Punto 186: mismo criterio que "Servicios activos" — siempre
-               visible, no lleva la clase inv-kpi-solo-producto. -->
-          <div class="inicio-stat-card">
-            <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Servicios sin ventas (90d)</span>
-              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-              </span>
-            </div>
-            <p class="inicio-stat-numero" id="inv-kpi-servicios-sin-ventas">0</p>
-            <p class="inicio-stat-tendencia">Servicios candidatos a revisar</p>
-          </div>
+        </div>
+
+        <!-- Punto 179: independiente — un servicio nunca genera
+             existencias/movimientos, así que no afecta ninguna de las
+             tarjetas de arriba (todas son de inventario físico). Franja
+             compacta (no grid de 4 col) para no dejar 2 tarjetas sueltas
+             con hueco vacío al lado. -->
+        <div class="inv-kpi-servicios-strip">
+          <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4" stroke-width="2"/><path d="M4.5 21a7.5 7.5 0 0115 0" stroke-linecap="round" stroke-width="2"/></svg>
+          </span>
+          <span><strong id="inv-kpi-servicios">0</strong> Servicios activos</span>
+          <span class="inv-kpi-servicios-strip-sep">·</span>
+          <span><strong id="inv-kpi-servicios-sin-ventas">0</strong> Servicios sin ventas (90d)</span>
+        </div>
+        </div>
+
+        <!-- Punto: chips de estado de stock — ligados a las mismas
+             condiciones que ya usan las tarjetas KPI "Bajo mínimo"/"Sin
+             existencia" (?stock=... en GET /productos), un clic filtra sin
+             tocar los selects de Categoría/Estado/Tipo. -->
+        <div class="chips" id="inv-chips-stock">
+          <button type="button" class="chip is-active" id="btn-inv-chip-todos" data-chip="">Todos</button>
+          <button type="button" class="chip chip-warn" id="btn-inv-chip-bajo-minimo" data-chip="bajo_minimo">Bajo mínimo</button>
+          <button type="button" class="chip chip-bad" id="btn-inv-chip-sin-existencia" data-chip="sin_existencia">Sin existencia</button>
+          <button type="button" class="chip" id="btn-inv-chip-optimo" data-chip="optimo">Óptimo</button>
         </div>
 
         <div class="gastos-filtros" id="inv-filtros">
@@ -1937,11 +1952,27 @@
                 <th data-col="disponible" class="col-num"><span class="th-label">Disponible</span><span class="col-resizer" data-resizer="disponible"></span></th>
                 <th data-col="costo" class="col-num"><span class="th-label">Costo prom.</span><span class="col-resizer" data-resizer="costo"></span></th>
                 <th data-col="precio" class="col-num"><span class="th-label">Precio</span><span class="col-resizer" data-resizer="precio"></span></th>
+                <th data-col="nivel_stock"><span class="th-label">Nivel de stock</span><span class="col-resizer" data-resizer="nivel_stock"></span></th>
+                <th data-col="valuacion" class="col-num"><span class="th-label">Valuación</span><span class="col-resizer" data-resizer="valuacion"></span></th>
                 <th data-col="estado"><span class="th-label">Estado</span><span class="col-resizer" data-resizer="estado"></span></th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="inv-table-body"></tbody>
+            <!-- Totales reales — mismos números ya cargados en las
+                 tarjetas KPI de arriba (Valor del inventario/Unidades
+                 disponibles/Productos activos + Bajo mínimo/Sin
+                 existencia), solo desglosados en el pie de la tabla. -->
+            <tfoot id="inv-table-tfoot" class="inv-kpi-solo-producto">
+              <tr>
+                <td></td>
+                <td colspan="7">Total inventario consolidado (ALM-1)</td>
+                <td id="inv-tfoot-unidades">0 pz</td>
+                <td id="inv-tfoot-valor" class="col-num">$0.00</td>
+                <td id="inv-tfoot-alertas">0 alertas</td>
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
           <p class="admin-empty" id="inv-empty" hidden>No hay productos registrados todavía.</p>
         </div>
@@ -2617,12 +2648,21 @@
         <!-- Orden y contenido de pestañas — punto 169: cada pestaña es su
              propio segmento, nada se muestra fuera de la pestaña a la que
              pertenece (antes las 3 tarjetas de auditoría de abajo se veían
-             en las 4 pestañas por igual). -->
-        <div class="view-toggle lectura-reportes-tabs" role="tablist" aria-label="Segmento de Lectura de reportes">
-          <button type="button" class="view-toggle-btn is-active" id="btn-reportes-vista-por-reporte" role="tab" aria-selected="true">Por reporte</button>
-          <button type="button" class="view-toggle-btn" id="btn-reportes-vista-cortes" role="tab" aria-selected="false">Cortes</button>
-          <button type="button" class="view-toggle-btn" id="btn-reportes-vista-ledger" role="tab" aria-selected="false">Todo lo eliminado</button>
-          <button type="button" class="view-toggle-btn" id="btn-reportes-vista-estado-inventario" role="tab" aria-selected="false">Estado del inventario</button>
+             en las 4 pestañas por igual). Punto 271: la fila de acciones de
+             "Estado del inventario" (Imprimir/CSV) vive junto a las
+             pestañas, no en su propia fila vacía debajo — se muestra/oculta
+             junto con esa pestaña desde activarPestanaReportes(). -->
+        <div class="lectura-reportes-tabs-row">
+          <div class="view-toggle lectura-reportes-tabs" role="tablist" aria-label="Segmento de Lectura de reportes">
+            <button type="button" class="view-toggle-btn is-active" id="btn-reportes-vista-por-reporte" role="tab" aria-selected="true">Por reporte</button>
+            <button type="button" class="view-toggle-btn" id="btn-reportes-vista-cortes" role="tab" aria-selected="false">Cortes</button>
+            <button type="button" class="view-toggle-btn" id="btn-reportes-vista-ledger" role="tab" aria-selected="false">Todo lo eliminado</button>
+            <button type="button" class="view-toggle-btn" id="btn-reportes-vista-estado-inventario" role="tab" aria-selected="false">Estado del inventario</button>
+          </div>
+          <div class="inv-estado-toolbar" id="inv-estado-toolbar" hidden>
+            <button type="button" class="btn btn-secondary" id="btn-inv-estado-imprimir">Imprimir</button>
+            <button type="button" class="btn btn-secondary" id="btn-inv-estado-exportar">Descargar CSV</button>
+          </div>
         </div>
 
         <div id="reportes-vista-por-reporte">
@@ -2997,6 +3037,17 @@
         </div>
 
         <div id="reportes-vista-estado-inventario" hidden>
+          <!-- Punto 271: banner real (monto inmovilizado real del
+               producto más afectado) — sin acciones inventadas
+               ("Aplicar descuento"/"Ignorar" del mockup no tienen
+               mecanismo real detrás), solo un link a la fila real en la
+               matriz de abajo. -->
+          <div class="resumen-fin-alerta-banner inv-estado-solo-producto" id="inv-estado-alerta-inmovilizado" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+            <span id="inv-estado-alerta-inmovilizado-texto"></span>
+            <button type="button" class="btn btn-secondary resumen-fin-alerta-btn" id="inv-estado-alerta-inmovilizado-btn">Ver ítem</button>
+          </div>
+
           <div class="reportes-kpi-grid inv-estado-solo-producto" id="inv-estado-kpi-grid">
             <div class="inicio-stat-card">
               <div class="inicio-stat-header">
@@ -3007,6 +3058,7 @@
               </div>
               <p class="inicio-stat-numero" id="inv-estado-kpi-valor">$0.00</p>
               <p class="inicio-stat-tendencia">Existencia actual × costo promedio, catálogo activo</p>
+              <p class="inv-estado-kpi-extra"><span>Costo prom: <strong id="inv-estado-kpi-costo-prom">$0.00</strong></span><span>Total: <strong id="inv-estado-kpi-piezas-total">0 pz</strong></span></p>
             </div>
             <div class="inicio-stat-card">
               <div class="inicio-stat-header">
@@ -3027,6 +3079,25 @@
               </div>
               <p class="inicio-stat-numero" id="inv-estado-kpi-sin-movimiento">0</p>
               <p class="inicio-stat-tendencia">Productos candidatos a revisar</p>
+              <p class="inv-estado-kpi-extra" id="inv-estado-kpi-monto-inmovilizado-wrap" hidden><span>Monto inmovilizado: <strong id="inv-estado-kpi-monto-inmovilizado">$0.00</strong></span><a href="#inv-estado-matriz-riesgo" id="inv-estado-kpi-ver-item">Ver ítem →</a></p>
+            </div>
+            <div class="inicio-stat-card">
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Salud del catálogo</span>
+                <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4m5 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+                </span>
+              </div>
+              <div class="inv-estado-salud-body">
+                <div>
+                  <p class="inicio-stat-numero" id="inv-estado-kpi-salud">0%</p>
+                  <p class="inicio-stat-tendencia">% del catálogo con ventas reales en 90 días</p>
+                </div>
+                <svg class="inv-estado-salud-gauge" viewBox="0 0 36 36" width="48" height="48" aria-hidden="true">
+                  <path class="inv-estado-salud-gauge-fondo" d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831 15.9155 15.9155 0 0 1 0-31.831" fill="none" stroke-width="3.5"/>
+                  <path class="inv-estado-salud-gauge-valor" id="inv-estado-salud-gauge-valor" d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831 15.9155 15.9155 0 0 1 0-31.831" fill="none" stroke-width="3.5" stroke-dasharray="0, 100" stroke-linecap="round"/>
+                </svg>
+              </div>
             </div>
           </div>
 
@@ -3039,10 +3110,12 @@
                 <h2>Más vendido y menos movido</h2>
               </div>
               <p class="resumen-fin-utilidad-nota">Top 5 y bottom 5 por unidades vendidas — últimos 90 días.</p>
-              <h3 class="inv-estado-rank-subtitulo">Top 5 más vendidos</h3>
+              <div class="view-toggle inv-estado-rank-toggle" role="tablist" aria-label="Top o bottom 5">
+                <button type="button" class="view-toggle-btn is-active" id="btn-inv-estado-rank-top" role="tab" aria-selected="true">Top 5 más vendidos</button>
+                <button type="button" class="view-toggle-btn" id="btn-inv-estado-rank-bottom" role="tab" aria-selected="false">Bottom 5 — más lento</button>
+              </div>
               <ul class="resumen-fin-proveedores-lista" id="inv-estado-top-lista"></ul>
-              <h3 class="inv-estado-rank-subtitulo">Bottom 5 — más lento</h3>
-              <ul class="resumen-fin-proveedores-lista" id="inv-estado-bottom-lista"></ul>
+              <ul class="resumen-fin-proveedores-lista" id="inv-estado-bottom-lista" hidden></ul>
               <p class="admin-empty" id="inv-estado-rank-empty" hidden>Aún no hay ventas con inventario en los últimos 90 días.</p>
             </section>
 
@@ -3095,6 +3168,30 @@
               <p class="admin-empty" id="inv-estado-cobertura-empty" hidden>Aún no hay datos suficientes para calcular cobertura.</p>
             </section>
           </div>
+
+          <!-- Punto 271: muestra real del catálogo valorizado (mismo
+               arreglo que alimenta el export CSV), no una tabla aparte —
+               "Gestionar" abre el modal de edición de producto real, ya
+               existente en Inventarios. Sin "Transferir" (multi-almacén
+               no tiene UI todavía). -->
+          <section class="resumen-fin-proveedores-card inv-estado-solo-producto" id="inv-estado-matriz-riesgo">
+            <div class="resumen-fin-card-header">
+              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2" stroke-width="1.8"/><path d="M3 9h18M9 4v16" stroke-width="1.8"/></svg>
+              </span>
+              <h2>Matriz de riesgo</h2>
+            </div>
+            <p class="resumen-fin-utilidad-nota">Muestra de auditoría: productos con más valor en riesgo o sobrestock — mismos datos que el export CSV.</p>
+            <div class="admin-table-wrap">
+              <table class="admin-table inv-estado-matriz-tabla">
+                <thead>
+                  <tr><th>Producto</th><th>Existencia</th><th>Clasificación</th><th></th></tr>
+                </thead>
+                <tbody id="inv-estado-matriz-body"></tbody>
+              </table>
+            </div>
+            <p class="admin-empty" id="inv-estado-matriz-empty" hidden>Aún no hay catálogo valorizado para mostrar.</p>
+          </section>
 
           <!-- "Solamente servicios" (propuesta aprobada, PROJECT_STATE.md
                punto 181): un servicio nunca genera movimientos_inventario
@@ -4740,6 +4837,17 @@
   <!-- Etiquetas de código de barras imprimibles (punto 167): mismo criterio
        que #ticket-imprimir/#corte-imprimir. -->
   <div id="inv-etiqueta-imprimir" class="inv-etiqueta-imprimir" hidden></div>
+
+  <!-- "Estado del inventario" imprimible (punto 271): mismo criterio y
+       clases visuales que #corte-imprimir, sin duplicar el CSS de la
+       hoja impresa. -->
+  <div id="inv-estado-imprimir" class="corte-imprimir" hidden></div>
+
+  <!-- Efecto lupa de imagen de producto: un solo elemento flotante
+       compartido (Inventarios + sugerencias de Ventas), reposicionado por
+       JS en cada hover — hijo directo de <body> para no quedar recortado
+       por el overflow de la tabla/dropdown que lo dispara. -->
+  <img id="lupa-producto-flotante" class="lupa-producto-flotante" alt="" hidden />
 
   <script src="/theme.js"></script>
   <script src="/offline.js"></script>

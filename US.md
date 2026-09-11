@@ -874,3 +874,58 @@ Estas son áreas donde la arquitectura ya tiene bases listas para evolucionar
 - **App móvil / PWA** del portal de cliente — pedida y CANCELADA explícitamente por el usuario
   antes de implementar (ver PROJECT_STATE.md punto 132); en su lugar se implementó el modo fuera
   de línea de Ventas/Gastos (US-073/US-074/US-075, ya implementadas).
+
+---
+
+## 19. Pendientes documentados en esta sesión (271-274 + filtro por app) — *propuestas, sin implementar*
+
+> Todo lo aquí listado está en `PROJECT_STATE.md:271-274` y `pendientes.html` (secciones Cotizador & Marketplace, Centro de conocimiento / Recorrido, Inicio de sesión / Seguridad). Estado: **propuesta, sin analizar a fondo**. No implementar sin responder las preguntas documentadas en cada punto.
+
+### US-077 — Cotizador "Clarvo a la medida" con inventario de costos en Clarvo base *(PROPUESTA — punto 271)*
+Como **operador de control**, quiero un cotizador que permita armar un Clarvo a la medida seleccionando funciones/módulos, para que el cliente pague solo por lo que necesita y su tenant se aprovisione con el costo correcto.
+
+**Criterios de aceptación (por definir, ver PROJECT_STATE.md:271):**
+- El **Clarvo base sin tenant** (`portal_facturacion` sin slug) lleva el inventario de costos (`clarvo_funciones`/`clarvo_costos` — nombre, costo, categoría, dependencias).
+- Wizard: selección de funciones → cotización en vivo → pedido → `provisionar-tenant.js` (mismo que `tenantIntake.js`/`provisionar-tenant.js` del punto 101).
+- La venta se registra en BD base (`ordenes_compra` base vs. tabla nueva `clarvo_ventas`/`cotizaciones` + link a `control_tenants.tenants`) — por definir.
+- "Dar de alta las funciones" = alta en catálogo base vs. activar flags por tenant del punto 244 — por definir.
+
+### US-078 — Clarvo Site Market: marketplace de addons por cuenta *(PROPUESTA — punto 272, requiere brainstorming)*
+Como **cliente/administrador**, quiero comprar addons desde un Site Market asociados a mi cuenta Clarvo, para activar nuevas capacidades sin migrar.
+
+**Criterios de aceptación (por definir, ver PROJECT_STATE.md:272):**
+- Dónde vive: en `/admin` del tenant vs. `market.clarvo.mx` vs. sitio base — por decidir.
+- Catálogo: qué addons (módulos Inventarios/Reportes/Facturación, integraciones, almacenamiento extra del punto 250), precio, vigencia.
+- Modelo: `market_addons`/`market_compras` por `tenant_id`/`slug` (o `usuarios`), asociación a cuenta.
+- Flujo de pago: Stripe/MercadoPago, suscripción, prueba gratis — por decidir. La compra activa flag en `control_tenants.tenants`.
+- **Nota:** requiere sesión de brainstorming antes de diseñar.
+
+### US-079 — Actualizar centros de conocimiento + recorrido guiado *(PROPUESTA — punto 273)*
+Como **usuario nuevo**, quiero que el Centro de conocimiento esté actualizado con todos los cambios y un recorrido guiado, para aprender el sistema sin llamar a soporte.
+
+**Criterios de aceptación (por definir, ver PROJECT_STATE.md:273):**
+- Actualizar `frontend/admin.html`/`admin.js` `CONOCIMIENTO_CATEGORIAS` y vista "Centro de conocimiento" (y `control` si aplica) con todos los cambios recientes (271/272, 269/270, 256-260, 242/243 YouTube).
+- "Recorrido" = tour guiado/onboarding paso a paso por `/admin`, `/control`, portal cliente — librería `intro.js`/`shepherd` vs. implementación propia — por decidir.
+- Cobertura: alta en `/control`, Ventas, Gastos, Inventarios, Reportes, Centro mismo — por decidir.
+- Formato: tooltips anclados + checklist de progreso vs. documentación estática por categorías con fichas/links — por decidir.
+
+### US-080 — Doble factor por correo solo para Administrador, toggle en admin *(PROPUESTA — punto 274, 10 preguntas documentadas)*
+Como **administrador**, quiero que el registro de un perfil **Administrador** exija 2FA por correo (habilitable/inhabilitable desde la plataforma admin), para proteger altas sensibles.
+
+**Criterios de aceptación (por definir, ver PROJECT_STATE.md:274 — no implementar sin responder):**
+- Solo perfil `administrador` (no `fiscal`/`cliente`) — por confirmar. ¿Alta desde `POST /api/admin/usuarios` (panel) o también `POST /api/auth/registro` público?
+- Qué correo recibe OTP: `usuarios.email` del nuevo admin vs. del creador vs. `ADMIN_USERS` — por decidir.
+- OTP 6 dígitos con expiración (ej. 10 min) vs. link mágico; tabla `usuarios_2fa_codigos` temporal; reenvío y límite de intentos — por decidir.
+- Toggle: global `configuracion.admin_2fa_habilitado` vs. por tenant `control_tenants.tenants.admin_2fa`, default ON/OFF — por decidir.
+- UI: tarjeta "Seguridad" en `frontend/admin.html` junto al cambio de contraseña de `admin` (punto 17) o en "Usuarios" — por decidir. ¿Quién puede togglear: solo `super`/`ADMIN_USERS` vs. cualquier `administrador`?
+- Guard: `POST /api/admin/usuarios` genera código + `POST /api/admin/usuarios/verificar-2fa` para confirmar, o bloquea creación hasta verificar — por decidir.
+- Si SMTP no configurado o falla: bloquear registro o degradar a sin-2FA con aviso — por decidir.
+- ¿Solo registro o también cada login? — por decidir.
+
+### US-081 — Filtrar pendientes por app (Cliente / Admin / Control) *(IMPLEMENTADA — pendientes.html)*
+Como **operador/product owner**, quiero filtrar `pendientes.html` por app (Cliente / Admin / Control), para separar qué toca a cada superficie.
+
+**Criterios de aceptación (implementado 10 sep 2026):**
+- Barra "Filtrar por app:" con pills Todos/Cliente/Admin/Control, conteos automáticos, `aria-pressed`, y `?app=` en URL combinable con `?q=` del buscador.
+- Cada `<tr>` lleva `data-app="cliente"` / `"admin"` / `"control"` o combinaciones (`cliente,admin,control`); el filtro respeta búsqueda por texto y oculta secciones vacías.
+- 24 filas etiquetadas (Ventas→admin, Infra→control, Seguridad 274→admin,control, 271/272→cliente,admin,control, etc.).

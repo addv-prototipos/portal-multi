@@ -1193,8 +1193,10 @@
    heredar el cuadrado fijo. Por id, mismo criterio que el resto de
    este bloque, para ganarle a .reportes-kpi-grid sin tocarla ("Todo lo
    eliminado" la sigue usando tal cual, cuadrada). */
+/* Punto 271: 4ta tarjeta ("Salud del catálogo") agregada — de 3 a 4
+   columnas, con paso intermedio de 2 antes de apilar a 1. */
 #inv-estado-kpi-grid {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
 #inv-estado-kpi-grid .inicio-stat-card {
   width: auto;
@@ -1207,7 +1209,10 @@
 #inv-estado-kpi-grid .inicio-stat-tendencia {
   margin-bottom: 0;
 }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
+  #inv-estado-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
   #inv-estado-kpi-grid { grid-template-columns: 1fr; }
 }
 
@@ -1410,6 +1415,17 @@
    .view-toggle compartida por 11+ lugares del panel) para separarlas del
    contenido de abajo sin tocar el margen de .view-toggle en general. */
 .lectura-reportes-tabs {
+  margin-bottom: 0;
+}
+/* Punto 271: tabs + acciones contextuales de la pestaña activa en una
+   sola fila — antes "Imprimir"/"Descargar CSV" vivían en su propia fila
+   vacía debajo, con toda la mitad izquierda sin usar. */
+.lectura-reportes-tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 22px;
 }
 
@@ -1963,8 +1979,8 @@
    reporte a ancho de hoja normal. */
 .corte-imprimir { display: none; }
 @media print {
-  body > *:not(#ticket-imprimir):not(#corte-imprimir):not(#inv-etiqueta-imprimir) { display: none !important; }
-  #corte-imprimir {
+  body > *:not(#ticket-imprimir):not(#corte-imprimir):not(#inv-etiqueta-imprimir):not(#inv-estado-imprimir) { display: none !important; }
+  #corte-imprimir, #inv-estado-imprimir {
     display: block !important;
     position: static;
     width: 100%;
@@ -2713,6 +2729,8 @@
 .admin-table th[data-col="disponible"] { width: 100px; }
 .admin-table th[data-col="costo"] { width: 110px; }
 .admin-table th[data-col="precio"] { width: 110px; }
+.admin-table th[data-col="nivel_stock"] { width: 150px; }
+.admin-table th[data-col="valuacion"] { width: 120px; }
 .admin-table th:last-child { width: 210px; }
 
 .admin-table th,
@@ -4136,6 +4154,45 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   border-radius: 3px;
   flex-shrink: 0;
 }
+
+/* Punto 271: homologación con mockup stitch (KPI4, banner, tabs Top/
+   Bottom, matriz de riesgo, toolbar imprimir/CSV). */
+.inv-estado-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.inv-estado-kpi-extra {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+  font-size: 11.5px;
+  color: var(--color-ink-soft);
+}
+.inv-estado-kpi-extra strong { color: var(--color-ink); }
+.inv-estado-kpi-extra a {
+  color: var(--color-accent-dark);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.inv-estado-kpi-extra a:hover { text-decoration: underline; }
+.inv-estado-salud-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 3px;
+}
+.inv-estado-salud-gauge { flex-shrink: 0; transform: rotate(-90deg); }
+.inv-estado-salud-gauge-fondo { stroke: var(--color-bg); }
+.inv-estado-salud-gauge-valor { stroke: var(--color-accent); transition: stroke-dasharray 0.4s ease; }
+.inv-estado-rank-toggle { margin: 4px 0 14px; }
+.inv-estado-matriz-tabla th, .inv-estado-matriz-tabla td { white-space: nowrap; }
+.inv-estado-matriz-tabla td:first-child { white-space: normal; }
 
 /* ---------- Tabla de tickets ---------- */
 .tickets-filtro-estatus {
@@ -6043,6 +6100,32 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   flex-direction: column;
   min-width: 0;
 }
+
+/* Efecto lupa (Inventarios + sugerencias de producto en Ventas): un solo
+   elemento flotante compartido (#lupa-producto-flotante, fixed, hijo de
+   <body>), reposicionado por JS en cada hover — nunca position:absolute
+   DENTRO de la miniatura, porque tanto la tabla (`#inv-table-wrap`) como
+   el dropdown de sugerencias (`.orden-inventario-sugerencias`) tienen
+   overflow:auto y lo recortarían. */
+.inv-thumb-zoom-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  cursor: zoom-in;
+}
+.lupa-producto-flotante {
+  position: fixed;
+  width: 180px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card-hover, 0 8px 24px rgba(15, 39, 68, 0.18));
+  background: var(--color-surface);
+  z-index: 200;
+  pointer-events: none;
+}
+.lupa-producto-flotante[hidden] { display: none; }
 .orden-inventario-sugerencia-nombre {
   font-weight: 600;
   color: var(--color-ink);
@@ -6062,9 +6145,6 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   flex: none;
   background: var(--color-bg);
 }
-.inv-thumb-vacia {
-  display: inline-block;
-}
 .inv-thumb-chica {
   width: 28px;
   height: 28px;
@@ -6080,6 +6160,114 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .inv-imagen-celda {
   text-align: center;
 }
+
+/* Homologación con mockup stitch (Inventarios) — grupos de KPIs, chips
+   de stock, franja de Servicios, columnas nuevas de tabla (Nivel de
+   stock/Valuación) y su fila de totales. */
+.inv-kpi-group-label {
+  margin: 20px 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+}
+.inv-kpi-group-label:first-child { margin-top: 0; }
+.inv-kpi-group-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.inv-kpi-riesgo.inicio-stat-card-clickable:hover {
+  border-color: var(--color-accent);
+}
+/* Franja compacta de Servicios — a propósito NO es un grid de 4 columnas
+   (dejaría 2 celdas vacías al lado, mismo defecto ya corregido en
+   Reportes/Estado del inventario). */
+.inv-kpi-servicios-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  margin-bottom: 24px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+.inv-kpi-servicios-strip strong { color: var(--color-ink); }
+.inv-kpi-servicios-strip-sep { color: var(--color-border); }
+
+/* Chips rápidos de estado de stock (Todos/Bajo mínimo/Sin existencia/
+   Óptimo) — distintos de .filtro-chip (esos son resúmenes de filtro
+   activo con "×" para limpiar; estos son selectores de un clic). */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.chip {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.chip:hover { background: var(--color-bg); }
+.chip.is-active { background: var(--color-accent-dark); color: #fff; border-color: var(--color-accent-dark); }
+.chip.chip-warn { color: var(--color-warn); border-color: var(--color-warn); }
+.chip.chip-warn.is-active { background: var(--color-warn); color: #fff; border-color: var(--color-warn); }
+.chip.chip-bad { color: var(--color-error); border-color: var(--color-error); }
+.chip.chip-bad.is-active { background: var(--color-error); color: #fff; border-color: var(--color-error); }
+
+/* Columna "Nivel de stock": barra + % — solo se pinta si el producto
+   tiene stock_maximo definido (si no, la celda queda con solo el texto
+   de existencia, ya visible en la columna "Disponible"). */
+.inv-nivel-stock-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 90px;
+}
+.inv-nivel-stock-barra {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+.inv-nivel-stock-barra span { display: block; height: 100%; border-radius: 999px; }
+.inv-nivel-stock-pct { font-size: 11px; font-weight: 600; color: var(--color-ink-soft); white-space: nowrap; }
+.inv-reordenar-link {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-accent-dark);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.inv-reordenar-link:hover { text-decoration: underline; }
+
+/* Fila de totales — mismo lenguaje visual que el tfoot ya usado en
+   "Estado del inventario" (Corte del día). */
+#inv-table-tfoot td {
+  background: var(--color-accent-dark);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 10px 12px;
+  border: none;
+}
+#inv-table-tfoot #inv-tfoot-valor { color: #8FE3B8; font-size: 13.5px; }
 .inv-modal-imagen-field .dropzone {
   padding: 20px 14px;
   cursor: pointer;

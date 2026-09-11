@@ -36,7 +36,9 @@ const MODULO_ACTIVO = ['SELECT valor FROM configuracion', [[{ valor: '1' }]]];
 const MODULO_INACTIVO = ['SELECT valor FROM configuracion', [[]]];
 const ALMACEN_ID = ['SELECT id FROM almacenes WHERE codigo', [[{ id: 1 }]]];
 const VALOR_EXISTENCIA = ["SELECT COALESCE(SUM(e.disponible * p.costo_promedio), 0) AS valor\n         FROM existencias e", [[{ valor: '0' }]]];
-const SIN_MOVIMIENTO = ["SELECT COUNT(*) AS total\n         FROM productos p\n        WHERE p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'producto'\n          AND NOT EXISTS", [[{ total: 0 }]]];
+// Punto 271: ahora devuelve las filas completas (para sumar el monto
+// inmovilizado real), no solo el COUNT — vacío = sin productos inmóviles.
+const SIN_MOVIMIENTO = ['SELECT p.id, p.nombre, p.costo_promedio, COALESCE(e.disponible, 0) AS existencia_actual', [[]]];
 const BASE_PRODUCTOS_VACIO = ['SELECT p.id, p.nombre,', [[]]];
 const CATEGORIA_VACIA = ['SELECT c.id AS categoria_id', [[]]];
 
@@ -76,7 +78,17 @@ describe('Admin: Estado del inventario (Reportes)', () => {
     ]);
     const res = await request(app).get('/api/admin/inventarios/reportes/estado').auth(usuario, password);
     expect(res.status).toBe(200);
-    expect(res.body.kpis).toEqual({ valor_total_existencia: 0, rotacion_promedio_catalogo: 0, productos_sin_movimiento_90d: 0 });
+    expect(res.body.kpis).toEqual({
+      valor_total_existencia: 0,
+      rotacion_promedio_catalogo: 0,
+      productos_sin_movimiento_90d: 0,
+      unidades_totales: 0,
+      costo_promedio_ponderado: 0,
+      monto_inmovilizado: 0,
+      salud_catalogo_pct: 0,
+    });
+    expect(res.body.alerta_inmovilizado).toBeNull();
+    expect(res.body.valuacion_detalle).toEqual([]);
     expect(res.body.top_ventas_90d).toEqual([]);
     expect(res.body.bottom_ventas_90d).toEqual([]);
     expect(res.body.rotacion).toEqual([]);
@@ -92,15 +104,18 @@ describe('Admin: Estado del inventario (Reportes)', () => {
   test('administrador recibe kpis + 4 gráficas con datos reales, rotación_promedio consistente con el array de rotación', async () => {
     const { usuario, password } = mockUsuarioAdministrativo('administrador');
     const filasProductos = [
-      { id: 1, nombre: 'Tóner HP Negro', existencia_actual: '100.000', unidades_vendidas_90d: '340.000' },
-      { id: 2, nombre: 'Router empresarial', existencia_actual: '40.000', unidades_vendidas_90d: '0.000' },
-      { id: 3, nombre: 'Laptop Lenovo 15"', existencia_actual: '10.000', unidades_vendidas_90d: '5.000' },
+      { id: 1, nombre: 'Tóner HP Negro', sku: 'TON-01', costo_promedio: '50.00', categoria_nombre: 'Cómputo', existencia_actual: '100.000', unidades_vendidas_90d: '340.000' },
+      { id: 2, nombre: 'Router empresarial', sku: 'RT-01', costo_promedio: '300.00', categoria_nombre: 'Electrónica', existencia_actual: '40.000', unidades_vendidas_90d: '0.000' },
+      { id: 3, nombre: 'Laptop Lenovo 15"', sku: 'LP-01', costo_promedio: '8000.00', categoria_nombre: 'Cómputo', existencia_actual: '10.000', unidades_vendidas_90d: '5.000' },
     ];
     mockPoolPorPatron([
       MODULO_ACTIVO,
       ALMACEN_ID,
       ["SELECT COALESCE(SUM(e.disponible * p.costo_promedio), 0) AS valor\n         FROM existencias e", [[{ valor: '125430.50' }]]],
-      ["SELECT COUNT(*) AS total\n         FROM productos p\n        WHERE p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'producto'\n          AND NOT EXISTS", [[{ total: 1 }]]],
+      [
+        'SELECT p.id, p.nombre, p.costo_promedio, COALESCE(e.disponible, 0) AS existencia_actual',
+        [[{ id: 2, nombre: 'Router empresarial', costo_promedio: '300.00', existencia_actual: '40.000' }]],
+      ],
       ['SELECT p.id, p.nombre,', [filasProductos]],
       ['SELECT c.id AS categoria_id', [[{ categoria_id: 1, categoria_nombre: 'Cómputo', valor: '54000.00' }]]],
     ]);
@@ -112,6 +127,18 @@ describe('Admin: Estado del inventario (Reportes)', () => {
     expect(res.body.kpis.productos_sin_movimiento_90d).toBe(1);
     // rotacion_promedio_catalogo = ratio de sumas: (340+0+5) / (100+40+10) = 345/150
     expect(res.body.kpis.rotacion_promedio_catalogo).toBe(Math.round((345 / 150) * 100) / 100);
+    // costo_promedio_ponderado = valor_total_existencia / unidades_totales(150)
+    expect(res.body.kpis.unidades_totales).toBe(150);
+    expect(res.body.kpis.costo_promedio_ponderado).toBe(Math.round((125430.5 / 150) * 100) / 100);
+    // monto_inmovilizado = 300 * 40 (único producto sin movimiento 90d)
+    expect(res.body.kpis.monto_inmovilizado).toBe(12000);
+    // salud_catalogo_pct = saludable+riesgo del bucket de cobertura, no
+    // solo "tuvo ventas": Laptop vendió 5 pero con 10 en existencia da
+    // 180 días de cobertura -> sobrestock igual. Solo Tóner (26.5d) cae
+    // en saludable; Router (0 ventas) y Laptop, sobrestock. 1 de 3.
+    expect(res.body.kpis.salud_catalogo_pct).toBe(Math.round((1 / 3) * 1000) / 10);
+
+    expect(res.body.alerta_inmovilizado).toEqual({ producto_id: 2, nombre: 'Router empresarial', monto: 12000 });
 
     expect(res.body.top_ventas_90d[0]).toEqual({ producto_id: 1, nombre: 'Tóner HP Negro', unidades_vendidas_90d: 340 });
     expect(res.body.bottom_ventas_90d[0]).toEqual({ producto_id: 2, nombre: 'Router empresarial', unidades_vendidas_90d: 0 });
@@ -121,6 +148,17 @@ describe('Admin: Estado del inventario (Reportes)', () => {
     expect(rotacionToner.rotacion).toBe(3.4);
 
     expect(res.body.valor_por_categoria).toEqual([{ categoria_id: 1, categoria_nombre: 'Cómputo', valor: 54000 }]);
+
+    // valuacion_detalle: catálogo completo, ordenado por valor desc.
+    // Laptop: 10*8000=80000, Tóner: 100*50=5000, Router: 40*300=12000.
+    expect(res.body.valuacion_detalle.map((f) => f.nombre)).toEqual([
+      'Laptop Lenovo 15"',
+      'Router empresarial',
+      'Tóner HP Negro',
+    ]);
+    const routerDetalle = res.body.valuacion_detalle.find((f) => f.producto_id === 2);
+    expect(routerDetalle.clasificacion).toBe('sobrestock');
+    expect(routerDetalle.valor).toBe(12000);
   });
 
   test('proxy de rotación con existencia_actual=0 usa GREATEST(existencia,1), nunca Infinity', async () => {

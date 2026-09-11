@@ -7336,10 +7336,30 @@ app.get(
       );
       params.push(UMBRAL_POR_VENCER_DIAS);
     }
+    // Punto: chips rápidos de la tabla — mismas 3 condiciones exactas que
+    // ya usa GET /dashboard para sus tarjetas "Bajo mínimo"/"Sin
+    // existencia", para que el chip y el KPI nunca puedan desincronizarse.
+    if (req.query.stock === 'bajo_minimo') {
+      condiciones.push("p.tipo = 'producto' AND p.stock_minimo IS NOT NULL AND COALESCE(e.disponible, 0) < p.stock_minimo");
+    } else if (req.query.stock === 'sin_existencia') {
+      condiciones.push("p.tipo = 'producto' AND COALESCE(e.disponible, 0) = 0");
+    } else if (req.query.stock === 'optimo') {
+      condiciones.push(
+        "p.tipo = 'producto' AND COALESCE(e.disponible, 0) > 0 AND (p.stock_minimo IS NULL OR COALESCE(e.disponible, 0) >= p.stock_minimo)"
+      );
+    }
     condiciones.push(verPapelera ? 'p.eliminado_en IS NOT NULL' : 'p.eliminado_en IS NULL');
     const where = condiciones.join(' AND ');
+    // Los filtros de stock leen e.disponible, así que el JOIN a
+    // existencias tiene que existir también en el COUNT, no solo en la
+    // consulta paginada.
+    const fromConExistencias = `FROM productos p
+         LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = (SELECT id FROM almacenes WHERE codigo = ? LIMIT 1)`;
 
-    const [contador] = await pool.query(`SELECT COUNT(*) AS total FROM productos p WHERE ${where}`, params);
+    const [contador] = await pool.query(`SELECT COUNT(*) AS total ${fromConExistencias} WHERE ${where}`, [
+      ALMACEN_DEFECTO_CODIGO,
+      ...params,
+    ]);
     const total = Number(contador[0].total);
 
     // "Por vencer": lo más urgente primero (el que vence antes, arriba)
@@ -7347,8 +7367,7 @@ app.get(
     const orden = req.query.vencimiento === 'por_vencer' ? 'p.fecha_expiracion ASC' : 'p.nombre ASC';
     const [filas] = await pool.query(
       `SELECT p.*, e.disponible AS disponible
-         FROM productos p
-         LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = (SELECT id FROM almacenes WHERE codigo = ? LIMIT 1)
+         ${fromConExistencias}
         WHERE ${where}
         ORDER BY ${orden}
         LIMIT ? OFFSET ?`,
@@ -7853,6 +7872,45 @@ app.get(
   })
 );
 
+// Punto: "Exportar Kardex" del toolbar — a diferencia del Kardex de
+// arriba (un producto a la vez), este junta TODOS los movimientos
+// reales de TODO el catálogo activo (no eliminado) en un solo CSV. El
+// backend arma el CSV directo (puede ser una lista larga) en vez de
+// mandar JSON y construirlo en el navegador.
+app.get(
+  '/api/admin/inventarios/kardex-exportar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  requireInventarioActivo,
+  asyncHandler(async (req, res) => {
+    const [filas] = await pool.query(
+      `SELECT m.folio, m.tipo, m.cantidad, m.costo_unitario, m.existencia_anterior, m.existencia_posterior,
+              m.motivo, m.documento_origen, m.usuario, m.creado_en, p.sku, p.nombre
+         FROM movimientos_inventario m
+         JOIN productos p ON p.id = m.producto_id
+        WHERE p.eliminado_en IS NULL
+        ORDER BY m.creado_en DESC, m.id DESC`
+    );
+    const csvCelda = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const encabezado = ['Fecha', 'SKU', 'Producto', 'Tipo', 'Folio', 'Cantidad', 'Costo unitario', 'Existencia antes', 'Existencia después', 'Motivo', 'Documento origen', 'Usuario'];
+    const lineas = filas.map((m) =>
+      [
+        m.creado_en, m.sku, m.nombre, m.tipo, m.folio || '',
+        Number(m.cantidad), m.costo_unitario === null ? '' : Number(m.costo_unitario),
+        Number(m.existencia_anterior), Number(m.existencia_posterior),
+        m.motivo || '', m.documento_origen || '', m.usuario || '',
+      ]
+        .map(csvCelda)
+        .join(',')
+    );
+    const csv = [encabezado.map(csvCelda).join(','), ...lineas].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="kardex-inventarios.csv"');
+    res.send(`﻿${csv}`);
+  })
+);
+
 app.get(
   '/api/admin/inventarios/existencias',
   adminApiLimiter,
@@ -8011,23 +8069,37 @@ app.get(
       [almacenId]
     );
 
-    const [[sinMovimiento90d]] = await pool.query(
-      `SELECT COUNT(*) AS total
+    // Punto 271: filas completas (no solo el conteo) para poder sumar el
+    // monto inmovilizado real y señalar el producto con más $ atorado en
+    // el banner de alerta — mismo criterio "sin movimiento" de siempre.
+    const [filasSinMovimiento90d] = await pool.query(
+      `SELECT p.id, p.nombre, p.costo_promedio, COALESCE(e.disponible, 0) AS existencia_actual
          FROM productos p
+         LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = ?
         WHERE p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'producto'
           AND NOT EXISTS (
             SELECT 1 FROM movimientos_inventario m
              WHERE m.producto_id = p.id AND m.almacen_id = ?
                AND m.creado_en >= DATE_SUB(NOW(), INTERVAL 90 DAY)
           )`,
-      [almacenId]
+      [almacenId, almacenId]
+    );
+    const sinMovimientoConMonto = filasSinMovimiento90d.map((f) => ({
+      id: f.id,
+      nombre: f.nombre,
+      monto: Math.round(Number(f.existencia_actual) * Number(f.costo_promedio || 0) * 100) / 100,
+    }));
+    const montoInmovilizado = Math.round(sinMovimientoConMonto.reduce((acc, f) => acc + f.monto, 0) * 100) / 100;
+    const productoMasInmovilizado = sinMovimientoConMonto.reduce(
+      (mejor, f) => (!mejor || f.monto > mejor.monto ? f : mejor),
+      null
     );
 
     // Query base compartida por el KPI de rotación y las 4 gráficas — una
     // sola fuente de verdad, para que nunca puedan desincronizarse entre
     // sí (mismo criterio que /resumen-financiero con utilidad_neta).
     const [filasProductos] = await pool.query(
-      `SELECT p.id, p.nombre,
+      `SELECT p.id, p.nombre, p.sku, p.costo_promedio, c.nombre AS categoria_nombre,
               COALESCE(e.disponible, 0) AS existencia_actual,
               COALESCE(SUM(CASE WHEN m.tipo = 'venta'
                                  AND m.creado_en >= DATE_SUB(NOW(), INTERVAL 90 DAY)
@@ -8035,8 +8107,9 @@ app.get(
          FROM productos p
          LEFT JOIN existencias e ON e.producto_id = p.id AND e.almacen_id = ?
          LEFT JOIN movimientos_inventario m ON m.producto_id = p.id AND m.almacen_id = ?
+         LEFT JOIN categorias_inventario c ON c.id = p.categoria_id
         WHERE p.eliminado_en IS NULL AND p.estado = 'activo' AND p.tipo = 'producto'
-        GROUP BY p.id, p.nombre, e.disponible`,
+        GROUP BY p.id, p.nombre, p.sku, p.costo_promedio, c.nombre, e.disponible`,
       [almacenId, almacenId]
     );
 
@@ -8056,8 +8129,12 @@ app.get(
     const productosConNumeros = filasProductos.map((f) => ({
       id: f.id,
       nombre: f.nombre,
+      sku: f.sku,
+      categoria_nombre: f.categoria_nombre || null,
+      costo_promedio: Number(f.costo_promedio || 0),
       existencia_actual: Number(f.existencia_actual),
       unidades_vendidas_90d: Number(f.unidades_vendidas_90d),
+      valor: Math.round(Number(f.existencia_actual) * Number(f.costo_promedio || 0) * 100) / 100,
     }));
 
     const totalUnidades90d = productosConNumeros.reduce((acc, f) => acc + f.unidades_vendidas_90d, 0);
@@ -8081,17 +8158,26 @@ app.get(
     }));
     const rotacionTop8 = [...conRotacion].sort((a, b) => b.rotacion - a.rotacion).slice(0, 8);
 
+    // Punto 271: clasificación por producto (no solo el conteo) — la
+    // misma regla de siempre, reusada por la tabla "Matriz de riesgo" y
+    // el export CSV, para que nunca puedan desincronizarse entre sí.
+    const productosClasificados = productosConNumeros.map((f) => {
+      if (f.unidades_vendidas_90d === 0) {
+        return { ...f, dias_cobertura: null, clasificacion: 'sobrestock' };
+      }
+      const diasCobertura = f.existencia_actual / (f.unidades_vendidas_90d / 90);
+      let clasificacion;
+      if (diasCobertura < 7) clasificacion = 'riesgo';
+      else if (diasCobertura <= 60) clasificacion = 'saludable';
+      else clasificacion = 'sobrestock';
+      return { ...f, dias_cobertura: Math.round(diasCobertura * 10) / 10, clasificacion };
+    });
     let riesgo = 0;
     let saludable = 0;
     let sobrestock = 0;
-    productosConNumeros.forEach((f) => {
-      if (f.unidades_vendidas_90d === 0) {
-        sobrestock += 1;
-        return;
-      }
-      const diasCobertura = f.existencia_actual / (f.unidades_vendidas_90d / 90);
-      if (diasCobertura < 7) riesgo += 1;
-      else if (diasCobertura <= 60) saludable += 1;
+    productosClasificados.forEach((f) => {
+      if (f.clasificacion === 'riesgo') riesgo += 1;
+      else if (f.clasificacion === 'saludable') saludable += 1;
       else sobrestock += 1;
     });
     const totalProductos = productosConNumeros.length;
@@ -8126,8 +8212,20 @@ app.get(
       kpis: {
         valor_total_existencia: Math.round(Number(valorInventario.valor) * 100) / 100,
         rotacion_promedio_catalogo: Math.round(rotacionPromedioCatalogo * 100) / 100,
-        productos_sin_movimiento_90d: Number(sinMovimiento90d.total),
+        productos_sin_movimiento_90d: filasSinMovimiento90d.length,
+        unidades_totales: totalExistencia,
+        costo_promedio_ponderado:
+          totalExistencia > 0 ? Math.round((Number(valorInventario.valor) / totalExistencia) * 100) / 100 : 0,
+        monto_inmovilizado: montoInmovilizado,
+        // Honesto en vez del "Health Score" de marketing del mockup: % de
+        // SKUs con alguna venta real en 90 días (saludable+riesgo) — es
+        // el inverso exacto de cobertura.sobrestock.porcentaje.
+        salud_catalogo_pct: totalProductos > 0 ? Math.round(((saludable + riesgo) / totalProductos) * 1000) / 10 : 0,
       },
+      alerta_inmovilizado:
+        productoMasInmovilizado && productoMasInmovilizado.monto > 0
+          ? { producto_id: productoMasInmovilizado.id, nombre: productoMasInmovilizado.nombre, monto: productoMasInmovilizado.monto }
+          : null,
       top_ventas_90d: topVentas.map((f) => ({ producto_id: f.id, nombre: f.nombre, unidades_vendidas_90d: f.unidades_vendidas_90d })),
       bottom_ventas_90d: bottomVentas.map((f) => ({ producto_id: f.id, nombre: f.nombre, unidades_vendidas_90d: f.unidades_vendidas_90d })),
       rotacion: rotacionTop8.map((f) => ({
@@ -8148,6 +8246,23 @@ app.get(
         sobrestock: { productos: sobrestock, porcentaje: pct(sobrestock) },
         total_productos: totalProductos,
       },
+      // Punto 271: catálogo completo valorizado — alimenta la tabla
+      // "Matriz de riesgo" (primeras N filas) Y el export CSV de esta
+      // pestaña, ambos leyendo del mismo arreglo para no desincronizarse.
+      valuacion_detalle: [...productosClasificados]
+        .sort((a, b) => b.valor - a.valor)
+        .map((f) => ({
+          producto_id: f.id,
+          nombre: f.nombre,
+          sku: f.sku,
+          categoria_nombre: f.categoria_nombre,
+          existencia_actual: f.existencia_actual,
+          costo_promedio: f.costo_promedio,
+          valor: f.valor,
+          unidades_vendidas_90d: f.unidades_vendidas_90d,
+          dias_cobertura: f.dias_cobertura,
+          clasificacion: f.clasificacion,
+        })),
       servicios: {
         kpis: {
           total_servicios: serviciosConNumeros.length,

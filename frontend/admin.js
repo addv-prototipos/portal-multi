@@ -610,10 +610,23 @@
     vistaInventarios: document.getElementById('vista-inventarios'),
     btnVerInvActivos: document.getElementById('btn-ver-inv-activos'),
     btnVerInvPapelera: document.getElementById('btn-ver-inv-papelera'),
+    btnVerInvServicios: document.getElementById('btn-ver-inv-servicios'),
     invProductosCount: document.getElementById('inv-productos-count'),
     btnInvVerificarIntegridad: document.getElementById('btn-inv-verificar-integridad'),
     btnRefreshInventarios: document.getElementById('btn-refresh-inventarios'),
+    btnInvExportarKardex: document.getElementById('btn-inv-exportar-kardex'),
     btnNuevoProducto: document.getElementById('btn-nuevo-producto'),
+    invKpiBajoMinimoCard: document.getElementById('inv-kpi-bajo-minimo-card'),
+    invKpiSinExistenciaCard: document.getElementById('inv-kpi-sin-existencia-card'),
+    invChipsStock: document.getElementById('inv-chips-stock'),
+    btnInvChipTodos: document.getElementById('btn-inv-chip-todos'),
+    btnInvChipBajoMinimo: document.getElementById('btn-inv-chip-bajo-minimo'),
+    btnInvChipSinExistencia: document.getElementById('btn-inv-chip-sin-existencia'),
+    btnInvChipOptimo: document.getElementById('btn-inv-chip-optimo'),
+    invTableTfoot: document.getElementById('inv-table-tfoot'),
+    invTfootUnidades: document.getElementById('inv-tfoot-unidades'),
+    invTfootValor: document.getElementById('inv-tfoot-valor'),
+    invTfootAlertas: document.getElementById('inv-tfoot-alertas'),
     invKpiValor: document.getElementById('inv-kpi-valor'),
     invKpiActivos: document.getElementById('inv-kpi-activos'),
     invKpiServicios: document.getElementById('inv-kpi-servicios'),
@@ -638,6 +651,7 @@
     btnLimpiarInvBusqueda: document.getElementById('btn-limpiar-inv-busqueda'),
     invError: document.getElementById('inv-error'),
     invTableBody: document.getElementById('inv-table-body'),
+    invTableWrap: document.getElementById('inv-table-wrap'),
     btnInvColumns: document.getElementById('btn-inv-columns'),
     invColumnTogglePanel: document.getElementById('inv-column-toggle-panel'),
     invEmpty: document.getElementById('inv-empty'),
@@ -1014,6 +1028,23 @@
     invEstadoCoberturaBarra: document.getElementById('inv-estado-cobertura-barra'),
     invEstadoCoberturaLeyenda: document.getElementById('inv-estado-cobertura-leyenda'),
     invEstadoCoberturaEmpty: document.getElementById('inv-estado-cobertura-empty'),
+    invEstadoToolbar: document.getElementById('inv-estado-toolbar'),
+    btnInvEstadoImprimir: document.getElementById('btn-inv-estado-imprimir'),
+    btnInvEstadoExportar: document.getElementById('btn-inv-estado-exportar'),
+    invEstadoAlertaInmovilizado: document.getElementById('inv-estado-alerta-inmovilizado'),
+    invEstadoAlertaInmovilizadoTexto: document.getElementById('inv-estado-alerta-inmovilizado-texto'),
+    invEstadoAlertaInmovilizadoBtn: document.getElementById('inv-estado-alerta-inmovilizado-btn'),
+    invEstadoKpiCostoProm: document.getElementById('inv-estado-kpi-costo-prom'),
+    invEstadoKpiPiezasTotal: document.getElementById('inv-estado-kpi-piezas-total'),
+    invEstadoKpiMontoInmovilizadoWrap: document.getElementById('inv-estado-kpi-monto-inmovilizado-wrap'),
+    invEstadoKpiMontoInmovilizado: document.getElementById('inv-estado-kpi-monto-inmovilizado'),
+    invEstadoKpiSalud: document.getElementById('inv-estado-kpi-salud'),
+    invEstadoSaludGaugeValor: document.getElementById('inv-estado-salud-gauge-valor'),
+    btnInvEstadoRankTop: document.getElementById('btn-inv-estado-rank-top'),
+    btnInvEstadoRankBottom: document.getElementById('btn-inv-estado-rank-bottom'),
+    invEstadoMatrizBody: document.getElementById('inv-estado-matriz-body'),
+    invEstadoMatrizEmpty: document.getElementById('inv-estado-matriz-empty'),
+    invEstadoImprimir: document.getElementById('inv-estado-imprimir'),
     ledgerFiltroTipo: document.getElementById('ledger-filtro-tipo'),
     ledgerFiltroEstatus: document.getElementById('ledger-filtro-estatus'),
     ledgerFiltroRfc: document.getElementById('ledger-filtro-rfc'),
@@ -1329,6 +1360,36 @@
     } catch (err) {
       // Sin imagen visible, la tabla/lista sigue funcionando igual.
     }
+  }
+
+  // Efecto lupa (Inventarios + sugerencias de producto en Ventas): un solo
+  // elemento flotante compartido, posicionado con getBoundingClientRect()
+  // y anclado a <body> — nunca dentro de la miniatura, para no quedar
+  // recortado por el overflow:auto de la tabla/dropdown que la contiene.
+  const elLupaProducto = document.getElementById('lupa-producto-flotante');
+  function mostrarLupaProducto(wrapEl, imgEl) {
+    if (!elLupaProducto || !imgEl || !imgEl.src) return;
+    elLupaProducto.src = imgEl.src;
+    const rect = wrapEl.getBoundingClientRect();
+    const tamano = 180;
+    const margen = 10;
+    let left = rect.right + margen;
+    if (left + tamano > window.innerWidth) left = Math.max(margen, rect.left - tamano - margen);
+    let top = rect.top + rect.height / 2 - tamano / 2;
+    top = Math.max(margen, Math.min(top, window.innerHeight - tamano - margen));
+    elLupaProducto.style.left = `${left}px`;
+    elLupaProducto.style.top = `${top}px`;
+    elLupaProducto.hidden = false;
+  }
+  function ocultarLupaProducto() {
+    if (elLupaProducto) elLupaProducto.hidden = true;
+  }
+  function activarLupaProducto(wrapEl, imgEl) {
+    if (!wrapEl || !imgEl) return;
+    wrapEl.addEventListener('mouseenter', () => mostrarLupaProducto(wrapEl, imgEl));
+    wrapEl.addEventListener('mouseleave', ocultarLupaProducto);
+    wrapEl.addEventListener('focusin', () => mostrarLupaProducto(wrapEl, imgEl));
+    wrapEl.addEventListener('focusout', ocultarLupaProducto);
   }
 
   function setSession(username, password) {
@@ -3655,6 +3716,29 @@
   els.btnExportarCorteCsv.addEventListener('click', () => exportarCorte('csv'));
   els.btnExportarCorteExcel.addEventListener('click', () => exportarCorte('excel'));
 
+  // Punto 271: "Estado del inventario" — toolbar (imprimir/CSV), tabs
+  // Top/Bottom y el botón del banner de capital inmovilizado.
+  if (els.btnInvEstadoImprimir) els.btnInvEstadoImprimir.addEventListener('click', imprimirEstadoInventario);
+  if (els.btnInvEstadoExportar) els.btnInvEstadoExportar.addEventListener('click', exportarEstadoInventarioCsv);
+  if (els.btnInvEstadoRankTop && els.btnInvEstadoRankBottom) {
+    els.btnInvEstadoRankTop.addEventListener('click', () => {
+      els.btnInvEstadoRankTop.classList.add('is-active'); els.btnInvEstadoRankTop.setAttribute('aria-selected', 'true');
+      els.btnInvEstadoRankBottom.classList.remove('is-active'); els.btnInvEstadoRankBottom.setAttribute('aria-selected', 'false');
+      els.invEstadoTopLista.hidden = false; els.invEstadoBottomLista.hidden = true;
+    });
+    els.btnInvEstadoRankBottom.addEventListener('click', () => {
+      els.btnInvEstadoRankBottom.classList.add('is-active'); els.btnInvEstadoRankBottom.setAttribute('aria-selected', 'true');
+      els.btnInvEstadoRankTop.classList.remove('is-active'); els.btnInvEstadoRankTop.setAttribute('aria-selected', 'false');
+      els.invEstadoBottomLista.hidden = false; els.invEstadoTopLista.hidden = true;
+    });
+  }
+  if (els.invEstadoAlertaInmovilizadoBtn) {
+    els.invEstadoAlertaInmovilizadoBtn.addEventListener('click', () => {
+      const el = document.getElementById('inv-estado-matriz-riesgo');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   els.btnEliminarCorte.addEventListener('click', () => {
     if (!corteSeleccionadoId) return;
     const reporte = reportesDisponibles.find((r) => String(r.id) === String(corteSeleccionadoId));
@@ -3743,6 +3827,10 @@
       els[def.vista].hidden = !esActiva;
     });
     els.reportesTabCaption.textContent = activa.caption;
+    // Punto 271: Imprimir/Descargar CSV viven junto a las pestañas (no
+    // dentro del contenedor de "Estado del inventario"), así que su
+    // visibilidad ya no la resuelve el hidden del contenedor padre.
+    if (els.invEstadoToolbar) els.invEstadoToolbar.hidden = nombre !== 'estado-inventario';
     if (activa.alEntrar) activa.alEntrar();
   }
 
@@ -6638,7 +6726,9 @@
       .map(
         (p) => `
       <button type="button" class="orden-inventario-sugerencia" data-id="${p.id}">
-        ${p.imagen_thumb_url ? '<img class="inv-thumb inv-thumb-chica" alt="" />' : ''}
+        <span class="inv-thumb-zoom-wrap">
+          ${p.imagen_thumb_url ? '<img class="inv-thumb inv-thumb-chica" alt="" />' : '<img class="inv-thumb inv-thumb-chica" src="/assets/producto-placeholder.png" alt="" />'}
+        </span>
         <span class="orden-inventario-sugerencia-texto">
           <span class="orden-inventario-sugerencia-nombre">${escapeHtml(p.nombre)}</span>
           <span class="orden-inventario-sugerencia-detalle">${escapeHtml(p.sku)} · ${p.tipo === 'servicio' ? 'Servicio' : `Disponible: ${formatearCantidadOrdenInv(p.disponible)}`}${p.precio !== null ? ' · $' + formatearMoneda(p.precio) : ''}</span>
@@ -6653,7 +6743,9 @@
         if (producto) seleccionarProductoInventarioOrden(producto);
       });
       const producto = productos.find((p) => p.id === Number(btn.dataset.id));
-      if (producto && producto.imagen_thumb_url) cargarImagenAutenticada(btn.querySelector('img.inv-thumb'), producto.imagen_thumb_url);
+      const imgThumb = btn.querySelector('img.inv-thumb');
+      if (producto && producto.imagen_thumb_url) cargarImagenAutenticada(imgThumb, producto.imagen_thumb_url);
+      activarLupaProducto(btn.querySelector('.inv-thumb-zoom-wrap'), imgThumb);
     });
   }
 
@@ -10344,6 +10436,10 @@
   // se inventan hexadecimales nuevos).
   const INV_ESTADO_COLORES_DONUT = ['#8FADD9', '#A9C4E3', '#719FD4', '#C0D3EB', '#9BB8DE'];
 
+  // Punto 271: última respuesta cruda del endpoint — la usan el export
+  // CSV y la impresión, para no volver a pedirle nada al servidor.
+  let estadoInventarioCache = null;
+
   async function cargarEstadoInventario() {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
@@ -10353,19 +10449,51 @@
       });
       if (!res.ok) return;
       const data = await res.json();
+      estadoInventarioCache = data;
       const kpis = data.kpis || {};
       els.invEstadoKpiValor.textContent = `$${formatearMoneda(kpis.valor_total_existencia || 0)}`;
       els.invEstadoKpiRotacion.textContent = `${Number(kpis.rotacion_promedio_catalogo || 0).toFixed(1)}×`;
       els.invEstadoKpiSinMovimiento.textContent = kpis.productos_sin_movimiento_90d || 0;
+      if (els.invEstadoKpiCostoProm) els.invEstadoKpiCostoProm.textContent = `$${formatearMoneda(kpis.costo_promedio_ponderado || 0)}`;
+      if (els.invEstadoKpiPiezasTotal) els.invEstadoKpiPiezasTotal.textContent = `${kpis.unidades_totales || 0} pz`;
+      renderInvEstadoSalud(kpis.salud_catalogo_pct || 0);
+      renderInvEstadoMontoInmovilizado(kpis.monto_inmovilizado || 0);
+      renderInvEstadoAlerta(data.alerta_inmovilizado || null);
 
       renderInvEstadoRank(data.top_ventas_90d || [], data.bottom_ventas_90d || []);
       renderInvEstadoRotacion(data.rotacion || [], kpis.rotacion_promedio_catalogo || 0);
       renderInvEstadoDonutCategoria(data.valor_por_categoria || []);
       renderInvEstadoCobertura(data.cobertura || null);
+      renderInvEstadoMatriz(data.valuacion_detalle || []);
       renderInvEstadoServicios(data.servicios || null);
     } catch (err) {
       // Las 4 gráficas se quedan en su estado vacío/anterior; se puede
       // reintentar volviendo a entrar a la pestaña.
+    }
+  }
+
+  function renderInvEstadoSalud(pct) {
+    if (els.invEstadoKpiSalud) els.invEstadoKpiSalud.textContent = `${Number(pct).toFixed(1)}%`;
+    if (els.invEstadoSaludGaugeValor) els.invEstadoSaludGaugeValor.setAttribute('stroke-dasharray', `${Number(pct)}, 100`);
+  }
+
+  function renderInvEstadoMontoInmovilizado(monto) {
+    if (!els.invEstadoKpiMontoInmovilizadoWrap) return;
+    els.invEstadoKpiMontoInmovilizadoWrap.hidden = !(monto > 0);
+    if (els.invEstadoKpiMontoInmovilizado) els.invEstadoKpiMontoInmovilizado.textContent = `$${formatearMoneda(monto)}`;
+  }
+
+  // Banner real (sin acciones inventadas): solo el producto con más $
+  // inmovilizado, con link a su fila real en la matriz de abajo.
+  function renderInvEstadoAlerta(alerta) {
+    if (!els.invEstadoAlertaInmovilizado) return;
+    if (!alerta) {
+      els.invEstadoAlertaInmovilizado.hidden = true;
+      return;
+    }
+    els.invEstadoAlertaInmovilizado.hidden = false;
+    if (els.invEstadoAlertaInmovilizadoTexto) {
+      els.invEstadoAlertaInmovilizadoTexto.innerHTML = `<strong>${escapeHtml(alerta.nombre)}</strong> sin movimiento en 90 días representa <strong>$${formatearMoneda(alerta.monto)} MXN</strong> en existencia.`;
     }
   }
 
@@ -10455,16 +10583,20 @@
     els.invEstadoRotacionEmpty.hidden = true;
     const maximo = Math.max(...filas.map((f) => f.rotacion), promedioCatalogo, 1);
     els.invEstadoRotacionLista.innerHTML = filas
-      .map(
-        (f) => `
+      .map((f) => {
+        // Agotamiento estimado: existencia ÷ ritmo diario de venta
+        // (unidades_vendidas_90d/90) — misma aproximación honesta que ya
+        // usa esta gráfica, no rotación contable real.
+        const diasAgotamiento = f.unidades_vendidas_90d > 0 ? Math.round(f.existencia_actual / (f.unidades_vendidas_90d / 90)) : null;
+        return `
       <li class="resumen-fin-proveedor-fila">
-        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.nombre)}" tabindex="0">${escapeHtml(f.nombre)}</span>
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.nombre)}${diasAgotamiento !== null ? ` — agotamiento ~${diasAgotamiento}d` : ''}" tabindex="0">${escapeHtml(f.nombre)}</span>
         <div class="resumen-fin-proveedor-barra-wrap">
           <span class="resumen-fin-proveedor-barra" style="width:${(f.rotacion / maximo) * 100}%"></span>
         </div>
         <span class="resumen-fin-proveedor-monto">${f.rotacion.toFixed(1)}×</span>
-      </li>`
-      )
+      </li>`;
+      })
       .join('');
     // Track de la barra: arranca en 140px (columna de nombre) + 12px
     // (gap), y termina 56px + 12px antes del borde derecho (columna de
@@ -10525,6 +10657,116 @@
           `<li><span class="resumen-fin-donut-dot" style="background:${s.color}" aria-hidden="true"></span><span>${escapeHtml(s.etiqueta)}</span><strong>${s.dato.productos} (${s.dato.porcentaje}%)</strong></li>`
       )
       .join('');
+  }
+
+  const INV_ESTADO_CLASIFICACION_TEXTO = {
+    riesgo: 'En riesgo (<7 días)',
+    saludable: 'Saludable (7-60 días)',
+    sobrestock: 'Sobrestock (>60 días o sin ventas)',
+  };
+  // Reusa las 3 insignias de estatus ya existentes en el sitio (mismo
+  // criterio de colores que la barra de Cobertura de arriba) en vez de
+  // inventar una paleta nueva para esta tabla.
+  const INV_ESTADO_CLASIFICACION_CLASE = {
+    riesgo: 'estatus-pendiente',
+    saludable: 'estatus-listo',
+    sobrestock: 'estatus-en-curso',
+  };
+
+  // Punto 271: muestra de auditoría — primeros 10 productos del catálogo
+  // valorizado (ya viene ordenado por valor desc desde el backend), con
+  // "Gestionar" abriendo el modal real de edición de producto.
+  function renderInvEstadoMatriz(filas) {
+    if (!els.invEstadoMatrizBody) return;
+    if (!filas || filas.length === 0) {
+      els.invEstadoMatrizBody.innerHTML = '';
+      if (els.invEstadoMatrizEmpty) els.invEstadoMatrizEmpty.hidden = false;
+      return;
+    }
+    if (els.invEstadoMatrizEmpty) els.invEstadoMatrizEmpty.hidden = true;
+    els.invEstadoMatrizBody.innerHTML = filas
+      .slice(0, 10)
+      .map(
+        (f) => `
+      <tr>
+        <td>${escapeHtml(f.nombre)}</td>
+        <td>${f.existencia_actual} pz</td>
+        <td><span class="estatus-badge ${INV_ESTADO_CLASIFICACION_CLASE[f.clasificacion] || ''}">${escapeHtml(INV_ESTADO_CLASIFICACION_TEXTO[f.clasificacion] || f.clasificacion)}</span></td>
+        <td><button type="button" class="btn btn-secondary inv-estado-matriz-btn-gestionar" data-producto-id="${f.producto_id}">Gestionar</button></td>
+      </tr>`
+      )
+      .join('');
+    els.invEstadoMatrizBody.querySelectorAll('.inv-estado-matriz-btn-gestionar').forEach((btn) => {
+      btn.addEventListener('click', () => gestionarProductoDesdeMatriz(Number(btn.dataset.productoId)));
+    });
+  }
+
+  async function gestionarProductoDesdeMatriz(productoId) {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !productoId) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/productos/${productoId}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) { showToast('No se pudo abrir el producto', 'error'); return; }
+      const data = await res.json();
+      abrirProductoModal(data.producto);
+    } catch (err) {
+      showToast('No se pudo abrir el producto', 'error');
+    }
+  }
+
+  function exportarEstadoInventarioCsv() {
+    const filas = (estadoInventarioCache && estadoInventarioCache.valuacion_detalle) || [];
+    if (filas.length === 0) { showToast('No hay datos para exportar', 'error'); return; }
+    const csvCelda = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const encabezado = ['Producto', 'SKU', 'Categoría', 'Existencia', 'Costo promedio', 'Valor', 'Vendidas (90d)', 'Días de cobertura', 'Clasificación'];
+    const lineas = filas.map((f) =>
+      [
+        f.nombre, f.sku || '', f.categoria_nombre || '', f.existencia_actual,
+        Number(f.costo_promedio).toFixed(2), Number(f.valor).toFixed(2), f.unidades_vendidas_90d,
+        f.dias_cobertura === null ? '' : f.dias_cobertura,
+        INV_ESTADO_CLASIFICACION_TEXTO[f.clasificacion] || f.clasificacion,
+      ]
+        .map(csvCelda)
+        .join(',')
+    );
+    const csv = [encabezado.map(csvCelda).join(','), ...lineas].join('\r\n');
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `estado-inventario-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Imprimir: mismo criterio que #corte-imprimir (JS llena el contenedor
+  // justo antes de window.print(), único visible dentro de @media print).
+  function imprimirEstadoInventario() {
+    if (!els.invEstadoImprimir || !estadoInventarioCache) { showToast('Espera a que cargue el reporte', 'error'); return; }
+    const kpis = estadoInventarioCache.kpis || {};
+    const filas = (estadoInventarioCache.valuacion_detalle || []).slice(0, 10);
+    els.invEstadoImprimir.innerHTML = `
+      <div class="corte-imprimir-titulo">Estado del inventario</div>
+      <div class="corte-imprimir-rango">Generado el ${new Date().toLocaleString('es-MX')}</div>
+      <div class="corte-imprimir-resumen">
+        <div><span>Valor total en existencia</span><span>$${formatearMoneda(kpis.valor_total_existencia || 0)}</span></div>
+        <div><span>Rotación promedio</span><span>${Number(kpis.rotacion_promedio_catalogo || 0).toFixed(1)}×</span></div>
+        <div><span>Sin movimiento (90d)</span><span>${kpis.productos_sin_movimiento_90d || 0}</span></div>
+        <div><span>Salud del catálogo</span><span>${Number(kpis.salud_catalogo_pct || 0).toFixed(1)}%</span></div>
+      </div>
+      <table class="corte-imprimir-tabla">
+        <thead><tr><th>Producto</th><th>Existencia</th><th>Valor</th><th>Clasificación</th></tr></thead>
+        <tbody>${filas
+          .map(
+            (f) => `<tr><td>${escapeHtml(f.nombre)}</td><td>${f.existencia_actual}</td><td>$${formatearMoneda(f.valor)}</td><td>${escapeHtml(INV_ESTADO_CLASIFICACION_TEXTO[f.clasificacion] || f.clasificacion)}</td></tr>`
+          )
+          .join('')}</tbody>
+      </table>`;
+    window.print();
   }
 
   // Detalle grande de una gráfica de "Resumen financiero": en vez de
@@ -13222,7 +13464,8 @@
   let categoriasInventarioActuales = [];
   let productosInventarioActuales = [];
   let unidadesInventarioActuales = [];
-  let vistaInventarios = 'activos'; // 'activos' | 'papelera'
+  let vistaInventarios = 'activos'; // 'activos' | 'papelera' | 'servicios'
+  let invFiltroStock = ''; // '' | 'bajo_minimo' | 'sin_existencia' | 'optimo' — chips de stock
   let categoriaInvEditandoId = null;
   let inventarioModalEditando = null; // producto en edición, o null = crear
   let inventarioModalTipoSeleccionado = 'producto'; // 'producto' | 'servicio'
@@ -13314,9 +13557,19 @@
   // opción visible. Las 2 tarjetas de servicio (Inicio) NO llevan la
   // clase inv-kpi-solo-producto: se quedan visibles siempre, con o sin el
   // switch, igual que ya hacía "Servicios activos" desde el punto 179.
+  // Punto: `.inv-kpi-solo-producto` se oculta por 2 razones independientes
+  // — el tenant es "Solamente servicios" (global, soloServiciosGlobalmente)
+  // o el admin está parado en la pestaña "Servicios" de Inventarios (local,
+  // vistaInventarios). Una sola función combina ambas para que no se
+  // pisen entre sí al cambiar de pestaña o de configuración.
+  function actualizarVisibilidadProductoInv() {
+    const ocultar = soloServiciosGlobalmente || vistaInventarios === 'servicios';
+    document.querySelectorAll('.inv-kpi-solo-producto').forEach((el) => { el.hidden = ocultar; });
+  }
+
   function aplicarVisibilidadSoloServicios(activo) {
     soloServiciosGlobalmente = activo;
-    document.querySelectorAll('.inv-kpi-solo-producto').forEach((el) => { el.hidden = activo; });
+    actualizarVisibilidadProductoInv();
     document.querySelectorAll('.inv-estado-solo-producto').forEach((el) => { el.hidden = activo; });
     if (els.invEstadoServiciosKpiGrid) els.invEstadoServiciosKpiGrid.hidden = !activo;
     if (els.invEstadoServiciosGrid) els.invEstadoServiciosGrid.hidden = !activo;
@@ -13685,6 +13938,14 @@
       els.invKpiMermas.textContent = `$${formatearMoneda(d.mermas_periodo_valor)}`;
       els.invKpiMermasCantidad.textContent = `${d.mermas_periodo_cantidad} movimiento${d.mermas_periodo_cantidad === 1 ? '' : 's'} este mes`;
       els.invKpiPorVencer.textContent = String(d.productos_por_vencer);
+      // Fila de totales de la tabla — mismos números de las tarjetas de
+      // arriba, sin pedirle nada nuevo al servidor.
+      if (els.invTfootUnidades) els.invTfootUnidades.textContent = `${formatearCantidadInv(d.unidades_disponibles)} pz`;
+      if (els.invTfootValor) els.invTfootValor.textContent = `$${formatearMoneda(d.valor_total_inventario)}`;
+      if (els.invTfootAlertas) {
+        const alertas = Number(d.productos_bajo_minimo) + Number(d.productos_sin_existencia);
+        els.invTfootAlertas.textContent = `${alertas} alerta${alertas === 1 ? '' : 's'}`;
+      }
     } catch (err) {
       // Silencioso — las tarjetas se quedan con el último valor mostrado.
     }
@@ -13704,8 +13965,16 @@
       if (vistaInventarios === 'papelera') params.set('papelera', 'true');
       if (els.invFiltroCategoria.value) params.set('categoria_id', els.invFiltroCategoria.value);
       if (els.invFiltroEstado.value) params.set('estado', els.invFiltroEstado.value);
-      if (els.invFiltroTipo.value) params.set('tipo', els.invFiltroTipo.value);
+      // Punto: la pestaña "Servicios" fuerza tipo=servicio (no depende del
+      // select, que además queda deshabilitado mientras esta pestaña esté
+      // activa — ver cambiarVistaInventarios()).
+      const tipoEfectivo = vistaInventarios === 'servicios' ? 'servicio' : els.invFiltroTipo.value;
+      if (tipoEfectivo) params.set('tipo', tipoEfectivo);
       if (els.invBusqueda.value.trim()) params.set('busqueda', els.invBusqueda.value.trim());
+      // Chips de stock: solo aplican a la pestaña de productos activos
+      // (un servicio no tiene existencia, y la papelera no expone esta
+      // clasificación).
+      if (vistaInventarios === 'activos' && invFiltroStock) params.set('stock', invFiltroStock);
       params.set('por_pagina', '200');
 
       const res = await fetch(`${API_BASE}/admin/inventarios/productos?${params.toString()}`, {
@@ -13829,24 +14098,48 @@
     els.invTableBody.innerHTML = '';
     productos.forEach((p) => {
       const esServicio = p.tipo === 'servicio';
+      const disponible = Number(p.disponible || 0);
+      const esBajoMinimo = !esServicio && p.stock_minimo !== null && disponible < p.stock_minimo;
+      const esSinExistencia = !esServicio && disponible === 0;
       const estadoBadgeClase = p.estado === 'activo' ? 'estatus-listo' : p.estado === 'archivado' ? 'estatus-rechazado' : 'estatus-proceso';
+
+      // Nivel de stock: solo si el producto define stock_maximo — sin esa
+      // referencia un % no significa nada (¿óptimo respecto a qué?).
+      let nivelStockHtml = '—';
+      if (!esServicio && p.stock_maximo) {
+        const pct = Math.max(0, Math.min(100, Math.round((disponible / p.stock_maximo) * 100)));
+        const color = esSinExistencia ? 'var(--color-error)' : esBajoMinimo ? 'var(--color-warn)' : 'var(--color-positivo, #1FAE6B)';
+        nivelStockHtml = `<div class="inv-nivel-stock-wrap"><div class="inv-nivel-stock-barra"><span style="width:${pct}%;background:${color}"></span></div><span class="inv-nivel-stock-pct">${pct}%</span></div>`;
+      }
+      if (esBajoMinimo || esSinExistencia) {
+        nivelStockHtml += '<button type="button" class="inv-reordenar-link">Reordenar</button>';
+      }
+
+      const valuacion = esServicio ? '—' : `$${formatearMoneda(disponible * Number(p.costo_promedio || 0))}`;
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="" class="inv-imagen-celda">${p.imagen_thumb_url ? '<img class="inv-thumb" alt="" />' : '<span class="inv-thumb inv-thumb-vacia" aria-hidden="true"></span>'}</td>
+        <td data-label="" class="inv-imagen-celda"><span class="inv-thumb-zoom-wrap">${p.imagen_thumb_url ? '<img class="inv-thumb" alt="" />' : '<img class="inv-thumb" src="/assets/producto-placeholder.png" alt="" />'}</span></td>
         <td data-label="SKU" data-col="sku"><strong>${escapeHtml(p.sku)}</strong></td>
         <td data-label="Nombre" data-col="nombre">
           <button type="button" class="gasto-concepto-link inv-producto-link">${escapeHtml(p.nombre)}</button>${esServicio ? ' <span class="estatus-badge estatus-proceso">Servicio</span>' : ''}
         </td>
         <td data-label="Categoría" data-col="categoria">${escapeHtml(nombreCategoriaInv(p.categoria_id))}</td>
         <td data-label="Unidad" data-col="unidad">${escapeHtml(abreviaturaUnidadInv(p.unidad_id))}</td>
-        <td data-label="Disponible" data-col="disponible" class="col-num">${esServicio ? '—' : formatearCantidadInv(p.disponible || 0)}</td>
+        <td data-label="Disponible" data-col="disponible" class="col-num">${esServicio ? '—' : formatearCantidadInv(disponible)}</td>
         <td data-label="Costo prom." data-col="costo" class="col-num">$${formatearMoneda(p.costo_promedio)}</td>
         <td data-label="Precio" data-col="precio" class="col-num">${p.precio === null ? '—' : '$' + formatearMoneda(p.precio)}</td>
+        <td data-label="Nivel de stock" data-col="nivel_stock">${nivelStockHtml}</td>
+        <td data-label="Valuación" data-col="valuacion" class="col-num">${valuacion}</td>
         <td data-label="Estado" data-col="estado"><span class="estatus-badge ${estadoBadgeClase}">${escapeHtml(p.estado)}</span></td>
         <td data-label=""></td>
       `;
       tr.querySelector('.inv-producto-link').addEventListener('click', () => abrirProductoModal(p));
-      if (p.imagen_thumb_url) cargarImagenAutenticada(tr.querySelector('img.inv-thumb'), p.imagen_thumb_url);
+      const btnReordenar = tr.querySelector('.inv-reordenar-link');
+      if (btnReordenar) btnReordenar.addEventListener('click', () => abrirMovimientoModal(p, 'entrada'));
+      const imgThumbFila = tr.querySelector('img.inv-thumb');
+      if (p.imagen_thumb_url) cargarImagenAutenticada(imgThumbFila, p.imagen_thumb_url);
+      activarLupaProducto(tr.querySelector('.inv-thumb-zoom-wrap'), imgThumbFila);
 
       const celdaAcciones = tr.lastElementChild;
       const contenedor = document.createElement('div');
@@ -13877,22 +14170,83 @@
     if (vistaInventarios === nuevaVista) return;
     vistaInventarios = nuevaVista;
     const esPapelera = nuevaVista === 'papelera';
-    els.btnVerInvActivos.classList.toggle('is-active', !esPapelera);
-    els.btnVerInvActivos.setAttribute('aria-selected', String(!esPapelera));
+    const esServicios = nuevaVista === 'servicios';
+    els.btnVerInvActivos.classList.toggle('is-active', nuevaVista === 'activos');
+    els.btnVerInvActivos.setAttribute('aria-selected', String(nuevaVista === 'activos'));
     els.btnVerInvPapelera.classList.toggle('is-active', esPapelera);
     els.btnVerInvPapelera.classList.toggle('is-danger-context', esPapelera);
     els.btnVerInvPapelera.setAttribute('aria-selected', String(esPapelera));
+    if (els.btnVerInvServicios) {
+      els.btnVerInvServicios.classList.toggle('is-active', esServicios);
+      els.btnVerInvServicios.setAttribute('aria-selected', String(esServicios));
+    }
     els.btnNuevoProducto.hidden = esPapelera;
     document.getElementById('inv-kpis-wrap').hidden = esPapelera;
     document.getElementById('inv-filtros').hidden = esPapelera;
+    // Chips de stock solo tienen sentido en "Activos" (existencia real).
+    if (els.invChipsStock) els.invChipsStock.hidden = esPapelera || esServicios;
+    // Tipo queda fijo/deshabilitado dentro de la pestaña Servicios — el
+    // filtro real lo pone cargarInventarios() por su cuenta.
+    if (els.invFiltroTipo) {
+      els.invFiltroTipo.disabled = esServicios;
+      if (esServicios) els.invFiltroTipo.value = '';
+    }
+    actualizarVisibilidadProductoInv();
     cargarInventarios();
+  }
+
+  function activarChipStockInv(valor) {
+    invFiltroStock = valor;
+    const mapa = [
+      [els.btnInvChipTodos, ''],
+      [els.btnInvChipBajoMinimo, 'bajo_minimo'],
+      [els.btnInvChipSinExistencia, 'sin_existencia'],
+      [els.btnInvChipOptimo, 'optimo'],
+    ];
+    mapa.forEach(([btn, val]) => { if (btn) btn.classList.toggle('is-active', val === valor); });
+    cargarInventarios();
+  }
+
+  // Kardex consolidado: todos los movimientos reales del catálogo activo
+  // en un solo CSV (a diferencia del historial por producto, que solo
+  // muestra uno a la vez). El backend arma el CSV directo (puede ser
+  // grande), aquí solo se descarga como blob autenticado.
+  async function exportarKardexConsolidadoInv() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    if (els.btnInvExportarKardex) { els.btnInvExportarKardex.disabled = true; }
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/kardex-exportar`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) { showToast('No se pudo exportar el Kardex.', 'error'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kardex-inventarios-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast('No se pudo exportar el Kardex.', 'error');
+    } finally {
+      if (els.btnInvExportarKardex) { els.btnInvExportarKardex.disabled = false; }
+    }
   }
 
   function limpiarFiltrosInv() {
     els.invFiltroCategoria.value = '';
     els.invFiltroEstado.value = '';
-    els.invFiltroTipo.value = '';
+    if (!els.invFiltroTipo.disabled) els.invFiltroTipo.value = '';
     els.invBusqueda.value = '';
+    invFiltroStock = '';
+    if (els.btnInvChipTodos) {
+      [els.btnInvChipTodos, els.btnInvChipBajoMinimo, els.btnInvChipSinExistencia, els.btnInvChipOptimo].forEach((btn, i) => {
+        if (btn) btn.classList.toggle('is-active', i === 0);
+      });
+    }
     cargarInventarios();
   }
 
@@ -16134,6 +16488,26 @@
 
   if (els.btnVerInvActivos) els.btnVerInvActivos.addEventListener('click', () => cambiarVistaInventarios('activos'));
   if (els.btnVerInvPapelera) els.btnVerInvPapelera.addEventListener('click', () => cambiarVistaInventarios('papelera'));
+  if (els.btnVerInvServicios) els.btnVerInvServicios.addEventListener('click', () => cambiarVistaInventarios('servicios'));
+  if (els.btnInvChipTodos) els.btnInvChipTodos.addEventListener('click', () => activarChipStockInv(''));
+  if (els.btnInvChipBajoMinimo) els.btnInvChipBajoMinimo.addEventListener('click', () => activarChipStockInv('bajo_minimo'));
+  if (els.btnInvChipSinExistencia) els.btnInvChipSinExistencia.addEventListener('click', () => activarChipStockInv('sin_existencia'));
+  if (els.btnInvChipOptimo) els.btnInvChipOptimo.addEventListener('click', () => activarChipStockInv('optimo'));
+  // Tarjetas KPI clicables (mismo patrón que "Por vencer"): filtran la
+  // tabla con el chip real equivalente y la traen a la vista.
+  if (els.invKpiBajoMinimoCard) {
+    els.invKpiBajoMinimoCard.addEventListener('click', () => {
+      activarChipStockInv('bajo_minimo');
+      els.invTableWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  if (els.invKpiSinExistenciaCard) {
+    els.invKpiSinExistenciaCard.addEventListener('click', () => {
+      activarChipStockInv('sin_existencia');
+      els.invTableWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  if (els.btnInvExportarKardex) els.btnInvExportarKardex.addEventListener('click', exportarKardexConsolidadoInv);
   if (els.btnRefreshInventarios)
     els.btnRefreshInventarios.addEventListener('click', () => {
       cargarInventarios();

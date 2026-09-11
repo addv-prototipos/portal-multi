@@ -122,3 +122,26 @@ Emprendedores y pequeños negocios que:
 No es para quien ya tiene un ERP corporativo de 6 cifras. Es para quien
 está entre "la libreta" y "el ERP que todavía no necesita" — y quiere
 verse, operar y decidir como un negocio grande, siendo chico.
+
+---
+
+## Próximamente — lo que viene en Clarvo (271-274, documentado 10 sep 2026)
+
+Clarvo crece con lo que el mercado pide. Esto ya está documentado en `PROJECT_STATE.md` y `pendientes.html` como pendientes con preguntas para definir antes de construir — no es humo, es roadmap con diseño pendiente:
+
+### Cotizador "Clarvo a la medida" (271) — tu Clarvo, con lo que necesitas y nada más
+El **Clarvo base sin tenant** (`portal_facturacion` sin slug) se vuelve el inventario de costos: cada función/módulo tiene su costo, y el cotizador arma tu paquete a la medida. Eliges lo que necesitas, ves el precio en vivo y tu instancia se aprovisiona con `provisionar-tenant.js`. Hoy es la base de la venta consultiva — mañana será autoservicio. *Preguntas por definir: catálogo `clarvo_funciones`, flujo wizard, dónde se registra la venta.*
+
+### Clarvo Site Market (272) — compra los addons desde tu cuenta
+Un marketplace donde compras addons asociados a tu cuenta Clarvo: módulos de Inventarios/Reportes/Facturación, integraciones, almacenamiento extra. Un clic, tu flag se activa en `control_tenants.tenants`, sin migrar ni reinstalar. *Pendiente de brainstorming: dónde vive (`/admin` vs `market.clarvo.mx`), catálogo, pago Stripe/MercadoPago, vigencia.*
+
+### Centro de conocimiento + Recorrido guiado (273)
+El Centro de conocimiento (`CONOCIMIENTO_CATEGORIAS`) se actualiza con **todos los cambios** (desde proyección de ventas hasta cotizador/market) y gana un **recorrido guiado** paso a paso por `/admin`, `/control` y portal cliente. Tooltips anclados + checklist de progreso o docs por categoría — el usuario nuevo deja de depender de soporte desde el día 1.
+
+### Seguridad: doble factor por correo solo para Administrador (274)
+2FA vía email solo para perfil **Administrador** al registrarse, **habilitable/inhabilitable desde la plataforma admin** (toggle `admin_2fa_habilitado`). OTP de 6 dígitos con expiración o link mágico, con fallback si no hay SMTP. *10 preguntas documentadas en `PROJECT_STATE.md:274` — no se implementa sin responderlas.*
+
+### Y en el día a día: pendientes visibles por app
+`pendientes.html` ya filtra por **Cliente / Admin / Control** (pills con conteos, `?app=` + buscador combinado). Cada pendiente sabe a qué app pertenece — transparencia total para decidir qué construir primero.
+
+> Todo lo anterior sigue el protocolo `addv-web-app` (Analizar → Proponer → Confirmar → Implementar). Nada se construye sin confirmar alcance con el usuario.

@@ -3095,6 +3095,41 @@ segmento pendiente del plan original; sigue el mismo protocolo
 `addv-web-app` de analizar-proponer-confirmar-implementar de todas
 formas.
 
+**Puntos 276-277 (2026-09-10, IMPLEMENTADOS Y VALIDADOS contra Docker/MySQL
+reales y en navegador real, sin commit/push todavía)**: dos mockups nuevos
+de `stitch/` homologados — auditoría dato-real-vs-inventado primero en
+ambos (protocolo completo, decisiones confirmadas vía `AskUserQuestion`
+antes de tocar código). (276) "Estado del inventario" (3ra pestaña de
+Lectura de reportes) gana 4ta KPI honesta ("Salud del catálogo" en vez
+del "Health Score" del mockup), banner de capital inmovilizado real,
+tabs Top5/Bottom5, tabla "Matriz de riesgo" con "Gestionar" real, export
+CSV/Imprimir — descartado sin construir: conciliación SAT/CFDI, selector
+de almacén/periodo, benchmarks inventados. Fix aparte el mismo día: la
+fila de pestañas de Reportes dejaba una fila vacía debajo solo con
+"Imprimir"/"Descargar CSV" pegados a la derecha — ahora viven en la
+MISMA fila que las pestañas. (277) Inventarios (vista principal)
+reagrupa sus 10 KPIs ya existentes en 2 secciones + franja de Servicios,
+pestaña "Servicios" real (antes solo un filtro), 2 columnas nuevas en la
+tabla (Nivel de stock, Valuación — ambas calculadas de datos ya
+existentes), chips de stock ligados a los mismos KPIs, botón "Reordenar"
+que abre el modal real de Entrada, export "Kardex" consolidado (CSV de
+TODOS los movimientos del catálogo, antes solo existía por producto) —
+descartado: conciliación CFDI, badge "Valuación PEPS" (el sistema usa
+costeo **promedio ponderado**, corregido), columna "Clave SAT" por
+producto (no existe ese campo). **Bug real encontrado y corregido en
+277**: las 2 columnas nuevas no tenían ancho inicial en el CSS de
+`table-layout:fixed`, quedaban casi a 0px (invisible en Jest, solo se ve
+en navegador real). **Extensión same-day de 277**: imagen placeholder
+real (`frontend/assets/producto-placeholder.png`) reemplaza el cuadro
+gris vacío en Inventarios y en las sugerencias de producto de Ventas
+cuando no hay foto; efecto lupa al pasar el mouse sobre esa miniatura
+(real o placeholder) en ambos lugares — un solo elemento flotante
+compartido `#lupa-producto-flotante` (`position:fixed`, hijo de
+`<body>`, reposicionado por JS) para no quedar recortado por el
+`overflow:auto` de la tabla/dropdown que lo contiene. Jest backend
+912/912 en todo. Ver PROJECT_STATE.md puntos 276-277 para el detalle
+línea por línea.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en
