@@ -844,3 +844,37 @@ reales en navegador (Claude in Chrome) contra Docker/MySQL reales:
 shimmer capturado en vivo en Ventas, `/control` sin errores de consola.
 Detalle completo: `PROJECT_STATE.md` punto 289, `CLAUDE.md` punto 289.
 Sin commit/push.
+
+C066 2026-09-12/13 ◆ Suspender/activar usuario en /admin (sitio base y
+tenant), punto 290. Pedido: botón y funcionalidad de suspender/activar
+en "Usuarios". Protocolo completo: auditoría (`Explore`) confirmó cero
+columna de estado en `usuarios`, "Eliminar" permanente sin papelera.
+Propuesta antes/después (Artifact) aprobada con las 3 recomendaciones
+tal cual ("si implementa por favor con todas las recomendaciones y
+confirmo"): 4 perfiles incluidos, auto-suspensión bloqueada, cuenta
+suspendida sigue contando contra cuota. Reuso exacto del patrón ya
+construido para tenants en `/control` (mismos 2 SVG pausa/check, mismas
+clases `.estatus-activo`/`.estatus-suspendido` sin usar hasta ahora) —
+cero componente nuevo. Backend: columna `usuarios.activo` (migración
+idempotente), `verificarUsuarioAdministrativo()`+`requireAdminAuth()`
+403 "cuenta suspendida" solo DESPUÉS de contraseña correcta (nunca
+antes, anti-enumeración), `POST /api/auth/login` simétrico, `GET
+/api/auth/me` expone `suspendido` (en vivo, mismo mecanismo que ya
+forzaba cambio de contraseña obligatorio), endpoint nuevo `PUT
+/api/admin/usuarios/:id/estado` con el mismo candado de auto-eliminar
+adaptado a auto-suspender. Frontend: badge+botón en `renderUsuarios()`
+(admin.js), `portal.js`/`login.js` cortan sesión de cliente suspendido
+vía sessionStorage+logout. 2 bugs reales propios evitados/corregidos en
+el camino (no reportados por nadie, encontrados armando el feature):
+login de admin enmascaraba cualquier error no-401 con un texto
+genérico fijo (el 403 nuevo se habría perdido) — corregido antes de
+shippear; `!fila.activo` directo habría marcado como suspendidas ~22
+filas mockeadas sin ese campo en tests ya existentes — cambiado a
+comparación explícita `=== 0/false`. Fragilidad de test preexistente
+expuesta: `auth-usuario.test.js` ya usaba las 20 peticiones completas
+del `authLimiter` compartido sin margen — subido a 30. 16 tests nuevos,
+Jest backend 958/958. Validado con clics reales en navegador (Claude in
+Chrome) contra Docker/MySQL reales: badge Activo↔Suspendido y botón
+pausa↔check confirmados en una fila real, modal con RFC real
+interpolado, cero errores de consola. Detalle completo:
+`PROJECT_STATE.md` punto 290, `CLAUDE.md` punto 290. Sin commit/push.

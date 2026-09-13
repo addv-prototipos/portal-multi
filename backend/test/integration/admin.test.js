@@ -471,6 +471,62 @@ describe('Admin', () => {
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
     });
+
+    test('PUT .../estado requiere perfil administrador (ventas responde 403)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
+      const res = await request(app).put('/api/admin/usuarios/2/estado').auth(usuario, password).send({ activo: false });
+      expect(res.status).toBe(403);
+    });
+
+    test('PUT .../estado responde 400 si falta "activo" en el body', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      const res = await request(app).put('/api/admin/usuarios/2/estado').auth(usuario, password).send({});
+      expect(res.status).toBe(400);
+    });
+
+    test('PUT .../estado responde 404 si el usuario no existe', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // SELECT rfc: sin fila
+      const res = await request(app).put('/api/admin/usuarios/999/estado').auth(usuario, password).send({ activo: false });
+      expect(res.status).toBe(404);
+    });
+
+    test('PUT .../estado impide que un administrador se suspenda a sí mismo', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ rfc: 'admin1' }]]); // SELECT rfc: coincide con quien hace la petición
+      const res = await request(app).put('/api/admin/usuarios/1/estado').auth(usuario, password).send({ activo: false });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/no puedes suspender tu propia cuenta/i);
+    });
+
+    test('PUT .../estado sí permite reactivar la propia cuenta (solo se bloquea suspenderse)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ rfc: 'admin1' }]]);
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE
+      const res = await request(app).put('/api/admin/usuarios/1/estado').auth(usuario, password).send({ activo: true });
+      expect(res.status).toBe(200);
+      expect(res.body.activo).toBe(true);
+    });
+
+    test('PUT .../estado suspende correctamente a otro usuario', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ rfc: 'OTRO000000XXX' }]]);
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE
+      const res = await request(app).put('/api/admin/usuarios/2/estado').auth(usuario, password).send({ activo: false });
+      expect(res.status).toBe(200);
+      expect(res.body.activo).toBe(false);
+      expect(res.body.mensaje).toMatch(/suspendido/i);
+    });
+
+    test('PUT .../estado reactiva correctamente a otro usuario', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ rfc: 'OTRO000000XXX' }]]);
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE
+      const res = await request(app).put('/api/admin/usuarios/2/estado').auth(usuario, password).send({ activo: true });
+      expect(res.status).toBe(200);
+      expect(res.body.activo).toBe(true);
+      expect(res.body.mensaje).toMatch(/reactivado/i);
+    });
   });
 
   describe('/api/admin/reportes', () => {

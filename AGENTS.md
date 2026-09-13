@@ -496,6 +496,35 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   resolviendo a 183 ventas reales, `/control` con login y tabla reales,
   cero errores de consola. Sin commit/push todavía.
 
+- **Punto 290 — Suspender/activar usuario en /admin, sitio base y tenant
+  (ver PROJECT_STATE.md, 2026-09-12/13, IMPLEMENTADO Y VALIDADO en
+  navegador real contra Docker/MySQL reales)**: aplica a los 4 perfiles
+  (cliente/ventas/fiscal/administrador). Columna `usuarios.activo`
+  (migración idempotente) + reuso EXACTO del patrón/íconos ya usados
+  para suspender un tenant en `/control` (mismos 2 SVG, mismas clases
+  `.estatus-activo`/`.estatus-suspendido` ya existentes sin usar).
+  Revocación real: admin/fiscal/ventas se corta en la siguiente petición
+  (Basic Auth revalida cada vez) — el 403 "cuenta suspendida" solo sale
+  DESPUÉS de contraseña correcta, nunca antes. Cliente: login nuevo
+  rechazado + sesión ya abierta se corta en su siguiente `GET
+  /api/auth/me` (mismo mecanismo que ya forzaba el cambio de contraseña
+  obligatorio). Endpoint nuevo `PUT /api/admin/usuarios/:id/estado` con
+  el mismo candado que ya existía para "no puedes eliminar tu propia
+  cuenta", adaptado a suspender (sí puedes reactivarte a ti mismo).
+  Cuota de usuarios: una cuenta suspendida sigue contando (decisión
+  confirmada). **Bug real propio evitado**: el login de `/admin` mostraba
+  un texto genérico fijo para cualquier error no-401 — el 403 nuevo se
+  habría enmascarado; corregido para mostrar el error real. **Regresión
+  real propia corregida**: usar `!fila.activo` directo habría marcado
+  como suspendidas las ~22 filas mockeadas sin ese campo en tests ya
+  existentes — cambiado a comparación explícita `=== 0/false`.
+  **Fragilidad de test preexistente expuesta y corregida**: el archivo
+  de tests de auth ya usaba las 20 peticiones completas del `authLimiter`
+  compartido (login+registro+recuperar+restablecer) sin margen — subido
+  a 30. Jest backend 958/958 (16 tests nuevos). Validado con clics
+  reales en navegador: badge Activo↔Suspendido y botón pausa↔check
+  confirmados en una fila real, cero errores de consola.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 

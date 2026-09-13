@@ -3585,6 +3585,57 @@ vivo en Ventas (5 filas con anchos variados, resuelve limpio a 183
 ventas reales), Resumen financiero y `/control` sin errores de consola.
 Sin commit/push todavía.
 
+**Punto 290 (2026-09-13, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales)**: suspender/activar una cuenta de usuario (sitio
+base y cualquier tenant — misma tabla `usuarios`, un solo código) desde
+"Usuarios" en `/admin`. Aplica a los 4 perfiles (cliente/ventas/fiscal/
+administrador, las 3 recomendaciones de la propuesta aprobadas tal
+cual). Columna nueva `usuarios.activo` (`TINYINT(1) NOT NULL DEFAULT 1`,
+migración idempotente). Badge "Activo"/"Suspendido" siempre visible en
+la tabla (mismas clases `.estatus-activo`/`.estatus-suspendido` que ya
+existían sin usar) + botón pausa/check reusando EXACTOS los mismos SVG
+ya usados para suspender/reactivar un tenant en `/control` (`M8
+4v16M16 4v16` / `M5 12l5 5L20 7`) — cero ícono nuevo. Revocación real por
+tipo de cuenta: administrador/fiscal/ventas se corta en la SIGUIENTE
+petición (`requireAdminAuth` ya revalida contra la BD en cada llamada,
+HTTP Basic Auth sin sesión) — el mensaje "Tu cuenta está suspendida"
+solo aparece DESPUÉS de una contraseña correcta, nunca antes (no delata
+si la cuenta existe a quien no trae la contraseña, mismo principio que
+`HASH_RELLENO_ADMIN`). Cliente: `POST /api/auth/login` rechaza un login
+nuevo; una sesión YA abierta se corta en la siguiente carga de página
+del portal, reusando el MISMO mecanismo que ya forzaba el cambio de
+contraseña obligatorio (`GET /api/auth/me` se consulta en vivo, nunca
+se guarda en el token) — `portal.js` hace logout + guarda un aviso de
+una sola vez en `sessionStorage` para que `login.js` lo muestre tras la
+redirección; `login.js` también revisa el caso de una pestaña de
+`/login` con cookie todavía válida pero ya suspendida. Endpoint nuevo
+`PUT /api/admin/usuarios/:id/estado` (`requireAdminArea('administrador')`),
+con el mismo candado que ya existía para "no puedes eliminar tu propia
+cuenta" adaptado a "no puedes suspender tu propia cuenta" (sí puedes
+reactivarte). Cuota de usuarios de panel: una cuenta suspendida SIGUE
+contando contra `max_usuarios` (decisión confirmada, no libera el
+"asiento"). **Bug real propio evitado antes de shippear**: el formulario
+de login de `/admin` mostraba un mensaje genérico fijo para cualquier
+error que no fuera 401 — el 403 nuevo de "cuenta suspendida" habría
+quedado enmascarado; corregido para que muestre el `error` real del
+backend. **Regresión real propia encontrada y corregida en el camino**:
+usar `!fila.activo`/`!usuario.activo` directo habría marcado como
+"suspendidas" las ~22 filas mockeadas sin ese campo en tests ya
+existentes (columna nueva, mocks viejos no la traen) — cambiado a
+comparación explícita contra `0`/`false`. **Fragilidad de test
+preexistente expuesta y corregida**: `test/integration/auth-usuario.test.js`
+ya usaba las 20 peticiones completas del `authLimiter` compartido
+(login+registro+recuperar+restablecer, un solo cupo) sin margen — subido
+a 30 (documentado en el propio código, sigue siendo estricto contra
+fuerza bruta real). Jest backend **958/958** (50 suites, 15 tests
+nuevos), `node --check` limpio en los 6 archivos tocados. Validado de
+punta a punta: por curl contra Docker/MySQL reales (ciclo completo
+crear→suspender→login 403→reactivar→login 200→404 inexistente,
+limpiado) y con clics reales en navegador (Claude in Chrome) — badge
+cambia de "Activo" a "Suspendido" y el ícono de pausa a check al
+suspender un usuario real de la tabla, sin errores de consola,
+restaurado a "Activo" al terminar. Sin commit/push todavía.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

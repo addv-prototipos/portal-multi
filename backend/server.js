@@ -379,9 +379,14 @@ const adminCredencialesLimiter = rateLimit({
 });
 
 // Limita login/registro para mitigar fuerza bruta y registros automatizados
+// (compartido entre registro/login/recuperar/restablecer, un solo cupo por
+// IP). Subido de 20 a 30 al agregar la prueba de "cuenta suspendida" —
+// test/integration/auth-usuario.test.js ya usaba las 20 completas entre
+// sus ~24 peticiones a estas 4 rutas, sin margen para una prueba más;
+// sigue siendo estricto para fuerza bruta real (2 intentos/min en promedio).
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: claveTenantIp,
@@ -1160,6 +1165,12 @@ app.post(
     if (!usuario || !passwordValida) {
       return res.status(401).json({ error: 'RFC o contraseña incorrectos.' });
     }
+    // Igual que en el login administrativo: solo se revela "suspendida"
+    // DESPUÉS de validar la contraseña, nunca antes (no delata si el RFC
+    // existe a quien no trae la contraseña correcta).
+    if (usuario.activo === 0 || usuario.activo === false) {
+      return res.status(403).json({ error: 'Tu cuenta está suspendida. Contacta a la empresa.', codigo: 'CUENTA_SUSPENDIDA' });
+    }
 
     establecerCookieSesion(res, rfc, req.tenant ? req.tenant.slug : null);
     res.json({
@@ -1188,11 +1199,15 @@ app.get(
   requireUserAuth,
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query(
-      'SELECT debe_cambiar_password FROM usuarios WHERE rfc = ?',
+      'SELECT debe_cambiar_password, activo FROM usuarios WHERE rfc = ?',
       [req.userRfc]
     );
     const debeCambiarPassword = filas[0] ? Boolean(filas[0].debe_cambiar_password) : false;
-    res.json({ rfc: req.userRfc, debeCambiarPassword });
+    // Igual que debeCambiarPassword: se consulta en vivo (no se guarda en
+    // el token de sesión) para que suspender a alguien corte su acceso
+    // aunque ya tuviera una sesión abierta, sin esperar a que expire.
+    const suspendido = filas[0] ? (filas[0].activo === 0 || filas[0].activo === false) : false;
+    res.json({ rfc: req.userRfc, debeCambiarPassword, suspendido });
   })
 );
 
@@ -3195,7 +3210,7 @@ app.get(
     const perfil = sanitizeText(req.query.perfil, 20);
     const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas'];
 
-    let sql = `SELECT id, rfc, telefono, email, debe_cambiar_password, perfil, creado_en, actualizado_en FROM usuarios`;
+    let sql = `SELECT id, rfc, telefono, email, debe_cambiar_password, perfil, activo, creado_en, actualizado_en FROM usuarios`;
     const params = [];
     if (perfil && perfilesValidos.includes(perfil)) {
       sql += ' WHERE perfil = ?';
@@ -3475,6 +3490,48 @@ app.put(
     );
 
     res.json({ ok: true, id, rfc, perfil, mensaje: 'Usuario actualizado correctamente.' });
+  })
+);
+
+// Suspende/reactiva una cuenta sin borrarla — aplica a los 4 perfiles
+// (cliente, ventas, fiscal, administrador). Una cuenta suspendida sigue
+// contando contra la cuota de usuarios de panel del tenant (no libera el
+// "asiento", igual que un empleado suspendido no libera su licencia hasta
+// darlo de baja de verdad) — decisión explícita, ver PROJECT_STATE.md.
+app.put(
+  '/api/admin/usuarios/:id/estado',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+    const activo = req.body && req.body.activo === true;
+    if (req.body && typeof req.body.activo !== 'boolean') {
+      return res.status(400).json({ error: 'Falta indicar el nuevo estado (activo).' });
+    }
+
+    const [filas] = await pool.query('SELECT rfc FROM usuarios WHERE id = ?', [id]);
+    const usuario = filas[0];
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    // Mismo candado que ya existe para "no te puedes eliminar a ti mismo"
+    // — nadie se corta su propio acceso por accidente desde la sesión con
+    // la que está trabajando.
+    if (!activo && usuario.rfc === req.adminUser) {
+      return res.status(400).json({ error: 'No puedes suspender tu propia cuenta mientras tienes la sesión iniciada.' });
+    }
+
+    await pool.query('UPDATE usuarios SET activo = ?, actualizado_en = ? WHERE id = ?', [activo ? 1 : 0, new Date(), id]);
+    res.json({
+      ok: true,
+      activo,
+      mensaje: activo ? 'Usuario reactivado correctamente.' : 'Usuario suspendido correctamente.',
+    });
   })
 );
 

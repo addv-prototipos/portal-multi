@@ -619,11 +619,30 @@
   // muestra esa pantalla directamente (sin pedir credenciales de nuevo,
   // ya que la sesión sigue siendo válida).
 
+  // Si portal.js (dashboard/tickets/csf) detectó una cuenta suspendida en
+  // una sesión ya abierta, deja este aviso en sessionStorage antes de
+  // redirigir aquí — se muestra una sola vez (se borra al leerlo).
+  try {
+    if (sessionStorage.getItem('login_aviso') === 'suspendida') {
+      sessionStorage.removeItem('login_aviso');
+      els.loginErrorGeneral.textContent = 'Tu cuenta fue suspendida. Contacta a la empresa.';
+    }
+  } catch (_) { /* modo privado sin sessionStorage: sin aviso, login normal */ }
+
   (async function init() {
     try {
       const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
+        // Cuenta suspendida DESPUÉS de que esta pestaña ya cargó login.html
+        // con una cookie todavía válida (ej. la suspendieron mientras esta
+        // pestaña estaba abierta en segundo plano) — no la mandamos al
+        // tablero; se limpia la cookie y se queda en el login con el aviso.
+        if (data.suspendido) {
+          fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+          els.loginErrorGeneral.textContent = 'Tu cuenta fue suspendida. Contacta a la empresa.';
+          return;
+        }
         if (data.debeCambiarPassword) {
           mostrarPanel('cambiar-password');
           return;

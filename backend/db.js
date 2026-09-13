@@ -455,6 +455,12 @@ async function ensureSchema(db = pool) {
   if (!nombresColumnasUsuarios.includes('reset_token_expira')) {
     await db.query('ALTER TABLE usuarios ADD COLUMN reset_token_expira DATETIME NULL');
   }
+  // Suspender/activar cuenta (sin borrarla) — aplica a los 4 perfiles.
+  // DEFAULT 1: ninguna cuenta ya existente queda suspendida por accidente
+  // al agregar esta columna.
+  if (!nombresColumnasUsuarios.includes('activo')) {
+    await db.query('ALTER TABLE usuarios ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1');
+  }
   // El campo "rfc" se usa como nombre de usuario también para perfiles
   // administrador/fiscal, que no necesariamente tienen un RFC real — se
   // ensancha por si la instalación existente todavía tiene la columna en

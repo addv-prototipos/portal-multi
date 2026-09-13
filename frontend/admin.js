@@ -2069,7 +2069,11 @@
         return;
       }
       if (!res.ok) {
-        els.loginError.textContent = 'No se pudo iniciar sesión. Intenta de nuevo.';
+        // 403 "cuenta suspendida" (ver PUT /admin/usuarios/:id/estado) trae
+        // su propio mensaje específico — se muestra tal cual en vez del
+        // genérico, igual que cualquier otro error con `error` real.
+        const dataError = await res.json().catch(() => ({}));
+        els.loginError.textContent = dataError.error || 'No se pudo iniciar sesión. Intenta de nuevo.';
         return;
       }
 
@@ -8614,9 +8618,13 @@
       ]
         .filter(Boolean)
         .join('') || '—';
+      const activo = u.activo === undefined ? true : Boolean(u.activo);
+      const badgeEstado = activo
+        ? '<span class="estatus-badge estatus-activo">Activo</span>'
+        : '<span class="estatus-badge estatus-suspendido">Suspendido</span>';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="RFC / usuario" data-col="rfc"><strong>${escapeHtml(u.rfc)}</strong>${pendienteCambio ? ' <span class="estatus-badge estatus-pendiente" data-tooltip="Debe cambiar su contraseña en el siguiente inicio de sesión">Cambio pendiente</span>' : ''}</td>
+        <td data-label="RFC / usuario" data-col="rfc"><strong>${escapeHtml(u.rfc)}</strong> ${badgeEstado}${pendienteCambio ? ' <span class="estatus-badge estatus-pendiente" data-tooltip="Debe cambiar su contraseña en el siguiente inicio de sesión">Cambio pendiente</span>' : ''}</td>
         <td data-label="Perfil" data-col="perfil"><span class="perfil-badge ${perfilInfo.clase}">${escapeHtml(perfilInfo.texto)}</span></td>
         <td data-label="Contacto" data-col="contacto">${contactoHtml}</td>
         <td data-label="Registrado" data-col="registrado">${formatFecha(u.creado_en)}</td>
@@ -8652,6 +8660,24 @@
       btnReset.addEventListener('click', () => abrirPasswordModal(u));
       contenedorAcciones.appendChild(btnReset);
 
+      const divisorEstado = document.createElement('div');
+      divisorEstado.className = 'admin-row-actions-divisor';
+      contenedorAcciones.appendChild(divisorEstado);
+
+      // Mismos 2 SVG ya usados para suspender/reactivar un tenant en
+      // /control (pausa / check) — reutilizados aquí para el mismo
+      // concepto, sin inventar íconos nuevos.
+      const btnEstado = document.createElement('button');
+      btnEstado.type = 'button';
+      btnEstado.className = 'btn-icono-accion';
+      btnEstado.setAttribute('data-tooltip', activo ? 'Suspender usuario' : 'Reactivar usuario');
+      btnEstado.setAttribute('aria-label', activo ? 'Suspender usuario' : 'Reactivar usuario');
+      btnEstado.innerHTML = activo
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 4v16M16 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      btnEstado.addEventListener('click', () => confirmarCambiarEstadoUsuario(u, activo));
+      contenedorAcciones.appendChild(btnEstado);
+
       const btnEliminar = document.createElement('button');
       btnEliminar.type = 'button';
       btnEliminar.className = 'btn-icono-accion btn-icono-accion-peligro';
@@ -8665,6 +8691,53 @@
       celdaAcciones.appendChild(contenedorAcciones);
       els.usuariosTableBody.appendChild(tr);
     });
+  }
+
+  function confirmarCambiarEstadoUsuario(u, activo) {
+    if (activo) {
+      abrirConfirmacion({
+        titulo: '¿Suspender este usuario?',
+        mensaje: `"${u.rfc}" no podrá iniciar sesión hasta que lo reactives. No se borra ningún dato ni su historial.`,
+        textoBoton: 'Suspender',
+        onConfirmar: () => cambiarEstadoUsuario(u.id, false),
+      });
+    } else {
+      abrirConfirmacion({
+        titulo: '¿Reactivar este usuario?',
+        mensaje: `"${u.rfc}" volverá a poder iniciar sesión de inmediato.`,
+        textoBoton: 'Reactivar',
+        onConfirmar: () => cambiarEstadoUsuario(u.id, true),
+      });
+    }
+  }
+
+  async function cambiarEstadoUsuario(id, activo) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/usuarios/${id}/estado`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo }),
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo cambiar el estado del usuario.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Estado actualizado.');
+      cargarUsuarios();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
   }
 
   function confirmarEliminarUsuario(id, rfc) {

@@ -189,7 +189,7 @@ async function verificarUsuarioSucursal(usuario, password, grupoSucursalId) {
 // restablecer desde la vista "Usuarios" del panel, igual que a un cliente.
 async function verificarUsuarioAdministrativo(usuario, password) {
   const [filas] = await pool.query(
-    "SELECT rfc, password_hash, perfil FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas')",
+    "SELECT rfc, password_hash, perfil, activo FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas')",
     [usuario]
   );
   const fila = filas[0];
@@ -198,6 +198,13 @@ async function verificarUsuarioAdministrativo(usuario, password) {
   // usuario existe — ver HASH_RELLENO_ADMIN arriba.
   const passwordValida = verifyPassword(password, fila ? fila.password_hash : HASH_RELLENO_ADMIN);
   if (!fila || !passwordValida) return null;
+  // La contraseña ya es correcta en este punto — recién aquí es seguro
+  // distinguir "suspendida" de "no existe/contraseña mala" sin ayudar a
+  // enumerar cuentas con solo probar usuarios al azar. Comparación
+  // explícita contra 0/false (no un simple !fila.activo): una fila real de
+  // MySQL siempre trae la columna (DEFAULT 1, NOT NULL), pero así no se
+  // rompe si algún día una consulta la omite por accidente.
+  if (fila.activo === 0 || fila.activo === false) return { suspendido: true };
   return fila;
 }
 
@@ -279,6 +286,9 @@ async function requireAdminAuth(req, res, next) {
   // 2. Usuarios administrativos (perfil administrador/fiscal) creados desde el panel
   try {
     const usuarioAdmin = await verificarUsuarioAdministrativo(username, password);
+    if (usuarioAdmin && usuarioAdmin.suspendido) {
+      return res.status(403).json({ error: 'Tu cuenta está suspendida. Contacta a un administrador.' });
+    }
     if (usuarioAdmin) {
       req.adminUser = usuarioAdmin.rfc;
       req.adminPerfil = usuarioAdmin.perfil;

@@ -252,6 +252,56 @@ describe('auth.js', () => {
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
     });
+
+    test('cuenta suspendida (activo:0) con contraseña correcta responde 403, nunca deja pasar', async () => {
+      const hashGuardado = hashPassword('miClave123');
+      pool.query.mockResolvedValueOnce([
+        [{ rfc: 'GOMJ800101ABC', password_hash: hashGuardado, perfil: 'administrador', activo: 0 }],
+      ]);
+
+      const req = { headers: { authorization: basicAuthHeader('GOMJ800101ABC', 'miClave123') } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringMatching(/suspendida/i) }));
+    });
+
+    test('cuenta suspendida con contraseña incorrecta sigue respondiendo 401 (no delata que existe)', async () => {
+      const hashGuardado = hashPassword('miClave123');
+      pool.query.mockResolvedValueOnce([
+        [{ rfc: 'GOMJ800101ABC', password_hash: hashGuardado, perfil: 'administrador', activo: 0 }],
+      ]);
+
+      const req = { headers: { authorization: basicAuthHeader('GOMJ800101ABC', 'incorrecta') } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.status).not.toHaveBeenCalledWith(403);
+    });
+
+    test('cuenta con activo:1 explícito sigue autenticando con normalidad (no regresión)', async () => {
+      const hashGuardado = hashPassword('miClave123');
+      pool.query.mockResolvedValueOnce([
+        [{ rfc: 'GOMJ800101ABC', password_hash: hashGuardado, perfil: 'administrador', activo: 1 }],
+      ]);
+
+      const req = { headers: { authorization: basicAuthHeader('GOMJ800101ABC', 'miClave123') } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.adminPerfil).toBe('administrador');
+    });
   });
 
   describe('requireAdminAuth: usuario de sucursal compartido (§58)', () => {

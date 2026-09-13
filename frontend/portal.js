@@ -67,6 +67,16 @@
         return null;
       }
       const data = await res.json();
+      // Cuenta suspendida (ver /api/admin/usuarios/:id/estado) — se
+      // consulta en vivo igual que debeCambiarPassword, así que corta el
+      // acceso aunque la sesión ya estuviera abierta desde antes de
+      // suspenderla. sessionStorage (no la URL) lleva el motivo a login.js
+      // para mostrar el aviso justo después de la redirección.
+      if (data.suspendido) {
+        try { sessionStorage.setItem('login_aviso', 'suspendida'); } catch (_) { /* modo privado: sin aviso, igual se redirige */ }
+        await logout();
+        return null;
+      }
       // Si la cuenta todavia tiene pendiente el cambio de contraseña
       // obligatorio (ej. el administrador restableció una temporal), se
       // manda al login — que, con la sesión ya válida, muestra esa

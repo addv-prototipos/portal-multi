@@ -123,7 +123,7 @@ describe('Auth de usuario', () => {
 
     test('login correcto establece cookie y expone debeCambiarPassword', async () => {
       pool.query.mockResolvedValueOnce([
-        [{ rfc: RFC_VALIDO, password_hash: hashPassword(PASSWORD_VALIDA), telefono: '5512345678', debe_cambiar_password: 1 }],
+        [{ rfc: RFC_VALIDO, password_hash: hashPassword(PASSWORD_VALIDA), telefono: '5512345678', debe_cambiar_password: 1, activo: 1 }],
       ]);
       const res = await request(app).post('/api/auth/login').send({ rfc: RFC_VALIDO, password: PASSWORD_VALIDA });
 
@@ -131,6 +131,17 @@ describe('Auth de usuario', () => {
       expect(res.body.ok).toBe(true);
       expect(res.body.debeCambiarPassword).toBe(true);
       expect(res.headers['set-cookie'][0]).toMatch(/^sesion_usuario=/);
+    });
+
+    test('cuenta suspendida (activo:0) con contraseña correcta responde 403 y no establece cookie', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ rfc: RFC_VALIDO, password_hash: hashPassword(PASSWORD_VALIDA), telefono: '5512345678', debe_cambiar_password: 0, activo: 0 }],
+      ]);
+      const res = await request(app).post('/api/auth/login').send({ rfc: RFC_VALIDO, password: PASSWORD_VALIDA });
+
+      expect(res.status).toBe(403);
+      expect(res.body.codigo).toBe('CUENTA_SUSPENDIDA');
+      expect(res.headers['set-cookie']).toBeUndefined();
     });
   });
 
@@ -151,11 +162,19 @@ describe('Auth de usuario', () => {
     });
 
     test('con cookie válida devuelve el rfc y debeCambiarPassword convertido a booleano', async () => {
-      pool.query.mockResolvedValueOnce([[{ debe_cambiar_password: 1 }]]);
+      pool.query.mockResolvedValueOnce([[{ debe_cambiar_password: 1, activo: 1 }]]);
       const res = await request(app).get('/api/auth/me').set('Cookie', cookieDeSesion());
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ rfc: RFC_VALIDO, debeCambiarPassword: true });
+      expect(res.body).toEqual({ rfc: RFC_VALIDO, debeCambiarPassword: true, suspendido: false });
+    });
+
+    test('con cookie válida y cuenta suspendida, devuelve suspendido:true', async () => {
+      pool.query.mockResolvedValueOnce([[{ debe_cambiar_password: 0, activo: 0 }]]);
+      const res = await request(app).get('/api/auth/me').set('Cookie', cookieDeSesion());
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ rfc: RFC_VALIDO, debeCambiarPassword: false, suspendido: true });
     });
 
     test('con cookie inválida (manipulada) responde 401', async () => {
