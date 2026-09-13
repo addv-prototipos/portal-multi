@@ -90,6 +90,60 @@
    posible. El scroll de una vista larga (Resumen financiero, etc.) queda
    "embebido" del lado derecho: .admin-content es quien se desplaza
    (scroll normal de documento), el sidebar simplemente no se mueve. */
+/* Esqueleto del shell del panel (ver admin.html) — recrea el contorno
+   navy del sidebar real + un bloque de contenido genérico, para que el
+   instante de "verificando sesión guardada" en init() (admin.js) no
+   muestre ni el login parpadeando ni un salto brusco al panel real. */
+.admin-shell-esqueleto {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  background: var(--color-bg);
+}
+.admin-shell-esqueleto-sidebar {
+  width: 256px;
+  flex-shrink: 0;
+  background: #03285B;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 28px 20px;
+}
+.admin-shell-esqueleto-logo {
+  width: 100%;
+  height: 32px;
+  margin-bottom: 12px;
+  background-image: linear-gradient(100deg, rgba(255,255,255,.08) 30%, rgba(255,255,255,.2) 50%, rgba(255,255,255,.08) 70%);
+}
+.admin-shell-esqueleto-item {
+  width: 100%;
+  height: 40px;
+  background-image: linear-gradient(100deg, rgba(255,255,255,.08) 30%, rgba(255,255,255,.2) 50%, rgba(255,255,255,.08) 70%);
+}
+.admin-shell-esqueleto-main {
+  flex: 1;
+  min-width: 0;
+  padding: 40px 48px;
+}
+.admin-shell-esqueleto-titulo { display: block; width: 260px; height: 26px; margin-bottom: 24px; }
+.admin-shell-esqueleto-kpis { display: flex; gap: 16px; margin-bottom: 24px; }
+.admin-shell-esqueleto-kpi { flex: 1; max-width: 220px; height: 92px; border-radius: var(--radius-lg); }
+.admin-shell-esqueleto-bloque { display: block; width: 100%; height: 220px; border-radius: var(--radius-lg); }
+@media (max-width: 900px) {
+  .admin-shell-esqueleto-sidebar { display: none; }
+  .admin-shell-esqueleto-main { padding: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-shell-esqueleto-logo,
+  .admin-shell-esqueleto-item {
+    animation: none;
+    background-image: none;
+    background-color: rgba(255,255,255,.14);
+  }
+}
+
 .admin-sidebar {
   width: 256px;
   flex-shrink: 0;

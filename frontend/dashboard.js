@@ -94,6 +94,7 @@
 
   async function cargarTickets() {
     els.error.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.tbody, 6);
     try {
       const res = await fetch(`${API_BASE}/tickets`, { credentials: 'include' });
       if (res.status === 401) {
@@ -101,13 +102,14 @@
         return;
       }
       if (!res.ok) {
-        els.error.textContent = 'No se pudieron cargar tus solicitudes.';
+        Esqueleto.aplicarErrorTabla(els.tbody, 6, 'No se pudieron cargar tus solicitudes.', cargarTickets);
         return;
       }
       const data = await res.json();
       renderTickets(data.tickets || []);
+      Esqueleto.quitarEsqueletoTabla(els.tbody);
     } catch (err) {
-      els.error.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.tbody, 6, 'No se pudo conectar con el servidor.', cargarTickets);
     }
   }
 

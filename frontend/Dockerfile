@@ -11,7 +11,7 @@ RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
 # imagen -- así el contenedor "control" puede vivir en la misma red
 # Docker o en un servidor aparte, solo cambiando esas dos variables.
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-COPY csf.html style.css app.js admin.html admin.css admin.js login.html login.js auth.css dashboard.html dashboard.js tickets.html tickets.js portal.js portal.css mantenimiento.html control.html control.js theme.js offline.js restablecer.html restablecer.js scanner.js aclaraciones.js /usr/share/nginx/html/
+COPY csf.html style.css app.js admin.html admin.css admin.js login.html login.js auth.css dashboard.html dashboard.js tickets.html tickets.js portal.js portal.css mantenimiento.html control.html control.js theme.js offline.js restablecer.html restablecer.js scanner.js aclaraciones.js skeleton.js /usr/share/nginx/html/
 COPY assets/ /usr/share/nginx/html/assets/
 
 # Defaults para el despliegue normal (control en la misma red Docker,

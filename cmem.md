@@ -819,3 +819,28 @@ respeta). `frontend/portal.css` `.tile:hover` homologado al mismo fondo
 suave. Aplica a admin, control (reusa admin.css) y portal cliente.
 Documentado en `CLAUDE.md`, `AGENTS.md` y `PROJECT_STATE.md` (nueva sección
 "Convención persistente de hover"). Rebuild y push posteriores.
+
+C065 2026-09-12/13 ◆ Esqueleto de carga (shimmer tipo Facebook) en todo
+el sitio, punto 289. Pedido: que "esperar" nunca se sienta como "no
+puedo conectar" — usó las palabras "usa tus mejores habilidades UX UI,
+critícalo y dame mejoras". Protocolo completo: auditoría con `Explore`
+(cero skeleton/spinner previo, tablas vacías sin aviso, KPIs en `$0.00`
+hardcodeados, el error de red solo dispara por fetch rechazado no por
+lentitud), Artifact con propuesta antes/después (3 escenarios reales,
+botón "Reproducir" por lado) publicado y aprobado con 3 decisiones del
+usuario: 3 superficies en un solo segmento, sin mínimo de tiempo
+artificial, mismo texto de error reubicado dentro del bloque. Implementado:
+`frontend/skeleton.js` nuevo (compartido, patrón `theme.js`) +
+`.sk`/`.sk-cargando`/`.sk-retry-inline` en `style.css`. 15/17 tablas de
+`/admin` + 2 de `/control` + 1 del portal cliente (2 descartadas, pueblan
+un `<select>`). Un solo toggle de clase por vista cubre todos los KPIs
+(`.inicio-stat-numero` reusada en todo el sitio). Esqueleto de shell
+nuevo durante verificación de sesión guardada al recargar (reemplaza
+parpadeo de login). 2 bugs reales propios encontrados y corregidos en la
+misma sesión (`cargarEstadisticasReportes` dejaba el shimmer prendido
+para siempre con serie vacía; `cargarCxc` no propagaba el fallo de
+`cargarOrdenes()`). Jest backend 946/946 sin cambios. Validado con clics
+reales en navegador (Claude in Chrome) contra Docker/MySQL reales:
+shimmer capturado en vivo en Ventas, `/control` sin errores de consola.
+Detalle completo: `PROJECT_STATE.md` punto 289, `CLAUDE.md` punto 289.
+Sin commit/push.

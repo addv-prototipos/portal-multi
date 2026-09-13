@@ -3533,6 +3533,58 @@ ticket (incluido el punto 287) imprime correcto. Sigue sin confirmar la
 etiqueta de Inventarios y el switch de Auditoría (no los ejercita
 imprimir un ticket). Ver PROJECT_STATE.md punto 288.
 
+**Punto 289 (2026-09-12/13, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker/MySQL reales)**: esqueleto de carga (shimmer tipo Facebook) en todo
+el sitio — pedido explícito del usuario para que "esperar" nunca se vea
+como "no puedo conectar". Protocolo completo: auditoría de código primero
+(Explore) confirmó que no existía NINGÚN spinner/skeleton en `frontend/`
+— las tablas nacían vacías sin aviso y los KPIs nacían en `$0.00`/`0`
+reales (indistinguible de "cargando" vs. "de verdad no hay datos"); el
+mensaje "No se pudo conectar con el servidor" solo dispara por un
+`fetch` rechazado, nunca por lentitud — el síntoma real reportado era el
+silencio de las tablas vacías. Propuesta visual antes/después (Artifact
+interactivo con los 3 escenarios reales) aprobada con 3 decisiones: las
+3 superficies (admin+control+portal cliente) en un solo segmento, sin
+mínimo de tiempo artificial (el shimmer no se fuerza a durar más de lo
+que tarda la red real), mismo texto de error de siempre pero reubicado
+DENTRO del bloque que falló (nunca un banner de pantalla completa).
+`frontend/skeleton.js` (nuevo, compartido — mismo patrón que `theme.js`,
+cargado antes de admin.js/control.js/dashboard.js) expone
+`Esqueleto.aplicarEsqueletoTabla/quitarEsqueletoTabla/aplicarErrorTabla/
+marcarKpisCargando`. Componente `.sk`/`.sk-cargando`/`.sk-retry-inline`
+único en `style.css` (mismo criterio ya usado para el tooltip
+unificado) — anima solo `background-position` (compositor), respeta
+`prefers-reduced-motion`, `aria-busy`/`role="status"`/texto
+`.sr-only` para lectores de pantalla. Aplicado a 15 de las 17 tablas/
+paneles identificados en `/admin` (Inicio, Tickets, Ventas, Cuentas por
+cobrar, Gastos, Inventarios ×2, Reportes-estadísticas, Ledger,
+Items-reporte, Estado del inventario, Auditoría, Usuarios, Constancias,
+Resumen financiero) + `/control` (tenants, sucursales) + portal cliente
+(Mis solicitudes) — los 2 restantes (`cargarListaReportes`/
+`cargarPeriodosArchivados`, ambos pueblan un `<select>`, no una tabla)
+se dejaron sin esqueleto a propósito, no aplica el patrón. Como el
+número KPI (`.inicio-stat-numero`) es una sola clase reusada en TODO el
+sitio (Inicio/Resumen financiero/Gastos/Inventarios/CxC/Reportes), un
+solo toggle de clase por vista cubre todos sus números sin tocar cada
+`id` uno por uno. Nuevo: esqueleto de shell (sidebar+KPIs) durante la
+verificación de la sesión guardada al recargar `/admin`/`/control` —
+antes se veía la pantalla de login parpadear un instante antes de saltar
+al panel; ahora el shell "genérico" aparece de inmediato y se sustituye
+por el panel real (o por el login, si la sesión ya no es válida) sin
+salto brusco. **2 bugs reales encontrados y corregidos durante la propia
+implementación** (ninguno preexistente, ambos de este mismo segmento):
+`cargarEstadisticasReportes` tenía un `return` a medio camino (serie
+vacía) que dejaba el KPI de Reportes con el shimmer prendido para
+siempre; y `cargarCxc` delegaba en `cargarOrdenes()` sin propagar su
+resultado — un fallo de red mostraba Cuentas por cobrar vacía en silencio
+en vez de un error real (además de que CxC nunca había tenido su propio
+mensaje de error, hueco cerrado de paso). Jest backend 946/946 sin
+cambios (100% frontend). Validado con clics reales en navegador (Claude
+in Chrome) contra Docker/MySQL reales: shimmer de tabla capturado en
+vivo en Ventas (5 filas con anchos variados, resuelve limpio a 183
+ventas reales), Resumen financiero y `/control` sin errores de consola.
+Sin commit/push todavía.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

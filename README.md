@@ -188,6 +188,10 @@ Cuando el backend no responde (se está reiniciando, tumbó por el límite de me
 
 Toda la app usa un componente de tooltip propio (sin librerías externas) en vez del atributo `title` nativo del navegador — se ve con el estilo visual de la app (fondo oscuro, flechita, animación sutil de aparición), y a diferencia de un tooltip CSS puro, no queda recortado dentro de tablas con scroll horizontal (usa un poco de JavaScript para posicionarse fuera de esos contenedores). Se activa con el atributo `data-tooltip="..."` en cualquier elemento. Actualmente se usa en: el enlace "Ver vista previa" (Constancias), el ícono ✅ de "facturado" y la razón social al pasar el cursor sobre el correo (Ventas), el badge "Cambio pendiente" (Usuarios), y el botón de descargar factura (tablero del cliente).
 
+### Esqueleto de carga
+
+Mientras el panel admin, `/control` o el portal de cliente esperan la respuesta del servidor, en vez de una tabla en blanco o un número en `$0.00` se muestra un esqueleto animado (bloques grises con un brillo que se desliza, tipo Facebook/LinkedIn) con la misma forma que el contenido real — tablas, tarjetas de KPI, e incluso el shell completo (sidebar + KPIs) al recargar la página con una sesión ya guardada. Si la carga falla de verdad (sin conexión, error del servidor), el aviso aparece DENTRO del mismo bloque que falló, con un botón "Reintentar" — nunca un mensaje de pantalla completa. Un solo componente compartido (`frontend/skeleton.js` + estilos en `style.css`), reutilizado en las tres superficies del sitio; respeta `prefers-reduced-motion`.
+
 ### Cuenta e inicio de sesión
 
 `login.html` es la nueva página de entrada del sitio (`/`), pensada para clientes: el "usuario" con el que se inicia sesión aquí es el **RFC** con el que se va a facturar. Las cuentas con perfil "Administrador"/"Fiscal" (creadas desde el panel, ver más abajo) entran por su propio acceso — `/admin`, con HTTP Basic Auth — no por aquí.

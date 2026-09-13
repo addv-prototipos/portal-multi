@@ -14,6 +14,7 @@
 
   const els = {
     loginScreen: document.getElementById('control-login-screen'),
+    shellEsqueleto: document.getElementById('control-shell-esqueleto'),
     dashboard: document.getElementById('control-dashboard'),
     formLogin: document.getElementById('control-form-login'),
     inputUser: document.getElementById('control-user'),
@@ -322,6 +323,7 @@
     }
 
     els.error.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.tableBody, 6);
     try {
       const parametros = new URLSearchParams();
       if (els.filtroEstado.value) parametros.set('estado', els.filtroEstado.value);
@@ -335,13 +337,14 @@
         return;
       }
       if (!res.ok) {
-        els.error.textContent = 'No se pudieron cargar los tenants.';
+        Esqueleto.aplicarErrorTabla(els.tableBody, 6, 'No se pudieron cargar los tenants.', cargarTenants);
         return;
       }
       const data = await res.json();
       renderTenants(data.tenants || []);
+      Esqueleto.quitarEsqueletoTabla(els.tableBody);
     } catch (err) {
-      els.error.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.tableBody, 6, 'No se pudo conectar con el servidor.', cargarTenants);
     }
   }
 
@@ -1430,6 +1433,7 @@
       return;
     }
     els.sucursalesError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.sucursalesTableBody, 4);
     try {
       const res = await fetch(`${API_BASE}/grupos-sucursal`, { headers: { Authorization: authHeader } });
       if (res.status === 401) {
@@ -1438,13 +1442,14 @@
         return;
       }
       if (!res.ok) {
-        els.sucursalesError.textContent = 'No se pudieron cargar los grupos de sucursales.';
+        Esqueleto.aplicarErrorTabla(els.sucursalesTableBody, 4, 'No se pudieron cargar los grupos de sucursales.', cargarSucursales);
         return;
       }
       const data = await res.json();
       renderGruposSucursal(data.grupos || []);
+      Esqueleto.quitarEsqueletoTabla(els.sucursalesTableBody);
     } catch (err) {
-      els.sucursalesError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.sucursalesTableBody, 4, 'No se pudo conectar con el servidor.', cargarSucursales);
     }
   }
 
@@ -1997,18 +2002,27 @@
     inicializarTooltips();
     const authHeader = getAuthHeader();
     if (authHeader) {
+      // Mismo criterio que /admin: esqueleto del shell en vez del login
+      // parpadeando mientras se verifica la sesión guardada.
+      els.loginScreen.hidden = true;
+      if (els.shellEsqueleto) els.shellEsqueleto.hidden = false;
       fetch(`${API_BASE}/tenants`, { headers: { Authorization: authHeader } })
         .then((res) => {
           if (res.ok) {
             return res.json().then((data) => {
+              if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
               showDashboard(sessionStorage.getItem(SESSION_USER_KEY) || 'Sesión activa');
               renderTenants(data.tenants || []);
             });
           }
+          if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
           clearSession();
           showLogin();
         })
-        .catch(() => showLogin());
+        .catch(() => {
+          if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
+          showLogin();
+        });
     } else {
       showLogin();
     }

@@ -99,6 +99,32 @@
     </div>
   </div>
 
+  <!-- Esqueleto de carga del panel: solo se muestra un instante al
+       recargar la página CON una sesión ya guardada, mientras se
+       verifica en segundo plano que siga siendo válida — evita el salto
+       "pantalla de login → panel" y la posibilidad de ver KPIs en $0.00
+       reales antes de que lleguen los datos. Si la sesión no es válida,
+       se oculta y vuelve a aparecer el login. -->
+  <div class="admin-shell-esqueleto" id="admin-shell-esqueleto" hidden role="status" aria-busy="true">
+    <span class="sr-only">Cargando tu panel…</span>
+    <div class="admin-shell-esqueleto-sidebar">
+      <span class="sk admin-shell-esqueleto-logo" aria-hidden="true"></span>
+      <span class="sk admin-shell-esqueleto-item" aria-hidden="true"></span>
+      <span class="sk admin-shell-esqueleto-item" aria-hidden="true"></span>
+      <span class="sk admin-shell-esqueleto-item" aria-hidden="true"></span>
+      <span class="sk admin-shell-esqueleto-item" aria-hidden="true"></span>
+    </div>
+    <div class="admin-shell-esqueleto-main">
+      <span class="sk admin-shell-esqueleto-titulo" aria-hidden="true"></span>
+      <div class="admin-shell-esqueleto-kpis" aria-hidden="true">
+        <span class="sk admin-shell-esqueleto-kpi"></span>
+        <span class="sk admin-shell-esqueleto-kpi"></span>
+        <span class="sk admin-shell-esqueleto-kpi"></span>
+      </div>
+      <span class="sk admin-shell-esqueleto-bloque" aria-hidden="true"></span>
+    </div>
+  </div>
+
   <!-- Panel de administración -->
   <div class="admin-dashboard" id="admin-dashboard" hidden>
     <aside class="admin-sidebar">
@@ -289,7 +315,7 @@
           <p class="panel-subtitle">Este es el resumen de las solicitudes de facturación.</p>
         </div>
 
-        <div class="inicio-stats-grid">
+        <div class="inicio-stats-grid" id="inicio-stats-grid">
           <div class="inicio-stat-card">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Solicitudes totales</span>
@@ -1806,7 +1832,7 @@
           </span>
           <span class="inv-kpi-group-label-right">Valuación: promedio ponderado (D5)</span>
         </div>
-        <div class="inicio-stats-grid">
+        <div class="inicio-stats-grid" id="inv-kpi-grid-principal">
           <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
             <div class="inicio-stat-header">
               <span class="inicio-stat-titulo">Valor del inventario</span>
@@ -5123,6 +5149,7 @@
   <script src="/theme.js"></script>
   <script src="/offline.js"></script>
   <script src="/scanner.js"></script>
+  <script src="/skeleton.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

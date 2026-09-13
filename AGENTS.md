@@ -465,6 +465,37 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   agregada. Cero backend, Jest 946/946 sin cambios. Sin herramienta de
   navegador esta sesión.
 
+- **Punto 289 — Esqueleto de carga (shimmer tipo Facebook) en todo el
+  sitio (ver PROJECT_STATE.md, 2026-09-12/13, IMPLEMENTADO Y VALIDADO en
+  navegador real contra Docker/MySQL reales)**: pedido explícito del
+  usuario — que "esperar" nunca se sienta como "no puedo conectar".
+  Auditoría de código confirmó cero skeleton/spinner previo; tablas
+  nacían vacías, KPIs en `$0.00`/`0` reales, el error de red solo
+  disparaba por `fetch` rechazado (no por lentitud). Propuesta visual
+  antes/después (Artifact interactivo, 3 escenarios reales) aprobada con
+  3 decisiones: las 3 superficies en un solo segmento, sin mínimo de
+  tiempo artificial, mismo texto de error reubicado dentro del bloque
+  que falló. `frontend/skeleton.js` nuevo (compartido, mismo patrón que
+  `theme.js`) + componente `.sk`/`.sk-cargando`/`.sk-retry-inline` único
+  en `style.css` (anima solo `background-position`, respeta
+  `prefers-reduced-motion`). Aplicado a 15/17 tablas de `/admin` + 2 de
+  `/control` + 1 del portal cliente (2 descartadas a propósito: pueblan
+  un `<select>`, no una tabla). Un solo `classList.toggle('sk-cargando')`
+  por vista cubre TODOS los KPIs de esa vista porque `.inicio-stat-numero`
+  es una sola clase reusada en todo el sitio. Esqueleto de shell
+  (sidebar+KPIs) nuevo durante la verificación de sesión guardada al
+  recargar `/admin`/`/control` — reemplaza el parpadeo de login. **2
+  bugs reales encontrados y corregidos en esta misma sesión**:
+  `cargarEstadisticasReportes` dejaba el shimmer prendido para siempre
+  si la serie venía vacía (return a medio camino, antes de apagarlo);
+  `cargarCxc` no propagaba el fallo de `cargarOrdenes()`, mostrando CxC
+  vacía en silencio en vez de un error real (CxC nunca había tenido su
+  propio elemento de error — hueco cerrado de paso). Jest backend
+  946/946 sin cambios (100% frontend). Validado con clics reales en
+  navegador (Claude in Chrome): shimmer de Ventas capturado en vivo
+  resolviendo a 183 ventas reales, `/control` con login y tabla reales,
+  cero errores de consola. Sin commit/push todavía.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 

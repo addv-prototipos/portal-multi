@@ -52,6 +52,22 @@
     </div>
   </div>
 
+  <!-- Esqueleto de carga del shell — mismo criterio que /admin (ver
+       admin.html): solo aparece un instante al recargar con sesión
+       guardada, mientras se verifica en segundo plano. -->
+  <div class="admin-shell-esqueleto" id="control-shell-esqueleto" hidden role="status" aria-busy="true">
+    <span class="sr-only">Cargando /control…</span>
+    <div class="admin-shell-esqueleto-sidebar">
+      <span class="sk admin-shell-esqueleto-logo" aria-hidden="true"></span>
+      <span class="sk admin-shell-esqueleto-item" aria-hidden="true"></span>
+      <span class="sk admin-shell-esqueleto-item" aria-hidden="true"></span>
+    </div>
+    <div class="admin-shell-esqueleto-main">
+      <span class="sk admin-shell-esqueleto-titulo" aria-hidden="true"></span>
+      <span class="sk admin-shell-esqueleto-bloque" aria-hidden="true"></span>
+    </div>
+  </div>
+
   <!-- App de control — shell con sidebar navy (misma identidad que /admin) -->
   <div class="admin-dashboard" id="control-dashboard" hidden>
     <aside class="admin-sidebar">
@@ -719,6 +735,7 @@
   </div>
 
   <script src="/theme.js"></script>
+  <script src="/skeleton.js"></script>
   <script src="/control.js"></script>
 </body>
 </html>

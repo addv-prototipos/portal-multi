@@ -23,6 +23,7 @@
 
   const els = {
     loginScreen: document.getElementById('admin-login-screen'),
+    shellEsqueleto: document.getElementById('admin-shell-esqueleto'),
     dashboard: document.getElementById('admin-dashboard'),
     formLogin: document.getElementById('form-login'),
     inputUser: document.getElementById('admin-user'),
@@ -221,6 +222,7 @@
     // Vista Inicio: bienvenida, tarjetas de estatísticas, recientes y dona
     inicioTituloBienvenida: document.getElementById('inicio-titulo-bienvenida'),
     inicioError: document.getElementById('inicio-error'),
+    inicioStatsGrid: document.getElementById('inicio-stats-grid'),
     inicioStatTotal: document.getElementById('inicio-stat-total'),
     inicioStatTotalTendencia: document.getElementById('inicio-stat-total-tendencia'),
     inicioStatProceso: document.getElementById('inicio-stat-proceso'),
@@ -442,6 +444,7 @@
     btnVerCxcCobradas: document.getElementById('btn-ver-cxc-cobradas'),
     cxcCount: document.getElementById('cxc-count'),
     btnRefreshCxc: document.getElementById('btn-refresh-cxc'),
+    cxcKpis: document.getElementById('cxc-kpis'),
     cxcKpiPorCobrar: document.getElementById('cxc-kpi-por-cobrar'),
     cxcKpiPorCobrarNota: document.getElementById('cxc-kpi-por-cobrar-nota'),
     cxcKpiVencidas: document.getElementById('cxc-kpi-vencidas'),
@@ -709,6 +712,7 @@
     invFiltrosChips: document.getElementById('inv-filtros-chips'),
     btnLimpiarInvBusqueda: document.getElementById('btn-limpiar-inv-busqueda'),
     invError: document.getElementById('inv-error'),
+    invKpiGridPrincipal: document.getElementById('inv-kpi-grid-principal'),
     invTableBody: document.getElementById('inv-table-body'),
     invTableWrap: document.getElementById('inv-table-wrap'),
     btnInvColumns: document.getElementById('btn-inv-columns'),
@@ -1009,6 +1013,7 @@
     btnEnviarReporteManualLabel: document.getElementById('btn-enviar-reporte-manual-label'),
     errorEnviarReporteManual: document.getElementById('error-enviar-reporte-manual'),
     // Lectura de reportes
+    reportesKpiGrid: document.getElementById('reportes-kpi-grid'),
     reportesKpiEliminados: document.getElementById('reportes-kpi-eliminados'),
     reportesKpiActivos: document.getElementById('reportes-kpi-activos'),
     reportesKpiChartBody: document.getElementById('reportes-kpi-chart-body'),
@@ -1076,6 +1081,7 @@
     btnExportarCorteCsv: document.getElementById('btn-exportar-corte-csv'),
     btnExportarCorteExcel: document.getElementById('btn-exportar-corte-excel'),
     btnEliminarCorte: document.getElementById('btn-eliminar-corte'),
+    invEstadoKpiGrid: document.getElementById('inv-estado-kpi-grid'),
     invEstadoKpiValor: document.getElementById('inv-estado-kpi-valor'),
     invEstadoKpiRotacion: document.getElementById('inv-estado-kpi-rotacion'),
     invEstadoKpiSinMovimiento: document.getElementById('inv-estado-kpi-sin-movimiento'),
@@ -3430,9 +3436,13 @@
   async function cargarEstadisticasReportes() {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
+    Esqueleto.marcarKpisCargando(els.reportesKpiGrid, true);
     try {
       const res = await fetch(`${API_BASE}/admin/reportes/estadisticas`, { headers: { Authorization: authHeader } });
-      if (!res.ok) return;
+      if (!res.ok) {
+        Esqueleto.marcarKpisCargando(els.reportesKpiGrid, false);
+        return;
+      }
       const data = await res.json();
       els.reportesKpiEliminados.textContent = data.total_eliminados || 0;
       els.reportesKpiActivos.textContent = data.total_activos || 0;
@@ -3440,7 +3450,10 @@
       const serie = data.eliminados_por_mes || [];
       els.reportesKpiChartEmpty.hidden = serie.length > 0;
       els.reportesKpiChartBody.innerHTML = '';
-      if (serie.length === 0) return;
+      if (serie.length === 0) {
+        Esqueleto.marcarKpisCargando(els.reportesKpiGrid, false);
+        return;
+      }
       const maximo = Math.max(1, ...serie.map((m) => m.total));
       serie.forEach((m) => {
         const columna = document.createElement('div');
@@ -3453,8 +3466,10 @@
         `;
         els.reportesKpiChartBody.appendChild(columna);
       });
+      Esqueleto.marcarKpisCargando(els.reportesKpiGrid, false);
     } catch (err) {
       // Las tarjetas se quedan en su valor por defecto (0 / vacío); se puede reintentar cambiando de vista.
+      Esqueleto.marcarKpisCargando(els.reportesKpiGrid, false);
     }
   }
 
@@ -3611,19 +3626,24 @@
   async function cargarLedgerEliminados() {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
+    Esqueleto.aplicarEsqueletoTabla(els.ledgerTableBody, 8);
     try {
       const params = obtenerFiltrosLedgerActuales();
       const res = await fetch(`${API_BASE}/admin/reportes/eliminados?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        Esqueleto.aplicarErrorTabla(els.ledgerTableBody, 8, 'No se pudo cargar "Todo lo eliminado".', cargarLedgerEliminados);
+        return;
+      }
       const data = await res.json();
       const items = data.items || [];
       els.ledgerConteo.textContent = items.length;
       els.ledgerTableBody.innerHTML = items.map((item) => renderFilaReporteItem(item, true)).join('');
       els.ledgerEmpty.hidden = items.length > 0;
+      Esqueleto.quitarEsqueletoTabla(els.ledgerTableBody);
     } catch (err) {
-      // La tabla se queda con lo último cargado; se puede reintentar ajustando un filtro.
+      Esqueleto.aplicarErrorTabla(els.ledgerTableBody, 8, 'No se pudo conectar con el servidor.', cargarLedgerEliminados);
     }
     renderFiltrosChips(els.ledgerFiltrosChips, [
       { etiqueta: 'Tipo', valor: textoOpcionSeleccionada(els.ledgerFiltroTipo), campos: [els.ledgerFiltroTipo] },
@@ -4081,16 +4101,25 @@
     if (!reporteSeleccionadoId) return;
     const authHeader = getAuthHeader();
     if (!authHeader) return;
+    Esqueleto.aplicarEsqueletoTabla(els.reportesMovimientosTableBody, 7);
+    Esqueleto.aplicarEsqueletoTabla(els.reportesEliminadosTableBody, 7);
     try {
       const params = obtenerFiltrosReporteActuales();
       const res = await fetch(`${API_BASE}/admin/reportes/${reporteSeleccionadoId}/items?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        Esqueleto.aplicarErrorTabla(els.reportesMovimientosTableBody, 7, 'No se pudo cargar el reporte.', cargarItemsReporteSeleccionado);
+        Esqueleto.aplicarErrorTabla(els.reportesEliminadosTableBody, 7, 'No se pudo cargar el reporte.', cargarItemsReporteSeleccionado);
+        return;
+      }
       const data = await res.json();
       renderReporteItems(data.items || []);
+      Esqueleto.quitarEsqueletoTabla(els.reportesMovimientosTableBody);
+      Esqueleto.quitarEsqueletoTabla(els.reportesEliminadosTableBody);
     } catch (err) {
-      // La tabla se queda con lo último cargado; se puede reintentar ajustando un filtro.
+      Esqueleto.aplicarErrorTabla(els.reportesMovimientosTableBody, 7, 'No se pudo conectar con el servidor.', cargarItemsReporteSeleccionado);
+      Esqueleto.aplicarErrorTabla(els.reportesEliminadosTableBody, 7, 'No se pudo conectar con el servidor.', cargarItemsReporteSeleccionado);
     }
     renderFiltrosChips(els.reporteFiltrosChips, [
       { etiqueta: 'Tipo', valor: textoOpcionSeleccionada(els.filtroReporteTipo), campos: [els.filtroReporteTipo] },
@@ -5063,6 +5092,7 @@
     }
 
     els.adminError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.tableBody, 8);
     try {
       const query = state.vista === 'papelera' ? '?papelera=true' : '';
       const res = await fetch(`${API_BASE}/admin/registros${query}`, {
@@ -5076,15 +5106,16 @@
         return;
       }
       if (!res.ok) {
-        els.adminError.textContent = 'No se pudieron cargar los registros.';
+        Esqueleto.aplicarErrorTabla(els.tableBody, 8, 'No se pudieron cargar los registros.', cargarRegistros);
         return;
       }
 
       const data = await res.json();
       state.registros = data.registros || [];
       aplicarFiltro();
+      Esqueleto.quitarEsqueletoTabla(els.tableBody);
     } catch (err) {
-      els.adminError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.tableBody, 8, 'No se pudo conectar con el servidor.', cargarRegistros);
     }
   }
 
@@ -5971,6 +6002,7 @@
     els.auditoriaError.textContent = '';
     els.btnLimpiarAuditoriaActor.hidden = !els.auditoriaFiltroActor.value;
     renderAuditoriaFiltrosChips();
+    Esqueleto.aplicarEsqueletoTabla(els.auditoriaTableBody, 7);
 
     const params = new URLSearchParams();
     const actor = els.auditoriaFiltroActor.value.trim();
@@ -6017,8 +6049,9 @@
         `;
         els.auditoriaTableBody.appendChild(tr);
       });
+      Esqueleto.quitarEsqueletoTabla(els.auditoriaTableBody);
     } catch (err) {
-      els.auditoriaError.textContent = err.message || 'No se pudo cargar la auditoría.';
+      Esqueleto.aplicarErrorTabla(els.auditoriaTableBody, 7, err.message || 'No se pudo cargar la auditoría.', cargarAuditoria);
     }
   }
 
@@ -6144,6 +6177,8 @@
     els.inicioTituloBienvenida.textContent = usuarioSesionActual
       ? `¡Bienvenido, ${usuarioSesionActual}!`
       : '¡Bienvenido!';
+    Esqueleto.marcarKpisCargando(els.inicioStatsGrid, true);
+    Esqueleto.aplicarEsqueletoTabla(els.inicioRecientesBody, 5);
     try {
       const res = await fetch(`${API_BASE}/admin/tickets`, {
         headers: { Authorization: authHeader },
@@ -6154,13 +6189,17 @@
         return;
       }
       if (!res.ok) {
-        els.inicioError.textContent = 'No se pudieron cargar las solicitudes.';
+        Esqueleto.marcarKpisCargando(els.inicioStatsGrid, false);
+        Esqueleto.aplicarErrorTabla(els.inicioRecientesBody, 5, 'No se pudieron cargar las solicitudes.', cargarInicio);
         return;
       }
       const data = await res.json();
       renderInicio(data.tickets || []);
+      Esqueleto.quitarEsqueletoTabla(els.inicioRecientesBody);
+      Esqueleto.marcarKpisCargando(els.inicioStatsGrid, false);
     } catch (err) {
-      els.inicioError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.marcarKpisCargando(els.inicioStatsGrid, false);
+      Esqueleto.aplicarErrorTabla(els.inicioRecientesBody, 5, 'No se pudo conectar con el servidor.', cargarInicio);
     }
   }
 
@@ -6260,6 +6299,7 @@
     }
 
     els.ticketsError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.ticketsTableBody, 9);
     try {
       const estatus = els.ticketsFiltroEstatus.value;
       const actualizadoPor = els.ticketsFiltroUsuario.value;
@@ -6277,13 +6317,14 @@
         return;
       }
       if (!res.ok) {
-        els.ticketsError.textContent = 'No se pudieron cargar los tickets.';
+        Esqueleto.aplicarErrorTabla(els.ticketsTableBody, 9, 'No se pudieron cargar los tickets.', cargarTickets);
         return;
       }
       const data = await res.json();
       renderTickets(data.tickets || []);
+      Esqueleto.quitarEsqueletoTabla(els.ticketsTableBody);
     } catch (err) {
-      els.ticketsError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.ticketsTableBody, 9, 'No se pudo conectar con el servidor.', cargarTickets);
     }
   }
 
@@ -7871,6 +7912,7 @@
     }
 
     els.ordenesError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.ordenesTableBody, 6);
     try {
       const params = new URLSearchParams();
       if (els.ordenesFiltroPeriodo && els.ordenesFiltroPeriodo.value) params.set('periodo', els.ordenesFiltroPeriodo.value);
@@ -7883,14 +7925,17 @@
         return;
       }
       if (!res.ok) {
-        els.ordenesError.textContent = 'No se pudieron cargar las ventas.';
-        return;
+        Esqueleto.aplicarErrorTabla(els.ordenesTableBody, 6, 'No se pudieron cargar las ventas.', cargarOrdenes);
+        return false;
       }
       const data = await res.json();
       ordenesCache = data.ordenes || [];
       aplicarFiltrosOrdenes();
+      Esqueleto.quitarEsqueletoTabla(els.ordenesTableBody);
+      return true;
     } catch (err) {
-      els.ordenesError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.ordenesTableBody, 6, 'No se pudo conectar con el servidor.', cargarOrdenes);
+      return false;
     }
   }
 
@@ -8527,6 +8572,7 @@
     }
 
     els.usuariosError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.usuariosTableBody, 5);
     try {
       const perfil = els.usuariosFiltroPerfil.value;
       const query = perfil ? `?perfil=${encodeURIComponent(perfil)}` : '';
@@ -8539,13 +8585,14 @@
         return;
       }
       if (!res.ok) {
-        els.usuariosError.textContent = 'No se pudieron cargar los usuarios.';
+        Esqueleto.aplicarErrorTabla(els.usuariosTableBody, 5, 'No se pudieron cargar los usuarios.', cargarUsuarios);
         return;
       }
       const data = await res.json();
       renderUsuarios(data.usuarios || []);
+      Esqueleto.quitarEsqueletoTabla(els.usuariosTableBody);
     } catch (err) {
-      els.usuariosError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.usuariosTableBody, 5, 'No se pudo conectar con el servidor.', cargarUsuarios);
     }
   }
 
@@ -9992,6 +10039,7 @@
       return;
     }
     els.resumenFinError.textContent = '';
+    Esqueleto.marcarKpisCargando(els.resumenFinTablero, true);
     try {
       const res = await fetch(`${API_BASE}/admin/resumen-financiero`, {
         headers: { Authorization: authHeader },
@@ -10002,11 +10050,13 @@
         return;
       }
       if (!res.ok) {
+        Esqueleto.marcarKpisCargando(els.resumenFinTablero, false);
         els.resumenFinError.textContent = 'No se pudo cargar el resumen financiero.';
         return;
       }
       const data = await res.json();
       renderResumenFinanciero(data);
+      Esqueleto.marcarKpisCargando(els.resumenFinTablero, false);
       // "Cobranza del mes" (mini tarjeta) reusa ordenesCache — se carga
       // aparte si Ventas aún no se ha visitado esta sesión. Si el perfil
       // no tiene acceso a Ventas o el módulo está deshabilitado, se
@@ -10022,6 +10072,7 @@
       // alturas ya pintadas de verdad (punto 262).
       requestAnimationFrame(igualarAlturaFilasDashboard);
     } catch (err) {
+      Esqueleto.marcarKpisCargando(els.resumenFinTablero, false);
       els.resumenFinError.textContent = 'No se pudo conectar con el servidor.';
     }
   }
@@ -10957,11 +11008,15 @@
   async function cargarEstadoInventario() {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
+    Esqueleto.marcarKpisCargando(els.invEstadoKpiGrid, true);
     try {
       const res = await fetch(`${API_BASE}/admin/inventarios/reportes/estado`, {
         headers: { Authorization: authHeader },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        Esqueleto.marcarKpisCargando(els.invEstadoKpiGrid, false);
+        return;
+      }
       const data = await res.json();
       estadoInventarioCache = data;
       const kpis = data.kpis || {};
@@ -10980,9 +11035,11 @@
       renderInvEstadoCobertura(data.cobertura || null);
       renderInvEstadoMatriz(data.valuacion_detalle || []);
       renderInvEstadoServicios(data.servicios || null);
+      Esqueleto.marcarKpisCargando(els.invEstadoKpiGrid, false);
     } catch (err) {
       // Las 4 gráficas se quedan en su estado vacío/anterior; se puede
       // reintentar volviendo a entrar a la pestaña.
+      Esqueleto.marcarKpisCargando(els.invEstadoKpiGrid, false);
     }
   }
 
@@ -12789,6 +12846,8 @@
     }
 
     els.gastosError.textContent = '';
+    Esqueleto.marcarKpisCargando(els.gastosResumenWrap, true);
+    Esqueleto.aplicarEsqueletoTabla(els.gastosTableBody, 7);
     try {
       const params = new URLSearchParams();
       if (state.vistaGastos === 'papelera') params.set('papelera', 'true');
@@ -12809,7 +12868,8 @@
         return;
       }
       if (!res.ok) {
-        els.gastosError.textContent = 'No se pudieron cargar los gastos.';
+        Esqueleto.marcarKpisCargando(els.gastosResumenWrap, false);
+        Esqueleto.aplicarErrorTabla(els.gastosTableBody, 7, 'No se pudieron cargar los gastos.', cargarGastos);
         return;
       }
       const data = await res.json();
@@ -12817,8 +12877,11 @@
       gastosResumenActual = data.resumen || null;
       gastosTotalActual = data.total;
       await renderizarGastosConPendientes();
+      Esqueleto.quitarEsqueletoTabla(els.gastosTableBody);
+      Esqueleto.marcarKpisCargando(els.gastosResumenWrap, false);
     } catch (err) {
-      els.gastosError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.marcarKpisCargando(els.gastosResumenWrap, false);
+      Esqueleto.aplicarErrorTabla(els.gastosTableBody, 7, 'No se pudo conectar con el servidor.', cargarGastos);
     }
   }
 
@@ -13639,11 +13702,21 @@
   }
 
   async function cargarCxc() {
+    Esqueleto.marcarKpisCargando(els.cxcKpis, true);
+    Esqueleto.aplicarEsqueletoTabla(els.cxcTableBody, 9);
     // Reusa ordenesCache si ya se cargó Ventas, si no la carga
+    let ok = true;
     if (!ordenesCache || ordenesCache.length === 0) {
-      await cargarOrdenes();
+      ok = await cargarOrdenes();
+    }
+    if (ok === false) {
+      Esqueleto.marcarKpisCargando(els.cxcKpis, false);
+      Esqueleto.aplicarErrorTabla(els.cxcTableBody, 9, 'No se pudieron cargar las cuentas por cobrar.', cargarCxc);
+      return;
     }
     renderCxc();
+    Esqueleto.quitarEsqueletoTabla(els.cxcTableBody);
+    Esqueleto.marcarKpisCargando(els.cxcKpis, false);
   }
 
   function aplicarFiltrosCxc(lista) {
@@ -14439,11 +14512,15 @@
   async function cargarDashboardInventario() {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
+    Esqueleto.marcarKpisCargando(els.invKpiGridPrincipal, true);
     try {
       const res = await fetch(`${API_BASE}/admin/inventarios/dashboard`, {
         headers: { Authorization: authHeader },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        Esqueleto.marcarKpisCargando(els.invKpiGridPrincipal, false);
+        return;
+      }
       const d = await res.json();
       els.invKpiValor.textContent = `$${formatearMoneda(d.valor_total_inventario)}`;
       if (els.invKpiCostoProm) els.invKpiCostoProm.textContent = `$${formatearMoneda(d.costo_promedio_ponderado || 0)}`;
@@ -14475,8 +14552,10 @@
         const alertas = Number(d.productos_bajo_minimo) + Number(d.productos_sin_existencia);
         els.invTfootAlertas.textContent = `${alertas} alerta${alertas === 1 ? '' : 's'}`;
       }
+      Esqueleto.marcarKpisCargando(els.invKpiGridPrincipal, false);
     } catch (err) {
       // Silencioso — las tarjetas se quedan con el último valor mostrado.
+      Esqueleto.marcarKpisCargando(els.invKpiGridPrincipal, false);
     }
   }
 
@@ -14489,6 +14568,7 @@
       return;
     }
     els.invError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.invTableBody, 12);
     try {
       const params = new URLSearchParams();
       if (vistaInventarios === 'papelera') params.set('papelera', 'true');
@@ -14518,16 +14598,17 @@
         // El interruptor pudo apagarse desde otra pestaña/sesión mientras
         // esta seguía abierta — el sidebar ya debería haberse ocultado,
         // esto es solo la red de seguridad del lado del servidor.
-        els.invError.textContent = 'El módulo de Inventarios no está activo para esta empresa.';
+        Esqueleto.aplicarErrorTabla(els.invTableBody, 12, 'El módulo de Inventarios no está activo para esta empresa.', cargarInventarios);
         return;
       }
       if (!res.ok) {
-        els.invError.textContent = 'No se pudieron cargar los productos.';
+        Esqueleto.aplicarErrorTabla(els.invTableBody, 12, 'No se pudieron cargar los productos.', cargarInventarios);
         return;
       }
       const data = await res.json();
       productosInventarioActuales = data.productos || [];
       renderInvTabla(productosInventarioActuales, data.total);
+      Esqueleto.quitarEsqueletoTabla(els.invTableBody);
       renderFiltrosChips(els.invFiltrosChips, [
         { etiqueta: 'Categoría', valor: textoOpcionSeleccionada(els.invFiltroCategoria), campos: [els.invFiltroCategoria] },
         { etiqueta: 'Estado', valor: textoOpcionSeleccionada(els.invFiltroEstado), campos: [els.invFiltroEstado] },
@@ -14535,7 +14616,7 @@
         { etiqueta: 'Buscar', valor: els.invBusqueda.value.trim(), campos: [els.invBusqueda] },
       ]);
     } catch (err) {
-      els.invError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.invTableBody, 12, 'No se pudo conectar con el servidor.', cargarInventarios);
     }
   }
 
@@ -17220,11 +17301,17 @@
 
     const authHeader = getAuthHeader();
     if (authHeader) {
+      // Esqueleto del shell en vez del login parpadeando (ver punto
+      // "Esqueleto de carga" — nunca un salto brusco ni un $0.00 real
+      // mientras se verifica que la sesión guardada siga siendo válida).
+      els.loginScreen.hidden = true;
+      if (els.shellEsqueleto) els.shellEsqueleto.hidden = false;
       // Verifica que la sesión guardada siga siendo válida.
       fetch(`${API_BASE}/admin/login`, { headers: { Authorization: authHeader } })
         .then((res) => {
           if (res.ok) {
             return res.json().then((data) => {
+              if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
               showDashboard(data.usuario, data.perfil);
               if (data.perfil !== 'administrador') {
                 cargarRegistros();
@@ -17243,10 +17330,14 @@
               }
             });
           }
+          if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
           clearSession();
           showLogin();
         })
-        .catch(() => showLogin());
+        .catch(() => {
+          if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
+          showLogin();
+        });
     } else {
       showLogin();
     }
