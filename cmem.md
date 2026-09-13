@@ -878,3 +878,32 @@ Chrome) contra Docker/MySQL reales: badge Activo↔Suspendido y botón
 pausa↔check confirmados en una fila real, modal con RFC real
 interpolado, cero errores de consola. Detalle completo:
 `PROJECT_STATE.md` punto 290, `CLAUDE.md` punto 290. Sin commit/push.
+
+C067 2026-09-13 ✓ Centro de conocimiento de /admin puesto al día, punto
+293. Pedido: "actualiza los centro de conocimiento de todos los
+aplicativos, como control y admin del tenant y el sitio base sin
+tenant, con todos los cambios realizados". Auditoría contra el sidebar
+real encontró 2 vistas completas sin categoría en el manual: "Mi
+Cuenta" (283) y "Auditoría" (244/286) — agregadas con sus mismos
+íconos SVG reales. "Usuarios y perfiles" ganó 2 pasos sobre suspender/
+activar (290). Resto de categorías ya al día, sin cambios. Cero
+backend. Validado con clics reales en navegador tras rebuild frontend,
+cero errores de consola. **Sin tocar**: `/control` no tiene ningún
+Centro de conocimiento (el pedido lo mencionaba como si existiera) —
+construirlo es función nueva, no actualización; preguntado al usuario
+antes de tocar código ahí. Detalle: `PROJECT_STATE.md`/`CLAUDE.md`
+punto 293. Sin commit/push.
+
+C068 2026-09-13 ◆ Centro de conocimiento nuevo para /control, punto
+294. Cierra el hueco del punto 293 — preguntado vía `AskUserQuestion`
+si construir uno nuevo en /control (no existía) o dejarlo pendiente;
+el usuario eligió construirlo. Reuso literal del componente de /admin
+(`control.html` ya carga `admin.css`, cero CSS nuevo) — 3 categorías
+reales (Empresas/Sucursales/Super Admins), sin "Primeros pasos" a
+propósito (simplificación consciente, solo 3 vistas cross-tenant).
+Botones + modal en `control.html`, funciones portadas de `admin.js` a
+`control.js` sin la parte de recorrido guiado (no aplica). Cero
+backend. Validado con clics reales en navegador: 3 categorías con
+íconos reales, buscador resaltando en vivo, atajo de topbar, tabla de
+tenants intacta al cerrar, cero errores de consola. Detalle:
+`PROJECT_STATE.md`/`CLAUDE.md` punto 294. Sin commit/push.

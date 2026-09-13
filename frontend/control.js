@@ -16,6 +16,18 @@
     loginScreen: document.getElementById('control-login-screen'),
     shellEsqueleto: document.getElementById('control-shell-esqueleto'),
     dashboard: document.getElementById('control-dashboard'),
+    btnAbrirConocimiento: document.getElementById('btn-abrir-conocimiento'),
+    btnAbrirConocimientoTopbar: document.getElementById('btn-abrir-conocimiento-topbar'),
+    btnCerrarConocimiento: document.getElementById('btn-cerrar-conocimiento-modal'),
+    conocimientoOverlay: document.getElementById('conocimiento-modal-overlay'),
+    conocimientoSidebar: document.getElementById('conocimiento-modal-sidebar'),
+    conocimientoMain: document.getElementById('conocimiento-modal-main'),
+    conocimientoMainBody: document.getElementById('conocimiento-modal-main-body'),
+    conocimientoBtnVolver: document.getElementById('conocimiento-modal-btn-volver'),
+    conocimientoBuscar: document.getElementById('conocimiento-modal-buscar'),
+    conocimientoNav: document.getElementById('conocimiento-modal-nav'),
+    conocimientoNavEmpty: document.getElementById('conocimiento-modal-nav-empty'),
+    conocimientoTitle: document.getElementById('conocimiento-modal-title'),
     formLogin: document.getElementById('control-form-login'),
     inputUser: document.getElementById('control-user'),
     inputPass: document.getElementById('control-pass'),
@@ -1997,6 +2009,165 @@
   }
 
   // ---------- Inicialización ----------
+
+  // ---------- Centro de conocimiento (mismo patrón que /admin) ----------
+
+  function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  const CONOCIMIENTO_CATEGORIAS = {
+    empresas: {
+      titulo: 'Empresas',
+      lead: 'Alta, edición y ciclo de vida de cada tenant.',
+      pasos: [
+        { t: 'Dar de alta una empresa', d: '"Nueva empresa" solo registra la solicitud (queda en estado "Provisionando") — todavía no crea nada físico.' },
+        { t: 'Activar', d: 'Botón "Activar" en una fila "Provisionando" crea la base de datos real del tenant y la deja accesible en /‹slug›/admin. Puede tardar unos segundos.' },
+        { t: 'Editar', d: 'Cambia los datos base o, con el switch "Cambiar slug (avanzado)", el slug mismo — esto migra todos sus archivos (logo, facturas, etc.) antes de completar el cambio.' },
+        { t: 'Suspender / Reactivar / Dar de baja', d: 'Ninguna de las tres borra datos: solo cambian si el tenant es accesible. "Dar de baja" y "Suspender" son igual de reversibles con "Reactivar".' },
+        { t: 'Credenciales API', d: 'Para integraciones externas (Swagger, consumo directo) — no son la contraseña de inicio de sesión del operador del tenant.' },
+        { t: 'Identidad visual y cuota', d: 'Al editar una empresa: colores/tipografía/logo propios (si el switch de marca está activo) y el máximo de cuentas de panel que puede tener.' },
+        { t: 'Entrar directo al panel del tenant', d: 'El slug de la tabla es un enlace — abre /‹slug›/admin en una pestaña nueva, solo si el tenant está activo.' },
+      ],
+    },
+    sucursales: {
+      titulo: 'Sucursales',
+      lead: 'Agrupa varios tenants del mismo negocio con acceso compartido.',
+      pasos: [
+        { t: 'Qué resuelve', d: 'Un negocio con varias tiendas (cada una su propio tenant, su propio inventario y ventas) que quiere que su personal entre a cualquiera con la misma cuenta.' },
+        { t: 'Usuarios compartidos', d: 'Se crean aparte de los usuarios normales de cada tenant — la misma contraseña abre el panel de cualquier sucursal del grupo, pero cada una sigue viendo solo sus propios datos.' },
+        { t: 'Revocar acceso', d: 'Eliminar el grupo (o al usuario compartido) corta el acceso de inmediato a todas las sucursales a la vez.' },
+      ],
+    },
+    'super-admins': {
+      titulo: 'Super Admins',
+      lead: 'Quién tiene acceso total a /admin de cualquier tenant y a /control.',
+      pasos: [
+        { t: 'Qué es un Super Admin', d: 'Una credencial de ADMIN_USERS — entra a /control y al /admin de CUALQUIER tenant o del sitio base, sin restricción de vistas.' },
+        { t: 'Alta, cambio de contraseña, baja', d: 'Se gestiona desde aquí mismo, sin tocar el servidor ni reiniciar ningún contenedor — el cambio aplica de inmediato.' },
+        { t: 'No confundir con un usuario de panel', d: 'Las cuentas administrador/fiscal/ventas de un tenant (vista "Usuarios" de su /admin) solo entran a SU propio tenant — un Super Admin es un nivel aparte, por encima de todos.' },
+      ],
+    },
+  };
+
+  function renderPasoTarjetaConocimiento(p, i, termino, reducido) {
+    let t = escapeHtml(p.t);
+    let d = escapeHtml(p.d);
+    let esMatch = false;
+    if (termino) {
+      const re = new RegExp(`(${termino.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig');
+      if (re.test(t) || re.test(d)) {
+        esMatch = true;
+        t = t.replace(re, '<mark>$1</mark>');
+        d = d.replace(re, '<mark>$1</mark>');
+      }
+    }
+    return `
+      <div class="conocimiento-paso" style="transition-delay:${reducido ? 0 : i * 55}ms">
+        <div class="conocimiento-paso-rail"><div class="conocimiento-paso-num">${i + 1}</div><div class="conocimiento-paso-linea"></div></div>
+        <div class="conocimiento-paso-tarjeta${esMatch ? ' is-match' : ''}"><b>${t}</b><p>${d}</p></div>
+      </div>`;
+  }
+
+  function renderCategoriaConocimiento(catKey, termino) {
+    const datos = CONOCIMIENTO_CATEGORIAS[catKey];
+    if (!datos || !els.conocimientoMainBody) return;
+    const reducido = prefersReducedMotion();
+    let html = `<h3 class="conocimiento-cat-titulo">${escapeHtml(datos.titulo)}</h3><p class="conocimiento-cat-lead">${escapeHtml(datos.lead)}</p>`;
+    datos.pasos.forEach((p, i) => { html += renderPasoTarjetaConocimiento(p, i, termino, reducido); });
+    els.conocimientoMainBody.innerHTML = html;
+    els.conocimientoTitle.textContent = datos.titulo;
+    els.conocimientoMainBody.scrollTop = 0;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        els.conocimientoMainBody.querySelectorAll('.conocimiento-paso').forEach((el) => el.classList.add('is-in'));
+      });
+    });
+  }
+
+  let conocimientoCatActual = 'empresas';
+
+  function seleccionarCategoriaConocimiento(catKey) {
+    if (!CONOCIMIENTO_CATEGORIAS[catKey]) return;
+    conocimientoCatActual = catKey;
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.cat === catKey);
+    });
+    renderCategoriaConocimiento(catKey, els.conocimientoBuscar.value.trim());
+  }
+
+  function mostrarCategoriaMovilConocimiento() {
+    els.conocimientoSidebar.classList.add('is-oculta-movil');
+    els.conocimientoMain.classList.remove('is-oculta-movil');
+  }
+  function mostrarListaMovilConocimiento() {
+    els.conocimientoSidebar.classList.remove('is-oculta-movil');
+    els.conocimientoMain.classList.add('is-oculta-movil');
+  }
+
+  function filtrarConocimiento() {
+    const q = els.conocimientoBuscar.value.trim().toLowerCase();
+    if (!q) {
+      els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => { btn.hidden = false; });
+      els.conocimientoNavEmpty.hidden = true;
+      renderCategoriaConocimiento(conocimientoCatActual, '');
+      return;
+    }
+    const coincidencias = new Set();
+    Object.entries(CONOCIMIENTO_CATEGORIAS).forEach(([key, datos]) => {
+      const texto = (datos.titulo + ' ' + datos.pasos.map((p) => `${p.t} ${p.d}`).join(' ')).toLowerCase();
+      if (texto.includes(q)) coincidencias.add(key);
+    });
+    let algunaVisible = false;
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+      const visible = coincidencias.has(btn.dataset.cat);
+      btn.hidden = !visible;
+      if (visible) algunaVisible = true;
+    });
+    els.conocimientoNavEmpty.hidden = algunaVisible;
+    if (coincidencias.size && !coincidencias.has(conocimientoCatActual)) {
+      conocimientoCatActual = coincidencias.values().next().value;
+      els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.cat === conocimientoCatActual);
+      });
+    }
+    renderCategoriaConocimiento(conocimientoCatActual, q);
+  }
+
+  function abrirConocimiento(enfocarBuscador) {
+    els.conocimientoBuscar.value = '';
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => { btn.hidden = false; });
+    els.conocimientoNavEmpty.hidden = true;
+    seleccionarCategoriaConocimiento('empresas');
+    mostrarListaMovilConocimiento();
+    els.conocimientoOverlay.hidden = false;
+    if (enfocarBuscador) els.conocimientoBuscar.focus();
+  }
+  function cerrarConocimiento() {
+    els.conocimientoOverlay.hidden = true;
+  }
+
+  if (els.btnAbrirConocimiento) els.btnAbrirConocimiento.addEventListener('click', () => abrirConocimiento(false));
+  if (els.btnAbrirConocimientoTopbar) els.btnAbrirConocimientoTopbar.addEventListener('click', () => abrirConocimiento(true));
+  if (els.btnCerrarConocimiento) els.btnCerrarConocimiento.addEventListener('click', cerrarConocimiento);
+  if (els.conocimientoOverlay) {
+    els.conocimientoOverlay.addEventListener('click', (e) => {
+      if (e.target === els.conocimientoOverlay) cerrarConocimiento();
+    });
+  }
+  if (els.conocimientoBtnVolver) els.conocimientoBtnVolver.addEventListener('click', mostrarListaMovilConocimiento);
+  if (els.conocimientoBuscar) els.conocimientoBuscar.addEventListener('input', filtrarConocimiento);
+  if (els.conocimientoNav) {
+    els.conocimientoNav.querySelectorAll('.conocimiento-nav-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        seleccionarCategoriaConocimiento(btn.dataset.cat);
+        mostrarCategoriaMovilConocimiento();
+      });
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && els.conocimientoOverlay && !els.conocimientoOverlay.hidden) cerrarConocimiento();
+  });
 
   (function init() {
     inicializarTooltips();

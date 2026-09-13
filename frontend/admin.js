@@ -16708,6 +16708,27 @@
         { t: 'Los 3 perfiles', d: 'Administrador (todo salvo Tickets/Constancias), Fiscal (solo Inicio/Tickets/Constancias/Configuraciones limitadas), Ventas (solo Ventas/Cuentas por cobrar/Gastos).' },
         { t: 'Crear un usuario', d: 'Botón "Crear usuario" — usuario, contraseña y perfil. El acceso es inmediato, sin correo de confirmación.' },
         { t: 'Restablecer contraseña', d: 'El propio usuario puede pedirlo desde la pantalla de login con "¿Olvidaste tu contraseña?" — llega un enlace de un solo uso, válido 30 minutos.' },
+        { t: 'Suspender o reactivar una cuenta', d: 'Ícono de pausa junto a "Eliminar" — a diferencia de eliminar, no se borra nada: la cuenta simplemente no puede volver a iniciar sesión hasta que la reactives con el mismo botón (ahora en forma de check). No puedes suspender tu propia cuenta mientras la tienes iniciada.' },
+        { t: 'Cuenta suspendida sigue ocupando tu cuota', d: 'Si tu plan limita cuántas cuentas de panel puedes tener, una cuenta suspendida sigue contando — para liberar el espacio de verdad hay que eliminarla.' },
+      ],
+    },
+    'mi-cuenta': {
+      titulo: 'Mi Cuenta',
+      lead: 'Tus propios datos de sesión — disponible para los 4 perfiles.',
+      pasos: [
+        { t: 'Editar tu perfil básico', d: 'Nombre, teléfono y correo — cualquier perfil puede ver y editar los suyos, además de cambiar su propia contraseña (pide la actual antes de guardar la nueva).' },
+        { t: 'Identidad de la empresa', d: 'Solo Administrador y Super ven el nombre de la empresa y cuántas cuentas de panel hay dadas de alta contra la cuota del plan.' },
+        { t: 'Zona horaria', d: 'Se muestra de solo lectura aquí — para cambiarla, ve a Configuraciones globales → Configuraciones fiscales.' },
+        { t: 'Secciones "Próximamente"', d: 'Verificación en 2 pasos, sesiones activas, notificaciones y suscripción se muestran atenuadas a propósito — todavía no existen, no son un botón roto.' },
+      ],
+    },
+    auditoria: {
+      titulo: 'Auditoría',
+      lead: 'Quién entró al panel, cuándo y qué hizo — perfiles Administrador y Super.',
+      pasos: [
+        { t: 'Qué queda registrado', d: 'Cada acción que cambia algo (crear, editar, eliminar) queda con fecha, usuario, perfil y de dónde entró — acotado siempre a tu propia empresa, nunca ves accesos de otro tenant.' },
+        { t: 'Filtrar', d: 'Por usuario o por rango de fechas, arriba de la tabla.' },
+        { t: 'Ocultar esta sección', d: 'Configuraciones globales → tarjeta "Auditoría" → apaga el switch si no la necesitas en el menú — el registro interno sigue funcionando igual, apagarlo solo oculta la pantalla de consulta.' },
       ],
     },
     'resumen-financiero': {

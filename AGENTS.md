@@ -525,6 +525,35 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   reales en navegador: badge Activo↔Suspendido y botón pausa↔check
   confirmados en una fila real, cero errores de consola.
 
+- **Punto 293 — Centro de conocimiento de /admin puesto al día (ver
+  PROJECT_STATE.md, 2026-09-13, IMPLEMENTADO Y VALIDADO en navegador
+  real)**: `CONOCIMIENTO_CATEGORIAS` tenía 13 categorías, el sidebar
+  real ya tiene 14 vistas — faltaban "Mi Cuenta" (punto 283) y
+  "Auditoría" (puntos 244/286) por completo, agregadas con sus mismos
+  íconos reales. "Usuarios y perfiles" ganó 2 pasos sobre el punto 290
+  (suspender/reactivar, cuenta suspendida sigue contando contra cuota).
+  Resto de categorías revisadas y ya estaban al día. Cero backend.
+  **`/control` no tiene ningún Centro de conocimiento** (el pedido
+  original lo mencionaba como si ya existiera) — construirlo sería
+  función nueva, no actualización; queda preguntado al usuario antes de
+  tocar código ahí.
+
+- **Punto 294 — Centro de conocimiento nuevo para /control (ver
+  PROJECT_STATE.md, 2026-09-13, IMPLEMENTADO Y VALIDADO en navegador
+  real)**: cierra el hueco del punto 293 — `/control` no tenía ningún
+  manual; preguntado por `AskUserQuestion`, el usuario eligió
+  construirlo. Reuso literal del componente ya validado en `/admin`
+  (`control.html` ya carga `admin.css`, cero CSS nuevo) con contenido
+  propio para sus 3 vistas reales: Empresas (ciclo de vida completo,
+  slug clicable, credenciales API), Sucursales (usuarios compartidos
+  entre tenants del grupo), Super Admins (gestión de `ADMIN_USERS` sin
+  reiniciar, distinto de un usuario de panel normal). Sin categoría
+  "Primeros pasos" a propósito (simplificación consciente, solo 3
+  vistas cross-tenant). Cero backend. Validado con clics reales en
+  navegador: 3 categorías, buscador resaltando en vivo, atajo de
+  topbar, tabla real de tenants intacta al cerrar, cero errores de
+  consola.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 

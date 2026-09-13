@@ -3636,6 +3636,64 @@ cambia de "Activo" a "Suspendido" y el ícono de pausa a check al
 suspender un usuario real de la tabla, sin errores de consola,
 restaurado a "Activo" al terminar. Sin commit/push todavía.
 
+**Punto 293 (2026-09-13, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker real)**: Centro de conocimiento de `/admin` puesto al día con los
+cambios recientes — pedido explícito del usuario ("actualiza los centro
+de conocimiento... con todos los cambios realizados"). Auditoría contra
+el sidebar real (`admin.html`) encontró 2 vistas completas sin categoría
+en el manual: "Mi Cuenta" (punto 283) y "Auditoría" (puntos 244/286) —
+agregadas, mismos íconos SVG que sus botones reales del sidebar, mismo
+orden. Categoría "Usuarios y perfiles" ganó 2 pasos nuevos: suspender/
+reactivar una cuenta (punto 290) y que una cuenta suspendida sigue
+contando contra la cuota de usuarios del plan. El resto de las
+categorías (Ventas, Tickets, Reportes, etc.) ya estaban al día de
+sesiones anteriores — confirmado por lectura, sin cambios ahí. 100%
+texto + 2 `<button class="conocimiento-nav-item">` nuevos en
+`admin.html` (mismo patrón, sin gate por perfil — el manual siempre se
+muestra completo a los 4 perfiles, como el resto de sus categorías).
+Cero cambio de backend. Validado con clics reales en navegador (Claude
+in Chrome) tras rebuild `--no-cache`+`--force-recreate` frontend: las 2
+categorías nuevas y los 2 pasos nuevos de Usuarios confirmados en
+pantalla, cero errores de consola. **`/control` NO tiene ningún Centro
+de conocimiento hoy** (confirmado por grep, cero coincidencias) — el
+usuario pidió actualizar "todos los aplicativos, como control y admin",
+pero construir uno ahí sería una función nueva, no una actualización;
+queda preguntado aparte antes de tocar código en `/control`. Sin
+commit/push todavía.
+
+**Punto 294 (2026-09-13, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker real)**: Centro de conocimiento nuevo para `/control` — cierra el
+hueco encontrado en el punto 293 (el usuario había pedido "todos los
+aplicativos, como control y admin" asumiendo que ya existía en ambos).
+Confirmado por `AskUserQuestion` que sí se quería construir uno nuevo,
+no dejarlo pendiente. Reuso literal del mismo componente ya validado en
+`/admin` (`.config-modal`/`.config-modal-sidebar`/`.config-modal-main`,
+ya en `admin.css`, que `control.html` ya cargaba — cero CSS nuevo) con
+contenido propio para las 3 vistas reales de `/control`: **Empresas**
+(alta solo registra la solicitud, Activar crea la BD física, Editar con
+cambiar-slug avanzado + identidad visual/cuota, Suspender/Reactivar/Dar
+de baja igual de reversibles, Credenciales API, slug clicable a
+`/‹slug›/admin`), **Sucursales** (grupos de tenants con usuarios
+compartidos, revocar corta el acceso a todas a la vez) y **Super
+Admins** (gestión de `ADMIN_USERS` sin reiniciar contenedor, aclarado
+que NO es lo mismo que un usuario de panel de un tenant). Alcance
+deliberadamente sin "Primeros pasos" (a diferencia de `/admin`) — con
+solo 3 vistas cross-tenant no aporta lo mismo que en un panel de 14
+vistas por perfil; simplificación consciente, no un olvido. Botones
+`#btn-abrir-conocimiento`/`#btn-abrir-conocimiento-topbar` agregados a
+`control.html` en los mismos lugares exactos que sus equivalentes de
+`admin.html` (pie del sidebar + primer elemento de la topbar). Todas
+las funciones JS (`abrirConocimiento`/`renderCategoriaConocimiento`/
+`filtrarConocimiento`/etc.) portadas de `admin.js` a `control.js` sin
+la parte de `accion`/recorrido guiado (no aplica aquí, ninguna
+categoría la usa). Cero cambio de backend, cero endpoint nuevo. `node
+--check` limpio. Validado con clics reales en navegador (Claude in
+Chrome): las 3 categorías con sus mismos íconos del sidebar real,
+buscador filtrando y resaltando en vivo ("slug" encontró 4 pasos reales
+de "Empresas"), atajo de topbar funcionando, tabla real de tenants
+intacta de fondo al cerrar el modal, cero errores de consola. Sin
+commit/push todavía.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en
