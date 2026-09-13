@@ -1861,24 +1861,41 @@
   // — bug real reportado por el usuario. Con un solo mapa, una vista
   // nueva que se agregue aquí queda cubierta en ambos lugares sin nada
   // más que tocar.
+  // Mismo orden que el sidebar real (arquitectura de información revisada,
+  // 2026-09-13: Inicio → Facturación → Ventas y gastos → Finanzas →
+  // Catálogo → Administración → Cuenta) — el orden de este objeto decide
+  // cuál vista gana como fallback cuando la activa se oculta (ver
+  // aplicarRestriccionesPerfil más abajo), así que importa que coincida.
   function mapaNavPorVista() {
     return {
       inicio: els.btnVistaInicio,
-      constancias: els.btnVistaConstancias,
       tickets: els.btnVistaTickets,
-      'resumen-financiero': els.btnVistaResumenFinanciero,
+      constancias: els.btnVistaConstancias,
       ordenes: els.btnVistaOrdenes,
       cxc: els.btnVistaCxc,
       gastos: els.btnVistaGastos,
-      inventarios: els.btnVistaInventarios,
-      usuarios: els.btnVistaUsuarios,
-      configuraciones: els.btnVistaConfiguraciones,
+      'resumen-financiero': els.btnVistaResumenFinanciero,
       'lectura-reportes': els.btnVistaLecturaReportes,
+      inventarios: els.btnVistaInventarios,
       proveedores: els.btnVistaProveedores,
-      'mi-cuenta': els.btnVistaMiCuenta,
+      usuarios: els.btnVistaUsuarios,
       auditoria: els.btnVistaAuditoria,
+      'mi-cuenta': els.btnVistaMiCuenta,
+      configuraciones: els.btnVistaConfiguraciones,
     };
   }
+
+  // Grupos del menú lateral — mismas fronteras que RESTRICCIONES_PERFIL
+  // (Facturación≈fiscal, Ventas y gastos≈ventas), usadas solo para
+  // ocultar/mostrar el título de cada grupo según si algún botón suyo
+  // quedó visible (ver aplicarRestriccionesPerfil).
+  const GRUPOS_SIDEBAR_NAV = {
+    facturacion: ['tickets', 'constancias'],
+    'ventas-gastos': ['ordenes', 'cxc', 'gastos'],
+    finanzas: ['resumen-financiero', 'lectura-reportes'],
+    catalogo: ['inventarios', 'proveedores'],
+    administracion: ['usuarios', 'auditoria'],
+  };
 
   function aplicarRestriccionesPerfil() {
     const restriccion = RESTRICCIONES_PERFIL[perfilActual];
@@ -1905,6 +1922,16 @@
       // no una segunda lista de restricciones que mantener sincronizada.
       const botonMovil = document.querySelector(`.admin-menu-movil-btn[data-vista="${vista}"]`);
       if (botonMovil) botonMovil.hidden = !permitida;
+    });
+
+    // Título de cada grupo del sidebar: se oculta solo si NINGÚN botón de
+    // ese grupo quedó visible para este perfil — nunca deja un
+    // encabezado sin nada debajo.
+    Object.entries(GRUPOS_SIDEBAR_NAV).forEach(([grupo, vistas]) => {
+      const etiqueta = document.querySelector(`.admin-sidebar-group-label[data-grupo="${grupo}"]`);
+      if (!etiqueta) return;
+      const algunaVisible = vistas.some((v) => navPorVista[v] && !navPorVista[v].hidden);
+      etiqueta.hidden = !algunaVisible;
     });
 
     // Inicio para el perfil "administrador" (2026-09-04): ve el resumen de
@@ -5541,11 +5568,33 @@
     { id: 'admin-config-card', label: 'Campos obligatorios de los formularios' },
     { id: 'global-config-card', label: 'Configuraciones fiscales' },
     { id: 'smtp-config-card', label: 'Correo electrónico (SMTP)' },
-    { id: 'reportes-config-card', label: 'Configuración Reportes' },
-    { id: 'ordenes-toggle-card', label: 'Ventas' },
-    { id: 'inv-toggle-card', label: 'Inventarios' },
-    { id: 'auditoria-toggle-card', label: 'Auditoría' },
+    { id: 'reportes-config-card', label: 'Notificación de reportes' },
+    { id: 'ordenes-toggle-card', label: 'Módulo Ventas' },
+    { id: 'inv-toggle-card', label: 'Módulo Inventarios' },
+    { id: 'auditoria-toggle-card', label: 'Módulo Auditoría' },
   ];
+
+  // Grupos de Configuraciones globales — mismo criterio que
+  // GRUPOS_SIDEBAR_NAV: solo deciden cuándo ocultar el título del grupo
+  // (0 tarjetas visibles, ya sea por permiso de perfil o por el
+  // buscador), nunca cuáles tarjetas existen.
+  const GRUPOS_CONFIG_NAV = {
+    fiscal: ['admin-config-card', 'global-config-card'],
+    comunicacion: ['smtp-config-card', 'reportes-config-card'],
+    modulos: ['ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
+  };
+
+  function actualizarGruposConfigNav() {
+    Object.entries(GRUPOS_CONFIG_NAV).forEach(([grupo, tarjetas]) => {
+      const etiqueta = document.querySelector(`.config-modal-nav-group-label[data-grupo="${grupo}"]`);
+      if (!etiqueta) return;
+      const algunaVisible = tarjetas.some((idTarjeta) => {
+        const boton = document.querySelector(`.config-modal-nav-item[data-tarjeta="${idTarjeta}"]`);
+        return boton && !boton.hidden;
+      });
+      etiqueta.hidden = !algunaVisible;
+    });
+  }
 
   function mostrarSeccionMovilConfig() {
     els.configModalSidebar.classList.add('is-oculta-movil');
@@ -5602,6 +5651,7 @@
       if (coincide) algunaVisible = true;
     });
     els.configModalNavEmpty.hidden = algunaVisible;
+    actualizarGruposConfigNav();
   }
   els.configModalBuscar.addEventListener('input', filtrarNavConfig);
 

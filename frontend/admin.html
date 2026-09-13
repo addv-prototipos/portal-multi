@@ -142,11 +142,26 @@
         <span>Menú</span>
       </button>
 
+      <!-- Arquitectura de información revisada (2026-09-13): las mismas 14
+           vistas de siempre, reagrupadas por tarea real en vez de una lista
+           plana — los 5 grupos coinciden con las fronteras de
+           RESTRICCIONES_PERFIL ya existentes (Facturación≈fiscal,
+           Ventas y gastos≈ventas, resto≈administrador), así que no es un
+           acomodo estético: hace visible una frontera que el código de
+           permisos ya tenía. Cada .admin-sidebar-group-label se
+           oculta sola por JS (aplicarRestriccionesPerfil) si ningún botón
+           de su grupo quedó visible para el perfil actual — nunca deja un
+           título huérfano. "Configuraciones globales" se queda al final
+           (mismo pedido explícito de 2026-08-21: cualquier vista nueva va
+           ANTES de este botón, nunca después) junto con "Mi Cuenta", como
+           utilidades de cuenta separadas de los 5 grupos de trabajo. -->
       <nav class="admin-sidebar-nav" role="tablist" aria-label="Vista del panel">
         <button type="button" class="admin-vista-btn is-active" id="btn-vista-inicio" role="tab" aria-selected="true">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Inicio</span>
         </button>
+
+        <div class="admin-sidebar-group-label" data-grupo="facturacion">Facturación</div>
         <button type="button" class="admin-vista-btn" id="btn-vista-tickets" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Tickets</span>
@@ -155,10 +170,8 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Constancias</span>
         </button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-resumen-financiero" role="tab" aria-selected="false">
-          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Resumen financiero</span>
-        </button>
+
+        <div class="admin-sidebar-group-label" data-grupo="ventas-gastos">Ventas y gastos</div>
         <button type="button" class="admin-vista-btn" id="btn-vista-ordenes" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Ventas</span>
@@ -171,29 +184,41 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Gastos</span>
         </button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-inventarios" role="tab" aria-selected="false" hidden>
-          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-          <span>Inventarios</span>
-        </button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-usuarios" role="tab" aria-selected="false">
-          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Usuarios</span>
+
+        <div class="admin-sidebar-group-label" data-grupo="finanzas">Finanzas</div>
+        <button type="button" class="admin-vista-btn" id="btn-vista-resumen-financiero" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Resumen financiero</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-lectura-reportes" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Reportes</span>
         </button>
+
+        <div class="admin-sidebar-group-label" data-grupo="catalogo">Catálogo</div>
+        <button type="button" class="admin-vista-btn" id="btn-vista-inventarios" role="tab" aria-selected="false" hidden>
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Inventarios</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-proveedores" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Proveedores</span>
         </button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-mi-cuenta" role="tab" aria-selected="false">
-          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Mi Cuenta</span>
+
+        <div class="admin-sidebar-group-label" data-grupo="administracion">Administración</div>
+        <button type="button" class="admin-vista-btn" id="btn-vista-usuarios" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Usuarios</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-auditoria" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Auditoría</span>
+        </button>
+
+        <div class="admin-sidebar-group-label" data-grupo="cuenta">Cuenta</div>
+        <button type="button" class="admin-vista-btn" id="btn-vista-mi-cuenta" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Mi Cuenta</span>
         </button>
         <!-- "Configuraciones globales" siempre AL FINAL del sidebar (pedido
              explícito del usuario, 2026-08-21) — cualquier vista nueva que
@@ -264,10 +289,6 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Constancias</span>
         </button>
-        <button type="button" class="admin-menu-movil-btn" data-vista="resumen-financiero">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Resumen financiero</span>
-        </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="ordenes">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Ventas</span>
@@ -280,29 +301,33 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Gastos</span>
         </button>
-        <button type="button" class="admin-menu-movil-btn" data-vista="inventarios" hidden>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-          <span>Inventarios</span>
-        </button>
-        <button type="button" class="admin-menu-movil-btn" data-vista="usuarios">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Usuarios</span>
+        <button type="button" class="admin-menu-movil-btn" data-vista="resumen-financiero">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Resumen financiero</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="lectura-reportes">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Reportes</span>
         </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="inventarios" hidden>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Inventarios</span>
+        </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="proveedores">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Proveedores</span>
         </button>
-        <button type="button" class="admin-menu-movil-btn" data-vista="mi-cuenta">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Mi Cuenta</span>
+        <button type="button" class="admin-menu-movil-btn" data-vista="usuarios">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Usuarios</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="auditoria">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Auditoría</span>
+        </button>
+        <button type="button" class="admin-menu-movil-btn" data-vista="mi-cuenta">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Mi Cuenta</span>
         </button>
         <button type="button" class="admin-menu-movil-btn" data-vista="configuraciones">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round" stroke-width="1.3"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
@@ -2125,7 +2150,19 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4" stroke-linecap="round"/></svg>
               <input type="search" id="config-modal-buscar" placeholder="Buscar…" aria-label="Buscar sección de configuración" autocomplete="off" />
             </div>
+            <!-- Arquitectura de información revisada (2026-09-13): las
+                 mismas 7 tarjetas de siempre, agrupadas por naturaleza en
+                 vez de una lista plana — "Fiscal"/"Comunicación" son
+                 formularios reales, "Módulos" son simples interruptores
+                 ON/OFF. "Ventas"/"Inventarios"/"Auditoría" ganan el
+                 prefijo "Módulo" para dejar de colisionar con el nombre
+                 de la vista homónima del menú lateral; "Configuración
+                 Reportes" se renombra a "Notificación de reportes" por
+                 el mismo motivo (colisionaba con la vista "Reportes").
+                 Ningún id, campo ni lógica de guardado cambia — solo el
+                 texto visible y el agrupamiento visual. -->
             <nav class="config-modal-nav" id="config-modal-nav" aria-label="Secciones de configuración">
+              <div class="config-modal-nav-group-label" data-grupo="fiscal">Fiscal</div>
               <button type="button" class="config-modal-nav-item" data-tarjeta="admin-config-card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 13.5C19.4 13 19.5 12.5 19.5 12C19.5 11.5 19.4 11 19.4 10.5L21.4 9C21.6 8.8 21.6 8.5 21.5 8.3L19.6 5C19.5 4.8 19.2 4.7 19 4.8L16.6 5.8C16.1 5.4 15.6 5.1 15 4.9L14.7 2.3C14.6 2.1 14.4 2 14.2 2H9.8C9.6 2 9.4 2.1 9.3 2.3L9 4.9C8.4 5.1 7.9 5.4 7.4 5.8L5 4.8C4.8 4.7 4.5 4.8 4.4 5L2.5 8.3C2.4 8.5 2.4 8.8 2.6 9L4.6 10.5C4.6 11 4.5 11.5 4.5 12C4.5 12.5 4.6 13 4.6 13.5L2.6 15C2.4 15.2 2.4 15.5 2.5 15.7L4.4 19C4.5 19.2 4.8 19.3 5 19.2L7.4 18.2C7.9 18.6 8.4 18.9 9 19.1L9.3 21.7C9.4 21.9 9.6 22 9.8 22H14.2C14.4 22 14.6 21.9 14.7 21.7L15 19.1C15.6 18.9 16.1 18.6 16.6 18.2L19 19.2C19.2 19.3 19.5 19.2 19.6 19L21.5 15.7C21.6 15.5 21.6 15.2 21.4 15L19.4 13.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
                 Campos obligatorios de los formularios
@@ -2134,25 +2171,29 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7V12L15 14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/></svg>
                 Configuraciones fiscales
               </button>
+
+              <div class="config-modal-nav-group-label" data-grupo="comunicacion">Comunicación</div>
               <button type="button" class="config-modal-nav-item" data-tarjeta="smtp-config-card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m3.5 6 8.5 7 8.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Correo electrónico (SMTP)
               </button>
               <button type="button" class="config-modal-nav-item" data-tarjeta="reportes-config-card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M15 3v5h5M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                Configuración Reportes
+                Notificación de reportes
               </button>
+
+              <div class="config-modal-nav-group-label" data-grupo="modulos">Módulos (activar/desactivar)</div>
               <button type="button" class="config-modal-nav-item" data-tarjeta="ordenes-toggle-card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-                Ventas
+                Módulo Ventas
               </button>
               <button type="button" class="config-modal-nav-item" data-tarjeta="inv-toggle-card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-                Inventarios
+                Módulo Inventarios
               </button>
               <button type="button" class="config-modal-nav-item" data-tarjeta="auditoria-toggle-card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                Auditoría
+                Módulo Auditoría
               </button>
             </nav>
             <p class="config-modal-nav-empty" id="config-modal-nav-empty" hidden>Ninguna sección coincide con tu búsqueda.</p>

@@ -212,6 +212,23 @@
 }
 .admin-sidebar-icon { flex-shrink: 0; }
 
+/* Encabezados de grupo del menú lateral (arquitectura de información
+   revisada, 2026-09-13) — mismo criterio tipográfico que las etiquetas
+   de categoría de Configuraciones globales (.config-modal-nav no tiene
+   equivalente porque ahí es una lista sin grupos aparte; este es el
+   primero de este tipo en el sidebar). Se oculta por JS
+   (aplicarRestriccionesPerfil) si ningún botón de su grupo quedó
+   visible para el perfil actual — nunca queda un título huérfano. */
+.admin-sidebar-group-label {
+  padding: 14px 12px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.42);
+}
+.admin-sidebar-group-label:first-of-type { padding-top: 4px; }
+
 /* §58: switcher de sucursales — navega a /<slug>/admin de otra empresa
    del mismo grupo. Mismo lenguaje visual que .admin-vista-btn (mismo
    sidebar navy) pero como enlaces reales, no botones de vista SPA. */
@@ -958,6 +975,21 @@
 .config-modal-nav-item svg, .conocimiento-nav-item svg { flex-shrink: 0; }
 .config-modal-nav-item:hover, .conocimiento-nav-item:hover { background: var(--color-accent-soft); color: var(--color-accent-dark); }
 .config-modal-nav-item.is-active, .conocimiento-nav-item.is-active { background: #05DBF2; color: #03285B; }
+
+/* Encabezados de grupo dentro de "Configuraciones globales" (arquitectura
+   de información revisada, 2026-09-13) — separa formularios reales
+   (Fiscal, Comunicación) de simples interruptores de módulo (Módulos).
+   Se oculta por JS si la búsqueda o los permisos del perfil dejan a su
+   grupo sin ninguna tarjeta visible (ver actualizarGruposConfigNav). */
+.config-modal-nav-group-label {
+  padding: 12px 10px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-soft);
+}
+.config-modal-nav-group-label:first-of-type { padding-top: 2px; }
 .config-modal-nav-empty {
   padding: 6px 14px 14px;
   font-size: 12.5px;

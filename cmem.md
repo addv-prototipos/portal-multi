@@ -907,3 +907,26 @@ backend. Validado con clics reales en navegador: 3 categorías con
 íconos reales, buscador resaltando en vivo, atajo de topbar, tabla de
 tenants intacta al cerrar, cero errores de consola. Detalle:
 `PROJECT_STATE.md`/`CLAUDE.md` punto 294. Sin commit/push.
+
+C069 2026-09-13 ◆ Arquitectura de información: menú lateral + Configuraciones
+globales, punto 295. Pedido: auditoría profunda con mejores skills UX +
+investigación real en internet, propuesta visual antes/después por
+mejora, sin implementar hasta confirmar — confirmado en la misma
+conversación. Investigación: 6 principios de IA para dashboards
+(GoodData), NN/g (etiquetas mutuamente excluyentes), Ley de Miller vía
+Shopify Polaris (máx ~7 accesos), guías de settings pages (Eleken).
+Hallazgos reales: 14 vistas en lista plana, 3 colisiones de nombre
+vista↔tarjeta de config (Ventas/Inventarios/Reportes), Centro de
+conocimiento ya agrupaba por tema en otro orden que el sidebar.
+Propuesta validada con mockup interactivo por los 4 perfiles ANTES de
+implementar — los 5 grupos coinciden con RESTRICCIONES_PERFIL ya
+existente. Implementado: sidebar en 5 secciones (Facturación/Ventas y
+gastos/Finanzas/Catálogo/Administración) + Inicio suelto + Cuenta al
+fondo, encabezados que se auto-ocultan (GRUPOS_SIDEBAR_NAV); Config
+globales en 3 secciones (Fiscal/Comunicación/Módulos) + 4 renombres
+para cerrar las colisiones (Módulo Ventas/Inventarios/Auditoría,
+Notificación de reportes). Cero backend, cero permiso tocado. Validado
+con clics reales: grupo parcial (Administración con 1/2 visible) y
+grupo total confirmados sin título huérfano, buscador de config
+filtrando en vivo, cero errores de consola. Detalle:
+`PROJECT_STATE.md`/`CLAUDE.md` punto 295. Sin commit/push.

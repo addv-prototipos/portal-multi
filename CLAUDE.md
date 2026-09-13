@@ -3694,6 +3694,37 @@ de "Empresas"), atajo de topbar funcionando, tabla real de tenants
 intacta de fondo al cerrar el modal, cero errores de consola. Sin
 commit/push todavía.
 
+**Punto 295 (2026-09-13, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker real)**: arquitectura de información revisada del menú lateral y
+de "Configuraciones globales" — pedido explícito del usuario con
+investigación de UX real (6 principios de IA para dashboards + NN/g +
+Ley de Miller + guías de settings pages, todo citado en un Artifact
+antes de tocar código). Hallazgos reales de la auditoría: 14 vistas en
+lista plana sin agrupar, 3 colisiones de nombre entre una vista del menú
+y una tarjeta de Configuraciones ("Ventas"/"Inventarios"/"Reportes"),
+y el propio Centro de conocimiento ya agrupaba por tema en un orden
+distinto al del sidebar real. Menú lateral: mismas 14 vistas, 0
+renombradas, reagrupadas en 5 secciones (Facturación/Ventas y
+gastos/Finanzas/Catálogo/Administración) + Inicio suelto + sección
+Cuenta al fondo (Mi Cuenta/Configuraciones globales, que se queda
+exactamente al final por la regla ya existente de 2026-08-21) — los 5
+grupos se validaron ANTES de implementar contra los 4 perfiles reales,
+coinciden casi exacto con `RESTRICCIONES_PERFIL` ya existente. Cada
+encabezado de grupo se oculta solo si 0 de sus vistas quedan visibles
+para el perfil actual (`GRUPOS_SIDEBAR_NAV` nuevo). Configuraciones
+globales: mismas 7 tarjetas, mismo `id`, cero lógica de guardado
+tocada — reagrupadas en Fiscal/Comunicación/Módulos (activar/
+desactivar), con 4 renombres de texto para cerrar las colisiones
+("Ventas"→"Módulo Ventas", "Inventarios"→"Módulo Inventarios",
+"Auditoría"→"Módulo Auditoría", "Configuración Reportes"→"Notificación
+de reportes"). Cero cambio de backend, cero permiso de perfil
+modificado. Validado con clics reales en navegador (Claude in Chrome):
+sidebar agrupado con sesión real (grupo "Administración" con 1 de 2
+vistas visibles no deja título huérfano — confirma el caso de grupo
+parcialmente vacío, no solo el vacío total), Configuraciones globales
+con los 3 grupos reales y el buscador filtrando en vivo sin dejar
+títulos huérfanos, cero errores de consola. Sin commit/push todavía.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

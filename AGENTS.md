@@ -554,6 +554,23 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   topbar, tabla real de tenants intacta al cerrar, cero errores de
   consola.
 
+- **Punto 295 — Arquitectura de información: menú lateral y
+  Configuraciones globales (ver PROJECT_STATE.md, 2026-09-13,
+  IMPLEMENTADO Y VALIDADO en navegador real)**: investigación real de
+  UX (6 principios de IA para dashboards, NN/g, Ley de Miller, guías de
+  settings pages) antes de proponer nada. 14 vistas del sidebar
+  reagrupadas en 5 secciones (Facturación/Ventas y gastos/Finanzas/
+  Catálogo/Administración) + Inicio suelto + Cuenta al fondo — grupos
+  validados contra los 4 perfiles reales ANTES de implementar,
+  coinciden con `RESTRICCIONES_PERFIL` ya existente. Configuraciones
+  globales reagrupada en Fiscal/Comunicación/Módulos, con 4 renombres
+  para cerrar colisiones de nombre reales entre una vista del menú y
+  una tarjeta de configuración ("Ventas"/"Inventarios"/"Reportes").
+  Cero backend, cero permiso tocado — 100% reordenamiento visual.
+  Validado con clics reales: grupos se auto-ocultan sin dejar títulos
+  huérfanos (caso parcial y caso total probados), buscador de
+  Configuraciones filtrando en vivo, cero errores de consola.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 
