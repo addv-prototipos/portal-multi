@@ -63,10 +63,10 @@
     usoCfdiInfo: document.getElementById('uso-cfdi-info'),
     btnActualizarUsoCfdi: document.getElementById('btn-actualizar-uso-cfdi'),
     btnActualizarUsoCfdiLabel: document.getElementById('btn-actualizar-uso-cfdi-label'),
-    // Configuración de correo SMTP
-    btnToggleSmtp: document.getElementById('btn-toggle-smtp'),
+    // Configuración de correo SMTP — acordeón estricto de 3 subsecciones
+    // (Correo electrónico/Plantillas/Prueba, ver aplicarAcordeonSmtp)
     smtpConfigBody: document.getElementById('smtp-config-body'),
-    smtpConfigChevron: document.getElementById('smtp-config-chevron'),
+    smtpAutosaveTag: document.getElementById('smtp-autosave-tag'),
     smtpEstadoBadge: document.getElementById('smtp-estado-badge'),
     smtpHost: document.getElementById('smtp-host'),
     smtpPuerto: document.getElementById('smtp-puerto'),
@@ -1895,7 +1895,68 @@
     finanzas: ['resumen-financiero', 'lectura-reportes'],
     catalogo: ['inventarios', 'proveedores'],
     administracion: ['usuarios', 'auditoria'],
+    cuenta: ['mi-cuenta', 'configuraciones'],
   };
+
+  // Punto 296: a qué grupo pertenece una vista — para saber cuál abrir
+  // solo cuando esa vista se vuelve la activa (ver aplicarEstadoGruposSidebar).
+  function grupoDeVistaSidebar(vista) {
+    const entrada = Object.entries(GRUPOS_SIDEBAR_NAV).find(([, vistas]) => vistas.includes(vista));
+    return entrada ? entrada[0] : null;
+  }
+
+  // Colapso de grupos del sidebar — se guarda por cuenta (mismo patrón
+  // que claveOnboarding), pero SOLO la excepción manual: si el usuario
+  // nunca tocó un grupo, su estado sigue siendo "abierto solo si es el
+  // grupo de la vista activa", automático, sin nada que recordar.
+  function claveGruposSidebar() {
+    return `sidebar_grupos_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+  function leerOverridesGruposSidebar() {
+    try {
+      const crudo = localStorage.getItem(claveGruposSidebar());
+      return crudo ? JSON.parse(crudo) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  function guardarOverridesGruposSidebar(overrides) {
+    try {
+      localStorage.setItem(claveGruposSidebar(), JSON.stringify(overrides));
+    } catch (_) {
+      // localStorage lleno o bloqueado (modo privado): se pierde el
+      // recuerdo entre sesiones, el colapso de esta sesión sigue normal.
+    }
+  }
+
+  // Aplica qué grupos se ven abiertos/cerrados: el de la vista activa,
+  // más cualquier grupo que el usuario haya abierto/cerrado a mano
+  // (guardado en overrides, gana siempre sobre el automático).
+  function aplicarEstadoGruposSidebar(vistaActiva) {
+    const overrides = leerOverridesGruposSidebar();
+    const grupoActivo = grupoDeVistaSidebar(vistaActiva);
+    Object.keys(GRUPOS_SIDEBAR_NAV).forEach((grupo) => {
+      const header = document.querySelector(`.admin-sidebar-group-header[data-grupo="${grupo}"]`);
+      const body = document.querySelector(`.admin-sidebar-group-body[data-grupo="${grupo}"]`);
+      if (!header || !body) return;
+      const expandido = Object.prototype.hasOwnProperty.call(overrides, grupo) ? overrides[grupo] : grupo === grupoActivo;
+      header.setAttribute('aria-expanded', String(expandido));
+      body.dataset.colapsado = String(!expandido);
+    });
+  }
+
+  document.querySelectorAll('.admin-sidebar-group-header').forEach((header) => {
+    header.addEventListener('click', () => {
+      const grupo = header.dataset.grupo;
+      const nuevoExpandido = header.getAttribute('aria-expanded') !== 'true';
+      const overrides = leerOverridesGruposSidebar();
+      overrides[grupo] = nuevoExpandido;
+      guardarOverridesGruposSidebar(overrides);
+      header.setAttribute('aria-expanded', String(nuevoExpandido));
+      const body = document.querySelector(`.admin-sidebar-group-body[data-grupo="${grupo}"]`);
+      if (body) body.dataset.colapsado = String(!nuevoExpandido);
+    });
+  });
 
   function aplicarRestriccionesPerfil() {
     const restriccion = RESTRICCIONES_PERFIL[perfilActual];
@@ -1928,10 +1989,11 @@
     // ese grupo quedó visible para este perfil — nunca deja un
     // encabezado sin nada debajo.
     Object.entries(GRUPOS_SIDEBAR_NAV).forEach(([grupo, vistas]) => {
-      const etiqueta = document.querySelector(`.admin-sidebar-group-label[data-grupo="${grupo}"]`);
-      if (!etiqueta) return;
+      const encabezado = document.querySelector(`.admin-sidebar-group-header[data-grupo="${grupo}"]`);
+      const cuerpo = document.querySelector(`.admin-sidebar-group-body[data-grupo="${grupo}"]`);
       const algunaVisible = vistas.some((v) => navPorVista[v] && !navPorVista[v].hidden);
-      etiqueta.hidden = !algunaVisible;
+      if (encabezado) encabezado.hidden = !algunaVisible;
+      if (cuerpo) cuerpo.hidden = !algunaVisible;
     });
 
     // Inicio para el perfil "administrador" (2026-09-04): ve el resumen de
@@ -1976,6 +2038,12 @@
     els.adminUserLabel.textContent = `Sesión: ${username}`;
     anclarHistorialMovil();
     aplicarRestriccionesPerfil();
+    // "Inicio" es siempre la vista activa en este punto (la restauración
+    // de una vista guardada, si aplica, pasa por cambiarVistaPrincipal()
+    // más abajo en init() — que ya vuelve a llamar a esto con la vista
+    // real). Cubre el caso de una cuenta que sí abrió un grupo a mano:
+    // ese override se respeta desde el primer render, no hasta navegar.
+    aplicarEstadoGruposSidebar('inicio');
     controladorColumnasConstancias.aplicarColumnasVisibles(controladorColumnasConstancias.cargarColumnasGuardadas());
     controladorColumnasConstancias.aplicarAnchosGuardados();
     controladorColumnasOrdenes.aplicarColumnasVisibles(controladorColumnasOrdenes.cargarColumnasGuardadas());
@@ -2211,10 +2279,10 @@
     els.btnToggleGlobalConfig.setAttribute('aria-expanded', 'false');
     els.globalConfigBody.hidden = true;
     els.globalConfigError.textContent = '';
-    els.btnToggleSmtp.setAttribute('aria-expanded', 'false');
     els.smtpConfigBody.hidden = true;
     els.smtpConfigError.textContent = '';
     els.smtpPruebaError.textContent = '';
+    smtpAccSeccionAbierta = 'conexion';
     els.btnToggleRetencion.setAttribute('aria-expanded', 'false');
     els.retencionConfigBody.hidden = true;
     els.retencionError.textContent = '';
@@ -4351,12 +4419,27 @@
   });
 
   // ---------- Configuración de correo SMTP ----------
+  // Acordeón estricto de 3 subsecciones (Correo electrónico/Plantillas/
+  // Prueba) — solo 1 abierta a la vez, la anterior se cierra sola. Misma
+  // técnica que los grupos del sidebar (punto 296), sin persistencia:
+  // siempre arranca en "conexion" al entrar a esta tarjeta (ver
+  // seleccionarSeccionConfig más abajo).
+  let smtpAccSeccionAbierta = 'conexion';
 
-  els.btnToggleSmtp.addEventListener('click', () => {
-    const abierto = els.btnToggleSmtp.getAttribute('aria-expanded') === 'true';
-    els.btnToggleSmtp.setAttribute('aria-expanded', String(!abierto));
-    els.smtpConfigBody.hidden = abierto;
-    if (!abierto) cargarConfigSmtp();
+  function aplicarAcordeonSmtp() {
+    document.querySelectorAll('.smtp-acc-header').forEach((btn) => {
+      btn.setAttribute('aria-expanded', String(btn.dataset.seccion === smtpAccSeccionAbierta));
+    });
+    document.querySelectorAll('.smtp-acc-body').forEach((body) => {
+      body.dataset.colapsado = String(body.dataset.seccion !== smtpAccSeccionAbierta);
+    });
+  }
+
+  document.querySelectorAll('.smtp-acc-header').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      smtpAccSeccionAbierta = btn.dataset.seccion === smtpAccSeccionAbierta ? null : btn.dataset.seccion;
+      aplicarAcordeonSmtp();
+    });
   });
 
   // Guía Gmail paso a paso, inline en la tarjeta (Fase 7 UX, 2026-09-04) —
@@ -4540,17 +4623,49 @@
 
   function setGuardarSmtpLoading(cargando) {
     els.btnGuardarSmtp.disabled = cargando;
-    els.btnGuardarSmtpLabel.textContent = cargando ? 'Guardando…' : 'Guardar configuración';
+    els.btnGuardarSmtpLabel.textContent = cargando ? 'Guardando…' : 'Guardar plantilla';
   }
 
-  els.btnGuardarSmtp.addEventListener('click', async () => {
+  // Valida los mismos 4 campos que el backend exige (host/puerto/usuario
+  // obligatorios, correo del contador con formato si viene lleno) — usada
+  // tanto por el botón "Guardar plantilla" como por el autoguardado de
+  // "Correo electrónico (SMTP)", para que ambos caminos rechacen lo mismo.
+  function validarCamposSmtp({ host, puerto, usuario, correoContador }) {
+    if (!host) return 'El host SMTP es obligatorio.';
+    if (!Number.isInteger(puerto) || puerto < 1 || puerto > 65535) return 'El puerto debe ser un número entre 1 y 65535.';
+    if (!usuario) return 'El usuario (correo) es obligatorio.';
+    if (correoContador && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoContador)) return 'El correo de quien va a facturar no es válido.';
+    return '';
+  }
+
+  let smtpAutosaveTagTimer = null;
+  function setSmtpAutosaveEstado(estado, mensaje) {
+    if (!els.smtpAutosaveTag) return;
+    clearTimeout(smtpAutosaveTagTimer);
+    els.smtpAutosaveTag.className = 'smtp-autosave-tag' + (estado ? ` is-${estado}` : '');
+    els.smtpAutosaveTag.textContent =
+      estado === 'guardando' ? 'Guardando…' : estado === 'guardado' ? 'Guardado ✓' : estado === 'error' ? (mensaje || 'No se pudo guardar') : '';
+    if (estado === 'guardado') {
+      smtpAutosaveTagTimer = setTimeout(() => {
+        els.smtpAutosaveTag.className = 'smtp-autosave-tag';
+        els.smtpAutosaveTag.textContent = '';
+      }, 2500);
+    }
+  }
+
+  // Único punto que llama a PUT /admin/config/smtp — el endpoint no admite
+  // guardado parcial (siempre espera los 13 campos, conexión + 5
+  // plantillas juntos: ver PROJECT_STATE.md, análisis SMTP acordeón), así
+  // que tanto el botón "Guardar plantilla" (modo 'boton') como el
+  // autoguardado de "Correo electrónico (SMTP)" (modo 'autosave') mandan
+  // siempre la foto completa del formulario — nunca un campo aislado.
+  async function guardarConfigSmtpCompleta(modo) {
     const authHeader = getAuthHeader();
     if (!authHeader) {
       showLogin();
-      return;
+      return false;
     }
 
-    els.smtpConfigError.textContent = '';
     const host = els.smtpHost.value.trim();
     const puerto = Number(els.smtpPuerto.value);
     const seguridad = els.smtpSeguridad.value;
@@ -4560,24 +4675,19 @@
     const correoRemitente = els.smtpCorreoRemitente.value.trim();
     const correoContador = els.smtpCorreoContador.value.trim();
 
-    if (!host) {
-      els.smtpConfigError.textContent = 'El host SMTP es obligatorio.';
-      return;
-    }
-    if (!Number.isInteger(puerto) || puerto < 1 || puerto > 65535) {
-      els.smtpConfigError.textContent = 'El puerto debe ser un número entre 1 y 65535.';
-      return;
-    }
-    if (!usuario) {
-      els.smtpConfigError.textContent = 'El usuario (correo) es obligatorio.';
-      return;
-    }
-    if (correoContador && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoContador)) {
-      els.smtpConfigError.textContent = 'El correo de quien va a facturar no es válido.';
-      return;
+    const errorValidacion = validarCamposSmtp({ host, puerto, usuario, correoContador });
+    if (errorValidacion) {
+      if (modo === 'boton') els.smtpConfigError.textContent = errorValidacion;
+      return false;
     }
 
-    setGuardarSmtpLoading(true);
+    if (modo === 'boton') {
+      els.smtpConfigError.textContent = '';
+      setGuardarSmtpLoading(true);
+    } else {
+      setSmtpAutosaveEstado('guardando');
+    }
+
     try {
       const res = await fetch(`${API_BASE}/admin/config/smtp`, {
         method: 'PUT',
@@ -4600,10 +4710,13 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        els.smtpConfigError.textContent = data.error || 'No se pudo guardar la configuración.';
-        return;
+        const mensaje = data.error || 'No se pudo guardar la configuración.';
+        if (modo === 'boton') els.smtpConfigError.textContent = mensaje;
+        else setSmtpAutosaveEstado('error', mensaje);
+        return false;
       }
-      showToast('Configuración de correo guardada.');
+      if (modo === 'boton') showToast('Configuración de correo guardada.');
+      else setSmtpAutosaveEstado('guardado');
       els.smtpPassword.value = '';
       els.smtpPasswordHint.textContent = data.passwordConfigurada
         ? 'Ya hay una contraseña guardada. Déjala en blanco para conservarla, o escribe una nueva para reemplazarla.'
@@ -4611,11 +4724,36 @@
       els.smtpEstadoBadge.hidden = false;
       els.smtpEstadoBadge.textContent = data.configurado ? 'Configurado' : 'Sin configurar';
       els.smtpEstadoBadge.className = `smtp-estado-badge ${data.configurado ? 'is-ok' : 'is-pendiente'}`;
+      return true;
     } catch (err) {
-      els.smtpConfigError.textContent = 'No se pudo conectar con el servidor.';
+      const mensaje = 'No se pudo conectar con el servidor.';
+      if (modo === 'boton') els.smtpConfigError.textContent = mensaje;
+      else setSmtpAutosaveEstado('error', mensaje);
+      return false;
     } finally {
-      setGuardarSmtpLoading(false);
+      if (modo === 'boton') setGuardarSmtpLoading(false);
     }
+  }
+
+  els.btnGuardarSmtp.addEventListener('click', () => guardarConfigSmtpCompleta('boton'));
+
+  // Autoguardado de "Correo electrónico (SMTP)": dispara en 'change' (blur
+  // con valor distinto, o selección nueva en el <select>), nunca por
+  // tecla — solo intenta guardar si los campos obligatorios ya son
+  // válidos (mismo validarCamposSmtp de arriba), así nunca manda al
+  // backend algo que sabemos que va a rechazar.
+  [els.smtpHost, els.smtpPuerto, els.smtpSeguridad, els.smtpUsuario, els.smtpPassword, els.smtpNombreRemitente, els.smtpCorreoRemitente, els.smtpCorreoContador].forEach((campo) => {
+    if (!campo) return;
+    campo.addEventListener('change', () => {
+      const errorValidacion = validarCamposSmtp({
+        host: els.smtpHost.value.trim(),
+        puerto: Number(els.smtpPuerto.value),
+        usuario: els.smtpUsuario.value.trim(),
+        correoContador: els.smtpCorreoContador.value.trim(),
+      });
+      if (errorValidacion) return;
+      guardarConfigSmtpCompleta('autosave');
+    });
   });
 
   function setEnviarPruebaLoading(cargando) {
@@ -5627,6 +5765,10 @@
     });
     els.configModalTitle.textContent = seccion.label;
     if (els.configModalMainBody) els.configModalMainBody.scrollTop = 0;
+    if (idTarjeta === 'smtp-config-card') {
+      smtpAccSeccionAbierta = 'conexion';
+      aplicarAcordeonSmtp();
+    }
   }
 
   function primeraSeccionConfigVisible() {
@@ -5697,6 +5839,7 @@
 
   function cambiarVistaPrincipal(vista) {
     guardarVistaActual(vista);
+    aplicarEstadoGruposSidebar(vista);
     // Seleccionar cualquier vista de negocio real cierra el launcher de
     // íconos del menú móvil, si estaba abierto.
     els.adminMenuMovil.hidden = true;
@@ -5805,6 +5948,7 @@
   els.btnVistaUsuarios.addEventListener('click', () => cambiarVistaPrincipal('usuarios'));
   els.btnVistaConfiguraciones.addEventListener('click', () => {
     els.adminMenuMovil.hidden = true;
+    aplicarEstadoGruposSidebar('configuraciones');
     abrirConfigModal();
   });
   els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));

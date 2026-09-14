@@ -3725,6 +3725,47 @@ parcialmente vacío, no solo el vacío total), Configuraciones globales
 con los 3 grupos reales y el buscador filtrando en vivo sin dejar
 títulos huérfanos, cero errores de consola. Sin commit/push todavía.
 
+**Punto 296 (2026-09-13, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker real)**: los 6 encabezados de grupo del sidebar (punto 295) ahora
+son colapsables + scrollbar delgada tipo overlay — pedido explícito del
+usuario con captura de la barra de scroll ancha del navegador. Crítica
+aplicada (Artifact con mockup interactivo aprobado): en vez de colapso
+100% manual, **el grupo de la vista activa se abre solo** y el resto
+empieza colapsado; cualquier grupo abierto a mano se recuerda por
+cuenta (`localStorage`, mismo patrón que `claveOnboarding()`) sin
+cerrarse al navegar a otra vista. Scrollbar quedó delgada/casi
+invisible en reposo (nunca oculta del todo, para no esconder que hay
+más contenido) en vez de removida por completo. `aplicarEstadoGruposSidebar()`
+nuevo, llamado desde `cambiarVistaPrincipal()`, el clic de
+"Configuraciones globales" y `showDashboard()`. Cero backend, cero
+permiso tocado. Validado con clics reales: colapsado por defecto sin
+scroll necesario, expansión/colapso animados (grid-template-rows,
+respeta reduced-motion), 2 grupos abiertos a la vez sin conflicto
+(uno manual + uno auto por vista activa), persistencia confirmada tras
+F5 real. Cero errores de consola. Sin commit/push todavía.
+
+**Punto 297 (2026-09-13, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker real)**: tarjeta "Correo electrónico (SMTP)" de Configuraciones
+globales — "Correo electrónico (SMTP)"/"Plantillas de correo"/"Enviar
+correo de prueba" pasan a acordeón estricto (solo 1 abierta, la anterior
+se cierra sola, misma técnica `grid-template-rows` del punto 296).
+Hallazgo real que cambió el análisis: `PUT /api/admin/config/smtp` no
+admite guardado parcial (siempre espera los 13 campos juntos, conexión +
+5 plantillas) — el acordeón estricto en realidad mitiga el riesgo (nunca
+hay campos de conexión y una plantilla sin guardar visibles a la vez).
+"Correo electrónico (SMTP)" autoguarda sola (evento `change`, misma
+validación que ya exigía el botón, indicador "Guardando…"/"Guardado ✓"
+en el propio encabezado); el único botón "Guardar" se relocalizó dentro
+de "Plantillas de correo" (etiqueta "Guardar plantilla") — 2 botones se
+descartó por antipatrón de affordance redundante. `guardarConfigSmtp
+Completa(modo)` unifica ambos caminos (botón/autosave) sobre el mismo
+payload. Acordeón viejo e inerte de esta tarjeta (`btn-toggle-smtp`)
+eliminado junto con su reset en `cerrarSesion()`. Cero backend, Jest
+958/958 sin cambios. Validado con clics/JS reales en navegador: acordeón
+estricto confirmado, autoguardado disparado y persistido de verdad
+(`GET /api/admin/config/smtp`), botón reubicado. Sin commit/push
+todavía. Ver PROJECT_STATE.md punto 297.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

@@ -142,26 +142,32 @@
         <span>Menú</span>
       </button>
 
-      <!-- Arquitectura de información revisada (2026-09-13): las mismas 14
-           vistas de siempre, reagrupadas por tarea real en vez de una lista
-           plana — los 5 grupos coinciden con las fronteras de
-           RESTRICCIONES_PERFIL ya existentes (Facturación≈fiscal,
-           Ventas y gastos≈ventas, resto≈administrador), así que no es un
-           acomodo estético: hace visible una frontera que el código de
-           permisos ya tenía. Cada .admin-sidebar-group-label se
-           oculta sola por JS (aplicarRestriccionesPerfil) si ningún botón
-           de su grupo quedó visible para el perfil actual — nunca deja un
-           título huérfano. "Configuraciones globales" se queda al final
-           (mismo pedido explícito de 2026-08-21: cualquier vista nueva va
-           ANTES de este botón, nunca después) junto con "Mi Cuenta", como
-           utilidades de cuenta separadas de los 5 grupos de trabajo. -->
+      <!-- Arquitectura de información revisada (2026-09-13, punto 295) +
+           grupos colapsables (punto 296): las mismas 14 vistas de siempre,
+           reagrupadas por tarea real — los 5 grupos coinciden con las
+           fronteras de RESTRICCIONES_PERFIL ya existentes. Cada
+           .admin-sidebar-group-header es ahora un botón real: clic
+           colapsa/expande su .admin-sidebar-group-body (ver
+           aplicarEstadoGruposSidebar en admin.js) — por defecto, solo el
+           grupo de la vista activa empieza abierto; el resto colapsado.
+           Un grupo que el usuario abre a mano se recuerda por cuenta
+           (localStorage, ver claveGruposSidebar) hasta que lo vuelva a
+           cerrar. El encabezado se oculta solo (independiente de si está
+           colapsado o no) si ningún botón de su grupo quedó visible para
+           el perfil actual — nunca deja un título huérfano. "Configuraciones
+           globales" se queda al final (pedido explícito de 2026-08-21). -->
       <nav class="admin-sidebar-nav" role="tablist" aria-label="Vista del panel">
         <button type="button" class="admin-vista-btn is-active" id="btn-vista-inicio" role="tab" aria-selected="true">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Inicio</span>
         </button>
 
-        <div class="admin-sidebar-group-label" data-grupo="facturacion">Facturación</div>
+        <button type="button" class="admin-sidebar-group-header" data-grupo="facturacion" aria-expanded="true" aria-controls="sidebar-grupo-facturacion">
+          <span>Facturación</span>
+          <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="admin-sidebar-group-body" id="sidebar-grupo-facturacion" data-grupo="facturacion">
+        <div class="admin-sidebar-group-body-inner">
         <button type="button" class="admin-vista-btn" id="btn-vista-tickets" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Tickets</span>
@@ -170,8 +176,15 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Constancias</span>
         </button>
+        </div>
+        </div>
 
-        <div class="admin-sidebar-group-label" data-grupo="ventas-gastos">Ventas y gastos</div>
+        <button type="button" class="admin-sidebar-group-header" data-grupo="ventas-gastos" aria-expanded="true" aria-controls="sidebar-grupo-ventas-gastos">
+          <span>Ventas y gastos</span>
+          <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="admin-sidebar-group-body" id="sidebar-grupo-ventas-gastos" data-grupo="ventas-gastos">
+        <div class="admin-sidebar-group-body-inner">
         <button type="button" class="admin-vista-btn" id="btn-vista-ordenes" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="1.8"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Ventas</span>
@@ -184,8 +197,15 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Gastos</span>
         </button>
+        </div>
+        </div>
 
-        <div class="admin-sidebar-group-label" data-grupo="finanzas">Finanzas</div>
+        <button type="button" class="admin-sidebar-group-header" data-grupo="finanzas" aria-expanded="true" aria-controls="sidebar-grupo-finanzas">
+          <span>Finanzas</span>
+          <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="admin-sidebar-group-body" id="sidebar-grupo-finanzas" data-grupo="finanzas">
+        <div class="admin-sidebar-group-body-inner">
         <button type="button" class="admin-vista-btn" id="btn-vista-resumen-financiero" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Resumen financiero</span>
@@ -194,8 +214,15 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Reportes</span>
         </button>
+        </div>
+        </div>
 
-        <div class="admin-sidebar-group-label" data-grupo="catalogo">Catálogo</div>
+        <button type="button" class="admin-sidebar-group-header" data-grupo="catalogo" aria-expanded="true" aria-controls="sidebar-grupo-catalogo">
+          <span>Catálogo</span>
+          <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="admin-sidebar-group-body" id="sidebar-grupo-catalogo" data-grupo="catalogo">
+        <div class="admin-sidebar-group-body-inner">
         <button type="button" class="admin-vista-btn" id="btn-vista-inventarios" role="tab" aria-selected="false" hidden>
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Inventarios</span>
@@ -204,8 +231,15 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Proveedores</span>
         </button>
+        </div>
+        </div>
 
-        <div class="admin-sidebar-group-label" data-grupo="administracion">Administración</div>
+        <button type="button" class="admin-sidebar-group-header" data-grupo="administracion" aria-expanded="true" aria-controls="sidebar-grupo-administracion">
+          <span>Administración</span>
+          <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="admin-sidebar-group-body" id="sidebar-grupo-administracion" data-grupo="administracion">
+        <div class="admin-sidebar-group-body-inner">
         <button type="button" class="admin-vista-btn" id="btn-vista-usuarios" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Usuarios</span>
@@ -214,8 +248,15 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Auditoría</span>
         </button>
+        </div>
+        </div>
 
-        <div class="admin-sidebar-group-label" data-grupo="cuenta">Cuenta</div>
+        <button type="button" class="admin-sidebar-group-header" data-grupo="cuenta" aria-expanded="true" aria-controls="sidebar-grupo-cuenta">
+          <span>Cuenta</span>
+          <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="admin-sidebar-group-body" id="sidebar-grupo-cuenta" data-grupo="cuenta">
+        <div class="admin-sidebar-group-body-inner">
         <button type="button" class="admin-vista-btn" id="btn-vista-mi-cuenta" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Mi Cuenta</span>
@@ -227,6 +268,8 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round" stroke-width="1.3"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Configuraciones globales</span>
         </button>
+        </div>
+        </div>
       </nav>
 
       <!-- §58: switcher de sucursales — solo aparece si este tenant
@@ -2380,157 +2423,211 @@
         </div>
       </section>
 
-      <!-- Configuración de correo SMTP (envío de correos, pensado para Gmail) -->
+      <!-- Configuración de correo SMTP (envío de correos, pensado para Gmail).
+           3 subsecciones en acordeón ESTRICTO (solo 1 abierta a la vez, la
+           anterior se cierra sola) — "Correo electrónico (SMTP)" autoguarda
+           sus campos (blur/change, sin botón); el único botón "Guardar"
+           vive en "Plantillas de correo". El acordeón viejo de esta
+           tarjeta (btn-toggle-smtp) era inerte dentro del modal de
+           Configuraciones globales — reemplazado por este mecanismo. -->
       <section class="admin-config-card" id="smtp-config-card">
-        <button type="button" class="admin-config-toggle" id="btn-toggle-smtp" aria-expanded="false" aria-controls="smtp-config-body">
+        <div class="admin-config-toggle" aria-hidden="true">
           <span class="admin-config-toggle-label">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
               <path d="m3.5 6 8.5 7 8.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             Correo electrónico (SMTP)
-            <span class="smtp-estado-badge" id="smtp-estado-badge" hidden></span>
           </span>
-          <svg class="admin-config-chevron" id="smtp-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
+        </div>
 
         <div class="admin-config-body" id="smtp-config-body" hidden>
           <p class="panel-subtitle admin-config-subtitle">
             Configura el servidor SMTP que usará la app para enviar correos. Pensado para Gmail (<code>smtp.gmail.com</code>), pero funciona con cualquier proveedor SMTP estándar.
           </p>
 
-          <!-- Guía Gmail paso a paso (Fase 7 UX, 2026-09-04): reemplaza el
-               aviso estático de texto plano que había aquí — mismo
-               contenido que la categoría "Configuraciones globales" del
-               Centro de conocimiento (fuente única, ver GUIA_SMTP_GMAIL en
-               admin.js), con pasos numerados, links reales y animación de
-               entrada al abrir. -->
-          <button type="button" class="guia-smtp-toggle" id="btn-guia-smtp-gmail" aria-expanded="false" aria-controls="guia-smtp-gmail-cuerpo">
-            <span class="guia-smtp-toggle-icon">?</span>
-            <span>¿Cómo configuro Gmail paso a paso?</span>
-            <svg class="guia-smtp-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <div class="guia-smtp-gmail-cuerpo" id="guia-smtp-gmail-cuerpo"></div>
-
-          <div class="smtp-config-grid">
-            <div class="field">
-              <label for="smtp-host">Host SMTP</label>
-              <input type="text" id="smtp-host" placeholder="smtp.gmail.com" autocomplete="off" />
-            </div>
-            <div class="field smtp-field-puerto">
-              <label for="smtp-puerto">Puerto</label>
-              <input type="number" id="smtp-puerto" placeholder="587" min="1" max="65535" />
-            </div>
-            <div class="field smtp-field-seguridad">
-              <label for="smtp-seguridad">Seguridad</label>
-              <select id="smtp-seguridad">
-                <option value="starttls">STARTTLS (587)</option>
-                <option value="ssl">SSL (465)</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="smtp-usuario">Usuario (correo)</label>
-              <input type="email" id="smtp-usuario" placeholder="tucuenta@gmail.com" autocomplete="off" />
-            </div>
-            <div class="field">
-              <label for="smtp-password">Contraseña</label>
-              <div class="password-field">
-                <input type="password" id="smtp-password" autocomplete="new-password" />
-                <button type="button" class="btn-toggle-pass" id="btn-toggle-smtp-password" aria-label="Mostrar contraseña" aria-pressed="false">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
-                  </svg>
-                </button>
-              </div>
-              <p class="smtp-password-hint" id="smtp-password-hint"></p>
-            </div>
-            <div class="field">
-              <label for="smtp-nombre-remitente">Nombre del remitente <span class="field-mark optional">(opcional)</span></label>
-              <input type="text" id="smtp-nombre-remitente" placeholder="Portal Clarvo tu negocio en orden" autocomplete="off" />
-            </div>
-            <div class="field">
-              <label for="smtp-correo-remitente">Correo del remitente <span class="field-mark optional">(opcional)</span></label>
-              <input type="email" id="smtp-correo-remitente" placeholder="Si es distinto del usuario" autocomplete="off" />
-            </div>
-            <div class="field">
-              <label for="smtp-correo-contador">
-                Correo de quien va a facturar
-                <span class="field-mark optional">(opcional)</span>
-                <button type="button" class="campo-ayuda" id="tooltip-correo-contador" aria-label="Más información sobre este campo" data-tooltip="Este correo debe ser el de su contador: la persona encargada de generar la factura. Se le avisa automáticamente cada vez que un cliente sube un ticket nuevo para facturar.">?</button>
-              </label>
-              <input type="email" id="smtp-correo-contador" placeholder="contador@ejemplo.com" autocomplete="off" />
-              <p class="field-hint">Recibe un correo automático cada vez que se sube un ticket nuevo. Si lo dejas vacío, te lo notificamos a ti con un aviso emergente al iniciar sesión.</p>
-            </div>
-          </div>
-
-          <!-- Plantillas de correo (punto 214) — 5 correos que comparten el
-               mismo diseño de marca (logo/colores/estructura, nunca
-               editables aquí): el administrador solo cambia el texto del
-               párrafo, con vista previa REAL generada por el servidor
-               (mismo código que arma el correo de verdad). Ticket de venta
-               y aclaraciones quedan fuera a propósito — ver PROJECT_STATE.md
-               punto 214. -->
-          <div class="smtp-plantillas">
-            <p class="smtp-prueba-titulo">Plantillas de correo</p>
-            <p class="panel-subtitle admin-config-subtitle">El diseño (logo, colores, estructura) nunca cambia aquí — solo el texto del párrafo. Los asuntos son fijos.</p>
-
-            <div class="plantillas-tabs" role="tablist" aria-label="Plantilla de correo">
-              <button type="button" class="plantillas-tab is-active" data-plantilla="invitacion" role="tab" aria-selected="true">Invitación</button>
-              <button type="button" class="plantillas-tab" data-plantilla="recuperacion" role="tab" aria-selected="false">Recuperar contraseña</button>
-              <button type="button" class="plantillas-tab" data-plantilla="aviso_contador" role="tab" aria-selected="false">Aviso al contador</button>
-              <button type="button" class="plantillas-tab" data-plantilla="cliente" role="tab" aria-selected="false">Factura lista</button>
-              <button type="button" class="plantillas-tab" data-plantilla="reporte" role="tab" aria-selected="false">Reporte</button>
-            </div>
-
-            <p class="field-hint" id="plantilla-trigger-desc"></p>
-            <div class="plantilla-vars" id="plantilla-vars"></div>
-
-            <div class="field">
-              <label for="plantilla-texto">Cuerpo del correo</label>
-              <textarea id="plantilla-texto" rows="4" maxlength="5000"></textarea>
-            </div>
-            <p class="field-hint"><button type="button" class="btn-link" id="btn-restablecer-plantilla">Restablecer esta plantilla</button></p>
-
-            <p class="field-hint">Vista previa real:</p>
-            <div class="plantilla-preview-wrap">
-              <iframe id="plantilla-preview-frame" class="plantilla-preview-frame" title="Vista previa del correo" sandbox=""></iframe>
-            </div>
-          </div>
-
-          <p class="field-error" id="smtp-config-error" role="alert"></p>
-
-          <div class="btn-row admin-config-actions">
-            <button type="button" class="btn btn-primary" id="btn-guardar-smtp">
-              <span id="btn-guardar-smtp-label">Guardar configuración</span>
+          <div class="smtp-acordeon">
+            <!-- Sección 1: Correo electrónico (SMTP) — autoguarda -->
+            <button type="button" class="smtp-acc-header" data-seccion="conexion" aria-expanded="true" aria-controls="smtp-acc-body-conexion">
+              <span class="smtp-acc-header-label">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <path d="m3.5 6 8.5 7 8.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Correo electrónico (SMTP)
+                <span class="smtp-estado-badge" id="smtp-estado-badge" hidden></span>
+              </span>
+              <span class="smtp-acc-header-right">
+                <span class="smtp-autosave-tag" id="smtp-autosave-tag" role="status" aria-live="polite"></span>
+                <svg class="smtp-acc-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
             </button>
-          </div>
+            <div class="smtp-acc-body" id="smtp-acc-body-conexion" data-seccion="conexion" data-colapsado="false">
+              <div class="smtp-acc-body-inner"><div class="smtp-acc-content">
 
-          <div class="smtp-prueba">
-            <p class="smtp-prueba-titulo">Enviar correo de prueba</p>
-            <p class="panel-subtitle admin-config-subtitle">Úsalo para confirmar que la configuración de arriba funciona antes de depender de ella.</p>
+                <!-- Guía Gmail paso a paso (Fase 7 UX, 2026-09-04): reemplaza el
+                     aviso estático de texto plano que había aquí — mismo
+                     contenido que la categoría "Configuraciones globales" del
+                     Centro de conocimiento (fuente única, ver GUIA_SMTP_GMAIL en
+                     admin.js), con pasos numerados, links reales y animación de
+                     entrada al abrir. -->
+                <button type="button" class="guia-smtp-toggle" id="btn-guia-smtp-gmail" aria-expanded="false" aria-controls="guia-smtp-gmail-cuerpo">
+                  <span class="guia-smtp-toggle-icon">?</span>
+                  <span>¿Cómo configuro Gmail paso a paso?</span>
+                  <svg class="guia-smtp-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div class="guia-smtp-gmail-cuerpo" id="guia-smtp-gmail-cuerpo"></div>
 
-            <div class="field">
-              <label for="smtp-prueba-destinatario">Destinatario</label>
-              <input type="email" id="smtp-prueba-destinatario" placeholder="destinatario@ejemplo.com" autocomplete="off" />
+                <div class="smtp-config-grid">
+                  <div class="field">
+                    <label for="smtp-host">Host SMTP</label>
+                    <input type="text" id="smtp-host" placeholder="smtp.gmail.com" autocomplete="off" />
+                  </div>
+                  <div class="field smtp-field-puerto">
+                    <label for="smtp-puerto">Puerto</label>
+                    <input type="number" id="smtp-puerto" placeholder="587" min="1" max="65535" />
+                  </div>
+                  <div class="field smtp-field-seguridad">
+                    <label for="smtp-seguridad">Seguridad</label>
+                    <select id="smtp-seguridad">
+                      <option value="starttls">STARTTLS (587)</option>
+                      <option value="ssl">SSL (465)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="smtp-usuario">Usuario (correo)</label>
+                    <input type="email" id="smtp-usuario" placeholder="tucuenta@gmail.com" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="smtp-password">Contraseña</label>
+                    <div class="password-field">
+                      <input type="password" id="smtp-password" autocomplete="new-password" />
+                      <button type="button" class="btn-toggle-pass" id="btn-toggle-smtp-password" aria-label="Mostrar contraseña" aria-pressed="false">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <p class="smtp-password-hint" id="smtp-password-hint"></p>
+                  </div>
+                  <div class="field">
+                    <label for="smtp-nombre-remitente">Nombre del remitente <span class="field-mark optional">(opcional)</span></label>
+                    <input type="text" id="smtp-nombre-remitente" placeholder="Portal Clarvo tu negocio en orden" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="smtp-correo-remitente">Correo del remitente <span class="field-mark optional">(opcional)</span></label>
+                    <input type="email" id="smtp-correo-remitente" placeholder="Si es distinto del usuario" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="smtp-correo-contador">
+                      Correo de quien va a facturar
+                      <span class="field-mark optional">(opcional)</span>
+                      <button type="button" class="campo-ayuda" id="tooltip-correo-contador" aria-label="Más información sobre este campo" data-tooltip="Este correo debe ser el de su contador: la persona encargada de generar la factura. Se le avisa automáticamente cada vez que un cliente sube un ticket nuevo para facturar.">?</button>
+                    </label>
+                    <input type="email" id="smtp-correo-contador" placeholder="contador@ejemplo.com" autocomplete="off" />
+                    <p class="field-hint">Recibe un correo automático cada vez que se sube un ticket nuevo. Si lo dejas vacío, te lo notificamos a ti con un aviso emergente al iniciar sesión.</p>
+                  </div>
+                </div>
+                <p class="field-hint">Se guarda automáticamente al salir de cada campo, en cuanto host/puerto/usuario estén completos.</p>
+
+              </div></div>
             </div>
-            <div class="field">
-              <label for="smtp-prueba-asunto">Asunto</label>
-              <input type="text" id="smtp-prueba-asunto" maxlength="200" placeholder="Correo de prueba" autocomplete="off" />
-            </div>
-            <div class="field">
-              <label for="smtp-prueba-cuerpo">Cuerpo del correo</label>
-              <textarea id="smtp-prueba-cuerpo" rows="4" maxlength="5000" placeholder="Este es un correo de prueba enviado desde Portal Clarvo tu negocio en orden."></textarea>
+
+            <!-- Sección 2: Plantillas de correo (punto 214) — 5 correos que
+                 comparten el mismo diseño de marca (logo/colores/estructura,
+                 nunca editables aquí): el administrador solo cambia el
+                 texto del párrafo, con vista previa REAL generada por el
+                 servidor (mismo código que arma el correo de verdad).
+                 Ticket de venta y aclaraciones quedan fuera a propósito —
+                 ver PROJECT_STATE.md punto 214. Único botón "Guardar" de
+                 toda la tarjeta SMTP — guarda también lo de "Correo
+                 electrónico (SMTP)" de paso (el backend guarda las 2 cosas
+                 juntas siempre), pero ese ya autoguarda solo. -->
+            <button type="button" class="smtp-acc-header" data-seccion="plantillas" aria-expanded="false" aria-controls="smtp-acc-body-plantillas">
+              <span class="smtp-acc-header-label">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                Plantillas de correo
+              </span>
+              <span class="smtp-acc-header-right">
+                <svg class="smtp-acc-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
+            <div class="smtp-acc-body" id="smtp-acc-body-plantillas" data-seccion="plantillas" data-colapsado="true">
+              <div class="smtp-acc-body-inner"><div class="smtp-acc-content">
+
+                <p class="panel-subtitle admin-config-subtitle">El diseño (logo, colores, estructura) nunca cambia aquí — solo el texto del párrafo. Los asuntos son fijos.</p>
+
+                <div class="plantillas-tabs" role="tablist" aria-label="Plantilla de correo">
+                  <button type="button" class="plantillas-tab is-active" data-plantilla="invitacion" role="tab" aria-selected="true">Invitación</button>
+                  <button type="button" class="plantillas-tab" data-plantilla="recuperacion" role="tab" aria-selected="false">Recuperar contraseña</button>
+                  <button type="button" class="plantillas-tab" data-plantilla="aviso_contador" role="tab" aria-selected="false">Aviso al contador</button>
+                  <button type="button" class="plantillas-tab" data-plantilla="cliente" role="tab" aria-selected="false">Factura lista</button>
+                  <button type="button" class="plantillas-tab" data-plantilla="reporte" role="tab" aria-selected="false">Reporte</button>
+                </div>
+
+                <p class="field-hint" id="plantilla-trigger-desc"></p>
+                <div class="plantilla-vars" id="plantilla-vars"></div>
+
+                <div class="field">
+                  <label for="plantilla-texto">Cuerpo del correo</label>
+                  <textarea id="plantilla-texto" rows="4" maxlength="5000"></textarea>
+                </div>
+                <p class="field-hint"><button type="button" class="btn-link" id="btn-restablecer-plantilla">Restablecer esta plantilla</button></p>
+
+                <p class="field-hint">Vista previa real:</p>
+                <div class="plantilla-preview-wrap">
+                  <iframe id="plantilla-preview-frame" class="plantilla-preview-frame" title="Vista previa del correo" sandbox=""></iframe>
+                </div>
+
+                <p class="field-error" id="smtp-config-error" role="alert"></p>
+
+                <div class="btn-row admin-config-actions">
+                  <button type="button" class="btn btn-primary" id="btn-guardar-smtp">
+                    <span id="btn-guardar-smtp-label">Guardar plantilla</span>
+                  </button>
+                </div>
+
+              </div></div>
             </div>
 
-            <p class="field-error" id="smtp-prueba-error" role="alert"></p>
+            <!-- Sección 3: Enviar correo de prueba -->
+            <button type="button" class="smtp-acc-header" data-seccion="prueba" aria-expanded="false" aria-controls="smtp-acc-body-prueba">
+              <span class="smtp-acc-header-label">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Enviar correo de prueba
+              </span>
+              <span class="smtp-acc-header-right">
+                <svg class="smtp-acc-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
+            <div class="smtp-acc-body" id="smtp-acc-body-prueba" data-seccion="prueba" data-colapsado="true">
+              <div class="smtp-acc-body-inner"><div class="smtp-acc-content">
 
-            <div class="btn-row admin-config-actions">
-              <button type="button" class="btn btn-secondary" id="btn-enviar-prueba-smtp">
-                <span id="btn-enviar-prueba-smtp-label">Enviar prueba</span>
-              </button>
+                <p class="panel-subtitle admin-config-subtitle">Úsalo para confirmar que la configuración de "Correo electrónico (SMTP)" funciona antes de depender de ella.</p>
+
+                <div class="field">
+                  <label for="smtp-prueba-destinatario">Destinatario</label>
+                  <input type="email" id="smtp-prueba-destinatario" placeholder="destinatario@ejemplo.com" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="smtp-prueba-asunto">Asunto</label>
+                  <input type="text" id="smtp-prueba-asunto" maxlength="200" placeholder="Correo de prueba" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="smtp-prueba-cuerpo">Cuerpo del correo</label>
+                  <textarea id="smtp-prueba-cuerpo" rows="4" maxlength="5000" placeholder="Este es un correo de prueba enviado desde Portal Clarvo tu negocio en orden."></textarea>
+                </div>
+
+                <p class="field-error" id="smtp-prueba-error" role="alert"></p>
+
+                <div class="btn-row admin-config-actions">
+                  <button type="button" class="btn btn-secondary" id="btn-enviar-prueba-smtp">
+                    <span id="btn-enviar-prueba-smtp-label">Enviar prueba</span>
+                  </button>
+                </div>
+
+              </div></div>
             </div>
           </div>
         </div>

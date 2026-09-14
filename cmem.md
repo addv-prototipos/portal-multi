@@ -930,3 +930,47 @@ con clics reales: grupo parcial (Administración con 1/2 visible) y
 grupo total confirmados sin título huérfano, buscador de config
 filtrando en vivo, cero errores de consola. Detalle:
 `PROJECT_STATE.md`/`CLAUDE.md` punto 295. Sin commit/push.
+
+C070 2026-09-13 ◆ Grupos del sidebar colapsables + scrollbar delgada,
+punto 296. Pedido con captura: colapsar los 6 encabezados del punto
+295 + quitar la barra de scroll ancha del navegador sin perder scroll.
+Crítica antes de implementar (Artifact interactivo, aprobado con las 3
+recomendaciones): en vez de colapso 100% manual, el grupo de la vista
+activa se abre solo, resto colapsado por defecto; aperturas manuales
+se recuerdan por cuenta (localStorage, mismo patrón que
+claveOnboarding). Scrollbar delgada tipo overlay (macOS-style) en vez
+de removida del todo — nunca esconde que hay más contenido.
+aplicarEstadoGruposSidebar() nuevo, llamado desde
+cambiarVistaPrincipal(), clic en Configuraciones globales, y
+showDashboard(). Cero backend. Validado con clics reales: sidebar cabe
+sin scroll colapsado, 2 grupos abiertos a la vez sin conflicto (uno
+manual + uno automático), persistencia confirmada tras F5 real, cero
+errores de consola. Detalle: `PROJECT_STATE.md`/`CLAUDE.md` punto 296.
+Sin commit/push.
+
+C071 2026-09-13 ◆ SMTP: acordeón estricto de 3 subsecciones +
+autoguardado, punto 297. Pedido: "Correo electrónico (SMTP)"/
+"Plantillas de correo"/"Enviar correo de prueba" colapsables, solo 1
+abierta a la vez. 2 rondas de crítica (Artifact interactivo): la 1ra
+cuestionó el estricto (2 flujos reales rotos, configurar→probar y
+editar plantilla→probar); el usuario confirmó estricto de todas formas
++ pidió autoguardado en SMTP. Hallazgo real que cambió el análisis: PUT
+/api/admin/config/smtp no admite guardado parcial (13 campos siempre
+juntos, conexión+5 plantillas, sanitizeText convierte undefined→'') —
+el acordeón estricto en realidad MITIGA el riesgo (nunca hay campos de
+conexión y una plantilla sin guardar visibles a la vez). Veredicto
+delegado por el usuario ("1 botón o 2 si viola buenas prácticas"): 1
+solo botón (2 sería affordance redundante con el autoguardado).
+guardarConfigSmtpCompleta(modo) unifica botón/autosave sobre el mismo
+payload de 13 campos; autosave dispara en 'change', gateado por
+validarCamposSmtp() (misma validación que ya exigía el botón),
+indicador "Guardando…/Guardado ✓" en el encabezado. Botón relocalizado
+a "Guardar plantilla" dentro de Plantillas. Acordeón viejo inerte de
+esta tarjeta (btn-toggle-smtp, pointer-events:none desde que
+Configuraciones pasó a sidebar+seleccionarSeccionConfig) eliminado.
+Cero backend, Jest 958/958 sin cambios. Validado con clics/JS reales en
+navegador contra Docker real: estricto confirmado (abrir Plantillas
+cierra Conexión sola), autoguardado disparado por change→GET confirma
+persistido→revertido sin rastro, botón reubicado con preview intacta,
+cero errores de consola. Detalle: `PROJECT_STATE.md`/`CLAUDE.md` punto
+297. Sin commit/push.

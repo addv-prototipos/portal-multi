@@ -183,6 +183,18 @@
   flex-direction: column;
   gap: 3px;
 }
+/* Scrollbar delgada tipo overlay (punto 296) — casi invisible en reposo,
+   se nota más solo mientras se usa el mouse/trackpad ahí (mismo criterio
+   que macOS), en vez de la barra ancha con flechas del navegador por
+   defecto. Sigue siendo 100% funcional con rueda/trackpad/teclado. */
+.admin-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+.admin-sidebar-nav::-webkit-scrollbar { width: 6px; }
+.admin-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.admin-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 99px; }
+.admin-sidebar-nav:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.32); }
 
 .admin-sidebar-nav .admin-vista-btn {
   display: flex;
@@ -219,15 +231,52 @@
    primero de este tipo en el sidebar). Se oculta por JS
    (aplicarRestriccionesPerfil) si ningún botón de su grupo quedó
    visible para el perfil actual — nunca queda un título huérfano. */
-.admin-sidebar-group-label {
+/* Encabezado de grupo colapsable (punto 296) — botón real, no solo una
+   etiqueta: clic colapsa/expande su .admin-sidebar-group-body (ver
+   aplicarEstadoGruposSidebar en admin.js). El chevron rota 90° cuando
+   está colapsado; la transición del cuerpo usa grid-template-rows
+   (1fr↔0fr), la técnica que anima "height:auto" sin conocer la altura
+   real de antemano y sin animar `height` (propiedad costosa) — solo
+   grid-template-rows, de bajo costo. */
+.admin-sidebar-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   padding: 14px 12px 4px;
+  font-family: var(--font-body);
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: rgba(255, 255, 255, 0.42);
 }
-.admin-sidebar-group-label:first-of-type { padding-top: 4px; }
+.admin-sidebar-group-header:first-of-type { padding-top: 4px; }
+.admin-sidebar-group-header:hover { color: rgba(255, 255, 255, 0.7); }
+.admin-sidebar-group-header .chev {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+.admin-sidebar-group-header[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+.admin-sidebar-group-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.2s ease;
+}
+.admin-sidebar-group-body[data-colapsado="true"] { grid-template-rows: 0fr; }
+.admin-sidebar-group-body-inner {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-sidebar-group-header .chev,
+  .admin-sidebar-group-body { transition: none; }
+}
 
 /* §58: switcher de sucursales — navega a /<slug>/admin de otra empresa
    del mismo grupo. Mismo lenguaje visual que .admin-vista-btn (mismo
@@ -2724,33 +2773,72 @@
   .smtp-config-grid .field { grid-column: 1 / -1; }
 }
 
-.smtp-prueba {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--color-border);
-}
-.smtp-prueba-titulo {
-  margin: 0 0 3px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-.smtp-prueba .admin-config-subtitle { margin-bottom: 14px; }
-
-.smtp-plantillas {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--color-border);
-}
-.smtp-plantillas .admin-config-subtitle {
-  margin-bottom: 14px;
-}
-.smtp-plantillas .admin-config-subtitle code {
+.smtp-acc-content .admin-config-subtitle code {
   background: var(--color-bg);
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 12px;
 }
+
+/* Acordeón de la tarjeta SMTP — 3 subsecciones (Correo electrónico,
+   Plantillas, Prueba), estricto: solo 1 abierta a la vez (ver
+   aplicarAcordeonSmtp en admin.js). Misma técnica grid-template-rows ya
+   usada en los grupos del sidebar (punto 296), reescalada al tamaño de
+   una tarjeta de configuración en vez de la barra lateral navy. */
+.smtp-acordeon { display: flex; flex-direction: column; gap: 6px; }
+.smtp-acc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+.smtp-acc-header:hover { border-color: var(--color-accent); }
+.smtp-acc-header:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.smtp-acc-header-label { display: flex; align-items: center; gap: 9px; }
+.smtp-acc-header-label svg { flex-shrink: 0; color: var(--color-accent); }
+.smtp-acc-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.smtp-acc-chevron { transition: transform 0.18s ease; color: var(--color-ink-soft); flex-shrink: 0; }
+.smtp-acc-header[aria-expanded="false"] .smtp-acc-chevron { transform: rotate(-90deg); }
+.smtp-acc-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.2s ease;
+}
+.smtp-acc-body[data-colapsado="true"] { grid-template-rows: 0fr; }
+.smtp-acc-body-inner { overflow: hidden; }
+.smtp-acc-content { padding: 16px 4px 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .smtp-acc-chevron, .smtp-acc-body { transition: none; }
+}
+
+/* Etiqueta de autoguardado de "Correo electrónico (SMTP)" — mismo
+   lenguaje "Guardando…/Guardado ✓" que ya usan los switches de
+   Configuraciones globales (Habilitar Ventas, Módulo Auditoría), aquí
+   dentro del propio encabezado del acordeón en vez de junto a un
+   switch. */
+.smtp-autosave-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.smtp-autosave-tag.is-guardando { opacity: 1; background: var(--color-accent-soft); color: var(--color-accent); }
+.smtp-autosave-tag.is-guardado { opacity: 1; background: #DCEFE3; color: #146C43; }
+.smtp-autosave-tag.is-error { opacity: 1; background: var(--color-warn-soft); color: var(--color-warn); }
+@media (prefers-reduced-motion: reduce) { .smtp-autosave-tag { transition: none; } }
 
 /* Selector de plantilla (punto 214) — pills que envuelven en varias
    líneas si no caben (5 etiquetas, algunas largas), a diferencia de

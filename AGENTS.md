@@ -571,6 +571,33 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   huérfanos (caso parcial y caso total probados), buscador de
   Configuraciones filtrando en vivo, cero errores de consola.
 
+- **Punto 296 — Grupos del sidebar colapsables + scrollbar delgada (ver
+  PROJECT_STATE.md, 2026-09-13, IMPLEMENTADO Y VALIDADO en navegador
+  real)**: crítica aplicada al pedido literal (colapso 100% manual) —
+  mejora confirmada: el grupo de la vista activa se abre solo, el resto
+  empieza colapsado; aperturas manuales se recuerdan por cuenta
+  (`localStorage`). Scrollbar nativa ancha reemplazada por una delgada
+  tipo overlay (visible solo al interactuar), nunca oculta del todo.
+  Cero backend. Validado con clics reales: 2 grupos abiertos a la vez
+  (uno manual + uno automático) sin conflicto, persistencia tras F5
+  real, cero errores de consola.
+
+- **Punto 297 — SMTP: acordeón estricto + autoguardado (ver
+  PROJECT_STATE.md, 2026-09-13, IMPLEMENTADO Y VALIDADO en navegador
+  real)**: "Correo electrónico (SMTP)"/"Plantillas de correo"/"Enviar
+  correo de prueba" pasan a acordeón estricto (solo 1 abierta, mismo
+  `grid-template-rows` del punto 296). Hallazgo real: `PUT
+  /api/admin/config/smtp` no admite guardado parcial (13 campos
+  siempre juntos) — el acordeón estricto mitiga el riesgo en vez de
+  agravarlo. "Correo electrónico (SMTP)" autoguarda sola (`change`,
+  misma validación del botón, indicador en el encabezado); único botón
+  "Guardar" relocalizado a "Plantillas de correo" (2 botones se
+  descartó por affordance redundante). Acordeón viejo e inerte de esta
+  tarjeta eliminado. Cero backend, Jest 958/958 sin cambios. Validado
+  con clics/JS reales: acordeón estricto confirmado, autoguardado
+  persistido de verdad (`GET /api/admin/config/smtp`), botón reubicado,
+  cero errores de consola. Sin commit/push todavía.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 
