@@ -3766,6 +3766,40 @@ estricto confirmado, autoguardado disparado y persistido de verdad
 (`GET /api/admin/config/smtp`), botón reubicado. Sin commit/push
 todavía. Ver PROJECT_STATE.md punto 297.
 
+**Punto 298 (2026-09-15, IMPLEMENTADO — SIN validar contra Docker/MySQL
+real ni en navegador esta sesión)**: "Servicio en paquete" — 2do cobro
+válido para `tipo=servicio` en Inventarios (antes solo "Hora", punto
+179). Pedido original del usuario: sembrar unidad nueva "srv" para
+servicios que "ya contienen un paquete y no se rigen por hora" —
+crítica aplicada primero: "srv" habría sido casi idéntico a la unidad
+"Paquete" ya sembrada y sin uso por ningún servicio hasta hoy, se
+reusa esa en vez de sembrar una unidad redundante. Propuesta visual
+(Artifact interactivo con el tooltip REAL del sitio — mismo
+`[data-tooltip]`/`inicializarTooltips()`, no un popover ad hoc)
+aprobada antes de tocar código. **Bug real evitado antes de shippear**
+(encontrado auditando, no reportado por el usuario): el backfill de
+`ensureSchema()` en `db.js` corre en CADA restart/deploy y forzaba
+INCONDICIONALMENTE cualquier servicio a "Hora" — con una 2da unidad
+válida esto habría revertido en silencio cualquier servicio guardado
+como "Paquete" en el siguiente rebuild; corregido a condicional (solo
+fuerza si la unidad actual no es "Hora" ni "Paquete"). Backend:
+`UNIDADES_SERVICIO_VALIDAS=['Hora','Paquete']` +
+`obtenerNombreUnidadPorId()` nuevos en `inventario.js`;
+`validarCuerpoProducto()` ya no ignora `body.unidad_id` para
+servicio — lo valida contra la whitelist (400
+`INV_UNIDAD_SERVICIO_INVALIDA` si no aplica), sin `unidad_id` cae al
+default histórico "Hora". Frontend: selector del modal "Nuevo
+servicio" con copy propio ("Por hora"/"Precio fijo (paquete de
+servicio)", nunca "Paquete" a secas — se confundiría con la unidad
+física homónima de un producto), label del campo cambia a "¿Cómo se
+cobra este servicio?" en contexto servicio, hint dinámico según la
+opción elegida. Centro de conocimiento actualizado. 1 test reescrito +
+1 ajustado + 2 nuevos en `inventarios.test.js`. Jest backend **960/960**
+(era 958). `node --check` limpio. **Sin Docker/MySQL/navegador real
+esta sesión** — falta confirmar que el backfill corregido no toca
+servicios de prueba existentes y confirmación visual del selector. Sin
+commit/push todavía. Ver PROJECT_STATE.md punto 298.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

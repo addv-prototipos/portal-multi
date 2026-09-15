@@ -1212,17 +1212,28 @@ async function ensureSchema(db = pool) {
   // Punto 179: backfill idempotente — cualquier servicio que ya exista
   // (nunca en producción real hoy, solo posible en tenants de prueba)
   // queda sin código de barras/stock mínimo/stock máximo/punto de
-  // reorden y con su unidad forzada a "Hora", igual que exige ahora
-  // validarCuerpoProducto() para altas y ediciones nuevas. El WHERE
-  // evita tocar filas que ya cumplen, para que sea seguro re-correr.
+  // reorden, igual que exige ahora validarCuerpoProducto() para altas y
+  // ediciones nuevas. El WHERE evita tocar filas que ya cumplen, para
+  // que sea seguro re-correr — CORRE EN CADA ensureSchema() (cada
+  // restart/deploy), no solo una vez.
+  //
+  // [Servicio en paquete]: la unidad solo se fuerza a "Hora" si la
+  // unidad actual NO es una de las 2 válidas para servicio ("Hora" o
+  // "Paquete", ver UNIDADES_SERVICIO_VALIDAS en utils/inventario.js).
+  // Antes este UPDATE forzaba "Hora" sin condición — con una 2da unidad
+  // de servicio válida, eso habría revertido a "Hora" cualquier
+  // servicio guardado como "Paquete" en el siguiente restart, en
+  // silencio, sin error visible.
   await db.query(
     `UPDATE productos p
+       LEFT JOIN unidades_medida up ON up.id = p.unidad_id
        JOIN unidades_medida uh ON uh.nombre = 'Hora'
         SET p.codigo_barras = NULL, p.stock_minimo = NULL, p.stock_maximo = NULL,
-            p.punto_reorden = NULL, p.unidad_id = uh.id
+            p.punto_reorden = NULL,
+            p.unidad_id = IF(up.nombre IN ('Hora', 'Paquete'), p.unidad_id, uh.id)
       WHERE p.tipo = 'servicio'
         AND (p.codigo_barras IS NOT NULL OR p.stock_minimo IS NOT NULL OR p.stock_maximo IS NOT NULL
-             OR p.punto_reorden IS NOT NULL OR p.unidad_id <> uh.id)`
+             OR p.punto_reorden IS NOT NULL OR up.nombre IS NULL OR up.nombre NOT IN ('Hora', 'Paquete'))`
   );
 
   // Punto 213: fecha de expiración opcional, POR PRODUCTO (no por lote —

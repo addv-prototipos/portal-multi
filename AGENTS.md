@@ -598,6 +598,20 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   persistido de verdad (`GET /api/admin/config/smtp`), botón reubicado,
   cero errores de consola. Sin commit/push todavía.
 
+- **Punto 298 — "Servicio en paquete": 2do cobro válido para
+  tipo=servicio (ver PROJECT_STATE.md, 2026-09-15, IMPLEMENTADO — SIN
+  validar contra Docker/MySQL real ni en navegador esta sesión)**: en
+  vez de sembrar la unidad "srv" pedida tal cual, se reusa "Paquete"
+  (ya sembrada, sin uso por ningún servicio hasta hoy) — evita 2
+  conceptos casi idénticos en el catálogo. Bug real evitado antes de
+  shippear: el backfill de `ensureSchema()` forzaba TODO servicio a
+  "Hora" en cada restart — corregido a condicional para no revertir en
+  silencio un servicio guardado como "Paquete". Backend valida
+  `unidad_id` contra una whitelist de 2 (`Hora`/`Paquete`, antes lo
+  ignoraba siempre). Selector del modal con copy propio ("Por hora"/
+  "Precio fijo (paquete de servicio)") + hint dinámico. Jest backend
+  960/960 (+2). Sin commit/push todavía.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 

@@ -134,6 +134,8 @@ const {
   codigoBarrasEnUso,
   unidadExisteId,
   obtenerUnidadServicioId,
+  obtenerNombreUnidadPorId,
+  UNIDADES_SERVICIO_VALIDAS,
   productoTieneMovimientos,
   ALMACEN_DEFECTO_CODIGO,
 } = require('./utils/inventario');
@@ -7483,16 +7485,33 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
     return null;
   }
 
-  // Punto 179: un servicio SOLO admite la unidad "Hora" (horas enteras) —
-  // se ignora lo que mande el body y se fuerza aquí, del lado del
-  // servidor, para que no se pueda forzar otra unidad por API directa
-  // aunque el modal del frontend ya la restrinja visualmente.
+  // Punto 179 + [Servicio en paquete]: un servicio solo admite un
+  // subconjunto pequeño de unidades — "Hora" (cobro por tiempo, horas
+  // enteras) o "Paquete" (precio fijo por todo el servicio, sin importar
+  // el tiempo) — NUNCA el catálogo completo (Litro/Kilogramo no aplican
+  // a un servicio). Se valida del lado del servidor lo que mande el
+  // body, no solo lo que el modal del frontend ya restrinja visualmente.
+  // Sin `unidad_id` en el body (compatibilidad con integraciones viejas
+  // de antes de esta unidad nueva), cae al default histórico: "Hora".
   let unidadId;
   if (tipo === 'servicio') {
-    unidadId = await obtenerUnidadServicioId();
-    if (!unidadId) {
-      res.status(400).json({ error: 'INV_UNIDAD_SERVICIO_NO_CONFIGURADA', mensaje: 'La unidad "Hora" no está configurada en el catálogo.' });
-      return null;
+    const unidadSolicitadaId = Number(body.unidad_id);
+    if (Number.isInteger(unidadSolicitadaId)) {
+      const nombreUnidadSolicitada = await obtenerNombreUnidadPorId(unidadSolicitadaId);
+      if (!nombreUnidadSolicitada || !UNIDADES_SERVICIO_VALIDAS.includes(nombreUnidadSolicitada)) {
+        res.status(400).json({
+          error: 'INV_UNIDAD_SERVICIO_INVALIDA',
+          mensaje: `Un servicio solo admite la unidad ${UNIDADES_SERVICIO_VALIDAS.map((n) => `"${n}"`).join(' o ')}.`,
+        });
+        return null;
+      }
+      unidadId = unidadSolicitadaId;
+    } else {
+      unidadId = await obtenerUnidadServicioId();
+      if (!unidadId) {
+        res.status(400).json({ error: 'INV_UNIDAD_SERVICIO_NO_CONFIGURADA', mensaje: 'La unidad "Hora" no está configurada en el catálogo.' });
+        return null;
+      }
     }
   } else {
     unidadId = Number(body.unidad_id);

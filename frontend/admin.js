@@ -745,6 +745,7 @@
     btnInvCategoriaAgregar: document.getElementById('btn-inv-categoria-agregar'),
     errorInvCategoriaNueva: document.getElementById('error-inv-categoria-nueva'),
     invModalUnidad: document.getElementById('inv-modal-unidad'),
+    invModalUnidadLabelTexto: document.getElementById('inv-modal-unidad-label-texto'),
     invModalUnidadHintServicio: document.getElementById('inv-modal-unidad-hint-servicio'),
     invModalMoneda: document.getElementById('inv-modal-moneda'),
     invModalCosto: document.getElementById('inv-modal-costo'),
@@ -14748,20 +14749,46 @@
     }
   }
 
-  // Punto 179: un servicio solo admite la unidad "Hora" — se filtra el
-  // desplegable a esa única opción cuando el toggle de tipo está en
-  // "Servicio"; producto sigue viendo el catálogo completo.
+  // Punto 179 + [Servicio en paquete]: un servicio solo admite 2
+  // unidades — "Hora" (cobro por tiempo) o "Paquete" (precio fijo por
+  // todo el servicio) — se filtra el desplegable a esas 2 cuando el
+  // toggle de tipo está en "Servicio"; producto sigue viendo el
+  // catálogo completo. En contexto servicio se usan etiquetas propias
+  // (no "Paquete (paq)" a secas, que se confundiría con la unidad física
+  // que un producto puede usar con el mismo nombre).
+  const ETIQUETAS_UNIDAD_SERVICIO = {
+    Hora: 'Por hora',
+    Paquete: 'Precio fijo (paquete de servicio)',
+  };
+  const HINT_UNIDAD_SERVICIO = {
+    Hora: 'Los servicios cobrados por hora se miden en horas enteras — la cantidad en la venta no admite decimales.',
+    Paquete: 'Se cobra una sola vez por todo el servicio, sin importar las horas que tome. No es un producto físico — ej. "Paquete de mantenimiento", "Consultoría integral".',
+  };
+
   function renderOpcionesUnidadInv() {
     if (!els.invModalUnidad) return;
-    const lista = inventarioModalTipoSeleccionado === 'servicio'
-      ? unidadesInventarioActuales.filter((u) => u.nombre === 'Hora')
+    const esServicio = inventarioModalTipoSeleccionado === 'servicio';
+    const lista = esServicio
+      ? unidadesInventarioActuales.filter((u) => u.nombre === 'Hora' || u.nombre === 'Paquete')
       : unidadesInventarioActuales;
     const valorActual = els.invModalUnidad.value;
     els.invModalUnidad.innerHTML = lista
-      .map((u) => `<option value="${u.id}">${escapeHtml(u.nombre)} (${escapeHtml(u.abreviatura)})</option>`)
+      .map((u) => `<option value="${u.id}">${escapeHtml(esServicio ? (ETIQUETAS_UNIDAD_SERVICIO[u.nombre] || u.nombre) : `${u.nombre} (${u.abreviatura})`)}</option>`)
       .join('');
     const sigueDisponible = lista.some((u) => String(u.id) === valorActual);
     els.invModalUnidad.value = sigueDisponible ? valorActual : lista[0] ? String(lista[0].id) : '';
+    if (esServicio) actualizarHintUnidadServicio();
+  }
+
+  // Texto del field-hint bajo el selector cambia según "Por hora" vs
+  // "Precio fijo (paquete de servicio)" — antes era un texto fijo
+  // porque solo existía una opción.
+  function actualizarHintUnidadServicio() {
+    if (!els.invModalUnidadHintServicio || !els.invModalUnidad.value) return;
+    const unidad = unidadesInventarioActuales.find((u) => String(u.id) === els.invModalUnidad.value);
+    els.invModalUnidadHintServicio.textContent = unidad && HINT_UNIDAD_SERVICIO[unidad.nombre]
+      ? HINT_UNIDAD_SERVICIO[unidad.nombre]
+      : HINT_UNIDAD_SERVICIO.Hora;
   }
 
   function nombreCategoriaInv(id) {
@@ -15176,6 +15203,9 @@
     colapsarCampoInv(els.invModalPuntoReordenField, esServicio, animar);
     colapsarCampoInv(els.invModalFechaExpiracionField, esServicio, animar);
     els.invModalUnidadHintServicio.hidden = !esServicio;
+    if (els.invModalUnidadLabelTexto) {
+      els.invModalUnidadLabelTexto.textContent = esServicio ? '¿Cómo se cobra este servicio?' : 'Unidad de medida';
+    }
     renderOpcionesUnidadInv();
 
     // Leyenda corta bajo el toggle — el detalle completo ya vive en el
@@ -15215,6 +15245,10 @@
       : els.invModalUnidad.options[0]
         ? els.invModalUnidad.options[0].value
         : '';
+    // setInvModalTipo() de arriba ya calculó el hint para la opción por
+    // defecto — al editar un servicio existente el value real puede ser
+    // otro (ej. "Paquete" en vez de "Hora"), hay que refrescarlo.
+    if (inventarioModalTipoSeleccionado === 'servicio') actualizarHintUnidadServicio();
     els.invModalMoneda.value = producto ? producto.moneda || 'MXN' : 'MXN';
     els.invModalCosto.value = producto && producto.costo !== null ? String(producto.costo) : '';
     els.invModalPrecio.value = producto && producto.precio !== null ? String(producto.precio) : '';
@@ -16869,7 +16903,7 @@
       lead: 'Productos, servicios y existencias — módulo opcional.',
       pasos: [
         { t: 'Actívalo primero', d: 'Configuraciones globales → interruptor "Inventario activo". Antes de eso, la sección permanece oculta para todos los perfiles.' },
-        { t: 'Dar de alta un producto o servicio', d: 'Botón "Nuevo producto/servicio" — un servicio pide solo 10 de los 14 campos (sin stock ni código de barras) y su unidad siempre es "Hora".' },
+        { t: 'Dar de alta un producto o servicio', d: 'Botón "Nuevo producto/servicio" — un servicio pide solo 10 de los 14 campos (sin stock ni código de barras) y se cobra "Por hora" o "Precio fijo (paquete de servicio)" — nunca por las demás unidades del catálogo.' },
         { t: 'Registrar entradas y salidas', d: 'Menú "⋮" de cada fila — cada movimiento queda en el historial permanente, nunca editable una vez guardado.' },
         { t: 'Importar catálogo', d: 'Botón "Importar catálogo" → sube un CSV/XLSX → el sistema detecta las columnas solo, con vista previa antes de confirmar. Solo para productos, no servicios.' },
         { t: 'Código de barras con la cámara', d: 'En Ventas o al dar de alta un producto, el ícono de cámara escanea el código y llena el campo solo.' },
@@ -17474,6 +17508,12 @@
 
   if (els.btnInvTipoProducto) els.btnInvTipoProducto.addEventListener('click', () => setInvModalTipo('producto', true));
   if (els.btnInvTipoServicio) els.btnInvTipoServicio.addEventListener('click', () => setInvModalTipo('servicio', true));
+  // [Servicio en paquete]: elegir "Por hora" vs "Precio fijo (paquete de
+  // servicio)" cambia el field-hint en vivo (antes era texto fijo, solo
+  // existía una opción de unidad para servicio).
+  if (els.invModalUnidad) els.invModalUnidad.addEventListener('change', () => {
+    if (inventarioModalTipoSeleccionado === 'servicio') actualizarHintUnidadServicio();
+  });
   if (els.btnInvCategoriasToggle) els.btnInvCategoriasToggle.addEventListener('click', toggleCategoriasInvPanel);
   if (els.btnInvCategoriaAgregar) els.btnInvCategoriaAgregar.addEventListener('click', agregarCategoriaInvPanel);
   if (els.invCategoriasLista)

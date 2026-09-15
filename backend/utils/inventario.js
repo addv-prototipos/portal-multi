@@ -53,6 +53,17 @@ const UNIDADES_SEED = [
 
 const UNIDAD_SERVICIO_NOMBRE = 'Hora';
 
+// [Servicio en paquete] segundo cobro válido para tipo=servicio: precio
+// fijo por todo el servicio (no por tiempo trabajado) — reusa la unidad
+// "Paquete" ya sembrada arriba (misma fila que un producto físico puede
+// usar), en vez de sembrar una unidad nueva "srv" que hubiera sido un
+// concepto casi idéntico. La columna `unidades_medida.nombre` no
+// distingue "para producto" de "para servicio" — ambos usos comparten
+// la misma fila a propósito, la tabla "productos" ya distingue el
+// contexto por su columna `tipo`.
+const UNIDAD_SERVICIO_PAQUETE_NOMBRE = 'Paquete';
+const UNIDADES_SERVICIO_VALIDAS = [UNIDAD_SERVICIO_NOMBRE, UNIDAD_SERVICIO_PAQUETE_NOMBRE];
+
 const UNIDAD_BASE_DEFECTO = 'Pieza';
 
 // Código del almacén único auto-provisionado (D2 — multi-almacén preparado,
@@ -569,13 +580,26 @@ async function unidadExisteId(id) {
   return filas.length > 0;
 }
 
-// Punto 179: id de la única unidad válida para tipo=servicio ("Hora").
+// Punto 179: id de la unidad "Hora" — default de un servicio cuando el
+// body no manda `unidad_id` (compatibilidad con el comportamiento
+// anterior a [Servicio en paquete], donde la unidad era siempre fija).
 // Sembrada por ensureSchema() — si por algún motivo no existiera todavía
 // (instalación a medio migrar), regresa null y el llamador debe tratarlo
 // como error de configuración, no asumir un id por default.
 async function obtenerUnidadServicioId() {
   const [filas] = await obtenerPool().query('SELECT id FROM unidades_medida WHERE nombre = ? LIMIT 1', [UNIDAD_SERVICIO_NOMBRE]);
   return filas.length > 0 ? filas[0].id : null;
+}
+
+// [Servicio en paquete]: resuelve el nombre real de una unidad por id,
+// para validar en el servidor que lo que mandó el body (unidad_id) es
+// una de las 2 unidades válidas para servicio (UNIDADES_SERVICIO_VALIDAS)
+// y no cualquier unidad del catálogo completo (Litro/Kilogramo no
+// aplican a un servicio).
+async function obtenerNombreUnidadPorId(id) {
+  if (!Number.isInteger(Number(id))) return null;
+  const [filas] = await obtenerPool().query('SELECT nombre FROM unidades_medida WHERE id = ? LIMIT 1', [id]);
+  return filas.length > 0 ? filas[0].nombre : null;
 }
 
 // §38: un producto con movimientos históricos no debe eliminarse
@@ -590,6 +614,8 @@ module.exports = {
   UNIDADES_SEED,
   UNIDAD_BASE_DEFECTO,
   UNIDAD_SERVICIO_NOMBRE,
+  UNIDAD_SERVICIO_PAQUETE_NOMBRE,
+  UNIDADES_SERVICIO_VALIDAS,
   ALMACEN_DEFECTO_CODIGO,
   ALMACEN_DEFECTO_NOMBRE,
   TIPOS_ENTRADA,
@@ -612,5 +638,6 @@ module.exports = {
   codigoBarrasEnUso,
   unidadExisteId,
   obtenerUnidadServicioId,
+  obtenerNombreUnidadPorId,
   productoTieneMovimientos,
 };

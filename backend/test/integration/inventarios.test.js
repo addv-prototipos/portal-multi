@@ -300,9 +300,10 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
     });
 
     // Punto 179: tipo=servicio ignora codigo_barras/stock_minimo/
-    // stock_maximo/punto_reorden (quedan NA) y fuerza la unidad "Hora",
-    // sin importar lo que mande el body — validado del lado del servidor.
-    test('POST /productos tipo=servicio fuerza unidad "Hora" e ignora codigo_barras/stock/punto_reorden', async () => {
+    // stock_maximo/punto_reorden (quedan NA), sin importar lo que mande
+    // el body — validado del lado del servidor. Sin `unidad_id` en el
+    // body cae al default histórico "Hora" (compatibilidad).
+    test('POST /productos tipo=servicio sin unidad_id cae a "Hora" e ignora codigo_barras/stock/punto_reorden', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       mockPoolPorPatron([
         MODULO_ACTIVO,
@@ -314,7 +315,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
         .post('/api/admin/inventarios/productos')
         .auth(usuario, password)
         .send({
-          nombre: 'Consultoría fiscal', sku: 'SERV-1', tipo: 'servicio', unidad_id: 1,
+          nombre: 'Consultoría fiscal', sku: 'SERV-1', tipo: 'servicio',
           codigo_barras: '7501234567890', stock_minimo: '5', stock_maximo: '20', punto_reorden: '3',
           costo: '100', precio: '250',
         });
@@ -325,10 +326,47 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       const params = insert[1];
       // Orden de columnas: sku, codigo_barras, nombre, categoria_id, unidad_id, tipo, ...
       expect(params[1]).toBeNull(); // codigo_barras
-      expect(params[4]).toBe(9); // unidad_id forzada a "Hora", no la 1 del body
+      expect(params[4]).toBe(9); // unidad_id default "Hora"
       expect(params[9]).toBeNull(); // stock_minimo
       expect(params[10]).toBeNull(); // stock_maximo
       expect(params[11]).toBeNull(); // punto_reorden
+    });
+
+    // [Servicio en paquete]: 2do cobro válido para tipo=servicio — precio
+    // fijo por todo el servicio, reusa la unidad "Paquete" ya sembrada
+    // (misma fila que un producto físico puede usar).
+    test('POST /productos tipo=servicio con unidad_id="Paquete" la respeta (no la pisa a "Hora")', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT id FROM productos WHERE sku', [[]]],
+        ['SELECT nombre FROM unidades_medida WHERE id', [[{ nombre: 'Paquete' }]]],
+        ['INSERT INTO productos', [{ insertId: 56 }]],
+      ]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos')
+        .auth(usuario, password)
+        .send({ nombre: 'Mantenimiento anual', sku: 'SERV-PAQ-1', tipo: 'servicio', unidad_id: 3, precio: '5000' });
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBe(56);
+
+      const insert = pool.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO productos'));
+      expect(insert[1][4]).toBe(3); // unidad_id respetada (Paquete), no forzada a Hora
+    });
+
+    test('POST /productos tipo=servicio con unidad_id fuera del catálogo de servicio responde INV_UNIDAD_SERVICIO_INVALIDA', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT id FROM productos WHERE sku', [[]]],
+        ['SELECT nombre FROM unidades_medida WHERE id', [[{ nombre: 'Kilogramo' }]]],
+      ]);
+      const res = await request(app)
+        .post('/api/admin/inventarios/productos')
+        .auth(usuario, password)
+        .send({ nombre: 'Consultoría', sku: 'SERV-BAD-1', tipo: 'servicio', unidad_id: 5 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('INV_UNIDAD_SERVICIO_INVALIDA');
     });
 
     // Punto 213: fecha de expiración opcional, por producto (no servicio).
@@ -375,7 +413,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       const res = await request(app)
         .post('/api/admin/inventarios/productos')
         .auth(usuario, password)
-        .send({ nombre: 'Consultoría fiscal', sku: 'SERV-3', tipo: 'servicio', unidad_id: 1, fecha_expiracion: '2026-12-15' });
+        .send({ nombre: 'Consultoría fiscal', sku: 'SERV-3', tipo: 'servicio', fecha_expiracion: '2026-12-15' });
 
       expect(res.status).toBe(201);
       const insert = pool.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO productos'));
