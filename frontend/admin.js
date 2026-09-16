@@ -4560,7 +4560,8 @@
   const PLANTILLAS_CORREO = {
     invitacion: {
       campo: 'cuerpo_invitacion',
-      desc: 'Se envía al dar de alta un usuario en "Usuarios" (administrador, fiscal o cliente). Asunto fijo: "Te invitamos a Portal Clarvo tu negocio en orden".',
+      desc: 'Se envía al dar de alta un usuario en "Usuarios" (administrador, fiscal o cliente).',
+      asunto: 'Te invitamos a Portal Clarvo tu negocio en orden',
       vars: [
         { nombre: '{perfil}', desc: 'Perfil de la cuenta creada' },
         { nombre: '{usuario}', desc: 'RFC o nombre de usuario' },
@@ -4568,12 +4569,14 @@
     },
     recuperacion: {
       campo: 'cuerpo_recuperacion',
-      desc: 'Se envía cuando alguien pide "¿Olvidaste tu contraseña?" en el login. Asunto fijo: "Recupera tu acceso — Portal Clarvo tu negocio en orden".',
+      desc: 'Se envía cuando alguien pide "¿Olvidaste tu contraseña?" en el login.',
+      asunto: 'Recupera tu acceso — Portal Clarvo tu negocio en orden',
       vars: [],
     },
     aviso_contador: {
       campo: 'cuerpo_aviso_contador',
       desc: 'Se envía al "Correo de quien va a facturar" (arriba) cada vez que un cliente sube un ticket nuevo.',
+      asunto: 'Nuevo ticket para facturar — Folio {folio}',
       vars: [
         { nombre: '{rfc}', desc: 'RFC del cliente' },
         { nombre: '{folio}', desc: 'Folio del ticket' },
@@ -4581,7 +4584,8 @@
     },
     cliente: {
       campo: 'cuerpo_cliente',
-      desc: 'Se envía al cliente (el correo de su constancia) en cuanto subes su factura. Asunto fijo: "Factura lista — Folio ...".',
+      desc: 'Se envía al cliente (el correo de su constancia) en cuanto subes su factura.',
+      asunto: 'Factura lista — Folio {folio}',
       vars: [
         { nombre: '{folio}', desc: 'Folio del ticket' },
         { nombre: '{rfc}', desc: 'RFC del cliente' },
@@ -4591,6 +4595,7 @@
     reporte: {
       campo: 'cuerpo_reporte',
       desc: 'Se envía al correo de reportes (Configuración Reportes) cada vez que se genera o se envía un reporte manual.',
+      asunto: 'Reporte Clarvo — {fecha}',
       vars: [
         { nombre: '{fecha}', desc: 'Fecha de generación' },
         { nombre: '{hora}', desc: 'Hora de generación' },
@@ -4634,10 +4639,14 @@
     });
     const def = PLANTILLAS_CORREO[id];
     els.plantillaTriggerDesc.textContent = def.desc;
+    const asuntoEl = document.getElementById('plantilla-asunto-fijo');
+    if (asuntoEl) asuntoEl.textContent = '"' + def.asunto + '"';
     els.plantillaVars.innerHTML = def.vars.length
       ? def.vars.map((v) => `<span class="var-chip" data-tooltip="${escapeHtml(v.desc)}">${escapeHtml(v.nombre)}</span>`).join('')
-      : '';
+      : '<span style="font-size:11px;color:#94A3B8">Sin variables para esta plantilla.</span>';
     els.plantillaTexto.value = plantillasTextos[id] || '';
+    const contador = document.getElementById('plantilla-texto-contador');
+    if (contador) contador.textContent = els.plantillaTexto.value.length + ' / 500';
     actualizarPreviewPlantilla();
   }
 
@@ -4647,6 +4656,8 @@
 
   els.plantillaTexto.addEventListener('input', () => {
     plantillasTextos[plantillaActual] = els.plantillaTexto.value;
+    const contador = document.getElementById('plantilla-texto-contador');
+    if (contador) contador.textContent = els.plantillaTexto.value.length + ' / 500';
     programarPreviewPlantilla();
   });
 

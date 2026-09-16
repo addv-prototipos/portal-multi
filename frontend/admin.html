@@ -2244,6 +2244,9 @@
               </button>
             </nav>
             <p class="config-modal-nav-empty" id="config-modal-nav-empty" hidden>Ninguna sección coincide con tu búsqueda.</p>
+            <div style="padding:12px;border-top:1px solid #E2E8F0;background:rgba(241,245,249,.5);margin-top:auto">
+              <div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:#059669"><span style="width:8px;height:8px;background:#10B981;border-radius:50%;display:inline-block"></span>Servidor SMTP Conectado</div>
+            </div>
           </div>
 
           <div class="config-modal-main is-oculta-movil" id="config-modal-main">
@@ -2612,18 +2615,32 @@
                     <button type="button" class="plantillas-tab" data-plantilla="reporte" role="tab" aria-selected="false">Reporte</button>
                   </div>
 
-                  <p class="field-hint" id="plantilla-trigger-desc"></p>
-                  <div class="plantilla-vars" id="plantilla-vars"></div>
-
-                  <div class="field">
-                    <label for="plantilla-texto">Cuerpo del correo</label>
-                    <textarea id="plantilla-texto" rows="4" maxlength="5000"></textarea>
-                  </div>
-                  <p class="field-hint"><button type="button" class="btn-link" id="btn-restablecer-plantilla">Restablecer esta plantilla</button></p>
-
-                  <p class="field-hint">Vista previa real:</p>
-                  <div class="plantilla-preview-wrap">
-                    <iframe id="plantilla-preview-frame" class="plantilla-preview-frame" title="Vista previa del correo" sandbox=""></iframe>
+                  <div class="plantilla-fiel-split">
+                    <div class="plantilla-fiel-left">
+                      <div class="plantilla-callout">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00b4d8" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>
+                        <div>
+                          <p class="plantilla-callout-title">Disparador de la plantilla:</p>
+                          <p class="field-hint" id="plantilla-trigger-desc" style="margin:0"></p>
+                          <p class="field-hint" style="margin:4px 0 0"><span style="font-weight:600;color:#334155">Asunto fijo:</span> <span id="plantilla-asunto-fijo" class="field-hint" style="font-style:italic;background:#fff;padding:1px 6px;border:1px solid #DBEAFE;border-radius:4px"></span></p>
+                        </div>
+                      </div>
+                      <div class="plantilla-vars" id="plantilla-vars"></div>
+                      <div class="field" style="margin-top:10px">
+                        <label for="plantilla-texto" style="display:flex;justify-content:space-between;align-items:center">Cuerpo del mensaje editable <span id="plantilla-texto-contador" style="font-size:11px;color:#94A3B8;font-weight:400">0 / 500</span></label>
+                        <div style="border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;background:#fff">
+                          <div style="background:#F8FAFC;border-bottom:1px solid #E2E8F0;padding:6px 8px;display:flex;gap:6px;align-items:center;color:#64748B;font-size:11px"><b>B</b><i>I</i><span style="width:1px;height:12px;background:#E2E8F0;display:inline-block"></span><span style="font-size:10px">Modo texto enriquecido</span></div>
+                          <textarea id="plantilla-texto" rows="5" maxlength="5000" style="border:none;width:100%;padding:10px;font-size:13px;resize:vertical;min-height:110px"></textarea>
+                        </div>
+                      </div>
+                      <p class="field-hint" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;border-top:1px solid #F1F5F9;padding-top:8px"><button type="button" class="btn-link" id="btn-restablecer-plantilla" style="color:#dc2626;font-weight:600">Restablecer esta plantilla</button><span style="font-size:11px;color:#94A3B8">Versión 2.4 (Estable)</span></p>
+                    </div>
+                    <div class="plantilla-fiel-right">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#475569;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;background:#10B981;border-radius:50%;display:inline-block;position:relative"><span style="position:absolute;width:100%;height:100%;background:#34D399;border-radius:50%;animation:pulse 2s infinite"></span></span>Vista previa en tiempo real</span><span style="font-size:11px;padding:3px 8px;background:#fff;border:1px solid #E2E8F0;border-radius:6px">Escritorio</span></div>
+                      <div class="plantilla-preview-wrap" style="background:#F1F5F9;padding:12px;border-radius:10px">
+                        <iframe id="plantilla-preview-frame" class="plantilla-preview-frame" title="Vista previa del correo" sandbox="" style="width:100%;min-height:380px;border:none;border-radius:8px;background:#fff;box-shadow:0 4px 12px rgba(15,39,68,.08)"></iframe>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

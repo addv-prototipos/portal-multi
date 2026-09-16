@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Configuraciones de Correo (SMTP) - Clarvo / ADDV</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Custom Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            clarvo: {
+              navy: '#0b1d33',
+              deep: '#0f2744',
+              surface: '#f8fafc',
+              border: '#e2e8f0',
+              accent: '#00b4d8',
+              accentHover: '#0096c7',
+              cyanBadge: '#e0f7fa',
+              cyanText: '#00778f'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<style data-purpose="custom-scrollbars">
+    /* Subtle custom scrollbar for modal sub-panes */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-900/60 min-h-screen font-sans antialiased text-slate-800 flex items-center justify-center p-3 sm:p-6 backdrop-blur-sm">
+<!-- BEGIN: ModalContainer -->
+<div class="w-full max-w-[1400px] h-[92vh] max-h-[960px] bg-white rounded-2xl shadow-2xl border border-slate-200/80 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" data-purpose="smtp-settings-modal">
+<!-- BEGIN: ModalHeader -->
+<header class="h-16 border-b border-slate-200 px-6 flex items-center justify-between bg-white flex-shrink-0">
+<div class="flex items-center space-x-3">
+<div class="w-9 h-9 rounded-lg bg-clarvo-accent/10 flex items-center justify-center text-clarvo-accent">
+<svg class="w-5 h-5 text-clarvo-accent" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h1 class="text-lg font-bold text-slate-900 tracking-tight leading-tight">Configuración de Sistema</h1>
+<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200 font-medium">Clarvo Cloud</span>
+</div>
+<p class="text-xs text-slate-500">Administración de canales de comunicación, SMTP y plantillas transaccionales</p>
+</div>
+</div>
+<!-- Close and Quick Action Buttons -->
+<div class="flex items-center gap-2">
+<button aria-label="Cerrar modal" class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" type="button">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+</header>
+<!-- END: ModalHeader -->
+<!-- BEGIN: ModalBodyLayout -->
+<div class="flex-1 flex overflow-hidden">
+<!-- BEGIN: InternalSidebar -->
+<aside class="w-72 bg-slate-50/70 border-r border-slate-200 flex flex-col flex-shrink-0 select-none" data-purpose="settings-sidebar">
+<!-- Search Input -->
+<div class="p-4 pb-2">
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="8"></circle>
+<line x1="21" x2="16.65" y1="21" y2="16.65"></line>
+</svg>
+</div>
+<input class="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-clarvo-accent focus:border-transparent transition-all shadow-sm" placeholder="Buscar ajustes..." type="search"/>
+</div>
+</div>
+<!-- Navigation Categories -->
+<div class="flex-1 overflow-y-auto custom-scrollbar px-3 py-2 space-y-5 text-xs">
+<!-- Category: Fiscal -->
+<div>
+<span class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Fiscal</span>
+<div class="mt-1 space-y-0.5">
+<a class="flex items-center gap-2.5 px-2.5 py-2 text-slate-600 rounded-lg hover:bg-slate-200/50 hover:text-slate-900 transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="font-medium truncate">Campos obligatorios</span>
+</a>
+<a class="flex items-center gap-2.5 px-2.5 py-2 text-slate-600 rounded-lg hover:bg-slate-200/50 hover:text-slate-900 transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="font-medium truncate">Configuraciones fiscales</span>
+</a>
+</div>
+</div>
+<!-- Category: Comunicación (Active Category) -->
+<div>
+<span class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Comunicación</span>
+<div class="mt-1 space-y-0.5">
+<!-- Active Item -->
+<a class="flex items-center justify-between px-2.5 py-2 rounded-lg bg-clarvo-accent text-white shadow-sm font-medium" href="#">
+<div class="flex items-center gap-2.5 truncate">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="truncate">Correo electrónico (SMTP)</span>
+</div>
+<span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+</a>
+<a class="flex items-center gap-2.5 px-2.5 py-2 text-slate-600 rounded-lg hover:bg-slate-200/50 hover:text-slate-900 transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="font-medium truncate">Notificación de reportes</span>
+</a>
+<a class="flex items-center gap-2.5 px-2.5 py-2 text-slate-600 rounded-lg hover:bg-slate-200/50 hover:text-slate-900 transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="font-medium truncate">Notificaciones Push</span>
+</a>
+</div>
+</div>
+<!-- Category: Módulos -->
+<div>
+<span class="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Módulos (Activar/Desactivar)</span>
+<div class="mt-1 space-y-0.5">
+<a class="flex items-center gap-2.5 px-2.5 py-2 text-slate-600 rounded-lg hover:bg-slate-200/50 hover:text-slate-900 transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="font-medium truncate">Módulo Ventas</span>
+</a>
+<a class="flex items-center gap-2.5 px-2.5 py-2 text-slate-600 rounded-lg hover:bg-slate-200/50 hover:text-slate-900 transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="font-medium truncate">Módulo Inventarios</span>
+</a>
+<a class="flex items-center gap-2.5 px-2.5 py-2 text-slate-600 rounded-lg hover:bg-slate-200/50 hover:text-slate-900 transition-colors" href="#">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="font-medium truncate">Módulo Auditoría</span>
+</a>
+</div>
+</div>
+</div>
+<!-- Sidebar footer status -->
+<div class="p-3 border-t border-slate-200 bg-slate-100/50">
+<div class="flex items-center gap-2 text-emerald-600 text-[11px] font-medium">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            Servidor SMTP Conectado
+          </div>
+</div>
+</aside>
+<!-- END: InternalSidebar -->
+<!-- BEGIN: ContentArea -->
+<main class="flex-1 flex flex-col overflow-hidden bg-slate-50/40">
+<!-- Tab / Collapsible Section Header -->
+<div class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="p-1.5 bg-sky-50 text-clarvo-accent rounded">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div>
+<h2 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                Plantillas de correo automatizadas
+                <span class="text-[11px] font-normal bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">Activo</span>
+</h2>
+<p class="text-[11px] text-slate-500">Personaliza el mensaje transaccional enviado por la plataforma a los usuarios</p>
+</div>
+</div>
+<!-- Quick Test Email action -->
+<div class="flex items-center gap-2">
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm">
+<svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+              Enviar correo de prueba
+            </button>
+</div>
+</div>
+<!-- Template Selector Pills Bar -->
+<div class="bg-white px-6 py-2.5 border-b border-slate-200 flex items-center justify-between gap-4 overflow-x-auto">
+<!-- Template Pills Group -->
+<div class="flex items-center gap-1.5">
+<!-- Active Pill -->
+<button class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-clarvo-deep text-white shadow-sm flex items-center gap-1.5">
+<span>Invitación</span>
+<span class="w-1.5 h-1.5 rounded-full bg-clarvo-accent"></span>
+</button>
+<!-- Inactive Pills -->
+<button class="px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+              Recuperar contraseña
+            </button>
+<button class="px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+              Aviso al contador
+            </button>
+<button class="px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+              Factura lista
+            </button>
+<button class="px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+              Reporte
+            </button>
+</div>
+<!-- Template Context Info -->
+<div class="hidden xl:flex items-center gap-1.5 text-[11px] text-slate-500">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+<span>Estructura base y estilos corporativos fijos por sistema</span>
+</div>
+</div>
+<!-- Split Screen Main Workspace -->
+<div class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0">
+<!-- BEGIN: LeftColumnEditor (5 cols) -->
+<section class="lg:col-span-6 xl:col-span-5 p-5 overflow-y-auto custom-scrollbar border-r border-slate-200 flex flex-col space-y-4 bg-white" data-purpose="template-editor-pane">
+<!-- Information Callout Box -->
+<div class="bg-blue-50/60 border border-blue-100 rounded-xl p-3.5 text-xs text-slate-700">
+<div class="flex items-start gap-2.5">
+<svg class="w-4 h-4 text-clarvo-accent flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<line x1="12" x2="12" y1="16" y2="12"></line>
+<line x1="12" x2="12.01" y1="8" y2="8"></line>
+</svg>
+<div class="space-y-1">
+<p class="font-medium text-slate-900">Disparador de la plantilla:</p>
+<p class="text-slate-600 leading-relaxed">
+                    Se envía al dar de alta un nuevo usuario en <strong>"Usuarios"</strong> (administrador, fiscal o cliente).
+                  </p>
+<div class="pt-1 flex items-center gap-1 text-[11px] text-slate-500">
+<span class="font-semibold text-slate-700">Asunto fijo:</span>
+<span class="italic font-mono bg-white px-1.5 py-0.5 rounded border border-blue-200 text-slate-800">"Te invitamos a Portal Clarvo: tu negocio en orden"</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Interactive Variables / Dynamic Tags -->
+<div>
+<div class="flex items-center justify-between mb-2">
+<label class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+<span>Variables disponibles</span>
+<span class="text-[10px] lowercase font-normal text-slate-400">(clic para insertar)</span>
+</label>
+<span class="text-[10px] text-clarvo-accent font-medium hover:underline cursor-pointer">Ver guía de tags</span>
+</div>
+<div class="flex flex-wrap gap-1.5">
+<button class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-all" title="Insertar perfil asignado" type="button">
+<span>{perfil}</span>
+<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<button class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-all" title="Insertar correo/usuario" type="button">
+<span>{usuario}</span>
+<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<button class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-all" title="Insertar contraseña provisional" type="button">
+<span>{contraseña_temporal}</span>
+<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<button class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-all" title="Nombre de la empresa receptora" type="button">
+<span>{nombre_empresa}</span>
+<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<button class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-all" title="URL de acceso seguro" type="button">
+<span>{enlace_acceso}</span>
+<svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+</div>
+<!-- Email Body Content Textarea with Toolbar -->
+<div class="flex-1 flex flex-col min-h-[220px]">
+<div class="flex items-center justify-between mb-1.5">
+<label class="text-xs font-bold text-slate-800" for="email-body-input">
+                  Cuerpo del mensaje editable
+                </label>
+<span class="text-[11px] text-slate-400">62 / 500 caracteres</span>
+</div>
+<div class="border border-slate-300 rounded-xl overflow-hidden focus-within:border-clarvo-accent focus-within:ring-2 focus-within:ring-clarvo-accent/20 transition-all flex flex-col shadow-sm flex-1">
+<!-- Mini Rich-Text helper bar -->
+<div class="bg-slate-50 border-b border-slate-200 px-3 py-1.5 flex items-center justify-between text-slate-600">
+<div class="flex items-center gap-1">
+<button class="p-1 hover:bg-slate-200 rounded text-slate-700 font-bold text-xs" title="Negrita" type="button">B</button>
+<button class="p-1 hover:bg-slate-200 rounded text-slate-700 italic font-serif text-xs px-1.5" title="Cursiva" type="button">I</button>
+<div class="h-3.5 w-px bg-slate-300 mx-1"></div>
+<button class="p-1 hover:bg-slate-200 rounded text-slate-600" title="Enlace" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<button class="p-1 hover:bg-slate-200 rounded text-slate-600" title="Lista con viñetas" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">Modo texto enriquecido</span>
+</div>
+<!-- Textarea -->
+<textarea class="w-full p-3.5 text-sm text-slate-800 bg-white border-0 resize-none focus:ring-0 focus:outline-none leading-relaxed flex-1" id="email-body-input" placeholder="Escribe aquí el texto que verá el receptor antes de los accesos..." rows="6">Ingresa con estos datos y cambia tu contraseña en cuanto puedas.</textarea>
+</div>
+</div>
+<!-- Reset Template Button -->
+<div class="pt-1 flex items-center justify-between border-t border-slate-100">
+<button class="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-semibold transition-colors py-1 px-1 rounded hover:bg-rose-50" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+                Restablecer esta plantilla
+              </button>
+<span class="text-[11px] text-slate-400">Versión 2.4 (Estable)</span>
+</div>
+</section>
+<!-- END: LeftColumnEditor -->
+<!-- BEGIN: RightColumnLivePreview (7 cols) -->
+<section class="lg:col-span-6 xl:col-span-7 bg-slate-100/70 p-5 overflow-y-auto custom-scrollbar flex flex-col" data-purpose="live-email-preview-pane">
+<!-- Preview Sub-header with mock viewport badge -->
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-2">
+<span class="flex h-2 w-2 relative">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+</span>
+<span class="text-xs font-bold uppercase tracking-wider text-slate-600">Vista previa en tiempo real</span>
+</div>
+<div class="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm text-xs text-slate-600">
+<button class="px-2 py-1 bg-slate-100 text-slate-800 rounded font-medium text-[11px] flex items-center gap-1">
+<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><rect height="14" rx="2" ry="2" width="20" x="2" y="3"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+                  Escritorio
+                </button>
+<button class="px-2 py-1 text-slate-500 hover:text-slate-900 rounded font-medium text-[11px] flex items-center gap-1">
+<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><rect height="20" rx="2" ry="2" width="14" x="5" y="2"></rect><line x1="12" x2="12.01" y1="18" y2="18"></line></svg>
+                  Móvil
+                </button>
+</div>
+</div>
+<!-- Email Client Frame Mockup -->
+<div class="bg-white rounded-xl shadow-lg border border-slate-200/90 overflow-hidden flex flex-col flex-1 max-w-xl mx-auto w-full">
+<!-- Mock Email Client Meta Header -->
+<div class="bg-slate-50 border-b border-slate-200 p-3 space-y-1 text-xs">
+<div class="flex items-center">
+<span class="w-16 font-semibold text-slate-500">De:</span>
+<span class="text-slate-800 font-medium truncate">Clarvo Notificaciones &lt;notificaciones@clarvo.addv.mx&gt;</span>
+</div>
+<div class="flex items-center">
+<span class="w-16 font-semibold text-slate-500">Para:</span>
+<span class="text-slate-700 truncate">rodrigo.sanchez@empresa-ejemplo.mx</span>
+</div>
+<div class="flex items-center">
+<span class="w-16 font-semibold text-slate-500">Asunto:</span>
+<span class="font-bold text-slate-900 truncate">Te invitamos a Portal Clarvo: tu negocio en orden</span>
+</div>
+</div>
+<!-- Real Template Render Area (Accurate to screenshot and branding) -->
+<div class="p-6 md:p-8 bg-slate-50 flex-1 flex flex-col items-center justify-center">
+<!-- Email Canvas Container -->
+<div class="w-full max-w-md bg-white rounded-xl shadow-md border border-slate-200/80 overflow-hidden">
+<!-- Top Decorative Bar (Turquoise Gradient Accent) -->
+<div class="h-1.5 w-full bg-gradient-to-r from-clarvo-deep via-clarvo-accent to-teal-400"></div>
+<!-- Email Brand Header -->
+<div class="pt-7 pb-4 px-6 text-center border-b border-slate-100 bg-white">
+<h3 class="text-xs font-bold tracking-widest text-slate-800 uppercase">
+                      CLARVO <span class="text-slate-300 mx-1">—</span> Tu negocio
+                    </h3>
+<p class="text-[11px] tracking-wide text-slate-400 font-medium">bajo control by ADDV</p>
+</div>
+<!-- Email Content Box -->
+<div class="p-6 md:p-7 space-y-5">
+<div class="text-center space-y-1">
+<span class="text-[11px] font-bold tracking-wider text-clarvo-accent uppercase block">Bienvenido</span>
+<h4 class="text-xl font-extrabold text-slate-900 tracking-tight">Tu cuenta ya está lista</h4>
+</div>
+<!-- Live Rendered Editable Paragraph -->
+<p class="text-xs text-slate-600 text-center leading-relaxed px-2">
+                      Ingresa con estos datos y cambia tu contraseña en cuanto puedas.
+                    </p>
+<!-- User Credentials Summary Card -->
+<div class="bg-slate-50 rounded-lg p-3.5 border border-slate-200/90 space-y-2.5 text-xs">
+<div class="flex justify-between items-center py-0.5 border-b border-slate-200/60 pb-2">
+<span class="text-slate-500 font-medium">Perfil:</span>
+<span class="font-semibold text-slate-800 bg-blue-50 text-blue-800 px-2 py-0.5 rounded text-[11px]">Administrador</span>
+</div>
+<div class="flex justify-between items-center py-0.5 border-b border-slate-200/60 pb-2">
+<span class="text-slate-500 font-medium">Usuario:</span>
+<span class="font-mono font-bold text-slate-800">EJEMPLO001</span>
+</div>
+<div class="flex justify-between items-center pt-0.5">
+<span class="text-slate-500 font-medium">Contraseña provisional:</span>
+<div class="flex items-center gap-1.5 font-mono font-bold text-clarvo-navy bg-cyan-50/80 px-2.5 py-1 rounded border border-cyan-200 text-xs">
+<span>Ah3xY9zQ</span>
+<button class="text-clarvo-accent hover:text-clarvo-deep" title="Copiar contraseña">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+</div>
+</div>
+<!-- Call To Action Button -->
+<div class="pt-2 text-center">
+<a class="inline-block w-full py-2.5 px-4 bg-clarvo-deep hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow transition-all tracking-wide text-center" href="#">
+                        Iniciar sesión en Clarvo
+                      </a>
+<p class="text-[10px] text-slate-400 mt-2">Este enlace caducará en 72 horas por motivos de seguridad.</p>
+</div>
+</div>
+<!-- Email Card Footer -->
+<div class="bg-slate-50 px-6 py-3 border-t border-slate-100 text-center text-[10px] text-slate-400">
+                    © 2024 CLARVO - Todos los derechos reservados. Soporte: ayuda@addv.mx
+                  </div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: RightColumnLivePreview -->
+</div>
+<!-- BEGIN: ModalActionFooter -->
+<footer class="h-16 bg-white border-t border-slate-200 px-6 flex items-center justify-between flex-shrink-0">
+<div class="flex items-center gap-2 text-xs text-slate-500">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span>Última modificación guardada: <strong>Hoy a las 11:20 AM</strong> por Administrador</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors shadow-sm" type="button">
+              Descartar cambios
+            </button>
+<button class="px-5 py-2 text-xs font-bold text-white bg-clarvo-deep hover:bg-slate-800 rounded-lg transition-colors shadow-md flex items-center gap-2" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span>Guardar plantilla</span>
+</button>
+</div>
+</footer>
+<!-- END: ModalActionFooter -->
+</main>
+<!-- END: ContentArea -->
+</div>
+<!-- END: ModalBodyLayout -->
+</div>
+<!-- END: ModalContainer -->
+<!-- Interactivity Demo Script (Sync textarea typing with live preview) -->
+<script data-purpose="live-preview-sync">
+    document.addEventListener('DOMContentLoaded', () => {
+      const textarea = document.getElementById('email-body-input');
+      // Finds the preview paragraph container
+      const previewParagraph = document.querySelector('[data-purpose="live-email-preview-pane"] p.text-slate-600');
+      
+      if (textarea && previewParagraph) {
+        textarea.addEventListener('input', (e) => {
+          previewParagraph.textContent = e.target.value.trim() || 'Ingresa con estos datos y cambia tu contraseña en cuanto puedas.';
+        });
+      }
+    });
+  </script>
+</body></html>

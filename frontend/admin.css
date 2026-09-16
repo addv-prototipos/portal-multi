@@ -979,35 +979,38 @@
   overflow: hidden;
 }
 .config-modal-sidebar {
-  width: 260px;
-  flex: 0 0 260px;
-  background: var(--color-bg);
-  border-right: 1px solid var(--color-border);
+  width: 288px;
+  flex: 0 0 288px;
+  background: rgba(248,250,252,0.7);
+  border-right: 1px solid #E2E8F0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
 }
 .config-modal-search {
-  margin: 14px 14px 8px;
+  margin: 16px 16px 8px;
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 6px 10px;
   flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(15,39,68,.04);
 }
-.config-modal-search svg { color: var(--color-ink-soft); flex-shrink: 0; }
+.config-modal-search svg { color: #94A3B8; flex-shrink: 0; }
 .config-modal-search input {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 13px;
+  font-size: 12px;
   width: 100%;
-  color: var(--color-ink);
+  color: #1E293B;
   font-family: var(--font-body);
 }
+.config-modal-search input::placeholder { color: #94A3B8; }
+.config-modal-search input:focus { box-shadow: none; }
 .config-modal-nav {
   display: flex;
   flex-direction: column;
@@ -1018,22 +1021,24 @@
 .conocimiento-nav-item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 9px 10px;
-  border-radius: var(--radius-sm);
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   cursor: pointer;
   font-family: var(--font-body);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--color-ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
   text-align: left;
   width: 100%;
 }
 .config-modal-nav-item svg, .conocimiento-nav-item svg { flex-shrink: 0; }
-.config-modal-nav-item:hover, .conocimiento-nav-item:hover { background: var(--color-accent-soft); color: var(--color-accent-dark); }
-.config-modal-nav-item.is-active, .conocimiento-nav-item.is-active { background: #05DBF2; color: #03285B; }
+.config-modal-nav-item:hover, .conocimiento-nav-item:hover { background: #E2E8F0; color: #0f2744; }
+.config-modal-nav-item.is-active, .conocimiento-nav-item.is-active { background: #00b4d8; color: #fff; box-shadow: 0 1px 2px rgba(15,39,68,.08); }
+.config-modal-nav-item.is-active::after { content: ''; width: 8px; height: 8px; background: #fff; border-radius: 50%; margin-left: auto; flex-shrink: 0; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
 
 /* Encabezados de grupo dentro de "Configuraciones" (arquitectura
    de información revisada, 2026-09-13) — separa formularios reales
@@ -1041,12 +1046,12 @@
    Se oculta por JS si la búsqueda o los permisos del perfil dejan a su
    grupo sin ninguna tarjeta visible (ver actualizarGruposConfigNav). */
 .config-modal-nav-group-label {
-  padding: 12px 10px 4px;
-  font-size: 10.5px;
+  padding: 12px 8px 4px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-ink-soft);
+  letter-spacing: 0.08em;
+  color: #94A3B8;
 }
 .config-modal-nav-group-label:first-of-type { padding-top: 2px; }
 .config-modal-nav-empty {
@@ -2955,6 +2960,29 @@
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: #fff;
+}
+
+/* ---------- Plantilla fiel a stitch/plantillas (2026-09-16) ----------
+   Fiel a stitch/plantillas/code.html — split editor/preview, callout azul,
+   variables clicables, toolbar y preview vivo. Respeta colapsables y no
+   niega información (apilado en <900px). */
+#smtp-config-card .smtp-acc-content { padding: 12px 4px 4px; }
+#smtp-config-card .smtp-subseccion { padding: 10px 12px 12px; margin-bottom: 10px; }
+#smtp-config-card .smtp-verificar-franja { margin-top: 8px; }
+#smtp-config-card .smtp-config-grid { gap: 10px 10px; }
+.plantilla-fiel-split { display: grid; grid-template-columns: 1fr 1.2fr; gap: 14px; align-items: start; }
+.plantilla-fiel-left { display: flex; flex-direction: column; gap: 10px; }
+.plantilla-fiel-right { background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px; }
+.plantilla-callout { display: flex; gap: 10px; padding: 10px 12px; background: #EFF6FF; border: 1px solid #DBEAFE; border-radius: 10px; font-size: 12px; line-height: 1.5; }
+.plantilla-callout-title { font-weight: 700; color: #0f2744; margin: 0 0 2px; font-size: 12px; }
+.plantilla-preview-wrap { overflow: visible; }
+.plantilla-preview-wrap .plantilla-preview-frame { min-height: 360px; }
+@media (max-width: 900px) {
+  .plantilla-fiel-split { grid-template-columns: 1fr; }
+  .plantilla-fiel-right { order: -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plantilla-fiel-split, .plantilla-preview-wrap .plantilla-preview-frame { transition: none; }
 }
 
 /* ---------- Homologación sitio completo a paleta stitch (2026-09-16) ----------
