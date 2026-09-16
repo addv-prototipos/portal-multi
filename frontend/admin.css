@@ -2957,6 +2957,34 @@
   color: #fff;
 }
 
+/* ---------- Restyle SMTP fiel a stitch/smtp (2026-09-16, punto 310) ----------
+   Fiel a stitch/smtp/code.html — respeta colapsables Image 1 (3 headers,
+   solo 1 abierto) + orden exacto Image 2 (hint autoguardado → franja
+   verificar) + colores stitch exactos (#071321/#0f2744 navy, #2563EB blue,
+   #F8FAFC body, #E2E8F0 borde, #ECFDF5 badge) + sin botones
+   Guardar/Cancelar (autoguardado) + sin emojis (rayo SVG feather, nunca ⚡).
+   Solo CSS — mismos ids/endpoints, colapsables y autoguardado intactos. */
+#smtp-config-card .smtp-acc-header { background: #fff; border-color: #E2E8F0; }
+#smtp-config-card .smtp-acc-header[aria-expanded="false"] { background: #fff; }
+#smtp-config-card .smtp-acc-header:hover { border-color: #0f2744; }
+#smtp-config-card .smtp-acc-body { background: #F8FAFC; }
+#smtp-config-card .smtp-acc-content { background: #F8FAFC; }
+#smtp-config-card .smtp-subseccion { background: #fff; border-color: #E2E8F0; border-radius: 10px; box-shadow: 0 1px 2px rgba(15,39,68,.04); }
+#smtp-config-card .smtp-subseccion-titulo { color: #334155; }
+#smtp-config-card .smtp-subseccion-dot-servidor { background: #2563EB; }
+#smtp-config-card .smtp-subseccion-dot-auth { background: #0f2744; }
+#smtp-config-card .smtp-subseccion-dot-remitente { background: #94A3B8; }
+#smtp-config-card .smtp-config-grid input,
+#smtp-config-card .smtp-config-grid select,
+#smtp-config-card .smtp-config-grid textarea { background: #F8FAFC; border-color: #E2E8F0; }
+#smtp-config-card .smtp-config-grid input:focus,
+#smtp-config-card .smtp-config-grid select:focus { background: #fff; border-color: #0f2744; box-shadow: 0 0 0 3px rgba(15,39,68,.12); }
+#smtp-config-card .smtp-verificar-franja { background: #F1F5F9; border-color: #E2E8F0; }
+#smtp-config-card .guia-smtp-toggle { background: #EFF6FF; border-color: #DBEAFE; color: #0f2744; }
+#smtp-config-card .smtp-estado-badge.is-ok { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+#smtp-config-card .smtp-verificar-icono { color: #64748B; }
+#smtp-config-card .smtp-autosave-tag.is-guardado { background: #ECFDF5; color: #065F46; }
+
 .plantilla-vars {
   display: flex;
   flex-wrap: wrap;

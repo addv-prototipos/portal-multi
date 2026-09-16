@@ -14979,6 +14979,9 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 309. **Cuenta (admin) — switches Facturación + Timbrado SAT con badge PROXIMAMENTE (2026-09-16, PENDIENTE — solo documentado, sin codigo)**: pedido explicito para el segmento **Cuenta** de `/admin` (donde ya existe "Portal de clientes activar"). Agregar **al lado**, con **mismo estilo/control** del switch existente: (1) **Facturación — "Activar petición de facturas"** (switch funcional pendiente de definir alcance/gate — por tenant `control_tenants.facturacion_peticion_activa` vs `configuracion`, default ON/OFF, que oculta/bloquea `POST /api/tickets` + UI, texto de ayuda); (2) **"Activar timbrado al SAT"** con **badge "PRÓXIMAMENTE"** (imagen referencia, misma identidad visual pill gris mayúsculas, sin emoji) y **por ahora inactivo/deshabilitado** (solo visual, no persiste ni gatea). Agregado a `pendientes.html:Cuenta` (`cta-facturacion-peticion`, `cta-timbrado-sat`) como `Sin decidir / Pendiente visual`. No requiere prompt adicional para implementar — falta solo confirmar alcance del primero.
 
+
+310. **Regla cero emojis — rayo SMTP (2026-09-16, DOCUMENTADO)**: se reafirma la directiva general de **cero emojis** (punto 261) y se precisa para SMTP: el rayo de la franja `Verificar conexión ahora` se mantiene con el **SVG actual del sitio** (`<path d="M13 3 L4 14h7l-1 7 9-11h-7l1-7Z" stroke-width="1.7">`), nunca con emoji ⚡. Aplica a previews `stitch/smtp/preview-*.html` y al `admin.css` final del restyle fiel. La preview v2 ya fue corregida (✉️/📄/🧪/⚡ reemplazados por SVG feather). Sin código SMTP tocado aún — pendiente integrar el diseño fiel cuando el usuario diga "procede".
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

@@ -104,7 +104,7 @@ node --check backend/ruta/al/archivo.js
   (mismo estilo feather-like de `admin.js`/`admin.html`/`portal.js`) o,
   si es solo un punto de color, con un `<span>` `border-radius:50%` +
   `background` (ver `.inicio-donut-dot`/`.inv-calculo-base-dot` en
-  `admin.css`) — nunca un carácter Unicode tipo "●"/"✓" ni un emoji real.
+  `admin.css`) — nunca un carácter Unicode tipo "●"/"✓" ni un emoji real. **Regla 2026-09-16 — rayo SMTP:** el ícono del rayo de `Verificar conexión ahora` se mantiene con el **SVG actual del sitio** (`M13 3 L4 14…` stroke 1.7, estilo feather), nunca con emoji ⚡ ni variantes Unicode — aplica a preview `stitch/smtp` y a `admin.css` final.
   Al homologar con un mockup/imagen de referencia que sí trae emojis o
   íconos de una librería externa (Font Awesome, etc.), replicar la FORMA
   visual con los SVG propios del sitio, respetando además el set de
