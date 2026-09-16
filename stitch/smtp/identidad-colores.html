@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Identidad Visual — Colores SMTP (stitch fiel)</title>
+<style>
+  :root{--bg:#F8FAFC;--line:#E2E8F0;--ink:#0f2744}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{padding:28px 24px;background:#071321;color:#fff}
+  header h1{margin:0;font-size:22px}
+  header p{margin:6px 0 0;opacity:.8;font-size:13px;max-width:70ch}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+  .swatch{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .swatch .color{height:90px;display:flex;align-items:flex-end;justify-content:space-between;padding:10px;color:#fff;font-size:11px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+  .swatch .info{padding:12px 14px}
+  .swatch .hex{font-family:JetBrains Mono,monospace;font-size:13px;font-weight:700}
+  .swatch .name{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748B;margin:2px 0 6px}
+  .swatch .use{font-size:12px;color:#334155;line-height:1.5}
+  .swatch .token{font-family:monospace;font-size:11px;color:#64748B;background:#F8FAFC;padding:2px 6px;border-radius:6px;border:1px solid #E2E8F0;display:inline-block;margin-top:6px}
+  .section{margin-top:32px}
+  .section h2{font-size:14px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .legend{font-size:12px;color:#64748B;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;line-height:1.6}
+  .row{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #F1F5F9}
+  .row:last-child{border:none}
+  .dot{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.1);flex-shrink:0}
+  .cta{margin-top:24px;display:flex;gap:10px;flex-wrap:wrap}
+  .cta button{padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+  .ghost{background:#fff;border:1px solid #E2E8F0;color:#0f2744}
+  .primary{background:#0f2744;color:#fff;border:1px solid #0f2744}
+  code{font-family:JetBrains Mono,monospace;font-size:11px;background:#fff;padding:1px 5px;border-radius:4px;border:1px solid #E2E8F0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Identidad Visual — Solo Colores <span style="opacity:.6;font-weight:400">/ stitch/smtp → SMTP</span></h1>
+  <p>Paleta fiel a <code>stitch/smtp/code.html</code> + <code>DESIGN.md</code>. Sin tipografía, sin layout — solo colores para validar antes de seguir.</p>
+</header>
+<div class="wrap">
+  <div class="legend">
+    <strong>Base:</strong> Inter (ya es tu fuente) + navy institucional. Todo lo demás son superficies slate. Los 4 colores semánticos (blue/navy/slate + badge) son los únicos que tocan el SMTP. <strong>Cero emojis, rayo SVG <code>M13 3…</code></strong>.
+  </div>
+
+  <div class="section">
+    <h2>● Paleta principal — superficies</h2>
+    <div class="grid">
+      <div class="swatch"><div class="color" style="background:#071321"><span>#071321</span><span>clarvo.950</span></div><div class="info"><div class="name">Navy profundo — backdrop modal</div><div class="hex">#071321</div><div class="use">Fondo detrás del modal (overlay <code>bg-slate-950/70</code> con blur).</div><span class="token">overlay</span></div></div>
+      <div class="swatch"><div class="color" style="background:#0f2744"><span>#0f2744</span><span>primary / clarvo.900</span></div><div class="info"><div class="name">Navy institucional — primario</div><div class="hex">#0f2744</div><div class="use">Headers, botones primarios, títulos, foco <code>ring</code>. Equivale a tu <code>#03285B</code>.</div><span class="token">--accent → #0f2744 (solo SMTP)</span></div></div>
+      <div class="swatch"><div class="color" style="background:#F8FAFC"><span style="color:#0f2744;text-shadow:none">#F8FAFC</span><span style="color:#64748B">slate-50</span></div><div class="info"><div class="name">Canvas — fondo modal body</div><div class="hex">#F8FAFC</div><div class="use">Fondo del body del acordeón y de inputs (<code>bg-slate-50/50</code>).</div><span class="token">.smtp-acc-body, input bg</span></div></div>
+      <div class="swatch"><div class="color" style="background:#F1F5F9"><span style="color:#334155;text-shadow:none">#F1F5F9</span><span style="color:#64748B">slate-100</span></div><div class="info"><div class="name">Franja verificar</div><div class="hex">#F1F5F9</div><div class="use">Fondo de la franja "Verificar conexión ahora".</div><span class="token">.smtp-verificar-franja</span></div></div>
+      <div class="swatch"><div class="color" style="background:#EFF6FF"><span style="color:#0f2744;text-shadow:none">#EFF6FF</span><span style="color:#64748B">blue-50</span></div><div class="info"><div class="name">Banner Gmail</div><div class="hex">#EFF6FF</div><div class="use">Fondo del toggle "¿Cómo configuro Gmail?" + borde <code>#DBEAFE</code>.</div><span class="token">.guia-smtp-toggle</span></div></div>
+      <div class="swatch"><div class="color" style="background:#FFFFFF;border:1px solid #E2E8F0"><span style="color:#0f2744;text-shadow:none">#FFFFFF</span><span style="color:#64748B">white</span></div><div class="info"><div class="name">Card</div><div class="hex">#FFFFFF</div><div class="use">Fondo de cada subsección (Parámetros/Auth/Remitente) + headers colapsables.</div><span class="token">.smtp-subseccion</span></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>● Acentos + bordes + badges</h2>
+    <div class="grid">
+      <div class="swatch"><div class="color" style="background:#2563EB"><span>#2563EB</span><span>blue-600</span></div><div class="info"><div class="name">Punto Parámetros</div><div class="hex">#2563EB</div><div class="use">Dot azul de "Parámetros del Servidor".</div><span class="token">.dot-blue</span></div></div>
+      <div class="swatch"><div class="color" style="background:#E2E8F0"><span style="color:#334155;text-shadow:none">#E2E8F0</span><span style="color:#64748B">slate-200</span></div><div class="info"><div class="name">Borde</div><div class="hex">#E2E8F0</div><div class="use">Borde de cards, inputs, colapsables y franja.</div><span class="token">border</span></div></div>
+      <div class="swatch"><div class="color" style="background:#ECFDF5"><span style="color:#065F46;text-shadow:none">#ECFDF5</span><span style="color:#065F46">emerald-50</span></div><div class="info"><div class="name">Badge Configurado</div><div class="hex">#ECFDF5 / #065F46 / #A7F3D0</div><div class="use">Badge <code>Configurado</code> + tag <code>Guardado ✓</code> + texto verificación OK.</div><span class="token">.is-ok</span></div></div>
+      <div class="swatch"><div class="color" style="background:#DBEAFE"><span style="color:#0f2744;text-shadow:none">#DBEAFE</span><span style="color:#64748B">blue-100</span></div><div class="info"><div class="name">Borde banner Gmail</div><div class="hex">#DBEAFE</div><div class="use">Borde del banner azul claro.</div><span class="token">border</span></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>● Mapeo rápido (stitch → tu sitio)</h2>
+    <div class="legend">
+      <div class="row"><span class="dot" style="background:#0f2744"></span><span><code>#0f2744</code> navy = tu <code>#03285B</code> — mismo rol (primario/bordes focus).</span></div>
+      <div class="row"><span class="dot" style="background:#2563EB"></span><span><code>#2563EB</code> blue = dot "Parámetros" (único acento brillante).</span></div>
+      <div class="row"><span class="dot" style="background:#E2E8F0"></span><span><code>#E2E8F0</code> = tu <code>#E3E1DA</code> — solo en SMTP, no global.</span></div>
+      <div class="row"><span class="dot" style="background:#F8FAFC;border:1px solid #E2E8F0"></span><span><code>#F8FAFC</code> = fondo body/inputs — sin tocar el resto del panel.</span></div>
+      <div class="row"><span class="dot" style="background:#ECFDF5;border:1px solid #A7F3D0"></span><span><code>#ECFDF5 / #A7F3D0</code> = éxito (badge + Guardado + verificación).</span></div>
+    </div>
+  </div>
+
+  <div class="cta"><button class="ghost" onclick="navigator.clipboard.writeText(location.href)">Copiar link</button><button class="primary" onclick="alert('Perfecto — sigo con el siguiente requerimiento usando esta paleta.')">Aprobado — continuar</button></div>
+  <p style="font-size:11px;color:#64748B;text-align:center;margin-top:10px">Archivo: <code>stitch/smtp/identidad-colores.html</code> — ábrelo en el navegador. Al aprobar, sigo con el siguiente requerimiento usando solo estos colores.</p>
+</div>
+</body>
+</html>

@@ -2957,6 +2957,23 @@
   color: #fff;
 }
 
+/* ---------- Homologación sitio completo a paleta stitch (2026-09-16) ----------
+   Sidebar NO se toca (Image 1) — mantiene #14385E/#03285B + cyan #05DBF2.
+   Solo main: canvas #F6F5F2→#F8FAFC, bordes #E3E1DA/#DADAD3→#E2E8F0,
+   navy #03285B→#0f2744, inputs #fff→#F8FAFC. Gráficas/bars/pasteles/areas
+   QUEDAN INTACTAS (no se tocan colores de charts). Reversible. */
+.admin-main { background: #F8FAFC; }
+.admin-card, .inicio-stat-card, .admin-table-wrap, .resumen-fin-tablero > div,
+.admin-config-card, .gastos-card, .inv-card { border-color: #E2E8F0; box-shadow: 0 1px 2px rgba(15,39,68,.04); }
+.admin-table thead th { background: #F8FAFC; border-bottom-color: #E2E8F0; }
+.admin-table tbody td { border-bottom-color: #E2E8F0; }
+.admin-search-input, .admin-config-grid input, .admin-config-grid select,
+.admin-search select, .admin-table-wrap input { background: #F8FAFC; border-color: #E2E8F0; }
+.admin-search-input:focus, .admin-config-grid input:focus, .admin-config-grid select:focus { background:#fff; border-color:#0f2744; box-shadow:0 0 0 3px rgba(15,39,68,.12); }
+.btn-primary, .btn.btn-primary { background:#0f2744; border-color:#0f2744; }
+.btn-primary:hover { background:#0f2744; }
+.pill-green, .estatus-activo, .badge-ok { background:#ECFDF5; color:#065F46; border-color:#A7F3D0; }
+
 /* ---------- Restyle SMTP fiel a stitch/smtp (2026-09-16, punto 310) ----------
    Fiel a stitch/smtp/code.html — respeta colapsables Image 1 (3 headers,
    solo 1 abierto) + orden exacto Image 2 (hint autoguardado → franja

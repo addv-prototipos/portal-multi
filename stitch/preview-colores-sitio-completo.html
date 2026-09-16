@@ -1,0 +1,147 @@
+apl<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análisis — Identidad de colores para todo el sitio (sidebar intacto)</title>
+<style>
+  :root{--line:#E2E8F0;--navy:#0f2744;--navy-dark:#071321;--blue:#2563EB;--slate-50:#F8FAFC;--slate-100:#F1F5F9;--ok-bg:#ECFDF5;--ok-text:#065F46;--ok-border:#A7F3D0}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;background:#F8FAFC;color:#1A2233}
+  header{padding:24px;background:#071321;color:#fff}
+  header h1{margin:0;font-size:20px}
+  header p{margin:6px 0 0;opacity:.85;font-size:12px;max-width:90ch;line-height:1.5}
+  .banner{margin:16px auto;max-width:1280px;background:#EFF6FF;border:1px solid #DBEAFE;border-radius:10px;padding:12px 14px;font-size:12px;color:#0f2744;display:flex;gap:10px;align-items:center}
+  .banner b{color:#0f2744}
+  .wrap{max-width:1280px;margin:0 auto;padding:16px 16px 32px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .panel h2{margin:0;padding:12px 14px;border-bottom:1px solid var(--line);font-size:13px;display:flex;justify-content:space-between;align-items:center}
+  .badge{padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent}
+  .b-antes{background:#FBEAEA;color:#9B2C2C;border-color:#F0C4C4}
+  .b-despues{background:#E7F5EE;color:#065F46;border-color:#A7F3D0}
+  .shot{padding:14px;background:#F8FAFC}
+  .shot-note{font-size:11px;color:#5B6472;margin:0 0 10px;line-height:1.5}
+  .layout{display:grid;grid-template-columns:220px 1fr;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .sidebar{background:#14385E;color:#cbd5e1;padding:12px;font-size:11px;line-height:1.6}
+  .sidebar b{color:#fff}
+  .sidebar .item{padding:6px 8px;border-radius:8px;margin:4px 0;background:rgba(255,255,255,.06)}
+  .sidebar .item.active{background:#0ea5e9;color:#fff}
+  .main{padding:12px;background:#F6F5F2}
+  .main.after{background:#F8FAFC}
+  .card{background:#fff;border:1px solid #E3E1DA;border-radius:10px;padding:10px;margin-bottom:8px}
+  .card.after{border-color:#E2E8F0;box-shadow:0 1px 2px rgba(15,39,68,.04)}
+  .kpi{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#64748B}
+  .val{font-size:18px;font-weight:700;color:#03285B}
+  .val.after{color:#0f2744}
+  .table{width:100%;border-collapse:collapse;font-size:11px}
+  .table th{background:#F6F5F2;padding:6px 8px;text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:#5B6472;border-bottom:1px solid #E3E1DA}
+  .table.after th{background:#F8FAFC;border-bottom-color:#E2E8F0;color:#475569}
+  .table td{padding:6px 8px;border-bottom:1px solid #E3E1DA}
+  .table.after td{border-bottom-color:#E2E8F0}
+  .input{width:100%;padding:6px 8px;border:1px solid #DADAD3;border-radius:7px;background:#fff;font-size:11px}
+  .input.after{background:#F8FAFC;border-color:#E2E8F0}
+  .input.after:focus{outline:none;border-color:#0f2744;box-shadow:0 0 0 3px rgba(15,39,68,.12)}
+  .btn{padding:6px 10px;border-radius:7px;font-size:11px;font-weight:600;border:1px solid transparent}
+  .btn-before{background:#03285B;color:#fff}
+  .btn-after{background:#0f2744;color:#fff}
+  .pill{padding:2px 7px;border-radius:999px;font-size:10px;font-weight:600;border:1px solid transparent}
+  .pill-before-ok{background:#E7F5EE;color:#1F7A50;border-color:#BCE3CD}
+  .pill-after-ok{background:#ECFDF5;color:#065F46;border-color:#A7F3D0}
+  .section{margin-top:20px}
+  .analysis{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+  .analysis h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#0f2744}
+  .analysis ul{margin:0;padding-left:16px;font-size:12px;line-height:1.6;color:#334155}
+  .analysis li b{color:#0f2744}
+  .cta{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+  .cta button{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+  .ghost{background:#fff;border:1px solid #E2E8F0;color:#0f2744}
+  .primary{background:#0f2744;color:#fff;border:1px solid #0f2744}
+  .note{font-size:11px;color:#64748B;text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Análisis — ¿Cómo aplicaría la identidad de colores del stitch a TODO el sitio?</h1>
+  <p><b>Restricción tuya:</b> la barra lateral (Image 1) <b>no se toca</b> — se queda con su navy <code>#14385E/#03285B</code> + cyan <code>#05DBF2</code> actuales. El resto (contenido, cards, tablas, inputs, badges, franjas) sí se homologa a la paleta fiel del stitch.</p>
+</header>
+<div class="banner"><span>🔒</span><span><b>Sidebar intacto</b> — identidad y marca Image 1 preservada (logo CLARVO, Inicio cyan, grupos FACTURACIÓN/VENTAS/CATÁLOGO etc.). Solo se pinta el <b>main</b>.</span></div>
+<div class="wrap">
+  <!-- ANTES -->
+  <div class="panel">
+    <h2>ANTES — hoy <span class="badge b-antes">Actual</span></h2>
+    <div class="shot">
+      <p class="shot-note">Paleta actual: <code>#F6F5F2</code> canvas, <code>#E3E1DA</code> bordes, <code>#03285B</code> navy, cards sin sombra tintada. Inputs blancos.</p>
+      <div class="layout">
+        <div class="sidebar"><b>CLARVO</b> Tu negocio bajo control<br><div class="item active">Inicio</div><div style="opacity:.6;margin-top:8px">FACTURACIÓN</div><div class="item">Ventas y gastos</div><div style="opacity:.6">FINANZAS</div><div class="item">Inventarios</div><div class="item">Proveedores</div><div style="opacity:.6">CUENTA</div><div class="item">Mi Cuenta</div><div class="item">Configuraciones</div></div>
+        <div class="main">
+          <div class="card"><div class="kpi">Total facturado</div><div class="val">$128,430.00</div><div style="font-size:11px;color:#5B6472">Este mes • <span class="pill pill-before-ok">Configurado</span></div></div>
+          <div class="card"><div class="kpi" style="color:#03285B">● Parámetros del servidor</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><input class="input" value="smtp.gmail.com"><input class="input" value="587"></div></div>
+          <table class="table"><thead><tr><th>Folio</th><th>RFC</th><th>Estatus</th></tr></thead><tbody><tr><td>OC-00012</td><td>AAA010101AAA</td><td><span class="pill pill-before-ok">Listo</span></td></tr><tr><td>OC-00013</td><td>BBB020202BBB</td><td><span class="pill" style="background:#FCEFDD;color:#8A5A17;border-color:#F0D6A8">Pendiente</span></td></tr></tbody></table>
+          <div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-before">Verificar conexión ahora</button><input class="input" placeholder="Buscar..." style="flex:1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- DESPUÉS -->
+  <div class="panel">
+    <h2>DESPUÉS — propuesto (sidebar intacto) <span class="badge b-despues">stitch fiel</span></h2>
+    <div class="shot" style="background:#F1F5F9">
+      <p class="shot-note" style="color:#334155"><b>Mismo sidebar</b> (no cambia). Main homologado a stitch: canvas <code>#F8FAFC</code>, bordes <code>#E2E8F0</code>, navy <code>#0f2744</code>, cards con sombra sutil, inputs <code>#F8FAFC</code>, badges <code>#ECFDF5</code>. Distribución idéntica, solo color/sombra.</p>
+      <div class="layout">
+        <div class="sidebar"><b>CLARVO</b> Tu negocio bajo control<br><div class="item active">Inicio</div><div style="opacity:.6;margin-top:8px">FACTURACIÓN</div><div class="item">Ventas y gastos</div><div style="opacity:.6">FINANZAS</div><div class="item">Inventarios</div><div class="item">Proveedores</div><div style="opacity:.6">CUENTA</div><div class="item">Mi Cuenta</div><div class="item">Configuraciones</div></div>
+        <div class="main after">
+          <div class="card after"><div class="kpi">Total facturado</div><div class="val after">$128,430.00</div><div style="font-size:11px;color:#5B6472">Este mes • <span class="pill pill-after-ok">Configurado</span></div></div>
+          <div class="card after"><div class="kpi" style="color:#0f2744">● Parámetros del Servidor</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><input class="input after" value="smtp.gmail.com"><input class="input after" value="587"></div></div>
+          <table class="table after"><thead><tr><th>Folio</th><th>RFC</th><th>Estatus</th></tr></thead><tbody><tr><td>OC-00012</td><td>AAA010101AAA</td><td><span class="pill pill-after-ok">Listo</span></td></tr><tr><td>OC-00013</td><td>BBB020202BBB</td><td><span class="pill" style="background:#FFFBEB;color:#92400E;border-color:#FDE68A">Pendiente</span></td></tr></tbody></table>
+          <div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-after">Verificar conexión ahora</button><input class="input after" placeholder="Buscar..."></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div style="max-width:1280px;margin:0 auto;padding:0 16px">
+  <div class="section">
+    <div class="analysis">
+      <h3>Análisis — qué tocaría y qué no</h3>
+      <ul>
+        <li><b>No se toca:</b> <code>.admin-sidebar</code> completo (Image 1) — mantiene <code>#14385E/#03285B</code> + cyan activo <code>#05DBF2</code>/Inter. Logo, grupos, <code>Centro de conocimiento</code> y <code>Cerrar sesión</code> intactos.</li>
+        <li><b>Sí se homologa (main, sin gráficas):</b> <code>body/admin-main</code> canvas <code>#F6F5F2 → #F8FAFC</code>, <code>.admin-card / .inicio-stat-card / .admin-table-wrap</code> bordes <code>#E3E1DA → #E2E8F0</code> + sombra <code>0 1px 2px rgba(15,39,68,.04)</code>, headers de tabla <code>#F6F5F2 → #F8FAFC</code>, inputs/selects <code>#fff/#DADAD3 → #F8FAFC/#E2E8F0</code> con focus <code>#0f2744</code>, botones primarios <code>#03285B → #0f2744</code>, badges semánticos a <code>#ECFDF5/#065F46/#A7F3D0</code> (ok) y <code>#FFFBEB/#92400E/#FDE68A</code> (warn). <b>Gráficas/bars/pasteles/areas NO se tocan</b> — mantienen <code>#03285B/#05DBF2</code> originales.</li>
+        <li><b>Fuera del main:</b> <code>portal.css</code> (login/csf/tickets del cliente) no se toca en este pase — solo <code>admin.css</code> del panel (y opcional <code>control</code> que ya comparte estilos).</li>
+        <li><b>Riesgo:</b> bajo — solo tokens de color/borde/sombra, sin mover nodos, sin cambiar ids ni endpoints. Reversible con un revert de <code>admin.css</code>.</li>
+        <li><b>Esfuerzo:</b> 1 bloque CSS (~40 líneas) + rebuild frontend.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="section" style="margin-top:28px">
+    <h3 style="font-size:14px;margin:0 0 8px">Galería de pantallas — mismo main, más vistas (sidebar siempre intacto)</h3>
+    <p style="font-size:11px;color:#5B6472;margin:0 0 12px">Cada par es Antes (izq, actual <code>#F6F5F2/#E3E1DA</code>) vs Después (der, stitch <code>#F8FAFC/#E2E8F0</code>). Solo cambia color/borde/sombra del main.</p>
+    <!-- Fila 1: Inicio + Tickets -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="panel"><h2>Inicio — KPIs <span class="badge b-antes">Antes</span></h2><div class="shot"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><div class="card"><div class="kpi">Total facturado</div><div class="val">$98k</div></div><div class="card"><div class="kpi">Gastos</div><div class="val">$42k</div></div><div class="card"><div class="kpi">Utilidad</div><div class="val" style="color:#065F46">$56k</div></div></div><table class="table" style="margin-top:8px"><thead><tr><th>Cliente</th><th>Estatus</th></tr></thead><tbody><tr><td>AAA010101AAA</td><td><span class="pill pill-before-ok">Listo</span></td></tr></tbody></table></div></div>
+      <div class="panel"><h2>Inicio — KPIs <span class="badge b-despues">Después</span></h2><div class="shot" style="background:#F1F5F9"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><div class="card after"><div class="kpi">Total facturado</div><div class="val after">$98k</div></div><div class="card after"><div class="kpi">Gastos</div><div class="val after">$42k</div></div><div class="card after"><div class="kpi">Utilidad</div><div class="val after" style="color:#065F46">$56k</div></div></div><table class="table after" style="margin-top:8px"><thead><tr><th>Cliente</th><th>Estatus</th></tr></thead><tbody><tr><td>AAA010101AAA</td><td><span class="pill pill-after-ok">Listo</span></td></tr></tbody></table></div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="panel"><h2>Tickets / Constancias — tabla <span class="badge b-antes">Antes</span></h2><div class="shot"><div style="display:flex;gap:6px;margin-bottom:6px"><input class="input" placeholder="Buscar RFC..." style="flex:1"><button class="btn btn-before">Actualizar</button></div><table class="table"><thead><tr><th>Folio</th><th>Ticket</th><th>Estatus</th></tr></thead><tbody><tr><td>TK-001</td><td><span style="font-size:10px;padding:2px 6px;border:1px solid #E3E1DA;border-radius:999px">JPG</span></td><td><span class="pill" style="background:#FCEFDD;color:#8A5A17">Pendiente</span></td></tr><tr><td>TK-002</td><td>PDF</td><td><span class="pill pill-before-ok">Listo</span></td></tr></tbody></table></div></div>
+      <div class="panel"><h2>Tickets / Constancias — tabla <span class="badge b-despues">Después</span></h2><div class="shot" style="background:#F1F5F9"><div style="display:flex;gap:6px;margin-bottom:6px"><input class="input after" placeholder="Buscar RFC..." style="flex:1"><button class="btn btn-after">Actualizar</button></div><table class="table after"><thead><tr><th>Folio</th><th>Ticket</th><th>Estatus</th></tr></thead><tbody><tr><td>TK-001</td><td><span style="font-size:10px;padding:2px 6px;border:1px solid #E2E8F0;border-radius:999px;background:#fff">JPG</span></td><td><span class="pill" style="background:#FFFBEB;color:#92400E;border-color:#FDE68A">Pendiente</span></td></tr><tr><td>TK-002</td><td>PDF</td><td><span class="pill pill-after-ok">Listo</span></td></tr></tbody></table></div></div>
+    </div>
+    <!-- Fila 2: Ventas + Gastos -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="panel"><h2>Ventas — form + tabla <span class="badge b-antes">Antes</span></h2><div class="shot"><div class="card"><div class="kpi">Registrar venta</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><input class="input" placeholder="Concepto"><input class="input" placeholder="$ 0.00"></div><button class="btn btn-before" style="margin-top:6px">Guardar</button></div><table class="table"><thead><tr><th>Concepto</th><th>Total</th></tr></thead><tbody><tr><td>Pintura</td><td>$1,240.00</td></tr></tbody></table></div></div>
+      <div class="panel"><h2>Ventas — form + tabla <span class="badge b-despues">Después</span></h2><div class="shot" style="background:#F1F5F9"><div class="card after"><div class="kpi">Registrar venta</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><input class="input after" placeholder="Concepto"><input class="input after" placeholder="$ 0.00"></div><button class="btn btn-after" style="margin-top:6px">Guardar</button></div><table class="table after"><thead><tr><th>Concepto</th><th>Total</th></tr></thead><tbody><tr><td>Pintura</td><td>$1,240.00</td></tr></tbody></table></div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="panel"><h2>Gastos / Inventarios <span class="badge b-antes">Antes</span></h2><div class="shot"><div class="card"><div class="kpi">Bajo mínimo <span class="pill" style="background:#FCEFDD;color:#8A5A17">3</span></div><div style="font-size:11px">SKU-102 • 2 pz</div></div><div class="card" style="border-left:3px solid #dc2626"><div class="kpi" style="color:#dc2626">Sin existencia</div><div style="font-size:11px">SKU-108 • 0 pz</div></div></div></div>
+      <div class="panel"><h2>Gastos / Inventarios <span class="badge b-despues">Después</span></h2><div class="shot" style="background:#F1F5F9"><div class="card after"><div class="kpi">Bajo mínimo <span class="pill" style="background:#FFFBEB;color:#92400E;border-color:#FDE68A">3</span></div><div style="font-size:11px">SKU-102 • 2 pz</div></div><div class="card after" style="border-left:3px solid #dc2626"><div class="kpi" style="color:#dc2626">Sin existencia</div><div style="font-size:11px">SKU-108 • 0 pz</div></div></div></div>
+    </div>
+    <!-- Fila 3: Reportes + Configuraciones -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="panel"><h2>Reportes — grafica <span class="badge b-antes">Antes</span></h2><div class="shot"><div class="card" style="height:90px;display:flex;align-items:flex-end;gap:4px;padding:8px"><span style="flex:1;background:#03285B;height:40%"></span><span style="flex:1;background:#05DBF2;height:70%"></span><span style="flex:1;background:#03285B;height:55%"></span></div><p style="font-size:11px;color:#5B6472;margin:6px 0 0">Ventas vs Gastos • último trimestre</p></div></div>
+      <div class="panel"><h2>Reportes — grafica <span class="badge b-despues">Después (gráficas intactas)</span></h2><div class="shot" style="background:#F1F5F9"><div class="card after" style="height:90px;display:flex;align-items:flex-end;gap:4px;padding:8px"><span style="flex:1;background:#03285B;height:40%"></span><span style="flex:1;background:#05DBF2;height:70%"></span><span style="flex:1;background:#03285B;height:55%"></span></div><p style="font-size:11px;color:#0f2744;margin:6px 0 0"><b>Gráficas intactas</b> — barras/pasteles/areas mantienen colores originales (#03285B/#05DBF2), solo el card/borde es stitch.</p></div></div>
+    </div>
+  </div>
+  <div class="cta"><button class="ghost" onclick="alert('Anota qué ajustar: ej. deja badges como están, solo cards/tablas, etc.')">Pedir ajustes</button><button class="primary" onclick="alert('Aplico homologación a todo el main (sidebar intacto) con esta paleta.')">Aplicar a todo el sitio (sidebar intacto)</button></div>
+  <p class="note">Preview: <code>stitch/preview-colores-sitio-completo.html</code> — revisa visualmente y dime "aplica" o lista ajustes (ej. "solo cards y tablas, deja inputs como están").</p>
+</div>
+</body>
+</html>
