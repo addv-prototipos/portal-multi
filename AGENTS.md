@@ -612,6 +612,24 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   "Precio fijo (paquete de servicio)") + hint dinámico. Jest backend
   960/960 (+2). Sin commit/push todavía.
 
+- **Punto 299 — Restyle "confGlo" de SMTP + "Verificar conexión ahora"
+  (ver PROJECT_STATE.md, 2026-09-15, IMPLEMENTADO Y VALIDADO por HTTP
+  contra Docker real)**: mockup `stitch/confGlo` — sidebar ya coincidía
+  exacto con lo real (puntos 295-297); la sección "conexión" se
+  reagrupó en 3 subsecciones tituladas. 3 decisiones vía
+  `AskUserQuestion`: timestamp "Última verificación exitosa" construido
+  de verdad (campo nuevo `ultima_verificacion_en`, sin `ALTER TABLE`);
+  handshake ligero nuevo `POST /api/admin/config/smtp/verificar`
+  (`nodemailer .verify()`) AGREGADO junto al "Enviar prueba" completo
+  ya existente (ambos actualizan el mismo timestamp); se mantuvo el
+  autoguardado sin botón de footer del punto 297. **Bug real
+  encontrado validando por HTTP**: ambos endpoints devolvían 502, que
+  `nginx.conf.template` intercepta globalmente y disfraza de "sitio
+  caído" — mismo patrón ya corregido en `/api/aclaraciones` (punto
+  170) — corregidos a 500. Jest backend 969/969 (+9). Sin herramienta
+  de navegador esta sesión — falta confirmación visual. Sin
+  commit/push todavía.
+
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.
 

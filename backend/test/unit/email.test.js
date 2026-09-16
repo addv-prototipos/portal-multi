@@ -7,6 +7,8 @@ const {
   enviarCorreo,
   aplicarPlantilla,
   DEFAULTS_SMTP,
+  marcarSmtpVerificado,
+  verificarConexionSmtp,
 } = require('../../utils/email');
 
 jest.mock('../../db', () => ({
@@ -77,6 +79,69 @@ describe('email.js', () => {
 
       const resultado = await setConfigSmtp({ puerto: 465 });
       expect(resultado.puerto).toBe(465);
+    });
+
+    test('limpia ultima_verificacion_en al guardar (los datos de conexión pudieron cambiar)', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ ...DEFAULTS_SMTP, ultima_verificacion_en: '2026-09-01T10:00:00.000Z' }) }],
+      ]);
+      pool.query.mockResolvedValueOnce([{}]);
+
+      const resultado = await setConfigSmtp({ host: 'smtp.otro.com' });
+      expect(resultado.ultima_verificacion_en).toBeNull();
+    });
+  });
+
+  describe('marcarSmtpVerificado', () => {
+    test('registra un timestamp ISO nuevo sin tocar el resto de la config', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ ...DEFAULTS_SMTP, host: 'smtp.gmail.com', usuario: 'a@a.com' }) }],
+      ]);
+      pool.query.mockResolvedValueOnce([{}]);
+
+      const verificadoEn = await marcarSmtpVerificado();
+      expect(verificadoEn).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+      const payloadGuardado = JSON.parse(pool.query.mock.calls[1][1][1]);
+      expect(payloadGuardado.host).toBe('smtp.gmail.com');
+      expect(payloadGuardado.ultima_verificacion_en).toBe(verificadoEn);
+    });
+  });
+
+  describe('verificarConexionSmtp', () => {
+    test('lanza error claro si no hay configuración SMTP completa', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfigSmtp -> null
+      await expect(verificarConexionSmtp()).rejects.toThrow(/no está configurado todavía/);
+    });
+
+    test('éxito: hace verify() sin enviar correo y registra el timestamp', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ ...DEFAULTS_SMTP, host: 'smtp.gmail.com', usuario: 'a@a.com', password: 'clave' }) }],
+      ]);
+      const verify = jest.fn().mockResolvedValue(true);
+      const sendMail = jest.fn();
+      nodemailer.createTransport.mockReturnValue({ verify, sendMail });
+      // marcarSmtpVerificado() vuelve a leer la config guardada antes de escribir.
+      pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ ...DEFAULTS_SMTP, host: 'smtp.gmail.com', usuario: 'a@a.com', password: 'clave' }) }],
+      ]);
+      pool.query.mockResolvedValueOnce([{}]);
+
+      const verificadoEn = await verificarConexionSmtp();
+      expect(verify).toHaveBeenCalled();
+      expect(sendMail).not.toHaveBeenCalled();
+      expect(verificadoEn).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+
+    test('traduce error EAUTH del handshake igual que enviarCorreo', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ ...DEFAULTS_SMTP, host: 'smtp.gmail.com', usuario: 'a@a.com', password: 'clave' }) }],
+      ]);
+      const err = Object.assign(new Error('auth failed'), { code: 'EAUTH' });
+      const verify = jest.fn().mockRejectedValue(err);
+      nodemailer.createTransport.mockReturnValue({ verify, sendMail: jest.fn() });
+
+      await expect(verificarConexionSmtp()).rejects.toThrow(/Contraseña de aplicación/);
     });
   });
 

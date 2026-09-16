@@ -7,7 +7,7 @@ jest.mock('../../db', () => ({
 }));
 
 jest.mock('nodemailer', () => ({
-  createTransport: jest.fn(() => ({ sendMail: jest.fn().mockResolvedValue({}) })),
+  createTransport: jest.fn(() => ({ sendMail: jest.fn().mockResolvedValue({}), verify: jest.fn().mockResolvedValue(true) })),
 }));
 
 // La subida de factura de un ticket usa MinIO (mismo criterio que
@@ -615,7 +615,7 @@ describe('Admin', () => {
       expect(res.status).toBe(400);
     });
 
-    test('responde 502 si el envío falla (SMTP no configurado)', async () => {
+    test('responde 500 si el envío falla (SMTP no configurado) — nunca 502, ver nginx error_page', async () => {
       pool.query.mockResolvedValueOnce([[]]); // getConfigSmtp -> null (sin configurar)
 
       const res = await request(app)
@@ -623,8 +623,62 @@ describe('Admin', () => {
         .auth('admin', 'admin')
         .send({ destinatario: 'cliente@x.com', asunto: 'Prueba', cuerpo: 'Cuerpo de prueba' });
 
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(500);
       expect(res.body.error).toMatch(/no está configurado/);
+    });
+
+    test('éxito: registra ultima_verificacion_en de paso (punto "confGlo")', async () => {
+      const configGuardada = { host: 'smtp.gmail.com', usuario: 'a@a.com', password: 'clave' };
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify(configGuardada) }]]); // enviarCorreo -> getConfigSmtp
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify(configGuardada) }]]); // marcarSmtpVerificado -> getConfigSmtp
+      pool.query.mockResolvedValueOnce([{}]); // marcarSmtpVerificado -> INSERT/UPDATE
+
+      const res = await request(app)
+        .post('/api/admin/config/smtp/prueba')
+        .auth('admin', 'admin')
+        .send({ destinatario: 'cliente@x.com', asunto: 'Prueba', cuerpo: 'Cuerpo de prueba' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.verificadoEn).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+  });
+
+  describe('/api/admin/config/smtp/verificar (punto "confGlo")', () => {
+    test('responde 500 si no hay configuración SMTP completa — nunca 502, ver nginx error_page', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfigSmtp -> null
+
+      const res = await request(app)
+        .post('/api/admin/config/smtp/verificar')
+        .auth('admin', 'admin')
+        .send({});
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toMatch(/no está configurado/);
+    });
+
+    test('perfil "fiscal" NO tiene acceso (403), mismo gate que el resto de config/smtp', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      const res = await request(app)
+        .post('/api/admin/config/smtp/verificar')
+        .auth(usuario, password)
+        .send({});
+      expect(res.status).toBe(403);
+    });
+
+    test('éxito: verify() sin enviar correo, responde 200 con el timestamp', async () => {
+      const configGuardada = { host: 'smtp.gmail.com', usuario: 'a@a.com', password: 'clave' };
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify(configGuardada) }]]); // verificarConexionSmtp -> getConfigSmtp
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify(configGuardada) }]]); // marcarSmtpVerificado -> getConfigSmtp
+      pool.query.mockResolvedValueOnce([{}]); // marcarSmtpVerificado -> INSERT/UPDATE
+
+      const res = await request(app)
+        .post('/api/admin/config/smtp/verificar')
+        .auth('admin', 'admin')
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.verificadoEn).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
   });
 

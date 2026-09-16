@@ -100,7 +100,16 @@ const {
   getInfoCatalogoClaveProdServ,
   sincronizarDesdeOrigen: sincronizarClaveProdServDesdeOrigen,
 } = require('./utils/claveProdServ');
-const { getConfigSmtp, setConfigSmtp, configSmtpParaMostrar, enviarCorreo, aplicarPlantilla, DEFAULTS_SMTP } = require('./utils/email');
+const {
+  getConfigSmtp,
+  setConfigSmtp,
+  configSmtpParaMostrar,
+  enviarCorreo,
+  aplicarPlantilla,
+  DEFAULTS_SMTP,
+  marcarSmtpVerificado,
+  verificarConexionSmtp,
+} = require('./utils/email');
 const {
   ejecutarLimpiezaParaTodos,
   getInfoUltimaLimpieza,
@@ -3015,9 +3024,36 @@ app.post(
 
     try {
       await enviarCorreo({ destinatario, asunto, cuerpo });
-      res.json({ ok: true, mensaje: `Correo de prueba enviado a ${destinatario}.` });
+      // Un envío real exitoso es al menos tan buena señal como el handshake
+      // de "Verificar conexión ahora" — se registra el mismo timestamp.
+      const verificadoEn = await marcarSmtpVerificado();
+      res.json({ ok: true, mensaje: `Correo de prueba enviado a ${destinatario}.`, verificadoEn });
     } catch (err) {
-      res.status(502).json({ error: err.message || 'No se pudo enviar el correo de prueba.' });
+      // 500, no 502 — un 502 aquí lo intercepta el error_page global de
+      // nginx (proxy_intercept_errors, ver frontend/nginx.conf.template) y
+      // lo disfraza de "sitio caído" (mismo bug ya corregido en
+      // /api/aclaraciones, PROJECT_STATE.md punto 170). Esto es un fallo de
+      // negocio (credenciales/host malos), no de infraestructura.
+      res.status(500).json({ error: err.message || 'No se pudo enviar el correo de prueba.' });
+    }
+  })
+);
+
+// Handshake de solo-verificación (sin enviar correo) contra la
+// configuración YA GUARDADA — acción ligera para confirmar host/puerto/
+// credenciales sin depender de tener un destinatario a la mano.
+app.post(
+  '/api/admin/config/smtp/verificar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const verificadoEn = await verificarConexionSmtp();
+      res.json({ ok: true, verificadoEn });
+    } catch (err) {
+      // 500, no 502 — mismo motivo que /prueba arriba.
+      res.status(500).json({ error: err.message || 'No se pudo verificar la conexión SMTP.' });
     }
   })
 );

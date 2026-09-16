@@ -78,6 +78,11 @@
     smtpNombreRemitente: document.getElementById('smtp-nombre-remitente'),
     smtpCorreoRemitente: document.getElementById('smtp-correo-remitente'),
     smtpCorreoContador: document.getElementById('smtp-correo-contador'),
+    // Franja "Verificar conexión ahora" (restyle "confGlo")
+    smtpVerificarTexto: document.getElementById('smtp-verificar-texto'),
+    btnVerificarSmtp: document.getElementById('btn-verificar-smtp'),
+    btnVerificarSmtpLabel: document.getElementById('btn-verificar-smtp-label'),
+    smtpVerificarError: document.getElementById('smtp-verificar-error'),
     // Plantillas de correo (punto 214)
     plantillasTabs: document.querySelectorAll('.plantillas-tab'),
     plantillaTriggerDesc: document.getElementById('plantilla-trigger-desc'),
@@ -4616,9 +4621,33 @@
       els.smtpEstadoBadge.hidden = false;
       els.smtpEstadoBadge.textContent = data.configurado ? 'Configurado' : 'Sin configurar';
       els.smtpEstadoBadge.className = `smtp-estado-badge ${data.configurado ? 'is-ok' : 'is-pendiente'}`;
+      renderSmtpVerificado(data.ultima_verificacion_en);
     } catch (err) {
       // Si falla la carga, el formulario se queda con los valores por
       // defecto; el administrador puede llenarlo y guardar de todas formas.
+    }
+  }
+
+  // Timestamp ISO (new Date().toISOString(), siempre UTC) — se muestra tal
+  // cual, sin reinterpretar zona horaria (mismo criterio que el resto del
+  // panel), con sufijo "UTC" explícito por ser el único timestamp del sitio
+  // en este formato (el resto usa dateStrings de MySQL sin sufijo).
+  function formatearVerificadoEn(valor) {
+    if (!valor || typeof valor !== 'string') return null;
+    const fecha = valor.slice(0, 10);
+    const hora = valor.slice(11, 16);
+    return fecha && hora ? `${fecha} ${hora} UTC` : null;
+  }
+
+  function renderSmtpVerificado(valor) {
+    if (!els.smtpVerificarTexto) return;
+    const formateada = formatearVerificadoEn(valor);
+    if (formateada) {
+      els.smtpVerificarTexto.textContent = `Última verificación exitosa: ${formateada}`;
+      els.smtpVerificarTexto.classList.add('is-ok');
+    } else {
+      els.smtpVerificarTexto.textContent = 'Aún no se ha verificado la conexión.';
+      els.smtpVerificarTexto.classList.remove('is-ok');
     }
   }
 
@@ -4725,6 +4754,7 @@
       els.smtpEstadoBadge.hidden = false;
       els.smtpEstadoBadge.textContent = data.configurado ? 'Configurado' : 'Sin configurar';
       els.smtpEstadoBadge.className = `smtp-estado-badge ${data.configurado ? 'is-ok' : 'is-pendiente'}`;
+      renderSmtpVerificado(data.ultima_verificacion_en);
       return true;
     } catch (err) {
       const mensaje = 'No se pudo conectar con el servidor.';
@@ -4800,12 +4830,50 @@
         return;
       }
       showToast(data.mensaje || 'Correo de prueba enviado.');
+      renderSmtpVerificado(data.verificadoEn);
     } catch (err) {
       els.smtpPruebaError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
       setEnviarPruebaLoading(false);
     }
   });
+
+  // Franja "Verificar conexión ahora" — handshake ligero (sin enviar
+  // correo) contra la config YA GUARDADA (restyle "confGlo").
+  function setVerificarSmtpLoading(cargando) {
+    if (!els.btnVerificarSmtp) return;
+    els.btnVerificarSmtp.disabled = cargando;
+    els.btnVerificarSmtpLabel.textContent = cargando ? 'Verificando…' : 'Verificar conexión ahora';
+  }
+
+  if (els.btnVerificarSmtp) {
+    els.btnVerificarSmtp.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+      els.smtpVerificarError.textContent = '';
+      setVerificarSmtpLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/admin/config/smtp/verificar`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.smtpVerificarError.textContent = data.error || 'No se pudo verificar la conexión.';
+          return;
+        }
+        renderSmtpVerificado(data.verificadoEn);
+        showToast('Conexión SMTP verificada.');
+      } catch (err) {
+        els.smtpVerificarError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        setVerificarSmtpLoading(false);
+      }
+    });
+  }
 
   // ---------- Retención (borrado automático) de tickets ----------
 

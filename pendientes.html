@@ -249,7 +249,7 @@
       <h1>Pendientes — Portal Clarvo</h1>
       <p>Backlog vivo del proyecto: decisiones abiertas, funcionalidad pospuesta a propósito y validaciones que faltan. Se actualiza en el mismo archivo conforme avanza cada segmento — solo dale refresh.</p>
     </div>
-    <div class="updated">Última actualización: <strong>10 sep 2026, 13:45</strong> · centros conocimiento + recorrido (273) · 2FA correo toggle (274) · unificar switches (275) · diccionario §0.3/D5/D2 (279) · centro conocimiento cortado en móvil (280, nuevo)</div>
+    <div class="updated">Última actualización: <strong>15 sep 2026</strong> · restyle "confGlo" de SMTP + "Verificar conexión ahora" (299, nuevo — falta confirmación visual) · cerrados desde el 13 sep (validados, sin pendiente abierto): Animación 3D + ícono de "Proveedores" (266/267/268), 2do cobro "Servicio en paquete" Hora/Paquete en Inventarios (298), suspender/activar usuario de panel (290), esqueleto de carga (shimmer) en todo el sitio (289), Centro de conocimiento al día + nuevo en /control (293/294), reorganización de sidebar por grupos colapsables + acordeón SMTP con autoguardado (295-297) · sigue abierto: lector código de barras SDK sin costo (291), centros conocimiento + recorrido (273), 2FA correo toggle (274), unificar switches (275), diccionario §0.3/D5/D2 (279), centro conocimiento cortado en móvil (280)</div>
   </header>
 
   <div class="legend">
@@ -325,7 +325,7 @@
   </section>
 
   <section>
-    <h2>Inventarios <span class="count">5 pendientes</span></h2>
+    <h2>Inventarios <span class="count">6 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -339,8 +339,8 @@
           <tr data-app="admin,control">
             <td class="col-punto">266/267/268</td>
             <td class="col-item">Animación 3D + ícono de "Proveedores" — implementado</td>
-            <td class="col-detalle">Ícono del sidebar/menú móvil/Centro de conocimiento cambiado de caja (se confundía con Inventarios) a camión de entrega. Placeholder "en construcción" ganó una escena CSS-only (3 cubos isométricos vía <code>clip-path</code> + 2 robots con brazo-martillo animado, "CLARVO" en la pancita), sin WebGL/librería nueva. De paso, punto 268: encabezado de "Lectura de reportes" con 2 párrafos apilados fusionado en 1 (~40px recuperados). Jest 912/912, validado por HTTP contra Docker real tras rebuild <code>--no-cache</code>+<code>--force-recreate</code>. Ver <code>PROJECT_STATE.md</code> puntos 267/268.</td>
-            <td class="col-estado"><span class="pill pill-gray">Falta confirmar visualmente (sin navegador esta sesión)</span></td>
+            <td class="col-detalle">Ícono del sidebar/menú móvil/Centro de conocimiento cambiado de caja (se confundía con Inventarios) a camión de entrega. Placeholder "en construcción" ganó una escena CSS-only (3 cubos isométricos vía <code>clip-path</code> + 2 robots con brazo-martillo animado, "CLARVO" en la pancita), sin WebGL/librería nueva. De paso, punto 268: encabezado de "Lectura de reportes" con 2 párrafos apilados fusionado en 1 (~40px recuperados). Jest 912/912, validado por HTTP contra Docker real tras rebuild <code>--no-cache</code>+<code>--force-recreate</code>. Ver <code>PROJECT_STATE.md</code> puntos 267/268. <strong>Marcado como completado 15 sep 2026 a pedido del usuario.</strong></td>
+            <td class="col-estado"><span class="pill pill-green">Completado — validado (15 sep 2026)</span></td>
           </tr>
           <tr data-app="admin">
             <td class="col-punto">159</td>
@@ -359,6 +359,12 @@
             <td class="col-item">Rediseño gráfico de Inventarios fiel a referencia — implementado</td>
             <td class="col-detalle">Pills de conteo por pestaña, caption "Base de cálculo…" con punto de color (CSS, sin emoji), círculo decorativo en las 3 tarjetas de salud, pie con divisor real en "Valor del inventario" (nuevo <code>costo_promedio_ponderado</code> en el backend), grid de riesgo a 5 columnas, tintado ámbar/rojo + "Ver productos →" en Bajo mínimo/Sin existencia, textos honestos condicionales en Sin movimiento/Mermas del mes, franja de Servicios con íconos circulares + link real "Administrar servicios →". Mismos íconos SVG del sitio, sin librería nueva. Jest 912/912, validado por HTTP contra Docker real tras rebuild <code>--no-cache</code>+<code>--force-recreate</code>. Ver <code>PROJECT_STATE.md</code> punto 278.</td>
             <td class="col-estado"><span class="pill pill-gray">Falta confirmar visualmente (sin navegador esta sesión)</span></td>
+          </tr>
+          <tr data-app="admin">
+            <td class="col-punto">291</td>
+            <td class="col-item">Revisar otro SDK para lector de código de barras, sin costo</td>
+            <td class="col-detalle">Evaluar SDK alternativo al actual (<code>frontend/scanner.js</code> — nativo <code>BarcodeDetector</code> + respaldo <code>html5-qrcode</code> MIT vendorizado en <code>/assets/vendor/</code>), que <strong>no sea de costos</strong> (sin licencia de pago, sin cobro por escaneo, sin API en la nube). Actual ya es 100% sin costo — pendiente es tener alternativa evaluada. Candidatos a revisar cuando se apruebe: <code>@zxing/library</code>, <code>quagga2</code>/<code>@ericblade/quagga2</code>, polyfills de <code>BarcodeDetector</code>. Criterios: licencia MIT/Apache-2.0, autohospedado sin CDN, sin build step, bundle ligero, mismos 8 formatos 1D (<code>ean_13</code>, <code>code_128</code>, etc.), rendimiento en Android gama baja / iOS Safari. Sin código tocado. Ver <code>PROJECT_STATE.md</code> punto 291.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — pendiente revisar SDK sin costo</span></td>
           </tr>
         </tbody>
       </table>
@@ -419,7 +425,7 @@
   </section>
 
   <section>
-    <h2>Inicio de sesión / Seguridad <span class="count">3 pendientes</span></h2>
+    <h2>Inicio de sesión / Seguridad <span class="count">4 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -441,6 +447,12 @@
             <td class="col-item">Doble factor por correo (2FA) solo para Administrador al registrar — toggle en admin</td>
             <td class="col-detalle">Doble factor por <strong>correo</strong> solo para perfil <strong>Administrador</strong> cada que se quiera registrar; en la <strong>plataforma admin</strong> lo pueden <strong>habilitar/inhabilitar</strong>. Sin definir: ¿"al registrar" = al crear <code>administrador</code> desde <code>POST /api/admin/usuarios</code> vs. <code>POST /api/auth/registro</code> público? ¿solo <code>administrador</code> (no <code>fiscal</code>/<code>cliente</code>)? ¿qué correo recibe el OTP — <code>usuarios.email</code> del nuevo admin vs. del creador? ¿flujo OTP 6 dígitos con expiración/reenvío/límite vs. link mágico? ¿toggle global (<code>configuracion.admin_2fa_habilitado</code>) vs. por tenant (<code>control_tenants.tenants</code>) y dónde en UI (tarjeta "Seguridad" junto a cambio de contraseña <code>admin</code> del punto 17)? ¿guard en <code>POST /api/admin/usuarios</code> + <code>POST /api/admin/usuarios/verificar-2fa</code>? ¿si no hay SMTP, se bloquea o degrada? Ver <code>PROJECT_STATE.md</code> punto 274.<br><strong>Preguntas para definir luego:</strong> 1) ¿alta desde <code>/admin</code> o también registro público? 2) ¿solo <code>administrador</code>? 3) ¿qué correo recibe OTP? 4) OTP 6 dígitos vs link, expiración/reintentos 5) toggle global vs por tenant 6) ubicación UI 7) quién puede togglear 8) guard con <code>verificar-2fa</code> 9) fallback sin SMTP 10) ¿solo registro o también login? — no implementar sin responder.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir flujo/toggle</span></td>
+          </tr>
+          <tr data-app="admin">
+            <td class="col-punto">292</td>
+            <td class="col-item">Perfiles contador (fiscal/ventas) sin tarjetas de dinero — contadores y gráficas ocultas</td>
+            <td class="col-detalle">Los perfiles de <strong>contador</strong> (<code>fiscal</code> y <code>ventas</code>) <strong>no pueden ver las tarjetas que queden en su perfil que generen datos relacionados al dinero</strong> — aplica a <strong>contadores y gráficas</strong>. Dentro de sus <code>vistasPermitidas</code> actuales (<code>RESTRICCIONES_PERFIL</code> en <code>frontend/admin.js:1832</code> — fiscal: <code>inicio</code>/<code>constancias</code>/<code>tickets</code>; ventas: <code>ordenes</code>/<code>cxc</code>/<code>gastos</code>), ocultar cualquier tarjeta/KPI/gráfica con montos, totales, balances, utilidad, cobranza o valuación. Ejemplos a auditar: Ventas (total ventas, por cobrar/cobrado), CxC (saldos, mora, gauge de cobranza), Gastos (total gastos, balance, variables, top proveedores), Inventarios (valor del inventario — no aplica a estos perfiles hoy porque no ven esa vista, pero aplica si se les habilitara alguna tarjeta), Resumen financiero (no visible para estos perfiles hoy — validar que siga oculto). Requiere definir si es solo ocultar UI o también gatear APIs (<code>GET /api/admin/ordenes-compra</code>, <code>/resumen-financiero</code>, <code>/gastos</code>) para no exponer el dato por fetch directo. Sin código tocado. Ver <code>PROJECT_STATE.md</code> punto 292.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta auditar qué tarjetas cuentan como "dinero"</span></td>
           </tr>
         </tbody>
       </table>

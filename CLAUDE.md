@@ -1213,7 +1213,7 @@ código tocado — esperando que el usuario elija 1/2/3 antes de
 implementar.
 
 **Punto 266 cerrado (2026-09-10, ver punto 267 de PROJECT_STATE.md,
-IMPLEMENTADO, falta validar en Docker/navegador real)**: usuario aprobó
+IMPLEMENTADO Y VALIDADO — COMPLETADO 15 sep 2026)**: usuario aprobó
 la propuesta visual (Artifact antes/después) — camión de entrega
 reemplaza el cube isométrico (idéntico al de Inventarios) en sidebar/
 menú móvil/Centro de conocimiento; el lápiz+pulso del placeholder
@@ -1224,15 +1224,14 @@ pancita de cada robot (pedido explícito del usuario). Solo `transform`/
 `opacity`, `prefers-reduced-motion` respetado, cero dependencia nueva,
 100% `admin.html`+`admin.css`. Jest backend 912/912. Sin commit/push.
 
-**Punto 268 (2026-09-10, ver PROJECT_STATE.md, IMPLEMENTADO, falta
-validar en Docker/navegador real)**: encabezado de "Lectura de
+**Punto 268 (2026-09-10, ver PROJECT_STATE.md, IMPLEMENTADO Y VALIDADO — COMPLETADO 15 sep 2026)**: encabezado de "Lectura de
 reportes" tenía 2 párrafos `.panel-subtitle` apilados (única vista del
 panel con ese patrón) — fusionados en uno, el letrero dinámico por
 pestaña (punto 169) pasó a `<span>` dentro del mismo párrafo con el
 mismo id, `admin.js` sin cambios. ~40px recuperados. Jest 912/912. Sin
 commit/push.
 
-**PENDIENTE — histórico, ya cerrado por el punto 267 de arriba
+**COMPLETADO — histórico, ya cerrado por el punto 267 de arriba (marcado como completado 15 sep 2026)
 (2026-09-10, punto 266 original, dejado solo como referencia de la
 petición textual)**: pedido textual, 2 partes. (1) placeholder
 "Proveedores está en construcción" — cambiar el ícono estático (lápiz)
@@ -3799,6 +3798,32 @@ opción elegida. Centro de conocimiento actualizado. 1 test reescrito +
 esta sesión** — falta confirmar que el backfill corregido no toca
 servicios de prueba existentes y confirmación visual del selector. Sin
 commit/push todavía. Ver PROJECT_STATE.md punto 298.
+
+**Punto 299 (2026-09-15, IMPLEMENTADO Y VALIDADO por HTTP contra Docker
+real)**: restyle de la tarjeta "Correo electrónico (SMTP)" fiel a
+`stitch/confGlo` — el sidebar del mockup ya coincidía exacto con lo real
+(puntos 295-297), solo cambió el contenido de la sección "conexión":
+reagrupada en 3 subsecciones tituladas (Parámetros del servidor /
+Autenticación / Remitente y notificaciones, mismos ids/autoguardado de
+siempre). 3 preguntas vía `AskUserQuestion` antes de codear: timestamp
+"Última verificación exitosa" se construyó de verdad (campo nuevo
+`ultima_verificacion_en` en la config SMTP, sin `ALTER TABLE`); se agregó
+handshake ligero nuevo `POST /api/admin/config/smtp/verificar`
+(`nodemailer .verify()`, sin enviar correo) ADEMÁS de mantener "Enviar
+correo de prueba" completo (ambos actualizan el mismo timestamp); se
+mantuvo el autoguardado sin botón de footer (punto 297), sin el botón
+único "Guardar configuración" del mockup. **Bug real encontrado y
+corregido validando por HTTP**: el endpoint nuevo y el ya existente
+`/prueba` devolvían 502 en su rama de error — `nginx.conf.template`
+intercepta 502/503/504 globalmente y los disfraza de "sitio caído"
+(`mantenimiento.html`), mismo patrón ya corregido antes en
+`/api/aclaraciones` (punto 170) — corregidos ambos a 500. Jest backend
+969/969 (+9 tests). Validado por HTTP tras rebuild `--no-cache`+
+`--force-recreate`: 3 subsecciones confirmadas en el HTML servido,
+`/verificar` responde 500 con JSON real (sin swap a mantenimiento).
+**Sin herramienta de navegador esta sesión** — falta confirmación visual
+con clics reales. Sin commit/push todavía. Ver PROJECT_STATE.md punto
+299.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 

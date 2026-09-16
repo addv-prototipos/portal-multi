@@ -2756,9 +2756,10 @@
   gap: 14px 12px;
   margin-bottom: 4px;
 }
-/* Host, Usuario, Contraseña, Nombre y Correo del remitente ocupan todo el
-   ancho; solo Puerto y Seguridad comparten una fila de dos columnas. */
-.smtp-config-grid .field:not(.smtp-field-puerto):not(.smtp-field-seguridad) {
+/* Por defecto cada campo ocupa todo el ancho; Puerto/Seguridad (fila del
+   servidor) y Nombre/Correo del remitente (fila de remitente, restyle
+   "confGlo") comparten fila de 2 columnas. */
+.smtp-config-grid .field:not(.smtp-field-puerto):not(.smtp-field-seguridad):not(.smtp-field-mitad) {
   grid-column: 1 / -1;
 }
 
@@ -2772,6 +2773,67 @@
   .smtp-config-grid { grid-template-columns: 1fr; }
   .smtp-config-grid .field { grid-column: 1 / -1; }
 }
+
+/* Restyle "confGlo" (stitch): subsecciones tituladas dentro de "Correo
+   electrónico (SMTP)" — Parámetros del servidor / Autenticación /
+   Remitente y notificaciones. Mismos campos/ids/autoguardado de siempre,
+   solo se reagrupan visualmente (mismos tokens navy/cyan del sitio, sin
+   Tailwind/Plus Jakarta Sans del mockup). */
+.smtp-subseccion {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px 16px;
+  margin-bottom: 14px;
+}
+.smtp-subseccion:last-of-type { margin-bottom: 4px; }
+.smtp-subseccion-titulo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.smtp-subseccion-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-soft);
+  margin-bottom: 12px;
+}
+.smtp-subseccion-titulo-row .smtp-subseccion-titulo { margin-bottom: 0; }
+.smtp-subseccion-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.smtp-subseccion-dot-servidor { background: var(--color-accent); }
+.smtp-subseccion-dot-auth { background: #03285B; }
+.smtp-subseccion-dot-remitente { background: var(--color-ink-soft); }
+.smtp-subseccion-opcional { font-size: 11px; color: var(--color-ink-soft); margin-bottom: 12px; }
+.smtp-field-mitad { grid-column: auto; }
+@media (max-width: 560px) {
+  .smtp-field-mitad { grid-column: 1 / -1; }
+}
+
+/* Franja "Verificar conexión ahora" — handshake ligero (sin enviar
+   correo), mismo lenguaje visual que la franja de "Probar conexión ahora"
+   del mockup, restyleada con los componentes reales del sitio. */
+.smtp-verificar-franja {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-top: 12px;
+}
+.smtp-verificar-icono { color: var(--color-ink-soft); display: flex; flex-shrink: 0; }
+.smtp-verificar-texto { flex: 1; min-width: 180px; font-size: 12.5px; color: var(--color-ink-soft); }
+.smtp-verificar-texto.is-ok { color: #146C43; font-weight: 600; }
+.smtp-verificar-btn { flex-shrink: 0; white-space: nowrap; }
+#smtp-verificar-error { margin-top: 8px; }
 
 .smtp-acc-content .admin-config-subtitle code {
   background: var(--color-bg);

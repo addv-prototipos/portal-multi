@@ -45,6 +45,13 @@ const DEFAULTS_SMTP = {
     'Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.',
   cuerpo_aviso_contador: 'Revísalo y genera la factura correspondiente desde el panel de administración.',
   cuerpo_reporte: 'Se adjunta el reporte generado el {fecha} a las {hora}.',
+  // Punto "confGlo": timestamp (ISO) de la última vez que se confirmó que
+  // esta configuración SÍ funciona — por un handshake exitoso (verify(),
+  // sin enviar correo) o por un envío real exitoso ("Enviar prueba"). Se
+  // limpia cada vez que se guarda la sección "Correo electrónico (SMTP)"
+  // (ver setConfigSmtp) para no mostrar un check viejo tras cambiar
+  // host/usuario/password sin haber vuelto a probar la conexión.
+  ultima_verificacion_en: null,
 };
 
 async function getConfigSmtp() {
@@ -78,6 +85,9 @@ async function setConfigSmtp(cambios) {
   if (typeof cambios.password === 'string' && cambios.password.length > 0) {
     nuevo.password = cambios.password;
   }
+  // Cualquier guardado de esta sección invalida la última verificación —
+  // los datos de conexión pudieron cambiar, hay que volver a probar.
+  nuevo.ultima_verificacion_en = null;
 
   await pool.query(
     `INSERT INTO configuracion (clave, valor) VALUES (?, ?)
@@ -85,6 +95,22 @@ async function setConfigSmtp(cambios) {
     [CLAVE_SMTP, JSON.stringify(nuevo)]
   );
   return nuevo;
+}
+
+// Registra que la configuración SMTP guardada SÍ funciona ahora mismo —
+// llamado tras un handshake exitoso (verificarConexionSmtp) o un envío de
+// prueba exitoso (ver POST /api/admin/config/smtp/prueba en server.js).
+// No pasa por setConfigSmtp a propósito: ese está atado al body saneado
+// del PUT público, esto es un campo de solo-servidor.
+async function marcarSmtpVerificado() {
+  const actual = (await getConfigSmtp()) || { ...DEFAULTS_SMTP };
+  const nuevo = { ...actual, ultima_verificacion_en: new Date().toISOString() };
+  await pool.query(
+    `INSERT INTO configuracion (clave, valor) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
+    [CLAVE_SMTP, JSON.stringify(nuevo)]
+  );
+  return nuevo.ultima_verificacion_en;
 }
 
 // Nunca se devuelve la contraseña guardada al frontend — solo si hay una
@@ -166,6 +192,24 @@ function aplicarPlantilla(texto, valores) {
 // una versión de texto plano de respaldo es una práctica estándar tanto
 // de accesibilidad como de entregabilidad (evita que el correo se
 // marque como spam por no tener parte de texto).
+// Traduce los errores mas comunes de nodemailer/Gmail a mensajes
+// entendibles, en vez de dejar pasar el mensaje tecnico crudo. Compartido
+// entre el envío real (enviarCorreo) y el handshake de solo-verificación
+// (verificarConexionSmtp) — mismos códigos de error en ambos casos.
+function traducirErrorSmtp(err, config) {
+  if (err.code === 'EAUTH') {
+    return new Error(
+      'El servidor SMTP rechazó las credenciales. Si usas Gmail, verifica que estés usando una "Contraseña de aplicación" (no la contraseña normal de la cuenta) — se genera en la configuración de seguridad de Google con la verificación en dos pasos activada.'
+    );
+  }
+  if (err.code === 'ECONNECTION' || err.code === 'ETIMEDOUT' || err.code === 'ESOCKET') {
+    return new Error(
+      `No se pudo conectar con "${config.host}:${config.puerto}". Verifica el host, el puerto y que el servidor tenga salida a internet.`
+    );
+  }
+  return new Error(err.message || 'No se pudo completar la operación SMTP.');
+}
+
 async function enviarCorreo({ destinatario, asunto, cuerpo, html, adjuntos }) {
   const config = await getConfigSmtp();
   if (!config || !config.host || !config.usuario || !config.password) {
@@ -193,20 +237,37 @@ async function enviarCorreo({ destinatario, asunto, cuerpo, html, adjuntos }) {
       ...(adjuntos && adjuntos.length ? { attachments: adjuntos } : {}),
     });
   } catch (err) {
-    // Traduce los errores mas comunes de nodemailer/Gmail a mensajes
-    // entendibles, en vez de dejar pasar el mensaje tecnico crudo.
-    if (err.code === 'EAUTH') {
-      throw new Error(
-        'El servidor SMTP rechazó las credenciales. Si usas Gmail, verifica que estés usando una "Contraseña de aplicación" (no la contraseña normal de la cuenta) — se genera en la configuración de seguridad de Google con la verificación en dos pasos activada.'
-      );
-    }
-    if (err.code === 'ECONNECTION' || err.code === 'ETIMEDOUT' || err.code === 'ESOCKET') {
-      throw new Error(
-        `No se pudo conectar con "${config.host}:${config.puerto}". Verifica el host, el puerto y que el servidor tenga salida a internet.`
-      );
-    }
-    throw new Error(err.message || 'No se pudo enviar el correo.');
+    throw traducirErrorSmtp(err, config);
   }
 }
 
-module.exports = { getConfigSmtp, setConfigSmtp, configSmtpParaMostrar, enviarCorreo, aplicarPlantilla, DEFAULTS_SMTP };
+// Handshake de solo-verificación (nodemailer .verify(), sin enviar ningún
+// correo) contra la configuración YA GUARDADA — nunca contra valores sin
+// guardar del formulario, mismo criterio que "Enviar prueba". Si tiene
+// éxito, registra el timestamp (marcarSmtpVerificado).
+async function verificarConexionSmtp() {
+  const config = await getConfigSmtp();
+  if (!config || !config.host || !config.usuario || !config.password) {
+    throw new Error(
+      'El correo SMTP no está configurado todavía. Guarda host, usuario y contraseña antes de verificar la conexión.'
+    );
+  }
+  const transportador = crearTransportador(config);
+  try {
+    await transportador.verify();
+  } catch (err) {
+    throw traducirErrorSmtp(err, config);
+  }
+  return marcarSmtpVerificado();
+}
+
+module.exports = {
+  getConfigSmtp,
+  setConfigSmtp,
+  configSmtpParaMostrar,
+  enviarCorreo,
+  aplicarPlantilla,
+  DEFAULTS_SMTP,
+  marcarSmtpVerificado,
+  verificarConexionSmtp,
+};

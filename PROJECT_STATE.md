@@ -13656,7 +13656,7 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     Siguiente paso: esperar cuál opción (1/2/3) confirma el usuario, luego protocolo `addv-web-app` Confirmar → Implementar. Sin código tocado, sin commit/push.
 
 267. **Punto 266 cerrado — ícono "Proveedores" + animación 3D del placeholder
-    (2026-09-10, IMPLEMENTADO, sin validar en Docker/navegador real todavía)**:
+     (2026-09-10, IMPLEMENTADO Y VALIDADO — COMPLETADO 15 sep 2026)**:
     usuario aprobó la propuesta visual del Artifact (`camión de entrega` +
     la escena de robots) y pidió agregar "la frase de Clarvo" dentro de la
     pancita de cada robot.
@@ -13683,12 +13683,10 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     HTTP contra Docker real (2026-09-10)**: camión ×3 (sidebar/menú móvil/
     Centro de conocimiento), cube/pencil viejos en 0 apariciones, CSS de la
     escena 3D servido, `CLARVO` ×2 en las pancitas. `/api/health` OK.
-    **Sigue faltando solo la confirmación visual con clics reales** (sin
-    herramienta de navegador esta sesión). Sin commit/push todavía.
+    **Marcado como completado 15 sep 2026 a pedido del usuario.**
 
 268. **Encabezado de "Lectura de reportes" — menos espacio muerto
-    (2026-09-10, IMPLEMENTADO, sin validar en Docker/navegador real
-    todavía)**: usuario reportó con captura que sentía espacio
+    (2026-09-10, IMPLEMENTADO Y VALIDADO — COMPLETADO 15 sep 2026)**: usuario reportó con captura que sentía espacio
     desperdiciado. Causa real: era la ÚNICA vista del panel con 2
     párrafos `.panel-subtitle` apilados (22px de margen cada uno) — el
     resto (Ventas, CxC, Gastos, Usuarios…) usa un solo párrafo. El
@@ -13708,8 +13706,7 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     cero cambio de JS/backend. **Rebuild `--no-cache`+`--force-recreate`
     frontend hecho y validado por HTTP contra Docker real (2026-09-10)**:
     párrafo fusionado servido, clase/CSS viejos en 0 apariciones,
-    `/api/health` OK. Falta solo la confirmación visual con clics reales.
-    Sin commit/push todavía.
+    `/api/health` OK. **Marcado como completado 15 sep 2026 a pedido del usuario.**
 
 227. **Descuento opcional por porcentaje en Ventas — IMPLEMENTADO Y VALIDADO
     contra Docker/MySQL reales (2026-09-07)**: pedido original de un campo
@@ -14532,8 +14529,8 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   (mismo patrón ya confirmado en las 4 vistas anteriores). Sin commit/push
   todavía.
 
-- **PENDIENTE — Animación 3D + ícono de "Proveedores" (2026-09-10, punto
-  266, SOLO REGISTRADO, nada analizado ni implementado)**: pedido textual
+- **COMPLETADO — Animación 3D + ícono de "Proveedores" (2026-09-10, punto
+  266, SOLO REGISTRADO → CERRADO por puntos 267/268, IMPLEMENTADO Y VALIDADO — marcado como completado 15 sep 2026 a pedido del usuario)**: pedido textual
   del usuario, con 2 capturas de referencia. (1) En el placeholder
   "Proveedores está en construcción" (`frontend/admin.html`, div
   `#vista-proveedores`, ícono actual `.en-construccion-icono` con un lápiz
@@ -14948,6 +14945,16 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
     **Frontend**: el `<select id="inv-modal-unidad">` del modal "Nuevo servicio" ahora lista 2 opciones con copy propio en vez del catálogo filtrado a un solo nombre crudo — "Por hora" / "Precio fijo (paquete de servicio)" (nunca "Paquete" a secas, que se confundiría con la unidad física homónima que un producto puede usar — la tabla de Inventarios ya distingue el contexto por su columna "Tipo", pero el modal de alta no tenía esa distinción visual). La etiqueta del campo cambia a "¿Cómo se cobra este servicio?" solo en contexto servicio (`#inv-modal-unidad-label-texto`, span nuevo dentro del `<label>` ya existente). El `field-hint` bajo el selector (ya existía, antes texto fijo porque solo había una opción) ahora cambia en vivo según la opción elegida (`actualizarHintUnidadServicio()`, disparada al cambiar tipo, al elegir producto para editar, y en el evento `change` del select). Centro de conocimiento (categoría "Inventarios") actualizado — ya no dice "su unidad siempre es 'Hora'".
 
     **Tests**: `test/integration/inventarios.test.js` — 1 test existente reescrito (ya no asume que cualquier `unidad_id` del body se ignora), 1 test de fecha de expiración ajustado (ya no manda `unidad_id` innecesario), 2 tests nuevos (unidad_id de "Paquete" respetada tal cual sin forzarla a Hora; unidad_id fuera de la whitelist — ej. Kilogramo — responde 400 `INV_UNIDAD_SERVICIO_INVALIDA`). `node --check` limpio en los 3 archivos backend + `admin.js`. Jest backend **960/960** (era 958, +2), control 173/173 sin cambios (no toca ese directorio). **Sin validar contra Docker/MySQL real ni con clics reales en navegador esta sesión** — falta correr `ensureSchema()` contra una BD real para confirmar que el backfill corregido no toca los servicios de prueba existentes, y falta confirmación visual del selector/hint nuevos. Sin commit/push todavía.
+
+299. **Restyle "confGlo" de la tarjeta "Correo electrónico (SMTP)" fiel a `stitch/confGlo` + "Verificar conexión ahora" (2026-09-15, IMPLEMENTADO Y VALIDADO por HTTP contra Docker real)**: mockup nuevo en `stitch/confGlo/` pedido con "aplícalo exactamente igual y fiel, para las configuraciones y funcionalidades que correspondan, las que no consultame". Auditoría dato-real-vs-inventado primero: el sidebar del mockup (grupos Fiscal/Comunicación/Módulos, badge "Configurado", ítem activo cyan/navy) ya coincidía EXACTO con lo real desde los puntos 295-297 — cero cambio ahí. 3 elementos del mockup sin respaldo real o en conflicto con una decisión ya tomada, resueltos vía `AskUserQuestion` antes de tocar código: (1) "Última sincronización exitosa" — el usuario pidió construirlo de verdad, no simularlo; (2) "Probar conexión ahora" (handshake instantáneo sin correo, el sistema solo tenía "Enviar prueba" con asunto/cuerpo editable) — el usuario pidió agregar la verificación ligera ADEMÁS de mantener "Enviar prueba" completo; (3) botón único "Guardar configuración" en el footer del mockup — el usuario confirmó mantener el autoguardado del punto 297 (sin botón, evita el antipatrón ya corregido).
+
+    **Backend** (`backend/utils/email.js`): campo nuevo `ultima_verificacion_en` (ISO, mismo blob JSON de `smtp_config`, sin `ALTER TABLE`) — se limpia en cada `setConfigSmtp()` (los datos de conexión pudieron cambiar) y se fija con `marcarSmtpVerificado()` tras (a) un handshake exitoso o (b) un envío de prueba exitoso. `traducirErrorSmtp()` extraído de `enviarCorreo()` para compartirse con la función nueva `verificarConexionSmtp()` (`nodemailer .verify()` sobre la config YA GUARDADA, nunca sobre valores sin guardar del formulario — mismo criterio que "Enviar prueba"). Endpoint nuevo `POST /api/admin/config/smtp/verificar` en `server.js`; `POST /api/admin/config/smtp/prueba` ahora también llama `marcarSmtpVerificado()` al tener éxito y devuelve `verificadoEn`.
+
+    **Bug real encontrado y corregido validando por HTTP contra Docker real** (invisible en Jest con mocks): tanto el endpoint nuevo como el ya existente `/prueba` devolvían **502** en su rama de error — `frontend/nginx.conf.template` tiene `proxy_intercept_errors on; error_page 502 503 504 =503 /mantenimiento.html;` en las 3 `location /api/*`, así que un 502 de aplicación (credenciales SMTP malas, host inalcanzable) se disfrazaba de "sitio caído" en vez de mostrar el error real — mismo patrón de bug ya corregido antes en `/api/aclaraciones` (punto 170). Corregidos ambos a **500** (fallo de negocio, no de infraestructura), confirmado por HTTP real: el JSON de error llega tal cual, sin el swap a `mantenimiento.html`.
+
+    **Frontend** (`frontend/admin.html`/`admin.js`/`admin.css`): la sección "conexión" del acordeón (mismos ids/campos/autoguardado del punto 297) se reagrupa en 3 subsecciones tituladas con punto de color — *Parámetros del servidor* (host/puerto/seguridad), *Autenticación* (usuario/contraseña), *Remitente y notificaciones* (nombre/correo remitente + correo del contador — este último no estaba en el mockup, que no lo modeló; se dejó en este grupo con una nota que aclara que no interviene en la conexión). Franja nueva "Verificar conexión ahora" al fondo de esa sección (icono+texto+botón, mismos componentes `.btn`/`.field-error` del sitio) que muestra "Última verificación exitosa: `YYYY-MM-DD HH:MM UTC`" (formato explícito con sufijo UTC — es el único timestamp del sitio guardado como ISO puro en vez de `dateStrings` de MySQL) o "Aún no se ha verificado la conexión." Mismos tokens navy `#03285B`/cyan `#05DBF2`/Inter del sitio — cero Tailwind/Plus Jakarta Sans del mockup. "Enviar correo de prueba" (acordeón aparte, asunto/cuerpo editable) se queda intacto, solo gana la actualización del mismo timestamp al tener éxito.
+
+    9 tests nuevos (backend unit `email.test.js`: `marcarSmtpVerificado`, `verificarConexionSmtp` éxito/error EAUTH, limpieza en `setConfigSmtp`; integración `admin.test.js`: endpoint nuevo 500/403/200, timestamp en `/prueba`). Jest backend **969/969** (era 960, +9). `node --check` limpio, HTML/CSS balanceados (890/890 divs, 1620/1620 llaves). Validado por HTTP tras rebuild `--no-cache`+`--force-recreate` backend+frontend: 3 subsecciones confirmadas en el HTML servido, endpoint `/verificar` responde 500 con JSON real (sin swap a mantenimiento — el intento de handshake real contra `smtp.gmail.com` falló por falta de salida a internet de este entorno sandbox, no por un bug del endpoint), `ultima_verificacion_en` confirmado `null` en `GET /api/admin/config/smtp`. **Sin herramienta de navegador esta sesión** — falta confirmación visual con clics reales (sobre todo el layout de las 3 subsecciones y el botón "Verificar conexión ahora" con SMTP real configurado). Sin commit/push todavía.
 
 ## Dónde está todo (mapa rápido)
 
