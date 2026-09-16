@@ -627,8 +627,25 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   `nginx.conf.template` intercepta globalmente y disfraza de "sitio
   caído" — mismo patrón ya corregido en `/api/aclaraciones` (punto
   170) — corregidos a 500. Jest backend 969/969 (+9). Sin herramienta
-  de navegador esta sesión — falta confirmación visual. Sin
-  commit/push todavía.
+  de navegador esta sesión — falta confirmación visual. **Commiteado y
+  pusheado** (`c942ccb` → `fact/master`).
+
+- **Punto 300 — Paquete `prod/` puesto al día + `actualizar.sh` nuevo
+  (ver PROJECT_STATE.md, 2026-09-15, mismo día)**: el paquete de
+  despliegue VPS `yt.addv.com.mx` (`prod/`, untracked a propósito,
+  nunca `git add`) tenía semanas de drift de contenido (sus 2 variantes
+  intencionales — `docker-compose.prod.yml` sin `control`,
+  `nginx.conf.template` propio — ya estaban correctas, el drift real
+  era en el código espejo de `backend/`/`frontend/`; faltaba por
+  completo `frontend/skeleton.js` del punto 289). Sincronizado por
+  contenido (nunca por estructura), sin tocar `sembrar-prod.js` (único
+  archivo propio de `prod/`). Script nuevo `prod/actualizar.sh`
+  (reconstruye solo backend+frontend, nunca nginx del host/certbot/
+  `.env`, complementa a `deploy.sh` que es solo para el primer
+  despliegue) + README actualizado + `prod.zip` regenerado (sin `.env`
+  real ni `node_modules`, verificado). **Sin acceso SSH al VPS real
+  desde esta sesión** — falta que el usuario copie el paquete y corra
+  `sudo ./actualizar.sh` él mismo.
 
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.

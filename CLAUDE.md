@@ -3822,8 +3822,25 @@ intercepta 502/503/504 globalmente y los disfraza de "sitio caído"
 `--force-recreate`: 3 subsecciones confirmadas en el HTML servido,
 `/verificar` responde 500 con JSON real (sin swap a mantenimiento).
 **Sin herramienta de navegador esta sesión** — falta confirmación visual
-con clics reales. Sin commit/push todavía. Ver PROJECT_STATE.md punto
-299.
+con clics reales. **Commiteado y pusheado** (`c942ccb` → `fact/master`).
+Ver PROJECT_STATE.md punto 299.
+
+**Punto 300 (2026-09-15, mismo día)**: paquete `prod/` (despliegue VPS
+`yt.addv.com.mx`, untracked a propósito, nunca `git add`) puesto al día —
+tenía semanas de drift acumulado en el contenido de sus archivos espejo
+(no en sus variantes intencionales, que ya estaban correctas: sin
+contenedor `control`, `nginx.conf.template` propio). Faltaba por
+completo `frontend/skeleton.js` (punto 289) y su línea en el `COPY` del
+Dockerfile — corregido. Sincronizado por contenido todo `backend/
+{utils,scripts,test,db.js,server.js,...}` y los 24 archivos de
+`frontend/` que sí viajan a producción, sin tocar `sembrar-prod.js`
+(único archivo propio de `prod/`). Script nuevo `prod/actualizar.sh`
+(reconstruye solo backend+frontend, sin tocar mysql/minio/nginx del
+host/`.env`, complementa a `deploy.sh` que es solo para el primer
+despliegue) + `prod/README-DESPLIEGUE.md` documentado. `prod.zip`
+regenerado sin `.env` real ni `node_modules`. **Sin acceso SSH al VPS
+real desde esta sesión** — el usuario debe copiar `prod.zip`/`prod/` y
+correr `sudo ./actualizar.sh` él mismo. Ver PROJECT_STATE.md punto 300.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 

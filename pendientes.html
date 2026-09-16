@@ -249,7 +249,7 @@
       <h1>Pendientes — Portal Clarvo</h1>
       <p>Backlog vivo del proyecto: decisiones abiertas, funcionalidad pospuesta a propósito y validaciones que faltan. Se actualiza en el mismo archivo conforme avanza cada segmento — solo dale refresh.</p>
     </div>
-    <div class="updated">Última actualización: <strong>15 sep 2026</strong> · restyle "confGlo" de SMTP + "Verificar conexión ahora" (299, nuevo — falta confirmación visual) · cerrados desde el 13 sep (validados, sin pendiente abierto): Animación 3D + ícono de "Proveedores" (266/267/268), 2do cobro "Servicio en paquete" Hora/Paquete en Inventarios (298), suspender/activar usuario de panel (290), esqueleto de carga (shimmer) en todo el sitio (289), Centro de conocimiento al día + nuevo en /control (293/294), reorganización de sidebar por grupos colapsables + acordeón SMTP con autoguardado (295-297) · sigue abierto: lector código de barras SDK sin costo (291), centros conocimiento + recorrido (273), 2FA correo toggle (274), unificar switches (275), diccionario §0.3/D5/D2 (279), centro conocimiento cortado en móvil (280)</div>
+    <div class="updated">Última actualización: <strong>15 sep 2026</strong> · restyle "confGlo" de SMTP + "Verificar conexión ahora" (299, commiteado/pusheado — falta confirmación visual) · paquete <code>prod/</code> puesto al día + <code>actualizar.sh</code> nuevo (300 — falta aplicarlo en el VPS real, sin acceso SSH esta sesión) · cerrados desde el 13 sep (validados, sin pendiente abierto): Animación 3D + ícono de "Proveedores" (266/267/268), 2do cobro "Servicio en paquete" Hora/Paquete en Inventarios (298), suspender/activar usuario de panel (290), esqueleto de carga (shimmer) en todo el sitio (289), Centro de conocimiento al día + nuevo en /control (293/294), reorganización de sidebar por grupos colapsables + acordeón SMTP con autoguardado (295-297) · sigue abierto: lector código de barras SDK sin costo (291), centros conocimiento + recorrido (273), 2FA correo toggle (274), unificar switches (275), diccionario §0.3/D5/D2 (279), centro conocimiento cortado en móvil (280)</div>
   </header>
 
   <div class="legend">
@@ -541,10 +541,10 @@
         <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
           <tr data-app="control">
-            <td class="col-punto">270</td>
-            <td class="col-item">Script de despliegue + empaquetado</td>
-            <td class="col-detalle">Generar script para desplegar y el empaquetado también. Sin definir: destino (VPS <code>docker compose</code> vs. Swarm <code>docker-stack.yml</code>), pasos del script (<code>build --no-cache</code> / <code>up -d --force-recreate</code> + <code>ensureSchema</code> + <code>/api/health</code>), qué se empaqueta (<code>.zip</code> de entrega vs. imágenes Docker <code>portalManager-*</code> vía registry/<code>docker save</code>), versionado, manejo de <code>.env</code>/secretos (nunca en el paquete, validación previa), rollback/health post-deploy ni ubicación del artefacto. Ver <code>PROJECT_STATE.md</code> punto 270.</td>
-            <td class="col-estado"><span class="pill pill-red">Sin decidir</span></td>
+            <td class="col-punto">270/300</td>
+            <td class="col-item">Aplicar la actualización en el VPS real (yt.addv.com.mx)</td>
+            <td class="col-detalle">El punto 270 ya está resuelto en código (otra sesión lo construyó sin dejarlo documentado aquí — corregido el 2026-09-15): paquete completo <code>prod/</code> (VPS único nodo, <code>docker-compose.prod.yml</code> sin contenedor <code>control</code>, <code>deploy.sh</code> primer despliegue con nginx+certbot real, <code>actualizar.sh</code> nuevo para código nuevo sin tocar nginx/certbot/<code>.env</code>, <code>sembrar.sh</code> datos demo, <code>.env</code> nunca en el paquete/zip). <code>prod/</code> puesto al día 2026-09-15 (drift de varias sesiones corregido — faltaba <code>skeleton.js</code> del punto 289) + <code>prod.zip</code> regenerado. <strong>Único pendiente real</strong>: esta sesión no tiene acceso SSH al VPS — falta que el usuario copie <code>prod.zip</code>/<code>prod/</code> al servidor y corra <code>sudo ./actualizar.sh</code> (o <code>./deploy.sh</code> si el primer despliegue nunca completó — <code>prod/log.md</code> muestra un intento fallido por el bug de <code>control_tenants</code>, ya corregido en <code>deploy.sh</code>). Ver <code>PROJECT_STATE.md</code> punto 300.</td>
+            <td class="col-estado"><span class="pill pill-gray">Falta aplicar en el VPS real</span></td>
           </tr>
         </tbody>
       </table>
