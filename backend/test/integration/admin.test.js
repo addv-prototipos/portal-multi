@@ -316,6 +316,31 @@ describe('Admin', () => {
       expect(res.body.auditoria_habilitada).toBe(false);
     });
 
+    test('perfil "fiscal" NO puede cambiar notif_tickets_permite_ocultar (403)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      const res = await request(app)
+        .put('/api/admin/config/global')
+        .auth(usuario, password)
+        .send({ notif_tickets_permite_ocultar: false });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/notificaciones/i);
+    });
+
+    test('perfil "administrador" sí puede cambiar notif_tickets_permite_ocultar', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // setConfiguracionGlobal: getConfiguracionGlobal interno
+      pool.query.mockResolvedValueOnce([{}]); // INSERT/UPDATE
+
+      const res = await request(app)
+        .put('/api/admin/config/global')
+        .auth(usuario, password)
+        .send({ notif_tickets_permite_ocultar: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.notif_tickets_permite_ocultar).toBe(false);
+    });
+
     test('perfil "administrador" sí puede cambiar correo_reportes', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
       pool.query.mockResolvedValueOnce([[]]); // setConfiguracionGlobal: getConfiguracionGlobal interno
@@ -341,6 +366,45 @@ describe('Admin', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/entre 0 y 100/);
+    });
+  });
+
+  describe('GET /api/admin/tickets/pendientes-sin-contador', () => {
+    test('correo_contador configurado: total 0, permiteOcultar por default (true)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('super');
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ correo_contador: 'contador@x.com' }) }]]); // getConfigSmtp
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
+
+      const res = await request(app)
+        .get('/api/admin/tickets/pendientes-sin-contador')
+        .auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ total: 0, tickets: [], permiteOcultar: true });
+    });
+
+    test('sin correo_contador + interruptor maestro apagado: lista tickets con permiteOcultar false', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      pool.query.mockResolvedValueOnce([[]]); // getConfigSmtp: sin nada guardado
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ notif_tickets_permite_ocultar: false }) }]]); // getConfiguracionGlobal
+      pool.query.mockResolvedValueOnce([[{ id: 1, folio: 'OC-000001', rfc: 'XAXX010101000', creado_en: '2026-09-01 10:00:00' }]]); // SELECT tickets
+
+      const res = await request(app)
+        .get('/api/admin/tickets/pendientes-sin-contador')
+        .auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(1);
+      expect(res.body.permiteOcultar).toBe(false);
+    });
+
+    test('perfil "ventas" no tiene acceso (403, sin área fiscal)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('ventas');
+      const res = await request(app)
+        .get('/api/admin/tickets/pendientes-sin-contador')
+        .auth(usuario, password);
+
+      expect(res.status).toBe(403);
     });
   });
 

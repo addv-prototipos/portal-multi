@@ -72,12 +72,14 @@ services:
   # bind mount local `./uploads` (que se rompe en cuanto hay más de una
   # réplica del backend) por un bucket S3-compatible self-hosted, con un
   # prefijo por tenant dentro del mismo bucket (ver backend/utils/storage.js).
-  # NOTA: imagen sin pin a un tag RELEASE.<fecha> específico — no se pudo
-  # verificar cuál es el tag estable actual desde este entorno (sin acceso
-  # a Docker Hub). Pin a un tag real antes de producción (ver
-  # PROJECT_STATE.md, punto del segmento 5).
+  # minio/minio en Docker Hub ya no existe (retirado por MinIO, "pull
+  # access denied" confirmado en un despliegue real, 2026-09-11) — el
+  # registro oficial ahora es quay.io. Pin a un tag RELEASE real (no
+  # ":latest", cierra el TODO que tenía esta nota) — verificado contra la
+  # API de quay.io el 2026-09-11: RELEASE.2025-09-07T16-13-09Z es el más
+  # reciente y coincide con el dígest de "latest" en ese momento.
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: portalManager-minio
     restart: unless-stopped
     mem_limit: 512m

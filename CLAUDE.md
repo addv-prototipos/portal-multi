@@ -1124,7 +1124,9 @@ PROJECT_STATE.md punto 214.
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md`, `CLAUDE.md`,
-`pendientes.html` y `AGENTS.md` antes de cerrar el trabajo. Si la sesión
+`pendientes.html`
+**Pendientes con check (2026-09-16, punto 302):** `pendientes.html` tiene columna `Hecho` + pestana `Historico` con `localStorage` (`portalClarvo_pendientes_checks_v1`). Al marcar desaparece del Listado/buscador/filtros y pasa al Historico local. Cuando el usuario diga "revisa pendientes", leer `localStorage` (boton `Copiar estado`) y, si hay cambios, consolidar a `Completado` permanente en el repo (`pendientes.html` pill verde + `PROJECT_STATE.md`). No requiere prompt por pendiente.
+ y `AGENTS.md` antes de cerrar el trabajo. Si la sesión
 tiene acceso de escritura a Claude Mem, registrar también ahí la
 decisión/estado para que futuras sesiones de Claude y Codex puedan
 coordinarse sin depender del historial del chat. Si solo hay acceso de lectura
@@ -3841,6 +3843,26 @@ despliegue) + `prod/README-DESPLIEGUE.md` documentado. `prod.zip`
 regenerado sin `.env` real ni `node_modules`. **Sin acceso SSH al VPS
 real desde esta sesión** — el usuario debe copiar `prod.zip`/`prod/` y
 correr `sudo ./actualizar.sh` él mismo. Ver PROJECT_STATE.md punto 300.
+
+**Punto 301 (2026-09-16, IMPLEMENTADO — Jest backend 976/976, SIN Docker/
+MySQL/navegador real esta sesión)**: checkbox "No volver a mostrar este
+mensaje" en el popup de tickets sin contador, solo para perfil `super`
+(fiscal lo sigue viendo siempre) + interruptor maestro nuevo en
+Configuraciones globales → sección "Notificaciones" (grupo Comunicación).
+Persistencia del silenciado en `localStorage` por cuenta+tenant (las
+cuentas `ADMIN_USERS` no tienen fila en `usuarios`, sin dónde guardarlo en
+servidor). Apagar el interruptor NO oculta el popup completo — oculta el
+checkbox y hace que cualquier silenciado ya guardado se ignore (control de
+cumplimiento, decisión A del Artifact de propuesta, confirmada por el
+usuario). `notif_tickets_permite_ocultar` nuevo en `config.js`
+(`DEFAULTS_CONFIG_GLOBAL`, mismo candado admin/super que
+`auditoria_habilitada`); `GET /api/admin/tickets/pendientes-sin-contador`
+devuelve `permiteOcultar` en la misma respuesta (evita una carrera real
+con `cargarConfigGlobal()`, que se llama sin `await` justo antes en
+`showDashboard()`). 7 tests nuevos, Jest 976/976 (era 969). `node --check`
+limpio, CSS balanceado. Falta validar el flujo completo contra Docker/
+MySQL/navegador real y confirmación visual del usuario. Sin commit/push.
+Ver PROJECT_STATE.md punto 301.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 

@@ -3814,6 +3814,12 @@ app.put(
     if (body.auditoria_habilitada !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
       return res.status(403).json({ error: 'Tu perfil no tiene acceso a habilitar o deshabilitar la Auditoría.' });
     }
+    // "notif_tickets_permite_ocultar" — mismo candado: solo
+    // administrador/super deciden si un super admin puede silenciar el
+    // popup de tickets sin contador.
+    if (body.notif_tickets_permite_ocultar !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar las notificaciones.' });
+    }
     try {
       // rfc_compania / regimen_fiscal_compania / tipo_persona_compania
       // ya NO se mandan desde aquí — se quitó ese campo del formulario
@@ -3826,6 +3832,7 @@ app.put(
         ordenes_compra_habilitado: body.ordenes_compra_habilitado,
         entrega_venta_default: body.entrega_venta_default,
         auditoria_habilitada: body.auditoria_habilitada,
+        notif_tickets_permite_ocultar: body.notif_tickets_permite_ocultar,
         clave_sat: body.clave_sat,
         correo_reportes: body.correo_reportes,
       });
@@ -4697,9 +4704,16 @@ app.get(
   asyncHandler(async (req, res) => {
     const config = await getConfigSmtp();
     const correoContadorConfigurado = Boolean(config && config.correo_contador);
+    // Se manda junto con la lista (en vez de que el frontend lo lea por
+    // separado de GET /config/global) para que no haya una carrera entre
+    // ambas peticiones al iniciar sesión — el checkbox "No volver a
+    // mostrar" (solo super) necesita saber esto en el mismo instante en
+    // que decide si pintar el popup.
+    const configGlobal = await getConfiguracionGlobal();
+    const permiteOcultar = configGlobal.notif_tickets_permite_ocultar !== false;
 
     if (correoContadorConfigurado) {
-      return res.json({ total: 0, tickets: [] });
+      return res.json({ total: 0, tickets: [], permiteOcultar });
     }
 
     const [tickets] = await pool.query(
@@ -4707,7 +4721,7 @@ app.get(
        WHERE estatus = 'pendiente' AND eliminado_en IS NULL
        ORDER BY creado_en DESC`
     );
-    res.json({ total: tickets.length, tickets });
+    res.json({ total: tickets.length, tickets, permiteOcultar });
   })
 );
 

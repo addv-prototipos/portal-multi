@@ -143,8 +143,14 @@ services:
         limits:
           memory: 1g
 
+  # minio/minio en Docker Hub ya no existe (retirado por MinIO, "pull
+  # access denied" confirmado en un despliegue real, 2026-09-11) — el
+  # registro oficial ahora es quay.io. Pin a un tag RELEASE real (no
+  # ":latest") — verificado contra la API de quay.io el 2026-09-11:
+  # RELEASE.2025-09-07T16-13-09Z es el más reciente y coincide con el
+  # dígest de "latest" en ese momento.
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}

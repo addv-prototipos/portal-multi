@@ -115,6 +115,8 @@
     notifTicketsOverlay: document.getElementById('notif-tickets-overlay'),
     notifTicketsSubtitulo: document.getElementById('notif-tickets-subtitulo'),
     notifTicketsLista: document.getElementById('notif-tickets-lista'),
+    notifTicketsOcultarWrap: document.getElementById('notif-tickets-ocultar-wrap'),
+    notifTicketsOcultarCheckbox: document.getElementById('notif-tickets-ocultar-checkbox'),
     btnNotifTicketsCerrar: document.getElementById('btn-notif-tickets-cerrar'),
     btnNotifTicketsVer: document.getElementById('btn-notif-tickets-ver'),
     // Selector de columnas visibles
@@ -139,7 +141,7 @@
     previewImage: document.getElementById('preview-image'),
     btnPreviewDescargar: document.getElementById('btn-preview-descargar'),
     btnPreviewCerrar: document.getElementById('btn-preview-cerrar'),
-    // Vista Inicio / Constancias / Tickets / Ventas / Usuarios / Configuraciones globales
+    // Vista Inicio / Constancias / Tickets / Ventas / Usuarios / Configuraciones
     btnVistaInicio: document.getElementById('btn-vista-inicio'),
     btnVistaConstancias: document.getElementById('btn-vista-constancias'),
     btnVistaTickets: document.getElementById('btn-vista-tickets'),
@@ -214,7 +216,7 @@
     micuentaSuscripcionCard: document.getElementById('micuenta-suscripcion-card'),
     micuentaFacturacionCard: document.getElementById('micuenta-facturacion-card'),
     micuentaFooterMarket: document.getElementById('micuenta-footer-market'),
-    // Modal "Configuraciones globales" (antes vista de página, ver
+    // Modal "Configuraciones" (antes vista de página, ver
     // PROJECT_STATE.md): barra lateral + buscador + panel de contenido.
     configModalSidebar: document.getElementById('config-modal-sidebar'),
     configModalMain: document.getElementById('config-modal-main'),
@@ -983,6 +985,10 @@
     auditoriaToggleBody: document.getElementById('auditoria-toggle-body'),
     configAuditoriaHabilitada: document.getElementById('config-auditoria-habilitada'),
     auditoriaHabilitadaAutoguardado: document.getElementById('auditoria-habilitada-autoguardado'),
+    btnToggleNotifCard: document.getElementById('btn-toggle-notif-card'),
+    notifToggleBody: document.getElementById('notif-toggle-body'),
+    configNotifTicketsPermiteOcultar: document.getElementById('config-notif-tickets-permite-ocultar'),
+    notifTicketsPermiteOcultarAutoguardado: document.getElementById('notif-tickets-permite-ocultar-autoguardado'),
     configClaveSat: document.getElementById('config-clave-sat'),
     configClaveSatBuscador: document.getElementById('config-clave-sat-buscador'),
     configClaveSatSugerencias: document.getElementById('config-clave-sat-sugerencias'),
@@ -1798,7 +1804,7 @@
   // restricciones", ver aplicarRestriccionesPerfil() más abajo. Los
   // otros dos perfiles (creados desde "Crear usuario", con acceso al
   // panel vía Basic Auth) sí quedan acotados a un subconjunto de vistas,
-  // y dentro de "Configuraciones globales", a un subconjunto de
+  // y dentro de "Configuraciones", a un subconjunto de
   // tarjetas — el resto ni siquiera se muestra, no solo se deshabilita.
   let perfilActual = null;
   let usuarioSesionActual = null;
@@ -1829,30 +1835,38 @@
   // restaura este valor tal cual estaba, sin resurrección sorpresa ni
   // pérdida silenciosa.
   let ultimoValorSoloServiciosGuardado = false;
-  // Punto 244: switch "Mostrar Auditoría" en Configuraciones globales —
+  // Punto 244: switch "Mostrar Auditoría" en Configuraciones —
   // mismo patrón que ventasHabilitadaGlobalmente/inventarioActivoGlobalmente,
   // combinado dentro de aplicarRestriccionesPerfil() para que ni el perfil
   // ni este switch puedan pisar al otro.
   let auditoriaHabilitadaGlobalmente = true;
+  // Interruptor maestro (Configuraciones → Notificaciones): si
+  // está en `false`, el checkbox "No volver a mostrar" del popup de
+  // tickets sin contador no se pinta y cualquier silenciado guardado
+  // en localStorage se ignora (ver revisarTicketsPendientesSinContador
+  // más abajo). No controla la visibilidad de ninguna vista del sidebar
+  // (a diferencia de auditoriaHabilitadaGlobalmente) — no se combina en
+  // aplicarRestriccionesPerfil().
+  let notifTicketsPermiteOcultarGlobalmente = true;
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
       vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'configuraciones'],
-      tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
+      tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
     },
     fiscal: {
       vistasPermitidas: ['inicio', 'constancias', 'tickets', 'mi-cuenta', 'configuraciones'],
       tarjetasConfigPermitidas: ['admin-config-card', 'global-config-card'],
     },
     // Punto 190: perfil "Ventas" — solo Ventas/Cuentas por cobrar/Gastos,
-    // sin entrar nunca a "Configuraciones globales" (cero tarjetas
+    // sin entrar nunca a "Configuraciones" (cero tarjetas
     // permitidas, ni siquiera de solo lectura: el botón de esa vista
     // queda oculto por completo). El % de IVA/zona horaria que necesita
     // el formulario de "Registrar venta" se leen vía GET
     // /admin/config/global directamente (permitido en el backend para
     // este perfil), sin pasar por la UI de Configuraciones. "Mi Cuenta"
     // SÍ se permite (punto "Mi Cuenta", 2026-09-10): perfil/datos propios
-    // y cambio de contraseña, no depende de Configuraciones globales.
+    // y cambio de contraseña, no depende de Configuraciones.
     ventas: {
       vistasPermitidas: ['ordenes', 'cxc', 'gastos', 'mi-cuenta'],
       tarjetasConfigPermitidas: [],
@@ -2010,9 +2024,9 @@
     // en vez de dejar un botón que no lleva a ningún lado.
     if (els.btnInicioVerTodas) els.btnInicioVerTodas.hidden = perfilActual === 'administrador';
 
-    // Las 6 tarjetas de "Configuraciones globales" ("Ventas" e
+    // Las 6 tarjetas de "Configuraciones" ("Ventas" e
     // "Inventarios" se movieron aquí desde "Usuarios").
-    ['admin-config-card', 'global-config-card', 'smtp-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
+    ['admin-config-card', 'global-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
       const tarjeta = document.getElementById(idTarjeta);
       if (!tarjeta) return;
       tarjeta.hidden = !(sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta));
@@ -2987,7 +3001,7 @@
   });
 
   // Muestra/oculta el botón "Ventas" del menú según el interruptor de
-  // "Configuraciones globales" — con el botón oculto, no hay forma de
+  // "Configuraciones" — con el botón oculto, no hay forma de
   // llegar a esa vista desde el menú (este panel no usa rutas de URL para
   // cada pestaña, así que ocultar el botón ya basta para "quitar" la
   // funcionalidad de la navegación). Delega en aplicarRestriccionesPerfil()
@@ -3165,6 +3179,63 @@
     });
   }
 
+  if (els.btnToggleNotifCard) {
+    els.btnToggleNotifCard.addEventListener('click', () => {
+      const abierto = els.btnToggleNotifCard.getAttribute('aria-expanded') === 'true';
+      els.btnToggleNotifCard.setAttribute('aria-expanded', String(!abierto));
+      els.notifToggleBody.hidden = abierto;
+    });
+  }
+
+  let timeoutAutoguardadoNotifTickets = null;
+  els.configNotifTicketsPermiteOcultar.addEventListener('change', async () => {
+    const nuevoValor = els.configNotifTicketsPermiteOcultar.checked;
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    clearTimeout(timeoutAutoguardadoNotifTickets);
+    els.configNotifTicketsPermiteOcultar.disabled = true;
+    els.notifTicketsPermiteOcultarAutoguardado.textContent = 'Guardando…';
+    els.notifTicketsPermiteOcultarAutoguardado.setAttribute('data-estado', 'guardando');
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/config/global`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notif_tickets_permite_ocultar: nuevoValor }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'No se pudo guardar.');
+      }
+
+      notifTicketsPermiteOcultarGlobalmente = nuevoValor;
+      els.notifTicketsPermiteOcultarAutoguardado.textContent = 'Guardado ✓';
+      els.notifTicketsPermiteOcultarAutoguardado.setAttribute('data-estado', 'guardado');
+      timeoutAutoguardadoNotifTickets = setTimeout(() => {
+        els.notifTicketsPermiteOcultarAutoguardado.textContent = '';
+        els.notifTicketsPermiteOcultarAutoguardado.removeAttribute('data-estado');
+      }, 2500);
+    } catch (err) {
+      els.configNotifTicketsPermiteOcultar.checked = !nuevoValor;
+      els.notifTicketsPermiteOcultarAutoguardado.textContent = 'No se pudo guardar — inténtalo de nuevo.';
+      els.notifTicketsPermiteOcultarAutoguardado.setAttribute('data-estado', 'error');
+    } finally {
+      els.configNotifTicketsPermiteOcultar.disabled = false;
+    }
+  });
+
+  // Clave de localStorage por cuenta+tenant (mismo patrón que
+  // claveOnboarding()/claveBorradorOrden()) — las cuentas ADMIN_USERS
+  // (perfil super) no tienen fila en la tabla `usuarios`, así que no hay
+  // dónde guardar esto en el servidor sin una tabla nueva.
+  function claveNotifTicketsOcultar() {
+    return `notif_tickets_ocultar_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+
   async function cargarConfigGlobal(opciones = {}) {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
@@ -3181,6 +3252,8 @@
         radio.checked = radio.value === (config.entrega_venta_default || 'sinticket');
       });
       els.configAuditoriaHabilitada.checked = config.auditoria_habilitada !== false;
+      els.configNotifTicketsPermiteOcultar.checked = config.notif_tickets_permite_ocultar !== false;
+      notifTicketsPermiteOcultarGlobalmente = config.notif_tickets_permite_ocultar !== false;
       aplicarClaveSatCargada(config.clave_sat || '');
       cargarInfoCatalogoClaveSat();
       aplicarRegimenFiscalCompaniaBox(config.regimen_fiscal_compania);
@@ -4979,7 +5052,20 @@
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (data.total > 0) mostrarNotifTicketsPendientes(data.tickets);
+      if (typeof data.permiteOcultar === 'boolean') {
+        notifTicketsPermiteOcultarGlobalmente = data.permiteOcultar;
+      }
+      // Solo perfil "super" puede haberlo silenciado (el checkbox del
+      // popup no se le muestra a nadie más) — y solo cuenta mientras el
+      // interruptor maestro (Configuraciones → Notificaciones)
+      // lo siga permitiendo; si se apagó después de que este super ya
+      // lo había silenciado, el aviso vuelve a salirle sin que nadie
+      // borre el localStorage.
+      const yaLoSilencio =
+        perfilActual === 'super' &&
+        notifTicketsPermiteOcultarGlobalmente &&
+        localStorage.getItem(claveNotifTicketsOcultar()) === '1';
+      if (data.total > 0 && !yaLoSilencio) mostrarNotifTicketsPendientes(data.tickets);
     } catch (err) {
       // Si falla la consulta, simplemente no se muestra la notificación;
       // no es motivo para interrumpir el resto del panel.
@@ -5002,10 +5088,16 @@
       li.textContent = `y ${tickets.length - 8} más…`;
       els.notifTicketsLista.appendChild(li);
     }
+    const mostrarCheckboxOcultar = perfilActual === 'super' && notifTicketsPermiteOcultarGlobalmente;
+    els.notifTicketsOcultarWrap.hidden = !mostrarCheckboxOcultar;
+    els.notifTicketsOcultarCheckbox.checked = false;
     els.notifTicketsOverlay.hidden = false;
   }
 
   function cerrarNotifTicketsPendientes() {
+    if (!els.notifTicketsOcultarWrap.hidden && els.notifTicketsOcultarCheckbox.checked) {
+      localStorage.setItem(claveNotifTicketsOcultar(), '1');
+    }
     els.notifTicketsOverlay.hidden = true;
   }
 
@@ -5764,7 +5856,7 @@
     }
   }
 
-  // ---------- Modal "Configuraciones globales" ----------
+  // ---------- Modal "Configuraciones" ----------
   // Antes era una vista de página con 6 tarjetas plegables independientes
   // (podían quedar varias abiertas a la vez); ahora es un modal con barra
   // lateral + buscador, una sección visible a la vez (ver PROJECT_STATE.md).
@@ -5776,18 +5868,19 @@
     { id: 'global-config-card', label: 'Configuraciones fiscales' },
     { id: 'smtp-config-card', label: 'Correo electrónico (SMTP)' },
     { id: 'reportes-config-card', label: 'Notificación de reportes' },
+    { id: 'notif-toggle-card', label: 'Notificaciones' },
     { id: 'ordenes-toggle-card', label: 'Módulo Ventas' },
     { id: 'inv-toggle-card', label: 'Módulo Inventarios' },
     { id: 'auditoria-toggle-card', label: 'Módulo Auditoría' },
   ];
 
-  // Grupos de Configuraciones globales — mismo criterio que
+  // Grupos de Configuraciones — mismo criterio que
   // GRUPOS_SIDEBAR_NAV: solo deciden cuándo ocultar el título del grupo
   // (0 tarjetas visibles, ya sea por permiso de perfil o por el
   // buscador), nunca cuáles tarjetas existen.
   const GRUPOS_CONFIG_NAV = {
     fiscal: ['admin-config-card', 'global-config-card'],
-    comunicacion: ['smtp-config-card', 'reportes-config-card'],
+    comunicacion: ['smtp-config-card', 'reportes-config-card', 'notif-toggle-card'],
     modulos: ['ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
   };
 
@@ -6381,7 +6474,7 @@
   els.btnMenuMovil.addEventListener('click', mostrarMenuMovil);
   document.querySelectorAll('.admin-menu-movil-btn').forEach((boton) => {
     boton.addEventListener('click', () => {
-      // "Configuraciones globales" ya no es una vista de página — abre el
+      // "Configuraciones" ya no es una vista de página — abre el
       // modal en vez de intentar cambiarVistaPrincipal('configuraciones'),
       // que ya no existe como caso válido.
       if (boton.dataset.vista === 'configuraciones') {
@@ -7239,7 +7332,7 @@
   // abre el ticket para imprimir) o 'sinticket' (sin correo, sin
   // imprimir — solo confirma la venta, ver PROJECT_STATE.md). Los 3
   // ocultan Tipo de cliente + Correo salvo "correo". El punto de
-  // partida al abrir el modal lo decide "Configuraciones globales" →
+  // partida al abrir el modal lo decide "Configuraciones" →
   // Ventas → "Método de entrega por defecto" (ordenEntregaDefault,
   // cargado en cargarConfigGlobalParaOrden()).
   let ordenMetodoEntrega = 'sinticket';
@@ -7421,11 +7514,11 @@
     });
   }
 
-  // Banner informativo: el link solo lleva a Configuraciones globales
+  // Banner informativo: el link solo lleva a Configuraciones
   // (mismo criterio que el resto del sitio — cierra este modal primero,
   // igual que "Ver en Gastos →"/"Ver cuentas por cobrar →" en otras
   // vistas). Perfiles sin acceso a esa vista (ej. "ventas") no ven el
-  // botón "Configuraciones globales" en el sidebar, pero el link aquí no
+  // botón "Configuraciones" en el sidebar, pero el link aquí no
   // rompe nada — simplemente no hace nada visible si la vista no existe
   // para ese perfil.
   if (els.btnOrdenInfoBannerConfig) {
@@ -16887,11 +16980,11 @@
   ];
 
   // ---------- Centro de conocimiento (Fase 6 UX) ----------
-  // Manual completo de /admin — mismo shell que "Configuraciones globales"
+  // Manual completo de /admin — mismo shell que "Configuraciones"
   // (config-modal-sidebar/main reusados tal cual) pero con contenido propio
   // aquí, 100% frontend, cero endpoint nuevo (mismo criterio que
   // AYUDA_VISTAS). Acceso desde un ícono fijo en el sidebar, NUNCA dentro
-  // de Configuraciones globales — el perfil "Ventas" no tiene esa vista
+  // de Configuraciones — el perfil "Ventas" no tiene esa vista
   // (RESTRICCIONES_PERFIL más arriba), así que un manual completo ahí
   // habría quedado inalcanzable para ese perfil.
   const CONOCIMIENTO_CATEGORIAS = {
@@ -16899,7 +16992,7 @@
       titulo: 'Primeros pasos',
       lead: 'Lo mínimo para dejar el panel operando el primer día.',
       pasos: [
-        { t: 'Completa tus datos fiscales', d: 'Configuraciones globales → Configuraciones fiscales. Sin esto, tickets y facturas no se pueden generar.' },
+        { t: 'Completa tus datos fiscales', d: 'Configuraciones → Configuraciones fiscales. Sin esto, tickets y facturas no se pueden generar.' },
         { t: 'Da de alta a tu equipo', d: 'Usuarios → Crear usuario. Elige el perfil correcto (Administrador, Fiscal o Ventas) según lo que esa persona necesite hacer — cada perfil ve solo sus secciones.' },
         { t: 'Revisa el checklist de Inicio', d: 'Aparece solo ahí hasta que completes sus 3-4 pasos según tu perfil — te va guiando, no hace falta memorizar nada.' },
         { t: 'Vuelve aquí cuando lo necesites', d: 'Este manual queda siempre a un clic, en el ícono de libro junto a "Cerrar sesión" — en cualquier vista, con cualquier perfil.' },
@@ -16923,7 +17016,7 @@
         { t: 'Generar la factura', d: 'Sube el ZIP con XML+PDF ya generados en tu sistema de facturación — el cliente recibe el correo y puede descargarla desde su portal.' },
         { t: 'Monto facturado', d: 'El sistema lo lee solo del XML dentro del ZIP en cuanto lo subes — no captures nada a mano. Solo si no lo pudo leer, te pide el monto y avisa "Capturado manualmente"; si sí lo leyó, dice "Leído automáticamente del XML" y ya no se puede corregir a mano.' },
         { t: 'Pago pendiente bloquea la factura', d: 'Si la venta ligada sigue "Pendiente" de cobro (Cuentas por cobrar), no se puede facturar hasta registrar el pago.' },
-        { t: 'Retención automática', d: 'Los tickets se borran solos después de los días configurados en Configuraciones globales — es a propósito, no es un error si uno desaparece.' },
+        { t: 'Retención automática', d: 'Los tickets se borran solos después de los días configurados en Configuraciones — es a propósito, no es un error si uno desaparece.' },
       ],
     },
     constancias: {
@@ -16970,7 +17063,7 @@
       titulo: 'Inventarios',
       lead: 'Productos, servicios y existencias — módulo opcional.',
       pasos: [
-        { t: 'Actívalo primero', d: 'Configuraciones globales → interruptor "Inventario activo". Antes de eso, la sección permanece oculta para todos los perfiles.' },
+        { t: 'Actívalo primero', d: 'Configuraciones → interruptor "Inventario activo". Antes de eso, la sección permanece oculta para todos los perfiles.' },
         { t: 'Dar de alta un producto o servicio', d: 'Botón "Nuevo producto/servicio" — un servicio pide solo 10 de los 14 campos (sin stock ni código de barras) y se cobra "Por hora" o "Precio fijo (paquete de servicio)" — nunca por las demás unidades del catálogo.' },
         { t: 'Registrar entradas y salidas', d: 'Menú "⋮" de cada fila — cada movimiento queda en el historial permanente, nunca editable una vez guardado.' },
         { t: 'Importar catálogo', d: 'Botón "Importar catálogo" → sube un CSV/XLSX → el sistema detecta las columnas solo, con vista previa antes de confirmar. Solo para productos, no servicios.' },
@@ -17014,7 +17107,7 @@
       pasos: [
         { t: 'Editar tu perfil básico', d: 'Nombre, teléfono y correo — cualquier perfil puede ver y editar los suyos, además de cambiar su propia contraseña (pide la actual antes de guardar la nueva).' },
         { t: 'Identidad de la empresa', d: 'Solo Administrador y Super ven el nombre de la empresa y cuántas cuentas de panel hay dadas de alta contra la cuota del plan.' },
-        { t: 'Zona horaria', d: 'Se muestra de solo lectura aquí — para cambiarla, ve a Configuraciones globales → Configuraciones fiscales.' },
+        { t: 'Zona horaria', d: 'Se muestra de solo lectura aquí — para cambiarla, ve a Configuraciones → Configuraciones fiscales.' },
         { t: 'Secciones "Próximamente"', d: 'Verificación en 2 pasos, sesiones activas, notificaciones y suscripción se muestran atenuadas a propósito — todavía no existen, no son un botón roto.' },
       ],
     },
@@ -17024,7 +17117,7 @@
       pasos: [
         { t: 'Qué queda registrado', d: 'Cada acción que cambia algo (crear, editar, eliminar) queda con fecha, usuario, perfil y de dónde entró — acotado siempre a tu propia empresa, nunca ves accesos de otro tenant.' },
         { t: 'Filtrar', d: 'Por usuario o por rango de fechas, arriba de la tabla.' },
-        { t: 'Ocultar esta sección', d: 'Configuraciones globales → tarjeta "Auditoría" → apaga el switch si no la necesitas en el menú — el registro interno sigue funcionando igual, apagarlo solo oculta la pantalla de consulta.' },
+        { t: 'Ocultar esta sección', d: 'Configuraciones → tarjeta "Auditoría" → apaga el switch si no la necesitas en el menú — el registro interno sigue funcionando igual, apagarlo solo oculta la pantalla de consulta.' },
       ],
     },
     'resumen-financiero': {
@@ -17038,7 +17131,7 @@
       ],
     },
     configuraciones: {
-      titulo: 'Configuraciones globales',
+      titulo: 'Configuraciones',
       lead: 'Ajustes que cambian el comportamiento de todo el panel.',
       pasos: [
         { t: 'Las 6 secciones', d: 'Campos obligatorios, Configuraciones fiscales, SMTP, Configuración de reportes, Ventas e Inventarios — un buscador arriba filtra entre ellas.' },

@@ -261,12 +261,12 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Mi Cuenta</span>
         </button>
-        <!-- "Configuraciones globales" siempre AL FINAL del sidebar (pedido
+        <!-- "Configuraciones" siempre AL FINAL del sidebar (pedido
              explícito del usuario, 2026-08-21) — cualquier vista nueva que
              se agregue va ANTES de este botón, nunca después. -->
         <button type="button" class="admin-vista-btn" id="btn-vista-configuraciones" aria-haspopup="dialog">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round" stroke-width="1.3"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Configuraciones globales</span>
+          <span>Configuraciones</span>
         </button>
         </div>
         </div>
@@ -283,7 +283,7 @@
 
       <div class="admin-sidebar-footer">
         <!-- Centro de conocimiento (Fase 6 UX): visible para los 4 perfiles
-             sin excepción, nunca dentro de Configuraciones globales — el
+             sin excepción, nunca dentro de Configuraciones — el
              perfil "Ventas" no tiene acceso a esa vista (ver
              RESTRICCIONES_PERFIL en admin.js), así que el manual completo
              quedaría inalcanzable para ese perfil si viviera ahí. -->
@@ -1190,7 +1190,7 @@
           </div>
 
           <div class="orden-form-body" id="orden-form-body">
-            <p class="panel-subtitle admin-config-subtitle">Captura los datos de la venta. La fecha y el IVA se toman automáticamente de "Configuraciones globales" — no se capturan a mano.</p>
+            <p class="panel-subtitle admin-config-subtitle">Captura los datos de la venta. La fecha y el IVA se toman automáticamente de "Configuraciones" — no se capturan a mano.</p>
 
             <!-- Banner informativo (homologado con stitch/): mismo dato que
                  ya mostraba el subtítulo de arriba, solo más visible y con
@@ -1199,7 +1199,7 @@
                  pasos ya es guía suficiente). -->
             <div class="orden-info-banner" id="orden-info-banner">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              <span>La fecha de emisión y la tasa de IVA (<strong id="orden-info-banner-iva">16%</strong>) se toman de <button type="button" class="orden-info-banner-link" id="btn-orden-info-banner-config">Configuraciones globales</button> — no se capturan a mano.</span>
+              <span>La fecha de emisión y la tasa de IVA (<strong id="orden-info-banner-iva">16%</strong>) se toman de <button type="button" class="orden-info-banner-link" id="btn-orden-info-banner-config">Configuraciones</button> — no se capturan a mano.</span>
             </div>
 
             <!-- Indicador de pasos: solo visible en móvil (<900px), reusa
@@ -2180,7 +2180,7 @@
         </div>
       </div>
 
-      <!-- "Configuraciones globales" como ventana emergente (antes era una
+      <!-- "Configuraciones" como ventana emergente (antes era una
            vista más del sidebar con 6 tarjetas plegables independientes,
            ver PROJECT_STATE.md): barra lateral minimalista + buscador,
            selecciona una sección a la vez en vez de acordeón. Las 6
@@ -2224,6 +2224,10 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M15 3v5h5M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
                 Notificación de reportes
               </button>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="notif-toggle-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Notificaciones
+              </button>
 
               <div class="config-modal-nav-group-label" data-grupo="modulos">Módulos (activar/desactivar)</div>
               <button type="button" class="config-modal-nav-item" data-tarjeta="ordenes-toggle-card">
@@ -2247,7 +2251,7 @@
               <button type="button" class="config-modal-btn-volver" id="config-modal-btn-volver" aria-label="Volver a la lista de secciones">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <h2 id="config-modal-title">Configuraciones globales</h2>
+              <h2 id="config-modal-title">Configuraciones</h2>
               <button type="button" class="btn-icon" id="btn-cerrar-config-modal" aria-label="Cerrar">✕</button>
             </div>
             <div class="config-modal-main-body" id="config-modal-main-body">
@@ -2429,7 +2433,7 @@
            sus campos (blur/change, sin botón); el único botón "Guardar"
            vive en "Plantillas de correo". El acordeón viejo de esta
            tarjeta (btn-toggle-smtp) era inerte dentro del modal de
-           Configuraciones globales — reemplazado por este mecanismo. -->
+           Configuraciones — reemplazado por este mecanismo. -->
       <section class="admin-config-card" id="smtp-config-card">
         <div class="admin-config-toggle" aria-hidden="true">
           <span class="admin-config-toggle-label">
@@ -2467,7 +2471,7 @@
 
                 <!-- Guía Gmail paso a paso (Fase 7 UX, 2026-09-04): reemplaza el
                      aviso estático de texto plano que había aquí — mismo
-                     contenido que la categoría "Configuraciones globales" del
+                     contenido que la categoría "Configuraciones" del
                      Centro de conocimiento (fuente única, ver GUIA_SMTP_GMAIL en
                      admin.js), con pasos numerados, links reales y animación de
                      entrada al abrir. -->
@@ -2506,11 +2510,11 @@
                 <div class="smtp-subseccion">
                   <div class="smtp-subseccion-titulo"><span class="smtp-subseccion-dot smtp-subseccion-dot-auth"></span>Autenticación</div>
                   <div class="smtp-config-grid">
-                    <div class="field">
+                    <div class="field smtp-field-mitad">
                       <label for="smtp-usuario">Usuario (correo)</label>
                       <input type="email" id="smtp-usuario" placeholder="tucuenta@gmail.com" autocomplete="off" />
                     </div>
-                    <div class="field">
+                    <div class="field smtp-field-mitad">
                       <label for="smtp-password">Contraseña</label>
                       <div class="password-field">
                         <input type="password" id="smtp-password" autocomplete="new-password" />
@@ -2596,28 +2600,31 @@
             <div class="smtp-acc-body" id="smtp-acc-body-plantillas" data-seccion="plantillas" data-colapsado="true">
               <div class="smtp-acc-body-inner"><div class="smtp-acc-content">
 
-                <p class="panel-subtitle admin-config-subtitle">El diseño (logo, colores, estructura) nunca cambia aquí — solo el texto del párrafo. Los asuntos son fijos.</p>
+                <div class="smtp-subseccion">
+                  <div class="smtp-subseccion-titulo"><span class="smtp-subseccion-dot smtp-subseccion-dot-plantilla"></span>Plantilla de correo</div>
+                  <p class="panel-subtitle admin-config-subtitle">El diseño (logo, colores, estructura) nunca cambia aquí — solo el texto del párrafo. Los asuntos son fijos.</p>
 
-                <div class="plantillas-tabs" role="tablist" aria-label="Plantilla de correo">
-                  <button type="button" class="plantillas-tab is-active" data-plantilla="invitacion" role="tab" aria-selected="true">Invitación</button>
-                  <button type="button" class="plantillas-tab" data-plantilla="recuperacion" role="tab" aria-selected="false">Recuperar contraseña</button>
-                  <button type="button" class="plantillas-tab" data-plantilla="aviso_contador" role="tab" aria-selected="false">Aviso al contador</button>
-                  <button type="button" class="plantillas-tab" data-plantilla="cliente" role="tab" aria-selected="false">Factura lista</button>
-                  <button type="button" class="plantillas-tab" data-plantilla="reporte" role="tab" aria-selected="false">Reporte</button>
-                </div>
+                  <div class="plantillas-tabs" role="tablist" aria-label="Plantilla de correo">
+                    <button type="button" class="plantillas-tab is-active" data-plantilla="invitacion" role="tab" aria-selected="true">Invitación</button>
+                    <button type="button" class="plantillas-tab" data-plantilla="recuperacion" role="tab" aria-selected="false">Recuperar contraseña</button>
+                    <button type="button" class="plantillas-tab" data-plantilla="aviso_contador" role="tab" aria-selected="false">Aviso al contador</button>
+                    <button type="button" class="plantillas-tab" data-plantilla="cliente" role="tab" aria-selected="false">Factura lista</button>
+                    <button type="button" class="plantillas-tab" data-plantilla="reporte" role="tab" aria-selected="false">Reporte</button>
+                  </div>
 
-                <p class="field-hint" id="plantilla-trigger-desc"></p>
-                <div class="plantilla-vars" id="plantilla-vars"></div>
+                  <p class="field-hint" id="plantilla-trigger-desc"></p>
+                  <div class="plantilla-vars" id="plantilla-vars"></div>
 
-                <div class="field">
-                  <label for="plantilla-texto">Cuerpo del correo</label>
-                  <textarea id="plantilla-texto" rows="4" maxlength="5000"></textarea>
-                </div>
-                <p class="field-hint"><button type="button" class="btn-link" id="btn-restablecer-plantilla">Restablecer esta plantilla</button></p>
+                  <div class="field">
+                    <label for="plantilla-texto">Cuerpo del correo</label>
+                    <textarea id="plantilla-texto" rows="4" maxlength="5000"></textarea>
+                  </div>
+                  <p class="field-hint"><button type="button" class="btn-link" id="btn-restablecer-plantilla">Restablecer esta plantilla</button></p>
 
-                <p class="field-hint">Vista previa real:</p>
-                <div class="plantilla-preview-wrap">
-                  <iframe id="plantilla-preview-frame" class="plantilla-preview-frame" title="Vista previa del correo" sandbox=""></iframe>
+                  <p class="field-hint">Vista previa real:</p>
+                  <div class="plantilla-preview-wrap">
+                    <iframe id="plantilla-preview-frame" class="plantilla-preview-frame" title="Vista previa del correo" sandbox=""></iframe>
+                  </div>
                 </div>
 
                 <p class="field-error" id="smtp-config-error" role="alert"></p>
@@ -2644,19 +2651,22 @@
             <div class="smtp-acc-body" id="smtp-acc-body-prueba" data-seccion="prueba" data-colapsado="true">
               <div class="smtp-acc-body-inner"><div class="smtp-acc-content">
 
-                <p class="panel-subtitle admin-config-subtitle">Úsalo para confirmar que la configuración de "Correo electrónico (SMTP)" funciona antes de depender de ella.</p>
+                <div class="smtp-subseccion">
+                  <div class="smtp-subseccion-titulo"><span class="smtp-subseccion-dot smtp-subseccion-dot-prueba"></span>Enviar correo de prueba</div>
+                  <p class="panel-subtitle admin-config-subtitle">Úsalo para confirmar que la configuración de "Correo electrónico (SMTP)" funciona antes de depender de ella.</p>
 
-                <div class="field">
-                  <label for="smtp-prueba-destinatario">Destinatario</label>
-                  <input type="email" id="smtp-prueba-destinatario" placeholder="destinatario@ejemplo.com" autocomplete="off" />
-                </div>
-                <div class="field">
-                  <label for="smtp-prueba-asunto">Asunto</label>
-                  <input type="text" id="smtp-prueba-asunto" maxlength="200" placeholder="Correo de prueba" autocomplete="off" />
-                </div>
-                <div class="field">
-                  <label for="smtp-prueba-cuerpo">Cuerpo del correo</label>
-                  <textarea id="smtp-prueba-cuerpo" rows="4" maxlength="5000" placeholder="Este es un correo de prueba enviado desde Portal Clarvo tu negocio en orden."></textarea>
+                  <div class="field">
+                    <label for="smtp-prueba-destinatario">Destinatario</label>
+                    <input type="email" id="smtp-prueba-destinatario" placeholder="destinatario@ejemplo.com" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="smtp-prueba-asunto">Asunto</label>
+                    <input type="text" id="smtp-prueba-asunto" maxlength="200" placeholder="Correo de prueba" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="smtp-prueba-cuerpo">Cuerpo del correo</label>
+                    <textarea id="smtp-prueba-cuerpo" rows="4" maxlength="5000" placeholder="Este es un correo de prueba enviado desde Portal Clarvo tu negocio en orden."></textarea>
+                  </div>
                 </div>
 
                 <p class="field-error" id="smtp-prueba-error" role="alert"></p>
@@ -2865,6 +2875,32 @@
               <span class="switch-toggle-label">Mostrar Auditoría</span>
               <span class="switch-toggle-hint">Con esto apagado, se oculta el menú "Auditoría" del panel (administrador/super). El registro de accesos sigue funcionando igual, solo deja de haber una pantalla para consultarlo. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
               <span class="switch-toggle-autoguardado" id="auditoria-habilitada-autoguardado" role="status" aria-live="polite"></span>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="admin-config-card" id="notif-toggle-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-notif-card" aria-expanded="false" aria-controls="notif-toggle-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Notificaciones
+          </span>
+          <svg class="admin-config-chevron" id="notif-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="admin-config-body" id="notif-toggle-body" hidden>
+          <label class="switch-toggle">
+            <input type="checkbox" id="config-notif-tickets-permite-ocultar" checked />
+            <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+            <span class="switch-toggle-texto">
+              <span class="switch-toggle-label">Permitir "No volver a mostrar" en tickets sin contador</span>
+              <span class="switch-toggle-hint">Deja que un super admin silencie el aviso de "tickets sin correo de contador" desde su propio popup. Con esto apagado, el checkbox desaparece y el aviso vuelve a salirle a todos los super admin en su próximo ingreso, aunque ya lo hayan silenciado antes. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
+              <span class="switch-toggle-autoguardado" id="notif-tickets-permite-ocultar-autoguardado" role="status" aria-live="polite"></span>
             </span>
           </label>
         </div>
@@ -3663,7 +3699,7 @@
                 </label>
               </div>
             </div>
-            <p class="field-hint">Estos datos se editan en <button type="button" class="micuenta-link-inline" id="btn-micuenta-ir-configuraciones">Configuraciones globales</button>.</p>
+            <p class="field-hint">Estos datos se editan en <button type="button" class="micuenta-link-inline" id="btn-micuenta-ir-configuraciones">Configuraciones</button>.</p>
 
             <div class="micuenta-url-bar" id="micuenta-url-bar" hidden>
               <div class="micuenta-url-bar-info">
@@ -3787,7 +3823,7 @@
         Referencia de qué puede ver cada perfil en este panel. No es un formulario: los permisos no se editan aquí, están definidos en el código del panel.
       </p>
       <p class="panel-subtitle admin-config-subtitle">
-        "Ventas" e "Inventarios" además dependen de sus interruptores globales propios (Configuraciones globales) — si están apagados, no se muestran a nadie sin importar el perfil.
+        "Ventas" e "Inventarios" además dependen de sus interruptores globales propios (Configuraciones) — si están apagados, no se muestran a nadie sin importar el perfil.
       </p>
 
       <div class="tabla-perfiles-wrap">
@@ -3806,7 +3842,7 @@
               <th scope="col">Usuarios</th>
               <th scope="col">Reportes</th>
               <th scope="col">Proveedores</th>
-              <th scope="col">Configuraciones globales</th>
+              <th scope="col">Configuraciones</th>
             </tr>
           </thead>
           <tbody>
@@ -5164,7 +5200,7 @@
   </div>
 
   <!-- Centro de conocimiento (Fase 6 UX) — manual completo de /admin,
-       mismo shell que "Configuraciones globales" (sidebar+buscador+panel,
+       mismo shell que "Configuraciones" (sidebar+buscador+panel,
        reusa .config-modal/.config-modal-sidebar/.config-modal-main tal
        cual) pero con SU PROPIA clase de ítem de nav (.conocimiento-nav-item,
        nunca .config-modal-nav-item) para no engancharse a los listeners
@@ -5236,7 +5272,7 @@
           </button>
           <button type="button" class="conocimiento-nav-item" data-cat="configuraciones">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linejoin="round"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-            Configuraciones globales
+            Configuraciones
           </button>
         </nav>
         <p class="config-modal-nav-empty" id="conocimiento-modal-nav-empty" hidden>Ninguna categoría coincide con tu búsqueda.</p>
@@ -5277,6 +5313,11 @@
       <p class="panel-subtitle" id="notif-tickets-subtitulo"></p>
 
       <ul class="notif-tickets-lista" id="notif-tickets-lista"></ul>
+
+      <label class="notif-tickets-ocultar-check" id="notif-tickets-ocultar-wrap" hidden>
+        <input type="checkbox" id="notif-tickets-ocultar-checkbox" />
+        No volver a mostrar este mensaje
+      </label>
 
       <div class="btn-row">
         <button type="button" class="btn btn-secondary" id="btn-notif-tickets-cerrar">Cerrar</button>

@@ -89,7 +89,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+    add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
     # Auditoria de seguridad (frontend): HSTS condicional — ver el map
     # $hsts_header_valor de arriba para el motivo de por que no es
     # incondicional. Sin efecto en este entorno mientras no haya HTTPS
@@ -147,7 +147,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+        add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
         add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
         try_files /mantenimiento.html =404;
@@ -296,7 +296,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+        add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
         proxy_pass http://backend_upstream/api/$resto_api$is_args$args;
         proxy_set_header X-Tenant-Slug $tenant_slug;
@@ -350,7 +350,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+        add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
         proxy_pass http://control_upstream/api/control/;
         proxy_http_version 1.1;
@@ -381,7 +381,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+        add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
         proxy_pass http://backend_upstream/api/;
         proxy_http_version 1.1;

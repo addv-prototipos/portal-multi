@@ -226,7 +226,7 @@
 
 /* Encabezados de grupo del menú lateral (arquitectura de información
    revisada, 2026-09-13) — mismo criterio tipográfico que las etiquetas
-   de categoría de Configuraciones globales (.config-modal-nav no tiene
+   de categoría de Configuraciones (.config-modal-nav no tiene
    equivalente porque ahí es una lista sin grupos aparte; este es el
    primero de este tipo en el sidebar). Se oculta por JS
    (aplicarRestriccionesPerfil) si ningún botón de su grupo quedó
@@ -543,6 +543,16 @@
   color: var(--color-ink-soft);
   font-style: italic;
 }
+.notif-tickets-ocultar-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--color-ink);
+  margin-bottom: 18px;
+  cursor: pointer;
+}
+.notif-tickets-ocultar-check input { width: 16px; height: 16px; flex: none; accent-color: var(--color-accent); }
 
 .admin-login-hint {
   margin: 18px 0 0;
@@ -788,7 +798,7 @@
   cursor: pointer;
 }
 
-/* "Configuraciones globales": cuadrícula tipo dashboard en vez de una
+/* "Configuraciones": cuadrícula tipo dashboard en vez de una
    sola columna vertical apilada — antes las tarjetas ocupaban todo el
    ancho disponible, desperdiciando espacio horizontal en pantallas
    anchas. Las 4 tarjetas (Campos obligatorios, Configuraciones
@@ -822,7 +832,7 @@
 
 /* "Orden de compra" y "Cuenta de respaldo admin" (vista "Usuarios") —
    mismo patrón de cuadrícula de 2 columnas ya usado arriba para
-   "Configuraciones globales": ambas tarjetas tienen poco contenido (un
+   "Configuraciones": ambas tarjetas tienen poco contenido (un
    interruptor la una, un campo de contraseña la otra), así que apiladas
    una debajo de otra dejaban una franja angosta con mucho espacio vacío
    a los lados en pantallas anchas — puestas al mismo nivel se ven
@@ -952,7 +962,7 @@
   margin-top: 2px;
 }
 
-/* "Configuraciones globales" como modal (antes vista de página con 6
+/* "Configuraciones" como modal (antes vista de página con 6
    tarjetas plegables) — cada .admin-config-card sigue existiendo tal
    cual dentro de .config-modal-main-body, pero solo una se muestra a
    la vez (controlado por seleccionarSeccionConfig() en admin.js) y su
@@ -1025,7 +1035,7 @@
 .config-modal-nav-item:hover, .conocimiento-nav-item:hover { background: var(--color-accent-soft); color: var(--color-accent-dark); }
 .config-modal-nav-item.is-active, .conocimiento-nav-item.is-active { background: #05DBF2; color: #03285B; }
 
-/* Encabezados de grupo dentro de "Configuraciones globales" (arquitectura
+/* Encabezados de grupo dentro de "Configuraciones" (arquitectura
    de información revisada, 2026-09-13) — separa formularios reales
    (Fiscal, Comunicación) de simples interruptores de módulo (Módulos).
    Se oculta por JS si la búsqueda o los permisos del perfil dejan a su
@@ -2774,6 +2784,21 @@
   .smtp-config-grid .field { grid-column: 1 / -1; }
 }
 
+/* Fila "Parámetros del servidor" (restyle "confGlo") — Host/Puerto/
+   Seguridad en UNA sola fila de 3 columnas (6/3/3, no 2 filas) — misma
+   proporción que stitch/smtp. Selector con la misma especificidad que la
+   regla de arriba (0,4,0), gana por orden de cascada (declarada después). */
+.smtp-config-grid-servidor { grid-template-columns: 2fr 1fr 1fr; }
+.smtp-config-grid-servidor .field:not(.smtp-field-puerto):not(.smtp-field-seguridad) {
+  grid-column: auto;
+}
+@media (max-width: 560px) {
+  .smtp-config-grid-servidor { grid-template-columns: 1fr; }
+  .smtp-config-grid-servidor .field:not(.smtp-field-puerto):not(.smtp-field-seguridad) {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Restyle "confGlo" (stitch): subsecciones tituladas dentro de "Correo
    electrónico (SMTP)" — Parámetros del servidor / Autenticación /
    Remitente y notificaciones. Mismos campos/ids/autoguardado de siempre,
@@ -2809,6 +2834,8 @@
 .smtp-subseccion-dot-servidor { background: var(--color-accent); }
 .smtp-subseccion-dot-auth { background: #03285B; }
 .smtp-subseccion-dot-remitente { background: var(--color-ink-soft); }
+.smtp-subseccion-dot-plantilla { background: var(--color-accent); }
+.smtp-subseccion-dot-prueba { background: #03285B; }
 .smtp-subseccion-opcional { font-size: 11px; color: var(--color-ink-soft); margin-bottom: 12px; }
 .smtp-field-mitad { grid-column: auto; }
 @media (max-width: 560px) {
@@ -2886,7 +2913,7 @@
 
 /* Etiqueta de autoguardado de "Correo electrónico (SMTP)" — mismo
    lenguaje "Guardando…/Guardado ✓" que ya usan los switches de
-   Configuraciones globales (Habilitar Ventas, Módulo Auditoría), aquí
+   Configuraciones (Habilitar Ventas, Módulo Auditoría), aquí
    dentro del propio encabezado del acordeón en vez de junto a un
    switch. */
 .smtp-autosave-tag {
@@ -4641,7 +4668,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
    Diseñada para escanearse de un vistazo: cada columna es un área del
    panel, cada fila un perfil, y el ✓/— responde de inmediato "¿puede
    entrar aquí?" sin tener que leer texto. El detalle fino (CUÁLES
-   tarjetas de Configuraciones globales) se agrega como texto secundario
+   tarjetas de Configuraciones) se agrega como texto secundario
    más pequeño, subordinado al símbolo — no compite con la respuesta
    principal de la celda. */
 .tabla-perfiles-wrap {

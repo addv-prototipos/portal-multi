@@ -241,6 +241,21 @@
   }
 
   footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 12px; }
+
+  /* Checks + historico */
+  .col-check { width: 44px; text-align: center; }
+  .pend-check { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; vertical-align: middle; }
+  tr.is-completado { opacity: 0.55; }
+  tr.is-completado td.col-item { text-decoration: line-through; }
+  .pend-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; background:var(--bg-alt); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:16px; }
+  .pend-toolbar p { margin:0; font-size:13px; color:var(--ink-soft); max-width:60ch; line-height:1.5; }
+  .pend-toolbar-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn-pend { padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg-alt); color:var(--ink); font-size:13px; font-weight:600; cursor:pointer; }
+  .btn-pend:hover { border-color:var(--accent); }
+  .btn-pend-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .historico-vacio { text-align:center; padding:28px; border:1px dashed var(--line); border-radius:12px; background:var(--bg-alt); color:var(--ink-soft); font-size:13.5px; }
+  .historico-meta { font-size:12px; color:var(--ink-soft); margin-top:8px; }
+
 </style>
 
 <div class="wrap">
@@ -259,6 +274,15 @@
     <span class="pill pill-green">Pospuesto a propósito</span>
   </div>
 
+  
+  <div class="pend-toolbar" id="pend-toolbar">
+    <p><strong>Checks locales:</strong> marca el cuadro de cada pendiente completado — desaparece del Listado y pasa al <strong>Historico</strong>. Se guarda en este navegador (<code>localStorage</code>). Cuando me digas &ldquo;revisa pendientes&rdquo;, leo los checks y, si hay cambios, actualizo el archivo a <span class="pill pill-green" style="vertical-align:middle">Completado</span> en el repo para que quede historico permanente.</p>
+    <div class="pend-toolbar-actions">
+      <button type="button" class="btn-pend" id="btn-export-estado" title="Copia el JSON de checks para pegarlo al agente">Copiar estado</button>
+      <button type="button" class="btn-pend" id="btn-limpiar-historico" title="Desmarca todo el historico en este navegador">Limpiar historico local</button>
+    </div>
+  </div>
+
   <div class="app-filter" role="group" aria-label="Filtrar por app">
     <span class="app-filter-label">Filtrar por app:</span>
     <button type="button" class="pill pill-app active" data-app="todos" aria-pressed="true">Todos <span class="app-count" id="app-count-todos"></span></button>
@@ -269,6 +293,7 @@
 
   <div class="tabs" role="tablist" aria-label="Vistas de pendientes">
     <button type="button" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-listado" data-tab="listado" id="tab-listado-btn">Listado completo <span class="tab-count" id="tab-count-listado"></span></button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-historico" data-tab="historico" id="tab-historico-btn">Historico <span class="tab-count" id="tab-count-historico"></span></button>
     <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-mapa" data-tab="mapa" id="tab-mapa-btn">Mapa Control → Admin <span class="tab-count">(dependencias)</span></button>
   </div>
 
@@ -282,38 +307,49 @@
   </div>
   <div id="sin-resultados" class="no-results">Sin resultados para esa búsqueda — prueba con otro término o <button type="button" onclick="document.getElementById('buscador-pendientes').value='';document.getElementById('buscador-pendientes').dispatchEvent(new Event('input'))" style="background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline;padding:0">limpiar filtro</button>.</div>
 
+  
+  <section style="background:var(--accent-soft); border:1px solid var(--accent); border-radius:12px; padding:16px 18px; margin-bottom:32px;">
+    <h2 style="margin:0 0 6px; font-size:16px;">Nota general — alcance dual</h2>
+    <p style="margin:0; font-size:13.5px; line-height:1.6; color:var(--ink);"><strong>Todas las funciones aplican tanto para <code>tenant</code> (empresa con <code>/&lt;slug&gt;</code>) como para sitio base sin tenant (<code>portal_facturacion</code>).</strong> Salvo que se indique lo contrario, cualquier feature (Ventas, Gastos, Inventarios, Reportes, Configuraciones, Tickets, Auditoría, etc.) debe funcionar en ambos contextos — misma UI, mismo endpoint tenant-aware (<code>tenantContext.js</code> + <code>ejecutarComoTenant</code>), con datos aislados por BD. Ver <code>PROJECT_STATE.md</code> punto 303.</p>
+  </section>
+
   <div id="tab-listado" class="tab-panel active" role="tabpanel" aria-labelledby="tab-listado-btn">
   <section>
     <h2>Ventas <span class="count">4 pendientes</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="v-126">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="v-126" aria-label="Marcar completado"></td>
             <td class="col-punto">126</td>
             <td class="col-item">3 ideas opcionales sin decidir</td>
             <td class="col-detalle">Productos frecuentes (accesos rápidos al agregar), buscador de cliente por nombre/RFC (hoy solo correo), compartir venta por WhatsApp.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="v-152">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="v-152" aria-label="Marcar completado"></td>
             <td class="col-punto">152</td>
             <td class="col-item">Tipo de cambio automático (Banxico)</td>
             <td class="col-detalle">Camino manual y de degradación ya validados; falta probar el camino automático con un <code>BANXICO_TOKEN</code> real cuando exista.</td>
             <td class="col-estado"><span class="pill pill-gray">Sin probar con token real</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="v-154">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="v-154" aria-label="Marcar completado"></td>
             <td class="col-punto">154</td>
             <td class="col-item">Regla "no facturar con saldo pendiente"</td>
             <td class="col-detalle">Implementada y cubierta por Jest. Falta validar contra Docker/MySQL real de punta a punta.</td>
             <td class="col-estado"><span class="pill pill-gray">Falta validar en real</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="v-287">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="v-287" aria-label="Marcar completado"></td>
             <td class="col-punto">287</td>
             <td class="col-item">Impresión térmica — rollo en blanco</td>
             <td class="col-detalle">Bug real corregido por código (medición del alto del ticket usaba ancho/tipografía de pantalla en vez de los 58mm reales — ver <code>PROJECT_STATE.md</code> punto 287). <strong>Confirmado por el usuario contra su POS-58 física (2026-09-11): imprime bien.</strong></td>
             <td class="col-estado"><span class="pill pill-green">Confirmado en real</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="v-288">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="v-288" aria-label="Marcar completado"></td>
             <td class="col-punto">288</td>
             <td class="col-item">3 bugs reales + logo/footer en ticket</td>
             <td class="col-detalle">Etiqueta de código de barras imprimía el ticket viejo (2 bloques <code>@media print</code> desincronizados, corregido), logo CLARVO (contorno blanco, <code>logoImpresora.png</code>) + "Visítanos https://clarvo.mx" agregados al ticket de venta — <strong>confirmado por el usuario en impresora real (2026-09-11)</strong>, switch "Mostrar Auditoría" no aparecía (<code>CONFIG_SECCIONES</code> incompleto, corregido). Ver <code>PROJECT_STATE.md</code> punto 288. Falta aún confirmación en navegador real de la etiqueta de Inventarios y del switch de Auditoría (no ejercitados por la prueba de impresión del ticket).</td>
@@ -325,46 +361,59 @@
   </section>
 
   <section>
-    <h2>Inventarios <span class="count">6 pendientes</span></h2>
+    <h2>Inventarios <span class="count">7 pendientes</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="i-180-258">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-180-258" aria-label="Marcar completado"></td>
             <td class="col-punto">180/258</td>
             <td class="col-item">Proveedores como entidad propia</td>
             <td class="col-detalle">Hoy es texto libre en Gastos/Ventas. Existe placeholder "en construcción" en el sidebar (punto 181) — falta el CRUD real.</td>
             <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
           </tr>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="i-266-268">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-266-268" aria-label="Marcar completado"></td>
             <td class="col-punto">266/267/268</td>
             <td class="col-item">Animación 3D + ícono de "Proveedores" — implementado</td>
             <td class="col-detalle">Ícono del sidebar/menú móvil/Centro de conocimiento cambiado de caja (se confundía con Inventarios) a camión de entrega. Placeholder "en construcción" ganó una escena CSS-only (3 cubos isométricos vía <code>clip-path</code> + 2 robots con brazo-martillo animado, "CLARVO" en la pancita), sin WebGL/librería nueva. De paso, punto 268: encabezado de "Lectura de reportes" con 2 párrafos apilados fusionado en 1 (~40px recuperados). Jest 912/912, validado por HTTP contra Docker real tras rebuild <code>--no-cache</code>+<code>--force-recreate</code>. Ver <code>PROJECT_STATE.md</code> puntos 267/268. <strong>Marcado como completado 15 sep 2026 a pedido del usuario.</strong></td>
             <td class="col-estado"><span class="pill pill-green">Completado — validado (15 sep 2026)</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="i-159">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-159" aria-label="Marcar completado"></td>
             <td class="col-punto">159</td>
             <td class="col-item">Escáner de código de barras por cámara</td>
             <td class="col-detalle">Validado en navegador de escritorio (camino de error). Falta probar con un celular físico contra HTTPS real.</td>
             <td class="col-estado"><span class="pill pill-gray">Falta probar en celular</span></td>
           </tr>
-          <tr data-app="control">
+          <tr data-app="control" data-id="i-137-164">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-137-164" aria-label="Marcar completado"></td>
             <td class="col-punto">137/164</td>
             <td class="col-item">Tests unitarios faltantes en <code>control/</code></td>
             <td class="col-detalle"><code>tenantTema.js</code> y <code>apiCredenciales.js</code> no tienen test propio ahí (sí en backend).</td>
             <td class="col-estado"><span class="pill pill-amber">Deuda técnica</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="i-278">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-278" aria-label="Marcar completado"></td>
             <td class="col-punto">278</td>
             <td class="col-item">Rediseño gráfico de Inventarios fiel a referencia — implementado</td>
             <td class="col-detalle">Pills de conteo por pestaña, caption "Base de cálculo…" con punto de color (CSS, sin emoji), círculo decorativo en las 3 tarjetas de salud, pie con divisor real en "Valor del inventario" (nuevo <code>costo_promedio_ponderado</code> en el backend), grid de riesgo a 5 columnas, tintado ámbar/rojo + "Ver productos →" en Bajo mínimo/Sin existencia, textos honestos condicionales en Sin movimiento/Mermas del mes, franja de Servicios con íconos circulares + link real "Administrar servicios →". Mismos íconos SVG del sitio, sin librería nueva. Jest 912/912, validado por HTTP contra Docker real tras rebuild <code>--no-cache</code>+<code>--force-recreate</code>. Ver <code>PROJECT_STATE.md</code> punto 278.</td>
             <td class="col-estado"><span class="pill pill-gray">Falta confirmar visualmente (sin navegador esta sesión)</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="i-291">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-291" aria-label="Marcar completado"></td>
             <td class="col-punto">291</td>
-            <td class="col-item">Revisar otro SDK para lector de código de barras, sin costo</td>
+            <td class="col-item">Revisar otro SDK para lector de codigo de barras, sin costo</td>
             <td class="col-detalle">Evaluar SDK alternativo al actual (<code>frontend/scanner.js</code> — nativo <code>BarcodeDetector</code> + respaldo <code>html5-qrcode</code> MIT vendorizado en <code>/assets/vendor/</code>), que <strong>no sea de costos</strong> (sin licencia de pago, sin cobro por escaneo, sin API en la nube). Actual ya es 100% sin costo — pendiente es tener alternativa evaluada. Candidatos a revisar cuando se apruebe: <code>@zxing/library</code>, <code>quagga2</code>/<code>@ericblade/quagga2</code>, polyfills de <code>BarcodeDetector</code>. Criterios: licencia MIT/Apache-2.0, autohospedado sin CDN, sin build step, bundle ligero, mismos 8 formatos 1D (<code>ean_13</code>, <code>code_128</code>, etc.), rendimiento en Android gama baja / iOS Safari. Sin código tocado. Ver <code>PROJECT_STATE.md</code> punto 291.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — pendiente revisar SDK sin costo</span></td>
+          </tr>
+          <tr data-app="admin" data-id="inv-barcode-revisar">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="inv-barcode-revisar" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">Revisar lectura de código de barras (camara + SDK)</td>
+            <td class="col-detalle">Auditar el flujo real de <strong>lectura de codigo de barras</strong> en Inventarios/Ventas: <code>frontend/scanner.js</code> (<code>BarcodeDetector</code> nativo + <code>html5-qrcode</code>), HTTPS requerido (punto 280), permisos de camara en iOS/Android, formatos 1D (EAN-13/Code128), feedback visual, fallback manual, y alternativa SDK sin costo (punto 291). Falta definir criterios de aceptacion y probar en celular real contra Docker prod. Ver <code>PROJECT_STATE.md</code> punto 306.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta auditar en dispositivo real</span></td>
           </tr>
         </tbody>
       </table>
@@ -375,15 +424,17 @@
     <h2>Resumen financiero / Cuentas por cobrar <span class="count">2 pendientes</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="r-258">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="r-258" aria-label="Marcar completado"></td>
             <td class="col-punto">258</td>
             <td class="col-item">Conciliación de pagos</td>
             <td class="col-detalle">Badge "Próximamente" en Ventas facturadas vs sin facturar. Requeriría buscar transferencias en estados de cuenta PDF — sin diseñar.</td>
             <td class="col-estado"><span class="pill pill-green">Pospuesto</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="r-259">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="r-259" aria-label="Marcar completado"></td>
             <td class="col-punto">259</td>
             <td class="col-item">Desviación vs Presupuesto (Gastos)</td>
             <td class="col-detalle">Quitado del mockup a propósito — pospuesto junto con PAC/timbrado para una "etapa 3" futura.</td>
@@ -395,29 +446,39 @@
   </section>
 
   <section>
-    <h2>Infraestructura / Multi-tenant <span class="count">3 pendientes</span></h2>
+    <h2>Infraestructura / Multi-tenant <span class="count">4 pendientes</span></h2>
     <p class="section-note">Todo el plan de 9 segmentos de migración a multi-tenant está completo en código — esto es "nunca ejercitado contra infraestructura real de producción", no trabajo sin hacer.</p>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Segmento</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Segmento</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="control">
+          <tr data-app="control" data-id="infra-6">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-6" aria-label="Marcar completado"></td>
             <td class="col-punto">6</td>
             <td class="col-item">Cutover del tenant piloto</td>
             <td class="col-detalle"><code>cutover-tenant-piloto.js</code> escrito y no destructivo, pero nunca ejecutado contra un tenant real.</td>
             <td class="col-estado"><span class="pill pill-gray">Sin ejecutar</span></td>
           </tr>
-          <tr data-app="control">
+          <tr data-app="control" data-id="infra-8">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-8" aria-label="Marcar completado"></td>
             <td class="col-punto">8</td>
             <td class="col-item">MySQL HA / Docker Swarm</td>
             <td class="col-detalle">Scripts de réplica/promoción listos, nunca desplegados contra un clúster Swarm real ni un failover simulado.</td>
             <td class="col-estado"><span class="pill pill-gray">Sin probar en real</span></td>
           </tr>
-          <tr data-app="control">
+          <tr data-app="control" data-id="infra-9b">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-9b" aria-label="Marcar completado"></td>
             <td class="col-punto">9b</td>
             <td class="col-item">/control en dos servidores físicos</td>
             <td class="col-detalle">Diseñado para poder vivir en otro servidor (<code>CONTROL_UPSTREAM_HOST</code>), nunca probado separado de verdad.</td>
             <td class="col-estado"><span class="pill pill-gray">Sin probar en real</span></td>
+          </tr>
+          <tr data-app="control" data-id="infra-controlBase">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-controlBase" aria-label="Marcar completado"></td>
+            <td class="col-punto">305</td>
+            <td class="col-item">Control en BD independiente + Docker separado <code>controlBase</code></td>
+            <td class="col-detalle"><strong>Control debe tener BD independiente</strong> del resto (<code>control_tenants</code> ya existe, pero hoy comparte MySQL/Compose con el backend) y vivir en <strong>Docker separado llamado <code>controlBase</code></strong> (servicio aparte, no solo <code>control</code> en el mismo <code>docker-compose.yml</code>). Definir: compose/stack propio, red/volumen MySQL propio vs compartido, migracion de datos existentes, <code>CONTROL_UPSTREAM_HOST</code>/secreto <code>X-Internal-Secret</code>, y deploy separado. Ver <code>PROJECT_STATE.md</code> punto 305.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir compose/BD</span></td>
           </tr>
         </tbody>
       </table>
@@ -425,30 +486,42 @@
   </section>
 
   <section>
-    <h2>Inicio de sesión / Seguridad <span class="count">4 pendientes</span></h2>
+    <h2>Inicio de sesión / Seguridad <span class="count">5 pendientes</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="cliente,admin,control">
+          <tr data-app="cliente,admin,control" data-id="sec-sesion-unica">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-sesion-unica" aria-label="Marcar completado"></td>
             <td class="col-punto">—</td>
             <td class="col-item">Una sola sesión activa por usuario</td>
             <td class="col-detalle">Por seguridad, un mismo usuario no puede tener más de <strong>1 sesión abierta a la vez</strong>. Si inicia sesión en otro dispositivo/navegador, la sesión anterior debe invalidarse (o bloquear el segundo inicio hasta cerrar la primera — por decidir). Aplica a portal cliente y panel <code>/admin</code> / <code>/control</code>. Requiere almacenar identificador de sesión vigente por usuario (cookie firmada actual es stateless — habrá que agregar estado en BD con <code>sesion_id</code>/<code>sesion_expira</code> o tabla de sesiones) y validar en cada request. Sin código aún.</td>
             <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
           </tr>
-          <tr data-app="cliente,admin,control">
+          <tr data-app="cliente,admin,control" data-id="sec-bitacora">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-bitacora" aria-label="Marcar completado"></td>
             <td class="col-punto">—</td>
             <td class="col-item">Bitácora de IP/zona + alerta por cambio de estado</td>
             <td class="col-detalle">Registrar <strong>IP y zona</strong> (estado/ciudad) de cada inicio de sesión (portal + <code>/admin</code> / <code>/control</code>) en bitácora. Resolver ubicación por IP en servidor (GeoIP: MaxMind GeoLite2 / ip-api / ipinfo — por definir, con fallback si no resuelve). Si el login ocurre desde un <strong>estado distinto</strong> al último registrado para ese usuario, enviar <strong>correo de alerta</strong>: “Alguien accedió desde otra ubicación — ¿fuiste tú? Sí / No fui yo” con IP, ciudad/estado, fecha/hora (zona horaria del tenant) y dispositivo aproximado (UA). Requiere tabla <code>sesiones_log</code> + plantilla de correo + respeto a <code>trust proxy</code> para IP real. Sin código aún.</td>
             <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
           </tr>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="sec-274">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-274" aria-label="Marcar completado"></td>
             <td class="col-punto">274</td>
             <td class="col-item">Doble factor por correo (2FA) solo para Administrador al registrar — toggle en admin</td>
             <td class="col-detalle">Doble factor por <strong>correo</strong> solo para perfil <strong>Administrador</strong> cada que se quiera registrar; en la <strong>plataforma admin</strong> lo pueden <strong>habilitar/inhabilitar</strong>. Sin definir: ¿"al registrar" = al crear <code>administrador</code> desde <code>POST /api/admin/usuarios</code> vs. <code>POST /api/auth/registro</code> público? ¿solo <code>administrador</code> (no <code>fiscal</code>/<code>cliente</code>)? ¿qué correo recibe el OTP — <code>usuarios.email</code> del nuevo admin vs. del creador? ¿flujo OTP 6 dígitos con expiración/reenvío/límite vs. link mágico? ¿toggle global (<code>configuracion.admin_2fa_habilitado</code>) vs. por tenant (<code>control_tenants.tenants</code>) y dónde en UI (tarjeta "Seguridad" junto a cambio de contraseña <code>admin</code> del punto 17)? ¿guard en <code>POST /api/admin/usuarios</code> + <code>POST /api/admin/usuarios/verificar-2fa</code>? ¿si no hay SMTP, se bloquea o degrada? Ver <code>PROJECT_STATE.md</code> punto 274.<br><strong>Preguntas para definir luego:</strong> 1) ¿alta desde <code>/admin</code> o también registro público? 2) ¿solo <code>administrador</code>? 3) ¿qué correo recibe OTP? 4) OTP 6 dígitos vs link, expiración/reintentos 5) toggle global vs por tenant 6) ubicación UI 7) quién puede togglear 8) guard con <code>verificar-2fa</code> 9) fallback sin SMTP 10) ¿solo registro o también login? — no implementar sin responder.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir flujo/toggle</span></td>
           </tr>
-          <tr data-app="admin">
+
+          <tr data-app="control" data-id="sec-super-control-db">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-super-control-db" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">Super admin en BD de control (migrar de ADMIN_USERS/.env)</td>
+            <td class="col-detalle">Mover la gestion de <strong>super admin</strong> de <code>ADMIN_USERS</code> (variable <code>.env</code>) a tabla en <strong>BD de control</strong> (<code>control_tenants</code> o nueva <code>control_super_admins</code> con hash scrypt + activo). Requiere migrar lectura en <code>backend/utils/auth.js</code> y <code>control/utils/adminEnv.js</code>, seed/migracion idempotente, y mantener compatibilidad con deploy actual. Ligado a punto 304 y a docker separado <code>controlBase</code> (punto 305). Sin decidir detalle de tabla/hash ni de UI de alta/baja — falta definir.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir tabla/flujo</span></td>
+          </tr>
+          <tr data-app="admin" data-id="sec-292">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-292" aria-label="Marcar completado"></td>
             <td class="col-punto">292</td>
             <td class="col-item">Perfiles contador (fiscal/ventas) sin tarjetas de dinero — contadores y gráficas ocultas</td>
             <td class="col-detalle">Los perfiles de <strong>contador</strong> (<code>fiscal</code> y <code>ventas</code>) <strong>no pueden ver las tarjetas que queden en su perfil que generen datos relacionados al dinero</strong> — aplica a <strong>contadores y gráficas</strong>. Dentro de sus <code>vistasPermitidas</code> actuales (<code>RESTRICCIONES_PERFIL</code> en <code>frontend/admin.js:1832</code> — fiscal: <code>inicio</code>/<code>constancias</code>/<code>tickets</code>; ventas: <code>ordenes</code>/<code>cxc</code>/<code>gastos</code>), ocultar cualquier tarjeta/KPI/gráfica con montos, totales, balances, utilidad, cobranza o valuación. Ejemplos a auditar: Ventas (total ventas, por cobrar/cobrado), CxC (saldos, mora, gauge de cobranza), Gastos (total gastos, balance, variables, top proveedores), Inventarios (valor del inventario — no aplica a estos perfiles hoy porque no ven esa vista, pero aplica si se les habilitara alguna tarjeta), Resumen financiero (no visible para estos perfiles hoy — validar que siga oculto). Requiere definir si es solo ocultar UI o también gatear APIs (<code>GET /api/admin/ordenes-compra</code>, <code>/resumen-financiero</code>, <code>/gastos</code>) para no exponer el dato por fetch directo. Sin código tocado. Ver <code>PROJECT_STATE.md</code> punto 292.</td>
@@ -460,13 +533,21 @@
   </section>
 
   <section>
-    <h2>Integración CRM externo <span class="count">1 pendiente</span></h2>
+    <h2>Integración CRM externo <span class="count">2 pendientes</span></h2>
     <p class="section-note">Clarvo consume APIs de un producto CRM que puede operar <strong>integrado</strong> o <strong>independiente</strong>. Clarvo es consumidor (no expone datos del CRM) — el CRM es sistema de origen.</p>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="crm-kanban">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="crm-kanban" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">CRM — etiquetas configurables + tablero Kanban (columnas editables + etiquetas de colores)</td>
+            <td class="col-detalle"><strong>CRM configurable</strong>: etiquetas para segmentar + <strong>tablero Kanban</strong> con columnas editables (renombrar/crear/borrar/reordenar) y tarjetas con <strong>etiquetas de colores</strong>. Requiere definir: modelo (<code>crm_etiquetas</code>, <code>crm_columnas</code>, <code>crm_tarjetas</code>/vinculo a clientes/ventas), CRUD de etiquetas/columnas, drag-and-drop, persistencia de orden, y UI. Debe poder <strong>aislarse como modulo independiente reutilizable para otros productos de ADDV</strong> (paquete/frontend-backend desacoplado, sin acoplar a <code>portal_facturacion</code>). Falta definir alcance y si comparte BD o BD propia. Ver <code>PROJECT_STATE.md</code> punto 307.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir modelo/modulo aislable</span></td>
+          </tr>
+          <tr data-app="admin,control" data-id="crm-apis">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="crm-apis" aria-label="Marcar completado"></td>
             <td class="col-punto">—</td>
             <td class="col-item">Clarvo → APIs del CRM (integrado / independiente)</td>
             <td class="col-detalle">Clarvo consumirá las APIs del CRM. Debe funcionar en dos modos: <strong>integrado</strong> (CRM + Clarvo sincronizados) e <strong>independiente</strong> (cada uno opera solo, sin dependencia dura). Por definir: catálogo de endpoints a consumir, auth (API Key / OAuth), mapeo de entidades (clientes, ventas, cobranza), estrategia de sincronización (pull/webhook), manejo de fallos/reintentos, y qué dato es fuente de verdad por entidad. Sin código aún — solo registro del pendiente.</td>
@@ -481,17 +562,19 @@
     <h2>Gestor de facturación <span class="count">2 pendientes</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
-        <tbody><tr data-app="cliente,admin,control">
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody><tr data-app="cliente,admin,control" data-id="gest-269">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="gest-269" aria-label="Marcar completado"></td>
             <td class="col-punto">269</td>
             <td class="col-item">Gestor de facturación desactivable</td>
             <td class="col-detalle">Switch para desactivar el gestor de facturación (flujo cliente → ticket → factura: <code>csf.html</code>/<code>tickets.html</code>/<code>dashboard.html</code> + <code>POST /api/tickets</code>/<code>/registro</code> + notificaciones). Al estar OFF: definir <strong>reglas de envío</strong> (¿se suprimen/encolan <code>notificarNuevoTicketAlContador</code>, <code>notificarFacturaListaAlCliente</code>, invitación y correo de venta o se descartan?), <strong>quitar el link de cliente</strong> (tile/CTA en dashboard, ruta <code>/&lt;slug&gt;/tickets</code> y enlaces en correos) y servir página <strong>"no encontrada / desactivado"</strong> (404 vs. plantilla mantenimiento/construcción del punto 222 — guard en <code>frontend/nginx.conf</code> + <code>backend/server.js</code>/<code>tenantContext.js</code>), y definir <strong>qué hacer con los envíos/tickets existentes</strong> (¿bloqueo de <code>POST /api/tickets</code> con 403 <code>GESTOR_DESACTIVADO</code> + modal bloqueante — mismo patrón que <code>SIN_CONSTANCIA</code> — vs. solo ocultar UI? ¿pendientes se conservan/archivan/purgan? ¿afecta a Ventas/Gastos?). Sin modelo (<code>gestor_facturacion_activo</code> por tenant en <code>control_tenants.tenants</code>), sin UX en <code>/control</code>, sin guards. Ver <code>PROJECT_STATE.md</code> punto 269.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir</span></td>
           </tr>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="gest-275">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="gest-275" aria-label="Marcar completado"></td>
             <td class="col-punto">275</td>
             <td class="col-item">Unificar switches si gestiona peticiones de facturas</td>
-            <td class="col-detalle">Unificar los <strong>elementos switch entre ellos</strong> si va a <strong>gestionar peticiones de facturas</strong>. Ligado a 269 (gestor desactivable) y 244 (switches por tenant en <code>/control</code>). Sin definir: ¿qué switches — toggles de <code>/control</code> vs. <code>/admin</code> "Configuraciones globales" (Ventas <code>ordenes_compra_habilitado</code>, Inventario↔sitio web 239/240, Mensajería 225/226)? ¿"gestionar peticiones" = flujo <code>POST /api/tickets</code>/<code>csf.html</code>/<code>tickets.html</code> o también Ventas/Gastos? ¿unificar = un switch maestro que agrupa varios vs. switches separados sincronizados? ¿dónde vive — <code>control_tenants.tenants</code> vs. <code>configuracion</code>? ¿al alternar oculta menú + bloquea API 403 <code>GESTOR_DESACTIVADO</code> + página desactivado? Ver <code>PROJECT_STATE.md</code> punto 275.</td>
+            <td class="col-detalle">Unificar los <strong>elementos switch entre ellos</strong> si va a <strong>gestionar peticiones de facturas</strong>. Ligado a 269 (gestor desactivable) y 244 (switches por tenant en <code>/control</code>). Sin definir: ¿qué switches — toggles de <code>/control</code> vs. <code>/admin</code> "Configuraciones" (Ventas <code>ordenes_compra_habilitado</code>, Inventario↔sitio web 239/240, Mensajería 225/226)? ¿"gestionar peticiones" = flujo <code>POST /api/tickets</code>/<code>csf.html</code>/<code>tickets.html</code> o también Ventas/Gastos? ¿unificar = un switch maestro que agrupa varios vs. switches separados sincronizados? ¿dónde vive — <code>control_tenants.tenants</code> vs. <code>configuracion</code>? ¿al alternar oculta menú + bloquea API 403 <code>GESTOR_DESACTIVADO</code> + página desactivado? Ver <code>PROJECT_STATE.md</code> punto 275.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir qué switches</span></td>
           </tr>
           
@@ -504,9 +587,10 @@
     <h2>Móvil / Responsivo <span class="count">1 pendiente</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="mov-280-https">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="mov-280-https" aria-label="Marcar completado"></td>
             <td class="col-punto">280</td>
             <td class="col-item">HTTPS para que la cámara del escáner funcione en celular real</td>
             <td class="col-detalle">Reportado por el usuario con captura real: el sitio se abre por <code>http://192.168.x.x:8088</code> (HTTP plano, IP de LAN) — <code>navigator.mediaDevices</code> no existe en absoluto fuera de un contexto seguro (HTTPS o <code>localhost</code>), así que la cámara del escáner de código de barras (punto 159) nunca podrá abrir así, no es un permiso que la app pueda solicitar. El mensaje de error ya se corrigió para explicar la causa real. Falta decidir cómo dar HTTPS al sitio en este entorno de prueba: (A) certificado autofirmado + <code>nginx</code> en 443 + confiar el certificado en el celular, o (B) solo para pruebas, activar el flag de Chrome "Insecure origins treated as secure" en el celular con la URL exacta del LAN (sin cambios de infraestructura). En producción real (dominio propio) esto no aplicaría — un dominio real con Let's Encrypt ya sirve por HTTPS de por sí.</td>
@@ -521,9 +605,10 @@
     <h2>Mensajería global (/control) <span class="count">1 pendiente</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="mens-226">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="mens-226" aria-label="Marcar completado"></td>
             <td class="col-punto">226</td>
             <td class="col-item">SMTP global de Clarvo / selector de proveedores</td>
             <td class="col-detalle">Ligado al punto 225 (switch Clarvo/propio por tenant, tampoco construido). Análisis + propuesta visual (Artifact) ya listos: nueva vista "Mensajería" en <code>/control</code> con SMTP de Clarvo funcional (mismo mecanismo ya probado con Gmail) + bloque "Otros proveedores" (SendGrid/Mailgun/SES, WhatsApp/SMS) marcado "Próximamente", honesto, sin lógica. 3 opciones presentadas, ninguna confirmada: (1, recomendada) solo SMTP Clarvo; (2) SMTP + un proveedor externo real hoy; (3) solo tabla/endpoint, sin pantalla hasta que el 225 también esté listo. Ver <code>PROJECT_STATE.md</code> punto 226.</td>
@@ -538,9 +623,10 @@
     <h2>Despliegue / Empaquetado <span class="count">1 pendiente</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="control">
+          <tr data-app="control" data-id="desp-270-300">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="desp-270-300" aria-label="Marcar completado"></td>
             <td class="col-punto">270/300</td>
             <td class="col-item">Aplicar la actualización en el VPS real (yt.addv.com.mx)</td>
             <td class="col-detalle">El punto 270 ya está resuelto en código (otra sesión lo construyó sin dejarlo documentado aquí — corregido el 2026-09-15): paquete completo <code>prod/</code> (VPS único nodo, <code>docker-compose.prod.yml</code> sin contenedor <code>control</code>, <code>deploy.sh</code> primer despliegue con nginx+certbot real, <code>actualizar.sh</code> nuevo para código nuevo sin tocar nginx/certbot/<code>.env</code>, <code>sembrar.sh</code> datos demo, <code>.env</code> nunca en el paquete/zip). <code>prod/</code> puesto al día 2026-09-15 (drift de varias sesiones corregido — faltaba <code>skeleton.js</code> del punto 289) + <code>prod.zip</code> regenerado. <strong>Único pendiente real</strong>: esta sesión no tiene acceso SSH al VPS — falta que el usuario copie <code>prod.zip</code>/<code>prod/</code> al servidor y corra <code>sudo ./actualizar.sh</code> (o <code>./deploy.sh</code> si el primer despliegue nunca completó — <code>prod/log.md</code> muestra un intento fallido por el bug de <code>control_tenants</code>, ya corregido en <code>deploy.sh</code>). Ver <code>PROJECT_STATE.md</code> punto 300.</td>
@@ -556,15 +642,17 @@
     <p class="section-note">Cotizador para armar un Clarvo a la medida y marketplace de addons — el Clarvo base sin tenant es el inventario de costos y registro de ventas. Ideas por desarrollar antes de diseñar.</p>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="cliente,admin,control">
+          <tr data-app="cliente,admin,control" data-id="cot-271">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="cot-271" aria-label="Marcar completado"></td>
             <td class="col-punto">271</td>
             <td class="col-item">Cotizador "Clarvo a la medida" — inventario de costos en Clarvo base</td>
             <td class="col-detalle">Generar cotizador para crear un Clarvo a la medida; agregar funcionalidades para ello. El Clarvo <strong>base sin tenant</strong> (<code>portal_facturacion</code> sin slug) lleva el <strong>inventario de costos</strong> para dar de alta funciones/módulos y <strong>registrar las ventas</strong>. Sin definir: catálogo (<code>clarvo_funciones</code>/<code>clarvo_costos</code> en BD base — costo, categoría, dependencias), flujo (¿wizard en sitio público vs. <code>/control</code>? selección → cotización en vivo → pedido → <code>provisionar-tenant.js</code>), qué tabla registra la venta (<code>ordenes_compra</code> base vs. <code>clarvo_ventas</code>/<code>cotizaciones</code> + link a <code>control_tenants.tenants</code>), ni qué es "dar de alta" (¿catálogo base vs. activar flags por tenant del punto 244?). Ver <code>PROJECT_STATE.md</code> punto 271.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta desarrollar idea</span></td>
           </tr>
-          <tr data-app="cliente,admin,control">
+          <tr data-app="cliente,admin,control" data-id="cot-272">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="cot-272" aria-label="Marcar completado"></td>
             <td class="col-punto">272</td>
             <td class="col-item">Clarvo Site Market — hub en https://clarvo.mx con SSO por fases</td>
             <td class="col-detalle"><strong>Hub en <code>https://clarvo.mx</code></strong> (dashboard aparte) que conecta vía APIs los productos por <strong>fases</strong> (hoy solo Clarvo+Control; luego chatbots/CRM/QR/ShortLinks/on-demand, cada uno con BD propia, Control con BD independiente para cuentas compradoras). Login con <strong>correo o Gmail OAuth</strong> (tenant resuelve por correo como llave). <strong>Super interno ADDV</strong> para soporte. <strong>Onboarding reutilizable</strong> desde Market registra en tenant (periodo/días/API keys). Productos con <strong>dominio propio sin slug</strong>, asociados en <strong>Control (asociar productos)</strong> — viajan como una app con <strong>SSO sin login</strong>. Cobro <strong>Stripe configurable</strong> (pago único/suscripción) + <strong>gracia configurable en Control (default 3 días)</strong> → suspendido (solo Cuenta activa para renovar). Agrupa <strong>Control (no Clarvo)</strong> en servidor Docker separado; <strong>Control configura URLs MinIO por producto</strong> para storage separado/depurable. Vista <strong>A+B</strong>: tarjetas por comprador + tabla por producto.<br><strong>Refinado 2026-09-10 con crítica arquitectónica</strong> (10 huecos reales: SSO vago/riesgoso, correo-llave sin relación con <code>usuarios</code> por tenant, sin regla de fusión correo/Gmail, hueco fiscal — ADDV sin autofacturarse sus propios cobros —, ambigüedad de si Control BD independiente es tabla nueva o servicio aparte, MinIO-por-producto tratado como gratis cuando hoy es config por env vars al arrancar, dominio-sin-slug rompe el ruteo por regex de slug actual, gate de suspensión bespoke por producto, migración de tenants existentes sin ruta, Fase 1 original demasiado amplia). <strong>4 decisiones confirmadas</strong>: SSO = ticket firmado reusando el patrón <code>X-Internal-Secret</code> ya probado; ADDV SÍ se autofactura (CFDI) cada cobro de Stripe; Fase 1 = modelo+SSO+gracia/suspensión+UI A+B TODO junto, EXCEPTO Stripe real (queda para fase posterior); migración = auto-crear comprador desde <code>tenants.contacto_email</code>. Siguen sin resolver: alcance exacto de "Control BD independiente", mecanismo real de MinIO-por-producto, regla de fusión de cuenta, ruteo de dominio propio. Ver <code>PROJECT_STATE.md</code> punto 272.</td>
@@ -580,21 +668,24 @@
     <p class="section-note">Actualizar el Centro de conocimiento con todos los cambios recientes + incorporar el recorrido guiado. Diccionario en lenguaje natural para emprendedores. Responsive en móvil pendiente.</p>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="cen-273">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="cen-273" aria-label="Marcar completado"></td>
             <td class="col-punto">273</td>
             <td class="col-item">Actualizar centros de conocimiento + recorrido</td>
             <td class="col-detalle">Actualizar los <strong>centros de conocimiento</strong> (<code>frontend/admin.html</code>/<code>admin.js</code> <code>CONOCIMIENTO_CATEGORIAS</code> + vista "Centro de conocimiento", <code>control</code> si aplica para gestión de contenidos) con <strong>todos los cambios</strong> recientes y el <strong>recorrido</strong>. Sin definir: qué cambios exactos (¿271/272 cotizador/market, 269/270, 256-260 financiero, 242/243 YouTube?), qué es "recorrido" (¿tour guiado/onboarding paso a paso — <code>intro.js</code>/<code>shepherd</code> vs. implementación propia — por <code>/admin</code>, <code>/control</code>, portal cliente?), cobertura (¿alta en <code>/control</code>, Ventas, Gastos, Inventarios, Reportes, Centro mismo?), formato (¿tooltips anclados + checklist de progreso vs. documentación estática + categorías con fichas/links?). Ver <code>PROJECT_STATE.md</code> punto 273.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir alcance</span></td>
           </tr>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="cen-279">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="cen-279" aria-label="Marcar completado"></td>
             <td class="col-punto">279</td>
             <td class="col-item">Diccionario de datos: explicar §0.3, D5, D2 y textos de tarjetas en lenguaje natural</td>
             <td class="col-detalle">En <strong>Centro de conocimiento y diccionario de datos</strong> agregar explicaciones en <strong>lenguaje natural y contexto básico</strong> de qué significa <code>§0.3</code>, <code>D5</code>, <code>D2</code> y <strong>todos los textos/símbolos que salen en las tarjetas</strong> (ej. "Utilidad neta", "Balance", "Rotación", "Días de cobertura", "Costo promedio ponderado", "SKU", "Existencia", "Lote/Caducidad", "Código de barras"), orientado a <strong>emprendedores sin preparación en inventarios</strong> para irlos educando. Sin definir: ¿qué tarjetas — <code>frontend/admin.html</code> Resumen/Ventas/Gastos/Inventarios/Reportes/Centro? ¿diccionario centralizado (<code>CONOCIMIENTO_CATEGORIAS</code> nueva categoría "Glosario") vs. tooltips inline (<code>data-tooltip</code>) vs. <code>diccionario.html</code> dedicado? ¿formato — ficha por término: término + 1 línea natural + ejemplo de changarro + link a video YouTube 242/243? ¿quién redacta — base <code>inventarios.md</code> traducida? Ver <code>PROJECT_STATE.md</code> punto 279.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir glosario</span></td>
           </tr>
-          <tr data-app="admin">
+          <tr data-app="admin" data-id="cen-280-movil">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="cen-280-movil" aria-label="Marcar completado"></td>
             <td class="col-punto">280</td>
             <td class="col-item">Centro de conocimiento cortado / no operable en móvil</td>
             <td class="col-detalle">El <strong>centro de conocimiento se ve cortado y no es operable en móvil</strong>. Ligado a 273/279 (centro+recorrido/diccionario) y 242/243 (YouTube). Sin analizar causa (¿overflow/grid sin <code>min-width:0</code>, <code>table-scroll</code> sin scroll táctil, modal fuera de viewport, <code>vh</code> vs <code>dvh</code>, sidebar/menú móvil tapando?). Probar en <code>http://192.168.68.60:8088/admin</code> (Centro de conocimiento) en celular físico + DevTools responsive. Ver <code>PROJECT_STATE.md</code> punto 280.</td>
@@ -605,19 +696,48 @@
     </div>
   </section>
 
+
+  <section>
+    <h2>Cuenta (admin / Mi Cuenta) <span class="count">2 pendientes</span></h2>
+    <p class="section-note">Switches en <code>/admin</code> → <code>Mi Cuenta</code> / <code>Cuenta</code> (segmento de cuenta). Ya existe <strong>Portal de clientes activar</strong> — se agregan 2 más al lado, mismo control visual.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr data-app="admin" data-id="cta-facturacion-peticion">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="cta-facturacion-peticion" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">Switch "Facturación — Activar petición de facturas"</td>
+            <td class="col-detalle">En <code>/admin</code> segmento <strong>Cuenta</strong> (junto a <strong>Portal de clientes activar</strong>, ya existente), agregar campo <strong>Facturación</strong> con switch <strong>"Activar petición de facturas"</strong> — mismo estilo/control que el switch de portal de clientes. Sin definir: ¿por tenant (<code>control_tenants</code> / <code>configuracion.facturacion_peticion_activa</code>) o global?, ¿qué bloquea al desactivar (oculta <code>POST /api/tickets</code> + UI + enlaces), texto de ayuda, y si inicia activo/inactivo. Ver <code>PROJECT_STATE.md</code> punto 309.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir alcance/gate</span></td>
+          </tr>
+          <tr data-app="admin" data-id="cta-timbrado-sat">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="cta-timbrado-sat" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">Switch "Activar timbrado al SAT" con badge <span class="pill pill-gray" style="font-size:10px; letter-spacing:0.06em;">PROXIMAMENTE</span></td>
+            <td class="col-detalle">En el mismo segmento <strong>Cuenta</strong>, segundo switch <strong>"Activar timbrado al SAT"</strong> con <strong>badge "PRÓXIMAMENTE"</strong> (imagen de referencia, misma identidad visual del sitio — pill gris, texto en mayúsculas, sin emoji) y <strong>por ahora inactivo/deshabilitado</strong> (no guarda, no gatea API, solo visual). Ligado a futuro PAC/timbrado CFDI. Ver <code>PROJECT_STATE.md</code> punto 309.</td>
+            <td class="col-estado"><span class="pill pill-gray">Pendiente visual — inactivo por ahora</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section>
     <h2>Documentación <span class="count">2 pendientes</span></h2>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
         <tbody>
-          <tr data-app="admin,control">
+          <tr data-app="admin,control" data-id="doc-120">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="doc-120" aria-label="Marcar completado"></td>
             <td class="col-punto">120</td>
             <td class="col-item">Inconsistencias en README</td>
             <td class="col-detalle">Título no menciona multi-tenant; 3 features sin documentar (Utilidad neta, gráficas BI, Look & Feel); <code>FRONTEND_PORT</code> con 3 valores distintos entre docs y <code>.env</code> real.</td>
             <td class="col-estado"><span class="pill pill-amber">Diagnosticado, sin corregir</span></td>
           </tr>
-          <tr data-app="control">
+          <tr data-app="control" data-id="doc-env-typo">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="doc-env-typo" aria-label="Marcar completado"></td>
             <td class="col-punto">—</td>
             <td class="col-item">Typo en <code>.env.example</code></td>
             <td class="col-detalle">Sobra ".cla" en un comentario. Bloqueado por permisos de dotfiles en todas las sesiones — corregir a mano.</td>
@@ -648,7 +768,7 @@
 
     <div class="table-scroll">
       <table class="map-table">
-        <thead><tr><th>#</th><th>Pendiente en Control</th><th>Qué ve/hace Admin (<code>/admin</code>)</th><th>Dependencia (flag/API)</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Hecho</th><th>#</th><th>Pendiente en Control</th><th>Qué ve/hace Admin (<code>/admin</code>)</th><th>Dependencia (flag/API)</th><th>Estado</th></tr></thead>
         <tbody>
           <tr data-app="control">
             <td class="col-punto">244</td>
@@ -760,6 +880,21 @@
     </div>
 
     <p style="margin-top:16px; font-size:12.5px; color:var(--ink-soft)">Tip: vuelve a "Listado completo" y usa <strong>Filtrar por app → Control</strong> para ver solo las filas de Control, o combina con el buscador (ej. <code>switch</code>, <code>imagen</code>, <code>factura</code>).</p>
+  </div>
+
+
+  <div id="tab-historico" class="tab-panel" role="tabpanel" aria-labelledby="tab-historico-btn">
+    <div class="map-intro">
+      <strong>Historico — completados</strong> — pendientes que marcaste con el check. Ya no aparecen en &ldquo;Listado completo&rdquo; ni en el buscador/filtro por app. Quedan aqui como registro permanente hasta que el agente los consolide a <span class="pill pill-green">Completado</span> en el repo (cuando digas &ldquo;revisa pendientes&rdquo;).
+      <div class="historico-meta" id="historico-meta"></div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody id="historico-tbody"></tbody>
+      </table>
+    </div>
+    <div id="historico-vacio" class="historico-vacio">Aun no hay pendientes marcados como completados — marca el check en el Listado y apareceran aqui.</div>
   </div>
 
   <footer>
@@ -918,10 +1053,10 @@
       var searchWrap = document.querySelector('.search-wrap');
       var sinRes = document.getElementById('sin-resultados');
       var appFilter = document.querySelector('.app-filter');
-      var isMapa = tab==='mapa';
-      if(searchWrap) searchWrap.style.display = isMapa ? 'none' : '';
-      if(sinRes) sinRes.style.display = isMapa ? 'none' : (sinRes.classList.contains('visible')?'block':'none');
-      if(appFilter) appFilter.style.display = isMapa ? 'none' : '';
+      var isMapa = tab==='mapa'; var isHistorico = tab==='historico'; var hideSearch = isMapa || isHistorico;
+      if(searchWrap) searchWrap.style.display = hideSearch ? 'none' : '';
+      if(sinRes) sinRes.style.display = hideSearch ? 'none' : (sinRes.classList.contains('visible')?'block':'none');
+      if(appFilter) appFilter.style.display = hideSearch ? 'none' : '';
       // update URL ?vista=
       try {
         var url = new URL(location.href);
@@ -945,4 +1080,106 @@
     if(el) el.textContent = '('+listadoCount+')';
   })();
 })();
+
+  // --- Checks + historico (localStorage) ---
+  var STORAGE_KEY = 'portalClarvo_pendientes_checks_v1';
+  function cargarEstado(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){ return {}; } }
+  function guardarEstado(s){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){} }
+  function esCompletado(tr, estado){ var id = tr.getAttribute('data-id'); return !!(id && estado[id]); }
+  function renderHistorico(){
+    var estado = cargarEstado();
+    var tbody = document.getElementById('historico-tbody');
+    var vacio = document.getElementById('historico-vacio');
+    var meta = document.getElementById('historico-meta');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    var completados = [];
+    document.querySelectorAll('#tab-listado tbody tr[data-id]').forEach(function(tr){
+      if(esCompletado(tr, estado)) completados.push(tr);
+    });
+    completados.forEach(function(tr){
+      var clone = tr.cloneNode(true);
+      var cb = clone.querySelector('.pend-check');
+      if(cb) cb.checked = true;
+      tbody.appendChild(clone);
+    });
+    if(vacio) vacio.style.display = completados.length ? 'none' : 'block';
+    var th = document.getElementById('tab-count-historico');
+    if(th) th.textContent = '('+completados.length+')';
+    if(meta) meta.textContent = completados.length ? completados.length + ' completado(s) en este navegador — dile "revisa pendientes" al agente para consolidar.' : '';
+    tbody.querySelectorAll('.pend-check').forEach(function(cb){
+      cb.addEventListener('change', onCheckChange);
+    });
+  }
+  function aplicarChecks(){
+    var estado = cargarEstado();
+    document.querySelectorAll('#tab-listado tbody tr[data-id]').forEach(function(tr){
+      var id = tr.getAttribute('data-id');
+      var cb = tr.querySelector('.pend-check');
+      var done = !!(id && estado[id]);
+      if(cb) cb.checked = done;
+      tr.classList.toggle('is-completado', done);
+    });
+    renderHistorico();
+  }
+  function onCheckChange(e){
+    var cb = e.target;
+    var id = cb.getAttribute('data-id');
+    if(!id) return;
+    var estado = cargarEstado();
+    if(cb.checked) estado[id] = { fecha: new Date().toISOString() };
+    else delete estado[id];
+    guardarEstado(estado);
+    aplicarChecks();
+    if(typeof filtrar === 'function') filtrar();
+  }
+  document.addEventListener('change', function(e){
+    if(e.target && e.target.classList.contains('pend-check')) onCheckChange(e);
+  });
+  var btnExport = document.getElementById('btn-export-estado');
+  if(btnExport) btnExport.addEventListener('click', function(){
+    var s = localStorage.getItem(STORAGE_KEY) || '{}';
+    var pretty = JSON.stringify(JSON.parse(s), null, 2);
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(pretty).then(function(){ btnExport.textContent='Copiado ok'; setTimeout(function(){ btnExport.textContent='Copiar estado'; }, 1500); }, function(){ prompt('Copia este JSON para el agente:', pretty); });
+    } else { prompt('Copia este JSON para el agente:', pretty); }
+  });
+  var btnClear = document.getElementById('btn-limpiar-historico');
+  if(btnClear) btnClear.addEventListener('click', function(){
+    if(!confirm('Desmarcar todos los pendientes completados en este navegador?')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    aplicarChecks();
+    if(typeof filtrar === 'function') filtrar();
+  });
+  (function(){
+    if(typeof filtrar !== 'function') return;
+    var orig = filtrar;
+    window.filtrar = function(){
+      var estado = cargarEstado();
+      orig();
+      document.querySelectorAll('#tab-listado tbody tr[data-id]').forEach(function(tr){
+        if(esCompletado(tr, estado)){
+          tr.hidden = true;
+        }
+      });
+      var counts = { todos: 0, cliente: 0, admin: 0, control: 0 };
+      document.querySelectorAll('#tab-listado tbody tr[data-id]').forEach(function(tr){
+        if(esCompletado(tr, estado)) return;
+        counts.todos++;
+        var apps = (tr.getAttribute('data-app')||'').split(',');
+        if(apps.indexOf('cliente')!==-1) counts.cliente++;
+        if(apps.indexOf('admin')!==-1) counts.admin++;
+        if(apps.indexOf('control')!==-1) counts.control++;
+      });
+      var elTodos = document.getElementById('app-count-todos'); if(elTodos) elTodos.textContent = '('+counts.todos+')';
+      var elCliente = document.getElementById('app-count-cliente'); if(elCliente) elCliente.textContent = '('+counts.cliente+')';
+      var elAdmin = document.getElementById('app-count-admin'); if(elAdmin) elAdmin.textContent = '('+counts.admin+')';
+      var elControl = document.getElementById('app-count-control'); if(elControl) elControl.textContent = '('+counts.control+')';
+      var el = document.getElementById('tab-count-listado');
+      if(el) el.textContent = '('+counts.todos+')';
+    };
+  })();
+  aplicarChecks();
+  if(typeof filtrar === 'function') filtrar();
+
 </script>

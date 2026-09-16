@@ -17,7 +17,9 @@ siempre actualizados `PROJECT_STATE.md`, este archivo y `README.md`.
 Regla persistente de coordinación entre agentes: después de cualquier cambio
 relevante de código, arquitectura, operación, pruebas, decisiones de producto
 o estado del proyecto, actualizar siempre `PROJECT_STATE.md`, `CLAUDE.md`,
-`pendientes.html` y este archivo antes de cerrar el trabajo. Si la sesión
+`pendientes.html`
+**Pendientes con check (2026-09-16, punto 302):** `pendientes.html` tiene columna `Hecho` + pestana `Historico` con `localStorage` (`portalClarvo_pendientes_checks_v1`). Al marcar desaparece del Listado/buscador/filtros y pasa al Historico local. Cuando el usuario diga "revisa pendientes", leer `localStorage` (boton `Copiar estado`) y, si hay cambios, consolidar a `Completado` permanente en el repo (`pendientes.html` pill verde + `PROJECT_STATE.md`). No requiere prompt por pendiente.
+ y este archivo antes de cerrar el trabajo. Si la sesión
 tiene acceso de escritura a Claude Mem, registrar también ahí la
 decisión/estado para que futuras sesiones de Claude y Codex puedan
 coordinarse sin depender del historial del chat. Si solo hay acceso de lectura
@@ -646,6 +648,28 @@ fix: `ahora.setMilliseconds(0)`. Ambos validados: Jest 388/388 + E2E
   real ni `node_modules`, verificado). **Sin acceso SSH al VPS real
   desde esta sesión** — falta que el usuario copie el paquete y corra
   `sudo ./actualizar.sh` él mismo.
+
+- **Punto 301 — Checkbox "No volver a mostrar" en tickets sin contador
+  (solo super) + interruptor maestro "Notificaciones" (ver
+  PROJECT_STATE.md, 2026-09-16, IMPLEMENTADO — Jest backend 976/976, SIN
+  Docker/MySQL/navegador real esta sesión)**: pedido explícito del
+  usuario, protocolo completo con propuesta antes/después (Artifact, 4
+  decisiones confirmadas). El popup "Tickets sin correo de contador" ya
+  existía (fiscal+super) — gana checkbox visible SOLO para `super`
+  (fiscal sigue viéndolo siempre). Persistencia en `localStorage` por
+  cuenta+tenant (cuentas `ADMIN_USERS` no tienen fila en `usuarios`, sin
+  dónde guardarlo en servidor). Interruptor maestro nuevo
+  `notif_tickets_permite_ocultar` (`backend/utils/config.js`, mismo
+  candado admin/super que `auditoria_habilitada`) en tarjeta nueva
+  "Notificaciones" de Configuraciones globales (grupo Comunicación) —
+  apagarlo NO oculta el popup completo, oculta el checkbox y hace que
+  cualquier silenciado guardado se ignore (control de cumplimiento).
+  `GET /api/admin/tickets/pendientes-sin-contador` devuelve `permiteOcultar`
+  en la misma respuesta para evitar una carrera real con
+  `cargarConfigGlobal()` (llamada sin `await` en `showDashboard()`). 7
+  tests nuevos, Jest 976/976 (era 969). `node --check` limpio, CSS
+  balanceado. Falta validar contra Docker/MySQL/navegador real. Sin
+  commit/push.
 
 No avanzar al segmento 8 sin aprobación explícita del usuario, por el
 mismo protocolo `addv-web-app`.

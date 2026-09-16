@@ -115,6 +115,7 @@ describe('config.js', () => {
       expect(resultado.ordenes_compra_habilitado).toBe(true);
       expect(resultado.entrega_venta_default).toBe('sinticket');
       expect(resultado.auditoria_habilitada).toBe(true);
+      expect(resultado.notif_tickets_permite_ocultar).toBe(true);
     });
 
     test('entrega_venta_default: respeta "correo"/"imprimir" guardados, ignora valores desconocidos', async () => {
@@ -128,6 +129,11 @@ describe('config.js', () => {
     test('auditoria_habilitada: respeta "false" guardado', async () => {
       pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ auditoria_habilitada: false }) }]]);
       expect((await getConfiguracionGlobal()).auditoria_habilitada).toBe(false);
+    });
+
+    test('notif_tickets_permite_ocultar: respeta "false" guardado', async () => {
+      pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ notif_tickets_permite_ocultar: false }) }]]);
+      expect((await getConfiguracionGlobal()).notif_tickets_permite_ocultar).toBe(false);
     });
 
     test('respeta valores guardados válidos', async () => {
@@ -274,6 +280,12 @@ describe('config.js', () => {
       mockActualVacio();
       const resultado = await setConfiguracionGlobal({ auditoria_habilitada: 0 });
       expect(resultado.auditoria_habilitada).toBe(false);
+    });
+
+    test('notif_tickets_permite_ocultar se convierte a booleano explícito', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ notif_tickets_permite_ocultar: 0 });
+      expect(resultado.notif_tickets_permite_ocultar).toBe(false);
     });
   });
 

@@ -150,6 +150,15 @@ const DEFAULTS_CONFIG_GLOBAL = {
   // este switch existiera, apagarlo es una decisión explícita del
   // administrador, no el estado de fábrica.
   auditoria_habilitada: true,
+  // Popup "Tickets sin correo de contador" (solo perfil super, ver
+  // GET /api/admin/tickets/pendientes-sin-contador): controla si el
+  // checkbox "No volver a mostrar este mensaje" está disponible. `true`
+  // por defecto (el checkbox se ve). En `false`, el checkbox desaparece
+  // del popup y cualquier "no volver a mostrar" que un super ya haya
+  // marcado se ignora — el aviso vuelve a salirle a todos los super en
+  // su próximo ingreso (control de cumplimiento: nadie lo silencia sin
+  // que administrador/super lo permita aquí).
+  notif_tickets_permite_ocultar: true,
   // Datos fiscales de la propia compañía (no de un cliente) — se
   // muestran en la barra de sesión del panel de administrador junto a
   // "Administración", y si faltan, se avisa al iniciar sesión (ver
@@ -211,6 +220,9 @@ async function getConfiguracionGlobal() {
     }
     if (typeof parsed.auditoria_habilitada === 'boolean') {
       resultado.auditoria_habilitada = parsed.auditoria_habilitada;
+    }
+    if (typeof parsed.notif_tickets_permite_ocultar === 'boolean') {
+      resultado.notif_tickets_permite_ocultar = parsed.notif_tickets_permite_ocultar;
     }
     if (typeof parsed.rfc_compania === 'string') {
       resultado.rfc_compania = parsed.rfc_compania.trim().toUpperCase();
@@ -281,6 +293,10 @@ async function setConfiguracionGlobal(cambios) {
 
   if (cambios.auditoria_habilitada !== undefined) {
     nuevo.auditoria_habilitada = Boolean(cambios.auditoria_habilitada);
+  }
+
+  if (cambios.notif_tickets_permite_ocultar !== undefined) {
+    nuevo.notif_tickets_permite_ocultar = Boolean(cambios.notif_tickets_permite_ocultar);
   }
 
   // rfc_compania / regimen_fiscal_compania / tipo_persona_compania ya no
