@@ -86,8 +86,20 @@ server {
 
     # Segmento 7 (seguridad multi-tenant): cabeceras de defensa aplicables
     # a TODA respuesta sin riesgo de romper nada existente.
+    # X-Frame-Options SAMEORIGIN (no DENY, 2026-09-17): con DENY, Chrome
+    # bloquea su propio visor de PDF integrado cuando una página intenta
+    # mostrar un PDF (incluso un blob: creado por la misma página, como
+    # el preview de constancias) dentro de un <iframe> — el visor cuenta
+    # como "framed content" y DENY se lo prohíbe a la página framearse a
+    # sí misma. Reportado por el usuario en producción (Linux): el modal
+    # de vista previa de la CSF quedaba en blanco con "Este contenido
+    # está bloqueado. Para solucionar el problema, ponte en contacto con
+    # el propietario del sitio web." — mensaje propio de Chrome, no un
+    # error de la app. SAMEORIGIN sigue bloqueando clickjacking desde
+    # OTROS orígenes (la amenaza real) y permite que la página se
+    # enmarque a sí misma, que es justo lo que el preview necesita.
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
     # Auditoria de seguridad (frontend): HSTS condicional — ver el map
@@ -113,7 +125,11 @@ server {
     # mantenimiento.html tiene su PROPIA política más permisiva (ver su
     # location dedicado abajo, antes del catch-all) porque es la única
     # página con un <script> inline real (el polling de /api/health).
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
+    # frame-ancestors 'self' (no 'none', ver X-Frame-Options arriba):
+    # mismo motivo — permite que la página se enmarque a sí misma para
+    # que el preview de PDF (constancias) funcione, sin abrir la puerta a
+    # que OTRO origen la enmarque.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
 
     # JS y CSS propios de la app cambian con cada despliegue: se permite
     # cachear, pero SIEMPRE se revalida con el servidor antes de usar la

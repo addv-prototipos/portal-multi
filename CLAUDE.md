@@ -3939,6 +3939,24 @@ drift. `prod.zip` regenerado (144 archivos, sin `.env`/`node_modules`).
 Sin acceso SSH al VPS esta sesión — el usuario corre
 `sudo ./actualizar.sh` él mismo. Ver PROJECT_STATE.md punto 313.
 
+**Punto 314 (2026-09-17, CORREGIDO Y VALIDADO por curl+`nginx -t`)**: bug
+real reportado por el usuario — el preview de una constancia (CSF) se
+veía en blanco en el servidor Linux con el mensaje propio de Chrome
+"Este contenido está bloqueado". Causa: `X-Frame-Options: DENY` +
+`frame-ancestors 'none'` a nivel `server{}` en `nginx.conf.template`
+(heredado por TODAS las páginas HTML) — Chrome bloquea su propio visor
+de PDF cuando una página intenta enmarcarse a sí misma con un `blob:`
+(el JS ya hacía todo bien: fetch autenticado → blob → iframe.src, no era
+el patrón roto de `src=` sin auth del punto 159). Fix: `DENY`→`SAMEORIGIN`
+y `'none'`→`'self'` en el header sitewide, en `frontend/nginx.conf.template`
+Y `prod/frontend/nginx.conf.template` — las rutas `/api/*` se quedan en
+`DENY` a propósito (JSON puro, nunca se enmarcan). `SAMEORIGIN` sigue
+bloqueando clickjacking de otros orígenes, la amenaza real. `nginx -t`
+limpio, rebuild `--no-cache`+`--force-recreate` frontend, validado por
+curl (`/admin` con headers nuevos, `/api/health` sin cambios). `prod.zip`
+regenerado. Falta que el usuario aplique `actualizar.sh` en el VPS real
+y confirme visualmente. Ver PROJECT_STATE.md punto 314.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en
