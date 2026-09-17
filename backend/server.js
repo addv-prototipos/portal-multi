@@ -27,6 +27,7 @@ const {
 const {
   MARCA_DEFECTO,
   escapeHtmlCorreo,
+  formatearParrafosCuerpo,
   logoTicketHtml,
   filaCorreoTabla,
   construirCorreoBase,
@@ -2076,11 +2077,7 @@ async function enviarInvitacionPortal({ email, rfc, password, perfil, urlPortal,
       { etiqueta: 'Usuario', valor: escapeHtmlCorreo(rfc) },
       { etiqueta: 'Contraseña temporal', valor: escapeHtmlCorreo(password), destacado: true },
     ],
-    parrafos: cuerpoInvitacion
-      .split('\n')
-      .map((linea) => linea.trim())
-      .filter(Boolean)
-      .map((linea) => escapeHtmlCorreo(linea)),
+    parrafos: formatearParrafosCuerpo(cuerpoInvitacion),
     cta: enlacePortal ? { href: enlacePortal, texto: `Entrar al ${etiquetaAcceso}` } : null,
     // Punto 211: la invitación al portal DEL CLIENTE mantiene el logo
     // viejo — es la misma marca que va a ver en cuanto entre a
@@ -2136,11 +2133,7 @@ async function enviarCorreoRecuperacion({ email, urlPortal, marca, token, logoUr
     colorAccent: colores && colores.acento,
     eyebrow: 'Seguridad',
     titulo: 'Recupera tu acceso',
-    parrafos: cuerpoRecuperacion
-      .split('\n')
-      .map((linea) => linea.trim())
-      .filter(Boolean)
-      .map((linea) => escapeHtmlCorreo(linea)),
+    parrafos: formatearParrafosCuerpo(cuerpoRecuperacion),
     cta: { href: enlaceRestablecer, texto: 'Elegir nueva contraseña' },
     piePersonalizado: `Este enlace expira en 30 minutos y solo se puede usar una vez. Si el botón no funciona, copia y pega: ${enlaceRestablecer}`,
   });
@@ -2200,11 +2193,7 @@ async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca, logo
       { etiqueta: 'RFC', valor: escapeHtmlCorreo(rfc) },
       { etiqueta: 'Folio', valor: escapeHtmlCorreo(folio), destacado: true },
     ],
-    parrafos: cuerpoAvisoContador
-      .split('\n')
-      .map((linea) => linea.trim())
-      .filter(Boolean)
-      .map((linea) => escapeHtmlCorreo(linea)),
+    parrafos: formatearParrafosCuerpo(cuerpoAvisoContador),
     cta: enlacePanel ? { href: enlacePanel, texto: 'Ir al panel' } : null,
   });
 
@@ -2985,11 +2974,7 @@ app.post(
       titulo,
       filas,
       cta,
-      parrafos: cuerpoConVariables
-        .split('\n')
-        .map((linea) => linea.trim())
-        .filter(Boolean)
-        .map((linea) => escapeHtmlCorreo(linea)),
+      parrafos: formatearParrafosCuerpo(cuerpoConVariables),
     });
     res.json({ html });
   })
@@ -5157,11 +5142,7 @@ async function notificarFacturaListaAlCliente(rfc, folio, marca, urlPortal, logo
     colorAccent: colores && colores.acento,
     eyebrow: 'Facturación',
     titulo: 'Factura lista',
-    parrafos: cuerpoPersonalizado
-      .split('\n')
-      .map((linea) => linea.trim())
-      .filter(Boolean)
-      .map((linea) => escapeHtmlCorreo(linea)),
+    parrafos: formatearParrafosCuerpo(cuerpoPersonalizado),
     cta: enlacePortal ? { href: enlacePortal, texto: 'Entrar al Portal' } : null,
   });
 

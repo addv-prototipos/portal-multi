@@ -2244,8 +2244,10 @@
               </button>
             </nav>
             <p class="config-modal-nav-empty" id="config-modal-nav-empty" hidden>Ninguna sección coincide con tu búsqueda.</p>
-            <div style="padding:12px;border-top:1px solid #E2E8F0;background:rgba(241,245,249,.5);margin-top:auto">
-              <div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:#059669"><span style="width:8px;height:8px;background:#10B981;border-radius:50%;display:inline-block"></span>Servidor SMTP Conectado</div>
+            <div class="config-modal-nav-footer">
+              <div class="config-sidebar-smtp-estado" id="config-sidebar-smtp-estado" hidden>
+                <span class="config-sidebar-smtp-dot" aria-hidden="true"></span><span id="config-sidebar-smtp-estado-texto"></span>
+              </div>
             </div>
           </div>
 
@@ -2627,13 +2629,18 @@
                       </div>
                       <div class="plantilla-vars" id="plantilla-vars"></div>
                       <div class="field" style="margin-top:10px">
-                        <label for="plantilla-texto" style="display:flex;justify-content:space-between;align-items:center">Cuerpo del mensaje editable <span id="plantilla-texto-contador" style="font-size:11px;color:#94A3B8;font-weight:400">0 / 500</span></label>
+                        <label for="plantilla-texto" style="display:flex;justify-content:space-between;align-items:center">Cuerpo del mensaje editable <span id="plantilla-texto-contador" style="font-size:11px;color:#94A3B8;font-weight:400">0 / 5000</span></label>
                         <div style="border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;background:#fff">
-                          <div style="background:#F8FAFC;border-bottom:1px solid #E2E8F0;padding:6px 8px;display:flex;gap:6px;align-items:center;color:#64748B;font-size:11px"><b>B</b><i>I</i><span style="width:1px;height:12px;background:#E2E8F0;display:inline-block"></span><span style="font-size:10px">Modo texto enriquecido</span></div>
+                          <div class="plantilla-texto-toolbar">
+                            <button type="button" id="btn-plantilla-negrita" class="plantilla-texto-toolbar-btn" data-tooltip="Negrita (rodea la selección con **)" aria-label="Negrita"><b>B</b></button>
+                            <button type="button" id="btn-plantilla-cursiva" class="plantilla-texto-toolbar-btn" data-tooltip="Cursiva (rodea la selección con *)" aria-label="Cursiva"><i>I</i></button>
+                            <span class="plantilla-texto-toolbar-div"></span>
+                            <span class="plantilla-texto-toolbar-hint">**negrita** · *cursiva*</span>
+                          </div>
                           <textarea id="plantilla-texto" rows="5" maxlength="5000" style="border:none;width:100%;padding:10px;font-size:13px;resize:vertical;min-height:110px"></textarea>
                         </div>
                       </div>
-                      <p class="field-hint" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;border-top:1px solid #F1F5F9;padding-top:8px"><button type="button" class="btn-link" id="btn-restablecer-plantilla" style="color:#dc2626;font-weight:600">Restablecer esta plantilla</button><span style="font-size:11px;color:#94A3B8">Versión 2.4 (Estable)</span></p>
+                      <p class="field-hint" style="margin-top:8px;border-top:1px solid #F1F5F9;padding-top:8px"><button type="button" class="btn-link" id="btn-restablecer-plantilla" style="color:#dc2626;font-weight:600">Restablecer esta plantilla</button></p>
                     </div>
                     <div class="plantilla-fiel-right">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#475569;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;background:#10B981;border-radius:50%;display:inline-block;position:relative"><span style="position:absolute;width:100%;height:100%;background:#34D399;border-radius:50%;animation:pulse 2s infinite"></span></span>Vista previa en tiempo real</span><span style="font-size:11px;padding:3px 8px;background:#fff;border:1px solid #E2E8F0;border-radius:6px">Escritorio</span></div>

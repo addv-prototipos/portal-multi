@@ -2723,6 +2723,16 @@
 .smtp-estado-badge.is-ok { background: #DCEFE3; color: #146C43; }
 .smtp-estado-badge.is-pendiente { background: var(--color-warn-soft); color: var(--color-warn); }
 
+/* Pie del sidebar de Configuraciones — estado REAL de SMTP (nunca fijo,
+   ver actualizarBadgeSidebarSmtp en admin.js). */
+.config-modal-nav-footer { padding: 12px; border-top: 1px solid #E2E8F0; background: rgba(241, 245, 249, .5); margin-top: auto; }
+.config-sidebar-smtp-estado { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; }
+.config-sidebar-smtp-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.config-sidebar-smtp-estado.is-ok { color: #059669; }
+.config-sidebar-smtp-estado.is-ok .config-sidebar-smtp-dot { background: #10B981; }
+.config-sidebar-smtp-estado.is-pendiente { color: var(--color-warn); }
+.config-sidebar-smtp-estado.is-pendiente .config-sidebar-smtp-dot { background: var(--color-warn); }
+
 /* Guía Gmail paso a paso, inline (Fase 7 UX, 2026-09-04) — reemplaza el
    antiguo .smtp-aviso-gmail (texto plano estático). El cuerpo reusa
    .conocimiento-paso* tal cual (ya global, definidas para el Centro de
@@ -2977,6 +2987,12 @@
 .plantilla-callout-title { font-weight: 700; color: #0f2744; margin: 0 0 2px; font-size: 12px; }
 .plantilla-preview-wrap { overflow: visible; }
 .plantilla-preview-wrap .plantilla-preview-frame { min-height: 360px; }
+.plantilla-texto-toolbar { background: #F8FAFC; border-bottom: 1px solid #E2E8F0; padding: 6px 8px; display: flex; gap: 6px; align-items: center; color: #64748B; font-size: 11px; }
+.plantilla-texto-toolbar-btn { border: 1px solid transparent; background: transparent; border-radius: 4px; width: 22px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #334155; font-size: 12px; }
+.plantilla-texto-toolbar-btn:hover, .plantilla-texto-toolbar-btn:focus-visible { background: #fff; border-color: #E2E8F0; }
+.plantilla-texto-toolbar-btn:focus-visible { outline: 2px solid #0f2744; outline-offset: 1px; }
+.plantilla-texto-toolbar-div { width: 1px; height: 12px; background: #E2E8F0; display: inline-block; }
+.plantilla-texto-toolbar-hint { font-size: 10px; color: #94A3B8; }
 @media (max-width: 900px) {
   .plantilla-fiel-split { grid-template-columns: 1fr; }
   .plantilla-fiel-right { order: -1; }

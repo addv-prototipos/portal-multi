@@ -1,7 +1,7 @@
 const { pool } = require('../db');
 const { getConfiguracionGlobal, formatearFechaHoraMexico } = require('./config');
 const { enviarCorreo, getConfigSmtp, aplicarPlantilla, DEFAULTS_SMTP } = require('./email');
-const { MARCA_DEFECTO, construirCorreoBase, escapeHtmlCorreo } = require('./correoMarca');
+const { MARCA_DEFECTO, construirCorreoBase, formatearParrafosCuerpo } = require('./correoMarca');
 
 // Este módulo es el motor central de "Reportes": arma el contenido en
 // Markdown, guarda los datos estructurados para poder filtrarlos/
@@ -286,11 +286,7 @@ async function generarYEnviarReporte({
           { etiqueta: 'Ventas', valor: String(items.filter((i) => i.tipo_registro === 'orden_compra').length) },
           { etiqueta: 'Gastos', valor: String(items.filter((i) => i.tipo_registro === 'gasto').length) },
         ],
-        parrafos: cuerpoReporte
-          .split('\n')
-          .map((linea) => linea.trim())
-          .filter(Boolean)
-          .map((linea) => escapeHtmlCorreo(linea)),
+        parrafos: formatearParrafosCuerpo(cuerpoReporte),
       });
 
       await enviarCorreo({

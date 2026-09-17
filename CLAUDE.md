@@ -3864,6 +3864,53 @@ limpio, CSS balanceado. Falta validar el flujo completo contra Docker/
 MySQL/navegador real y confirmación visual del usuario. Sin commit/push.
 Ver PROJECT_STATE.md punto 301.
 
+**Puntos 302-310 (2026-09-16, ver PROJECT_STATE.md para el detalle línea por
+línea de cada uno — resumen aquí para que este archivo no se vuelva a
+quedar atrás)**: (302) `pendientes.html` gana columna `Hecho` + pestaña
+`Histórico` con `localStorage`. (303) nota general reafirmando que toda
+función aplica a tenant Y sitio base salvo indicación contraria. (304)
+PENDIENTE sin decidir — migrar super admin de `ADMIN_USERS` a tabla en BD
+de control. (305) PENDIENTE sin decidir — Control con BD independiente y
+Docker separado `controlBase`. (306) PENDIENTE sin decidir — auditar el
+flujo real de lectura de código de barras. (307) PENDIENTE sin decidir —
+CRM con etiquetas + tablero Kanban aislable como módulo reutilizable.
+(308) "Configuraciones globales" → "Configuraciones" (solo texto/frontend).
+(309) PENDIENTE solo documentado — switches Facturación/Timbrado SAT en
+Cuenta. (310) regla cero emojis reafirmada para el rayo de SMTP.
+
+**3 commits sin protocolo (`ebc7107`/`58ce9de`/`e223833`, 2026-09-16 tarde)
+auditados y 6 correcciones aplicadas (2026-09-17, ver PROJECT_STATE.md
+punto 311, IMPLEMENTADO Y VALIDADO — Jest backend 984/984)**: a pedido
+explícito del usuario, se auditaron 3 commits de restyle SMTP/Plantillas
+de correo fiel a `stitch/` que se saltaron el protocolo `addv-web-app`
+(sin crítica dato-real-vs-inventado, sin propuesta antes/después) — de
+ahí 3 elementos inventados. Corregidos: (1) badge falso "Servidor SMTP
+Conectado" (siempre verde, sin JS) → ahora real, refleja `data.configurado`
+igual que el badge oficial vecino; (2) "Versión 2.4 (Estable)" inventada →
+quitada; (3) contador "0 / 500" cuando el límite real es 5000 → corregido
+a "/ 5000"; (6) toolbar B/I decorativo sin función (el usuario eligió,
+vía Artifact con 3 opciones, construirlo real) → `formatearParrafosCuerpo()`
+nueva en `backend/utils/correoMarca.js` (escapa primero con
+`escapeHtmlCorreo()`, el marcado `**`/`*` corre sobre el texto YA
+escapado — el admin nunca puede inyectar HTML real), única fuente de
+verdad reusada en los 6 correos editables (incluido el preview en vivo);
+botones reales `#btn-plantilla-negrita`/`#btn-plantilla-cursiva` envuelven
+la selección del textarea. El cuerpo de "Solicitar aclaraciones" (texto
+libre de un CLIENTE) se dejó intacto a propósito, sin marcado. **(4) hover
+roto de `.btn-primary` en todo el sitio y (5) `#0f2744` filtrado fuera de
+su alcance declarado ("solo SMTP" según la propia referencia stitch) hacia
+`.btn-primary`/`.admin-card` sitewide — ambos quedaron PENDIENTES, sin
+tocar código, a pedido explícito del usuario ("ignora por ahora, solo
+documéntalo")**: falta decidir entre revertir el override sitewide (vuelve
+a `var(--color-accent)` = `#03285B`, cero riesgo) o adoptar `#0f2744` como
+nuevo `--color-accent` oficial (requiere recalcular un `--color-accent-dark`
+real para que el hover funcione). No tocar `.btn-primary`/`--color-accent`
+hasta que el usuario elija. 8 tests nuevos (`test/unit/correoMarca.test.js`,
+suite nueva). Rebuild `--no-cache`+`--force-recreate` backend+frontend
+hecho, validado por curl contra Docker real y **confirmado por el usuario
+en navegador real**. Pendiente real: un envío a un cliente de correo real
+(Gmail/Outlook) para ver negrita/cursiva en la bandeja de entrada.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

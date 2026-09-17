@@ -68,6 +68,8 @@
     smtpConfigBody: document.getElementById('smtp-config-body'),
     smtpAutosaveTag: document.getElementById('smtp-autosave-tag'),
     smtpEstadoBadge: document.getElementById('smtp-estado-badge'),
+    configSidebarSmtpEstado: document.getElementById('config-sidebar-smtp-estado'),
+    configSidebarSmtpEstadoTexto: document.getElementById('config-sidebar-smtp-estado-texto'),
     smtpHost: document.getElementById('smtp-host'),
     smtpPuerto: document.getElementById('smtp-puerto'),
     smtpSeguridad: document.getElementById('smtp-seguridad'),
@@ -88,6 +90,8 @@
     plantillaTriggerDesc: document.getElementById('plantilla-trigger-desc'),
     plantillaVars: document.getElementById('plantilla-vars'),
     plantillaTexto: document.getElementById('plantilla-texto'),
+    btnPlantillaNegrita: document.getElementById('btn-plantilla-negrita'),
+    btnPlantillaCursiva: document.getElementById('btn-plantilla-cursiva'),
     btnRestablecerPlantilla: document.getElementById('btn-restablecer-plantilla'),
     plantillaPreviewFrame: document.getElementById('plantilla-preview-frame'),
     btnGuiaSmtpGmail: document.getElementById('btn-guia-smtp-gmail'),
@@ -4646,7 +4650,7 @@
       : '<span style="font-size:11px;color:#94A3B8">Sin variables para esta plantilla.</span>';
     els.plantillaTexto.value = plantillasTextos[id] || '';
     const contador = document.getElementById('plantilla-texto-contador');
-    if (contador) contador.textContent = els.plantillaTexto.value.length + ' / 500';
+    if (contador) contador.textContent = els.plantillaTexto.value.length + ' / 5000';
     actualizarPreviewPlantilla();
   }
 
@@ -4657,9 +4661,35 @@
   els.plantillaTexto.addEventListener('input', () => {
     plantillasTextos[plantillaActual] = els.plantillaTexto.value;
     const contador = document.getElementById('plantilla-texto-contador');
-    if (contador) contador.textContent = els.plantillaTexto.value.length + ' / 500';
+    if (contador) contador.textContent = els.plantillaTexto.value.length + ' / 5000';
     programarPreviewPlantilla();
   });
+
+  // Negrita/cursiva reales (**texto**/*texto*, ver formatearParrafosCuerpo
+  // en backend/utils/correoMarca.js) — envuelve la selección del textarea
+  // con el marcador; sin selección, inserta el par y deja el cursor en
+  // medio para que el admin escriba ahí mismo. Dispara 'input' para
+  // reusar el mismo camino de guardado/preview/contador de siempre.
+  function envolverSeleccionPlantilla(marcador) {
+    const el = els.plantillaTexto;
+    const inicio = el.selectionStart;
+    const fin = el.selectionEnd;
+    const valor = el.value;
+    const seleccion = valor.slice(inicio, fin);
+    const nuevoValor = valor.slice(0, inicio) + marcador + seleccion + marcador + valor.slice(fin);
+    el.value = nuevoValor;
+    const cursor = seleccion ? inicio + marcador.length + seleccion.length + marcador.length : inicio + marcador.length;
+    el.focus();
+    el.setSelectionRange(cursor, cursor);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  if (els.btnPlantillaNegrita) {
+    els.btnPlantillaNegrita.addEventListener('click', () => envolverSeleccionPlantilla('**'));
+  }
+  if (els.btnPlantillaCursiva) {
+    els.btnPlantillaCursiva.addEventListener('click', () => envolverSeleccionPlantilla('*'));
+  }
 
   els.btnRestablecerPlantilla.addEventListener('click', () => {
     const campo = PLANTILLAS_CORREO[plantillaActual].campo;
@@ -4705,6 +4735,7 @@
       els.smtpEstadoBadge.hidden = false;
       els.smtpEstadoBadge.textContent = data.configurado ? 'Configurado' : 'Sin configurar';
       els.smtpEstadoBadge.className = `smtp-estado-badge ${data.configurado ? 'is-ok' : 'is-pendiente'}`;
+      actualizarBadgeSidebarSmtp(data.configurado);
       renderSmtpVerificado(data.ultima_verificacion_en);
     } catch (err) {
       // Si falla la carga, el formulario se queda con los valores por
@@ -4721,6 +4752,18 @@
     const fecha = valor.slice(0, 10);
     const hora = valor.slice(11, 16);
     return fecha && hora ? `${fecha} ${hora} UTC` : null;
+  }
+
+  // Badge real del pie del sidebar de Configuraciones — refleja el mismo
+  // dato (data.configurado) que ya usa #smtp-estado-badge, nunca un
+  // "Conectado" fijo. Oculto hasta la primera carga real.
+  function actualizarBadgeSidebarSmtp(configurado) {
+    if (!els.configSidebarSmtpEstado || !els.configSidebarSmtpEstadoTexto) return;
+    els.configSidebarSmtpEstado.hidden = false;
+    els.configSidebarSmtpEstado.className = `config-sidebar-smtp-estado ${configurado ? 'is-ok' : 'is-pendiente'}`;
+    els.configSidebarSmtpEstadoTexto.textContent = configurado
+      ? 'Servidor SMTP configurado'
+      : 'SMTP sin configurar';
   }
 
   function renderSmtpVerificado(valor) {
@@ -4838,6 +4881,7 @@
       els.smtpEstadoBadge.hidden = false;
       els.smtpEstadoBadge.textContent = data.configurado ? 'Configurado' : 'Sin configurar';
       els.smtpEstadoBadge.className = `smtp-estado-badge ${data.configurado ? 'is-ok' : 'is-pendiente'}`;
+      actualizarBadgeSidebarSmtp(data.configurado);
       renderSmtpVerificado(data.ultima_verificacion_en);
       return true;
     } catch (err) {

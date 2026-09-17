@@ -19,6 +19,35 @@ function escapeHtmlCorreo(valor) {
     .replace(/"/g, '&quot;');
 }
 
+// Negritas/cursivas reales en el cuerpo editable de las plantillas de
+// correo (Configuraciones → Comunicación → Plantillas de correo). Whitelist
+// deliberada de 2 marcadores (**negrita**, *cursiva*) — NUNCA HTML crudo:
+// la línea se escapa PRIMERO con escapeHtmlCorreo() y el reemplazo corre
+// sobre el texto YA escapado, así que aunque el admin escriba "<script>"
+// a mano queda como texto literal, nunca como etiqueta. Los <strong>/<em>
+// que sí aparecen en el resultado son literales insertados por esta
+// función, no texto del admin.
+function aplicarMarcadoSeguro(lineaEscapada) {
+  return lineaEscapada
+    .replace(/\*\*([^\n]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
+}
+
+// Único punto que arma los <p> del cuerpo editable de un correo — usado por
+// los 5 correos de PLANTILLAS_CORREO (invitación, recuperación, aviso al
+// contador, factura lista, reporte) y por su preview en vivo. El texto
+// libre de una solicitud de aclaración de un CLIENTE (no editable, no es
+// una plantilla del admin) NO pasa por aquí a propósito — sigue usando
+// escapeHtmlCorreo() sin marcado, para que un cliente nunca pueda inyectar
+// negritas/formato en un correo interno.
+function formatearParrafosCuerpo(texto) {
+  return String(texto ?? '')
+    .split('\n')
+    .map((linea) => linea.trim())
+    .filter(Boolean)
+    .map((linea) => aplicarMarcadoSeguro(escapeHtmlCorreo(linea)));
+}
+
 // Logo real de CLARVO para el correo, INCRUSTADO como adjunto CID en vez
 // de una <img src="URL">: una URL absoluta depende de que el servidor sea
 // alcanzable públicamente desde donde esté el cliente de correo — en
@@ -213,6 +242,7 @@ function construirCorreoBase({
 module.exports = {
   MARCA_DEFECTO,
   escapeHtmlCorreo,
+  formatearParrafosCuerpo,
   logoTicketHtml,
   filaCorreoTabla,
   construirCorreoBase,
