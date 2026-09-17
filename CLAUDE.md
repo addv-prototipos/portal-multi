@@ -3982,6 +3982,19 @@ producto→quitado sin sustituto. Barrida exhaustiva por `§` suelto en
 TODO el sitio (incluido `backend/utils/inventarioCampos.js`, la fuente
 real del diccionario que el usuario sí ve) confirma cero códigos
 restantes fuera de comentarios de desarrollador. `prod/` resincronizado.
+
+**Resto del alcance de 279 (glosario educativo completo) implementado el
+mismo día**: categoría nueva "Glosario" en el Centro de conocimiento
+(`CONOCIMIENTO_CATEGORIAS.glosario`, reusa 100% la infraestructura
+existente — ficha `{t, d}` + buscador que ya cruza todas las
+categorías, cero componente nuevo). 20 términos reales (Balance, CFDI,
+Código de barras, CSF, Corte del día, Costo promedio ponderado, Cuentas
+por cobrar, Días de cobertura, Existencia, Facturado/Sin facturar,
+Fecha de expiración, Folio, Kardex, RFC, Rotación, SKU, Stock mínimo,
+Ticket, Utilidad neta, Valuación del inventario), orden alfabético, sin
+inventar links a video (242/243 siguen sin construirse). Nav item nuevo
+con el mismo ícono de libro del botón real del sidebar. Con esto el
+punto 279 completo queda cerrado.
 Ver PROJECT_STATE.md punto 315.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
