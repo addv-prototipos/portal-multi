@@ -1864,8 +1864,8 @@
               <button type="button" class="view-toggle-btn" id="btn-ver-inv-papelera" role="tab" aria-selected="false">Papelera <span class="view-toggle-pill" id="inv-tab-pill-papelera">—</span></button>
               <button type="button" class="view-toggle-btn" id="btn-ver-inv-servicios" role="tab" aria-selected="false">Servicios <span class="view-toggle-pill" id="inv-tab-pill-servicios">—</span></button>
             </div>
-            <span class="inv-calculo-base-hint"><span class="inv-calculo-base-dot" aria-hidden="true"></span>Base de cálculo: Existencia física × Costo Promedio (D5)</span>
-            <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" data-tooltip="Recomputa cada saldo desde el historial de movimientos y compara contra el guardado (§0.5.F)">Verificar integridad</button>
+            <span class="inv-calculo-base-hint"><span class="inv-calculo-base-dot" aria-hidden="true"></span>Cómo lo calculamos: cantidad × costo promedio</span>
+            <button type="button" class="btn btn-secondary" id="btn-inv-verificar-integridad" data-tooltip="Vuelve a sumar todo tu historial de entradas y salidas, y lo compara con lo que el sistema tiene guardado ahora — así detectamos si algo no cuadra.">Verificar integridad</button>
             <div class="column-toggle" id="inv-column-toggle">
               <button type="button" class="btn btn-secondary" id="btn-inv-columns" aria-haspopup="true" aria-expanded="false" aria-controls="inv-column-toggle-panel">
                 Columnas
@@ -1898,7 +1898,7 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4Zm0 0v10l9 4 9-4V7M12 11v10" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
             Salud financiera y existencias
           </span>
-          <span class="inv-kpi-group-label-right">Valuación: promedio ponderado (D5)</span>
+          <span class="inv-kpi-group-label-right">Cómo valuamos: promedio de costos</span>
         </div>
         <div class="inicio-stats-grid" id="inv-kpi-grid-principal">
           <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
@@ -1909,7 +1909,7 @@
               </span>
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-valor">$0.00</p>
-            <p class="inicio-stat-tendencia" data-tooltip="Cuánto dinero tienes invertido ahora mismo en todo lo que guardas en tu inventario. Se calcula así: por cada producto, cuánto tienes × lo que en promedio te ha costado comprarlo (si a veces lo compras más caro y a veces más barato, se saca un promedio) — y luego se suma todo.">Existencia × costo promedio (D5)</p>
+            <p class="inicio-stat-tendencia" data-tooltip="Cuánto dinero tienes invertido ahora mismo en todo lo que guardas en tu inventario. Se calcula así: por cada producto, cuánto tienes × lo que en promedio te ha costado comprarlo (si a veces lo compras más caro y a veces más barato, se saca un promedio) — y luego se suma todo.">Lo que tienes invertido</p>
             <p class="inv-estado-kpi-extra"><span>Costo prom: <strong id="inv-kpi-costo-prom">$0.00</strong></span><span>Total: <strong id="inv-kpi-piezas-total">0 pz</strong></span></p>
           </div>
           <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
@@ -1920,7 +1920,7 @@
               </span>
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-activos">0</p>
-            <p class="inicio-stat-tendencia" data-tooltip="Cuántos productos tienes dados de alta y activos en tu catálogo ahorita — no cuenta los que archivaste ni los servicios (esos se cuentan aparte).">Catálogo (§0.3)</p>
+            <p class="inicio-stat-tendencia" data-tooltip="Cuántos productos tienes dados de alta y activos en tu catálogo ahorita — no cuenta los que archivaste ni los servicios (esos se cuentan aparte).">En tu catálogo hoy</p>
           </div>
           <div class="inicio-stat-card inv-kpi-solo-producto inv-kpi-decorada">
             <div class="inicio-stat-header">
@@ -1930,7 +1930,7 @@
               </span>
             </div>
             <p class="inicio-stat-numero" id="inv-kpi-unidades">0</p>
-            <p class="inicio-stat-tendencia" data-tooltip="Piezas que tienes disponibles para vender ahora mismo. Hoy el sistema guarda todo en un solo almacén interno (le decimos 'ALM-1') — cuando crezcas y manejes varias bodegas o sucursales, este número podrá separarse por cada una.">En ALM-1 (D2)</p>
+            <p class="inicio-stat-tendencia" data-tooltip="Piezas que tienes disponibles para vender ahora mismo. Hoy el sistema guarda todo en un solo almacén interno (le decimos 'ALM-1') — cuando crezcas y manejes varias bodegas o sucursales, este número podrá separarse por cada una.">Listas para vender</p>
           </div>
         </div>
 
@@ -3512,7 +3512,7 @@
                 </span>
               </div>
               <p class="inicio-stat-numero" id="inv-estado-serv-kpi-total">0</p>
-              <p class="inicio-stat-tendencia" data-tooltip="Cuántos servicios tienes dados de alta y activos en tu catálogo ahorita — no cuenta los archivados ni los productos físicos (esos se cuentan aparte).">Catálogo (§0.3)</p>
+              <p class="inicio-stat-tendencia" data-tooltip="Cuántos servicios tienes dados de alta y activos en tu catálogo ahorita — no cuenta los archivados ni los productos físicos (esos se cuentan aparte).">En tu catálogo hoy</p>
             </div>
             <div class="inicio-stat-card">
               <div class="inicio-stat-header">
@@ -4831,7 +4831,7 @@
           <div class="field">
             <label for="inv-modal-costo">Costo (MXN)<button type="button" class="campo-ayuda" data-campo="costo" aria-label="Ver ayuda de Costo">?</button></label>
             <input type="text" inputmode="decimal" id="inv-modal-costo" placeholder="0.00" autocomplete="off" />
-            <p class="field-hint">Referencia — el costo promedio real lo calcula cada entrada (D5).</p>
+            <p class="field-hint">Es solo tu punto de partida — cada vez que registres una entrada, el sistema recalcula el promedio real por ti.</p>
             <p class="field-error" id="error-inv-modal-costo" role="alert"></p>
           </div>
           <div class="field">
@@ -4904,7 +4904,7 @@
       </div>
       <div class="field" id="inv-mov-costo-wrap">
         <label for="inv-mov-costo">Costo unitario (MXN)</label>
-        <input type="text" inputmode="decimal" id="inv-mov-costo" placeholder="Opcional — alimenta el costo promedio (D5)" autocomplete="off" />
+        <input type="text" inputmode="decimal" id="inv-mov-costo" placeholder="Opcional — nos ayuda a calcular tu costo promedio" autocomplete="off" />
       </div>
       <div id="inv-mov-costo-usd-wrap" hidden>
         <div class="field">

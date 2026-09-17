@@ -3957,6 +3957,25 @@ curl (`/admin` con headers nuevos, `/api/health` sin cambios). `prod.zip`
 regenerado. Falta que el usuario aplique `actualizar.sh` en el VPS real
 y confirme visualmente. Ver PROJECT_STATE.md punto 314.
 
+**Punto 315 — cierra el punto 279 (2026-09-17, IMPLEMENTADO Y VALIDADO
+por curl contra Docker real)**: los códigos internos de `inventarios.md`
+(D5, D2, D8, D11, §0.3, §0.5.F — decisiones de diseño/secciones de spec)
+se habían filtrado a 10 textos visibles en Inventarios/Ventas, en
+contradicción directa con el enfoque del producto ("gente sin
+preparación, aprenden con CLARVO"). Propuesta con glosario + demo
+interactiva (Artifact) aprobada completa — los 10 lugares reescritos en
+`frontend/admin.html`/`admin.js`: 3 captions de tarjetas KPI (tooltips
+ya buenos del punto 282, sin tocar), "Base de cálculo"/"Valuación",
+tooltip de "Verificar integridad" (tenía el código ESCONDIDO dentro de
+su propia explicación), field-hint de Costo, placeholder de "Costo
+unitario", hint de "Disponible" para servicios en Ventas. Comentarios de
+código (`<!-- -->`/`//`) con los mismos códigos se dejaron intactos a
+propósito — invisibles en el HTML renderizado, son para desarrolladores.
+Rebuild `--no-cache`+`--force-recreate` frontend, validado por curl: 0
+códigos visibles restantes, las 10 frases nuevas confirmadas servidas.
+`prod/` sincronizado, `prod.zip` regenerado (145 archivos). Sin
+herramienta de navegador esta sesión. Ver PROJECT_STATE.md punto 315.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

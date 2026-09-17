@@ -7780,7 +7780,7 @@
     if (!ordenInventarioProductoSeleccionado || !els.ordenInventarioDisponibleHint) return;
     els.ordenInventarioDisponibleHint.textContent =
       ordenInventarioProductoSeleccionado.tipo === 'servicio'
-        ? 'Un servicio no descuenta existencia (D11).'
+        ? 'Los servicios no afectan tu inventario.'
         : `Disponible: ${formatearCantidadOrdenInv(ordenInventarioProductoSeleccionado.disponible)}`;
   }
 
