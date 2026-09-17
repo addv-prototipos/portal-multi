@@ -3973,8 +3973,8 @@ código (`<!-- -->`/`//`) con los mismos códigos se dejaron intactos a
 propósito — invisibles en el HTML renderizado, son para desarrolladores.
 Rebuild `--no-cache`+`--force-recreate` frontend, validado por curl: 0
 códigos visibles restantes, las 10 frases nuevas confirmadas servidas.
-`prod/` sincronizado, `prod.zip` regenerado (145 archivos). Sin
-herramienta de navegador esta sesión. **2 más encontrados el mismo día**
+`prod/` sincronizado, `prod.zip` regenerado (145 archivos). **Confirmado
+por el usuario en navegador real.** **2 más encontrados el mismo día**
 (el primer barrido usó un patrón de grep demasiado estrecho) — "§28, sin
 lead time v1" en la tarjeta "Bajo mínimo"→"Por debajo del mínimo que
 configuraste", y "(§38)" en el mensaje de "Eliminar permanentemente" un
