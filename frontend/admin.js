@@ -15730,7 +15730,7 @@
   function confirmarEliminarProductoPermanente(id, nombre) {
     abrirConfirmacion({
       titulo: 'Eliminar permanentemente',
-      mensaje: `¿Eliminar "${nombre}" para siempre? Esta acción no se puede deshacer. Si el producto tiene movimientos registrados, no se podrá eliminar (§38).`,
+      mensaje: `¿Eliminar "${nombre}" para siempre? Esta acción no se puede deshacer. Si el producto tiene movimientos registrados, no se podrá eliminar.`,
       textoBoton: 'Eliminar permanentemente',
       onConfirmar: () => eliminarProductoPermanenteInv(id),
     });
