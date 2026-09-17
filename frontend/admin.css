@@ -3014,8 +3014,11 @@
 .admin-search-input, .admin-config-grid input, .admin-config-grid select,
 .admin-search select, .admin-table-wrap input { background: #F8FAFC; border-color: #E2E8F0; }
 .admin-search-input:focus, .admin-config-grid input:focus, .admin-config-grid select:focus { background:#fff; border-color:#0f2744; box-shadow:0 0 0 3px rgba(15,39,68,.12); }
-.btn-primary, .btn.btn-primary { background:#0f2744; border-color:#0f2744; }
-.btn-primary:hover { background:#0f2744; }
+/* Opción A (2026-09-17): el .btn-primary sitewide se revierte al navy
+   oficial --color-accent (#03285B) — #0f2744 se queda confinado a
+   #smtp-config-card, como decía su propia referencia stitch ("solo
+   SMTP"). Sin override aquí, hereda background/hover reales de
+   style.css (var(--color-accent)/var(--color-accent-dark)). */
 .pill-green, .estatus-activo, .badge-ok { background:#ECFDF5; color:#065F46; border-color:#A7F3D0; }
 
 /* ---------- Restyle SMTP fiel a stitch/smtp (2026-09-16, punto 310) ----------

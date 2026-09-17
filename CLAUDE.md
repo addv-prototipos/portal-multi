@@ -3896,20 +3896,20 @@ escapado — el admin nunca puede inyectar HTML real), única fuente de
 verdad reusada en los 6 correos editables (incluido el preview en vivo);
 botones reales `#btn-plantilla-negrita`/`#btn-plantilla-cursiva` envuelven
 la selección del textarea. El cuerpo de "Solicitar aclaraciones" (texto
-libre de un CLIENTE) se dejó intacto a propósito, sin marcado. **(4) hover
-roto de `.btn-primary` en todo el sitio y (5) `#0f2744` filtrado fuera de
-su alcance declarado ("solo SMTP" según la propia referencia stitch) hacia
-`.btn-primary`/`.admin-card` sitewide — ambos quedaron PENDIENTES, sin
-tocar código, a pedido explícito del usuario ("ignora por ahora, solo
-documéntalo")**: falta decidir entre revertir el override sitewide (vuelve
-a `var(--color-accent)` = `#03285B`, cero riesgo) o adoptar `#0f2744` como
-nuevo `--color-accent` oficial (requiere recalcular un `--color-accent-dark`
-real para que el hover funcione). No tocar `.btn-primary`/`--color-accent`
-hasta que el usuario elija. 8 tests nuevos (`test/unit/correoMarca.test.js`,
-suite nueva). Rebuild `--no-cache`+`--force-recreate` backend+frontend
-hecho, validado por curl contra Docker real y **confirmado por el usuario
-en navegador real**. Pendiente real: un envío a un cliente de correo real
-(Gmail/Outlook) para ver negrita/cursiva en la bandeja de entrada.
+libre de un CLIENTE) se dejó intacto a propósito, sin marcado. **(4-5) hover roto de `.btn-primary` + `#0f2744` fuera de su alcance
+declarado — RESUELTO el mismo día (Opción A)**: propuesta visual
+interactiva (Artifact con botones reales, hover en vivo) — el usuario
+eligió revertir. Quitado el override sitewide de `admin.css`
+(`.btn-primary`/`:hover` ambos en `#0f2744`, sin diferencia al pasar el
+mouse) — `.btn-primary` vuelve al navy oficial `#03285B`/hover `#0B1320`
+(`var(--color-accent)`/`var(--color-accent-dark)`, ya definidos en
+`admin.css`). `#0f2744` queda confinado solo a `#smtp-config-card`, como
+decía su propia referencia stitch. 8 tests nuevos
+(`test/unit/correoMarca.test.js`, suite nueva). Rebuild
+`--no-cache`+`--force-recreate` backend+frontend hecho, validado por curl
+contra Docker real y **confirmado por el usuario en navegador real**.
+Pendiente real: un envío a un cliente de correo real (Gmail/Outlook) para
+ver negrita/cursiva en la bandeja de entrada.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
