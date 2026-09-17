@@ -3927,6 +3927,18 @@ punto 106). Rebuild `--no-cache`+`--force-recreate` frontend, validado
 por curl y **confirmado por el usuario en navegador real** ("ya lo
 revisé, ya funciona"). Ver PROJECT_STATE.md punto 312.
 
+**Punto 313 (2026-09-17)**: `prod/` puesto al día de nuevo (usuario ya
+tiene acceso real al VPS `yt.addv.com.mx`, quiere solo correr
+`actualizar.sh`). 10 archivos con drift real (todo lo tocado en esta
+sesión + los 4 commits del 16-sep que el punto 300 no alcanzó a cubrir)
+sincronizados por contenido: `backend/server.js`, `backend/utils/
+{config,correoMarca,reportes}.js`, 3 archivos de test, `frontend/admin.
+{css,html,js}`. Variantes intencionales (`nginx.conf.template` sin
+`/control`, `docker-compose.prod.yml`) confirmadas intactas, no son
+drift. `prod.zip` regenerado (144 archivos, sin `.env`/`node_modules`).
+Sin acceso SSH al VPS esta sesión — el usuario corre
+`sudo ./actualizar.sh` él mismo. Ver PROJECT_STATE.md punto 313.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en
