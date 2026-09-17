@@ -13,6 +13,7 @@
   background: var(--color-bg);
   min-height: 100vh;
 
+  --color-bg: #F8FAFC;
   --color-accent: #03285B;
   --color-accent-dark: #0B1320;
   --color-accent-soft: #E7ECF3;
@@ -3006,7 +3007,7 @@
    Solo main: canvas #F6F5F2→#F8FAFC, bordes #E3E1DA/#DADAD3→#E2E8F0,
    navy #03285B→#0f2744, inputs #fff→#F8FAFC. Gráficas/bars/pasteles/areas
    QUEDAN INTACTAS (no se tocan colores de charts). Reversible. */
-.admin-main { background: #F8FAFC; }
+.admin-main { background: var(--color-bg); }
 .admin-card, .inicio-stat-card, .admin-table-wrap, .resumen-fin-tablero > div,
 .admin-config-card, .gastos-card, .inv-card { border-color: #E2E8F0; box-shadow: 0 1px 2px rgba(15,39,68,.04); }
 .admin-table thead th { background: #F8FAFC; border-bottom-color: #E2E8F0; }

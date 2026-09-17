@@ -3911,6 +3911,21 @@ contra Docker real y **confirmado por el usuario en navegador real**.
 Pendiente real: un envío a un cliente de correo real (Gmail/Outlook) para
 ver negrita/cursiva en la bandeja de entrada.
 
+**Punto 312 (2026-09-17, IMPLEMENTADO Y VALIDADO por curl contra Docker
+real)**: 2 tonos de fondo distintos en `/admin` y `/control` (reportado
+por el usuario con captura — "Lectura de reportes" se veía con un beige
+en el margen exterior y otro gris-azulado en la tarjeta de contenido).
+Causa: `.admin-body` (body compartido por `/admin` y `/control`, ambos
+cargan `admin.css`) nunca redefinía `--color-bg` — heredaba el `#F6F4EF`
+beige-era-verde de `style.css`, mientras `.admin-main` tenía `#F8FAFC`
+HARDCODEADO desde el commit `58ce9de`, dos literales que nunca iban a
+coincidir. Fix: `--color-bg: #F8FAFC;` agregado al bloque de overrides
+de `.admin-body` + `.admin-main` cambiado a `background: var(--color-bg)`
+— una sola fuente de verdad. Alcance solo `/admin`+`/control` — portal de
+cliente/login se quedan con el beige original a propósito (regla del
+punto 106). Rebuild `--no-cache`+`--force-recreate` frontend, validado
+por curl. Ver PROJECT_STATE.md punto 312.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en
