@@ -3924,7 +3924,8 @@ de `.admin-body` + `.admin-main` cambiado a `background: var(--color-bg)`
 — una sola fuente de verdad. Alcance solo `/admin`+`/control` — portal de
 cliente/login se quedan con el beige original a propósito (regla del
 punto 106). Rebuild `--no-cache`+`--force-recreate` frontend, validado
-por curl. Ver PROJECT_STATE.md punto 312.
+por curl y **confirmado por el usuario en navegador real** ("ya lo
+revisé, ya funciona"). Ver PROJECT_STATE.md punto 312.
 
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
