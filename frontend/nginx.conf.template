@@ -129,7 +129,13 @@ server {
     # mismo motivo — permite que la página se enmarque a sí misma para
     # que el preview de PDF (constancias) funcione, sin abrir la puerta a
     # que OTRO origen la enmarque.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
+    # frame-src 'self' blob: (bug real 2026-09-17, ver PROJECT_STATE.md):
+    # sin 'blob:' explícito, Chrome bloquea la navegación del <iframe> a
+    # un blob: (preview de PDF vía fetch autenticado + createObjectURL,
+    # el mismo patrón de imágenes de storage.js) con "Este contenido está
+    # bloqueado" — default-src 'self' NO cubre el scheme blob: para
+    # frame-src, a diferencia de img-src que ya lo tenía explícito.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
 
     # JS y CSS propios de la app cambian con cada despliegue: se permite
     # cachear, pero SIEMPRE se revalida con el servidor antes de usar la

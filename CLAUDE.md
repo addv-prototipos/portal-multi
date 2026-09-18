@@ -3997,6 +3997,58 @@ con el mismo ícono de libro del botón real del sidebar. Con esto el
 punto 279 completo queda cerrado.
 Ver PROJECT_STATE.md punto 315.
 
+**Punto 316 — incidente real en producción: backend en crash-loop tras
+`actualizar.sh`, preflight nuevo agregado (2026-09-17, DIAGNOSTICADO Y
+CORREGIDO EN VIVO contra el VPS real `yt.addv.com.mx`)**: usuario corrió
+`actualizar.sh` en el VPS y `backend` quedó `unhealthy`
+(`ER_ACCESS_DENIED_ERROR` para el user `app` de MySQL) — `frontend` nunca
+arrancó por `depends_on: service_healthy`. Causa: `.env` (`MYSQL_PASSWORD`)
+ya no coincidía con el password real que MySQL tenía grabado para `app` —
+MySQL solo aplica credenciales en la PRIMERA inicialización del volumen,
+cualquier edición de `.env` después queda desincronizada en silencio.
+`actualizar.sh` nunca toca `mysql`/`.env` (por diseño), así que no causó
+el bug, pero tampoco lo detectaba antes de gastar el build completo.
+Diagnóstico en vivo: `docker logs` → confirma el error real;
+`docker inspect <contenedor> --format ... | grep DB_` → password
+REALMENTE inyectado al contenedor (puede ser viejo); `grep MYSQL_PASSWORD
+.env` → valor vigente; si difieren o ninguno entra, `ALTER USER 'app'@'%'
+IDENTIFIED BY '<el de .env>'` con root (password root sacado de
+`docker inspect` del contenedor MySQL) + `FLUSH PRIVILEGES` +
+`--force-recreate backend`. Resuelto así en el VPS real, login de super
+confirmado funcionando. **Prevención para la siguiente liberación**:
+`prod/actualizar.sh` gana un preflight (Paso 0.5) que prueba
+`mysql -u$MYSQL_USER -p$MYSQL_PASSWORD -e "SELECT 1"` contra el contenedor
+`mysql` real ANTES de reconstruir imágenes — si falla, aborta de
+inmediato con el `ALTER USER` exacto ya armado con los valores reales de
+`.env`, en vez de dejar que el usuario descubra el crash-loop después de
+esperar el build + el timeout del healthcheck. `bash -n` limpio. Runbook
+completo paso a paso para el mismo síntoma en PROJECT_STATE.md punto 316.
+**De paso**: página de mantenimiento 3D (CSS puro, sin dependencias) en
+`ops/mantenimiento-host/index.html` (fuera de `prod/`, sobrevive cualquier
+borrado de esa carpeta) para reemplazar el 502 default de nginx del host
+mientras el stack está abajo — instrucciones de enganche manual al nginx
+del HOST dadas al usuario (`error_page 502 503 504` + `location alias`),
+**no confirmado todavía si ya lo enganchó**.
+
+**Punto 317 (2026-09-17, IMPLEMENTADO Y VALIDADO por el usuario en
+navegador real, solo localhost)**: 2do bug real del mismo preview de
+CSF del punto 314 — el fix `X-Frame-Options DENY→SAMEORIGIN` no bastó,
+seguía "Este contenido está bloqueado" incluso en Docker local recién
+reconstruido (confirmado también en incógnito). Causa real distinta: la
+CSP sitewide (`frontend/nginx.conf.template`) no tenía `frame-src`
+explícito — `default-src 'self'` no cubre el scheme `blob:` para
+navegación de `<iframe>` sin declararlo aparte, mismo gotcha que
+`img-src` ya tenía resuelto (`data: blob:`) pero nunca se replicó a
+`frame-src` ni en el punto 197 (CSP original) ni en el 314 (mismo día).
+Fix: `frame-src 'self' blob:;` agregado a la CSP en
+`frontend/nginx.conf.template` (+ espejado en `prod/frontend/
+nginx.conf.template`, sin desplegar — el usuario pidió enfocar el
+trabajo en localhost salvo que pida prod explícito, ver memoria
+`feedback_localhost_por_defecto`). `nginx -t` limpio, 2 rebuilds
+`--no-cache`+`--force-recreate` frontend. **Confirmado por el usuario
+en navegador real, localhost, funcionando.** Sin commit/push todavía.
+Ver PROJECT_STATE.md punto 317.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

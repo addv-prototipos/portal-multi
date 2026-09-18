@@ -948,6 +948,39 @@ manual + uno automático), persistencia confirmada tras F5 real, cero
 errores de consola. Detalle: `PROJECT_STATE.md`/`CLAUDE.md` punto 296.
 Sin commit/push.
 
+C072 2026-09-17 ● Incidente real de producción: backend en crash-loop
+tras `actualizar.sh` en el VPS real (`yt.addv.com.mx`), punto 316.
+Usuario corrió `actualizar.sh` tras el fix del punto 314 — backend
+quedó `unhealthy`, frontend nunca arrancó (`depends_on:
+service_healthy`). Logs: `ER_ACCESS_DENIED_ERROR` para user `app` de
+MySQL, 20 reintentos y muere. Causa: `.env` (`MYSQL_PASSWORD`)
+desincronizado del password real que MySQL tenía grabado — MySQL solo
+aplica credenciales en la primera inicialización del volumen, una
+edición de `.env` después de eso queda huérfana en silencio.
+Diagnóstico en vivo, con vuelta de tuerca real: el primer `ALTER USER`
+se corrió con un `MYSQL_PASSWORD` que el usuario había pegado EN UN
+TURNO ANTERIOR de la conversación — siguió fallando, porque el `.env`
+real había cambiado desde entonces. `docker inspect` del contenedor
+backend (env congelado al crearse) + un `grep .env` fresco confirmaron
+el valor vigente real; `ALTER USER 'app'@'%' IDENTIFIED BY '<correcto>'`
+con root (password root sacado de `docker inspect` del contenedor
+MySQL) + `--force-recreate backend` lo resolvió. Login de super
+funcionó de inmediato después — el síntoma "no me deja entrar" NO era
+`ADMIN_USERS`, era el proceso completo caído. Prevención: preflight
+nuevo en `prod/actualizar.sh` (Paso 0.5) — prueba `SELECT 1` contra
+MySQL real ANTES de reconstruir imágenes, aborta con el `ALTER USER`
+exacto ya armado si falla, en vez de gastar el build + timeout del
+healthcheck para descubrirlo después. Runbook de 6 pasos documentado en
+`PROJECT_STATE.md` punto 316 para cualquier sesión futura con el mismo
+síntoma. De paso: página de mantenimiento 3D (CSS puro) creada en
+`ops/mantenimiento-host/index.html` (fuera de `prod/`, sobrevive
+cualquier borrado de esa carpeta) para reemplazar el 502 default de
+nginx del host — instrucciones de enganche manual dadas, sin confirmar
+si ya se aplicó. Detalle: `PROJECT_STATE.md`/`CLAUDE.md` punto 316. Sin
+commit/push (cambios en `prod/actualizar.sh`, que no viaja a git de la
+misma forma — confirmar con el usuario si se sincroniza al repo o solo
+vive en el VPS).
+
 C071 2026-09-13 ◆ SMTP: acordeón estricto de 3 subsecciones +
 autoguardado, punto 297. Pedido: "Correo electrónico (SMTP)"/
 "Plantillas de correo"/"Enviar correo de prueba" colapsables, solo 1
