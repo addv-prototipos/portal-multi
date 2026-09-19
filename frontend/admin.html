@@ -1516,41 +1516,55 @@
       <div class="modal-overlay" id="corte-modal-overlay" hidden>
         <div class="modal ticket-modal" role="dialog" aria-modal="true" aria-labelledby="corte-modal-title">
           <div class="ticket-modal-header">
-            <h2 id="corte-modal-title">Corte del día</h2>
+            <div class="ticket-modal-header-title">
+              <h2 id="corte-modal-title">Corte del día</h2>
+              <button type="button" class="btn-icon" id="btn-ayuda-corte" aria-label="Ayuda sobre el corte del día" data-tooltip="Genera un reporte de lo vendido en el rango de fechas que elijas. No afecta ni marca las ventas — puedes repetirlo cuantas veces necesites.">?</button>
+            </div>
             <button type="button" class="btn-icon" id="btn-cerrar-corte-modal" aria-label="Cerrar">✕</button>
           </div>
-          <div class="ticket-modal-body">
-            <p class="panel-subtitle">Genera un reporte de lo vendido en el rango de fechas que elijas. No afecta ni marca las ventas — puedes repetirlo cuantas veces necesites.</p>
-            <div class="control-form-grid">
-              <div class="field">
-                <label for="corte-filtro-desde">Desde</label>
-                <input type="date" id="corte-filtro-desde" />
+          <div class="ticket-modal-body corte-modal-body">
+            <div class="corte-filtros-row">
+              <div class="corte-chip-row" id="corte-chip-row" role="group" aria-label="Rangos rápidos">
+                <button type="button" class="corte-chip" data-rango="hoy">Hoy</button>
+                <button type="button" class="corte-chip" data-rango="ayer">Ayer</button>
+                <button type="button" class="corte-chip" data-rango="semana">Esta semana</button>
+                <button type="button" class="corte-chip" data-rango="mes">Este mes</button>
+                <button type="button" class="corte-chip" data-rango="mes_anterior">Mes anterior</button>
               </div>
-              <div class="field">
-                <label for="corte-filtro-hasta">Hasta</label>
-                <input type="date" id="corte-filtro-hasta" />
+              <div class="corte-dates-row">
+                <div class="field">
+                  <label for="corte-filtro-desde">Desde</label>
+                  <input type="date" id="corte-filtro-desde" />
+                </div>
+                <div class="field">
+                  <label for="corte-filtro-hasta">Hasta</label>
+                  <input type="date" id="corte-filtro-hasta" />
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-generar-corte">
+                  <span id="btn-generar-corte-label">Generar corte</span>
+                </button>
               </div>
             </div>
             <p class="field-error" id="corte-error" role="alert"></p>
-            <div class="btn-row">
-              <button type="button" class="btn btn-primary" id="btn-generar-corte">
-                <span id="btn-generar-corte-label">Generar corte</span>
-              </button>
-            </div>
 
             <div id="corte-resultado" hidden>
+              <p class="corte-grupo-label corte-grupo-label-primero">Ventas del periodo</p>
               <div class="corte-resultado-grid">
                 <div class="corte-resultado-kv"><span class="corte-resultado-k">Ventas</span><span class="corte-resultado-v" id="corte-resultado-ventas">0</span></div>
                 <div class="corte-resultado-kv"><span class="corte-resultado-k">Subtotal</span><span class="corte-resultado-v" id="corte-resultado-subtotal">$0.00</span></div>
                 <div class="corte-resultado-kv"><span class="corte-resultado-k">IVA</span><span class="corte-resultado-v" id="corte-resultado-iva">$0.00</span></div>
                 <div class="corte-resultado-kv corte-resultado-total"><span class="corte-resultado-k">Total</span><span class="corte-resultado-v" id="corte-resultado-total">$0.00</span></div>
-                <div class="corte-resultado-kv"><span class="corte-resultado-k">Facturado</span><span class="corte-resultado-v" id="corte-resultado-facturado">$0.00</span></div>
-                <div class="corte-resultado-kv"><span class="corte-resultado-k">Sin facturar</span><span class="corte-resultado-v" id="corte-resultado-sin-facturar">$0.00</span></div>
-                <div class="corte-resultado-kv"><span class="corte-resultado-k">Cobrado</span><span class="corte-resultado-v" id="corte-resultado-cobrado">$0.00</span></div>
-                <div class="corte-resultado-kv"><span class="corte-resultado-k">Pendiente de cobro</span><span class="corte-resultado-v" id="corte-resultado-pendiente">$0.00</span></div>
+              </div>
+              <p class="corte-grupo-label">Facturación y cobro</p>
+              <div class="corte-resultado-grid">
+                <div class="corte-resultado-kv corte-acento-bien"><span class="corte-resultado-k">Facturado</span><span class="corte-resultado-v" id="corte-resultado-facturado">$0.00</span></div>
+                <div class="corte-resultado-kv corte-acento-alerta"><span class="corte-resultado-k">Sin facturar</span><span class="corte-resultado-v" id="corte-resultado-sin-facturar">$0.00</span></div>
+                <div class="corte-resultado-kv corte-acento-bien"><span class="corte-resultado-k">Cobrado</span><span class="corte-resultado-v" id="corte-resultado-cobrado">$0.00</span></div>
+                <div class="corte-resultado-kv corte-acento-alerta"><span class="corte-resultado-k">Pendiente de cobro</span><span class="corte-resultado-v" id="corte-resultado-pendiente">$0.00</span></div>
               </div>
               <p class="admin-empty" id="corte-resultado-empty" hidden>No hay ventas registradas en ese rango.</p>
               <div class="btn-row">
+                <button type="button" class="btn btn-secondary" id="btn-exportar-corte-actual-csv">Descargar CSV</button>
                 <button type="button" class="btn btn-secondary" id="btn-imprimir-corte">Imprimir</button>
               </div>
             </div>

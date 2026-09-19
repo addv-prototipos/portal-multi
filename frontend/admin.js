@@ -322,12 +322,14 @@
     ordenesFiltroEmpty: document.getElementById('ordenes-filtro-empty'),
     ordenesFiltrosChips: document.getElementById('ordenes-filtros-chips'),
     btnLimpiarOrdenesFiltroConcepto: document.getElementById('btn-limpiar-ordenes-filtro-concepto'),
-    // Modal "Corte del día" (punto 168)
+    // Modal "Corte del día" (punto 168, restyle punto 320)
     btnAbrirCorteModal: document.getElementById('btn-abrir-corte-modal'),
     corteModalOverlay: document.getElementById('corte-modal-overlay'),
     btnCerrarCorteModal: document.getElementById('btn-cerrar-corte-modal'),
+    corteChipRow: document.getElementById('corte-chip-row'),
     corteFiltroDesde: document.getElementById('corte-filtro-desde'),
     corteFiltroHasta: document.getElementById('corte-filtro-hasta'),
+    btnExportarCorteActualCsv: document.getElementById('btn-exportar-corte-actual-csv'),
     corteError: document.getElementById('corte-error'),
     btnGenerarCorte: document.getElementById('btn-generar-corte'),
     btnGenerarCorteLabel: document.getElementById('btn-generar-corte-label'),
@@ -2748,6 +2750,60 @@
   // las veces que sea, sin doble-conteo real de caja).
   let corteUltimoResultado = null;
 
+  // Rangos rápidos de "Corte del día" (punto 320) — 1 clic llena
+  // Desde/Hasta con el rango más común; los campos se quedan editables
+  // después, un chip solo les asigna un valor de partida.
+  function fechaISO(d) {
+    return d.toISOString().slice(0, 10);
+  }
+  function calcularRangoRapidoCorte(tipo) {
+    const hoy = new Date();
+    const hoyStr = fechaISO(hoy);
+    if (tipo === 'hoy') return { desde: hoyStr, hasta: hoyStr };
+    if (tipo === 'ayer') {
+      const ayer = new Date(hoy);
+      ayer.setDate(ayer.getDate() - 1);
+      const s = fechaISO(ayer);
+      return { desde: s, hasta: s };
+    }
+    if (tipo === 'semana') {
+      const diaSemana = hoy.getDay(); // 0=domingo..6=sábado
+      const diffALunes = diaSemana === 0 ? 6 : diaSemana - 1;
+      const lunes = new Date(hoy);
+      lunes.setDate(hoy.getDate() - diffALunes);
+      return { desde: fechaISO(lunes), hasta: hoyStr };
+    }
+    if (tipo === 'mes') {
+      const primero = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      return { desde: fechaISO(primero), hasta: hoyStr };
+    }
+    if (tipo === 'mes_anterior') {
+      const primero = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+      const ultimo = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+      return { desde: fechaISO(primero), hasta: fechaISO(ultimo) };
+    }
+    return null;
+  }
+  function sincronizarChipActivoCorte() {
+    const desde = els.corteFiltroDesde.value;
+    const hasta = els.corteFiltroHasta.value;
+    els.corteChipRow.querySelectorAll('.corte-chip').forEach((chip) => {
+      const rango = calcularRangoRapidoCorte(chip.dataset.rango);
+      chip.classList.toggle('is-active', !!rango && rango.desde === desde && rango.hasta === hasta);
+    });
+  }
+  els.corteChipRow.addEventListener('click', (e) => {
+    const chip = e.target.closest('.corte-chip');
+    if (!chip) return;
+    const rango = calcularRangoRapidoCorte(chip.dataset.rango);
+    if (!rango) return;
+    els.corteFiltroDesde.value = rango.desde;
+    els.corteFiltroHasta.value = rango.hasta;
+    sincronizarChipActivoCorte();
+  });
+  els.corteFiltroDesde.addEventListener('input', sincronizarChipActivoCorte);
+  els.corteFiltroHasta.addEventListener('input', sincronizarChipActivoCorte);
+
   function abrirCorteModal() {
     els.corteError.textContent = '';
     els.corteResultado.hidden = true;
@@ -2756,6 +2812,7 @@
     const hoy = new Date().toISOString().slice(0, 10);
     if (!els.corteFiltroDesde.value) els.corteFiltroDesde.value = hoy;
     if (!els.corteFiltroHasta.value) els.corteFiltroHasta.value = hoy;
+    sincronizarChipActivoCorte();
     els.corteModalOverlay.hidden = false;
   }
   function cerrarCorteModal() {
@@ -2863,6 +2920,40 @@
       </table>
     `;
     window.print();
+  });
+
+  // Descarga en CSV el corte recién generado (punto 320) — mismos datos
+  // que ya trae corteUltimoResultado, sin pedir nada nuevo al backend.
+  els.btnExportarCorteActualCsv.addEventListener('click', () => {
+    if (!corteUltimoResultado) return;
+    const { desde, hasta, ordenes } = corteUltimoResultado;
+    if (!ordenes.length) {
+      showToast('No hay ventas en este rango para exportar', 'error');
+      return;
+    }
+    const csvCelda = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const encabezado = ['No. Venta', 'Fecha', 'Correo', 'Facturación', 'Total'];
+    const lineas = ordenes.map((o) =>
+      [
+        o.numero_compra,
+        o.fecha_compra_formateada.fecha,
+        o.email || 'Sin correo',
+        o.facturado ? 'Facturado' : 'Sin facturar',
+        Number(o.total).toFixed(2),
+      ]
+        .map(csvCelda)
+        .join(',')
+    );
+    const csv = [encabezado.map(csvCelda).join(','), ...lineas].join('\r\n');
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `corte-${desde}_a_${hasta}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   });
 
   // Las zonas horarias son un catálogo fijo (no cambia entre peticiones),

@@ -2214,22 +2214,91 @@
   overflow-wrap: anywhere;
 }
 
-/* Resultado de "Corte del día" (Ventas, punto 168) dentro del modal —
-   mismo lenguaje visual que .control-form-grid (2 columnas, 1 en móvil). */
+/* .ticket-modal-body es display:flex por defecto (pensada para el layout
+   "contenido + sidebar de 260px" de otros modales, ver .ticket-modal-main/
+   .ticket-modal-sidebar) — este modal no tiene sidebar, así que sin este
+   override sus hijos directos (filtros/resultados) se reparten como 2
+   columnas flex por accidente, dejando una banda vacía del lado más corto
+   (punto 321). Vuelve a flujo vertical normal. Selector de 2 clases a
+   propósito (no solo ".corte-modal-body"): ".ticket-modal-body" está
+   declarada MÁS ABAJO en este archivo con la misma especificidad (una
+   clase, 0-1-0) — sin subir a 2 clases (0-2-0), esa regla posterior le
+   gana por orden de cascada y el override queda invisible en silencio
+   (bug real encontrado en vivo, punto 319 addendum). */
+.ticket-modal-body.corte-modal-body { display: block; }
+
+/* Rango rápido de "Corte del día" (punto 320) — chips de 1 clic para los
+   rangos más comunes; los campos Desde/Hasta se quedan siempre editables
+   debajo, un chip solo les asigna un valor. Chips y fechas comparten una
+   sola franja horizontal (punto 321) en vez de ser 2 bloques apilados. */
+.corte-filtros-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+  padding-bottom: 16px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+.corte-chip-row { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 240px; }
+.corte-chip {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface, #fff);
+  color: var(--color-ink-soft);
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.corte-chip:hover { background: var(--color-accent-soft); color: var(--color-accent-dark); }
+.corte-chip.is-active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .corte-chip { transition: none; }
+}
+
+/* Fila Desde/Hasta + botón, siempre editable (un chip solo la rellena). */
+.corte-dates-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; flex: 2 1 340px; }
+.corte-dates-row .field { flex: 1; min-width: 130px; margin-bottom: 0; }
+.corte-dates-row .btn { flex: none; }
+
+/* Resultado de "Corte del día" (punto 168, restyle punto 320) — 2 grupos
+   de tarjetas (Ventas del periodo / Facturación y cobro) en vez de un
+   solo bloque de 8 cifras sin separar. */
+.corte-grupo-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-ink-soft);
+  margin: 18px 0 8px;
+}
+.corte-grupo-label-primero { margin-top: 14px; }
 .corte-resultado-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+@media (max-width: 760px) {
+  .corte-resultado-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 420px) {
+  .corte-resultado-grid { grid-template-columns: 1fr; }
+}
+.corte-resultado-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  margin: 14px 0;
+  padding: 10px 12px;
+  min-width: 0;
 }
-@media (max-width: 480px) {
-  .corte-resultado-grid { grid-template-columns: 1fr; }
-}
-.corte-resultado-kv { display: flex; flex-direction: column; gap: 1px; }
 .corte-resultado-k {
   font-size: 11px;
   text-transform: uppercase;
@@ -2240,8 +2309,15 @@
   font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
-.corte-resultado-total .corte-resultado-v { color: var(--color-accent-dark); }
+.corte-resultado-total { background: var(--color-accent); border-color: transparent; }
+.corte-resultado-total .corte-resultado-k { color: #C7D6EA; }
+.corte-resultado-total .corte-resultado-v { color: #fff; }
+.corte-acento-bien { background: #ECFDF5; border-color: transparent; }
+.corte-acento-bien .corte-resultado-v { color: #065F46; }
+.corte-acento-alerta { background: var(--color-warn-soft); border-color: transparent; }
+.corte-acento-alerta .corte-resultado-v { color: var(--color-warn); }
 
 /* Corte imprimible — mismo patrón que .ticket-imprimir (armado por JS
    justo antes de window.print(), oculto en pantalla, único visible dentro

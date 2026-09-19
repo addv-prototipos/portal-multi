@@ -4049,6 +4049,40 @@ trabajo en localhost salvo que pida prod explícito, ver memoria
 en navegador real, localhost, funcionando.** Sin commit/push todavía.
 Ver PROJECT_STATE.md punto 317.
 
+**Punto 318 (2026-09-18, IMPLEMENTADO — Jest sin cambios (100% frontend),
+validado por curl contra Docker local)**: restyle UX/UI del modal "Corte
+del día" en Ventas — chips de rango rápido (Hoy/Ayer/Esta semana/Este
+mes/Mes anterior), texto de ayuda movido a tooltip (libera la columna
+angosta que causaba wrap palabra-por-palabra), fix del overflow horizontal
+(cada cifra ahora es su propia tarjeta en vez de un bloque compartido de
+ancho fijo), 8 cifras agrupadas en "Ventas del periodo"/"Facturación y
+cobro" con color semántico (verde/ámbar, mismo criterio de Cuentas por
+cobrar), botón "Descargar CSV" nuevo (100% cliente, reusa los datos ya
+traídos). Propuesta antes/después aprobada primero (Artifact
+`9b5b1a67-57b2-4037-adba-d24ae4e5b6d9`). Sin herramienta de navegador esta
+sesión — falta confirmación visual del usuario. Sin commit/push todavía.
+Ver PROJECT_STATE.md punto 318.
+
+**Punto 319 (2026-09-19, CORREGIDO — 100% frontend, validado por curl
+contra Docker local)**: el restyle del punto 318 seguía "desperdiciando
+espacio" (reportado con captura) — causa real: `.ticket-modal-body`
+hereda `display:flex` de otros modales con barra lateral, y sin esa
+barra sus 2 bloques (chips+fechas, resultados) quedaban como 2 columnas
+flex desparejas (una corta, otra alta), dejando la corta con banda
+vacía. Fix: `.corte-modal-body{display:block}` + chips y fechas
+agrupados en una sola franja horizontal (`.corte-filtros-row`) +
+resultados a 4 columnas (antes 2) usando el ancho real del modal.
+Propuesta antes/después aprobada primero (Artifact
+`44e4e680-e6ad-4c4e-8f71-7bc1ede3188a`). Sin herramienta de navegador
+esta sesión — falta confirmación visual. Sin commit/push. **Addendum
+mismo día**: el fix no se veía pese a rebuild real — causa era orden de
+cascada, no caché: `.corte-modal-body{display:block}` (1 clase) perdía
+contra `.ticket-modal-body{display:flex}` (1 clase, declarada DESPUÉS en
+el archivo, misma especificidad) — corregido a selector de 2 clases
+`.ticket-modal-body.corte-modal-body` (gana sin importar el orden).
+Rebuild de nuevo, confirmado en CSS servido. Ver PROJECT_STATE.md punto
+319.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en
