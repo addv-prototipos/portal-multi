@@ -478,22 +478,26 @@ async function ensureSchema(db = pool) {
   if (checkPerfil.length === 0) {
     await db.query(
       `ALTER TABLE usuarios ADD CONSTRAINT chk_usuarios_perfil
-       CHECK (perfil IN ('cliente', 'administrador', 'fiscal', 'ventas'))`
+       CHECK (perfil IN ('cliente', 'administrador', 'fiscal', 'ventas', 'inventario'))`
     );
   } else {
-    // Punto 190 — perfil "Ventas": instalaciones que ya tenían el CHECK
-    // sin 'ventas' todavía (mismo patrón que chk_reportes_tipo/
-    // chk_gastos_categoria — MySQL no permite "ALTER CHECK", hay que
-    // tirarlo y volver a crearlo con la lista completa).
+    // Puntos 190/323 — perfiles "Ventas"/"Inventario": instalaciones que
+    // ya tenían el CHECK sin alguno de los dos todavía (mismo patrón que
+    // chk_reportes_tipo/chk_gastos_categoria — MySQL no permite
+    // "ALTER CHECK", hay que tirarlo y volver a crearlo con la lista
+    // completa).
     const [clausulaPerfil] = await db.query(
       `SELECT CHECK_CLAUSE FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS
        WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_usuarios_perfil'`
     );
-    if (clausulaPerfil.length > 0 && !clausulaPerfil[0].CHECK_CLAUSE.includes('ventas')) {
+    if (
+      clausulaPerfil.length > 0 &&
+      (!clausulaPerfil[0].CHECK_CLAUSE.includes('ventas') || !clausulaPerfil[0].CHECK_CLAUSE.includes('inventario'))
+    ) {
       await db.query('ALTER TABLE usuarios DROP CHECK chk_usuarios_perfil');
       await db.query(
         `ALTER TABLE usuarios ADD CONSTRAINT chk_usuarios_perfil
-         CHECK (perfil IN ('cliente', 'administrador', 'fiscal', 'ventas'))`
+         CHECK (perfil IN ('cliente', 'administrador', 'fiscal', 'ventas', 'inventario'))`
       );
     }
   }
@@ -668,6 +672,7 @@ async function ensureSchema(db = pool) {
       eliminado_en DATETIME NULL,
       archivado_en DATETIME NULL,
       periodo_archivado CHAR(7) NULL,
+      creado_por VARCHAR(200) NULL,
       creado_en DATETIME NOT NULL,
       actualizado_en DATETIME NOT NULL,
       UNIQUE KEY uq_ordenes_compra_numero (numero_compra),
@@ -718,6 +723,14 @@ async function ensureSchema(db = pool) {
   );
   if (columnaEmailOrdenesCompra.length > 0 && columnaEmailOrdenesCompra[0].IS_NULLABLE === 'NO') {
     await db.query('ALTER TABLE ordenes_compra MODIFY COLUMN email VARCHAR(200) NULL');
+  }
+
+  // Migracion: "creado_por" (punto 320) — quién registró la venta, para
+  // reportes/aclaraciones (nunca se muestra en Ventas). Instalaciones
+  // previas a este punto no tenían la columna. Sin backfill posible: el
+  // dato no existía antes, las ventas ya registradas se quedan en NULL.
+  if (!nombresColumnasOrdenesCompra.includes('creado_por')) {
+    await db.query('ALTER TABLE ordenes_compra ADD COLUMN creado_por VARCHAR(200) NULL');
   }
 
   const [checksOrdenCantidad] = await db.query(

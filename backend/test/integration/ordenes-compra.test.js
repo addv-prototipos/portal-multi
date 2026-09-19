@@ -47,8 +47,8 @@ const app = require('../../server');
 // Misma técnica que gastos.test.js/admin.test.js: un usuario de perfil
 // concreto salta directo a la 3ra capa de requireAdminAuth con una sola
 // consulta a pool.query.
-function mockUsuarioAdministrativo(perfil, { usuario = 'admin1', password = 'ClaveAdmin1' } = {}) {
-  pool.query.mockResolvedValueOnce([[{ rfc: usuario, password_hash: hashPassword(password), perfil }]]);
+function mockUsuarioAdministrativo(perfil, { usuario = 'admin1', password = 'ClaveAdmin1', nombre, email } = {}) {
+  pool.query.mockResolvedValueOnce([[{ rfc: usuario, password_hash: hashPassword(password), perfil, nombre, email }]]);
   return { usuario, password };
 }
 
@@ -90,6 +90,66 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       // Sin correo, no hay consulta a "registros" (se salta la validación
       // de constancia) — solo config + INSERT + UPDATE + el query de auth.
       expect(pool.query).toHaveBeenCalledTimes(4);
+    });
+
+    describe('punto 320: quién registró la venta (creado_por, nunca expuesto aquí)', () => {
+      test('perfil_bd CON nombre en "Mi Cuenta": guarda el nombre, nunca el usuario de login', async () => {
+        const { usuario, password } = mockUsuarioAdministrativo('ventas', {
+          usuario: 'vendedor1',
+          nombre: 'Laura Méndez',
+          email: 'laura@tienda.com',
+        });
+        pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+        pool.query.mockResolvedValueOnce([{ insertId: 30, affectedRows: 1 }]); // INSERT
+        pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth(usuario, password)
+          .send({ concepto: '1 x Producto ($10.00 c/u)', cantidad: 10 });
+
+        expect(res.status).toBe(201);
+        const insertCall = pool.query.mock.calls.find((c) => String(c[0]).includes('INSERT INTO ordenes_compra'));
+        expect(insertCall[1]).toContain('Laura Méndez');
+        expect(insertCall[1]).not.toContain('vendedor1');
+        // El response al frontend de Ventas tampoco lo trae.
+        expect(res.body.creado_por).toBeUndefined();
+      });
+
+      test('perfil_bd SIN nombre capturado: cae al correo, nunca al usuario de login', async () => {
+        const { usuario, password } = mockUsuarioAdministrativo('administrador', {
+          usuario: 'admin_viejo',
+          email: 'admin.viejo@tienda.com',
+        });
+        pool.query.mockResolvedValueOnce([[]]);
+        pool.query.mockResolvedValueOnce([{ insertId: 31, affectedRows: 1 }]);
+        pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth(usuario, password)
+          .send({ concepto: '1 x Producto ($10.00 c/u)', cantidad: 10 });
+
+        expect(res.status).toBe(201);
+        const insertCall = pool.query.mock.calls.find((c) => String(c[0]).includes('INSERT INTO ordenes_compra'));
+        expect(insertCall[1]).toContain('admin.viejo@tienda.com');
+        expect(insertCall[1]).not.toContain('admin_viejo');
+      });
+
+      test('ADMIN_USERS (super, sin fila en "usuarios"): guarda el usuario de ADMIN_USERS tal cual', async () => {
+        pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+        pool.query.mockResolvedValueOnce([{ insertId: 32, affectedRows: 1 }]); // INSERT
+        pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth('admin', 'admin')
+          .send({ concepto: '1 x Producto ($10.00 c/u)', cantidad: 10 });
+
+        expect(res.status).toBe(201);
+        const insertCall = pool.query.mock.calls.find((c) => String(c[0]).includes('INSERT INTO ordenes_compra'));
+        expect(insertCall[1]).toContain('admin');
+      });
     });
 
     test('punto 227: descuento por porcentaje se aplica ANTES del IVA, sobre el subtotal', async () => {
@@ -708,6 +768,25 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
 
       expect(res.status).toBe(200);
     });
+
+    // Punto 322: "creado_por" NUNCA debe llegar a la sección de Ventas —
+    // aunque el mock simule que la fila lo trae (defensa contra que
+    // alguien cambie el SELECT a "*" sin querer), la respuesta no debe
+    // exponerlo.
+    test('punto 320: "creado_por" nunca se expone en la lista de Ventas', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 71, numero_compra: 'OC-000071', fecha_compra: '2026-08-25 10:00:00', concepto: 'x', cantidad: '10.00', iva_porcentaje: '16.00', total: '11.60', email: null, estado_pago: 'pagada', producto_id: null, producto_cantidad: null, facturado: 0, creado_por: 'Laura Méndez' }],
+      ]); // SELECT ordenes (simula que el driver trajera la columna de todas formas)
+      pool.query.mockResolvedValueOnce([[]]); // SELECT orden_productos
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+
+      const res = await request(app).get('/api/admin/ordenes-compra').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body.ordenes[0].creado_por).toBeUndefined();
+      expect(JSON.stringify(res.body)).not.toContain('Laura Méndez');
+    });
   });
 
   describe('DELETE /api/admin/ordenes-compra/:id con producto (reingreso automático)', () => {
@@ -858,6 +937,7 @@ describe('POST /api/admin/reportes/corte (punto 168: "Corte del día" en Ventas)
           estado_pago: 'pagada',
           monto_cobrado: '116.00',
           facturado: 1,
+          creado_por: 'Laura Méndez',
         },
         {
           id: 2,
@@ -870,6 +950,7 @@ describe('POST /api/admin/reportes/corte (punto 168: "Corte del día" en Ventas)
           estado_pago: 'pendiente',
           monto_cobrado: '0.00',
           facturado: 0,
+          creado_por: null,
         },
       ],
     ]); // SELECT ordenes en rango
@@ -898,9 +979,11 @@ describe('POST /api/admin/reportes/corte (punto 168: "Corte del día" en Ventas)
       expect.objectContaining({
         tipo: 'corte',
         totalMonto: 348,
+        // Punto 322: "atendido_por" del item viaja con lo que ya trae la
+        // fila (resuelto en la venta original) — sin trabajo extra aquí.
         items: expect.arrayContaining([
-          expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-000001' }),
-          expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-000002' }),
+          expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-000001', atendido_por: 'Laura Méndez' }),
+          expect.objectContaining({ tipo_registro: 'orden_compra', identificador: 'OC-000002', atendido_por: null }),
         ]),
       })
     );

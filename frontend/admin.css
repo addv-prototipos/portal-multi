@@ -2219,7 +2219,7 @@
    .ticket-modal-sidebar) — este modal no tiene sidebar, así que sin este
    override sus hijos directos (filtros/resultados) se reparten como 2
    columnas flex por accidente, dejando una banda vacía del lado más corto
-   (punto 321). Vuelve a flujo vertical normal. Selector de 2 clases a
+   (punto 319). Vuelve a flujo vertical normal. Selector de 2 clases a
    propósito (no solo ".corte-modal-body"): ".ticket-modal-body" está
    declarada MÁS ABAJO en este archivo con la misma especificidad (una
    clase, 0-1-0) — sin subir a 2 clases (0-2-0), esa regla posterior le
@@ -2227,10 +2227,10 @@
    (bug real encontrado en vivo, punto 319 addendum). */
 .ticket-modal-body.corte-modal-body { display: block; }
 
-/* Rango rápido de "Corte del día" (punto 320) — chips de 1 clic para los
+/* Rango rápido de "Corte del día" (punto 318) — chips de 1 clic para los
    rangos más comunes; los campos Desde/Hasta se quedan siempre editables
    debajo, un chip solo les asigna un valor. Chips y fechas comparten una
-   sola franja horizontal (punto 321) en vez de ser 2 bloques apilados. */
+   sola franja horizontal (punto 319) en vez de ser 2 bloques apilados. */
 .corte-filtros-row {
   display: flex;
   flex-wrap: wrap;
@@ -2266,7 +2266,7 @@
 .corte-dates-row .field { flex: 1; min-width: 130px; margin-bottom: 0; }
 .corte-dates-row .btn { flex: none; }
 
-/* Resultado de "Corte del día" (punto 168, restyle punto 320) — 2 grupos
+/* Resultado de "Corte del día" (punto 168, restyle punto 318) — 2 grupos
    de tarjetas (Ventas del periodo / Facturación y cobro) en vez de un
    solo bloque de 8 cifras sin separar. */
 .corte-grupo-label {
@@ -4826,6 +4826,9 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
    propósito, para que destaque como el nivel de acceso más alto en la
    tabla, distinto de los tonos pastel de los demás perfiles. */
 .perfil-super { background: var(--color-accent); color: #fff; }
+/* punto 321: perfil "Inventario" — índigo, sin relación con ningún otro
+   perfil/estado ya coloreado (navy=admin, ámbar=fiscal, verde=ventas). */
+.perfil-inventario { background: #EEF0FE; color: #4338CA; }
 
 /* Auditoría (punto 244): estatus HTTP de cada acceso — mismos 3 tonos
    semánticos ya usados en el resto del panel (éxito/aviso/error). */

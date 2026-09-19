@@ -7,6 +7,7 @@ const {
   periodoMesAnterior,
   fechaLocal,
   esDia1EnZona,
+  ordenAItemArchivado,
 } = require('../../utils/cierreMensual');
 
 jest.mock('../../db', () => ({
@@ -241,5 +242,17 @@ describe('cierreMensual — ejecutarCierresMensualesParaTodos (dual base + tenan
 
     expect(resultados).toHaveLength(1);
     expect(resultados[0].base).toBe(true);
+  });
+});
+
+describe('ordenAItemArchivado — punto 320: propaga quién registró la venta', () => {
+  test('venta con creado_por: lo copia a atendido_por', () => {
+    const item = ordenAItemArchivado({ ...ordenBase, creado_por: 'Laura Méndez' });
+    expect(item.atendido_por).toBe('Laura Méndez');
+  });
+
+  test('venta histórica sin creado_por (previa a este punto): atendido_por queda null, no undefined', () => {
+    const item = ordenAItemArchivado({ ...ordenBase, creado_por: null });
+    expect(item.atendido_por).toBeNull();
   });
 });

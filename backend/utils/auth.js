@@ -191,7 +191,7 @@ async function verificarUsuarioAdministrativo(usuario, password) {
   // 3 perfiles (nunca un RFC fiscal real, ver server.js:3270), así que
   // nunca debe mostrarse como si fuera la identidad de la persona.
   const [filas] = await pool.query(
-    "SELECT rfc, password_hash, perfil, activo, nombre, email FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas', 'inventario')",
+    "SELECT rfc, password_hash, perfil, activo, nombre, email, debe_cambiar_password FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas', 'inventario')",
     [usuario]
   );
   const fila = filas[0];
@@ -301,6 +301,12 @@ async function requireAdminAuth(req, res, next) {
       // "rfc") es solo su nombre de usuario de login, nunca la identidad.
       req.adminNombre = usuarioAdmin.nombre || null;
       req.adminEmail = usuarioAdmin.email || null;
+      // Bug real (punto 321 addendum): "Forzar cambio de contraseña" al
+      // crear la cuenta guardaba el flag en la BD, pero nada del login de
+      // /admin (Basic Auth) lo consultaba — solo el login del portal de
+      // cliente (/api/auth/login) lo hacía. Expuesto aquí para que
+      // GET /api/admin/login pueda devolverlo e interceptar el login.
+      req.adminDebeCambiarPassword = Boolean(usuarioAdmin.debe_cambiar_password);
       return next();
     }
   } catch (err) {

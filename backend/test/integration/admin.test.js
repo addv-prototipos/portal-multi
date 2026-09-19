@@ -126,7 +126,28 @@ describe('Admin', () => {
     test('credenciales admin:admin (ADMIN_USERS por defecto) autentican con perfil super', async () => {
       const res = await request(app).get('/api/admin/login').auth('admin', 'admin');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ ok: true, usuario: 'admin', perfil: 'super' });
+      expect(res.body).toEqual({ ok: true, usuario: 'admin', perfil: 'super', debeCambiarPassword: false });
+    });
+
+    // Punto 321 addendum: bug real — "Forzar cambio de contraseña" al
+    // crear la cuenta nunca se aplicaba al login de /admin, solo al
+    // portal de cliente. GET /api/admin/login ahora expone el flag real.
+    test('perfil_bd con debe_cambiar_password=1: el flag viaja en la respuesta', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ rfc: 'nuevo1', password_hash: hashPassword('ClaveTemp1'), perfil: 'inventario', activo: 1, debe_cambiar_password: 1 }],
+      ]);
+      const res = await request(app).get('/api/admin/login').auth('nuevo1', 'ClaveTemp1');
+      expect(res.status).toBe(200);
+      expect(res.body.debeCambiarPassword).toBe(true);
+    });
+
+    test('perfil_bd con debe_cambiar_password=0: el flag es false', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ rfc: 'viejo1', password_hash: hashPassword('ClaveVieja1'), perfil: 'administrador', activo: 1, debe_cambiar_password: 0 }],
+      ]);
+      const res = await request(app).get('/api/admin/login').auth('viejo1', 'ClaveVieja1');
+      expect(res.status).toBe(200);
+      expect(res.body.debeCambiarPassword).toBe(false);
     });
 
     test('credenciales incorrectas responden 401', async () => {

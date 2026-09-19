@@ -4083,6 +4083,85 @@ el archivo, misma especificidad) — corregido a selector de 2 clases
 Rebuild de nuevo, confirmado en CSS servido. Ver PROJECT_STATE.md punto
 319.
 
+**Punto 320 (2026-09-19, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
+reales)**: "Atendido por" en Lectura de reportes salía en blanco para
+ventas — ahora `ordenes_compra.creado_por` guarda quién la registró
+(nunca visible en la sección Ventas, solo en reportes/aclaraciones).
+Requisito explícito del usuario, verificado 2 veces: JAMÁS mostrar el
+"rfc" (para cuentas administrador/fiscal/ventas es solo su nombre de
+usuario de login, no un RFC fiscal — clientes nunca entran a `/admin`)
+— prioridad Nombre (Mi Cuenta) → Correo → nunca el usuario de login.
+`requireAdminAuth` (`auth.js`) extendido para exponer
+`req.adminNombre`/`req.adminEmail` (misma query de auth, cero query
+extra, cero test roto). `resolverCreadoPorVenta(req)` nueva en
+`server.js`. `GET /ordenes-compra` sigue sin exponer la columna —
+blindado además con destructuring explícito (antes `...orden` spread
+la habría dejado pasar si el SELECT cambiara a `*` por accidente; el
+propio test de defensa en profundidad atrapó esto). 8 tests nuevos,
+Jest backend 992/992. Validado de punta a punta: ADMIN_USERS
+(`creado_por='admin'`), cuenta `ventas` real con nombre en Mi Cuenta
+(`creado_por='Laura Méndez'`, confirmado por `HEX()` en MySQL), nunca
+expuesto en Ventas, sí visible en Corte del día/Lectura de reportes.
+Entorno de prueba restaurado (ventas+reportes+cuenta temporal
+borrados). Sin commit/push. Ver PROJECT_STATE.md punto 320.
+
+**Punto 321 (2026-09-19, IMPLEMENTADO Y VALIDADO contra Docker/MySQL
+reales)**: perfil de panel nuevo "Inventario" — un solo módulo, "Inicio"
+para este perfil ES el tablero "Estado del inventario" reparentado en
+vivo desde Reportes (cero duplicación de HTML/lógica, mismo patrón del
+modal "ampliar" de gráficas). Sin acceso a nada más, ni siquiera "Mi
+Cuenta" (pedido literal del usuario). CHECK de MySQL + auth + 38 rutas
+de `/api/admin/inventarios/*` extendidas con `'inventario'` (23 rutas
+admin-only de OTROS módulos, sin tocar). 9 tests nuevos, Jest backend
+997/997. Validado de punta a punta con una cuenta real temporal: matriz
+de acceso completa por HTTP, CHECK constraint confirmado, markup/JS
+servidos. Límite documentado, no bloqueante: `GET /api/admin/mi-cuenta`
+no tiene gate de perfil (diseño preexistente, igual para todos). Sin
+herramienta de navegador esta sesión. Sin commit/push. Ver
+PROJECT_STATE.md punto 321 (incluye un addendum de renumeración de
+comentarios `punto 32X`, encontrada y corregida la misma sesión).
+
+**Addendum al punto 321 (2026-09-19, IMPLEMENTADO Y VALIDADO contra
+Docker/MySQL reales)**: (1) "Mi Cuenta" restaurada para el perfil
+"Inventario" (el usuario reconsideró la restricción original). (2)
+**Bug real cerrado**: "Forzar cambio de contraseña" al crear una cuenta
+guardaba el flag en BD pero el login de `/admin` (Basic Auth) nunca lo
+consultaba — solo el login del portal de cliente lo hacía. Afecta a los
+4 perfiles de panel por igual (no exclusivo de "Inventario"). Fix:
+`GET /api/admin/login` expone `debeCambiarPassword` real (mismo query
+de auth, sin costo extra); 3er panel nuevo en la pantalla de login
+(`#admin-forzar-password-panel`, mismo patrón que "¿Olvidaste tu
+contraseña?") intercepta el login antes de mostrar el panel y reusa
+`PUT /api/admin/mi-cuenta/password` (ya existía, punto 283) para
+guardar la nueva. 3 tests nuevos, Jest backend 1040/1040. Validado de
+punta a punta por HTTP contra Docker/MySQL reales (ciclo completo:
+crear con forzar_cambio → login detecta el flag → cambia password →
+vieja rechazada → nueva sin el flag). Sin herramienta de navegador esta
+sesión. Sin commit/push. Ver PROJECT_STATE.md addendum al punto 321.
+
+**Punto 322 (2026-09-19)**: `prod/` sincronizada para el próximo
+despliegue en `yt.addv.com.mx` — 15 archivos con drift real (todo el
+trabajo de los puntos 318-321 + addendum, más el fix `tipo_persona` de
+`frontend/app.js` que tampoco había llegado nunca a `prod/`, más 2 test
+files preexistentes sin relación). Preflight de credenciales MySQL del
+punto 316 confirmado intacto en `prod/actualizar.sh` — esta sesión no
+toca `.env`/servicios/variables, nada que ese preflight deba atrapar
+esta vez. Validado con `npm install`+`npx jest` DENTRO de `prod/backend`
+(no solo copiar y confiar) — 1040/1040, node_modules borrado después.
+`prod.zip` regenerado (147 archivos, confirmado sin `.env`/`node_modules`).
+Respuesta al usuario: copiar `prod/` al VPS + `sudo ./actualizar.sh` es
+suficiente — `ensureSchema()` aplica el esquema nuevo solo. Sin acceso
+SSH esta sesión. Ver PROJECT_STATE.md punto 322.
+
+**Punto 323 (2026-09-19)**: página de mantenimiento 3D del punto 316
+reubicada de `ops/mantenimiento-host/` a `unavailable/` (raíz del repo,
+mismo nivel que `prod/`, pedido explícito del usuario) — `ops/` eliminada
+por vacía. Contiene solo `index.html` (página 3D, sin cambios) +
+`enganchar-nginx.sh` (idempotente, sin cambios de lógica, solo rutas en
+el comentario de cabecera). No viaja en `prod.zip` — es infraestructura
+del host, separada a propósito. Sigue pendiente confirmar si el usuario
+ya lo enganchó en el VPS real. Ver PROJECT_STATE.md punto 323.
+
 ## Limitaciones conocidas de entornos de generación sin Docker/MySQL real
 
 Ver la sección "Limitaciones de ESTE entorno de generación" en

@@ -1007,3 +1007,67 @@ cierra Conexión sola), autoguardado disparado por change→GET confirma
 persistido→revertido sin rastro, botón reubicado con preview intacta,
 cero errores de consola. Detalle: `PROJECT_STATE.md`/`CLAUDE.md` punto
 297. Sin commit/push.
+
+## 2026-09-18/19 — Corte del día, quién registró la venta, perfil "Inventario", sync de prod/
+
+C073 🎯 Sesión larga: restyle de "Corte del día" en Ventas (chips de
+rango rápido + fix de espacio desperdiciado), columna "creado_por" para
+saber quién registró cada venta (sin exponerla en Ventas), perfil de
+panel nuevo "Inventario", cierre de un bug real de "Forzar cambio de
+contraseña" que nunca aplicaba al login de /admin, sync completo de
+`prod/`, y reubicación de la página de mantenimiento 3D.
+
+C074 ↻ Punto 318: restyle de "Corte del día" — chips Hoy/Ayer/Esta
+semana/Este mes/Mes anterior (1 clic llena Desde/Hasta, campos siguen
+editables), tooltip en vez de texto de ayuda ocupando una columna
+angosta, resultado agrupado en "Ventas del periodo"/"Facturación y
+cobro" con color semántico, botón "Descargar CSV" nuevo (100% cliente).
+
+C075 ● Punto 319: el restyle de arriba dejaba una banda vacía en el
+modal — causa real: `.ticket-modal-body` (flex, pensada para
+"contenido + sidebar" de OTROS modales) trataba filtros/resultados como
+2 columnas desparejas. Primer intento de fix (`.corte-modal-body
+{display:block}`) no se veía — empate de especificidad CSS contra
+`.ticket-modal-body` declarada después en el archivo; fix real: selector
+de 2 clases (gana sin importar el orden).
+
+C076 ◆ Punto 320: `ordenes_compra.creado_por` — quién registró la venta,
+NUNCA visible en Ventas (GET explícito sin esa columna + destructuring
+defensivo, un test de defensa en profundidad atrapó un `...orden` spread
+que la habría dejado pasar). Prioridad real pedida 2 veces por el
+usuario: nombre (Mi Cuenta) → correo → JAMÁS el "rfc" (que para
+administrador/fiscal/ventas/inventario es solo un nombre de usuario de
+login, nunca un RFC fiscal real). Reutiliza la misma query de auth (sin
+query extra). Propaga a "Atendido por" en 4 sitios de reportes.
+
+C077 ◆ Punto 321: perfil de panel nuevo "Inventario" — un solo módulo.
+"Inicio" para este perfil ES "Estado del inventario" (reparentado en
+vivo desde Reportes, cero duplicación de HTML/lógica). 38 rutas de
+`/api/admin/inventarios/*` ganan el perfil nuevo (23 rutas de otros
+módulos intactas). Addendum mismo día: el usuario pidió Mi Cuenta de
+vuelta (agregada) y reportó que "Forzar cambio de contraseña" no hacía
+nada — bug real confirmado: el checkbox sí guardaba el flag en BD, pero
+el login de /admin (Basic Auth) nunca lo consultaba, solo el login del
+portal de cliente. Afectaba a los 4 perfiles de panel por igual. Fix:
+`GET /api/admin/login` expone el flag real, 3er panel en la pantalla de
+login lo intercepta y reusa `PUT /admin/mi-cuenta/password` (ya existía).
+
+C078 ✓ Punto 322: sync de `prod/` — 15 archivos con drift real (todo lo
+de arriba + un hallazgo aparte: el fix de `tipo_persona` de una sesión
+anterior tampoco había llegado nunca a `prod/`). Preflight de
+credenciales MySQL del punto 316 confirmado intacto. Validado con
+`npm install`+`npx jest` DENTRO de `prod/backend` (no solo copiar) —
+1040/1040. `prod.zip` regenerado.
+
+C079 ✓ Punto 323: página de mantenimiento 3D (punto 316) reubicada de
+`ops/mantenimiento-host/` a `unavailable/`, al mismo nivel que `prod/`
+(pedido explícito del usuario). Sin cambios de fondo, solo rutas.
+
+Jest backend 1040/1040 en todo lo anterior. Sin herramienta de navegador
+en ninguna parte de esta sesión — falta confirmación visual del usuario
+para el modal de Corte del día, "Inicio" del perfil Inventario, y la
+pantalla nueva de cambio de contraseña obligatorio. Sin commit/push
+todavía (puntos 318-321); el commit de "Corte del día" original y su
+addendum de cascada sí se habían commiteado/pusheado en un turno
+anterior de esta misma sesión (`5f6d530`). Detalle línea por línea en
+PROJECT_STATE.md puntos 318-323.

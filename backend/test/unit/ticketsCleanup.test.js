@@ -13,6 +13,7 @@ const {
   getInfoUltimaLimpieza,
   CLAVE_ULTIMA_LIMPIEZA_TICKETS,
   CLAVE_ULTIMA_LIMPIEZA_ORDENES,
+  ordenAItemReporte,
 } = require('../../utils/ticketsCleanup');
 
 jest.mock('../../db', () => ({
@@ -328,5 +329,25 @@ describe('ticketsCleanup.js', () => {
       expect(resultados).toHaveLength(1);
       expect(resultados[0]).toMatchObject({ slug: null, base: true });
     });
+  });
+});
+
+describe('ordenAItemReporte — punto 320: propaga quién registró la venta', () => {
+  const ordenBase = {
+    numero_compra: 'OC-000009',
+    email: 'cliente@test.com',
+    concepto: 'Venta de prueba',
+    total: 500,
+    creado_en: '2026-08-15 10:00:00',
+  };
+
+  test('venta con creado_por: lo copia a atendido_por', () => {
+    const item = ordenAItemReporte({ ...ordenBase, creado_por: 'Laura Méndez' });
+    expect(item.atendido_por).toBe('Laura Méndez');
+  });
+
+  test('venta sin creado_por: atendido_por queda undefined (item.atendido_por || null al guardar)', () => {
+    const item = ordenAItemReporte({ ...ordenBase, creado_por: undefined });
+    expect(item.atendido_por).toBeUndefined();
   });
 });

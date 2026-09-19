@@ -143,6 +143,7 @@ function ordenAItemReporte(orden) {
     estatus_o_concepto: orden.concepto,
     monto: orden.total,
     fecha_registro: orden.creado_en,
+    atendido_por: orden.creado_por, // punto 320: quién registró la venta
     accion: 'eliminado',
   };
 }

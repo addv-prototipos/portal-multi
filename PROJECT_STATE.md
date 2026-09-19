@@ -15044,6 +15044,255 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 **Addendum al punto 319, mismo día — el fix no se veía, causa real no era caché**: usuario reportó con nueva captura que el modal seguía en 2 columnas (chips+fechas apretados a la izquierda con texto envuelto, resultados en grid de 4 muy angosto a la derecha). Confirmado que SÍ hubo rebuild (`--no-cache`+`--force-recreate`, header servido correcto) — el bug real era **orden de cascada CSS**: `.corte-modal-body { display: block; }` (especificidad 0-1-0, una clase) se declaró más ARRIBA en `admin.css` (~línea 2220) que `.ticket-modal-body { display: flex; ... }` (misma especificidad 0-1-0, ~línea 5233) — con especificidad empatada, gana la regla que aparece DESPUÉS en el archivo, así que `flex` seguía ganando en silencio sin ningún error visible. Fix real: selector de 2 clases `.ticket-modal-body.corte-modal-body { display: block; }` (especificidad 0-2-0) — le gana a `.ticket-modal-body` sola sin importar el orden en el archivo, mismo patrón ya usado antes para el mismo tipo de bug (punto 227, `.ticket-modal.orden-registrar-modal`). Rebuild `--no-cache`+`--force-recreate` frontend de nuevo, validado por curl: la regla con especificidad correcta confirmada en el CSS servido. Sin herramienta de navegador esta sesión — falta confirmación visual real del usuario.
 
+320. **Quién registró una venta — "creado_por", solo para reportes/aclaraciones
+(2026-09-19, IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales)**: usuario
+pidió que "Atendido por" en Lectura de reportes dejara de salir en blanco
+para las ventas y que se guardara quién la registró, sin mostrarlo en
+Ventas. Protocolo completo (análisis + impacto + crítica + 3 preguntas vía
+`AskUserQuestion` + confirmación). **Requisito explícito del usuario, 2 rondas**:
+JAMÁS mostrar el "rfc" (que para cuentas administrador/fiscal/ventas es solo
+su nombre de usuario de login, no un RFC fiscal real — clientes nunca entran
+a `/admin`) — prioridad Nombre (Mi Cuenta, punto 283) → Correo si no lo
+capturó → nunca el usuario de login. Causa raíz del blanco: `ordenes_compra`
+nunca tuvo columna de autor; 4 sitios que arman `reporte_items.atendido_por`
+para ventas mandaban `null`/`undefined` a propósito porque el dato no
+existía. **Diseño clave**: en vez de una consulta nueva a `usuarios` en cada
+venta, se extendió la MISMA query de autenticación (`verificarUsuarioAdministrativo`,
+`backend/utils/auth.js`) para traer también `nombre`/`email` (cero query
+extra, cero test roto — confirmado: los 984 tests existentes siguieron en
+verde sin tocarlos, porque los mocks ya devuelven un objeto al que solo se
+le agregan 2 keys opcionales). `requireAdminAuth` expone `req.adminNombre`/
+`req.adminEmail` junto a `req.adminUser`. `resolverCreadoPorVenta(req)` nueva
+en `server.js`: mecanismo `perfil_bd` → nombre‖correo‖null (nunca el
+usuario); otros mecanismos (`admin_users`/`usuario_sucursal`/credencial API)
+→ `req.adminUser` tal cual (ya es un identificador propio, no un RFC).
+Columna `ordenes_compra.creado_por VARCHAR(200) NULL` (migración
+idempotente, sin backfill posible — el dato no existía antes). `GET
+/ordenes-compra` (Ventas) sigue con `SELECT` explícito sin esa columna — y
+además se blindó `ordenesFormateadas` (que usaba `...orden` spread) para
+excluirla explícitamente por nombre, defensa en profundidad si el día de
+mañana alguien cambia ese SELECT a `*` sin querer. 4 sitios que arman
+`reporte_items` para ventas actualizados: `POST /reportes/enviar`, `POST
+/reportes/corte` (+ columna agregada a su SELECT), `ticketsCleanup.js:
+ordenAItemReporte` (usado por `DELETE /ordenes-compra/:id`), `cierreMensual.js:
+ordenAItemArchivado`. 8 tests nuevos (3 en `ordenes-compra.test.js` — nombre
+con respaldo a correo, nunca el usuario de login; defensa de no-exposición
+en Ventas; ADMIN_USERS tal cual —, 2 en `cierreMensual.test.js`, 2 en
+`ticketsCleanup.test.js`). Jest backend **992/992** (era 984). **Bug real
+encontrado por el propio test de defensa en profundidad** (no preexistente,
+introducido y corregido en esta misma sesión): el primer intento de
+`ordenesFormateadas` con `...orden` sí habría dejado pasar `creado_por` si
+el SELECT alguna vez lo hubiera incluido por error — el test lo detectó
+antes de mergear, se corrigió destructurando `creado_por` fuera del spread.
+Validado de punta a punta contra Docker/MySQL reales: venta con ADMIN_USERS
+(`creado_por='admin'`), venta con cuenta `ventas` real con nombre capturado
+en Mi Cuenta (`creado_por='Laura Méndez'`, confirmado por `HEX()` directo en
+MySQL — `C3A9` es el UTF-8 correcto de "é"), confirmado que `GET
+/ordenes-compra` nunca expone el campo, y que "Corte del día"/"Lectura de
+reportes" sí lo muestra en `atendido_por`. **Nota de metodología, no de
+la app**: un primer intento de prueba vía `curl` desde Git-Bash en Windows
+corrompió un nombre con acento ("Laura Méndez" → U+FFFD) por mala
+codificación del shell al mandar el `-d` — confirmado con `HEX()` en MySQL
+que la corrupción NO era del código (repetido vía Python con bytes UTF-8
+limpios, guardó perfecto). Esa venta de prueba puntual (`OC-000200`) quedó
+con el snapshot corrupto antes de borrarla al limpiar — sin impacto real,
+es la naturaleza de un snapshot inmutable. Entorno restaurado por completo
+(3 ventas de prueba + 5 reportes generados por esta sesión + la cuenta
+`ventas` temporal, todos borrados al terminar). Sin commit/push todavía.
+
+321. **Perfil "Inventario" — acceso mínimo, un solo módulo (2026-09-19,
+IMPLEMENTADO Y VALIDADO contra Docker/MySQL reales)**: pedido explícito
+del usuario — cuenta de panel que solo gestiona Inventarios, "Inicio"
+para este perfil ES el tablero "Estado del inventario" que ya existía
+en Reportes, sin acceso a nada más (ni siquiera "Mi Cuenta", pedido
+literal repetido dos veces). Protocolo completo (análisis + impacto +
+propuesta visual vía Artifact `9678d6d8-7091-4456-9c96-5318a4c73f02`,
+el usuario confirmó señalando una captura real de "Estado del
+inventario" como la pantalla exacta que quería en Inicio).
+    - **Diseño clave — cero duplicación**: `cargarInicioInventario()`
+      nueva en `frontend/admin.js` reparenta EN VIVO (mismo patrón ya
+      usado en el sitio para el modal "ampliar" de gráficas) los nodos
+      reales `#reportes-vista-estado-inventario` + `#inv-estado-toolbar`
+      (Imprimir/CSV) — que normalmente viven dentro de Reportes — hacia
+      un slot nuevo y vacío `#inicio-inventario-slot` dentro de
+      `#vista-inicio`. Se mueven UNA sola vez (idempotente,
+      `parentElement !== slot`) y se quedan ahí el resto de la sesión.
+      Las tarjetas de tickets (`#inicio-stats-grid`/`#inicio-main-grid`)
+      se ocultan para este perfil; el subtítulo de bienvenida cambia al
+      texto real ya usado en "Estado del inventario" ("Salud de tu
+      inventario ahora mismo..."). Llama a `cargarEstadoInventario()`,
+      la MISMA función que ya alimenta la pestaña de Reportes — sin
+      lógica de negocio nueva.
+    - **Backend**: `chk_usuarios_perfil` (CHECK de MySQL) + el `perfil IN
+      (...)` de `verificarUsuarioAdministrativo()` (`auth.js`) + 3
+      `perfilesValidos` (crear/editar/estado de usuario) +
+      `PERFILES_CUOTA` (cuota de asientos del plan, punto 244) ganan
+      `'inventario'`. Las **38 rutas** de `/api/admin/inventarios/*`
+      (antes solo `requireAdminArea('administrador')`) ganan
+      `'inventario'` — parcheadas con un script preciso por número de
+      línea (verificado con un segundo script que confirma CERO rutas
+      de inventarios restantes sin el perfil nuevo), más
+      `/productos/buscar` (ya compartida con `ventas`). Ninguna otra
+      ruta admin-only (Gastos/Usuarios/Configuraciones/Auditoría/
+      Reportes/Ventas/CxC, 23 rutas con el mismo
+      `requireAdminArea('administrador')`) se tocó.
+    - **Frontend**: `RESTRICCIONES_PERFIL.inventario =
+      { vistasPermitidas: ['inicio', 'inventarios'], tarjetasConfigPermitidas: [] }`
+      — sin `'mi-cuenta'` a propósito. Badge nuevo `.perfil-inventario`
+      (índigo `#EEF0FE`/`#4338CA`, sin relación con navy/ámbar/verde ya
+      usados). Selects de perfil (`usuarios-filtro-perfil`,
+      `crear-usuario-perfil`, `editar-usuario-perfil`) y fila nueva en
+      "Perfiles y roles de acceso" (`admin.html`).
+    - **Límite aceptado, documentado, no bloqueante**: `GET
+      /api/admin/mi-cuenta` no tiene gate de perfil para NINGÚN perfil
+      (diseño preexistente) — una cuenta "Inventario" puede editar su
+      propio nombre/correo/contraseña llamando a la API directo aunque
+      el botón esté oculto en la UI. Mismo comportamiento que
+      administrador/fiscal/ventas, no es un hueco nuevo de este punto;
+      queda anotado por si el usuario prefiere endurecerlo después.
+    - **Addendum de higiene, mismo día**: auditoría de los comentarios
+      `punto 32X` escritos durante esta sesión encontró numeración
+      cruzada entre código y este archivo (creado_por documentado aquí
+      como punto 320 pero comentado en 6 archivos de backend como
+      "punto 322"; el fix de cascada CSS del Corte del día — real punto
+      319 — con un "punto 321" suelto en un comentario). Corregido con
+      3 reemplazos de texto dirigidos (`sed`) — ningún cambio de lógica,
+      solo texto de comentario — validado con `node --check` en los 10
+      archivos tocados y la suite Jest completa de nuevo en verde.
+    9 tests nuevos (`inventarios.test.js`, describe `Perfil "Inventario"`)
+    — 4 rutas de Inventarios en 200, 3 rutas fuera de su alcance en 403.
+    Jest backend **997/997** (51 suites). Validado de punta a punta
+    contra Docker/MySQL reales con una cuenta `INVPRUEBA323` temporal
+    real: CHECK constraint acepta el perfil nuevo, matriz de acceso
+    completa confirmada por HTTP (4× 200 en Inventarios, 5× 403 fuera de
+    su alcance), HTML/JS/CSS servidos confirmados con el markup/lógica
+    nueva. Cuenta de prueba borrada al terminar. **Sin herramienta de
+    navegador esta sesión** — falta que el usuario confirme visualmente
+    que "Inicio" de una cuenta real "Inventario" se ve exactamente como
+    "Estado del inventario". Sin commit/push todavía.
+
+**Addendum al punto 321 (2026-09-19, IMPLEMENTADO Y VALIDADO contra Docker/
+MySQL reales)**: usuario reportó 2 cosas tras revisar el segmento. (1)
+"Mi Cuenta" se restaura para el perfil "Inventario" —
+`RESTRICCIONES_PERFIL.inventario.vistasPermitidas` gana `'mi-cuenta'`
+(el usuario reconsideró su restricción original). (2) **Bug real
+encontrado y corregido**: "Forzar cambio de contraseña" (checkbox de
+"Crear usuario") guardaba correctamente `debe_cambiar_password=1` en la
+BD, pero el login de `/admin` (HTTP Basic Auth) nunca lo consultaba —
+solo `POST /api/auth/login` (portal de CLIENTE, cookie de sesión) lo
+hacía. Afecta a los 4 perfiles de panel (administrador/fiscal/ventas/
+inventario) por igual, no es exclusivo de este punto — el checkbox era
+un no-op silencioso desde que existe.
+    - **Backend**: `verificarUsuarioAdministrativo()` (`auth.js`) agrega
+      `debe_cambiar_password` a su SELECT (mismo query, cero costo
+      extra — mismo patrón que nombre/email del punto 320) y lo expone
+      como `req.adminDebeCambiarPassword`. `GET /api/admin/login` ahora
+      devuelve `debeCambiarPassword` real. El cambio en sí reutiliza
+      `PUT /api/admin/mi-cuenta/password` (ya existía desde "Mi Cuenta",
+      punto 283 — ya limpiaba `debe_cambiar_password=0` al guardar,
+      cero cambio ahí).
+    - **Frontend**: 3er panel dentro de `#admin-login-screen`
+      (`#admin-forzar-password-panel`, mismo patrón de intercambio de
+      paneles ya usado para "¿Olvidaste tu contraseña?") — campo nuevo
+      con checklist de reglas en vivo (`.password-reglas`, componente ya
+      compartido) + mostrar/ocultar contraseña. El login intercepta
+      ANTES de `showDashboard()`: si `debeCambiarPassword`, guarda
+      usuario/contraseña temporal en memoria (`loginPendiente`, nunca en
+      `localStorage`/`sessionStorage`) y muestra este panel en vez de
+      entrar — la contraseña actual NUNCA se vuelve a pedir (ya se
+      verificó al hacer login). Al guardar la nueva, entra al panel con
+      `entrarAlPanel()` (cola común extraída del login normal, ahora la
+      comparten ambos caminos). `showLogin()` resetea los 3 paneles a su
+      estado por defecto (cubre logout/sesión inválida).
+    3 tests nuevos en `admin.test.js` (flag expuesto true/false + el
+    caso ADMIN_USERS ya cubierto ajustado a la forma nueva de la
+    respuesta). Jest backend **1040/1040** (53 suites). Validado de
+    punta a punta contra Docker/MySQL reales, simulando exactamente la
+    secuencia que hace el JS nuevo: cuenta creada con
+    `forzar_cambio:true` → `GET /admin/login` → `debeCambiarPassword:
+    true` confirmado → `PUT /mi-cuenta/password` (mismo endpoint/mismo
+    payload que usará el panel) → login con la contraseña VIEJA
+    rechazado (401) → login con la NUEVA → `debeCambiarPassword: false`.
+    Cuenta de prueba borrada al terminar. **Sin herramienta de
+    navegador esta sesión** — falta que el usuario confirme el panel
+    nuevo con clics reales (el flujo HTTP subyacente ya está probado
+    de punta a punta). Sin commit/push todavía.
+
+322. **`prod/` puesto al día para el próximo despliegue en `yt.addv.com.mx`
+(2026-09-19)**: usuario avisó que va a actualizar el servidor
+pre-productivo y pidió explícitamente que se aplicara la lección del
+incidente del punto 316 (desincronización de credenciales MySQL) para
+que no vuelva a pasar. Auditoría por `diff -rq` (mismo método de los
+puntos 300/313) encontró drift real en **11 archivos** — todo el
+trabajo de esta sesión (puntos 318-321 + addendum) que nunca se había
+sincronizado, más **un hallazgo aparte, no de esta sesión**: el fix de
+`tipo_persona` en `frontend/app.js` (commit `459afa4`, corregido al
+inicio de esta misma conversación pero de una sesión de trabajo
+anterior) tampoco había llegado nunca a `prod/` — cerrado de paso. Y 2
+archivos de test preexistentes (`catalogoTexto.test.js`/
+`inventarioConfig.test.js`) que nunca se habían sincronizado, sin
+relación con ningún punto reciente — cerrados por completitud.
+    - **Sincronizados por CONTENIDO** (nunca por estructura): `backend/
+      {db,server}.js`, `backend/utils/{auth,cierreMensual,ticketsCleanup}.js`,
+      `backend/test/integration/{ordenes-compra,inventarios,admin}.test.js`,
+      `backend/test/unit/{cierreMensual,ticketsCleanup,catalogoTexto,
+      inventarioConfig}.test.js`, `frontend/{admin.html,admin.js,
+      admin.css,app.js}` — 15 archivos en total.
+    - **Variantes intencionales confirmadas de nuevo, NO son drift**:
+      `frontend/nginx.conf.template` (prod es la variante sin `/control`,
+      `server_name yt.addv.com.mx` — el `frame-src blob:` del punto 317
+      ya estaba correctamente espejado ahí desde esa sesión, confirmado
+      por diff línea por línea); `mi-cuenta-propuesta-visual.html`
+      (mockup huérfano, ningún Dockerfile lo empaqueta);
+      `prod/backend/scripts/sembrar-prod.js` (único archivo propio de
+      `prod/`, no existe en el repo principal).
+    - **Sobre la lección del punto 316**: el preflight de credenciales
+      MySQL en `prod/actualizar.sh` (Paso 0.5, agregado en esa sesión)
+      sigue intacto — confirmado leyendo el script completo, no solo
+      grep. `ensureSchema()` (corre solo al arrancar el backend, mismo
+      comportamiento que en desarrollo) aplica TODAS las migraciones
+      idempotentes de esta sesión sin ningún paso manual: columna
+      `ordenes_compra.creado_por`, columna `usuarios.debe_cambiar_password`
+      (ya existía, sin cambio de esquema — solo se empezó a LEER),
+      `chk_usuarios_perfil` con `'inventario'` agregado. Ningún cambio de
+      `.env`/variables nuevas/servicios nuevos esta sesión — el preflight
+      de MySQL no tiene nada que fallar por este despliegue específico
+      (el incidente del punto 316 fue por edición manual de `.env` entre
+      sesiones, no por un cambio de código; este sync no toca `.env`).
+    - **Validación real, no solo `node --check`**: `npm install` +
+      `npx jest` corridos DENTRO de `prod/backend` con su propio
+      `node_modules` (instalado y borrado al terminar, no se deja en el
+      árbol) — **1040/1040**, confirma que el código sincronizado es
+      autocontenido y correcto en el árbol de `prod/`, no solo "se vio
+      bien copiado". `prod.zip` regenerado (147 archivos, sin `.env` ni
+      `node_modules` — confirmado por `unzip -l` que ninguno de los dos
+      se coló).
+    - **Respuesta directa a la pregunta del usuario**: sí, con copiar
+      `prod/` actualizada al VPS (scp/rsync — nunca pisa el `.env` real
+      del servidor) y correr `sudo ./actualizar.sh` es suficiente. El
+      script reconstruye backend+frontend, `ensureSchema()` aplica el
+      esquema nuevo solo, y el preflight avisa ANTES de gastar el build
+      si las credenciales de MySQL llegaran a estar desincronizadas
+      (no se espera que pase esta vez, pero el script lo detectaría
+      igual si pasara). **Sin acceso SSH al VPS desde esta sesión** — el
+      usuario aplica el despliegue él mismo.
+
+323. **Página de mantenimiento 3D reubicada a `unavailable/` (2026-09-19)**:
+pedido explícito del usuario — la página + script del punto 316
+(`ops/mantenimiento-host/`) pasan a `unavailable/` en la raíz del repo,
+al MISMO NIVEL que `prod/` (no anidada dentro de `ops/`, que queda
+eliminada por vacía). Contenido sin cambios de fondo, solo rutas:
+`unavailable/index.html` (página 3D CSS puro, sin dependencias externas,
+sin cambios) y `unavailable/enganchar-nginx.sh` (idempotente, backup +
+rollback automático si `nginx -t` falla — sin cambios de lógica, solo
+el comentario de cabecera y la instrucción de uso actualizados a la
+ruta nueva). `bash -n` limpio, HTML válido. Como `prod/`, esta carpeta
+NO viaja dentro de `prod.zip` ni de ningún build de Docker — es
+un paso de infraestructura del HOST (nginx fuera de contenedores),
+separado a propósito. **Sigue sin confirmarse si el usuario ya lo
+enganchó en el VPS real** — mismo pendiente del punto 316, solo cambió
+dónde vive el archivo en este repo.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

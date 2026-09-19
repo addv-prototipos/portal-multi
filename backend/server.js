@@ -2694,7 +2694,12 @@ app.post('/api/registro', submitLimiter, (req, res) => {
 
 // Verifica credenciales; el frontend la usa para validar el login.
 app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requireAdminAuth, (req, res) => {
-  res.json({ ok: true, usuario: req.adminUser, perfil: req.adminPerfil });
+  res.json({
+    ok: true,
+    usuario: req.adminUser,
+    perfil: req.adminPerfil,
+    debeCambiarPassword: Boolean(req.adminDebeCambiarPassword),
+  });
 });
 
 // Obtiene la configuracion actual de campos obligatorios (misma info que la

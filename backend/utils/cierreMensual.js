@@ -44,7 +44,7 @@ function ordenAItemArchivado(orden) {
     estatus_o_concepto: orden.concepto,
     monto: orden.total,
     fecha_registro: orden.fecha_compra,
-    atendido_por: null,
+    atendido_por: orden.creado_por || null, // punto 320: quién registró la venta
     categoria: null,
     accion: 'archivado',
   };

@@ -846,4 +846,43 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       });
     });
   });
+
+  // punto 321: perfil "Inventario" — un solo módulo, nada de negocio
+  // fuera de eso. Verifica el acceso real al backend, no solo la UI.
+  describe('Perfil "Inventario" (punto 321)', () => {
+    test('SÍ puede leer el catálogo de Inventarios (unidades de medida)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('inventario', { usuario: 'inv1' });
+      mockPoolPorPatron([MODULO_ACTIVO]);
+      const res = await request(app).get('/api/admin/inventarios/unidades').auth(usuario, password);
+      expect(res.status).toBe(200);
+    });
+
+    test('SÍ puede leer "Estado del inventario" (su "Inicio")', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('inventario', { usuario: 'inv1' });
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT COALESCE(SUM(e.disponible * p.costo_promedio), 0) AS valor', [[{ valor: '0' }]]],
+      ]);
+      const res = await request(app).get('/api/admin/inventarios/reportes/estado').auth(usuario, password);
+      expect(res.status).toBe(200);
+    });
+
+    test('NO puede entrar a Usuarios (nada de negocio fuera de Inventarios)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('inventario', { usuario: 'inv1' });
+      const res = await request(app).get('/api/admin/usuarios').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+
+    test('NO puede entrar a Gastos', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('inventario', { usuario: 'inv1' });
+      const res = await request(app).get('/api/admin/gastos').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+
+    test('NO puede entrar a Configuraciones globales', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('inventario', { usuario: 'inv1' });
+      const res = await request(app).get('/api/admin/config/global').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+  });
 });

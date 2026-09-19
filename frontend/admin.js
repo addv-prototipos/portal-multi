@@ -42,6 +42,15 @@
     btnAdminRecuperarLabel: document.getElementById('btn-admin-recuperar-label'),
     adminRecuperarErrorGeneral: document.getElementById('admin-recuperar-error-general'),
     adminRecuperarConfirmacion: document.getElementById('admin-recuperar-confirmacion'),
+    // Cambio de contraseña obligatorio al login (punto 321 addendum)
+    adminForzarPasswordPanel: document.getElementById('admin-forzar-password-panel'),
+    formAdminForzarPassword: document.getElementById('form-admin-forzar-password'),
+    adminForzarPasswordNueva: document.getElementById('admin-forzar-password-nueva'),
+    btnToggleForzarPassword: document.getElementById('btn-toggle-forzar-password'),
+    adminForzarPasswordReglas: document.getElementById('admin-forzar-password-reglas'),
+    adminForzarPasswordError: document.getElementById('admin-forzar-password-error'),
+    btnAdminForzarPassword: document.getElementById('btn-admin-forzar-password'),
+    btnAdminForzarPasswordLabel: document.getElementById('btn-admin-forzar-password-label'),
     btnLogout: document.getElementById('btn-logout'),
     sucursalesSwitcher: document.getElementById('admin-sucursales-switcher'),
     sucursalesSwitcherLista: document.getElementById('admin-sucursales-switcher-lista'),
@@ -232,6 +241,9 @@
     btnCerrarConfigModal: document.getElementById('btn-cerrar-config-modal'),
     // Vista Inicio: bienvenida, tarjetas de estatísticas, recientes y dona
     inicioTituloBienvenida: document.getElementById('inicio-titulo-bienvenida'),
+    inicioSubtitulo: document.getElementById('inicio-subtitulo'),
+    inicioInventarioSlot: document.getElementById('inicio-inventario-slot'),
+    inicioMainGrid: document.getElementById('inicio-main-grid'),
     inicioError: document.getElementById('inicio-error'),
     inicioStatsGrid: document.getElementById('inicio-stats-grid'),
     inicioStatTotal: document.getElementById('inicio-stat-total'),
@@ -1877,6 +1889,15 @@
       vistasPermitidas: ['ordenes', 'cxc', 'gastos', 'mi-cuenta'],
       tarjetasConfigPermitidas: [],
     },
+    // punto 321: perfil "Inventario" — un solo módulo, nada de negocio
+    // fuera de eso. "Inicio" no es el resumen de tickets aquí: muestra
+    // "Estado del inventario" (ver cargarInicioInventario()). "mi-cuenta"
+    // sí se agregó (pedido explícito del usuario, corrige el alcance
+    // inicial que la había dejado fuera).
+    inventario: {
+      vistasPermitidas: ['inicio', 'inventarios', 'mi-cuenta'],
+      tarjetasConfigPermitidas: [],
+    },
   };
 
   // Única fuente de verdad "nombre de vista -> botón del sidebar" —
@@ -2147,6 +2168,13 @@
   function showLogin() {
     els.dashboard.hidden = true;
     els.loginScreen.hidden = false;
+    // Siempre se regresa al formulario normal (nunca a "recuperar" ni al
+    // cambio de contraseña obligatorio de un intento anterior) — cubre
+    // logout, sesión inválida, y cualquier otro camino que traiga de
+    // vuelta a esta pantalla.
+    els.adminLoginNormal.hidden = false;
+    els.adminRecuperarPanel.hidden = true;
+    els.adminForzarPasswordPanel.hidden = true;
   }
 
   // ---------- Mostrar/ocultar contraseña ----------
@@ -2166,6 +2194,33 @@
     els.btnLogin.setAttribute('aria-busy', String(isLoading));
     els.btnLoginLabel.textContent = isLoading ? 'Entrando…' : 'Entrar';
   }
+
+  // Cola común de "credenciales ya verificadas, entra al panel" — la usa
+  // tanto el login normal como el flujo de cambio de contraseña
+  // obligatorio (punto 321 addendum), que primero cambia la contraseña y
+  // LUEGO entra con la nueva.
+  async function entrarAlPanel(usuario, contrasena, perfil) {
+    setSession(usuario, contrasena);
+    // Login nuevo: siempre "Inicio", sin importar qué vista haya quedado
+    // guardada de una sesión anterior en esta misma pestaña — la
+    // restauración de vista (ver init()) es solo para refrescar una
+    // sesión que ya estaba activa, no para un login recién hecho.
+    guardarVistaActual('inicio');
+    showDashboard(usuario, perfil);
+    // "Inicio" (la vista que se ve por defecto al iniciar sesión) usa
+    // datos de tickets, que un perfil "administrador" no tiene
+    // permitido ver. aplicarRestriccionesPerfil() (dentro de
+    // showDashboard) ya redirige a ese perfil a una vista que sí
+    // puede ver, así que tampoco haría falta el dato de Inicio.
+    if (perfil !== 'administrador') {
+      await cargarInicio();
+    }
+  }
+
+  // Credenciales del intento de login en curso — solo viven en memoria
+  // mientras se resuelve un cambio de contraseña obligatorio (punto 321
+  // addendum); se limpian apenas se entra al panel o se cancela.
+  let loginPendiente = null;
 
   els.formLogin.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2199,25 +2254,86 @@
       }
 
       const data = await res.json();
-      setSession(usuario, contrasena);
-      // Login nuevo: siempre "Inicio", sin importar qué vista haya quedado
-      // guardada de una sesión anterior en esta misma pestaña — la
-      // restauración de vista (ver init()) es solo para refrescar una
-      // sesión que ya estaba activa, no para un login recién hecho.
-      guardarVistaActual('inicio');
-      showDashboard(data.usuario || usuario, data.perfil);
-      // "Inicio" (la vista que se ve por defecto al iniciar sesión) usa
-      // datos de tickets, que un perfil "administrador" no tiene
-      // permitido ver. aplicarRestriccionesPerfil() (dentro de
-      // showDashboard) ya redirige a ese perfil a una vista que sí
-      // puede ver, así que tampoco haría falta el dato de Inicio.
-      if (data.perfil !== 'administrador') {
-        await cargarInicio();
+
+      // Bug real (punto 321 addendum): "Forzar cambio de contraseña" al
+      // crear la cuenta nunca se cumplía para /admin — se intercepta el
+      // login aquí, ANTES de entrar al panel, con la contraseña ya
+      // verificada disponible en memoria (no hace falta pedirla otra vez).
+      if (data.debeCambiarPassword) {
+        loginPendiente = { usuario: data.usuario || usuario, contrasena, perfil: data.perfil };
+        els.adminForzarPasswordError.textContent = '';
+        els.adminForzarPasswordNueva.value = '';
+        actualizarReglasVisuales('', 'admin-forzar-password-reglas');
+        els.adminLoginNormal.hidden = true;
+        els.adminForzarPasswordPanel.hidden = false;
+        return;
       }
+
+      await entrarAlPanel(data.usuario || usuario, contrasena, data.perfil);
     } catch (err) {
       els.loginError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
       setLoginLoading(false);
+    }
+  });
+
+  // ---------- Cambio de contraseña obligatorio al login (punto 321 addendum) ----------
+  els.btnToggleForzarPassword.addEventListener('click', () => {
+    const isPassword = els.adminForzarPasswordNueva.type === 'password';
+    els.adminForzarPasswordNueva.type = isPassword ? 'text' : 'password';
+    els.btnToggleForzarPassword.setAttribute('aria-pressed', String(isPassword));
+    els.btnToggleForzarPassword.setAttribute('aria-label', isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    els.btnToggleForzarPassword.classList.toggle('is-visible', isPassword);
+  });
+  els.adminForzarPasswordNueva.addEventListener('input', () => {
+    actualizarReglasVisuales(els.adminForzarPasswordNueva.value, 'admin-forzar-password-reglas');
+  });
+
+  function setAdminForzarPasswordLoading(cargando) {
+    els.btnAdminForzarPassword.disabled = cargando;
+    els.btnAdminForzarPassword.setAttribute('aria-busy', String(cargando));
+    els.btnAdminForzarPasswordLabel.textContent = cargando ? 'Guardando…' : 'Guardar y continuar';
+  }
+
+  els.formAdminForzarPassword.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    els.adminForzarPasswordError.textContent = '';
+    if (!loginPendiente) {
+      // No debería poder llegar aquí sin un login previo — defensivo.
+      els.adminForzarPasswordPanel.hidden = true;
+      els.adminLoginNormal.hidden = false;
+      return;
+    }
+
+    const passwordNueva = els.adminForzarPasswordNueva.value;
+    const reglas = evaluarReglasPassword(passwordNueva);
+    if (!Object.values(reglas).every(Boolean)) {
+      els.adminForzarPasswordError.textContent = 'La contraseña no cumple con los requisitos de arriba.';
+      return;
+    }
+
+    setAdminForzarPasswordLoading(true);
+    try {
+      const encoded = btoa(unescape(encodeURIComponent(`${loginPendiente.usuario}:${loginPendiente.contrasena}`)));
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/password`, {
+        method: 'PUT',
+        headers: { Authorization: `Basic ${encoded}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password_actual: loginPendiente.contrasena, password_nueva: passwordNueva }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.adminForzarPasswordError.textContent = data.error || 'No se pudo actualizar la contraseña.';
+        return;
+      }
+      const { usuario, perfil } = loginPendiente;
+      loginPendiente = null;
+      els.adminForzarPasswordPanel.hidden = true;
+      els.adminLoginNormal.hidden = false;
+      await entrarAlPanel(usuario, passwordNueva, perfil);
+    } catch (err) {
+      els.adminForzarPasswordError.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      setAdminForzarPasswordLoading(false);
     }
   });
 
@@ -6668,12 +6784,40 @@
     }
   }
 
+  // punto 321: "Inicio" del perfil "Inventario" — reutiliza EN VIVO (nunca
+  // duplica) el mismo nodo #reportes-vista-estado-inventario + su toolbar
+  // (Imprimir/CSV) que ya vive dentro de Reportes → "Estado del
+  // inventario" — mismo patrón de reparentado ya usado en el sitio (ej.
+  // el modal "ampliar" de las gráficas de Resumen financiero). El nodo
+  // solo se mueve una vez (idempotente: si ya está en el slot, no vuelve
+  // a moverse) y se queda ahí para el resto de la sesión.
+  function cargarInicioInventario() {
+    if (els.invEstadoToolbar.parentElement !== els.inicioInventarioSlot) {
+      els.inicioInventarioSlot.appendChild(els.invEstadoToolbar);
+      els.inicioInventarioSlot.appendChild(els.reportesVistaEstadoInventario);
+    }
+    els.inicioSubtitulo.textContent = 'Salud de tu inventario ahora mismo: qué se vende, qué no se mueve y cuánto vale.';
+    els.inicioInventarioSlot.hidden = false;
+    els.invEstadoToolbar.hidden = false;
+    els.reportesVistaEstadoInventario.hidden = false;
+    els.inicioStatsGrid.hidden = true;
+    els.inicioMainGrid.hidden = true;
+    els.inicioError.textContent = '';
+    cargarEstadoInventario();
+  }
+
   // Vista "Inicio": bienvenida + resumen de tickets, fiel al mockup de
   // stitch (dashboard_portal_addv_fiel_al_mockup). Reutiliza el mismo
   // endpoint GET /admin/tickets que ya usa la vista Tickets — sin
   // agregar un endpoint nuevo — y calcula todo (estatísticas, dona,
-  // recientes) en el cliente a partir de esos mismos datos.
+  // recientes) en el cliente a partir de esos mismos datos. Para el
+  // perfil "Inventario" (punto 321), "Inicio" es un contenido
+  // completamente distinto — ver cargarInicioInventario().
   async function cargarInicio() {
+    if (perfilActual === 'inventario') {
+      cargarInicioInventario();
+      return;
+    }
     const authHeader = getAuthHeader();
     if (!authHeader) {
       showLogin();

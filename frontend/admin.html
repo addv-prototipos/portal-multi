@@ -95,6 +95,43 @@
 
           <p class="auth-hint" id="admin-recuperar-confirmacion" hidden>Si el dato coincide con una cuenta, en unos minutos te llega un correo con instrucciones.</p>
         </div>
+
+        <!-- Cambio de contraseña obligatorio (punto 321 addendum): esta
+             cuenta se creó con "Forzar cambio de contraseña" — se
+             intercepta el login ANTES de mostrar el panel, reusando el
+             mismo endpoint que "Mi Cuenta" (PUT /admin/mi-cuenta/password),
+             con la contraseña actual ya conocida (la que se acaba de
+             validar en el login) para no pedirla dos veces. -->
+        <div id="admin-forzar-password-panel" hidden>
+          <h1>Establece tu nueva contraseña</h1>
+          <p class="panel-subtitle">Por seguridad, esta cuenta requiere una contraseña nueva antes de continuar.</p>
+
+          <form id="form-admin-forzar-password" novalidate>
+            <div class="field">
+              <label for="admin-forzar-password-nueva">Nueva contraseña</label>
+              <div class="password-field">
+                <input type="password" id="admin-forzar-password-nueva" autocomplete="new-password" required />
+                <button type="button" class="btn-toggle-pass" id="btn-toggle-forzar-password" aria-label="Mostrar contraseña" aria-pressed="false">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                </button>
+              </div>
+              <ul class="password-reglas" id="admin-forzar-password-reglas">
+                <li data-regla="longitud">Al menos 8 caracteres</li>
+                <li data-regla="numero">Al menos un número</li>
+                <li data-regla="minuscula">Al menos una minúscula</li>
+                <li data-regla="mayuscula">Al menos una mayúscula</li>
+              </ul>
+              <p class="field-error" id="admin-forzar-password-error" role="alert"></p>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="btn-admin-forzar-password">
+              <span id="btn-admin-forzar-password-label">Guardar y continuar</span>
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -380,8 +417,16 @@
       <div id="vista-inicio">
         <div class="inicio-bienvenida">
           <h1 id="inicio-titulo-bienvenida">¡Bienvenido!</h1>
-          <p class="panel-subtitle">Este es el resumen de las solicitudes de facturación.</p>
+          <p class="panel-subtitle" id="inicio-subtitulo">Este es el resumen de las solicitudes de facturación.</p>
         </div>
+
+        <!-- Perfil "inventario" (punto 321): "Inicio" para este perfil ES
+             "Estado del inventario" — se reutiliza en vivo (reparentado por
+             JS, mismo patrón que el modal "ampliar" de gráficas) el MISMO
+             nodo #reportes-vista-estado-inventario que ya vive en Reportes,
+             nunca se duplica el HTML. Vacío/oculto para el resto de
+             perfiles. -->
+        <div id="inicio-inventario-slot" hidden></div>
 
         <div class="inicio-stats-grid" id="inicio-stats-grid">
           <div class="inicio-stat-card">
@@ -428,7 +473,7 @@
 
         <p class="field-error" id="inicio-error" role="alert"></p>
 
-        <div class="inicio-main-grid">
+        <div class="inicio-main-grid" id="inicio-main-grid">
           <section class="inicio-recientes-card">
             <div class="inicio-card-header">
               <h2>Solicitudes recientes</h2>
@@ -2157,6 +2202,7 @@
               <option value="administrador">Administradores</option>
               <option value="fiscal">Fiscales</option>
               <option value="ventas">Ventas</option>
+              <option value="inventario">Inventario</option>
             </select>
             <div class="column-toggle" id="usuarios-column-toggle">
               <button type="button" class="btn btn-secondary" id="btn-usuarios-columns" aria-haspopup="true" aria-expanded="false" aria-controls="usuarios-column-toggle-panel">
@@ -3952,6 +3998,30 @@
             </tr>
             <tr>
               <td>
+                <span class="perfil-badge perfil-inventario">Inventario</span>
+                <span class="perfil-descripcion">Creado desde "Crear usuario"</span>
+              </td>
+              <td class="celda-acceso-si">
+                <span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span>
+                <span class="detalle-acceso">Muestra "Estado del inventario", no el resumen de tickets</span>
+              </td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-si"><span class="icono-acceso" aria-hidden="true">✓</span><span class="sr-only">Sí</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no">
+                <span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span>
+                <span class="detalle-acceso">"Estado del inventario" vive en su Inicio, no como pestaña de Reportes</span>
+              </td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="celda-acceso-no"><span class="icono-acceso" aria-hidden="true">—</span><span class="sr-only">No</span></td>
+            </tr>
+            <tr>
+              <td>
                 <span class="perfil-badge perfil-cliente">Cliente</span>
                 <span class="perfil-descripcion">Solo entra a login.html</span>
               </td>
@@ -3976,7 +4046,7 @@
 
       <div class="ticket-modal-body">
         <div class="ticket-modal-main">
-          <p class="panel-subtitle">Los perfiles "Administrador", "Fiscal" y "Ventas" pueden entrar al panel de administración; "Cliente" solo entra al portal público.</p>
+          <p class="panel-subtitle">Los perfiles "Administrador", "Fiscal", "Ventas" e "Inventario" pueden entrar al panel de administración; "Cliente" solo entra al portal público.</p>
 
           <div class="field">
             <label for="crear-usuario-perfil">Perfil</label>
@@ -3985,6 +4055,7 @@
               <option value="administrador">Administrador</option>
               <option value="fiscal">Fiscal</option>
               <option value="ventas">Ventas</option>
+              <option value="inventario">Inventario</option>
             </select>
           </div>
 
@@ -4079,6 +4150,7 @@
           <option value="administrador">Administrador</option>
           <option value="fiscal">Fiscal</option>
           <option value="ventas">Ventas</option>
+          <option value="inventario">Inventario</option>
         </select>
       </div>
 
