@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>eval.html — Auditoría de calidad, Portal Clarvo (portalFac)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0f1420; --panel:#161c2c; --panel2:#1b2233; --border:#2a3348;
+    --ink:#e7ecf6; --ink-soft:#9aa7c2; --accent:#3fd0ff; --accent-dark:#0ea5c9;
+    --ok:#33c37d; --ok-soft:#123326; --warn:#f0a63a; --warn-soft:#3a2c10;
+    --err:#f0554e; --err-soft:#3a1414; --info:#7c9cff; --info-soft:#171f3a;
+    --radius:10px;
+    --font: 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
+    --mono: 'Consolas', 'SFMono-Regular', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4f6fb; --panel:#ffffff; --panel2:#f8f9fd; --border:#e2e6f0;
+      --ink:#1a2033; --ink-soft:#5b6478; --accent:#0ea5c9; --accent-dark:#0b7f9c;
+      --ok:#1c9d5e; --ok-soft:#e4f7ee; --warn:#b5740a; --warn-soft:#fdf2df;
+      --err:#c53b34; --err-soft:#fbe9e8; --info:#3854c9; --info-soft:#eaeefc;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1420; --panel:#161c2c; --panel2:#1b2233; --border:#2a3348;
+    --ink:#e7ecf6; --ink-soft:#9aa7c2; --accent:#3fd0ff; --accent-dark:#0ea5c9;
+    --ok:#33c37d; --ok-soft:#123326; --warn:#f0a63a; --warn-soft:#3a2c10;
+    --err:#f0554e; --err-soft:#3a1414; --info:#7c9cff; --info-soft:#171f3a;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f6fb; --panel:#ffffff; --panel2:#f8f9fd; --border:#e2e6f0;
+    --ink:#1a2033; --ink-soft:#5b6478; --accent:#0ea5c9; --accent-dark:#0b7f9c;
+    --ok:#1c9d5e; --ok-soft:#e4f7ee; --warn:#b5740a; --warn-soft:#fdf2df;
+    --err:#c53b34; --err-soft:#fbe9e8; --info:#3854c9; --info-soft:#eaeefc;
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--font);
+    margin:0; padding:0 0 80px 0; line-height:1.5;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:0 24px;}
+  header.hero{
+    background:linear-gradient(135deg, var(--panel2), var(--panel));
+    border-bottom:1px solid var(--border);
+    padding:40px 0 32px 0; margin-bottom:32px;
+  }
+  header.hero h1{margin:0 0 6px 0; font-size:1.9rem; font-weight:700;}
+  header.hero .sub{color:var(--ink-soft); font-size:.95rem; margin-bottom:20px;}
+  .grade-row{display:flex; gap:16px; flex-wrap:wrap; margin-top:20px;}
+  .grade-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 20px; min-width:150px; flex:1;
+  }
+  .grade-card .label{font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); margin-bottom:6px;}
+  .grade-card .value{font-size:1.7rem; font-weight:700;}
+  .grade-card .value.ok{color:var(--ok);}
+  .grade-card .value.warn{color:var(--warn);}
+  .grade-card .value.err{color:var(--err);}
+  .grade-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:56px; height:56px; border-radius:50%; font-size:1.5rem; font-weight:800;
+    background:var(--ok-soft); color:var(--ok); border:2px solid var(--ok);
+  }
+  section{margin-bottom:36px;}
+  h2{font-size:1.25rem; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:16px; display:flex; align-items:center; gap:10px;}
+  h2 .num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:26px; height:26px; border-radius:6px; background:var(--info-soft); color:var(--info);
+    font-size:.8rem; font-weight:700;
+  }
+  h3{font-size:1.02rem; margin:20px 0 10px 0;}
+  p{color:var(--ink-soft);}
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px 22px; margin-bottom:16px;
+  }
+  table{width:100%; border-collapse:collapse; font-size:.88rem;}
+  thead th{
+    text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--ink-soft); border-bottom:1px solid var(--border); padding:8px 10px;
+  }
+  tbody td{padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  code, .mono{font-family:var(--mono); font-size:.85em;}
+  .pill{
+    display:inline-block; padding:2px 9px; border-radius:999px; font-size:.72rem; font-weight:700;
+    letter-spacing:.02em;
+  }
+  .pill.ok{background:var(--ok-soft); color:var(--ok);}
+  .pill.warn{background:var(--warn-soft); color:var(--warn);}
+  .pill.err{background:var(--err-soft); color:var(--err);}
+  .pill.info{background:var(--info-soft); color:var(--info);}
+  .bar-track{background:var(--panel2); border:1px solid var(--border); border-radius:6px; height:8px; overflow:hidden; width:100%;}
+  .bar-fill{height:100%; border-radius:6px;}
+  .bar-fill.ok{background:var(--ok);}
+  .bar-fill.warn{background:var(--warn);}
+  .bar-fill.err{background:var(--err);}
+  .bar-row{display:flex; align-items:center; gap:10px;}
+  .bar-row .bar-track{flex:1;}
+  .bar-row .bar-pct{width:52px; text-align:right; font-weight:700; font-size:.85rem;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  @media (max-width:820px){ .grid2, .grid3{grid-template-columns:1fr;} }
+  .finding{
+    border-left:3px solid var(--border); padding:12px 16px; margin-bottom:12px;
+    background:var(--panel2); border-radius:0 8px 8px 0;
+  }
+  .finding.fixed{border-left-color:var(--ok);}
+  .finding.info-f{border-left-color:var(--info);}
+  .finding.accepted{border-left-color:var(--ink-soft);}
+  .finding .ftitle{font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .finding .fbody{font-size:.88rem; color:var(--ink-soft);}
+  .finding .fbody code{background:var(--panel); padding:1px 5px; border-radius:4px; border:1px solid var(--border);}
+  .toc{display:flex; flex-wrap:wrap; gap:8px; margin-top:16px;}
+  .toc a{
+    color:var(--ink); text-decoration:none; font-size:.82rem; padding:6px 12px;
+    background:var(--panel); border:1px solid var(--border); border-radius:999px;
+  }
+  .toc a:hover{border-color:var(--accent); color:var(--accent);}
+  .kv{display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed var(--border); font-size:.88rem;}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--ink-soft);}
+  .kv .v{font-weight:700;}
+  ul.plain{margin:8px 0; padding-left:20px; color:var(--ink-soft); font-size:.9rem;}
+  ul.plain li{margin-bottom:4px;}
+  footer{text-align:center; color:var(--ink-soft); font-size:.8rem; padding:40px 0 0 0;}
+  .scroll-x{overflow-x:auto;}
+  .diff-add{color:var(--ok);}
+  .diff-rem{color:var(--err); text-decoration:line-through;}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Auditoría de calidad — Portal Clarvo (portalFac)</h1>
+    <div class="sub">Estilo SonarQube · generado en modo autónomo (usuario ausente) · 2026-09-19</div>
+    <div class="grade-row">
+      <div class="grade-card" style="flex:0 0 auto; display:flex; align-items:center; gap:14px;">
+        <div class="grade-badge">B+</div>
+        <div>
+          <div class="label">Calificación general</div>
+          <div style="font-size:.85rem; color:var(--ink-soft); max-width:220px;">Backend/control sólidos y con red de pruebas real. Frontend sin cobertura unitaria (ver §6).</div>
+        </div>
+      </div>
+      <div class="grade-card"><div class="label">Tests backend</div><div class="value ok">1,038 / 1,038</div></div>
+      <div class="grade-card"><div class="label">Tests control</div><div class="value ok">247 / 247</div></div>
+      <div class="grade-card"><div class="label">Cobertura backend (líneas)</div><div class="value warn">74.1%</div></div>
+      <div class="grade-card"><div class="label">Cobertura control (líneas)</div><div class="value ok">88.0%</div></div>
+      <div class="grade-card"><div class="label">Duplicación de código</div><div class="value ok">0.9%</div></div>
+      <div class="grade-card"><div class="label">Vulnerabilidades / bugs bloqueantes</div><div class="value ok">0</div></div>
+    </div>
+    <div class="toc">
+      <a href="#resumen">1. Resumen ejecutivo</a>
+      <a href="#pruebas">2. Pruebas unitarias creadas</a>
+      <a href="#cobertura">3. Cobertura por archivo</a>
+      <a href="#limpieza">4. Código muerto / redundante — corregido</a>
+      <a href="#hallazgos">5. Hallazgos — sin tocar (decisión documentada)</a>
+      <a href="#frontend">6. Frontend sin pruebas — decisión</a>
+      <a href="#seguridad">7. Barrido de seguridad</a>
+      <a href="#decisiones">8. Decisiones tomadas en tu ausencia</a>
+      <a href="#siguiente">9. Recomendado para la siguiente sesión</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section id="resumen">
+  <h2><span class="num">1</span> Resumen ejecutivo</h2>
+  <div class="panel">
+    <p>Se revisó todo el repositorio (<code>backend/</code>, <code>control/</code>, <code>frontend/</code>) buscando código
+    redundante, bugs y oportunidades de optimización, y se cerraron los huecos reales de cobertura de pruebas
+    unitarias que existían en <code>backend/</code> y <code>control/</code>. No se tocó nada de <code>frontend/</code> como
+    código de producción — solo se auditó — por la razón explicada en la §6.</p>
+    <div class="grid3">
+      <div>
+        <div class="kv"><span class="k">Archivos de test nuevos</span><span class="v">8</span></div>
+        <div class="kv"><span class="k">Casos de prueba nuevos</span><span class="v">+115</span></div>
+        <div class="kv"><span class="k">Tests backend antes → después</span><span class="v">997 → 1,038</span></div>
+      </div>
+      <div>
+        <div class="kv"><span class="k">Tests control antes → después</span><span class="v">173 → 247</span></div>
+        <div class="kv"><span class="k">Suites backend antes → después</span><span class="v">51 → 53</span></div>
+        <div class="kv"><span class="k">Suites control antes → después</span><span class="v">10 → 16</span></div>
+      </div>
+      <div>
+        <div class="kv"><span class="k">Código muerto eliminado</span><span class="v">6 hallazgos, 4 archivos</span></div>
+        <div class="kv"><span class="k">Bugs bloqueantes encontrados</span><span class="v">0</span></div>
+        <div class="kv"><span class="k">Regresiones introducidas</span><span class="v">0 (100% suites en verde)</span></div>
+      </div>
+    </div>
+    <p style="margin-top:14px;"><strong>Lectura corta:</strong> el proyecto ya estaba en buen estado — 997 pruebas
+    pasando antes de empezar, historial disciplinado de "analizar → proponer → confirmar → implementar → probar"
+    (ver <code>CLAUDE.md</code>). No encontré bugs bloqueantes ni vulnerabilidades nuevas. El trabajo real de esta
+    sesión fue: (a) cerrar 8 módulos que tenían cero test unitario propio (2 en backend, 6 en control — 2 de ellos
+    ya estaban documentados como huecos conocidos: <code>apiCredenciales.js</code> y <code>tenantTema.js</code>),
+    (b) limpiar 6 piezas de código muerto reales encontradas por análisis estático, y (c) documentar honestamente
+    lo que NO convenía tocar sin ti presente (ver §5, §6, §9).</p>
+  </div>
+</section>
+
+<section id="pruebas">
+  <h2><span class="num">2</span> Pruebas unitarias creadas</h2>
+  <p>Antes de escribir nada, se comparó cada archivo de <code>backend/utils/</code> y <code>control/utils/</code>
+  contra su carpeta de tests — 8 módulos no tenían ningún archivo de prueba propio (verificado, no supuesto).
+  Se escribió un test dedicado por módulo, siguiendo el mismo patrón de mocking ya usado en el resto del
+  proyecto (<code>jest.mock('../../db', ...)</code>, sin tocar MySQL real). Los 8 corren en verde.</p>
+
+  <div class="panel">
+    <div class="scroll-x">
+    <table>
+      <thead><tr><th>Archivo probado</th><th>Test nuevo</th><th>Casos</th><th>Motivo del hueco</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="mono">backend/utils/catalogoTexto.js</td>
+          <td class="mono">test/unit/catalogoTexto.test.js</td>
+          <td>26</td>
+          <td>Parser de catálogos SAT (JSON / dump SQL / CSV-TSV) compartido por <code>usoCfdi.js</code>/<code>claveProdServ.js</code> — esos dos sí tenían test, pero la lógica de parseo que extrajeron nunca se probó por sí sola.</td>
+        </tr>
+        <tr>
+          <td class="mono">backend/utils/inventarioConfig.js</td>
+          <td class="mono">test/unit/inventarioConfig.test.js</td>
+          <td>15</td>
+          <td>Config de Inventarios por tenant (switches + validación de rango/tipo) sin cobertura propia pese a ser el gate de varias reglas de negocio reales.</td>
+        </tr>
+        <tr>
+          <td class="mono">control/utils/tenantTema.js</td>
+          <td class="mono">test/unit/tenantTema.test.js</td>
+          <td>29</td>
+          <td><strong>Hueco ya documentado</strong> en <code>CLAUDE.md</code> (punto 137) desde 2026-08-31. Incluye validación de contraste WCAG 2.1 AA, catálogo de tipografías/radios, y el flujo completo de favicon contra el backend (fetch mockeado).</td>
+        </tr>
+        <tr>
+          <td class="mono">control/utils/apiCredenciales.js</td>
+          <td class="mono">test/unit/apiCredenciales.test.js</td>
+          <td>22</td>
+          <td><strong>Hueco ya documentado</strong> (mismo punto 137). Módulo de seguridad: hash/verify scrypt de credenciales API, timing-safe compare, generación de usuario único con sufijo.</td>
+        </tr>
+        <tr>
+          <td class="mono">control/utils/adminAuditoria.js</td>
+          <td class="mono">test/unit/adminAuditoria.test.js</td>
+          <td>5</td>
+          <td>Registro de auditoría de accesos a <code>/control</code> — sin test propio.</td>
+        </tr>
+        <tr>
+          <td class="mono">control/utils/notificarBackend.js</td>
+          <td class="mono">test/unit/notificarBackend.test.js</td>
+          <td>7</td>
+          <td>Invalidación de caché cross-contenedor + activación física de tenant — sin test propio pese a ser el puente de comunicación entre <code>control</code> y <code>backend</code>.</td>
+        </tr>
+        <tr>
+          <td class="mono">control/utils/tenant.js</td>
+          <td class="mono">test/unit/tenant.test.js</td>
+          <td>9</td>
+          <td>Reglas de slug (regex, lista de rutas reservadas) — sin test propio; reveló el hallazgo de la §5.1.</td>
+        </tr>
+        <tr>
+          <td class="mono">control/utils/validateFiscal.js</td>
+          <td class="mono">test/unit/validateFiscal.test.js</td>
+          <td>3</td>
+          <td>Único helper que queda en el módulo tras retirarse la validación fiscal — sin test propio.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section id="cobertura">
+  <h2><span class="num">3</span> Cobertura por archivo (después de las pruebas nuevas)</h2>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3>backend/ — 74.1% líneas · 73.1% sentencias · 76.2% funciones · 65.1% ramas</h3>
+      <div class="scroll-x">
+      <table>
+        <thead><tr><th>Archivo</th><th>Líneas</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">utils/inventarioImportacion.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill warn" style="width:55%"></div></div><span class="bar-pct">55.0%</span></div></td></tr>
+          <tr><td class="mono">server.js <span class="pill info">9,281 líneas</span></td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill warn" style="width:65.5%"></div></div><span class="bar-pct">65.5%</span></div></td></tr>
+          <tr><td class="mono">utils/auth.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill warn" style="width:70.7%"></div></div><span class="bar-pct">70.7%</span></div></td></tr>
+          <tr><td class="mono">utils/inventario.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill warn" style="width:74.4%"></div></div><span class="bar-pct">74.4%</span></div></td></tr>
+          <tr><td class="mono">utils/inventarioCampos.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:84.6%"></div></div><span class="bar-pct">84.6%</span></div></td></tr>
+          <tr><td class="mono">utils/inventarioImagen.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:89.5%"></div></div><span class="bar-pct">89.5%</span></div></td></tr>
+          <tr><td class="mono">utils/reportes.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:90.9%"></div></div><span class="bar-pct">90.9%</span></div></td></tr>
+          <tr><td class="mono">utils/correoMarca.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:92.3%"></div></div><span class="bar-pct">92.3%</span></div></td></tr>
+          <tr><td class="mono">utils/config.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:93.2%"></div></div><span class="bar-pct">93.2%</span></div></td></tr>
+          <tr><td class="mono">utils/pdfExtract.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:93.6%"></div></div><span class="bar-pct">93.6%</span></div></td></tr>
+          <tr><td class="mono">utils/storage.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:94.8%"></div></div><span class="bar-pct">94.8%</span></div></td></tr>
+          <tr><td class="mono">utils/validate.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:95%"></div></div><span class="bar-pct">95.0%</span></div></td></tr>
+          <tr><td class="mono">utils/tenantTema.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:95.5%"></div></div><span class="bar-pct">95.5%</span></div></td></tr>
+          <tr><td class="mono">utils/ticketsCleanup.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:96.7%"></div></div><span class="bar-pct">96.7%</span></div></td></tr>
+          <tr><td class="mono">utils/tipoCambio.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:96.8%"></div></div><span class="bar-pct">96.8%</span></div></td></tr>
+          <tr><td class="mono">utils/authUsuario.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:96.9%"></div></div><span class="bar-pct">96.9%</span></div></td></tr>
+          <tr><td class="mono">utils/inventarioConfig.js <span class="pill ok">nuevo</span></td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:97.1%"></div></div><span class="bar-pct">97.1%</span></div></td></tr>
+          <tr><td class="mono">utils/cierreMensual.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:97.8%"></div></div><span class="bar-pct">97.8%</span></div></td></tr>
+          <tr><td class="mono">utils/gastos.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:98.3%"></div></div><span class="bar-pct">98.3%</span></div></td></tr>
+          <tr><td class="mono">utils/adminAuditoria.js · catalogoTexto.js <span class="pill ok">nuevo</span> · email.js · swagger.js · tenant.js · tenantContext.js · usoCfdi.js · claveProdServ.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:100%"></div></div><span class="bar-pct">100%</span></div></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>control/ — 88.0% líneas · 86.3% sentencias · 84.2% funciones · 77.9% ramas</h3>
+      <div class="scroll-x">
+      <table>
+        <thead><tr><th>Archivo</th><th>Líneas</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">scripts/ensureSchema.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill warn" style="width:70.8%"></div></div><span class="bar-pct">70.8%</span></div></td></tr>
+          <tr><td class="mono">server.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill warn" style="width:72.3%"></div></div><span class="bar-pct">72.3%</span></div></td></tr>
+          <tr><td class="mono">utils/tenantMarca.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:87.2%"></div></div><span class="bar-pct">87.2%</span></div></td></tr>
+          <tr><td class="mono">utils/tenantEdicion.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:88.5%"></div></div><span class="bar-pct">88.5%</span></div></td></tr>
+          <tr><td class="mono">utils/sucursales.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:92.5%"></div></div><span class="bar-pct">92.5%</span></div></td></tr>
+          <tr><td class="mono">utils/auth.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:92.7%"></div></div><span class="bar-pct">92.7%</span></div></td></tr>
+          <tr><td class="mono">utils/tenantTema.js <span class="pill ok">nuevo</span></td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:93.8%"></div></div><span class="bar-pct">93.8%</span></div></td></tr>
+          <tr><td class="mono">utils/tenantIntake.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:96.2%"></div></div><span class="bar-pct">96.2%</span></div></td></tr>
+          <tr><td class="mono">utils/adminEnv.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:96.3%"></div></div><span class="bar-pct">96.3%</span></div></td></tr>
+          <tr><td class="mono">utils/apiCredenciales.js <span class="pill ok">nuevo</span></td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:98.5%"></div></div><span class="bar-pct">98.5%</span></div></td></tr>
+          <tr><td class="mono">utils/adminAuditoria.js · notificarBackend.js · tenant.js · validateFiscal.js <span class="pill ok">nuevos</span> · swagger.js</td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:100%"></div></div><span class="bar-pct">100%</span></div></td></tr>
+          <tr><td class="mono">utils/tenantLifecycle.js <span class="pill info">100% líneas, 82.8% ramas</span></td><td><div class="bar-row"><div class="bar-track"><div class="bar-fill ok" style="width:100%"></div></div><span class="bar-pct">100%</span></div></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <p style="margin:0;"><strong>Por qué <code>server.js</code> y <code>control/server.js</code> no llegan a 90%+:</strong>
+    son los archivos de rutas Express (9,281 y ~1,900 líneas). Gran parte de sus ramas sin cubrir son
+    combinaciones de validación defensiva (ifs de "esto nunca debería pasar") y rutas ya ejercitadas por los
+    20 archivos de <code>test/integration/</code> vía <code>supertest</code>, no por unitarias puras — el propio
+    <code>CLAUDE.md</code> del proyecto documenta que muchas rutas se validan además contra Docker/MySQL real
+    en cada sesión de feature, un nivel de prueba que un run de Jest no puede reproducir aquí. No se tocó esto:
+    exprimir ese archivo a 90%+ significaría escribir cientos de tests de integración nuevos sin poder validarlos
+    contra una base de datos real en este entorno — alto riesgo de tests falsos-verdes, fuera de alcance de una
+    sesión no supervisada.</p>
+  </div>
+</section>
+
+<section id="limpieza">
+  <h2><span class="num">4</span> Código muerto / redundante — CORREGIDO</h2>
+  <p>Encontrado con un análisis estático real (ESLint con reglas <code>no-unused-vars</code>/<code>no-undef</code>/
+  <code>no-dupe-*</code> sobre una config temporal, más <code>jscpd</code> para duplicación) — cada hallazgo se
+  verificó a mano (grep de uso en todo el archivo) antes de tocarlo. Los 6 cambios son eliminación pura de
+  código sin uso; no cambian comportamiento en ningún camino — confirmado con las 1,285 pruebas en verde después.</p>
+
+  <div class="finding fixed">
+    <div class="ftitle">1–3. Tres imports muertos en <code>backend/server.js</code> <span class="pill ok">corregido</span></div>
+    <div class="fbody">
+      <code>TIPOS_SALIDA</code> (de <code>utils/inventario.js</code>), <code>firmaCabeceras</code> y
+      <code>marcarPerfilUsado</code> (de <code>utils/inventarioImportacion.js</code>) se destructuraban del
+      <code>require</code> pero nunca se usaban en el resto del archivo (grep confirmó 1 sola aparición: la
+      propia declaración). Eliminados de los 3 bloques <code>require</code>.
+    </div>
+  </div>
+
+  <div class="finding fixed">
+    <div class="ftitle">4. Función muerta <code>hashApiPassword()</code> en <code>backend/utils/auth.js</code> <span class="pill ok">corregido</span></div>
+    <div class="fbody">
+      Definida, sin exportar, sin ninguna llamada en todo el repo. El hasheo real de credenciales API vive en
+      <code>control/utils/apiCredenciales.js</code> (contenedor separado, gestiona las credenciales por tenant) —
+      esta copia en <code>backend/</code> quedó huérfana. <code>verifyApiPassword()</code> (sí usada) se dejó intacta.
+    </div>
+  </div>
+
+  <div class="finding fixed">
+    <div class="ftitle">5. Clase muerta <code>ErrorApiCredencial</code> en <code>control/utils/apiCredenciales.js</code> <span class="pill ok">corregido</span></div>
+    <div class="fbody">
+      Definida y exportada, pero nunca instanciada — todos los errores reales del módulo se lanzan como
+      <code>new Error(...)</code> plano con una propiedad <code>.codigo</code> manual, y <code>control/server.js</code>
+      lee ese <code>.codigo</code> directamente (nunca hace <code>instanceof ErrorApiCredencial</code>, confirmado por
+      grep). Eliminada del archivo y del <code>module.exports</code>.
+    </div>
+  </div>
+
+  <div class="finding fixed">
+    <div class="ftitle">6. Destructure sin usar <code>ErrorAdminEnv</code> en <code>control/server.js</code> <span class="pill ok">corregido</span></div>
+    <div class="fbody">
+      En la ruta <code>POST /api/control/super-admins</code> se importaba <code>ErrorAdminEnv</code> del módulo
+      <code>adminEnv.js</code> pero el <code>catch</code> de esa misma ruta usa <code>e.message</code> genérico, sin
+      comprobar el tipo. Se quitó del destructure (la clase sigue existiendo y exportada en <code>adminEnv.js</code>
+      por si otra ruta la necesita — no se tocó esa definición).
+    </div>
+  </div>
+
+  <div class="finding fixed">
+    <div class="ftitle">7. <code>control/coverage/</code> sin ignorar en Git <span class="pill ok">corregido</span></div>
+    <div class="fbody">
+      <code>.gitignore</code> ya excluía <code>backend/coverage/</code> pero no su equivalente de <code>control/</code>
+      — por eso aparecía como carpeta sin trackear (<code>??</code>) en <code>git status</code> desde antes de esta
+      sesión. Se agregó <code>control/coverage/</code> al <code>.gitignore</code> y se borró la carpeta generada del
+      working tree (artefacto regenerable con <code>npm run test:coverage</code>, no es código fuente).
+    </div>
+  </div>
+</section>
+
+<section id="hallazgos">
+  <h2><span class="num">5</span> Hallazgos — revisados y dejados intactos (con la razón)</h2>
+  <p>Estos NO se tocaron. En cada uno documento por qué la decisión correcta, sin ti presente, era no actuar.</p>
+
+  <div class="finding info-f">
+    <div class="ftitle">5.1 Dos entradas de <code>SLUGS_RESERVADOS</code> son inalcanzables tal cual <span class="pill info">informativo, cero riesgo</span></div>
+    <div class="fbody">
+      En <code>backend/utils/tenant.js</code> y su duplicado <code>control/utils/tenant.js</code>,
+      <code>SLUGS_RESERVADOS</code> incluye <code>"favicon.ico"</code> y <code>"robots.txt"</code> — pero
+      <code>SLUG_REGEX</code> (<code>/^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/</code>) ya rechaza cualquier slug con
+      un punto ANTES de que el código llegue a comprobar la lista reservada. El resultado final es idéntico (el
+      slug se sigue rechazando siempre), solo cambia el texto del mensaje de error (genérico en vez de
+      "ruta reservada"). <strong>No se tocó</strong> el regex porque permitir el punto sería un cambio real de
+      formato de slug con impacto en el ruteo de nginx — decisión de producto, no un bug. Quedó documentado con un
+      test que fija este comportamiento (<code>tenant.test.js</code>) para que no se reintroduzca por accidente
+      si alguien "arregla" el regex sin saber esto.
+    </div>
+  </div>
+
+  <div class="finding accepted">
+    <div class="ftitle">5.2 Duplicación intencional detectada por <code>jscpd</code> (0.9% del código, 5 bloques) <span class="pill info">ya documentada, sin acción</span></div>
+    <div class="fbody">
+      <ul class="plain">
+        <li><code>backend/utils/auth.js</code> ↔ <code>control/utils/auth.js</code> (52 líneas) — <code>control/</code>
+        es un contexto de build de Docker separado que <strong>no puede</strong> importar <code>backend/</code> en
+        producción (arquitectura del segmento 9b, confirmada en <code>CLAUDE.md</code>). Duplicar es la decisión
+        correcta ya tomada, no redundancia accidental.</li>
+        <li><code>frontend/login.js</code> ↔ <code>frontend/restablecer.js</code>/<code>frontend/portal.js</code> y
+        <code>login.html</code> ↔ <code>restablecer.html</code> — mismo encabezado/tooltip compartido entre páginas
+        del sitio sin build step (vanilla JS sin bundler, documentado como patrón deliberado del proyecto).</li>
+      </ul>
+      No se propone extraer un módulo compartido: en <code>backend</code>/<code>control</code> literalmente no se
+      puede (Docker aparte); en <code>frontend</code> el proyecto ya decidió, y documentó, no usar bundler.
+    </div>
+  </div>
+
+  <div class="finding accepted">
+    <div class="ftitle">5.3 ~60 bloques <code>catch (e) {}</code> / <code>catch (err) {}</code> sin usar la variable <span class="pill warn">code smell menor, sin acción</span></div>
+    <div class="fbody">
+      ESLint marcó 44 en <code>backend/</code> y 16 en <code>control/</code>. Revisados por muestreo: son en su
+      inmensa mayoría el patrón ya establecido en el proyecto de "degradar sin bloquear" (p.ej. intentar leer un
+      archivo opcional, o el fallback JSON→SQL→CSV de <code>catalogoTexto.js</code>) — la variable de error no se
+      usa a propósito porque el flujo solo necesita saber que falló, no por qué. Renombrarlas todas a <code>catch
+      {}</code> (sintaxis moderna sin binding) es puramente cosmético y tocaría ~40 sitios en archivos sensibles
+      (<code>auth.js</code>, <code>validate.js</code>, rutas de facturación) sin ningún cambio de comportamiento —
+      se decidió NO tocar por relación costo/beneficio: cero bug, riesgo de typo en un archivo de seguridad, sin
+      beneficio medible.
+    </div>
+  </div>
+
+  <div class="finding accepted">
+    <div class="ftitle">5.4 <code>backend/server.js</code> es un archivo de 9,281 líneas ("God file") <span class="pill warn">deuda arquitectónica real, requiere sesión propia</span></div>
+    <div class="fbody">
+      Contiene prácticamente todas las rutas Express del backend. Es el motivo principal de que la cobertura de
+      ramas del backend sea 65% en vez de 90%+, y hace más lento ubicar código. Partirlo en routers por dominio
+      (ventas, inventarios, reportes, tickets, config...) sería la mejora estructural de mayor impacto del
+      proyecto — pero es un refactor grande y riesgoso sobre un archivo que ya maneja dinero/facturación real, y
+      el propio protocolo del proyecto (<code>addv-web-app</code>, ver <code>CLAUDE.md</code>) exige confirmación
+      explícita tuya antes de cualquier cambio de esta magnitud. <strong>No se tocó.</strong> Ver recomendación en §9.
+    </div>
+  </div>
+
+  <div class="finding accepted">
+    <div class="ftitle">5.5 Módulos con cobertura por debajo del 75% que YA tienen suite propia <span class="pill info">no son huecos, son profundidad insuficiente</span></div>
+    <div class="fbody">
+      <code>inventarioImportacion.js</code> (55%), <code>auth.js</code> (70.7%) e <code>inventario.js</code> (74.4%)
+      ya tenían archivos de test dedicados antes de esta sesión — el pedido original era cerrar módulos
+      <em>sin ninguna prueba</em>, que ya quedó resuelto (§2). Profundizar estos tres (agregar más casos de rama)
+      es trabajo legítimo pero de otro tipo — requiere leer con cuidado la lógica de negocio de cada rama sin
+      cubrir para no escribir aserciones vacías que solo "maquillen" el número. Se deja como recomendación
+      priorizada en §9 en vez de apresurarlo sin supervisión.
+    </div>
+  </div>
+</section>
+
+<section id="frontend">
+  <h2><span class="num">6</span> Frontend sin pruebas unitarias — decisión explícita</h2>
+  <div class="panel">
+    <p><strong>Estado real:</strong> <code>frontend/</code> tiene 23,269 líneas de JavaScript vanilla
+    (<code>admin.js</code> solo son 18,046) y <strong>cero</strong> framework de pruebas configurado — sin
+    <code>package.json</code>, sin Jest/Vitest, sin jsdom.</p>
+    <p><strong>Por qué no instalé uno en tu ausencia:</strong></p>
+    <ul class="plain">
+      <li>Es una decisión de arquitectura, no un bug — instalar Jest+jsdom es agregar una dependencia y un
+      proceso de build nuevo a un sitio que deliberadamente no tiene bundler ni paso de compilación (documentado
+      explícitamente varias veces en <code>CLAUDE.md</code>, p.ej. al rechazar React/Next para el Centro de
+      conocimiento por "romper el principio sin build step del sitio").</li>
+      <li>Es el patrón ya establecido y usado consistentemente en <strong>más de 300 puntos</strong> de historial
+      en este proyecto: cada feature de frontend se valida "en navegador real" (Playwright o la extensión Claude
+      in Chrome) contra Docker/MySQL reales, nunca con test unitario de DOM. Cambiar esa convención de raíz sin
+      preguntarte sería imponer un proceso nuevo que el propio proyecto no pidió.</li>
+      <li><code>admin.js</code> es una IIFE gigante sin exports/módulos — extraer funciones puras testeables
+      (formateo de moneda, cálculo de IVA, validación de campos) para darles cobertura real sería el primer paso
+      correcto, pero es un refactor de superficie considerable que merece su propia propuesta antes/después
+      (protocolo del proyecto), no algo para decidir solo mientras no estás.</li>
+    </ul>
+    <p><strong>Lo que sí hice:</strong> auditoría estática del frontend (duplicación con <code>jscpd</code>,
+    grep de <code>onclick=</code> inline para confirmar que la CSP sigue intacta — 0 encontrados, ver §7) y
+    confirmé que no hay redundancia real más allá de la ya documentada en §5.2.</p>
+  </div>
+</section>
+
+<section id="seguridad">
+  <h2><span class="num">7</span> Barrido de seguridad (heurístico, no un pentest)</h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Limpio</h3>
+      <div class="kv"><span class="k"><code>eval()</code> / <code>new Function()</code> reales</span><span class="v pill ok">0</span></div>
+      <div class="kv"><span class="k">Secretos hardcodeados (heurística regex)</span><span class="v pill ok">0</span></div>
+      <div class="kv"><span class="k"><code>onclick=</code> inline en HTML (rompería la CSP)</span><span class="v pill ok">0</span></div>
+      <div class="kv"><span class="k">child_process con interpolación de shell</span><span class="v pill ok">0</span></div>
+    </div>
+    <div class="panel">
+      <h3>Revisado, correcto tal cual</h3>
+      <p style="margin:0; font-size:.88rem;"><code>backend/scripts/lib/controlDb.js</code> usa
+      <code>execFileSync</code> (no <code>exec</code>) con argumentos en array y un script inline fijo — sin
+      interpolación de datos externos en el string ejecutado. Sin riesgo de inyección de comandos.</p>
+    </div>
+  </div>
+  <p style="font-size:.85rem;">Nota: esto NO reemplaza la auditoría de seguridad completa ya hecha en el proyecto
+  (13 hallazgos, 3 fases de parches — ver <code>CLAUDE.md</code> puntos 197-198). Fue un barrido acotado con grep/
+  heurísticas para esta sesión, no un pentest nuevo.</p>
+</section>
+
+<section id="decisiones">
+  <h2><span class="num">8</span> Decisiones que tomé en tu ausencia</h2>
+  <div class="panel">
+    <table>
+      <thead><tr><th>#</th><th>Decisión</th><th>Alternativa descartada</th><th>Por qué</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Cerrar los 8 módulos <strong>sin ningún test</strong>, en vez de intentar cubrir el 100% del repo</td>
+          <td>Escribir tests hasta llegar a 100% de cobertura global</td>
+          <td>100% de <code>server.js</code> exigiría cientos de tests de rutas que ya están cubiertas por
+          integración+validación manual contra Docker real (imposible de reproducir aquí) — habría sido
+          cobertura de vanidad, no de calidad real.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Eliminar código muerto ya <strong>verificado como 100% sin uso</strong> (grep en todo el repo antes de tocar cada uno)</td>
+          <td>Dejarlo y solo reportarlo</td>
+          <td>Es exactamente el tipo de limpieza segura y reversible que pediste ("redundante") — bajo riesgo,
+          confirmado con las 1,285 pruebas en verde después de cada cambio.</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>NO tocar <code>backend/server.js</code> (partirlo en routers) ni instalar testing de frontend</td>
+          <td>Refactor grande / bootstrap de Jest+jsdom sin preguntar</td>
+          <td>Ambos son cambios de arquitectura reales con impacto amplio — el protocolo propio del proyecto
+          (<code>addv-web-app</code>) exige tu confirmación explícita antes de este tipo de cambio, y romperlos
+          sin ti presente para "verificar visualmente" habría sido irresponsable en un sitio que maneja
+          facturación real.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>NO renombrar los ~60 <code>catch(e){}</code> sin usar</td>
+          <td>"Limpiarlos" a <code>catch {}</code> moderno en 40+ sitios</td>
+          <td>Cosmético puro, cero bug detrás, y tocar 40+ sitios en archivos de auth/facturación sin supervisión
+          aumenta el riesgo de un typo silencioso más de lo que vale el beneficio.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>Agregar <code>control/coverage/</code> al <code>.gitignore</code> y borrar la carpeta generada</td>
+          <td>Dejarlo como estaba</td>
+          <td>Artefacto de build, no código — mismo tratamiento que ya tenía <code>backend/coverage/</code>;
+          corrección de una línea, cero riesgo.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>Documentar (no "arreglar") el hallazgo de <code>SLUGS_RESERVADOS</code> inalcanzable (§5.1)</td>
+          <td>Cambiar el regex para permitir el punto</td>
+          <td>El comportamiento final ya es correcto (el slug se rechaza igual) — es un mensaje de error menos
+          preciso, no un bug. Cambiar el regex de slugs es una decisión de producto/ruteo, no una limpieza de código.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="siguiente">
+  <h2><span class="num">9</span> Recomendado para la siguiente sesión (contigo presente)</h2>
+  <div class="panel">
+    <ol style="color:var(--ink-soft); font-size:.92rem; padding-left:20px;">
+      <li><strong>Profundizar cobertura de rama</strong> en <code>inventarioImportacion.js</code> (55%),
+      <code>auth.js</code> (70.7%) e <code>inventario.js</code> (74.4%) — ya tienen suite, les faltan casos de
+      borde reales (ej. filas de importación con encabezados ambiguos, ramas de rechazo de <code>auth.js</code>).</li>
+      <li><strong>Partir <code>backend/server.js</code></strong> en routers Express por dominio (ventas,
+      inventarios, reportes, tickets, config, auditoría...) — mejora de mantenibilidad más grande disponible en
+      el repo, pero requiere plan propio y ventana de pruebas amplia antes de tocar producción.</li>
+      <li><strong>Extraer funciones puras de <code>admin.js</code></strong> (formateo de moneda/fecha, cálculo de
+      IVA/descuento, validaciones de campo) a un módulo aparte que sí se pueda probar con Jest+jsdom sin adoptar
+      un bundler completo — primer paso realista hacia cobertura de frontend sin romper "sin build step".</li>
+      <li><strong>Revisar visualmente</strong> los 8 archivos de test nuevos corriendo <code>npm test</code> en
+      <code>backend/</code> y <code>control/</code> — todos en verde en esta sesión, pero conviene tu OK antes de
+      commitear (nada se commiteó ni se hizo push en esta sesión).</li>
+    </ol>
+    <p style="margin-top:14px; font-size:.85rem;"><strong>Nada de esto se commiteó ni se subió a ningún remoto</strong> —
+    todos los cambios (8 archivos de test nuevos, .gitignore, 4 archivos con código muerto removido) quedaron en
+    el working tree para tu revisión, siguiendo la misma disciplina de "sin commit/push sin confirmación explícita"
+    que ya usa el resto del proyecto.</p>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  eval.html — generado en modo autónomo · Portal Clarvo (portalFac) · 2026-09-19
+</footer>
+
+</body>
+</html>

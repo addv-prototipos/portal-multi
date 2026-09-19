@@ -84,11 +84,6 @@ function checkCredentials(username, password) {
 // Solo es válida para EL tenant que indica req.tenant (slug de la URL
 // /<slug>/api/* o header X-Tenant-Slug). No es global: sin tenant no se
 // verifica. Hash con scrypt igual que usuarios.
-function hashApiPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const derived = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${derived}`;
-}
 function verifyApiPassword(password, hash) {
   if (!hash || !hash.includes(':')) return false;
   const [salt, expected] = hash.split(':');
@@ -179,7 +174,7 @@ async function verificarUsuarioSucursal(usuario, password, grupoSucursalId) {
   }
 }
 
-// ---------- Usuarios con perfil administrador/fiscal/ventas ----------
+// ---------- Usuarios con perfil administrador/fiscal/ventas/inventario ----------
 // A diferencia de los clientes (perfil "cliente", que solo pueden entrar
 // al portal de usuario con cookie de sesión), estos perfiles pueden
 // autenticarse con Basic Auth para entrar al panel de administración,
@@ -188,8 +183,15 @@ async function verificarUsuarioSucursal(usuario, password, grupoSucursalId) {
 // tiene ningún respaldo especial: cualquier administrador se la puede
 // restablecer desde la vista "Usuarios" del panel, igual que a un cliente.
 async function verificarUsuarioAdministrativo(usuario, password) {
+  // "nombre"/"email" viajan junto con la fila de autenticación (mismo
+  // query, cero costo extra) para que quien llame a requireAdminAuth
+  // pueda identificar a la persona real detrás de la sesión (ej. quién
+  // registró una venta, punto 320) sin tener que volver a golpear la
+  // tabla — "rfc" aquí es solo el nombre de usuario de login para estos
+  // 3 perfiles (nunca un RFC fiscal real, ver server.js:3270), así que
+  // nunca debe mostrarse como si fuera la identidad de la persona.
   const [filas] = await pool.query(
-    "SELECT rfc, password_hash, perfil, activo FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas')",
+    "SELECT rfc, password_hash, perfil, activo, nombre, email FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas', 'inventario')",
     [usuario]
   );
   const fila = filas[0];
@@ -212,7 +214,7 @@ async function verificarUsuarioAdministrativo(usuario, password) {
  * Middleware de autenticacion HTTP Basic para las rutas /api/admin/*.
  * Acepta credenciales de CUALQUIERA de estos dos mecanismos:
  *   1. ADMIN_USERS (variable de entorno, sin cambios respecto a antes).
- *   2. Un usuario con perfil "administrador", "fiscal" o "ventas" en la tabla usuarios.
+ *   2. Un usuario con perfil "administrador", "fiscal", "ventas" o "inventario" en la tabla usuarios.
  */
 async function requireAdminAuth(req, res, next) {
   // Multi-tenant (segmento 3 del plan): con dominio único compartido entre
@@ -293,6 +295,12 @@ async function requireAdminAuth(req, res, next) {
       req.adminUser = usuarioAdmin.rfc;
       req.adminPerfil = usuarioAdmin.perfil;
       req.adminMecanismo = 'perfil_bd';
+      // Identidad real de la persona (si ya la capturó en "Mi Cuenta"),
+      // para no tener que volver a consultar "usuarios" en cada ruta que
+      // necesite mostrar quién hizo algo (punto 320) — "adminUser" (el
+      // "rfc") es solo su nombre de usuario de login, nunca la identidad.
+      req.adminNombre = usuarioAdmin.nombre || null;
+      req.adminEmail = usuarioAdmin.email || null;
       return next();
     }
   } catch (err) {

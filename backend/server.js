@@ -131,7 +131,6 @@ const {
 } = require('./utils/gastos');
 const {
   TIPOS_ENTRADA,
-  TIPOS_SALIDA,
   registrarMovimiento,
   conciliarInventario,
   listarCategoriasInventario,
@@ -160,7 +159,6 @@ const {
 } = require('./utils/inventarioConfig');
 const {
   sugerirMapeoCompleto,
-  firmaCabeceras,
   parsearArchivoCSV,
   listarHojasXLSX,
   parsearArchivoXLSX,
@@ -170,7 +168,6 @@ const {
   crearPerfilMapeo,
   eliminarPerfilMapeo,
   buscarPerfilParaCabeceras,
-  marcarPerfilUsado,
   generarPlantillaCSV,
   generarPlantillaXLSX,
   generarCSVErrores,
@@ -1488,6 +1485,23 @@ function generarFolio(id) {
 // patrón que el folio de tickets pero con su propio prefijo.
 function generarNumeroCompra(id) {
   return `OC-${String(id).padStart(6, '0')}`;
+}
+
+// Quién registró una venta (punto 320) — para reportes/aclaraciones, NUNCA
+// se muestra en la sección de Ventas. Prioridad explícita para cuentas
+// administrador/fiscal/ventas (mecanismo "perfil_bd"): nombre real (Mi
+// Cuenta) primero, correo si no lo capturó — JAMÁS su "rfc" (que para
+// estos 3 perfiles es solo un nombre de usuario de login, no una
+// identidad fiscal, ver server.js donde se crea el usuario). Para
+// ADMIN_USERS/usuario compartido de sucursal/credencial API, ya es un
+// identificador propio (no hay "rfc" que ocultar), se usa tal cual.
+function resolverCreadoPorVenta(req) {
+  if (req.adminMecanismo === 'perfil_bd') {
+    const nombre = (req.adminNombre || '').trim();
+    if (nombre) return nombre;
+    return req.adminEmail || null;
+  }
+  return req.adminUser || null;
 }
 
 // Detecta la URL base del portal (protocolo + dominio) a partir de la
@@ -3231,7 +3245,7 @@ app.get(
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
     const perfil = sanitizeText(req.query.perfil, 20);
-    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas'];
+    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas', 'inventario'];
 
     let sql = `SELECT id, rfc, telefono, email, debe_cambiar_password, perfil, activo, creado_en, actualizado_en FROM usuarios`;
     const params = [];
@@ -3262,7 +3276,7 @@ app.post(
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const perfil = sanitizeText(body.perfil, 20);
-    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas'];
+    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas', 'inventario'];
     if (!perfilesValidos.includes(perfil)) {
       return res.status(400).json({ error: 'Selecciona un perfil válido (cliente, administrador, fiscal o ventas).' });
     }
@@ -3311,11 +3325,11 @@ app.post(
     }
 
     // Punto 244 (mapeo con CLARVO_Planes.md): cuota de cuentas de panel
-    // (administrador/fiscal/ventas) por tenant, configurada desde
-    // /control. Nunca aplica a "cliente" (esas cuentas son la base de
-    // clientes del negocio, no "asientos" del plan) ni al sitio base
+    // (administrador/fiscal/ventas/inventario) por tenant, configurada
+    // desde /control. Nunca aplica a "cliente" (esas cuentas son la base
+    // de clientes del negocio, no "asientos" del plan) ni al sitio base
     // (sin req.tenant, sin cuota — comportamiento de siempre).
-    const PERFILES_CUOTA = ['administrador', 'fiscal', 'ventas'];
+    const PERFILES_CUOTA = ['administrador', 'fiscal', 'ventas', 'inventario'];
     if (req.tenant && req.tenant.maxUsuarios != null && PERFILES_CUOTA.includes(perfil)) {
       const [[{ total }]] = await pool.query(
         `SELECT COUNT(*) AS total FROM usuarios WHERE perfil IN (${PERFILES_CUOTA.map(() => '?').join(',')})`,
@@ -3429,7 +3443,7 @@ app.put(
 
     const body = req.body || {};
     const perfil = sanitizeText(body.perfil, 20);
-    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas'];
+    const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas', 'inventario'];
     if (!perfilesValidos.includes(perfil)) {
       return res.status(400).json({ error: 'Selecciona un perfil válido (cliente, administrador, fiscal o ventas).' });
     }
@@ -4074,6 +4088,7 @@ app.post(
         estatus_o_concepto: o.concepto,
         monto: o.total,
         fecha_registro: o.creado_en,
+        atendido_por: o.creado_por,
       })),
     ];
 
@@ -4147,7 +4162,7 @@ app.post(
 
     const [ordenes] = await pool.query(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.total, o.email,
-              o.estado_pago, o.monto_cobrado,
+              o.estado_pago, o.monto_cobrado, o.creado_por,
               (o.facturado_en IS NOT NULL) AS facturado
          FROM ordenes_compra o
         WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ? AND o.fecha_compra < ?
@@ -4202,6 +4217,7 @@ app.post(
       estatus_o_concepto: orden.concepto,
       monto: Number(orden.total),
       fecha_registro: orden.fecha_compra,
+      atendido_por: orden.creado_por,
     }));
     const fechaGeneracion = new Date();
     // "finExclusivo" es el límite REAL de la consulta (el día siguiente a
@@ -5445,11 +5461,15 @@ app.post(
     ahora.setMilliseconds(0);
     const montoCobradoInicial = estadoPago === 'pagada' ? total : 0;
     const fechaCobroInicial = estadoPago === 'pagada' ? ahora : null;
+    // Punto 322: quién registró la venta — solo para reportes/
+    // aclaraciones, nunca expuesto por GET /ordenes-compra (esa consulta
+    // usa columnas explícitas, sin "creado_por" en la lista).
+    const creadoPor = resolverCreadoPorVenta(req);
     const [resultado] = await pool.query(
       `INSERT INTO ordenes_compra
-        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, descuento_porcentaje, descuento_monto, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['TEMP', ahora, concepto, cantidadNeta, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, ahora, ahora]
+        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, descuento_porcentaje, descuento_monto, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, creado_por, creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['TEMP', ahora, concepto, cantidadNeta, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, creadoPor, ahora, ahora]
     );
 
     const numeroCompra = generarNumeroCompra(resultado.insertId);
@@ -5693,15 +5713,23 @@ app.get(
     }
 
     const configGlobal = await getConfiguracionGlobal();
-    const ordenesFormateadas = ordenes.map((orden) => ({
-      ...orden,
-      facturado: Boolean(orden.facturado),
-      productos_inventario: lineasPorOrden.get(orden.id) || [],
-      fecha_compra_formateada: formatearFechaHoraMexico(
-        new Date(`${orden.fecha_compra.replace(' ', 'T')}Z`),
-        configGlobal.zona_horaria
-      ),
-    }));
+    const ordenesFormateadas = ordenes.map((orden) => {
+      // Punto 322: "creado_por" (quién registró la venta) NUNCA debe
+      // llegar aquí — el SELECT de arriba ya lo excluye, pero se quita
+      // explícitamente también aquí (defensa en profundidad: si algún
+      // día ese SELECT cambia a "*" por accidente, este spread no lo
+      // filtraría solo).
+      const { creado_por, ...ordenSinCreadoPor } = orden;
+      return {
+        ...ordenSinCreadoPor,
+        facturado: Boolean(orden.facturado),
+        productos_inventario: lineasPorOrden.get(orden.id) || [],
+        fecha_compra_formateada: formatearFechaHoraMexico(
+          new Date(`${orden.fecha_compra.replace(' ', 'T')}Z`),
+          configGlobal.zona_horaria
+        ),
+      };
+    });
 
     res.json({ total: ordenesFormateadas.length, ordenes: ordenesFormateadas });
   })
@@ -7231,7 +7259,7 @@ app.get(
   '/api/admin/inventarios/configuracion',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   asyncHandler(async (req, res) => {
     res.json({ configuracion: await obtenerConfigInventario() });
   })
@@ -7241,7 +7269,7 @@ app.put(
   '/api/admin/inventarios/configuracion/:clave',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   asyncHandler(async (req, res) => {
     const { clave } = req.params;
     if (!CLAVES_CONFIG_INVENTARIO[clave]) {
@@ -7288,7 +7316,7 @@ app.get(
   '/api/admin/inventarios/diccionario',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   asyncHandler(async (req, res) => {
     res.json({ diccionario: obtenerDiccionarioInventario() });
   })
@@ -7300,7 +7328,7 @@ app.get(
   '/api/admin/inventarios/categorias',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     res.json({ categorias: await listarCategoriasInventario() });
@@ -7311,7 +7339,7 @@ app.post(
   '/api/admin/inventarios/categorias',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const resultado = await crearCategoriaInventario(req.body && req.body.nombre);
@@ -7326,7 +7354,7 @@ app.put(
   '/api/admin/inventarios/categorias/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -7343,7 +7371,7 @@ app.delete(
   '/api/admin/inventarios/categorias/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -7365,7 +7393,7 @@ app.post(
   '/api/admin/inventarios/categorias/:id/reactivar',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -7384,7 +7412,7 @@ app.get(
   '/api/admin/inventarios/unidades',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query('SELECT id, nombre, abreviatura, permite_decimales FROM unidades_medida ORDER BY nombre ASC');
@@ -7398,7 +7426,7 @@ app.post(
   '/api/admin/inventarios/unidades',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const nombre = sanitizeText(req.body && req.body.nombre, 50);
@@ -7648,7 +7676,7 @@ app.get(
   '/api/admin/inventarios/productos',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const verPapelera = req.query.papelera === 'true';
@@ -7736,7 +7764,7 @@ app.post(
   '/api/admin/inventarios/productos',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const datos = await validarCuerpoProducto(req, res);
@@ -7769,7 +7797,7 @@ app.get(
   '/api/admin/inventarios/productos/buscar',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador', 'ventas'),
+  requireAdminArea('administrador', 'ventas', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const termino = typeof req.query.q === 'string' ? req.query.q.trim() : '';
@@ -7816,7 +7844,7 @@ app.get(
   '/api/admin/inventarios/productos/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -7836,7 +7864,7 @@ app.put(
   '/api/admin/inventarios/productos/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -7874,7 +7902,7 @@ app.delete(
   '/api/admin/inventarios/productos/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -7893,7 +7921,7 @@ app.delete(
 // que el producto ya existe — mismo criterio que el comprobante de
 // Gastos: crear es JSON, el archivo es una petición aparte una vez que
 // hay un :id al que asociarlo.
-app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requireAdminAuth, requireAdminArea('administrador'), requireInventarioActivo, (req, res) => {
+app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requireAdminAuth, requireAdminArea('administrador', 'inventario'), requireInventarioActivo, (req, res) => {
   subirConTenant(uploadImagen, 'imagen', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -7947,7 +7975,7 @@ app.get(
   '/api/admin/inventarios/productos/:id/imagen',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -7977,7 +8005,7 @@ app.delete(
   '/api/admin/inventarios/productos/:id/imagen',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -8002,7 +8030,7 @@ app.post(
   '/api/admin/inventarios/productos/:id/restaurar',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -8030,7 +8058,7 @@ app.get(
   '/api/admin/inventarios/productos/:id/codigo-barras.svg',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -8060,7 +8088,7 @@ app.delete(
   '/api/admin/inventarios/productos/:id/permanente',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -8152,7 +8180,7 @@ app.post(
   '/api/admin/inventarios/entradas',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     await manejarMovimiento(req, res, TIPOS_ENTRADA);
@@ -8167,7 +8195,7 @@ app.post(
   '/api/admin/inventarios/salidas',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     await manejarMovimiento(req, res, ['consumo_interno', 'merma', 'ajuste_negativo']);
@@ -8180,7 +8208,7 @@ app.get(
   '/api/admin/inventarios/kardex',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const productoId = Number(req.query.producto_id);
@@ -8230,7 +8258,7 @@ app.get(
   '/api/admin/inventarios/kardex-exportar',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query(
@@ -8264,7 +8292,7 @@ app.get(
   '/api/admin/inventarios/existencias',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query(
@@ -8283,7 +8311,7 @@ app.get(
   '/api/admin/inventarios/verificar-integridad',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const divergencias = await conciliarInventario();
@@ -8297,7 +8325,7 @@ app.get(
   '/api/admin/inventarios/dashboard',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const [[valorInventario]] = await pool.query(`
@@ -8414,7 +8442,7 @@ app.get(
   '/api/admin/inventarios/reportes/estado',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const almacenId = await obtenerAlmacenDefectoId();
@@ -8644,7 +8672,7 @@ app.get(
   '/api/admin/inventarios/importaciones/plantilla.csv',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -8657,7 +8685,7 @@ app.get(
   '/api/admin/inventarios/importaciones/plantilla.xlsx',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const buffer = await generarPlantillaXLSX();
@@ -8671,7 +8699,7 @@ app.get(
   '/api/admin/inventarios/perfiles-mapeo',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     res.json({ perfiles: await listarPerfilesMapeo() });
@@ -8682,7 +8710,7 @@ app.delete(
   '/api/admin/inventarios/perfiles-mapeo/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
@@ -8702,7 +8730,7 @@ app.post(
   '/api/admin/inventarios/importaciones',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res, next) => {
     // "Solamente servicios": la carga masiva es exclusivamente para
@@ -8839,7 +8867,7 @@ app.get(
   '/api/admin/inventarios/importaciones/:id',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const importacion = await obtenerImportacionOResponder(req.params.id, res);
@@ -8856,7 +8884,7 @@ app.put(
   '/api/admin/inventarios/importaciones/:id/mapeo',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const importacion = await obtenerImportacionOResponder(req.params.id, res);
@@ -8942,7 +8970,7 @@ app.get(
   '/api/admin/inventarios/importaciones/:id/errores.csv',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const importacion = await obtenerImportacionOResponder(req.params.id, res);
@@ -8965,7 +8993,7 @@ app.post(
   '/api/admin/inventarios/importaciones/:id/ejecutar',
   adminApiLimiter,
   requireAdminAuth,
-  requireAdminArea('administrador'),
+  requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
   asyncHandler(async (req, res) => {
     const importacion = await obtenerImportacionOResponder(req.params.id, res);
