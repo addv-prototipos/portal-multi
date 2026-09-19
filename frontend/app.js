@@ -144,7 +144,11 @@
     clearFormErrors();
 
     const formData = new FormData(els.formDatos);
-    const tipoPersona = String(formData.get('tipo_persona') || '');
+    // FormData omite el valor de un radio deshabilitado aunque este
+    // checked (caso: tipo_persona precargado de la Constancia, punto 241)
+    // — se recupera directo del DOM para no perder esa seleccion.
+    const radioChecked = document.querySelector('input[name="tipo_persona"]:checked');
+    const tipoPersona = String(formData.get('tipo_persona') || (radioChecked ? radioChecked.value : ''));
     const rfc = String(formData.get('rfc') || '').trim();
     const email = String(formData.get('email') || '').trim();
 
