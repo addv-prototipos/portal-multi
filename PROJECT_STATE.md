@@ -15328,6 +15328,51 @@ acción realmente expulsa a login sin refrescar. Portal de cliente
 (vía `GET /api/auth/me`) es diseño ya documentado (punto 290), no el
 mismo bug. Sin commit/push.
 
+325. **Recorrido guiado + "Primeros pasos" para el perfil Inventario
+(2026-09-25, IMPLEMENTADO Y VALIDADO por curl contra Docker real — 100%
+frontend)**: pedido explícito del usuario ("agrega un recorrido para el
+perfil de inventario... dale también ayuda de pasos como lo haces con el
+perfil de ventas"), con propuesta antes/después en un Artifact interactivo
+(mockup con la misma paleta/íconos del panel real, tabs "Antes"/"Después"
++ botón "Reproducir recorrido") aprobada explícitamente antes de tocar
+código ("me agrada, aplícalo"). Cierra el hueco: el perfil "Inventario"
+(punto 321) tenía checklist/tour para fiscal/administrador/ventas pero no
+para sí mismo. Checklist "Primeros pasos" (3 pasos, vive dentro de su
+propio "Inicio" = el mismo nodo de "Estado del inventario" reparentado,
+`contenedorOnboarding()` gana el caso `inventario → els.vistaInicio`):
+"Da de alta tu primer producto o servicio" (hecho: lee `estadoInventarioCache`
+— la misma respuesta ya cargada por `cargarEstadoInventario()`, nunca la
+tabla de Inventarios que puede no haberse visitado — `valuacion_detalle.length
+> 0` o `servicios.kpis.total_servicios > 0`), "Registra tu primera entrada
+de inventario" (bandera de evento `entradaInventarioRegistrada`, se marca
+al guardar un movimiento real de dirección "entrada" en el modal de
+movimientos) y "Revisa tu perfil en Mi Cuenta" (`marcarOnboardingVisto('mi-cuenta')`
+agregado a `cambiarVistaPrincipal()`, no existía para ningún perfil antes).
+Recorrido con spotlight (4 pasos, mismo mecanismo `ONBOARDING_TOUR_PASOS`/
+`TOUR_PASO_AYUDA` ya usado por los otros 3 perfiles): sidebar (2 secciones)
+→ `#btn-vista-inventarios` → la propia tarjeta del checklist → ícono de
+ayuda del topbar. **Bug de datos async evitado antes de shippear** (mismo
+patrón ya corregido en el punto 192 para Fiscal): `estadoInventarioCache`
+llega después del primer render del checklist — se agregó
+`renderOnboardingChecklist()` al final de `cargarEstadoInventario()` para
+que el paso 1 no se quede con el estado viejo hasta la siguiente
+interacción. Centro de conocimiento actualizado: categoría "Inicio" ahora
+aclara que para el perfil Inventario es el tablero de Estado del
+inventario (antes decía "perfiles Fiscal y Administrador" sin mencionarlo);
+categoría "Inventarios" gana un paso nuevo describiendo el perfil dedicado
+y su checklist/recorrido propios. Cero cambio de backend, `node --check`
+limpio, Jest backend 639/639 (suite `test/unit`, sin regresión — este
+segmento no tocó nada de `backend/`). Validado por curl tras rebuild
+`--no-cache`+`--force-recreate` frontend: los 4 fragmentos de código nuevos
+confirmados en el `admin.js` servido (`inventario: [` del tour,
+"Tus 2 secciones", `entradaInventarioRegistrada` ×3, el caso nuevo de
+`contenedorOnboarding()`, `Perfil "Inventario"` del Centro de
+conocimiento). **Sin herramienta de navegador esta sesión** (sin extensión
+Chrome conectada) — falta confirmación visual real del checklist marcando
+sus 3 pasos y del recorrido con globos, aunque el mecanismo es idéntico
+—línea por línea— al ya validado en navegador real para los otros 3
+perfiles (puntos 192/210). Sin commit/push.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

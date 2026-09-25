@@ -6386,6 +6386,7 @@
     if (vista === 'tickets') marcarOnboardingVisto('tickets');
     if (vista === 'constancias') marcarOnboardingVisto('constancias');
     if (vista === 'cxc') marcarOnboardingVisto('cxc');
+    if (vista === 'mi-cuenta') marcarOnboardingVisto('mi-cuenta');
     renderOnboardingChecklist();
   }
 
@@ -11783,6 +11784,11 @@
       renderInvEstadoMatriz(data.valuacion_detalle || []);
       renderInvEstadoServicios(data.servicios || null);
       Esqueleto.marcarKpisCargando(els.invEstadoKpiGrid, false);
+      // Primeros pasos (perfil Inventario): el paso 1 lee estadoInventarioCache,
+      // que llega async — sin este refresco quedaría con el estado viejo
+      // hasta la siguiente interacción (mismo bug ya corregido en el punto
+      // 192 para el checklist de Fiscal/Inventarios).
+      renderOnboardingChecklist();
     } catch (err) {
       // Las 4 gráficas se quedan en su estado vacío/anterior; se puede
       // reintentar volviendo a entrar a la pestaña.
@@ -16195,6 +16201,13 @@
         return;
       }
       showToast(`${data.folio} registrado — existencia: ${formatearCantidadInv(data.existenciaPosterior)}`);
+      // Primeros pasos (perfil Inventario): la primera entrada real marca
+      // el paso 2 del checklist listo, sin esperar a la siguiente vez que
+      // se visite "Inicio".
+      if (inventarioMovimientoDireccion === 'entrada') {
+        guardarEstadoOnboarding({ entradaInventarioRegistrada: true });
+        renderOnboardingChecklist();
+      }
       cerrarMovimientoModal();
       await cargarInventarios();
       cargarDashboardInventario();
@@ -17345,10 +17358,11 @@
     },
     inicio: {
       titulo: 'Inicio',
-      lead: 'Estado general de los tickets — perfiles Fiscal y Administrador.',
+      lead: 'Estado general de los tickets (Fiscal/Administrador) o del inventario (perfil Inventario).',
       pasos: [
-        { t: 'Qué muestra', d: 'Estadísticas y una dona de tickets por estatus (pendiente, en curso, listo, cancelado) — la foto del día.' },
-        { t: 'Checklist "Primeros pasos"', d: 'Se muestra solo mientras te falten pasos por completar — desaparece solo cuando terminas.' },
+        { t: 'Qué muestra (Fiscal/Administrador)', d: 'Estadísticas y una dona de tickets por estatus (pendiente, en curso, listo, cancelado) — la foto del día.' },
+        { t: 'Qué muestra (perfil Inventario)', d: 'Es el mismo tablero de "Estado del inventario" que Administrador ve dentro de Reportes — para este perfil vive directo en "Inicio", ya que es su única vista de aterrizaje.' },
+        { t: 'Checklist "Primeros pasos"', d: 'Se muestra solo mientras te falten pasos por completar — desaparece solo cuando terminas. Cada perfil (Fiscal, Administrador, Ventas, Inventario) tiene sus propios pasos.' },
         { t: 'Accesos rápidos (solo Fiscal)', d: 'Los botones "Ver todas" y "Gestionar" abren Tickets completo — Administrador ve la misma foto general, pero de solo lectura, sin esos 2 botones.' },
       ],
     },
@@ -17415,6 +17429,7 @@
         { t: 'Imprimir etiqueta de código de barras', d: 'Menú "⋮" de cada fila → "Imprimir etiqueta" — elige térmica (rollo, 40×30mm) o carta (24 por hoja), cuántas copias, y listo. Se genera solo a partir del código de barras del producto (o su SKU si no tiene uno capturado), sin necesidad de escribirlo a mano.' },
         { t: '"Solamente servicios"', d: 'Si tu negocio no maneja stock físico, actívalo en Configuraciones — oculta todo lo relacionado a productos y existencias.' },
         { t: 'Fecha de expiración', d: 'Opcional, solo para productos físicos (no aplica a servicios) — déjala vacía si no caduca. La tarjeta "Por vencer" del tablero cuenta juntos los vencidos y los que vencen dentro de 30 días; clic ahí abre la lista completa. Solo es un aviso — no bloquea vender el producto.' },
+        { t: 'Perfil "Inventario"', d: 'Un perfil dedicado que solo ve "Inicio" (Estado del inventario), "Inventarios" y "Mi Cuenta" — con su propio checklist de "Primeros pasos" y recorrido guiado, igual que Fiscal/Administrador/Ventas.' },
       ],
     },
     proveedores: {
@@ -17704,6 +17719,23 @@
         { texto: 'Revisa Cuentas por cobrar', vista: 'cxc', hecho: !!vistos.cxc },
         { texto: 'Registra tu primer gasto', vista: 'gastos', hecho: !!estado.gastoCreado },
       ],
+      // punto 321/recorrido inventario: "hecho" del paso 1 se lee de
+      // estadoInventarioCache (la misma respuesta que ya carga su propio
+      // "Inicio" — ver cargarInicioInventario()/cargarEstadoInventario()),
+      // nunca de la tabla de Inventarios (esa vista puede no haberse
+      // visitado todavía). El paso 2 depende de la bandera de evento
+      // `entradaInventarioRegistrada` (guardarMovimientoInventario()).
+      inventario: [
+        {
+          texto: 'Da de alta tu primer producto o servicio',
+          vista: 'inventarios',
+          hecho:
+            (estadoInventarioCache && Array.isArray(estadoInventarioCache.valuacion_detalle) && estadoInventarioCache.valuacion_detalle.length > 0) ||
+            !!(estadoInventarioCache && estadoInventarioCache.servicios && Number(estadoInventarioCache.servicios.kpis && estadoInventarioCache.servicios.kpis.total_servicios) > 0),
+        },
+        { texto: 'Registra tu primera entrada de inventario', vista: 'inventarios', hecho: !!estado.entradaInventarioRegistrada },
+        { texto: 'Revisa tu perfil en Mi Cuenta', vista: 'mi-cuenta', hecho: !!vistos['mi-cuenta'] },
+      ],
     };
     return mapa[perfilActual] || null;
   }
@@ -17712,6 +17744,7 @@
     if (perfilActual === 'fiscal') return els.vistaInicio;
     if (perfilActual === 'administrador') return els.vistaResumenFinanciero;
     if (perfilActual === 'ventas') return els.vistaOrdenes;
+    if (perfilActual === 'inventario') return els.vistaInicio; // su "Inicio" reusa el mismo nodo (cargarInicioInventario())
     return null; // "super": sin checklist propio, es una cuenta de operación/depuración
   }
 
@@ -17810,6 +17843,12 @@
     ventas: [
       { selector: '.admin-sidebar-nav', titulo: 'Tus 3 secciones', desc: 'Ventas, Cuentas por cobrar y Gastos — todo lo que necesitas para tu día a día.' },
       { selector: '#btn-abrir-orden-modal', titulo: 'Registra una venta nueva', desc: 'Este botón abre el formulario para capturar cada venta.' },
+      { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
+      TOUR_PASO_AYUDA,
+    ],
+    inventario: [
+      { selector: '.admin-sidebar-nav', titulo: 'Tus 2 secciones', desc: 'Inicio con el estado de tu catálogo, e Inventarios para dar de alta y mover producto.' },
+      { selector: '#btn-vista-inventarios', titulo: 'Tu catálogo de productos y servicios', desc: 'Aquí das de alta, registras entradas/salidas y consultas existencias.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
       TOUR_PASO_AYUDA,
     ],

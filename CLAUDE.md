@@ -4054,6 +4054,31 @@ borrada. **Sin herramienta de navegador esta sesión** — falta que el
 usuario confirme con clics reales que la sesión abierta se corta sin
 refrescar. Sin commit/push. Ver PROJECT_STATE.md punto 324.
 
+**Punto 325 (2026-09-25, IMPLEMENTADO — Jest backend 639/639 sin cambios,
+VALIDADO por curl contra Docker real, sin navegador esta sesión)**:
+recorrido guiado + checklist "Primeros pasos" para el perfil Inventario
+(punto 321), pedido explícito del usuario con propuesta antes/después en
+Artifact aprobada primero ("me agrada, aplícalo"). Checklist de 3 pasos
+dentro de su propio "Inicio" (`contenedorOnboarding()` gana el caso
+`inventario`): dar de alta el primer producto/servicio (lee
+`estadoInventarioCache`, ya cargado por su Inicio, no la tabla de
+Inventarios sin visitar), registrar la primera entrada (bandera nueva
+`entradaInventarioRegistrada` al guardar un movimiento real) y revisar Mi
+Cuenta (`marcarOnboardingVisto('mi-cuenta')`, no existía para ningún
+perfil antes). Recorrido de 4 globos con el mismo mecanismo
+`ONBOARDING_TOUR_PASOS` ya usado por fiscal/administrador/ventas: sidebar
+→ botón Inventarios → la propia tarjeta del checklist → ayuda del topbar.
+Bug async evitado antes de shippear (mismo patrón del punto 192): se
+agregó `renderOnboardingChecklist()` al final de `cargarEstadoInventario()`
+para que el paso 1 no se quede con el estado viejo hasta la siguiente
+interacción. Centro de conocimiento actualizado (categorías "Inicio" e
+"Inventarios"). Cero cambio de backend. Validado por curl tras rebuild
+`--no-cache`+`--force-recreate` frontend: los fragmentos nuevos
+confirmados en el `admin.js` servido. **Sin herramienta de navegador esta
+sesión** — falta confirmación visual, aunque el mecanismo es idéntico al
+ya validado en navegador real para los otros 3 perfiles (puntos 192/210).
+Sin commit/push. Ver PROJECT_STATE.md punto 325.
+
 **Punto 317 (2026-09-17, IMPLEMENTADO Y VALIDADO por el usuario en
 navegador real, solo localhost)**: 2do bug real del mismo preview de
 CSF del punto 314 — el fix `X-Frame-Options DENY→SAMEORIGIN` no bastó,
