@@ -1,6 +1,6 @@
-# Portal de Facturación ADDV — Multi-tenant (constancia fiscal, tickets, ventas, gastos y facturación)
+# Clarvo — Multi-tenant (constancia fiscal, tickets, ventas, gastos, inventarios y facturación)
 
-Plataforma web multi-tenant (múltiples empresas cliente, cada una con su propia base de datos, sus propias URLs `/<slug>` y `/<slug>/admin`, y su propia identidad visual) para que clientes y proveedores capturen sus datos de facturación y suban su **constancia de situación fiscal** (solo PDF; el sistema valida que sea un documento genuino del SAT y extrae automáticamente el nombre/razón social, el régimen fiscal y el código postal). Cada usuario, identificado por su correo electrónico, puede mantener **un solo archivo activo**; si ya existe uno, la app pide confirmación antes de reemplazarlo. Incluye además tickets de venta con verificación de compra, un panel de administración con gráficas de Business Intelligence y auditoría, control de gastos de la operación, un módulo de inventarios con costeo promedio ponderado y trazabilidad completa (incluida moneda extranjera), y una app de control (`/control`) cross-tenant para gestionar el ciclo de vida de las empresas dadas de alta, incluida la asociación de empresas como sucursales del mismo negocio con usuarios de acceso compartidos.
+**Clarvo** ("tu negocio en orden", desarrollado por ADDV) es una plataforma web multi-tenant (múltiples empresas cliente, cada una con su propia base de datos, sus propias URLs `/<slug>` y `/<slug>/admin`, y su propia identidad visual) para que clientes y proveedores capturen sus datos de facturación y suban su **constancia de situación fiscal** (solo PDF; el sistema valida que sea un documento genuino del SAT y extrae automáticamente el nombre/razón social, el régimen fiscal y el código postal). Cada usuario, identificado por su correo electrónico, puede mantener **un solo archivo activo**; si ya existe uno, la app pide confirmación antes de reemplazarlo. Incluye además tickets de venta con verificación de compra, cuentas por cobrar, un panel de administración con gráficas de Business Intelligence y auditoría consultable, control de gastos de la operación, un módulo de inventarios con costeo promedio ponderado y trazabilidad completa (incluida moneda extranjera, código de barras y etiquetas de impresión), un Centro de conocimiento con manual y glosario integrados, identidad visual (marca, tema y logo) por empresa, y una app de control (`/control`) cross-tenant para gestionar el ciclo de vida de las empresas dadas de alta, incluida la asociación de empresas como sucursales del mismo negocio con usuarios de acceso compartidos.
 
 ## 🧱 Tecnologías usadas
 
@@ -13,6 +13,9 @@ Plataforma web multi-tenant (múltiples empresas cliente, cada una con su propia
 | Base de datos | **MySQL 8** (`mysql2/promise`), en su propio contenedor con volumen Docker persistente |
 | Frontend | HTML + CSS + JavaScript vanilla, servido con Nginx |
 | Almacenamiento de archivos | **MinIO** (self-hosted, compatible con S3, vía `@aws-sdk/client-s3`) — ver `backend/utils/storage.js`. El bind mount local `./uploads` ya no se usa para guardar nada (queda vestigial, ver PROJECT_STATE.md punto 92) |
+| Imágenes de producto | `sharp` (resize + conversión a WebP para la imagen principal de cada producto en Inventarios) |
+| Código de barras | `bwip-js` (genera el Code128 de las etiquetas de producto en el servidor); lectura por cámara con `BarcodeDetector` nativo del navegador, con `html5-qrcode` vendorizado como respaldo |
+| Tipo de cambio | API SIE de Banco de México (`BANXICO_TOKEN`, opcional) para productos de Inventarios en moneda extranjera |
 | Contenedores | Docker + Docker Compose, imágenes multi-stage |
 
 No se usa framework de frontend (React/Vite) para mantener la imagen ligera y sin paso de build; el resultado es una interfaz moderna, responsiva y accesible con JavaScript nativo.
@@ -216,6 +219,19 @@ Debajo de las tarjetas, el tablero lista **todas tus solicitudes de tickets**, c
 
 **Regla de aislamiento por RFC**: un ticket siempre queda asociado al RFC de la sesión que lo subió — nunca se manda un RFC distinto en la petición, así que es imposible generar una solicitud a nombre de otro RFC. Cada usuario solo ve y puede descargar las facturas de sus propios tickets.
 
+**Aclaraciones**: una burbuja flotante "Solicitar aclaraciones" (visible en tablero, tickets y csf)
+abre un modal con el RFC de sesión prellenado + nombre + teléfono + detalle — el correo se manda AL
+correo de contacto configurado del tenant (o del sitio base, donde el campo es opcional) y se espera
+el resultado real del envío antes de confirmar al cliente (a diferencia del resto de correos de la
+app, que son "fire-and-forget", aquí no hay ninguna fila de respaldo si el envío falla). Sin
+persistencia en base de datos — el folio es un timestamp + el RFC.
+
+**Extracción automática del Total del CFDI**: al subir la factura (ZIP con PDF+XML), si el ticket no
+tiene una venta ligada con monto conocido (negocio "solo facturas", sin Ventas/Inventarios activos),
+el sistema intenta leer el Total directo del XML del CFDI real; si la extracción falla, se pide
+capturarlo a mano sin bloquear la subida. Un monto ya leído del XML nunca se deja pisar por una
+captura manual, aunque se mande una.
+
 ### Constancia de situación fiscal
 
 Flujo de 3 pasos con indicador de progreso:
@@ -374,7 +390,7 @@ contra infraestructura real y confirma cada uno.
 Disponible en `http://localhost/admin` (o `https://tudominio.com/admin` en producción; usa el puerto que hayas configurado en `FRONTEND_PORT` si no es el `80` por defecto).
 
 - **Acceso**: usuario y contraseña por HTTP Basic Auth. Por defecto `admin` / `admin` (ver "Administración de cuentas y contraseñas" más abajo para los dos mecanismos que aceptan credenciales — variable de entorno, o usuarios con perfil administrador/fiscal). Es un sistema **separado** del login de RFC + contraseña de los usuarios del portal (`login.html`) — un cliente no puede iniciar sesión en el panel, y un administrador no inicia sesión como cliente.
-- El panel tiene un menú lateral con estas vistas, en este orden: **"Inicio"** (resumen, ver abajo), **"Tickets"**, **"Constancias"** (lo de siempre), **"Resumen financiero"**, **"Ventas"**, **"Gastos"**, **"Usuarios"**, **"Configuraciones globales"** (agrupa la configuración de campos obligatorios y de correo SMTP, ver más abajo) y **"Reportes"**. "Inicio" es la vista que se ve al iniciar sesión para los perfiles que la tienen disponible; el perfil `administrador` aterriza en "Resumen financiero" (ver abajo), su primera vista disponible.
+- El panel tiene un menú lateral agrupado por secciones, con estas vistas: **"Inicio"** (resumen, ver abajo), **"Tickets"**, **"Constancias"**, **"Resumen financiero"**, **"Ventas"**, **"Cuentas por cobrar"**, **"Gastos"**, **"Inventarios"**, **"Proveedores"** (en construcción), **"Reportes"**, **"Auditoría"** (opcional, ver "Configuraciones globales"), **"Usuarios"**, **"Mi Cuenta"** y **"Configuraciones globales"** (agrupa la configuración de campos obligatorios, correo SMTP y switches de módulo, ver más abajo). "Inicio" es la vista que se ve al iniciar sesión para los perfiles que la tienen disponible; el perfil `administrador` aterriza en "Resumen financiero" (ver abajo), su primera vista disponible. Un botón de libro en la barra de sesión (y otro fijo en el sidebar) abre el **Centro de conocimiento**, el manual del sistema integrado en la propia app (ver más abajo).
 
 ### Vista "Inicio"
 
@@ -468,6 +484,16 @@ Al ensanchar columnas de la tabla (ver "Cabeceras ajustables" abajo), el conjunt
 
 **Más espacio para las tablas**: el panel de administración se ensanchó de 1100px a 1400px de ancho máximo, en todas las vistas — así hay más espacio para ver columnas y botones de acción sin tener que recurrir a mucho scroll horizontal. La columna de acciones (los botones "Ver archivo", "Reenviar correo", etc.) se desplaza junto con el resto de la tabla al hacer scroll horizontal, igual que las demás columnas — no queda fija en su lugar.
 
+**Descuento por porcentaje**: el modal "Registrar venta" acepta un descuento opcional (botones rápidos 0/5/10/15% o captura manual, mayor a 0% y menor a 100%), aplicado sobre el subtotal antes del IVA — la caja de desglose muestra Subtotal, Descuento, IVA y Total por separado.
+
+**Estado de pago (Pagada / Pendiente de pago)**: toggle en el modal de registro — ver la vista "Cuentas por cobrar" arriba para el seguimiento completo de saldos pendientes.
+
+**Vista previa del ticket antes de imprimir**: al guardar con "imprimir", al abrir "Ver venta", o desde el ícono de la fila, se muestra un preview del ticket (mismo diseño que se imprime) antes de disparar la impresión real — evita imprimir por accidente.
+
+**Corte del día**: botón junto a "+ Registrar venta" que genera un reporte de ventas de un rango de fechas libre (con chips de atajo Hoy/Ayer/Esta semana/Este mes/Mes anterior), consultable en pantalla o imprimible como ticket — el corte queda guardado y disponible después en la pestaña "Cortes" de "Lectura de reportes".
+
+**Borrador local**: si se cierra el modal a medias, el progreso se guarda en el navegador (por tenant y usuario) y se ofrece restaurarlo la próxima vez que se abra "Registrar venta".
+
 #### Correo de confirmación de la venta
 
 Al registrar una orden, se le envía automáticamente al correo del cliente un mensaje con **diseño de ticket/recibo** (no un correo de texto plano): bordes punteados, montos en fuente monoespaciada, y el total destacado — pensado para que se identifique de un vistazo como un comprobante, igual que un ticket físico.
@@ -478,6 +504,25 @@ Al registrar una orden, se le envía automáticamente al correo del cliente un m
 - **Logo parametrizado**: por ahora, el correo usa un logo de texto simple generado en código ("ADDV") — no hay todavía una pantalla en el panel para subir/configurar un logo real, pero el campo (`logo_url` en la configuración global) y la lógica para usarlo ya existen, listos para cuando se agregue esa función.
 - Como con cualquier otro correo de esta app, el envío es "fire-and-forget": si el SMTP no está configurado o el envío falla, la orden se guarda correctamente de todas formas — el error solo se registra en los logs del backend.
 - Se manda tanto en HTML (el ticket) como en texto plano equivalente — buena práctica de entregabilidad y accesibilidad, por si el cliente de correo del destinatario no renderiza HTML.
+
+### Vista "Cuentas por cobrar"
+
+Entre "Ventas" y "Gastos" en el sidebar — visible para `administrador` + `super`. Una venta puede
+registrarse como **"Pagada"** (default) o **"Pendiente de pago"** (con fecha de vencimiento y notas
+opcionales) desde el mismo modal "Registrar venta"; esta vista concentra el seguimiento de lo pendiente.
+
+- **4 KPIs** con ícono SVG tintado (mismo lenguaje visual que Resumen financiero): Por cobrar, Vencidas,
+  Por vencer y Cobrado del mes.
+- **Tarjeta "Cobranza del mes"** con dona real (Cobrado / Por cobrar, sin meta inventada) y **Aging
+  Report** (antigüedad de saldos en 4 rangos).
+- **Tabla** con Cliente/RFC (vía `JOIN` con la constancia), Total, Cobrado, Saldo, Vencimiento, Estado
+  (badge solo texto `Pendiente`/`Vencida`/`Pagada`) y columna "Facturada".
+- **Registrar cobro** (modal, monto `>0` y `<= saldo`, crea un abono que actualiza `monto_cobrado`; si
+  el saldo llega a $0 la venta pasa a `pagada` automáticamente), **recordatorio por correo** real desde
+  la propia fila (una venta vencida puede recordarse al cliente sin salir del panel), y exportación CSV.
+- **Regla de negocio**: una venta con saldo pendiente **no se puede facturar** — `POST /api/tickets`
+  rechaza (`codigo: PAGO_PENDIENTE`) la solicitud de factura ligada a una orden `pendiente`.
+- Filtros combinables: cliente/correo, vencimiento; toggle Pendientes/Cobradas.
 
 ### Vista "Gastos"
 
@@ -505,6 +550,12 @@ Módulo de catálogo y existencias — **exclusivo del perfil "Administrador"** 
 - **Importador masivo CSV/XLSX** (§34, D9): wizard de 6 pasos con auto-mapeo de columnas por sinónimos (reconoce exportaciones de sistemas como CONTPAQi/Aspel sin configuración manual), perfiles de mapeo guardables, upsert por SKU (no duplica stock al reimportar el mismo catálogo), y modo asíncrono para archivos grandes (>500 filas).
 - **Ayuda contextual y diccionario de datos** (§56): ícono "?" en cada campo del formulario y del wizard de importación, con explicación en lenguaje simple, ejemplo válido y error común — sin salir de donde estás capturando.
 - **Verificar integridad**: botón que recalcula cada existencia desde cero contra el libro de movimientos y reporta cualquier divergencia (nunca corrige sola — la corrección siempre es un ajuste explícito hecho por el administrador).
+- **Código de barras por cámara**: al capturar en Ventas o dar de alta en Inventarios, un botón de escáner usa `BarcodeDetector` nativo del navegador (con `html5-qrcode` vendorizado como respaldo, nunca CDN) para leer el código de barras con la cámara del dispositivo — requiere contexto seguro (HTTPS o `localhost`; no funciona sobre HTTP plano en una IP de red local).
+- **Imagen principal de producto**: foto opcional por producto (redimensionada y convertida a WebP en el servidor), con efecto lupa en la tabla de Inventarios y en las sugerencias de producto de Ventas; sin foto, se muestra un marcador de posición.
+- **Generador de etiquetas de código de barras**: desde el menú "⋮" de un producto, imprime una etiqueta (código Code128 real generado en el servidor + nombre + precio) en formato térmica 40×30mm o carta (24 por hoja).
+- **Fecha de expiración opcional** (por producto, no por lote — el esquema no tiene concepto de lotes): solo es un aviso — nunca bloquea una venta. La tarjeta "Por vencer" del tablero cuenta vencidos + próximos 30 días, con lista filtrable.
+- **Switch "Solamente servicios"** (Configuraciones globales): restringe el catálogo a solo servicios cuando el negocio no vende productos físicos — dar de alta o reactivar un producto físico se rechaza también del lado del servidor mientras está encendido. Un servicio se cobra **por hora** o con **precio fijo (paquete de servicio)** — nunca genera existencia ni movimientos de almacén.
+- **Estado del inventario** (dentro de "Lectura de reportes", ver esa vista más abajo): KPIs de salud del catálogo, top/bottom 5 por rotación, valor por categoría, capital inmovilizado y matriz de riesgo.
 
 ### Vista "Usuarios"
 
@@ -632,6 +683,9 @@ Agrupa, en un solo lugar, la configuración que no es específica de una tabla e
   - **Correo que recibe el cliente (factura lista)**: campo de **cuerpo** dentro de la misma tarjeta SMTP, para personalizar el mensaje del correo automático que se le envía al cliente cuando su factura queda lista. Admite las variables `{folio}` y `{rfc}` en cualquier parte del texto — se reemplazan por el folio y RFC reales de cada ticket al momento de enviarse. Si se deja vacío, se usa un texto por defecto razonable (funciona desde el primer arranque sin configurar nada). El **asunto no es configurable a propósito**: siempre es el mensaje fijo "Factura lista — Folio ...".
   - **Enviar correo de prueba**: dentro de la misma sección, con campos de **destinatario**, **asunto** y **cuerpo del correo** (texto plano) — sirve para confirmar que las credenciales y el host/puerto configurados funcionan de verdad antes de depender de ellos. Si el envío falla, el mensaje de error intenta ser específico (credenciales rechazadas, no se pudo conectar al host, etc.) en vez de mostrar el error técnico crudo de la librería.
   - La configuración se guarda en la base de datos (no en variables de entorno), reutilizando la misma tabla de configuración que ya usan los campos obligatorios y el catálogo de Uso de CFDI.
+  - **Verificar conexión**: además de "Enviar correo de prueba" (que manda un correo real), un botón de verificación hace un *handshake* SMTP ligero (`.verify()`, sin enviar nada) y guarda el timestamp de la última verificación exitosa, visible en la propia tarjeta.
+  - **Plantillas de correo** (solo `super`): pestaña independiente con las 5 plantillas que comparten el mismo cascarón visual (invitación, recuperar contraseña, aviso al contador, factura lista, reporte) — texto editable por plantilla, vista previa real en `<iframe>` (renderiza el mismo cascarón que se usa al enviar de verdad, no una simulación aparte), botón "Restablecer esta plantilla", y marcado simple real de negrita/cursiva en el cuerpo (el texto se escapa primero contra HTML/inyección, el marcado se aplica después — un administrador nunca puede inyectar HTML arbitrario). El diseño (logo, colores, estructura) y los asuntos nunca son editables desde aquí. El correo de venta (ticket) y el de "Solicitar aclaraciones" quedan fuera a propósito, con cascarón/contenido propios.
+  - **Catálogo real del SAT — Clave de Producto o Servicio**: en "Configuraciones fiscales", el campo "Clave SAT" del producto/servicio se completa con un combobox que busca por texto o clave contra un catálogo local sincronizable (52,000+ claves reales, fuente verificada por `CLAVE_PROD_SERV_SYNC_URL`) — escribir los 8 dígitos a mano sigue funcionando siempre como respaldo, con enlace directo al sitio del SAT si no hay resultados.
 - **Configuración Reportes**: tarjeta plegable, justo después de "Correo electrónico (SMTP)".
   - **Configurar correo de reportes**: un correo opcional al que se envía el reporte en Markdown — tanto el generado automáticamente (ver abajo) como el manual. Si se deja vacío, el reporte igual se genera y se guarda para poder verlo después en "Reportes", solo que no se manda nada por correo.
   - **Enviar reporte** (botón, envío manual): genera y envía, bajo demanda, un reporte con los tickets y ventas **activos creados en lo que va del mes calendario actual** — sin esperar a que algo esté por vencerse por la retención configurada. **El reporte se genera y se guarda siempre**, incluso si no hay un correo de reportes configurado — en ese caso, el botón avisa que no se envió nada por correo (sin mostrarlo como un error, ya que el reporte sí quedó disponible para consultarse en "Reportes"). Solo se marca como error real cuando SÍ hay un correo configurado pero el envío en sí falla (ej. el SMTP configurado dejó de funcionar).
@@ -642,14 +696,98 @@ Agrupa, en un solo lugar, la configuración que no es específica de una tabla e
 
 ### Vista "Reportes" (Lectura de reportes)
 
-Botón propio en el menú del panel. Permite consultar cualquier reporte ya generado (automático o manual):
+Botón propio en el menú del panel, organizado en **4 pestañas**: "Por reporte" (lo de siempre),
+"Cortes", "Todo lo eliminado" y "Estado del inventario" (ver "Vista Inventarios" arriba) — un letrero
+bajo las pestañas explica qué muestra cada segmento.
+
+**Pestaña "Por reporte"** — consulta cualquier reporte automático o manual ya generado:
 
 - Un **selector** lista todos los reportes generados, con fecha, tipo y totales, del más reciente al más antiguo.
 - Al elegir uno, se muestra un **resumen** (tipo, fecha y hora de generación, cuántos tickets y órdenes trae, y si se envió por correo y a quién).
-- **Filtros** (se pueden combinar entre sí), en una cuadrícula de 4 campos parejos: tipo de registro (tickets / ventas / todos), **estatus** (pendiente / en curso / cancelado / listo / todos — filtra sobre la columna "Estatus", que en la práctica solo empareja tickets, ya que el concepto libre de una orden no coincidiría con uno de esos valores exactos), RFC o correo (búsqueda parcial), y un **rango de fechas** (desde/hasta, agrupados en un solo campo con dos entradas lado a lado, en vez de dos campos sueltos) sobre la fecha original del ticket u orden capturado en el reporte.
+- **Filtros** (se pueden combinar entre sí), en una cuadrícula de 4 campos parejos: tipo de registro (tickets / ventas / gastos / todos), **estatus** (pendiente / en curso / cancelado / listo / todos — filtra sobre la columna "Estatus", que en la práctica solo empareja tickets, ya que el concepto libre de una orden no coincidiría con uno de esos valores exactos), RFC o correo (búsqueda parcial), y un **rango de fechas** (desde/hasta, agrupados en un solo campo con dos entradas lado a lado, en vez de dos campos sueltos) sobre la fecha original del ticket u orden capturado en el reporte.
 - **Exportar a CSV o a Excel** (`.xlsx` real, generado con la librería `exceljs` — no un CSV disfrazado de Excel), respetando exactamente los mismos filtros que se estén viendo en la tabla en ese momento — incluye la columna "Atendido por". El CSV incluye el BOM de UTF-8 al inicio, para que Excel en Windows no corrompa acentos y eñes al abrirlo directamente.
 - **"Ver Markdown completo"**: abre el reporte completo tal como se generó (o se envió por correo) en una ventana emergente, con su propio botón para descargarlo como archivo `.md`.
 - **Eliminar reporte**: borra el reporte seleccionado de forma permanente (Markdown y todos sus registros) — pide confirmación primero, con el mismo modal genérico ya usado en el resto del panel. A diferencia de constancias/tickets, "Reportes" no tiene papelera — es un borrado directo.
+
+**Pestaña "Cortes"** — lista los cortes de ventas generados desde la vista "Ventas" (ver "Corte del
+día" arriba), con buscador, paginación, detalle con el total destacado, botón "Imprimir" (con los
+campos que un corte guardado conserva: rango, total, conteo, ítems) y exportación CSV.
+
+**Pestaña "Todo lo eliminado"** — ledger cruzado de todo lo que se ha eliminado a través de cualquier
+reporte, con columna "Reporte de origen" (tipo del reporte que registró cada baja) y 3 KPIs de
+auditoría (histórico + tendencia mensual). Cada fila muestra quién generó el reporte de origen
+("Generado por", cruzado contra `admin_auditoria` por ruta+ventana de tiempo, mejor esfuerzo) y un
+botón "Ver historial" con el timeline completo de ese identificador.
+
+**Cierre mensual archivado**: el día 1 de cada mes, Ventas y Gastos del mes recién cerrado se archivan
+automáticamente (nunca se borran) — la retención automática configurable (ver "Vista Tickets") sigue
+aplicando solo a tickets. Las vistas de Ventas/Gastos filtran por defecto lo no archivado, con un
+selector "Periodo" para consultar meses ya cerrados; Resumen financiero siempre incluye los meses
+archivados en sus gráficas y KPIs históricos.
+
+### Vista "Auditoría"
+
+Consulta, dentro del propio tenant, la bitácora de mutaciones y logins del panel (la misma tabla
+`admin_auditoria` que ya alimenta la auditoría cross-tenant de `/control`) — nunca muestra datos de
+otro tenant. Opcional: un switch **"Mostrar Auditoría"** en Configuraciones globales (encendido por
+defecto) oculta el botón del sidebar y bloquea el endpoint también del lado del servidor cuando está
+apagado — el registro en sí (`admin_auditoria`) sigue corriendo pase lo que pase, el switch solo
+controla la pantalla de consulta.
+
+### Vista "Proveedores"
+
+Botón nuevo en el sidebar (entre Inventarios y Reportes) — hoy es un **marcador de posición** ("en
+construcción"), sin CRUD ni endpoint todavía; visible para el mismo perfil que Gastos
+(`administrador` + super).
+
+### Vista "Mi Cuenta"
+
+Perfil propio del usuario que tiene la sesión abierta — nombre, teléfono, correo y cambio de
+contraseña (verificando la actual, a diferencia del restablecimiento con privilegio que hace otro
+administrador sobre una cuenta ajena).
+
+- Todos los perfiles ven su perfil básico; identidad de la empresa y conteo de operadores (con la
+  cuota `max_usuarios` del tenant, si aplica) solo para `administrador`/`super`.
+- Cuentas sin fila real en la tabla `usuarios` (`ADMIN_USERS`, credenciales API, usuario de sucursal
+  compartido) muestran sus datos como no editables — no hay dónde guardar un cambio.
+- Zona horaria se muestra como espejo de solo lectura con enlace a "Configuraciones fiscales" (vive a
+  nivel tenant, no por usuario).
+
+### Centro de conocimiento
+
+Manual del sistema integrado en la propia app, sin salir del panel — botón de libro en la barra de
+sesión (foco directo en el buscador al abrir desde ahí) y en el pie del sidebar, disponible en
+`/admin` y en `/control`.
+
+- **Categorías reales**, una por vista del sidebar de cada app (en `/admin`, las 14 vistas reales,
+  incluido "Glosario" con ~20 términos del negocio en orden alfabético — RFC, CFDI, kardex, costo
+  promedio ponderado, rotación, folio, etc.; en `/control`, Empresas/Sucursales/Super Admins).
+- **Buscador** que filtra y resalta coincidencias en vivo entre todas las categorías a la vez.
+- Contenido 100% texto/HTML estático (sin dependencia ni servicio nuevo), oculto por perfil según qué
+  vista tenga acceso cada quien.
+- Botón **"Ver el recorrido de nuevo"** (dentro de "Primeros pasos") relanza el tour guiado a demanda.
+
+### Checklist "Primeros pasos" y recorrido guiado
+
+Al primer ingreso de una cuenta nueva, un checklist de 3-4 pasos (según el perfil) y un recorrido con
+spotlight real sobre los elementos de la pantalla (posición calculada en vivo, no coordenadas fijas)
+ayudan a entender el sistema sin documentación externa.
+
+- Banderas de "ya visto" en `localStorage`, por cuenta — no por sesión ni a nivel servidor.
+- Solo escritorio; se muestra una vez en la vida de la cuenta, salvo que se pida repetir desde el
+  Centro de conocimiento.
+
+### Recuperar contraseña
+
+Enlace **"¿Olvidaste tu contraseña?"** en el login del portal de cliente y en el del panel
+(`/admin`) — token de un solo uso (30 minutos de vigencia) enviado por correo, con página propia
+(`restablecer.html`) para capturar la contraseña nueva.
+
+- **Alcance real**: solo cuentas con fila propia en la tabla `usuarios` (cliente, administrador,
+  fiscal) pueden recuperarla por este medio. La cuenta de respaldo `admin`, las cuentas de
+  `ADMIN_USERS`, `/control` y los usuarios de sucursal compartidos **no** tienen este flujo — no
+  tienen ni correo propio ni fila en esa tabla.
+- El enlace respeta el slug del tenant que lo solicitó.
 
 ### Administración de cuentas y contraseñas
 
@@ -835,6 +973,34 @@ reemplazar/quitar el logo). El backend usa `req.tenant.marca` (con
 fallback `'ADDV'`) en los 7 correos que antes tenían "ADDV" incrustado:
 ticket nuevo, venta, invitación al portal, ticket nuevo al
 contador, factura lista y la plantilla de correo por defecto.
+
+**Identidad visual (tema) por empresa (segmento "Look & Feel", ver
+`inventarios.md`/PROJECT_STATE.md punto 105)**: dentro del modal "Editar empresa", la sección
+"Identidad visual (personalizada)" permite definir colores (12 selectores de una lista cerrada de
+claves), tipografía y radio de esquinas (catálogo cerrado de 8 fuentes de Google Fonts, nunca texto
+libre) y favicon propio — con vista previa en vivo y botón "Restablecer al diseño ADDV". El contraste
+se valida en servidor con **WCAG 2.1 AA real** (9 pares fondo/texto); un valor que no cumple se
+rechaza. `frontend/theme.js` pinta las variables CSS resultantes sobre las 6 páginas del portal de
+cada tenant, sin tocar el diseño base cuando el tenant no tiene tema propio.
+
+**Cuota de usuarios de panel por tenant (`max_usuarios`)**: campo editable en "Editar empresa" que
+limita cuántas cuentas administrador/fiscal/ventas puede tener ese tenant — `POST`/`PUT
+/api/admin/usuarios` rechazan (400, `CUOTA_USUARIOS_EXCEDIDA`) exceder el límite; nunca aplica a
+cuentas perfil cliente. Una cuenta suspendida sigue contando contra la cuota (no libera el "asiento").
+
+**Activar tenant sin root de MySQL**: un tenant en estado "Provisionando" (alta capturada desde
+"Nueva empresa" pero sin materializar todavía) puede completarse con el botón **"Activar"** de su
+fila, sin necesitar la contraseña de root de MySQL en el momento — usa un privilegio ya otorgado una
+sola vez al usuario de aplicación (`GRANT ALL ... ON tenant\_%.*`) para crear la base de datos del
+tenant y aplicarle el esquema completo. Verifica el estado ANTES del paso físico (nunca marca
+"activo" si la creación de la base de datos falla). El script CLI (`provisionar-tenant.js`, con root)
+sigue existiendo como respaldo si el privilegio llegara a faltar.
+
+**Super Admins desde `/control`**: vista propia en el sidebar para dar de alta, editar contraseña o
+quitar cuentas "super" (`ADMIN_USERS`) **sin editar el `.env` ni reiniciar ningún contenedor** — el
+backend recarga la lista de inmediato. La escritura sobre el `.env` real es atómica, con respaldo
+(`.env.bak`) antes de sobreescribir (necesario porque el patrón habitual de "temporal + rename" falla
+con `EBUSY` sobre un bind mount de un solo archivo, una limitación real de Docker).
 
 **Sucursales — usuarios de acceso compartidos entre empresas del mismo
 negocio (§58, ver `inventarios.md`)**: `/control` puede agrupar varios

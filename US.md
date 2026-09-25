@@ -1,8 +1,9 @@
-# Historias de Usuario — Portal de Facturación ADDV
+# Historias de Usuario — Clarvo
 
-Documento de historias de usuario del **Portal de Facturación ADDV** (carga de
-constancia de situación fiscal, tickets de venta, facturación, ventas, gastos,
-resumen financiero y administración multi-tenant). Cada historia sigue el formato
+Documento de historias de usuario de **Clarvo** ("tu negocio en orden",
+desarrollado por ADDV) — carga de constancia de situación fiscal, tickets de
+venta, facturación, ventas, cuentas por cobrar, gastos, inventarios,
+resumen financiero y administración multi-tenant. Cada historia sigue el formato
 *"Como [rol], quiero [capacidad], para [beneficio]"* e incluye criterios de
 aceptación verificables.
 
@@ -847,7 +848,368 @@ para no depender del disco local y poder escalar a múltiples nodos.
 
 ---
 
-## 18. Historial / pendientes a futuro
+## 18. Panel — Vista Inventarios (Administrador)
+
+> Módulo de catálogo y existencias, exclusivo del perfil `administrador`
+> (D7: `fiscal` no tiene ningún acceso), con interruptor global
+> "Inventario activo" en Configuraciones globales. Detalle completo de
+> las decisiones de diseño (D1-D11, §0-§58) en `inventarios.md`.
+
+### US-082 — Catálogo de productos y servicios con existencias derivadas del kardex
+Como **administrador**, quiero un catálogo simple (sin variantes/lote/serie) con SKU, código de
+barras opcional, categoría, unidad de medida y tipo (producto/servicio), cuya existencia solo
+cambie registrando movimientos, para tener un inventario confiable sin poder "forzar" un saldo a mano.
+
+**Criterios de aceptación:**
+- La existencia disponible nunca se edita directamente: sube o baja únicamente por una **entrada**
+  (compra, devolución de cliente, inventario inicial, ajuste positivo) o una **salida** (venta,
+  consumo interno, merma, ajuste negativo).
+- Un producto con movimientos históricos nunca se borra físicamente; papelera con restaurar.
+- El motor (`registrarMovimiento()`) es atómico y a prueba de concurrencia (bloqueo de fila +
+  reintento), con idempotencia real vía `Idempotency-Key`.
+- Un servicio (`tipo=servicio`) nunca genera existencia ni movimientos de almacén.
+
+### US-083 — Costeo promedio ponderado y trazabilidad completa de movimientos
+Como **administrador**, quiero que cada entrada con costo recalcule sola el costo promedio ponderado
+del producto, y poder consultar el historial completo de movimientos de cada uno, para saber cuánto
+vale mi inventario en todo momento.
+
+**Criterios de aceptación:**
+- El costo promedio nunca se edita directamente — solo lo mueve una entrada con costo.
+- Botón "Verificar integridad": recalcula cada existencia desde cero contra el libro de movimientos
+  y reporta cualquier divergencia; nunca corrige sola (la corrección siempre es un ajuste explícito).
+- Ícono "?" en cada campo del formulario con explicación en lenguaje simple, ejemplo válido y error
+  común (ayuda contextual y diccionario de datos, §56).
+
+### US-084 — Integración de inventario con Ventas
+Como **administrador**, quiero que "Registrar venta" pueda vincular productos del catálogo y descuente
+existencia automáticamente, para no llevar dos registros separados de lo mismo.
+
+**Criterios de aceptación:**
+- Con "Inventario activo" encendido, la venta valida stock disponible antes de guardar.
+- Varias líneas de producto por venta; todo o nada (si una línea falla, se revierte la venta completa).
+- Si la venta se cancela o falla a medio camino, se revierte con una devolución de cliente automática.
+- Sin "Inventario activo", "Registrar venta" funciona exactamente como sin este módulo.
+
+### US-085 — Importador masivo de productos (CSV/XLSX)
+Como **administrador**, quiero subir un catálogo completo desde un CSV/XLSX exportado de otro sistema
+(CONTPAQi, Aspel, etc.), para no capturar producto por producto.
+
+**Criterios de aceptación:**
+- Wizard de 6 pasos con auto-mapeo de columnas por sinónimos; perfiles de mapeo guardables.
+- Upsert por SKU: reimportar el mismo catálogo no duplica stock (crea entradas de "inventario inicial"
+  solo para lo nuevo).
+- Modo asíncrono para archivos grandes (>500 filas): responde de inmediato y procesa en segundo plano.
+- Una fila `tipo=servicio` se rechaza completa — la carga masiva es solo para productos; un servicio
+  siempre se da de alta a mano.
+- Columnas no reconocidas se guardan en un campo `extra` (JSON) en vez de perderse.
+
+### US-086 — Producto en moneda extranjera con tipo de cambio automático
+Como **administrador**, quiero marcar un producto en USD y que el tipo de cambio del día se traiga
+automáticamente (Banco de México), para no calcular a mano la conversión a pesos.
+
+**Criterios de aceptación:**
+- El tipo de cambio se precarga vía la API SIE de Banxico (`BANXICO_TOKEN`); sin token o si el
+  servicio no responde, se puede capturar a mano sin bloquear el alta.
+- Cada entrada conserva moneda original, tipo de cambio y costo original en el historial de
+  movimientos, para siempre.
+- El costo en pesos (`costoOriginal × tipoCambio`) es lo único que alimenta el costeo promedio
+  ponderado — sin cambios en esa lógica para productos en MXN.
+
+### US-087 — Código de barras: lectura por cámara y etiquetas de impresión
+Como **administrador**, quiero escanear el código de barras de un producto con la cámara del
+dispositivo (en Ventas o en Inventarios) e imprimir etiquetas nuevas para los que no tienen, para
+agilizar la captura en mostrador.
+
+**Criterios de aceptación:**
+- Lectura por cámara: `BarcodeDetector` nativo del navegador, con `html5-qrcode` vendorizado (nunca
+  CDN) como respaldo en dispositivos sin esa API — requiere un contexto seguro (HTTPS o localhost).
+- Generador de etiquetas por producto: código Code128 generado en el servidor (`bwip-js`), nombre y
+  precio; formato térmica 40×30mm o carta (24 etiquetas por hoja).
+- Sin código de barras propio, la etiqueta usa el SKU como respaldo.
+
+### US-088 — Imagen principal de producto
+Como **administrador**, quiero subir una foto de cada producto, para identificarlo visualmente en
+Inventarios y en el buscador de Ventas.
+
+**Criterios de aceptación:**
+- La imagen se redimensiona y convierte a WebP en el servidor; nombre fijo por producto en el
+  almacenamiento (reemplazar sobreescribe, sin dejar huérfanos).
+- Efecto lupa al pasar el cursor sobre la miniatura, en la tabla de Inventarios y en las sugerencias
+  de producto de Ventas; sin foto, se muestra una imagen de marcador de posición.
+
+### US-089 — Fecha de expiración y switch "Solamente servicios"
+Como **administrador**, quiero capturar una fecha de expiración opcional por producto y, si mi
+negocio solo vende servicios, poder restringir el catálogo a solo eso, para adaptar el módulo a mi
+tipo de operación.
+
+**Criterios de aceptación:**
+- Fecha de expiración es solo un aviso (nunca bloquea una venta); tarjeta "Por vencer" en el tablero
+  cuenta vencidos + próximos 30 días, con lista filtrable.
+- Con "Solamente servicios" encendido, dar de alta o reactivar un producto físico se rechaza (guardia
+  también server-side, no solo oculto en la interfaz); el catálogo se restringe a un solo cobro por
+  hora o por paquete de precio fijo.
+
+### US-090 — Estado del inventario (reportes y KPIs)
+Como **administrador**, quiero un tablero de KPIs y gráficas del inventario (más vendido, rotación,
+valor por categoría, cobertura, capital inmovilizado), para tomar decisiones de compra sin exportar
+nada.
+
+**Criterios de aceptación:**
+- Pestaña "Estado del inventario" dentro de "Lectura de reportes": KPIs reales (nunca inventados —
+  sin conciliación SAT/CFDI ni benchmarks externos), tabs Top5/Bottom5, matriz de riesgo con acceso
+  directo a "Gestionar", exportar CSV.
+- Costeo mostrado siempre como promedio ponderado (nunca PEPS/FIFO, que el sistema no implementa).
+
+---
+
+## 19. Panel — Vista Ventas y Reportes (extensiones)
+
+### US-091 — Descuento por porcentaje en una venta
+Como **administrador**, quiero aplicar un descuento por porcentaje a una venta antes del IVA, para
+reflejar promociones sin editar el precio de cada producto.
+
+**Criterios de aceptación:**
+- El descuento se aplica sobre el subtotal, antes del IVA; el ticket/correo/detalle muestran
+  Subtotal, Descuento, IVA y Total por separado.
+- Rango válido: mayor a 0% y menor a 100% (100% violaría el invariante de que una venta tiene un
+  monto positivo).
+- Botones de descuento rápido (0/5/10/15%) además de captura manual del porcentaje.
+
+### US-092 — Corte del día (reporte bajo demanda de Ventas)
+Como **administrador**, quiero generar un corte de ventas de un rango de fechas libre, para pantalla
+o impresión, sin esperar al cierre del mes.
+
+**Criterios de aceptación:**
+- Solo ventas (no gastos ni tickets); rango desde-hasta libre, con chips de atajo (Hoy/Ayer/Esta
+  semana/Este mes/Mes anterior).
+- Se puede consultar en pantalla e imprimir (formato ticket térmico); no se envía por correo.
+- El corte queda guardado y consultable después en la pestaña "Cortes" de "Lectura de reportes",
+  con su propio detalle simplificado y exportación a CSV.
+
+### US-093 — Cierre mensual archivado de Ventas y Gastos
+Como **administrador**, quiero que Ventas y Gastos se archiven automáticamente el día 1 de cada mes
+(en vez de borrarse), para conservar el historial completo aunque la retención automática de tickets
+siga limpiando imágenes/facturas.
+
+**Criterios de aceptación:**
+- La retención automática configurable (días) sigue aplicando solo a tickets; Ventas y Gastos se
+  archivan (`archivado_en`, `periodo_archivado`), nunca se eliminan por retención.
+- Las listas de Ventas/Gastos muestran por defecto solo lo no archivado, con un selector "Periodo"
+  para consultar meses archivados.
+- Resumen financiero SIEMPRE incluye los meses archivados en sus gráficas y KPIs históricos.
+- El cierre corre para el sitio base y para cada tenant activo, respetando la zona horaria configurada
+  de cada uno.
+
+### US-094 — Lectura de reportes: pestañas por tipo y ledger de eliminados
+Como **administrador**, quiero consultar los reportes organizados por pestañas (Por reporte / Cortes /
+Todo lo eliminado / Estado del inventario), con un ledger cruzado de todo lo que se ha eliminado, para
+auditar sin mezclar conceptos distintos en una sola tabla.
+
+**Criterios de aceptación:**
+- "Todo lo eliminado": ledger de todos los reportes con columna "Reporte de origen" y KPIs de
+  auditoría (histórico + tendencia mensual).
+- Cada registro muestra "Generado por" (cruzando `admin_auditoria` por ruta+ventana de tiempo, mejor
+  esfuerzo, nunca bloquea) y botón "Ver historial" con el timeline completo de un identificador.
+- Movimientos y eliminados se muestran en tablas separadas (acento rojo en eliminados).
+
+---
+
+## 20. Cuenta y seguridad
+
+### US-095 — Recuperar contraseña por correo
+Como **cliente** o **administrador/fiscal**, quiero poder recuperar mi contraseña por correo si la
+olvido, sin depender de que alguien más me la restablezca.
+
+**Criterios de aceptación:**
+- Token de un solo uso (30 minutos de vigencia) enviado por correo, con página propia para
+  establecer la contraseña nueva.
+- Alcance real: solo cuentas de la tabla `usuarios` (cliente, administrador, fiscal) — la cuenta de
+  respaldo, `ADMIN_USERS`, `/control` y los usuarios de sucursal compartidos no tienen recuperación
+  por correo (no tienen fila propia en esa tabla).
+- El enlace de recuperación respeta el slug del tenant que lo solicitó.
+
+### US-096 — Mi Cuenta: perfil propio y cambio de contraseña
+Como **usuario del panel**, quiero ver y editar mi propio nombre/teléfono/correo y cambiar mi
+contraseña (verificando la actual), para no depender de otro administrador para algo tan básico.
+
+**Criterios de aceptación:**
+- Todos los perfiles ven su perfil básico; identidad de empresa y conteo de operadores solo para
+  administrador/super.
+- Cambiar la contraseña exige la contraseña ACTUAL correcta (a diferencia del restablecimiento con
+  privilegio que hace otro administrador).
+- Cuentas sin fila real en `usuarios` (`ADMIN_USERS`, credenciales API, usuario de sucursal
+  compartido) ven sus datos como no editables.
+- Zona horaria se muestra como espejo de solo lectura, con enlace a Configuraciones globales (vive a
+  nivel tenant, no por usuario).
+
+### US-097 — Suspender / reactivar cuentas del panel
+Como **administrador**, quiero suspender una cuenta (de cualquier perfil) sin borrar su historial, y
+que el corte de acceso sea inmediato aunque ya tenga una sesión abierta, para reaccionar rápido ante
+un riesgo de seguridad.
+
+**Criterios de aceptación:**
+- Badge "Activo"/"Suspendido" siempre visible junto a cada cuenta; nadie puede suspender su propia
+  cuenta con la sesión activa (sí puede reactivarse a sí mismo).
+- Una cuenta administrador/fiscal/ventas con sesión abierta se desconecta en la siguiente petición al
+  panel (sin esperar a un refresh manual) — no solo al volver a cargar la página.
+- Una cuenta cliente no puede volver a iniciar sesión; si ya tenía una sesión abierta, se cierra sola
+  en cuanto esa pestaña cargue cualquier página, con un aviso explicando por qué.
+- Una cuenta suspendida sigue contando contra la cuota de usuarios de panel del tenant.
+
+---
+
+## 21. Comunicación
+
+### US-098 — Plantillas de correo editables con vista previa
+Como **super**, quiero editar el texto de los correos que envía el sistema (invitación, recuperar
+contraseña, aviso al contador, factura lista, reporte) y ver una vista previa real antes de guardar,
+para personalizar la comunicación sin tocar código.
+
+**Criterios de aceptación:**
+- 5 pestañas, una por plantilla, cada una con botón "Restablecer esta plantilla" independiente.
+- Vista previa real: renderiza el mismo cascarón de correo (`construirCorreoBase()`) que se usa al
+  enviar de verdad, no una simulación aparte.
+- El diseño (logo, colores, estructura) nunca es editable desde aquí — solo el texto; los asuntos
+  quedan fijos a propósito.
+- Marcado simple real (negrita/cursiva) disponible en el cuerpo, escapado primero contra HTML/inyección
+  antes de aplicar el marcado — el remitente nunca puede inyectar HTML arbitrario.
+- El correo de venta y el de "Solicitar aclaraciones" quedan fuera a propósito (cascarón/contenido
+  propios, no plantillas genéricas).
+
+### US-099 — Aclaraciones: burbuja de contacto en el portal de cliente
+Como **cliente**, quiero poder mandar una aclaración directo desde el portal (sin salir a mi correo),
+para resolver dudas sobre mi factura o mi ticket.
+
+**Criterios de aceptación:**
+- Burbuja flotante "Solicitar aclaraciones" en dashboard/tickets/csf; modal con RFC de sesión
+  prellenado, nombre, teléfono y detalle.
+- El correo se manda AL correo de contacto configurado del tenant (o del sitio base, donde el campo
+  es opcional) y se espera el resultado real del envío (no fire-and-forget, al no haber tabla de
+  respaldo si el envío falla).
+- Sin persistencia en base de datos — el folio es el timestamp + RFC.
+
+---
+
+## 22. Facturación — extracción y catálogos
+
+### US-100 — Extracción automática del Total del CFDI
+Como **administrador** de un negocio "solo facturas" (sin inventario ni Ventas activo), quiero que el
+sistema lea el Total directo del XML dentro del ZIP de la factura, para no capturarlo a mano en cada
+ticket.
+
+**Criterios de aceptación:**
+- Extracción por regex sobre el XML del CFDI real (con zlib nativo, sin dependencia nueva); tolera la
+  declaración `<?xml ...?>`/BOM antes de la etiqueta raíz.
+- Si la extracción falla, se pide captura manual sin bloquear (400 explicando qué falta); un XML leído
+  correctamente nunca se deja pisar por un valor manual, aunque se mande uno.
+- Columna `monto_factura_origen` distingue `xml` de `manual` para trazabilidad.
+
+### US-101 — Catálogo real del SAT — Clave de Producto o Servicio
+Como **fiscal/administrador**, quiero buscar la "Clave de Producto o Servicio" del SAT por texto o
+clave directo en Configuraciones fiscales, para no salir del portal a buscarla en el sitio del SAT.
+
+**Criterios de aceptación:**
+- Catálogo local (52,000+ claves reales) sincronizable manualmente desde una fuente verificada
+  (`CLAVE_PROD_SERV_SYNC_URL`); combobox con búsqueda en vivo, con enlace de respaldo al sitio del SAT
+  si no hay resultados.
+- Escribir los 8 dígitos a mano sigue funcionando siempre como captura manual directa.
+
+---
+
+## 23. Aprendizaje y soporte en producto
+
+### US-102 — Centro de conocimiento (manual in-app)
+Como **cualquier perfil del panel**, quiero un manual dentro de `/admin` y `/control` (con buscador y
+glosario de términos), para aprender a usar el sistema sin llamar a soporte.
+
+**Criterios de aceptación:**
+- Categorías reales por vista del sidebar (todas las de `/admin`; en `/control`, Empresas/Sucursales/
+  Super Admins), con buscador que resalta coincidencias en vivo.
+- Categoría "Glosario" con términos reales del negocio (RFC, CFDI, kardex, costo promedio ponderado,
+  rotación, folio, etc.), orden alfabético.
+- Atajo de acceso directo en la barra de sesión, además del botón del menú lateral.
+- Contenido 100% texto/HTML estático (cero componente/dependencia nueva), oculto para el perfil que no
+  tiene acceso a una vista determinada.
+
+### US-103 — Auditoría consultable en el panel
+Como **administrador**, quiero una pantalla dentro de `/admin` para consultar la auditoría de mi
+propio tenant, para revisar quién hizo qué sin pedirle el acceso a `/control`.
+
+**Criterios de aceptación:**
+- Vista "Auditoría" siempre acotada al tenant de la sesión — nunca cross-tenant.
+- Switch "Mostrar Auditoría" en Configuraciones globales (encendido por defecto) oculta el botón del
+  sidebar Y bloquea el endpoint del lado del servidor si está apagado — pegarle directo a la API no
+  evita el switch.
+- El registro de auditoría en sí (`admin_auditoria`) sigue corriendo pase lo que pase; el switch solo
+  controla la pantalla de consulta.
+
+### US-104 — Checklist "Primeros pasos" y recorrido guiado
+Como **usuario nuevo** de una cuenta, quiero un checklist de primeros pasos y un recorrido guiado con
+spotlight sobre los elementos reales de la pantalla, para entender el sistema sin leer documentación.
+
+**Criterios de aceptación:**
+- 3-4 pasos por perfil (fiscal/administrador/ventas), derivados de datos ya cargados — sin endpoint
+  nuevo; banderas de evento en `localStorage` por cuenta (no por sesión).
+- Tour con spotlight real sobre los elementos de la pantalla (coordenadas calculadas en vivo, no fijas),
+  solo escritorio, una vez en la vida de la cuenta salvo que se pida repetir ("Ver el recorrido de
+  nuevo" en el Centro de conocimiento).
+
+---
+
+## 24. Multi-tenant — control avanzado
+
+### US-105 — Sucursales: usuarios compartidos entre empresas del mismo negocio
+Como **operador de control**, quiero agrupar varios tenants del mismo negocio como "sucursales" y dar
+de alta usuarios que entren a cualquiera con la misma contraseña, para no duplicar cuentas de personal
+que trabaja en varias.
+
+**Criterios de aceptación:**
+- Lo único compartido es el login — cada tenant conserva su base de datos, inventario y ventas 100%
+  aislados, sin excepción.
+- La credencial vive solo en la BD de control (nunca en la tabla `usuarios` de cada tenant); un tenant
+  vive en máximo un grupo a la vez.
+- "Eliminar" un grupo es baja lógica (sin `DELETE`/`REFERENCES` — credencial de control angosta):
+  suelta sus sucursales y desactiva sus usuarios compartidos, sin borrar ninguna fila.
+- Con más de una sucursal en el grupo, `/admin` muestra un switcher en el sidebar para saltar entre
+  ellas sin volver a iniciar sesión.
+
+### US-106 — Super Admins gestionados desde /control sin reiniciar
+Como **super**, quiero dar de alta o quitar cuentas "super" (`ADMIN_USERS`) desde `/control`, sin
+editar el `.env` ni reiniciar ningún contenedor, para reaccionar rápido sin depender de un operador con
+acceso al servidor.
+
+**Criterios de aceptación:**
+- Cambios se reflejan de inmediato (el backend recarga la lista sin reinicio).
+- Escritura atómica sobre el `.env` real con respaldo (`.env.bak`) antes de sobreescribir.
+- Alta/baja/cambio de contraseña validados contra duplicados (409) e inexistentes (404).
+
+### US-107 — Activar tenant sin root de MySQL
+Como **operador de control**, quiero poder completar el aprovisionamiento físico de un tenant en
+estado "Provisionando" con un botón desde `/control`, sin necesitar la contraseña de root de MySQL en
+el momento.
+
+**Criterios de aceptación:**
+- Usa un privilegio ya otorgado una sola vez al usuario de aplicación (`GRANT ALL ... ON tenant\_%.*`)
+  para crear la base de datos del tenant y aplicarle el esquema completo.
+- Verifica el estado ANTES del paso físico, para nunca marcar "activo" si la creación de la base de
+  datos falla.
+- El script CLI (`provisionar-tenant.js`, con root) sigue existiendo como respaldo si el privilegio
+  llegara a faltar.
+
+### US-108 — Cuota de usuarios de panel por tenant
+Como **operador de control**, quiero definir cuántas cuentas de panel (administrador/fiscal/ventas)
+puede tener un tenant, para que el límite de un plan se cumpla de verdad.
+
+**Criterios de aceptación:**
+- Campo editable desde el modal "Editar empresa" en `/control` (`max_usuarios`).
+- `POST`/`PUT /api/admin/usuarios` rechazan (400, `CUOTA_USUARIOS_EXCEDIDA`) crear o reactivar una
+  cuenta que exceda la cuota; nunca aplica a cuentas perfil `cliente`.
+- Una cuenta suspendida sigue contando contra la cuota (no libera el "asiento").
+
+---
+
+## 25. Historial / pendientes a futuro
 
 ### US-059 — Subir logo real de la empresa en el panel
 Como **administrador**, quiero una pantalla en el panel para subir/configurar el logo real de mi
@@ -877,7 +1239,7 @@ Estas son áreas donde la arquitectura ya tiene bases listas para evolucionar
 
 ---
 
-## 19. Pendientes documentados en esta sesión (271-274 + filtro por app) — *propuestas, sin implementar*
+## 26. Pendientes documentados en esta sesión (271-274 + filtro por app) — *propuestas, sin implementar*
 
 > Todo lo aquí listado está en `PROJECT_STATE.md:271-274` y `pendientes.html` (secciones Cotizador & Marketplace, Centro de conocimiento / Recorrido, Inicio de sesión / Seguridad). Estado: **propuesta, sin analizar a fondo**. No implementar sin responder las preguntas documentadas en cada punto.
 
