@@ -1235,6 +1235,34 @@
     conexionBannerTexto: document.getElementById('conexion-banner-texto'),
   };
 
+  // Cuenta suspendida a MEDIO USO (punto 290) — requireAdminAuth() ya
+  // revalida en cada petición, pero cada llamada de este archivo solo
+  // reaccionaba a 401, nunca a 403 — una cuenta suspendida por otro
+  // operador seguía "adentro" hasta que el usuario refrescara la página
+  // a mano. Interceptor global: cualquier 403 con codigo
+  // 'CUENTA_SUSPENDIDA' (auth.js) fuerza logout al instante, sin tocar
+  // los 60+ call sites que ya checan 401 uno por uno. Se excluye
+  // `${API_BASE}/admin/login`: esa ruta ya maneja su propio 403 de
+  // suspensión inline (submit de login e init(), que cierra sesión ante
+  // cualquier !res.ok) — interceptarla aquí duplicaría el efecto.
+  const fetchOriginal = window.fetch.bind(window);
+  window.fetch = function fetchConDeteccionDeSuspension(recurso, opciones) {
+    return fetchOriginal(recurso, opciones).then((res) => {
+      const url = typeof recurso === 'string' ? recurso : (recurso && recurso.url) || '';
+      const esRutaAdmin = url.startsWith(`${API_BASE}/admin`) && !url.startsWith(`${API_BASE}/admin/login`);
+      if (res.status === 403 && esRutaAdmin) {
+        res.clone().json().then((data) => {
+          if (data && data.codigo === 'CUENTA_SUSPENDIDA') {
+            clearSession();
+            showLogin();
+            els.loginError.textContent = data.error || 'Tu cuenta está suspendida. Contacta a un administrador.';
+          }
+        }).catch(() => {});
+      }
+      return res;
+    });
+  };
+
   inicializarTooltips();
 
   // ---------- Modo fuera de línea: Ventas y Gastos (ver PROJECT_STATE.md

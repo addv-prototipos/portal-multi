@@ -15293,6 +15293,41 @@ separado a propósito. **Sigue sin confirmarse si el usuario ya lo
 enganchó en el VPS real** — mismo pendiente del punto 316, solo cambió
 dónde vive el archivo en este repo.
 
+324. **Bug real — cuenta suspendida a medio uso no hacía logout hasta
+refrescar (2026-09-25, CORREGIDO, Jest backend 1040/1040, sin Docker/
+navegador real esta sesión)**: reportado por el usuario. Causa
+confirmada por lectura de código: `requireAdminAuth()` (`auth.js`) ya
+revalida `activo` en CADA petición (Basic Auth manda credenciales
+siempre), pero el 403 de suspensión no traía `codigo` — de los 60+
+call sites de `admin.js` que checan `res.status`, todos solo reaccionan
+a 401 (`clearSession()+showLogin()`); un 403 de suspensión caía al
+`else` genérico (toast de error) y la sesión seguía "adentro" hasta que
+el usuario refrescaba a mano (ahí sí, `init()` sí trata cualquier
+`!res.ok` como sesión inválida). Fix: (1) `auth.js` agrega
+`codigo: 'CUENTA_SUSPENDIDA'` al 403 (mismo patrón ya usado en el login
+de CLIENTE, `server.js:1181`, que nunca tuvo este hueco). (2)
+`admin.js` gana un interceptor global de `window.fetch` (justo después
+de declarar `els`, antes de cualquier otro código) que, para cualquier
+403 de `${API_BASE}/admin/*` (excluye `/admin/login`, que ya maneja su
+propio 403 inline) con ese `codigo`, fuerza `clearSession()+showLogin()`
+al instante — sin tocar los 60+ call sites existentes. `node --check`
+limpio, Jest backend 639 unit + 401 integration = 1040/1040 sin
+regresión. **Validado contra Docker/MySQL reales** (rebuild `--no-cache`+
+`--force-recreate` de los 3 servicios, `admin.js` servido confirmado con
+el interceptor nuevo): cuenta `ventas` de prueba creada → login 200 →
+suspendida vía `PUT /admin/usuarios/:id/estado` → login CON LAS MISMAS
+credenciales viejas 403 `CUENTA_SUSPENDIDA` → **cualquier otra ruta admin
+(`GET /admin/tickets`) también 403 con el mismo código**, no solo login
+— confirma que el interceptor del frontend (que escucha cualquier ruta
+`/admin/*`, no solo `/admin/login`) sí va a disparar. Cuenta de prueba
+borrada al terminar. **Sin herramienta de navegador esta sesión** — el
+camino de red está probado de punta a punta; falta que el usuario
+confirme con clics reales que, con la pestaña ya abierta, la siguiente
+acción realmente expulsa a login sin refrescar. Portal de cliente
+(`portal.js`) NO se tocó — su cutoff "en la siguiente carga de página"
+(vía `GET /api/auth/me`) es diseño ya documentado (punto 290), no el
+mismo bug. Sin commit/push.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

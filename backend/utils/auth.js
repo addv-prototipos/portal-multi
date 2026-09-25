@@ -289,7 +289,11 @@ async function requireAdminAuth(req, res, next) {
   try {
     const usuarioAdmin = await verificarUsuarioAdministrativo(username, password);
     if (usuarioAdmin && usuarioAdmin.suspendido) {
-      return res.status(403).json({ error: 'Tu cuenta está suspendida. Contacta a un administrador.' });
+      // codigo (no solo el texto) para que el frontend distinga este 403 de
+      // cualquier otro (cuota excedida, perfil sin acceso, módulo apagado)
+      // sin depender de comparar el mensaje — ver admin.js, interceptor
+      // global de fetch (punto 290, fix logout inmediato).
+      return res.status(403).json({ error: 'Tu cuenta está suspendida. Contacta a un administrador.', codigo: 'CUENTA_SUSPENDIDA' });
     }
     if (usuarioAdmin) {
       req.adminUser = usuarioAdmin.rfc;

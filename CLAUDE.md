@@ -4030,6 +4030,30 @@ mientras el stack está abajo — instrucciones de enganche manual al nginx
 del HOST dadas al usuario (`error_page 502 503 504` + `location alias`),
 **no confirmado todavía si ya lo enganchó**.
 
+**Punto 324 (2026-09-25, CORREGIDO — Jest backend 1040/1040, VALIDADO
+contra Docker/MySQL reales)**: bug real reportado por el usuario —
+suspender un usuario NO le hacía logout mientras seguía usando la
+sesión, solo al refrescar la página. Causa: `requireAdminAuth()` ya
+revalida `activo` en cada petición (Basic Auth), pero el 403 de
+suspensión no traía `codigo`, y los 60+ call sites de `admin.js` solo
+reaccionan a 401 (`clearSession()+showLogin()`) — un 403 caía al toast
+genérico y dejaba la sesión "adentro". Fix: `codigo: 'CUENTA_SUSPENDIDA'`
+en el 403 de `auth.js` (mismo patrón que el login de cliente,
+`server.js:1181`) + interceptor global de `window.fetch` nuevo en
+`admin.js` (justo tras declarar `els`) que fuerza logout al instante
+para ese código, sin tocar los 60+ sitios existentes. Portal de
+cliente sin tocar — su cutoff "en la siguiente carga de página" ya es
+diseño documentado (punto 290), no este bug. **Validado tras rebuild
+`--no-cache`+`--force-recreate` (backend+control+frontend)**: cuenta
+`ventas` de prueba, login 200 → suspendida vía `PUT
+/admin/usuarios/:id/estado` → mismas credenciales viejas dan 403
+`CUENTA_SUSPENDIDA` en login Y en cualquier otra ruta admin
+(`/admin/tickets`), confirmando que el interceptor (que escucha
+cualquier `/admin/*`, no solo login) sí va a disparar. Cuenta de prueba
+borrada. **Sin herramienta de navegador esta sesión** — falta que el
+usuario confirme con clics reales que la sesión abierta se corta sin
+refrescar. Sin commit/push. Ver PROJECT_STATE.md punto 324.
+
 **Punto 317 (2026-09-17, IMPLEMENTADO Y VALIDADO por el usuario en
 navegador real, solo localhost)**: 2do bug real del mismo preview de
 CSF del punto 314 — el fix `X-Frame-Options DENY→SAMEORIGIN` no bastó,
