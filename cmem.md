@@ -1071,3 +1071,35 @@ todavía (puntos 318-321); el commit de "Corte del día" original y su
 addendum de cascada sí se habían commiteado/pusheado en un turno
 anterior de esta misma sesión (`5f6d530`). Detalle línea por línea en
 PROJECT_STATE.md puntos 318-323.
+
+C080 ✓ Punto 336: consistencia visual de acciones en `/admin` — usuario
+mostró 2 imágenes (par de iconos ✔ vs par de botones de texto
+"Gestionar"/"Eliminar" ✘) y pidió auditar TODO el proyecto. Análisis
+encontró 6 puntos con texto en vez del ícono ya establecido en
+Usuarios/Órdenes (`btn-icono-accion`): Documentos, Tickets, panel
+Categorías de Gastos (ese además con emoji real ✏️/🗑️), panel Categorías
+de Inventario (mismo bloque duplicado), Inicio→Recientes y
+Inventario→Matriz de estado (ambos "Gestionar" suelto sin par). Aprobados
+los 6, con instrucción explícita del usuario: "sin emojis, todo deben ser
+iconos". Implementado reutilizando el factory `botonAccionInv()` +
+constantes `ICONO_*` que YA existían en el archivo (sección Inventarios)
+en vez de crear un tercer sistema paralelo — solo se agregó `ICONO_OJO`
+nuevo. Efecto colateral bueno: se pudo borrar CSS muerto de los botones
+de texto viejos (`.btn-ver`/`.btn-eliminar`/etc.) apenas dejaron de
+usarse en ninguna parte (confirmado por grep antes de borrar).
+
+Durante la verificación final salió un 7mo caso NO pedido explícitamente
+pero de la misma familia: el botón toggle "✏️ Categorías" (Gastos e
+Inventario) tenía el mismo emoji en su texto visible, más 2 strings de
+copy que lo citaban — se corrigieron también, coherente con el "todo
+deben ser iconos" recién reforzado por el usuario. Barrido más amplio
+confirmó que ✓/✕/→/⚠ regados por el resto del sitio (cerrar modal,
+autoguardado, navegación) son un patrón previo ya consistente y NO es lo
+que el usuario señaló — se dejó intacto, solo anotado como hallazgo.
+
+Validado: `node --check` en los 2 archivos, Jest backend 1040/1040 (no
+toca backend, corrida por disciplina), rebuild `--no-cache` +
+`force-recreate` del contenedor `frontend`, `curl` contra el contenedor
+real confirmando 0 emojis servidos. Falta: clic real en navegador (sin
+herramienta de navegador en esta sesión) y commit/push (no pedido
+todavía). Detalle completo en PROJECT_STATE.md punto 336.

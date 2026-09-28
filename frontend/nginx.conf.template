@@ -324,7 +324,16 @@ server {
         proxy_set_header X-Tenant-Slug $tenant_slug;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
-        proxy_set_header Host $host;
+        # $http_host (no $host) — mismo gotcha ya documentado arriba para el
+        # redirect de "/<slug>": $host NUNCA incluye el puerto, así que en
+        # localhost:8088 (o cualquier puerto no estándar) el backend veía
+        # "Host: localhost" sin puerto vía req.get('host'), y
+        # detectarUrlPortal() (backend/server.js) armaba el link de los
+        # correos (confirmación de venta, invitación, etc.) apuntando a
+        # :80 en vez de al puerto real. $http_host es el encabezado Host
+        # tal cual lo mandó el cliente, con puerto incluido si no es el
+        # estándar.
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
@@ -378,7 +387,16 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header X-Tenant-Slug "";
-        proxy_set_header Host $host;
+        # $http_host (no $host) — mismo gotcha ya documentado arriba para el
+        # redirect de "/<slug>": $host NUNCA incluye el puerto, así que en
+        # localhost:8088 (o cualquier puerto no estándar) el backend veía
+        # "Host: localhost" sin puerto vía req.get('host'), y
+        # detectarUrlPortal() (backend/server.js) armaba el link de los
+        # correos (confirmación de venta, invitación, etc.) apuntando a
+        # :80 en vez de al puerto real. $http_host es el encabezado Host
+        # tal cual lo mandó el cliente, con puerto incluido si no es el
+        # estándar.
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
@@ -423,7 +441,16 @@ server {
         # deben poder fijar este header, y lo hacen desde el slug que
         # ELLOS capturaron de la URL, no desde lo que mande el cliente).
         proxy_set_header X-Tenant-Slug "";
-        proxy_set_header Host $host;
+        # $http_host (no $host) — mismo gotcha ya documentado arriba para el
+        # redirect de "/<slug>": $host NUNCA incluye el puerto, así que en
+        # localhost:8088 (o cualquier puerto no estándar) el backend veía
+        # "Host: localhost" sin puerto vía req.get('host'), y
+        # detectarUrlPortal() (backend/server.js) armaba el link de los
+        # correos (confirmación de venta, invitación, etc.) apuntando a
+        # :80 en vez de al puerto real. $http_host es el encabezado Host
+        # tal cual lo mandó el cliente, con puerto incluido si no es el
+        # estándar.
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;

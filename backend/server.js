@@ -228,16 +228,28 @@ const app = express();
 // para que funcione igual en localhost, una IP de red local, o un dominio
 // real con HTTPS, sin necesidad de configurar una URL fija a mano.
 //
-// El valor es `1` (confiar exactamente UN salto — nginx, el único que
-// existe en este docker-compose), no `true`. `true` confía en TODA la
-// cadena de proxies sin límite, lo que a su vez le permite a cualquiera
-// mandar su propio encabezado X-Forwarded-For falso y hacerse pasar por
-// otra IP — express-rate-limit (ver adminApiLimiter/adminLoginLimiter/
-// submitLimiter/authLimiter más abajo, todos limitan por IP) lo señala
-// explícitamente como un hueco de seguridad real: con `true`, alguien
-// podría evadir el límite de intentos de fuerza bruta del login solo
-// cambiando ese encabezado en cada intento.
-app.set('trust proxy', 1);
+// El valor es un NÚMERO de saltos confiados (nunca `true`, que confía en
+// TODA la cadena de proxies sin límite y le permite a cualquiera mandar su
+// propio X-Forwarded-For falso y hacerse pasar por otra IP —
+// express-rate-limit, ver adminApiLimiter/adminLoginLimiter/submitLimiter/
+// authLimiter más abajo, todos limitan por IP, lo señala explícitamente
+// como hueco real: con `true`, alguien evade el límite de fuerza bruta del
+// login solo cambiando ese encabezado en cada intento). El número exacto
+// depende de la topología real de cada despliegue, no es una constante
+// universal — en docker-compose local el único salto es el nginx del
+// propio stack (1), pero un VPS con un nginx del HOST por delante del
+// stack (ver `unavailable/`) agrega un salto más (2): con el valor
+// equivocado, tanto `req.protocol` como el `ip` que guarda la auditoría
+// (`registrarAccesoAdmin`, ver más abajo) terminan resolviendo la IP de
+// ese proxy intermedio en vez de la del navegador real. `TRUST_PROXY_HOPS`
+// en `.env` fija el valor real por entorno; sin definir, cae al default
+// seguro de este docker-compose (1 salto).
+const TRUST_PROXY_HOPS = (() => {
+  const crudo = process.env.TRUST_PROXY_HOPS;
+  const n = crudo === undefined || crudo === '' ? 1 : Number(crudo);
+  return Number.isInteger(n) && n >= 0 ? n : 1;
+})();
+app.set('trust proxy', TRUST_PROXY_HOPS);
 
 app.use(helmet());
 // `credentials: true` es necesario para que las cookies de sesión de
@@ -1919,7 +1931,7 @@ function logoUrlDelTenant(req, urlPortal, configGlobal) {
 // Devuelve tanto la versión HTML (el ticket en sí) como una versión de
 // texto plano equivalente (ver la nota en utils/email.js sobre por qué
 // siempre se manda ambas).
-function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, urlPortal, logoUrl, marca }) {
+function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, urlPortal, logoUrl, marca, cuerpoVenta }) {
   const enlaceLogin = urlPortal ? `${urlPortal}/login` : '';
   const logo = logoTicketHtml(logoUrl, marca);
   const filaTicket = filaCorreoTabla;
@@ -1987,8 +1999,9 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     </tr>
     <tr>
       <td style="padding:22px 10px 0;">
-        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#2A3342;">¡Hola! Te confirmamos que registramos tu venta <strong>${escapeHtmlCorreo(numeroCompra)}</strong>. Con estos datos ya puedes solicitar tu factura desde el portal.</p>
-        <p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#2A3342;"><strong>Guarda este correo</strong> — tómale una foto o captura de pantalla — porque, al solicitar tu factura en el portal, te pediremos que captures el <strong>No. Venta, Fecha, Hora y Total exactamente como aparecen arriba</strong> (cada uno en su propio campo), además de la imagen de tu ticket de venta.</p>
+        ${formatearParrafosCuerpo(aplicarPlantilla(cuerpoVenta, { numero_venta: numeroCompra }))
+          .map((p) => `<p style="margin:0 0 14px; font-size:14.5px; line-height:1.55; color:#2A3342;">${p}</p>`)
+          .join('')}
         ${enlaceLogin ? `
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto;">
           <tr>
@@ -2014,8 +2027,11 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     `IVA (${ivaPorcentaje}%): $${(total - cantidad).toFixed(2)} MXN\n` +
     `TOTAL A FACTURAR: $${total.toFixed(2)} MXN\n` +
     `Correo: ${email}\n\n` +
-    `¡Hola! Te confirmamos que registramos tu venta ${numeroCompra}. Con estos datos ya puedes solicitar tu factura desde el portal.\n\n` +
-    `Guarda este correo — tómale una foto o captura de pantalla — porque, además de estos datos, al solicitar tu factura en el portal también te pediremos la imagen de tu ticket de venta.\n\n` +
+    `${String(aplicarPlantilla(cuerpoVenta, { numero_venta: numeroCompra }) ?? '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .join('\n\n')}\n\n` +
     (enlaceLogin ? `Inicia sesión aquí para solicitar tu factura: ${enlaceLogin}\n\n` : '') +
     `Si no esperabas este correo, contacta a tu administrador.`;
 
@@ -2027,7 +2043,13 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
 // correos de esta app: si falla (SMTP sin configurar, etc.), la orden ya
 // se guardó correctamente de todas formas.
 async function enviarCorreoOrdenCompra(datos) {
-  const { html, texto, adjuntos } = construirCorreoOrdenCompra(datos);
+  // Punto 335: mismo mecanismo de plantilla editable que el resto de
+  // PLANTILLAS_CORREO (cuerpo_venta), aplicado a los 2 párrafos de este
+  // correo — el diseño de recibo (tabla de datos, borde punteado) sigue
+  // fijo, ver construirCorreoOrdenCompra.
+  const configSmtpVenta = await getConfigSmtp();
+  const cuerpoVenta = (configSmtpVenta && configSmtpVenta.cuerpo_venta) || DEFAULTS_SMTP.cuerpo_venta;
+  const { html, texto, adjuntos } = construirCorreoOrdenCompra({ ...datos, cuerpoVenta });
   await enviarCorreo({
     destinatario: datos.email,
     asunto: `Confirmación de venta — ${datos.numeroCompra}`,
@@ -2875,6 +2897,7 @@ app.put(
     const cuerpoRecuperacion = sanitizeTextoLibre(body.cuerpo_recuperacion, 5000);
     const cuerpoAvisoContador = sanitizeTextoLibre(body.cuerpo_aviso_contador, 5000);
     const cuerpoReporte = sanitizeTextoLibre(body.cuerpo_reporte, 5000);
+    const cuerpoVenta = sanitizeTextoLibre(body.cuerpo_venta, 5000);
     const password = typeof body.password === 'string' ? body.password : '';
     const puerto = Number(body.puerto);
     const seguridad = body.seguridad;
@@ -2912,6 +2935,7 @@ app.put(
       cuerpo_recuperacion: cuerpoRecuperacion,
       cuerpo_aviso_contador: cuerpoAvisoContador,
       cuerpo_reporte: cuerpoReporte,
+      cuerpo_venta: cuerpoVenta,
     });
     res.json(configSmtpParaMostrar(nuevo));
   })
@@ -2980,11 +3004,36 @@ app.post(
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const tipo = sanitizeText(body.tipo, 30);
+    const texto = sanitizeTextoLibre(body.texto, 5000);
+
+    // Punto 335: "venta" no pasa por el cascarón genérico construirCorreoBase
+    // (tiene su propio diseño de recibo, ver construirCorreoOrdenCompra) —
+    // la vista previa llama a la función real con datos de ejemplo, para
+    // que se vea EXACTAMENTE como el correo que de verdad recibe el
+    // cliente, no la tarjeta genérica de los otros 5.
+    if (tipo === 'venta') {
+      const { html } = construirCorreoOrdenCompra({
+        numeroCompra: 'OC-000123',
+        fechaFormateada: { fecha: '05/sep/2026', hora: '18:30' },
+        concepto: 'Colegiatura mensual',
+        cantidad: 3400,
+        ivaPorcentaje: 16,
+        total: 3944,
+        descuentoPorcentaje: null,
+        descuentoMonto: null,
+        email: 'ejemplo@correo.com',
+        urlPortal: '#',
+        logoUrl: null,
+        marca: MARCA_DEFECTO,
+        cuerpoVenta: texto,
+      });
+      return res.json({ html });
+    }
+
     const generador = PLANTILLAS_CORREO_PREVIEW[tipo];
     if (!generador) {
       return res.status(400).json({ error: 'Tipo de plantilla no reconocido.' });
     }
-    const texto = sanitizeTextoLibre(body.texto, 5000);
     const { eyebrow, titulo, filas, cta, variables } = generador();
     const cuerpoConVariables = aplicarPlantilla(texto, variables);
     const { html } = construirCorreoBase({

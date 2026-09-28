@@ -21,7 +21,15 @@
   --color-ink-soft: #6B7280;
   --color-border: #E5E7EB;
   --shadow-card: 0px 4px 12px rgba(11, 19, 32, 0.05);
+  /* Fuente única del ancho del riel (punto 333) — .admin-sidebar,
+     .admin-content y .admin-main y el toggle flotante leen TODOS de
+     aquí, nunca un número propio. Antes cada uno tenía su propio
+     par 256/72 repetido, y se desincronizaron (punto 332, bug real:
+     .admin-content se quedó en 256px con el riel ya en 72px). Con una
+     sola variable, esa clase de bug deja de ser posible. */
+  --sidebar-w: 256px;
 }
+.admin-body.sidebar-colapsado { --sidebar-w: 72px; }
 
 /* Franja de estado de conexión (Ventas/Gastos offline, ver
    PROJECT_STATE.md punto 132) — fija arriba de TODO, por encima incluso
@@ -146,7 +154,7 @@
 }
 
 .admin-sidebar {
-  width: 256px;
+  width: var(--sidebar-w);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -157,6 +165,9 @@
   left: 0;
   height: 100vh;
   z-index: 10;
+}
+@media (min-width: 901px) {
+  .admin-sidebar { transition: width 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
 }
 /* Mientras la franja de "sin conexión"/"sincronizando" (offline en
    Ventas/Gastos) está visible, empuja .admin-body 36px hacia abajo — el
@@ -174,6 +185,20 @@
 .admin-sidebar-logo-img {
   display: block;
   max-width: 140px;
+  height: auto;
+}
+/* Monograma de marca (punto 329) — reemplaza el wordmark completo
+   cuando el riel está colapsado a 72px (el logo real no cabe legible
+   a ese ancho). Mismo par navy/cyan, sin depender de un asset nuevo. */
+.admin-sidebar-logo-mini {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0 16px;
+}
+.admin-sidebar-logo-mini img {
+  display: block;
+  width: 30px;
   height: auto;
 }
 .admin-sidebar-nav {
@@ -279,6 +304,126 @@
   .admin-sidebar-group-body { transition: none; }
 }
 
+/* Riel colapsable de escritorio (punto 329) — el sidebar completo se
+   angosta de 256px a 72px, dejando solo íconos. Toggle flotante en el
+   borde (mismo cyan de marca), estado por cuenta en localStorage (ver
+   claveColapsoSidebar/aplicarEstadoColapsoSidebar en admin.js). Solo
+   width/opacity/max-width animan — nunca height completo — y todo
+   respeta prefers-reduced-motion más abajo. Únicamente >900px: en
+   móvil el sidebar ya es otro mecanismo por completo (grid de íconos
+   de #admin-menu-movil), este botón ni se muestra ahí. */
+.admin-sidebar-rail-toggle {
+  display: none;
+}
+@media (min-width: 901px) {
+  .admin-sidebar-rail-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 84px;
+    left: var(--sidebar-w);
+    transform: translateX(-50%);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 3px solid var(--color-bg, #F8FAFC);
+    background: #05DBF2;
+    color: #03285B;
+    cursor: pointer;
+    z-index: 11;
+    box-shadow: 0 2px 6px rgba(3, 40, 91, 0.35);
+    transition: left 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .admin-sidebar-rail-toggle:hover { filter: brightness(0.96); }
+  .admin-sidebar-rail-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .admin-sidebar-rail-toggle svg { transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+  .admin-body.sidebar-colapsado .admin-sidebar-rail-toggle svg { transform: rotate(180deg); }
+
+  /* .admin-sidebar/.admin-content/.admin-main YA leen --sidebar-w
+     directo (punto 333) — no necesitan una regla propia aquí para el
+     estado colapsado, se recalculan solos en cuanto la variable cambia
+     de 256px a 72px (definida arriba, en .admin-body.sidebar-colapsado). */
+  .admin-body.sidebar-colapsado .admin-sidebar-logo { display: none; }
+  .admin-body.sidebar-colapsado .admin-sidebar-logo-mini { display: flex; }
+
+  /* Las etiquetas de texto se apagan con un fundido rápido (opacity,
+     compositor) — el ancho se libera de golpe en el mismo instante, sin
+     interpolarlo cuadro a cuadro (evita animar max-width, que sí
+     dispara layout); el fundido tapa el corte y el ojo lee "se borró
+     suave", no "se cortó". El riel en sí (.admin-sidebar) es el único
+     ancho que de verdad se interpola, porque necesita reacomodar el
+     contenido real de al lado. */
+  .admin-body.sidebar-colapsado .admin-sidebar-nav .admin-vista-btn span,
+  .admin-body.sidebar-colapsado .admin-sidebar-footer .admin-sidebar-logout span,
+  .admin-body.sidebar-colapsado .admin-sidebar-footer .admin-sidebar-ayuda span {
+    opacity: 0;
+    max-width: 0;
+    transition: opacity 0.1s ease;
+  }
+  .admin-sidebar-nav .admin-vista-btn span,
+  .admin-sidebar-footer .admin-sidebar-logout span,
+  .admin-sidebar-footer .admin-sidebar-ayuda span {
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 180px;
+    transition: opacity 0.16s ease;
+  }
+  .admin-body.sidebar-colapsado .admin-sidebar-nav .admin-vista-btn,
+  .admin-body.sidebar-colapsado .admin-sidebar-footer .admin-sidebar-logout,
+  .admin-body.sidebar-colapsado .admin-sidebar-footer .admin-sidebar-ayuda {
+    justify-content: center;
+    gap: 0;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  /* Encabezados de grupo: sin espacio para el texto, se reducen a un
+     divisor delgado. Dejan de ser interactivos (no tiene sentido poder
+     "colapsar" un grupo que ya es solo íconos) y su cuerpo se fuerza
+     siempre visible, sin importar el override guardado en localStorage
+     (2 clases + atributo le gana en especificidad a la regla de 1 clase
+     + atributo, sin necesitar !important — mismo criterio ya usado en
+     .ticket-modal.orden-registrar-modal). */
+  .admin-body.sidebar-colapsado .admin-sidebar-group-header {
+    justify-content: center;
+    padding: 6px 0;
+    margin: 8px 10px 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    cursor: default;
+    pointer-events: none;
+  }
+  .admin-body.sidebar-colapsado .admin-sidebar-group-header:first-of-type {
+    border-top: none;
+    margin-top: 0;
+  }
+  .admin-body.sidebar-colapsado .admin-sidebar-group-header span,
+  .admin-body.sidebar-colapsado .admin-sidebar-group-header .chev {
+    display: none;
+  }
+  .admin-body.sidebar-colapsado .admin-sidebar-group-body[data-colapsado="true"] {
+    grid-template-rows: 1fr;
+  }
+  /* Switcher de sucursales (§58): son enlaces de solo texto (nombre de
+     la empresa), sin ícono equivalente que mostrar en el riel — mismo
+     tratamiento que ya recibe en móvil (oculto por completo). */
+  .admin-body.sidebar-colapsado .admin-sucursales-switcher { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .admin-sidebar,
+    .admin-content,
+    .admin-main,
+    .admin-sidebar-rail-toggle,
+    .admin-sidebar-rail-toggle svg,
+    .admin-sidebar-nav .admin-vista-btn span,
+    .admin-sidebar-footer .admin-sidebar-logout span,
+    .admin-sidebar-footer .admin-sidebar-ayuda span {
+      transition: none;
+    }
+  }
+}
+
 /* §58: switcher de sucursales — navega a /<slug>/admin de otra empresa
    del mismo grupo. Mismo lenguaje visual que .admin-vista-btn (mismo
    sidebar navy) pero como enlaces reales, no botones de vista SPA. */
@@ -362,8 +507,12 @@
   flex: 1;
   min-width: 0;
   /* El sidebar es position:fixed (fuera del flujo) — sin este margen,
-     .admin-content arrancaría debajo de él, tapado por sus 256px. */
-  margin-left: 256px;
+     .admin-content arrancaría debajo de él, tapado. Lee de
+     --sidebar-w (punto 333), nunca un número propio. */
+  margin-left: var(--sidebar-w);
+}
+@media (min-width: 901px) {
+  .admin-content { transition: margin-left 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
 }
 
 /* Botón "Menú" de la barra superior móvil — oculto en escritorio, la
@@ -630,10 +779,215 @@
   color: var(--color-ink-soft);
 }
 
+/* Campana de notificaciones (punto 337) — mismo lenguaje visual que
+   .admin-header-ayuda, con el punto rojo y el panel desplegable. El
+   wrapper es position:relative para que el panel (hijo directo) se
+   abra siempre pegado a la campana sin importar dónde esté ni el
+   ancho de pantalla — ver PROJECT_STATE.md punto 337 para el porqué
+   (bug real encontrado en la propia propuesta visual: un ancla
+   independiente del botón dejaba el panel flotando lejos de donde se
+   hizo clic). */
+.admin-header-notif-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.admin-header-notif-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.admin-header-notif-btn:hover { background: var(--color-accent-soft); border-color: var(--color-accent); }
+.admin-header-notif-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.admin-notif-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-error, #D8443C);
+  border: 2px solid var(--color-surface, #fff);
+}
+.admin-notif-dot[hidden] { display: none; }
+/* "Sacudida" de la campana al llegar un ticket nuevo por sondeo (nunca
+   al solo abrir el panel) — un movimiento, respeta reduced-motion. */
+.notif-bell-ring { transform-origin: 50% 20%; }
+.admin-header-notif-btn.is-ringing .notif-bell-ring { animation: notifBellRing 0.5s ease; }
+@keyframes notifBellRing {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(14deg); }
+  40% { transform: rotate(-11deg); }
+  60% { transform: rotate(7deg); }
+  80% { transform: rotate(-4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-header-notif-btn.is-ringing .notif-bell-ring { animation: none; }
+}
+
+.admin-notif-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 380px;
+  max-width: min(380px, 92vw);
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px -8px rgba(15, 24, 38, 0.28), 0 2px 8px rgba(15, 24, 38, 0.1);
+  z-index: 30;
+  transform-origin: top right;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.97);
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.admin-notif-panel.is-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-notif-panel { transition: opacity 0.12s ease; }
+  .admin-notif-panel.is-open { transform: none; }
+}
+
+.admin-notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+.admin-notif-head h3 { margin: 0; font-size: 14.5px; color: var(--color-ink); }
+.admin-notif-head button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.admin-notif-group-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  padding: 12px 16px 4px;
+}
+.admin-notif-group-label:first-of-type { padding-top: 14px; }
+
+.admin-notif-list { max-height: 360px; overflow-y: auto; }
+.admin-notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.12s ease;
+}
+.admin-notif-item:hover { background: var(--color-accent-soft); }
+.admin-notif-item-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.admin-notif-item-icon.warn { background: var(--color-warn-soft); color: #9A5B12; }
+.admin-notif-item-body { flex: 1; min-width: 0; }
+.admin-notif-item-title { font-size: 13px; font-weight: 600; color: var(--color-ink); margin: 0 0 2px; }
+.admin-notif-item-sub {
+  font-size: 12px;
+  color: var(--color-ink-soft);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-notif-item-time { font-size: 11px; color: var(--color-ink-soft); white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+.admin-notif-item-dotwrap { width: 16px; flex-shrink: 0; display: flex; justify-content: center; padding-top: 5px; }
+.admin-notif-item-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-error, #D8443C);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.admin-notif-item.is-read .admin-notif-item-dot { opacity: 0; transform: scale(0.4); }
+.admin-notif-item.is-read .admin-notif-item-title { color: var(--color-ink-soft); font-weight: 500; }
+
+.admin-notif-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--color-ink-soft);
+  font-size: 13px;
+}
+.admin-notif-empty svg { margin-bottom: 8px; opacity: 0.5; }
+.admin-notif-empty[hidden] { display: none; }
+
+.admin-notif-foot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.admin-notif-foot a { color: var(--color-accent); text-decoration: none; font-weight: 600; cursor: pointer; }
+.admin-notif-foot a[hidden] { display: none; }
+
+@media (max-width: 900px) {
+  /* La campana solo aplica a escritorio por ahora (mismo criterio que
+     el riel colapsable) — el header móvil ya está apretado con el
+     botón "Menú" y el logo chico. */
+  .admin-header-notif-wrap { display: none; }
+}
+
 .admin-main {
-  max-width: 1400px;
-  margin: 0 auto;
+  /* Sin límite por default (móvil/tablet — el sidebar fijo no aplica
+     ahí, ver mobile override de .admin-sidebar/.admin-content, y el
+     contenido ya usa el 100% disponible). El límite fluido de
+     escritorio vive en el media query de abajo, nunca aquí. */
+  max-width: none;
+  /* Pegado al riel, nunca centrado (punto 331) — con margin:0 auto, en
+     pantallas anchas la mitad del sobrante caía JUSTO junto al sidebar
+     (se lee como hueco roto); la otra mitad, al borde derecho, se ve
+     como respiro normal. Todo el sobrante va ahora al borde derecho. */
+  margin: 0;
   padding: 24px 20px 48px;
+}
+@media (min-width: 901px) {
+  /* Ancho fluido (punto 333) — se recalcula solo contra el ancho REAL
+     de cada pantalla (100vw), nunca un número fijo adivinado para un
+     monitor en particular (1400/1584px, puntos 329-330, se quedaban
+     cortos en monitores más anchos que eso). 88px cubre el padding de
+     .admin-main + un margen de cordura; 1960px es el techo para no
+     estirar tablas a un ancho absurdo en monitores 4K/5K/8K reales
+     (casi nunca se alcanza en la práctica). */
+  .admin-main { max-width: min(calc(100vw - var(--sidebar-w) - 88px), 1960px); }
+  .admin-main { transition: max-width 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
 }
 
 .admin-toolbar {
@@ -3375,19 +3729,6 @@
 body.is-resizing-column { cursor: col-resize; user-select: none; }
 
 
-.admin-table .btn-ver {
-  background: transparent;
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 6px 12px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--color-accent-dark);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.admin-table .btn-ver:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
-
 .admin-row-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3641,32 +3982,6 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   .orden-modal-body { flex-direction: column; }
   .orden-modal-sidebar { width: 100%; }
 }
-
-.admin-table .btn-eliminar,
-.admin-table .btn-restaurar,
-.admin-table .btn-eliminar-permanente,
-.admin-table .btn-editar {
-  background: transparent;
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 6px 12px;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.admin-table .btn-eliminar { color: var(--color-error); }
-.admin-table .btn-eliminar:hover { border-color: var(--color-error); background: var(--color-error-soft); }
-
-.admin-table .btn-restaurar { color: var(--color-accent-dark); }
-.admin-table .btn-restaurar:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
-
-.admin-table .btn-eliminar-permanente { color: var(--color-error); }
-.admin-table .btn-eliminar-permanente:hover { border-color: var(--color-error); background: var(--color-error-soft); }
-
-.admin-table .btn-editar { color: var(--color-ink); }
-.admin-table .btn-editar:hover { border-color: var(--color-accent); background: var(--color-accent-soft); }
 
 /* Botón de acción destructiva, usado en el modal de confirmación */
 .btn-danger {
@@ -5731,15 +6046,6 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 
   .admin-table td[data-label=""] { padding-top: 10px; }
   .admin-row-actions { flex-direction: column; }
-.admin-table .btn-ver,
-  .admin-table .btn-eliminar,
-  .admin-table .btn-restaurar,
-  .admin-table .btn-eliminar-permanente,
-  .admin-table .btn-editar {
-    width: 100%;
-    padding: 10px;
-    text-align: center;
-  }
   /* Los íconos de acción (Usuarios) son lo bastante compactos para
      seguir viéndose bien en una sola fila incluso en celular — apilarlos
      verticalmente como los botones de texto completo desperdiciaría
@@ -7128,6 +7434,9 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   min-width: 0;
 }
 .btn-categorias-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
   font-family: var(--font-body);
   font-size: 12.5px;
@@ -7140,6 +7449,7 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   cursor: pointer;
   white-space: nowrap;
 }
+.btn-categorias-toggle svg { flex-shrink: 0; }
 .btn-categorias-toggle:hover,
 .btn-categorias-toggle[aria-expanded="true"] {
   border-color: var(--color-accent);
@@ -7330,19 +7640,6 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   .prov-robot-ojo::after,
   .prov-robot-brazo { animation: none; }
   .prov-torre .prov-cubo { opacity: 1; transform: scale(1); }
-}
-.gastos-categoria-fila .btn-icon {
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  font-size: 13px;
-}
-.gastos-categoria-fila .btn-icon:hover {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
 }
 .gastos-categoria-input-editar {
   flex: 1;

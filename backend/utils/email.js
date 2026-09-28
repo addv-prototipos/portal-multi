@@ -33,18 +33,28 @@ const DEFAULTS_SMTP = {
     'Ingresa al Portal de Facturación {marca} y descárgala desde tu tablero de solicitudes.',
   // Punto 214: mismo mecanismo que cuerpo_cliente, extendido a los otros 4
   // correos que comparten el cascarón de marca (construirCorreoBase) —
-  // ticket de venta y aclaraciones quedan FUERA a propósito (el primero
-  // tiene su propio diseño con instrucciones funcionales de las que
-  // depende el flujo de solicitar factura; el segundo es el mensaje que
-  // escribe el cliente, no hay plantilla que personalizar). Los asuntos
-  // de estos correos siguen sin ser configurables, mismo criterio que
-  // cuerpo_cliente.
+  // aclaraciones queda FUERA a propósito (es el mensaje que escribe el
+  // CLIENTE, no hay plantilla del admin que personalizar ahí). Los
+  // asuntos de estos correos siguen sin ser configurables, mismo criterio
+  // que cuerpo_cliente.
   cuerpo_invitacion: 'Ingresa con estos datos y cambia tu contraseña en cuanto puedas.',
   cuerpo_recuperacion:
     'Recibimos una solicitud para restablecer tu contraseña en Portal Clarvo tu negocio en orden. ' +
     'Si no fuiste tú, ignora este correo — tu contraseña actual sigue funcionando.',
   cuerpo_aviso_contador: 'Revísalo y genera la factura correspondiente desde el panel de administración.',
   cuerpo_reporte: 'Se adjunta el reporte generado el {fecha} a las {hora}.',
+  // Punto 335: el correo de "confirmación de venta" (construirCorreoOrdenCompra
+  // en server.js) tiene su PROPIO diseño de recibo (borde punteado,
+  // degradado navy→cyan — no pasa por construirCorreoBase) — a propósito
+  // NO se abre a edición ese diseño ni la tabla de datos (folio/fecha/
+  // total/etc). Solo estos 2 párrafos de abajo son editables; el segundo
+  // es una instrucción FUNCIONAL real (le dice al cliente qué campos
+  // capturar para pedir su factura en el portal) — el admin puede
+  // reescribirla o borrarla bajo su propio riesgo, mismo nivel de
+  // confianza que ya existe para los otros 5 correos de esta lista.
+  cuerpo_venta:
+    '¡Hola! Te confirmamos que registramos tu venta {numero_venta}. Con estos datos ya puedes solicitar tu factura desde el portal.\n' +
+    '**Guarda este correo** — tómale una foto o captura de pantalla — porque, al solicitar tu factura en el portal, te pediremos que captures el No. Venta, Fecha, Hora y Total exactamente como aparecen arriba (cada uno en su propio campo), además de la imagen de tu ticket de venta.',
   // Punto "confGlo": timestamp (ISO) de la última vez que se confirmó que
   // esta configuración SÍ funciona — por un handshake exitoso (verify(),
   // sin enviar correo) o por un envío real exitoso ("Enviar prueba"). Se
@@ -77,6 +87,7 @@ async function setConfigSmtp(cambios) {
   [
     'host', 'usuario', 'nombre_remitente', 'correo_remitente', 'correo_contador',
     'cuerpo_cliente', 'cuerpo_invitacion', 'cuerpo_recuperacion', 'cuerpo_aviso_contador', 'cuerpo_reporte',
+    'cuerpo_venta',
   ].forEach((campo) => {
     if (typeof cambios[campo] === 'string') nuevo[campo] = cambios[campo].trim();
   });
@@ -116,16 +127,17 @@ async function marcarSmtpVerificado() {
 // Nunca se devuelve la contraseña guardada al frontend — solo si hay una
 // configurada o no (para poder mostrar "•••••• (guardada)" en la interfaz
 // sin exponer el valor real).
-// Textos por defecto de los 5 correos con plantilla editable (punto 214) —
-// expuestos aparte (sin credenciales) para que el botón "Restablecer" de
-// cada plantilla en el frontend sepa a qué texto volver, sin duplicar
-// estas cadenas en el JS del panel.
+// Textos por defecto de los 6 correos con plantilla editable (punto 214,
+// +venta en el punto 335) — expuestos aparte (sin credenciales) para que
+// el botón "Restablecer" de cada plantilla en el frontend sepa a qué
+// texto volver, sin duplicar estas cadenas en el JS del panel.
 const DEFAULTS_PLANTILLAS = {
   cuerpo_cliente: DEFAULTS_SMTP.cuerpo_cliente,
   cuerpo_invitacion: DEFAULTS_SMTP.cuerpo_invitacion,
   cuerpo_recuperacion: DEFAULTS_SMTP.cuerpo_recuperacion,
   cuerpo_aviso_contador: DEFAULTS_SMTP.cuerpo_aviso_contador,
   cuerpo_reporte: DEFAULTS_SMTP.cuerpo_reporte,
+  cuerpo_venta: DEFAULTS_SMTP.cuerpo_venta,
 };
 
 function configSmtpParaMostrar(config) {

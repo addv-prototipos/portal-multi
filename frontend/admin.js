@@ -166,6 +166,18 @@
     btnVistaLecturaReportes: document.getElementById('btn-vista-lectura-reportes'),
     btnVistaProveedores: document.getElementById('btn-vista-proveedores'),
     btnVistaMiCuenta: document.getElementById('btn-vista-mi-cuenta'),
+    // Riel colapsable del sidebar (punto 329, solo escritorio)
+    btnColapsarSidebar: document.getElementById('btn-colapsar-sidebar'),
+    // Campana de notificaciones (punto 337, solo escritorio)
+    notifWrap: document.getElementById('notif-wrap'),
+    btnNotificaciones: document.getElementById('btn-notificaciones'),
+    notifDot: document.getElementById('notif-dot'),
+    notifPanel: document.getElementById('notif-panel'),
+    notifList: document.getElementById('notif-list'),
+    notifEmpty: document.getElementById('notif-empty'),
+    btnNotifMarcarTodo: document.getElementById('btn-notif-marcar-todo'),
+    notifLinkTickets: document.getElementById('notif-link-tickets'),
+    notifLinkInventarios: document.getElementById('notif-link-inventarios'),
     // Menú móvil (launcher de íconos, reemplaza el nav de fila en <900px)
     btnMenuMovil: document.getElementById('btn-menu-movil'),
     adminMenuMovil: document.getElementById('admin-menu-movil'),
@@ -1517,6 +1529,10 @@
 
   function clearSession() {
     sessionStorage.removeItem(SESSION_KEY);
+    // Campana de notificaciones (punto 337): único choke-point de
+    // logout/401 real — corta el sondeo de 60s aquí para no seguir
+    // pegándole a la API con credenciales que ya no sirven.
+    detenerSondeoNotificaciones();
   }
 
   // Recuerda la última vista del panel dentro de esta MISMA sesión de
@@ -1854,6 +1870,16 @@
   // tarjetas — el resto ni siquiera se muestra, no solo se deshabilita.
   let perfilActual = null;
   let usuarioSesionActual = null;
+  // Campana de notificaciones (punto 337) — retención de tickets
+  // "vistos" y de la instancia de sondeo en curso.
+  const RETENCION_NOTIF_TICKETS_DIAS = 15;
+  const RETENCION_NOTIF_TICKETS_MAX = 20;
+  let notifPollingId = null;
+  // IDs de ticket del sondeo ANTERIOR (solo en memoria, nunca
+  // localStorage) — comparar contra esto es lo único que decide si
+  // suena la campana; sin este valor (primera carga de la sesión) NUNCA
+  // suena, para no sorprender al usuario apenas inicia sesión.
+  let notifIdsTicketsSondeoAnterior = null;
   // Primeros pasos (Fase 2 UX, punto 191): null mientras no se sabe todavía
   // (recién entrando, antes de que cargarConfigGlobal resuelva).
   let datosFiscalesCompletos = null;
@@ -2033,6 +2059,47 @@
     });
   });
 
+  // Riel colapsable del sidebar (punto 329) — 256px expandido / 72px
+  // solo íconos, exclusivo de escritorio (>900px, ver admin.css). Estado
+  // por cuenta en localStorage, mismo patrón que claveGruposSidebar. El
+  // listener del botón se ata una sola vez aquí; el ESTADO inicial se
+  // aplica desde showDashboard(), cuando ya se conoce la cuenta/tenant.
+  function claveColapsoSidebar() {
+    return `sidebar_colapso_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+  function aplicarEstadoColapsoSidebar(colapsado) {
+    document.body.classList.toggle('sidebar-colapsado', colapsado);
+    if (els.btnColapsarSidebar) {
+      els.btnColapsarSidebar.setAttribute('aria-pressed', String(colapsado));
+      els.btnColapsarSidebar.setAttribute('aria-label', colapsado ? 'Expandir menú lateral' : 'Colapsar menú lateral');
+    }
+    // Tooltip por ícono: reusa [data-tooltip]/inicializarTooltips ya
+    // existente en todo el sitio, cero componente nuevo. Solo tiene
+    // sentido cuando el texto está oculto (riel colapsado) — expandido,
+    // el nombre ya se lee junto al ícono, un tooltip ahí sería
+    // redundante.
+    document.querySelectorAll(
+      '.admin-sidebar-nav .admin-vista-btn, .admin-sidebar-footer .admin-sidebar-logout, .admin-sidebar-footer .admin-sidebar-ayuda'
+    ).forEach((btn) => {
+      const span = btn.querySelector('span');
+      if (!span) return;
+      if (colapsado) btn.setAttribute('data-tooltip', span.textContent.trim());
+      else btn.removeAttribute('data-tooltip');
+    });
+  }
+  if (els.btnColapsarSidebar) {
+    els.btnColapsarSidebar.addEventListener('click', () => {
+      const colapsado = !document.body.classList.contains('sidebar-colapsado');
+      aplicarEstadoColapsoSidebar(colapsado);
+      try {
+        localStorage.setItem(claveColapsoSidebar(), colapsado ? '1' : '0');
+      } catch (_) {
+        // localStorage lleno o bloqueado: el colapso de esta sesión
+        // sigue funcionando, solo no se recuerda para la próxima.
+      }
+    });
+  }
+
   function aplicarRestriccionesPerfil() {
     const restriccion = RESTRICCIONES_PERFIL[perfilActual];
     // Sin entrada en el mapa (perfil "super", o cualquier valor que no
@@ -2119,6 +2186,14 @@
     // real). Cubre el caso de una cuenta que sí abrió un grupo a mano:
     // ese override se respeta desde el primer render, no hasta navegar.
     aplicarEstadoGruposSidebar('inicio');
+    let colapsoSidebarGuardado = false;
+    try {
+      colapsoSidebarGuardado = localStorage.getItem(claveColapsoSidebar()) === '1';
+    } catch (_) {
+      // sin acceso a localStorage: arranca expandido, comportamiento
+      // de siempre.
+    }
+    aplicarEstadoColapsoSidebar(colapsoSidebarGuardado);
     controladorColumnasConstancias.aplicarColumnasVisibles(controladorColumnasConstancias.cargarColumnasGuardadas());
     controladorColumnasConstancias.aplicarAnchosGuardados();
     controladorColumnasOrdenes.aplicarColumnasVisibles(controladorColumnasOrdenes.cargarColumnasGuardadas());
@@ -2154,6 +2229,13 @@
     // hiciera nada para provocarlo (mismo criterio que puedeVerAreaFiscal
     // arriba, pero en sentido inverso).
     if (perfilActual !== 'fiscal') cargarConfigInventario();
+    // Campana de notificaciones (punto 337) — primera carga sin sonido
+    // (sondeo:false, ver actualizarNotificaciones), después sondeo cada
+    // 60s. Se corrige sola en cuanto cargarConfigInventario() resuelva
+    // (ver aplicarVisibilidadInventarios), así que no hace falta
+    // esperarla aquí.
+    actualizarNotificaciones();
+    iniciarSondeoNotificaciones();
     cargarSucursalesHermanas();
     // Primeros pasos (Fase 2 UX): la vista "Inicio" de fiscal no siempre
     // dispara cambiarVistaPrincipal() al iniciar sesión (ya es la vista
@@ -4840,6 +4922,17 @@
         { nombre: '{hora}', desc: 'Hora de generación' },
       ],
     },
+    // Punto 335: a diferencia de las otras 5, este correo tiene su propio
+    // diseño de recibo (no pasa por el cascarón genérico) — solo estos
+    // párrafos son editables, la tabla de datos y el diseño se quedan
+    // fijos. El preview real llama a construirCorreoOrdenCompra() en el
+    // backend (ver POST /config/smtp/preview), no el cascarón genérico.
+    venta: {
+      campo: 'cuerpo_venta',
+      desc: 'Se envía al cliente al registrar una venta con correo — confirma los datos que necesitará para pedir su factura.',
+      asunto: 'Confirmación de venta — {numero_venta}',
+      vars: [{ nombre: '{numero_venta}', desc: 'Folio de la venta (ej. OC-000123)' }],
+    },
   };
 
   let plantillaActual = 'invitacion';
@@ -4959,6 +5052,7 @@
         aviso_contador: data.cuerpo_aviso_contador || '',
         cliente: data.cuerpo_cliente || '',
         reporte: data.cuerpo_reporte || '',
+        venta: data.cuerpo_venta || '',
       };
       seleccionarPlantilla(plantillaActual);
 
@@ -5098,6 +5192,7 @@
           cuerpo_aviso_contador: plantillasTextos.aviso_contador,
           cuerpo_cliente: plantillasTextos.cliente,
           cuerpo_reporte: plantillasTextos.reporte,
+          cuerpo_venta: plantillasTextos.venta,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -5400,6 +5495,397 @@
     cambiarVistaPrincipal('tickets');
     els.ticketsFiltroEstatus.value = 'pendiente';
     cargarTickets();
+  });
+
+  // ---------- Campana de notificaciones (punto 337) ----------
+  // 3 familias, cada una con su propia semántica de "leído":
+  //   - Tickets nuevos (evento puntual): leído = ese id específico ya
+  //     se vio, se guarda en localStorage y no vuelve a marcarse.
+  //   - Inventario / Configuración (condición viva, no evento): leído =
+  //     "vi que el número era N" — el punto rojo solo reaparece si el
+  //     número SUBE respecto a ese snapshot, nunca por el simple paso
+  //     del tiempo (así no es invasivo con algo que puede durar
+  //     semanas igual). Coexiste con el popup de "tickets sin
+  //     contador" de arriba, sin tocarlo — la campana solo agrega una
+  //     copia silenciosa del mismo aviso.
+  // Cero endpoint nuevo: reusa GET /admin/tickets, GET
+  // /admin/inventarios/dashboard y GET /admin/tickets/pendientes-sin-contador,
+  // los 3 ya usados en otras vistas del panel.
+
+  function claveNotifTicketsLeidos() {
+    return `notif_tickets_leidos_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+  function claveNotifSnapshot() {
+    return `notif_snapshot_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+  function leerTicketsLeidos() {
+    try {
+      const crudo = localStorage.getItem(claveNotifTicketsLeidos());
+      return crudo ? new Set(JSON.parse(crudo)) : new Set();
+    } catch (_) {
+      return new Set();
+    }
+  }
+  function guardarTicketsLeidos(set) {
+    try {
+      localStorage.setItem(claveNotifTicketsLeidos(), JSON.stringify([...set]));
+    } catch (_) {
+      // localStorage lleno/bloqueado: la sesión sigue funcionando, solo
+      // no se recuerda para la próxima.
+    }
+  }
+  function leerSnapshotNotif() {
+    try {
+      const crudo = localStorage.getItem(claveNotifSnapshot());
+      return crudo ? JSON.parse(crudo) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  function guardarSnapshotNotif(obj) {
+    try {
+      localStorage.setItem(claveNotifSnapshot(), JSON.stringify(obj));
+    } catch (_) {
+      // ver arriba.
+    }
+  }
+
+  // Últimos 15 días, tope de 20 — lo que sea MENOR (pedido explícito
+  // del usuario). Se aplica sobre la lista completa que ya trae GET
+  // /admin/tickets (sin paginar), ordenada por creado_en DESC.
+  function ticketsRecientesParaNotif(tickets) {
+    const corte = Date.now() - RETENCION_NOTIF_TICKETS_DIAS * 24 * 60 * 60 * 1000;
+    return tickets
+      .filter((t) => {
+        const fecha = new Date(String(t.creado_en).replace(' ', 'T') + 'Z');
+        return !Number.isNaN(fecha.getTime()) && fecha.getTime() >= corte;
+      })
+      .slice(0, RETENCION_NOTIF_TICKETS_MAX);
+  }
+
+  function tiempoRelativoNotif(fechaTexto) {
+    const fecha = new Date(String(fechaTexto).replace(' ', 'T') + 'Z');
+    if (Number.isNaN(fecha.getTime())) return '';
+    const minutos = Math.round((Date.now() - fecha.getTime()) / 60000);
+    if (minutos < 1) return 'ahora';
+    if (minutos < 60) return `hace ${minutos} min`;
+    const horas = Math.round(minutos / 60);
+    if (horas < 24) return `hace ${horas} h`;
+    const dias = Math.round(horas / 24);
+    if (dias === 1) return 'ayer';
+    return `hace ${dias} días`;
+  }
+
+  const ICONO_NOTIF_TICKET =
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_NOTIF_INVENTARIO =
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_NOTIF_VENCER =
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_NOTIF_CONFIG =
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l16 16M4 20L20 4" stroke-linecap="round"/></svg>';
+
+  // Estado en memoria del último render — cada <button> del panel guarda
+  // su propio tipo/id en dataset para que el click delegado sepa qué
+  // marcar leído sin tener que reconstruir el render entero.
+  let notifDatosActuales = { ticketsLeidos: new Set(), snapshot: {} };
+
+  function renderNotifPanel(grupos) {
+    els.notifList.innerHTML = '';
+    const hayAlgo = grupos.some((g) => g.items.length > 0);
+    els.notifEmpty.hidden = hayAlgo;
+    grupos.forEach((grupo) => {
+      if (grupo.items.length === 0) return;
+      const label = document.createElement('div');
+      label.className = 'admin-notif-group-label';
+      label.textContent = grupo.label;
+      els.notifList.appendChild(label);
+      grupo.items.forEach((item) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'admin-notif-item' + (item.leido ? ' is-read' : '');
+        btn.dataset.tipo = item.tipo;
+        btn.dataset.id = item.id;
+        btn.innerHTML = `
+          <div class="admin-notif-item-icon${item.warn ? ' warn' : ''}">${item.icono}</div>
+          <div class="admin-notif-item-body">
+            <p class="admin-notif-item-title">${escapeHtml(item.titulo)}</p>
+            <p class="admin-notif-item-sub">${escapeHtml(item.sub)}</p>
+          </div>
+          ${item.tiempo ? `<span class="admin-notif-item-time">${escapeHtml(item.tiempo)}</span>` : ''}
+          <span class="admin-notif-item-dotwrap"><span class="admin-notif-item-dot"></span></span>`;
+        els.notifList.appendChild(btn);
+      });
+    });
+  }
+
+  function actualizarBadgeNotif(grupos) {
+    const hayNoLeido = grupos.some((g) => g.items.some((i) => !i.leido));
+    els.notifDot.hidden = !hayNoLeido;
+  }
+
+  // sondeo=true: llamada del setInterval de 60s (puede sonar/sacudir si
+  // encuentra tickets genuinamente nuevos). sondeo=false: primera carga
+  // de la sesión, nunca suena (sin punto de comparación todavía).
+  async function actualizarNotificaciones({ sondeo = false } = {}) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+
+    const ticketsAplican = ['fiscal', 'administrador', 'super'].includes(perfilActual);
+    const inventarioAplica =
+      ['administrador', 'inventario', 'super'].includes(perfilActual) && inventarioActivoGlobalmente;
+    const configAplica = ['fiscal', 'super'].includes(perfilActual);
+
+    if (!ticketsAplican && !inventarioAplica && !configAplica) {
+      els.btnNotificaciones.hidden = true;
+      detenerSondeoNotificaciones();
+      return;
+    }
+    els.btnNotificaciones.hidden = false;
+
+    const ticketsLeidos = leerTicketsLeidos();
+    const snapshot = leerSnapshotNotif();
+    const grupos = [];
+
+    if (ticketsAplican) {
+      try {
+        const res = await fetch(`${API_BASE}/admin/tickets`, { headers: { Authorization: authHeader } });
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        if (res.ok) {
+          const data = await res.json();
+          const recientes = ticketsRecientesParaNotif(data.tickets || []);
+          const idsActuales = recientes.map((t) => t.id);
+
+          // Suena/sacude SOLO si es un sondeo en segundo plano (nunca la
+          // primera carga) y aparecieron ids que no estaban en el
+          // sondeo anterior — no basta con "no leídos" (eso incluiría
+          // tickets viejos que el usuario simplemente nunca abrió).
+          if (sondeo && notifIdsTicketsSondeoAnterior) {
+            const nuevos = idsActuales.filter((id) => !notifIdsTicketsSondeoAnterior.has(id));
+            if (nuevos.length > 0) {
+              reproducirCampanadaNotif();
+              sacudirCampanaNotif();
+            }
+          }
+          notifIdsTicketsSondeoAnterior = new Set(idsActuales);
+
+          // Poda el set de leídos a solo los ids todavía visibles en la
+          // ventana de retención — evita que crezca indefinidamente en
+          // localStorage con ids de tickets que ya salieron de vista.
+          const idsVisibles = new Set(idsActuales);
+          const leidosPodados = new Set([...ticketsLeidos].filter((id) => idsVisibles.has(id)));
+          if (leidosPodados.size !== ticketsLeidos.size) guardarTicketsLeidos(leidosPodados);
+
+          grupos.push({
+            label: 'Solicitudes nuevas',
+            items: recientes.map((t) => ({
+              tipo: 'ticket',
+              id: t.id,
+              icono: ICONO_NOTIF_TICKET,
+              titulo: `Ticket ${t.folio}`,
+              sub: `RFC ${t.rfc} · nueva solicitud`,
+              tiempo: tiempoRelativoNotif(t.creado_en),
+              leido: leidosPodados.has(t.id),
+            })),
+          });
+          notifDatosActuales.ticketsLeidos = leidosPodados;
+        }
+      } catch (_) {
+        // Sin conexión: la campana simplemente no actualiza este
+        // sondeo, no interrumpe el resto del panel.
+      }
+    }
+
+    if (inventarioAplica) {
+      try {
+        const res = await fetch(`${API_BASE}/admin/inventarios/dashboard`, { headers: { Authorization: authHeader } });
+        if (res.ok) {
+          const data = await res.json();
+          const items = [];
+          const bajoMinimo = data.productos_bajo_minimo || 0;
+          const porVencer = data.productos_por_vencer || 0;
+          if (bajoMinimo > 0) {
+            items.push({
+              tipo: 'inv_bajo_minimo',
+              id: 'inv_bajo_minimo',
+              icono: ICONO_NOTIF_INVENTARIO,
+              warn: true,
+              titulo: `${bajoMinimo} producto${bajoMinimo === 1 ? '' : 's'} bajo mínimo`,
+              sub: 'Revisa el punto de reorden en Inventarios',
+              tiempo: '',
+              leido: (snapshot.inv_bajo_minimo || 0) >= bajoMinimo,
+            });
+          }
+          if (porVencer > 0) {
+            items.push({
+              tipo: 'inv_por_vencer',
+              id: 'inv_por_vencer',
+              icono: ICONO_NOTIF_VENCER,
+              warn: true,
+              titulo: `${porVencer} producto${porVencer === 1 ? '' : 's'} por vencer`,
+              sub: 'Dentro de los próximos 30 días',
+              tiempo: '',
+              leido: (snapshot.inv_por_vencer || 0) >= porVencer,
+            });
+          }
+          grupos.push({ label: 'Inventario', items });
+        }
+      } catch (_) {
+        // ver arriba.
+      }
+    }
+
+    if (configAplica) {
+      try {
+        const res = await fetch(`${API_BASE}/admin/tickets/pendientes-sin-contador`, { headers: { Authorization: authHeader } });
+        if (res.ok) {
+          const data = await res.json();
+          const items = [];
+          if (data.total > 0) {
+            items.push({
+              tipo: 'cfg_sin_contador',
+              id: 'cfg_sin_contador',
+              icono: ICONO_NOTIF_CONFIG,
+              warn: true,
+              titulo: `${data.total} ticket${data.total === 1 ? '' : 's'} sin correo de contador`,
+              sub: 'Configura el correo en SMTP para notificar solo',
+              tiempo: '',
+              leido: (snapshot.cfg_sin_contador || 0) >= data.total,
+            });
+          }
+          grupos.push({ label: 'Configuración', items });
+        }
+      } catch (_) {
+        // ver arriba.
+      }
+    }
+
+    notifDatosActuales.snapshot = snapshot;
+    els.notifLinkTickets.hidden = !ticketsAplican;
+    els.notifLinkInventarios.hidden = !inventarioAplica;
+    renderNotifPanel(grupos);
+    actualizarBadgeNotif(grupos);
+  }
+
+  function marcarNotifItemLeido(tipo, id) {
+    if (tipo === 'ticket') {
+      const leidos = leerTicketsLeidos();
+      leidos.add(Number(id));
+      guardarTicketsLeidos(leidos);
+    } else {
+      // Condición viva (inventario/config): el snapshot guarda el
+      // número que se acaba de ver, para que el punto rojo solo vuelva
+      // si más adelante ese número sube.
+      const snapshot = leerSnapshotNotif();
+      const item = els.notifList.querySelector(`[data-tipo="${tipo}"]`);
+      const titulo = item ? item.querySelector('.admin-notif-item-title').textContent : '';
+      const numero = parseInt(titulo, 10);
+      snapshot[tipo] = Number.isFinite(numero) ? numero : (snapshot[tipo] || 0) + 1;
+      guardarSnapshotNotif(snapshot);
+    }
+    const el = els.notifList.querySelector(`[data-tipo="${tipo}"][data-id="${id}"]`);
+    if (el) el.classList.add('is-read');
+    els.notifDot.hidden = !els.notifList.querySelector('.admin-notif-item:not(.is-read)');
+  }
+
+  // ---------- Sonido: campanada sintetizada, sin archivo nuevo ----------
+  // Web Audio API, 2 notas cortas — nada que descargar ni mantener como
+  // asset. Solo para tickets nuevos (confirmado con el usuario) — nunca
+  // para inventario/configuración. El AudioContext se crea perezoso, en
+  // el primer sondeo que de verdad encuentra algo, nunca al cargar la
+  // página (política de autoplay de los navegadores).
+  let notifAudioCtx = null;
+  function tonoCampanaNotif(freq, inicio, duracion, volumen) {
+    const osc = notifAudioCtx.createOscillator();
+    const gain = notifAudioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, notifAudioCtx.currentTime + inicio);
+    gain.gain.linearRampToValueAtTime(volumen, notifAudioCtx.currentTime + inicio + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, notifAudioCtx.currentTime + inicio + duracion);
+    osc.connect(gain).connect(notifAudioCtx.destination);
+    osc.start(notifAudioCtx.currentTime + inicio);
+    osc.stop(notifAudioCtx.currentTime + inicio + duracion + 0.05);
+  }
+  function reproducirCampanadaNotif() {
+    try {
+      if (!notifAudioCtx) notifAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (notifAudioCtx.state === 'suspended') notifAudioCtx.resume();
+      tonoCampanaNotif(1318.51, 0, 0.32, 0.09);
+      tonoCampanaNotif(1567.98, 0.09, 0.34, 0.08);
+    } catch (_) {
+      // Audio bloqueado por el navegador: la notificación visual sigue
+      // funcionando igual, el sonido es un extra.
+    }
+  }
+  function sacudirCampanaNotif() {
+    els.btnNotificaciones.classList.remove('is-ringing');
+    void els.btnNotificaciones.offsetWidth;
+    els.btnNotificaciones.classList.add('is-ringing');
+  }
+
+  function detenerSondeoNotificaciones() {
+    if (notifPollingId) {
+      clearInterval(notifPollingId);
+      notifPollingId = null;
+    }
+  }
+  function iniciarSondeoNotificaciones() {
+    detenerSondeoNotificaciones();
+    notifPollingId = setInterval(() => actualizarNotificaciones({ sondeo: true }), 60000);
+  }
+  // Pausa el sondeo con la pestaña en segundo plano (cero peticiones
+  // desperdiciadas) y refresca de inmediato al volver, en vez de
+  // esperar hasta el siguiente tick de 60s.
+  document.addEventListener('visibilitychange', () => {
+    if (!els.btnNotificaciones || els.btnNotificaciones.hidden) return;
+    if (document.visibilityState === 'hidden') {
+      detenerSondeoNotificaciones();
+    } else {
+      actualizarNotificaciones({ sondeo: false });
+      iniciarSondeoNotificaciones();
+    }
+  });
+
+  els.btnNotificaciones.addEventListener('click', (e) => {
+    // Mismo bug encontrado en la propuesta visual: sin stopPropagation
+    // aquí, este clic burbujea hasta el listener de document de abajo
+    // (que cierra el panel al hacer clic FUERA) y se cierra en el
+    // mismo evento — la animación nunca llega a verse.
+    e.stopPropagation();
+    const abriendo = !els.notifPanel.classList.contains('is-open');
+    els.notifPanel.classList.toggle('is-open');
+    els.btnNotificaciones.setAttribute('aria-expanded', String(abriendo));
+  });
+  els.notifPanel.addEventListener('click', (e) => e.stopPropagation());
+  document.addEventListener('click', () => els.notifPanel.classList.remove('is-open'));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') els.notifPanel.classList.remove('is-open');
+  });
+  els.notifList.addEventListener('click', (e) => {
+    const item = e.target.closest('.admin-notif-item');
+    if (!item || item.classList.contains('is-read')) return;
+    marcarNotifItemLeido(item.dataset.tipo, item.dataset.id);
+  });
+  els.btnNotifMarcarTodo.addEventListener('click', (e) => {
+    e.stopPropagation();
+    els.notifList.querySelectorAll('.admin-notif-item:not(.is-read)').forEach((item) => {
+      marcarNotifItemLeido(item.dataset.tipo, item.dataset.id);
+    });
+  });
+  els.notifLinkTickets.addEventListener('click', (e) => {
+    e.stopPropagation();
+    els.notifPanel.classList.remove('is-open');
+    cambiarVistaPrincipal('tickets');
+  });
+  els.notifLinkInventarios.addEventListener('click', (e) => {
+    e.stopPropagation();
+    els.notifPanel.classList.remove('is-open');
+    cambiarVistaPrincipal('inventarios');
   });
 
   els.btnGuardarConfig.addEventListener('click', async () => {
@@ -5820,36 +6306,15 @@
 
       const celdaAcciones = tr.lastElementChild;
       const contenedorAcciones = document.createElement('div');
-      contenedorAcciones.className = 'admin-row-actions';
+      contenedorAcciones.className = 'admin-row-actions admin-row-actions-iconos';
 
-      const btnVer = document.createElement('button');
-      btnVer.type = 'button';
-      btnVer.className = 'btn-ver';
-      btnVer.textContent = 'Ver archivo';
-      btnVer.addEventListener('click', () => verArchivo(r.id, r.archivo_nombre_original));
-      contenedorAcciones.appendChild(btnVer);
+      contenedorAcciones.appendChild(botonAccionInv({ tooltip: 'Ver archivo', icono: ICONO_OJO, onClick: () => verArchivo(r.id, r.archivo_nombre_original) }));
 
       if (state.vista === 'papelera') {
-        const btnRestaurar = document.createElement('button');
-        btnRestaurar.type = 'button';
-        btnRestaurar.className = 'btn-restaurar';
-        btnRestaurar.textContent = 'Restaurar';
-        btnRestaurar.addEventListener('click', () => restaurarRegistro(r.id, r.nombre));
-        contenedorAcciones.appendChild(btnRestaurar);
-
-        const btnEliminarPermanente = document.createElement('button');
-        btnEliminarPermanente.type = 'button';
-        btnEliminarPermanente.className = 'btn-eliminar-permanente';
-        btnEliminarPermanente.textContent = 'Eliminar permanentemente';
-        btnEliminarPermanente.addEventListener('click', () => confirmarEliminarPermanente(r.id, r.nombre));
-        contenedorAcciones.appendChild(btnEliminarPermanente);
+        contenedorAcciones.appendChild(botonAccionInv({ tooltip: 'Restaurar', icono: ICONO_RESTAURAR, onClick: () => restaurarRegistro(r.id, r.nombre) }));
+        contenedorAcciones.appendChild(botonAccionInv({ tooltip: 'Eliminar permanentemente', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminarPermanente(r.id, r.nombre) }));
       } else {
-        const btnEliminar = document.createElement('button');
-        btnEliminar.type = 'button';
-        btnEliminar.className = 'btn-eliminar';
-        btnEliminar.textContent = 'Eliminar';
-        btnEliminar.addEventListener('click', () => confirmarEliminar(r.id, r.nombre));
-        contenedorAcciones.appendChild(btnEliminar);
+        contenedorAcciones.appendChild(botonAccionInv({ tooltip: 'Eliminar', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminar(r.id, r.nombre) }));
       }
 
       celdaAcciones.appendChild(contenedorAcciones);
@@ -6961,9 +7426,11 @@
         <td data-label="Cliente (RFC)">${escapeHtml(t.rfc)}</td>
         <td data-label="Fecha de solicitud">${formatFecha(t.creado_en)}</td>
         <td data-label="Estatus"><span class="estatus-badge ${info.clase}">${escapeHtml(info.texto)}</span></td>
-        <td data-label="">${puedeGestionar ? '<button type="button" class="btn-ver">Gestionar</button>' : ''}</td>
+        <td data-label=""></td>
       `;
-      if (puedeGestionar) tr.querySelector('.btn-ver').addEventListener('click', () => abrirTicketModal(t));
+      if (puedeGestionar) {
+        tr.lastElementChild.appendChild(botonAccionInv({ tooltip: 'Gestionar', icono: ICONO_EDITAR, onClick: () => abrirTicketModal(t) }));
+      }
       els.inicioRecientesBody.appendChild(tr);
     });
   }
@@ -7042,36 +7509,14 @@
 
       const celdaAcciones = tr.lastElementChild;
       const contenedorAcciones = document.createElement('div');
-      contenedorAcciones.className = 'admin-row-actions';
+      contenedorAcciones.className = 'admin-row-actions admin-row-actions-iconos';
 
       if (state.vistaTickets === 'papelera') {
-        const btnRestaurar = document.createElement('button');
-        btnRestaurar.type = 'button';
-        btnRestaurar.className = 'btn-restaurar';
-        btnRestaurar.textContent = 'Restaurar';
-        btnRestaurar.addEventListener('click', () => restaurarTicket(t.id, t.folio));
-        contenedorAcciones.appendChild(btnRestaurar);
-
-        const btnEliminarPermanente = document.createElement('button');
-        btnEliminarPermanente.type = 'button';
-        btnEliminarPermanente.className = 'btn-eliminar-permanente';
-        btnEliminarPermanente.textContent = 'Eliminar permanentemente';
-        btnEliminarPermanente.addEventListener('click', () => confirmarEliminarTicketPermanente(t.id, t.folio));
-        contenedorAcciones.appendChild(btnEliminarPermanente);
+        contenedorAcciones.appendChild(botonAccionInv({ tooltip: 'Restaurar', icono: ICONO_RESTAURAR, onClick: () => restaurarTicket(t.id, t.folio) }));
+        contenedorAcciones.appendChild(botonAccionInv({ tooltip: 'Eliminar permanentemente', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminarTicketPermanente(t.id, t.folio) }));
       } else {
-        const btnVer = document.createElement('button');
-        btnVer.type = 'button';
-        btnVer.className = 'btn-ver';
-        btnVer.textContent = 'Gestionar';
-        btnVer.addEventListener('click', () => abrirTicketModal(t));
-        contenedorAcciones.appendChild(btnVer);
-
-        const btnEliminar = document.createElement('button');
-        btnEliminar.type = 'button';
-        btnEliminar.className = 'btn-eliminar';
-        btnEliminar.textContent = 'Eliminar';
-        btnEliminar.addEventListener('click', () => confirmarEliminarTicket(t.id, t.folio));
-        contenedorAcciones.appendChild(btnEliminar);
+        contenedorAcciones.appendChild(botonAccionInv({ tooltip: 'Gestionar', icono: ICONO_EDITAR, onClick: () => abrirTicketModal(t) }));
+        contenedorAcciones.appendChild(botonAccionInv({ tooltip: 'Eliminar', peligro: true, icono: ICONO_PAPELERA, onClick: () => confirmarEliminarTicket(t.id, t.folio) }));
       }
 
       celdaAcciones.appendChild(contenedorAcciones);
@@ -10066,8 +10511,8 @@
         <option value="variable" ${c.tipo === 'variable' ? 'selected' : ''}>Variable</option>
       </select>
       ${c.activa ? '' : `<button type="button" class="btn-categoria-accion gastos-categoria-reactivar" data-id="${c.id}">Reactivar</button>`}
-      <button type="button" class="btn-icon gastos-categoria-renombrar" data-id="${c.id}" aria-label="Renombrar ${escapeHtml(c.etiqueta)}">✏️</button>
-      ${c.tieneGastos ? '' : `<button type="button" class="btn-icon gastos-categoria-borrar" data-id="${c.id}" aria-label="Eliminar ${escapeHtml(c.etiqueta)}">🗑️</button>`}
+      <button type="button" class="btn-icono-accion gastos-categoria-renombrar" data-id="${c.id}" data-tooltip="Renombrar ${escapeHtml(c.etiqueta)}" aria-label="Renombrar ${escapeHtml(c.etiqueta)}">${ICONO_EDITAR}</button>
+      ${c.tieneGastos ? '' : `<button type="button" class="btn-icono-accion btn-icono-accion-peligro gastos-categoria-borrar" data-id="${c.id}" data-tooltip="Eliminar ${escapeHtml(c.etiqueta)}" aria-label="Eliminar ${escapeHtml(c.etiqueta)}">${ICONO_PAPELERA}</button>`}
     </div>`;
   }
 
@@ -12016,12 +12461,13 @@
         <td>${escapeHtml(f.nombre)}</td>
         <td>${f.existencia_actual} pz</td>
         <td><span class="estatus-badge ${INV_ESTADO_CLASIFICACION_CLASE[f.clasificacion] || ''}">${escapeHtml(INV_ESTADO_CLASIFICACION_TEXTO[f.clasificacion] || f.clasificacion)}</span></td>
-        <td><button type="button" class="btn btn-secondary inv-estado-matriz-btn-gestionar" data-producto-id="${f.producto_id}">Gestionar</button></td>
+        <td data-producto-id="${f.producto_id}"></td>
       </tr>`
       )
       .join('');
-    els.invEstadoMatrizBody.querySelectorAll('.inv-estado-matriz-btn-gestionar').forEach((btn) => {
-      btn.addEventListener('click', () => gestionarProductoDesdeMatriz(Number(btn.dataset.productoId)));
+    els.invEstadoMatrizBody.querySelectorAll('td[data-producto-id]').forEach((celda) => {
+      const productoId = Number(celda.dataset.productoId);
+      celda.appendChild(botonAccionInv({ tooltip: 'Gestionar', icono: ICONO_EDITAR, onClick: () => gestionarProductoDesdeMatriz(productoId) }));
     });
   }
 
@@ -13355,8 +13801,8 @@
   // existe concepto de presupuesto en la app — pendiente para una etapa
   // futura junto con PAC/timbrado, ver PROJECT_STATE.md); el KPI "Gastos
   // Variables/Flexibles" SÍ se construyó (columna real `tipo` fijo/
-  // variable en categorias_gastos, editable desde el panel "✏️
-  // Categorías"); "Estado Presupuestal" de la tabla se reemplazó por "%
+  // variable en categorias_gastos, editable desde el panel
+  // "Categorías"); "Estado Presupuestal" de la tabla se reemplazó por "%
   // con comprobante" real (`tiene_factura`, mismo campo que ya usa el
   // filtro de Gastos); "Módulo Bancario Conectado"/"Conciliación
   // automática... 10 complementos XML" se quitaron (no existe, mismo
@@ -13431,7 +13877,7 @@
         </div>
       </div>
 
-      <p class="resumen-fin-proyeccion-nota">"Variable" o "Fijo" se asigna por categoría desde "✏️ Categorías" en Gastos — no es un cálculo automático.</p>
+      <p class="resumen-fin-proyeccion-nota">"Variable" o "Fijo" se asigna por categoría desde "Categorías" en Gastos — no es un cálculo automático.</p>
     `;
   }
 
@@ -14892,6 +15338,12 @@
       els.configInvSoloServicios.checked = valorMostrado;
       aplicarVisibilidadSoloServicios(valorMostrado);
     }
+    // Campana de notificaciones (punto 337): su grupo "Inventario"
+    // depende de este mismo valor, que llega async — se re-verifica
+    // aquí en cuanto se sabe, mismo criterio que el resto de esta
+    // función. Sin cuenta activa todavía (primer render antes de
+    // cualquier login) simplemente no hace nada.
+    if (usuarioSesionActual) actualizarNotificaciones();
   }
 
   // Punto 186 (cierra el punto 182): con el switch encendido, todo lo que
@@ -15071,8 +15523,8 @@
     return `<div class="gastos-categoria-fila" data-id="${c.id}">
       <span class="gastos-categoria-nombre">${escapeHtml(c.nombre)}${c.activa ? '' : ' <em>(inactiva)</em>'}</span>
       ${c.activa ? '' : `<button type="button" class="btn-categoria-accion gastos-categoria-reactivar" data-id="${c.id}">Reactivar</button>`}
-      <button type="button" class="btn-icon gastos-categoria-renombrar" data-id="${c.id}" aria-label="Renombrar ${escapeHtml(c.nombre)}">✏️</button>
-      ${c.tieneProductos ? '' : `<button type="button" class="btn-icon gastos-categoria-borrar" data-id="${c.id}" aria-label="Eliminar ${escapeHtml(c.nombre)}">🗑️</button>`}
+      <button type="button" class="btn-icono-accion gastos-categoria-renombrar" data-id="${c.id}" data-tooltip="Renombrar ${escapeHtml(c.nombre)}" aria-label="Renombrar ${escapeHtml(c.nombre)}">${ICONO_EDITAR}</button>
+      ${c.tieneProductos ? '' : `<button type="button" class="btn-icono-accion btn-icono-accion-peligro gastos-categoria-borrar" data-id="${c.id}" data-tooltip="Eliminar ${escapeHtml(c.nombre)}" aria-label="Eliminar ${escapeHtml(c.nombre)}">${ICONO_PAPELERA}</button>`}
     </div>`;
   }
 
@@ -15419,6 +15871,9 @@
   const ICONO_KEBAB = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
   // Mismo ícono de impresora ya usado en Ventas (btnImprimirOrden).
   const ICONO_IMPRIMIR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><rect x="4" y="9" width="16" height="8" rx="1.2" stroke="currentColor" stroke-width="1.6"/><path d="M6 14h12v7H6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+  // Ícono "ver" (ojo) reutilizado en Documentos/Tickets — mismo criterio
+  // de botonAccionInv, sin acoplarse solo a Inventarios pese al nombre.
+  const ICONO_OJO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/></svg>';
 
   // Menú "⋮" reutilizable para acciones secundarias (punto: 2026-08-30,
   // acomodo de espacio en Inventarios) — deja visibles solo las 2
@@ -17412,7 +17867,7 @@
       lead: 'Control administrativo de los gastos de la operación.',
       pasos: [
         { t: 'Registrar un gasto', d: 'Botón "Registrar gasto" — categoría, monto, si el IVA ya está incluido, y si es recurrente (solo para tu referencia, no se genera automático).' },
-        { t: 'Categorías editables', d: 'Desde el mismo modal, ícono "✏️ Categorías" — renombra, crea nuevas o desactiva las que no uses. "Otro" nunca se puede borrar.' },
+        { t: 'Categorías editables', d: 'Desde el mismo modal, botón "Categorías" — renombra, crea nuevas o desactiva las que no uses. "Otro" nunca se puede borrar.' },
         { t: 'Adjuntar comprobante', d: 'PDF o ZIP opcional, se guarda junto al gasto y se puede descargar o quitar después.' },
         { t: 'Papelera', d: 'Un gasto eliminado va a la papelera — se puede restaurar o borrar en definitivo desde ahí.' },
       ],
@@ -18199,6 +18654,16 @@
               const botonGuardado = vistaGuardada && botonesPorVista[vistaGuardada];
               if (botonGuardado && !botonGuardado.hidden && !botonGuardado.classList.contains('is-active')) {
                 cambiarVistaPrincipal(vistaGuardada);
+              } else {
+                // "Inicio" es la vista activa por defecto en el HTML — si
+                // se queda así (sin vista guardada, o la guardada es la
+                // misma "inicio"), nunca pasa por cambiarVistaPrincipal()
+                // y sus datos (cargarInicio()) nunca se piden: el refresh
+                // deja el tablero en 0 hasta el primer clic de navegación.
+                const vistaActivaId = Object.keys(botonesPorVista).find(
+                  (v) => botonesPorVista[v] && botonesPorVista[v].classList.contains('is-active')
+                );
+                if (vistaActivaId === 'inicio') cargarInicio();
               }
             });
           }

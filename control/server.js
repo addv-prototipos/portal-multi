@@ -47,7 +47,18 @@ const PORT = Number(process.env.PORT || 4001);
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || false;
 
 const app = express();
-app.set('trust proxy', 1);
+// Número de saltos de proxy confiados para resolver `req.ip` (usado por
+// la auditoría de arriba) — mismo razonamiento y mismo env var que
+// `backend/server.js` (buscar `TRUST_PROXY_HOPS` ahí para el detalle
+// completo): 1 = solo el nginx de este docker-compose local; un VPS con
+// un nginx del HOST por delante del stack necesita 2, o el `ip` guardado
+// termina siendo el de ese proxy intermedio, no el del navegador real.
+const TRUST_PROXY_HOPS = (() => {
+  const crudo = process.env.TRUST_PROXY_HOPS;
+  const n = crudo === undefined || crudo === '' ? 1 : Number(crudo);
+  return Number.isInteger(n) && n >= 0 ? n : 1;
+})();
+app.set('trust proxy', TRUST_PROXY_HOPS);
 
 app.use(helmet());
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));

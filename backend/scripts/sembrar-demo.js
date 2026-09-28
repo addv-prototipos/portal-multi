@@ -1,11 +1,14 @@
 // Script de demo unificado: BORRA los datos transaccionales de la BD que
 // apunte DB_NAME (por defecto portal_facturacion, la base SIN tenant — se
 // puede apuntar a un tenant_<slug> igual que ensureSchema(), ver punto 115
-// de PROJECT_STATE.md) y vuelve a sembrar ~6 meses (configurable) de
-// historia realista (ventas, tickets, gastos, inventario con movimientos y
-// CxC). Ver SEED_MESES/SEED_SEMILLA/SEED_PERFIL más abajo para sembrar
-// varios tenants con escenarios financieros distintos sin duplicar el
-// script.
+// de PROJECT_STATE.md) y vuelve a sembrar historia realista (ventas,
+// tickets, gastos, inventario con movimientos, CxC, cierres mensuales
+// archivados, "Cortes del día" y un puñado de "Eliminados") con la
+// ambientación de una escuela privada (Maternal/Kinder/Primaria/
+// Secundaria) — productos (uniformes, útiles) Y servicios (colegiaturas,
+// inscripción, transporte, comedor, talleres, regularización). Ver
+// SEED_MESES/SEED_SEMILLA/SEED_PERFIL más abajo para sembrar varios
+// tenants con escenarios financieros distintos sin duplicar el script.
 //
 // Reemplaza a scripts/sembrar-datos-prueba.js y scripts/poblar-tony.js —
 // ambos hacían siembras parecidas pero sin borrar antes ni tocar
@@ -16,7 +19,7 @@
 //   registros, tickets, ordenes_compra, orden_productos, gastos,
 //   movimientos_inventario, existencias, productos, reportes,
 //   reporte_items, imp_importaciones, imp_importacion_errores.
-// QUÉ CONSERVA (configuración — nunca se toca):
+// QUÉ CONSERVA (configuración — nunca se toca, incluye fiscal/admin/SMTP):
 //   configuracion, usuarios, categorias_gastos, categorias_inventario,
 //   unidades_medida, conversiones_unidad, almacenes, inv_perfiles_mapeo,
 //   preferencias_dashboard.
@@ -27,14 +30,21 @@
 //
 // Uso (dentro del contenedor backend):
 //   node scripts/sembrar-demo.js --confirmar
+//   SEED_MESES=8 node scripts/sembrar-demo.js --confirmar   (8 meses de historia)
 //
 // Dos registros (constancias) quedan listos para pruebas manuales de
 // correo real en el navegador — ver RFC_DEMO_PRINCIPAL/RFC_DEMO_SECUNDARIO
 // abajo. Ninguna fila de esta siembra dispara un correo real (son INSERT
-// directos a la base, no pasan por los endpoints) — solo dejan datos
-// limpios para que tú dispares esos correos a mano después.
+// directos a la base, incluidos los cierres mensuales archivados — se
+// arman con guardarReporte() directo, NUNCA con generarYEnviarReporte(),
+// justo para no mandar de verdad los N correos de cierre a quien tenga
+// configurado "Correo de reportes" en este entorno) — solo dejan datos
+// limpios para que tú dispares un correo real a mano después si quieres.
 
 const { pool } = require('../db');
+const { getConfiguracionGlobal } = require('../utils/config');
+const { generarContenidoMD, guardarReporte } = require('../utils/reportes');
+const { ordenAItemArchivado, gastoAItemArchivado, rangoDelPeriodo } = require('../utils/cierreMensual');
 
 const NOTA_PRUEBA = 'Dato de demo (sembrar-demo.js)';
 
@@ -108,9 +118,10 @@ function probabilidad(p) { return prng() < p; }
 function fechaUtc(anio, mesIndex, dia, hora, minuto) {
   return new Date(Date.UTC(anio, mesIndex, dia, hora, minuto, azarEntero(0, 59)));
 }
+function round2(n) { return Math.round(n * 100) / 100; }
 
-// Selección ponderada: los productos con peso 0 NUNCA se venden (dead
-// stock real, no solo "poco probable") — quedan fuera del acumulado.
+// Selección ponderada: los productos/servicios con peso 0 NUNCA se venden
+// (dead stock real, no solo "poco probable") — quedan fuera del acumulado.
 function elegirPonderado(items) {
   const conPeso = items.filter((it) => it.peso > 0);
   const total = conPeso.reduce((acc, it) => acc + it.peso, 0);
@@ -122,58 +133,94 @@ function elegirPonderado(items) {
   return conPeso[conPeso.length - 1];
 }
 
+// Escuela privada con Maternal/Kinder/Primaria/Secundaria — conceptos de
+// venta que cubren tanto colegiaturas/servicios como productos (uniformes,
+// útiles) vendidos en la misma "Registrar venta".
 const CONCEPTOS_VENTA = [
-  'Suministro de equipo de cómputo', 'Servicio de mantenimiento preventivo', 'Refacción original',
-  'Consumibles de oficina', 'Instalación de red estructurada', 'Licencia de software anual',
-  'Cableado y conectores', 'Equipo de videovigilancia', 'Soporte técnico mensual',
-  'Papelería personalizada', 'Toners y cartuchos', 'Mobiliario de oficina',
+  'Colegiatura mensual', 'Venta de uniformes', 'Venta de útiles escolares',
+  'Inscripción de nuevo ciclo escolar', 'Curso de verano', 'Transporte escolar',
+  'Servicio de comedor', 'Papelería y materiales didácticos', 'Taller extracurricular',
+  'Clases de regularización', 'Renovación de credencial', 'Evento escolar (kermés/graduación)',
 ];
 
-// La mayoría de ventas chicas/medianas, algunas grandes — para que KPIs,
-// barras y proyección tengan forma realista (no una línea plana).
+// Ventas típicas de una escuela: la mayoría son un artículo suelto o una
+// colegiatura; pocas veces se junta uniforme completo + libros o varios
+// hermanos en una sola venta — montos mucho más chicos que un negocio de
+// cómputo, a propósito (realismo del giro).
 function montoVenta() {
   const dado = prng();
-  if (dado < 0.5) return azarEntre(800, 3000);
-  if (dado < 0.8) return azarEntre(3000, 9000);
-  if (dado < 0.95) return azarEntre(9000, 25000);
-  return azarEntre(25000, 45000);
+  if (dado < 0.45) return azarEntre(300, 1200);
+  if (dado < 0.78) return azarEntre(1200, 3200);
+  if (dado < 0.94) return azarEntre(3200, 7000);
+  return azarEntre(7000, 15000);
 }
 
-// 12 productos con "peso" de popularidad — deliberadamente desparejo para
-// que existan un top-5 y un bottom-5 claros en la gráfica "Más vendido y
-// menos movido" (D9 del segmento nuevo). peso=0 => nunca se vende (dead
-// stock real). Distribuidos en 4 categorías para que "Valor por categoría"
-// no salga con una sola rebanada dominando todo.
+// 12 PRODUCTOS (uniformes/papelería, con existencia física real) — "peso"
+// deliberadamente desparejo para que existan un top-5 y un bottom-5 claros
+// en "Más vendido y menos movido" (D9). peso=0 o casi 0 => dead stock real.
 const CATALOGO = [
-  { sku: 'PROD-TON-002', nombre: 'Tóner HP Negro',            categoria: 'Consumibles', costo: 950,  precio: 1450, stock: 220, peso: 30 },
-  { sku: 'PROD-PAP-007', nombre: 'Papel A4 caja 10 rec',      categoria: 'Consumibles', costo: 850,  precio: 1150, stock: 260, peso: 25 },
-  { sku: 'PROD-CAB-003', nombre: 'Cable UTP Cat6 305m',       categoria: 'Electrónica', costo: 1200, precio: 1850, stock: 70,  peso: 18 },
-  { sku: 'PROD-EXT-008', nombre: 'Disco SSD 1TB',              categoria: 'Cómputo',     costo: 1650, precio: 2400, stock: 90,  peso: 12 },
-  { sku: 'PROD-TEC-012', nombre: 'Teclado inalámbrico',        categoria: 'Cómputo',     costo: 480,  precio: 750,  stock: 130, peso: 10 },
-  { sku: 'PROD-MON-005', nombre: 'Monitor 24" FHD',            categoria: 'Cómputo',     costo: 2800, precio: 3900, stock: 45,  peso: 8 },
-  { sku: 'PROD-LAP-001', nombre: 'Laptop Lenovo 15"',          categoria: 'Cómputo',     costo: 18500,precio: 23500,stock: 25,  peso: 5 },
-  { sku: 'PROD-SIL-004', nombre: 'Silla ergonómica',           categoria: 'Mobiliario',  costo: 2100, precio: 3200, stock: 35,  peso: 1 },
-  { sku: 'PROD-IMP-006', nombre: 'Impresora multifuncional',   categoria: 'Cómputo',     costo: 4200, precio: 5900, stock: 20,  peso: 1 },
-  { sku: 'PROD-UPS-011', nombre: 'UPS 1500VA',                 categoria: 'Electrónica', costo: 3100, precio: 4400, stock: 50,  peso: 0.3 },
-  { sku: 'PROD-RUT-009', nombre: 'Router empresarial',         categoria: 'Electrónica', costo: 3600, precio: 5200, stock: 40,  peso: 0 },
-  { sku: 'PROD-ESC-010', nombre: 'Escáner de mesa',            categoria: 'Cómputo',     costo: 2900, precio: 4100, stock: 30,  peso: 0 },
+  { sku: 'PAP-KIT-006', nombre: 'Kit de útiles escolares',           categoria: 'Papelería y útiles', costo: 220, precio: 350, stock: 200, peso: 28 },
+  { sku: 'UNIF-POL-002', nombre: 'Playera polo institucional',       categoria: 'Uniformes',          costo: 140, precio: 220, stock: 220, peso: 25 },
+  { sku: 'PAP-CUA-008', nombre: 'Cuaderno profesional (paq. de 5)',  categoria: 'Papelería y útiles', costo: 90,  precio: 150, stock: 260, peso: 20 },
+  { sku: 'UNIF-DEP-001', nombre: 'Uniforme deportivo completo',      categoria: 'Uniformes',          costo: 320, precio: 480, stock: 150, peso: 22 },
+  { sku: 'UNIF-EDF-012', nombre: 'Playera de educación física',      categoria: 'Uniformes',          costo: 120, precio: 200, stock: 160, peso: 18 },
+  { sku: 'PAP-LIB-007', nombre: 'Paquete de libros de texto',        categoria: 'Papelería y útiles', costo: 650, precio: 950, stock: 110, peso: 16 },
+  { sku: 'UNIF-SUE-003', nombre: 'Suéter escolar institucional',     categoria: 'Uniformes',          costo: 260, precio: 380, stock: 130, peso: 14 },
+  { sku: 'UNIF-MOC-005', nombre: 'Mochila institucional',            categoria: 'Uniformes',          costo: 380, precio: 590, stock: 100, peso: 10 },
+  { sku: 'PAP-AGE-009', nombre: 'Agenda escolar institucional',      categoria: 'Papelería y útiles', costo: 60,  precio: 110, stock: 170, peso: 9 },
+  { sku: 'PAP-ART-010', nombre: 'Kit de arte y manualidades',        categoria: 'Papelería y útiles', costo: 150, precio: 250, stock: 90,  peso: 6 },
+  { sku: 'UNIF-CHA-004', nombre: 'Chamarra institucional',           categoria: 'Uniformes',          costo: 480, precio: 690, stock: 60,  peso: 2 },
+  { sku: 'PAP-TER-011', nombre: 'Termo institucional',               categoria: 'Papelería y útiles', costo: 90,  precio: 160, stock: 100, peso: 0 },
 ];
 
+// 10 SERVICIOS (sin existencia/costeo — D11: nunca generan movimiento de
+// inventario) — colegiaturas por nivel (Maternal/Kinder/Primaria/
+// Secundaria) + inscripción/transporte/comedor/talleres/regularización.
+// Unidad "Paquete" (mensualidad/curso completo, entera) salvo tutoría, que
+// se cobra por "Hora" (punto 298: 2do cobro válido para tipo=servicio).
+const SERVICIOS = [
+  { sku: 'SERV-PRI-003', nombre: 'Colegiatura Primaria (mensualidad)',        categoria: 'Servicios educativos', precio: 3400, peso: 26, unidad: 'Paquete' },
+  { sku: 'SERV-KIN-002', nombre: 'Colegiatura Kinder (mensualidad)',          categoria: 'Servicios educativos', precio: 3100, peso: 22, unidad: 'Paquete' },
+  { sku: 'SERV-MAT-001', nombre: 'Colegiatura Maternal (mensualidad)',        categoria: 'Servicios educativos', precio: 2800, peso: 20, unidad: 'Paquete' },
+  { sku: 'SERV-SEC-004', nombre: 'Colegiatura Secundaria (mensualidad)',      categoria: 'Servicios educativos', precio: 3800, peso: 18, unidad: 'Paquete' },
+  { sku: 'SERV-TRA-006', nombre: 'Transporte escolar (mensualidad)',          categoria: 'Servicios educativos', precio: 950,  peso: 14, unidad: 'Paquete' },
+  { sku: 'SERV-COM-007', nombre: 'Servicio de comedor (mensualidad)',         categoria: 'Servicios educativos', precio: 1100, peso: 12, unidad: 'Paquete' },
+  { sku: 'SERV-ING-009', nombre: 'Taller de inglés extracurricular',          categoria: 'Servicios educativos', precio: 650,  peso: 10, unidad: 'Paquete' },
+  { sku: 'SERV-TUT-010', nombre: 'Clases de regularización / tutoría',        categoria: 'Servicios educativos', precio: 250,  peso: 8,  unidad: 'Hora' },
+  { sku: 'SERV-INS-005', nombre: 'Inscripción anual del ciclo escolar',       categoria: 'Servicios educativos', precio: 4200, peso: 6,  unidad: 'Paquete' },
+  { sku: 'SERV-VER-008', nombre: 'Curso de verano',                          categoria: 'Servicios educativos', precio: 1800, peso: 4,  unidad: 'Paquete' },
+];
+
+// Mismas 10 categorías ya sembradas en `categorias_gastos` (nunca se
+// tocan/renombran — solo se reusa el slug con texto/proveedor de escuela).
 const GASTOS_FIJOS = [
-  { categoria: 'renta', proveedor: 'Inmobiliaria Central', concepto: 'Renta mensual de oficinas', min: 15000, max: 17000, dia: () => azarEntero(2, 5), recurrente: true },
-  { categoria: 'nomina', proveedor: 'Prestaciones de personal', concepto: 'Nómina primera quincena', min: 32000, max: 38000, dia: () => azarEntero(14, 16), recurrente: true },
-  { categoria: 'nomina', proveedor: 'Prestaciones de personal', concepto: 'Nómina segunda quincena', min: 32000, max: 38000, dia: () => azarEntero(26, 28), recurrente: true },
+  { categoria: 'renta', proveedor: 'Inmobiliaria Educativa del Centro', concepto: 'Renta de instalaciones escolares', min: 15000, max: 17000, dia: () => azarEntero(2, 5), recurrente: true },
+  // Nómina desglosada por área (antes 1 sola línea genérica) — mismo
+  // slug `nomina` de siempre (categorías nunca se tocan), solo más
+  // variedad de conceptos/proveedores reales de una escuela. Suma
+  // aproximada por quincena similar a la línea única de antes
+  // (32,000-38,000), repartida entre las 5 áreas reales del plantel.
+  { categoria: 'nomina', proveedor: 'Nómina docente', concepto: 'Nómina docentes Primaria - primera quincena', min: 9000, max: 11000, dia: () => azarEntero(14, 16), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina docente', concepto: 'Nómina docentes Primaria - segunda quincena', min: 9000, max: 11000, dia: () => azarEntero(26, 28), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina docente', concepto: 'Nómina docentes Secundaria - primera quincena', min: 7500, max: 9500, dia: () => azarEntero(14, 16), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina docente', concepto: 'Nómina docentes Secundaria - segunda quincena', min: 7500, max: 9500, dia: () => azarEntero(26, 28), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina docente', concepto: 'Nómina docentes Maternal y Kinder - primera quincena', min: 6500, max: 8000, dia: () => azarEntero(14, 16), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina docente', concepto: 'Nómina docentes Maternal y Kinder - segunda quincena', min: 6500, max: 8000, dia: () => azarEntero(26, 28), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina administrativa', concepto: 'Nómina personal administrativo y dirección - primera quincena', min: 5500, max: 7000, dia: () => azarEntero(14, 16), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina administrativa', concepto: 'Nómina personal administrativo y dirección - segunda quincena', min: 5500, max: 7000, dia: () => azarEntero(26, 28), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina de apoyo', concepto: 'Nómina intendencia y mantenimiento - primera quincena', min: 3500, max: 4500, dia: () => azarEntero(14, 16), recurrente: true },
+  { categoria: 'nomina', proveedor: 'Nómina de apoyo', concepto: 'Nómina intendencia y mantenimiento - segunda quincena', min: 3500, max: 4500, dia: () => azarEntero(26, 28), recurrente: true },
 ];
 
 const GASTOS_VARIABLES = [
-  { categoria: 'software', proveedores: ['Microsoft México', 'Adobe Systems', 'Autodesk'], concepto: 'Suscripción de software', min: 800, max: 4500, vecesMes: [1, 2], recurrente: true },
-  { categoria: 'hosting', proveedores: ['AWS', 'DigitalOcean', 'Google Cloud'], concepto: 'Infraestructura y hosting', min: 400, max: 2600, vecesMes: [1, 2], recurrente: true },
-  { categoria: 'servicios', proveedores: ['Telmex', 'CFE', 'Agua de Morelia'], concepto: 'Servicios básicos', min: 500, max: 3500, vecesMes: [1, 3], recurrente: true },
-  { categoria: 'papeleria', proveedores: ['Office Depot', 'Imprenta Rápida', 'Lumen'], concepto: 'Papelería e insumos', min: 300, max: 2800, vecesMes: [1, 2], recurrente: false },
-  { categoria: 'combustible', proveedores: ['Gasolinera Pemex', 'BP Morelia'], concepto: 'Combustible de unidades', min: 700, max: 3200, vecesMes: [1, 3], recurrente: false },
-  { categoria: 'viaticos', proveedores: ['Uber', 'Hotel Vista Express', 'Aeroméxico'], concepto: 'Viáticos de visita a cliente', min: 900, max: 4000, vecesMes: [0, 2], recurrente: false },
-  { categoria: 'publicidad', proveedores: ['Meta Ads', 'Google Ads'], concepto: 'Campaña digital', min: 1200, max: 5000, vecesMes: [0, 1], recurrente: false },
-  { categoria: 'otro', proveedores: ['Fletes del Bajío', 'Varios SA de CV'], concepto: 'Gasto operativo varios', min: 200, max: 2500, vecesMes: [0, 2], recurrente: false },
+  { categoria: 'software', proveedores: ['Google Workspace for Education', 'Microsoft 365 Educación', 'Sistema de Control Escolar SAE'], concepto: 'Plataforma de gestión escolar y calificaciones', min: 800, max: 4500, vecesMes: [1, 2], recurrente: true },
+  { categoria: 'hosting', proveedores: ['Classroom Cloud MX', 'Moodle Cloud', 'EduHost'], concepto: 'Hospedaje de plataforma de aprendizaje en línea', min: 400, max: 2600, vecesMes: [1, 2], recurrente: true },
+  { categoria: 'servicios', proveedores: ['CFE', 'Telmex', 'Agua de la Ciudad'], concepto: 'Servicios básicos del plantel (agua, luz, internet)', min: 500, max: 3500, vecesMes: [1, 3], recurrente: true },
+  { categoria: 'papeleria', proveedores: ['Office Depot', 'Distribuidora Escolar del Bajío', 'Lumen'], concepto: 'Material didáctico y papelería institucional', min: 300, max: 2800, vecesMes: [1, 2], recurrente: false },
+  { categoria: 'combustible', proveedores: ['Gasolinera Pemex', 'BP Morelia'], concepto: 'Combustible de transporte escolar', min: 700, max: 3200, vecesMes: [1, 3], recurrente: false },
+  { categoria: 'viaticos', proveedores: ['Hotel Vista Express', 'Aeroméxico', 'Uber'], concepto: 'Capacitación y viáticos del personal docente', min: 900, max: 4000, vecesMes: [0, 2], recurrente: false },
+  { categoria: 'publicidad', proveedores: ['Meta Ads', 'Google Ads', 'Radio Local FM'], concepto: 'Campaña de inscripciones y difusión', min: 1200, max: 5000, vecesMes: [0, 1], recurrente: false },
+  { categoria: 'otro', proveedores: ['Mantenimiento Integral SA', 'Producciones Escolares', 'Varios SA de CV'], concepto: 'Mantenimiento, limpieza y eventos del plantel', min: 200, max: 2500, vecesMes: [0, 2], recurrente: false },
 ];
 
 async function borrarDatosTransaccionales() {
@@ -197,7 +244,7 @@ async function sembrarRegistrosDemo(conexion, ahora) {
         eliminado_en, creado_en, actualizado_en)
      VALUES (?, 'fisica', ?, ?, 'constancia-demo.pdf', 'constancia-demo-placeholder.pdf',
              'application/pdf', 51200, NULL, NULL, NULL, NULL, ?, ?)`,
-    ['Cliente Demo Principal', RFC_DEMO_PRINCIPAL, EMAIL_DEMO_PRINCIPAL, ahora, ahora]
+    ['Familia Demo Principal (Escuela)', RFC_DEMO_PRINCIPAL, EMAIL_DEMO_PRINCIPAL, ahora, ahora]
   );
   await conexion.query(
     `INSERT INTO registros
@@ -206,7 +253,7 @@ async function sembrarRegistrosDemo(conexion, ahora) {
         eliminado_en, creado_en, actualizado_en)
      VALUES (?, 'fisica', ?, ?, 'constancia-demo.pdf', 'constancia-demo-placeholder-2.pdf',
              'application/pdf', 51200, NULL, NULL, NULL, NULL, ?, ?)`,
-    ['Cliente Demo Secundario', RFC_DEMO_SECUNDARIO, EMAIL_DEMO_SECUNDARIO, ahora, ahora]
+    ['Familia Demo Secundaria (Escuela)', RFC_DEMO_SECUNDARIO, EMAIL_DEMO_SECUNDARIO, ahora, ahora]
   );
   console.log(`Registros demo listos para pruebas manuales de correo real:`);
   console.log(`  RFC ${RFC_DEMO_PRINCIPAL} -> ${EMAIL_DEMO_PRINCIPAL} (con historial de ventas/tickets)`);
@@ -216,10 +263,12 @@ async function sembrarRegistrosDemo(conexion, ahora) {
 
 async function sembrarCatalogoYExistencias(conexion, fechaInicial) {
   const [[unidadPieza]] = await conexion.query("SELECT id FROM unidades_medida WHERE nombre = 'Pieza' LIMIT 1");
+  const [[unidadHora]] = await conexion.query("SELECT id FROM unidades_medida WHERE nombre = 'Hora' LIMIT 1");
+  const [[unidadPaquete]] = await conexion.query("SELECT id FROM unidades_medida WHERE nombre = 'Paquete' LIMIT 1");
   const [[almacen]] = await conexion.query("SELECT id FROM almacenes WHERE codigo = 'ALM-1' LIMIT 1");
   const almacenId = almacen.id;
 
-  const categoriasNombres = [...new Set(CATALOGO.map((p) => p.categoria))];
+  const categoriasNombres = [...new Set([...CATALOGO.map((p) => p.categoria), ...SERVICIOS.map((s) => s.categoria)])];
   const categoriaIdPorNombre = new Map();
   for (const nombre of categoriasNombres) {
     const slug = nombre.normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
@@ -266,10 +315,25 @@ async function sembrarCatalogoYExistencias(conexion, fechaInicial) {
       p.stock, productoId, almacenId,
     ]);
 
-    productos.push({ ...p, id: productoId });
+    productos.push({ ...p, id: productoId, tipo: 'producto', unidad_nombre: 'Pieza' });
   }
-  console.log(`Catálogo sembrado: ${productos.length} productos, ${categoriasNombres.length} categorías, almacén ${almacenId}.\n`);
-  return { productos, almacenId };
+
+  const servicios = [];
+  for (const s of SERVICIOS) {
+    const unidadId = s.unidad === 'Hora' ? unidadHora.id : unidadPaquete.id;
+    const [r] = await conexion.query(
+      `INSERT INTO productos
+         (sku, codigo_barras, nombre, categoria_id, unidad_id, tipo, costo, costo_promedio, ultimo_costo,
+          precio, stock_minimo, stock_maximo, punto_reorden, estado, proveedor_principal, moneda,
+          eliminado_en, creado_en, actualizado_en)
+       VALUES (?, NULL, ?, ?, ?, 'servicio', NULL, 0, NULL, ?, NULL, NULL, NULL, 'activo', NULL, 'MXN', NULL, ?, ?)`,
+      [s.sku, s.nombre, categoriaIdPorNombre.get(s.categoria), unidadId, s.precio, fechaInicial, fechaInicial]
+    );
+    servicios.push({ ...s, id: r.insertId, tipo: 'servicio', unidad_nombre: s.unidad });
+  }
+
+  console.log(`Catálogo sembrado: ${productos.length} productos + ${servicios.length} servicios, ${categoriasNombres.length} categorías, almacén ${almacenId}.\n`);
+  return { productos, servicios, almacenId };
 }
 
 async function registrarSalidaVenta(conexion, { producto, almacenId, cantidad, numeroCompra, fecha }) {
@@ -311,6 +375,154 @@ async function sembrarGasto(conexion, { fecha, concepto, proveedor, categoria, m
   );
 }
 
+// Archiva un periodo (YYYY-MM) exactamente como cierreMensual.js
+// (ordenAItemArchivado/gastoAItemArchivado + guardarReporte tipo
+// 'cierre_mensual'), pero SIN pasar por generarYEnviarReporte — nunca
+// dispara un correo real, sin importar qué tenga configurado este
+// entorno en "Correo de reportes".
+async function archivarPeriodoSinCorreo(periodo, zonaHoraria) {
+  const [ventas] = await pool.query(
+    `SELECT * FROM ordenes_compra
+      WHERE eliminado_en IS NULL AND archivado_en IS NULL AND DATE_FORMAT(fecha_compra, '%Y-%m') = ?
+      ORDER BY fecha_compra ASC`,
+    [periodo]
+  );
+  const [gastosPeriodo] = await pool.query(
+    `SELECT * FROM gastos
+      WHERE eliminado_en IS NULL AND archivado_en IS NULL AND DATE_FORMAT(fecha, '%Y-%m') = ?
+      ORDER BY fecha ASC`,
+    [periodo]
+  );
+  if (ventas.length === 0 && gastosPeriodo.length === 0) return { periodo, ventas: 0, gastos: 0 };
+
+  const items = [...ventas.map(ordenAItemArchivado), ...gastosPeriodo.map(gastoAItemArchivado)];
+  const { inicio, fin } = rangoDelPeriodo(periodo);
+  const fechaGeneracion = new Date();
+  const mdContenido = generarContenidoMD({ tipo: 'cierre_mensual', fechaGeneracion, rangoInicio: inicio, rangoFin: fin, items, zonaHoraria });
+  await guardarReporte({ tipo: 'cierre_mensual', fechaGeneracion, rangoInicio: inicio, rangoFin: fin, items, mdContenido, correoEnviadoA: null, correoEnviado: false });
+
+  const ahora = new Date();
+  ahora.setMilliseconds(0);
+  if (ventas.length > 0) {
+    await pool.query('UPDATE ordenes_compra SET archivado_en = ?, periodo_archivado = ? WHERE id IN (?)', [ahora, periodo, ventas.map((v) => v.id)]);
+  }
+  if (gastosPeriodo.length > 0) {
+    await pool.query('UPDATE gastos SET archivado_en = ?, periodo_archivado = ? WHERE id IN (?)', [ahora, periodo, gastosPeriodo.map((g) => g.id)]);
+  }
+  return { periodo, ventas: ventas.length, gastos: gastosPeriodo.length };
+}
+
+// Día del mes con más ventas reales cercano al 15 — determinista (solo
+// depende de los datos ya sembrados, no de Math.random ni de la hora
+// real), para elegir un buen día de ejemplo para "Corte del día".
+async function elegirDiaConVentas(anio, mes) {
+  const inicio = new Date(Date.UTC(anio, mes - 1, 1));
+  const fin = new Date(Date.UTC(anio, mes, 1));
+  const [filas] = await pool.query(
+    `SELECT DAY(fecha_compra) AS dia, COUNT(*) AS n
+       FROM ordenes_compra
+      WHERE eliminado_en IS NULL AND fecha_compra >= ? AND fecha_compra < ?
+      GROUP BY DAY(fecha_compra)
+      ORDER BY ABS(dia - 15) ASC, n DESC, dia ASC
+      LIMIT 1`,
+    [inicio, fin]
+  );
+  return filas.length ? filas[0].dia : null;
+}
+
+// Genera un "Corte del día" real (mismo cálculo que
+// POST /api/admin/reportes/corte) para un solo día — funciona igual con
+// ventas ya archivadas por el cierre mensual (el corte nunca filtra
+// archivado_en, es una fotografía puntual por fecha).
+async function generarCorteDemo(desdeStr, hastaStr, zonaHoraria) {
+  const [y1, m1, d1] = desdeStr.split('-').map(Number);
+  const [y2, m2, d2] = hastaStr.split('-').map(Number);
+  const inicio = new Date(Date.UTC(y1, m1 - 1, d1));
+  const finExclusivo = new Date(Date.UTC(y2, m2 - 1, d2 + 1));
+
+  const [ordenes] = await pool.query(
+    `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.total, o.email,
+            o.estado_pago, o.monto_cobrado, o.creado_por, (o.facturado_en IS NOT NULL) AS facturado
+       FROM ordenes_compra o
+      WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ? AND o.fecha_compra < ?
+      ORDER BY o.fecha_compra ASC`,
+    [inicio, finExclusivo]
+  );
+  if (ordenes.length === 0) return null;
+
+  let subtotal = 0, total = 0;
+  for (const o of ordenes) {
+    subtotal += Number(o.cantidad);
+    total += Number(o.total);
+  }
+  subtotal = round2(subtotal);
+  total = round2(total);
+
+  const items = ordenes.map((o) => ({
+    tipo_registro: 'orden_compra',
+    identificador: o.numero_compra,
+    rfc: o.email,
+    estatus_o_concepto: o.concepto,
+    monto: Number(o.total),
+    fecha_registro: o.fecha_compra,
+    atendido_por: o.creado_por,
+  }));
+  const fechaGeneracion = new Date();
+  const finParaMostrar = new Date(finExclusivo.getTime() - 1000);
+  const mdContenido = generarContenidoMD({ tipo: 'corte', fechaGeneracion, rangoInicio: inicio, rangoFin: finParaMostrar, items, zonaHoraria });
+  await guardarReporte({
+    tipo: 'corte', fechaGeneracion, rangoInicio: inicio, rangoFin: finParaMostrar, items, mdContenido,
+    correoEnviadoA: null, correoEnviado: false, totalMonto: total,
+  });
+  return { ventas: ordenes.length, total };
+}
+
+// Guarda un reporte de auditoría con items accion:'eliminado' — igual que
+// dejaría la retención automática de tickets (tipo 'automatico') o borrar
+// una venta a mano (tipo 'manual') ANTES de borrar el registro real. No
+// borra nada real: solo deja el rastro en "Todo lo eliminado", tal como
+// quedaría si esas filas de verdad se hubieran borrado en su momento.
+async function sembrarReporteEliminado(tipo, items, fechaGeneracion, zonaHoraria) {
+  const tiempos = items.map((i) => new Date(i.fecha_registro).getTime());
+  const rangoInicio = new Date(Math.min(...tiempos));
+  const rangoFin = new Date(Math.max(...tiempos));
+  const mdContenido = generarContenidoMD({ tipo, fechaGeneracion, rangoInicio, rangoFin, items, zonaHoraria });
+  await guardarReporte({ tipo, fechaGeneracion, rangoInicio, rangoFin, items, mdContenido, correoEnviadoA: null, correoEnviado: false });
+}
+
+async function sembrarEliminadosDemo(llavesOrdenadas, zonaHoraria) {
+  if (llavesOrdenadas.length === 0) return;
+
+  const llaveA = llavesOrdenadas[Math.floor(llavesOrdenadas.length * 0.2)];
+  const [anioA, mesA] = llaveA.split('-').map(Number);
+  const fechaA = fechaUtc(anioA, mesA - 1, 12, 11, 30);
+  await sembrarReporteEliminado('manual', [{
+    tipo_registro: 'orden_compra', identificador: `OC-DEMO-${llaveA}`, rfc: 'familia.perez@example.com',
+    estatus_o_concepto: 'Colegiatura duplicada por error de captura', monto: 3400,
+    fecha_registro: fechaA, atendido_por: 'admin', accion: 'eliminado',
+  }], fechaA, zonaHoraria);
+
+  const llaveB = llavesOrdenadas[Math.floor(llavesOrdenadas.length * 0.6)];
+  const [anioB, mesB] = llaveB.split('-').map(Number);
+  const fechaB = fechaUtc(anioB, mesB - 1, 20, 16, 10);
+  await sembrarReporteEliminado('manual', [{
+    tipo_registro: 'orden_compra', identificador: `OC-DEMO-${llaveB}`, rfc: 'familia.lopez@example.com',
+    estatus_o_concepto: 'Venta de uniformes cancelada por cambio de talla', monto: 690,
+    fecha_registro: fechaB, atendido_por: 'admin', accion: 'eliminado',
+  }], fechaB, zonaHoraria);
+
+  const llaveC = llavesOrdenadas[Math.floor(llavesOrdenadas.length * 0.4)];
+  const [anioC, mesC] = llaveC.split('-').map(Number);
+  const fechaC1 = fechaUtc(anioC, mesC - 1, 5, 9, 0);
+  const fechaC2 = fechaUtc(anioC, mesC - 1, 8, 10, 15);
+  await sembrarReporteEliminado('automatico', [
+    { tipo_registro: 'ticket', identificador: `TK-DEMO-${llaveC}A`, rfc: RFC_DEMO_PRINCIPAL, estatus_o_concepto: 'listo', monto: null, fecha_registro: fechaC1, atendido_por: 'admin', accion: 'eliminado' },
+    { tipo_registro: 'ticket', identificador: `TK-DEMO-${llaveC}B`, rfc: RFC_DEMO_PRINCIPAL, estatus_o_concepto: 'listo', monto: null, fecha_registro: fechaC2, atendido_por: 'admin', accion: 'eliminado' },
+  ], fechaC2, zonaHoraria);
+
+  console.log('  2 ventas "eliminadas" (manual) + 1 lote de 2 tickets purgados (automatico)');
+}
+
 async function principal() {
   const confirmar = process.argv.includes('--confirmar');
   if (!confirmar) {
@@ -329,18 +541,28 @@ async function principal() {
   const anioActual = hoyUtc.getUTCFullYear();
   const mesActual = hoyUtc.getUTCMonth();
   const inicio = new Date(Date.UTC(anioActual, mesActual - SEED_MESES, 1));
-  // El mes EN CURSO se deja completamente vacío a propósito — se registra
-  // a mano (pedido explícito del usuario) para probar el flujo real, no
-  // datos sembrados. `Date.UTC(anio, mesActual, 0)` = día 0 del mes
-  // actual = último día del mes ANTERIOR, sin importar cuántos días
-  // lleve corriendo el mes actual.
-  const finMesAnterior = new Date(Date.UTC(anioActual, mesActual, 0));
+  // Por default el mes EN CURSO se deja completamente vacío (pedido
+  // explícito de una sesión anterior — se registra a mano para probar el
+  // flujo real, no datos sembrados). `SEED_INCLUIR_MES_ACTUAL=1` lo
+  // extiende hasta AYER (nunca "hoy", para no pisar una venta real que se
+  // capture manualmente el mismo día que se corre el script) — pedido
+  // explícito de una sesión posterior, porque dejar el mes en curso en
+  // $0.00 se leía como "no hay datos" en los KPIs/tarjetas de Resumen
+  // financiero que muestran el mes actual (Utilidad neta, Cobranza del
+  // mes, Ventas facturadas vs sin facturar, Distribución de gastos, Top
+  // proveedores, los 4 KPI de encabezado). `Date.UTC(anio, mesActual, 0)`
+  // = día 0 del mes actual = último día del mes ANTERIOR.
+  const incluirMesActual = process.env.SEED_INCLUIR_MES_ACTUAL === '1';
+  const finVentana = incluirMesActual
+    ? new Date(Date.UTC(anioActual, mesActual, Math.max(hoyUtc.getUTCDate() - 1, 1)))
+    : new Date(Date.UTC(anioActual, mesActual, 0));
   const fechaInicial = new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), inicio.getUTCDate(), 9, 0, 0));
 
   const conexion = await pool.getConnection();
   try {
     await sembrarRegistrosDemo(conexion, fechaInicial);
-    const { productos, almacenId } = await sembrarCatalogoYExistencias(conexion, fechaInicial);
+    const { productos, servicios, almacenId } = await sembrarCatalogoYExistencias(conexion, fechaInicial);
+    const catalogoCompleto = [...productos, ...servicios];
 
     await conexion.beginTransaction();
 
@@ -356,7 +578,7 @@ async function principal() {
 
     for (
       let d = new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), inicio.getUTCDate()));
-      d <= finMesAnterior;
+      d <= finVentana;
       d.setUTCDate(d.getUTCDate() + 1)
     ) {
       const anio = d.getUTCFullYear();
@@ -419,20 +641,28 @@ async function principal() {
         contadorVentas += 1;
         acumularMes(llaveMes, 'ventas', total);
 
-        // 65% de las ventas llevan 1-2 líneas de inventario (Segmento A).
+        // 65% de las ventas llevan 1-2 líneas de inventario (productos Y
+        // servicios comparten el mismo pool ponderado — D8/D11).
         if (probabilidad(0.65)) {
           const numLineas = probabilidad(0.25) ? 2 : 1;
-          const productosElegidos = new Set();
+          const itemsElegidos = new Set();
           for (let i = 0; i < numLineas; i += 1) {
-            const producto = elegirPonderado(productos);
-            if (productosElegidos.has(producto.id)) continue;
-            productosElegidos.add(producto.id);
-            const cantidadPedida = azarEntero(1, 6);
-            const cantidadReal = await registrarSalidaVenta(conexion, {
-              producto, almacenId, cantidad: cantidadPedida, numeroCompra, fecha: fechaCompra,
-            });
+            const item = elegirPonderado(catalogoCompleto);
+            if (itemsElegidos.has(item.id)) continue;
+            itemsElegidos.add(item.id);
+            let cantidadReal;
+            if (item.tipo === 'servicio') {
+              // Colegiatura/inscripción/transporte/comedor/taller = 1
+              // "paquete" (un mes/curso); tutoría se cobra por hora.
+              cantidadReal = item.unidad_nombre === 'Hora' ? azarEntero(1, 4) : 1;
+            } else {
+              const cantidadPedida = azarEntero(1, 6);
+              cantidadReal = await registrarSalidaVenta(conexion, {
+                producto: item, almacenId, cantidad: cantidadPedida, numeroCompra, fecha: fechaCompra,
+              });
+            }
             await conexion.query('INSERT INTO orden_productos (orden_id, producto_id, cantidad, creado_en) VALUES (?, ?, ?, ?)', [
-              idVenta, producto.id, cantidadReal, fechaCompra,
+              idVenta, item.id, cantidadReal, fechaCompra,
             ]);
             contadorLineasInventario += 1;
           }
@@ -517,10 +747,17 @@ async function principal() {
     // Solo escala cantidad/total/monto_cobrado del mes completo por el
     // mismo factor — conserva el ratio IVA/subtotal y el % ya cobrado de
     // cada venta.
+    // Con SEED_INCLUIR_MES_ACTUAL=1, el mes en curso es siempre PARCIAL
+    // (menos días que un mes cerrado) — nunca se le aplica el ajuste
+    // piso/techo (lo dejaría con más ventas que un mes completo, sin
+    // sentido); tampoco cuenta como "mes anterior" para el siguiente,
+    // porque no hay siguiente.
+    const llaveMesActual = incluirMesActual ? `${anioActual}-${String(mesActual + 1).padStart(2, '0')}` : null;
     if (perfilActivo.ajuste) {
       const llavesVentaOrdenadas = [...resumenPorMes.keys()].sort();
       let ventasAnterior = null;
       for (const llave of llavesVentaOrdenadas) {
+        if (llave === llaveMesActual) continue;
         const fila = resumenPorMes.get(llave);
         const limite = ventasAnterior !== null ? ventasAnterior * perfilActivo.ajusteFactor : null;
         const violaPiso = perfilActivo.ajuste === 'piso' && limite !== null && fila.ventas < limite;
@@ -547,13 +784,43 @@ async function principal() {
     await conexion.commit();
 
     console.log('Siembra completada.');
-    console.log(`  Ventas: ${contadorVentas}  |  Tickets: ${contadorTickets}  |  Gastos: ${contadorGastos}  |  Líneas de inventario: ${contadorLineasInventario}`);
+    console.log(`  Ventas: ${contadorVentas}  |  Tickets: ${contadorTickets}  |  Gastos: ${contadorGastos}  |  Líneas de inventario/servicio: ${contadorLineasInventario}`);
     console.log('');
     console.log('Resumen por mes (subtotal ventas MXN | gastos capturados | tickets):');
     for (const llave of [...resumenPorMes.keys()].sort()) {
       const fila = resumenPorMes.get(llave);
       console.log(`  ${llave} | ventas $${fila.ventas.toFixed(2)} | gastos ${fila.gastos} | tickets ${fila.tickets}`);
     }
+
+    // --- Reportes: cierre mensual archivado, "Corte del día" y
+    // "Eliminados" — todo fuera de la transacción de arriba (usa `pool`
+    // directo, mismo patrón que el código real de producción). ---
+    const zonaHoraria = (await getConfiguracionGlobal()).zona_horaria;
+    const llavesOrdenadas = [...resumenPorMes.keys()].sort();
+
+    // Se archivan todos los meses MENOS los últimos 2 — así "Ventas"/
+    // "Gastos"/CxC siguen mostrando actividad reciente sin archivar por
+    // defecto, y los meses archivados alimentan el selector de "Periodo",
+    // "Lectura de reportes" y el histórico de Resumen financiero.
+    const llavesAArchivar = llavesOrdenadas.slice(0, Math.max(0, llavesOrdenadas.length - 2));
+    console.log('\nArchivando cierres mensuales (sin enviar correo real):');
+    for (const periodo of llavesAArchivar) {
+      const r = await archivarPeriodoSinCorreo(periodo, zonaHoraria);
+      console.log(`  ${periodo}: ${r.ventas} ventas + ${r.gastos} gastos archivados`);
+    }
+
+    console.log('\nGenerando "Corte del día" de ejemplo (1 por mes):');
+    for (const llave of llavesOrdenadas) {
+      const [anioC, mesC] = llave.split('-').map(Number);
+      const diaCorte = await elegirDiaConVentas(anioC, mesC);
+      if (!diaCorte) continue;
+      const fechaStr = `${llave}-${String(diaCorte).padStart(2, '0')}`;
+      const r = await generarCorteDemo(fechaStr, fechaStr, zonaHoraria);
+      if (r) console.log(`  ${fechaStr}: ${r.ventas} ventas, total $${r.total.toFixed(2)}`);
+    }
+
+    console.log('\nSembrando historial de "Eliminados" (reportes de auditoría, sin borrar nada real):');
+    await sembrarEliminadosDemo(llavesOrdenadas, zonaHoraria);
   } catch (error) {
     await conexion.rollback();
     throw error;

@@ -148,6 +148,7 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_app_password}
       DB_NAME: ${MYSQL_DATABASE:-portal_facturacion}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       ADMIN_USERS: ${ADMIN_USERS:-admin:admin}
       USO_CFDI_SYNC_URL: ${USO_CFDI_SYNC_URL:-}
       CLAVE_PROD_SERV_SYNC_URL: ${CLAVE_PROD_SERV_SYNC_URL:-https://raw.githubusercontent.com/phpcfdi/resources-sat-catalogs/master/database/data/cfdi_40_productos_servicios.sql}
@@ -227,6 +228,7 @@ services:
       BACKEND_INTERNAL_URL: http://backend:4000
       INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
     networks:
       - fiscal-net
     expose:

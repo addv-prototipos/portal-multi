@@ -15373,6 +15373,628 @@ sus 3 pasos y del recorrido con globos, aunque el mecanismo es idéntico
 —línea por línea— al ya validado en navegador real para los otros 3
 perfiles (puntos 192/210). Sin commit/push.
 
+**Punto 326 (2026-09-27, CORREGIDO Y VALIDADO por curl contra Docker
+real)**: bug real reportado por el usuario con captura — refrescar
+(F5) en "Inicio" dejaba las 4 tarjetas y la tabla en 0/vacío, y solo
+cargaba al hacer clic en cualquier vista del sidebar. Causa: en `init()`
+(restauración de sesión guardada al recargar, `frontend/admin.js`), el
+flujo solo llamaba a `cambiarVistaPrincipal(vistaGuardada)` — que es
+quien dispara `cargarInicio()` — cuando la vista guardada era DISTINTA a
+la ya activa por defecto. Como "Inicio" ya nace con la clase `is-active`
+en el HTML y es la vista guardada más común, esa condición nunca se
+cumplía y `cargarInicio()` jamás se invocaba en un refresh — el primer
+clic en cualquier botón del sidebar sí pasa por `cambiarVistaPrincipal()`
+y ahí sí carga. `showDashboard()` tampoco llama a `cargarInicio()` por sí
+sola (solo lo hace `entrarAlPanel()`, el camino de login nuevo). Fix: si
+no hubo cambio de vista (vista guardada ausente o igual a la activa) y la
+vista activa resultante es `'inicio'`, se llama a `cargarInicio()`
+explícitamente. Cero cambio de backend — el endpoint `/admin/tickets` que
+alimenta Inicio ya admite `fiscal`+`administrador` (punto 201), así que
+la llamada es segura para ambos perfiles; perfil `inventario` sigue su
+propia rama interna de `cargarInicio()` (`cargarInicioInventario()`) sin
+tocar. `node --check` limpio, Jest backend 639/639 (sin cambios, corrido
+por sanidad). Validado por curl tras rebuild `--no-cache`+
+`--force-recreate` frontend: fragmento nuevo confirmado en el `admin.js`
+servido. **Sin herramienta de navegador esta sesión** — falta que el
+usuario confirme con un F5 real que ya carga sin necesidad de clic. Sin
+commit/push.
+
+**Punto 328 (2026-09-27, HECHO — optimización de documentación, cero
+código tocado)**: `CLAUDE.md` (4221→~310 líneas) y `AGENTS.md`
+(684→~300 líneas) reescritos a pedido explícito del usuario — ambos
+habían acumulado el historial narrativo completo punto-por-punto
+(duplicando este archivo) en vez de quedarse solo como *master prompt*
+(protocolo, reglas persistentes, stack, convenciones, estado de
+arquitectura de alto nivel). Se extrajo de esa narrativa una sección
+nueva "Gotchas operativos recurrentes" en ambos archivos — ~16 lecciones
+reutilizables que antes vivían enterradas en prosa de features pasadas
+(rebuild `--no-cache`+`--force-recreate`, caché de navegador tras
+rebuild, z-index de modales anidados, breakpoint real en pruebas de
+responsive, `setFieldError()` ya prefija "error-", nginx disfraza
+502/503/504 como mantenimiento (usar 500), CSP necesita `blob:`/`data:`
+explícito en `img-src`/`frame-src`, `ensureSchema()` corre en cada
+restart (backfills deben ser condicionales), desincronización
+MySQL/`.env` en prod, `db_host` mal grabado si se aprovisiona con
+`127.0.0.1`, tooltip único del sitio, cero emojis, `backend/`/`control/`
+builds separados, `prod/` se sincroniza por contenido, credenciales
+angostas cross-tenant sin FK/DELETE, inputs numéricos no se prueban con
+`.value=`). Se conservó verbatim: el protocolo de 8 pasos (Claude) / 4
+pasos (Codex), las 2 reglas de coordinación entre agentes ya existentes
+(actualizar los 4 archivos + Claude Mem, y el mecanismo de
+`pendientes.html`), Stack/Comandos/Convenciones (ya estaban compactos),
+y el resumen de los 9+3 segmentos de la migración multi-tenant
+(recortado de narrativa por segmento a un estado de una línea cada uno,
+con puntero al número de punto de este archivo para el detalle
+completo). **Este archivo (`PROJECT_STATE.md`) NO se tocó en su
+contenido histórico** — sigue siendo la fuente de verdad completa
+punto por punto; `cmem.md` y Claude Mem (observaciones automáticas)
+siguen como respaldo cruzado sin cambios. Regla nueva explícita en
+ambos archivos optimizados: "este archivo solo debe crecer con reglas
+nuevas y persistentes, nunca con narrativa de qué se hizo hoy — esa va
+a `PROJECT_STATE.md`" — para que la próxima sesión no repita el mismo
+crecimiento descontrolado.
+
+**Punto 327 (2026-09-27, IMPLEMENTADO Y VALIDADO contra Docker real —
+Jest backend 1040/1040, control 247/247)**: `TRUST_PROXY_HOPS` — la IP
+que guarda la auditoría admin (`registrarAccesoAdmin`, vía `req.ip`) podía
+terminar siendo la de un proxy intermedio en vez de la del navegador del
+cliente. Reportado por el usuario ("debe guardar la IP del cliente, no la
+del servidor productivo"). Análisis: el código ya intentaba esto bien
+(`trust proxy` + `X-Forwarded-For`/`X-Real-IP` reenviados por nginx), pero
+`app.set('trust proxy', 1)` tenía el número de saltos FIJO en 1, asumiendo
+la topología de `docker-compose.yml` local (navegador → nginx del stack →
+backend, 1 salto real). En el VPS de producción (`yt.addv.com.mx`,
+`prod/docker-compose.prod.yml`) hay un nginx del HOST por delante del
+stack (certbot/HTTPS, confirmado por el comentario ya existente junto a
+`COOKIE_SECURE` en ese archivo) — son **2 saltos reales**, no 1. Con el
+valor fijo, Express solo desenvolvía un salto y el `ip` guardado terminaba
+siendo el de ese proxy intermedio (el "servidor", tal como lo describió el
+usuario), no el del cliente. Fix: `TRUST_PROXY_HOPS` nuevo (env var,
+default `1` = comportamiento actual, sin romper nada) en
+`backend/server.js` Y `control/server.js` (mismo patrón, misma auditoría
+duplicada en ambos servicios) — parseo defensivo (entero ≥0, cualquier
+valor inválido cae al default 1). Cableado en `docker-compose.yml` (2
+servicios), `docker-stack.yml` (Swarm, 2 servicios) y
+`prod/docker-compose.prod.yml` (solo backend, ese despliegue no tiene
+`control`) vía `${TRUST_PROXY_HOPS:-1}`. **Deliberadamente NO se subió a 2
+en `prod/docker-compose.prod.yml`** — el usuario dará acceso SSH al VPS
+más adelante para confirmar primero que el nginx del host reenvía
+`X-Forwarded-For` correctamente (si no lo hace, subir el número rompe la
+IP en vez de arreglarla); comentario dejado en ese archivo con el
+razonamiento completo y la instrucción exacta para cuando se confirme.
+`.env.example` NO se pudo tocar esta sesión (dotfile bloqueado por la
+política de permisos, igual que otras veces) — falta documentar
+`TRUST_PROXY_HOPS` ahí a mano. `prod/backend/server.js` sincronizado por
+contenido (sin `control/` en `prod/`, nada que sincronizar ahí). `node
+--check` limpio en los 3 archivos tocados, validado contra Docker real:
+env var presente en ambos contenedores (`docker inspect`), health OK,
+comportamiento local sin regresión (`ip` de auditoría sigue resolviendo
+correcto en el entorno de 1 salto). Pendiente real: confirmar por SSH la
+config real del nginx del host en producción y fijar `TRUST_PROXY_HOPS=2`
+ahí (o el valor que corresponda) una vez confirmado.
+
+**Punto 329 (2026-09-27, IMPLEMENTADO Y VALIDADO en navegador real contra
+Docker real)**: sidebar colapsable a solo íconos en `/admin` — pedido
+explícito del usuario con una captura del sidebar real, protocolo
+completo (`addv-web-app` + skill `impeccable`): propuesta interactiva
+antes/después publicada como Artifact primero
+(`https://claude.ai/code/artifact/59dbb748-be07-4784-a5b2-96c7a727912f`,
+réplica fiel del sidebar real — mismos SVG/labels/colores — con el
+toggle ya funcional para que el usuario lo probara), 3 decisiones
+confirmadas por el usuario antes de codear (riel 72px, toggle flotante
+en el borde, "Configuraciones" sigue abriendo su modal sin cambio de
+lógica). Riel 256px↔72px, solo escritorio (`@media (min-width: 901px)`
+— el menú móvil grid de íconos del punto 280 no se toca). Toggle
+flotante circular cyan en el borde del sidebar (`#btn-colapsar-sidebar`),
+gira 180° al colapsar. Logo completo se sustituye por un monograma "C"
+navy-sobre-cyan (`.admin-sidebar-logo-mini`, sin asset nuevo — el
+wordmark real no cabe legible en 72px). Encabezados de grupo
+(Facturación/Ventas y gastos/Finanzas/Catálogo/Administración/Cuenta) se
+reducen a un divisor delgado sin texto y pierden su propio colapso
+individual en modo riel (`pointer-events:none` + `.admin-sidebar-group-body[data-colapsado="true"]`
+forzado a `grid-template-rows:1fr` vía selector de 2 clases, sin
+`!important`, mismo criterio que `.ticket-modal.orden-registrar-modal`
+del punto 285) — no tiene sentido colapsar un grupo que ya es solo
+íconos. El switcher de sucursales (§58, solo texto, sin ícono
+equivalente) se oculta por completo en modo riel, mismo tratamiento que
+ya recibe en móvil. Cada ícono gana `data-tooltip` con su nombre real
+SOLO mientras el riel está colapsado (`aplicarEstadoColapsoSidebar()`
+lee el `<span>` ya existente de cada botón y se lo asigna/quita en
+runtime — cero duplicación de texto) — reusa 100% el componente de
+tooltip ya validado en todo el sitio
+(`inicializarTooltips()`/`[data-tooltip]`), cero UI nueva que aprender.
+Persistencia por cuenta en `localStorage`
+(`sidebar_colapso_v1_<tenant>_<usuario>`, mismo patrón que
+`claveGruposSidebar` del punto 296), aplicada en `showDashboard()` —
+sobrevive F5 sin necesidad de volver a iniciar sesión. Animación: solo
+`width`/`margin-left` en los 2 elementos de layout que de verdad
+necesitan reflow real (`.admin-sidebar`/`.admin-content`) — las 14+
+etiquetas de texto NO animan su propio ancho (habría sido animar
+`max-width` en cada una, barato en la práctica pero detectado como
+antipatrón por el escáner mecánico de `impeccable`); en vez de eso se
+apagan con un fundido de opacidad rápido (compositor) y el corte de
+ancho ocurre de golpe en el mismo instante, no interpolado cuadro a
+cuadro — el fundido tapa el corte. `prefers-reduced-motion` respetado
+en los 3 sitios. Corrida `node C:\Users\Antonio\.claude\skills\impeccable\scripts\detect.mjs`
+sobre los 3 archivos tocados: cero hallazgos nuevos salvo la excepción
+documentada y deliberada de arriba (severidad "warning", no bloqueante).
+Validado de punta a punta con clics reales en navegador (Claude in
+Chrome) contra Docker real: colapso/expansión, monograma, tooltip
+("Tickets" confirmado con el globo oscuro real posicionado correctamente),
+persistencia tras recargar la página sin perder sesión, y "Configuraciones"
+abriendo su modal real sin regresión estando el riel colapsado. **Gotcha
+de esta sesión**: los clicks por coordenada del tool de automatización
+de Chrome no impactaban el botón pese a coordenadas dentro de su
+`getBoundingClientRect()` real (posible desajuste de espacio de
+coordenadas de la herramienta en este entorno) — validado en su lugar
+disparando el evento `click()` real vía `javascript_tool` (mismo
+listener real de producción, no un mock) y confirmando visualmente con
+capturas/zoom; el `find`+click por `ref` tampoco impactó. Sin viewport
+móvil confirmado en vivo esta sesión (el `resize_window` de la
+herramienta no cambió el tamaño real reportado) — la exclusión móvil se
+apoya en el mismo patrón `@media (min-width: 901px)` ya usado y validado
+en el resto del archivo para el breakpoint gemelo de 900px, sin
+verificación visual nueva de ese caso puntual. `node --check` limpio,
+llaves de `admin.css` balanceadas (1736/1736), Jest sin cambios (100%
+frontend). Sin commit/push todavía.
+
+**Punto 328 (2026-09-27/28, IMPLEMENTADO Y VALIDADO por HTTP/SQL contra
+Docker/MySQL reales)**: `backend/scripts/sembrar-demo.js` reescrito por
+completo con ambientación de escuela privada (Maternal/Kinder/Primaria/
+Secundaria) — pedido explícito del usuario: "borra todos los datos de
+prueba menos los fiscales/admin/SMTP, siembra 8 meses, escenario
+positivo, productos y servicios, en todas las funcionalidades (Ventas,
+Gastos, CxC, Reportes, Cortes, Eliminados, Resumen financiero)". Catálogo
+de fondo cambiado por completo (12 productos: uniformes/útiles/libros,
+con existencia física real; 10 servicios: 4 colegiaturas por nivel +
+inscripción + transporte + comedor + taller de inglés + curso de verano +
+regularización por hora — unidad `Paquete`/`Hora`, punto 298), `gastos`
+retemados a las MISMAS 10 categorías ya sembradas en `categorias_gastos`
+(nunca se tocan/renombran, solo cambia concepto/proveedor). Corrido con
+`SEED_MESES=8` (env ya existente, sin cambiar el default del script) +
+perfil `favorable` (default, ya es "escenario positivo"). **3
+funcionalidades nuevas que el script NUNCA había cubierto** (huecos
+reales encontrados al analizar el pedido, no solo re-ejecutar lo que ya
+había): (1) cierre mensual archivado — reutiliza
+`ordenAItemArchivado`/`gastoAItemArchivado`/`rangoDelPeriodo` de
+`utils/cierreMensual.js` + `generarContenidoMD`/`guardarReporte` de
+`utils/reportes.js`, pero **nunca** `generarYEnviarReporte()` — evita a
+propósito mandar un correo real por cada mes archivado a quien tenga
+"Correo de reportes" configurado en este entorno (SMTP real, punto 212);
+archiva todos los meses generados MENOS los últimos 2, para que
+Ventas/Gastos/CxC sigan mostrando actividad reciente sin archivar por
+defecto, mientras los meses archivados alimentan el selector "Periodo" +
+Resumen financiero histórico (Opción A, punto 158); (2) "Corte del día"
+— 1 por mes, día real más cercano al 15 con ventas (`elegirDiaConVentas()`,
+determinista, sin `Math.random`), mismo cálculo exacto que
+`POST /admin/reportes/corte`; (3) "Todo lo eliminado" — 4 items de
+auditoría sintéticos (2 ventas tipo `manual`, 2 tickets tipo `automatico`
+agrupados en 1 reporte) con `accion:'eliminado'`, sin borrar ni crear
+ninguna fila real correspondiente (documentado como limitación
+consciente: son solo el rastro que dejaría una baja real, igual que
+quedaría si esas filas ya no existieran). **Bug real encontrado y
+corregido en el camino**: `elegirDiaConVentas()` fallaba con
+`ER_WRONG_FIELD_WITH_GROUP` (`sql_mode=only_full_group_by`) — el
+`ORDER BY ABS(DAY(fecha_compra) - 15)` no es "funcionalmente dependiente"
+del `GROUP BY DAY(fecha_compra)` a ojos de MySQL aunque use la misma
+columna, porque es una expresión distinta; fix: usar el alias `dia` del
+SELECT en el ORDER BY en vez de repetir `DAY(fecha_compra)`. Validado de
+punta a punta contra Docker/MySQL reales: `GET /resumen-financiero` con
+5 meses en la serie, utilidad neta positiva los 5 (7,238 a 133,238),
+ventas creciendo mes contra mes (160k→257k); `GET /inventarios/dashboard`
+con 12 productos + 10 servicios activos; `GET /reportes` con tipos
+`cierre_mensual`/`corte` reales; `GET /reportes/eliminados` con los 4
+items sintéticos y su `reporte_tipo` correcto; `orden_productos` con
+líneas de servicio reales (incluida una tutoría de 3 horas). Jest backend
+**1040/1040** sin cambios (el script no es código de producción, no tiene
+suite propia). **Gotcha de esta sesión, no del código**: el primer intento
+de correr el script salió con el catálogo VIEJO (genérico, no escuela) —
+`docker-compose.yml` construye `backend` desde su Dockerfile (sin bind
+mount de `backend/` al host), así que un cambio a un script dentro de
+`backend/scripts/` no se refleja en el contenedor sin
+`docker compose build --no-cache backend` + `up -d --force-recreate` — el
+mismo gotcha de rebuild ya documentado para `frontend/`, aplica igual a
+`backend/`. Alcance: solo el sitio base (`portal_facturacion`, sin
+tenant) — no se tocó ningún tenant real. Sin commit/push todavía.
+
+**Punto 330 (2026-09-28, IMPLEMENTADO Y VALIDADO por HTTP/computed-style
+real contra Docker real)**: segunda vuelta al riel colapsable (punto
+329) — el usuario pidió que el contenido "aproveche el espacio que se
+gana al colapsar" en vez de dejarlo como margen vacío. Propuesta visual
+v2 redeployada en el MISMO Artifact del punto 329
+(`https://claude.ai/code/artifact/59dbb748-be07-4784-a5b2-96c7a727912f`)
+— escenario a escala real 1:1 (1920px, con scroll horizontal propio si
+la ventana del que prueba es más angosta) con 2 opciones comparables en
+vivo: A (proporcional, +184px exactos) vs B (sin límite). Confirmado por
+el usuario: **Opción A, aplicada a las 14 vistas** (comparten
+`.admin-main`, no solo Resumen financiero). Implementado: `.admin-main`
+gana `transition: max-width` (mismo 0.32s/`cubic-bezier` que
+`.admin-sidebar`/`.admin-content` del punto 329, un solo movimiento
+coordinado) + 1 regla `.admin-body.sidebar-colapsado .admin-main {
+max-width: 1584px; }` (1400+184, ni un pixel inventado) dentro del mismo
+bloque `@media (min-width: 901px)` ya existente — cero cambio de
+HTML/JS, cero cambio por sección: las tarjetas/gráficas/tablas de cada
+vista ya usan grids `fr`/`width:100%`, se ensanchan solas. Aviso honesto
+ya incluido en la propuesta y confirmado sin objeción: el efecto solo se
+nota en ventanas >~1700px — en laptops normales el contenido ya usa todo
+el espacio disponible hoy, no hay margen artificial que reclamar (no es
+un bug, es que `max-width` solo actúa cuando hay de sobra). Corrida
+`detect.mjs` de la skill `impeccable` sobre el archivo: cero hallazgos
+nuevos. Validado tras rebuild `--no-cache`+`--force-recreate` frontend:
+`max-width:1584px` confirmado en el CSS servido, y por
+`getComputedStyle()` real en navegador (Claude in Chrome) contra Docker
+real — `1400px`→`1584px` exacto al colapsar, sin regresión (modal de
+"Tickets sin contador" del punto 301 funcionando normal encima). La
+ventana del navegador de esta sesión (~1440px) nunca llegó a tocar
+ninguno de los 2 límites, así que el mecanismo solo se pudo validar por
+CSS computado dentro de la sesión — **confirmado visualmente por el
+usuario en monitor ancho real** ("se ve bien en pantalla ancha"). Con
+esto, el segmento completo del riel colapsable (puntos 329-330) queda
+implementado y validado de punta a punta. Sin commit/push.
+
+**Addendum al punto 328 (2026-09-28, IMPLEMENTADO Y VALIDADO por HTTP
+contra Docker/MySQL reales)**: el usuario reportó con 4 capturas que
+"Utilidad neta del mes"/"Distribución de gastos por categoría"/"Top
+proveedores de gasto"/"Ventas facturadas vs sin facturar"/"Cobranza del
+mes" y los 4 KPI de encabezado de Resumen financiero se veían en $0.00 —
+comportamiento esperado, NO un bug: el punto 328 dejaba el mes EN CURSO
+(septiembre) totalmente vacío a propósito (decisión de una sesión
+anterior, pensada para "probar el flujo real registrando algo a mano"),
+y esas tarjetas en particular son justo las que muestran el mes actual,
+no el histórico. `sembrar-demo.js` ganó `SEED_INCLUIR_MES_ACTUAL=1`
+(opt-in, default apagado — no cambia el comportamiento de ningún otro
+invocador existente) que extiende la ventana de siembra hasta AYER
+(nunca "hoy", para no pisar una venta real capturada a mano el mismo día
+que se corre el script). Bug propio evitado antes de correrlo: el ajuste
+piso/techo del perfil `favorable` (fuerza +12% mes contra mes) habría
+comparado un septiembre PARCIAL contra un agosto completo y lo habría
+inflado sin sentido (más ventas que un mes cerrado) — el mes en curso
+ahora se excluye explícitamente de ese ajuste (`llaveMesActual`), se
+queda con su total natural más chico, como corresponde a un mes que
+todavía no termina. Re-sembrado con `SEED_MESES=8
+SEED_INCLUIR_MES_ACTUAL=1`: septiembre (27 días) quedó con $164,441.18 en
+ventas / 11 gastos / 21 tickets — utilidad neta del mes $117,695.12,
+21/27 operaciones facturadas, 61 ventas pendientes de cobro en total.
+Jest backend 1040/1040 sin cambios. Rebuild `--no-cache`+
+`--force-recreate` backend (mismo gotcha ya documentado en el punto 328:
+sin bind mount de `backend/` al host, un cambio a un script no se refleja
+sin reconstruir la imagen). Ver PROJECT_STATE.md punto 328 para el resto
+del detalle (catálogo/servicios/cierre mensual/cortes/eliminados, sin
+cambios en este addendum). Sin commit/push.
+
+**2do addendum al punto 328 (2026-09-28, IMPLEMENTADO Y VALIDADO por HTTP
+contra Docker/MySQL reales)**: pedido explícito del usuario — más
+variedad de conceptos de nómina en Gastos (antes 1 sola línea genérica
+"Nómina docente y administrativa" por quincena). `GASTOS_FIJOS` en
+`sembrar-demo.js` desglosado a 5 áreas reales del plantel × 2 quincenas
+(10 líneas/mes): docentes Primaria, docentes Secundaria, docentes
+Maternal y Kinder, personal administrativo y dirección, intendencia y
+mantenimiento — mismo slug `nomina` de siempre (categorías nunca se
+tocan), montos repartidos para que la suma quincenal total quede en el
+mismo orden de magnitud que la línea única de antes (~32,000-40,000).
+Re-sembrado con `SEED_MESES=8 SEED_INCLUIR_MES_ACTUAL=1`: 209 gastos
+totales (antes 125), utilidad neta sigue positiva los 9 meses (mínimo
+$22,626 en abril, máximo $168,394 en agosto). Jest backend 1040/1040 sin
+cambios. Rebuild `--no-cache`+`--force-recreate` backend (mismo gotcha
+del punto 328). Ver PROJECT_STATE.md punto 328 para el resto del detalle.
+**Confirmado por el usuario en navegador real** (Claude in Chrome): vista
+Gastos filtrada por categoría "Nómina" (chip real, 19 gastos del mes
+actual) muestra los 5 conceptos por área con sus 2 quincenas cada uno,
+cero errores de consola. Sin commit/push.
+
+**Punto 331 (2026-09-28, IMPLEMENTADO Y VALIDADO por computed-style real
+contra Docker real)**: bug real reportado por el usuario con captura —
+"hueco" visible entre el riel colapsado y el contenido en pantalla
+ancha. Propuesta visual dedicada (Artifact nuevo, con el mecanismo real
+"antes/después" y el hueco resaltado)
+(`https://claude.ai/code/artifact/5e25b230-954b-4e87-af56-751f1969835c`)
+diagnosticó la causa raíz ANTES de tocar código: `.admin-main` usaba
+`margin: 0 auto` — centra el bloque dentro de `.admin-content`, así que
+en pantallas más anchas que el `max-width` (1400/1584px, puntos 329-330)
+la mitad del sobrante cae justo entre el riel y el contenido (se lee
+como hueco roto) y la otra mitad al borde derecho (se ve como margen
+normal, por eso solo se notaba de un lado). **Bug preexistente, no
+regresión de esta sesión** — ya pasaba con el sidebar expandido (tope
+1400px) en cualquier pantalla más ancha que eso; los puntos 329-330 solo
+lo hicieron más visible al reducir el sobrante sin eliminarlo. Fix de
+una propiedad: `margin: 0 auto` → `margin: 0` en `.admin-main` — el
+contenido queda pegado al riel siempre, cualquier sobrante va entero al
+borde derecho. Confirmado por el usuario: aplicar a **las 14 vistas y
+ambos estados del riel** (mismo `.admin-main` compartido, misma causa
+raíz en todo el panel). `detect.mjs` de `impeccable`: cero hallazgos
+nuevos (el único warning de la zona, `transition: max-width`, ya estaba
+documentado como excepción deliberada desde el punto 329). Validado tras
+rebuild `--no-cache`+`--force-recreate` frontend por
+`getComputedStyle()` real en navegador (Claude in Chrome) contra Docker
+real: `marginLeft`/`marginRight` en `0px` confirmados en AMBOS estados
+(expandido y colapsado), `maxWidth` sigue flipando 1400↔1584 correcto.
+**Sin poder confirmar visualmente que el hueco desapareció en una
+pantalla realmente ancha esta sesión** (misma limitación de las
+sesiones anteriores — la ventana de prueba nunca llega a los ~1700px
+donde el bug se manifiesta) — el usuario debe confirmarlo en su monitor
+ancho real, donde reportó el bug originalmente. Ver PROJECT_STATE.md
+punto 331. Sin commit/push.
+
+**Punto 332 (2026-09-28, CORREGIDO Y VALIDADO por computed-style real
+contra Docker real — bug real del propio riel colapsable, no una
+decisión de diseño)**: el usuario reportó con captura que el hueco
+seguía exactamente igual pese al fix del punto 331 ("ahora se queda
+fijo, y se desperdicia el espacio"). Antes de proponer otra maqueta,
+inspección directa del DOM real en `/admin` (Claude in Chrome,
+`getComputedStyle` recorriendo la cadena de ancestros desde el título de
+Gastos hasta `.admin-main`) encontró la causa real: `.admin-content`
+—el contenedor que compensa que `.admin-sidebar` sea `position:fixed`—
+**nunca tuvo una regla para el riel colapsado**. El segmento original
+del punto 329 cambió el ancho de `.admin-sidebar` y el `max-width` de
+`.admin-main`, pero se quedó sin actualizar el `margin-left` de
+`.admin-content`, que seguía fijo en `256px` (el valor de expandido)
+aunque el riel ya fuera de `72px` — 184px de hueco muerto REAL,
+reservado por el propio layout, no un efecto de centrado (el fix del
+331 era correcto pero irrelevante al síntoma reportado). No se detectó
+antes porque los 2 Artifacts de propuesta (puntos 329-330) usaban un
+sidebar de maqueta con `flex` normal (sin `position:fixed`), así que
+nunca ejercitaban este mecanismo específico — la maqueta no era fiel en
+ESE detalle concreto, aunque sí lo era visualmente. Fix de una línea:
+`.admin-body.sidebar-colapsado .admin-content { margin-left: 72px; }`
+en el mismo bloque `@media (min-width: 901px)`. Dado que es un bug
+mecánico de una sola línea (no una decisión de diseño con matices), se
+corrigió directo sin pedir otra propuesta visual, con la validación como
+evidencia en su lugar. Validado tras rebuild `--no-cache`+
+`--force-recreate` frontend: invariante `sidebar.width === content.
+marginLeft` confirmado por `getComputedStyle()` real en Docker real en
+6+ lecturas consecutivas (72px/72px y 256px/256px, nunca despareja, a
+diferencia de la lectura original 72px/256px que expuso el bug).
+**Limitación de esta sesión, no del fix**: la ventana de prueba
+(`resize_window` de la herramienta de automatización confirmado sin
+efecto real sobre `window.innerWidth`, sigue en ~1440px) no permite
+reproducir una pantalla ancha real aquí — las transiciones CSS de
+`width`/`margin-left` también se leyeron con un desfase de un ciclo
+completo en varias lecturas consecutivas (clase `sidebar-colapsado` y
+el ancho resuelto no cambiaban en el mismo tick), consistente con
+"throttling" de `requestAnimationFrame` en una pestaña controlada por
+CDP en segundo plano — no afecta a un clic real de un usuario. El
+usuario debe confirmar en su monitor ancho real, donde reportó el bug
+original. Ver PROJECT_STATE.md punto 332. Sin commit/push.
+
+**Punto 333 (2026-09-28, IMPLEMENTADO Y VALIDADO por computed-style real
+contra Docker real — cierra el ciclo de las puntos 329-332)**: el
+usuario reportó con 3 capturas de OTRO monitor (real, más ancho) que
+seguía habiendo espacio desperdiciado pese al punto 332 — "no solamente
+extiendas el contenedor, redistribuye". Diagnóstico correcto: los
+puntos 329-330 usaban NÚMEROS FIJOS (1400px/1584px) — funcionan solo en
+el tamaño de pantalla para el que se calcularon, y vuelven a fallar en
+cualquier monitor distinto (exactamente lo que pasó). Se cargó
+explícitamente la skill `impeccable`, comando `adapt` (pedido directo
+del usuario: "carga o busca la skill adecuada") — su guía confirma la
+técnica correcta: `clamp()`/`calc()` contra el viewport real en vez de
+breakpoints/números adivinados, con un techo de cordura para no estirar
+tablas a un ancho absurdo en 4K/5K/8K. Propuesta visual interactiva
+(Artifact con selector de 4 anchos reales + campo de ancho libre,
+aprobada completa: techo 1960px + refactor)
+(`https://claude.ai/code/artifact/8153c6be-53f3-480d-9d84-83aef75ed9a9`).
+**Implementado — 2 cambios**: (1) `.admin-main` pasa de `max-width` fijo
+a `min(calc(100vw - var(--sidebar-w) - 88px), 1960px)` (solo dentro de
+`@media (min-width: 901px)`; en móvil/tablet queda `max-width:none`,
+sin cambio de comportamiento ahí). (2) Refactor confirmado por el
+usuario: variable nueva `--sidebar-w` en `.admin-body` (`256px` default,
+`72px` en `.admin-body.sidebar-colapsado`) — `.admin-sidebar`
+(`width`), `.admin-content` (`margin-left`) y el toggle flotante
+(`left`) pasan los 3 a leer de ahí en vez de tener cada uno su propio
+par de números 256/72 repetido. Esto vuelve estructuralmente imposible
+que se repita la clase de bug del punto 332 (un solo valor no puede
+desincronizarse de sí mismo). Las 3 reglas redundantes del punto 330
+(`.sidebar-colapsado .admin-sidebar{width:72px}`,
+`.admin-content{margin-left:72px}`, `.admin-main{max-width:1584px}`)
+quedaron eliminadas — ya no hacen falta. `detect.mjs` de `impeccable`:
+cero hallazgos nuevos (mismos 3 warnings de `transition` ya documentados
+como excepción deliberada en puntos anteriores). Validado tras rebuild
+`--no-cache`+`--force-recreate` frontend por `getComputedStyle()` real
+en navegador (Claude in Chrome) contra Docker real a `window.
+innerWidth=1440`: expandido → `1096px` (`1440-256-88`, exacto),
+colapsado → `1280px` (`1440-72-88`, exacto) — fórmula matemáticamente
+confirmada contra el ancho REAL de la ventana, no un valor fijo. El
+invariante ancho-del-riel≡margen-del-contenido (punto 332) se sostuvo
+en cada lectura. **Sin poder reproducir un monitor realmente ancho en
+esta sesión** (misma limitación de siempre — `resize_window` de la
+herramienta de automatización no cambia `window.innerWidth` real) —
+pero a diferencia de las 3 rondas anteriores, esta vez la fórmula no
+depende de adivinar el ancho del usuario: al usar `100vw` real, el
+mismo mecanismo que se validó en 1440px se recalcula solo en 1920,
+2560, 3440 o cualquier otro — no hace falta repetir la validación por
+cada tamaño de pantalla nuevo. El usuario debe confirmar en su monitor
+real que el desperdicio reportado en las 3 capturas ya desapareció. Ver
+PROJECT_STATE.md punto 333. Sin commit/push.
+
+**Punto 334 (2026-09-28, CORREGIDO Y VALIDADO contra Docker real)**: bug
+real reportado por el usuario — el link del correo de confirmación de
+venta (y de cualquier otro correo que use `detectarUrlPortal()`) llegaba
+sin puerto ("localhost" en vez de "localhost:8088"), obligando a
+reconfigurar manualmente en vez de detectar el ambiente solo. Causa:
+`frontend/nginx.conf.template` usaba `proxy_set_header Host $host;` en
+los 3 `location` que reenvían a `backend_upstream`/`control_upstream` —
+`$host` en nginx **nunca incluye el puerto**, sin importar lo que mandó
+el cliente. El mismo archivo ya tenía este exacto gotcha documentado y
+corregido para OTRO caso (el redirect de `/<slug>`, punto 178, con
+`$http_host`) — nunca se replicó a estos 3 `proxy_set_header`, que son
+justo los que alimentan `req.get('host')` en el backend
+(`detectarUrlPortal()`, `server.js`). Fix: los 3 cambiados a
+`proxy_set_header Host $http_host;` (el encabezado Host tal cual lo mandó
+el cliente, con puerto incluido) — en `frontend/nginx.conf.template` Y
+`prod/frontend/nginx.conf.template` (2 ocurrencias ahí, sin `control`).
+`nginx -t` limpio tras rebuild `--no-cache`+`--force-recreate` frontend.
+Validado sin enviar ningún correo real: el mismo `$http_host` ya se
+usaba con éxito en el redirect de `/<slug>` de este archivo — confirmado
+por curl que en este entorno resuelve `localhost:8088` exacto
+(`Location: http://localhost:8088/abarroteslulu/login`), mismo valor que
+ahora reciben los 3 `proxy_set_header Host` corregidos (misma variable,
+mismo contexto de petición). Jest backend 1040/1040 sin cambios (fix
+100% de infraestructura, cero código de aplicación tocado). Sin
+commit/push.
+
+**Punto 335 — PENDIENTE, análisis listo, falta confirmación (2026-09-28)**:
+el usuario pidió agregar el correo de "confirmación de venta" (el que
+recibe el cliente al registrarle una venta, `construirCorreoOrdenCompra`
+en `server.js`) como una plantilla editable más en Configuraciones
+globales → "Plantillas de correo" (punto 214, hoy solo cubre invitación/
+recuperar contraseña/aviso al contador/factura lista/reporte). Hallazgo
+real antes de proponer nada: este correo NO es como los otros 5 — no
+tiene ningún texto libre hoy, es 100% estructurado (folio/fecha/hora/
+concepto/cantidad/IVA/total) más 2 párrafos de **instrucción funcional
+real**: le dicen al cliente exactamente qué campos capturar
+("No. Venta, Fecha, Hora y Total... cada uno en su propio campo") al
+pedir su factura en el portal — texto acoplado al flujo real de
+`csf.html`, no prosa decorativa. Por eso el punto 214 lo excluyó a
+propósito en su momento. Antes de implementar falta decidir con el
+usuario: (1) ¿se vuelve editable SOLO esos 2 párrafos (con la instrucción
+de captura de campos ya incluida en el default, el admin puede
+editarla/borrarla bajo su propio riesgo, igual que ya confía en el admin
+para los otros 5 correos) o se deja la instrucción fija y solo se abre
+un tercer párrafo/footer nuevo?; (2) la tabla de datos del ticket
+(folio/fecha/total/etc.) y su diseño de "recibo" (borde punteado,
+degradado navy→cyan, distinto al cascarón `construirCorreoBase()` de los
+otros 5, ver punto 133) ¿se queda intacta, o también se plantea
+unificarla al mismo cascarón? Ver PROJECT_STATE.md punto 335. Cero código
+tocado — protocolo `addv-web-app` completo pendiente de confirmación
+antes de implementar.
+
+**Punto 336 (2026-09-28, IMPLEMENTADO Y VALIDADO contra Docker real)**:
+consistencia visual de botones de acción en `/admin` — el usuario señaló
+que algunas tablas mostraban pares de botones de texto ("Gestionar" /
+"Eliminar") en vez del ícono compacto ya establecido en Usuarios/Órdenes
+(`btn-icono-accion`/`btn-icono-accion-peligro`, SVG feather, 30x30,
+`data-tooltip`+`aria-label`). Auditoría de todo `frontend/` (excluido
+`prod/`, espejo sin código propio) encontró 6 puntos inconsistentes, los
+6 aprobados y migrados en `frontend/admin.js`:
+1. Documentos CSF (fila de tabla: Ver archivo/Eliminar/Restaurar/Eliminar
+   permanentemente).
+2. Tickets (fila de tabla: Gestionar/Eliminar/Restaurar/Eliminar
+   permanentemente).
+3. Panel Categorías de Gastos — además tenía emoji real (✏️/🗑️), no solo
+   texto.
+4. Panel Categorías de Inventario — mismo bloque duplicado que el punto 3.
+5. Inicio → Solicitudes recientes ("Gestionar" único, sin par).
+6. Inventario → Matriz de estado ("Gestionar" único, sin par).
+
+Reutilizado el factory ya existente `botonAccionInv()` +
+constantes `ICONO_EDITAR`/`ICONO_PAPELERA`/`ICONO_RESTAURAR` (definidas
+para Inventarios, ahora usadas también por Documentos/Tickets/Inicio) en
+vez de crear un tercer sistema de botones-ícono paralelo; se agregó
+`ICONO_OJO` (nuevo, "ver archivo") al mismo set. Contenedores nuevos
+llevan la clase `admin-row-actions-iconos` (mismo criterio responsive de
+Usuarios/Órdenes: fila horizontal también en móvil, en vez de apilar).
+Limpieza de código muerto en el mismo cambio: CSS de `.btn-ver`,
+`.btn-eliminar`, `.btn-eliminar-permanente`, `.btn-restaurar`,
+`.admin-table .btn-editar` (con su variante en el `@media` de tabla en
+tarjetas) y `.gastos-categoria-fila .btn-icon` eliminado por quedar sin
+ningún selector que lo usara tras la migración (confirmado por grep antes
+de borrar).
+
+Hallazgo adicional durante la verificación final (fuera de los 6 puntos
+originales, mismo motivo — "sin emojis, todo deben ser iconos" reforzado
+explícitamente por el usuario al aprobar): el botón toggle "✏️
+Categorías" (Gastos e Inventario, `admin.html`) también tenía emoji real
+en su texto visible — corregido a ícono SVG (lápiz) + texto "Categorías",
+`.btn-categorias-toggle` pasó a `display:flex` para alinear ícono+texto.
+2 strings de copy en `admin.js` (nota de Resumen financiero, paso de
+"Centro de conocimiento" de Gastos) también citaban ese emoji en el texto
+visible al usuario — actualizadas a "Categorías" sin el glifo. Barrido
+amplio confirmó que el resto de símbolos Unicode del sitio (→ ← ✓ ✕ ⚠ ⏳,
+usados en botones "Cerrar" de modales, checkmarks de autoguardado,
+navegación entre secciones) es un patrón previo, extendido y ya
+consistente en sí mismo, sin relación con el par texto-vs-ícono que pidió
+el usuario — **no tocado**, fuera del alcance aprobado en esta sesión;
+señalado aquí solo como hallazgo, no como pendiente.
+
+Validado: `node --check` en los 2 archivos tocados, suite Jest de
+`backend` completa sin regresiones (1040/1040 — no toca backend, corrida
+igual por disciplina de "cero regresiones"), rebuild `--no-cache` +
+`up -d --force-recreate frontend`, y verificación por `curl` contra el
+contenedor real de que el HTML/JS servido ya no contiene ningún emoji
+(`🗑️`/`✏️`) y sirve el ícono SVG nuevo del toggle de Categorías. Pendiente
+del propio usuario: validación visual por clic real en navegador (este
+entorno no tiene herramienta de navegador conectada) y `git commit`/push
+(sin commitear por decisión del protocolo, a la espera de que el usuario
+lo pida explícitamente).
+
+**Punto 337 (2026-09-28, IMPLEMENTADO — Jest sin cambios (100% frontend),
+SIN validar en navegador real esta sesión, extensión de Chrome
+desconectada a media sesión)**: campana de notificaciones en el topbar
+de `/admin` — pedido explícito del usuario, protocolo completo
+(`addv-web-app` + propuesta visual funcional interactiva en Artifact,
+2 rondas de iteración: 1 bug real encontrado por el usuario en la propia
+maqueta —campana y panel vivían desconectados por un "spacer" que no
+existe en el sitio real, corregido antes de tocar código— y una ronda de
+animación/sonido). 4 decisiones confirmadas vía `AskUserQuestion` +
+1 respuesta abierta del usuario que amplió el alcance real: (1) el popup
+"tickets sin contador" (punto 301) **coexiste**, sin tocarse; (2) la
+campana notifica **tickets nuevos** + (ampliación del usuario, no
+prevista en las opciones) **alertas de inventario** (bajo mínimo, por
+vencer — "punto de reorden" mapeado al KPI ya real "bajo mínimo", sin
+inventar un algoritmo de reorden con lead time que no existe en el
+sistema); (3) estado leído/no-leído en **localStorage por cuenta**
+(mismo patrón que el riel colapsable/grupos del sidebar/onboarding);
+(4) sondeo cada **60s**, pausado con `document.visibilityState` cuando
+la pestaña está en segundo plano. Refinamientos de la 2da ronda: (5)
+retención de tickets = **15 días o 20, lo que sea menor**; (6) grupo
+"Configuración" solo **fiscal + super** (mismo público del popup
+original); (7) sonido **solo para tickets nuevos**, nunca inventario/
+configuración.
+
+**Modelo de "leído" — 2 semánticas distintas, a propósito**: un ticket
+es un evento puntual (se lee una vez, listo) — su id se guarda en un
+set de localStorage. Inventario/Configuración son condiciones VIVAS (un
+producto puede seguir bajo mínimo semanas) — marcarlas "leídas" guarda
+un snapshot del número visto; el punto rojo solo reaparece si ese
+número **sube** respecto al snapshot, nunca por el simple paso del
+tiempo — es justo lo que las vuelve "no invasivas" (pedido explícito
+del usuario), sin dejar de avisar si la situación empeora.
+
+**Cero endpoint nuevo** — reusa 3 endpoints ya existentes:
+`GET /admin/tickets` (mismo que ya carga Inicio), `GET /admin/
+inventarios/dashboard` (`productos_bajo_minimo`/`productos_por_vencer`,
+ya reales desde el punto 278), `GET /admin/tickets/pendientes-sin-
+contador` (el mismo que ya alimenta el popup del punto 301). Visibilidad
+de la campana por perfil: tickets → fiscal/administrador/super;
+inventario → administrador/inventario/super (y solo si el módulo está
+activo, `inventarioActivoGlobalmente`); configuración → fiscal/super.
+Oculta por completo (`hidden`) para `ventas`, que no tiene ninguno de
+los 3 aplicable. Sonido: 2 tonos sintetizados con Web Audio API (mismo
+mecanismo validado en la propuesta visual, sin archivo `.mp3`/`.wav`
+nuevo) — solo suena en un sondeo EN SEGUNDO PLANO que encuentra ids de
+ticket genuinamente nuevos respecto al sondeo anterior (nunca en la
+carga inicial de sesión, nunca al solo abrir el panel). Animación:
+apertura 0.18s (fundido + traslado+escala corto), "sacudida" de la
+campana 0.5s al llegar algo nuevo — ambas respetan
+`prefers-reduced-motion`. El panel es HIJO DOM directo del botón de la
+campana (nunca un ancla independiente) — mismo bug de posicionamiento
+que el usuario encontró y marcó con una captura en la propia maqueta,
+corregido ahí ANTES de escribir el código real, así que el código real
+nunca lo tuvo. Alcance solo escritorio (`@media max-width:900px`
+oculta el wrapper completo) — mismo criterio que el riel colapsable, sin
+pedirlo explícito, documentado como decisión propia. `race` real
+resuelto: `inventarioActivoGlobalmente` llega async vía
+`cargarConfigInventario()` (fire-and-forget) — `actualizarNotificaciones()`
+se re-dispara sola dentro de `aplicarVisibilidadInventarios()` en
+cuanto ese valor real se conoce, mismo patrón ya usado ahí para
+`renderOnboardingChecklist()`. `detect.mjs` de `impeccable`: **cero
+hallazgos nuevos** en las líneas tocadas (los 23 hallazgos totales del
+archivo son 100% preexistentes, ninguno en el código de la campana).
+`node --check` limpio, CSS balanceado (1773/1773), HTML: 1 desbalance de
+`<span>` preexistente confirmado contra `git show HEAD` (824/823, ya
+estaba así antes de esta sesión) — mi propia inserción es +2/+2,
+balanceada. Validado por curl contra Docker real: los 3 endpoints
+responden 200 con los campos exactos que el JS espera (`id`, `folio`,
+`rfc`, `creado_en`). **Colisión de numeración con otra sesión paralela**
+(el punto 334 real ya estaba usado por otro trabajo, sin relación) —
+detectada y corregida ANTES de terminar: los 8 comentarios de código que
+decían "punto 334" se renumeraron a "punto 337" (`sed` sobre los 3
+archivos), sin dejar ninguna referencia cruzada rota. **Sin herramienta
+de navegador esta sesión** — la extensión de Chrome se desconectó a
+media sesión (funcionaba para el riel colapsable de los puntos 329-333,
+más temprano en esta misma conversación) — falta la confirmación visual
+real de clic-en-campana, animación, sonido audible y el ciclo completo
+de leído/no-leído contra Docker/MySQL reales. Sin commit/push.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

@@ -168,6 +168,21 @@
       <div class="admin-sidebar-logo">
         <img class="admin-sidebar-logo-img" src="/assets/logoDark.png" alt="CLARVO — Tu negocio bajo control by ADDV" />
       </div>
+      <!-- Solo visible con el riel colapsado (ver .admin-sidebar-logo-mini
+           en admin.css) — el wordmark completo no cabe en 72px, se
+           sustituye por el isotipo real de la marca (la "V" de cristal,
+           mismo archivo que el favicon del sitio, sin asset nuevo). -->
+      <div class="admin-sidebar-logo-mini">
+        <img src="/assets/favicon.png" alt="CLARVO" />
+      </div>
+
+      <!-- Riel colapsable de escritorio (>900px, punto 329) — botón
+           flotante en el borde del sidebar, ver aplicarEstadoColapsoSidebar
+           en admin.js. Oculto en móvil (el menú ahí ya es otro mecanismo,
+           el grid de íconos de btn-menu-movil). -->
+      <button type="button" class="admin-sidebar-rail-toggle" id="btn-colapsar-sidebar" aria-pressed="false" aria-label="Colapsar menú lateral">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6"/></svg>
+      </button>
 
       <!-- Solo visible en móvil (<900px, ver admin.css) — reemplaza el
            menú de fila con scroll lateral. Regresa siempre al grid de
@@ -346,6 +361,37 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
         </button>
         <span class="brand-fiscal-info" id="brand-fiscal-info" hidden></span>
+        <!-- Campana de notificaciones (punto 337) — tickets nuevos
+             (fiscal/administrador/super) + alertas de inventario
+             (administrador/inventario/super) + aviso de "tickets sin
+             correo de contador" (fiscal/super, mismo público que el
+             popup del punto 301, que sigue intacto). Oculta por
+             completo (hidden) si el perfil no tiene NINGÚN tipo
+             aplicable (ventas) — ver actualizarNotificaciones() en
+             admin.js. El panel es HIJO de este wrapper a propósito:
+             se abre siempre pegado a la campana, sin importar el
+             ancho de pantalla. -->
+        <span class="admin-header-notif-wrap" id="notif-wrap">
+          <button type="button" class="admin-header-notif-btn" id="btn-notificaciones" aria-label="Notificaciones" aria-haspopup="true" aria-expanded="false" data-tooltip="Notificaciones" hidden>
+            <svg class="notif-bell-ring" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+            <span class="admin-notif-dot" id="notif-dot" hidden></span>
+          </button>
+          <div class="admin-notif-panel" id="notif-panel" role="menu" aria-label="Notificaciones">
+            <div class="admin-notif-head">
+              <h3>Notificaciones</h3>
+              <button type="button" id="btn-notif-marcar-todo">Marcar todo leído</button>
+            </div>
+            <div class="admin-notif-list" id="notif-list"></div>
+            <div class="admin-notif-empty" id="notif-empty" hidden>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p>Sin notificaciones nuevas</p>
+            </div>
+            <div class="admin-notif-foot">
+              <a href="javascript:void(0)" id="notif-link-tickets" hidden>Ver todas en Tickets</a>
+              <a href="javascript:void(0)" id="notif-link-inventarios" hidden>Ver Inventarios</a>
+            </div>
+          </div>
+        </span>
         <span class="admin-user-label" id="admin-user-label"></span>
       </header>
 
@@ -2675,6 +2721,7 @@
                     <button type="button" class="plantillas-tab" data-plantilla="aviso_contador" role="tab" aria-selected="false">Aviso al contador</button>
                     <button type="button" class="plantillas-tab" data-plantilla="cliente" role="tab" aria-selected="false">Factura lista</button>
                     <button type="button" class="plantillas-tab" data-plantilla="reporte" role="tab" aria-selected="false">Reporte</button>
+                    <button type="button" class="plantillas-tab" data-plantilla="venta" role="tab" aria-selected="false">Nota de venta</button>
                   </div>
 
                   <div class="plantilla-fiel-split">
@@ -4700,7 +4747,7 @@
             <label for="gastos-modal-categoria">Categoría <span class="required">*</span></label>
             <div class="gastos-categoria-select-row">
               <select id="gastos-modal-categoria"></select>
-              <button type="button" class="btn-categorias-toggle" id="btn-gastos-categorias-toggle" aria-expanded="false" aria-controls="gastos-categorias-panel">✏️ Categorías</button>
+              <button type="button" class="btn-categorias-toggle" id="btn-gastos-categorias-toggle" aria-expanded="false" aria-controls="gastos-categorias-panel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg> Categorías</button>
             </div>
             <p class="field-error" id="error-gastos-modal-categoria" role="alert"></p>
             <div class="gastos-categorias-panel" id="gastos-categorias-panel" hidden>
@@ -4889,7 +4936,7 @@
             <label for="inv-modal-categoria">Categoría<button type="button" class="campo-ayuda" data-campo="categoria" aria-label="Ver ayuda de Categoría">?</button></label>
             <div class="gastos-categoria-select-row">
               <select id="inv-modal-categoria"><option value="">Sin categoría</option></select>
-              <button type="button" class="btn-categorias-toggle" id="btn-inv-categorias-toggle" aria-expanded="false" aria-controls="inv-categorias-panel">✏️ Categorías</button>
+              <button type="button" class="btn-categorias-toggle" id="btn-inv-categorias-toggle" aria-expanded="false" aria-controls="inv-categorias-panel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg> Categorías</button>
             </div>
             <div class="gastos-categorias-panel" id="inv-categorias-panel" hidden>
               <div class="gastos-categorias-lista" id="inv-categorias-lista"></div>

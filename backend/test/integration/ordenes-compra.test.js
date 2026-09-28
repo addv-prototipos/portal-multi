@@ -453,8 +453,11 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       ]); // SELECT orden
       pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
       pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ host: 'smtp.ejemplo.com', usuario: 'x@ejemplo.com', password: 'x', cuerpo_venta: 'Texto de ejemplo {numero_venta}.' }) }],
+      ]); // getConfigSmtp (punto 335, cuerpo_venta — dentro de enviarCorreoOrdenCompra)
+      pool.query.mockResolvedValueOnce([
         [{ valor: JSON.stringify({ host: 'smtp.ejemplo.com', usuario: 'x@ejemplo.com', password: 'x' }) }],
-      ]); // getConfigSmtp (dentro de enviarCorreoOrdenCompra)
+      ]); // getConfigSmtp (dentro de enviarCorreo, credenciales reales)
 
       const res = await request(app)
         .post('/api/admin/ordenes-compra/1/reenviar-correo')
@@ -475,8 +478,11 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE email
       pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
       pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ host: 'smtp.ejemplo.com', usuario: 'x@ejemplo.com', password: 'x', cuerpo_venta: 'Texto de ejemplo {numero_venta}.' }) }],
+      ]); // getConfigSmtp (punto 335, cuerpo_venta — dentro de enviarCorreoOrdenCompra)
+      pool.query.mockResolvedValueOnce([
         [{ valor: JSON.stringify({ host: 'smtp.ejemplo.com', usuario: 'x@ejemplo.com', password: 'x' }) }],
-      ]); // getConfigSmtp (dentro de enviarCorreoOrdenCompra)
+      ]); // getConfigSmtp (dentro de enviarCorreo, credenciales reales)
 
       const res = await request(app)
         .post('/api/admin/ordenes-compra/2/reenviar-correo')
