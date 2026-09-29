@@ -446,7 +446,7 @@
   </section>
 
   <section>
-    <h2>Infraestructura / Multi-tenant <span class="count">6 pendientes</span></h2>
+    <h2>Infraestructura / Multi-tenant <span class="count">5 pendientes</span></h2>
     <p class="section-note">Todo el plan de 9 segmentos de migración a multi-tenant está completo en código — esto es "nunca ejercitado contra infraestructura real de producción", no trabajo sin hacer. Los 2 pendientes de abajo son de la sesión del 17 sep en adelante y sí son trabajo real sin terminar.</p>
     <div class="table-scroll">
       <table>
@@ -491,8 +491,8 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-316-mantenimiento" aria-label="Marcar completado"></td>
             <td class="col-punto">316/323</td>
             <td class="col-item">Página de mantenimiento 3D sin confirmar en el nginx del host</td>
-            <td class="col-detalle">Durante el incidente real del 17 sep (backend en crash-loop por credenciales MySQL desincronizadas) se construyó una página de mantenimiento en CSS puro para reemplazar el 502 pelado de nginx, más un <code>enganchar-nginx.sh</code> con backup y rollback automático si <code>nginx -t</code> falla. Vive en <code>unavailable/</code> (punto 323 la movió ahí, fuera de <code>prod/</code>, para que sobreviva a cualquier borrado de esa carpeta y no viaje en <code>prod.zip</code>). <strong>Sin confirmar desde el 17 sep si ya quedó enganchada</strong> en <code>/etc/nginx/sites-available/yt.addv.com.mx.conf</code> — archivo que <code>actualizar.sh</code>/<code>deploy.sh</code> nunca tocan una vez creado, así que es 100% paso manual del usuario. Decidir: ¿se engancha o se borra por no ser usada?</td>
-            <td class="col-estado"><span class="pill pill-amber">Construido, sin confirmar si se aplicó</span></td>
+            <td class="col-detalle">Durante el incidente real del 17 sep (backend en crash-loop por credenciales MySQL desincronizadas) se construyó una página de mantenimiento en CSS puro para reemplazar el 502 pelado de nginx, más un <code>enganchar-nginx.sh</code> con backup y rollback automático si <code>nginx -t</code> falla. Vive en <code>unavailable/</code> (punto 323 la movió ahí, fuera de <code>prod/</code>, para que sobreviva a cualquier borrado de esa carpeta y no viaje en <code>prod.zip</code>). <strong>Confirmado por el usuario (29 sep 2026): ya quedó enganchada</strong> en el nginx real del host.</td>
+            <td class="col-estado"><span class="pill pill-green">Completado — confirmado por el usuario (29 sep 2026)</span></td>
           </tr>
         </tbody>
       </table>

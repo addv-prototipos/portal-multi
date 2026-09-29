@@ -18436,6 +18436,7 @@
       lead: 'Registrar, cobrar y hacer el corte del día.',
       pasos: [
         { t: 'Registrar una venta', d: 'Botón "+ Registrar venta" → Productos → Confirmar → Entrega (correo o imprimir). El modal se limpia y se queda abierto para varias ventas seguidas.' },
+        { t: 'Elegir método de pago', d: 'En el paso de Confirmar: Efectivo, Transferencia, Tarjeta de crédito o Tarjeta de débito. Con "Transferencia" se genera un folio corto (ej. "CV0001") para dárselo al cliente como "Concepto" al pagar — sale en el ticket y en el correo de confirmación, y queda visible en la columna "Pago" de la tabla con un botón para copiarlo sin abrir la venta. El método y el prefijo del folio con los que abre el modal se ajustan en Configuraciones → Ventas.' },
         { t: 'Aplicar un descuento', d: 'En el paso de Confirmar, campo opcional "Descuento" — un porcentaje sobre el subtotal, antes del IVA. Se refleja en el Total, en el ticket impreso y en el correo de confirmación.' },
         { t: 'Marcar como pendiente de cobro', d: 'En el paso de Confirmar, cambia el toggle a "Pendiente" y define fecha de vencimiento — aparecerá en Cuentas por cobrar hasta que la cobres.' },
         { t: 'Generar el corte del día', d: 'Botón "Corte del día" junto a Registrar venta → elige el rango de fechas → imprime o consulta en pantalla. Queda guardado en Reportes → pestaña Cortes.' },

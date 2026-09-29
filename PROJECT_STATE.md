@@ -15289,9 +15289,12 @@ el comentario de cabecera y la instrucción de uso actualizados a la
 ruta nueva). `bash -n` limpio, HTML válido. Como `prod/`, esta carpeta
 NO viaja dentro de `prod.zip` ni de ningún build de Docker — es
 un paso de infraestructura del HOST (nginx fuera de contenedores),
-separado a propósito. **Sigue sin confirmarse si el usuario ya lo
-enganchó en el VPS real** — mismo pendiente del punto 316, solo cambió
-dónde vive el archivo en este repo.
+separado a propósito. **Confirmado por el usuario (2026-09-29): ya
+quedó enganchada en el nginx del host real** — cierra el pendiente
+abierto desde el punto 316. No se verificó desde esta sesión el
+contenido exacto de `/etc/nginx/sites-available/yt.addv.com.mx.conf`
+(confirmación de palabra del usuario, no inspección directa vía SSH) —
+si en el futuro se toca ese archivo o se reinstala el host, revalidar.
 
 324. **Bug real — cuenta suspendida a medio uso no hacía logout hasta
 refrescar (2026-09-25, CORREGIDO, Jest backend 1040/1040, sin Docker/
