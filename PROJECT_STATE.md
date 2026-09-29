@@ -15995,6 +15995,26 @@ más temprano en esta misma conversación) — falta la confirmación visual
 real de clic-en-campana, animación, sonido audible y el ciclo completo
 de leído/no-leído contra Docker/MySQL reales. Sin commit/push.
 
+**Punto 338 (2026-09-29, IMPLEMENTADO):** el popup emergente "Tickets sin
+correo de contador" (`revisarTicketsPendientesSinContador()` /
+`mostrarNotifTicketsPendientes()`, `frontend/admin.js`) ya no se dispara
+para los perfiles `administrador`/`super` al iniciar sesión — solo para
+`fiscal` (petición explícita del usuario: los emergentes tienen sentido
+para quien da seguimiento ticket por ticket, no para el administrador
+general, que ya lo ve reflejado en la campana de notificaciones —
+`actualizarNotificaciones()`, `ticketsAplican` ya incluía
+`['fiscal', 'administrador', 'super']` desde el punto 337, sin cambios
+ahí). Cambio acotado a la condición de la llamada en `inicializarPanel()`
+(antes: `if (puedeVerAreaFiscal)` envolvía también
+`revisarTicketsPendientesSinContador()`; ahora esa llamada tiene su
+propio `if (perfilActual === 'fiscal')`, separado de
+`cargarConfigCampos()`/`cargarInfoUsoCfdi()` que siguen igual). No toca
+el checkbox "No volver a mostrar" (sigue exclusivo de `super`, sin
+relación con quién ve el popup) ni el endpoint backend
+`GET /admin/tickets/pendientes-sin-contador`. `node --check` limpio. Sin
+cambio visual (no aplica propuesta antes/después: es una condición de
+visibilidad, no un rediseño). Sin commit/push.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

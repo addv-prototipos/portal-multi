@@ -2222,6 +2222,13 @@
     if (puedeVerAreaFiscal) {
       cargarConfigCampos();
       cargarInfoUsoCfdi();
+    }
+    // El popup emergente de "tickets sin correo de contador" solo tiene
+    // sentido para el perfil "fiscal" (quien de verdad da seguimiento
+    // ticket por ticket). Administrador/super ya lo ven reflejado en la
+    // campana de notificaciones (actualizarNotificaciones/ticketsAplican
+    // más abajo) — mostrarles además el modal era ruido duplicado.
+    if (perfilActual === 'fiscal') {
       revisarTicketsPendientesSinContador();
     }
     // D7: fiscal no tiene NINGÚN acceso a Inventarios — evita pedirle al
