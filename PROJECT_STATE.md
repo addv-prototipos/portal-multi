@@ -16221,11 +16221,150 @@ por login y sesión, sin sesión no pueden entrar a otras secciones").
   verde**, sin regresiones en el resto del suite.
 - Rebuild `--no-cache` + `--force-recreate` de `backend`+`frontend`.
   Verificado por `curl` contra el contenedor real:
-  `POST /api/registro` sin cookie → `401` confirmado. **Sin confirmación
-  visual del redirect en navegador** — extensión de Chrome seguía
-  desconectada; el patrón de redirect (`urlPagina('login')` en 401) es
-  idéntico al ya probado en `dashboard.js`, alta confianza, pero pendiente
-  repetir el vistazo visual cuando se reconecte.
+  `POST /api/registro` sin cookie → `401` confirmado. **Confirmación
+  visual del redirect en navegador: OK** (usuario confirmó directamente,
+  2026-09-29).
+
+**Punto 342 (2026-09-29, IMPLEMENTADO — pendiente probar en Docker real y
+confirmación visual del usuario):** método de pago de la venta + folio
+corto de conciliación bancaria para transferencias, en el modal "Registrar
+venta" del panel admin.
+
+- **Propuesta previa**: se presentó al usuario una propuesta interactiva
+  (antes/después) cubriendo método de pago (efectivo/transferencia/
+  tarjeta de crédito/tarjeta de débito) + generación de un folio corto
+  para que el cajero se lo dé al cliente como "Concepto" al pagar por
+  transferencia, con configuración de prefijo — aprobada antes de tocar
+  código.
+- **Esquema** (`backend/db.js`): `ordenes_compra.metodo_pago` (ENUM,
+  NULL — ventas históricas no tienen el dato, nunca se les inventa
+  `'efectivo'` por defecto en el ESQUEMA, solo en el FORMULARIO) y
+  `ordenes_compra.folio_conciliacion` (VARCHAR(10), UNIQUE, copia
+  desnormalizada para no depender de JOIN al listar/filtrar Ventas).
+  Tabla nueva `folios_conciliacion` (id, folio UNIQUE, orden_compra_id
+  NULL, creado_por, creado_en) — registra TODOS los folios generados, se
+  complete o no la venta, porque sirven para conciliar contra el estado
+  de cuenta bancario real. Sin FK hacia `ordenes_compra` a propósito: el
+  folio se genera ANTES de que la venta exista.
+- **Backend** (`backend/server.js`, `backend/utils/config.js`):
+  `POST /api/admin/folios-conciliacion` (mismo candado que el resto de
+  Ventas — `administrador`/`ventas`) genera y persiste el folio en cuanto
+  el cajero hace clic en "Transferencia", usando el mismo patrón
+  INSERT-'TEMP'→UPDATE que `generarFolio`/`generarNumeroCompra`
+  (`generarFolioConciliacion(prefijo, id)`, sin guion:
+  `<prefijo><id con 4 ceros>`, ej. `CV0047`). `POST /api/admin/ordenes-
+  compra` valida `metodo_pago` contra `METODOS_PAGO_VENTA` (única fuente
+  de verdad, exportada de `config.js`); con `'transferencia'` exige un
+  `folio_conciliacion` YA generado y libre (`orden_compra_id IS NULL`,
+  si no → 400; si ya usado por otra venta → 409) y lo vincula a la venta
+  DESPUÉS del INSERT (recién ahí se conoce el id real). Config nueva:
+  `metodo_pago_venta_default` (con qué método abre el modal, mismo patrón
+  que `entrega_venta_default`) y `folio_conciliacion_prefijo` (2 letras
+  A-Z, validado con regex, configurable a petición explícita del
+  usuario) — mismo candado `administrador`/`super` en
+  `PUT /admin/config/global`.
+- **Correo de venta**: `construirCorreoOrdenCompra` agrega un bloque
+  destacado ("Concepto para tu transferencia") en HTML y texto plano
+  cuando `metodo_pago === 'transferencia'` y hay folio — mismo tono cian
+  del resto del correo.
+- **Frontend** (`frontend/admin.html/.js/.css`): selector de 4 botones
+  (`.view-toggle-grid4`, mismo componente `.view-toggle` con modificador
+  de grid 2x2) en el paso 3 del wizard de "Registrar venta". Al elegir
+  "Transferencia" se genera el folio una sola vez por apertura del modal
+  (si el cajero cambia de método y regresa sin cerrar, se reusa — evita
+  folios huérfanos por clics indecisos); si falla (ej. sin conexión) se
+  regresa a "Efectivo" con el error explicado. Callout con el folio +
+  botón "Copiar" (Clipboard API, sin fallback visible porque el folio ya
+  está grande en pantalla). Columnas nuevas "Método de pago"/"Folio
+  conciliación" en la tabla de Ventas (chip de color, variante
+  `is-transferencia` en cian; "—" para ventas sin el dato). Ticket
+  imprimible: caja con borde sólido (sin depender de que la impresora
+  térmica soporte fondos de color) para el "Concepto". Configuraciones →
+  Ventas: mismo patrón de autoguardado que "Método de entrega por
+  defecto" para el método por defecto; campo de texto (2 letras,
+  mayúsculas automáticas) con autoguardado en `change` para el prefijo.
+  Sin emojis — todo con los SVG feather-like ya usados en el sitio.
+- **Tests**: `backend/test/unit/config.test.js` (validación de
+  `metodo_pago_venta_default`/`folio_conciliacion_prefijo`) y
+  `backend/test/integration/ordenes-compra.test.js` (`POST /admin/
+  ordenes-compra` con método de pago inválido/transferencia sin folio/
+  folio inexistente/folio ya usado/folio válido; `POST /admin/folios-
+  conciliacion` sin credenciales/perfil sin acceso/genera folio con
+  prefijo default/con prefijo configurado). **1066/1066 tests en verde**,
+  sin regresiones en el resto del suite. `node --check` limpio en los
+  4 archivos backend tocados + `admin.js`.
+- **Rebuild real verificado**: `docker compose build --no-cache
+  backend frontend` + `up -d --force-recreate` contra el stack real de
+  desarrollo. `ensureSchema()` corrió sin error ("Esquema de MySQL
+  listo."), `/api/health` en verde, y se confirmó vía consulta directa a
+  `INFORMATION_SCHEMA` dentro del contenedor `backend` que
+  `ordenes_compra.metodo_pago`/`folio_conciliacion` y la tabla
+  `folios_conciliacion` existen con el tipo/nulabilidad esperados.
+  **Pendiente**: confirmación visual del usuario en navegador (clic real
+  en el modal "Registrar venta"). No commiteado/pusheado todavía.
+- **Ajuste post-confirmación visual (mismo día)**: el usuario probó en
+  navegador real y reportó 2 problemas de UX/UI, corregidos con
+  propuesta visual previa (Artifact interactivo, aprobada antes de tocar
+  código):
+  1) la columna "Acciones" de Ventas (`#ordenes-table-wrap`) dejaba
+     ~70px vacíos — el default compartido de `.admin-table th:last-child`
+     (210px, pensado para tablas con más botones como Usuarios) se
+     sobreescribe SOLO ahí a 140px (exacto para los 3 iconos de Ventas);
+     ninguna otra tabla cambió.
+  2) `.chip-metodo-pago` no tenía `white-space: nowrap` y las columnas
+     nuevas no tenían `width` por defecto — con `table-layout:fixed` +
+     `overflow-wrap:anywhere` heredado, la columna colapsaba y el texto
+     del chip se partía letra por letra verticalmente. Ya con
+     `nowrap`+`text-overflow:ellipsis` en el chip y anchos explícitos
+     (150px) para `metodo_pago`/`folio_conciliacion`, no vuelve a pasar.
+  De paso, a pedido explícito del usuario ("que sea consistente,
+  aplícalo para todos los casos en horizontal"): scroll horizontal por
+  arrastre (clic izquierdo sostenido) + aviso flotante "Desliza para ver
+  más" cuando quedan columnas ocultas — aplicado como componente
+  reutilizable a **todas** las tablas del panel (`.admin-table-wrap`),
+  no solo Ventas, mismo criterio que `inicializarTooltips()`.
+  `inicializarScrollArrastrableTablas()` en `admin.js` envuelve cada
+  `.admin-table-wrap` en un `.table-scroll-shell` (para que el
+  degradado/aviso queden fijos en el borde visible en vez de moverse con
+  el scroll) — sin tocar `admin.html`, sin selectores CSS/JS que
+  dependieran de la posición exacta en el DOM (verificado, ninguno
+  existía). El arrastre se cancela solo si el usuario ya inició una
+  selección de texto nativa (`window.getSelection()`), para no romper
+  copiar un correo/folio arrastrando el mouse sobre el texto; el clic
+  normal en botones/resizer de columna nunca se ve afectado (umbral de
+  4px antes de considerarlo arrastre). En móvil no aplica (la tabla ya
+  pasa a tarjetas apiladas, sin overflow horizontal que detectar).
+  `node --check` limpio, **1066/1066 tests backend sin regresiones**
+  (cambio 100% frontend). Rebuild `--no-cache` + `--force-recreate` de
+  `frontend` aplicado. Pendiente: confirmación visual final del usuario.
+- **Fusión de "Método de pago" + "Folio conciliación" en una sola
+  columna "Pago" (mismo día)**: el usuario notó que, al ser 2 columnas
+  separadas, la de folio quedaba casi siempre en "—" (solo existe con
+  transferencia) — mal uso del espacio. Se presentaron 3 propuestas
+  visuales (Artifact interactivo: apilado / pastilla compuesta / ícono +
+  folio copiable); el usuario eligió la **3 (ícono + folio copiable)**.
+  `celdaPagoOrden(metodo, folio)` (`admin.js`) reemplaza a
+  `chipMetodoPagoOrden()`: ícono distinto por método (mismos SVG ya
+  usados en el selector del modal "Registrar venta" — efectivo/
+  transferencia/tarjeta crédito/tarjeta débito) + el folio, cuando
+  existe, como botón `.folio-copiable` que lo copia al portapapeles sin
+  abrir el detalle de la venta (útil de verdad al conciliar varias
+  transferencias del día). Un solo listener delegado en
+  `els.ordenesTableBody` cubre tanto las filas confirmadas como las de
+  la cola offline. `COLUMNAS_TABLA_ORDENES` pasa de 9 a 8 entradas
+  (`metodo_pago`+`folio_conciliacion` → `pago`); el checkbox de
+  mostrar/ocultar columnas y el `<th data-col="pago">` (con su
+  `col-resizer`) también se fusionaron en uno. Ancho de columna: 190px
+  (antes 150+150=300px, ~110px devueltos a la tabla). CSS nuevo:
+  `.pago-icono-fila`/`.pago-icono-swatch`/`.pago-icono-texto`/
+  `.folio-copiable` — reemplazan a `.chip-metodo-pago`/
+  `.orden-folio-tabla` (confirmado sin otras referencias antes de
+  borrarlas). Sin cambios de backend/esquema — `metodo_pago`/
+  `folio_conciliacion` siguen siendo los mismos 2 campos en la API y en
+  `ordenes_compra`, solo cambió cómo se VEN juntos en la tabla. `node
+  --check` limpio, rebuild `--no-cache`+`--force-recreate` de `frontend`
+  aplicado. Pendiente: confirmación visual del usuario (incluye probar
+  el botón de copiar).
 
 ## Dónde está todo (mapa rápido)
 

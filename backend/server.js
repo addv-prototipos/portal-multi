@@ -55,6 +55,7 @@ const {
   setConfiguracionGlobal,
   obtenerDiasMaximoAvisoExpiracion,
   formatearFechaHoraMexico,
+  METODOS_PAGO_VENTA,
 } = require('./utils/config');
 const {
   extraerTextoPdf,
@@ -1499,6 +1500,14 @@ function generarNumeroCompra(id) {
   return `OC-${String(id).padStart(6, '0')}`;
 }
 
+// Punto 342: folio corto de conciliación de transferencias — mismo
+// patrón que generarFolio/generarNumeroCompra (AUTO_INCREMENT + relleno
+// con ceros), pero SIN guion y con el prefijo configurable de 2 letras
+// (folio_conciliacion_prefijo), en vez de un prefijo fijo — ej. "CV0047".
+function generarFolioConciliacion(prefijo, id) {
+  return `${prefijo}${String(id).padStart(4, '0')}`;
+}
+
 // Quién registró una venta (punto 320) — para reportes/aclaraciones, NUNCA
 // se muestra en la sección de Ventas. Prioridad explícita para cuentas
 // administrador/fiscal/ventas (mecanismo "perfil_bd"): nombre real (Mi
@@ -1931,7 +1940,7 @@ function logoUrlDelTenant(req, urlPortal, configGlobal) {
 // Devuelve tanto la versión HTML (el ticket en sí) como una versión de
 // texto plano equivalente (ver la nota en utils/email.js sobre por qué
 // siempre se manda ambas).
-function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, urlPortal, logoUrl, marca, cuerpoVenta }) {
+function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, cantidad, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, urlPortal, logoUrl, marca, cuerpoVenta, metodoPago, folioConciliacion }) {
   const enlaceLogin = urlPortal ? `${urlPortal}/login` : '';
   const logo = logoTicketHtml(logoUrl, marca);
   const filaTicket = filaCorreoTabla;
@@ -1944,6 +1953,30 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     : '';
   const filaDescuentoTexto = descuentoPorcentaje
     ? `Descuento (${descuentoPorcentaje}%): -$${descuentoMonto.toFixed(2)} MXN\n`
+    : '';
+
+  // Punto 342: bloque destacado del folio de conciliación — solo cuando
+  // el método de pago fue "transferencia" y ya se generó un folio real
+  // (ver POST /admin/folios-conciliacion). Mismo tono cian que ya usa el
+  // resto del correo (degradado del encabezado), para que se note sin
+  // competir con el TOTAL.
+  const bloqueConceptoHtml = metodoPago === 'transferencia' && folioConciliacion
+    ? `
+      <tr>
+        <td style="padding:0 28px 20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E6F1F8; border-radius:10px;">
+            <tr>
+              <td style="padding:14px 16px; text-align:center;">
+                <p style="margin:0 0 3px; font-size:11.5px; color:#5B6472;">Concepto para tu transferencia</p>
+                <p style="margin:0; font-size:19px; font-weight:bold; letter-spacing:0.04em; color:#0B1320; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${escapeHtmlCorreo(folioConciliacion)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`
+    : '';
+  const bloqueConceptoTexto = metodoPago === 'transferencia' && folioConciliacion
+    ? `Concepto para tu transferencia: ${folioConciliacion}\n\n`
     : '';
 
   const html = `
@@ -1994,6 +2027,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
               </table>
             </td>
           </tr>
+          ${bloqueConceptoHtml}
         </table>
       </td>
     </tr>
@@ -2027,6 +2061,7 @@ function construirCorreoOrdenCompra({ numeroCompra, fechaFormateada, concepto, c
     `IVA (${ivaPorcentaje}%): $${(total - cantidad).toFixed(2)} MXN\n` +
     `TOTAL A FACTURAR: $${total.toFixed(2)} MXN\n` +
     `Correo: ${email}\n\n` +
+    bloqueConceptoTexto +
     `${String(aplicarPlantilla(cuerpoVenta, { numero_venta: numeroCompra }) ?? '')
       .split('\n')
       .map((l) => l.trim())
@@ -3862,6 +3897,14 @@ app.put(
     if (body.entrega_venta_default !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
       return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar el método de entrega por defecto.' });
     }
+    // "metodo_pago_venta_default"/"folio_conciliacion_prefijo" (punto 342)
+    // — misma tarjeta "Ventas" que entrega_venta_default, mismo candado.
+    if (body.metodo_pago_venta_default !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar el método de pago por defecto.' });
+    }
+    if (body.folio_conciliacion_prefijo !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar el prefijo del folio de conciliación.' });
+    }
     // "auditoria_habilitada" (punto 244): mismo candado — solo
     // administrador/super deciden si el menú "Auditoría" se muestra.
     if (body.auditoria_habilitada !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
@@ -3893,6 +3936,8 @@ app.put(
         zona_horaria: body.zona_horaria,
         ordenes_compra_habilitado: body.ordenes_compra_habilitado,
         entrega_venta_default: body.entrega_venta_default,
+        metodo_pago_venta_default: body.metodo_pago_venta_default,
+        folio_conciliacion_prefijo: body.folio_conciliacion_prefijo,
         auditoria_habilitada: body.auditoria_habilitada,
         notif_tickets_permite_ocultar: body.notif_tickets_permite_ocultar,
         notif_reglas_expiracion_productos: body.notif_reglas_expiracion_productos,
@@ -5327,6 +5372,32 @@ app.get(
   })
 );
 
+// Punto 342: genera y persiste un folio de conciliación de transferencia
+// EN CUANTO el cajero hace clic en "Transferencia" en el modal "Registrar
+// venta" — antes de que la venta exista. Se guarda siempre (incluso si la
+// venta nunca se termina de registrar), porque sirve para conciliar
+// contra el estado de cuenta bancario, no solo contra ventas completadas.
+// Mismo patrón que generarFolio/generarNumeroCompra: INSERT con 'TEMP',
+// se lee insertId, se arma el folio real, UPDATE.
+app.post(
+  '/api/admin/folios-conciliacion',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador', 'ventas'),
+  asyncHandler(async (req, res) => {
+    const config = await getConfiguracionGlobal();
+    const ahora = new Date();
+    const creadoPor = resolverCreadoPorVenta(req);
+    const [resultado] = await pool.query(
+      'INSERT INTO folios_conciliacion (folio, orden_compra_id, creado_por, creado_en) VALUES (?, ?, ?, ?)',
+      ['TEMP', null, creadoPor, ahora]
+    );
+    const folio = generarFolioConciliacion(config.folio_conciliacion_prefijo, resultado.insertId);
+    await pool.query('UPDATE folios_conciliacion SET folio = ? WHERE id = ?', [folio, resultado.insertId]);
+    res.status(201).json({ folio });
+  })
+);
+
 // Crea una orden de compra. La fecha se auto-genera (no la manda el
 // cliente) usando la zona horaria configurada en "Configuraciones
 // globales"; el IVA también se toma de esa configuración — se guarda una
@@ -5450,6 +5521,37 @@ app.post(
       }
     }
 
+    // Punto 342: "Método de pago" — 'efectivo' si no se manda (compras
+    // registradas antes de este punto o clientes que no la exigen),
+    // validado contra la misma lista que usa Configuraciones (única
+    // fuente de verdad, METODOS_PAGO_VENTA). Solo con "transferencia" se
+    // exige un folio de conciliación YA generado (ver
+    // POST /admin/folios-conciliacion) — nunca se genera uno aquí mismo,
+    // para que el cajero pueda dárselo al cliente ANTES de terminar de
+    // registrar la venta.
+    let metodoPago = String(body.metodo_pago || 'efectivo').toLowerCase();
+    if (!METODOS_PAGO_VENTA.includes(metodoPago)) {
+      return res.status(400).json({ error: 'Selecciona un método de pago válido.' });
+    }
+    let folioConciliacionFila = null;
+    if (metodoPago === 'transferencia') {
+      const folioCapturado = sanitizeText(body.folio_conciliacion, 10).toUpperCase();
+      if (!folioCapturado) {
+        return res.status(400).json({ error: 'Falta el folio de conciliación — vuelve a elegir "Transferencia" para generarlo.' });
+      }
+      const [foliosCoincidentes] = await pool.query(
+        'SELECT id, folio, orden_compra_id FROM folios_conciliacion WHERE folio = ? LIMIT 1',
+        [folioCapturado]
+      );
+      folioConciliacionFila = foliosCoincidentes[0] || null;
+      if (!folioConciliacionFila) {
+        return res.status(400).json({ error: 'El folio de conciliación no es válido. Vuelve a elegir "Transferencia" para generar uno nuevo.' });
+      }
+      if (folioConciliacionFila.orden_compra_id !== null) {
+        return res.status(409).json({ error: 'Ese folio de conciliación ya está usado por otra venta.' });
+      }
+    }
+
     // Cuentas por cobrar (punto 138): por defecto pagada, opción pendiente con vencimiento/notas
     let estadoPago = String(body.estado_pago || 'pagada').toLowerCase();
     if (!['pagada', 'pendiente'].includes(estadoPago)) estadoPago = 'pagada';
@@ -5531,13 +5633,19 @@ app.post(
     const creadoPor = resolverCreadoPorVenta(req);
     const [resultado] = await pool.query(
       `INSERT INTO ordenes_compra
-        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, descuento_porcentaje, descuento_monto, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, creado_por, creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ['TEMP', ahora, concepto, cantidadNeta, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, creadoPor, ahora, ahora]
+        (numero_compra, fecha_compra, concepto, cantidad, iva_porcentaje, total, descuento_porcentaje, descuento_monto, email, estado_pago, fecha_vencimiento, monto_cobrado, fecha_cobro, notas_cobro, producto_id, producto_cantidad, metodo_pago, folio_conciliacion, creado_por, creado_en, actualizado_en)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['TEMP', ahora, concepto, cantidadNeta, ivaPorcentaje, total, descuentoPorcentaje, descuentoMonto, email, estadoPago, fechaVencimiento, montoCobradoInicial, fechaCobroInicial, notasCobro, productoId, productoCantidad, metodoPago, folioConciliacionFila ? folioConciliacionFila.folio : null, creadoPor, ahora, ahora]
     );
 
     const numeroCompra = generarNumeroCompra(resultado.insertId);
     await pool.query('UPDATE ordenes_compra SET numero_compra = ? WHERE id = ?', [numeroCompra, resultado.insertId]);
+    // Vincula el folio de conciliación (ya generado al hacer clic en
+    // "Transferencia", ver POST /admin/folios-conciliacion) a esta venta —
+    // solo AHORA se sabe el id real de la venta.
+    if (folioConciliacionFila) {
+      await pool.query('UPDATE folios_conciliacion SET orden_compra_id = ? WHERE id = ?', [resultado.insertId, folioConciliacionFila.id]);
+    }
 
     // D8: producto tipo "producto" (no "servicio", D11) genera su salida
     // automática — validando stock DENTRO de registrarMovimiento (D4).
@@ -5680,6 +5788,8 @@ app.post(
         // mostrar.
         logoUrl: marcaLogoUrl ? `${urlPortalOrden}${marcaLogoUrl}` : configGlobal.logo_url,
         marca: marcaTenant,
+        metodoPago,
+        folioConciliacion: folioConciliacionFila ? folioConciliacionFila.folio : null,
       }).catch((err) => {
         console.error('No se pudo enviar el correo de confirmación de la orden de compra:', err.message);
       });
@@ -5704,6 +5814,8 @@ app.post(
       notas_cobro: notasCobro,
       producto_id: productoId,
       producto_cantidad: productoCantidad,
+      metodo_pago: metodoPago,
+      folio_conciliacion: folioConciliacionFila ? folioConciliacionFila.folio : null,
       productos_inventario: lineasInventario.map((l) => ({
         producto_id: l.productoId,
         cantidad: l.cantidad,
@@ -5738,6 +5850,7 @@ app.get(
     }
     const [ordenes] = await pool.query(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.descuento_porcentaje, o.descuento_monto, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
+        o.metodo_pago, o.folio_conciliacion,
         o.producto_id, o.producto_cantidad, p.sku AS producto_sku, p.nombre AS producto_nombre,
         o.archivado_en, o.periodo_archivado,
         (o.facturado_en IS NOT NULL) AS facturado,

@@ -278,6 +278,42 @@ describe('config.js', () => {
       );
     });
 
+    test('metodo_pago_venta_default acepta efectivo/transferencia/tarjeta_credito/tarjeta_debito', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ metodo_pago_venta_default: 'transferencia' });
+      expect(resultado.metodo_pago_venta_default).toBe('transferencia');
+    });
+
+    test('metodo_pago_venta_default rechaza cualquier otro valor', async () => {
+      mockActualVacio();
+      await expect(setConfiguracionGlobal({ metodo_pago_venta_default: 'cheque' })).rejects.toThrow(
+        /método de pago por defecto válido/i
+      );
+    });
+
+    test('folio_conciliacion_prefijo acepta 2 letras y las normaliza a mayúsculas', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ folio_conciliacion_prefijo: 'tr' });
+      expect(resultado.folio_conciliacion_prefijo).toBe('TR');
+    });
+
+    test('folio_conciliacion_prefijo rechaza más o menos de 2 letras', async () => {
+      mockActualVacio();
+      await expect(setConfiguracionGlobal({ folio_conciliacion_prefijo: 'ABC' })).rejects.toThrow(
+        /exactamente 2 letras/i
+      );
+      await expect(setConfiguracionGlobal({ folio_conciliacion_prefijo: 'A' })).rejects.toThrow(
+        /exactamente 2 letras/i
+      );
+    });
+
+    test('folio_conciliacion_prefijo rechaza dígitos o símbolos', async () => {
+      mockActualVacio();
+      await expect(setConfiguracionGlobal({ folio_conciliacion_prefijo: 'C1' })).rejects.toThrow(
+        /exactamente 2 letras/i
+      );
+    });
+
     test('auditoria_habilitada se convierte a booleano explícito', async () => {
       mockActualVacio();
       const resultado = await setConfiguracionGlobal({ auditoria_habilitada: 0 });

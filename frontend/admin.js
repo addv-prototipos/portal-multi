@@ -452,6 +452,15 @@
     ordenErrorModalDisponible: document.getElementById('orden-error-modal-disponible'),
     ordenErrorModalSolicitado: document.getElementById('orden-error-modal-solicitado'),
     btnOrdenErrorModalCerrar: document.getElementById('btn-orden-error-modal-cerrar'),
+    // Método de pago + folio de conciliación de transferencia — punto 342
+    btnOrdenMetodoEfectivo: document.getElementById('btn-orden-metodo-efectivo'),
+    btnOrdenMetodoTransferencia: document.getElementById('btn-orden-metodo-transferencia'),
+    btnOrdenMetodoTarjetaCredito: document.getElementById('btn-orden-metodo-tarjeta-credito'),
+    btnOrdenMetodoTarjetaDebito: document.getElementById('btn-orden-metodo-tarjeta-debito'),
+    ordenFolioConciliacionWrap: document.getElementById('orden-folio-conciliacion-wrap'),
+    ordenFolioConciliacionValor: document.getElementById('orden-folio-conciliacion-valor'),
+    btnOrdenCopiarFolio: document.getElementById('btn-orden-copiar-folio'),
+    txtOrdenCopiarFolio: document.getElementById('txt-orden-copiar-folio'),
     // Estado de pago (CxC) — punto 138
     btnOrdenPagoPagada: document.getElementById('btn-orden-pago-pagada'),
     btnOrdenPagoPendiente: document.getElementById('btn-orden-pago-pendiente'),
@@ -1011,6 +1020,11 @@
     ordenesHabilitadoAutoguardado: document.getElementById('ordenes-habilitado-autoguardado'),
     configEntregaDefaultRadios: document.querySelectorAll('input[name="entrega-venta-default"]'),
     entregaDefaultAutoguardado: document.getElementById('entrega-default-autoguardado'),
+    configMetodoPagoDefaultRadios: document.querySelectorAll('input[name="metodo-pago-venta-default"]'),
+    metodoPagoDefaultAutoguardado: document.getElementById('metodo-pago-default-autoguardado'),
+    configFolioConciliacionPrefijo: document.getElementById('config-folio-conciliacion-prefijo'),
+    folioConciliacionPrefijoAutoguardado: document.getElementById('folio-conciliacion-prefijo-autoguardado'),
+    errorFolioConciliacionPrefijo: document.getElementById('error-folio-conciliacion-prefijo'),
     btnToggleAuditoriaCard: document.getElementById('btn-toggle-auditoria-card'),
     auditoriaToggleBody: document.getElementById('auditoria-toggle-body'),
     configAuditoriaHabilitada: document.getElementById('config-auditoria-habilitada'),
@@ -1283,6 +1297,31 @@
   };
 
   inicializarTooltips();
+  inicializarScrollArrastrableTablas();
+
+  // Copiar el folio de conciliación directo desde la columna "Pago" de
+  // la tabla de Ventas, sin abrir el detalle de la venta (punto 342,
+  // celdaPagoOrden más abajo) — un solo listener delegado, cubre tanto
+  // las filas confirmadas como las de la cola offline, ambas se
+  // repueblan dentro del mismo tbody.
+  if (els.ordenesTableBody) {
+    els.ordenesTableBody.addEventListener('click', (e) => {
+      const btn = e.target.closest('.folio-copiable');
+      if (!btn) return;
+      const folio = btn.getAttribute('data-folio');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(folio).catch(() => {});
+      }
+      const span = btn.querySelector('span');
+      const original = span.textContent;
+      btn.classList.add('is-copiado');
+      span.textContent = 'Copiado';
+      setTimeout(() => {
+        btn.classList.remove('is-copiado');
+        span.textContent = original;
+      }, 1200);
+    });
+  }
 
   // ---------- Modo fuera de línea: Ventas y Gastos (ver PROJECT_STATE.md
   // punto 132, US-073/074/075) — el módulo genérico vive en offline.js;
@@ -1426,7 +1465,7 @@
   // Mismo mecanismo de columnas ajustables (mostrar/ocultar + redimensionar),
   // aplicado también a la tabla de "Ventas registradas" — claves de
   // localStorage separadas para no mezclar las preferencias de ambas tablas.
-  const COLUMNAS_TABLA_ORDENES = ['numero', 'fecha', 'concepto', 'cantidad', 'iva', 'total', 'correo'];
+  const COLUMNAS_TABLA_ORDENES = ['numero', 'fecha', 'concepto', 'cantidad', 'iva', 'total', 'correo', 'pago'];
   const COLUMNAS_ORDENES_STORAGE_KEY = 'admin_ordenes_columnas_visibles';
   const ANCHOS_ORDENES_STORAGE_KEY = 'admin_ordenes_anchos_columnas';
   // Mismo mecanismo de columnas ajustables, aplicado a la tabla de
@@ -1687,6 +1726,93 @@
     // dentro de una tabla con scroll horizontal), se oculta en vez de
     // quedar flotando en una posición que ya no corresponde a nada.
     document.addEventListener('scroll', ocultar, true);
+  }
+
+  // Arrastrar con clic izquierdo sostenido para hacer scroll horizontal
+  // en TODAS las tablas del panel (.admin-table-wrap) + aviso flotante
+  // "Desliza para ver más" mientras queden columnas ocultas a la
+  // derecha — mismo componente reutilizable en cada tabla, igual que
+  // inicializarTooltips(). Se corre una sola vez al arrancar: los
+  // <tbody> se repueblan después con datos, pero el contenedor
+  // .admin-table-wrap ya existe en el HTML desde el principio. En móvil
+  // no hace nada útil (la tabla pasa a tarjetas apiladas,
+  // overflow-x:visible, ver @media en admin.css) — ahí simplemente no
+  // hay overflow que detectar, así que el aviso nunca se muestra.
+  function inicializarScrollArrastrableTablas() {
+    const SELECTOR_INTERACTIVO_SCROLL = 'button, a, input, select, textarea, .col-resizer';
+    const UMBRAL_ARRASTRE = 4;
+
+    document.querySelectorAll('.admin-table-wrap').forEach((wrap) => {
+      const shell = document.createElement('div');
+      shell.className = 'table-scroll-shell';
+      wrap.parentNode.insertBefore(shell, wrap);
+      shell.appendChild(wrap);
+
+      const fade = document.createElement('div');
+      fade.className = 'scroll-fade-edge';
+      const pill = document.createElement('div');
+      pill.className = 'scroll-hint-pill';
+      pill.innerHTML = '<span>Desliza para ver más</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      shell.appendChild(fade);
+      shell.appendChild(pill);
+
+      function actualizarAviso() {
+        const hayOverflow = wrap.scrollWidth > wrap.clientWidth + 1;
+        const alFinal = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 2;
+        const mostrar = hayOverflow && !alFinal;
+        pill.classList.toggle('is-visible', mostrar);
+        fade.classList.toggle('is-visible', mostrar);
+      }
+
+      let isDown = false;
+      let dragging = false;
+      let startX = 0;
+      let startScroll = 0;
+
+      wrap.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest(SELECTOR_INTERACTIVO_SCROLL)) return;
+        isDown = true;
+        dragging = false;
+        startX = e.pageX;
+        startScroll = wrap.scrollLeft;
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        const dx = e.pageX - startX;
+        if (!dragging) {
+          if (Math.abs(dx) <= UMBRAL_ARRASTRE) return;
+          // El navegador ya empezó una selección de texto nativa (ej. el
+          // usuario arrastra sobre un correo/folio para copiarlo) — se
+          // respeta esa selección, no se convierte en scroll horizontal.
+          const seleccion = window.getSelection();
+          if (seleccion && seleccion.toString().length > 0) {
+            isDown = false;
+            return;
+          }
+          dragging = true;
+          wrap.classList.add('is-dragging');
+        }
+        e.preventDefault();
+        wrap.scrollLeft = startScroll - dx;
+        actualizarAviso();
+      });
+      window.addEventListener('mouseup', () => {
+        if (dragging) {
+          // El mismo gesto que arrastró no debe además disparar el clic
+          // de lo que haya bajo el cursor al soltar.
+          wrap.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); }, { capture: true, once: true });
+        }
+        isDown = false;
+        dragging = false;
+        wrap.classList.remove('is-dragging');
+        actualizarAviso();
+      });
+
+      wrap.addEventListener('scroll', actualizarAviso);
+      window.addEventListener('resize', actualizarAviso);
+      actualizarAviso();
+    });
   }
 
   function escapeHtml(str) {
@@ -3483,6 +3609,103 @@
     });
   });
 
+  // Punto 342: "Método de pago por defecto" — mismo patrón exacto que
+  // "Método de entrega por defecto" de arriba.
+  let timeoutAutoguardadoMetodoPagoDefault = null;
+  els.configMetodoPagoDefaultRadios.forEach((radio) => {
+    radio.addEventListener('change', async () => {
+      if (!radio.checked) return;
+      const valorAnterior = ordenMetodoPagoDefault;
+      const nuevoValor = radio.value;
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+
+      clearTimeout(timeoutAutoguardadoMetodoPagoDefault);
+      els.configMetodoPagoDefaultRadios.forEach((r) => { r.disabled = true; });
+      els.metodoPagoDefaultAutoguardado.textContent = 'Guardando…';
+      els.metodoPagoDefaultAutoguardado.setAttribute('data-estado', 'guardando');
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/config/global`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ metodo_pago_venta_default: nuevoValor }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'No se pudo guardar.');
+        }
+
+        ordenMetodoPagoDefault = nuevoValor;
+        els.metodoPagoDefaultAutoguardado.innerHTML = HTML_GUARDADO_OK;
+        els.metodoPagoDefaultAutoguardado.setAttribute('data-estado', 'guardado');
+        timeoutAutoguardadoMetodoPagoDefault = setTimeout(() => {
+          els.metodoPagoDefaultAutoguardado.textContent = '';
+          els.metodoPagoDefaultAutoguardado.removeAttribute('data-estado');
+        }, 2500);
+      } catch (err) {
+        els.configMetodoPagoDefaultRadios.forEach((r) => {
+          r.checked = r.value === valorAnterior;
+        });
+        els.metodoPagoDefaultAutoguardado.textContent = 'No se pudo guardar — inténtalo de nuevo.';
+        els.metodoPagoDefaultAutoguardado.setAttribute('data-estado', 'error');
+      } finally {
+        els.configMetodoPagoDefaultRadios.forEach((r) => { r.disabled = false; });
+      }
+    });
+  });
+
+  // Punto 342: prefijo del folio de conciliación — autoguardado en
+  // blur/change (no en cada tecla), mismo criterio que otros campos de
+  // texto de Configuraciones.
+  let timeoutAutoguardadoFolioPrefijo = null;
+  if (els.configFolioConciliacionPrefijo) {
+    els.configFolioConciliacionPrefijo.addEventListener('change', async () => {
+      els.errorFolioConciliacionPrefijo.textContent = '';
+      const nuevoValor = els.configFolioConciliacionPrefijo.value.trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(nuevoValor)) {
+        els.errorFolioConciliacionPrefijo.textContent = 'Captura exactamente 2 letras (A-Z).';
+        return;
+      }
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+
+      clearTimeout(timeoutAutoguardadoFolioPrefijo);
+      els.configFolioConciliacionPrefijo.disabled = true;
+      els.folioConciliacionPrefijoAutoguardado.textContent = 'Guardando…';
+      els.folioConciliacionPrefijoAutoguardado.setAttribute('data-estado', 'guardando');
+
+      try {
+        const res = await fetch(`${API_BASE}/admin/config/global`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folio_conciliacion_prefijo: nuevoValor }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
+        els.configFolioConciliacionPrefijo.value = nuevoValor;
+        els.folioConciliacionPrefijoAutoguardado.innerHTML = HTML_GUARDADO_OK;
+        els.folioConciliacionPrefijoAutoguardado.setAttribute('data-estado', 'guardado');
+        timeoutAutoguardadoFolioPrefijo = setTimeout(() => {
+          els.folioConciliacionPrefijoAutoguardado.textContent = '';
+          els.folioConciliacionPrefijoAutoguardado.removeAttribute('data-estado');
+        }, 2500);
+      } catch (err) {
+        els.folioConciliacionPrefijoAutoguardado.textContent = '';
+        els.folioConciliacionPrefijoAutoguardado.removeAttribute('data-estado');
+        els.errorFolioConciliacionPrefijo.textContent = err.message;
+      } finally {
+        els.configFolioConciliacionPrefijo.disabled = false;
+      }
+    });
+  }
+
   // "Mostrar Auditoría" — mismo autoguardado que "Habilitar Ventas".
   let timeoutAutoguardadoAuditoria = null;
   els.configAuditoriaHabilitada.addEventListener('change', async () => {
@@ -3725,6 +3948,15 @@
       els.configEntregaDefaultRadios.forEach((radio) => {
         radio.checked = radio.value === (config.entrega_venta_default || 'sinticket');
       });
+      ordenMetodoPagoDefault = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'].includes(config.metodo_pago_venta_default)
+        ? config.metodo_pago_venta_default
+        : 'efectivo';
+      els.configMetodoPagoDefaultRadios.forEach((radio) => {
+        radio.checked = radio.value === ordenMetodoPagoDefault;
+      });
+      if (els.configFolioConciliacionPrefijo && !els.configFolioConciliacionPrefijo.matches(':focus')) {
+        els.configFolioConciliacionPrefijo.value = config.folio_conciliacion_prefijo || 'CV';
+      }
       els.configAuditoriaHabilitada.checked = config.auditoria_habilitada !== false;
       els.configNotifTicketsPermiteOcultar.checked = config.notif_tickets_permite_ocultar !== false;
       notifTicketsPermiteOcultarGlobalmente = config.notif_tickets_permite_ocultar !== false;
@@ -8330,6 +8562,105 @@
   els.btnOrdenEntregaImprimir.addEventListener('click', () => aplicarMetodoEntregaOrden('imprimir'));
   els.btnOrdenEntregaSinTicket.addEventListener('click', () => aplicarMetodoEntregaOrden('sinticket'));
 
+  // Método de pago (punto 342): 'efectivo'/'transferencia'/
+  // 'tarjeta_credito'/'tarjeta_debito'. Con "transferencia" se genera y
+  // persiste un folio de conciliación EN CUANTO se hace clic
+  // (POST /admin/folios-conciliacion, antes de que la venta exista) —
+  // solo una vez por apertura del modal: si el cajero cambia de método y
+  // regresa a "transferencia" sin cerrar el modal, se reusa el mismo
+  // folio (evita generar varios folios sin usar por clics indecisos). El
+  // punto de partida al abrir el modal lo decide "Configuraciones" →
+  // Ventas → "Método de pago por defecto" (ordenMetodoPagoDefault,
+  // cargado en cargarConfigGlobalParaOrden()).
+  let ordenMetodoPago = 'efectivo';
+  let ordenMetodoPagoDefault = 'efectivo';
+  let ordenFolioConciliacion = null;
+  let ordenGenerandoFolio = false;
+  const BOTONES_METODO_PAGO_ORDEN = [
+    ['efectivo', () => els.btnOrdenMetodoEfectivo],
+    ['transferencia', () => els.btnOrdenMetodoTransferencia],
+    ['tarjeta_credito', () => els.btnOrdenMetodoTarjetaCredito],
+    ['tarjeta_debito', () => els.btnOrdenMetodoTarjetaDebito],
+  ];
+
+  function aplicarMetodoPagoOrden(modo) {
+    ordenMetodoPago = modo;
+    BOTONES_METODO_PAGO_ORDEN.forEach(([val, obtenerBtn]) => {
+      const btn = obtenerBtn();
+      if (!btn) return;
+      const activo = val === modo;
+      btn.classList.toggle('is-active', activo);
+      btn.setAttribute('aria-selected', String(activo));
+    });
+    setFieldError('orden-metodo-pago', '');
+    if (modo === 'transferencia') {
+      generarFolioConciliacionSiHaceFalta();
+    } else if (els.ordenFolioConciliacionWrap) {
+      els.ordenFolioConciliacionWrap.hidden = true;
+    }
+  }
+
+  async function generarFolioConciliacionSiHaceFalta() {
+    // Ya se generó uno en esta misma apertura del modal — se reusa, no se
+    // pide otro (ver comentario de arriba).
+    if (ordenFolioConciliacion) {
+      if (els.ordenFolioConciliacionWrap) els.ordenFolioConciliacionWrap.hidden = false;
+      return;
+    }
+    if (ordenGenerandoFolio) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    ordenGenerandoFolio = true;
+    setFieldError('orden-metodo-pago', '');
+    try {
+      const res = await fetch(`${API_BASE}/admin/folios-conciliacion`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo generar el folio de conciliación.');
+      ordenFolioConciliacion = data.folio;
+      if (els.ordenFolioConciliacionValor) els.ordenFolioConciliacionValor.textContent = data.folio;
+      if (els.ordenFolioConciliacionWrap) els.ordenFolioConciliacionWrap.hidden = false;
+    } catch (err) {
+      // Sin el folio no se puede dejar "Transferencia" seleccionado — se
+      // regresa a "Efectivo" y se explica por qué (ej. sin conexión).
+      setFieldError('orden-metodo-pago', err.message || 'No se pudo generar el folio de conciliación. Inténtalo de nuevo.');
+      aplicarMetodoPagoOrden('efectivo');
+    } finally {
+      ordenGenerandoFolio = false;
+    }
+  }
+
+  BOTONES_METODO_PAGO_ORDEN.forEach(([val, obtenerBtn]) => {
+    const btn = obtenerBtn();
+    if (btn) btn.addEventListener('click', () => aplicarMetodoPagoOrden(val));
+  });
+
+  if (els.btnOrdenCopiarFolio) {
+    els.btnOrdenCopiarFolio.addEventListener('click', async () => {
+      if (!ordenFolioConciliacion) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(ordenFolioConciliacion);
+        }
+        els.btnOrdenCopiarFolio.classList.add('is-copiado');
+        els.txtOrdenCopiarFolio.textContent = 'Copiado';
+        setTimeout(() => {
+          els.btnOrdenCopiarFolio.classList.remove('is-copiado');
+          els.txtOrdenCopiarFolio.textContent = 'Copiar';
+        }, 1600);
+      } catch (err) {
+        // Sin permiso de portapapeles: el folio ya está visible en
+        // pantalla (grande, ver .orden-folio-callout-valor) — no hace
+        // falta más que eso.
+      }
+    });
+  }
+
   // Estado de pago (CxC punto 138): pagada (default verde) / pendiente (ámbar)
   let ordenEstadoPago = 'pagada';
   function aplicarEstadoPago(estado) {
@@ -8440,6 +8771,9 @@
       ivaActualParaOrden = config.iva_porcentaje;
       if (['correo', 'imprimir', 'sinticket'].includes(config.entrega_venta_default)) {
         ordenEntregaDefault = config.entrega_venta_default;
+      }
+      if (['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'].includes(config.metodo_pago_venta_default)) {
+        ordenMetodoPagoDefault = config.metodo_pago_venta_default;
       }
       els.ordenIvaInfo.textContent = `${config.iva_porcentaje}%`;
       if (els.ordenInfoBannerIva) els.ordenInfoBannerIva.textContent = `${config.iva_porcentaje}%`;
@@ -8867,6 +9201,9 @@
     els.ordenEmailNuevo.value = '';
     aplicarModoClienteOrden(false);
     aplicarMetodoEntregaOrden(ordenEntregaDefault);
+    ordenFolioConciliacion = null;
+    setFieldError('orden-metodo-pago', '');
+    aplicarMetodoPagoOrden(ordenMetodoPagoDefault);
     aplicarEstadoPago('pagada');
     if (els.ordenFechaVencimiento) els.ordenFechaVencimiento.value = '';
     if (els.ordenNotasCobro) els.ordenNotasCobro.value = '';
@@ -8996,6 +9333,8 @@
       descuento_monto: descuentoMonto,
       email,
       fecha_compra_formateada: null,
+      metodo_pago: ordenMetodoPago,
+      folio_conciliacion: ordenFolioConciliacion,
     };
   }
 
@@ -9132,6 +9471,8 @@
         estado_pago: ordenEstadoPago,
         fecha_vencimiento: ordenEstadoPago === 'pendiente' ? fechaVencimiento : null,
         notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null,
+        metodo_pago: ordenMetodoPago,
+        folio_conciliacion: ordenMetodoPago === 'transferencia' ? ordenFolioConciliacion : undefined,
       });
       borrarOrdenBorradorGuardado();
       mostrarExitoRegistrarOrden('Guardado — se enviará al recuperar conexión');
@@ -9155,6 +9496,8 @@
           estado_pago: ordenEstadoPago,
           fecha_vencimiento: ordenEstadoPago === 'pendiente' ? fechaVencimiento : null,
           notas_cobro: ordenEstadoPago === 'pendiente' ? notasCobro : null,
+          metodo_pago: ordenMetodoPago,
+          folio_conciliacion: ordenMetodoPago === 'transferencia' ? ordenFolioConciliacion : undefined,
           productos_inventario:
             lineasInventarioEnLista.length > 0
               ? lineasInventarioEnLista.map((p) => ({ producto_id: p.producto_id, cantidad: p.cantidad }))
@@ -9181,6 +9524,8 @@
                 descuento_monto: data.descuento_monto,
                 email: data.email,
                 fecha_compra_formateada: data.fecha_compra,
+                metodo_pago: data.metodo_pago,
+                folio_conciliacion: data.folio_conciliacion,
               })
           : undefined
       );
@@ -9449,6 +9794,11 @@
       ${filaDescuentoHtml}
       <div class="ticket-imprimir-linea"><span>IVA (${Number(orden.iva_porcentaje)}%)</span><span>$${formatearMoneda(ivaMonto)}</span></div>
       <div class="ticket-imprimir-linea ticket-imprimir-total"><span>TOTAL</span><span>$${formatearMoneda(orden.total)}</span></div>
+      ${orden.metodo_pago === 'transferencia' && orden.folio_conciliacion ? `
+      <div class="ticket-imprimir-concepto">
+        <div class="ticket-imprimir-concepto-label">Concepto para transferencia</div>
+        <div class="ticket-imprimir-concepto-valor">${escapeHtml(orden.folio_conciliacion)}</div>
+      </div>` : ''}
       <div class="ticket-imprimir-separador"></div>
       ${orden.email ? `<div class="ticket-imprimir-meta">Cliente: ${escapeHtml(orden.email)}</div><div class="ticket-imprimir-separador"></div>` : ''}
       <div class="ticket-imprimir-gracias">¡Gracias por su compra!</div>
@@ -9545,6 +9895,38 @@
   // aplica hasta que exista de verdad en el servidor. "Descartar" quita
   // la fila de la cola local; "Reintentar" solo aparece si ya falló una
   // vez al sincronizar.
+  // Punto 342 (fusionado a pedido del usuario tras ver la tabla real:
+  // "Método de pago"/"Folio conciliación" por separado dejaba casi
+  // siempre la 2da columna en "—"): una sola columna "Pago" — ícono por
+  // método + el folio, cuando existe, con su propio botón de copiar
+  // directo desde la tabla (sin abrir el detalle de la venta). Ventas de
+  // antes de este punto no tienen el dato (NULL, ver db.js) y se
+  // muestran como "—", no como un valor inventado.
+  const ETIQUETAS_METODO_PAGO_ORDEN = {
+    efectivo: 'Efectivo',
+    transferencia: 'Transferencia',
+    tarjeta_credito: 'T. crédito',
+    tarjeta_debito: 'T. débito',
+  };
+  const ICONOS_METODO_PAGO_ORDEN = {
+    efectivo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 8h20M2 8v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    transferencia: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 10l5-5 5 5M7 14l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    tarjeta_credito: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+    tarjeta_debito: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4" stroke-linecap="round"/></svg>',
+  };
+  const ICONO_COPIAR_FOLIO_TABLA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  function celdaPagoOrden(metodo, folio) {
+    if (!metodo || !ETIQUETAS_METODO_PAGO_ORDEN[metodo]) return '—';
+    const esTransferencia = metodo === 'transferencia';
+    const folioHtml = folio
+      ? `<button type="button" class="folio-copiable" data-folio="${escapeHtml(folio)}">${ICONO_COPIAR_FOLIO_TABLA}<span>${escapeHtml(folio)}</span></button>`
+      : '';
+    return `<div class="pago-icono-fila">
+      <span class="pago-icono-swatch${esTransferencia ? ' is-transferencia' : ''}">${ICONOS_METODO_PAGO_ORDEN[metodo]}</span>
+      <div class="pago-icono-texto"><span class="metodo-label">${escapeHtml(ETIQUETAS_METODO_PAGO_ORDEN[metodo])}</span>${folioHtml}</div>
+    </div>`;
+  }
+
   function filaOrdenPendiente(orden) {
     const tr = document.createElement('tr');
     tr.className = `fila-pendiente-sync${orden.__error ? ' tiene-error' : ''}`;
@@ -9558,6 +9940,7 @@
       <td data-label="Concepto" data-col="concepto">${renderConceptoPreviewOrden(orden.concepto)}</td>
       <td data-label="Total" data-col="total"><strong>~$${formatearMoneda(orden.total)}</strong></td>
       <td data-label="Correo" data-col="correo">${orden.email ? escapeHtml(orden.email) : 'Sin correo'}</td>
+      <td data-label="Pago" data-col="pago">${celdaPagoOrden(orden.metodo_pago, orden.folio_conciliacion)}</td>
       <td data-label=""></td>
     `;
     const celdaAcciones = tr.lastElementChild;
@@ -9635,6 +10018,7 @@
         <td data-label="Concepto" data-col="concepto">${renderConceptoPreviewOrden(orden.concepto)}</td>
         <td data-label="Total" data-col="total"><strong>$${formatearMoneda(orden.total)}</strong></td>
         <td data-label="Correo" data-col="correo" class="orden-correo-con-tooltip" data-tooltip="${escapeHtml(tituloCorreo)}">${orden.email ? escapeHtml(orden.email) : 'Sin correo'}</td>
+        <td data-label="Pago" data-col="pago">${celdaPagoOrden(orden.metodo_pago, orden.folio_conciliacion)}</td>
         <td data-label=""></td>
       `;
 

@@ -92,6 +92,94 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       expect(pool.query).toHaveBeenCalledTimes(4);
     });
 
+    describe('punto 342: método de pago + folio de conciliación', () => {
+      test('sin metodo_pago en el body, guarda "efectivo" por defecto', async () => {
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+        pool.query.mockResolvedValueOnce([{ insertId: 20, affectedRows: 1 }]); // INSERT
+        pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth(usuario, password)
+          .send({ concepto: '1 x Producto', cantidad: 10 });
+
+        expect(res.status).toBe(201);
+        expect(res.body.metodo_pago).toBe('efectivo');
+        expect(res.body.folio_conciliacion).toBeNull();
+      });
+
+      test('metodo_pago inválido responde 400', async () => {
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth(usuario, password)
+          .send({ concepto: '1 x Producto', cantidad: 10, metodo_pago: 'cheque' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/método de pago válido/i);
+      });
+
+      test('metodo_pago "transferencia" sin folio_conciliacion responde 400', async () => {
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth(usuario, password)
+          .send({ concepto: '1 x Producto', cantidad: 10, metodo_pago: 'transferencia' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/falta el folio de conciliación/i);
+      });
+
+      test('metodo_pago "transferencia" con folio inexistente responde 400', async () => {
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        pool.query.mockResolvedValueOnce([[]]); // SELECT folios_conciliacion -> no existe
+
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth(usuario, password)
+          .send({ concepto: '1 x Producto', cantidad: 10, metodo_pago: 'transferencia', folio_conciliacion: 'CV9999' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/folio de conciliación no es válido/i);
+      });
+
+      test('metodo_pago "transferencia" con folio ya usado por otra venta responde 409', async () => {
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        pool.query.mockResolvedValueOnce([[{ id: 3, folio: 'CV0003', orden_compra_id: 77 }]]); // ya vinculado
+
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth(usuario, password)
+          .send({ concepto: '1 x Producto', cantidad: 10, metodo_pago: 'transferencia', folio_conciliacion: 'cv0003' });
+
+        expect(res.status).toBe(409);
+        expect(res.body.error).toMatch(/ya está usado por otra venta/i);
+      });
+
+      test('metodo_pago "transferencia" con folio válido y libre: registra la venta y vincula el folio', async () => {
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        pool.query.mockResolvedValueOnce([[{ id: 3, folio: 'CV0003', orden_compra_id: null }]]); // SELECT folios_conciliacion
+        pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+        pool.query.mockResolvedValueOnce([{ insertId: 21, affectedRows: 1 }]); // INSERT ordenes_compra
+        pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
+        pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE folios_conciliacion (vincula)
+
+        const res = await request(app)
+          .post('/api/admin/ordenes-compra')
+          .auth(usuario, password)
+          .send({ concepto: '1 x Producto', cantidad: 10, metodo_pago: 'transferencia', folio_conciliacion: 'cv0003' });
+
+        expect(res.status).toBe(201);
+        expect(res.body.metodo_pago).toBe('transferencia');
+        expect(res.body.folio_conciliacion).toBe('CV0003');
+        expect(pool.query).toHaveBeenLastCalledWith(
+          'UPDATE folios_conciliacion SET orden_compra_id = ? WHERE id = ?',
+          [21, 3]
+        );
+      });
+    });
+
     describe('punto 320: quién registró la venta (creado_por, nunca expuesto aquí)', () => {
       test('perfil_bd CON nombre en "Mi Cuenta": guarda el nombre, nunca el usuario de login', async () => {
         const { usuario, password } = mockUsuarioAdministrativo('ventas', {
@@ -512,6 +600,50 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/correo/i);
     });
+  });
+});
+
+describe('POST /api/admin/folios-conciliacion (punto 342)', () => {
+  afterEach(() => {
+    pool.query.mockReset();
+  });
+
+  test('sin credenciales responde 401', async () => {
+    const res = await request(app).post('/api/admin/folios-conciliacion');
+    expect(res.status).toBe(401);
+  });
+
+  test('perfil "fiscal" no tiene acceso (403) — mismo candado que el resto de Ventas', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+    const res = await request(app).post('/api/admin/folios-conciliacion').auth(usuario, password);
+    expect(res.status).toBe(403);
+  });
+
+  test('perfil "ventas" sí tiene acceso (punto 190) y genera un folio con el prefijo por defecto', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'vendedor1' });
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults (prefijo 'CV')
+    pool.query.mockResolvedValueOnce([{ insertId: 7, affectedRows: 1 }]); // INSERT folios_conciliacion
+    pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE folio real
+
+    const res = await request(app).post('/api/admin/folios-conciliacion').auth(usuario, password);
+
+    expect(res.status).toBe(201);
+    expect(res.body.folio).toBe('CV0007');
+    expect(pool.query).toHaveBeenLastCalledWith('UPDATE folios_conciliacion SET folio = ? WHERE id = ?', ['CV0007', 7]);
+  });
+
+  test('usa el prefijo configurado (no siempre "CV")', async () => {
+    const { usuario, password } = mockUsuarioAdministrativo('administrador');
+    pool.query.mockResolvedValueOnce([
+      [{ valor: JSON.stringify({ folio_conciliacion_prefijo: 'TR' }) }],
+    ]); // getConfiguracionGlobal -> prefijo custom
+    pool.query.mockResolvedValueOnce([{ insertId: 42, affectedRows: 1 }]); // INSERT
+    pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
+
+    const res = await request(app).post('/api/admin/folios-conciliacion').auth(usuario, password);
+
+    expect(res.status).toBe(201);
+    expect(res.body.folio).toBe('TR0042');
   });
 });
 

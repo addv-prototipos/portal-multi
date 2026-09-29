@@ -891,6 +891,53 @@ async function ensureSchema(db = pool) {
     await db.query(`ALTER TABLE ordenes_compra ADD COLUMN descuento_monto DECIMAL(12,2) NULL`);
   }
 
+  // Punto 342: "Método de pago" de la venta + folio corto de conciliación
+  // para transferencias. `metodo_pago` queda NULL (no ENUM con DEFAULT) a
+  // propósito — no hay dato real para ventas históricas, y ponerles
+  // 'efectivo' por defecto sería inventar un dato que no se capturó
+  // (distinto del default en el FORMULARIO, que sí abre en "Efectivo").
+  // `folio_conciliacion` es una copia desnormalizada del folio generado
+  // en `folios_conciliacion` (ver más abajo) — vive aquí también para no
+  // depender de un JOIN al mostrar/filtrar la tabla de Ventas.
+  if (!nombresOrdenProducto.includes('metodo_pago')) {
+    await db.query(
+      `ALTER TABLE ordenes_compra ADD COLUMN metodo_pago ENUM('efectivo','transferencia','tarjeta_credito','tarjeta_debito') NULL`
+    );
+    await db.query(`ALTER TABLE ordenes_compra ADD KEY idx_ordenes_compra_metodo_pago (metodo_pago)`);
+  }
+  if (!nombresOrdenProducto.includes('folio_conciliacion')) {
+    await db.query(`ALTER TABLE ordenes_compra ADD COLUMN folio_conciliacion VARCHAR(10) NULL`);
+    await db.query(`ALTER TABLE ordenes_compra ADD UNIQUE KEY uq_ordenes_compra_folio_conciliacion (folio_conciliacion)`);
+  }
+
+  // folios_conciliacion (punto 342): registro de TODOS los folios de
+  // transferencia generados, se dispare o no la venta a la que iban a
+  // asociarse — a propósito, porque sirven para conciliar contra el
+  // estado de cuenta bancario, y un folio ya entregado al cliente (aunque
+  // la venta se haya cancelado a medias) puede seguir llegando como
+  // transferencia real. `orden_compra_id` empieza NULL (el folio se
+  // genera ANTES de que exista la venta, al hacer clic en "Transferencia"
+  // en el modal) y se rellena cuando la venta se registra de verdad.
+  // Mismo patrón de folio que TK-/OC- (generarFolio/generarNumeroCompra
+  // en server.js): INSERT con 'TEMP', se lee insertId, se arma el folio
+  // real, UPDATE — sin tabla de secuencia aparte. Sin CONSTRAINT FOREIGN
+  // KEY hacia ordenes_compra a propósito (mismo criterio que
+  // producto_id/producto_cantidad arriba): la fila de folios_conciliacion
+  // se crea ANTES que la de ordenes_compra en el flujo real, así que un
+  // FK con ON DELETE/UPDATE estricto complicaría el orden sin aportar
+  // nada que la aplicación no valide ya.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS folios_conciliacion (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      folio VARCHAR(10) NOT NULL,
+      orden_compra_id INT NULL,
+      creado_por VARCHAR(200) NULL,
+      creado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_folios_conciliacion_folio (folio),
+      KEY idx_folios_conciliacion_orden (orden_compra_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   // orden_productos (Segmento A, "Ventas con inventario activo" —
   // permite varias líneas de inventario por venta). producto_id/
   // producto_cantidad de arriba quedan congeladas para el historial de

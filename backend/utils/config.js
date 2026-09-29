@@ -127,6 +127,12 @@ function diasDeReglaExpiracion(regla) {
   return Number(match[1]) * DIAS_POR_UNIDAD_REGLA_EXPIRACION[match[2]];
 }
 
+// Punto 342: valores válidos de "Método de pago" de una venta — única
+// fuente de verdad, reutilizada también por server.js (validación del
+// POST /admin/ordenes-compra) para que nunca se desincronicen.
+const METODOS_PAGO_VENTA = ['efectivo', 'transferencia', 'tarjeta_credito', 'tarjeta_debito'];
+const REGEX_PREFIJO_FOLIO_CONCILIACION = /^[A-Z]{2}$/;
+
 const CLAVE_CONFIG_GLOBAL = 'configuracion_global';
 const DEFAULTS_CONFIG_GLOBAL = {
   iva_porcentaje: 16, // tasa general de IVA vigente en México
@@ -155,6 +161,18 @@ const DEFAULTS_CONFIG_GLOBAL = {
   // venta) — antes solo existían 'correo'/'imprimir', ambos hardcodeados
   // a 'correo' al abrir el modal.
   entrega_venta_default: 'sinticket',
+  // Punto 342: método de pago con el que abre siempre el modal "Registrar
+  // venta" — mismo criterio que entrega_venta_default (cada venta lo
+  // puede cambiar, esto solo decide el punto de partida). 'efectivo' por
+  // defecto, pedido explícito del usuario.
+  metodo_pago_venta_default: 'efectivo',
+  // Prefijo de 2 letras del folio corto de conciliación de transferencias
+  // (ver folios_conciliacion en db.js) — ej. con prefijo "CV", el folio
+  // que se le da al cliente como "Concepto" es "CV0001". Configurable
+  // (petición explícita del usuario, no fijo) — siempre 2 letras
+  // MAYÚSCULAS, sin dígitos ni símbolos, para que quepa cómodo en el
+  // campo "Concepto" de cualquier app bancaria.
+  folio_conciliacion_prefijo: 'CV',
   // Punto 244 (Auditoría consultable): interruptor para mostrar/ocultar
   // el menú "Auditoría" (administrador/super) — la tabla `admin_auditoria`
   // sigue registrando todo acceso pase lo que pase (segmento 7, sin
@@ -243,6 +261,12 @@ async function getConfiguracionGlobal() {
     if (['correo', 'imprimir', 'sinticket'].includes(parsed.entrega_venta_default)) {
       resultado.entrega_venta_default = parsed.entrega_venta_default;
     }
+    if (METODOS_PAGO_VENTA.includes(parsed.metodo_pago_venta_default)) {
+      resultado.metodo_pago_venta_default = parsed.metodo_pago_venta_default;
+    }
+    if (typeof parsed.folio_conciliacion_prefijo === 'string' && REGEX_PREFIJO_FOLIO_CONCILIACION.test(parsed.folio_conciliacion_prefijo)) {
+      resultado.folio_conciliacion_prefijo = parsed.folio_conciliacion_prefijo;
+    }
     if (typeof parsed.auditoria_habilitada === 'boolean') {
       resultado.auditoria_habilitada = parsed.auditoria_habilitada;
     }
@@ -320,6 +344,23 @@ async function setConfiguracionGlobal(cambios) {
       throw new Error('Selecciona un método de entrega por defecto válido.');
     }
     nuevo.entrega_venta_default = cambios.entrega_venta_default;
+  }
+
+  if (cambios.metodo_pago_venta_default !== undefined) {
+    if (!METODOS_PAGO_VENTA.includes(cambios.metodo_pago_venta_default)) {
+      throw new Error('Selecciona un método de pago por defecto válido.');
+    }
+    nuevo.metodo_pago_venta_default = cambios.metodo_pago_venta_default;
+  }
+
+  if (cambios.folio_conciliacion_prefijo !== undefined) {
+    const prefijo = typeof cambios.folio_conciliacion_prefijo === 'string'
+      ? cambios.folio_conciliacion_prefijo.trim().toUpperCase()
+      : '';
+    if (!REGEX_PREFIJO_FOLIO_CONCILIACION.test(prefijo)) {
+      throw new Error('El prefijo del folio de conciliación debe ser exactamente 2 letras (A-Z).');
+    }
+    nuevo.folio_conciliacion_prefijo = prefijo;
   }
 
   if (cambios.auditoria_habilitada !== undefined) {
@@ -472,4 +513,5 @@ module.exports = {
   diasDeReglaExpiracion,
   obtenerDiasMaximoAvisoExpiracion,
   formatearFechaHoraMexico,
+  METODOS_PAGO_VENTA,
 };

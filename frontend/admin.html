@@ -1171,6 +1171,7 @@
                 <label class="checkbox-row"><input type="checkbox" data-col="concepto" checked /><span>Concepto</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="total" checked /><span>Total</span></label>
                 <label class="checkbox-row"><input type="checkbox" data-col="correo" checked /><span>Correo</span></label>
+                <label class="checkbox-row"><input type="checkbox" data-col="pago" checked /><span>Pago</span></label>
               </div>
             </div>
             <button type="button" class="btn btn-secondary" id="btn-refresh-ordenes">Actualizar</button>
@@ -1248,6 +1249,7 @@
                   <th data-col="concepto"><span class="th-label">Concepto</span><span class="col-resizer" data-resizer="concepto"></span></th>
                   <th data-col="total"><span class="th-label">Total</span><span class="col-resizer" data-resizer="total"></span></th>
                   <th data-col="correo"><span class="th-label">Correo</span><span class="col-resizer" data-resizer="correo"></span></th>
+                  <th data-col="pago"><span class="th-label">Pago</span><span class="col-resizer" data-resizer="pago"></span></th>
                   <th></th>
                 </tr>
               </thead>
@@ -1492,6 +1494,44 @@
             <div class="orden-wizard-paso" data-paso="3">
               <p class="orden-seccion-label">Pago y entrega</p>
               <div class="orden-tarjeta-campo">
+              <div class="field">
+                <label>Método de pago</label>
+                <div class="view-toggle view-toggle-grid4" role="tablist" aria-label="Método de pago de esta venta">
+                  <button type="button" class="view-toggle-btn is-active" id="btn-orden-metodo-efectivo" role="tab" aria-selected="true" data-metodo="efectivo">
+                    <svg class="view-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 8h20M2 8v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Efectivo
+                  </button>
+                  <button type="button" class="view-toggle-btn" id="btn-orden-metodo-transferencia" role="tab" aria-selected="false" data-metodo="transferencia">
+                    <svg class="view-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 10l5-5 5 5M7 14l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Transferencia
+                  </button>
+                  <button type="button" class="view-toggle-btn" id="btn-orden-metodo-tarjeta-credito" role="tab" aria-selected="false" data-metodo="tarjeta_credito">
+                    <svg class="view-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                    T. crédito
+                  </button>
+                  <button type="button" class="view-toggle-btn" id="btn-orden-metodo-tarjeta-debito" role="tab" aria-selected="false" data-metodo="tarjeta_debito">
+                    <svg class="view-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4" stroke-linecap="round"/></svg>
+                    T. débito
+                  </button>
+                </div>
+                <p class="field-error" id="error-orden-metodo-pago" role="alert"></p>
+              </div>
+
+              <div id="orden-folio-conciliacion-wrap" hidden>
+                <div class="orden-folio-callout">
+                  <svg class="orden-folio-callout-icono" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 8h.01M11 12h1v5h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  <div class="orden-folio-callout-texto">
+                    <p class="orden-folio-callout-label">Dale este concepto al cliente para la transferencia</p>
+                    <p class="orden-folio-callout-valor" id="orden-folio-conciliacion-valor">—</p>
+                  </div>
+                  <button type="button" class="btn-copiar-folio" id="btn-orden-copiar-folio">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8"/></svg>
+                    <span id="txt-orden-copiar-folio">Copiar</span>
+                  </button>
+                </div>
+                <p class="field-error" id="error-orden-folio-conciliacion" role="alert"></p>
+              </div>
+
               <div class="field">
                 <label>Estado de pago</label>
                 <div class="view-toggle" role="tablist" aria-label="Estado de pago">
@@ -2935,6 +2975,42 @@
               </span>
             </label>
             <span class="switch-toggle-autoguardado" id="entrega-default-autoguardado" role="status" aria-live="polite"></span>
+          </div>
+
+          <!-- Punto 342: método de pago por defecto del modal "Registrar
+               venta" — mismo patrón exacto que "Método de entrega por
+               defecto" de arriba. -->
+          <div class="admin-config-divider" id="metodo-pago-default-group">
+            <p class="admin-config-subsection-titulo">Método de pago por defecto</p>
+            <p class="field-hint">Con qué método de pago abre siempre el modal "Registrar venta". Cada venta se puede cambiar igual desde ahí — esto solo decide el punto de partida.</p>
+            <label class="config-radio-opt">
+              <input type="radio" name="metodo-pago-venta-default" id="config-metodo-pago-default-efectivo" value="efectivo" />
+              <span><span class="config-radio-opt-label">Efectivo</span></span>
+            </label>
+            <label class="config-radio-opt">
+              <input type="radio" name="metodo-pago-venta-default" id="config-metodo-pago-default-transferencia" value="transferencia" />
+              <span><span class="config-radio-opt-label">Transferencia</span></span>
+            </label>
+            <label class="config-radio-opt">
+              <input type="radio" name="metodo-pago-venta-default" id="config-metodo-pago-default-tarjeta-credito" value="tarjeta_credito" />
+              <span><span class="config-radio-opt-label">Tarjeta de crédito</span></span>
+            </label>
+            <label class="config-radio-opt">
+              <input type="radio" name="metodo-pago-venta-default" id="config-metodo-pago-default-tarjeta-debito" value="tarjeta_debito" />
+              <span><span class="config-radio-opt-label">Tarjeta de débito</span></span>
+            </label>
+            <span class="switch-toggle-autoguardado" id="metodo-pago-default-autoguardado" role="status" aria-live="polite"></span>
+          </div>
+
+          <!-- Punto 342: prefijo del folio corto de conciliación de
+               transferencias (ver folios_conciliacion en db.js) —
+               configurable a petición explícita del usuario. -->
+          <div class="admin-config-divider" id="folio-conciliacion-prefijo-group">
+            <p class="admin-config-subsection-titulo">Prefijo de folio de conciliación</p>
+            <p class="field-hint">Se usa para el folio que se le da al cliente como "Concepto" al pagar por transferencia — ej. con "CV", el folio queda "CV0001".</p>
+            <input type="text" id="config-folio-conciliacion-prefijo" class="regla-exp-numero" style="width:64px; text-transform:uppercase; font-weight:700; text-align:center;" maxlength="2" value="CV" />
+            <span class="switch-toggle-autoguardado" id="folio-conciliacion-prefijo-autoguardado" role="status" aria-live="polite"></span>
+            <p class="field-error" id="error-folio-conciliacion-prefijo" role="alert"></p>
           </div>
         </div>
       </section>
