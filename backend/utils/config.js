@@ -114,6 +114,19 @@ const ZONAS_HORARIAS_MEXICO = [
   { id: 'America/Tijuana', etiqueta: 'Tijuana (Noroeste)' },
 ];
 
+// "d" (día) = 1, "s" (semana) = 7, "m" (mes) = 30 — aproximación de 30
+// días para "mes" (mismo criterio ya usado en el corte mensual de
+// mermas, ver server.js `DATE_FORMAT(NOW(), '%Y-%m-01')`), sin unidad
+// "h" (hora) — ver comentario junto a `notif_reglas_expiracion_productos`.
+const DIAS_POR_UNIDAD_REGLA_EXPIRACION = { d: 1, s: 7, m: 30 };
+const REGLA_EXPIRACION_REGEX = /^([1-9][0-9]{0,3})([dsm])$/;
+
+function diasDeReglaExpiracion(regla) {
+  const match = REGLA_EXPIRACION_REGEX.exec(regla);
+  if (!match) return 0;
+  return Number(match[1]) * DIAS_POR_UNIDAD_REGLA_EXPIRACION[match[2]];
+}
+
 const CLAVE_CONFIG_GLOBAL = 'configuracion_global';
 const DEFAULTS_CONFIG_GLOBAL = {
   iva_porcentaje: 16, // tasa general de IVA vigente en México
@@ -159,6 +172,18 @@ const DEFAULTS_CONFIG_GLOBAL = {
   // su próximo ingreso (control de cumplimiento: nadie lo silencia sin
   // que administrador/super lo permita aquí).
   notif_tickets_permite_ocultar: true,
+  // Reglas escalonadas de aviso de expiración de productos (Punto 339) —
+  // cada regla es "<número><unidad>" con unidad 'd' (día), 's' (semana) o
+  // 'm' (mes); SIN 'h' (hora) a propósito: `productos.fecha_expiracion`
+  // es un DATE sin hora, así que un aviso en horas no tendría una hora
+  // real contra la cual calcularse (colapsaría con "vence hoy" sin
+  // aportar un escalón distinto — decisión confirmada con el usuario
+  // 2026-09-29). El valor MÁS GRANDE de esta lista es la ventana que usa
+  // el filtro "por vencer"/KPI del dashboard de Inventarios (antes
+  // UMBRAL_POR_VENCER_DIAS, fijo en 30 — ver server.js), así que
+  // cualquier producto que cruce la primera de las reglas escalonadas ya
+  // aparece ahí. Máximo 5 reglas, sin duplicados exactos.
+  notif_reglas_expiracion_productos: ['30d'],
   // Datos fiscales de la propia compañía (no de un cliente) — se
   // muestran en la barra de sesión del panel de administrador junto a
   // "Administración", y si faltan, se avisa al iniciar sesión (ver
@@ -223,6 +248,12 @@ async function getConfiguracionGlobal() {
     }
     if (typeof parsed.notif_tickets_permite_ocultar === 'boolean') {
       resultado.notif_tickets_permite_ocultar = parsed.notif_tickets_permite_ocultar;
+    }
+    if (Array.isArray(parsed.notif_reglas_expiracion_productos)) {
+      const reglas = [...new Set(parsed.notif_reglas_expiracion_productos)]
+        .filter((r) => typeof r === 'string' && REGLA_EXPIRACION_REGEX.test(r))
+        .slice(0, 5);
+      if (reglas.length > 0) resultado.notif_reglas_expiracion_productos = reglas;
     }
     if (typeof parsed.rfc_compania === 'string') {
       resultado.rfc_compania = parsed.rfc_compania.trim().toUpperCase();
@@ -299,6 +330,26 @@ async function setConfiguracionGlobal(cambios) {
     nuevo.notif_tickets_permite_ocultar = Boolean(cambios.notif_tickets_permite_ocultar);
   }
 
+  if (cambios.notif_reglas_expiracion_productos !== undefined) {
+    if (!Array.isArray(cambios.notif_reglas_expiracion_productos)) {
+      throw new Error('Las reglas de aviso de expiración deben ser una lista.');
+    }
+    const invalida = cambios.notif_reglas_expiracion_productos.find(
+      (r) => typeof r !== 'string' || !REGLA_EXPIRACION_REGEX.test(r)
+    );
+    if (invalida !== undefined) {
+      throw new Error(`Regla de aviso inválida: "${invalida}". Usa un número seguido de d (día), s (semana) o m (mes).`);
+    }
+    const sinDuplicados = [...new Set(cambios.notif_reglas_expiracion_productos)];
+    if (sinDuplicados.length === 0) {
+      throw new Error('Agrega al menos una regla de aviso de expiración.');
+    }
+    if (sinDuplicados.length > 5) {
+      throw new Error('Máximo 5 reglas de aviso de expiración.');
+    }
+    nuevo.notif_reglas_expiracion_productos = sinDuplicados;
+  }
+
   // rfc_compania / regimen_fiscal_compania / tipo_persona_compania ya no
   // se mandan desde el formulario general de "Configuraciones fiscales"
   // (se quitó ese campo de ahí) — solo los escribe
@@ -358,6 +409,17 @@ async function setConfiguracionGlobal(cambios) {
   return nuevo;
 }
 
+// Punto 213/339: ventana que usa el filtro "por vencer" de Inventarios y
+// el KPI del dashboard — el valor MÁS GRANDE entre las reglas escalonadas
+// configuradas, para que cualquier producto que ya haya cruzado la
+// primera alerta aparezca en esa lista (antes: UMBRAL_POR_VENCER_DIAS,
+// fijo en 30, ver server.js).
+async function obtenerDiasMaximoAvisoExpiracion() {
+  const config = await getConfiguracionGlobal();
+  const dias = config.notif_reglas_expiracion_productos.map(diasDeReglaExpiracion);
+  return dias.length > 0 ? Math.max(...dias) : 30;
+}
+
 /**
  * Formatea una fecha en la zona horaria configurada, con el formato
  * pedido: fecha "dd/mmm/aaaa" (mes abreviado en español, sin punto) y
@@ -407,5 +469,7 @@ module.exports = {
   ZONAS_HORARIAS_MEXICO,
   getConfiguracionGlobal,
   setConfiguracionGlobal,
+  diasDeReglaExpiracion,
+  obtenerDiasMaximoAvisoExpiracion,
   formatearFechaHoraMexico,
 };

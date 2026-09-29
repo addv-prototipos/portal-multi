@@ -16015,6 +16015,107 @@ relación con quién ve el popup) ni el endpoint backend
 cambio visual (no aplica propuesta antes/después: es una condición de
 visibilidad, no un rediseño). Sin commit/push.
 
+**Punto 339 (2026-09-29, IMPLEMENTADO — validado en Docker real vía Chrome):**
+reglas escalonadas de aviso de expiración de productos + navegación al
+hacer clic en cualquier item de la campana de notificaciones. Usó la
+skill `ui-ux-pro-max` (recién instalada, ver más abajo) para el patrón de
+captura.
+
+- **Backend** (`backend/utils/config.js`): nueva clave
+  `notif_reglas_expiracion_productos` en `DEFAULTS_CONFIG_GLOBAL`
+  (default `['30d']`), formato `<número><unidad>` con unidad `d`(día)/
+  `s`(semana)/`m`(mes) — **sin** `h`(hora): `productos.fecha_expiracion`
+  es un `DATE` sin hora, así que un aviso en horas no tendría hora real
+  contra la cual calcularse (decisión confirmada con el usuario,
+  colapsaría con "vence hoy" sin aportar un escalón distinto). Validación
+  en `getConfiguracionGlobal()`/`setConfiguracionGlobal()`: regex
+  `^[1-9][0-9]{0,3}[dsm]$`, máximo 5 reglas, sin duplicados exactos.
+  Nuevos helpers exportados `diasDeReglaExpiracion(regla)` y
+  `obtenerDiasMaximoAvisoExpiracion()` (mayor valor entre las reglas
+  configuradas, en días). `backend/server.js`: se eliminó la constante
+  fija `UMBRAL_POR_VENCER_DIAS = 30` — el filtro `?vencimiento=por_vencer`
+  de `GET /productos` y el KPI `productos_por_vencer` del dashboard de
+  Inventarios ahora usan `await obtenerDiasMaximoAvisoExpiracion()`
+  (mismo criterio compartido de siempre, solo que dinámico). Permiso de
+  escritura restringido a `super`/`administrador` en
+  `PUT /admin/config/global`, mismo candado que
+  `notif_tickets_permite_ocultar`. 13 tests unitarios nuevos en
+  `backend/test/unit/config.test.js` (validación de formato, límite de
+  5, rechazo de `h`, `diasDeReglaExpiracion`,
+  `obtenerDiasMaximoAvisoExpiracion`) — **1050/1050 tests pasan**, sin
+  regresiones.
+- **Frontend — UI** (`frontend/admin.html`/`admin.css`): nueva
+  subsección "Aviso de expiración de productos" dentro de
+  Configuraciones → **Notificaciones** (`notif-toggle-card` — el usuario
+  cambió de opinión sobre la ubicación a mitad de la conversación, de
+  "Módulo Inventarios" a esta tarjeta). Patrón de captura decidido tras
+  consultar `ui-ux-pro-max` (dominio `ux`): **stepper numérico + `<select>`
+  de unidad + botón "+ Agregar regla"**, nunca texto libre — elimina por
+  completo los errores de formato (el usuario nunca escribe "3d" a mano,
+  solo lo ve serializado como chip "3 días antes"). Reglas como chips
+  removibles (`.regla-exp-chip`, mismo lenguaje visual que
+  `.filtro-chip`), ordenados automáticamente de la más lejana a la más
+  cercana. Validación inline junto a los controles (`#error-config-notif-exp`):
+  duplicado exacto, máximo 5, lista vacía al intentar quitar el último.
+  Autoguardado igual que el resto de la tarjeta (sin botón "Guardar
+  cambios").
+- **Frontend — JS** (`frontend/admin.js`): `reglasExpiracionProductos`
+  (estado módulo), `diasDeReglaExpiracion()`/`humanizarReglaExpiracion()`/
+  `renderReglasExpiracionChips()`/`guardarReglasExpiracion()` (mismo
+  patrón PUT autoguardado que `config-inventario-activo`). El item de
+  campana "productos por vencer" (`actualizarNotificaciones()`) ya NO
+  muestra el texto fijo "próximos 30 días" — ahora
+  `diasMaximoAvisoExpiracionActual()` calcula el umbral real desde las
+  reglas configuradas.
+- **Campana — navegación al hacer clic** (petición explícita del
+  usuario, regla general para todo el sistema de notificaciones): además
+  de marcarse como leído, cada item de `els.notifList` ahora lleva
+  directo al elemento que contiene vía `abrirDestinoNotif(tipo, id)` —
+  ticket nuevo → `abrirTicketPorId(id)` (cambia a vista Tickets, trae la
+  lista completa de `GET /admin/tickets` y abre el modal "Gestionar" del
+  ticket exacto); `inv_bajo_minimo` → Inventarios, pestaña Activos, chip
+  "Bajo mínimo" (`activarChipStockInv`); `inv_por_vencer` → Inventarios +
+  modal "Productos por vencer" ya existente (punto 213,
+  `abrirPorVencerModal()`); `cfg_sin_contador` → Configuraciones → tarjeta
+  SMTP directo (`seleccionarSeccionConfig('smtp-config-card')`). Antes el
+  clic solo marcaba leído si no lo estaba ya y nunca navegaba; ahora
+  siempre navega (esté leído o no) y solo marca leído si hacía falta.
+- **Validado visualmente en Docker real** (rebuild `--no-cache` +
+  `--force-recreate` de `backend`+`frontend`, extensión Chrome
+  reconectada a media sesión): login real como perfil `super`
+  (`admin`/`admin`), abrí Configuraciones → Notificaciones, agregué
+  "3 semanas antes" (chip apareció ordenado correctamente DESPUÉS de "30
+  días antes" — 30 días > 3 semanas, orden descendente correcto —
+  autoguardado "Guardado ✓"), lo quité (chip desapareció, volvió a solo
+  "30 días antes"), probé el duplicado exacto (`30d` de nuevo → error
+  inline "Ya existe una regla para 30 días antes.", sin guardar). Probé
+  la campana: clic en un ticket nuevo (TK-000230) navegó a Tickets y
+  abrió su modal "Gestionar" directo, confirmado con captura de pantalla.
+  No había productos con `inv_bajo_minimo`/`inv_por_vencer` en los datos
+  de este tenant en el momento de la prueba, así que esas dos rutas de
+  navegación quedaron verificadas por lectura de código (mismas funciones
+  ya probadas en otros flujos: `activarChipStockInv`/`abrirPorVencerModal`
+  ya existían y se usan en otros botones del panel) pero no con clic real
+  en la campana — pendiente de una verificación futura con datos de
+  prueba de inventario vencido/bajo mínimo.
+- Validado también contra la API real vía `curl -u admin:admin` antes de
+  la prueba en navegador: `GET/PUT /api/admin/config/global` con regla
+  inválida (`2h` → 400 con mensaje claro), regla válida
+  (`["1s","3d","1m"]` → guarda y persiste), luego revertido al default
+  `["30d"]` antes de la prueba visual.
+- **Herramienta nueva instalada esta sesión**: skill `ui-ux-pro-max`
+  (mono-repo `github.com/nextlevelbuilder/ui-ux-pro-max-skill`, solo se
+  instaló el sub-skill `ui-ux-pro-max` de los 7 disponibles — ver
+  `~/.claude/skills/addv-web-app/SKILL.md`, sección "Herramientas
+  complementarias", para el resto). Referenciada ahí como apoyo puntual
+  de `addv-web-app` para el paso 4 (propuesta visual).
+- **Pendiente**: la auditoría UX/UI completa mobile+desktop de todo el
+  sitio que el usuario pidió explícitamente dejar para el final de este
+  trabajo (hallazgos + recomendaciones, sin implementar todavía) — no
+  arrancada aún en esta sesión.
+- Sin commit/push todavía (pendiente de confirmación del usuario, igual
+  que el resto de esta sesión).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

@@ -7,6 +7,8 @@ const {
   ZONAS_HORARIAS_MEXICO,
   getConfiguracionGlobal,
   setConfiguracionGlobal,
+  diasDeReglaExpiracion,
+  obtenerDiasMaximoAvisoExpiracion,
   formatearFechaHoraMexico,
 } = require('../../utils/config');
 
@@ -286,6 +288,76 @@ describe('config.js', () => {
       mockActualVacio();
       const resultado = await setConfiguracionGlobal({ notif_tickets_permite_ocultar: 0 });
       expect(resultado.notif_tickets_permite_ocultar).toBe(false);
+    });
+
+    test('notif_reglas_expiracion_productos acepta reglas válidas (d/s/m) y quita duplicados', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({
+        notif_reglas_expiracion_productos: ['1s', '3d', '3d', '1m'],
+      });
+      expect(resultado.notif_reglas_expiracion_productos).toEqual(['1s', '3d', '1m']);
+    });
+
+    test('notif_reglas_expiracion_productos rechaza una regla con unidad "h" (horas)', async () => {
+      mockActualVacio();
+      await expect(
+        setConfiguracionGlobal({ notif_reglas_expiracion_productos: ['2h'] })
+      ).rejects.toThrow(/Regla de aviso inválida/);
+    });
+
+    test('notif_reglas_expiracion_productos rechaza formato inválido', async () => {
+      mockActualVacio();
+      await expect(
+        setConfiguracionGlobal({ notif_reglas_expiracion_productos: ['abc'] })
+      ).rejects.toThrow(/Regla de aviso inválida/);
+    });
+
+    test('notif_reglas_expiracion_productos rechaza lista vacía', async () => {
+      mockActualVacio();
+      await expect(
+        setConfiguracionGlobal({ notif_reglas_expiracion_productos: [] })
+      ).rejects.toThrow(/al menos una regla/);
+    });
+
+    test('notif_reglas_expiracion_productos rechaza más de 5 reglas', async () => {
+      mockActualVacio();
+      await expect(
+        setConfiguracionGlobal({ notif_reglas_expiracion_productos: ['1d', '2d', '3d', '4d', '5d', '6d'] })
+      ).rejects.toThrow(/Máximo 5 reglas/);
+    });
+
+    test('notif_reglas_expiracion_productos rechaza algo que no sea una lista', async () => {
+      mockActualVacio();
+      await expect(
+        setConfiguracionGlobal({ notif_reglas_expiracion_productos: '30d' })
+      ).rejects.toThrow(/deben ser una lista/);
+    });
+  });
+
+  describe('diasDeReglaExpiracion / obtenerDiasMaximoAvisoExpiracion', () => {
+    test('convierte día/semana/mes a días', () => {
+      expect(diasDeReglaExpiracion('5d')).toBe(5);
+      expect(diasDeReglaExpiracion('2s')).toBe(14);
+      expect(diasDeReglaExpiracion('1m')).toBe(30);
+    });
+
+    test('regla inválida devuelve 0 días', () => {
+      expect(diasDeReglaExpiracion('2h')).toBe(0);
+      expect(diasDeReglaExpiracion('abc')).toBe(0);
+    });
+
+    test('obtenerDiasMaximoAvisoExpiracion devuelve el valor más grande entre las reglas guardadas', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ valor: JSON.stringify({ notif_reglas_expiracion_productos: ['1s', '3d', '1m'] }) }],
+      ]);
+      const dias = await obtenerDiasMaximoAvisoExpiracion();
+      expect(dias).toBe(30); // 1m = 30 días, mayor que 1s=7 y 3d=3
+    });
+
+    test('obtenerDiasMaximoAvisoExpiracion cae a 30 sin nada guardado (default)', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      const dias = await obtenerDiasMaximoAvisoExpiracion();
+      expect(dias).toBe(30);
     });
   });
 

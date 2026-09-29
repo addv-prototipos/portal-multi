@@ -1019,6 +1019,13 @@
     notifToggleBody: document.getElementById('notif-toggle-body'),
     configNotifTicketsPermiteOcultar: document.getElementById('config-notif-tickets-permite-ocultar'),
     notifTicketsPermiteOcultarAutoguardado: document.getElementById('notif-tickets-permite-ocultar-autoguardado'),
+    configNotifExpNumero: document.getElementById('config-notif-exp-numero'),
+    configNotifExpUnidad: document.getElementById('config-notif-exp-unidad'),
+    btnConfigNotifExpAgregar: document.getElementById('btn-config-notif-exp-agregar'),
+    errorConfigNotifExp: document.getElementById('error-config-notif-exp'),
+    configNotifExpLista: document.getElementById('config-notif-exp-lista'),
+    configNotifExpVacio: document.getElementById('config-notif-exp-vacio'),
+    notifExpAutoguardado: document.getElementById('notif-exp-autoguardado'),
     configClaveSat: document.getElementById('config-clave-sat'),
     configClaveSatBuscador: document.getElementById('config-clave-sat-buscador'),
     configClaveSatSugerencias: document.getElementById('config-clave-sat-sugerencias'),
@@ -1920,6 +1927,11 @@
   // (a diferencia de auditoriaHabilitadaGlobalmente) — no se combina en
   // aplicarRestriccionesPerfil().
   let notifTicketsPermiteOcultarGlobalmente = true;
+  // Punto 339: reglas escalonadas de aviso de expiración de productos
+  // (ver backend/utils/config.js) — cada elemento es "<número><unidad>"
+  // con unidad 'd'/'s'/'m'. Se usa también para el texto dinámico del
+  // item de campana "productos por vencer" (actualizarNotificaciones()).
+  let reglasExpiracionProductos = ['30d'];
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
@@ -3556,6 +3568,126 @@
     }
   });
 
+  // ---------- Punto 339: reglas escalonadas de aviso de expiración ----------
+
+  const UNIDAD_REGLA_EXP_TEXTO = { d: 'día', s: 'semana', m: 'mes' };
+  const DIAS_POR_UNIDAD_REGLA_EXP = { d: 1, s: 7, m: 30 };
+
+  function diasDeReglaExpiracion(regla) {
+    const match = /^([1-9][0-9]{0,3})([dsm])$/.exec(regla);
+    if (!match) return 0;
+    return Number(match[1]) * DIAS_POR_UNIDAD_REGLA_EXP[match[2]];
+  }
+
+  function diasMaximoAvisoExpiracionActual() {
+    const dias = reglasExpiracionProductos.map(diasDeReglaExpiracion);
+    return dias.length > 0 ? Math.max(...dias) : 30;
+  }
+
+  function humanizarReglaExpiracion(regla) {
+    const match = /^([1-9][0-9]{0,3})([dsm])$/.exec(regla);
+    if (!match) return regla;
+    const numero = Number(match[1]);
+    const base = UNIDAD_REGLA_EXP_TEXTO[match[2]];
+    const unidadTexto = numero === 1 ? base : `${base}s`;
+    return `${numero} ${unidadTexto} antes`;
+  }
+
+  function renderReglasExpiracionChips() {
+    const ordenadas = [...reglasExpiracionProductos].sort((a, b) => diasDeReglaExpiracion(b) - diasDeReglaExpiracion(a));
+    els.configNotifExpLista.innerHTML = '';
+    ordenadas.forEach((regla) => {
+      const li = document.createElement('li');
+      li.className = 'regla-exp-chip';
+      li.dataset.regla = regla;
+      const texto = document.createElement('span');
+      texto.textContent = humanizarReglaExpiracion(regla);
+      const btnQuitar = document.createElement('button');
+      btnQuitar.type = 'button';
+      btnQuitar.className = 'regla-exp-chip-quitar';
+      btnQuitar.setAttribute('aria-label', `Quitar regla: ${humanizarReglaExpiracion(regla)}`);
+      btnQuitar.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+      li.appendChild(texto);
+      li.appendChild(btnQuitar);
+      els.configNotifExpLista.appendChild(li);
+    });
+    els.configNotifExpVacio.hidden = ordenadas.length > 0;
+  }
+
+  let timeoutAutoguardadoNotifExp = null;
+  async function guardarReglasExpiracion(nuevaLista) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return false;
+    }
+    const anterior = reglasExpiracionProductos;
+    clearTimeout(timeoutAutoguardadoNotifExp);
+    els.notifExpAutoguardado.textContent = 'Guardando…';
+    els.notifExpAutoguardado.setAttribute('data-estado', 'guardando');
+    try {
+      const res = await fetch(`${API_BASE}/admin/config/global`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notif_reglas_expiracion_productos: nuevaLista }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
+      reglasExpiracionProductos = data.notif_reglas_expiracion_productos || nuevaLista;
+      renderReglasExpiracionChips();
+      els.notifExpAutoguardado.textContent = 'Guardado ✓';
+      els.notifExpAutoguardado.setAttribute('data-estado', 'guardado');
+      timeoutAutoguardadoNotifExp = setTimeout(() => {
+        els.notifExpAutoguardado.textContent = '';
+        els.notifExpAutoguardado.removeAttribute('data-estado');
+      }, 2500);
+      return true;
+    } catch (err) {
+      reglasExpiracionProductos = anterior;
+      els.errorConfigNotifExp.textContent = err.message || 'No se pudo guardar — inténtalo de nuevo.';
+      els.notifExpAutoguardado.textContent = '';
+      els.notifExpAutoguardado.removeAttribute('data-estado');
+      return false;
+    }
+  }
+
+  els.btnConfigNotifExpAgregar.addEventListener('click', async () => {
+    els.errorConfigNotifExp.textContent = '';
+    const numero = Number(els.configNotifExpNumero.value);
+    const unidad = els.configNotifExpUnidad.value;
+    if (!Number.isInteger(numero) || numero < 1 || numero > 9999) {
+      els.errorConfigNotifExp.textContent = 'Captura una cantidad válida (mínimo 1).';
+      els.configNotifExpNumero.focus();
+      return;
+    }
+    const regla = `${numero}${unidad}`;
+    if (reglasExpiracionProductos.includes(regla)) {
+      els.errorConfigNotifExp.textContent = `Ya existe una regla para ${humanizarReglaExpiracion(regla)}.`;
+      return;
+    }
+    if (reglasExpiracionProductos.length >= 5) {
+      els.errorConfigNotifExp.textContent = 'Máximo 5 reglas de aviso.';
+      return;
+    }
+    const guardado = await guardarReglasExpiracion([...reglasExpiracionProductos, regla]);
+    if (guardado) els.configNotifExpNumero.value = '1';
+  });
+
+  els.configNotifExpLista.addEventListener('click', (e) => {
+    const btn = e.target.closest('.regla-exp-chip-quitar');
+    if (!btn) return;
+    const li = btn.closest('.regla-exp-chip');
+    const regla = li && li.dataset.regla;
+    if (!regla) return;
+    els.errorConfigNotifExp.textContent = '';
+    const restante = reglasExpiracionProductos.filter((r) => r !== regla);
+    if (restante.length === 0) {
+      els.errorConfigNotifExp.textContent = 'Agrega al menos una regla — no se puede dejar la lista vacía.';
+      return;
+    }
+    guardarReglasExpiracion(restante);
+  });
+
   // Clave de localStorage por cuenta+tenant (mismo patrón que
   // claveOnboarding()/claveBorradorOrden()) — las cuentas ADMIN_USERS
   // (perfil super) no tienen fila en la tabla `usuarios`, así que no hay
@@ -3582,6 +3714,10 @@
       els.configAuditoriaHabilitada.checked = config.auditoria_habilitada !== false;
       els.configNotifTicketsPermiteOcultar.checked = config.notif_tickets_permite_ocultar !== false;
       notifTicketsPermiteOcultarGlobalmente = config.notif_tickets_permite_ocultar !== false;
+      reglasExpiracionProductos = Array.isArray(config.notif_reglas_expiracion_productos) && config.notif_reglas_expiracion_productos.length > 0
+        ? config.notif_reglas_expiracion_productos
+        : ['30d'];
+      renderReglasExpiracionChips();
       aplicarClaveSatCargada(config.clave_sat || '');
       cargarInfoCatalogoClaveSat();
       aplicarRegimenFiscalCompaniaBox(config.regimen_fiscal_compania);
@@ -5734,7 +5870,7 @@
               icono: ICONO_NOTIF_VENCER,
               warn: true,
               titulo: `${porVencer} producto${porVencer === 1 ? '' : 's'} por vencer`,
-              sub: 'Dentro de los próximos 30 días',
+              sub: `Dentro de los próximos ${diasMaximoAvisoExpiracionActual()} días`,
               tiempo: '',
               leido: (snapshot.inv_por_vencer || 0) >= porVencer,
             });
@@ -5797,6 +5933,43 @@
     const el = els.notifList.querySelector(`[data-tipo="${tipo}"][data-id="${id}"]`);
     if (el) el.classList.add('is-read');
     els.notifDot.hidden = !els.notifList.querySelector('.admin-notif-item:not(.is-read)');
+  }
+
+  // Punto 339: al hacer clic en un item de la campana, además de marcarlo
+  // leído, lleva directo al elemento que contiene — un ticket abre su
+  // modal "Gestionar", "por vencer"/"bajo mínimo" abren Inventarios ya
+  // filtrado, y "sin correo de contador" abre Configuraciones → SMTP.
+  async function abrirTicketPorId(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    els.ticketsFiltroEstatus.value = '';
+    cambiarVistaPrincipal('tickets');
+    cargarTickets();
+    try {
+      const res = await fetch(`${API_BASE}/admin/tickets`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const ticket = (data.tickets || []).find((t) => t.id === Number(id));
+      if (ticket) abrirTicketModal(ticket);
+    } catch (err) {
+      // Sin conexión: se queda en la lista de tickets, sin el modal abierto.
+    }
+  }
+
+  function abrirDestinoNotif(tipo, id) {
+    if (tipo === 'ticket') {
+      abrirTicketPorId(id);
+    } else if (tipo === 'inv_bajo_minimo') {
+      cambiarVistaPrincipal('inventarios');
+      cambiarVistaInventarios('activos');
+      activarChipStockInv('bajo_minimo');
+    } else if (tipo === 'inv_por_vencer') {
+      cambiarVistaPrincipal('inventarios');
+      abrirPorVencerModal();
+    } else if (tipo === 'cfg_sin_contador') {
+      abrirConfigModal();
+      seleccionarSeccionConfig('smtp-config-card');
+    }
   }
 
   // ---------- Sonido: campanada sintetizada, sin archivo nuevo ----------
@@ -5875,8 +6048,12 @@
   });
   els.notifList.addEventListener('click', (e) => {
     const item = e.target.closest('.admin-notif-item');
-    if (!item || item.classList.contains('is-read')) return;
-    marcarNotifItemLeido(item.dataset.tipo, item.dataset.id);
+    if (!item) return;
+    if (!item.classList.contains('is-read')) {
+      marcarNotifItemLeido(item.dataset.tipo, item.dataset.id);
+    }
+    els.notifPanel.classList.remove('is-open');
+    abrirDestinoNotif(item.dataset.tipo, item.dataset.id);
   });
   els.btnNotifMarcarTodo.addEventListener('click', (e) => {
     e.stopPropagation();

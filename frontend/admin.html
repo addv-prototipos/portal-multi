@@ -3034,6 +3034,34 @@
               <span class="switch-toggle-autoguardado" id="notif-tickets-permite-ocultar-autoguardado" role="status" aria-live="polite"></span>
             </span>
           </label>
+
+          <!-- Punto 339: reglas escalonadas de aviso de expiración de
+               productos — número+unidad (nunca texto libre, evita
+               errores de formato) que se agregan como chip removible.
+               Sin "horas": fecha_expiracion es un DATE sin hora, ver
+               backend/utils/config.js. -->
+          <div class="admin-config-divider regla-exp-config">
+            <span class="switch-toggle-label">Aviso de expiración de productos</span>
+            <span class="switch-toggle-hint">Define cuándo avisar en la campana de notificaciones antes de que un producto expire. Puedes apilar varias alertas (ej. 1 semana antes, 3 días antes y 1 día antes) — se disparan en cascada según se acerca la fecha.</span>
+
+            <div class="regla-exp-input-row">
+              <label class="regla-exp-input-label" for="config-notif-exp-numero">Cantidad</label>
+              <input type="number" id="config-notif-exp-numero" class="regla-exp-numero" min="1" max="9999" value="1" inputmode="numeric" />
+              <label class="regla-exp-input-label" for="config-notif-exp-unidad">Unidad</label>
+              <select id="config-notif-exp-unidad" class="regla-exp-unidad">
+                <option value="d">días</option>
+                <option value="s">semanas</option>
+                <option value="m">meses</option>
+              </select>
+              <button type="button" class="btn btn-secondary" id="btn-config-notif-exp-agregar">+ Agregar regla</button>
+            </div>
+            <p class="field-error" id="error-config-notif-exp" role="alert"></p>
+
+            <ul class="regla-exp-lista" id="config-notif-exp-lista" aria-live="polite"></ul>
+            <p class="regla-exp-vacio" id="config-notif-exp-vacio" hidden>Sin reglas de aviso — no se avisará antes de que expiren los productos.</p>
+
+            <span class="switch-toggle-autoguardado" id="notif-exp-autoguardado" role="status" aria-live="polite"></span>
+          </div>
         </div>
       </section>
             </div><!-- /config-modal-main-body -->

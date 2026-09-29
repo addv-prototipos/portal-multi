@@ -54,6 +54,7 @@ const {
   ZONAS_HORARIAS_MEXICO,
   getConfiguracionGlobal,
   setConfiguracionGlobal,
+  obtenerDiasMaximoAvisoExpiracion,
   formatearFechaHoraMexico,
 } = require('./utils/config');
 const {
@@ -3873,6 +3874,15 @@ app.put(
     if (body.notif_tickets_permite_ocultar !== undefined && req.adminPerfil !== 'super' && req.adminPerfil !== 'administrador') {
       return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar las notificaciones.' });
     }
+    // "notif_reglas_expiracion_productos" (Punto 339) — misma tarjeta
+    // "Notificaciones" que notif_tickets_permite_ocultar, mismo candado.
+    if (
+      body.notif_reglas_expiracion_productos !== undefined &&
+      req.adminPerfil !== 'super' &&
+      req.adminPerfil !== 'administrador'
+    ) {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a configurar las notificaciones.' });
+    }
     try {
       // rfc_compania / regimen_fiscal_compania / tipo_persona_compania
       // ya NO se mandan desde aquí — se quitó ese campo del formulario
@@ -3886,6 +3896,7 @@ app.put(
         entrega_venta_default: body.entrega_venta_default,
         auditoria_habilitada: body.auditoria_habilitada,
         notif_tickets_permite_ocultar: body.notif_tickets_permite_ocultar,
+        notif_reglas_expiracion_productos: body.notif_reglas_expiracion_productos,
         clave_sat: body.clave_sat,
         correo_reportes: body.correo_reportes,
       });
@@ -7502,13 +7513,14 @@ app.post(
 
 // ---------- Productos ----------
 
-// Punto 213: ventana del indicador "Por vencer" — cuenta juntos productos
-// YA vencidos y los que vencen dentro de esta cantidad de días, una sola
-// constante compartida entre el filtro de la lista (para la ventana
-// emergente) y el conteo del dashboard, para que nunca puedan
-// desincronizarse entre sí (mismo criterio que utilidad_neta en
-// /resumen-financiero).
-const UMBRAL_POR_VENCER_DIAS = 30;
+// Punto 213/339: ventana del indicador "Por vencer" — cuenta juntos
+// productos YA vencidos y los que vencen dentro de esta cantidad de días.
+// Antes era una constante fija (30); ahora es el mayor valor entre las
+// reglas escalonadas configurables en Configuraciones → Notificaciones
+// (obtenerDiasMaximoAvisoExpiracion(), backend/utils/config.js) — mismo
+// criterio compartido entre el filtro de la lista (ventana emergente) y
+// el conteo del dashboard, para que nunca puedan desincronizarse entre sí
+// (mismo criterio que utilidad_neta en /resumen-financiero).
 
 function formatearProducto(p, existenciaDisponible) {
   return {
@@ -7765,7 +7777,7 @@ app.get(
       condiciones.push(
         "p.tipo = 'producto' AND p.estado = 'activo' AND p.fecha_expiracion IS NOT NULL AND p.fecha_expiracion <= DATE_ADD(CURDATE(), INTERVAL ? DAY)"
       );
-      params.push(UMBRAL_POR_VENCER_DIAS);
+      params.push(await obtenerDiasMaximoAvisoExpiracion());
     }
     // Punto: chips rápidos de la tabla — mismas 3 condiciones exactas que
     // ya usa GET /dashboard para sus tarjetas "Bajo mínimo"/"Sin
@@ -8447,16 +8459,17 @@ app.get(
         JOIN productos p ON p.id = m.producto_id
        WHERE m.tipo = 'merma' AND m.creado_en >= DATE_FORMAT(NOW(), '%Y-%m-01')
     `);
-    // Punto 213: cuenta juntos vencidos + por vencer dentro de
-    // UMBRAL_POR_VENCER_DIAS — mismas condiciones exactas que el filtro
-    // `?vencimiento=por_vencer` de GET /productos, para que el número de
-    // esta tarjeta y la lista de su ventana emergente siempre coincidan.
+    // Punto 213/339: cuenta juntos vencidos + por vencer dentro de la
+    // mayor regla escalonada configurada — mismas condiciones exactas que
+    // el filtro `?vencimiento=por_vencer` de GET /productos, para que el
+    // número de esta tarjeta y la lista de su ventana emergente siempre
+    // coincidan.
     const [[porVencer]] = await pool.query(
       `SELECT COUNT(*) AS total
          FROM productos p
         WHERE p.eliminado_en IS NULL AND p.tipo = 'producto' AND p.estado = 'activo'
           AND p.fecha_expiracion IS NOT NULL AND p.fecha_expiracion <= DATE_ADD(CURDATE(), INTERVAL ? DAY)`,
-      [UMBRAL_POR_VENCER_DIAS]
+      [await obtenerDiasMaximoAvisoExpiracion()]
     );
 
     const unidadesDisponiblesNum = Number(unidadesDisponibles.total);

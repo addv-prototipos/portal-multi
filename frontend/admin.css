@@ -1285,6 +1285,91 @@
   margin: 0 0 12px;
 }
 
+/* Punto 339: "Aviso de expiración de productos" — número + unidad
+   (nunca texto libre) que se agrega como chip removible; wrap-safe en
+   mobile (flex-wrap), mismo lenguaje visual que .filtro-chip. */
+.regla-exp-config .switch-toggle-label { display: block; margin-bottom: 4px; }
+.regla-exp-config .switch-toggle-hint { display: block; margin-bottom: 14px; }
+.regla-exp-input-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.regla-exp-input-label {
+  font-size: 12.5px;
+  color: var(--color-ink-soft);
+  font-weight: 600;
+}
+.regla-exp-numero {
+  width: 72px;
+  padding: 7px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+.regla-exp-unidad {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 14px;
+  background: var(--color-surface);
+}
+.regla-exp-numero:focus-visible,
+.regla-exp-unidad:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.regla-exp-lista {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.regla-exp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark, var(--color-accent));
+}
+.regla-exp-chip-quitar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.regla-exp-chip-quitar:hover,
+.regla-exp-chip-quitar:focus-visible {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+.regla-exp-vacio {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  margin: 14px 0 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .regla-exp-chip-quitar { transition: none; }
+}
+
 /* Radios de "Método de entrega por defecto" (Ventas) — mismo patrón de
    tarjeta seleccionable ya usado en otras decisiones de una sola opción
    del panel, con :has() para resaltar la fila marcada sin JS extra. */
