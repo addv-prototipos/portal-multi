@@ -1401,7 +1401,21 @@
     administrador: { texto: 'Administrador', clase: 'perfil-administrador' },
     fiscal: { texto: 'Fiscal', clase: 'perfil-fiscal' },
     ventas: { texto: 'Ventas', clase: 'perfil-ventas' },
+    // Punto 321 ya traía el CSS (.perfil-inventario, admin.css) pero nunca
+    // se conectó aquí — la tabla de Usuarios caía al fallback de texto
+    // plano sin badge (Auditoría UX 2026-09-29, hallazgo 2).
+    inventario: { texto: 'Inventario', clase: 'perfil-inventario' },
   };
+
+  // Ícono de check en línea (SVG feather-like) — reemplaza el carácter
+  // Unicode "✓" en los ~8 indicadores "Guardado" de autoguardado del
+  // panel; único lugar que lo define, para no repetir el string en cada
+  // sitio (Auditoría UX 2026-09-29, hallazgo 3). Va con `.innerHTML`,
+  // nunca `.textContent` — el resto de los estados (Guardando…/error)
+  // siguen usando `.textContent`, ya que su texto puede incluir mensajes
+  // dinámicos del backend.
+  const HTML_GUARDADO_OK =
+    'Guardado <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-1px"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   // Campos configurables como obligatorios/opcionales en el formulario público.
   const CAMPOS_CONFIGURABLES = ['tipo_persona', 'rfc', 'uso_cfdi', 'tipo_pago', 'comentarios'];
@@ -3397,7 +3411,7 @@
       }
 
       aplicarVisibilidadOrdenesCompra(nuevoValor);
-      els.ordenesHabilitadoAutoguardado.textContent = 'Guardado ✓';
+      els.ordenesHabilitadoAutoguardado.innerHTML = HTML_GUARDADO_OK;
       els.ordenesHabilitadoAutoguardado.setAttribute('data-estado', 'guardado');
       // El mensaje de éxito se desvanece solo después de un momento — a
       // diferencia del de error, que se queda visible hasta el próximo
@@ -3451,7 +3465,7 @@
         }
 
         ordenEntregaDefault = nuevoValor;
-        els.entregaDefaultAutoguardado.textContent = 'Guardado ✓';
+        els.entregaDefaultAutoguardado.innerHTML = HTML_GUARDADO_OK;
         els.entregaDefaultAutoguardado.setAttribute('data-estado', 'guardado');
         timeoutAutoguardadoEntregaDefault = setTimeout(() => {
           els.entregaDefaultAutoguardado.textContent = '';
@@ -3496,7 +3510,7 @@
       }
 
       aplicarVisibilidadAuditoria(nuevoValor);
-      els.auditoriaHabilitadaAutoguardado.textContent = 'Guardado ✓';
+      els.auditoriaHabilitadaAutoguardado.innerHTML = HTML_GUARDADO_OK;
       els.auditoriaHabilitadaAutoguardado.setAttribute('data-estado', 'guardado');
       timeoutAutoguardadoAuditoria = setTimeout(() => {
         els.auditoriaHabilitadaAutoguardado.textContent = '';
@@ -3553,7 +3567,7 @@
       }
 
       notifTicketsPermiteOcultarGlobalmente = nuevoValor;
-      els.notifTicketsPermiteOcultarAutoguardado.textContent = 'Guardado ✓';
+      els.notifTicketsPermiteOcultarAutoguardado.innerHTML = HTML_GUARDADO_OK;
       els.notifTicketsPermiteOcultarAutoguardado.setAttribute('data-estado', 'guardado');
       timeoutAutoguardadoNotifTickets = setTimeout(() => {
         els.notifTicketsPermiteOcultarAutoguardado.textContent = '';
@@ -3635,7 +3649,7 @@
       if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
       reglasExpiracionProductos = data.notif_reglas_expiracion_productos || nuevaLista;
       renderReglasExpiracionChips();
-      els.notifExpAutoguardado.textContent = 'Guardado ✓';
+      els.notifExpAutoguardado.innerHTML = HTML_GUARDADO_OK;
       els.notifExpAutoguardado.setAttribute('data-estado', 'guardado');
       timeoutAutoguardadoNotifExp = setTimeout(() => {
         els.notifExpAutoguardado.textContent = '';
@@ -5272,8 +5286,16 @@
     if (!els.smtpAutosaveTag) return;
     clearTimeout(smtpAutosaveTagTimer);
     els.smtpAutosaveTag.className = 'smtp-autosave-tag' + (estado ? ` is-${estado}` : '');
-    els.smtpAutosaveTag.textContent =
-      estado === 'guardando' ? 'Guardando…' : estado === 'guardado' ? 'Guardado ✓' : estado === 'error' ? (mensaje || 'No se pudo guardar') : '';
+    if (estado === 'guardado') {
+      // Único estado con HTML (el ícono de check) — los demás son texto
+      // plano, posiblemente con un mensaje de error del backend, así que
+      // siguen usando `.textContent` (nunca `.innerHTML` con texto que no
+      // controlamos nosotros).
+      els.smtpAutosaveTag.innerHTML = HTML_GUARDADO_OK;
+    } else {
+      els.smtpAutosaveTag.textContent =
+        estado === 'guardando' ? 'Guardando…' : estado === 'error' ? (mensaje || 'No se pudo guardar') : '';
+    }
     if (estado === 'guardado') {
       smtpAutosaveTagTimer = setTimeout(() => {
         els.smtpAutosaveTag.className = 'smtp-autosave-tag';
@@ -15583,7 +15605,7 @@
           throw new Error(data.error || 'No se pudo guardar.');
         }
         aplicarVisibilidadInventarios(nuevoValor);
-        els.invActivoAutoguardado.textContent = 'Guardado ✓';
+        els.invActivoAutoguardado.innerHTML = HTML_GUARDADO_OK;
         els.invActivoAutoguardado.setAttribute('data-estado', 'guardado');
         timeoutAutoguardadoInv = setTimeout(() => {
           els.invActivoAutoguardado.textContent = '';
@@ -15629,7 +15651,7 @@
         if (!res.ok) throw new Error(data.mensaje || data.error || 'No se pudo guardar.');
         ultimoValorSoloServiciosGuardado = nuevoValor;
         aplicarVisibilidadSoloServicios(nuevoValor);
-        els.invSoloServiciosAutoguardado.textContent = 'Guardado ✓';
+        els.invSoloServiciosAutoguardado.innerHTML = HTML_GUARDADO_OK;
         els.invSoloServiciosAutoguardado.setAttribute('data-estado', 'guardado');
         timeoutAutoguardadoInvSolo = setTimeout(() => {
           els.invSoloServiciosAutoguardado.textContent = '';

@@ -16109,12 +16109,68 @@ captura.
   `~/.claude/skills/addv-web-app/SKILL.md`, sección "Herramientas
   complementarias", para el resto). Referenciada ahí como apoyo puntual
   de `addv-web-app` para el paso 4 (propuesta visual).
-- **Pendiente**: la auditoría UX/UI completa mobile+desktop de todo el
-  sitio que el usuario pidió explícitamente dejar para el final de este
-  trabajo (hallazgos + recomendaciones, sin implementar todavía) — no
-  arrancada aún en esta sesión.
-- Sin commit/push todavía (pendiente de confirmación del usuario, igual
-  que el resto de esta sesión).
+- Commit `08fe8af`, pusheado a `origin/main`.
+
+**Auditoría UX/UI completa mobile+desktop (2026-09-29, vía fork/subagente):**
+la revisión de todo el sitio pedida explícitamente para el final del
+trabajo del punto 339. Usó `ui-ux-pro-max` como marco (10 categorías por
+prioridad). **Limitación de entorno**: `resize_window` no logró achicar
+la ventana real (quedó en 1920x1080) — sin verificación visual mobile
+real, sustituida por revisión de código de breakpoints; pendiente repetir
+el pase mobile con DevTools nativo (`Ctrl+Shift+M`) antes de dar el sitio
+por validado ahí. 4 hallazgos (1 crítico, 1 medio, 1 bajo/preexistente, 1
+positivo/arquitectura — no requiere acción). Reporte completo publicado
+como Artifact (Markdown + antes/después, franja de severidad, ranking de
+prioridad). Los 2 falsos positivos propios descartados durante la
+auditoría quedaron documentados en el reporte por transparencia de
+método (desfase de escala screenshot/viewport, compresión JPEG leída
+como bug).
+
+**Punto 340 (2026-09-29, IMPLEMENTADO):** corrección de los 3 hallazgos
+reales de la auditoría anterior (el 4to ya estaba correcto, sin acción).
+Propuesta antes/después presentada y confirmada explícitamente antes de
+implementar (protocolo `addv-web-app`).
+
+1. **[CRÍTICO]** `frontend/csf.html` líneas 93-107 (dropzone del
+   formulario público de constancia, sin login): emoji real `📄` →
+   SVG de documento (mismo trazo 1.8px que la flecha de subida ya
+   presente 6 líneas arriba); carácter Unicode `✕` en
+   `#btn-remove-file` → SVG de "cerrar". `frontend/style.css`:
+   `.file-icon` pasó de `font-size:26px` (pensado para el glifo emoji) a
+   `display:flex; color:var(--color-accent)`, y se agregó
+   `.file-icon svg, .btn-icon svg { margin-bottom:0; }` para anular el
+   `margin-bottom:10px` que `.dropzone svg` (selector genérico, ya
+   existente) le heredaba — pensado para el ícono apilado del estado
+   vacío, no para estos dos íconos en fila horizontal.
+2. **[MEDIO]** `frontend/admin.js`, `PERFIL_INFO` (~línea 1399): faltaba
+   la entrada `inventario` — el perfil "Inventario" caía al fallback de
+   texto plano sin badge en `/admin` → Usuarios. El CSS
+   (`.perfil-inventario`, índigo `#EEF0FE`/`#4338CA`) ya existía desde el
+   punto 321 pero nunca se conectó del lado del JS — fix de una línea:
+   `inventario: { texto: 'Inventario', clase: 'perfil-inventario' }`.
+3. **[BAJO, preexistente]** carácter `✓` en los 8 indicadores "Guardado"
+   de autoguardado del panel (incluidos los del punto 339). Se creó
+   `HTML_GUARDADO_OK` (constante única, junto a `PERFIL_INFO`) con un SVG
+   check inline, y los 8 sitios pasaron de `.textContent = 'Guardado ✓'`
+   a `.innerHTML = HTML_GUARDADO_OK`. Los estados "Guardando…"/error NO
+   se tocaron (siguen en `.textContent` — pueden traer un mensaje del
+   backend, nunca se mezcla con `.innerHTML`, por seguridad). El caso
+   especial de SMTP (`setSmtpAutosaveEstado`, usa `className` en vez de
+   `data-estado`, un solo ternario para los 3 estados) se separó en un
+   `if`/`else` explícito: `.innerHTML` solo para "guardado" (contenido
+   estático, sin riesgo), `.textContent` para los demás (pueden traer
+   `mensaje` dinámico del backend).
+4. **No requirió cambio**: hallazgo positivo de la auditoría (scroll
+   horizontal de tablas vía `.admin-table-wrap`, ya correcto).
+
+`node --check` limpio en `admin.js`, balance de tags HTML/llaves CSS
+verificado en `csf.html`/`style.css`. Rebuild `--no-cache` +
+`--force-recreate` de `frontend`; verificado por `curl` contra el
+contenido servido por el contenedor real (0 coincidencias de
+emoji/✕/"Guardado ✓", `HTML_GUARDADO_OK` en las 9 ubicaciones esperadas,
+`perfil-inventario` conectado). **Sin confirmación visual en navegador**
+esta vez — la extensión de Chrome se desconectó a media sesión y no
+reconectó; pendiente repetir el vistazo visual cuando se reconecte.
 
 ## Dónde está todo (mapa rápido)
 

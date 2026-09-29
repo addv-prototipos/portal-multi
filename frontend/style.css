@@ -727,7 +727,8 @@ body {
   text-align: left;
 }
 
-.file-icon { font-size: 26px; }
+.file-icon { display: flex; flex-shrink: 0; color: var(--color-accent); }
+.file-icon svg, .btn-icon svg { margin-bottom: 0; }
 .file-info { flex: 1; min-width: 0; }
 .file-name {
   margin: 0;
