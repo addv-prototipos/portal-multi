@@ -16172,6 +16172,61 @@ emoji/✕/"Guardado ✓", `HTML_GUARDADO_OK` en las 9 ubicaciones esperadas,
 esta vez — la extensión de Chrome se desconectó a media sesión y no
 reconectó; pendiente repetir el vistazo visual cuando se reconecte.
 
+**Punto 341 (2026-09-29, IMPLEMENTADO):** `csf.html` (formulario de alta/
+actualización de constancia) dejó de ser de acceso público — ahora exige
+sesión de cliente, a petición explícita del usuario ("todo debe pasar
+por login y sesión, sin sesión no pueden entrar a otras secciones").
+
+- **Análisis previo (antes de tocar código)**: `csf.html`/
+  `POST /api/registro` era público A PROPÓSITO — comentario explícito en
+  `server.js`: *"Esta ruta es pública (funciona con y sin sesión)"*. Es
+  el punto de alta de la CONSTANCIA (tabla `registros`), distinto de la
+  CUENTA (tabla `usuarios`, creada vía `POST /api/auth/registro` desde
+  `login.html`, pestaña "Crear cuenta" — esa sí ya pedía correo/teléfono/
+  password y ya existía completa, con su propio parseo opcional de PDF
+  vía `/api/auth/parse-csf` para precargar RFC/tipo, sin persistir nada).
+  `dashboard.html`/`tickets.html` ya exigían sesión (`requireUserAuth`) —
+  solo `csf.html` quedaba afuera. Se presentó el hallazgo y 3 opciones al
+  usuario antes de implementar (AskUserQuestion); eligió cerrar el acceso
+  público por completo.
+- **Backend** (`backend/server.js`): `POST /api/registro` ahora lleva
+  `requireUserAuth` (mismo orden que `POST /api/tickets`:
+  `requireUserAuth, submitLimiter, handler`). `rfcReferencia` pasó de
+  `obtenerRfcSesionOpcional(req) || rfcRaw` a `req.userRfc` directo
+  (siempre presente, ya no opcional) — import de
+  `obtenerRfcSesionOpcional` removido de `server.js` por quedar sin uso
+  (su export en `authUsuario.js` se conserva, puede servir a otra ruta
+  después). La lógica de búsqueda de duplicado (`registros` por
+  `rfcRaw`/`email`) NO se tocó — sigue funcionando igual, cae a búsqueda
+  por correo cuando el campo "RFC" del formulario está vacío (queda
+  documentado como oportunidad de usar `req.userRfc` ahí también, no
+  bloqueante, no se tocó para no ampliar el alcance del cambio).
+- **Frontend** (`frontend/app.js`): `init()` ahora detecta 401 de
+  `GET /auth/me` y redirige a `login.html` (idéntico al patrón ya usado
+  en `dashboard.js:100-101`), antes de mostrar el formulario — ya no
+  "funciona igual sin sesión, por retrocompatibilidad" (comentario viejo
+  removido).
+- **Flujo resultante para un cliente nuevo** (sin cambios de código
+  adicionales, reutiliza 100% lo ya existente): `csf.html` sin sesión →
+  redirige a `login.html` → pestaña "Crear cuenta" (`/api/auth/registro`)
+  → aterriza en `dashboard.html` (comportamiento estándar, sin cambios)
+  → tile "Constancia" (ya existía en el dashboard) → `csf.html` con
+  sesión, funciona exactamente igual que antes para un cliente logueado.
+- **Tests**: `backend/test/integration/csf-publico.test.js` — los 7
+  tests de `POST /api/registro` que asumían acceso sin sesión se
+  actualizaron para mandar `Cookie: sesion_usuario=<token>` (mismo helper
+  `crearTokenSesion` ya usado por otros tests del mismo archivo); se
+  agregó un test nuevo `sin sesión responde 401` (mismo patrón que el ya
+  existente para `GET /api/registro/existe`). **1051/1051 tests en
+  verde**, sin regresiones en el resto del suite.
+- Rebuild `--no-cache` + `--force-recreate` de `backend`+`frontend`.
+  Verificado por `curl` contra el contenedor real:
+  `POST /api/registro` sin cookie → `401` confirmado. **Sin confirmación
+  visual del redirect en navegador** — extensión de Chrome seguía
+  desconectada; el patrón de redirect (`urlPagina('login')` en 401) es
+  idéntico al ya probado en `dashboard.js`, alta confianza, pero pendiente
+  repetir el vistazo visual cuando se reconecte.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

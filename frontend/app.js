@@ -413,16 +413,29 @@
       .then((res) => (res.ok ? res.json() : null))
       .catch(() => null);
 
-    // Si el usuario llegó aquí con una sesión activa (por ejemplo, desde el
-    // tablero), se precarga y bloquea el RFC con el de su sesión — así
-    // solo puede generar la constancia con el RFC con el que inició
-    // sesión. Si no hay sesión, el formulario funciona exactamente igual
-    // que antes (acceso público, sin RFC bloqueado), por retrocompatibilidad.
+    // Auditoría UX 2026-09-29 / petición explícita del usuario: esta
+    // página ya NO es de acceso público — exige sesión, igual que
+    // dashboard.js/tickets.js (mismo patrón: 401 en /auth/me → redirige a
+    // login.html). Con sesión válida, se precarga y bloquea el RFC con
+    // el de la cuenta, para que solo pueda generar la constancia con el
+    // RFC con el que inició sesión.
+    let noAutenticado = false;
     const sesion = fetch(`${API_BASE}/auth/me`, { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (res.status === 401) {
+          noAutenticado = true;
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .catch(() => null);
 
     const [healthData, configData, sesionData] = await Promise.all([health, config, sesion]);
+
+    if (noAutenticado) {
+      window.location.href = window.Portal.urlPagina('login');
+      return;
+    }
 
     if (sesionData && sesionData.rfc) {
       els.rfcInput.value = sesionData.rfc;

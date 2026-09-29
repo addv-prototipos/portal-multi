@@ -159,11 +159,26 @@ describe('CSF público', () => {
   });
 
   describe('POST /api/registro (subir constancia)', () => {
+    // Auditoría UX 2026-09-29 / petición explícita del usuario: esta ruta
+    // dejó de ser pública — ahora exige sesión (requireUserAuth), igual
+    // que GET /api/registro/existe arriba. Cada test de aquí en adelante
+    // manda una cookie de sesión válida.
+    test('sin sesión responde 401', async () => {
+      const res = await request(app)
+        .post('/api/registro')
+        .field('tipo_persona', 'fisica')
+        .field('email', 'cliente@x.com')
+        .attach('archivo', PDF_BUFFER_VALIDO, { filename: 'constancia.pdf', contentType: 'application/pdf' });
+
+      expect(res.status).toBe(401);
+    });
+
     test('responde 400 sin archivo adjunto', async () => {
       pool.query.mockResolvedValueOnce([[]]); // getCamposObligatorios
 
       const res = await request(app)
         .post('/api/registro')
+        .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC')}`)
         .field('tipo_persona', 'fisica')
         .field('email', 'cliente@x.com');
 
@@ -174,6 +189,7 @@ describe('CSF público', () => {
     test('rechaza un archivo que no sea PDF (tipo declarado)', async () => {
       const res = await request(app)
         .post('/api/registro')
+        .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC')}`)
         .field('email', 'cliente@x.com')
         .attach('archivo', Buffer.from('texto plano'), { filename: 'archivo.txt', contentType: 'text/plain' });
 
@@ -186,6 +202,7 @@ describe('CSF público', () => {
 
       const res = await request(app)
         .post('/api/registro')
+        .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC')}`)
         .field('email', 'cliente@x.com')
         .attach('archivo', PDF_BUFFER_VALIDO, { filename: 'constancia.pdf', contentType: 'application/pdf' });
 
@@ -199,6 +216,7 @@ describe('CSF público', () => {
 
       const res = await request(app)
         .post('/api/registro')
+        .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC')}`)
         .field('tipo_persona', 'fisica')
         .field('email', 'cliente@x.com')
         .attach('archivo', PDF_BUFFER_VALIDO, { filename: 'constancia.pdf', contentType: 'application/pdf' });
@@ -210,12 +228,15 @@ describe('CSF público', () => {
     test('registra correctamente una constancia nueva (sin duplicado)', async () => {
       pool.query.mockResolvedValueOnce([[]]); // getCamposObligatorios
       mockTextoPdf(TEXTO_CONSTANCIA_VALIDA);
-      pool.query.mockResolvedValueOnce([[]]); // busca existente por email (sin rfc en el form)
+      pool.query.mockResolvedValueOnce([[]]); // busca existente por email (el form no manda campo "rfc")
       pool.query.mockResolvedValueOnce([[]]); // busca en papelera por email
       pool.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT
 
       const res = await request(app)
         .post('/api/registro')
+        // RFC de la sesión debe coincidir con el de la constancia
+        // (TEXTO_CONSTANCIA_VALIDA trae GOMJ800101ABC).
+        .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC')}`)
         .field('tipo_persona', 'fisica')
         .field('email', 'cliente@x.com')
         .attach('archivo', PDF_BUFFER_VALIDO, { filename: 'constancia.pdf', contentType: 'application/pdf' });
@@ -231,6 +252,7 @@ describe('CSF público', () => {
 
       const res = await request(app)
         .post('/api/registro')
+        .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC')}`)
         .field('tipo_persona', 'fisica')
         .field('email', 'cliente@x.com')
         .attach('archivo', PDF_BUFFER_VALIDO, { filename: 'constancia.pdf', contentType: 'application/pdf' });
@@ -247,6 +269,7 @@ describe('CSF público', () => {
 
       const res = await request(app)
         .post('/api/registro')
+        .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC')}`)
         .field('tipo_persona', 'fisica')
         .field('email', 'cliente@x.com')
         .field('confirmar_reemplazo', 'true')

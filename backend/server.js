@@ -41,7 +41,6 @@ const {
   generarTokenRecuperacion,
   hashTokenRecuperacion,
   requireUserAuth,
-  obtenerRfcSesionOpcional,
   establecerCookieSesion,
   limpiarCookieSesion,
 } = require('./utils/authUsuario');
@@ -2443,7 +2442,7 @@ app.get(
   })
 );
 
-app.post('/api/registro', submitLimiter, (req, res) => {
+app.post('/api/registro', requireUserAuth, submitLimiter, (req, res) => {
   subirConTenant(upload, 'archivo', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -2467,14 +2466,14 @@ app.post('/api/registro', submitLimiter, (req, res) => {
       const email = sanitizeText(body.email, 200).toLowerCase();
       const confirmarReemplazo = String(body.confirmar_reemplazo) === 'true';
 
-      // Esta ruta es pública (funciona con y sin sesión — ver csf.html),
-      // así que la sesión se lee de forma OPCIONAL (nunca rechaza la
-      // petición por no tener una). Si hay sesión, su RFC es la
-      // referencia autoritativa para la validación de más abajo (el RFC
-      // de la constancia debe corresponder a esa cuenta); si no hay
-      // sesión, se usa el RFC capturado en el formulario, si se dio uno.
-      const rfcSesion = obtenerRfcSesionOpcional(req);
-      const rfcReferencia = rfcSesion || rfcRaw || null;
+      // Auditoría UX 2026-09-29 / petición explícita del usuario: esta
+      // ruta YA NO es pública — requireUserAuth (arriba) exige sesión
+      // válida antes de llegar aquí. req.userRfc es la referencia
+      // autoritativa para la validación de más abajo (el RFC de la
+      // constancia debe corresponder a la cuenta con sesión); rfcRaw
+      // (capturado en el formulario) queda solo como dato informativo si
+      // se sigue pidiendo, nunca como sustituto de la sesión.
+      const rfcReferencia = req.userRfc;
 
       // Que campos son obligatorios se lee en vivo de la base de datos, asi
       // que un cambio hecho desde el panel de administracion aplica de
