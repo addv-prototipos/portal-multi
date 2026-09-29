@@ -398,6 +398,43 @@
     </div>
   </div>
 
+  <!-- Modal "Activando" (Provisionando → Activo) — la única transición
+       con un paso físico real (crear la BD del tenant), puede tardar
+       varios segundos; barra/anillo indeterminados a propósito, ver
+       comentario en control.js junto a activarTenantConAnimacion(). -->
+  <div class="modal-overlay" id="control-activando-modal-overlay" hidden>
+    <div class="modal modal-activando" role="status" aria-live="polite">
+      <div class="barra-indeterminada" id="control-activando-barra"><span></span></div>
+      <div class="modal-activando-head">
+        <div class="spinner-anillo" id="control-activando-spinner">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle class="arco" cx="12" cy="12" r="10"/></svg>
+        </div>
+        <div class="icono-resultado exito" id="control-activando-icono-exito">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="icono-resultado falla" id="control-activando-icono-falla">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <p class="modal-activando-titulo" id="control-activando-titulo">Activando…</p>
+          <p class="modal-activando-sub" id="control-activando-sub"></p>
+        </div>
+      </div>
+      <ul class="lista-pasos">
+        <li id="control-activando-paso1" class="esta-en-curso">
+          <span class="paso-marca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          Creando la base de datos
+        </li>
+        <li id="control-activando-paso2">
+          <span class="paso-marca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          Aplicando el estado activo
+        </li>
+      </ul>
+      <p class="modal-activando-footer" id="control-activando-footer">Puede tardar unos segundos…</p>
+      <button type="button" class="modal-activando-cerrar" id="control-btn-activando-cerrar">Cerrar</button>
+    </div>
+  </div>
+
   <!-- Modal de captura de empresa nueva (segmento 9c, ver PROJECT_STATE.md) -->
   <div class="modal-overlay" id="control-intake-modal-overlay" hidden>
     <div class="modal control-modal-ancha" role="dialog" aria-modal="true" aria-labelledby="control-intake-modal-title">

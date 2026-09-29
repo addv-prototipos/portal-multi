@@ -5352,10 +5352,94 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .estatus-listo { background: #DCEFE3; color: #146C43; }
 
 /* Estado de tenant (app de control, segmento 9) */
+.estatus-badge { transition: background 0.3s ease, color 0.3s ease; }
 .estatus-provisioning { background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border); }
 .estatus-activo { background: #DCEFE3; color: #146C43; }
 .estatus-suspendido { background: var(--color-warn-soft); color: var(--color-warn); }
 .estatus-baja { background: var(--color-error-soft); color: var(--color-error); }
+
+/* Fila que acaba de cambiar de estado (ej. tras activar un tenant, ver
+   flashFilaTenant() en control.js) — flash suave, no un parpadeo brusco. */
+.admin-table tbody tr.es-flash { animation: adminFilaFlash 1.1s ease; }
+@keyframes adminFilaFlash {
+  0% { background: var(--color-accent-soft); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-table tbody tr.es-flash { animation: none; background: var(--color-accent-soft); }
+}
+
+/* Modal "Activando" (Provisionando → Activo, app de control) — es UNA
+   sola petición HTTP sin eventos intermedios reales del servidor, así
+   que la barra y el anillo son deliberadamente indeterminados (nunca se
+   finge un porcentaje exacto); ver activarTenantConAnimacion() en
+   control.js para los 2 pasos con nombre, que sí son reales. */
+.modal-activando { position: relative; overflow: hidden; }
+.barra-indeterminada {
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--color-accent-soft); overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.barra-indeterminada span {
+  position: absolute; top: 0; left: -30%; width: 30%; height: 100%;
+  background: var(--color-accent); border-radius: 2px;
+  animation: adminBarraDeslizar 1.2s ease-in-out infinite;
+}
+@keyframes adminBarraDeslizar { 0% { left: -30%; } 50% { left: 60%; } 100% { left: 100%; } }
+.barra-indeterminada.es-completa span { animation: none; left: 0; width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .barra-indeterminada span { animation: none; left: 0; width: 100%; opacity: 0.5; }
+}
+
+.modal-activando-head { display: flex; align-items: center; gap: 12px; margin: 4px 0 20px; }
+.spinner-anillo { width: 34px; height: 34px; flex-shrink: 0; }
+.spinner-anillo svg { width: 100%; height: 100%; animation: adminGirar 0.9s linear infinite; }
+.spinner-anillo circle { fill: none; stroke: var(--color-accent-soft); stroke-width: 3; }
+.spinner-anillo circle.arco { stroke: var(--color-accent); stroke-linecap: round; stroke-dasharray: 70 200; }
+@keyframes adminGirar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner-anillo svg { animation: none; }
+  .spinner-anillo circle.arco { stroke-dasharray: 140 200; opacity: 0.7; }
+}
+
+.icono-resultado { width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: none; align-items: center; justify-content: center; }
+.icono-resultado.is-visible { display: inline-flex; animation: adminResultadoPop 0.32s cubic-bezier(.2,1.3,.4,1); }
+.icono-resultado.exito { background: var(--color-accent-soft); color: var(--color-accent); }
+.icono-resultado.falla { background: var(--color-error-soft); color: var(--color-error); }
+.icono-resultado svg { width: 18px; height: 18px; }
+@keyframes adminResultadoPop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .icono-resultado.is-visible { animation: none; } }
+
+.modal-activando-titulo { font-size: 15.5px; font-weight: 700; margin: 0 0 2px; }
+.modal-activando-sub { font-size: 12.5px; color: var(--color-ink-soft); margin: 0; }
+
+.lista-pasos { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+.lista-pasos li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-ink-soft); transition: color 0.2s ease; }
+.lista-pasos li.esta-en-curso { color: var(--color-ink); font-weight: 600; }
+.lista-pasos li.esta-lista { color: var(--color-ink); }
+.paso-marca { width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; border: 1.5px solid var(--color-border); display: flex; align-items: center; justify-content: center; transition: border-color 0.2s ease, background 0.2s ease; }
+.paso-marca svg { width: 10px; height: 10px; opacity: 0; transition: opacity 0.15s ease; color: #fff; }
+.lista-pasos li.esta-en-curso .paso-marca { border-color: var(--color-accent); position: relative; }
+.lista-pasos li.esta-en-curso .paso-marca::after {
+  content: ''; position: absolute; inset: -1.5px; border-radius: 50%;
+  border: 1.5px solid transparent; border-top-color: var(--color-accent);
+  animation: adminGirar 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .lista-pasos li.esta-en-curso .paso-marca::after { animation: none; } }
+.lista-pasos li.esta-lista .paso-marca { background: var(--color-accent); border-color: var(--color-accent); }
+.lista-pasos li.esta-lista .paso-marca svg { opacity: 1; }
+
+.modal-activando-footer { margin-top: 20px; font-size: 12px; color: var(--color-ink-soft); text-align: center; min-height: 16px; }
+.modal-activando-cerrar {
+  display: none; width: 100%; margin-top: 16px; padding: 9px;
+  border-radius: var(--radius-sm); border: 1px solid var(--color-border);
+  background: var(--color-bg); color: var(--color-ink); font-size: 13px;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+.modal-activando-cerrar.is-visible { display: block; }
+.modal-activando-cerrar:hover { border-color: var(--color-accent); }
+@media (prefers-reduced-motion: reduce) { .modal-activando-cerrar { transition: none; } }
 
 /* Insignia de perfil (cliente / administrador / fiscal) en la tabla de Usuarios */
 /* Punto 342: columna "Pago" en la tabla de Ventas — fusiona método de

@@ -264,7 +264,7 @@
       <h1>Pendientes — Portal Clarvo</h1>
       <p>Backlog vivo del proyecto: decisiones abiertas, funcionalidad pospuesta a propósito y validaciones que faltan. Se actualiza en el mismo archivo conforme avanza cada segmento — solo dale refresh.</p>
     </div>
-    <div class="updated">Última actualización: <strong>17 sep 2026</strong> · auditoría de 3 commits sin protocolo (SMTP/plantillas: badge real, negritas/cursivas reales, contador correcto — 311, commiteado/pusheado); color navy del botón primario revertido a oficial (Opción A del usuario, commiteado/pusheado); fondo único <code>--color-bg</code> en /admin+/control, confirmado en navegador real (312); preview de constancia (CSF) en blanco corregido — eran 2 bugs: <code>X-Frame-Options</code> DENY→SAMEORIGIN (314) + CSP sin <code>frame-src blob:</code> (317), confirmados por el usuario en navegador real en localhost, falta aplicar en VPS real (sin commit/push); paquete <code>prod/</code> resincronizado 3 veces + <code>prod.zip</code> regenerado (313) · <strong>279 CERRADO</strong> (fuga de códigos §0.3/D5/D2/D8/D11/§0.5.F/§28/§38 quitada de 12 textos visibles + categoría "Glosario" nueva con 20 términos en el Centro de conocimiento, confirmado por el usuario en navegador real — 315) · cerrados desde el 13 sep (validados): Animación 3D + ícono de "Proveedores" (266/267/268), 2do cobro "Servicio en paquete" (298), suspender/activar usuario (290), shimmer sitewide (289), Centro de conocimiento al día + nuevo en /control (293/294), sidebar por grupos + acordeón SMTP (295-297) · sigue abierto: lector código de barras SDK sin costo (291), centros conocimiento + recorrido (273), 2FA correo toggle (274), unificar switches (275), centro de conocimiento cortado en móvil (280)</div>
+    <div class="updated">Última actualización: <strong>29 sep 2026</strong> · revisión completa del repo (proyecto al día en <code>PROJECT_STATE.md</code> hasta el <strong>punto 342</strong>, <code>git log</code> al commit <code>065aa21</code>, Docker con los 5 contenedores <em>healthy</em>, Jest backend <strong>1066/1066</strong>) · <strong>CERRADO en esta revisión</strong>: <strong>137/164</strong> (los 2 tests que faltaban en <code>control/</code> ya existen: <code>tenantTema.test.js</code> y <code>apiCredenciales.test.js</code>, commit <code>244f785</code>); <strong>120</strong> queda casi cerrado (el README ya menciona multi-tenant, Utilidad neta, BI y Look&amp;Feel) — solo sobrevive el <code>FRONTEND_PORT</code> con 3 defaults distintos · <strong>273</strong> pasa a PARCIAL: el recorrido guiado + checklist "Primeros pasos" ya existen para <code>fiscal</code>/<code>administrador</code>/<code>ventas</code>/<code>inventario</code>; falta el perfil <code>super</code> y <code>/control</code> · <strong>280</strong> ya tiene causa raíz localizada en código: <code>#conocimiento-modal-overlay</code> nunca anula el <code>padding:20px</code> de <code>.modal-overlay</code> y usa <code>100vh</code> sin <code>100dvh</code> · <strong>NUEVA SECCIÓN "Sesiones 18–29 sep"</strong> con 12 implementaciones que esperan confirmación visual del usuario (Corte del día, perfil Inventario, riel colapsable en monitor ancho, campana de notificaciones, método de pago…) · <strong>NUEVOS pendientes</strong>: <code>TRUST_PROXY_HOPS</code> sin fijar en el VPS real (327), <code>TRUST_PROXY_HOPS</code>/<code>BANXICO_TOKEN</code> sin documentar en <code>.env.example</code>, <code>GET /api/admin/mi-cuenta</code> sin gate de perfil (321), drift de <code>prod/frontend</code> (<code>admin.css</code>, <code>control.js</code>, <code>control.html</code>) · sigue abierto: lector código de barras SDK sin costo (291), 2FA correo toggle (274), unificar switches (275), popup de suspensión (248), cuota de imágenes (250), <code>controlBase</code> (305), switches de Cuenta (309), CRM (307/308)</div>
   </header>
 
   <div class="legend">
@@ -331,7 +331,7 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="v-152" aria-label="Marcar completado"></td>
             <td class="col-punto">152</td>
             <td class="col-item">Tipo de cambio automático (Banxico)</td>
-            <td class="col-detalle">Camino manual y de degradación ya validados; falta probar el camino automático con un <code>BANXICO_TOKEN</code> real cuando exista.</td>
+            <td class="col-detalle">Camino manual y de degradación ya validados; falta probar el camino automático con un <code>BANXICO_TOKEN</code> real cuando exista. <strong>Revisión 29 sep 2026</strong>: el código está completo y probado — <code>backend/utils/tipoCambio.js</code> (consulta SIE serie SF43718, degradaciones <code>manual_requerido</code> / <code>banxico_caducado</code>), endpoint <code>GET /api/admin/tipo-cambio/usd</code> (<code>backend/server.js:8296</code>), UI en <code>admin.js</code> y <code>backend/test/unit/tipoCambio.test.js</code> (5 casos con <code>fetch</code> mockeado, incluye caché y caída de red). Lo único que falta de verdad: (1) <code>BANXICO_TOKEN</code> está documentado en <code>README.md</code> pero <strong>NO</strong> en <code>.env.example</code>; (2) probarlo contra la API real de Banxico con un token válido.</td>
             <td class="col-estado"><span class="pill pill-gray">Sin probar con token real</span></td>
           </tr>
           <tr data-app="admin" data-id="v-154">
@@ -391,8 +391,8 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-137-164" aria-label="Marcar completado"></td>
             <td class="col-punto">137/164</td>
             <td class="col-item">Tests unitarios faltantes en <code>control/</code></td>
-            <td class="col-detalle"><code>tenantTema.js</code> y <code>apiCredenciales.js</code> no tienen test propio ahí (sí en backend).</td>
-            <td class="col-estado"><span class="pill pill-amber">Deuda técnica</span></td>
+            <td class="col-detalle"><strong>CERRADO 29 sep 2026.</strong> Los 2 archivos que faltaban ya existen: <code>control/test/unit/tenantTema.test.js</code> (299 líneas, el encabezado documenta que cierra este hueco) y <code>control/test/unit/apiCredenciales.test.js</code> (206 líneas). Introducidos en el commit <code>244f785</code> ("test: cierra 8 huecos de cobertura unitaria"). <code>control/test/</code> hoy tiene 15 suites (13 unitarias + 2 de integración) y <code>control</code> corre <strong>247/247</strong> en verde. La fila queda como registro histórico.</td>
+            <td class="col-estado"><span class="pill pill-green">Completado — commit 244f785</span></td>
           </tr>
           <tr data-app="admin" data-id="i-278">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-278" aria-label="Marcar completado"></td>
@@ -404,15 +404,15 @@
           <tr data-app="admin" data-id="i-291">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-291" aria-label="Marcar completado"></td>
             <td class="col-punto">291</td>
-            <td class="col-item">Revisar otro SDK para lector de codigo de barras, sin costo</td>
-            <td class="col-detalle">Evaluar SDK alternativo al actual (<code>frontend/scanner.js</code> — nativo <code>BarcodeDetector</code> + respaldo <code>html5-qrcode</code> MIT vendorizado en <code>/assets/vendor/</code>), que <strong>no sea de costos</strong> (sin licencia de pago, sin cobro por escaneo, sin API en la nube). Actual ya es 100% sin costo — pendiente es tener alternativa evaluada. Candidatos a revisar cuando se apruebe: <code>@zxing/library</code>, <code>quagga2</code>/<code>@ericblade/quagga2</code>, polyfills de <code>BarcodeDetector</code>. Criterios: licencia MIT/Apache-2.0, autohospedado sin CDN, sin build step, bundle ligero, mismos 8 formatos 1D (<code>ean_13</code>, <code>code_128</code>, etc.), rendimiento en Android gama baja / iOS Safari. Sin código tocado. Ver <code>PROJECT_STATE.md</code> punto 291.</td>
+            <td class="col-item">Revisar otro SDK para lector de código de barras, sin costo</td>
+            <td class="col-detalle">Evaluar SDK alternativo al actual, que <strong>no sea de costos</strong> (sin licencia de pago, sin cobro por escaneo, sin API en la nube). <strong>Revisión 29 sep 2026</strong>: el lector ya está construido y es 100% gratuito hoy — <code>frontend/scanner.js</code> (259 líneas) usa <code>BarcodeDetector</code> nativo con respaldo <strong><code>html5-qrcode</code> Apache-2.0 vendorizado</strong> en <code>frontend/assets/vendor/html5-qrcode.min.js</code> (375 KB, licence incluida), cargado perezosamente y por ruta absoluta (multi-tenant), <strong>sin CDN y sin build step</strong>. Lo que sigue sin existir: <strong>alternativa evaluada</strong> — 0 coincidencias de <code>@zxing/library</code>, <code>quagga2</code> ni polyfills de <code>BarcodeDetector</code> en todo el repo. Candidatos a revisar cuando se apruebe: <code>@zxing/library</code>, <code>quagga2</code>/<code>@ericblade/quagga2</code>, polyfills de <code>BarcodeDetector</code>. Criterios: licencia MIT/Apache-2.0, autohospedado sin CDN, sin build step, bundle ligero, mismos formatos 1D (<code>ean_13</code>, <code>code_128</code>, etc.), rendimiento en Android gama baja / iOS Safari. Ver <code>PROJECT_STATE.md</code> punto 291.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — pendiente revisar SDK sin costo</span></td>
           </tr>
           <tr data-app="admin" data-id="inv-barcode-revisar">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="inv-barcode-revisar" aria-label="Marcar completado"></td>
             <td class="col-punto">—</td>
-            <td class="col-item">Revisar lectura de código de barras (camara + SDK)</td>
-            <td class="col-detalle">Auditar el flujo real de <strong>lectura de codigo de barras</strong> en Inventarios/Ventas: <code>frontend/scanner.js</code> (<code>BarcodeDetector</code> nativo + <code>html5-qrcode</code>), HTTPS requerido (punto 280), permisos de camara en iOS/Android, formatos 1D (EAN-13/Code128), feedback visual, fallback manual, y alternativa SDK sin costo (punto 291). Falta definir criterios de aceptacion y probar en celular real contra Docker prod. Ver <code>PROJECT_STATE.md</code> punto 306.</td>
+            <td class="col-item">Revisar lectura de código de barras (cámara + SDK)</td>
+            <td class="col-detalle">Auditar el flujo real de <strong>lectura de código de barras</strong> en Inventarios/Ventas. <strong>Revisión 29 sep 2026 — avance de la auditoría:</strong> el flujo está <strong>bien construido</strong> — <code>frontend/scanner.js</code> con doble motor (<code>BarcodeDetector</code> nativo + <code>html5-qrcode</code> vendorizado), detección de <code>isSecureContext</code> con mensaje explícito cuando no hay HTTPS, vendorizado sin CDN, y presente también en <code>prod/frontend/assets/vendor/</code>. Lo que la auditoría encontró pendiente: (a) <strong>HTTPS no existe en el nginx del contenedor</strong> — ni <code>frontend/nginx.conf.template</code> ni su espejo en <code>prod/</code> tienen <code>listen 443</code> ni <code>ssl_certificate</code>; el TLS lo termina un nginx del <strong>host</strong> con certbot fuera de Docker (<code>prod/deploy.sh:242-298</code>), así que en desarrollo por IP de LAN la cámara nunca podrá abrir — ver el pendiente 280 (HTTPS A/B); (b) falta probar con un <strong>celular físico</strong> contra HTTPS real (permisos de cámara en iOS/Android, rendimiento en gama baja); (c) falta definir criterios de aceptación por formato 1D. Ver <code>PROJECT_STATE.md</code> punto 306 y el pendiente 291.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta auditar en dispositivo real</span></td>
           </tr>
         </tbody>
@@ -446,8 +446,8 @@
   </section>
 
   <section>
-    <h2>Infraestructura / Multi-tenant <span class="count">4 pendientes</span></h2>
-    <p class="section-note">Todo el plan de 9 segmentos de migración a multi-tenant está completo en código — esto es "nunca ejercitado contra infraestructura real de producción", no trabajo sin hacer.</p>
+    <h2>Infraestructura / Multi-tenant <span class="count">6 pendientes</span></h2>
+    <p class="section-note">Todo el plan de 9 segmentos de migración a multi-tenant está completo en código — esto es "nunca ejercitado contra infraestructura real de producción", no trabajo sin hacer. Los 2 pendientes de abajo son de la sesión del 17 sep en adelante y sí son trabajo real sin terminar.</p>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Hecho</th><th>Segmento</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -480,13 +480,27 @@
             <td class="col-detalle"><strong>Control debe tener BD independiente</strong> del resto (<code>control_tenants</code> ya existe, pero hoy comparte MySQL/Compose con el backend) y vivir en <strong>Docker separado llamado <code>controlBase</code></strong> (servicio aparte, no solo <code>control</code> en el mismo <code>docker-compose.yml</code>). Definir: compose/stack propio, red/volumen MySQL propio vs compartido, migracion de datos existentes, <code>CONTROL_UPSTREAM_HOST</code>/secreto <code>X-Internal-Secret</code>, y deploy separado. Ver <code>PROJECT_STATE.md</code> punto 305.</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir compose/BD</span></td>
           </tr>
+          <tr data-app="admin,control" data-id="infra-327-trustproxy">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-327-trustproxy" aria-label="Marcar completado"></td>
+            <td class="col-punto">327</td>
+            <td class="col-item"><code>TRUST_PROXY_HOPS</code> sin fijar en el VPS real — la IP real del cliente se registra mal en la auditoría</td>
+            <td class="col-detalle">El backend y <code>control/</code> tenían <code>app.set('trust proxy', 1)</code> fijo, asumiendo topología local. En <code>yt.addv.com.mx</code> hay un <strong>nginx del host</strong> delante del contenedor = <strong>2 saltos reales</strong>, así que con el valor 1 la IP que llega a <code>admin_auditoria</code> es la del proxy, no la del cliente. Se creó la env var <code>TRUST_PROXY_HOPS</code> (default 1, parseo defensivo) cableada en <code>docker-compose.yml</code>, <code>docker-stack.yml</code> y <code>prod/docker-compose.prod.yml</code>, y validada contra Docker real con la variable presente en ambos contenedores. <strong>Lo que falta (decisión deliberada, no olvido):</strong> (1) <code>prod/docker-compose.prod.yml</code> se dejó en 1 a propósito; (2) hay que <strong>confirmar por SSH la configuración real del nginx del host</strong> y fijar ahí el valor que corresponda (probablemente 2) — sin ese dato, subirlo es adivinar; (3) <code>.env.example</code> no documenta la variable. Ver <code>PROJECT_STATE.md</code> punto 327.</td>
+            <td class="col-estado"><span class="pill pill-red">Urgente — la auditoría registra la IP del proxy</span></td>
+          </tr>
+          <tr data-app="admin,control" data-id="infra-316-mantenimiento">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-316-mantenimiento" aria-label="Marcar completado"></td>
+            <td class="col-punto">316/323</td>
+            <td class="col-item">Página de mantenimiento 3D sin confirmar en el nginx del host</td>
+            <td class="col-detalle">Durante el incidente real del 17 sep (backend en crash-loop por credenciales MySQL desincronizadas) se construyó una página de mantenimiento en CSS puro para reemplazar el 502 pelado de nginx, más un <code>enganchar-nginx.sh</code> con backup y rollback automático si <code>nginx -t</code> falla. Vive en <code>unavailable/</code> (punto 323 la movió ahí, fuera de <code>prod/</code>, para que sobreviva a cualquier borrado de esa carpeta y no viaje en <code>prod.zip</code>). <strong>Sin confirmar desde el 17 sep si ya quedó enganchada</strong> en <code>/etc/nginx/sites-available/yt.addv.com.mx.conf</code> — archivo que <code>actualizar.sh</code>/<code>deploy.sh</code> nunca tocan una vez creado, así que es 100% paso manual del usuario. Decidir: ¿se engancha o se borra por no ser usada?</td>
+            <td class="col-estado"><span class="pill pill-amber">Construido, sin confirmar si se aplicó</span></td>
+          </tr>
         </tbody>
       </table>
     </div>
   </section>
 
   <section>
-    <h2>Inicio de sesión / Seguridad <span class="count">5 pendientes</span></h2>
+    <h2>Inicio de sesión / Seguridad <span class="count">6 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -524,8 +538,15 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-292" aria-label="Marcar completado"></td>
             <td class="col-punto">292</td>
             <td class="col-item">Perfiles contador (fiscal/ventas) sin tarjetas de dinero — contadores y gráficas ocultas</td>
-            <td class="col-detalle">Los perfiles de <strong>contador</strong> (<code>fiscal</code> y <code>ventas</code>) <strong>no pueden ver las tarjetas que queden en su perfil que generen datos relacionados al dinero</strong> — aplica a <strong>contadores y gráficas</strong>. Dentro de sus <code>vistasPermitidas</code> actuales (<code>RESTRICCIONES_PERFIL</code> en <code>frontend/admin.js:1832</code> — fiscal: <code>inicio</code>/<code>constancias</code>/<code>tickets</code>; ventas: <code>ordenes</code>/<code>cxc</code>/<code>gastos</code>), ocultar cualquier tarjeta/KPI/gráfica con montos, totales, balances, utilidad, cobranza o valuación. Ejemplos a auditar: Ventas (total ventas, por cobrar/cobrado), CxC (saldos, mora, gauge de cobranza), Gastos (total gastos, balance, variables, top proveedores), Inventarios (valor del inventario — no aplica a estos perfiles hoy porque no ven esa vista, pero aplica si se les habilitara alguna tarjeta), Resumen financiero (no visible para estos perfiles hoy — validar que siga oculto). Requiere definir si es solo ocultar UI o también gatear APIs (<code>GET /api/admin/ordenes-compra</code>, <code>/resumen-financiero</code>, <code>/gastos</code>) para no exponer el dato por fetch directo. Sin código tocado. Ver <code>PROJECT_STATE.md</code> punto 292.</td>
-            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta auditar qué tarjetas cuentan como "dinero"</span></td>
+            <td class="col-detalle">Los perfiles de <strong>contador</strong> (<code>fiscal</code> y <code>ventas</code>) <strong>no pueden ver las tarjetas que queden en su perfil que generen datos relacionados al dinero</strong> — aplica a <strong>contadores y gráficas</strong>. <strong>Revisión 29 sep 2026 — sigue NO HECHO, y el hallazgo del código es peor de lo que decía la nota original:</strong> <code>RESTRICCIONES_PERFIL</code> (<code>frontend/admin.js:2076</code>, no 1832 como decía antes) define <code>fiscal</code> = inicio/constancias/tickets/mi-cuenta/configuraciones y <code>ventas</code> = ordenes/cxc/gastos/mi-cuenta, pero <code>aplicarRestriccionesPerfil()</code> (<code>admin.js:2255</code>) <strong>solo oculta botones de vista, grupos del sidebar y tarjetas de Configuraciones</strong> — no hay ninguna lógica que filtre tarjetas/KPIs/gráficas por tipo de dato. Y el punto choca de frente: el perfil <code>ventas</code> ve <strong>precisamente las 3 vistas más monetarias del panel</strong> (Ventas, Cuentas por cobrar, Gastos). Además el <strong>backend no gatea</strong>: <code>GET /api/admin/ordenes-compra</code> (<code>server.js:5838</code>), <code>POST</code> (<code>:5410</code>), <code>GET /api/admin/gastos</code> (<code>:6688</code>) y <code>POST</code> (<code>:6846</code>) usan <code>requireAdminArea('administrador','ventas')</code>, así que un <code>fetch</code> directo expone los montos aunque la UI los tape. Decisión pendiente antes de implementarlo: ¿el perfil <code>ventas</code> conserva o pierde el acceso a Ventas/CxC/Gastos? Ver <code>PROJECT_STATE.md</code> punto 292.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin decidir — el backend tampoco gatea</span></td>
+          </tr>
+          <tr data-app="admin" data-id="sec-321-mi-cuenta">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-321-mi-cuenta" aria-label="Marcar completado"></td>
+            <td class="col-punto">321</td>
+            <td class="col-item"><code>GET /api/admin/mi-cuenta</code> sin gate de perfil — cualquiera puede editar su propia cuenta por API</td>
+            <td class="col-detalle">Al crear el perfil <strong>Inventario</strong> (punto 321) se detectó y dejó documentado un límite: <strong><code>GET /api/admin/mi-cuenta</code> no tiene gate de perfil para NINGÚN perfil</strong>. Una cuenta "Inventario" puede editar su propio nombre, correo y contraseña llamando a la API directamente aunque el botón esté oculto en la UI. No es una fuga grave (es la cuenta de uno mismo), pero es una inconsistencia: el panel oculta el control y la API no lo restringe. Endurecerlo requiere decidir si <code>mi-cuenta</code> es universal por diseño (y entonces documentarlo como tal) o si cada perfil tiene un subconjunto editable. Deuda aceptada conscientemente en el momento del punto 321, no resuelta después. Ver <code>PROJECT_STATE.md</code> punto 321.</td>
+            <td class="col-estado"><span class="pill pill-amber">Deuda técnica — decisión pendiente</span></td>
           </tr>
         </tbody>
       </table>
@@ -620,7 +641,7 @@
   </section>
 
   <section>
-    <h2>Despliegue / Empaquetado <span class="count">1 pendiente</span></h2>
+    <h2>Despliegue / Empaquetado <span class="count">3 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -629,8 +650,125 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="desp-270-300" aria-label="Marcar completado"></td>
             <td class="col-punto">270/300/313/314/317</td>
             <td class="col-item">Aplicar la actualización en el VPS real (yt.addv.com.mx)</td>
-            <td class="col-detalle">El punto 270 ya está resuelto en código: paquete completo <code>prod/</code> (VPS único nodo, <code>docker-compose.prod.yml</code> sin contenedor <code>control</code>, <code>deploy.sh</code> primer despliegue con nginx+certbot real, <code>actualizar.sh</code> para código nuevo sin tocar nginx/certbot/<code>.env</code>, <code>sembrar.sh</code> datos demo, <code>.env</code> nunca en el paquete/zip). <code>prod/</code> resincronizado 4 veces desde entonces (15-sep y 17-sep, puntos 300/313), <code>prod.zip</code> regenerado cada vez. El preview de constancias (CSF) en blanco resultó ser 2 bugs, no 1: punto 314 (<code>X-Frame-Options</code> DENY→SAMEORIGIN) y punto 317, encontrado el mismo día al validar en localhost (CSP sin <code>frame-src</code> — <code>default-src 'self'</code> no cubre <code>blob:</code> para iframe sin declararlo, mismo gotcha que <code>img-src</code> ya tenía resuelto). Los 2 fixes juntos <strong>ya confirmados por el usuario en navegador real, solo en localhost</strong> — a petición del usuario, esta sesión se enfoca en localhost y NO sincroniza/despliega a <code>prod/</code> salvo que se pida explícito, así que el paquete de producción quedó sin actualizar con el fix 317 esta vez. <strong>Pendiente real</strong>: sincronizar <code>prod/frontend/nginx.conf.template</code> con el fix 317 + acceso SSH al VPS para correr <code>sudo ./actualizar.sh</code>. Ver <code>PROJECT_STATE.md</code> puntos 300, 313, 314 y 317.</td>
-            <td class="col-estado"><span class="pill pill-red">Urgente — bug real activo en producción hasta aplicarlo</span></td>
+            <td class="col-detalle">El punto 270 ya está resuelto en código: paquete completo <code>prod/</code> (VPS único nodo, <code>docker-compose.prod.yml</code> sin contenedor <code>control</code>, <code>deploy.sh</code> primer despliegue con nginx+certbot real, <code>actualizar.sh</code> para código nuevo sin tocar nginx/certbot/<code>.env</code>, <code>sembrar.sh</code> datos demo, <code>.env</code> nunca en el paquete/zip). El preview de constancias (CSF) en blanco resultaron ser 2 bugs, no 1: punto 314 (<code>X-Frame-Options</code> DENY→SAMEORIGIN) y punto 317 (CSP sin <code>frame-src</code> — <code>default-src 'self'</code> no cubre <code>blob:</code> para iframe sin declararlo, mismo gotcha que <code>img-src</code> ya tenía resuelto). Los 2 juntos confirmados por el usuario en navegador real, <strong>solo en localhost</strong>. <strong>Revisión 29 sep 2026 — avance real:</strong> el <strong>punto 314 sí llegó al VPS</strong> (el usuario corrió <code>actualizar.sh</code> el 17 sep, que fue justamente lo que disparó el incidente de credenciales del punto 316 — y el login funcionó de inmediato después). Del <strong>317 no hay evidencia de que se haya desplegado</strong>: se descubrió ese mismo día después de ese <code>actualizar.sh</code>, así que sigue siendo el fix sin confirmar en producción. Además desde entonces se ha acumulado trabajo que tampoco está en el VPS (puntos 316 preflight, 320, 321, 324, 325, 326, 327, 329-334, 335-342, 343 sin commitear). <strong>Pendiente real</strong>: acceso SSH al VPS, sincronizar <code>prod/</code> y correr <code>sudo ./actualizar.sh</code>. Ver <code>PROJECT_STATE.md</code> puntos 300, 313, 314, 316 y 317.</td>
+            <td class="col-estado"><span class="pill pill-red">Urgente — 314 aplicado, 317 y todo lo posterior sin desplegar</span></td>
+          </tr>
+          <tr data-app="admin,control" data-id="desp-prod-drift">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="desp-prod-drift" aria-label="Marcar completado"></td>
+            <td class="col-punto">322/342</td>
+            <td class="col-item">Drift de <code>prod/</code> — 3 archivos del frontend desincronizados hoy</td>
+            <td class="col-detalle"><code>prod/</code> es el espejo de despliegue de <code>yt.addv.com.mx</code>: se sincroniza <strong>por contenido</strong>, nunca por estructura, y nunca se commitea (es untracked a propósito). El punto 322 lo dejó al día y el 342 lo resincronizó, pero <strong>hay trabajo en el working tree sin commitear que nunca llegó al espejo</strong>. Comparación por SHA-256 hecha el 29 sep: <code>backend/</code> está <strong>al 100% sincronizado</strong> (98 archivos idénticos; lo único "extra" es <code>prod/backend/scripts/sembrar-prod.js</code>, que es propio del prod por diseño) y <code>frontend/admin.js</code> también coincide. Pero <code>frontend/admin.css</code>, <code>frontend/control.js</code> y <code>frontend/control.html</code> <strong>SÍ difieren</strong> — <code>prod/</code> tiene versiones del 15 sep y el repo tiene el modal "Activando" de activación de tenants (<code>.modal-activando</code>, <code>.barra-indeterminada</code>, <code>.spinner-anillo</code>, <code>tr.es-flash</code> — ~84 líneas de CSS, ~112 de JS, ~37 de HTML) más los cambios del punto 342. Además <code>prod/control/</code> no existe (decisión documentada: <code>/control</code> no viaja en el espejo de <code>yt.addv.com.mx</code>). <strong>Antes de sincronizar hay que commitear primero</strong> — si no, se congela en el espejo código que aún puede cambiar.</td>
+            <td class="col-estado"><span class="pill pill-amber">Construido, sin commitear — no sincronizar aún</span></td>
+          </tr>
+          <tr data-app="admin" data-id="desp-341-csf-publico">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="desp-341-csf-publico" aria-label="Marcar completado"></td>
+            <td class="col-punto">341</td>
+            <td class="col-item"><code>csf.html</code> ya no es público — revisar el impacto en la URL compartida</td>
+            <td class="col-detalle">Punto 341 (29 sep, commit <code>6b39edb</code>): <code>POST /api/registro</code> ahora exige <code>requireUserAuth</code> y el frontend redirige a <code>login.html</code> ante un 401. <strong>No es un bug, es un cambio de producto que el usuario eligió</strong> de entre 3 opciones — pero conviene confirmar explícitamente que <strong>no hay ningún enlace de acceso público a <code>/csf</code></strong> que se haya quedado apuntando a una página que ahora pide sesión (correos,Constancia compartida, marcadores, material impreso). Si existiera, quien lo receipta vería el formulario de login y no sabría qué hacer. También queda documentada, sin tocar, la oportunidad de usar <code>req.userRfc</code> en la búsqueda de duplicados por correo. Ver <code>PROJECT_STATE.md</code> punto 341.</td>
+            <td class="col-estado"><span class="pill pill-gray">Implementado — falta revisar enlaces públicos</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sesiones 18-29 sep — falta confirmación visual <span class="count">13 pendientes</span></h2>
+    <p class="section-note">Todo lo de abajo <strong>ya está commiteado y con pruebas en verde</strong> (backend 1066/1066, control 247/247), pero <strong>nadie lo ha visto todavía en un navegador</strong>. Son implementaciones cuyo punto de partida fue "quiero que se vea así" y el objetivo era cerrar la sesión con el usuario mirándolo. No es deuda técnica: es el paso de verificación que falta. Todas se validan de una sentada en <code>http://localhost:8088/admin</code> (o <code>/control</code>), contra el tenant de pruebas.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr data-app="admin" data-id="vis-318-cortedeldia">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-318-cortedeldia" aria-label="Marcar completado"></td>
+            <td class="col-punto">318</td>
+            <td class="col-item">Corte del día en el dashboard</td>
+            <td class="col-detalle">Tarjeta de resumen de ventas del día en Inicio. El usuario pidió explícitamente <strong>verla funcionando antes de cerrar la sesión</strong> y no se llegó a mostrar.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-321-inventario">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-321-inventario" aria-label="Marcar completado"></td>
+            <td class="col-punto">321</td>
+            <td class="col-item">Perfil Inventario (nuevo perfil de administrador)</td>
+            <td class="col-detalle">Quinto perfil de <code>/admin</code>, acotado a Inventarios/Proveedores/Entradas/Salidas y con ticket de CSF limitado a "enviar a administración" en vez de "enviar a contabilidad". Incluye la ruta de recuperación de contraseña obligatoria en el primer ingreso, a diferencia de los otros 4 perfiles. También es la fuente del pendiente de <code>mi-cuenta</code> en la sección de Seguridad.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-324-logout">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-324-logout" aria-label="Marcar completado"></td>
+            <td class="col-punto">324</td>
+            <td class="col-item">Cerrar sesión con aviso de suspensión</td>
+            <td class="col-detalle">Al cerrar sesión, el backend responde 403 con un motivo (<code>api:cuenta-suspendida</code>) y la UI lo distingue de un simple "no autorizado" para no dejar al usuario creyendo que su contraseña está mal. Se relaciona con el pendiente 248 (popup de suspensión al intentar entrar), que sigue abierto.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-325-estadoinv">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-325-estadoinv" aria-label="Marcar completado"></td>
+            <td class="col-punto">325</td>
+            <td class="col-item">Columna "Estado del inventario" en entradas y salidas</td>
+            <td class="col-detalle">Muestra la existencia actual del artículo al momento de registrar el movimiento, para detectar de inmediato si se está trabajando con stock negativo. Se añadió también el paso correspondiente al centro de conocimiento.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-326-f5-inicio">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-326-f5-inicio" aria-label="Marcar completado"></td>
+            <td class="col-punto">326</td>
+            <td class="col-item">Atajo F5 en la vista de Inicio</td>
+            <td class="col-detalle">Refresca solo los datos del dashboard sin recargar la página ni perder la sesión, y sin el parpadeo de un F5 nativo.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-329-riel">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-329-riel" aria-label="Marcar completado"></td>
+            <td class="col-punto">329-333</td>
+            <td class="col-item">Riel lateral colapsable en monitor ancho (bandeja de tareas)</td>
+            <td class="col-detalle">Un solo elemento de 5 filas, agrupadas en columnas, para que las 5 tareas quepan siempre en pantalla sin scroll vertical. Incluye el comportamiento en móvil, en tablet y en monitor angosto, y su recordatorio de posición al recargar.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-336-iconos">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-336-iconos" aria-label="Marcar completado"></td>
+            <td class="col-punto">336</td>
+            <td class="col-item">Botones de acción solo con ícono (agregar/editar/ver)</td>
+            <td class="col-detalle">Reemplazo del botón de texto por el ícono SVG feather-like del propio sitio en las 3 acciones repetidas de cada fila, con tooltip accesible. Alineado con la regla de cero emojis del proyecto: los íconos son SVG inline, no caracteres Unicode.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-337-campana">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-337-campana" aria-label="Marcar completado"></td>
+            <td class="col-punto">337/339</td>
+            <td class="col-item">Campana de notificaciones con badge y bandeja desplegable</td>
+            <td class="col-detalle">Notificaciones nuevas con contador, y navegación directa a la vista correspondiente desde la bandeja. Encabezada por el punto 339 (reglas de caducidad de los tickets, que también quedan sin ver).</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-338-ticket">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-338-ticket" aria-label="Marcar completado"></td>
+            <td class="col-punto">338</td>
+            <td class="col-item">Ticket sin correo para el perfil restricted_fiscal</td>
+            <td class="col-detalle">El perfil <code>restricted_fiscal</code> puede abrir tickets sin que se le envíe correo (commit <code>5aab3e7</code>), para que pueda reportar un problema de facturación sin que se le notifique por correo a sí mismo. Falta la comprobación de que el envío de correo realmente se omite, no solo se oculte en pantalla.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-340-ux">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-340-ux" aria-label="Marcar completado"></td>
+            <td class="col-punto">340</td>
+            <td class="col-item">Correcciones de UX de la sesión del 28 sep</td>
+            <td class="col-detalle">Conjunto de ajustes finos de textos, alineación y estados vacíos detectados al recorrer la interfaz, más la normalización de la razón social del emisor y los botones deshabilitados sin explicación. Son cambios pequeños pero acumulativos: es exactamente el tipo de cosa que se nota solo mirando.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-341-csf-auth">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-341-csf-auth" aria-label="Marcar completado"></td>
+            <td class="col-punto">341</td>
+            <td class="col-item"><code>/csf</code> ahora exige sesión</td>
+            <td class="col-detalle">El registro público de constancia pasó a requerir cuenta. El impacto en enlaces compartidos está en la sección de Despliegue; aquí lo pendiente es solo verlo funcionando y confirmar que el redirect a <code>login.html</code> se siente natural y no deja al usuario sin salida.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-342-pago">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-342-pago" aria-label="Marcar completado"></td>
+            <td class="col-punto">342</td>
+            <td class="col-item">Método de pago + folio de conciliación en Ventas</td>
+            <td class="col-detalle">Último commit del repo (<code>065aa21</code>): selector de método de pago al registrar una orden de compra y folio de conciliación en la columna correspondiente, con su paso en el centro de conocimiento. Migración de esquema incluida y ya aplicada por <code>ensureSchema()</code>.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="control" data-id="vis-343-activando">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-343-activando" aria-label="Marcar completado"></td>
+            <td class="col-punto">343</td>
+            <td class="col-item">Modal "Activando" al activar un tenant en /control</td>
+            <td class="col-detalle">Barra indeterminada + anillo giratorio + 2 pasos reales al activar un tenant (Provisionando → Activo), con fila que hace flash al terminar. Documentado en <code>PROJECT_STATE.md</code>. <strong>Sin commitear/pushear todavía</strong> (<code>frontend/admin.css</code>/<code>control.js</code>/<code>control.html</code>/<code>admin.js</code>) y sin sincronizar a <code>prod/</code> — falta probar con un tenant real en "Provisionando" antes de subirlo.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
           </tr>
         </tbody>
       </table>
@@ -674,8 +812,8 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="cen-273" aria-label="Marcar completado"></td>
             <td class="col-punto">273</td>
             <td class="col-item">Actualizar centros de conocimiento + recorrido</td>
-            <td class="col-detalle">Actualizar los <strong>centros de conocimiento</strong> (<code>frontend/admin.html</code>/<code>admin.js</code> <code>CONOCIMIENTO_CATEGORIAS</code> + vista "Centro de conocimiento", <code>control</code> si aplica para gestión de contenidos) con <strong>todos los cambios</strong> recientes y el <strong>recorrido</strong>. Sin definir: qué cambios exactos (¿271/272 cotizador/market, 269/270, 256-260 financiero, 242/243 YouTube?), qué es "recorrido" (¿tour guiado/onboarding paso a paso — <code>intro.js</code>/<code>shepherd</code> vs. implementación propia — por <code>/admin</code>, <code>/control</code>, portal cliente?), cobertura (¿alta en <code>/control</code>, Ventas, Gastos, Inventarios, Reportes, Centro mismo?), formato (¿tooltips anclados + checklist de progreso vs. documentación estática + categorías con fichas/links?). Ver <code>PROJECT_STATE.md</code> punto 273.</td>
-            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir alcance</span></td>
+            <td class="col-detalle">Actualizar los <strong>centros de conocimiento</strong> (<code>frontend/admin.html</code>/<code>admin.js</code> <code>CONOCIMIENTO_CATEGORIAS</code> + vista "Centro de conocimiento", <code>control</code> si aplica para gestión de contenidos) con <strong>todos los cambios</strong> recientes y el <strong>recorrido</strong>. <strong>Revisión 29 sep 2026 — PASSED A PARCIAL, la mayor parte ya está hecha:</strong> (1) el <strong>Centro de conocimiento tiene 16 categorías</strong> reales en <code>admin.js:18366-18549</code> (primeros-pasos, glosario, inicio, tickets, constancias, ventas, cxc, gastos, inventarios, proveedores, reportes, usuarios, mi-cuenta, auditoria, resumen-financiero, configuraciones) y los 16 botones del HTML coinciden 1:1; se han seguido añadiendo pasos con cada feature (Glosario 315, "Elegir método de pago" 342, estado del inventario 325). (2) El <strong>recorrido guiado con spotlight ya existe y funciona</strong> (<code>ONBOARDING_TOUR_PASOS</code> <code>admin.js:18876</code>, spotlight posicionado con <code>getBoundingClientRect</code>, botón "Ver el recorrido de nuevo") y el checklist "Primeros pasos" cubre <code>fiscal</code>, <code>administrador</code>, <code>ventas</code> e <code>inventario</code> (<code>definirPasosOnboarding</code> <code>admin.js:18747</code>). <strong>Lo que falta:</strong> (a) el perfil <strong><code>super</code> no tiene checklist ni tour</strong> — <code>contenedorOnboarding()</code> devuelve <code>null</code> para él y <code>ONBOARDING_TOUR_PASOS</code> no tiene su clave; (b) <code>/control</code> no tiene recorrido (excluido a propósito en el punto 294); (c) el tour no cubre Proveedores, Reportes ni Configuraciones. Ver <code>PROJECT_STATE.md</code> punto 273.</td>
+            <td class="col-estado"><span class="pill pill-amber">Parcial — falta perfil super y /control</span></td>
           </tr>
           <tr data-app="admin,control" data-id="cen-279">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="cen-279" aria-label="Marcar completado"></td>
@@ -688,8 +826,8 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="cen-280-movil" aria-label="Marcar completado"></td>
             <td class="col-punto">280</td>
             <td class="col-item">Centro de conocimiento cortado / no operable en móvil</td>
-            <td class="col-detalle">El <strong>centro de conocimiento se ve cortado y no es operable en móvil</strong>. Ligado a 273/279 (centro+recorrido/diccionario) y 242/243 (YouTube). Sin analizar causa (¿overflow/grid sin <code>min-width:0</code>, <code>table-scroll</code> sin scroll táctil, modal fuera de viewport, <code>vh</code> vs <code>dvh</code>, sidebar/menú móvil tapando?). Probar en <code>http://192.168.68.60:8088/admin</code> (Centro de conocimiento) en celular físico + DevTools responsive. Ver <code>PROJECT_STATE.md</code> punto 280.</td>
-            <td class="col-estado"><span class="pill pill-red">Reportado — sin analizar</span></td>
+            <td class="col-detalle">El <strong>centro de conocimiento se ve cortado y no es operable en móvil</strong>. <strong>Revisión 29 sep 2026 — CAUSA RAÍZ LOCALIZADA en el código, ya no es "sin analizar":</strong> hay <strong>2 defectos concretos y ninguno es de JS</strong>. (1) <strong>El <code>padding</code> del overlay nunca se anula</strong>: <code>.modal-overlay</code> (<code>frontend/style.css:795-806</code>) trae <code>padding: 20px</code> con <code>align-items/justify-content: center</code>, y en móvil la regla <code>@media (max-width:760px)</code> de <code>.config-modal</code> (<code>admin.css:1726-1738</code>) le da <code>width:100vw; height:100vh</code> — un hijo de 100vw/100vh dentro de un contenedor con 20px de padding se desborda 40px y <strong>se recorta por ambos lados</strong>. El repo ya resuelve esto exacto en los otros dos modales a pantalla completa (<code>#orden-registrar-modal-overlay { padding: 0 }</code> <code>admin.css:2571</code> y <code>.preview-overlay { padding: 0 }</code> <code>admin.css:6328</code>) y <strong>no existe ninguna regla para <code>#conocimiento-modal-overlay</code></strong> (0 coincidencias en todos los CSS) — eso es literalmente el "se ve cortado". (2) <strong><code>100vh</code> en vez de <code>100dvh</code></strong>: <code>admin.css:1730</code> usa solo <code>height:100vh</code>, mientras el modal de preview sí hace el fallback correcto <code>height:100vh; height:100dvh</code> (<code>admin.css:6332-6333</code>); con la barra del navegador del móvil, <code>100vh</code> excede el viewport visible y recorta el borde inferior. <strong>Lo que YA está bien</strong> y no hay que tocar: la navegación de 2 pasos en móvil (<code>is-oculta-movil</code> + botón "Volver", <code>admin.js:18616</code>) y los <code>min-width:0</code> en <code>.config-modal-main</code>. La vista de conocimiento <strong>no tiene tablas</strong>, así que <code>table-scroll</code> es irrelevante aquí. Fix propuesto: 2 líneas de CSS siguiendo el patrón que el propio repo ya usa. Pendiente de la <strong>proposición antes/después</strong> y de probarlo en un celular físico (DevTools <code>Ctrl+Shift+M</code>, que en la sesión del 28 sep no se pudo usar porque <code>resize_window</code> no cambió el viewport real). Ver <code>PROJECT_STATE.md</code> punto 280.</td>
+            <td class="col-estado"><span class="pill pill-red">Causa raíz hallada — falta aplicar y probar en móvil</span></td>
           </tr>
         </tbody>
       </table>
@@ -708,14 +846,14 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="cta-facturacion-peticion" aria-label="Marcar completado"></td>
             <td class="col-punto">—</td>
             <td class="col-item">Switch "Facturación — Activar petición de facturas"</td>
-            <td class="col-detalle">En <code>/admin</code> segmento <strong>Cuenta</strong> (junto a <strong>Portal de clientes activar</strong>, ya existente), agregar campo <strong>Facturación</strong> con switch <strong>"Activar petición de facturas"</strong> — mismo estilo/control que el switch de portal de clientes. Sin definir: ¿por tenant (<code>control_tenants</code> / <code>configuracion.facturacion_peticion_activa</code>) o global?, ¿qué bloquea al desactivar (oculta <code>POST /api/tickets</code> + UI + enlaces), texto de ayuda, y si inicia activo/inactivo. Ver <code>PROJECT_STATE.md</code> punto 309.</td>
+            <td class="col-detalle">En <code>/admin</code> segmento <strong>Cuenta</strong> (junto a <strong>Portal de clientes activar</strong>, ya existente), agregar campo <strong>Facturación</strong> con switch <strong>"Activar petición de facturas"</strong> — mismo estilo/control que el switch de portal de clientes. Sin definir: ¿por tenant (<code>control_tenants</code> / <code>configuracion.facturacion_peticion_activa</code>) o global?, ¿qué bloquea al desactivar (oculta <code>POST /api/tickets</code> + UI + enlaces), texto de ayuda, y si inicia activo/inactivo. Ver <code>PROJECT_STATE.md</code> punto 309. <strong>Revisión 29 sep 2026 — confirmado que NO existe:</strong> 0 coincidencias de "petición de facturas" en <code>admin.html</code> ni <code>admin.js</code>. La vista "Mi Cuenta" (<code>admin.html:3793-3990</code>) tiene hoy 1 solo switch — "Portal de clientes", con badge "Próximamente", <code>checked disabled</code> y un tooltip que dice textualmente que es el pendiente 269 sin construir. Nota: esto se solapa con 269/275 (el gestor de facturación desactivable es la otra mitad del mismo problema).</td>
             <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir alcance/gate</span></td>
           </tr>
           <tr data-app="admin" data-id="cta-timbrado-sat">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="cta-timbrado-sat" aria-label="Marcar completado"></td>
             <td class="col-punto">—</td>
             <td class="col-item">Switch "Activar timbrado al SAT" con badge <span class="pill pill-gray" style="font-size:10px; letter-spacing:0.06em;">PROXIMAMENTE</span></td>
-            <td class="col-detalle">En el mismo segmento <strong>Cuenta</strong>, segundo switch <strong>"Activar timbrado al SAT"</strong> con <strong>badge "PRÓXIMAMENTE"</strong> (imagen de referencia, misma identidad visual del sitio — pill gris, texto en mayúsculas, sin emoji) y <strong>por ahora inactivo/deshabilitado</strong> (no guarda, no gatea API, solo visual). Ligado a futuro PAC/timbrado CFDI. Ver <code>PROJECT_STATE.md</code> punto 309.</td>
+            <td class="col-detalle">En el mismo segmento <strong>Cuenta</strong>, segundo switch <strong>"Activar timbrado al SAT"</strong> con <strong>badge "PRÓXIMAMENTE"</strong> (imagen de referencia, misma identidad visual del sitio — pill gris, texto en mayúsculas, sin emoji) y <strong>por ahora inactivo/deshabilitado</strong> (no guarda, no gatea API, solo visual). Ligado a futuro PAC/timbrado CFDI. Ver <code>PROJECT_STATE.md</code> punto 309. <strong>Revisión 29 sep 2026 — confirmado que NO existe:</strong> 0 coincidencias de "timbrado al SAT" en <code>admin.html</code>/<code>admin.js</code>; los únicos hits de "timbrado" en <code>admin.js</code> son textos de otras funciones. El badge "Próximamente" + switch deshabilitado ya existe como patrón en "Portal de clientes", así que es copiar el control, no inventar uno.</td>
             <td class="col-estado"><span class="pill pill-gray">Pendiente visual — inactivo por ahora</span></td>
           </tr>
         </tbody>
@@ -732,16 +870,16 @@
           <tr data-app="admin,control" data-id="doc-120">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="doc-120" aria-label="Marcar completado"></td>
             <td class="col-punto">120</td>
-            <td class="col-item">Inconsistencias en README</td>
-            <td class="col-detalle">Título no menciona multi-tenant; 3 features sin documentar (Utilidad neta, gráficas BI, Look & Feel); <code>FRONTEND_PORT</code> con 3 valores distintos entre docs y <code>.env</code> real.</td>
-            <td class="col-estado"><span class="pill pill-amber">Diagnosticado, sin corregir</span></td>
+            <td class="col-item">Inconsistencias en README — cerrado en su mayor parte, queda <code>FRONTEND_PORT</code></td>
+            <td class="col-detalle">Diagnóstico original: título no menciona multi-tenant, 3 features sin documentar (Utilidad neta, gráficas BI, Look &amp; Feel) y <code>FRONTEND_PORT</code> con 3 valores distintos. <strong>Revisión 29 sep 2026 — 3 de 4 ya están cerrados</strong> (el rebrand a Clarvo + la reescritura del README lo resolvieron): el título de <code>README.md:3</code> sí dice "plataforma web multi-tenant" con su explicación de <code>/&lt;slug&gt;</code>; "Business Intelligence" está en <code>README.md:3</code>; "Utilidad neta" tiene sección propia (<code>README.md:453</code>); "Look &amp; Feel" / identidad visual tiene sección completa (<code>README.md:977-984</code>). <strong>Lo único que sobrevive es el puerto</strong>, y sigue siendo el mismo defecto: hay <strong>3 defaults distintos</strong> — <code>8088</code> en <code>README.md</code> (<code>:70,110,112,263-265,274,281</code>) y en <code>.env.example:5</code>/<code>.env:3</code>; <code>80</code> en <code>docker-compose.yml:271</code> y <code>docker-stack.yml:282</code>; <code>8080</code> en <code>prod/docker-compose.prod.yml:159</code>. Hay que decidir cuál es el canónico y alinear los tres. Segundo punto de este pendiente ya se movió a la fila de <code>.env.example</code> de abajo.</td>
+            <td class="col-estado"><span class="pill pill-amber">Casi cerrado — falta unificar FRONTEND_PORT</span></td>
           </tr>
           <tr data-app="control" data-id="doc-env-typo">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="doc-env-typo" aria-label="Marcar completado"></td>
             <td class="col-punto">—</td>
-            <td class="col-item">Typo en <code>.env.example</code></td>
-            <td class="col-detalle">Sobra ".cla" en un comentario. Bloqueado por permisos de dotfiles en todas las sesiones — corregir a mano.</td>
-            <td class="col-estado"><span class="pill pill-red">Requiere acción manual del usuario</span></td>
+            <td class="col-item">Typos y variables sin documentar en <code>.env.example</code></td>
+            <td class="col-detalle"><strong>Revisión 29 sep 2026 — sigue pendiente y ya son 3 cosas:</strong> (1) el typo original <strong>sigue ahí</strong>: <code>.env.example:31</code> termina el comentario en "…de este archivo<b>.cla</b>" (cortó "archivo."). (2) <code>TRUST_PROXY_HOPS</code> — la env var existe y está cableada en <code>backend/server.js</code>, <code>control/server.js</code>, <code>docker-compose.yml</code>, <code>docker-stack.yml</code> y <code>prod/docker-compose.prod.yml</code>, pero <strong>no aparece en <code>.env.example</code></strong>, así que quien clone el repo no sabe que existe ni para qué sirve (ver el punto 327). (3) <code>BANXICO_TOKEN</code> — documentada en <code>README.md</code> pero <strong>ausente de <code>.env.example</code></strong> (ver el punto 152). Lo que sí está bien: <code>CONTROL_UPSTREAM_HOST</code>/<code>PORT</code> sí están documentadas (<code>.env.example:59-60</code>). Nota histórica: este pendiente se anotó como "bloqueado por permisos de dotfiles en todas las sesiones" — ya no es cierto, el archivo se puede editar; lo que faltó fue tiempo, no acceso.</td>
+            <td class="col-estado"><span class="pill pill-red">3 cosas, todas de 1 línea — sin bloqueo de permisos</span></td>
           </tr>
         </tbody>
       </table>

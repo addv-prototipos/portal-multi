@@ -16365,6 +16365,77 @@ venta" del panel admin.
   --check` limpio, rebuild `--no-cache`+`--force-recreate` de `frontend`
   aplicado. Pendiente: confirmación visual del usuario (incluye probar
   el botón de copiar).
+- **Centro de conocimiento actualizado**: nuevo paso "Elegir método de
+  pago" en la categoría "Ventas" (`CONOCIMIENTO_CATEGORIAS.ventas` en
+  `admin.js`), justo después de "Registrar una venta" — explica los 4
+  métodos, el folio de conciliación de transferencias, dónde se ve
+  después (ticket/correo/columna "Pago") y dónde se ajustan los
+  defaults (Configuraciones → Ventas). Es la única fuente de datos del
+  manual (usada también para el buscador), así que no hace falta tocar
+  nada más. `/control` no tiene sección de Ventas — su Centro de
+  conocimiento no aplica aquí.
+- **`prod/` sincronizado por contenido** (commit `065aa21`, punto 342
+  completo incluyendo los 3 ajustes de UX/UI post-confirmación visual):
+  `backend/db.js`, `backend/server.js`, `backend/utils/config.js`,
+  `backend/test/integration/ordenes-compra.test.js`,
+  `backend/test/unit/config.test.js`, `frontend/admin.css`,
+  `frontend/admin.html`, `frontend/admin.js` — diff verificado antes de
+  copiar (`prod/` solo tenía líneas de MENOS, ningún cambio propio que
+  se fuera a perder) y `diff -q` en verde después de cada copia.
+  `prod/` es el espejo de despliegue de `yt.addv.com.mx`, se sincroniza
+  por contenido, nunca por `git add` (sigue untracked a propósito).
+
+**Punto 343 (2026-09-29, IMPLEMENTADO — pendiente confirmación visual del
+usuario):** animación de progreso al activar un tenant en `/control`
+(Provisionando → Activo), a petición explícita del usuario — el botón
+"Activar" disparaba una sola petición HTTP que puede tardar varios
+segundos (crea la base de datos física del tenant) **sin ningún
+indicador visual**, parecía congelado.
+
+- **Propuesta previa**: Artifact interactivo (demo funcional real, no
+  solo mockup estático) con el flujo completo simulado — aprobada tal
+  cual, sin ajustes.
+- **Honestidad de la animación** (decisión de diseño explícita): es UNA
+  sola petición HTTP (`POST /api/control/tenants/:slug/activar`), sin
+  eventos intermedios reales del servidor — la barra superior y el
+  anillo giratorio son **deliberadamente indeterminados**, nunca
+  fingen un porcentaje exacto. Los 2 "pasos" con nombre ("Creando la
+  base de datos" / "Aplicando el estado activo") sí son los 2 pasos
+  reales del backend (`control/utils/tenantLifecycle.js`:
+  `activarTenantFisico()` + `aplicarTransicion()`), pero se marcan
+  "listos" solo cuando llega la respuesta real, nunca antes de tiempo.
+- **Alcance**: solo la transición "Activar" (Provisionando → Activo) —
+  es la única con un paso físico real. Suspender/Reactivar/Baja siguen
+  con el toast simple de `ejecutarAccion()` (un solo `UPDATE` atómico,
+  prácticamente instantáneo, no lo necesitan).
+- **`frontend/control.js`**: `activarTenantConAnimacion(t)` reemplaza a
+  `ejecutarAccion(t.slug, 'activar')` solo en el botón "Activar" (mismo
+  modal de confirmación de antes, sin cambios ahí). Abre el modal,
+  llama al mismo endpoint de siempre, y según el resultado real llama a
+  `mostrarExitoActivando()` (tick de los 2 pasos, ícono de check verde,
+  cierra solo, `cargarTenants()` recarga la tabla y
+  `flashFilaTenant(slug)` resalta la fila 1.1s) o `mostrarFallaActivando()`
+  (ícono X rojo, mensaje de error REAL del servidor, el modal **no se
+  autocierra** — queda un botón "Cerrar" para que el operador lo lea con
+  calma). `tr.dataset.slug` nuevo en `renderTenants()` (no existía) para
+  poder ubicar la fila después del reload.
+- **`frontend/control.html`**: modal nuevo `#control-activando-modal-overlay`
+  — mismo shell `.modal-overlay`/`.modal` que ya usan todos los demás
+  modales del sitio (toggle por `hidden`, sin overlay propio inventado).
+- **`frontend/admin.css`** (compartido — `control.html` no tiene su
+  propio CSS, reusa `admin.css`): `.modal-activando`/`.barra-indeterminada`/
+  `.spinner-anillo`/`.icono-resultado`/`.lista-pasos`/`.paso-marca` +
+  `tr.es-flash` (reutilizable para cualquier fila que cambie de estado a
+  futuro, no exclusivo de tenants). Todas las animaciones respetan
+  `prefers-reduced-motion: reduce` (se apagan a estado estático
+  equivalente, nunca desaparecen sin más).
+- Cero cambios de backend — mismo endpoint `POST /tenants/:slug/activar`
+  de siempre, mismo contrato de respuesta. `node --check` limpio en
+  `control.js`/`admin.js`, CSS balanceado (1894/1894 llaves). Rebuild
+  `--no-cache`+`--force-recreate` de `frontend` aplicado. **Pendiente**:
+  confirmación visual del usuario con un tenant real en "Provisionando"
+  (activar uno de verdad en Docker). Sin commit/push todavía. `prod/`
+  sin sincronizar todavía para este punto.
 
 ## Dónde está todo (mapa rápido)
 

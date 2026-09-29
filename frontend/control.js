@@ -76,6 +76,17 @@
     confirmMensaje: document.getElementById('control-confirm-modal-mensaje'),
     btnConfirmCancelar: document.getElementById('control-btn-confirm-cancelar'),
     btnConfirmAceptar: document.getElementById('control-btn-confirm-aceptar'),
+    activandoOverlay: document.getElementById('control-activando-modal-overlay'),
+    activandoBarra: document.getElementById('control-activando-barra'),
+    activandoSpinner: document.getElementById('control-activando-spinner'),
+    activandoIconoExito: document.getElementById('control-activando-icono-exito'),
+    activandoIconoFalla: document.getElementById('control-activando-icono-falla'),
+    activandoTitulo: document.getElementById('control-activando-titulo'),
+    activandoSub: document.getElementById('control-activando-sub'),
+    activandoPaso1: document.getElementById('control-activando-paso1'),
+    activandoPaso2: document.getElementById('control-activando-paso2'),
+    activandoFooter: document.getElementById('control-activando-footer'),
+    btnActivandoCerrar: document.getElementById('control-btn-activando-cerrar'),
     btnNuevaEmpresa: document.getElementById('control-btn-nueva-empresa'),
     btnAyudaVistaEmpresas: document.getElementById('btn-ayuda-vista-empresas'),
     btnAyudaVistaSucursales: document.getElementById('btn-ayuda-vista-sucursales'),
@@ -386,6 +397,7 @@
 
     tenants.forEach((t) => {
       const tr = document.createElement('tr');
+      tr.dataset.slug = t.slug;
       const etiquetaEstado = ETIQUETA_ESTADO[t.estado] || t.estado;
       const tooltipEstado = TOOLTIP_ESTADO[t.estado] || '';
       // Slug clicable directo a /<slug>/admin — solo si el tenant está
@@ -447,7 +459,7 @@
               titulo: '¿Activar este tenant?',
               mensaje: `Se creará la base de datos de "${t.nombre_empresa}" (${t.slug}) y quedará accesible en /${t.slug}/admin. Puede tardar unos segundos.`,
               textoBoton: 'Activar',
-              onConfirmar: () => ejecutarAccion(t.slug, 'activar'),
+              onConfirmar: () => activarTenantConAnimacion(t),
             })
           )
         );
@@ -537,6 +549,104 @@
       showToast('No se pudo conectar con el servidor.', true);
     }
   }
+
+  // ---------- Modal "Activando" (Provisionando → Activo) ----------
+  // Solo para "activar": es la ÚNICA transición que ejecuta un paso
+  // físico real (crear la base de datos del tenant, ver
+  // control/utils/tenantLifecycle.js) que puede tardar varios segundos —
+  // antes disparaba el fetch sin ningún indicador, parecía congelado.
+  // Suspender/Reactivar/Baja siguen con el toast simple de ejecutarAccion
+  // de arriba: son un solo UPDATE atómico, prácticamente instantáneo.
+  // Es UNA sola petición HTTP (sin eventos intermedios reales del
+  // servidor), así que la barra y el anillo son deliberadamente
+  // indeterminados — nunca se finge un porcentaje exacto. Los 2 "pasos"
+  // con nombre sí son los 2 pasos reales del backend, pero se marcan
+  // "listos" hasta que llega la respuesta real, nunca antes de tiempo.
+  function resetModalActivando() {
+    els.activandoSpinner.style.display = '';
+    els.activandoIconoExito.classList.remove('is-visible');
+    els.activandoIconoFalla.classList.remove('is-visible');
+    els.activandoPaso1.className = 'esta-en-curso';
+    els.activandoPaso2.className = '';
+    els.activandoBarra.classList.remove('es-completa');
+    els.activandoBarra.querySelector('span').style.background = '';
+    els.activandoFooter.textContent = 'Puede tardar unos segundos…';
+    els.btnActivandoCerrar.classList.remove('is-visible');
+  }
+
+  function abrirModalActivando(t) {
+    resetModalActivando();
+    els.activandoTitulo.textContent = `Activando "${t.nombre_empresa}"`;
+    els.activandoSub.textContent = `${t.slug} · /${t.slug}/admin`;
+    els.activandoOverlay.hidden = false;
+  }
+
+  function cerrarModalActivando() {
+    els.activandoOverlay.hidden = true;
+  }
+
+  function flashFilaTenant(slug) {
+    const fila = els.tableBody.querySelector(`tr[data-slug="${CSS.escape(slug)}"]`);
+    if (!fila) return;
+    fila.classList.add('es-flash');
+    setTimeout(() => fila.classList.remove('es-flash'), 1200);
+  }
+
+  function mostrarExitoActivando(slug) {
+    els.activandoPaso1.className = 'esta-lista';
+    setTimeout(() => {
+      els.activandoPaso2.className = 'esta-lista';
+      els.activandoSpinner.style.display = 'none';
+      els.activandoIconoExito.classList.add('is-visible');
+      els.activandoBarra.classList.add('es-completa');
+      els.activandoTitulo.textContent = 'Activo';
+      els.activandoFooter.textContent = `Ya está en /${slug}/admin`;
+      setTimeout(() => {
+        cerrarModalActivando();
+        cargarTenants().then(() => flashFilaTenant(slug));
+      }, 900);
+    }, 350);
+  }
+
+  function mostrarFallaActivando(mensaje) {
+    els.activandoSpinner.style.display = 'none';
+    els.activandoIconoFalla.classList.add('is-visible');
+    els.activandoBarra.querySelector('span').style.background = 'var(--color-error)';
+    els.activandoTitulo.textContent = 'No se pudo activar';
+    els.activandoFooter.textContent = mensaje;
+    els.btnActivandoCerrar.classList.add('is-visible');
+  }
+
+  async function activarTenantConAnimacion(t) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    abrirModalActivando(t);
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(t.slug)}/activar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        cerrarModalActivando();
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        mostrarFallaActivando(data.error || 'No se pudo completar la activación.');
+        return;
+      }
+      mostrarExitoActivando(t.slug);
+    } catch (err) {
+      mostrarFallaActivando('No se pudo conectar con el servidor.');
+    }
+  }
+
+  els.btnActivandoCerrar.addEventListener('click', cerrarModalActivando);
 
   // ---------- Modal de confirmación genérico ----------
 
