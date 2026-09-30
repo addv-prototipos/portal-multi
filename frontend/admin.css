@@ -1035,11 +1035,25 @@
   /* Ancho fluido (punto 333) — se recalcula solo contra el ancho REAL
      de cada pantalla (100vw), nunca un número fijo adivinado para un
      monitor en particular (1400/1584px, puntos 329-330, se quedaban
-     cortos en monitores más anchos que eso). 88px cubre el padding de
-     .admin-main + un margen de cordura; 1960px es el techo para no
+     cortos en monitores más anchos que eso). 1960px es el techo para no
      estirar tablas a un ancho absurdo en monitores 4K/5K/8K reales
-     (casi nunca se alcanza en la práctica). */
-  .admin-main { max-width: min(calc(100vw - var(--sidebar-w) - 88px), 1960px); }
+     (casi nunca se alcanza en la práctica).
+     Ajuste (reportado con captura, huecos marcados en rojo): la versión
+     anterior restaba 88px extra de "margen de cordura" sobre el ancho
+     disponible — en la práctica, ese sobrante nunca se veía (nada lo
+     usaba) y quedaba como un hueco vacío pegado al borde derecho, mucho
+     más grande que el padding de 20px del lado izquierdo (pegado al
+     riel del sidebar). Sin el -88px, .admin-main ocupa el 100% real de
+     .admin-content y ambos huecos quedan iguales (los 20px de
+     `.admin-main { padding }` de arriba, de los dos lados) — ya no hay
+     sobrante que dumpear a ningún lado en pantallas normales.
+     `margin: 0 auto` es solo red de seguridad para cuando SÍ se toca el
+     techo de 1960px (monitores ultra anchos) — reparte ese sobrante
+     raro por igual en vez de mandarlo completo a la derecha; en
+     cualquier pantalla que no llegue al techo, no tiene ningún efecto
+     (no hay sobrante que centrar), así que no revive el "hueco roto"
+     junto al sidebar que ya se había descartado en el punto 331. */
+  .admin-main { max-width: min(calc(100vw - var(--sidebar-w)), 1960px); margin: 0 auto; }
   .admin-main { transition: max-width 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
 }
 
@@ -3925,6 +3939,11 @@
    (3 × 30px + 2 gaps de 6px + padding de celda). Solo esta tabla: las
    demás (Usuarios, etc.) sí necesitan los 210px de default. */
 #ordenes-table-wrap .admin-table th:last-child { width: 140px; }
+/* Tickets solo tiene 2 iconos de acción (Gestionar/Eliminar, o Restaurar/
+   Eliminar permanentemente en la papelera) — mismo desbalance que Ventas
+   (210px de default dejaba ~90px vacíos). La clase .tickets-table ya
+   vive en el <table>, no hace falta un id nuevo en el wrap. */
+.tickets-table th:last-child { width: 140px; }
 
 .admin-table th,
 .admin-table td {
