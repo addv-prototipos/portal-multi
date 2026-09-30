@@ -15,6 +15,9 @@
   const els = {
     loginScreen: document.getElementById('control-login-screen'),
     shellEsqueleto: document.getElementById('control-shell-esqueleto'),
+    shellEsqueletoEspera: document.getElementById('control-shell-esqueleto-espera'),
+    shellEsqueletoError: document.getElementById('control-shell-esqueleto-error'),
+    btnShellReintentar: document.getElementById('control-btn-shell-reintentar'),
     dashboard: document.getElementById('control-dashboard'),
     btnAbrirConocimiento: document.getElementById('btn-abrir-conocimiento'),
     btnAbrirConocimientoTopbar: document.getElementById('btn-abrir-conocimiento-topbar'),
@@ -2279,33 +2282,81 @@
     if (e.key === 'Escape' && els.conocimientoOverlay && !els.conocimientoOverlay.hidden) cerrarConocimiento();
   });
 
+  // Verificación de sesión guardada al abrir /control — antes, un fetch
+  // colgado (servidor lento de verdad, no solo tardado) dejaba el
+  // shimmer encendido para siempre, y uno que fallaba de plano
+  // (servidor caído/sin red) caía en silencio a la pantalla de login,
+  // indistinguible de "no hay sesión guardada". Ahora: a los 5s reales
+  // sin respuesta aparece un aviso de espera (sin mínimo artificial —
+  // una respuesta normal nunca lo alcanza a ver, mismo criterio del
+  // esqueleto de carga); a los 15s se cancela con AbortController y se
+  // muestra el error real + "Reintentar", en vez de asumir que fue un
+  // 401.
+  const UMBRAL_ESPERA_SESION_MS = 5000;
+  const TOPE_DURO_SESION_MS = 15000;
+
+  function verificarSesionGuardada() {
+    if (els.shellEsqueletoEspera) els.shellEsqueletoEspera.classList.remove('is-visible');
+    if (els.shellEsqueletoError) els.shellEsqueletoError.classList.remove('is-visible');
+    if (els.shellEsqueleto) els.shellEsqueleto.classList.remove('is-error');
+
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    // Mismo criterio que /admin: esqueleto del shell en vez del login
+    // parpadeando mientras se verifica la sesión guardada.
+    els.loginScreen.hidden = true;
+    if (els.shellEsqueleto) els.shellEsqueleto.hidden = false;
+
+    function mostrarErrorShell() {
+      if (els.shellEsqueletoEspera) els.shellEsqueletoEspera.classList.remove('is-visible');
+      if (els.shellEsqueletoError) els.shellEsqueletoError.classList.add('is-visible');
+      if (els.shellEsqueleto) els.shellEsqueleto.classList.add('is-error');
+    }
+
+    const controlador = new AbortController();
+    const timeoutEspera = setTimeout(() => {
+      if (els.shellEsqueletoEspera) els.shellEsqueletoEspera.classList.add('is-visible');
+    }, UMBRAL_ESPERA_SESION_MS);
+    const timeoutDuro = setTimeout(() => controlador.abort(), TOPE_DURO_SESION_MS);
+
+    fetch(`${API_BASE}/tenants`, { headers: { Authorization: authHeader }, signal: controlador.signal })
+      .then((res) => {
+        clearTimeout(timeoutEspera);
+        clearTimeout(timeoutDuro);
+        if (res.ok) {
+          return res.json().then((data) => {
+            if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
+            showDashboard(sessionStorage.getItem(SESSION_USER_KEY) || 'Sesión activa');
+            renderTenants(data.tenants || []);
+          });
+        }
+        // 502/503/504 (nginx sin upstream vivo) / 500 real: el servidor
+        // está caído o fallando, no la sesión — mismo error que un fetch
+        // rechazado. Antes esto caía en el mismo "clearSession+showLogin"
+        // de abajo, indistinguible de una sesión vencida de verdad.
+        if (res.status >= 500) {
+          mostrarErrorShell();
+          return;
+        }
+        if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
+        clearSession();
+        showLogin();
+      })
+      .catch(() => {
+        clearTimeout(timeoutEspera);
+        clearTimeout(timeoutDuro);
+        mostrarErrorShell();
+      });
+  }
+
+  if (els.btnShellReintentar) els.btnShellReintentar.addEventListener('click', verificarSesionGuardada);
+
   (function init() {
     inicializarTooltips();
-    const authHeader = getAuthHeader();
-    if (authHeader) {
-      // Mismo criterio que /admin: esqueleto del shell en vez del login
-      // parpadeando mientras se verifica la sesión guardada.
-      els.loginScreen.hidden = true;
-      if (els.shellEsqueleto) els.shellEsqueleto.hidden = false;
-      fetch(`${API_BASE}/tenants`, { headers: { Authorization: authHeader } })
-        .then((res) => {
-          if (res.ok) {
-            return res.json().then((data) => {
-              if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
-              showDashboard(sessionStorage.getItem(SESSION_USER_KEY) || 'Sesión activa');
-              renderTenants(data.tenants || []);
-            });
-          }
-          if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
-          clearSession();
-          showLogin();
-        })
-        .catch(() => {
-          if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
-          showLogin();
-        });
-    } else {
-      showLogin();
-    }
+    verificarSesionGuardada();
   })();
 })();

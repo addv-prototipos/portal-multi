@@ -65,6 +65,17 @@
     <div class="admin-shell-esqueleto-main">
       <span class="sk admin-shell-esqueleto-titulo" aria-hidden="true"></span>
       <span class="sk admin-shell-esqueleto-bloque" aria-hidden="true"></span>
+      <div class="admin-shell-esqueleto-estado">
+        <p class="admin-shell-esqueleto-espera" id="control-shell-esqueleto-espera">
+          <span class="admin-shell-esqueleto-dot" aria-hidden="true"></span>
+          Esto está tardando más de lo normal…
+        </p>
+        <div class="admin-shell-esqueleto-error" id="control-shell-esqueleto-error">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 8.82a15 15 0 0 1 20 0M5 12.86a10 10 0 0 1 14 0M8.5 16.43a5 5 0 0 1 7 0" stroke-linecap="round"/><path d="M2 2l20 20" stroke-linecap="round"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>
+          <p>No se pudo conectar con el servidor.</p>
+          <button type="button" class="sk-retry-btn" id="control-btn-shell-reintentar">Reintentar</button>
+        </div>
+      </div>
     </div>
   </div>
 

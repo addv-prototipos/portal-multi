@@ -140,6 +140,57 @@
 .admin-shell-esqueleto-kpis { display: flex; gap: 16px; margin-bottom: 24px; }
 .admin-shell-esqueleto-kpi { flex: 1; max-width: 220px; height: 92px; border-radius: var(--radius-lg); }
 .admin-shell-esqueleto-bloque { display: block; width: 100%; height: 220px; border-radius: var(--radius-lg); }
+
+/* Aviso de "tarda en responder"/"no se pudo conectar" durante la
+   verificación de sesión guardada (init(), admin.js/control.js) — vive
+   DENTRO de este mismo shell, nunca un banner de pantalla completa aparte
+   (misma regla ya fijada para el esqueleto de carga). Antes, un fetch
+   colgado se quedaba con el shimmer encendido para siempre, y uno que
+   fallaba de plano caía en silencio al login (se veía igual que "no hay
+   sesión guardada", sin explicar que el servidor no respondió). */
+.admin-shell-esqueleto-estado { margin-top: 28px; max-width: 400px; }
+.admin-shell-esqueleto-espera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.admin-shell-esqueleto-espera.is-visible { opacity: 1; }
+.admin-shell-esqueleto-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  animation: admin-shell-esqueleto-dot-pulso 1.2s ease-in-out infinite;
+}
+@keyframes admin-shell-esqueleto-dot-pulso { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+
+.admin-shell-esqueleto-error { display: none; flex-direction: column; align-items: flex-start; gap: 12px; }
+.admin-shell-esqueleto-error.is-visible { display: flex; }
+.admin-shell-esqueleto-error svg { color: var(--color-ink-soft); }
+.admin-shell-esqueleto-error p { margin: 0; font-size: 13.5px; color: var(--color-ink); }
+
+/* Congela el shimmer del shell mientras se muestra el error — seguir
+   animando "cargando" a la vez que se dice "no se pudo conectar" se
+   contradice a sí mismo. Mismo tratamiento que prefers-reduced-motion,
+   reusado aquí a propósito. */
+.admin-shell-esqueleto.is-error .admin-shell-esqueleto-titulo,
+.admin-shell-esqueleto.is-error .admin-shell-esqueleto-bloque {
+  animation: none;
+  background-image: none;
+  background-color: var(--color-border);
+}
+.admin-shell-esqueleto.is-error .admin-shell-esqueleto-logo,
+.admin-shell-esqueleto.is-error .admin-shell-esqueleto-item {
+  animation: none;
+  background-image: none;
+  background-color: rgba(255,255,255,.14);
+}
+
 @media (max-width: 900px) {
   .admin-shell-esqueleto-sidebar { display: none; }
   .admin-shell-esqueleto-main { padding: 24px; }
@@ -151,6 +202,8 @@
     background-image: none;
     background-color: rgba(255,255,255,.14);
   }
+  .admin-shell-esqueleto-espera { transition: none; }
+  .admin-shell-esqueleto-dot { animation: none; opacity: .7; }
 }
 
 .admin-sidebar {

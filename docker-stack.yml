@@ -242,6 +242,14 @@ services:
   # DB_HOST apunta al primario, igual que "backend" arriba -- mismo
   # motivo (las escrituras de /control también deben ir siempre al
   # primario vigente).
+  #
+  # PENDIENTE (punto 305, Fase 1): docker-compose.yml ya separó
+  # control_tenants a una instancia MySQL propia (mysql-control), pero
+  # este stack de Swarm sigue apuntando a mysql-primary (compartida) --
+  # no se replicó aquí a propósito, porque el segmento 8 nunca se ha
+  # desplegado contra un clúster Swarm real (ver PROJECT_STATE.md) y
+  # duplicar la separación sin poder probarla es más riesgo que
+  # beneficio. Revisar cuando Swarm se ejercite de verdad.
   control:
     image: ${CONTROL_IMAGE:-portalManager-control:latest}
     environment:

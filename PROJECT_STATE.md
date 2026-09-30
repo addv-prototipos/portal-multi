@@ -14968,7 +14968,90 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
 
 304. **Super admin en BD de control (2026-09-16, PENDIENTE — sin decidir)**: migrar super admin de `ADMIN_USERS`/`.env` a tabla en BD de control (`control_super_admins` o dentro de `control_tenants`). Requiere: tabla con `hash_scrypt` + `activo`, lectura en `backend/utils/auth.js` y `control/utils/adminEnv.js`, seed/migracion idempotente y UI de alta/baja. Ligado a punto 305 (`controlBase`). Sin definir tabla final, hash, ni flujo — agregado a `pendientes.html:Inicio de sesion/Seguridad` (`sec-super-control-db`) como `Sin decidir`.
 
-305. **Control en BD independiente + Docker separado `controlBase` (2026-09-16, PENDIENTE — sin decidir)**: Control debe tener **BD independiente** (hoy `control_tenants` comparte MySQL del backend) y vivir en **Docker separado llamado `controlBase`** (no solo servicio `control` en el mismo `docker-compose.yml`). Por decidir: compose/stack propio, MySQL propio vs compartido, red/volumen, migracion de datos, `CONTROL_UPSTREAM_HOST`/`X-Internal-Secret` y deploy separado. Agregado a `pendientes.html:Infraestructura` (`infra-controlBase`) como `Sin decidir`.
+305. **Control en BD independiente + Docker separado `controlBase` (2026-09-16 PENDIENTE → 2026-09-29 FASE 1 IMPLEMENTADA)**: Control debe tener **BD independiente** (hoy `control_tenants` comparte MySQL del backend) y vivir en **Docker separado** (no solo servicio `control` en el mismo `docker-compose.yml`).
+
+- **Propuesta previa** (Artifact HTML, no interactivo — documento de análisis): 3 opciones evaluadas (A: MySQL dedicado mismo host / B: servidor físico separado / C: sin cambios), con hallazgo clave de que `prod/` (VPS real `yt.addv.com.mx`) **no despliega el contenedor `control` en absoluto** — la separación es hoy una decisión de arquitectura local/futura, no una urgencia de producción. Recomendación: plan de 2 fases (A ahora, B cuando exista un segundo servidor físico real). **El usuario confirmó Fase 1, Opción A** ("mismo host, pero contenedor separado y mysql separado").
+- **Implementado (Fase 1 — mismo host, MySQL en contenedor propio)**:
+  servicio nuevo `mysql-control` en `docker-compose.yml` (MySQL 8.0,
+  `mem_limit: 384m`, volumen propio `mysql_control_data`, misma red
+  `fiscal-net`). El bootstrap estándar de la imagen le da a `MYSQL_USER`
+  privilegios `ALL PRIVILEGES` por defecto — recortado por un init script
+  nuevo (`docker/mysql-control-init/01-narrow-grant.sql`, montado en
+  `/docker-entrypoint-initdb.d/`, corre solo en el primer arranque) al
+  MISMO grant angosto que `control_app` ya usaba en la instancia
+  compartida (`SELECT, INSERT, UPDATE, CREATE, ALTER` — sin `DELETE` ni
+  `DROP`, igual que `backend/scripts/lib/controlDb.js`). Nota real de
+  implementación: `REVOKE ALL PRIVILEGES ON control_tenants.* FROM ...`
+  fallaba con `ERROR 1141 — no such grant defined` (quirk de MySQL 8 con
+  el grant sintetizado por el bootstrap de la imagen); la forma que sí
+  funciona es `REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'control_app'@'%'`
+  (revocación global, sin especificar el objeto) seguida del `GRANT`
+  angosto explícito.
+  Servicio `control`: `CONTROL_DB_HOST` cambia de `mysql` a
+  `mysql-control`; `depends_on` gana `mysql-control: condition:
+  service_healthy` (se mantiene también `mysql`, sigue siendo necesario
+  para `TENANT_DB_HOST`, que se queda explícito en `mysql` a propósito —
+  es donde viven las bases físicas `tenant_*` reales, no tiene nada que
+  ver con dónde vive `control_tenants`; sin ese explícito, el fallback de
+  `control/utils/tenantIntake.js:43` habría caído a `CONTROL_DB_HOST` y
+  grabado `db_host` mal en tenants nuevos — mismo bug ya visto en el
+  punto de desincronización MySQL/.env, evitado aquí a propósito).
+  **Migración real ejecutada** contra el stack de desarrollo: `mysqldump`
+  de `control_tenants` desde la instancia compartida (`MYSQL_PWD` por
+  variable de entorno, nunca `-p` en el argv) → restore en
+  `mysql-control` → verificado tabla por tabla, conteos idénticos en las
+  6 tablas (`admin_auditoria` 704, `tenant_eventos` 24, `tenants` 6,
+  `api_credenciales` 1, `grupos_sucursal` 1, `usuarios_sucursal` 0) →
+  `control` recreado apuntando al host nuevo → smoke test real vía el
+  propio pool de la app (`obtenerPool()` dentro del contenedor, sin pasar
+  por HTTP/auth): lee los 6 tenants reales correctamente, y un `DELETE`
+  de prueba fue rechazado por MySQL (`ER_TABLEACCESS_DENIED_ERROR`) —
+  confirma que el grant angosto está aplicado de verdad, no solo
+  documentado. Jest de `control` **247/247** sin regresiones (cambio es
+  100% infraestructura, cero código de aplicación tocado).
+  `docker-stack.yml` (Swarm, segmento 8) **NO se replicó** a propósito —
+  sigue apuntando a `mysql-primary` compartido, con un comentario nuevo
+  explicando por qué (Swarm nunca se ha desplegado contra un clúster
+  real, duplicar la separación sin poder probarla es más riesgo que
+  beneficio) — pendiente revisar cuando/si Swarm se ejercite de verdad.
+- **Hallazgo real al pedir borrar la copia vieja (mismo día)**: antes de
+  ejecutar el `DROP DATABASE`, se detectó que **`backend` también tenía
+  su PROPIA conexión directa a `control_tenants`** —
+  `obtenerPoolControl()` en `backend/db.js`, usada por
+  `backend/utils/adminAuditoria.js` (tabla `admin_auditoria`, la
+  pantalla "Auditoría" de `/admin`) — completamente aparte de la
+  conexión de `control`. Ese pool caía por defecto a
+  `DB_HOST`/`DB_USER` (`mysql`/`app`, con `ALL PRIVILEGES` sobre
+  `control_tenants.*` desde el segmento 1, ver comentario en
+  `adminAuditoria.js`), así que seguía apuntando a la instancia VIEJA
+  incluso después de migrar `control`. Haber borrado la base en ese
+  momento habría roto la auditoría de todos los tenants en silencio. Se
+  corrigió ANTES del `DROP`: `backend` gana
+  `CONTROL_DB_HOST=mysql-control` (+ `PORT`/`USER`/`NAME`) en
+  `docker-compose.yml`, reusando el mismo `control_app` angosto de
+  siempre (le alcanza — `adminAuditoria.js` solo hace
+  `CREATE`/`INSERT`/`SELECT`, nunca `DELETE`). Verificado con smoke test
+  real (`obtenerPoolControl().query(...)` dentro del contenedor,
+  conteo 704 desde `mysql-control`) y **Jest backend 1066/1066** antes de
+  tocar nada destructivo.
+- **Copia vieja eliminada**: con `backend` y `control` ya 100%
+  migrados y verificados, se ejecutó `DROP DATABASE control_tenants;`
+  contra la instancia `mysql` compartida (a pedido explícito del
+  usuario). Verificado post-`DROP`: `SHOW DATABASES` ya no la lista, y
+  smoke test de `backend` (`admin_auditoria`, n=704) y `control`
+  (`tenants`, n=6) contra `mysql-control` siguen respondiendo bien —
+  `control_tenants` ahora vive ÚNICAMENTE en `mysql-control`.
+- **Pendiente real que queda**: (1) `.env.example` no documenta
+  `MYSQL_CONTROL_ROOT_PASSWORD` (no se pudo editar ese archivo en esta
+  sesión — permiso denegado; queda como nota explícita, mismo patrón que
+  el gap ya conocido de `TRUST_PROXY_HOPS` en el punto 327). (2) **Fase
+  2** (servidor físico separado, la visión original del segmento 9b)
+  queda archivada como posibilidad futura, no como trabajo activo —
+  condicionada a que exista un segundo servidor real.
+- Confirmación visual/funcional pendiente: el usuario no ha probado
+  `/control` ni la pantalla "Auditoría" de `/admin` en navegador real
+  después del corte (los smoke tests de esta sesión fueron a nivel de
+  pool de datos, no de clics reales). Sin commit/push todavía.
 
 306. **Revisar lectura de codigo de barras (2026-09-16, PENDIENTE — sin decidir)**: auditar flujo real `frontend/scanner.js` (`BarcodeDetector` + `html5-qrcode`), HTTPS (punto 280), permisos camara iOS/Android, formatos EAN-13/Code128, fallback manual y criterios de aceptacion. Probar en celular real contra Docker prod y evaluar alternativa SDK sin costo (punto 291). Agregado a `pendientes.html:Inventarios` (`inv-barcode-revisar`) como `Sin decidir`.
 
@@ -16439,6 +16522,60 @@ indicador visual**, parecía congelado.
   confirmación visual del usuario con un tenant real en "Provisionando"
   (activar uno de verdad en Docker). Sin commit/push todavía. `prod/`
   sin sincronizar todavía para este punto.
+
+**Punto 344 (2026-09-29, IMPLEMENTADO — pendiente confirmación visual del
+usuario):** aviso de "tarda en responder"/"no se pudo conectar" en la
+verificación de sesión guardada de `/control`, a petición explícita del
+usuario. Antes: un fetch colgado (servidor lento de verdad) dejaba el
+shimmer encendido para siempre sin ningún indicio; uno que fallaba de
+plano (servidor caído/sin red) caía **en silencio** a la pantalla de
+login — indistinguible de "no hay sesión guardada".
+
+- **Propuesta previa**: Artifact interactivo con 3 escenarios reales
+  (normal/lenta/sin respuesta) replicando el shell exacto de `/control`
+  — aprobada tal cual, sin ajustes.
+- **Diseño** (misma regla ya fijada en el punto 289 "Esqueleto de
+  carga": el aviso vive DENTRO del bloque que falló, nunca un banner de
+  pantalla completa aparte, y sin mínimo artificial — una respuesta
+  normal nunca lo alcanza a ver): a los **5s** reales sin respuesta
+  aparece "Esto está tardando más de lo normal…" dentro del mismo shell
+  de carga (`#control-shell-esqueleto`); a los **15s** se cancela la
+  espera con `AbortController` y se reemplaza por el mismo patrón
+  "No se pudo conectar con el servidor" + botón "Reintentar" que ya usa
+  el resto del sitio (`.sk-retry-btn`), congelando el shimmer mientras
+  tanto (animar "cargando" a la vez que se dice "no se pudo conectar" se
+  contradice a sí mismo).
+- **Bug real encontrado durante la implementación** (no reportado, se
+  detectó probando el escenario "servidor caído" contra Docker real):
+  con `control` detenido, nginx no cae en un fetch rechazado — responde
+  **503** (confirmado por `curl` real: `503` en 3.2s a través de
+  `/api/control/tenants`). El código original trataba CUALQUIER
+  `!res.ok` como sesión inválida (`clearSession()+showLogin()`) — un 503
+  real habría disparado el MISMO logout silencioso que se estaba
+  arreglando, solo por una ruta distinta. Corregido: `res.status >= 500`
+  ahora cae al mismo estado de error que un fetch rechazado, antes de
+  llegar al `clearSession()` genérico.
+- **Frontend**: `verificarSesionGuardada()` (`control.js`, reemplaza el
+  cuerpo inline de `init()`) — reutilizable también desde el nuevo botón
+  "Reintentar". `control.html` gana el bloque
+  `.admin-shell-esqueleto-estado` (aviso de espera + error) dentro del
+  shell existente. CSS nuevo en `admin.css` (compartido, `control.html`
+  no tiene CSS propio): `.admin-shell-esqueleto-estado`/`-espera`/
+  `-dot`/`-error`, más `.admin-shell-esqueleto.is-error` que congela el
+  shimmer de logo/ítems/título/bloque. Todo respeta
+  `prefers-reduced-motion`.
+- Mismo hueco existe en `/admin` (`admin.js`, función `init()` idéntica)
+  — fuera de alcance de este punto (el usuario pidió "control"
+  explícitamente); candidato a portar después si se confirma que
+  funciona bien aquí.
+- Cero cambios de backend. `node --check` limpio, CSS balanceado
+  (1909/1909 llaves). Verificado contra Docker real: `docker compose
+  stop control` + `curl` confirma el 503 real de nginx (3.2s), stack
+  completo healthy tras restaurar. Rebuild `--no-cache`+
+  `--force-recreate` de `frontend` aplicado. **Pendiente**: confirmación
+  visual del usuario con los 3 escenarios reales en navegador (la espera
+  de 5s/15s solo se puede verificar de verdad viendo el timing en
+  pantalla). Sin commit/push todavía.
 
 ## Dónde está todo (mapa rápido)
 

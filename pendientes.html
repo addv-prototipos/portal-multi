@@ -476,9 +476,9 @@
           <tr data-app="control" data-id="infra-controlBase">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-controlBase" aria-label="Marcar completado"></td>
             <td class="col-punto">305</td>
-            <td class="col-item">Control en BD independiente + Docker separado <code>controlBase</code></td>
-            <td class="col-detalle"><strong>Control debe tener BD independiente</strong> del resto (<code>control_tenants</code> ya existe, pero hoy comparte MySQL/Compose con el backend) y vivir en <strong>Docker separado llamado <code>controlBase</code></strong> (servicio aparte, no solo <code>control</code> en el mismo <code>docker-compose.yml</code>). Definir: compose/stack propio, red/volumen MySQL propio vs compartido, migracion de datos existentes, <code>CONTROL_UPSTREAM_HOST</code>/secreto <code>X-Internal-Secret</code>, y deploy separado. Ver <code>PROJECT_STATE.md</code> punto 305.</td>
-            <td class="col-estado"><span class="pill pill-red">Sin decidir — falta definir compose/BD</span></td>
+            <td class="col-item">Control en BD independiente — Fase 1 hecha, Fase 2 (servidor separado) pendiente</td>
+            <td class="col-detalle"><strong>Fase 1 implementada (29 sep 2026, opción A confirmada por el usuario):</strong> servicio <code>mysql-control</code> nuevo en <code>docker-compose.yml</code> (MySQL 8.0 en contenedor propio, mismo host, volumen propio), grant angosto igual al de siempre (sin <code>DELETE</code>/<code>DROP</code>, confirmado con una prueba real de <code>DELETE</code> rechazada). <code>control_tenants</code> migrada con <code>mysqldump</code>/restore, conteos verificados idénticos en las 6 tablas, <code>control</code> recreado apuntando al host nuevo, Jest 247/247 sin regresiones. Al pedir borrar la copia vieja se detectó que <code>backend</code> también conectaba directo a <code>control_tenants</code> (auditoría de <code>/admin</code>, aparte de <code>control</code>) — corregido para apuntar a <code>mysql-control</code> antes de borrar nada, con Jest 1066/1066 en verde. Copia vieja ya eliminada (<code>DROP DATABASE</code>), verificado sin romper nada. <strong>Falta:</strong> confirmación visual en navegador real (incluida la pantalla "Auditoría"), documentar <code>MYSQL_CONTROL_ROOT_PASSWORD</code> en <code>.env.example</code>. <strong>Fase 2</strong> (servidor físico separado, visión original del segmento 9b) archivada hasta que exista ese servidor — no es trabajo activo. Ver <code>PROJECT_STATE.md</code> punto 305.</td>
+            <td class="col-estado"><span class="pill pill-blue">Fase 1 implementada — falta confirmación visual</span></td>
           </tr>
           <tr data-app="admin,control" data-id="infra-327-trustproxy">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="infra-327-trustproxy" aria-label="Marcar completado"></td>
@@ -673,7 +673,7 @@
   </section>
 
   <section>
-    <h2>Sesiones 18-29 sep — falta confirmación visual <span class="count">13 pendientes</span></h2>
+    <h2>Sesiones 18-29 sep — falta confirmación visual <span class="count">14 pendientes</span></h2>
     <p class="section-note">Todo lo de abajo <strong>ya está commiteado y con pruebas en verde</strong> (backend 1066/1066, control 247/247), pero <strong>nadie lo ha visto todavía en un navegador</strong>. Son implementaciones cuyo punto de partida fue "quiero que se vea así" y el objetivo era cerrar la sesión con el usuario mirándolo. No es deuda técnica: es el paso de verificación que falta. Todas se validan de una sentada en <code>http://localhost:8088/admin</code> (o <code>/control</code>), contra el tenant de pruebas.</p>
     <div class="table-scroll">
       <table>
@@ -768,6 +768,13 @@
             <td class="col-punto">343</td>
             <td class="col-item">Modal "Activando" al activar un tenant en /control</td>
             <td class="col-detalle">Barra indeterminada + anillo giratorio + 2 pasos reales al activar un tenant (Provisionando → Activo), con fila que hace flash al terminar. Documentado en <code>PROJECT_STATE.md</code>. <strong>Sin commitear/pushear todavía</strong> (<code>frontend/admin.css</code>/<code>control.js</code>/<code>control.html</code>/<code>admin.js</code>) y sin sincronizar a <code>prod/</code> — falta probar con un tenant real en "Provisionando" antes de subirlo.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="control" data-id="vis-344-shell-lento">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-344-shell-lento" aria-label="Marcar completado"></td>
+            <td class="col-punto">344</td>
+            <td class="col-item">Aviso de "tarda en responder"/"no se pudo conectar" al abrir /control</td>
+            <td class="col-detalle">Antes: servidor lento dejaba el shimmer encendido para siempre sin aviso; servidor caído caía EN SILENCIO al login (se veía igual que "no hay sesión"). Ahora: a los 5s aparece "esto está tardando", a los 15s se cancela y muestra "No se pudo conectar" + Reintentar. Bug real encontrado en el camino: con <code>control</code> detenido, nginx responde 503 (no un fetch rechazado) — el código original lo trataba como sesión inválida, mismo logout silencioso por otra ruta; corregido. Verificado contra Docker real (<code>curl</code> confirma el 503, 3.2s). Falta ver los 3 escenarios reales en navegador — el timing de 5s/15s solo se confirma viéndolo en pantalla. Ver <code>PROJECT_STATE.md</code> punto 344.</td>
             <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
           </tr>
         </tbody>
