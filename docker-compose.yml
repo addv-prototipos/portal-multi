@@ -89,6 +89,16 @@ services:
       MYSQL_DATABASE: control_tenants
       MYSQL_USER: control_app
       MYSQL_PASSWORD: ${CONTROL_APP_PASSWORD:-changeme_control_app_password}
+      # Punto 345: backend necesita un usuario CON privilegio DELETE en
+      # control_tenants (para borrar tenant_eventos/api_credenciales/
+      # tenants al eliminar un tenant para siempre) — control_app se
+      # queda angosto a propósito (nunca gana DELETE), así que backend
+      # usa el mismo usuario "app" que ya tiene ALL PRIVILEGES aquí desde
+      # el segmento 1 (antes de la Fase 1, cuando esta base vivía en la
+      # instancia compartida). Mismo password que ya usa en `mysql` — el
+      # init script de abajo (02-crear-usuario-app.sh) lo lee de esta
+      # variable para crear el usuario en el primer arranque.
+      APP_DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_app_password}
     volumes:
       - mysql_control_data:/var/lib/mysql
       - ./docker/mysql-control-init:/docker-entrypoint-initdb.d:ro
@@ -192,14 +202,22 @@ services:
       # Punto 305 (Fase 1): admin_auditoria vive en control_tenants
       # (obtenerPoolControl() en backend/db.js), que se movió a su propia
       # instancia (mysql-control) -- antes caía por defecto a
-      # DB_HOST/DB_USER ('mysql'/'app', ALL PRIVILEGES ahí desde el
-      # segmento 1), que ya no tiene los datos vigentes. Reusa el mismo
-      # control_app angosto que ya usa el servicio "control" (le alcanza:
-      # adminAuditoria.js solo hace CREATE/INSERT/SELECT, nunca DELETE).
+      # DB_HOST/DB_USER ('mysql'/'app'), que ya no tiene los datos
+      # vigentes. Usa "app" (mismo password que en `mysql`, vía
+      # MYSQL_PASSWORD) en vez de "control_app": el punto 345 (eliminar
+      # tenant para siempre) reutiliza este MISMO pool para borrar filas
+      # de tenant_eventos/api_credenciales/tenants, y control_app no
+      # tiene privilegio DELETE ahí (angosto a propósito) — probado
+      # contra Docker real, un intento con control_app tumbaba el
+      # backend entero (promesa rechazada sin atrapar). "app" ya tenía
+      # ALL PRIVILEGES sobre control_tenants desde el segmento 1 (ver
+      # backend/scripts/lib/controlDb.js) — el init script
+      # docker/mysql-control-init/02-crear-usuario-app.sh lo recrea en
+      # la instancia nueva.
       CONTROL_DB_HOST: mysql-control
       CONTROL_DB_PORT: 3306
-      CONTROL_DB_USER: control_app
-      CONTROL_DB_PASSWORD: ${CONTROL_APP_PASSWORD:-changeme_control_app_password}
+      CONTROL_DB_USER: ${MYSQL_USER:-app}
+      CONTROL_DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_app_password}
       CONTROL_DB_NAME: control_tenants
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}

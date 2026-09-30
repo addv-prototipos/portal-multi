@@ -15028,12 +15028,20 @@ separado (Basic Auth), y todo corre en Docker (Nginx + Node/Express + MySQL).
   momento habría roto la auditoría de todos los tenants en silencio. Se
   corrigió ANTES del `DROP`: `backend` gana
   `CONTROL_DB_HOST=mysql-control` (+ `PORT`/`USER`/`NAME`) en
-  `docker-compose.yml`, reusando el mismo `control_app` angosto de
-  siempre (le alcanza — `adminAuditoria.js` solo hace
-  `CREATE`/`INSERT`/`SELECT`, nunca `DELETE`). Verificado con smoke test
-  real (`obtenerPoolControl().query(...)` dentro del contenedor,
-  conteo 704 desde `mysql-control`) y **Jest backend 1066/1066** antes de
-  tocar nada destructivo.
+  `docker-compose.yml`. Verificado con smoke test real
+  (`obtenerPoolControl().query(...)` dentro del contenedor, conteo 704
+  desde `mysql-control`) y **Jest backend 1066/1066** antes de tocar nada
+  destructivo.
+  **Corrección posterior (punto 345, mismo día):** en ese momento se usó
+  `control_app` (angosto) para `CONTROL_DB_USER` de `backend`, asumiendo
+  que le alcanzaba (correcto para `adminAuditoria.js`, que solo hace
+  `CREATE`/`INSERT`/`SELECT`) — pero el punto 345 reutiliza este MISMO
+  pool para borrar filas al eliminar un tenant para siempre, y ahí sí
+  hace falta `DELETE`. Corregido: `backend` vuelve a usar `app` (mismo
+  password que ya tiene en la instancia `mysql`), recreado con `ALL
+  PRIVILEGES` en `mysql-control` — ver el punto 345 para el detalle
+  completo (incluye un bug real: la combinación con `control_app` sin
+  `DELETE` tumbaba el proceso backend completo, no solo la petición).
 - **Copia vieja eliminada**: con `backend` y `control` ya 100%
   migrados y verificados, se ejecutó `DROP DATABASE control_tenants;`
   contra la instancia `mysql` compartida (a pedido explícito del
@@ -16576,6 +16584,152 @@ login — indistinguible de "no hay sesión guardada".
   visual del usuario con los 3 escenarios reales en navegador (la espera
   de 5s/15s solo se puede verificar de verdad viendo el timing en
   pantalla). Sin commit/push todavía.
+
+**Punto 345 (2026-09-30, IMPLEMENTADO — pendiente confirmación visual del
+usuario):** "baja definitiva" de una empresa en `/control` — papelera +
+"Eliminar definitivo" + "Vaciar papelera", a petición explícita del
+usuario.
+
+- **Propuesta previa**: 2 decisiones cerradas primero vía `AskUserQuestion`
+  (solo eliminar desde "Baja", como candado de seguridad extra; borra
+  TODO — BD + archivos en MinIO), después Artifact interactivo (papelera
+  + modal de confirmación por texto exacto + animación de progreso,
+  mismo lenguaje visual del modal "Activando" del punto 343) — aprobado
+  tal cual.
+- **Arquitectura (hallazgo real antes de escribir código)**: `control_app`
+  no tiene privilegio `DELETE` en absoluto (angosto a propósito, ver
+  `control/scripts/ensureSchema.js`) — ni para lo físico ni para las
+  filas de `control_tenants`. Todo el borrado se delega a un único
+  endpoint interno nuevo del backend
+  (`POST /internal/eliminar-tenant/:slug`, mismo patrón que
+  `/internal/activar-tenant`/`/internal/renombrar-slug`: secreto
+  compartido, nunca expuesto por nginx) que hace TODO en una sola
+  llamada: verifica atómicamente que el tenant sigue en "baja" (no
+  confía en que `/control` ya lo revisó), `DROP DATABASE` + purga de
+  MinIO (prefijo + logo/favicon de marca), y borra
+  `tenant_eventos`/`api_credenciales`/`tenants` (con guarda `WHERE
+  estado='baja'` en el DELETE final — si algo cambió el estado en el
+  camino, la fila queda huérfana a propósito para revisión manual en vez
+  de desaparecer sola). `admin_auditoria` NUNCA se toca — se conserva
+  como rastro histórico, confirmado explícitamente por el usuario.
+  `control/utils/tenantLifecycle.js` gana `eliminarTenantDefinitivo()`
+  (candado: solo desde `estado==='baja'`) y `vaciarPapelera()` (llama a
+  la anterior una vez por cada tenant en "baja", secuencial — un fallo
+  no detiene a los demás, se acumula en `fallidos`).
+  `control/server.js`: `POST /api/control/tenants/:slug/eliminar` y
+  `POST /api/control/tenants/papelera/vaciar` (mismo candado
+  `requireAdminArea()` — solo perfil `super` — que el resto del ciclo de
+  vida de tenants).
+- **2 bugs reales encontrados probando contra Docker real** (no
+  preexistentes — introducidos y corregidos en esta misma sesión):
+  1. **El backend entero se caía** al primer intento real: el endpoint
+     nuevo NO estaba envuelto en `asyncHandler` (mismo criterio que
+     `/internal/activar-tenant`/`/internal/renombrar-slug`, que
+     tampoco lo usan) pero el tramo final (`DELETE FROM
+     tenant_eventos/api_credenciales/tenants`) no tenía su propio
+     try/catch — una promesa rechazada sin atrapar ahí tumbaba **todo
+     el proceso backend** (log real: "Promesa rechazada sin atrapar —
+     cerrando el proceso"), no solo la petición. Corregido envolviendo
+     ese tramo en su propio try/catch (502 con mensaje claro en vez de
+     crash).
+  2. **Credencial insuficiente, causa raíz del bug anterior**: el mismo
+     día (punto 305, Fase 1) se había redirigido el pool de auditoría
+     del backend (`obtenerPoolControl()`) a usar `control_app` en
+     `mysql-control` — correcto para `admin_auditoria` (solo
+     `CREATE`/`INSERT`/`SELECT`), pero ese MISMO pool es el que este
+     punto reutiliza para los 3 `DELETE`, y `control_app` nunca tiene
+     ese privilegio. Corregido: `backend` vuelve a usar el usuario
+     `app` (mismo password que ya usa en la instancia `mysql`
+     compartida, vía `APP_DB_PASSWORD`) para `CONTROL_DB_USER` —
+     recreado en `mysql-control` con `ALL PRIVILEGES` sobre
+     `control_tenants` (el mismo grant que tenía desde el segmento 1,
+     antes de la Fase 1). Init script nuevo
+     `docker/mysql-control-init/02-crear-usuario-app.sh` para
+     despliegues futuros desde cero — en la instancia YA inicializada
+     de esta sesión, el usuario se creó en vivo (los scripts de
+     `docker-entrypoint-initdb.d` solo corren en el primer arranque con
+     el volumen vacío).
+- **Verificado de punta a punta contra Docker/MySQL reales** (no solo
+  mocks): tenant de prueba desechable creado a mano (fila `baja` en
+  `control_tenants` + base física real) → `eliminarTenantDefinitivo()`
+  real desde dentro del contenedor `control` → confirmado: base de
+  datos física borrada (`SHOW DATABASES` ya no la lista), fila de
+  `tenants` borrada, `backend` sigue vivo y healthy. Repetido limpio tras
+  corregir los 2 bugs de arriba. Sin rastro de las pruebas al terminar
+  (limpiado a mano).
+- **Tests**: 15 nuevos en `control/test/unit/tenantLifecycle.test.js`
+  (`eliminarTenantDefinitivo`: éxito desde "baja", 404, 409 candado de
+  estado, 502 fallo físico; `vaciarPapelera`: elimina todos, un fallo no
+  detiene a los demás, papelera vacía no llama nada) + 7 en
+  `control/test/integration/control.test.js` (ambas rutas, 401/404/409/
+  502/200) + 9 en `backend/test/integration/internal.test.js`
+  (`/internal/eliminar-tenant/:slug`: 403/400/404/409/200/502 archivos/
+  502 BD/502 filas de control/409 carrera rarísima). **Backend
+  1075/1075, control 262/262**, sin regresiones.
+- `node --check` limpio en los 5 archivos backend/control tocados, CSS
+  balanceado (1918/1918 llaves), `docker compose config` válido.
+  Rebuild `--no-cache`+`--force-recreate` de `backend`/`control`/
+  `frontend` aplicado.
+- **Pendiente**: confirmación visual del usuario con clics reales
+  (papelera, eliminar uno, vaciar papelera) — todo lo de esta sesión fue
+  smoke test de datos/CLI, nunca navegador. Sin commit/push todavía.
+
+**Punto 346 (2026-09-30, IMPLEMENTADO — pendiente confirmación visual del
+usuario):** rediseño visual del módulo Ventas en Configuraciones
+globales, fiel al mockup entregado en `stitch/modVentas/code.html`.
+
+- **Análisis del mockup**: Tailwind con fuente propia ("Plus Jakarta
+  Sans", viola la regla de tipografía única — Inter en todo el sitio) y
+  paleta navy/cian propia declarada en su config de Tailwind. Antes de
+  proponer, se asumió por error que el panel admin usaba el verde-teal
+  de `style.css` — **corregido tras la observación del usuario**:
+  `admin.css` redefine `--color-accent` a `#03285B` (navy) dentro de
+  `.admin-body` (línea 11), específico de `/admin` y `/control` — el
+  verde-teal es únicamente del portal cliente (páginas que cargan
+  `style.css` sin `admin.css` encima). El mockup SÍ estaba alineado con
+  la paleta real del panel; la propuesta inicial con teal fue el error,
+  corregida antes de implementar.
+- **Propuesta visual** (Artifact, 2 rondas — primera con teal por error,
+  segunda corregida con los tokens reales `#03285B`/`#E7ECF3`/`#E5E7EB`)
+  aprobada, con una decisión explícita del usuario: el prefijo de folio
+  se queda en exactamente 2 letras (el mockup mostraba `maxlength="5"`,
+  cambio de validación real que el usuario decidió NO adoptar).
+- **Implementado** en la tarjeta "Ventas" de Configuraciones
+  (`#ordenes-toggle-body`, `admin.html`) — **100% visual/estructural,
+  cero cambio de comportamiento**: mismos ids/name de los `<input>`,
+  mismos endpoints, misma validación de 2 letras; los listeners
+  existentes en `admin.js` (`els.configEntregaDefaultRadios.forEach(...)`,
+  etc.) siguen funcionando sin tocarlos porque siguen enganchados a los
+  mismos elementos, solo reestilizados por fuera.
+  1. **Habilitar Ventas**: envuelto en `.config-switch-destacado`
+     (fondo `--color-accent-soft`) + pill "Auto-save" junto al label.
+  2. **Método de entrega por defecto**: de lista apilada
+     (`.config-radio-opt`) a grid de 3 tarjetas con ícono
+     (`.config-opt-grid3`/`.config-opt-card`) — mismos 3 SVG que ya usa
+     el modal "Registrar venta" (correo/imprimir/sin ticket), cero
+     ícono nuevo. Estado "seleccionado" con `:has(input:checked)` en
+     CSS puro, sin JS adicional (mismo truco que ya usaba
+     `.config-radio-opt`).
+  3. **Método de pago por defecto**: de lista apilada a fila de 4
+     pastillas compactas (`.config-pago-grid4`/`.config-pago-pill`) —
+     mismos 4 SVG del selector de método de pago del modal (punto 342).
+  4. **Prefijo de folio de conciliación**: input con etiqueta "TAG:"
+     dentro del campo + chip de vista previa en vivo
+     (`Ejemplo: CV0001`) que se actualiza con cada tecla
+     (`input` nuevo en `admin.js`, separado del `change` que dispara el
+     autoguardado real — la vista previa nunca guarda nada por sí sola).
+     Se queda en `maxlength="2"`, sin cambios de validación.
+  Punto de acento (`.subtitulo-config-dot`, mismo navy de
+  `--color-accent`) agregado junto a cada subtítulo de sección — motivo
+  visual nuevo, reutilizable en otras tarjetas de Configuraciones si se
+  quiere extender después.
+- Cero cambios de backend. `node --check` limpio, CSS balanceado
+  (1958/1958 llaves). Verificado servido correctamente contra Docker
+  real (`curl` confirma las 4 clases nuevas presentes en el HTML).
+  Rebuild `--no-cache`+`--force-recreate` de `frontend` aplicado.
+- **Pendiente**: confirmación visual del usuario con clics reales en
+  navegador (elegir cada opción, ver el chip de vista previa actualizar
+  en vivo). Sin commit/push todavía.
 
 ## Dónde está todo (mapa rápido)
 

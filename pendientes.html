@@ -673,7 +673,7 @@
   </section>
 
   <section>
-    <h2>Sesiones 18-29 sep — falta confirmación visual <span class="count">14 pendientes</span></h2>
+    <h2>Sesiones 18-29 sep — falta confirmación visual <span class="count">16 pendientes</span></h2>
     <p class="section-note">Todo lo de abajo <strong>ya está commiteado y con pruebas en verde</strong> (backend 1066/1066, control 247/247), pero <strong>nadie lo ha visto todavía en un navegador</strong>. Son implementaciones cuyo punto de partida fue "quiero que se vea así" y el objetivo era cerrar la sesión con el usuario mirándolo. No es deuda técnica: es el paso de verificación que falta. Todas se validan de una sentada en <code>http://localhost:8088/admin</code> (o <code>/control</code>), contra el tenant de pruebas.</p>
     <div class="table-scroll">
       <table>
@@ -775,6 +775,20 @@
             <td class="col-punto">344</td>
             <td class="col-item">Aviso de "tarda en responder"/"no se pudo conectar" al abrir /control</td>
             <td class="col-detalle">Antes: servidor lento dejaba el shimmer encendido para siempre sin aviso; servidor caído caía EN SILENCIO al login (se veía igual que "no hay sesión"). Ahora: a los 5s aparece "esto está tardando", a los 15s se cancela y muestra "No se pudo conectar" + Reintentar. Bug real encontrado en el camino: con <code>control</code> detenido, nginx responde 503 (no un fetch rechazado) — el código original lo trataba como sesión inválida, mismo logout silencioso por otra ruta; corregido. Verificado contra Docker real (<code>curl</code> confirma el 503, 3.2s). Falta ver los 3 escenarios reales en navegador — el timing de 5s/15s solo se confirma viéndolo en pantalla. Ver <code>PROJECT_STATE.md</code> punto 344.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="control" data-id="vis-345-papelera">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-345-papelera" aria-label="Marcar completado"></td>
+            <td class="col-punto">345</td>
+            <td class="col-item">Papelera de empresas — "Eliminar definitivo" + "Vaciar papelera" en /control</td>
+            <td class="col-detalle">Solo alcanzable desde "Baja" (candado extra). Borra TODO — base de datos + archivos MinIO + filas de control_tenants — con confirmación por texto exacto (escribir el slug, o "ELIMINAR" para vaciar todo) y animación de progreso. <code>admin_auditoria</code> se conserva siempre. <strong>2 bugs reales encontrados y corregidos probando contra Docker real</strong>: (1) el endpoint nuevo tumbaba TODO el proceso backend por una promesa sin atrapar; (2) la credencial de backend para esa tabla (recién angostada ese mismo día en el punto 305) no alcanzaba para el DELETE necesario aquí — corregido, backend vuelve a usar "app" con privilegios completos ahí. Verificado de punta a punta contra Docker/MySQL reales con tenants desechables (creados y borrados a mano). Backend 1075/1075, control 262/262, sin regresiones. Falta ver los 3 flujos reales en navegador (papelera, eliminar uno, vaciar todo). Ver <code>PROJECT_STATE.md</code> punto 345.</td>
+            <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="vis-346-modventas">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-346-modventas" aria-label="Marcar completado"></td>
+            <td class="col-punto">346</td>
+            <td class="col-item">Rediseño visual del módulo Ventas en Configuraciones (fiel a stitch/modVentas)</td>
+            <td class="col-detalle">Lista apilada → tarjetas con ícono (método de entrega) y pastillas en fila (método de pago), mismos SVG que ya usa el modal "Registrar venta". Prefijo de folio con etiqueta "TAG:" + vista previa en vivo ("Ejemplo: CV0001"). Se queda en exactamente 2 letras (decisión explícita del usuario — el mockup mostraba 5). 100% visual, cero cambio de comportamiento/endpoints. Error propio corregido en el camino: la primera propuesta usaba teal por asumir mal la paleta — <code>admin.css</code> ya define <code>--color-accent: #03285B</code> (navy) para todo <code>/admin</code>/<code>/control</code>, el mockup ya estaba alineado con eso. Falta ver el resultado real en navegador. Ver <code>PROJECT_STATE.md</code> punto 346.</td>
             <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
           </tr>
         </tbody>

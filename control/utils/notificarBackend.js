@@ -50,4 +50,38 @@ async function activarTenantFisico(slug) {
   return data;
 }
 
-module.exports = { notificarInvalidacionCache, activarTenantFisico, ErrorActivacionFisica };
+// Elimina FÍSICAMENTE un tenant (punto 345, "papelera") — DROP DATABASE +
+// purga de MinIO, delegado al backend por el mismo motivo que
+// activarTenantFisico(): control_app no tiene privilegios para esto
+// (angosto a propósito). Igual de estricto que la activación: si el
+// backend no pudo borrar la base de datos, control NUNCA debe borrar la
+// fila de `tenants` — se propaga el error, nunca se asume éxito.
+class ErrorEliminacionFisica extends Error {}
+
+async function eliminarTenantFisico(slug) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  let res;
+  try {
+    res = await fetch(`${url}/internal/eliminar-tenant/${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      headers: { 'X-Internal-Secret': secreto || '' },
+    });
+  } catch (err) {
+    throw new ErrorEliminacionFisica('No se pudo conectar con el backend para eliminar la base de datos del tenant.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ErrorEliminacionFisica(data.error || 'No se pudo eliminar la base de datos del tenant.');
+  }
+  return data;
+}
+
+module.exports = {
+  notificarInvalidacionCache,
+  activarTenantFisico,
+  ErrorActivacionFisica,
+  eliminarTenantFisico,
+  ErrorEliminacionFisica,
+};

@@ -1413,6 +1413,121 @@
   text-transform: uppercase;
   color: var(--color-ink-soft);
   margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+/* Punto: rediseño del módulo Ventas (fiel a stitch/modVentas, con la
+   paleta REAL de .admin-body — --color-accent es #03285B navy aquí,
+   nunca el teal de style.css que solo aplica al portal cliente). */
+.subtitulo-config-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); flex-shrink: 0; }
+
+.config-switch-destacado {
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin: -4px -4px 18px;
+}
+.pill-autoguardado-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* "Método de entrega por defecto" — tarjetas con ícono en vez de lista
+   apilada (antes .config-radio-opt de una sola columna). Reusa los
+   MISMOS 3 SVG del modal "Registrar venta" (correo/imprimir/sin
+   ticket) — cero ícono nuevo. */
+.config-opt-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 640px) { .config-opt-grid3 { grid-template-columns: 1fr; } }
+.config-opt-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.config-opt-card input[type="radio"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.config-opt-card:has(input:checked) { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.config-opt-card-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+.config-opt-card-icono {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--color-bg); color: var(--color-ink-soft);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.config-opt-card:has(input:checked) .config-opt-card-icono { background: var(--color-accent); color: #fff; }
+.config-opt-card-radio { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--color-border); flex-shrink: 0; }
+.config-opt-card:has(input:checked) .config-opt-card-radio { border-color: var(--color-accent); position: relative; }
+.config-opt-card:has(input:checked) .config-opt-card-radio::after {
+  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--color-accent);
+}
+.config-opt-card-label { font-size: 12.5px; font-weight: 700; color: var(--color-ink); display: block; margin-bottom: 3px; }
+.config-opt-card-hint { font-size: 10.5px; color: var(--color-ink-soft); display: block; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) { .config-opt-card, .config-opt-card-icono { transition: none; } }
+
+/* "Método de pago por defecto" — pastillas compactas en fila en vez de
+   lista apilada. Mismos 4 SVG del modal "Registrar venta". */
+.config-pago-grid4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (min-width: 560px) { .config-pago-grid4 { grid-template-columns: repeat(4, 1fr); } }
+.config-pago-pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.config-pago-pill input[type="radio"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.config-pago-pill:has(input:checked) { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.config-pago-pill-radio { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--color-border); flex-shrink: 0; }
+.config-pago-pill:has(input:checked) .config-pago-pill-radio { border-color: var(--color-accent); position: relative; }
+.config-pago-pill:has(input:checked) .config-pago-pill-radio::after {
+  content: ''; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--color-accent);
+}
+.config-pago-pill svg { flex-shrink: 0; color: var(--color-ink-soft); transition: color 0.15s ease; }
+.config-pago-pill:has(input:checked) svg { color: var(--color-accent); }
+.config-pago-pill-label { font-size: 11.5px; font-weight: 700; color: var(--color-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .config-pago-pill, .config-pago-pill svg { transition: none; } }
+
+/* "Prefijo de folio de conciliación" — input con etiqueta "TAG:" +
+   chip de vista previa en vivo (se actualiza con folioPreviewActualizar()
+   en admin.js conforme se escribe, antes de que se guarde nada). */
+.config-folio-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.config-folio-tag-wrap { position: relative; width: 150px; }
+.config-folio-tag-label {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 10.5px; font-weight: 700; color: var(--color-ink-soft); font-family: monospace;
+  pointer-events: none;
+}
+.config-folio-tag-wrap input {
+  width: 100%; padding: 8px 10px 8px 38px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  border: 1.5px solid var(--color-border); border-radius: var(--radius-sm);
+  font-family: inherit; background: var(--color-bg); color: var(--color-ink); font-size: 13px;
+}
+.config-folio-tag-wrap input:focus { outline: none; border-color: var(--color-accent); background: var(--color-surface); }
+.config-folio-preview-chip {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  border: 1px dashed var(--color-border); border-radius: var(--radius-sm);
+  font-size: 11px; color: var(--color-ink-soft);
+}
+.config-folio-preview-chip strong {
+  font-family: monospace; font-weight: 700; color: var(--color-accent);
+  background: var(--color-accent-soft); padding: 2px 7px; border-radius: 5px;
 }
 
 /* Punto 339: "Aviso de expiración de productos" — número + unidad
@@ -5512,6 +5627,30 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .modal-activando-cerrar.is-visible { display: block; }
 .modal-activando-cerrar:hover { border-color: var(--color-accent); }
 @media (prefers-reduced-motion: reduce) { .modal-activando-cerrar { transition: none; } }
+
+/* Confirmación por texto exacto (punto 345: "Eliminar definitivo"/
+   "Vaciar papelera") — para algo irreversible (DROP DATABASE + archivos
+   reales), un simple Sí/No es demasiado barato; mismo criterio que
+   GitHub al borrar un repositorio. */
+.campo-confirmar { margin: 14px 0; }
+.campo-confirmar label { display: block; font-size: 12px; font-weight: 700; color: var(--color-ink-soft); margin-bottom: 6px; }
+.campo-confirmar code { background: var(--color-bg); border: 1px solid var(--color-border); padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+.campo-confirmar input {
+  width: 100%; padding: 9px 12px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border); font-size: 14px;
+  font-family: inherit; background: var(--color-bg); color: var(--color-ink);
+}
+.campo-confirmar input:focus { outline: none; border-color: var(--color-error); }
+
+.modal-lista-borrar {
+  list-style: none; margin: 0 0 4px; padding: 0;
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 140px; overflow-y: auto;
+}
+.modal-lista-borrar li {
+  font-size: 12.5px; color: var(--color-ink);
+  background: var(--color-bg); border-radius: 6px; padding: 6px 10px;
+}
 
 /* Insignia de perfil (cliente / administrador / fiscal) en la tabla de Usuarios */
 /* Punto 342: columna "Pago" en la tabla de Ventas — fusiona método de

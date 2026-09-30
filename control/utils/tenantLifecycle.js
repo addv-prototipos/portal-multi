@@ -13,7 +13,7 @@
 // respaldo manual si ese privilegio llegara a faltar.
 
 const { obtenerPool } = require('../db');
-const { notificarInvalidacionCache, activarTenantFisico } = require('./notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico } = require('./notificarBackend');
 
 // Error tipado para que la capa de rutas distinga "el tenant no existe"
 // (404) de "el tenant existe pero no está en un estado válido para esta
@@ -178,6 +178,67 @@ async function darDeBajaTenant(slug, { actor } = {}, db = obtenerPool()) {
   });
 }
 
+// Elimina un tenant PARA SIEMPRE (punto 345, "papelera") — DROP DATABASE
+// + purga de MinIO + borrado de sus filas en control_tenants
+// (tenants/tenant_eventos/api_credenciales). Candado de seguridad:
+// SOLO se puede eliminar desde "baja" (fin de la relación comercial ya
+// confirmado antes) — nunca directo desde "activo"/"suspendido", 2
+// pasos deliberados para algo irreversible.
+//
+// `control_app` no tiene privilegio DELETE (angosto a propósito, ver
+// control/scripts/ensureSchema.js) — ni para las filas de aquí ni para
+// nada físico, así que TODO el borrado (base de datos + archivos + las
+// 3 tablas de control) se delega al backend en una sola llamada
+// (eliminarTenantFisico → POST /internal/eliminar-tenant/:slug, que
+// hace su propia verificación atómica de "sigue en baja" antes de
+// borrar nada — nunca confía ciegamente en lo que ya revisó control).
+// admin_auditoria NUNCA se toca — se conserva como rastro histórico, a
+// petición explícita del usuario.
+async function eliminarTenantDefinitivo(slug, { actor } = {}, db = obtenerPool()) {
+  const tenant = await obtenerTenantPorSlug(slug, db);
+  if (!tenant) {
+    throw new ErrorTransicionTenant(`El tenant "${slug}" no existe.`, 'no_encontrado');
+  }
+  if (tenant.estado !== 'baja') {
+    throw new ErrorTransicionTenant(
+      `El tenant "${slug}" está en estado "${tenant.estado}", no se puede eliminar desde ahí (solo aplica a "Baja").`,
+      'estado_invalido'
+    );
+  }
+
+  try {
+    await eliminarTenantFisico(slug);
+  } catch (err) {
+    throw new ErrorTransicionTenant(
+      err.message || 'No se pudo eliminar la base de datos del tenant.',
+      'error_fisico'
+    );
+  }
+
+  return tenant;
+}
+
+// Vacía TODA la papelera de una sentada — llama a eliminarTenantDefinitivo
+// una vez por cada tenant en "baja", secuencial (nunca en paralelo: N
+// DROP DATABASE simultáneos son innecesariamente pesados para MySQL). Un
+// tenant que falla NO detiene a los demás — se acumula en `fallidos` y
+// se sigue con el resto, para que un solo error no deje la papelera a
+// medio vaciar sin ninguna explicación de qué sí y qué no.
+async function vaciarPapelera({ actor } = {}, db = obtenerPool()) {
+  const enBaja = await listarTenants({ estado: 'baja' }, db);
+  const eliminados = [];
+  const fallidos = [];
+  for (const t of enBaja) {
+    try {
+      await eliminarTenantDefinitivo(t.slug, { actor }, db);
+      eliminados.push(t.slug);
+    } catch (err) {
+      fallidos.push({ slug: t.slug, error: err.message });
+    }
+  }
+  return { eliminados, fallidos };
+}
+
 module.exports = {
   ErrorTransicionTenant,
   listarTenants,
@@ -186,4 +247,6 @@ module.exports = {
   suspenderTenant,
   reactivarTenant,
   darDeBajaTenant,
+  eliminarTenantDefinitivo,
+  vaciarPapelera,
 };

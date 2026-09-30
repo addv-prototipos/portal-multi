@@ -10,7 +10,10 @@ jest.mock('../../db', () => ({
   pool: { query: jest.fn(), getConnection: jest.fn() },
   ensureSchema: jest.fn().mockResolvedValue(undefined),
   crearBaseDeDatosTenant: jest.fn().mockResolvedValue(undefined),
+  eliminarBaseDeDatosTenant: jest.fn().mockResolvedValue(undefined),
   obtenerPoolTenant: jest.fn(() => ({ query: jest.fn(), getConnection: jest.fn() })),
+  cerrarPoolTenant: jest.fn(),
+  obtenerPoolControl: jest.fn(),
 }));
 
 jest.mock('nodemailer', () => ({
@@ -44,7 +47,7 @@ jest.mock('../../utils/storage', () => ({
 
 const { invalidarCacheTenant } = require('../../utils/tenantContext');
 const storage = require('../../utils/storage');
-const { ensureSchema, crearBaseDeDatosTenant } = require('../../db');
+const { ensureSchema, crearBaseDeDatosTenant, eliminarBaseDeDatosTenant, cerrarPoolTenant, obtenerPoolControl } = require('../../db');
 const app = require('../../server');
 
 describe('POST /internal/cache-tenant/invalidar', () => {
@@ -433,5 +436,147 @@ describe('POST /internal/activar-tenant/:slug', () => {
       .set('X-Internal-Secret', 'secreto-de-prueba');
 
     expect(res.status).toBe(502);
+  });
+});
+
+describe('POST /internal/eliminar-tenant/:slug (punto 345, "papelera")', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+  let poolControl;
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  beforeEach(() => {
+    eliminarBaseDeDatosTenant.mockClear();
+    eliminarBaseDeDatosTenant.mockResolvedValue(undefined);
+    cerrarPoolTenant.mockClear();
+    storage.eliminarPrefijo.mockClear();
+    storage.existeArchivo.mockClear();
+    storage.eliminarArchivo.mockClear();
+    storage.eliminarPrefijo.mockResolvedValue(2);
+    storage.existeArchivo.mockResolvedValue(false);
+    poolControl = { query: jest.fn() };
+    obtenerPoolControl.mockReturnValue(poolControl);
+  });
+
+  test('sin el secreto responde 403 y no toca nada', async () => {
+    const res = await request(app).post('/internal/eliminar-tenant/cliente1');
+
+    expect(res.status).toBe(403);
+    expect(eliminarBaseDeDatosTenant).not.toHaveBeenCalled();
+  });
+
+  test('slug inválido responde 400', async () => {
+    const res = await request(app)
+      .post('/internal/eliminar-tenant/Mal Slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(400);
+    expect(eliminarBaseDeDatosTenant).not.toHaveBeenCalled();
+  });
+
+  test('404 si el tenant no existe en control_tenants', async () => {
+    poolControl.query.mockResolvedValueOnce([[]]); // SELECT
+
+    const res = await request(app)
+      .post('/internal/eliminar-tenant/fantasma')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(404);
+    expect(eliminarBaseDeDatosTenant).not.toHaveBeenCalled();
+  });
+
+  test('409 si el tenant no está en "baja" — candado de seguridad', async () => {
+    poolControl.query.mockResolvedValueOnce([[{ id: 7, estado: 'activo' }]]); // SELECT
+
+    const res = await request(app)
+      .post('/internal/eliminar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(409);
+    expect(eliminarBaseDeDatosTenant).not.toHaveBeenCalled();
+  });
+
+  test('con el secreto correcto y estado "baja": borra la BD, los archivos y las filas de control', async () => {
+    poolControl.query
+      .mockResolvedValueOnce([[{ id: 7, estado: 'baja' }]]) // SELECT
+      .mockResolvedValueOnce([{ affectedRows: 3 }]) // DELETE tenant_eventos
+      .mockResolvedValueOnce([{ affectedRows: 0 }]) // DELETE api_credenciales
+      .mockResolvedValueOnce([{ affectedRows: 1 }]); // DELETE tenants (guarda atómica)
+
+    const res = await request(app)
+      .post('/internal/eliminar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(cerrarPoolTenant).toHaveBeenCalledWith('cliente1');
+    expect(eliminarBaseDeDatosTenant).toHaveBeenCalledWith('tenant_cliente1');
+    expect(storage.eliminarPrefijo).toHaveBeenCalledWith('cliente1');
+    expect(poolControl.query).toHaveBeenCalledWith('DELETE FROM tenant_eventos WHERE tenant_id = ?', [7]);
+    expect(poolControl.query).toHaveBeenCalledWith('DELETE FROM api_credenciales WHERE tenant_slug = ?', ['cliente1']);
+    expect(poolControl.query).toHaveBeenCalledWith('DELETE FROM tenants WHERE id = ? AND estado = ?', [7, 'baja']);
+  });
+
+  test('borra también el logo/favicon de marca si existen', async () => {
+    storage.existeArchivo.mockResolvedValue(true);
+    poolControl.query
+      .mockResolvedValueOnce([[{ id: 7, estado: 'baja' }]])
+      .mockResolvedValueOnce([{ affectedRows: 0 }])
+      .mockResolvedValueOnce([{ affectedRows: 0 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    const res = await request(app)
+      .post('/internal/eliminar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(200);
+    expect(storage.eliminarArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'logo');
+    expect(storage.eliminarArchivo).toHaveBeenCalledWith('marca', 'cliente1', 'favicon');
+  });
+
+  test('si borrar la base de datos falla, responde 502 y nunca toca archivos ni filas de control', async () => {
+    poolControl.query.mockResolvedValueOnce([[{ id: 7, estado: 'baja' }]]);
+    eliminarBaseDeDatosTenant.mockRejectedValueOnce(new Error('ER_DBACCESS_DENIED_ERROR'));
+
+    const res = await request(app)
+      .post('/internal/eliminar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(502);
+    expect(storage.eliminarPrefijo).not.toHaveBeenCalled();
+    expect(poolControl.query).toHaveBeenCalledTimes(1); // solo el SELECT inicial
+  });
+
+  test('si borrar los archivos falla, responde 502 (la BD ya se borró, se informa así)', async () => {
+    poolControl.query.mockResolvedValueOnce([[{ id: 7, estado: 'baja' }]]);
+    storage.eliminarPrefijo.mockRejectedValueOnce(new Error('MinIO caído'));
+
+    const res = await request(app)
+      .post('/internal/eliminar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(502);
+    expect(eliminarBaseDeDatosTenant).toHaveBeenCalled();
+    expect(poolControl.query).toHaveBeenCalledTimes(1); // nunca llegó a borrar filas de control
+  });
+
+  test('409 si el estado cambió justo antes del DELETE final (carrera extremadamente rara) — la fila queda huérfana a propósito', async () => {
+    poolControl.query
+      .mockResolvedValueOnce([[{ id: 7, estado: 'baja' }]])
+      .mockResolvedValueOnce([{ affectedRows: 0 }])
+      .mockResolvedValueOnce([{ affectedRows: 0 }])
+      .mockResolvedValueOnce([{ affectedRows: 0 }]); // DELETE tenants no afectó ninguna fila
+
+    const res = await request(app)
+      .post('/internal/eliminar-tenant/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(409);
   });
 });

@@ -13,10 +13,11 @@ jest.mock('../../db', () => ({
 jest.mock('../../utils/notificarBackend', () => ({
   notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
   activarTenantFisico: jest.fn().mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' }),
+  eliminarTenantFisico: jest.fn().mockResolvedValue({ ok: true }),
 }));
 
 const { obtenerPool } = require('../../db');
-const { notificarInvalidacionCache, activarTenantFisico } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico } = require('../../utils/notificarBackend');
 const app = require('../../server');
 
 const TENANT_FILA = {
@@ -40,6 +41,8 @@ describe('Control standalone (/api/control)', () => {
     notificarInvalidacionCache.mockClear();
     activarTenantFisico.mockClear();
     activarTenantFisico.mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' });
+    eliminarTenantFisico.mockClear();
+    eliminarTenantFisico.mockResolvedValue({ ok: true });
   });
 
   describe('GET /api/control/tenants', () => {
@@ -199,6 +202,82 @@ describe('Control standalone (/api/control)', () => {
       const res = await request(app).post('/api/control/tenants/cliente1/baja').auth('admin', 'admin');
 
       expect(res.status).toBe(409);
+    });
+  });
+
+  describe('POST /api/control/tenants/:slug/eliminar (punto 345, "papelera")', () => {
+    test('sin credenciales responde 401', async () => {
+      const res = await request(app).post('/api/control/tenants/cliente1/eliminar');
+      expect(res.status).toBe(401);
+    });
+
+    test('200 desde "baja": delega en el backend y ya no devuelve el tenant como existente', async () => {
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja' }]]);
+
+      const res = await request(app).post('/api/control/tenants/cliente1/eliminar').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('cliente1');
+    });
+
+    test('409 si el tenant está "activo" — candado de seguridad, solo se elimina desde "baja"', async () => {
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]);
+
+      const res = await request(app).post('/api/control/tenants/cliente1/eliminar').auth('admin', 'admin');
+
+      expect(res.status).toBe(409);
+      expect(eliminarTenantFisico).not.toHaveBeenCalled();
+    });
+
+    test('404 si el tenant no existe', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const res = await request(app).post('/api/control/tenants/fantasma/eliminar').auth('admin', 'admin');
+
+      expect(res.status).toBe(404);
+    });
+
+    test('502 si el backend no pudo borrar la base de datos física', async () => {
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja' }]]);
+      eliminarTenantFisico.mockRejectedValueOnce(new Error('No se pudo borrar la base de datos del tenant.'));
+
+      const res = await request(app).post('/api/control/tenants/cliente1/eliminar').auth('admin', 'admin');
+
+      expect(res.status).toBe(502);
+    });
+  });
+
+  describe('POST /api/control/tenants/papelera/vaciar (punto 345)', () => {
+    test('sin credenciales responde 401', async () => {
+      const res = await request(app).post('/api/control/tenants/papelera/vaciar');
+      expect(res.status).toBe(401);
+    });
+
+    test('200: elimina todos los tenants en "baja" y reporta el resumen', async () => {
+      pool.query
+        .mockResolvedValueOnce([[
+          { ...TENANT_FILA, id: 1, slug: 'uno', estado: 'baja' },
+          { ...TENANT_FILA, id: 2, slug: 'dos', estado: 'baja' },
+        ]]) // listarTenants({estado:'baja'})
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 1, slug: 'uno', estado: 'baja' }]])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 2, slug: 'dos', estado: 'baja' }]]);
+
+      const res = await request(app).post('/api/control/tenants/papelera/vaciar').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.eliminados).toEqual(['uno', 'dos']);
+      expect(res.body.fallidos).toEqual([]);
+    });
+
+    test('200 con papelera vacía: eliminados/fallidos ambos vacíos', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const res = await request(app).post('/api/control/tenants/papelera/vaciar').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.eliminados).toEqual([]);
+      expect(res.body.fallidos).toEqual([]);
+      expect(eliminarTenantFisico).not.toHaveBeenCalled();
     });
   });
 

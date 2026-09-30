@@ -1023,6 +1023,7 @@
     configMetodoPagoDefaultRadios: document.querySelectorAll('input[name="metodo-pago-venta-default"]'),
     metodoPagoDefaultAutoguardado: document.getElementById('metodo-pago-default-autoguardado'),
     configFolioConciliacionPrefijo: document.getElementById('config-folio-conciliacion-prefijo'),
+    configFolioPreviewValor: document.getElementById('config-folio-preview-valor'),
     folioConciliacionPrefijoAutoguardado: document.getElementById('folio-conciliacion-prefijo-autoguardado'),
     errorFolioConciliacionPrefijo: document.getElementById('error-folio-conciliacion-prefijo'),
     btnToggleAuditoriaCard: document.getElementById('btn-toggle-auditoria-card'),
@@ -3661,6 +3662,19 @@
   // Punto 342: prefijo del folio de conciliación — autoguardado en
   // blur/change (no en cada tecla), mismo criterio que otros campos de
   // texto de Configuraciones.
+  // Rediseño (fiel a stitch/modVentas): chip "Ejemplo: CV0001" se
+  // actualiza EN VIVO con cada tecla — solo visual, no dispara ningún
+  // guardado (eso lo sigue haciendo únicamente el listener de "change"
+  // de abajo). Con un prefijo inválido (no 2 letras), muestra el
+  // ejemplo con el último prefijo válido en vez de un valor a medio
+  // escribir.
+  if (els.configFolioConciliacionPrefijo && els.configFolioPreviewValor) {
+    els.configFolioConciliacionPrefijo.addEventListener('input', () => {
+      const valor = els.configFolioConciliacionPrefijo.value.trim().toUpperCase();
+      els.configFolioPreviewValor.textContent = `${/^[A-Z]{2}$/.test(valor) ? valor : 'CV'}0001`;
+    });
+  }
+
   let timeoutAutoguardadoFolioPrefijo = null;
   if (els.configFolioConciliacionPrefijo) {
     els.configFolioConciliacionPrefijo.addEventListener('change', async () => {
@@ -3956,6 +3970,7 @@
       });
       if (els.configFolioConciliacionPrefijo && !els.configFolioConciliacionPrefijo.matches(':focus')) {
         els.configFolioConciliacionPrefijo.value = config.folio_conciliacion_prefijo || 'CV';
+        if (els.configFolioPreviewValor) els.configFolioPreviewValor.textContent = `${config.folio_conciliacion_prefijo || 'CV'}0001`;
       }
       els.configAuditoriaHabilitada.checked = config.auditoria_habilitada !== false;
       els.configNotifTicketsPermiteOcultar.checked = config.notif_tickets_permite_ocultar !== false;

@@ -155,6 +155,7 @@
               <option value="suspendido">Suspendido</option>
               <option value="baja">Baja</option>
             </select>
+            <button type="button" class="btn btn-danger" id="control-btn-vaciar-papelera" hidden>Vaciar papelera</button>
             <button type="button" class="btn btn-primary" id="control-btn-nueva-empresa">Nueva empresa</button>
             <button type="button" class="btn btn-secondary" id="control-btn-refresh">Actualizar</button>
           </div>
@@ -443,6 +444,90 @@
       </ul>
       <p class="modal-activando-footer" id="control-activando-footer">Puede tardar unos segundos…</p>
       <button type="button" class="modal-activando-cerrar" id="control-btn-activando-cerrar">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Modal "Eliminar definitivo" de un tenant (punto 345, "papelera") —
+       solo alcanzable desde "Baja". Exige escribir el slug exacto para
+       confirmar (no un simple Sí/No, dado lo irreversible que es), luego
+       reusa el mismo lenguaje visual del modal "Activando" (barra
+       indeterminada + anillo + pasos) para la fase de progreso. -->
+  <div class="modal-overlay" id="control-eliminar-modal-overlay" hidden>
+    <div class="modal modal-activando" role="alertdialog" aria-modal="true" aria-labelledby="control-eliminar-modal-title">
+      <div class="barra-indeterminada" id="control-eliminar-barra"><span></span></div>
+      <div id="control-eliminar-paso-confirmar">
+        <h2 id="control-eliminar-modal-title">Eliminar "<span id="control-eliminar-nombre"></span>" para siempre</h2>
+        <p>Esto borra <strong>la base de datos completa</strong> y <strong>todos sus archivos</strong>
+        (constancias, tickets, logo). El historial de auditoría se conserva, pero la empresa desaparece por
+        completo. No se puede deshacer.</p>
+        <div class="campo-confirmar">
+          <label for="control-eliminar-input">Escribe <code id="control-eliminar-slug-esperado"></code> para confirmar</label>
+          <input type="text" id="control-eliminar-input" autocomplete="off" />
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="control-btn-eliminar-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="control-btn-eliminar-confirmar" disabled>Eliminar definitivo</button>
+        </div>
+      </div>
+      <div class="modal-activando-head" id="control-eliminar-progreso-head" hidden>
+        <div class="spinner-anillo" id="control-eliminar-spinner">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle class="arco" cx="12" cy="12" r="10"/></svg>
+        </div>
+        <div class="icono-resultado exito" id="control-eliminar-icono-exito">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="icono-resultado falla" id="control-eliminar-icono-falla">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <p class="modal-activando-titulo" id="control-eliminar-progreso-titulo">Eliminando…</p>
+        </div>
+      </div>
+      <ul class="lista-pasos" id="control-eliminar-pasos" hidden>
+        <li id="control-eliminar-paso1"><span class="paso-marca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Cerrando conexiones</li>
+        <li id="control-eliminar-paso2"><span class="paso-marca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Borrando base de datos</li>
+        <li id="control-eliminar-paso3"><span class="paso-marca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Borrando archivos</li>
+        <li id="control-eliminar-paso4"><span class="paso-marca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Quitando registro</li>
+      </ul>
+      <p class="modal-activando-footer" id="control-eliminar-footer" hidden></p>
+      <button type="button" class="modal-activando-cerrar" id="control-btn-eliminar-cerrar">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Modal "Vaciar papelera" — elimina TODOS los tenants en "Baja" de
+       una sentada. Exige escribir la palabra "ELIMINAR" (no un slug
+       único, son varios) y muestra la lista completa de qué se va a
+       borrar antes de dejar confirmar. -->
+  <div class="modal-overlay" id="control-vaciar-modal-overlay" hidden>
+    <div class="modal modal-activando" role="alertdialog" aria-modal="true" aria-labelledby="control-vaciar-modal-title">
+      <div class="barra-indeterminada" id="control-vaciar-barra"><span></span></div>
+      <div id="control-vaciar-paso-confirmar">
+        <h2 id="control-vaciar-modal-title">Vaciar toda la papelera</h2>
+        <p>Se eliminarán <strong id="control-vaciar-cantidad"></strong> para siempre — base de datos y archivos
+        de cada una. No se puede deshacer.</p>
+        <ul class="modal-lista-borrar" id="control-vaciar-lista"></ul>
+        <div class="campo-confirmar">
+          <label for="control-vaciar-input">Escribe <code>ELIMINAR</code> para confirmar</label>
+          <input type="text" id="control-vaciar-input" autocomplete="off" />
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="control-btn-vaciar-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="control-btn-vaciar-confirmar" disabled>Vaciar papelera</button>
+        </div>
+      </div>
+      <div class="modal-activando-head" id="control-vaciar-progreso-head" hidden>
+        <div class="spinner-anillo" id="control-vaciar-spinner">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle class="arco" cx="12" cy="12" r="10"/></svg>
+        </div>
+        <div class="icono-resultado exito" id="control-vaciar-icono-exito">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <p class="modal-activando-titulo" id="control-vaciar-progreso-titulo">Vaciando papelera…</p>
+        </div>
+      </div>
+      <p class="modal-activando-footer" id="control-vaciar-footer" hidden></p>
+      <button type="button" class="modal-activando-cerrar" id="control-btn-vaciar-cerrar">Cerrar</button>
     </div>
   </div>
 

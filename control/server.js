@@ -15,6 +15,8 @@ const {
   suspenderTenant,
   reactivarTenant,
   darDeBajaTenant,
+  eliminarTenantDefinitivo,
+  vaciarPapelera,
   ErrorTransicionTenant,
 } = require('./utils/tenantLifecycle');
 const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake');
@@ -298,6 +300,38 @@ app.post(
   requireAdminArea(),
   asyncHandler(async (req, res) => {
     await manejarTransicionTenant(res, () => darDeBajaTenant(req.params.slug, { actor: req.adminUser }));
+  })
+);
+
+// Elimina un tenant PARA SIEMPRE (punto 345, "papelera") — DROP DATABASE
+// + archivos en MinIO + sus filas en control_tenants, solo alcanzable
+// desde "baja" (candado extra deliberado: 2 pasos antes de algo
+// irreversible). Mismo mapeo de errores que el resto (404/409/502) vía
+// manejarTransicionTenant — 502 si el paso físico en el backend falló
+// (ErrorTransicionTenant.codigo 'error_fisico').
+app.post(
+  '/api/control/tenants/:slug/eliminar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    await manejarTransicionTenant(res, () => eliminarTenantDefinitivo(req.params.slug, { actor: req.adminUser }));
+  })
+);
+
+// Vacía TODA la papelera (todos los tenants en "baja") de una sentada —
+// nunca falla en bloque: un tenant que no se pudo eliminar se reporta en
+// "fallidos" sin detener a los demás. 200 siempre que la operación
+// misma corrió (aunque algún tenant individual haya fallado) — el
+// frontend decide cómo mostrar una respuesta parcial.
+app.post(
+  '/api/control/tenants/papelera/vaciar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const resultado = await vaciarPapelera({ actor: req.adminUser });
+    res.json({ ok: true, ...resultado });
   })
 );
 

@@ -90,6 +90,25 @@ async function crearBaseDeDatosTenant(dbName) {
   }
 }
 
+// Elimina (si existe) la base de datos física de un tenant — mismo
+// patrón/credenciales que crearBaseDeDatosTenant (conexión suelta, sin
+// pool, se cierra sola). Llamar SIEMPRE con cerrarPoolTenant(slug) hecho
+// justo antes de esto — un pool con conexiones activas contra la base
+// que se va a borrar puede quedar en un estado roto.
+async function eliminarBaseDeDatosTenant(dbName) {
+  const conexion = await mysql.createConnection({
+    host: process.env.DB_HOST || 'mysql',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'app',
+    password: process.env.DB_PASSWORD || '',
+  });
+  try {
+    await conexion.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
+  } finally {
+    await conexion.end();
+  }
+}
+
 // Contexto de tenant por request. `almacenTenant.run({ pool }, fn)` hace
 // que, dentro de `fn` (y de cualquier función async que llame, sin
 // importar cuántos niveles de profundidad), `almacenTenant.getStore()`
@@ -1705,4 +1724,5 @@ module.exports = {
   cerrarTodosLosPoolsTenant,
   obtenerPoolControl,
   crearBaseDeDatosTenant,
+  eliminarBaseDeDatosTenant,
 };

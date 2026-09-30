@@ -90,6 +90,41 @@
     activandoPaso2: document.getElementById('control-activando-paso2'),
     activandoFooter: document.getElementById('control-activando-footer'),
     btnActivandoCerrar: document.getElementById('control-btn-activando-cerrar'),
+    eliminarOverlay: document.getElementById('control-eliminar-modal-overlay'),
+    eliminarBarra: document.getElementById('control-eliminar-barra'),
+    eliminarPasoConfirmar: document.getElementById('control-eliminar-paso-confirmar'),
+    eliminarNombre: document.getElementById('control-eliminar-nombre'),
+    eliminarSlugEsperado: document.getElementById('control-eliminar-slug-esperado'),
+    eliminarInput: document.getElementById('control-eliminar-input'),
+    btnEliminarCancelar: document.getElementById('control-btn-eliminar-cancelar'),
+    btnEliminarConfirmar: document.getElementById('control-btn-eliminar-confirmar'),
+    eliminarProgresoHead: document.getElementById('control-eliminar-progreso-head'),
+    eliminarSpinner: document.getElementById('control-eliminar-spinner'),
+    eliminarIconoExito: document.getElementById('control-eliminar-icono-exito'),
+    eliminarIconoFalla: document.getElementById('control-eliminar-icono-falla'),
+    eliminarProgresoTitulo: document.getElementById('control-eliminar-progreso-titulo'),
+    eliminarPasos: document.getElementById('control-eliminar-pasos'),
+    eliminarPaso1: document.getElementById('control-eliminar-paso1'),
+    eliminarPaso2: document.getElementById('control-eliminar-paso2'),
+    eliminarPaso3: document.getElementById('control-eliminar-paso3'),
+    eliminarPaso4: document.getElementById('control-eliminar-paso4'),
+    eliminarFooter: document.getElementById('control-eliminar-footer'),
+    btnEliminarCerrar: document.getElementById('control-btn-eliminar-cerrar'),
+    btnVaciarPapelera: document.getElementById('control-btn-vaciar-papelera'),
+    vaciarOverlay: document.getElementById('control-vaciar-modal-overlay'),
+    vaciarBarra: document.getElementById('control-vaciar-barra'),
+    vaciarPasoConfirmar: document.getElementById('control-vaciar-paso-confirmar'),
+    vaciarCantidad: document.getElementById('control-vaciar-cantidad'),
+    vaciarLista: document.getElementById('control-vaciar-lista'),
+    vaciarInput: document.getElementById('control-vaciar-input'),
+    btnVaciarCancelar: document.getElementById('control-btn-vaciar-cancelar'),
+    btnVaciarConfirmar: document.getElementById('control-btn-vaciar-confirmar'),
+    vaciarProgresoHead: document.getElementById('control-vaciar-progreso-head'),
+    vaciarSpinner: document.getElementById('control-vaciar-spinner'),
+    vaciarIconoExito: document.getElementById('control-vaciar-icono-exito'),
+    vaciarProgresoTitulo: document.getElementById('control-vaciar-progreso-titulo'),
+    vaciarFooter: document.getElementById('control-vaciar-footer'),
+    btnVaciarCerrar: document.getElementById('control-btn-vaciar-cerrar'),
     btnNuevaEmpresa: document.getElementById('control-btn-nueva-empresa'),
     btnAyudaVistaEmpresas: document.getElementById('btn-ayuda-vista-empresas'),
     btnAyudaVistaSucursales: document.getElementById('btn-ayuda-vista-sucursales'),
@@ -494,6 +529,14 @@
         );
       }
 
+      if (t.estado === 'baja') {
+        contenedorAcciones.appendChild(
+          crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar definitivo', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', () =>
+            abrirModalEliminarTenant(t)
+          )
+        );
+      }
+
       if (t.estado === 'activo' || t.estado === 'suspendido') {
         contenedorAcciones.appendChild(
           crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Dar de baja', 'M18 6L6 18M6 6l12 12', () =>
@@ -650,6 +693,209 @@
   }
 
   els.btnActivandoCerrar.addEventListener('click', cerrarModalActivando);
+
+  // ---------- Modal "Eliminar definitivo" (punto 345, "papelera") ----------
+  // Solo alcanzable desde "Baja" (candado ya aplicado del lado del
+  // botón, ver renderTenants). Exige escribir el slug exacto — no un
+  // simple Sí/No — antes de dejar confirmar algo irreversible (DROP
+  // DATABASE + archivos reales). Misma barra/anillo/pasos que el modal
+  // "Activando": indeterminados porque es UNA sola petición HTTP, los
+  // pasos solo se marcan "listos" cuando llega la respuesta real.
+  let tenantAEliminar = null;
+
+  function resetModalEliminar() {
+    els.eliminarPasoConfirmar.hidden = false;
+    els.eliminarProgresoHead.hidden = true;
+    els.eliminarPasos.hidden = true;
+    els.eliminarFooter.hidden = true;
+    els.eliminarFooter.textContent = '';
+    els.eliminarBarra.classList.remove('es-completa');
+    els.eliminarBarra.querySelector('span').style.background = '';
+    els.eliminarSpinner.style.display = '';
+    els.eliminarIconoExito.classList.remove('is-visible');
+    els.eliminarIconoFalla.classList.remove('is-visible');
+    els.btnEliminarCerrar.classList.remove('is-visible');
+    els.eliminarInput.value = '';
+    els.btnEliminarConfirmar.disabled = true;
+    [els.eliminarPaso1, els.eliminarPaso2, els.eliminarPaso3, els.eliminarPaso4].forEach((p) => { p.className = ''; });
+  }
+
+  function abrirModalEliminarTenant(t) {
+    resetModalEliminar();
+    tenantAEliminar = t;
+    els.eliminarNombre.textContent = t.nombre_empresa;
+    els.eliminarSlugEsperado.textContent = t.slug;
+    els.eliminarOverlay.hidden = false;
+    setTimeout(() => els.eliminarInput.focus(), 50);
+  }
+
+  function cerrarModalEliminar() {
+    els.eliminarOverlay.hidden = true;
+    tenantAEliminar = null;
+  }
+
+  function mostrarExitoEliminar() {
+    const pasos = [els.eliminarPaso1, els.eliminarPaso2, els.eliminarPaso3, els.eliminarPaso4];
+    let i = 0;
+    function tick() {
+      if (i > 0) pasos[i - 1].className = 'esta-lista';
+      if (i < pasos.length) { i++; setTimeout(tick, 350); return; }
+      els.eliminarSpinner.style.display = 'none';
+      els.eliminarIconoExito.classList.add('is-visible');
+      els.eliminarBarra.classList.add('es-completa');
+      els.eliminarProgresoTitulo.textContent = 'Eliminada';
+      setTimeout(() => {
+        cerrarModalEliminar();
+        cargarTenants();
+      }, 900);
+    }
+    tick();
+  }
+
+  function mostrarFallaEliminar(mensaje) {
+    els.eliminarSpinner.style.display = 'none';
+    els.eliminarIconoFalla.classList.add('is-visible');
+    els.eliminarBarra.querySelector('span').style.background = 'var(--color-error)';
+    els.eliminarProgresoTitulo.textContent = 'No se pudo eliminar';
+    els.eliminarFooter.hidden = false;
+    els.eliminarFooter.textContent = mensaje;
+    els.btnEliminarCerrar.classList.add('is-visible');
+  }
+
+  els.eliminarInput.addEventListener('input', () => {
+    els.btnEliminarConfirmar.disabled = !tenantAEliminar || els.eliminarInput.value.trim() !== tenantAEliminar.slug;
+  });
+  els.btnEliminarCancelar.addEventListener('click', cerrarModalEliminar);
+  els.btnEliminarCerrar.addEventListener('click', cerrarModalEliminar);
+
+  els.btnEliminarConfirmar.addEventListener('click', async () => {
+    const t = tenantAEliminar;
+    if (!t) return;
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    els.eliminarPasoConfirmar.hidden = true;
+    els.eliminarProgresoHead.hidden = false;
+    els.eliminarPasos.hidden = false;
+
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(t.slug)}/eliminar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        mostrarFallaEliminar(data.error || 'No se pudo eliminar el tenant.');
+        return;
+      }
+      mostrarExitoEliminar();
+    } catch (err) {
+      mostrarFallaEliminar('No se pudo conectar con el servidor.');
+    }
+  });
+
+  // ---------- Modal "Vaciar papelera" ----------
+  // Solo visible mientras el filtro activo es "Baja" — es literalmente
+  // la vista de la papelera. Exige escribir "ELIMINAR" (no un slug único,
+  // son varios tenants a la vez) y muestra la lista completa de nombres
+  // antes de dejar confirmar.
+  function actualizarBotonVaciarPapelera() {
+    els.btnVaciarPapelera.hidden = els.filtroEstado.value !== 'baja';
+  }
+  els.filtroEstado.addEventListener('change', actualizarBotonVaciarPapelera);
+  actualizarBotonVaciarPapelera();
+
+  function resetModalVaciar() {
+    els.vaciarPasoConfirmar.hidden = false;
+    els.vaciarProgresoHead.hidden = true;
+    els.vaciarFooter.hidden = true;
+    els.vaciarFooter.textContent = '';
+    els.vaciarBarra.classList.remove('es-completa');
+    els.vaciarBarra.querySelector('span').style.background = '';
+    els.vaciarSpinner.style.display = '';
+    els.vaciarIconoExito.classList.remove('is-visible');
+    els.btnVaciarCerrar.classList.remove('is-visible');
+    els.vaciarInput.value = '';
+    els.btnVaciarConfirmar.disabled = true;
+  }
+
+  function cerrarModalVaciar() {
+    els.vaciarOverlay.hidden = true;
+  }
+
+  function mostrarExitoVaciar(eliminados, fallidos) {
+    els.vaciarSpinner.style.display = 'none';
+    els.vaciarIconoExito.classList.add('is-visible');
+    els.vaciarBarra.classList.add('es-completa');
+    cargarTenants();
+    if (fallidos.length) {
+      els.vaciarProgresoTitulo.textContent = `${eliminados.length} eliminada(s), ${fallidos.length} con error`;
+      els.vaciarFooter.hidden = false;
+      els.vaciarFooter.textContent = fallidos.map((f) => `${f.slug}: ${f.error}`).join(' · ');
+      els.btnVaciarCerrar.classList.add('is-visible');
+      return;
+    }
+    els.vaciarProgresoTitulo.textContent = `${eliminados.length} ${eliminados.length === 1 ? 'empresa eliminada' : 'empresas eliminadas'}`;
+    setTimeout(cerrarModalVaciar, 1200);
+  }
+
+  function mostrarFallaVaciar(mensaje) {
+    els.vaciarSpinner.style.display = 'none';
+    els.vaciarBarra.querySelector('span').style.background = 'var(--color-error)';
+    els.vaciarProgresoTitulo.textContent = 'No se pudo vaciar la papelera';
+    els.vaciarFooter.hidden = false;
+    els.vaciarFooter.textContent = mensaje;
+    els.btnVaciarCerrar.classList.add('is-visible');
+  }
+
+  els.btnVaciarPapelera.addEventListener('click', () => {
+    const filas = Array.from(els.tableBody.querySelectorAll('tr'));
+    if (!filas.length) return;
+    resetModalVaciar();
+    els.vaciarCantidad.textContent = `${filas.length} ${filas.length === 1 ? 'empresa' : 'empresas'}`;
+    els.vaciarLista.innerHTML = filas
+      .map((tr) => {
+        const nombre = tr.querySelector('td strong');
+        return `<li>${nombre ? escapeHtml(nombre.textContent) : ''}</li>`;
+      })
+      .join('');
+    els.vaciarOverlay.hidden = false;
+    setTimeout(() => els.vaciarInput.focus(), 50);
+  });
+  els.vaciarInput.addEventListener('input', () => {
+    els.btnVaciarConfirmar.disabled = els.vaciarInput.value.trim() !== 'ELIMINAR';
+  });
+  els.btnVaciarCancelar.addEventListener('click', cerrarModalVaciar);
+  els.btnVaciarCerrar.addEventListener('click', cerrarModalVaciar);
+
+  els.btnVaciarConfirmar.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+
+    els.vaciarPasoConfirmar.hidden = true;
+    els.vaciarProgresoHead.hidden = false;
+
+    try {
+      const res = await fetch(`${API_BASE}/tenants/papelera/vaciar`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        mostrarFallaVaciar(data.error || 'No se pudo vaciar la papelera.');
+        return;
+      }
+      mostrarExitoVaciar(data.eliminados || [], data.fallidos || []);
+    } catch (err) {
+      mostrarFallaVaciar('No se pudo conectar con el servidor.');
+    }
+  });
 
   // ---------- Modal de confirmación genérico ----------
 

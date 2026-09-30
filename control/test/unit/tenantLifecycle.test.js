@@ -14,10 +14,11 @@ jest.mock('../../db', () => ({
 jest.mock('../../utils/notificarBackend', () => ({
   notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
   activarTenantFisico: jest.fn().mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' }),
+  eliminarTenantFisico: jest.fn().mockResolvedValue({ ok: true }),
 }));
 
 const { obtenerPool } = require('../../db');
-const { notificarInvalidacionCache, activarTenantFisico } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico } = require('../../utils/notificarBackend');
 const {
   ErrorTransicionTenant,
   listarTenants,
@@ -26,6 +27,8 @@ const {
   suspenderTenant,
   reactivarTenant,
   darDeBajaTenant,
+  eliminarTenantDefinitivo,
+  vaciarPapelera,
 } = require('../../utils/tenantLifecycle');
 
 const TENANT_FILA = {
@@ -255,6 +258,99 @@ describe('utils/tenantLifecycle.js', () => {
 
       expect(error).toBeInstanceOf(ErrorTransicionTenant);
       expect(error.codigo).toBe('estado_invalido');
+    });
+  });
+
+  describe('eliminarTenantDefinitivo', () => {
+    test('desde "baja": llama a eliminarTenantFisico y devuelve la fila', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja' }]]);
+
+      const resultado = await eliminarTenantDefinitivo('cliente1', { actor: 'admin' });
+
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('cliente1');
+      expect(resultado.estado).toBe('baja');
+    });
+
+    test('slug inexistente -> ErrorTransicionTenant "no_encontrado", nunca llama al backend', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const error = await eliminarTenantDefinitivo('fantasma', { actor: 'admin' }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorTransicionTenant);
+      expect(error.codigo).toBe('no_encontrado');
+      expect(eliminarTenantFisico).not.toHaveBeenCalled();
+    });
+
+    test('estado distinto de "baja" (ej. "activo") -> ErrorTransicionTenant "estado_invalido", candado de seguridad', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]);
+
+      const error = await eliminarTenantDefinitivo('cliente1', { actor: 'admin' }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorTransicionTenant);
+      expect(error.codigo).toBe('estado_invalido');
+      expect(eliminarTenantFisico).not.toHaveBeenCalled();
+    });
+
+    test('el backend falla al eliminar la BD física -> ErrorTransicionTenant "error_fisico"', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'baja' }]]);
+      eliminarTenantFisico.mockRejectedValueOnce(new Error('No se pudo borrar la base de datos del tenant.'));
+
+      const error = await eliminarTenantDefinitivo('cliente1', { actor: 'admin' }).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ErrorTransicionTenant);
+      expect(error.codigo).toBe('error_fisico');
+    });
+  });
+
+  describe('vaciarPapelera', () => {
+    test('elimina todos los tenants en "baja", uno por uno', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[
+          { ...TENANT_FILA, id: 1, slug: 'uno', estado: 'baja' },
+          { ...TENANT_FILA, id: 2, slug: 'dos', estado: 'baja' },
+        ]]) // listarTenants({estado:'baja'})
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 1, slug: 'uno', estado: 'baja' }]]) // obtenerTenantPorSlug('uno')
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 2, slug: 'dos', estado: 'baja' }]]); // obtenerTenantPorSlug('dos')
+
+      const resultado = await vaciarPapelera({ actor: 'admin' });
+
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('uno');
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('dos');
+      expect(resultado.eliminados).toEqual(['uno', 'dos']);
+      expect(resultado.fallidos).toEqual([]);
+    });
+
+    test('un tenant que falla no detiene a los demás — se reporta en "fallidos"', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[
+          { ...TENANT_FILA, id: 1, slug: 'uno', estado: 'baja' },
+          { ...TENANT_FILA, id: 2, slug: 'dos', estado: 'baja' },
+        ]])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 1, slug: 'uno', estado: 'baja' }]])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 2, slug: 'dos', estado: 'baja' }]]);
+      eliminarTenantFisico.mockImplementationOnce(() => Promise.reject(new Error('MySQL no disponible')));
+      eliminarTenantFisico.mockImplementationOnce(() => Promise.resolve({ ok: true }));
+
+      const resultado = await vaciarPapelera({ actor: 'admin' });
+
+      expect(resultado.eliminados).toEqual(['dos']);
+      expect(resultado.fallidos).toEqual([{ slug: 'uno', error: 'MySQL no disponible' }]);
+    });
+
+    test('papelera vacía: no llama a eliminarTenantFisico ni una vez', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const resultado = await vaciarPapelera({ actor: 'admin' });
+
+      expect(eliminarTenantFisico).not.toHaveBeenCalled();
+      expect(resultado).toEqual({ eliminados: [], fallidos: [] });
     });
   });
 });

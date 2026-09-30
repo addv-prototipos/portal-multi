@@ -14,7 +14,7 @@ const bwipjs = require('bwip-js');
 
 const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
-const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl, obtenerPoolTenant, crearBaseDeDatosTenant } = require('./db');
+const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl, obtenerPoolTenant, cerrarPoolTenant, crearBaseDeDatosTenant, eliminarBaseDeDatosTenant } = require('./db');
 const { ejecutarCierresMensualesParaTodos } = require('./utils/cierreMensual');
 const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant } = require('./utils/tenantContext');
 const { validarSlug, nombreDbTenant } = require('./utils/tenant');
@@ -930,6 +930,118 @@ app.post('/internal/activar-tenant/:slug', async (req, res) => {
       error: 'No se pudo crear la base de datos del tenant. Revisa que el usuario de aplicación tenga privilegios sobre "tenant_%" (ver backend/scripts/provisionar-tenant.js) o complétalo con el CLI.',
     });
   }
+});
+
+// Elimina FÍSICAMENTE un tenant (punto 345, "papelera" en /control) — DROP
+// DATABASE + purga de MinIO (prefijo del tenant + logo/favicon de marca
+// si los tiene) + borra sus filas en control_tenants (tenants/
+// tenant_eventos/api_credenciales). `control_app` no tiene privilegio
+// DELETE en absoluto (angosto a propósito, ver
+// control/scripts/ensureSchema.js) — ni para lo físico ni para estas 3
+// tablas — así que /control delega TODO el borrado aquí de una sola
+// llamada, con las credenciales de aplicación que este contenedor ya
+// tiene montadas (`DB_*` para la base física, `obtenerPoolControl()`
+// para las filas — backend sí tiene ALL PRIVILEGES en `control_tenants`
+// desde el segmento 1, ver el comentario en adminAuditoria.js).
+// `admin_auditoria` NUNCA se toca — se conserva a propósito como rastro
+// histórico, a petición explícita del usuario.
+//
+// Verificación atómica PROPIA de "sigue en baja" (no confía en que
+// /control ya lo revisó momentos antes — mismo criterio que el resto de
+// este archivo, guarda en el UPDATE/DELETE en vez de SELECT-luego-
+// escribir) al final, justo antes del DELETE de `tenants`: si algo lo
+// sacó de "baja" en el camino (control_app no puede, pero un operador
+// con acceso directo a MySQL sí podría), se aborta ahí sin haber tocado
+// las filas de control todavía — la base física y los archivos ya se
+// habrían borrado en ese punto (son el paso más caro y el que de verdad
+// no se puede deshacer), así que ese es el orden correcto: lo
+// irreversible primero, la limpieza de registro al final.
+app.post('/internal/eliminar-tenant/:slug', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  const poolControl = obtenerPoolControl();
+  let tenant;
+  try {
+    const [filasTenant] = await poolControl.query('SELECT id, estado FROM tenants WHERE slug = ?', [slug]);
+    tenant = filasTenant[0];
+  } catch (err) {
+    console.error(`Error consultando el tenant "${slug}" en control_tenants:`, err);
+    return res.status(500).json({ error: 'No se pudo consultar el tenant.' });
+  }
+  if (!tenant) {
+    return res.status(404).json({ error: `El tenant "${slug}" no existe.` });
+  }
+  if (tenant.estado !== 'baja') {
+    return res.status(409).json({
+      error: `El tenant "${slug}" está en estado "${tenant.estado}", no se puede eliminar desde ahí (solo aplica a "Baja").`,
+    });
+  }
+
+  cerrarPoolTenant(slug);
+  const dbName = nombreDbTenant(slug);
+
+  try {
+    await eliminarBaseDeDatosTenant(dbName);
+  } catch (err) {
+    console.error(`Error eliminando la base de datos del tenant "${slug}":`, err);
+    return res.status(502).json({ error: 'No se pudo borrar la base de datos del tenant.' });
+  }
+
+  try {
+    await storage.eliminarPrefijo(slug);
+    if (await storage.existeArchivo('marca', slug, 'logo')) {
+      await storage.eliminarArchivo('marca', slug, 'logo');
+    }
+    if (await storage.existeArchivo('marca', slug, 'favicon')) {
+      await storage.eliminarArchivo('marca', slug, 'favicon');
+    }
+  } catch (err) {
+    console.error(`Error borrando archivos del tenant "${slug}" (la base de datos ya se borró):`, err);
+    return res.status(502).json({
+      error: `La base de datos ya se borró, pero no se pudieron borrar todos los archivos. Revisa MinIO manualmente para el prefijo "${slug}".`,
+    });
+  }
+
+  // Bloque propio (nunca crashea el proceso completo): esta ruta NO pasa
+  // por asyncHandler (mismo criterio que /internal/activar-tenant y
+  // /internal/renombrar-slug, arriba) — un await sin try/catch aquí
+  // sería una promesa rechazada sin atrapar, y eso tumba TODO el
+  // backend (cero tenants, no solo esta petición), no solo la request
+  // en curso. Bug real encontrado probando esto contra Docker real: al
+  // fallar el primer DELETE (permiso denegado), el proceso completo se
+  // cerró — corregido envolviendo este tramo.
+  try {
+    await poolControl.query('DELETE FROM tenant_eventos WHERE tenant_id = ?', [tenant.id]);
+    await poolControl.query('DELETE FROM api_credenciales WHERE tenant_slug = ?', [slug]);
+    const [resultado] = await poolControl.query('DELETE FROM tenants WHERE id = ? AND estado = ?', [tenant.id, 'baja']);
+    if (resultado.affectedRows === 0) {
+      // La base de datos y los archivos YA se borraron (irreversible) —
+      // esto solo puede pasar si algo cambió el estado en el instante
+      // exacto entre el SELECT de arriba y este DELETE. Se avisa distinto
+      // a un error normal: la fila de control quedó huérfana a propósito
+      // (apunta a una base que ya no existe) en vez de desaparecer sola,
+      // para que quede rastro de que hay que revisarla a mano.
+      console.error(`El tenant "${slug}" cambió de estado durante su eliminación física — la fila de control_tenants no se borró, requiere revisión manual.`);
+      return res.status(409).json({
+        error: 'La base de datos y los archivos ya se eliminaron, pero el registro no se pudo borrar porque el estado cambió durante el proceso. Revisa el tenant manualmente en control_tenants.',
+      });
+    }
+  } catch (err) {
+    console.error(`Error borrando las filas de control_tenants del tenant "${slug}" (la base de datos y los archivos ya se borraron):`, err);
+    return res.status(502).json({
+      error: `La base de datos y los archivos ya se eliminaron, pero no se pudo borrar el registro en control_tenants. Revisa manualmente el tenant "${slug}" ahí.`,
+    });
+  }
+
+  res.json({ ok: true });
 });
 
 // Sirve el logo de marca de un tenant. Público a propósito: va incrustado
