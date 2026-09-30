@@ -2384,6 +2384,7 @@
         { t: 'Activar', d: 'Botón "Activar" en una fila "Provisionando" crea la base de datos real del tenant y la deja accesible en /‹slug›/admin. Puede tardar unos segundos.' },
         { t: 'Editar', d: 'Cambia los datos base o, con el switch "Cambiar slug (avanzado)", el slug mismo — esto migra todos sus archivos (logo, facturas, etc.) antes de completar el cambio.' },
         { t: 'Suspender / Reactivar / Dar de baja', d: 'Ninguna de las tres borra datos: solo cambian si el tenant es accesible. "Dar de baja" y "Suspender" son igual de reversibles con "Reactivar".' },
+        { t: 'Eliminar definitivo / Vaciar papelera', d: 'Solo alcanzable desde "Baja" (candado extra). A diferencia de las 3 acciones de arriba, esto SÍ borra todo — base de datos y archivos — para siempre, no se puede deshacer. Pide escribir el slug exacto (o "ELIMINAR" para vaciar toda la papelera de una vez) antes de dejar confirmar. El historial de auditoría se conserva aunque la empresa ya no exista.' },
         { t: 'Credenciales API', d: 'Para integraciones externas (Swagger, consumo directo) — no son la contraseña de inicio de sesión del operador del tenant.' },
         { t: 'Identidad visual y cuota', d: 'Al editar una empresa: colores/tipografía/logo propios (si el switch de marca está activo) y el máximo de cuentas de panel que puede tener.' },
         { t: 'Entrar directo al panel del tenant', d: 'El slug de la tabla es un enlace — abre /‹slug›/admin en una pestaña nueva, solo si el tenant está activo.' },

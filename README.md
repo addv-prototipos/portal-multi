@@ -488,6 +488,8 @@ Al ensanchar columnas de la tabla (ver "Cabeceras ajustables" abajo), el conjunt
 
 **Estado de pago (Pagada / Pendiente de pago)**: toggle en el modal de registro — ver la vista "Cuentas por cobrar" arriba para el seguimiento completo de saldos pendientes.
 
+**Método de pago + folio de conciliación (ver PROJECT_STATE.md punto 342)**: el modal "Registrar venta" pide el método de pago (Efectivo, Transferencia, Tarjeta de crédito o Tarjeta de débito) — con "Transferencia" se genera al instante un folio corto (ej. `CV0001`, prefijo de 2 letras configurable en "Configuraciones globales" → Ventas) para que el cajero se lo dé al cliente como "Concepto" al pagar; se reusa el mismo folio si el cajero cambia de método y vuelve a "Transferencia" sin cerrar el modal. El folio aparece en el ticket impreso, en el correo de confirmación, y en la columna "Pago" de la tabla de ventas (ícono por método + folio con botón de copiar, sin abrir el detalle de la venta). El método y el prefijo con los que abre el modal por defecto se ajustan en "Configuraciones globales" → Ventas (ver esa sección más abajo).
+
 **Vista previa del ticket antes de imprimir**: al guardar con "imprimir", al abrir "Ver venta", o desde el ícono de la fila, se muestra un preview del ticket (mismo diseño que se imprime) antes de disparar la impresión real — evita imprimir por accidente.
 
 **Corte del día**: botón junto a "+ Registrar venta" que genera un reporte de ventas de un rango de fechas libre (con chips de atajo Hoy/Ayer/Esta semana/Este mes/Mes anterior), consultable en pantalla o imprimible como ticket — el corte queda guardado y disponible después en la pestaña "Cortes" de "Lectura de reportes".
@@ -928,6 +930,13 @@ propósito por seguridad y portabilidad:
   (por defecto, el contenedor `control` de este mismo
   `docker-compose.yml`) — cambia esas dos variables para apuntar a un
   host/IP/dominio distinto sin reconstruir la imagen del frontend.
+- **BD dedicada, mismo host (Fase 1, ver PROJECT_STATE.md punto 305)**:
+  `control_tenants` vive en su propio contenedor MySQL
+  (`mysql-control`, servicio aparte en `docker-compose.yml`) — aísla el
+  proceso/credenciales, no solo la base lógica, del MySQL que usa el
+  backend de tenants. Fase 2 (servidor físico separado) queda pendiente
+  de que exista esa infraestructura. Solo en el stack de desarrollo
+  local por ahora — `prod/` (VPS único nodo) no incluye este servicio.
 
 **Sí captura altas nuevas (segmento 9c)**: el botón **"Nueva empresa"**
 del `/control` guarda la solicitud con estado `provisioning` (nombre,
@@ -1037,6 +1046,19 @@ invalidación de caché entre contenedores funcione.
   `tenant_<slug>` ni sus archivos en MinIO, solo cambia el estado.
 - **Reactivar**: funciona igual desde "suspendido" o desde "baja" —
   vuelve a ser accesible de inmediato.
+- **Eliminar definitivo / Vaciar papelera (ver PROJECT_STATE.md punto
+  345)**: a diferencia de las 3 acciones de arriba, esta SÍ borra todo
+  para siempre — base de datos física (`DROP DATABASE`), archivos en
+  MinIO y las filas de `control_tenants` — y solo es alcanzable desde
+  "Baja" (candado extra deliberado: 2 pasos antes de algo irreversible).
+  Pide escribir el slug exacto (o `ELIMINAR` para vaciar toda la
+  papelera de una vez) antes de confirmar. `control_app` no tiene
+  privilegio `DELETE` — el borrado completo se delega a un endpoint
+  interno del backend (`POST /internal/eliminar-tenant/:slug`, mismo
+  patrón de secreto compartido que el resto de `/internal/*`), que sí
+  tiene los privilegios necesarios sobre `control_tenants`.
+  `admin_auditoria` nunca se toca — se conserva como rastro histórico
+  aunque la empresa ya no exista.
 - Cada acción se ve reflejada **de inmediato** en `/admin` y en el
   portal del cliente de esa empresa (no hasta 45 segundos después): al
   completarse, `control` le avisa a `backend` por una llamada interna
