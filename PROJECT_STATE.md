@@ -16674,6 +16674,33 @@ usuario.
   (papelera, eliminar uno, vaciar papelera) — todo lo de esta sesión fue
   smoke test de datos/CLI, nunca navegador. Sin commit/push todavía.
 
+**Punto 345b (2026-09-30, IMPLEMENTADO — pendiente confirmación visual):**
+ajuste de UX sobre el punto 345, a petición del usuario tras probar con
+clics reales en navegador — 2 iteraciones seguidas:
+
+- **Primer ajuste**: "Vaciar papelera" solo aparecía con el filtro de
+  estado puesto en "Baja" — en la práctica, invisible de entrada. Se
+  cambió a visible siempre que existiera al menos un tenant en "Baja",
+  sin importar el filtro activo (`obtenerTenantsBaja()`, consulta propia
+  a `?estado=baja`, independiente del filtro de la tabla).
+- **Segundo ajuste (reemplaza al anterior)**: el usuario pidió ir más
+  lejos — una vista dedicada "Papelera" en el sidebar (nueva pestaña,
+  mismo patrón que "Empresas"/"Sucursales"/"Super Admins"), y que el
+  botón "Vaciar papelera" **solo** exista dentro de esa vista, nunca en
+  "Empresas". Implementado: `vista-control-papelera` (icono de papelera
+  en el sidebar y en el menú móvil), tabla propia (Slug/Empresa/
+  Contacto/Creado + acciones Reactivar/Eliminar definitivo por fila),
+  estado vacío ("La papelera está vacía"), y el botón "Vaciar papelera"
+  vive únicamente en el toolbar de esta vista (oculto si la papelera
+  está vacía). La tabla de "Empresas" no cambió — sigue mostrando
+  también los tenants en "Baja" con sus mismas acciones (Reactivar/
+  Eliminar definitivo), la vista nueva es un atajo dedicado, no un
+  reemplazo. Entrada nueva en `AYUDA_VISTAS.papelera` (ícono "?" propio
+  de la vista). `node --check` limpio, sin IDs duplicados verificado,
+  rebuild `--no-cache`+`--force-recreate` de `frontend` aplicado.
+  Sincronizado a `prod/`. Sin commit/push todavía — pendiente
+  confirmación visual del usuario.
+
 **Punto 346 (2026-09-30, IMPLEMENTADO — pendiente confirmación visual del
 usuario):** rediseño visual del módulo Ventas en Configuraciones
 globales, fiel al mockup entregado en `stitch/modVentas/code.html`.

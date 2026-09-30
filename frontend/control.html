@@ -94,6 +94,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Empresas</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-papelera" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Papelera</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-control-sucursales" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Sucursales</span>
@@ -130,6 +134,10 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
             <span>Empresas</span>
           </button>
+          <button type="button" class="admin-menu-movil-btn" data-vista="papelera">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+            <span>Papelera</span>
+          </button>
           <button type="button" class="admin-menu-movil-btn" data-vista="sucursales">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
             <span>Sucursales</span>
@@ -155,7 +163,6 @@
               <option value="suspendido">Suspendido</option>
               <option value="baja">Baja</option>
             </select>
-            <button type="button" class="btn btn-danger" id="control-btn-vaciar-papelera" hidden>Vaciar papelera</button>
             <button type="button" class="btn btn-primary" id="control-btn-nueva-empresa">Nueva empresa</button>
             <button type="button" class="btn btn-secondary" id="control-btn-refresh">Actualizar</button>
           </div>
@@ -207,6 +214,55 @@
           </div>
           <p class="admin-empty" id="control-filtro-empty" hidden>Ningún tenant coincide con el filtro.</p>
         </div>
+        </div>
+
+        <!-- Punto 345b: Papelera — vista dedicada solo para empresas en
+             "Baja". El botón "Vaciar papelera" (borrado físico irreversible
+             de TODAS las que están aquí) solo existe dentro de esta vista,
+             nunca en "Empresas" — evita que aparezca de entrada en el
+             listado general, donde es fácil pasarlo por alto o confundirlo
+             con una acción reversible más. -->
+        <div id="vista-control-papelera" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Papelera</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-papelera" aria-label="Ayuda sobre Papelera" data-tooltip="Ayuda sobre esta sección">?</button>
+            </div>
+            <div class="admin-toolbar-right">
+              <span class="admin-count" id="papelera-count">0 empresas</span>
+              <button type="button" class="btn btn-danger" id="control-btn-vaciar-papelera" hidden>Vaciar papelera</button>
+              <button type="button" class="btn btn-secondary" id="btn-papelera-refresh">Actualizar</button>
+            </div>
+          </div>
+
+          <p class="admin-login-hint">
+            Solo aparecen aquí las empresas dadas de baja. <strong>Reactivar</strong> las devuelve a
+            operar de inmediato, sin perder nada. <strong>Eliminar definitivo</strong> (por fila) o
+            <strong>Vaciar papelera</strong> (todas a la vez) SÍ borran para siempre la base de datos y
+            los archivos — no se puede deshacer.
+          </p>
+
+          <p class="field-error" id="papelera-error" role="alert"></p>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="papelera-tabla-tenants">
+              <thead>
+                <tr>
+                  <th>Slug</th>
+                  <th>Empresa</th>
+                  <th>Contacto</th>
+                  <th>Creado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="papelera-table-body"></tbody>
+            </table>
+            <div class="admin-empty admin-empty-rica" id="papelera-empty" hidden>
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linejoin="round"/></svg>
+              <p class="admin-empty-titulo">La papelera está vacía</p>
+              <p>Las empresas que des de baja desde "Empresas" van a aparecer aquí.</p>
+            </div>
+          </div>
         </div>
 
         <!-- §58: Sucursales — agrupar tenants del mismo negocio con usuarios

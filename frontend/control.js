@@ -173,11 +173,19 @@
 
     // §58: Sucursales
     btnVistaEmpresas: document.getElementById('btn-vista-control-empresas'),
+    btnVistaPapelera: document.getElementById('btn-vista-control-papelera'),
     btnVistaSucursales: document.getElementById('btn-vista-control-sucursales'),
     btnVistaSuper: document.getElementById('btn-vista-control-super'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
+    vistaPapelera: document.getElementById('vista-control-papelera'),
     vistaSucursales: document.getElementById('vista-control-sucursales'),
     vistaSuper: document.getElementById('vista-control-super'),
+    btnAyudaVistaPapelera: document.getElementById('btn-ayuda-vista-papelera'),
+    papeleraCount: document.getElementById('papelera-count'),
+    papeleraError: document.getElementById('papelera-error'),
+    papeleraTableBody: document.getElementById('papelera-table-body'),
+    papeleraEmpty: document.getElementById('papelera-empty'),
+    btnPapeleraRefresh: document.getElementById('btn-papelera-refresh'),
     sucursalesCount: document.getElementById('sucursales-count'),
     sucursalesError: document.getElementById('sucursales-error'),
     sucursalesTableBody: document.getElementById('sucursales-table-body'),
@@ -591,6 +599,7 @@
       }
       showToast(`Listo: ${slug} ahora está "${ETIQUETA_ESTADO[data.tenant.estado] || data.tenant.estado}".`);
       cargarTenants();
+      if (els.vistaPapelera && !els.vistaPapelera.hidden) cargarPapelera();
     } catch (err) {
       showToast('No se pudo conectar con el servidor.', true);
     }
@@ -747,6 +756,7 @@
       setTimeout(() => {
         cerrarModalEliminar();
         cargarTenants();
+        if (els.vistaPapelera && !els.vistaPapelera.hidden) cargarPapelera();
       }, 900);
     }
     tick();
@@ -797,16 +807,93 @@
     }
   });
 
-  // ---------- Modal "Vaciar papelera" ----------
-  // Solo visible mientras el filtro activo es "Baja" — es literalmente
-  // la vista de la papelera. Exige escribir "ELIMINAR" (no un slug único,
-  // son varios tenants a la vez) y muestra la lista completa de nombres
-  // antes de dejar confirmar.
-  function actualizarBotonVaciarPapelera() {
-    els.btnVaciarPapelera.hidden = els.filtroEstado.value !== 'baja';
+  // ---------- Vista "Papelera" (punto 345b) ----------
+  // Vista dedicada, separada de "Empresas" — solo lista tenants en estado
+  // "Baja". El botón "Vaciar papelera" SOLO vive dentro de esta vista (no
+  // en "Empresas"), así nunca aparece de entrada en el listado general.
+  async function obtenerTenantsBaja() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return [];
+    try {
+      const res = await fetch(`${API_BASE}/tenants?estado=baja`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.tenants || [];
+    } catch (err) {
+      return [];
+    }
   }
-  els.filtroEstado.addEventListener('change', actualizarBotonVaciarPapelera);
-  actualizarBotonVaciarPapelera();
+
+  async function cargarPapelera() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.papeleraError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.papeleraTableBody, 5);
+    try {
+      const res = await fetch(`${API_BASE}/tenants?estado=baja`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        Esqueleto.aplicarErrorTabla(els.papeleraTableBody, 5, 'No se pudo cargar la papelera.', cargarPapelera);
+        return;
+      }
+      const data = await res.json();
+      renderPapelera(data.tenants || []);
+      Esqueleto.quitarEsqueletoTabla(els.papeleraTableBody);
+    } catch (err) {
+      Esqueleto.aplicarErrorTabla(els.papeleraTableBody, 5, 'No se pudo conectar con el servidor.', cargarPapelera);
+    }
+  }
+
+  function renderPapelera(tenants) {
+    els.papeleraCount.textContent = `${tenants.length} empresa${tenants.length === 1 ? '' : 's'}`;
+    els.papeleraTableBody.innerHTML = '';
+    els.papeleraEmpty.hidden = tenants.length > 0;
+    els.btnVaciarPapelera.hidden = tenants.length === 0;
+
+    tenants.forEach((t) => {
+      const tr = document.createElement('tr');
+      tr.dataset.slug = t.slug;
+      tr.innerHTML = `
+        <td data-label="Slug"><strong>${escapeHtml(t.slug)}</strong></td>
+        <td data-label="Empresa">${escapeHtml(t.nombre_empresa)}</td>
+        <td data-label="Contacto">${escapeHtml(t.contacto_email) || '—'}</td>
+        <td data-label="Creado">${formatFecha(t.creado_en)}</td>
+        <td data-label=""></td>
+      `;
+
+      const celdaAcciones = tr.lastElementChild;
+      const contenedorAcciones = document.createElement('div');
+      contenedorAcciones.className = 'admin-row-actions';
+
+      contenedorAcciones.appendChild(
+        crearBotonAccion('btn-icono-accion', 'Reactivar', 'M5 12h14M12 5l7 7-7 7', () =>
+          confirmarAccion({
+            titulo: '¿Reactivar este tenant?',
+            mensaje: `"${t.nombre_empresa}" (${t.slug}) volverá a ser accesible de inmediato.`,
+            textoBoton: 'Reactivar',
+            onConfirmar: () => ejecutarAccion(t.slug, 'reactivar'),
+          })
+        )
+      );
+      contenedorAcciones.appendChild(
+        crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar definitivo', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', () =>
+          abrirModalEliminarTenant(t)
+        )
+      );
+
+      celdaAcciones.appendChild(contenedorAcciones);
+      els.papeleraTableBody.appendChild(tr);
+    });
+  }
+
+  if (els.btnPapeleraRefresh) els.btnPapeleraRefresh.addEventListener('click', () => cargarPapelera());
 
   function resetModalVaciar() {
     els.vaciarPasoConfirmar.hidden = false;
@@ -831,6 +918,7 @@
     els.vaciarIconoExito.classList.add('is-visible');
     els.vaciarBarra.classList.add('es-completa');
     cargarTenants();
+    cargarPapelera();
     if (fallidos.length) {
       els.vaciarProgresoTitulo.textContent = `${eliminados.length} eliminada(s), ${fallidos.length} con error`;
       els.vaciarFooter.hidden = false;
@@ -851,17 +939,12 @@
     els.btnVaciarCerrar.classList.add('is-visible');
   }
 
-  els.btnVaciarPapelera.addEventListener('click', () => {
-    const filas = Array.from(els.tableBody.querySelectorAll('tr'));
-    if (!filas.length) return;
+  els.btnVaciarPapelera.addEventListener('click', async () => {
+    const tenantsBaja = await obtenerTenantsBaja();
+    if (!tenantsBaja.length) return;
     resetModalVaciar();
-    els.vaciarCantidad.textContent = `${filas.length} ${filas.length === 1 ? 'empresa' : 'empresas'}`;
-    els.vaciarLista.innerHTML = filas
-      .map((tr) => {
-        const nombre = tr.querySelector('td strong');
-        return `<li>${nombre ? escapeHtml(nombre.textContent) : ''}</li>`;
-      })
-      .join('');
+    els.vaciarCantidad.textContent = `${tenantsBaja.length} ${tenantsBaja.length === 1 ? 'empresa' : 'empresas'}`;
+    els.vaciarLista.innerHTML = tenantsBaja.map((t) => `<li>${escapeHtml(t.nombre_empresa)}</li>`).join('');
     els.vaciarOverlay.hidden = false;
     setTimeout(() => els.vaciarInput.focus(), 50);
   });
@@ -1776,6 +1859,8 @@
     els.menuMovil.hidden = true;
     els.btnVistaEmpresas.classList.toggle('is-active', vista === 'empresas');
     els.btnVistaEmpresas.setAttribute('aria-selected', String(vista === 'empresas'));
+    els.btnVistaPapelera.classList.toggle('is-active', vista === 'papelera');
+    els.btnVistaPapelera.setAttribute('aria-selected', String(vista === 'papelera'));
     els.btnVistaSucursales.classList.toggle('is-active', vista === 'sucursales');
     els.btnVistaSucursales.setAttribute('aria-selected', String(vista === 'sucursales'));
     if (els.btnVistaSuper) {
@@ -1783,13 +1868,16 @@
       els.btnVistaSuper.setAttribute('aria-selected', String(vista === 'super'));
     }
     els.vistaEmpresas.hidden = vista !== 'empresas';
+    els.vistaPapelera.hidden = vista !== 'papelera';
     els.vistaSucursales.hidden = vista !== 'sucursales';
     if (els.vistaSuper) els.vistaSuper.hidden = vista !== 'super';
+    if (vista === 'papelera') cargarPapelera();
     if (vista === 'sucursales') cargarSucursales();
     if (vista === 'super') cargarSuperAdmins();
   }
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
+  els.btnVistaPapelera.addEventListener('click', () => cambiarVistaPrincipalControl('papelera'));
   els.btnVistaSucursales.addEventListener('click', () => cambiarVistaPrincipalControl('sucursales'));
   if (els.btnVistaSuper) els.btnVistaSuper.addEventListener('click', () => cambiarVistaPrincipalControl('super'));
   els.menuMovil.addEventListener('click', (e) => {
@@ -2258,6 +2346,15 @@
         { titulo: 'Quitar el grupo', texto: 'Revoca el acceso compartido de inmediato — cada tenant sigue funcionando normal por su cuenta, con su propio login si ya tenía uno.' },
       ],
     },
+    papelera: {
+      titulo: 'Ayuda — Papelera',
+      items: [
+        { titulo: '¿Qué aparece aquí?', texto: 'Solo las empresas dadas de baja desde "Empresas". Provisionando/Activo/Suspendido nunca aparecen en esta vista.' },
+        { titulo: 'Reactivar', texto: 'La devuelve a operar de inmediato, exactamente igual que el botón "Reactivar" de la vista Empresas — no perdió nada mientras estuvo aquí.' },
+        { titulo: 'Eliminar definitivo', texto: 'Borra para siempre la base de datos física y los archivos de ESA empresa. Pide escribir su slug exacto antes de dejar confirmar — no se puede deshacer.' },
+        { titulo: 'Vaciar papelera', texto: 'Borra para siempre TODAS las empresas listadas aquí, de una sola vez. Pide escribir "ELIMINAR" antes de dejar confirmar — no se puede deshacer.' },
+      ],
+    },
     super: {
       titulo: 'Ayuda — Super Admins',
       items: [
@@ -2292,6 +2389,7 @@
   }
 
   if (els.btnAyudaVistaEmpresas) els.btnAyudaVistaEmpresas.addEventListener('click', () => abrirAyudaVista('empresas'));
+  if (els.btnAyudaVistaPapelera) els.btnAyudaVistaPapelera.addEventListener('click', () => abrirAyudaVista('papelera'));
   if (els.btnAyudaVistaSucursales) els.btnAyudaVistaSucursales.addEventListener('click', () => abrirAyudaVista('sucursales'));
   if (els.btnAyudaVistaSuper) els.btnAyudaVistaSuper.addEventListener('click', () => abrirAyudaVista('super'));
   if (els.btnAyudaVistaCerrar) els.btnAyudaVistaCerrar.addEventListener('click', cerrarAyudaVista);
