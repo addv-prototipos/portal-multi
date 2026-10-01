@@ -94,6 +94,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Empresas</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-planes" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20.59 13.41L13.42 20.58a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/></svg>
+          <span>Planes</span>
+        </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-control-papelera" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Papelera</span>
@@ -133,6 +137,10 @@
           <button type="button" class="admin-menu-movil-btn" data-vista="empresas">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
             <span>Empresas</span>
+          </button>
+          <button type="button" class="admin-menu-movil-btn" data-vista="planes">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20.59 13.41L13.42 20.58a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/></svg>
+            <span>Planes</span>
           </button>
           <button type="button" class="admin-menu-movil-btn" data-vista="papelera">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
@@ -214,6 +222,51 @@
           </div>
           <p class="admin-empty" id="control-filtro-empty" hidden>Ningún tenant coincide con el filtro.</p>
         </div>
+        </div>
+
+        <!-- Punto 347: Planes — catálogo independiente de cualquier
+             tenant. Se crean/nombran aquí primero, se asignan después
+             desde la ficha de cada empresa (pestaña "Plan y funciones"). -->
+        <div id="vista-control-planes" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Planes</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-planes" aria-label="Ayuda sobre Planes" data-tooltip="Catálogo de planes — qué funciones y límites trae cada uno. Se asignan a una empresa desde su ficha, en 'Plan y funciones'.">?</button>
+            </div>
+            <div class="admin-toolbar-right">
+              <span class="admin-count" id="planes-count">0 planes</span>
+              <button type="button" class="btn btn-primary" id="btn-planes-nuevo">+ Nuevo plan</button>
+            </div>
+          </div>
+
+          <p class="admin-login-hint">
+            Un plan se arma y nombra aquí, sin pensar en ningún cliente todavía — se asigna después al dar de alta o
+            editar una empresa. Editar un plan existente <strong>no cambia</strong> a las empresas que ya lo tienen
+            asignado — cada una conserva sus valores hasta que alguien las reasigne a mano.
+          </p>
+
+          <p class="field-error" id="planes-error" role="alert"></p>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="planes-tabla">
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                  <th>Precio</th>
+                  <th>Funciones incluidas</th>
+                  <th class="col-num">Empresas</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="planes-table-body"></tbody>
+            </table>
+            <div class="admin-empty admin-empty-rica" id="planes-empty" hidden>
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke-linejoin="round"/></svg>
+              <p class="admin-empty-titulo">Todavía no hay planes</p>
+              <p>Crea el primero — define qué funciones y límites trae, sin necesidad de tener un cliente en mente.</p>
+              <button type="button" class="btn btn-primary" id="btn-planes-empty-nuevo">+ Nuevo plan</button>
+            </div>
+          </div>
         </div>
 
         <!-- Punto 345b: Papelera — vista dedicada solo para empresas en
@@ -347,6 +400,77 @@
           <p class="field-hint" style="margin-top:12px">Tras guardar, se escribe <code>.env</code> y se recarga en <code>control</code> y <code>backend</code> sin reiniciar (via <code>POST /internal/reload-admin-users</code>). Revisa <code>.env.bak</code> si necesitas revertir.</p>
         </div>
       </main>
+    </div>
+  </div>
+
+  <!-- Punto 347: Modal crear/editar plan -->
+  <div class="modal-overlay" id="planes-modal-overlay" hidden>
+    <div class="modal control-modal-ancha" role="dialog" aria-modal="true" aria-labelledby="planes-modal-title">
+      <div class="gastos-modal-header">
+        <h2 id="planes-modal-title">Nuevo plan</h2>
+        <button type="button" class="btn-icon" id="btn-planes-modal-cerrar" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="gastos-modal-body">
+        <div class="control-form-grid">
+          <div class="field">
+            <label for="planes-nombre">Nombre del plan <span class="required">*</span></label>
+            <input type="text" id="planes-nombre" maxlength="80" placeholder="Ej. Pro" autocomplete="off" />
+            <p class="field-error" id="error-planes-nombre" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="planes-descripcion">Descripción</label>
+            <input type="text" id="planes-descripcion" maxlength="255" placeholder="Qué incluye, en una línea" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="planes-precio-mensual">Precio mensual (MXN)</label>
+            <input type="number" id="planes-precio-mensual" min="0" step="0.01" placeholder="Vacío = a cotizar" />
+          </div>
+          <div class="field">
+            <label for="planes-precio-anual">Precio anual (MXN)</label>
+            <input type="number" id="planes-precio-anual" min="0" step="0.01" placeholder="Vacío = a cotizar" />
+          </div>
+          <div class="field">
+            <label for="planes-max-usuarios">Máximo de usuarios</label>
+            <input type="number" id="planes-max-usuarios" min="1" step="1" placeholder="Vacío = sin límite" />
+          </div>
+          <div class="field">
+            <label for="planes-disco-cuota">Cuota de disco (MB)</label>
+            <input type="number" id="planes-disco-cuota" min="1" step="1" placeholder="Vacío = sin límite" />
+          </div>
+        </div>
+
+        <p class="field-hint" style="margin-top:14px; font-weight:700; color:var(--text, inherit);">Funcionalidades incluidas</p>
+        <div class="control-form-grid" style="margin-top:6px">
+          <label class="control-switch" for="planes-facturacion">
+            <input type="checkbox" id="planes-facturacion" />
+            <span class="control-switch-track" aria-hidden="true"></span>
+            <span class="control-switch-label">Módulo de Facturación</span>
+          </label>
+          <label class="control-switch" for="planes-portal-clientes">
+            <input type="checkbox" id="planes-portal-clientes" checked />
+            <span class="control-switch-track" aria-hidden="true"></span>
+            <span class="control-switch-label">Portal de clientes</span>
+          </label>
+          <label class="control-switch" for="planes-sucursales">
+            <input type="checkbox" id="planes-sucursales" />
+            <span class="control-switch-track" aria-hidden="true"></span>
+            <span class="control-switch-label">Sucursales (grupo)</span>
+          </label>
+          <label class="control-switch" for="planes-marca-lookfeel">
+            <input type="checkbox" id="planes-marca-lookfeel" />
+            <span class="control-switch-track" aria-hidden="true"></span>
+            <span class="control-switch-label">Marca propia / Look &amp; Feel</span>
+          </label>
+        </div>
+
+        <p class="field-error" id="planes-modal-error" role="alert" style="margin-top:14px"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-planes-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-planes-guardar">
+            <span id="btn-planes-guardar-label">Guardar plan</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -665,7 +789,18 @@
       <h2 id="control-editar-modal-title">Editar empresa</h2>
       <p class="panel-subtitle" id="control-editar-modal-empresa"></p>
 
+      <!-- Punto 347: pestañas — reemplaza el scroll largo de un solo
+           bloque. Un operador experto salta directo a la sección que
+           necesita en vez de pasar por todo cada vez. -->
+      <div class="control-edit-tabs" role="tablist" aria-label="Secciones de la empresa">
+        <button type="button" class="control-edit-tab is-active" data-tab="general" role="tab" aria-selected="true">General</button>
+        <button type="button" class="control-edit-tab" data-tab="plan" role="tab" aria-selected="false">Plan y funciones</button>
+        <button type="button" class="control-edit-tab" data-tab="visual" role="tab" aria-selected="false">Identidad visual</button>
+        <button type="button" class="control-edit-tab" data-tab="grupo" role="tab" aria-selected="false">Grupo / sucursales</button>
+      </div>
+
       <form id="control-form-editar" novalidate>
+        <div class="control-edit-tab-panel" id="control-edit-tab-general">
         <div class="control-form-grid">
           <div class="field">
             <label for="control-editar-nombre">Nombre de la empresa</label>
@@ -700,15 +835,6 @@
             <p class="field-error" id="error-editar-email" role="alert"></p>
           </div>
 
-          <!-- Punto 244 (mapeo con CLARVO_Planes.md): cuota de cuentas de
-               panel (administrador/fiscal/ventas) por tenant. -->
-          <div class="field">
-            <label for="control-editar-max-usuarios">Máximo de usuarios</label>
-            <input type="number" id="control-editar-max-usuarios" min="1" step="1" placeholder="Sin límite" />
-            <p class="field-hint">Cuentas de panel (administrador/fiscal/ventas) que puede crear esta empresa. Vacío = sin límite.</p>
-            <p class="field-error" id="error-editar-max-usuarios" role="alert"></p>
-          </div>
-
           <!-- Ancho completo (no comparte columna, punto 166/audit): a
                diferencia de los demás campos de este grid, este trae un
                layout compuesto (input + switch .control-slug-fila, ~420px
@@ -737,26 +863,111 @@
             <p class="field-hint">Solo visible para operadores de /control — la empresa cliente nunca la ve.</p>
           </div>
         </div>
-
-        <!-- Punto 244 (mapeo con CLARVO_Planes.md): gate real de marca +
-             Look & Feel — apagado, el backend usa la identidad CLARVO por
-             defecto aunque esta fila tenga marca/tema capturados. -->
-        <div class="field control-form-grid-full" style="margin-top:6px">
-          <label class="control-switch" for="control-editar-marca-lookfeel-switch">
-            <input type="checkbox" id="control-editar-marca-lookfeel-switch" checked />
-            <span class="control-switch-track" aria-hidden="true"></span>
-            <span class="control-switch-label">Marca y Look &amp; Feel habilitados</span>
-          </label>
-          <p class="field-hint">Apagado: el portal y los correos de esta empresa usan la identidad CLARVO por defecto, aunque abajo tenga marca o tema configurados.</p>
         </div>
 
-        <button type="button" class="admin-config-toggle" id="control-btn-toggle-tema-editar" aria-expanded="false">
-          <span>Identidad visual (personalizada)</span>
-          <svg class="admin-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <div id="control-tema-body" hidden>
+        <!-- Punto 347: Plan y funciones — selector de plan (copia sus
+             valores al asignar) + las 4 funciones gobernadas, cada una
+             marcada "del plan" o "excepción" según si coincide con lo que
+             el plan trae hoy. -->
+        <div class="control-edit-tab-panel" id="control-edit-tab-plan" hidden>
+          <div class="planes-tab-plan-actual">
+            <div>
+              <p class="planes-tab-plan-nombre" id="control-editar-plan-nombre-actual">Sin plan asignado</p>
+              <p class="planes-tab-plan-precio" id="control-editar-plan-precio-actual"></p>
+            </div>
+            <button type="button" class="btn btn-secondary" id="control-btn-reaplicar-plan" hidden>Reaplicar valores del plan</button>
+          </div>
+
+          <div class="field">
+            <label for="control-editar-plan-select">Plan asignado</label>
+            <select id="control-editar-plan-select">
+              <option value="">Sin plan (configurar a mano abajo)</option>
+            </select>
+            <p class="field-hint">Al elegir un plan, sus valores se copian abajo de inmediato — edítalos después de asignar si esta empresa necesita una excepción puntual.</p>
+          </div>
+
+          <p class="field-hint" style="margin:18px 0 8px; font-weight:700; color:var(--color-ink);">Funciones</p>
+          <div class="control-form-grid">
+            <div class="planes-feat-card">
+              <div class="planes-feat-card-top">
+                <label class="control-switch" for="control-editar-facturacion-switch">
+                  <input type="checkbox" id="control-editar-facturacion-switch" />
+                  <span class="control-switch-track" aria-hidden="true"></span>
+                  <span class="control-switch-label">Módulo de Facturación</span>
+                </label>
+                <span class="planes-badge-origen" id="badge-origen-facturacion"></span>
+              </div>
+              <p class="field-hint">Apagado: el menú "Facturación" desaparece del panel y la API lo rechaza (404), aunque ya tenga tickets/CFDI generados.</p>
+            </div>
+            <div class="planes-feat-card">
+              <div class="planes-feat-card-top">
+                <label class="control-switch" for="control-editar-portal-switch">
+                  <input type="checkbox" id="control-editar-portal-switch" />
+                  <span class="control-switch-track" aria-hidden="true"></span>
+                  <span class="control-switch-label">Portal de clientes</span>
+                </label>
+                <span class="planes-badge-origen" id="badge-origen-portal"></span>
+              </div>
+              <p class="field-hint">Apagado: sus clientes no pueden iniciar sesión ni consultar nada en el portal.</p>
+            </div>
+            <div class="planes-feat-card">
+              <div class="planes-feat-card-top">
+                <label class="control-switch" for="control-editar-sucursales-switch">
+                  <input type="checkbox" id="control-editar-sucursales-switch" />
+                  <span class="control-switch-track" aria-hidden="true"></span>
+                  <span class="control-switch-label">Sucursales (grupo)</span>
+                </label>
+                <span class="planes-badge-origen" id="badge-origen-sucursales"></span>
+              </div>
+              <p class="field-hint">Permiso para pertenecer a un grupo de sucursales — la asociación real se gestiona en la vista "Sucursales".</p>
+            </div>
+            <div class="planes-feat-card">
+              <div class="planes-feat-card-top">
+                <label class="control-switch" for="control-editar-marca-lookfeel-switch">
+                  <input type="checkbox" id="control-editar-marca-lookfeel-switch" checked />
+                  <span class="control-switch-track" aria-hidden="true"></span>
+                  <span class="control-switch-label">Marca propia / Look &amp; Feel</span>
+                </label>
+                <span class="planes-badge-origen" id="badge-origen-marca"></span>
+              </div>
+              <p class="field-hint">Apagado: el portal y los correos usan la identidad CLARVO por defecto, aunque tenga marca o tema configurados en "Identidad visual".</p>
+            </div>
+          </div>
+
+          <p class="field-hint" style="margin:18px 0 8px; font-weight:700; color:var(--color-ink);">Límites</p>
+          <div class="control-form-grid">
+            <!-- Punto 244 (mapeo con CLARVO_Planes.md): cuota de cuentas de
+                 panel (administrador/fiscal/ventas) por tenant. -->
+            <div class="field">
+              <label for="control-editar-max-usuarios">Máximo de usuarios</label>
+              <input type="number" id="control-editar-max-usuarios" min="1" step="1" placeholder="Sin límite" />
+              <p class="field-hint">Cuentas de panel que puede crear esta empresa. Vacío = sin límite.</p>
+              <p class="field-error" id="error-editar-max-usuarios" role="alert"></p>
+            </div>
+            <div class="field">
+              <label for="control-editar-disco-cuota">Cuota de disco (MB)</label>
+              <input type="number" id="control-editar-disco-cuota" min="1" step="1" placeholder="Sin límite" />
+              <p class="field-hint">Límite de espacio para imágenes, impuesto desde aquí. Vacío = sin límite.</p>
+              <p class="field-error" id="error-editar-disco-cuota" role="alert"></p>
+            </div>
+          </div>
+
+          <!-- Punto 347: uso real, calculado async — nunca en vivo por
+               request (ver backend/utils/storage.js:calcularBytesPrefijo).
+               "Sin calcular" hasta el primer "Recalcular". -->
+          <div class="field" style="margin-top:4px">
+            <div class="planes-disco-uso-fila">
+              <span class="field-hint" id="control-editar-disco-uso-texto">Uso de disco: sin calcular todavía.</span>
+              <button type="button" class="btn btn-secondary" id="control-btn-recalcular-disco">Recalcular</button>
+            </div>
+            <div class="planes-disco-uso-track" id="control-editar-disco-uso-track" hidden>
+              <div class="planes-disco-uso-fill" id="control-editar-disco-uso-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-edit-tab-panel" id="control-edit-tab-visual" hidden>
+          <div id="control-tema-body">
           <div class="field">
             <p class="field-hint">
               Colores, tipografías y favicon del portal de la empresa. Si no se toca nada, se usa el diseño
@@ -872,6 +1083,18 @@
 
           <div class="btn-row">
             <button type="button" class="btn btn-secondary" id="control-btn-tema-restablecer">Restablecer al diseño ADDV</button>
+          </div>
+          </div>
+        </div>
+
+        <!-- Punto 347: la gestión real (asociar/desasociar sucursales,
+             usuarios compartidos) sigue viviendo en la vista "Sucursales"
+             dedicada — esta pestaña solo informa y enlaza allá, para no
+             duplicar esa UI dentro del modal de una sola empresa. -->
+        <div class="control-edit-tab-panel" id="control-edit-tab-grupo" hidden>
+          <p class="field-hint" id="control-editar-grupo-info">Esta empresa no pertenece a ningún grupo de sucursales.</p>
+          <div class="btn-row" style="justify-content:flex-start">
+            <button type="button" class="btn btn-secondary" id="control-btn-editar-ir-sucursales">Ir a Sucursales</button>
           </div>
         </div>
 

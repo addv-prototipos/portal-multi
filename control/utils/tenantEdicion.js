@@ -20,6 +20,7 @@ const { validarSlug, nombreDbTenant } = require('./tenant');
 const { normalizarDatosBase } = require('./tenantIntake');
 const { subirLogoAlBackend, borrarLogoDelBackend, MAX_MARCA_LOGO_MB } = require('./tenantMarca');
 const { notificarInvalidacionCache } = require('./notificarBackend');
+const { obtenerPlan, ErrorPlan } = require('./planes');
 
 // Error tipado para que la capa de rutas distinga: slug inexistente (404),
 // datos inválidos (400), slug nuevo duplicado (409) y migración rechazada
@@ -95,6 +96,96 @@ function normalizarMaxUsuarios(valor) {
     return { ok: false, error: 'El máximo de usuarios debe ser un número entero mayor a 0, o dejarse vacío para no limitar.' };
   }
   return { ok: true, valor: n };
+}
+
+// Punto 347: misma validación que normalizarMaxUsuarios — null/vacío =
+// sin límite de disco impuesto desde /control.
+function normalizarDiscoCuotaMb(valor) {
+  if (valor === undefined || valor === null || valor === '') return { ok: true, valor: null };
+  const n = Number(valor);
+  if (!Number.isInteger(n) || n < 1) {
+    return { ok: false, error: 'La cuota de disco debe ser un número entero mayor a 0, o dejarse vacío para no limitar.' };
+  }
+  return { ok: true, valor: n };
+}
+
+// Punto 347: resuelve los 6 valores de "plan y funciones" que van al
+// UPDATE final, con esta precedencia:
+//   1. Si viene `planId` (asignar un plan nuevo) o `reaplicarPlan: true`
+//      (resincronizar al plan YA asignado): esos 6 valores del plan son
+//      la BASE — se copian, nunca quedan ligados en vivo (editar el plan
+//      después no toca a este tenant, solo "Reaplicar" lo hace, a mano).
+//   2. Sin plan de por medio, la base es lo que el tenant ya tenía.
+//   3. Cualquiera de los 6 campos presente EXPLÍCITAMENTE en `datos` en
+//      esta misma llamada gana sobre la base — así se puede asignar un
+//      plan y ajustar una excepción puntual en un solo guardado.
+async function resolverPlanYFunciones(tenant, datos, db) {
+  let base = {
+    planId: tenant.plan_id ?? null,
+    planActualizadoEn: tenant.plan_actualizado_en ?? null,
+    facturacionHabilitada: tenant.facturacion_habilitada ? 1 : 0,
+    portalClientesHabilitado: tenant.portal_clientes_habilitado ? 1 : 0,
+    sucursalesHabilitado: tenant.sucursales_habilitado ? 1 : 0,
+    marcaLookfeelHabilitado: tenant.marca_lookfeel_habilitado ? 1 : 0,
+    maxUsuarios: tenant.max_usuarios ?? null,
+    discoCuotaMb: tenant.disco_cuota_mb ?? null,
+  };
+
+  const asignandoPlanNuevo = datos.planId !== undefined && datos.planId !== null && datos.planId !== '';
+  const reaplicando = datos.reaplicarPlan === true;
+
+  if (asignandoPlanNuevo || reaplicando) {
+    const planIdObjetivo = asignandoPlanNuevo ? Number(datos.planId) : tenant.plan_id;
+    if (asignandoPlanNuevo && !Number.isInteger(planIdObjetivo)) {
+      throw new ErrorEdicionTenant('Plan inválido.', 'validacion');
+    }
+    if (reaplicando && !planIdObjetivo) {
+      throw new ErrorEdicionTenant('Esta empresa no tiene ningún plan asignado todavía — no hay nada que reaplicar.', 'validacion');
+    }
+
+    let plan;
+    try {
+      plan = await obtenerPlan(planIdObjetivo, db);
+    } catch (err) {
+      if (err instanceof ErrorPlan) throw new ErrorEdicionTenant('El plan seleccionado no existe.', 'validacion');
+      throw err;
+    }
+    // Un plan archivado solo se puede REAPLICAR (sincronizar un tenant
+    // que ya lo tenía) — nunca asignarse de cero a otra empresa.
+    if (asignandoPlanNuevo && !plan.activo) {
+      throw new ErrorEdicionTenant('Ese plan está archivado y ya no se puede asignar a empresas nuevas.', 'validacion');
+    }
+
+    base = {
+      planId: plan.id,
+      planActualizadoEn: new Date(),
+      facturacionHabilitada: plan.facturacion_habilitada ? 1 : 0,
+      portalClientesHabilitado: plan.portal_clientes_habilitado ? 1 : 0,
+      sucursalesHabilitado: plan.sucursales_habilitado ? 1 : 0,
+      marcaLookfeelHabilitado: plan.marca_lookfeel_habilitado ? 1 : 0,
+      maxUsuarios: plan.max_usuarios,
+      discoCuotaMb: plan.disco_cuota_mb,
+    };
+  }
+
+  // Excepciones explícitas por tenant — ganan sobre la base del plan (o
+  // sobre lo que el tenant ya tenía, si no hay plan de por medio).
+  if (typeof datos.facturacionHabilitada === 'boolean') base.facturacionHabilitada = datos.facturacionHabilitada ? 1 : 0;
+  if (typeof datos.portalClientesHabilitado === 'boolean') base.portalClientesHabilitado = datos.portalClientesHabilitado ? 1 : 0;
+  if (typeof datos.sucursalesHabilitado === 'boolean') base.sucursalesHabilitado = datos.sucursalesHabilitado ? 1 : 0;
+  if (typeof datos.marcaLookfeelHabilitado === 'boolean') base.marcaLookfeelHabilitado = datos.marcaLookfeelHabilitado ? 1 : 0;
+  if (datos.maxUsuarios !== undefined) {
+    const r = normalizarMaxUsuarios(datos.maxUsuarios);
+    if (!r.ok) throw new ErrorEdicionTenant(r.error, 'validacion');
+    base.maxUsuarios = r.valor;
+  }
+  if (datos.discoCuotaMb !== undefined) {
+    const r = normalizarDiscoCuotaMb(datos.discoCuotaMb);
+    if (!r.ok) throw new ErrorEdicionTenant(r.error, 'validacion');
+    base.discoCuotaMb = r.valor;
+  }
+
+  return base;
 }
 
 // Actualiza los datos editables de un tenant existente.
@@ -206,25 +297,22 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
     }
   }
 
-  // Punto 244: gate de marca/Look & Feel (checkbox, default = valor
-  // actual si no viene en el body) y cuota de usuarios (validada).
-  const marcaLookfeelHabilitado =
-    typeof datos.marcaLookfeelHabilitado === 'boolean'
-      ? (datos.marcaLookfeelHabilitado ? 1 : 0)
-      : (tenant.marca_lookfeel_habilitado ? 1 : 0);
-  const resultadoMaxUsuarios = normalizarMaxUsuarios(datos.maxUsuarios);
-  if (!resultadoMaxUsuarios.ok) {
-    throw new ErrorEdicionTenant(resultadoMaxUsuarios.error, 'validacion');
-  }
-  const maxUsuariosFinal =
-    datos.maxUsuarios === undefined ? tenant.max_usuarios : resultadoMaxUsuarios.valor;
+  // Punto 347: plan asignado + las 6 excepciones por tenant (incluye el
+  // viejo gate de marca/Look & Feel y la cuota de usuarios del punto 244,
+  // ahora resueltos junto con el resto de "plan y funciones").
+  const planFunciones = await resolverPlanYFunciones(tenant, datos, db);
+  const marcaLookfeelHabilitado = planFunciones.marcaLookfeelHabilitado;
+  const maxUsuariosFinal = planFunciones.maxUsuarios;
 
   const [resultado] = await db.query(
     `UPDATE tenants SET
        slug = ?, nombre_empresa = ?, contacto_email = ?, notas = ?,
        db_name = ?, storage_prefix = ?,
        marca = ?, marca_logo_url = ?, tema_json = ?,
-       marca_lookfeel_habilitado = ?, max_usuarios = ?
+       marca_lookfeel_habilitado = ?, max_usuarios = ?,
+       plan_id = ?, plan_actualizado_en = ?,
+       facturacion_habilitada = ?, portal_clientes_habilitado = ?,
+       sucursales_habilitado = ?, disco_cuota_mb = ?
      WHERE id = ?`,
     [
       slugNuevo || tenant.slug,
@@ -238,6 +326,12 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
       temaJsonFinal,
       marcaLookfeelHabilitado,
       maxUsuariosFinal,
+      planFunciones.planId,
+      planFunciones.planActualizadoEn,
+      planFunciones.facturacionHabilitada,
+      planFunciones.portalClientesHabilitado,
+      planFunciones.sucursalesHabilitado,
+      planFunciones.discoCuotaMb,
       tenant.id,
     ]
   );
@@ -248,13 +342,30 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
   const [filasActualizadas] = await db.query('SELECT * FROM tenants WHERE slug = ?', [slugNuevo || tenant.slug]);
   const tenantActualizado = filasActualizadas[0];
 
+  const detalleCambiosPlan = construirDetalleCambios(tenant, base, null, logoAccion, marcaLookfeelHabilitado, maxUsuariosFinal);
+  const detalleCambiosPlanExtra = [];
+  if (planFunciones.planId !== (tenant.plan_id ?? null)) {
+    detalleCambiosPlanExtra.push(`plan_id: ${tenant.plan_id ?? 'ninguno'} -> ${planFunciones.planId ?? 'ninguno'}`);
+  }
+  if (planFunciones.facturacionHabilitada !== (tenant.facturacion_habilitada ? 1 : 0)) {
+    detalleCambiosPlanExtra.push(`facturacion_habilitada: ${planFunciones.facturacionHabilitada ? 'ON' : 'OFF'}`);
+  }
+  if (planFunciones.portalClientesHabilitado !== (tenant.portal_clientes_habilitado ? 1 : 0)) {
+    detalleCambiosPlanExtra.push(`portal_clientes_habilitado: ${planFunciones.portalClientesHabilitado ? 'ON' : 'OFF'}`);
+  }
+  if (planFunciones.sucursalesHabilitado !== (tenant.sucursales_habilitado ? 1 : 0)) {
+    detalleCambiosPlanExtra.push(`sucursales_habilitado: ${planFunciones.sucursalesHabilitado ? 'ON' : 'OFF'}`);
+  }
+  if (planFunciones.discoCuotaMb !== (tenant.disco_cuota_mb ?? null)) {
+    detalleCambiosPlanExtra.push(`disco_cuota_mb: ${planFunciones.discoCuotaMb ?? 'sin límite'}`);
+  }
+  const detalleFinal = [detalleCambiosPlan, ...detalleCambiosPlanExtra].filter((d) => d && d !== 'sin cambios').join(', ') || 'sin cambios';
+
   await registrarEvento(
     db,
     tenantActualizado.id,
-    slugNuevo ? 'slug_cambiado' : 'datos_actualizados',
-    slugNuevo
-      ? `slug: ${tenant.slug} -> ${slugNuevo}`
-      : construirDetalleCambios(tenant, base, null, logoAccion, marcaLookfeelHabilitado, maxUsuariosFinal),
+    slugNuevo ? 'slug_cambiado' : (datos.planId !== undefined || datos.reaplicarPlan ? 'plan_asignado' : 'datos_actualizados'),
+    slugNuevo ? `slug: ${tenant.slug} -> ${slugNuevo}` : detalleFinal,
     actor || null
   );
 

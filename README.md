@@ -1067,17 +1067,32 @@ invalidación de caché entre contenedores funcione.
   la auditoría de acceso admin (`admin_auditoria`, segmento 7) — escrita
   ahora por `control` con su propia credencial angosta.
 - **Gobierno de funcionalidades por tenant (ver PROJECT_STATE.md punto
-  347 — en progreso, Fase 0 y 1 de 5 implementadas)**: además del estado
-  del tenant, `/control` va a gobernar QUÉ PUEDE USAR cada empresa
-  (Facturación, portal de clientes, sucursales, marca propia, cuota de
-  disco) mediante un catálogo de **planes** — se crean y nombran primero,
-  sin ningún cliente en mente, y se asignan después al dar de alta/editar
-  una empresa. Hoy ya existen la tabla `planes` (con 3 planes semilla) y
-  las columnas de flags en `tenants`, y el backend ya respeta esos flags
-  (404, nunca 403, si el módulo está apagado) — **todavía no hay ninguna
-  pantalla en `/control` para crearlos/asignarlos**, así que en la
-  práctica todo tenant sigue teniendo Facturación y portal de clientes
-  encendidos (los defaults de migración) hasta que esa pantalla exista.
+  347)**: además del estado del tenant, `/control` gobierna QUÉ PUEDE
+  USAR cada empresa (Facturación, portal de clientes, sucursales, marca
+  propia, cuota de disco) mediante un catálogo de **planes** — pestaña
+  "Planes" propia: se crean y nombran primero, sin ningún cliente en
+  mente (nombre, precio, qué funciones/límites trae), y se asignan
+  después al editar una empresa, en la pestaña "Plan y funciones" de su
+  ficha (antes un solo modal largo, ahora dividido en pestañas: General /
+  Plan y funciones / Identidad visual / Grupo-sucursales). Al asignar un
+  plan sus valores se COPIAN al tenant — editar el plan después nunca
+  toca a quien ya lo tiene asignado; cada función muestra una etiqueta
+  "del plan" o "excepción" según coincida o no con lo que el plan trae
+  hoy, y existe un botón "Reaplicar valores del plan" para resincronizar
+  a mano. El backend respeta estos flags de verdad: **404, nunca 403**,
+  si el módulo está apagado — un tenant sin Facturación o sin portal de
+  clientes se comporta como si esas rutas no existieran.
+  - **Cuota de disco**: botón "Recalcular" (suma los bytes reales en
+    MinIO bajo el prefijo del tenant — nunca se mide en vivo por
+    request) + barra de uso con su color según cercanía al límite. Hoy
+    la cuota se hace cumplir al subir una imagen de producto en
+    Inventarios (`413 DISCO_CUOTA_EXCEDIDA` si el último cálculo ya
+    superó la cuota) — el resto de subidas de archivo (logo, favicon,
+    CSF, tickets) queda pendiente de la misma validación.
+  - **Pendiente**: una pantalla en `/control` para navegar el historial
+    de auditoría de estos cambios (los eventos ya se registran en
+    `admin_auditoria`/`tenant_eventos`, solo falta la vista para
+    consultarlos).
 
 ### Desplegar `/control` en un servidor distinto
 

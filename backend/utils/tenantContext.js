@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, sucursales_habilitado, disco_cuota_mb
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -125,6 +125,10 @@ async function resolverTenantMiddleware(req, res, next) {
       sucursalesHabilitado: tenant.sucursales_habilitado === 1 || tenant.sucursales_habilitado === true,
       // Cuota de disco en MB impuesta desde /control — null = sin límite.
       discoCuotaMb: tenant.disco_cuota_mb == null ? null : Number(tenant.disco_cuota_mb),
+      // Uso real en bytes, calculado async por "Recalcular" en /control —
+      // null = nunca se ha calculado (nunca bloquea una subida por falta
+      // de dato; solo bloquea cuando SÍ hay un número y supera la cuota).
+      discoBytesUsadosCache: tenant.disco_bytes_usados_cache == null ? null : Number(tenant.disco_bytes_usados_cache),
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas

@@ -190,6 +190,31 @@ async function contarObjetosPrefijo(prefijo) {
   return total;
 }
 
+// Punto 347 (gobierno de funcionalidades): suma los bytes REALES de todos
+// los objetos bajo un prefijo — a diferencia de contarObjetosPrefijo
+// (cuenta objetos, no tamaño), esto es lo que /control necesita para
+// comparar contra disco_cuota_mb. Nunca se llama en el camino de una
+// request normal (demasiado lento con muchos archivos) — solo desde el
+// botón "Recalcular" de /control, vía POST /internal/disco-uso/:slug.
+async function calcularBytesPrefijo(prefijo) {
+  let continuationToken;
+  let bytes = 0;
+  do {
+    const listado = await client.send(
+      new ListObjectsV2Command({
+        Bucket: BUCKET,
+        Prefix: `${prefijo}/`,
+        ContinuationToken: continuationToken,
+      })
+    );
+    for (const objeto of listado.Contents || []) {
+      bytes += objeto.Size || 0;
+    }
+    continuationToken = listado.IsTruncated ? listado.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return bytes;
+}
+
 // Copia un solo archivo de una key a otra dentro del bucket (CopyObject
 // del lado del servidor) — usado por el renombrado de slug de un tenant
 // (cambio de slug: mover el logo de `marca/<slug_viejo>/logo` a
@@ -244,6 +269,7 @@ module.exports = {
   obtenerArchivo,
   copiarPrefijo,
   contarObjetosPrefijo,
+  calcularBytesPrefijo,
   copiarArchivo,
   eliminarPrefijo,
 };

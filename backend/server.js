@@ -933,6 +933,33 @@ app.post('/internal/activar-tenant/:slug', async (req, res) => {
   }
 });
 
+// Punto 347 (gobierno de funcionalidades): suma los bytes reales en MinIO
+// bajo el prefijo de un tenant — /control no tiene acceso directo a MinIO
+// (las credenciales solo están montadas aquí), así que delega el cálculo
+// y escribe el resultado en su propia fila de control_tenants con su
+// propia credencial, mismo patrón que activar-tenant/eliminar-tenant de
+// arriba. Nunca se llama en el camino de una request normal — solo desde
+// el botón "Recalcular" de /control, bajo demanda del operador.
+app.post('/internal/disco-uso/:slug', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  try {
+    const bytes = await storage.calcularBytesPrefijo(slug);
+    res.json({ ok: true, bytes });
+  } catch (err) {
+    console.error(`Error calculando el uso de disco del tenant "${slug}":`, err);
+    res.status(502).json({ error: 'No se pudo calcular el uso de disco en el almacenamiento.' });
+  }
+});
+
 // Elimina FÍSICAMENTE un tenant (punto 345, "papelera" en /control) — DROP
 // DATABASE + purga de MinIO (prefijo del tenant + logo/favicon de marca
 // si los tiene) + borra sus filas en control_tenants (tenants/
@@ -8257,6 +8284,23 @@ app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, require
 
       const producto = await obtenerProductoPorId(id);
       if (!producto) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });
+
+      // Punto 347: cuota de disco impuesta desde /control — usa SIEMPRE el
+      // caché (disco_bytes_usados_cache, se actualiza con "Recalcular" en
+      // /control), nunca se mide en vivo aquí. Sin cuota (null) o sin
+      // caché todavía (null, nunca se recalculó) nunca bloquea — solo
+      // rechaza cuando SÍ hay ambos números y el caché ya la superó.
+      if (
+        req.tenant &&
+        req.tenant.discoCuotaMb != null &&
+        req.tenant.discoBytesUsadosCache != null &&
+        req.tenant.discoBytesUsadosCache >= req.tenant.discoCuotaMb * 1024 * 1024
+      ) {
+        return res.status(413).json({
+          error: 'DISCO_CUOTA_EXCEDIDA',
+          mensaje: 'Esta empresa ya alcanzó su cuota de espacio para imágenes — contacta a soporte para ampliarla.',
+        });
+      }
 
       const prefijo = storage.prefijoTenant(req);
       let resultado;

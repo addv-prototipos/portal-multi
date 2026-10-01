@@ -445,4 +445,173 @@ describe('utils/tenantEdicion.js', () => {
       expect(paramsUpdate[9]).toBe(1);
     });
   });
+
+  // Punto 347: asignar un plan copia sus 6 valores a la fila del tenant
+  // (nunca queda ligado en vivo). Secuencia de queries distinta a
+  // mockPool(): SELECT tenant, SELECT plan (obtenerPlan), UPDATE, SELECT
+  // post-UPDATE, INSERT evento — se arma a mano en cada prueba.
+  describe('actualizarDatosTenant — Punto 347: plan y funciones', () => {
+    function filaPlan(overrides = {}) {
+      return {
+        id: 2,
+        nombre: 'Pro',
+        descripcion: null,
+        precio_mensual: null,
+        precio_anual: null,
+        max_usuarios: 15,
+        sucursales_habilitado: 1,
+        facturacion_habilitada: 1,
+        portal_clientes_habilitado: 1,
+        marca_lookfeel_habilitado: 0,
+        disco_cuota_mb: 2048,
+        activo: 1,
+        orden: 2,
+        total_tenants: 0,
+        ...overrides,
+      };
+    }
+
+    test('planId nuevo: copia los 6 valores del plan a la fila y registra evento "plan_asignado"', async () => {
+      const tenantBase = filaTenant({
+        plan_id: null, max_usuarios: null, facturacion_habilitada: 0,
+        portal_clientes_habilitado: 1, sucursales_habilitado: 0, marca_lookfeel_habilitado: 0, disco_cuota_mb: null,
+      });
+      const pool = { query: jest.fn() };
+      pool.query
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT tenant
+        .mockResolvedValueOnce([[filaPlan()]]) // obtenerPlan
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([[{ ...tenantBase, plan_id: 2 }]]) // SELECT post
+        .mockResolvedValueOnce([{}]); // INSERT evento
+      obtenerPool.mockReturnValue(pool);
+
+      await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', planId: 2 }, { actor: 'super' });
+
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      // ...marca_lookfeel_habilitado(9), max_usuarios(10), plan_id(11), plan_actualizado_en(12),
+      // facturacion_habilitada(13), portal_clientes_habilitado(14), sucursales_habilitado(15), disco_cuota_mb(16)
+      expect(paramsUpdate[9]).toBe(0); // marca_lookfeel_habilitado del plan (apagado)
+      expect(paramsUpdate[10]).toBe(15); // max_usuarios del plan
+      expect(paramsUpdate[11]).toBe(2); // plan_id
+      expect(paramsUpdate[12]).toBeInstanceOf(Date); // plan_actualizado_en
+      expect(paramsUpdate[13]).toBe(1); // facturacion_habilitada
+      expect(paramsUpdate[14]).toBe(1); // portal_clientes_habilitado
+      expect(paramsUpdate[15]).toBe(1); // sucursales_habilitado
+      expect(paramsUpdate[16]).toBe(2048); // disco_cuota_mb
+
+      const eventoTipo = pool.query.mock.calls[4][1][1];
+      expect(eventoTipo).toBe('plan_asignado');
+    });
+
+    test('planId de un plan archivado: ErrorEdicionTenant validacion, nunca llega al UPDATE', async () => {
+      const pool = { query: jest.fn() };
+      pool.query
+        .mockResolvedValueOnce([[filaTenant()]]) // SELECT tenant
+        .mockResolvedValueOnce([[filaPlan({ activo: 0 })]]); // obtenerPlan
+      obtenerPool.mockReturnValue(pool);
+
+      await expect(
+        actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', planId: 2 }, {})
+      ).rejects.toMatchObject({ name: 'ErrorEdicionTenant', codigo: 'validacion' });
+      expect(pool.query).toHaveBeenCalledTimes(2); // nunca llega al UPDATE
+    });
+
+    test('planId de un plan inexistente: ErrorEdicionTenant validacion', async () => {
+      const pool = { query: jest.fn() };
+      pool.query
+        .mockResolvedValueOnce([[filaTenant()]]) // SELECT tenant
+        .mockResolvedValueOnce([[]]); // obtenerPlan: no existe
+      obtenerPool.mockReturnValue(pool);
+
+      await expect(
+        actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', planId: 999 }, {})
+      ).rejects.toMatchObject({ codigo: 'validacion' });
+    });
+
+    test('reaplicarPlan=true sin plan_id previo: ErrorEdicionTenant validacion, sin consultar planes', async () => {
+      const pool = { query: jest.fn() };
+      pool.query.mockResolvedValueOnce([[filaTenant({ plan_id: null })]]); // SELECT tenant
+      obtenerPool.mockReturnValue(pool);
+
+      await expect(
+        actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', reaplicarPlan: true }, {})
+      ).rejects.toMatchObject({ codigo: 'validacion' });
+      expect(pool.query).toHaveBeenCalledTimes(1); // nunca consulta planes
+    });
+
+    test('reaplicarPlan=true con plan_id ya asignado: vuelve a copiar los valores del plan actual', async () => {
+      const tenantBase = filaTenant({ plan_id: 2, max_usuarios: 99, facturacion_habilitada: 0 }); // "excepción" previa desalineada del plan
+      const pool = { query: jest.fn() };
+      pool.query
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT tenant
+        .mockResolvedValueOnce([[filaPlan()]]) // obtenerPlan(2)
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT post
+        .mockResolvedValueOnce([{}]); // INSERT evento
+      obtenerPool.mockReturnValue(pool);
+
+      await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', reaplicarPlan: true }, {});
+
+      const consultaPlan = pool.query.mock.calls[1][1];
+      expect(consultaPlan).toEqual([2]); // consultó el plan YA asignado (id 2), no uno nuevo
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate[10]).toBe(15); // max_usuarios vuelve al valor del plan (99 -> 15)
+      expect(paramsUpdate[13]).toBe(1); // facturacion_habilitada vuelve a ON
+    });
+
+    test('override explícito junto con planId: el override gana sobre el valor del plan para ESE campo', async () => {
+      const tenantBase = filaTenant({ plan_id: null, sucursales_habilitado: 0 });
+      const pool = { query: jest.fn() };
+      pool.query
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT tenant
+        .mockResolvedValueOnce([[filaPlan()]]) // obtenerPlan — trae sucursales_habilitado=1
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT post
+        .mockResolvedValueOnce([{}]); // INSERT evento
+      obtenerPool.mockReturnValue(pool);
+
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', planId: 2, sucursalesHabilitado: false },
+        {}
+      );
+
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate[15]).toBe(0); // excepción gana: apagado aunque el plan lo traiga encendido
+      expect(paramsUpdate[13]).toBe(1); // el resto de los campos del plan sí se copiaron normal
+    });
+
+    test('sin planId/reaplicarPlan: un override individual no toca el plan_id existente', async () => {
+      const tenantBase = filaTenant({ plan_id: 2, facturacion_habilitada: 1 });
+      const pool = { query: jest.fn() };
+      pool.query
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT tenant
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE (sin consulta de plan)
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT post
+        .mockResolvedValueOnce([{}]); // INSERT evento
+      obtenerPool.mockReturnValue(pool);
+
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', facturacionHabilitada: false },
+        {}
+      );
+
+      expect(pool.query).toHaveBeenCalledTimes(4); // nunca consultó planes
+      const paramsUpdate = pool.query.mock.calls[1][1];
+      expect(paramsUpdate[11]).toBe(2); // plan_id intacto
+      expect(paramsUpdate[13]).toBe(0); // solo cambió el campo pedido
+    });
+
+    test('disco_cuota_mb inválido -> ErrorEdicionTenant validacion, sin tocar la BD', async () => {
+      const pool = { query: jest.fn() };
+      pool.query.mockResolvedValueOnce([[filaTenant()]]); // SELECT tenant
+      obtenerPool.mockReturnValue(pool);
+
+      await expect(
+        actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', discoCuotaMb: -5 }, {})
+      ).rejects.toMatchObject({ codigo: 'validacion' });
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+  });
 });

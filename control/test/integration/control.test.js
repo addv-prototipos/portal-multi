@@ -10,14 +10,24 @@ const request = require('supertest');
 jest.mock('../../db', () => ({
   obtenerPool: jest.fn(),
 }));
-jest.mock('../../utils/notificarBackend', () => ({
-  notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
-  activarTenantFisico: jest.fn().mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' }),
-  eliminarTenantFisico: jest.fn().mockResolvedValue({ ok: true }),
-}));
+jest.mock('../../utils/notificarBackend', () => {
+  const real = jest.requireActual('../../utils/notificarBackend');
+  return {
+    notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
+    activarTenantFisico: jest.fn().mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' }),
+    eliminarTenantFisico: jest.fn().mockResolvedValue({ ok: true }),
+    calcularUsoDiscoFisico: jest.fn().mockResolvedValue(734003200),
+    // Clases de error reales (no mockeadas) — recalcularUsoDisco() las
+    // re-exporta de este módulo y server.js las usa con `instanceof`
+    // para mapear el código HTTP correcto (502 vs 500).
+    ErrorActivacionFisica: real.ErrorActivacionFisica,
+    ErrorEliminacionFisica: real.ErrorEliminacionFisica,
+    ErrorCalculoDisco: real.ErrorCalculoDisco,
+  };
+});
 
 const { obtenerPool } = require('../../db');
-const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, ErrorCalculoDisco } = require('../../utils/notificarBackend');
 const app = require('../../server');
 
 const TENANT_FILA = {
@@ -43,6 +53,8 @@ describe('Control standalone (/api/control)', () => {
     activarTenantFisico.mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' });
     eliminarTenantFisico.mockClear();
     eliminarTenantFisico.mockResolvedValue({ ok: true });
+    calcularUsoDiscoFisico.mockClear();
+    calcularUsoDiscoFisico.mockResolvedValue(734003200);
   });
 
   describe('GET /api/control/tenants', () => {
@@ -660,6 +672,133 @@ describe('Control standalone (/api/control)', () => {
       pool.query.mockResolvedValueOnce([[]]);
       const res = await request(app).delete('/api/control/grupos-sucursal/999').auth('admin', 'admin');
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Planes (punto 347): /api/control/planes', () => {
+    test('401 sin credenciales', async () => {
+      const res = await request(app).get('/api/control/planes');
+      expect(res.status).toBe(401);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    test('GET lista solo planes activos por default', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 1, nombre: 'Pro', activo: 1, total_tenants: 3 }]]);
+
+      const res = await request(app).get('/api/control/planes').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.planes[0].nombre).toBe('Pro');
+      expect(pool.query.mock.calls[0][0]).toMatch(/WHERE p\.activo = 1/);
+    });
+
+    test('GET ?incluirArchivados=true no filtra por activo', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 2, nombre: 'Viejo', activo: 0 }]]);
+
+      const res = await request(app).get('/api/control/planes?incluirArchivados=true').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(pool.query.mock.calls[0][0]).not.toMatch(/WHERE p\.activo = 1/);
+    });
+
+    test('POST crea un plan y responde 201', async () => {
+      pool.query
+        .mockResolvedValueOnce([{ insertId: 4 }]) // INSERT
+        .mockResolvedValueOnce([[{ id: 4, nombre: 'Enterprise', activo: 1 }]]); // obtenerPlan
+
+      const res = await request(app)
+        .post('/api/control/planes')
+        .auth('admin', 'admin')
+        .send({ nombre: 'Enterprise', facturacion_habilitada: true });
+
+      expect(res.status).toBe(201);
+      expect(res.body.plan.id).toBe(4);
+    });
+
+    test('POST con nombre vacío responde 400, sin tocar la tabla planes', async () => {
+      const res = await request(app).post('/api/control/planes').auth('admin', 'admin').send({ nombre: '' });
+
+      expect(res.status).toBe(400);
+      // pool.query sí se llama una vez (fire-and-forget de admin_auditoria,
+      // ver res.on('finish') en server.js) — lo que importa es que NUNCA
+      // llegó a tocar la tabla planes.
+      expect(pool.query.mock.calls.some(([sql]) => sql.includes('planes'))).toBe(false);
+    });
+
+    test('GET :id inexistente responde 404', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      const res = await request(app).get('/api/control/planes/999').auth('admin', 'admin');
+      expect(res.status).toBe(404);
+    });
+
+    test('PUT edita un campo y responde 200 con el plan actualizado', async () => {
+      pool.query
+        .mockResolvedValueOnce([[{ id: 1 }]]) // existe
+        .mockResolvedValueOnce([{}]) // UPDATE
+        .mockResolvedValueOnce([[{ id: 1, nombre: 'Pro', max_usuarios: 20, activo: 1 }]]); // obtenerPlan
+
+      const res = await request(app).put('/api/control/planes/1').auth('admin', 'admin').send({ max_usuarios: 20 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.plan.max_usuarios).toBe(20);
+    });
+
+    test('PUT /:id/archivar responde 200 con activo=false', async () => {
+      pool.query
+        .mockResolvedValueOnce([[{ id: 1 }]]) // existe
+        .mockResolvedValueOnce([{}]) // UPDATE activo=0
+        .mockResolvedValueOnce([[{ id: 1, nombre: 'Pro', activo: 0 }]]); // obtenerPlan
+
+      const res = await request(app).put('/api/control/planes/1/archivar').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.plan.activo).toBe(false);
+    });
+
+    test('PUT /:id/archivar en plan inexistente responde 404', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      const res = await request(app).put('/api/control/planes/999/archivar').auth('admin', 'admin');
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/control/tenants/:slug/recalcular-disco (punto 347)', () => {
+    test('401 sin credenciales', async () => {
+      const res = await request(app).post('/api/control/tenants/cliente1/recalcular-disco');
+      expect(res.status).toBe(401);
+      expect(calcularUsoDiscoFisico).not.toHaveBeenCalled();
+    });
+
+    test('slug inexistente responde 404', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // obtenerTenantPorSlug
+      const res = await request(app).post('/api/control/tenants/no-existe/recalcular-disco').auth('admin', 'admin');
+      expect(res.status).toBe(404);
+    });
+
+    test('calcula y guarda los bytes, responde 200 con el tenant actualizado', async () => {
+      pool.query
+        .mockResolvedValueOnce([[TENANT_FILA]]) // obtenerTenantPorSlug
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([{}]); // INSERT evento
+
+      const res = await request(app).post('/api/control/tenants/cliente1/recalcular-disco').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.tenant.disco_bytes_usados_cache).toBe(734003200);
+      expect(calcularUsoDiscoFisico).toHaveBeenCalledWith('cliente1');
+    });
+
+    test('si el backend/MinIO falla, responde 502 sin tocar la fila', async () => {
+      pool.query.mockResolvedValueOnce([[TENANT_FILA]]); // obtenerTenantPorSlug
+      calcularUsoDiscoFisico.mockRejectedValueOnce(new ErrorCalculoDisco('No se pudo calcular el uso de disco.'));
+
+      const res = await request(app).post('/api/control/tenants/cliente1/recalcular-disco').auth('admin', 'admin');
+
+      expect(res.status).toBe(502);
+      // pool.query sí se llama una 2da vez (fire-and-forget de
+      // admin_auditoria, ver res.on('finish') en server.js) — lo que
+      // importa es que nunca llegó al UPDATE de disco_bytes_usados_cache.
+      expect(pool.query.mock.calls.some(([sql]) => sql.includes('disco_bytes_usados_cache'))).toBe(false);
     });
   });
 

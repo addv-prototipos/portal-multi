@@ -15,10 +15,11 @@ jest.mock('../../utils/notificarBackend', () => ({
   notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
   activarTenantFisico: jest.fn().mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' }),
   eliminarTenantFisico: jest.fn().mockResolvedValue({ ok: true }),
+  calcularUsoDiscoFisico: jest.fn().mockResolvedValue(734003200),
 }));
 
 const { obtenerPool } = require('../../db');
-const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico } = require('../../utils/notificarBackend');
 const {
   ErrorTransicionTenant,
   listarTenants,
@@ -29,6 +30,7 @@ const {
   darDeBajaTenant,
   eliminarTenantDefinitivo,
   vaciarPapelera,
+  recalcularUsoDisco,
 } = require('../../utils/tenantLifecycle');
 
 const TENANT_FILA = {
@@ -71,7 +73,7 @@ describe('utils/tenantLifecycle.js', () => {
       await listarTenants({ estado: 'activo', q: 'uno' });
 
       const [sql, params] = pool.query.mock.calls[0];
-      expect(sql).toMatch(/WHERE estado = \? AND \(slug LIKE \? OR nombre_empresa LIKE \?\)/);
+      expect(sql).toMatch(/WHERE t\.estado = \? AND \(t\.slug LIKE \? OR t\.nombre_empresa LIKE \?\)/);
       expect(params).toEqual(['activo', '%uno%', '%uno%']);
     });
   });
@@ -351,6 +353,48 @@ describe('utils/tenantLifecycle.js', () => {
 
       expect(eliminarTenantFisico).not.toHaveBeenCalled();
       expect(resultado).toEqual({ eliminados: [], fallidos: [] });
+    });
+  });
+
+  describe('recalcularUsoDisco (punto 347)', () => {
+    test('slug inexistente -> ErrorTransicionTenant "no_encontrado", nunca llama al backend', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[]]); // obtenerTenantPorSlug: no existe
+
+      await expect(recalcularUsoDisco('no-existe')).rejects.toMatchObject({
+        name: 'ErrorTransicionTenant',
+        codigo: 'no_encontrado',
+      });
+      expect(calcularUsoDiscoFisico).not.toHaveBeenCalled();
+    });
+
+    test('calcula los bytes vía el backend y los guarda en caché + registra evento', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[TENANT_FILA]]) // obtenerTenantPorSlug
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([{}]); // INSERT evento
+      calcularUsoDiscoFisico.mockResolvedValueOnce(734003200);
+
+      const resultado = await recalcularUsoDisco('cliente1', { actor: 'super' });
+
+      expect(calcularUsoDiscoFisico).toHaveBeenCalledWith('cliente1');
+      expect(resultado.disco_bytes_usados_cache).toBe(734003200);
+      const [sqlUpdate, paramsUpdate] = pool.query.mock.calls[1];
+      expect(sqlUpdate).toMatch(/UPDATE tenants SET disco_bytes_usados_cache = \?, disco_cache_actualizado_en = \? WHERE id = \?/);
+      expect(paramsUpdate[0]).toBe(734003200);
+      expect(paramsUpdate[2]).toBe(TENANT_FILA.id);
+      const [, paramsEvento] = pool.query.mock.calls[2];
+      expect(paramsEvento[1]).toBe('disco_recalculado');
+    });
+
+    test('si el backend/MinIO falla, propaga el error SIN escribir 0 a ciegas', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[TENANT_FILA]]); // obtenerTenantPorSlug
+      calcularUsoDiscoFisico.mockRejectedValueOnce(new Error('No se pudo calcular el uso de disco.'));
+
+      await expect(recalcularUsoDisco('cliente1')).rejects.toThrow('No se pudo calcular el uso de disco.');
+      expect(pool.query).toHaveBeenCalledTimes(1); // nunca llega al UPDATE
     });
   });
 });

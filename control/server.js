@@ -17,7 +17,9 @@ const {
   darDeBajaTenant,
   eliminarTenantDefinitivo,
   vaciarPapelera,
+  recalcularUsoDisco,
   ErrorTransicionTenant,
+  ErrorCalculoDisco,
 } = require('./utils/tenantLifecycle');
 const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake');
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant, MAX_MARCA_LOGO_MB } = require('./utils/tenantMarca');
@@ -41,6 +43,15 @@ const {
   actualizarUsuarioSucursal,
   ErrorSucursal,
 } = require('./utils/sucursales');
+const {
+  listarPlanes,
+  obtenerPlan,
+  crearPlan,
+  actualizarPlan,
+  archivarPlan,
+  reactivarPlan,
+  ErrorPlan,
+} = require('./utils/planes');
 
 const PORT = Number(process.env.PORT || 4001);
 // Auditoría 2026-09-03 (hallazgo #9, mismo criterio que backend/server.js):
@@ -290,6 +301,31 @@ app.post(
   requireAdminArea(),
   asyncHandler(async (req, res) => {
     await manejarTransicionTenant(res, () => reactivarTenant(req.params.slug, { actor: req.adminUser }));
+  })
+);
+
+// Punto 347 (gobierno de funcionalidades): recalcula el uso real de disco
+// de un tenant bajo demanda — nunca automático, nunca en el camino de
+// otra ruta. 502 si el backend/MinIO no respondieron (nunca se escribe
+// "0 bytes" a ciegas, ver recalcularUsoDisco en tenantLifecycle.js).
+app.post(
+  '/api/control/tenants/:slug/recalcular-disco',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const tenant = await recalcularUsoDisco(req.params.slug, { actor: req.adminUser });
+      res.json({ ok: true, tenant });
+    } catch (err) {
+      if (err instanceof ErrorTransicionTenant) {
+        return res.status(err.codigo === 'no_encontrado' ? 404 : 409).json({ error: err.message });
+      }
+      if (err instanceof ErrorCalculoDisco) {
+        return res.status(502).json({ error: err.message });
+      }
+      throw err;
+    }
   })
 );
 
@@ -592,6 +628,107 @@ app.put(
       res.json({ ok: true });
     } catch (err) {
       if (err instanceof ErrorSucursal) return res.status(mapearErrorSucursal(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+// ---------- Punto 347: catálogo de planes (gobierno de funcionalidades) ----------
+// Independiente de cualquier tenant — se crea/nombra primero, se asigna
+// después (ver tenants.plan_id, Fase 3). Mismo criterio de respuesta que
+// grupos-sucursal arriba: super-only, soft-delete, sin FK físico.
+function mapearErrorPlan(err) {
+  if (err.codigo === 'no_encontrado') return 404;
+  return 400;
+}
+
+app.get(
+  '/api/control/planes',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const incluirArchivados = req.query.incluirArchivados === 'true';
+    const planes = await listarPlanes({ incluirArchivados });
+    res.json({ planes });
+  })
+);
+
+app.post(
+  '/api/control/planes',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const plan = await crearPlan(req.body || {});
+      res.status(201).json({ ok: true, plan });
+    } catch (err) {
+      if (err instanceof ErrorPlan) return res.status(mapearErrorPlan(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.get(
+  '/api/control/planes/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const plan = await obtenerPlan(Number(req.params.id));
+      res.json({ plan });
+    } catch (err) {
+      if (err instanceof ErrorPlan) return res.status(mapearErrorPlan(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/planes/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const plan = await actualizarPlan(Number(req.params.id), req.body || {});
+      res.json({ ok: true, plan });
+    } catch (err) {
+      if (err instanceof ErrorPlan) return res.status(mapearErrorPlan(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/planes/:id/archivar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const plan = await archivarPlan(Number(req.params.id));
+      res.json({ ok: true, plan });
+    } catch (err) {
+      if (err instanceof ErrorPlan) return res.status(mapearErrorPlan(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/planes/:id/reactivar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const plan = await reactivarPlan(Number(req.params.id));
+      res.json({ ok: true, plan });
+    } catch (err) {
+      if (err instanceof ErrorPlan) return res.status(mapearErrorPlan(err)).json({ error: err.message });
       throw err;
     }
   })

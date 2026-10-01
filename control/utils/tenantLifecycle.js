@@ -13,7 +13,7 @@
 // respaldo manual si ese privilegio llegara a faltar.
 
 const { obtenerPool } = require('../db');
-const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico } = require('./notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, ErrorCalculoDisco } = require('./notificarBackend');
 
 // Error tipado para que la capa de rutas distinga "el tenant no existe"
 // (404) de "el tenant existe pero no está en un estado válido para esta
@@ -38,18 +38,24 @@ async function listarTenants({ estado, q } = {}, db = obtenerPool()) {
   const condiciones = [];
   const parametros = [];
   if (estado) {
-    condiciones.push('estado = ?');
+    condiciones.push('t.estado = ?');
     parametros.push(estado);
   }
   if (q) {
-    condiciones.push('(slug LIKE ? OR nombre_empresa LIKE ?)');
+    condiciones.push('(t.slug LIKE ? OR t.nombre_empresa LIKE ?)');
     parametros.push(`%${q}%`, `%${q}%`);
   }
   const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
   const [filas] = await db.query(
-    `SELECT id, slug, nombre_empresa, estado, contacto_email, creado_en, activado_en, suspendido_en, baja_en,
-            marca, marca_logo_url, tema_json
-     FROM tenants ${where} ORDER BY creado_en DESC`,
+    `SELECT t.id, t.slug, t.nombre_empresa, t.estado, t.contacto_email, t.creado_en, t.activado_en, t.suspendido_en, t.baja_en,
+            t.marca, t.marca_logo_url, t.tema_json,
+            t.marca_lookfeel_habilitado, t.max_usuarios,
+            t.plan_id, t.plan_actualizado_en, p.nombre AS plan_nombre,
+            t.facturacion_habilitada, t.portal_clientes_habilitado, t.sucursales_habilitado,
+            t.disco_cuota_mb, t.disco_bytes_usados_cache, t.disco_cache_actualizado_en
+     FROM tenants t LEFT JOIN planes p ON p.id = t.plan_id
+     ${where}
+     ORDER BY t.creado_en DESC`,
     parametros
   );
   return filas;
@@ -239,6 +245,30 @@ async function vaciarPapelera({ actor } = {}, db = obtenerPool()) {
   return { eliminados, fallidos };
 }
 
+// Punto 347 (gobierno de funcionalidades): recalcula el uso real de disco
+// de un tenant — le pide al backend que sume los bytes en MinIO (única
+// credencial que los tiene, ver notificarBackend.js) y guarda el
+// resultado en caché. Nunca se llama en el camino de una request normal
+// de otra ruta — solo bajo demanda del botón "Recalcular" en /control.
+async function recalcularUsoDisco(slug, { actor } = {}, db = obtenerPool()) {
+  const tenant = await obtenerTenantPorSlug(slug, db);
+  if (!tenant) {
+    throw new ErrorTransicionTenant(`El tenant "${slug}" no existe.`, 'no_encontrado');
+  }
+
+  const bytes = await calcularUsoDiscoFisico(slug); // propaga ErrorCalculoDisco si falla — nunca escribe 0 a ciegas
+
+  const ahora = new Date();
+  await db.query('UPDATE tenants SET disco_bytes_usados_cache = ?, disco_cache_actualizado_en = ? WHERE id = ?', [
+    bytes,
+    ahora,
+    tenant.id,
+  ]);
+  await registrarEvento(db, tenant.id, 'disco_recalculado', `disco_bytes_usados_cache: ${bytes}`, actor || null);
+
+  return { ...tenant, disco_bytes_usados_cache: bytes, disco_cache_actualizado_en: ahora };
+}
+
 module.exports = {
   ErrorTransicionTenant,
   listarTenants,
@@ -249,4 +279,6 @@ module.exports = {
   darDeBajaTenant,
   eliminarTenantDefinitivo,
   vaciarPapelera,
+  recalcularUsoDisco,
+  ErrorCalculoDisco,
 };

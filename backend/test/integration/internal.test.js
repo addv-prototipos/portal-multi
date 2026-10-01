@@ -33,6 +33,7 @@ jest.mock('../../utils/storage', () => ({
   eliminarArchivo: jest.fn().mockResolvedValue(undefined),
   copiarPrefijo: jest.fn().mockResolvedValue(2),
   contarObjetosPrefijo: jest.fn().mockResolvedValue(2),
+  calcularBytesPrefijo: jest.fn().mockResolvedValue(734003200),
   copiarArchivo: jest.fn().mockResolvedValue('marca/cliente2/logo'),
   eliminarPrefijo: jest.fn().mockResolvedValue(2),
   enviarArchivoARespuesta: jest.fn((prefijo, carpeta, nombreArchivo, res) => {
@@ -434,6 +435,60 @@ describe('POST /internal/activar-tenant/:slug', () => {
     const res = await request(app)
       .post('/internal/activar-tenant/cliente1')
       .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(502);
+  });
+});
+
+describe('POST /internal/disco-uso/:slug (punto 347)', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  beforeEach(() => {
+    storage.calcularBytesPrefijo.mockClear();
+    storage.calcularBytesPrefijo.mockResolvedValue(734003200);
+  });
+
+  test('sin el secreto responde 403 y no calcula nada', async () => {
+    const res = await request(app).post('/internal/disco-uso/cliente1');
+
+    expect(res.status).toBe(403);
+    expect(storage.calcularBytesPrefijo).not.toHaveBeenCalled();
+  });
+
+  test('con el secreto incorrecto responde 403', async () => {
+    const res = await request(app).post('/internal/disco-uso/cliente1').set('X-Internal-Secret', 'secreto-equivocado');
+
+    expect(res.status).toBe(403);
+    expect(storage.calcularBytesPrefijo).not.toHaveBeenCalled();
+  });
+
+  test('slug inválido responde 400', async () => {
+    const res = await request(app).post('/internal/disco-uso/Mal Slug').set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(400);
+    expect(storage.calcularBytesPrefijo).not.toHaveBeenCalled();
+  });
+
+  test('con el secreto correcto: suma los bytes del prefijo del slug y los devuelve', async () => {
+    const res = await request(app).post('/internal/disco-uso/cliente1').set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, bytes: 734003200 });
+    expect(storage.calcularBytesPrefijo).toHaveBeenCalledWith('cliente1');
+  });
+
+  test('si MinIO falla, responde 502', async () => {
+    storage.calcularBytesPrefijo.mockRejectedValueOnce(new Error('conexión rechazada'));
+
+    const res = await request(app).post('/internal/disco-uso/cliente1').set('X-Internal-Secret', 'secreto-de-prueba');
 
     expect(res.status).toBe(502);
   });

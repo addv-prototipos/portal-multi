@@ -3,6 +3,14 @@ const request = require('supertest');
 jest.mock('../../db', () => ({
   pool: { query: jest.fn(), getConnection: jest.fn() },
   ensureSchema: jest.fn(),
+  // Punto 347: solo la prueba de cuota de disco manda X-Tenant-Slug —
+  // el resto de este archivo corre sin header (resolverTenantMiddleware
+  // es no-op sin él), así que estos mocks no afectan ninguna prueba
+  // existente.
+  obtenerPoolControl: jest.fn(),
+  obtenerPoolTenant: jest.fn(() => ({ query: jest.fn(), getConnection: jest.fn() })),
+  ejecutarComoTenant: jest.fn((tenantPool, fn) => fn()),
+  cerrarTodosLosPoolsTenant: jest.fn(),
 }));
 
 jest.mock('nodemailer', () => ({
@@ -48,7 +56,8 @@ jest.mock('../../utils/storage', () => ({
   }),
 }));
 
-const { pool } = require('../../db');
+const { pool, obtenerPoolControl } = require('../../db');
+const { invalidarCacheTenant } = require('../../utils/tenantContext');
 const { hashPassword } = require('../../utils/authUsuario');
 const { registrarMovimiento, conciliarInventario, ALMACEN_DEFECTO_CODIGO } = require('../../utils/inventario');
 const { guardarImagenProducto, eliminarImagenProducto, ErrorImagenProducto } = require('../../utils/inventarioImagen');
@@ -611,6 +620,122 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
         .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.jpg', contentType: 'image/jpeg' });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('INV_IMAGEN_DIMENSION_INVALIDA');
+    });
+
+    // Punto 347 (gobierno de funcionalidades): cuota de disco impuesta
+    // desde /control. Única prueba de este describe que manda
+    // X-Tenant-Slug — las demás corren sin tenant (sitio base), donde el
+    // candado es no-op por diseño (ver server.js: `req.tenant &&`).
+    describe('cuota de disco (punto 347)', () => {
+      function tenantFilaConDisco(extra = {}) {
+        return {
+          id: 1,
+          slug: 'norte',
+          nombre_empresa: 'Norte S.A.',
+          estado: 'activo',
+          db_host: 'mysql',
+          db_name: 'tenant_norte',
+          db_user: 'app',
+          marca: null,
+          marca_logo_url: null,
+          tema_json: null,
+          grupo_sucursal_id: null,
+          contacto_email: null,
+          marca_lookfeel_habilitado: 1,
+          max_usuarios: null,
+          facturacion_habilitada: 1,
+          portal_clientes_habilitado: 1,
+          sucursales_habilitado: 0,
+          disco_cuota_mb: 500,
+          disco_bytes_usados_cache: null,
+          ...extra,
+        };
+      }
+
+      let poolControl;
+
+      beforeEach(() => {
+        poolControl = { query: jest.fn() };
+        obtenerPoolControl.mockReturnValue(poolControl);
+      });
+
+      afterEach(() => {
+        invalidarCacheTenant();
+      });
+
+      test('caché por debajo de la cuota: permite subir la imagen normalmente', async () => {
+        poolControl.query.mockResolvedValueOnce([[tenantFilaConDisco({ disco_bytes_usados_cache: 100 * 1024 * 1024 })]]);
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        guardarImagenProducto.mockResolvedValue({ imagenKey: 'k', thumbKey: 't', ancho: 800, alto: 600 });
+        mockPoolPorPatron([
+          MODULO_ACTIVO,
+          ['SELECT * FROM productos WHERE id', [[{ id: 1, nombre: 'Tornillo' }]]],
+          ['UPDATE productos SET imagen_key', [{ affectedRows: 1 }]],
+        ]);
+
+        const res = await request(app)
+          .post('/api/admin/inventarios/productos/1/imagen')
+          .set('X-Tenant-Slug', 'norte')
+          .auth(usuario, password)
+          .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.jpg', contentType: 'image/jpeg' });
+
+        expect(res.status).toBe(200);
+        expect(guardarImagenProducto).toHaveBeenCalled();
+      });
+
+      test('caché sin calcular todavía (null): nunca bloquea por falta de dato', async () => {
+        poolControl.query.mockResolvedValueOnce([[tenantFilaConDisco({ disco_bytes_usados_cache: null })]]);
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        guardarImagenProducto.mockResolvedValue({ imagenKey: 'k', thumbKey: 't', ancho: 800, alto: 600 });
+        mockPoolPorPatron([
+          MODULO_ACTIVO,
+          ['SELECT * FROM productos WHERE id', [[{ id: 1, nombre: 'Tornillo' }]]],
+          ['UPDATE productos SET imagen_key', [{ affectedRows: 1 }]],
+        ]);
+
+        const res = await request(app)
+          .post('/api/admin/inventarios/productos/1/imagen')
+          .set('X-Tenant-Slug', 'norte')
+          .auth(usuario, password)
+          .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.jpg', contentType: 'image/jpeg' });
+
+        expect(res.status).toBe(200);
+      });
+
+      test('caché en/sobre la cuota: responde 413 DISCO_CUOTA_EXCEDIDA, nunca llama a guardarImagenProducto', async () => {
+        poolControl.query.mockResolvedValueOnce([[tenantFilaConDisco({ disco_bytes_usados_cache: 500 * 1024 * 1024 })]]);
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        mockPoolPorPatron([MODULO_ACTIVO, ['SELECT * FROM productos WHERE id', [[{ id: 1, nombre: 'Tornillo' }]]]]);
+
+        const res = await request(app)
+          .post('/api/admin/inventarios/productos/1/imagen')
+          .set('X-Tenant-Slug', 'norte')
+          .auth(usuario, password)
+          .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.jpg', contentType: 'image/jpeg' });
+
+        expect(res.status).toBe(413);
+        expect(res.body.error).toBe('DISCO_CUOTA_EXCEDIDA');
+        expect(guardarImagenProducto).not.toHaveBeenCalled();
+      });
+
+      test('sin cuota configurada (null): nunca bloquea aunque el caché sea alto', async () => {
+        poolControl.query.mockResolvedValueOnce([[tenantFilaConDisco({ disco_cuota_mb: null, disco_bytes_usados_cache: 999999 })]]);
+        const { usuario, password } = mockUsuarioAdministrativo('administrador');
+        guardarImagenProducto.mockResolvedValue({ imagenKey: 'k', thumbKey: 't', ancho: 800, alto: 600 });
+        mockPoolPorPatron([
+          MODULO_ACTIVO,
+          ['SELECT * FROM productos WHERE id', [[{ id: 1, nombre: 'Tornillo' }]]],
+          ['UPDATE productos SET imagen_key', [{ affectedRows: 1 }]],
+        ]);
+
+        const res = await request(app)
+          .post('/api/admin/inventarios/productos/1/imagen')
+          .set('X-Tenant-Slug', 'norte')
+          .auth(usuario, password)
+          .attach('imagen', IMAGEN_BUFFER, { filename: 'foto.jpg', contentType: 'image/jpeg' });
+
+        expect(res.status).toBe(200);
+      });
     });
 
     test('GET /:id/imagen de un producto sin imagen responde 404', async () => {

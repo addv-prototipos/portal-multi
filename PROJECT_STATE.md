@@ -16758,8 +16758,9 @@ globales, fiel al mockup entregado en `stitch/modVentas/code.html`.
   navegador (elegir cada opción, ver el chip de vista previa actualizar
   en vivo). Sin commit/push todavía.
 
-**Punto 347 (2026-09-30, Fase 0 y Fase 1 IMPLEMENTADAS — Fase 2-5
-pendientes):** "Gobierno de funcionalidades por tenant desde /control" —
+**Punto 347 (2026-09-30, Fases 0-4 IMPLEMENTADAS — Fase 5 cierre
+documental, auditoría visible en /control queda pendiente como punto
+aparte):** "Gobierno de funcionalidades por tenant desde /control" —
 hasta ahora `/control` solo administraba el ESTADO del tenant (activo/
 suspendido/baja/papelera, punto 345); este punto lo extiende para que
 también gobierne QUÉ PUEDE USAR cada tenant (Facturación, portal de
@@ -16824,16 +16825,103 @@ implementar, siguiendo el protocolo `addv-web-app`.
     `authUsuario.test.js`, `tenantContext.test.js`) + 9 pruebas de
     integración nuevas (`backend/test/integration/gobiernoFunciones.test.js`)
     que confirman 404-antes-que-401 con supertest real contra `server.js`.
-- **Suite completa verificada**: backend 1093/1094 (la única falla,
-  `resumenFinanciero.test.js`, es preexistente y no relacionada — no
-  toca ningún archivo de este punto, depende de la fecha del sistema);
-  control 266/266. `node --check` limpio en todos los archivos tocados.
-- **Pendiente — Fase 2 a 5** (ver propuesta original, Artifact): pantalla
-  "Planes" en `/control` (catálogo + crear/editar/archivar), modal
-  "Editar empresa" rediseñado por pestañas con la sección "Plan y
-  funciones", medición real de bytes en MinIO para la cuota de disco,
-  y documentación final + auditoría visible en `/control`. Sin
-  commit/push todavía — cambios solo en el working tree.
+- **Fase 2 — catálogo de planes en /control**:
+  - Backend (`control/utils/planes.js`, nuevo): CRUD completo
+    (`listarPlanes`/`obtenerPlan`/`crearPlan`/`actualizarPlan`/
+    `archivarPlan`/`reactivarPlan`) — mismo criterio soft que
+    `sucursales.js` (sin `DELETE` físico, `control_app` no tiene ese
+    privilegio). 5 rutas nuevas en `control/server.js`
+    (`GET/POST /api/control/planes`, `GET/PUT /api/control/planes/:id`,
+    `PUT /api/control/planes/:id/archivar|reactivar`), super-only.
+  - Frontend: pestaña "Planes" nueva en el sidebar de `/control`
+    (`frontend/control.html`/`control.js`) — listado con chips de
+    funciones incluidas + conteo de empresas, modal crear/editar,
+    archivar/reactivar con confirmación (mismo patrón que
+    Suspender/Reactivar de Empresas). Catálogo 100% independiente de
+    cualquier tenant — se nombra y arma primero, se asigna después.
+  - Validado contra MySQL real vía `curl` (crear/archivar/reactivar/listar
+    con y sin `incluirArchivados`): semilla de 3 planes (Básico/Pro/
+    Enterprise) persistida correctamente.
+  - 14 pruebas unitarias (`control/test/unit/planes.test.js`) + 9 de
+    integración (`control/test/integration/control.test.js`).
+- **Fase 3 — asignar plan + overrides a un tenant**:
+  - `control/utils/tenantEdicion.js`: `resolverPlanYFunciones()` —
+    `planId` (asignar, copia los 6 valores del plan) o `reaplicarPlan:
+    true` (resincroniza al plan YA asignado) son la BASE; cualquier
+    override individual (`facturacionHabilitada`/
+    `portalClientesHabilitado`/`sucursalesHabilitado`/
+    `marcaLookfeelHabilitado`/`maxUsuarios`/`discoCuotaMb`) presente en
+    el mismo body gana sobre esa base — así se puede asignar un plan y
+    dejar una excepción puntual en un solo guardado. Un plan archivado
+    solo se puede REAPLICAR (sincronizar quien ya lo tenía), nunca
+    asignarse de cero. Mismo endpoint de siempre
+    (`PUT /api/control/tenants/:slug`) — no se crearon rutas nuevas,
+    seguiendo el patrón ya establecido para `max_usuarios`/
+    `marcaLookfeelHabilitado`.
+  - `tenantLifecycle.js`: `listarTenants` ahora hace `LEFT JOIN planes`
+    y expone los 8 campos nuevos (flags + plan_id + plan_nombre + disco)
+    para que el modal tenga todo sin un fetch aparte.
+  - Modal "Editar empresa" rediseñado por **pestañas** (General / Plan y
+    funciones / Identidad visual / Grupo-sucursales) — el ancho scroll
+    único de antes se dividió; "Identidad visual" pasó de sección
+    colapsable a pestaña propia (mismas funciones `abrirSeccionTema()`/
+    `cerrarSeccionTema()`, reimplementadas para saltar de pestaña en vez
+    de expandir/contraer). Pestaña "Plan y funciones": selector de plan
+    (copia sus 6 valores de inmediato al elegir), 4 switches con badge
+    "del plan"/"excepción" calculado en vivo comparando contra el plan
+    seleccionado, botón "Reaplicar valores del plan". **Bug propio
+    encontrado y corregido en el camino**: enviar siempre el `planId`
+    visible en el `<select>` en cada guardado reasignaría el plan en
+    CADA edición (aunque solo se tocara el nombre), pisando cualquier
+    excepción ya guardada — corregido para solo mandarlo si el operador
+    REALMENTE cambió la selección (`planIdOriginalEdicion` guardado al
+    abrir el modal).
+  - 7 pruebas unitarias nuevas en `tenantEdicion.test.js` (asignar,
+    plan archivado, plan inexistente, reaplicar sin plan previo,
+    reaplicar con plan previo, override gana sobre el plan, override
+    solo no toca `plan_id`, cuota de disco inválida).
+- **Fase 4 — medición real de bytes en MinIO**:
+  - `backend/utils/storage.js`: `calcularBytesPrefijo()` — suma `Size`
+    real de todos los objetos bajo el prefijo (a diferencia de
+    `contarObjetosPrefijo()`, que solo cuenta). Nunca se llama en el
+    camino de una request normal.
+  - Nuevo endpoint interno `POST /internal/disco-uso/:slug` (mismo
+    patrón de secreto compartido que `/internal/activar-tenant`) — 
+    `/control` no tiene credenciales de MinIO, delega el cálculo al
+    backend y escribe el resultado en su propia fila con su propia
+    credencial (`control/utils/notificarBackend.js:calcularUsoDiscoFisico`
+    + `tenantLifecycle.js:recalcularUsoDisco`).
+  - Botón "Recalcular" + barra de uso (verde/ámbar ≥80%/rojo si excede)
+    en la pestaña "Plan y funciones" del modal — nueva ruta
+    `POST /api/control/tenants/:slug/recalcular-disco`.
+  - **Enforcement real al subir una imagen de producto** (Inventarios,
+    `POST /api/admin/inventarios/productos/:id/imagen`): rechaza con
+    `413 DISCO_CUOTA_EXCEDIDA` si `disco_bytes_usados_cache` (caché,
+    nunca en vivo) ya alcanzó `disco_cuota_mb` — nunca bloquea si falta
+    cualquiera de los dos números (sin cuota configurada, o cuota
+    configurada pero nunca recalculada todavía). Alcance deliberadamente
+    acotado a este único upload (el de mayor volumen) — el resto de
+    rutas de subida de archivos (logo, favicon, CSF, tickets) queda
+    pendiente como ampliación futura, no bloqueante para este punto.
+  - 3 pruebas unitarias de `calcularBytesPrefijo` + 5 de integración del
+    endpoint interno (`backend/test/integration/internal.test.js`) + 3
+    de `recalcularUsoDisco` (`tenantLifecycle.test.js`) + 4 de la ruta
+    de control (`control/test/integration/control.test.js`) + 4 del
+    enforcement en Inventarios (`backend/test/integration/inventarios.test.js`).
+- **Suite completa verificada tras las 5 fases**: backend 1106/1107 (la
+  única falla, `resumenFinanciero.test.js`, es preexistente y no
+  relacionada — no toca ningún archivo de este punto, depende de la
+  fecha del sistema); control 304/304. `node --check` limpio en todos
+  los archivos tocados. Rebuild `--no-cache` + `--force-recreate` de
+  `backend`/`control`/`frontend` aplicado y verificado contra Docker/
+  MySQL reales (catálogo de planes probado de punta a punta con `curl`).
+- **Pendiente, fuera de este punto**: pantalla/vista para NAVEGAR el
+  historial de auditoría (`admin_auditoria`/`tenant_eventos`) dentro de
+  `/control` — los datos ya se registran correctamente (verificado en
+  pruebas), falta la UI para consultarlos; enforcement de cuota de disco
+  en el resto de rutas de subida de archivos (logo, favicon, CSF,
+  tickets); confirmación visual del usuario con clics reales en
+  navegador. Sin commit/push todavía — cambios solo en el working tree.
 
 ## Dónde está todo (mapa rápido)
 
@@ -16862,5 +16950,5 @@ implementar, siguiendo el protocolo `addv-web-app`.
 - Alta de empresa nueva desde `/control` (multi-tenant, segmento 9c, punto 101): `control/utils/tenantIntake.js` (`crearTenantIntake`, fila `estado='provisioning'`), `control/server.js` (`POST /api/control/tenants`), modal en `frontend/control.html`/`control.js`/`admin.css`, completado por `backend/scripts/provisionar-tenant.js` + `aplicarConfiguracionFiscalEnProcesoHijo` en `backend/scripts/lib/controlDb.js`
 - Endpoint interno de invalidación de caché entre contenedores (punto 99): `backend/server.js`, `POST /internal/cache-tenant/invalidar`
 - Identidad visual (tema) por tenant (segmento "Look & Feel", punto 105): `backend/utils/tenantTema.js` + `control/utils/tenantTema.js` (validación duplicada), columna `tema_json` en `control/scripts/ensureSchema.js`, `GET /api/tema/:slug` + `POST`/`DELETE /internal/favicon/:slug` en `backend/server.js`, `PUT /api/control/tenants/:slug/tema` en `control/server.js`, `frontend/theme.js` (pinta CSS variables en runtime)
-- Gobierno de funcionalidades por tenant / candado de feature-flag (punto 347): `backend/utils/requiereFeature.js` (404, no 403), catálogo `planes` + columnas `facturacion_habilitada`/`portal_clientes_habilitado`/`sucursales_habilitado`/`disco_cuota_mb`/`plan_id` en `control/scripts/ensureSchema.js`
+- Gobierno de funcionalidades por tenant / candado de feature-flag (punto 347): `backend/utils/requiereFeature.js` (404, no 403), catálogo `planes` + columnas `facturacion_habilitada`/`portal_clientes_habilitado`/`sucursales_habilitado`/`disco_cuota_mb`/`plan_id` en `control/scripts/ensureSchema.js`, CRUD de planes en `control/utils/planes.js` + `control/server.js`, asignación/excepciones por tenant en `control/utils/tenantEdicion.js:resolverPlanYFunciones`, medición de disco en `backend/utils/storage.js:calcularBytesPrefijo` + `POST /internal/disco-uso/:slug` + `control/utils/tenantLifecycle.js:recalcularUsoDisco`, modal por pestañas en `frontend/control.html`/`control.js` (`cambiarTabEditar`)
 - Documentación completa para el usuario final: `README.md` (mucho más detallado que este archivo — este es para retomar el trabajo, el README es para operar la app)

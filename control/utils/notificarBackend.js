@@ -78,10 +78,40 @@ async function eliminarTenantFisico(slug) {
   return data;
 }
 
+// Punto 347 (gobierno de funcionalidades): pide al backend que sume los
+// bytes reales en MinIO bajo el prefijo de un tenant — control_app no
+// tiene credenciales de MinIO (solo backend las tiene montadas), mismo
+// motivo que activarTenantFisico()/eliminarTenantFisico(). Se propaga el
+// error en vez de asumir 0: un fallo de red nunca debe escribirse como
+// "uso de disco: 0 bytes" en la fila del tenant.
+class ErrorCalculoDisco extends Error {}
+
+async function calcularUsoDiscoFisico(slug) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  let res;
+  try {
+    res = await fetch(`${url}/internal/disco-uso/${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      headers: { 'X-Internal-Secret': secreto || '' },
+    });
+  } catch (err) {
+    throw new ErrorCalculoDisco('No se pudo conectar con el backend para calcular el uso de disco.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ErrorCalculoDisco(data.error || 'No se pudo calcular el uso de disco.');
+  }
+  return data.bytes;
+}
+
 module.exports = {
   notificarInvalidacionCache,
   activarTenantFisico,
   ErrorActivacionFisica,
   eliminarTenantFisico,
   ErrorEliminacionFisica,
+  calcularUsoDiscoFisico,
+  ErrorCalculoDisco,
 };

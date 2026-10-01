@@ -152,6 +152,7 @@ describe('utils/tenantContext.js', () => {
         portalClientesHabilitado: true,
         sucursalesHabilitado: false,
         discoCuotaMb: null,
+        discoBytesUsadosCache: null,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })
@@ -186,6 +187,19 @@ describe('utils/tenantContext.js', () => {
       await resolverTenantMiddleware(req, res, next);
 
       expect(req.tenant.sucursalesHabilitado).toBe(true);
+    });
+
+    test('disco_bytes_usados_cache numérico se expone como Number en discoBytesUsadosCache', async () => {
+      mockPoolControl([{ ...FILA_TENANT_ACTIVO, disco_bytes_usados_cache: 734003200 }]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.discoBytesUsadosCache).toBe(734003200);
     });
 
     test('disco_cuota_mb numérico se expone como Number en discoCuotaMb', async () => {

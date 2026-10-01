@@ -232,6 +232,37 @@ describe('utils/storage.js', () => {
     });
   });
 
+  describe('calcularBytesPrefijo (punto 347)', () => {
+    test('suma el tamaño (Size) de todos los objetos de todas las páginas', async () => {
+      mockSend.mockResolvedValueOnce({
+        Contents: [{ Key: 'a', Size: 1000 }, { Key: 'b', Size: 2000 }],
+        IsTruncated: true,
+        NextContinuationToken: 'token-2',
+      });
+      mockSend.mockResolvedValueOnce({
+        Contents: [{ Key: 'c', Size: 500 }],
+        IsTruncated: false,
+      });
+
+      expect(await storage.calcularBytesPrefijo('cliente1')).toBe(3500);
+    });
+
+    test('objeto sin Size (caso raro) cuenta como 0, nunca NaN', async () => {
+      mockSend.mockResolvedValueOnce({
+        Contents: [{ Key: 'a', Size: 1000 }, { Key: 'b' }],
+        IsTruncated: false,
+      });
+
+      expect(await storage.calcularBytesPrefijo('cliente1')).toBe(1000);
+    });
+
+    test('prefijo sin objetos: 0 bytes', async () => {
+      mockSend.mockResolvedValueOnce({ Contents: [], IsTruncated: false });
+
+      expect(await storage.calcularBytesPrefijo('cliente1')).toBe(0);
+    });
+  });
+
   describe('copiarArchivo', () => {
     test('envía un CopyObjectCommand entre las dos keys y devuelve la key destino', async () => {
       mockSend.mockResolvedValueOnce({});

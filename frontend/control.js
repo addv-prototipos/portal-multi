@@ -159,8 +159,23 @@
   editarNotas: document.getElementById('control-editar-notas'),
   editarMaxUsuarios: document.getElementById('control-editar-max-usuarios'),
   editarMarcaLookfeelSwitch: document.getElementById('control-editar-marca-lookfeel-switch'),
-  btnToggleTemaEditar: document.getElementById('control-btn-toggle-tema-editar'),
   temaBody: document.getElementById('control-tema-body'),
+  // Punto 347: pestañas del modal + "Plan y funciones"
+  editarTabs: document.querySelectorAll('.control-edit-tab'),
+  editarPlanNombreActual: document.getElementById('control-editar-plan-nombre-actual'),
+  editarPlanPrecioActual: document.getElementById('control-editar-plan-precio-actual'),
+  btnReaplicarPlan: document.getElementById('control-btn-reaplicar-plan'),
+  editarPlanSelect: document.getElementById('control-editar-plan-select'),
+  editarFacturacionSwitch: document.getElementById('control-editar-facturacion-switch'),
+  editarPortalSwitch: document.getElementById('control-editar-portal-switch'),
+  editarSucursalesSwitch: document.getElementById('control-editar-sucursales-switch'),
+  editarDiscoCuota: document.getElementById('control-editar-disco-cuota'),
+  editarDiscoUsoTexto: document.getElementById('control-editar-disco-uso-texto'),
+  editarDiscoUsoTrack: document.getElementById('control-editar-disco-uso-track'),
+  editarDiscoUsoFill: document.getElementById('control-editar-disco-uso-fill'),
+  btnRecalcularDisco: document.getElementById('control-btn-recalcular-disco'),
+  editarGrupoInfo: document.getElementById('control-editar-grupo-info'),
+  btnEditarIrSucursales: document.getElementById('control-btn-editar-ir-sucursales'),
   temaPreview: document.getElementById('control-tema-preview'),
   temaFavicon: document.getElementById('control-tema-favicon'),
   temaFaviconActual: document.getElementById('control-tema-favicon-actual'),
@@ -173,13 +188,40 @@
 
     // §58: Sucursales
     btnVistaEmpresas: document.getElementById('btn-vista-control-empresas'),
+    btnVistaPlanes: document.getElementById('btn-vista-control-planes'),
     btnVistaPapelera: document.getElementById('btn-vista-control-papelera'),
     btnVistaSucursales: document.getElementById('btn-vista-control-sucursales'),
     btnVistaSuper: document.getElementById('btn-vista-control-super'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
+    vistaPlanes: document.getElementById('vista-control-planes'),
     vistaPapelera: document.getElementById('vista-control-papelera'),
     vistaSucursales: document.getElementById('vista-control-sucursales'),
     vistaSuper: document.getElementById('vista-control-super'),
+    // Punto 347: Planes
+    planesCount: document.getElementById('planes-count'),
+    planesError: document.getElementById('planes-error'),
+    planesTableBody: document.getElementById('planes-table-body'),
+    planesEmpty: document.getElementById('planes-empty'),
+    btnPlanesNuevo: document.getElementById('btn-planes-nuevo'),
+    btnPlanesEmptyNuevo: document.getElementById('btn-planes-empty-nuevo'),
+    planesModalOverlay: document.getElementById('planes-modal-overlay'),
+    planesModalTitle: document.getElementById('planes-modal-title'),
+    btnPlanesModalCerrar: document.getElementById('btn-planes-modal-cerrar'),
+    planesNombre: document.getElementById('planes-nombre'),
+    planesDescripcion: document.getElementById('planes-descripcion'),
+    planesPrecioMensual: document.getElementById('planes-precio-mensual'),
+    planesPrecioAnual: document.getElementById('planes-precio-anual'),
+    planesMaxUsuarios: document.getElementById('planes-max-usuarios'),
+    planesDiscoCuota: document.getElementById('planes-disco-cuota'),
+    planesFacturacion: document.getElementById('planes-facturacion'),
+    planesPortalClientes: document.getElementById('planes-portal-clientes'),
+    planesSucursalesFlag: document.getElementById('planes-sucursales'),
+    planesMarcaLookfeel: document.getElementById('planes-marca-lookfeel'),
+    planesModalError: document.getElementById('planes-modal-error'),
+    btnPlanesCancelar: document.getElementById('btn-planes-cancelar'),
+    btnPlanesGuardar: document.getElementById('btn-planes-guardar'),
+    btnPlanesGuardarLabel: document.getElementById('btn-planes-guardar-label'),
+    btnAyudaVistaPlanes: document.getElementById('btn-ayuda-vista-planes'),
     btnAyudaVistaPapelera: document.getElementById('btn-ayuda-vista-papelera'),
     papeleraCount: document.getElementById('papelera-count'),
     papeleraError: document.getElementById('papelera-error'),
@@ -1176,6 +1218,183 @@
 
   const MARCA_LOGO_MAX_MB = 2;
   let slugActualEdicion = null;
+  // Punto 347: plan_id que el tenant YA tenía al abrir el modal — solo si
+  // el operador cambia la selección del <select> se manda planId al
+  // guardar (ver el submit handler); si no, cada guardado reasignaría el
+  // mismo plan sobre cualquier excepción ya hecha.
+  let planIdOriginalEdicion = null;
+  let planesCacheEdicion = null; // null = todavía no se cargó
+
+  async function asegurarPlanesCacheEdicion() {
+    if (planesCacheEdicion) return planesCacheEdicion;
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/planes`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return [];
+      const data = await res.json();
+      planesCacheEdicion = data.planes || [];
+    } catch (err) {
+      planesCacheEdicion = [];
+    }
+    return planesCacheEdicion;
+  }
+
+  function poblarSelectPlanes(planIdActual) {
+    els.editarPlanSelect.innerHTML = '<option value="">Sin plan (configurar a mano abajo)</option>';
+    (planesCacheEdicion || []).forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = String(p.id);
+      opt.textContent = p.nombre;
+      els.editarPlanSelect.appendChild(opt);
+    });
+    els.editarPlanSelect.value = planIdActual ? String(planIdActual) : '';
+  }
+
+  // "del plan" si el valor actual del switch coincide con lo que trae el
+  // plan seleccionado; "excepción" si no — sin plan seleccionado, no hay
+  // base contra qué comparar y el badge se deja vacío.
+  function actualizarBadgesOrigenPlan() {
+    const plan = (planesCacheEdicion || []).find((p) => String(p.id) === els.editarPlanSelect.value);
+    const campos = [
+      ['badge-origen-facturacion', els.editarFacturacionSwitch, 'facturacion_habilitada'],
+      ['badge-origen-portal', els.editarPortalSwitch, 'portal_clientes_habilitado'],
+      ['badge-origen-sucursales', els.editarSucursalesSwitch, 'sucursales_habilitado'],
+      ['badge-origen-marca', els.editarMarcaLookfeelSwitch, 'marca_lookfeel_habilitado'],
+    ];
+    campos.forEach(([id, switchEl, campoPlan]) => {
+      const badge = document.getElementById(id);
+      if (!badge) return;
+      if (!plan) {
+        badge.textContent = '';
+        badge.className = 'planes-badge-origen';
+        return;
+      }
+      const delPlan = switchEl.checked === Boolean(plan[campoPlan]);
+      badge.textContent = delPlan ? 'del plan' : 'excepción';
+      badge.className = `planes-badge-origen ${delPlan ? 'del-plan' : 'excepcion'}`;
+    });
+  }
+
+  function mostrarPlanActual(plan) {
+    if (!plan) {
+      els.editarPlanNombreActual.textContent = 'Sin plan asignado';
+      els.editarPlanPrecioActual.textContent = '';
+      els.btnReaplicarPlan.hidden = true;
+      return;
+    }
+    els.editarPlanNombreActual.textContent = plan.nombre;
+    els.editarPlanPrecioActual.textContent = formatPrecioPlan(plan);
+    els.btnReaplicarPlan.hidden = false;
+  }
+
+  // Punto 347: pinta el uso real de disco (caché, nunca en vivo) contra
+  // la cuota configurada. "Sin calcular" hasta el primer "Recalcular".
+  function mostrarUsoDisco(tenant) {
+    const cuotaMb = tenant.disco_cuota_mb != null ? Number(tenant.disco_cuota_mb) : null;
+    const usadoBytes = tenant.disco_bytes_usados_cache != null ? Number(tenant.disco_bytes_usados_cache) : null;
+
+    if (usadoBytes == null) {
+      els.editarDiscoUsoTexto.textContent = 'Uso de disco: sin calcular todavía.';
+      els.editarDiscoUsoTrack.hidden = true;
+      return;
+    }
+
+    const usadoMb = usadoBytes / (1024 * 1024);
+    const usadoTexto = usadoMb >= 1024 ? `${(usadoMb / 1024).toFixed(2)} GB` : `${usadoMb.toFixed(1)} MB`;
+
+    if (cuotaMb == null) {
+      els.editarDiscoUsoTexto.textContent = `Uso de disco: ${usadoTexto} (sin cuota — sin límite).`;
+      els.editarDiscoUsoTrack.hidden = true;
+      return;
+    }
+
+    const porcentaje = Math.min(100, Math.round((usadoMb / cuotaMb) * 100));
+    els.editarDiscoUsoTexto.textContent = `Uso de disco: ${usadoTexto} de ${cuotaMb.toLocaleString('es-MX')} MB (${porcentaje}%).`;
+    els.editarDiscoUsoTrack.hidden = false;
+    els.editarDiscoUsoFill.style.width = `${porcentaje}%`;
+    els.editarDiscoUsoFill.classList.toggle('is-excedida', usadoMb >= cuotaMb);
+    els.editarDiscoUsoFill.classList.toggle('is-advertencia', usadoMb < cuotaMb && porcentaje >= 80);
+  }
+
+  els.btnRecalcularDisco.addEventListener('click', async () => {
+    if (!slugActualEdicion) return;
+    const authHeader = getAuthHeader();
+    els.btnRecalcularDisco.disabled = true;
+    const textoOriginal = els.btnRecalcularDisco.textContent;
+    els.btnRecalcularDisco.textContent = 'Calculando…';
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}/recalcular-disco`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo calcular el uso de disco.', true);
+        return;
+      }
+      mostrarUsoDisco(data.tenant);
+      showToast('Uso de disco actualizado.');
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    } finally {
+      els.btnRecalcularDisco.disabled = false;
+      els.btnRecalcularDisco.textContent = textoOriginal;
+    }
+  });
+
+  // Al elegir un plan distinto en el <select>, sus 6 valores se copian de
+  // inmediato a los campos de abajo (vista previa editable) — el
+  // operador puede ajustar una excepción puntual antes de guardar.
+  els.editarPlanSelect.addEventListener('change', () => {
+    const plan = (planesCacheEdicion || []).find((p) => String(p.id) === els.editarPlanSelect.value);
+    mostrarPlanActual(plan);
+    if (plan) {
+      els.editarFacturacionSwitch.checked = Boolean(plan.facturacion_habilitada);
+      els.editarPortalSwitch.checked = Boolean(plan.portal_clientes_habilitado);
+      els.editarSucursalesSwitch.checked = Boolean(plan.sucursales_habilitado);
+      els.editarMarcaLookfeelSwitch.checked = Boolean(plan.marca_lookfeel_habilitado);
+      els.editarMaxUsuarios.value = plan.max_usuarios != null ? String(plan.max_usuarios) : '';
+      els.editarDiscoCuota.value = plan.disco_cuota_mb != null ? String(plan.disco_cuota_mb) : '';
+    }
+    actualizarBadgesOrigenPlan();
+  });
+
+  [els.editarFacturacionSwitch, els.editarPortalSwitch, els.editarSucursalesSwitch, els.editarMarcaLookfeelSwitch].forEach((sw) => {
+    sw.addEventListener('change', actualizarBadgesOrigenPlan);
+  });
+
+  els.btnReaplicarPlan.addEventListener('click', () => {
+    if (!slugActualEdicion || !planIdOriginalEdicion) return;
+    confirmarAccion({
+      titulo: '¿Reaplicar los valores del plan?',
+      mensaje: `Vuelve a copiar los 6 valores de "${els.editarPlanNombreActual.textContent}" a esta empresa — cualquier excepción que tenga se pierde.`,
+      textoBoton: 'Reaplicar',
+      onConfirmar: async () => {
+        const authHeader = getAuthHeader();
+        try {
+          const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}`, {
+            method: 'PUT',
+            headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nombreEmpresa: els.editarNombre.value.trim(),
+              contactoEmail: els.editarEmail.value.trim(),
+              reaplicarPlan: true,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showToast(data.error || 'No se pudo reaplicar el plan.', true);
+            return;
+          }
+          showToast('Valores del plan reaplicados.');
+          cerrarEdicion();
+          cargarTenants();
+        } catch (err) {
+          showToast('No se pudo conectar con el servidor.', true);
+        }
+      },
+    });
+  });
 
   function leerArchivoComoBase64(file) {
     return new Promise((resolve, reject) => {
@@ -1199,7 +1418,7 @@
     });
   }
 
-  function abrirEdicion(tenant) {
+  async function abrirEdicion(tenant) {
     slugActualEdicion = tenant.slug;
     limpiarErroresEditar();
     els.formEditar.reset();
@@ -1225,15 +1444,45 @@
       els.editarLogoActual.hidden = true;
     }
 
+    // Punto 347: Plan y funciones — switches reflejan el valor REAL del
+    // tenant (no el del plan), para que una excepción ya guardada se vea
+    // tal cual al reabrir el modal.
+    planIdOriginalEdicion = tenant.plan_id ?? null;
+    els.editarFacturacionSwitch.checked = tenant.facturacion_habilitada !== 0 && tenant.facturacion_habilitada !== false;
+    els.editarPortalSwitch.checked = tenant.portal_clientes_habilitado !== 0 && tenant.portal_clientes_habilitado !== false;
+    els.editarSucursalesSwitch.checked = tenant.sucursales_habilitado === 1 || tenant.sucursales_habilitado === true;
+    els.editarDiscoCuota.value = tenant.disco_cuota_mb != null ? String(tenant.disco_cuota_mb) : '';
+    mostrarUsoDisco(tenant);
+
+    // Punto 347: Grupo / sucursales — informativo, la gestión real vive
+    // en la vista "Sucursales".
+    els.editarGrupoInfo.textContent = tenant.grupo_sucursal_id
+      ? 'Esta empresa pertenece a un grupo de sucursales — gestiona sus sucursales y usuarios compartidos desde "Sucursales".'
+      : 'Esta empresa no pertenece a ningún grupo de sucursales.';
+
     els.editarOverlay.hidden = false;
     cargarTemaEnFormulario(tenant);
     els.editarNombre.focus();
+
+    await asegurarPlanesCacheEdicion();
+    poblarSelectPlanes(planIdOriginalEdicion);
+    const planActual = (planesCacheEdicion || []).find((p) => p.id === planIdOriginalEdicion);
+    mostrarPlanActual(planActual);
+    actualizarBadgesOrigenPlan();
   }
 
   function cerrarEdicion() {
     els.editarOverlay.hidden = true;
     slugActualEdicion = null;
+    planIdOriginalEdicion = null;
     cerrarSeccionTema();
+  }
+
+  if (els.btnEditarIrSucursales) {
+    els.btnEditarIrSucursales.addEventListener('click', () => {
+      cerrarEdicion();
+      cambiarVistaPrincipalControl('sucursales');
+    });
   }
 
   // El slug se edita solo si el operador lo habilita explícitamente: al
@@ -1339,6 +1588,25 @@
       }
       maxUsuarios = n;
     }
+    const discoCuotaTexto = els.editarDiscoCuota.value.trim();
+    let discoCuotaMb = null;
+    if (discoCuotaTexto) {
+      const n = Number(discoCuotaTexto);
+      if (!Number.isInteger(n) || n < 1) {
+        setFieldErrorEditar('editar-disco-cuota', 'Debe ser un número entero mayor a 0, o vacío para no limitar.');
+        els.editarDiscoCuota.focus();
+        return;
+      }
+      discoCuotaMb = n;
+    }
+    // Solo se manda planId si el operador REALMENTE cambió la selección —
+    // si no, cada guardado (aunque sea de otro campo cualquiera)
+    // reasignaría el mismo plan una y otra vez, pisando en silencio
+    // cualquier excepción que el tenant ya tuviera (ver tenantEdicion.js:
+    // resolverPlanYFunciones copia TODO el plan cuando planId viene en
+    // el body, sea "nuevo" o no).
+    const planIdSeleccionado = els.editarPlanSelect.value ? Number(els.editarPlanSelect.value) : null;
+    const planCambioDeSeleccion = planIdSeleccionado !== planIdOriginalEdicion;
     setEdicionLoading(true);
     try {
       let logoBase64 = null;
@@ -1370,6 +1638,11 @@
           quitarLogo: logoBase64 ? false : !els.editarLogoActual.hidden,
           maxUsuarios,
           marcaLookfeelHabilitado: els.editarMarcaLookfeelSwitch.checked,
+          discoCuotaMb,
+          facturacionHabilitada: els.editarFacturacionSwitch.checked,
+          portalClientesHabilitado: els.editarPortalSwitch.checked,
+          sucursalesHabilitado: els.editarSucursalesSwitch.checked,
+          planId: planCambioDeSeleccion && planIdSeleccionado ? planIdSeleccionado : undefined,
         }),
       });
       if (res.status === 401) {
@@ -1514,24 +1787,39 @@
     if (mensaje) abrirSeccionTema();
   }
 
+  // Punto 347: pestañas del modal "Editar empresa" — General / Plan y
+  // funciones / Identidad visual / Grupo-sucursales. El botón Guardar
+  // vive FUERA de los paneles (siempre visible, cualquiera sea la
+  // pestaña activa) — cambiar de pestaña nunca descarta datos ya
+  // capturados en otra.
+  function cambiarTabEditar(tab) {
+    const TABS = ['general', 'plan', 'visual', 'grupo'];
+    TABS.forEach((t) => {
+      const panel = document.getElementById(`control-edit-tab-${t}`);
+      if (panel) panel.hidden = t !== tab;
+    });
+    els.editarTabs.forEach((btn) => {
+      const activo = btn.dataset.tab === tab;
+      btn.classList.toggle('is-active', activo);
+      btn.setAttribute('aria-selected', String(activo));
+    });
+  }
+
+  els.editarTabs.forEach((btn) => {
+    btn.addEventListener('click', () => cambiarTabEditar(btn.dataset.tab));
+  });
+
+  // Punto 347: "Identidad visual" pasó de sección colapsable a pestaña
+  // propia — abrir/cerrar ahora es saltar a esa pestaña o volver a
+  // "General", mismo nombre de función para no tocar sus llamadores
+  // (abrirEdicion/cerrarEdicion/setFieldErrorTema, sin cambios).
   function abrirSeccionTema() {
-    els.btnToggleTemaEditar.setAttribute('aria-expanded', 'true');
-    els.temaBody.hidden = false;
+    cambiarTabEditar('visual');
   }
 
   function cerrarSeccionTema() {
-    els.btnToggleTemaEditar.setAttribute('aria-expanded', 'false');
-    els.temaBody.hidden = true;
+    cambiarTabEditar('general');
   }
-
-  els.btnToggleTemaEditar.addEventListener('click', () => {
-    const abierto = els.btnToggleTemaEditar.getAttribute('aria-expanded') === 'true';
-    if (abierto) {
-      cerrarSeccionTema();
-    } else {
-      abrirSeccionTema();
-    }
-  });
 
   // ---------- Contraste WCAG 2.1 AA (misma fórmula que el backend) ----------
 
@@ -1846,6 +2134,258 @@
     } catch (_) { els.credError.textContent = 'No se pudo conectar.'; }
   });
 
+  // ---------- Punto 347: Planes (gobierno de funcionalidades) ----------
+  // Catálogo independiente de cualquier tenant — se crea/nombra aquí,
+  // se asigna después desde la ficha de cada empresa (Fase 3). Editar un
+  // plan NUNCA toca a los tenants que ya lo tienen asignado (los valores
+  // se copiaron al momento de asignar, no quedan ligados en vivo).
+
+  let planEditandoId = null; // null = modal en modo "crear"
+
+  function formatMoneda(valor) {
+    if (valor === null || valor === undefined) return null;
+    return `$${Number(valor).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  }
+
+  function formatPrecioPlan(plan) {
+    const mensual = formatMoneda(plan.precio_mensual);
+    const anual = formatMoneda(plan.precio_anual);
+    if (!mensual && !anual) return 'A cotizar';
+    const partes = [];
+    if (mensual) partes.push(`${mensual}/mes`);
+    if (anual) partes.push(`${anual}/año`);
+    return partes.join(' · ');
+  }
+
+  function chipsFuncionesPlan(plan) {
+    const chips = [];
+    chips.push({ texto: plan.max_usuarios ? `${plan.max_usuarios} usuarios` : 'Usuarios sin límite', on: true });
+    chips.push({ texto: 'Facturación', on: plan.facturacion_habilitada });
+    chips.push({ texto: 'Portal clientes', on: plan.portal_clientes_habilitado });
+    chips.push({ texto: 'Sucursales', on: plan.sucursales_habilitado });
+    chips.push({ texto: 'Marca propia', on: plan.marca_lookfeel_habilitado });
+    chips.push({ texto: plan.disco_cuota_mb ? `${plan.disco_cuota_mb.toLocaleString('es-MX')} MB` : 'Disco sin límite', on: true });
+    return chips
+      .filter((c) => c.on)
+      .map((c) => `<span class="planes-chip">${escapeHtml(c.texto)}</span>`)
+      .join('');
+  }
+
+  async function cargarPlanes() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.planesError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.planesTableBody, 5);
+    try {
+      const res = await fetch(`${API_BASE}/planes?incluirArchivados=true`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        Esqueleto.aplicarErrorTabla(els.planesTableBody, 5, 'No se pudieron cargar los planes.', cargarPlanes);
+        return;
+      }
+      const data = await res.json();
+      renderPlanes(data.planes || []);
+      Esqueleto.quitarEsqueletoTabla(els.planesTableBody);
+    } catch (err) {
+      Esqueleto.aplicarErrorTabla(els.planesTableBody, 5, 'No se pudo conectar con el servidor.', cargarPlanes);
+    }
+  }
+
+  function renderPlanes(planes) {
+    els.planesCount.textContent = `${planes.length} plan${planes.length === 1 ? '' : 'es'}`;
+    els.planesTableBody.innerHTML = '';
+    els.planesEmpty.hidden = planes.length > 0;
+
+    planes.forEach((p) => {
+      const tr = document.createElement('tr');
+      const nombreHtml = p.activo
+        ? `<strong>${escapeHtml(p.nombre)}</strong>`
+        : `<strong>${escapeHtml(p.nombre)}</strong> <span class="planes-chip-archivado">Archivado</span>`;
+      const descripcionHtml = p.descripcion ? `<br><span class="field-hint" style="margin:0">${escapeHtml(p.descripcion)}</span>` : '';
+      tr.innerHTML = `
+        <td data-label="Plan">${nombreHtml}${descripcionHtml}</td>
+        <td data-label="Precio">${escapeHtml(formatPrecioPlan(p))}</td>
+        <td data-label="Funciones incluidas"><div class="planes-chip-grupo">${chipsFuncionesPlan(p)}</div></td>
+        <td data-label="Empresas" class="col-num">${p.total_tenants || 0}</td>
+        <td data-label=""></td>
+      `;
+      const celdaAcciones = tr.lastElementChild;
+      const contenedorAcciones = document.createElement('div');
+      contenedorAcciones.className = 'admin-row-actions';
+      contenedorAcciones.appendChild(
+        crearBotonAccion(
+          'btn-icono-accion',
+          'Editar',
+          'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z',
+          () => abrirPlanModal(p.id)
+        )
+      );
+      if (p.activo) {
+        contenedorAcciones.appendChild(
+          crearBotonAccion('btn-icono-accion', 'Archivar', 'M8 4v16M16 4v16', () =>
+            confirmarAccion({
+              titulo: '¿Archivar este plan?',
+              mensaje: `"${p.nombre}" deja de ofrecerse para asignar a empresas nuevas. Las ${p.total_tenants || 0} empresa(s) que ya lo tienen asignado siguen funcionando exactamente igual — reversible con "Reactivar".`,
+              textoBoton: 'Archivar',
+              onConfirmar: () => cambiarEstadoPlan(p.id, 'archivar'),
+            })
+          )
+        );
+      } else {
+        contenedorAcciones.appendChild(
+          crearBotonAccion('btn-icono-accion', 'Reactivar', 'M5 12h14M12 5l7 7-7 7', () =>
+            confirmarAccion({
+              titulo: '¿Reactivar este plan?',
+              mensaje: `"${p.nombre}" vuelve a ofrecerse para asignar a empresas nuevas.`,
+              textoBoton: 'Reactivar',
+              onConfirmar: () => cambiarEstadoPlan(p.id, 'reactivar'),
+            })
+          )
+        );
+      }
+      celdaAcciones.appendChild(contenedorAcciones);
+      els.planesTableBody.appendChild(tr);
+    });
+  }
+
+  async function cambiarEstadoPlan(id, accion) {
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/planes/${id}/${accion}`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || `No se pudo ${accion === 'archivar' ? 'archivar' : 'reactivar'} el plan.`, true);
+        return;
+      }
+      showToast(accion === 'archivar' ? 'Plan archivado.' : 'Plan reactivado.');
+      cargarPlanes();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  // ---------- Modal de plan (crear/editar) ----------
+
+  function limpiarErroresPlanModal() {
+    els.planesModalError.textContent = '';
+    const errorNombre = document.getElementById('error-planes-nombre');
+    if (errorNombre) errorNombre.textContent = '';
+  }
+
+  async function abrirPlanModal(id) {
+    planEditandoId = id;
+    limpiarErroresPlanModal();
+    els.planesModalTitle.textContent = id ? 'Editar plan' : 'Nuevo plan';
+    els.btnPlanesGuardarLabel.textContent = id ? 'Guardar cambios' : 'Guardar plan';
+    els.planesNombre.value = '';
+    els.planesDescripcion.value = '';
+    els.planesPrecioMensual.value = '';
+    els.planesPrecioAnual.value = '';
+    els.planesMaxUsuarios.value = '';
+    els.planesDiscoCuota.value = '';
+    els.planesFacturacion.checked = false;
+    els.planesPortalClientes.checked = true;
+    els.planesSucursalesFlag.checked = false;
+    els.planesMarcaLookfeel.checked = false;
+    els.planesModalOverlay.hidden = false;
+
+    if (id) {
+      const authHeader = getAuthHeader();
+      try {
+        const res = await fetch(`${API_BASE}/planes/${id}`, { headers: { Authorization: authHeader } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.planesModalError.textContent = data.error || 'No se pudo cargar el plan.';
+          return;
+        }
+        const p = data.plan;
+        els.planesNombre.value = p.nombre;
+        els.planesDescripcion.value = p.descripcion || '';
+        els.planesPrecioMensual.value = p.precio_mensual ?? '';
+        els.planesPrecioAnual.value = p.precio_anual ?? '';
+        els.planesMaxUsuarios.value = p.max_usuarios ?? '';
+        els.planesDiscoCuota.value = p.disco_cuota_mb ?? '';
+        els.planesFacturacion.checked = Boolean(p.facturacion_habilitada);
+        els.planesPortalClientes.checked = Boolean(p.portal_clientes_habilitado);
+        els.planesSucursalesFlag.checked = Boolean(p.sucursales_habilitado);
+        els.planesMarcaLookfeel.checked = Boolean(p.marca_lookfeel_habilitado);
+      } catch (err) {
+        els.planesModalError.textContent = 'No se pudo conectar con el servidor.';
+      }
+    }
+    els.planesNombre.focus();
+  }
+
+  function cerrarPlanModal() {
+    els.planesModalOverlay.hidden = true;
+    planEditandoId = null;
+  }
+
+  els.btnPlanesNuevo.addEventListener('click', () => abrirPlanModal(null));
+  if (els.btnPlanesEmptyNuevo) els.btnPlanesEmptyNuevo.addEventListener('click', () => abrirPlanModal(null));
+  els.btnPlanesModalCerrar.addEventListener('click', cerrarPlanModal);
+  els.btnPlanesCancelar.addEventListener('click', cerrarPlanModal);
+  els.planesModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.planesModalOverlay) cerrarPlanModal();
+  });
+
+  els.btnPlanesGuardar.addEventListener('click', async () => {
+    limpiarErroresPlanModal();
+    const nombre = els.planesNombre.value.trim();
+    if (!nombre) {
+      document.getElementById('error-planes-nombre').textContent = 'El nombre del plan es obligatorio.';
+      return;
+    }
+
+    const cuerpo = {
+      nombre,
+      descripcion: els.planesDescripcion.value.trim(),
+      precio_mensual: els.planesPrecioMensual.value === '' ? null : Number(els.planesPrecioMensual.value),
+      precio_anual: els.planesPrecioAnual.value === '' ? null : Number(els.planesPrecioAnual.value),
+      max_usuarios: els.planesMaxUsuarios.value === '' ? null : Number(els.planesMaxUsuarios.value),
+      disco_cuota_mb: els.planesDiscoCuota.value === '' ? null : Number(els.planesDiscoCuota.value),
+      facturacion_habilitada: els.planesFacturacion.checked,
+      portal_clientes_habilitado: els.planesPortalClientes.checked,
+      sucursales_habilitado: els.planesSucursalesFlag.checked,
+      marca_lookfeel_habilitado: els.planesMarcaLookfeel.checked,
+    };
+
+    els.btnPlanesGuardar.disabled = true;
+    els.btnPlanesGuardarLabel.textContent = 'Guardando…';
+    try {
+      const authHeader = getAuthHeader();
+      const url = planEditandoId ? `${API_BASE}/planes/${planEditandoId}` : `${API_BASE}/planes`;
+      const res = await fetch(url, {
+        method: planEditandoId ? 'PUT' : 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.planesModalError.textContent = data.error || 'No se pudo guardar el plan.';
+        return;
+      }
+      showToast(planEditandoId ? 'Plan actualizado.' : 'Plan creado.');
+      cerrarPlanModal();
+      cargarPlanes();
+    } catch (err) {
+      els.planesModalError.textContent = 'No se pudo conectar con el servidor.';
+    } finally {
+      els.btnPlanesGuardar.disabled = false;
+      els.btnPlanesGuardarLabel.textContent = planEditandoId ? 'Guardar cambios' : 'Guardar plan';
+    }
+  });
+
   // ---------- §58: Sucursales (grupos + usuarios compartidos) ----------
   // Decisión cerrada (ver inventarios.md §58): lo único que comparten los
   // tenants asociados es el LOGIN — sus BD/inventario/ventas siguen 100%
@@ -1859,6 +2399,10 @@
     els.menuMovil.hidden = true;
     els.btnVistaEmpresas.classList.toggle('is-active', vista === 'empresas');
     els.btnVistaEmpresas.setAttribute('aria-selected', String(vista === 'empresas'));
+    if (els.btnVistaPlanes) {
+      els.btnVistaPlanes.classList.toggle('is-active', vista === 'planes');
+      els.btnVistaPlanes.setAttribute('aria-selected', String(vista === 'planes'));
+    }
     els.btnVistaPapelera.classList.toggle('is-active', vista === 'papelera');
     els.btnVistaPapelera.setAttribute('aria-selected', String(vista === 'papelera'));
     els.btnVistaSucursales.classList.toggle('is-active', vista === 'sucursales');
@@ -1868,15 +2412,18 @@
       els.btnVistaSuper.setAttribute('aria-selected', String(vista === 'super'));
     }
     els.vistaEmpresas.hidden = vista !== 'empresas';
+    if (els.vistaPlanes) els.vistaPlanes.hidden = vista !== 'planes';
     els.vistaPapelera.hidden = vista !== 'papelera';
     els.vistaSucursales.hidden = vista !== 'sucursales';
     if (els.vistaSuper) els.vistaSuper.hidden = vista !== 'super';
+    if (vista === 'planes') cargarPlanes();
     if (vista === 'papelera') cargarPapelera();
     if (vista === 'sucursales') cargarSucursales();
     if (vista === 'super') cargarSuperAdmins();
   }
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
+  if (els.btnVistaPlanes) els.btnVistaPlanes.addEventListener('click', () => cambiarVistaPrincipalControl('planes'));
   els.btnVistaPapelera.addEventListener('click', () => cambiarVistaPrincipalControl('papelera'));
   els.btnVistaSucursales.addEventListener('click', () => cambiarVistaPrincipalControl('sucursales'));
   if (els.btnVistaSuper) els.btnVistaSuper.addEventListener('click', () => cambiarVistaPrincipalControl('super'));
@@ -2337,6 +2884,15 @@
         { titulo: 'Slug', texto: 'Define las URLs de la empresa (/<slug>/admin, etc.). Se puede cambiar después desde "Editar", pero migra todos sus archivos — mejor no cambiarlo seguido.' },
       ],
     },
+    planes: {
+      titulo: 'Ayuda — Planes',
+      items: [
+        { titulo: '¿Qué es un plan?', texto: 'Un conjunto con nombre de funciones y límites (Facturación, portal de clientes, sucursales, marca propia, cuota de disco) — se crea sin pensar en ningún cliente todavía.' },
+        { titulo: '¿Cómo se usa?', texto: 'Se asigna después, desde la ficha de cada empresa (pestaña "Plan y funciones") — al asignarlo, sus valores se copian a esa empresa.' },
+        { titulo: 'Editar un plan ya asignado', texto: 'NO cambia a las empresas que ya lo tienen — cada una conserva sus valores hasta que alguien la reasigne a mano desde su ficha.' },
+        { titulo: 'Archivar', texto: 'Deja de ofrecerse para asignar a empresas nuevas — las que ya lo tienen asignado siguen funcionando exactamente igual. Reversible con "Reactivar".' },
+      ],
+    },
     sucursales: {
       titulo: 'Ayuda — Sucursales',
       items: [
@@ -2389,6 +2945,7 @@
   }
 
   if (els.btnAyudaVistaEmpresas) els.btnAyudaVistaEmpresas.addEventListener('click', () => abrirAyudaVista('empresas'));
+  if (els.btnAyudaVistaPlanes) els.btnAyudaVistaPlanes.addEventListener('click', () => abrirAyudaVista('planes'));
   if (els.btnAyudaVistaPapelera) els.btnAyudaVistaPapelera.addEventListener('click', () => abrirAyudaVista('papelera'));
   if (els.btnAyudaVistaSucursales) els.btnAyudaVistaSucursales.addEventListener('click', () => abrirAyudaVista('sucursales'));
   if (els.btnAyudaVistaSuper) els.btnAyudaVistaSuper.addEventListener('click', () => abrirAyudaVista('super'));
