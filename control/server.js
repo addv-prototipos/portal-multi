@@ -7,7 +7,7 @@ const rateLimit = require('express-rate-limit');
 
 const { obtenerPool } = require('./db');
 const { requireAdminAuth, requireAdminArea } = require('./utils/auth');
-const { asegurarTablaAuditoria, registrarAccesoAdmin } = require('./utils/adminAuditoria');
+const { asegurarTablaAuditoria, registrarAccesoAdmin, listarAuditoria } = require('./utils/adminAuditoria');
 const { asegurarColumnasCicloVidaTenant } = require('./scripts/ensureSchema');
 const {
   listarTenants,
@@ -836,6 +836,44 @@ app.delete(
       return res.status(500).json({ error: 'No se pudo guardar en .env: ' + e.message });
     }
     res.json({ ok: true, superAdmins: Array.from(map.keys()).sort() });
+  })
+);
+
+// ---------- Punto 347: Auditoría cross-tenant ----------
+// A diferencia de GET /api/admin/auditoria (backend) que SIEMPRE acota a
+// un solo tenant, aquí es lo opuesto: un super ve accesos de CUALQUIER
+// empresa (o todas, sin filtro). Mismos filtros/forma de respuesta que
+// el equivalente de /admin, con "tenantSlug" agregado.
+app.get(
+  '/api/control/auditoria',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const limpiar = (valor, max) => (typeof valor === 'string' ? valor.trim().slice(0, max) : '') || undefined;
+    const actor = limpiar(req.query.actor, 100);
+    const tenantSlug = limpiar(req.query.tenantSlug, 50);
+    const desde = limpiar(req.query.desde, 20);
+    const hasta = limpiar(req.query.hasta, 20);
+    const limite = req.query.limite ? Number(req.query.limite) : 100;
+
+    const filas = await listarAuditoria({ actor, tenantSlug, desde, hasta, limite });
+
+    res.json({
+      total: filas.length,
+      registros: filas.map((f) => ({
+        id: f.id,
+        ocurridoEn: f.ocurrido_en,
+        actor: f.actor,
+        mecanismo: f.mecanismo,
+        perfil: f.perfil,
+        tenantSlug: f.tenant_slug,
+        metodo: f.metodo,
+        ruta: f.ruta,
+        estatus: f.resultado_estatus,
+        ip: f.ip,
+      })),
+    });
   })
 );
 

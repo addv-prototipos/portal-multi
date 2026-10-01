@@ -3,6 +3,13 @@ const request = require('supertest');
 jest.mock('../../db', () => ({
   pool: { query: jest.fn(), getConnection: jest.fn() },
   ensureSchema: jest.fn(),
+  // Punto 347: solo las pruebas de cuota de disco mandan X-Tenant-Slug —
+  // el resto de este archivo corre sin header (no-op), así que estos
+  // mocks no afectan ninguna prueba existente.
+  obtenerPoolControl: jest.fn(),
+  obtenerPoolTenant: jest.fn(() => ({ query: jest.fn(), getConnection: jest.fn() })),
+  ejecutarComoTenant: jest.fn((tenantPool, fn) => fn()),
+  cerrarTodosLosPoolsTenant: jest.fn(),
 }));
 
 jest.mock('nodemailer', () => ({
@@ -29,7 +36,8 @@ jest.mock('../../utils/storage', () => ({
   }),
 }));
 
-const { pool } = require('../../db');
+const { pool, obtenerPoolControl } = require('../../db');
+const { invalidarCacheTenant } = require('../../utils/tenantContext');
 const { crearTokenSesion } = require('../../utils/authUsuario');
 const app = require('../../server');
 
@@ -184,6 +192,84 @@ describe('CSF público', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/adjuntar tu constancia/);
+    });
+
+    // Punto 347 (gobierno de funcionalidades): cuota de disco impuesta
+    // desde /control. Única prueba de este describe que manda
+    // X-Tenant-Slug — las demás corren sin tenant (sitio base), donde el
+    // candado es no-op por diseño.
+    describe('cuota de disco (punto 347)', () => {
+      function tenantFilaConDisco(extra = {}) {
+        return {
+          id: 1,
+          slug: 'norte',
+          nombre_empresa: 'Norte S.A.',
+          estado: 'activo',
+          db_host: 'mysql',
+          db_name: 'tenant_norte',
+          db_user: 'app',
+          marca: null,
+          marca_logo_url: null,
+          tema_json: null,
+          grupo_sucursal_id: null,
+          contacto_email: null,
+          marca_lookfeel_habilitado: 1,
+          max_usuarios: null,
+          facturacion_habilitada: 1,
+          portal_clientes_habilitado: 1,
+          sucursales_habilitado: 0,
+          disco_cuota_mb: 500,
+          disco_bytes_usados_cache: null,
+          ...extra,
+        };
+      }
+
+      let poolControl;
+
+      beforeEach(() => {
+        poolControl = { query: jest.fn() };
+        obtenerPoolControl.mockReturnValue(poolControl);
+      });
+
+      afterEach(() => {
+        invalidarCacheTenant();
+      });
+
+      test('caché en/sobre la cuota: responde 413 DISCO_CUOTA_EXCEDIDA antes de leer el PDF', async () => {
+        poolControl.query.mockResolvedValueOnce([[tenantFilaConDisco({ disco_bytes_usados_cache: 500 * 1024 * 1024 })]]);
+        pool.query.mockResolvedValueOnce([[]]); // getCamposObligatorios
+
+        const res = await request(app)
+          .post('/api/registro')
+          .set('X-Tenant-Slug', 'norte')
+          .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC', 'norte')}`)
+          .field('tipo_persona', 'fisica')
+          .field('email', 'cliente@x.com')
+          .attach('archivo', PDF_BUFFER_VALIDO, { filename: 'constancia.pdf', contentType: 'application/pdf' });
+
+        expect(res.status).toBe(413);
+        expect(res.body.error).toBe('DISCO_CUOTA_EXCEDIDA');
+        expect(require('pdf-parse')).not.toHaveBeenCalled();
+      });
+
+      test('caché por debajo de la cuota: sigue el flujo normal, no bloquea', async () => {
+        poolControl.query.mockResolvedValueOnce([[tenantFilaConDisco({ disco_bytes_usados_cache: 10 * 1024 * 1024 })]]);
+        pool.query.mockResolvedValueOnce([[]]); // getCamposObligatorios
+        mockTextoPdf('un documento cualquiera sin relación con el SAT');
+
+        const res = await request(app)
+          .post('/api/registro')
+          .set('X-Tenant-Slug', 'norte')
+          .set('Cookie', `sesion_usuario=${crearTokenSesion('GOMJ800101ABC', 'norte')}`)
+          .field('tipo_persona', 'fisica')
+          .field('email', 'cliente@x.com')
+          .attach('archivo', PDF_BUFFER_VALIDO, { filename: 'constancia.pdf', contentType: 'application/pdf' });
+
+        // Pasó el candado de cuota y llegó a la validación de contenido
+        // real del PDF (que sí rechaza, por texto irrelevante) — nunca 413.
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/no parece ser una Constancia/);
+      });
     });
 
     test('rechaza un archivo que no sea PDF (tipo declarado)', async () => {

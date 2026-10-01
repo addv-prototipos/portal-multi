@@ -192,11 +192,29 @@
     btnVistaPapelera: document.getElementById('btn-vista-control-papelera'),
     btnVistaSucursales: document.getElementById('btn-vista-control-sucursales'),
     btnVistaSuper: document.getElementById('btn-vista-control-super'),
+    btnVistaAuditoria: document.getElementById('btn-vista-control-auditoria'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
     vistaPlanes: document.getElementById('vista-control-planes'),
     vistaPapelera: document.getElementById('vista-control-papelera'),
     vistaSucursales: document.getElementById('vista-control-sucursales'),
     vistaSuper: document.getElementById('vista-control-super'),
+    vistaAuditoria: document.getElementById('vista-control-auditoria'),
+    // Punto 347: Auditoría cross-tenant
+    btnAyudaVistaAuditoria: document.getElementById('btn-ayuda-vista-auditoria'),
+    auditoriaFiltroActor: document.getElementById('auditoria-filtro-actor'),
+    btnLimpiarAuditoriaActor: document.getElementById('btn-limpiar-auditoria-actor'),
+    auditoriaFiltroTenant: document.getElementById('auditoria-filtro-tenant'),
+    btnLimpiarAuditoriaTenant: document.getElementById('btn-limpiar-auditoria-tenant'),
+    auditoriaFiltroDesde: document.getElementById('auditoria-filtro-desde'),
+    auditoriaFiltroHasta: document.getElementById('auditoria-filtro-hasta'),
+    auditoriaFiltroLimite: document.getElementById('auditoria-filtro-limite'),
+    btnLimpiarFiltrosAuditoria: document.getElementById('btn-limpiar-filtros-auditoria'),
+    auditoriaFiltrosChips: document.getElementById('auditoria-filtros-chips'),
+    auditoriaError: document.getElementById('auditoria-error'),
+    auditoriaTableBody: document.getElementById('auditoria-table-body'),
+    auditoriaEmpty: document.getElementById('auditoria-empty'),
+    auditoriaEmptyTitulo: document.getElementById('auditoria-empty-titulo'),
+    auditoriaEmptyTexto: document.getElementById('auditoria-empty-texto'),
     // Punto 347: Planes
     planesCount: document.getElementById('planes-count'),
     planesError: document.getElementById('planes-error'),
@@ -2411,15 +2429,21 @@
       els.btnVistaSuper.classList.toggle('is-active', vista === 'super');
       els.btnVistaSuper.setAttribute('aria-selected', String(vista === 'super'));
     }
+    if (els.btnVistaAuditoria) {
+      els.btnVistaAuditoria.classList.toggle('is-active', vista === 'auditoria');
+      els.btnVistaAuditoria.setAttribute('aria-selected', String(vista === 'auditoria'));
+    }
     els.vistaEmpresas.hidden = vista !== 'empresas';
     if (els.vistaPlanes) els.vistaPlanes.hidden = vista !== 'planes';
     els.vistaPapelera.hidden = vista !== 'papelera';
     els.vistaSucursales.hidden = vista !== 'sucursales';
     if (els.vistaSuper) els.vistaSuper.hidden = vista !== 'super';
+    if (els.vistaAuditoria) els.vistaAuditoria.hidden = vista !== 'auditoria';
     if (vista === 'planes') cargarPlanes();
     if (vista === 'papelera') cargarPapelera();
     if (vista === 'sucursales') cargarSucursales();
     if (vista === 'super') cargarSuperAdmins();
+    if (vista === 'auditoria') cargarAuditoria();
   }
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
@@ -2427,6 +2451,7 @@
   els.btnVistaPapelera.addEventListener('click', () => cambiarVistaPrincipalControl('papelera'));
   els.btnVistaSucursales.addEventListener('click', () => cambiarVistaPrincipalControl('sucursales'));
   if (els.btnVistaSuper) els.btnVistaSuper.addEventListener('click', () => cambiarVistaPrincipalControl('super'));
+  if (els.btnVistaAuditoria) els.btnVistaAuditoria.addEventListener('click', () => cambiarVistaPrincipalControl('auditoria'));
   els.menuMovil.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-vista]');
     if (btn) cambiarVistaPrincipalControl(btn.dataset.vista);
@@ -2853,6 +2878,175 @@
     finally { els.superBtnGuardar.disabled = false; if (els.superBtnGuardarLabel) els.superBtnGuardarLabel.textContent = superEditando ? 'Actualizar' : 'Crear'; }
   });
 
+  // ---------- Punto 347: Auditoría cross-tenant ----------
+  // Replica el diseño ya aprobado de /admin (punto 244, admin.js) — mismos
+  // filtros/formato/badges, duplicado tal cual (sin código compartido
+  // entre admin.js y control.js, mismo criterio que el resto del sitio).
+  // Diferencia real: aquí es cross-tenant (columna Empresa agregada, sin
+  // el switch "Auditoría activada/desactivada" que sí tiene /admin por
+  // tenant — en /control el registro nunca se apaga).
+  const MECANISMO_ETIQUETA_CONTROL = {
+    admin_users: 'Súper (ADMIN_USERS)',
+    perfil_bd: 'Cuenta del panel',
+    api_credencial: 'Credencial API',
+    api_clave: 'Clave API',
+    usuario_sucursal: 'Sucursal compartida',
+    fallback_admin: 'Cuenta de respaldo (retirada)',
+  };
+  const PERFIL_CLASE_BADGE_CONTROL = {
+    administrador: 'perfil-administrador',
+    fiscal: 'perfil-fiscal',
+    ventas: 'perfil-ventas',
+    cliente: 'perfil-cliente',
+    super: 'perfil-super',
+  };
+
+  function limpiarCampoFiltroControl(el) {
+    if (!el) return;
+    el.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function renderFiltrosChipsControl(contenedor, definiciones) {
+    if (!contenedor) return;
+    const activos = definiciones.filter((d) => d.valor);
+    if (!activos.length) {
+      contenedor.innerHTML = '';
+      contenedor.hidden = true;
+      return;
+    }
+    contenedor.hidden = false;
+    contenedor.innerHTML =
+      '<span class="filtros-chips-label">Filtros activos:</span>' +
+      activos
+        .map(
+          (d, i) => `
+        <span class="filtro-chip">
+          <span class="filtro-chip-etiqueta">${escapeHtml(d.etiqueta)}:</span> ${escapeHtml(d.valor)}
+          <button type="button" data-chip-quitar="${i}" aria-label="Quitar filtro ${escapeHtml(d.etiqueta)}">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
+          </button>
+        </span>`
+        )
+        .join('');
+    contenedor.querySelectorAll('[data-chip-quitar]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.getAttribute('data-chip-quitar'));
+        activos[idx].campos.forEach(limpiarCampoFiltroControl);
+      });
+    });
+  }
+
+  function formatearFechaHoraAuditoriaControl(valor) {
+    if (!valor) return '—';
+    const [fecha, hora] = String(valor).split(' ');
+    return hora ? `${fecha} ${hora.slice(0, 5)}` : fecha;
+  }
+
+  function claseEstatusHttpControl(estatus) {
+    if (estatus >= 500) return 'estatus-http-error';
+    if (estatus >= 400) return 'estatus-http-warn';
+    return 'estatus-http-ok';
+  }
+
+  function renderAuditoriaFiltrosChips() {
+    renderFiltrosChipsControl(els.auditoriaFiltrosChips, [
+      { etiqueta: 'Usuario', valor: els.auditoriaFiltroActor.value.trim(), campos: [els.auditoriaFiltroActor] },
+      { etiqueta: 'Empresa', valor: els.auditoriaFiltroTenant.value.trim(), campos: [els.auditoriaFiltroTenant] },
+      {
+        etiqueta: 'Fechas',
+        valor: (els.auditoriaFiltroDesde.value || els.auditoriaFiltroHasta.value)
+          ? `${els.auditoriaFiltroDesde.value || '…'} – ${els.auditoriaFiltroHasta.value || '…'}`
+          : '',
+        campos: [els.auditoriaFiltroDesde, els.auditoriaFiltroHasta],
+      },
+    ]);
+  }
+
+  async function cargarAuditoria() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.auditoriaError.textContent = '';
+    els.btnLimpiarAuditoriaActor.hidden = !els.auditoriaFiltroActor.value;
+    els.btnLimpiarAuditoriaTenant.hidden = !els.auditoriaFiltroTenant.value;
+    renderAuditoriaFiltrosChips();
+    Esqueleto.aplicarEsqueletoTabla(els.auditoriaTableBody, 7);
+
+    const params = new URLSearchParams();
+    const actor = els.auditoriaFiltroActor.value.trim();
+    const tenantSlug = els.auditoriaFiltroTenant.value.trim().toLowerCase();
+    if (actor) params.set('actor', actor);
+    if (tenantSlug) params.set('tenantSlug', tenantSlug);
+    if (els.auditoriaFiltroDesde.value) params.set('desde', els.auditoriaFiltroDesde.value);
+    if (els.auditoriaFiltroHasta.value) params.set('hasta', els.auditoriaFiltroHasta.value);
+    params.set('limite', els.auditoriaFiltroLimite.value || '100');
+
+    try {
+      const resp = await fetch(`${API_BASE}/auditoria?${params.toString()}`, {
+        headers: { Authorization: authHeader },
+      });
+      if (resp.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!resp.ok) throw new Error('No se pudo cargar la auditoría.');
+      const data = await resp.json();
+      const registros = data.registros || [];
+
+      els.auditoriaTableBody.innerHTML = '';
+      const hayFiltros = Boolean(actor || tenantSlug || els.auditoriaFiltroDesde.value || els.auditoriaFiltroHasta.value);
+      els.auditoriaEmpty.hidden = registros.length > 0;
+      if (registros.length === 0) {
+        els.auditoriaEmptyTitulo.textContent = hayFiltros ? 'Sin resultados para tu filtro' : 'Sin accesos registrados todavía';
+        els.auditoriaEmptyTexto.textContent = hayFiltros
+          ? 'Prueba con otro usuario, empresa o un rango de fechas distinto.'
+          : 'En cuanto alguien entre a /control, aparecerá aquí.';
+      }
+
+      registros.forEach((r) => {
+        const tr = document.createElement('tr');
+        const claseBadgePerfil = PERFIL_CLASE_BADGE_CONTROL[r.perfil] || 'perfil-cliente';
+        const mecanismo = MECANISMO_ETIQUETA_CONTROL[r.mecanismo] || r.mecanismo;
+        tr.innerHTML = `
+          <td data-label="Fecha y hora">${formatearFechaHoraAuditoriaControl(r.ocurridoEn)}</td>
+          <td data-label="Empresa">${r.tenantSlug ? escapeHtml(r.tenantSlug) : '<span class="field-hint" style="margin:0">Sitio base</span>'}</td>
+          <td data-label="Usuario">${escapeHtml(r.actor)}</td>
+          <td data-label="Perfil"><span class="perfil-badge ${claseBadgePerfil}">${escapeHtml(r.perfil)}</span></td>
+          <td data-label="Acción"><code>${escapeHtml(r.metodo)} ${escapeHtml(r.ruta)}</code></td>
+          <td data-label="Estatus"><span class="estatus-badge ${claseEstatusHttpControl(r.estatus)}">${r.estatus}</span></td>
+          <td data-label="IP">${escapeHtml(r.ip || '—')}</td>
+        `;
+        els.auditoriaTableBody.appendChild(tr);
+      });
+      Esqueleto.quitarEsqueletoTabla(els.auditoriaTableBody);
+    } catch (err) {
+      Esqueleto.aplicarErrorTabla(els.auditoriaTableBody, 7, err.message || 'No se pudo cargar la auditoría.', cargarAuditoria);
+    }
+  }
+
+  if (els.auditoriaFiltroActor) {
+    els.auditoriaFiltroActor.addEventListener('input', cargarAuditoria);
+    els.auditoriaFiltroTenant.addEventListener('input', cargarAuditoria);
+    els.auditoriaFiltroDesde.addEventListener('change', cargarAuditoria);
+    els.auditoriaFiltroHasta.addEventListener('change', cargarAuditoria);
+    els.auditoriaFiltroLimite.addEventListener('change', cargarAuditoria);
+    els.btnLimpiarAuditoriaActor.addEventListener('click', () => limpiarCampoFiltroControl(els.auditoriaFiltroActor));
+    els.btnLimpiarAuditoriaTenant.addEventListener('click', () => limpiarCampoFiltroControl(els.auditoriaFiltroTenant));
+    els.btnLimpiarFiltrosAuditoria.addEventListener('click', () => {
+      els.auditoriaFiltroActor.value = '';
+      els.auditoriaFiltroTenant.value = '';
+      els.auditoriaFiltroDesde.value = '';
+      els.auditoriaFiltroHasta.value = '';
+      els.auditoriaFiltroLimite.value = '100';
+      cargarAuditoria();
+    });
+  }
+
   // ---------- Cierre con Escape (todos los modales) ----------
   // Mismo estándar que admin.js (un listener por overlay comprobando
   // !overlay.hidden): aquí se agrupan los 6 overlays de /control en uno
@@ -2920,6 +3114,15 @@
         { titulo: '¿Qué pasa al guardar?', texto: 'Escribe .env (con backup .env.bak), recarga el Map en memoria de control y backend, y audita. Debe quedar al menos uno.' },
       ],
     },
+    auditoria: {
+      titulo: 'Ayuda — Auditoría',
+      items: [
+        { titulo: '¿Qué aparece aquí?', texto: 'Cada acceso NO-GET a /control (crear plan, asignar, archivar, suspender, etc.) — quién lo hizo, cuándo, sobre qué empresa y con qué resultado.' },
+        { titulo: '¿Por qué no veo lecturas (GET)?', texto: 'Igual que en /admin: solo se audita lo que cambia algo, no cada consulta de solo lectura — si no, la tabla crecería sin aportar nada útil.' },
+        { titulo: '"Sitio base"', texto: 'Acciones sin ninguna empresa asociada — por ejemplo, crear o editar un plan del catálogo (los planes no pertenecen a ningún tenant).' },
+        { titulo: '¿Se puede apagar?', texto: 'No — a diferencia de /admin (donde cada tenant puede apagar su propia auditoría), en /control el registro nunca se desactiva.' },
+      ],
+    },
   };
 
   function renderTarjetaAyudaVista(item) {
@@ -2949,6 +3152,7 @@
   if (els.btnAyudaVistaPapelera) els.btnAyudaVistaPapelera.addEventListener('click', () => abrirAyudaVista('papelera'));
   if (els.btnAyudaVistaSucursales) els.btnAyudaVistaSucursales.addEventListener('click', () => abrirAyudaVista('sucursales'));
   if (els.btnAyudaVistaSuper) els.btnAyudaVistaSuper.addEventListener('click', () => abrirAyudaVista('super'));
+  if (els.btnAyudaVistaAuditoria) els.btnAyudaVistaAuditoria.addEventListener('click', () => abrirAyudaVista('auditoria'));
   if (els.btnAyudaVistaCerrar) els.btnAyudaVistaCerrar.addEventListener('click', cerrarAyudaVista);
   if (els.ayudaVistaModalOverlay) {
     els.ayudaVistaModalOverlay.addEventListener('click', (e) => {

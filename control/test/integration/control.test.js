@@ -802,6 +802,48 @@ describe('Control standalone (/api/control)', () => {
     });
   });
 
+  describe('GET /api/control/auditoria (punto 347, cross-tenant)', () => {
+    test('401 sin credenciales', async () => {
+      const res = await request(app).get('/api/control/auditoria');
+      expect(res.status).toBe(401);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    test('sin filtros, lista registros de cualquier empresa', async () => {
+      pool.query.mockResolvedValueOnce([[
+        {
+          id: 1,
+          ocurrido_en: '2026-09-30 21:40:00',
+          actor: 'admin',
+          mecanismo: 'admin_users',
+          perfil: 'super',
+          tenant_slug: 'norte',
+          metodo: 'PUT',
+          ruta: '/api/control/tenants/norte',
+          resultado_estatus: 200,
+          ip: '127.0.0.1',
+        },
+      ]]);
+
+      const res = await request(app).get('/api/control/auditoria').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(1);
+      expect(res.body.registros[0].tenantSlug).toBe('norte');
+      expect(pool.query.mock.calls[0][0]).not.toMatch(/WHERE/);
+    });
+
+    test('?tenantSlug=norte filtra por ese tenant', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const res = await request(app).get('/api/control/auditoria?tenantSlug=norte').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(pool.query.mock.calls[0][0]).toMatch(/WHERE tenant_slug = \?/);
+      expect(pool.query.mock.calls[0][1]).toEqual(['norte']);
+    });
+  });
+
   describe('GET /health', () => {
     test('200 cuando la BD responde', async () => {
       pool.query.mockResolvedValueOnce([[{ '1': 1 }]]);

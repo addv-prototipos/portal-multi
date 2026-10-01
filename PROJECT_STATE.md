@@ -16915,13 +16915,67 @@ implementar, siguiendo el protocolo `addv-web-app`.
   los archivos tocados. Rebuild `--no-cache` + `--force-recreate` de
   `backend`/`control`/`frontend` aplicado y verificado contra Docker/
   MySQL reales (catálogo de planes probado de punta a punta con `curl`).
-- **Pendiente, fuera de este punto**: pantalla/vista para NAVEGAR el
-  historial de auditoría (`admin_auditoria`/`tenant_eventos`) dentro de
-  `/control` — los datos ya se registran correctamente (verificado en
-  pruebas), falta la UI para consultarlos; enforcement de cuota de disco
-  en el resto de rutas de subida de archivos (logo, favicon, CSF,
-  tickets); confirmación visual del usuario con clics reales en
-  navegador. Sin commit/push todavía — cambios solo en el working tree.
+- **Ampliación posterior (mismo 2026-09-30): enforcement de cuota en 2
+  rutas más de subida de archivo**. Mismo candado 413
+  `DISCO_CUOTA_EXCEDIDA` (caché siempre, nunca en vivo) aplicado también
+  a:
+  - `POST /api/registro` (constancia de situación fiscal del cliente) —
+    se revisa ANTES de extraer el texto del PDF (trabajo caro) para no
+    gastarlo en un archivo que de todas formas no se va a guardar.
+  - `POST /api/tickets` (imagen del ticket) — se revisa justo después de
+    validar que venga un archivo adjunto, antes de la búsqueda de
+    constancia registrada.
+  - **Decisión deliberada de NO tocar logo/favicon de marca**
+    (`/internal/marca-logo/:slug`, `/internal/favicon/:slug`): son rutas
+    internas sin `req.tenant` resuelto (las llama `/control` directo con
+    el slug, sin pasar por `resolverTenantMiddleware`) — agregar el
+    candado ahí exigiría consultar `control_tenants` dentro de una ruta
+    de infraestructura que hoy no depende de esa base para nada, y
+    `resolverTenantPorSlug()` solo resuelve tenants con
+    `estado='activo'`, lo que rompería el logo inicial de un tenant
+    todavía en "provisioning". Valor bajo (archivo único, ≤2 MB, subida
+    rara) contra riesgo real de romper el flujo de alta — no vale la
+    complejidad. Tampoco se tocó
+    `/api/admin/config/constancia-compania` (constancia de la propia
+    compañía): parsea el PDF y lo descarta, nunca lo guarda en
+    almacenamiento — no consume disco, el candado no aplicaría a nada.
+  - 2 pruebas nuevas en `csf-publico.test.js` + 2 en `tickets.test.js`.
+    Suite completa re-verificada: backend 1110/1111 (misma única falla
+    preexistente de siempre). Rebuild `--no-cache` de `backend` aplicado.
+- **Ampliación posterior (mismo 2026-09-30): pestaña "Auditoría"
+  cross-tenant en /control**. Propuesta visual (Artifact) presentada y
+  aprobada antes de implementar — replica 1:1 el diseño ya aprobado de
+  Auditoría en `/admin` (punto 244: mismos filtros, misma tabla, mismos
+  badges/formato), con dos diferencias deliberadas: columna "Empresa"
+  nueva (cross-tenant, con filtro opcional por slug) y sin el switch
+  "Auditoría activada/desactivada" que sí tiene `/admin` por tenant — en
+  `/control` el registro nunca se apaga.
+  - `control/utils/adminAuditoria.js`: `listarAuditoria()` nueva —
+    mismos filtros (actor/tenantSlug/desde/hasta/límite 1-500) que el
+    equivalente de backend, pero sin la restricción "nunca cross-tenant"
+    (ese comentario en backend ya anticipaba este uso).
+  - Ruta nueva `GET /api/control/auditoria` (super-only).
+  - Frontend: pestaña nueva al final del sidebar — `cargarAuditoria()`,
+    render y helpers de filtros (`MECANISMO_ETIQUETA_CONTROL`,
+    `PERFIL_CLASE_BADGE_CONTROL`, chips de filtros activos) duplicados
+    de `admin.js` tal cual (sin código compartido entre `admin.js`/
+    `control.js`, mismo criterio ya establecido del proyecto).
+  - Validado contra MySQL real — la consulta trajo de vuelta los
+    accesos reales de las pruebas manuales de este mismo punto (crear/
+    archivar/reactivar planes), confirmando que el candado de auditoría
+    ya existente desde el segmento 7 queda visible de punta a punta.
+  - 5 pruebas unitarias nuevas (`adminAuditoria.test.js`) + 3 de
+    integración (`control.test.js`). Suite completa: control 312/312.
+  - **Decisión deliberada**: solo `admin_auditoria` (accesos) en esta
+    pantalla — `tenant_eventos` (línea de tiempo de negocio por empresa:
+    plan_asignado, disco_recalculado, slug_cambiado...) queda fuera,
+    confirmado explícitamente con el usuario; si se quiere después, iría
+    como pestaña "Historial" dentro de la ficha de cada empresa, no
+    mezclado en esta vista cross-tenant.
+- **Pendiente, fuera de este punto**: confirmación visual del usuario
+  con clics reales en navegador (todo lo de Fase 0-5 + estas dos
+  ampliaciones). Sin commit/push todavía — cambios solo en el working
+  tree.
 
 ## Dónde está todo (mapa rápido)
 

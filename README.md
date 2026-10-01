@@ -1084,15 +1084,19 @@ invalidación de caché entre contenedores funcione.
   clientes se comporta como si esas rutas no existieran.
   - **Cuota de disco**: botón "Recalcular" (suma los bytes reales en
     MinIO bajo el prefijo del tenant — nunca se mide en vivo por
-    request) + barra de uso con su color según cercanía al límite. Hoy
-    la cuota se hace cumplir al subir una imagen de producto en
-    Inventarios (`413 DISCO_CUOTA_EXCEDIDA` si el último cálculo ya
-    superó la cuota) — el resto de subidas de archivo (logo, favicon,
-    CSF, tickets) queda pendiente de la misma validación.
-  - **Pendiente**: una pantalla en `/control` para navegar el historial
-    de auditoría de estos cambios (los eventos ya se registran en
-    `admin_auditoria`/`tenant_eventos`, solo falta la vista para
-    consultarlos).
+    request) + barra de uso con su color según cercanía al límite. La
+    cuota se hace cumplir (`413 DISCO_CUOTA_EXCEDIDA` si el último
+    cálculo ya la superó) en las tres subidas de archivo de mayor
+    volumen: imagen de producto (Inventarios), constancia de situación
+    fiscal del cliente y foto del ticket. Logo/favicon de marca quedan
+    fuera a propósito — son rutas internas sin contexto de tenant
+    resuelto, de un solo archivo pequeño (≤2 MB) por empresa.
+  - **Auditoría**: pestaña "Auditoría" en /control — quién entró, qué
+    hizo (crear plan, asignar, archivar, suspender, etc.) y sobre qué
+    empresa, con filtros por usuario/empresa/fecha. Mismo diseño ya
+    aprobado en la Auditoría de `/admin`, con una columna "Empresa" para
+    que sea cross-tenant. A diferencia de `/admin`, nunca se puede
+    apagar — es el panel de control mismo.
 
 ### Desplegar `/control` en un servidor distinto
 

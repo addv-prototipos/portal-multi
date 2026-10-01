@@ -110,6 +110,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/><path d="M20 21a8 8 0 1 0-16 0"/><path d="M12 15v6"/><path d="M9 18h6"/></svg>
           <span>Super Admins</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-auditoria" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round" stroke-width="1.8"/></svg>
+          <span>Auditoría</span>
+        </button>
       </nav>
       <div class="admin-sidebar-footer">
         <button type="button" class="admin-sidebar-ayuda" id="btn-abrir-conocimiento" aria-label="Centro de conocimiento" aria-haspopup="dialog">
@@ -153,6 +157,10 @@
           <button type="button" class="admin-menu-movil-btn" data-vista="super">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
             <span>Super Admins</span>
+          </button>
+          <button type="button" class="admin-menu-movil-btn" data-vista="auditoria">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round" stroke-width="1.8"/></svg>
+            <span>Auditoría</span>
           </button>
         </div>
 
@@ -398,6 +406,85 @@
             </div>
           </div>
           <p class="field-hint" style="margin-top:12px">Tras guardar, se escribe <code>.env</code> y se recarga en <code>control</code> y <code>backend</code> sin reiniciar (via <code>POST /internal/reload-admin-users</code>). Revisa <code>.env.bak</code> si necesitas revertir.</p>
+        </div>
+
+        <!-- Punto 347: Auditoría cross-tenant — replica el diseño ya
+             aprobado de /admin (punto 244), con la columna Empresa
+             agregada. Solo admin_auditoria (accesos); tenant_eventos
+             (línea de tiempo de negocio por empresa) queda fuera a
+             propósito, ver propuesta. -->
+        <div id="vista-control-auditoria" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Auditoría</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-auditoria" aria-label="Ayuda sobre Auditoría" data-tooltip="Quién entró a /control, qué hizo y sobre qué empresa — accesos de todo el sistema.">?</button>
+            </div>
+          </div>
+          <p class="admin-login-hint">Quién entró a /control, qué hizo y sobre qué empresa — accesos de todo el sistema.</p>
+
+          <div class="gastos-filtros">
+            <div class="field gastos-filtro-campo gastos-filtro-busqueda">
+              <label class="gastos-filtro-label" for="auditoria-filtro-actor">Usuario</label>
+              <div class="filtro-busqueda">
+                <span class="filtro-busqueda-icono" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+                <input type="text" id="auditoria-filtro-actor" placeholder="admin" maxlength="100" autocomplete="off" />
+                <button type="button" class="filtro-busqueda-limpiar" id="btn-limpiar-auditoria-actor" aria-label="Borrar texto" hidden>✕</button>
+              </div>
+            </div>
+            <div class="field gastos-filtro-campo gastos-filtro-busqueda">
+              <label class="gastos-filtro-label" for="auditoria-filtro-tenant">Empresa</label>
+              <div class="filtro-busqueda">
+                <span class="filtro-busqueda-icono" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+                <input type="text" id="auditoria-filtro-tenant" placeholder="slug" maxlength="50" autocomplete="off" />
+                <button type="button" class="filtro-busqueda-limpiar" id="btn-limpiar-auditoria-tenant" aria-label="Borrar texto" hidden>✕</button>
+              </div>
+            </div>
+            <div class="field gastos-filtro-campo">
+              <label class="gastos-filtro-label" for="auditoria-filtro-desde">Desde</label>
+              <input type="date" id="auditoria-filtro-desde" />
+            </div>
+            <div class="field gastos-filtro-campo">
+              <label class="gastos-filtro-label" for="auditoria-filtro-hasta">Hasta</label>
+              <input type="date" id="auditoria-filtro-hasta" />
+            </div>
+            <div class="field gastos-filtro-campo">
+              <label class="gastos-filtro-label" for="auditoria-filtro-limite">Mostrar</label>
+              <select id="auditoria-filtro-limite">
+                <option value="100">Últimos 100</option>
+                <option value="250">Últimos 250</option>
+                <option value="500">Últimos 500</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-secondary gastos-filtro-limpiar btn-limpiar-filtros" id="btn-limpiar-filtros-auditoria">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 1 3 6.7M3 12V6m0 6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Limpiar filtros
+            </button>
+            <div class="filtros-chips" id="auditoria-filtros-chips" hidden></div>
+          </div>
+
+          <p class="field-error" id="auditoria-error" role="alert"></p>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Fecha y hora</th>
+                  <th>Empresa</th>
+                  <th>Usuario</th>
+                  <th>Perfil</th>
+                  <th>Acción</th>
+                  <th>Estatus</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody id="auditoria-table-body"></tbody>
+            </table>
+            <div class="admin-empty admin-empty-rica" id="auditoria-empty" hidden>
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p class="admin-empty-titulo" id="auditoria-empty-titulo">Sin accesos registrados todavía</p>
+              <p id="auditoria-empty-texto">En cuanto alguien entre a /control, aparecerá aquí.</p>
+            </div>
+          </div>
         </div>
       </main>
     </div>

@@ -1,4 +1,4 @@
-const { asegurarTablaAuditoria, registrarAccesoAdmin } = require('../../utils/adminAuditoria');
+const { asegurarTablaAuditoria, registrarAccesoAdmin, listarAuditoria } = require('../../utils/adminAuditoria');
 
 jest.mock('../../db', () => ({
   obtenerPool: jest.fn(),
@@ -81,6 +81,45 @@ describe('utils/adminAuditoria.js', () => {
         ruta: '/health',
         estatus: 200,
       });
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('listarAuditoria (punto 347 — cross-tenant)', () => {
+    test('sin filtros, consulta sin WHERE y trae de cualquier empresa', async () => {
+      const db = { query: jest.fn().mockResolvedValue([[]]) };
+      await listarAuditoria({}, db);
+      const [sql, params] = db.query.mock.calls[0];
+      expect(sql).not.toMatch(/WHERE/);
+      expect(params).toEqual([]);
+    });
+
+    test('con tenantSlug, filtra por ese tenant (a diferencia de backend, nunca es obligatorio)', async () => {
+      const db = { query: jest.fn().mockResolvedValue([[]]) };
+      await listarAuditoria({ tenantSlug: 'norte' }, db);
+      const [sql, params] = db.query.mock.calls[0];
+      expect(sql).toMatch(/WHERE tenant_slug = \?/);
+      expect(params).toEqual(['norte']);
+    });
+
+    test('con actor y rango de fechas, arma el WHERE con AND', async () => {
+      const db = { query: jest.fn().mockResolvedValue([[]]) };
+      await listarAuditoria({ actor: 'admin', desde: '2026-09-01', hasta: '2026-09-30' }, db);
+      const [sql, params] = db.query.mock.calls[0];
+      expect(sql).toMatch(/WHERE actor = \? AND ocurrido_en >= \? AND ocurrido_en <= \?/);
+      expect(params).toEqual(['admin', '2026-09-01', '2026-09-30']);
+    });
+
+    test('limite se acota entre 1 y 500 (fuera de rango se corrige, nunca se pasa tal cual al SQL)', async () => {
+      const db = { query: jest.fn().mockResolvedValue([[]]) };
+      await listarAuditoria({ limite: 99999 }, db);
+      expect(db.query.mock.calls[0][0]).toMatch(/LIMIT 500/);
+    });
+
+    test('usa obtenerPool() por defecto si no se pasa una BD', async () => {
+      const pool = { query: jest.fn().mockResolvedValue([[]]) };
+      obtenerPool.mockReturnValue(pool);
+      await listarAuditoria();
       expect(pool.query).toHaveBeenCalledTimes(1);
     });
   });

@@ -38,4 +38,46 @@ async function registrarAccesoAdmin(
   );
 }
 
-module.exports = { asegurarTablaAuditoria, registrarAccesoAdmin };
+// Punto 347 (gobierno de funcionalidades): consulta cross-tenant de
+// admin_auditoria — a diferencia del equivalente en backend/utils/
+// adminAuditoria.js (que SIEMPRE acota a un solo tenant, nunca cross-
+// tenant, por diseño del punto 244), aquí es exactamente lo opuesto: un
+// super en /control puede ver accesos de CUALQUIER empresa. `tenantSlug`
+// es un filtro opcional, no una restricción obligatoria — sin él, ve
+// todo. Mismo criterio de "duplicar código pequeño, no compartir entre
+// backend/ y control/" ya usado en el resto del proyecto.
+async function listarAuditoria({ actor, tenantSlug, desde, hasta, limite = 100 } = {}, db = obtenerPool()) {
+  const condiciones = [];
+  const parametros = [];
+
+  if (actor) {
+    condiciones.push('actor = ?');
+    parametros.push(actor);
+  }
+  if (tenantSlug) {
+    condiciones.push('tenant_slug = ?');
+    parametros.push(tenantSlug);
+  }
+  if (desde) {
+    condiciones.push('ocurrido_en >= ?');
+    parametros.push(desde);
+  }
+  if (hasta) {
+    condiciones.push('ocurrido_en <= ?');
+    parametros.push(hasta);
+  }
+
+  const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+  const limiteSeguro = Math.min(Math.max(Number(limite) || 100, 1), 500);
+
+  const [filas] = await db.query(
+    `SELECT id, ocurrido_en, actor, mecanismo, perfil, tenant_slug, metodo, ruta, resultado_estatus, ip
+     FROM admin_auditoria ${where}
+     ORDER BY ocurrido_en DESC
+     LIMIT ${limiteSeguro}`,
+    parametros
+  );
+  return filas;
+}
+
+module.exports = { asegurarTablaAuditoria, registrarAccesoAdmin, listarAuditoria };

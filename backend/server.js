@@ -1760,6 +1760,22 @@ app.post('/api/tickets', requireUserAuth, requiereFeature('facturacionHabilitada
         return res.status(400).json({ error: 'Debes adjuntar una foto o imagen del ticket.' });
       }
 
+      // Punto 347: cuota de disco impuesta desde /control — mismo criterio
+      // que la imagen de producto de Inventarios y la constancia de
+      // /api/registro (usa SIEMPRE el caché, nunca mide en vivo; sin cuota
+      // o sin caché todavía nunca bloquea).
+      if (
+        req.tenant &&
+        req.tenant.discoCuotaMb != null &&
+        req.tenant.discoBytesUsadosCache != null &&
+        req.tenant.discoBytesUsadosCache >= req.tenant.discoCuotaMb * 1024 * 1024
+      ) {
+        return res.status(413).json({
+          error: 'DISCO_CUOTA_EXCEDIDA',
+          mensaje: 'Esta empresa ya alcanzó su cuota de espacio — contacta a soporte para ampliarla.',
+        });
+      }
+
       // Sin una constancia de situación fiscal activa para este RFC, no hay
       // correo al que avisarle al cliente cuando su factura esté lista (ver
       // notificarFacturaListaAlCliente más abajo, que depende de
@@ -2687,6 +2703,23 @@ app.post('/api/registro', requireUserAuth, submitLimiter, (req, res) => {
       }
       if (!req.file) {
         return res.status(400).json({ error: 'Debes adjuntar tu constancia de situacion fiscal.' });
+      }
+
+      // Punto 347: cuota de disco impuesta desde /control — mismo criterio
+      // que la imagen de producto de Inventarios (usa SIEMPRE el caché,
+      // nunca mide en vivo; sin cuota o sin caché todavía nunca bloquea).
+      // Se revisa ANTES de extraer el texto del PDF (trabajo caro) para no
+      // gastarlo en un archivo que de todas formas no se va a guardar.
+      if (
+        req.tenant &&
+        req.tenant.discoCuotaMb != null &&
+        req.tenant.discoBytesUsadosCache != null &&
+        req.tenant.discoBytesUsadosCache >= req.tenant.discoCuotaMb * 1024 * 1024
+      ) {
+        return res.status(413).json({
+          error: 'DISCO_CUOTA_EXCEDIDA',
+          mensaje: 'Esta empresa ya alcanzó su cuota de espacio — contacta a soporte para ampliarla.',
+        });
       }
 
       // multer/busboy decodifican el header "Content-Disposition" del archivo
