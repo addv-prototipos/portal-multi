@@ -148,10 +148,57 @@ describe('utils/tenantContext.js', () => {
         contactoEmail: null,
         marcaLookfeelHabilitado: true,
         maxUsuarios: null,
+        facturacionHabilitada: true,
+        portalClientesHabilitado: true,
+        sucursalesHabilitado: false,
+        discoCuotaMb: null,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })
       );
+    });
+
+    // Gobierno de funcionalidades por plan (ver PROJECT_STATE.md): default
+    // en BD es 1 para facturacion_habilitada/portal_clientes_habilitado —
+    // un tenant creado antes de estas columnas no debe perder el módulo.
+    test('facturacion_habilitada=0 y portal_clientes_habilitado=0 se exponen como false', async () => {
+      mockPoolControl([{ ...FILA_TENANT_ACTIVO, facturacion_habilitada: 0, portal_clientes_habilitado: 0 }]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.facturacionHabilitada).toBe(false);
+      expect(req.tenant.portalClientesHabilitado).toBe(false);
+    });
+
+    test('sucursales_habilitado=1 se expone como true', async () => {
+      mockPoolControl([{ ...FILA_TENANT_ACTIVO, sucursales_habilitado: 1 }]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.sucursalesHabilitado).toBe(true);
+    });
+
+    test('disco_cuota_mb numérico se expone como Number en discoCuotaMb', async () => {
+      mockPoolControl([{ ...FILA_TENANT_ACTIVO, disco_cuota_mb: 2048 }]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.discoCuotaMb).toBe(2048);
     });
 
     // §58: un tenant asociado a un grupo de sucursales expone

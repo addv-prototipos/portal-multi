@@ -103,6 +103,18 @@ si se pide explícitamente redactar/mejorar un prompt).
   después desincroniza contra el password real ya grabado. Runbook en
   memoria `project_mysql_credential_desync_prod.md`; preflight ya
   integrado en `prod/actualizar.sh`.
+- **Candado de feature-flag por tenant**: `backend/utils/requiereFeature.js`
+  (punto 347) — responde **404, nunca 403**, un tenant sin el módulo se
+  comporta como si la ruta no existiera (mismo criterio que la
+  anti-enumeración de tenants). `server.js` NO tiene routers modulares por
+  feature (son rutas sueltas en un solo archivo) — el candado se inserta
+  ruta por ruta, nunca con un `app.use(prefijo, ...)` único. **Siempre
+  ANTES de `requireAdminAuth`/`requireUserAuth`** en la cadena de
+  middlewares, nunca después — si no, el 404 solo se ve con credenciales
+  válidas, revelando que el módulo existe a quien no las tiene. Portal de
+  clientes se gatea en un solo punto (`requireUserAuth`, cubre todas las
+  rutas de sesión de cliente de un jalón) + el endpoint de login aparte
+  (nace la sesión antes de que exista `requireUserAuth` que la proteja).
 - **`db_host` mal grabado**: correr un script de aprovisionamiento con
   `DB_HOST=127.0.0.1` desde el host graba ese valor en
   `control_tenants.tenants.db_host` — el backend (dentro de Docker)

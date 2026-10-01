@@ -4,7 +4,11 @@
 // a mano, sin mockear ningún módulo — la función recibe la conexión como
 // parámetro explícito, mismo patrón que backend/test/unit/controlDb.test.js.
 
-const { asegurarColumnasCicloVidaTenant, asegurarTablasSucursales } = require('../../scripts/ensureSchema');
+const {
+  asegurarColumnasCicloVidaTenant,
+  asegurarTablasSucursales,
+  asegurarTablaPlanes,
+} = require('../../scripts/ensureSchema');
 
 function mockDb() {
   return { query: jest.fn() };
@@ -26,6 +30,14 @@ const TODAS_LAS_COLUMNAS = [
   { COLUMN_NAME: 'tema_json' },
   { COLUMN_NAME: 'marca_lookfeel_habilitado' },
   { COLUMN_NAME: 'max_usuarios' },
+  { COLUMN_NAME: 'plan_id' },
+  { COLUMN_NAME: 'plan_actualizado_en' },
+  { COLUMN_NAME: 'facturacion_habilitada' },
+  { COLUMN_NAME: 'portal_clientes_habilitado' },
+  { COLUMN_NAME: 'sucursales_habilitado' },
+  { COLUMN_NAME: 'disco_cuota_mb' },
+  { COLUMN_NAME: 'disco_bytes_usados_cache' },
+  { COLUMN_NAME: 'disco_cache_actualizado_en' },
 ];
 
 describe('scripts/ensureSchema.js', () => {
@@ -37,7 +49,9 @@ describe('scripts/ensureSchema.js', () => {
 
       await asegurarColumnasCicloVidaTenant(db);
 
-      expect(db.query).toHaveBeenCalledTimes(14);
+      // 1 SELECT + 21 ALTER (COLUMNAS_NUEVAS) + 1 UPDATE de backfill
+      // (sucursales_habilitado se agregó en esta misma corrida).
+      expect(db.query).toHaveBeenCalledTimes(23);
       expect(db.query.mock.calls[1][0]).toMatch(/ALTER TABLE tenants ADD COLUMN baja_en DATETIME NULL/);
       expect(db.query.mock.calls[2][0]).toMatch(/ALTER TABLE tenants ADD COLUMN rfc_compania VARCHAR\(13\) NULL/);
       expect(db.query.mock.calls[3][0]).toMatch(/ALTER TABLE tenants ADD COLUMN razon_social_compania VARCHAR\(255\) NULL/);
@@ -51,6 +65,44 @@ describe('scripts/ensureSchema.js', () => {
       expect(db.query.mock.calls[11][0]).toMatch(/ALTER TABLE tenants ADD COLUMN tema_json TEXT NULL/);
       expect(db.query.mock.calls[12][0]).toMatch(/ALTER TABLE tenants ADD COLUMN marca_lookfeel_habilitado TINYINT\(1\) NOT NULL DEFAULT 1/);
       expect(db.query.mock.calls[13][0]).toMatch(/ALTER TABLE tenants ADD COLUMN max_usuarios INT NULL/);
+      expect(db.query.mock.calls[14][0]).toMatch(/ALTER TABLE tenants ADD COLUMN plan_id INT NULL/);
+      expect(db.query.mock.calls[15][0]).toMatch(/ALTER TABLE tenants ADD COLUMN plan_actualizado_en DATETIME NULL/);
+      expect(db.query.mock.calls[16][0]).toMatch(/ALTER TABLE tenants ADD COLUMN facturacion_habilitada TINYINT\(1\) NOT NULL DEFAULT 1/);
+      expect(db.query.mock.calls[17][0]).toMatch(/ALTER TABLE tenants ADD COLUMN portal_clientes_habilitado TINYINT\(1\) NOT NULL DEFAULT 1/);
+      expect(db.query.mock.calls[18][0]).toMatch(/ALTER TABLE tenants ADD COLUMN sucursales_habilitado TINYINT\(1\) NOT NULL DEFAULT 0/);
+      expect(db.query.mock.calls[19][0]).toMatch(/ALTER TABLE tenants ADD COLUMN disco_cuota_mb INT NULL/);
+      expect(db.query.mock.calls[20][0]).toMatch(/ALTER TABLE tenants ADD COLUMN disco_bytes_usados_cache BIGINT NULL/);
+      expect(db.query.mock.calls[21][0]).toMatch(/ALTER TABLE tenants ADD COLUMN disco_cache_actualizado_en DATETIME NULL/);
+      expect(db.query.mock.calls[22][0]).toMatch(
+        /UPDATE tenants SET sucursales_habilitado = 1\s+WHERE grupo_sucursal_id IS NOT NULL AND sucursales_habilitado = 0/
+      );
+    });
+
+    test('backfillea sucursales_habilitado=1 solo para tenants que ya están en un grupo, solo cuando la columna se acaba de agregar', async () => {
+      const db = mockDb();
+      // Todas las columnas existen EXCEPTO sucursales_habilitado.
+      db.query.mockResolvedValueOnce([
+        TODAS_LAS_COLUMNAS.filter((c) => c.COLUMN_NAME !== 'sucursales_habilitado'),
+      ]);
+
+      await asegurarColumnasCicloVidaTenant(db);
+
+      // 1 SELECT + 1 ALTER (sucursales_habilitado) + 1 UPDATE backfill.
+      expect(db.query).toHaveBeenCalledTimes(3);
+      expect(db.query.mock.calls[1][0]).toMatch(/ALTER TABLE tenants ADD COLUMN sucursales_habilitado/);
+      expect(db.query.mock.calls[2][0]).toMatch(
+        /UPDATE tenants SET sucursales_habilitado = 1\s+WHERE grupo_sucursal_id IS NOT NULL AND sucursales_habilitado = 0/
+      );
+    });
+
+    test('NO repite el backfill de sucursales_habilitado si la columna ya existía (nunca pisa una excepción ya guardada)', async () => {
+      const db = mockDb();
+      db.query.mockResolvedValueOnce([TODAS_LAS_COLUMNAS]);
+
+      await asegurarColumnasCicloVidaTenant(db);
+
+      expect(db.query).toHaveBeenCalledTimes(1);
+      expect(db.query.mock.calls.some(([sql]) => /UPDATE tenants SET sucursales_habilitado/.test(sql))).toBe(false);
     });
 
     test('no agrega ninguna columna si todas existen (idempotente)', async () => {
@@ -70,7 +122,9 @@ describe('scripts/ensureSchema.js', () => {
 
       await asegurarColumnasCicloVidaTenant(db);
 
-      expect(db.query).toHaveBeenCalledTimes(12);
+      // 1 SELECT + 11 ALTER (restantes del bloque fiscal/marca) + 8 ALTER
+      // (columnas nuevas de planes/flags) + 1 UPDATE backfill = 21.
+      expect(db.query).toHaveBeenCalledTimes(21);
       expect(db.query.mock.calls[1][0]).toMatch(/ADD COLUMN razon_social_compania/);
       expect(db.query.mock.calls[2][0]).toMatch(/ADD COLUMN regimen_fiscal_compania/);
       expect(db.query.mock.calls[3][0]).toMatch(/ADD COLUMN tipo_persona_compania/);
@@ -134,6 +188,37 @@ describe('scripts/ensureSchema.js', () => {
       await asegurarTablasSucursales(db);
 
       expect(db.query).toHaveBeenCalledTimes(4);
+    });
+  });
+
+  describe('asegurarTablaPlanes', () => {
+    test('crea la tabla e inserta los 3 planes semilla si el catálogo está vacío', async () => {
+      const db = mockDb();
+      db.query
+        .mockResolvedValueOnce([{}]) // CREATE TABLE planes
+        .mockResolvedValueOnce([[{ total: 0 }]]) // SELECT COUNT(*)
+        .mockResolvedValueOnce([{}]); // INSERT semilla
+
+      await asegurarTablaPlanes(db);
+
+      expect(db.query).toHaveBeenCalledTimes(3);
+      expect(db.query.mock.calls[0][0]).toMatch(/CREATE TABLE IF NOT EXISTS planes/);
+      expect(db.query.mock.calls[1][0]).toMatch(/SELECT COUNT\(\*\) AS total FROM planes/);
+      const [sqlInsert, params] = db.query.mock.calls[2];
+      expect(sqlInsert).toMatch(/INSERT INTO planes/);
+      expect(params[0]).toHaveLength(3);
+      expect(params[0].map((fila) => fila[0])).toEqual(['Básico', 'Pro', 'Enterprise']);
+    });
+
+    test('no reinserta la semilla si el catálogo ya tiene planes (el operador ya es dueño del catálogo)', async () => {
+      const db = mockDb();
+      db.query
+        .mockResolvedValueOnce([{}]) // CREATE TABLE planes (no-op, ya existe)
+        .mockResolvedValueOnce([[{ total: 2 }]]); // ya hay 2 planes
+
+      await asegurarTablaPlanes(db);
+
+      expect(db.query).toHaveBeenCalledTimes(2);
     });
   });
 });

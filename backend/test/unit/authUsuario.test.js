@@ -235,6 +235,43 @@ describe('authUsuario.js', () => {
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
     });
+
+    // Gobierno de funcionalidades por plan (ver PROJECT_STATE.md):
+    // requireUserAuth es el chokepoint único de "portal de clientes" —
+    // responde 404 (no 401, no 403) antes de siquiera leer la cookie, para
+    // que el tenant sin el módulo se comporte como si la ruta no existiera.
+    test('con portalClientesHabilitado=false en req.tenant, responde 404 SIN leer la cookie de sesión', () => {
+      const token = crearTokenSesion('GOMJ800101ABC', 'cliente1');
+      const req = {
+        cookies: { sesion_usuario: token },
+        tenant: { slug: 'cliente1', portalClientesHabilitado: false },
+      };
+      const res = mockRes();
+      res.end = jest.fn();
+      const next = jest.fn();
+
+      requireUserAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.end).toHaveBeenCalled();
+      expect(req.userRfc).toBeUndefined();
+    });
+
+    test('con portalClientesHabilitado=true (o sin definir) en req.tenant, valida la sesión normalmente', () => {
+      const token = crearTokenSesion('GOMJ800101ABC', 'cliente1');
+      const req = {
+        cookies: { sesion_usuario: token },
+        tenant: { slug: 'cliente1', portalClientesHabilitado: true },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+
+      requireUserAuth(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.userRfc).toBe('GOMJ800101ABC');
+    });
   });
 
   describe('obtenerRfcSesionOpcional', () => {

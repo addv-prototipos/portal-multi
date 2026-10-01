@@ -17,6 +17,7 @@ const swaggerUi = require('swagger-ui-express');
 const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl, obtenerPoolTenant, cerrarPoolTenant, crearBaseDeDatosTenant, eliminarBaseDeDatosTenant } = require('./db');
 const { ejecutarCierresMensualesParaTodos } = require('./utils/cierreMensual');
 const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant } = require('./utils/tenantContext');
+const { requiereFeature } = require('./utils/requiereFeature');
 const { validarSlug, nombreDbTenant } = require('./utils/tenant');
 const storage = require('./utils/storage');
 const {
@@ -1278,6 +1279,10 @@ app.post(
   '/api/auth/login',
   authLimiter,
   tenantAggregateAuthLimiter,
+  // Único punto donde nace una sesión de cliente — requireUserAuth gatea
+  // todo lo que ya tiene sesión, pero el login en sí ocurre antes de que
+  // exista una, así que necesita su propio candado (ver requiereFeature.js).
+  requiereFeature('portalClientesHabilitado'),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const rfc = sanitizeText(body.rfc, 50).toUpperCase();
@@ -1708,7 +1713,7 @@ function etiquetaMes(llave) {
   return corta.charAt(0).toUpperCase() + corta.slice(1);
 }
 
-app.post('/api/tickets', requireUserAuth, submitLimiter, (req, res) => {
+app.post('/api/tickets', requireUserAuth, requiereFeature('facturacionHabilitada'), submitLimiter, (req, res) => {
   subirConTenant(uploadImagen, 'imagen', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -2393,6 +2398,7 @@ async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca, logo
 app.get(
   '/api/tickets',
   requireUserAuth,
+  requiereFeature('facturacionHabilitada'),
   asyncHandler(async (req, res) => {
     const [tickets] = await pool.query(
       `SELECT id, folio, estatus, uso_cfdi, tipo_pago, comentarios, imagen_nombre_original, factura_nombre_original,
@@ -2408,6 +2414,7 @@ app.get(
 app.get(
   '/api/tickets/:id/factura',
   requireUserAuth,
+  requiereFeature('facturacionHabilitada'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -2471,6 +2478,7 @@ app.get(
 // no está activado.
 app.get(
   '/api/config/tickets-retencion',
+  requiereFeature('facturacionHabilitada'),
   asyncHandler(async (req, res) => {
     const dias = await getRetencionTicketsDias();
     res.json({ dias });
@@ -2914,6 +2922,7 @@ app.put(
 app.get(
   '/api/admin/catalogos/uso-cfdi',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -2931,6 +2940,7 @@ app.get(
 app.post(
   '/api/admin/catalogos/uso-cfdi/actualizar',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   async (req, res) => {
@@ -3264,6 +3274,7 @@ app.post(
 app.get(
   '/api/admin/registros',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -3289,6 +3300,7 @@ app.get(
 app.delete(
   '/api/admin/registros/:id',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -3314,6 +3326,7 @@ app.delete(
 app.post(
   '/api/admin/registros/:id/restaurar',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -3341,6 +3354,7 @@ app.post(
 app.delete(
   '/api/admin/registros/:id/permanente',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -3372,6 +3386,7 @@ app.delete(
 app.get(
   '/api/admin/archivo/:id',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -4236,6 +4251,7 @@ app.get(
 app.get(
   '/api/admin/config/tickets-retencion',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -4249,6 +4265,7 @@ app.get(
 app.put(
   '/api/admin/config/tickets-retencion',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -4921,6 +4938,7 @@ app.delete(
 app.get(
   '/api/admin/tickets/pendientes-sin-contador',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -4955,6 +4973,7 @@ app.get(
 app.get(
   '/api/admin/tickets',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal', 'administrador'),
   asyncHandler(async (req, res) => {
@@ -5020,6 +5039,7 @@ app.get(
 app.get(
   '/api/admin/tickets/usuarios-actualizado-por',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -5039,6 +5059,7 @@ app.get(
 app.put(
   '/api/admin/tickets/:id/estatus',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -5085,6 +5106,7 @@ app.put(
 app.delete(
   '/api/admin/tickets/:id',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -5108,6 +5130,7 @@ app.delete(
 app.post(
   '/api/admin/tickets/:id/restaurar',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -5135,6 +5158,7 @@ app.post(
 app.delete(
   '/api/admin/tickets/:id/permanente',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -5175,6 +5199,7 @@ app.delete(
 app.post(
   '/api/admin/tickets/:id/factura',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   (req, res) => {
@@ -5396,6 +5421,7 @@ async function notificarFacturaListaAlCliente(rfc, folio, marca, urlPortal, logo
 app.get(
   '/api/admin/tickets/:id/imagen',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {
@@ -5427,6 +5453,7 @@ app.get(
 app.get(
   '/api/admin/tickets/:id/factura',
   adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
   requireAdminAuth,
   requireAdminArea('fiscal'),
   asyncHandler(async (req, res) => {

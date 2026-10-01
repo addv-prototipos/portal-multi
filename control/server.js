@@ -709,9 +709,10 @@ app.use((req, res) => {
 async function iniciar() {
   await asegurarTablaAuditoria();
   await asegurarColumnasCicloVidaTenant(obtenerPool());
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes } = require('./scripts/ensureSchema');
   await asegurarTablaApiCredenciales(obtenerPool());
   await asegurarTablasSucursales(obtenerPool());
+  await asegurarTablaPlanes(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);

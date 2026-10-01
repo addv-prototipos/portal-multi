@@ -1066,6 +1066,18 @@ invalidación de caché entre contenedores funcione.
 - Cada acción queda registrada en `control_tenants.tenant_eventos` y en
   la auditoría de acceso admin (`admin_auditoria`, segmento 7) — escrita
   ahora por `control` con su propia credencial angosta.
+- **Gobierno de funcionalidades por tenant (ver PROJECT_STATE.md punto
+  347 — en progreso, Fase 0 y 1 de 5 implementadas)**: además del estado
+  del tenant, `/control` va a gobernar QUÉ PUEDE USAR cada empresa
+  (Facturación, portal de clientes, sucursales, marca propia, cuota de
+  disco) mediante un catálogo de **planes** — se crean y nombran primero,
+  sin ningún cliente en mente, y se asignan después al dar de alta/editar
+  una empresa. Hoy ya existen la tabla `planes` (con 3 planes semilla) y
+  las columnas de flags en `tenants`, y el backend ya respeta esos flags
+  (404, nunca 403, si el módulo está apagado) — **todavía no hay ninguna
+  pantalla en `/control` para crearlos/asignarlos**, así que en la
+  práctica todo tenant sigue teniendo Facturación y portal de clientes
+  encendidos (los defaults de migración) hasta que esa pantalla exista.
 
 ### Desplegar `/control` en un servidor distinto
 

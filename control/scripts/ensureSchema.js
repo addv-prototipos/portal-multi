@@ -50,6 +50,33 @@ const COLUMNAS_NUEVAS = [
   // NULL = sin límite (comportamiento de siempre). Enforcement real en
   // backend/server.js POST /api/admin/usuarios.
   { nombre: 'max_usuarios', definicion: 'INT NULL' },
+  // Gobierno de funcionalidades por plan (ver PROJECT_STATE.md — "Gobierno
+  // de funcionalidades por tenant desde /control"): plan_id sin FK a
+  // propósito — control_app no tiene privilegio REFERENCES (mismo motivo
+  // que grupo_sucursal_id abajo, ya documentado en asegurarTablasSucursales).
+  // Al asignar un plan, sus valores se COPIAN a las columnas de abajo (no
+  // es una referencia viva) — editar un plan después nunca pisa en
+  // silencio un tenant ya asignado; para eso existe "Reaplicar valores del
+  // plan" en /control, una acción explícita.
+  { nombre: 'plan_id', definicion: 'INT NULL' },
+  { nombre: 'plan_actualizado_en', definicion: 'DATETIME NULL' },
+  // DEFAULT 1 en estas dos: todo tenant existente YA usa Facturación y el
+  // portal de clientes hoy sin ninguna restricción — el flag nace
+  // encendido para que agregar la columna no apague nada el día de la
+  // migración (mismo criterio que marca_lookfeel_habilitado arriba).
+  { nombre: 'facturacion_habilitada', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  { nombre: 'portal_clientes_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // DEFAULT 0: feature nueva, nadie la tenía antes de esta columna salvo
+  // quien ya esté en un grupo real — ver el backfill condicional abajo.
+  { nombre: 'sucursales_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // Cuota de disco en MB para imágenes (gobernada desde /control, top-down
+  // — distinta de inv_imagen_cuota_mb, que el propio tenant se configura a
+  // sí mismo en sus Configuraciones). NULL = sin límite impuesto desde
+  // /control. El uso real se mide async, nunca en vivo por request — ver
+  // disco_bytes_usados_cache.
+  { nombre: 'disco_cuota_mb', definicion: 'INT NULL' },
+  { nombre: 'disco_bytes_usados_cache', definicion: 'BIGINT NULL' },
+  { nombre: 'disco_cache_actualizado_en', definicion: 'DATETIME NULL' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {
@@ -58,10 +85,25 @@ async function asegurarColumnasCicloVidaTenant(db) {
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tenants'`
   );
   const nombres = columnas.map((c) => c.COLUMN_NAME);
+  // Se recuerda si ESTA corrida fue la que agregó sucursales_habilitado —
+  // el backfill de abajo solo debe disparar esa única vez (el momento en
+  // que la columna nace), nunca en cada restart, o revertiría en silencio
+  // una excepción que un operador haya apagado a mano para un tenant que
+  // sigue en un grupo (la misma lección ya aprendida con ensureSchema()
+  // del backend: un backfill debe ser condicional a un estado viejo
+  // conocido, nunca incondicional).
+  let sucursalesHabilitadoReciénAgregada = false;
   for (const { nombre, definicion } of COLUMNAS_NUEVAS) {
     if (!nombres.includes(nombre)) {
       await db.query(`ALTER TABLE tenants ADD COLUMN ${nombre} ${definicion}`);
+      if (nombre === 'sucursales_habilitado') sucursalesHabilitadoReciénAgregada = true;
     }
+  }
+  if (sucursalesHabilitadoReciénAgregada) {
+    await db.query(
+      `UPDATE tenants SET sucursales_habilitado = 1
+       WHERE grupo_sucursal_id IS NOT NULL AND sucursales_habilitado = 0`
+    );
   }
 }
 
@@ -164,4 +206,65 @@ async function asegurarTablasSucursales(db) {
   `);
 }
 
-module.exports = { asegurarColumnasCicloVidaTenant, asegurarTablaApiCredenciales, asegurarTablasSucursales };
+// Catálogo de planes (gobierno de funcionalidades por tenant, ver
+// PROJECT_STATE.md). Vive solo — sin referencia a ningún tenant — un plan
+// se crea y nombra ANTES de tener ningún cliente en mente; se asigna
+// después desde la ficha de empresa (sección "Plan y funciones"), que
+// copia estas columnas a `tenants` en ese momento. Editar el plan después
+// no toca tenants ya asignados (ver nota de plan_id en COLUMNAS_NUEVAS).
+//
+// Sin DELETE físico una vez que algún tenant lo tiene asignado — se
+// archiva con `activo = 0` (deja de ofrecerse para asignar a empresas
+// nuevas, pero los tenants que ya lo tienen siguen funcionando igual).
+// Mismo criterio soft-delete que el resto de este archivo.
+async function asegurarTablaPlanes(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS planes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nombre VARCHAR(80) NOT NULL,
+      descripcion VARCHAR(255) NULL,
+      precio_mensual DECIMAL(10,2) NULL,
+      precio_anual DECIMAL(10,2) NULL,
+      max_usuarios INT NULL,
+      sucursales_habilitado TINYINT(1) NOT NULL DEFAULT 0,
+      facturacion_habilitada TINYINT(1) NOT NULL DEFAULT 0,
+      portal_clientes_habilitado TINYINT(1) NOT NULL DEFAULT 1,
+      marca_lookfeel_habilitado TINYINT(1) NOT NULL DEFAULT 0,
+      disco_cuota_mb INT NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 1,
+      orden INT NOT NULL DEFAULT 0,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Semilla de arranque — solo si el catálogo está vacío (primera
+  // instalación de este segmento). Nunca se reinserta ni se corrige
+  // después: una vez que existe un solo plan, el operador es dueño del
+  // catálogo desde /control.
+  const [[{ total }]] = await db.query('SELECT COUNT(*) AS total FROM planes');
+  if (total === 0) {
+    const ahora = new Date();
+    await db.query(
+      `INSERT INTO planes
+         (nombre, descripcion, precio_mensual, precio_anual, max_usuarios,
+          sucursales_habilitado, facturacion_habilitada, portal_clientes_habilitado,
+          marca_lookfeel_habilitado, disco_cuota_mb, activo, orden, creado_en, actualizado_en)
+       VALUES ?`,
+      [
+        [
+          ['Básico', 'Plan de entrada — sin sucursales ni Facturación.', 490, 4900, 5, 0, 0, 1, 0, 500, 1, 1, ahora, ahora],
+          ['Pro', 'Incluye sucursales y Facturación.', 1490, 14900, 15, 1, 1, 1, 0, 2048, 1, 2, ahora, ahora],
+          ['Enterprise', 'Sin límite de usuarios, marca propia incluida.', null, null, null, 1, 1, 1, 1, 10240, 1, 3, ahora, ahora],
+        ],
+      ]
+    );
+  }
+}
+
+module.exports = {
+  asegurarColumnasCicloVidaTenant,
+  asegurarTablaApiCredenciales,
+  asegurarTablasSucursales,
+  asegurarTablaPlanes,
+};

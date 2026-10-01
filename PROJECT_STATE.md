@@ -16758,6 +16758,83 @@ globales, fiel al mockup entregado en `stitch/modVentas/code.html`.
   navegador (elegir cada opción, ver el chip de vista previa actualizar
   en vivo). Sin commit/push todavía.
 
+**Punto 347 (2026-09-30, Fase 0 y Fase 1 IMPLEMENTADAS — Fase 2-5
+pendientes):** "Gobierno de funcionalidades por tenant desde /control" —
+hasta ahora `/control` solo administraba el ESTADO del tenant (activo/
+suspendido/baja/papelera, punto 345); este punto lo extiende para que
+también gobierne QUÉ PUEDE USAR cada tenant (Facturación, portal de
+clientes, sucursales, marca propia, cuota de disco), vía un catálogo de
+**planes** con excepción individual por tenant. Propuesta de arquitectura
+y diseño validada con el usuario (Artifact, 3 rondas — modelo de planes,
+flujo "crear plan antes/asignar después", esquema de BD + fases) antes de
+implementar, siguiendo el protocolo `addv-web-app`.
+
+- **Arquitectura decidida**: un plan trae valores por defecto; al
+  asignarlo a un tenant, esos valores se COPIAN a sus columnas (no es una
+  referencia viva) — editar un plan después nunca pisa en silencio un
+  tenant ya asignado (misma lección que `ensureSchema()`: backfill
+  condicional, nunca incondicional). "Reaplicar valores del plan" queda
+  como acción explícita futura (Fase 3), no automática.
+- **Fase 0 — esquema de BD** (`control/scripts/ensureSchema.js`):
+  - Tabla nueva `planes` (`asegurarTablaPlanes`) — catálogo independiente,
+    sin referencia a ningún tenant; semilla de 3 planes (Básico/Pro/
+    Enterprise) solo si el catálogo nace vacío, nunca se reinserta después.
+  - Columnas nuevas en `tenants`: `plan_id`/`plan_actualizado_en` (SIN
+    FOREIGN KEY — `control_app` no tiene privilegio `REFERENCES`, mismo
+    motivo ya documentado para `grupo_sucursal_id`), `facturacion_habilitada`/
+    `portal_clientes_habilitado` (DEFAULT 1 — todo tenant existente YA usa
+    ambos módulos hoy sin restricción), `sucursales_habilitado` (DEFAULT 0,
+    con backfill condicional a 1 SOLO para tenants que ya están en un grupo
+    real, y SOLO en la corrida que agrega la columna — nunca en restarts
+    posteriores, para no revertir una excepción que un operador haya
+    apagado a mano), `disco_cuota_mb`/`disco_bytes_usados_cache`/
+    `disco_cache_actualizado_en` (medición real de bytes queda para Fase 4
+    — hoy `storage.js` solo cuenta objetos, no bytes).
+  - 10 pruebas unitarias nuevas en `control/test/unit/ensureSchema.test.js`
+    (columnas nuevas, backfill condicional, no-reversión, semilla de planes).
+- **Fase 1 — candado en el backend** (`backend/utils/requiereFeature.js`,
+  nuevo): responde **404, nunca 403** — un tenant sin el módulo se
+  comporta como si la ruta no existiera (mismo criterio que la
+  anti-enumeración de tenants de `tenantContext.js`, segmento 7).
+  - `tenantContext.js`: el SELECT que arma `req.tenant` ahora incluye los
+    4 flags nuevos (mismo patrón que `marcaLookfeelHabilitado`/
+    `maxUsuarios` ya existentes).
+  - **Portal de clientes** — un solo candado centralizado: `requireUserAuth`
+    (`authUsuario.js`) compone `requiereFeature('portalClientesHabilitado')`
+    ANTES de leer la cookie de sesión, cubriendo TODAS las rutas de sesión
+    de cliente de un jalón. El endpoint de login (`POST /api/auth/login`,
+    donde nace la sesión, antes de que exista `requireUserAuth` que la
+    proteja) lleva el mismo candado por separado.
+  - **Facturación** — sin prefijo de router único en `server.js` (rutas
+    sueltas, no modulares), así que el candado va ruta por ruta: 23
+    inserciones de `requiereFeature('facturacionHabilitada')` — las 4
+    rutas de cliente/públicas de tickets (`POST/GET /api/tickets`,
+    `GET /api/tickets/:id/factura`, `GET /api/config/tickets-retencion`)
+    + las 19 rutas admin bajo `requireAdminArea('fiscal')` (tickets,
+    registros/Constancias, catálogo Uso de CFDI, archivo de registro).
+    **Orden importa**: el candado va ANTES de `requireAdminAuth` (no
+    después) — un tenant sin el módulo responde 404 tenga o no
+    credenciales válidas, nunca se le confirma primero si sus
+    credenciales son correctas. Se descartó gatear
+    `/api/admin/config/campos-obligatorios` — esa config resultó
+    compartida con órdenes de compra (`ordenes_compra_habilitado` sale
+    del mismo objeto), no exclusiva de Facturación; atarla al flag habría
+    roto Ventas.
+  - 19 pruebas unitarias nuevas (`requiereFeature.test.js`,
+    `authUsuario.test.js`, `tenantContext.test.js`) + 9 pruebas de
+    integración nuevas (`backend/test/integration/gobiernoFunciones.test.js`)
+    que confirman 404-antes-que-401 con supertest real contra `server.js`.
+- **Suite completa verificada**: backend 1093/1094 (la única falla,
+  `resumenFinanciero.test.js`, es preexistente y no relacionada — no
+  toca ningún archivo de este punto, depende de la fecha del sistema);
+  control 266/266. `node --check` limpio en todos los archivos tocados.
+- **Pendiente — Fase 2 a 5** (ver propuesta original, Artifact): pantalla
+  "Planes" en `/control` (catálogo + crear/editar/archivar), modal
+  "Editar empresa" rediseñado por pestañas con la sección "Plan y
+  funciones", medición real de bytes en MinIO para la cuota de disco,
+  y documentación final + auditoría visible en `/control`. Sin
+  commit/push todavía — cambios solo en el working tree.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
@@ -16785,4 +16862,5 @@ globales, fiel al mockup entregado en `stitch/modVentas/code.html`.
 - Alta de empresa nueva desde `/control` (multi-tenant, segmento 9c, punto 101): `control/utils/tenantIntake.js` (`crearTenantIntake`, fila `estado='provisioning'`), `control/server.js` (`POST /api/control/tenants`), modal en `frontend/control.html`/`control.js`/`admin.css`, completado por `backend/scripts/provisionar-tenant.js` + `aplicarConfiguracionFiscalEnProcesoHijo` en `backend/scripts/lib/controlDb.js`
 - Endpoint interno de invalidación de caché entre contenedores (punto 99): `backend/server.js`, `POST /internal/cache-tenant/invalidar`
 - Identidad visual (tema) por tenant (segmento "Look & Feel", punto 105): `backend/utils/tenantTema.js` + `control/utils/tenantTema.js` (validación duplicada), columna `tema_json` en `control/scripts/ensureSchema.js`, `GET /api/tema/:slug` + `POST`/`DELETE /internal/favicon/:slug` en `backend/server.js`, `PUT /api/control/tenants/:slug/tema` en `control/server.js`, `frontend/theme.js` (pinta CSS variables en runtime)
+- Gobierno de funcionalidades por tenant / candado de feature-flag (punto 347): `backend/utils/requiereFeature.js` (404, no 403), catálogo `planes` + columnas `facturacion_habilitada`/`portal_clientes_habilitado`/`sucursales_habilitado`/`disco_cuota_mb`/`plan_id` en `control/scripts/ensureSchema.js`
 - Documentación completa para el usuario final: `README.md` (mucho más detallado que este archivo — este es para retomar el trabajo, el README es para operar la app)

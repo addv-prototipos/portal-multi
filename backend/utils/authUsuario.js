@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { requiereFeature } = require('./requiereFeature');
 
 // Clave con la que se firman los tokens de sesión de los usuarios del
 // portal (RFC + contraseña). Es independiente de las credenciales de
@@ -129,18 +130,28 @@ function verificarTokenSesion(token, tenantSlugEsperado = null) {
   }
 }
 
+// Candado de "portal de clientes" (ver PROJECT_STATE.md — gobierno de
+// funcionalidades por tenant desde /control): requireUserAuth es el único
+// chokepoint por el que pasan TODAS las rutas de sesión de cliente, así
+// que componerlo aquí una sola vez cubre el portal entero de un jalón —
+// no hace falta repetirlo ruta por ruta. Responde 404 (no 403) antes de
+// siquiera leer la cookie de sesión.
+const candadoPortalClientes = requiereFeature('portalClientesHabilitado');
+
 // Middleware: exige una sesión de usuario válida (cookie httpOnly) y
 // expone el RFC autenticado en req.userRfc. No debe confundirse con
 // requireAdminAuth (Basic Auth, para /admin) — son sistemas separados.
 function requireUserAuth(req, res, next) {
-  const token = req.cookies ? req.cookies[COOKIE_NOMBRE] : null;
-  const tenantSlug = req.tenant ? req.tenant.slug : null;
-  const payload = verificarTokenSesion(token, tenantSlug);
-  if (!payload) {
-    return res.status(401).json({ error: 'Tu sesión no es válida o expiró. Inicia sesión de nuevo.' });
-  }
-  req.userRfc = payload.rfc;
-  next();
+  candadoPortalClientes(req, res, () => {
+    const token = req.cookies ? req.cookies[COOKIE_NOMBRE] : null;
+    const tenantSlug = req.tenant ? req.tenant.slug : null;
+    const payload = verificarTokenSesion(token, tenantSlug);
+    if (!payload) {
+      return res.status(401).json({ error: 'Tu sesión no es válida o expiró. Inicia sesión de nuevo.' });
+    }
+    req.userRfc = payload.rfc;
+    next();
+  });
 }
 
 // A diferencia de requireUserAuth, esta función NO rechaza la petición si

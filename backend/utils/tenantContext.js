@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, sucursales_habilitado, disco_cuota_mb
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -112,6 +112,19 @@ async function resolverTenantMiddleware(req, res, next) {
       // Cuota de cuentas de panel (administrador/fiscal/ventas) — null =
       // sin límite. Enforcement real en POST /api/admin/usuarios.
       maxUsuarios: tenant.max_usuarios == null ? null : Number(tenant.max_usuarios),
+      // Gobierno de funcionalidades por plan (ver PROJECT_STATE.md). DEFAULT
+      // en BD es 1 para estas dos — un tenant ya configurado antes de estas
+      // columnas sigue teniendo el módulo igual que siempre. Mismo criterio
+      // booleano que marcaLookfeelHabilitado arriba (MySQL puede devolver
+      // 0/1 o false/true según el driver).
+      facturacionHabilitada: tenant.facturacion_habilitada !== 0 && tenant.facturacion_habilitada !== false,
+      portalClientesHabilitado: tenant.portal_clientes_habilitado !== 0 && tenant.portal_clientes_habilitado !== false,
+      // DEFAULT en BD es 0 — a diferencia de las dos de arriba, esta es una
+      // feature nueva que nadie tenía antes salvo quien ya esté en un grupo
+      // real (ver backfill condicional en control/scripts/ensureSchema.js).
+      sucursalesHabilitado: tenant.sucursales_habilitado === 1 || tenant.sucursales_habilitado === true,
+      // Cuota de disco en MB impuesta desde /control — null = sin límite.
+      discoCuotaMb: tenant.disco_cuota_mb == null ? null : Number(tenant.disco_cuota_mb),
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas
