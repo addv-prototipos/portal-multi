@@ -348,7 +348,11 @@
     btnLimpiarOrdenesFiltroConcepto: document.getElementById('btn-limpiar-ordenes-filtro-concepto'),
     // Modal "Corte del día" (punto 168, restyle punto 320)
     btnAbrirCorteModal: document.getElementById('btn-abrir-corte-modal'),
+    btnAbrirCorteRangoModal: document.getElementById('btn-abrir-corte-rango-modal'),
+    cortesToolbar: document.getElementById('cortes-toolbar'),
     corteModalOverlay: document.getElementById('corte-modal-overlay'),
+    corteModalTitle: document.getElementById('corte-modal-title'),
+    corteFiltrosRow: document.getElementById('corte-filtros-row'),
     btnCerrarCorteModal: document.getElementById('btn-cerrar-corte-modal'),
     corteChipRow: document.getElementById('corte-chip-row'),
     corteFiltroDesde: document.getElementById('corte-filtro-desde'),
@@ -3190,39 +3194,27 @@
   els.corteFiltroDesde.addEventListener('input', sincronizarChipActivoCorte);
   els.corteFiltroHasta.addEventListener('input', sincronizarChipActivoCorte);
 
-  function abrirCorteModal() {
-    els.corteError.textContent = '';
-    els.corteResultado.hidden = true;
-    els.corteResultadoEmpty.hidden = true;
-    corteUltimoResultado = null;
-    const hoy = new Date().toISOString().slice(0, 10);
-    if (!els.corteFiltroDesde.value) els.corteFiltroDesde.value = hoy;
-    if (!els.corteFiltroHasta.value) els.corteFiltroHasta.value = hoy;
-    sincronizarChipActivoCorte();
-    els.corteModalOverlay.hidden = false;
-  }
-  function cerrarCorteModal() {
-    els.corteModalOverlay.hidden = true;
-  }
-  els.btnAbrirCorteModal.addEventListener('click', abrirCorteModal);
-  els.btnCerrarCorteModal.addEventListener('click', cerrarCorteModal);
-  els.corteModalOverlay.addEventListener('click', (e) => {
-    if (e.target === els.corteModalOverlay) cerrarCorteModal();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !els.corteModalOverlay.hidden) cerrarCorteModal();
-  });
+  // Punto 350: "Corte del día" (Ventas) deja de pedir fechas — siempre
+  // hoy, un clic. El selector de rango libre que antes vivía aquí se
+  // movió a Lectura de reportes → pestaña Cortes, como "Reporte por
+  // rango" (abrirCorteModal('rango')), mismo modal/endpoint, solo
+  // reubicado. corteModalModo decide si se ve .corte-filtros-row y si
+  // se auto-genera al abrir.
+  let corteModalModo = 'hoy';
 
-  els.btnGenerarCorte.addEventListener('click', async () => {
+  function fechaLegibleCorta(iso) {
+    const fecha = new Date(`${iso}T00:00:00`);
+    if (Number.isNaN(fecha.getTime())) return iso;
+    return fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  async function generarCorte(desde, hasta) {
     const authHeader = getAuthHeader();
     if (!authHeader) {
       showLogin();
       return;
     }
-
     els.corteError.textContent = '';
-    const desde = els.corteFiltroDesde.value;
-    const hasta = els.corteFiltroHasta.value;
     if (!desde || !hasta) {
       els.corteError.textContent = 'Elige la fecha "desde" y "hasta".';
       return;
@@ -3231,7 +3223,6 @@
       els.corteError.textContent = 'La fecha "desde" debe ser anterior o igual a "hasta".';
       return;
     }
-
     els.btnGenerarCorte.disabled = true;
     els.btnGenerarCorteLabel.textContent = 'Generando…';
     try {
@@ -3263,6 +3254,46 @@
       els.btnGenerarCorte.disabled = false;
       els.btnGenerarCorteLabel.textContent = 'Generar corte';
     }
+  }
+
+  function abrirCorteModal(modo) {
+    corteModalModo = modo;
+    els.corteError.textContent = '';
+    els.corteResultado.hidden = true;
+    els.corteResultadoEmpty.hidden = true;
+    corteUltimoResultado = null;
+    const hoy = new Date().toISOString().slice(0, 10);
+    if (modo === 'hoy') {
+      els.corteModalTitle.textContent = `Corte del día — ${fechaLegibleCorta(hoy)}`;
+      els.corteFiltrosRow.hidden = true;
+      els.corteFiltroDesde.value = hoy;
+      els.corteFiltroHasta.value = hoy;
+      els.corteModalOverlay.hidden = false;
+      generarCorte(hoy, hoy);
+      return;
+    }
+    els.corteModalTitle.textContent = 'Reporte por rango';
+    els.corteFiltrosRow.hidden = false;
+    if (!els.corteFiltroDesde.value) els.corteFiltroDesde.value = hoy;
+    if (!els.corteFiltroHasta.value) els.corteFiltroHasta.value = hoy;
+    sincronizarChipActivoCorte();
+    els.corteModalOverlay.hidden = false;
+  }
+  function cerrarCorteModal() {
+    els.corteModalOverlay.hidden = true;
+  }
+  els.btnAbrirCorteModal.addEventListener('click', () => abrirCorteModal('hoy'));
+  els.btnAbrirCorteRangoModal.addEventListener('click', () => abrirCorteModal('rango'));
+  els.btnCerrarCorteModal.addEventListener('click', cerrarCorteModal);
+  els.corteModalOverlay.addEventListener('click', (e) => {
+    if (e.target === els.corteModalOverlay) cerrarCorteModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !els.corteModalOverlay.hidden) cerrarCorteModal();
+  });
+
+  els.btnGenerarCorte.addEventListener('click', () => {
+    generarCorte(els.corteFiltroDesde.value, els.corteFiltroHasta.value);
   });
 
   // Arma el corte imprimible (ancho de hoja, no recibo) del último
@@ -4939,6 +4970,7 @@
     // dentro del contenedor de "Estado del inventario"), así que su
     // visibilidad ya no la resuelve el hidden del contenedor padre.
     if (els.invEstadoToolbar) els.invEstadoToolbar.hidden = nombre !== 'estado-inventario';
+    if (els.cortesToolbar) els.cortesToolbar.hidden = nombre !== 'cortes';
     if (activa.alEntrar) activa.alEntrar();
   }
 

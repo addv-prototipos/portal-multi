@@ -1654,7 +1654,7 @@
             <button type="button" class="btn-icon" id="btn-cerrar-corte-modal" aria-label="Cerrar">✕</button>
           </div>
           <div class="ticket-modal-body corte-modal-body">
-            <div class="corte-filtros-row">
+            <div class="corte-filtros-row" id="corte-filtros-row">
               <div class="corte-chip-row" id="corte-chip-row" role="group" aria-label="Rangos rápidos">
                 <button type="button" class="corte-chip" data-rango="hoy">Hoy</button>
                 <button type="button" class="corte-chip" data-rango="ayer">Ayer</button>
@@ -3208,6 +3208,13 @@
             <button type="button" class="btn btn-secondary" id="btn-inv-estado-imprimir">Imprimir</button>
             <button type="button" class="btn btn-secondary" id="btn-inv-estado-exportar">Descargar CSV</button>
           </div>
+          <!-- Punto 350: "Reporte por rango" (antes el rango libre vivía
+               dentro de "Corte del día" en Ventas) — mismo criterio que
+               inv-estado-toolbar, se muestra/oculta junto con su pestaña
+               desde activarPestanaReportes(). -->
+          <div class="inv-estado-toolbar" id="cortes-toolbar" hidden>
+            <button type="button" class="btn btn-secondary" id="btn-abrir-corte-rango-modal">+ Nuevo reporte por rango</button>
+          </div>
         </div>
 
         <div id="reportes-vista-por-reporte">
@@ -3390,7 +3397,7 @@
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="7" width="18" height="14" rx="2" stroke-width="1.6"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" stroke-linecap="round" stroke-width="1.6"/></svg>
                 </span>
                 <p class="admin-empty-titulo">Aún no has generado ningún corte de ventas</p>
-                <p>El botón "Corte del día" vive en la vista de Ventas — genera uno ahí y va a aparecer en esta lista.</p>
+                <p>El corte de hoy se genera con un clic desde el botón "Corte del día" en Ventas. Para otro rango de fechas, usa "+ Nuevo reporte por rango" arriba.</p>
                 <button type="button" class="btn btn-secondary" id="btn-cortes-ir-ventas">Ir a Ventas</button>
               </div>
             </div>

@@ -4059,6 +4059,23 @@
    (210px de default dejaba ~90px vacíos). La clase .tickets-table ya
    vive en el <table>, no hace falta un id nuevo en el wrap. */
 .tickets-table th:last-child { width: 140px; }
+/* Mismo criterio aplicado al resto de tablas con cantidad FIJA de iconos
+   (nunca más de 3, sin importar la fila) — antes se quedaban con los
+   210px de default pensados para Usuarios (4 iconos + separador), con el
+   mismo hueco vacío que ya se corrigió en Ventas/Tickets. Documentos:
+   Ver archivo + Eliminar (2), o + Restaurar/Eliminar permanente en
+   papelera (3). Gastos: Editar + Papelera, o Restaurar + Eliminar
+   permanente (siempre 2). Inventarios: Entrada + Salida + menú "⋮" (3),
+   o Editar + Papelera / Restaurar + Eliminar permanente (2) — el menú
+   "⋮" agrupa Ver historial/Editar/Imprimir etiqueta/Papelera en un solo
+   botón, así que nunca se ven más de 3 iconos a la vez. CxC NO entra
+   aquí: varía de 2 a 4 iconos por fila, se dimensiona por el máximo. */
+#admin-table-wrap .admin-table th:last-child { width: 140px; }
+#gastos-table-wrap .admin-table th:last-child { width: 140px; }
+#inv-table-wrap .admin-table th:last-child { width: 140px; }
+/* Matriz de riesgo (Estado del inventario): un solo icono, "Gestionar" —
+   el caso más desbalanceado de todos (166px vacíos en 210px). */
+.inv-estado-matriz-tabla th:last-child { width: 80px; }
 
 .admin-table th,
 .admin-table td {
