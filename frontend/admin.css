@@ -4446,6 +4446,58 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   margin: 0 0 4px;
 }
 
+/* Punto en curso (gating Facturación) — reemplaza los KPIs de
+   Facturación cuando el módulo está apagado; mismo lenguaje visual que
+   .inicio-stat-card/.admin-table-wrap, sin inventar un patrón nuevo. */
+.inicio-sinfact-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+}
+.inicio-sinfact-card h2 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+.inicio-sinfact-card p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--color-ink-soft);
+}
+.inicio-sinfact-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.inicio-sinfact-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.inicio-sinfact-link:hover {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+.inicio-sinfact-link .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
 .inicio-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -8262,6 +8314,18 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .gastos-categoria-fila-protegida {
   background: transparent;
   border-style: dashed;
+}
+/* Fila de checklist sin derecho a asociarse (punto en curso, ver
+   Sucursales en /control) — mismo lenguaje visual que el resto de
+   checkboxes/switches inhabilitados del sitio (regla 11). */
+.gastos-categoria-fila.is-disabled {
+  opacity: 0.5;
+  background: transparent;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+.gastos-categoria-fila.is-disabled .gastos-categoria-nombre {
+  color: var(--color-ink-soft);
 }
 .gastos-categoria-tipo {
   flex-shrink: 0;

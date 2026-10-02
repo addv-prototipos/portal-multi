@@ -88,7 +88,36 @@
     recuperarConfirmacion: document.getElementById('recuperar-confirmacion'),
 
     toast: document.getElementById('toast'),
+
+    registroRfcField: document.getElementById('registro-rfc-field'),
+    registroCsfField: document.getElementById('registro-csf-field'),
   };
+
+  // Punto en curso: sin Facturación activa en este tenant, el registro
+  // público no tiene para qué pedir RFC/Constancia — el backend genera
+  // un identificador interno (ver POST /api/auth/registro). Se consulta
+  // ANTES de que exista sesión, por eso es un endpoint público aparte
+  // (GET /api/config/registro, sin datos sensibles — un solo booleano).
+  let facturacionHabilitadaRegistro = true;
+  async function cargarGatingRegistro() {
+    try {
+      const res = await fetch(`${API_BASE}/config/registro`);
+      const data = await res.json().catch(() => ({}));
+      facturacionHabilitadaRegistro = data.facturacionHabilitada !== false;
+    } catch (err) {
+      facturacionHabilitadaRegistro = true; // falla de red: comportamiento de siempre, nunca oculta de más
+    }
+    aplicarGatingRegistro();
+  }
+  function aplicarGatingRegistro() {
+    const oculto = !facturacionHabilitadaRegistro;
+    if (els.registroRfcField) els.registroRfcField.hidden = oculto;
+    // El bloque CSF oculto basta — "Tipo de persona" solo se muestra desde
+    // dentro de ese mismo flujo (detección por PDF), nunca aparece solo.
+    if (els.registroCsfField) els.registroCsfField.hidden = oculto;
+    if (els.registroRfc) els.registroRfc.required = !oculto;
+  }
+  cargarGatingRegistro();
 
   function showToast(message, isError = false) {
     els.toast.textContent = message;
@@ -388,7 +417,7 @@
     const passwordConfirmar = els.registroPasswordConfirmar.value;
 
     let valido = true;
-    if (!validarRFC(rfc)) {
+    if (facturacionHabilitadaRegistro && !validarRFC(rfc)) {
       setFieldError('registro-rfc', 'Ingresa un RFC válido.');
       valido = false;
     }

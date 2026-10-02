@@ -474,6 +474,19 @@
              perfiles. -->
         <div id="inicio-inventario-slot" hidden></div>
 
+        <!-- Punto en curso (gating Facturación): sin Facturación activa,
+             /api/admin/tickets responde 404 (requiereFeature) — en vez de
+             mostrar el error roto de los KPIs/tabla de abajo, se muestra
+             este bloque (bienvenida + accesos directos a los módulos que
+             SÍ están activos, sin ninguna cifra financiera). -->
+        <div id="inicio-sin-facturacion" hidden>
+          <div class="inicio-sinfact-card">
+            <h2 id="inicio-sinfact-titulo">Facturación no está activa en tu plan</h2>
+            <p>Aquí tienes acceso directo a lo que sí tienes disponible.</p>
+          </div>
+          <div class="inicio-sinfact-links" id="inicio-sinfact-links"></div>
+        </div>
+
         <div class="inicio-stats-grid" id="inicio-stats-grid">
           <div class="inicio-stat-card">
             <div class="inicio-stat-header">
@@ -4246,7 +4259,7 @@
             </select>
           </div>
 
-          <div class="field">
+          <div class="field" id="crear-usuario-rfc-field">
             <label for="crear-usuario-rfc" id="crear-usuario-rfc-label">RFC</label>
             <input type="text" id="crear-usuario-rfc" maxlength="50" autocapitalize="characters" />
             <p class="field-hint" id="crear-usuario-rfc-hint">RFC del cliente, con el que iniciará sesión en el portal.</p>
@@ -4341,7 +4354,7 @@
         </select>
       </div>
 
-      <div class="field">
+      <div class="field" id="editar-usuario-rfc-field">
         <label for="editar-usuario-rfc" id="editar-usuario-rfc-label">RFC</label>
         <input type="text" id="editar-usuario-rfc" maxlength="50" autocapitalize="characters" />
         <p class="field-hint" id="editar-usuario-rfc-hint">RFC del cliente, con el que inicia sesión en el portal.</p>

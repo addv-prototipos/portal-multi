@@ -195,6 +195,30 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   clientes se gatea en un solo punto (`requireUserAuth`, cubre todas las
   rutas de sesión de cliente de un jalón) + el endpoint de login aparte
   (nace la sesión antes de que exista `requireUserAuth` que la proteja).
+  **Backend-only no es suficiente**: el 404 evita que la ruta responda,
+  pero el frontend también debe ocultar la entrada (tile/botón/campo) que
+  llevaría ahí — si no, el usuario ve un control que simplemente no hace
+  nada al usarlo (mismo criterio que `planPermite()` ya aplica en
+  `admin.js`, extendido a `dashboard.js`/`portal.js`/`login.js` en el
+  punto 356). Antes de dar un módulo por "ya gateado", revisar las 3
+  capas: ruta bloqueada (`requiereFeature`), menú/tile oculto, y
+  cualquier formulario de alta que capture datos específicos de ese
+  módulo (ver el siguiente punto, RFC/Facturación).
+- **RFC solo si Facturación está activa**: con `facturacion_habilitada`
+  apagada, ningún flujo de alta de cliente (`POST /api/auth/registro`,
+  `POST /api/admin/usuarios`) pide RFC — genera un identificador interno
+  con `generarIdentificadorSinFiscalUnico()` (`backend/server.js`,
+  formato `SINFISCAL-<16 hex>`, nunca coincide con `isValidRFCRequerido()`
+  a propósito). `usuarios.rfc` **sigue `NOT NULL`+`UNIQUE` sin tocar
+  esquema** — decouplar la sesión de un RFC real tocaría 19+ usos de
+  `req.userRfc` (folio de tickets, "Solicitar aclaraciones", Mi Cuenta),
+  mucho más riesgo que generar un valor interno. **Cualquier pantalla que
+  muestre "RFC" a un humano debe filtrar con
+  `isValidRFCRequerido()`/`tieneRfcReal()` primero** — nunca mostrar el
+  identificador interno tal cual (header del portal, "Solicitar
+  aclaraciones", tabla de usuarios). Editar un cliente con Facturación
+  apagada **conserva** el RFC/identificador que ya tenga — nunca lo
+  regenera ni lo borra.
 - **`db_host` mal grabado**: correr un script de aprovisionamiento con
   `DB_HOST=127.0.0.1` desde el host graba ese valor en
   `control_tenants.tenants.db_host` — el backend (dentro de Docker)

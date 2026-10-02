@@ -87,8 +87,17 @@
         window.location.href = urlPagina('login');
         return null;
       }
+      // Identificador interno sin RFC real (punto en curso, ver
+      // generarIdentificadorSinFiscal en el backend): nunca se muestra
+      // como "tu RFC" — se prefiere el nombre si ya lo capturó en Mi
+      // Cuenta, y si no, un label genérico en vez del valor interno.
       const label = document.getElementById('portal-user-label');
-      if (label) label.textContent = data.rfc;
+      if (label) label.textContent = data.tieneRfc ? data.rfc : data.nombre || 'Mi cuenta';
+      window.Portal.sesion = {
+        rfc: data.tieneRfc ? data.rfc : null,
+        nombre: data.nombre || '',
+        facturacionHabilitada: data.facturacionHabilitada !== false,
+      };
       return data.rfc;
     } catch (err) {
       window.location.href = urlPagina('login');

@@ -186,19 +186,33 @@ describe('Auth de usuario', () => {
     });
 
     test('con cookie válida devuelve el rfc y debeCambiarPassword convertido a booleano', async () => {
-      pool.query.mockResolvedValueOnce([[{ debe_cambiar_password: 1, activo: 1 }]]);
+      pool.query.mockResolvedValueOnce([[{ nombre: 'Juan López', debe_cambiar_password: 1, activo: 1 }]]);
       const res = await request(app).get('/api/auth/me').set('Cookie', cookieDeSesion());
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ rfc: RFC_VALIDO, debeCambiarPassword: true, suspendido: false });
+      expect(res.body).toEqual({
+        rfc: RFC_VALIDO,
+        tieneRfc: true,
+        nombre: 'Juan López',
+        facturacionHabilitada: true,
+        debeCambiarPassword: true,
+        suspendido: false,
+      });
     });
 
     test('con cookie válida y cuenta suspendida, devuelve suspendido:true', async () => {
-      pool.query.mockResolvedValueOnce([[{ debe_cambiar_password: 0, activo: 0 }]]);
+      pool.query.mockResolvedValueOnce([[{ nombre: '', debe_cambiar_password: 0, activo: 0 }]]);
       const res = await request(app).get('/api/auth/me').set('Cookie', cookieDeSesion());
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ rfc: RFC_VALIDO, debeCambiarPassword: false, suspendido: true });
+      expect(res.body).toEqual({
+        rfc: RFC_VALIDO,
+        tieneRfc: true,
+        nombre: '',
+        facturacionHabilitada: true,
+        debeCambiarPassword: false,
+        suspendido: true,
+      });
     });
 
     test('con cookie inválida (manipulada) responde 401', async () => {

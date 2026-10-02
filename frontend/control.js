@@ -1533,10 +1533,16 @@
     mostrarUsoDisco(tenant);
 
     // Punto 347: Grupo / sucursales — informativo, la gestión real vive
-    // en la vista "Sucursales".
-    els.editarGrupoInfo.textContent = tenant.grupo_sucursal_id
-      ? 'Esta empresa pertenece a un grupo de sucursales — gestiona sus sucursales y usuarios compartidos desde "Sucursales".'
-      : 'Esta empresa no pertenece a ningún grupo de sucursales.';
+    // en la vista "Sucursales". Punto en curso: si el plan de esta
+    // empresa no incluye Sucursales, el mensaje lo deja claro en vez de
+    // sugerir una asociación que el backend ahora rechaza de todas formas.
+    if (!els.editarSucursalesSwitch.checked) {
+      els.editarGrupoInfo.textContent = 'Sucursales no está activado para esta empresa — no puede asociarse a un grupo.';
+    } else {
+      els.editarGrupoInfo.textContent = tenant.grupo_sucursal_id
+        ? 'Esta empresa pertenece a un grupo de sucursales — gestiona sus sucursales y usuarios compartidos desde "Sucursales".'
+        : 'Esta empresa no pertenece a ningún grupo de sucursales.';
+    }
 
     els.editarOverlay.hidden = false;
     cargarTemaEnFormulario(tenant);
@@ -2968,12 +2974,21 @@
         els.sucursalesGrupoTenantsLista.innerHTML = '<p class="field-hint">No hay empresas activas para asociar.</p>';
         return;
       }
+      // Punto en curso: una empresa sin "Sucursales" en su plan no puede
+      // asociarse a un grupo — ni siquiera se deja marcar aquí (defensa
+      // en profundidad: el backend también lo rechaza, ver
+      // control/utils/sucursales.js:asociarTenants).
       tenants.forEach((t) => {
         const yaAsociado = slugsAsociados.includes(t.slug);
+        const tieneSucursales = t.sucursales_habilitado === 1 || t.sucursales_habilitado === true;
         const label = document.createElement('label');
-        label.className = 'gastos-categoria-fila';
+        label.className = 'gastos-categoria-fila' + (tieneSucursales ? '' : ' is-disabled');
+        if (!tieneSucursales) {
+          label.title = 'Esta empresa no tiene "Sucursales" activado en su plan';
+          label.setAttribute('data-tooltip', 'Esta empresa no tiene "Sucursales" activado en su plan');
+        }
         label.innerHTML = `
-          <input type="checkbox" value="${escapeHtml(t.slug)}" ${yaAsociado ? 'checked' : ''} />
+          <input type="checkbox" value="${escapeHtml(t.slug)}" ${yaAsociado ? 'checked' : ''} ${tieneSucursales ? '' : 'disabled'} />
           <span class="gastos-categoria-nombre">${escapeHtml(t.nombre_empresa)} (${escapeHtml(t.slug)})</span>
         `;
         els.sucursalesGrupoTenantsLista.appendChild(label);

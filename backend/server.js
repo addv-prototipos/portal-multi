@@ -1336,12 +1336,17 @@ app.post(
   authLimiter,
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const rfc = sanitizeText(body.rfc, 13).toUpperCase();
+    // Facturación apagada en este tenant: el RFC deja de pedirse (no
+    // tiene para qué facturar) — se genera un identificador interno en
+    // su lugar. Facturación prendida (o sitio base, sin tenant):
+    // comportamiento idéntico a siempre, RFC obligatorio.
+    const facturacionActiva = !req.tenant || req.tenant.facturacionHabilitada !== false;
+    const rfcCapturado = sanitizeText(body.rfc, 13).toUpperCase();
     const email = sanitizeText(body.email, 200).toLowerCase();
     const telefono = sanitizeText(body.telefono, 20);
     const password = typeof body.password === 'string' ? body.password : '';
 
-    if (!isValidRFCRequerido(rfc)) {
+    if (facturacionActiva && !isValidRFCRequerido(rfcCapturado)) {
       return res.status(400).json({ error: 'Ingresa un RFC válido.' });
     }
     if (!email || !isValidEmail(email)) {
@@ -1355,9 +1360,13 @@ app.post(
       return res.status(400).json({ error: errorPassword });
     }
 
-    const [existentes] = await pool.query('SELECT id FROM usuarios WHERE rfc = ?', [rfc]);
-    if (existentes.length > 0) {
-      return res.status(409).json({ error: 'Ya existe una cuenta registrada con este RFC. Inicia sesión.' });
+    const rfc = facturacionActiva ? rfcCapturado : await generarIdentificadorSinFiscalUnico();
+
+    if (facturacionActiva) {
+      const [existentes] = await pool.query('SELECT id FROM usuarios WHERE rfc = ?', [rfc]);
+      if (existentes.length > 0) {
+        return res.status(409).json({ error: 'Ya existe una cuenta registrada con este RFC. Inicia sesión.' });
+      }
     }
 
     const ahora = new Date();
@@ -1417,6 +1426,43 @@ app.post('/api/auth/parse-csf', submitLimiter, (req, res) => {
 // intento fallido) porque el valor nunca necesita cambiar — solo sirve de
 // "algo con pinta de hash real" contra lo que comparar.
 const HASH_RELLENO_LOGIN = hashPassword(crypto.randomBytes(32).toString('hex'));
+
+// Punto en curso (gating Facturación): con Facturación apagada, el RFC
+// deja de pedirse al crear una cuenta cliente (auto-registro o desde
+// /admin). La columna `usuarios.rfc` sigue NOT NULL+UNIQUE — decouplar la
+// sesión de un RFC real habría significado tocar el token de sesión y
+// las 19+ consultas `WHERE rfc = ?` que ya existen (tickets, folios,
+// Mi Cuenta, aclaraciones...), con alto riesgo de romper el resto del
+// ecosistema y la suite de pruebas existente. En vez de eso: se genera
+// un identificador interno con formato que NUNCA coincide con un RFC
+// real (`isValidRFCRequerido()` lo rechaza por diseño), así que toda la
+// arquitectura existente sigue funcionando sin tocarla — el valor solo
+// se usa como llave interna, nunca se muestra a un humano como "tu RFC"
+// (ver tieneRfcReal() + los puntos donde se usa, más abajo).
+function generarIdentificadorSinFiscal() {
+  return `SINFISCAL-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
+}
+
+// Distingue un RFC real capturado por el usuario de un identificador
+// interno generado por generarIdentificadorSinFiscal() — se usa en toda
+// pantalla que hoy muestra "RFC: {valor}" a un humano, para no enseñarle
+// un identificador interno sin sentido para él.
+function tieneRfcReal(rfc) {
+  return isValidRFCRequerido(rfc);
+}
+
+// Genera un identificador sin fiscal garantizado único contra `usuarios`
+// — colisión prácticamente imposible (8 bytes de entropía) pero se
+// reintenta igual, mismo criterio defensivo que folios/tokens en el
+// resto del proyecto.
+async function generarIdentificadorSinFiscalUnico() {
+  for (let intento = 0; intento < 5; intento += 1) {
+    const candidato = generarIdentificadorSinFiscal();
+    const [existentes] = await pool.query('SELECT id FROM usuarios WHERE rfc = ?', [candidato]);
+    if (existentes.length === 0) return candidato;
+  }
+  throw new Error('No se pudo generar un identificador único.');
+}
 
 // Inicio de sesión: el backend acepta cualquier valor que coincida con
 // `usuarios.rfc` O `usuarios.email`, sin filtrar por perfil (la tabla no
@@ -1505,7 +1551,7 @@ app.get(
   requireUserAuth,
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query(
-      'SELECT debe_cambiar_password, activo FROM usuarios WHERE rfc = ?',
+      'SELECT nombre, debe_cambiar_password, activo FROM usuarios WHERE rfc = ?',
       [req.userRfc]
     );
     const debeCambiarPassword = filas[0] ? Boolean(filas[0].debe_cambiar_password) : false;
@@ -1513,7 +1559,21 @@ app.get(
     // el token de sesión) para que suspender a alguien corte su acceso
     // aunque ya tuviera una sesión abierta, sin esperar a que expire.
     const suspendido = filas[0] ? (filas[0].activo === 0 || filas[0].activo === false) : false;
-    res.json({ rfc: req.userRfc, debeCambiarPassword, suspendido });
+    res.json({
+      rfc: req.userRfc,
+      // tieneRfc: false para un identificador interno (ver
+      // generarIdentificadorSinFiscal) — el frontend nunca debe mostrar
+      // ese valor como "tu RFC" (header, "Solicitar aclaraciones", etc.).
+      tieneRfc: tieneRfcReal(req.userRfc),
+      nombre: filas[0] ? filas[0].nombre || '' : '',
+      // Punto en curso (gating Facturación en el portal de cliente): el
+      // dashboard necesita saber si Facturación está activa para
+      // ocultar "Subir constancia"/"Subir tickets"/"Mis solicitudes" —
+      // sin tenant (sitio base), comportamiento de siempre (activo).
+      facturacionHabilitada: !req.tenant || req.tenant.facturacionHabilitada !== false,
+      debeCambiarPassword,
+      suspendido,
+    });
   })
 );
 
@@ -2762,6 +2822,20 @@ app.get(
   })
 );
 
+// Pública (sin autenticación, sin requiereFeature a propósito — este
+// endpoint es precisamente lo que le dice al formulario de registro si
+// Facturación está activa, así que no puede depender de esa misma
+// bandera): informa al panel de registro de login.html si debe pedir
+// RFC/CSF o solo correo+teléfono. Sin datos sensibles — un solo booleano
+// que ya es público indirectamente (el usuario lo deduce intentando
+// entrar a /tickets o /csf de todas formas).
+app.get(
+  '/api/config/registro',
+  asyncHandler(async (req, res) => {
+    res.json({ facturacionHabilitada: !req.tenant || req.tenant.facturacionHabilitada !== false });
+  })
+);
+
 // Busca un registro existente por RFC (llave de identificación principal,
 // ya que es un identificador único del contribuyente) y, si no hay RFC o no
 // coincide, cae de vuelta al correo (retrocompatibilidad con registros
@@ -3818,10 +3892,19 @@ app.post(
       return res.status(400).json({ error: 'Selecciona un perfil válido (cliente, administrador, fiscal o ventas).' });
     }
 
+    // Facturación apagada en este tenant: el RFC deja de pedirse para
+    // perfil "cliente" (no tiene para qué facturar) — se genera un
+    // identificador interno en su lugar. No aplica a administrador/
+    // fiscal/ventas/inventario: para esos perfiles el campo es un
+    // nombre de usuario, nunca un RFC real, sin relación con Facturación.
+    const facturacionActiva = !req.tenant || req.tenant.facturacionHabilitada !== false;
     let rfc = sanitizeText(body.rfc, 50).toUpperCase();
     if (perfil === 'cliente') {
-      if (!isValidRFCRequerido(rfc)) {
+      if (facturacionActiva && !isValidRFCRequerido(rfc)) {
         return res.status(400).json({ error: 'Ingresa un RFC válido.' });
+      }
+      if (!facturacionActiva) {
+        rfc = await generarIdentificadorSinFiscalUnico();
       }
     } else {
       if (!rfc || rfc.length < 3) {
@@ -3985,9 +4068,17 @@ app.put(
       return res.status(400).json({ error: 'Selecciona un perfil válido (cliente, administrador, fiscal o ventas).' });
     }
 
+    // Facturación apagada: el RFC de un cliente no se toca en la edición
+    // — ni se exige uno nuevo ni se regenera el identificador interno que
+    // ya tenga, se conserva tal cual estaba (si en algún momento tuvo un
+    // RFC real capturado con Facturación activa, editarlo ahora con
+    // Facturación apagada NO debe borrarlo).
+    const facturacionActiva = !req.tenant || req.tenant.facturacionHabilitada !== false;
     let rfc = sanitizeText(body.rfc, 50).toUpperCase();
     if (perfil === 'cliente') {
-      if (!isValidRFCRequerido(rfc)) {
+      if (!facturacionActiva) {
+        rfc = usuarioActual.rfc;
+      } else if (!isValidRFCRequerido(rfc)) {
         return res.status(400).json({ error: 'Ingresa un RFC válido.' });
       }
     } else {

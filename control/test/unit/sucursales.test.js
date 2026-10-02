@@ -60,8 +60,8 @@ describe('utils/sucursales.js (§58)', () => {
         .mockResolvedValueOnce([{ insertId: 9 }]) // INSERT grupos_sucursal
         .mockResolvedValueOnce([
           [
-            { id: 1, slug: 'norte', grupo_sucursal_id: null },
-            { id: 2, slug: 'sur', grupo_sucursal_id: 3 }, // ya en otro grupo
+            { id: 1, slug: 'norte', grupo_sucursal_id: null, sucursales_habilitado: 1 },
+            { id: 2, slug: 'sur', grupo_sucursal_id: 3, sucursales_habilitado: 1 }, // ya en otro grupo
           ],
         ]); // SELECT tenants por slug
 
@@ -70,6 +70,25 @@ describe('utils/sucursales.js (§58)', () => {
       ).rejects.toMatchObject({ codigo: 'conflicto' });
 
       // Nunca llegó a hacer ningún UPDATE de asociación (todo o nada).
+      const llamadasUpdate = db.query.mock.calls.filter(([sql]) => sql.includes('UPDATE tenants'));
+      expect(llamadasUpdate).toHaveLength(0);
+    });
+
+    test('punto en curso: slug sin "Sucursales" habilitado en su plan responde validacion, sin asociar ninguno', async () => {
+      const db = mockDb();
+      db.query
+        .mockResolvedValueOnce([{ insertId: 9 }]) // INSERT grupos_sucursal
+        .mockResolvedValueOnce([
+          [
+            { id: 1, slug: 'norte', grupo_sucursal_id: null, sucursales_habilitado: 1 },
+            { id: 2, slug: 'sur', grupo_sucursal_id: null, sucursales_habilitado: 0 }, // sin Sucursales en su plan
+          ],
+        ]); // SELECT tenants por slug
+
+      await expect(
+        crearGrupoSucursal({ nombre: 'Grupo Nuevo', slugs: ['norte', 'sur'] }, { db })
+      ).rejects.toMatchObject({ codigo: 'validacion' });
+
       const llamadasUpdate = db.query.mock.calls.filter(([sql]) => sql.includes('UPDATE tenants'));
       expect(llamadasUpdate).toHaveLength(0);
     });
@@ -91,8 +110,8 @@ describe('utils/sucursales.js (§58)', () => {
         .mockResolvedValueOnce([{ insertId: 10 }]) // INSERT grupo
         .mockResolvedValueOnce([
           [
-            { id: 1, slug: 'norte', grupo_sucursal_id: null },
-            { id: 2, slug: 'sur', grupo_sucursal_id: null },
+            { id: 1, slug: 'norte', grupo_sucursal_id: null, sucursales_habilitado: 1 },
+            { id: 2, slug: 'sur', grupo_sucursal_id: null, sucursales_habilitado: 1 },
           ],
         ]) // SELECT tenants por slug
         .mockResolvedValueOnce([{}]) // UPDATE norte

@@ -115,9 +115,22 @@
 
   els.btnRefrescar.addEventListener('click', cargarTickets);
 
+  // Punto en curso: sin Facturación activa no hay nada que subir ni
+  // ningún folio que consultar — se ocultan los 2 tiles y toda la
+  // sección "Mis solicitudes" en vez de dejar que /api/tickets responda
+  // 404 (requiereFeature) y se vea como un error roto.
+  function aplicarGatingFacturacion(facturacionHabilitada) {
+    if (facturacionHabilitada) return;
+    document.getElementById('tile-csf')?.remove();
+    document.getElementById('tile-tickets')?.remove();
+    document.getElementById('portal-solicitudes')?.remove();
+  }
+
   (async function init() {
     const rfc = await requireSession();
     if (!rfc) return;
-    await cargarTickets();
+    const facturacionHabilitada = window.Portal.sesion ? window.Portal.sesion.facturacionHabilitada : true;
+    aplicarGatingFacturacion(facturacionHabilitada);
+    if (facturacionHabilitada) await cargarTickets();
   })();
 })();

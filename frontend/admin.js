@@ -1230,6 +1230,7 @@
     crearUsuarioRfc: document.getElementById('crear-usuario-rfc'),
     crearUsuarioRfcLabel: document.getElementById('crear-usuario-rfc-label'),
     crearUsuarioRfcHint: document.getElementById('crear-usuario-rfc-hint'),
+    crearUsuarioRfcField: document.getElementById('crear-usuario-rfc-field'),
     crearUsuarioTelefonoField: document.getElementById('crear-usuario-telefono-field'),
     crearUsuarioEmail: document.getElementById('crear-usuario-email'),
     crearUsuarioTelefono: document.getElementById('crear-usuario-telefono'),
@@ -1244,6 +1245,7 @@
     // Editar usuario
     editarUsuarioOverlay: document.getElementById('editar-usuario-overlay'),
     editarUsuarioPerfil: document.getElementById('editar-usuario-perfil'),
+    editarUsuarioRfcField: document.getElementById('editar-usuario-rfc-field'),
     editarUsuarioRfc: document.getElementById('editar-usuario-rfc'),
     editarUsuarioRfcLabel: document.getElementById('editar-usuario-rfc-label'),
     editarUsuarioRfcHint: document.getElementById('editar-usuario-rfc-hint'),
@@ -3568,7 +3570,13 @@
     const faltaRfc = !(config.rfc_compania || '').trim();
     const faltaClaveSat = !(config.clave_sat || '').trim();
     datosFiscalesCompletos = !(faltaRfc || faltaClaveSat);
-    if ((faltaRfc || faltaClaveSat) && puedeCompletarDatosFiscales()) {
+    // Mismo criterio de "Falta configurar..." punto en curso: con
+    // Facturación apagada, el RFC/Clave SAT de la compañía no tiene para
+    // qué completarse (nadie va a facturar) — mismo flag que ya oculta
+    // la tarjeta "Configuraciones fiscales" (global-config-card) a la que
+    // este aviso manda; mostrarlo sin Facturación activa llevaría a un
+    // destino que tampoco está disponible.
+    if ((faltaRfc || faltaClaveSat) && puedeCompletarDatosFiscales() && planPermite('facturacionHabilitada')) {
       els.configFiscalFaltanteOverlay.hidden = false;
     }
     renderOnboardingChecklist();
@@ -7872,9 +7880,56 @@
   // recientes) en el cliente a partir de esos mismos datos. Para el
   // perfil "Inventario" (punto 321), "Inicio" es un contenido
   // completamente distinto — ver cargarInicioInventario().
+  // Punto en curso (gating Facturación): sin Facturación activa,
+  // /api/admin/tickets 404 (requiereFeature) — en vez de un error roto,
+  // bienvenida + accesos directos a lo que sí está activo. Sin cifras
+  // financieras a propósito (pedido explícito: "que no sean datos
+  // sensibles") — son enlaces de navegación, no KPIs en vivo.
+  const INICIO_SINFACT_MODULOS = [
+    { flag: 'ventasHabilitado', vista: 'ordenes', titulo: 'Ventas' },
+    { flag: 'gastosHabilitado', vista: 'gastos', titulo: 'Gastos' },
+    { flag: 'cxcHabilitado', vista: 'cxc', titulo: 'Cuentas por cobrar' },
+    { flag: 'inventariosHabilitado', vista: 'inventarios', titulo: 'Inventarios' },
+    { flag: 'resumenFinancieroHabilitado', vista: 'resumen-financiero', titulo: 'Resumen financiero' },
+  ];
+
+  function cargarInicioSinFacturacion() {
+    els.inicioStatsGrid.hidden = true;
+    els.inicioMainGrid.hidden = true;
+    els.inicioError.textContent = '';
+    const slot = document.getElementById('inicio-sin-facturacion');
+    const links = document.getElementById('inicio-sinfact-links');
+    slot.hidden = false;
+    links.innerHTML = '';
+    const activos = INICIO_SINFACT_MODULOS.filter((m) => planPermite(m.flag));
+    if (activos.length === 0) {
+      links.innerHTML = '<p class="field-hint">Activa un módulo desde /control para ver aquí tus accesos directos.</p>';
+      return;
+    }
+    activos.forEach((m) => {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.className = 'inicio-sinfact-link';
+      a.innerHTML = `<span class="dot" aria-hidden="true"></span>${escapeHtml(m.titulo)}`;
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        cambiarVistaPrincipal(m.vista);
+      });
+      links.appendChild(a);
+    });
+  }
+
   async function cargarInicio() {
     if (perfilActual === 'inventario') {
       cargarInicioInventario();
+      return;
+    }
+    document.getElementById('inicio-sin-facturacion').hidden = true;
+    els.inicioStatsGrid.hidden = false;
+    els.inicioMainGrid.hidden = false;
+    if (!planPermite('facturacionHabilitada')) {
+      els.inicioTituloBienvenida.textContent = usuarioSesionActual ? `¡Bienvenido, ${usuarioSesionActual}!` : '¡Bienvenido!';
+      cargarInicioSinFacturacion();
       return;
     }
     const authHeader = getAuthHeader();
@@ -10626,11 +10681,17 @@
   function actualizarCamposSegunPerfil() {
     const perfil = els.crearUsuarioPerfil.value;
     if (perfil === 'cliente') {
+      // Punto en curso: sin Facturación activa, el RFC no tiene para qué
+      // pedirse (nadie va a facturar) — el campo desaparece entero, el
+      // backend genera un identificador interno (ver
+      // generarIdentificadorSinFiscal en server.js).
+      els.crearUsuarioRfcField.hidden = !planPermite('facturacionHabilitada');
       els.crearUsuarioRfcLabel.textContent = 'RFC';
       els.crearUsuarioRfc.placeholder = 'XAXX010101000';
       els.crearUsuarioRfcHint.textContent = 'RFC del cliente, con el que iniciará sesión en el portal.';
       els.crearUsuarioTelefonoField.hidden = false;
     } else {
+      els.crearUsuarioRfcField.hidden = false;
       els.crearUsuarioRfcLabel.textContent = 'Nombre de usuario';
       els.crearUsuarioRfc.placeholder = 'ej. jperez';
       els.crearUsuarioRfcHint.textContent = 'No necesita ser un RFC real — es el nombre con el que iniciará sesión en el panel de administración.';
@@ -10746,8 +10807,9 @@
     const password = els.crearUsuarioPassword.value;
     const forzarCambio = els.crearUsuarioForzarCambio.checked;
 
+    const rfcObligatorio = perfil !== 'cliente' || planPermite('facturacionHabilitada');
     let valido = true;
-    if (!rfc) {
+    if (rfcObligatorio && !rfc) {
       setFieldError('crear-usuario-rfc', perfil === 'cliente' ? 'El RFC es obligatorio.' : 'El nombre de usuario es obligatorio.');
       valido = false;
     }
@@ -10798,11 +10860,16 @@
   function actualizarCamposSegunPerfilEditar() {
     const perfil = els.editarUsuarioPerfil.value;
     if (perfil === 'cliente') {
+      // Punto en curso: mismo criterio que Crear usuario — sin
+      // Facturación activa, el RFC no se edita (el backend conserva el
+      // identificador que ya tenga, ver PUT /api/admin/usuarios/:id).
+      els.editarUsuarioRfcField.hidden = !planPermite('facturacionHabilitada');
       els.editarUsuarioRfcLabel.textContent = 'RFC';
       els.editarUsuarioRfc.placeholder = 'XAXX010101000';
       els.editarUsuarioRfcHint.textContent = 'RFC del cliente, con el que inicia sesión en el portal.';
       els.editarUsuarioTelefonoField.hidden = false;
     } else {
+      els.editarUsuarioRfcField.hidden = false;
       els.editarUsuarioRfcLabel.textContent = 'Nombre de usuario';
       els.editarUsuarioRfc.placeholder = 'ej. jperez';
       els.editarUsuarioRfcHint.textContent = 'No necesita ser un RFC real — es el nombre con el que inicia sesión en el panel de administración.';
@@ -10860,8 +10927,9 @@
     const email = els.editarUsuarioEmail.value.trim();
     const telefono = els.editarUsuarioTelefono.value.trim();
 
+    const rfcObligatorio = perfil !== 'cliente' || planPermite('facturacionHabilitada');
     let valido = true;
-    if (!rfc) {
+    if (rfcObligatorio && !rfc) {
       setFieldError('editar-usuario-rfc', perfil === 'cliente' ? 'El RFC es obligatorio.' : 'El nombre de usuario es obligatorio.');
       valido = false;
     }

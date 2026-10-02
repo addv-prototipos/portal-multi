@@ -109,7 +109,7 @@ async function asociarTenantsAGrupo(grupoId, slugs, { actor, db = obtenerPool() 
   }
 
   const [filasTenants] = await db.query(
-    `SELECT id, slug, grupo_sucursal_id FROM tenants WHERE slug IN (${slugs.map(() => '?').join(',')})`,
+    `SELECT id, slug, grupo_sucursal_id, sucursales_habilitado FROM tenants WHERE slug IN (${slugs.map(() => '?').join(',')})`,
     slugs
   );
   const encontrados = new Map(filasTenants.map((t) => [t.slug, t]));
@@ -118,6 +118,12 @@ async function asociarTenantsAGrupo(grupoId, slugs, { actor, db = obtenerPool() 
     if (!tenant) throw new ErrorSucursal(`El tenant "${slug}" no existe.`, 'no_encontrado');
     if (tenant.grupo_sucursal_id && tenant.grupo_sucursal_id !== grupoId) {
       throw new ErrorSucursal(`El tenant "${slug}" ya pertenece a otro grupo de sucursales.`, 'conflicto');
+    }
+    // Punto en curso: defensa en profundidad — el checklist de /control ya
+    // deshabilita estas filas, pero una llamada directa a la API no debe
+    // poder asociar una empresa sin "Sucursales" en su plan.
+    if (!(tenant.sucursales_habilitado === 1 || tenant.sucursales_habilitado === true)) {
+      throw new ErrorSucursal(`El tenant "${slug}" no tiene "Sucursales" activado en su plan.`, 'validacion');
     }
   }
 

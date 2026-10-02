@@ -17708,6 +17708,96 @@ código (protocolo `addv-web-app` paso 4-6).
   del cambio: 10/10 sin regresión (`mi-cuenta.spec.ts` +
   `login-rfc-correo.spec.ts`).
 
+**Punto 356 (2026-10-02, CERRADO — consistencia de gating
+Facturación/Sucursales entre cliente, admin y control):** el usuario
+apagó Facturación en `/control` para `t1` y encontró 6 inconsistencias
+reales — el menú del admin sí se ocultó (punto 352), pero nada más lo
+respetaba. Propuesta antes/después confirmada antes de implementar
+(protocolo `addv-web-app` paso 2-4, ver Artifact de esta sesión).
+
+- **Plan revisado en vivo**: la primera idea (hacer `usuarios.rfc`
+  nullable) se descartó al auditar impacto — la sesión, el folio de
+  tickets, "Solicitar aclaraciones" y 19+ consultas usan `rfc` como
+  llave; decouplarlo habría sido un refactor grande y riesgoso. Fix
+  real: `generarIdentificadorSinFiscalUnico()` (`backend/server.js`)
+  genera un identificador interno (`SINFISCAL-<16 hex>`, nunca con
+  formato de RFC real) cuando Facturación está apagada — `rfc` sigue
+  `NOT NULL`+`UNIQUE` sin tocar esquema, cero cambio en los 19+ usos de
+  `req.userRfc`. `tieneRfcReal()`/`isValidRFCRequerido()` distinguen el
+  identificador interno de un RFC real en cualquier pantalla que
+  muestre "RFC" a un humano.
+- **1. Cliente — registro público**: `GET /api/config/registro`
+  (público, sin `requiereFeature` a propósito — es lo que le dice al
+  formulario si debe pedir RFC). `login.js` oculta
+  `#registro-rfc-field`/`#registro-csf-field` y quita `required` del RFC
+  cuando Facturación está apagada. `POST /api/auth/registro` ídem
+  server-side (fuente de verdad real).
+- **2. Admin — Crear/Editar usuario**: `admin.js` oculta
+  `#crear-usuario-rfc-field`/`#editar-usuario-rfc-field` para perfil
+  cliente sin Facturación (`planPermite('facturacionHabilitada')`, ya
+  expuesto en `GET /api/admin/login`). `POST /api/admin/usuarios` genera
+  el identificador; `PUT /api/admin/usuarios/:id` **conserva** el que ya
+  tenga (nunca borra un RFC real capturado antes, aunque Facturación se
+  apague después).
+- **3. Admin — "Inicio"**: `cargarInicio()` ya NO llama
+  `GET /api/admin/tickets` (bloqueado por `requiereFeature`, causaba el
+  error roto "No se pudieron cargar las solicitudes") cuando Facturación
+  está apagada — en su lugar, `cargarInicioSinFacturacion()` muestra
+  bienvenida + accesos directos a los módulos que sí están activos
+  (Ventas/Gastos/CxC/Inventarios/Resumen financiero), **sin ninguna
+  cifra financiera** (pedido explícito del usuario: "que no sean datos
+  sensibles") — son enlaces de navegación, no KPIs en vivo.
+- **4. Admin — popup "Falta configurar los datos fiscales"**:
+  `verificarDatosFiscalesFaltantes()` ahora también exige
+  `planPermite('facturacionHabilitada')` antes de mostrarse — llevaba a
+  una tarjeta de configuración que de todas formas ya estaba oculta.
+- **5. Cliente — tablero**: `GET /api/auth/me` ahora expone `nombre`,
+  `tieneRfc` y `facturacionHabilitada`. `dashboard.js` oculta los tiles
+  "Subir constancia"/"Subir tickets" + toda la sección "Mis solicitudes"
+  cuando Facturación está apagada (antes: error roto "No se pudieron
+  cargar tus solicitudes"). `portal.js`: el header nunca muestra el
+  identificador interno — prefiere el nombre (capturado en Mi Cuenta) y,
+  si no hay, el label genérico "Mi cuenta".
+- **6. Control — Sucursales**: hallazgo de bug real (no solo UX) —
+  `poblarChecklistTenants()` listaba TODOS los tenants activos sin
+  filtrar por `sucursales_habilitado`, y `control/utils/sucursales.js`
+  (`asociarTenantsAGrupo`) tampoco lo validaba — se podía asociar una
+  empresa sin derecho a Sucursales, por UI y por API directa. Fix:
+  checkbox deshabilitado + tooltip en `control.js` cuando el plan no lo
+  incluye, y **validación server-side 400** (defensa en profundidad,
+  confirmado con llamada directa a la API). El texto informativo
+  "Grupo / sucursales" en "Editar empresa" también distingue cuando el
+  switch está apagado.
+- **Nota del usuario, sin trabajo nuevo**: `portal_clientes_habilitado`
+  YA gatea TODO el portal de cliente en un solo punto
+  (`requireUserAuth`, incluido el login) desde el punto 347 — queda
+  confirmado como ya cubierto, no requirió cambios.
+- **Pruebas**: `backend/test/integration/gatingFacturacion.test.js` (8
+  casos nuevos), `auth-usuario.test.js` actualizado (nuevos campos de
+  `GET /api/auth/me`), `control/test/unit/sucursales.test.js` (+1 caso
+  nuevo, 2 mocks corregidos). Suites completas sin regresiones: backend
+  1153/1153, control 346/346. **Funcional real**: validado con clics
+  reales en Chrome DevTools MCP contra el tenant real `t1` (Facturación
+  apagada de verdad, estado real del usuario) — Inicio del admin, modal
+  "Crear usuario" sin campo RFC, creación real de un cliente
+  (`SINFISCAL-E5D7FE3E5CAC50C3`), login con ese usuario por correo,
+  tablero/Mi Cuenta del cliente sin ningún rastro del identificador
+  interno, checklist de Sucursales con `t1` deshabilitado. `e2e/tests/
+  mi-cuenta.spec.ts` y `login-rfc-correo.spec.ts` ajustados para ya no
+  asumir un RFC fijo (el backend puede generar un identificador interno
+  según el estado real del tenant) — identifican/limpian por correo,
+  capturan el RFC real resultante, y la prueba de "login con RFC real"
+  se salta explícitamente (`test.skip`, con motivo) cuando el tenant no
+  tiene uno disponible en ese momento. 9/9 en verde (1 skip esperado)
+  tras el ajuste.
+- **Hallazgos fuera de alcance, no corregidos aquí** (quedan para
+  decisión aparte): la campanita de notificaciones del admin sigue
+  consultando `/api/admin/tickets`/`tickets/pendientes-sin-contador`
+  cada pocos segundos aunque Facturación esté apagada (404 silencioso,
+  no rompe nada visible, solo tráfico de más); el mismo patrón de
+  `.portal-main-angosto` angosto en escritorio del punto 355 aplica
+  también a `tickets.html`/`csf.html`.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
