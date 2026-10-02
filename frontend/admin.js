@@ -6178,9 +6178,17 @@
     // el sidebar ya aplica (ver aplicarRestriccionesPerfil()) — sin esto,
     // apagar un módulo desde /control seguía mostrando (y sondeando) sus
     // avisos en la campana.
+    //
+    // La campana es "chrome" del sistema (siempre visible mientras exista
+    // AL MENOS un módulo permitido por perfil+plan) — nunca se oculta por
+    // una preferencia local del admin (inventarioActivoGlobalmente, su
+    // "¿llevas inventario?"). Esa preferencia solo decide si el grupo de
+    // Inventario trae avisos reales o queda vacío; no decide si la
+    // campana existe. Ocultar la campana completa es exclusivo del caso
+    // "ningún módulo aplica por perfil/plan" — nunca por ausencia de
+    // avisos en este momento.
     const ticketsAplican = ['fiscal', 'administrador', 'super'].includes(perfilActual) && planPermite('facturacionHabilitada');
-    const inventarioAplica =
-      ['administrador', 'inventario', 'super'].includes(perfilActual) && inventarioActivoGlobalmente && planPermite('inventariosHabilitado');
+    const inventarioAplica = ['administrador', 'inventario', 'super'].includes(perfilActual) && planPermite('inventariosHabilitado');
     const configAplica = ['fiscal', 'super'].includes(perfilActual) && planPermite('facturacionHabilitada');
 
     if (!ticketsAplican && !inventarioAplica && !configAplica) {
@@ -6247,7 +6255,13 @@
       }
     }
 
-    if (inventarioAplica) {
+    if (inventarioAplica && !inventarioActivoGlobalmente) {
+      // El plan permite Inventarios, pero el admin nunca activó "llevo
+      // inventario" — no hay nada que monitorear todavía. Grupo vacío,
+      // no un fetch inútil (y la campana sigue mostrándose por esto o
+      // por tickets/config, no se oculta).
+      grupos.push({ label: 'Inventario', items: [] });
+    } else if (inventarioAplica) {
       try {
         const res = await fetch(`${API_BASE}/admin/inventarios/dashboard`, { headers: { Authorization: authHeader } });
         if (res.ok) {

@@ -17822,6 +17822,31 @@ respetaba. Propuesta antes/después confirmada antes de implementar
   DevTools MCP, solo 200s. Sin cambios de backend — 100% frontend
   (`admin.js`), no requirió tests nuevos de Jest. Suite backend sin
   regresiones: 1153/1153 (no tocado, verificado de todas formas).
+- **Corrección sobre el fix anterior** (mismo día, el usuario lo señaló de
+  inmediato): el primer fix ocultaba la campana ENTERA
+  (`btnNotificaciones.hidden = true`) cuando ningún grupo aplicaba —
+  correcto en el caso general, pero para Inventario el cálculo de
+  `inventarioAplica` seguía exigiendo también el toggle local
+  (`inventarioActivoGlobalmente`), no solo `planPermite()`. Efecto real:
+  en un tenant con Facturación apagada Y el toggle local de Inventarios
+  nunca activado (aunque el PLAN sí incluya Inventarios), los 3 grupos
+  daban `false` a la vez y la campana desaparecía del todo. El usuario
+  corrigió el criterio: *"la campana de notificaciones siempre debe
+  aparecer, porque salen las notificaciones del sistema, como los
+  inventarios, pero si se detecta que no hay notificaciones activas,
+  entonces no la muestres"* — la campana es chrome persistente mientras
+  exista al menos un módulo permitido por **perfil+plan** (sin importar
+  si ahora mismo tiene o no avisos); solo se oculta si NINGÚN módulo
+  aplica por perfil/plan. Fix: `inventarioAplica` ya no incluye
+  `inventarioActivoGlobalmente` en la elegibilidad de la campana — ese
+  toggle local pasa a decidir únicamente si el grupo "Inventario" trae
+  avisos reales o queda vacío (`grupos.push({label:'Inventario',
+  items:[]})` sin hacer fetch si el toggle está apagado), nunca si la
+  campana existe. Validado con clics reales en `t1` (Facturación
+  apagada, toggle de Inventarios apagado): la campana sigue visible,
+  panel muestra "Sin notificaciones nuevas" (estado vacío correcto, no
+  campana oculta) y el link "Ver Inventarios" sigue presente. Suite
+  backend sin regresiones: 1153/1153.
 - **Hallazgos fuera de alcance, no corregidos aquí** (quedan para
   decisión aparte): el mismo patrón de `.portal-main-angosto` angosto en
   escritorio del punto 355 aplica también a `tickets.html`/`csf.html`.
