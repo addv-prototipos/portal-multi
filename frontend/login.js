@@ -108,6 +108,16 @@
     return /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/i.test(String(rfc || '').trim());
   }
 
+  // Login acepta RFC o correo (registro/alta de admin siguen pidiendo RFC
+  // siempre — esto es solo para el campo de inicio de sesión). No se
+  // normaliza a mayúsculas aquí: un correo mezclaría mayúsculas/minúsculas
+  // de forma incorrecta — el backend compara cada formato con el casing
+  // que le corresponde (ver POST /api/auth/login).
+  function validarIdentificadorLogin(valor) {
+    const limpio = String(valor || '').trim();
+    return validarRFC(limpio) || validarEmail(limpio);
+  }
+
   // Mismo patrón ya usado en app.js (constancia) y admin.js (crear
   // usuario) — se repite aquí en vez de compartir un archivo porque cada
   // página ya se sirve de forma independiente, sin un bundler que junte
@@ -314,12 +324,12 @@
     setFieldError('login-password', '');
     els.loginErrorGeneral.textContent = '';
 
-    const rfc = els.loginRfc.value.trim().toUpperCase();
+    const rfc = els.loginRfc.value.trim();
     const password = els.loginPassword.value;
 
     let valido = true;
-    if (!validarRFC(rfc)) {
-      setFieldError('login-rfc', 'Ingresa un RFC válido.');
+    if (!validarIdentificadorLogin(rfc)) {
+      setFieldError('login-rfc', 'Ingresa un RFC o un correo válido.');
       valido = false;
     }
     if (!password) {

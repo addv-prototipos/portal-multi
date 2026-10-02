@@ -110,7 +110,7 @@ describe('Auth de usuario', () => {
       pool.query.mockResolvedValueOnce([[]]);
       const res = await request(app).post('/api/auth/login').send({ rfc: RFC_VALIDO, password: PASSWORD_VALIDA });
       expect(res.status).toBe(401);
-      expect(res.body.error).toMatch(/RFC o contraseña incorrectos/);
+      expect(res.body.error).toMatch(/RFC, correo o contraseña incorrectos/);
     });
 
     test('responde 401 con password incorrecta', async () => {
@@ -142,6 +142,30 @@ describe('Auth de usuario', () => {
       expect(res.status).toBe(403);
       expect(res.body.codigo).toBe('CUENTA_SUSPENDIDA');
       expect(res.headers['set-cookie']).toBeUndefined();
+    });
+
+    // Punto en curso (login RFC o correo) — el correo ya es obligatorio
+    // para cualquier cliente desde su creación, sin excepción por tenant,
+    // así que entrar con correo funciona para cualquier cuenta existente,
+    // no solo cuando Facturación está apagada.
+    test('login con correo (en vez de RFC) funciona igual, comparando OR contra ambas columnas', async () => {
+      pool.query.mockResolvedValueOnce([
+        [{ rfc: RFC_VALIDO, password_hash: hashPassword(PASSWORD_VALIDA), telefono: '5512345678', debe_cambiar_password: 0, activo: 1 }],
+      ]);
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ rfc: 'Cliente@Example.com', password: PASSWORD_VALIDA });
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      // La sesión se abre con el RFC real de la fila, nunca con el correo
+      // tecleado — así folios/aclaraciones/header siguen viendo un RFC.
+      expect(res.body.rfc).toBe(RFC_VALIDO);
+      expect(res.headers['set-cookie'][0]).toMatch(/^sesion_usuario=/);
+      expect(pool.query).toHaveBeenCalledWith(
+        'SELECT * FROM usuarios WHERE rfc = ? OR email = ?',
+        ['CLIENTE@EXAMPLE.COM', 'cliente@example.com']
+      );
     });
   });
 

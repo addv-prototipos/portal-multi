@@ -149,6 +149,13 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   veces no recoge cambios de archivo — usar `--no-cache` seguido de
   `up -d --force-recreate <servicio>` cuando un cambio no aparece al
   probar.
+- **Página HTML/JS nueva del frontend que da 404 aunque nginx esté bien
+  configurado**: `frontend/Dockerfile` enumera cada archivo a mano en su
+  `COPY` (no copia el directorio completo) — toda página nueva
+  (`.html`/`.js`) debe agregarse a esa lista o nunca llega a la imagen,
+  sin importar que `nginx.conf.template` y `portal.js`
+  (`RUTAS_PAGINA_MULTITENANT`) estén correctos (confirmado con
+  `mi-cuenta.html`, punto 353).
 - **Caché de navegador**: tras un rebuild de frontend, forzar
   `Ctrl+Shift+R` — el navegador sirve HTML/CSS viejo desde disco.
 - **Modales anidados**: un modal de confirmación/escáner abierto DESDE
@@ -295,6 +302,47 @@ node --check backend/ruta/al/archivo.js
   `backend/utils/auth.js`).
 - Todas las páginas del frontend reutilizan `style.css` como base; los
   demás `.css` son extensiones, no reemplazos.
+- **Identidad de marca Clarvo = navy/cian, verificada contra el logo real
+  (no contra una variable CSS)** — decisión del usuario, 2026-10-02, no
+  negociable y sin excepción por superficie. Al proponer o tocar
+  CUALQUIER color de marca/acento en mockups, Artifacts o código real de
+  este proyecto: la fuente de verdad es `frontend/assets/logoDark.png` /
+  `logoLight.png` (leer la imagen directo, o samplear píxeles con
+  PIL/similar) — nunca asumir que una variable `--color-accent` existente
+  ya es correcta SIN revisar si algo la sobreescribe. Verificado por
+  muestreo de píxeles del logo: navy ≈ `#011339` (familia de
+  `--color-accent:#03285B`/`--color-accent-dark:#0B1320`), cian
+  ≈ `#00DBFC`/`#00E1FC` (familia de `#05DBF2`).
+  **Estado real verificado 2026-10-02 (corrección de un error propio de
+  esta misma sesión — ver abajo): el portal de cliente YA cumple.**
+  `frontend/style.css` define `--color-accent:#0F6E5D` (verde) en
+  `:root`, pero **`frontend/portal.css` (`.portal-body`) y
+  `frontend/auth.css` (`.auth-body`/`.auth-shell`) ya redefinen esas
+  variables a navy/cian institucional** — mismo patrón de scope que usa
+  `admin.css` con `.admin-body`. `dashboard.html`/`tickets.html`/
+  `csf.html` llevan `<body class="portal-body">`, `login.html`/
+  `restablecer.html` llevan `<body class="auth-body">` — los 5 renderizan
+  correctamente en marca HOY, no es deuda pendiente. El verde `:root` de
+  `style.css` es vestigial: solo se renderiza sin override en
+  `mantenimiento.html` (y en el prototipo no construido
+  `mi-cuenta-propuesta-visual.html`, que de todas formas ya usa navy a
+  propósito). **Error propio de esta sesión, ya corregido**: una primera
+  pasada documentó "todo el portal de cliente está fuera de marca" sin
+  haber revisado `portal.css`/`auth.css`, solo `style.css` — quedó
+  grabado así brevemente en esta sección, en la memoria de usuario
+  (`feedback_paleta_admin_control_navy.md`) y en `pendientes.html`; los
+  tres ya están corregidos. **Lección que sí se queda**: antes de
+  calificar algo como "fuera de marca", revisar si una hoja de estilo
+  posterior (`portal.css`/`auth.css`/`admin.css`) sobreescribe el token
+  con scope — un `grep` de `--color-accent` en `style.css` sin revisar
+  los demás `.css` del mismo elemento es una verificación incompleta, no
+  una verificación. Páginas/código **nuevos** del portal de cliente deben
+  seguir exactamente el mismo patrón (`class="portal-body"` +
+  `<link rel="stylesheet" href="/portal.css">`), nunca inventar un scope
+  nuevo ni copiar literalmente las variables `:root` de `style.css`.
+  Historial completo de ambas correcciones (la de 2026-10-01 sobre
+  admin/control, y la de 2026-10-02 sobre el portal de cliente) en la
+  memoria `feedback_paleta_admin_control_navy.md`.
 - **Tipografía unificada**: toda la app usa **una sola familia
   tipográfica — Inter** (`--font-body`/`--font-display` en `style.css`,
   `--font-display` alias de `--font-body`; `mantenimiento.html` replica el

@@ -1419,16 +1419,26 @@ app.post('/api/auth/parse-csf', submitLimiter, (req, res) => {
 const HASH_RELLENO_LOGIN = hashPassword(crypto.randomBytes(32).toString('hex'));
 
 // Inicio de sesión: el backend acepta cualquier valor que coincida con
-// `usuarios.rfc`, sin filtrar por perfil (la tabla no distingue el campo
-// de "usuario" entre RFC y nombre de usuario, es la misma columna) — así
-// que técnicamente sirve tanto para clientes (RFC) como para cuentas
-// administrador/fiscal (nombre de usuario). En la práctica, el formulario
-// de `login.html` (la parte del cliente) solo deja capturar un RFC con
-// formato válido — administrador/fiscal deben entrar por `/admin` (HTTP
-// Basic Auth), su acceso previsto. El límite de 50 caracteres en este
-// endpoint (en vez de 13, el máximo de un RFC real) se conserva por
-// compatibilidad y para no truncar el valor recibido, aunque el
-// formulario público ya no lo necesite para su propio flujo.
+// `usuarios.rfc` O `usuarios.email`, sin filtrar por perfil (la tabla no
+// distingue el campo de "usuario" entre RFC y nombre de usuario, es la
+// misma columna) — así que técnicamente sirve tanto para clientes (RFC o
+// correo) como para cuentas administrador/fiscal (nombre de usuario,
+// sigue siendo solo contra `rfc`, esas cuentas no necesariamente tienen
+// correo). Login por correo (no solo RFC): el correo ya es obligatorio
+// para CUALQUIER cliente desde su creación (ver POST /api/auth/registro
+// y POST /api/admin/usuarios, sin excepción por tenant/plan), así que
+// esto no requiere ningún cambio de esquema ni de las reglas de alta —
+// todo cliente que existe ya tiene ambos datos. Sirve sobre todo cuando
+// el tenant tiene Facturación apagada (el RFC deja de tener relevancia
+// como dato a mostrar/usar día a día, aunque sigue guardado). Mismo
+// patrón OR ya probado en POST /api/auth/recuperar (abajo): el valor
+// recibido se compara en mayúsculas contra `rfc` y en minúsculas contra
+// `email`, nunca mezclado. La sesión SIEMPRE se abre con `usuario.rfc`
+// (la columna real de la fila encontrada, nunca el valor que la persona
+// tecleó) — así que todo lo que ya asume un RFC en la sesión (folio de
+// tickets, el campo "RFC" en "Solicitar aclaraciones", el label del
+// header, los correos de confirmación) sigue viendo un RFC real y válido
+// sin ningún cambio, se haya logueado por RFC o por correo.
 app.post(
   '/api/auth/login',
   authLimiter,
@@ -1439,24 +1449,27 @@ app.post(
   requiereFeature('portalClientesHabilitado'),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const rfc = sanitizeText(body.rfc, 50).toUpperCase();
+    const identificador = sanitizeText(body.rfc, 200);
     const password = typeof body.password === 'string' ? body.password : '';
 
-    if (!rfc || !password) {
-      return res.status(400).json({ error: 'Ingresa tu RFC y tu contraseña.' });
+    if (!identificador || !password) {
+      return res.status(400).json({ error: 'Ingresa tu RFC o correo y tu contraseña.' });
     }
 
-    const [filas] = await pool.query('SELECT * FROM usuarios WHERE rfc = ?', [rfc]);
+    const [filas] = await pool.query('SELECT * FROM usuarios WHERE rfc = ? OR email = ?', [
+      identificador.toUpperCase(),
+      identificador.toLowerCase(),
+    ]);
     const usuario = filas[0];
 
-    // Mensaje generico (no revela si el RFC existe o no) para no facilitar
-    // enumeracion de cuentas registradas. verifyPassword() SIEMPRE se
-    // llama (con el hash real o con el de relleno) para que el tiempo de
-    // respuesta no delate por sí solo si el RFC existe — ver
-    // HASH_RELLENO_LOGIN arriba.
+    // Mensaje generico (no revela si la cuenta existe o no) para no
+    // facilitar enumeracion de cuentas registradas. verifyPassword()
+    // SIEMPRE se llama (con el hash real o con el de relleno) para que
+    // el tiempo de respuesta no delate por sí solo si la cuenta existe —
+    // ver HASH_RELLENO_LOGIN arriba.
     const passwordValida = verifyPassword(password, usuario ? usuario.password_hash : HASH_RELLENO_LOGIN);
     if (!usuario || !passwordValida) {
-      return res.status(401).json({ error: 'RFC o contraseña incorrectos.' });
+      return res.status(401).json({ error: 'RFC, correo o contraseña incorrectos.' });
     }
     // Igual que en el login administrativo: solo se revela "suspendida"
     // DESPUÉS de validar la contraseña, nunca antes (no delata si el RFC
@@ -1465,10 +1478,10 @@ app.post(
       return res.status(403).json({ error: 'Tu cuenta está suspendida. Contacta a la empresa.', codigo: 'CUENTA_SUSPENDIDA' });
     }
 
-    establecerCookieSesion(res, rfc, req.tenant ? req.tenant.slug : null);
+    establecerCookieSesion(res, usuario.rfc, req.tenant ? req.tenant.slug : null);
     res.json({
       ok: true,
-      rfc,
+      rfc: usuario.rfc,
       telefono: usuario.telefono,
       debeCambiarPassword: Boolean(usuario.debe_cambiar_password),
     });
@@ -1521,6 +1534,100 @@ app.put(
     }
 
     const passwordHash = hashPassword(password);
+    await pool.query(
+      'UPDATE usuarios SET password_hash = ?, debe_cambiar_password = 0, actualizado_en = ? WHERE rfc = ?',
+      [passwordHash, new Date(), req.userRfc]
+    );
+    res.json({ ok: true, mensaje: 'Contraseña actualizada correctamente.' });
+  })
+);
+
+// ---------- Mi Cuenta (portal de cliente) ----------
+// Autoservicio del propio cliente logueado — mismo patrón ya usado en
+// GET/PUT /api/admin/mi-cuenta y PUT /api/admin/mi-cuenta/password, pero
+// sin el chequeo de "mecanismo" (toda fila de perfil 'cliente' en
+// `usuarios` es editable, no hay cuenta de respaldo tipo ADMIN_USERS en
+// este lado). nombre/telefono/email, NUNCA rfc/perfil/password aquí.
+app.get(
+  '/api/mi-cuenta',
+  requireUserAuth,
+  asyncHandler(async (req, res) => {
+    const [filas] = await pool.query(
+      'SELECT nombre, telefono, email FROM usuarios WHERE rfc = ? LIMIT 1',
+      [req.userRfc]
+    );
+    const fila = filas[0];
+    if (!fila) {
+      return res.status(404).json({ error: 'No se encontró tu cuenta.' });
+    }
+    res.json({
+      rfc: req.userRfc,
+      nombre: fila.nombre || '',
+      telefono: fila.telefono || '',
+      email: fila.email || '',
+    });
+  })
+);
+
+app.put(
+  '/api/mi-cuenta',
+  requireUserAuth,
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const nombre = sanitizeText(body.nombre, 200);
+    const telefono = sanitizeText(body.telefono, 20);
+    if (!telefono || !isValidTelefono(telefono)) {
+      return res.status(400).json({ error: 'El teléfono no es válido.' });
+    }
+    const email = sanitizeText(body.email, 200).toLowerCase();
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({ error: 'El correo electrónico es obligatorio y debe ser válido.' });
+    }
+
+    // El correo ya se usa para asociar movimientos de crédito y, a
+    // futuro, como identificador alterno de login (ver punto en curso) —
+    // debe ser único por tenant igual que el RFC. 409, mismo criterio que
+    // slug duplicado en /control.
+    const [dup] = await pool.query('SELECT rfc FROM usuarios WHERE email = ? AND rfc <> ? LIMIT 1', [email, req.userRfc]);
+    if (dup[0]) {
+      return res.status(409).json({ error: 'Ese correo ya está en uso por otra cuenta.' });
+    }
+
+    const [resultado] = await pool.query(
+      'UPDATE usuarios SET nombre = ?, telefono = ?, email = ?, actualizado_en = ? WHERE rfc = ?',
+      [nombre, telefono, email, new Date(), req.userRfc]
+    );
+    if (resultado.affectedRows === 0) {
+      return res.status(404).json({ error: 'No se encontró tu cuenta.' });
+    }
+    res.json({ ok: true, mensaje: 'Tus datos se actualizaron correctamente.' });
+  })
+);
+
+// A diferencia de PUT /api/auth/password (reseteo forzado/voluntario sin
+// verificar nada porque la sesión ya es la prueba), este SÍ exige la
+// contraseña actual — mismo criterio que PUT /api/admin/mi-cuenta/password.
+app.put(
+  '/api/mi-cuenta/password',
+  requireUserAuth,
+  authLimiter,
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const passwordActual = typeof body.password_actual === 'string' ? body.password_actual : '';
+    const passwordNueva = typeof body.password_nueva === 'string' ? body.password_nueva : '';
+
+    const [filas] = await pool.query('SELECT password_hash FROM usuarios WHERE rfc = ? LIMIT 1', [req.userRfc]);
+    const fila = filas[0];
+    if (!fila || !verifyPassword(passwordActual, fila.password_hash)) {
+      return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+    }
+
+    const errorPassword = validarPassword(passwordNueva);
+    if (errorPassword) {
+      return res.status(400).json({ error: errorPassword });
+    }
+
+    const passwordHash = hashPassword(passwordNueva);
     await pool.query(
       'UPDATE usuarios SET password_hash = ?, debe_cambiar_password = 0, actualizado_en = ? WHERE rfc = ?',
       [passwordHash, new Date(), req.userRfc]

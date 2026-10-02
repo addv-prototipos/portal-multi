@@ -17566,6 +17566,122 @@ higiene de pruebas E2E.
   deuda retroactiva del punto 348 está cerrada — ya no bloquea trabajo
   nuevo de producto.
 
+**Punto 353 (2026-10-02, Segmento 1 CERRADO — "Mi Cuenta" en el portal de
+cliente):** primer segmento de 3 aprobados por el usuario (Mi Cuenta /
+login RFC-o-correo / Gestión de crédito con historial de abonos — ver
+propuesta antes/después en Artifact de esta sesión). Nuevo segmento
+autoservicio para que el cliente edite nombre/teléfono/correo y cambie su
+contraseña, mismo patrón ya probado en `/api/admin/mi-cuenta`.
+
+- **Backend**: `GET/PUT /api/mi-cuenta` + `PUT /api/mi-cuenta/password`
+  (`backend/server.js`, justo después de `PUT /api/auth/password`) —
+  `requireUserAuth`, nombre/telefono/email editables (correo valida
+  formato + unicidad cross-cuenta, 409 en colisión), contraseña exige la
+  **actual** correcta (a diferencia de `PUT /api/auth/password`, que es
+  el reseteo forzado/voluntario sin esa verificación porque la sesión ya
+  la prueba).
+- **Frontend**: `frontend/mi-cuenta.html` + `mi-cuenta.js` (nuevos, mismo
+  patrón que `tickets.html` — header/tooltip/toast de `portal.js`,
+  formularios con `.field`/`.card`/`.password-reglas` ya existentes en
+  `style.css`). Tile nuevo en `dashboard.html`. `frontend/portal.css`
+  (`.mi-cuenta-card-titulo`, 7 líneas) — **sin tocar la paleta**: la
+  página ya nace en navy/cian porque reutiliza `class="portal-body"` +
+  `portal.css`, que YA sobreescribe el verde de `style.css` (ver nota de
+  identidad de marca más abajo).
+- **Enrutamiento**: `frontend/nginx.conf.template` (`location = /mi-cuenta`
+  + agregado al grupo `dashboard|tickets|login|csf|mi-cuenta` de rutas con
+  slug), `frontend/portal.js` (`RUTAS_PAGINA_MULTITENANT`). **Gotcha real
+  encontrado**: `frontend/Dockerfile` enumera cada archivo HTML/JS a mano
+  en su `COPY` (no copia el directorio completo) — un archivo nuevo que no
+  se agregue ahí da 404 aunque el nginx `location` y el template estén
+  bien; `docker compose build` (sin `--no-cache`) tampoco lo detecta solo,
+  hubo que forzar `--no-cache` una vez. Cualquier página nueva futura del
+  frontend debe agregarse a esa lista del `Dockerfile`.
+- **Identidad de marca — hallazgo y auto-corrección en la misma sesión**:
+  se documentó por error que "todo el portal de cliente está fuera de
+  marca (verde)" sin haber revisado `frontend/portal.css`/`auth.css` —
+  en realidad esos archivos YA sobreescriben `--color-accent` a
+  navy/cian, scoped a `.portal-body`/`.auth-body`, igual que
+  `admin.css` con `.admin-body`. El verde `:root` de `style.css` es
+  vestigial (solo se renderiza en `mantenimiento.html`). Corregido en
+  `CLAUDE.md`, la memoria de usuario y `pendientes.html` en la misma
+  sesión — ver ahí el detalle completo y la lección (revisar TODOS los
+  `<link rel="stylesheet">` de la página real, no solo el que define
+  `:root`, antes de calificar algo como fuera de marca).
+- **Pruebas**: `backend/test/integration/miCuentaCliente.test.js` (12
+  casos, mismo patrón que `miCuenta.test.js` del lado admin). Suite
+  completa sin regresiones: backend 1144/1144. **Funcional real**:
+  `e2e/tests/mi-cuenta.spec.ts` (5 casos — tile visible, carga/edita
+  datos con persistencia confirmada tras recargar, 409 por correo
+  duplicado, contraseña actual incorrecta vs. correcta, login real de
+  punta a punta con la contraseña nueva), 5/5 en verde contra Docker/MySQL
+  reales, corrido 2 veces seguidas sin limpiar nada entre medio
+  (idempotente — crea/borra su propio usuario de prueba `QAMC900101AB1`
+  vía la API de `/admin`). Validado también con clics reales en Chrome
+  DevTools MCP antes de escribir el spec (usuario de prueba
+  `QATJ900101AB1`, eliminado al terminar).
+- **Siguiente paso**: Segmento 2 (login con RFC o correo) — ver punto 354.
+
+**Punto 354 (2026-10-02, Segmento 2 CERRADO — login con RFC o correo):**
+segundo de los 3 segmentos aprobados. **Plan revisado en vivo antes de
+implementar** (el usuario pidió explícitamente auditar impacto primero,
+protocolo `addv-web-app` paso 2-3): la propuesta original (hacer `rfc`
+nullable + regla de alta condicional a `facturacionHabilitada`) resultó
+innecesaria y más riesgosa de lo necesario — se confirmó en código que
+**el correo YA es obligatorio para cualquier cliente desde su creación**
+(`POST /api/auth/registro` y `POST /api/admin/usuarios`, sin excepción
+por tenant/plan). Eso significa que todo cliente que existe ya tiene RFC
+y correo reales — el único hueco real era que el login solo consultaba
+`rfc`. Plan final, mucho más chico:
+
+- **Backend**: `POST /api/auth/login` (`backend/server.js`) ahora hace
+  `WHERE rfc = ? OR email = ?` — mismo patrón ya probado en
+  `POST /api/auth/recuperar` (valor en mayúsculas contra `rfc`, en
+  minúsculas contra `email`). La sesión se abre con `usuario.rfc` (la
+  columna real de la fila encontrada), **nunca** con el valor tecleado —
+  así folios de tickets, el campo "RFC" de "Solicitar aclaraciones", el
+  label del header y los correos de confirmación siguen viendo un RFC
+  real sin ningún cambio, se haya entrado por RFC o por correo. **Cero
+  cambio de esquema** (`rfc` sigue `NOT NULL`+`UNIQUE`) y **cero cambio
+  en las reglas de alta** (admin y auto-registro siguen pidiendo RFC
+  igual que siempre).
+- **Frontend**: `frontend/login.html` (label "RFC" → "RFC o correo",
+  tooltip actualizado, quitado `autocapitalize="characters"` y
+  `maxlength="13"` que rompían un correo), `frontend/login.js`
+  (`validarIdentificadorLogin()` nueva — acepta formato RFC O correo;
+  ya no fuerza `.toUpperCase()` sobre el valor antes de enviarlo, el
+  backend decide el casing por columna).
+- **Hallazgo de impacto real que originó este plan**: el usuario mostró
+  capturas de "Solicitar aclaraciones" (precarga un campo "RFC" con la
+  sesión) y del label del header — preguntó explícitamente si ya estaban
+  considerados. Auditar `req.userRfc` (19 usos en `server.js`, incluido
+  el folio de tickets `${Date.now()}-${req.userRfc}`) confirmó que
+  decouplear la sesión de un RFC real habría sido un refactor mucho más
+  grande (tickets/registros usan `rfc` como llave de pertenencia, no
+  `usuario_id`) — exactamente el tipo de impacto que el paso 2 del
+  protocolo existe para atrapar antes de escribir código.
+- **Pruebas**: `backend/test/integration/auth-usuario.test.js` (+2 casos
+  nuevos de login por correo, 1 mensaje de error actualizado). Suite
+  completa sin regresiones: backend 1145/1145. **Funcional real**:
+  `e2e/tests/login-rfc-correo.spec.ts` (5 casos — label visible, RFC
+  real sin regresión, login por correo con sesión anclada al RFC real,
+  correo con mayúsculas/minúsculas distinto a como se guardó, error
+  genérico con credenciales incorrectas), 5/5 en verde contra Docker/MySQL
+  reales. Confirmado también con clics reales en Chrome DevTools MCP
+  (usuario de prueba `QALC900101AB1`, eliminado al terminar). Corrido
+  junto con el spec del Segmento 1 (10/10) sin interferencia entre
+  ambos.
+- **Nota operativa**: durante esta sesión otra sesión/proceso distinto
+  modificaba en paralelo `frontend/login.html`/`restablecer.html`
+  (soporte `<picture>`/webp para el logo) — cambios en secciones
+  distintas del mismo archivo (hero vs. panel de login), sin conflicto
+  de contenido, pero confirmar con el usuario antes de commitear
+  `login.html` para no mezclar trabajo de otra sesión sin su visto
+  bueno.
+- **Siguiente paso**: Segmento 3 (Gestión de crédito — tabla `abonos`,
+  historial real, vista de cliente) — pendiente de confirmación del
+  usuario para empezar.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
