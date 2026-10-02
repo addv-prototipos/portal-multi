@@ -6,7 +6,12 @@
 
 import { test, expect } from '@playwright/test';
 
-const NOMBRE_PLAN = 'E2E Asistente Wizard';
+// Nombre único por corrida: control_app no tiene permiso DELETE sobre
+// `planes` (mismo criterio de credenciales angostas cross-tenant que el
+// resto del proyecto), así que "limpieza" solo archiva, nunca borra. Un
+// nombre fijo chocaría con el archivado de la corrida anterior en la
+// siguiente ejecución — timestamp lo evita sin acumular lógica de reuso.
+const NOMBRE_PLAN = `E2E Asistente Wizard ${Date.now()}`;
 
 async function loginControl(page) {
   await page.goto('/control');
@@ -27,17 +32,17 @@ test('crea un plan nuevo recorriendo los 4 pasos, con cascadas y bloqueos reales
   await loginControl(page);
   await irAPlanes(page);
 
-  // Si quedó un plan de una corrida interrumpida, lo limpiamos primero.
+  // Si quedó un plan de una corrida interrumpida, saltamos directo a la
+  // aserción final — no reabrimos su modal (los pasos de abajo asumen
+  // "Nuevo plan" desde el paso 1, no "Editar plan").
   const filaPrevia = page.locator('#planes-table-body tr', { hasText: NOMBRE_PLAN });
-  if (await filaPrevia.count() > 0) {
-    // ya existe de una corrida anterior — lo reusamos editándolo en vez de crear otro
-  } else {
+  const esCorridaLimpia = (await filaPrevia.count()) === 0;
+  if (esCorridaLimpia) {
     await page.click('#btn-planes-nuevo');
+    await expect(page.locator('#planes-modal-overlay')).toBeVisible();
   }
 
-  await expect(page.locator('#planes-modal-overlay')).toBeVisible();
-
-  if (await filaPrevia.count() === 0) {
+  if (esCorridaLimpia) {
     // ---------- Paso 1: Datos básicos ----------
     await expect(page.locator('.planes-wizard-step.is-active')).toContainText('Datos básicos');
     await page.fill('#planes-nombre', NOMBRE_PLAN);

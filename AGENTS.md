@@ -57,27 +57,22 @@ en el punto 347, Fase 0-1 — replicar exacto, nunca reinventar):
    `stitch/gobierno-funcionalidades/NOTAS.md`.
 
 **Alcance: retroactivo y obligatorio, no solo hacia adelante.** Cubre
-TAMBIÉN los módulos ya existentes, no solo los nuevos: **ningún trabajo
-nuevo de producto avanza hasta auditar y mapear en Control todos los
-módulos existentes** que todavía no lo están. Ver puntos 348 y 349 en
-`PROJECT_STATE.md`.
+TAMBIÉN los módulos ya existentes, no solo los nuevos — ver histórico en
+`PROJECT_STATE.md` punto 348.
 
-**Estado real al 2026-10-01**: el punto 347 SOLO cubre 4 flags
-(Facturación, portal de clientes, sucursales, marca propia) + límites de
-usuarios/disco. Ventas, Gastos, Inventarios, Auditoría, Proveedores,
-Reportes (4 sub-pestañas), Cuentas por cobrar y Resumen financiero
-siguen sin mapear. El diseño para cubrirlos (asistente de 4 pasos + 12
-reglas de dependencia) está **aprobado por el usuario** (puntos 349-350,
-`stitch/gobierno-funcionalidades/`) pero **sin una sola línea de código
-real todavía** — el usuario pidió explícitamente esperar su confirmación
-antes de implementar. No empezar el código de producción sin esa
-confirmación, aunque el diseño ya esté aprobado. **Las 3 preguntas que
-faltaban (reglas 7-9) ya están resueltas** (punto 350): portal sin
-Facturación = advertencia; editar plan asignado = aviso de impacto antes
-de modificar; bajar el máximo de usuarios por debajo del uso real = se
-permite, suspende automáticamente usuarios no-admin (los más recientes
-primero, admins siempre activos) con motivo explícito. Cualquier sesión
-que retome esto parte de `stitch/`, nunca rediseña de cero.
+**Estado real al 2026-10-02 (punto 352, CERRADO)**: Ventas, Gastos,
+Inventarios, Auditoría, Proveedores, Reportes (4 sub-pestañas), Cuentas
+por cobrar y Resumen financiero **ya están mapeados** con los 5
+elementos obligatorios de arriba — el commit `31059c7` lo implementó de
+hecho aunque su mensaje decía lo contrario, desincronizando esta
+documentación del código real por un día. Verificar siempre el código
+(`grep -c "requiereFeature("`, columnas de `ensureSchema.js`) antes de
+asumir que algo "sigue pendiente" solo porque lo dice un commit message o
+este archivo — exactamente el error que originó el punto 352. Validado
+con Playwright real contra Docker/MySQL reales (`admin-plan-gating.spec.ts`
++ `control-planes-wizard.spec.ts`, 5/5). Catálogo de 12 reglas de
+dependencia completo en `stitch/gobierno-funcionalidades/NOTAS.md`
+(referencia viva del diseño, ya implementado).
 
 ## Reglas persistentes de coordinación
 

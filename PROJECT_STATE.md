@@ -17489,13 +17489,82 @@ banner de impacto regla 8) siguen pendientes.
     al terminar (`DELETE /api/admin/usuarios/:id`), `t1` quedó en 0
     usuarios como antes de la prueba. Sin errores de consola. Paso 8 del
     protocolo `addv-web-app` cerrado para esta fase.
-- **Siguiente paso**: con la Fase 7 cerrada y validada visualmente, las 12
-  reglas del punto 350 quedan todas implementadas y confirmadas. Lo que
-  sigue es la deuda retroactiva del punto 348:
-  auditar y mapear en Control los módulos existentes que aún no están
-  (Ventas, Gastos, Inventarios, Auditoría, Proveedores, Reportes y sus 4
-  sub-pestañas, Cuentas por cobrar, Resumen financiero) usando este mismo
-  catálogo de 12 reglas ya construido.
+- **Siguiente paso**: ver punto 352 — la deuda retroactiva del punto 348
+  resultó estar YA IMPLEMENTADA en el propio commit de la Fase 6-7, solo
+  mal documentada.
+
+**Punto 352 (2026-10-02, CERRADO — deuda retroactiva del punto 348
+confirmada como YA IMPLEMENTADA, solo faltaba el registro):** al retomar
+la sesión para auditar Ventas/Gastos/Inventarios/Auditoría/Proveedores/
+Reportes/Cuentas por cobrar/Resumen financiero, se encontró que el commit
+`31059c7` (etiquetado solo como "regla 9 + regla 8 extendida, Fases 6-7")
+en realidad SÍ incluyó el mapeo completo de los 8 módulos en Control —
+su propio mensaje de commit decía lo contrario ("stitch/ se mantiene como
+referencia viva para el punto 348, aún sin implementar"), lo que dejó
+`CLAUDE.md`/`PROJECT_STATE.md` desincronizados del código real durante un
+día. Nada de código nuevo fue necesario para el mapeo en sí — este punto
+es de verificación y corrección de registro, más dos arreglos reales de
+higiene de pruebas E2E.
+
+- **Verificado en código ya existente** (los 5 elementos obligatorios de
+  "mapeado en Control" de `CLAUDE.md`, para los 8 módulos):
+  1. Columnas en `control_tenants.tenants`:
+     `ventas_habilitado`/`gastos_habilitado`/`inventarios_habilitado`/
+     `auditoria_habilitado`/`cxc_habilitado`/`resumen_financiero_habilitado`/
+     `reportes_por_reporte_habilitado`/`reportes_cortes_habilitado`/
+     `reportes_eliminados_habilitado`/`reportes_estado_inventario_habilitado`
+     (`control/scripts/ensureSchema.js`).
+  2. `tenantContext.js` las expone en `req.tenant`.
+  3. `requiereFeature()` ya está insertado ruta por ruta en
+     `backend/server.js` (106 sitios en total, confirmado con
+     `grep -c "requiereFeature("`), antes de los middlewares de auth,
+     cubriendo los 8 módulos + las 4 sub-pestañas de Reportes. Proveedores
+     no tiene flag propio por diseño (regla 4 de `stitch/NOTAS.md`:
+     visible si Inventarios o Gastos está activo).
+  4. Toggle real en `/control`: el asistente de 4 pasos en
+     `frontend/control.js` (función `renderPlanWizard*`, catálogo
+     `REPORTES_DEF`) ya cubre los 8 módulos con las 11 reglas de
+     dependencia del asistente (bloqueo/cascada/auto-activación/
+     checkbox-`disabled`) — reglas 7-9 (nivel asignación, no catálogo) ya
+     confirmadas como implementadas desde el punto 350-351.
+  5. `frontend/admin.js` oculta botones del sidebar y tarjetas de
+     Configuraciones por plan (`planPermite()`, línea ~2319 en adelante) —
+     Fase 5, ya hecha.
+- **Validado con Playwright real contra Docker/MySQL reales (no mockeado,
+  paso 8 del protocolo `addv-web-app`)**: `e2e/tests/admin-plan-gating.spec.ts`
+  y `e2e/tests/control-planes-wizard.spec.ts`, las 5 pruebas pasando en
+  verde contra el stack real (`docker compose ps` con 15h de uptime,
+  reconstruido en la sesión del punto 351). Para `admin-plan-gating.spec.ts`
+  se preparó la precondición manual que el propio spec documenta requerir
+  (3 flags de `t1` apagados vía el módulo `db.js` de `control` +
+  `POST /internal/cache-tenant/invalidar` para saltar el TTL de 45s de
+  `tenantContext.js`), y se restauró `t1` a su estado real (todo
+  encendido) al terminar.
+- **2 arreglos reales encontrados y corregidos en los specs E2E** (no en
+  código de producción):
+  1. `control-planes-wizard.spec.ts` tenía una rama "reusar plan de una
+     corrida interrumpida" que era solo un comentario sin acción —
+     dejaba `#planes-modal-overlay` sin abrir y la aserción de
+     visibilidad (fuera de cualquier rama) fallaba siempre que existiera
+     un plan archivado con el mismo nombre de una corrida anterior.
+  2. La causa raíz de fondo: `control_app` no tiene permiso `DELETE`
+     sobre `planes` (mismo criterio de credenciales angostas cross-tenant
+     que el resto del proyecto) — "limpieza" solo archiva, nunca borra,
+     así que un nombre de plan fijo SIEMPRE choca con la corrida
+     anterior. Corregido generando el nombre con timestamp
+     (`` `E2E Asistente Wizard ${Date.now()}` ``) — cada corrida crea su
+     propio plan, nunca reutiliza ni colisiona. Confirmado corriendo el
+     spec 2 veces consecutivas sin limpiar nada entre medio: ambas en
+     verde.
+  3. `admin-plan-gating.spec.ts` sigue sin auto-configurar su precondición
+     (apaga 3 flags de `t1` antes de correr) — es una limitación conocida
+     y documentada en el propio spec, no se tocó en esta sesión; queda
+     como mejora futura opcional si se quiere correr en CI sin pasos
+     manuales.
+- **Corrección de registro**: `CLAUDE.md` (sección "Gobernanza de
+  funcionalidades") y este archivo actualizados para reflejar que la
+  deuda retroactiva del punto 348 está cerrada — ya no bloquea trabajo
+  nuevo de producto.
 
 ## Dónde está todo (mapa rápido)
 

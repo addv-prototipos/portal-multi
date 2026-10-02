@@ -79,38 +79,31 @@ momento en que se construya esa vía.
 
 **Alcance: retroactivo y obligatorio, no solo hacia adelante.** El
 usuario decidió explícitamente (2026-10-01) que esta regla cubre TAMBIÉN
-los módulos ya existentes, no solo los nuevos: **ningún trabajo nuevo de
-producto avanza hasta auditar y mapear en Control todos los módulos
-existentes** que todavía no lo están. Ver punto 348 en
-`PROJECT_STATE.md` para el estado de esa auditoría y qué falta.
+los módulos ya existentes, no solo los nuevos — ver histórico en
+`PROJECT_STATE.md` punto 348.
 
-**Estado real al 2026-10-01** (para que ninguna sesión asuma que ya está
-completo): el punto 347, implementado y pusheado hasta ahora, SOLO cubre
-4 flags (Facturación, portal de clientes, sucursales, marca propia) +
-límites de usuarios/disco. **Ventas, Gastos, Inventarios, Auditoría,
-Proveedores, Reportes (y sus 4 sub-pestañas), Cuentas por cobrar y
-Resumen financiero NO están mapeados todavía** — son la deuda retroactiva
-obligatoria de arriba. El diseño para ellos (asistente de 4 pasos +
-**11 reglas** de dependencia de
-bloqueo/cascada/auto-activación/advertencia/checkbox-inhabilitado) está
-**aprobado por el usuario desde el punto 349** (2026-10-01, ver
-`PROJECT_STATE.md`) en
-`stitch/gobierno-funcionalidades/` (`NOTAS.md` + 2 prototipos HTML) —
-**sigue siendo solo prototipo visual, sin una sola línea de código real
-todavía**. El usuario pidió explícitamente documentar y **esperar su
-confirmación antes de implementar** — no empezar el código de producción
-(esquema/`requiereFeature()`/UI real) sin esa confirmación en una sesión
-futura, aunque el diseño ya esté aprobado. **Las 3 preguntas que
-quedaban (reglas 7-9) ya se resolvieron (punto 350, 2026-10-01)**: portal
-sin Facturación = advertencia, no bloqueo; editar un plan asignado = aviso
-de impacto ANTES de modificar (banner fijo desde que se abre el editor,
-no solo al guardar); bajar el máximo de usuarios por debajo del uso real
-= se permite guardar, suspende automáticamente usuarios no-admin (los más
-recientes primero, admins siempre quedan activos) con motivo explícito —
-detalle completo en `stitch/gobierno-funcionalidades/NOTAS.md`. Catálogo
-final: **12 reglas**. Cualquier sesión que retome esto parte de
-`stitch/`, nunca rediseña de cero — y sigue esperando la confirmación
-explícita del usuario para empezar el código real.
+**Estado real al 2026-10-02 (punto 352, CERRADO):** la deuda retroactiva
+del punto 348 — Ventas, Gastos, Inventarios, Auditoría, Proveedores,
+Reportes (y sus 4 sub-pestañas), Cuentas por cobrar y Resumen
+financiero — **ya está mapeada en Control**, con los 5 elementos
+obligatorios de arriba completos para los 8 módulos (esquema en
+`control_tenants.tenants`, `tenantContext.js`, `requiereFeature()` en
+106 sitios de `backend/server.js`, asistente de 4 pasos con las 11
+reglas de dependencia en `frontend/control.js`, ocultamiento de
+menú/tarjetas por plan en `frontend/admin.js`). Validado con Playwright
+real contra Docker/MySQL reales
+(`e2e/tests/admin-plan-gating.spec.ts` + `control-planes-wizard.spec.ts`,
+5/5 en verde, 2026-10-02). El commit `31059c7` implementó esto de hecho
+aunque su mensaje y la documentación de esa sesión decían lo contrario
+("aún sin implementar") — **esta nota queda aquí precisamente para que
+ninguna sesión futura repita ese desfase**: antes de asumir que algo
+"sigue pendiente" por lo que dice un commit message o este archivo,
+revisar el código real (`grep -c "requiereFeature("`, columnas de
+`ensureSchema.js`, etc.) como se hizo en el punto 352. Catálogo de
+reglas de dependencia: 12 en total (11 del asistente + regla 9 de
+suspensión automática a nivel de asignación de plan) — detalle completo
+en `stitch/gobierno-funcionalidades/NOTAS.md`, que se mantiene como
+referencia viva del diseño aunque ya esté implementado.
 
 **Pruebas funcionales, siempre, sin excepción** (ya es piso no negociable
 del protocolo `addv-web-app` global — esto solo lo precisa para este
