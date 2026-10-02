@@ -17790,13 +17790,48 @@ respetaba. Propuesta antes/después confirmada antes de implementar
   se salta explícitamente (`test.skip`, con motivo) cuando el tenant no
   tiene uno disponible en ese momento. 9/9 en verde (1 skip esperado)
   tras el ajuste.
+- **Hallazgo fuera de alcance del punto 356 → corregido en el acto**: el
+  usuario señaló que la regla también aplica a notificaciones, no solo a
+  tickets — "también para los inventarios, si hubo cortes y alertas
+  internas". Auditada `actualizarNotificaciones()` (la campana,
+  `admin.js`) a fondo: sus 3 grupos ("Solicitudes nuevas"/tickets,
+  "Inventario", "Configuración"/contador fiscal) solo filtraban por
+  **perfil**, nunca por `planPermite()` — mismo gap que el resto del
+  punto 356, pero en un lugar que sondea cada 60s (`setInterval`), no
+  solo en la carga inicial. Para Inventario, el gap era doble: el flag
+  de control (`inventariosHabilitado`) nunca se consultaba, solo el
+  toggle local del admin (`inventario_activo`, independiente del plan) —
+  mismo patrón ya usado en el sidebar (`aplicarRestriccionesPerfil`) que
+  la campana nunca replicó. Se agregó `planPermite('facturacionHabilitada')`
+  a `ticketsAplican`/`configAplica` y `planPermite('inventariosHabilitado')`
+  a `inventarioAplica`. De paso, mismo audit encontró y corrigió 2 gaps
+  más de la misma familia (precarga sin condición en cada login/refresh,
+  no parte de la campana): `revisarTicketsPendientesSinContador()` (popup
+  de tickets sin contador) y `cargarInfoUsoCfdi()`/`cargarConfigCampos()`
+  (catálogo de Uso de CFDI y Campos obligatorios en Configuraciones) ahora
+  exigen `planPermite('facturacionHabilitada')`; y la precarga
+  incondicional de `cargarRegistros()` (Constancias) en cada refresh de
+  sesión, también sin ningún `planPermite()`. No existe ningún aviso de
+  "cortes" todavía en la campana (0 grupos relacionados hoy) — si se
+  construye a futuro, debe nacer con el mismo `planPermite()` desde el
+  principio, no agregarse después. **Validado con clics reales**: antes
+  del fix, `t1` (Facturación apagada) mostraba 5 llamadas 404 de fondo
+  en cada login/refresh (`/admin/tickets` x2, `/tickets/pendientes-sin-
+  contador` x2, `/admin/catalogos/uso-cfdi`, `/admin/registros`);
+  después, **cero** — confirmado con `list_network_requests` de Chrome
+  DevTools MCP, solo 200s. Sin cambios de backend — 100% frontend
+  (`admin.js`), no requirió tests nuevos de Jest. Suite backend sin
+  regresiones: 1153/1153 (no tocado, verificado de todas formas).
 - **Hallazgos fuera de alcance, no corregidos aquí** (quedan para
-  decisión aparte): la campanita de notificaciones del admin sigue
-  consultando `/api/admin/tickets`/`tickets/pendientes-sin-contador`
-  cada pocos segundos aunque Facturación esté apagada (404 silencioso,
-  no rompe nada visible, solo tráfico de más); el mismo patrón de
-  `.portal-main-angosto` angosto en escritorio del punto 355 aplica
-  también a `tickets.html`/`csf.html`.
+  decisión aparte): el mismo patrón de `.portal-main-angosto` angosto en
+  escritorio del punto 355 aplica también a `tickets.html`/`csf.html`.
+
+**Punto 357 (2026-10-02, CERRADO — regla persistente de Playwright):**
+el usuario decidió que toda prueba funcional se ejecute con Playwright
+(E2E real contra Docker+MySQL reales) y que toda propuesta visual
+antes/después se muestre mediante capturas de Playwright — nunca solo
+descripción en texto ni mockups estáticos. Regla documentada en
+`CLAUDE.md` y `AGENTS.md` bajo "Reglas persistentes de coordinación".
 
 ## Dónde está todo (mapa rápido)
 

@@ -2456,7 +2456,12 @@
     // "administrador" ya no tiene permitido, devolviendo un 403 de
     // fondo sin que la persona haga nada para provocarlo. Se limitan a
     // los perfiles que sí tienen esa área (o "super", sin restricción).
-    const puedeVerAreaFiscal = perfilActual !== 'administrador';
+    // Punto en curso: estas 2 llamadas son del área fiscal (Campos
+    // obligatorios, catálogo de Uso de CFDI) — sin Facturación activa en
+    // el plan, el backend las bloquea igual (requiereFeature), así que
+    // precargarlas sin ese check también le pide al backend algo que
+    // 404 de fondo sin que la persona haga nada para provocarlo.
+    const puedeVerAreaFiscal = perfilActual !== 'administrador' && planPermite('facturacionHabilitada');
     cargarConfigGlobal({ verificarFiscalFaltante: true });
     if (puedeVerAreaFiscal) {
       cargarConfigCampos();
@@ -2467,7 +2472,11 @@
     // ticket por ticket). Administrador/super ya lo ven reflejado en la
     // campana de notificaciones (actualizarNotificaciones/ticketsAplican
     // más abajo) — mostrarles además el modal era ruido duplicado.
-    if (perfilActual === 'fiscal') {
+    // Punto en curso: sin Facturación activa en el plan, este popup
+    // consultaba igual /admin/tickets/pendientes-sin-contador (404 por
+    // requiereFeature) sin mostrar nada útil — se le agrega el mismo
+    // planPermite() que ya usa la campana.
+    if (perfilActual === 'fiscal' && planPermite('facturacionHabilitada')) {
       revisarTicketsPendientesSinContador();
     }
     // D7: fiscal no tiene NINGÚN acceso a Inventarios — evita pedirle al
@@ -6163,10 +6172,16 @@
     const authHeader = getAuthHeader();
     if (!authHeader) return;
 
-    const ticketsAplican = ['fiscal', 'administrador', 'super'].includes(perfilActual);
+    // Punto en curso (consistencia de gating — extendido de Facturación a
+    // cualquier módulo con aviso propio en la campana): el filtro por
+    // perfil ya existía, pero faltaba el mismo AND con planPermite() que
+    // el sidebar ya aplica (ver aplicarRestriccionesPerfil()) — sin esto,
+    // apagar un módulo desde /control seguía mostrando (y sondeando) sus
+    // avisos en la campana.
+    const ticketsAplican = ['fiscal', 'administrador', 'super'].includes(perfilActual) && planPermite('facturacionHabilitada');
     const inventarioAplica =
-      ['administrador', 'inventario', 'super'].includes(perfilActual) && inventarioActivoGlobalmente;
-    const configAplica = ['fiscal', 'super'].includes(perfilActual);
+      ['administrador', 'inventario', 'super'].includes(perfilActual) && inventarioActivoGlobalmente && planPermite('inventariosHabilitado');
+    const configAplica = ['fiscal', 'super'].includes(perfilActual) && planPermite('facturacionHabilitada');
 
     if (!ticketsAplican && !inventarioAplica && !configAplica) {
       els.btnNotificaciones.hidden = true;
@@ -19433,7 +19448,11 @@
             return res.json().then((data) => {
               if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
               showDashboard(data.usuario, data.perfil, data.funciones);
-              if (data.perfil !== 'administrador') {
+              // Punto en curso: precarga de "Constancias" en cada refresh —
+              // sin Facturación activa esa vista ni siquiera es alcanzable
+              // (botón oculto), así que pedirla igual solo generaba un 404
+              // de fondo sin que la persona hiciera nada para provocarlo.
+              if (data.perfil !== 'administrador' && planPermite('facturacionHabilitada')) {
                 cargarRegistros();
               }
               // Refresh de una sesión ya activa (no un login nuevo, ese

@@ -76,6 +76,11 @@ dependencia completo en `stitch/gobierno-funcionalidades/NOTAS.md`
 
 ## Reglas persistentes de coordinación
 
+- **Playwright para pruebas funcionales y propuestas visuales** (decisión
+  del usuario, 2026-10-02): toda prueba funcional se ejecuta con
+  Playwright (E2E real contra Docker+MySQL reales), y toda propuesta
+  visual antes/después se muestra al usuario mediante capturas de
+  Playwright — nunca solo descripción en texto ni mockups estáticos.
 - Después de cualquier cambio relevante de código, arquitectura,
   operación, pruebas, decisiones de producto o estado del proyecto:
   actualizar siempre `PROJECT_STATE.md`, `CLAUDE.md`, `pendientes.html` y
