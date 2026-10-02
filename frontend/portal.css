@@ -344,6 +344,30 @@
   margin: 0 0 16px;
 }
 
+/* Tratamiento de escritorio (ver propuesta antes/después de esta misma
+   sesión): .portal-main-angosto (480px) se queda centrado pero angosto en
+   monitores anchos — misma causa raíz que tickets.html/csf.html, pero esa
+   corrección queda fuera de alcance aquí a propósito, solo esta página.
+   Mobile/tablet (<880px) queda pixel-idéntico a .portal-main-angosto. */
+.mi-cuenta-main {
+  max-width: 480px;
+}
+.mi-cuenta-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+@media (min-width: 880px) {
+  .mi-cuenta-main {
+    max-width: 680px;
+  }
+  .mi-cuenta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
 /* ---------- Vista previa de imagen (tickets.html) ---------- */
 .dropzone-preview {
   display: flex;

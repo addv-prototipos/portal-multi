@@ -17682,6 +17682,32 @@ y correo reales — el único hueco real era que el login solo consultaba
   historial real, vista de cliente) — pendiente de confirmación del
   usuario para empezar.
 
+**Punto 355 (2026-10-02, CERRADO — Mi Cuenta, tratamiento de
+escritorio):** el usuario señaló que, aunque la página es responsiva,
+en monitor ancho `mi-cuenta.html` se ve angosta con mucho espacio vacío
+alrededor — `.portal-main-angosto` (480px) nunca creció más allá de eso
+en ningún viewport. Propuesta antes/después confirmada antes de tocar
+código (protocolo `addv-web-app` paso 4-6).
+
+- **Cambio**: `frontend/portal.css` — nuevas clases `.mi-cuenta-main`
+  (480px por defecto, igual que `.portal-main-angosto`) y
+  `.mi-cuenta-grid`, con `@media (min-width: 880px)` que amplía a 680px
+  y convierte las 2 tarjetas ("Datos de contacto"/"Cambiar contraseña")
+  de apiladas a lado a lado (`grid-template-columns: 1fr 1fr`).
+  `frontend/mi-cuenta.html` usa las nuevas clases en vez de
+  `.portal-main-angosto` y envuelve las 2 tarjetas en el nuevo
+  contenedor. **100% CSS/markup, cero cambio de lógica/endpoints.**
+- **Alcance explícito**: solo `mi-cuenta.html` — `tickets.html`/`csf.html`
+  comparten la misma causa raíz (`.portal-main-angosto`) pero quedan
+  fuera a propósito, señalados como hallazgo para una decisión aparte
+  sobre si se pareja en todo el portal.
+- **Validado con clics reales** en Chrome DevTools MCP a 3 anchos:
+  1920px (2 columnas centradas, confirmado visualmente), 800px (vuelve a
+  apilado, idéntico a antes — breakpoint exacto en 880px), 390px (móvil,
+  sin cambios). Suite E2E de los segmentos 1-2 corrida de nuevo después
+  del cambio: 10/10 sin regresión (`mi-cuenta.spec.ts` +
+  `login-rfc-correo.spec.ts`).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
