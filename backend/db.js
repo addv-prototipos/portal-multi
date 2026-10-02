@@ -991,6 +991,27 @@ async function ensureSchema(db = pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // abonos (Segmento 3 de "Mi Cuenta", Gestión de crédito del cliente, ver
+  // PROJECT_STATE.md): bitácora real de cada cobro individual sobre una
+  // venta — hasta ahora PUT /api/admin/ordenes-compra/:id/cobro solo
+  // sobrescribía ordenes_compra.monto_cobrado con el acumulado, sin dejar
+  // rastro de los abonos individuales. Esta tabla no reemplaza ese campo
+  // (sigue siendo la fuente de verdad del total cobrado/saldo), solo
+  // agrega el historial que faltaba para que el cliente vea "qué pagó y
+  // cuándo" en el portal. Sin CONSTRAINT FOREIGN KEY, mismo motivo que
+  // orden_productos arriba.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS abonos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      orden_id INT NOT NULL,
+      monto DECIMAL(10,2) NOT NULL,
+      notas VARCHAR(500) NULL,
+      creado_por VARCHAR(200) NULL,
+      creado_en DATETIME NOT NULL,
+      KEY idx_abonos_orden (orden_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   // Gastos de la operación (módulo "Gastos", ver PROJECT_STATE.md):
   // control administrativo/financiero de egresos, con o sin factura/CFDI.
   // NO es un sistema contable — se guarda el monto tal cual se pagó y un

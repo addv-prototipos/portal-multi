@@ -198,7 +198,24 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 - **`ensureSchema()` corre en cada restart/deploy** — cualquier backfill o
   valor forzado debe ser CONDICIONAL (solo si el dato está en un estado
   viejo conocido), nunca incondicional, o revierte en silencio datos
-  legítimos ya guardados en producción.
+  legítimos ya guardados en producción. **Esto SOLO aplica al pool base**
+  (`ensureSchema()` sin argumento, server.js arranque) — las bases
+  `tenant_*` de tenants YA aprovisionados **nunca** se vuelven a migrar
+  solas: `ensureSchema(poolTenant)` solo se invoca una vez, desde
+  `/internal/activar-tenant/:slug`, al momento del aprovisionamiento
+  (confirmado dos veces — `suspendido_motivo` en Fase 6/7 del punto 350,
+  y la tabla `abonos` del punto 359). Cualquier tabla/columna nueva
+  agregada a `ensureSchema()` en una sesión posterior a que un tenant ya
+  exista **no aparece en su base** hasta reinvocar ese mismo endpoint
+  interno (idempotente, `CREATE TABLE IF NOT EXISTS`/`CREATE DATABASE IF
+  NOT EXISTS` de por medio) con `X-Internal-Secret` —
+  `docker compose exec backend sh -c 'node -e "require(\"http\").request({host:\"localhost\",port:4000,path:\"/internal/activar-tenant/<slug>\",method:\"POST\",headers:{\"X-Internal-Secret\":process.env.INTERNAL_CACHE_SECRET}}, r=>{let b=\"\";r.on(\"data\",d=>b+=d);r.on(\"end\",()=>console.log(r.statusCode,b));}).end()"'`
+  — en local basta correrlo contra cada tenant de prueba (`t1`, etc.)
+  después de tocar el esquema; **en producción real, con tenants activos
+  de verdad, esto es un paso de deploy obligatorio** (reinvocar por cada
+  slug, o un script de migración masiva) que `docker compose up` por sí
+  solo NO cubre — no asumir que un rebuild/restart normal ya propagó un
+  cambio de esquema a los tenants existentes.
 - **Desincronización MySQL/`.env`**: MySQL solo aplica las credenciales
   de `.env` en la PRIMERA inicialización del volumen — editar `.env`
   después desincroniza contra el password real ya grabado. Runbook en

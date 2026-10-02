@@ -131,10 +131,27 @@ dependencia completo en `stitch/gobierno-funcionalidades/NOTAS.md`
   para `img-src`/`frame-src` — declararlos explícitos
   (`img-src 'self' data: blob:`, `frame-src 'self' blob:`) si se usan
   imágenes/iframes con blob URLs.
+- **Whitelist de extensiones estáticas en nginx**: `frontend/nginx.conf.template`
+  (y su espejo `prod/frontend/nginx.conf.template`) tiene un `location`
+  con regex explícito de extensiones cacheables
+  (`\.(?:svg|png|jpg|jpeg|webp|woff2?)$`) — cualquier extensión nueva de
+  asset que NO esté en esa lista cae al catch-all anti-enumeración de
+  tenants (`return 404;`, el primer segmento del path se confunde con un
+  slug) y sirve 404 plano aunque el archivo exista en el contenedor.
+  Antes de dar un asset por "mal servido", revisar esta lista además de
+  nginx.conf/Dockerfile/caché de navegador.
 - **`ensureSchema()` corre en cada restart/deploy** — cualquier backfill o
   valor forzado debe ser CONDICIONAL (solo si el dato está en un estado
   viejo conocido), nunca incondicional, o revierte en silencio datos
-  legítimos ya guardados en producción.
+  legítimos ya guardados en producción. **Esto SOLO aplica al pool base**
+  — las bases `tenant_*` de tenants YA aprovisionados nunca se vuelven a
+  migrar solas: `ensureSchema(poolTenant)` solo se invoca una vez, desde
+  `/internal/activar-tenant/:slug`, al momento del aprovisionamiento.
+  Cualquier tabla/columna nueva agregada a `ensureSchema()` no aparece en
+  la base de un tenant ya existente hasta reinvocar ese endpoint con
+  `X-Internal-Secret` (idempotente) — en producción real con tenants
+  activos, esto es un paso de deploy obligatorio que un `docker compose
+  up` normal no cubre.
 - **Desincronización MySQL/`.env`**: MySQL solo aplica las credenciales
   de `.env` en la PRIMERA inicialización del volumen — editar `.env`
   después desincroniza contra el password real ya grabado. Runbook en

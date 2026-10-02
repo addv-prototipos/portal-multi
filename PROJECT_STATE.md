@@ -17851,7 +17851,7 @@ respetaba. Propuesta antes/después confirmada antes de implementar
   decisión aparte): el mismo patrón de `.portal-main-angosto` angosto en
   escritorio del punto 355 aplica también a `tickets.html`/`csf.html`.
 
-**Punto 358 (2026-10-02, CERRADO — `.webp` roto en sitio base y tenants,
+**Punto 359 (2026-10-02, CERRADO — `.webp` roto en sitio base y tenants,
 whitelist de extensiones de nginx):** el usuario reportó que
 `branding.webp` (modificado hoy, usado en `login.html`/`restablecer.html`/
 `tickets.html` vía `<picture><source type="image/webp">`) salía roto en
@@ -17928,6 +17928,76 @@ muestra el nombre), regresión `mi-cuenta.spec.ts` **5/5 verde**,
 fila relacionada que marcar; sin cambios nuevos en `CLAUDE.md`/
 `AGENTS.md` (la única regla nueva de esta sesión es la del punto 357,
 ya documentada).
+
+**Punto 360 (2026-10-02, Segmento 3 CERRADO — "Gestión de crédito" en
+Mi Cuenta):** último de los 3 segmentos aprobados (Mi Cuenta/login
+RFC-o-correo/Gestión de crédito, ver punto 353). Visibilidad de SU
+Cuentas por cobrar + historial real de abonos para el cliente logueado —
+sin límite de crédito nuevo (decisión confirmada vía `AskUserQuestion`
+antes de tocar código: visibilidad de lo que ya existe en CxC, no una
+línea de crédito nueva por asignar), vinculado por **correo**
+(`usuarios.email == ordenes_compra.email`, ya único por tenant desde el
+punto 353 — el `hint` de Mi Cuenta ya avisaba de esto desde entonces, sin
+construirse todavía).
+
+- **Backend**: tabla nueva `abonos` (`backend/db.js`, bitácora real de
+  cada cobro individual — hasta hoy `PUT /api/admin/ordenes-compra/:id/
+  cobro` solo sobrescribía `ordenes_compra.monto_cobrado` con el
+  acumulado, sin dejar rastro de los abonos uno por uno). Esa misma ruta
+  ahora hace un `INSERT INTO abonos` además del `UPDATE` de siempre —
+  aditivo, no cambia el contrato de la ruta. Endpoint nuevo
+  `GET /api/mi-cuenta/credito` (`requiereFeature('ventasHabilitado')` +
+  `requiereFeature('cxcHabilitado')`, ambos ANTES de `requireUserAuth`,
+  mismo criterio que el resto del candado de módulos): resuelve el correo
+  de la sesión, calcula resumen (total facturado/pagado/saldo) sobre
+  `ordenes_compra` filtradas por ese correo, lista de ventas con saldo
+  pendiente, e historial de abonos (`JOIN abonos↔ordenes_compra`, top 50
+  más recientes). Cliente sin correo capturado: respuesta en ceros sin
+  consultar nada (nunca un 404 ni un error — simplemente no hay nada que
+  vincular todavía).
+- **Frontend**: nueva sección "Gestión de crédito" en `mi-cuenta.html`
+  (3 KPIs + tabla de ventas pendientes + tabla de historial de abonos,
+  reutilizando `.solicitudes-table`/`.solicitudes-empty-rica` ya
+  existentes de `portal.css` — mismo lenguaje visual que el resto del
+  portal, cero componentes nuevos de tabla). Restructuración mínima de
+  `mi-cuenta.html`: el ancho angosto (`.mi-cuenta-main`, 480/680px) ahora
+  envuelve SOLO los 2 cards de datos/contraseña — la sección de crédito
+  usa el ancho completo de `.portal-main` (900px), necesario para que las
+  2 tablas no queden ilegibles. `mi-cuenta.js` (`cargarCredito()`): si el
+  fetch no es `ok` (404 = Ventas o CxC apagados en el plan del tenant),
+  la sección completa se queda oculta — mismo criterio de "el candado del
+  backend no basta solo, el frontend también debe ocultar la entrada" ya
+  aplicado en el punto 356. `td[data-label]` en ambas tablas para que el
+  patrón responsive móvil ya existente (`portal.css`, tabla→tarjetas bajo
+  640px) funcione igual que en el resto del sitio — encontrado y
+  corregido en el momento (primera versión sin `data-label` se veía bien
+  en escritorio pero sin etiquetas en móvil).
+- **Gotcha real encontrado (ya documentado en `CLAUDE.md`)**: la tabla
+  `abonos` nueva no apareció en `tenant_t1` tras el rebuild —
+  `ensureSchema(poolTenant)` **no** se re-corre solo en cada restart para
+  tenants ya aprovisionados (a diferencia del pool base), solo se invoca
+  una vez desde `/internal/activar-tenant/:slug` al aprovisionar. Mismo
+  gotcha ya visto con `suspendido_motivo` en la Fase 6/7 del punto 350 —
+  esta vez quedó generalizado en `CLAUDE.md` con el comando exacto para
+  reinvocarlo. Resuelto reinvocando ese endpoint interno contra `t1`
+  (idempotente).
+- **Pruebas**: 5 casos nuevos en `backend/test/integration/
+  miCuentaCredito.test.js` (401, cuenta sin correo, con correo sin
+  ventas, resumen+ventasPendientes+abonos con datos reales, filtrado por
+  correo de la sesión) + 2 casos actualizados en `ordenes-compra.test.js`
+  (el `INSERT INTO abonos` nuevo se suma a la secuencia de mocks de
+  `PUT .../cobro`). Suite completa sin regresiones: backend **1158/1158**
+  (58 suites). **Funcional real**: `e2e/tests/mi-cuenta-credito.spec.ts`
+  (NUEVO, 2/2 verde) contra el tenant real `t1` — venta pendiente +
+  abono parcial creados vía API de /admin, login real, KPIs/tablas
+  verificados con los montos reales ($580 total, $150 pagado, $430
+  saldo); segundo caso confirma que un cliente SIN ventas ve el estado
+  vacío (sección visible, no oculta). Regresión `mi-cuenta.spec.ts` +
+  `login-rfc-correo.spec.ts`: 9/9 verde (1 skip esperado, sin cambios).
+  Validado también con clics reales (Chrome DevTools MCP) contra el
+  sitio base, escritorio y móvil (375px, patrón tabla→tarjetas correcto
+  con `data-label`), consola sin errores. Datos de prueba limpiados al
+  terminar (usuarios/ventas de prueba borrados vía API).
 
 ## Dónde está todo (mapa rápido)
 

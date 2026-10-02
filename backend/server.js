@@ -1696,6 +1696,74 @@ app.put(
   })
 );
 
+// Segmento 3 de "Mi Cuenta" (Gestión de crédito del cliente, ver
+// PROJECT_STATE.md): visibilidad de SU Cuentas por cobrar + historial real
+// de abonos — sin límite de crédito nuevo, solo lo que ya existe en
+// ordenes_compra/abonos (lado admin), vinculado por correo (usuarios.email
+// == ordenes_compra.email, ya único por tenant desde PUT /api/mi-cuenta).
+// requiereFeature ANTES de requireUserAuth (mismo criterio que el resto
+// del candado de módulos, ver backend/utils/requiereFeature.js): sin
+// Ventas o sin CxC activos en el plan del tenant, 404 — nunca expone que
+// el módulo existe. Un cliente sin correo capturado simplemente no tiene
+// nada que vincular todavía (respuesta en ceros, sin consultar).
+app.get(
+  '/api/mi-cuenta/credito',
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('cxcHabilitado'),
+  requireUserAuth,
+  asyncHandler(async (req, res) => {
+    const [filasUsuario] = await pool.query('SELECT email FROM usuarios WHERE rfc = ? LIMIT 1', [req.userRfc]);
+    const email = filasUsuario[0] ? filasUsuario[0].email : null;
+
+    if (!email) {
+      return res.json({ resumen: { totalFacturado: 0, totalPagado: 0, saldoPendiente: 0 }, ventasPendientes: [], abonos: [] });
+    }
+
+    const [ventas] = await pool.query(
+      `SELECT id, numero_compra, concepto, total, monto_cobrado, estado_pago, fecha_compra
+       FROM ordenes_compra WHERE email = ? AND eliminado_en IS NULL ORDER BY fecha_compra DESC`,
+      [email]
+    );
+
+    const totalFacturado = ventas.reduce((acc, v) => acc + Number(v.total), 0);
+    const totalPagado = ventas.reduce((acc, v) => acc + Number(v.monto_cobrado), 0);
+    const saldoPendiente = Math.round((totalFacturado - totalPagado) * 100) / 100;
+
+    const ventasPendientes = ventas
+      .filter((v) => v.estado_pago !== 'pagada')
+      .map((v) => ({
+        id: v.id,
+        numeroCompra: v.numero_compra,
+        concepto: v.concepto,
+        total: Number(v.total),
+        saldo: Math.round((Number(v.total) - Number(v.monto_cobrado)) * 100) / 100,
+        fechaCompra: v.fecha_compra,
+      }));
+
+    const [abonos] = await pool.query(
+      `SELECT a.monto, a.notas, a.creado_en, o.numero_compra
+       FROM abonos a JOIN ordenes_compra o ON o.id = a.orden_id
+       WHERE o.email = ? AND o.eliminado_en IS NULL ORDER BY a.creado_en DESC LIMIT 50`,
+      [email]
+    );
+
+    res.json({
+      resumen: {
+        totalFacturado: Math.round(totalFacturado * 100) / 100,
+        totalPagado: Math.round(totalPagado * 100) / 100,
+        saldoPendiente,
+      },
+      ventasPendientes,
+      abonos: abonos.map((a) => ({
+        monto: Number(a.monto),
+        notas: a.notas || '',
+        creadoEn: a.creado_en,
+        numeroCompra: a.numero_compra,
+      })),
+    });
+  })
+);
+
 // Mensaje SIEMPRE genérico, exista o no la cuenta — mismo principio
 // anti-enumeración que ya usa /api/auth/login (ver HASH_RELLENO_LOGIN):
 // revelar "esa cuenta no existe" le regala a un atacante una forma barata
@@ -6524,6 +6592,18 @@ app.put(
       `UPDATE ordenes_compra SET monto_cobrado = ?, estado_pago = ?, fecha_cobro = ?, notas_cobro = COALESCE(?, notas_cobro), actualizado_en = ? WHERE id = ?`,
       [nuevoCobrado, pagada ? 'pagada' : 'pendiente', pagada ? ahora : null, notas, ahora, id]
     );
+
+    // Segmento 3 de "Mi Cuenta" (Gestión de crédito del cliente, ver
+    // PROJECT_STATE.md): bitácora real del abono individual, aparte del
+    // acumulado de arriba — sin esto el cliente no tendría forma de ver
+    // "qué pagó y cuándo" en su historial.
+    await pool.query('INSERT INTO abonos (orden_id, monto, notas, creado_por, creado_en) VALUES (?, ?, ?, ?, ?)', [
+      id,
+      monto,
+      notas,
+      req.adminUser || null,
+      ahora,
+    ]);
 
     const [actualizada] = await pool.query('SELECT id, numero_compra, total, monto_cobrado, estado_pago, fecha_cobro FROM ordenes_compra WHERE id = ? LIMIT 1', [id]);
     res.json({ ok: true, orden: actualizada[0], saldo: nuevoSaldo });

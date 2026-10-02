@@ -510,6 +510,7 @@
    Mobile/tablet (<880px) queda pixel-idéntico a .portal-main-angosto. */
 .mi-cuenta-main {
   max-width: 480px;
+  margin: 0 auto;
 }
 .mi-cuenta-grid {
   display: flex;
@@ -525,6 +526,67 @@
     grid-template-columns: 1fr 1fr;
     align-items: start;
   }
+}
+
+/* Gestión de crédito (Segmento 3) — a diferencia de .mi-cuenta-main de
+   arriba, usa el ancho completo de .portal-main (900px): necesita espacio
+   horizontal real para las 2 tablas, angostarla al mismo 480/680px de los
+   formularios la haría ilegible. */
+.mi-cuenta-credito {
+  max-width: none;
+  margin: 24px 0 0;
+}
+.credito-sub {
+  margin: -8px 0 18px;
+  color: var(--color-ink-soft);
+  font-size: 13.5px;
+}
+.credito-kpis {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (min-width: 560px) {
+  .credito-kpis { grid-template-columns: repeat(3, 1fr); }
+}
+.credito-kpi {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.credito-kpi-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-ink-soft);
+}
+.credito-kpi-valor {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.credito-kpi-saldo {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.credito-kpi-saldo .credito-kpi-valor { color: var(--color-accent-dark); }
+.credito-subtitulo {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.mi-cuenta-credito .solicitudes-table-wrap { margin-bottom: 6px; }
+.mi-cuenta-credito .solicitudes-table-wrap + .credito-subtitulo,
+.mi-cuenta-credito .solicitudes-empty + .credito-subtitulo {
+  margin-top: 26px;
 }
 
 /* ---------- Vista previa de imagen (tickets.html) ---------- */

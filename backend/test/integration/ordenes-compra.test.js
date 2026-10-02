@@ -451,6 +451,7 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       pool.query.mockResolvedValueOnce([[{ id: 5, total: '500.00', monto_cobrado: '0.00', estado_pago: 'pendiente' }]]); // SELECT
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
+      pool.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT abonos
       pool.query.mockResolvedValueOnce([[{ id: 5, numero_compra: 'OC-000005', total: '500.00', monto_cobrado: '200.00', estado_pago: 'pendiente', fecha_cobro: null }]]); // SELECT actualizada
 
       const res = await request(app).put('/api/admin/ordenes-compra/5/cobro').auth(usuario, password).send({ monto: 200 });
@@ -468,6 +469,7 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       pool.query.mockResolvedValueOnce([[{ id: 6, total: '500.00', monto_cobrado: '300.00', estado_pago: 'pendiente' }]]); // SELECT
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
+      pool.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT abonos
       pool.query.mockResolvedValueOnce([[{ id: 6, numero_compra: 'OC-000006', total: '500.00', monto_cobrado: '500.00', estado_pago: 'pagada', fecha_cobro: '2026-08-24 10:00:00' }]]); // SELECT actualizada
 
       const res = await request(app).put('/api/admin/ordenes-compra/6/cobro').auth(usuario, password).send({ monto: 200, notas_cobro: 'Liquidado' });
