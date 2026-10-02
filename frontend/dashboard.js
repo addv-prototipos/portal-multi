@@ -126,11 +126,24 @@
     document.getElementById('portal-solicitudes')?.remove();
   }
 
+  function aplicarCardPerfil(nombre) {
+    const card = document.getElementById('profile-card');
+    if (!card) return;
+    if (nombre && nombre.trim()) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const nameEl = document.getElementById('profile-name');
+    if (nameEl) nameEl.textContent = 'Usuario';
+  }
+
   (async function init() {
     const rfc = await requireSession();
     if (!rfc) return;
     const facturacionHabilitada = window.Portal.sesion ? window.Portal.sesion.facturacionHabilitada : true;
     aplicarGatingFacturacion(facturacionHabilitada);
+    aplicarCardPerfil(window.Portal.sesion ? window.Portal.sesion.nombre : '');
     if (facturacionHabilitada) await cargarTickets();
   })();
 })();

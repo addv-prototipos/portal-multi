@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Propuesta 2 — Banner Inline</title>
+<style>
+:root {
+  --color-accent: #03285B;
+  --color-accent-dark: #0B1320;
+  --color-accent-soft: #E7ECF3;
+  --color-ink: #0B1320;
+  --color-ink-soft: #6B7280;
+  --color-border: #E5E7EB;
+  --color-electric: #05DBF2;
+  --font-body: 'Inter', sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-body);
+  background: #F8FAFC;
+  min-height: 100vh;
+  padding: 24px;
+}
+.dashboard {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.dashboard-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.onboarding-banner {
+  background: linear-gradient(135deg, var(--color-accent) 0%, #0A3A7A 100%);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.onboarding-banner::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(5,219,242,0.15) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.banner-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.banner-icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: var(--color-electric);
+}
+.banner-content {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+.banner-title {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.banner-text {
+  color: rgba(255,255,255,0.75);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.banner-form {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  position: relative;
+  z-index: 1;
+}
+.banner-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  font-size: 14px;
+  font-family: var(--font-body);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.banner-input::placeholder {
+  color: rgba(255,255,255,0.5);
+}
+.banner-input:focus {
+  border-color: var(--color-electric);
+}
+.banner-btn {
+  padding: 12px 24px;
+  background: var(--color-electric);
+  color: var(--color-accent-dark);
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.banner-btn:hover {
+  background: #4DE8F5;
+  transform: translateY(-1px);
+}
+.banner-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  border-radius: 8px;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+.banner-close:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+.banner-close svg {
+  width: 14px;
+  height: 14px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.tile {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 24px;
+  transition: all 0.2s ease;
+}
+.tile:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 12px rgba(3,40,91,0.08);
+}
+.tile-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+.tile-desc {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+  <div class="dashboard-header">
+    <div class="dashboard-title">¿Qué quieres hacer hoy?</div>
+  </div>
+
+  <div class="onboarding-banner">
+    <button class="banner-close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M18 6L6 18M6 6l12 12"/>
+      </svg>
+    </button>
+    <div class="banner-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+      </svg>
+    </div>
+    <div class="banner-content">
+      <div class="banner-title">Completa tu perfil</div>
+      <div class="banner-text">Agrega tu nombre para personalizar tu experiencia y facilitar la comunicación con tu contador.</div>
+      <div class="banner-form">
+        <input type="text" class="banner-input" placeholder="Tu nombre completo">
+        <button class="banner-btn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="tile-title">Subir constancia</div>
+      <div class="tile-desc">Sube tu Constancia de Situación Fiscal</div>
+    </div>
+    <div class="tile">
+      <div class="tile-title">Subir tickets</div>
+      <div class="tile-desc">Genera solicitudes de factura</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

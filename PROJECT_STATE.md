@@ -17895,6 +17895,40 @@ antes/después se muestre mediante capturas de Playwright — nunca solo
 descripción en texto ni mockups estáticos. Regla documentada en
 `CLAUDE.md` y `AGENTS.md` bajo "Reglas persistentes de coordinación".
 
+**Punto 358 (2026-10-02, CERRADO — card "Tu perfil" en el dashboard
+para capturar el nombre en primer login, Propuesta 3):** 4 prototipos
+HTML en `prototipos/onboarding/` (wizard modal, banner inline, card de
+progreso, página dedicada) + capturas de cada uno vía Playwright a
+1920px; el usuario eligió la **Propuesta 3** y la abrió en su navegador.
+Implementación en 3 archivos del frontend: `frontend/dashboard.html`
+(card `#profile-card` oculta por defecto antes de `.tablero-tiles`:
+avatar SVG, `#profile-name`, status "Perfil incompleto" con punto de
+color, anillo SVG de progreso al 50%, botón "Agregar nombre" →
+`mi-cuenta.html`), `frontend/dashboard.js` (función
+`aplicarCardPerfil(nombre)` llamada en `init()` con
+`window.Portal.sesion.nombre` — muestra la card solo si el nombre está
+vacío, la oculta si ya hay nombre) y `frontend/portal.css` (`.profile-card`
+con borde izquierdo gradiente cian→navy, `.ring-progress` con
+dasharray 163.36/offset 81.68, responsive `@media (max-width: 640px)`).
+Aplica igual con tenant y en el sitio base (`portal.js` detecta slug y
+ arma `API_BASE`); el backend no cambió — `GET /api/auth/me` ya
+devolvía `nombre` y `PUT /api/mi-cuenta` ya existía como destino.
+**Validado con Playwright real contra Docker/MySQL reales** (punto 357):
+rebuild `--no-cache` + `up -d --force-recreate frontend` (el build
+normal NO reflejó los cambios la primera vez — gotcha conocido,
+verificado con `grep` dentro del contenedor antes de probar), spec
+nuevo `e2e/tests/dashboard-profile-card.spec.ts` **2/2 verde**
+(`E2E_BASE_URL=http://127.0.0.1:8088 --workers=1`, tenant real `t1`,
+usuario de prueba creado y borrado vía API de /admin: card visible sin
+nombre con status/anillo 50%, click en "Agregar nombre" →
+`/t1/mi-cuenta`, tras guardar nombre la card desaparece y el header
+muestra el nombre), regresión `mi-cuenta.spec.ts` **5/5 verde**,
+`node --check` limpio. Capturas antes/después reales del resultado en
+`e2e/capturas/card-perfil-{antes,despues}.png`. `pendientes.html` sin
+fila relacionada que marcar; sin cambios nuevos en `CLAUDE.md`/
+`AGENTS.md` (la única regla nueva de esta sesión es la del punto 357,
+ya documentada).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

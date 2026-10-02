@@ -24,6 +24,40 @@
 
     <p class="aviso-retencion" id="aviso-retencion" hidden></p>
 
+    <div class="profile-card" id="profile-card" hidden>
+      <div class="profile-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <div class="profile-info">
+        <div class="profile-label">Tu perfil</div>
+        <div class="profile-name" id="profile-name">Usuario</div>
+        <div class="profile-status">
+          <span class="status-dot"></span>
+          Perfil incompleto
+        </div>
+      </div>
+      <div class="profile-completion">
+        <div class="completion-ring">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle class="ring-bg" cx="32" cy="32" r="26"/>
+            <circle class="ring-progress" cx="32" cy="32" r="26"/>
+          </svg>
+          <div class="completion-text">50%</div>
+        </div>
+        <div class="completion-label">Completado</div>
+      </div>
+      <a class="profile-action" href="mi-cuenta.html" id="profile-action">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        Agregar nombre
+      </a>
+    </div>
+
     <div class="tablero-tiles">
       <a class="tile" href="csf.html" id="tile-csf">
         <span class="tile-icon" aria-hidden="true">

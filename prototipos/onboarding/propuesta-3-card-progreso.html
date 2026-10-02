@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Propuesta 3 — Card Progreso</title>
+<style>
+:root {
+  --color-accent: #03285B;
+  --color-accent-dark: #0B1320;
+  --color-accent-soft: #E7ECF3;
+  --color-ink: #0B1320;
+  --color-ink-soft: #6B7280;
+  --color-border: #E5E7EB;
+  --color-electric: #05DBF2;
+  --font-body: 'Inter', sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-body);
+  background: #F8FAFC;
+  min-height: 100vh;
+  padding: 24px;
+}
+.dashboard {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.dashboard-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.profile-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.profile-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--color-electric) 0%, var(--color-accent) 100%);
+}
+.profile-avatar {
+  width: 56px;
+  height: 56px;
+  background: var(--color-accent-soft);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.profile-avatar svg {
+  width: 28px;
+  height: 28px;
+  stroke: var(--color-accent);
+}
+.profile-info {
+  flex: 1;
+}
+.profile-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.profile-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin-bottom: 2px;
+}
+.profile-status {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #F59E0B;
+  border-radius: 50%;
+}
+.profile-completion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.completion-ring {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+.completion-ring svg {
+  transform: rotate(-90deg);
+}
+.completion-ring circle {
+  fill: none;
+  stroke-width: 6;
+}
+.completion-ring .ring-bg {
+  stroke: var(--color-border);
+}
+.completion-ring .ring-progress {
+  stroke: var(--color-electric);
+  stroke-linecap: round;
+  stroke-dasharray: 163.36;
+  stroke-dashoffset: 81.68;
+  transition: stroke-dashoffset 0.5s ease;
+}
+.completion-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+.completion-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.profile-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.profile-action:hover {
+  background: var(--color-accent-dark);
+}
+.profile-action svg {
+  width: 16px;
+  height: 16px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.tile {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 24px;
+  transition: all 0.2s ease;
+}
+.tile:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 12px rgba(3,40,91,0.08);
+}
+.tile-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+.tile-desc {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+  <div class="dashboard-header">
+    <div class="dashboard-title">¿Qué quieres hacer hoy?</div>
+  </div>
+
+  <div class="profile-card">
+    <div class="profile-avatar">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    <div class="profile-info">
+      <div class="profile-label">Tu perfil</div>
+      <div class="profile-name">Usuario</div>
+      <div class="profile-status">
+        <span class="status-dot"></span>
+        Perfil incompleto
+      </div>
+    </div>
+    <div class="profile-completion">
+      <div class="completion-ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle class="ring-bg" cx="32" cy="32" r="26"/>
+          <circle class="ring-progress" cx="32" cy="32" r="26"/>
+        </svg>
+        <div class="completion-text">50%</div>
+      </div>
+      <div class="completion-label">Completado</div>
+    </div>
+    <button class="profile-action">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+      Agregar nombre
+    </button>
+  </div>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="tile-title">Subir constancia</div>
+      <div class="tile-desc">Sube tu Constancia de Situación Fiscal</div>
+    </div>
+    <div class="tile">
+      <div class="tile-title">Subir tickets</div>
+      <div class="tile-desc">Genera solicitudes de factura</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

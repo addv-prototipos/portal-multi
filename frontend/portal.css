@@ -143,6 +143,165 @@
   margin: -8px 0 22px;
 }
 
+/* ---------- Card de perfil (onboarding nombre) ---------- */
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.profile-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #05DBF2 0%, var(--color-accent) 100%);
+}
+.profile-avatar {
+  width: 56px;
+  height: 56px;
+  background: var(--color-accent-soft);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.profile-avatar svg {
+  width: 28px;
+  height: 28px;
+  stroke: var(--color-accent);
+}
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+.profile-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.profile-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-status {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #F59E0B;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.profile-completion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.completion-ring {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+.completion-ring svg {
+  transform: rotate(-90deg);
+}
+.completion-ring circle {
+  fill: none;
+  stroke-width: 5;
+}
+.completion-ring .ring-bg {
+  stroke: var(--color-border);
+}
+.completion-ring .ring-progress {
+  stroke: #05DBF2;
+  stroke-linecap: round;
+  stroke-dasharray: 163.36;
+  stroke-dashoffset: 81.68;
+  transition: stroke-dashoffset 0.5s ease;
+}
+.completion-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+.completion-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.profile-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.profile-action:hover {
+  background: var(--color-accent-dark);
+}
+.profile-action svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 640px) {
+  .profile-card {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .profile-completion {
+    display: none;
+  }
+  .profile-action {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* ---------- Tiles del tablero ---------- */
 .tablero-tiles {
   display: grid;
