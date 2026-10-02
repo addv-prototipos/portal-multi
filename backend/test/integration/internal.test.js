@@ -48,7 +48,7 @@ jest.mock('../../utils/storage', () => ({
 
 const { invalidarCacheTenant } = require('../../utils/tenantContext');
 const storage = require('../../utils/storage');
-const { ensureSchema, crearBaseDeDatosTenant, eliminarBaseDeDatosTenant, cerrarPoolTenant, obtenerPoolControl } = require('../../db');
+const { ensureSchema, crearBaseDeDatosTenant, eliminarBaseDeDatosTenant, cerrarPoolTenant, obtenerPoolControl, obtenerPoolTenant } = require('../../db');
 const app = require('../../server');
 
 describe('POST /internal/cache-tenant/invalidar', () => {
@@ -489,6 +489,196 @@ describe('POST /internal/disco-uso/:slug (punto 347)', () => {
     storage.calcularBytesPrefijo.mockRejectedValueOnce(new Error('conexión rechazada'));
 
     const res = await request(app).post('/internal/disco-uso/cliente1').set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(502);
+  });
+});
+
+// Punto 349-350-351 (regla 9, ver stitch/gobierno-funcionalidades/
+// NOTAS.md): /control delega aquí la suspensión de usuarios al bajar el
+// máximo de un plan — no tiene credenciales para ninguna tenant_* (mismo
+// motivo que disco-uso/activar-tenant, arriba).
+describe('POST /internal/aplicar-limite-usuarios/:slug (punto 349-350-351, regla 9)', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  function mockPoolTenant() {
+    const poolTenant = { query: jest.fn() };
+    obtenerPoolTenant.mockReturnValue(poolTenant);
+    return poolTenant;
+  }
+
+  beforeEach(() => {
+    obtenerPoolTenant.mockClear();
+  });
+
+  test('sin el secreto responde 403 y no consulta nada', async () => {
+    const res = await request(app).post('/internal/aplicar-limite-usuarios/cliente1').send({ maxUsuarios: 5 });
+    expect(res.status).toBe(403);
+    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+  });
+
+  test('slug inválido responde 400', async () => {
+    const res = await request(app)
+      .post('/internal/aplicar-limite-usuarios/Mal Slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ maxUsuarios: 5 });
+    expect(res.status).toBe(400);
+  });
+
+  test('maxUsuarios ausente/null: no-op explícito, responde suspendidos: []', async () => {
+    const res = await request(app)
+      .post('/internal/aplicar-limite-usuarios/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, suspendidos: [] });
+    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+  });
+
+  test('maxUsuarios inválido (0, negativo o no entero) responde 400', async () => {
+    const res = await request(app)
+      .post('/internal/aplicar-limite-usuarios/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ maxUsuarios: 0 });
+    expect(res.status).toBe(400);
+  });
+
+  test('ya está dentro del límite: no suspende a nadie (idempotente, sin UPDATE)', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([[{ total: 3 }]]); // COUNT
+
+    const res = await request(app)
+      .post('/internal/aplicar-limite-usuarios/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ maxUsuarios: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, suspendidos: [] });
+    expect(poolTenant.query).toHaveBeenCalledTimes(1); // solo el COUNT, ningún UPDATE
+  });
+
+  test('excedido: suspende a los no-administradores más recientes primero, nunca a un administrador', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query
+      .mockResolvedValueOnce([[{ total: 7 }]]) // COUNT: 7 activos, límite 5 -> exceso 2
+      .mockResolvedValueOnce([[{ id: 10, rfc: 'ventas-nuevo' }, { id: 9, rfc: 'inventario-nuevo' }]]) // candidatos (ya ordenados DESC por el SQL)
+      .mockResolvedValueOnce([{}]); // UPDATE
+
+    const res = await request(app)
+      .post('/internal/aplicar-limite-usuarios/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ maxUsuarios: 5 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, suspendidos: [{ id: 10, rfc: 'ventas-nuevo' }, { id: 9, rfc: 'inventario-nuevo' }] });
+
+    // El SELECT de candidatos nunca incluye 'administrador' en su WHERE.
+    const sqlCandidatos = poolTenant.query.mock.calls[1][0];
+    expect(sqlCandidatos).toMatch(/ORDER BY creado_en DESC/);
+    expect(sqlCandidatos).not.toMatch(/'administrador'/);
+    const paramsCandidatos = poolTenant.query.mock.calls[1][1];
+    expect(paramsCandidatos).toEqual(['fiscal', 'ventas', 'inventario', 2]); // LIMIT 2 = el exceso
+
+    // El UPDATE marca el motivo automático y apaga activo, solo esos 2 ids.
+    const [sqlUpdate, paramsUpdate] = poolTenant.query.mock.calls[2];
+    expect(sqlUpdate).toMatch(/activo = 0/);
+    expect(sqlUpdate).toMatch(/suspendido_motivo = 'limite_usuarios_plan'/);
+    expect(paramsUpdate).toEqual([expect.any(Date), 10, 9]);
+  });
+
+  test('exceso mayor a los candidatos disponibles: suspende lo que hay, nunca fuerza a un administrador', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query
+      .mockResolvedValueOnce([[{ total: 6 }]]) // 6 activos, límite 2 -> exceso 4
+      .mockResolvedValueOnce([[{ id: 5, rfc: 'ventas1' }]]) // solo 1 candidato no-admin disponible
+      .mockResolvedValueOnce([{}]); // UPDATE
+
+    const res = await request(app)
+      .post('/internal/aplicar-limite-usuarios/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ maxUsuarios: 2 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.suspendidos).toEqual([{ id: 5, rfc: 'ventas1' }]);
+  });
+
+  test('si la BD del tenant falla, responde 502', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockRejectedValueOnce(new Error('conexión rechazada'));
+
+    const res = await request(app)
+      .post('/internal/aplicar-limite-usuarios/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ maxUsuarios: 5 });
+
+    expect(res.status).toBe(502);
+  });
+});
+
+describe('GET /internal/uso-usuarios/:slug (punto 350/351, regla 8 extendida)', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  function mockPoolTenant() {
+    const poolTenant = { query: jest.fn() };
+    obtenerPoolTenant.mockReturnValue(poolTenant);
+    return poolTenant;
+  }
+
+  beforeEach(() => {
+    obtenerPoolTenant.mockClear();
+  });
+
+  test('sin el secreto responde 403 y no consulta nada', async () => {
+    const res = await request(app).get('/internal/uso-usuarios/cliente1');
+    expect(res.status).toBe(403);
+    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+  });
+
+  test('slug inválido responde 400', async () => {
+    const res = await request(app)
+      .get('/internal/uso-usuarios/Mal Slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+    expect(res.status).toBe(400);
+  });
+
+  test('responde 200 con el total de usuarios cuotables activos, sin tocar ninguna fila', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([[{ total: 4 }]]);
+
+    const res = await request(app)
+      .get('/internal/uso-usuarios/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, total: 4 });
+    expect(poolTenant.query).toHaveBeenCalledTimes(1); // solo el COUNT, nunca un UPDATE
+    const [sql] = poolTenant.query.mock.calls[0];
+    expect(sql).not.toMatch(/UPDATE/i);
+  });
+
+  test('si la BD del tenant falla, responde 502', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockRejectedValueOnce(new Error('conexión rechazada'));
+
+    const res = await request(app)
+      .get('/internal/uso-usuarios/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
 
     expect(res.status).toBe(502);
   });

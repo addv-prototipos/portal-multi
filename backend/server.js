@@ -960,6 +960,133 @@ app.post('/internal/disco-uso/:slug', async (req, res) => {
   }
 });
 
+// Punto 349-350-351 (regla 9, ver stitch/gobierno-funcionalidades/
+// NOTAS.md): al bajar el máximo de usuarios de un plan ya asignado (o
+// reasignar un tenant a un plan con límite menor), la BD del tenant es
+// quien tiene los datos reales de usuarios/perfiles — /control no tiene
+// credenciales para ninguna tenant_* (angosto a propósito), así que
+// delega aquí, mismo patrón que activar-tenant/disco-uso de arriba.
+//
+// Nunca suspende administradores — solo fiscal/ventas/inventario, los
+// más recién creados primero (decisión explícita del usuario: se
+// conserva activa la base original de cuentas de la empresa). Si el
+// exceso es mayor a los candidatos disponibles (ej. más administradores
+// solos que el límite), se suspende lo que se puede y se deja así — el
+// límite puede seguir excedido, pero NUNCA se suspende un administrador
+// por este mecanismo, sin excepción.
+//
+// `maxUsuarios` null/ausente = sin límite, no-op explícito (nunca
+// suspende nada "por si acaso"). Idempotente: si ya está dentro del
+// límite, responde `suspendidos: []` sin tocar ninguna fila.
+app.post('/internal/aplicar-limite-usuarios/:slug', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  const maxUsuarios = req.body ? req.body.maxUsuarios : undefined;
+  if (maxUsuarios === null || maxUsuarios === undefined) {
+    return res.json({ ok: true, suspendidos: [] });
+  }
+  if (!Number.isInteger(maxUsuarios) || maxUsuarios < 1) {
+    return res.status(400).json({ error: 'maxUsuarios inválido.' });
+  }
+
+  const dbName = nombreDbTenant(slug);
+  const poolTenant = obtenerPoolTenant({
+    slug,
+    host: process.env.DB_HOST || 'mysql',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'app',
+    password: process.env.DB_PASSWORD || '',
+    database: dbName,
+  });
+
+  // Mismos 4 perfiles que cuentan para la cuota al CREAR un usuario (ver
+  // PERFILES_CUOTA en POST/PUT /api/admin/usuarios) — "cliente" nunca
+  // cuenta, ni aquí ni allá.
+  const PERFILES_CUOTA = ['administrador', 'fiscal', 'ventas', 'inventario'];
+  const PERFILES_SUSPENDIBLES = ['fiscal', 'ventas', 'inventario'];
+
+  try {
+    const [[{ total }]] = await poolTenant.query(
+      `SELECT COUNT(*) AS total FROM usuarios WHERE activo = 1 AND perfil IN (${PERFILES_CUOTA.map(() => '?').join(',')})`,
+      PERFILES_CUOTA
+    );
+    const exceso = total - maxUsuarios;
+    if (exceso <= 0) {
+      return res.json({ ok: true, suspendidos: [] });
+    }
+
+    const [candidatos] = await poolTenant.query(
+      `SELECT id, rfc FROM usuarios
+       WHERE activo = 1 AND perfil IN (${PERFILES_SUSPENDIBLES.map(() => '?').join(',')})
+       ORDER BY creado_en DESC
+       LIMIT ?`,
+      [...PERFILES_SUSPENDIBLES, exceso]
+    );
+
+    if (candidatos.length > 0) {
+      const ids = candidatos.map((u) => u.id);
+      await poolTenant.query(
+        `UPDATE usuarios SET activo = 0, suspendido_motivo = 'limite_usuarios_plan', actualizado_en = ?
+         WHERE id IN (${ids.map(() => '?').join(',')})`,
+        [new Date(), ...ids]
+      );
+    }
+
+    res.json({ ok: true, suspendidos: candidatos.map((u) => ({ id: u.id, rfc: u.rfc })) });
+  } catch (err) {
+    console.error(`Error aplicando el límite de usuarios del tenant "${slug}":`, err);
+    res.status(502).json({ error: 'No se pudo aplicar el nuevo límite de usuarios.' });
+  }
+});
+
+// Punto 349-350-351 (regla 8 extendida, Fase 7): solo LECTURA, para que
+// /control pueda avisar de forma PREVENTIVA (antes de guardar, no
+// después) si bajar el plan/max_usuarios de una empresa específica va a
+// disparar la suspensión automática de la regla 9 — mismo conteo que
+// /internal/aplicar-limite-usuarios pero sin tocar ninguna fila.
+app.get('/internal/uso-usuarios/:slug', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  const dbName = nombreDbTenant(slug);
+  const poolTenant = obtenerPoolTenant({
+    slug,
+    host: process.env.DB_HOST || 'mysql',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'app',
+    password: process.env.DB_PASSWORD || '',
+    database: dbName,
+  });
+
+  const PERFILES_CUOTA = ['administrador', 'fiscal', 'ventas', 'inventario'];
+
+  try {
+    const [[{ total }]] = await poolTenant.query(
+      `SELECT COUNT(*) AS total FROM usuarios WHERE activo = 1 AND perfil IN (${PERFILES_CUOTA.map(() => '?').join(',')})`,
+      PERFILES_CUOTA
+    );
+    res.json({ ok: true, total });
+  } catch (err) {
+    console.error(`Error calculando el uso de usuarios del tenant "${slug}":`, err);
+    res.status(502).json({ error: 'No se pudo calcular el uso de usuarios.' });
+  }
+});
+
 // Elimina FÍSICAMENTE un tenant (punto 345, "papelera" en /control) — DROP
 // DATABASE + purga de MinIO (prefijo del tenant + logo/favicon de marca
 // si los tiene) + borra sus filas en control_tenants (tenants/
@@ -2936,6 +3063,33 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
     usuario: req.adminUser,
     perfil: req.adminPerfil,
     debeCambiarPassword: Boolean(req.adminDebeCambiarPassword),
+    // Punto 349-350-351 (Fase 5, ver stitch/gobierno-funcionalidades/
+    // NOTAS.md): el frontend de /admin necesita saber qué funciones trae
+    // el plan del tenant para OCULTAR menú/tarjetas que de todas formas
+    // el backend ya bloquea con requiereFeature() (404) — sin esto, el
+    // admin ve un botón que simplemente no hace nada al hacer clic. Esta
+    // ruta es el único punto que YA corre en cada carga de página (login
+    // Y refresh de sesión), así que es el lugar natural para exponerlo —
+    // null si no hay contexto multi-tenant (sitio base/sin X-Tenant-Slug),
+    // nunca bloquea nada por sí mismo (eso lo sigue haciendo el backend).
+    funciones: req.tenant
+      ? {
+          facturacionHabilitada: req.tenant.facturacionHabilitada,
+          portalClientesHabilitado: req.tenant.portalClientesHabilitado,
+          sucursalesHabilitado: req.tenant.sucursalesHabilitado,
+          marcaLookfeelHabilitado: req.tenant.marcaLookfeelHabilitado,
+          ventasHabilitado: req.tenant.ventasHabilitado,
+          gastosHabilitado: req.tenant.gastosHabilitado,
+          inventariosHabilitado: req.tenant.inventariosHabilitado,
+          auditoriaHabilitado: req.tenant.auditoriaHabilitado,
+          cxcHabilitado: req.tenant.cxcHabilitado,
+          resumenFinancieroHabilitado: req.tenant.resumenFinancieroHabilitado,
+          reportesPorReporteHabilitado: req.tenant.reportesPorReporteHabilitado,
+          reportesCortesHabilitado: req.tenant.reportesCortesHabilitado,
+          reportesEliminadosHabilitado: req.tenant.reportesEliminadosHabilitado,
+          reportesEstadoInventarioHabilitado: req.tenant.reportesEstadoInventarioHabilitado,
+        }
+      : null,
   });
 });
 
@@ -3523,7 +3677,7 @@ app.get(
     const perfil = sanitizeText(req.query.perfil, 20);
     const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas', 'inventario'];
 
-    let sql = `SELECT id, rfc, telefono, email, debe_cambiar_password, perfil, activo, creado_en, actualizado_en FROM usuarios`;
+    let sql = `SELECT id, rfc, telefono, email, debe_cambiar_password, perfil, activo, suspendido_motivo, creado_en, actualizado_en FROM usuarios`;
     const params = [];
     if (perfil && perfilesValidos.includes(perfil)) {
       sql += ' WHERE perfil = ?';
@@ -3839,7 +3993,18 @@ app.put(
       return res.status(400).json({ error: 'No puedes suspender tu propia cuenta mientras tienes la sesión iniciada.' });
     }
 
-    await pool.query('UPDATE usuarios SET activo = ?, actualizado_en = ? WHERE id = ?', [activo ? 1 : 0, new Date(), id]);
+    // Reactivar siempre limpia `suspendido_motivo` (punto 349-350-351,
+    // regla 9) — si la cuenta había sido suspendida automáticamente por
+    // el límite de usuarios del plan, un administrador reactivándola a
+    // mano es una decisión nueva y explícita, no debe seguir leyéndose
+    // como "suspendida por el sistema". Suspender a mano SIEMPRE deja
+    // motivo en NULL (nunca pisa un motivo con un valor que no sea este
+    // mecanismo automático).
+    if (activo) {
+      await pool.query('UPDATE usuarios SET activo = 1, suspendido_motivo = NULL, actualizado_en = ? WHERE id = ?', [new Date(), id]);
+    } else {
+      await pool.query('UPDATE usuarios SET activo = 0, actualizado_en = ? WHERE id = ?', [new Date(), id]);
+    }
     res.json({
       ok: true,
       activo,
@@ -4354,6 +4519,7 @@ app.put(
 app.post(
   '/api/admin/reportes/enviar',
   adminApiLimiter,
+  requiereFeature('reportesPorReporteHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4438,6 +4604,8 @@ app.post(
 app.post(
   '/api/admin/reportes/corte',
   adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('reportesCortesHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -4556,6 +4724,7 @@ app.post(
 app.get(
   '/api/admin/reportes',
   adminApiLimiter,
+  requiereFeature('reportesPorReporteHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4572,6 +4741,7 @@ app.get(
 app.get(
   '/api/admin/reportes/:id/md',
   adminApiLimiter,
+  requiereFeature('reportesPorReporteHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4595,6 +4765,7 @@ app.get(
 app.get(
   '/api/admin/auditoria',
   adminApiLimiter,
+  requiereFeature('auditoriaHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4652,6 +4823,7 @@ app.get(
 app.get(
   '/api/admin/reportes/:id/generado-por',
   adminApiLimiter,
+  requiereFeature('reportesPorReporteHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4697,6 +4869,7 @@ app.get(
 app.get(
   '/api/admin/reportes/:id/items',
   adminApiLimiter,
+  requiereFeature('reportesPorReporteHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4754,6 +4927,7 @@ app.get(
 app.get(
   '/api/admin/reportes/:id/exportar',
   adminApiLimiter,
+  requiereFeature('reportesPorReporteHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4820,6 +4994,7 @@ app.get(
 app.get(
   '/api/admin/reportes/estadisticas',
   adminApiLimiter,
+  requiereFeature('reportesEliminadosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4885,6 +5060,7 @@ function filtrosLedgerEliminados(req) {
 app.get(
   '/api/admin/reportes/eliminados',
   adminApiLimiter,
+  requiereFeature('reportesEliminadosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4910,6 +5086,7 @@ app.get(
 app.get(
   '/api/admin/reportes/eliminados-exportar',
   adminApiLimiter,
+  requiereFeature('reportesEliminadosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4946,6 +5123,7 @@ app.get(
 app.get(
   '/api/admin/reportes/timeline/:tipoRegistro/:identificador',
   adminApiLimiter,
+  requiereFeature('reportesEliminadosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -4974,6 +5152,7 @@ app.get(
 app.delete(
   '/api/admin/reportes/:id',
   adminApiLimiter,
+  requiereFeature('reportesPorReporteHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -5581,6 +5760,7 @@ app.get(
 app.post(
   '/api/admin/folios-conciliacion',
   adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -5605,6 +5785,7 @@ app.post(
 app.post(
   '/api/admin/ordenes-compra',
   adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -6033,6 +6214,7 @@ app.post(
 app.get(
   '/api/admin/ordenes-compra',
   adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -6115,6 +6297,8 @@ app.get(
 app.put(
   '/api/admin/ordenes-compra/:id/cobro',
   adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('cxcHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -6157,6 +6341,8 @@ app.put(
 app.post(
   '/api/admin/ordenes-compra/:id/recordatorio',
   adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
+  requiereFeature('cxcHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -6233,6 +6419,7 @@ app.post(
 app.get(
   '/api/admin/resumen-financiero',
   adminApiLimiter,
+  requiereFeature('resumenFinancieroHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -6650,6 +6837,7 @@ app.delete(
 app.post(
   '/api/admin/ordenes-compra/:id/reenviar-correo',
   adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -6741,6 +6929,7 @@ app.post(
 app.delete(
   '/api/admin/ordenes-compra/:id',
   adminApiLimiter,
+  requiereFeature('ventasHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -6883,6 +7072,7 @@ function booleanoDe(body, campo) {
 app.get(
   '/api/admin/gastos',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7041,6 +7231,7 @@ async function validarCuerpoGasto(req, res) {
 app.post(
   '/api/admin/gastos',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7084,6 +7275,7 @@ app.post(
 app.put(
   '/api/admin/gastos/:id',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7150,6 +7342,7 @@ app.put(
 app.delete(
   '/api/admin/gastos/:id',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7174,6 +7367,7 @@ app.delete(
 app.post(
   '/api/admin/gastos/:id/restaurar',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7201,6 +7395,7 @@ app.post(
 app.delete(
   '/api/admin/gastos/:id/permanente',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7236,6 +7431,7 @@ app.delete(
 app.post(
   '/api/admin/gastos/:id/comprobante',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   (req, res) => {
@@ -7323,6 +7519,7 @@ app.post(
 app.delete(
   '/api/admin/gastos/:id/comprobante',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7359,6 +7556,7 @@ app.delete(
 app.get(
   '/api/admin/gastos/:id/comprobante',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7399,6 +7597,7 @@ app.get(
 app.get(
   '/api/admin/gastos/categorias',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7410,6 +7609,7 @@ app.get(
 app.post(
   '/api/admin/gastos/categorias',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7426,6 +7626,7 @@ app.post(
 app.put(
   '/api/admin/gastos/categorias/:id',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7447,6 +7648,7 @@ app.put(
 app.delete(
   '/api/admin/gastos/categorias/:id',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7473,6 +7675,7 @@ app.delete(
 app.post(
   '/api/admin/gastos/categorias/:id/reactivar',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7495,6 +7698,7 @@ app.post(
 app.put(
   '/api/admin/gastos/categorias/:id/tipo',
   adminApiLimiter,
+  requiereFeature('gastosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7524,6 +7728,7 @@ app.put(
 app.get(
   '/api/admin/periodos-archivados',
   adminApiLimiter,
+  requiereFeature(['ventasHabilitado', 'gastosHabilitado']),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
@@ -7634,6 +7839,7 @@ async function releerArchivoImportacion(req, importacion) {
 app.get(
   '/api/admin/inventarios/configuracion',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   asyncHandler(async (req, res) => {
@@ -7644,6 +7850,7 @@ app.get(
 app.put(
   '/api/admin/inventarios/configuracion/:clave',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   asyncHandler(async (req, res) => {
@@ -7691,6 +7898,7 @@ app.put(
 app.get(
   '/api/admin/inventarios/diccionario',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   asyncHandler(async (req, res) => {
@@ -7703,6 +7911,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/categorias',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -7714,6 +7923,7 @@ app.get(
 app.post(
   '/api/admin/inventarios/categorias',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -7729,6 +7939,7 @@ app.post(
 app.put(
   '/api/admin/inventarios/categorias/:id',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -7746,6 +7957,7 @@ app.put(
 app.delete(
   '/api/admin/inventarios/categorias/:id',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -7768,6 +7980,7 @@ app.delete(
 app.post(
   '/api/admin/inventarios/categorias/:id/reactivar',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -7787,6 +8000,7 @@ app.post(
 app.get(
   '/api/admin/inventarios/unidades',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -7801,6 +8015,7 @@ app.get(
 app.post(
   '/api/admin/inventarios/unidades',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8052,6 +8267,7 @@ async function validarCuerpoProducto(req, res, idExcluir = null) {
 app.get(
   '/api/admin/inventarios/productos',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8140,6 +8356,7 @@ app.get(
 app.post(
   '/api/admin/inventarios/productos',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8173,6 +8390,7 @@ app.post(
 app.get(
   '/api/admin/inventarios/productos/buscar',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas', 'inventario'),
   requireInventarioActivo,
@@ -8220,6 +8438,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/productos/:id',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8240,6 +8459,7 @@ app.get(
 app.put(
   '/api/admin/inventarios/productos/:id',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8278,6 +8498,7 @@ app.put(
 app.delete(
   '/api/admin/inventarios/productos/:id',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8298,7 +8519,7 @@ app.delete(
 // que el producto ya existe — mismo criterio que el comprobante de
 // Gastos: crear es JSON, el archivo es una petición aparte una vez que
 // hay un :id al que asociarlo.
-app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requireAdminAuth, requireAdminArea('administrador', 'inventario'), requireInventarioActivo, (req, res) => {
+app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requiereFeature('inventariosHabilitado'), requireAdminAuth, requireAdminArea('administrador', 'inventario'), requireInventarioActivo, (req, res) => {
   subirConTenant(uploadImagen, 'imagen', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -8368,6 +8589,7 @@ app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, require
 app.get(
   '/api/admin/inventarios/productos/:id/imagen',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8398,6 +8620,7 @@ app.get(
 app.delete(
   '/api/admin/inventarios/productos/:id/imagen',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8423,6 +8646,7 @@ app.delete(
 app.post(
   '/api/admin/inventarios/productos/:id/restaurar',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8451,6 +8675,7 @@ app.post(
 app.get(
   '/api/admin/inventarios/productos/:id/codigo-barras.svg',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8481,6 +8706,7 @@ app.get(
 app.delete(
   '/api/admin/inventarios/productos/:id/permanente',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8511,6 +8737,7 @@ app.delete(
 app.get(
   '/api/admin/tipo-cambio/usd',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   requireInventarioActivo,
@@ -8573,6 +8800,7 @@ async function manejarMovimiento(req, res, tiposPermitidos) {
 app.post(
   '/api/admin/inventarios/entradas',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8588,6 +8816,7 @@ app.post(
 app.post(
   '/api/admin/inventarios/salidas',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8601,6 +8830,7 @@ app.post(
 app.get(
   '/api/admin/inventarios/kardex',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8651,6 +8881,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/kardex-exportar',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8685,6 +8916,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/existencias',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8704,6 +8936,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/verificar-integridad',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8718,6 +8951,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/dashboard',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -8836,6 +9070,8 @@ app.get(
 app.get(
   '/api/admin/inventarios/reportes/estado',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
+  requiereFeature('reportesEstadoInventarioHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9066,6 +9302,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/importaciones/plantilla.csv',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9079,6 +9316,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/importaciones/plantilla.xlsx',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9093,6 +9331,7 @@ app.get(
 app.get(
   '/api/admin/inventarios/perfiles-mapeo',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9104,6 +9343,7 @@ app.get(
 app.delete(
   '/api/admin/inventarios/perfiles-mapeo/:id',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9124,6 +9364,7 @@ app.delete(
 app.post(
   '/api/admin/inventarios/importaciones',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9261,6 +9502,7 @@ app.post(
 app.get(
   '/api/admin/inventarios/importaciones/:id',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9278,6 +9520,7 @@ app.get(
 app.put(
   '/api/admin/inventarios/importaciones/:id/mapeo',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9364,6 +9607,7 @@ app.put(
 app.get(
   '/api/admin/inventarios/importaciones/:id/errores.csv',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,
@@ -9387,6 +9631,7 @@ app.get(
 app.post(
   '/api/admin/inventarios/importaciones/:id/ejecutar',
   adminApiLimiter,
+  requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),
   requireInventarioActivo,

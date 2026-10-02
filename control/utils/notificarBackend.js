@@ -106,6 +106,67 @@ async function calcularUsoDiscoFisico(slug) {
   return data.bytes;
 }
 
+// Punto 349-350-351 (regla 9, ver stitch/gobierno-funcionalidades/
+// NOTAS.md): al guardar un max_usuarios nuevo (directo o vía plan), pide
+// al backend que suspenda usuarios no-administradores si la empresa
+// queda por encima del nuevo límite — la BD del tenant vive ahí, no
+// aquí (mismo motivo que activarTenantFisico/calcularUsoDiscoFisico).
+//
+// A propósito NO propaga el error (a diferencia de activarTenantFisico/
+// eliminarTenantFisico): a esta altura la fila de `tenants` YA se
+// guardó correctamente — la suspensión es un efecto secundario, nunca
+// debe revertir una edición que de por sí ya es válida y ya quedó
+// guardada. Un fallo de red aquí se resuelve corrigiéndose solo la
+// próxima vez que alguien edite el límite de esa empresa, no bloqueando
+// la operación actual. Devuelve `null` si no se pudo confirmar (en vez
+// de asumir `[]` = "nadie se suspendió", que sería una afirmación falsa
+// que el llamador no puede verificar).
+async function aplicarLimiteUsuarios(slug, maxUsuarios) {
+  if (maxUsuarios === null || maxUsuarios === undefined) return [];
+
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  try {
+    const res = await fetch(`${url}/internal/aplicar-limite-usuarios/${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
+      body: JSON.stringify({ maxUsuarios }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data && Array.isArray(data.suspendidos) ? data.suspendidos : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Punto 349-350-351 (regla 8 extendida, Fase 7): solo lectura, para el
+// banner PREVENTIVO en "Editar empresa → Plan y funciones" — a
+// diferencia de aplicarLimiteUsuarios() (se llama después de guardar,
+// nunca lanza porque ya no hay nada que revertir), esta se llama ANTES
+// de guardar, mientras el admin todavía está decidiendo. Tampoco lanza:
+// si el backend no responde, el banner simplemente no puede calcular un
+// número exacto — eso no debe impedir seguir editando el resto del
+// formulario. Devuelve el total (entero) en éxito, o `null` si no se
+// pudo confirmar.
+async function obtenerUsoUsuarios(slug) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  try {
+    const res = await fetch(`${url}/internal/uso-usuarios/${encodeURIComponent(slug)}`, {
+      method: 'GET',
+      headers: { 'X-Internal-Secret': secreto || '' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data && Number.isInteger(data.total) ? data.total : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 module.exports = {
   notificarInvalidacionCache,
   activarTenantFisico,
@@ -114,4 +175,6 @@ module.exports = {
   ErrorEliminacionFisica,
   calcularUsoDiscoFisico,
   ErrorCalculoDisco,
+  aplicarLimiteUsuarios,
+  obtenerUsoUsuarios,
 };

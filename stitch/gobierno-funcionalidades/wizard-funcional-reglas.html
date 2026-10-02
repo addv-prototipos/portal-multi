@@ -1,0 +1,788 @@
+<title>Asistente de plan — reglas de dependencia (prototipo funcional)</title>
+<style>
+:root{
+  /* Paleta REAL de /admin y /control (frontend/admin.css, .admin-body) —
+     NUNCA el verde #0F6E5D de style.css, que es exclusivo del portal de
+     cliente. Dentro de .admin-body, admin.css redefine --color-accent a
+     #03285B (navy institucional) — esta página reproduce esos mismos
+     valores, no los del sitio público. */
+  --color-bg:#F8FAFC; --color-surface:#FFFFFF; --color-surface-2:#EEF2F6; --color-border:#E5E7EB;
+  --color-ink:#0B1320; --color-ink-soft:#6B7280; --color-ink-faint:#94A0AC;
+  --color-accent:#03285B; --color-accent-dark:#0B1320; --color-accent-soft:#E7ECF3;
+  --color-warn:#B4530C; --color-warn-soft:#FBEBDC;
+  --color-error:#B3261E; --color-error-soft:#FBEAE9;
+  --color-info:#03285B; --color-info-soft:#E7ECF3;
+  --color-neutral:#6B7280; --color-neutral-soft:#EEF1F4;
+  --radius-sm:6px; --radius-md:10px; --radius-lg:16px;
+  --shadow-card:0px 4px 12px rgba(11,19,32,.06);
+  --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Sidebar navy + acento cian del ítem activo — también de admin.css. */
+  --marca-sidebar:#03285B; --marca-activo:#05DBF2;
+}
+*{box-sizing:border-box;}
+body{margin:0; background:var(--color-bg); color:var(--color-ink); font-family:var(--font-body); font-size:16px; line-height:1.55; -webkit-font-smoothing:antialiased;}
+.wrap{max-width:1180px; margin:0 auto; padding:56px 28px 140px;}
+button{font-family:inherit;}
+
+/* ---------- cabecera ---------- */
+.hero{margin-bottom:44px;}
+.eyebrow{display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--color-accent-dark); background:var(--color-accent-soft); border-radius:999px; padding:6px 14px 6px 10px; margin-bottom:18px;}
+h1{font-size:clamp(26px,3.2vw,34px); line-height:1.17; margin:0 0 14px; max-width:24ch; text-wrap:balance; letter-spacing:-.01em;}
+.hero p{margin:0; max-width:66ch; color:var(--color-ink-soft); font-size:16px;}
+.hero .nota{margin-top:14px; display:flex; gap:10px; align-items:flex-start; background:var(--color-info-soft); border:1px solid #CBDCEA; border-radius:var(--radius-md); padding:13px 16px; font-size:13.5px; color:#1F3F5C;}
+.hero .nota svg{flex:none; color:var(--color-info); margin-top:1px;}
+
+section.block{margin-bottom:48px;}
+.block-head{display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap;}
+.block-head h2{font-size:20px; margin:0; letter-spacing:-.005em;}
+.block-head .tag{font-size:13px; color:var(--color-ink-faint);}
+
+/* ---------- catálogo de reglas ---------- */
+.reglas{display:grid; gap:10px;}
+.regla{display:grid; grid-template-columns:120px 1fr; gap:16px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:14px 18px; box-shadow:var(--shadow-card); align-items:start;}
+@media (max-width:700px){ .regla{grid-template-columns:1fr;} }
+.tipo-pill{font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:5px 10px; border-radius:999px; display:inline-block; white-space:nowrap;}
+.tipo-bloqueo{background:var(--color-error-soft); color:var(--color-error);}
+.tipo-cascada{background:var(--color-warn-soft); color:var(--color-warn);}
+.tipo-advertencia{background:var(--color-info-soft); color:var(--color-info);}
+.tipo-cascada-up{background:var(--color-accent-soft); color:var(--color-accent-dark);}
+.regla-cuerpo strong{display:block; font-size:14.5px; margin-bottom:3px;}
+.regla-cuerpo span{font-size:13.5px; color:var(--color-ink-soft);}
+.regla-cuerpo .msg{display:block; margin-top:6px; font-size:12.5px; font-style:italic; color:var(--color-ink-faint); background:var(--color-surface-2); border-radius:6px; padding:6px 10px;}
+.regla-estado{font-size:11px; color:var(--color-ink-faint); margin-top:6px;}
+.regla-estado.pendiente{color:var(--color-warn); font-weight:600;}
+
+/* ---------- gráficas resumen financiero ---------- */
+.graf-tabla{width:100%; border-collapse:collapse; font-size:13.5px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-md); overflow:hidden; box-shadow:var(--shadow-card);}
+.graf-tabla th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--color-ink-faint); padding:10px 14px; border-bottom:1px solid var(--color-border); background:var(--color-surface-2);}
+.graf-tabla td{padding:10px 14px; border-bottom:1px solid var(--color-border);}
+.graf-tabla tr:last-child td{border-bottom:none;}
+.req-chip{font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:var(--color-neutral-soft); color:var(--color-neutral); margin:2px 4px 2px 0; display:inline-block;}
+
+/* Chips de categoría — de qué módulo cuelga cada funcionalidad
+   dependiente. Un color fijo por módulo, el mismo en todo el asistente
+   (paso 3 y resumen), para reconocer la dependencia de un vistazo sin
+   leer el texto. */
+.dep-chip{font-size:10.5px; font-weight:700; letter-spacing:.01em; padding:2px 8px; border-radius:999px; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;}
+.dep-chip::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none;}
+.dep-chip-facturacion{background:#EEF1F4; color:#475569;}
+.dep-chip-ventas{background:#E0F7FB; color:#0E6B7A;}
+.dep-chip-gastos{background:#FDF0DC; color:#92400E;}
+.dep-chip-inventarios{background:#EFE7FB; color:#5B21B6;}
+.dep-chips{display:inline-flex; gap:5px; flex-wrap:wrap; margin-left:9px; vertical-align:middle;}
+.dep-leyenda{display:flex; flex-wrap:wrap; gap:8px 14px; margin:2px 0 20px; padding:10px 14px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:9px; font-size:11.5px; color:var(--color-ink-soft);}
+.dep-leyenda strong{font-weight:600; color:var(--color-ink);}
+
+/* ---------- shell real de /control (identidad de marca) ---------- */
+.lienzo{background:#DEDAD0; border-radius:var(--radius-lg); padding:28px; display:flex; justify-content:center;}
+.app-shell{width:100%; max-width:1240px; min-height:720px; background:var(--color-bg); border-radius:14px; box-shadow:0 20px 60px rgba(33,38,31,.28); overflow:hidden; display:flex; font-size:13px; position:relative;}
+.marca-sidebar{width:208px; flex:none; background:var(--marca-sidebar); color:#fff; display:flex; flex-direction:column;}
+.marca-sidebar-logo{padding:20px 16px 14px; display:flex; justify-content:center;}
+.marca-sidebar-logo img{max-width:118px; height:auto; display:block;}
+.marca-nav{padding:6px 10px; display:flex; flex-direction:column; gap:2px;}
+.marca-nav-item{display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:8px; font-size:12.5px; font-weight:500; color:rgba(255,255,255,.7);}
+.marca-nav-item svg{flex:none;}
+.marca-nav-item.activo{background:var(--marca-activo); color:var(--marca-sidebar); font-weight:600;}
+.marca-content{flex:1; display:flex; flex-direction:column; min-width:0;}
+.marca-header{padding:12px 22px; border-bottom:1px solid var(--color-border); background:var(--color-surface); display:flex; justify-content:flex-end;}
+.marca-user{font-size:12px; color:var(--color-ink-faint); font-weight:600;}
+.marca-main{flex:1; padding:20px 24px; overflow:auto;}
+.marca-main-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+.marca-main-toolbar h1{margin:0; font-size:18px;}
+.marca-main-toolbar .btn-primario-mini{font-size:12px; font-weight:600; background:var(--color-accent); color:#fff; border:none; border-radius:7px; padding:8px 14px;}
+.marca-tabla{width:100%; border-collapse:collapse; font-size:12.5px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px; overflow:hidden;}
+.marca-tabla th{text-align:left; padding:9px 14px; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--color-ink-faint); background:var(--color-surface-2); border-bottom:1px solid var(--color-border);}
+.marca-tabla td{padding:10px 14px; border-bottom:1px solid var(--color-border);}
+.marca-tabla .btn-editar{font-size:11.5px; font-weight:600; color:var(--color-accent-dark); background:var(--color-accent-soft); border:none; border-radius:6px; padding:5px 10px; cursor:pointer;}
+
+/* overlay del modal — igual que .modal-overlay real del sitio */
+.marca-overlay{position:absolute; inset:0; background:rgba(11,19,32,.56); display:flex; align-items:center; justify-content:center; padding:36px; backdrop-filter:blur(1px);}
+.modal-mock{width:100%; max-width:760px; max-height:100%; background:var(--color-surface); border-radius:16px; box-shadow:0 24px 70px rgba(11,19,32,.38); overflow:hidden; font-size:14px; display:flex; flex-direction:column;}
+.modal-mock-header{display:flex; align-items:center; justify-content:space-between; padding:22px 28px; border-bottom:1px solid var(--color-border); flex:none;}
+.modal-mock-header h5{margin:0; font-size:18px;}
+.modal-mock-close{width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--color-ink-faint); background:transparent; border:none; cursor:pointer;}
+.modal-mock-close:hover{background:var(--color-neutral-soft);}
+
+/* stepper */
+.pc-steps{display:flex; align-items:center; padding:22px 28px 0; gap:8px;}
+.pc-step{display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--color-ink-faint);}
+.pc-step .circ{width:28px; height:28px; border-radius:50%; background:var(--color-neutral-soft); color:var(--color-ink-soft); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex:none;}
+.pc-step.active .circ{background:var(--color-accent); color:#fff;}
+.pc-step.active{color:var(--color-ink); font-weight:600;}
+.pc-step.done .circ{background:var(--color-accent-soft); color:var(--color-accent-dark);}
+.pc-line{flex:1; height:1px; background:var(--color-border); margin:0 4px;}
+.pc-body{padding:28px 28px 24px; min-height:420px; overflow:auto;}
+.pc-body h6{margin:0 0 6px; font-size:19px;}
+.pc-body .sub{margin:0 0 24px; color:var(--color-ink-faint); font-size:14px; max-width:52ch; line-height:1.5;}
+.pc-footer{display:flex; justify-content:space-between; padding:18px 28px; border-top:1px solid var(--color-border); flex:none;}
+.btn{font-size:14px; font-weight:600; padding:11px 24px; min-height:44px; border-radius:9px; border:1px solid var(--color-border); background:var(--color-surface); color:var(--color-ink); cursor:pointer; transition:background .15s ease, border-color .15s ease;}
+.btn:hover{background:var(--color-accent-soft); border-color:var(--color-accent);}
+.btn-primario{background:var(--color-accent); border-color:var(--color-accent); color:#fff;}
+.btn-primario:hover{background:var(--color-accent-dark); border-color:var(--color-accent-dark);}
+.btn:disabled{opacity:.4; cursor:not-allowed;}
+.btn:disabled:hover{background:var(--color-surface); border-color:var(--color-border);}
+
+/* paso 2: módulos */
+.pc-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+.pc-card{border:1.5px solid var(--color-border); border-radius:12px; padding:18px 20px; display:flex; align-items:flex-start; gap:13px; cursor:pointer; background:var(--color-surface); text-align:left; width:100%; min-height:88px;}
+.pc-card:hover{border-color:var(--color-accent);}
+.pc-card.selected{border-color:var(--color-accent); background:var(--color-accent-soft);}
+.pc-card svg.icono{flex:none; color:var(--color-accent); margin-top:2px; width:20px; height:20px;}
+.pc-card-title{font-size:14.5px; font-weight:600;}
+.pc-card-desc{font-size:12.5px; color:var(--color-ink-faint); margin-top:3px; line-height:1.45;}
+.pc-card-check{margin-left:auto; flex:none; width:20px; height:20px; border-radius:6px; border:1.5px solid var(--color-border); display:flex; align-items:center; justify-content:center; color:#fff;}
+.pc-card.selected .pc-card-check{background:var(--color-accent); border-color:var(--color-accent);}
+
+/* paso 3: filas dependientes */
+.dep-row{display:flex; align-items:center; justify-content:space-between; gap:20px; padding:18px 4px; border-top:1px solid var(--color-border);}
+.dep-row:first-of-type{border-top:none; padding-top:2px;}
+.dep-row-label{font-size:14.5px; font-weight:600;}
+.dep-row-desc{font-size:12.5px; color:var(--color-ink-faint); margin-top:3px; line-height:1.45; max-width:44ch;}
+.dep-row-desc.auto{color:var(--color-accent-dark);}
+.dep-row-disabled .dep-row-label{color:var(--color-ink-faint);}
+.dep-row-requiere{color:var(--color-warn) !important; font-weight:600;}
+.dep-empty{font-size:13.5px; color:var(--color-ink-faint); padding:32px 0; text-align:center;}
+
+.sw{position:relative; width:44px; height:24px; border-radius:999px; background:var(--color-neutral-soft); flex:none; border:none; cursor:pointer; padding:0;}
+.sw::after{content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:left .15s ease;}
+.sw[data-on="true"]{background:var(--color-accent);}
+.sw[data-on="true"]::after{left:23px;}
+.sw:disabled{background:var(--color-neutral-soft); opacity:.4; cursor:not-allowed;}
+.sw:disabled::after{left:3px;}
+
+/* grupo de checkboxes — Reportes (independiente de Resumen financiero) */
+.chk-grupo{margin-top:16px; padding-top:18px; border-top:1px solid var(--color-border);}
+.chk-grupo-titulo{font-size:14.5px; font-weight:600; margin-bottom:8px; display:flex; flex-direction:column; gap:2px;}
+.chk-grupo-nota{font-size:12px; font-weight:400; color:var(--color-ink-faint);}
+.chk-row{display:flex; align-items:flex-start; gap:13px; padding:11px 10px; border-radius:9px; cursor:pointer;}
+.chk-row:hover{background:var(--color-surface-2);}
+.chk-row-disabled{cursor:not-allowed;}
+.chk-row-disabled:hover{background:transparent;}
+.chk-box{width:20px; height:20px; flex:none; margin-top:1px; accent-color:var(--color-accent); cursor:inherit;}
+.chk-box:disabled{cursor:not-allowed; opacity:.45;}
+.chk-texto{display:flex; flex-direction:column; gap:2px;}
+.chk-label-linea{display:flex; align-items:center; flex-wrap:wrap; gap:0;}
+.chk-label{font-size:13.5px; font-weight:500; color:var(--color-ink);}
+.chk-row-disabled .chk-label{color:var(--color-ink-faint);}
+.chk-requiere{font-size:11.5px; font-weight:600; color:var(--color-warn);}
+
+/* paso 4: resumen */
+.resumen-tabla{width:100%; border-collapse:collapse; font-size:13px;}
+.resumen-tabla th{text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--color-ink-faint); padding:11px 6px; border-bottom:1px solid var(--color-border);}
+.resumen-tabla td{padding:11px 6px; border-bottom:1px solid var(--color-border); font-size:13.5px;}
+.resumen-tabla tr.nivel2 td.nombre{padding-left:20px; color:var(--color-ink-soft); font-size:12.5px;}
+.estado-pill{font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; display:inline-block;}
+.estado-incluido{background:var(--color-accent-soft); color:var(--color-accent-dark);}
+.estado-auto{background:var(--color-info-soft); color:var(--color-info);}
+.estado-oculto{background:var(--color-neutral-soft); color:var(--color-ink-faint);}
+
+/* paso 1 placeholder */
+.campo{display:grid; gap:18px 20px; grid-template-columns:1fr 1fr;}
+.campo label{font-size:12.5px; font-weight:600; color:var(--color-ink-soft); display:block; margin-bottom:7px;}
+.campo input{width:100%; font-size:14px; padding:11px 13px; border:1px solid var(--color-border); border-radius:9px; color:var(--color-ink-faint); background:var(--color-surface-2);}
+
+/* toasts */
+.toast-pila{position:fixed; right:24px; bottom:24px; display:flex; flex-direction:column; gap:10px; z-index:40; max-width:360px;}
+.toast{display:flex; gap:10px; align-items:flex-start; padding:13px 14px; border-radius:10px; box-shadow:0 10px 30px rgba(33,38,31,.18); font-size:13px; animation:toast-in .18s ease;}
+.toast svg{flex:none; margin-top:1px;}
+.toast .cerrar{margin-left:auto; flex:none; background:none; border:none; cursor:pointer; opacity:.6; color:inherit; padding:0;}
+.toast .cerrar:hover{opacity:1;}
+.toast-bloqueo{background:var(--color-error-soft); color:var(--color-error); border:1px solid #F0C9C6;}
+.toast-cascada{background:var(--color-warn-soft); color:var(--color-warn); border:1px solid #F0D2B2;}
+.toast-advertencia{background:var(--color-info-soft); color:var(--color-info); border:1px solid #CBDCEA;}
+.toast-auto{background:var(--color-accent-soft); color:var(--color-accent-dark); border:1px solid #C7DFD8;}
+@keyframes toast-in{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+
+.cierre{background:var(--color-accent-dark); color:#fff; border-radius:var(--radius-lg); padding:28px 30px; display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap;}
+.cierre h3{margin:0 0 6px; font-size:18px;}
+.cierre p{margin:0; color:#C9E2DC; font-size:13.5px; max-width:56ch;}
+.cierre-badge{background:rgba(255,255,255,.12); border-radius:999px; padding:8px 16px; font-size:13px; font-weight:600; white-space:nowrap;}
+
+@media (max-width:640px){ .pc-grid{grid-template-columns:1fr;} .campo{grid-template-columns:1fr;} }
+</style>
+
+<div class="wrap">
+
+  <div class="hero">
+    <span class="eyebrow">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h11"/></svg>
+      Opción C confirmada — ahora con reglas de dependencia
+    </span>
+    <h1>Prototipo funcional del asistente de plan + catálogo de reglas</h1>
+    <p>Con tu respuesta sobre Resumen financiero se encontraron 10 reglas del mismo tipo (bloqueos, cascadas y advertencias) revisando qué alimenta cada gráfica y cada pestaña de Reportes — incluida "Estado del inventario", que señalaste y que depende de Inventarios, no de Ventas/Gastos. Primero el catálogo completo para que lo ajustes, después el asistente funcional de abajo — los toggles, bloqueos y mensajes son reales (JavaScript), no estáticos: pruébalo. También se restauró la identidad real de marca (sidebar navy, logo y acento cian de /control) en el lienzo de abajo.</p>
+    <div class="nota">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      Nada de esto toca el código real todavía. Es una simulación aislada para validar el comportamiento antes de tocar <code>control/utils/planes.js</code> y el modal de /control.
+    </div>
+  </div>
+
+  <!-- ================= CATÁLOGO DE REGLAS ================= -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Catálogo de reglas de dependencia</h2>
+      <span class="tag">9 reglas — 3 ya confirmadas, 6 nuevas por revisar</span>
+    </div>
+
+    <div class="reglas">
+
+      <div class="regla">
+        <span class="tipo-pill tipo-bloqueo">Bloqueo</span>
+        <div class="regla-cuerpo">
+          <strong>Resumen financiero sin Ventas ni Gastos</strong>
+          <span>Intentar activarlo cuando ambos están apagados no es posible — no hay datos que calcular. <strong>Reportes es independiente</strong> (corrección que pediste): tiene sus propios 4 checkboxes, cada uno con su propia condición — ver Regla 11.</span>
+          <span class="msg">"No se puede activar Resumen financiero: activa Ventas o Gastos primero."</span>
+          <div class="regla-estado">Confirmada por ti — pediste exactamente este mensaje.</div>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="tipo-pill tipo-cascada-up">Auto-activación</span>
+        <div class="regla-cuerpo">
+          <strong>Ventas o Gastos se activa por primera vez</strong>
+          <span>Resumen financiero se enciende solo — el admin lo puede apagar después si no lo quiere, pero no empieza apagado "por accidente".</span>
+          <span class="msg">"Resumen financiero se activó automáticamente — ya hay datos de Ventas/Gastos que mostrar."</span>
+          <div class="regla-estado">Confirmada por ti.</div>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="tipo-pill tipo-cascada">Cascada hacia abajo</span>
+        <div class="regla-cuerpo">
+          <strong>Se apagan Ventas y Gastos mientras Resumen financiero está encendido</strong>
+          <span>Resumen financiero se apaga solo junto con ellos — ya no tiene nada que mostrar.</span>
+          <span class="msg">"Se desactivó Resumen financiero: ya no hay Ventas ni Gastos activos."</span>
+          <div class="regla-estado">Nueva — consecuencia directa de la regla anterior.</div>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="tipo-pill tipo-cascada">Cascada hacia abajo</span>
+        <div class="regla-cuerpo">
+          <strong>Cuentas por cobrar depende de Ventas</strong>
+          <span>Confirmaste que CxC es independiente/opcional, pero solo tiene sentido si Ventas existe (de ahí salen las cuentas por cobrar). Si Ventas se apaga, CxC se apaga con ella.</span>
+          <span class="msg">"Se desactivó Cuentas por cobrar: depende de Ventas."</span>
+          <div class="regla-estado">Nueva — aplica tu regla general "todas bandera propia" + la dependencia que ya existía en el mapa.</div>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="tipo-pill tipo-cascada">Cascada hacia abajo</span>
+        <div class="regla-cuerpo">
+          <strong>Aviso de expiración de productos depende de Inventarios</strong>
+          <span>Es el ejemplo que diste desde el inicio — si Inventarios se apaga, el aviso de expiración en Notificaciones se apaga con él.</span>
+          <span class="msg">"Se ocultó el aviso de expiración de productos: depende de Inventarios."</span>
+          <div class="regla-estado">Confirmada desde tu primer mensaje.</div>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="tipo-pill tipo-advertencia">Advertencia (no bloquea)</span>
+        <div class="regla-cuerpo">
+          <strong>Portal de clientes sin Facturación activa</strong>
+          <span>Hoy el portal de clientes solo tiene 2 acciones: subir constancia fiscal y subir tickets — ambas son del flujo de Facturación. Si se activa el portal con Facturación apagada, el cliente entra a un portal vacío.</span>
+          <span class="msg">"Aviso: el portal de clientes no mostrará nada útil sin Facturación activa. ¿Continuar de todas formas?"</span>
+          <div class="regla-estado pendiente">Nueva — no bloqueo duro porque a futuro el portal puede tener más secciones. Confírmame si prefieres bloqueo total en vez de advertencia.</div>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="tipo-pill tipo-advertencia">Advertencia (no bloquea)</span>
+        <div class="regla-cuerpo">
+          <strong>Editar un plan que ya tiene empresas asignadas</strong>
+          <span>Apagar un módulo en un plan que ya usan varios tenants lo oculta de inmediato para todos ellos, no solo para asignaciones futuras.</span>
+          <span class="msg">"Este plan tiene 8 empresas asignadas. Los cambios aplican a todas de inmediato."</span>
+          <div class="regla-estado pendiente">Nueva — aplica al editar, no al crear. No incluida en el prototipo de abajo (requiere datos reales de tenants), pero sí en la implementación final.</div>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="tipo-pill tipo-advertencia">Advertencia (no bloquea)</span>
+        <div class="regla-cuerpo">
+          <strong>Proveedores sin Inventarios ni Gastos</strong>
+          <span>Proveedores se alimenta de insumos de inventario Y de gastos por proveedor. No tiene toggle propio — se muestra automático si cualquiera de los dos está activo, se oculta solo si ambos están apagados.</span>
+          <span class="msg">(sin mensaje — es automático y silencioso, igual que Resumen financiero cuando SÍ hay datos)</span>
+          <div class="regla-estado">Confirmada — así se comportaba ya en la propuesta anterior.</div>
+        </div>
+      </div>
+
+      <div class="regla">
+        <span class="tipo-pill tipo-advertencia">Advertencia (no bloquea)</span>
+        <div class="regla-cuerpo">
+          <strong>Máximo de usuarios por debajo de los usuarios activos reales</strong>
+          <span>Si se baja el límite de un plan ya asignado por debajo de los usuarios que ya tiene alguna empresa, no se puede saber en este asistente — requiere consultar la base de datos real.</span>
+          <span class="msg">"3 empresas en este plan ya superan el nuevo límite de usuarios."</span>
+          <div class="regla-estado pendiente">Nueva — igual que la de arriba, se valida en el backend al guardar, no en este prototipo visual.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= GRÁFICAS DE RESUMEN FINANCIERO ================= -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Qué gráfica de "Resumen financiero" depende de qué</h2>
+      <span class="tag">se resuelve solo al mostrar el dashboard — no se expone como toggle nuevo</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="graf-tabla">
+        <thead><tr><th>Gráfica en "Resumen financiero"</th><th>Requiere</th><th>Si Facturación está apagada</th></tr></thead>
+        <tbody>
+          <tr><td>Proyección de ventas</td><td><span class="req-chip">Ventas</span></td><td>Sin efecto</td></tr>
+          <tr><td>Ventas facturadas vs sin facturar</td><td><span class="req-chip">Ventas</span></td><td>Todo se cuenta como "sin facturar" — sin efecto en que se muestre</td></tr>
+          <tr><td>Distribución de gastos por categoría</td><td><span class="req-chip">Gastos</span></td><td>Sin efecto</td></tr>
+          <tr><td>Top proveedores de gasto</td><td><span class="req-chip">Gastos</span></td><td>Sin efecto</td></tr>
+          <tr><td>Utilidad neta mensual / del mes</td><td><span class="req-chip">Ventas</span><span class="req-chip">Gastos</span></td><td>Sin efecto</td></tr>
+          <tr><td>Ventas vs Facturado vs Gastos</td><td><span class="req-chip">Ventas</span><span class="req-chip">Gastos</span></td><td>Columna "Facturado" queda en 0, el resto sin efecto</td></tr>
+          <tr><td>Cobranza del mes / Antigüedad de saldos</td><td><span class="req-chip">Cuentas por cobrar</span></td><td>Sin efecto</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px; color:var(--color-ink-faint); margin-top:12px; max-width:68ch;">
+      Esto confirma lo que describiste: Facturación nunca oculta una gráfica de Resumen financiero, solo cambia cómo se etiquetan los datos. Por eso no se agrega como dependencia en el asistente — cada gráfica se oculta sola en el dashboard real según Ventas/Gastos/CxC, sin necesitar un toggle nuevo por gráfica (eso sería sobre-ingeniería para algo que el super admin de /control nunca necesita tocar a ese nivel).
+    </p>
+
+    <h3 style="font-size:15.5px; margin:28px 0 10px;">Corrección — Reportes es independiente, con 4 checkboxes propios</h3>
+    <p style="font-size:13.5px; color:var(--color-ink-soft); margin:0 0 12px; max-width:70ch;">
+      Dos correcciones tuyas seguidas: primero que "Reportes" no es un bloque único derivado de Ventas/Gastos, sino <strong>4 pestañas independientes</strong> (<code>frontend/admin.js</code>, <code>PESTANAS_REPORTES</code>); después que debía ser <strong>independiente de Resumen financiero</strong> y mostrarse como checkboxes — uno por pestaña real — que el super admin elige explícitamente, no un bloque que se enciende solo. Los checkboxes que no aplican (su módulo está apagado) no desaparecen: quedan <strong>inhabilitados</strong>, con la razón visible, para que no parezca un bug sino una regla clara.
+    </p>
+    <div style="overflow-x:auto;">
+      <table class="graf-tabla">
+        <thead><tr><th>Checkbox (pestaña real de "Reportes")</th><th>Requiere</th><th>Si el requisito está apagado</th></tr></thead>
+        <tbody>
+          <tr><td>Por reporte (automático / manual / cierre mensual)</td><td><span class="req-chip">Facturación</span><span class="req-chip">o Ventas</span></td><td>Checkbox inhabilitado — sin tickets ni ventas no hay nada que listar</td></tr>
+          <tr><td>Cortes de ventas</td><td><span class="req-chip">Ventas</span></td><td>Checkbox inhabilitado</td></tr>
+          <tr><td>Eliminados (ledger cruzado)</td><td><span class="req-chip">Ventas</span><span class="req-chip">o Gastos</span></td><td>Checkbox inhabilitado solo si AMBOS están apagados</td></tr>
+          <tr><td><strong>Estado del inventario</strong></td><td><span class="req-chip">Inventarios</span></td><td><strong>Checkbox inhabilitado</strong> — es el caso que señalaste</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px; color:var(--color-ink-faint); margin-top:12px; max-width:68ch;">
+      Si un checkbox estaba marcado y su módulo se apaga después, se desmarca solo con un aviso (cascada) — nunca queda una funcionalidad "fantasma" marcada pero sin datos reales detrás.
+    </p>
+  </section>
+
+  <!-- ================= IMPACTO POR GRÁFICA/PESTAÑA — REGLA 10 Y 11 ================= -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Reglas 10 y 11 — el mismo principio, ahora explícito</h2>
+    </div>
+    <div class="reglas">
+      <div class="regla">
+        <span class="tipo-pill tipo-cascada-up">Checkbox inhabilitado (no bloqueo, no advertencia)</span>
+        <div class="regla-cuerpo">
+          <strong>Regla 11 — cada checkbox de Reportes se inhabilita solo, con su razón visible</strong>
+          <span>A diferencia de un bloqueo (que reacciona a un clic) o una cascada (que reacciona a apagar algo), aquí el checkbox nace inhabilitado si su módulo no está activo — el admin nunca puede marcarlo por error. Es el patrón que pediste para "Estado del inventario", aplicado a los 4 checkboxes de Reportes por igual.</span>
+          <span class="msg">(sin toast al cargar — el estado inhabilitado + el texto "Requiere X" ya explican por qué, sin interrumpir)</span>
+          <div class="regla-estado">Confirmada por ti — "los checkbox deben estar inhabilitados".</div>
+        </div>
+      </div>
+      <div class="regla">
+        <span class="tipo-pill tipo-cascada">Cascada hacia abajo</span>
+        <div class="regla-cuerpo">
+          <strong>Regla 10 — "Estado del inventario" depende de Inventarios, no de Ventas/Gastos</strong>
+          <span>Reportes puede tener checkboxes marcados por Ventas/Gastos sin que Inventarios esté activo — en ese caso "Estado del inventario" sigue inhabilitado aunque el resto de Reportes esté disponible.</span>
+          <span class="msg">"Se desmarcó 'Estado del inventario': requiere Inventarios." (cascada, si estaba marcado y se apaga Inventarios)</span>
+          <div class="regla-estado">Confirmada — es el ejemplo exacto que diste.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PROTOTIPO FUNCIONAL ================= -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Asistente funcional — pruébalo</h2>
+      <span class="tag">opción C · toggles, bloqueos y cascadas reales</span>
+    </div>
+
+    <div class="lienzo">
+      <div class="app-shell">
+        <aside class="marca-sidebar">
+          <div class="marca-sidebar-logo"><img src="assets/logoDark.png" alt="CLARVO — Tu negocio bajo control by ADDV"></div>
+          <nav class="marca-nav">
+            <div class="marca-nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round"/></svg>Empresas</div>
+            <div class="marca-nav-item activo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.59 13.41L13.42 20.58a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/></svg>Planes</div>
+            <div class="marca-nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round"/></svg>Papelera</div>
+            <div class="marca-nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round"/></svg>Sucursales</div>
+            <div class="marca-nav-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/></svg>Auditoría</div>
+          </nav>
+        </aside>
+        <div class="marca-content">
+          <header class="marca-header"><span class="marca-user">S · Super admin</span></header>
+          <main class="marca-main">
+            <div class="marca-main-toolbar">
+              <h1>Planes</h1>
+              <button type="button" class="btn-primario-mini">+ Nuevo plan</button>
+            </div>
+            <table class="marca-tabla">
+              <thead><tr><th>Nombre</th><th>Precio</th><th>Empresas</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>Pro</td><td>$990/mes</td><td>8</td><td><button type="button" class="btn-editar" id="btn-abrir-editar">Editar</button></td></tr>
+                <tr><td>Básico</td><td>$490/mes</td><td>14</td><td><button type="button" class="btn-editar">Editar</button></td></tr>
+              </tbody>
+            </table>
+          </main>
+        </div>
+
+        <div class="marca-overlay">
+          <div class="modal-mock">
+            <div class="modal-mock-header">
+              <h5 id="titulo-modal">Editar plan — Pro</h5>
+              <button class="modal-mock-close" aria-label="Cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            </div>
+
+            <div class="pc-steps" id="pc-steps"></div>
+
+            <div class="pc-body" id="pc-body"></div>
+
+            <div class="pc-footer">
+              <button class="btn" id="btn-atras">Atrás</button>
+              <button class="btn btn-primario" id="btn-siguiente">Siguiente</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12.5px; color:var(--color-ink-faint); margin-top:10px; text-align:center;">Sidebar navy (#03285B) + acento cian (#05DBF2) y logo reales, tomados de <code>frontend/admin.css</code> — misma identidad que ves hoy en /control.</p>
+  </section>
+
+  <div class="cierre">
+    <div>
+      <h3>Pendiente tu confirmación</h3>
+      <p>Revisa el catálogo (sobre todo las 2 reglas marcadas "pendiente": Portal de clientes sin Facturación como advertencia vs bloqueo total, y el aviso al editar un plan ya asignado) y prueba el asistente. Con tu luz verde, esto deja de ser simulación y se vuelve el modal real de /control.</p>
+    </div>
+    <div class="cierre-badge">Nada implementado todavía</div>
+  </div>
+
+</div>
+
+<div class="toast-pila" id="toast-pila"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var estado = {
+    facturacion: true,
+    ventas: true,
+    gastos: false,
+    inventarios: false,
+    auditoria: false,
+    portal: false,
+    sucursales: false,
+    marca: false,
+    cxc: false,
+    avisoExpiracion: false,
+    resumenFinanciero: true, // auto porque ventas ya está true al cargar
+    // Reportes es independiente de Resumen financiero (corrección pedida
+    // por el usuario) — cada pestaña real de la vista "Reportes"
+    // (frontend/admin.js, PESTANAS_REPORTES) es su propio checkbox, con
+    // su propia dependencia de módulo.
+    reportes: { porReporte: false, cortes: false, eliminados: false, estadoInventario: false }
+  };
+
+  var paso = 1;
+  var TOTAL_PASOS = 4;
+
+  // Catálogo de las 4 pestañas reales de "Reportes" — de dónde sale cada
+  // una, su descripción y su condición de habilitado. Centralizado aquí
+  // para que el checkbox, su caption "Requiere X" y la cascada al apagar
+  // un módulo usen siempre la misma fuente de verdad.
+  var REPORTES_DEF = [
+    { clave: 'porReporte', etiqueta: 'Por reporte (automático / manual / cierre mensual)', modulos: ['facturacion', 'ventas'],
+      habilitado: function(){ return estado.facturacion || estado.ventas; }, requiere: 'Facturación o Ventas' },
+    { clave: 'cortes', etiqueta: 'Cortes de ventas', modulos: ['ventas'],
+      habilitado: function(){ return estado.ventas; }, requiere: 'Ventas' },
+    { clave: 'eliminados', etiqueta: 'Eliminados (ledger cruzado)', modulos: ['ventas', 'gastos'],
+      habilitado: function(){ return estado.ventas || estado.gastos; }, requiere: 'Ventas o Gastos' },
+    { clave: 'estadoInventario', etiqueta: 'Estado del inventario', modulos: ['inventarios'],
+      habilitado: function(){ return estado.inventarios; }, requiere: 'Inventarios' }
+  ];
+
+  function resumenFinancieroDisponible(){ return estado.ventas || estado.gastos; }
+  function proveedoresVisible(){ return estado.inventarios || estado.gastos; }
+  function reportesVisible(){
+    return REPORTES_DEF.some(function(r){ return estado.reportes[r.clave]; });
+  }
+
+  function lanzarToast(tipo, icono, texto){
+    var pila = document.getElementById('toast-pila');
+    var el = document.createElement('div');
+    el.className = 'toast toast-' + tipo;
+    el.innerHTML = icono + '<span>' + texto + '</span><button class="cerrar" aria-label="Cerrar aviso">&times;</button>';
+    el.querySelector('.cerrar').addEventListener('click', function(){ el.remove(); });
+    pila.appendChild(el);
+    setTimeout(function(){ if(el.parentNode){ el.remove(); } }, 6500);
+  }
+
+  var ICONO_BLOQUEO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>';
+  var ICONO_CASCADA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>';
+  var ICONO_AUTO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+  var ICONO_ADVERTENCIA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L2 18a1 1 0 00.9 1.5h18.2a1 1 0 00.9-1.5L13.7 3.9a1 1 0 00-1.8 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+
+  // Revisa los 4 checkboxes de Reportes contra su condición de habilitado
+  // actual — si alguno quedó inhabilitado y seguía marcado, lo desmarca y
+  // avisa. Se llama después de cualquier cambio a Facturación/Ventas/
+  // Gastos/Inventarios, los 4 módulos de los que depende algún reporte.
+  function revisarCascadaReportes(){
+    REPORTES_DEF.forEach(function(r){
+      if (!r.habilitado() && estado.reportes[r.clave]) {
+        estado.reportes[r.clave] = false;
+        lanzarToast('cascada', ICONO_CASCADA, 'Se desmarcó "' + r.etiqueta + '": requiere ' + r.requiere + '.');
+      }
+    });
+  }
+
+  // ---- toggle de módulos principales (paso 2) ----
+  function alternarModulo(nombre){
+    var encendiendo = !estado[nombre];
+    estado[nombre] = encendiendo;
+
+    if (nombre === 'ventas' || nombre === 'gastos') {
+      var habiaDatosAntes = (nombre === 'ventas' ? estado.gastos : estado.ventas);
+      if (encendiendo && !habiaDatosAntes && !estado.resumenFinanciero) {
+        estado.resumenFinanciero = true;
+        lanzarToast('auto', ICONO_AUTO, 'Resumen financiero se activó automáticamente: ya hay datos de Ventas o Gastos que mostrar.');
+      }
+      if (!encendiendo && !resumenFinancieroDisponible() && estado.resumenFinanciero) {
+        estado.resumenFinanciero = false;
+        lanzarToast('cascada', ICONO_CASCADA, 'Se desactivó Resumen financiero: ya no hay Ventas ni Gastos activos.');
+      }
+      if (nombre === 'ventas' && !encendiendo && estado.cxc) {
+        estado.cxc = false;
+        lanzarToast('cascada', ICONO_CASCADA, 'Se desactivó Cuentas por cobrar: depende de Ventas.');
+      }
+    }
+
+    if (nombre === 'inventarios' && !encendiendo && estado.avisoExpiracion) {
+      estado.avisoExpiracion = false;
+      lanzarToast('cascada', ICONO_CASCADA, 'Se desactivó el aviso de expiración de productos: depende de Inventarios.');
+    }
+
+    if (nombre === 'portal' && encendiendo && !estado.facturacion) {
+      lanzarToast('advertencia', ICONO_ADVERTENCIA, 'Aviso: el portal de clientes no mostrará nada útil sin Facturación activa.');
+    }
+    if (nombre === 'facturacion' && !encendiendo && estado.portal) {
+      lanzarToast('advertencia', ICONO_ADVERTENCIA, 'Aviso: el portal de clientes sigue encendido pero sin Facturación no mostrará nada útil.');
+    }
+
+    // Facturación, Ventas, Gastos e Inventarios alimentan al menos un
+    // checkbox de Reportes — cualquiera de los 4 puede dejar uno sin
+    // base de datos que mostrar.
+    if (nombre === 'facturacion' || nombre === 'ventas' || nombre === 'gastos' || nombre === 'inventarios') {
+      revisarCascadaReportes();
+    }
+
+    render();
+  }
+
+  // ---- toggle de funcionalidades dependientes (paso 3) ----
+  // Los 3 switches de abajo quedan con el atributo HTML disabled cuando
+  // su prerrequisito está apagado (ver filaDependiente/casillaReporte) —
+  // un control disabled nunca dispara "click" en el navegador, así que
+  // estas funciones solo se alcanzan cuando ya es válido alternar.
+  function alternarCxc(){
+    estado.cxc = !estado.cxc;
+    render();
+  }
+
+  function alternarResumenFinanciero(){
+    estado.resumenFinanciero = !estado.resumenFinanciero;
+    render();
+  }
+
+  function alternarAviso(){
+    estado.avisoExpiracion = !estado.avisoExpiracion;
+    render();
+  }
+
+  function alternarReporte(clave){
+    var def = REPORTES_DEF.filter(function(r){ return r.clave === clave; })[0];
+    if (!def || !def.habilitado()) return; // defensivo — no debería alcanzarse, el checkbox está disabled
+    estado.reportes[clave] = !estado.reportes[clave];
+    render();
+  }
+
+  // ---------------- render por paso ----------------
+  function renderSteps(){
+    var nombres = ['Datos básicos', 'Módulos', 'Dependientes', 'Resumen'];
+    var html = '';
+    for (var i = 1; i <= TOTAL_PASOS; i++){
+      var cls = 'pc-step' + (i === paso ? ' active' : (i < paso ? ' done' : ''));
+      var circ = i < paso ? ICONO_AUTO : i;
+      html += '<div class="' + cls + '"><div class="circ">' + circ + '</div>' + nombres[i-1] + '</div>';
+      if (i < TOTAL_PASOS) html += '<div class="pc-line"></div>';
+    }
+    document.getElementById('pc-steps').innerHTML = html;
+  }
+
+  function tarjetaModulo(nombre, titulo, desc, pathIcono){
+    var sel = estado[nombre] ? ' selected' : '';
+    var check = estado[nombre] ? ICONO_AUTO : '';
+    return '<button type="button" class="pc-card' + sel + '" data-modulo="' + nombre + '">' +
+      '<svg class="icono" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">' + pathIcono + '</svg>' +
+      '<div><div class="pc-card-title">' + titulo + '</div><div class="pc-card-desc">' + desc + '</div></div>' +
+      '<span class="pc-card-check">' + check + '</span>' +
+      '</button>';
+  }
+
+  function renderPaso1(){
+    return '<h6>Información básica</h6><p class="sub">Nombre, precio y límites del plan.</p>' +
+      '<div class="campo">' +
+      '<div><label>Nombre del plan</label><input type="text" value="Pro" disabled></div>' +
+      '<div><label>Precio mensual (MXN)</label><input type="text" value="990" disabled></div>' +
+      '<div><label>Máximo de usuarios</label><input type="text" value="10" disabled></div>' +
+      '<div><label>Cuota de disco (MB)</label><input type="text" value="5000" disabled></div>' +
+      '</div>';
+  }
+
+  function renderPaso2(){
+    var html = '<h6>¿Qué módulos incluye este plan?</h6><p class="sub">Actívalos o apágalos — el paso siguiente se ajusta solo según lo que elijas aquí.</p><div class="pc-grid">';
+    html += tarjetaModulo('facturacion', 'Facturación', 'Tickets, constancias, CFDI', '<path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>');
+    html += tarjetaModulo('ventas', 'Ventas', 'Vista Ventas, base de Cuentas por cobrar', '<path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round"/>');
+    html += tarjetaModulo('gastos', 'Gastos', 'Vista Gastos, proveedores de gasto', '<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round"/>');
+    html += tarjetaModulo('inventarios', 'Inventarios', 'Catálogo, proveedores, expiración', '<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/>');
+    html += tarjetaModulo('auditoria', 'Auditoría', 'Bitácora de cambios', '<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>');
+    html += tarjetaModulo('portal', 'Portal de clientes', 'Acceso externo para el cliente final', '<path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>');
+    html += tarjetaModulo('sucursales', 'Sucursales (grupo)', 'Switcher entre empresas relacionadas', '<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m-1 4h1m4-4h1m-1 4h1M9 21v-4h6v4" stroke-linecap="round" stroke-linejoin="round"/>');
+    html += tarjetaModulo('marca', 'Marca propia', 'Look & feel personalizado', '<path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h14a2 2 0 012 2v9M7 21h10a2 2 0 002-2M7 21a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round"/>');
+    html += '</div>';
+    return html;
+  }
+
+  // Nombre + color fijo por módulo de origen — el mismo en todo el
+  // asistente, para reconocer de quién es la dependencia de un vistazo.
+  var MODULO_CHIP = {
+    facturacion: 'Facturación',
+    ventas: 'Ventas',
+    gastos: 'Gastos',
+    inventarios: 'Inventarios'
+  };
+  function renderDepChips(modulos){
+    if (!modulos || !modulos.length) return '';
+    return '<span class="dep-chips">' + modulos.map(function(m){
+      return '<span class="dep-chip dep-chip-' + m + '">' + MODULO_CHIP[m] + '</span>';
+    }).join('') + '</span>';
+  }
+
+  function filaDependiente(etiqueta, desc, encendido, deshabilitado, onToggle, auto, requiereTxt, modulos){
+    var descCls = auto ? ' auto' : '';
+    var textoDesc = deshabilitado && requiereTxt ? 'Requiere ' + requiereTxt : desc;
+    var claseFila = deshabilitado ? ' dep-row-disabled' : '';
+    if (deshabilitado) descCls = '';
+    return '<div class="dep-row' + claseFila + '">' +
+      '<div><div class="dep-row-label">' + etiqueta + renderDepChips(modulos) + '</div><div class="dep-row-desc' + descCls + (deshabilitado ? ' dep-row-requiere' : '') + '">' + textoDesc + '</div></div>' +
+      '<button type="button" class="sw" data-on="' + encendido + '"' + (deshabilitado ? ' disabled' : '') + ' data-accion="' + onToggle + '"></button>' +
+      '</div>';
+  }
+
+  // Checkbox real (no switch) para cada pestaña de Reportes — inhabilitado
+  // de verdad (atributo disabled, no solo bloqueado al dar clic) cuando su
+  // módulo no está activo, con la razón visible junto al nombre.
+  function casillaReporte(def){
+    var on = !!estado.reportes[def.clave];
+    var hab = def.habilitado();
+    return '<label class="chk-row' + (hab ? '' : ' chk-row-disabled') + '">' +
+      '<input type="checkbox" class="chk-box" data-reporte="' + def.clave + '"' + (on ? ' checked' : '') + (hab ? '' : ' disabled') + '>' +
+      '<span class="chk-texto"><span class="chk-label-linea"><span class="chk-label">' + def.etiqueta + '</span>' + renderDepChips(def.modulos) + '</span>' +
+      (hab ? '' : '<span class="chk-requiere">Requiere ' + def.requiere + '</span>') +
+      '</span></label>';
+  }
+
+  function renderPaso3(){
+    var html = '<h6>Funcionalidades dependientes</h6><p class="sub">Todo lo que depende de un módulo del paso anterior vive aquí — lo que no aplica queda inhabilitado con el motivo a la vista, nunca oculto sin explicación.</p>';
+
+    html += '<div class="dep-leyenda"><strong>De dónde sale cada dependencia:</strong>' +
+      renderDepChips(['facturacion', 'ventas', 'gastos', 'inventarios']) + '</div>';
+
+    var filas = '';
+    filas += filaDependiente('Cuentas por cobrar', 'Opcional — no se activa sola aunque Ventas esté encendido', estado.cxc, !estado.ventas, 'cxc', false, 'Ventas', ['ventas']);
+    filas += filaDependiente('Resumen financiero', estado.resumenFinanciero ? 'Activo automáticamente por Ventas/Gastos — se puede apagar' : 'Disponible — actívalo si quieres mostrarlo', estado.resumenFinanciero, !resumenFinancieroDisponible(), 'resumenFinanciero', estado.resumenFinanciero, 'Ventas o Gastos', ['ventas', 'gastos']);
+    filas += filaDependiente('Aviso de expiración de productos', 'En Configuraciones → Notificaciones', !!estado.avisoExpiracion, !estado.inventarios, 'aviso', false, 'Inventarios', ['inventarios']);
+    if (proveedoresVisible()){
+      filas += '<div class="dep-row"><div><div class="dep-row-label">Proveedores' + renderDepChips(['inventarios', 'gastos']) + '</div><div class="dep-row-desc auto">Visible automático — alimentado por Inventarios y/o Gastos, sin interruptor propio</div></div><span class="estado-pill estado-auto">Auto</span></div>';
+    }
+    html += filas;
+
+    html += '<div class="chk-grupo">' +
+      '<div class="chk-grupo-titulo">Reportes <span class="chk-grupo-nota">independiente de Resumen financiero — elige qué pestañas de la vista "Reportes" incluye el plan</span></div>';
+    REPORTES_DEF.forEach(function(def){ html += casillaReporte(def); });
+    html += '</div>';
+
+    return html;
+  }
+
+  function renderPaso4(){
+    function fila(nombre, estadoTxt, pill){
+      return '<tr><td class="nombre">' + nombre + '</td><td><span class="estado-pill estado-' + pill + '">' + estadoTxt + '</span></td></tr>';
+    }
+    function filaN2(nombre, estadoTxt, pill){
+      return '<tr class="nivel2"><td class="nombre">' + nombre + '</td><td><span class="estado-pill estado-' + pill + '">' + estadoTxt + '</span></td></tr>';
+    }
+    var html = '<h6>Resumen antes de guardar</h6><p class="sub">Así quedará el plan — revisa antes de confirmar.</p>';
+    html += '<table class="resumen-tabla"><thead><tr><th>Funcionalidad</th><th>Estado</th></tr></thead><tbody>';
+    html += fila('Facturación', estado.facturacion ? 'Incluido' : 'Oculto', estado.facturacion ? 'incluido' : 'oculto');
+    html += fila('Ventas', estado.ventas ? 'Incluido' : 'Oculto', estado.ventas ? 'incluido' : 'oculto');
+    html += filaN2('Cuentas por cobrar', estado.cxc ? 'Incluido' : 'Oculto', estado.cxc ? 'incluido' : 'oculto');
+    html += fila('Gastos', estado.gastos ? 'Incluido' : 'Oculto', estado.gastos ? 'incluido' : 'oculto');
+    html += fila('Resumen financiero', estado.resumenFinanciero ? 'Incluido' : 'Oculto', estado.resumenFinanciero ? 'auto' : 'oculto');
+    html += fila('Reportes', reportesVisible() ? 'Incluido' : 'Oculto', reportesVisible() ? 'auto' : 'oculto');
+    REPORTES_DEF.forEach(function(def){
+      var on = estado.reportes[def.clave];
+      html += filaN2(def.etiqueta, on ? 'Incluido' : (def.habilitado() ? 'Oculto' : 'Inhabilitado'), on ? 'incluido' : 'oculto');
+    });
+    html += fila('Inventarios', estado.inventarios ? 'Incluido' : 'Oculto', estado.inventarios ? 'incluido' : 'oculto');
+    html += filaN2('Aviso de expiración', estado.avisoExpiracion ? 'Incluido' : 'Oculto', estado.avisoExpiracion ? 'incluido' : 'oculto');
+    html += filaN2('Proveedores', proveedoresVisible() ? 'Incluido' : 'Oculto', proveedoresVisible() ? 'auto' : 'oculto');
+    html += fila('Auditoría', estado.auditoria ? 'Incluido' : 'Oculto', estado.auditoria ? 'incluido' : 'oculto');
+    html += fila('Portal de clientes', estado.portal ? 'Incluido' : 'Oculto', estado.portal ? 'incluido' : 'oculto');
+    html += fila('Sucursales', estado.sucursales ? 'Incluido' : 'Oculto', estado.sucursales ? 'incluido' : 'oculto');
+    html += fila('Marca propia', estado.marca ? 'Incluido' : 'Oculto', estado.marca ? 'incluido' : 'oculto');
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function render(){
+    renderSteps();
+    var body = document.getElementById('pc-body');
+    if (paso === 1) body.innerHTML = renderPaso1();
+    else if (paso === 2) body.innerHTML = renderPaso2();
+    else if (paso === 3) body.innerHTML = renderPaso3();
+    else body.innerHTML = renderPaso4();
+
+    document.getElementById('titulo-modal').textContent = paso === 4 ? 'Editar plan — Pro — resumen' : 'Editar plan — Pro';
+    document.getElementById('btn-atras').disabled = (paso === 1);
+    document.getElementById('btn-siguiente').textContent = (paso === TOTAL_PASOS) ? 'Guardar plan' : 'Siguiente';
+
+    // listeners del paso actual (el innerHTML se reconstruyó)
+    var tarjetas = body.querySelectorAll('[data-modulo]');
+    for (var i = 0; i < tarjetas.length; i++){
+      tarjetas[i].addEventListener('click', function(){ alternarModulo(this.getAttribute('data-modulo')); });
+    }
+    var sws = body.querySelectorAll('.sw[data-accion]');
+    for (var j = 0; j < sws.length; j++){
+      sws[j].addEventListener('click', function(){
+        var accion = this.getAttribute('data-accion');
+        if (accion === 'cxc') alternarCxc();
+        else if (accion === 'resumenFinanciero') alternarResumenFinanciero();
+        else if (accion === 'aviso') alternarAviso();
+      });
+    }
+    var chks = body.querySelectorAll('[data-reporte]');
+    for (var k = 0; k < chks.length; k++){
+      chks[k].addEventListener('change', function(){ alternarReporte(this.getAttribute('data-reporte')); });
+    }
+  }
+
+  document.getElementById('btn-siguiente').addEventListener('click', function(){
+    if (paso < TOTAL_PASOS) { paso++; render(); }
+    else { lanzarToast('auto', ICONO_AUTO, 'Simulación — aquí se guardaría el plan de verdad.'); }
+  });
+  document.getElementById('btn-atras').addEventListener('click', function(){
+    if (paso > 1) { paso--; render(); }
+  });
+
+  render();
+})();
+</script>

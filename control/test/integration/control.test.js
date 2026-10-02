@@ -17,6 +17,8 @@ jest.mock('../../utils/notificarBackend', () => {
     activarTenantFisico: jest.fn().mockResolvedValue({ ok: true, dbName: 'tenant_cliente1' }),
     eliminarTenantFisico: jest.fn().mockResolvedValue({ ok: true }),
     calcularUsoDiscoFisico: jest.fn().mockResolvedValue(734003200),
+    aplicarLimiteUsuarios: jest.fn().mockResolvedValue([]),
+    obtenerUsoUsuarios: jest.fn().mockResolvedValue(3),
     // Clases de error reales (no mockeadas) — recalcularUsoDisco() las
     // re-exporta de este módulo y server.js las usa con `instanceof`
     // para mapear el código HTTP correcto (502 vs 500).
@@ -27,7 +29,7 @@ jest.mock('../../utils/notificarBackend', () => {
 });
 
 const { obtenerPool } = require('../../db');
-const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, ErrorCalculoDisco } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, obtenerUsoUsuarios, ErrorCalculoDisco } = require('../../utils/notificarBackend');
 const app = require('../../server');
 
 const TENANT_FILA = {
@@ -799,6 +801,28 @@ describe('Control standalone (/api/control)', () => {
       // admin_auditoria, ver res.on('finish') en server.js) — lo que
       // importa es que nunca llegó al UPDATE de disco_bytes_usados_cache.
       expect(pool.query.mock.calls.some(([sql]) => sql.includes('disco_bytes_usados_cache'))).toBe(false);
+    });
+  });
+
+  describe('GET /api/control/tenants/:slug/uso-usuarios (punto 350/351, regla 8 extendida)', () => {
+    test('401 sin credenciales', async () => {
+      const res = await request(app).get('/api/control/tenants/cliente1/uso-usuarios');
+      expect(res.status).toBe(401);
+      expect(obtenerUsoUsuarios).not.toHaveBeenCalled();
+    });
+
+    test('responde 200 con el total de usuarios cuotables activos', async () => {
+      obtenerUsoUsuarios.mockResolvedValueOnce(5);
+      const res = await request(app).get('/api/control/tenants/cliente1/uso-usuarios').auth('admin', 'admin');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true, total: 5 });
+      expect(obtenerUsoUsuarios).toHaveBeenCalledWith('cliente1');
+    });
+
+    test('si el backend no responde, 502 (nunca asume 0 usuarios)', async () => {
+      obtenerUsoUsuarios.mockResolvedValueOnce(null);
+      const res = await request(app).get('/api/control/tenants/cliente1/uso-usuarios').auth('admin', 'admin');
+      expect(res.status).toBe(502);
     });
   });
 

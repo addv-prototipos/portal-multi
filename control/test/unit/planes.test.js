@@ -120,14 +120,15 @@ describe('utils/planes.js (punto 347)', () => {
       expect(plan.id).toBe(7);
       const [sqlInsert, params] = db.query.mock.calls[0];
       expect(sqlInsert).toMatch(/INSERT INTO planes/);
-      expect(sqlInsert).toMatch(/VALUES \(\?, \?, \?, \?, \?, \?, \?, \?, \?, \?, 1, \?, \?, \?\)/);
-      expect(params).toHaveLength(13); // 10 antes del "1" literal + orden/creado_en/actualizado_en
+      // 20 "?" (campos normales) + 1 literal + 3 "?" (orden/creado_en/actualizado_en).
+      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){19}\?, 1, \?, \?, \?\)/);
+      expect(params).toHaveLength(23);
       expect(params[0]).toBe('Pro');
       expect(params[4]).toBe(15); // max_usuarios
       expect(params[6]).toBe(1); // facturacion_habilitada normalizado a 1
     });
 
-    test('campos booleanos ausentes se normalizan a 0 (apagado por default en un plan nuevo)', async () => {
+    test('campos booleanos ausentes se normalizan a 0 (apagado por default en un plan nuevo, incluidas las 10 columnas de gobierno de funcionalidades)', async () => {
       const db = mockDb();
       db.query.mockResolvedValueOnce([{ insertId: 8 }]).mockResolvedValueOnce([[filaPlan({ id: 8 })]]);
 
@@ -136,11 +137,118 @@ describe('utils/planes.js (punto 347)', () => {
       const [, params] = db.query.mock.calls[0];
       // orden: nombre, descripcion, precio_mensual, precio_anual, max_usuarios,
       // sucursales_habilitado, facturacion_habilitada, portal_clientes_habilitado,
-      // marca_lookfeel_habilitado, disco_cuota_mb, orden, creado_en, actualizado_en
+      // marca_lookfeel_habilitado, disco_cuota_mb,
+      // ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado,
+      // cxc_habilitado, resumen_financiero_habilitado,
+      // reportes_por_reporte_habilitado, reportes_cortes_habilitado,
+      // reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
+      // orden, creado_en, actualizado_en
       expect(params[5]).toBe(0); // sucursales_habilitado
       expect(params[6]).toBe(0); // facturacion_habilitada
       expect(params[7]).toBe(0); // portal_clientes_habilitado
       expect(params[8]).toBe(0); // marca_lookfeel_habilitado
+      for (let i = 10; i <= 19; i++) {
+        expect(params[i]).toBe(0);
+      }
+    });
+
+    describe('reglas de dependencia (punto 349-350-351, ver stitch/gobierno-funcionalidades/NOTAS.md)', () => {
+      test('cxc_habilitado sin ventas_habilitado: ErrorPlan validacion, sin tocar la BD', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan({ nombre: 'X', ventas_habilitado: false, cxc_habilitado: true }, db)
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+        expect(db.query).not.toHaveBeenCalled();
+      });
+
+      test('resumen_financiero_habilitado sin ventas ni gastos: ErrorPlan validacion', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan(
+            { nombre: 'X', ventas_habilitado: false, gastos_habilitado: false, resumen_financiero_habilitado: true },
+            db
+          )
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+        expect(db.query).not.toHaveBeenCalled();
+      });
+
+      test('resumen_financiero_habilitado con gastos_habilitado (sin ventas): se acepta — la regla es Ventas O Gastos', async () => {
+        const db = mockDb();
+        db.query.mockResolvedValueOnce([{ insertId: 9 }]).mockResolvedValueOnce([[filaPlan({ id: 9 })]]);
+
+        await expect(
+          crearPlan(
+            { nombre: 'X', ventas_habilitado: false, gastos_habilitado: true, resumen_financiero_habilitado: true },
+            db
+          )
+        ).resolves.toMatchObject({ id: 9 });
+      });
+
+      test('reportes_cortes_habilitado sin ventas_habilitado: ErrorPlan validacion', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan({ nombre: 'X', ventas_habilitado: false, reportes_cortes_habilitado: true }, db)
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+      });
+
+      test('reportes_por_reporte_habilitado sin facturacion ni ventas: ErrorPlan validacion', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan(
+            {
+              nombre: 'X',
+              facturacion_habilitada: false,
+              ventas_habilitado: false,
+              reportes_por_reporte_habilitado: true,
+            },
+            db
+          )
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+      });
+
+      test('reportes_eliminados_habilitado sin ventas ni gastos: ErrorPlan validacion', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan(
+            { nombre: 'X', ventas_habilitado: false, gastos_habilitado: false, reportes_eliminados_habilitado: true },
+            db
+          )
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+      });
+
+      test('reportes_estado_inventario_habilitado sin inventarios_habilitado: ErrorPlan validacion', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan(
+            { nombre: 'X', inventarios_habilitado: false, reportes_estado_inventario_habilitado: true },
+            db
+          )
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+      });
+
+      test('todas las dependencias satisfechas: crea el plan sin error', async () => {
+        const db = mockDb();
+        db.query.mockResolvedValueOnce([{ insertId: 10 }]).mockResolvedValueOnce([[filaPlan({ id: 10 })]]);
+
+        await expect(
+          crearPlan(
+            {
+              nombre: 'Enterprise',
+              facturacion_habilitada: true,
+              ventas_habilitado: true,
+              gastos_habilitado: true,
+              inventarios_habilitado: true,
+              cxc_habilitado: true,
+              resumen_financiero_habilitado: true,
+              reportes_por_reporte_habilitado: true,
+              reportes_cortes_habilitado: true,
+              reportes_eliminados_habilitado: true,
+              reportes_estado_inventario_habilitado: true,
+            },
+            db
+          )
+        ).resolves.toMatchObject({ id: 10 });
+      });
     });
   });
 
@@ -163,7 +271,7 @@ describe('utils/planes.js (punto 347)', () => {
     test('edición parcial: solo actualiza los campos presentes en el body', async () => {
       const db = mockDb();
       db.query
-        .mockResolvedValueOnce([[{ id: 1 }]]) // existe
+        .mockResolvedValueOnce([[filaPlan({ id: 1 })]]) // existe (fila completa, no solo {id})
         .mockResolvedValueOnce([{}]) // UPDATE
         .mockResolvedValueOnce([[filaPlan({ facturacion_habilitada: 0 })]]); // obtenerPlan
 
@@ -171,6 +279,55 @@ describe('utils/planes.js (punto 347)', () => {
 
       const [sqlUpdate] = db.query.mock.calls[1];
       expect(sqlUpdate).toMatch(/UPDATE planes SET facturacion_habilitada = \?, actualizado_en = \? WHERE id = \?/);
+    });
+
+    describe('reglas de dependencia sobre el estado RESULTANTE (fila existente + patch, no solo el patch)', () => {
+      test('activar solo resumen_financiero_habilitado en un plan que YA tiene ventas_habilitado=0 y gastos_habilitado=0: ErrorPlan validacion', async () => {
+        const db = mockDb();
+        db.query.mockResolvedValueOnce([
+          [filaPlan({ id: 1, ventas_habilitado: 0, gastos_habilitado: 0, resumen_financiero_habilitado: 0 })],
+        ]);
+
+        await expect(
+          actualizarPlan(1, { resumen_financiero_habilitado: true }, db)
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+        expect(db.query).toHaveBeenCalledTimes(1); // nunca llega al UPDATE
+      });
+
+      test('activar solo resumen_financiero_habilitado en un plan que YA tiene ventas_habilitado=1: se acepta (la fila existente cubre la dependencia)', async () => {
+        const db = mockDb();
+        db.query
+          .mockResolvedValueOnce([[filaPlan({ id: 1, ventas_habilitado: 1, gastos_habilitado: 0 })]])
+          .mockResolvedValueOnce([{}])
+          .mockResolvedValueOnce([[filaPlan({ id: 1, ventas_habilitado: 1, resumen_financiero_habilitado: 1 })]]);
+
+        await expect(
+          actualizarPlan(1, { resumen_financiero_habilitado: true }, db)
+        ).resolves.toMatchObject({ id: 1 });
+      });
+
+      test('apagar ventas_habilitado en un plan que YA tiene cxc_habilitado=1 encendido (sin apagarlo en el mismo patch): ErrorPlan validacion', async () => {
+        const db = mockDb();
+        db.query.mockResolvedValueOnce([
+          [filaPlan({ id: 1, ventas_habilitado: 1, cxc_habilitado: 1 })],
+        ]);
+
+        await expect(
+          actualizarPlan(1, { ventas_habilitado: false }, db)
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+      });
+
+      test('apagar ventas_habilitado Y cxc_habilitado en el mismo patch: se acepta', async () => {
+        const db = mockDb();
+        db.query
+          .mockResolvedValueOnce([[filaPlan({ id: 1, ventas_habilitado: 1, cxc_habilitado: 1 })]])
+          .mockResolvedValueOnce([{}])
+          .mockResolvedValueOnce([[filaPlan({ id: 1, ventas_habilitado: 0, cxc_habilitado: 0 })]]);
+
+        await expect(
+          actualizarPlan(1, { ventas_habilitado: false, cxc_habilitado: false }, db)
+        ).resolves.toMatchObject({ id: 1 });
+      });
     });
   });
 

@@ -1,4 +1,4 @@
-const { notificarInvalidacionCache, activarTenantFisico, ErrorActivacionFisica } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, ErrorActivacionFisica, aplicarLimiteUsuarios, obtenerUsoUsuarios } = require('../../utils/notificarBackend');
 
 describe('utils/notificarBackend.js', () => {
   beforeEach(() => {
@@ -54,6 +54,72 @@ describe('utils/notificarBackend.js', () => {
       global.fetch.mockRejectedValue(new Error('ECONNREFUSED'));
       await expect(activarTenantFisico('cliente1')).rejects.toThrow(ErrorActivacionFisica);
       await expect(activarTenantFisico('cliente1')).rejects.toThrow(/No se pudo conectar/);
+    });
+  });
+
+  // Punto 349-350-351 (regla 9): a diferencia de activarTenantFisico/
+  // eliminarTenantFisico, esta función NUNCA lanza — un fallo aquí no
+  // debe revertir una edición de tenant que ya se guardó correctamente.
+  describe('aplicarLimiteUsuarios', () => {
+    test('maxUsuarios null/undefined: no-op explícito, ni siquiera llama al backend', async () => {
+      const resultado = await aplicarLimiteUsuarios('cliente1', null);
+      expect(resultado).toEqual([]);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('llama al endpoint interno con el secreto, el slug y el límite', async () => {
+      global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true, suspendidos: [] }) });
+      await aplicarLimiteUsuarios('cliente1', 5);
+      const [url, opciones] = global.fetch.mock.calls[0];
+      expect(url).toContain('/internal/aplicar-limite-usuarios/cliente1');
+      expect(opciones.method).toBe('POST');
+      expect(JSON.parse(opciones.body)).toEqual({ maxUsuarios: 5 });
+    });
+
+    test('devuelve la lista de usuarios suspendidos que reporta el backend', async () => {
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true, suspendidos: [{ id: 10, rfc: 'ventas-nuevo' }] }),
+      });
+      const resultado = await aplicarLimiteUsuarios('cliente1', 5);
+      expect(resultado).toEqual([{ id: 10, rfc: 'ventas-nuevo' }]);
+    });
+
+    test('si el backend responde error, devuelve null sin lanzar (nunca revierte la edición ya guardada)', async () => {
+      global.fetch.mockResolvedValue({ ok: false, json: async () => ({ error: 'algo falló' }) });
+      await expect(aplicarLimiteUsuarios('cliente1', 5)).resolves.toBeNull();
+    });
+
+    test('si no se pudo conectar con el backend, devuelve null sin lanzar', async () => {
+      global.fetch.mockRejectedValue(new Error('ECONNREFUSED'));
+      await expect(aplicarLimiteUsuarios('cliente1', 5)).resolves.toBeNull();
+    });
+  });
+
+  // Punto 350/351 (regla 8 extendida): solo lectura, para el banner de
+  // impacto de "Editar empresa" ANTES de guardar — nunca suspende nada.
+  describe('obtenerUsoUsuarios', () => {
+    test('llama al endpoint interno de solo lectura con el secreto y el slug', async () => {
+      global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true, total: 3 }) });
+      await obtenerUsoUsuarios('cliente1');
+      const [url, opciones] = global.fetch.mock.calls[0];
+      expect(url).toContain('/internal/uso-usuarios/cliente1');
+      expect(opciones.method).toBe('GET');
+    });
+
+    test('devuelve el total que reporta el backend', async () => {
+      global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ok: true, total: 7 }) });
+      await expect(obtenerUsoUsuarios('cliente1')).resolves.toBe(7);
+    });
+
+    test('si el backend responde error, devuelve null', async () => {
+      global.fetch.mockResolvedValue({ ok: false, json: async () => ({ error: 'algo falló' }) });
+      await expect(obtenerUsoUsuarios('cliente1')).resolves.toBeNull();
+    });
+
+    test('si no se pudo conectar con el backend, devuelve null sin lanzar', async () => {
+      global.fetch.mockRejectedValue(new Error('ECONNREFUSED'));
+      await expect(obtenerUsoUsuarios('cliente1')).resolves.toBeNull();
     });
   });
 });

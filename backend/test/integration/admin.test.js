@@ -126,7 +126,10 @@ describe('Admin', () => {
     test('credenciales admin:admin (ADMIN_USERS por defecto) autentican con perfil super', async () => {
       const res = await request(app).get('/api/admin/login').auth('admin', 'admin');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ ok: true, usuario: 'admin', perfil: 'super', debeCambiarPassword: false });
+      // funciones: null — sin X-Tenant-Slug no hay contexto multi-tenant
+      // (ver test "con contexto de tenant" más abajo y
+      // multitenant.test.js para el caso con tenant real).
+      expect(res.body).toEqual({ ok: true, usuario: 'admin', perfil: 'super', debeCambiarPassword: false, funciones: null });
     });
 
     // Punto 321 addendum: bug real — "Forzar cambio de contraseña" al
@@ -504,6 +507,18 @@ describe('Admin', () => {
       expect(res.body.total).toBe(1);
     });
 
+    // Punto 349-350-351 (regla 9): el admin del tenant necesita ver POR
+    // QUÉ una cuenta ya no puede entrar — distinguir "la suspendió el
+    // sistema por el límite del plan" de "la suspendió un administrador".
+    test('GET incluye suspendido_motivo en el SELECT', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]);
+
+      await request(app).get('/api/admin/usuarios').auth(usuario, password);
+
+      expect(pool.query.mock.calls[1][0]).toMatch(/suspendido_motivo/);
+    });
+
     test('POST crea un cliente válido', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
       pool.query.mockResolvedValueOnce([[]]); // sin rfc existente
@@ -611,6 +626,30 @@ describe('Admin', () => {
       expect(res.status).toBe(200);
       expect(res.body.activo).toBe(true);
       expect(res.body.mensaje).toMatch(/reactivado/i);
+    });
+
+    // Punto 349-350-351 (regla 9): reactivar a mano SIEMPRE limpia
+    // suspendido_motivo — aunque la hubiera suspendido el mecanismo
+    // automático del límite de usuarios, reactivarla a mano es una
+    // decisión nueva, no debe seguir leyéndose como "suspendida por el
+    // sistema".
+    test('PUT .../estado activo=true limpia suspendido_motivo en el UPDATE', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ rfc: 'OTRO000000XXX' }]]);
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE
+      await request(app).put('/api/admin/usuarios/2/estado').auth(usuario, password).send({ activo: true });
+      expect(pool.query.mock.calls[2][0]).toMatch(/suspendido_motivo\s*=\s*NULL/);
+    });
+
+    // Suspender a mano NUNCA debe tocar suspendido_motivo — ese campo es
+    // exclusivo del mecanismo automático (POST
+    // /internal/aplicar-limite-usuarios), nunca de esta ruta.
+    test('PUT .../estado activo=false NO toca suspendido_motivo en el UPDATE', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ rfc: 'OTRO000000XXX' }]]);
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE
+      await request(app).put('/api/admin/usuarios/2/estado').auth(usuario, password).send({ activo: false });
+      expect(pool.query.mock.calls[2][0]).not.toMatch(/suspendido_motivo/);
     });
   });
 

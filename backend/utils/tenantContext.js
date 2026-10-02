@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -129,6 +129,28 @@ async function resolverTenantMiddleware(req, res, next) {
       // null = nunca se ha calculado (nunca bloquea una subida por falta
       // de dato; solo bloquea cuando SÍ hay un número y supera la cuota).
       discoBytesUsadosCache: tenant.disco_bytes_usados_cache == null ? null : Number(tenant.disco_bytes_usados_cache),
+      // Ampliación del gobierno de funcionalidades (punto 349-350, ver
+      // stitch/gobierno-funcionalidades/NOTAS.md — 12 reglas de
+      // dependencia). DEFAULT en BD es 1 en las 10 — mismo criterio que
+      // facturacionHabilitada/portalClientesHabilitado arriba: un tenant
+      // ya configurado antes de estas columnas sigue teniendo el módulo
+      // igual que siempre.
+      ventasHabilitado: tenant.ventas_habilitado !== 0 && tenant.ventas_habilitado !== false,
+      gastosHabilitado: tenant.gastos_habilitado !== 0 && tenant.gastos_habilitado !== false,
+      inventariosHabilitado: tenant.inventarios_habilitado !== 0 && tenant.inventarios_habilitado !== false,
+      auditoriaHabilitado: tenant.auditoria_habilitado !== 0 && tenant.auditoria_habilitado !== false,
+      // Cuentas por cobrar: opcional/independiente, no se activa sola
+      // aunque Ventas esté encendido (decisión del usuario) — por eso es
+      // su propia bandera, no un derivado de ventasHabilitado.
+      cxcHabilitado: tenant.cxc_habilitado !== 0 && tenant.cxc_habilitado !== false,
+      resumenFinancieroHabilitado: tenant.resumen_financiero_habilitado !== 0 && tenant.resumen_financiero_habilitado !== false,
+      // Las 4 pestañas reales de "Reportes" — independientes entre sí y
+      // de resumenFinancieroHabilitado (confirmado explícitamente por el
+      // usuario, 2026-10-01).
+      reportesPorReporteHabilitado: tenant.reportes_por_reporte_habilitado !== 0 && tenant.reportes_por_reporte_habilitado !== false,
+      reportesCortesHabilitado: tenant.reportes_cortes_habilitado !== 0 && tenant.reportes_cortes_habilitado !== false,
+      reportesEliminadosHabilitado: tenant.reportes_eliminados_habilitado !== 0 && tenant.reportes_eliminados_habilitado !== false,
+      reportesEstadoInventarioHabilitado: tenant.reportes_estado_inventario_habilitado !== 0 && tenant.reportes_estado_inventario_habilitado !== false,
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas

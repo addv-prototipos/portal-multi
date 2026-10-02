@@ -2064,6 +2064,42 @@
   // combinado dentro de aplicarRestriccionesPerfil() para que ni el perfil
   // ni este switch puedan pisar al otro.
   let auditoriaHabilitadaGlobalmente = true;
+  // Punto 349-350-351 (Fase 5, ver stitch/gobierno-funcionalidades/
+  // NOTAS.md): "funciones" que llega de GET /api/admin/login — qué trae
+  // el PLAN del tenant (gobierno de funcionalidades desde /control), capa
+  // DISTINTA de los interruptores de arriba (ventasHabilitadaGlobalmente,
+  // inventarioActivoGlobalmente, auditoriaHabilitadaGlobalmente: esos son
+  // el autoservicio del propio tenant). Las dos capas se combinan con AND
+  // dentro de aplicarRestriccionesPerfil() — igual que el backend, que ya
+  // las valida ambas por separado (requiereFeature() + requireInventarioActivo).
+  // null = sin contexto multi-tenant (sitio base) o instalación vieja sin
+  // X-Tenant-Slug — nunca oculta nada en ese caso, mismo criterio
+  // "ausente nunca bloquea" que requiereFeature() en el backend.
+  let tenantFuncionesPlan = null;
+
+  // Único punto de lectura de un flag del plan — ausente/null siempre
+  // "permite" (ver comentario de tenantFuncionesPlan arriba). Null-safe a
+  // propósito: un flag que todavía no viaja desde el backend (versión
+  // vieja desplegada a medias) nunca oculta nada por accidente.
+  function planPermite(flag) {
+    return !tenantFuncionesPlan || tenantFuncionesPlan[flag] !== false;
+  }
+  // Reportes (4 pestañas independientes, punto 350): la vista completa se
+  // oculta solo si LAS 4 están apagadas — igual que
+  // frontend/admin.js replica el criterio ya usado en
+  // control/utils/planes.js:validarReglasDependencia.
+  function reportesPlanVisible() {
+    if (!tenantFuncionesPlan) return true;
+    return ['reportesPorReporteHabilitado', 'reportesCortesHabilitado', 'reportesEliminadosHabilitado', 'reportesEstadoInventarioHabilitado']
+      .some((campo) => tenantFuncionesPlan[campo]);
+  }
+  // Proveedores: automático, sin bandera propia — visible si Inventarios
+  // O Gastos está activo (mismo criterio que proveedoresVisible() del
+  // asistente de planes en control.js).
+  function proveedoresPlanVisible() {
+    if (!tenantFuncionesPlan) return true;
+    return Boolean(tenantFuncionesPlan.inventariosHabilitado || tenantFuncionesPlan.gastosHabilitado);
+  }
   // Interruptor maestro (Configuraciones → Notificaciones): si
   // está en `false`, el checkbox "No volver a mostrar" del popup de
   // tickets sin contador no se pinta y cualquier silenciado guardado
@@ -2271,10 +2307,23 @@
       // D8/§0.6: "Inventarios" además depende del switch por tenant —
       // igual patrón que "Ventas" con ventasHabilitadaGlobalmente, ver
       // cargarConfigInventario()/aplicarVisibilidadInventarios() más abajo.
+      // Punto 349-350-351 (Fase 5): cada vista además se cruza con lo que
+      // el PLAN del tenant trae (tenantFuncionesPlan) — capa aparte del
+      // autoservicio de arriba (ventasHabilitadaGlobalmente/
+      // inventarioActivoGlobalmente/auditoriaHabilitadaGlobalmente), con
+      // AND entre ambas, mismo criterio que el backend (requiereFeature()
+      // + requireInventarioActivo encadenados en la misma ruta).
       const permitidaPorConfig =
-        (vista !== 'ordenes' || ventasHabilitadaGlobalmente) &&
-        (vista !== 'inventarios' || inventarioActivoGlobalmente) &&
-        (vista !== 'auditoria' || auditoriaHabilitadaGlobalmente);
+        (vista !== 'tickets' || planPermite('facturacionHabilitada')) &&
+        (vista !== 'constancias' || planPermite('facturacionHabilitada')) &&
+        (vista !== 'ordenes' || (ventasHabilitadaGlobalmente && planPermite('ventasHabilitado'))) &&
+        (vista !== 'cxc' || planPermite('cxcHabilitado')) &&
+        (vista !== 'gastos' || planPermite('gastosHabilitado')) &&
+        (vista !== 'resumen-financiero' || planPermite('resumenFinancieroHabilitado')) &&
+        (vista !== 'lectura-reportes' || reportesPlanVisible()) &&
+        (vista !== 'inventarios' || (inventarioActivoGlobalmente && planPermite('inventariosHabilitado'))) &&
+        (vista !== 'proveedores' || proveedoresPlanVisible()) &&
+        (vista !== 'auditoria' || (auditoriaHabilitadaGlobalmente && planPermite('auditoriaHabilitado')));
       const permitida = permitidaPorPerfil && permitidaPorConfig;
       boton.hidden = !permitida;
       // Mismo permiso, botón espejo en el launcher de íconos del menú
@@ -2305,11 +2354,36 @@
 
     // Las 6 tarjetas de "Configuraciones" ("Ventas" e
     // "Inventarios" se movieron aquí desde "Usuarios").
+    // Punto 349-350-351 (Fase 5): cada tarjeta además se cruza con el plan
+    // del tenant — "smtp-config-card" y "notif-toggle-card" se quedan sin
+    // gate propio (core: SMTP siempre hace falta para recuperar
+    // contraseña; Notificaciones trae ADEMÁS secciones con su propio gate
+    // más fino, ver más abajo).
+    const PLAN_GATE_TARJETA_CONFIG = {
+      'admin-config-card': () => planPermite('facturacionHabilitada'),
+      'global-config-card': () => planPermite('facturacionHabilitada'),
+      'reportes-config-card': () => planPermite('resumenFinancieroHabilitado') || reportesPlanVisible(),
+      'ordenes-toggle-card': () => planPermite('ventasHabilitado'),
+      'inv-toggle-card': () => planPermite('inventariosHabilitado'),
+      'auditoria-toggle-card': () => planPermite('auditoriaHabilitado'),
+    };
     ['admin-config-card', 'global-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
       const tarjeta = document.getElementById(idTarjeta);
       if (!tarjeta) return;
-      tarjeta.hidden = !(sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta));
+      const permitidaPorPerfilTarjeta = sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta);
+      const gatePlan = PLAN_GATE_TARJETA_CONFIG[idTarjeta];
+      const permitidaPorPlanTarjeta = !gatePlan || gatePlan();
+      tarjeta.hidden = !(permitidaPorPerfilTarjeta && permitidaPorPlanTarjeta);
     });
+
+    // Dentro de "Notificaciones" (notif-toggle-card, sin gate propio —
+    // arriba): dos secciones con dependencia más fina que la tarjeta
+    // completa. El ejemplo que originó esta fase: sin Inventarios, el
+    // aviso de expiración de productos no tiene nada que avisar.
+    const bloqueAvisoExpiracion = document.querySelector('.regla-exp-config');
+    if (bloqueAvisoExpiracion) bloqueAvisoExpiracion.hidden = !planPermite('inventariosHabilitado');
+    const bloqueTicketsSinContador = document.querySelector('.notif-tickets-sin-contador-config');
+    if (bloqueTicketsSinContador) bloqueTicketsSinContador.hidden = !planPermite('facturacionHabilitada');
 
     // Tabla de "Perfiles y roles de acceso": pedido explícito del
     // usuario — visible para "administrador" y "super" (ADMIN_USERS,
@@ -2329,9 +2403,15 @@
     }
   }
 
-  function showDashboard(username, perfil) {
+  function showDashboard(username, perfil, funciones) {
     usuarioSesionActual = username;
     perfilActual = perfil;
+    // Punto 349-350-351 (Fase 5): `funciones` llega de GET
+    // /api/admin/login — undefined en cualquier llamada vieja a
+    // showDashboard que todavía no lo pase (ninguna debería quedar, pero
+    // `undefined` cae a `null` aquí = "sin restricciones", nunca al
+    // revés, el fallo seguro es mostrar de más, no ocultar de más).
+    tenantFuncionesPlan = funciones || null;
     els.loginScreen.hidden = true;
     els.dashboard.hidden = false;
     els.adminUserLabel.textContent = `Sesión: ${username}`;
@@ -2473,14 +2553,14 @@
   // tanto el login normal como el flujo de cambio de contraseña
   // obligatorio (punto 321 addendum), que primero cambia la contraseña y
   // LUEGO entra con la nueva.
-  async function entrarAlPanel(usuario, contrasena, perfil) {
+  async function entrarAlPanel(usuario, contrasena, perfil, funciones) {
     setSession(usuario, contrasena);
     // Login nuevo: siempre "Inicio", sin importar qué vista haya quedado
     // guardada de una sesión anterior en esta misma pestaña — la
     // restauración de vista (ver init()) es solo para refrescar una
     // sesión que ya estaba activa, no para un login recién hecho.
     guardarVistaActual('inicio');
-    showDashboard(usuario, perfil);
+    showDashboard(usuario, perfil, funciones);
     // "Inicio" (la vista que se ve por defecto al iniciar sesión) usa
     // datos de tickets, que un perfil "administrador" no tiene
     // permitido ver. aplicarRestriccionesPerfil() (dentro de
@@ -2534,7 +2614,7 @@
       // login aquí, ANTES de entrar al panel, con la contraseña ya
       // verificada disponible en memoria (no hace falta pedirla otra vez).
       if (data.debeCambiarPassword) {
-        loginPendiente = { usuario: data.usuario || usuario, contrasena, perfil: data.perfil };
+        loginPendiente = { usuario: data.usuario || usuario, contrasena, perfil: data.perfil, funciones: data.funciones };
         els.adminForzarPasswordError.textContent = '';
         els.adminForzarPasswordNueva.value = '';
         actualizarReglasVisuales('', 'admin-forzar-password-reglas');
@@ -2543,7 +2623,7 @@
         return;
       }
 
-      await entrarAlPanel(data.usuario || usuario, contrasena, data.perfil);
+      await entrarAlPanel(data.usuario || usuario, contrasena, data.perfil, data.funciones);
     } catch (err) {
       els.loginError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -2599,11 +2679,11 @@
         els.adminForzarPasswordError.textContent = data.error || 'No se pudo actualizar la contraseña.';
         return;
       }
-      const { usuario, perfil } = loginPendiente;
+      const { usuario, perfil, funciones } = loginPendiente;
       loginPendiente = null;
       els.adminForzarPasswordPanel.hidden = true;
       els.adminLoginNormal.hidden = false;
-      await entrarAlPanel(usuario, passwordNueva, perfil);
+      await entrarAlPanel(usuario, passwordNueva, perfil, funciones);
     } catch (err) {
       els.adminForzarPasswordError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -10376,8 +10456,15 @@
         .filter(Boolean)
         .join('') || '—';
       const activo = u.activo === undefined ? true : Boolean(u.activo);
+      // Punto 349-350-351 (regla 9): una cuenta suspendida por el límite
+      // de usuarios del plan (no por un administrador) lleva su propio
+      // motivo visible — el admin del tenant necesita distinguir "la
+      // suspendió el sistema" de "la suspendí yo".
+      const suspendidaPorLimite = !activo && u.suspendido_motivo === 'limite_usuarios_plan';
       const badgeEstado = activo
         ? '<span class="estatus-badge estatus-activo">Activo</span>'
+        : suspendidaPorLimite
+        ? '<span class="estatus-badge estatus-suspendido" data-tooltip="Suspendido automáticamente: se superó el límite de usuarios del plan">Suspendido (límite de plan)</span>'
         : '<span class="estatus-badge estatus-suspendido">Suspendido</span>';
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -19277,7 +19364,7 @@
           if (res.ok) {
             return res.json().then((data) => {
               if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
-              showDashboard(data.usuario, data.perfil);
+              showDashboard(data.usuario, data.perfil, data.funciones);
               if (data.perfil !== 'administrador') {
                 cargarRegistros();
               }

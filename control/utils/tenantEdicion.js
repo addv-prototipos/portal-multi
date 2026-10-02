@@ -19,7 +19,7 @@ const { obtenerPool } = require('../db');
 const { validarSlug, nombreDbTenant } = require('./tenant');
 const { normalizarDatosBase } = require('./tenantIntake');
 const { subirLogoAlBackend, borrarLogoDelBackend, MAX_MARCA_LOGO_MB } = require('./tenantMarca');
-const { notificarInvalidacionCache } = require('./notificarBackend');
+const { notificarInvalidacionCache, aplicarLimiteUsuarios } = require('./notificarBackend');
 const { obtenerPlan, ErrorPlan } = require('./planes');
 
 // Error tipado para que la capa de rutas distinga: slug inexistente (404),
@@ -109,6 +109,36 @@ function normalizarDiscoCuotaMb(valor) {
   return { ok: true, valor: n };
 }
 
+// Punto 349-350-351 (ver stitch/gobierno-funcionalidades/NOTAS.md): las
+// mismas 6 reglas de dependencia que ya valida control/utils/planes.js al
+// guardar un PLAN se repiten aquí sobre el estado RESUELTO de un TENANT —
+// un plan ya validado no puede producir una combinación inválida, pero
+// una excepción puntual por tenant sí podría (ej. prender cxcHabilitado a
+// mano en un tenant cuyo plan no trae ventasHabilitado). Mismos mensajes,
+// adaptados a los nombres de campo camelCase de este archivo.
+function validarReglasDependenciaTenant(base) {
+  const activo = (campo) => base[campo] === 1 || base[campo] === true;
+
+  if (activo('cxcHabilitado') && !activo('ventasHabilitado')) {
+    throw new ErrorEdicionTenant('Cuentas por cobrar requiere Ventas activo en esta empresa.', 'validacion');
+  }
+  if (activo('resumenFinancieroHabilitado') && !activo('ventasHabilitado') && !activo('gastosHabilitado')) {
+    throw new ErrorEdicionTenant('Resumen financiero requiere Ventas o Gastos activo en esta empresa.', 'validacion');
+  }
+  if (activo('reportesPorReporteHabilitado') && !activo('facturacionHabilitada') && !activo('ventasHabilitado')) {
+    throw new ErrorEdicionTenant('Reportes "Por reporte" requiere Facturación o Ventas activo en esta empresa.', 'validacion');
+  }
+  if (activo('reportesCortesHabilitado') && !activo('ventasHabilitado')) {
+    throw new ErrorEdicionTenant('Reportes "Cortes" requiere Ventas activo en esta empresa.', 'validacion');
+  }
+  if (activo('reportesEliminadosHabilitado') && !activo('ventasHabilitado') && !activo('gastosHabilitado')) {
+    throw new ErrorEdicionTenant('Reportes "Eliminados" requiere Ventas o Gastos activo en esta empresa.', 'validacion');
+  }
+  if (activo('reportesEstadoInventarioHabilitado') && !activo('inventariosHabilitado')) {
+    throw new ErrorEdicionTenant('Reportes "Estado del inventario" requiere Inventarios activo en esta empresa.', 'validacion');
+  }
+}
+
 // Punto 347: resuelve los 6 valores de "plan y funciones" que van al
 // UPDATE final, con esta precedencia:
 //   1. Si viene `planId` (asignar un plan nuevo) o `reaplicarPlan: true`
@@ -129,6 +159,17 @@ async function resolverPlanYFunciones(tenant, datos, db) {
     marcaLookfeelHabilitado: tenant.marca_lookfeel_habilitado ? 1 : 0,
     maxUsuarios: tenant.max_usuarios ?? null,
     discoCuotaMb: tenant.disco_cuota_mb ?? null,
+    // Ampliación del gobierno de funcionalidades (punto 349-350-351).
+    ventasHabilitado: tenant.ventas_habilitado ? 1 : 0,
+    gastosHabilitado: tenant.gastos_habilitado ? 1 : 0,
+    inventariosHabilitado: tenant.inventarios_habilitado ? 1 : 0,
+    auditoriaHabilitado: tenant.auditoria_habilitado ? 1 : 0,
+    cxcHabilitado: tenant.cxc_habilitado ? 1 : 0,
+    resumenFinancieroHabilitado: tenant.resumen_financiero_habilitado ? 1 : 0,
+    reportesPorReporteHabilitado: tenant.reportes_por_reporte_habilitado ? 1 : 0,
+    reportesCortesHabilitado: tenant.reportes_cortes_habilitado ? 1 : 0,
+    reportesEliminadosHabilitado: tenant.reportes_eliminados_habilitado ? 1 : 0,
+    reportesEstadoInventarioHabilitado: tenant.reportes_estado_inventario_habilitado ? 1 : 0,
   };
 
   const asignandoPlanNuevo = datos.planId !== undefined && datos.planId !== null && datos.planId !== '';
@@ -165,6 +206,16 @@ async function resolverPlanYFunciones(tenant, datos, db) {
       marcaLookfeelHabilitado: plan.marca_lookfeel_habilitado ? 1 : 0,
       maxUsuarios: plan.max_usuarios,
       discoCuotaMb: plan.disco_cuota_mb,
+      ventasHabilitado: plan.ventas_habilitado ? 1 : 0,
+      gastosHabilitado: plan.gastos_habilitado ? 1 : 0,
+      inventariosHabilitado: plan.inventarios_habilitado ? 1 : 0,
+      auditoriaHabilitado: plan.auditoria_habilitado ? 1 : 0,
+      cxcHabilitado: plan.cxc_habilitado ? 1 : 0,
+      resumenFinancieroHabilitado: plan.resumen_financiero_habilitado ? 1 : 0,
+      reportesPorReporteHabilitado: plan.reportes_por_reporte_habilitado ? 1 : 0,
+      reportesCortesHabilitado: plan.reportes_cortes_habilitado ? 1 : 0,
+      reportesEliminadosHabilitado: plan.reportes_eliminados_habilitado ? 1 : 0,
+      reportesEstadoInventarioHabilitado: plan.reportes_estado_inventario_habilitado ? 1 : 0,
     };
   }
 
@@ -174,6 +225,16 @@ async function resolverPlanYFunciones(tenant, datos, db) {
   if (typeof datos.portalClientesHabilitado === 'boolean') base.portalClientesHabilitado = datos.portalClientesHabilitado ? 1 : 0;
   if (typeof datos.sucursalesHabilitado === 'boolean') base.sucursalesHabilitado = datos.sucursalesHabilitado ? 1 : 0;
   if (typeof datos.marcaLookfeelHabilitado === 'boolean') base.marcaLookfeelHabilitado = datos.marcaLookfeelHabilitado ? 1 : 0;
+  if (typeof datos.ventasHabilitado === 'boolean') base.ventasHabilitado = datos.ventasHabilitado ? 1 : 0;
+  if (typeof datos.gastosHabilitado === 'boolean') base.gastosHabilitado = datos.gastosHabilitado ? 1 : 0;
+  if (typeof datos.inventariosHabilitado === 'boolean') base.inventariosHabilitado = datos.inventariosHabilitado ? 1 : 0;
+  if (typeof datos.auditoriaHabilitado === 'boolean') base.auditoriaHabilitado = datos.auditoriaHabilitado ? 1 : 0;
+  if (typeof datos.cxcHabilitado === 'boolean') base.cxcHabilitado = datos.cxcHabilitado ? 1 : 0;
+  if (typeof datos.resumenFinancieroHabilitado === 'boolean') base.resumenFinancieroHabilitado = datos.resumenFinancieroHabilitado ? 1 : 0;
+  if (typeof datos.reportesPorReporteHabilitado === 'boolean') base.reportesPorReporteHabilitado = datos.reportesPorReporteHabilitado ? 1 : 0;
+  if (typeof datos.reportesCortesHabilitado === 'boolean') base.reportesCortesHabilitado = datos.reportesCortesHabilitado ? 1 : 0;
+  if (typeof datos.reportesEliminadosHabilitado === 'boolean') base.reportesEliminadosHabilitado = datos.reportesEliminadosHabilitado ? 1 : 0;
+  if (typeof datos.reportesEstadoInventarioHabilitado === 'boolean') base.reportesEstadoInventarioHabilitado = datos.reportesEstadoInventarioHabilitado ? 1 : 0;
   if (datos.maxUsuarios !== undefined) {
     const r = normalizarMaxUsuarios(datos.maxUsuarios);
     if (!r.ok) throw new ErrorEdicionTenant(r.error, 'validacion');
@@ -184,6 +245,8 @@ async function resolverPlanYFunciones(tenant, datos, db) {
     if (!r.ok) throw new ErrorEdicionTenant(r.error, 'validacion');
     base.discoCuotaMb = r.valor;
   }
+
+  validarReglasDependenciaTenant(base);
 
   return base;
 }
@@ -312,7 +375,11 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
        marca_lookfeel_habilitado = ?, max_usuarios = ?,
        plan_id = ?, plan_actualizado_en = ?,
        facturacion_habilitada = ?, portal_clientes_habilitado = ?,
-       sucursales_habilitado = ?, disco_cuota_mb = ?
+       sucursales_habilitado = ?, disco_cuota_mb = ?,
+       ventas_habilitado = ?, gastos_habilitado = ?, inventarios_habilitado = ?,
+       auditoria_habilitado = ?, cxc_habilitado = ?, resumen_financiero_habilitado = ?,
+       reportes_por_reporte_habilitado = ?, reportes_cortes_habilitado = ?,
+       reportes_eliminados_habilitado = ?, reportes_estado_inventario_habilitado = ?
      WHERE id = ?`,
     [
       slugNuevo || tenant.slug,
@@ -332,6 +399,16 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
       planFunciones.portalClientesHabilitado,
       planFunciones.sucursalesHabilitado,
       planFunciones.discoCuotaMb,
+      planFunciones.ventasHabilitado,
+      planFunciones.gastosHabilitado,
+      planFunciones.inventariosHabilitado,
+      planFunciones.auditoriaHabilitado,
+      planFunciones.cxcHabilitado,
+      planFunciones.resumenFinancieroHabilitado,
+      planFunciones.reportesPorReporteHabilitado,
+      planFunciones.reportesCortesHabilitado,
+      planFunciones.reportesEliminadosHabilitado,
+      planFunciones.reportesEstadoInventarioHabilitado,
       tenant.id,
     ]
   );
@@ -358,6 +435,42 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
   }
   if (planFunciones.discoCuotaMb !== (tenant.disco_cuota_mb ?? null)) {
     detalleCambiosPlanExtra.push(`disco_cuota_mb: ${planFunciones.discoCuotaMb ?? 'sin límite'}`);
+  }
+  // Ampliación del gobierno de funcionalidades (punto 349-350-351) — mismo
+  // criterio de diff que los 5 campos de arriba, uno por cada flag nuevo.
+  const CAMPOS_GOBIERNO_AMPLIADO = [
+    ['ventasHabilitado', 'ventas_habilitado'],
+    ['gastosHabilitado', 'gastos_habilitado'],
+    ['inventariosHabilitado', 'inventarios_habilitado'],
+    ['auditoriaHabilitado', 'auditoria_habilitado'],
+    ['cxcHabilitado', 'cxc_habilitado'],
+    ['resumenFinancieroHabilitado', 'resumen_financiero_habilitado'],
+    ['reportesPorReporteHabilitado', 'reportes_por_reporte_habilitado'],
+    ['reportesCortesHabilitado', 'reportes_cortes_habilitado'],
+    ['reportesEliminadosHabilitado', 'reportes_eliminados_habilitado'],
+    ['reportesEstadoInventarioHabilitado', 'reportes_estado_inventario_habilitado'],
+  ];
+  for (const [campoCamel, campoColumna] of CAMPOS_GOBIERNO_AMPLIADO) {
+    const valorAnterior = tenant[campoColumna] ? 1 : 0;
+    if (planFunciones[campoCamel] !== valorAnterior) {
+      detalleCambiosPlanExtra.push(`${campoColumna}: ${planFunciones[campoCamel] ? 'ON' : 'OFF'}`);
+    }
+  }
+  // Regla 9 (punto 349-350-351, ver stitch/gobierno-funcionalidades/
+  // NOTAS.md): si el max_usuarios resuelto deja a la empresa por encima
+  // de su nuevo límite, el backend suspende usuarios no-administradores
+  // (los más recientes primero) — nunca bloquea este guardado, que ya es
+  // válido y ya se aplicó; es un efecto secundario de mejor esfuerzo (ver
+  // aplicarLimiteUsuarios, nunca lanza). `null` = no se pudo confirmar
+  // (reportado aparte, nunca se asume "nadie se suspendió").
+  const slugFinalParaLimite = slugNuevo || tenant.slug;
+  const usuariosSuspendidosPorLimite = await aplicarLimiteUsuarios(slugFinalParaLimite, planFunciones.maxUsuarios);
+  if (Array.isArray(usuariosSuspendidosPorLimite) && usuariosSuspendidosPorLimite.length > 0) {
+    detalleCambiosPlanExtra.push(
+      `${usuariosSuspendidosPorLimite.length} usuario(s) suspendido(s) por el nuevo límite: ${usuariosSuspendidosPorLimite.map((u) => u.rfc).join(', ')}`
+    );
+  } else if (usuariosSuspendidosPorLimite === null) {
+    detalleCambiosPlanExtra.push('no se pudo confirmar si algún usuario quedó por encima del nuevo límite (backend no disponible)');
   }
   const detalleFinal = [detalleCambiosPlan, ...detalleCambiosPlanExtra].filter((d) => d && d !== 'sin cambios').join(', ') || 'sin cambios';
 

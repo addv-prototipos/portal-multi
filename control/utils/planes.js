@@ -74,13 +74,53 @@ function normalizarDatosPlan(datos = {}, { parcial = false } = {}) {
     resultado.orden = numeroOpcional(datos.orden, { campo: 'El orden', entero: true, min: 0 }) || 0;
   }
 
-  for (const campo of ['sucursales_habilitado', 'facturacion_habilitada', 'portal_clientes_habilitado', 'marca_lookfeel_habilitado']) {
+  for (const campo of [
+    'sucursales_habilitado', 'facturacion_habilitada', 'portal_clientes_habilitado', 'marca_lookfeel_habilitado',
+    // Ampliación del gobierno de funcionalidades (punto 349-350-351, ver
+    // stitch/gobierno-funcionalidades/NOTAS.md — 12 reglas de
+    // dependencia). Las reglas en sí se validan en validarReglasDependencia,
+    // no aquí — este bloque solo normaliza el booleano de cada campo.
+    'ventas_habilitado', 'gastos_habilitado', 'inventarios_habilitado', 'auditoria_habilitado',
+    'cxc_habilitado', 'resumen_financiero_habilitado',
+    'reportes_por_reporte_habilitado', 'reportes_cortes_habilitado',
+    'reportes_eliminados_habilitado', 'reportes_estado_inventario_habilitado',
+  ]) {
     if (!parcial || datos[campo] !== undefined) {
       resultado[campo] = booleano(datos[campo]) ? 1 : 0;
     }
   }
 
   return resultado;
+}
+
+// Reglas de dependencia del catálogo de planes (ver
+// stitch/gobierno-funcionalidades/NOTAS.md, reglas 1-6 y 10): un plan no
+// puede activar una funcionalidad dependiente sin su prerrequisito. Recibe
+// el estado COMPLETO resultante (ya fusionado con la fila existente en
+// caso de una edición parcial) — nunca solo el patch, o una edición que
+// solo toca `resumen_financiero_habilitado` no vería que `ventas_habilitado`
+// sigue en 0 desde antes.
+function validarReglasDependencia(estado) {
+  const activo = (campo) => booleano(estado[campo]);
+
+  if (activo('cxc_habilitado') && !activo('ventas_habilitado')) {
+    throw new ErrorPlan('Cuentas por cobrar requiere Ventas activo en este plan.', 'validacion');
+  }
+  if (activo('resumen_financiero_habilitado') && !activo('ventas_habilitado') && !activo('gastos_habilitado')) {
+    throw new ErrorPlan('Resumen financiero requiere Ventas o Gastos activo en este plan.', 'validacion');
+  }
+  if (activo('reportes_por_reporte_habilitado') && !activo('facturacion_habilitada') && !activo('ventas_habilitado')) {
+    throw new ErrorPlan('Reportes "Por reporte" requiere Facturación o Ventas activo en este plan.', 'validacion');
+  }
+  if (activo('reportes_cortes_habilitado') && !activo('ventas_habilitado')) {
+    throw new ErrorPlan('Reportes "Cortes" requiere Ventas activo en este plan.', 'validacion');
+  }
+  if (activo('reportes_eliminados_habilitado') && !activo('ventas_habilitado') && !activo('gastos_habilitado')) {
+    throw new ErrorPlan('Reportes "Eliminados" requiere Ventas o Gastos activo en este plan.', 'validacion');
+  }
+  if (activo('reportes_estado_inventario_habilitado') && !activo('inventarios_habilitado')) {
+    throw new ErrorPlan('Reportes "Estado del inventario" requiere Inventarios activo en este plan.', 'validacion');
+  }
 }
 
 function mapearFila(fila) {
@@ -95,6 +135,16 @@ function mapearFila(fila) {
     facturacion_habilitada: Boolean(fila.facturacion_habilitada),
     portal_clientes_habilitado: Boolean(fila.portal_clientes_habilitado),
     marca_lookfeel_habilitado: Boolean(fila.marca_lookfeel_habilitado),
+    ventas_habilitado: Boolean(fila.ventas_habilitado),
+    gastos_habilitado: Boolean(fila.gastos_habilitado),
+    inventarios_habilitado: Boolean(fila.inventarios_habilitado),
+    auditoria_habilitado: Boolean(fila.auditoria_habilitado),
+    cxc_habilitado: Boolean(fila.cxc_habilitado),
+    resumen_financiero_habilitado: Boolean(fila.resumen_financiero_habilitado),
+    reportes_por_reporte_habilitado: Boolean(fila.reportes_por_reporte_habilitado),
+    reportes_cortes_habilitado: Boolean(fila.reportes_cortes_habilitado),
+    reportes_eliminados_habilitado: Boolean(fila.reportes_eliminados_habilitado),
+    reportes_estado_inventario_habilitado: Boolean(fila.reportes_estado_inventario_habilitado),
     disco_cuota_mb: fila.disco_cuota_mb === null ? null : Number(fila.disco_cuota_mb),
     activo: Boolean(fila.activo),
     orden: fila.orden,
@@ -132,13 +182,19 @@ async function obtenerPlan(id, db = obtenerPool()) {
 
 async function crearPlan(datos = {}, db = obtenerPool()) {
   const normalizado = normalizarDatosPlan(datos, { parcial: false });
+  validarReglasDependencia(normalizado);
   const ahora = new Date();
   const [resultado] = await db.query(
     `INSERT INTO planes
        (nombre, descripcion, precio_mensual, precio_anual, max_usuarios,
         sucursales_habilitado, facturacion_habilitada, portal_clientes_habilitado,
-        marca_lookfeel_habilitado, disco_cuota_mb, activo, orden, creado_en, actualizado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+        marca_lookfeel_habilitado, disco_cuota_mb,
+        ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado,
+        cxc_habilitado, resumen_financiero_habilitado,
+        reportes_por_reporte_habilitado, reportes_cortes_habilitado,
+        reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
+        activo, orden, creado_en, actualizado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     [
       normalizado.nombre,
       normalizado.descripcion,
@@ -150,6 +206,16 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
       normalizado.portal_clientes_habilitado,
       normalizado.marca_lookfeel_habilitado,
       normalizado.disco_cuota_mb,
+      normalizado.ventas_habilitado,
+      normalizado.gastos_habilitado,
+      normalizado.inventarios_habilitado,
+      normalizado.auditoria_habilitado,
+      normalizado.cxc_habilitado,
+      normalizado.resumen_financiero_habilitado,
+      normalizado.reportes_por_reporte_habilitado,
+      normalizado.reportes_cortes_habilitado,
+      normalizado.reportes_eliminados_habilitado,
+      normalizado.reportes_estado_inventario_habilitado,
       normalizado.orden,
       ahora,
       ahora,
@@ -159,12 +225,18 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
 }
 
 async function actualizarPlan(id, datos = {}, db = obtenerPool()) {
-  const [existentes] = await db.query('SELECT id FROM planes WHERE id = ?', [id]);
+  const [existentes] = await db.query('SELECT * FROM planes WHERE id = ?', [id]);
   if (existentes.length === 0) throw new ErrorPlan('El plan no existe.', 'no_encontrado');
 
   const normalizado = normalizarDatosPlan(datos, { parcial: true });
   const campos = Object.keys(normalizado);
   if (campos.length === 0) throw new ErrorPlan('No hay cambios que aplicar.', 'validacion');
+
+  // Las reglas de dependencia se validan sobre el estado RESULTANTE
+  // completo (fila existente + el patch), nunca solo sobre los campos que
+  // cambiaron — una edición que solo toca resumen_financiero_habilitado
+  // debe seguir viendo que ventas_habilitado sigue en 0 desde antes.
+  validarReglasDependencia({ ...existentes[0], ...normalizado });
 
   const asignaciones = campos.map((c) => `${c} = ?`);
   const valores = campos.map((c) => normalizado[c]);

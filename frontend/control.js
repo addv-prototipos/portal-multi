@@ -173,6 +173,8 @@
   editarDiscoUsoTexto: document.getElementById('control-editar-disco-uso-texto'),
   editarDiscoUsoTrack: document.getElementById('control-editar-disco-uso-track'),
   editarDiscoUsoFill: document.getElementById('control-editar-disco-uso-fill'),
+  editarImpactoBanner: document.getElementById('control-editar-impacto-banner'),
+  editarImpactoBannerTexto: document.getElementById('control-editar-impacto-banner-texto'),
   btnRecalcularDisco: document.getElementById('control-btn-recalcular-disco'),
   editarGrupoInfo: document.getElementById('control-editar-grupo-info'),
   btnEditarIrSucursales: document.getElementById('control-btn-editar-ir-sucursales'),
@@ -231,14 +233,22 @@
     planesPrecioAnual: document.getElementById('planes-precio-anual'),
     planesMaxUsuarios: document.getElementById('planes-max-usuarios'),
     planesDiscoCuota: document.getElementById('planes-disco-cuota'),
-    planesFacturacion: document.getElementById('planes-facturacion'),
-    planesPortalClientes: document.getElementById('planes-portal-clientes'),
-    planesSucursalesFlag: document.getElementById('planes-sucursales'),
-    planesMarcaLookfeel: document.getElementById('planes-marca-lookfeel'),
     planesModalError: document.getElementById('planes-modal-error'),
     btnPlanesCancelar: document.getElementById('btn-planes-cancelar'),
     btnPlanesGuardar: document.getElementById('btn-planes-guardar'),
     btnPlanesGuardarLabel: document.getElementById('btn-planes-guardar-label'),
+    // Punto 349-350-351: asistente de 4 pasos
+    btnPlanesWizardAtras: document.getElementById('btn-planes-wizard-atras'),
+    planesWizardBanner: document.getElementById('planes-wizard-banner'),
+    planesWizardBannerTexto: document.getElementById('planes-wizard-banner-texto'),
+    planesWizardSteps: document.getElementById('planes-wizard-steps'),
+    planesWizardPanel1: document.getElementById('planes-wizard-panel-1'),
+    planesWizardPanel2: document.getElementById('planes-wizard-panel-2'),
+    planesWizardPanel3: document.getElementById('planes-wizard-panel-3'),
+    planesWizardPanel4: document.getElementById('planes-wizard-panel-4'),
+    planesWizardModulos: document.getElementById('planes-wizard-modulos'),
+    planesWizardDependientes: document.getElementById('planes-wizard-dependientes'),
+    planesWizardResumenBody: document.getElementById('planes-wizard-resumen-body'),
     btnAyudaVistaPlanes: document.getElementById('btn-ayuda-vista-planes'),
     btnAyudaVistaPapelera: document.getElementById('btn-ayuda-vista-papelera'),
     papeleraCount: document.getElementById('papelera-count'),
@@ -1242,6 +1252,53 @@
   // mismo plan sobre cualquier excepción ya hecha.
   let planIdOriginalEdicion = null;
   let planesCacheEdicion = null; // null = todavía no se cargó
+  // Punto 350/351 (Regla 8 extendida): uso real de usuarios cuotables del
+  // tenant que se está editando — null mientras no se conoce (todavía no
+  // respondió el backend) o si no se pudo confirmar; el banner se oculta
+  // en ambos casos, nunca advierte con un dato que no es real.
+  let usoUsuariosActualEdicion = null;
+
+  async function cargarUsoUsuariosEdicion(slug) {
+    usoUsuariosActualEdicion = null;
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slug)}/uso-usuarios`, {
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Number.isInteger(data.total)) {
+        usoUsuariosActualEdicion = data.total;
+      }
+    } catch (err) {
+      usoUsuariosActualEdicion = null;
+    }
+    renderImpactoBannerEdicion();
+  }
+
+  // Aviso de impacto ANTES de guardar (Regla 8 extendida a edición de
+  // empresa, punto 350) — fijo desde que se abre la pestaña "Plan y
+  // funciones", se recalcula en vivo mientras el operador cambia el plan
+  // o escribe un máximo de usuarios nuevo, nunca solo al guardar.
+  function renderImpactoBannerEdicion() {
+    if (!els.editarImpactoBanner) return;
+    const maxTexto = els.editarMaxUsuarios.value;
+    const maxUsuarios = maxTexto === '' ? null : Number(maxTexto);
+    if (
+      usoUsuariosActualEdicion == null ||
+      maxUsuarios == null ||
+      !Number.isFinite(maxUsuarios) ||
+      maxUsuarios >= usoUsuariosActualEdicion
+    ) {
+      els.editarImpactoBanner.hidden = true;
+      return;
+    }
+    const excedente = usoUsuariosActualEdicion - maxUsuarios;
+    const plural = excedente === 1 ? '' : 's';
+    els.editarImpactoBanner.hidden = false;
+    els.editarImpactoBannerTexto.textContent =
+      `Esta empresa tiene ${usoUsuariosActualEdicion} usuario(s) activo(s) y el límite nuevo es ${maxUsuarios} — ` +
+      `al guardar se suspenderán ${excedente} usuario${plural} no administrador${plural} (los más recientes primero).`;
+  }
 
   async function asegurarPlanesCacheEdicion() {
     if (planesCacheEdicion) return planesCacheEdicion;
@@ -1375,6 +1432,7 @@
       els.editarDiscoCuota.value = plan.disco_cuota_mb != null ? String(plan.disco_cuota_mb) : '';
     }
     actualizarBadgesOrigenPlan();
+    renderImpactoBannerEdicion();
   });
 
   [els.editarFacturacionSwitch, els.editarPortalSwitch, els.editarSucursalesSwitch, els.editarMarcaLookfeelSwitch].forEach((sw) => {
@@ -1448,6 +1506,8 @@
     els.editarEmail.value = tenant.contacto_email || '';
     els.editarNotas.value = tenant.notas || '';
     els.editarMaxUsuarios.value = tenant.max_usuarios != null ? String(tenant.max_usuarios) : '';
+    usoUsuariosActualEdicion = null;
+    if (els.editarImpactoBanner) els.editarImpactoBanner.hidden = true;
     els.editarMarcaLookfeelSwitch.checked = tenant.marca_lookfeel_habilitado !== 0 && tenant.marca_lookfeel_habilitado !== false;
     els.editarSlug.value = tenant.slug;
     els.editarSlugSwitch.checked = false;
@@ -1487,14 +1547,18 @@
     const planActual = (planesCacheEdicion || []).find((p) => p.id === planIdOriginalEdicion);
     mostrarPlanActual(planActual);
     actualizarBadgesOrigenPlan();
+    cargarUsoUsuariosEdicion(tenant.slug);
   }
 
   function cerrarEdicion() {
     els.editarOverlay.hidden = true;
     slugActualEdicion = null;
     planIdOriginalEdicion = null;
+    usoUsuariosActualEdicion = null;
     cerrarSeccionTema();
   }
+
+  els.editarMaxUsuarios.addEventListener('input', renderImpactoBannerEdicion);
 
   if (els.btnEditarIrSucursales) {
     els.btnEditarIrSucursales.addEventListener('click', () => {
@@ -2179,6 +2243,10 @@
     const chips = [];
     chips.push({ texto: plan.max_usuarios ? `${plan.max_usuarios} usuarios` : 'Usuarios sin límite', on: true });
     chips.push({ texto: 'Facturación', on: plan.facturacion_habilitada });
+    chips.push({ texto: 'Ventas', on: plan.ventas_habilitado });
+    chips.push({ texto: 'Gastos', on: plan.gastos_habilitado });
+    chips.push({ texto: 'Inventarios', on: plan.inventarios_habilitado });
+    chips.push({ texto: 'Auditoría', on: plan.auditoria_habilitado });
     chips.push({ texto: 'Portal clientes', on: plan.portal_clientes_habilitado });
     chips.push({ texto: 'Sucursales', on: plan.sucursales_habilitado });
     chips.push({ texto: 'Marca propia', on: plan.marca_lookfeel_habilitado });
@@ -2292,7 +2360,318 @@
     }
   }
 
-  // ---------- Modal de plan (crear/editar) ----------
+  // ---------- Modal de plan: asistente de 4 pasos (punto 349-350-351) ----------
+  // Datos básicos → Módulos → Dependientes → Resumen. Porta
+  // stitch/gobierno-funcionalidades/wizard-funcional-reglas.html (ya
+  // aprobado por el usuario) a producción. Las 12 reglas de dependencia
+  // viven de verdad en control/utils/planes.js:validarReglasDependencia
+  // (y tenantEdicion.js:validarReglasDependenciaTenant) — lo de aquí es
+  // solo el REFLEJO en la UI (deshabilitar controles, auto-activar,
+  // avisar) para que el super admin nunca llegue a un guardado rechazado
+  // por sorpresa.
+
+  const ICONO_CHECK_WIZARD =
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+
+  const MODULOS_WIZARD_DEF = [
+    { campo: 'facturacion_habilitada', titulo: 'Facturación', desc: 'Tickets, constancias, CFDI',
+      icono: '<path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>' },
+    { campo: 'ventas_habilitado', titulo: 'Ventas', desc: 'Vista Ventas, base de Cuentas por cobrar',
+      icono: '<path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round"/>' },
+    { campo: 'gastos_habilitado', titulo: 'Gastos', desc: 'Vista Gastos, proveedores de gasto',
+      icono: '<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round"/>' },
+    { campo: 'inventarios_habilitado', titulo: 'Inventarios', desc: 'Catálogo, proveedores, expiración',
+      icono: '<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/>' },
+    { campo: 'auditoria_habilitado', titulo: 'Auditoría', desc: 'Bitácora de cambios (por tenant, en /admin)',
+      icono: '<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>' },
+    { campo: 'portal_clientes_habilitado', titulo: 'Portal de clientes', desc: 'Acceso externo para el cliente final',
+      icono: '<path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>' },
+    { campo: 'sucursales_habilitado', titulo: 'Sucursales (grupo)', desc: 'Switcher entre empresas relacionadas',
+      icono: '<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m-1 4h1m4-4h1m-1 4h1M9 21v-4h6v4" stroke-linecap="round" stroke-linejoin="round"/>' },
+    { campo: 'marca_lookfeel_habilitado', titulo: 'Marca propia', desc: 'Look & feel personalizado',
+      icono: '<path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h14a2 2 0 012 2v9M7 21h10a2 2 0 002-2M7 21a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round"/>' },
+  ];
+
+  // Las 4 pestañas reales de la vista "Reportes" en /admin
+  // (frontend/admin.js, PESTANAS_REPORTES) — independientes entre sí y de
+  // resumen_financiero_habilitado (confirmado explícitamente por el
+  // usuario, 2026-10-01).
+  const REPORTES_WIZARD_DEF = [
+    { campo: 'reportes_por_reporte_habilitado', etiqueta: 'Por reporte (automático / manual / cierre mensual)',
+      modulos: ['facturacion', 'ventas'], requiere: 'Facturación o Ventas',
+      habilitado: () => planWizardState.facturacion_habilitada || planWizardState.ventas_habilitado },
+    { campo: 'reportes_cortes_habilitado', etiqueta: 'Cortes de ventas',
+      modulos: ['ventas'], requiere: 'Ventas',
+      habilitado: () => planWizardState.ventas_habilitado },
+    { campo: 'reportes_eliminados_habilitado', etiqueta: 'Eliminados (ledger cruzado)',
+      modulos: ['ventas', 'gastos'], requiere: 'Ventas o Gastos',
+      habilitado: () => planWizardState.ventas_habilitado || planWizardState.gastos_habilitado },
+    { campo: 'reportes_estado_inventario_habilitado', etiqueta: 'Estado del inventario',
+      modulos: ['inventarios'], requiere: 'Inventarios',
+      habilitado: () => planWizardState.inventarios_habilitado },
+  ];
+
+  const CHIP_DEP_NOMBRES = { facturacion: 'Facturación', ventas: 'Ventas', gastos: 'Gastos', inventarios: 'Inventarios' };
+
+  function planWizardStateVacio() {
+    return {
+      facturacion_habilitada: false,
+      ventas_habilitado: false,
+      gastos_habilitado: false,
+      inventarios_habilitado: false,
+      auditoria_habilitado: false,
+      portal_clientes_habilitado: true,
+      sucursales_habilitado: false,
+      marca_lookfeel_habilitado: false,
+      cxc_habilitado: false,
+      resumen_financiero_habilitado: false,
+      reportes_por_reporte_habilitado: false,
+      reportes_cortes_habilitado: false,
+      reportes_eliminados_habilitado: false,
+      reportes_estado_inventario_habilitado: false,
+    };
+  }
+
+  let planWizardState = planWizardStateVacio();
+  let planWizardPaso = 1;
+  let planWizardTotalTenants = 0;
+  const PLANES_WIZARD_TOTAL_PASOS = 4;
+
+  function resumenFinancieroDisponibleWizard() {
+    return planWizardState.ventas_habilitado || planWizardState.gastos_habilitado;
+  }
+  function proveedoresVisibleWizard() {
+    return planWizardState.inventarios_habilitado || planWizardState.gastos_habilitado;
+  }
+  function reportesVisibleWizard() {
+    return REPORTES_WIZARD_DEF.some((d) => planWizardState[d.campo]);
+  }
+
+  function revisarCascadaReportesWizard() {
+    REPORTES_WIZARD_DEF.forEach((def) => {
+      if (!def.habilitado() && planWizardState[def.campo]) {
+        planWizardState[def.campo] = false;
+        showToast(`Se desmarcó "${def.etiqueta}": requiere ${def.requiere}.`);
+      }
+    });
+  }
+
+  function alternarModuloWizard(campo) {
+    const encendiendo = !planWizardState[campo];
+    planWizardState[campo] = encendiendo;
+
+    if (campo === 'ventas_habilitado' || campo === 'gastos_habilitado') {
+      const otroCampo = campo === 'ventas_habilitado' ? 'gastos_habilitado' : 'ventas_habilitado';
+      const habiaDatosAntes = planWizardState[otroCampo];
+      if (encendiendo && !habiaDatosAntes && !planWizardState.resumen_financiero_habilitado) {
+        planWizardState.resumen_financiero_habilitado = true;
+        showToast('Resumen financiero se activó automáticamente: ya hay datos de Ventas o Gastos que mostrar.');
+      }
+      if (!encendiendo && !resumenFinancieroDisponibleWizard() && planWizardState.resumen_financiero_habilitado) {
+        planWizardState.resumen_financiero_habilitado = false;
+        showToast('Se desactivó Resumen financiero: ya no hay Ventas ni Gastos activos.');
+      }
+      if (campo === 'ventas_habilitado' && !encendiendo && planWizardState.cxc_habilitado) {
+        planWizardState.cxc_habilitado = false;
+        showToast('Se desactivó Cuentas por cobrar: depende de Ventas.');
+      }
+    }
+
+    if (campo === 'portal_clientes_habilitado' && encendiendo && !planWizardState.facturacion_habilitada) {
+      showToast('Aviso: el portal de clientes no mostrará nada útil sin Facturación activa.');
+    }
+    if (campo === 'facturacion_habilitada' && !encendiendo && planWizardState.portal_clientes_habilitado) {
+      showToast('Aviso: el portal de clientes sigue encendido pero sin Facturación no mostrará nada útil.');
+    }
+
+    if (['facturacion_habilitada', 'ventas_habilitado', 'gastos_habilitado', 'inventarios_habilitado'].includes(campo)) {
+      revisarCascadaReportesWizard();
+    }
+
+    renderPlanWizardTodo();
+  }
+
+  function alternarDependienteWizard(campo) {
+    // Los switches con "disabled" nunca disparan "change" al no poder
+    // clickearse — no hace falta bloqueo de respaldo aquí.
+    planWizardState[campo] = !planWizardState[campo];
+    renderPlanWizardTodo();
+  }
+
+  function alternarReporteWizard(campo) {
+    const def = REPORTES_WIZARD_DEF.find((d) => d.campo === campo);
+    if (!def || !def.habilitado()) return; // defensivo — el checkbox ya está disabled
+    planWizardState[campo] = !planWizardState[campo];
+    renderPlanWizardTodo();
+  }
+
+  function renderChipsDepWizard(modulos) {
+    if (!modulos || !modulos.length) return '';
+    return (
+      '<span class="planes-wizard-chips">' +
+      modulos.map((m) => `<span class="planes-wizard-chip-dep m-${m}">${CHIP_DEP_NOMBRES[m]}</span>`).join('') +
+      '</span>'
+    );
+  }
+
+  function renderPlanWizardSteps() {
+    const nombres = ['Datos básicos', 'Módulos', 'Dependientes', 'Resumen'];
+    let html = '';
+    for (let i = 1; i <= PLANES_WIZARD_TOTAL_PASOS; i++) {
+      const cls = ['planes-wizard-step'];
+      if (i === planWizardPaso) cls.push('is-active');
+      else if (i < planWizardPaso) cls.push('is-done');
+      const circ = i < planWizardPaso ? ICONO_CHECK_WIZARD : i;
+      html += `<div class="${cls.join(' ')}"><span class="planes-wizard-step-circ">${circ}</span>${nombres[i - 1]}</div>`;
+      if (i < PLANES_WIZARD_TOTAL_PASOS) html += '<div class="planes-wizard-line"></div>';
+    }
+    els.planesWizardSteps.innerHTML = html;
+  }
+
+  function renderPlanWizardBanner() {
+    if (planEditandoId && planWizardTotalTenants > 0) {
+      els.planesWizardBanner.hidden = false;
+      const plural = planWizardTotalTenants === 1 ? '' : 's';
+      els.planesWizardBannerTexto.textContent =
+        `Este plan tiene ${planWizardTotalTenants} empresa${plural} asignada${plural} — cualquier cambio que guardes aplica de inmediato a todas ellas.`;
+    } else {
+      els.planesWizardBanner.hidden = true;
+    }
+  }
+
+  function renderPlanWizardPanels() {
+    [els.planesWizardPanel1, els.planesWizardPanel2, els.planesWizardPanel3, els.planesWizardPanel4].forEach((panel, idx) => {
+      panel.classList.toggle('is-active', idx + 1 === planWizardPaso);
+    });
+    els.btnPlanesWizardAtras.hidden = planWizardPaso === 1;
+    els.btnPlanesGuardarLabel.textContent =
+      planWizardPaso === PLANES_WIZARD_TOTAL_PASOS ? (planEditandoId ? 'Guardar cambios' : 'Guardar plan') : 'Siguiente';
+  }
+
+  function renderPlanWizardModulos() {
+    els.planesWizardModulos.innerHTML = MODULOS_WIZARD_DEF.map((def) => {
+      const sel = planWizardState[def.campo] ? ' is-selected' : '';
+      const check = planWizardState[def.campo] ? ICONO_CHECK_WIZARD : '';
+      return `<button type="button" class="planes-wizard-modulo-card${sel}" data-modulo="${def.campo}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${def.icono}</svg>
+        <div><div class="planes-wizard-modulo-titulo">${def.titulo}</div><div class="planes-wizard-modulo-desc">${def.desc}</div></div>
+        <span class="planes-wizard-modulo-check">${check}</span>
+      </button>`;
+    }).join('');
+    els.planesWizardModulos.querySelectorAll('[data-modulo]').forEach((btn) => {
+      btn.addEventListener('click', () => alternarModuloWizard(btn.getAttribute('data-modulo')));
+    });
+  }
+
+  function filaDependienteWizard({ etiqueta, desc, campo, deshabilitado, requiereTxt, modulos, auto }) {
+    const encendido = Boolean(planWizardState[campo]);
+    const descCls = deshabilitado ? ' is-requiere' : auto ? ' is-auto' : '';
+    const textoDesc = deshabilitado && requiereTxt ? `Requiere ${requiereTxt}` : desc;
+    return `<div class="planes-wizard-dep-row${deshabilitado ? ' is-disabled' : ''}">
+      <div><div class="planes-wizard-dep-label">${etiqueta}${renderChipsDepWizard(modulos)}</div><div class="planes-wizard-dep-desc${descCls}">${textoDesc}</div></div>
+      <label class="control-switch" aria-disabled="${deshabilitado ? 'true' : 'false'}">
+        <input type="checkbox" data-dep="${campo}" ${encendido ? 'checked' : ''} ${deshabilitado ? 'disabled' : ''} />
+        <span class="control-switch-track" aria-hidden="true"></span>
+      </label>
+    </div>`;
+  }
+
+  function filaAutoWizard(etiqueta, desc, modulos) {
+    return `<div class="planes-wizard-dep-row">
+      <div><div class="planes-wizard-dep-label">${etiqueta}${renderChipsDepWizard(modulos)}</div><div class="planes-wizard-dep-desc is-auto">${desc}</div></div>
+      <span class="planes-wizard-dep-pill">Automático</span>
+    </div>`;
+  }
+
+  function casillaReporteWizard(def) {
+    const on = Boolean(planWizardState[def.campo]);
+    const hab = def.habilitado();
+    return `<label class="planes-wizard-chk-row${hab ? '' : ' is-disabled'}">
+      <input type="checkbox" data-reporte="${def.campo}" ${on ? 'checked' : ''} ${hab ? '' : 'disabled'} />
+      <span class="planes-wizard-chk-texto">
+        <span class="planes-wizard-chk-linea"><span class="planes-wizard-chk-label">${def.etiqueta}</span>${renderChipsDepWizard(def.modulos)}</span>
+        ${hab ? '' : `<span class="planes-wizard-chk-requiere">Requiere ${def.requiere}</span>`}
+      </span>
+    </label>`;
+  }
+
+  function renderPlanWizardDependientes() {
+    let html = '';
+    html += filaDependienteWizard({
+      etiqueta: 'Cuentas por cobrar',
+      desc: 'Opcional — no se activa sola aunque Ventas esté encendido',
+      campo: 'cxc_habilitado',
+      deshabilitado: !planWizardState.ventas_habilitado,
+      requiereTxt: 'Ventas',
+      modulos: ['ventas'],
+    });
+    html += filaDependienteWizard({
+      etiqueta: 'Resumen financiero',
+      desc: planWizardState.resumen_financiero_habilitado
+        ? 'Activo automáticamente por Ventas/Gastos — se puede apagar'
+        : 'Disponible — actívalo si quieres mostrarlo',
+      campo: 'resumen_financiero_habilitado',
+      deshabilitado: !resumenFinancieroDisponibleWizard(),
+      requiereTxt: 'Ventas o Gastos',
+      modulos: ['ventas', 'gastos'],
+      auto: planWizardState.resumen_financiero_habilitado,
+    });
+    html += filaAutoWizard(
+      'Aviso de expiración de productos',
+      'Visible en Configuraciones → Notificaciones del tenant solo si Inventarios está activo — sin interruptor propio aquí',
+      ['inventarios']
+    );
+    if (proveedoresVisibleWizard()) {
+      html += filaAutoWizard('Proveedores', 'Alimentado por Inventarios y/o Gastos, sin interruptor propio', ['inventarios', 'gastos']);
+    }
+
+    html += '<div class="planes-wizard-reportes">';
+    html += '<div class="planes-wizard-reportes-titulo">Reportes</div>';
+    html += '<div class="planes-wizard-reportes-nota">Independiente de Resumen financiero — elige qué pestañas de la vista "Reportes" incluye el plan.</div>';
+    REPORTES_WIZARD_DEF.forEach((def) => { html += casillaReporteWizard(def); });
+    html += '</div>';
+
+    els.planesWizardDependientes.innerHTML = html;
+    els.planesWizardDependientes.querySelectorAll('[data-dep]').forEach((input) => {
+      input.addEventListener('change', () => alternarDependienteWizard(input.getAttribute('data-dep')));
+    });
+    els.planesWizardDependientes.querySelectorAll('[data-reporte]').forEach((input) => {
+      input.addEventListener('change', () => alternarReporteWizard(input.getAttribute('data-reporte')));
+    });
+  }
+
+  function renderPlanWizardResumen() {
+    function fila(nombre, on) {
+      return `<tr><td class="nombre">${nombre}</td><td><span class="planes-chip${on ? '' : ' is-apagado'}">${on ? 'Incluido' : 'Oculto'}</span></td></tr>`;
+    }
+    function filaN2(nombre, on) {
+      return `<tr class="nivel2"><td class="nombre">${nombre}</td><td><span class="planes-chip${on ? '' : ' is-apagado'}">${on ? 'Incluido' : 'Oculto'}</span></td></tr>`;
+    }
+    let html = '';
+    html += fila('Facturación', planWizardState.facturacion_habilitada);
+    html += fila('Ventas', planWizardState.ventas_habilitado);
+    html += filaN2('Cuentas por cobrar', planWizardState.cxc_habilitado);
+    html += fila('Gastos', planWizardState.gastos_habilitado);
+    html += fila('Resumen financiero', planWizardState.resumen_financiero_habilitado);
+    html += fila('Reportes', reportesVisibleWizard());
+    REPORTES_WIZARD_DEF.forEach((def) => { html += filaN2(def.etiqueta, planWizardState[def.campo]); });
+    html += fila('Inventarios', planWizardState.inventarios_habilitado);
+    html += filaN2('Proveedores', proveedoresVisibleWizard());
+    html += fila('Auditoría', planWizardState.auditoria_habilitado);
+    html += fila('Portal de clientes', planWizardState.portal_clientes_habilitado);
+    html += fila('Sucursales', planWizardState.sucursales_habilitado);
+    html += fila('Marca propia', planWizardState.marca_lookfeel_habilitado);
+    els.planesWizardResumenBody.innerHTML = html;
+  }
+
+  function renderPlanWizardTodo() {
+    renderPlanWizardSteps();
+    renderPlanWizardBanner();
+    renderPlanWizardPanels();
+    renderPlanWizardModulos();
+    renderPlanWizardDependientes();
+    renderPlanWizardResumen();
+  }
 
   function limpiarErroresPlanModal() {
     els.planesModalError.textContent = '';
@@ -2302,20 +2681,19 @@
 
   async function abrirPlanModal(id) {
     planEditandoId = id;
+    planWizardPaso = 1;
+    planWizardTotalTenants = 0;
+    planWizardState = planWizardStateVacio();
     limpiarErroresPlanModal();
     els.planesModalTitle.textContent = id ? 'Editar plan' : 'Nuevo plan';
-    els.btnPlanesGuardarLabel.textContent = id ? 'Guardar cambios' : 'Guardar plan';
     els.planesNombre.value = '';
     els.planesDescripcion.value = '';
     els.planesPrecioMensual.value = '';
     els.planesPrecioAnual.value = '';
     els.planesMaxUsuarios.value = '';
     els.planesDiscoCuota.value = '';
-    els.planesFacturacion.checked = false;
-    els.planesPortalClientes.checked = true;
-    els.planesSucursalesFlag.checked = false;
-    els.planesMarcaLookfeel.checked = false;
     els.planesModalOverlay.hidden = false;
+    renderPlanWizardTodo();
 
     if (id) {
       const authHeader = getAuthHeader();
@@ -2333,10 +2711,24 @@
         els.planesPrecioAnual.value = p.precio_anual ?? '';
         els.planesMaxUsuarios.value = p.max_usuarios ?? '';
         els.planesDiscoCuota.value = p.disco_cuota_mb ?? '';
-        els.planesFacturacion.checked = Boolean(p.facturacion_habilitada);
-        els.planesPortalClientes.checked = Boolean(p.portal_clientes_habilitado);
-        els.planesSucursalesFlag.checked = Boolean(p.sucursales_habilitado);
-        els.planesMarcaLookfeel.checked = Boolean(p.marca_lookfeel_habilitado);
+        planWizardState = {
+          facturacion_habilitada: Boolean(p.facturacion_habilitada),
+          ventas_habilitado: Boolean(p.ventas_habilitado),
+          gastos_habilitado: Boolean(p.gastos_habilitado),
+          inventarios_habilitado: Boolean(p.inventarios_habilitado),
+          auditoria_habilitado: Boolean(p.auditoria_habilitado),
+          portal_clientes_habilitado: Boolean(p.portal_clientes_habilitado),
+          sucursales_habilitado: Boolean(p.sucursales_habilitado),
+          marca_lookfeel_habilitado: Boolean(p.marca_lookfeel_habilitado),
+          cxc_habilitado: Boolean(p.cxc_habilitado),
+          resumen_financiero_habilitado: Boolean(p.resumen_financiero_habilitado),
+          reportes_por_reporte_habilitado: Boolean(p.reportes_por_reporte_habilitado),
+          reportes_cortes_habilitado: Boolean(p.reportes_cortes_habilitado),
+          reportes_eliminados_habilitado: Boolean(p.reportes_eliminados_habilitado),
+          reportes_estado_inventario_habilitado: Boolean(p.reportes_estado_inventario_habilitado),
+        };
+        planWizardTotalTenants = Number(p.total_tenants || 0);
+        renderPlanWizardTodo();
       } catch (err) {
         els.planesModalError.textContent = 'No se pudo conectar con el servidor.';
       }
@@ -2357,14 +2749,32 @@
     if (e.target === els.planesModalOverlay) cerrarPlanModal();
   });
 
+  els.btnPlanesWizardAtras.addEventListener('click', () => {
+    if (planWizardPaso > 1) {
+      planWizardPaso--;
+      renderPlanWizardTodo();
+    }
+  });
+
   els.btnPlanesGuardar.addEventListener('click', async () => {
     limpiarErroresPlanModal();
-    const nombre = els.planesNombre.value.trim();
-    if (!nombre) {
-      document.getElementById('error-planes-nombre').textContent = 'El nombre del plan es obligatorio.';
+
+    if (planWizardPaso === 1) {
+      const nombre = els.planesNombre.value.trim();
+      if (!nombre) {
+        document.getElementById('error-planes-nombre').textContent = 'El nombre del plan es obligatorio.';
+        return;
+      }
+    }
+
+    if (planWizardPaso < PLANES_WIZARD_TOTAL_PASOS) {
+      planWizardPaso++;
+      renderPlanWizardTodo();
       return;
     }
 
+    // Paso 4: guardar de verdad.
+    const nombre = els.planesNombre.value.trim();
     const cuerpo = {
       nombre,
       descripcion: els.planesDescripcion.value.trim(),
@@ -2372,10 +2782,7 @@
       precio_anual: els.planesPrecioAnual.value === '' ? null : Number(els.planesPrecioAnual.value),
       max_usuarios: els.planesMaxUsuarios.value === '' ? null : Number(els.planesMaxUsuarios.value),
       disco_cuota_mb: els.planesDiscoCuota.value === '' ? null : Number(els.planesDiscoCuota.value),
-      facturacion_habilitada: els.planesFacturacion.checked,
-      portal_clientes_habilitado: els.planesPortalClientes.checked,
-      sucursales_habilitado: els.planesSucursalesFlag.checked,
-      marca_lookfeel_habilitado: els.planesMarcaLookfeel.checked,
+      ...planWizardState,
     };
 
     els.btnPlanesGuardar.disabled = true;
@@ -2400,7 +2807,7 @@
       els.planesModalError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
       els.btnPlanesGuardar.disabled = false;
-      els.btnPlanesGuardarLabel.textContent = planEditandoId ? 'Guardar cambios' : 'Guardar plan';
+      renderPlanWizardPanels();
     }
   });
 

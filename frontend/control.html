@@ -490,7 +490,13 @@
     </div>
   </div>
 
-  <!-- Punto 347: Modal crear/editar plan -->
+  <!-- Punto 347 + 349-350-351: Modal crear/editar plan — asistente de 4
+       pasos (Datos básicos → Módulos → Dependientes → Resumen), portado
+       de stitch/gobierno-funcionalidades/wizard-funcional-reglas.html
+       tras aprobación del usuario. Las 12 reglas de dependencia viven en
+       planes.js (control.js solo las REFLEJA en la UI — la validación
+       real de guardado es del lado del servidor, ver
+       control/utils/planes.js:validarReglasDependencia). -->
   <div class="modal-overlay" id="planes-modal-overlay" hidden>
     <div class="modal control-modal-ancha" role="dialog" aria-modal="true" aria-labelledby="planes-modal-title">
       <div class="gastos-modal-header">
@@ -498,64 +504,88 @@
         <button type="button" class="btn-icon" id="btn-planes-modal-cerrar" aria-label="Cerrar">✕</button>
       </div>
       <div class="gastos-modal-body">
-        <div class="control-form-grid">
-          <div class="field">
-            <label for="planes-nombre">Nombre del plan <span class="required">*</span></label>
-            <input type="text" id="planes-nombre" maxlength="80" placeholder="Ej. Pro" autocomplete="off" />
-            <p class="field-error" id="error-planes-nombre" role="alert"></p>
-          </div>
-          <div class="field">
-            <label for="planes-descripcion">Descripción</label>
-            <input type="text" id="planes-descripcion" maxlength="255" placeholder="Qué incluye, en una línea" autocomplete="off" />
-          </div>
-          <div class="field">
-            <label for="planes-precio-mensual">Precio mensual (MXN)</label>
-            <input type="number" id="planes-precio-mensual" min="0" step="0.01" placeholder="Vacío = a cotizar" />
-          </div>
-          <div class="field">
-            <label for="planes-precio-anual">Precio anual (MXN)</label>
-            <input type="number" id="planes-precio-anual" min="0" step="0.01" placeholder="Vacío = a cotizar" />
-          </div>
-          <div class="field">
-            <label for="planes-max-usuarios">Máximo de usuarios</label>
-            <input type="number" id="planes-max-usuarios" min="1" step="1" placeholder="Vacío = sin límite" />
-          </div>
-          <div class="field">
-            <label for="planes-disco-cuota">Cuota de disco (MB)</label>
-            <input type="number" id="planes-disco-cuota" min="1" step="1" placeholder="Vacío = sin límite" />
+
+        <!-- Regla 8: aviso de impacto ANTES de modificar, visible en los
+             4 pasos — solo si el plan que se edita ya tiene empresas
+             asignadas (nunca en "Nuevo plan"). -->
+        <div class="planes-wizard-banner" id="planes-wizard-banner" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9L2 18a1 1 0 00.9 1.5h18.2a1 1 0 00.9-1.5L13.7 3.9a1 1 0 00-1.8 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <span id="planes-wizard-banner-texto"></span>
+        </div>
+
+        <div class="planes-wizard-steps" id="planes-wizard-steps"></div>
+
+        <div class="planes-wizard-panel" id="planes-wizard-panel-1" data-paso="1">
+          <h3>Información básica</h3>
+          <p class="field-hint planes-wizard-sub">Nombre, precio y límites del plan.</p>
+          <div class="control-form-grid">
+            <div class="field">
+              <label for="planes-nombre">Nombre del plan <span class="required">*</span></label>
+              <input type="text" id="planes-nombre" maxlength="80" placeholder="Ej. Pro" autocomplete="off" />
+              <p class="field-error" id="error-planes-nombre" role="alert"></p>
+            </div>
+            <div class="field">
+              <label for="planes-descripcion">Descripción</label>
+              <input type="text" id="planes-descripcion" maxlength="255" placeholder="Qué incluye, en una línea" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="planes-precio-mensual">Precio mensual (MXN)</label>
+              <input type="number" id="planes-precio-mensual" min="0" step="0.01" placeholder="Vacío = a cotizar" />
+            </div>
+            <div class="field">
+              <label for="planes-precio-anual">Precio anual (MXN)</label>
+              <input type="number" id="planes-precio-anual" min="0" step="0.01" placeholder="Vacío = a cotizar" />
+            </div>
+            <div class="field">
+              <label for="planes-max-usuarios">Máximo de usuarios</label>
+              <input type="number" id="planes-max-usuarios" min="1" step="1" placeholder="Vacío = sin límite" />
+            </div>
+            <div class="field">
+              <label for="planes-disco-cuota">Cuota de disco (MB)</label>
+              <input type="number" id="planes-disco-cuota" min="1" step="1" placeholder="Vacío = sin límite" />
+            </div>
           </div>
         </div>
 
-        <p class="field-hint" style="margin-top:14px; font-weight:700; color:var(--text, inherit);">Funcionalidades incluidas</p>
-        <div class="control-form-grid" style="margin-top:6px">
-          <label class="control-switch" for="planes-facturacion">
-            <input type="checkbox" id="planes-facturacion" />
-            <span class="control-switch-track" aria-hidden="true"></span>
-            <span class="control-switch-label">Módulo de Facturación</span>
-          </label>
-          <label class="control-switch" for="planes-portal-clientes">
-            <input type="checkbox" id="planes-portal-clientes" checked />
-            <span class="control-switch-track" aria-hidden="true"></span>
-            <span class="control-switch-label">Portal de clientes</span>
-          </label>
-          <label class="control-switch" for="planes-sucursales">
-            <input type="checkbox" id="planes-sucursales" />
-            <span class="control-switch-track" aria-hidden="true"></span>
-            <span class="control-switch-label">Sucursales (grupo)</span>
-          </label>
-          <label class="control-switch" for="planes-marca-lookfeel">
-            <input type="checkbox" id="planes-marca-lookfeel" />
-            <span class="control-switch-track" aria-hidden="true"></span>
-            <span class="control-switch-label">Marca propia / Look &amp; Feel</span>
-          </label>
+        <div class="planes-wizard-panel" id="planes-wizard-panel-2" data-paso="2">
+          <h3>¿Qué módulos incluye este plan?</h3>
+          <p class="field-hint planes-wizard-sub">Actívalos o apágalos — el paso de "Dependientes" se ajusta solo según lo que elijas aquí.</p>
+          <div class="planes-wizard-modulos" id="planes-wizard-modulos"></div>
+        </div>
+
+        <div class="planes-wizard-panel" id="planes-wizard-panel-3" data-paso="3">
+          <h3>Funcionalidades dependientes</h3>
+          <p class="field-hint planes-wizard-sub">Lo que depende de un módulo del paso anterior vive aquí — lo que no aplica queda inhabilitado con el motivo a la vista, nunca oculto sin explicación.</p>
+          <div class="planes-wizard-leyenda">
+            <strong>De dónde sale cada dependencia:</strong>
+            <span class="planes-wizard-chip-dep m-facturacion">Facturación</span>
+            <span class="planes-wizard-chip-dep m-ventas">Ventas</span>
+            <span class="planes-wizard-chip-dep m-gastos">Gastos</span>
+            <span class="planes-wizard-chip-dep m-inventarios">Inventarios</span>
+          </div>
+          <div id="planes-wizard-dependientes"></div>
+        </div>
+
+        <div class="planes-wizard-panel" id="planes-wizard-panel-4" data-paso="4">
+          <h3>Resumen antes de guardar</h3>
+          <p class="field-hint planes-wizard-sub">Así quedará el plan — revisa antes de confirmar.</p>
+          <div class="admin-table-wrap">
+            <table class="admin-table planes-wizard-resumen-tabla">
+              <thead><tr><th>Funcionalidad</th><th>Estado</th></tr></thead>
+              <tbody id="planes-wizard-resumen-body"></tbody>
+            </table>
+          </div>
         </div>
 
         <p class="field-error" id="planes-modal-error" role="alert" style="margin-top:14px"></p>
-        <div class="btn-row">
-          <button type="button" class="btn btn-secondary" id="btn-planes-cancelar">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btn-planes-guardar">
-            <span id="btn-planes-guardar-label">Guardar plan</span>
-          </button>
+        <div class="btn-row planes-wizard-btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-planes-wizard-atras">Atrás</button>
+          <div class="planes-wizard-btn-row-derecha">
+            <button type="button" class="btn btn-secondary" id="btn-planes-cancelar">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="btn-planes-guardar">
+              <span id="btn-planes-guardar-label">Siguiente</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -957,6 +987,15 @@
              marcada "del plan" o "excepción" según si coincide con lo que
              el plan trae hoy. -->
         <div class="control-edit-tab-panel" id="control-edit-tab-plan" hidden>
+          <!-- Punto 350/351 (Regla 8 extendida a edición de empresa):
+               aviso de impacto fijo, visible desde que se abre esta
+               pestaña — antes de que el operador toque nada, no solo al
+               guardar. Mismo patrón visual que planes-wizard-banner. -->
+          <div class="planes-wizard-banner" id="control-editar-impacto-banner" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9L2 18a1 1 0 00.9 1.5h18.2a1 1 0 00.9-1.5L13.7 3.9a1 1 0 00-1.8 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <span id="control-editar-impacto-banner-texto"></span>
+          </div>
+
           <div class="planes-tab-plan-actual">
             <div>
               <p class="planes-tab-plan-nombre" id="control-editar-plan-nombre-actual">Sin plan asignado</p>
@@ -1205,7 +1244,10 @@
       <p class="panel-subtitle" id="control-cred-modal-subtitulo"></p>
       <div id="control-cred-lista" class="admin-table-wrap" style="margin:12px 0"></div>
       <div class="field" id="control-cred-nueva-wrap" hidden>
-        <p class="admin-config-catalogo-info" style="background:var(--color-warn-soft);padding:10px;border-radius:8px;margin-bottom:8px">⚠️ Copia la contraseña y la <b>clave API</b> ahora — solo se muestran una vez. Autorizan el uso de las APIs como esta clave API por empresa (Basic o <code>X-API-Key</code> / cookieAuth).</p>
+        <p class="admin-config-catalogo-info" style="background:var(--color-warn-soft);padding:10px;border-radius:8px;margin-bottom:8px;display:flex;align-items:flex-start;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="flex-shrink:0;margin-top:2px;color:var(--color-warn)"><path d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>Copia la contraseña y la <b>clave API</b> ahora — solo se muestran una vez. Autorizan el uso de las APIs como esta clave API por empresa (Basic o <code>X-API-Key</code> / cookieAuth).</span>
+        </p>
         <label>Usuario API (Basic)</label>
         <div class="admin-search" style="margin:6px 0"><input id="control-cred-usuario" class="admin-search-input" readonly /><button type="button" class="btn btn-secondary" id="control-cred-btn-copiar-usuario" aria-label="Copiar usuario API">Copiar</button></div>
         <label>Contraseña API (Basic)</label>

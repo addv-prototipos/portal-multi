@@ -169,4 +169,53 @@ describe('Multi-tenant (segmento 3) — resolución de tenant end-to-end', () =>
     expect(res.status).toBe(401);
     expect(res.headers['www-authenticate']).toBe('Basic realm="Administracion-cliente1"');
   });
+
+  // Punto 349-350-351 (Fase 5, ver stitch/gobierno-funcionalidades/
+  // NOTAS.md): GET /api/admin/login expone las funciones del plan del
+  // tenant para que el frontend oculte menú/tarjetas que el backend ya
+  // bloquea — TENANT_CLIENTE1 no trae ninguna de las 14 columnas
+  // *_habilitado* en la fila mockeada, así que todas caen a su default
+  // (true, migración-segura) EXCEPTO sucursalesHabilitado, que por
+  // diseño default a false cuando la columna está ausente (feature nueva
+  // que nadie tenía antes — ver tenantContext.js).
+  test('GET /api/admin/login con tenant resuelto expone "funciones" con los 14 flags del plan', async () => {
+    mockControlPool([TENANT_CLIENTE1]);
+
+    const res = await request(app)
+      .get('/api/admin/login')
+      .set('X-Tenant-Slug', 'cliente1')
+      .auth('admin', 'admin');
+
+    expect(res.status).toBe(200);
+    expect(res.body.funciones).toEqual({
+      facturacionHabilitada: true,
+      portalClientesHabilitado: true,
+      sucursalesHabilitado: false,
+      marcaLookfeelHabilitado: true,
+      ventasHabilitado: true,
+      gastosHabilitado: true,
+      inventariosHabilitado: true,
+      auditoriaHabilitado: true,
+      cxcHabilitado: true,
+      resumenFinancieroHabilitado: true,
+      reportesPorReporteHabilitado: true,
+      reportesCortesHabilitado: true,
+      reportesEliminadosHabilitado: true,
+      reportesEstadoInventarioHabilitado: true,
+    });
+  });
+
+  test('GET /api/admin/login con tenant resuelto: facturacionHabilitada=0 se expone como false en "funciones"', async () => {
+    mockControlPool([{ ...TENANT_CLIENTE1, facturacion_habilitada: 0, ventas_habilitado: 0 }]);
+
+    const res = await request(app)
+      .get('/api/admin/login')
+      .set('X-Tenant-Slug', 'cliente1')
+      .auth('admin', 'admin');
+
+    expect(res.status).toBe(200);
+    expect(res.body.funciones.facturacionHabilitada).toBe(false);
+    expect(res.body.funciones.ventasHabilitado).toBe(false);
+    expect(res.body.funciones.gastosHabilitado).toBe(true);
+  });
 });

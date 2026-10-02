@@ -40,6 +40,86 @@ skill `addv-web-app`, sección "Herramientas complementarias"):
 sitio) y `prompt-master` (`~/.claude/skills/prompt-master`, solo se activa
 si se pide explícitamente redactar/mejorar un prompt).
 
+## Gobernanza de funcionalidades: todo módulo se mapea en Control (no negociable)
+
+Decisión del usuario, 2026-10-01 — esta regla no se omite por ningún
+motivo, en ninguna sesión futura.
+
+Cualquier funcionalidad, módulo, submenú o pestaña — **existente o
+nueva** — del portal de cliente o del panel admin (Ventas, Gastos,
+Inventarios, Auditoría, Proveedores, Reportes y sus sub-pestañas
+("Por reporte"/"Cortes"/"Eliminados"/"Estado del inventario"), Cuentas
+por cobrar, Resumen financiero, Sucursales, Marca propia, Facturación,
+el portal de clientes mismo, y cualquier superficie futura) DEBE quedar
+activable/desactivable desde `/control`. `/control` es quien gobierna el
+onboarding del cliente que compra Clarvo, su configuración inicial y
+cualquier upscale futuro — ninguna funcionalidad puede quedar fuera de
+ese punto único de gobierno.
+
+**"Mapeado en Control" significa, en concreto** (patrón ya implementado
+en el punto 347, Fase 0-1 — replicar exacto, nunca reinventar):
+1. Columna/flag en `control_tenants.tenants` (o en el catálogo `planes`).
+2. Expuesta en el SELECT de `tenantContext.js` (backend) + equivalente
+   de `control`.
+3. `requiereFeature()` en CADA ruta del módulo — 404, nunca 403, y
+   SIEMPRE antes de `requireAdminAuth`/`requireUserAuth` (el 404 no
+   puede depender de tener credenciales válidas).
+4. Toggle visible en `/control` para prenderla/apagarla por tenant o
+   por plan.
+5. Si el módulo depende de otro (ej. Proveedores depende de Inventarios
+   o Gastos), la regla de dependencia (bloqueo/cascada/auto-activación/
+   advertencia) se documenta y valida con el mismo criterio que el
+   catálogo ya diseñado en `stitch/gobierno-funcionalidades/NOTAS.md`.
+
+**Proveedores**: no es una superficie/app separada — vive dentro del
+mismo ecosistema admin/portal de clientes (confirmado por el usuario,
+2026-10-01). Si en el futuro gana una vía de acceso propia (tipo portal,
+login propio), le aplica esta misma regla de mapeo en Control desde el
+momento en que se construya esa vía.
+
+**Alcance: retroactivo y obligatorio, no solo hacia adelante.** El
+usuario decidió explícitamente (2026-10-01) que esta regla cubre TAMBIÉN
+los módulos ya existentes, no solo los nuevos: **ningún trabajo nuevo de
+producto avanza hasta auditar y mapear en Control todos los módulos
+existentes** que todavía no lo están. Ver punto 348 en
+`PROJECT_STATE.md` para el estado de esa auditoría y qué falta.
+
+**Estado real al 2026-10-01** (para que ninguna sesión asuma que ya está
+completo): el punto 347, implementado y pusheado hasta ahora, SOLO cubre
+4 flags (Facturación, portal de clientes, sucursales, marca propia) +
+límites de usuarios/disco. **Ventas, Gastos, Inventarios, Auditoría,
+Proveedores, Reportes (y sus 4 sub-pestañas), Cuentas por cobrar y
+Resumen financiero NO están mapeados todavía** — son la deuda retroactiva
+obligatoria de arriba. El diseño para ellos (asistente de 4 pasos +
+**11 reglas** de dependencia de
+bloqueo/cascada/auto-activación/advertencia/checkbox-inhabilitado) está
+**aprobado por el usuario desde el punto 349** (2026-10-01, ver
+`PROJECT_STATE.md`) en
+`stitch/gobierno-funcionalidades/` (`NOTAS.md` + 2 prototipos HTML) —
+**sigue siendo solo prototipo visual, sin una sola línea de código real
+todavía**. El usuario pidió explícitamente documentar y **esperar su
+confirmación antes de implementar** — no empezar el código de producción
+(esquema/`requiereFeature()`/UI real) sin esa confirmación en una sesión
+futura, aunque el diseño ya esté aprobado. **Las 3 preguntas que
+quedaban (reglas 7-9) ya se resolvieron (punto 350, 2026-10-01)**: portal
+sin Facturación = advertencia, no bloqueo; editar un plan asignado = aviso
+de impacto ANTES de modificar (banner fijo desde que se abre el editor,
+no solo al guardar); bajar el máximo de usuarios por debajo del uso real
+= se permite guardar, suspende automáticamente usuarios no-admin (los más
+recientes primero, admins siempre quedan activos) con motivo explícito —
+detalle completo en `stitch/gobierno-funcionalidades/NOTAS.md`. Catálogo
+final: **12 reglas**. Cualquier sesión que retome esto parte de
+`stitch/`, nunca rediseña de cero — y sigue esperando la confirmación
+explícita del usuario para empezar el código real.
+
+**Pruebas funcionales, siempre, sin excepción** (ya es piso no negociable
+del protocolo `addv-web-app` global — esto solo lo precisa para este
+proyecto): "funcional" significa uno de dos — (a) Playwright/E2E real
+contra Docker+MySQL reales, o (b) confirmación explícita del usuario con
+clics reales en navegador. Jest + supertest sobre BD mockeada (el patrón
+usado en todo este repo hasta hoy) cuenta como prueba de
+**integración**, nunca como sustituto del paso 8 del protocolo.
+
 ## Reglas persistentes de coordinación
 
 - Después de cualquier cambio relevante de código, arquitectura,

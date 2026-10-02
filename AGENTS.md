@@ -24,6 +24,61 @@ sin aprobación explícita del segmento, piso no negociable de UX/accesibilidad/
 rendimiento/seguridad/Docker/pruebas unitarias/calidad de código. Mantener
 siempre actualizados `PROJECT_STATE.md`, este archivo y `README.md`.
 
+## Gobernanza de funcionalidades: todo módulo se mapea en Control (no negociable)
+
+Decisión del usuario, 2026-10-01 — esta regla no se omite por ningún
+motivo, en ninguna sesión futura (Claude o Codex).
+
+Cualquier funcionalidad, módulo, submenú o pestaña — **existente o
+nueva** — del portal de cliente o del panel admin (Ventas, Gastos,
+Inventarios, Auditoría, Proveedores, Reportes y sus sub-pestañas
+("Por reporte"/"Cortes"/"Eliminados"/"Estado del inventario"), Cuentas
+por cobrar, Resumen financiero, Sucursales, Marca propia, Facturación,
+el portal de clientes mismo, y cualquier superficie futura) DEBE quedar
+activable/desactivable desde `/control`. `/control` es quien gobierna el
+onboarding del cliente que compra Clarvo, su configuración inicial y
+cualquier upscale futuro — ninguna funcionalidad puede quedar fuera de
+ese punto único de gobierno.
+
+**"Mapeado en Control" significa, en concreto** (patrón ya implementado
+en el punto 347, Fase 0-1 — replicar exacto, nunca reinventar):
+1. Columna/flag en `control_tenants.tenants` (o en el catálogo `planes`).
+2. Expuesta en el SELECT de `tenantContext.js` (backend) + equivalente
+   de `control`.
+3. `requiereFeature()` en CADA ruta del módulo — 404, nunca 403, y
+   SIEMPRE antes de `requireAdminAuth`/`requireUserAuth` (el 404 no
+   puede depender de tener credenciales válidas).
+4. Toggle visible en `/control` para prenderla/apagarla por tenant o
+   por plan.
+5. Si el módulo depende de otro (ej. Proveedores depende de Inventarios
+   o Gastos), la regla de dependencia (bloqueo/cascada/auto-activación/
+   advertencia/checkbox-inhabilitado) se documenta y valida con el mismo
+   criterio que el catálogo ya diseñado en
+   `stitch/gobierno-funcionalidades/NOTAS.md`.
+
+**Alcance: retroactivo y obligatorio, no solo hacia adelante.** Cubre
+TAMBIÉN los módulos ya existentes, no solo los nuevos: **ningún trabajo
+nuevo de producto avanza hasta auditar y mapear en Control todos los
+módulos existentes** que todavía no lo están. Ver puntos 348 y 349 en
+`PROJECT_STATE.md`.
+
+**Estado real al 2026-10-01**: el punto 347 SOLO cubre 4 flags
+(Facturación, portal de clientes, sucursales, marca propia) + límites de
+usuarios/disco. Ventas, Gastos, Inventarios, Auditoría, Proveedores,
+Reportes (4 sub-pestañas), Cuentas por cobrar y Resumen financiero
+siguen sin mapear. El diseño para cubrirlos (asistente de 4 pasos + 12
+reglas de dependencia) está **aprobado por el usuario** (puntos 349-350,
+`stitch/gobierno-funcionalidades/`) pero **sin una sola línea de código
+real todavía** — el usuario pidió explícitamente esperar su confirmación
+antes de implementar. No empezar el código de producción sin esa
+confirmación, aunque el diseño ya esté aprobado. **Las 3 preguntas que
+faltaban (reglas 7-9) ya están resueltas** (punto 350): portal sin
+Facturación = advertencia; editar plan asignado = aviso de impacto antes
+de modificar; bajar el máximo de usuarios por debajo del uso real = se
+permite, suspende automáticamente usuarios no-admin (los más recientes
+primero, admins siempre activos) con motivo explícito. Cualquier sesión
+que retome esto parte de `stitch/`, nunca rediseña de cero.
+
 ## Reglas persistentes de coordinación
 
 - Después de cualquier cambio relevante de código, arquitectura,

@@ -16977,6 +16977,526 @@ implementar, siguiendo el protocolo `addv-web-app`.
   ampliaciones). Sin commit/push todavía — cambios solo en el working
   tree.
 
+**Punto 348 (2026-10-01, DECISIÓN TOMADA — implementación pendiente,
+BLOQUEANTE):** gobernanza de funcionalidades, regla permanente. Ver el
+bloque completo en `CLAUDE.md` ("Gobernanza de funcionalidades: todo
+módulo se mapea en Control"), aquí solo el resumen operativo.
+
+- **Hallazgo que originó esto**: existe `stitch/gobierno-funcionalidades/`
+  (`NOTAS.md` + 2 prototipos HTML), trabajo de otra sesión sobre este
+  mismo punto 347, con un alcance mucho más amplio que lo implementado
+  hasta ahora — asistente de 4 pasos + 10 reglas de dependencia
+  (bloqueo/cascada/auto-activación/advertencia) cubriendo Ventas,
+  Gastos, Inventarios, Auditoría, Proveedores, Reportes (4 sub-pestañas),
+  Cuentas por cobrar y Resumen financiero. Prototipo visual, sin código
+  real todavía — las dos líneas de trabajo no estaban consolidadas antes
+  de esta sesión.
+- **Decisión del usuario**: la regla es retroactiva y obligatoria, no
+  solo hacia adelante — **ningún trabajo nuevo de producto avanza hasta
+  auditar y mapear en Control los módulos existentes que todavía no lo
+  están**. La ampliación del diseño ya aprobado en `stitch/` se retoma
+  como trabajo aparte (no en la misma sesión que escribió la regla),
+  pero antes de cualquier OTRA feature nueva.
+- **Deuda pendiente de mapear** (ninguno tiene flag en `control_tenants`
+  ni candado `requiereFeature()` todavía): Ventas, Gastos, Inventarios,
+  Auditoría (la de `/admin`, por tenant — no confundir con la de
+  `/control` del punto 347, que es cross-tenant y nunca se apaga),
+  Proveedores (depende de Inventarios o Gastos, sin toggle propio, regla
+  4 de `stitch/`), Reportes y sus 4 sub-pestañas ("Por reporte"/"Cortes"/
+  "Eliminados" dependen de Ventas/Gastos; "Estado del inventario"
+  depende de Inventarios — regla 10 de `stitch/`), Cuentas por cobrar
+  (depende de Ventas), Resumen financiero (se auto-activa con
+  Ventas o Gastos, bloqueo si ninguno está activo — reglas 1-2 de
+  `stitch/`).
+- **Ya mapeados** (punto 347, no se tocan): Facturación, portal de
+  clientes, Sucursales, Marca propia/Look & Feel, límites de usuarios y
+  cuota de disco.
+- **Preguntas abiertas sin confirmar todavía** (de `stitch/NOTAS.md`,
+  reglas 7-9): ¿portal de clientes sin Facturación es advertencia o
+  bloqueo total? Editar un plan ya asignado a empresas reales — ¿impacto
+  inmediato con aviso, o requiere confirmación extra? Bajar el máximo de
+  usuarios por debajo de los usuarios activos reales de alguna empresa —
+  ¿se bloquea el guardado o se permite con advertencia?
+- **Siguiente paso real**: retomar `stitch/gobierno-funcionalidades/`
+  como el siguiente punto de trabajo (349), confirmar las 3 preguntas
+  abiertas de arriba, implementar el asistente de 4 pasos + las 10
+  reglas de dependencia siguiendo el mismo patrón técnico del punto 347
+  (columna → `tenantContext.js` → `requiereFeature()` → toggle en
+  `/control`), con pruebas funcionales reales (Playwright o clics en
+  navegador, no solo Jest mockeado — ver regla de pruebas funcionales en
+  `CLAUDE.md`).
+- Incidental: se corrigió un emoji real (⚠️) en `frontend/control.html`
+  (línea del aviso de credenciales API), ya señalado como pendiente en
+  `stitch/NOTAS.md` — reemplazado por el SVG de alerta ya usado en el
+  resto del sitio (`M12 9v2m0 4h.01M10.29 3.86...`). `node --check`
+  limpio, balance de tags verificado.
+
+**Punto 349 (2026-10-01, DISEÑO APROBADO por el usuario — implementación
+en código real AÚN NO INICIADA, pendiente de confirmación explícita):**
+se retomó `stitch/gobierno-funcionalidades/` (el trabajo anticipado en el
+punto 348) en esta misma sesión, iterando el prototipo con feedback
+directo del usuario hasta su aprobación final. Nada de esto tocó código
+de producción — todo vive en `stitch/gobierno-funcionalidades/`
+(`NOTAS.md`, `propuesta-3-opciones.html`, `wizard-funcional-reglas.html`,
+`assets/logoDark.png`).
+
+- **Opción elegida**: C — asistente de 4 pasos (Datos básicos → Módulos
+  → Dependientes → Resumen), de las 3 propuestas visuales originales.
+- **Cambios de diseño de esta sesión, todos ya aprobados**:
+  - **Paleta corregida**: el primer prototipo usaba por error el verde
+    `#0F6E5D` de `style.css` (exclusivo del portal de cliente). Corregido
+    a la paleta real de `/admin`/`/control` (`admin.css`, ámbito
+    `.admin-body`): navy `#03285B` de acento, `#0B1320` ink, `#E7ECF3`
+    soft. Guardado como memoria persistente
+    (`feedback_paleta_admin_control_navy.md`) para que no se repita.
+  - **Identidad de marca real** en el lienzo del prototipo: sidebar navy
+    + logo real (`logoDark.png`) + acento cian `#05DBF2` del ítem activo,
+    en vez de un modal flotando sobre fondo genérico.
+  - **Reportes se independizó de Resumen financiero** (antes compartían
+    una sola bandera `finanzas`) — ahora Reportes es un grupo de **4
+    checkboxes propios**, uno por pestaña real de
+    `frontend/admin.js:PESTANAS_REPORTES` ("Por reporte", "Cortes",
+    "Eliminados", "Estado del inventario"), cada uno con su propia
+    condición de habilitado.
+  - **Checkboxes/switches inhabilitados de verdad** (atributo `disabled`
+    real, no solo bloqueo al dar clic) cuando su módulo de origen está
+    apagado — patrón aplicado de forma consistente a Cuentas por cobrar,
+    Resumen financiero, Aviso de expiración y los 4 checkboxes de
+    Reportes. Nueva **regla 11** del catálogo (ya 11 reglas, no 10):
+    "checkbox inhabilitado desde que carga" es su propio tipo, distinto
+    de bloqueo/cascada/advertencia.
+  - **Chips de categoría**: cada funcionalidad dependiente muestra de qué
+    módulo cuelga (Facturación gris / Ventas cian / Gastos ámbar /
+    Inventarios violeta), color fijo en todo el asistente, con leyenda
+    arriba del paso 3.
+  - **Modal agrandado** (980px→1240px el shell, 520px→760px el modal,
+    padding y controles a estándar de touch target 44px) — el usuario lo
+    sintió apretado en la primera versión.
+  - **Bug real encontrado y corregido**: al reestructurar el estado para
+    separar Reportes se borraron por accidente `var paso`/
+    `var TOTAL_PASOS`, lo que tiraba un `ReferenceError` silencioso y
+    dejaba el modal completamente en blanco (reportado por el usuario
+    con captura de pantalla). Corregido y verificado ejecutando el
+    `<script>` extraído con un stub de `document` en Node — recorre los
+    4 pasos y cada combinación de toggles/checkboxes sin excepción antes
+    de cada republicación posterior. Repetir esta verificación en
+    cualquier edición futura del inline script de este prototipo.
+- **Catálogo final: 11 reglas de dependencia** (bloqueo / cascada /
+  auto-activación / advertencia / checkbox-inhabilitado), documentadas
+  con detalle en `stitch/gobierno-funcionalidades/NOTAS.md`.
+- **Sigue sin confirmar** (reglas 7-9, el usuario no las resolvió en esta
+  sesión — solo aprobó el diseño visual/funcional en general): ¿portal
+  de clientes sin Facturación es advertencia o bloqueo total?; editar un
+  plan ya asignado a empresas reales ¿aviso o confirmación extra?; bajar
+  el máximo de usuarios por debajo del uso real de alguna empresa
+  ¿bloquea el guardado o advierte? Estas 3 preguntas deben resolverse
+  antes o durante la implementación real, no se pueden dar por
+  implícitamente aprobadas.
+- **Estado explícito**: el usuario pidió documentar todo y **esperar su
+  confirmación antes de implementar** — ningún código de producción
+  (esquema, `requiereFeature()`, UI real de `/control`) debe escribirse
+  hasta recibir esa confirmación explícita en una sesión futura. Cuando
+  llegue: seguir el mismo patrón técnico del punto 347 (columna en
+  `planes`/`tenants` → `tenantContext.js` → `requiereFeature()` por ruta
+  → toggle en `/control`) + pruebas funcionales reales (Playwright o
+  clics en navegador — ver regla de pruebas funcionales en `CLAUDE.md`).
+
+**Punto 350 (2026-10-01, DECISIÓN TOMADA — las 3 últimas preguntas
+abiertas del punto 349 quedan cerradas):** el usuario resolvió
+explícitamente las reglas 7, 8 y 9 pendientes de `stitch/NOTAS.md`
+(detalle completo ahí, sección "Decisión final 2026-10-01"). Resumen:
+
+- **Regla 7** (portal de clientes sin Facturación): **advertencia, no
+  bloqueo** — ya era el comportamiento del prototipo, confirmado tal
+  cual, sin cambios al código del prototipo.
+- **Regla 8** (editar un plan ya asignado a empresas): el aviso de
+  impacto debe mostrarse **antes de modificar**, no solo al guardar —
+  un banner fijo visible desde que se abre "Editar plan", durante los 4
+  pasos, no un toast al final. Distinto de las 2 opciones originalmente
+  ofrecidas. Afecta el diseño del flujo de EDICIÓN (el prototipo actual
+  solo modeló "Nuevo plan") — se construye cuando se implemente ese
+  flujo.
+- **Regla 9** (bajar `max_usuarios` por debajo del uso real): **se
+  permite guardar, con suspensión automática y dirigida** — no bloqueo,
+  no advertencia pasiva. Administradores del tenant **siempre quedan
+  activos**, nunca se suspenden por este mecanismo. Se suspenden
+  usuarios no-administradores uno por uno, **empezando por los creados
+  más recientemente** (`creado_en` descendente), hasta que la empresa
+  quede dentro del nuevo límite. Cada usuario suspendido así queda
+  marcado con motivo explícito ("suspendido por límite de usuarios del
+  plan"), distinguible de una suspensión manual. Preguntas técnicas aún
+  sin resolver (no bloqueantes, se resuelven al construir): dónde vive
+  el motivo de suspensión en el esquema, y si subir el límite después
+  reactiva solo a los últimos suspendidos por este motivo o requiere
+  acción manual.
+- **Catálogo final: 12 reglas** (11 del asistente de 4 pasos + esta
+  regla 9, que vive a nivel de asignación de plan↔tenant, no del
+  catálogo de planes en sí).
+- **Sigue sin iniciar**: cero código de producción todavía. El usuario
+  resolvió las preguntas pero no dio luz verde a implementar — sigue
+  pendiente esa confirmación explícita y separada.
+
+**Punto 351 (2026-10-01, EN PROGRESO — luz verde del usuario para
+implementar recibida, Fase 0-1 de código real completas):** arranca la
+implementación real del gobierno de funcionalidades ampliado (puntos
+349-350). Fases 0 y 1 del plan técnico (mismo patrón que el punto 347:
+columna → `tenantContext.js` → `requiereFeature()` por ruta → toggle en
+`/control`) ya están hechas y con suite completa en verde; Fases 2-7
+(CRUD de planes, resolución de excepciones por tenant, UI real del
+asistente, ocultar menú en `/admin`, suspensión automática regla 9,
+banner de impacto regla 8) siguen pendientes.
+
+- **Fase 0 — esquema**: 10 columnas nuevas (`ventas_habilitado`,
+  `gastos_habilitado`, `inventarios_habilitado`, `auditoria_habilitado`,
+  `cxc_habilitado`, `resumen_financiero_habilitado`,
+  `reportes_por_reporte_habilitado`, `reportes_cortes_habilitado`,
+  `reportes_eliminados_habilitado`,
+  `reportes_estado_inventario_habilitado`) en `tenants`
+  (`control/scripts/ensureSchema.js:COLUMNAS_NUEVAS`, DEFAULT 1 — no
+  apaga nada a un tenant ya en producción) y en `planes`
+  (`COLUMNAS_PLANES_NUEVAS`, migración por `ALTER` + semilla
+  Básico/Pro/Enterprise actualizada, DEFAULT 0 — un plan nuevo no
+  incluye nada hasta que el operador lo elija). 10 pruebas en
+  `ensureSchema.test.js`, todas en verde.
+- **Fase 1 — backend**: `tenantContext.js` expone los 10 flags nuevos en
+  `req.tenant` (mismo criterio booleano que `facturacionHabilitada`).
+  `requiereFeature()` se amplió para aceptar un arreglo de campos (OR —
+  caso real: `/api/admin/periodos-archivados` sirve a Ventas Y Gastos,
+  debe responder si cualquiera de los dos sigue activo). Candado
+  insertado en **76 rutas** de `backend/server.js` (80
+  `requiereFeature(...)` — algunas rutas llevan 2, AND por composición de
+  middlewares): Ventas (`ordenes-compra`, `folios-conciliacion`), Gastos
+  completo, Inventarios completo, Auditoría de `/admin` (`GET
+  /api/admin/auditoria`), Cuentas por cobrar (`/cobro`/`/recordatorio`,
+  AND con `ventasHabilitado`), Resumen financiero
+  (`/api/admin/resumen-financiero`), y las 4 pestañas de Reportes
+  (`reportesPorReporteHabilitado` para el listado genérico + `/:id/*`;
+  `reportesCortesHabilitado` AND `ventasHabilitado` para
+  `POST /reportes/corte`; `reportesEliminadosHabilitado` para
+  eliminados/estadísticas/timeline; `reportesEstadoInventarioHabilitado`
+  AND `inventariosHabilitado` para `GET
+  /api/admin/inventarios/reportes/estado`). Suite completa de backend:
+  **1115/1115 verde**, sin regresiones.
+- **Caveat arquitectónico encontrado y documentado, no resuelto
+  todavía**: "Cortes" y "Por reporte" comparten el mismo endpoint de
+  listado (`GET /api/admin/reportes` — el frontend filtra
+  `tipo === 'corte'` client-side desde el mismo array, ver
+  `frontend/admin.js:renderListaCortes`). El candado backend actual usa
+  `reportesPorReporteHabilitado` para ese endpoint compartido;
+  `reportesCortesHabilitado` solo gatea la generación de un corte nuevo
+  (`POST /reportes/corte`) y gateará la pestaña en el frontend (Fase 5).
+  Caso límite sin resolver: si se apaga "Por reporte" pero se deja
+  "Cortes" activo, el historial de cortes quedaría inaccesible también
+  — improbable en la práctica (cortes es un sub-tipo de reporte), pero
+  no es 100% fiel al modelo de 4 checkboxes independientes del
+  prototipo. Revisar si el usuario necesita esa combinación exacta antes
+  de dar la Fase 1 por "perfecta", no solo "funcional".
+- **Precedente de pruebas seguido, no inventado**: ninguna de las 23
+  rutas ya gateadas por `facturacionHabilitada` (punto 347) tiene prueba
+  de integración dedicada al 404 — esa gating se valida solo con el
+  unit test genérico de `requiereFeature.js` + validación funcional
+  real (Playwright/clics). Se siguió el mismo criterio aquí en vez de
+  inventar 76 pruebas de integración nuevas que divergieran del patrón
+  ya establecido del proyecto.
+- **Fase 2 — `control/utils/planes.js`**: los 10 campos nuevos se
+  normalizan (`normalizarDatosPlan`), se mapean (`mapearFila`), se
+  insertan (`crearPlan`) y se actualizan parcialmente (`actualizarPlan`).
+  Nueva función `validarReglasDependencia()` — las 6 reglas de bloqueo
+  (regla cxc→ventas, resumenFinanciero→ventas∨gastos,
+  reportesPorReporte→facturación∨ventas, reportesCortes→ventas,
+  reportesEliminados→ventas∨gastos, reportesEstadoInventario→inventarios)
+  se validan tanto en `crearPlan` (estado completo) como en
+  `actualizarPlan` (fila existente + patch FUSIONADOS — una edición
+  parcial que solo toca un campo dependiente igual ve si el prerrequisito
+  ya estaba apagado desde antes). `control/server.js` no necesitó cambios
+  — ya pasa `req.body` completo sin whitelist. 26 pruebas nuevas/
+  actualizadas en `planes.test.js`.
+- **Fase 3 — `control/utils/tenantEdicion.js:resolverPlanYFunciones`**:
+  mismo patrón que los 6 campos ya existentes (plan como base, excepción
+  explícita por tenant gana) ampliado a los 10 nuevos — tanto al asignar/
+  reaplicar un plan como al tenant ya existente. Nueva
+  `validarReglasDependenciaTenant()` (mismas 6 reglas, defensa en
+  profundidad — una excepción puntual por tenant podría romper una
+  combinación que un plan ya validado nunca produciría). `UPDATE tenants`
+  y el diff de auditoría (`detalleCambiosPlanExtra`) ampliados a las 10
+  columnas. 4 pruebas nuevas en `tenantEdicion.test.js`.
+- **Suite completa tras Fases 0-3: control 328/328, backend 1115/1115 —
+  sin regresiones.**
+- **Fase 4 — UI real del asistente de 4 pasos en `/control`**: el modal
+  "Nuevo plan"/"Editar plan" de `frontend/control.html` se reemplazó por
+  completo (portado de
+  `stitch/gobierno-funcionalidades/wizard-funcional-reglas.html`, ya
+  aprobado por el usuario) — 4 paneles (Datos básicos → Módulos →
+  Dependientes → Resumen), stepper, 8 tarjetas de módulo, fila de Cuentas
+  por cobrar/Resumen financiero con `<select>`/switch real (no mock),
+  Aviso de expiración/Proveedores informativos (sin columna propia, ver
+  más abajo), grupo de 4 checkboxes de Reportes, chips de categoría por
+  módulo de origen, banner de la regla 8 (oculto si `total_tenants === 0`
+  o es "Nuevo plan"). CSS nuevo en `admin.css` bajo el prefijo
+  `.planes-wizard-*` (reutiliza `.control-switch`/`.control-form-grid`/
+  `.control-modal-ancha` ya existentes, sin reinventar nada). La
+  cascada/auto-activación/bloqueo del lado del cliente son solo REFLEJO
+  en la UI — la validación real sigue siendo
+  `control/utils/planes.js:validarReglasDependencia` del lado del
+  servidor (defensa en profundidad, nunca confianza ciega en el JS del
+  navegador).
+  - **"Aviso de expiración de productos" y "Proveedores" no tienen
+    columna en el esquema** — son 100% derivados (de `inventarios` y de
+    `inventarios`∨`gastos` respectivamente) y se muestran como filas
+    informativas con pill "Automático", sin switch — decisión tomada en
+    esta fase para no sobre-ingenierizar un campo que el super admin
+    nunca necesita tocar.
+  - **Validado contra el stack Docker real, no solo Jest** — este
+    entorno SÍ tiene Docker+MySQL corriendo (`docker compose ps`,
+    contenedores `portalManager-*` sanos). Se hizo `docker compose build
+    backend control frontend` + `up -d --force-recreate` real:
+    - Migración de esquema confirmada contra MySQL real: las 10 columnas
+      nuevas aparecen en `planes` Y `tenants`; los 4 planes reales ya
+      existentes (Básico/Pro/Enterprise/Prueba QA, del catálogo real del
+      usuario) quedaron con las 10 columnas nuevas en 0 (default seguro
+      de `planes`); el tenant real `t1` quedó con las 10 en 1 (default
+      seguro de `tenants`, cero disrupción).
+    - `curl` directo a `/api/control/planes` a través de nginx real
+      confirmó que `validarReglasDependencia` rechaza (400) activar
+      `cxc_habilitado` sin `ventas_habilitado`, y acepta (200) activarlos
+      juntos — contra MySQL real, no mockeado. Mutación de prueba
+      revertida de inmediato.
+    - **E2E real con Playwright** (`e2e/tests/control-planes-wizard.spec.ts`,
+      3 pruebas, las 3 en verde): crea un plan de prueba aparte (nunca
+      toca el catálogo real), recorre los 4 pasos con clics reales,
+      confirma el toast de auto-activación de Resumen financiero al
+      activar Ventas, confirma que "Estado del inventario" nace
+      inhabilitado con el motivo visible, activa Cuentas por cobrar y
+      "Cortes" por clic real, reabre el plan y confirma que apagar
+      Ventas cascada-apaga ambos con toast, guarda, y archiva el plan de
+      prueba al final (limpieza, nunca deja basura en el catálogo real).
+    - De paso: se corrieron los demás specs de `/control` ya existentes
+      (`control-alta-empresa`, `control-editar-empresa`, `smoke`) — 2
+      fallan por **datos de fixture que no existen en este entorno**
+      (tenant `e2e-migracion-destino` y un slug duplicado específico, de
+      una validación manual anterior) — no relacionado con esta fase,
+      preexistente, no se tocó.
+- **Pendiente, fuera de esta fase**: la pestaña "Plan y funciones" del
+  modal "Editar empresa" (`.planes-feat-card`, excepciones por tenant)
+  todavía solo muestra los 4 flags originales — no se amplió a los 10
+  nuevos en esta sesión (el backend ya los resuelve desde la Fase 3, pero
+  la UI de excepción por tenant no los expone todavía). Candidato para la
+  siguiente sesión si el usuario lo pide.
+- **Fase 5 — ocultar menú/submenús en `/admin` según el plan del
+  tenant**: hasta esta fase, las 10 (y las 4 originales del punto 347)
+  columnas *_habilitado* solo bloqueaban el BACKEND (404) — el sidebar de
+  `/admin` seguía mostrando botones que, al hacer clic, simplemente no
+  funcionaban. Cerrado:
+  - `GET /api/admin/login` (único endpoint que YA corre en cada carga de
+    página, login y refresh de sesión) ahora devuelve `funciones: {...}`
+    con los 14 flags del tenant (`null` sin contexto multi-tenant —
+    nunca oculta nada en ese caso, mismo criterio "ausente nunca
+    bloquea" que `requiereFeature()`).
+  - `frontend/admin.js`: nueva capa `tenantFuncionesPlan` +
+    `planPermite()`/`reportesPlanVisible()`/`proveedoresPlanVisible()`,
+    combinada con AND dentro de `aplicarRestriccionesPerfil()` —
+    **misma función que ya oculta por perfil y por autoservicio
+    (`ventasHabilitadaGlobalmente`/`inventarioActivoGlobalmente`/
+    `auditoriaHabilitadaGlobalmente`)**, así que el auto-ocultamiento de
+    encabezados de grupo sin ningún botón visible (ya existente) cubre
+    la nueva capa gratis, sin tocarlo.
+  - Vistas gateadas: tickets/constancias (facturación), ordenes (ventas),
+    cxc, gastos, resumen-financiero, lectura-reportes (cualquiera de las
+    4 pestañas), inventarios, proveedores (inventarios∨gastos),
+    auditoria.
+  - Tarjetas de Configuraciones gateadas: admin-config-card/
+    global-config-card (facturación), reportes-config-card (resumen
+    financiero∨reportes), ordenes-toggle-card/inv-toggle-card/
+    auditoria-toggle-card (mismo flag que su módulo) — el nav lateral
+    del modal de Configuraciones (`.config-modal-nav-item`) ya
+    sincronizaba solo con `tarjeta.hidden` vía `filtrarNavConfig()`
+    (mecanismo preexistente), cero código extra necesario ahí.
+  - Dentro de "Notificaciones": el bloque "Aviso de expiración de
+    productos" (`.regla-exp-config`) se oculta si Inventarios está
+    apagado — **el ejemplo original con el que el usuario abrió todo
+    este punto 347-351**. El bloque "tickets sin contador" se oculta si
+    Facturación está apagada (se le agregó una clase CSS nueva,
+    `.notif-tickets-sin-contador-config`, para poder apuntarle).
+  - **Validado contra el stack real**: rebuild + restart de
+    `backend`/`frontend`. Se apagaron de verdad
+    `gastos_habilitado`/`auditoria_habilitado`/`inventarios_habilitado`
+    del tenant real `t1` (vía MySQL directo, revertido de inmediato
+    después), se invalidó la caché de resolución de tenant por el
+    endpoint interno real (`/internal/cache-tenant/invalidar` dentro del
+    contenedor `backend`, no una caché de un script aparte), y **2
+    pruebas E2E con Playwright, las 2 en verde**
+    (`e2e/tests/admin-plan-gating.spec.ts`): confirma que Gastos/
+    Inventarios/Auditoría/Proveedores y el grupo "Catálogo" completo
+    desaparecen del sidebar real en `/t1/admin`, que Ventas/CxC/Resumen
+    financiero/Reportes/Facturación/Usuarios siguen visibles (no se
+    apagaron), y que el nav del modal de Configuraciones también
+    desaparece para "Módulo Inventarios"/"Módulo Auditoría". t1 quedó
+    revertido a su estado original (los 3 flags de vuelta en 1) al
+    terminar.
+  - Backend: 2 pruebas nuevas en `multitenant.test.js` (`funciones` con
+    los 14 flags, y con `facturacion_habilitada=0`/`ventas_habilitado=0`
+    expuestos como `false`) + fix de una prueba existente en
+    `admin.test.js` que comparaba la respuesta completa con `toEqual`
+    (ya rota una vez antes por el mismo patrón frágil, ver observación
+    de sesión Sep 19). Suite: backend 1117/1117.
+  - **Caveat encontrado, no relacionado con esta fase**:
+    `e2e/tests/cxc.spec.ts` falla de forma consistente (no flaky) al
+    intentar clic en "Ventas" sin antes expandir el grupo colapsado
+    "Ventas y gastos" del sidebar — el test nunca expande el grupo
+    manualmente, y por default (`aplicarEstadoGruposSidebar`, sin vista
+    activa dentro de ningún grupo tras el login) TODOS los grupos
+    arrancan colapsados. Revisado el código: esta fase no tocó
+    `aplicarEstadoGruposSidebar` ni el CSS de colapso — es un gap
+    preexistente del propio spec, no una regresión. No se corrigió
+    (fuera de alcance de Fase 5), queda para quien retome `cxc.spec.ts`.
+- **Pendiente, fuera de esta fase**: la pestaña "Plan y funciones" del
+  modal "Editar empresa" (`.planes-feat-card`, excepciones por tenant)
+  todavía solo muestra los 4 flags originales — no se amplió a los 10
+  nuevos en esta sesión (el backend ya los resuelve desde la Fase 3, pero
+  la UI de excepción por tenant no los expone todavía). Candidato para la
+  siguiente sesión si el usuario lo pide.
+- **Fase 6 (2026-10-01) — regla 9: suspensión automática de usuarios
+  no-admin al bajar `max_usuarios` por debajo del uso real — IMPLEMENTADA
+  y validada contra Docker/MySQL real**:
+  - `backend/db.js`: columna `usuarios.suspendido_motivo VARCHAR(50) NULL`
+    (migración condicional en `ensureSchema()`) — `NULL` = suspensión
+    manual o cuenta activa (comportamiento de siempre), `'limite_usuarios_plan'`
+    = la suspendió este mecanismo automático, nunca un administrador.
+  - `backend/server.js`: nuevo endpoint interno
+    `POST /internal/aplicar-limite-usuarios/:slug` (mismo patrón que
+    `/internal/activar-tenant`, protegido por `secretoInternoValido`):
+    cuenta usuarios activos de perfil `administrador/fiscal/ventas/inventario`
+    (cuota real, nunca `cliente`), si excede `maxUsuarios` suspende las
+    cuentas **no-administrador** más recientemente creadas primero
+    (`ORDER BY creado_en DESC`) hasta calzar el límite — los
+    administradores SIEMPRE quedan activos, sin excepción. `PUT
+    /api/admin/usuarios/:id/estado`: reactivar (`activo:true`) siempre
+    limpia `suspendido_motivo` a `NULL` (decisión nueva y explícita del
+    admin, ya no debe leerse como "la suspendió el sistema"); suspender a
+    mano (`activo:false`) nunca toca esa columna. `GET
+    /api/admin/usuarios` ahora expone `suspendido_motivo`.
+  - `control/utils/notificarBackend.js`: `aplicarLimiteUsuarios(slug,
+    maxUsuarios)` — a diferencia de `activarTenantFisico`/
+    `eliminarTenantFisico`, **nunca lanza** (fire-and-forget con
+    resultado): la fila de `tenants` ya se guardó correctamente a esta
+    altura, un fallo de red en la suspensión no debe revertir una
+    edición válida. Devuelve `[]` si `maxUsuarios` es `null` (sin
+    límite), el arreglo de suspendidos en éxito, o `null` si no se pudo
+    confirmar (nunca asume `[]` como "nadie se suspendió" ante un fallo).
+  - `control/utils/tenantEdicion.js`: `actualizarDatosTenant()` invoca
+    `aplicarLimiteUsuarios()` tras resolver el plan/excepciones y antes de
+    `registrarEvento()` — el resultado (cuántos y quiénes, o la
+    advertencia de "no se pudo confirmar") queda en el detalle del evento
+    de auditoría.
+  - `frontend/admin.js`: tabla de Usuarios — una cuenta suspendida por
+    este mecanismo muestra badge "Suspendido (límite de plan)" con
+    tooltip explicando la causa (vs. "Suspendido" simple para suspensión
+    manual) — el admin del tenant distingue "la suspendió el sistema" de
+    "la suspendí yo".
+  - **Pruebas**: `backend/test/integration/internal.test.js` (+8, nuevo
+    endpoint), `backend/test/integration/admin.test.js` (+3, columna en
+    SELECT/UPDATE), `control/test/unit/notificarBackend.test.js` (+5),
+    `control/test/unit/tenantEdicion.test.js` (+5, invocación y detalle
+    de auditoría). Suites completas sin regresiones: backend 1128/1128,
+    control 338/338.
+  - **Bugs de prueba encontrados y corregidos durante esta fase** (no en
+    código de producción): `control/test/integration/control.test.js`
+    mockeaba `notificarBackend` sin incluir `aplicarLimiteUsuarios` en el
+    factory → `TypeError: aplicarLimiteUsuarios is not a function` al
+    editar cualquier tenant (2 pruebas rompían con 500); 3 aserciones en
+    `tenantEdicion.test.js` leían el índice equivocado del array de
+    parámetros de `registrarEvento` (`[3]`=actor, no `[2]`=detalle); 2
+    aserciones nuevas en `admin.test.js` asumían que `pool.query.mock.calls[0]`
+    era la consulta de negocio, sin contar la consulta previa de
+    autenticación que encola `mockUsuarioAdministrativo()` (índices
+    correctos: `[1]` para el SELECT de la lista, `[2]` para el UPDATE de
+    `/estado`, tras el SELECT de verificación en `[1]`).
+  - **Validado contra Docker/MySQL real**: rebuild + `--force-recreate`
+    de `backend`/`control`/`frontend`. La columna `suspendido_motivo` NO
+    se aplica sola a bases `tenant_*` ya aprovisionadas en restarts
+    normales — a diferencia del pool base (`ensureSchema()` sin
+    argumento, que sí corre en cada arranque, ver gotcha en `CLAUDE.md`),
+    `ensureSchema(poolTenant)` solo se invoca desde
+    `/internal/activar-tenant/:slug` (aprovisionamiento). Se confirmó
+    reinvocando ese endpoint real contra `t1` (idempotente: `CREATE
+    DATABASE IF NOT EXISTS` + `ensureSchema` seguro de re-correr) — la
+    columna apareció. **Nota para producción**: cualquier tenant real ya
+    activo necesita este mismo paso (reinvocar `/internal/activar-tenant/<slug>`,
+    o un script de migración masiva) antes de que la regla 9 pueda
+    suspender usuarios en esa empresa — documentado aquí para no
+    asumir que un `docker compose up` normal ya lo cubre. Con 4 usuarios
+    de prueba insertados directo en `tenant_t1` (admin + fiscal viejo +
+    ventas medio + inventario nuevo, `creado_en` escalonado) y
+    `maxUsuarios=2`: suspendió correctamente los 2 no-admin más
+    recientes (`inv-qa-nuevo`, `ventas-qa-medio`), dejó admin y el fiscal
+    más viejo activos, marcó `suspendido_motivo='limite_usuarios_plan'`
+    en ambos. Reinvocar en el límite ya cumplido devolvió
+    `suspendidos: []` (idempotente). Usuarios de prueba eliminados al
+    terminar (no quedó dato de prueba en `tenant_t1`).
+- **Fase 7 (2026-10-01) — regla 8 extendida: banner de impacto también en
+  "Editar empresa", no solo en "Editar plan" — IMPLEMENTADA, pendiente de
+  confirmación visual del usuario**: auditoría de la Fase 6 encontró que
+  el banner de regla 8 (punto 350) solo cubría el wizard de planes
+  (`renderPlanWizardBanner`, Fase 4) — la pestaña "Plan y funciones" del
+  modal "Editar empresa" dejaba bajar `max_usuarios` sin ningún aviso
+  previo de cuántos usuarios se suspenderían (la suspensión de la Fase 6
+  ya ocurría al guardar, pero el operador no lo veía venir antes).
+  - `backend/server.js`: nuevo endpoint interno de solo lectura `GET
+    /internal/uso-usuarios/:slug` (mismo `secretoInternoValido`, mismo
+    conteo que `/internal/aplicar-limite-usuarios` pero sin tocar ninguna
+    fila) — cuenta usuarios activos de perfil
+    `administrador/fiscal/ventas/inventario`, responde `{ ok:true, total }`
+    o 502 si la BD del tenant falla.
+  - `control/utils/notificarBackend.js`: `obtenerUsoUsuarios(slug)` —
+    a diferencia de `aplicarLimiteUsuarios` (se llama DESPUÉS de guardar),
+    este se llama ANTES, para decisión informada; no-bloqueante, devuelve
+    `null` si el backend no respondió (el formulario sigue funcionando,
+    solo no se puede mostrar el número exacto).
+  - `control/server.js`: `GET /api/control/tenants/:slug/uso-usuarios`
+    (mismo patrón de middlewares que `recalcular-disco`:
+    `adminApiLimiter` → `requireAdminAuth` → `requireAdminArea()`), 502 si
+    `obtenerUsoUsuarios` devuelve `null` (nunca asume 0 usuarios a
+    ciegas).
+  - `frontend/control.html`/`control.js`: banner fijo
+    `#control-editar-impacto-banner` al inicio de la pestaña "Plan y
+    funciones" del modal "Editar empresa" (mismo estilo visual que
+    `planes-wizard-banner`, reutilizado tal cual — ninguna propuesta
+    visual nueva, es el mismo componente ya aprobado en otro lugar). Se
+    carga el uso real al abrir el modal (`cargarUsoUsuariosEdicion`) y se
+    recalcula en vivo (`renderImpactoBannerEdicion`) cada vez que el
+    operador escribe un `max_usuarios` nuevo o cambia el plan asignado —
+    visible ANTES de guardar, igual criterio que el banner de "Editar
+    plan". Oculto si no hay dato confiable (`uso-usuarios` falló) o si el
+    límite nuevo no implica suspensión.
+  - **Pruebas**: `backend/test/integration/internal.test.js` (+4),
+    `control/test/integration/control.test.js` (+3),
+    `control/test/unit/notificarBackend.test.js` (+4). Suites completas
+    sin regresiones: backend 1132/1132, control 345/345.
+  - **Validado con clics reales en navegador (2026-10-01)**: Docker
+    reconstruido (`backend`/`control`/`frontend` recreados con el código
+    de esta fase) y probado contra el tenant real `t1` vía Chrome
+    DevTools MCP. Con 0 usuarios cuotables en `t1`, el campo vacío y
+    `max_usuarios=1` no disparan el banner (0/1 dentro del límite, sin
+    riesgo). Se crearon 2 usuarios `ventas` de prueba
+    (`QA-BANNER-TEST-1/2`) vía `POST /api/admin/usuarios`, se reabrió el
+    modal (recarga `uso-usuarios` al abrir) y al escribir `max_usuarios=1`
+    el banner apareció de inmediato, sin guardar, con el texto correcto:
+    *"Esta empresa tiene 2 usuario(s) activo(s) y el límite nuevo es 1 —
+    al guardar se suspenderán 1 usuario no administrador (los más
+    recientes primero)."* Al subir el valor a 5 (≥2), el banner se ocultó
+    en vivo sin recargar el modal — confirma el recálculo reactivo de
+    `renderImpactoBannerEdicion`. Los 2 usuarios de prueba se eliminaron
+    al terminar (`DELETE /api/admin/usuarios/:id`), `t1` quedó en 0
+    usuarios como antes de la prueba. Sin errores de consola. Paso 8 del
+    protocolo `addv-web-app` cerrado para esta fase.
+- **Siguiente paso**: con la Fase 7 cerrada y validada visualmente, las 12
+  reglas del punto 350 quedan todas implementadas y confirmadas. Lo que
+  sigue es la deuda retroactiva del punto 348:
+  auditar y mapear en Control los módulos existentes que aún no están
+  (Ventas, Gastos, Inventarios, Auditoría, Proveedores, Reportes y sus 4
+  sub-pestañas, Cuentas por cobrar, Resumen financiero) usando este mismo
+  catálogo de 12 reglas ya construido.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

@@ -25,6 +25,7 @@ const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake')
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant, MAX_MARCA_LOGO_MB } = require('./utils/tenantMarca');
 const { actualizarTemaTenant, ErrorTemaTenant } = require('./utils/tenantTema');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('./utils/tenantEdicion');
+const { obtenerUsoUsuarios } = require('./utils/notificarBackend');
 const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
 const {
@@ -326,6 +327,25 @@ app.post(
       }
       throw err;
     }
+  })
+);
+
+// Punto 350/351 (Regla 8 extendida): uso real de usuarios cuotables del
+// tenant — solo lectura, para que el banner de "Editar empresa" avise del
+// impacto ANTES de guardar un max_usuarios/plan nuevo, nunca solo después.
+// 502 si el backend no respondió (nunca se asume 0 usuarios a ciegas,
+// mismo criterio que recalcularUsoDisco).
+app.get(
+  '/api/control/tenants/:slug/uso-usuarios',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const total = await obtenerUsoUsuarios(req.params.slug);
+    if (total == null) {
+      return res.status(502).json({ error: 'No se pudo consultar el uso de usuarios del tenant.' });
+    }
+    res.json({ ok: true, total });
   })
 );
 

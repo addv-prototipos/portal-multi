@@ -6835,6 +6835,113 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   color: var(--color-ink-soft); border: 1px solid var(--color-border);
 }
 
+/* ---------- Punto 349-350-351: asistente de 4 pasos del modal de Planes
+   ---------- (ver stitch/gobierno-funcionalidades/NOTAS.md — 12 reglas de
+   dependencia). Reemplaza el formulario de un solo paso; reutiliza
+   .control-modal-ancha/.control-form-grid/.control-switch ya existentes,
+   solo agrega lo propio del asistente (stepper, tarjetas de módulo, filas
+   dependientes, chips de categoría, grupo de checkboxes de Reportes). */
+.planes-wizard-steps {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.planes-wizard-step {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--color-ink-soft); white-space: nowrap;
+}
+.planes-wizard-step-circ {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--color-bg);
+  border: 1px solid var(--color-border); color: var(--color-ink-soft);
+  display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; flex-shrink: 0;
+}
+.planes-wizard-step.is-active { color: var(--color-ink); font-weight: 700; }
+.planes-wizard-step.is-active .planes-wizard-step-circ { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.planes-wizard-step.is-done .planes-wizard-step-circ { background: var(--color-accent-soft); border-color: var(--color-accent-soft); color: var(--color-accent-dark); }
+.planes-wizard-line { flex: 1; height: 1px; background: var(--color-border); min-width: 16px; }
+
+.planes-wizard-panel { display: none; }
+.planes-wizard-panel.is-active { display: block; }
+.planes-wizard-panel h3 { font-size: 15px; margin: 0 0 4px; }
+.planes-wizard-panel .field-hint.planes-wizard-sub { margin: 0 0 16px; }
+
+.planes-wizard-banner {
+  display: flex; align-items: flex-start; gap: 10px; background: var(--color-warn-soft); color: var(--color-warn);
+  border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 18px; font-size: 13px; font-weight: 600;
+}
+.planes-wizard-banner svg { flex-shrink: 0; margin-top: 1px; }
+
+.planes-wizard-modulos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) { .planes-wizard-modulos { grid-template-columns: 1fr; } }
+.planes-wizard-modulo-card {
+  display: flex; align-items: flex-start; gap: 11px; padding: 13px 14px; border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-border); background: var(--color-surface); cursor: pointer; text-align: left; width: 100%;
+}
+.planes-wizard-modulo-card:hover { border-color: var(--color-accent); }
+.planes-wizard-modulo-card.is-selected { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.planes-wizard-modulo-card svg { flex-shrink: 0; color: var(--color-accent); margin-top: 2px; }
+.planes-wizard-modulo-titulo { font-size: 13.5px; font-weight: 600; }
+.planes-wizard-modulo-desc { font-size: 12px; color: var(--color-ink-soft); margin-top: 2px; }
+.planes-wizard-modulo-check {
+  margin-left: auto; flex-shrink: 0; width: 18px; height: 18px; border-radius: 5px;
+  border: 1.5px solid var(--color-border); display: flex; align-items: center; justify-content: center; color: #fff;
+}
+.planes-wizard-modulo-card.is-selected .planes-wizard-modulo-check { background: var(--color-accent); border-color: var(--color-accent); }
+
+/* Chips de categoría — de qué módulo cuelga cada funcionalidad dependiente,
+   color fijo por módulo en todo el asistente (ver stitch/NOTAS.md). */
+.planes-wizard-chips { display: inline-flex; gap: 5px; flex-wrap: wrap; margin-left: 8px; vertical-align: middle; }
+.planes-wizard-chip-dep {
+  font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+}
+.planes-wizard-chip-dep::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.planes-wizard-chip-dep.m-facturacion { background: #EEF1F4; color: #475569; }
+.planes-wizard-chip-dep.m-ventas { background: #E0F7FB; color: #0E6B7A; }
+.planes-wizard-chip-dep.m-gastos { background: #FDF0DC; color: #92400E; }
+.planes-wizard-chip-dep.m-inventarios { background: #EFE7FB; color: #5B21B6; }
+.planes-wizard-leyenda {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 18px; padding: 10px 14px;
+  background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm, 6px); font-size: 11.5px; color: var(--color-ink-soft);
+}
+.planes-wizard-leyenda strong { font-weight: 700; color: var(--color-ink); }
+
+.planes-wizard-dep-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 2px; border-top: 1px solid var(--color-border);
+}
+.planes-wizard-dep-row:first-of-type { border-top: none; padding-top: 0; }
+.planes-wizard-dep-row.is-disabled .planes-wizard-dep-label { color: var(--color-ink-soft); }
+.planes-wizard-dep-label { font-size: 13.5px; font-weight: 600; }
+.planes-wizard-dep-desc { font-size: 12px; color: var(--color-ink-soft); margin-top: 2px; max-width: 48ch; }
+.planes-wizard-dep-desc.is-auto { color: var(--color-accent-dark); }
+.planes-wizard-dep-desc.is-requiere { color: var(--color-warn); font-weight: 600; }
+.planes-wizard-dep-pill {
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border);
+}
+
+.planes-wizard-reportes { margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--color-border); }
+.planes-wizard-reportes-titulo { font-size: 13.5px; font-weight: 700; margin-bottom: 2px; }
+.planes-wizard-reportes-nota { font-size: 12px; font-weight: 400; color: var(--color-ink-soft); margin-bottom: 10px; }
+.planes-wizard-chk-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 6px; border-radius: var(--radius-sm, 6px); cursor: pointer; }
+.planes-wizard-chk-row:hover { background: var(--color-bg); }
+.planes-wizard-chk-row.is-disabled { cursor: not-allowed; }
+.planes-wizard-chk-row.is-disabled:hover { background: transparent; }
+.planes-wizard-chk-row input[type="checkbox"] { width: 19px; height: 19px; flex-shrink: 0; margin-top: 1px; accent-color: var(--color-accent); cursor: inherit; }
+.planes-wizard-chk-row input[type="checkbox"]:disabled { cursor: not-allowed; opacity: 0.45; }
+.planes-wizard-chk-texto { display: flex; flex-direction: column; gap: 2px; }
+.planes-wizard-chk-linea { display: flex; align-items: center; flex-wrap: wrap; }
+.planes-wizard-chk-label { font-size: 13px; font-weight: 500; }
+.planes-wizard-chk-row.is-disabled .planes-wizard-chk-label { color: var(--color-ink-soft); }
+.planes-wizard-chk-requiere { font-size: 11.5px; font-weight: 600; color: var(--color-warn); }
+
+.planes-wizard-resumen-tabla td, .planes-wizard-resumen-tabla th { padding: 8px 6px; }
+.planes-wizard-resumen-tabla tr.nivel2 td.nombre { padding-left: 22px; color: var(--color-ink-soft); font-size: 12.5px; }
+
+.planes-wizard-btn-row { justify-content: space-between; }
+.planes-wizard-btn-row .btn { flex: 0 0 auto; }
+.planes-wizard-btn-row-derecha { display: flex; gap: 10px; }
+@media (max-width: 480px) {
+  .planes-wizard-btn-row { flex-wrap: wrap; }
+  .planes-wizard-btn-row-derecha { flex: 1 1 100%; }
+  .planes-wizard-btn-row-derecha .btn { flex: 1; }
+}
+
 /* ---------- Sección "Identidad visual" del modal de edición ---------- */
 
 .tema-preview {

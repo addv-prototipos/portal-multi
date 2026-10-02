@@ -77,6 +77,36 @@ const COLUMNAS_NUEVAS = [
   { nombre: 'disco_cuota_mb', definicion: 'INT NULL' },
   { nombre: 'disco_bytes_usados_cache', definicion: 'BIGINT NULL' },
   { nombre: 'disco_cache_actualizado_en', definicion: 'DATETIME NULL' },
+  // Ampliación del gobierno de funcionalidades (punto 349-350, ver
+  // stitch/gobierno-funcionalidades/NOTAS.md — 12 reglas de dependencia):
+  // Ventas, Gastos, Inventarios, Auditoría (de /admin, por tenant — no
+  // confundir con la auditoría cross-tenant de /control, que no tiene
+  // toggle y nunca se apaga), Cuentas por cobrar, Resumen financiero y
+  // las 4 pestañas de Reportes. DEFAULT 1 en las 10 — mismo criterio que
+  // facturacion_habilitada/portal_clientes_habilitado/
+  // marca_lookfeel_habilitado arriba: son funcionalidades que todo tenant
+  // existente YA usa hoy sin restricción, el flag nace encendido para que
+  // agregar la columna no le apague nada a nadie el día de la migración.
+  { nombre: 'ventas_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  { nombre: 'gastos_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  { nombre: 'inventarios_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  { nombre: 'auditoria_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // Cuentas por cobrar depende de Ventas (regla de dependencia, no de
+  // esquema) — columna propia de todos modos porque es "opcional, no se
+  // activa sola aunque Ventas esté encendido" (decisión del usuario).
+  { nombre: 'cxc_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // Se auto-activa en /control cuando Ventas o Gastos se enciende por
+  // primera vez (regla 2) — la columna en sí es un simple TINYINT, la
+  // regla de auto-activación/bloqueo vive en control/utils/planes.js.
+  { nombre: 'resumen_financiero_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // Las 4 pestañas reales de "Reportes" (frontend/admin.js,
+  // PESTANAS_REPORTES) — independientes entre sí y de
+  // resumen_financiero_habilitado (regla confirmada explícitamente por el
+  // usuario, 2026-10-01).
+  { nombre: 'reportes_por_reporte_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  { nombre: 'reportes_cortes_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  { nombre: 'reportes_eliminados_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  { nombre: 'reportes_estado_inventario_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {
@@ -217,6 +247,27 @@ async function asegurarTablasSucursales(db) {
 // archiva con `activo = 0` (deja de ofrecerse para asignar a empresas
 // nuevas, pero los tenants que ya lo tienen siguen funcionando igual).
 // Mismo criterio soft-delete que el resto de este archivo.
+// Columnas del catálogo de planes para los 10 flags nuevos (punto
+// 349-350, ver stitch/gobierno-funcionalidades/NOTAS.md). DEFAULT 0 aquí
+// (a diferencia de DEFAULT 1 en `tenants`) — mismo criterio que
+// facturacion_habilitada/sucursales_habilitado/marca_lookfeel_habilitado
+// ya existentes en esta tabla: un plan NUEVO que se crea desde /control
+// no incluye nada por default, el operador lo elige a propósito. Las
+// columnas de `tenants` son distintas a propósito (DEFAULT 1, para no
+// romper tenants ya en producción) — un plan nuevo no tiene ese problema.
+const COLUMNAS_PLANES_NUEVAS = [
+  { nombre: 'ventas_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'gastos_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'inventarios_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'auditoria_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'cxc_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'resumen_financiero_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'reportes_por_reporte_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'reportes_cortes_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'reportes_eliminados_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'reportes_estado_inventario_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+];
+
 async function asegurarTablaPlanes(db) {
   await db.query(`
     CREATE TABLE IF NOT EXISTS planes (
@@ -238,6 +289,20 @@ async function asegurarTablaPlanes(db) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // Migración: instalaciones que ya crearon `planes` antes del punto
+  // 349-350 no tienen estas 10 columnas — mismo patrón de migración que
+  // api_credenciales/api_key_hash más abajo en este archivo.
+  const [columnasPlanes] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'planes'`
+  );
+  const nombresPlanes = columnasPlanes.map((c) => c.COLUMN_NAME);
+  for (const { nombre, definicion } of COLUMNAS_PLANES_NUEVAS) {
+    if (!nombresPlanes.includes(nombre)) {
+      await db.query(`ALTER TABLE planes ADD COLUMN ${nombre} ${definicion}`);
+    }
+  }
+
   // Semilla de arranque — solo si el catálogo está vacío (primera
   // instalación de este segmento). Nunca se reinserta ni se corrige
   // después: una vez que existe un solo plan, el operador es dueño del
@@ -249,13 +314,18 @@ async function asegurarTablaPlanes(db) {
       `INSERT INTO planes
          (nombre, descripcion, precio_mensual, precio_anual, max_usuarios,
           sucursales_habilitado, facturacion_habilitada, portal_clientes_habilitado,
-          marca_lookfeel_habilitado, disco_cuota_mb, activo, orden, creado_en, actualizado_en)
+          marca_lookfeel_habilitado, disco_cuota_mb,
+          ventas_habilitado, gastos_habilitado, inventarios_habilitado,
+          auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado,
+          reportes_por_reporte_habilitado, reportes_cortes_habilitado,
+          reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
+          activo, orden, creado_en, actualizado_en)
        VALUES ?`,
       [
         [
-          ['Básico', 'Plan de entrada — sin sucursales ni Facturación.', 490, 4900, 5, 0, 0, 1, 0, 500, 1, 1, ahora, ahora],
-          ['Pro', 'Incluye sucursales y Facturación.', 1490, 14900, 15, 1, 1, 1, 0, 2048, 1, 2, ahora, ahora],
-          ['Enterprise', 'Sin límite de usuarios, marca propia incluida.', null, null, null, 1, 1, 1, 1, 10240, 1, 3, ahora, ahora],
+          ['Básico', 'Plan de entrada — sin sucursales ni Facturación.', 490, 4900, 5, 0, 0, 1, 0, 500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, ahora, ahora],
+          ['Pro', 'Incluye sucursales, Facturación, Ventas y Gastos.', 1490, 14900, 15, 1, 1, 1, 0, 2048, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 2, ahora, ahora],
+          ['Enterprise', 'Sin límite de usuarios, marca propia y todos los módulos incluidos.', null, null, null, 1, 1, 1, 1, 10240, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, ahora, ahora],
         ],
       ]
     );

@@ -480,6 +480,18 @@ async function ensureSchema(db = pool) {
   if (!nombresColumnasUsuarios.includes('activo')) {
     await db.query('ALTER TABLE usuarios ADD COLUMN activo TINYINT(1) NOT NULL DEFAULT 1');
   }
+  // Punto 349-350-351 (regla 9, ver stitch/gobierno-funcionalidades/
+  // NOTAS.md): si al bajar el máximo de usuarios de un plan (desde
+  // /control) una empresa queda con más cuentas de panel activas que su
+  // nuevo límite, se suspenden automáticamente las más recientes
+  // (nunca administradores) — ver POST /internal/aplicar-limite-usuarios.
+  // NULL = suspensión manual o cuenta activa (comportamiento de
+  // siempre); 'limite_usuarios_plan' = la suspendió este mecanismo, no
+  // un administrador — se distingue en la UI para que no se lea como un
+  // bug ("¿por qué esta cuenta ya no puede entrar?").
+  if (!nombresColumnasUsuarios.includes('suspendido_motivo')) {
+    await db.query("ALTER TABLE usuarios ADD COLUMN suspendido_motivo VARCHAR(50) NULL");
+  }
   // El campo "rfc" se usa como nombre de usuario también para perfiles
   // administrador/fiscal, que no necesariamente tienen un RFC real — se
   // ensancha por si la instalación existente todavía tiene la columna en

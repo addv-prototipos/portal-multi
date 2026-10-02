@@ -58,6 +58,41 @@ describe('utils/requiereFeature.js', () => {
     expect(res.end).toHaveBeenCalledTimes(1);
   });
 
+  // Punto 349-350: GET /api/admin/periodos-archivados sirve tanto a
+  // Ventas como a Gastos — debe responder mientras CUALQUIERA de los dos
+  // siga activo (OR), no solo cuando ambos lo están.
+  test('con un arreglo de campos (OR): pasa si AL MENOS uno está en true', () => {
+    const req = { tenant: { ventasHabilitado: true, gastosHabilitado: false } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    requiereFeature(['ventasHabilitado', 'gastosHabilitado'])(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  test('con un arreglo de campos (OR): responde 404 solo si TODOS están en false', () => {
+    const req = { tenant: { ventasHabilitado: false, gastosHabilitado: false } };
+    const res = mockRes();
+    const next = jest.fn();
+
+    requiereFeature(['ventasHabilitado', 'gastosHabilitado'])(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  test('con un arreglo de campos (OR): un campo ausente (undefined) cuenta como "no desactivado explícitamente"', () => {
+    const req = { tenant: { ventasHabilitado: false } }; // gastosHabilitado ni siquiera existe en el objeto
+    const res = mockRes();
+    const next = jest.fn();
+
+    requiereFeature(['ventasHabilitado', 'gastosHabilitado'])(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
   test('cada feature se candadea de forma independiente (campo distinto, mismo tenant)', () => {
     const req = { tenant: { facturacionHabilitada: false, portalClientesHabilitado: true } };
     const resFactura = mockRes();

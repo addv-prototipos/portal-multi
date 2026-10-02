@@ -153,6 +153,16 @@ describe('utils/tenantContext.js', () => {
         sucursalesHabilitado: false,
         discoCuotaMb: null,
         discoBytesUsadosCache: null,
+        ventasHabilitado: true,
+        gastosHabilitado: true,
+        inventariosHabilitado: true,
+        auditoriaHabilitado: true,
+        cxcHabilitado: true,
+        resumenFinancieroHabilitado: true,
+        reportesPorReporteHabilitado: true,
+        reportesCortesHabilitado: true,
+        reportesEliminadosHabilitado: true,
+        reportesEstadoInventarioHabilitado: true,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })
@@ -174,6 +184,46 @@ describe('utils/tenantContext.js', () => {
 
       expect(req.tenant.facturacionHabilitada).toBe(false);
       expect(req.tenant.portalClientesHabilitado).toBe(false);
+    });
+
+    // Punto 349-350: ampliación del gobierno de funcionalidades (ver
+    // stitch/gobierno-funcionalidades/NOTAS.md). Mismo criterio que la
+    // prueba de arriba — default en BD es 1, un tenant con la columna en
+    // 0 debe exponerse como false, sin excepción para ninguno de los 10.
+    test('las 10 columnas nuevas de gobierno de funcionalidades en 0 se exponen como false', async () => {
+      mockPoolControl([
+        {
+          ...FILA_TENANT_ACTIVO,
+          ventas_habilitado: 0,
+          gastos_habilitado: 0,
+          inventarios_habilitado: 0,
+          auditoria_habilitado: 0,
+          cxc_habilitado: 0,
+          resumen_financiero_habilitado: 0,
+          reportes_por_reporte_habilitado: 0,
+          reportes_cortes_habilitado: 0,
+          reportes_eliminados_habilitado: 0,
+          reportes_estado_inventario_habilitado: 0,
+        },
+      ]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.ventasHabilitado).toBe(false);
+      expect(req.tenant.gastosHabilitado).toBe(false);
+      expect(req.tenant.inventariosHabilitado).toBe(false);
+      expect(req.tenant.auditoriaHabilitado).toBe(false);
+      expect(req.tenant.cxcHabilitado).toBe(false);
+      expect(req.tenant.resumenFinancieroHabilitado).toBe(false);
+      expect(req.tenant.reportesPorReporteHabilitado).toBe(false);
+      expect(req.tenant.reportesCortesHabilitado).toBe(false);
+      expect(req.tenant.reportesEliminadosHabilitado).toBe(false);
+      expect(req.tenant.reportesEstadoInventarioHabilitado).toBe(false);
     });
 
     test('sucursales_habilitado=1 se expone como true', async () => {

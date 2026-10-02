@@ -1,0 +1,456 @@
+<title>Gobierno de funcionalidades — mapa completo y 3 propuestas</title>
+<style>
+:root{
+  --color-bg:#F6F4EF; --color-surface:#FFFFFF; --color-surface-2:#FBFAF6; --color-border:#E3DFD4;
+  --color-ink:#21261F; --color-ink-soft:#5B6158; --color-ink-faint:#8B9088;
+  --color-accent:#0F6E5D; --color-accent-dark:#0B5548; --color-accent-soft:#E4EFEC;
+  --color-warn:#B4530C; --color-warn-soft:#FBEBDC;
+  --color-error:#B3261E; --color-error-soft:#FBEAE9;
+  --color-neutral:#5B6158; --color-neutral-soft:#ECEAE2;
+  --radius-sm:6px; --radius-md:10px; --radius-lg:16px;
+  --shadow-card:0 1px 2px rgba(33,38,31,.04), 0 8px 24px rgba(33,38,31,.06);
+  --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0; background:var(--color-bg); color:var(--color-ink); font-family:var(--font-body); font-size:16px; line-height:1.55; -webkit-font-smoothing:antialiased;}
+.wrap{max-width:1180px; margin:0 auto; padding:56px 28px 120px;}
+
+/* ---------- cabecera ---------- */
+.hero{margin-bottom:48px;}
+.eyebrow{display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--color-accent-dark); background:var(--color-accent-soft); border-radius:999px; padding:6px 14px 6px 10px; margin-bottom:18px;}
+.eyebrow svg{flex:none;}
+h1{font-size:clamp(28px,3.4vw,38px); line-height:1.15; margin:0 0 14px; max-width:20ch; text-wrap:balance; letter-spacing:-.01em;}
+.hero p{margin:0; max-width:62ch; color:var(--color-ink-soft); font-size:16.5px;}
+
+/* ---------- secciones ---------- */
+section.block{margin-bottom:52px;}
+.block-head{display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:20px; flex-wrap:wrap;}
+.block-head h2{font-size:21px; margin:0; letter-spacing:-.005em;}
+.block-head .tag{font-size:13px; color:var(--color-ink-faint);}
+
+/* ---------- leyenda de banderas ---------- */
+.leyenda{display:flex; flex-wrap:wrap; gap:10px 18px; margin-bottom:24px; padding:14px 18px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:var(--radius-md);}
+.leyenda-item{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--color-ink-soft);}
+.chip{font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; letter-spacing:.01em; white-space:nowrap;}
+.chip-nucleo{background:var(--color-neutral-soft); color:var(--color-neutral);}
+.chip-existente{background:var(--color-accent-soft); color:var(--color-accent-dark);}
+.chip-nuevo{background:var(--color-warn-soft); color:var(--color-warn);}
+
+/* ---------- mapa (árbol) ---------- */
+.mapa{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+@media (max-width:860px){ .mapa{grid-template-columns:1fr;} }
+.grupo{background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:18px 20px 20px; box-shadow:var(--shadow-card);}
+.grupo h3{display:flex; align-items:center; gap:9px; font-size:14.5px; margin:0 0 12px; text-transform:uppercase; letter-spacing:.05em; color:var(--color-ink-faint);}
+.grupo h3 svg{flex:none; color:var(--color-accent);}
+.item-row{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:9px 0; border-top:1px solid var(--color-border);}
+.grupo .item-row:first-of-type{border-top:none; padding-top:2px;}
+.item-row.sub{padding-left:20px; position:relative;}
+.item-row.sub::before{content:""; position:absolute; left:6px; top:0; bottom:0; width:1px; background:var(--color-border);}
+.item-row.sub::after{content:""; position:absolute; left:6px; top:17px; width:10px; height:1px; background:var(--color-border);}
+.item-name{font-size:14.5px; font-weight:500;}
+.item-dep{display:block; font-size:12px; color:var(--color-ink-faint); margin-top:2px; font-weight:400;}
+
+/* ---------- preguntas abiertas ---------- */
+.preguntas{display:grid; gap:14px;}
+.pregunta{display:flex; gap:14px; background:var(--color-surface); border:1px solid var(--color-border); border-left:3px solid var(--color-warn); border-radius:var(--radius-md); padding:16px 18px; box-shadow:var(--shadow-card);}
+.pregunta svg{flex:none; color:var(--color-warn); margin-top:2px;}
+.pregunta strong{display:block; font-size:14.5px; margin-bottom:4px;}
+.pregunta span{font-size:14px; color:var(--color-ink-soft);}
+
+/* ---------- tabs de propuestas ---------- */
+.tabs{display:flex; gap:8px; border-bottom:1px solid var(--color-border); margin-bottom:28px; overflow-x:auto;}
+.tabs input{position:absolute; opacity:0; pointer-events:none;}
+.tabs label{display:flex; align-items:center; gap:8px; padding:12px 18px; font-size:14.5px; font-weight:600; color:var(--color-ink-faint); border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; transition:color .15s ease, border-color .15s ease;}
+.tabs label .n{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:var(--color-neutral-soft); color:var(--color-ink-soft); font-size:11.5px;}
+#t1:checked ~ .tabs label[for="t1"], #t2:checked ~ .tabs label[for="t2"], #t3:checked ~ .tabs label[for="t3"]{color:var(--color-accent-dark); border-color:var(--color-accent);}
+#t1:checked ~ .tabs label[for="t1"] .n, #t2:checked ~ .tabs label[for="t2"] .n, #t3:checked ~ .tabs label[for="t3"] .n{background:var(--color-accent); color:#fff;}
+.panel{display:none;}
+#t1:checked ~ .panels #p1, #t2:checked ~ .panels #p2, #t3:checked ~ .panels #p3{display:block;}
+
+.propuesta-head{display:grid; grid-template-columns:1.3fr 1fr; gap:28px; margin-bottom:28px;}
+@media (max-width:860px){ .propuesta-head{grid-template-columns:1fr;} }
+.propuesta-head h3{font-size:20px; margin:0 0 8px;}
+.propuesta-head .lead{color:var(--color-ink-soft); font-size:15px; margin:0 0 16px;}
+.prolist{list-style:none; margin:0; padding:0; display:grid; gap:8px;}
+.prolist li{display:flex; gap:8px; font-size:13.5px; color:var(--color-ink-soft);}
+.prolist li svg{flex:none; margin-top:2px; color:var(--color-accent);}
+.contralist li svg{color:var(--color-warn);}
+.card-mini{background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:14px 16px;}
+.card-mini h4{margin:0 0 8px; font-size:12.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--color-ink-faint);}
+.recomendado{display:inline-flex; align-items:center; gap:6px; background:var(--color-accent); color:#fff; font-size:12px; font-weight:600; padding:5px 12px; border-radius:999px; margin-bottom:12px;}
+
+/* ---------- lienzo del mock (simula el modal real de /control) ---------- */
+.lienzo{background:#DEDAD0; border-radius:var(--radius-lg); padding:36px; display:flex; justify-content:center;}
+.modal-mock{width:100%; max-width:860px; background:var(--color-surface); border-radius:14px; box-shadow:0 20px 60px rgba(33,38,31,.22); overflow:hidden; font-size:14px;}
+.modal-mock-header{display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--color-border);}
+.modal-mock-header h5{margin:0; font-size:16.5px;}
+.modal-mock-close{width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:var(--color-ink-faint); background:transparent;}
+
+/* toggle generico */
+.sw{position:relative; width:36px; height:20px; border-radius:999px; background:var(--color-neutral-soft); flex:none;}
+.sw.on{background:var(--color-accent);}
+.sw::after{content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:left .15s ease;}
+.sw.on::after{left:18px;}
+.sw.off-locked{background:var(--color-neutral-soft); opacity:.45;}
+
+/* --- Propuesta A: sidebar acordeón --- */
+.pa-body{display:grid; grid-template-columns:200px 1fr; min-height:460px;}
+.pa-nav{background:var(--color-surface-2); border-right:1px solid var(--color-border); padding:14px 10px;}
+.pa-nav-group{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--color-ink-faint); padding:12px 10px 6px;}
+.pa-nav-item{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 10px; border-radius:7px; font-size:13px; color:var(--color-ink-soft); cursor:pointer;}
+.pa-nav-item.active{background:var(--color-accent-soft); color:var(--color-accent-dark); font-weight:600;}
+.pa-nav-item .dot{width:6px; height:6px; border-radius:50%; background:var(--color-accent); flex:none;}
+.pa-nav-item .dot.off{background:var(--color-ink-faint); opacity:.35;}
+.pa-main{padding:22px 24px; overflow:auto;}
+.pa-main h6{margin:0 0 4px; font-size:16px;}
+.pa-main .sub{margin:0 0 18px; color:var(--color-ink-faint); font-size:13px;}
+.pa-row{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:13px 0; border-top:1px solid var(--color-border);}
+.pa-row:first-of-type{border-top:none;}
+.pa-row.child{padding-left:26px; position:relative;}
+.pa-row.child::before{content:""; position:absolute; left:8px; top:0; bottom:0; width:1px; background:var(--color-border);}
+.pa-row-label{font-size:13.5px; font-weight:500;}
+.pa-row-desc{font-size:12px; color:var(--color-ink-faint); margin-top:2px;}
+.pa-row-desc.locked{color:var(--color-warn);}
+
+/* --- Propuesta B: matriz --- */
+.pb-wrap{padding:20px 22px;}
+.pb-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+.pb-toolbar input{font-size:13px; border:1px solid var(--color-border); border-radius:7px; padding:7px 11px; width:200px; color:var(--color-ink-soft);}
+.pb-table{width:100%; border-collapse:collapse; font-size:13px;}
+.pb-table th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--color-ink-faint); padding:8px 10px; border-bottom:1px solid var(--color-border);}
+.pb-table td{padding:9px 10px; border-bottom:1px solid var(--color-border); vertical-align:middle;}
+.pb-table tr.nivel2 td.nombre{padding-left:30px; position:relative; color:var(--color-ink-soft); font-size:12.5px;}
+.pb-table tr.nivel2 td.nombre::before{content:"↳"; position:absolute; left:12px; color:var(--color-ink-faint);}
+.pb-table tr.grupo-row td{background:var(--color-surface-2); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--color-ink-faint); padding:7px 10px;}
+.estado-pill{font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; display:inline-block;}
+.estado-incluido{background:var(--color-accent-soft); color:var(--color-accent-dark);}
+.estado-auto{background:#EAF0F6; color:#2E5A82;}
+.estado-oculto{background:var(--color-neutral-soft); color:var(--color-ink-faint);}
+
+/* --- Propuesta C: wizard --- */
+.pc-steps{display:flex; align-items:center; padding:16px 22px 0; gap:6px;}
+.pc-step{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--color-ink-faint);}
+.pc-step .circ{width:22px; height:22px; border-radius:50%; background:var(--color-neutral-soft); color:var(--color-ink-soft); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;}
+.pc-step.active .circ{background:var(--color-accent); color:#fff;}
+.pc-step.active{color:var(--color-ink); font-weight:600;}
+.pc-line{flex:1; height:1px; background:var(--color-border); margin:0 2px;}
+.pc-body{padding:20px 24px 24px;}
+.pc-body h6{margin:0 0 4px; font-size:16px;}
+.pc-body .sub{margin:0 0 18px; color:var(--color-ink-faint); font-size:13px;}
+.pc-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.pc-card{border:1px solid var(--color-border); border-radius:10px; padding:13px 14px; display:flex; align-items:flex-start; gap:10px;}
+.pc-card.selected{border-color:var(--color-accent); background:var(--color-accent-soft);}
+.pc-card svg{flex:none; color:var(--color-accent); margin-top:1px;}
+.pc-card-title{font-size:13.5px; font-weight:600;}
+.pc-card-desc{font-size:12px; color:var(--color-ink-faint); margin-top:2px;}
+.pc-sub-reveal{margin-top:14px; padding:14px; background:var(--color-surface-2); border-radius:10px; border:1px dashed var(--color-border);}
+.pc-sub-reveal p{margin:0 0 10px; font-size:12.5px; color:var(--color-ink-soft);}
+
+/* ---------- cierre ---------- */
+.cierre{background:var(--color-accent-dark); color:#fff; border-radius:var(--radius-lg); padding:30px 32px; display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap;}
+.cierre h3{margin:0 0 6px; font-size:19px;}
+.cierre p{margin:0; color:#C9E2DC; font-size:14px; max-width:50ch;}
+.cierre-badge{background:rgba(255,255,255,.12); border-radius:999px; padding:8px 16px; font-size:13px; font-weight:600; white-space:nowrap;}
+
+@media (max-width:640px){
+  .pa-body{grid-template-columns:1fr;}
+  .pa-nav{display:flex; overflow-x:auto; border-right:none; border-bottom:1px solid var(--color-border);}
+}
+</style>
+
+<div class="wrap">
+
+  <div class="hero">
+    <span class="eyebrow">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+      Punto 347 — Fase 2
+    </span>
+    <h1>Gobierno de funcionalidades: mapa completo del sitio base + 3 propuestas para /control</h1>
+    <p>Se revisó cada menú, submenú y tarjeta de configuración del panel admin (incluido el modal de "Configuraciones") y el portal de clientes. Esto amplía el modelo de 4 banderas ya implementado (Fase 0-1) a todo lo que realmente existe en el sitio, y propone cómo gestionarlo desde el editor de planes de /control sin saturar el formulario actual.</p>
+  </div>
+
+  <!-- ================= MAPA COMPLETO ================= -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Mapa completo descubierto</h2>
+      <span class="tag">frontend/admin.html + admin.js + dashboard.html</span>
+    </div>
+
+    <div class="leyenda">
+      <div class="leyenda-item"><span class="chip chip-nucleo">Núcleo</span> siempre visible, sin bandera</div>
+      <div class="leyenda-item"><span class="chip chip-existente">Existente</span> ya es bandera en planes (Fase 0-1)</div>
+      <div class="leyenda-item"><span class="chip chip-nuevo">Nuevo</span> bandera que falta crear (Fase 2)</div>
+      <div class="leyenda-item">— depende de · módulo del que hereda visibilidad</div>
+    </div>
+
+    <div class="mapa">
+
+      <div class="grupo">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>Facturación</h3>
+        <div class="item-row"><span class="item-name">Tickets<span class="item-dep">vista + subida del portal de clientes</span></span><span class="chip chip-existente">facturacion</span></div>
+        <div class="item-row"><span class="item-name">Constancias (CSF)</span><span class="chip chip-existente">facturacion</span></div>
+        <div class="item-row sub"><span class="item-name">Config · Campos obligatorios<span class="item-dep">tarjeta "Fiscal"</span></span><span class="chip chip-existente">facturacion</span></div>
+        <div class="item-row sub"><span class="item-name">Config · Configuraciones fiscales</span><span class="chip chip-existente">facturacion</span></div>
+        <div class="item-row sub"><span class="item-name">Notif. "tickets sin contador"</span><span class="chip chip-existente">facturacion</span></div>
+      </div>
+
+      <div class="grupo">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round"/></svg>Ventas y gastos</h3>
+        <div class="item-row"><span class="item-name">Ventas</span><span class="chip chip-nuevo">ventas</span></div>
+        <div class="item-row sub"><span class="item-name">Cuentas por cobrar</span><span class="item-dep">— depende de ventas</span></div>
+        <div class="item-row"><span class="item-name">Gastos</span><span class="chip chip-nuevo">gastos</span></div>
+        <div class="item-row sub"><span class="item-name">Config · Módulo Ventas (toggle)<span class="item-dep">solo aparece si el plan incluye "ventas"</span></span><span class="chip chip-nuevo">ventas</span></div>
+      </div>
+
+      <div class="grupo">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round"/></svg>Finanzas</h3>
+        <div class="item-row"><span class="item-name">Resumen financiero</span><span class="item-dep">auto · visible si ventas o gastos</span></div>
+        <div class="item-row"><span class="item-name">Reportes (lectura)</span><span class="item-dep">auto · visible si ventas o gastos</span></div>
+        <div class="item-row sub"><span class="item-name">Config · Notificación de reportes</span><span class="item-dep">auto · mismo criterio</span></div>
+      </div>
+
+      <div class="grupo">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/></svg>Catálogo</h3>
+        <div class="item-row"><span class="item-name">Inventarios</span><span class="chip chip-nuevo">inventarios</span></div>
+        <div class="item-row"><span class="item-name">Proveedores</span><span class="item-dep">visible si inventarios o gastos</span></div>
+        <div class="item-row sub"><span class="item-name">Config · Módulo Inventarios (toggle)</span><span class="chip chip-nuevo">inventarios</span></div>
+        <div class="item-row sub"><span class="item-name">Notif. · Aviso de expiración de productos</span><span class="chip chip-nuevo">inventarios</span></div>
+      </div>
+
+      <div class="grupo">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>Administración</h3>
+        <div class="item-row"><span class="item-name">Usuarios<span class="item-dep">limitado por max_usuarios, no on/off</span></span><span class="chip chip-existente">max_usuarios</span></div>
+        <div class="item-row"><span class="item-name">Auditoría</span><span class="chip chip-nuevo">auditoria</span></div>
+        <div class="item-row sub"><span class="item-name">Config · Módulo Auditoría (toggle)</span><span class="chip chip-nuevo">auditoria</span></div>
+      </div>
+
+      <div class="grupo">
+        <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>Cuenta, portal y marca</h3>
+        <div class="item-row"><span class="item-name">Mi Cuenta / Configuraciones<span class="item-dep">contenedor, siempre visible</span></span><span class="chip chip-nucleo">núcleo</span></div>
+        <div class="item-row"><span class="item-name">Config · SMTP<span class="item-dep">necesario para recuperar contraseña</span></span><span class="chip chip-nucleo">núcleo</span></div>
+        <div class="item-row"><span class="item-name">Portal de clientes completo</span><span class="chip chip-existente">portal_clientes</span></div>
+        <div class="item-row"><span class="item-name">Sucursales (switcher + grupo)</span><span class="chip chip-existente">sucursales</span></div>
+        <div class="item-row"><span class="item-name">Marca propia / Look &amp; Feel</span><span class="chip chip-existente">marca_lookfeel</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= PREGUNTAS ABIERTAS ================= -->
+  <section class="block">
+    <div class="block-head">
+      <h2>Antes de construir — 3 decisiones que te pido confirmar</h2>
+    </div>
+    <div class="preguntas">
+      <div class="pregunta">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div><strong>1. ¿Ventas y Gastos van en una sola bandera o separadas?</strong><span>Hoy comparten grupo de menú, pero solo "Ventas" tiene toggle propio en el panel admin. Las 3 propuestas de abajo asumen banderas separadas (más granular, como pediste) — avísame si prefieres una sola "ventas_y_gastos".</span></div>
+      </div>
+      <div class="pregunta">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div><strong>2. ¿Proveedores depende de Inventarios, de Gastos, o de cualquiera de los dos?</strong><span>La vista se alimenta de ambos (insumos de inventario y proveedores de gasto). Propongo visibilidad "si inventarios O gastos está activo" — confírmalo o ajústalo.</span></div>
+      </div>
+      <div class="pregunta">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div><strong>3. ¿Finanzas (Resumen + Reportes) necesita bandera propia, o se deriva sola?</strong><span>Propongo que NO sea una bandera nueva que el super admin tenga que marcar — se muestra automáticamente en cuanto ventas o gastos está activo, para no duplicar configuración. Si prefieres control manual independiente, se agrega como bandera "finanzas".</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3 PROPUESTAS ================= -->
+  <section class="block">
+    <div class="block-head">
+      <h2>3 propuestas visuales para el editor de planes</h2>
+      <span class="tag">reemplaza el modal "Nuevo plan" de /control</span>
+    </div>
+
+    <input type="radio" name="tabs" id="t1" checked style="position:absolute;opacity:0;">
+    <input type="radio" name="tabs" id="t2" style="position:absolute;opacity:0;">
+    <input type="radio" name="tabs" id="t3" style="position:absolute;opacity:0;">
+
+    <div class="tabs">
+      <label for="t1"><span class="n">A</span> Barra lateral por categorías</label>
+      <label for="t2"><span class="n">B</span> Matriz de funcionalidades</label>
+      <label for="t3"><span class="n">C</span> Asistente por pasos</label>
+    </div>
+
+    <div class="panels">
+
+      <!-- ===== PANEL A ===== -->
+      <div class="panel" id="p1">
+        <div class="propuesta-head">
+          <div>
+            <span class="recomendado"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Recomendada</span>
+            <h3>A · Barra lateral por categorías</h3>
+            <p class="lead">Mismo patrón que el modal "Configuraciones" del panel admin (sidebar con grupos + buscador) — el super admin ya conoce esta interacción porque es la misma que usan los administradores de tenant todos los días. Cada categoría agrupa vista(s) + su configuración relacionada en un solo lugar.</p>
+          </div>
+          <div class="card-mini">
+            <h4>Por qué funciona</h4>
+            <ul class="prolist">
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>Consistencia visual con el patrón que ya existe en admin.html — cero curva de aprendizaje nueva.</li>
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>Escala bien: agregar un módulo futuro es una entrada más en el nav, no reestructurar el modal.</li>
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>Las dependencias ("requiere X") se explican en texto junto al control, sin tabla aparte.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="lienzo">
+          <div class="modal-mock">
+            <div class="modal-mock-header">
+              <h5>Editar plan — Pro</h5>
+              <div class="modal-mock-close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            </div>
+            <div class="pa-body">
+              <div class="pa-nav">
+                <div class="pa-nav-group">General</div>
+                <div class="pa-nav-item active">Información básica</div>
+                <div class="pa-nav-group">Facturación</div>
+                <div class="pa-nav-item"><span class="dot"></span> Tickets y constancias</div>
+                <div class="pa-nav-group">Ventas y finanzas</div>
+                <div class="pa-nav-item"><span class="dot"></span> Ventas y gastos</div>
+                <div class="pa-nav-group">Catálogo</div>
+                <div class="pa-nav-item"><span class="dot off"></span> Inventarios</div>
+                <div class="pa-nav-group">Administración</div>
+                <div class="pa-nav-item"><span class="dot"></span> Auditoría</div>
+                <div class="pa-nav-item"><span class="dot"></span> Portal y marca</div>
+              </div>
+              <div class="pa-main">
+                <h6>Ventas y finanzas</h6>
+                <p class="sub">Controla qué partes del flujo de ventas ve este plan.</p>
+
+                <div class="pa-row">
+                  <div><div class="pa-row-label">Ventas</div><div class="pa-row-desc">Vista "Ventas" + "Cuentas por cobrar"</div></div>
+                  <div class="sw on"></div>
+                </div>
+                <div class="pa-row child">
+                  <div><div class="pa-row-label">Cuentas por cobrar</div><div class="pa-row-desc">Incluido automáticamente con Ventas</div></div>
+                  <div class="sw on" style="opacity:.5;"></div>
+                </div>
+                <div class="pa-row">
+                  <div><div class="pa-row-label">Gastos</div><div class="pa-row-desc">Vista "Gastos" + proveedores de gasto</div></div>
+                  <div class="sw"></div>
+                </div>
+                <div class="pa-row">
+                  <div><div class="pa-row-label">Resumen financiero y reportes</div><div class="pa-row-desc locked">Se activa solo — requiere Ventas o Gastos</div></div>
+                  <div class="sw on" style="opacity:.5;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PANEL B ===== -->
+      <div class="panel" id="p2">
+        <div class="propuesta-head">
+          <div>
+            <h3>B · Matriz de funcionalidades</h3>
+            <p class="lead">Una sola tabla con TODO el árbol — menús y configuraciones como filas, con sangría para submenús. Más densa, pero deja ver el mapa completo de un vistazo y comparar entre planes es trivial (columna extra por plan).</p>
+          </div>
+          <div class="card-mini">
+            <h4>Trade-offs</h4>
+            <ul class="prolist">
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>Mejor para comparar 2+ planes lado a lado a futuro.</li>
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>Todo el árbol visible sin clics — bueno para auditar un plan existente.</li>
+            </ul>
+            <ul class="prolist contralist" style="margin-top:8px;">
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a1 1 0 00.9 1.5h18.2a1 1 0 00.9-1.5L13.7 3.9a1 1 0 00-1.8 0z"/></svg>Se siente "hoja de cálculo" — menos cómoda en móvil/tablet.</li>
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a1 1 0 00.9 1.5h18.2a1 1 0 00.9-1.5L13.7 3.9a1 1 0 00-1.8 0z"/></svg>~22 filas en pantalla de entrada — exige el buscador para no perderse.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="lienzo">
+          <div class="modal-mock" style="max-width:900px;">
+            <div class="modal-mock-header">
+              <h5>Editar plan — Pro</h5>
+              <div class="modal-mock-close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            </div>
+            <div class="pb-wrap">
+              <div class="pb-toolbar">
+                <input type="text" placeholder="Buscar funcionalidad…" disabled>
+                <span style="font-size:12px;color:var(--color-ink-faint);">14 funcionalidades · 3 ocultas</span>
+              </div>
+              <table class="pb-table">
+                <thead><tr><th>Funcionalidad</th><th style="width:130px;">Estado</th></tr></thead>
+                <tbody>
+                  <tr class="grupo-row"><td colspan="2">Facturación</td></tr>
+                  <tr><td class="nombre">Tickets y constancias</td><td><span class="estado-pill estado-incluido">Incluido</span></td></tr>
+                  <tr class="grupo-row"><td colspan="2">Ventas y finanzas</td></tr>
+                  <tr><td class="nombre">Ventas</td><td><span class="estado-pill estado-incluido">Incluido</span></td></tr>
+                  <tr class="nivel2"><td class="nombre">Cuentas por cobrar</td><td><span class="estado-pill estado-auto">Auto</span></td></tr>
+                  <tr><td class="nombre">Gastos</td><td><span class="estado-pill estado-oculto">Oculto</span></td></tr>
+                  <tr><td class="nombre">Resumen financiero y reportes</td><td><span class="estado-pill estado-auto">Auto</span></td></tr>
+                  <tr class="grupo-row"><td colspan="2">Catálogo</td></tr>
+                  <tr><td class="nombre">Inventarios</td><td><span class="estado-pill estado-oculto">Oculto</span></td></tr>
+                  <tr class="nivel2"><td class="nombre">Proveedores</td><td><span class="estado-pill estado-oculto">Oculto</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PANEL C ===== -->
+      <div class="panel" id="p3">
+        <div class="propuesta-head">
+          <div>
+            <h3>C · Asistente por pasos</h3>
+            <p class="lead">Divide la creación del plan en pasos: Datos básicos → Módulos principales → Funcionalidades dependientes (solo aparecen las que corresponden a lo que se activó) → Resumen. Reduce la carga cognitiva porque nunca se ven las ~14 opciones a la vez.</p>
+          </div>
+          <div class="card-mini">
+            <h4>Trade-offs</h4>
+            <ul class="prolist">
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>Ideal si luego se agregan más módulos — el asistente absorbe el crecimiento sin rediseño.</li>
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>La revelación progresiva hace imposible olvidar una dependencia (no se muestra hasta que aplica).</li>
+            </ul>
+            <ul class="prolist contralist" style="margin-top:8px;">
+              <li><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a1 1 0 00.9 1.5h18.2a1 1 0 00.9-1.5L13.7 3.9a1 1 0 00-1.8 0z"/></svg>Editar un plan existente ya hecho implica recorrer pasos aunque solo se quiera tocar un campo — mitigable con "ir directo al resumen y editar inline".</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="lienzo">
+          <div class="modal-mock" style="max-width:760px;">
+            <div class="modal-mock-header">
+              <h5>Nuevo plan</h5>
+              <div class="modal-mock-close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            </div>
+            <div class="pc-steps">
+              <div class="pc-step"><div class="circ"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></div>Datos básicos</div>
+              <div class="pc-line"></div>
+              <div class="pc-step active"><div class="circ">2</div>Módulos</div>
+              <div class="pc-line"></div>
+              <div class="pc-step"><div class="circ">3</div>Dependientes</div>
+              <div class="pc-line"></div>
+              <div class="pc-step"><div class="circ">4</div>Resumen</div>
+            </div>
+            <div class="pc-body">
+              <h6>¿Qué módulos incluye este plan?</h6>
+              <p class="sub">Selecciona los módulos principales — las funcionalidades que dependen de cada uno se configuran en el siguiente paso.</p>
+              <div class="pc-grid">
+                <div class="pc-card selected"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/></svg><div><div class="pc-card-title">Facturación</div><div class="pc-card-desc">Tickets, constancias, CFDI</div></div></div>
+                <div class="pc-card selected"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round"/></svg><div><div class="pc-card-title">Ventas y gastos</div><div class="pc-card-desc">Ventas, CxC, gastos</div></div></div>
+                <div class="pc-card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/></svg><div><div class="pc-card-title">Inventarios</div><div class="pc-card-desc">Catálogo, proveedores, expiración</div></div></div>
+                <div class="pc-card"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg><div><div class="pc-card-title">Auditoría</div><div class="pc-card-desc">Bitácora de cambios</div></div></div>
+              </div>
+              <div class="pc-sub-reveal">
+                <p><strong>Siguiente paso</strong> mostrará solo lo relacionado con Facturación y Ventas — por ejemplo "aviso de expiración" no aparecerá porque Inventarios sigue apagado.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="cierre">
+    <div>
+      <h3>Pendiente tu aprobación</h3>
+      <p>Confirma las 3 preguntas abiertas y elige A, B o C (o una combinación — ej. layout de A con los estados "Auto" de B). Con eso empiezo el antes/después real del modal de /control, la migración de esquema (nuevas columnas en <code>planes</code> y <code>tenants</code>) y los candados <code>requiereFeature</code> por ruta.</p>
+    </div>
+    <div class="cierre-badge">Nada implementado todavía</div>
+  </div>
+
+</div>

@@ -10,10 +10,14 @@ jest.mock('../../db', () => ({
 
 jest.mock('../../utils/notificarBackend', () => ({
   notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
+  // Punto 349-350-351 (regla 9): default "nadie se suspendió" — los
+  // tests específicos de la regla 9 sobreescriben esto con
+  // mockResolvedValueOnce para simular suspensiones reales.
+  aplicarLimiteUsuarios: jest.fn().mockResolvedValue([]),
 }));
 
 const { obtenerPool } = require('../../db');
-const { notificarInvalidacionCache } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, aplicarLimiteUsuarios } = require('../../utils/notificarBackend');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('../../utils/tenantEdicion');
 
 function filaTenant(overrides = {}) {
@@ -464,6 +468,17 @@ describe('utils/tenantEdicion.js', () => {
         portal_clientes_habilitado: 1,
         marca_lookfeel_habilitado: 0,
         disco_cuota_mb: 2048,
+        // Ampliación del gobierno de funcionalidades (punto 349-350-351).
+        ventas_habilitado: 1,
+        gastos_habilitado: 1,
+        inventarios_habilitado: 1,
+        auditoria_habilitado: 0,
+        cxc_habilitado: 1,
+        resumen_financiero_habilitado: 1,
+        reportes_por_reporte_habilitado: 1,
+        reportes_cortes_habilitado: 1,
+        reportes_eliminados_habilitado: 1,
+        reportes_estado_inventario_habilitado: 1,
         activo: 1,
         orden: 2,
         total_tenants: 0,
@@ -498,9 +513,93 @@ describe('utils/tenantEdicion.js', () => {
       expect(paramsUpdate[14]).toBe(1); // portal_clientes_habilitado
       expect(paramsUpdate[15]).toBe(1); // sucursales_habilitado
       expect(paramsUpdate[16]).toBe(2048); // disco_cuota_mb
+      // Ampliación del gobierno de funcionalidades (punto 349-350-351):
+      // ventas(17), gastos(18), inventarios(19), auditoria(20), cxc(21),
+      // resumenFinanciero(22), reportesPorReporte(23), reportesCortes(24),
+      // reportesEliminados(25), reportesEstadoInventario(26).
+      expect(paramsUpdate[17]).toBe(1); // ventas_habilitado del plan
+      expect(paramsUpdate[18]).toBe(1); // gastos_habilitado del plan
+      expect(paramsUpdate[19]).toBe(1); // inventarios_habilitado del plan
+      expect(paramsUpdate[20]).toBe(0); // auditoria_habilitado del plan (apagado)
+      expect(paramsUpdate[21]).toBe(1); // cxc_habilitado del plan
+      expect(paramsUpdate[22]).toBe(1); // resumen_financiero_habilitado del plan
+      expect(paramsUpdate[23]).toBe(1); // reportes_por_reporte_habilitado del plan
+      expect(paramsUpdate[24]).toBe(1); // reportes_cortes_habilitado del plan
+      expect(paramsUpdate[25]).toBe(1); // reportes_eliminados_habilitado del plan
+      expect(paramsUpdate[26]).toBe(1); // reportes_estado_inventario_habilitado del plan
 
       const eventoTipo = pool.query.mock.calls[4][1][1];
       expect(eventoTipo).toBe('plan_asignado');
+    });
+
+    test('override explícito de un campo nuevo (cxcHabilitado) gana sobre el valor del plan', async () => {
+      const tenantBase = filaTenant({ plan_id: null, cxc_habilitado: 0 });
+      const pool = { query: jest.fn() };
+      pool.query
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT tenant
+        .mockResolvedValueOnce([[filaPlan()]]) // obtenerPlan — trae cxc_habilitado=1
+        .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+        .mockResolvedValueOnce([[tenantBase]]) // SELECT post
+        .mockResolvedValueOnce([{}]); // INSERT evento
+      obtenerPool.mockReturnValue(pool);
+
+      await actualizarDatosTenant(
+        'cliente1',
+        { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', planId: 2, cxcHabilitado: false },
+        {}
+      );
+
+      const paramsUpdate = pool.query.mock.calls[2][1];
+      expect(paramsUpdate[21]).toBe(0); // excepción gana: apagado aunque el plan lo traiga encendido
+      expect(paramsUpdate[17]).toBe(1); // ventas_habilitado del plan sigue normal
+    });
+
+    describe('reglas de dependencia sobre el estado del tenant (punto 349-350-351)', () => {
+      test('cxcHabilitado=true por excepción, pero el tenant (sin plan) no tiene ventasHabilitado: ErrorEdicionTenant validacion', async () => {
+        const tenantBase = filaTenant({ plan_id: null, ventas_habilitado: 0, cxc_habilitado: 0 });
+        const pool = { query: jest.fn() };
+        pool.query.mockResolvedValueOnce([[tenantBase]]); // SELECT tenant
+        obtenerPool.mockReturnValue(pool);
+
+        await expect(
+          actualizarDatosTenant(
+            'cliente1',
+            { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', cxcHabilitado: true },
+            {}
+          )
+        ).rejects.toMatchObject({ name: 'ErrorEdicionTenant', codigo: 'validacion' });
+        expect(pool.query).toHaveBeenCalledTimes(1); // nunca llega al UPDATE
+      });
+
+      test('un plan con resumen_financiero_habilitado=1 pero ventas Y gastos en 0: ErrorEdicionTenant validacion al asignarlo', async () => {
+        const tenantBase = filaTenant({ plan_id: null });
+        const pool = { query: jest.fn() };
+        pool.query
+          .mockResolvedValueOnce([[tenantBase]]) // SELECT tenant
+          .mockResolvedValueOnce([
+            [filaPlan({ ventas_habilitado: 0, gastos_habilitado: 0, resumen_financiero_habilitado: 1 })],
+          ]); // obtenerPlan — combinación que nunca debería pasar la propia validación de planes.js, pero se revalida aquí por defensa en profundidad
+        obtenerPool.mockReturnValue(pool);
+
+        await expect(
+          actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', planId: 2 }, {})
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+      });
+
+      test('apagar ventasHabilitado por excepción en un tenant que YA tiene reportesCortesHabilitado=1 (sin apagarlo en el mismo patch): ErrorEdicionTenant validacion', async () => {
+        const tenantBase = filaTenant({ plan_id: null, ventas_habilitado: 1, reportes_cortes_habilitado: 1 });
+        const pool = { query: jest.fn() };
+        pool.query.mockResolvedValueOnce([[tenantBase]]); // SELECT tenant
+        obtenerPool.mockReturnValue(pool);
+
+        await expect(
+          actualizarDatosTenant(
+            'cliente1',
+            { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', ventasHabilitado: false },
+            {}
+          )
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+      });
     });
 
     test('planId de un plan archivado: ErrorEdicionTenant validacion, nunca llega al UPDATE', async () => {
@@ -612,6 +711,118 @@ describe('utils/tenantEdicion.js', () => {
         actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', discoCuotaMb: -5 }, {})
       ).rejects.toMatchObject({ codigo: 'validacion' });
       expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+
+    // Regla 9 (punto 349-350-351): suspensión automática de usuarios al
+    // bajar max_usuarios — la lógica real vive en el backend
+    // (POST /internal/aplicar-limite-usuarios), aquí solo se verifica
+    // que tenantEdicion.js la invoca con los datos correctos y refleja
+    // el resultado en el detalle del evento de auditoría.
+    describe('regla 9: aplicarLimiteUsuarios se invoca tras guardar y su resultado queda en la auditoría', () => {
+      test('llama a aplicarLimiteUsuarios con el slug y el max_usuarios YA resuelto', async () => {
+        const tenantBase = filaTenant({ max_usuarios: 20 });
+        const pool = { query: jest.fn() };
+        pool.query
+          .mockResolvedValueOnce([[tenantBase]])
+          .mockResolvedValueOnce([{ affectedRows: 1 }])
+          .mockResolvedValueOnce([[{ ...tenantBase, max_usuarios: 5 }]])
+          .mockResolvedValueOnce([{}]);
+        obtenerPool.mockReturnValue(pool);
+
+        await actualizarDatosTenant(
+          'cliente1',
+          { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', maxUsuarios: 5 },
+          {}
+        );
+
+        expect(aplicarLimiteUsuarios).toHaveBeenCalledWith('cliente1', 5);
+      });
+
+      test('con cambio de slug: usa el slug NUEVO, no el viejo', async () => {
+        const tenantBase = filaTenant({ max_usuarios: 20 });
+        const pool = { query: jest.fn() };
+        pool.query
+          .mockResolvedValueOnce([[tenantBase]]) // SELECT tenant
+          .mockResolvedValueOnce([[]]) // SELECT duplicados de slug
+          .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+          .mockResolvedValueOnce([[{ ...tenantBase, slug: 'cliente-nuevo' }]]) // SELECT post
+          .mockResolvedValueOnce([{}]); // INSERT evento
+        obtenerPool.mockReturnValue(pool);
+        global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+
+        await actualizarDatosTenant(
+          'cliente1',
+          { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', slug: 'cliente-nuevo', maxUsuarios: 5 },
+          {}
+        );
+
+        expect(aplicarLimiteUsuarios).toHaveBeenCalledWith('cliente-nuevo', 5);
+      });
+
+      test('si se suspendieron usuarios, el detalle del evento de auditoría los menciona', async () => {
+        aplicarLimiteUsuarios.mockResolvedValueOnce([
+          { id: 10, rfc: 'ventas-nuevo' },
+          { id: 9, rfc: 'inventario-nuevo' },
+        ]);
+        const tenantBase = filaTenant({ max_usuarios: 20 });
+        const pool = { query: jest.fn() };
+        pool.query
+          .mockResolvedValueOnce([[tenantBase]])
+          .mockResolvedValueOnce([{ affectedRows: 1 }])
+          .mockResolvedValueOnce([[{ ...tenantBase, max_usuarios: 5 }]])
+          .mockResolvedValueOnce([{}]);
+        obtenerPool.mockReturnValue(pool);
+
+        await actualizarDatosTenant(
+          'cliente1',
+          { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', maxUsuarios: 5 },
+          { actor: 'super' }
+        );
+
+        const detalleEvento = pool.query.mock.calls[3][1][2]; // registrarEvento: (tenantId, tipo, detalle, actor)
+        expect(detalleEvento).toMatch(/2 usuario\(s\) suspendido\(s\)/);
+        expect(detalleEvento).toMatch(/ventas-nuevo/);
+        expect(detalleEvento).toMatch(/inventario-nuevo/);
+      });
+
+      test('si aplicarLimiteUsuarios no pudo confirmar (null), el detalle lo advierte sin fallar el guardado', async () => {
+        aplicarLimiteUsuarios.mockResolvedValueOnce(null);
+        const tenantBase = filaTenant({ max_usuarios: 20 });
+        const pool = { query: jest.fn() };
+        pool.query
+          .mockResolvedValueOnce([[tenantBase]])
+          .mockResolvedValueOnce([{ affectedRows: 1 }])
+          .mockResolvedValueOnce([[{ ...tenantBase, max_usuarios: 5 }]])
+          .mockResolvedValueOnce([{}]);
+        obtenerPool.mockReturnValue(pool);
+
+        const resultado = await actualizarDatosTenant(
+          'cliente1',
+          { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', maxUsuarios: 5 },
+          {}
+        );
+
+        expect(resultado).toBeTruthy(); // el guardado NUNCA falla por esto
+        const detalleEvento = pool.query.mock.calls[3][1][2];
+        expect(detalleEvento).toMatch(/no se pudo confirmar/i);
+      });
+
+      test('sin límite (maxUsuarios null): igual se invoca (la función misma decide el no-op), sin aparecer en el detalle', async () => {
+        const tenantBase = filaTenant({ max_usuarios: null });
+        const pool = { query: jest.fn() };
+        pool.query
+          .mockResolvedValueOnce([[tenantBase]])
+          .mockResolvedValueOnce([{ affectedRows: 1 }])
+          .mockResolvedValueOnce([[tenantBase]])
+          .mockResolvedValueOnce([{}]);
+        obtenerPool.mockReturnValue(pool);
+
+        await actualizarDatosTenant('cliente1', { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com' }, {});
+
+        expect(aplicarLimiteUsuarios).toHaveBeenCalledWith('cliente1', null);
+        const detalleEvento = pool.query.mock.calls[3][1][2];
+        expect(detalleEvento).not.toMatch(/suspendido/i);
+      });
     });
   });
 });

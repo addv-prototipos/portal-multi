@@ -1103,3 +1103,49 @@ toca backend, corrida por disciplina), rebuild `--no-cache` +
 real confirmando 0 emojis servidos. Falta: clic real en navegador (sin
 herramienta de navegador en esta sesión) y commit/push (no pedido
 todavía). Detalle completo en PROJECT_STATE.md punto 336.
+
+C081 ⚖ Punto 348: regla permanente de gobernanza de funcionalidades,
+pedida por el usuario tras cerrar el punto 347 (Fases 0-5 de "gobierno
+de funcionalidades por tenant"). Investigué antes de escribir nada:
+encontré `stitch/gobierno-funcionalidades/` (NOTAS.md + 2 prototipos
+HTML), trabajo de OTRA sesión sobre este mismo punto 347 — mucho más
+amplio que lo que yo implementé: asistente de 4 pasos + 10 reglas de
+dependencia (bloqueo/cascada/auto-activación/advertencia) cubriendo
+Ventas, Gastos, Inventarios, Auditoría, Proveedores, Reportes (4
+sub-pestañas), Cuentas por cobrar y Resumen financiero — diseño ya
+aprobado por el usuario, pero sin código real todavía. Reporté el
+hallazgo ANTES de redactar la regla final, porque cambiaba por completo
+el alcance de lo pedido ("todo mapeado sin excepción" encajaba con eso,
+no con mis 4 flags). Usé /prompt-master (pedido explícito del usuario)
+para aplicar disciplina de redacción de regla persistente (verbos
+precisos, MUST sobre should, mecanismo concreto verificable en vez de
+declaración de intención) al bloque final de CLAUDE.md.
+
+3 preguntas via AskUserQuestion (máximo de prompt-master, las 3 usadas):
+(1) ¿retomar stitch/ ya o como punto aparte? → punto aparte después. (2)
+¿regla hacia adelante o también retroactiva sobre módulos existentes? →
+**retroactiva y obligatoria — bloquea todo trabajo nuevo hasta mapear
+los módulos existentes**, decisión fuerte del usuario. (3) ¿"portal de
+proveedores" es superficie separada? → no, confirmado: vive junto con el
+portal de clientes dentro del mismo ecosistema admin.
+
+Escrito en CLAUDE.md (sección nueva, antes de "Reglas persistentes de
+coordinación" para máxima visibilidad al cargar el archivo) + punto 348
+en PROJECT_STATE.md (resumen operativo + deuda pendiente módulo por
+módulo + 3 preguntas abiertas de `stitch/NOTAS.md` sin confirmar aún) +
+fila nueva en pendientes.html marcada "BLOQUEANTE — sin empezar"
+(pill-amber, única fila con esa semántica en el archivo). Claude Mem: sin
+acceso de escritura manual confirmado desde el 2026-08-12 (ver CLAUDE.md)
+— estos 3 archivos son el registro durable, el hook de cierre de sesión
+se encarga del resto.
+
+Incidental: corregí un emoji real (⚠️) en frontend/control.html, ya
+señalado como pendiente en stitch/NOTAS.md ("fuera de alcance de esa
+tarea, pendiente de corregir cuando se edite esa pantalla") — como yo sí
+edité control.html hoy (Fase 3 del punto 347), lo arreglé de paso:
+reemplazado por el mismo SVG de alerta (feather-style) ya usado en el
+resto del sitio para warnings, nunca un carácter Unicode ni emoji. `node
+--check` limpio, balance de tags de control.html/pendientes.html
+verificado antes y después. Sin commit/push todavía — nada implementado
+en código real además del fix del emoji, que es parte del mismo commit
+pendiente.
