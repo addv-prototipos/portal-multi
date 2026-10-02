@@ -181,6 +181,20 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   para `img-src`/`frame-src` — declararlos explícitos
   (`img-src 'self' data: blob:`, `frame-src 'self' blob:`) si se usan
   imágenes/iframes con blob URLs.
+- **Whitelist de extensiones estáticas en nginx**: `frontend/nginx.conf.template`
+  (y su espejo `prod/frontend/nginx.conf.template`) tiene un `location`
+  con regex explícito de extensiones cacheables
+  (`\.(?:svg|png|jpg|jpeg|webp|woff2?)$`) — cualquier extensión nueva de
+  asset (ej. un formato de imagen que nunca se había usado) que NO esté
+  en esa lista cae al catch-all anti-enumeración de tenants
+  (`^/(?<tenant_slug>...)/.+$` → `return 404;`, el primer segmento del
+  path se confunde con un slug) y sirve 404 plano en vez de la imagen,
+  aunque el archivo exista en el contenedor y nginx esté bien
+  configurado en todo lo demás (bug descubierto con `branding.webp`,
+  punto 358 — `.webp` nunca había estado en la lista porque nunca se
+  había usado ese formato en el sitio). Antes de dar un asset por "mal
+  servido", revisar esta lista además de nginx.conf/Dockerfile/caché de
+  navegador.
 - **`ensureSchema()` corre en cada restart/deploy** — cualquier backfill o
   valor forzado debe ser CONDICIONAL (solo si el dato está en un estado
   viejo conocido), nunca incondicional, o revierte en silencio datos

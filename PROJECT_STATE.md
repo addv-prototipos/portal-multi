@@ -17851,6 +17851,43 @@ respetaba. Propuesta antes/después confirmada antes de implementar
   decisión aparte): el mismo patrón de `.portal-main-angosto` angosto en
   escritorio del punto 355 aplica también a `tickets.html`/`csf.html`.
 
+**Punto 358 (2026-10-02, CERRADO — `.webp` roto en sitio base y tenants,
+whitelist de extensiones de nginx):** el usuario reportó que
+`branding.webp` (modificado hoy, usado en `login.html`/`restablecer.html`/
+`tickets.html` vía `<picture><source type="image/webp">`) salía roto en
+el sitio base. Diagnóstico: el archivo SÍ estaba en el contenedor (tamaño
+correcto, confirmado con `ls` dentro del contenedor) y `branding.png`
+servía 200 — pero `branding.webp` servía 404 **plano de nginx** (no el
+404 anti-enumeración del backend). Causa real: `frontend/nginx.conf.
+template` tiene un `location ~* \.(?:svg|png|jpg|jpeg|woff2?)$` para
+assets cacheables — `webp` nunca estuvo en esa lista (nunca se había
+usado ese formato en el sitio hasta hoy). Sin ese location, la petición
+caía al catch-all de anti-enumeración de tenants
+(`location ~ "^/(?<tenant_slug>...)/.+$" { return 404; }`, más abajo en
+el archivo) que interpreta "assets" como si fuera un slug de tenant
+inválido. Bug preexistente y latente desde que se escribió ese catch-all
+— no introducido por nada de esta sesión, solo expuesto por ser la
+primera vez que se referenció `.webp`. **No es un problema de
+multi-tenant ni de gating**: afecta por igual al sitio base y a
+cualquier tenant, porque el `location` de nginx es el mismo para ambos
+(un solo archivo de configuración renderizado, sin distinción de slug en
+esta regla). Fix: agregado `webp` a la regex
+(`\.(?:svg|png|jpg|jpeg|webp|woff2?)$`) en `frontend/nginx.conf.template`
+**y** en su espejo `prod/frontend/nginx.conf.template` (sincronizado por
+contenido, nunca vía git). Validado: `curl -I /assets/branding.webp`
+pasó de 404 a 200 tras rebuild `--no-cache` + `force-recreate` del
+contenedor `frontend`. Gotcha documentado en `CLAUDE.md`. Aprovechando el
+reporte, se confirmó explícitamente que las correcciones de gating de
+Facturación/Sucursales/campana de este mismo día (puntos 356 y su
+addendum) **sí aplican igual al sitio base** por construcción (mismos
+archivos estáticos/backend compartidos, sin build por tenant) — la
+diferencia real es que el sitio base no tiene fila en
+`control_tenants.tenants` (no manda `X-Tenant-Slug`), así que
+`planPermite()` siempre evalúa "permitido" ahí: el sitio base se
+comporta como si todos los módulos estuvieran siempre activos, por
+diseño (no gobernado por `/control`), no por un defecto pendiente de
+corregir.
+
 **Punto 357 (2026-10-02, CERRADO — regla persistente de Playwright):**
 el usuario decidió que toda prueba funcional se ejecute con Playwright
 (E2E real contra Docker+MySQL reales) y que toda propuesta visual
