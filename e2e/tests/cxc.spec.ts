@@ -12,10 +12,9 @@ test.describe('Cuentas por cobrar - venta pendiente', () => {
     await page.click('#btn-login');
     await page.waitForSelector('#admin-dashboard:not([hidden])', { timeout: 10000 });
 
-    // Ir a Ventas
-    await page.click('#btn-vista-ordenes');
-    await page.waitForSelector('#vista-ordenes:not([hidden])', { timeout: 5000 });
-    await page.click('#btn-abrir-orden-modal');
+    // Atajo global "Registrar venta" (header) — visible en cualquier vista,
+    // no hace falta navegar a Ventas primero.
+    await page.click('#btn-header-registrar-venta');
     await page.waitForSelector('#orden-registrar-modal-overlay:not([hidden])', { timeout: 5000 });
 
     // Paso 1: Productos

@@ -620,10 +620,24 @@
     padding: 8px 10px;
     flex-shrink: 0;
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: 7px;
   }
   .admin-sidebar-logout span:last-child, .admin-sidebar-ayuda span:last-child { display: none; }
   .admin-sidebar-logout, .admin-sidebar-ayuda { width: auto; padding: 8px; justify-content: center; margin-bottom: 0; }
+  /* Centro de conocimiento sale de esta barra en móvil — su lugar lo toman
+     la campana (reubicada aquí por JS) y Registrar venta; el acceso se
+     muda al primer tile de #admin-menu-movil (ver admin.html/admin.js). */
+  .admin-sidebar-ayuda { display: none; }
+  /* Tap target ≥44px para los 3 íconos que quedan en esta barra (campana/
+     venta/salir) — el tamaño de escritorio (34px) se queda corto en
+     móvil; con 7px de gap entre ellos no se prestan a toques accidentales. */
+  .admin-sidebar-footer .admin-header-notif-btn,
+  .admin-sidebar-footer .admin-sidebar-logout,
+  .admin-sidebar-footer .admin-movil-cta {
+    width: 44px;
+    height: 44px;
+  }
 }
 
 /* Launcher de íconos (menú móvil) — grid simétrico de 2 columnas,
@@ -1011,11 +1025,68 @@
 .admin-notif-foot a { color: var(--color-accent); text-decoration: none; font-weight: 600; cursor: pointer; }
 .admin-notif-foot a[hidden] { display: none; }
 
+/* Campana en móvil: ya NO se oculta — reubicarCampanaPorBreakpoint()
+   (admin.js) mueve el nodo #notif-wrap dentro de #admin-sidebar-footer
+   en <900px (y de vuelta a #admin-header en escritorio). El selector de
+   abajo solo aplica mientras vive ahí — el fondo pasa de blanco a navy. */
+.admin-sidebar-footer .admin-header-notif-btn {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.admin-sidebar-footer .admin-header-notif-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.admin-sidebar-footer .admin-header-notif-btn:focus-visible { outline-color: #fff; }
+
+/* Atajo global "Registrar venta" en la barra superior de escritorio —
+   mismo contenedor .admin-header que ayuda/campana/usuario, visible en
+   las 12 vistas (ver aplicarRestriccionesPerfil, admin.js). */
+.admin-header-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-accent);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+.admin-header-cta:hover { background: var(--color-accent-dark); }
+.admin-header-cta:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.admin-header-cta svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Atajo móvil de "Registrar venta" — ícono relleno dentro de
+   #admin-sidebar-footer, deliberadamente el único sólido del grupo
+   (campana/salir son "fantasma") para que se lea como LA acción, no
+   como un utilitario más. Mismo cian ya usado en el foco de
+   .admin-sidebar-ayuda (#05DBF2) — nunca un color nuevo sin precedente. */
+.admin-movil-cta {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: #05DBF2;
+  color: #0B1320;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.admin-movil-cta svg { width: 16px; height: 16px; }
+.admin-movil-cta:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
 @media (max-width: 900px) {
-  /* La campana solo aplica a escritorio por ahora (mismo criterio que
-     el riel colapsable) — el header móvil ya está apretado con el
-     botón "Menú" y el logo chico. */
-  .admin-header-notif-wrap { display: none; }
+  /* Solo escritorio: en móvil el atajo es el ícono relleno de
+     #admin-sidebar-footer (.admin-movil-cta), no esta pastilla. */
+  .admin-header-cta { display: none; }
+  .admin-movil-cta { display: inline-flex; }
 }
 
 .admin-main {

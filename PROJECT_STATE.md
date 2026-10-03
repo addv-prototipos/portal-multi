@@ -18219,6 +18219,124 @@ real (Chrome DevTools MCP, rebuild de `frontend` entre cada captura) en
   Validado con clics reales (Chrome DevTools MCP): ciclo completo
   Empresas → Papelera → Empresas, capturas antes/después de cada ronda.
 
+**Punto 364 (2026-10-03, CERRADO — Ventas: quita "+Registrar venta" del
+toolbar, redundante con el atajo global del header):** el usuario señaló
+que el botón "+ Registrar venta" del toolbar de Ventas es redundante —
+ya existe `#btn-header-registrar-venta`, un atajo global en el header de
+`/admin` (visible en las 12 vistas, perfil administrador/ventas,
+`aplicarRestriccionesPerfil()`), confirmado por el propio comentario en
+`admin.html`: "visible en las 12 vistas porque vive en este header, no
+dentro de Ventas". Pidió también acentuar "Corte del día" en su lugar.
+
+- **`frontend/admin.html`**: eliminado `#btn-abrir-orden-modal` ("+
+  Registrar venta") del toolbar de Ventas; `#btn-abrir-corte-modal`
+  ("Corte del día") pasa de `btn-secondary` a `btn-primary`, quedando
+  como la acción destacada del toolbar.
+- **`frontend/admin.js`**: quitado el mapeo `els.btnAbrirOrdenModal` y su
+  listener — `abrirOrdenRegistrarModal()` sigue viva sin cambios (la
+  llaman los 2 botones de estado vacío de Ventas/CxC y
+  `abrirRegistrarVentaDesdeAtajo()`, el wrapper del atajo global, que
+  además hace `cargarConfigGlobalParaOrden()` antes de abrir — un
+  refresh de configuración que el botón del toolbar NO hacía, así que el
+  atajo global no es solo "el mismo botón movido", es estrictamente más
+  completo). Paso del tour de onboarding para perfil "ventas" (buscaba
+  `#btn-abrir-orden-modal`) retargeteado a `#btn-header-registrar-venta`
+  — el motor del tour (`construirYMostrarTour()`) ya filtra solo por
+  elemento visible/no oculto, sin cambios ahí.
+- **`e2e/tests/cxc.spec.ts`**: el único E2E real que apuntaba a
+  `#btn-abrir-orden-modal` — actualizado al atajo global, y se
+  simplificó el setup del test quitando el paso "ir a Ventas primero"
+  (ya no hace falta, el atajo es alcanzable desde cualquier vista).
+  **Hallazgo aparte, no corregido, fuera de alcance**: este mismo test
+  sigue fallando más adelante en su flujo (llenar
+  `#orden-producto-concepto`) porque el tenant base de este entorno
+  tiene Inventarios activo, y la captura manual de producto se oculta
+  por completo con inventario activo
+  (`aplicarVisibilidadInventarioEnVentas()`, ver comentario en
+  `admin.html` junto a `#orden-productos-captura-manual`) — el test
+  asume captura manual visible, deuda preexistente de un drift de
+  configuración del entorno, no causada por este cambio (confirmado:
+  el fallo ocurre después del paso que si se tocó, y una nota de sesión
+  previa — 2026-10-01 — ya había marcado este mismo spec como frágil por
+  otra causa distinta, el colapso de grupos del sidebar).
+- **Pruebas**: backend **1171/1171** sin regresión (cambio es
+  frontend-only). Validado con clics reales (Chrome DevTools MCP): el
+  atajo del header sigue abriendo el modal "Registrar venta" completo y
+  funcional desde Ventas; toolbar de Ventas queda con
+  Columnas/Actualizar/Corte del día (acentuado), sin el botón duplicado.
+
+**Punto 365 (2026-10-03, CERRADO — reorden de categorías del sidebar +
+atajo global "Registrar venta" en header/móvil, administrador/ventas):**
+dos pedidos encadenados del usuario, con propuesta visual antes/después
+(Artifact) confirmada antes de implementar cada uno, aplicando por igual
+a tenant y sitio base (mismo `admin.html`/`admin.js`/`admin.css`).
+
+- **Reorden de categorías del sidebar**: orden anterior (Inicio →
+  Facturación → Ventas y gastos → Finanzas → Catálogo → Administración →
+  Cuenta) pasa a Inicio → **Ventas y gastos → Catálogo → Finanzas →
+  Facturación** → Administración → Cuenta, pedido explícito del usuario.
+  Reordenados los bloques `.admin-sidebar-group-header`/`-group-body` en
+  `admin.html` (desktop) y los botones de `#admin-menu-movil` (grid
+  móvil) para que coincidan. `GRUPOS_SIDEBAR_NAV` (admin.js) no necesitó
+  tocarse — es un mapa por clave, no depende de orden — pero
+  `mapaNavPorVista()` sí: su orden decide qué vista gana como fallback
+  cuando la activa se oculta (ver comentario junto a la función), y se
+  quedó con el orden viejo varias horas sin que nadie lo notara hasta
+  esta sesión — corregido para que coincida con el DOM real, comentario
+  actualizado con la fecha de este punto en vez de la de 2026-09-13.
+- **Atajo global "Registrar venta"**: antes solo existía dentro de la
+  vista Ventas. Propuesta de 4 ubicaciones (header fijo, FAB flotante,
+  pin de sidebar, atajo de teclado) comparadas en Artifact — el usuario
+  eligió **A (header fijo)**. Escritorio: `#btn-header-registrar-venta`,
+  pastilla sólida en `.admin-header` entre los datos fiscales y la
+  campana — visible en las 12 vistas, sin tocar Ventas.
+- **Ajuste móvil (pedido aparte, mismo hilo)**: en `.admin-sidebar-footer`
+  (la barra horizontal en la que se convierte el sidebar en <900px), el
+  usuario pidió reemplazar el ícono de "Centro de conocimiento" por la
+  campana de notificaciones —oculta en móvil desde su implementación
+  original (punto 337), a propósito, por falta de espacio— y agregar
+  junto a ella el atajo de Registrar venta.
+  - `#notif-wrap` (campana + panel) se **reubica de verdad** entre
+    `#admin-header` y `#admin-sidebar-footer` según el breakpoint
+    (`reubicarCampanaPorBreakpoint()`, `matchMedia('(max-width: 900px)')`
+    + listener de `resize`) — un solo nodo DOM, un solo panel/estado
+    (dot, sondeo, animación de campaneo), nunca una copia duplicada; se
+    mueve con `insertBefore` (conserva sus listeners), nunca se clona.
+  - `#btn-movil-registrar-venta`: ícono relleno (cian `#05DBF2`, ya
+    precedente en el foco de `.admin-sidebar-ayuda`, no un color nuevo)
+    — el único sólido del grupo, a propósito, para que se lea como LA
+    acción y no como un utilitario más.
+  - `#btn-abrir-conocimiento` se oculta en <900px (`display:none`) — su
+    acceso se muda al **primer tile** de `#admin-menu-movil` (menú
+    "Menú"), `data-vista="conocimiento"`, mismo caso especial que ya
+    existía para "configuraciones" en el delegado de clicks (no es una
+    vista real, abre el modal directo vía `abrirConocimiento(false)`).
+    Sigue visible para los 4 perfiles sin excepción, igual que antes.
+  - Gate de visibilidad (`btnHeaderRegistrarVenta`/
+    `btnMovilRegistrarVenta`): un solo criterio,
+    `!navPorVista.ordenes.hidden` (ya cruza perfil administrador/ventas/
+    super + plan `ventasHabilitado`) — nunca una segunda lista de
+    restricciones aparte, mismo criterio que el resto de
+    `aplicarRestriccionesPerfil()`.
+  - **Bug propio detectado y corregido antes de reportar terminado**:
+    primer intento de `.admin-movil-cta { display: inline-flex; }` vivía
+    en un `@media(max-width:900px)` ANTERIOR en el archivo a la regla
+    base `.admin-movil-cta { display: none; }` — misma especificidad,
+    la regla base (posterior en cascada) ganaba y el botón no se veía
+    en móvil pese a `hidden=false`. Corregido moviendo el override al
+    media query que sí está después de la base.
+  - **Tap targets**: primera pasada quedó en 34–36px (heredado del
+    tamaño de escritorio) — por debajo del mínimo táctil de 44px que la
+    propia propuesta visual prometía; subidos a 44×44 con 7px de gap
+    entre campana/venta/salir antes de dar el ajuste por terminado.
+- **Pruebas**: backend **1171/1171** sin regresión (cambio
+  frontend-only). Validado con Docker real + Chrome DevTools MCP en
+  ambos breakpoints: escritorio (pastilla visible, abre el modal con
+  IVA real precargado desde Inicio sin haber entrado nunca a Ventas) y
+  móvil 390×844 (campana con punto rojo + ícono cian junto a ella,
+  ambos abren su destino correcto; tile "Centro de conocimiento" primer
+  lugar del menú, abre el modal correcto y cierra el menú).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

@@ -309,6 +309,17 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   sanea silenciosamente valores intermedios inválidos (efecto que NO
   ocurre con tecleo real) — validar con tecleo real (CDP/`computer`
   tool), nunca con asignación directa.
+- **Orden de reglas CSS con la misma especificidad**: un selector sin
+  media query y el MISMO selector dentro de un `@media` tienen la misma
+  especificidad — gana el que aparece DESPUÉS en el archivo, sin
+  importar cuál "se ve" más específico al leerlo. Bug real (punto 365):
+  `.admin-movil-cta { display: inline-flex; }` vivía dentro de un
+  `@media(max-width:900px)` que aparecía ANTES en `admin.css` que la
+  regla base `.admin-movil-cta { display: none; }` — la base (posterior)
+  ganaba siempre, botón invisible en móvil pese a `hidden=false` en el
+  DOM. Al agregar un override mobile-only para una clase nueva, verificar
+  que el `@media` quede DESPUÉS de la regla base en el archivo, o usar
+  `grep -n` para confirmar el orden real antes de dar el CSS por bueno.
 - Antes de dar por "no disponible" una skill/herramienta mencionada por
   el usuario: revisar el catálogo de skills activas, luego `D:\cc`,
   luego el repositorio oficial — nunca asumir su función.

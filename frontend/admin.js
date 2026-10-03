@@ -168,7 +168,16 @@
     btnVistaMiCuenta: document.getElementById('btn-vista-mi-cuenta'),
     // Riel colapsable del sidebar (punto 329, solo escritorio)
     btnColapsarSidebar: document.getElementById('btn-colapsar-sidebar'),
-    // Campana de notificaciones (punto 337, solo escritorio)
+    // Contenedores usados para reubicar la campana entre escritorio/móvil
+    // (ver reubicarCampanaPorBreakpoint) y el atajo global de Registrar
+    // venta (administrador/ventas, ver aplicarRestriccionesPerfil).
+    adminHeader: document.getElementById('admin-header'),
+    adminSidebarFooter: document.getElementById('admin-sidebar-footer'),
+    btnHeaderRegistrarVenta: document.getElementById('btn-header-registrar-venta'),
+    btnMovilRegistrarVenta: document.getElementById('btn-movil-registrar-venta'),
+    // Campana de notificaciones (punto 337) — vive en #admin-header en
+    // escritorio y se reubica dentro de #admin-sidebar-footer en <900px
+    // (antes solo aplicaba a escritorio; ver reubicarCampanaPorBreakpoint).
     notifWrap: document.getElementById('notif-wrap'),
     btnNotificaciones: document.getElementById('btn-notificaciones'),
     notifDot: document.getElementById('notif-dot'),
@@ -405,7 +414,6 @@
     btnImprimirCorte: document.getElementById('btn-imprimir-corte'),
     corteImprimir: document.getElementById('corte-imprimir'),
     // Modal "Registrar venta" (antes formulario sticky)
-    btnAbrirOrdenModal: document.getElementById('btn-abrir-orden-modal'),
     ordenRegistrarModalOverlay: document.getElementById('orden-registrar-modal-overlay'),
     btnCerrarOrdenModal: document.getElementById('btn-cerrar-orden-modal'),
     ordenFormExito: document.getElementById('orden-form-exito'),
@@ -2199,23 +2207,24 @@
   // — bug real reportado por el usuario. Con un solo mapa, una vista
   // nueva que se agregue aquí queda cubierta en ambos lugares sin nada
   // más que tocar.
-  // Mismo orden que el sidebar real (arquitectura de información revisada,
-  // 2026-09-13: Inicio → Facturación → Ventas y gastos → Finanzas →
-  // Catálogo → Administración → Cuenta) — el orden de este objeto decide
-  // cuál vista gana como fallback cuando la activa se oculta (ver
-  // aplicarRestriccionesPerfil más abajo), así que importa que coincida.
+  // Mismo orden que el sidebar real (punto 365, 2026-10-03: Inicio →
+  // Ventas y gastos → Catálogo → Finanzas → Facturación → Administración
+  // → Cuenta — reemplaza el orden anterior de 2026-09-13) — el orden de
+  // este objeto decide cuál vista gana como fallback cuando la activa se
+  // oculta (ver aplicarRestriccionesPerfil más abajo), así que importa
+  // que coincida con el DOM real.
   function mapaNavPorVista() {
     return {
       inicio: els.btnVistaInicio,
-      tickets: els.btnVistaTickets,
-      constancias: els.btnVistaConstancias,
       ordenes: els.btnVistaOrdenes,
       cxc: els.btnVistaCxc,
       gastos: els.btnVistaGastos,
-      'resumen-financiero': els.btnVistaResumenFinanciero,
-      'lectura-reportes': els.btnVistaLecturaReportes,
       inventarios: els.btnVistaInventarios,
       proveedores: els.btnVistaProveedores,
+      'resumen-financiero': els.btnVistaResumenFinanciero,
+      'lectura-reportes': els.btnVistaLecturaReportes,
+      tickets: els.btnVistaTickets,
+      constancias: els.btnVistaConstancias,
       usuarios: els.btnVistaUsuarios,
       auditoria: els.btnVistaAuditoria,
       'mi-cuenta': els.btnVistaMiCuenta,
@@ -2376,6 +2385,15 @@
       const botonMovil = document.querySelector(`.admin-menu-movil-btn[data-vista="${vista}"]`);
       if (botonMovil) botonMovil.hidden = !permitida;
     });
+
+    // Atajo global "Registrar venta" (header de escritorio + ícono de
+    // #admin-sidebar-footer en móvil): mismo permiso que la vista
+    // "ordenes" — ya cruza perfil (administrador/ventas/super) y plan
+    // (ventasHabilitadaGlobalmente + planPermite('ventasHabilitado')).
+    // Nunca una segunda condición aparte, mismo criterio que arriba.
+    const puedeRegistrarVenta = !!navPorVista.ordenes && !navPorVista.ordenes.hidden;
+    if (els.btnHeaderRegistrarVenta) els.btnHeaderRegistrarVenta.hidden = !puedeRegistrarVenta;
+    if (els.btnMovilRegistrarVenta) els.btnMovilRegistrarVenta.hidden = !puedeRegistrarVenta;
 
     // Título de cada grupo del sidebar: se oculta solo si NINGÚN botón de
     // ese grupo quedó visible para este perfil — nunca deja un
@@ -3270,11 +3288,23 @@
   function cerrarOrdenRegistrarModal() {
     els.ordenRegistrarModalOverlay.hidden = true;
   }
-  els.btnAbrirOrdenModal.addEventListener('click', abrirOrdenRegistrarModal);
   els.btnCerrarOrdenModal.addEventListener('click', cerrarOrdenRegistrarModal);
   els.ordenRegistrarModalOverlay.addEventListener('click', (e) => {
     if (e.target === els.ordenRegistrarModalOverlay) cerrarOrdenRegistrarModal();
   });
+
+  // Atajo global "Registrar venta" (header de escritorio + ícono de
+  // #admin-sidebar-footer en móvil, ver aplicarRestriccionesPerfil) — a
+  // diferencia del botón de dentro de Ventas, puede dispararse sin haber
+  // entrado nunca a esa vista, así que primero refresca el IVA%/defaults
+  // (cargarConfigGlobalParaOrden ya tolera fallar: se queda con 16% hasta
+  // poder recargar, ver ivaActualParaOrden) y luego abre el modal igual.
+  function abrirRegistrarVentaDesdeAtajo() {
+    cargarConfigGlobalParaOrden();
+    abrirOrdenRegistrarModal();
+  }
+  if (els.btnHeaderRegistrarVenta) els.btnHeaderRegistrarVenta.addEventListener('click', abrirRegistrarVentaDesdeAtajo);
+  if (els.btnMovilRegistrarVenta) els.btnMovilRegistrarVenta.addEventListener('click', abrirRegistrarVentaDesdeAtajo);
 
   // "Corte del día" (Ventas, PROJECT_STATE.md punto 168): reporte de
   // consulta bajo demanda, rango de fechas libre, SOLO ventas — pantalla
@@ -7907,9 +7937,39 @@
         abrirConfigModal();
         return;
       }
+      // Centro de conocimiento: se mudó aquí desde la barra superior móvil
+      // (#admin-sidebar-footer, ver reubicarCampanaPorBreakpoint) — mismo
+      // caso especial que "configuraciones", tampoco es una vista real.
+      if (boton.dataset.vista === 'conocimiento') {
+        els.adminMenuMovil.hidden = true;
+        abrirConocimiento(false);
+        return;
+      }
       cambiarVistaPrincipal(boton.dataset.vista);
     });
   });
+
+  // Campana de notificaciones: vive en #admin-header en escritorio y se
+  // reubica dentro de #admin-sidebar-footer en <900px (ver CSS "Campana en
+  // móvil" en admin.css) — un solo nodo, un solo panel/estado, nada de
+  // lógica duplicada. Se mueve de verdad (insertBefore), no se clona, así
+  // que conserva sus listeners/estado (dot, sondeo, animación) intactos
+  // sin importar dónde esté montada.
+  function esHeaderMovil() {
+    return window.matchMedia('(max-width: 900px)').matches;
+  }
+  function reubicarCampanaPorBreakpoint() {
+    if (!els.notifWrap || !els.adminSidebarFooter || !els.adminHeader) return;
+    if (esHeaderMovil()) {
+      if (els.notifWrap.parentElement !== els.adminSidebarFooter) {
+        els.adminSidebarFooter.insertBefore(els.notifWrap, els.btnMovilRegistrarVenta || null);
+      }
+    } else if (els.notifWrap.parentElement !== els.adminHeader) {
+      els.adminHeader.insertBefore(els.notifWrap, els.adminUserLabel || null);
+    }
+  }
+  reubicarCampanaPorBreakpoint();
+  window.addEventListener('resize', debounce(reubicarCampanaPorBreakpoint, 150));
   els.ticketsFiltroEstatus.addEventListener('change', () => cargarTickets());
   els.ticketsFiltroUsuario.addEventListener('change', () => cargarTickets());
   els.btnRefreshTickets.addEventListener('click', () => cargarTickets());
@@ -19307,7 +19367,7 @@
     ],
     ventas: [
       { selector: '.admin-sidebar-nav', titulo: 'Tus 3 secciones', desc: 'Ventas, Cuentas por cobrar y Gastos — todo lo que necesitas para tu día a día.' },
-      { selector: '#btn-abrir-orden-modal', titulo: 'Registra una venta nueva', desc: 'Este botón abre el formulario para capturar cada venta.' },
+      { selector: '#btn-header-registrar-venta', titulo: 'Registra una venta nueva', desc: 'Este botón abre el formulario para capturar cada venta — vive aquí arriba, siempre a la mano sin importar en qué sección estés.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
       TOUR_PASO_AYUDA,
     ],
