@@ -2093,6 +2093,25 @@ function limitesMes(zonaHoraria) {
   };
 }
 
+// Punto 362 (Inicio con datos reales, ver PROJECT_STATE.md): mismo patrón
+// que limitesMes() de arriba, pero para "hoy" + "los 7 días anteriores a
+// hoy" (excluyendo hoy, para no comparar el día contra sí mismo).
+function limitesDia(zonaHoraria) {
+  const ahora = new Date();
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: zonaHoraria,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(ahora);
+  const [anio, mes, dia] = partes.split('-').map(Number);
+  return {
+    inicioHoy: new Date(Date.UTC(anio, mes - 1, dia)),
+    finHoy: new Date(Date.UTC(anio, mes - 1, dia + 1)), // exclusivo
+    inicio7d: new Date(Date.UTC(anio, mes - 1, dia - 7)),
+  };
+}
+
 // Etiqueta corta en español ("Ene", "Feb", …) para una llave "YYYY-MM" —
 // usada por el resumen financiero para la serie mensual de la gráfica.
 function etiquetaMes(llave) {
@@ -3342,6 +3361,166 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
       : null,
   });
 });
+
+// Punto 362 (Inicio con datos reales, ver PROJECT_STATE.md): reemplaza el
+// resumen de tickets que vivía aquí antes del punto 360/361 — ahora un
+// resumen de "hoy" de cada módulo activo (Tickets/Ventas/Gastos/
+// Inventario), cada uno con su propia tendencia contra el promedio de los
+// 7 días anteriores (no "vs ayer": un solo día tiene demasiado ruido).
+// No usa requiereFeature() a nivel de ruta (no hay UN solo módulo dueño de
+// esta ruta) — cada sección se calcula o se omite por separado según el
+// perfil + el flag del tenant, mismo criterio que ya usa el bloque
+// "funciones" de arriba. No es una exposición de datos nueva: cada
+// sección ya era visible para ese mismo perfil en su propia vista
+// (Ventas/Gastos/Inventarios/Tickets) — esto solo la resume en un único
+// viaje de red para la página de aterrizaje.
+app.get(
+  '/api/admin/inicio/resumen',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    const perfil = req.adminPerfil;
+    const esSuper = perfil === 'super';
+    const configGlobalInicio = await getConfiguracionGlobal();
+    const { inicioHoy, finHoy, inicio7d } = limitesDia(configGlobalInicio.zona_horaria);
+
+    function tendencia(hoyValor, suma7dAnteriores) {
+      const promedio7d = suma7dAnteriores / 7;
+      if (promedio7d <= 0) {
+        return hoyValor > 0 ? { texto: 'Nuevo hoy, sin historial de 7 días', direccion: 'pos' } : null;
+      }
+      const pct = Math.round(((hoyValor - promedio7d) / promedio7d) * 100);
+      return {
+        texto: `${pct > 0 ? '+' : ''}${pct}% vs prom. 7d`,
+        direccion: pct > 0 ? 'pos' : pct < 0 ? 'neg' : null,
+      };
+    }
+
+    const resultado = {};
+
+    // ---------- Tickets (Facturación) ----------
+    if ((esSuper || ['administrador', 'fiscal'].includes(perfil)) && (!req.tenant || req.tenant.facturacionHabilitada !== false)) {
+      const [[hoyTickets]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM tickets WHERE eliminado_en IS NULL AND creado_en >= ? AND creado_en < ?`,
+        [inicioHoy, finHoy]
+      );
+      const [[pendientesTickets]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM tickets WHERE eliminado_en IS NULL AND estatus IN ('pendiente', 'en_curso')`
+      );
+      const [[semana7dTickets]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM tickets WHERE eliminado_en IS NULL AND creado_en >= ? AND creado_en < ?`,
+        [inicio7d, inicioHoy]
+      );
+      resultado.tickets = {
+        hoy: Number(hoyTickets.total),
+        pendientes: Number(pendientesTickets.total),
+        tendencia: tendencia(Number(hoyTickets.total), Number(semana7dTickets.total)),
+      };
+    }
+
+    // ---------- Ventas ----------
+    if (
+      (esSuper || ['administrador', 'ventas'].includes(perfil)) &&
+      (!req.tenant || req.tenant.ventasHabilitado !== false)
+    ) {
+      const [[hoyVentas]] = await pool.query(
+        `SELECT COUNT(*) AS total, COALESCE(SUM(total), 0) AS suma FROM ordenes_compra
+         WHERE eliminado_en IS NULL AND fecha_compra >= ? AND fecha_compra < ?`,
+        [inicioHoy, finHoy]
+      );
+      const [[semana7dVentas]] = await pool.query(
+        `SELECT COALESCE(SUM(total), 0) AS suma FROM ordenes_compra
+         WHERE eliminado_en IS NULL AND fecha_compra >= ? AND fecha_compra < ?`,
+        [inicio7d, inicioHoy]
+      );
+      const [recientesVentas] = await pool.query(
+        `SELECT numero_compra, email, total, fecha_compra FROM ordenes_compra
+         WHERE eliminado_en IS NULL ORDER BY fecha_compra DESC LIMIT 3`
+      );
+      resultado.ventas = {
+        hoy: { total: Number(hoyVentas.suma), count: Number(hoyVentas.total) },
+        tendencia: tendencia(Number(hoyVentas.suma), Number(semana7dVentas.suma)),
+        recientes: recientesVentas.map((v) => ({
+          numeroCompra: v.numero_compra,
+          email: v.email || null,
+          total: Number(v.total),
+          fechaCompra: v.fecha_compra,
+        })),
+      };
+    }
+
+    // ---------- Gastos ----------
+    if (
+      (esSuper || ['administrador', 'ventas'].includes(perfil)) &&
+      (!req.tenant || req.tenant.gastosHabilitado !== false)
+    ) {
+      const [[hoyGastos]] = await pool.query(
+        `SELECT COUNT(*) AS total, COALESCE(SUM(monto), 0) AS suma,
+                SUM(CASE WHEN tiene_factura = 1 THEN 1 ELSE 0 END) AS con_factura
+         FROM gastos WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?`,
+        [inicioHoy, finHoy]
+      );
+      const [[semana7dGastos]] = await pool.query(
+        `SELECT COALESCE(SUM(monto), 0) AS suma FROM gastos
+         WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?`,
+        [inicio7d, inicioHoy]
+      );
+      const [recientesGastos] = await pool.query(
+        `SELECT concepto, proveedor, monto, fecha FROM gastos
+         WHERE eliminado_en IS NULL ORDER BY fecha DESC, creado_en DESC LIMIT 3`
+      );
+      resultado.gastos = {
+        hoy: { total: Number(hoyGastos.suma), count: Number(hoyGastos.total), conFactura: Number(hoyGastos.con_factura || 0) },
+        tendencia: tendencia(Number(hoyGastos.suma), Number(semana7dGastos.suma)),
+        recientes: recientesGastos.map((g) => ({
+          concepto: g.concepto,
+          proveedor: g.proveedor || null,
+          monto: Number(g.monto),
+          fecha: g.fecha,
+        })),
+      };
+    }
+
+    // ---------- Inventario ----------
+    // inventarioActivo() además del flag del plan — sin inventario activo
+    // a nivel de negocio, no hay nada real que resumir (mismo criterio ya
+    // usado en la campana de notificaciones, punto 356).
+    const inventarioPlanPermite = !req.tenant || req.tenant.inventariosHabilitado !== false;
+    if ((esSuper || ['administrador', 'inventario'].includes(perfil)) && inventarioPlanPermite && (await inventarioActivo())) {
+      const [[hoyInventario]] = await pool.query(
+        `SELECT
+           SUM(CASE WHEN tipo IN ('compra','devolucion_cliente','inventario_inicial','ajuste_positivo') THEN 1 ELSE 0 END) AS entradas,
+           SUM(CASE WHEN tipo IN ('venta','consumo_interno','merma','ajuste_negativo') THEN 1 ELSE 0 END) AS salidas,
+           COUNT(*) AS total
+         FROM movimientos_inventario WHERE creado_en >= ? AND creado_en < ?`,
+        [inicioHoy, finHoy]
+      );
+      const [[semana7dInventario]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM movimientos_inventario WHERE creado_en >= ? AND creado_en < ?`,
+        [inicio7d, inicioHoy]
+      );
+      const [recientesInventario] = await pool.query(
+        `SELECT m.tipo, m.cantidad, m.existencia_posterior, m.creado_en, p.nombre AS producto_nombre, p.sku
+         FROM movimientos_inventario m JOIN productos p ON p.id = m.producto_id
+         ORDER BY m.creado_en DESC LIMIT 3`
+      );
+      resultado.inventario = {
+        hoy: { total: Number(hoyInventario.total || 0), entradas: Number(hoyInventario.entradas || 0), salidas: Number(hoyInventario.salidas || 0) },
+        tendencia: tendencia(Number(hoyInventario.total || 0), Number(semana7dInventario.total)),
+        recientes: recientesInventario.map((m) => ({
+          producto: m.producto_nombre,
+          sku: m.sku,
+          tipo: m.tipo,
+          cantidad: Number(m.cantidad),
+          existenciaPosterior: Number(m.existencia_posterior),
+          creadoEn: m.creado_en,
+        })),
+      };
+    }
+
+    res.json(resultado);
+  })
+);
 
 // Obtiene la configuracion actual de campos obligatorios (misma info que la
 // ruta publica, pero protegida, para prellenar el formulario de admin).

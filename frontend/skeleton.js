@@ -65,9 +65,10 @@
   }
 
   /**
-   * Prende/apaga el shimmer sobre los números KPI (.inicio-stat-numero)
-   * dentro de un contenedor — el texto real sigue detrás sin tocarse, el
-   * render normal de cada vista lo actualiza igual que siempre.
+   * Prende/apaga el shimmer sobre los números KPI (.inicio-stat-numero o
+   * .credito-kpi-valor) dentro de un contenedor — el texto real sigue
+   * detrás sin tocarse, el render normal de cada vista lo actualiza
+   * igual que siempre.
    */
   function marcarKpisCargando(contenedor, cargando) {
     if (!contenedor) return;

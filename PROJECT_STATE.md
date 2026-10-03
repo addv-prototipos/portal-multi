@@ -18088,6 +18088,91 @@ Inicio queda con un saludo mínimo ("¡Bienvenido, {usuario}!"), nada más.
   Inicio vacío, pestaña nueva con datos idénticos a los que antes vivían
   ahí, consola sin errores.
 
+**Punto 362 (2026-10-02, CERRADO — Inicio rediseñado con datos reales
++ auditoría de esqueleto de carga en todo el sitio):** dos entregas en la
+misma sesión, a petición del usuario. Primero, propuesta visual
+antes/después del Inicio nuevo basada en `stitch/inicio/` (mockup del
+usuario) auditada contra datos reales — nada inventado — con
+`AskUserQuestion` resolviendo 2 puntos: agregar tarjeta de
+Tickets/Facturación con tendencia "hoy vs promedio de los últimos 7
+días" (en vez de "vs ayer", igual para las 4 tarjetas), y qué campo real
+mostrar en "recientes" de cada lista (proveedor en Gastos, correo en
+Ventas). Confirmado "sí, implementa" → build real. Después, cierre de
+sesión ("terminando, revisa que todo el sitio tenga la funcionalidad del
+esqueleto, cuando esta lento o no cargar... sincroniza /prod y haz push
+y commit").
+
+- **Backend**: `limitesDia(zonaHoraria)` nuevo en `backend/server.js`
+  (mismo patrón que `limitesMes`, calcula límites de "hoy" + "7 días
+  antes" en UTC). Ruta nueva `GET /api/admin/inicio/resumen`
+  (`adminApiLimiter` + `requireAdminAuth` — sin un solo
+  `requiereFeature`, porque agrega 4 módulos distintos): cada sección
+  (tickets/ventas/gastos/inventario) se computa de forma independiente
+  solo si pasa perfil+flag de tenant, y se omite del JSON si no — mismo
+  criterio de "lo que no se tiene permiso de ver, ni se manda" que ya usa
+  el resto del sitio. `tendencia(hoyValor, suma7dAnteriores)` calcula
+  pct vs el promedio real de los 7 días previos (`null`/"Nuevo hoy, sin
+  historial de 7 días" si no hay base). Gastos invierte la polaridad del
+  color de tendencia (gastar menos = verde), verificado con
+  `getComputedStyle` real en navegador, no solo leído del código.
+- **Frontend**: `vista-inicio` con 4 tarjetas KPI (Tickets/Ventas/Gastos/
+  Inventario, cada una oculta si el backend no manda esa sección),
+  2 mini-listas de recientes (Ventas/Gastos) + 1 para Inventario,
+  botones "Ver todas" que navegan a la vista real de cada módulo.
+  `cargarInicioResumen()` nuevo en `frontend/admin.js`. El perfil
+  "inventario" no se tocó (su Inicio especial reparentado sigue
+  intacto).
+- **Auditoría de esqueleto de carga (Fase 8)** — se revisó qué páginas ya
+  usan el patrón compartido `Esqueleto` (`frontend/skeleton.js`) para
+  mostrar shimmer mientras carga y un estado de error+reintentar si la
+  carga falla o tarda, y se encontraron y corrigieron 3 huecos reales:
+  (1) `cargarInicioResumen()` (Inicio nuevo) no tenía ningún estado de
+  carga/error — se agregó placeholder genérico + error con reintentar;
+  (2) `cargarCredito()` (Mi Cuenta → Gestión de crédito, punto 360) tenía
+  un bug real preexistente: CUALQUIER fallo de red (no solo 404 esperado
+  por módulo apagado) dejaba la sección oculta en silencio, sin
+  feedback — se reescribió con shimmer en los KPIs + esqueleto en ambas
+  tablas + error visible con botón Reintentar, 404 sigue ocultando en
+  silencio (comportamiento esperado, módulo apagado); (3)
+  `cargarSuperAdmins()` en `/control` (`frontend/control.js`) era el
+  único de los 5 loaders principales de esa app sin ningún uso de
+  `Esqueleto` — se igualó al patrón de los otros 4
+  (`cargarTenants`/`cargarPapelera`/`cargarPlanes`/`cargarSucursales`/
+  `cargarAuditoria`). `frontend/style.css` extendido para que el shimmer
+  de KPI cubra también `.credito-kpi-valor` (antes solo
+  `.inicio-stat-numero`). Páginas sin tabla (`tickets.html`/`csf.html`/
+  `login.html`/`restablecer.html`) no llevan `skeleton.js` — ya usan un
+  patrón equivalente de deshabilitar botón + cambiar texto, aceptable
+  para formularios sin listas.
+- **Hallazgo de prueba E2E corregido en el camino (no es una regresión de
+  código de producción)**: `e2e/tests/reportes-estado-tickets.spec.ts`
+  (del punto 361) tenía una condición de carrera real — el popup
+  "Tickets nuevos por facturar" llega por un fetch asíncrono y podía
+  aparecer DESPUÉS del `isVisible()` puntual que lo revisaba, quedando
+  bloqueando clics el resto del test sin que nada lo volviera a cerrar.
+  Fix: `page.addLocatorHandler()` de Playwright (lo descarta solo,
+  automáticamente, justo antes de cualquier acción bloqueada, sin
+  importar cuándo aparezca) — reemplaza los checks puntuales
+  `isVisible().catch()` para ESTE overlay específico. Confirmado con
+  `--repeat-each=2`, limpio las 2 veces.
+- **Pruebas**: backend **1171/1171** (60 suites), control **346/346**
+  (17 suites) — ambas sin regresiones tras los 3 fixes de esqueleto.
+  **Funcional real** (Playwright, contra Docker+MySQL reales, puerto
+  8088): `inicio-resumen.spec.ts` (4/4), `reportes-estado-tickets.spec.ts`
+  (3/3, tras el fix de carrera de arriba), `mi-cuenta-credito.spec.ts`
+  (2/2), `control-planes-wizard.spec.ts` (3/3) — 12/12 verde. Verificado
+  también con clics reales (Chrome DevTools MCP): Inicio con las 4
+  tarjetas y datos reales, Super Admins de `/control` con shimmer y
+  lista real, consola sin errores en ambos.
+- **Fuera de alcance, no es regresión de esta sesión**:
+  `admin-plan-gating.spec.ts` (punto 349-351) falló en esta corrida — su
+  propio comentario documenta que requiere una precondición MANUAL
+  (gastos/auditoría/inventarios apagados a propósito en el tenant real
+  `t1` ANTES de correrlo, el spec no los apaga él mismo) y al momento de
+  esta sesión los 3 flags de `t1` estaban en su default `1` (encendidos)
+  — no fue tocado por el trabajo de esta fase, queda como está
+  documentado desde su creación.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

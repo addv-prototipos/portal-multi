@@ -152,6 +152,43 @@ dependencia completo en `stitch/gobierno-funcionalidades/NOTAS.md`
   `X-Internal-Secret` (idempotente) — en producción real con tenants
   activos, esto es un paso de deploy obligatorio que un `docker compose
   up` normal no cubre.
+- **Candado de feature-flag por tenant**: `backend/utils/requiereFeature.js`
+  (punto 347) — responde **404, nunca 403**, un tenant sin el módulo se
+  comporta como si la ruta no existiera (mismo criterio que la
+  anti-enumeración de tenants). `server.js` NO tiene routers modulares por
+  feature (son rutas sueltas en un solo archivo) — el candado se inserta
+  ruta por ruta, nunca con un `app.use(prefijo, ...)` único. **Siempre
+  ANTES de `requireAdminAuth`/`requireUserAuth`** en la cadena de
+  middlewares, nunca después — si no, el 404 solo se ve con credenciales
+  válidas, revelando que el módulo existe a quien no las tiene.
+  **Backend-only no es suficiente**: el frontend también debe ocultar la
+  entrada (tile/botón/campo) que llevaría ahí. Antes de dar un módulo por
+  "ya gateado", revisar las 3 capas: ruta bloqueada (`requiereFeature`),
+  menú/tile oculto, y cualquier formulario de alta que capture datos
+  específicos de ese módulo.
+  **Nunca compartir una ruta entre dos superficies con flags de gobierno
+  distintos**: cada pestaña de Reportes tiene su propio flag que apaga
+  esa pestaña sin tocar el módulo del que depende — si la ruta que la
+  alimenta también sirve a OTRA vista (ej. un botón dentro de
+  Ventas/Gastos), apagar la pestaña de Reportes rompe esa otra vista de
+  encima. Caso real detectado (no corregido, fuera de alcance, punto
+  361): `POST /api/admin/reportes/corte` sirve a la vez el botón "Corte
+  del día" de Ventas y "Reporte por rango" de Reportes → Cortes, con
+  AMBOS flags en la misma ruta. El patrón correcto (ya usado para
+  "Estado de tickets", que a propósito NO reutiliza
+  `GET /api/admin/tickets`) es una ruta dedicada por pestaña cuando hay
+  riesgo de compartirla con otra vista.
+- **Playwright: overlay/popup asíncrono que aparece en cualquier
+  momento** (punto 362) — un check puntual tipo
+  `if (await locator.isVisible().catch(() => false)) await locator.click()`
+  solo cubre el instante en que se ejecuta; si el overlay llega por un
+  fetch que resuelve después (ej. "Tickets nuevos por facturar"), puede
+  aparecer entre ese check y el siguiente clic y quedar bloqueando el
+  resto del test sin que nada lo vuelva a cerrar. Usar
+  `page.addLocatorHandler(locator, handler)` para overlays con esta
+  condición de carrera — Playwright lo descarta solo, automáticamente,
+  justo antes de cualquier acción que quedaría bloqueada, sin importar
+  cuándo aparezca.
 - **Desincronización MySQL/`.env`**: MySQL solo aplica las credenciales
   de `.env` en la PRIMERA inicialización del volumen — editar `.env`
   después desincroniza contra el password real ya grabado. Runbook en

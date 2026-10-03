@@ -3209,14 +3209,19 @@
     if (!authHeader) { showLogin(); return; }
     if (!els.superTableBody) return;
     els.superError.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(els.superTableBody, 2);
     try {
       const res = await fetch(`${API_BASE}/super-admins`, { headers: { Authorization: authHeader } });
       if (res.status === 401) { clearSession(); showLogin(); return; }
-      if (!res.ok) { els.superError.textContent = 'No se pudieron cargar los super admins.'; return; }
+      if (!res.ok) {
+        Esqueleto.aplicarErrorTabla(els.superTableBody, 2, 'No se pudieron cargar los super admins.', cargarSuperAdmins);
+        return;
+      }
       const data = await res.json();
       renderSuperAdmins(data.superAdmins || []);
+      Esqueleto.quitarEsqueletoTabla(els.superTableBody);
     } catch (_) {
-      els.superError.textContent = 'No se pudo conectar con el servidor.';
+      Esqueleto.aplicarErrorTabla(els.superTableBody, 2, 'No se pudo conectar con el servidor.', cargarSuperAdmins);
     }
   }
 

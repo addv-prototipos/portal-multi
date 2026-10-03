@@ -61,6 +61,15 @@ test('el perfil "fiscal" entra a Reportes y solo ve "Estado de tickets" (las otr
     data: { rfc: usuario, telefono: '', email: `${usuario}@example.com`, password, perfil: 'fiscal' },
   });
 
+  // El popup "Tickets nuevos por facturar" llega por un fetch asíncrono y
+  // puede aparecer en cualquier momento entre los clics de abajo — un
+  // check puntual (isVisible) pierde la carrera si aparece después. Un
+  // locator handler lo descarta solo, justo antes de cualquier acción que
+  // quedaría bloqueada, sin importar cuándo aparezca.
+  await page.addLocatorHandler(page.locator('#notif-tickets-overlay'), async (overlay) => {
+    await overlay.locator('#btn-notif-tickets-cerrar').click();
+  });
+
   await page.goto('/admin');
   await page.fill('#admin-user', usuario);
   await page.fill('#admin-pass', password);
@@ -72,12 +81,6 @@ test('el perfil "fiscal" entra a Reportes y solo ve "Estado de tickets" (las otr
   const btnSaltarTour = page.locator('#btn-onboarding-tour-saltar');
   if (await btnSaltarTour.isVisible().catch(() => false)) {
     await btnSaltarTour.click();
-  }
-  // Popup "Tickets nuevos por facturar" (fiscal ve tickets reales del
-  // sitio base) — se cierra antes de seguir, no es parte de este flujo.
-  const btnCerrarNotifTickets = page.locator('#btn-notif-tickets-cerrar');
-  if (await btnCerrarNotifTickets.isVisible().catch(() => false)) {
-    await btnCerrarNotifTickets.click();
   }
 
   await page.click('.admin-sidebar-group-header[data-grupo="finanzas"]');

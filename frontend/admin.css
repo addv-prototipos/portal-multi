@@ -4633,6 +4633,46 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 }
 .inicio-ver-todas:hover { text-decoration: underline; }
 
+/* Punto 362 — Inicio con datos reales: listas de "recientes" en formato
+   fila simple (sin tabla/acciones, de solo lectura) para Ventas/Gastos/
+   Inventario, reusando el mismo cascarón de tarjeta que .inicio-recientes-card. */
+.inicio-resumen-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) {
+  .inicio-resumen-cols { grid-template-columns: 1fr; }
+}
+.inicio-resumen-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.inicio-resumen-lista {
+  list-style: none;
+  margin: 0;
+  padding: 4px 18px 14px;
+}
+.inicio-resumen-lista li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+}
+.inicio-resumen-lista li:last-child { border-bottom: none; }
+.inicio-resumen-lista .ir-l { font-weight: 600; color: var(--color-ink); white-space: nowrap; }
+.inicio-resumen-lista .ir-m { color: var(--color-ink-soft); font-size: 12px; margin-left: 6px; }
+.inicio-resumen-lista .ir-r { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.inicio-resumen-lista .ir-empty { color: var(--color-ink-soft); font-size: 13px; padding: 10px 0; }
+
 .inicio-recientes-card .admin-table-wrap {
   border: none;
   border-radius: 0;

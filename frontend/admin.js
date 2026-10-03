@@ -257,6 +257,33 @@
     inicioTituloBienvenida: document.getElementById('inicio-titulo-bienvenida'),
     inicioSubtitulo: document.getElementById('inicio-subtitulo'),
     inicioInventarioSlot: document.getElementById('inicio-inventario-slot'),
+    // Punto 362: Inicio con datos reales (resumen de hoy por módulo)
+    inicioResumenCargando: document.getElementById('inicio-resumen-cargando'),
+    inicioResumen: document.getElementById('inicio-resumen'),
+    inicioSinResumen: document.getElementById('inicio-sin-resumen'),
+    inicioResumenError: document.getElementById('inicio-resumen-error'),
+    btnInicioResumenReintentar: document.getElementById('btn-inicio-resumen-reintentar'),
+    inicioKpiTickets: document.getElementById('inicio-kpi-tickets'),
+    inicioKpiTicketsNumero: document.getElementById('inicio-kpi-tickets-numero'),
+    inicioKpiTicketsTendencia: document.getElementById('inicio-kpi-tickets-tendencia'),
+    inicioKpiVentas: document.getElementById('inicio-kpi-ventas'),
+    inicioKpiVentasNumero: document.getElementById('inicio-kpi-ventas-numero'),
+    inicioKpiVentasTendencia: document.getElementById('inicio-kpi-ventas-tendencia'),
+    inicioKpiGastos: document.getElementById('inicio-kpi-gastos'),
+    inicioKpiGastosNumero: document.getElementById('inicio-kpi-gastos-numero'),
+    inicioKpiGastosTendencia: document.getElementById('inicio-kpi-gastos-tendencia'),
+    inicioKpiInventario: document.getElementById('inicio-kpi-inventario'),
+    inicioKpiInventarioNumero: document.getElementById('inicio-kpi-inventario-numero'),
+    inicioKpiInventarioTendencia: document.getElementById('inicio-kpi-inventario-tendencia'),
+    inicioResumenVentasCard: document.getElementById('inicio-resumen-ventas-card'),
+    inicioResumenVentasLista: document.getElementById('inicio-resumen-ventas-lista'),
+    btnInicioVerVentas: document.getElementById('btn-inicio-ver-ventas'),
+    inicioResumenGastosCard: document.getElementById('inicio-resumen-gastos-card'),
+    inicioResumenGastosLista: document.getElementById('inicio-resumen-gastos-lista'),
+    btnInicioVerGastos: document.getElementById('btn-inicio-ver-gastos'),
+    inicioResumenInventarioCard: document.getElementById('inicio-resumen-inventario-card'),
+    inicioResumenInventarioLista: document.getElementById('inicio-resumen-inventario-lista'),
+    btnInicioVerInventario: document.getElementById('btn-inicio-ver-inventario'),
     // Reportes → "Estado de tickets" (punto 360, movido desde Inicio)
     btnReportesVistaEstadoTickets: document.getElementById('btn-reportes-vista-estado-tickets'),
     reportesTicketsMainGrid: document.getElementById('reportes-tickets-main-grid'),
@@ -7940,23 +7967,187 @@
     cargarEstadoInventario();
   }
 
-  // Punto 360 (2026-10-02): "Inicio" queda fijo — el resumen de tickets
-  // (KPIs/dona/recientes) se movió a Reportes → "Estado de tickets" (ver
-  // cargarEstadoTickets()/renderEstadoTickets() más abajo), y el bloque
-  // "sin Facturación" (bienvenida + accesos directos) se quitó sin
-  // reemplazo por ahora — vuelve con el diseño nuevo (carpeta
-  // stitch/inicio) cuando el usuario lo entregue. El perfil "Inventario"
-  // (punto 321) es la única excepción que sigue viva: no tiene acceso a
-  // "Reportes" en su sidebar, así que su Inicio sigue siendo "Estado del
-  // inventario" reparentado (cargarInicioInventario()).
+  // Punto 362 (2026-10-02, ver PROJECT_STATE.md): "Inicio" con datos
+  // reales — un solo fetch a GET /api/admin/inicio/resumen que ya trae
+  // SOLO las secciones que el perfil+plan permiten (el backend decide,
+  // no el frontend); aquí solo se muestra/oculta cada tarjeta según qué
+  // llegó. El perfil "Inventario" (punto 321) sigue siendo la única
+  // excepción: no tiene acceso a "Reportes" en su sidebar, su Inicio
+  // sigue siendo "Estado del inventario" reparentado
+  // (cargarInicioInventario()), nunca llama a este resumen.
+  function formatearFechaCortaInicio(fechaISO) {
+    if (!fechaISO) return '';
+    // Cubre tanto "YYYY-MM-DD" (gastos.fecha, DATE) como
+    // "YYYY-MM-DD HH:MM:SS" (ordenes_compra.fecha_compra, DATETIME).
+    let texto = String(fechaISO);
+    if (!texto.includes('T')) texto = texto.includes(' ') ? texto.replace(' ', 'T') + 'Z' : `${texto}T00:00:00Z`;
+    const fecha = new Date(texto);
+    if (Number.isNaN(fecha.getTime())) return '';
+    return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+  }
+
+  function aplicarTendenciaInicio(elemento, tendencia) {
+    elemento.classList.remove('es-positiva', 'es-negativa');
+    if (!tendencia) {
+      elemento.textContent = '';
+      return;
+    }
+    elemento.textContent = tendencia.texto;
+    if (tendencia.direccion === 'pos') elemento.classList.add('es-positiva');
+    if (tendencia.direccion === 'neg') elemento.classList.add('es-negativa');
+  }
+
+  function renderListaInicioResumen(lista, filas, vacioTexto) {
+    lista.innerHTML = '';
+    if (filas.length === 0) {
+      lista.innerHTML = `<li class="ir-empty">${escapeHtml(vacioTexto)}</li>`;
+      return;
+    }
+    filas.forEach((fila) => {
+      const li = document.createElement('li');
+      li.innerHTML = fila;
+      lista.appendChild(li);
+    });
+  }
+
+  async function cargarInicioResumen() {
+    els.inicioResumen.hidden = true;
+    els.inicioSinResumen.hidden = true;
+    els.inicioResumenError.hidden = true;
+    els.inicioResumenCargando.hidden = false;
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      els.inicioResumenCargando.hidden = true;
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/inicio/resumen`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      els.inicioResumenCargando.hidden = true;
+      if (!res.ok) {
+        els.inicioResumenError.hidden = false;
+        return;
+      }
+      const data = await res.json();
+
+      const hayAlgo = Boolean(data.tickets || data.ventas || data.gastos || data.inventario);
+      els.inicioResumen.hidden = !hayAlgo;
+      els.inicioSinResumen.hidden = hayAlgo;
+      if (!hayAlgo) return;
+
+      els.inicioKpiTickets.hidden = !data.tickets;
+      if (data.tickets) {
+        els.inicioKpiTicketsNumero.textContent = String(data.tickets.hoy);
+        const pendientesTexto = `${data.tickets.pendientes} pendiente${data.tickets.pendientes === 1 ? '' : 's'}`;
+        aplicarTendenciaInicio(els.inicioKpiTicketsTendencia, data.tickets.tendencia);
+        if (!data.tickets.tendencia) els.inicioKpiTicketsTendencia.textContent = pendientesTexto;
+        else els.inicioKpiTicketsTendencia.textContent += ` · ${pendientesTexto}`;
+      }
+
+      els.inicioKpiVentas.hidden = !data.ventas;
+      els.inicioResumenVentasCard.hidden = !data.ventas;
+      if (data.ventas) {
+        els.inicioKpiVentasNumero.textContent = `$${formatearMoneda(data.ventas.hoy.total)}`;
+        const countTexto = `${data.ventas.hoy.count} venta${data.ventas.hoy.count === 1 ? '' : 's'}`;
+        els.inicioKpiVentasTendencia.classList.remove('es-positiva', 'es-negativa');
+        els.inicioKpiVentasTendencia.textContent = data.ventas.tendencia
+          ? `${countTexto} · ${data.ventas.tendencia.texto}`
+          : countTexto;
+        if (data.ventas.tendencia) {
+          els.inicioKpiVentasTendencia.classList.toggle('es-positiva', data.ventas.tendencia.direccion === 'pos');
+          els.inicioKpiVentasTendencia.classList.toggle('es-negativa', data.ventas.tendencia.direccion === 'neg');
+        }
+        renderListaInicioResumen(
+          els.inicioResumenVentasLista,
+          data.ventas.recientes.map(
+            (v) => `
+            <span class="ir-l">${escapeHtml(v.numeroCompra)}<span class="ir-m">${escapeHtml(v.email || 'Sin correo')} · ${formatearFechaCortaInicio(v.fechaCompra)}</span></span>
+            <span class="ir-r">$${formatearMoneda(v.total)}</span>`
+          ),
+          'Aún no hay ventas registradas.'
+        );
+      }
+
+      els.inicioKpiGastos.hidden = !data.gastos;
+      els.inicioResumenGastosCard.hidden = !data.gastos;
+      if (data.gastos) {
+        els.inicioKpiGastosNumero.textContent = `$${formatearMoneda(data.gastos.hoy.total)}`;
+        const countTextoGastos = `${data.gastos.hoy.conFactura} con factura`;
+        els.inicioKpiGastosTendencia.textContent = data.gastos.tendencia
+          ? `${countTextoGastos} · ${data.gastos.tendencia.texto}`
+          : countTextoGastos;
+        els.inicioKpiGastosTendencia.classList.remove('es-positiva', 'es-negativa');
+        // Gastos: una tendencia "positiva" (gastar más) no es buena
+        // noticia — se invierte el color respecto a Ventas/Tickets.
+        if (data.gastos.tendencia) {
+          els.inicioKpiGastosTendencia.classList.toggle('es-negativa', data.gastos.tendencia.direccion === 'pos');
+          els.inicioKpiGastosTendencia.classList.toggle('es-positiva', data.gastos.tendencia.direccion === 'neg');
+        }
+        renderListaInicioResumen(
+          els.inicioResumenGastosLista,
+          data.gastos.recientes.map(
+            (g) => `
+            <span class="ir-l">${escapeHtml(g.concepto)}<span class="ir-m">${escapeHtml(g.proveedor || 'Sin proveedor')} · ${formatearFechaCortaInicio(g.fecha)}</span></span>
+            <span class="ir-r">$${formatearMoneda(g.monto)}</span>`
+          ),
+          'Aún no hay gastos registrados.'
+        );
+      }
+
+      els.inicioKpiInventario.hidden = !data.inventario;
+      els.inicioResumenInventarioCard.hidden = !data.inventario;
+      if (data.inventario) {
+        els.inicioKpiInventarioNumero.textContent = String(data.inventario.hoy.total);
+        const movsTexto = `${data.inventario.hoy.entradas} entradas · ${data.inventario.hoy.salidas} salidas`;
+        els.inicioKpiInventarioTendencia.classList.remove('es-positiva', 'es-negativa');
+        els.inicioKpiInventarioTendencia.textContent = data.inventario.tendencia
+          ? `${movsTexto} · ${data.inventario.tendencia.texto}`
+          : movsTexto;
+        if (data.inventario.tendencia) {
+          els.inicioKpiInventarioTendencia.classList.toggle('es-positiva', data.inventario.tendencia.direccion === 'pos');
+          els.inicioKpiInventarioTendencia.classList.toggle('es-negativa', data.inventario.tendencia.direccion === 'neg');
+        }
+        renderListaInicioResumen(
+          els.inicioResumenInventarioLista,
+          data.inventario.recientes.map(
+            (m) => `
+            <span class="ir-l">${escapeHtml(m.producto)}<span class="ir-m">${escapeHtml(m.tipo)} · existencia ${m.existenciaPosterior}</span></span>
+            <span class="ir-r">${m.cantidad}</span>`
+          ),
+          'Aún no hay movimientos de inventario.'
+        );
+      }
+    } catch (err) {
+      // Sin conexión: a diferencia de antes (silencio total), ahora se ve
+      // un estado de error real con botón de reintentar — hallazgo de la
+      // revisión de esqueleto de todo el sitio (punto 362).
+      els.inicioResumenCargando.hidden = true;
+      els.inicioResumenError.hidden = false;
+    }
+  }
+
+  if (els.btnInicioResumenReintentar) {
+    els.btnInicioResumenReintentar.addEventListener('click', () => cargarInicioResumen());
+  }
+
   function cargarInicio() {
     els.inicioInventarioSlot.hidden = true;
     els.inicioSubtitulo.hidden = true;
     els.inicioTituloBienvenida.textContent = usuarioSesionActual ? `¡Bienvenido, ${usuarioSesionActual}!` : '¡Bienvenido!';
     if (perfilActual === 'inventario') {
       cargarInicioInventario();
+      return;
     }
+    cargarInicioResumen();
   }
+
+  if (els.btnInicioVerVentas) els.btnInicioVerVentas.addEventListener('click', () => cambiarVistaPrincipal('ordenes'));
+  if (els.btnInicioVerGastos) els.btnInicioVerGastos.addEventListener('click', () => cambiarVistaPrincipal('gastos'));
+  if (els.btnInicioVerInventario) els.btnInicioVerInventario.addEventListener('click', () => cambiarVistaPrincipal('inventarios'));
 
   // Compara cuántos tickets de "lista" se crearon en el mes calendario
   // actual (a la fecha) contra el mes calendario anterior completo. Sin

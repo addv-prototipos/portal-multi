@@ -1070,13 +1070,15 @@ body {
 /* Número KPI en carga: mismo bloque de ancho fijo sin importar el valor
    final (igual que Facebook/LinkedIn) — el texto real queda oculto pero
    ocupa su espacio normal, así no hay salto de layout al llegar el dato. */
-.sk-cargando .inicio-stat-numero {
+.sk-cargando .inicio-stat-numero,
+.sk-cargando .credito-kpi-valor {
   color: transparent !important;
   display: inline-block;
   min-width: 84px;
   max-width: 84px;
 }
-.sk-cargando .inicio-stat-numero::before {
+.sk-cargando .inicio-stat-numero::before,
+.sk-cargando .credito-kpi-valor::before {
   content: '';
   display: block;
   height: 0.85em;
@@ -1086,7 +1088,8 @@ body {
   animation: sk-sweep 1.5s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .sk-cargando .inicio-stat-numero::before { animation: none; background-image: none; background-color: var(--color-border); }
+  .sk-cargando .inicio-stat-numero::before,
+  .sk-cargando .credito-kpi-valor::before { animation: none; background-image: none; background-color: var(--color-border); }
 }
 
 /* Error/reintentar en línea dentro del mismo bloque que falló — nunca un

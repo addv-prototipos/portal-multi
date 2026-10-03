@@ -461,21 +461,112 @@
         </button>
       </div>
       <div id="vista-inicio">
-        <!-- Punto 360 (2026-10-02): el resumen de tickets (KPIs/dona/
-             recientes) que vivía aquí se movió a Reportes → "Estado de
-             tickets". Fijo para el resto de los perfiles/estados
-             (Facturación activa o no) hasta que llegue el diseño nuevo
-             (carpeta stitch/inicio) — a propósito, no se reconstruye dos
-             veces. El perfil "inventario" (punto 321) NO cambia: sigue sin
-             acceso a "Reportes" en su sidebar, así que su Inicio sigue
-             siendo "Estado del inventario" reparentado (ver
-             cargarInicioInventario() en admin.js) — perdería esa única
-             vía de ver esos datos si también se vaciara. -->
+        <!-- Punto 362 (2026-10-02, ver PROJECT_STATE.md): Inicio con datos
+             reales — resumen de "hoy" por módulo (Tickets/Ventas/Gastos/
+             Inventario), cada tarjeta visible solo si ese módulo está
+             activo en el plan Y el perfil tiene acceso a él (mismo
+             criterio que ya usa el resto del panel). El perfil
+             "inventario" (punto 321) sigue sin acceso a "Reportes" en su
+             sidebar — su Inicio sigue siendo "Estado del inventario"
+             reparentado (cargarInicioInventario() en admin.js), este
+             bloque de resumen no aplica para ese perfil. -->
         <div class="inicio-bienvenida">
           <h1 id="inicio-titulo-bienvenida">¡Bienvenido!</h1>
           <p class="panel-subtitle" id="inicio-subtitulo" hidden></p>
         </div>
         <div id="inicio-inventario-slot" hidden></div>
+
+        <!-- Carga genérica (sin revelar todavía qué módulos aplican —
+             eso se sabe hasta que responde el backend) mientras se espera
+             GET /api/admin/inicio/resumen. -->
+        <div class="inicio-stats-grid" id="inicio-resumen-cargando" hidden>
+          <div class="inicio-stat-card"><span class="sk sk-line" style="width:60%"></span><span class="sk sk-line" style="width:40%;margin-top:14px;height:22px;"></span></div>
+          <div class="inicio-stat-card"><span class="sk sk-line" style="width:60%"></span><span class="sk sk-line" style="width:40%;margin-top:14px;height:22px;"></span></div>
+        </div>
+
+        <div id="inicio-resumen" hidden>
+          <div class="inicio-stats-grid" id="inicio-resumen-kpis">
+            <div class="inicio-stat-card" id="inicio-kpi-tickets" hidden>
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Tickets hoy</span>
+                <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="inicio-kpi-tickets-numero">0</p>
+              <p class="inicio-stat-tendencia" id="inicio-kpi-tickets-tendencia"></p>
+            </div>
+            <div class="inicio-stat-card" id="inicio-kpi-ventas" hidden>
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Ventas hoy</span>
+                <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round" stroke-width="2"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="inicio-kpi-ventas-numero">$0.00</p>
+              <p class="inicio-stat-tendencia" id="inicio-kpi-ventas-tendencia"></p>
+            </div>
+            <div class="inicio-stat-card" id="inicio-kpi-gastos" hidden>
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Gastos hoy</span>
+                <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="inicio-kpi-gastos-numero">$0.00</p>
+              <p class="inicio-stat-tendencia" id="inicio-kpi-gastos-tendencia"></p>
+            </div>
+            <div class="inicio-stat-card" id="inicio-kpi-inventario" hidden>
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Movs. de inventario</span>
+                <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="inicio-kpi-inventario-numero">0</p>
+              <p class="inicio-stat-tendencia" id="inicio-kpi-inventario-tendencia"></p>
+            </div>
+          </div>
+
+          <div class="inicio-resumen-cols" id="inicio-resumen-cols">
+            <section class="inicio-resumen-card" id="inicio-resumen-ventas-card" hidden>
+              <div class="inicio-card-header">
+                <h2>Ventas recientes</h2>
+                <button type="button" class="inicio-ver-todas" id="btn-inicio-ver-ventas">Ver todas</button>
+              </div>
+              <ul class="inicio-resumen-lista" id="inicio-resumen-ventas-lista"></ul>
+            </section>
+            <section class="inicio-resumen-card" id="inicio-resumen-gastos-card" hidden>
+              <div class="inicio-card-header">
+                <h2>Gastos recientes</h2>
+                <button type="button" class="inicio-ver-todas" id="btn-inicio-ver-gastos">Ver todos</button>
+              </div>
+              <ul class="inicio-resumen-lista" id="inicio-resumen-gastos-lista"></ul>
+            </section>
+          </div>
+
+          <section class="inicio-resumen-card" id="inicio-resumen-inventario-card" hidden>
+            <div class="inicio-card-header">
+              <h2>Movimientos de inventario</h2>
+              <button type="button" class="inicio-ver-todas" id="btn-inicio-ver-inventario">Ver todos</button>
+            </div>
+            <ul class="inicio-resumen-lista" id="inicio-resumen-inventario-lista"></ul>
+          </section>
+        </div>
+
+        <!-- Sin ningún módulo de operaciones activo para este perfil/plan
+             (ej. tenant solo con Facturación) — bienvenida sin cifras,
+             sin inventar nada. -->
+        <div id="inicio-sin-resumen" hidden>
+          <p class="field-hint">Activa Ventas, Gastos o Inventarios desde /control para ver aquí tu resumen del día.</p>
+        </div>
+
+        <!-- Falla real (red/servidor) al cargar el resumen — distinto del
+             caso de arriba (sin módulos activos, no es un error). -->
+        <div class="sk-retry-inline" id="inicio-resumen-error" hidden>
+          <span>No se pudo cargar tu resumen de hoy.</span>
+          <button type="button" class="sk-retry-btn" id="btn-inicio-resumen-reintentar">Reintentar</button>
+        </div>
       </div>
 
       <div id="vista-constancias" hidden>

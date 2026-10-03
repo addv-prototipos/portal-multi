@@ -22,6 +22,7 @@
     passwordErrorGeneral: document.getElementById('password-error-general'),
 
     creditoSection: document.getElementById('credito-section'),
+    creditoKpis: document.getElementById('credito-kpis'),
     creditoKpiTotal: document.getElementById('credito-kpi-total'),
     creditoKpiPagado: document.getElementById('credito-kpi-pagado'),
     creditoKpiSaldo: document.getElementById('credito-kpi-saldo'),
@@ -241,22 +242,48 @@
 
   async function cargarCredito() {
     if (!els.creditoSection) return;
+    // Se muestra desde ya con esqueleto (Esqueleto.*, igual que el resto
+    // del sitio) — si resulta ser un 404 (módulo apagado en el plan del
+    // tenant) se vuelve a ocultar abajo, sin error; cualquier OTRA falla
+    // (red/servidor) se queda visible con el estado de error + reintentar
+    // en el mismo bloque, nunca en silencio (antes esta función no tenía
+    // ningún estado de carga/error — hallazgo de la revisión de esqueleto
+    // de todo el sitio, punto 362).
+    els.creditoSection.hidden = false;
+    Esqueleto.marcarKpisCargando(els.creditoKpis, true);
+    els.creditoVentasWrap.hidden = false;
+    els.creditoVentasEmpty.hidden = true;
+    els.creditoAbonosWrap.hidden = false;
+    els.creditoAbonosEmpty.hidden = true;
+    Esqueleto.aplicarEsqueletoTabla(els.creditoVentasBody, 4, 3);
+    Esqueleto.aplicarEsqueletoTabla(els.creditoAbonosBody, 4, 3);
+
     try {
       const res = await fetch(`${API_BASE}/mi-cuenta/credito`, { credentials: 'include' });
-      // 404 = módulo Ventas/CxC apagado en el plan del tenant (ver
-      // requiereFeature en el backend) — la sección entera se queda
-      // oculta, mismo criterio ya aplicado en el resto del portal/admin
-      // esta misma sesión (el candado del backend no basta solo, el
-      // frontend también debe ocultar la entrada).
-      if (!res.ok) return;
+      if (res.status === 404) {
+        // Módulo Ventas/CxC apagado en el plan del tenant (ver
+        // requiereFeature en el backend) — la sección entera se oculta,
+        // mismo criterio ya aplicado en el resto del portal/admin esta
+        // misma sesión (el candado del backend no basta solo, el
+        // frontend también debe ocultar la entrada).
+        els.creditoSection.hidden = true;
+        return;
+      }
+      if (!res.ok) {
+        Esqueleto.marcarKpisCargando(els.creditoKpis, false);
+        Esqueleto.aplicarErrorTabla(els.creditoVentasBody, 4, 'No se pudo cargar tu información de crédito.', cargarCredito);
+        Esqueleto.aplicarErrorTabla(els.creditoAbonosBody, 4, 'No se pudo cargar tu historial de abonos.', cargarCredito);
+        return;
+      }
       const data = await res.json();
 
-      els.creditoSection.hidden = false;
+      Esqueleto.marcarKpisCargando(els.creditoKpis, false);
       els.creditoKpiTotal.textContent = `$${formatearMoneda(data.resumen.totalFacturado)}`;
       els.creditoKpiPagado.textContent = `$${formatearMoneda(data.resumen.totalPagado)}`;
       els.creditoKpiSaldo.textContent = `$${formatearMoneda(data.resumen.saldoPendiente)}`;
 
       const ventas = data.ventasPendientes || [];
+      Esqueleto.quitarEsqueletoTabla(els.creditoVentasBody);
       els.creditoVentasWrap.hidden = ventas.length === 0;
       els.creditoVentasEmpty.hidden = ventas.length > 0;
       els.creditoVentasBody.innerHTML = ventas
@@ -272,6 +299,7 @@
         .join('');
 
       const abonos = data.abonos || [];
+      Esqueleto.quitarEsqueletoTabla(els.creditoAbonosBody);
       els.creditoAbonosWrap.hidden = abonos.length === 0;
       els.creditoAbonosEmpty.hidden = abonos.length > 0;
       els.creditoAbonosBody.innerHTML = abonos
@@ -286,8 +314,9 @@
         )
         .join('');
     } catch (err) {
-      // Sin conexión: la sección simplemente no aparece, no interrumpe el
-      // resto de la página (mismo criterio que el resto del portal).
+      Esqueleto.marcarKpisCargando(els.creditoKpis, false);
+      Esqueleto.aplicarErrorTabla(els.creditoVentasBody, 4, 'No se pudo conectar con el servidor.', cargarCredito);
+      Esqueleto.aplicarErrorTabla(els.creditoAbonosBody, 4, 'No se pudo conectar con el servidor.', cargarCredito);
     }
   }
 
