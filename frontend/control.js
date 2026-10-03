@@ -191,7 +191,6 @@
     // §58: Sucursales
     btnVistaEmpresas: document.getElementById('btn-vista-control-empresas'),
     btnVistaPlanes: document.getElementById('btn-vista-control-planes'),
-    btnVistaPapelera: document.getElementById('btn-vista-control-papelera'),
     btnVistaSucursales: document.getElementById('btn-vista-control-sucursales'),
     btnVistaSuper: document.getElementById('btn-vista-control-super'),
     btnVistaAuditoria: document.getElementById('btn-vista-control-auditoria'),
@@ -251,6 +250,8 @@
     planesWizardResumenBody: document.getElementById('planes-wizard-resumen-body'),
     btnAyudaVistaPlanes: document.getElementById('btn-ayuda-vista-planes'),
     btnAyudaVistaPapelera: document.getElementById('btn-ayuda-vista-papelera'),
+    btnVerPapelera: document.getElementById('control-btn-ver-papelera'),
+    btnPapeleraVolver: document.getElementById('btn-papelera-volver-empresas'),
     papeleraCount: document.getElementById('papelera-count'),
     papeleraError: document.getElementById('papelera-error'),
     papeleraTableBody: document.getElementById('papelera-table-body'),
@@ -2321,7 +2322,7 @@
       );
       if (p.activo) {
         contenedorAcciones.appendChild(
-          crearBotonAccion('btn-icono-accion', 'Archivar', 'M8 4v16M16 4v16', () =>
+          crearBotonAccion('btn-icono-accion', 'Archivar', 'M2 3h20v5H2zM4 8v13h16V8M10 12h4', () =>
             confirmarAccion({
               titulo: '¿Archivar este plan?',
               mensaje: `"${p.nombre}" deja de ofrecerse para asignar a empresas nuevas. Las ${p.total_tenants || 0} empresa(s) que ya lo tienen asignado siguen funcionando exactamente igual — reversible con "Reactivar".`,
@@ -2332,7 +2333,7 @@
         );
       } else {
         contenedorAcciones.appendChild(
-          crearBotonAccion('btn-icono-accion', 'Reactivar', 'M5 12h14M12 5l7 7-7 7', () =>
+          crearBotonAccion('btn-icono-accion', 'Reactivar', 'M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5', () =>
             confirmarAccion({
               titulo: '¿Reactivar este plan?',
               mensaje: `"${p.nombre}" vuelve a ofrecerse para asignar a empresas nuevas.`,
@@ -2839,8 +2840,6 @@
       els.btnVistaPlanes.classList.toggle('is-active', vista === 'planes');
       els.btnVistaPlanes.setAttribute('aria-selected', String(vista === 'planes'));
     }
-    els.btnVistaPapelera.classList.toggle('is-active', vista === 'papelera');
-    els.btnVistaPapelera.setAttribute('aria-selected', String(vista === 'papelera'));
     els.btnVistaSucursales.classList.toggle('is-active', vista === 'sucursales');
     els.btnVistaSucursales.setAttribute('aria-selected', String(vista === 'sucursales'));
     if (els.btnVistaSuper) {
@@ -2866,7 +2865,8 @@
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
   if (els.btnVistaPlanes) els.btnVistaPlanes.addEventListener('click', () => cambiarVistaPrincipalControl('planes'));
-  els.btnVistaPapelera.addEventListener('click', () => cambiarVistaPrincipalControl('papelera'));
+  if (els.btnVerPapelera) els.btnVerPapelera.addEventListener('click', () => cambiarVistaPrincipalControl('papelera'));
+  if (els.btnPapeleraVolver) els.btnPapeleraVolver.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
   els.btnVistaSucursales.addEventListener('click', () => cambiarVistaPrincipalControl('sucursales'));
   if (els.btnVistaSuper) els.btnVistaSuper.addEventListener('click', () => cambiarVistaPrincipalControl('super'));
   if (els.btnVistaAuditoria) els.btnVistaAuditoria.addEventListener('click', () => cambiarVistaPrincipalControl('auditoria'));
@@ -3236,7 +3236,7 @@
       const celda = tr.lastElementChild;
       const wrap = document.createElement('div');
       wrap.className = 'admin-row-actions';
-      wrap.appendChild(crearBotonAccion('btn-icono-accion', 'Cambiar contraseña', 'M15 12a3 3 0 11-6 0 3 3 0 016 0z', () => abrirSuperModal(usuario)));
+      wrap.appendChild(crearBotonAccion('btn-icono-accion', 'Cambiar contraseña', 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4', () => abrirSuperModal(usuario)));
       wrap.appendChild(crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar', 'M18 6L6 18M6 6l12 12', () => confirmarAccion({
         titulo: '¿Eliminar super admin?',
         mensaje: `"${usuario}" ya no podrá entrar a /control ni a /<slug>/admin como super. Debe quedar al menos uno.`,

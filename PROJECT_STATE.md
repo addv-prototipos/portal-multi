@@ -18173,6 +18173,52 @@ y commit").
   — no fue tocado por el trabajo de esta fase, queda como está
   documentado desde su creación.
 
+**Punto 363 (2026-10-03, CERRADO — /control: iconografía de Super
+Admins/Planes, ícono de Empresas, y Papelera reubicada dentro de
+Empresas):** a petición del usuario, con propuesta visual antes/después
+real (Chrome DevTools MCP, rebuild de `frontend` entre cada captura) en
+3 rondas de ajuste.
+
+- **Íconos poco claros corregidos**: Super Admins → "Cambiar contraseña"
+  usaba un path roto (`M15 12a3 3 0 11-6 0 3 3 0 016 0z`, un círculo
+  suelto sin significado); se reemplazó por la misma llave completa que
+  ya usa "Credenciales API" en Empresas (reutilizada, no inventada).
+  Planes → "Archivar" usaba el mismo ícono de pausa (`||`) que
+  "Suspender" en Empresas, confundiendo severidad (archivar un plan no
+  afecta a las empresas que ya lo tienen, suspender un tenant sí les
+  corta el acceso) — ahora usa un ícono de caja de archivo propio.
+  "Reactivar" usaba una flecha recta (`→`, leía como "ir a") — ahora usa
+  la misma flecha circular de restaurar que ya usa Papelera, mismo
+  lenguaje visual en todo `/control`.
+- **Papelera no es de Planes, es de Empresas**: el usuario pidió
+  originalmente moverla dentro de Planes razonando que "solo aplica a
+  planes" — se verificó contra el código (`cargarPapelera()` pega a
+  `GET /tenants?estado=baja`, cuenta "X empresa(s)") y se le mostró la
+  evidencia antes de tocar nada; el usuario corrigió el pedido a
+  Empresas. Papelera dejó de ser un tab propio del sidebar
+  (`#btn-vista-control-papelera` eliminado de `control.html`, sidebar
+  desktop y grid móvil) y ahora se entra desde un botón "Papelera" en el
+  toolbar de Empresas (`#control-btn-ver-papelera`, junto a "Nueva
+  empresa"/"Actualizar"); su propia vista gana un botón "← Empresas"
+  (`#btn-papelera-volver-empresas`, reutiliza la clase ya existente
+  `.btn-volver-tablero` de `style.css` en vez de crear un componente
+  nuevo) para regresar. `cambiarVistaPrincipalControl()` y el `els` de
+  `frontend/control.js` ajustados — cero lógica de negocio tocada, la
+  vista de Papelera (`cargarPapelera`/`renderPapelera`/`GET
+  /tenants?estado=baja`) sigue intacta, solo cambió el punto de entrada.
+- **Ícono de Empresas**: el icono de "4 rectángulos en grid" (parecía
+  dashboard/layout genérico, no "empresas") se reemplazó por dos
+  edificios de distinta altura con ventanas — se lee como
+  "negocios/compañías" y además lo distingue del ícono de Sucursales
+  (una sola casa), que antes era visualmente parecido. Actualizado en
+  sidebar, grid móvil, y el ícono del estado vacío de la tabla Empresas
+  (mismo path en los 3 lugares, consistencia).
+- **Pruebas**: control **346/346** sin regresión. E2E
+  `control-planes-wizard.spec.ts` **3/3** (ejercita el sidebar y los
+  botones de icono de Planes, confirma que ningún selector se rompió).
+  Validado con clics reales (Chrome DevTools MCP): ciclo completo
+  Empresas → Papelera → Empresas, capturas antes/después de cada ronda.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

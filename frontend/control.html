@@ -91,16 +91,12 @@
       </button>
       <nav class="admin-sidebar-nav" role="tablist" aria-label="Vistas de control">
         <button type="button" class="admin-vista-btn is-active" id="btn-vista-control-empresas" role="tab" aria-selected="true">
-          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M11 21V4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v17M3 21h18M6 13h.01M6 17h.01M15 9h.01M15 13h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
           <span>Empresas</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-control-planes" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20.59 13.41L13.42 20.58a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/></svg>
           <span>Planes</span>
-        </button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-control-papelera" role="tab" aria-selected="false">
-          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-          <span>Papelera</span>
         </button>
         <button type="button" class="admin-vista-btn" id="btn-vista-control-sucursales" role="tab" aria-selected="false">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
@@ -139,16 +135,12 @@
         <!-- Grid móvil — mismo patrón que admin (solo 1 card, pero mantiene tap target ≥44px) -->
         <div id="control-menu-movil" class="admin-menu-movil" hidden>
           <button type="button" class="admin-menu-movil-btn" data-vista="empresas">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M11 21V4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v17M3 21h18M6 13h.01M6 17h.01M15 9h.01M15 13h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
             <span>Empresas</span>
           </button>
           <button type="button" class="admin-menu-movil-btn" data-vista="planes">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20.59 13.41L13.42 20.58a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/></svg>
             <span>Planes</span>
-          </button>
-          <button type="button" class="admin-menu-movil-btn" data-vista="papelera">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
-            <span>Papelera</span>
           </button>
           <button type="button" class="admin-menu-movil-btn" data-vista="sucursales">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01M9 15h.01M15 15h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
@@ -180,6 +172,7 @@
               <option value="baja">Baja</option>
             </select>
             <button type="button" class="btn btn-primary" id="control-btn-nueva-empresa">Nueva empresa</button>
+            <button type="button" class="btn btn-secondary" id="control-btn-ver-papelera">Papelera</button>
             <button type="button" class="btn btn-secondary" id="control-btn-refresh">Actualizar</button>
           </div>
         </div>
@@ -223,7 +216,7 @@
             <tbody id="control-table-body"></tbody>
           </table>
           <div class="admin-empty admin-empty-rica" id="control-empty" hidden>
-            <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7h11V3H3v4z M3 21h11v-6H3v6z M15 21h6v-4h-6v4z M15 10h6V3h-6v7z" stroke-linejoin="round"/></svg>
+            <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M11 21V4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v17M3 21h18M6 13h.01M6 17h.01M15 9h.01M15 13h.01" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <p class="admin-empty-titulo">Aún no hay empresas dadas de alta</p>
             <p>Crea la primera para empezar a operar — queda en "Provisionando" hasta que le des clic a "Activar".</p>
             <button type="button" class="btn btn-primary" id="btn-control-empty-nueva-empresa">Nueva empresa</button>
@@ -286,6 +279,10 @@
         <div id="vista-control-papelera" hidden>
           <div class="admin-toolbar">
             <div class="admin-toolbar-title">
+              <button type="button" class="btn-volver-tablero" id="btn-papelera-volver-empresas">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5M5 12l6-6M5 12l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="btn-volver-tablero-texto">Empresas</span>
+              </button>
               <h1>Papelera</h1>
               <button type="button" class="btn-icon" id="btn-ayuda-vista-papelera" aria-label="Ayuda sobre Papelera" data-tooltip="Ayuda sobre esta sección">?</button>
             </div>
