@@ -242,6 +242,20 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   capas: ruta bloqueada (`requiereFeature`), menú/tile oculto, y
   cualquier formulario de alta que capture datos específicos de ese
   módulo (ver el siguiente punto, RFC/Facturación).
+  **Nunca compartir una ruta entre dos superficies con flags de gobierno
+  distintos**: cada pestaña de Reportes tiene su propio flag (punto
+  349-350) que apaga esa pestaña sin tocar el módulo del que depende —
+  si la ruta que la alimenta también sirve a OTRA vista (ej. un botón
+  dentro de Ventas/Gastos), apagar la pestaña de Reportes rompe esa otra
+  vista de encima. Caso real detectado (no corregido, fuera de alcance
+  de la sesión que lo encontró, punto 361): `POST /api/admin/reportes/corte`
+  sirve a la vez el botón "Corte del día" de Ventas y "Reporte por
+  rango" de Reportes → Cortes, con AMBOS flags (`ventasHabilitado` +
+  `reportesCortesHabilitado`) en la misma ruta — apagar solo "Cortes" en
+  /control rompería "Corte del día" en Ventas. El patrón correcto (ya
+  usado para "Estado de tickets", que a propósito NO reutiliza
+  `GET /api/admin/tickets`) es una ruta dedicada por pestaña cuando hay
+  riesgo de compartirla con otra vista.
 - **RFC solo si Facturación está activa**: con `facturacion_habilitada`
   apagada, ningún flujo de alta de cliente (`POST /api/auth/registro`,
   `POST /api/admin/usuarios`) pide RFC — genera un identificador interno

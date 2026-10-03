@@ -173,12 +173,12 @@ describe('Multi-tenant (segmento 3) — resolución de tenant end-to-end', () =>
   // Punto 349-350-351 (Fase 5, ver stitch/gobierno-funcionalidades/
   // NOTAS.md): GET /api/admin/login expone las funciones del plan del
   // tenant para que el frontend oculte menú/tarjetas que el backend ya
-  // bloquea — TENANT_CLIENTE1 no trae ninguna de las 14 columnas
+  // bloquea — TENANT_CLIENTE1 no trae ninguna de las 15 columnas
   // *_habilitado* en la fila mockeada, así que todas caen a su default
   // (true, migración-segura) EXCEPTO sucursalesHabilitado, que por
   // diseño default a false cuando la columna está ausente (feature nueva
   // que nadie tenía antes — ver tenantContext.js).
-  test('GET /api/admin/login con tenant resuelto expone "funciones" con los 14 flags del plan', async () => {
+  test('GET /api/admin/login con tenant resuelto expone "funciones" con los 15 flags del plan', async () => {
     mockControlPool([TENANT_CLIENTE1]);
 
     const res = await request(app)
@@ -202,6 +202,7 @@ describe('Multi-tenant (segmento 3) — resolución de tenant end-to-end', () =>
       reportesCortesHabilitado: true,
       reportesEliminadosHabilitado: true,
       reportesEstadoInventarioHabilitado: true,
+      reportesEstadoTicketsHabilitado: true,
     });
   });
 

@@ -251,31 +251,35 @@
     configModalTitle: document.getElementById('config-modal-title'),
     configModalBtnVolver: document.getElementById('config-modal-btn-volver'),
     btnCerrarConfigModal: document.getElementById('btn-cerrar-config-modal'),
-    // Vista Inicio: bienvenida, tarjetas de estatísticas, recientes y dona
+    // Vista Inicio (punto 360): fija, solo bienvenida — el perfil
+    // "inventario" sigue reparentando aquí "Estado del inventario"
+    // (único perfil sin acceso a Reportes en su sidebar).
     inicioTituloBienvenida: document.getElementById('inicio-titulo-bienvenida'),
     inicioSubtitulo: document.getElementById('inicio-subtitulo'),
     inicioInventarioSlot: document.getElementById('inicio-inventario-slot'),
-    inicioMainGrid: document.getElementById('inicio-main-grid'),
-    inicioError: document.getElementById('inicio-error'),
-    inicioStatsGrid: document.getElementById('inicio-stats-grid'),
-    inicioStatTotal: document.getElementById('inicio-stat-total'),
-    inicioStatTotalTendencia: document.getElementById('inicio-stat-total-tendencia'),
-    inicioStatProceso: document.getElementById('inicio-stat-proceso'),
-    inicioStatProcesoTendencia: document.getElementById('inicio-stat-proceso-tendencia'),
-    inicioStatCompletadas: document.getElementById('inicio-stat-completadas'),
-    inicioStatCompletadasTendencia: document.getElementById('inicio-stat-completadas-tendencia'),
-    inicioStatRechazadas: document.getElementById('inicio-stat-rechazadas'),
-    inicioStatRechazadasTendencia: document.getElementById('inicio-stat-rechazadas-tendencia'),
-    btnInicioVerTodas: document.getElementById('btn-inicio-ver-todas'),
-    inicioRecientesBody: document.getElementById('inicio-recientes-body'),
-    inicioRecientesEmpty: document.getElementById('inicio-recientes-empty'),
-    inicioDonutTotal: document.getElementById('inicio-donut-total'),
-    inicioDonutProceso: document.getElementById('inicio-donut-proceso'),
-    inicioDonutCompletadas: document.getElementById('inicio-donut-completadas'),
-    inicioDonutRechazadas: document.getElementById('inicio-donut-rechazadas'),
-    inicioLeyendaProceso: document.getElementById('inicio-leyenda-proceso'),
-    inicioLeyendaCompletadas: document.getElementById('inicio-leyenda-completadas'),
-    inicioLeyendaRechazadas: document.getElementById('inicio-leyenda-rechazadas'),
+    // Reportes → "Estado de tickets" (punto 360, movido desde Inicio)
+    btnReportesVistaEstadoTickets: document.getElementById('btn-reportes-vista-estado-tickets'),
+    reportesTicketsMainGrid: document.getElementById('reportes-tickets-main-grid'),
+    reportesTicketsError: document.getElementById('reportes-tickets-error'),
+    reportesTicketsStatsGrid: document.getElementById('reportes-tickets-stats-grid'),
+    reportesTicketsStatTotal: document.getElementById('reportes-tickets-stat-total'),
+    reportesTicketsStatTotalTendencia: document.getElementById('reportes-tickets-stat-total-tendencia'),
+    reportesTicketsStatProceso: document.getElementById('reportes-tickets-stat-proceso'),
+    reportesTicketsStatProcesoTendencia: document.getElementById('reportes-tickets-stat-proceso-tendencia'),
+    reportesTicketsStatCompletadas: document.getElementById('reportes-tickets-stat-completadas'),
+    reportesTicketsStatCompletadasTendencia: document.getElementById('reportes-tickets-stat-completadas-tendencia'),
+    reportesTicketsStatRechazadas: document.getElementById('reportes-tickets-stat-rechazadas'),
+    reportesTicketsStatRechazadasTendencia: document.getElementById('reportes-tickets-stat-rechazadas-tendencia'),
+    btnReportesTicketsVerTodas: document.getElementById('btn-reportes-tickets-ver-todas'),
+    reportesTicketsRecientesBody: document.getElementById('reportes-tickets-recientes-body'),
+    reportesTicketsRecientesEmpty: document.getElementById('reportes-tickets-recientes-empty'),
+    reportesTicketsDonutTotal: document.getElementById('reportes-tickets-donut-total'),
+    reportesTicketsDonutProceso: document.getElementById('reportes-tickets-donut-proceso'),
+    reportesTicketsDonutCompletadas: document.getElementById('reportes-tickets-donut-completadas'),
+    reportesTicketsDonutRechazadas: document.getElementById('reportes-tickets-donut-rechazadas'),
+    reportesTicketsLeyendaProceso: document.getElementById('reportes-tickets-leyenda-proceso'),
+    reportesTicketsLeyendaCompletadas: document.getElementById('reportes-tickets-leyenda-completadas'),
+    reportesTicketsLeyendaRechazadas: document.getElementById('reportes-tickets-leyenda-rechazadas'),
     // Tabla de tickets
     ticketsTablaTitulo: document.getElementById('tickets-tabla-titulo'),
     btnVerTicketsActivos: document.getElementById('btn-ver-tickets-activos'),
@@ -1126,6 +1130,7 @@
     reportesVistaLedger: document.getElementById('reportes-vista-ledger'),
     btnReportesVistaEstadoInventario: document.getElementById('btn-reportes-vista-estado-inventario'),
     reportesVistaEstadoInventario: document.getElementById('reportes-vista-estado-inventario'),
+    reportesVistaEstadoTickets: document.getElementById('reportes-vista-estado-tickets'),
     // Pestaña "Cortes" (punto 169)
     btnReportesVistaCortes: document.getElementById('btn-reportes-vista-cortes'),
     reportesVistaCortes: document.getElementById('reportes-vista-cortes'),
@@ -2092,7 +2097,7 @@
   // control/utils/planes.js:validarReglasDependencia.
   function reportesPlanVisible() {
     if (!tenantFuncionesPlan) return true;
-    return ['reportesPorReporteHabilitado', 'reportesCortesHabilitado', 'reportesEliminadosHabilitado', 'reportesEstadoInventarioHabilitado']
+    return ['reportesPorReporteHabilitado', 'reportesCortesHabilitado', 'reportesEliminadosHabilitado', 'reportesEstadoInventarioHabilitado', 'reportesEstadoTicketsHabilitado']
       .some((campo) => tenantFuncionesPlan[campo]);
   }
   // Proveedores: automático, sin bandera propia — visible si Inventarios
@@ -2121,8 +2126,18 @@
       vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'configuraciones'],
       tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
     },
+    // Punto 360 (2026-10-02): "lectura-reportes" se agregó aquí porque el
+    // resumen de tickets (antes en Inicio) ahora vive SOLO en Reportes →
+    // "Estado de tickets" — sin este permiso, fiscal perdería ese resumen
+    // por completo (el perfil que más lo usa). Las otras 4 pestañas de
+    // Reportes (Por reporte/Cortes/Eliminados/Estado del inventario) NO
+    // son de fiscal (backend ya las bloquea con 403 — requireAdminArea no
+    // incluye 'fiscal' en ninguna) — se ocultan en la UI para este perfil
+    // (ver aplicarRestriccionesPerfil) y la pestaña "Estado de tickets" se
+    // activa sola al entrar, en vez de dejar "Por reporte" seleccionada
+    // por default sin ser alcanzable.
     fiscal: {
-      vistasPermitidas: ['inicio', 'constancias', 'tickets', 'mi-cuenta', 'configuraciones'],
+      vistasPermitidas: ['inicio', 'constancias', 'tickets', 'lectura-reportes', 'mi-cuenta', 'configuraciones'],
       tarjetasConfigPermitidas: ['admin-config-card', 'global-config-card'],
     },
     // Punto 190: perfil "Ventas" — solo Ventas/Cuentas por cobrar/Gastos,
@@ -2346,13 +2361,23 @@
       if (cuerpo) cuerpo.hidden = !algunaVisible;
     });
 
-    // Inicio para el perfil "administrador" (2026-09-04): ve el resumen de
-    // tickets (dona/estadísticas), pero NO puede actuar sobre ellos — los
+    // Punto 360: perfil "fiscal" solo puede ver la pestaña "Estado de
+    // tickets" dentro de Reportes — las otras 4 (Por reporte/Cortes/
+    // Eliminados/Estado del inventario) son de Ventas/Gastos/Inventarios,
+    // el backend ya las bloquea con 403 para este perfil. Se ocultan los
+    // botones en vez de dejarlos ahí para terminar en un error.
+    ['btnReportesVistaPorReporte', 'btnReportesVistaCortes', 'btnReportesVistaLedger', 'btnReportesVistaEstadoInventario'].forEach((clave) => {
+      if (els[clave]) els[clave].hidden = perfilActual === 'fiscal';
+    });
+
+    // Reportes → "Estado de tickets" para el perfil "administrador"
+    // (2026-09-04, reubicado del punto 360): ve el resumen de tickets
+    // (dona/estadísticas), pero NO puede actuar sobre ellos — los
     // endpoints de gestión de tickets (aceptar, subir factura, etc.) siguen
     // siendo exclusivos de "fiscal" en el backend. "Ver todas" llevaría a
     // la vista Tickets completa, que este perfil tampoco tiene — se oculta
     // en vez de dejar un botón que no lleva a ningún lado.
-    if (els.btnInicioVerTodas) els.btnInicioVerTodas.hidden = perfilActual === 'administrador';
+    if (els.btnReportesTicketsVerTodas) els.btnReportesTicketsVerTodas.hidden = perfilActual === 'administrador';
 
     // Las 6 tarjetas de "Configuraciones" ("Ventas" e
     // "Inventarios" se movieron aquí desde "Usuarios").
@@ -5050,6 +5075,15 @@
         }
       },
     },
+    // Punto 360 (2026-10-02): movido desde "Inicio" — mismo contenido/
+    // lógica, se recarga cada vez que se entra a la pestaña (igual que
+    // antes, cuando era Inicio).
+    'estado-tickets': {
+      boton: 'btnReportesVistaEstadoTickets',
+      vista: 'reportesVistaEstadoTickets',
+      caption: 'Resumen de solicitudes de facturación: estatus, tendencia y las más recientes.',
+      alEntrar: () => cargarEstadoTickets(),
+    },
   };
   let invEstadoCargado = false;
   let reportesEstadisticasCargadas = false;
@@ -5075,6 +5109,7 @@
   els.btnReportesVistaCortes.addEventListener('click', () => activarPestanaReportes('cortes'));
   els.btnReportesVistaLedger.addEventListener('click', () => activarPestanaReportes('ledger'));
   els.btnReportesVistaEstadoInventario.addEventListener('click', () => activarPestanaReportes('estado-inventario'));
+  els.btnReportesVistaEstadoTickets.addEventListener('click', () => activarPestanaReportes('estado-tickets'));
 
   // ---------- Historial por identificador (idea D) ----------
   // Delegado en document: el botón "Ver historial" vive en 3 tablas
@@ -7445,6 +7480,11 @@
     if (vista === 'usuarios') cargarUsuarios();
     if (vista === 'lectura-reportes') {
       cargarListaReportes();
+      // Punto 360: fiscal solo tiene "Estado de tickets" alcanzable — se
+      // activa sola en vez de dejar "Por reporte" seleccionada por
+      // default (el botón está oculto para este perfil, nunca llega ahí
+      // con un clic, pero el HTML lo marca activo desde el inicio).
+      if (perfilActual === 'fiscal') activarPestanaReportes('estado-tickets');
     }
     if (vista === 'mi-cuenta') cargarMiCuenta();
     if (vista === 'auditoria') cargarAuditoria();
@@ -7893,106 +7933,28 @@
       els.inicioInventarioSlot.appendChild(els.reportesVistaEstadoInventario);
     }
     els.inicioSubtitulo.textContent = 'Salud de tu inventario ahora mismo: qué se vende, qué no se mueve y cuánto vale.';
+    els.inicioSubtitulo.hidden = false;
     els.inicioInventarioSlot.hidden = false;
     els.invEstadoToolbar.hidden = false;
     els.reportesVistaEstadoInventario.hidden = false;
-    els.inicioStatsGrid.hidden = true;
-    els.inicioMainGrid.hidden = true;
-    els.inicioError.textContent = '';
     cargarEstadoInventario();
   }
 
-  // Vista "Inicio": bienvenida + resumen de tickets, fiel al mockup de
-  // stitch (dashboard_portal_addv_fiel_al_mockup). Reutiliza el mismo
-  // endpoint GET /admin/tickets que ya usa la vista Tickets — sin
-  // agregar un endpoint nuevo — y calcula todo (estatísticas, dona,
-  // recientes) en el cliente a partir de esos mismos datos. Para el
-  // perfil "Inventario" (punto 321), "Inicio" es un contenido
-  // completamente distinto — ver cargarInicioInventario().
-  // Punto en curso (gating Facturación): sin Facturación activa,
-  // /api/admin/tickets 404 (requiereFeature) — en vez de un error roto,
-  // bienvenida + accesos directos a lo que sí está activo. Sin cifras
-  // financieras a propósito (pedido explícito: "que no sean datos
-  // sensibles") — son enlaces de navegación, no KPIs en vivo.
-  const INICIO_SINFACT_MODULOS = [
-    { flag: 'ventasHabilitado', vista: 'ordenes', titulo: 'Ventas' },
-    { flag: 'gastosHabilitado', vista: 'gastos', titulo: 'Gastos' },
-    { flag: 'cxcHabilitado', vista: 'cxc', titulo: 'Cuentas por cobrar' },
-    { flag: 'inventariosHabilitado', vista: 'inventarios', titulo: 'Inventarios' },
-    { flag: 'resumenFinancieroHabilitado', vista: 'resumen-financiero', titulo: 'Resumen financiero' },
-  ];
-
-  function cargarInicioSinFacturacion() {
-    els.inicioStatsGrid.hidden = true;
-    els.inicioMainGrid.hidden = true;
-    els.inicioError.textContent = '';
-    const slot = document.getElementById('inicio-sin-facturacion');
-    const links = document.getElementById('inicio-sinfact-links');
-    slot.hidden = false;
-    links.innerHTML = '';
-    const activos = INICIO_SINFACT_MODULOS.filter((m) => planPermite(m.flag));
-    if (activos.length === 0) {
-      links.innerHTML = '<p class="field-hint">Activa un módulo desde /control para ver aquí tus accesos directos.</p>';
-      return;
-    }
-    activos.forEach((m) => {
-      const a = document.createElement('a');
-      a.href = '#';
-      a.className = 'inicio-sinfact-link';
-      a.innerHTML = `<span class="dot" aria-hidden="true"></span>${escapeHtml(m.titulo)}`;
-      a.addEventListener('click', (e) => {
-        e.preventDefault();
-        cambiarVistaPrincipal(m.vista);
-      });
-      links.appendChild(a);
-    });
-  }
-
-  async function cargarInicio() {
+  // Punto 360 (2026-10-02): "Inicio" queda fijo — el resumen de tickets
+  // (KPIs/dona/recientes) se movió a Reportes → "Estado de tickets" (ver
+  // cargarEstadoTickets()/renderEstadoTickets() más abajo), y el bloque
+  // "sin Facturación" (bienvenida + accesos directos) se quitó sin
+  // reemplazo por ahora — vuelve con el diseño nuevo (carpeta
+  // stitch/inicio) cuando el usuario lo entregue. El perfil "Inventario"
+  // (punto 321) es la única excepción que sigue viva: no tiene acceso a
+  // "Reportes" en su sidebar, así que su Inicio sigue siendo "Estado del
+  // inventario" reparentado (cargarInicioInventario()).
+  function cargarInicio() {
+    els.inicioInventarioSlot.hidden = true;
+    els.inicioSubtitulo.hidden = true;
+    els.inicioTituloBienvenida.textContent = usuarioSesionActual ? `¡Bienvenido, ${usuarioSesionActual}!` : '¡Bienvenido!';
     if (perfilActual === 'inventario') {
       cargarInicioInventario();
-      return;
-    }
-    document.getElementById('inicio-sin-facturacion').hidden = true;
-    els.inicioStatsGrid.hidden = false;
-    els.inicioMainGrid.hidden = false;
-    if (!planPermite('facturacionHabilitada')) {
-      els.inicioTituloBienvenida.textContent = usuarioSesionActual ? `¡Bienvenido, ${usuarioSesionActual}!` : '¡Bienvenido!';
-      cargarInicioSinFacturacion();
-      return;
-    }
-    const authHeader = getAuthHeader();
-    if (!authHeader) {
-      showLogin();
-      return;
-    }
-    els.inicioError.textContent = '';
-    els.inicioTituloBienvenida.textContent = usuarioSesionActual
-      ? `¡Bienvenido, ${usuarioSesionActual}!`
-      : '¡Bienvenido!';
-    Esqueleto.marcarKpisCargando(els.inicioStatsGrid, true);
-    Esqueleto.aplicarEsqueletoTabla(els.inicioRecientesBody, 5);
-    try {
-      const res = await fetch(`${API_BASE}/admin/tickets`, {
-        headers: { Authorization: authHeader },
-      });
-      if (res.status === 401) {
-        clearSession();
-        showLogin();
-        return;
-      }
-      if (!res.ok) {
-        Esqueleto.marcarKpisCargando(els.inicioStatsGrid, false);
-        Esqueleto.aplicarErrorTabla(els.inicioRecientesBody, 5, 'No se pudieron cargar las solicitudes.', cargarInicio);
-        return;
-      }
-      const data = await res.json();
-      renderInicio(data.tickets || []);
-      Esqueleto.quitarEsqueletoTabla(els.inicioRecientesBody);
-      Esqueleto.marcarKpisCargando(els.inicioStatsGrid, false);
-    } catch (err) {
-      Esqueleto.marcarKpisCargando(els.inicioStatsGrid, false);
-      Esqueleto.aplicarErrorTabla(els.inicioRecientesBody, 5, 'No se pudo conectar con el servidor.', cargarInicio);
     }
   }
 
@@ -8024,30 +7986,32 @@
     if (cambio < 0) elemento.classList.add('es-negativa');
   }
 
-  function renderInicio(tickets) {
+  // Reportes → "Estado de tickets" (punto 360, movido desde "Inicio" —
+  // misma lógica, sin cambios de comportamiento, solo reubicada).
+  function renderEstadoTickets(tickets) {
     const enProceso = tickets.filter((t) => t.estatus === 'pendiente' || t.estatus === 'en_curso');
     const completadas = tickets.filter((t) => t.estatus === 'listo');
     const rechazadas = tickets.filter((t) => t.estatus === 'cancelado');
     const total = tickets.length;
 
-    els.inicioStatTotal.textContent = total;
-    els.inicioStatProceso.textContent = enProceso.length;
-    els.inicioStatCompletadas.textContent = completadas.length;
-    els.inicioStatRechazadas.textContent = rechazadas.length;
-    aplicarTendencia(els.inicioStatTotalTendencia, tickets);
-    aplicarTendencia(els.inicioStatProcesoTendencia, enProceso);
-    aplicarTendencia(els.inicioStatCompletadasTendencia, completadas);
-    aplicarTendencia(els.inicioStatRechazadasTendencia, rechazadas);
+    els.reportesTicketsStatTotal.textContent = total;
+    els.reportesTicketsStatProceso.textContent = enProceso.length;
+    els.reportesTicketsStatCompletadas.textContent = completadas.length;
+    els.reportesTicketsStatRechazadas.textContent = rechazadas.length;
+    aplicarTendencia(els.reportesTicketsStatTotalTendencia, tickets);
+    aplicarTendencia(els.reportesTicketsStatProcesoTendencia, enProceso);
+    aplicarTendencia(els.reportesTicketsStatCompletadasTendencia, completadas);
+    aplicarTendencia(els.reportesTicketsStatRechazadasTendencia, rechazadas);
 
     // Dona de 3 segmentos (en proceso / completadas / rechazadas) sobre
     // el total de tickets — el arco vacío del fondo ya representa el resto.
     const circunferencia = 2 * Math.PI * 40;
-    els.inicioDonutTotal.textContent = total;
+    els.reportesTicketsDonutTotal.textContent = total;
     let acumulado = 0;
     [
-      { el: els.inicioDonutProceso, cantidad: enProceso.length, leyenda: els.inicioLeyendaProceso },
-      { el: els.inicioDonutCompletadas, cantidad: completadas.length, leyenda: els.inicioLeyendaCompletadas },
-      { el: els.inicioDonutRechazadas, cantidad: rechazadas.length, leyenda: els.inicioLeyendaRechazadas },
+      { el: els.reportesTicketsDonutProceso, cantidad: enProceso.length, leyenda: els.reportesTicketsLeyendaProceso },
+      { el: els.reportesTicketsDonutCompletadas, cantidad: completadas.length, leyenda: els.reportesTicketsLeyendaCompletadas },
+      { el: els.reportesTicketsDonutRechazadas, cantidad: rechazadas.length, leyenda: els.reportesTicketsLeyendaRechazadas },
     ].forEach(({ el, cantidad, leyenda }) => {
       const porcentaje = total > 0 ? (cantidad / total) * 100 : 0;
       const largo = (porcentaje / 100) * circunferencia;
@@ -8060,8 +8024,8 @@
     // Solicitudes recientes: últimos 5 tickets por fecha de creación —
     // el botón "Gestionar" abre el mismo modal que la vista Tickets.
     const recientes = [...tickets].sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en)).slice(0, 5);
-    els.inicioRecientesBody.innerHTML = '';
-    els.inicioRecientesEmpty.hidden = recientes.length > 0;
+    els.reportesTicketsRecientesBody.innerHTML = '';
+    els.reportesTicketsRecientesEmpty.hidden = recientes.length > 0;
     // Perfil "administrador" (2026-09-04): ve el resumen, pero gestionar
     // un ticket (aceptar, subir factura) sigue siendo exclusivo de
     // "fiscal" en el backend — sin botón "Gestionar" para no ofrecer una
@@ -8080,11 +8044,44 @@
       if (puedeGestionar) {
         tr.lastElementChild.appendChild(botonAccionInv({ tooltip: 'Gestionar', icono: ICONO_EDITAR, onClick: () => abrirTicketModal(t) }));
       }
-      els.inicioRecientesBody.appendChild(tr);
+      els.reportesTicketsRecientesBody.appendChild(tr);
     });
   }
 
-  els.btnInicioVerTodas.addEventListener('click', () => els.btnVistaTickets.click());
+  async function cargarEstadoTickets() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    els.reportesTicketsError.textContent = '';
+    Esqueleto.marcarKpisCargando(els.reportesTicketsStatsGrid, true);
+    Esqueleto.aplicarEsqueletoTabla(els.reportesTicketsRecientesBody, 5);
+    try {
+      const res = await fetch(`${API_BASE}/admin/reportes/estado-tickets`, {
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!res.ok) {
+        Esqueleto.marcarKpisCargando(els.reportesTicketsStatsGrid, false);
+        Esqueleto.aplicarErrorTabla(els.reportesTicketsRecientesBody, 5, 'No se pudieron cargar las solicitudes.', cargarEstadoTickets);
+        return;
+      }
+      const data = await res.json();
+      renderEstadoTickets(data.tickets || []);
+      Esqueleto.quitarEsqueletoTabla(els.reportesTicketsRecientesBody);
+      Esqueleto.marcarKpisCargando(els.reportesTicketsStatsGrid, false);
+    } catch (err) {
+      Esqueleto.marcarKpisCargando(els.reportesTicketsStatsGrid, false);
+      Esqueleto.aplicarErrorTabla(els.reportesTicketsRecientesBody, 5, 'No se pudo conectar con el servidor.', cargarEstadoTickets);
+    }
+  }
+
+  els.btnReportesTicketsVerTodas.addEventListener('click', () => els.btnVistaTickets.click());
 
   async function cargarTickets() {
     const authHeader = getAuthHeader();

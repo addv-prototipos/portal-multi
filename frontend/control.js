@@ -2415,6 +2415,9 @@
     { campo: 'reportes_estado_inventario_habilitado', etiqueta: 'Estado del inventario',
       modulos: ['inventarios'], requiere: 'Inventarios',
       habilitado: () => planWizardState.inventarios_habilitado },
+    { campo: 'reportes_estado_tickets_habilitado', etiqueta: 'Estado de tickets',
+      modulos: ['facturacion'], requiere: 'Facturación',
+      habilitado: () => planWizardState.facturacion_habilitada },
   ];
 
   const CHIP_DEP_NOMBRES = { facturacion: 'Facturación', ventas: 'Ventas', gastos: 'Gastos', inventarios: 'Inventarios' };
@@ -2435,6 +2438,7 @@
       reportes_cortes_habilitado: false,
       reportes_eliminados_habilitado: false,
       reportes_estado_inventario_habilitado: false,
+      reportes_estado_tickets_habilitado: false,
     };
   }
 
@@ -2732,6 +2736,7 @@
           reportes_cortes_habilitado: Boolean(p.reportes_cortes_habilitado),
           reportes_eliminados_habilitado: Boolean(p.reportes_eliminados_habilitado),
           reportes_estado_inventario_habilitado: Boolean(p.reportes_estado_inventario_habilitado),
+          reportes_estado_tickets_habilitado: Boolean(p.reportes_estado_tickets_habilitado),
         };
         planWizardTotalTenants = Number(p.total_tenants || 0);
         renderPlanWizardTodo();

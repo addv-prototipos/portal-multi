@@ -3337,6 +3337,7 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
           reportesCortesHabilitado: req.tenant.reportesCortesHabilitado,
           reportesEliminadosHabilitado: req.tenant.reportesEliminadosHabilitado,
           reportesEstadoInventarioHabilitado: req.tenant.reportesEstadoInventarioHabilitado,
+          reportesEstadoTicketsHabilitado: req.tenant.reportesEstadoTicketsHabilitado,
         }
       : null,
   });
@@ -5532,6 +5533,33 @@ app.get(
     });
 
     res.json({ total: tickets.length, tickets });
+  })
+);
+
+// Reportes → "Estado de tickets" (punto 360): el resumen de tickets que
+// antes vivía en "Inicio" (KPIs/dona/recientes) — ruta DEDICADA en vez de
+// reutilizar GET /api/admin/tickets directamente, a propósito: esa otra
+// ruta también sirve la vista "Tickets" y solo exige facturacionHabilitada
+// — si se le agregara también requiereFeature('reportesEstadoTicketsHabilitado')
+// ahí, apagar esta pestaña de Reportes rompería la vista Tickets completa
+// (mismo acoplamiento que ya tiene, sin querer, /api/admin/reportes/corte
+// con el botón "Corte del día" de Ventas). Mismo criterio de datos que
+// Tickets (todos los activos, sin filtro), el cliente calcula el resumen.
+app.get(
+  '/api/admin/reportes/estado-tickets',
+  adminApiLimiter,
+  requiereFeature('facturacionHabilitada'),
+  requiereFeature('reportesEstadoTicketsHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('fiscal', 'administrador'),
+  asyncHandler(async (req, res) => {
+    const [ticketsCrudos] = await pool.query(
+      `SELECT t.id, t.folio, t.rfc, t.estatus, t.creado_en
+         FROM tickets t
+        WHERE t.eliminado_en IS NULL
+        ORDER BY t.creado_en DESC`
+    );
+    res.json({ total: ticketsCrudos.length, tickets: ticketsCrudos });
   })
 );
 

@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -151,6 +151,9 @@ async function resolverTenantMiddleware(req, res, next) {
       reportesCortesHabilitado: tenant.reportes_cortes_habilitado !== 0 && tenant.reportes_cortes_habilitado !== false,
       reportesEliminadosHabilitado: tenant.reportes_eliminados_habilitado !== 0 && tenant.reportes_eliminados_habilitado !== false,
       reportesEstadoInventarioHabilitado: tenant.reportes_estado_inventario_habilitado !== 0 && tenant.reportes_estado_inventario_habilitado !== false,
+      // Punto 360: 5ta pestaña de Reportes — el contenido de tickets que
+      // antes vivía en "Inicio" se movió aquí.
+      reportesEstadoTicketsHabilitado: tenant.reportes_estado_tickets_habilitado !== 0 && tenant.reportes_estado_tickets_habilitado !== false,
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas

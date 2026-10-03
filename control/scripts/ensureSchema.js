@@ -107,6 +107,11 @@ const COLUMNAS_NUEVAS = [
   { nombre: 'reportes_cortes_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
   { nombre: 'reportes_eliminados_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
   { nombre: 'reportes_estado_inventario_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // 5ta pestaña de Reportes (punto 360, ver PROJECT_STATE.md): el
+  // contenido que antes vivía en "Inicio" (KPIs/dona/recientes de
+  // tickets) se movió aquí — mismo criterio DEFAULT 1 que las otras 4,
+  // ya era visible para todo tenant existente, la columna nace encendida.
+  { nombre: 'reportes_estado_tickets_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {
@@ -266,6 +271,7 @@ const COLUMNAS_PLANES_NUEVAS = [
   { nombre: 'reportes_cortes_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'reportes_eliminados_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'reportes_estado_inventario_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'reportes_estado_tickets_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
 ];
 
 async function asegurarTablaPlanes(db) {
@@ -319,13 +325,14 @@ async function asegurarTablaPlanes(db) {
           auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado,
           reportes_por_reporte_habilitado, reportes_cortes_habilitado,
           reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
+          reportes_estado_tickets_habilitado,
           activo, orden, creado_en, actualizado_en)
        VALUES ?`,
       [
         [
-          ['Básico', 'Plan de entrada — sin sucursales ni Facturación.', 490, 4900, 5, 0, 0, 1, 0, 500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, ahora, ahora],
-          ['Pro', 'Incluye sucursales, Facturación, Ventas y Gastos.', 1490, 14900, 15, 1, 1, 1, 0, 2048, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 2, ahora, ahora],
-          ['Enterprise', 'Sin límite de usuarios, marca propia y todos los módulos incluidos.', null, null, null, 1, 1, 1, 1, 10240, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, ahora, ahora],
+          ['Básico', 'Plan de entrada — sin sucursales ni Facturación.', 490, 4900, 5, 0, 0, 1, 0, 500, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, ahora, ahora],
+          ['Pro', 'Incluye sucursales, Facturación, Ventas y Gastos.', 1490, 14900, 15, 1, 1, 1, 0, 2048, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 2, ahora, ahora],
+          ['Enterprise', 'Sin límite de usuarios, marca propia y todos los módulos incluidos.', null, null, null, 1, 1, 1, 1, 10240, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, ahora, ahora],
         ],
       ]
     );

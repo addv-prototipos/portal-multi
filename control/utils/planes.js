@@ -84,6 +84,7 @@ function normalizarDatosPlan(datos = {}, { parcial = false } = {}) {
     'cxc_habilitado', 'resumen_financiero_habilitado',
     'reportes_por_reporte_habilitado', 'reportes_cortes_habilitado',
     'reportes_eliminados_habilitado', 'reportes_estado_inventario_habilitado',
+    'reportes_estado_tickets_habilitado',
   ]) {
     if (!parcial || datos[campo] !== undefined) {
       resultado[campo] = booleano(datos[campo]) ? 1 : 0;
@@ -121,6 +122,9 @@ function validarReglasDependencia(estado) {
   if (activo('reportes_estado_inventario_habilitado') && !activo('inventarios_habilitado')) {
     throw new ErrorPlan('Reportes "Estado del inventario" requiere Inventarios activo en este plan.', 'validacion');
   }
+  if (activo('reportes_estado_tickets_habilitado') && !activo('facturacion_habilitada')) {
+    throw new ErrorPlan('Reportes "Estado de tickets" requiere Facturación activo en este plan.', 'validacion');
+  }
 }
 
 function mapearFila(fila) {
@@ -145,6 +149,7 @@ function mapearFila(fila) {
     reportes_cortes_habilitado: Boolean(fila.reportes_cortes_habilitado),
     reportes_eliminados_habilitado: Boolean(fila.reportes_eliminados_habilitado),
     reportes_estado_inventario_habilitado: Boolean(fila.reportes_estado_inventario_habilitado),
+    reportes_estado_tickets_habilitado: Boolean(fila.reportes_estado_tickets_habilitado),
     disco_cuota_mb: fila.disco_cuota_mb === null ? null : Number(fila.disco_cuota_mb),
     activo: Boolean(fila.activo),
     orden: fila.orden,
@@ -193,8 +198,9 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
         cxc_habilitado, resumen_financiero_habilitado,
         reportes_por_reporte_habilitado, reportes_cortes_habilitado,
         reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
+        reportes_estado_tickets_habilitado,
         activo, orden, creado_en, actualizado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     [
       normalizado.nombre,
       normalizado.descripcion,
@@ -216,6 +222,7 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
       normalizado.reportes_cortes_habilitado,
       normalizado.reportes_eliminados_habilitado,
       normalizado.reportes_estado_inventario_habilitado,
+      normalizado.reportes_estado_tickets_habilitado,
       normalizado.orden,
       ahora,
       ahora,

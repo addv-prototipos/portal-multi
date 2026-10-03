@@ -461,121 +461,21 @@
         </button>
       </div>
       <div id="vista-inicio">
+        <!-- Punto 360 (2026-10-02): el resumen de tickets (KPIs/dona/
+             recientes) que vivía aquí se movió a Reportes → "Estado de
+             tickets". Fijo para el resto de los perfiles/estados
+             (Facturación activa o no) hasta que llegue el diseño nuevo
+             (carpeta stitch/inicio) — a propósito, no se reconstruye dos
+             veces. El perfil "inventario" (punto 321) NO cambia: sigue sin
+             acceso a "Reportes" en su sidebar, así que su Inicio sigue
+             siendo "Estado del inventario" reparentado (ver
+             cargarInicioInventario() en admin.js) — perdería esa única
+             vía de ver esos datos si también se vaciara. -->
         <div class="inicio-bienvenida">
           <h1 id="inicio-titulo-bienvenida">¡Bienvenido!</h1>
-          <p class="panel-subtitle" id="inicio-subtitulo">Este es el resumen de las solicitudes de facturación.</p>
+          <p class="panel-subtitle" id="inicio-subtitulo" hidden></p>
         </div>
-
-        <!-- Perfil "inventario" (punto 321): "Inicio" para este perfil ES
-             "Estado del inventario" — se reutiliza en vivo (reparentado por
-             JS, mismo patrón que el modal "ampliar" de gráficas) el MISMO
-             nodo #reportes-vista-estado-inventario que ya vive en Reportes,
-             nunca se duplica el HTML. Vacío/oculto para el resto de
-             perfiles. -->
         <div id="inicio-inventario-slot" hidden></div>
-
-        <!-- Punto en curso (gating Facturación): sin Facturación activa,
-             /api/admin/tickets responde 404 (requiereFeature) — en vez de
-             mostrar el error roto de los KPIs/tabla de abajo, se muestra
-             este bloque (bienvenida + accesos directos a los módulos que
-             SÍ están activos, sin ninguna cifra financiera). -->
-        <div id="inicio-sin-facturacion" hidden>
-          <div class="inicio-sinfact-card">
-            <h2 id="inicio-sinfact-titulo">Facturación no está activa en tu plan</h2>
-            <p>Aquí tienes acceso directo a lo que sí tienes disponible.</p>
-          </div>
-          <div class="inicio-sinfact-links" id="inicio-sinfact-links"></div>
-        </div>
-
-        <div class="inicio-stats-grid" id="inicio-stats-grid">
-          <div class="inicio-stat-card">
-            <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Solicitudes totales</span>
-              <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              </span>
-            </div>
-            <p class="inicio-stat-numero" id="inicio-stat-total">0</p>
-            <p class="inicio-stat-tendencia" id="inicio-stat-total-tendencia"></p>
-          </div>
-          <div class="inicio-stat-card">
-            <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">En proceso</span>
-              <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              </span>
-            </div>
-            <p class="inicio-stat-numero" id="inicio-stat-proceso">0</p>
-            <p class="inicio-stat-tendencia" id="inicio-stat-proceso-tendencia"></p>
-          </div>
-          <div class="inicio-stat-card">
-            <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Completadas</span>
-              <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              </span>
-            </div>
-            <p class="inicio-stat-numero" id="inicio-stat-completadas">0</p>
-            <p class="inicio-stat-tendencia" id="inicio-stat-completadas-tendencia"></p>
-          </div>
-          <div class="inicio-stat-card">
-            <div class="inicio-stat-header">
-              <span class="inicio-stat-titulo">Rechazadas</span>
-              <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-              </span>
-            </div>
-            <p class="inicio-stat-numero" id="inicio-stat-rechazadas">0</p>
-            <p class="inicio-stat-tendencia" id="inicio-stat-rechazadas-tendencia"></p>
-          </div>
-        </div>
-
-        <p class="field-error" id="inicio-error" role="alert"></p>
-
-        <div class="inicio-main-grid" id="inicio-main-grid">
-          <section class="inicio-recientes-card">
-            <div class="inicio-card-header">
-              <h2>Solicitudes recientes</h2>
-              <button type="button" class="inicio-ver-todas" id="btn-inicio-ver-todas">Ver todas</button>
-            </div>
-            <div class="admin-table-wrap">
-              <table class="admin-table">
-                <thead>
-                  <tr>
-                    <th>Folio</th>
-                    <th>Cliente (RFC)</th>
-                    <th>Fecha de solicitud</th>
-                    <th>Estatus</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="inicio-recientes-body"></tbody>
-              </table>
-              <p class="admin-empty" id="inicio-recientes-empty" hidden>No hay tickets todavía.</p>
-            </div>
-          </section>
-
-          <section class="inicio-donut-card">
-            <h2>Solicitudes por estatus</h2>
-            <div class="inicio-donut-wrap">
-              <svg class="inicio-donut" viewBox="0 0 100 100" width="150" height="150" aria-hidden="true">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--color-border)" stroke-width="16"/>
-                <circle id="inicio-donut-proceso" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
-                <circle id="inicio-donut-completadas" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
-                <circle id="inicio-donut-rechazadas" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
-              </svg>
-              <div class="inicio-donut-centro">
-                <span class="inicio-donut-total" id="inicio-donut-total">0</span>
-                <span class="inicio-donut-total-label">Total</span>
-              </div>
-            </div>
-            <ul class="inicio-donut-leyenda">
-              <li><span class="inicio-donut-dot inicio-donut-dot-proceso" aria-hidden="true"></span><span>En proceso</span><strong id="inicio-leyenda-proceso"></strong></li>
-              <li><span class="inicio-donut-dot inicio-donut-dot-completadas" aria-hidden="true"></span><span>Completadas</span><strong id="inicio-leyenda-completadas"></strong></li>
-              <li><span class="inicio-donut-dot inicio-donut-dot-rechazadas" aria-hidden="true"></span><span>Rechazadas</span><strong id="inicio-leyenda-rechazadas"></strong></li>
-            </ul>
-          </section>
-        </div>
       </div>
 
       <div id="vista-constancias" hidden>
@@ -3216,6 +3116,7 @@
             <button type="button" class="view-toggle-btn" id="btn-reportes-vista-cortes" role="tab" aria-selected="false">Cortes</button>
             <button type="button" class="view-toggle-btn" id="btn-reportes-vista-ledger" role="tab" aria-selected="false">Todo lo eliminado</button>
             <button type="button" class="view-toggle-btn" id="btn-reportes-vista-estado-inventario" role="tab" aria-selected="false">Estado del inventario</button>
+            <button type="button" class="view-toggle-btn" id="btn-reportes-vista-estado-tickets" role="tab" aria-selected="false">Estado de tickets</button>
           </div>
           <div class="inv-estado-toolbar" id="inv-estado-toolbar" hidden>
             <button type="button" class="btn btn-secondary" id="btn-inv-estado-imprimir">Imprimir</button>
@@ -3800,6 +3701,102 @@
               <h3 class="inv-estado-rank-subtitulo">Bottom 5 — menos vendidos</h3>
               <ul class="resumen-fin-proveedores-lista" id="inv-estado-serv-bottom-lista"></ul>
               <p class="admin-empty" id="inv-estado-serv-rank-empty" hidden>Aún no hay ventas de servicios en los últimos 90 días.</p>
+            </section>
+          </div>
+        </div>
+
+        <!-- Punto 360 (2026-10-02): movido desde "Inicio" — mismo
+             contenido/lógica, solo reubicado. Ids con prefijo
+             reportes-tickets-* (antes inicio-*) para no colisionar con
+             nada de la vista Inicio, que ahora queda fija y vacía. -->
+        <div id="reportes-vista-estado-tickets" hidden>
+          <div class="inicio-stats-grid" id="reportes-tickets-stats-grid">
+            <div class="inicio-stat-card">
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Solicitudes totales</span>
+                <span class="inicio-stat-icono inicio-stat-icono-total" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="reportes-tickets-stat-total">0</p>
+              <p class="inicio-stat-tendencia" id="reportes-tickets-stat-total-tendencia"></p>
+            </div>
+            <div class="inicio-stat-card">
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">En proceso</span>
+                <span class="inicio-stat-icono inicio-stat-icono-proceso" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="reportes-tickets-stat-proceso">0</p>
+              <p class="inicio-stat-tendencia" id="reportes-tickets-stat-proceso-tendencia"></p>
+            </div>
+            <div class="inicio-stat-card">
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Completadas</span>
+                <span class="inicio-stat-icono inicio-stat-icono-completadas" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="reportes-tickets-stat-completadas">0</p>
+              <p class="inicio-stat-tendencia" id="reportes-tickets-stat-completadas-tendencia"></p>
+            </div>
+            <div class="inicio-stat-card">
+              <div class="inicio-stat-header">
+                <span class="inicio-stat-titulo">Rechazadas</span>
+                <span class="inicio-stat-icono inicio-stat-icono-rechazadas" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                </span>
+              </div>
+              <p class="inicio-stat-numero" id="reportes-tickets-stat-rechazadas">0</p>
+              <p class="inicio-stat-tendencia" id="reportes-tickets-stat-rechazadas-tendencia"></p>
+            </div>
+          </div>
+
+          <p class="field-error" id="reportes-tickets-error" role="alert"></p>
+
+          <div class="inicio-main-grid" id="reportes-tickets-main-grid">
+            <section class="inicio-recientes-card">
+              <div class="inicio-card-header">
+                <h2>Solicitudes recientes</h2>
+                <button type="button" class="inicio-ver-todas" id="btn-reportes-tickets-ver-todas">Ver todas</button>
+              </div>
+              <div class="admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Folio</th>
+                      <th>Cliente (RFC)</th>
+                      <th>Fecha de solicitud</th>
+                      <th>Estatus</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportes-tickets-recientes-body"></tbody>
+                </table>
+                <p class="admin-empty" id="reportes-tickets-recientes-empty" hidden>No hay tickets todavía.</p>
+              </div>
+            </section>
+
+            <section class="inicio-donut-card">
+              <h2>Solicitudes por estatus</h2>
+              <div class="inicio-donut-wrap">
+                <svg class="inicio-donut" viewBox="0 0 100 100" width="150" height="150" aria-hidden="true">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="var(--color-border)" stroke-width="16"/>
+                  <circle id="reportes-tickets-donut-proceso" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
+                  <circle id="reportes-tickets-donut-completadas" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
+                  <circle id="reportes-tickets-donut-rechazadas" class="inicio-donut-segmento" cx="50" cy="50" r="40" fill="none" stroke-width="16" stroke-dasharray="0 251.2" stroke-dashoffset="0"/>
+                </svg>
+                <div class="inicio-donut-centro">
+                  <span class="inicio-donut-total" id="reportes-tickets-donut-total">0</span>
+                  <span class="inicio-donut-total-label">Total</span>
+                </div>
+              </div>
+              <ul class="inicio-donut-leyenda">
+                <li><span class="inicio-donut-dot inicio-donut-dot-proceso" aria-hidden="true"></span><span>En proceso</span><strong id="reportes-tickets-leyenda-proceso"></strong></li>
+                <li><span class="inicio-donut-dot inicio-donut-dot-completadas" aria-hidden="true"></span><span>Completadas</span><strong id="reportes-tickets-leyenda-completadas"></strong></li>
+                <li><span class="inicio-donut-dot inicio-donut-dot-rechazadas" aria-hidden="true"></span><span>Rechazadas</span><strong id="reportes-tickets-leyenda-rechazadas"></strong></li>
+              </ul>
             </section>
           </div>
         </div>

@@ -17999,6 +17999,95 @@ construirse todavía).
   con `data-label`), consola sin errores. Datos de prueba limpiados al
   terminar (usuarios/ventas de prueba borrados vía API).
 
+**Punto 361 (2026-10-02, CERRADO — mueve el resumen de tickets de Inicio
+a Reportes → "Estado de tickets"):** a petición del usuario — "mueve
+todo el contenido de inicio a reportes, en una sección llamada estado de
+tickets y deja el inicio vacio, te doy el diseño después" — con 4
+preguntas de alcance resueltas antes de tocar código (`AskUserQuestion`):
+(1) solo se mueven las estadísticas de tickets (KPIs+dona+recientes), no
+el bloque "sin Facturación" ni el Inicio especial del perfil
+"inventario"; (2) el bloque "sin Facturación" se vacía también, sin
+reemplazo, hasta el diseño nuevo; (3) la nueva pestaña lleva su propio
+flag de gobierno en /control, igual que las otras 4 de Reportes; (4)
+Inicio queda con un saludo mínimo ("¡Bienvenido, {usuario}!"), nada más.
+
+- **Gobierno de funcionalidades — 5ta columna completa**: columna nueva
+  `reportes_estado_tickets_habilitado` (DEFAULT 1 en `tenants`, DEFAULT 0
+  en `planes`, mismo criterio que las otras 4) en
+  `control/scripts/ensureSchema.js`; `control/utils/planes.js`
+  (normalización, regla de dependencia — requiere Facturación activa,
+  `mapearFila`, CRUD); `control/utils/tenantEdicion.js`
+  (`resolverPlanYFunciones`, validación, UPDATE SQL, diff de auditoría);
+  `backend/utils/tenantContext.js` (SELECT + mapeo);
+  `backend/server.js` (bloque `funciones` de `/api/admin/login`).
+  Wizard de `/control` (`frontend/control.js`): como `REPORTES_WIZARD_DEF`
+  ya es 100% data-driven (checkbox/cascada/resumen se arman solos desde
+  el arreglo), solo hizo falta agregar 1 entrada + el campo en
+  `planWizardStateVacio()` y en la carga de un plan existente — validado
+  con clics reales en `/control` (toggle, guardar, reabrir, confirmar
+  "Incluido"/"Oculto" en el resumen, revertido al terminar para no dejar
+  residuo en el plan "Med" real).
+- **Backend**: ruta nueva **dedicada** `GET /api/admin/reportes/estado-tickets`
+  (`requiereFeature('facturacionHabilitada')` + `requiereFeature(
+  'reportesEstadoTicketsHabilitado')`, `requireAdminArea('fiscal',
+  'administrador')`) — a propósito NO reutiliza `GET /api/admin/tickets`
+  con un gate extra: esa ruta también sirve la vista Tickets completa, y
+  agregarle el flag de Reportes habría acoplado "apagar esta pestaña" con
+  "romper Tickets" (mismo bug latente ya detectado en
+  `/api/admin/reportes/corte`, compartida sin querer entre "Corte del
+  día" de Ventas y "Reporte por rango" de Reportes — no se tocó esta
+  sesión, queda anotado). La ruta nueva corre su propia consulta
+  (tickets activos, sin filtros) y devuelve `{total, tickets}`.
+- **Frontend**: `vista-inicio` reducida a un solo `<h1>` (+ el slot del
+  perfil "inventario", que NO se tocó — ver abajo). Nueva pestaña
+  "Estado de tickets" en Reportes (`PESTANAS_REPORTES`,
+  `activarPestanaReportes()` ya genérico, sin cambios ahí) con el MISMO
+  markup que antes vivía en Inicio, ids renombrados `reportes-tickets-*`
+  (antes `inicio-*`) para no colisionar. `renderInicio()`→
+  `renderEstadoTickets()`, `cargarInicio()` (ticket-fetch)→
+  `cargarEstadoTickets()`, `aplicarTendencia()` sin cambios (reusada tal
+  cual). `reportesPlanVisible()` extendido con el flag nuevo en su
+  OR-list. `td[data-label]` agregado de una vez en la tabla movida
+  (gotcha del punto 360: sin esto el patrón responsive móvil no muestra
+  etiquetas) — aquí no aplicaba porque la tabla ya las traía desde antes.
+- **Hallazgo y corrección en el camino — perfil "fiscal" habría perdido el
+  resumen por completo**: `fiscal.vistasPermitidas` nunca incluía
+  `'lectura-reportes'` (Reportes es vista de administrador/super) — mover
+  el resumen ahí sin ajustar nada le habría quitado a fiscal (el perfil
+  que MÁS usa este resumen) el único lugar donde lo veía. Fix: se agregó
+  `'lectura-reportes'` a `fiscal.vistasPermitidas`, pero las otras 4
+  pestañas (Por reporte/Cortes/Eliminados/Estado del inventario) se
+  ocultan para este perfil en `aplicarRestriccionesPerfil()` (el backend
+  ya las bloqueaba con 403 para fiscal en las 4 — ocultar el botón es
+  limpieza de UI, no un candado nuevo), y "Estado de tickets" se activa
+  sola al entrar (`cambiarVistaPrincipal`) en vez de dejar "Por reporte"
+  seleccionada por default sin ser alcanzable. El perfil "inventario"
+  tampoco se tocó: nunca tuvo acceso a Reportes, así que su Inicio
+  especial (`cargarInicioInventario()`, reparenta en vivo el nodo de
+  "Estado del inventario") se conserva intacto — es la única variante de
+  Inicio que sigue viva, documentada en el propio HTML/JS para que
+  ninguna sesión futura la borre por accidente creyendo que "Inicio
+  siempre está vacío".
+- **Pruebas**: backend **1166/1166** (58→59 suites, +8 casos nuevos en
+  `backend/test/integration/reportesEstadoTickets.test.js` — 401, perfil
+  sin acceso, gate de Facturación, gate del flag propio, sitio base
+  no-op, datos reales, solo activos sin filtros extra). Control
+  **346/346** — conteos de `ensureSchema.test.js`/`planes.test.js`
+  ajustados en los 3 archivos que ya hacían conteo exhaustivo de columnas/
+  parámetros (`ensureSchema.test.js`, `planes.test.js`;
+  `tenantEdicion.test.js` no necesitó cambios, sus asserts no son
+  exhaustivos). **Funcional real**: `e2e/tests/reportes-estado-tickets.spec.ts`
+  (NUEVO, 3/3 verde) contra el sitio base — Inicio fijo sin KPIs, el
+  resumen movido coincide con los datos reales de `/api/admin/tickets`,
+  "Ver todas" sigue llevando a Tickets, y el perfil fiscal ve SOLO
+  "Estado de tickets" en Reportes (otras 4 ocultas, se activa sola).
+  Regresión completa: `mi-cuenta.spec.ts` + `login-rfc-correo.spec.ts` +
+  `mi-cuenta-credito.spec.ts` + `control-planes-wizard.spec.ts` +
+  `dashboard-profile-card.spec.ts` → 16/16 verde (1 skip esperado, sin
+  cambios). Validado también con clics reales (Chrome DevTools MCP):
+  Inicio vacío, pestaña nueva con datos idénticos a los que antes vivían
+  ahí, consola sin errores.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

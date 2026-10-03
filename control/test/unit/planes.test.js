@@ -120,15 +120,15 @@ describe('utils/planes.js (punto 347)', () => {
       expect(plan.id).toBe(7);
       const [sqlInsert, params] = db.query.mock.calls[0];
       expect(sqlInsert).toMatch(/INSERT INTO planes/);
-      // 20 "?" (campos normales) + 1 literal + 3 "?" (orden/creado_en/actualizado_en).
-      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){19}\?, 1, \?, \?, \?\)/);
-      expect(params).toHaveLength(23);
+      // 21 "?" (campos normales) + 1 literal + 3 "?" (orden/creado_en/actualizado_en).
+      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){20}\?, 1, \?, \?, \?\)/);
+      expect(params).toHaveLength(24);
       expect(params[0]).toBe('Pro');
       expect(params[4]).toBe(15); // max_usuarios
       expect(params[6]).toBe(1); // facturacion_habilitada normalizado a 1
     });
 
-    test('campos booleanos ausentes se normalizan a 0 (apagado por default en un plan nuevo, incluidas las 10 columnas de gobierno de funcionalidades)', async () => {
+    test('campos booleanos ausentes se normalizan a 0 (apagado por default en un plan nuevo, incluidas las 11 columnas de gobierno de funcionalidades)', async () => {
       const db = mockDb();
       db.query.mockResolvedValueOnce([{ insertId: 8 }]).mockResolvedValueOnce([[filaPlan({ id: 8 })]]);
 
@@ -142,12 +142,13 @@ describe('utils/planes.js (punto 347)', () => {
       // cxc_habilitado, resumen_financiero_habilitado,
       // reportes_por_reporte_habilitado, reportes_cortes_habilitado,
       // reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
+      // reportes_estado_tickets_habilitado,
       // orden, creado_en, actualizado_en
       expect(params[5]).toBe(0); // sucursales_habilitado
       expect(params[6]).toBe(0); // facturacion_habilitada
       expect(params[7]).toBe(0); // portal_clientes_habilitado
       expect(params[8]).toBe(0); // marca_lookfeel_habilitado
-      for (let i = 10; i <= 19; i++) {
+      for (let i = 10; i <= 20; i++) {
         expect(params[i]).toBe(0);
       }
     });
