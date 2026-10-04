@@ -18337,6 +18337,327 @@ a tenant y sitio base (mismo `admin.html`/`admin.js`/`admin.css`).
   ambos abren su destino correcto; tile "Centro de conocimiento" primer
   lugar del menú, abre el modal correcto y cierra el menú).
 
+**Punto 366 (2026-10-03, CERRADO — siembra de producción a 9
+meses/favorable con todas las gráficas garantizadas, validada por SQL
+espejo contra Docker/MySQL reales):** pedido del usuario para preparar el
+próximo despliegue de `yt.addv.com.mx`: actualizar `prod/sembrar.sh` y
+`prod/backend/scripts/sembrar-prod.js` con 9 meses de operación,
+escenario positivo, dejando TODAS las gráficas/indicadores llenos
+(Resumen financiero, las 5 pestañas de Reportes, Inventarios, KPIs de
+Inicio). Decisiones confirmadas por el usuario en la sesión: (1) archivar
+todos los meses MENOS los últimos 4; (2) alcance completo (inventarios +
+extras). Cambios principales:
+
+- **`prod/sembrar.sh`**: defaults **9 MESES / `favorable`** (antes
+  6/favorable), `SEED_MESES="${SEED_MESES:-9}"`, y NOTA "DE IMPORTANTE"
+  en la cabecera: el backend de producción hornea los scripts en la
+  imagen (`build: ./backend`), así que cualquier cambio en
+  `prod/backend/scripts/*` exige **rebuild de la imagen backend** antes
+  de `./sembrar.sh`.
+- **`sembrar-prod.js`** (interno `SEED_MESES` default 9; `SEED_PERFIL`
+  interno sigue siendo `realista` si se corre sin wrapper — asimetría
+  documentada a propósito, el wrapper fija `favorable`): catálogo de 14
+  productos + 4 servicios (uno con `peso=0`, dos "sin movimiento",
+  expiraciones a 15 días/−12 días), ventas con `email` 85% principal /
+  15% secundario, pendientes con `fecha_vencimiento = NULL` (bucket "sin
+  fecha de vencimiento" de CxC), `sembrarAbonosVenta()` tras cada venta
+  (339 abonos en 252 órdenes; `abonos` agregada a `TABLAS_A_BORRAR`),
+  compras de reposición ~12%/día con `documento_origen OC-PROV-*`
+  (contador de Compras = 32), rama de ticket **`cancelado`** (~1/3 de los
+  tickets — antes solo pendiente/en_curso/listo; alimenta la dona de
+  "Estado de tickets"), líneas de servicio en `orden_productos` (sin
+  salida de inventario; 177 líneas de producto + 36 de servicio = 213),
+  y las **garantías** `asegurarHoy()`/`asegurarGastosMesActual()` con
+  ventanas tz-aware (copia exacta de `limitesDia()`/`limitesMes()` de
+  `server.js` sobre `configuracion.zona_horaria`, con clamp ≤ ahora para
+  no escribir fechas futuras): ≥1 entrada, ≥1 salida/merma, ≥1 venta,
+  ≥1 ticket y ≥1 gasto de HOY, más ≥4 categorías de gasto en el mes en
+  curso — corren ANTES de `forzarNivelesInventario()` (3 agotados +
+  2 bajo mínimo, incluye `PROD-EXT-008 → 0`) para que ese ajuste quede
+  como lo último que toca el kardex. Post-commit: archivar cierres de
+  todos los meses MENOS los últimos 4 (reutilizando
+  `ordenAItemArchivado`/`gastoAItemArchivado`/`generarContenidoMD`, y
+  NUNCA `generarYEnviarReporte` — sin correo real), 1 "Corte del día" por
+  mes (día con ventas determinista, `fechaGeneracionDeCorte` con clamp ≤
+  ahora), y 1 reporte de "Eliminados" por mes × últimos 6 meses con 8
+  items reales (`accion='eliminado'`, `tipo_registro` =
+  orden_compra/ticket/gasto). Log final: tickets por estatus, reportes
+  por tipo, y hint si `inventario_activo` está desactivado en
+  `configuracion`.
+- **Bug 1 (validación, fix de línea)**: `const [[ultimaVenta]] =
+  ventaSinFacturar ? [ventaSinFacturar] : await conexion.query(...)` —
+  la rama ternaria devuelve `[fila]` y la destructuración doble espera
+  `[rows, fields]` → `TypeError: object is not iterable` a media corrida.
+  Fix con destructuración plana (`const [rows] = ...; rows[0]`).
+- **Bug 2 (hallazgo de esta corrida): la papelera borraba las
+  garantías recién creadas.** `sembrarPapeleraDemo()` elegía gastos y
+  tickets con `ORDER BY id DESC LIMIT 2` → SIEMPRE las últimas filas
+  insertadas = los 2 extras de `asegurarGastosMesActual()` y el ticket
+  forzado de `asegurarHoy()`. Medido en la corrida anterior al fix:
+  "tickets hoy" = **0** y "categorías de gasto del mes" = **2** (de 4)
+  justo después de garantizarlos. Fix: candidatos por **`id ASC`** (los
+  más antiguos del arranque de la ventana — además coherentes con
+  `fechaBorrado = ventana+20d`, que hoy sí cae DESPUÉS de su
+  `creado_en`) + exclusiones semánticas explícitas (`fecha < inicio del
+  mes local` para gastos, `creado_en < inicio de hoy local` para
+  tickets), pasando `zonaHoraria` al helper. Re-corrido completo:
+  papelera 2/2/2/1 intacta, hoy = 1 venta / 1 ticket / 1 gasto / 1
+  entrada, mes en curso = 4 categorías (renta, software, servicios,
+  papeleria).
+- **Validación local sin tocar los datos de E2E (receta reutilizable)**:
+  (a) `mysqldump` de `portal_facturacion` → BD copia
+  **`tenant_seedtest`** — el grant de `app@%` solo cubre
+  `control_tenants`, `portal_facturacion` y `tenant_%`, por eso el
+  nombre empieza con `tenant_` y no hizo falta crear grants nuevos;
+  (b) `docker cp` del script a
+  `portalManager-backend:/usr/src/app/scripts/` (el código de backend va
+  horneado en `/usr/src/app`; `/app` es solo `uploads`); (c) correr con
+  `docker exec -e DB_NAME=tenant_seedtest -e SEED_PERFIL=favorable
+  -e SEED_MESES=9 portalManager-backend node scripts/sembrar-prod.js
+  --confirmar`; (d) verificación **por SQL espejo de cada endpoint**,
+  enviando el archivo SQL **por stdin** en PowerShell
+  (`Get-Content x.sql | docker exec -i portalManager-mysql sh -c 'mysql
+  -uroot -p"$MYSQL_ROOT_PASSWORD" -t tenant_seedtest'`) — el escape
+  `''` NO sobrevive al CLI de docker y las comillas simples dentro de la
+  query rompen el `-c`.
+- **Resultado de la verificación (todo en verde, ventana "hoy" =
+  2026-10-03 local MX calculada con el mismo `Intl` del backend)**:
+  Inicio: 1 venta hoy ($116,914.42, coincide con el corte del día
+  2026-10-03), 1 ticket, 1 gasto, 1 entrada, 6 salidas. Inventario: sin
+  movimiento 6, por vencer 2, riesgo 3, 4 servicios (1 sin ventas en
+  90 días). Kardex cuadra: 0 descuadres contra `existencias`, 0 folios
+  NULL, 0 existencias negativas. CxC: 59 pendientes con los 6 buckets
+  llenos (sin fecha 11, por vencer 6, vencidos 1-30: 3, 31-60: 8, 61-90:
+  7, +90: 24; saldo $881,028.03). Dona de tickets: listo 206, en_curso
+  22, cancelado 16, pendiente 14. Reportes: 6 cierres (ene-jun, con sus
+  fechas de generación 01/02..01/07 06:10), 10 cortes, 6 reportes de
+  eliminados dentro de la ventana de 6 meses (8 items), 17 items
+  activos. Resumen: jul-oct sin archivar + ene-jun archivadas; gastos de
+  octubre en 4 categorías con 4 proveedores. Abonos 339/252; 284/284
+  ventas con email; papelera 2/2/2/1 con `eliminado_en` posterior a
+  `creado_en`. `node --check` limpio; sin cambios en `backend/` (Jest no
+  se tocó — el script no tiene suite propia, igual que en el punto 328).
+- **Estado**: `tenant_seedtest` se conserva local (habilita una pasada
+  Playwright/E2E después, decisión de la regla del punto 357 si se
+  quiere ver en navegador). Para producción falta: rebuild de la imagen
+  backend + `./sembrar.sh` en el VPS.
+- **Post-corrida en el VPS (2026-10-03, diagnóstico del reporte "sigue
+  todo igual"):** el usuario corrió `./sembrar.sh` en `yt.addv.com.mx`
+  y los datos no cambiaron. Causa verificada contra los archivos del
+  repo: `prod/backend/Dockerfile` hace `COPY . .` a `/usr/src/app` y el
+  único volumen del backend en `docker-compose.prod.yml` es
+  `./uploads` — el `exec` de `sembrar.sh` corre la copia **horneada en
+  la imagen**, no el archivo de disco; sin rebuild posterior al sync
+  corrió la versión vieja, y al ser el seed determinista (misma semilla
+  → mismos datos) regeneró exactamente los mismos datos: "igual" sin
+  ningún error visible. El script jamás falló — el flujo histórico
+  funcionaba porque `./actualizar.sh` (rebuild) corre antes de
+  `./sembrar.sh`. Chequeo definitivo en el VPS: `grep -cE
+  "asegurarGastosMesActual|id ASC"` debe dar **6** (líneas 647, 650,
+  657, 670, 887, 1457) tanto en el archivo de disco sincronizado como
+  en `docker exec portalManager-prod-backend ... 
+  /usr/src/app/scripts/sembrar-prod.js` — disco con matches y
+  contenedor en **0** = imagen vieja. Pendiente del usuario: sync de
+  `prod/` por contenido + rebuild (`sudo ./actualizar.sh`) + re-correr
+  `./sembrar.sh` (escribiendo exactamente `si`).
+
+**Punto 367 (2026-10-03, CERRADO — siembra de producción cambiada a 8
+meses/`normal` +10%/mes, efectos de mercadotecnia):** pedido del usuario
+tras el punto 366: el default real de `prod/sembrar.sh` pasa de **9
+meses/`favorable`** a **8 meses/`normal`**, escenario "normal" con
+ganancia pero con un incremento mensual del 10% (en vez del +16%/mes de
+`favorable`, que compone demasiado agresivo en 8-9 meses). Todo el
+portal debe mostrar datos llenos para demo de mercadotecnia — ya cubierto
+por el motor de reportes/gráficas del punto 366, sin cambios de alcance
+ahí.
+
+- **`sembrar-prod.js`**: nuevo perfil `normal` en `PERFIL_CONFIG`
+  (`pendiente: 0.10, gastoMultiplicador: 1.03, ajuste: 'piso',
+  ajusteFactor: 1.10`) — piso de +10% mes contra mes, margen de gasto
+  entre `realista` (1.05) y `favorable` (1.0), rentable todos los meses.
+  Agregado a `PERFILES_VALIDOS` junto a los 4 ya existentes
+  (`realista`/`favorable`/`promedio`/`negativo`); default interno del
+  archivo sin wrapper sigue siendo `realista`/9 meses (asimetría
+  documentada a propósito, igual que antes del punto 366).
+- **`prod/sembrar.sh`**: `SEED_MESES="${SEED_MESES:-8}"`,
+  `SEED_PERFIL="${SEED_PERFIL:-normal}"`, cabecera actualizada.
+- **Validación en este entorno**: `node --check` limpio en
+  `sembrar-prod.js`, `bash -n` limpio en `sembrar.sh` — sin Docker/MySQL
+  real disponible en esta sesión de generación, igual que el punto 366.
+  **Pendiente del usuario**: subir `prod/` actualizado al VPS, rebuild de
+  la imagen backend (`sudo ./actualizar.sh`, o se ejecutará la versión
+  horneada vieja — mismo gotcha del punto 366) y correr `./sembrar.sh`
+  escribiendo `si`.
+
+**Punto 368 (2026-10-03, CERRADO — Ventas: stepper de cantidad +
+auto-agregar/auto-sumar al escanear, validado con Playwright real contra
+Docker/MySQL):** pedido del usuario sobre el campo "Cantidad" del
+producto de inventario en "Registrar venta" (`orden-inventario-unidades`,
+único punto del sitio con ese patrón "Cantidad (pz)" + botón de cámara).
+Propuesta visual (3 opciones) en Artifact, usuario confirmó la opción 2
+("grande + toast") y además reportó un bug visual real en la tabla de
+productos agregados (captura adjunta: badge "Inventario" partido a media
+palabra "INVENTA/RIO", columnas numéricas sin alinear) — diagnosticado y
+corregido en el mismo paso con apoyo de la skill `ui-ux-pro-max`.
+
+- **Stepper −/+ (`frontend/admin.html` líneas ~1416-1434,
+  `frontend/admin.css` ".stepper-cantidad"/".stepper-cantidad-btn")**:
+  botones circulares de 40px a los lados del input de cantidad (antes
+  `<input type="number">` plano). El input sigue siendo editable a mano
+  (unidades de medida continua — litro/kg — necesitan decimales finos
+  que un botón no puede dar); los botones siempre suman/restan 1 entero,
+  respetando el `min` real ya fijado por `seleccionarProductoInventarioOrden()`
+  (0.001 o 1 según `permite_decimales` del producto). Default sigue
+  siendo 1 — sin cambios ahí, ya era el comportamiento.
+- **Auto-agregar/auto-sumar al escanear (`frontend/admin.js`,
+  `agregarOIncrementarPorEscaneo()`, llamada desde el branch de
+  coincidencia EXACTA de código de barras en `buscarProductosInventarioOrden()`)**:
+  antes, un código exacto solo seleccionaba el producto — había que
+  pulsar "+ Agregar producto" aparte, y re-escanear el mismo código
+  mostraba el error "Ya agregaste este producto". Ahora: código exacto
+  nuevo → se agrega solo con cantidad 1 y precio del catálogo (toast
+  "... agregado a la orden."); código exacto ya en la lista → suma 1 a
+  esa línea (toast "... cantidad actualizada a N."), sin error. Sin
+  precio capturado en el catálogo (servicio sin precio) se deja
+  seleccionado para completarlo a mano, igual que antes — no se agrega
+  solo con precio inválido. La selección manual por texto libre (clic en
+  una sugerencia, sin coincidencia exacta de código) NO dispara esto —
+  sigue requiriendo "+ Agregar producto" explícito, ese botón se queda
+  en el DOM para ese flujo. Reusa el `showToast()` ya existente
+  (`admin.js:1558`) — no se inventó un sistema de toast nuevo.
+- **Fix del bug de la tabla (`frontend/admin.css`,
+  `.line-badge-inv`/`.orden-productos-tabla-concepto`/columnas `.num`)**:
+  causa real — `.line-badge-inv` nunca tuvo `white-space: nowrap`, un
+  `inline-block` sí deja que su propio texto envuelva si el espacio se
+  angosta (dentro del grid de 2 columnas del modal). Fix: `white-space:
+  nowrap` + `flex-shrink:0` en el badge, nombre+badge envueltos en
+  `.orden-productos-tabla-concepto` (flex, el nombre sí puede bajar de
+  línea), columnas numéricas con `text-align:right` +
+  `font-variant-numeric:tabular-nums` (antes solo `nowrap`, sin alinear),
+  `min-width` propio en la columna Concepto y `min-width` de la tabla
+  320px→420px (el wrapper ya tenía `overflow-x:auto` — ahora scrollea en
+  vez de aplastar el contenido). Reusa `.es-flash`
+  (`admin.css`, ya usado por `control.js`) para resaltar la fila
+  agregada/sumada — no se inventó una animación nueva.
+- **Pruebas funcionales (Playwright real contra Docker+MySQL, spec
+  temporal borrada tras validar — no se commiteó)**: producto de prueba
+  creado vía API (`POST /api/admin/inventarios/productos`, tenant `t1`)
+  con código de barras único; 1er escaneo (tecleando el código exacto en
+  el buscador, mismo criterio que la cámara/lector físico) → fila nueva
+  cantidad 1; 2do escaneo del mismo código → cantidad 2 sin error; altura
+  del badge medida en pantalla real (`boundingBox`) = 14px, confirma una
+  sola línea; flujo manual (buscar por nombre, clic en sugerencia) →
+  stepper visible, botones +/− ajustan el valor (1→3→2) antes de
+  agregar. Producto de prueba eliminado (soft-delete) al cerrar. `node
+  --check` limpio en los 2 `.js` tocados.
+- **Pendiente**: sync de `prod/` por contenido cuando el usuario lo pida
+  (gotcha ya documentado en CLAUDE.md — `prod/backend` hornea en la
+  imagen, un cambio de frontend no lo toca pero sigue aplicando la
+  convención de sincronizar por contenido, nunca `git add`).
+
+**Punto 369 (2026-10-04, CERRADO — Configuraciones: logo y plantilla del
+ticket de impresión, validado con Playwright real contra Docker/MySQL):**
+pedido del usuario — sección nueva en Configuraciones para que el tenant
+suba su propio logo de ticket y personalice ancho de papel/textos, con
+"si no hay logo, usa el de Clarvo" y un botón "Restablecer plantilla".
+Propuesta visual (4 layouts) en Artifact, usuario confirmó la opción 2
+("formulario + vista previa en vivo"), y confirmó explícitamente
+(AskUserQuestion) que el mapeo completo en `/control` va en el mismo
+trabajo, no después.
+
+- **Corrección de rumbo a mitad de la sesión — lección para no repetir**:
+  la primera pasada de investigación (antes de implementar) concluyó que
+  "Marca propia / Look & Feel" (el switch que ya existe en el asistente
+  de planes de `/control`, `control.html:1052`) no tenía nada detrás —
+  ni columna, ni `requiereFeature()`. Eso era falso: un grep más amplio
+  encontró `marca_lookfeel_habilitado` ya implementado de punta a punta
+  desde el **punto 244** — columna real en `control_tenants.tenants`,
+  expuesta en `tenantContext.js` (`marcaLookfeelHabilitado`), ya usada
+  para `marca_logo_url`/`tema_json` (logo de portal/correos, favicon,
+  tema), con endpoints reales (`/api/marca-logo/:slug`,
+  `/internal/marca-logo/:slug`) y wiring completo en `control.js`/
+  `control.html` (switch del wizard de planes, badges, edición por
+  tenant) — **probado con 1177 tests ya antes de esta sesión**. Error de
+  la primera pasada: grepeó el string literal `marca_propia` (con guion
+  bajo en medio) en vez de buscar por el concepto ("Marca propia" es
+  solo la ETIQUETA en español del switch; el nombre real en código es
+  `marcaLookfeelHabilitado`). Resultado práctico: **cero cambios de
+  gobernanza nuevos hicieron falta** — se reusó el flag ya existente
+  tal cual (`requiereFeature('marcaLookfeelHabilitado')` en las rutas
+  nuevas, ver abajo), nada que tocar en `control_tenants`/`control/`. La
+  lección que se queda: antes de concluir "esto no está implementado",
+  buscar por el NOMBRE REAL en código (`grep -rn marcaLookfeel`), nunca
+  solo por la frase en español que usó el usuario o la UI.
+- **Diseño**: el logo del ticket NO reusa `marca_logo_url` (ese sigue
+  siendo exclusivo de super-admin vía `/control`, para portal/correos) —
+  es un campo paralelo, autoservicio del tenant, mismo patrón de
+  almacenamiento (`storage.guardarArchivo`/`eliminarArchivo`, prefijo
+  `'ticket'` en vez de `'marca'`). Ambos VIVEN bajo el mismo flag de
+  gobierno (`marcaLookfeelHabilitado`) — un tenant sin "Marca propia" no
+  ve ninguna de las dos pantallas.
+- **Backend (`backend/utils/config.js`)**: `logo_url` (ya existía,
+  reservado desde antes "para cuando se agregue esa pantalla" — ahora sí
+  tiene pantalla) + 5 campos nuevos en `configuracion_global`:
+  `ticket_ancho_papel` ('58mm'|'80mm', default '58mm'),
+  `ticket_mostrar_cliente`/`ticket_mostrar_agradecimiento` (booleanos,
+  default true), `ticket_texto_agradecimiento` (default idéntico al
+  hardcoded de antes, "¡Gracias por su compra!", nunca puede quedar
+  vacío), `ticket_texto_pie` (default "Visítanos https://clarvo.mx",
+  igual al hardcoded de antes — sí puede quedar vacío si el tenant lo
+  borra a propósito). Nueva función `resetearPlantillaTicket()` para el
+  botón "Restablecer plantilla" (vuelve los 5 campos + logo a sus
+  defaults en una sola escritura).
+- **Backend (`backend/server.js`), rutas DEDICADAS (no agregadas a
+  `/api/admin/config/global`)**: gobierno de funcionalidades — esa ruta
+  compartida sirve campos de módulos SIN el flag de "Marca propia" (IVA,
+  zona horaria...), gatearla completa habría roto esos campos para
+  cualquier tenant sin el flag (mismo gotcha ya documentado en CLAUDE.md
+  sobre nunca compartir una ruta entre dos superficies con flags
+  distintos). `GET/PUT /api/admin/configuraciones/ticket`,
+  `POST .../ticket/restablecer`, `POST/DELETE .../ticket-logo` (multer
+  `uploadImagen` ya existente, mismo validador de firma binaria que
+  Inventarios), las 5 con `requiereFeature('marcaLookfeelHabilitado')`
+  ANTES de `requireAdminAuth`, `requireAdminArea('administrador')` (el
+  perfil "ventas" nunca entra a Configuraciones — `tarjetasConfigPermitidas:
+  []` — así que gatearlo ahí también habría sido superficie muerta).
+  `GET /api/ticket-logo/:slug` público (mismo criterio que
+  `/api/marca-logo/:slug` — un logo no es sensible), validación de slug
+  PROPIA (no `validarSlug()` de `utils/tenant.js`: ese rechaza
+  `_default`, el prefijo real del sitio base sin tenant).
+- **Frontend (`admin.html`/`admin.css`/`admin.js`)**: nuevo grupo de nav
+  "Marca propia" + tarjeta `ticket-config-card` (Propuesta 2: campos a la
+  izquierda, ticket en vivo a la derecha, reusa `.ticket-preview-recibo`
+  ya existente del modal de vista previa + `.dropzone`/`.switch-toggle`/
+  `.view-toggle` ya existentes — cero componentes nuevos). Gateada en 2
+  capas (backend-only no basta, ver CLAUDE.md): `planPermite('marcaLookfeelHabilitado')`
+  en `PLAN_GATE_TARJETA_CONFIG` + agregada a `tarjetasConfigPermitidas`
+  SOLO de `administrador` en `RESTRICCIONES_PERFIL` (fiscal/ventas/inventario
+  no la ven, mismo criterio que el resto de Configuraciones).
+  `construirHtmlTicket()` (único punto que arma el ticket impreso, usado
+  por los 3 disparadores reales + la "Vista previa" de borrador) ahora
+  lee `ticketConfigActual` (precargada una vez por sesión en
+  `showDashboard()`, igual que `tenantFuncionesPlan`) — logo con fallback
+  a `/assets/logoImpresora.png`, cliente/agradecimiento condicionales,
+  pie de página configurable. Ancho de papel (58mm/80mm) se inyecta como
+  `<style>` dinámico en el click de "Imprimir" (mismo mecanismo ya
+  existente que mide el alto real del ticket y fija `@page` — solo se
+  parametrizó el ancho, que antes estaba fijo en "58mm").
+- **Pruebas**: Jest unit nuevo en `config.test.js` (6 casos:
+  ancho_papel válido/inválido, toggles a booleano, default forzado de
+  agradecimiento, recorte de longitud, pie vacío permitido,
+  `resetearPlantillaTicket`) — **1177 tests backend, 0 regresiones**.
+  Playwright real contra Docker/MySQL (sitio base, specs temporales
+  borradas tras validar, nunca commiteadas): tarjeta visible/gateada
+  correctamente, subir logo actualiza la vista previa en vivo al
+  instante, cambiar ancho/textos/toggles persiste tras cerrar y reabrir
+  Configuraciones (confirmado contra el servidor, no solo memoria),
+  "Restablecer plantilla" vuelve todo a defaults y quita el logo, y —el
+  cierre del círculo— la Vista previa REAL del ticket desde "Registrar
+  venta" (`construirHtmlTicket()`, el consumidor real, no la tarjeta de
+  Configuraciones) sí usa el logo/textos configurados. Estado del sitio
+  base restablecido a defaults al terminar (sin dejar datos de prueba).
+- **Pendiente**: sync de `prod/` por contenido cuando el usuario lo pida.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

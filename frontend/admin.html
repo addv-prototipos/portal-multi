@@ -1420,7 +1420,15 @@
                   </div>
                   <div class="field">
                     <label for="orden-inventario-unidades" id="orden-inventario-unidades-label">Cantidad (piezas) <span class="required">*</span></label>
-                    <input type="number" id="orden-inventario-unidades" min="0.001" step="0.001" value="1" />
+                    <div class="stepper-cantidad">
+                      <button type="button" class="stepper-cantidad-btn" id="btn-orden-inventario-unidades-restar" aria-label="Restar una unidad">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14" stroke-linecap="round" stroke-width="2.4"/></svg>
+                      </button>
+                      <input type="number" id="orden-inventario-unidades" min="0.001" step="0.001" value="1" />
+                      <button type="button" class="stepper-cantidad-btn" id="btn-orden-inventario-unidades-sumar" aria-label="Sumar una unidad">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-width="2.4"/></svg>
+                      </button>
+                    </div>
                     <p class="field-error" id="error-orden-inventario-unidades" role="alert"></p>
                   </div>
                 </div>
@@ -1433,16 +1441,22 @@
                 <p class="field-hint" id="orden-inventario-disponible-hint"></p>
                 <p class="field-error" id="error-orden-inventario-general" role="alert"></p>
                 <button type="button" class="btn btn-secondary btn-block" id="btn-agregar-producto-inventario-orden" hidden>+ Agregar producto</button>
+                <!-- Punto 368: al escanear (cámara, lector físico o código
+                     exacto tecleado) el producto se agrega solo — este botón
+                     solo sigue siendo necesario cuando seleccionas el
+                     producto buscándolo por nombre/SKU (sin coincidencia
+                     exacta de código de barras). -->
+                <p class="field-hint">Al escanear se agrega o suma solo — este botón es solo para cuando seleccionas el producto buscándolo por nombre.</p>
               </div>
 
               <div class="orden-productos-lista-wrap" id="orden-productos-lista-wrap" hidden>
                 <table class="admin-table orden-productos-tabla orden-productos-tabla-escritorio">
                   <thead>
                     <tr>
-                      <th>Concepto</th>
-                      <th>P. unitario</th>
-                      <th>Cant.</th>
-                      <th>Subtotal</th>
+                      <th class="orden-productos-tabla-concepto-col">Concepto</th>
+                      <th class="num">P. unitario</th>
+                      <th class="num">Cant.</th>
+                      <th class="num">Subtotal</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -2397,6 +2411,12 @@
                 Configuraciones fiscales
               </button>
 
+              <div class="config-modal-nav-group-label" data-grupo="marca">Marca propia</div>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="ticket-config-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="14" width="12" height="8" stroke="currentColor" stroke-width="1.6"/></svg>
+                Ticket de impresión
+              </button>
+
               <div class="config-modal-nav-group-label" data-grupo="comunicacion">Comunicación</div>
               <button type="button" class="config-modal-nav-item" data-tarjeta="smtp-config-card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m3.5 6 8.5 7 8.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -2610,6 +2630,119 @@
             <button type="button" class="btn btn-primary" id="btn-guardar-config-global">
               <span id="btn-guardar-config-global-label">Guardar cambios</span>
             </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ticket de impresión — logo + plantilla (Punto 368). Gateada por
+           "marcaLookfeelHabilitado" (el mismo flag de "Marca propia / Look
+           & Feel" ya usado para marca_logo_url/tema_json desde /control,
+           punto 244) — ver PLAN_GATE_TARJETA_CONFIG en admin.js. Layout
+           "formulario + vista previa en vivo" (Propuesta 2, confirmada por
+           el usuario): cada cambio en los campos de la izquierda redibuja
+           el ticket de la derecha al instante, sin esperar a "Guardar". -->
+      <section class="admin-config-card" id="ticket-config-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-ticket-config" aria-expanded="false" aria-controls="ticket-config-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="14" width="12" height="8" stroke="currentColor" stroke-width="1.6"/></svg>
+            Ticket de impresión
+          </span>
+          <svg class="admin-config-chevron" id="ticket-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <div class="admin-config-body" id="ticket-config-body" hidden>
+          <p class="panel-subtitle admin-config-subtitle">
+            Personaliza el logo y el pie de página del ticket que se imprime al cerrar cada venta. Sin nada configurado aquí, se imprime el logo y el texto de Clarvo por defecto — nunca queda sin logo.
+          </p>
+
+          <div class="ticket-config-grid">
+            <div class="ticket-config-campos">
+              <div class="field">
+                <label>Logo del ticket</label>
+                <div class="ticket-logo-actual" id="ticket-logo-actual" hidden>
+                  <img id="ticket-logo-actual-preview" alt="Logo del ticket" />
+                  <button type="button" class="btn btn-secondary" id="btn-ticket-logo-quitar">Quitar logo</button>
+                </div>
+                <label class="dropzone" id="ticket-logo-dropzone" for="ticket-logo-input">
+                  <span class="dropzone-icono" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 16V4m0 0L7 9m5-5l5 5M5 20h14" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+                  </span>
+                  <span>Arrastra una imagen o haz clic para seleccionar</span>
+                  <span class="field-hint">JPG, PNG o WEBP · máx. <span id="ticket-logo-limite-mb">5</span> MB</span>
+                </label>
+                <input type="file" id="ticket-logo-input" accept="image/jpeg,image/png,image/webp" hidden />
+                <p class="field-error" id="error-ticket-logo" role="alert"></p>
+              </div>
+
+              <div class="field">
+                <label>Ancho de papel</label>
+                <div class="view-toggle" role="tablist" id="ticket-ancho-papel-toggle" aria-label="Ancho de papel del ticket">
+                  <button type="button" class="view-toggle-btn is-active" data-ancho="58mm" role="tab" aria-selected="true">58mm</button>
+                  <button type="button" class="view-toggle-btn" data-ancho="80mm" role="tab" aria-selected="false">80mm</button>
+                </div>
+              </div>
+
+              <label class="switch-toggle">
+                <input type="checkbox" id="ticket-mostrar-cliente" checked />
+                <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+                <span class="switch-toggle-texto">
+                  <span class="switch-toggle-label">Mostrar correo del cliente</span>
+                  <span class="switch-toggle-hint">Cuando la venta se asocia a un correo registrado.</span>
+                </span>
+              </label>
+              <label class="switch-toggle">
+                <input type="checkbox" id="ticket-mostrar-agradecimiento" checked />
+                <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+                <span class="switch-toggle-texto">
+                  <span class="switch-toggle-label">Mostrar mensaje de agradecimiento</span>
+                </span>
+              </label>
+
+              <div class="field">
+                <label for="ticket-texto-agradecimiento">Texto de agradecimiento</label>
+                <input type="text" id="ticket-texto-agradecimiento" maxlength="60" placeholder="¡Gracias por su compra!" />
+              </div>
+              <div class="field">
+                <label for="ticket-texto-pie">Texto de pie (sitio, redes, teléfono)</label>
+                <input type="text" id="ticket-texto-pie" maxlength="80" placeholder="Visítanos tuempresa.mx" />
+                <p class="field-hint">Se imprime hasta abajo del ticket, debajo del mensaje de agradecimiento.</p>
+              </div>
+
+              <p class="field-error" id="ticket-config-error" role="alert"></p>
+
+              <div class="btn-row admin-config-actions">
+                <button type="button" class="btn btn-secondary" id="btn-restablecer-ticket-config">Restablecer plantilla</button>
+                <button type="button" class="btn btn-primary" id="btn-guardar-ticket-config">
+                  <span id="btn-guardar-ticket-config-label">Guardar cambios</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="ticket-config-preview">
+              <div class="ticket-preview-shell">
+                <div class="ticket-preview-recibo" id="ticket-config-hoja">
+                  <img class="ticket-imprimir-logo" id="ticket-config-preview-logo" src="/assets/logoImpresora.png" alt="Logo del ticket" />
+                  <div class="ticket-imprimir-titulo">Ticket de venta</div>
+                  <div class="ticket-imprimir-separador"></div>
+                  <div class="ticket-imprimir-meta">Folio: V-000182</div>
+                  <div class="ticket-imprimir-meta">04/oct/2026 12:03:00</div>
+                  <div class="ticket-imprimir-separador"></div>
+                  <div class="ticket-imprimir-linea"><span>2 x Producto de ejemplo</span><span>$300.00</span></div>
+                  <div class="ticket-imprimir-separador"></div>
+                  <div class="ticket-imprimir-linea"><span>Subtotal</span><span>$300.00</span></div>
+                  <div class="ticket-imprimir-linea"><span>IVA (16%)</span><span>$48.00</span></div>
+                  <div class="ticket-imprimir-linea ticket-imprimir-total"><span>TOTAL</span><span>$348.00</span></div>
+                  <div class="ticket-imprimir-separador"></div>
+                  <div class="ticket-imprimir-meta" id="ticket-config-preview-cliente">Cliente: ejemplo@correo.mx</div>
+                  <div class="ticket-imprimir-separador" id="ticket-config-preview-cliente-sep"></div>
+                  <div class="ticket-imprimir-gracias" id="ticket-config-preview-gracias">¡Gracias por su compra!</div>
+                  <div class="ticket-imprimir-sitio" id="ticket-config-preview-pie">Visítanos https://clarvo.mx</div>
+                </div>
+              </div>
+              <p class="ticket-preview-etiqueta">Así se ve — se actualiza mientras escribes</p>
+            </div>
           </div>
         </div>
       </section>

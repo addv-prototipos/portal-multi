@@ -54,6 +54,7 @@ const {
   ZONAS_HORARIAS_MEXICO,
   getConfiguracionGlobal,
   setConfiguracionGlobal,
+  resetearPlantillaTicket,
   obtenerDiasMaximoAvisoExpiracion,
   formatearFechaHoraMexico,
   METODOS_PAGO_VENTA,
@@ -4748,6 +4749,151 @@ app.put(
     }
   })
 );
+
+// ---------- Ticket de impresión: logo + plantilla (Punto 368) ----------
+// Ruta DEDICADA (no agregada a /api/admin/config/global) a propósito —
+// gobierno de funcionalidades: esta pantalla completa vive detrás de
+// `marcaLookfeelHabilitado` ("Marca propia / Look & Feel", el mismo flag
+// que ya gobierna marca_logo_url/tema_json desde /control, punto 244),
+// y /config/global sirve campos de MUCHOS módulos sin ese flag (IVA,
+// zona horaria, etc.) — gatearla completa rompería esos campos para
+// cualquier tenant sin "Marca propia". requiereFeature() SIEMPRE antes
+// de requireAdminAuth (404, nunca 403, mismo criterio que el resto del
+// archivo).
+const TICKET_CONFIG_CAMPOS = [
+  'logo_url',
+  'ticket_ancho_papel',
+  'ticket_mostrar_cliente',
+  'ticket_mostrar_agradecimiento',
+  'ticket_texto_agradecimiento',
+  'ticket_texto_pie',
+];
+function extraerConfigTicket(config) {
+  const resultado = {};
+  TICKET_CONFIG_CAMPOS.forEach((campo) => { resultado[campo] = config[campo]; });
+  return resultado;
+}
+
+app.get(
+  '/api/admin/configuraciones/ticket',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const config = await getConfiguracionGlobal();
+    res.json(extraerConfigTicket(config));
+  })
+);
+
+app.put(
+  '/api/admin/configuraciones/ticket',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    try {
+      const actualizado = await setConfiguracionGlobal({
+        ticket_ancho_papel: body.ticket_ancho_papel,
+        ticket_mostrar_cliente: body.ticket_mostrar_cliente,
+        ticket_mostrar_agradecimiento: body.ticket_mostrar_agradecimiento,
+        ticket_texto_agradecimiento: body.ticket_texto_agradecimiento,
+        ticket_texto_pie: body.ticket_texto_pie,
+      });
+      res.json(extraerConfigTicket(actualizado));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  })
+);
+
+app.post(
+  '/api/admin/configuraciones/ticket/restablecer',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const prefijo = storage.prefijoTenant(req);
+    await storage.eliminarArchivo('ticket', prefijo, 'logo').catch(() => {});
+    const actualizado = await resetearPlantillaTicket();
+    res.json(extraerConfigTicket(actualizado));
+  })
+);
+
+app.post('/api/admin/configuraciones/ticket-logo', adminApiLimiter, requiereFeature('marcaLookfeelHabilitado'), requireAdminAuth, requireAdminArea('administrador'), (req, res) => {
+  subirConTenant(uploadImagen, 'logo', req, res, async (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: `El logo excede el tamaño máximo permitido de ${MAX_FILE_SIZE_MB} MB.` });
+      }
+      if (err.message === 'TIPO_NO_PERMITIDO') {
+        return res.status(400).json({ error: 'Solo se aceptan imágenes en formato JPG, PNG o WEBP.' });
+      }
+      console.error('Error al subir el logo del ticket:', err);
+      return res.status(400).json({ error: 'No se pudo procesar la imagen.' });
+    }
+    try {
+      if (!req.file) return res.status(400).json({ error: 'Debes adjuntar una imagen.' });
+      const mimeReal = detectRealImageMimeType(req.file.buffer);
+      if (!mimeReal) {
+        return res.status(400).json({ error: 'El archivo no es una imagen válida (JPG, PNG o WEBP).' });
+      }
+      const prefijo = storage.prefijoTenant(req);
+      await storage.guardarArchivo('ticket', prefijo, 'logo', req.file.buffer, mimeReal);
+      const actualizado = await setConfiguracionGlobal({ logo_url: `/api/ticket-logo/${prefijo}` });
+      res.json(extraerConfigTicket(actualizado));
+    } catch (errGeneral) {
+      console.error('Error guardando el logo del ticket:', errGeneral);
+      res.status(500).json({ error: 'No se pudo guardar el logo.' });
+    }
+  });
+});
+
+app.delete(
+  '/api/admin/configuraciones/ticket-logo',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const prefijo = storage.prefijoTenant(req);
+    await storage.eliminarArchivo('ticket', prefijo, 'logo');
+    const actualizado = await setConfiguracionGlobal({ logo_url: null });
+    res.json(extraerConfigTicket(actualizado));
+  })
+);
+
+// Sirve el logo del ticket (Punto 368) — público a propósito, mismo
+// criterio que /api/marca-logo/:slug (es un logo, no un dato sensible;
+// lo consume tanto la vista previa en vivo de Configuraciones como el
+// <img> del ticket impreso). NO usa validarSlug() de utils/tenant.js —
+// ese validador exige minúsculas/números/guiones (rechaza "_default",
+// el prefijo real del sitio base sin tenant, ver storage.PREFIJO_DEFECTO)
+// y además rechaza slugs reservados que aquí no aplican (esto es una key
+// de almacenamiento, no una ruta enrutable de tenant) — validación propia,
+// más simple, que solo evita path traversal en la key de MinIO.
+const SLUG_O_DEFAULT_REGEX = /^[a-z0-9_-]{1,50}$/;
+app.get('/api/ticket-logo/:slug', async (req, res) => {
+  const slug = String(req.params.slug || '').toLowerCase();
+  if (!SLUG_O_DEFAULT_REGEX.test(slug)) {
+    return res.status(404).json({ error: 'Logo no encontrado.' });
+  }
+  try {
+    if (!(await storage.existeArchivo('ticket', slug, 'logo'))) {
+      return res.status(404).json({ error: 'Logo no encontrado.' });
+    }
+    const { stream, contentType } = await storage.obtenerArchivo('ticket', slug, 'logo');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    stream.pipe(res);
+  } catch (err) {
+    console.error(`Error sirviendo el logo del ticket "${slug}":`, err);
+    res.status(500).json({ error: 'No se pudo leer el logo.' });
+  }
+});
 
 // Punto 186: "Correo de contacto de la empresa" — a propósito un endpoint
 // aparte de PUT /api/admin/config/global (con tenant, esta escritura va a

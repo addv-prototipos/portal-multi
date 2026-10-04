@@ -74,6 +74,14 @@ con Playwright real contra Docker/MySQL reales (`admin-plan-gating.spec.ts`
 dependencia completo en `stitch/gobierno-funcionalidades/NOTAS.md`
 (referencia viva del diseño, ya implementado).
 
+**Mismo error, variante nueva (punto 369, 2026-10-04)**: "Marca propia /
+Look & Feel" (switch real del wizard de `/control`) se dio por
+no-implementado porque se grepeó `marca_propia` — el nombre real es
+`marcaLookfeelHabilitado` (columna `marca_lookfeel_habilitado`, punto
+244, ya gatea `marca_logo_url`/`tema_json`, 1177 tests detrás). Al
+buscar si un flag "ya existe", grepear el NOMBRE REAL en código, nunca
+solo la frase en español de la UI.
+
 ## Reglas persistentes de coordinación
 
 - **Playwright para pruebas funcionales y propuestas visuales** (decisión
@@ -113,6 +121,21 @@ dependencia completo en `stitch/gobierno-funcionalidades/NOTAS.md`
   veces no recoge cambios de archivo — usar `--no-cache` seguido de
   `up -d --force-recreate <servicio>` cuando un cambio no aparece al
   probar.
+- **Scripts de `prod/` horneados en la imagen**: el backend de
+  producción construye desde `prod/backend` sin bind mount (solo
+  `uploads` es volumen) — un cambio en `prod/backend/scripts/*` (p. ej.
+  `sembrar-prod.js`) NO llega al contenedor con `./sembrar.sh` (que solo
+  hace `exec` sobre la imagen ya construida): reconstruir primero
+  (`prod/actualizar.sh` lo hace, o `docker compose build backend` +
+  recreate) o se ejecutará el script viejo (punto 366). El flujo
+  histórico no lo notaba porque `./actualizar.sh` (rebuild) corre ANTES
+  de `./sembrar.sh`; además el seed es determinista (misma semilla →
+  mismos datos), así que re-correr la versión vieja regenera
+  exactamente los mismos datos y el síntoma es "sigue todo igual" sin
+  ningún error. Chequeo en el VPS: comparar `grep -c "<marca nueva>"`
+  en el archivo de disco contra el mismo grep sobre
+  `/usr/src/app/scripts/sembrar-prod.js` dentro del contenedor — disco
+  con matches y contenedor en 0 = falta rebuild.
 - **Caché de navegador**: tras un rebuild de frontend, forzar
   `Ctrl+Shift+R` — el navegador sirve HTML/CSS viejo desde disco.
 - **Modales anidados**: un modal de confirmación/escáner abierto DESDE

@@ -105,6 +105,17 @@ suspensión automática a nivel de asignación de plan) — detalle completo
 en `stitch/gobierno-funcionalidades/NOTAS.md`, que se mantiene como
 referencia viva del diseño aunque ya esté implementado.
 
+**Mismo error, variante nueva (punto 369, 2026-10-04)**: una sesión dio
+por no-implementado el flag "Marca propia / Look & Feel" (el switch ya
+real en el wizard de planes de `/control`) porque grepeó el string
+`marca_propia` — el nombre real en código es `marcaLookfeelHabilitado`
+(columna `marca_lookfeel_habilitado`, punto 244, ya gatea
+`marca_logo_url`/`tema_json` con endpoints reales y 1177 tests detrás).
+Lección: cuando se busque si un flag de gobernanza "ya existe", `grep`
+por el NOMBRE REAL en código (`grep -rn marcaLookfeel`), nunca solo por
+la frase en español que usó el usuario o la UI de `/control` — el label
+visible y el identificador interno no siempre coinciden.
+
 **Pruebas funcionales, siempre, sin excepción** (ya es piso no negociable
 del protocolo `addv-web-app` global — esto solo lo precisa para este
 proyecto): "funcional" significa uno de dos — (a) Playwright/E2E real
@@ -156,6 +167,21 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   veces no recoge cambios de archivo — usar `--no-cache` seguido de
   `up -d --force-recreate <servicio>` cuando un cambio no aparece al
   probar.
+- **Scripts de `prod/` horneados en la imagen**: el backend de
+  producción construye desde `prod/backend` sin bind mount (solo
+  `uploads` es volumen) — un cambio en `prod/backend/scripts/*` (p. ej.
+  `sembrar-prod.js`) NO llega al contenedor con `./sembrar.sh` (que solo
+  hace `exec` sobre la imagen ya construida): reconstruir primero
+  (`prod/actualizar.sh` lo hace, o `docker compose build backend` +
+  recreate) o se ejecutará el script viejo (punto 366). El flujo
+  histórico no lo notaba porque `./actualizar.sh` (rebuild) corre ANTES
+  de `./sembrar.sh`; además el seed es determinista (misma semilla →
+  mismos datos), así que re-correr la versión vieja regenera
+  exactamente los mismos datos y el síntoma es "sigue todo igual" sin
+  ningún error. Chequeo en el VPS: comparar `grep -c "<marca nueva>"`
+  en el archivo de disco contra el mismo grep sobre
+  `/usr/src/app/scripts/sembrar-prod.js` dentro del contenedor — disco
+  con matches y contenedor en 0 = falta rebuild.
 - **Página HTML/JS nueva del frontend que da 404 aunque nginx esté bien
   configurado**: `frontend/Dockerfile` enumera cada archivo a mano en su
   `COPY` (no copia el directorio completo) — toda página nueva

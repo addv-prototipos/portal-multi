@@ -464,6 +464,8 @@
     ordenInventarioUnidadesField: document.getElementById('orden-inventario-unidades-field'),
     ordenInventarioPrecio: document.getElementById('orden-inventario-precio'),
     ordenInventarioUnidades: document.getElementById('orden-inventario-unidades'),
+    btnOrdenInventarioUnidadesRestar: document.getElementById('btn-orden-inventario-unidades-restar'),
+    btnOrdenInventarioUnidadesSumar: document.getElementById('btn-orden-inventario-unidades-sumar'),
     ordenInventarioUnidadesLabel: document.getElementById('orden-inventario-unidades-label'),
     ordenInventarioDisponibleHint: document.getElementById('orden-inventario-disponible-hint'),
     btnAgregarProductoInventarioOrden: document.getElementById('btn-agregar-producto-inventario-orden'),
@@ -1103,6 +1105,28 @@
     btnConfigFiscalFaltanteCerrar: document.getElementById('btn-config-fiscal-faltante-cerrar'),
     globalConfigError: document.getElementById('global-config-error'),
     btnGuardarConfigGlobal: document.getElementById('btn-guardar-config-global'),
+    // Ticket de impresión (Punto 368)
+    ticketLogoActual: document.getElementById('ticket-logo-actual'),
+    ticketLogoActualPreview: document.getElementById('ticket-logo-actual-preview'),
+    btnTicketLogoQuitar: document.getElementById('btn-ticket-logo-quitar'),
+    ticketLogoDropzone: document.getElementById('ticket-logo-dropzone'),
+    ticketLogoInput: document.getElementById('ticket-logo-input'),
+    errorTicketLogo: document.getElementById('error-ticket-logo'),
+    ticketAnchoPapelToggle: document.getElementById('ticket-ancho-papel-toggle'),
+    ticketMostrarCliente: document.getElementById('ticket-mostrar-cliente'),
+    ticketMostrarAgradecimiento: document.getElementById('ticket-mostrar-agradecimiento'),
+    ticketTextoAgradecimiento: document.getElementById('ticket-texto-agradecimiento'),
+    ticketTextoPie: document.getElementById('ticket-texto-pie'),
+    ticketConfigError: document.getElementById('ticket-config-error'),
+    btnRestablecerTicketConfig: document.getElementById('btn-restablecer-ticket-config'),
+    btnGuardarTicketConfig: document.getElementById('btn-guardar-ticket-config'),
+    btnGuardarTicketConfigLabel: document.getElementById('btn-guardar-ticket-config-label'),
+    ticketConfigHoja: document.getElementById('ticket-config-hoja'),
+    ticketConfigPreviewLogo: document.getElementById('ticket-config-preview-logo'),
+    ticketConfigPreviewCliente: document.getElementById('ticket-config-preview-cliente'),
+    ticketConfigPreviewClienteSep: document.getElementById('ticket-config-preview-cliente-sep'),
+    ticketConfigPreviewGracias: document.getElementById('ticket-config-preview-gracias'),
+    ticketConfigPreviewPie: document.getElementById('ticket-config-preview-pie'),
     // Configuración Reportes
     btnToggleReportesConfig: document.getElementById('btn-toggle-reportes-config'),
     reportesConfigBody: document.getElementById('reportes-config-body'),
@@ -2159,7 +2183,7 @@
   const RESTRICCIONES_PERFIL = {
     administrador: {
       vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'configuraciones'],
-      tarjetasConfigPermitidas: ['global-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
+      tarjetasConfigPermitidas: ['global-config-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
     },
     // Punto 360 (2026-10-02): "lectura-reportes" se agregó aquí porque el
     // resumen de tickets (antes en Inicio) ahora vive SOLO en Reportes →
@@ -2434,12 +2458,13 @@
     const PLAN_GATE_TARJETA_CONFIG = {
       'admin-config-card': () => planPermite('facturacionHabilitada'),
       'global-config-card': () => planPermite('facturacionHabilitada'),
+      'ticket-config-card': () => planPermite('marcaLookfeelHabilitado'),
       'reportes-config-card': () => planPermite('resumenFinancieroHabilitado') || reportesPlanVisible(),
       'ordenes-toggle-card': () => planPermite('ventasHabilitado'),
       'inv-toggle-card': () => planPermite('inventariosHabilitado'),
       'auditoria-toggle-card': () => planPermite('auditoriaHabilitado'),
     };
-    ['admin-config-card', 'global-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
+    ['admin-config-card', 'global-config-card', 'ticket-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
       const tarjeta = document.getElementById(idTarjeta);
       if (!tarjeta) return;
       const permitidaPorPerfilTarjeta = sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta);
@@ -2489,6 +2514,14 @@
     els.adminUserLabel.textContent = `Sesión: ${username}`;
     anclarHistorialMovil();
     aplicarRestriccionesPerfil();
+    // Punto 368: se precarga una vez por sesión (igual que
+    // tenantFuncionesPlan arriba) para que construirHtmlTicket() tenga el
+    // logo/textos configurados disponibles desde el primer ticket que se
+    // imprima, sin depender de haber abierto antes "Configuraciones" →
+    // "Ticket de impresión". 404 (sin "Marca propia") se tolera solo —
+    // ticketConfigActual se queda en sus defaults (idénticos al ticket
+    // hardcoded de antes de este punto).
+    cargarConfigTicket();
     // "Inicio" es siempre la vista activa en este punto (la restauración
     // de una vista guardada, si aplica, pasa por cambiarVistaPrincipal()
     // más abajo en init() — que ya vuelve a llamar a esto con la vista
@@ -4027,6 +4060,219 @@
     } finally {
       els.configNotifTicketsPermiteOcultar.disabled = false;
     }
+  });
+
+  // ---------- Ticket de impresión: logo + plantilla (Punto 368) ----------
+  // Ruta dedicada (no /admin/config/global) — ver nota de gobernanza en
+  // server.js. Layout "formulario + vista previa en vivo" (Propuesta 2,
+  // confirmada por el usuario): cada input re-dibuja #ticket-config-hoja
+  // al instante, sin esperar a "Guardar".
+  let ticketConfigActual = {
+    logo_url: null,
+    ticket_ancho_papel: '58mm',
+    ticket_mostrar_cliente: true,
+    ticket_mostrar_agradecimiento: true,
+    ticket_texto_agradecimiento: '¡Gracias por su compra!',
+    ticket_texto_pie: 'Visítanos https://clarvo.mx',
+  };
+
+  function renderPreviewTicketConfig() {
+    const anchoBtn = els.ticketAnchoPapelToggle.querySelector('.view-toggle-btn.is-active');
+    const ancho80 = anchoBtn && anchoBtn.dataset.ancho === '80mm';
+    els.ticketConfigHoja.classList.toggle('es-80mm', ancho80);
+
+    const mostrarCliente = els.ticketMostrarCliente.checked;
+    els.ticketConfigPreviewCliente.hidden = !mostrarCliente;
+    els.ticketConfigPreviewClienteSep.hidden = !mostrarCliente;
+
+    const mostrarGracias = els.ticketMostrarAgradecimiento.checked;
+    els.ticketConfigPreviewGracias.hidden = !mostrarGracias;
+    els.ticketConfigPreviewGracias.textContent = els.ticketTextoAgradecimiento.value.trim() || '¡Gracias por su compra!';
+
+    els.ticketConfigPreviewPie.textContent = els.ticketTextoPie.value.trim() || 'Visítanos https://clarvo.mx';
+  }
+
+  function aplicarConfigTicketACampos(config) {
+    ticketConfigActual = config;
+    els.ticketAnchoPapelToggle.querySelectorAll('.view-toggle-btn').forEach((btn) => {
+      const activo = btn.dataset.ancho === (config.ticket_ancho_papel || '58mm');
+      btn.classList.toggle('is-active', activo);
+      btn.setAttribute('aria-selected', String(activo));
+    });
+    els.ticketMostrarCliente.checked = config.ticket_mostrar_cliente !== false;
+    els.ticketMostrarAgradecimiento.checked = config.ticket_mostrar_agradecimiento !== false;
+    els.ticketTextoAgradecimiento.value = config.ticket_texto_agradecimiento || '¡Gracias por su compra!';
+    els.ticketTextoPie.value = config.ticket_texto_pie || '';
+
+    const tieneLogo = Boolean(config.logo_url);
+    els.ticketLogoActual.hidden = !tieneLogo;
+    els.ticketLogoDropzone.hidden = tieneLogo;
+    if (tieneLogo) {
+      els.ticketLogoActualPreview.src = config.logo_url;
+      els.ticketConfigPreviewLogo.src = config.logo_url;
+    } else {
+      els.ticketConfigPreviewLogo.src = '/assets/logoImpresora.png';
+    }
+    renderPreviewTicketConfig();
+  }
+
+  async function cargarConfigTicket() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/configuraciones/ticket`, {
+        headers: { Authorization: authHeader },
+      });
+      if (!res.ok) return; // 404 = tenant sin "Marca propia" — la tarjeta ya está oculta.
+      const config = await res.json();
+      aplicarConfigTicketACampos(config);
+    } catch (err) {
+      // Se queda con lo ya cargado; el administrador puede reintentar abriendo de nuevo.
+    }
+  }
+
+  function setGuardarTicketConfigLoading(isLoading) {
+    els.btnGuardarTicketConfig.disabled = isLoading;
+    els.btnGuardarTicketConfigLabel.textContent = isLoading ? 'Guardando…' : 'Guardar cambios';
+  }
+
+  async function guardarConfigTicket() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    els.ticketConfigError.textContent = '';
+    setGuardarTicketConfigLoading(true);
+    const anchoBtn = els.ticketAnchoPapelToggle.querySelector('.view-toggle-btn.is-active');
+    try {
+      const res = await fetch(`${API_BASE}/admin/configuraciones/ticket`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket_ancho_papel: anchoBtn ? anchoBtn.dataset.ancho : '58mm',
+          ticket_mostrar_cliente: els.ticketMostrarCliente.checked,
+          ticket_mostrar_agradecimiento: els.ticketMostrarAgradecimiento.checked,
+          ticket_texto_agradecimiento: els.ticketTextoAgradecimiento.value.trim(),
+          ticket_texto_pie: els.ticketTextoPie.value.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.ticketConfigError.textContent = data.error || 'No se pudo guardar la plantilla del ticket.';
+        return;
+      }
+      aplicarConfigTicketACampos(data);
+      showToast('Plantilla del ticket guardada.');
+    } catch (err) {
+      els.ticketConfigError.textContent = 'No se pudo guardar. Revisa tu conexión.';
+    } finally {
+      setGuardarTicketConfigLoading(false);
+    }
+  }
+  els.btnGuardarTicketConfig.addEventListener('click', guardarConfigTicket);
+
+  els.btnRestablecerTicketConfig.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    els.ticketConfigError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/configuraciones/ticket/restablecer`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.ticketConfigError.textContent = data.error || 'No se pudo restablecer la plantilla.';
+        return;
+      }
+      aplicarConfigTicketACampos(data);
+      showToast('Plantilla del ticket restablecida.');
+    } catch (err) {
+      els.ticketConfigError.textContent = 'No se pudo restablecer. Revisa tu conexión.';
+    }
+  });
+
+  async function subirLogoTicket(archivo) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    els.errorTicketLogo.textContent = '';
+    const formData = new FormData();
+    formData.append('logo', archivo);
+    try {
+      const res = await fetch(`${API_BASE}/admin/configuraciones/ticket-logo`, {
+        method: 'POST',
+        headers: { Authorization: authHeader },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.errorTicketLogo.textContent = data.mensaje || data.error || 'No se pudo subir el logo.';
+        return;
+      }
+      aplicarConfigTicketACampos(data);
+    } catch (err) {
+      els.errorTicketLogo.textContent = 'No se pudo subir el logo. Revisa tu conexión.';
+    } finally {
+      els.ticketLogoInput.value = '';
+    }
+  }
+
+  async function quitarLogoTicket() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/configuraciones/ticket-logo`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.errorTicketLogo.textContent = 'No se pudo quitar el logo.';
+        return;
+      }
+      aplicarConfigTicketACampos(data);
+    } catch (err) {
+      els.errorTicketLogo.textContent = 'No se pudo quitar el logo. Revisa tu conexión.';
+    }
+  }
+
+  if (els.ticketLogoInput) {
+    els.ticketLogoInput.addEventListener('change', () => {
+      const archivo = els.ticketLogoInput.files && els.ticketLogoInput.files[0];
+      if (archivo) subirLogoTicket(archivo);
+    });
+  }
+  if (els.ticketLogoDropzone) {
+    els.ticketLogoDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      els.ticketLogoDropzone.classList.add('is-dragover');
+    });
+    els.ticketLogoDropzone.addEventListener('dragleave', () => els.ticketLogoDropzone.classList.remove('is-dragover'));
+    els.ticketLogoDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      els.ticketLogoDropzone.classList.remove('is-dragover');
+      const archivo = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (archivo) subirLogoTicket(archivo);
+    });
+  }
+  if (els.btnTicketLogoQuitar) els.btnTicketLogoQuitar.addEventListener('click', quitarLogoTicket);
+
+  if (els.ticketAnchoPapelToggle) {
+    els.ticketAnchoPapelToggle.querySelectorAll('.view-toggle-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        els.ticketAnchoPapelToggle.querySelectorAll('.view-toggle-btn').forEach((b) => {
+          b.classList.remove('is-active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('is-active');
+        btn.setAttribute('aria-selected', 'true');
+        renderPreviewTicketConfig();
+      });
+    });
+  }
+  [els.ticketMostrarCliente, els.ticketMostrarAgradecimiento].forEach((input) => {
+    if (input) input.addEventListener('change', renderPreviewTicketConfig);
+  });
+  [els.ticketTextoAgradecimiento, els.ticketTextoPie].forEach((input) => {
+    if (input) input.addEventListener('input', renderPreviewTicketConfig);
   });
 
   // ---------- Punto 339: reglas escalonadas de aviso de expiración ----------
@@ -7315,6 +7561,7 @@
   const CONFIG_SECCIONES = [
     { id: 'admin-config-card', label: 'Campos obligatorios de los formularios' },
     { id: 'global-config-card', label: 'Configuraciones fiscales' },
+    { id: 'ticket-config-card', label: 'Ticket de impresión' },
     { id: 'smtp-config-card', label: 'Correo electrónico (SMTP)' },
     { id: 'reportes-config-card', label: 'Notificación de reportes' },
     { id: 'notif-toggle-card', label: 'Notificaciones' },
@@ -7329,6 +7576,7 @@
   // buscador), nunca cuáles tarjetas existen.
   const GRUPOS_CONFIG_NAV = {
     fiscal: ['admin-config-card', 'global-config-card'],
+    marca: ['ticket-config-card'],
     comunicacion: ['smtp-config-card', 'reportes-config-card', 'notif-toggle-card'],
     modulos: ['ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
   };
@@ -7423,6 +7671,7 @@
     cargarConfigCampos();
     cargarInfoUsoCfdi();
     cargarConfigGlobal();
+    cargarConfigTicket();
     cargarConfigReportes();
     cargarConfigSmtp();
     els.configModalBuscar.value = '';
@@ -9304,7 +9553,7 @@
   // Reconstruye #orden-concepto (texto armado + contador), #orden-cantidad
   // (suma de subtotales) y la lista visible, a partir de productosOrdenActual
   // — se llama después de agregar o quitar un producto.
-  function recalcularOrdenDesdeProductos() {
+  function recalcularOrdenDesdeProductos(productoIdFlash) {
     const textoConcepto = productosOrdenActual.map(textoProductoOrden).join('\n');
     els.ordenConcepto.value = textoConcepto;
     els.ordenConceptoContador.textContent = `${textoConcepto.length} / 255`;
@@ -9325,13 +9574,20 @@
       // Segmento A: badge "Inventario" en las líneas que vienen del
       // catálogo (producto_id presente) — las manuales no lo llevan.
       const badgeInv = producto.producto_id ? ' <span class="line-badge-inv">Inventario</span>' : '';
+      // punto 368: nombre + badge envueltos en flex (.orden-productos-tabla-concepto)
+      // para que el badge nunca se parta a media palabra al angostarse la
+      // columna — el nombre puede bajar de línea, el badge siempre entero.
+      const celdaConcepto = producto.producto_id
+        ? `<div class="orden-productos-tabla-concepto"><span>${escapeHtml(producto.concepto)}</span>${badgeInv}</div>`
+        : escapeHtml(producto.concepto);
 
       const tr = document.createElement('tr');
+      if (producto.producto_id && producto.producto_id === productoIdFlash) tr.classList.add('es-flash');
       tr.innerHTML = `
-        <td>${escapeHtml(producto.concepto)}${badgeInv}</td>
-        <td>$${formatearMoneda(producto.precio)}</td>
-        <td>${producto.cantidad}</td>
-        <td>$${formatearMoneda(subtotalProductoOrden(producto))}</td>
+        <td>${celdaConcepto}</td>
+        <td class="num">$${formatearMoneda(producto.precio)}</td>
+        <td class="num">${producto.cantidad}</td>
+        <td class="num">$${formatearMoneda(subtotalProductoOrden(producto))}</td>
         <td><button type="button" class="btn-quitar-producto-orden" aria-label="Quitar ${escapeHtml(producto.concepto)}">✕</button></td>
       `;
       tr.querySelector('.btn-quitar-producto-orden').addEventListener('click', quitar);
@@ -9472,10 +9728,13 @@
       }
       const data = await res.json();
       const productos = data.productos || [];
-      // Escáner de código de barras (HID, código + Enter): coincidencia
-      // EXACTA y única se selecciona sola, sin esperar un clic.
+      // Escáner de código de barras (HID, código + Enter, cámara o
+      // tecleado a mano): coincidencia EXACTA y única se agrega sola —
+      // si ya estaba en la lista, suma 1 (punto 368). La selección manual
+      // desde las sugerencias de texto libre (abajo) NO dispara esto —
+      // sigue requiriendo "+ Agregar producto".
       if (productos.length === 1 && productos[0].codigo_barras && productos[0].codigo_barras === termino) {
-        seleccionarProductoInventarioOrden(productos[0]);
+        agregarOIncrementarPorEscaneo(productos[0]);
         return;
       }
       renderSugerenciasInventarioOrden(productos);
@@ -9589,6 +9848,37 @@
     els.btnAgregarProductoInventarioOrden.addEventListener('click', agregarProductoInventarioOrden);
   }
 
+  // punto 368: ruta de escaneo — un código de barras EXACTO agrega el
+  // producto solo (cantidad 1, precio del catálogo) o, si ya estaba en
+  // la lista, suma 1 a esa línea. Reusa seleccionarProductoInventarioOrden()
+  // solo para refrescar la tarjeta "Seleccionado" (consistencia visual),
+  // no para esperar un clic en "+ Agregar producto". Sin precio en el
+  // catálogo (servicio sin precio capturado) se deja seleccionado, igual
+  // que antes, para que el usuario lo complete a mano.
+  function agregarOIncrementarPorEscaneo(producto) {
+    seleccionarProductoInventarioOrden(producto);
+    const tienePrecio = producto.precio !== null && producto.precio !== undefined && Number(producto.precio) >= 0;
+    if (!tienePrecio) return;
+
+    const existente = productosOrdenActual.find((p) => p.producto_id === producto.id);
+    if (existente) {
+      existente.cantidad += 1;
+      recalcularOrdenDesdeProductos(producto.id);
+      showToast(`${producto.nombre}: cantidad actualizada a ${existente.cantidad}.`);
+    } else {
+      productosOrdenActual.push({
+        concepto: producto.nombre,
+        precio: producto.precio,
+        cantidad: 1,
+        producto_id: producto.id,
+      });
+      recalcularOrdenDesdeProductos(producto.id);
+      showToast(`${producto.nombre}: agregado a la orden.`);
+    }
+    quitarProductoInventarioOrden();
+    els.ordenInventarioBuscar.focus();
+  }
+
   // Punto 176: el `step` que ajusta seleccionarProductoInventarioOrden()
   // solo cambia el incremento de las flechitas del input — un
   // <input type="number"> NUNCA bloquea escribir o pegar un "." a mano,
@@ -9608,6 +9898,23 @@
         els.ordenInventarioUnidades.value = soloEntero;
       }
     });
+  }
+
+  // punto 368: botones -/+ del stepper — siempre suman/restan 1 entero
+  // (el campo sigue aceptando decimales a mano para unidades de medida
+  // continua como litro/kg). Respeta el `min` real ya fijado por
+  // seleccionarProductoInventarioOrden() (0.001 o 1 según el producto).
+  function ajustarCantidadStepper(delta) {
+    const minimo = Number(els.ordenInventarioUnidades.min) || 0;
+    const actual = Number(els.ordenInventarioUnidades.value) || 0;
+    const nuevo = Math.max(minimo, actual + delta);
+    els.ordenInventarioUnidades.value = Number.isInteger(nuevo) ? nuevo : nuevo.toFixed(3);
+  }
+  if (els.btnOrdenInventarioUnidadesRestar) {
+    els.btnOrdenInventarioUnidadesRestar.addEventListener('click', () => ajustarCantidadStepper(-1));
+  }
+  if (els.btnOrdenInventarioUnidadesSumar) {
+    els.btnOrdenInventarioUnidadesSumar.addEventListener('click', () => ajustarCantidadStepper(1));
   }
 
   if (els.ordenInventarioBuscar) {
@@ -10240,8 +10547,19 @@
       ? `<div class="ticket-imprimir-linea"><span>Descuento (${Number(orden.descuento_porcentaje)}%)</span><span>-$${formatearMoneda(descuentoMonto)}</span></div>`
       : '';
 
+    // Punto 368: logo y textos vienen de "Configuraciones" → "Ticket de
+    // impresión" (ticketConfigActual, precargado en showDashboard()) — sin
+    // nada configurado ahí, estos defaults son idénticos al ticket
+    // hardcoded de antes de este punto, así que ningún tenant ve un
+    // cambio hasta que entra a personalizarlo.
+    const logoSrc = ticketConfigActual.logo_url || '/assets/logoImpresora.png';
+    const mostrarCliente = ticketConfigActual.ticket_mostrar_cliente !== false && Boolean(orden.email);
+    const mostrarGracias = ticketConfigActual.ticket_mostrar_agradecimiento !== false;
+    const textoGracias = ticketConfigActual.ticket_texto_agradecimiento || '¡Gracias por su compra!';
+    const textoPie = ticketConfigActual.ticket_texto_pie || '';
+
     return `
-      <img class="ticket-imprimir-logo" src="/assets/logoImpresora.png" alt="CLARVO" />
+      <img class="ticket-imprimir-logo" src="${escapeHtml(logoSrc)}" alt="Logo" />
       <div class="ticket-imprimir-titulo">Ticket de venta</div>
       <div class="ticket-imprimir-separador"></div>
       <div class="ticket-imprimir-meta">Folio: ${escapeHtml(orden.numero_compra || '—')}</div>
@@ -10259,9 +10577,9 @@
         <div class="ticket-imprimir-concepto-valor">${escapeHtml(orden.folio_conciliacion)}</div>
       </div>` : ''}
       <div class="ticket-imprimir-separador"></div>
-      ${orden.email ? `<div class="ticket-imprimir-meta">Cliente: ${escapeHtml(orden.email)}</div><div class="ticket-imprimir-separador"></div>` : ''}
-      <div class="ticket-imprimir-gracias">¡Gracias por su compra!</div>
-      <div class="ticket-imprimir-sitio">Visítanos https://clarvo.mx</div>
+      ${mostrarCliente ? `<div class="ticket-imprimir-meta">Cliente: ${escapeHtml(orden.email)}</div><div class="ticket-imprimir-separador"></div>` : ''}
+      ${mostrarGracias ? `<div class="ticket-imprimir-gracias">${escapeHtml(textoGracias)}</div>` : ''}
+      ${textoPie ? `<div class="ticket-imprimir-sitio">${escapeHtml(textoPie)}</div>` : ''}
     `;
   }
 
@@ -10279,6 +10597,7 @@
   function abrirPreviewTicket(orden, esBorrador) {
     ticketPreviewOrdenActual = orden;
     els.ticketPreviewRecibo.innerHTML = construirHtmlTicket(orden);
+    els.ticketPreviewRecibo.classList.toggle('es-80mm', ticketConfigActual.ticket_ancho_papel === '80mm');
     if (els.ticketPreviewAvisoBorrador) els.ticketPreviewAvisoBorrador.hidden = !esBorrador;
     if (els.btnTicketPreviewImprimir) els.btnTicketPreviewImprimir.hidden = Boolean(esBorrador);
     els.ticketPreviewModalOverlay.hidden = false;
@@ -10293,6 +10612,13 @@
   });
   els.btnTicketPreviewImprimir.addEventListener('click', () => {
     if (!ticketPreviewOrdenActual) return;
+    // Punto 368: ancho de papel configurable (58mm por defecto, igual que
+    // siempre — también admite 80mm). Se aplica ANTES de medir el alto de
+    // abajo (si no, la medición usaría el ancho viejo).
+    const anchoPapel = ticketConfigActual.ticket_ancho_papel === '80mm' ? '80mm' : '58mm';
+    let estiloAncho = document.getElementById('print-page-ancho');
+    if (!estiloAncho) { estiloAncho = document.createElement('style'); estiloAncho.id = 'print-page-ancho'; document.head.appendChild(estiloAncho); }
+    estiloAncho.textContent = `#ticket-imprimir { width: ${anchoPapel} !important; max-width: ${anchoPapel} !important; } @media print { html, body { width: ${anchoPapel} !important; max-width: ${anchoPapel} !important; } }`;
     els.ticketImprimir.innerHTML = construirHtmlTicket(ticketPreviewOrdenActual);
     // Ajuste dinámico del alto de página para rollo 58mm continuo:
     // el ticket está oculto (display:none) en pantalla, así que lo hacemos
@@ -10329,7 +10655,7 @@
       const hMm = Math.max(32, Math.ceil(hPx * 0.264583 + 8));
       let estilo = document.getElementById('print-page-size');
       if (!estilo) { estilo = document.createElement('style'); estilo.id = 'print-page-size'; document.head.appendChild(estilo); }
-      estilo.textContent = `@page { size: 58mm ${hMm}mm; margin: 0; } @media print { @page { size: 58mm ${hMm}mm; margin: 0; } html, body { height: ${hMm}mm !important; } #ticket-imprimir { height: ${hMm}mm !important; max-height: ${hMm}mm !important; } }`;
+      estilo.textContent = `@page { size: ${anchoPapel} ${hMm}mm; margin: 0; } @media print { @page { size: ${anchoPapel} ${hMm}mm; margin: 0; } html, body { height: ${hMm}mm !important; } #ticket-imprimir { height: ${hMm}mm !important; max-height: ${hMm}mm !important; } }`;
     } catch (_) {}
     cerrarPreviewTicket();
     window.print();

@@ -2992,6 +2992,70 @@
   color: var(--color-ink);
   overflow-wrap: anywhere;
 }
+/* Punto 368: variante 80mm de la misma tarjeta — el ancho de papel es
+   configurable desde "Ticket de impresión", la vista previa en vivo debe
+   reflejarlo igual que el ticket real. */
+.ticket-preview-recibo.es-80mm { width: 80mm; }
+
+/* Ticket de impresión — Configuraciones (Punto 368): formulario a la
+   izquierda, vista previa en vivo a la derecha (Propuesta 2). */
+.ticket-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .ticket-config-grid { grid-template-columns: 1fr; }
+}
+.ticket-config-preview { position: sticky; top: 0; }
+.ticket-preview-shell {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: var(--shadow-card);
+}
+.ticket-preview-shell .ticket-preview-recibo { margin-bottom: 0; }
+.ticket-preview-etiqueta {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  margin: 10px 0 0;
+  text-align: center;
+}
+/* Mismo recipe visual que .inv-modal-imagen-field .dropzone (Inventarios)
+   — copiado a propósito en vez de ampliar el selector compartido, para no
+   tocar esa pantalla por un cambio de otra. */
+.ticket-config-campos .dropzone {
+  padding: 20px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.ticket-config-campos .dropzone.is-dragover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.ticket-config-campos .dropzone-icono { color: var(--color-ink-soft); margin-bottom: 4px; }
+.ticket-logo-actual {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.ticket-logo-actual img {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--color-border);
+}
 
 /* .ticket-modal-body es display:flex por defecto (pensada para el layout
    "contenido + sidebar de 260px" de otros modales, ver .ticket-modal-main/
@@ -3280,15 +3344,24 @@
      white-space:nowrap de abajo). min-width modesto — ni 0 (colapsaba
      ilegible) ni los 760px heredados (rompía el grid de 2 columnas). */
   table-layout: auto;
-  min-width: 320px;
+  /* punto 368: 320px → 420px. Con 320px el Concepto se angostaba hasta
+     forzar el wrap del nombre Y del badge al mismo tiempo (ver bug real
+     reportado por el usuario) — el wrapper (.orden-productos-lista-wrap)
+     ya tiene overflow-x:auto, así que de aquí para abajo debe scrollear
+     en vez de romper el contenido. */
+  min-width: 420px;
 }
 .orden-productos-tabla th,
 .orden-productos-tabla td {
   padding: 8px 10px;
 }
-.orden-productos-tabla td:nth-child(2),
-.orden-productos-tabla td:nth-child(3),
-.orden-productos-tabla td:nth-child(4) {
+.orden-productos-tabla-concepto-col {
+  min-width: 150px;
+}
+.orden-productos-tabla th.num,
+.orden-productos-tabla td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -4767,9 +4840,9 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
    dona. Escopado a esta tarjeta nada más (no se toca --color-warn, que
    sigue usándose tal cual en badges/Proyección de ventas/etc. en el
    resto del panel). */
-#inicio-donut-proceso { stroke: #F59E0B; }
-#inicio-donut-completadas { stroke: #1FAE6B; }
-#inicio-donut-rechazadas { stroke: var(--color-error); }
+#reportes-tickets-donut-proceso { stroke: #F59E0B; }
+#reportes-tickets-donut-completadas { stroke: #1FAE6B; }
+#reportes-tickets-donut-rechazadas { stroke: var(--color-error); }
 
 .inicio-donut-centro {
   position: absolute;
@@ -6266,6 +6339,46 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 }
 .input-con-boton .btn-escanear:hover {
   border-color: var(--color-accent);
+}
+
+/* Stepper -/+ de Cantidad en el producto de inventario (Ventas, punto
+   367) — botones circulares grandes (objetivo táctil ≥40px, pensado
+   para capturar de pie en almacén/mostrador) en vez del input number
+   plano de antes. El campo sigue siendo editable a mano (unidades de
+   medida continua como litro/kg necesitan decimales finos que un botón
+   no puede dar). */
+.stepper-cantidad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stepper-cantidad-btn {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface, #fff);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.stepper-cantidad-btn:hover {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+.stepper-cantidad input {
+  flex: 1;
+  min-width: 0;
+  width: 64px;
+  height: 40px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .scanner-modal {
   max-width: 360px;
@@ -8281,6 +8394,14 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 }
 .line-badge-inv {
   display: inline-block;
+  /* punto 368 — bug real: sin esto, un inline-block SÍ deja que su
+     propio texto envuelva apenas el td se angosta (p.ej. dentro del
+     grid de 2 columnas de "Registrar venta") — "Inventario" se partía
+     a media palabra. flex-shrink:0 es el que realmente importa cuando
+     vive dentro de .orden-productos-tabla-concepto (display:flex) —
+     ahí es donde se angosta en la práctica. */
+  white-space: nowrap;
+  flex-shrink: 0;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -8292,6 +8413,16 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   margin-left: 6px;
   vertical-align: middle;
 }
+/* Nombre + badge "Inventario" de cada línea en la tabla de productos
+   de Ventas (punto 368) — el nombre puede bajar de línea, el badge
+   nunca se parte, nunca pierde su línea propia. */
+.orden-productos-tabla-concepto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+}
+.orden-productos-tabla-concepto .line-badge-inv { margin-left: 0; }
 .gastos-modal-header {
   display: flex;
   align-items: flex-start;

@@ -7,6 +7,7 @@ const {
   ZONAS_HORARIAS_MEXICO,
   getConfiguracionGlobal,
   setConfiguracionGlobal,
+  resetearPlantillaTicket,
   diasDeReglaExpiracion,
   obtenerDiasMaximoAvisoExpiracion,
   formatearFechaHoraMexico,
@@ -237,6 +238,45 @@ describe('config.js', () => {
       expect(resultado.clave_sat).toBe('');
     });
 
+    // ---------- Punto 368: plantilla del ticket de impresión ----------
+    test('ticket_ancho_papel acepta 58mm/80mm, rechaza cualquier otro valor', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ ticket_ancho_papel: '80mm' });
+      expect(resultado.ticket_ancho_papel).toBe('80mm');
+      pool.query.mockResolvedValueOnce([[]]);
+      await expect(setConfiguracionGlobal({ ticket_ancho_papel: '110mm' })).rejects.toThrow(/58mm u 80mm/);
+    });
+
+    test('ticket_mostrar_cliente / ticket_mostrar_agradecimiento se convierten a booleano explícito', async () => {
+      mockActualVacio();
+      mockActualVacio();
+      const r1 = await setConfiguracionGlobal({ ticket_mostrar_cliente: 0 });
+      expect(r1.ticket_mostrar_cliente).toBe(false);
+      const r2 = await setConfiguracionGlobal({ ticket_mostrar_agradecimiento: 1 });
+      expect(r2.ticket_mostrar_agradecimiento).toBe(true);
+    });
+
+    test('ticket_texto_agradecimiento vacío cae al default, nunca queda vacío', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ ticket_texto_agradecimiento: '   ' });
+      expect(resultado.ticket_texto_agradecimiento).toBe('¡Gracias por su compra!');
+    });
+
+    test('ticket_texto_agradecimiento/ticket_texto_pie se recortan a su límite de caracteres', async () => {
+      mockActualVacio();
+      mockActualVacio();
+      const r1 = await setConfiguracionGlobal({ ticket_texto_agradecimiento: 'x'.repeat(100) });
+      expect(r1.ticket_texto_agradecimiento).toHaveLength(60);
+      const r2 = await setConfiguracionGlobal({ ticket_texto_pie: 'y'.repeat(100) });
+      expect(r2.ticket_texto_pie).toHaveLength(80);
+    });
+
+    test('ticket_texto_pie vacío se guarda vacío (a diferencia del agradecimiento, no tiene default forzado)', async () => {
+      mockActualVacio();
+      const resultado = await setConfiguracionGlobal({ ticket_texto_pie: '   ' });
+      expect(resultado.ticket_texto_pie).toBe('');
+    });
+
     test('rechaza correo_reportes con formato inválido', async () => {
       pool.query.mockResolvedValueOnce([[]]);
       await expect(setConfiguracionGlobal({ correo_reportes: 'no-es-correo' })).rejects.toThrow(/correo de reportes/);
@@ -367,6 +407,29 @@ describe('config.js', () => {
       await expect(
         setConfiguracionGlobal({ notif_reglas_expiracion_productos: '30d' })
       ).rejects.toThrow(/deben ser una lista/);
+    });
+  });
+
+  describe('resetearPlantillaTicket', () => {
+    test('vuelve logo y los 5 campos de plantilla a su default de fábrica', async () => {
+      pool.query.mockResolvedValueOnce([[{
+        valor: JSON.stringify({
+          logo_url: '/api/ticket-logo/t1',
+          ticket_ancho_papel: '80mm',
+          ticket_mostrar_cliente: false,
+          ticket_mostrar_agradecimiento: false,
+          ticket_texto_agradecimiento: 'Gracias totales',
+          ticket_texto_pie: 'Síguenos en todos lados',
+        }),
+      }]]);
+      pool.query.mockResolvedValueOnce([{}]);
+      const resultado = await resetearPlantillaTicket();
+      expect(resultado.logo_url).toBeNull();
+      expect(resultado.ticket_ancho_papel).toBe('58mm');
+      expect(resultado.ticket_mostrar_cliente).toBe(true);
+      expect(resultado.ticket_mostrar_agradecimiento).toBe(true);
+      expect(resultado.ticket_texto_agradecimiento).toBe('¡Gracias por su compra!');
+      expect(resultado.ticket_texto_pie).toBe('Visítanos https://clarvo.mx');
     });
   });
 

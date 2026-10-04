@@ -138,13 +138,23 @@ const DEFAULTS_CONFIG_GLOBAL = {
   iva_porcentaje: 16, // tasa general de IVA vigente en México
   zona_horaria: 'America/Mexico_City',
   // Logo para correos con diseño de "ticket" (ver el de "orden de
-  // compra" en server.js). Parametrizado a propósito, aunque todavía no
-  // hay una pantalla en el panel para configurarlo — se deja el campo y
-  // la lectura/escritura ya listos para cuando se agregue esa pantalla
-  // (subir una imagen, o capturar la URL de un logo ya alojado en algún
-  // lado). Mientras tanto, con esto en null, el correo usa un logo de
-  // texto simple generado en código (ver logoTicketHtml() en server.js).
+  // compra" en server.js) Y, desde el punto 368, también el logo del
+  // ticket térmico impreso (construirHtmlTicket() en admin.js) — un solo
+  // campo, un solo lugar para subirlo ("Configuraciones" → "Ticket de
+  // impresión", gateado por el mismo flag `marcaLookfeelHabilitado` que
+  // ya usa "Marca propia / Look & Feel"). Con esto en null, el correo
+  // usa un logo de texto simple generado en código y el ticket impreso
+  // usa el logo de Clarvo por defecto — nunca queda sin logo.
   logo_url: null,
+  // Punto 368 — plantilla del ticket térmico impreso. Todos con default
+  // igual al comportamiento hardcoded de ANTES de este punto (58mm,
+  // mostrar cliente/agradecimiento, mismos textos) — un tenant que nunca
+  // toca esta pantalla nueva no ve ningún cambio en su ticket impreso.
+  ticket_ancho_papel: '58mm', // '58mm' | '80mm'
+  ticket_mostrar_cliente: true,
+  ticket_mostrar_agradecimiento: true,
+  ticket_texto_agradecimiento: '¡Gracias por su compra!',
+  ticket_texto_pie: 'Visítanos https://clarvo.mx',
   // Interruptor general de la funcionalidad de "Orden de compra". En
   // `true` (el valor por defecto, para no desactivar de golpe algo que
   // ya es parte central del flujo): el botón "Orden de compra" se ve en
@@ -305,6 +315,21 @@ async function getConfiguracionGlobal() {
     if (typeof parsed.contacto_email_cliente === 'string') {
       resultado.contacto_email_cliente = parsed.contacto_email_cliente.trim().toLowerCase();
     }
+    if (parsed.ticket_ancho_papel === '58mm' || parsed.ticket_ancho_papel === '80mm') {
+      resultado.ticket_ancho_papel = parsed.ticket_ancho_papel;
+    }
+    if (typeof parsed.ticket_mostrar_cliente === 'boolean') {
+      resultado.ticket_mostrar_cliente = parsed.ticket_mostrar_cliente;
+    }
+    if (typeof parsed.ticket_mostrar_agradecimiento === 'boolean') {
+      resultado.ticket_mostrar_agradecimiento = parsed.ticket_mostrar_agradecimiento;
+    }
+    if (typeof parsed.ticket_texto_agradecimiento === 'string') {
+      resultado.ticket_texto_agradecimiento = parsed.ticket_texto_agradecimiento.trim().slice(0, 60);
+    }
+    if (typeof parsed.ticket_texto_pie === 'string') {
+      resultado.ticket_texto_pie = parsed.ticket_texto_pie.trim().slice(0, 80);
+    }
     return resultado;
   } catch (e) {
     return { ...DEFAULTS_CONFIG_GLOBAL };
@@ -441,12 +466,56 @@ async function setConfiguracionGlobal(cambios) {
     nuevo.contacto_email_cliente = contacto;
   }
 
+  if (cambios.ticket_ancho_papel !== undefined) {
+    if (cambios.ticket_ancho_papel !== '58mm' && cambios.ticket_ancho_papel !== '80mm') {
+      throw new Error('El ancho de papel del ticket debe ser 58mm u 80mm.');
+    }
+    nuevo.ticket_ancho_papel = cambios.ticket_ancho_papel;
+  }
+  if (cambios.ticket_mostrar_cliente !== undefined) {
+    nuevo.ticket_mostrar_cliente = Boolean(cambios.ticket_mostrar_cliente);
+  }
+  if (cambios.ticket_mostrar_agradecimiento !== undefined) {
+    nuevo.ticket_mostrar_agradecimiento = Boolean(cambios.ticket_mostrar_agradecimiento);
+  }
+  if (cambios.ticket_texto_agradecimiento !== undefined) {
+    const texto = typeof cambios.ticket_texto_agradecimiento === 'string' ? cambios.ticket_texto_agradecimiento.trim() : '';
+    nuevo.ticket_texto_agradecimiento = texto.slice(0, 60) || DEFAULTS_CONFIG_GLOBAL.ticket_texto_agradecimiento;
+  }
+  if (cambios.ticket_texto_pie !== undefined) {
+    const texto = typeof cambios.ticket_texto_pie === 'string' ? cambios.ticket_texto_pie.trim() : '';
+    nuevo.ticket_texto_pie = texto.slice(0, 80);
+  }
+
   await pool.query(
     `INSERT INTO configuracion (clave, valor) VALUES (?, ?)
      ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
     [CLAVE_CONFIG_GLOBAL, JSON.stringify(nuevo)]
   );
 
+  return nuevo;
+}
+
+// Punto 368: "Restablecer plantilla" del ticket de impresión — vuelve
+// logo y los 5 campos de plantilla a su default de fábrica en una sola
+// escritura (el archivo del logo en MinIO lo borra el caller, server.js,
+// ANTES de llamar a esto — ver DELETE /api/admin/configuraciones/ticket-logo).
+async function resetearPlantillaTicket() {
+  const actual = await getConfiguracionGlobal();
+  const nuevo = {
+    ...actual,
+    logo_url: null,
+    ticket_ancho_papel: DEFAULTS_CONFIG_GLOBAL.ticket_ancho_papel,
+    ticket_mostrar_cliente: DEFAULTS_CONFIG_GLOBAL.ticket_mostrar_cliente,
+    ticket_mostrar_agradecimiento: DEFAULTS_CONFIG_GLOBAL.ticket_mostrar_agradecimiento,
+    ticket_texto_agradecimiento: DEFAULTS_CONFIG_GLOBAL.ticket_texto_agradecimiento,
+    ticket_texto_pie: DEFAULTS_CONFIG_GLOBAL.ticket_texto_pie,
+  };
+  await pool.query(
+    `INSERT INTO configuracion (clave, valor) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
+    [CLAVE_CONFIG_GLOBAL, JSON.stringify(nuevo)]
+  );
   return nuevo;
 }
 
@@ -510,6 +579,7 @@ module.exports = {
   ZONAS_HORARIAS_MEXICO,
   getConfiguracionGlobal,
   setConfiguracionGlobal,
+  resetearPlantillaTicket,
   diasDeReglaExpiracion,
   obtenerDiasMaximoAvisoExpiracion,
   formatearFechaHoraMexico,
