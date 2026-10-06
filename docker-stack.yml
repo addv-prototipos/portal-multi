@@ -187,7 +187,6 @@ services:
     image: ${BACKEND_IMAGE:-portalManager-backend:latest}
     environment:
       PORT: 4000
-      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
       UPLOAD_DIR: /app/uploads
       DB_HOST: mysql-primary
       DB_PORT: 3306

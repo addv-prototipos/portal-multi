@@ -18,7 +18,8 @@
 const { obtenerPool } = require('../db');
 const { validarSlug, nombreDbTenant } = require('./tenant');
 const { normalizarDatosBase } = require('./tenantIntake');
-const { subirLogoAlBackend, borrarLogoDelBackend, MAX_MARCA_LOGO_MB } = require('./tenantMarca');
+const { subirLogoAlBackend, borrarLogoDelBackend } = require('./tenantMarca');
+const { getImagenMaxMb } = require('./ajustesGlobales');
 const { notificarInvalidacionCache, aplicarLimiteUsuarios } = require('./notificarBackend');
 const { obtenerPlan, ErrorPlan } = require('./planes');
 
@@ -330,8 +331,9 @@ async function actualizarDatosTenant(slug, datos = {}, { actor, db = obtenerPool
     if (buffer.length === 0) {
       throw new ErrorEdicionTenant('El logo está vacío.', 'validacion');
     }
-    if (buffer.length > MAX_MARCA_LOGO_MB * 1024 * 1024) {
-      throw new ErrorEdicionTenant(`El logo excede el tamaño máximo permitido de ${MAX_MARCA_LOGO_MB} MB.`, 'validacion');
+    const imagenMaxMb = await getImagenMaxMb();
+    if (buffer.length > imagenMaxMb * 1024 * 1024) {
+      throw new ErrorEdicionTenant(`El logo excede el tamaño máximo permitido de ${imagenMaxMb} MB.`, 'validacion');
     }
     marcaLogoUrl = await subirLogoAlBackend(slugLogo, buffer);
     logoAccion = 'subido';

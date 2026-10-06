@@ -403,6 +403,43 @@
             </div>
           </div>
           <p class="field-hint" style="margin-top:12px">Tras guardar, se escribe <code>.env</code> y se recarga en <code>control</code> y <code>backend</code> sin reiniciar (via <code>POST /internal/reload-admin-users</code>). Revisa <code>.env.bak</code> si necesitas revertir.</p>
+
+          <!-- Punto 370: ajuste global de plataforma (tabla ajustes_globales,
+               control_tenants) — un solo valor, no por tenant/plan. Mismo
+               patrón de tarjeta colapsable que "Borrado automático de
+               tickets" en /admin (admin.html, admin-config-card). -->
+          <section class="admin-config-card" id="imagen-max-config-card" style="margin-top:20px">
+            <button type="button" class="admin-config-toggle" id="btn-toggle-imagen-max" aria-expanded="false" aria-controls="imagen-max-config-body">
+              <span class="admin-config-toggle-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/>
+                  <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.6"/>
+                  <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Ajustes de imágenes
+              </span>
+              <svg class="admin-config-chevron" id="imagen-max-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+
+            <div class="admin-config-body" id="imagen-max-config-body" hidden>
+              <p class="panel-subtitle admin-config-subtitle">
+                Tamaño máximo por imagen (foto de producto, foto de ticket, logo de ticket, logo de marca, favicon) — aplica a toda la plataforma, todas las empresas.
+              </p>
+              <div class="retencion-config-fila">
+                <div class="field retencion-config-input">
+                  <label for="imagen-max-mb">Máximo por imagen (MB)</label>
+                  <input type="number" id="imagen-max-mb" min="1" max="20" placeholder="2" />
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-guardar-imagen-max">
+                  <span id="btn-guardar-imagen-max-label">Guardar</span>
+                </button>
+              </div>
+              <p class="field-error" id="imagen-max-error" role="alert"></p>
+              <p class="admin-config-catalogo-info" id="imagen-max-info"></p>
+            </div>
+          </section>
         </div>
 
         <!-- Punto 347: Auditoría cross-tenant — replica el diseño ya
@@ -855,7 +892,7 @@
             <label for="control-intake-logo">Logo de la marca</label>
             <input type="file" id="control-intake-logo" accept="image/png,image/jpeg,image/webp" />
             <p class="field-hint">
-              Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
+              Opcional — JPG, PNG o WEBP, máx. <span id="intake-logo-limite-mb">2</span> MB. Sin logo, los correos usan el nombre de la marca como texto.
             </p>
             <p class="field-error" id="error-intake-logo" role="alert"></p>
           </div>
@@ -936,7 +973,7 @@
             <label for="control-editar-logo">Logo de la marca</label>
             <input type="file" id="control-editar-logo" accept="image/png,image/jpeg,image/webp" />
             <p class="field-hint">
-              Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin logo, los correos usan el nombre de la marca como texto.
+              Opcional — JPG, PNG o WEBP, máx. <span id="editar-logo-limite-mb">2</span> MB. Sin logo, los correos usan el nombre de la marca como texto.
             </p>
             <p class="field-hint" id="control-editar-logo-actual" hidden></p>
             <p class="field-error" id="error-editar-logo" role="alert"></p>
@@ -1199,7 +1236,7 @@
           <div class="field">
             <label for="control-tema-favicon">Favicon</label>
             <input type="file" id="control-tema-favicon" accept="image/png,image/jpeg,image/webp" />
-            <p class="field-hint">Opcional — JPG, PNG o WEBP, máx. 2 MB. Sin favicon, se usa el de la plataforma.</p>
+            <p class="field-hint">Opcional — JPG, PNG o WEBP, máx. <span id="favicon-limite-mb">2</span> MB. Sin favicon, se usa el de la plataforma.</p>
             <p class="field-hint" id="control-tema-favicon-actual" hidden></p>
             <p class="field-error" id="error-control-tema" role="alert"></p>
           </div>

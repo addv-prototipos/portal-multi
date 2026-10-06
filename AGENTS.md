@@ -147,6 +147,32 @@ solo la frase en español de la UI.
   cambia `window.innerWidth` y no dispara el `@media` real.
 - **`setFieldError(id)`** ya antepone `"error-"` internamente — nunca
   volver a prefijarlo en el call site (bug repetido varias veces).
+- **Fechas "hoy/mes" por zona horaria** (punto 371, 2026-10-05): nunca
+  construir la ventana local con `Date.UTC(...)` ni usar
+  `toISOString().slice(0,10)`/`CURDATE()` como si fueran la fecha del
+  tenant — con México en UTC−6 la ventana "hoy" se corre 6 h y **toda
+  venta registrada a partir de las 18:00 desaparece de la tarjeta "Ventas
+  hoy"**. Fuente de verdad: `backend/utils/limitesPeriodo.js`, con dos
+  familias — `instantes.*` (Date UTC de medianoche local) para columnas
+  `DATETIME` en UTC (`fecha_compra`, `creado_en`) y `fechas.*`
+  (`'YYYY-MM-DD'`) para columnas `DATE` (`gastos.fecha`); elegir la
+  equivocada desplaza el día o el inicio del mes. Detalle y 5 sitios
+  hermanos aún sin corregir (que requieren aprobación): `PROJECT_STATE.md`
+  punto 371.
+- **Máximo de imagen = un solo valor global, en BD, no en env** (punto
+  370, 2026-10-06): tabla `ajustes_globales` (clave/valor, en
+  `control_tenants`, clave `imagen_max_mb`, default 2, rango 1-20) es la
+  única fuente de verdad para producto/foto de ticket/logo de
+  ticket/logo de marca/favicon. `control/utils/ajustesGlobales.js`
+  lee/escribe; `backend/utils/ajustesGlobales.js` solo LEE, vía
+  `obtenerPoolControl()` con caché de 45s — nunca HTTP a `control` para
+  esto. `MAX_FILE_SIZE_MB` sigue viva sin tocar para subidas NO imagen
+  (CSF PDF, comprobante de Gastos, factura ZIP, CSV/XLSX). **Gotcha ya
+  corregido, no repetir**: el límite de `express.json()` (backend Y
+  control, ambos `30mb`) debe escalar junto con `IMAGEN_MAX_MB_MAX` (hoy
+  20 en `backend/utils/ajustesGlobales.js`) — un archivo de 20 MB en
+  base64 pesa ~27.4 MB de texto, y sin este margen el body se rechaza
+  antes de llegar a la validación de tamaño real.
 - **nginx intercepta 502/503/504 globalmente** (`error_page 502 503 504`
   → `mantenimiento.html`) — cualquier error real de la API debe responder
   **500**, nunca 502/503/504, o se disfraza de "sitio caído".

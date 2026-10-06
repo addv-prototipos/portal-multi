@@ -339,9 +339,27 @@ async function asegurarTablaPlanes(db) {
   }
 }
 
+// Punto 370: ajustes globales de la plataforma (clave/valor) — mismo
+// patrón exacto que la tabla `configuracion` de cada tenant
+// (backend/utils/config.js), pero a nivel plataforma (una sola fila por
+// clave, sin importar el tenant). Primer uso: `imagen_max_mb` — el
+// tamaño máximo de imagen (producto, foto de ticket, logo de ticket,
+// marca, favicon) en TODA la app, configurable desde /control en vez de
+// vivir en variables de entorno (antes 2 env vars distintas y
+// desincronizadas entre sí — ver control/utils/ajustesGlobales.js).
+async function asegurarTablaAjustesGlobales(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ajustes_globales (
+      clave VARCHAR(100) PRIMARY KEY,
+      valor TEXT NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
 module.exports = {
   asegurarColumnasCicloVidaTenant,
   asegurarTablaApiCredenciales,
   asegurarTablasSucursales,
   asegurarTablaPlanes,
+  asegurarTablaAjustesGlobales,
 };

@@ -12,6 +12,14 @@
   const SESSION_KEY = 'control_credenciales';
   const SESSION_USER_KEY = 'control_usuario';
 
+  // Punto 370: máximo de imagen (MB) configurable, un solo valor global
+  // de plataforma (tabla ajustes_globales) — reemplaza el hardcode
+  // MARCA_LOGO_MAX_MB = 2 que vivía antes repartido entre el intake y el
+  // modal de edición. Se recarga al entrar a Super Admins
+  // (cargarImagenMax()); el default local es solo el valor mientras esa
+  // carga no haya llegado todavía.
+  let imagenMaxMbActual = 2;
+
   const els = {
     loginScreen: document.getElementById('control-login-screen'),
     shellEsqueleto: document.getElementById('control-shell-esqueleto'),
@@ -298,6 +306,15 @@
     superBtnGuardarLabel: document.getElementById('super-btn-guardar-label'),
     superModalTitle: document.getElementById('super-modal-title'),
     btnAyudaVistaSuper: document.getElementById('btn-ayuda-vista-super'),
+
+    // Punto 370: ajuste global "Ajustes de imágenes"
+    btnToggleImagenMax: document.getElementById('btn-toggle-imagen-max'),
+    imagenMaxConfigBody: document.getElementById('imagen-max-config-body'),
+    imagenMaxMbInput: document.getElementById('imagen-max-mb'),
+    btnGuardarImagenMax: document.getElementById('btn-guardar-imagen-max'),
+    btnGuardarImagenMaxLabel: document.getElementById('btn-guardar-imagen-max-label'),
+    imagenMaxError: document.getElementById('imagen-max-error'),
+    imagenMaxInfo: document.getElementById('imagen-max-info'),
   };
 
   function getAuthHeader() {
@@ -359,6 +376,11 @@
     els.loginScreen.hidden = true;
     els.dashboard.hidden = false;
     els.userLabel.textContent = usuario;
+    // Punto 370: se precarga una vez por sesión (igual que otros datos de
+    // arranque) — los hints de intake/editar/favicon lo necesitan desde
+    // el primer modal que se abra, sin depender de haber visitado antes
+    // Super Admins.
+    cargarImagenMaxGlobal();
   }
 
   // ---------- Mostrar/ocultar contraseña ----------
@@ -1198,8 +1220,8 @@
       let logoBase64 = null;
       const archivoLogo = els.intakeLogo.files && els.intakeLogo.files[0];
       if (archivoLogo) {
-        if (archivoLogo.size > MARCA_LOGO_MAX_MB * 1024 * 1024) {
-          setFieldErrorIntake('intake-logo', `El logo excede el tamaño máximo permitido de ${MARCA_LOGO_MAX_MB} MB.`);
+        if (archivoLogo.size > imagenMaxMbActual * 1024 * 1024) {
+          setFieldErrorIntake('intake-logo', `El logo excede el tamaño máximo permitido de ${imagenMaxMbActual} MB.`);
           els.intakeLogo.focus();
           return;
         }
@@ -1245,7 +1267,6 @@
 
   // ---------- Modal de edición de empresa (segmento "edición") ----------
 
-  const MARCA_LOGO_MAX_MB = 2;
   let slugActualEdicion = null;
   // Punto 347: plan_id que el tenant YA tenía al abrir el modal — solo si
   // el operador cambia la selección del <select> se manda planId al
@@ -1701,8 +1722,8 @@
       let logoBase64 = null;
       const archivoLogo = els.editarLogo.files && els.editarLogo.files[0];
       if (archivoLogo) {
-        if (archivoLogo.size > MARCA_LOGO_MAX_MB * 1024 * 1024) {
-          setFieldErrorEditar('editar-logo', `El logo excede el tamaño máximo permitido de ${MARCA_LOGO_MAX_MB} MB.`);
+        if (archivoLogo.size > imagenMaxMbActual * 1024 * 1024) {
+          setFieldErrorEditar('editar-logo', `El logo excede el tamaño máximo permitido de ${imagenMaxMbActual} MB.`);
           els.editarLogo.focus();
           return;
         }
@@ -1759,8 +1780,8 @@
         let faviconBase64 = null;
         const archivoFavicon = els.temaFavicon.files && els.temaFavicon.files[0];
         if (archivoFavicon) {
-          if (archivoFavicon.size > MARCA_LOGO_MAX_MB * 1024 * 1024) {
-            setFieldErrorTema(`El favicon excede el tamaño máximo permitido de ${MARCA_LOGO_MAX_MB} MB.`);
+          if (archivoFavicon.size > imagenMaxMbActual * 1024 * 1024) {
+            setFieldErrorTema(`El favicon excede el tamaño máximo permitido de ${imagenMaxMbActual} MB.`);
             return;
           }
           try {
@@ -2859,7 +2880,10 @@
     if (vista === 'planes') cargarPlanes();
     if (vista === 'papelera') cargarPapelera();
     if (vista === 'sucursales') cargarSucursales();
-    if (vista === 'super') cargarSuperAdmins();
+    if (vista === 'super') {
+      cargarSuperAdmins();
+      cargarImagenMaxGlobal();
+    }
     if (vista === 'auditoria') cargarAuditoria();
   }
 
@@ -3309,6 +3333,91 @@
     } catch (_) { els.superModalError.textContent = 'No se pudo conectar.'; }
     finally { els.superBtnGuardar.disabled = false; if (els.superBtnGuardarLabel) els.superBtnGuardarLabel.textContent = superEditando ? 'Actualizar' : 'Crear'; }
   });
+
+  // ---------- Punto 370: Ajustes de imágenes (ajuste global de plataforma) ----------
+  // Mismo patrón de tarjeta colapsable que "Borrado automático de tickets"
+  // en /admin (admin.js) — un solo campo numérico + botón Guardar.
+  if (els.btnToggleImagenMax) {
+    els.btnToggleImagenMax.addEventListener('click', () => {
+      const abierto = els.btnToggleImagenMax.getAttribute('aria-expanded') === 'true';
+      els.btnToggleImagenMax.setAttribute('aria-expanded', String(!abierto));
+      els.imagenMaxConfigBody.hidden = abierto;
+    });
+  }
+
+  // Hints estáticos "máx. X MB" de los 3 formularios que suben una imagen
+  // (intake de empresa, editar empresa, favicon en Look & Feel) — viven
+  // fuera de la tarjeta de Super Admins, así que se actualizan aparte.
+  function aplicarHintsImagenMax() {
+    const spanIntake = document.getElementById('intake-logo-limite-mb');
+    if (spanIntake) spanIntake.textContent = String(imagenMaxMbActual);
+    const spanEditar = document.getElementById('editar-logo-limite-mb');
+    if (spanEditar) spanEditar.textContent = String(imagenMaxMbActual);
+    const spanFavicon = document.getElementById('favicon-limite-mb');
+    if (spanFavicon) spanFavicon.textContent = String(imagenMaxMbActual);
+  }
+
+  // Siempre refresca `imagenMaxMbActual` (lo usan las validaciones de
+  // tamaño de logo/favicon de abajo), esté o no desplegada la tarjeta —
+  // por eso se llama desde showDashboard() (una vez por sesión), no solo
+  // desde el toggle de la tarjeta.
+  async function cargarImagenMaxGlobal() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/ajustes/imagen-max-mb`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Number.isInteger(data.imagen_max_mb)) {
+        imagenMaxMbActual = data.imagen_max_mb;
+      }
+      if (els.imagenMaxMbInput) els.imagenMaxMbInput.value = imagenMaxMbActual;
+      aplicarHintsImagenMax();
+    } catch (_) {
+      // Si falla, se sigue con el último valor conocido (o el default 2)
+      // — la tarjeta puede reintentar manualmente con "Actualizar".
+    }
+  }
+
+  if (els.btnGuardarImagenMax) {
+    els.btnGuardarImagenMax.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+
+      els.imagenMaxError.textContent = '';
+      const valor = Number(els.imagenMaxMbInput.value);
+      if (!Number.isInteger(valor) || valor < 1 || valor > 20) {
+        els.imagenMaxError.textContent = 'Ingresa un número entero entre 1 y 20.';
+        return;
+      }
+
+      els.btnGuardarImagenMax.disabled = true;
+      if (els.btnGuardarImagenMaxLabel) els.btnGuardarImagenMaxLabel.textContent = 'Guardando…';
+      try {
+        const res = await fetch(`${API_BASE}/ajustes/imagen-max-mb`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imagen_max_mb: valor }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.imagenMaxError.textContent = data.error || 'No se pudo guardar.';
+          return;
+        }
+        imagenMaxMbActual = data.imagen_max_mb;
+        aplicarHintsImagenMax();
+        if (els.imagenMaxInfo) {
+          els.imagenMaxInfo.textContent = `Guardado — aplica de inmediato a toda la plataforma (hasta ~45 s de caché en el backend de cada empresa).`;
+        }
+        showToast(`Máximo de imagen actualizado a ${data.imagen_max_mb} MB.`);
+      } catch (_) {
+        els.imagenMaxError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnGuardarImagenMax.disabled = false;
+        if (els.btnGuardarImagenMaxLabel) els.btnGuardarImagenMaxLabel.textContent = 'Guardar';
+      }
+    });
+  }
 
   // ---------- Punto 347: Auditoría cross-tenant ----------
   // Replica el diseño ya aprobado de /admin (punto 244, admin.js) — mismos

@@ -369,7 +369,7 @@
   </section>
 
   <section>
-    <h2>Ventas <span class="count">4 pendientes</span></h2>
+    <h2>Ventas <span class="count">5 pendientes</span></h2>
     <div class="table-scroll">
       <table>
         <thead><tr><th>Hecho</th><th>Punto</th><th>Pendiente</th><th>Detalle</th><th>Estado</th></tr></thead>
@@ -408,6 +408,20 @@
             <td class="col-item">3 bugs reales + logo/footer en ticket</td>
             <td class="col-detalle">Etiqueta de código de barras imprimía el ticket viejo (2 bloques <code>@media print</code> desincronizados, corregido), logo CLARVO (contorno blanco, <code>logoImpresora.png</code>) + "Visítanos https://clarvo.mx" agregados al ticket de venta — <strong>confirmado por el usuario en impresora real (2026-09-11)</strong>, switch "Mostrar Auditoría" no aparecía (<code>CONFIG_SECCIONES</code> incompleto, corregido). Ver <code>PROJECT_STATE.md</code> punto 288. Falta aún confirmación en navegador real de la etiqueta de Inventarios y del switch de Auditoría (no ejercitados por la prueba de impresión del ticket).</td>
             <td class="col-estado"><span class="pill pill-amber">Ticket confirmado; falta etiqueta/auditoría</span></td>
+          </tr>
+          <tr data-app="admin" data-id="v-370">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="v-370" aria-label="Marcar completado"></td>
+            <td class="col-punto">370</td>
+            <td class="col-item">Bloquear agregar producto sin existencia al buscar/escanear</td>
+            <td class="col-detalle">Hoy el producto se agrega primero y la notificación de "sin existencia" aparece después. Usar la ventana emergente ya existente: al buscar o escanear, si la cantidad disponible viene en 0 desde la API, mostrar el modal de aviso ("no tiene existencia, no se puede agregar") y NO agregar el producto — validar en el momento de la respuesta del API, antes de insertarlo al carrito, no al final del flujo.</td>
+            <td class="col-estado"><span class="pill pill-red">Sin implementar</span></td>
+          </tr>
+          <tr data-app="admin" data-id="i-371">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-371" aria-label="Marcar completado"></td>
+            <td class="col-punto">371</td>
+            <td class="col-item">Tarjetas de Inicio no se actualizaban tras una venta/movimiento</td>
+            <td class="col-detalle"><strong>CERRADO 5 oct 2026.</strong> Causa ra&iacute;z: <code>limitesDia()</code>/<code>limitesMes()</code> anclaban &ldquo;hoy&rdquo; a medianoche <strong>UTC</strong> (<code>Date.UTC</code>), as&iacute; que con M&eacute;xico en UTC&minus;6 todo lo ocurrido <strong>a partir de las 18:00 hora local</strong> ca&iacute;a fuera de la tarjeta &ldquo;Ventas hoy&rdquo; &mdash; reproducido en navegador con el c&oacute;digo base (ventas <strong>$0.00</strong> despu&eacute;s de crear OC-000259). Fix: m&oacute;dulo nuevo <code>backend/utils/limitesPeriodo.js</code> con dos familias &mdash; <code>instantes.*</code> (medianoche local en UTC) para columnas <code>DATETIME</code> en UTC y <code>fechas.</code><code>*</code> (<code>YYYY-MM-DD</code> local) para columnas <code>DATE</code> como <code>gastos.fecha</code>; call sites en <code>/api/admin/inicio/resumen</code>, <code>/api/admin/resumen-financiero</code> y listado de gastos. Validado: Jest <strong>1189/1189</strong> y Playwright <strong>1/1</strong> con el spec nuevo <code>e2e/tests/inicio-actualiza-tras-venta.spec.ts</code> (exige que suban ventas e inventario). Antes/despus: <code>capturas/demo-bug-*.png</code> vs <code>capturas/demo-fix-*.png</code>. Quedan <strong>5 sitios hermanos sin corregir</strong> (mes UTC del Resumen financiero, cierreMensual, mermas con <code>NOW()</code>, <code>CURDATE()</code>, <code>tipoCambio.hoyLocal()</code>) que <strong>requieren aprobaci&oacute;n</strong>. Detalle completo en <code>PROJECT_STATE.md</code> punto 371.</td>
+            <td class="col-estado"><span class="pill pill-green">Completado &mdash; validado en navegador (5 oct 2026)</span></td>
           </tr>
         </tbody>
       </table>

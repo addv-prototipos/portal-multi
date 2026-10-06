@@ -15,9 +15,8 @@
 const { obtenerPool } = require('../db');
 const { validarSlug } = require('./tenant');
 const { notificarInvalidacionCache } = require('./notificarBackend');
+const { getImagenMaxMb } = require('./ajustesGlobales');
 
-const MAX_MARCA_LOGO_MB = Number(process.env.MAX_MARCA_LOGO_MB || 2);
-const MAX_MARCA_LOGO_BYTES = MAX_MARCA_LOGO_MB * 1024 * 1024;
 const MAX_MARCA_LEN = 255;
 
 // Error tipado para que la capa de rutas distinga "el slug no existe"
@@ -153,8 +152,9 @@ async function actualizarMarcaTenant(slug, datos = {}, { actor, db = obtenerPool
     if (buffer.length === 0) {
       throw new ErrorMarcaTenant('El logo está vacío.', 'validacion');
     }
-    if (buffer.length > MAX_MARCA_LOGO_BYTES) {
-      throw new ErrorMarcaTenant(`El logo excede el tamaño máximo permitido de ${MAX_MARCA_LOGO_MB} MB.`, 'validacion');
+    const imagenMaxMb = await getImagenMaxMb();
+    if (buffer.length > imagenMaxMb * 1024 * 1024) {
+      throw new ErrorMarcaTenant(`El logo excede el tamaño máximo permitido de ${imagenMaxMb} MB.`, 'validacion');
     }
     marcaLogoUrl = await subirLogoAlBackend(slug, buffer);
     logoAccion = 'subido';
@@ -190,4 +190,4 @@ async function actualizarMarcaTenant(slug, datos = {}, { actor, db = obtenerPool
   return tenantActualizado;
 }
 
-module.exports = { ErrorMarcaTenant, actualizarMarcaTenant, subirLogoAlBackend, borrarLogoDelBackend, MAX_MARCA_LOGO_MB };
+module.exports = { ErrorMarcaTenant, actualizarMarcaTenant, subirLogoAlBackend, borrarLogoDelBackend };

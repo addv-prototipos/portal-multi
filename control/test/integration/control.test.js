@@ -27,8 +27,13 @@ jest.mock('../../utils/notificarBackend', () => {
     ErrorCalculoDisco: real.ErrorCalculoDisco,
   };
 });
+jest.mock('../../utils/ajustesGlobales', () => ({
+  getImagenMaxMb: jest.fn().mockResolvedValue(2),
+  setImagenMaxMb: jest.fn().mockResolvedValue(2),
+}));
 
 const { obtenerPool } = require('../../db');
+const { getImagenMaxMb, setImagenMaxMb } = require('../../utils/ajustesGlobales');
 const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, obtenerUsoUsuarios, ErrorCalculoDisco } = require('../../utils/notificarBackend');
 const app = require('../../server');
 
@@ -544,7 +549,7 @@ describe('Control standalone (/api/control)', () => {
     });
 
     test('400 con logo que excede el tamaño máximo', async () => {
-      // 2.5 MB binarios: excede MAX_MARCA_LOGO_MB=2 pero su base64 (~3.3 MB)
+      // 2.5 MB binarios: excede el máximo configurado (mock de getImagenMaxMb=2) pero su base64 (~3.3 MB)
       // cabe en el límite de 4mb de express.json (3 MB exactos darían 413
       // del parser antes de llegar a la validación propia).
       const pngGrande = Buffer.concat([

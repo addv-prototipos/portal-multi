@@ -152,6 +152,8 @@ const {
   ALMACEN_DEFECTO_CODIGO,
 } = require('./utils/inventario');
 const { obtenerTipoCambioUSD } = require('./utils/tipoCambio');
+const { limitesDia, limitesMes, medianocheLocal, cadenaFecha } = require('./utils/limitesPeriodo');
+const { obtenerImagenMaxMbCacheado, IMAGEN_MAX_MB_MAX } = require('./utils/ajustesGlobales');
 const {
   obtenerConfigInventario,
   obtenerValorConfig,
@@ -263,13 +265,14 @@ app.use(helmet());
 // define CORS_ORIGIN con ese dominio exacto (no "*", que los navegadores
 // rechazan combinado con credenciales).
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
-// Límite de body amplio a propósito: el logo de marca del tenant llega
-// aquí como base64 desde el contenedor "control" (hasta
-// MAX_MARCA_LOGO_MB = 2 MB de archivo, ~2.7 MB de texto base64) — ver
-// POST /internal/marca-logo/:slug más abajo. Las rutas que reciben
-// archivos usan multer con sus propios límites, y cada ruta valida el
-// tamaño real de lo que recibe.
-app.use(express.json({ limit: '4mb' }));
+// Límite de body amplio a propósito: el logo/favicon de marca del tenant
+// llega aquí como base64 desde el contenedor "control" (Punto 370: el
+// máximo configurable vía /control llega hasta IMAGEN_MAX_MB_MAX = 20 MB
+// de archivo, ~27.4 MB de texto base64 — de ahí el margen) — ver
+// POST /internal/marca-logo/:slug y /internal/favicon/:slug más abajo.
+// Las rutas que reciben archivos usan multer con sus propios límites, y
+// cada ruta valida el tamaño real de lo que recibe.
+app.use(express.json({ limit: '30mb' }));
 app.use(cookieParser());
 // Multi-tenant (segmento 3, ver PROJECT_STATE.md): resuelve `req.tenant` y
 // el pool de MySQL activo a partir del encabezado `X-Tenant-Slug`. Montado
@@ -434,9 +437,14 @@ const upload = multer({
 
 // Uploader separado para tickets: acepta imagenes (jpg/png/webp) en vez de
 // PDF, ya que un ticket de compra es una foto, no un documento oficial.
+// Punto 370: el límite real y configurable (ajustesGlobales) se valida a
+// mano dentro de cada handler (producto/foto de ticket/logo de ticket) —
+// este `fileSize` es solo un techo de seguridad genérico para no
+// desperdiciar memoria/ancho de banda con un archivo absurdamente grande
+// antes de siquiera llegar a esa validación.
 const uploadImagen = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 1 },
+  limits: { fileSize: IMAGEN_MAX_MB_MAX * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
     if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype) || !ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
@@ -656,8 +664,10 @@ app.post('/internal/reload-admin-users', (req, res) => {
 // ("/api/marca-logo/<slug>") — el backend la convierte a absoluta con
 // detectarUrlPortal(req) al armar los correos. El GET público sirve el
 // archivo con cache largo (es un logo: va en correos, no es sensible).
-const MAX_MARCA_LOGO_MB = Number(process.env.MAX_MARCA_LOGO_MB || 2);
-const MAX_MARCA_LOGO_BYTES = MAX_MARCA_LOGO_MB * 1024 * 1024;
+// Punto 370: el límite real ya no es esta variable de entorno — viene de
+// ajustesGlobales.obtenerImagenMaxMbCacheado() (tabla `ajustes_globales`,
+// configurable desde /control). Se conserva el fallback de código con el
+// mismo valor histórico (2) para cuando `control_tenants` es inalcanzable.
 
 // Sube el logo de marca de un tenant. Solo el contenedor "control" lo usa
 // (el administrador de control carga el logo y este servicio lo persiste
@@ -667,7 +677,7 @@ const MAX_MARCA_LOGO_BYTES = MAX_MARCA_LOGO_MB * 1024 * 1024;
 // multer; ya depende de este endpoint interno para la caché). La key no
 // lleva extensión: el Content-Type se guarda como metadata del objeto y
 // el GET público lo devuelve tal cual.
-app.post('/internal/marca-logo/:slug', (req, res) => {
+app.post('/internal/marca-logo/:slug', asyncHandler(async (req, res) => {
   if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
@@ -693,8 +703,9 @@ app.post('/internal/marca-logo/:slug', (req, res) => {
   if (buffer.length === 0) {
     return res.status(400).json({ error: 'El logo está vacío.' });
   }
-  if (buffer.length > MAX_MARCA_LOGO_BYTES) {
-    return res.status(413).json({ error: `El logo excede el tamaño máximo permitido de ${MAX_MARCA_LOGO_MB} MB.` });
+  const imagenMaxMb = await obtenerImagenMaxMbCacheado();
+  if (buffer.length > imagenMaxMb * 1024 * 1024) {
+    return res.status(413).json({ error: `El logo excede el tamaño máximo permitido de ${imagenMaxMb} MB.` });
   }
 
   // Se valida el contenido real (firma binaria), no solo el MIME que manda
@@ -704,16 +715,14 @@ app.post('/internal/marca-logo/:slug', (req, res) => {
     return res.status(400).json({ error: 'El archivo no es una imagen válida (JPG, PNG o WEBP).' });
   }
 
-  storage
-    .guardarArchivo('marca', slug, 'logo', buffer, mimeReal)
-    .then(() => {
-      res.json({ ok: true, url: `/api/marca-logo/${slug}` });
-    })
-    .catch((err) => {
-      console.error(`Error guardando el logo de marca del tenant "${slug}":`, err);
-      res.status(500).json({ error: 'No se pudo guardar el logo.' });
-    });
-});
+  try {
+    await storage.guardarArchivo('marca', slug, 'logo', buffer, mimeReal);
+    res.json({ ok: true, url: `/api/marca-logo/${slug}` });
+  } catch (err) {
+    console.error(`Error guardando el logo de marca del tenant "${slug}":`, err);
+    res.status(500).json({ error: 'No se pudo guardar el logo.' });
+  }
+}));
 
 // Borra el logo de marca de un tenant de MinIO. Lo usa el contenedor
 // "control" cuando el administrador quita el logo (misma protección por
@@ -748,7 +757,7 @@ app.delete('/internal/marca-logo/:slug', (req, res) => {
 // (JPG/PNG/WEBP), validados por firma binaria.
 
 // Sube el favicon de un tenant.
-app.post('/internal/favicon/:slug', (req, res) => {
+app.post('/internal/favicon/:slug', asyncHandler(async (req, res) => {
   if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });
   }
@@ -774,8 +783,9 @@ app.post('/internal/favicon/:slug', (req, res) => {
   if (buffer.length === 0) {
     return res.status(400).json({ error: 'El favicon está vacío.' });
   }
-  if (buffer.length > MAX_MARCA_LOGO_BYTES) {
-    return res.status(413).json({ error: `El favicon excede el tamaño máximo permitido de ${MAX_MARCA_LOGO_MB} MB.` });
+  const imagenMaxMb = await obtenerImagenMaxMbCacheado();
+  if (buffer.length > imagenMaxMb * 1024 * 1024) {
+    return res.status(413).json({ error: `El favicon excede el tamaño máximo permitido de ${imagenMaxMb} MB.` });
   }
 
   const mimeReal = detectRealImageMimeType(buffer);
@@ -783,16 +793,14 @@ app.post('/internal/favicon/:slug', (req, res) => {
     return res.status(400).json({ error: 'El archivo no es una imagen válida (JPG, PNG o WEBP).' });
   }
 
-  storage
-    .guardarArchivo('marca', slug, 'favicon', buffer, mimeReal)
-    .then(() => {
-      res.json({ ok: true, url: `/api/favicon/${slug}` });
-    })
-    .catch((err) => {
-      console.error(`Error guardando el favicon del tenant "${slug}":`, err);
-      res.status(500).json({ error: 'No se pudo guardar el favicon.' });
-    });
-});
+  try {
+    await storage.guardarArchivo('marca', slug, 'favicon', buffer, mimeReal);
+    res.json({ ok: true, url: `/api/favicon/${slug}` });
+  } catch (err) {
+    console.error(`Error guardando el favicon del tenant "${slug}":`, err);
+    res.status(500).json({ error: 'No se pudo guardar el favicon.' });
+  }
+}));
 
 // Borra el favicon de un tenant de MinIO.
 app.delete('/internal/favicon/:slug', (req, res) => {
@@ -2071,47 +2079,12 @@ const TIPOS_PAGO = {
   otro: 'Otro',
 };
 
-// Límites del mes actual y del mes anterior en la zona horaria
-// configurada, expresados como Date en UTC — usados por el resumen de
-// KPIs del módulo "Gastos" ("¿cuánto gasté este mes?", "con/sin factura",
-// "vs mes anterior"). Los gastos se guardan con su fecha de calendario
-// (columna DATE), así que "este mes" se calcula con el año/mes vigente en
-// la zona horaria de México (la configurada por el administrador), no con
-// la del servidor MySQL.
-function limitesMes(zonaHoraria) {
-  const ahora = new Date();
-  const partes = new Intl.DateTimeFormat('en-CA', {
-    timeZone: zonaHoraria,
-    year: 'numeric',
-    month: '2-digit',
-  }).format(ahora);
-  const [anio, mes] = partes.split('-').map(Number);
-  return {
-    inicio: new Date(Date.UTC(anio, mes - 1, 1)),
-    fin: new Date(Date.UTC(anio, mes, 1)), // exclusivo (primer día del mes siguiente)
-    inicioAnterior: new Date(Date.UTC(anio, mes - 2, 1)),
-    finAnterior: new Date(Date.UTC(anio, mes - 1, 1)), // exclusivo
-  };
-}
-
-// Punto 362 (Inicio con datos reales, ver PROJECT_STATE.md): mismo patrón
-// que limitesMes() de arriba, pero para "hoy" + "los 7 días anteriores a
-// hoy" (excluyendo hoy, para no comparar el día contra sí mismo).
-function limitesDia(zonaHoraria) {
-  const ahora = new Date();
-  const partes = new Intl.DateTimeFormat('en-CA', {
-    timeZone: zonaHoraria,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(ahora);
-  const [anio, mes, dia] = partes.split('-').map(Number);
-  return {
-    inicioHoy: new Date(Date.UTC(anio, mes - 1, dia)),
-    finHoy: new Date(Date.UTC(anio, mes - 1, dia + 1)), // exclusivo
-    inicio7d: new Date(Date.UTC(anio, mes - 1, dia - 7)),
-  };
-}
+// Límites de período por zona horaria: `limitesDia()` (punto 362, tarjetas
+// de Inicio) y `limitesMes()` (resumen de KPIs de Gastos y resumen
+// financiero) viven en utils/limitesPeriodo.js y devuelven DOS familias de
+// valores — `instantes` (Date en UTC para columnas DATETIME) y `fechas`
+// ("YYYY-MM-DD" locales para columnas DATE como gastos.fecha). Usar la
+// equivocada corre la ventana 6 h y saca de "hoy" todo lo de after de 18:00.
 
 // Etiqueta corta en español ("Ene", "Feb", …) para una llave "YYYY-MM" —
 // usada por el resumen financiero para la serie mensual de la gráfica.
@@ -2127,7 +2100,7 @@ app.post('/api/tickets', requireUserAuth, requiereFeature('facturacionHabilitada
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({
-          error: `La imagen excede el tamaño máximo permitido de ${MAX_FILE_SIZE_MB} MB.`,
+          error: `La imagen excede el tamaño máximo permitido de ${IMAGEN_MAX_MB_MAX} MB.`,
         });
       }
       if (err.message === 'TIPO_NO_PERMITIDO') {
@@ -2140,6 +2113,16 @@ app.post('/api/tickets', requireUserAuth, requiereFeature('facturacionHabilitada
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'Debes adjuntar una foto o imagen del ticket.' });
+      }
+
+      // Punto 370: uploadImagen acepta hasta el techo de seguridad
+      // genérico (IMAGEN_MAX_MB_MAX); el máximo REAL configurable desde
+      // /control se valida aquí a mano, igual que marca-logo/favicon.
+      const imagenMaxMbTicket = await obtenerImagenMaxMbCacheado();
+      if (req.file.size > imagenMaxMbTicket * 1024 * 1024) {
+        return res.status(413).json({
+          error: `La imagen excede el tamaño máximo permitido de ${imagenMaxMbTicket} MB.`,
+        });
       }
 
       // Punto 347: cuota de disco impuesta desde /control — mismo criterio
@@ -3326,12 +3309,17 @@ app.post('/api/registro', requireUserAuth, submitLimiter, (req, res) => {
 // variable de entorno ADMIN_USERS en docker-compose.yml (ver .env.example).
 
 // Verifica credenciales; el frontend la usa para validar el login.
-app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requireAdminAuth, (req, res) => {
+app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requireAdminAuth, asyncHandler(async (req, res) => {
   res.json({
     ok: true,
     usuario: req.adminUser,
     perfil: req.adminPerfil,
     debeCambiarPassword: Boolean(req.adminDebeCambiarPassword),
+    // Punto 370: máximo de imagen configurable desde /control, para los
+    // hints "máx. X MB" de Inventarios/Configuraciones (ver admin.js) —
+    // se expone aquí, no en una ruta aparte, por el mismo motivo que
+    // `funciones` de abajo: esta ruta ya corre en cada carga de página.
+    imagenMaxMb: await obtenerImagenMaxMbCacheado(),
     // Punto 349-350-351 (Fase 5, ver stitch/gobierno-funcionalidades/
     // NOTAS.md): el frontend de /admin necesita saber qué funciones trae
     // el plan del tenant para OCULTAR menú/tarjetas que de todas formas
@@ -3361,7 +3349,7 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
         }
       : null,
   });
-});
+}));
 
 // Punto 362 (Inicio con datos reales, ver PROJECT_STATE.md): reemplaza el
 // resumen de tickets que vivía aquí antes del punto 360/361 — ahora un
@@ -3383,7 +3371,15 @@ app.get(
     const perfil = req.adminPerfil;
     const esSuper = perfil === 'super';
     const configGlobalInicio = await getConfiguracionGlobal();
-    const { inicioHoy, finHoy, inicio7d } = limitesDia(configGlobalInicio.zona_horaria);
+    // DOS familias de límites (ver utils/limitesPeriodo.js): `instantes`
+    // para columnas DATETIME en UTC (tickets.creado_en,
+    // ordenes_compra.fecha_compra, movimientos_inventario.creado_en) y
+    // `fechas` ("YYYY-MM-DD" local) para gastos.fecha, que es DATE con el
+    // calendario que eligió el administrador. Usar un `Date` de medianoche
+    // UTC en gastos "funcionaba" por accidente y al revés: al arreglar los
+    // instantes, los gastos dejaban de contar.
+    const { instantes: hoyInstantes, fechas: hoyFechas } = limitesDia(configGlobalInicio.zona_horaria);
+    const { inicioHoy, finHoy, inicio7d } = hoyInstantes;
 
     function tendencia(hoyValor, suma7dAnteriores) {
       const promedio7d = suma7dAnteriores / 7;
@@ -3459,12 +3455,12 @@ app.get(
         `SELECT COUNT(*) AS total, COALESCE(SUM(monto), 0) AS suma,
                 SUM(CASE WHEN tiene_factura = 1 THEN 1 ELSE 0 END) AS con_factura
          FROM gastos WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?`,
-        [inicioHoy, finHoy]
+        [hoyFechas.hoy, hoyFechas.manana]
       );
       const [[semana7dGastos]] = await pool.query(
         `SELECT COALESCE(SUM(monto), 0) AS suma FROM gastos
          WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?`,
-        [inicio7d, inicioHoy]
+        [hoyFechas.hace7d, hoyFechas.hoy]
       );
       const [recientesGastos] = await pool.query(
         `SELECT concepto, proveedor, monto, fecha FROM gastos
@@ -4827,7 +4823,7 @@ app.post('/api/admin/configuraciones/ticket-logo', adminApiLimiter, requiereFeat
   subirConTenant(uploadImagen, 'logo', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ error: `El logo excede el tamaño máximo permitido de ${MAX_FILE_SIZE_MB} MB.` });
+        return res.status(413).json({ error: `El logo excede el tamaño máximo permitido de ${IMAGEN_MAX_MB_MAX} MB.` });
       }
       if (err.message === 'TIPO_NO_PERMITIDO') {
         return res.status(400).json({ error: 'Solo se aceptan imágenes en formato JPG, PNG o WEBP.' });
@@ -4837,6 +4833,14 @@ app.post('/api/admin/configuraciones/ticket-logo', adminApiLimiter, requiereFeat
     }
     try {
       if (!req.file) return res.status(400).json({ error: 'Debes adjuntar una imagen.' });
+      // Punto 370: máximo real y configurable desde /control (antes usaba
+      // MAX_FILE_SIZE_MB por error de consistencia, ver punto 369).
+      const imagenMaxMbTicketLogo = await obtenerImagenMaxMbCacheado();
+      if (req.file.size > imagenMaxMbTicketLogo * 1024 * 1024) {
+        return res.status(413).json({
+          error: `El logo excede el tamaño máximo permitido de ${imagenMaxMbTicketLogo} MB.`,
+        });
+      }
       const mimeReal = detectRealImageMimeType(req.file.buffer);
       if (!mimeReal) {
         return res.status(400).json({ error: 'El archivo no es una imagen válida (JPG, PNG o WEBP).' });
@@ -7055,13 +7059,19 @@ app.get(
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
     const configGlobal = await getConfiguracionGlobal();
-    const { inicio, fin, inicioAnterior, finAnterior } = limitesMes(configGlobal.zona_horaria);
+    // DOS familias de límites (ver utils/limitesPeriodo.js): `instantes`
+    // para ordenes_compra.fecha_compra (DATETIME en UTC — antes se usaba
+    // aquí la medianoche UTC del mes, con lo que una venta del último día
+    // a partir de las 18:00 hora local se contaba en el mes siguiente) y
+    // `fechas` para gastos.fecha (DATE con el calendario local).
+    const { instantes, fechas } = limitesMes(configGlobal.zona_horaria);
+    const { inicio, fin, inicioAnterior, finAnterior } = instantes;
     // Ventana de la gráfica: primer día del mes hace 5 meses (6 meses de
     // historia contando el mes en curso). Los KPIs de arriba siguen
     // acotados al mes actual/anterior — solo la gráfica mira hacia atrás.
-    const inicioSerie = new Date(
-      Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() - 5, 1)
-    );
+    const [serieAnio, serieMes] = [Number(fechas.inicio.slice(0, 4)), Number(fechas.inicio.slice(5, 7))];
+    const inicioSerieInstante = medianocheLocal(serieAnio, serieMes - 5, 1, configGlobal.zona_horaria);
+    const inicioSerieFecha = cadenaFecha(serieAnio, serieMes - 5, 1);
 
     const [[kpiVentas]] = await pool.query(
       `SELECT
@@ -7081,7 +7091,7 @@ app.get(
          COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? THEN monto END), 0) AS gastos_anterior
        FROM gastos
        WHERE eliminado_en IS NULL AND fecha >= ?`,
-      [inicio, fin, inicioAnterior, finAnterior, inicioAnterior]
+      [fechas.inicio, fechas.fin, fechas.inicioAnterior, fechas.finAnterior, fechas.inicioAnterior]
     );
 
     const ventas = Number(kpiVentas.ventas);
@@ -7119,14 +7129,14 @@ app.get(
        FROM ordenes_compra o
        WHERE o.eliminado_en IS NULL AND o.fecha_compra >= ?
        GROUP BY DATE_FORMAT(o.fecha_compra, '%Y-%m')`,
-      [inicioSerie]
+      [inicioSerieInstante]
     );
     const [filasGastosSerie] = await pool.query(
       `SELECT DATE_FORMAT(fecha, '%Y-%m') AS mes, SUM(monto) AS gastos
        FROM gastos
        WHERE eliminado_en IS NULL AND fecha >= ?
        GROUP BY DATE_FORMAT(fecha, '%Y-%m')`,
-      [inicioSerie]
+      [inicioSerieFecha]
     );
 
     const mapaVentasSerie = new Map(filasVentasSerie.map((f) => [f.mes, f]));
@@ -7164,7 +7174,7 @@ app.get(
         WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?
         GROUP BY categoria
         ORDER BY monto DESC`,
-      [inicio, fin]
+      [fechas.inicio, fechas.fin]
     );
     // Mes anterior por categoría, para la Variación MoM real del modal
     // ampliado (homologado con stitch/..._ux_redesign, columna "Variación
@@ -7174,7 +7184,7 @@ app.get(
          FROM gastos
         WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?
         GROUP BY categoria`,
-      [inicioAnterior, finAnterior]
+      [fechas.inicioAnterior, fechas.finAnterior]
     );
     const mapaGastosCategoriaAnterior = new Map(filasGastosCategoriaAnterior.map((f) => [f.categoria, Number(f.monto)]));
     const mapaTipoCategoria = await mapaTipoPorCategoria();
@@ -7189,7 +7199,7 @@ app.get(
               COALESCE(SUM(CASE WHEN tiene_factura = 0 THEN 1 END), 0) AS cantidad
          FROM gastos
         WHERE eliminado_en IS NULL AND fecha >= ? AND fecha < ?`,
-      [inicio, fin]
+      [fechas.inicio, fechas.fin]
     );
 
     // Top 5 proveedores de gasto del mes en curso — dato accionable real
@@ -7210,7 +7220,7 @@ app.get(
         GROUP BY proveedor
         ORDER BY monto DESC
         LIMIT 5`,
-      [inicio, fin, inicio, fin]
+      [fechas.inicio, fechas.fin, fechas.inicio, fechas.fin]
     );
 
     // Proyección de ventas de los próximos 2 meses: estimación estadística
@@ -7230,7 +7240,10 @@ app.get(
     // (serie_mensual) SIGUE mostrando el mes en curso con su dato real
     // parcial — eso es correcto, solo la tendencia lo excluye.
     let proyeccionVentas = null;
-    const mesActualLlave = `${inicio.getUTCFullYear()}-${String(inicio.getUTCMonth() + 1).padStart(2, '0')}`;
+    // "YYYY-MM" del mes en curso — sale del calendario local (fechas.inicio),
+    // no de getUTCMonth() sobre un instante: cerca del cambio de horario la
+    // medianoche local del día 1 puede caer en el mes UTC anterior.
+    const mesActualLlave = fechas.inicio.slice(0, 7);
     const mesesCerrados = llavesMeses.filter((llave) => llave !== mesActualLlave);
     if (mesesCerrados.length >= 3) {
       const ultimasLlaves = mesesCerrados.slice(-3);
@@ -7769,7 +7782,10 @@ app.get(
     let resumen = null;
     if (!verPapelera) {
       const configGlobal = await getConfiguracionGlobal();
-      const { inicio, fin, inicioAnterior, finAnterior } = limitesMes(configGlobal.zona_horaria);
+      // gastos.fecha es DATE con el calendario local -> familia `fechas`
+      // (los `instantes` de aquí serían 06:00Z y dejarían fuera el día 1
+      // completo de cada mes). Ver utils/limitesPeriodo.js.
+      const { fechas } = limitesMes(configGlobal.zona_horaria);
       const [filasResumen] = await pool.query(
         `SELECT
            COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? THEN monto END), 0) AS mes_actual,
@@ -7778,7 +7794,18 @@ app.get(
            COALESCE(SUM(CASE WHEN fecha >= ? AND fecha < ? THEN monto END), 0) AS mes_anterior,
            COUNT(CASE WHEN fecha >= ? AND fecha < ? THEN 1 END) AS cantidad
          FROM gastos WHERE eliminado_en IS NULL`,
-        [inicio, fin, inicio, fin, inicio, fin, inicioAnterior, finAnterior, inicio, fin]
+        [
+          fechas.inicio,
+          fechas.fin,
+          fechas.inicio,
+          fechas.fin,
+          fechas.inicio,
+          fechas.fin,
+          fechas.inicioAnterior,
+          fechas.finAnterior,
+          fechas.inicio,
+          fechas.fin,
+        ]
       );
       const r = filasResumen[0];
       resumen = {
@@ -9154,7 +9181,7 @@ app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requier
   subirConTenant(uploadImagen, 'imagen', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ error: `La imagen excede el tamaño máximo permitido de ${MAX_FILE_SIZE_MB} MB.` });
+        return res.status(413).json({ error: `La imagen excede el tamaño máximo permitido de ${IMAGEN_MAX_MB_MAX} MB.` });
       }
       if (err.message === 'TIPO_NO_PERMITIDO') {
         return res.status(400).json({ error: 'Solo se aceptan imágenes en formato JPG, PNG o WEBP.' });
@@ -9166,6 +9193,14 @@ app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requier
       const id = Number(req.params.id);
       if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
       if (!req.file) return res.status(400).json({ error: 'Debes adjuntar una imagen.' });
+
+      // Punto 370: máximo real y configurable desde /control.
+      const imagenMaxMbProducto = await obtenerImagenMaxMbCacheado();
+      if (req.file.size > imagenMaxMbProducto * 1024 * 1024) {
+        return res.status(413).json({
+          error: `La imagen excede el tamaño máximo permitido de ${imagenMaxMbProducto} MB.`,
+        });
+      }
 
       const producto = await obtenerProductoPorId(id);
       if (!producto) return res.status(404).json({ error: 'INV_PRODUCTO_NO_ENCONTRADO', mensaje: 'Producto no encontrado.' });

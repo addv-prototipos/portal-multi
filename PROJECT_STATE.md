@@ -18658,6 +18658,232 @@ trabajo, no después.
   base restablecido a defaults al terminar (sin dejar datos de prueba).
 - **Pendiente**: sync de `prod/` por contenido cuando el usuario lo pida.
 
+**Punto 370 (2026-10-05/2026-10-06, CERRADO):** pedido del usuario —
+tamaño máximo de imagen (producto, foto de ticket, logo de ticket, marca,
+favicon) configurable desde `/control`, **un solo valor GLOBAL de
+plataforma** (antes vivía repartido en 2 variables de entorno
+desincronizadas y 1 constante hardcodeada), y quitar esas variables de
+`docker-compose*.yml`.
+
+- **Decisiones ya confirmadas con el usuario (AskUserQuestion)**: (1)
+  **un solo valor GLOBAL de plataforma**, no por tenant/plan (descartado
+  el patrón `disco_cuota_mb`); (2) **sí quitar** `MAX_FILE_SIZE_MB` y
+  `MAX_MARCA_LOGO_MB` de los `docker-compose*.yml` — el valor vive solo
+  en BD de aquí en adelante.
+- **Diagnóstico previo (subagente, completo, no repetir)**: 5 puntos
+  reales de subida de imagen — (A) producto de Inventarios
+  (`POST /api/admin/inventarios/productos/:id/imagen`, server.js~9153,
+  usa `MAX_FILE_SIZE_MB`), (B) foto de ticket del cliente
+  (`POST /api/tickets`, server.js~2125, `MAX_FILE_SIZE_MB`), (C) logo de
+  marca súper-admin (`/internal/marca-logo/:slug`, server.js~659-740,
+  `MAX_MARCA_LOGO_MB`), (D) logo del ticket de impresión, autoservicio
+  tenant (`POST /api/admin/configuraciones/ticket-logo`, server.js~4826,
+  punto 369 — usaba `MAX_FILE_SIZE_MB` por error de consistencia, nunca
+  `MAX_MARCA_LOGO_MB`), (E) favicon súper-admin
+  (`/internal/favicon/:slug`, server.js~751-790, reusa
+  `MAX_MARCA_LOGO_MB`). `MAX_FILE_SIZE_MB` es COMPARTIDA con subidas NO
+  imagen (CSF PDF, comprobante Gastos, factura ZIP, importador CSV/XLSX)
+  — esas quedan FUERA de alcance, se tocan cero. `MAX_MARCA_LOGO_MB`
+  nunca estuvo declarada en ningún `docker-compose*.yml` (hallazgo del
+  audit) — siempre corrió con su default de código (2). Dos hints
+  estáticos "máx. 5 MB" en el admin (`#inv-imagen-limite-mb`,
+  `#ticket-logo-limite-mb`) nunca se actualizaban desde JS — bug real
+  preexistente, se corrige de pasada.
+- **Arquitectura elegida**: nueva tabla `ajustes_globales` (clave/valor,
+  mismo patrón que `configuracion` de cada tenant) en la BD
+  `control_tenants` — la crea `control/`, pero el **backend la lee
+  directo por SQL** vía `obtenerPoolControl()` (el mismo pool que
+  `tenantContext.js` ya usa para resolver tenants — cero llamada HTTP
+  nueva entre servicios, cero dependencia nueva de control estar vivo).
+- **YA HECHO (solo lado `control/`, probado, 18 suites/352 tests en
+  verde, 0 regresiones)**:
+  - `control/scripts/ensureSchema.js`: `asegurarTablaAjustesGlobales()`,
+    llamada en `control/server.js` `iniciar()`.
+  - `control/utils/ajustesGlobales.js` (nuevo): `getImagenMaxMb()`/
+    `setImagenMaxMb()`, default 2, valida entero 1-20. Unit test propio
+    (`control/test/unit/ajustesGlobales.test.js`, 6 casos).
+  - `control/server.js`: `GET`/`PUT /api/control/ajustes/imagen-max-mb`
+    (`requireAdminAuth` + `requireAdminArea()`), y el check de tamaño del
+    intake de empresa nueva (línea ~247) ya usa `getImagenMaxMb()`.
+  - `control/utils/tenantMarca.js`, `tenantEdicion.js`, `tenantTema.js`:
+    las 4 copias de `MAX_MARCA_LOGO_MB` (env, desincronizada entre
+    backend/control) y la 1 de `MAX_FAVICON_MB` (hardcode, sin env)
+    reemplazadas por `getImagenMaxMb()` dinámico.
+  - 4 archivos de prueba actualizados
+    (`tenantMarca.test.js`/`tenantEdicion.test.js`/`tenantTema.test.js`/
+    `control/test/integration/control.test.js`): se agregó
+    `jest.mock('../../utils/ajustesGlobales', ...)` en cada uno — **nota
+    importante para quien retome**: NO mockear esto a través de
+    `pool.query` (rompe el orden de `mockResolvedValueOnce` que ya
+    esperan los tests existentes, al insertar una llamada extra a medio
+    flujo) — mockear el módulo `ajustesGlobales` completo es lo que
+    evita ese efecto dominó.
+- **Completado en esta sesión (2026-10-06)**:
+  1. **Backend**: `backend/utils/ajustesGlobales.js` (nuevo) —
+     `obtenerImagenMaxMbCacheado()` vía `obtenerPoolControl()`, TTL 45s
+     (`AJUSTES_GLOBALES_CACHE_TTL_MS`, mismo patrón que
+     `tenantContext.js`), default 2 si `control_tenants` es inalcanzable
+     o el valor guardado es inválido — nunca truena la subida por esto.
+     Aplicado en las 5 rutas A-E (server.js): producto de Inventarios,
+     foto de ticket, logo de marca (`/internal/marca-logo/:slug`), logo
+     de ticket (autoservicio tenant — corrige el error de consistencia
+     del punto 369, ya no usa `MAX_FILE_SIZE_MB`), favicon
+     (`/internal/favicon/:slug`). `MAX_FILE_SIZE_MB` queda intacto donde
+     sirve PDFs/ZIP/CSV (fuera de alcance, cero cambios). `uploadImagen`
+     (multer, compartido por A/B/D) ahora usa `IMAGEN_MAX_MB_MAX` (20)
+     como techo de seguridad genérico — el máximo REAL configurado se
+     valida a mano dentro de cada handler. `express.json()` en backend Y
+     control subido de `4mb` a `30mb` (un archivo de 20 MB en base64
+     pesa ~27.4 MB de texto — sin este cambio, el límite de body
+     rechazaría cualquier logo/favicon por encima de ~2.9 MB reales antes
+     de llegar a la validación de tamaño real). `GET /api/admin/login`
+     ahora expone `imagenMaxMb` (no se creó una ruta aparte — se
+     aprovechó que esa ruta ya corre en cada carga de página, mismo
+     criterio que `funciones`). Unit test nuevo
+     (`backend/test/unit/ajustesGlobales.test.js`, 6 casos, con fake
+     timers para el TTL) + ajuste de `admin.test.js` (el `toEqual` de
+     `GET /api/admin/login` ahora incluye `imagenMaxMb: 2`).
+  2. **Control UI**: tarjeta colapsable "Ajustes de imágenes" en Super
+     Admins (`control.html`/`control.js`, mismo patrón que "Borrado
+     automático de tickets" de `/admin`) — input 1-20 + Guardar, se
+     recarga una vez por sesión desde `showDashboard()` (no solo al
+     entrar a Super Admins), para que los hints de intake/editar/favicon
+     tengan el valor real desde el primer modal que se abra. Quitado el
+     `MARCA_LOGO_MAX_MB = 2` hardcodeado (ahora `imagenMaxMbActual`,
+     variable de módulo, refrescada en cada sesión); actualizados los 3
+     hints estáticos de `control.html` con `<span>` dinámico
+     (`#intake-logo-limite-mb`, `#editar-logo-limite-mb`,
+     `#favicon-limite-mb`).
+  3. **Frontend admin**: sin ruta aparte (ver punto 1) — `admin.js` lee
+     `imagenMaxMb` de la respuesta de login/sesión y lo aplica a los 2
+     hints que antes quedaban muertos en "5" (`#inv-imagen-limite-mb`,
+     `#ticket-logo-limite-mb`), threadeado por las 4 rutas que terminan
+     en `showDashboard()` (login normal, cambio de password obligatorio,
+     restauración de sesión).
+  4. Quitada la declaración `MAX_FILE_SIZE_MB` de `docker-compose.yml`,
+     `prod/docker-compose.prod.yml`, `docker-stack.yml` — el código sigue
+     con su default interno (5), que coincidía con el default del compose
+     (`${MAX_FILE_SIZE_MB:-5}`), así que no hay regresión funcional salvo
+     que alguien ya la estuviera sobreescribiendo manualmente en su
+     `.env` (sin acceso de lectura a `.env`/`.env.example` en este
+     entorno — permiso denegado — pendiente de que el usuario limpie ahí
+     si aplica). `MAX_MARCA_LOGO_MB` nunca estuvo declarada en estos 3
+     archivos (ya documentado arriba), nada que quitar.
+  5. Validado: `node --check` en los 6 archivos tocados; Jest backend
+     **62 suites/1195 tests en verde** (incluye los 6 nuevos de
+     `ajustesGlobales.test.js`); Jest control **18 suites/352 tests en
+     verde**, sin regresiones en ninguno de los dos. Rebuild Docker de
+     los 3 servicios (`backend`/`control`/`frontend`) +
+     `force-recreate`, los 6 contenedores quedan `healthy`. Verificado a
+     mano contra el stack real: cambiar el valor en `/control` (2→7) se
+     refleja de inmediato en `GET /api/admin/login` del backend (sin
+     esperar el TTL — backend recién reiniciado, caché vacía);
+     `POST /api/admin/configuraciones/ticket-logo` con 8 MB (> 7 MB
+     configurado) responde 413 con el mensaje dinámico correcto; con
+     6 MB (< 7 MB) responde 200 y guarda. Playwright real nuevo,
+     `e2e/tests/ajustes-imagen-max.spec.ts` (1/1 en verde): login en
+     `/control` → Super Admins → abre la tarjeta → rechaza 21 (fuera de
+     rango) → guarda 6 → los 3 hints de intake/favicon cambian a "6" sin
+     recargar → el modal de intake también lo refleja → login en
+     `/admin` → Configuraciones → "Ticket de impresión" trae el hint en
+     "6" (confirma que viajó por `GET /api/admin/login`) → limpieza,
+     regresa el valor a 2. Valor final en la BD real tras la sesión: `2`
+     (default).
+  - **Suites de /admin conocidas como fallando de antes, no relacionadas**
+    (ver punto 371 — mismo baseline, confirmado de nuevo en esta sesión):
+    `admin-plan-gating.spec.ts` sigue fallando por estado de
+    provisionamiento de tenants en este entorno (`#btn-vista-gastos`
+    visible cuando debería estar oculto) — no tiene relación con imagen
+    máxima, ya estaba roto antes de esta sesión.
+- Pendiente de decisión del usuario: `.env`/`.env.example` (raíz y
+  `prod/`) pueden seguir declarando `MAX_FILE_SIZE_MB`/`MAX_MARCA_LOGO_MB`
+  — este entorno no tiene permiso de lectura sobre archivos `.env*`
+  (denegado por el sandbox), así que no se tocaron; si el usuario los
+  tiene declarados ahí, son inofensivos (mismo valor que el default de
+  código) pero quedan huérfanos y se pueden limpiar a mano.
+- Pendiente: commit + push — **el push del punto 368/369 había fallado**
+  (`403, Permission to addv-prototipos/portal-multi.git denied to
+  addv-sites`) — revisar si ya se arregló antes de intentar el de este
+  punto.
+
+**Punto 371 (2026-10-05, CERRADO — Inicio: las tarjetas KPI "Ventas hoy" y
+"Movs. de inventario" no se actualizaban tras un alta real; ventana anclada
+a medianoche UTC):** reporte del usuario ("hago una venta y las tarjetas de
+Inicio no cambian"). Reproducido en navegador real con Playwright ANTES de
+tocar nada.
+
+- **Causa raíz**: `limitesDia()`/`limitesMes()` de `backend/server.js`
+  (~líneas 2074-2114 antes del fix) construían el día/mes local con
+  `Date.UTC(...)`, o sea que anclaban "hoy" a **medianoche UTC**. Con
+  México en UTC−6 la ventana quedaba corrida 6 h: `[00:00Z, 24:00Z)` en
+  vez de `[06:00Z, 06:00Z)` — todo lo ocurrido **a partir de las 18:00
+  hora local** caía fuera de "hoy" (y los últimos días del mes local se
+  comían el cambio de mes). `gastos.fecha` es columna `DATE` con fecha de
+  calendario local y "funcionaba" solo por accidente: si se hubiera
+  metido un `Date` de medianoche 06:00Z ahí, habría excluido el día 1 del
+  mes y empezado el mes 6 h tarde — por eso el fix NO puede ser solo
+  "hacer que los instantes apunten a la hora local".
+- **Fix**: módulo nuevo `backend/utils/limitesPeriodo.js`
+  (`limitesDia`, `limitesMes`, `medianocheLocal`, `fechaLocalZona`,
+  `cadenaFecha`, `desplazamientoZona`). Los helpers devuelven **dos
+  familias**: `instantes` (Date UTC de medianoche local, p.ej.
+  `[2026-10-05T06:00Z, 2026-10-06T06:00Z)`) para columnas `DATETIME` en
+  UTC (`ordenes_compra.fecha_compra`, `inventario_movimientos.creado_en`)
+  y `fechas` (`'YYYY-MM-DD'` de calendario local) para columnas `DATE`
+  (`gastos.fecha`). Offset por zona con **2 pasadas** porque solo
+  `America/Tijuana` tiene DST (`ZONAS_HORARIAS_MEXICO` en
+  `backend/utils/config.js:103`).
+- **Call sites tocados** (`backend/server.js`): require nuevo en la línea
+  155; funciones locales `limitesDia`/`limitesMes` eliminadas y
+  reemplazadas por comentario (~2077); `/api/admin/inicio/resumen`
+  (~3352: gastos con `fechas.*`, ventas/tickets/inventario con
+  `instantes.*`); `/api/admin/resumen-financiero` (~7032: KPI de ventas y
+  `inicioSerieInstante` con instantes, gastos/serie/categorías/proveedores
+  con fechas, `mesActualLlave = fechas.inicio.slice(0,7)`); listado de
+  gastos (~7757, solo `{ fechas }`).
+- **Validación (todo en verde)**: `node --check` en ambos archivos; Jest
+  backend **1189/1189 en 61 suites** (incluye 11 unitarias nuevas en
+  `backend/test/unit/limitesPeriodo.test.js` y la regresión de
+  `test/integration/inicioResumen.test.js` que fija los **parámetros**
+  correctos: `Date` con hora 6 en UTC para ventas y `string` `YYYY-MM-DD`
+  para gastos); Playwright real contra Docker/MySQL con el spec nuevo
+  `e2e/tests/inicio-actualiza-tras-venta.spec.ts` (1/1): lee las
+  tarjetas → registra venta con producto de inventario → registra entrada
+  de inventario → **exige** que suban `ventas.total`/`count`,
+  `inventario.total`/`entradas` y que `gastos.total` no se mueva.
+- **Evidencia visual antes/después** (`e2e/capturas/`): con el código
+  BASELINE, `demo-bug-1-antes.png` y `demo-bug-3-despues-mov.png` muestran
+  **$0.00 / 0 movimientos** incluso después de crear OC-000259 y una
+  entrada de 3 pzas; con el fix, `demo-fix-1-antes.png` →
+  `demo-fix-3-despues-mov.png` muestran **$64,554 → $66,236** y **11 → 13
+  movimientos**. Las corridas crudas imprimen además el JSON del API
+  (`DEMO[...]`/`INICIO-KPI[...]`) con `ultimaVenta.fechaCompra` en UTC
+  para que la aritmética del corrimiento quede verificable.
+- **Hallazgos hermanos detectados en el mismo barrido — NO tocados, hace
+  falta aprobación explícita del usuario** (mismo bug de "ventana por zona
+  horaria" en otra parte):
+  1. `DATE_FORMAT(o.fecha_compra,'%Y-%m')` (~7101) bucketiza la serie
+     mensual del Resumen financiero por mes **UTC** — ahora inconsistente
+     con la ventana local del KPI del mismo endpoint.
+  2. `backend/utils/cierreMensual.js`: `obtenerVentasParaArchivar` /
+     `obtenerGastosParaArchivar` usan `DATE_FORMAT` con mes UTC.
+  3. `backend/server.js:9653`: `DATE_FORMAT(NOW(), '%Y-%m-01')` (mermas).
+  4. `backend/server.js:8936` y `:9664`: `CURDATE()` (día MySQL en la
+     zona del servidor, no la del tenant).
+  5. `backend/utils/tipoCambio.js:19` `hoyLocal()` usa
+     `toISOString().slice(0,10)` → fecha **UTC**, no local.
+- **Nota sobre el resto del E2E**: la suite completa dejó 8 fallas; 2 se
+  volvieron verdes solas sin ningún cambio de código (flaky). Se hizo
+  **baseline riguroso**: `backend/server.js` revertido a `HEAD`,
+  reconstruida la imagen y corridos los 6 specs sospechosos — **las mismas
+  6 fallas** (`admin-plan-gating`, `contexto-urls`, `control-alta-empresa`,
+  `control-editar-empresa`, `cxc`, `flujo-facturacion-piloto9c`). Causas
+  ajenas a este punto: estado de tenants/provisionamiento en este entorno
+  y specs desactualizados contra el rediseño del modal "Registrar venta"
+  del punto 368 (el bloque manual `#orden-producto-concepto` ya no existe
+  cuando Inventarios está activo). `cxc.spec.ts` necesita actualizarse a
+  `#orden-inventario-buscar` + `#btn-agregar-producto-inventario-orden`.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

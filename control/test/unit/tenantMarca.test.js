@@ -11,6 +11,10 @@ jest.mock('../../utils/notificarBackend', () => ({
   notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('../../utils/ajustesGlobales', () => ({
+  getImagenMaxMb: jest.fn().mockResolvedValue(2),
+}));
+
 const { obtenerPool } = require('../../db');
 const { notificarInvalidacionCache } = require('../../utils/notificarBackend');
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant } = require('../../utils/tenantMarca');

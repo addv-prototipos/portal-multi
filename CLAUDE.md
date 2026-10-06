@@ -116,6 +116,24 @@ por el NOMBRE REAL en código (`grep -rn marcaLookfeel`), nunca solo por
 la frase en español que usó el usuario o la UI de `/control` — el label
 visible y el identificador interno no siempre coinciden.
 
+**Ventanas "hoy/mes" en queries: nunca usar `Date.UTC` ni `toISOString()`
+(punto 371, 2026-10-05)**: `limitesDia()`/`limitesMes()` construían el
+día local con `Date.UTC(...)`, anclando "hoy" a medianoche **UTC** — con
+México en UTC−6 la ventana se corría 6 h y **todo lo ocurrido a partir de
+las 18:00 hora local quedaba fuera de la tarjeta "Ventas hoy"** (reproducido
+en navegador: $0.00 tras registrar una venta). Ahora la fuente de verdad es
+`backend/utils/limitesPeriodo.js`, que devuelve **dos familias y hay que
+usar la correcta según el tipo de columna**:
+- `instantes.*` (Date UTC de medianoche local) → columnas `DATETIME`
+  guardadas en UTC (`fecha_compra`, `creado_en`).
+- `fechas.*` (`'YYYY-MM-DD'` de calendario local) → columnas `DATE`
+  (`gastos.fecha`). Meter un `Date` ahí desplazaría el inicio del mes.
+Zona del tenant vía `ZONAS_HORARIAS_MEXICO` con **2 pasadas** (solo
+`America/Tijuana` tiene DST). Atajo para no recaer: `toISOString().slice(0,10)`
+y `CURDATE()`/`DATE_FORMAT(...,'%Y-%m')` con `NOW()` son **fechas UTC o del
+servidor**, no del tenant. Ver `PROJECT_STATE.md` punto 371 (incluye la
+lista de 5 sitios hermanos aún sin corregir, que requieren aprobación).
+
 **Pruebas funcionales, siempre, sin excepción** (ya es piso no negociable
 del protocolo `addv-web-app` global — esto solo lo precisa para este
 proyecto): "funcional" significa uno de dos — (a) Playwright/E2E real
@@ -200,6 +218,15 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   cambia `window.innerWidth` y no dispara el `@media` real.
 - **`setFieldError(id)`** ya antepone `"error-"` internamente — nunca
   volver a prefijarlo en el call site (bug repetido varias veces).
+- **Fechas "hoy/mes" por zona horaria** (punto 371, 2026-10-05): nunca
+  anclar la ventana local con `Date.UTC(...)` ni usar
+  `toISOString().slice(0,10)`/`CURDATE()` como si fueran la fecha del
+  tenant — con México en UTC−6 la ventana "hoy" se corre 6 h y toda venta
+  de las 18:00 en adelante desaparece de "Ventas hoy". Fuente de verdad:
+  `backend/utils/limitesPeriodo.js` con dos familias (`instantes.*` para
+  columnas `DATETIME` en UTC, `fechas.*` `'YYYY-MM-DD'` para columnas
+  `DATE`); ver la nota completa arriba y `PROJECT_STATE.md` punto 371
+  (incluye 5 sitios hermanos aún sin corregir, requieren aprobación).
 - **nginx intercepta 502/503/504 globalmente** (`error_page 502 503 504`
   → `mantenimiento.html`) — cualquier error real de la API debe responder
   **500**, nunca 502/503/504, o se disfraza de "sitio caído".
@@ -282,6 +309,26 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   usado para "Estado de tickets", que a propósito NO reutiliza
   `GET /api/admin/tickets`) es una ruta dedicada por pestaña cuando hay
   riesgo de compartirla con otra vista.
+- **Máximo de imagen = un solo valor global, en BD, no en env** (punto
+  370, 2026-10-06): `ajustes_globales` (tabla clave/valor en
+  `control_tenants`, clave `imagen_max_mb`, default 2, rango 1-20) es la
+  única fuente de verdad para el tamaño máximo de producto/foto de
+  ticket/logo de ticket/logo de marca/favicon — reemplazó
+  `MAX_FILE_SIZE_MB`/`MAX_MARCA_LOGO_MB` para esos 5 puntos de subida.
+  `control/utils/ajustesGlobales.js` lee/escribe (vive en `control/`,
+  dueño del dato); `backend/utils/ajustesGlobales.js` solo LEE, vía
+  `obtenerPoolControl()` con caché de 45s (mismo patrón que
+  `tenantContext.js`) — nunca llamar a `control` por HTTP para esto.
+  `MAX_FILE_SIZE_MB` sigue viva y sin tocar para subidas NO imagen (CSF
+  PDF, comprobante de Gastos, factura ZIP, importador CSV/XLSX) — un
+  cambio futuro al máximo de imagen nunca debe tocar esa variable ni esas
+  rutas. **Gotcha real ya corregido, no repetir**: subir el máximo de
+  imagen sin subir también el límite de `express.json()` (backend Y
+  control, ambos en `30mb`) revienta en un rechazo de body silencioso
+  bastante antes del límite configurado — un archivo de 20 MB en base64
+  pesa ~27.4 MB de texto. Si `IMAGEN_MAX_MB_MAX` (hoy 20, en
+  `backend/utils/ajustesGlobales.js`) sube alguna vez, ese límite de body
+  en ambos `server.js` debe subir con él (base64 × ~1.37 + margen).
 - **RFC solo si Facturación está activa**: con `facturacion_habilitada`
   apagada, ningún flujo de alta de cliente (`POST /api/auth/registro`,
   `POST /api/admin/usuarios`) pide RFC — genera un identificador interno

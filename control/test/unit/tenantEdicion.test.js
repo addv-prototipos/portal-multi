@@ -16,6 +16,10 @@ jest.mock('../../utils/notificarBackend', () => ({
   aplicarLimiteUsuarios: jest.fn().mockResolvedValue([]),
 }));
 
+jest.mock('../../utils/ajustesGlobales', () => ({
+  getImagenMaxMb: jest.fn().mockResolvedValue(2),
+}));
+
 const { obtenerPool } = require('../../db');
 const { notificarInvalidacionCache, aplicarLimiteUsuarios } = require('../../utils/notificarBackend');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('../../utils/tenantEdicion');

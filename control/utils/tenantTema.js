@@ -20,6 +20,7 @@
 const { obtenerPool } = require('../db');
 const { validarSlug } = require('./tenant');
 const { notificarInvalidacionCache } = require('./notificarBackend');
+const { getImagenMaxMb } = require('./ajustesGlobales');
 
 // ---------- Catálogo (idéntico a backend/utils/tenantTema.js) ----------
 
@@ -52,7 +53,6 @@ const CLAVES_COLOR = {
 };
 
 const HEX_REGEX = /^#([0-9a-fA-F]{6})$/;
-const MAX_FAVICON_MB = 2;
 
 class ErrorTemaTenant extends Error {
   constructor(motivo, codigo) {
@@ -300,8 +300,9 @@ async function actualizarTemaTenant(slug, datos = {}, { actor, db = obtenerPool(
     if (buffer.length === 0) {
       throw new ErrorTemaTenant('El favicon está vacío.', 'validacion');
     }
-    if (buffer.length > MAX_FAVICON_MB * 1024 * 1024) {
-      throw new ErrorTemaTenant(`El favicon excede el tamaño máximo permitido de ${MAX_FAVICON_MB} MB.`, 'validacion');
+    const imagenMaxMb = await getImagenMaxMb();
+    if (buffer.length > imagenMaxMb * 1024 * 1024) {
+      throw new ErrorTemaTenant(`El favicon excede el tamaño máximo permitido de ${imagenMaxMb} MB.`, 'validacion');
     }
     tema.faviconUrl = await subirFaviconAlBackend(slug, buffer);
   } else if (temaActual && temaActual.faviconUrl) {

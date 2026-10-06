@@ -22,7 +22,8 @@ const {
   ErrorCalculoDisco,
 } = require('./utils/tenantLifecycle');
 const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake');
-const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant, MAX_MARCA_LOGO_MB } = require('./utils/tenantMarca');
+const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant } = require('./utils/tenantMarca');
+const { getImagenMaxMb, setImagenMaxMb } = require('./utils/ajustesGlobales');
 const { actualizarTemaTenant, ErrorTemaTenant } = require('./utils/tenantTema');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('./utils/tenantEdicion');
 const { obtenerUsoUsuarios } = require('./utils/notificarBackend');
@@ -76,12 +77,13 @@ app.set('trust proxy', TRUST_PROXY_HOPS);
 
 app.use(helmet());
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
-// Límite de body amplio a propósito: el logo de marca se recibe aquí como
-// base64 desde el navegador (hasta 2 MB de archivo, ~2.7 MB de texto) y se
-// reenvía al backend por su endpoint interno — ver PUT
+// Límite de body amplio a propósito: el logo/favicon de marca se recibe
+// aquí como base64 desde el navegador (Punto 370: el máximo configurable
+// llega hasta IMAGEN_MAX_MB_MAX = 20 MB de archivo, ~27.4 MB de texto) y
+// se reenvía al backend por su endpoint interno — ver PUT
 // /api/control/tenants/:slug/marca y backend/server.js
-// (POST /internal/marca-logo/:slug).
-app.use(express.json({ limit: '4mb' }));
+// (POST /internal/marca-logo/:slug, POST /internal/favicon/:slug).
+app.use(express.json({ limit: '30mb' }));
 
 // Sin req.tenant en este servicio (nunca resuelve un tenant específico),
 // así que la clave de los limiters es siempre "sin-tenant:IP" — mismo
@@ -243,8 +245,9 @@ app.post(
         if (buffer.length === 0) {
           return res.status(400).json({ error: 'El logo está vacío.' });
         }
-        if (buffer.length > MAX_MARCA_LOGO_MB * 1024 * 1024) {
-          return res.status(400).json({ error: `El logo excede el tamaño máximo permitido de ${MAX_MARCA_LOGO_MB} MB.` });
+        const imagenMaxMb = await getImagenMaxMb();
+        if (buffer.length > imagenMaxMb * 1024 * 1024) {
+          return res.status(400).json({ error: `El logo excede el tamaño máximo permitido de ${imagenMaxMb} MB.` });
         }
         try {
           marcaLoGoUrl = await subirLogoAlBackend(body.slug || '', buffer);
@@ -545,6 +548,34 @@ function mapearErrorSucursal(err) {
   if (err.codigo === 'conflicto') return 409;
   return 400;
 }
+
+// Ajustes globales de la plataforma (Punto 370) — hoy solo imagen_max_mb,
+// pensado para crecer sin agregar rutas nuevas (ver ajustesGlobales.js).
+app.get(
+  '/api/control/ajustes/imagen-max-mb',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const imagen_max_mb = await getImagenMaxMb();
+    res.json({ imagen_max_mb });
+  })
+);
+
+app.put(
+  '/api/control/ajustes/imagen-max-mb',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const imagen_max_mb = await setImagenMaxMb((req.body || {}).imagen_max_mb);
+      res.json({ ok: true, imagen_max_mb });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  })
+);
 
 app.get(
   '/api/control/grupos-sucursal',
@@ -904,10 +935,11 @@ app.use((req, res) => {
 async function iniciar() {
   await asegurarTablaAuditoria();
   await asegurarColumnasCicloVidaTenant(obtenerPool());
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales } = require('./scripts/ensureSchema');
   await asegurarTablaApiCredenciales(obtenerPool());
   await asegurarTablasSucursales(obtenerPool());
   await asegurarTablaPlanes(obtenerPool());
+  await asegurarTablaAjustesGlobales(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);

@@ -2,7 +2,7 @@
   'use strict';
 
   // Multi-tenant (segmento 4, ver PROJECT_STATE.md): misma detección que
-  // frontend/portal.js — admin.html no lo carga (panel independiente del
+  // frontend/portal.js — admin.html no loop carga (panel independiente del
   // portal de cliente), así que se repite aquí, siguiendo el mismo patrón
   // de duplicación ya usado para API_BASE en este proyecto. Debe
   // coincidir exactamente con la detección de portal.js/login.js y con
@@ -2143,6 +2143,12 @@
   // "ausente nunca bloquea" que requiereFeature() en el backend.
   let tenantFuncionesPlan = null;
 
+  // Punto 370: máximo de imagen (MB) configurable desde /control, llega
+  // en GET /api/admin/login junto con "funciones". Default 2 si por lo
+  // que sea no viajó (sesión vieja en cache, etc.) — mismo valor default
+  // que ajustesGlobales.js en ambos backends.
+  let imagenMaxMbActual = 2;
+
   // Único punto de lectura de un flag del plan — ausente/null siempre
   // "permite" (ver comentario de tenantFuncionesPlan arriba). Null-safe a
   // propósito: un flag que todavía no viaja desde el backend (versión
@@ -2500,7 +2506,7 @@
     }
   }
 
-  function showDashboard(username, perfil, funciones) {
+  function showDashboard(username, perfil, funciones, imagenMaxMb) {
     usuarioSesionActual = username;
     perfilActual = perfil;
     // Punto 349-350-351 (Fase 5): `funciones` llega de GET
@@ -2509,6 +2515,15 @@
     // `undefined` cae a `null` aquí = "sin restricciones", nunca al
     // revés, el fallo seguro es mostrar de más, no ocultar de más).
     tenantFuncionesPlan = funciones || null;
+    // Punto 370: hints "máx. X MB" de Inventarios/Configuraciones — si no
+    // viajó (sesión vieja), se queda en el default de módulo (2).
+    if (Number.isInteger(imagenMaxMb) && imagenMaxMb > 0) {
+      imagenMaxMbActual = imagenMaxMb;
+    }
+    const hintInventario = document.getElementById('inv-imagen-limite-mb');
+    if (hintInventario) hintInventario.textContent = String(imagenMaxMbActual);
+    const hintTicketLogo = document.getElementById('ticket-logo-limite-mb');
+    if (hintTicketLogo) hintTicketLogo.textContent = String(imagenMaxMbActual);
     els.loginScreen.hidden = true;
     els.dashboard.hidden = false;
     els.adminUserLabel.textContent = `Sesión: ${username}`;
@@ -2667,14 +2682,14 @@
   // tanto el login normal como el flujo de cambio de contraseña
   // obligatorio (punto 321 addendum), que primero cambia la contraseña y
   // LUEGO entra con la nueva.
-  async function entrarAlPanel(usuario, contrasena, perfil, funciones) {
+  async function entrarAlPanel(usuario, contrasena, perfil, funciones, imagenMaxMb) {
     setSession(usuario, contrasena);
     // Login nuevo: siempre "Inicio", sin importar qué vista haya quedado
     // guardada de una sesión anterior en esta misma pestaña — la
     // restauración de vista (ver init()) es solo para refrescar una
     // sesión que ya estaba activa, no para un login recién hecho.
     guardarVistaActual('inicio');
-    showDashboard(usuario, perfil, funciones);
+    showDashboard(usuario, perfil, funciones, imagenMaxMb);
     // "Inicio" (la vista que se ve por defecto al iniciar sesión) usa
     // datos de tickets, que un perfil "administrador" no tiene
     // permitido ver. aplicarRestriccionesPerfil() (dentro de
@@ -2728,7 +2743,7 @@
       // login aquí, ANTES de entrar al panel, con la contraseña ya
       // verificada disponible en memoria (no hace falta pedirla otra vez).
       if (data.debeCambiarPassword) {
-        loginPendiente = { usuario: data.usuario || usuario, contrasena, perfil: data.perfil, funciones: data.funciones };
+        loginPendiente = { usuario: data.usuario || usuario, contrasena, perfil: data.perfil, funciones: data.funciones, imagenMaxMb: data.imagenMaxMb };
         els.adminForzarPasswordError.textContent = '';
         els.adminForzarPasswordNueva.value = '';
         actualizarReglasVisuales('', 'admin-forzar-password-reglas');
@@ -2737,7 +2752,7 @@
         return;
       }
 
-      await entrarAlPanel(data.usuario || usuario, contrasena, data.perfil, data.funciones);
+      await entrarAlPanel(data.usuario || usuario, contrasena, data.perfil, data.funciones, data.imagenMaxMb);
     } catch (err) {
       els.loginError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -2793,11 +2808,11 @@
         els.adminForzarPasswordError.textContent = data.error || 'No se pudo actualizar la contraseña.';
         return;
       }
-      const { usuario, perfil, funciones } = loginPendiente;
+      const { usuario, perfil, funciones, imagenMaxMb } = loginPendiente;
       loginPendiente = null;
       els.adminForzarPasswordPanel.hidden = true;
       els.adminLoginNormal.hidden = false;
-      await entrarAlPanel(usuario, passwordNueva, perfil, funciones);
+      await entrarAlPanel(usuario, passwordNueva, perfil, funciones, imagenMaxMb);
     } catch (err) {
       els.adminForzarPasswordError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -20035,7 +20050,7 @@
           if (res.ok) {
             return res.json().then((data) => {
               if (els.shellEsqueleto) els.shellEsqueleto.hidden = true;
-              showDashboard(data.usuario, data.perfil, data.funciones);
+              showDashboard(data.usuario, data.perfil, data.funciones, data.imagenMaxMb);
               // Punto en curso: precarga de "Constancias" en cada refresh —
               // sin Facturación activa esa vista ni siquiera es alcanzable
               // (botón oculto), así que pedirla igual solo generaba un 404

@@ -192,7 +192,6 @@ services:
         condition: service_healthy
     environment:
       PORT: 4000
-      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
       UPLOAD_DIR: /app/uploads
       DB_HOST: mysql
       DB_PORT: 3306

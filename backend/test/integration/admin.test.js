@@ -129,7 +129,17 @@ describe('Admin', () => {
       // funciones: null — sin X-Tenant-Slug no hay contexto multi-tenant
       // (ver test "con contexto de tenant" más abajo y
       // multitenant.test.js para el caso con tenant real).
-      expect(res.body).toEqual({ ok: true, usuario: 'admin', perfil: 'super', debeCambiarPassword: false, funciones: null });
+      // imagenMaxMb: 2 — default de ajustesGlobales.js cuando
+      // control_tenants es inalcanzable (obtenerPoolControl sin mockear
+      // en este archivo, cae al fallback a propósito).
+      expect(res.body).toEqual({
+        ok: true,
+        usuario: 'admin',
+        perfil: 'super',
+        debeCambiarPassword: false,
+        funciones: null,
+        imagenMaxMb: 2,
+      });
     });
 
     // Punto 321 addendum: bug real — "Forzar cambio de contraseña" al

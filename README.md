@@ -73,7 +73,7 @@ Copia `.env.example` a `.env` y ajusta si lo necesitas:
 | `MYSQL_USER` | Usuario (no root) que usa el backend para conectarse | `app` |
 | `MYSQL_PASSWORD` | Contraseña de ese usuario — **cámbiala en producción** | `changeme_app_password` |
 | `MYSQL_PORT` | Puerto de MySQL expuesto en el host (para conectarte con un cliente externo) — publicado solo en `127.0.0.1`, no en toda la LAN/interfaz pública | `3306` |
-| `MAX_FILE_SIZE_MB` | Tamaño máximo permitido por archivo (MB) | `5` |
+| `MAX_FILE_SIZE_MB` | Tamaño máximo (MB) solo para archivos NO imagen (CSF PDF, comprobante de Gastos, factura ZIP, importador CSV/XLSX) — ya no gobierna imágenes (producto, foto de ticket, logo, favicon): eso se configura en vivo desde `/control` → Super Admins → "Ajustes de imágenes" (punto 370), no por variable de entorno. Dejó de declararse en `docker-compose*.yml`: agrégala tú ahí si necesitas cambiar este valor | `5` |
 | `CORS_ORIGIN` | Origen permitido para CORS en el backend | `*` |
 | `ADMIN_USERS` | Usuarios administradores, formato `usuario:contrasena,usuario2:contrasena2` — **cámbialo en producción** (el valor por defecto es público, da acceso a `/admin` y `/control`) | `admin:admin` |
 | `USO_CFDI_SYNC_URL` | Origen desde donde se sincroniza el catálogo de Uso de CFDI | sin definir (requiere configurarse explícitamente) |
