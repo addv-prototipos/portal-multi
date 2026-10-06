@@ -413,8 +413,8 @@
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="v-370" aria-label="Marcar completado"></td>
             <td class="col-punto">370</td>
             <td class="col-item">Bloquear agregar producto sin existencia al buscar/escanear</td>
-            <td class="col-detalle">Hoy el producto se agrega primero y la notificación de "sin existencia" aparece después. Usar la ventana emergente ya existente: al buscar o escanear, si la cantidad disponible viene en 0 desde la API, mostrar el modal de aviso ("no tiene existencia, no se puede agregar") y NO agregar el producto — validar en el momento de la respuesta del API, antes de insertarlo al carrito, no al final del flujo.</td>
-            <td class="col-estado"><span class="pill pill-red">Sin implementar</span></td>
+            <td class="col-detalle"><strong>CERRADO 6 oct 2026.</strong> Ambas rutas de alta en "Registrar venta" (<code>frontend/admin.js</code>) validan existencia ANTES de insertar al carrito, reusando el modal "Existencia insuficiente" ya existente: <code>agregarProductoInventarioOrden()</code> (clic manual en "+ Agregar producto") y <code>agregarOIncrementarPorEscaneo()</code> (código de barras exacto). Validado con Playwright real (<code>e2e/tests/bloqueo-sin-existencia.spec.ts</code>, <strong>4/4</strong>): producto de prueba sin existencia, ambas rutas muestran el modal con Disponible/Solicitaste correctos y NO agregan la línea al carrito. Detalle completo en <code>PROJECT_STATE.md</code> punto 372.</td>
+            <td class="col-estado"><span class="pill pill-green">Completado &mdash; validado con Playwright (6 oct 2026)</span></td>
           </tr>
           <tr data-app="admin" data-id="i-371">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="i-371" aria-label="Marcar completado"></td>

@@ -18884,6 +18884,55 @@ tocar nada.
   cuando Inventarios está activo). `cxc.spec.ts` necesita actualizarse a
   `#orden-inventario-buscar` + `#btn-agregar-producto-inventario-orden`.
 
+**Punto 372 (2026-10-06, CERRADO — Ventas: bloquear agregar producto sin
+existencia al buscar/escanear):** pendiente de `pendientes.html`
+(numeración propia del archivo, `data-id="v-370"` — sin relación con el
+"Punto 370" de este archivo). Reporte: el producto se agregaba al
+carrito aunque tuviera 0 de existencia, y el aviso de "Existencia
+insuficiente" (modal ya existente, `mostrarErrorRegistrarOrden()`) solo
+aparecía hasta dar clic en "Registrar venta" — validación tardía, no en
+el momento de buscar/escanear. Propuesta visual previa (Artifact
+interactivo, antes/después con catálogo de prueba) confirmada por el
+usuario antes de implementar.
+
+- **Fix** (`frontend/admin.js`): dos puntos de entrada al carrito desde
+  el modal "Registrar venta", ambos ahora validan `disponible <= 0`
+  (ignorando servicios, que no llevan inventario) ANTES de insertar,
+  reusando el mismo modal con el mismo copy que ya usaba el flujo de
+  guardado fallido:
+  - `agregarProductoInventarioOrden()` (clic manual en "+ Agregar
+    producto" tras elegir de las sugerencias de búsqueda) — si
+    `disponible <= 0`, llama a `mostrarErrorRegistrarOrden({ error:
+    'INV_STOCK_INSUFICIENTE', producto_nombre, disponible, solicitado:
+    <cantidad tecleada> })` y `return` antes de tocar
+    `productosOrdenActual`.
+  - `agregarOIncrementarPorEscaneo()` (código de barras EXACTO desde
+    `buscarProductosInventarioOrden()`, punto 368 — nunca pasa por "+
+    Agregar producto") — mismo chequeo, antes de la rama que suma 1 a una
+    línea existente o empuja una nueva; `solicitado` se calcula como
+    `cantidadActualEnCarrito + 1` si ya estaba, si no `1`.
+  - La selección (`ordenInventarioProductoSeleccionado`) se queda intacta
+    tras el bloqueo — el botón "Quitar" ya existente (`btnOrdenInventarioQuitar`)
+    es el camino para buscar otro producto, no se fuerza un reset
+    automático.
+- **Validación**: `node --check` en `admin.js`; Playwright real contra
+  Docker/MySQL reales, spec nuevo `e2e/tests/bloqueo-sin-existencia.spec.ts`
+  (**4/4 en verde**): crea un producto de prueba sin existencia (recién
+  dado de alta, sin fila en `existencias` → `disponible` null/0) con
+  código de barras único, confirma que la búsqueda manual + "+ Agregar
+  producto" dispara el modal con los datos correctos
+  (Disponible: 0 / Solicitaste: 1) y NO agrega la línea al carrito
+  (`#orden-productos-lista-wrap` sigue oculto), confirma lo mismo para el
+  escaneo exacto del código de barras, limpia el producto de prueba al
+  final (papelera, borrado lógico). Capturas en
+  `e2e/capturas/bloqueo-sin-existencia-1-busqueda-manual.png` y
+  `-2-escaneo.png`. Regresión de `inicio-actualiza-tras-venta.spec.ts`
+  (punto 371) sigue en verde — confirma que el flujo normal de venta con
+  inventario (producto CON existencia) no se vio afectado.
+- **Nota**: `pendientes.html` fila `v-370` debe marcarse Completado por
+  separado (ver flujo de "revisa pendientes" — checks de `localStorage`
+  pendientes de que el usuario los copie con el botón "Copiar estado").
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

@@ -9822,6 +9822,22 @@
     errorGeneral.textContent = '';
     if (!ordenInventarioProductoSeleccionado) return;
 
+    // Pendiente "Bloquear agregar producto sin existencia al buscar/escanear":
+    // antes se agregaba primero y el aviso de "Existencia insuficiente"
+    // (modal ya existente, mostrarErrorRegistrarOrden) solo aparecía hasta
+    // dar clic en "Registrar venta" — ahora se valida aquí, antes de
+    // insertarlo al carrito. Los servicios no llevan inventario, nunca
+    // bloquean por esto.
+    if (ordenInventarioProductoSeleccionado.tipo !== 'servicio' && Number(ordenInventarioProductoSeleccionado.disponible) <= 0) {
+      mostrarErrorRegistrarOrden({
+        error: 'INV_STOCK_INSUFICIENTE',
+        producto_nombre: ordenInventarioProductoSeleccionado.nombre,
+        disponible: ordenInventarioProductoSeleccionado.disponible,
+        solicitado: Number(els.ordenInventarioUnidades.value) || 1,
+      });
+      return;
+    }
+
     const yaAgregado = productosOrdenActual.some((p) => p.producto_id === ordenInventarioProductoSeleccionado.id);
     if (yaAgregado) {
       errorGeneral.textContent = 'Ya agregaste este producto — quítalo de la lista de abajo para cambiar la cantidad.';
@@ -9872,6 +9888,22 @@
   // que antes, para que el usuario lo complete a mano.
   function agregarOIncrementarPorEscaneo(producto) {
     seleccionarProductoInventarioOrden(producto);
+
+    // Pendiente "Bloquear agregar producto sin existencia al buscar/escanear"
+    // (mismo criterio que agregarProductoInventarioOrden más arriba) — un
+    // código de barras exacto de un producto sin existencia NO se agrega
+    // solo, aunque la ruta de escaneo nunca pasa por "+ Agregar producto".
+    const existentePrevio = productosOrdenActual.find((p) => p.producto_id === producto.id);
+    if (producto.tipo !== 'servicio' && Number(producto.disponible) <= 0) {
+      mostrarErrorRegistrarOrden({
+        error: 'INV_STOCK_INSUFICIENTE',
+        producto_nombre: producto.nombre,
+        disponible: producto.disponible,
+        solicitado: existentePrevio ? existentePrevio.cantidad + 1 : 1,
+      });
+      return;
+    }
+
     const tienePrecio = producto.precio !== null && producto.precio !== undefined && Number(producto.precio) >= 0;
     if (!tienePrecio) return;
 
