@@ -366,6 +366,13 @@ server {
     # ruta válida ya cubierta arriba -- solo lo que ninguna otra regla
     # reconoció.
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/.+$" {
+        # Página 404 con identidad Clarvo (mismo patrón "Aurora profunda"
+        # del punto 374, "Portal de clientes desactivado") en vez del 404
+        # en blanco de nginx, con redirect a clarvo.mx. Sin "=" en
+        # error_page: el status code sigue siendo 404 real (nunca 200) —
+        # mismo criterio de anti-enumeración de tenants que el resto de
+        # este archivo, solo cambia el cuerpo de la respuesta.
+        error_page 404 /404-clarvo.html;
         return 404;
     }
 

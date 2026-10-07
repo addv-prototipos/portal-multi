@@ -19259,6 +19259,58 @@ siempre.
   el ciclo completo pausar→activar→pausar no estaba cubierto por ese
   análisis y sí era evitable quitando el `max-age` por completo.
 
+**Punto 376 (2026-10-07, CERRADO — seed de 11 meses en prod, fidelidad
+exacta de la página de mantenimiento a la Propuesta 6 del Artifact, y
+página 404 nueva con identidad Clarvo + redirect a clarvo.mx):**
+
+- **Seed de producción, ventana extendida**: `prod/sembrar.sh` default
+  `SEED_MESES` 8 → 11 (perfil `normal`, ya positivo, sin cambios —
+  confirmado con el usuario). `prod/backend/scripts/sembrar-prod.js` es
+  100% paramétrico en `SEED_MESES` (el `inicio` del rango se calcula
+  restando ese número de meses a la fecha actual, sin arrays ni loops de
+  tamaño fijo), así que extender la ventana no requirió tocar el motor —
+  solo el default del wrapper y los comentarios de documentación. Los
+  reportes mensuales archivados siguen limitados a "últimos 6" meses a
+  propósito (sin relación con `SEED_MESES`, ver comentario en el script).
+- **`unavailable/index.html` corregido a fidelidad exacta con la
+  Propuesta 6 aprobada en el Artifact** ("Propuestas — Página 'Sistema no
+  disponible'", proposición 6 · "Destello minimal"): una sesión anterior
+  había construido una versión "ampliada" que divergía en 3 puntos reales
+  (confirmados comparando contra el HTML guardado del Artifact) — faltaba
+  el badge "Mantenimiento en curso", el párrafo era más largo que el
+  original ("Estamos aplicando una actualización al Portal Clarvo."), y
+  se había agregado un wordmark "CLARVO" que la Propuesta 6 no tenía (el
+  cubo con el logo real ya cumple esa función). Corregidos los 3 — se
+  mantuvo el logo real embebido vía JS y el auto-chequeo/reintentar
+  (`fetch('/')` cada 6s) porque son necesidades de producción que la
+  demo estática del Artifact nunca tuvo, no parte del diseño en sí.
+- **Página 404 nueva, identidad Clarvo + redirect a clarvo.mx**:
+  `frontend/404-clarvo.html` + `404-clarvo.js` (script externo — el CSP
+  del sitio es `script-src 'self'` sin `'unsafe-inline'`, igual que el
+  resto del sitio evita `<script>` inline), mismo patrón visual "Aurora
+  profunda" del punto 374 (`.pd-aurora`/`.pd-cristal`/`.pd-etiqueta`,
+  copiado 1:1 de `theme.js:mostrarPortalDesactivado`) con badge "Error
+  404", h1 "Esta página no existe", y cuenta regresiva de 6s + botón que
+  redirige a `https://clarvo.mx`. Enganchada en
+  `frontend/nginx.conf.template` (y su espejo `prod/frontend/
+  nginx.conf.template`) con `error_page 404 /404-clarvo.html;` **dentro**
+  del `location` catch-all de tenant+página-no-reconocida (línea con
+  `return 404;`, el único punto del archivo que hoy emite un 404 real) —
+  deliberadamente NO a nivel `server{}` global, para no interceptar los
+  404 de las rutas `/api/*` (que llevan cuerpo JSON real, ej.
+  `requiereFeature()` — reescribirlos a HTML rompería cualquier `fetch`
+  que espere `res.json()` en un 404). Sin `=` en `error_page`: el status
+  code sigue siendo 404 real, nunca 200 (mismo criterio de
+  anti-enumeración de tenants que el resto del archivo). Agregado a la
+  lista `COPY` de `frontend/Dockerfile` y `prod/frontend/Dockerfile`
+  (gotcha ya conocido: Dockerfile enumera archivos a mano, no copia el
+  directorio completo). Verificado con `curl` (404 real, CSP intacta,
+  comportamiento de single-segment sin cambios, 302 igual que antes) y
+  con Playwright real en navegador visible (cristal girando, badge,
+  cuenta regresiva). Jest backend 1200/1200 (sin tocar backend), E2E
+  `portal-pausa-admin.spec.ts` 3/3 sin regresión tras el rebuild de
+  frontend.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

@@ -261,6 +261,20 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   había usado ese formato en el sitio). Antes de dar un asset por "mal
   servido", revisar esta lista además de nginx.conf/Dockerfile/caché de
   navegador.
+- **`error_page 404` nunca a nivel `server{}` global si hay rutas
+  `/api/*` proxyadas en el mismo server** (punto 376, 2026-10-07):
+  `error_page` + `proxy_intercept_errors on` reescribe CUALQUIER
+  respuesta con ese status que pase por ese server, incluida la de un
+  proxy_pass — un 404 JSON real de `requiereFeature()` o de cualquier
+  endpoint quedaría reescrito a HTML, rompiendo cualquier `fetch` del
+  frontend que espere `res.json()` en un 404. La página 404 con
+  identidad Clarvo (`frontend/404-clarvo.html`) se enganchó DENTRO del
+  único `location` que hoy emite un 404 real sin pasar por un proxy (el
+  catch-all `^/(?<tenant_slug>...)/.+$ { return 404; }`, mismo
+  anti-enumeración de tenants), nunca en el bloque `server{}` — mismo
+  criterio que ya aplica `requiereFeature()` en el backend (nunca tocar
+  una superficie más ancha de la necesaria). Sin `=` en `error_page`: el
+  status code se mantiene en 404 real, nunca se reescribe a 200.
 - **`ensureSchema()` corre en cada restart/deploy** — cualquier backfill o
   valor forzado debe ser CONDICIONAL (solo si el dato está en un estado
   viejo conocido), nunca incondicional, o revierte en silencio datos
