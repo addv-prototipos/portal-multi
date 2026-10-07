@@ -393,6 +393,22 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   DOM. Al agregar un override mobile-only para una clase nueva, verificar
   que el `@media` quede DESPUÉS de la regla base en el archivo, o usar
   `grep -n` para confirmar el orden real antes de dar el CSS por bueno.
+- **Contraste WCAG en JS: nunca le quites el `#` al hex antes de medir
+  luminancia** (punto 373, 2026-10-06): `luminancia(hex)` lee los canales
+  con `hex.slice(1,3)/(3,5)/(5,7)` — asume el `#` en la posición 0 (mismo
+  patrón en `backend/utils/tenantTema.js`, `control/utils/tenantTema.js`
+  y `frontend/marcaTemaEditor.js`). Un `contraste(a,b)` que hace
+  `a.replace('#','')` ANTES de llamar a `luminancia()` corre los índices
+  un lugar y calcula un contraste completamente distinto al real — bug
+  real en `marcaTemaEditor.js`: con los colores base default, el aviso
+  "en vivo" del cliente marcaba inválido un par que en realidad pasaba
+  AA. El backend nunca tuvo el bug (nunca quita el `#`); solo la
+  validación duplicada del cliente divergió en silencio. Al escribir o
+  copiar esta fórmula en un archivo nuevo: o se mantiene el `#` en el hex
+  SIEMPRE hasta `luminancia()`, o se cambia `luminancia()` para aceptar
+  ambos formatos — nunca asumir que "ya está probado en otro archivo" sin
+  correr el cálculo contra un par conocido (ej. `#0F6E5D` vs `#ffffff`
+  ≈ 5.8:1, debe pasar AA de 3:1) o un E2E real que ejercite el aviso.
 - Antes de dar por "no disponible" una skill/herramienta mencionada por
   el usuario: revisar el catálogo de skills activas, luego `D:\cc`,
   luego el repositorio oficial — nunca asumir su función.

@@ -18933,6 +18933,157 @@ usuario antes de implementar.
   separado (ver flujo de "revisa pendientes" — checks de `localStorage`
   pendientes de que el usuario los copie con el botón "Copiar estado").
 
+**Punto 373 (2026-10-06, CERRADO — Marca e identidad visual editable desde
+`/admin`, además de `/control`):** antes solo un super desde `/control`
+podía editar logo/colores/favicon de un tenant (segmento "Look & Feel",
+punto 105/244). El propio administrador del tenant ahora puede hacerlo
+desde Configuraciones de su panel — mismo dato, mismo gate. Nota de
+nomenclatura: la sesión que lo diseñó lo llamó informalmente "punto 210"
+(referenciado así en memoria/mockups); el número de secuencia real de
+este archivo es 373 — si una sesión futura busca "punto 210" sin
+encontrarlo aquí, es esta entrada.
+
+- **Alcance confirmado con el usuario antes de implementar** (2 preguntas
+  explícitas): (1) solo tenant, nunca sitio base — el sitio base no tiene
+  hoy ningún mecanismo público para aplicar un tema propio
+  (`GET /api/tema/:slug` exige un tenant real), construir eso sería una
+  pieza aparte; (2) `/admin` y `/control` deben compartir la MISMA
+  interfaz y reusar código, no dos implementaciones paralelas — esto
+  incluyó migrar el editor YA EXISTENTE de `/control` (vivía embebido en
+  el modal "Editar empresa", pestaña "Identidad visual") al mismo
+  componente nuevo, no solo agregar el lado de `/admin`.
+- **Backend** (`backend/server.js`, todo tenant-only, 404 si `!req.tenant`):
+  `GET /api/admin/marca-tema`, `PUT /api/admin/marca`,
+  `PUT /api/admin/tema`, `POST /api/admin/tema/restablecer`,
+  `POST`+`DELETE /api/admin/marca-logo`, `POST`+`DELETE /api/admin/favicon`
+  — todas con `requiereFeature('marcaLookfeelHabilitado')` ANTES de
+  `requireAdminAuth` (mismo criterio que el resto del archivo) +
+  `requireAdminArea('administrador')`. Lee/escribe
+  `control_tenants.tenants` vía `obtenerPoolControl()` +
+  `invalidarCacheTenant()` tras cada escritura — mismo patrón que
+  `PUT /api/admin/config/contacto-cliente` (punto 186). Reusa
+  `normalizarTema`/`ratioContraste`/`parsearTemaDesdeFila` de
+  `backend/utils/tenantTema.js` (ya existían, ahora también exporta
+  `normalizarTema`) y `detectRealImageMimeType` de `validate.js`. Logo y
+  favicon suben vía `multer` (mismo patrón que `ticket-logo`, punto 368),
+  guardados en MinIO con `storage.guardarArchivo('marca', slug,
+  'logo'|'favicon', ...)` — MISMO namespace que ya usaban los endpoints
+  internos de `/control` (`/internal/marca-logo`, `/internal/favicon`),
+  así que un tenant editado desde cualquiera de las dos superficies cae
+  en el mismo archivo/fila. El endpoint de favicon hace merge
+  server-side (lee el tema actual, solo reemplaza `faviconUrl`) para no
+  perder los colores vigentes.
+- **Frontend — módulo compartido nuevo** (`frontend/marcaTemaEditor.js`,
+  patrón IIFE + `window.EditorMarcaTema`, mismo criterio que
+  `skeleton.js`/`theme.js`): un solo componente que inyecta el formulario
+  completo (nombre de marca, logo, favicon, paleta de 12 colores con
+  validación AA en vivo, radio de esquinas, vista previa) dentro de un
+  contenedor vacío — el caller inyecta toda la red (`getAuthHeader`,
+  `showToast`, `limiteMb`, y un callback por acción:
+  `cargar`/`guardarMarca`/`guardarTema`/`restablecerTema`/`subirLogo`/
+  `quitarLogo`/`subirFavicon`/`quitarFavicon`). `subirFavicon`/
+  `quitarFavicon` reciben un 2º argumento `estadoTema` (`{colores,
+  radio}` vigentes) porque el endpoint de `/control` reemplaza
+  `tema_json` completo (no hace merge server-side como `/admin`) — sin
+  esto, cambiar solo el favicon desde `/control` habría borrado los
+  colores. Sin selector de tipografía a propósito (congelada a Inter,
+  regla 2026-08-24) — ver bug de abajo.
+  - **Bug real encontrado y corregido durante el E2E** (no solo del test,
+    del cálculo real): `luminancia(hex)` lee los canales con
+    `hex.slice(1,3)/(3,5)/(5,7)` asumiendo el `#` en la posición 0 (igual
+    que `backend/utils/tenantTema.js`), pero `contraste(a,b)` le hacía
+    `a.replace('#','')` ANTES de llamarla — corría los índices un lugar y
+    calculaba un contraste completamente distinto al real. Con los
+    colores base default, el aviso "en vivo" del cliente marcaba
+    incorrectamente como inválido un par que en realidad pasaba AA
+    (confirmado comparando a mano contra la fórmula del backend). Fix:
+    nunca quitar el `#` antes de `luminancia()` — mismo criterio que el
+    backend en todo momento. **Lección**: una validación "duplicada en el
+    cliente solo para feedback inmediato" puede divergir silenciosamente
+    de la fuente de verdad real si alguien la retoca sin corrida E2E —
+    el backend seguía siendo correcto todo este tiempo, pero el aviso
+    visual mentía.
+- **`/admin`** (`frontend/admin.html`/`admin.js`): tarjeta nueva "Marca e
+  identidad visual" en el modal "Configuraciones" (`#marca-tema-card`),
+  gateada en el cliente por `funciones.marcaLookfeelHabilitado` (mismo
+  criterio que "Ticket de impresión", `PLAN_GATE_TARJETA_CONFIG` +
+  `CONFIG_SECCIONES` + `GRUPOS_CONFIG_NAV`) — **nota de arquitectura
+  descubierta, no un bug**: el botón `.admin-config-toggle`/chevron de
+  cada tarjeta de Configuraciones es vestigial desde que esa pantalla
+  pasó de "6 tarjetas plegables en una vista" a "modal con sidebar +
+  buscador" (comentario ya existente en `admin.js`,
+  `seleccionarSeccionConfig()`) — la visibilidad real la controla el nav
+  del modal, no el toggle; se mantuvo la misma estructura HTML por
+  consistencia visual con las demás tarjetas, sin wiring JS propio (igual
+  que las demás).
+- **`/control`** (`frontend/control.html`/`control.js`): la pestaña
+  "Identidad visual" del modal "Editar empresa" se migró por completo al
+  mismo `marcaTemaEditor.js` — se quitó el editor viejo duplicado (~290
+  líneas: `TEMA_DEFAULT_ADDV`, validación de contraste propia,
+  `construirTemaDesdeFormulario`, `cargarTemaEnFormulario`, listeners de
+  "modificado", y el selector de tipografía MUERTO que ya existía desde
+  antes — 8 fuentes que el backend ignora desde la regla de
+  congelamiento a Inter, hallazgo ya documentado en memoria de sesiones
+  previas, nunca corregido hasta ahora). Los campos "Marca" y "Logo de la
+  marca" se movieron de la pestaña "General" a "Identidad visual" (antes
+  vivían separados de colores/favicon sin necesidad). **Cambio de
+  arquitectura de guardado**: antes TODO (marca+logo+colores+tipografía+
+  favicon) viajaba en un solo PUT diferido, disparado solo al hacer clic
+  en el botón general "Guardar cambios" del modal completo (`logoBase64`/
+  `faviconBase64` capturados del `<input type="file">` y codificados en
+  ese momento). Ahora cada acción de "Identidad visual" se aplica DE
+  INMEDIATO (mismo criterio que `/admin`) vía los endpoints YA
+  existentes de `/control` (`PUT .../marca`, `PUT .../tema` — sin cambios
+  en `control/server.js`, se reusan tal cual). El campo de texto "marca"
+  es la única excepción: sigue viajando también en el PUT general
+  (`actualizarDatosTenant`/`normalizarDatosBase` lo trata como
+  obligatorio-opcional — omitirlo lo pondría en `null`), leído en vivo
+  del input que el módulo compartido renderiza
+  (`document.getElementById('met-marca-nombre')`) en vez de un campo
+  propio de la pestaña General. "Restablecer al diseño ADDV" conserva su
+  diálogo de confirmación (único entre las acciones de esta pestaña —
+  aquí un super afecta la identidad de OTRA empresa, mayor riesgo que el
+  autoservicio de `/admin`).
+- **Verificado que NO rompe el flujo de cambio de slug**: `/control`
+  siempre relee la fila del tenant desde la BD al inicio de
+  `actualizarDatosTenant()`/`actualizarTemaTenant()` (nunca trabaja con
+  estado en memoria stale), así que un logo/favicon subido de inmediato
+  desde el módulo ANTES de renombrar el slug se migra correctamente
+  junto con el resto de los archivos del tenant (mismo mecanismo de
+  `/internal/renombrar-slug` de siempre) — el orden de las dos acciones
+  (editar identidad visual vs. cambiar slug) no importa.
+- **Pruebas**: `node --check` en los 3 `.js` tocados. Jest sin
+  regresiones — **backend 1195/1195**, **control 352/352** (ninguno de
+  los dos requirió cambios: los endpoints reusados ya tenían cobertura).
+  Playwright real contra Docker/MySQL reales, spec nuevo
+  `e2e/tests/marca-tema-punto210.spec.ts` (**3/3 en verde**): (1) tenant
+  `t1` (`marca_lookfeel_habilitado=0`) — la tarjeta no aparece en
+  `/admin`; (2) tenant `t2` (flag en 1) — edita marca, el contraste
+  inválido bloquea "Guardar" con el aviso correcto, corrige y guarda,
+  persiste tras recargar; (3) mismo tenant `t2` desde `/control` — la
+  pestaña "Identidad visual" trae precargado lo que guardó el test
+  anterior desde `/admin` (mismo dato, confirma la interfaz compartida),
+  lo edita y persiste vía el botón general. De paso se corrigieron 2
+  selectores obsoletos en `e2e/tests/control-editar-empresa.spec.ts`
+  (`button.btn-editar` → `button[data-tooltip="Editar"]`, la clase vieja
+  ya no existe desde el refactor de botones-ícono del punto 336) y se
+  agregó el paso de cambiar a la pestaña "visual" para llenar marca, que
+  ya no vive en "General" — ese spec sigue sin poder correr completo en
+  este entorno por una causa ajena y preexistente (fixture
+  `e2e-migracion-destino` no provisionado aquí, documentado en el propio
+  spec como requisito manual).
+- **Hallazgos preexistentes, fuera de alcance, NO corregidos** (para que
+  una sesión futura no los redescubra desde cero): (1)
+  `control-alta-empresa.spec.ts`, test "slug duplicado" — el modal de
+  alta no llena `#control-intake-email` (campo obligatorio) antes de
+  enviar, probablemente bloqueado por validación HTML5 antes de llegar
+  al backend, nunca dispara el 409 que el test espera; (2)
+  `admin-plan-gating.spec.ts` requiere que el tenant `t1` tenga
+  `gastos_habilitado`/`auditoria_habilitado`/`inventarios_habilitado` en
+  `false` ANTES de correr (precondición manual documentada en el propio
+  spec) — no estaba así en este entorno al momento de esta sesión.
+  Ninguno de los dos tiene relación con marca/tema.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

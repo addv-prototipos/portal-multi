@@ -1105,6 +1105,9 @@
     btnConfigFiscalFaltanteCerrar: document.getElementById('btn-config-fiscal-faltante-cerrar'),
     globalConfigError: document.getElementById('global-config-error'),
     btnGuardarConfigGlobal: document.getElementById('btn-guardar-config-global'),
+    // Marca e identidad visual (Punto 210)
+    btnToggleMarcaTema: document.getElementById('btn-toggle-marca-tema'),
+    marcaTemaBody: document.getElementById('marca-tema-body'),
     // Ticket de impresión (Punto 368)
     ticketLogoActual: document.getElementById('ticket-logo-actual'),
     ticketLogoActualPreview: document.getElementById('ticket-logo-actual-preview'),
@@ -2189,7 +2192,7 @@
   const RESTRICCIONES_PERFIL = {
     administrador: {
       vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'configuraciones'],
-      tarjetasConfigPermitidas: ['global-config-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
+      tarjetasConfigPermitidas: ['global-config-card', 'marca-tema-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
     },
     // Punto 360 (2026-10-02): "lectura-reportes" se agregó aquí porque el
     // resumen de tickets (antes en Inicio) ahora vive SOLO en Reportes →
@@ -2464,13 +2467,14 @@
     const PLAN_GATE_TARJETA_CONFIG = {
       'admin-config-card': () => planPermite('facturacionHabilitada'),
       'global-config-card': () => planPermite('facturacionHabilitada'),
+      'marca-tema-card': () => planPermite('marcaLookfeelHabilitado'),
       'ticket-config-card': () => planPermite('marcaLookfeelHabilitado'),
       'reportes-config-card': () => planPermite('resumenFinancieroHabilitado') || reportesPlanVisible(),
       'ordenes-toggle-card': () => planPermite('ventasHabilitado'),
       'inv-toggle-card': () => planPermite('inventariosHabilitado'),
       'auditoria-toggle-card': () => planPermite('auditoriaHabilitado'),
     };
-    ['admin-config-card', 'global-config-card', 'ticket-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
+    ['admin-config-card', 'global-config-card', 'marca-tema-card', 'ticket-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
       const tarjeta = document.getElementById(idTarjeta);
       if (!tarjeta) return;
       const permitidaPorPerfilTarjeta = sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta);
@@ -4129,6 +4133,79 @@
       els.ticketConfigPreviewLogo.src = '/assets/logoImpresora.png';
     }
     renderPreviewTicketConfig();
+  }
+
+  // ---------- Marca e identidad visual (Punto 210) ----------
+  // Todo el formulario/DOM lo construye el módulo compartido
+  // frontend/marcaTemaEditor.js (mismo componente que usa control.js) —
+  // aquí solo se inyecta la red: endpoints self-servicio del propio
+  // tenant (ver backend/server.js, gateados por marcaLookfeelHabilitado,
+  // mismo flag que "Ticket de impresión").
+  function cargarConfigMarcaTema() {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !els.marcaTemaBody || !window.EditorMarcaTema) return;
+    window.EditorMarcaTema.montar(els.marcaTemaBody, {
+      getAuthHeader,
+      showToast,
+      limiteMb: () => imagenMaxMbActual,
+      cargar: async () => {
+        const res = await fetch(`${API_BASE}/admin/marca-tema`, { headers: { Authorization: getAuthHeader() } });
+        if (!res.ok) return null; // 404 = tenant sin "Marca propia" — la tarjeta ya está oculta.
+        return res.json();
+      },
+      guardarMarca: async (marca) => {
+        const res = await fetch(`${API_BASE}/admin/marca`, {
+          method: 'PUT',
+          headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marca }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo guardar la marca.');
+        return data;
+      },
+      guardarTema: async (tema) => {
+        const res = await fetch(`${API_BASE}/admin/tema`, {
+          method: 'PUT',
+          headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tema }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo guardar el tema.');
+        return data;
+      },
+      restablecerTema: async () => {
+        const res = await fetch(`${API_BASE}/admin/tema/restablecer`, { method: 'POST', headers: { Authorization: getAuthHeader() } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo restablecer.');
+        return data;
+      },
+      subirLogo: async (archivo) => {
+        const formData = new FormData();
+        formData.append('logo', archivo);
+        const res = await fetch(`${API_BASE}/admin/marca-logo`, { method: 'POST', headers: { Authorization: getAuthHeader() }, body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo subir el logo.');
+        return data;
+      },
+      quitarLogo: async () => {
+        const res = await fetch(`${API_BASE}/admin/marca-logo`, { method: 'DELETE', headers: { Authorization: getAuthHeader() } });
+        if (!res.ok) throw new Error('No se pudo quitar el logo.');
+        return res.json();
+      },
+      subirFavicon: async (archivo) => {
+        const formData = new FormData();
+        formData.append('favicon', archivo);
+        const res = await fetch(`${API_BASE}/admin/favicon`, { method: 'POST', headers: { Authorization: getAuthHeader() }, body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo subir el favicon.');
+        return data;
+      },
+      quitarFavicon: async () => {
+        const res = await fetch(`${API_BASE}/admin/favicon`, { method: 'DELETE', headers: { Authorization: getAuthHeader() } });
+        if (!res.ok) throw new Error('No se pudo quitar el favicon.');
+        return res.json();
+      },
+    });
   }
 
   async function cargarConfigTicket() {
@@ -7576,6 +7653,7 @@
   const CONFIG_SECCIONES = [
     { id: 'admin-config-card', label: 'Campos obligatorios de los formularios' },
     { id: 'global-config-card', label: 'Configuraciones fiscales' },
+    { id: 'marca-tema-card', label: 'Marca e identidad visual' },
     { id: 'ticket-config-card', label: 'Ticket de impresión' },
     { id: 'smtp-config-card', label: 'Correo electrónico (SMTP)' },
     { id: 'reportes-config-card', label: 'Notificación de reportes' },
@@ -7591,7 +7669,7 @@
   // buscador), nunca cuáles tarjetas existen.
   const GRUPOS_CONFIG_NAV = {
     fiscal: ['admin-config-card', 'global-config-card'],
-    marca: ['ticket-config-card'],
+    marca: ['marca-tema-card', 'ticket-config-card'],
     comunicacion: ['smtp-config-card', 'reportes-config-card', 'notif-toggle-card'],
     modulos: ['ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
   };
@@ -7686,6 +7764,7 @@
     cargarConfigCampos();
     cargarInfoUsoCfdi();
     cargarConfigGlobal();
+    cargarConfigMarcaTema();
     cargarConfigTicket();
     cargarConfigReportes();
     cargarConfigSmtp();

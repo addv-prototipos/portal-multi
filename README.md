@@ -975,22 +975,28 @@ tiene SDK de MinIO: se reenvía al backend por su endpoint interno
 `POST/DELETE /internal/marca-logo/:slug`, protegido con el mismo
 `INTERNAL_CACHE_SECRET` que la invalidación de caché y NO expuesto por
 nginx) y se sirve en `GET /api/marca-logo/:slug` (público a propósito —
-el logo viaja en los correos —, con cache de 24 h). Se edita desde
-`/control`: el campo "Marca" + el logo en el modal de **"Nueva
-empresa"**, y el botón **"Editar marca"** por fila (renombrar, subir/
-reemplazar/quitar el logo). El backend usa `req.tenant.marca` (con
+el logo viaja en los correos —, con cache de 24 h). Se edita desde el
+campo "Marca" + el logo en el modal de **"Nueva empresa"**, y desde la
+pestaña "Identidad visual" del modal **"Editar empresa"** de `/control`
+(super, cualquier tenant) o la tarjeta "Marca e identidad visual" en
+Configuraciones de `/admin` (el propio tenant — ver más abajo, punto
+373). El backend usa `req.tenant.marca` (con
 fallback `'ADDV'`) en los 7 correos que antes tenían "ADDV" incrustado:
 ticket nuevo, venta, invitación al portal, ticket nuevo al
 contador, factura lista y la plantilla de correo por defecto.
 
 **Identidad visual (tema) por empresa (segmento "Look & Feel", ver
-`inventarios.md`/PROJECT_STATE.md punto 105)**: dentro del modal "Editar empresa", la sección
-"Identidad visual (personalizada)" permite definir colores (12 selectores de una lista cerrada de
-claves), tipografía y radio de esquinas (catálogo cerrado de 8 fuentes de Google Fonts, nunca texto
-libre) y favicon propio — con vista previa en vivo y botón "Restablecer al diseño ADDV". El contraste
-se valida en servidor con **WCAG 2.1 AA real** (9 pares fondo/texto); un valor que no cumple se
-rechaza. `frontend/theme.js` pinta las variables CSS resultantes sobre las 6 páginas del portal de
-cada tenant, sin tocar el diseño base cuando el tenant no tiene tema propio.
+`inventarios.md`/PROJECT_STATE.md puntos 105 y 373)**: nombre de marca, logo, colores (12
+selectores de una lista cerrada de claves), radio de esquinas y favicon propio — con vista previa
+en vivo y botón "Restablecer al diseño ADDV". Editable desde **dos superficies con la misma
+interfaz** (componente compartido `frontend/marcaTemaEditor.js`): la pestaña "Identidad visual" del
+modal "Editar empresa" en `/control` (cualquier tenant, operador super) y la tarjeta "Marca e
+identidad visual" en Configuraciones de `/admin` (el propio tenant, autoservicio — oculta si el
+plan tiene "Marca propia / Look & Feel" apagado). Tipografía congelada a Inter en todo el sitio, sin
+selector. El contraste se valida en servidor con **WCAG 2.1 AA real** (9 pares fondo/texto), con el
+mismo cálculo repetido en el cliente para feedback inmediato; un valor que no cumple se rechaza.
+`frontend/theme.js` pinta las variables CSS resultantes sobre las 6 páginas del portal de cada
+tenant, sin tocar el diseño base cuando el tenant no tiene tema propio.
 
 **Cuota de usuarios de panel por tenant (`max_usuarios`)**: campo editable en "Editar empresa" que
 limita cuántas cuentas administrador/fiscal/ventas puede tener ese tenant — `POST`/`PUT

@@ -7324,10 +7324,21 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   outline-offset: 2px;
 }
 
-.tema-fila-selects {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
+/* Punto 210: aviso de contraste AA en vivo del editor de Marca e
+   identidad visual (frontend/marcaTemaEditor.js, compartido admin/control). */
+.contraste-aviso {
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin: 10px 0 0;
+}
+.contraste-aviso[data-estado='ok'] {
+  color: #146C43;
+  background: #E7F6EE;
+}
+.contraste-aviso[data-estado='bad'] {
+  color: var(--color-error);
+  background: #FBEAE8;
+  border: 1px solid #F0C6C1;
 }
 
 /* ---------- Vista Gastos ---------- */

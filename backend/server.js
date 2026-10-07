@@ -24,6 +24,7 @@ const {
   parsearTemaDesdeFila,
   temaAVariables,
   fuentesAUrlGoogle,
+  normalizarTema,
 } = require('./utils/tenantTema');
 const {
   MARCA_DEFECTO,
@@ -4945,6 +4946,207 @@ app.put(
     }
     await setConfiguracionGlobal({ contacto_email_cliente: contactoEmail });
     res.json({ ok: true, contacto_email: contactoEmail || null });
+  })
+);
+
+// ---------- Marca e identidad visual: self-servicio desde /admin ----------
+// El administrador del propio tenant edita lo mismo que hoy solo editaba
+// un super desde /control (PUT /api/control/tenants/:slug/marca y /tema,
+// ver control/server.js + control/utils/tenantMarca.js|tenantTema.js) —
+// misma escritura directa a control_tenants.tenants, mismo namespace de
+// MinIO ("marca/<slug>/logo" y "marca/<slug>/favicon", ver
+// /internal/marca-logo|favicon/:slug arriba), para que un tenant editado
+// desde cualquiera de las dos superficies caiga en el mismo dato.
+// SOLO TENANT a propósito (confirmado con el usuario, 2026-10-06): el
+// sitio base no tiene hoy ningún mecanismo público para aplicar un tema
+// propio (GET /api/tema/:slug exige un tenant real) — construir eso sería
+// una pieza aparte, no solo exponer este editor. requiereFeature() SIEMPRE
+// antes de requireAdminAuth (404, nunca 403), mismo criterio que el resto
+// del archivo; dentro del handler, !req.tenant también es 404 (ruta que no
+// aplica al sitio base, no un caso de "no autorizado").
+app.get(
+  '/api/admin/marca-tema',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    if (!req.tenant) return res.status(404).end();
+    res.json({
+      marca: req.tenant.marca || null,
+      marcaLogoUrl: req.tenant.marcaLogoUrl || null,
+      tema: parsearTemaDesdeFila({ tema_json: req.tenant.temaJson }),
+    });
+  })
+);
+
+app.put(
+  '/api/admin/marca',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    if (!req.tenant) return res.status(404).end();
+    const body = req.body || {};
+    const marca = typeof body.marca === 'string' ? body.marca.trim() : '';
+    if (marca.length > 255) {
+      return res.status(400).json({ error: 'La marca no puede superar los 255 caracteres.' });
+    }
+    await obtenerPoolControl().query('UPDATE tenants SET marca = ? WHERE slug = ?', [marca || null, req.tenant.slug]);
+    invalidarCacheTenant(req.tenant.slug);
+    res.json({ ok: true, marca: marca || null });
+  })
+);
+
+app.post('/api/admin/marca-logo', adminApiLimiter, requiereFeature('marcaLookfeelHabilitado'), requireAdminAuth, requireAdminArea('administrador'), (req, res) => {
+  if (!req.tenant) return res.status(404).end();
+  subirConTenant(uploadImagen, 'logo', req, res, async (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: `El logo excede el tamaño máximo permitido de ${IMAGEN_MAX_MB_MAX} MB.` });
+      }
+      if (err.message === 'TIPO_NO_PERMITIDO') {
+        return res.status(400).json({ error: 'Solo se aceptan imágenes en formato JPG, PNG o WEBP.' });
+      }
+      console.error('Error al subir el logo de marca:', err);
+      return res.status(400).json({ error: 'No se pudo procesar la imagen.' });
+    }
+    try {
+      if (!req.file) return res.status(400).json({ error: 'Debes adjuntar una imagen.' });
+      const imagenMaxMb = await obtenerImagenMaxMbCacheado();
+      if (req.file.size > imagenMaxMb * 1024 * 1024) {
+        return res.status(413).json({ error: `El logo excede el tamaño máximo permitido de ${imagenMaxMb} MB.` });
+      }
+      const mimeReal = detectRealImageMimeType(req.file.buffer);
+      if (!mimeReal) {
+        return res.status(400).json({ error: 'El archivo no es una imagen válida (JPG, PNG o WEBP).' });
+      }
+      await storage.guardarArchivo('marca', req.tenant.slug, 'logo', req.file.buffer, mimeReal);
+      const marcaLogoUrl = `/api/marca-logo/${req.tenant.slug}`;
+      await obtenerPoolControl().query('UPDATE tenants SET marca_logo_url = ? WHERE slug = ?', [marcaLogoUrl, req.tenant.slug]);
+      invalidarCacheTenant(req.tenant.slug);
+      res.json({ ok: true, marcaLogoUrl });
+    } catch (errGeneral) {
+      console.error('Error guardando el logo de marca:', errGeneral);
+      res.status(500).json({ error: 'No se pudo guardar el logo.' });
+    }
+  });
+});
+
+app.delete(
+  '/api/admin/marca-logo',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    if (!req.tenant) return res.status(404).end();
+    await storage.eliminarArchivo('marca', req.tenant.slug, 'logo');
+    await obtenerPoolControl().query('UPDATE tenants SET marca_logo_url = NULL WHERE slug = ?', [req.tenant.slug]);
+    invalidarCacheTenant(req.tenant.slug);
+    res.json({ ok: true });
+  })
+);
+
+app.put(
+  '/api/admin/tema',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    if (!req.tenant) return res.status(404).end();
+    const body = req.body || {};
+    let tema;
+    try {
+      tema = normalizarTema(body.tema || {});
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    // Este endpoint solo guarda colores/radio; el favicon se sube/quita
+    // por su propio endpoint — se conserva el que ya tenía el tenant.
+    const temaActual = parsearTemaDesdeFila({ tema_json: req.tenant.temaJson });
+    if (temaActual && temaActual.faviconUrl) {
+      tema.faviconUrl = temaActual.faviconUrl;
+    }
+    const temaJson = Object.keys(tema).length > 0 ? JSON.stringify(tema) : null;
+    await obtenerPoolControl().query('UPDATE tenants SET tema_json = ? WHERE slug = ?', [temaJson, req.tenant.slug]);
+    invalidarCacheTenant(req.tenant.slug);
+    res.json({ ok: true, tema });
+  })
+);
+
+app.post(
+  '/api/admin/tema/restablecer',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    if (!req.tenant) return res.status(404).end();
+    const temaActual = parsearTemaDesdeFila({ tema_json: req.tenant.temaJson });
+    if (temaActual && temaActual.faviconUrl) {
+      await storage.eliminarArchivo('marca', req.tenant.slug, 'favicon').catch(() => {});
+    }
+    await obtenerPoolControl().query('UPDATE tenants SET tema_json = NULL WHERE slug = ?', [req.tenant.slug]);
+    invalidarCacheTenant(req.tenant.slug);
+    res.json({ ok: true });
+  })
+);
+
+app.post('/api/admin/favicon', adminApiLimiter, requiereFeature('marcaLookfeelHabilitado'), requireAdminAuth, requireAdminArea('administrador'), (req, res) => {
+  if (!req.tenant) return res.status(404).end();
+  subirConTenant(uploadImagen, 'favicon', req, res, async (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: `El favicon excede el tamaño máximo permitido de ${IMAGEN_MAX_MB_MAX} MB.` });
+      }
+      if (err.message === 'TIPO_NO_PERMITIDO') {
+        return res.status(400).json({ error: 'Solo se aceptan imágenes en formato JPG, PNG o WEBP.' });
+      }
+      console.error('Error al subir el favicon:', err);
+      return res.status(400).json({ error: 'No se pudo procesar la imagen.' });
+    }
+    try {
+      if (!req.file) return res.status(400).json({ error: 'Debes adjuntar una imagen.' });
+      const imagenMaxMb = await obtenerImagenMaxMbCacheado();
+      if (req.file.size > imagenMaxMb * 1024 * 1024) {
+        return res.status(413).json({ error: `El favicon excede el tamaño máximo permitido de ${imagenMaxMb} MB.` });
+      }
+      const mimeReal = detectRealImageMimeType(req.file.buffer);
+      if (!mimeReal) {
+        return res.status(400).json({ error: 'El archivo no es una imagen válida (JPG, PNG o WEBP).' });
+      }
+      await storage.guardarArchivo('marca', req.tenant.slug, 'favicon', req.file.buffer, mimeReal);
+      const faviconUrl = `/api/favicon/${req.tenant.slug}`;
+      const temaActual = parsearTemaDesdeFila({ tema_json: req.tenant.temaJson }) || {};
+      temaActual.faviconUrl = faviconUrl;
+      await obtenerPoolControl().query('UPDATE tenants SET tema_json = ? WHERE slug = ?', [JSON.stringify(temaActual), req.tenant.slug]);
+      invalidarCacheTenant(req.tenant.slug);
+      res.json({ ok: true, faviconUrl });
+    } catch (errGeneral) {
+      console.error('Error guardando el favicon:', errGeneral);
+      res.status(500).json({ error: 'No se pudo guardar el favicon.' });
+    }
+  });
+});
+
+app.delete(
+  '/api/admin/favicon',
+  adminApiLimiter,
+  requiereFeature('marcaLookfeelHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    if (!req.tenant) return res.status(404).end();
+    await storage.eliminarArchivo('marca', req.tenant.slug, 'favicon').catch(() => {});
+    const temaActual = parsearTemaDesdeFila({ tema_json: req.tenant.temaJson }) || {};
+    delete temaActual.faviconUrl;
+    const temaJson = Object.keys(temaActual).length > 0 ? JSON.stringify(temaActual) : null;
+    await obtenerPoolControl().query('UPDATE tenants SET tema_json = ? WHERE slug = ?', [temaJson, req.tenant.slug]);
+    invalidarCacheTenant(req.tenant.slug);
+    res.json({ ok: true });
   })
 );
 

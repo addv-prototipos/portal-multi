@@ -776,16 +776,23 @@ Como **super**, quiero que `/control` use una credencial de MySQL propia y angos
 comprometa al otro.
 
 ### US-064 — Definir identidad visual (tema) de una empresa
-Como **operador de control**, quiero configurar colores, tipografías y radio de esquinas de una empresa
+Como **operador de control**, quiero configurar colores y radio de esquinas de una empresa
 desde `/control`, para que su portal tenga identidad propia sin tocar el diseño base.
 
 **Criterios de aceptación:**
-- Sección "Identidad visual (personalizada)" dentro del modal "Editar empresa": 12 selectores de color (lista cerrada de claves), 3 selects de tipografía/radio (catálogo cerrado de 8 fuentes de Google Fonts, nunca texto libre), campo de favicon (máx. 2 MB) y botón "Restablecer al diseño ADDV".
+- Pestaña "Identidad visual" dentro del modal "Editar empresa": nombre de marca, logo, 12
+  selectores de color (lista cerrada de claves), radio de esquinas, campo de favicon (máx. 2 MB)
+  y botón "Restablecer al diseño ADDV". Sin selector de tipografía — congelada a Inter en todo el
+  sitio (ver US-109: el selector de 8 fuentes que existía antes quedaba muerto, el backend ya
+  ignoraba la selección; se quitó al migrar al componente compartido).
+- El formulario lo renderiza `frontend/marcaTemaEditor.js` (componente compartido con `/admin`,
+  ver US-109) — misma interfaz, misma validación, en las dos superficies.
 - Vista previa en vivo (tarjeta de ejemplo se repinta con cada cambio, sin esperar el guardado).
 - Contraste **WCAG 2.1 AA real** calculado sobre 9 pares fondo/texto (4.5:1 texto normal, 3:1 botones) — si un par no cumple, se rechaza con 400 (validado también en el frontend antes de guardar).
+- Cada acción (colores, logo, favicon, restablecer) se aplica de inmediato vía su propio endpoint (`PUT .../marca`, `PUT .../tema`) — ya no depende del botón general "Guardar cambios" del modal completo. "Restablecer" pide confirmación (afecta la identidad de otra empresa).
 - El tema se guarda vía `PUT /api/control/tenants/:slug/tema`; cada cambio queda en `tenant_eventos` (`tema_actualizado`) e invalida la caché del backend.
 - `GET /api/tema/:slug` (público, cache 5 min) devuelve `{marca, marcaLoGoUrl, tema, variables, fuentesGoogle}`; `frontend/theme.js` pinta las variables CSS y carga las fuentes en las 6 páginas del portal.
-- "Restablecer al diseño ADDV" vuelve `tema_json` a `NULL` (diseño base) y borra el favicon.
+- "Restablecer al diseño ADDV" vuelve `tema_json` a `NULL` (diseño base) y borra el favicon — el logo y el nombre de marca no se tocan.
 
 ### US-065 — Favicon por empresa
 Como **operador de control**, quiero subir o quitar el favicon de una empresa, para que el navegador
@@ -796,6 +803,29 @@ muestre su icono.
 - El archivo vive en MinIO bajo `marca/<slug>/favicon`, subido vía `POST/DELETE /internal/favicon/:slug` (protegido con `X-Internal-Secret`, no expuesto por nginx).
 - Se sirve público en `GET /api/favicon/:slug` con cache de 24 h.
 - El renombrado de slug (segmento Edición) migra también el favicon si existe.
+
+### US-109 — Autoservicio de marca e identidad visual desde `/admin`
+Como **administrador** de mi propia empresa, quiero editar el nombre de marca, logo, favicon,
+colores y radio de esquinas de mi portal desde Configuraciones, sin depender de un operador de
+`/control`, para personalizar mi identidad visual yo mismo.
+
+**Criterios de aceptación:**
+- Tarjeta "Marca e identidad visual" en Configuraciones de `/admin`, oculta si el plan del tenant
+  tiene "Marca propia / Look & Feel" apagado (`marcaLookfeelHabilitado=false`, switch que solo
+  `/control` prende/apaga) — mismo criterio que "Ticket de impresión".
+- Mismo formulario y misma validación de contraste AA que US-064 — lo renderiza el mismo
+  componente compartido `frontend/marcaTemaEditor.js`, para que `/admin` y `/control` nunca
+  diverjan en comportamiento.
+- Endpoints propios, tenant-only (`GET/PUT /api/admin/marca-tema`, `/marca`, `/tema`,
+  `/tema/restablecer`, `/marca-logo`, `/favicon`), gateados por `marcaLookfeelHabilitado` antes de
+  la autenticación (404, nunca 403) y por el mismo `control_tenants.tenants` que ya editaba
+  `/control` — un tenant editado desde cualquiera de las dos superficies cae en el mismo dato y el
+  mismo archivo en MinIO.
+- Logo y favicon se guardan de inmediato al seleccionarlos (sin esperar un botón "Guardar"
+  general); el nombre de marca y los colores se guardan con el botón "Guardar cambios" propio de
+  la tarjeta.
+- *(Resuelve la idea pendiente "Autoservicio de marca/tema" listada en la sección 25 desde antes
+  de esta implementación, y completa US-059 — la pantalla de logo en el panel que faltaba.)*
 
 ---
 
@@ -1211,10 +1241,11 @@ puede tener un tenant, para que el límite de un plan se cumpla de verdad.
 
 ## 25. Historial / pendientes a futuro
 
-### US-059 — Subir logo real de la empresa en el panel
+### US-059 — Subir logo real de la empresa en el panel *(IMPLEMENTADA — ver US-109)*
 Como **administrador**, quiero una pantalla en el panel para subir/configurar el logo real de mi
-empresa (hoy el correo usa la marca del tenant y el logo se gestiona desde `/control`), para
-personalizar los correos. *(Campo `logo_url` y lógica ya existen; falta la pantalla en el panel — ver PROJECT_STATE.md.)*
+empresa (antes el correo usaba la marca del tenant y el logo solo se gestionaba desde `/control`),
+para personalizar los correos. *(Resuelta por la tarjeta "Marca e identidad visual" en
+Configuraciones — ver US-109, PROJECT_STATE.md punto 373.)*
 
 ### US-060 — Navegación móvil del panel / control verificada en navegador real
 Como **usuario**, quiero que el ciclo de vida de `/control` y las 6 páginas del sitio se prueben en
@@ -1230,7 +1261,6 @@ Estas son áreas donde la arquitectura ya tiene bases listas para evolucionar
 - **CFDI completo**: timbrado real, cancelación de facturas, estatus del SAT.
 - **Portal de pagos / pasarela** y conciliación con las ventas.
 - **Notificaciones y reportería avanzada** (filtros por tenant, exportación masiva, programación).
-- **Autoservicio de marca/tema** para que el propio tenant gestione su identidad sin pasar por `/control`.
 - **UI de consulta de auditoría** (los datos ya se registran en `control_tenants.admin_auditoria`).
 - **Multi-idioma / multi-moneda** para expansión del producto.
 - **App móvil / PWA** del portal de cliente — pedida y CANCELADA explícitamente por el usuario

@@ -43,7 +43,7 @@ async function filaTenant(page) {
 test('editar datos de una empresa existente sin cambiar el slug', async ({ page }) => {
   await loginControl(page);
   const fila = await filaTenant(page);
-  await fila.locator('button.btn-editar').click();
+  await fila.locator('button[data-tooltip="Editar"]').click();
   await expect(page.locator('#control-editar-modal-overlay')).toBeVisible();
   await expect(page.locator('#control-editar-modal-title')).toHaveText('Editar empresa');
 
@@ -57,9 +57,17 @@ test('editar datos de una empresa existente sin cambiar el slug', async ({ page 
   // corrida interrumpida) para restaurarlo en el test 2.
   slugActual = (await page.locator('#control-editar-slug').inputValue()) as string;
 
-  // Editar nombre + marca y guardar (si ya están editados, guardar igual)
+  // Editar nombre (pestaña "General") + marca (pestaña "Identidad visual",
+  // Punto 210 — el campo lo renderiza el módulo compartido
+  // marcaTemaEditor.js dentro de #control-tema-body) y guardar con el
+  // botón general (lee el valor vigente del campo de marca al momento de
+  // guardar, sin que el operador tenga que usar el botón propio de esa
+  // pestaña).
   await page.fill('#control-editar-nombre', NOMBRE_EDITADO);
-  await page.fill('#control-editar-marca', MARCA_EDITADA);
+  await page.click('.control-edit-tab[data-tab="visual"]');
+  await expect(page.locator('#met-marca-nombre')).toBeVisible();
+  await page.fill('#met-marca-nombre', MARCA_EDITADA);
+  await page.click('.control-edit-tab[data-tab="general"]');
   await page.click('#control-btn-editar-guardar');
 
   await expect(page.locator('#control-editar-modal-overlay')).toBeHidden();
@@ -75,7 +83,7 @@ test('cambiar slug con el switch avanzado migra archivos y URLs', async ({ page,
 
   await loginControl(page);
   const fila = await filaTenant(page);
-  await fila.locator('button.btn-editar').click();
+  await fila.locator('button[data-tooltip="Editar"]').click();
   await expect(page.locator('#control-editar-modal-overlay')).toBeVisible();
 
   // El slug está en solo lectura hasta que se activa el switch (el

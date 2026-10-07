@@ -157,9 +157,6 @@
     formEditar: document.getElementById('control-form-editar'),
     editarEmpresa: document.getElementById('control-editar-modal-empresa'),
     editarNombre: document.getElementById('control-editar-nombre'),
-    editarMarca: document.getElementById('control-editar-marca'),
-    editarLogo: document.getElementById('control-editar-logo'),
-    editarLogoActual: document.getElementById('control-editar-logo-actual'),
     editarSlug: document.getElementById('control-editar-slug'),
     editarSlugSwitch: document.getElementById('control-editar-slug-switch'),
     editarSlugHint: document.getElementById('control-editar-slug-hint'),
@@ -168,7 +165,7 @@
   editarMaxUsuarios: document.getElementById('control-editar-max-usuarios'),
   editarMarcaLookfeelSwitch: document.getElementById('control-editar-marca-lookfeel-switch'),
   temaBody: document.getElementById('control-tema-body'),
-  // Punto 347: pestañas del modal + "Plan y funciones"
+  // Punto 210: pestañas del modal + "Plan y funciones"
   editarTabs: document.querySelectorAll('.control-edit-tab'),
   editarPlanNombreActual: document.getElementById('control-editar-plan-nombre-actual'),
   editarPlanPrecioActual: document.getElementById('control-editar-plan-precio-actual'),
@@ -186,11 +183,6 @@
   btnRecalcularDisco: document.getElementById('control-btn-recalcular-disco'),
   editarGrupoInfo: document.getElementById('control-editar-grupo-info'),
   btnEditarIrSucursales: document.getElementById('control-btn-editar-ir-sucursales'),
-  temaPreview: document.getElementById('control-tema-preview'),
-  temaFavicon: document.getElementById('control-tema-favicon'),
-  temaFaviconActual: document.getElementById('control-tema-favicon-actual'),
-  temaError: document.getElementById('error-control-tema'),
-  btnTemaRestablecer: document.getElementById('control-btn-tema-restablecer'),
     editarError: document.getElementById('control-editar-error'),
     btnEditarCancelar: document.getElementById('control-btn-editar-cancelar'),
     btnEditarGuardar: document.getElementById('control-btn-editar-guardar'),
@@ -1510,7 +1502,6 @@
 
   function limpiarErroresEditar() {
     els.editarError.textContent = '';
-    els.temaError.textContent = '';
     document.querySelectorAll('#control-form-editar .field-error').forEach((el) => {
       el.textContent = '';
     });
@@ -1524,7 +1515,6 @@
 
     els.editarEmpresa.textContent = `Editando ${tenant.nombre_empresa} (${tenant.slug})`;
     els.editarNombre.value = tenant.nombre_empresa || '';
-    els.editarMarca.value = tenant.marca || '';
     els.editarEmail.value = tenant.contacto_email || '';
     els.editarNotas.value = tenant.notas || '';
     els.editarMaxUsuarios.value = tenant.max_usuarios != null ? String(tenant.max_usuarios) : '';
@@ -1534,15 +1524,6 @@
     els.editarSlug.value = tenant.slug;
     els.editarSlugSwitch.checked = false;
     bloquearSlugEdicion();
-
-    els.editarLogo.value = '';
-    if (tenant.marca_logo_url) {
-      els.editarLogoActual.textContent = 'Este tenant ya tiene un logo cargado. Elige un archivo para reemplazarlo, o guarda sin elegir para quitarlo.';
-      els.editarLogoActual.hidden = false;
-    } else {
-      els.editarLogoActual.textContent = '';
-      els.editarLogoActual.hidden = true;
-    }
 
     // Punto 347: Plan y funciones — switches reflejan el valor REAL del
     // tenant (no el del plan), para que una excepción ya guardada se vea
@@ -1567,7 +1548,7 @@
     }
 
     els.editarOverlay.hidden = false;
-    cargarTemaEnFormulario(tenant);
+    montarEditorMarcaTemaControl(tenant);
     els.editarNombre.focus();
 
     await asegurarPlanesCacheEdicion();
@@ -1719,21 +1700,15 @@
     const planCambioDeSeleccion = planIdSeleccionado !== planIdOriginalEdicion;
     setEdicionLoading(true);
     try {
-      let logoBase64 = null;
-      const archivoLogo = els.editarLogo.files && els.editarLogo.files[0];
-      if (archivoLogo) {
-        if (archivoLogo.size > imagenMaxMbActual * 1024 * 1024) {
-          setFieldErrorEditar('editar-logo', `El logo excede el tamaño máximo permitido de ${imagenMaxMbActual} MB.`);
-          els.editarLogo.focus();
-          return;
-        }
-        try {
-          logoBase64 = await leerArchivoComoBase64(archivoLogo);
-        } catch (err) {
-          setFieldErrorEditar('editar-logo', err.message);
-          return;
-        }
-      }
+      // Marca (nombre): logo/favicon/colores ya se guardan de inmediato
+      // desde la pestaña "Identidad visual" (montarEditorMarcaTemaControl,
+      // mismo módulo compartido que /admin) — SOLO el campo de texto
+      // "marca" sigue viajando en este PUT general, leído directo del
+      // input que ese módulo renderiza dentro de #control-tema-body
+      // (normalizarDatosBase lo trata como obligatorio-opcional: omitirlo
+      // lo pondría en null, así que siempre se manda el valor actual).
+      const marcaInput = document.getElementById('met-marca-nombre');
+      const marcaActual = marcaInput ? marcaInput.value.trim() || null : undefined;
 
       const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}`, {
         method: 'PUT',
@@ -1743,9 +1718,7 @@
           slug: els.editarSlugSwitch.checked ? slug : undefined,
           contactoEmail: email || null,
           notas: els.editarNotas.value.trim() || null,
-          marca: els.editarMarca.value.trim() || null,
-          logoBase64: logoBase64 || null,
-          quitarLogo: logoBase64 ? false : !els.editarLogoActual.hidden,
+          marca: marcaActual,
           maxUsuarios,
           marcaLookfeelHabilitado: els.editarMarcaLookfeelSwitch.checked,
           discoCuotaMb,
@@ -1767,53 +1740,6 @@
       }
       const slugFinal = data.tenant.slug;
 
-      // Identidad visual: si el operador modificó el tema, se guarda al
-      // slug FINAL (si el slug cambió, la migración del backend ya movió
-      // archivos y el tema de la fila viajó con el UPDATE de edición).
-      if (temaModificado) {
-        const temaEnvio = construirTemaDesdeFormulario();
-        const errorContraste = validarContrasteTema(temaEnvio.colores);
-        if (errorContraste) {
-          setFieldErrorTema(errorContraste);
-          return;
-        }
-        let faviconBase64 = null;
-        const archivoFavicon = els.temaFavicon.files && els.temaFavicon.files[0];
-        if (archivoFavicon) {
-          if (archivoFavicon.size > imagenMaxMbActual * 1024 * 1024) {
-            setFieldErrorTema(`El favicon excede el tamaño máximo permitido de ${imagenMaxMbActual} MB.`);
-            return;
-          }
-          try {
-            faviconBase64 = await leerArchivoComoBase64(archivoFavicon);
-          } catch (err) {
-            setFieldErrorTema(err.message);
-            return;
-          }
-        }
-        const resTema = await fetch(
-          `${API_BASE}/tenants/${encodeURIComponent(slugFinal)}/tema`,
-          {
-            method: 'PUT',
-            headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tema: temaEnvio,
-              faviconBase64: faviconBase64 || null,
-            }),
-          }
-        );
-        if (resTema.status === 401) {
-          clearSession();
-          showLogin();
-          return;
-        }
-        const dataTema = await resTema.json().catch(() => ({}));
-        if (!resTema.ok) {
-          setFieldErrorTema(dataTema.error || 'No se pudo guardar la identidad visual.');
-          return;
-        }
-      }
-
       const slugAnterior = slugActualEdicion;
       cerrarEdicion();
       const mensaje =
@@ -1829,79 +1755,12 @@
     }
   });
 
-  // ---------- Sección "Identidad visual" del modal de edición ----------
-  // (segmento "Look & Feel", ver PROJECT_STATE.md punto 105): colores,
-  // tipografías del catálogo, radio de esquinas y favicon del portal de
-  // la empresa, guardados como tema_json en la fila del tenant. Si no se
-  // toca nada, el tenant sigue con el diseño base ADDV (tema_json NULL).
-
-  const TEMA_DEFAULT_ADDV = {
-    colores: {
-      bg: '#F6F4EF',
-      surface: '#FFFFFF',
-      border: '#E3DFD4',
-      ink: '#21261F',
-      inkSoft: '#5B6158',
-      accent: '#0F6E5D',
-      accentDark: '#0B5548',
-      accentSoft: '#E4EFEC',
-      warn: '#B4530C',
-      warnSoft: '#FBEBDC',
-      error: '#B3261E',
-      errorSoft: '#FBEAE9',
-    },
-    tipografia: { display: 'source-serif-4', cuerpo: 'inter' },
-    radio: 'md',
-  };
-
-  // clave del tema -> id del <input type="color"> en control.html
-  const TEMA_INPUTS_COLOR = [
-    ['bg', 'control-tema-bg'],
-    ['surface', 'control-tema-surface'],
-    ['border', 'control-tema-border'],
-    ['ink', 'control-tema-ink'],
-    ['inkSoft', 'control-tema-ink-soft'],
-    ['accent', 'control-tema-accent'],
-    ['accentDark', 'control-tema-accent-dark'],
-    ['accentSoft', 'control-tema-accent-soft'],
-    ['warn', 'control-tema-warn'],
-    ['warnSoft', 'control-tema-warn-soft'],
-    ['error', 'control-tema-error'],
-    ['errorSoft', 'control-tema-error-soft'],
-  ];
-
-  // Familias reales (solo para el preview; el catálogo completo vive en
-  // backend/utils/tenantTema.js y control/utils/tenantTema.js).
-  const TEMA_FUENTES = {
-    'source-serif-4': 'Source Serif 4',
-    inter: 'Inter',
-    lora: 'Lora',
-    'playfair-display': 'Playfair Display',
-    merriweather: 'Merriweather',
-    'open-sans': 'Open Sans',
-    roboto: 'Roboto',
-    'source-sans-3': 'Source Sans 3',
-  };
-
-  // Radios por nivel (sm/md/lg), iguales a los del catálogo del backend.
-  const TEMA_RADIOS = {
-    sm: { sm: '4px', md: '8px', lg: '12px' },
-    md: { sm: '6px', md: '10px', lg: '16px' },
-    lg: { sm: '10px', md: '14px', lg: '20px' },
-  };
-
-  let temaModificado = false;
-
-  function setFieldErrorTema(mensaje) {
-    els.temaError.textContent = mensaje;
-    if (mensaje) abrirSeccionTema();
-  }
-
-  // Punto 347: pestañas del modal "Editar empresa" — General / Plan y
-  // funciones / Identidad visual / Grupo-sucursales. El botón Guardar
-  // vive FUERA de los paneles (siempre visible, cualquiera sea la
-  // pestaña activa) — cambiar de pestaña nunca descarta datos ya
-  // capturados en otra.
+  // ---------- Pestañas del modal "Editar empresa" ----------
+  // General / Plan y funciones / Identidad visual / Grupo-sucursales. El
+  // botón Guardar general vive FUERA de los paneles (siempre visible) —
+  // cambiar de pestaña nunca descarta datos ya capturados en otra. La
+  // pestaña "Identidad visual" ya NO comparte ese botón: se guarda sola
+  // (ver montarEditorMarcaTemaControl), mismo criterio que /admin.
   function cambiarTabEditar(tab) {
     const TABS = ['general', 'plan', 'visual', 'grupo'];
     TABS.forEach((t) => {
@@ -1919,202 +1778,133 @@
     btn.addEventListener('click', () => cambiarTabEditar(btn.dataset.tab));
   });
 
-  // Punto 347: "Identidad visual" pasó de sección colapsable a pestaña
-  // propia — abrir/cerrar ahora es saltar a esa pestaña o volver a
-  // "General", mismo nombre de función para no tocar sus llamadores
-  // (abrirEdicion/cerrarEdicion/setFieldErrorTema, sin cambios).
-  function abrirSeccionTema() {
-    cambiarTabEditar('visual');
-  }
-
   function cerrarSeccionTema() {
     cambiarTabEditar('general');
   }
 
-  // ---------- Contraste WCAG 2.1 AA (misma fórmula que el backend) ----------
-
-  function luminanciaRelativa(hex) {
-    const valores = [1, 3, 5].map((i) => {
-      const canal = parseInt(hex.slice(i, i + 2), 16) / 255;
-      return canal <= 0.03928 ? canal / 12.92 : Math.pow((canal + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * valores[0] + 0.7152 * valores[1] + 0.0722 * valores[2];
-  }
-
-  function ratioContraste(hexA, hexB) {
-    const l1 = luminanciaRelativa(hexA);
-    const l2 = luminanciaRelativa(hexB);
-    const masClaro = Math.max(l1, l2);
-    const masOscuro = Math.min(l1, l2);
-    return (masClaro + 0.05) / (masOscuro + 0.05);
-  }
-
-  // Devuelve un mensaje de error si algún par de la paleta no cumple
-  // contraste AA (mismos pares y umbrales que el backend), o null.
-  function validarContrasteTema(colores) {
-    const exige = (fondo, texto, minimo, descripcion) => {
-      if (!colores[fondo] || !colores[texto]) return null;
-      const ratio = ratioContraste(colores[fondo], colores[texto]);
-      return ratio < minimo
-        ? `${descripcion} no cumple contraste AA (${ratio.toFixed(2)}:1, mínimo ${minimo}:1).`
-        : null;
-    };
-    return (
-      exige('bg', 'ink', 4.5, 'El texto principal sobre el fondo') ||
-      exige('surface', 'ink', 4.5, 'El texto principal sobre las tarjetas') ||
-      exige('surface', 'inkSoft', 4.5, 'El texto secundario sobre las tarjetas') ||
-      exige('bg', 'warn', 4.5, 'El texto de advertencia') ||
-      exige('bg', 'error', 4.5, 'El texto de error') ||
-      exige('accent', '#FFFFFF', 3, 'El texto blanco sobre los botones principales') ||
-      exige('accentDark', '#FFFFFF', 3, 'El texto blanco sobre los botones oscuros') ||
-      exige('surface', 'accent', 3, 'Los enlaces de color de acción') ||
-      exige('accentSoft', 'accentDark', 3, 'El texto de acción sobre su fondo suave') ||
-      null
-    );
-  }
-
-  // ---------- Preview en vivo ----------
-
-  function construirTemaDesdeFormulario() {
-    const colores = {};
-    TEMA_INPUTS_COLOR.forEach(([clave, id]) => {
-      const input = document.getElementById(id);
-      colores[clave] = (input && input.value) || TEMA_DEFAULT_ADDV.colores[clave];
-    });
-    return {
-      colores,
-      tipografia: {
-        display: document.getElementById('control-tema-font-display').value,
-        cuerpo: document.getElementById('control-tema-font-cuerpo').value,
-      },
-      radio: document.getElementById('control-tema-radio').value,
-    };
-  }
-
-  function aplicarPreviewTema() {
-    const tema = construirTemaDesdeFormulario();
-    const radios = TEMA_RADIOS[tema.radio] || TEMA_RADIOS.md;
-    // Tipografía congelada a Inter (regla 2026-08-24) — preview también
-    // usa la misma sans que menú/botones/reportes, aunque el formulario
-    // aún conserve el selector histórico.
-    const variables = {
-      '--color-bg': tema.colores.bg,
-      '--color-surface': tema.colores.surface,
-      '--color-border': tema.colores.border,
-      '--color-ink': tema.colores.ink,
-      '--color-ink-soft': tema.colores.inkSoft,
-      '--color-accent': tema.colores.accent,
-      '--color-accent-dark': tema.colores.accentDark,
-      '--color-accent-soft': tema.colores.accentSoft,
-      '--color-warn': tema.colores.warn,
-      '--color-warn-soft': tema.colores.warnSoft,
-      '--color-error': tema.colores.error,
-      '--color-error-soft': tema.colores.errorSoft,
-      '--radius-sm': radios.sm,
-      '--radius-md': radios.md,
-      '--radius-lg': radios.lg,
-      '--font-display': `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
-      '--font-body': `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
-    };
-    Object.entries(variables).forEach(([clave, valor]) => {
-      els.temaPreview.style.setProperty(clave, valor);
-    });
-  }
-
-  // ---------- Carga del tema del tenant en el formulario ----------
-
-  function cargarTemaEnFormulario(tenant) {
-    let tema = null;
-    if (tenant && tenant.tema_json) {
+  // ---------- "Identidad visual" del modal de edición (Punto 210) ----------
+  // Marca, logo, colores, radio y favicon — mismo módulo compartido que
+  // /admin (frontend/marcaTemaEditor.js), apuntando a los endpoints YA
+  // existentes de /control (PUT .../marca y .../tema, segmento "Look &
+  // Feel" original). A diferencia de /admin (donde el backend ya hace
+  // merge server-side), aquí el favicon/quitarFavicon deben reenviar
+  // colores+radio vigentes junto con el cambio — ver el 2do argumento
+  // `estadoTema` que el módulo pasa a subirFavicon/quitarFavicon
+  // (PUT /tema reemplaza tema_json completo, no hace merge parcial).
+  function montarEditorMarcaTemaControl(tenant) {
+    if (!els.temaBody || !window.EditorMarcaTema) return;
+    const leerTema = (t) => {
+      if (!t || !t.tema_json) return {};
       try {
-        tema = JSON.parse(tenant.tema_json);
+        return JSON.parse(t.tema_json) || {};
       } catch (err) {
-        tema = null;
+        return {};
       }
-    }
-    const colores = Object.assign({}, TEMA_DEFAULT_ADDV.colores, (tema && tema.colores) || {});
-    TEMA_INPUTS_COLOR.forEach(([clave, id]) => {
-      const input = document.getElementById(id);
-      if (input) input.value = colores[clave] || TEMA_DEFAULT_ADDV.colores[clave];
-    });
-    const tipografia = (tema && tema.tipografia) || {};
-    document.getElementById('control-tema-font-display').value = tipografia.display || 'source-serif-4';
-    document.getElementById('control-tema-font-cuerpo').value = tipografia.cuerpo || 'inter';
-    document.getElementById('control-tema-radio').value = (tema && tema.radio) || 'md';
-    els.temaFavicon.value = '';
-    if (tema && tema.faviconUrl) {
-      els.temaFaviconActual.textContent = 'Este tenant ya tiene un favicon cargado. Elige un archivo para reemplazarlo.';
-      els.temaFaviconActual.hidden = false;
-    } else {
-      els.temaFaviconActual.textContent = '';
-      els.temaFaviconActual.hidden = true;
-    }
-    temaModificado = false;
-    aplicarPreviewTema();
-  }
+    };
+    const urlMarca = () => `${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}/marca`;
+    const urlTema = () => `${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}/tema`;
 
-  // ---------- Listeners de modificación del tema ----------
-
-  TEMA_INPUTS_COLOR.forEach(([, id]) => {
-    const input = document.getElementById(id);
-    if (!input) return;
-    input.addEventListener('input', () => {
-      temaModificado = true;
-      aplicarPreviewTema();
-    });
-  });
-
-  ['control-tema-font-display', 'control-tema-font-cuerpo', 'control-tema-radio'].forEach((id) => {
-    const input = document.getElementById(id);
-    if (!input) return;
-    input.addEventListener('change', () => {
-      temaModificado = true;
-      aplicarPreviewTema();
-    });
-  });
-
-  els.temaFavicon.addEventListener('change', () => {
-    temaModificado = true;
-  });
-
-  // ---------- Restablecer al diseño ADDV ----------
-
-  els.btnTemaRestablecer.addEventListener('click', () => {
-    const authHeader = getAuthHeader();
-    if (!authHeader || !slugActualEdicion) return;
-    confirmarAccion({
-      titulo: 'Restablecer identidad visual',
-      mensaje:
-        'La empresa volverá al diseño base de la plataforma (colores, tipografías y favicon por defecto). Esta acción no se puede deshacer.',
-      textoBoton: 'Restablecer',
-      onConfirmar: async () => {
-        setEdicionLoading(true);
-        try {
-          const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}/tema`, {
-            method: 'PUT',
-            headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ restablecer: true }),
-          });
-          if (res.status === 401) {
-            clearSession();
-            showLogin();
-            return;
-          }
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            setFieldErrorTema(data.error || 'No se pudo restablecer la identidad visual.');
-            return;
-          }
-          cargarTemaEnFormulario(data.tenant);
-          showToast('Identidad visual restablecida al diseño base.');
-        } catch (err) {
-          setFieldErrorTema('No se pudo conectar con el servidor.');
-        } finally {
-          setEdicionLoading(false);
-        }
+    window.EditorMarcaTema.montar(els.temaBody, {
+      showToast,
+      limiteMb: () => imagenMaxMbActual,
+      cargar: () => Promise.resolve({
+        marca: tenant.marca || null,
+        marcaLogoUrl: tenant.marca_logo_url || null,
+        tema: leerTema(tenant),
+      }),
+      guardarMarca: async (marca) => {
+        const res = await fetch(urlMarca(), {
+          method: 'PUT',
+          headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marca }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo guardar la marca.');
+        return data;
+      },
+      guardarTema: async (tema) => {
+        const res = await fetch(urlTema(), {
+          method: 'PUT',
+          headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tema }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo guardar la identidad visual.');
+        return data;
+      },
+      // Única acción de esta pestaña con diálogo de confirmación: a
+      // diferencia de /admin (donde el operador solo se afecta a sí
+      // mismo), aquí un super está borrando la identidad visual de OTRA
+      // empresa — mismo criterio que ya tenía esta pantalla antes de la
+      // migración al módulo compartido. Cancelar simplemente no resuelve
+      // la promesa (el botón no queda en estado de carga, no hay nada que
+      // destrabar).
+      restablecerTema: () => new Promise((resolve, reject) => {
+        confirmarAccion({
+          titulo: 'Restablecer identidad visual',
+          mensaje: 'La empresa volverá al diseño base de la plataforma (colores, radio de esquinas y favicon por defecto — el logo y el nombre de marca no se tocan). Esta acción no se puede deshacer.',
+          textoBoton: 'Restablecer',
+          onConfirmar: async () => {
+            try {
+              const res = await fetch(urlTema(), {
+                method: 'PUT',
+                headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ restablecer: true }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                reject(new Error(data.error || 'No se pudo restablecer la identidad visual.'));
+                return;
+              }
+              resolve(data);
+            } catch (err) {
+              reject(new Error('No se pudo conectar con el servidor.'));
+            }
+          },
+        });
+      }),
+      subirLogo: async (archivo) => {
+        const base64 = await leerArchivoComoBase64(archivo);
+        const res = await fetch(urlMarca(), {
+          method: 'PUT',
+          headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ logoBase64: base64 }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo subir el logo.');
+        return { marcaLogoUrl: data.tenant ? data.tenant.marca_logo_url : null };
+      },
+      quitarLogo: async () => {
+        const res = await fetch(urlMarca(), {
+          method: 'PUT',
+          headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quitarLogo: true }),
+        });
+        if (!res.ok) throw new Error('No se pudo quitar el logo.');
+        return res.json();
+      },
+      subirFavicon: async (archivo, estadoTema) => {
+        const base64 = await leerArchivoComoBase64(archivo);
+        const res = await fetch(urlTema(), {
+          method: 'PUT',
+          headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tema: estadoTema, faviconBase64: base64 }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo subir el favicon.');
+        return { faviconUrl: leerTema(data.tenant).faviconUrl || null };
+      },
+      quitarFavicon: async (estadoTema) => {
+        const res = await fetch(urlTema(), {
+          method: 'PUT',
+          headers: { Authorization: getAuthHeader(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tema: estadoTema, quitarFavicon: true }),
+        });
+        if (!res.ok) throw new Error('No se pudo quitar el favicon.');
+        return res.json();
       },
     });
-  });
+  }
 
   // ---------- Menú móvil (mismo patrón que admin) ----------
   if (els.btnMenuMovil && els.menuMovil) {
@@ -3345,16 +3135,12 @@
     });
   }
 
-  // Hints estáticos "máx. X MB" de los 3 formularios que suben una imagen
-  // (intake de empresa, editar empresa, favicon en Look & Feel) — viven
-  // fuera de la tarjeta de Super Admins, así que se actualizan aparte.
+  // Hint estático "máx. X MB" del intake de empresa nueva — el de "Editar
+  // empresa"/"Identidad visual" ahora lo pone el propio módulo compartido
+  // (marcaTemaEditor.js, opción limiteMb) en cada montaje.
   function aplicarHintsImagenMax() {
     const spanIntake = document.getElementById('intake-logo-limite-mb');
     if (spanIntake) spanIntake.textContent = String(imagenMaxMbActual);
-    const spanEditar = document.getElementById('editar-logo-limite-mb');
-    if (spanEditar) spanEditar.textContent = String(imagenMaxMbActual);
-    const spanFavicon = document.getElementById('favicon-limite-mb');
-    if (spanFavicon) spanFavicon.textContent = String(imagenMaxMbActual);
   }
 
   // Siempre refresca `imagenMaxMbActual` (lo usan las validaciones de

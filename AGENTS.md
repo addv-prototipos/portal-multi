@@ -173,6 +173,18 @@ solo la frase en español de la UI.
   20 en `backend/utils/ajustesGlobales.js`) — un archivo de 20 MB en
   base64 pesa ~27.4 MB de texto, y sin este margen el body se rechaza
   antes de llegar a la validación de tamaño real.
+- **Contraste WCAG en JS: nunca quitar el `#` al hex antes de medir
+  luminancia** (punto 373, 2026-10-06): `luminancia(hex)` lee los canales
+  con `hex.slice(1,3)/(3,5)/(5,7)` — asume el `#` en posición 0 (mismo
+  patrón en `backend/utils/tenantTema.js`, `control/utils/tenantTema.js`
+  y el nuevo `frontend/marcaTemaEditor.js`). Un `contraste(a,b)` que hace
+  `a.replace('#','')` ANTES de llamar a `luminancia()` corre los índices
+  un lugar y calcula un contraste distinto al real — bug real encontrado
+  en `marcaTemaEditor.js`: el aviso "en vivo" marcaba inválido un par que
+  sí pasaba AA. El backend nunca tuvo el bug; solo la validación
+  duplicada del cliente divergió en silencio. Verificar con un par
+  conocido (`#0F6E5D` vs `#ffffff` ≈ 5.8:1) o un E2E real, nunca asumir
+  que copiar la fórmula de otro archivo ya la deja correcta.
 - **nginx intercepta 502/503/504 globalmente** (`error_page 502 503 504`
   → `mantenimiento.html`) — cualquier error real de la API debe responder
   **500**, nunca 502/503/504, o se disfraza de "sitio caído".
