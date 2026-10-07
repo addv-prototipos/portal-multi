@@ -230,6 +230,19 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 - **nginx intercepta 502/503/504 globalmente** (`error_page 502 503 504`
   → `mantenimiento.html`) — cualquier error real de la API debe responder
   **500**, nunca 502/503/504, o se disfraza de "sitio caído".
+- **`Cache-Control: public, max-age=N` en un endpoint cuyo estado puede
+  cambiar por un toggle de usuario es una trampa** (punto 375,
+  2026-10-07): `GET /api/tema/:slug`/`GET /api/tema-base` cacheaban
+  `max-age=300` mientras el portal de clientes estaba activo —
+  reproducido con Playwright headed (misma pestaña reutilizada, como un
+  usuario real): pausar → reactivar (vuelve a cachearse 300s) → pausar
+  de nuevo DENTRO de esa ventana ya no mostraba el aviso, porque el
+  navegador servía el `fetch` viejo sin volver a pedirlo. Una pestaña
+  nueva sí lo mostraba — confirma que era caché del navegador, no lógica
+  de pausado. Fix: `no-store` siempre, sin condicional por estado — si
+  el dato puede cambiar por acción del propio usuario/admin en caliente,
+  no se cachea client-side con `max-age`, punto. El servidor ya cachea
+  internamente donde hace falta (`tenantContext.js`, 45s).
 - **CSP y `blob:`/`data:`**: `default-src 'self'` NO cubre esos schemes
   para `img-src`/`frame-src` — declararlos explícitos
   (`img-src 'self' data: blob:`, `frame-src 'self' blob:`) si se usan
@@ -329,6 +342,25 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   pesa ~27.4 MB de texto. Si `IMAGEN_MAX_MB_MAX` (hoy 20, en
   `backend/utils/ajustesGlobales.js`) sube alguna vez, ese límite de body
   en ambos `server.js` debe subir con él (base64 × ~1.37 + margen).
+- **Detección de "página de portal de cliente" por path: la raíz pelada
+  `/` cuenta como 0 segmentos** (punto 375, 2026-10-07):
+  `frontend/theme.js:paginaEsPortalCliente()` partía
+  `window.location.pathname` y solo reconocía rutas con nombre
+  (`/login`, `/dashboard`, etc.) — nginx sirve `login.html` tanto en
+  `/login` como en la raíz `/` (su `location /` catch-all), pero `/` no
+  tiene ningún segmento nombrado que matchear. Cualquier lógica nueva que
+  distinga "página de cliente" por path debe tratar explícitamente el
+  caso de 0 segmentos, no solo iterar sobre nombres conocidos.
+- **Dos tablas de flags globales que NO son la misma cosa**: un flag de
+  **tenant** siempre vive en `control_tenants.tenants` (columna propia);
+  un flag de **sitio base** (sin tenant) vive en `configuracion_global`
+  dentro de la tabla `configuracion` del propio `backend`, vía
+  `backend/utils/config.js` (`getConfiguracionGlobal`/
+  `setConfiguracionGlobal`) — **nunca** en
+  `control_tenants.ajustes_globales` (esa tabla es solo para el máximo de
+  imagen global del punto 370, clave/valor sin relación). Confundir las
+  dos al verificar el estado de un flag de sitio base da un resultado
+  "limpio" falso — ver punto 375.
 - **RFC solo si Facturación está activa**: con `facturacion_habilitada`
   apagada, ningún flujo de alta de cliente (`POST /api/auth/registro`,
   `POST /api/admin/usuarios`) pide RFC — genera un identificador interno

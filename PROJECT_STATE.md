@@ -19137,6 +19137,128 @@ eligió la propuesta 3, "Aurora profunda".
   ahí el navegador alcanzaba a envolver por ancho, pero no en la
   implementación real con el contenedor más angosto).
 
+**Punto 375 (2026-10-07, CERRADO — "Portal de clientes" en Mi Cuenta: de
+switch decorativo a control real de autoservicio, con pausa aplicable a
+tenant Y sitio base):** el switch "Portal de clientes" en Mi Cuenta
+(`/admin`) existía desde antes con la etiqueta "Próximamente" —
+decorativo, `disabled`, sin backend detrás. El usuario reportó que en el
+sitio base (sin tenant) ni siquiera aparecía, y pidió el modelo de **dos
+capas** explícito: (1) el *ceiling* de plan desde `/control`
+(`portal_clientes_habilitado`, punto 347/374 — apaga TODO
+permanentemente, solo `/control` puede reactivarlo); (2) un *autoservicio*
+nuevo en Mi Cuenta, a la mano del propio administrador — tenant o sitio
+base por igual — que pausa/reanuda el portal sin tocar `/control` y sin
+cambiar ninguna URL: al pausar, la misma página "Portal de clientes
+desactivado" ("Aurora profunda", punto 374) aparece en el lugar de
+siempre.
+
+- **Esquema**: `control_tenants.tenants.portal_clientes_pausado`
+  (`TINYINT(1) NOT NULL DEFAULT 0`, `control/scripts/ensureSchema.js`,
+  justo después de `portal_clientes_habilitado`) para tenants; el sitio
+  base NO es un tenant provisionado, así que su equivalente vive en
+  `backend/utils/config.js` (`DEFAULTS_CONFIG_GLOBAL.portal_clientes_pausado
+  = false`, leído/escrito dentro del JSON de `configuracion_global` en la
+  tabla `configuracion` — **no** en `control_tenants.ajustes_globales`,
+  que es solo para el máximo de imagen global del punto 370; confundir
+  ambas tablas cuesta un diagnóstico entero, ver nota abajo).
+- **Backend — lógica efectiva compartida**:
+  `backend/utils/tenantContext.js` exporta `portalClientesEfectivo(tenant)`
+  — AND de las dos capas (`portalClientesHabilitadoPlan` Y
+  `!portalClientesPausado`) — usada tanto por el middleware
+  (`req.tenant.portalClientesHabilitado`) como por
+  `GET /api/tema/:slug`. Nuevo `GET /api/tema-base` (mismo contrato que
+  `/api/tema/:slug` pero para el sitio base, sin columna de plan — el
+  único flag es `config.portal_clientes_pausado`). `Cache-Control:
+  no-store` siempre en ambos, sin condicional (corregido 2026-10-07, ver
+  nota de bug abajo — un `max-age=300` mientras estaba activo dejaba una
+  ventana real donde re-pausar no se reflejaba en el navegador).
+- **Backend — Mi Cuenta**: `GET /api/admin/mi-cuenta` ahora expone
+  `empresa.portalClientesActivo` (estado actual del propio switch) y
+  `empresa.portalClientesPlanHabilitado` (si el ceiling de plan lo
+  permite — siempre `true` en sitio base, no hay plan que lo gobierne).
+  Nuevo `PUT /api/admin/mi-cuenta/portal-clientes` (perfil
+  administrador/super únicamente, mismo alcance que el resto de
+  "Identidad de la empresa") — rechaza encender el portal si el plan ya
+  lo tiene apagado desde `/control` (esa capa solo se reactiva allá).
+- **Frontend**: `frontend/admin.html` — el switch de Mi Cuenta se
+  des-decora (quita `disabled`/`aria-disabled`/etiqueta "Próximamente").
+  `frontend/admin.js` — `aplicarEstadoPortalClientesMiCuenta(activo,
+  planHabilitado)` pinta `checked`/`disabled`/hint según las dos capas;
+  listener `change` llama al PUT nuevo. `frontend/theme.js` — nueva lista
+  `RUTAS_PORTAL_CLIENTE` (las 6 páginas de cliente, sin `admin`) y
+  `paginaEsPortalCliente()`; `API_TEMA` ahora es condicional:
+  `/api/tema/:slug` con tenant, `/api/tema-base` sin tenant.
+- **Bug real encontrado por el usuario en pruebas manuales (clics reales,
+  no solo Playwright) — "pausé el sitio base y `http://localhost:8088/`
+  seguía mostrando el login normal"**: `paginaEsPortalCliente()` partía
+  `window.location.pathname` en segmentos y solo reconocía las rutas
+  nombradas (`/login`, `/dashboard`, etc.) — la raíz pelada `/` tiene
+  **0 segmentos** (nginx la sirve vía su `location /` catch-all, que cae
+  a `login.html` igual que `/login`, pero con un path distinto), así que
+  nunca entraba en la lista y el aviso se saltaba. Corregido: 0 segmentos
+  también cuenta como página de portal de cliente. Verificado con
+  captura real (`e2e/capturas/portal-desactivado-raiz.png`) y con un
+  caso nuevo en el spec de abajo que visita `/` explícitamente — no solo
+  `/login` — para que esta regresión no pueda volver a pasar
+  silenciosamente.
+- **Gotcha de diagnóstico (anotado para no repetirlo)**: al verificar el
+  estado "limpio" antes de correr las pruebas, un primer chequeo consultó
+  `control_tenants.ajustes_globales` (la tabla del punto 370, máximo de
+  imagen) buscando la clave `portal_clientes_pausado` — vino vacía,
+  leída como "no pausado". Pero el valor real del sitio base vive en
+  `configuracion_global` dentro de `backend`, en una base totalmente
+  distinta (la del sitio base, no `control_tenants`) — ahí sí estaba en
+  `true` (como lo dejó el usuario en sus pruebas manuales). Antes de dar
+  un estado de BD por "limpio", confirmar en qué tabla/base vive el flag
+  según si es un flag de tenant (siempre `control_tenants.tenants`) o de
+  sitio base (siempre `configuracion_global` vía
+  `backend/utils/config.js`, nunca `ajustes_globales`).
+- **Pruebas**: `node --check` en los `.js` tocados. Jest backend
+  **1200/1200**, Jest control **352/352**, sin regresiones (incluye 2
+  tests nuevos de la lógica AND en `tenantContext.test.js` y el ajuste de
+  índices en `ensureSchema.test.js` por la columna nueva). Playwright
+  real contra Docker/MySQL reales, spec nuevo
+  `e2e/tests/portal-pausa-admin.spec.ts` (**3/3 en verde**): (1) tenant
+  `t2` — pausar desde Mi Cuenta muestra el aviso en `/t2/login`, reanudar
+  lo quita; (2) sitio base — pausar muestra el aviso en `/` **y** en
+  `/login`, reanudar lo quita en ambos; (3) tenant `t1` con el plan
+  apagado desde `/control` — el switch de Mi Cuenta se bloquea
+  (`disabled`, sin marcar, hint "el plan no incluye..."). Cada visita
+  "como cliente" usa un `browser.newContext()` separado del admin para
+  no heredar el `Cache-Control: max-age=300` de una visita previa a la
+  misma URL en la misma sesión (poisoning de caché HTTP normal, no un bug
+  del feature). Se encontró y corrigió de paso un estado sucio
+  preexistente en `t1` (`reportes_estado_tickets_habilitado=1` con
+  `facturacion_habilitada=0` — viola la regla de dependencia del punto
+  347/361, quedó así de una sesión anterior) que bloqueaba el PUT de
+  `/control` con 400 antes de llegar siquiera a la parte del test que
+  importa — sin relación con este punto, documentado para que no se
+  redescubra desde cero.
+- **Bug real reportado por el usuario en pruebas manuales (2026-10-07) —
+  "pausar muestra el aviso, reactivar lo quita, pero al volver a pausar
+  ya no lo coloca"**: causa raíz confirmada con Playwright headed
+  (navegador visible, misma pestaña reutilizada para simular un usuario
+  real): `GET /api/tema/:slug` y `GET /api/tema-base` cacheaban
+  `public, max-age=300` mientras el portal estaba **activo**. Ciclo
+  pausar (no-store, bien) → reactivar (vuelve a cachearse 300s) → pausar
+  de nuevo DENTRO de esa ventana, en la misma pestaña → el navegador
+  sirve el `fetch` viejo "activo" sin volver a pedirlo al servidor, el
+  aviso nunca aparece aunque el backend ya esté pausado. Una pestaña
+  nueva (sin ese caché) sí mostraba el aviso correctamente — confirmando
+  que no era un bug de lógica de pausado sino de caché HTTP del cliente.
+  **Fix**: `Cache-Control: no-store` siempre en ambos endpoints, sin
+  condicional — el tema/marca del tenant cambia con tan poca frecuencia
+  que cachear client-side no compensa el riesgo, y `tenantContext.js` ya
+  cachea en servidor (45s). Test de integración
+  `backend/test/integration/tema.test.js` actualizado (esperaba
+  `max-age=300`, ahora espera `no-store`). Jest backend 1200/1200,
+  Playwright `e2e/tests/portal-pausa-admin.spec.ts` 3/3, sin regresiones.
+  Nota: el comentario original en el código ya anticipaba un caso
+  parcial de este problema ("eso no se puede evitar") pero asumía que
+  solo afectaba a quien ya tenía el caché de ANTES del primer pausado —
+  el ciclo completo pausar→activar→pausar no estaba cubierto por ese
+  análisis y sí era evitable quitando el `max-age` por completo.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
@@ -19166,3 +19288,4 @@ eligió la propuesta 3, "Aurora profunda".
 - Identidad visual (tema) por tenant (segmento "Look & Feel", punto 105): `backend/utils/tenantTema.js` + `control/utils/tenantTema.js` (validación duplicada), columna `tema_json` en `control/scripts/ensureSchema.js`, `GET /api/tema/:slug` + `POST`/`DELETE /internal/favicon/:slug` en `backend/server.js`, `PUT /api/control/tenants/:slug/tema` en `control/server.js`, `frontend/theme.js` (pinta CSS variables en runtime)
 - Gobierno de funcionalidades por tenant / candado de feature-flag (punto 347): `backend/utils/requiereFeature.js` (404, no 403), catálogo `planes` + columnas `facturacion_habilitada`/`portal_clientes_habilitado`/`sucursales_habilitado`/`disco_cuota_mb`/`plan_id` en `control/scripts/ensureSchema.js`, CRUD de planes en `control/utils/planes.js` + `control/server.js`, asignación/excepciones por tenant en `control/utils/tenantEdicion.js:resolverPlanYFunciones`, medición de disco en `backend/utils/storage.js:calcularBytesPrefijo` + `POST /internal/disco-uso/:slug` + `control/utils/tenantLifecycle.js:recalcularUsoDisco`, modal por pestañas en `frontend/control.html`/`control.js` (`cambiarTabEditar`)
 - Documentación completa para el usuario final: `README.md` (mucho más detallado que este archivo — este es para retomar el trabajo, el README es para operar la app)
+- Pausa de autoservicio "Portal de clientes" en Mi Cuenta, tenant y sitio base (punto 375): `backend/utils/tenantContext.js:portalClientesEfectivo`, `GET /api/tema-base` + `PUT /api/admin/mi-cuenta/portal-clientes` en `backend/server.js`, `portal_clientes_pausado` en `control/scripts/ensureSchema.js` (tenant) y `backend/utils/config.js` (sitio base), `paginaEsPortalCliente()` en `frontend/theme.js`

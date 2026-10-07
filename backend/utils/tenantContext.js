@@ -44,13 +44,25 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, portal_clientes_pausado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
   const tenant = filas[0] || null;
   cacheResolucion.set(slug, { tenant, resueltoEn: Date.now() });
   return tenant;
+}
+
+// Punto 375: valor EFECTIVO de "portal de clientes" a partir de una fila
+// cruda de `tenants` (plan AND !pausado) — compartido entre
+// resolverTenantMiddleware (arriba) y GET /api/tema/:slug en server.js,
+// que lee la fila directo con resolverTenantPorSlug() sin pasar por el
+// middleware. Un solo lugar, para que las dos capas nunca diverjan.
+function portalClientesEfectivo(tenant) {
+  if (!tenant) return true;
+  const planHabilitado = tenant.portal_clientes_habilitado !== 0 && tenant.portal_clientes_habilitado !== false;
+  const pausado = tenant.portal_clientes_pausado === 1 || tenant.portal_clientes_pausado === true;
+  return planHabilitado && !pausado;
 }
 
 // Para la futura app de control (segmento 9): tras dar de alta/suspender
@@ -118,7 +130,17 @@ async function resolverTenantMiddleware(req, res, next) {
       // booleano que marcaLookfeelHabilitado arriba (MySQL puede devolver
       // 0/1 o false/true según el driver).
       facturacionHabilitada: tenant.facturacion_habilitada !== 0 && tenant.facturacion_habilitada !== false,
-      portalClientesHabilitado: tenant.portal_clientes_habilitado !== 0 && tenant.portal_clientes_habilitado !== false,
+      // Punto 375: valor EFECTIVO = plan (solo /control lo prende) AND
+      // !pausado (el propio admin lo pausa/reanuda desde Mi Cuenta, sin
+      // pasar por /control). requiereFeature('portalClientesHabilitado')
+      // y GET /api/tema/:slug leen esta propiedad combinada sin saber que
+      // hay dos capas detrás — un solo lugar decide el efectivo.
+      portalClientesHabilitado: portalClientesEfectivo(tenant),
+      // Crudos, solo para que la UI de Mi Cuenta sepa qué mostrar/bloquear
+      // (ej. candado + "contacta a soporte" si el plan ya lo tiene apagado,
+      // en vez de dejar que el admin le dé a un switch que no hace nada).
+      portalClientesHabilitadoPlan: tenant.portal_clientes_habilitado !== 0 && tenant.portal_clientes_habilitado !== false,
+      portalClientesPausado: tenant.portal_clientes_pausado === 1 || tenant.portal_clientes_pausado === true,
       // DEFAULT en BD es 0 — a diferencia de las dos de arriba, esta es una
       // feature nueva que nadie tenía antes salvo quien ya esté en un grupo
       // real (ver backfill condicional en control/scripts/ensureSchema.js).
@@ -181,4 +203,4 @@ async function resolverTenantMiddleware(req, res, next) {
   }
 }
 
-module.exports = { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant };
+module.exports = { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant, portalClientesEfectivo };

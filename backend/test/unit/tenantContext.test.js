@@ -150,6 +150,8 @@ describe('utils/tenantContext.js', () => {
         maxUsuarios: null,
         facturacionHabilitada: true,
         portalClientesHabilitado: true,
+        portalClientesHabilitadoPlan: true,
+        portalClientesPausado: false,
         sucursalesHabilitado: false,
         discoCuotaMb: null,
         discoBytesUsadosCache: null,
@@ -185,6 +187,39 @@ describe('utils/tenantContext.js', () => {
 
       expect(req.tenant.facturacionHabilitada).toBe(false);
       expect(req.tenant.portalClientesHabilitado).toBe(false);
+    });
+
+    // Punto 375: portalClientesHabilitado es el AND de plan Y "no
+    // pausado por el admin" — las dos capas pueden apagarlo por
+    // separado, el efectivo refleja cualquiera de las dos.
+    test('punto 375: portal_clientes_pausado=1 (pausa del propio admin) apaga el efectivo aunque el plan lo incluya', async () => {
+      mockPoolControl([{ ...FILA_TENANT_ACTIVO, portal_clientes_habilitado: 1, portal_clientes_pausado: 1 }]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.portalClientesHabilitado).toBe(false);
+      expect(req.tenant.portalClientesHabilitadoPlan).toBe(true);
+      expect(req.tenant.portalClientesPausado).toBe(true);
+    });
+
+    test('punto 375: plan apagado sigue efectivo=false aunque el admin NO lo haya pausado (plan manda)', async () => {
+      mockPoolControl([{ ...FILA_TENANT_ACTIVO, portal_clientes_habilitado: 0, portal_clientes_pausado: 0 }]);
+      obtenerPoolTenant.mockReturnValue({ query: jest.fn() });
+
+      const req = { headers: { 'x-tenant-slug': 'cliente1' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await resolverTenantMiddleware(req, res, next);
+
+      expect(req.tenant.portalClientesHabilitado).toBe(false);
+      expect(req.tenant.portalClientesHabilitadoPlan).toBe(false);
+      expect(req.tenant.portalClientesPausado).toBe(false);
     });
 
     // Punto 349-350: ampliación del gobierno de funcionalidades (ver

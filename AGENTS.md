@@ -198,6 +198,21 @@ solo la frase en español de la UI.
   directo). Exponer un dato antes oculto (ej. correo real de contacto)
   solo cuando el caso de uso lo necesita de verdad — condicionar la
   exposición al estado relevante, no aflojar el campo para todos.
+- **Detección de "página de portal de cliente" por path: la raíz pelada
+  `/` cuenta como 0 segmentos** (punto 375, 2026-10-07):
+  `paginaEsPortalCliente()` en `theme.js` partía el pathname y solo
+  reconocía rutas con nombre (`/login`, etc.) — nginx sirve `login.html`
+  tanto en `/login` como en la raíz `/` (catch-all), pero `/` no tiene
+  ningún segmento nombrado. Cualquier chequeo nuevo por path debe cubrir
+  explícitamente el caso de 0 segmentos.
+- **Flag de tenant vs. flag de sitio base: dos tablas distintas, nunca
+  intercambiables** (punto 375): un flag de tenant vive en
+  `control_tenants.tenants` (columna propia); un flag de sitio base vive
+  en `configuracion_global` dentro de `configuracion`
+  (`backend/utils/config.js`) — **nunca** en
+  `control_tenants.ajustes_globales` (esa tabla es solo el máximo de
+  imagen del punto 370). Verificar la tabla correcta antes de dar un
+  estado por "limpio".
 - **nginx intercepta 502/503/504 globalmente** (`error_page 502 503 504`
   → `mantenimiento.html`) — cualquier error real de la API debe responder
   **500**, nunca 502/503/504, o se disfraza de "sitio caído".

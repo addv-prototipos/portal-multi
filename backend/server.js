@@ -16,7 +16,7 @@ const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
 const { pool, ensureSchema, cerrarTodosLosPoolsTenant, ejecutarComoTenant, obtenerPoolControl, obtenerPoolTenant, cerrarPoolTenant, crearBaseDeDatosTenant, eliminarBaseDeDatosTenant } = require('./db');
 const { ejecutarCierresMensualesParaTodos } = require('./utils/cierreMensual');
-const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant } = require('./utils/tenantContext');
+const { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant, portalClientesEfectivo } = require('./utils/tenantContext');
 const { requiereFeature } = require('./utils/requiereFeature');
 const { validarSlug, nombreDbTenant } = require('./utils/tenant');
 const storage = require('./utils/storage');
@@ -1287,13 +1287,24 @@ app.get('/api/tema/:slug', async (req, res) => {
     const marcaLookfeelHabilitado = !tenant || tenant.marca_lookfeel_habilitado !== 0;
     const tenantParaTema = marcaLookfeelHabilitado ? tenant : { ...tenant, tema_json: null };
     const tema = parsearTemaDesdeFila(tenantParaTema);
-    // Punto 374: "Portal de clientes desactivado" — theme.js (único
+    // Punto 374/375: "Portal de clientes desactivado" — theme.js (único
     // consumidor de este endpoint en las 6 páginas del portal de
     // cliente) necesita saber si el portal está apagado para sustituir
     // toda la página por el aviso, y el correo real al que el cliente
-    // puede escribir en ese caso.
-    const portalClientesHabilitado = !tenant || tenant.portal_clientes_habilitado !== 0;
-    res.setHeader('Cache-Control', 'public, max-age=300');
+    // puede escribir en ese caso. Efectivo = plan (/control) AND
+    // !pausado (el propio admin, Mi Cuenta) — mismo cálculo que
+    // req.tenant.portalClientesHabilitado, ver tenantContext.js.
+    const portalClientesHabilitado = portalClientesEfectivo(tenant);
+    // Punto 375 (corregido): esta respuesta NUNCA se cachea, ni siquiera
+    // con el portal activo. Un max-age>0 aquí deja una ventana real de
+    // bug — admin pausa (no-store, bien) → reactiva (vuelve a cachearse
+    // 300s) → pausa de nuevo DENTRO de esos 300s en la misma pestaña →
+    // el navegador sirve el fetch viejo "activo" sin volver a pedirlo,
+    // el aviso nunca aparece aunque el backend ya esté pausado
+    // (reproducido con Playwright real, 2026-10-07). El tema/marca del
+    // tenant cambia con tan poca frecuencia que cachear client-side no
+    // compensa el riesgo; tenantContext ya cachea en servidor (45s).
+    res.setHeader('Cache-Control', 'no-store');
     res.json({
       slug,
       marca: (marcaLookfeelHabilitado && tenant && tenant.marca) || null,
@@ -1315,6 +1326,41 @@ app.get('/api/tema/:slug', async (req, res) => {
     });
   } catch (err) {
     console.error(`Error sirviendo el tema del tenant "${slug}":`, err);
+    res.status(500).json({ error: 'No se pudo leer el tema.' });
+  }
+});
+
+// Punto 375: equivalente de GET /api/tema/:slug para el SITIO BASE (sin
+// tenant) — las páginas del portal de cliente servidas en la raíz
+// (/login, /dashboard, etc., sin prefijo de slug) no tienen ningún
+// X-Tenant-Slug que resolver, así que theme.js no puede usar la ruta de
+// arriba ahí. El sitio base no personaliza marca/tema (decisión
+// confirmada con el usuario al construir el punto 373 — "solo tenant"),
+// así que esos campos siempre van vacíos; lo único real aquí es el aviso
+// de "portal de clientes desactivado" cuando el propio admin lo pausó
+// desde Mi Cuenta (sin ceiling de plan: el sitio base no es un tenant
+// gobernado por /control).
+app.get('/api/tema-base', async (req, res) => {
+  try {
+    const config = await getConfiguracionGlobal();
+    const portalClientesHabilitado = !config.portal_clientes_pausado;
+    // Mismo criterio que GET /api/tema/:slug — no-store siempre (ver
+    // comentario ahí sobre el bug real de caché en el ciclo
+    // pausar→activar→pausar).
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      slug: null,
+      marca: null,
+      marcaLoGoUrl: null,
+      tema: null,
+      variables: {},
+      fuentesGoogle: [],
+      tieneAclaraciones: Boolean(config.contacto_email_cliente),
+      portalClientesHabilitado,
+      contactoEmailPortalApagado: portalClientesHabilitado ? null : (config.contacto_email_cliente || null),
+    });
+  } catch (err) {
+    console.error('Error sirviendo el tema del sitio base:', err);
     res.status(500).json({ error: 'No se pudo leer el tema.' });
   }
 });
@@ -4565,6 +4611,14 @@ app.get(
         nombreEmpresaTenant: req.tenant ? req.tenant.nombreEmpresa : null,
         urlPortal: detectarUrlPortal(req),
         totalOperadores,
+        // Punto 375: switch real "Portal de clientes" (antes decorativo,
+        // "pendiente 269") — portalClientesActivo es la pausa propia del
+        // admin (lo que este switch prende/apaga); portalClientesPlanHabilitado
+        // es el ceiling de /control (si está apagado ahí, el switch se
+        // bloquea en la UI — "solo desde control se puede habilitar").
+        // Sin tenant (sitio base) no hay ceiling de plan, siempre true.
+        portalClientesActivo: req.tenant ? !req.tenant.portalClientesPausado : !config.portal_clientes_pausado,
+        portalClientesPlanHabilitado: req.tenant ? req.tenant.portalClientesHabilitadoPlan : true,
       };
     }
 
@@ -4606,6 +4660,45 @@ app.put(
       return res.status(404).json({ error: 'No se encontró tu cuenta.' });
     }
     res.json({ ok: true, mensaje: 'Tus datos se actualizaron correctamente.' });
+  })
+);
+
+// Punto 375: pausa/reanuda el "Portal de clientes" desde Mi Cuenta —
+// autoservicio del propio admin, independiente del ceiling de plan que
+// sigue gobernando SOLO /control (ver tenantContext.portalClientesEfectivo).
+// Mismo alcance de perfil que el resto de "Identidad de la empresa"
+// (administrador/super, nunca fiscal/ventas — es una decisión de negocio,
+// no de datos propios de la sesión).
+app.put(
+  '/api/admin/mi-cuenta/portal-clientes',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (req.adminPerfil !== 'administrador' && req.adminPerfil !== 'super') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a esta opción.' });
+    }
+    const activo = Boolean((req.body || {}).activo);
+
+    if (req.tenant) {
+      if (!activo && !req.tenant.portalClientesHabilitadoPlan) {
+        // Ya está apagado por el plan — no tiene caso "pausarlo" de nuevo,
+        // y re-ENCENDERLO desde aquí sin que el plan lo incluya no haría
+        // nada (el efectivo seguiría en false) — mejor explicar por qué.
+        return res.json({ ok: true, activo: false });
+      }
+      if (activo && !req.tenant.portalClientesHabilitadoPlan) {
+        return res.status(400).json({ error: 'Tu plan no incluye el portal de clientes — contacta a soporte para activarlo.' });
+      }
+      await obtenerPoolControl().query(
+        'UPDATE tenants SET portal_clientes_pausado = ? WHERE slug = ?',
+        [activo ? 0 : 1, req.tenant.slug]
+      );
+      invalidarCacheTenant(req.tenant.slug);
+    } else {
+      await setConfiguracionGlobal({ portal_clientes_pausado: !activo });
+    }
+
+    res.json({ ok: true, activo });
   })
 );
 

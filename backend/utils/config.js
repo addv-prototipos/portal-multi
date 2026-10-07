@@ -247,6 +247,14 @@ const DEFAULTS_CONFIG_GLOBAL = {
   // "Solicitar aclaraciones" del portal del sitio base simplemente no
   // aparece (ver GET /api/aclaraciones/disponible).
   contacto_email_cliente: '',
+  // Punto 375: pausa de autoservicio de "Portal de clientes" para el
+  // sitio base (sin tenant) — equivalente local de
+  // control_tenants.tenants.portal_clientes_pausado. El sitio base no
+  // tiene un "plan" que lo gobierne desde /control (no es un tenant
+  // provisionado), así que aquí NO hay ceiling: este único flag decide
+  // si el portal del sitio base está activo. `false` por defecto (no
+  // pausado) — agregar el campo no apaga nada el día de la migración.
+  portal_clientes_pausado: false,
 };
 
 async function getConfiguracionGlobal() {
@@ -314,6 +322,9 @@ async function getConfiguracionGlobal() {
     }
     if (typeof parsed.contacto_email_cliente === 'string') {
       resultado.contacto_email_cliente = parsed.contacto_email_cliente.trim().toLowerCase();
+    }
+    if (typeof parsed.portal_clientes_pausado === 'boolean') {
+      resultado.portal_clientes_pausado = parsed.portal_clientes_pausado;
     }
     if (parsed.ticket_ancho_papel === '58mm' || parsed.ticket_ancho_papel === '80mm') {
       resultado.ticket_ancho_papel = parsed.ticket_ancho_papel;
@@ -464,6 +475,10 @@ async function setConfiguracionGlobal(cambios) {
       throw new Error('El correo de contacto no tiene un formato válido.');
     }
     nuevo.contacto_email_cliente = contacto;
+  }
+
+  if (cambios.portal_clientes_pausado !== undefined) {
+    nuevo.portal_clientes_pausado = Boolean(cambios.portal_clientes_pausado);
   }
 
   if (cambios.ticket_ancho_papel !== undefined) {

@@ -91,7 +91,10 @@ describe('GET /api/tema/:slug', () => {
     const res = await request(app).get('/api/tema/cliente1');
 
     expect(res.status).toBe(200);
-    expect(res.headers['cache-control']).toContain('max-age=300');
+    // Fix 2026-10-07: ya no se cachea client-side ni con el portal activo
+    // (ver comentario en backend/server.js GET /api/tema/:slug) — el
+    // max-age=300 dejaba una ventana real de bug en pausar→activar→pausar.
+    expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body).toEqual({
       slug: 'cliente1',
       marca: null,

@@ -235,6 +235,9 @@
     micuentaClaveSat: document.getElementById('micuenta-clave-sat'),
     micuentaZonaHoraria: document.getElementById('micuenta-zona-horaria'),
     micuentaTotalOperadores: document.getElementById('micuenta-total-operadores'),
+    micuentaPortalClientesSwitch: document.getElementById('micuenta-portal-clientes-switch'),
+    micuentaPortalClientesLabel: document.getElementById('micuenta-portal-clientes-label'),
+    micuentaPortalClientesHint: document.getElementById('micuenta-portal-clientes-hint'),
     micuentaUrlBar: document.getElementById('micuenta-url-bar'),
     micuentaUrlTenant: document.getElementById('micuenta-url-tenant'),
     btnCopiarUrlMiCuenta: document.getElementById('btn-copiar-url-micuenta'),
@@ -7982,6 +7985,7 @@
         els.micuentaClaveSat.textContent = data.empresa.claveSat || 'Sin capturar';
         els.micuentaZonaHoraria.textContent = data.empresa.zonaHorariaEtiqueta || 'Sin definir';
         els.micuentaTotalOperadores.textContent = String(data.empresa.totalOperadores);
+        aplicarEstadoPortalClientesMiCuenta(data.empresa.portalClientesActivo, data.empresa.portalClientesPlanHabilitado);
         if (data.empresa.tenantSlug && data.empresa.urlPortal) {
           els.micuentaUrlBar.hidden = false;
           els.micuentaUrlTenant.textContent = data.empresa.urlPortal;
@@ -8000,6 +8004,44 @@
       showToast(err.message || 'No se pudo cargar Mi Cuenta.', true);
     }
   }
+
+  // Punto 375: "Portal de clientes" en Mi Cuenta — antes decorativo
+  // (pendiente 269), ahora real. Si el plan de /control ya lo tiene
+  // apagado, el switch se bloquea (checked=false, disabled) con un hint
+  // explicando que solo /control puede reactivarlo — "solo desde control
+  // se puede habilitar" (sin tenant/sitio base no hay ese ceiling, el
+  // switch siempre es operable).
+  function aplicarEstadoPortalClientesMiCuenta(activo, planHabilitado) {
+    const bloqueado = planHabilitado === false;
+    els.micuentaPortalClientesSwitch.checked = bloqueado ? false : Boolean(activo);
+    els.micuentaPortalClientesSwitch.disabled = bloqueado;
+    els.micuentaPortalClientesLabel.setAttribute('aria-disabled', bloqueado ? 'true' : 'false');
+    els.micuentaPortalClientesHint.textContent = bloqueado
+      ? 'Tu plan no incluye el portal de clientes — contacta a soporte para activarlo.'
+      : 'Si lo apagas, tus clientes ven un aviso de "Portal no disponible" con tu correo de contacto — las URLs no cambian.';
+  }
+
+  els.micuentaPortalClientesSwitch.addEventListener('change', async () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    const activo = els.micuentaPortalClientesSwitch.checked;
+    els.micuentaPortalClientesSwitch.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/portal-clientes`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el portal de clientes.');
+      showToast(data.activo ? 'Portal de clientes activado.' : 'Portal de clientes apagado — tus clientes ya ven el aviso.');
+    } catch (err) {
+      els.micuentaPortalClientesSwitch.checked = !activo;
+      showToast(err.message || 'No se pudo actualizar el portal de clientes.', true);
+    } finally {
+      els.micuentaPortalClientesSwitch.disabled = false;
+    }
+  });
 
   els.btnGuardarMiCuenta.addEventListener('click', async () => {
     setFieldError('micuenta-nombre', '');

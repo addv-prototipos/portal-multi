@@ -66,6 +66,17 @@ const COLUMNAS_NUEVAS = [
   // migración (mismo criterio que marca_lookfeel_habilitado arriba).
   { nombre: 'facturacion_habilitada', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
   { nombre: 'portal_clientes_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // Punto 375 (2026-10-06): pausa de autoservicio del PROPIO administrador
+  // ("pendiente 269"), independiente del gate de plan de arriba —
+  // portal_clientes_habilitado decide si el tenant TIENE el módulo (solo
+  // /control lo prende/apaga); esta columna decide si el admin lo dejó
+  // temporalmente en pausa él mismo (Mi Cuenta → "Portal de clientes"),
+  // sin pasar por /control. El efectivo es el AND de las dos — ver
+  // tenantContext.js. A propósito NO se copia al asignar un plan
+  // (control/utils/planes.js no la toca): un cambio de plan nunca debe
+  // reactivar en silencio algo que el admin pausó a propósito. DEFAULT 0
+  // (no pausado) — agregar la columna no apaga nada el día de la migración.
+  { nombre: 'portal_clientes_pausado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   // DEFAULT 0: feature nueva, nadie la tenía antes de esta columna salvo
   // quien ya esté en un grupo real — ver el backfill condicional abajo.
   { nombre: 'sucursales_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },

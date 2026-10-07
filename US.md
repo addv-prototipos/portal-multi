@@ -1256,6 +1256,23 @@ vez de un error de inicio de sesión genérico indistinguible de una contraseña
 - Si el tenant no tiene correo de contacto configurado, la tarjeta de contacto simplemente no aparece
   (degradación elegante, igual que la burbuja "Solicitar aclaraciones").
 
+### US-111 — "Portal de clientes" en Mi Cuenta: pausa real de autoservicio (tenant y sitio base)
+Como **administrador** (de un tenant o del sitio base), quiero poder pausar/reanudar yo mismo el
+portal de clientes desde Mi Cuenta, sin depender de `/control`, para atender un mantenimiento o
+incidente puntual sin esperar a que alguien con acceso a `/control` lo apague por mí.
+
+**Criterios de aceptación:**
+- El switch "Portal de clientes" de Mi Cuenta (antes decorativo, con etiqueta "Próximamente") ahora
+  es real: al apagarlo, el cliente ve de inmediato el aviso "Portal de clientes desactivado" (US-110)
+  en el lugar de siempre, sin cambiar ninguna URL.
+- Dos capas independientes: el *ceiling* de plan desde `/control` (`portal_clientes_habilitado`) sigue
+  siendo la única forma de reactivar un portal apagado a nivel plan — el switch de Mi Cuenta nunca
+  puede saltarse eso, y se bloquea (deshabilitado, con explicación) cuando el plan ya lo tiene apagado.
+- Aplica igual a un tenant (`/<slug>/admin`) y al sitio base (`/admin` sin slug) — el sitio base no
+  tiene plan que lo gobierne, así que ahí el switch de Mi Cuenta es la única capa.
+- La raíz pelada (`http://dominio/`, sin ruta) muestra el aviso igual que `/login` cuando el portal
+  está pausado — ambas rutas sirven la misma página de login por debajo.
+
 ---
 
 ## 25. Historial / pendientes a futuro

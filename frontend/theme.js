@@ -54,13 +54,27 @@
   }
   function paginaEsPortalCliente() {
     var segmentos = window.location.pathname.split('/').filter(Boolean);
-    return segmentos.length >= 2 && RUTAS_PORTAL_CLIENTE.indexOf(segmentos[1]) !== -1;
+    if (segmentos.length >= 2 && RUTAS_PORTAL_CLIENTE.indexOf(segmentos[1]) !== -1) return true;
+    // Sitio base (sin tenant): las mismas 6 páginas se sirven en la raíz,
+    // un solo segmento ("/login", "/dashboard"...) — ver nginx.conf.template
+    // (location = /login, etc.).
+    if (segmentos.length === 1 && RUTAS_PORTAL_CLIENTE.indexOf(segmentos[0]) !== -1) return true;
+    // "/" pelado (sin ruta) también es portal de cliente: el catch-all
+    // de nginx ("location / { try_files $uri $uri/ /login.html; }") sirve
+    // login.html ahí mismo cuando ningún location exacto matchea — mismo
+    // archivo que /login, pero con 0 segmentos en la URL (bug real
+    // encontrado por el usuario: la raíz pelada no mostraba el aviso).
+    return segmentos.length === 0;
   }
 
   var TENANT_SLUG = detectarTenantSlug();
-  if (!TENANT_SLUG) return;
+  // Punto 375: sin slug, esto YA NO es "nada que hacer" si la página es de
+  // portal de cliente en el sitio base — sigue sin pintar marca/tema (el
+  // sitio base no personaliza eso, ver punto 373) pero SÍ necesita saber
+  // si su propio "Portal de clientes" está pausado, vía /api/tema-base.
+  if (!TENANT_SLUG && !paginaEsPortalCliente()) return;
 
-  var API_TEMA = '/' + TENANT_SLUG + '/api/tema/' + TENANT_SLUG;
+  var API_TEMA = TENANT_SLUG ? ('/' + TENANT_SLUG + '/api/tema/' + TENANT_SLUG) : '/api/tema-base';
 
   function cargarFuentesGoogle(urls) {
     // style.css ya carga las fuentes base por @import; para un tema con
