@@ -185,6 +185,19 @@ solo la frase en español de la UI.
   duplicada del cliente divergió en silencio. Verificar con un par
   conocido (`#0F6E5D` vs `#ffffff` ≈ 5.8:1) o un E2E real, nunca asumir
   que copiar la fórmula de otro archivo ya la deja correcta.
+- **`theme.js` es el chokepoint del frontend para comportamiento por
+  tenant** (punto 374, 2026-10-06): un override de página completa (ej.
+  "portal desactivado") se agrega ahí, no repetido en cada script —
+  mismo principio que `requireUserAuth` en el backend. Al tocarlo:
+  nunca aplicar un override de portal de cliente a `/admin` aunque
+  `theme.js` también corra ahí (`RUTAS_PORTAL_CLIENTE` vs
+  `RUTAS_PAGINA_MULTITENANT`, listas separadas a propósito); y verificar
+  que la lista de rutas cubra TODAS las páginas que de verdad cargan el
+  script — `mi-cuenta.html` ya lo cargaba pero faltaba en la lista,
+  nunca pintaba tema ahí (gap preexistente, cerrado al necesitarlo
+  directo). Exponer un dato antes oculto (ej. correo real de contacto)
+  solo cuando el caso de uso lo necesita de verdad — condicionar la
+  exposición al estado relevante, no aflojar el campo para todos.
 - **nginx intercepta 502/503/504 globalmente** (`error_page 502 503 504`
   → `mantenimiento.html`) — cualquier error real de la API debe responder
   **500**, nunca 502/503/504, o se disfraza de "sitio caído".

@@ -409,6 +409,35 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   ambos formatos — nunca asumir que "ya está probado en otro archivo" sin
   correr el cálculo contra un par conocido (ej. `#0F6E5D` vs `#ffffff`
   ≈ 5.8:1, debe pasar AA de 3:1) o un E2E real que ejercite el aviso.
+- **`theme.js` es el chokepoint del frontend para "esta página debe
+  comportarse distinto según el tenant"** (punto 374, 2026-10-06): ya se
+  carga en las 6 páginas del portal de cliente (login/dashboard/tickets/
+  csf/restablecer/mi-cuenta) y en `/admin`, vía `GET /api/tema/:slug`
+  (público). Un override de página completa (ej. "portal desactivado")
+  se agrega AHÍ, nunca repitiendo el chequeo en cada script de página —
+  mismo principio que `requireUserAuth` del lado del backend. Al agregar
+  un override así: (1) nunca aplicarlo a `/admin` aunque `theme.js`
+  también corra ahí (ver `RUTAS_PORTAL_CLIENTE` vs
+  `RUTAS_PAGINA_MULTITENANT`, listas separadas a propósito); (2) revisar
+  si la página nueva ya estaba en la lista de detección de slug — `theme.js`
+  tenía a `mi-cuenta.html` cargando el script pero faltaba en
+  `RUTAS_PAGINA_MULTITENANT`, así que nunca pintaba tema ahí (gap
+  preexistente, cerrado al agregar este override porque lo necesitaba
+  directamente) — al tocar `theme.js`, verificar que la lista de rutas
+  cubra TODAS las páginas que de verdad cargan el script, no solo las que
+  "deberían".
+- **Exponer un dato del tenant solo cuando de verdad hace falta, no
+  siempre "por si acaso"** (mismo punto 374): `GET /api/tema/:slug` ya
+  tenía el precedente de no exponer `contacto_email` en crudo (solo un
+  booleano, `tieneAclaraciones`) — al necesitar el correo real para la
+  página de portal desactivado, se agregó un campo NUEVO
+  (`contactoEmailPortalApagado`) que solo trae el valor cuando
+  `portalClientesHabilitado` es `false`; con el portal activo sigue
+  `null`. Antes de ampliar un endpoint público existente para que
+  devuelva un dato que antes ocultaba a propósito, preguntarse si el caso
+  de uso nuevo requiere SIEMPRE ese dato o solo en un estado específico —
+  condicionar la exposición en vez de aflojar el campo para todos los
+  casos.
 - Antes de dar por "no disponible" una skill/herramienta mencionada por
   el usuario: revisar el catálogo de skills activas, luego `D:\cc`,
   luego el repositorio oficial — nunca asumir su función.

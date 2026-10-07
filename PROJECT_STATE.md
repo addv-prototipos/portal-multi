@@ -19084,6 +19084,59 @@ encontrarlo aquí, es esta entrada.
   spec) — no estaba así en este entorno al momento de esta sesión.
   Ninguno de los dos tiene relación con marca/tema.
 
+**Punto 374 (2026-10-06, CERRADO — "Portal de clientes desactivado": página
+de aviso para el cliente):** con `portalClientesHabilitado` apagado (switch
+real en `/control`, "Portal de clientes"), las 6 páginas del portal de
+cliente ya no mostraban nada específico — la API 404 en silencio y el
+usuario veía un mensaje de error genérico de login, sin saber si era su
+contraseña o que el servicio estaba apagado. Propuesta visual: 4
+Artifacts (navy/cian de marca, cristal Clarvo en 3D girando) — el usuario
+eligió la propuesta 3, "Aurora profunda".
+
+- **Backend** (`backend/server.js`, `GET /api/tema/:slug`, endpoint
+  público ya existente que `theme.js` consume en las 6 páginas): 2 campos
+  nuevos en la respuesta — `portalClientesHabilitado` (booleano) y
+  `contactoEmailPortalApagado` (el correo real de contacto del tenant,
+  **solo** cuando el portal está apagado; con el portal activo sigue
+  `null`, a propósito — mismo criterio de privacidad que ya tenía
+  `tieneAclaraciones`, "cero dato sensible expuesto" salvo en el único
+  caso en que de verdad hace falta). Cubierto con 3 tests nuevos en
+  `backend/test/integration/tema.test.js` (apagado expone el correo,
+  activo no lo expone, apagado sin correo configurado expone `null`).
+- **Frontend** (`frontend/theme.js`, único chokepoint — ya se carga en
+  las 6 páginas del portal de cliente, `login`/`dashboard`/`tickets`/
+  `csf`/`restablecer`/`mi-cuenta`): si `portalClientesHabilitado` es
+  `false` Y la página actual es de portal de cliente (nunca en `/admin`,
+  aunque `/admin` también cargue `theme.js` para pintar su propia
+  identidad de marca), reemplaza `document.body` completo por el aviso
+  "Aurora profunda" — blobs de luz navy/cian moviéndose lento detrás de
+  un halo pulsante, el cristal Clarvo (`/assets/favicon.png`) girando en
+  3D real (`rotateY` + `perspective`, 13s, `transform-style:preserve-3d`),
+  mensaje + tarjeta de correo de contacto (oculta si el tenant no tiene
+  `contacto_email` configurado) + pie "Clarvo · tu negocio en orden". Todo
+  el CSS se inyecta en un solo `<style>` (permitido por la CSP de nginx,
+  `style-src 'self' 'unsafe-inline'`), nada de script inline (`script-src
+  'self'` sin `'unsafe-inline'`). Toda animación respeta
+  `prefers-reduced-motion: reduce`. De paso se agregó `mi-cuenta` a
+  `RUTAS_PAGINA_MULTITENANT` — ya cargaba `theme.js` pero faltaba en esa
+  lista, así que nunca pintaba tema (gap preexistente, cerrado aquí por
+  necesidad directa de esta misma función).
+- **Pruebas**: `node --check` en los 2 `.js` tocados. Jest backend
+  **1198/1198** sin regresiones. Playwright real contra Docker/MySQL
+  reales, spec nuevo `e2e/tests/portal-desactivado.spec.ts` (**3/3 en
+  verde**): con el portal apagado, las 4 páginas públicas
+  (login/dashboard/tickets/csf) muestran el aviso con el correo de
+  contacto real y ya no tienen ningún `<input>`/`<form>` de la UI
+  original en el DOM; `/admin` del mismo tenant sigue funcionando normal
+  (login real, sin rastro del aviso); al reactivar el portal, `/login`
+  vuelve a mostrar el formulario normal. Captura real (no el mockup) en
+  `e2e/capturas/portal-desactivado-real.png` — un bug real de layout se
+  encontró y corrigió en el camino: `.pd-contacto-label` necesitaba
+  `display:block` (sin eso, la etiqueta "Correo de contacto" y el correo
+  quedaban pegados en la misma línea — invisible en el Artifact porque
+  ahí el navegador alcanzaba a envolver por ancho, pero no en la
+  implementación real con el contenedor más angosto).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

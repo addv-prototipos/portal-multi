@@ -1287,6 +1287,12 @@ app.get('/api/tema/:slug', async (req, res) => {
     const marcaLookfeelHabilitado = !tenant || tenant.marca_lookfeel_habilitado !== 0;
     const tenantParaTema = marcaLookfeelHabilitado ? tenant : { ...tenant, tema_json: null };
     const tema = parsearTemaDesdeFila(tenantParaTema);
+    // Punto 374: "Portal de clientes desactivado" — theme.js (único
+    // consumidor de este endpoint en las 6 páginas del portal de
+    // cliente) necesita saber si el portal está apagado para sustituir
+    // toda la página por el aviso, y el correo real al que el cliente
+    // puede escribir en ese caso.
+    const portalClientesHabilitado = !tenant || tenant.portal_clientes_habilitado !== 0;
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({
       slug,
@@ -1300,6 +1306,12 @@ app.get('/api/tema/:slug', async (req, res) => {
       // dato sensible expuesto (booleano nomás), mismo endpoint público
       // que ya consume theme.js en las 3 páginas del portal de cliente.
       tieneAclaraciones: Boolean(tenant && tenant.contacto_email),
+      portalClientesHabilitado,
+      // El correo real SOLO se expone cuando el portal está apagado (el
+      // único caso en que theme.js lo necesita, para la página de aviso)
+      // — con el portal activo se mantiene el criterio de arriba, "cero
+      // dato sensible expuesto, booleano nomás".
+      contactoEmailPortalApagado: portalClientesHabilitado ? null : ((tenant && tenant.contacto_email) || null),
     });
   } catch (err) {
     console.error(`Error sirviendo el tema del tenant "${slug}":`, err);

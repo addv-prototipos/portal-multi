@@ -100,6 +100,8 @@ describe('GET /api/tema/:slug', () => {
       variables: {},
       fuentesGoogle: [],
       tieneAclaraciones: false,
+      portalClientesHabilitado: true,
+      contactoEmailPortalApagado: null,
     });
   });
 
@@ -110,6 +112,37 @@ describe('GET /api/tema/:slug', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.tieneAclaraciones).toBe(true);
+  });
+
+  test('punto 374: portal_clientes_habilitado=0 expone portalClientesHabilitado false y el correo real', async () => {
+    mockControlPool([{ ...TENANT_SIN_TEMA, portal_clientes_habilitado: 0, contacto_email: 'contacto@cliente1.com' }]);
+
+    const res = await request(app).get('/api/tema/cliente1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.portalClientesHabilitado).toBe(false);
+    expect(res.body.contactoEmailPortalApagado).toBe('contacto@cliente1.com');
+  });
+
+  test('punto 374: con el portal activo, el correo real NO se expone (solo el booleano de siempre)', async () => {
+    mockControlPool([{ ...TENANT_SIN_TEMA, portal_clientes_habilitado: 1, contacto_email: 'contacto@cliente1.com' }]);
+
+    const res = await request(app).get('/api/tema/cliente1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.portalClientesHabilitado).toBe(true);
+    expect(res.body.contactoEmailPortalApagado).toBeNull();
+    expect(res.body.tieneAclaraciones).toBe(true);
+  });
+
+  test('punto 374: tenant con portal apagado y sin contacto_email configurado expone correo null', async () => {
+    mockControlPool([{ ...TENANT_SIN_TEMA, portal_clientes_habilitado: 0 }]);
+
+    const res = await request(app).get('/api/tema/cliente1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.portalClientesHabilitado).toBe(false);
+    expect(res.body.contactoEmailPortalApagado).toBeNull();
   });
 
   test('tenant con tema responde tema normalizado + variables + fuentes', async () => {

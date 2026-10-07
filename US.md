@@ -1237,6 +1237,25 @@ puede tener un tenant, para que el límite de un plan se cumpla de verdad.
   cuenta que exceda la cuota; nunca aplica a cuentas perfil `cliente`.
 - Una cuenta suspendida sigue contando contra la cuota (no libera el "asiento").
 
+### US-110 — Aviso de "Portal de clientes desactivado" en vez de un error genérico
+Como **cliente** de una empresa cuyo plan no incluye el portal (o que lo apagó temporalmente), quiero
+ver una pantalla clara que me diga que el portal no está disponible y cómo contactar a la empresa, en
+vez de un error de inicio de sesión genérico indistinguible de una contraseña equivocada.
+
+**Criterios de aceptación:**
+- Con `portalClientesHabilitado` apagado, las 6 páginas del portal de cliente
+  (login/dashboard/tickets/csf/restablecer/mi-cuenta) muestran el aviso — nunca `/admin`, que sigue
+  funcionando normal (el flag solo gobierna la sesión del cliente).
+- Diseño "Aurora profunda": fondo navy con blobs de luz cian moviéndose lento, cristal Clarvo girando
+  en 3D real (no una animación plana), tarjeta con el correo de contacto REAL de la empresa (solo se
+  expone cuando el portal está apagado; con el portal activo el dato sigue sin exponerse, mismo
+  criterio de privacidad de siempre). Toda animación respeta `prefers-reduced-motion`.
+- `GET /api/tema/:slug` (endpoint público que ya consume `theme.js` en las 6 páginas) expone
+  `portalClientesHabilitado` y `contactoEmailPortalApagado`; `theme.js` es el único punto que decide
+  sustituir la página — no hay que repetir el chequeo en cada script de página.
+- Si el tenant no tiene correo de contacto configurado, la tarjeta de contacto simplemente no aparece
+  (degradación elegante, igual que la burbuja "Solicitar aclaraciones").
+
 ---
 
 ## 25. Historial / pendientes a futuro
