@@ -944,8 +944,26 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
   });
 
   describe('GET /api/admin/ordenes-compra con productos_inventario (Segmento A)', () => {
+    // Punto 380: la ruta ahora pagina en el servidor y agrega resumenCxc
+    // — el orden real de pool.query() por request es: getConfiguracionGlobal,
+    // COUNT(*), SELECT ordenes, [SELECT orden_productos si hay filas],
+    // resumenCxc. RESUMEN_CXC_VACIO es el mock de esa última query con
+    // todos los campos en cero/null (los que espera `resumenFila.*`).
+    const RESUMEN_CXC_VACIO = [[{
+      pendientes_count: 0, por_cobrar: 0,
+      vencidas_count: 0, vencidas_monto: 0,
+      sin_vencer_count: 0, sin_vencer_monto: 0,
+      sin_fecha_count: 0, sin_fecha_monto: 0,
+      vencido30_count: 0, vencido30_monto: 0,
+      vencidomas30_count: 0, vencidomas30_monto: 0,
+      mora_promedio: null,
+      cobradas_count: 0, cobrado_mes: 0,
+    }]];
+
     test('incluye la lista de líneas de inventario por venta', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      pool.query.mockResolvedValueOnce([[{ total: 1 }]]); // COUNT(*)
       pool.query.mockResolvedValueOnce([
         [{ id: 70, numero_compra: 'OC-000070', fecha_compra: '2026-08-25 10:00:00', concepto: 'x', cantidad: '1220.00', iva_porcentaje: '16.00', total: '1415.20', email: null, estado_pago: 'pagada', producto_id: null, producto_cantidad: null, facturado: 0 }],
       ]); // SELECT ordenes
@@ -955,7 +973,7 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
           { orden_id: 70, producto_id: 6, cantidad: '1.000', producto_sku: 'PAP-6', producto_nombre: 'Papel' },
         ],
       ]); // SELECT orden_productos
-      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      pool.query.mockResolvedValueOnce(RESUMEN_CXC_VACIO); // resumenCxc
 
       const res = await request(app).get('/api/admin/ordenes-compra').auth(usuario, password);
 
@@ -968,8 +986,10 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
 
     test('perfil "ventas" sí tiene acceso (punto 190)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
-      pool.query.mockResolvedValueOnce([[]]); // SELECT ordenes -> ninguna
       pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      pool.query.mockResolvedValueOnce([[{ total: 0 }]]); // COUNT(*)
+      pool.query.mockResolvedValueOnce([[]]); // SELECT ordenes -> ninguna
+      pool.query.mockResolvedValueOnce(RESUMEN_CXC_VACIO); // resumenCxc
 
       const res = await request(app).get('/api/admin/ordenes-compra').auth(usuario, password);
 
@@ -982,11 +1002,13 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
     // exponerlo.
     test('punto 320: "creado_por" nunca se expone en la lista de Ventas', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      pool.query.mockResolvedValueOnce([[{ total: 1 }]]); // COUNT(*)
       pool.query.mockResolvedValueOnce([
         [{ id: 71, numero_compra: 'OC-000071', fecha_compra: '2026-08-25 10:00:00', concepto: 'x', cantidad: '10.00', iva_porcentaje: '16.00', total: '11.60', email: null, estado_pago: 'pagada', producto_id: null, producto_cantidad: null, facturado: 0, creado_por: 'Laura Méndez' }],
       ]); // SELECT ordenes (simula que el driver trajera la columna de todas formas)
       pool.query.mockResolvedValueOnce([[]]); // SELECT orden_productos
-      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      pool.query.mockResolvedValueOnce(RESUMEN_CXC_VACIO); // resumenCxc
 
       const res = await request(app).get('/api/admin/ordenes-compra').auth(usuario, password);
 

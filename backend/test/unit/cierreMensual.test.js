@@ -243,6 +243,32 @@ describe('cierreMensual — ejecutarCierresMensualesParaTodos (dual base + tenan
     expect(resultados).toHaveLength(1);
     expect(resultados[0].base).toBe(true);
   });
+
+  // Punto 380: candado de traslape — si la corrida horaria anterior sigue
+  // viva (ej. muchos tenants) cuando llega la siguiente, se omite en vez
+  // de correr en paralelo contra la misma BD.
+  test('candado de traslape: una segunda llamada mientras la primera sigue en curso se omite', async () => {
+    let resolverBase;
+    pool.query.mockImplementationOnce(() => new Promise((resolve) => { resolverBase = resolve; }));
+    obtenerPoolControl.mockReturnValue({ query: jest.fn().mockResolvedValue([[]]) });
+
+    const primera = ejecutarCierresMensualesParaTodos('2026-08');
+    const segunda = ejecutarCierresMensualesParaTodos('2026-08');
+
+    const resultadosSegunda = await segunda;
+    expect(resultadosSegunda).toEqual([
+      expect.objectContaining({ omitido: true, motivo: 'corrida_anterior_en_progreso' }),
+    ]);
+
+    resolverBase([[{ valor: '2026-08' }]]);
+    const resultadosPrimera = await primera;
+    expect(resultadosPrimera[0]).toEqual(expect.objectContaining({ base: true, yaEjecutado: true }));
+
+    // El candado se libera al terminar: una tercera llamada ya corre normal.
+    pool.query.mockResolvedValueOnce([[{ valor: '2026-08' }]]);
+    const resultadosTercera = await ejecutarCierresMensualesParaTodos('2026-08');
+    expect(resultadosTercera[0]).toEqual(expect.objectContaining({ base: true, yaEjecutado: true }));
+  });
 });
 
 describe('ordenAItemArchivado — punto 320: propaga quién registró la venta', () => {

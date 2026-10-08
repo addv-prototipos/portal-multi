@@ -19972,6 +19972,145 @@ elegida por el usuario de 6 presentadas vía Artifact):**
   `admin-plan-gating.spec.ts`/`facturacion-pausa-admin.spec.ts` ya
   estaban documentadas como ajenas antes de este addendum).
 
+**Segundo addendum al punto 379 (mismo día, CERRADO — recorrido guiado +
+Centro de conocimiento + historias de usuario sincronizados con el menú
+nuevo):** el usuario notó que el sidebar cambió (botón "Promociones") y
+pidió revisar recorridos/conocimiento por perfil + actualizar US.md.
+
+- **Recorrido guiado** (`ONBOARDING_TOUR_PASOS` en `admin.js`): nuevo
+  paso en el tour de `administrador` señalando `#btn-vista-promociones`
+  — único perfil afectado, ya que "Promociones" solo vive en el grupo
+  "Administración" del sidebar (fiscal/ventas/inventario nunca ven ese
+  grupo, `RESTRICCIONES_PERFIL` sin cambios para ellos — confirmado
+  revisando los 4 arreglos de pasos, ninguno más necesitaba tocarse).
+- **Centro de conocimiento** (`CONOCIMIENTO_CATEGORIAS` en `admin.js` +
+  nav item en `admin.html`): categoría nueva "Promociones" — SIN
+  restricción por perfil (confirmado: el Centro de conocimiento es un
+  manual de referencia completo, nunca se filtra por perfil, a
+  diferencia del sidebar real). El nav item de este modal vive
+  HARDCODEADO en el HTML (no se genera solo desde
+  `CONOCIMIENTO_CATEGORIAS`) — mismo tipo de registro paralelo ya
+  documentado para Configuraciones/Vistas, anotado aquí para la próxima
+  categoría nueva que se agregue.
+- **Historias de usuario** (`US.md`): nueva sección 27 con 3 historias
+  IMPLEMENTADA — US-082 (pausa de Facturación, punto 378, sin historia
+  previa), US-083 (campana de notificaciones, punto 379) y US-084
+  (vigencia/archivar/relanzar/eliminar de Promociones, mismo punto +
+  addendum). US-079 ("Actualizar centros de conocimiento + recorrido
+  guiado", PROPUESTA del punto 273) se deja intacta — su alcance original
+  es mucho más amplio (puntos 269/270, 256-260, YouTube) y este trabajo
+  solo cubrió la porción de Promociones, no una auditoría completa.
+- **Verificación**: `node --check` en `admin.js`, balance de
+  tags en `admin.html`, rebuild de frontend, confirmado con `curl` que
+  el nav item nuevo se sirve en el HTML real. E2E real re-corridos sin
+  regresión (`notificaciones-cliente.spec.ts` 4/4, `credito.spec.ts`
+  2/2). Sin E2E dedicado nuevo para el contenido del Centro de
+  conocimiento/tour en sí (ya comparten el mismo mecanismo de modal/
+  nav ya ejercitado indirectamente por specs existentes) — si se quiere
+  cobertura explícita de este contenido, queda pendiente a petición.
+
+## Punto 380 — Histórico siempre visible + paginación real (Ventas/Gastos/CxC) + candado de traslape en cierre mensual (8 oct 2026, CERRADO)
+
+Estructurado con `/prompt-master` (Template M) a partir de un requerimiento
+del usuario: lo archivado por el cierre mensual automático (punto 158)
+dejó de ser un mecanismo de OCULTAMIENTO — ahora es solo reportería/
+snapshot para evitar sobrecarga. El histórico completo queda accesible
+siempre, navegado con paginación real server-side, nunca escondido.
+
+- **`GET /api/admin/ordenes-compra`** (`backend/server.js`): reescrito de
+  "devuelve todo, `WHERE archivado_en IS NULL` por defecto" a paginación
+  real — `pagina`/`por_pagina` (tope 100, default 25, mínimo 5),
+  `busqueda`/`fecha_desde`/`fecha_hasta`/`total_min`/`total_max`/
+  `estado_pago` (pagada|pendiente|vencida)/`vencimiento`
+  (vencidas|por_vencer|sin_fecha)/`facturacion`/`periodo` como filtros
+  server-side, `COUNT(*)` + `LIMIT/OFFSET`. Nuevo campo `resumenCxc` en la
+  respuesta: agregado SQL independiente de la página actual (pendientes/
+  vencidas/antigüedad en 4 buckets/mora promedio/saldo promedio/cobrado
+  del mes vía `CASE WHEN`/`DATEDIFF`), para que Cuentas por cobrar no
+  necesite descargar el histórico completo solo para sus KPIs.
+- **`GET /api/admin/gastos`**: se quitó el bloque que ocultaba
+  `archivado_en IS NULL` por defecto — la paginación/búsqueda que ya
+  tenía (plantilla original para este cambio) se queda intacta, solo
+  cambia qué filas entran por defecto (todas). `?periodo=YYYY-MM` sigue
+  como filtro opcional de conveniencia, nunca como ocultamiento.
+- **Frontend Ventas** (`frontend/admin.js`): `cargarOrdenes()` pasó de
+  "trae todo una vez" a fetch paginado real con los filtros activos como
+  query params (debounce 350ms en texto/número, inmediato en selects).
+  `ordenesCache` ahora es SOLO la página actual (ya no el dataset
+  completo) — `aplicarFiltrosOrdenes()` (client-side) se eliminó,
+  reemplazada por `renderOrdenesConPendientes()` (pinta página +
+  pendientes offline + chips + paginador). Nuevo helper genérico
+  `renderPaginacionServidor()` (con elipsis para históricos grandes,
+  reutiliza las clases visuales de `.lectura-reportes-paginacion` ya
+  existentes de Reportes→Cortes) y `textoRangoPaginado()`.
+- **Frontend Cuentas por cobrar** (`frontend/admin.js`): decisión de
+  diseño clave (ver razón abajo) — se dividió en DOS fuentes de datos
+  en vez de paginar todo:
+  - `cxcBaseCache` (nueva, tope 500 pendientes + 500 cobradas recientes
+    vía `cargarCxcBase()`, 2 fetches en paralelo): alimenta
+    `calcularMetricasCxc()` SIN TOCARLA — de ahí siguen viviendo sin
+    cambios el aging, la alerta de vencidas, el gauge, "enviar
+    recordatorio masivo" (necesita objetos de fila reales, no solo
+    conteos) y la mini tarjeta "Cobranza del mes" de Resumen financiero
+    (`renderResumenFinCobranza`, que la skill de protocolo exige NUNCA
+    tocar — confirmado intacto).
+  - `cxcCobradasCache` (nueva, paginación real server-side vía
+    `cargarCxcCobradasPagina()`): solo para la pestaña "Cobradas" —
+    histórico sin tope, navegable, con su propio `busqueda`/`vencimiento`
+    mandados al servidor (ya no filtro client-side). La pestaña
+    "Pendientes" sigue filtrando en el cliente sobre `cxcBaseCache`
+    (sigue siendo instantáneo porque pendientes es naturalmente acotado).
+  - Monkey-patch existente de `cargarOrdenes` (auto-refresco de CxC tras
+    registrar una venta) y el guardado de cobro actualizados para
+    refrescar `cxcBaseCache` en vez de reusar `ordenesCache` (que ya no
+    contiene el dataset completo).
+- **Por qué NO se paginó todo de un jalón (decisión de diseño real,
+  documentada para que ninguna sesión futura la repita)**: la primera
+  idea fue hacer CxC 100% server-side-paginado con `resumenCxc` para
+  todo. Leer el código real de `renderCxcAging`/`renderCxcAlertaVencidas`/
+  `enviarRecordatorioMasivo` mostró que necesitan ARREGLOS DE FILAS
+  REALES (`m.vencidasList` se pasa directo a
+  `enviarRecordatorioMasivo(m.vencidasList)`, que itera objetos de orden
+  reales para mandar correos) — un `resumenCxc` de solo agregados hubiera
+  roto esa función real. Se revisó el plan ANTES de escribir código de
+  frontend: `calcularMetricasCxc` se queda intacta, alimentada por el
+  tope-500 (pendientes nunca se acumulan sin límite, a diferencia de
+  cobradas histórico).
+- **`backend/utils/cierreMensual.js`** (`ejecutarCierresMensualesParaTodos`):
+  se verificó primero qué ya existía (aislamiento de error por tenant
+  YA estaba, dentro del propio `.map()` con `try/catch` por tenant) antes
+  de agregar algo nuevo. Se agregó: (1) candado de traslape en memoria
+  (`corridaEnProgreso`) — si la corrida horaria anterior sigue viva
+  cuando llega la siguiente (ej. muchos tenants), la nueva se omite
+  (`{ omitido: true, motivo: 'corrida_anterior_en_progreso' }`) en vez de
+  correr en paralelo contra la misma BD; (2) pausa de 500ms entre lotes
+  de 5 tenants (`PAUSA_ENTRE_LOTES_MS`). El reporte-snapshot del cierre
+  (`generarYEnviarReporte`) y el orden "reporte guardado antes de
+  archivar" NO se tocaron.
+- **Nunca tocado, confirmado**: Resumen financiero (`renderResumenFinanciero`,
+  sus queries no dependen de `archivado_en`), la generación del reporte
+  del cierre mensual, la capacidad de eliminar un reporte ya generado
+  (endpoint existente sin cambios).
+- **Verificación**: Jest backend completo 1229/1229 sin regresiones
+  (incluye 3 tests de `ordenes-compra.test.js` actualizados — su mock de
+  `pool.query` asumía el orden viejo de consultas, antes de COUNT+
+  resumenCxc — y 1 test nuevo de candado de traslape en
+  `cierreMensual.test.js`). `node --check` en todos los `.js` tocados.
+  Rebuild real de Docker (`backend`+`frontend`) + recreate, confirmado
+  `/api/health` en 200. E2E Playwright real nuevo
+  (`e2e/tests/ventas-cxc-paginacion.spec.ts`, 2/2 en verde) contra
+  Docker/MySQL reales: confirma que el selector de periodo por defecto es
+  "Todos los periodos" (no "Mes actual"), que Ventas carga y pagina su
+  histórico real sin pasar ningún query param especial, y que Cuentas por
+  cobrar pagina "Cobradas" en el servidor (verificado con datos reales
+  del tenant: "1-25 de 212 cobradas"). `e2e/tests/cxc.spec.ts` (el spec
+  previo de registrar-venta-pendiente-y-cobrar) sigue roto por una causa
+  **no relacionada** con este cambio — su formulario de "Registrar venta"
+  ya migró a búsqueda de producto de inventario y el spec sigue
+  refiriendo los campos manuales viejos (`#orden-producto-concepto`,
+  etc.) — queda fuera de alcance de este punto, es deuda de test
+  preexistente.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
@@ -20004,3 +20143,4 @@ elegida por el usuario de 6 presentadas vía Artifact):**
 - Pausa de autoservicio "Portal de clientes" en Mi Cuenta, tenant y sitio base (punto 375): `backend/utils/tenantContext.js:portalClientesEfectivo`, `GET /api/tema-base` + `PUT /api/admin/mi-cuenta/portal-clientes` en `backend/server.js`, `portal_clientes_pausado` en `control/scripts/ensureSchema.js` (tenant) y `backend/utils/config.js` (sitio base), `paginaEsPortalCliente()` en `frontend/theme.js`
 - Pausa de autoservicio "Facturación" en Configuraciones, tenant y sitio base (punto 378): `backend/utils/tenantContext.js:facturacionEfectiva`, `requiereFacturacionActiva`/`facturacionActivaEnRequest` en `backend/utils/requiereFeature.js`, `PUT /api/admin/config/facturacion` en `backend/server.js`, `facturacion_pausada` en `control/scripts/ensureSchema.js` (tenant) y `backend/utils/config.js` (sitio base), tarjeta `facturacion-toggle-card` en `frontend/admin.html`/`admin.js` (sin gate propio en `PLAN_GATE_TARJETA_CONFIG`, a propósito)
 - Campana de notificaciones del portal de cliente — promociones + pago registrado en CxC (punto 379): tabla `notificaciones_cliente` en `backend/db.js`, `GET /api/notificaciones` + `POST`/`GET /api/admin/promociones` + aviso automático en `PUT /api/admin/ordenes-compra/:id/cobro` (todos en `backend/server.js`), flag `promociones_habilitado` en `control/scripts/ensureSchema.js`/`tenantContext.js`/`control/utils/{planes,tenantEdicion}.js`/`frontend/control.js`, campana centralizada (sin HTML nuevo) en `frontend/portal.js`, vista "Promociones" en `frontend/admin.html`/`admin.js`
+- Histórico siempre visible + paginación real en Ventas/Gastos/CxC + candado de traslape en cierre mensual (punto 380): `GET /api/admin/ordenes-compra` paginado real + `resumenCxc` en `backend/server.js`, `GET /api/admin/gastos` sin ocultamiento por defecto, `cargarOrdenes`/`renderOrdenesConPendientes`/`renderPaginacionServidor` + `cxcBaseCache`/`cxcCobradasCache`/`cargarCxcBase`/`cargarCxcCobradasPagina` en `frontend/admin.js`, candado `corridaEnProgreso` + pausa entre lotes en `backend/utils/cierreMensual.js`

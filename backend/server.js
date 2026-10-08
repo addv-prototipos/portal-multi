@@ -153,7 +153,7 @@ const {
   ALMACEN_DEFECTO_CODIGO,
 } = require('./utils/inventario');
 const { obtenerTipoCambioUSD } = require('./utils/tipoCambio');
-const { limitesDia, limitesMes, medianocheLocal, cadenaFecha } = require('./utils/limitesPeriodo');
+const { limitesDia, limitesMes, medianocheLocal, fechaLocalZona, cadenaFecha } = require('./utils/limitesPeriodo');
 const { obtenerImagenMaxMbCacheado, IMAGEN_MAX_MB_MAX } = require('./utils/ajustesGlobales');
 const {
   obtenerConfigInventario,
@@ -7257,10 +7257,27 @@ app.post(
   })
 );
 
-// Lista las órdenes de compra activas. Por defecto solo el mes operativo
-// (`archivado_en IS NULL`); con `?periodo=YYYY-MM` muestra el cierre
-// archivado de ese periodo, con `?incluirArchivadas=true` muestra todo.
-// La fecha se muestra con la zona horaria ACTUALMENTE configurada.
+// Lista las órdenes de compra — punto en curso (histórico siempre
+// visible): el cierre mensual automático archiva (`archivado_en`/
+// `periodo_archivado`) solo para efectos de reportería/snapshot — YA NO
+// se usa para esconder nada aquí. Por defecto esta ruta trae TODO
+// (archivado o no, de cualquier mes), paginado de verdad
+// (`pagina`/`por_pagina`, mismo contrato que `GET /api/admin/gastos`) en
+// vez del arreglo completo de siempre sin límite. `?periodo=YYYY-MM`
+// sigue existiendo como filtro OPCIONAL de conveniencia (ver un mes en
+// particular), nunca como el único modo de ver algo archivado.
+//
+// `resumenCxc`: Cuentas por cobrar necesita totales (cartera, vencidas,
+// antigüedad, cobrado del mes) que NO pueden salir de una sola página —
+// antes se calculaban en el navegador sobre el arreglo completo ya
+// descargado; ahora que la lista se pagina, se calculan aquí con SQL
+// (igual que el `resumen` de Gastos) y se mandan aparte, sin que el
+// tamaño de la cartera pendiente dependa de cuántas filas quepan en una
+// página. "Vencida"/"antigüedad" se resuelven con la fecha de HOY en la
+// zona horaria del tenant (nunca la del servidor/navegador — mismo
+// criterio ya documentado en limitesPeriodo.js), a diferencia del
+// cálculo anterior en el navegador, que sin querer usaba la fecha local
+// de quien tuviera abierto el panel.
 app.get(
   '/api/admin/ordenes-compra',
   adminApiLimiter,
@@ -7268,17 +7285,81 @@ app.get(
   requireAdminAuth,
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
+    const pagina = Math.max(1, Number(req.query.pagina) || 1);
+    const porPagina = Math.min(100, Math.max(5, Number(req.query.por_pagina) || 25));
+
+    const configGlobal = await getConfiguracionGlobal();
+    const { anio, mes, dia } = fechaLocalZona(configGlobal.zona_horaria);
+    const hoyStr = cadenaFecha(anio, mes, dia);
+
+    const condiciones = ['o.eliminado_en IS NULL'];
+    const params = [];
+
     const periodo = typeof req.query.periodo === 'string' ? req.query.periodo.trim() : '';
-    const incluirArchivadas = req.query.incluirArchivadas === 'true';
-    const esPeriodoValido = /^\d{4}-\d{2}$/.test(periodo);
-    let whereArchivado = 'o.archivado_en IS NULL';
-    const paramsArchivado = [];
-    if (esPeriodoValido) {
-      whereArchivado = 'o.periodo_archivado = ?';
-      paramsArchivado.push(periodo);
-    } else if (incluirArchivadas) {
-      whereArchivado = '1=1';
+    if (/^\d{4}-\d{2}$/.test(periodo)) {
+      condiciones.push('o.periodo_archivado = ?');
+      params.push(periodo);
     }
+
+    const busqueda = typeof req.query.busqueda === 'string' ? req.query.busqueda.trim() : '';
+    if (busqueda) {
+      const patron = `%${busqueda}%`;
+      condiciones.push('(o.numero_compra LIKE ? OR o.email LIKE ? OR o.concepto LIKE ? OR o.notas_cobro LIKE ? OR r.nombre LIKE ? OR r.rfc LIKE ?)');
+      params.push(patron, patron, patron, patron, patron, patron);
+    }
+
+    if (req.query.fecha_desde && /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha_desde)) {
+      const [y, m, d] = req.query.fecha_desde.split('-').map(Number);
+      condiciones.push('o.fecha_compra >= ?');
+      params.push(medianocheLocal(y, m, d, configGlobal.zona_horaria));
+    }
+    if (req.query.fecha_hasta && /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha_hasta)) {
+      const [y, m, d] = req.query.fecha_hasta.split('-').map(Number);
+      condiciones.push('o.fecha_compra < ?'); // exclusivo: hasta el final de ese día local
+      params.push(medianocheLocal(y, m, d + 1, configGlobal.zona_horaria));
+    }
+    const totalMin = req.query.total_min !== undefined ? Number(req.query.total_min) : null;
+    if (Number.isFinite(totalMin)) {
+      condiciones.push('o.total >= ?');
+      params.push(totalMin);
+    }
+    const totalMax = req.query.total_max !== undefined ? Number(req.query.total_max) : null;
+    if (Number.isFinite(totalMax)) {
+      condiciones.push('o.total <= ?');
+      params.push(totalMax);
+    }
+    const estadoPago = typeof req.query.estado_pago === 'string' ? req.query.estado_pago : '';
+    if (estadoPago === 'pagada') {
+      condiciones.push("o.estado_pago = 'pagada'");
+    } else if (estadoPago === 'pendiente') {
+      condiciones.push("o.estado_pago = 'pendiente'");
+    } else if (estadoPago === 'vencida') {
+      condiciones.push("o.estado_pago = 'pendiente' AND o.fecha_vencimiento IS NOT NULL AND o.fecha_vencimiento < ?");
+      params.push(hoyStr);
+    }
+    const vencimiento = typeof req.query.vencimiento === 'string' ? req.query.vencimiento : '';
+    if (vencimiento === 'vencidas') {
+      condiciones.push('o.fecha_vencimiento IS NOT NULL AND o.fecha_vencimiento < ?');
+      params.push(hoyStr);
+    } else if (vencimiento === 'por_vencer') {
+      condiciones.push('o.fecha_vencimiento IS NOT NULL AND o.fecha_vencimiento >= ?');
+      params.push(hoyStr);
+    } else if (vencimiento === 'sin_fecha') {
+      condiciones.push('o.fecha_vencimiento IS NULL');
+    }
+    const facturacion = typeof req.query.facturacion === 'string' ? req.query.facturacion : '';
+    if (facturacion === 'facturada') {
+      condiciones.push('o.facturado_en IS NOT NULL');
+    } else if (facturacion === 'sin_facturar') {
+      condiciones.push('o.facturado_en IS NULL');
+    }
+
+    const where = condiciones.join(' AND ');
+    const joins = 'FROM ordenes_compra o LEFT JOIN registros r ON r.email = o.email AND r.eliminado_en IS NULL';
+
+    const [contador] = await pool.query(`SELECT COUNT(*) AS total ${joins} WHERE ${where}`, params);
+    const total = Number(contador[0].total);
+
     const [ordenes] = await pool.query(
       `SELECT o.id, o.numero_compra, o.fecha_compra, o.concepto, o.cantidad, o.iva_porcentaje, o.total, o.descuento_porcentaje, o.descuento_monto, o.email, o.estado_pago, o.fecha_vencimiento, o.monto_cobrado, o.fecha_cobro, o.notas_cobro, o.creado_en,
         o.metodo_pago, o.folio_conciliacion,
@@ -7286,12 +7367,12 @@ app.get(
         o.archivado_en, o.periodo_archivado,
         (o.facturado_en IS NOT NULL) AS facturado,
         r.nombre AS cliente_nombre, r.rfc AS cliente_rfc
-       FROM ordenes_compra o
+       ${joins}
        LEFT JOIN productos p ON p.id = o.producto_id
-       LEFT JOIN registros r ON r.email = o.email AND r.eliminado_en IS NULL
-       WHERE o.eliminado_en IS NULL AND ${whereArchivado}
-       ORDER BY o.creado_en DESC`,
-      paramsArchivado
+       WHERE ${where}
+       ORDER BY o.creado_en DESC
+       LIMIT ? OFFSET ?`,
+      [...params, porPagina, (pagina - 1) * porPagina]
     );
 
     // Segmento A: líneas de inventario (0, 1 o varias) por venta, en una
@@ -7320,7 +7401,6 @@ app.get(
       }
     }
 
-    const configGlobal = await getConfiguracionGlobal();
     const ordenesFormateadas = ordenes.map((orden) => {
       // Punto 322: "creado_por" (quién registró la venta) NUNCA debe
       // llegar aquí — el SELECT de arriba ya lo excluye, pero se quita
@@ -7339,7 +7419,60 @@ app.get(
       };
     });
 
-    res.json({ total: ordenesFormateadas.length, ordenes: ordenesFormateadas });
+    // resumenCxc: totales de cartera (pendientes/vencidas/antigüedad/
+    // cobrado del mes) via SQL, independientes de la página actual — ver
+    // comentario de cabecera. `mesActual` usa la familia `instantes` de
+    // limitesMes (fecha_cobro es DATETIME, no DATE).
+    const { instantes: mesActual } = limitesMes(configGlobal.zona_horaria);
+    const [[resumenFila]] = await pool.query(
+      `SELECT
+         COUNT(CASE WHEN estado_pago='pendiente' THEN 1 END) AS pendientes_count,
+         COALESCE(SUM(CASE WHEN estado_pago='pendiente' THEN total - monto_cobrado END),0) AS por_cobrar,
+         COUNT(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ? THEN 1 END) AS vencidas_count,
+         COALESCE(SUM(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ? THEN total - monto_cobrado END),0) AS vencidas_monto,
+         COUNT(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento >= ? THEN 1 END) AS sin_vencer_count,
+         COALESCE(SUM(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento >= ? THEN total - monto_cobrado END),0) AS sin_vencer_monto,
+         COUNT(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NULL THEN 1 END) AS sin_fecha_count,
+         COALESCE(SUM(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NULL THEN total - monto_cobrado END),0) AS sin_fecha_monto,
+         COUNT(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ? AND DATEDIFF(?, fecha_vencimiento) <= 30 THEN 1 END) AS vencido30_count,
+         COALESCE(SUM(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ? AND DATEDIFF(?, fecha_vencimiento) <= 30 THEN total - monto_cobrado END),0) AS vencido30_monto,
+         COUNT(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ? AND DATEDIFF(?, fecha_vencimiento) > 30 THEN 1 END) AS vencidomas30_count,
+         COALESCE(SUM(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ? AND DATEDIFF(?, fecha_vencimiento) > 30 THEN total - monto_cobrado END),0) AS vencidomas30_monto,
+         AVG(CASE WHEN estado_pago='pendiente' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ? THEN DATEDIFF(?, fecha_vencimiento) END) AS mora_promedio,
+         COUNT(CASE WHEN estado_pago<>'pendiente' THEN 1 END) AS cobradas_count,
+         COALESCE(SUM(CASE WHEN estado_pago<>'pendiente' AND fecha_cobro >= ? AND fecha_cobro < ? THEN COALESCE(monto_cobrado, total) END),0) AS cobrado_mes
+       FROM ordenes_compra WHERE eliminado_en IS NULL`,
+      [
+        hoyStr, hoyStr, // vencidas
+        hoyStr, hoyStr, // sin_vencer
+        hoyStr, hoyStr, hoyStr, hoyStr, // vencido30
+        hoyStr, hoyStr, hoyStr, hoyStr, // vencidomas30
+        hoyStr, hoyStr, // mora_promedio
+        mesActual.inicio, mesActual.fin, // cobrado_mes
+      ]
+    );
+    const pendientesCount = Number(resumenFila.pendientes_count);
+    const porCobrar = Number(resumenFila.por_cobrar);
+    const resumenCxc = {
+      pendientesCount,
+      cobradasCount: Number(resumenFila.cobradas_count),
+      porCobrar,
+      vencidasCount: Number(resumenFila.vencidas_count),
+      vencidasMonto: Number(resumenFila.vencidas_monto),
+      sinVencerCount: Number(resumenFila.sin_vencer_count),
+      sinVencerMonto: Number(resumenFila.sin_vencer_monto),
+      sinFechaCount: Number(resumenFila.sin_fecha_count),
+      sinFechaMonto: Number(resumenFila.sin_fecha_monto),
+      vencido30Count: Number(resumenFila.vencido30_count),
+      vencido30Monto: Number(resumenFila.vencido30_monto),
+      vencidoMas30Count: Number(resumenFila.vencidomas30_count),
+      vencidoMas30Monto: Number(resumenFila.vencidomas30_monto),
+      moraPromedio: resumenFila.mora_promedio === null ? null : Math.round(Number(resumenFila.mora_promedio)),
+      saldoPromedio: pendientesCount > 0 ? Math.round((porCobrar / pendientesCount) * 100) / 100 : 0,
+      cobradoMes: Number(resumenFila.cobrado_mes),
+    };
+
+    res.json({ total, pagina, por_pagina: porPagina, ordenes: ordenesFormateadas, resumenCxc });
   })
 );
 
@@ -8377,17 +8510,16 @@ app.get(
       params.push(patron, patron);
     }
     condiciones.push(verPapelera ? 'eliminado_en IS NOT NULL' : 'eliminado_en IS NULL');
-    // Punto 158 — Cierre mensual archivado: por defecto oculta archivados;
-    // ?periodo=YYYY-MM muestra ese cierre; ?incluirArchivadas=true muestra todo.
+    // Punto en curso (histórico siempre visible): "archivado_en"/
+    // "periodo_archivado" ya NO se usan para esconder nada por defecto —
+    // el cierre mensual los sigue marcando igual, solo que ahora es
+    // puramente informativo/reportería. `?periodo=YYYY-MM` se queda como
+    // filtro OPCIONAL de conveniencia (ver un mes en particular), nunca
+    // como el único modo de ver algo archivado.
     const periodoGasto = typeof req.query.periodo === 'string' ? req.query.periodo.trim() : '';
-    const incluirArchivadasGasto = req.query.incluirArchivadas === 'true';
-    if (!verPapelera) {
-      if (/^\d{4}-\d{2}$/.test(periodoGasto)) {
-        condiciones.push('periodo_archivado = ?');
-        params.push(periodoGasto);
-      } else if (!incluirArchivadasGasto) {
-        condiciones.push('archivado_en IS NULL');
-      }
+    if (!verPapelera && /^\d{4}-\d{2}$/.test(periodoGasto)) {
+      condiciones.push('periodo_archivado = ?');
+      params.push(periodoGasto);
     }
     const where = condiciones.join(' AND ');
 

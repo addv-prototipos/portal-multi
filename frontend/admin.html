@@ -1265,7 +1265,7 @@
           <div class="field">
             <label for="ordenes-filtro-periodo">Periodo</label>
             <select id="ordenes-filtro-periodo">
-              <option value="">Mes actual</option>
+              <option value="">Todos los periodos</option>
             </select>
           </div>
           <div class="lectura-reportes-filtros-acciones">
@@ -1302,6 +1302,7 @@
               <button type="button" class="btn btn-primary" id="btn-ordenes-empty-registrar">+ Registrar venta</button>
             </div>
             <p class="admin-empty" id="ordenes-filtro-empty" hidden>Ninguna venta coincide con los filtros.</p>
+            <div class="lectura-reportes-paginacion" id="ordenes-paginacion" hidden></div>
           </div>
         </section>
       </div>
@@ -1895,6 +1896,7 @@
             <button type="button" class="btn btn-primary" id="btn-cxc-empty-registrar">+ Registrar venta</button>
           </div>
           <p class="admin-empty" id="cxc-filtro-empty" hidden>Ninguna cuenta coincide con los filtros.</p>
+          <div class="lectura-reportes-paginacion" id="cxc-paginacion" hidden></div>
         </div>
       </div>
 
@@ -1976,7 +1978,7 @@
           <div class="field gastos-filtro-campo">
             <label class="gastos-filtro-label" for="gastos-filtro-periodo">Periodo</label>
             <select id="gastos-filtro-periodo">
-              <option value="">Mes actual</option>
+              <option value="">Todos los periodos</option>
             </select>
           </div>
           <div class="field gastos-filtro-campo">
@@ -5984,6 +5986,10 @@
           <button type="button" class="conocimiento-nav-item" data-cat="auditoria">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-5 8l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Auditoría
+          </button>
+          <button type="button" class="conocimiento-nav-item" data-cat="promociones">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 7l9 6 9-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Promociones
           </button>
           <button type="button" class="conocimiento-nav-item" data-cat="resumen-financiero">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round"/></svg>

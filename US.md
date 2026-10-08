@@ -1356,4 +1356,37 @@ Como **operador/product owner**, quiero filtrar `pendientes.html` por app (Clien
 **Criterios de aceptación (implementado 10 sep 2026):**
 - Barra "Filtrar por app:" con pills Todos/Cliente/Admin/Control, conteos automáticos, `aria-pressed`, y `?app=` en URL combinable con `?q=` del buscador.
 - Cada `<tr>` lleva `data-app="cliente"` / `"admin"` / `"control"` o combinaciones (`cliente,admin,control`); el filtro respeta búsqueda por texto y oculta secciones vacías.
+
+## 27. Facturación y campana de notificaciones del portal de cliente (8 oct 2026)
+
+### US-082 — Pausar/reanudar Facturación desde Configuraciones, tenant y sitio base *(IMPLEMENTADA — punto 378)*
+Como **administrador**, quiero un switch en Configuraciones para pausar/reanudar Facturación yo mismo, sin pasar por `/control`, para desactivarla temporalmente sin perder la capacidad de reactivarla.
+
+**Criterios de aceptación (implementado 8 oct 2026):**
+- Dos capas: el *ceiling* de plan desde `/control` (`facturacion_habilitada`, solo `/control` lo reactiva) y la pausa de autoservicio nueva (`facturacion_pausada`, tenant y sitio base) — efectivo = ambas en `true`.
+- Tarjeta "Módulo Facturación" en Configuraciones, con gate de perfil (administrador/super) pero **sin** gate de plan propio — evita que se esconda a sí misma al apagarse (mismo motivo que Portal de clientes vive en Mi Cuenta).
+- Pausar Facturación apaga RFC obligatorio, Tickets/CSF y oculta el menú correspondiente para el cliente; Cuentas por cobrar del portal de clientes NO se ve afectada (Portal de clientes gobierna a Facturación, nunca al revés — decisión explícita del usuario).
+- Verificado: Jest 1200/1200, E2E real `facturacion-pausa-admin.spec.ts`.
+
+### US-083 — Campana de notificaciones del portal de cliente: promociones + pago registrado *(IMPLEMENTADA — punto 379)*
+Como **cliente**, quiero una campana de notificaciones (con sonido) en mi portal, para enterarme de promociones del negocio y de que mis pagos en Cuentas por cobrar ya quedaron registrados.
+
+**Criterios de aceptación (implementado 8 oct 2026):**
+- Campana centralizada en `frontend/portal.js` (inyectada por JS en las 5 páginas del portal de cliente, sin HTML duplicado), con sondeo de 60s y campanada sintetizada (tono propio, Web Audio, sin archivo de audio).
+- Se oculta sola si ni Cuentas por cobrar ni Promociones aplican en el plan del tenant (`GET /api/notificaciones` 404) — mismo criterio que la campana de `/admin`.
+- "Pago registrado": automática, al confirmar un cobro real en Cuentas por cobrar (vinculada por correo), con clic-through a la página de Crédito.
+- Gobernanza completa en `/control` (flag nuevo `promocionesHabilitado`, propio — no reutiliza el de Ventas/CxC porque enviar promociones es una capacidad nueva).
+- Verificado: Jest 1216/1216, E2E real `notificaciones-cliente.spec.ts`.
+
+### US-084 — Promociones: componer, vigencia, archivar, relanzar, eliminar *(IMPLEMENTADA — punto 379 + addendum)*
+Como **administrador**, quiero enviar una promoción a todos mis clientes con vigencia opcional, y poder archivarla/relanzarla/eliminarla después, para no tener que mandar un mensaje nuevo cada vez que quiero repetir o retirar una oferta.
+
+**Criterios de aceptación (implementado 8 oct 2026, propuesta visual 3 de 6 presentadas vía Artifact):**
+- Solo administrador/super (nunca ventas/fiscal), broadcast únicamente — sin segmentar por cliente.
+- Vigencia opcional: "Sin vigencia" (hasta eliminarla a mano) o "Hasta" un día de calendario — se guarda respetando la zona horaria del tenant (reutiliza `backend/utils/limitesPeriodo.js`, mismo criterio que "ventas hoy" del punto 371), para que "hasta el 31 de octubre" cubra el día completo en hora de México.
+- Estado (Activa/Vencida/Archivada) se calcula al leer, nunca se guarda — `archivada_en` (manual) gana sobre `vigencia_hasta` (automático).
+- Tarjetas con barra de progreso de vigencia; acciones por ícono: Archivar/Eliminar en una Activa, Relanzar/Eliminar en una Archivada o Vencida — Eliminar pide confirmación (modal genérico del sitio), es borrado físico y terminal.
+- Relanzar reactiva la MISMA promoción (no duplica), vigencia nueva opcional — limitación conocida: un cliente que ya la había marcado leída antes de archivarse no vuelve a sonar al relanzarla (aceptado a propósito en v1).
+- Centro de conocimiento (`CONOCIMIENTO_CATEGORIAS.promociones`) y recorrido guiado del perfil Administrador (`ONBOARDING_TOUR_PASOS.administrador`) actualizados con el nuevo botón del sidebar.
+- Verificado: Jest 1228/1228, E2E real (ciclo completo enviar→archivar→relanzar→eliminar).
 - 24 filas etiquetadas (Ventas→admin, Infra→control, Seguridad 274→admin,control, 271/272→cliente,admin,control, etc.).

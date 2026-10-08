@@ -375,6 +375,22 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   imagen global del punto 370, clave/valor sin relación). Confundir las
   dos al verificar el estado de un flag de sitio base da un resultado
   "limpio" falso — ver punto 375.
+- **`ordenesCache` ya NO es "todas las ventas"** (punto 380, 2026-10-08):
+  desde que `GET /api/admin/ordenes-compra` se paginó server-side,
+  `frontend/admin.js:ordenesCache` es solo la PÁGINA actual de Ventas
+  (25 filas por defecto). Cuentas por cobrar/Resumen financiero NUNCA
+  deben leer `ordenesCache` para sus KPIs — tienen su propia fuente,
+  `cxcBaseCache` (pendientes + cobradas recientes, tope 500,
+  `cargarCxcBase()`), que alimenta `calcularMetricasCxc()` sin cambiarla.
+  El histórico paginable sin tope de "Cobradas" vive aparte en
+  `cxcCobradasCache`/`cargarCxcCobradasPagina()`. Antes de reusar
+  cualquiera de estas 3 variables en código nuevo, confirmar cuál es:
+  página de Ventas, agregado acotado de CxC, o histórico paginado de
+  Cobradas — son 3 cosas distintas a propósito, nunca intercambiables.
+  Mismo criterio aplica a cualquier vista futura que necesite "todo el
+  histórico sin límite" (nunca un solo fetch sin paginar) vs. "un
+  agregado financiero" (nunca necesita el dataset completo si se puede
+  calcular con SQL, ver `resumenCxc` en el mismo endpoint).
 - **RFC solo si Facturación está activa**: con `facturacion_habilitada`
   apagada, ningún flujo de alta de cliente (`POST /api/auth/registro`,
   `POST /api/admin/usuarios`) pide RFC — genera un identificador interno

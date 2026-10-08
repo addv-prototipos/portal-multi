@@ -31,7 +31,11 @@ próximos dos meses, para que decidas HOY, no hasta que ya sea tarde.
 Cuentas por cobrar con vencimientos, estados "pendiente / vencida /
 pagada" a simple vista, y alertas antes de que ese cliente se te vuelva
 un "ya ni me acuerdo cuánto me debía". Nunca más una venta fantasma que
-nadie cobró.
+nadie cobró. Y tu cliente no se queda a ciegas tampoco: tiene su propia
+página de "Gestión de crédito" con sus créditos activos, cuánto debe y
+cuánto ya pagó en una gráfica simple — y en cuanto le registras el cobro,
+le llega una notificación automática a su portal. Cero llamadas de "¿ya
+quedó mi pago?".
 
 ### 3. Facturas sin miedo al SAT
 Constancia de situación fiscal, RFC, régimen fiscal, uso de CFDI, catálogo
@@ -57,22 +61,37 @@ Registras ventas y gastos sin conexión — el sistema los guarda y los
 sincroniza solo en cuanto vuelve la señal. Tu changarro no se detiene
 porque el router se reinició.
 
-### 7. Tu marca, no la nuestra
+### 7. Les avisas a tus clientes sin WhatsApp masivo
+Una campana de notificaciones (con sonido propio) directo en el portal de
+tu cliente. Mándale una promoción a todos tus clientes de un jalón, con
+vigencia opcional ("hasta el 31" o indefinida) — la archivas, la relanzas
+o la borras cuando quieras, sin redactar un mensaje nuevo cada vez. La
+misma campana le avisa solo cuando le registras un pago. Tu cliente se
+entera en su portal, no en un grupo de WhatsApp que nadie lee.
+
+### 8. Prendes y apagas lo que necesites, cuando lo necesites
+¿Vas a hacer mantenimiento, o quieres pausar la facturación un rato sin
+perder nada? Tú mismo, desde tu panel, pausas y reactivas el portal de
+tus clientes o el módulo de Facturación — sin esperar soporte, sin tocar
+nada más. Tus datos y tu configuración se quedan exactamente como están;
+solo bajas la cortina y la vuelves a subir cuando quieras.
+
+### 9. Tu marca, no la nuestra
 Colores, tipografías, logo — todo el portal se ve como TU negocio, no
 como una plantilla genérica. Tus clientes ven tu marca en cada correo,
 cada ticket, cada factura.
 
-### 8. Creces sin cambiar de sistema
+### 10. Creces sin cambiar de sistema
 ¿Tienes más de una sucursal? Un mismo usuario entra a todas con la misma
 contraseña, cada una con su propio inventario y sus propias ventas, sin
 mezclarse. CLARVO crece contigo desde el changarro de una sola sucursal
 hasta la cadena de varias.
 
-### 9. Nunca más "¿quién tocó esto?"
+### 11. Nunca más "¿quién tocó esto?"
 Cada acción queda registrada. Cada reporte se puede reconstruir. Si algo
 cambió, sabes quién, cuándo y qué. Eso es tranquilidad, no burocracia.
 
-### 10. Aprendes a usarlo sin manual
+### 12. Aprendes a usarlo sin manual
 Un recorrido guiado te enseña el sistema la primera vez que entras.
 Un Centro de conocimiento contesta tus dudas sin que tengas que llamar a
 soporte. Tooltips en cada campo que no es obvio. Diseñado para que lo uses
@@ -107,6 +126,8 @@ y un negocio que administra al dueño.
 - "Tu contador te cobra por hacer esto una vez al mes. CLARVO lo hace todos los días, gratis de tu tiempo."
 - "Factura, cobra y controla tu inventario desde el celular — hasta sin internet."
 - "No es un sistema de facturación. Es el gerente financiero que no puedes pagar todavía."
+- "Manda una promoción a todos tus clientes en un clic — se la archivas, la relanzas o la borras cuando quieras."
+- "Pausas Facturación o el portal de tus clientes tú mismo, sin llamar a nadie — y los vuelves a prender igual de rápido."
 
 ---
 
@@ -135,8 +156,15 @@ El **Clarvo base sin tenant** (`portal_facturacion` sin slug) se vuelve el inven
 ### Clarvo Site Market (272) — compra los addons desde tu cuenta
 Un marketplace donde compras addons asociados a tu cuenta Clarvo: módulos de Inventarios/Reportes/Facturación, integraciones, almacenamiento extra. Un clic, tu flag se activa en `control_tenants.tenants`, sin migrar ni reinstalar. *Pendiente de brainstorming: dónde vive (`/admin` vs `market.clarvo.mx`), catálogo, pago Stripe/MercadoPago, vigencia.*
 
-### Centro de conocimiento + Recorrido guiado (273)
-El Centro de conocimiento (`CONOCIMIENTO_CATEGORIAS`) se actualiza con **todos los cambios** (desde proyección de ventas hasta cotizador/market) y gana un **recorrido guiado** paso a paso por `/admin`, `/control` y portal cliente. Tooltips anclados + checklist de progreso o docs por categoría — el usuario nuevo deja de depender de soporte desde el día 1.
+### Centro de conocimiento + Recorrido guiado (273) — ya en marcha, no solo promesa
+El Centro de conocimiento y el recorrido guiado **ya existen** dentro de
+`/admin` (manual in-app con buscador y glosario, más un tour con spotlight
+real la primera vez que entra cada perfil) y se actualizan en cada
+feature nueva — así se hizo el 8 de octubre de 2026 al lanzar
+Promociones, que sumó su propia categoría y su propio paso del recorrido
+el mismo día que salió. Lo que sigue pendiente (punto 273) es una pasada
+que cubra TODOS los cambios recientes de un jalón (cotizador, market,
+etc.) en vez de ir feature por feature.
 
 ### Seguridad: doble factor por correo solo para Administrador (274)
 2FA vía email solo para perfil **Administrador** al registrarse, **habilitable/inhabilitable desde la plataforma admin** (toggle `admin_2fa_habilitado`). OTP de 6 dígitos con expiración o link mágico, con fallback si no hay SMTP. *10 preguntas documentadas en `PROJECT_STATE.md:274` — no se implementa sin responderlas.*

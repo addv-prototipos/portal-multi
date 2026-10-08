@@ -544,8 +544,10 @@
     ordenesError: document.getElementById('ordenes-error'),
     ordenesTableBody: document.getElementById('ordenes-table-body'),
     ordenesEmpty: document.getElementById('ordenes-empty'),
+    ordenesPaginacion: document.getElementById('ordenes-paginacion'),
     // CxC — punto 138
     btnVistaCxc: document.getElementById('btn-vista-cxc'),
+    cxcPaginacion: document.getElementById('cxc-paginacion'),
     vistaCxc: document.getElementById('vista-cxc'),
     btnVerCxcPendientes: document.getElementById('btn-ver-cxc-pendientes'),
     btnVerCxcCobradas: document.getElementById('btn-ver-cxc-cobradas'),
@@ -1511,7 +1513,7 @@
       if (typeof cargarGastos === 'function' && els.gastosTableBody) cargarGastos();
     });
     OfflineQueue.onCambioCola('ordenes', () => {
-      if (typeof aplicarFiltrosOrdenes === 'function') aplicarFiltrosOrdenes();
+      if (typeof renderOrdenesConPendientes === 'function') renderOrdenesConPendientes();
     });
     OfflineQueue.onCambioCola('gastos', () => {
       if (typeof renderizarGastosConPendientes === 'function') renderizarGastosConPendientes();
@@ -5286,6 +5288,49 @@
       const campos = [item.identificador, item.rfc, item.estatus_o_concepto, item.atendido_por];
       return campos.some((campo) => String(campo || '').toLowerCase().includes(texto));
     });
+  }
+
+  // Paginación real server-side (Ventas, histórico de Cuentas por cobrar)
+  // — a diferencia de renderPaginacionCorteDetalle (client-side, un corte
+  // ya acotado a un rango de fechas), aquí el total de páginas puede ser
+  // grande (histórico sin límite de tiempo), así que se recorta con "…"
+  // en vez de pintar un botón por página. `onCambiar(pagina)` es quien
+  // decide qué hacer (refetch al servidor); este helper solo pinta.
+  function renderPaginacionServidor(contenedor, pagina, total, porPagina, onCambiar) {
+    if (!contenedor) return;
+    const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
+    if (total === 0) {
+      contenedor.hidden = true;
+      contenedor.innerHTML = '';
+      return;
+    }
+    contenedor.hidden = false;
+    const paginas = new Set([1, totalPaginas, pagina, pagina - 1, pagina + 1]);
+    const botones = [];
+    botones.push(`<button type="button" class="lectura-reportes-pagina-btn" data-pagina="${pagina - 1}" ${pagina <= 1 ? 'disabled' : ''}>← Anterior</button>`);
+    let anterior = 0;
+    for (let p = 1; p <= totalPaginas; p += 1) {
+      if (!paginas.has(p)) continue;
+      if (p - anterior > 1) botones.push('<span class="lectura-reportes-pagina-elipsis">…</span>');
+      botones.push(`<button type="button" class="lectura-reportes-pagina-btn${p === pagina ? ' is-active' : ''}" data-pagina="${p}">${p}</button>`);
+      anterior = p;
+    }
+    botones.push(`<button type="button" class="lectura-reportes-pagina-btn" data-pagina="${pagina + 1}" ${pagina >= totalPaginas ? 'disabled' : ''}>Siguiente →</button>`);
+    contenedor.innerHTML = botones.join('');
+    contenedor.onclick = (e) => {
+      const boton = e.target.closest('[data-pagina]');
+      if (!boton || boton.disabled) return;
+      const nuevaPagina = Number(boton.dataset.pagina);
+      if (!Number.isFinite(nuevaPagina) || nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
+      onCambiar(nuevaPagina);
+    };
+  }
+
+  function textoRangoPaginado(total, pagina, porPagina, sustantivo) {
+    if (total === 0) return `0 ${sustantivo}`;
+    const inicio = (pagina - 1) * porPagina + 1;
+    const fin = Math.min(total, pagina * porPagina);
+    return `${inicio}-${fin} de ${total} ${sustantivo}`;
   }
 
   function renderPaginacionCorteDetalle(totalPaginas) {
@@ -10750,7 +10795,7 @@
       });
       borrarOrdenBorradorGuardado();
       mostrarExitoRegistrarOrden('Guardado — se enviará al recuperar conexión');
-      aplicarFiltrosOrdenes();
+      renderOrdenesConPendientes();
       return;
     }
 
@@ -10844,6 +10889,30 @@
     cargarOrdenes();
   });
 
+  // Ventas: paginación real server-side (punto 380) — el histórico ya no
+  // se oculta por archivado, así que puede crecer sin límite de tiempo;
+  // cada página se pide al servidor con sus filtros activos como query
+  // params, en vez de traer todo de un jalón y filtrar en el cliente.
+  let ordenesPagina = 1;
+  const ORDENES_POR_PAGINA = 25;
+  let ordenesTotal = 0;
+
+  function construirParamsOrdenes() {
+    const params = new URLSearchParams();
+    params.set('pagina', String(ordenesPagina));
+    params.set('por_pagina', String(ORDENES_POR_PAGINA));
+    if (els.ordenesFiltroPeriodo && els.ordenesFiltroPeriodo.value) params.set('periodo', els.ordenesFiltroPeriodo.value);
+    const concepto = els.ordenesFiltroConcepto ? els.ordenesFiltroConcepto.value.trim() : '';
+    if (concepto) params.set('busqueda', concepto);
+    if (els.ordenesFiltroFechaDesde && els.ordenesFiltroFechaDesde.value) params.set('fecha_desde', els.ordenesFiltroFechaDesde.value);
+    if (els.ordenesFiltroFechaHasta && els.ordenesFiltroFechaHasta.value) params.set('fecha_hasta', els.ordenesFiltroFechaHasta.value);
+    if (els.ordenesFiltroTotalMin && els.ordenesFiltroTotalMin.value) params.set('total_min', els.ordenesFiltroTotalMin.value);
+    if (els.ordenesFiltroTotalMax && els.ordenesFiltroTotalMax.value) params.set('total_max', els.ordenesFiltroTotalMax.value);
+    if (els.ordenesFiltroEstadoPago && els.ordenesFiltroEstadoPago.value) params.set('estado_pago', els.ordenesFiltroEstadoPago.value);
+    if (els.ordenesFiltroFacturacion && els.ordenesFiltroFacturacion.value) params.set('facturacion', els.ordenesFiltroFacturacion.value);
+    return params;
+  }
+
   async function cargarOrdenes() {
     const authHeader = getAuthHeader();
     if (!authHeader) {
@@ -10851,20 +10920,19 @@
       return;
     }
 
-    // Sin conexión: se sigue mostrando la última lista ya cargada
+    // Sin conexión: se sigue mostrando la última página ya cargada
     // (ordenesCache en memoria) + lo pendiente de sincronizar, sin
     // intentar la petición (fallaría de todas formas) — ver
     // PROJECT_STATE.md punto 132.
     if (window.OfflineQueue && OfflineQueue.isOffline()) {
-      aplicarFiltrosOrdenes();
+      await renderOrdenesConPendientes();
       return;
     }
 
     els.ordenesError.textContent = '';
     Esqueleto.aplicarEsqueletoTabla(els.ordenesTableBody, 6);
     try {
-      const params = new URLSearchParams();
-      if (els.ordenesFiltroPeriodo && els.ordenesFiltroPeriodo.value) params.set('periodo', els.ordenesFiltroPeriodo.value);
+      const params = construirParamsOrdenes();
       const res = await fetch(`${API_BASE}/admin/ordenes-compra?${params.toString()}`, {
         headers: { Authorization: authHeader },
       });
@@ -10879,7 +10947,8 @@
       }
       const data = await res.json();
       ordenesCache = data.ordenes || [];
-      aplicarFiltrosOrdenes();
+      ordenesTotal = Number(data.total) || 0;
+      await renderOrdenesConPendientes();
       Esqueleto.quitarEsqueletoTabla(els.ordenesTableBody);
       return true;
     } catch (err) {
@@ -10888,11 +10957,9 @@
     }
   }
 
-  // Filtros de "Ventas registradas" (concepto/rango de fechas/rango de
-  // total) — 100% en el cliente: la lista ya se trae completa de una
-  // sola vez sin paginar (GET /ordenes-compra), así que filtrar aquí es
-  // instantáneo y no necesita ningún cambio de backend. Mismo criterio
-  // que el buscador ya existente de Constancias.
+  // Página actual de Ventas (ya filtrada/paginada por el servidor) — se
+  // mantiene en memoria para que Cuentas por cobrar y Resumen financiero
+  // puedan reusarla sin repetir la petición en la misma carga de vista.
   let ordenesCache = [];
 
   // Convierte una fila de la cola offline (ver offline.js) en un objeto
@@ -10923,41 +10990,13 @@
     };
   }
 
-  async function aplicarFiltrosOrdenes() {
-    const concepto = normalizar(els.ordenesFiltroConcepto.value.trim());
-    const fechaDesde = els.ordenesFiltroFechaDesde.value;
-    const fechaHasta = els.ordenesFiltroFechaHasta.value;
-    const totalMin = els.ordenesFiltroTotalMin.value ? Number(els.ordenesFiltroTotalMin.value) : null;
-    const totalMax = els.ordenesFiltroTotalMax.value ? Number(els.ordenesFiltroTotalMax.value) : null;
-    const estadoPagoFiltro = els.ordenesFiltroEstadoPago ? els.ordenesFiltroEstadoPago.value : '';
-    const facturacionFiltro = els.ordenesFiltroFacturacion ? els.ordenesFiltroFacturacion.value : '';
-
-    const filtradas = ordenesCache.filter((orden) => {
-      // Mismo criterio que "Cliente / correo" en Cuentas por cobrar
-      // (aplicarFiltrosCxc): el campo "Concepto" ya busca más de lo que
-      // su etiqueta sugiere — ahora también en notas_cobro, que antes
-      // quedaba fuera de cualquier buscador de Ventas (punto 377).
-      if (concepto && !normalizar(orden.concepto).includes(concepto) && !(orden.notas_cobro && normalizar(orden.notas_cobro).includes(concepto))) return false;
-      const fechaOrden = String(orden.fecha_compra || '').slice(0, 10);
-      if (fechaDesde && fechaOrden < fechaDesde) return false;
-      if (fechaHasta && fechaOrden > fechaHasta) return false;
-      const total = Number(orden.total);
-      if (totalMin !== null && total < totalMin) return false;
-      if (totalMax !== null && total > totalMax) return false;
-      if (estadoPagoFiltro) {
-        const esPendiente = (orden.estado_pago || 'pagada') === 'pendiente';
-        if (estadoPagoFiltro === 'pagada' && esPendiente) return false;
-        if (estadoPagoFiltro === 'pendiente' && !esPendiente) return false;
-        if (estadoPagoFiltro === 'vencida' && !(esPendiente && esVencida(orden))) return false;
-      }
-      if (facturacionFiltro === 'facturada' && !orden.facturado) return false;
-      if (facturacionFiltro === 'sin_facturar' && orden.facturado) return false;
-      return true;
-    });
-
-    // Las pendientes de sincronizar SIEMPRE se muestran arriba, sin pasar
-    // por los filtros (todavía no tienen folio/fecha real del servidor
-    // con los que comparar de forma confiable).
+  // Pinta la página actual (ya filtrada/paginada por el servidor, ver
+  // construirParamsOrdenes) + lo pendiente de sincronizar (offline, que
+  // nunca pasa por filtros del servidor — todavía no tiene folio real) +
+  // chips + paginador. Reemplaza a la vieja aplicarFiltrosOrdenes
+  // client-side (punto 380 — el histórico ya no se trae completo de un
+  // jalón, así que filtrar en el cliente dejó de ser posible/necesario).
+  async function renderOrdenesConPendientes() {
     let pendientes = [];
     if (window.OfflineQueue) {
       try {
@@ -10967,28 +11006,57 @@
         pendientes = [];
       }
     }
-
-    renderOrdenes([...pendientes, ...filtradas]);
-    const hayFiltro = Boolean(concepto || fechaDesde || fechaHasta || totalMin !== null || totalMax !== null || estadoPagoFiltro || facturacionFiltro);
-    els.ordenesEmpty.hidden = ordenesCache.length > 0 || pendientes.length > 0;
-    els.ordenesFiltroEmpty.hidden = !(hayFiltro && ordenesCache.length > 0 && filtradas.length === 0);
+    renderOrdenes([...pendientes, ...ordenesCache]);
+    if (els.ordenesCount) {
+      const rango = textoRangoPaginado(ordenesTotal, ordenesPagina, ORDENES_POR_PAGINA, 'ventas');
+      els.ordenesCount.textContent = pendientes.length > 0 ? `${pendientes.length} sin sincronizar + ${rango}` : rango;
+    }
+    const hayFiltro = Boolean(
+      (els.ordenesFiltroConcepto && els.ordenesFiltroConcepto.value.trim()) ||
+      (els.ordenesFiltroFechaDesde && els.ordenesFiltroFechaDesde.value) ||
+      (els.ordenesFiltroFechaHasta && els.ordenesFiltroFechaHasta.value) ||
+      (els.ordenesFiltroTotalMin && els.ordenesFiltroTotalMin.value) ||
+      (els.ordenesFiltroTotalMax && els.ordenesFiltroTotalMax.value) ||
+      (els.ordenesFiltroEstadoPago && els.ordenesFiltroEstadoPago.value) ||
+      (els.ordenesFiltroFacturacion && els.ordenesFiltroFacturacion.value)
+    );
+    els.ordenesEmpty.hidden = ordenesTotal > 0 || pendientes.length > 0;
+    els.ordenesFiltroEmpty.hidden = !(hayFiltro && ordenesTotal === 0);
     renderFiltrosChips(els.ordenesFiltrosChips, [
       { etiqueta: 'Buscar', valor: els.ordenesFiltroConcepto.value.trim(), campos: [els.ordenesFiltroConcepto] },
-      { etiqueta: 'Fechas', valor: (fechaDesde || fechaHasta) ? `${fechaDesde || '…'} – ${fechaHasta || '…'}` : '', campos: [els.ordenesFiltroFechaDesde, els.ordenesFiltroFechaHasta] },
-      { etiqueta: 'Total', valor: (totalMin !== null || totalMax !== null) ? `$${totalMin ?? 0} – $${totalMax ?? '∞'}` : '', campos: [els.ordenesFiltroTotalMin, els.ordenesFiltroTotalMax] },
+      { etiqueta: 'Fechas', valor: (els.ordenesFiltroFechaDesde.value || els.ordenesFiltroFechaHasta.value) ? `${els.ordenesFiltroFechaDesde.value || '…'} – ${els.ordenesFiltroFechaHasta.value || '…'}` : '', campos: [els.ordenesFiltroFechaDesde, els.ordenesFiltroFechaHasta] },
+      { etiqueta: 'Total', valor: (els.ordenesFiltroTotalMin.value || els.ordenesFiltroTotalMax.value) ? `$${els.ordenesFiltroTotalMin.value || 0} – $${els.ordenesFiltroTotalMax.value || '∞'}` : '', campos: [els.ordenesFiltroTotalMin, els.ordenesFiltroTotalMax] },
       { etiqueta: 'Estado de pago', valor: textoOpcionSeleccionada(els.ordenesFiltroEstadoPago), campos: [els.ordenesFiltroEstadoPago] },
       { etiqueta: 'Facturación', valor: textoOpcionSeleccionada(els.ordenesFiltroFacturacion), campos: [els.ordenesFiltroFacturacion] },
     ]);
+    renderPaginacionServidor(els.ordenesPaginacion, ordenesPagina, ordenesTotal, ORDENES_POR_PAGINA, (p) => {
+      ordenesPagina = p;
+      cargarOrdenes();
+    });
+  }
+
+  // Los filtros de texto/número se mandan al servidor con un pequeño
+  // debounce (ya no filtran en el cliente); los select disparan de
+  // inmediato, igual que antes.
+  let ordenesFiltroDebounce = null;
+  function ordenesFiltrosCambiaronConDebounce() {
+    ordenesPagina = 1;
+    clearTimeout(ordenesFiltroDebounce);
+    ordenesFiltroDebounce = setTimeout(() => cargarOrdenes(), 350);
+  }
+  function ordenesFiltrosCambiaronInmediato() {
+    ordenesPagina = 1;
+    cargarOrdenes();
   }
   [els.ordenesFiltroConcepto, els.ordenesFiltroFechaDesde, els.ordenesFiltroFechaHasta, els.ordenesFiltroTotalMin, els.ordenesFiltroTotalMax].forEach((el) => {
-    el.addEventListener('input', () => aplicarFiltrosOrdenes());
+    el.addEventListener('input', ordenesFiltrosCambiaronConDebounce);
   });
-  if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.addEventListener('change', () => aplicarFiltrosOrdenes());
-  if (els.ordenesFiltroFacturacion) els.ordenesFiltroFacturacion.addEventListener('change', () => aplicarFiltrosOrdenes());
+  if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.addEventListener('change', ordenesFiltrosCambiaronInmediato);
+  if (els.ordenesFiltroFacturacion) els.ordenesFiltroFacturacion.addEventListener('change', ordenesFiltrosCambiaronInmediato);
   if (els.ordenesFiltroPeriodo) {
     els.ordenesFiltroPeriodo.addEventListener('change', () => {
       // Periodo archivado vive en el servidor — hay que volver a pedir la lista
-      cargarOrdenes();
+      ordenesFiltrosCambiaronInmediato();
       // Refresca también el selector de gastos por si el cierre creó un periodo nuevo
       cargarPeriodosArchivados();
     });
@@ -11002,8 +11070,7 @@
     if (els.ordenesFiltroEstadoPago) els.ordenesFiltroEstadoPago.value = '';
     if (els.ordenesFiltroFacturacion) els.ordenesFiltroFacturacion.value = '';
     if (els.ordenesFiltroPeriodo) els.ordenesFiltroPeriodo.value = '';
-    if (els.ordenesFiltroPeriodo) cargarOrdenes();
-    else aplicarFiltrosOrdenes();
+    ordenesFiltrosCambiaronInmediato();
   });
 
   // Intenta leer una línea "N x Concepto ($X.XX c/u)" (el formato exacto
@@ -12367,11 +12434,11 @@
       const selG = els.gastosFiltroPeriodo ? els.gastosFiltroPeriodo.value : '';
       const opciones = periodos.map((p) => `<option value="${p}">${formatearPeriodoEtiqueta(p)}</option>`).join('');
       if (els.ordenesFiltroPeriodo) {
-        els.ordenesFiltroPeriodo.innerHTML = `<option value="">Mes actual</option>${opciones}`;
+        els.ordenesFiltroPeriodo.innerHTML = `<option value="">Todos los periodos</option>${opciones}`;
         els.ordenesFiltroPeriodo.value = selV;
       }
       if (els.gastosFiltroPeriodo) {
-        els.gastosFiltroPeriodo.innerHTML = `<option value="">Mes actual</option>${opciones}`;
+        els.gastosFiltroPeriodo.innerHTML = `<option value="">Todos los periodos</option>${opciones}`;
         els.gastosFiltroPeriodo.value = selG;
       }
     } catch (err) {
@@ -13163,13 +13230,14 @@
       const data = await res.json();
       renderResumenFinanciero(data);
       Esqueleto.marcarKpisCargando(els.resumenFinTablero, false);
-      // "Cobranza del mes" (mini tarjeta) reusa ordenesCache — se carga
-      // aparte si Ventas aún no se ha visitado esta sesión. Si el perfil
-      // no tiene acceso a Ventas o el módulo está deshabilitado, se
-      // degrada a la tarjeta vacía sin romper el resto del resumen.
+      // "Cobranza del mes" (mini tarjeta) reusa cxcBaseCache (pendientes +
+      // cobradas recientes, acotado — ver cargarCxcBase) — se carga aparte
+      // si Cuentas por cobrar aún no se ha visitado esta sesión. Si el
+      // perfil no tiene acceso o el módulo está deshabilitado, se degrada
+      // a la tarjeta vacía sin romper el resto del resumen.
       try {
-        if (!ordenesCache || ordenesCache.length === 0) await cargarOrdenes();
-        renderResumenFinCobranza(ordenesCache);
+        if (!cxcBaseCache || cxcBaseCache.length === 0) await cargarCxcBase();
+        renderResumenFinCobranza(cxcBaseCache);
       } catch (_) {
         renderResumenFinCobranza([]);
       }
@@ -16813,15 +16881,71 @@
     return Math.round((hoy - vto) / 86400000);
   }
 
+  // Base acotada para KPIs/aging/alerta/"Cobranza del mes" (también usada
+  // por Resumen financiero, que NUNCA se toca — ver CLAUDE.md) — pendientes
+  // es naturalmente finito (no crece con el histórico archivado) y las
+  // cobradas se traen "recientes, tope 500" porque calcularMetricasCxc
+  // solo necesita las del MES ACTUAL para "cobrado este mes"; evita pedir
+  // el histórico completo de cobradas solo para un agregado del mes.
+  let cxcBaseCache = [];
+  const CXC_BASE_TOPE = 500;
+
+  async function cargarCxcBase() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return false; }
+    try {
+      const [resPend, resCobr] = await Promise.all([
+        fetch(`${API_BASE}/admin/ordenes-compra?estado_pago=pendiente&por_pagina=${CXC_BASE_TOPE}`, { headers: { Authorization: authHeader } }),
+        fetch(`${API_BASE}/admin/ordenes-compra?estado_pago=pagada&por_pagina=${CXC_BASE_TOPE}`, { headers: { Authorization: authHeader } }),
+      ]);
+      if (resPend.status === 401 || resCobr.status === 401) { clearSession(); showLogin(); return false; }
+      if (!resPend.ok || !resCobr.ok) return false;
+      const [dataPend, dataCobr] = await Promise.all([resPend.json(), resCobr.json()]);
+      cxcBaseCache = [...(dataPend.ordenes || []), ...(dataCobr.ordenes || [])];
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Histórico paginado de "Cobradas" — a diferencia de cxcBaseCache (tope
+  // 500 para agregados), aquí el usuario puede navegar TODO el histórico
+  // sin límite, página por página, nunca oculto (punto 380).
+  let cxcCobradasCache = [];
+  let cxcCobradasPagina = 1;
+  let cxcCobradasTotal = 0;
+  const CXC_COBRADAS_POR_PAGINA = 25;
+
+  async function cargarCxcCobradasPagina() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return false; }
+    const params = new URLSearchParams();
+    params.set('estado_pago', 'pagada');
+    params.set('pagina', String(cxcCobradasPagina));
+    params.set('por_pagina', String(CXC_COBRADAS_POR_PAGINA));
+    const q = els.cxcFiltroCliente ? els.cxcFiltroCliente.value.trim() : '';
+    if (q) params.set('busqueda', q);
+    const fVto = els.cxcFiltroVencimiento ? els.cxcFiltroVencimiento.value : '';
+    if (fVto) params.set('vencimiento', fVto);
+    try {
+      const res = await fetch(`${API_BASE}/admin/ordenes-compra?${params.toString()}`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return false; }
+      if (!res.ok) return false;
+      const data = await res.json();
+      cxcCobradasCache = data.ordenes || [];
+      cxcCobradasTotal = Number(data.total) || 0;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function cargarCxc() {
     Esqueleto.marcarKpisCargando(els.cxcKpis, true);
     Esqueleto.aplicarEsqueletoTabla(els.cxcTableBody, 9);
-    // Reusa ordenesCache si ya se cargó Ventas, si no la carga
-    let ok = true;
-    if (!ordenesCache || ordenesCache.length === 0) {
-      ok = await cargarOrdenes();
-    }
-    if (ok === false) {
+    const okBase = await cargarCxcBase();
+    const okCobradas = cxcVista === 'cobradas' ? await cargarCxcCobradasPagina() : true;
+    if (okBase === false || okCobradas === false) {
       Esqueleto.marcarKpisCargando(els.cxcKpis, false);
       Esqueleto.aplicarErrorTabla(els.cxcTableBody, 9, 'No se pudieron cargar las cuentas por cobrar.', cargarCxc);
       return;
@@ -16831,13 +16955,17 @@
     Esqueleto.marcarKpisCargando(els.cxcKpis, false);
   }
 
+  // Filtro client-side SOLO para la pestaña "Pendientes" — pendientes es
+  // la parte acotada de cxcBaseCache (CXC_BASE_TOPE), así que filtrar en
+  // el cliente sigue siendo instantáneo. "Cobradas" ya NO filtra aquí:
+  // su búsqueda/vencimiento se manda al servidor (cargarCxcCobradasPagina)
+  // porque su histórico no tiene tope.
   function aplicarFiltrosCxc(lista) {
     const q = (els.cxcFiltroCliente ? els.cxcFiltroCliente.value.trim().toLowerCase() : '');
     const fVto = els.cxcFiltroVencimiento ? els.cxcFiltroVencimiento.value : '';
     return lista.filter((o) => {
       const esPendiente = (o.estado_pago || 'pagada') === 'pendiente';
-      const coincideVista = cxcVista === 'pendientes' ? esPendiente : !esPendiente;
-      if (!coincideVista) return false;
+      if (!esPendiente) return false;
       if (q) {
         const hay = (o.numero_compra && o.numero_compra.toLowerCase().includes(q)) || (o.email && o.email.toLowerCase().includes(q)) || (o.concepto && o.concepto.toLowerCase().includes(q)) || (o.cliente_nombre && o.cliente_nombre.toLowerCase().includes(q)) || (o.cliente_rfc && o.cliente_rfc.toLowerCase().includes(q)) || (o.notas_cobro && o.notas_cobro.toLowerCase().includes(q));
         if (!hay) return false;
@@ -17042,27 +17170,9 @@
     URL.revokeObjectURL(url);
   }
 
-  function renderCxc() {
-    if (!els.cxcTableBody) return;
-    const todas = ordenesCache || [];
-    const m = calcularMetricasCxc(todas);
-    if (els.cxcKpiPorCobrar) els.cxcKpiPorCobrar.textContent = `$${formatearMoneda(m.porCobrar)}`;
-    if (els.cxcKpiPorCobrarNota) els.cxcKpiPorCobrarNota.textContent = `${m.pendientes.length} venta${m.pendientes.length === 1 ? '' : 's'} pendiente${m.pendientes.length === 1 ? '' : 's'}`;
-    if (els.cxcKpiVencidas) els.cxcKpiVencidas.textContent = String(m.vencidasList.length);
-    if (els.cxcKpiVencidasNota) {
-      const pctVenc = m.porCobrar > 0 ? Math.round((m.vencidasMonto / m.porCobrar) * 100) : 0;
-      els.cxcKpiVencidasNota.textContent = m.vencidasList.length > 0 ? `${pctVenc}% de la cartera` : 'Pendientes vencidas';
-    }
-    if (els.cxcKpiPorVencer) els.cxcKpiPorVencer.textContent = String(m.porVencer);
-    if (els.cxcKpiPorVencerNota) els.cxcKpiPorVencerNota.textContent = m.porVencer > 0 ? `$${formatearMoneda(m.porVencerMonto)}` : 'Sin vencer';
-    if (els.cxcKpiCobradoMes) els.cxcKpiCobradoMes.textContent = `$${formatearMoneda(m.cobradoMes)}`;
-    if (els.cxcCount) els.cxcCount.textContent = cxcVista === 'pendientes' ? `${m.pendientes.length} por cobrar` : `${m.cobradas.length} cobradas`;
-    renderCxcAging(m);
-    renderCxcAlertaVencidas(m);
-    // Filtros
-    const filtradas = aplicarFiltrosCxc(todas);
+  function pintarFilasCxcTabla(filas) {
     els.cxcTableBody.innerHTML = '';
-    filtradas.forEach((orden) => {
+    filas.forEach((orden) => {
       const saldo = Math.round((Number(orden.total) - Number(orden.monto_cobrado || 0)) * 100) / 100;
       const vencida = esVencida(orden);
       const estadoBadge = (orden.estado_pago === 'pendiente') ? (vencida ? '<span class="estatus-badge estatus-cancelado">Vencida</span>' : '<span class="estatus-badge estatus-pendiente">Pendiente</span>') : '<span class="estatus-badge estatus-listo">Pagada</span>';
@@ -17088,10 +17198,53 @@
       tdAcciones.appendChild(wrap);
       els.cxcTableBody.appendChild(tr);
     });
-    if (els.cxcEmpty) els.cxcEmpty.hidden = filtradas.length > 0 || todas.length > 0;
-    if (els.cxcFiltroEmpty) els.cxcFiltroEmpty.hidden = !(filtradas.length === 0 && todas.length > 0);
-    if (els.btnCxcExportar) els.btnCxcExportar.onclick = () => exportarCxcCsv(filtradas);
-    renderResumenFinCobranza(todas);
+  }
+
+  // Pintado — "Pendientes" lee de cxcBaseCache (acotado, ya cargado) y
+  // filtra en el cliente; "Cobradas" lee de cxcCobradasCache (histórico
+  // paginado real del servidor, SIN tope — ver cargarCxcCobradasPagina).
+  // Las KPIs/aging/alerta/gauge usan SIEMPRE cxcBaseCache, en ambas
+  // pestañas, porque describen la cartera completa, no la página visible.
+  function renderCxc() {
+    if (!els.cxcTableBody) return;
+    const m = calcularMetricasCxc(cxcBaseCache);
+    if (els.cxcKpiPorCobrar) els.cxcKpiPorCobrar.textContent = `$${formatearMoneda(m.porCobrar)}`;
+    if (els.cxcKpiPorCobrarNota) els.cxcKpiPorCobrarNota.textContent = `${m.pendientes.length} venta${m.pendientes.length === 1 ? '' : 's'} pendiente${m.pendientes.length === 1 ? '' : 's'}`;
+    if (els.cxcKpiVencidas) els.cxcKpiVencidas.textContent = String(m.vencidasList.length);
+    if (els.cxcKpiVencidasNota) {
+      const pctVenc = m.porCobrar > 0 ? Math.round((m.vencidasMonto / m.porCobrar) * 100) : 0;
+      els.cxcKpiVencidasNota.textContent = m.vencidasList.length > 0 ? `${pctVenc}% de la cartera` : 'Pendientes vencidas';
+    }
+    if (els.cxcKpiPorVencer) els.cxcKpiPorVencer.textContent = String(m.porVencer);
+    if (els.cxcKpiPorVencerNota) els.cxcKpiPorVencerNota.textContent = m.porVencer > 0 ? `$${formatearMoneda(m.porVencerMonto)}` : 'Sin vencer';
+    if (els.cxcKpiCobradoMes) els.cxcKpiCobradoMes.textContent = `$${formatearMoneda(m.cobradoMes)}`;
+    renderCxcAging(m);
+    renderCxcAlertaVencidas(m);
+
+    if (cxcVista === 'pendientes') {
+      const filtradas = aplicarFiltrosCxc(cxcBaseCache);
+      pintarFilasCxcTabla(filtradas);
+      if (els.cxcCount) els.cxcCount.textContent = `${m.pendientes.length} por cobrar`;
+      if (els.cxcEmpty) els.cxcEmpty.hidden = m.pendientes.length > 0;
+      if (els.cxcFiltroEmpty) els.cxcFiltroEmpty.hidden = !(m.pendientes.length > 0 && filtradas.length === 0);
+      if (els.cxcPaginacion) { els.cxcPaginacion.hidden = true; els.cxcPaginacion.innerHTML = ''; }
+      if (els.btnCxcExportar) els.btnCxcExportar.onclick = () => exportarCxcCsv(filtradas);
+    } else {
+      pintarFilasCxcTabla(cxcCobradasCache);
+      if (els.cxcCount) els.cxcCount.textContent = textoRangoPaginado(cxcCobradasTotal, cxcCobradasPagina, CXC_COBRADAS_POR_PAGINA, 'cobradas');
+      const hayFiltroCobradas = Boolean((els.cxcFiltroCliente && els.cxcFiltroCliente.value.trim()) || (els.cxcFiltroVencimiento && els.cxcFiltroVencimiento.value));
+      if (els.cxcEmpty) els.cxcEmpty.hidden = true;
+      if (els.cxcFiltroEmpty) els.cxcFiltroEmpty.hidden = !(hayFiltroCobradas && cxcCobradasTotal === 0);
+      renderPaginacionServidor(els.cxcPaginacion, cxcCobradasPagina, cxcCobradasTotal, CXC_COBRADAS_POR_PAGINA, (p) => {
+        cxcCobradasPagina = p;
+        cargarCxcCobradasPagina().then(() => renderCxc());
+      });
+      // Exporta solo la página visible — el histórico completo se navega
+      // paginando, nunca con un solo fetch sin tope (mismo criterio que
+      // el resto de este cambio, ver CLAUDE.md punto 380).
+      if (els.btnCxcExportar) els.btnCxcExportar.onclick = () => exportarCxcCsv(cxcCobradasCache);
+    }
+    renderResumenFinCobranza(cxcBaseCache);
     renderFiltrosChips(els.cxcFiltrosChips, [
       { etiqueta: 'Buscar', valor: els.cxcFiltroCliente ? els.cxcFiltroCliente.value.trim() : '', campos: [els.cxcFiltroCliente] },
       { etiqueta: 'Vencimiento', valor: textoOpcionSeleccionada(els.cxcFiltroVencimiento), campos: [els.cxcFiltroVencimiento] },
@@ -17142,18 +17295,38 @@
       const data = await res.json().catch(()=>({}));
       if (!res.ok) { if(els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent = data.error || 'No se pudo registrar'; return; }
       mostrarExitoCobro(data.saldo > 0 ? `Cobro registrado — saldo $${formatearMoneda(data.saldo)}` : 'Cobro registrado — saldo cubierto');
-      await cargarOrdenes();
+      await cargarCxcBase();
+      if (cxcVista === 'cobradas') await cargarCxcCobradasPagina();
       renderCxc();
+      if (els.vistaOrdenes && !els.vistaOrdenes.hidden) cargarOrdenes();
     } catch(_) { if(els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent='No se pudo conectar'; }
     finally { els.btnCxcCobroGuardar.disabled=false; if(els.btnCxcCobroGuardarLabel) els.btnCxcCobroGuardarLabel.textContent='Guardar cobro'; }
   });
-  // Filtros y toggle CxC
-  if (els.btnVerCxcPendientes) els.btnVerCxcPendientes.addEventListener('click', ()=>{ cxcVista='pendientes'; els.btnVerCxcPendientes.classList.add('is-active'); els.btnVerCxcCobradas.classList.remove('is-active'); renderCxc(); });
-  if (els.btnVerCxcCobradas) els.btnVerCxcCobradas.addEventListener('click', ()=>{ cxcVista='cobradas'; els.btnVerCxcCobradas.classList.add('is-active'); els.btnVerCxcPendientes.classList.remove('is-active'); renderCxc(); });
+  // Filtros y toggle CxC — "Cobradas" reconsulta al servidor (su búsqueda/
+  // vencimiento ya no es client-side, ver cargarCxcCobradasPagina);
+  // "Pendientes" sigue filtrando en el cliente sobre cxcBaseCache.
+  async function cambiarVistaCxc(vista) {
+    cxcVista = vista;
+    if (els.btnVerCxcPendientes) els.btnVerCxcPendientes.classList.toggle('is-active', vista === 'pendientes');
+    if (els.btnVerCxcCobradas) els.btnVerCxcCobradas.classList.toggle('is-active', vista === 'cobradas');
+    if (vista === 'cobradas') {
+      cxcCobradasPagina = 1;
+      await cargarCxcCobradasPagina();
+    }
+    renderCxc();
+  }
+  async function refiltrarCxcCobradas() {
+    if (cxcVista !== 'cobradas') { renderCxc(); return; }
+    cxcCobradasPagina = 1;
+    await cargarCxcCobradasPagina();
+    renderCxc();
+  }
+  if (els.btnVerCxcPendientes) els.btnVerCxcPendientes.addEventListener('click', () => cambiarVistaCxc('pendientes'));
+  if (els.btnVerCxcCobradas) els.btnVerCxcCobradas.addEventListener('click', () => cambiarVistaCxc('cobradas'));
   if (els.btnRefreshCxc) els.btnRefreshCxc.addEventListener('click', ()=>cargarCxc());
-  if (els.cxcFiltroCliente) els.cxcFiltroCliente.addEventListener('input', ()=>renderCxc());
-  if (els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.addEventListener('change', ()=>renderCxc());
-  if (els.btnLimpiarFiltrosCxc) els.btnLimpiarFiltrosCxc.addEventListener('click', ()=>{ if(els.cxcFiltroCliente) els.cxcFiltroCliente.value=''; if(els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.value=''; renderCxc(); });
+  if (els.cxcFiltroCliente) els.cxcFiltroCliente.addEventListener('input', () => refiltrarCxcCobradas());
+  if (els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.addEventListener('change', () => refiltrarCxcCobradas());
+  if (els.btnLimpiarFiltrosCxc) els.btnLimpiarFiltrosCxc.addEventListener('click', ()=>{ if(els.cxcFiltroCliente) els.cxcFiltroCliente.value=''; if(els.cxcFiltroVencimiento) els.cxcFiltroVencimiento.value=''; refiltrarCxcCobradas(); });
   // Recargar CxC cuando se registra una venta nueva: monkey-patch de
   // cargarOrdenes para que la vista CxC se refresque sola si está
   // visible en ese momento (sin duplicar la lógica de fetch de Ventas).
@@ -17162,8 +17335,9 @@
     cargarOrdenes = async function () {
       const res = await cargarOrdenesOriginal.apply(this, arguments);
       try {
+        await cargarCxcBase();
         if (els.vistaCxc && !els.vistaCxc.hidden) renderCxc();
-        else if (els.vistaResumenFinanciero && !els.vistaResumenFinanciero.hidden) renderResumenFinCobranza(ordenesCache);
+        else if (els.vistaResumenFinanciero && !els.vistaResumenFinanciero.hidden) renderResumenFinCobranza(cxcBaseCache);
       } catch (_) {}
       return res;
     };
@@ -19863,6 +20037,18 @@
         { t: 'Ocultar esta sección', d: 'Configuraciones → tarjeta "Auditoría" → apaga el switch si no la necesitas en el menú — el registro interno sigue funcionando igual, apagarlo solo oculta la pantalla de consulta.' },
       ],
     },
+    promociones: {
+      titulo: 'Promociones',
+      lead: 'Envía mensajes a tus clientes por la campana de notificaciones — perfil Administrador y Super.',
+      pasos: [
+        { t: 'Enviar una promoción', d: 'Título + mensaje + "Enviar" — llega a TODOS los clientes del portal de una vez, con sonido en su campana. No se puede dirigir a un cliente en particular.' },
+        { t: 'Vigencia opcional', d: '"Sin vigencia" se queda activa hasta que la elimines a mano. "Hasta" una fecha: al pasar ese día, se archiva sola y los clientes dejan de verla.' },
+        { t: 'Archivar antes de que venza', d: 'Ícono de archivo en la tarjeta — la quita de la campana de tus clientes sin eliminarla, puedes relanzarla después.' },
+        { t: 'Relanzar', d: 'Una promoción Archivada o Vencida puede volver a Activa con un clic — vuelve a mostrarse en la campana (sin vigencia por default).' },
+        { t: 'Eliminar', d: 'Borra la promoción por completo, pide confirmación — a diferencia de archivar, esto no se puede deshacer.' },
+        { t: 'Pago registrado (no es una promoción)', d: 'Cuando registras un cobro en Cuentas por cobrar, tu cliente recibe aviso automático en su misma campana — no requiere nada de esta pantalla.' },
+      ],
+    },
     'resumen-financiero': {
       titulo: 'Resumen financiero',
       lead: 'La foto completa del mes, con gráficas — perfil Administrador.',
@@ -20221,6 +20407,7 @@
     administrador: [
       { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Ventas, Cuentas por cobrar, Gastos, y más.' },
       { selector: '#btn-vista-ordenes', titulo: 'Registra tus ventas aquí', desc: 'Desde "Ventas" registras cada venta y controlas si ya se facturó.' },
+      { selector: '#btn-vista-promociones', titulo: 'Envía promociones a tus clientes', desc: 'Les llega en la campana de notificaciones de su portal, con sonido — mensaje, vigencia opcional, y puedes archivar/relanzar/eliminar después.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
       TOUR_PASO_AYUDA,
     ],

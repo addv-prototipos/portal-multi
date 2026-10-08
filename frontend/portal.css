@@ -245,6 +245,20 @@
     white-space: nowrap;
     max-width: 140px;
   }
+  /* La campana vive junto al logo, casi pegada al borde izquierdo del
+     header — anclar el panel por su borde derecho (right:0, el patrón de
+     escritorio) lo hace crecer 320px hacia la IZQUIERDA y salirse del
+     viewport. Ancladándolo por la izquierda en vez de la derecha crece
+     hacia la derecha, que es donde sí hay espacio (la campana es el
+     primer elemento del header en las 5 páginas del portal). El `top`
+     relativo a la campana (heredado de la regla base) no cambia — eso
+     ya funcionaba bien en las 2 variantes de alto de header (una fila
+     en dashboard, dos filas en csf/mi-cuenta/credito/tickets). */
+  .portal-notif-panel {
+    right: auto;
+    left: 0;
+    max-width: min(320px, calc(100vw - 24px));
+  }
 }
 
 .portal-main {

@@ -1089,6 +1089,34 @@
   .admin-movil-cta { display: inline-flex; }
 }
 
+@media (max-width: 480px) {
+  /* La campana en esta barra NO está pegada a ningún borde (queda cerca
+     del centro-derecha, medido: wrap en x=219-263 de un viewport de
+     375px) — ni right:0 (se sale -82px por la izquierda, confirmado) ni
+     left:0 (se sale +195px por la derecha, igual de roto) funcionan: a
+     este ancho el panel (clamp a 100vw-24px) prácticamente llena el
+     viewport, así que su posición no puede depender de dónde cae la
+     campana. Se fija al viewport completo (position:fixed, escapa del
+     ancestro #notif-wrap) con margen simétrico de 12px — nunca se corta
+     sin importar dónde esté la campana. El `top` no puede heredar el
+     `calc(100% + 10px)` relativo al wrap (fixed lo mide contra el
+     viewport, no el wrap) — se fija a la altura real de esta barra
+     móvil (icono 44px + padding 8px arriba/abajo = 60px, mismos
+     números que ".admin-sidebar-footer .admin-header-notif-btn" y
+     ".admin-sidebar-footer" un poco arriba en este archivo) + 10px de
+     separación. Si esos números cambian, este valor debe moverse con
+     ellos. */
+  .admin-notif-panel {
+    position: fixed;
+    top: 70px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    transform-origin: top center;
+  }
+}
+
 .admin-main {
   /* Sin límite por default (móvil/tablet — el sidebar fijo no aplica
      ahí, ver mobile override de .admin-sidebar/.admin-content, y el
@@ -2529,6 +2557,9 @@
 }
 .lectura-reportes-pagina-btn:hover { background: var(--color-accent-soft); }
 .lectura-reportes-pagina-btn.is-active { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+.lectura-reportes-pagina-btn:disabled { opacity: 0.45; cursor: default; }
+.lectura-reportes-pagina-elipsis { display: flex; align-items: center; padding: 0 2px; color: var(--color-ink-soft); font-size: 13px; }
+.lectura-reportes-pagina-conteo { text-align: center; font-size: 0.8rem; color: var(--color-ink-soft); padding: 10px 0 0; }
 
 /* Modal de "Ver Markdown completo" */
 .ver-md-modal { max-width: 720px; width: 92vw; }

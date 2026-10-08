@@ -181,63 +181,96 @@ async function ejecutarCierreMensualParaDB(periodoForzado = null) {
   return { periodo, archivadasVentas, archivadosGastos, reporteId, correoEnviado, errorCorreo, yaEjecutado: false };
 }
 
+// Candado de traslape (punto 380) — el cierre se dispara cada hora desde
+// server.js (setInterval); si una corrida anterior (de un cierre con
+// muchos tenants) sigue viva cuando llega la siguiente, esta se omite en
+// vez de correr en paralelo contra la misma BD. Vive en memoria del
+// proceso: suficiente porque el propio setInterval vive en ese mismo
+// proceso — no hace falta coordinarlo entre procesos/réplicas.
+let corridaEnProgreso = false;
+
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Pausa entre lotes de 5 tenants (punto 380) — no disparar las 5
+// conexiones del siguiente lote en el mismo instante en que el anterior
+// recién terminó.
+const PAUSA_ENTRE_LOTES_MS = 500;
+
 /**
  * Itera el cierre sobre base ADDV + todos los tenants activos.
- * Cada tenant se ejecuta con `ejecutarComoTenant(slug, ...)`.
- * Paginado 5 concurrentes para no saturar MySQL con N>1000.
+ * Cada tenant se ejecuta con `ejecutarComoTenant(slug, ...)`, con su
+ * error aislado dentro del propio `.map()` de abajo — un tenant que
+ * truene nunca detiene ni afecta el cierre de los demás (ya existía,
+ * verificado antes de agregar nada nuevo aquí).
+ * Paginado 5 concurrentes para no saturar MySQL con N>1000, con una
+ * pequeña pausa entre lotes (PAUSA_ENTRE_LOTES_MS) y un candado de
+ * traslape (`corridaEnProgreso`) para que una corrida larga no se
+ * empalme con la siguiente llamada horaria.
  */
 async function ejecutarCierresMensualesParaTodos(periodoForzado = null) {
-  const resultados = [];
-
-  // 1) Base ADDV (sin slug) — pool por defecto
-  try {
-    const r = await ejecutarCierreMensualParaDB(periodoForzado);
-    resultados.push({ slug: null, base: true, ...r });
-  } catch (err) {
-    resultados.push({ slug: null, base: true, error: err.message, periodo: periodoForzado || 'auto' });
+  if (corridaEnProgreso) {
+    console.warn('[cierreMensual] Corrida anterior todavía en progreso — se omite esta llamada.');
+    return [{ omitido: true, motivo: 'corrida_anterior_en_progreso', periodo: periodoForzado || 'auto' }];
   }
-
-  // 2) Tenants activos desde BD de control — mismos campos que
-  // `tenantContext.js:resolverTenantPorSlug()` para construir su pool real
-  // con `obtenerPoolTenant()` (`ejecutarComoTenant` espera un OBJETO pool,
-  // no el slug — pasar el slug crudo deja `pool.query` apuntando a un
-  // string y revienta con "pool.query is not a function").
-  let tenants = [];
+  corridaEnProgreso = true;
   try {
-    const poolControl = obtenerPoolControl();
-    const [filas] = await poolControl.query(
-      `SELECT slug, db_host, db_name, db_user FROM tenants WHERE estado = 'activo' ORDER BY slug ASC`
-    );
-    tenants = filas;
-  } catch (err) {
-    console.error('[cierreMensual] No se pudo listar tenants de control:', err.message);
+    const resultados = [];
+
+    // 1) Base ADDV (sin slug) — pool por defecto
+    try {
+      const r = await ejecutarCierreMensualParaDB(periodoForzado);
+      resultados.push({ slug: null, base: true, ...r });
+    } catch (err) {
+      resultados.push({ slug: null, base: true, error: err.message, periodo: periodoForzado || 'auto' });
+    }
+
+    // 2) Tenants activos desde BD de control — mismos campos que
+    // `tenantContext.js:resolverTenantPorSlug()` para construir su pool real
+    // con `obtenerPoolTenant()` (`ejecutarComoTenant` espera un OBJETO pool,
+    // no el slug — pasar el slug crudo deja `pool.query` apuntando a un
+    // string y revienta con "pool.query is not a function").
+    let tenants = [];
+    try {
+      const poolControl = obtenerPoolControl();
+      const [filas] = await poolControl.query(
+        `SELECT slug, db_host, db_name, db_user FROM tenants WHERE estado = 'activo' ORDER BY slug ASC`
+      );
+      tenants = filas;
+    } catch (err) {
+      console.error('[cierreMensual] No se pudo listar tenants de control:', err.message);
+      return resultados;
+    }
+
+    // Paginado 5 a la vez, con pausa entre lotes
+    for (let i = 0; i < tenants.length; i += 5) {
+      const lote = tenants.slice(i, i + 5);
+      const promesas = lote.map(async (tenant) => {
+        try {
+          const tenantPool = obtenerPoolTenant({
+            slug: tenant.slug,
+            host: tenant.db_host,
+            port: Number(process.env.DB_PORT || 3306),
+            user: tenant.db_user,
+            password: process.env.DB_PASSWORD || '',
+            database: tenant.db_name,
+          });
+          const r = await ejecutarComoTenant(tenantPool, () => ejecutarCierreMensualParaDB(periodoForzado));
+          return { slug: tenant.slug, ...r };
+        } catch (err) {
+          return { slug: tenant.slug, error: err.message, periodo: periodoForzado || 'auto' };
+        }
+      });
+      const resLote = await Promise.all(promesas);
+      resultados.push(...resLote);
+      if (i + 5 < tenants.length) await esperar(PAUSA_ENTRE_LOTES_MS);
+    }
+
     return resultados;
+  } finally {
+    corridaEnProgreso = false;
   }
-
-  // Paginado 5 a la vez
-  for (let i = 0; i < tenants.length; i += 5) {
-    const lote = tenants.slice(i, i + 5);
-    const promesas = lote.map(async (tenant) => {
-      try {
-        const tenantPool = obtenerPoolTenant({
-          slug: tenant.slug,
-          host: tenant.db_host,
-          port: Number(process.env.DB_PORT || 3306),
-          user: tenant.db_user,
-          password: process.env.DB_PASSWORD || '',
-          database: tenant.db_name,
-        });
-        const r = await ejecutarComoTenant(tenantPool, () => ejecutarCierreMensualParaDB(periodoForzado));
-        return { slug: tenant.slug, ...r };
-      } catch (err) {
-        return { slug: tenant.slug, error: err.message, periodo: periodoForzado || 'auto' };
-      }
-    });
-    const resLote = await Promise.all(promesas);
-    resultados.push(...resLote);
-  }
-
-  return resultados;
 }
 
 module.exports = {
