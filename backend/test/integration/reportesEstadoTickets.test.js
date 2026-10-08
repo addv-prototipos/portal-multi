@@ -67,17 +67,20 @@ describe('GET /api/admin/reportes/estado-tickets (Reportes → Estado de tickets
   });
 
   test('sin credenciales responde 401', async () => {
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
     const res = await request(app).get('/api/admin/reportes/estado-tickets');
     expect(res.status).toBe(401);
   });
 
   test('perfil "ventas" no tiene acceso (403)', async () => {
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
     const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
     const res = await request(app).get('/api/admin/reportes/estado-tickets').auth(usuario, password);
     expect(res.status).toBe(403);
   });
 
   test('perfil "fiscal" sí tiene acceso — pasa el gate y llega a la lógica real', async () => {
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
     const { usuario, password } = mockUsuarioAdministrativo('fiscal', { usuario: 'fiscal1' });
     pool.query.mockResolvedValueOnce([[]]); // SELECT tickets
     const res = await request(app).get('/api/admin/reportes/estado-tickets').auth(usuario, password);
@@ -120,16 +123,18 @@ describe('GET /api/admin/reportes/estado-tickets (Reportes → Estado de tickets
   });
 
   test('sitio base (sin X-Tenant-Slug): el candado es no-op, responde 200', async () => {
-    pool.query.mockResolvedValueOnce([[]]);
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
+    pool.query.mockResolvedValueOnce([[]]); // SELECT tickets
     const res = await request(app).get('/api/admin/reportes/estado-tickets').auth('admin', 'admin');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ total: 0, tickets: [] });
   });
 
   test('solo trae tickets activos (no eliminados), sin filtros extra en la query', async () => {
-    pool.query.mockResolvedValueOnce([[]]);
+    pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
+    pool.query.mockResolvedValueOnce([[]]); // SELECT tickets
     await request(app).get('/api/admin/reportes/estado-tickets').auth('admin', 'admin');
-    const [sql] = pool.query.mock.calls[0];
+    const [sql] = pool.query.mock.calls[1];
     expect(sql).toMatch(/eliminado_en IS NULL/);
     expect(sql).not.toMatch(/estatus = \?/);
   });

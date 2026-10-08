@@ -76,6 +76,12 @@ describe('Consistencia de gating Facturación — RFC condicional', () => {
     });
 
     test('sitio base (sin X-Tenant-Slug): facturacionHabilitada true, comportamiento de siempre', async () => {
+      // Punto 377: sin tenant, facturacionActivaEnRequest() ahora sí
+      // consulta getConfiguracionGlobal() (antes era puramente sincrónico,
+      // sin tocar la base) para poder respetar una pausa manual del admin
+      // en el sitio base — fila vacía = defaults (facturacion_pausada
+      // false), mismo patrón ya usado en el resto del archivo.
+      pool.query.mockResolvedValueOnce([[]]);
       const res = await request(app).get('/api/config/registro');
       expect(res.body).toEqual({ facturacionHabilitada: true });
     });

@@ -149,6 +149,8 @@ describe('utils/tenantContext.js', () => {
         marcaLookfeelHabilitado: true,
         maxUsuarios: null,
         facturacionHabilitada: true,
+        facturacionHabilitadaPlan: true,
+        facturacionPausada: false,
         portalClientesHabilitado: true,
         portalClientesHabilitadoPlan: true,
         portalClientesPausado: false,

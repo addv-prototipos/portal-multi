@@ -85,6 +85,7 @@ describe('Tickets', () => {
     });
 
     test('rechaza un archivo que no sea imagen permitida (tipo declarado)', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       const res = await request(app)
         .post('/api/tickets')
         .set('Cookie', COOKIE)
@@ -95,6 +96,7 @@ describe('Tickets', () => {
     });
 
     test('sin constancia de situación fiscal registrada, responde 400 con código SIN_CONSTANCIA', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[]]); // sin registro para este RFC
 
       const res = await request(app)
@@ -181,6 +183,7 @@ describe('Tickets', () => {
     });
 
     test('con órdenes de compra deshabilitadas, sube el ticket sin pedir datos de compra', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro (constancia) existe
       pool.query.mockResolvedValueOnce(configGlobalConOrdenesDeshabilitadas());
       pool.query.mockResolvedValueOnce([[]]); // getCamposObligatorios
@@ -199,6 +202,7 @@ describe('Tickets', () => {
     });
 
     test('con órdenes de compra habilitadas (default), exige numero_compra/fecha/hora/total', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro (constancia) existe
       pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults (ordenes_compra_habilitado: true)
 
@@ -212,6 +216,7 @@ describe('Tickets', () => {
     });
 
     test('con orden de compra no encontrada, responde con código COMPRA_NO_ENCONTRADA', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro existe
       pool.query.mockResolvedValueOnce([[]]); // config global defaults
       pool.query.mockResolvedValueOnce([[]]); // sin orden de compra coincidente
@@ -230,6 +235,7 @@ describe('Tickets', () => {
     });
 
     test('con orden de compra pendiente por cobrar, responde con código PAGO_PENDIENTE', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro existe
       pool.query.mockResolvedValueOnce([[]]); // config global defaults
       pool.query.mockResolvedValueOnce([
@@ -256,7 +262,7 @@ describe('Tickets', () => {
       expect(res.status).toBe(400);
       expect(res.body.codigo).toBe('PAGO_PENDIENTE');
       // No debe llegar a consultar si ya fue facturada ni a insertar el ticket.
-      expect(pool.query).toHaveBeenCalledTimes(3);
+      expect(pool.query).toHaveBeenCalledTimes(4);
     });
 
     // Bug real corregido (2026-09-02, punto 183): antes se buscaba un
@@ -264,6 +270,7 @@ describe('Tickets', () => {
     // "olvidaba" que ya se había facturado y dejaba re-facturar. Ahora
     // depende de `ordenes_compra.facturado_en` (hecho permanente).
     test('con orden de compra ya facturada (facturado_en fijo), responde COMPRA_YA_FACTURADA', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro existe
       pool.query.mockResolvedValueOnce([[]]); // config global defaults
       pool.query.mockResolvedValueOnce([
@@ -292,10 +299,11 @@ describe('Tickets', () => {
       expect(res.body.codigo).toBe('COMPRA_YA_FACTURADA');
       // No debe consultar tickets en vivo ni insertar uno nuevo — la
       // respuesta sale del campo ya traído en la fila de la orden.
-      expect(pool.query).toHaveBeenCalledTimes(3);
+      expect(pool.query).toHaveBeenCalledTimes(4);
     });
 
     test('con orden de compra pagada, sigue aceptando el ticket (sin regresión)', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // registro existe
       pool.query.mockResolvedValueOnce([[]]); // config global defaults
       pool.query.mockResolvedValueOnce([
@@ -337,6 +345,7 @@ describe('Tickets', () => {
 
     test('devuelve solo los tickets del rfc de la sesión', async () => {
       const ticket = { id: 1, folio: 'TK-000001', estatus: 'pendiente' };
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[ticket]]);
 
       const res = await request(app).get('/api/tickets').set('Cookie', COOKIE);
@@ -354,23 +363,27 @@ describe('Tickets', () => {
     });
 
     test('id no numérico responde 400', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       const res = await request(app).get('/api/tickets/abc/factura').set('Cookie', COOKIE);
       expect(res.status).toBe(400);
     });
 
     test('ticket inexistente (o de otro rfc) responde 404', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[]]);
       const res = await request(app).get('/api/tickets/1/factura').set('Cookie', COOKIE);
       expect(res.status).toBe(404);
     });
 
     test('ticket sin factura lista responde 409', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([[{ id: 1, estatus: 'pendiente', factura_nombre_guardado: null }]]);
       const res = await request(app).get('/api/tickets/1/factura').set('Cookie', COOKIE);
       expect(res.status).toBe(409);
     });
 
     test('con factura lista, la transmite con las cabeceras correctas', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       pool.query.mockResolvedValueOnce([
         [
           {

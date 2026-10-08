@@ -136,6 +136,7 @@ describe('Cuota de usuarios de panel por tenant (punto 244)', () => {
 
     test('sitio base (sin X-Tenant-Slug): sin cuota, comportamiento de siempre', async () => {
       pool.query
+        .mockResolvedValueOnce([[]]) // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
         .mockResolvedValueOnce([[]]) // sin rfc existente
         .mockResolvedValueOnce([{ insertId: 9 }]); // INSERT
 

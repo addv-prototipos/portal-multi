@@ -144,6 +144,11 @@ server {
     # usando una version vieja por dias despues de un `docker-compose up --build`.
     location ~* \.(?:css|js)$ {
         add_header Cache-Control "no-cache";
+        # Misma página 404 con identidad Clarvo que el catch-all de más
+        # abajo (punto 376) — sin esto, un .css/.js borrado o con typo en
+        # la URL mostraba el 404 en blanco default de nginx en vez de la
+        # página de marca. Sin "=": el status code sigue siendo 404 real.
+        error_page 404 /404-clarvo.html;
         try_files $uri =404;
     }
 
@@ -152,6 +157,10 @@ server {
     location ~* \.(?:svg|png|jpg|jpeg|webp|woff2?)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
+        # Mismo motivo que el location de .css/.js de arriba — una imagen
+        # borrada o una URL con typo (ej. "/branding.pgn") mostraba el 404
+        # en blanco de nginx en vez de 404-clarvo.html.
+        error_page 404 /404-clarvo.html;
         try_files $uri =404;
     }
 

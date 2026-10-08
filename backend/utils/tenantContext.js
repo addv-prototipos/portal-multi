@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, portal_clientes_habilitado, portal_clientes_pausado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, facturacion_pausada, portal_clientes_habilitado, portal_clientes_pausado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -63,6 +63,19 @@ function portalClientesEfectivo(tenant) {
   const planHabilitado = tenant.portal_clientes_habilitado !== 0 && tenant.portal_clientes_habilitado !== false;
   const pausado = tenant.portal_clientes_pausado === 1 || tenant.portal_clientes_pausado === true;
   return planHabilitado && !pausado;
+}
+
+// Punto 377: gemela de portalClientesEfectivo() — plan (solo /control lo
+// prende) AND !pausado (el propio admin lo pausa/reanuda desde
+// Configuraciones, sin pasar por /control). Se expone bajo la MISMA
+// propiedad que ya leían los 31 puntos existentes de server.js
+// (req.tenant.facturacionHabilitada) — ninguno de ellos necesita cambiar,
+// ahora reciben el valor ya efectivo en vez de solo el techo crudo.
+function facturacionEfectiva(tenant) {
+  if (!tenant) return true;
+  const planHabilitado = tenant.facturacion_habilitada !== 0 && tenant.facturacion_habilitada !== false;
+  const pausada = tenant.facturacion_pausada === 1 || tenant.facturacion_pausada === true;
+  return planHabilitado && !pausada;
 }
 
 // Para la futura app de control (segmento 9): tras dar de alta/suspender
@@ -124,12 +137,18 @@ async function resolverTenantMiddleware(req, res, next) {
       // Cuota de cuentas de panel (administrador/fiscal/ventas) — null =
       // sin límite. Enforcement real en POST /api/admin/usuarios.
       maxUsuarios: tenant.max_usuarios == null ? null : Number(tenant.max_usuarios),
-      // Gobierno de funcionalidades por plan (ver PROJECT_STATE.md). DEFAULT
-      // en BD es 1 para estas dos — un tenant ya configurado antes de estas
-      // columnas sigue teniendo el módulo igual que siempre. Mismo criterio
-      // booleano que marcaLookfeelHabilitado arriba (MySQL puede devolver
-      // 0/1 o false/true según el driver).
-      facturacionHabilitada: tenant.facturacion_habilitada !== 0 && tenant.facturacion_habilitada !== false,
+      // Punto 377: valor EFECTIVO = plan (solo /control lo prende) AND
+      // !pausada (el propio admin la pausa/reanuda desde Configuraciones,
+      // sin pasar por /control) — mismo criterio de 2 capas que
+      // portalClientesHabilitado más abajo. Los 31 puntos existentes que ya
+      // leían esta propiedad (requiereFeature + chequeos directos en
+      // server.js) no se tocaron, ahora reciben el efectivo sin saberlo.
+      facturacionHabilitada: facturacionEfectiva(tenant),
+      // Crudos, solo para que Configuraciones sepa si debe mostrar el
+      // interruptor (si el plan ya lo tiene apagado, no se dibuja — nunca
+      // un switch que no hace nada, ver /control "no aparece nada").
+      facturacionHabilitadaPlan: tenant.facturacion_habilitada !== 0 && tenant.facturacion_habilitada !== false,
+      facturacionPausada: tenant.facturacion_pausada === 1 || tenant.facturacion_pausada === true,
       // Punto 375: valor EFECTIVO = plan (solo /control lo prende) AND
       // !pausado (el propio admin lo pausa/reanuda desde Mi Cuenta, sin
       // pasar por /control). requiereFeature('portalClientesHabilitado')
@@ -203,4 +222,4 @@ async function resolverTenantMiddleware(req, res, next) {
   }
 }
 
-module.exports = { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant, portalClientesEfectivo };
+module.exports = { resolverTenantMiddleware, resolverTenantPorSlug, invalidarCacheTenant, portalClientesEfectivo, facturacionEfectiva };

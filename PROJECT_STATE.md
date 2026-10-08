@@ -19662,6 +19662,123 @@ tickets):**
   le altera el comportamiento a ese test — el efecto real es en tenants
   CON Facturación activa, como la cuenta real del usuario).
 
+**Punto 378 (2026-10-08, CERRADO — pausa de autoservicio "Facturación"
+desde Configuraciones, tenant y sitio base, mismo patrón de dos capas que
+el punto 375):** el usuario pidió un botón en `/admin` (con y sin tenant)
+para activar/desactivar Facturación manualmente, "sin violar las reglas
+de CONTROL" — igual que Portal de clientes (punto 375): (1) el *ceiling*
+de plan desde `/control` (`facturacion_habilitada`, punto 347 — apaga
+TODO permanentemente, solo `/control` puede reactivarlo); (2) un
+*autoservicio* nuevo en Configuraciones, a la mano del propio
+administrador, que pausa/reanuda Facturación sin tocar `/control`. Regla
+de dependencia explícita del usuario: **Portal de clientes gobierna a
+Facturación, nunca al revés** — si el portal de clientes está apagado,
+Facturación queda sin uso (nadie puede llegar a CSF/tickets de todas
+formas, el portal entero está caído); si Facturación está apagada con el
+portal activo, las cuentas por cobrar siguen funcionando igual dentro del
+portal (CxC no depende de Facturación). Esta regla no requirió código
+nuevo — ya se cumple por construcción: `requireUserAuth` sigue gateando
+TODO el portal de clientes de un jalón (independiente de Facturación), y
+`dashboard.js` ya oculta "Subir constancia"/"Subir tickets"/"Mis
+solicitudes" según `facturacionHabilitada` sin tocar el resto del portal.
+
+- **Esquema**: `control_tenants.tenants.facturacion_pausada`
+  (`TINYINT(1) NOT NULL DEFAULT 0`, `control/scripts/ensureSchema.js`,
+  justo después de `portal_clientes_pausado`) para tenants; el sitio base
+  vive en `backend/utils/config.js`
+  (`DEFAULTS_CONFIG_GLOBAL.facturacion_pausada = false`, mismo patrón que
+  `portal_clientes_pausado` — leído/escrito dentro de
+  `configuracion_global`, **no** en `control_tenants.ajustes_globales`).
+- **Backend — lógica efectiva compartida**: `backend/utils/tenantContext.js`
+  exporta `facturacionEfectiva(tenant)` — AND de las dos capas
+  (`facturacion_habilitada` Y `!facturacion_pausada`) — ahora es el valor
+  de `req.tenant.facturacionHabilitada` (antes solo reflejaba el ceiling
+  de plan; `facturacionHabilitadaPlan` se agregó como el ceiling crudo
+  para cuando se necesita distinguir las dos capas, ej. bloquear el
+  switch en la UI). **Efecto en cascada querido**: como
+  `funciones.facturacionHabilitada` (expuesto en `GET /api/admin/login`)
+  y todo el resto del backend ya leían `req.tenant.facturacionHabilitada`
+  como "¿Facturación está disponible ahora?" (24 usos de
+  `requiereFeature('facturacionHabilitada')` + 7 lecturas directas), la
+  pausa del admin se propaga gratis a TODO lo que ya dependía de ese
+  flag — RFC condicional al registrar, candado de Tickets/CSF, ocultar
+  menú/tarjetas en `/admin` vía `planPermite('facturacionHabilitada')` —
+  sin tocar ninguno de esos 31 sitios.
+- **Backend — nuevo middleware para rutas no-tenant**: las 24 rutas que
+  usaban `requiereFeature('facturacionHabilitada')` (no-op sin
+  `req.tenant`, por diseño — nunca se cambia ese comportamiento genérico)
+  se migraron a `requiereFacturacionActiva` nuevo
+  (`backend/utils/requiereFeature.js`), que SÍ resuelve el sitio base
+  consultando `getConfiguracionGlobal().facturacion_pausada` — mismo
+  criterio 404-nunca-403 y mismo orden (antes de
+  `requireAdminAuth`/`requireUserAuth`) que el resto de `requiereFeature`.
+  Los 6 sitios que ya hacían el chequeo inline (`!req.tenant ||
+  req.tenant.facturacionHabilitada !== false`) se migraron a
+  `await facturacionActivaEnRequest(req)` (mismo helper, exportado
+  aparte). Nuevo `PUT /api/admin/config/facturacion` (perfil
+  administrador/super únicamente) — rechaza encender si el plan ya la
+  tiene apagada desde `/control`. `GET /api/admin/config/global` expone
+  `facturacion_activa`/`facturacion_plan_habilitado` para que el
+  frontend pinte el switch.
+- **Frontend**: nueva tarjeta `facturacion-toggle-card` ("Módulo
+  Facturación") en Configuraciones (`frontend/admin.html`/`admin.js`) —
+  **a propósito SIN entrada en `PLAN_GATE_TARJETA_CONFIG`**: si se
+  ocultara junto con `global-config-card` cuando Facturación está
+  apagada (como hacen las demás tarjetas gateadas por su propio flag), el
+  admin ya no podría volver a encenderla desde ahí — mismo motivo por el
+  que "Portal de clientes" vive en Mi Cuenta y no dentro de una tarjeta
+  que su propio estado puede esconder (ver bug de diseño detectado y
+  evitado ANTES de escribir el E2E, no después). `aplicarEstadoFacturacionHabilitada(activo,
+  planHabilitado)` — mismo patrón que
+  `aplicarEstadoPortalClientesMiCuenta()`: `checked`/`disabled`/hint
+  según las dos capas. Autoguardado con `PUT /api/admin/config/facturacion`
+  (mismo patrón visual que "Habilitar Ventas"/"Mostrar Auditoría" —
+  `config-switch-destacado` + `pill-autoguardado-tag`, no el toast de Mi
+  Cuenta). Agregada a `tarjetasConfigPermitidas` de `administrador`
+  únicamente (fiscal/ventas/inventario no la ven, mismo alcance que el
+  backend).
+- **Bug real encontrado y corregido ANTES de dar la UI por terminada**:
+  el nav de Configuraciones (`.config-modal-nav-item[data-tarjeta=...]`)
+  tiene DOS registros paralelos que hay que mantener sincronizados con
+  cada tarjeta nueva — `CONFIG_SECCIONES` (array que
+  `seleccionarSeccionConfig()` usa para decidir qué mostrar/ocultar al
+  hacer clic; sin una entrada ahí, el clic en el nav no hace NADA, la
+  tarjeta se queda oculta para siempre aunque exista en el HTML) y
+  `GRUPOS_CONFIG_NAV` (decide si el título del grupo "Módulos" se oculta
+  cuando ninguna de sus tarjetas es visible). Faltaban ambas entradas al
+  escribir la tarjeta nueva — detectado por el E2E nuevo (`toBeVisible()`
+  fallando con "hidden" pese a que el HTML era correcto), no por
+  inspección visual. Al agregar una tarjeta nueva a Configuraciones:
+  los **3** registros (`CONFIG_SECCIONES`, `GRUPOS_CONFIG_NAV`,
+  `tarjetasConfigPermitidas` por perfil) son obligatorios, ninguno es
+  opcional aunque el HTML/CSS ya esté perfecto.
+- **Regresión de pruebas unitarias (esperada, no un bug)**: agregar
+  `requiereFacturacionActiva` introdujo una llamada real a
+  `pool.query()` (`getConfiguracionGlobal()`) en 24 rutas que antes eran
+  no-op sin tenant — rompió 43 tests en 9 suites por el corrimiento de
+  `mockResolvedValueOnce` secuencial de Jest. Se corrigió archivo por
+  archivo insertando el mock faltante en la posición correcta (y
+  ajustando los `toHaveBeenCalledTimes`/índices de `mock.calls[n]`
+  afectados) — 1200/1200 verde al terminar, sin ningún test debilitado o
+  borrado para lograrlo.
+- **Verificación**: Jest backend 1200/1200. E2E real nuevo,
+  `facturacion-pausa-admin.spec.ts` (3/3): pausar/reanudar en tenant con
+  plan activo (`t2`) y en sitio base, persistencia tras recargar, y
+  bloqueo del switch cuando `/control` apaga el plan (`t1`, que en este
+  entorno YA tiene `facturacion_habilitada=0` real — no fue necesario
+  prepararlo). Specs adyacentes re-corridos sin regresión causada por
+  este cambio: `marca-tema-punto210.spec.ts` 3/3,
+  `portal-pausa-admin.spec.ts` 3/3. `admin-plan-gating.spec.ts` tiene 1
+  falla preexistente de este entorno (los 3 flags que ese spec espera
+  apagados en `t1` — gastos/inventarios/auditoría — están en `1` en la
+  BD real, deriva de entorno ajena a esta sesión, confirmado por consulta
+  directa a `control_tenants.tenants` antes de este cambio) — no
+  relacionada con este punto, no se tocó.
+- **Pendiente de este mismo punto**: `prod/` sigue sin sincronizar (solo
+  se sincroniza por contenido cuando el usuario lo pide explícito, mismo
+  criterio del punto 377); commit/push tampoco se ha hecho (el usuario no
+  lo ha pedido todavía para este trabajo).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
@@ -19692,3 +19809,4 @@ tickets):**
 - Gobierno de funcionalidades por tenant / candado de feature-flag (punto 347): `backend/utils/requiereFeature.js` (404, no 403), catálogo `planes` + columnas `facturacion_habilitada`/`portal_clientes_habilitado`/`sucursales_habilitado`/`disco_cuota_mb`/`plan_id` en `control/scripts/ensureSchema.js`, CRUD de planes en `control/utils/planes.js` + `control/server.js`, asignación/excepciones por tenant en `control/utils/tenantEdicion.js:resolverPlanYFunciones`, medición de disco en `backend/utils/storage.js:calcularBytesPrefijo` + `POST /internal/disco-uso/:slug` + `control/utils/tenantLifecycle.js:recalcularUsoDisco`, modal por pestañas en `frontend/control.html`/`control.js` (`cambiarTabEditar`)
 - Documentación completa para el usuario final: `README.md` (mucho más detallado que este archivo — este es para retomar el trabajo, el README es para operar la app)
 - Pausa de autoservicio "Portal de clientes" en Mi Cuenta, tenant y sitio base (punto 375): `backend/utils/tenantContext.js:portalClientesEfectivo`, `GET /api/tema-base` + `PUT /api/admin/mi-cuenta/portal-clientes` en `backend/server.js`, `portal_clientes_pausado` en `control/scripts/ensureSchema.js` (tenant) y `backend/utils/config.js` (sitio base), `paginaEsPortalCliente()` en `frontend/theme.js`
+- Pausa de autoservicio "Facturación" en Configuraciones, tenant y sitio base (punto 378): `backend/utils/tenantContext.js:facturacionEfectiva`, `requiereFacturacionActiva`/`facturacionActivaEnRequest` en `backend/utils/requiereFeature.js`, `PUT /api/admin/config/facturacion` en `backend/server.js`, `facturacion_pausada` en `control/scripts/ensureSchema.js` (tenant) y `backend/utils/config.js` (sitio base), tarjeta `facturacion-toggle-card` en `frontend/admin.html`/`admin.js` (sin gate propio en `PLAN_GATE_TARJETA_CONFIG`, a propósito)

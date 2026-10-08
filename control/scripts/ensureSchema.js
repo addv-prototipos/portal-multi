@@ -77,6 +77,16 @@ const COLUMNAS_NUEVAS = [
   // reactivar en silencio algo que el admin pausó a propósito. DEFAULT 0
   // (no pausado) — agregar la columna no apaga nada el día de la migración.
   { nombre: 'portal_clientes_pausado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // Punto 377 (2026-10-07): mismo patrón que portal_clientes_pausado justo
+  // arriba, ahora para Facturación — facturacion_habilitada decide si el
+  // tenant TIENE el módulo (solo /control lo prende/apaga por plan); esta
+  // columna decide si el admin lo dejó temporalmente en pausa él mismo
+  // (Configuraciones → "Facturación"), sin pasar por /control. El efectivo
+  // es el AND de las dos — ver tenantContext.js:facturacionEfectiva(). A
+  // propósito NO se copia al asignar un plan (mismo motivo que
+  // portal_clientes_pausado). DEFAULT 0 (no pausado) — agregar la columna
+  // no apaga nada el día de la migración.
+  { nombre: 'facturacion_pausada', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   // DEFAULT 0: feature nueva, nadie la tenía antes de esta columna salvo
   // quien ya esté en un grupo real — ver el backfill condicional abajo.
   { nombre: 'sucursales_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },

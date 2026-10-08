@@ -27,6 +27,7 @@ describe('Auth de usuario', () => {
 
   describe('POST /api/auth/registro', () => {
     test('registra correctamente con datos válidos y establece cookie de sesión', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       pool.query.mockResolvedValueOnce([[]]); // sin RFC existente
       pool.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT
 
@@ -43,7 +44,8 @@ describe('Auth de usuario', () => {
       expect(res.headers['set-cookie'][0]).toMatch(/^sesion_usuario=/);
     });
 
-    test('rechaza RFC inválido sin tocar la base de datos', async () => {
+    test('rechaza RFC inválido sin tocar la tabla de usuarios', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       const res = await request(app).post('/api/auth/registro').send({
         rfc: '123',
         email: 'cliente@example.com',
@@ -52,10 +54,14 @@ describe('Auth de usuario', () => {
       });
 
       expect(res.status).toBe(400);
-      expect(pool.query).not.toHaveBeenCalled();
+      // El único query es el de facturacionActivaEnRequest (corre antes de
+      // validar el RFC, para saber si el RFC es obligatorio) — nunca llega
+      // a tocar `usuarios`.
+      expect(pool.query).toHaveBeenCalledTimes(1);
     });
 
     test('rechaza correo inválido', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       const res = await request(app).post('/api/auth/registro').send({
         rfc: RFC_VALIDO,
         email: 'no-es-correo',
@@ -66,6 +72,7 @@ describe('Auth de usuario', () => {
     });
 
     test('rechaza teléfono inválido', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       const res = await request(app).post('/api/auth/registro').send({
         rfc: RFC_VALIDO,
         email: 'cliente@example.com',
@@ -76,6 +83,7 @@ describe('Auth de usuario', () => {
     });
 
     test('rechaza contraseña que no cumple las reglas', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       const res = await request(app).post('/api/auth/registro').send({
         rfc: RFC_VALIDO,
         email: 'cliente@example.com',
@@ -86,6 +94,7 @@ describe('Auth de usuario', () => {
     });
 
     test('responde 409 si el RFC ya está registrado', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       pool.query.mockResolvedValueOnce([[{ id: 1 }]]);
 
       const res = await request(app).post('/api/auth/registro').send({
@@ -191,6 +200,7 @@ describe('Auth de usuario', () => {
 
     test('con cookie válida devuelve el rfc y debeCambiarPassword convertido a booleano', async () => {
       pool.query.mockResolvedValueOnce([[{ nombre: 'Juan López', debe_cambiar_password: 1, activo: 1 }]]);
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       const res = await request(app).get('/api/auth/me').set('Cookie', cookieDeSesion());
 
       expect(res.status).toBe(200);
@@ -206,6 +216,7 @@ describe('Auth de usuario', () => {
 
     test('con cookie válida y cuenta suspendida, devuelve suspendido:true', async () => {
       pool.query.mockResolvedValueOnce([[{ nombre: '', debe_cambiar_password: 0, activo: 0 }]]);
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       const res = await request(app).get('/api/auth/me').set('Cookie', cookieDeSesion());
 
       expect(res.status).toBe(200);

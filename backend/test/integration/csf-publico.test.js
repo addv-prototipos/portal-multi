@@ -99,7 +99,8 @@ describe('CSF público', () => {
 
   describe('GET /api/config/tickets-retencion', () => {
     test('devuelve null si no hay retención configurada', async () => {
-      pool.query.mockResolvedValueOnce([[]]);
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
+      pool.query.mockResolvedValueOnce([[]]); // getRetencionTicketsDias
       const res = await request(app).get('/api/config/tickets-retencion');
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ dias: null });

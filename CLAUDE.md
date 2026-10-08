@@ -509,6 +509,26 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   para una sola de las 2 filas, no determinístico cuál; resolverlo
   requiere decidir cuál cuenta debe ganar o pedir que se especifique, no
   es un one-liner.
+- **Tarjeta nueva en Configuraciones (`/admin`): 3 registros obligatorios
+  en `frontend/admin.js`, no solo el HTML** (punto 378, 2026-10-08): el
+  nav `.config-modal-nav-item[data-tarjeta="..."]` solo funciona si la
+  tarjeta está en los 3 — `CONFIG_SECCIONES` (si falta, el clic en el nav
+  no hace NADA: `seleccionarSeccionConfig()` retorna temprano, la tarjeta
+  queda oculta para siempre aunque el HTML esté perfecto),
+  `GRUPOS_CONFIG_NAV` (oculta el título del grupo si ninguna tarjeta hija
+  es visible) y `tarjetasConfigPermitidas` por perfil en
+  `RESTRICCIONES_PERFIL` (qué perfiles la ven). Bug real: se escribió el
+  HTML completo de `facturacion-toggle-card` sin las 2 primeras entradas
+  — el E2E nuevo lo atrapó (`toBeVisible()` fallando con "hidden"), no la
+  inspección visual. **Además**: una tarjeta que es ELLA MISMA el
+  interruptor de un flag (ej. "Habilitar Facturación") nunca debe tener
+  entrada en `PLAN_GATE_TARJETA_CONFIG` con ese mismo flag — si
+  `global-config-card` se oculta cuando `facturacionHabilitada` es falso,
+  una tarjeta nueva que también dependiera de ese flag para su propia
+  visibilidad se escondería a sí misma en cuanto el admin la apagara, sin
+  forma de volver a encenderla desde la UI (mismo motivo por el que
+  "Portal de clientes" vive en Mi Cuenta en vez de dentro de
+  `global-config-card`, punto 375).
 
 ## Stack
 

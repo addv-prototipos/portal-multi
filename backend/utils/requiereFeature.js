@@ -38,4 +38,39 @@ function requiereFeature(campo) {
   };
 }
 
-module.exports = { requiereFeature };
+// Punto 377: candado específico de Facturación — a diferencia de
+// requiereFeature() de arriba (que es no-op sin tenant, por diseño: el
+// sitio base nunca ha tenido un "plan" que lo gobierne), Facturación sí
+// necesita bloquear en el sitio base cuando el propio admin la pausó
+// desde Configuraciones (facturacion_pausada en la config global local).
+// No se generaliza requiereFeature() para esto — ese cambio afectaría a
+// TODOS los demás flags que hoy dependen a propósito de ese no-op
+// (ventasHabilitado, gastosHabilitado, etc., que sí siguen siendo
+// exclusivos de tenants con plan). Para tenant, el comportamiento es
+// idéntico a requiereFeature('facturacionHabilitada') de siempre:
+// tenantContext.js ya resuelve req.tenant.facturacionHabilitada como el
+// valor EFECTIVO (plan AND !pausada), así que esta función ni siquiera
+// necesita saber que existen 2 capas ahí.
+function requiereFacturacionActiva(req, res, next) {
+  facturacionActivaEnRequest(req)
+    .then((activa) => {
+      if (!activa) return res.status(404).end();
+      next();
+    })
+    .catch(next);
+}
+
+// Versión en función (no middleware) del mismo cálculo — para los pocos
+// puntos de server.js que ya necesitaban saber "¿facturación está activa
+// aquí?" como un booleano normal dentro de su propia lógica (ej. decidir
+// si generar un identificador SINFISCAL), no como un candado de ruta.
+// Un solo lugar de verdad para ambos usos, igual que facturacionEfectiva()
+// en tenantContext.js es el único lugar que sabe combinar plan+pausada.
+async function facturacionActivaEnRequest(req) {
+  if (req.tenant) return req.tenant.facturacionHabilitada !== false;
+  const { getConfiguracionGlobal } = require('./config');
+  const config = await getConfiguracionGlobal();
+  return !config.facturacion_pausada;
+}
+
+module.exports = { requiereFeature, requiereFacturacionActiva, facturacionActivaEnRequest };

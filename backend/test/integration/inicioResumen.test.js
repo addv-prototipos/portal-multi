@@ -63,6 +63,7 @@ describe('GET /api/admin/inicio/resumen (punto 362)', () => {
     const { usuario, password } = mockUsuarioAdministrativo('fiscal', { usuario: 'fiscal1' });
     pool.query
       .mockResolvedValueOnce(MOCK_CONFIG_GLOBAL)
+      .mockResolvedValueOnce([[]]) // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       .mockResolvedValueOnce([[{ total: 3 }]]) // tickets hoy
       .mockResolvedValueOnce([[{ total: 2 }]]) // pendientes
       .mockResolvedValueOnce([[{ total: 14 }]]); // 7 días
@@ -112,6 +113,7 @@ describe('GET /api/admin/inicio/resumen (punto 362)', () => {
     const { usuario, password } = mockUsuarioAdministrativo('administrador');
     pool.query
       .mockResolvedValueOnce(MOCK_CONFIG_GLOBAL)
+      .mockResolvedValueOnce([[]]) // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant)
       .mockResolvedValueOnce([[{ total: 2, suma: '2146.00' }]]) // tickets... espera, administrador trae las 4 secciones
       .mockResolvedValueOnce([[{ total: 0 }]])
       .mockResolvedValueOnce([[{ total: 0 }]])

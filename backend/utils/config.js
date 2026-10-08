@@ -255,6 +255,13 @@ const DEFAULTS_CONFIG_GLOBAL = {
   // si el portal del sitio base está activo. `false` por defecto (no
   // pausado) — agregar el campo no apaga nada el día de la migración.
   portal_clientes_pausado: false,
+  // Punto 377: mismo patrón que portal_clientes_pausado justo arriba,
+  // ahora para Facturación — equivalente local de
+  // control_tenants.tenants.facturacion_pausada. El sitio base tampoco
+  // tiene un "plan" de Facturación que lo gobierne desde /control, así
+  // que aquí tampoco hay ceiling: este único flag decide si Facturación
+  // está activa en el sitio base. `false` por defecto (no pausada).
+  facturacion_pausada: false,
 };
 
 async function getConfiguracionGlobal() {
@@ -325,6 +332,9 @@ async function getConfiguracionGlobal() {
     }
     if (typeof parsed.portal_clientes_pausado === 'boolean') {
       resultado.portal_clientes_pausado = parsed.portal_clientes_pausado;
+    }
+    if (typeof parsed.facturacion_pausada === 'boolean') {
+      resultado.facturacion_pausada = parsed.facturacion_pausada;
     }
     if (parsed.ticket_ancho_papel === '58mm' || parsed.ticket_ancho_papel === '80mm') {
       resultado.ticket_ancho_papel = parsed.ticket_ancho_papel;
@@ -479,6 +489,10 @@ async function setConfiguracionGlobal(cambios) {
 
   if (cambios.portal_clientes_pausado !== undefined) {
     nuevo.portal_clientes_pausado = Boolean(cambios.portal_clientes_pausado);
+  }
+
+  if (cambios.facturacion_pausada !== undefined) {
+    nuevo.facturacion_pausada = Boolean(cambios.facturacion_pausada);
   }
 
   if (cambios.ticket_ancho_papel !== undefined) {

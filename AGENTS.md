@@ -324,6 +324,19 @@ solo la frase en español de la UI.
   incorrecta" con su contraseña correcta (bug real, corregido en el punto
   377). Pendiente a propósito: `POST /api/auth/recuperar` sigue sin este
   filtro.
+- **Tarjeta nueva en Configuraciones (`/admin`): 3 registros obligatorios
+  en `frontend/admin.js`** (punto 378): el nav
+  `.config-modal-nav-item[data-tarjeta="..."]` solo funciona si la
+  tarjeta está en `CONFIG_SECCIONES` (si falta, el clic no hace nada —
+  tarjeta oculta para siempre aunque el HTML esté perfecto),
+  `GRUPOS_CONFIG_NAV` (oculta el título del grupo si ninguna hija es
+  visible) y `tarjetasConfigPermitidas` por perfil en
+  `RESTRICCIONES_PERFIL`. Además: una tarjeta que ES ELLA MISMA el
+  interruptor de un flag nunca debe tener entrada en
+  `PLAN_GATE_TARJETA_CONFIG` con ese mismo flag — se escondería a sí
+  misma al apagarse, sin forma de volver a encenderla desde la UI (mismo
+  motivo por el que "Portal de clientes" vive en Mi Cuenta en vez de
+  dentro de `global-config-card`, punto 375).
 
 ## Stack
 

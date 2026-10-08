@@ -173,22 +173,25 @@ describe('Admin', () => {
 
   describe('GET /api/admin/tickets (Inicio del perfil administrador, 2026-09-04)', () => {
     test('perfil "fiscal" tiene acceso (200)', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
       pool.query.mockResolvedValueOnce([[]]); // SELECT tickets
-      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (formato de fecha de la orden)
       const res = await request(app).get('/api/admin/tickets').auth(usuario, password);
       expect(res.status).toBe(200);
     });
 
     test('perfil "administrador" ahora también tiene acceso — Inicio le muestra el resumen de tickets', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
       pool.query.mockResolvedValueOnce([[]]); // SELECT tickets
-      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (formato de fecha de la orden)
       const res = await request(app).get('/api/admin/tickets').auth(usuario, password);
       expect(res.status).toBe(200);
     });
 
     test('perfil "ventas" sigue sin acceso (403) — Inicio/Tickets no son parte de su alcance', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
       const res = await request(app).get('/api/admin/tickets').auth(usuario, password);
       expect(res.status).toBe(403);
@@ -405,6 +408,7 @@ describe('Admin', () => {
 
   describe('GET /api/admin/tickets/pendientes-sin-contador', () => {
     test('correo_contador configurado: total 0, permiteOcultar por default (true)', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('super');
       pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ correo_contador: 'contador@x.com' }) }]]); // getConfigSmtp
       pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal
@@ -418,6 +422,7 @@ describe('Admin', () => {
     });
 
     test('sin correo_contador + interruptor maestro apagado: lista tickets con permiteOcultar false', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
       pool.query.mockResolvedValueOnce([[]]); // getConfigSmtp: sin nada guardado
       pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ notif_tickets_permite_ocultar: false }) }]]); // getConfiguracionGlobal
@@ -433,6 +438,7 @@ describe('Admin', () => {
     });
 
     test('perfil "ventas" no tiene acceso (403, sin área fiscal)', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('ventas');
       const res = await request(app)
         .get('/api/admin/tickets/pendientes-sin-contador')
@@ -531,6 +537,7 @@ describe('Admin', () => {
 
     test('POST crea un cliente válido', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (facturacionActivaEnRequest, sin tenant)
       pool.query.mockResolvedValueOnce([[]]); // sin rfc existente
       pool.query.mockResolvedValueOnce([{ insertId: 9 }]); // INSERT
 
@@ -866,6 +873,7 @@ describe('Admin', () => {
 
   describe('POST /api/admin/tickets/:id/factura (monto de la factura, negocios sin venta que verificar)', () => {
     test('con Total leíble en el XML, factura con monto_factura_origen "xml"', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
       pool.query.mockResolvedValueOnce([
         [{ id: 5, rfc: 'AAA010101AAA', folio: 'TK-000005', factura_nombre_guardado: null, orden_compra_id: null }],
@@ -881,12 +889,13 @@ describe('Admin', () => {
       expect(res.body.monto_factura).toBe(16240);
       expect(res.body.monto_factura_origen).toBe('xml');
 
-      const paramsUpdate = pool.query.mock.calls[2][1];
+      const paramsUpdate = pool.query.mock.calls[3][1];
       expect(paramsUpdate).toContain(16240);
       expect(paramsUpdate).toContain('xml');
     });
 
     test('sin Total en el XML y sin monto manual, responde 400 FACTURA_MONTO_REQUERIDO', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
       pool.query.mockResolvedValueOnce([
         [{ id: 6, rfc: 'AAA010101AAA', folio: 'TK-000006', factura_nombre_guardado: null, orden_compra_id: null }],
@@ -902,6 +911,7 @@ describe('Admin', () => {
     });
 
     test('sin Total en el XML, con monto manual válido, factura con monto_factura_origen "manual"', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
       pool.query.mockResolvedValueOnce([
         [{ id: 7, rfc: 'AAA010101AAA', folio: 'TK-000007', factura_nombre_guardado: null, orden_compra_id: null }],
@@ -918,12 +928,13 @@ describe('Admin', () => {
       expect(res.body.monto_factura).toBe(5000.75);
       expect(res.body.monto_factura_origen).toBe('manual');
 
-      const paramsUpdate = pool.query.mock.calls[2][1];
+      const paramsUpdate = pool.query.mock.calls[3][1];
       expect(paramsUpdate).toContain(5000.75);
       expect(paramsUpdate).toContain('manual');
     });
 
     test('monto manual en cero o negativo, sin Total en el XML, responde 400 FACTURA_MONTO_REQUERIDO', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
       pool.query.mockResolvedValueOnce([
         [{ id: 8, rfc: 'AAA010101AAA', folio: 'TK-000008', factura_nombre_guardado: null, orden_compra_id: null }],
@@ -940,6 +951,7 @@ describe('Admin', () => {
     });
 
     test('un monto manual capturado se IGNORA si el XML sí trae un Total real (no es "corregible")', async () => {
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (requiereFacturacionActiva, sin tenant, corre antes del auth)
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
       pool.query.mockResolvedValueOnce([
         [{ id: 9, rfc: 'AAA010101AAA', folio: 'TK-000009', factura_nombre_guardado: null, orden_compra_id: null }],

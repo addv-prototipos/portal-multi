@@ -1085,6 +1085,12 @@
     auditoriaToggleBody: document.getElementById('auditoria-toggle-body'),
     configAuditoriaHabilitada: document.getElementById('config-auditoria-habilitada'),
     auditoriaHabilitadaAutoguardado: document.getElementById('auditoria-habilitada-autoguardado'),
+    btnToggleFacturacionCard: document.getElementById('btn-toggle-facturacion-card'),
+    facturacionToggleBody: document.getElementById('facturacion-toggle-body'),
+    configFacturacionHabilitada: document.getElementById('config-facturacion-habilitada'),
+    facturacionHabilitadaLabel: document.getElementById('facturacion-habilitada-label'),
+    facturacionHabilitadaHint: document.getElementById('facturacion-habilitada-hint'),
+    facturacionHabilitadaAutoguardado: document.getElementById('facturacion-habilitada-autoguardado'),
     btnToggleNotifCard: document.getElementById('btn-toggle-notif-card'),
     notifToggleBody: document.getElementById('notif-toggle-body'),
     configNotifTicketsPermiteOcultar: document.getElementById('config-notif-tickets-permite-ocultar'),
@@ -2202,7 +2208,7 @@
   const RESTRICCIONES_PERFIL = {
     administrador: {
       vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'configuraciones'],
-      tarjetasConfigPermitidas: ['global-config-card', 'marca-tema-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
+      tarjetasConfigPermitidas: ['facturacion-toggle-card', 'global-config-card', 'marca-tema-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
     },
     // Punto 360 (2026-10-02): "lectura-reportes" se agregó aquí porque el
     // resumen de tickets (antes en Inicio) ahora vive SOLO en Reportes →
@@ -2484,7 +2490,7 @@
       'inv-toggle-card': () => planPermite('inventariosHabilitado'),
       'auditoria-toggle-card': () => planPermite('auditoriaHabilitado'),
     };
-    ['admin-config-card', 'global-config-card', 'marca-tema-card', 'ticket-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
+    ['admin-config-card', 'global-config-card', 'facturacion-toggle-card', 'marca-tema-card', 'ticket-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
       const tarjeta = document.getElementById(idTarjeta);
       if (!tarjeta) return;
       const permitidaPorPerfilTarjeta = sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta);
@@ -4062,6 +4068,69 @@
     });
   }
 
+  if (els.btnToggleFacturacionCard) {
+    els.btnToggleFacturacionCard.addEventListener('click', () => {
+      const abierto = els.btnToggleFacturacionCard.getAttribute('aria-expanded') === 'true';
+      els.btnToggleFacturacionCard.setAttribute('aria-expanded', String(!abierto));
+      els.facturacionToggleBody.hidden = abierto;
+    });
+  }
+
+  // Punto 377: "Habilitar Facturación" — mismo criterio que
+  // aplicarEstadoPortalClientesMiCuenta(): si el plan de /control ya lo
+  // tiene apagado (facturacion_plan_habilitado=false), el switch se
+  // bloquea (checked=false, disabled) con un hint explicando que solo
+  // /control puede reactivarlo. Sin tenant (sitio base) no hay ese techo,
+  // el switch siempre es operable.
+  function aplicarEstadoFacturacionHabilitada(activo, planHabilitado) {
+    const bloqueado = planHabilitado === false;
+    els.configFacturacionHabilitada.checked = bloqueado ? false : Boolean(activo);
+    els.configFacturacionHabilitada.disabled = bloqueado;
+    if (els.facturacionHabilitadaLabel) els.facturacionHabilitadaLabel.setAttribute('aria-disabled', bloqueado ? 'true' : 'false');
+    els.facturacionHabilitadaHint.textContent = bloqueado
+      ? 'Tu plan no incluye Facturación — contacta a soporte para activarla.'
+      : 'Con esto apagado, tus clientes dejan de pedir RFC, subir constancia o solicitar tickets de factura — se usa un identificador interno en su lugar. Las cuentas por cobrar del portal de clientes no se ven afectadas. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".';
+  }
+
+  let timeoutAutoguardadoFacturacion = null;
+  els.configFacturacionHabilitada.addEventListener('change', async () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    const nuevoValor = els.configFacturacionHabilitada.checked;
+
+    clearTimeout(timeoutAutoguardadoFacturacion);
+    els.configFacturacionHabilitada.disabled = true;
+    els.facturacionHabilitadaAutoguardado.textContent = 'Guardando…';
+    els.facturacionHabilitadaAutoguardado.setAttribute('data-estado', 'guardando');
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/config/facturacion`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activo: nuevoValor }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar.');
+
+      aplicarEstadoFacturacionHabilitada(data.activo, true);
+      els.facturacionHabilitadaAutoguardado.innerHTML = HTML_GUARDADO_OK;
+      els.facturacionHabilitadaAutoguardado.setAttribute('data-estado', 'guardado');
+      timeoutAutoguardadoFacturacion = setTimeout(() => {
+        els.facturacionHabilitadaAutoguardado.textContent = '';
+        els.facturacionHabilitadaAutoguardado.removeAttribute('data-estado');
+      }, 2500);
+    } catch (err) {
+      els.configFacturacionHabilitada.checked = !nuevoValor;
+      els.facturacionHabilitadaAutoguardado.textContent = err.message || 'No se pudo guardar — inténtalo de nuevo.';
+      els.facturacionHabilitadaAutoguardado.setAttribute('data-estado', 'error');
+    } finally {
+      els.configFacturacionHabilitada.disabled = false;
+    }
+  });
+
   let timeoutAutoguardadoNotifTickets = null;
   els.configNotifTicketsPermiteOcultar.addEventListener('change', async () => {
     const nuevoValor = els.configNotifTicketsPermiteOcultar.checked;
@@ -4543,6 +4612,7 @@
         if (els.configFolioPreviewValor) els.configFolioPreviewValor.textContent = `${config.folio_conciliacion_prefijo || 'CV'}0001`;
       }
       els.configAuditoriaHabilitada.checked = config.auditoria_habilitada !== false;
+      aplicarEstadoFacturacionHabilitada(config.facturacion_activa, config.facturacion_plan_habilitado);
       els.configNotifTicketsPermiteOcultar.checked = config.notif_tickets_permite_ocultar !== false;
       notifTicketsPermiteOcultarGlobalmente = config.notif_tickets_permite_ocultar !== false;
       reglasExpiracionProductos = Array.isArray(config.notif_reglas_expiracion_productos) && config.notif_reglas_expiracion_productos.length > 0
@@ -7680,6 +7750,7 @@
     { id: 'smtp-config-card', label: 'Correo electrónico (SMTP)' },
     { id: 'reportes-config-card', label: 'Notificación de reportes' },
     { id: 'notif-toggle-card', label: 'Notificaciones' },
+    { id: 'facturacion-toggle-card', label: 'Módulo Facturación' },
     { id: 'ordenes-toggle-card', label: 'Módulo Ventas' },
     { id: 'inv-toggle-card', label: 'Módulo Inventarios' },
     { id: 'auditoria-toggle-card', label: 'Módulo Auditoría' },
@@ -7693,7 +7764,7 @@
     fiscal: ['admin-config-card', 'global-config-card'],
     marca: ['marca-tema-card', 'ticket-config-card'],
     comunicacion: ['smtp-config-card', 'reportes-config-card', 'notif-toggle-card'],
-    modulos: ['ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
+    modulos: ['facturacion-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
   };
 
   function actualizarGruposConfigNav() {

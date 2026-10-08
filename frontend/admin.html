@@ -2437,6 +2437,10 @@
               </button>
 
               <div class="config-modal-nav-group-label" data-grupo="modulos">Módulos (activar/desactivar)</div>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="facturacion-toggle-card">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4h16v16H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 9h8M8 13h8M8 17h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                Módulo Facturación
+              </button>
               <button type="button" class="config-modal-nav-item" data-tarjeta="ordenes-toggle-card">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
                 Módulo Ventas
@@ -2528,6 +2532,42 @@
             <button type="button" class="btn btn-secondary" id="btn-actualizar-uso-cfdi">
               <span id="btn-actualizar-uso-cfdi-label">Actualizar catálogo SAT</span>
             </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Punto 377: Facturación — switch propio del admin (autoservicio),
+           independiente del techo de plan que sigue gobernando SOLO
+           /control (ver tenantContext.facturacionEfectiva). A propósito
+           SIN entrada en PLAN_GATE_TARJETA_CONFIG (admin.js): si esta
+           tarjeta se ocultara cuando Facturación está apagada, el admin
+           ya no podría volver a encenderla desde aquí — mismo motivo por
+           el que "Portal de clientes" vive en Mi Cuenta y no dentro de
+           una tarjeta que su propio estado puede esconder. -->
+      <section class="admin-config-card" id="facturacion-toggle-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-facturacion-card" aria-expanded="false" aria-controls="facturacion-toggle-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 4h16v16H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              <path d="M8 9h8M8 13h8M8 17h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            Facturación
+          </span>
+          <svg class="admin-config-chevron" id="facturacion-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="admin-config-body" id="facturacion-toggle-body" hidden>
+          <div class="config-switch-destacado">
+            <label class="switch-toggle" id="facturacion-habilitada-label">
+              <input type="checkbox" id="config-facturacion-habilitada" checked />
+              <span class="switch-toggle-track"><span class="switch-toggle-thumb"></span></span>
+              <span class="switch-toggle-texto">
+                <span class="switch-toggle-label">Habilitar Facturación <span class="pill-autoguardado-tag">Auto-save</span></span>
+                <span class="switch-toggle-hint" id="facturacion-habilitada-hint">Con esto apagado, tus clientes dejan de pedir RFC, subir constancia o solicitar tickets de factura — se usa un identificador interno en su lugar. Las cuentas por cobrar del portal de clientes no se ven afectadas. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".</span>
+                <span class="switch-toggle-autoguardado" id="facturacion-habilitada-autoguardado" role="status" aria-live="polite"></span>
+              </span>
+            </label>
           </div>
         </div>
       </section>
