@@ -133,6 +133,15 @@ const COLUMNAS_NUEVAS = [
   // tickets) se movió aquí — mismo criterio DEFAULT 1 que las otras 4,
   // ya era visible para todo tenant existente, la columna nace encendida.
   { nombre: 'reportes_estado_tickets_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // Campana de notificaciones del portal de cliente → Promociones (punto
+  // en curso): a diferencia de las columnas de arriba, esta NO es un
+  // mapeo retroactivo de algo que el tenant ya usaba — "enviar
+  // promociones a clientes" nunca existió en el código. DEFAULT 0 a
+  // propósito (ningún tenant real queda con una capacidad nueva
+  // encendida sin haberla pedido) — distinto del criterio DEFAULT 1 de
+  // arriba, que es solo para no apagarle algo a nadie el día de la
+  // migración.
+  { nombre: 'promociones_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {
@@ -293,6 +302,7 @@ const COLUMNAS_PLANES_NUEVAS = [
   { nombre: 'reportes_eliminados_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'reportes_estado_inventario_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'reportes_estado_tickets_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'promociones_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
 ];
 
 async function asegurarTablaPlanes(db) {

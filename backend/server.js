@@ -1851,6 +1851,45 @@ app.get(
   })
 );
 
+// Campana de notificaciones del portal de cliente (punto en curso):
+// une las "promoción" (broadcast, rfc NULL) y "pago registrado"
+// (dirigida, rfc propio) en un solo listado — mismo criterio de unión
+// que ya usa la campana de /admin (punto 337) para tickets+inventario.
+// requiereFeature con arreglo = OR (ver backend/utils/requiereFeature.js):
+// basta con que CxC O Promociones esté activo en el plan para que la
+// ruta exista; si NINGUNO aplica, 404 (nunca 403, anti-enumeración).
+app.get(
+  '/api/notificaciones',
+  requiereFeature(['cxcHabilitado', 'promocionesHabilitado']),
+  requireUserAuth,
+  asyncHandler(async (req, res) => {
+    // Punto en curso (vigencia + archivar): una promoción archivada (a
+    // mano o automático al pasar vigencia_hasta) deja de llegarle a los
+    // clientes — "pago_registrado" nunca tiene estos 2 campos, pasa
+    // siempre. `archivada_en IS NULL` cubre el archivado manual;
+    // `vigencia_hasta IS NULL OR vigencia_hasta > NOW()` cubre el
+    // vencimiento automático — ambos deben cumplirse.
+    const [filas] = await pool.query(
+      `SELECT id, rfc, tipo, titulo, mensaje, orden_id, creado_en
+       FROM notificaciones_cliente
+       WHERE (rfc = ? OR rfc IS NULL)
+         AND (tipo <> 'promocion' OR (archivada_en IS NULL AND (vigencia_hasta IS NULL OR vigencia_hasta > NOW())))
+       ORDER BY creado_en DESC LIMIT 50`,
+      [req.userRfc]
+    );
+    res.json({
+      notificaciones: filas.map((f) => ({
+        id: f.id,
+        tipo: f.tipo,
+        titulo: f.titulo,
+        mensaje: f.mensaje,
+        ordenId: f.orden_id,
+        creadoEn: f.creado_en,
+      })),
+    });
+  })
+);
+
 // Mensaje SIEMPRE genérico, exista o no la cuenta — mismo principio
 // anti-enumeración que ya usa /api/auth/login (ver HASH_RELLENO_LOGIN):
 // revelar "esa cuenta no existe" le regala a un atacante una forma barata
@@ -3424,6 +3463,7 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
           reportesEliminadosHabilitado: req.tenant.reportesEliminadosHabilitado,
           reportesEstadoInventarioHabilitado: req.tenant.reportesEstadoInventarioHabilitado,
           reportesEstadoTicketsHabilitado: req.tenant.reportesEstadoTicketsHabilitado,
+          promocionesHabilitado: req.tenant.promocionesHabilitado,
         }
       : null,
   });
@@ -7319,7 +7359,7 @@ app.put(
     if (!Number.isFinite(monto) || monto <= 0) return res.status(400).json({ error: 'El monto a cobrar debe ser mayor a cero.' });
     const notas = body.notas_cobro != null ? sanitizeTextoLibre(body.notas_cobro, 500) : null;
 
-    const [filas] = await pool.query('SELECT id, total, monto_cobrado, estado_pago FROM ordenes_compra WHERE id = ? AND eliminado_en IS NULL LIMIT 1', [id]);
+    const [filas] = await pool.query('SELECT id, numero_compra, email, total, monto_cobrado, estado_pago FROM ordenes_compra WHERE id = ? AND eliminado_en IS NULL LIMIT 1', [id]);
     if (filas.length === 0) return res.status(404).json({ error: 'Venta no encontrada.' });
     const orden = filas[0];
     const saldo = Math.round((Number(orden.total) - Number(orden.monto_cobrado)) * 100) / 100;
@@ -7349,8 +7389,201 @@ app.put(
       ahora,
     ]);
 
+    // Campana del portal de cliente (punto en curso): avisa que SU pago
+    // quedó registrado — vinculado por correo (mismo criterio que GET
+    // /api/mi-cuenta/credito, usuarios.email == ordenes_compra.email).
+    // Una venta con correo que no corresponde a ninguna cuenta cliente
+    // (venta de mostrador sin cuenta, o email que no coincide) no tiene
+    // a quién notificar — se omite en silencio, nunca truena el cobro
+    // por esto (el cobro ya se registró, es lo que importa).
+    if (orden.email) {
+      const [filasCliente] = await pool.query(
+        "SELECT rfc FROM usuarios WHERE email = ? AND perfil = 'cliente' LIMIT 1",
+        [orden.email]
+      );
+      if (filasCliente.length > 0) {
+        await pool.query(
+          'INSERT INTO notificaciones_cliente (rfc, tipo, titulo, mensaje, orden_id, creado_por, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            filasCliente[0].rfc,
+            'pago_registrado',
+            'Pago registrado',
+            `Tu pago de $${monto.toFixed(2)} sobre la venta ${orden.numero_compra} ya quedó registrado.`,
+            id,
+            req.adminUser || null,
+            ahora,
+          ]
+        );
+      }
+    }
+
     const [actualizada] = await pool.query('SELECT id, numero_compra, total, monto_cobrado, estado_pago, fecha_cobro FROM ordenes_compra WHERE id = ? LIMIT 1', [id]);
     res.json({ ok: true, orden: actualizada[0], saldo: nuevoSaldo });
+  })
+);
+
+// Promociones (punto en curso): el admin escribe y envía un mensaje a
+// TODOS los clientes del tenant — broadcast únicamente, sin segmentar
+// por cliente (decisión explícita del usuario). Solo administrador/super
+// (mismo alcance que el resto de decisiones de negocio — pausar
+// Facturación/Portal de clientes, etc.), nunca ventas/fiscal. Gateado
+// por su propio flag de plan (nunca el genérico de Ventas/CxC — enviar
+// promociones es una capacidad nueva, no un efecto de otro módulo ya
+// existente).
+// Vigencia (punto en curso): el admin elige "hasta" un DÍA de calendario
+// (input date, "YYYY-MM-DD"), nunca una hora — se guarda como el
+// instante EXCLUSIVO de la medianoche local del día SIGUIENTE (en la
+// zona horaria del tenant), mismo criterio que limitesPeriodo.js: así
+// "vigente hasta el 31 de octubre" cubre el 31 completo en hora de
+// México, no se corta ~6h antes por comparar contra medianoche UTC.
+// `null`/ausente = sin vigencia. Rechaza una fecha que ya pasó (el día
+// de hoy en la zona del tenant sigue siendo válido — "hasta hoy" no es
+// un error, solo vence esta misma noche).
+async function parsearVigenciaHasta(valor, zonaHoraria) {
+  if (valor == null || valor === '') return { ok: true, valor: null };
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(valor).trim());
+  if (!match) return { ok: false, error: 'La fecha de vigencia no es válida.' };
+  const anio = Number(match[1]);
+  const mes = Number(match[2]);
+  const dia = Number(match[3]);
+  const finExclusivo = medianocheLocal(anio, mes, dia + 1, zonaHoraria);
+  if (finExclusivo <= new Date()) {
+    return { ok: false, error: 'La fecha de vigencia no puede ser anterior a hoy.' };
+  }
+  return { ok: true, valor: finExclusivo };
+}
+
+// Estado efectivo (punto en curso): nunca se guarda como columna aparte
+// — se calcula al leer, mismo criterio que facturacionEfectiva()/
+// portalClientesEfectivo() en tenantContext.js. `archivada_en` (manual)
+// gana sobre `vigencia_hasta` (automático): una promo archivada a mano
+// antes de vencer no debe leerse como "activa" solo porque su vigencia
+// todavía no llega.
+function calcularEstadoPromocion(fila, ahora) {
+  if (fila.archivada_en) return 'archivada';
+  if (fila.vigencia_hasta && new Date(fila.vigencia_hasta) < ahora) return 'vencida';
+  return 'activa';
+}
+
+app.post(
+  '/api/admin/promociones',
+  adminApiLimiter,
+  requiereFeature('promocionesHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const titulo = sanitizeText(body.titulo, 200);
+    const mensaje = sanitizeTextoLibre(body.mensaje, 500);
+    if (!titulo) return res.status(400).json({ error: 'Captura un título para la promoción.' });
+    if (!mensaje) return res.status(400).json({ error: 'Captura el mensaje de la promoción.' });
+
+    const configGlobalPromo = await getConfiguracionGlobal();
+    const vigencia = await parsearVigenciaHasta(body.vigenciaHasta, configGlobalPromo.zona_horaria);
+    if (!vigencia.ok) return res.status(400).json({ error: vigencia.error });
+
+    const ahora = new Date();
+    const [resultado] = await pool.query(
+      'INSERT INTO notificaciones_cliente (rfc, tipo, titulo, mensaje, orden_id, vigencia_hasta, creado_por, creado_en) VALUES (NULL, ?, ?, ?, NULL, ?, ?, ?)',
+      ['promocion', titulo, mensaje, vigencia.valor, req.adminUser || null, ahora]
+    );
+    res.status(201).json({ ok: true, id: resultado.insertId, titulo, mensaje, creadoEn: ahora });
+  })
+);
+
+// Historial de promociones ya enviadas — mismo alcance de perfil que
+// enviarla. Incluye archivadas/vencidas (el admin necesita verlas para
+// poder eliminarlas o relanzarlas).
+app.get(
+  '/api/admin/promociones',
+  adminApiLimiter,
+  requiereFeature('promocionesHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const [filas] = await pool.query(
+      "SELECT id, titulo, mensaje, vigencia_hasta, archivada_en, creado_en FROM notificaciones_cliente WHERE tipo = 'promocion' ORDER BY creado_en DESC LIMIT 100"
+    );
+    const ahora = new Date();
+    res.json({
+      promociones: filas.map((f) => ({
+        id: f.id,
+        titulo: f.titulo,
+        mensaje: f.mensaje,
+        vigenciaHasta: f.vigencia_hasta,
+        creadoEn: f.creado_en,
+        estado: calcularEstadoPromocion(f, ahora),
+      })),
+    });
+  })
+);
+
+// Archivar a mano (antes de que venza, o una sin vigencia) — mismo
+// alcance de perfil que enviar/listar.
+app.put(
+  '/api/admin/promociones/:id/archivar',
+  adminApiLimiter,
+  requiereFeature('promocionesHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const [resultado] = await pool.query(
+      "UPDATE notificaciones_cliente SET archivada_en = ? WHERE id = ? AND tipo = 'promocion' AND archivada_en IS NULL",
+      [new Date(), id]
+    );
+    if (resultado.affectedRows === 0) return res.status(404).json({ error: 'Promoción no encontrada o ya estaba archivada.' });
+    res.json({ ok: true });
+  })
+);
+
+// Relanzar (punto en curso): reactiva una promoción archivada/vencida —
+// misma fila (no duplica), vigencia nueva opcional, `creado_en` se
+// actualiza a ahora para que vuelva a ordenarse arriba del historial y
+// el cliente la vea como "reciente" (aunque un cliente que ya la había
+// marcado leída antes no vuelve a sonar — limitación conocida de v1, el
+// diff del sondeo del cliente es por id, no por reactivación).
+app.put(
+  '/api/admin/promociones/:id/relanzar',
+  adminApiLimiter,
+  requiereFeature('promocionesHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const [filas] = await pool.query("SELECT id FROM notificaciones_cliente WHERE id = ? AND tipo = 'promocion'", [id]);
+    if (filas.length === 0) return res.status(404).json({ error: 'Promoción no encontrada.' });
+
+    const configGlobalPromo = await getConfiguracionGlobal();
+    const vigencia = await parsearVigenciaHasta((req.body || {}).vigenciaHasta, configGlobalPromo.zona_horaria);
+    if (!vigencia.ok) return res.status(400).json({ error: vigencia.error });
+
+    const ahora = new Date();
+    await pool.query(
+      'UPDATE notificaciones_cliente SET archivada_en = NULL, vigencia_hasta = ?, creado_en = ? WHERE id = ?',
+      [vigencia.valor, ahora, id]
+    );
+    res.json({ ok: true });
+  })
+);
+
+// Eliminar (punto en curso): borrado físico, a diferencia de archivar —
+// terminal, con confirmación obligatoria del lado del admin (mismo
+// patrón de modal que el resto del sitio).
+app.delete(
+  '/api/admin/promociones/:id',
+  adminApiLimiter,
+  requiereFeature('promocionesHabilitado'),
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+    const [resultado] = await pool.query("DELETE FROM notificaciones_cliente WHERE id = ? AND tipo = 'promocion'", [id]);
+    if (resultado.affectedRows === 0) return res.status(404).json({ error: 'Promoción no encontrada.' });
+    res.json({ ok: true });
   })
 );
 

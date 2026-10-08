@@ -19774,10 +19774,203 @@ solicitudes" según `facturacionHabilitada` sin tocar el resto del portal.
   BD real, deriva de entorno ajena a esta sesión, confirmado por consulta
   directa a `control_tenants.tenants` antes de este cambio) — no
   relacionada con este punto, no se tocó.
-- **Pendiente de este mismo punto**: `prod/` sigue sin sincronizar (solo
-  se sincroniza por contenido cuando el usuario lo pide explícito, mismo
-  criterio del punto 377); commit/push tampoco se ha hecho (el usuario no
-  lo ha pedido todavía para este trabajo).
+- **Actualización (mismo día):** el usuario pidió explícitamente "commit
+  esto y push, sincroniza prod" — hecho (commit `a562b78`, pusheado a
+  `main`; `prod/` sincronizado por contenido: `backend/server.js`,
+  `backend/utils/{config,requiereFeature,tenantContext}.js`,
+  `frontend/{admin.html,admin.js,nginx.conf.template}`). En el mismo
+  mensaje el usuario reportó un bug real aparte: la página 404 con
+  identidad Clarvo (punto 376) no se mostraba para RECURSOS ESTÁTICOS
+  faltantes (`.css`/`.js`/`.svg`/`.png`/`.jpg`/`.jpeg`/`.webp`/`.woff2`)
+  — esos 2 `location` de `frontend/nginx.conf.template` usaban
+  `try_files $uri =404;` sin ningún `error_page 404` propio (el único que
+  lo tenía era el catch-all multi-segmento del punto 376). Corregido en
+  ambos locations (dev y `prod/`), rebuild de frontend, verificado con
+  curl real (`/doesnotexist.png`, `/t1/doesnotexist.png`,
+  `/doesnotexist.js` → 404 real con el body de `404-clarvo.html`; assets
+  reales/API/login sin regresión).
+
+**Punto 379 (2026-10-08, CERRADO — campana de notificaciones del portal
+de cliente: promociones + pago registrado en Cuentas por cobrar):** el
+usuario pidió una campana de notificaciones con sonido para el portal de
+cliente, para dos cosas: (1) promociones que el admin envía a sus
+clientes, (2) avisar que un pago en Cuentas por cobrar ya quedó
+registrado. Investigación previa (ver resumen de la sesión): la campana
+de `/admin` (punto 337) ya resolvía el patrón completo (ícono, sondeo de
+60s, campanada sintetizada con Web Audio, lectura en `localStorage`) pero
+sin tabla propia (diferenciaba contra endpoints ya existentes); acá no
+hay un endpoint existente contra el cual diferenciar "promoción" — sí
+hace falta una tabla nueva. Decisiones del usuario antes de implementar:
+solo administrador/super pueden enviar promociones; broadcast únicamente
+(sin selector de cliente, sin segmentación).
+
+- **Esquema**: tabla nueva `notificaciones_cliente`
+  (`backend/db.js`, mismo patrón sin `FOREIGN KEY` que `abonos`/
+  `orden_productos`) — `rfc` nullable (`NULL` = broadcast a todos los
+  clientes del tenant, nunca un dato faltante), `tipo`
+  (`'pago_registrado'|'promocion'`), `titulo`, `mensaje`, `orden_id`
+  nullable (solo aplica a `pago_registrado`, click-through a Crédito).
+- **Backend — lectura del cliente**: `GET /api/notificaciones`
+  (`requireUserAuth`, gateado con `requiereFeature(['cxcHabilitado',
+  'promocionesHabilitado'])` — arreglo = OR, basta que uno de los dos
+  aplique) — `WHERE rfc = ? OR rfc IS NULL ORDER BY creado_en DESC LIMIT
+  50`.
+- **Backend — promociones**: `POST`/`GET /api/admin/promociones`
+  (`requireAdminArea('administrador')`, gateadas por el flag NUEVO
+  `promocionesHabilitado` — nunca el genérico de Ventas/CxC, es una
+  capacidad nueva, no un efecto de otro módulo). El POST inserta
+  `rfc=NULL` siempre (broadcast, sin segmentar, decisión del usuario).
+- **Backend — aviso automático de pago**: `PUT
+  /api/admin/ordenes-compra/:id/cobro` (ya existente, punto 138) ahora,
+  tras registrar el abono, resuelve el `rfc` de la cuenta cliente por
+  correo (`usuarios.email == ordenes_compra.email`, mismo criterio que
+  `GET /api/mi-cuenta/credito`) e inserta la notificación — si el correo
+  de la venta no corresponde a ninguna cuenta cliente (venta de
+  mostrador, email que no coincide), se omite en silencio, nunca truena
+  el cobro por esto.
+- **Gobernanza (4 capas, replicando el patrón del punto 378)**: columna
+  `promociones_habilitado` en `control_tenants.tenants` (`DEFAULT 0`,
+  opt-in — a propósito DISTINTO del `DEFAULT 1` retroactivo de los demás
+  flags: "enviar promociones" nunca existió, no hay nada que no-romper)
+  y en `planes` (`DEFAULT 0`, igual que el resto); `tenantContext.js`
+  expone `promocionesHabilitado` con el criterio explícito-truthy
+  (`=== 1 || === true`, ausente = apagado, mismo criterio que
+  `sucursalesHabilitado`); wizard de planes en `/control`
+  (`frontend/control.js`) — entrada independiente en
+  `MODULOS_WIZARD_DEF` (sin regla de dependencia, como
+  Auditoría/Marca propia); `control/utils/planes.js` +
+  `control/utils/tenantEdicion.js` con el mismo patrón columna-por-
+  columna que el resto de los 11 flags del punto 349-350.
+- **Frontend cliente**: la campana entera (ícono, panel, sondeo de 60s
+  pausable por `visibilitychange`, campanada sintetizada con un tono
+  PROPIO — dos notas descendentes, distinto de las dos ascendentes de
+  `/admin` — y lectura en `localStorage` por cuenta) vive centralizada en
+  `frontend/portal.js`, inyectada por JS dentro de `.portal-header-
+  actions` en runtime — **cero HTML nuevo** en los 5 archivos de página
+  (`dashboard/tickets/csf/mi-cuenta/credito.html`), a diferencia de la
+  campana de `/admin` que sí tiene su markup en el HTML. Visibilidad
+  decidida probando el propio `GET /api/notificaciones`: 404 = se
+  esconde (y deja de sondear) por completo, exactamente igual que la
+  campana de `/admin` cuando ningún tipo aplica para el perfil. Resuelta
+  independiente de `requireSession()` porque `csf.html` usa su propio
+  flujo de auth (`app.js`, con camino anónimo) — la campana hace su
+  propio `GET /api/auth/me` en vez de depender de que la página que la
+  cargue ya haya confirmado sesión.
+- **Frontend admin**: vista nueva "Promociones" (grupo "Administración"
+  del sidebar, junto a Auditoría) — formulario simple (título+mensaje,
+  destino fijo "Todos los clientes", sin imágenes/links en esta primera
+  versión) + historial de enviadas. Gateada por perfil
+  (`administrador`/`super`, vía `RESTRICCIONES_PERFIL`) Y por plan
+  (`planPermite('promocionesHabilitado')`, mismo patrón AND que el resto
+  de vistas en `aplicarRestriccionesPerfil`).
+- **2 bugs reales encontrados y corregidos ANTES de dar la UI por
+  terminada** (ninguno llegó a producción):
+  1. Si la tarjeta nueva de Configuraciones hubiera llevado gate propio
+     en `PLAN_GATE_TARJETA_CONFIG` con su mismo flag, se habría escondido
+     a sí misma al apagarse — mismo motivo ya documentado en el punto
+     378 para "Portal de clientes"/Mi Cuenta. Se evitó desde el diseño,
+     no se llegó a escribir el bug.
+  2. Una tarjeta nueva en Configuraciones necesita estar en **3**
+     registros de `admin.js`, no solo en el HTML —
+     `CONFIG_SECCIONES`/`GRUPOS_CONFIG_NAV`/`tarjetasConfigPermitidas` —
+     pero ESO era de la tarjeta de Facturación (punto 378); la vista de
+     Promociones usa el mecanismo de VISTAS (`mapaNavPorVista`/
+     `GRUPOS_SIDEBAR_NAV`/`vistasPermitidas`), un sistema hermano con la
+     misma regla de los 3 registros — se aplicó directo sin repetir el
+     error esta vez, documentado aquí para la próxima vista nueva.
+  3. Bug real de CSS atrapado antes de probar en vivo:
+     `.portal-notif-wrap { display: inline-flex; }` sin un
+     `[hidden] { display: none; }` explícito habría ganado sobre el
+     atributo `hidden` nativo (mismo principio ya documentado para
+     `.admin-notif-dot`/`.admin-notif-empty` en `admin.css`) — la campana
+     nunca se habría ocultado de verdad. Corregido antes de rebuild.
+- **Verificación**: Jest backend 1216/1216 (1200 + 16 nuevos — 13 en
+  `notificacionesCliente.test.js` + 3 casos nuevos del efecto-secundario
+  del cobro en `ordenes-compra.test.js`). Docker rebuild de
+  backend+frontend+control; `control/scripts/ensureSchema.js` requirió
+  rebuild de `control` (no solo restart) para que la columna nueva
+  apareciera — mismo gotcha ya documentado para el punto 378. Esquema
+  reaplicado a `t1`/`t2` vía `/internal/activar-tenant/:slug`. E2E real
+  nuevo, `notificaciones-cliente.spec.ts` (3/3 contra `t2`, que en este
+  entorno ya tiene `cxc_habilitado=1`/`promociones_habilitado=1`
+  reales): perfil "ventas" no ve "Promociones"; admin envía una
+  promoción y aparece en el historial; el cliente la ve en la campana,
+  y tras un cobro real también ve "Pago registrado" con clic-through a
+  Crédito.
+- **3 fallas preexistentes encontradas al correr specs adyacentes,
+  confirmadas AJENAS a este punto (reproducidas en aislamiento, sin
+  tocar nada de este trabajo) — ninguna se intentó arreglar, fuera de
+  alcance**: (1) `admin-plan-gating.spec.ts` — los 3 flags que ese spec
+  espera apagados en `t1` (gastos/inventarios/auditoría) están en `1` en
+  la BD real, deriva de entorno ya detectada en el punto 378; (2)
+  `dashboard-profile-card.spec.ts` y (3) `mi-cuenta.spec.ts` — ambos
+  fallan en el mismo punto, guardar "nombre" desde Mi Cuenta no se
+  refleja en `#portal-user-label` tras recargar (la etiqueta sigue
+  mostrando el RFC/identificador) — bug real de un punto anterior de esta
+  misma sesión (el refactor de "Tu perfil" a solo-datos-personales),
+  pendiente de diagnóstico aparte.
+
+**Incidente real detectado y corregido el mismo día (sitio base, cuenta
+real del usuario):** el usuario reportó que "Ventas" desapareció del
+sidebar — diagnóstico: `ordenes_compra_habilitado` (el switch de
+autoservicio "Habilitar Ventas") estaba en `false` en el sitio base;
+Cuentas por cobrar y Gastos siguieron visibles porque no dependen de ese
+flag. Auditoría (`GET /api/admin/auditoria`) mostró el cambio ese mismo
+día, en medio de las corridas de E2E de esta sesión contra el sitio
+base — causa más probable: un guardado de formulario stale en alguna de
+esas corridas tocó el `PUT /api/admin/config/global` bulk sin querer.
+Corregido re-activando el flag vía API, confirmado. **Lección**: las
+corridas de Playwright contra el SITIO BASE (no tenants de prueba
+aislados) pueden mutar datos reales de la cuenta del usuario — revisar
+siempre el estado del sitio base después de una tanda de E2E ahí, no
+asumir que quedó intacto solo porque los specs reportaron verde.
+
+**Addendum al punto 379 (mismo día, CERRADO — vigencia + archivar/
+eliminar/relanzar, propuesta visual 3 "tarjetas con barra de progreso"
+elegida por el usuario de 6 presentadas vía Artifact):**
+
+- **Esquema**: 2 columnas nuevas en `notificaciones_cliente` —
+  `vigencia_hasta` (`DATETIME NULL`, solo aplica a `tipo='promocion'`) y
+  `archivada_en` (`DATETIME NULL`, archivado manual). Migración guardada
+  (`INFORMATION_SCHEMA.COLUMNS`) en `backend/db.js`, igual que el resto
+  del archivo.
+- **Vigencia respeta la zona horaria del tenant** (no un gotcha nuevo,
+  aplicación directa del ya documentado en el punto 371): el admin
+  elige un DÍA de calendario (`<input type="date">`, "YYYY-MM-DD"), se
+  guarda como `medianocheLocal(año, mes, día+1, zona)` —el instante
+  EXCLUSIVO de la medianoche local del día SIGUIENTE, reutilizando
+  `backend/utils/limitesPeriodo.js` tal cual— para que "vigente hasta el
+  31 de octubre" cubra el 31 completo en hora de México en vez de
+  cortarse ~6h antes por comparar contra medianoche UTC.
+- **Estado efectivo calculado al leer, nunca guardado** (mismo criterio
+  que `facturacionEfectiva()`/`portalClientesEfectivo()` en
+  `tenantContext.js`): `archivada_en` (manual) gana sobre `vigencia_hasta`
+  (automático) — una promo archivada a mano antes de vencer no "revive"
+  sola. 3 rutas nuevas: `PUT .../archivar`, `PUT .../relanzar` (reactiva
+  LA MISMA fila — no duplica —, vigencia nueva opcional vía body, default
+  sin vigencia si se omite; `creado_en` se actualiza para que vuelva a
+  ordenarse arriba), `DELETE .../:id` (borrado físico, terminal, con
+  modal de confirmación genérico del sitio). `GET /api/notificaciones`
+  (cliente) excluye promociones archivadas/vencidas del todo.
+- **Limitación conocida de v1, documentada a propósito**: relanzar no
+  vuelve a sonar para un cliente que ya había marcado esa promo como
+  leída antes de que se archivara — el diff de sondeo del cliente
+  (`portal.js`) es por `id`, y relanzar reutiliza el mismo id (no crea
+  una fila nueva). Aceptado conscientemente para no complicar v1; si se
+  pide corregirlo, la solución sería que relanzar SÍ cree una fila nueva
+  en vez de reutilizar la archivada.
+- **Verificación**: Jest backend 1228/1228 (1216 + 12 nuevos test de
+  vigencia/archivar/relanzar/eliminar/estado calculado). Docker rebuild
+  de backend+frontend; esquema reaplicado a `t1`/`t2` vía
+  `/internal/activar-tenant/:slug` (mismo gotcha ya documentado:
+  `ensureSchema()` del pool base no migra tenants ya aprovisionados
+  solo). E2E real ampliado en `notificaciones-cliente.spec.ts` (4/4):
+  ciclo completo enviar-con-vigencia → archivar → relanzar → eliminar
+  (con el modal de confirmación real). Specs adyacentes sin regresión
+  nueva causada por este cambio (`credito.spec.ts`,
+  `marca-tema-punto210.spec.ts` verdes; las 2 fallas preexistentes de
+  `admin-plan-gating.spec.ts`/`facturacion-pausa-admin.spec.ts` ya
+  estaban documentadas como ajenas antes de este addendum).
 
 ## Dónde está todo (mapa rápido)
 
@@ -19810,3 +20003,4 @@ solicitudes" según `facturacionHabilitada` sin tocar el resto del portal.
 - Documentación completa para el usuario final: `README.md` (mucho más detallado que este archivo — este es para retomar el trabajo, el README es para operar la app)
 - Pausa de autoservicio "Portal de clientes" en Mi Cuenta, tenant y sitio base (punto 375): `backend/utils/tenantContext.js:portalClientesEfectivo`, `GET /api/tema-base` + `PUT /api/admin/mi-cuenta/portal-clientes` en `backend/server.js`, `portal_clientes_pausado` en `control/scripts/ensureSchema.js` (tenant) y `backend/utils/config.js` (sitio base), `paginaEsPortalCliente()` en `frontend/theme.js`
 - Pausa de autoservicio "Facturación" en Configuraciones, tenant y sitio base (punto 378): `backend/utils/tenantContext.js:facturacionEfectiva`, `requiereFacturacionActiva`/`facturacionActivaEnRequest` en `backend/utils/requiereFeature.js`, `PUT /api/admin/config/facturacion` en `backend/server.js`, `facturacion_pausada` en `control/scripts/ensureSchema.js` (tenant) y `backend/utils/config.js` (sitio base), tarjeta `facturacion-toggle-card` en `frontend/admin.html`/`admin.js` (sin gate propio en `PLAN_GATE_TARJETA_CONFIG`, a propósito)
+- Campana de notificaciones del portal de cliente — promociones + pago registrado en CxC (punto 379): tabla `notificaciones_cliente` en `backend/db.js`, `GET /api/notificaciones` + `POST`/`GET /api/admin/promociones` + aviso automático en `PUT /api/admin/ordenes-compra/:id/cobro` (todos en `backend/server.js`), flag `promociones_habilitado` en `control/scripts/ensureSchema.js`/`tenantContext.js`/`control/utils/{planes,tenantEdicion}.js`/`frontend/control.js`, campana centralizada (sin HTML nuevo) en `frontend/portal.js`, vista "Promociones" en `frontend/admin.html`/`admin.js`

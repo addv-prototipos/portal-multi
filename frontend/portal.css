@@ -54,6 +54,138 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
+/* Campana de notificaciones del portal de cliente (punto en curso) —
+   inyectada por frontend/portal.js dentro de .portal-header-actions,
+   mismo criterio visual que .admin-header-notif-btn (admin.css) pero
+   adaptado al fondo navy siempre oscuro del header de cliente (nunca
+   claro, a diferencia del de /admin). */
+.portal-notif-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.portal-notif-wrap[hidden] { display: none; }
+.portal-notif-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.portal-notif-btn:hover { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 255, 255, 0.5); }
+.portal-notif-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.portal-notif-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-error, #D8443C);
+  border: 2px solid #03285B;
+}
+.portal-notif-dot[hidden] { display: none; }
+.portal-notif-bell { transform-origin: 50% 20%; }
+.portal-notif-btn.is-ringing .portal-notif-bell { animation: portalNotifBellRing 0.5s ease; }
+@keyframes portalNotifBellRing {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(14deg); }
+  40% { transform: rotate(-11deg); }
+  60% { transform: rotate(7deg); }
+  80% { transform: rotate(-4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portal-notif-btn.is-ringing .portal-notif-bell { animation: none; }
+}
+.portal-notif-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 320px;
+  max-width: min(320px, 92vw);
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px -8px rgba(15, 24, 38, 0.28), 0 2px 8px rgba(15, 24, 38, 0.1);
+  z-index: 30;
+  overflow: hidden;
+}
+.portal-notif-panel[hidden] { display: none; }
+.portal-notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+.portal-notif-head h3 { margin: 0; font-size: 14.5px; color: var(--color-ink); }
+.portal-notif-head button {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.portal-notif-list { max-height: 320px; overflow-y: auto; }
+.portal-notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.portal-notif-item:last-child { border-bottom: none; }
+.portal-notif-item:hover { background: var(--color-accent-soft); }
+.portal-notif-item-icon,
+.portal-notif-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.portal-notif-icon-pago { background: var(--color-accent-soft); color: #0F6E5D; }
+.portal-notif-icon-promo { background: var(--color-accent-soft); color: var(--color-accent); }
+.portal-notif-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.portal-notif-texto strong { font-size: 13px; font-weight: 600; color: var(--color-ink); }
+.portal-notif-texto span { font-size: 12.5px; color: var(--color-ink-soft); }
+.portal-notif-texto time { font-size: 11px; color: var(--color-ink-soft); opacity: 0.8; }
+.portal-notif-item.is-nueva .portal-notif-texto strong::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.portal-notif-empty {
+  padding: 28px 14px;
+  text-align: center;
+  color: var(--color-ink-soft);
+}
+.portal-notif-empty svg { margin-bottom: 8px; opacity: 0.5; }
+.portal-notif-empty[hidden] { display: none; }
+.portal-notif-empty p { margin: 0; font-size: 13px; }
+
 .portal-header .btn-secondary {
   border-color: rgba(255, 255, 255, 0.3);
   color: #fff;

@@ -85,6 +85,10 @@ function normalizarDatosPlan(datos = {}, { parcial = false } = {}) {
     'reportes_por_reporte_habilitado', 'reportes_cortes_habilitado',
     'reportes_eliminados_habilitado', 'reportes_estado_inventario_habilitado',
     'reportes_estado_tickets_habilitado',
+    // Promociones (campana del portal de cliente) — independiente, sin
+    // prerrequisito (igual que sucursales_habilitado/marca_lookfeel_habilitado
+    // arriba, nunca entra en validarReglasDependencia).
+    'promociones_habilitado',
   ]) {
     if (!parcial || datos[campo] !== undefined) {
       resultado[campo] = booleano(datos[campo]) ? 1 : 0;
@@ -150,6 +154,7 @@ function mapearFila(fila) {
     reportes_eliminados_habilitado: Boolean(fila.reportes_eliminados_habilitado),
     reportes_estado_inventario_habilitado: Boolean(fila.reportes_estado_inventario_habilitado),
     reportes_estado_tickets_habilitado: Boolean(fila.reportes_estado_tickets_habilitado),
+    promociones_habilitado: Boolean(fila.promociones_habilitado),
     disco_cuota_mb: fila.disco_cuota_mb === null ? null : Number(fila.disco_cuota_mb),
     activo: Boolean(fila.activo),
     orden: fila.orden,
@@ -198,9 +203,9 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
         cxc_habilitado, resumen_financiero_habilitado,
         reportes_por_reporte_habilitado, reportes_cortes_habilitado,
         reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
-        reportes_estado_tickets_habilitado,
+        reportes_estado_tickets_habilitado, promociones_habilitado,
         activo, orden, creado_en, actualizado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     [
       normalizado.nombre,
       normalizado.descripcion,
@@ -223,6 +228,7 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
       normalizado.reportes_eliminados_habilitado,
       normalizado.reportes_estado_inventario_habilitado,
       normalizado.reportes_estado_tickets_habilitado,
+      normalizado.promociones_habilitado,
       normalizado.orden,
       ahora,
       ahora,

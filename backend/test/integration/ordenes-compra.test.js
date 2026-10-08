@@ -487,6 +487,69 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
         expect.arrayContaining([500, 'pagada'])
       );
     });
+
+    // Punto en curso (campana de notificaciones del cliente): el cobro
+    // vincula por correo (usuarios.email == ordenes_compra.email, mismo
+    // criterio que GET /api/mi-cuenta/credito) — si hay una cuenta
+    // cliente con ese correo, se le notifica; si no, se omite en
+    // silencio sin tronar el cobro.
+    test('venta con correo que SÍ es una cuenta cliente: inserta la notificación de pago registrado', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 7, numero_compra: 'OC-000007', email: 'cliente@norte.com', total: '500.00', monto_cobrado: '0.00', estado_pago: 'pendiente' }],
+      ]); // SELECT
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
+      pool.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT abonos
+      pool.query.mockResolvedValueOnce([[{ rfc: 'GOMJ800101ABC' }]]); // SELECT usuarios WHERE email=... AND perfil='cliente'
+      pool.query.mockResolvedValueOnce([{ insertId: 10 }]); // INSERT notificaciones_cliente
+      pool.query.mockResolvedValueOnce([[{ id: 7, numero_compra: 'OC-000007', total: '500.00', monto_cobrado: '500.00', estado_pago: 'pagada', fecha_cobro: '2026-10-08 10:00:00' }]]); // SELECT actualizada
+
+      const res = await request(app).put('/api/admin/ordenes-compra/7/cobro').auth(usuario, password).send({ monto: 500 });
+
+      expect(res.status).toBe(200);
+      expect(pool.query).toHaveBeenNthCalledWith(
+        6,
+        'INSERT INTO notificaciones_cliente (rfc, tipo, titulo, mensaje, orden_id, creado_por, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        expect.arrayContaining(['GOMJ800101ABC', 'pago_registrado', 'Pago registrado'])
+      );
+      const paramsNotif = pool.query.mock.calls[5][1];
+      expect(paramsNotif[3]).toMatch(/\$500\.00.*OC-000007/);
+    });
+
+    test('venta con correo que NO corresponde a ninguna cuenta cliente: omite la notificación en silencio', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 8, numero_compra: 'OC-000008', email: 'mostrador@norte.com', total: '500.00', monto_cobrado: '0.00', estado_pago: 'pendiente' }],
+      ]); // SELECT
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
+      pool.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT abonos
+      pool.query.mockResolvedValueOnce([[]]); // SELECT usuarios: sin cuenta cliente con ese correo
+      pool.query.mockResolvedValueOnce([[{ id: 8, numero_compra: 'OC-000008', total: '500.00', monto_cobrado: '500.00', estado_pago: 'pagada', fecha_cobro: '2026-10-08 10:00:00' }]]); // SELECT actualizada
+
+      const res = await request(app).put('/api/admin/ordenes-compra/8/cobro').auth(usuario, password).send({ monto: 500 });
+
+      expect(res.status).toBe(200);
+      // Solo 5 llamadas: auth + SELECT + UPDATE + INSERT abonos + SELECT
+      // usuarios (sin match) + SELECT actualizada — nunca el INSERT de
+      // notificaciones_cliente.
+      expect(pool.query).toHaveBeenCalledTimes(6);
+      expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO notificaciones_cliente'))).toBe(false);
+    });
+
+    test('venta sin correo capturado: nunca consulta usuarios ni notifica', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 9, numero_compra: 'OC-000009', email: null, total: '500.00', monto_cobrado: '0.00', estado_pago: 'pendiente' }],
+      ]); // SELECT
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
+      pool.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT abonos
+      pool.query.mockResolvedValueOnce([[{ id: 9, numero_compra: 'OC-000009', total: '500.00', monto_cobrado: '500.00', estado_pago: 'pagada', fecha_cobro: '2026-10-08 10:00:00' }]]); // SELECT actualizada
+
+      const res = await request(app).put('/api/admin/ordenes-compra/9/cobro').auth(usuario, password).send({ monto: 500 });
+
+      expect(res.status).toBe(200);
+      expect(pool.query).toHaveBeenCalledTimes(5);
+    });
   });
 
   describe('POST /api/admin/ordenes-compra/:id/recordatorio (Cuentas por cobrar, homologación stitch/)', () => {

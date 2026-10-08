@@ -44,7 +44,7 @@ async function resolverTenantPorSlug(slug) {
   }
 
   const [filas] = await obtenerPoolControl().query(
-    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, facturacion_pausada, portal_clientes_habilitado, portal_clientes_pausado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado
+    `SELECT id, slug, nombre_empresa, estado, db_host, db_name, db_user, marca, marca_logo_url, tema_json, grupo_sucursal_id, contacto_email, marca_lookfeel_habilitado, max_usuarios, facturacion_habilitada, facturacion_pausada, portal_clientes_habilitado, portal_clientes_pausado, sucursales_habilitado, disco_cuota_mb, disco_bytes_usados_cache, ventas_habilitado, gastos_habilitado, inventarios_habilitado, auditoria_habilitado, cxc_habilitado, resumen_financiero_habilitado, reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado, reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado, promociones_habilitado
      FROM tenants WHERE slug = ? AND estado = 'activo' LIMIT 1`,
     [slug]
   );
@@ -195,6 +195,11 @@ async function resolverTenantMiddleware(req, res, next) {
       // Punto 360: 5ta pestaña de Reportes — el contenido de tickets que
       // antes vivía en "Inicio" se movió aquí.
       reportesEstadoTicketsHabilitado: tenant.reportes_estado_tickets_habilitado !== 0 && tenant.reportes_estado_tickets_habilitado !== false,
+      // Promociones (campana del portal de cliente): DEFAULT 0, opt-in —
+      // a diferencia de los flags de arriba (DEFAULT 1, retroactivos),
+      // ausente/no migrado debe leerse como apagado, nunca encendido —
+      // mismo criterio explícito que sucursalesHabilitado.
+      promocionesHabilitado: tenant.promociones_habilitado === 1 || tenant.promociones_habilitado === true,
     };
 
     // El pool del tenant se expone en `req.poolTenant` para que las rutas

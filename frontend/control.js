@@ -2068,6 +2068,7 @@
     chips.push({ texto: 'Portal clientes', on: plan.portal_clientes_habilitado });
     chips.push({ texto: 'Sucursales', on: plan.sucursales_habilitado });
     chips.push({ texto: 'Marca propia', on: plan.marca_lookfeel_habilitado });
+    chips.push({ texto: 'Promociones', on: plan.promociones_habilitado });
     chips.push({ texto: plan.disco_cuota_mb ? `${plan.disco_cuota_mb.toLocaleString('es-MX')} MB` : 'Disco sin límite', on: true });
     return chips
       .filter((c) => c.on)
@@ -2208,6 +2209,12 @@
       icono: '<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m-1 4h1m4-4h1m-1 4h1M9 21v-4h6v4" stroke-linecap="round" stroke-linejoin="round"/>' },
     { campo: 'marca_lookfeel_habilitado', titulo: 'Marca propia', desc: 'Look & feel personalizado',
       icono: '<path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h14a2 2 0 012 2v9M7 21h10a2 2 0 002-2M7 21a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round"/>' },
+    // Campana del portal de cliente → Promociones (punto en curso):
+    // independiente, sin prerrequisito — mismo criterio que
+    // auditoria_habilitado/marca_lookfeel_habilitado de arriba, nunca
+    // entra en REPORTES_WIZARD_DEF ni en ninguna regla de dependencia.
+    { campo: 'promociones_habilitado', titulo: 'Promociones', desc: 'Enviar promociones a clientes (campana del portal)',
+      icono: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 7l9 6 9-6" stroke-linecap="round" stroke-linejoin="round"/>' },
   ];
 
   // Las 4 pestañas reales de la vista "Reportes" en /admin
@@ -2251,6 +2258,7 @@
       reportes_eliminados_habilitado: false,
       reportes_estado_inventario_habilitado: false,
       reportes_estado_tickets_habilitado: false,
+      promociones_habilitado: false,
     };
   }
 
@@ -2483,6 +2491,7 @@
     html += fila('Portal de clientes', planWizardState.portal_clientes_habilitado);
     html += fila('Sucursales', planWizardState.sucursales_habilitado);
     html += fila('Marca propia', planWizardState.marca_lookfeel_habilitado);
+    html += fila('Promociones', planWizardState.promociones_habilitado);
     els.planesWizardResumenBody.innerHTML = html;
   }
 
@@ -2549,6 +2558,7 @@
           reportes_eliminados_habilitado: Boolean(p.reportes_eliminados_habilitado),
           reportes_estado_inventario_habilitado: Boolean(p.reportes_estado_inventario_habilitado),
           reportes_estado_tickets_habilitado: Boolean(p.reportes_estado_tickets_habilitado),
+          promociones_habilitado: Boolean(p.promociones_habilitado),
         };
         planWizardTotalTenants = Number(p.total_tenants || 0);
         renderPlanWizardTodo();

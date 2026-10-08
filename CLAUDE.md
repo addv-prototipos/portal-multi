@@ -529,6 +529,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   forma de volver a encenderla desde la UI (mismo motivo por el que
   "Portal de clientes" vive en Mi Cuenta en vez de dentro de
   `global-config-card`, punto 375).
+- **Vista nueva del sidebar de `/admin`: mismo patrón de 3 registros que
+  las tarjetas de Configuraciones, pero en su propio sistema** (punto
+  379, 2026-10-08): una vista nueva (botón del sidebar + contenedor
+  `#vista-X`) necesita `mapaNavPorVista()` (dispatch de
+  `cambiarVistaPrincipal`), `GRUPOS_SIDEBAR_NAV` (oculta el título del
+  grupo si ninguna vista hija es visible) y `vistasPermitidas` por perfil
+  en `RESTRICCIONES_PERFIL` — además de las 2 líneas en
+  `cambiarVistaPrincipal()` (toggle de clase `is-active` + `hidden`) y el
+  `if (vista === 'X') cargarX();` del loader. Es un sistema HERMANO del
+  de tarjetas de Configuraciones (CONFIG_SECCIONES/GRUPOS_CONFIG_NAV/
+  tarjetasConfigPermitidas), nunca el mismo — no confundir cuál checklist
+  aplica según si lo nuevo es una vista del sidebar o una tarjeta dentro
+  del modal de Configuraciones.
+- **`.algo[hidden]{display:none}` explícito es obligatorio en cualquier
+  clase nueva con `display` distinto de `none`** (punto 379): el
+  atributo HTML `hidden` se cancela si una regla de la hoja de estilo del
+  AUTOR (no la del user-agent) le da `display` a esa clase con la MISMA
+  especificidad — mismo principio ya aplicado en `admin.css` para
+  `.admin-notif-dot`/`.admin-notif-empty`. Bug real atrapado antes de
+  probar en vivo: `.portal-notif-wrap { display: inline-flex; }` sin su
+  `[hidden]` explícito habría dejado la campana del portal de cliente
+  SIEMPRE visible sin importar el atributo `hidden` en el DOM.
 
 ## Stack
 

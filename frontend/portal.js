@@ -146,6 +146,274 @@
     }
   }
 
+  // ---------- Campana de notificaciones del portal de cliente (punto en
+  // curso) ----------
+  // Une "promoción" (broadcast, enviada desde /admin) y "pago registrado"
+  // (al confirmar un abono en Cuentas por cobrar) en un solo panel —
+  // mismo criterio de unión y el mismo patrón de sondeo/sonido/lectura
+  // en localStorage que ya usa la campana de /admin (punto 337,
+  // frontend/admin.js), centralizado AQUÍ en vez de duplicado en cada
+  // página de cliente porque este archivo ya es el único punto
+  // compartido entre dashboard/tickets/csf/mi-cuenta/credito.
+  //
+  // No hay endpoint para "¿aplica este módulo?" aparte — se decide
+  // probando GET /api/notificaciones con la sesión real: 404 = ni CxC ni
+  // Promociones están activos en el plan de este tenant (requiereFeature
+  // con arreglo = OR, ver backend/utils/requiereFeature.js), la campana
+  // se queda oculta por completo y no se vuelve a intentar en este
+  // sondeo. 200 = al menos uno de los dos aplica, se muestra y se arma
+  // el panel con lo que haya (puede incluir solo un tipo).
+  function claveNotifClienteLeidas(rfc) {
+    return `notif_cliente_leidas_v1_${TENANT_SLUG || 'base'}_${rfc || ''}`;
+  }
+  function leerNotifClienteLeidas(rfc) {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(claveNotifClienteLeidas(rfc)) || '[]'));
+    } catch (_) {
+      return new Set();
+    }
+  }
+  function guardarNotifClienteLeidas(rfc, idsLeidos) {
+    try {
+      localStorage.setItem(claveNotifClienteLeidas(rfc), JSON.stringify([...idsLeidos]));
+    } catch (_) {
+      // Modo privado / cuota llena: la campana sigue funcionando, solo
+      // sin recordar lo ya leído entre sesiones.
+    }
+  }
+
+  // Sonido: campanada sintetizada (Web Audio, sin archivo nuevo — mismo
+  // criterio que admin.js) pero con un tono PROPIO (dos notas
+  // descendentes) distinto del de /admin (dos notas ascendentes), para
+  // que una cuenta que alguna vez escuche ambas no las confunda.
+  let notifAudioCtxCliente = null;
+  function tonoCampanaNotifCliente(ctx, frecuencia, inicio, duracion, volumen) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = frecuencia;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0, ctx.currentTime + inicio);
+    gain.gain.linearRampToValueAtTime(volumen, ctx.currentTime + inicio + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + inicio + duracion);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + inicio);
+    osc.stop(ctx.currentTime + inicio + duracion + 0.05);
+  }
+  function reproducirCampanadaNotifCliente() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    // Se crea hasta el primer uso real (política de autoplay de los
+    // navegadores exige un gesto del usuario antes de poder sonar).
+    if (!notifAudioCtxCliente) notifAudioCtxCliente = new AudioCtx();
+    tonoCampanaNotifCliente(notifAudioCtxCliente, 1760.0, 0, 0.16, 0.14);
+    tonoCampanaNotifCliente(notifAudioCtxCliente, 1396.91, 0.1, 0.22, 0.14);
+  }
+
+  const ICONOS_NOTIF_CLIENTE = {
+    pago_registrado:
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    promocion:
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 7l9 6 9-6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+  const TITULOS_NOTIF_CLIENTE = { pago_registrado: 'pago', promocion: 'promo' };
+
+  function construirCampanaNotifCliente() {
+    const contenedor = document.querySelector('.portal-header-actions');
+    if (!contenedor || document.getElementById('portal-notif-wrap')) return contenedor ? document.getElementById('portal-notif-wrap') : null;
+    const wrap = document.createElement('span');
+    wrap.className = 'portal-notif-wrap';
+    wrap.id = 'portal-notif-wrap';
+    wrap.hidden = true;
+    wrap.innerHTML = `
+      <button type="button" class="portal-notif-btn" id="portal-notif-btn" aria-label="Notificaciones" aria-haspopup="true" aria-expanded="false">
+        <svg class="portal-notif-bell" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="portal-notif-dot" id="portal-notif-dot" hidden></span>
+      </button>
+      <div class="portal-notif-panel" id="portal-notif-panel" role="menu" aria-label="Notificaciones" hidden>
+        <div class="portal-notif-head">
+          <h3>Notificaciones</h3>
+          <button type="button" id="portal-notif-marcar-todo">Marcar todo leído</button>
+        </div>
+        <div class="portal-notif-list" id="portal-notif-list"></div>
+        <div class="portal-notif-empty" id="portal-notif-empty" hidden>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p>Sin notificaciones</p>
+        </div>
+      </div>
+    `;
+    contenedor.insertBefore(wrap, contenedor.firstChild);
+    return wrap;
+  }
+
+  // Independiente de requireSession() a propósito: csf.html usa su propio
+  // flujo de auth (frontend/app.js, con sesión opcional — hay un camino
+  // anónimo ahí) en vez de llamar a requireSession() de este archivo, así
+  // que esta función resuelve su propia sesión con /api/auth/me en vez de
+  // depender de que la página que la invoque ya haya confirmado una. Una
+  // página sin sesión (401) simplemente nunca muestra la campana, igual
+  // que un tenant sin el módulo (404) — ambos casos se tratan igual.
+  async function iniciarCampanaNotificacionesCliente() {
+    const wrap = construirCampanaNotifCliente();
+    if (!wrap) return; // Página sin header de portal (no debería pasar en las páginas protegidas).
+
+    let rfcSesion = null;
+    try {
+      const resSesion = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+      if (!resSesion.ok) {
+        wrap.remove();
+        return;
+      }
+      rfcSesion = (await resSesion.json()).rfc;
+    } catch (err) {
+      wrap.remove();
+      return;
+    }
+
+    const btn = document.getElementById('portal-notif-btn');
+    const panel = document.getElementById('portal-notif-panel');
+    const dot = document.getElementById('portal-notif-dot');
+    const lista = document.getElementById('portal-notif-list');
+    const vacio = document.getElementById('portal-notif-empty');
+    const btnMarcarTodo = document.getElementById('portal-notif-marcar-todo');
+
+    let idsSondeoAnterior = null; // null = primer sondeo (sin sonido, sin baseline).
+    let itemsActuales = [];
+
+    function leido(id) {
+      return leerNotifClienteLeidas(rfcSesion).has(id);
+    }
+    function marcarLeido(id) {
+      const set = leerNotifClienteLeidas(rfcSesion);
+      set.add(id);
+      guardarNotifClienteLeidas(rfcSesion, set);
+    }
+    function marcarTodoLeido() {
+      const set = leerNotifClienteLeidas(rfcSesion);
+      itemsActuales.forEach((it) => set.add(it.id));
+      guardarNotifClienteLeidas(rfcSesion, set);
+      render();
+    }
+
+    function abrirDestino(item) {
+      marcarLeido(item.id);
+      if (item.tipo === 'pago_registrado') {
+        window.location.href = urlPagina('credito');
+      }
+      render();
+    }
+
+    function render() {
+      const hayPendientes = itemsActuales.some((it) => !leido(it.id));
+      dot.hidden = !hayPendientes;
+      if (itemsActuales.length === 0) {
+        lista.innerHTML = '';
+        vacio.hidden = false;
+        return;
+      }
+      vacio.hidden = true;
+      lista.innerHTML = itemsActuales
+        .map((it) => {
+          const fecha = new Date(`${String(it.creadoEn).replace(' ', 'T')}Z`);
+          const fechaTexto = Number.isNaN(fecha.getTime())
+            ? ''
+            : fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+          return `<button type="button" class="portal-notif-item${leido(it.id) ? '' : ' is-nueva'}" data-id="${it.id}" data-tipo="${it.tipo}">
+            <span class="portal-notif-icon portal-notif-icon-${it.tipo === 'pago_registrado' ? 'pago' : 'promo'}">${ICONOS_NOTIF_CLIENTE[it.tipo] || ''}</span>
+            <span class="portal-notif-texto">
+              <strong>${it.titulo}</strong>
+              <span>${it.mensaje}</span>
+              <time>${fechaTexto}</time>
+            </span>
+          </button>`;
+        })
+        .join('');
+      lista.querySelectorAll('[data-id]').forEach((el) => {
+        el.addEventListener('click', () => {
+          const item = itemsActuales.find((it) => String(it.id) === el.getAttribute('data-id'));
+          if (item) abrirDestino(item);
+        });
+      });
+    }
+
+    async function sondear({ sondeo }) {
+      try {
+        const res = await fetch(`${API_BASE}/notificaciones`, { credentials: 'include' });
+        if (res.status === 404) {
+          // Ni CxC ni Promociones aplican en el plan de este tenant —
+          // la campana es chrome del sistema, se oculta por completo
+          // (mismo criterio que la de /admin) y no vuelve a sondearse.
+          wrap.remove();
+          return false;
+        }
+        if (!res.ok) return true; // Error transitorio — se reintenta en el próximo sondeo.
+        wrap.hidden = false;
+        const data = await res.json();
+        itemsActuales = Array.isArray(data.notificaciones) ? data.notificaciones : [];
+
+        if (sondeo && idsSondeoAnterior) {
+          const idsNuevos = itemsActuales
+            .map((it) => it.id)
+            .filter((id) => !idsSondeoAnterior.has(id));
+          if (idsNuevos.length > 0) {
+            reproducirCampanadaNotifCliente();
+            btn.classList.add('is-ringing');
+            setTimeout(() => btn.classList.remove('is-ringing'), 600);
+          }
+        }
+        idsSondeoAnterior = new Set(itemsActuales.map((it) => it.id));
+        render();
+        return true;
+      } catch (err) {
+        return true; // Sin red — no se oculta la campana por un fallo puntual.
+      }
+    }
+
+    btn.addEventListener('click', () => {
+      const abierto = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!abierto));
+      panel.hidden = abierto;
+    });
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) {
+        panel.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    btnMarcarTodo.addEventListener('click', marcarTodoLeido);
+
+    let intervaloId = null;
+    function detenerSondeo() {
+      if (intervaloId) {
+        clearInterval(intervaloId);
+        intervaloId = null;
+      }
+    }
+    function iniciarSondeo() {
+      detenerSondeo();
+      intervaloId = setInterval(() => sondear({ sondeo: true }), 60000);
+    }
+
+    sondear({ sondeo: false }).then((activo) => {
+      if (activo) iniciarSondeo();
+    });
+    // Pausa el sondeo con la pestaña en segundo plano (cero peticiones
+    // desperdiciadas) y refresca de inmediato al volver, sin sonido
+    // (sondeo:false — "algo nuevo llegó mientras no veías la pestaña" no
+    // es lo mismo que "algo nuevo llegó ahora"), mismo criterio que la
+    // campana de /admin.
+    document.addEventListener('visibilitychange', () => {
+      if (!document.body.contains(wrap) || wrap.hidden) return;
+      if (document.visibilityState === 'hidden') {
+        detenerSondeo();
+      } else {
+        sondear({ sondeo: false }).then((activo) => {
+          if (activo) iniciarSondeo();
+        });
+      }
+    });
+  }
+
   // ---------- Tooltip personalizado (sin librerías externas) ----------
   // Misma implementación que ya usa admin.js — se repite aquí en vez de
   // compartir un archivo entre el panel de administración y el portal
@@ -219,6 +487,7 @@
     if (btnLogout) btnLogout.addEventListener('click', logout);
     mostrarAvisoRetencion();
     reescribirEnlacesInternos();
+    iniciarCampanaNotificacionesCliente();
   });
 
   window.Portal = { API_BASE, TENANT_SLUG, urlPagina, requireSession, logout, showToast };

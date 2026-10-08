@@ -203,6 +203,17 @@
     vistaMiCuenta: document.getElementById('vista-mi-cuenta'),
     btnVistaAuditoria: document.getElementById('btn-vista-auditoria'),
     vistaAuditoria: document.getElementById('vista-auditoria'),
+    btnVistaPromociones: document.getElementById('btn-vista-promociones'),
+    vistaPromociones: document.getElementById('vista-promociones'),
+    promoTitulo: document.getElementById('promo-titulo'),
+    promoMensaje: document.getElementById('promo-mensaje'),
+    promoVigenciaSin: document.getElementById('promo-vigencia-sin'),
+    promoVigenciaCon: document.getElementById('promo-vigencia-con'),
+    promoVigenciaFecha: document.getElementById('promo-vigencia-fecha'),
+    btnEnviarPromocion: document.getElementById('btn-enviar-promocion'),
+    btnEnviarPromocionLabel: document.getElementById('btn-enviar-promocion-label'),
+    promocionesGrid: document.getElementById('promociones-grid'),
+    promocionesEmpty: document.getElementById('promociones-empty'),
     auditoriaFiltroActor: document.getElementById('auditoria-filtro-actor'),
     btnLimpiarAuditoriaActor: document.getElementById('btn-limpiar-auditoria-actor'),
     auditoriaFiltroDesde: document.getElementById('auditoria-filtro-desde'),
@@ -2207,7 +2218,7 @@
 
   const RESTRICCIONES_PERFIL = {
     administrador: {
-      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'configuraciones'],
+      vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'promociones', 'configuraciones'],
       tarjetasConfigPermitidas: ['facturacion-toggle-card', 'global-config-card', 'marca-tema-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
     },
     // Punto 360 (2026-10-02): "lectura-reportes" se agregó aquí porque el
@@ -2276,6 +2287,7 @@
       constancias: els.btnVistaConstancias,
       usuarios: els.btnVistaUsuarios,
       auditoria: els.btnVistaAuditoria,
+      promociones: els.btnVistaPromociones,
       'mi-cuenta': els.btnVistaMiCuenta,
       configuraciones: els.btnVistaConfiguraciones,
     };
@@ -2290,7 +2302,7 @@
     'ventas-gastos': ['ordenes', 'cxc', 'gastos'],
     finanzas: ['resumen-financiero', 'lectura-reportes'],
     catalogo: ['inventarios', 'proveedores'],
-    administracion: ['usuarios', 'auditoria'],
+    administracion: ['usuarios', 'auditoria', 'promociones'],
     cuenta: ['mi-cuenta', 'configuraciones'],
   };
 
@@ -2425,7 +2437,8 @@
         (vista !== 'lectura-reportes' || reportesPlanVisible()) &&
         (vista !== 'inventarios' || (inventarioActivoGlobalmente && planPermite('inventariosHabilitado'))) &&
         (vista !== 'proveedores' || proveedoresPlanVisible()) &&
-        (vista !== 'auditoria' || (auditoriaHabilitadaGlobalmente && planPermite('auditoriaHabilitado')));
+        (vista !== 'auditoria' || (auditoriaHabilitadaGlobalmente && planPermite('auditoriaHabilitado'))) &&
+        (vista !== 'promociones' || planPermite('promocionesHabilitado'));
       const permitida = permitidaPorPerfil && permitidaPorConfig;
       boton.hidden = !permitida;
       // Mismo permiso, botón espejo en el launcher de íconos del menú
@@ -7916,6 +7929,8 @@
     els.btnVistaMiCuenta.setAttribute('aria-selected', String(vista === 'mi-cuenta'));
     els.btnVistaAuditoria.classList.toggle('is-active', vista === 'auditoria');
     els.btnVistaAuditoria.setAttribute('aria-selected', String(vista === 'auditoria'));
+    els.btnVistaPromociones.classList.toggle('is-active', vista === 'promociones');
+    els.btnVistaPromociones.setAttribute('aria-selected', String(vista === 'promociones'));
     els.vistaInicio.hidden = vista !== 'inicio';
     els.vistaConstancias.hidden = vista !== 'constancias';
     els.vistaTickets.hidden = vista !== 'tickets';
@@ -7929,6 +7944,7 @@
     els.vistaProveedores.hidden = vista !== 'proveedores';
     els.vistaMiCuenta.hidden = vista !== 'mi-cuenta';
     els.vistaAuditoria.hidden = vista !== 'auditoria';
+    els.vistaPromociones.hidden = vista !== 'promociones';
     if (vista === 'inicio') cargarInicio();
     if (vista === 'constancias') cargarRegistros();
     if (vista === 'tickets') {
@@ -7981,6 +7997,7 @@
     }
     if (vista === 'mi-cuenta') cargarMiCuenta();
     if (vista === 'auditoria') cargarAuditoria();
+    if (vista === 'promociones') cargarPromociones();
     // Primeros pasos (Fase 2 UX): "revisar" tickets/Constancias/CxC cuenta
     // como paso completado con solo entrar a esa vista una vez.
     if (vista === 'tickets') marcarOnboardingVisto('tickets');
@@ -8008,6 +8025,7 @@
   els.btnVistaProveedores.addEventListener('click', () => cambiarVistaPrincipal('proveedores'));
   els.btnVistaMiCuenta.addEventListener('click', () => cambiarVistaPrincipal('mi-cuenta'));
   els.btnVistaAuditoria.addEventListener('click', () => cambiarVistaPrincipal('auditoria'));
+  els.btnVistaPromociones.addEventListener('click', () => cambiarVistaPrincipal('promociones'));
 
   // ---------- Mi Cuenta ----------
   // Autoservicio de la sesión actual: cualquier perfil ve/edita su propio
@@ -8356,6 +8374,211 @@
     els.auditoriaFiltroHasta.value = '';
     els.auditoriaFiltroLimite.value = '100';
     cargarAuditoria();
+  });
+
+  // Promociones (punto en curso): broadcast a todos los clientes del
+  // tenant, sin segmentar. Vigencia + ciclo de vida (propuesta 3,
+  // elegida por el usuario): tarjetas con barra de progreso, archivar/
+  // eliminar en una Activa, relanzar/eliminar en una Archivada/Vencida.
+  const ICONO_ARCHIVAR = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="4" rx="1" stroke="currentColor" stroke-width="1.7"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 13h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+
+  function promoEtiquetaEstado(estado) {
+    if (estado === 'activa') return 'Activa';
+    if (estado === 'vencida') return 'Vencida';
+    return 'Archivada';
+  }
+
+  function renderPromocionCard(p) {
+    const card = document.createElement('div');
+    card.className = `promo-card${p.estado === 'activa' ? '' : ' is-inactiva'}`;
+
+    let progressHtml;
+    let vigenciaLabel;
+    if (p.estado !== 'activa') {
+      progressHtml = `<div class="promo-progress-track"><div class="promo-progress-fill is-${p.estado}"></div></div>`;
+      vigenciaLabel = p.estado === 'vencida' ? `Venció ${formatearFechaSoloDia(p.vigenciaHasta)}` : 'Archivada a mano';
+    } else if (!p.vigenciaHasta) {
+      progressHtml = `<div class="promo-progress-track"><div class="promo-progress-fill is-sin-vigencia"></div></div>`;
+      vigenciaLabel = 'Sin vigencia';
+    } else {
+      const inicio = new Date(p.creadoEn.replace(' ', 'T') + 'Z').getTime();
+      const fin = new Date(p.vigenciaHasta.replace(' ', 'T') + 'Z').getTime();
+      const ahora = Date.now();
+      const pct = Math.max(0, Math.min(100, Math.round(((ahora - inicio) / (fin - inicio)) * 100)));
+      progressHtml = `<div class="promo-progress-track"><div class="promo-progress-fill" style="width:${pct}%"></div></div>`;
+      vigenciaLabel = `Hasta ${formatearFechaSoloDia(p.vigenciaHasta)}`;
+    }
+
+    const acciones =
+      p.estado === 'activa'
+        ? `<button type="button" class="btn-icono-accion" data-accion="archivar" data-tooltip="Archivar" aria-label="Archivar ${escapeHtml(p.titulo)}">${ICONO_ARCHIVAR}</button>
+           <button type="button" class="btn-icono-accion btn-icono-accion-peligro" data-accion="eliminar" data-tooltip="Eliminar" aria-label="Eliminar ${escapeHtml(p.titulo)}">${ICONO_PAPELERA}</button>`
+        : `<button type="button" class="btn-icono-accion" data-accion="relanzar" data-tooltip="Relanzar" aria-label="Relanzar ${escapeHtml(p.titulo)}">${ICONO_RESTAURAR}</button>
+           <button type="button" class="btn-icono-accion btn-icono-accion-peligro" data-accion="eliminar" data-tooltip="Eliminar" aria-label="Eliminar ${escapeHtml(p.titulo)}">${ICONO_PAPELERA}</button>`;
+
+    card.innerHTML = `
+      <div class="promo-card-top">
+        <h4>${escapeHtml(p.titulo)}</h4>
+        <span class="promo-badge promo-badge-${p.estado}">${promoEtiquetaEstado(p.estado)}</span>
+      </div>
+      <p class="promo-card-msg">${escapeHtml(p.mensaje)}</p>
+      ${progressHtml}
+      <div class="promo-progress-label"><span>Enviada ${formatearFechaSoloDia(p.creadoEn)}</span><span>${vigenciaLabel}</span></div>
+      <div class="promo-card-actions">${acciones}</div>
+    `;
+
+    const btnArchivar = card.querySelector('[data-accion="archivar"]');
+    if (btnArchivar) btnArchivar.addEventListener('click', () => archivarPromocion(p));
+    const btnRelanzar = card.querySelector('[data-accion="relanzar"]');
+    if (btnRelanzar) btnRelanzar.addEventListener('click', () => relanzarPromocion(p));
+    card.querySelector('[data-accion="eliminar"]').addEventListener('click', () => confirmarEliminarPromocion(p));
+
+    return card;
+  }
+
+  async function cargarPromociones() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const resp = await fetch(`${API_BASE}/admin/promociones`, { headers: { Authorization: authHeader } });
+      if (resp.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      if (!resp.ok) throw new Error('No se pudieron cargar las promociones enviadas.');
+      const data = await resp.json();
+      const promociones = data.promociones || [];
+
+      els.promocionesGrid.innerHTML = '';
+      els.promocionesEmpty.hidden = promociones.length > 0;
+      promociones.forEach((p) => els.promocionesGrid.appendChild(renderPromocionCard(p)));
+    } catch (err) {
+      showToast(err.message || 'No se pudieron cargar las promociones enviadas.', true);
+    }
+  }
+
+  async function archivarPromocion(p) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const resp = await fetch(`${API_BASE}/admin/promociones/${p.id}/archivar`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader },
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || 'No se pudo archivar la promoción.');
+      showToast('Promoción archivada — tus clientes ya no la ven.');
+      cargarPromociones();
+    } catch (err) {
+      showToast(err.message || 'No se pudo archivar la promoción.', true);
+    }
+  }
+
+  async function relanzarPromocion(p) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const resp = await fetch(`${API_BASE}/admin/promociones/${p.id}/relanzar`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || 'No se pudo relanzar la promoción.');
+      showToast('Promoción relanzada, sin vigencia — tus clientes vuelven a verla.');
+      cargarPromociones();
+    } catch (err) {
+      showToast(err.message || 'No se pudo relanzar la promoción.', true);
+    }
+  }
+
+  function confirmarEliminarPromocion(p) {
+    abrirConfirmacion({
+      titulo: 'Eliminar promoción',
+      mensaje: `"${p.titulo}" se eliminará permanentemente, incluso para quien ya la tenga en su campana. Esta acción no se puede deshacer.`,
+      textoBoton: 'Eliminar',
+      variante: 'danger',
+      onConfirmar: async () => {
+        const authHeader = getAuthHeader();
+        if (!authHeader) return;
+        try {
+          const resp = await fetch(`${API_BASE}/admin/promociones/${p.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: authHeader },
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data.error || 'No se pudo eliminar la promoción.');
+          showToast('Promoción eliminada.');
+          cargarPromociones();
+        } catch (err) {
+          showToast(err.message || 'No se pudo eliminar la promoción.', true);
+        }
+      },
+    });
+  }
+
+  function aplicarEstadoVigenciaPromo() {
+    els.promoVigenciaFecha.disabled = !els.promoVigenciaCon.checked;
+  }
+  els.promoVigenciaSin.addEventListener('change', aplicarEstadoVigenciaPromo);
+  els.promoVigenciaCon.addEventListener('change', aplicarEstadoVigenciaPromo);
+
+  els.btnEnviarPromocion.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    setFieldError('promo-titulo', '');
+    setFieldError('promo-mensaje', '');
+    setFieldError('promo-vigencia', '');
+    const titulo = els.promoTitulo.value.trim();
+    const mensaje = els.promoMensaje.value.trim();
+    if (!titulo) {
+      setFieldError('promo-titulo', 'Captura un título para la promoción.');
+      return;
+    }
+    if (!mensaje) {
+      setFieldError('promo-mensaje', 'Captura el mensaje de la promoción.');
+      return;
+    }
+    let vigenciaHasta = null;
+    if (els.promoVigenciaCon.checked) {
+      vigenciaHasta = els.promoVigenciaFecha.value;
+      if (!vigenciaHasta) {
+        setFieldError('promo-vigencia', 'Elige hasta qué fecha es válida la promoción.');
+        return;
+      }
+    }
+
+    els.btnEnviarPromocion.disabled = true;
+    els.btnEnviarPromocionLabel.textContent = 'Enviando…';
+    try {
+      const resp = await fetch(`${API_BASE}/admin/promociones`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo, mensaje, vigenciaHasta }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || 'No se pudo enviar la promoción.');
+
+      els.promoTitulo.value = '';
+      els.promoMensaje.value = '';
+      els.promoVigenciaSin.checked = true;
+      els.promoVigenciaFecha.value = '';
+      aplicarEstadoVigenciaPromo();
+      showToast('Promoción enviada — tus clientes ya la ven en su campana de notificaciones.');
+      cargarPromociones();
+    } catch (err) {
+      showToast(err.message || 'No se pudo enviar la promoción.', true);
+    } finally {
+      els.btnEnviarPromocion.disabled = false;
+      els.btnEnviarPromocionLabel.textContent = 'Enviar promoción';
+    }
   });
 
   // Menú móvil (launcher de íconos) — "Menú" en la barra superior

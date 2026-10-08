@@ -810,6 +810,13 @@
             <td class="col-detalle">Notificaciones nuevas con contador, y navegación directa a la vista correspondiente desde la bandeja. Encabezada por el punto 339 (reglas de caducidad de los tickets, que también quedan sin ver).</td>
             <td class="col-estado"><span class="pill pill-blue">Implementado — falta mostrar</span></td>
           </tr>
+          <tr data-app="cliente" data-id="vis-379-campana-cliente">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-379-campana-cliente" aria-label="Marcar completado"></td>
+            <td class="col-punto">379</td>
+            <td class="col-item">Campana de notificaciones del portal de cliente (promociones + pago registrado)</td>
+            <td class="col-detalle">Mismo patrón que la campana de <code>/admin</code> (punto 337) — ícono, sondeo de 60s, campanada sintetizada (Web Audio, tono propio) — centralizada en <code>frontend/portal.js</code> (inyectada por JS, sin HTML nuevo por página) y visible en las 5 páginas de cliente. Dos tipos: "promoción" (broadcast, el admin la compone y envía desde la vista nueva <code>/admin</code> → Promociones, solo administrador/super, gateada por el flag nuevo <code>promocionesHabilitado</code>) y "pago registrado" (automática, al registrar un cobro real en Cuentas por cobrar, vinculada por correo — mismo criterio que <code>GET /api/mi-cuenta/credito</code>). Tabla nueva <code>notificaciones_cliente</code>, sin FK. Mapeado en /control (4 capas, mismo patrón que el punto 378).</td>
+            <td class="col-estado"><span class="pill pill-green">Completado — Jest 1216/1216, E2E real <code>notificaciones-cliente.spec.ts</code> 3/3 (8 oct 2026)</span></td>
+          </tr>
           <tr data-app="admin" data-id="vis-338-ticket">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="vis-338-ticket" aria-label="Marcar completado"></td>
             <td class="col-punto">338</td>

@@ -1012,6 +1012,55 @@ async function ensureSchema(db = pool) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  // notificaciones_cliente (punto en curso, campana del portal de
+  // cliente): 2 tipos hoy — 'pago_registrado' (automática, se inserta
+  // sola al registrar un cobro en PUT /api/admin/ordenes-compra/:id/cobro,
+  // rfc = la cuenta cliente dueña de esa venta, resuelta por correo) y
+  // 'promocion' (manual, el admin la escribe y envía desde /admin,
+  // siempre rfc NULL = broadcast a todos los clientes del tenant — sin
+  // segmentar por cliente en esta primera versión). `rfc IS NULL` es la
+  // señal de "para todos", no un dato faltante — GET /api/notificaciones
+  // trae `WHERE rfc = ? OR rfc IS NULL`. `orden_id` solo aplica a
+  // 'pago_registrado' (click-through a esa venta en Mi cuenta → Crédito);
+  // NULL en 'promocion'. Sin CONSTRAINT FOREIGN KEY, mismo motivo que
+  // abonos/orden_productos arriba — el lado cliente nunca hace DELETE/
+  // REFERENCES cross-tabla.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS notificaciones_cliente (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      rfc VARCHAR(50) NULL,
+      tipo ENUM('pago_registrado','promocion') NOT NULL,
+      titulo VARCHAR(200) NOT NULL,
+      mensaje VARCHAR(500) NOT NULL,
+      orden_id INT NULL,
+      vigencia_hasta DATETIME NULL,
+      archivada_en DATETIME NULL,
+      creado_por VARCHAR(200) NULL,
+      creado_en DATETIME NOT NULL,
+      KEY idx_notificaciones_cliente_rfc (rfc),
+      KEY idx_notificaciones_cliente_creado_en (creado_en)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  // Migración (punto en curso: vigencia + archivar/eliminar/relanzar) —
+  // instalaciones que ya crearon la tabla antes de estas 2 columnas.
+  // `vigencia_hasta`: solo aplica a tipo='promocion' — instante UTC
+  // exclusivo (medianocheLocal del día SIGUIENTE al elegido, en la zona
+  // del tenant, ver POST /api/admin/promociones) en vez de la fecha tal
+  // cual, mismo motivo que limitesPeriodo.js: comparar contra NOW() sin
+  // esto recortaría el último día ~6h antes en México. `archivada_en`:
+  // archivado manual — gana sobre `vigencia_hasta` (una promo archivada
+  // a mano antes de vencer no debe "revivir" sola por su vigencia).
+  const [colsNotifCliente] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notificaciones_cliente'`
+  );
+  const nombresNotifCliente = colsNotifCliente.map((c) => c.COLUMN_NAME);
+  if (!nombresNotifCliente.includes('vigencia_hasta')) {
+    await db.query('ALTER TABLE notificaciones_cliente ADD COLUMN vigencia_hasta DATETIME NULL');
+  }
+  if (!nombresNotifCliente.includes('archivada_en')) {
+    await db.query('ALTER TABLE notificaciones_cliente ADD COLUMN archivada_en DATETIME NULL');
+  }
+
   // Gastos de la operación (módulo "Gastos", ver PROJECT_STATE.md):
   // control administrativo/financiero de egresos, con o sin factura/CFDI.
   // NO es un sistema contable — se guarda el monto tal cual se pagó y un

@@ -337,6 +337,18 @@ solo la frase en español de la UI.
   misma al apagarse, sin forma de volver a encenderla desde la UI (mismo
   motivo por el que "Portal de clientes" vive en Mi Cuenta en vez de
   dentro de `global-config-card`, punto 375).
+- **Vista nueva del sidebar de `/admin`: mismo patrón de 3 registros,
+  sistema HERMANO del de tarjetas de Configuraciones** (punto 379):
+  `mapaNavPorVista()`, `GRUPOS_SIDEBAR_NAV`, `vistasPermitidas` por
+  perfil en `RESTRICCIONES_PERFIL` — más las 2 líneas en
+  `cambiarVistaPrincipal()` y el `if (vista === 'X') cargarX();`. No es
+  el mismo checklist que una tarjeta de Configuraciones — son dos
+  sistemas paralelos.
+- **`.algo[hidden]{display:none}` explícito es obligatorio en cualquier
+  clase nueva con `display` distinto de `none`** (punto 379): el
+  atributo `hidden` se cancela si una regla de autor le da `display` a
+  esa clase con la misma especificidad (mismo principio que
+  `.admin-notif-dot`/`.admin-notif-empty` en `admin.css`).
 
 ## Stack
 
