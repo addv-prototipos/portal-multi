@@ -20,18 +20,6 @@
     btnPassword: document.getElementById('btn-password'),
     btnPasswordLabel: document.getElementById('btn-password-label'),
     passwordErrorGeneral: document.getElementById('password-error-general'),
-
-    creditoSection: document.getElementById('credito-section'),
-    creditoKpis: document.getElementById('credito-kpis'),
-    creditoKpiTotal: document.getElementById('credito-kpi-total'),
-    creditoKpiPagado: document.getElementById('credito-kpi-pagado'),
-    creditoKpiSaldo: document.getElementById('credito-kpi-saldo'),
-    creditoVentasWrap: document.getElementById('credito-ventas-wrap'),
-    creditoVentasBody: document.getElementById('credito-ventas-body'),
-    creditoVentasEmpty: document.getElementById('credito-ventas-empty'),
-    creditoAbonosWrap: document.getElementById('credito-abonos-wrap'),
-    creditoAbonosBody: document.getElementById('credito-abonos-body'),
-    creditoAbonosEmpty: document.getElementById('credito-abonos-empty'),
   };
 
   function setFieldError(id, mensaje) {
@@ -220,111 +208,8 @@
     }
   });
 
-  // ---------- Gestión de crédito (Segmento 3) ----------
-  // Mismo patrón de helpers sin módulo compartido que el resto del sitio
-  // (sin bundler, cada página repite lo mínimo que necesita).
-  function formatearMoneda(valor) {
-    return Number(valor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  function formatearFechaCorta(fechaISO) {
-    if (!fechaISO) return '—';
-    const fecha = new Date(String(fechaISO).replace(' ', 'T') + (String(fechaISO).includes('Z') ? '' : 'Z'));
-    if (Number.isNaN(fecha.getTime())) return '—';
-    return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
-  }
-
-  function escaparHtml(texto) {
-    const div = document.createElement('div');
-    div.textContent = texto == null ? '' : String(texto);
-    return div.innerHTML;
-  }
-
-  async function cargarCredito() {
-    if (!els.creditoSection) return;
-    // Se muestra desde ya con esqueleto (Esqueleto.*, igual que el resto
-    // del sitio) — si resulta ser un 404 (módulo apagado en el plan del
-    // tenant) se vuelve a ocultar abajo, sin error; cualquier OTRA falla
-    // (red/servidor) se queda visible con el estado de error + reintentar
-    // en el mismo bloque, nunca en silencio (antes esta función no tenía
-    // ningún estado de carga/error — hallazgo de la revisión de esqueleto
-    // de todo el sitio, punto 362).
-    els.creditoSection.hidden = false;
-    Esqueleto.marcarKpisCargando(els.creditoKpis, true);
-    els.creditoVentasWrap.hidden = false;
-    els.creditoVentasEmpty.hidden = true;
-    els.creditoAbonosWrap.hidden = false;
-    els.creditoAbonosEmpty.hidden = true;
-    Esqueleto.aplicarEsqueletoTabla(els.creditoVentasBody, 4, 3);
-    Esqueleto.aplicarEsqueletoTabla(els.creditoAbonosBody, 4, 3);
-
-    try {
-      const res = await fetch(`${API_BASE}/mi-cuenta/credito`, { credentials: 'include' });
-      if (res.status === 404) {
-        // Módulo Ventas/CxC apagado en el plan del tenant (ver
-        // requiereFeature en el backend) — la sección entera se oculta,
-        // mismo criterio ya aplicado en el resto del portal/admin esta
-        // misma sesión (el candado del backend no basta solo, el
-        // frontend también debe ocultar la entrada).
-        els.creditoSection.hidden = true;
-        return;
-      }
-      if (!res.ok) {
-        Esqueleto.marcarKpisCargando(els.creditoKpis, false);
-        Esqueleto.aplicarErrorTabla(els.creditoVentasBody, 4, 'No se pudo cargar tu información de crédito.', cargarCredito);
-        Esqueleto.aplicarErrorTabla(els.creditoAbonosBody, 4, 'No se pudo cargar tu historial de abonos.', cargarCredito);
-        return;
-      }
-      const data = await res.json();
-
-      Esqueleto.marcarKpisCargando(els.creditoKpis, false);
-      els.creditoKpiTotal.textContent = `$${formatearMoneda(data.resumen.totalFacturado)}`;
-      els.creditoKpiPagado.textContent = `$${formatearMoneda(data.resumen.totalPagado)}`;
-      els.creditoKpiSaldo.textContent = `$${formatearMoneda(data.resumen.saldoPendiente)}`;
-
-      const ventas = data.ventasPendientes || [];
-      Esqueleto.quitarEsqueletoTabla(els.creditoVentasBody);
-      els.creditoVentasWrap.hidden = ventas.length === 0;
-      els.creditoVentasEmpty.hidden = ventas.length > 0;
-      els.creditoVentasBody.innerHTML = ventas
-        .map(
-          (v) => `
-        <tr>
-          <td data-label="Venta">${escaparHtml(v.numeroCompra)}</td>
-          <td data-label="Fecha">${formatearFechaCorta(v.fechaCompra)}</td>
-          <td data-label="Total">$${formatearMoneda(v.total)}</td>
-          <td data-label="Saldo">$${formatearMoneda(v.saldo)}</td>
-        </tr>`
-        )
-        .join('');
-
-      const abonos = data.abonos || [];
-      Esqueleto.quitarEsqueletoTabla(els.creditoAbonosBody);
-      els.creditoAbonosWrap.hidden = abonos.length === 0;
-      els.creditoAbonosEmpty.hidden = abonos.length > 0;
-      els.creditoAbonosBody.innerHTML = abonos
-        .map(
-          (a) => `
-        <tr>
-          <td data-label="Fecha">${formatearFechaCorta(a.creadoEn)}</td>
-          <td data-label="Venta">${escaparHtml(a.numeroCompra)}</td>
-          <td data-label="Monto">$${formatearMoneda(a.monto)}</td>
-          <td data-label="Notas">${escaparHtml(a.notas) || '—'}</td>
-        </tr>`
-        )
-        .join('');
-    } catch (err) {
-      Esqueleto.marcarKpisCargando(els.creditoKpis, false);
-      Esqueleto.aplicarErrorTabla(els.creditoVentasBody, 4, 'No se pudo conectar con el servidor.', cargarCredito);
-      Esqueleto.aplicarErrorTabla(els.creditoAbonosBody, 4, 'No se pudo conectar con el servidor.', cargarCredito);
-    }
-  }
-
   document.addEventListener('DOMContentLoaded', async () => {
     const sesionOk = await requireSession();
-    if (sesionOk) {
-      cargarMiCuenta();
-      cargarCredito();
-    }
+    if (sesionOk) cargarMiCuenta();
   });
 })();

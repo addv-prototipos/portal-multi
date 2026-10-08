@@ -60,7 +60,7 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
   describe('POST /api/admin/ordenes-compra', () => {
     test('registra una venta con correo (comportamiento de siempre)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
-      pool.query.mockResolvedValueOnce([[{ id: 5 }]]); // registros (correo con constancia)
+      pool.query.mockResolvedValueOnce([[{ rfc: 'XAXX010101000' }]]); // usuarios (cliente del portal)
       pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
       pool.query.mockResolvedValueOnce([{ insertId: 10, affectedRows: 1 }]); // INSERT
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE numero_compra
@@ -332,17 +332,21 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       expect(res.body.error).toMatch(/correo/i);
     });
 
-    test('correo sin constancia activa (cliente no nuevo) responde 400', async () => {
+    test('correo sin cuenta de cliente en el portal (no nuevo) responde 400', async () => {
+      // Punto 377: "cliente ya registrado" ya NO exige constancia de
+      // situación fiscal subida, exige una cuenta real en `usuarios` con
+      // perfil 'cliente' — el desplegable del frontend ahora lista
+      // cualquier cliente del portal, con o sin CSF.
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
-      pool.query.mockResolvedValueOnce([[]]); // registros -> sin coincidencia
+      pool.query.mockResolvedValueOnce([[]]); // usuarios -> sin coincidencia
 
       const res = await request(app)
         .post('/api/admin/ordenes-compra')
         .auth(usuario, password)
-        .send({ concepto: '1 x Producto ($10.00 c/u)', cantidad: 10, email: 'sin-constancia@ejemplo.com' });
+        .send({ concepto: '1 x Producto ($10.00 c/u)', cantidad: 10, email: 'sin-cuenta@ejemplo.com' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/constancia/i);
+      expect(res.body.error).toMatch(/no corresponde a ningún cliente registrado/i);
     });
 
     test('Cuentas por cobrar (punto 138): venta pendiente con vencimiento futuro — 201', async () => {

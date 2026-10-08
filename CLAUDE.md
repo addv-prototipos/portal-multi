@@ -487,6 +487,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 - Antes de dar por "no disponible" una skill/herramienta mencionada por
   el usuario: revisar el catálogo de skills activas, luego `D:\cc`,
   luego el repositorio oficial — nunca asumir su función.
+- **Unicidad de `usuarios.email`: acotada a `perfil='cliente'`, nunca
+  global** (punto 377, 2026-10-07, decisión explícita del usuario): dos
+  cuentas `perfil='cliente'` NUNCA pueden compartir correo, pero una
+  cuenta admin (`administrador`/`fiscal`/`ventas`/`inventario`) SÍ puede
+  compartir correo con una cuenta cliente — el lado admin nunca usa
+  correo para login (usa `rfc` como nombre de usuario,
+  `backend/utils/auth.js:194`, ya acotado a esos 4 perfiles). Cualquier
+  query nueva sobre `usuarios` que busque/valide por `email` debe decidir
+  conscientemente su alcance: candado de duplicado (`PUT /api/mi-cuenta`),
+  login del portal de clientes (`POST /api/auth/login`), desplegable de
+  Ventas (`GET /api/admin/correos-registrados`) y el check de "cliente ya
+  registrado" en `POST /api/admin/ordenes-compra` SIEMPRE llevan
+  `AND perfil = 'cliente'` — omitirlo en login es especialmente grave: un
+  correo compartido puede traer la fila ADMIN en vez de la CLIENTE (orden
+  de MySQL no garantizado) y el cliente real recibe "contraseña
+  incorrecta" con su contraseña correcta (bug real, reproducido y
+  corregido en el punto 377). **Pendiente, fuera de alcance a propósito**:
+  `POST /api/auth/recuperar` sigue sin este filtro (`LIMIT 1` liso) — con
+  un correo compartido admin/cliente, el token de recuperación se genera
+  para una sola de las 2 filas, no determinístico cuál; resolverlo
+  requiere decidir cuál cuenta debe ganar o pedir que se especifique, no
+  es un one-liner.
 
 ## Stack
 

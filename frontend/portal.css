@@ -141,6 +141,13 @@
   font-size: 13px;
   line-height: 1.45;
   margin: -8px 0 22px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.aviso-retencion svg {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* ---------- Card de perfil (onboarding nombre) ---------- */
@@ -225,10 +232,17 @@
 }
 .completion-ring {
   position: relative;
-  width: 56px;
-  height: 56px;
+  /* 64px, igual al width/height real del <svg> (dashboard.html,
+     viewBox="0 0 64 64") — antes el contenedor era 56px, 8px más chico
+     que el SVG que de verdad contiene; el SVG desbordaba el contenedor
+     sin quedar centrado en ese desborde, y el "50%" (centrado respecto
+     al contenedor de 56px, no al SVG de 64px) se veía descuadrado del
+     anillo. */
+  width: 64px;
+  height: 64px;
 }
 .completion-ring svg {
+  display: block;
   transform: rotate(-90deg);
 }
 .completion-ring circle {
@@ -241,9 +255,19 @@
 .completion-ring .ring-progress {
   stroke: #05DBF2;
   stroke-linecap: round;
+  /* 163.36 = circunferencia real (2 * PI * r=26) del círculo de abajo —
+     SIEMPRE ese valor, es el largo total del trazo, no el avance.
+     stroke-dashoffset sí representa el avance y se asigna por JS según el
+     % real de perfil completado (ver dashboard.js aplicarCardPerfil) —
+     antes quedaba fijo en 81.68 (= 50%) sin importar cuánto faltara. */
   stroke-dasharray: 163.36;
-  stroke-dashoffset: 81.68;
+  stroke-dashoffset: 163.36;
   transition: stroke-dashoffset 0.5s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .completion-ring .ring-progress {
+    transition: none;
+  }
 }
 .completion-text {
   position: absolute;
@@ -528,23 +552,30 @@
   }
 }
 
-/* Gestión de crédito (Segmento 3) — a diferencia de .mi-cuenta-main de
-   arriba, usa el ancho completo de .portal-main (900px): necesita espacio
-   horizontal real para las 2 tablas, angostarla al mismo 480/680px de los
-   formularios la haría ilegible. */
+/* Gestión de crédito — página propia (credito.html, punto 377): antes
+   vivía como tarjeta dentro de Mi cuenta, compartiendo scroll con los
+   datos de contacto; el usuario la quería separada por completo, sin
+   compartir pantalla con esos datos. Usa el ancho completo de
+   .portal-main (900px, como el resto de las páginas del portal). Bug
+   real (punto 377, v3): `.card` (style.css, base compartida con los
+   formularios de auth) trae `max-width: 460px` — al separar esta
+   sección a su propia página se perdió el `max-width: none` que ya
+   traía antes (vivía implícito en el comentario, nunca en una regla
+   real), así que la tarjeta se quedaba angosta con todo el resto de
+   `.portal-main` vacío al lado. Repuesto explícito. */
 .mi-cuenta-credito {
+  margin: 0;
   max-width: none;
-  margin: 24px 0 0;
 }
 .credito-sub {
-  margin: -8px 0 18px;
+  margin: -8px 0 20px;
   color: var(--color-ink-soft);
-  font-size: 13.5px;
+  font-size: 14px;
 }
 .credito-kpis {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 24px;
 }
 @media (min-width: 560px) {
@@ -554,20 +585,20 @@
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .credito-kpi-label {
-  font-size: 12px;
+  font-size: 12.5px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--color-ink-soft);
 }
 .credito-kpi-valor {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--color-ink);
   font-variant-numeric: tabular-nums;
@@ -577,6 +608,74 @@
   background: var(--color-accent-soft);
 }
 .credito-kpi-saldo .credito-kpi-valor { color: var(--color-accent-dark); }
+/* Punto 377 (v2) — "Total de la deuda"/"Total pagado": mismo par
+   verde/ámbar ya validado contra daltonismo (skill dataviz) que usa la
+   dona general de abajo y que ya usan los badges .estatus-listo/
+   .estatus-pendiente del resto del sitio — nunca inventar un color nuevo
+   para la misma idea de "pagado"/"pendiente". */
+.credito-kpi-deuda {
+  border-color: var(--color-warn-soft);
+  background: var(--color-warn-soft);
+}
+.credito-kpi-deuda .credito-kpi-valor { color: var(--color-warn); }
+.credito-kpi-pagado {
+  border-color: #DCEFE3;
+  background: #DCEFE3;
+}
+.credito-kpi-pagado .credito-kpi-valor { color: #146C43; }
+
+/* Panel principal — dona general + lista de créditos. 1 columna en
+   móvil (apilado); a partir de 760px, 2 columnas lado a lado para
+   aprovechar el ancho completo de la tarjeta en vez de dejarlo vacío
+   alrededor de una sola columna angosta. */
+.credito-panel-principal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+@media (min-width: 760px) {
+  .credito-panel-principal {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) 1fr;
+    align-items: stretch;
+  }
+}
+.credito-creditos-col { display: flex; flex-direction: column; min-width: 0; }
+.credito-creditos-col .credito-subtitulo { margin-top: 0; }
+
+.credito-dona-general {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: 28px 20px;
+}
+.credito-dona-centro { position: relative; flex-shrink: 0; }
+.credito-dona-centro svg { transform: rotate(0); }
+.dona-pista { stroke: var(--color-border); }
+.dona-pagado { stroke: #146C43; transition: stroke-dasharray 0.5s ease; }
+.dona-pendiente { stroke: var(--color-warn); transition: stroke-dasharray 0.5s ease, stroke-dashoffset 0.5s ease; }
+.credito-dona-texto {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.credito-dona-pct { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.credito-dona-lbl { font-size: 10px; color: var(--color-ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
+.credito-dona-leyenda {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 10px;
+  font-size: 13.5px; color: var(--color-ink-soft);
+}
+.credito-dona-leyenda li { display: flex; align-items: center; gap: 8px; }
+.credito-dona-leyenda b { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.leyenda-sw { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; display: inline-block; }
+.sw-pagado { background: #146C43; }
+.sw-pendiente { background: var(--color-warn); }
+
 .credito-subtitulo {
   font-family: var(--font-display);
   font-size: 15px;
@@ -587,6 +686,30 @@
 .mi-cuenta-credito .solicitudes-table-wrap + .credito-subtitulo,
 .mi-cuenta-credito .solicitudes-empty + .credito-subtitulo {
   margin-top: 26px;
+}
+
+/* Cada crédito activo (venta con saldo pendiente) — reemplaza la tabla
+   plana de antes por un anillo individual de avance, mismo lenguaje
+   visual que la dona general de arriba. */
+.credito-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  margin-bottom: 10px;
+}
+.credito-item-anillo { flex-shrink: 0; }
+.credito-item-info { flex: 1; min-width: 0; font-size: 13.5px; }
+.credito-item-numero { display: block; font-weight: 700; font-size: 14.5px; color: var(--color-ink); margin-bottom: 3px; }
+.credito-item-detalle { color: var(--color-ink-soft); }
+.credito-item-pct {
+  flex-shrink: 0; font-weight: 700; font-size: 13.5px; color: var(--color-warn);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dona-pagado, .dona-pendiente { transition: none; }
 }
 
 /* ---------- Vista previa de imagen (tickets.html) ---------- */

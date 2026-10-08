@@ -66,7 +66,7 @@ async function loginCliente(page) {
   await expect(page).toHaveURL(/\/t1\/dashboard$/);
 }
 
-test('sin nombre: la card de perfil se muestra con status y anillo 50%', async ({ page }) => {
+test('sin nombre: la card de perfil se muestra con status y anillo real (punto 377: ya no fijo en 50%)', async ({ page }) => {
   await loginCliente(page);
 
   const card = page.locator('#profile-card');
@@ -74,7 +74,10 @@ test('sin nombre: la card de perfil se muestra con status y anillo 50%', async (
 
   await expect(page.locator('#profile-name')).toHaveText('Usuario');
   await expect(page.locator('.profile-status')).toContainText('Perfil incompleto');
-  await expect(page.locator('.completion-text')).toHaveText('50%');
+  // t1 tiene Facturación apagada (ver credito.spec.ts) — el único paso
+  // real es el nombre, así que sin nombre el % real es 0%, no el 50%
+  // fijo que mostraba el bug original sin importar qué faltara.
+  await expect(page.locator('.completion-text')).toHaveText('0%');
   await expect(page.locator('#profile-action')).toContainText('Agregar nombre');
 
   // sin errores de consola durante la carga del dashboard

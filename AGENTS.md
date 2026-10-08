@@ -311,6 +311,19 @@ solo la frase en español de la UI.
 - Antes de dar por "no disponible" una skill/herramienta mencionada por
   el usuario: revisar el catálogo de skills activas, luego `D:\cc`,
   luego el repositorio oficial — nunca asumir su función.
+- **Unicidad de `usuarios.email`: acotada a `perfil='cliente'`, nunca
+  global** (punto 377): dos cuentas cliente nunca comparten correo, pero
+  un admin (`administrador`/`fiscal`/`ventas`/`inventario`) sí puede
+  compartir correo con un cliente — admin nunca usa correo para login
+  (usa `rfc` como usuario). Toda query sobre `usuarios` por `email` debe
+  llevar `AND perfil = 'cliente'` cuando es del lado cliente (candado de
+  `PUT /api/mi-cuenta`, login `POST /api/auth/login`, desplegable de
+  Ventas, check de "cliente ya registrado" en ordenes-compra) — omitirlo
+  en login es grave: puede traer la fila ADMIN en vez de la CLIENTE
+  (orden de MySQL no garantizado) y el cliente recibe "contraseña
+  incorrecta" con su contraseña correcta (bug real, corregido en el punto
+  377). Pendiente a propósito: `POST /api/auth/recuperar` sigue sin este
+  filtro.
 
 ## Stack
 

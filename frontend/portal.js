@@ -13,7 +13,7 @@
   // exactamente con la de ahí. Sin ese patrón (todas las URLs de hoy,
   // ej. "/dashboard" a secas), TENANT_SLUG es null y todo se comporta
   // IDÉNTICO a antes de este segmento.
-  const RUTAS_PAGINA_MULTITENANT = ['admin', 'dashboard', 'tickets', 'login', 'csf', 'restablecer', 'mi-cuenta'];
+  const RUTAS_PAGINA_MULTITENANT = ['admin', 'dashboard', 'tickets', 'login', 'csf', 'restablecer', 'mi-cuenta', 'credito'];
 
   function detectarTenantSlug() {
     const segmentos = window.location.pathname.split('/').filter(Boolean);
@@ -40,10 +40,19 @@
   // actual, en vez de tener que mantener esa lógica duplicada en cada
   // archivo HTML.
   function reescribirEnlacesInternos() {
-    document.querySelectorAll('a[href$=".html"]').forEach((enlace) => {
-      const nombre = enlace.getAttribute('href').replace(/\.html$/, '');
+    // Acepta un "#ancla" opcional al final (ej. "mi-cuenta.html#credito-section",
+    // ver el tile de Home que abre directo en esa sección) — antes el
+    // selector exigía que el href terminara exactamente en ".html", así que
+    // cualquier enlace con ancla se quedaba sin reescribir en una URL con
+    // slug de tenant (/<slug>/mi-cuenta.html#... en vez de /<slug>/mi-cuenta#...).
+    document.querySelectorAll('a[href]').forEach((enlace) => {
+      const hrefOriginal = enlace.getAttribute('href');
+      const match = hrefOriginal.match(/^([a-z0-9-]+)\.html(#.*)?$/i);
+      if (!match) return;
+      const nombre = match[1];
+      const hash = match[2] || '';
       if (RUTAS_PAGINA_MULTITENANT.includes(nombre)) {
-        enlace.setAttribute('href', urlPagina(nombre));
+        enlace.setAttribute('href', urlPagina(nombre) + hash);
       }
     });
   }
@@ -126,7 +135,10 @@
       if (!res.ok) return;
       const data = await res.json();
       if (data.dias) {
-        aviso.textContent = `⏳ Los tickets se eliminan automáticamente ${data.dias} día${data.dias === 1 ? '' : 's'} después de haberse subido. Descarga tu factura antes de que esto ocurra.`;
+        // Sin emojis (regla del sitio) — mismo lenguaje de ícono SVG
+        // feather-like que usa el resto de la app, nunca un carácter Unicode.
+        const texto = `Los tickets se eliminan automáticamente ${data.dias} día${data.dias === 1 ? '' : 's'} después de haberse subido. Descarga tu factura antes de que esto ocurra.`;
+        aviso.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><span>${texto}</span>`;
         aviso.hidden = false;
       }
     } catch (err) {

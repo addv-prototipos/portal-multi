@@ -1636,19 +1636,20 @@
                   <div class="field">
                     <div class="orden-campo-header">
                       <label for="orden-email">Correo electrónico <span class="required">*</span></label>
-                      <span class="csf-badge">CSF validada</span>
+                      <span class="csf-badge" id="orden-csf-badge" hidden>CSF validada</span>
                     </div>
                     <select id="orden-email">
                       <option value="">Selecciona un correo</option>
                     </select>
-                    <p class="field-hint">Solo se muestran correos que ya tienen una constancia de situación fiscal subida.</p>
+                    <p class="field-hint">Lista cualquier cliente con cuenta en el portal. Los que ya tienen Constancia de Situación Fiscal muestran RFC y régimen fiscal.</p>
                     <p class="field-error" id="error-orden-email" role="alert"></p>
                   </div>
 
                   <div class="field" id="orden-datos-cliente" hidden>
                     <label>Datos asociados a este correo</label>
-                    <p class="orden-campo-automatico" id="orden-rfc-info">—</p>
-                    <p class="orden-campo-automatico" id="orden-nombre-info">—</p>
+                    <p class="orden-campo-automatico" id="orden-rfc-info" hidden>—</p>
+                    <p class="orden-campo-automatico" id="orden-nombre-info" hidden>—</p>
+                    <p class="orden-campo-automatico" id="orden-regimen-info" hidden>—</p>
                     <p class="field-hint">Solo lectura — verifica que sean los datos correctos antes de registrar la venta.</p>
                   </div>
                 </div>
@@ -5101,6 +5102,10 @@
               <label>Total</label>
               <p class="orden-total-preview" id="orden-modal-total">$0.00 MXN</p>
             </div>
+            <div class="field" id="orden-modal-notas-cobro-wrap" hidden>
+              <label>Notas de cobro</label>
+              <p class="orden-campo-automatico" id="orden-modal-notas-cobro">—</p>
+            </div>
           </section>
 
           <section class="orden-modal-side-card">
@@ -5141,12 +5146,28 @@
   <div class="modal-overlay" id="cxc-cobro-modal-overlay" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cxc-cobro-modal-title">
       <h2 id="cxc-cobro-modal-title">Registrar cobro</h2>
-      <p class="panel-subtitle" id="cxc-cobro-modal-subtitulo"></p>
-      <div class="field"><label>Saldo pendiente</label><p class="orden-total-preview" id="cxc-cobro-saldo">$0.00</p></div>
-      <div class="field"><label for="cxc-cobro-monto">Monto a cobrar (MXN) <span class="required">*</span></label><input type="text" inputmode="decimal" id="cxc-cobro-monto" placeholder="0.00" /><p class="field-error" id="error-cxc-cobro-monto" role="alert"></p><p class="field-hint">Debe ser ≤ saldo.</p></div>
-      <div class="field"><label for="cxc-cobro-notas">Notas de cobro</label><textarea id="cxc-cobro-notas" rows="2" maxlength="500" placeholder="Referencia, forma de pago..."></textarea></div>
-      <div class="btn-row"><button type="button" class="btn btn-secondary" id="btn-cxc-cobro-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="btn-cxc-cobro-guardar"><span id="btn-cxc-cobro-guardar-label">Guardar cobro</span></button></div>
-      <p class="field-hint"><button type="button" class="btn btn-secondary" id="btn-cxc-cobro-total" style="margin-top:8px">Cobro total (saldo completo)</button></p>
+
+      <!-- Misma animación de palomita que "Registrar venta"
+           (orden-form-exito, ver admin.css) — pedido explícito del
+           usuario (punto 377): el abono de CxC usaba solo un toast, sin
+           la confirmación animada que sí tiene el resto del flujo de
+           Ventas. -->
+      <div id="cxc-cobro-exito" class="orden-form-exito" hidden>
+        <svg class="orden-form-exito-check" width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <circle cx="32" cy="32" r="28" stroke="#05DBF2" stroke-width="4"/>
+          <path d="M20 33l8 8 16-18" stroke="#05DBF2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="orden-form-exito-texto" id="cxc-cobro-exito-texto">Cobro registrado</p>
+      </div>
+
+      <div id="cxc-cobro-form-body">
+        <p class="panel-subtitle" id="cxc-cobro-modal-subtitulo"></p>
+        <div class="field"><label>Saldo pendiente</label><p class="orden-total-preview" id="cxc-cobro-saldo">$0.00</p></div>
+        <div class="field"><label for="cxc-cobro-monto">Monto a cobrar (MXN) <span class="required">*</span></label><input type="text" inputmode="decimal" id="cxc-cobro-monto" placeholder="0.00" /><p class="field-error" id="error-cxc-cobro-monto" role="alert"></p><p class="field-hint">Debe ser ≤ saldo.</p></div>
+        <div class="field"><label for="cxc-cobro-notas">Notas de cobro</label><textarea id="cxc-cobro-notas" rows="2" maxlength="500" placeholder="Referencia, forma de pago..."></textarea></div>
+        <div class="btn-row"><button type="button" class="btn btn-secondary" id="btn-cxc-cobro-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="btn-cxc-cobro-guardar"><span id="btn-cxc-cobro-guardar-label">Guardar cobro</span></button></div>
+        <p class="field-hint"><button type="button" class="btn btn-secondary" id="btn-cxc-cobro-total" style="margin-top:8px">Cobro total (saldo completo)</button></p>
+      </div>
     </div>
   </div>
 

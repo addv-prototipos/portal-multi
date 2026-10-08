@@ -162,8 +162,12 @@ describe('Auth de usuario', () => {
       // tecleado — así folios/aclaraciones/header siguen viendo un RFC.
       expect(res.body.rfc).toBe(RFC_VALIDO);
       expect(res.headers['set-cookie'][0]).toMatch(/^sesion_usuario=/);
+      // Punto 377: acotado a perfil='cliente' — un correo que también
+      // pertenezca a una cuenta admin (comparten correo, perfiles
+      // distintos, ver CLAUDE.md) nunca debe poder iniciar sesión en el
+      // portal de clientes con ese correo.
       expect(pool.query).toHaveBeenCalledWith(
-        'SELECT * FROM usuarios WHERE rfc = ? OR email = ?',
+        "SELECT * FROM usuarios WHERE (rfc = ? OR email = ?) AND perfil = 'cliente'",
         ['CLIENTE@EXAMPLE.COM', 'cliente@example.com']
       );
     });

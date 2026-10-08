@@ -1,9 +1,10 @@
-// E2E de "Gestión de crédito" en Mi Cuenta (segmento 3 del punto en
-// curso, ver conversación del 2026-10-02): visibilidad de CxC + historial
-// real de abonos para el cliente logueado, vinculado por correo. Corre
-// contra el tenant real "t1" (Ventas/CxC activos por defecto, Facturación
-// apagada — sin relación con este módulo), creando y limpiando su propio
-// usuario + ventas + abono vía la API de /admin.
+// E2E de "Gestión de crédito" (página propia, credito.html — antes vivía
+// dentro de Mi Cuenta, separada en el punto 377 porque el usuario la
+// quería sin compartir pantalla con los datos de contacto): visibilidad
+// de CxC + historial real de abonos para el cliente logueado, vinculado
+// por correo. Corre contra el tenant real "t1" (Ventas/CxC activos por
+// defecto, Facturación apagada — sin relación con este módulo), creando
+// y limpiando su propio usuario + ventas + abono vía la API de /admin.
 
 import { test, expect, APIRequestContext } from '@playwright/test';
 
@@ -93,16 +94,24 @@ test('Gestión de crédito muestra resumen, venta pendiente y abono reales', asy
   await page.click('#btn-login');
   await expect(page).toHaveURL(/\/t1\/dashboard$/);
 
-  await page.goto('/t1/mi-cuenta');
+  await page.goto('/t1/credito');
   const seccion = page.locator('#credito-section');
   await expect(seccion).toBeVisible();
 
-  await expect(page.locator('#credito-kpi-total')).toHaveText('$580.00');
+  // Punto 377 (v2): "Total facturado" se quitó; en su lugar, conteo de
+  // créditos activos + "Total de la deuda" (mismo id credito-kpi-saldo,
+  // etiqueta nueva) + "Total pagado" (sin cambios).
+  await expect(page.locator('#credito-kpi-creditos')).toHaveText('1');
   await expect(page.locator('#credito-kpi-pagado')).toHaveText('$150.00');
   await expect(page.locator('#credito-kpi-saldo')).toHaveText('$430.00');
 
-  await expect(page.locator('#credito-ventas-body tr')).toHaveCount(1);
-  await expect(page.locator('#credito-ventas-body')).toContainText('$430.00');
+  // Dona general: $150 de $580 = 26% cubierto.
+  await expect(page.locator('#credito-dona-general')).toBeVisible();
+  await expect(page.locator('#credito-dona-pct')).toHaveText('26%');
+
+  // La tabla plana se reemplazó por un anillo individual por crédito.
+  await expect(page.locator('#credito-lista-creditos .credito-item')).toHaveCount(1);
+  await expect(page.locator('#credito-lista-creditos')).toContainText('$150.00 pagado de $580.00');
 
   await expect(page.locator('#credito-abonos-body tr')).toHaveCount(1);
   await expect(page.locator('#credito-abonos-body')).toContainText('$150.00');
@@ -123,9 +132,11 @@ test('Cliente sin ventas ve el estado vacío, no la sección oculta', async ({ p
   await page.click('#btn-login');
   await expect(page).toHaveURL(/\/t1\/dashboard$/);
 
-  await page.goto('/t1/mi-cuenta');
+  await page.goto('/t1/credito');
   await expect(page.locator('#credito-section')).toBeVisible();
-  await expect(page.locator('#credito-kpi-total')).toHaveText('$0.00');
+  await expect(page.locator('#credito-kpi-creditos')).toHaveText('0');
+  await expect(page.locator('#credito-kpi-saldo')).toHaveText('$0.00');
+  await expect(page.locator('#credito-dona-general')).toBeHidden();
   await expect(page.locator('#credito-ventas-empty')).toBeVisible();
   await expect(page.locator('#credito-abonos-empty')).toBeVisible();
 

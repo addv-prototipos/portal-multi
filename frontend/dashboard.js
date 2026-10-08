@@ -106,10 +106,13 @@
         return;
       }
       const data = await res.json();
-      renderTickets(data.tickets || []);
+      const tickets = data.tickets || [];
+      renderTickets(tickets);
       Esqueleto.quitarEsqueletoTabla(els.tbody);
+      return tickets.length;
     } catch (err) {
       Esqueleto.aplicarErrorTabla(els.tbody, 6, 'No se pudo conectar con el servidor.', cargarTickets);
+      return null;
     }
   }
 
@@ -126,16 +129,78 @@
     document.getElementById('portal-solicitudes')?.remove();
   }
 
+  // % de perfil completado a partir de pasos reales (antes quedaba fijo
+  // en "50%" en el HTML/CSS sin importar qué faltara — ver portal.css
+  // .ring-progress). Decisión del usuario (punto 377, addendum): esta
+  // tarjeta es solo sobre DATOS PERSONALES del cliente (lo que vive en
+  // "Mi cuenta" — Datos de contacto), nunca sobre acciones operativas
+  // como subir la CSF o un ticket (esas ya tienen sus propios tiles en
+  // Home, no necesitan aparecer aquí también). Hoy el único campo
+  // personal realmente opcional es el nombre (teléfono/correo ya son
+  // obligatorios desde el registro) — la lista queda así a propósito,
+  // como un array de un solo elemento, para que agregar un campo
+  // personal nuevo más adelante sea solo sumar una entrada aquí, sin
+  // tocar el resto de esta función.
+  function calcularPerfilCompletado(nombre) {
+    const pasos = [{ hecho: Boolean(nombre && nombre.trim()), texto: 'Agregar nombre', pagina: 'mi-cuenta' }];
+    const hechos = pasos.filter((p) => p.hecho).length;
+    const siguiente = pasos.find((p) => !p.hecho);
+    return { hechos, total: pasos.length, porcentaje: Math.round((hechos / pasos.length) * 100), siguiente };
+  }
+
   function aplicarCardPerfil(nombre) {
     const card = document.getElementById('profile-card');
     if (!card) return;
-    if (nombre && nombre.trim()) {
+    const { hechos, total, porcentaje, siguiente } = calcularPerfilCompletado(nombre);
+    if (hechos === total) {
       card.hidden = true;
       return;
     }
     card.hidden = false;
     const nameEl = document.getElementById('profile-name');
     if (nameEl) nameEl.textContent = 'Usuario';
+    const accionEl = document.getElementById('profile-action');
+    const accionTextoEl = document.getElementById('profile-action-texto');
+    if (siguiente && accionEl && accionTextoEl) {
+      // urlPagina(), no el href crudo — portal.js ya reescribió el href
+      // original con el slug del tenant al cargar la página
+      // (reescribirEnlacesInternos); sobreescribirlo con una ruta sin
+      // slug rompía la navegación en sitios con tenant (bug real,
+      // encontrado al correr el E2E después de este mismo cambio).
+      accionEl.setAttribute('href', urlPagina(siguiente.pagina));
+      accionTextoEl.textContent = siguiente.texto;
+    }
+    // "Perfil incompleto" es la etiqueta ya aprobada (punto 358, ver
+    // e2e/tests/dashboard-profile-card.spec.ts) — se conserva siempre;
+    // el detalle "X de Y pasos" se agrega solo cuando hay más de 1 campo
+    // personal que contar (hoy solo el nombre, "1 de 1 pasos" no aporta
+    // nada que "Perfil incompleto" no diga ya — en cuanto se agregue un
+    // 2do campo personal, este detalle aparece solo).
+    const statusEl = document.getElementById('profile-status-text');
+    if (statusEl) statusEl.textContent = total > 1 ? `Perfil incompleto — ${hechos} de ${total} pasos` : 'Perfil incompleto';
+    const textoEl = document.getElementById('profile-completion-text');
+    if (textoEl) textoEl.textContent = `${porcentaje}%`;
+    const ringEl = document.getElementById('profile-ring-progress');
+    if (ringEl) {
+      const circunferencia = 163.36; // 2 * PI * r=26, ver portal.css
+      ringEl.style.strokeDashoffset = String(circunferencia * (1 - porcentaje / 100));
+    }
+  }
+
+  // Tile "Gestión de crédito": mismo candado que ya protege la sección
+  // dentro de Mi cuenta (ventasHabilitado + cxcHabilitado) — se reusa la
+  // misma llamada liviana solo para decidir si se muestra la entrada,
+  // nunca se asume visible por defecto (ver CLAUDE.md, "backend-only no es
+  // suficiente").
+  async function aplicarTileCredito() {
+    const tile = document.getElementById('tile-credito');
+    if (!tile) return;
+    try {
+      const res = await fetch(`${API_BASE}/mi-cuenta/credito`, { credentials: 'include' });
+      tile.hidden = !res.ok;
+    } catch (err) {
+      tile.hidden = true;
+    }
   }
 
   (async function init() {
@@ -143,7 +208,9 @@
     if (!rfc) return;
     const facturacionHabilitada = window.Portal.sesion ? window.Portal.sesion.facturacionHabilitada : true;
     aplicarGatingFacturacion(facturacionHabilitada);
-    aplicarCardPerfil(window.Portal.sesion ? window.Portal.sesion.nombre : '');
+    const nombre = window.Portal.sesion ? window.Portal.sesion.nombre : '';
+    aplicarCardPerfil(nombre);
     if (facturacionHabilitada) await cargarTickets();
+    aplicarTileCredito();
   })();
 })();

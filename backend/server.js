@@ -1570,7 +1570,15 @@ app.post(
       return res.status(400).json({ error: 'Ingresa tu RFC o correo y tu contraseña.' });
     }
 
-    const [filas] = await pool.query('SELECT * FROM usuarios WHERE rfc = ? OR email = ?', [
+    // Login del PORTAL DE CLIENTES — perfil='cliente' siempre, nunca se
+    // deja sin filtrar (punto 377): desde que un correo puede pertenecer a
+    // la vez a una cuenta 'administrador' y a una cuenta 'cliente' (mismo
+    // correo, roles distintos), un WHERE sin perfil podía traer las 2 filas
+    // y quedarse con la que MySQL devolviera primero — si esa era la fila
+    // admin, el cliente real recibía "RFC, correo o contraseña
+    // incorrectos" aunque su contraseña fuera correcta, porque se
+    // comparaba contra el hash equivocado.
+    const [filas] = await pool.query("SELECT * FROM usuarios WHERE (rfc = ? OR email = ?) AND perfil = 'cliente'", [
       identificador.toUpperCase(),
       identificador.toLowerCase(),
     ]);
@@ -1714,9 +1722,19 @@ app.put(
 
     // El correo ya se usa para asociar movimientos de crédito y, a
     // futuro, como identificador alterno de login (ver punto en curso) —
-    // debe ser único por tenant igual que el RFC. 409, mismo criterio que
-    // slug duplicado en /control.
-    const [dup] = await pool.query('SELECT rfc FROM usuarios WHERE email = ? AND rfc <> ? LIMIT 1', [email, req.userRfc]);
+    // debe ser único por tenant igual que el RFC, pero SOLO dentro de
+    // perfil 'cliente' (decisión del usuario, punto 377): un mismo correo
+    // puede pertenecer a la vez a una cuenta 'administrador' y a una
+    // cuenta 'cliente' (el dueño del negocio es también su propio
+    // cliente) — eso no es un duplicado real, son roles distintos de la
+    // misma persona para el negocio. Sin el filtro de perfil, guardar el
+    // nombre de la cuenta cliente chocaba contra la cuenta admin que
+    // comparte el mismo correo. 409, mismo criterio que slug duplicado en
+    // /control.
+    const [dup] = await pool.query(
+      "SELECT rfc FROM usuarios WHERE email = ? AND rfc <> ? AND perfil = 'cliente' LIMIT 1",
+      [email, req.userRfc]
+    );
     if (dup[0]) {
       return res.status(409).json({ error: 'Ese correo ya está en uso por otra cuenta.' });
     }
@@ -6658,15 +6676,16 @@ app.get(
 
 // ---------- Órdenes de compra ----------
 
-// Lista los correos de constancias activas, para el desplegable de
-// "correo electrónico" del formulario de orden de compra — solo se puede
-// elegir un correo que ya tenga una constancia de situación fiscal
-// subida, no capturar uno a mano. Junto con cada correo se manda el RFC
-// y el nombre/razón social asociados (el correo es único por registro,
-// ver UNIQUE KEY uq_registros_email en db.js, así que no hace falta
-// DISTINCT) — el frontend los muestra de solo lectura en cuanto se
-// selecciona un correo, como medida para confirmar que son los datos
-// correctos antes de registrar la orden.
+// Lista cualquier cliente con cuenta en el portal (perfil 'cliente' en
+// `usuarios`), para el desplegable de "correo electrónico" del formulario
+// de orden de compra — decisión del usuario, punto 377: antes solo listaba
+// correos con constancia de situación fiscal ya subida (tabla `registros`),
+// lo que dejaba el desplegable vacío para cualquier cliente que ya tuviera
+// cuenta pero no hubiera subido su CSF todavía. El RFC/nombre de solo
+// lectura que ve el admin siguen viniendo de `registros` cuando existe
+// (dato validado contra la CSF real); si el cliente aún no la sube, se cae
+// al nombre que el propio cliente capturó en "Mi cuenta" y el RFC queda en
+// blanco — eso no bloquea registrar la venta, solo informa de menos.
 app.get(
   '/api/admin/correos-registrados',
   adminApiLimiter,
@@ -6674,7 +6693,14 @@ app.get(
   requireAdminArea('administrador', 'ventas'),
   asyncHandler(async (req, res) => {
     const [filas] = await pool.query(
-      'SELECT email, rfc, nombre FROM registros WHERE eliminado_en IS NULL ORDER BY email ASC'
+      `SELECT u.email AS email,
+              CASE WHEN r.rfc IS NOT NULL THEN r.rfc ELSE NULL END AS rfc,
+              r.regimen_fiscal AS regimen_fiscal,
+              COALESCE(r.nombre, u.nombre) AS nombre
+       FROM usuarios u
+       LEFT JOIN registros r ON r.email = u.email AND r.eliminado_en IS NULL
+       WHERE u.perfil = 'cliente'
+       ORDER BY u.email ASC`
     );
     res.json({ correos: filas });
   })
@@ -6899,23 +6925,26 @@ app.post(
       }
       email = emailCapturado;
 
-      // "Cliente nuevo" (sin constancia todavía, ver frontend): se salta la
-      // exigencia de que el correo ya tenga una constancia activa — la orden
-      // solo necesita un correo válido (ver ordenes_compra en db.js, no
-      // guarda RFC/nombre, así que no hay ningún otro dato que depender de
-      // un registro existente). "Cliente ya registrado" (el modo de
-      // siempre) sigue exigiendo la constancia activa — el desplegable del
-      // frontend solo ofrece esos correos, pero se revalida aquí del lado
-      // del servidor por si acaso (nunca se confía solo en lo que mande el
+      // "Cliente nuevo" (sin cuenta todavía, ver frontend): se salta
+      // cualquier exigencia — la orden solo necesita un correo válido (ver
+      // ordenes_compra en db.js, no guarda RFC/nombre, así que no hay
+      // ningún otro dato que depender de una cuenta existente). "Cliente ya
+      // registrado" exige que el correo pertenezca a una cuenta real del
+      // portal (perfil 'cliente' en `usuarios`) — ya NO exige constancia de
+      // situación fiscal subida (decisión del usuario, punto 377: el
+      // desplegable ahora ofrece cualquier cliente del portal, con o sin
+      // CSF, así que la validación del servidor tiene que coincidir con lo
+      // que el desplegable realmente ofrece). Se revalida aquí del lado del
+      // servidor por si acaso (nunca se confía solo en lo que mande el
       // navegador).
       if (!body.es_cliente_nuevo) {
-        const [registrosCoincidentes] = await pool.query(
-          'SELECT id FROM registros WHERE email = ? AND eliminado_en IS NULL LIMIT 1',
+        const [usuariosCoincidentes] = await pool.query(
+          "SELECT rfc FROM usuarios WHERE email = ? AND perfil = 'cliente' LIMIT 1",
           [email]
         );
-        if (registrosCoincidentes.length === 0) {
+        if (usuariosCoincidentes.length === 0) {
           return res.status(400).json({
-            error: 'Ese correo no corresponde a ninguna constancia de situación fiscal activa.',
+            error: 'Ese correo no corresponde a ningún cliente registrado en el portal.',
           });
         }
       }

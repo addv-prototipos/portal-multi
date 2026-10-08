@@ -209,6 +209,9 @@ server {
     location = /mi-cuenta {
         try_files /mi-cuenta.html =404;
     }
+    location = /credito {
+        try_files /credito.html =404;
+    }
     # Sin access_log (auditoría 2026-09-03, hallazgo #10): el enlace de
     # restablecimiento lleva el token como query string
     # (?token=...) — el formato de log combinado de nginx incluye la
@@ -257,7 +260,7 @@ server {
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/admin$" {
         try_files /admin.html =404;
     }
-    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/(?<pagina_tenant>dashboard|tickets|login|csf|mi-cuenta)$" {
+    location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/(?<pagina_tenant>dashboard|tickets|login|csf|mi-cuenta|credito)$" {
         try_files /$pagina_tenant.html =404;
     }
     # Separado del location de arriba (mismo motivo que "location =

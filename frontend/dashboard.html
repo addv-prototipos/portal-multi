@@ -36,16 +36,16 @@
         <div class="profile-name" id="profile-name">Usuario</div>
         <div class="profile-status">
           <span class="status-dot"></span>
-          Perfil incompleto
+          <span id="profile-status-text">Perfil incompleto</span>
         </div>
       </div>
       <div class="profile-completion">
         <div class="completion-ring">
           <svg width="64" height="64" viewBox="0 0 64 64">
             <circle class="ring-bg" cx="32" cy="32" r="26"/>
-            <circle class="ring-progress" cx="32" cy="32" r="26"/>
+            <circle class="ring-progress" id="profile-ring-progress" cx="32" cy="32" r="26"/>
           </svg>
-          <div class="completion-text">50%</div>
+          <div class="completion-text" id="profile-completion-text">0%</div>
         </div>
         <div class="completion-label">Completado</div>
       </div>
@@ -54,7 +54,7 @@
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
         </svg>
-        Agregar nombre
+        <span id="profile-action-texto">Agregar nombre</span>
       </a>
     </div>
 
@@ -98,6 +98,20 @@
         <span class="tile-texto">
           <span class="tile-titulo">Mi cuenta</span>
           <span class="tile-descripcion">Tus datos de contacto y tu contraseña.</span>
+        </span>
+        <span class="tile-flecha" aria-hidden="true">→</span>
+      </a>
+
+      <a class="tile" href="credito.html" id="tile-credito" hidden>
+        <span class="tile-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M2 10h20" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </span>
+        <span class="tile-texto">
+          <span class="tile-titulo">Gestión de crédito</span>
+          <span class="tile-descripcion">Revisa tu saldo pendiente y tu historial de abonos.</span>
         </span>
         <span class="tile-flecha" aria-hidden="true">→</span>
       </a>

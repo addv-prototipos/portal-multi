@@ -39,12 +39,12 @@
   // "mi-cuenta" se agrega aquí (punto 374) — ya cargaba theme.js pero
   // faltaba en esta lista, así que nunca pintaba tema ni, ahora, el aviso
   // de portal desactivado.
-  var RUTAS_PAGINA_MULTITENANT = ['dashboard', 'tickets', 'login', 'csf', 'admin', 'restablecer', 'mi-cuenta'];
+  var RUTAS_PAGINA_MULTITENANT = ['dashboard', 'tickets', 'login', 'csf', 'admin', 'restablecer', 'mi-cuenta', 'credito'];
   // Punto 374: subconjunto de lo anterior que SÍ es portal de cliente —
   // "admin" pinta CSS variables igual (identidad de marca), pero nunca
   // debe mostrar el aviso de "portal de clientes desactivado": ese flag
   // no afecta al panel de administración, solo a la sesión del cliente.
-  var RUTAS_PORTAL_CLIENTE = ['dashboard', 'tickets', 'login', 'csf', 'restablecer', 'mi-cuenta'];
+  var RUTAS_PORTAL_CLIENTE = ['dashboard', 'tickets', 'login', 'csf', 'restablecer', 'mi-cuenta', 'credito'];
   function detectarTenantSlug() {
     var segmentos = window.location.pathname.split('/').filter(Boolean);
     if (segmentos.length >= 2 && RUTAS_PAGINA_MULTITENANT.indexOf(segmentos[1]) !== -1) {

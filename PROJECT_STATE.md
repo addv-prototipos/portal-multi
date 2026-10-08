@@ -19311,6 +19311,357 @@ página 404 nueva con identidad Clarvo + redirect a clarvo.mx):**
   `portal-pausa-admin.spec.ts` 3/3 sin regresión tras el rebuild de
   frontend.
 
+**Punto 377 (2026-10-07, CERRADO — 4 hallazgos del portal de clientes:
+correo no aparece en Ventas, "Mi cuenta" bloqueaba guardar, crédito fuera
+de Home, emoji + % fijo en Home):**
+
+Propuesta visual antes/después presentada vía Artifact y autorizada por
+el usuario antes de implementar (protocolo `addv-web-app`), con 2
+decisiones de producto confirmadas explícitamente a mitad de
+implementación (ver abajo, "unicidad de correo").
+
+- **Desplegable "Cliente ya registrado" en Ventas vacío pese a tener
+  clientes con cuenta**: `GET /api/admin/correos-registrados`
+  (`backend/server.js`) leía SOLO la tabla `registros` (correos con CSF
+  ya subida) — confirmado contra MySQL real: 14 cuentas `perfil='cliente'`
+  en `usuarios`, solo 6 filas en `registros`. Decisión del usuario:
+  el desplegable ahora lista CUALQUIER cliente del portal
+  (`usuarios WHERE perfil='cliente'`, `LEFT JOIN registros` para
+  RFC/nombre de solo lectura cuando existen). La validación del servidor
+  en `POST /api/admin/ordenes-compra` (modo "cliente ya registrado", NO
+  "cliente nuevo") se actualizó para coincidir: ya NO exige una fila en
+  `registros`, exige que el correo pertenezca a una cuenta `usuarios` con
+  `perfil='cliente'` — si no, el guardado hubiera fallado con un mensaje
+  que ya no aplicaba ("ninguna constancia de situación fiscal activa").
+- **"Mi cuenta" bloqueaba guardar el nombre con "Ese correo ya está en uso
+  por otra cuenta"**: bug real confirmado contra MySQL (no hipótesis) —
+  la cuenta de prueba del propio usuario tiene 2 filas en `usuarios` con
+  el mismo correo (`antoniopradoo@gmail.com`): una `perfil='administrador'`
+  (rfc `TONY`) y una `perfil='cliente'` (rfc `PAOA840705460`). El chequeo
+  de unicidad de `PUT /api/mi-cuenta` comparaba contra TODAS las filas de
+  `usuarios` sin filtrar por perfil, así que la cuenta cliente chocaba
+  contra la cuenta admin del mismo dueño del negocio.
+  **Decisión de producto (aclarada en 2 vueltas durante la sesión, ver
+  CLAUDE.md "Dos tablas de flags globales" — mismo patrón de "no asumir":
+  la correo-unicidad SÍ es distinta por población)**: un correo debe ser
+  único DENTRO de `perfil='cliente'` (dos clientes no pueden compartir
+  correo), pero una cuenta admin (`administrador`/`fiscal`/`ventas`/
+  `inventario`) SÍ puede compartir correo con una cuenta cliente — porque
+  el lado admin **nunca usa correo para login** (usa `rfc` como nombre de
+  usuario, ver `backend/utils/auth.js:194`, ya acotado a esos 4 perfiles,
+  no tocado). Se corrigieron 3 queries para que esta regla sea consistente
+  en todo el archivo:
+  - `PUT /api/mi-cuenta` (línea ~1719): `AND perfil = 'cliente'` agregado
+    al chequeo de duplicado.
+  - `POST /api/auth/login` (línea ~1573, login del PORTAL DE CLIENTES):
+    **bug nuevo descubierto en vivo durante la verificación** — sin este
+    mismo filtro, `SELECT * FROM usuarios WHERE rfc = ? OR email = ?`
+    podía traer la fila ADMIN en vez de la fila CLIENTE cuando ambas
+    comparten correo (el orden de MySQL no está garantizado), y
+    `verifyPassword()` comparaba contra el hash equivocado — el cliente
+    real recibía "RFC, correo o contraseña incorrectos" con su contraseña
+    correcta. Reproducido con curl + DB real antes de corregir. Ahora
+    `AND perfil = 'cliente'`.
+  - `GET /api/admin/correos-registrados` y el `es_cliente_nuevo` check de
+    `POST /api/admin/ordenes-compra`: ya nacieron acotados a
+    `perfil='cliente'` en este mismo punto (ver arriba).
+  **Fuera de alcance, documentado, no corregido**: `POST /api/auth/recuperar`
+  (recuperación de contraseña) sigue con `LIMIT 1` sin filtrar por perfil
+  — si un correo compartido admin/cliente pide recuperación, el token se
+  genera para UNA sola de las 2 filas (no determinístico cuál). No se
+  tocó porque el comentario existente ya documenta que esa ruta sirve a
+  propósito tanto a clientes como a admin/fiscal por la misma columna
+  `rfc`/`email`, y resolver la ambigüedad requiere una decisión de
+  producto propia (cuál cuenta debe ganar, o pedir que se especifique) —
+  no se asumió.
+- **"Gestión de crédito" fuera de Home**: vivía (y sigue viviendo) como
+  sección dentro de `mi-cuenta.html` (`#credito-section`, ya gateada por
+  `ventasHabilitado`+`cxcHabilitado`, sin tocar). Se agregó un 4to tile en
+  `frontend/dashboard.html` (`#tile-credito`, `hidden` por defecto) que
+  enlaza a `mi-cuenta.html#credito-section` — `aplicarTileCredito()` en
+  `dashboard.js` reusa el mismo `GET /api/mi-cuenta/credito` para
+  decidir visibilidad (200 = mostrar, 404 = módulo apagado, mismo
+  criterio de "3 capas" que el resto del candado de features). El
+  navegador no puede saltar solo a un elemento que arrancó `hidden` en el
+  HTML estático, así que `mi-cuenta.js:cargarCredito()` hace
+  `scrollIntoView()` a mano cuando `location.hash === '#credito-section'`.
+  Efecto lateral necesario: `portal.js:reescribirEnlacesInternos()`
+  exigía que el `href` terminara exactamente en `.html` (selector
+  `a[href$=".html"]`) — un link con `#ancla` nunca matcheaba, así que en
+  una URL con slug de tenant el tile de crédito hubiera quedado roto
+  (sin reescribir a `/<slug>/mi-cuenta#credito-section`). Corregido para
+  aceptar un `#ancla` opcional al final — cambio general, beneficia a
+  cualquier link futuro con ancla, no solo a este tile.
+- **Emoji real + "50% completado" fijo en Home**: `⏳` en
+  `frontend/portal.js:129` (aviso de retención de tickets, visible en
+  Home y en Subir tickets) — sustituido por el mismo lenguaje de ícono
+  SVG feather-like del resto del sitio (reloj/clock), sin tocar el texto.
+  El anillo de "perfil completado" en `dashboard.html` tenía el texto
+  `50%` Y el `stroke-dashoffset` del SVG **literalmente hardcodeados**
+  (`portal.css` `.ring-progress { stroke-dashoffset: 81.68 }`, exactamente
+  la mitad de la circunferencia) — mostraba "50%" SIEMPRE que el nombre
+  faltara, sin importar nada más. Ahora `dashboard.js` calcula un
+  porcentaje real sobre pasos verificables (nombre capturado + al menos 1
+  ticket subido, reutilizando el conteo que `cargarTickets()` ya trae —
+  cero llamadas nuevas) y lo aplica tanto al texto como al
+  `stroke-dashoffset` vía JS; la CSS solo deja la circunferencia total
+  (163.36, ese valor SÍ es constante, es el largo del trazo) con un
+  `prefers-reduced-motion: reduce` nuevo para la transición del anillo.
+- **Verificación real** (no solo unitaria, protocolo `addv-web-app` paso
+  7): rebuild + recreate de `backend`+`frontend` contra Docker/MySQL
+  reales; los 4 hallazgos se probaron con consultas SQL directas
+  (confirmando el bug ANTES del fix y el resultado correcto DESPUÉS) y
+  con clics reales en navegador headed (Claude in Chrome) usando la
+  cuenta de prueba real del propio usuario — login, guardar nombre en Mi
+  Cuenta sin error, tile de crédito visible y con scroll automático,
+  anillo pasando de 0% ("0 de 2 pasos") a 50% ("1 de 2 pasos") tras
+  guardar el nombre. Jest backend 1200/1200 (3 tests actualizados para
+  reflejar el nuevo comportamiento esperado, no solo ajustados para pasar:
+  `ordenes-compra.test.js` y `auth-usuario.test.js`). `portal_clientes_pausado`
+  se tocó temporalmente en la BD local para poder loguearse durante la
+  verificación y se restauró a su valor original (`true`) al terminar.
+
+**Addendum al punto 377 (mismo día, CERRADO — causa raíz real del
+desplegable vacío en Ventas + régimen fiscal agregado al panel de solo
+lectura):** el usuario reportó que el desplegable seguía vacío incluso
+después del fix de la fuente de datos de arriba. Reproducido en vivo con
+Playwright/Claude in Chrome (no solo curl): el dato SÍ estaba correcto en
+`GET /api/admin/correos-registrados` (confirmado por curl, 14 clientes en
+sitio base, 2 en tenant `t1`), pero `frontend/admin.js:
+correosRegistradosCache` se queda en `[]` para siempre a menos que el
+admin haya entrado antes a la vista "Ventas" del sidebar en esa misma
+sesión — es la ÚNICA ruta que llama `cargarCorreosRegistrados()` (dentro
+del switch de vista, línea ~7858). El atajo global
+"+ Registrar venta" del header (`#btn-header-registrar-venta`, visible en
+las 12 vistas, el camino más obvio y el que de hecho usó el usuario) y
+los botones de estado vacío de Ventas/CxC abren el mismo modal
+(`abrirOrdenRegistrarModal()`) SIN pasar nunca por esa vista — bug
+preexistente a esta sesión, no introducido por el cambio de fuente de
+datos; ya había un comentario en el código reconociendo este mismo patrón
+para el IVA% (`cargarConfigGlobalParaOrden`) pero no se replicó para los
+correos. Fix: `cargarCorreosRegistrados()` ahora se dispara (sin esperar,
+fire-and-forget) dentro de `abrirOrdenRegistrarModal()` mismo — cubre los
+3 caminos de entrada de una sola vez. Verificado real en navegador:
+sesión nueva → "Registrar venta" directo desde el header SIN visitar
+Ventas antes → desplegable con los 14 correos.
+Adicional, pedido explícito del usuario para el panel de solo lectura
+"Datos asociados a este correo" — 3 reglas exactas, implementadas en
+`actualizarDatosClienteOrden()`: (1) con RFC (CSF validada) → RFC +
+Nombre/Razón social + Régimen fiscal, badge "CSF validada" (ahora
+condicional al cliente seleccionado, antes era fijo y mentía para el
+resto); (2) sin RFC pero con nombre (lo capturó en Mi Cuenta) → solo el
+nombre; (3) sin RFC ni nombre → solo el correo. `regimen_fiscal` se
+agregó al `SELECT` de `/api/admin/correos-registrados` (ya existía como
+columna en `registros`, nunca se exponía aquí). El hint estático
+"Solo se muestran correos que ya tienen una constancia..." (ya mentira
+desde el fix de la fuente de datos) se corrigió a juego. Verificado en
+vivo con los 3 casos reales (correo sin RFC/sin nombre no se probó por
+falta de dato de ejemplo en el seed, pero la rama de código es simétrica
+a las otras 2). Jest backend 1200/1200 sin regresión.
+
+**Segundo addendum al punto 377 (mismo día, CERRADO — Gestión de crédito a
+página propia, anillo de perfil mal medido, % atorado en "1 de 2 pasos"):**
+
+- **"Gestión de crédito" separada a página propia** (`frontend/credito.html` +
+  `credito.js`, nuevos) — el usuario la quería sin compartir pantalla con
+  "Datos de contacto"/"Cambiar contraseña". Se movió tal cual (mismo
+  `GET /api/mi-cuenta/credito`, mismo candado 404 por feature apagada) fuera
+  de `mi-cuenta.html`/`mi-cuenta.js`. El tile de Home ahora enlaza directo a
+  `credito.html` (antes `mi-cuenta.html#credito-section` + un
+  `scrollIntoView` a mano, ya no hace falta). Nuevas rutas registradas en
+  `nginx.conf.template` (`location = /credito` + agregado a la alternativa
+  regex de tenant) y en las 2 listas de rutas multi-tenant del frontend
+  (`portal.js` y `theme.js: RUTAS_PAGINA_MULTITENANT`/`RUTAS_PORTAL_CLIENTE`)
+  — un hallazgo aparte en el camino: `portal.js:reescribirEnlacesInternos()`
+  exigía que el `href` terminara exactamente en `.html`, así que un link con
+  `#ancla` (el patrón viejo) nunca se reescribía en una URL con slug de
+  tenant; corregido para aceptar un `#ancla` opcional (beneficia a cualquier
+  link futuro con ancla, no solo a este). `frontend/Dockerfile` actualizado
+  con los 2 archivos nuevos. E2E `mi-cuenta-credito.spec.ts` renombrado a
+  `credito.spec.ts` y apuntado a `/t1/credito` — 2/2 en verde.
+- **Bug real: el anillo de "% completado" nunca llegaba a 100%** — el primer
+  intento de este mismo punto 377 solo contaba 2 pasos (nombre + al menos 1
+  ticket), pero el tablero en sí sugiere SUBIR LA CSF como primer paso — un
+  cliente que ya la subió pero no tiene tickets se quedaba en "1 de 2 pasos"
+  para siempre, sin poder llegar a 100%. Ahora son 3 pasos reales (nombre +
+  CSF subida, vía el mismo `GET /api/registro/existe` que ya usa
+  `tickets.js` + al menos 1 ticket), calculados en paralelo con
+  `Promise.all` (sin costo extra de latencia). La etiqueta "Perfil
+  incompleto" (copy ya aprobado, punto 358) se conserva siempre; el detalle
+  "X de Y pasos" se agrega solo cuando hay más de 1 paso real que contar.
+- **Bug real: el "50%"/anillo no se veía centrado** — no era ilusión óptica:
+  `portal.css .completion-ring` medía 56×56px pero el `<svg>` real
+  (`dashboard.html`) es 64×64 (`viewBox="0 0 64 64"`) — el SVG desbordaba su
+  contenedor sin quedar centrado en ese desborde. Corregido a 64×64 +
+  `display:block` en el svg.
+- **Verificación real**: Jest backend 1200/1200. E2E real contra
+  Docker/MySQL: `credito.spec.ts` 2/2, `dashboard-profile-card.spec.ts` 2/2
+  (actualizado para reflejar el % dinámico real en vez del "50%" fijo que
+  el propio bug original producía), `mi-cuenta.spec.ts` 5/5 — los 3 juntos,
+  sin regresión. Nota de proceso: correr el E2E completo en un solo batch
+  reveló 4 fallas más (`contexto-urls`, `cxc`, `portal-desactivado`,
+  `portal-pausa-admin`) — las 4 se confirmaron preexistentes/ambientales
+  (tenant nunca aprovisionado, `inventario_activo` del tenant base,
+  flaqueza de estado compartido entre archivos corriendo en paralelo) al
+  re-correrlas aisladas, NO regresiones de esta sesión — antes de asumir que
+  un fallo de E2E es culpa del cambio recién hecho, aislar el archivo
+  (`--workers=1`, un solo spec) y confirmar que sí se reproduce solo.
+
+**Pendiente de confirmación del usuario (mismo día, mismo punto 377 — NO
+implementado todavía, propuesta visual enviada vía Artifact)**:
+2 hallazgos nuevos en Admin → Cuentas por cobrar, ya diagnosticados en
+código pero sin tocar hasta que el usuario elija:
+- Botón "Copiar recordatorio" (`admin.js`, fila de CxC) — reusa el MISMO
+  ícono SVG que "Enviar recordatorio por correo", se ve como un duplicado;
+  aparece en todas las filas pendientes sin haberse pedido. Candidato a
+  eliminar.
+- `notas_cobro` (capturado al crear una venta pendiente y al registrar un
+  cobro, ya viaja en el `SELECT` del backend) nunca se imprime en el modal
+  de detalle (`abrirOrdenModal()`) ni se incluye en la búsqueda de CxC
+  (`aplicarFiltrosCxc()`) — campo muerto confirmado en código.
+Más una redistribución de `credito.html` pedida por el usuario: quitar el
+tile "Total facturado", agregar un conteo de "créditos activos" (ventas con
+saldo pendiente) y una gráfica de dona (pagado vs. pendiente, paleta
+verde/ámbar ya usada en los badges `.estatus-listo`/`.estatus-pendiente`
+del sitio, validada contra los 6 checks de la skill `dataviz` —
+`#146C43`/`#D97706` en claro, `#2A9D6B`/`#C77A1F` en oscuro). 5 propuestas
+de layout distintas presentadas en Artifact
+(`propuesta-admin-cxc-y-credito-cliente.html`) — el usuario pidió
+explícitamente esperar su elección antes de tocar código para estos 3
+puntos.
+
+**Tercer addendum al punto 377 (mismo día, CERRADO — las 3 propuestas
+anteriores ya elegidas, implementadas y verificadas):**
+
+- **Admin → Cuentas por cobrar**: botón "Copiar recordatorio" eliminado
+  (`admin.js`, reusaba el mismo SVG que "Enviar recordatorio por correo",
+  de ahí el duplicado visual — nunca se había pedido). "Notas de cobro"
+  agregado al modal de detalle (`orden-modal-notas-cobro-wrap`, oculto si
+  no hay notas) y a la búsqueda de CxC (`aplicarFiltrosCxc`) — campo
+  confirmado muerto en código antes de corregir, ahora visible y
+  buscable. Verificado en vivo con datos reales del seed ("Abono parcial
+  registrado (demo)").
+- **`credito.html` — propuesta 5 elegida + ajuste del usuario**: 3 KPIs
+  (Créditos activos / Total de la deuda / Total pagado, ya calculados por
+  el backend existente — `GET /api/mi-cuenta/credito` no necesitó ningún
+  cambio, todo el trabajo fue frontend) + dona general (pagado vs.
+  pendiente sobre el total facturado, `renderDonaGeneral()` en
+  `credito.js`, oculta si `totalFacturado` es 0) + un anillo individual
+  por crédito activo (`construirItemCredito()`, arco ámbar = % pendiente
+  de ESA venta, reemplaza la tabla plana de antes). `e2e/tests/credito.spec.ts`
+  actualizado a los IDs/estructura nuevos, 2/2 en verde.
+- **Bug real encontrado en la verificación visual: la tarjeta se veía
+  apretada con mucho espacio vacío alrededor** — `.card` (clase base de
+  `style.css`, compartida con los formularios de login/auth) trae
+  `max-width: 460px`; al separar "Gestión de crédito" a su propia página
+  en un addendum anterior de este mismo punto, se perdió el
+  `max-width: none` que SÍ tenía la versión vieja (vivía solo en un
+  comentario, nunca se volvió a escribir como regla real al reescribir el
+  bloque CSS). Repuesto, y aprovechado con layout de 2 columnas a partir
+  de 760px (`credito-panel-principal`: dona a la izquierda, lista de
+  créditos a la derecha — antes todo apilado en una sola columna angosta
+  dentro de una tarjeta que ya de por sí no usaba el ancho disponible).
+  KPIs y filas de crédito con más padding/tipografía más grande para la
+  tarjeta más ancha. Verificado visual real antes/después — mismo patrón
+  mobile-first (`@media (min-width: 760px)`) ya usado en
+  `.mi-cuenta-grid`/`.credito-kpis` de este mismo archivo.
+- **Verificación**: Jest backend 1200/1200 (sin tocar backend en este
+  addendum). E2E real: `credito.spec.ts` 2/2, `dashboard-profile-card.spec.ts`
+  2/2, `mi-cuenta.spec.ts` 5/5 — 9/9 sin regresión.
+
+**Cuarto addendum al punto 377 (mismo día, CERRADO — notas_cobro todavía
+sin buscador en Ventas + animación de éxito en abonos de CxC):**
+
+- **`notas_cobro` seguía sin buscarse en la pestaña Ventas** — el
+  addendum anterior solo corrigió `aplicarFiltrosCxc` (pestaña Cuentas
+  por cobrar); `aplicarFiltrosOrdenes` (pestaña Ventas, campo "Concepto")
+  es una función aparte y se quedó sin tocar. Mismo criterio que ya usa
+  "Cliente / correo" en CxC (su etiqueta tampoco dice todo lo que busca):
+  "Concepto" ahora también compara contra `notas_cobro`. Verificado de
+  punta a punta con una venta real creada en vivo desde el navegador
+  (`VERIFICACION-E2E...`, confirmada en MySQL y luego borrada) — y de
+  paso se confirmó que el flujo de escritura (`POST
+  /api/admin/ordenes-compra`, columna `notas_cobro`) nunca estuvo roto;
+  el hueco siempre fue de lectura/búsqueda del lado del frontend. Esto
+  también destapó la venta real del usuario (`OC-000275`, nota "para
+  fernando") que motivó el reporte — confirmada buscable después del fix.
+- **Animación de éxito ("palomita") agregada a "Registrar cobro" en
+  CxC** — antes solo mostraba un toast; ahora usa la misma animación
+  SVG de círculo + check (`orden-form-exito`/`-check`/`-texto`, admin.css,
+  ya existente para "Registrar venta") dentro del propio modal
+  (`cxc-cobro-exito`, nuevos elementos en `admin.html`, función
+  `mostrarExitoCobro()` en `admin.js`). A diferencia de Ventas (que se
+  queda abierto para la siguiente venta), el modal de cobro SÍ se cierra
+  solo al terminar la animación (~1.3s) — un segundo cobro inmediato
+  sobre la misma venta no es un flujo real. Verificado en vivo con un
+  cobro real de $1 sobre `OC-000275`.
+- **Verificación**: Jest backend 1200/1200 (sin tocar backend). Verificado
+  visual real en navegador para ambos cambios (no había E2E Playwright
+  cubriendo ninguno de los 2 — "Buscar" de Ventas ni la animación de
+  cobro — se verificaron a mano con clics reales, consistente con el
+  piso del protocolo `addv-web-app`).
+
+**Quinto addendum al punto 377 (mismo día, CERRADO — botón "Agregar
+nombre" del Home nunca reflejaba el paso real que faltaba):**
+
+- **Bug real reportado**: con nombre y CSF ya capturados (2 de 3 pasos,
+  67%), el botón de la tarjeta "Tu perfil" seguía diciendo "Agregar
+  nombre" y mandando a Mi Cuenta — el cliente no tenía forma de saber que
+  el paso que de verdad faltaba era subir un ticket. Confirmado contra la
+  cuenta real del usuario (`PAOA840705460`: nombre ✓, CSF ✓ en
+  `registros`, 0 filas en `tickets`). `calcularPerfilCompletado()`
+  (`dashboard.js`) ahora devuelve el primer paso pendiente con su propio
+  texto/página ("Agregar nombre"→mi-cuenta, "Subir constancia"→csf,
+  "Subir ticket"→tickets) y `aplicarCardPerfil()` actualiza el botón
+  (`#profile-action`/`#profile-action-texto`, el segundo id es nuevo en
+  `dashboard.html`) en cada carga. Verificado en vivo: la cuenta real del
+  usuario ahora muestra "Subir ticket" en vez de "Agregar nombre".
+- **Regresión real atrapada por el E2E existente antes de llegar al
+  usuario**: el primer intento escribía `accionEl.setAttribute('href',
+  'mi-cuenta.html')` — un string crudo sin slug, que pisaba el href que
+  `portal.js:reescribirEnlacesInternos()` ya había reescrito con el
+  tenant al cargar la página (`/t1/mi-cuenta`) y lo regresaba a la forma
+  sin tenant, rompiendo la navegación en cualquier sitio con slug.
+  `dashboard-profile-card.spec.ts` (tenant `t1`) lo detectó de inmediato
+  (`toHaveURL` fallando). Corregido para usar `urlPagina()` (ya expuesto
+  en `window.Portal`, mismo mecanismo que usa el resto de `dashboard.js`)
+  en vez de escribir el href a mano — 2/2 en verde después.
+- La lógica de "la tarjeta desaparece sola al completar el 100%"
+  (`if (hechos === total) { card.hidden = true; }`) ya existía y ya
+  estaba probada (mismo código, un caso real de nombre pasando de
+  faltante a capturado en una sesión anterior de este mismo punto) — no
+  se tocó, no hacía falta.
+- **Verificación**: Jest backend 1200/1200 (sin backend tocado). E2E real:
+  `dashboard-profile-card.spec.ts` 2/2, `credito.spec.ts` 2/2,
+  `mi-cuenta.spec.ts` 5/5 — 9/9 sin regresión. Verificado visual real en
+  navegador con la cuenta del usuario.
+
+**Sexto addendum al punto 377 (mismo día, CERRADO — decisión del usuario:
+la tarjeta "Tu perfil" es solo sobre datos personales, nunca sobre CSF ni
+tickets):**
+
+- El usuario pidió explícitamente sacar CSF y tickets del cálculo —
+  "Tu perfil" debe medir solo DATOS PERSONALES (lo que vive en
+  "Mi cuenta" → Datos de contacto), para que agregar un campo personal
+  nuevo más adelante sea trivial. `calcularPerfilCompletado()` quedó con
+  un solo paso hoy (nombre — teléfono/correo ya son obligatorios desde el
+  registro, nunca han sido "opcionales" que valga la pena contar), escrito
+  como array de 1 elemento a propósito para que sumar un campo futuro sea
+  una línea, no un rediseño. `aplicarCardPerfil(nombre)` — firma mucho más
+  simple, ya no recibe `tieneCsf`/`totalTickets`/`facturacionHabilitada`.
+  `tieneConstanciaSubida()` se eliminó (sin otro llamador). `cargarTickets()`
+  se sigue llamando en `init()` igual que siempre, pero ahora solo para
+  "Mis solicitudes" — desacoplado del cálculo de perfil.
+- Efecto real para la cuenta del usuario: con nombre ya capturado, la
+  tarjeta pasa a ocultarse de inmediato sin importar que falte CSF o
+  tickets — exactamente lo que pidió.
+- **Verificación**: Jest backend 1200/1200. E2E real:
+  `dashboard-profile-card.spec.ts` 2/2, `credito.spec.ts` 2/2,
+  `mi-cuenta.spec.ts` 5/5 — 9/9 sin regresión (el fixture de prueba, tenant
+  `t1`, ya tenía Facturación apagada desde antes, así que este cambio no
+  le altera el comportamiento a ese test — el efecto real es en tenants
+  CON Facturación activa, como la cuenta real del usuario).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)

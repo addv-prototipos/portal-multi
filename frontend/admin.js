@@ -478,6 +478,8 @@
     ordenDatosCliente: document.getElementById('orden-datos-cliente'),
     ordenRfcInfo: document.getElementById('orden-rfc-info'),
     ordenNombreInfo: document.getElementById('orden-nombre-info'),
+    ordenRegimenInfo: document.getElementById('orden-regimen-info'),
+    ordenCsfBadge: document.getElementById('orden-csf-badge'),
     // Método de entrega (correo / imprimir), paso final del wizard
     btnOrdenEntregaCorreo: document.getElementById('btn-orden-entrega-correo'),
     btnOrdenEntregaImprimir: document.getElementById('btn-orden-entrega-imprimir'),
@@ -583,6 +585,9 @@
     btnCxcCobroGuardarLabel: document.getElementById('btn-cxc-cobro-guardar-label'),
     btnCxcCobroTotal: document.getElementById('btn-cxc-cobro-total'),
     errorCxcCobroMonto: document.getElementById('error-cxc-cobro-monto'),
+    cxcCobroFormBody: document.getElementById('cxc-cobro-form-body'),
+    cxcCobroExito: document.getElementById('cxc-cobro-exito'),
+    cxcCobroExitoTexto: document.getElementById('cxc-cobro-exito-texto'),
     // Modal de detalle de una venta
     ordenModalOverlay: document.getElementById('orden-modal-overlay'),
     ordenModalTitle: document.getElementById('orden-modal-title'),
@@ -601,6 +606,8 @@
     ordenModalDescuento: document.getElementById('orden-modal-descuento'),
     ordenModalIva: document.getElementById('orden-modal-iva'),
     ordenModalTotal: document.getElementById('orden-modal-total'),
+    ordenModalNotasCobroWrap: document.getElementById('orden-modal-notas-cobro-wrap'),
+    ordenModalNotasCobro: document.getElementById('orden-modal-notas-cobro'),
     btnOrdenModalCerrar: document.getElementById('btn-orden-modal-cerrar'),
     btnOrdenModalReenviar: document.getElementById('btn-orden-modal-reenviar'),
     btnOrdenModalEliminar: document.getElementById('btn-orden-modal-eliminar'),
@@ -3325,6 +3332,18 @@
   // siguiente venta a propósito, para no romper el flujo de capturar
   // varias ventas seguidas que sí tenía el formulario sticky anterior.
   function abrirOrdenRegistrarModal() {
+    // Bug real (punto 377): este modal se puede abrir desde el atajo
+    // global del header, el ícono móvil, o los botones de estado vacío de
+    // Ventas/CxC — NINGUNO de esos 3 caminos pasa por la vista "ordenes"
+    // (la única que ya llamaba a cargarCorreosRegistrados() antes de este
+    // fix). Si el admin nunca visitó esa vista en la sesión actual, el
+    // desplegable de "Cliente ya registrado" se quedaba en
+    // `correosRegistradosCache = []` para siempre — "Selecciona un
+    // correo" sin ninguna otra opción, sin ningún error visible. Se
+    // dispara aquí, sin esperar (el modal abre de inmediato; el
+    // desplegable se llena solo en cuanto responde, mismo patrón que ya
+    // usa el botón "Actualizar" de Ventas).
+    cargarCorreosRegistrados();
     limpiarFormularioOrden();
     els.ordenFormExito.hidden = true;
     els.ordenFormBody.hidden = false;
@@ -9304,20 +9323,47 @@
     }
   }
 
-  // Muestra el RFC y el nombre/razón social asociados al correo
-  // seleccionado, de solo lectura — es una medida de confirmación visual
-  // para que el administrador verifique que son los datos correctos
-  // antes de registrar la orden, no un campo que se pueda editar.
+  // Muestra los datos asociados al correo seleccionado, de solo
+  // lectura — confirmación visual para que el administrador verifique
+  // que son los datos correctos antes de registrar la orden, nunca un
+  // campo editable. Punto 377: el desplegable ya lista cualquier cliente
+  // del portal (con o sin CSF subida), así que el nivel de detalle
+  // disponible varía por cliente — 3 casos, de más a menos completo:
+  //   1. Con RFC (CSF validada): RFC + nombre/razón social + régimen
+  //      fiscal, igual que siempre para estos clientes.
+  //   2. Sin RFC pero con nombre (lo capturó en "Mi cuenta"): solo el
+  //      nombre — mostrar "RFC: —" encima de un nombre real confundía,
+  //      daba a entender que el dato se perdió en vez de que nunca
+  //      existió.
+  //   3. Sin RFC y sin nombre: no hay nada más que confirmar — se muestra
+  //      el correo mismo (ya seleccionado en el desplegable, pero se
+  //      repite aquí para mantener el mismo bloque de confirmación en
+  //      los 3 casos, en vez de que el bloque desaparezca por completo).
   function actualizarDatosClienteOrden() {
     const correo = correosRegistradosCache.find((c) => c.email === els.ordenEmail.value);
+    els.ordenRfcInfo.hidden = true;
+    els.ordenRegimenInfo.hidden = true;
+    els.ordenNombreInfo.hidden = true;
+    els.ordenCsfBadge.hidden = true;
     if (!correo) {
       els.ordenDatosCliente.hidden = true;
-      els.ordenRfcInfo.textContent = '—';
-      els.ordenNombreInfo.textContent = '—';
       return;
     }
-    els.ordenRfcInfo.textContent = `RFC: ${correo.rfc || '—'}`;
-    els.ordenNombreInfo.textContent = `Nombre / Razón social: ${correo.nombre || '—'}`;
+    if (correo.rfc) {
+      els.ordenRfcInfo.textContent = `RFC: ${correo.rfc}`;
+      els.ordenRfcInfo.hidden = false;
+      els.ordenNombreInfo.textContent = `Nombre / Razón social: ${correo.nombre || '—'}`;
+      els.ordenNombreInfo.hidden = false;
+      els.ordenRegimenInfo.textContent = `Régimen fiscal: ${correo.regimen_fiscal || '—'}`;
+      els.ordenRegimenInfo.hidden = false;
+      els.ordenCsfBadge.hidden = false;
+    } else if (correo.nombre) {
+      els.ordenNombreInfo.textContent = `Nombre / Razón social: ${correo.nombre}`;
+      els.ordenNombreInfo.hidden = false;
+    } else {
+      els.ordenNombreInfo.textContent = `Correo: ${correo.email}`;
+      els.ordenNombreInfo.hidden = false;
+    }
     els.ordenDatosCliente.hidden = false;
   }
 
@@ -10593,7 +10639,11 @@
     const facturacionFiltro = els.ordenesFiltroFacturacion ? els.ordenesFiltroFacturacion.value : '';
 
     const filtradas = ordenesCache.filter((orden) => {
-      if (concepto && !normalizar(orden.concepto).includes(concepto)) return false;
+      // Mismo criterio que "Cliente / correo" en Cuentas por cobrar
+      // (aplicarFiltrosCxc): el campo "Concepto" ya busca más de lo que
+      // su etiqueta sugiere — ahora también en notas_cobro, que antes
+      // quedaba fuera de cualquier buscador de Ventas (punto 377).
+      if (concepto && !normalizar(orden.concepto).includes(concepto) && !(orden.notas_cobro && normalizar(orden.notas_cobro).includes(concepto))) return false;
       const fechaOrden = String(orden.fecha_compra || '').slice(0, 10);
       if (fechaDesde && fechaOrden < fechaDesde) return false;
       if (fechaHasta && fechaOrden > fechaHasta) return false;
@@ -11082,6 +11132,12 @@
     }
     els.ordenModalIva.textContent = `${Number(orden.iva_porcentaje)}%`;
     els.ordenModalTotal.textContent = `$${formatearMoneda(orden.total)} MXN`;
+
+    // Campo muerto hasta hoy (punto 377, addendum): se captura al crear la
+    // venta pendiente y al registrar el cobro, pero nunca se mostraba aquí
+    // — confirmado en código antes de corregir.
+    els.ordenModalNotasCobroWrap.hidden = !orden.notas_cobro;
+    if (orden.notas_cobro) els.ordenModalNotasCobro.textContent = orden.notas_cobro;
 
     els.ordenModalOverlay.hidden = false;
   }
@@ -16489,7 +16545,7 @@
       const coincideVista = cxcVista === 'pendientes' ? esPendiente : !esPendiente;
       if (!coincideVista) return false;
       if (q) {
-        const hay = (o.numero_compra && o.numero_compra.toLowerCase().includes(q)) || (o.email && o.email.toLowerCase().includes(q)) || (o.concepto && o.concepto.toLowerCase().includes(q)) || (o.cliente_nombre && o.cliente_nombre.toLowerCase().includes(q)) || (o.cliente_rfc && o.cliente_rfc.toLowerCase().includes(q));
+        const hay = (o.numero_compra && o.numero_compra.toLowerCase().includes(q)) || (o.email && o.email.toLowerCase().includes(q)) || (o.concepto && o.concepto.toLowerCase().includes(q)) || (o.cliente_nombre && o.cliente_nombre.toLowerCase().includes(q)) || (o.cliente_rfc && o.cliente_rfc.toLowerCase().includes(q)) || (o.notas_cobro && o.notas_cobro.toLowerCase().includes(q));
         if (!hay) return false;
       }
       if (fVto === 'vencidas' && !esVencida(o)) return false;
@@ -16735,7 +16791,6 @@
           wrap.appendChild(btnEnviar);
         }
       }
-      const btnNotif = document.createElement('button'); btnNotif.type='button'; btnNotif.className='btn-icono-accion'; btnNotif.setAttribute('data-tooltip','Copiar recordatorio'); btnNotif.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>'; btnNotif.addEventListener('click', ()=>{ const txt=`Recordatorio: venta ${orden.numero_compra} por $${formatearMoneda(orden.total)} — saldo $${formatearMoneda(saldo)}${orden.fecha_vencimiento ? ' — vence '+orden.fecha_vencimiento : ''}.`; navigator.clipboard.writeText(txt); showToast('Recordatorio copiado'); }); wrap.appendChild(btnNotif);
       tdAcciones.appendChild(wrap);
       els.cxcTableBody.appendChild(tr);
     });
@@ -16760,6 +16815,23 @@
     els.cxcCobroModalOverlay.hidden = false;
   }
   function cerrarCobroModal() { if (els.cxcCobroModalOverlay) els.cxcCobroModalOverlay.hidden = true; cxcOrdenActualCobro = null; }
+  // Misma palomita animada que "Registrar venta" (mostrarExitoRegistrarOrden)
+  // — mismas clases CSS (orden-form-exito/-check/-texto, admin.css),
+  // elementos propios de este modal. El modal SÍ se cierra al terminar
+  // (a diferencia de Ventas, que se queda abierto para la siguiente
+  // venta): un segundo cobro sobre la misma venta casi nunca aplica
+  // justo después del primero.
+  function mostrarExitoCobro(mensaje) {
+    if (!els.cxcCobroExito || !els.cxcCobroFormBody) return;
+    els.cxcCobroExitoTexto.textContent = mensaje || 'Cobro registrado';
+    els.cxcCobroFormBody.hidden = true;
+    els.cxcCobroExito.hidden = false;
+    setTimeout(() => {
+      els.cxcCobroExito.hidden = true;
+      els.cxcCobroFormBody.hidden = false;
+      cerrarCobroModal();
+    }, 1300);
+  }
   if (els.btnCxcCobroCancelar) els.btnCxcCobroCancelar.addEventListener('click', cerrarCobroModal);
   if (els.cxcCobroModalOverlay) els.cxcCobroModalOverlay.addEventListener('click', (e)=>{ if(e.target===els.cxcCobroModalOverlay) cerrarCobroModal(); });
   if (els.btnCxcCobroTotal) els.btnCxcCobroTotal.addEventListener('click', ()=>{ if(!cxcOrdenActualCobro) return; const saldo = Math.round((Number(cxcOrdenActualCobro.total) - Number(cxcOrdenActualCobro.monto_cobrado||0))*100)/100; if(els.cxcCobroMonto) els.cxcCobroMonto.value = String(saldo); });
@@ -16775,8 +16847,7 @@
       const res = await fetch(`${API_BASE}/admin/ordenes-compra/${cxcOrdenActualCobro.id}/cobro`, { method:'PUT', headers:{ Authorization: authHeader, 'Content-Type':'application/json' }, body: JSON.stringify({ monto, notas_cobro: els.cxcCobroNotas.value.trim() || null }) });
       const data = await res.json().catch(()=>({}));
       if (!res.ok) { if(els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent = data.error || 'No se pudo registrar'; return; }
-      showToast(`Cobro registrado — saldo $${formatearMoneda(data.saldo)}`);
-      cerrarCobroModal();
+      mostrarExitoCobro(data.saldo > 0 ? `Cobro registrado — saldo $${formatearMoneda(data.saldo)}` : 'Cobro registrado — saldo cubierto');
       await cargarOrdenes();
       renderCxc();
     } catch(_) { if(els.errorCxcCobroMonto) els.errorCxcCobroMonto.textContent='No se pudo conectar'; }

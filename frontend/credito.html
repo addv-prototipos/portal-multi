@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestión de crédito | Portal Clarvo tu negocio en orden</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/portal.css" />
+</head>
+<body class="portal-body">
+  <header class="portal-header">
+    <div class="portal-header-logo">
+      <img src="/assets/branding_bgo.png" alt="CLARVO — Portal Clarvo tu negocio en orden by ADDV" />
+    </div>
+    <div class="portal-header-actions">
+      <a class="btn-volver-tablero" href="dashboard.html">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M19 12H5M5 12l6-6M5 12l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="btn-volver-tablero-texto">Volver al tablero</span>
+      </a>
+      <span class="portal-user-label" id="portal-user-label"></span>
+      <button type="button" class="btn btn-secondary" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <h1 class="portal-titulo">Gestión de crédito</h1>
+
+    <section class="card mi-cuenta-credito" id="credito-section" hidden>
+      <p class="credito-sub">Resumen de tus ventas y abonos registrados con nosotros.</p>
+
+      <div class="credito-kpis" id="credito-kpis">
+        <div class="credito-kpi">
+          <span class="credito-kpi-label">Créditos activos</span>
+          <span class="credito-kpi-valor" id="credito-kpi-creditos">0</span>
+        </div>
+        <div class="credito-kpi credito-kpi-deuda">
+          <span class="credito-kpi-label">Total de la deuda</span>
+          <span class="credito-kpi-valor" id="credito-kpi-saldo">$0.00</span>
+        </div>
+        <div class="credito-kpi credito-kpi-pagado">
+          <span class="credito-kpi-label">Total pagado</span>
+          <span class="credito-kpi-valor" id="credito-kpi-pagado">$0.00</span>
+        </div>
+      </div>
+
+      <div class="credito-panel-principal">
+        <div class="credito-dona-general" id="credito-dona-general" hidden>
+          <div class="credito-dona-centro">
+            <svg width="150" height="150" viewBox="0 0 110 110" aria-hidden="true">
+              <circle cx="55" cy="55" r="44" fill="none" stroke-width="12" class="dona-pista"/>
+              <circle cx="55" cy="55" r="44" fill="none" stroke-width="12" class="dona-pagado" id="dona-general-pagado" transform="rotate(-90 55 55)"/>
+              <circle cx="55" cy="55" r="44" fill="none" stroke-width="12" class="dona-pendiente" id="dona-general-pendiente" transform="rotate(-90 55 55)"/>
+            </svg>
+            <div class="credito-dona-texto">
+              <span class="credito-dona-pct" id="credito-dona-pct">0%</span>
+              <span class="credito-dona-lbl">cubierto</span>
+            </div>
+          </div>
+          <ul class="credito-dona-leyenda">
+            <li><i class="leyenda-sw sw-pagado"></i>Pagado <b id="credito-dona-leyenda-pagado">$0.00</b></li>
+            <li><i class="leyenda-sw sw-pendiente"></i>Pendiente <b id="credito-dona-leyenda-pendiente">$0.00</b></li>
+          </ul>
+        </div>
+
+        <div class="credito-creditos-col">
+          <h3 class="credito-subtitulo">Tus créditos</h3>
+          <div id="credito-lista-creditos"></div>
+          <p class="solicitudes-empty" id="credito-ventas-empty" hidden>No tienes créditos activos.</p>
+        </div>
+      </div>
+
+      <h3 class="credito-subtitulo">Historial de abonos</h3>
+      <div class="solicitudes-table-wrap" id="credito-abonos-wrap">
+        <table class="solicitudes-table">
+          <thead><tr><th>Fecha</th><th>Venta</th><th>Monto</th><th>Notas</th></tr></thead>
+          <tbody id="credito-abonos-body"></tbody>
+        </table>
+      </div>
+      <p class="solicitudes-empty" id="credito-abonos-empty" hidden>Aún no tienes abonos registrados.</p>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/theme.js"></script>
+  <script src="/skeleton.js"></script>
+  <script src="/portal.js"></script>
+  <script src="/credito.js"></script>
+</body>
+</html>
