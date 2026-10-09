@@ -495,6 +495,26 @@
      tratamiento que ya recibe en móvil (oculto por completo). */
   .admin-body.sidebar-colapsado .admin-sucursales-switcher { display: none; }
 
+  /* Submenú anidado de "Reportes" (punto en curso) en el riel colapsado
+     — mismo criterio que un grupo: "Reportes" sigue siendo clickeable
+     (a diferencia de un encabezado de grupo, SÍ es una vista real, no
+     solo una etiqueta), pero su chevron no cabe en 72px (la span del
+     label ya se oculta sola, hereda la regla genérica de arriba para
+     cualquier .admin-vista-btn span). El submenú se fuerza siempre
+     visible (igual que un .admin-sidebar-group-body) para que sus 5
+     íconos sigan alcanzables sin tener que expandir nada — ya no hay
+     espacio para mostrar/ocultar un texto que de cualquier forma no
+     se vería. Pierde el indent/línea (no hay ancho de sobra en 72px). */
+  .admin-body.sidebar-colapsado .admin-vista-btn-chev { display: none; }
+  .admin-body.sidebar-colapsado .admin-vista-subgrupo {
+    margin-left: 0;
+    border-left: none;
+    padding-left: 0;
+  }
+  .admin-body.sidebar-colapsado .admin-vista-subgrupo[data-colapsado="true"] {
+    grid-template-rows: 1fr;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .admin-sidebar,
     .admin-content,
