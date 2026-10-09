@@ -3339,7 +3339,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 0 12px;
 }
-@media (max-width: 380px) {
+@media (max-width: 480px) {
   .orden-productos-captura-fila { grid-template-columns: 1fr; }
 }
 
@@ -6410,6 +6410,12 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   font-size: 17px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.stepper-cantidad input::-webkit-outer-spin-button,
+.stepper-cantidad input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .scanner-modal {
   max-width: 360px;
