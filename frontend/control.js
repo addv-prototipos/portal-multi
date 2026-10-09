@@ -52,6 +52,7 @@
     searchInput: document.getElementById('control-search-input'),
     btnClearSearch: document.getElementById('control-btn-clear-search'),
     filtroEstado: document.getElementById('control-filtro-estado'),
+    filtroProximosVencer: document.getElementById('control-filtro-proximos-vencer'),
     count: document.getElementById('control-count'),
     error: document.getElementById('control-error'),
     tableBody: document.getElementById('control-table-body'),
@@ -61,6 +62,8 @@
     toast: document.getElementById('control-toast'),
     btnMenuMovil: document.getElementById('btn-control-menu-movil'),
     menuMovil: document.getElementById('control-menu-movil'),
+    btnColapsarSidebar: document.getElementById('control-btn-colapsar-sidebar'),
+    adminHeader: document.querySelector('.admin-dashboard .admin-header'),
     authAnio: document.getElementById('auth-anio-control'),
     credOverlay: document.getElementById('control-cred-modal-overlay'),
     credSubtitulo: document.getElementById('control-cred-modal-subtitulo'),
@@ -183,6 +186,19 @@
   btnRecalcularDisco: document.getElementById('control-btn-recalcular-disco'),
   editarGrupoInfo: document.getElementById('control-editar-grupo-info'),
   btnEditarIrSucursales: document.getElementById('control-btn-editar-ir-sucursales'),
+  // Punto 381: Suscripción (prueba/ciclo/expiración/estatus de cobro)
+  suscripcionEnPrueba: document.getElementById('control-suscripcion-en-prueba'),
+  suscripcionDiasPrueba: document.getElementById('control-suscripcion-dias-prueba'),
+  suscripcionPruebaInicia: document.getElementById('control-suscripcion-prueba-inicia'),
+  suscripcionCiclo: document.getElementById('control-suscripcion-ciclo'),
+  suscripcionExpira: document.getElementById('control-suscripcion-expira'),
+  suscripcionEstatus: document.getElementById('control-suscripcion-estatus'),
+  suscripcionError: document.getElementById('control-suscripcion-error'),
+  suscripcionRing: document.getElementById('control-suscripcion-ring'),
+  suscripcionRingTexto: document.getElementById('control-suscripcion-ring-texto'),
+  suscripcionResumen: document.getElementById('control-suscripcion-resumen'),
+  btnGuardarSuscripcion: document.getElementById('control-btn-guardar-suscripcion'),
+  btnGuardarSuscripcionLabel: document.getElementById('control-btn-guardar-suscripcion-label'),
     editarError: document.getElementById('control-editar-error'),
     btnEditarCancelar: document.getElementById('control-btn-editar-cancelar'),
     btnEditarGuardar: document.getElementById('control-btn-editar-guardar'),
@@ -364,6 +380,52 @@
     els.loginScreen.hidden = false;
   }
 
+  // Riel colapsable del sidebar — mismo comportamiento y CSS que /admin
+  // (admin.css: .admin-body.sidebar-colapsado, clase sobre <body>, ya
+  // presente en ambas páginas). Estado por cuenta en localStorage, mismo
+  // patrón que claveColapsoSidebar() de admin.js.
+  function claveColapsoSidebarControl() {
+    return `sidebar_colapso_control_v1_${els.userLabel.textContent || ''}`;
+  }
+
+  function aplicarEstadoColapsoSidebarControl(colapsado) {
+    document.body.classList.toggle('sidebar-colapsado', colapsado);
+    if (els.btnColapsarSidebar) {
+      els.btnColapsarSidebar.setAttribute('aria-pressed', String(colapsado));
+      els.btnColapsarSidebar.setAttribute('aria-label', colapsado ? 'Expandir menú lateral' : 'Colapsar menú lateral');
+    }
+    document.querySelectorAll(
+      '.admin-sidebar-nav .admin-vista-btn, .admin-sidebar-footer .admin-sidebar-logout, .admin-sidebar-footer .admin-sidebar-ayuda'
+    ).forEach((btn) => {
+      const span = btn.querySelector('span');
+      if (!span) return;
+      if (colapsado) btn.setAttribute('data-tooltip', span.textContent.trim());
+      else btn.removeAttribute('data-tooltip');
+    });
+  }
+
+  if (els.btnColapsarSidebar) {
+    els.btnColapsarSidebar.addEventListener('click', () => {
+      const colapsado = !document.body.classList.contains('sidebar-colapsado');
+      aplicarEstadoColapsoSidebarControl(colapsado);
+      try {
+        localStorage.setItem(claveColapsoSidebarControl(), colapsado ? '1' : '0');
+      } catch (_) {
+        // sin acceso a localStorage: el colapso de esta sesión sigue
+        // funcionando, solo no se recuerda para la próxima.
+      }
+    });
+  }
+
+  // Barra superior siempre visible (position:fixed vía admin.css, ya
+  // compartido con /admin) — el acento cian al hacer scroll es puramente
+  // de JS, mismo criterio que reubicarCampanaPorBreakpoint de admin.js.
+  if (els.adminHeader) {
+    window.addEventListener('scroll', () => {
+      els.adminHeader.classList.toggle('is-scrolled', window.scrollY > 4);
+    }, { passive: true });
+  }
+
   function showDashboard(usuario) {
     els.loginScreen.hidden = true;
     els.dashboard.hidden = false;
@@ -373,6 +435,14 @@
     // el primer modal que se abra, sin depender de haber visitado antes
     // Super Admins.
     cargarImagenMaxGlobal();
+    let colapsoGuardado = false;
+    try {
+      colapsoGuardado = localStorage.getItem(claveColapsoSidebarControl()) === '1';
+    } catch (_) {
+      // sin acceso a localStorage: arranca expandido, comportamiento de
+      // siempre.
+    }
+    aplicarEstadoColapsoSidebarControl(colapsoGuardado);
   }
 
   // ---------- Mostrar/ocultar contraseña ----------
@@ -466,6 +536,12 @@
 
   els.filtroEstado.addEventListener('change', () => cargarTenants());
   els.btnRefresh.addEventListener('click', () => cargarTenants());
+  if (els.filtroProximosVencer) {
+    // Client-side puro: ya tenemos todos los tenants de la carga actual en
+    // caché (tenantsCacheActual), no hace falta volver a pedirle nada al
+    // backend solo por cambiar este filtro.
+    els.filtroProximosVencer.addEventListener('change', () => renderTenants(tenantsCacheActual));
+  }
 
   // ---------- Cargar / renderizar tenants ----------
 
@@ -519,14 +595,58 @@
     baja: 'Dada de baja — la empresa no es accesible. No se borró ningún dato; reversible con "Reactivar".',
   };
 
-  function renderTenants(tenants) {
-    els.count.textContent = `${tenants.length} tenant${tenants.length === 1 ? '' : 's'}`;
-    els.tableBody.innerHTML = '';
-    const hayFiltro = Boolean(els.filtroEstado.value || els.searchInput.value.trim());
-    els.empty.hidden = tenants.length > 0 || hayFiltro;
-    if (els.filtroEmpty) els.filtroEmpty.hidden = tenants.length > 0 || !hayFiltro;
+  const ETIQUETA_ESTATUS_SUSCRIPCION = {
+    prueba: 'Prueba',
+    pagada: 'Pagada',
+    pendiente: 'Pendiente',
+    vencida: 'Vencida',
+    cancelada: 'Cancelada',
+  };
 
-    tenants.forEach((t) => {
+  // Celda "Vence" de la tabla principal (punto 381) — mismo criterio de
+  // badge que "Estado": una pastilla con color semántico, nunca solo
+  // texto plano, para que el riesgo de vencimiento se lea de un vistazo.
+  function celdaVenceHtml(t) {
+    if (!t.suscripcion_expira_en) return '<span class="estatus-badge estatus-vence-na">Sin configurar</span>';
+    if (t.suscripcion_estatus === 'cancelada') {
+      return '<span class="estatus-badge estatus-vence-vencido">Cancelada</span>';
+    }
+    const dias = diasEntreHoyY(fechaSoloDia(t.suscripcion_expira_en));
+    const fechaTexto = formatFecha(t.suscripcion_expira_en);
+    const etiquetaEstatus = ETIQUETA_ESTATUS_SUSCRIPCION[t.suscripcion_estatus] || '';
+    const sufijo = etiquetaEstatus ? ` · ${escapeHtml(etiquetaEstatus)}` : '';
+    if (dias < 0) {
+      return `<span class="estatus-badge estatus-vence-vencido" data-tooltip="${escapeHtml(fechaTexto)}">Vencida${sufijo}</span>`;
+    }
+    if (dias <= 7) {
+      return `<span class="estatus-badge estatus-vence-proximo" data-tooltip="${escapeHtml(fechaTexto)}">${dias} día${dias === 1 ? '' : 's'}${sufijo}</span>`;
+    }
+    return `<span class="estatus-badge estatus-vence-ok" data-tooltip="${escapeHtml(fechaTexto)}">${dias} días${sufijo}</span>`;
+  }
+
+  // Punto 381: filtro "Próximos a vencer" es client-side — listarTenants()
+  // ya trae las 6 columnas de suscripción en cada fetch, así que no hace
+  // falta un parámetro de query nuevo ni una segunda llamada al backend.
+  function tenantProximoAVencer(t) {
+    if (!t.suscripcion_expira_en || t.suscripcion_estatus === 'cancelada') return false;
+    const dias = diasEntreHoyY(fechaSoloDia(t.suscripcion_expira_en));
+    return dias !== null && dias <= 7;
+  }
+
+  let tenantsCacheActual = [];
+
+  function renderTenants(tenants) {
+    tenantsCacheActual = tenants;
+    const filtrados = els.filtroProximosVencer && els.filtroProximosVencer.checked
+      ? tenants.filter(tenantProximoAVencer)
+      : tenants;
+    els.count.textContent = `${filtrados.length} tenant${filtrados.length === 1 ? '' : 's'}`;
+    els.tableBody.innerHTML = '';
+    const hayFiltro = Boolean(els.filtroEstado.value || els.searchInput.value.trim() || (els.filtroProximosVencer && els.filtroProximosVencer.checked));
+    els.empty.hidden = filtrados.length > 0 || hayFiltro;
+    if (els.filtroEmpty) els.filtroEmpty.hidden = filtrados.length > 0 || !hayFiltro;
+
+    filtrados.forEach((t) => {
       const tr = document.createElement('tr');
       tr.dataset.slug = t.slug;
       const etiquetaEstado = ETIQUETA_ESTADO[t.estado] || t.estado;
@@ -549,6 +669,7 @@
         <td data-label="Slug">${slugCelda}</td>
         <td data-label="Empresa">${escapeHtml(t.nombre_empresa)}</td>
         <td data-label="Estado"><span class="estatus-badge estatus-${escapeHtml(t.estado)}" data-tooltip="${escapeHtml(tooltipEstado)}">${escapeHtml(etiquetaEstado)}</span></td>
+        <td data-label="Vence">${celdaVenceHtml(t)}</td>
         <td data-label="Contacto">${escapeHtml(t.contacto_email) || '—'}</td>
         <td data-label="Creado">${formatFecha(t.creado_en)}</td>
         <td data-label=""></td>
@@ -1557,6 +1678,163 @@
     mostrarPlanActual(planActual);
     actualizarBadgesOrigenPlan();
     cargarUsoUsuariosEdicion(tenant.slug);
+    poblarFormularioSuscripcion(tenant);
+  }
+
+  // ---------- Punto 381: Suscripción (prueba/ciclo/expiración/estatus) ----------
+
+  const CICLO_DIAS_SUSCRIPCION = { mensual: 30, anual: 365 };
+
+  function fechaSoloDia(valor) {
+    if (!valor) return null;
+    return String(valor).slice(0, 10);
+  }
+
+  function diasEntreHoyY(fechaIso) {
+    if (!fechaIso) return null;
+    const hoy = new Date();
+    const hoyUtc = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const [anio, mes, dia] = fechaIso.split('-').map(Number);
+    const objetivoUtc = Date.UTC(anio, mes - 1, dia);
+    return Math.round((objetivoUtc - hoyUtc) / 86400000);
+  }
+
+  function poblarFormularioSuscripcion(tenant) {
+    if (!els.suscripcionEnPrueba) return;
+    if (els.suscripcionError) els.suscripcionError.textContent = '';
+    els.suscripcionEnPrueba.checked = tenant.suscripcion_en_prueba === 1 || tenant.suscripcion_en_prueba === true;
+    els.suscripcionDiasPrueba.value = tenant.suscripcion_dias_prueba != null ? String(tenant.suscripcion_dias_prueba) : '';
+    els.suscripcionPruebaInicia.value = fechaSoloDia(tenant.suscripcion_prueba_inicia_en) || '';
+    els.suscripcionCiclo.value = tenant.suscripcion_ciclo || '';
+    els.suscripcionExpira.value = fechaSoloDia(tenant.suscripcion_expira_en) || '';
+    els.suscripcionEstatus.value = tenant.suscripcion_estatus || '';
+    renderAnilloSuscripcion();
+  }
+
+  // El anillo es puramente informativo/en vivo (lee el formulario, no
+  // pisa nada del backend): verde = vigente, ámbar = vence en ≤14 días,
+  // rojo = vencida o cancelada. Base de "100%" según haya o no un dato de
+  // ciclo/prueba que dé contexto de duración total; sin ese dato solo se
+  // muestra el conteo de días, sin barra de progreso con sentido.
+  function renderAnilloSuscripcion() {
+    if (!els.suscripcionRing) return;
+    const expira = els.suscripcionExpira.value || null;
+    const estatus = els.suscripcionEstatus.value || null;
+    const enPrueba = els.suscripcionEnPrueba.checked;
+    const diasPrueba = els.suscripcionDiasPrueba.value ? Number(els.suscripcionDiasPrueba.value) : null;
+    const ciclo = els.suscripcionCiclo.value || null;
+
+    if (estatus === 'cancelada') {
+      pintarAnillo(100, 'var(--color-error)');
+      els.suscripcionRingTexto.textContent = '—';
+      els.suscripcionResumen.textContent = 'Suscripción cancelada';
+      return;
+    }
+
+    if (!expira) {
+      pintarAnillo(0, 'var(--color-border)');
+      els.suscripcionRingTexto.textContent = '—';
+      els.suscripcionResumen.textContent = 'Sin fecha de expiración configurada';
+      return;
+    }
+
+    const diasRestantes = diasEntreHoyY(expira);
+    const totalDias = enPrueba && diasPrueba ? diasPrueba : CICLO_DIAS_SUSCRIPCION[ciclo] || null;
+    const porcentaje = totalDias ? Math.min(100, Math.max(0, Math.round((diasRestantes / totalDias) * 100))) : 100;
+
+    let color = 'var(--color-accent)';
+    let resumen;
+    if (diasRestantes < 0) {
+      color = 'var(--color-error)';
+      resumen = `Vencida hace ${Math.abs(diasRestantes)} día${Math.abs(diasRestantes) === 1 ? '' : 's'}`;
+    } else if (diasRestantes <= 14) {
+      color = 'var(--color-warn)';
+      resumen = `Vence en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}${enPrueba ? ' (prueba)' : ''}`;
+    } else {
+      resumen = `Vigente — ${diasRestantes} días para vencer${enPrueba ? ' (prueba)' : ''}`;
+    }
+
+    pintarAnillo(diasRestantes < 0 ? 100 : porcentaje, color);
+    els.suscripcionRingTexto.textContent = diasRestantes < 0 ? `${Math.abs(diasRestantes)}d` : `${diasRestantes}d`;
+    els.suscripcionResumen.textContent = resumen;
+  }
+
+  function pintarAnillo(porcentaje, color) {
+    els.suscripcionRing.style.background = `conic-gradient(${color} 0 ${porcentaje}%, var(--color-border) ${porcentaje}% 100%)`;
+  }
+
+  [
+    els.suscripcionEnPrueba,
+    els.suscripcionDiasPrueba,
+    els.suscripcionPruebaInicia,
+    els.suscripcionCiclo,
+    els.suscripcionExpira,
+    els.suscripcionEstatus,
+  ].forEach((el) => {
+    if (el) el.addEventListener('input', renderAnilloSuscripcion);
+  });
+
+  function setGuardandoSuscripcion(isLoading) {
+    if (!els.btnGuardarSuscripcion) return;
+    els.btnGuardarSuscripcion.disabled = isLoading;
+    els.btnGuardarSuscripcion.setAttribute('aria-busy', String(isLoading));
+    els.btnGuardarSuscripcionLabel.textContent = isLoading ? 'Guardando…' : 'Guardar suscripción';
+  }
+
+  if (els.btnGuardarSuscripcion) {
+    els.btnGuardarSuscripcion.addEventListener('click', async () => {
+      if (!slugActualEdicion) return;
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+      if (els.suscripcionError) els.suscripcionError.textContent = '';
+
+      const diasPruebaTexto = els.suscripcionDiasPrueba.value.trim();
+      let diasPrueba = null;
+      if (diasPruebaTexto) {
+        const n = Number(diasPruebaTexto);
+        if (!Number.isInteger(n) || n <= 0) {
+          els.suscripcionError.textContent = 'Los días de prueba deben ser un entero mayor a 0.';
+          els.suscripcionDiasPrueba.focus();
+          return;
+        }
+        diasPrueba = n;
+      }
+
+      setGuardandoSuscripcion(true);
+      try {
+        const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slugActualEdicion)}/suscripcion`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enPrueba: els.suscripcionEnPrueba.checked,
+            diasPrueba,
+            pruebaIniciaEn: els.suscripcionPruebaInicia.value || null,
+            ciclo: els.suscripcionCiclo.value || null,
+            expiraEn: els.suscripcionExpira.value || null,
+            estatus: els.suscripcionEstatus.value || null,
+          }),
+        });
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.suscripcionError.textContent = data.error || 'No se pudo guardar la suscripción.';
+          return;
+        }
+        showToast(`Suscripción de "${slugActualEdicion}" actualizada.`);
+        cargarTenants();
+      } catch (err) {
+        els.suscripcionError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        setGuardandoSuscripcion(false);
+      }
+    });
   }
 
   function cerrarEdicion() {
@@ -1762,7 +2040,7 @@
   // pestaña "Identidad visual" ya NO comparte ese botón: se guarda sola
   // (ver montarEditorMarcaTemaControl), mismo criterio que /admin.
   function cambiarTabEditar(tab) {
-    const TABS = ['general', 'plan', 'visual', 'grupo'];
+    const TABS = ['general', 'plan', 'suscripcion', 'visual', 'grupo'];
     TABS.forEach((t) => {
       const panel = document.getElementById(`control-edit-tab-${t}`);
       if (panel) panel.hidden = t !== tab;

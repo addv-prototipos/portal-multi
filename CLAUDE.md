@@ -558,6 +558,18 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   tarjetasConfigPermitidas), nunca el mismo — no confundir cuál checklist
   aplica según si lo nuevo es una vista del sidebar o una tarjeta dentro
   del modal de Configuraciones.
+- **Pestaña nueva del modal de edición de `/control` (`cambiarTabEditar`)**:
+  el array `TABS` en `frontend/control.js` es la única fuente de verdad —
+  agregar el panel HTML sin sumar la clave ahí dejaría la pestaña
+  seleccionable pero su panel nunca visible (mismo bug-shape que
+  `CONFIG_SECCIONES`/`mapaNavPorVista` de `/admin`, punto 378-379, versión
+  `/control`). Una pestaña que es INDEPENDIENTE del form general
+  (`#control-form-editar`) — como "Identidad visual" y ahora "Suscripción"
+  (punto 381) — necesita su PROPIO botón de guardar + su PROPIO
+  `PUT`/endpoint, nunca agregarse al submit compartido: mezclar los dos
+  patrones (campos que viajan en el submit general de "Guardar cambios" +
+  campos que se guardan solos) en una misma pestaña confunde al operador
+  sobre qué botón persiste qué.
 - **`.algo[hidden]{display:none}` explícito es obligatorio en cualquier
   clase nueva con `display` distinto de `none`** (punto 379): el
   atributo HTML `hidden` se cancela si una regla de la hoja de estilo del
@@ -704,6 +716,19 @@ node --check backend/ruta/al/archivo.js
 - Antes de dar por "no disponible" una skill/herramienta mencionada por el
   usuario: revisar el catálogo de skills activas, luego `D:\cc`, luego el
   repositorio oficial — nunca asumir su función.
+- **`--color-positive`/`--color-positive-soft` NO son variables CSS reales
+  de este proyecto** (punto 384, 2026-10-09): el "verde positivo" del
+  sitio (`#1FAE6B`/soft `#E4F6ED`) se pinta con el hex directo en cada
+  sitio que lo usa (ver `.resumen-fin-utilidad-valor.es-positiva`),
+  nunca con una custom property reutilizable — a diferencia de
+  `--color-error`/`--color-warn`, que sí están definidas en
+  `style.css:root`. `var(--color-positive)` sin un `, #1FAE6B` de
+  fallback resuelve a nada (color inválido = atributo ignorado = sin
+  color = invisible), bug real reproducido en el velocímetro/bullet
+  chart de "Venta mínima" (arco verde y franja "Cubierto" invisibles).
+  Al escribir código nuevo que necesite el verde positivo: usar el hex
+  directo, igual que el resto del archivo — nunca asumir que existe una
+  variable solo porque las otras 2 (error/warn) sí.
 
 ## Arquitectura en migración: multi-tenant
 

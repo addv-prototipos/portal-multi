@@ -7862,6 +7862,13 @@ app.get(
     // resta (mismo criterio que la proyección de abajo).
     const ivaVentas = Math.round((ventas - subtotalVentas) * 100) / 100;
     const utilidadNeta = Math.round((subtotalVentas - gastos) * 100) / 100;
+    // Venta mínima (punto 383): días del mes en curso, para la venta
+    // mínima DIARIA de la tarjeta "Utilidad neta" — diff puro de dos
+    // fechas de calendario local ('YYYY-MM-DD'), no la hora "ahora", así
+    // que Date.UTC aquí es seguro (no es el gotcha de limitesPeriodo.js).
+    const diasMes = Math.round(
+      (new Date(`${fechas.fin}T00:00:00Z`) - new Date(`${fechas.inicio}T00:00:00Z`)) / 86400000
+    );
 
     // Sin datos del mes anterior para comparar, no se inventa una
     // tendencia (mismo criterio que aplicarTendencia() en admin.js para
@@ -8048,6 +8055,7 @@ app.get(
         subtotal_ventas: subtotalVentas,
         iva_ventas: ivaVentas,
         utilidad_neta: utilidadNeta,
+        dias_mes: diasMes,
         ops_totales: opsTotales,
         ops_facturadas: opsFacturadas,
         ops_sin_facturar: opsTotales - opsFacturadas,

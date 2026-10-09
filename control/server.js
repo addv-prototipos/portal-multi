@@ -25,6 +25,7 @@ const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake')
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant } = require('./utils/tenantMarca');
 const { getImagenMaxMb, setImagenMaxMb } = require('./utils/ajustesGlobales');
 const { actualizarTemaTenant, ErrorTemaTenant } = require('./utils/tenantTema');
+const { actualizarSuscripcionTenant, ErrorSuscripcionTenant } = require('./utils/tenantSuscripcion');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('./utils/tenantEdicion');
 const { obtenerUsoUsuarios } = require('./utils/notificarBackend');
 const { swaggerSpec } = require('./utils/swagger');
@@ -440,6 +441,30 @@ app.put(
     } catch (err) {
       if (err instanceof ErrorTemaTenant) {
         const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'backend' ? 502 : 400;
+        return res.status(estatus).json({ error: err.message });
+      }
+      throw err;
+    }
+  })
+);
+
+// Actualiza la suscripción de un tenant (punto en curso, propuesta 3
+// aprobada): modo de prueba, ciclo de facturación, fecha de expiración y
+// estatus de cobro — este último editado a mano por ahora (sin
+// integración real de Stripe). 200 actualizado / 400 datos que no pasan
+// la validación / 404 slug inexistente.
+app.put(
+  '/api/control/tenants/:slug/suscripcion',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const tenant = await actualizarSuscripcionTenant(req.params.slug, req.body || {}, { actor: req.adminUser });
+      res.json({ ok: true, tenant });
+    } catch (err) {
+      if (err instanceof ErrorSuscripcionTenant) {
+        const estatus = err.codigo === 'no_encontrado' ? 404 : 400;
         return res.status(estatus).json({ error: err.message });
       }
       throw err;

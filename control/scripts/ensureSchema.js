@@ -142,6 +142,21 @@ const COLUMNAS_NUEVAS = [
   // arriba, que es solo para no apagarle algo a nadie el día de la
   // migración.
   { nombre: 'promociones_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // Suscripción por tenant (punto en curso, propuesta 3 aprobada): modo
+  // de prueba, ciclo de facturación, fecha de expiración y estatus de
+  // cobro. Todas NULL/0 por default — a diferencia de los flags de
+  // arriba (que "ya se usaba, nace encendido para no apagar nada"), esta
+  // es información nueva que nadie ha capturado todavía; NULL significa
+  // "sin configurar", nunca se asume prueba ni pagada por default. El
+  // estatus de cobro se edita A MANO por ahora (sin integración real de
+  // Stripe, confirmado con el usuario) — la columna queda lista para que
+  // un futuro webhook la actualice sola.
+  { nombre: 'suscripcion_en_prueba', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'suscripcion_dias_prueba', definicion: 'INT NULL' },
+  { nombre: 'suscripcion_prueba_inicia_en', definicion: 'DATE NULL' },
+  { nombre: 'suscripcion_ciclo', definicion: "ENUM('mensual','anual') NULL" },
+  { nombre: 'suscripcion_expira_en', definicion: 'DATE NULL' },
+  { nombre: 'suscripcion_estatus', definicion: "ENUM('prueba','pagada','pendiente','vencida','cancelada') NULL" },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {

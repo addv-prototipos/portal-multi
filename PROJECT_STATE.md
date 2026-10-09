@@ -20111,6 +20111,199 @@ siempre, navegado con paginación real server-side, nunca escondido.
   etc.) — queda fuera de alcance de este punto, es deuda de test
   preexistente.
 
+## Punto 381 — Suscripción (prueba/ciclo/expiración/estatus de cobro) en /control (9 oct 2026, CERRADO)
+
+Estructurado con `/prompt-master` (Template M) + propuesta visual de 5
+diseños vía `/ui-ux-pro-max` — el usuario aprobó la propuesta 3 ("Panel
+dividido + vista 'Próximos a vencer'"). Requerimiento: falta poder
+registrar, por empresa, si está en modo de prueba y cuántos días, ciclo
+de facturación (mensual/anual), fecha de expiración, estatus de cobro y
+ver cuáles están próximas a vencer. Aclarado con el usuario antes de
+implementar: el estatus de cobro es **manual por ahora** — todavía no hay
+integración con Stripe (el campo lo dice explícitamente en la UI).
+
+- **Esquema** (`control/scripts/ensureSchema.js`, array `COLUMNAS_NUEVAS`
+  de `tenants` — cuidado de no confundir con `COLUMNAS_PLANES_NUEVAS`, ver
+  gotcha ya documentado del punto 369): 6 columnas nuevas,
+  `suscripcion_en_prueba` (`TINYINT(1) DEFAULT 0`),
+  `suscripcion_dias_prueba` (`INT NULL`),
+  `suscripcion_prueba_inicia_en` (`DATE NULL`), `suscripcion_ciclo`
+  (`ENUM('mensual','anual') NULL`), `suscripcion_expira_en` (`DATE NULL`),
+  `suscripcion_estatus`
+  (`ENUM('prueba','pagada','pendiente','vencida','cancelada') NULL`).
+  Todas opcionales/NULL por defecto — concepto nuevo, nunca existió antes,
+  así que no hay dato viejo que asumir.
+- **`control/utils/tenantSuscripcion.js`** (nuevo, mismo patrón que
+  `tenantTema.js`/`tenantMarca.js`): `ErrorSuscripcionTenant` tipado
+  (`codigo: 'no_encontrado'|'validacion'`), `actualizarSuscripcionTenant(slug,
+  datos, {actor, db})` — SELECT→valida→UPDATE→re-SELECT→
+  `registrarEvento()` en `tenant_eventos`→retorna. `control/server.js`:
+  `PUT /api/control/tenants/:slug/suscripcion`.
+  `control/utils/tenantLifecycle.js:listarTenants()` extendido para traer
+  las 6 columnas en cada fetch de la tabla principal.
+- **Frontend** (`frontend/control.html`/`control.js`/`admin.css`): 5ª
+  pestaña "Suscripción" en el modal de edición (entre "Plan y funciones" e
+  "Identidad visual"), patrón INDEPENDIENTE (botón propio
+  `#control-btn-guardar-suscripcion`, PUT propio — no comparte el
+  "Guardar cambios" general). Panel dividido: anillo de progreso
+  (`conic-gradient`, 100% cliente — se recalcula en vivo con cada cambio
+  de campo vía `renderAnilloSuscripcion()`, verde/ámbar/rojo según días
+  restantes) + formulario de los 6 campos. Columna "Vence" nueva en la
+  tabla principal (badge semántico, mismo lenguaje que la columna
+  "Estado") + checkbox "Próximos a vencer (≤ 7 días)" — **filtro 100%
+  client-side**: `listarTenants()` ya trae las 6 columnas en cada carga,
+  así que no hace falta un parámetro de query nuevo ni una segunda
+  llamada al backend (`tenantsCacheActual` cachea la última carga,
+  `renderTenants()` se reutiliza para refiltrar sin refetch).
+- **Verificación**: `node --check` en los 4 archivos backend tocados.
+  Rebuild real de Docker (`control`+`frontend`) + `--force-recreate`,
+  columnas confirmadas en MySQL real vía el propio pool de `control`.
+  Clics reales en navegador con chrome-devtools contra Docker/MySQL
+  reales: login real, modal de edición → pestaña Suscripción, anillo en
+  vivo confirmado (5 días → 36%, ámbar), guardado real vía PUT, columna
+  "Vence" de la tabla reflejando "5 días · Prueba" tras recargar desde
+  BD, filtro "Próximos a vencer" acotando correctamente a 1 de 8 tenants
+  y restaurando a 8 al desmarcar.
+- **Desviación de alcance, no re-confirmada con el usuario**: la
+  propuesta 3 aprobada mostraba "Próximos a vencer" como una PESTAÑA
+  dedicada (mismo patrón que Reportes). Se implementó como un checkbox de
+  filtro junto al selector de estado existente en vez de una pestaña
+  nueva — más simple, reutiliza el lenguaje de filtros ya existente en la
+  vista, pero es una decisión de implementación no literal al mockup.
+  Pendiente: confirmar con el usuario si prefiere la pestaña dedicada.
+- **`prod/`**: sin contenedor `control` (confirmado este mismo día al
+  corregir el nginx crash-loop) — solo se sincronizó por contenido
+  `frontend/control.html`/`control.js`/`admin.css`; los 4 archivos de
+  `control/` no tienen equivalente en `prod/`.
+
+## Punto 382 — Riel colapsable + barra flotante en /control (paridad con /admin) + limpieza de títulos redundantes (9 oct 2026, CERRADO)
+
+El CSS del riel colapsable (punto 329) y de la barra superior fija
+(punto en curso de "Suscripción", mismo día) ya era 100% reutilizable
+porque `/control` usa `admin.css` y las mismas clases (`.admin-sidebar`,
+`.admin-header`, `.admin-body`) — solo faltaba el HTML y el JS
+específicos de la página, que `admin.js` no cubre (es un script aparte).
+
+- **`frontend/control.html`**: agregado `.admin-sidebar-logo-mini`
+  (monograma "V", mismo asset `favicon.png` que /admin) + botón
+  `#control-btn-colapsar-sidebar` (`.admin-sidebar-rail-toggle`), ambos
+  copiados 1:1 del patrón de `admin.html`.
+- **`frontend/control.js`**: `aplicarEstadoColapsoSidebarControl()` +
+  `claveColapsoSidebarControl()` (localStorage por cuenta, mismo patrón
+  que `claveColapsoSidebar()` de `admin.js` — clave separada,
+  `sidebar_colapso_control_v1_<usuario>`, para no compartir estado con
+  `/admin`) + listener de `click` + listener de `scroll` para
+  `.admin-header.is-scrolled`. Se llama desde `showDashboard()` al
+  iniciar sesión, igual que `admin.js` lo hace en su propio
+  `showDashboard()`. Sin lógica de grupos anidados (`GRUPOS_SIDEBAR_NAV`)
+  — el nav de `/control` no tiene submenús tipo Reportes, no aplica.
+- **Limpieza de títulos redundantes** (pedido explícito del usuario, con
+  captura de pantalla de ejemplo): se quitó el `<h1>` de las 5 vistas que
+  mapean 1:1 con un tab del sidebar (Empresas, Planes, Sucursales, Super
+  Admins, Auditoría) — el sidebar ya resalta la vista activa, el título
+  era redundante. **Se conservó el `<h1>` de "Papelera"** a propósito: es
+  una sub-vista alcanzada desde Empresas (botón "Papelera"), el sidebar
+  se queda en "Empresas" mientras la ves, así que ahí el título SÍ aporta
+  orientación que el menú no da. El botón de ayuda "?" de cada vista se
+  conservó tal cual, ahora solo (ya no junto a un texto).
+- **Verificación**: `node --check` en `control.js`. Rebuild real de
+  Docker (`frontend`) + `--force-recreate`. Clics reales en navegador
+  (chrome-devtools) contra Docker real: colapsar/expandir el riel
+  confirmado (clase `sidebar-colapsado` en `<body>`, ancho 72px, ícono
+  mini, nav solo-íconos, header seguía fijo con `left:72px` recalculado),
+  header `position:fixed` confirmado por `getComputedStyle`, títulos
+  confirmados ausentes en las 5 vistas y presente en Papelera.
+- **`prod/`**: sincronizado por contenido `frontend/control.html`/
+  `control.js` (sin cambios de `admin.css`, todo el CSS ya era
+  reutilizado de /admin).
+
+## Punto 384 — Venta mínima / punto de equilibrio en "Utilidad neta del mes" (9 oct 2026, CERRADO)
+
+Estructurado con `/prompt-master` + 3 rondas de propuesta visual vía
+`/ui-ux-pro-max` (5 propuestas de layout → 8 tipos de gráfica → prototipo
+funcional interactivo con Artifact) antes de tocar código real — el
+usuario aprobó "Línea de equilibrio" como tipo por defecto y Velocímetro/
+Bullet chart/Termómetro como alternativas elegibles. Definición: venta
+mínima mensual = gastos del mes (el mismo subtotal que ya resta la
+fórmula de utilidad para llegar a $0); venta mínima diaria = mensual ÷
+días del mes.
+
+- **Backend** (`backend/server.js`, `GET /api/admin/resumen-financiero`):
+  nuevo campo `mes_actual.dias_mes` — diff puro de
+  `fechas.inicio`/`fechas.fin` (ambas `'YYYY-MM-DD'` de calendario local
+  ya resueltas por `limitesMes()`), nunca `Date.UTC()` sobre "ahora"
+  (no es el gotcha de limitesPeriodo.js — aquí son dos fechas conocidas,
+  no el borde de "hoy").
+- **Frontend** (`frontend/admin.html`/`admin.js`/`admin.css`): selector
+  `.vm-selector` de 4 botones dentro de la tarjeta "Utilidad neta del
+  mes", preferencia en **localStorage** (`vm_tipo_grafica_v1_<tenant>_
+  <usuario>`, mismo patrón que el riel colapsable del sidebar — nunca en
+  BD, es cosmético). `renderResumenFinUtilidad(mes)` cachea
+  `vmUltimoDatos` y despacha a 4 funciones (`vmRenderLinea`/
+  `vmRenderGauge`/`vmRenderBullet`/`vmRenderTermometro`), cada una
+  retornando `{body, legend, caption, afterRender}` — el body reemplaza
+  `#resumen-fin-utilidad-body` completo (mismo patrón de innerHTML-swap
+  que ya tenía la tarjeta), la leyenda ahora es JS-driven (antes era
+  `<ul>` estática).
+- **Animación, solo esta tarjeta, 10% más lenta**: `--anim-speed:1.1` en
+  `.resumen-fin-utilidad-card` (nunca `:root`), todas las transiciones
+  nuevas usan `calc(Xs * var(--anim-speed, 1))` — el fallback `, 1`
+  importa: si alguna de estas clases se reutilizara fuera de esta
+  tarjeta algún día, no hereda el multiplicador por accidente.
+  `@media (prefers-reduced-motion: reduce)` scoped a la misma tarjeta
+  (no global) fuerza todas las duraciones a .01ms.
+- **Velocímetro**: arcos recalculados geométricamente (radio 90, centro
+  105,112, escala 0-160%) para que los cortes de color caigan EXACTO en
+  70%/100% — mismos puntos que `vmZonaGauge()`. Cara dibujada a mano en
+  SVG (nunca emoji) en vez de un número — triste/seria/feliz según zona,
+  color = `currentColor` heredado de `.vm-cara-<estado>`, que reusa el
+  mismo color que pinta el arco (nunca pueden desincronizarse).
+- **Bug real corregido en esta sesión — `--color-positive` NUNCA existió
+  como custom property**: el resto del sitio pinta "positivo/verde"
+  con el hex `#1FAE6B`/`#E4F6ED` directo en cada sitio (ver
+  `.resumen-fin-utilidad-valor.es-positiva`), nunca con una variable
+  CSS reutilizable. `var(--color-positive)` sin fallback resolvía a
+  nada → sin color → invisible (reportado: "no se ve el verde en el
+  velocímetro", bullet chart con el verde de "Cubierto" también
+  ausente). Las 5 ocurrencias sin fallback en `admin.js` se cambiaron al
+  hex directo (`#1FAE6B`); las 3 que SÍ llevaban fallback en `admin.css`
+  (`var(--color-positive, #1FAE6B)`) ya estaban bien. **Lección para
+  cualquier código nuevo**: `--color-positive`/`--color-positive-soft`
+  NO son variables reales de este proyecto — usar el hex directo, igual
+  que ya hace el resto del archivo, nunca asumir que existen porque
+  `--color-error`/`--color-warn` sí lo son.
+- **Bullet chart, densidad de color +8%** (pedido explícito, "apenas se
+  nota el rojo"): `color-mix(in srgb, var(--color-error-soft) 92%,
+  var(--color-error) 8%)` para pérdida/riesgo, mismo criterio con el hex
+  directo para cubierto — mezcla hacia el tono sólido en vez de aumentar
+  opacidad (evita que el fondo blanco se mezcle y diluya el resultado).
+  Centralizado en `VM_COLOR_ZONA` (un solo lugar, reusado por zona de
+  franja Y su punto de leyenda — nunca dos fuentes de color para la
+  misma franja).
+- **Bug real corregido — termómetro recortaba su propia etiqueta**:
+  `.vm-thermo-marker-label` vivía DENTRO de `.vm-thermo-tube`
+  (`overflow:hidden`, necesario para recortar el relleno a la forma de
+  píldora) con `left:46px` — fuera de los 36px de ancho del tubo, así
+  que el propio `overflow:hidden` la recortaba por completo (invisible
+  pese a existir en el DOM, confirmado con `getBoundingClientRect`).
+  Fix: nuevo wrapper `.vm-thermo-tube-wrap` (sin overflow) que envuelve
+  al tubo — el `overflow:hidden` se queda SOLO en `.vm-thermo-tube`, que
+  es quien de verdad lo necesita.
+- **Verificación**: Jest backend completo 1229/1229 sin regresiones (2
+  tests de `resumenFinanciero.test.js` actualizados —
+  `dias_mes: expect.any(Number)`, nunca hardcodeado, porque no hay reloj
+  fijo en ese archivo y el valor real varía 28-31 según el mes en que
+  corra la suite). `node --check` en los 3 archivos backend/frontend
+  tocados. Rebuild real de Docker (`backend`+`frontend`) + recreate.
+  Clics reales en navegador (chrome-devtools) contra Docker/MySQL
+  reales, con datos reales del tenant (gastos $75,959.48, equilibrio
+  diario $2,450.31): los 4 tipos confirmados correctos tras las
+  correcciones de color — línea con animación de crecimiento+línea
+  punteada, velocímetro con cara feliz verde, bullet con las 4 franjas
+  visibles, termómetro con la etiqueta de equilibrio ya legible.
+  Preferencia confirmada persistente entre tipos (localStorage,
+  sobrevive recarga completa de página).
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
@@ -20144,3 +20337,5 @@ siempre, navegado con paginación real server-side, nunca escondido.
 - Pausa de autoservicio "Facturación" en Configuraciones, tenant y sitio base (punto 378): `backend/utils/tenantContext.js:facturacionEfectiva`, `requiereFacturacionActiva`/`facturacionActivaEnRequest` en `backend/utils/requiereFeature.js`, `PUT /api/admin/config/facturacion` en `backend/server.js`, `facturacion_pausada` en `control/scripts/ensureSchema.js` (tenant) y `backend/utils/config.js` (sitio base), tarjeta `facturacion-toggle-card` en `frontend/admin.html`/`admin.js` (sin gate propio en `PLAN_GATE_TARJETA_CONFIG`, a propósito)
 - Campana de notificaciones del portal de cliente — promociones + pago registrado en CxC (punto 379): tabla `notificaciones_cliente` en `backend/db.js`, `GET /api/notificaciones` + `POST`/`GET /api/admin/promociones` + aviso automático en `PUT /api/admin/ordenes-compra/:id/cobro` (todos en `backend/server.js`), flag `promociones_habilitado` en `control/scripts/ensureSchema.js`/`tenantContext.js`/`control/utils/{planes,tenantEdicion}.js`/`frontend/control.js`, campana centralizada (sin HTML nuevo) en `frontend/portal.js`, vista "Promociones" en `frontend/admin.html`/`admin.js`
 - Histórico siempre visible + paginación real en Ventas/Gastos/CxC + candado de traslape en cierre mensual (punto 380): `GET /api/admin/ordenes-compra` paginado real + `resumenCxc` en `backend/server.js`, `GET /api/admin/gastos` sin ocultamiento por defecto, `cargarOrdenes`/`renderOrdenesConPendientes`/`renderPaginacionServidor` + `cxcBaseCache`/`cxcCobradasCache`/`cargarCxcBase`/`cargarCxcCobradasPagina` en `frontend/admin.js`, candado `corridaEnProgreso` + pausa entre lotes en `backend/utils/cierreMensual.js`
+- Suscripción (prueba/ciclo/expiración/estatus de cobro, manual — sin Stripe aún) por tenant (punto 381): 6 columnas `suscripcion_*` en `control/scripts/ensureSchema.js`, `control/utils/tenantSuscripcion.js` (`actualizarSuscripcionTenant`), `PUT /api/control/tenants/:slug/suscripcion` en `control/server.js`, pestaña independiente "Suscripción" + anillo en vivo + columna "Vence" + filtro client-side "Próximos a vencer" en `frontend/control.html`/`control.js`/`admin.css`
+- Venta mínima / punto de equilibrio en "Utilidad neta del mes" (punto 384): `mes_actual.dias_mes` en `backend/server.js` (`GET /api/admin/resumen-financiero`), selector de 4 tipos de gráfica (línea de equilibrio por defecto, velocímetro, bullet chart, termómetro) con preferencia en localStorage en `renderResumenFinUtilidad`/`vmRender*` de `frontend/admin.js`, estilos `.vm-*` + `--anim-speed` scoped en `frontend/admin.css`

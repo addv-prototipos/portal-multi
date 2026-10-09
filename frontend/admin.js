@@ -671,6 +671,9 @@
     resumenFinUtilidadValor: document.getElementById('resumen-fin-utilidad-valor'),
     resumenFinUtilidadBody: document.getElementById('resumen-fin-utilidad-body'),
     resumenFinUtilidadEmpty: document.getElementById('resumen-fin-utilidad-empty'),
+    resumenFinUtilidadCaption: document.getElementById('resumen-fin-utilidad-caption'),
+    resumenFinUtilidadLeyenda: document.getElementById('resumen-fin-utilidad-leyenda'),
+    vmSelector: document.getElementById('vm-selector'),
     unmMiniTagQ: document.getElementById('unm-mini-tag-q'),
     unmMiniBadge: document.getElementById('unm-mini-badge'),
     unmMiniKpis: document.getElementById('unm-mini-kpis'),
@@ -13450,6 +13453,7 @@
     if (els.unmMiniBadge) els.unmMiniBadge.hidden = !hayDatos;
     if (els.unmMiniKpis) els.unmMiniKpis.hidden = !hayDatos;
     if (els.unmMiniAlerta) els.unmMiniAlerta.hidden = !hayDatos || gastos <= 0;
+    if (els.vmSelector) els.vmSelector.hidden = !hayDatos;
     if (!hayDatos) return;
 
     if (els.unmMiniBadge) {
@@ -13478,26 +13482,314 @@
       }
     }
 
-    const maximo = Math.max(ventasTotales, gastos, 1);
-    // Mínimo 1% para valores > 0: que un monto chico siga siendo visible
-    // junto a uno grande (mismo criterio que min-height:2px de las barras
-    // de la gráfica principal).
+    // Venta mínima / punto de equilibrio (punto 383): mensual = gastos
+    // del mes (el mismo subtotal que ya resta la fórmula de utilidad para
+    // llegar a $0); diaria = mensual ÷ días del mes (mes.dias_mes, ver
+    // backend/server.js). vmUltimoDatos queda en caché para que el
+    // selector de tipo de gráfica pueda re-renderizar sin refetch.
+    const diasMes = mes.dias_mes || 30;
+    const equilibrioMensual = gastos;
+    const equilibrioDiario = diasMes > 0 ? equilibrioMensual / diasMes : equilibrioMensual;
+    vmUltimoDatos = { subtotal, iva, ventasTotales, gastos, equilibrioMensual, equilibrioDiario };
+
+    if (els.vmSelector) {
+      vmWireSelector();
+      if (vmTipoActual === null) vmTipoActual = vmCargarTipoGuardado();
+      vmActualizarSelectorActivo();
+    }
+    vmRenderizarCuerpo(vmUltimoDatos);
+  }
+
+  // ---------- Venta mínima / punto de equilibrio (punto 383) ----------
+  // 4 formas de presentar el mismo número (línea de equilibrio por
+  // defecto + velocímetro/bullet/termómetro alternativos) — preferencia
+  // en localStorage por cuenta (cosmético, nunca en BD, mismo criterio
+  // que el riel colapsable del sidebar). TODAS las animaciones de aquí
+  // son 10% más lentas, solo en esta tarjeta (--anim-speed en admin.css,
+  // nunca :root).
+
+  const VM_TIPOS = ['linea', 'gauge', 'bullet', 'termometro'];
+  // Bug real corregido (reportado: "no se ve el verde en el velocímetro",
+  // "apenas se nota el rojo" en bullet chart): --color-positive/
+  // --color-positive-soft NUNCA se definieron como custom property en
+  // admin.css (el resto del sitio usa el hex #1FAE6B/#E4F6ED directo,
+  // nunca una variable) — var(--color-positive) sin fallback resolvía a
+  // nada, dejando el trazo/relleno sin color = invisible. Franjas del
+  // bullet chart además pedidas "+8% de densidad" sobre el tono suave
+  // (color-mix 92% tono suave / 8% tono sólido) — mismo criterio para
+  // pérdida/riesgo/cubierto, los 3 a la vez, no solo rojo.
+  const VM_COLOR_ZONA = {
+    perdida: 'color-mix(in srgb, var(--color-error-soft) 92%, var(--color-error) 8%)',
+    riesgo: 'color-mix(in srgb, var(--color-warn-soft) 92%, var(--color-warn) 8%)',
+    cubierto: 'color-mix(in srgb, #E4F6ED 92%, #1FAE6B 8%)',
+  };
+  let vmTipoActual = null;
+  let vmUltimoDatos = null;
+
+  function vmClaveStorage() {
+    return `vm_tipo_grafica_v1_${TENANT_SLUG || 'base'}_${usuarioSesionActual || ''}`;
+  }
+  function vmCargarTipoGuardado() {
+    try {
+      const guardado = localStorage.getItem(vmClaveStorage());
+      return VM_TIPOS.includes(guardado) ? guardado : 'linea';
+    } catch (_) {
+      return 'linea';
+    }
+  }
+  function vmGuardarTipo(tipo) {
+    try {
+      localStorage.setItem(vmClaveStorage(), tipo);
+    } catch (_) {
+      // sin acceso a localStorage: el cambio de esta sesión sigue
+      // funcionando, solo no se recuerda para la próxima.
+    }
+  }
+  function vmMotionReducido() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function vmWireSelector() {
+    if (!els.vmSelector || els.vmSelector.dataset.wired) return;
+    els.vmSelector.dataset.wired = '1';
+    els.vmSelector.addEventListener('click', (e) => {
+      const btn = e.target.closest('.vm-selector-btn');
+      if (!btn || !vmUltimoDatos) return;
+      const tipo = btn.dataset.tipo;
+      if (!VM_TIPOS.includes(tipo) || tipo === vmTipoActual) return;
+      vmTipoActual = tipo;
+      vmGuardarTipo(tipo);
+      vmActualizarSelectorActivo();
+      vmRenderizarCuerpo(vmUltimoDatos);
+    });
+  }
+  function vmActualizarSelectorActivo() {
+    if (!els.vmSelector) return;
+    els.vmSelector.querySelectorAll('.vm-selector-btn').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.tipo === vmTipoActual);
+    });
+  }
+
+  function vmRenderizarCuerpo(datos) {
+    const constructores = { linea: vmRenderLinea, gauge: vmRenderGauge, bullet: vmRenderBullet, termometro: vmRenderTermometro };
+    const construir = constructores[vmTipoActual] || vmRenderLinea;
+    const { body, legend, caption, afterRender } = construir(datos);
+    els.resumenFinUtilidadBody.innerHTML = body;
+    if (els.resumenFinUtilidadLeyenda) els.resumenFinUtilidadLeyenda.innerHTML = legend;
+    if (els.resumenFinUtilidadCaption) {
+      els.resumenFinUtilidadCaption.innerHTML = caption || '';
+      els.resumenFinUtilidadCaption.hidden = !caption;
+    }
+    if (afterRender) afterRender();
+  }
+
+  // Tipo por defecto — mismas 2 columnas apiladas de siempre (Subtotal+IVA
+  // vs Gastos) con la línea punteada del punto de equilibrio encima.
+  // Mínimo 1% de alto para valores > 0 (mismo criterio que la gráfica
+  // principal) para que un monto chico siga siendo visible junto a uno
+  // grande.
+  function vmRenderLinea(d) {
+    const maximo = Math.max(d.ventasTotales, d.gastos, 1);
     const alturaPct = (valor) => (valor > 0 ? Math.max((valor / maximo) * 100, 1) : 0);
-    els.resumenFinUtilidadBody.innerHTML = `
+    const pctEquilibrioEnEscala = Math.min(100, (d.gastos / maximo) * 100);
+    const body = `
+      <div class="vm-equilibrio-linea" id="vm-equilibrio-linea" style="bottom:${pctEquilibrioEnEscala}%"></div>
+      <span class="vm-equilibrio-label" id="vm-equilibrio-label" style="bottom:${pctEquilibrioEnEscala}%">Equilibrio $${formatearMoneda(d.equilibrioMensual)}</span>
       <div class="resumen-fin-chart-columna">
-        <div class="resumen-fin-utilidad-apilada" role="img" aria-label="Ventas totales $${formatearMoneda(ventasTotales)}: subtotal $${formatearMoneda(subtotal)} más IVA $${formatearMoneda(iva)}">
-          <span class="resumen-fin-utilidad-segmento-iva" style="height:${alturaPct(iva)}%" data-tooltip="IVA cobrado: $${formatearMoneda(iva)}"></span>
-          <span class="resumen-fin-utilidad-segmento-subtotal" style="height:${alturaPct(subtotal)}%" data-tooltip="Subtotal (neto): $${formatearMoneda(subtotal)}"></span>
+        <div class="resumen-fin-utilidad-apilada" role="img" aria-label="Ventas totales $${formatearMoneda(d.ventasTotales)}: subtotal $${formatearMoneda(d.subtotal)} más IVA $${formatearMoneda(d.iva)}">
+          <span class="resumen-fin-utilidad-segmento-iva" style="height:0%" data-h="${alturaPct(d.iva)}" data-tooltip="IVA cobrado: $${formatearMoneda(d.iva)}"></span>
+          <span class="resumen-fin-utilidad-segmento-subtotal" style="height:0%" data-h="${alturaPct(d.subtotal)}" data-tooltip="Subtotal (neto): $${formatearMoneda(d.subtotal)}"></span>
         </div>
         <span class="resumen-fin-chart-etiqueta">Ventas totales</span>
       </div>
       <div class="resumen-fin-chart-columna">
-        <div class="resumen-fin-utilidad-apilada" role="img" aria-label="Gastos $${formatearMoneda(gastos)}">
-          <span class="resumen-fin-utilidad-segmento-gastos" style="height:${alturaPct(gastos)}%" data-tooltip="Gastos: $${formatearMoneda(gastos)}"></span>
+        <div class="resumen-fin-utilidad-apilada" role="img" aria-label="Gastos $${formatearMoneda(d.gastos)}">
+          <span class="resumen-fin-utilidad-segmento-gastos" style="height:0%" data-h="${alturaPct(d.gastos)}" data-tooltip="Gastos: $${formatearMoneda(d.gastos)}"></span>
         </div>
         <span class="resumen-fin-chart-etiqueta">Gastos</span>
       </div>
     `;
+    const legend = `
+      <li><span class="resumen-fin-dot resumen-fin-dot-subtotal" aria-hidden="true"></span>Subtotal (neto)</li>
+      <li><span class="resumen-fin-dot resumen-fin-dot-iva" aria-hidden="true"></span>IVA cobrado</li>
+      <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
+      <li><span class="resumen-fin-dot" style="background:var(--color-accent)" aria-hidden="true"></span>Punto de equilibrio</li>
+    `;
+    const caption = `Para no perder este mes: vender <b>$${formatearMoneda(d.equilibrioMensual)}</b> (≈ <b>$${formatearMoneda(d.equilibrioDiario)}</b>/día).`;
+    const afterRender = () => {
+      const segmentos = els.resumenFinUtilidadBody.querySelectorAll('[data-h]');
+      const linea = document.getElementById('vm-equilibrio-linea');
+      const etiqueta = document.getElementById('vm-equilibrio-label');
+      const aplicar = () => {
+        segmentos.forEach((s) => { s.style.height = `${s.dataset.h}%`; });
+        if (linea) linea.classList.add('is-drawn');
+        if (etiqueta) etiqueta.classList.add('is-shown');
+      };
+      if (vmMotionReducido()) { aplicar(); return; }
+      requestAnimationFrame(aplicar);
+    };
+    return { body, legend, caption, afterRender };
+  }
+
+  // Zonas del velocímetro (y color de la cara) — 0-70% pérdida, 70-100%
+  // riesgo, ≥100% cubierto (100% = exactamente el punto de equilibrio) —
+  // mismos cortes con los que se dibujan los 3 arcos de color.
+  function vmZonaGauge(valorPct) {
+    if (valorPct < 70) return 'perdida';
+    if (valorPct < 100) return 'riesgo';
+    return 'cubierto';
+  }
+
+  // Caras dibujadas a mano (ojos + boca en SVG), nunca emoji. El color
+  // sale de currentColor, heredado de .vm-cara-<estado> en CSS, que reusa
+  // var(--color-error)/--color-warn)/--color-positive) — las MISMAS
+  // variables que pintan el arco, así nunca pueden desincronizarse.
+  function vmConstruirCara(estado) {
+    const trazos = {
+      perdida: `
+        <circle class="vm-cara-fill" cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2.5"/>
+        <circle cx="23" cy="27" r="3" fill="currentColor"/>
+        <circle cx="41" cy="27" r="3" fill="currentColor"/>
+        <path d="M18 20 Q23 16 28 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        <path d="M36 19 Q41 16 46 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+        <path d="M21 46 Q32 38 43 46" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      `,
+      riesgo: `
+        <circle class="vm-cara-fill" cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2.5"/>
+        <circle cx="23" cy="28" r="3" fill="currentColor"/>
+        <circle cx="41" cy="28" r="3" fill="currentColor"/>
+        <line x1="18" y1="20" x2="28" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="36" y1="21" x2="46" y2="20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="23" y1="44" x2="41" y2="44" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      `,
+      cubierto: `
+        <circle class="vm-cara-fill" cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2.5"/>
+        <circle cx="23" cy="27" r="3" fill="currentColor"/>
+        <circle cx="41" cy="27" r="3" fill="currentColor"/>
+        <path d="M21 40 Q32 51 43 40" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      `,
+    };
+    const etiquetas = { perdida: 'Pérdida', riesgo: 'En riesgo', cubierto: 'Cubierto' };
+    return `
+      <div class="vm-cara vm-cara-${estado}" id="vm-cara-gauge">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">${trazos[estado]}</svg>
+        <span class="vm-cara-label">${etiquetas[estado]}</span>
+      </div>
+    `;
+  }
+
+  // Arcos geométricamente exactos (radio 90, centro 105,112; escala 0-160%)
+  // para que los cortes de color caigan EXACTO en 70%/100% — los mismos
+  // puntos de corte que vmZonaGauge(), nunca números distintos a ojo.
+  function vmRenderGauge(d) {
+    const pct = d.gastos > 0 ? (d.subtotal / d.gastos) * 100 : (d.subtotal > 0 ? 150 : 0);
+    const estado = d.gastos > 0 ? vmZonaGauge(pct) : (d.subtotal > 0 ? 'cubierto' : 'perdida');
+    const pctClamped = Math.max(0, Math.min(160, pct));
+    const anguloGrados = 180 - (pctClamped / 160) * 180;
+    const anguloRad = (anguloGrados * Math.PI) / 180;
+    const nx = (105 + 80 * Math.cos(anguloRad)).toFixed(1);
+    const ny = (112 - 80 * Math.sin(anguloRad)).toFixed(1);
+    const body = `
+      <div class="vm-gauge-wrap">
+        <svg width="210" height="126" viewBox="0 0 210 126">
+          <path class="vm-gauge-arc" d="M 15 112 A 90 90 0 0 1 87.4 23.7" fill="none" stroke="var(--color-error)" stroke-width="17" stroke-linecap="round"/>
+          <path class="vm-gauge-arc" d="M 87.4 23.7 A 90 90 0 0 1 139.4 28.9" fill="none" stroke="var(--color-warn)" stroke-width="17" stroke-linecap="round"/>
+          <path class="vm-gauge-arc" d="M 139.4 28.9 A 90 90 0 0 1 195 112" fill="none" stroke="#1FAE6B" stroke-width="17" stroke-linecap="round"/>
+          <line id="vm-gauge-needle" class="vm-gauge-needle vm-gauge-needle-start" x1="105" y1="112" x2="${nx}" y2="${ny}" stroke="var(--color-ink)" stroke-width="4" stroke-linecap="round" style="transform-origin:105px 112px;"/>
+          <circle cx="105" cy="112" r="7" fill="var(--color-ink)"/>
+        </svg>
+        ${vmConstruirCara(estado)}
+        <div class="vm-gauge-sub">del punto de equilibrio ($${formatearMoneda(d.equilibrioMensual)})</div>
+      </div>
+    `;
+    const legend = `
+      <li><span class="resumen-fin-dot" style="background:var(--color-error)" aria-hidden="true"></span>Pérdida</li>
+      <li><span class="resumen-fin-dot" style="background:var(--color-warn)" aria-hidden="true"></span>Riesgo</li>
+      <li><span class="resumen-fin-dot" style="background:#1FAE6B" aria-hidden="true"></span>Cubierto</li>
+    `;
+    const afterRender = () => {
+      const needle = document.getElementById('vm-gauge-needle');
+      const cara = document.getElementById('vm-cara-gauge');
+      const arcos = els.resumenFinUtilidadBody.querySelectorAll('.vm-gauge-arc');
+      const aplicar = () => {
+        arcos.forEach((a) => a.classList.add('is-drawn'));
+        if (needle) needle.classList.remove('vm-gauge-needle-start');
+        if (cara) cara.classList.add('is-shown');
+      };
+      if (vmMotionReducido()) { aplicar(); return; }
+      requestAnimationFrame(aplicar);
+    };
+    return { body, legend, caption: '', afterRender };
+  }
+
+  // Zonas de la franja (rojo/ámbar/verde) escaladas al % del CAMINO hacia
+  // el equilibrio (no al ancho total de la barra) — los primeros 70% del
+  // trayecto hacia la meta son "pérdida", 70-100% "riesgo", de la meta en
+  // adelante "cubierto" (todo el resto de la franja).
+  function vmRenderBullet(d) {
+    const escalaMax = Math.max(d.subtotal, d.equilibrioMensual, 1) * 1.15;
+    const pctVentas = Math.max(0, Math.min(100, (d.subtotal / escalaMax) * 100));
+    const pctMeta = Math.max(0, Math.min(100, (d.equilibrioMensual / escalaMax) * 100));
+    const anchoRojo = pctMeta * 0.7;
+    const anchoAmbar = pctMeta * 0.3;
+    const body = `
+      <div class="vm-bullet-wrap">
+        <div class="vm-bullet-top"><span>Ventas vs. equilibrio</span><b>$${formatearMoneda(d.subtotal)}</b></div>
+        <div class="vm-bullet-track">
+          <span class="vm-bullet-zone" style="left:0; width:${anchoRojo}%; background:${VM_COLOR_ZONA.perdida};"></span>
+          <span class="vm-bullet-zone" style="left:${anchoRojo}%; width:${anchoAmbar}%; background:${VM_COLOR_ZONA.riesgo};"></span>
+          <span class="vm-bullet-zone" style="left:${pctMeta}%; width:${100 - pctMeta}%; background:${VM_COLOR_ZONA.cubierto};"></span>
+          <span class="vm-bullet-fill" id="vm-bullet-fill" style="left:2px; width:0%;" data-pct="${Math.max(0, pctVentas - 0.5)}"></span>
+          <span class="vm-bullet-target" style="left:${pctMeta}%;"></span>
+        </div>
+      </div>
+    `;
+    const legend = `
+      <li><span class="resumen-fin-dot" style="background:${VM_COLOR_ZONA.perdida}" aria-hidden="true"></span>Pérdida</li>
+      <li><span class="resumen-fin-dot" style="background:${VM_COLOR_ZONA.riesgo}" aria-hidden="true"></span>Riesgo</li>
+      <li><span class="resumen-fin-dot" style="background:${VM_COLOR_ZONA.cubierto}" aria-hidden="true"></span>Cubierto</li>
+      <li><span class="resumen-fin-dot" style="background:var(--color-ink); border-radius:0; width:2px;" aria-hidden="true"></span>Meta</li>
+    `;
+    const caption = `Marca negra = punto de equilibrio (<b>$${formatearMoneda(d.equilibrioMensual)}</b>). Franjas: pérdida / riesgo / cubierto.`;
+    const afterRender = () => {
+      const fill = document.getElementById('vm-bullet-fill');
+      const aplicar = () => { if (fill) fill.style.width = `calc(${fill.dataset.pct}% - 2px)`; };
+      if (vmMotionReducido()) { aplicar(); return; }
+      requestAnimationFrame(aplicar);
+    };
+    return { body, legend, caption, afterRender };
+  }
+
+  function vmRenderTermometro(d) {
+    const escalaMax = Math.max(d.subtotal, d.equilibrioMensual, 1) * 1.15;
+    const pctVentas = Math.max(0, Math.min(100, (d.subtotal / escalaMax) * 100));
+    const pctMeta = Math.max(0, Math.min(100, (d.equilibrioMensual / escalaMax) * 100));
+    const body = `
+      <div class="vm-thermo-wrap">
+        <div class="vm-thermo-tube-wrap">
+          <div class="vm-thermo-tube">
+            <span class="vm-thermo-fill" id="vm-thermo-fill" style="height:0%;" data-pct="${pctVentas}"></span>
+          </div>
+          <span class="vm-thermo-marker" style="bottom:${pctMeta}%;"></span>
+          <span class="vm-thermo-marker-label" style="bottom:${pctMeta}%;">Equilibrio<br>$${formatearMoneda(d.equilibrioMensual)}</span>
+        </div>
+        <div class="vm-thermo-info">
+          <div><div class="vm-thermo-stat-label">Ventas netas</div><div class="vm-thermo-stat-val">$${formatearMoneda(d.subtotal)}</div></div>
+          <div><div class="vm-thermo-stat-label">Venta mínima diaria</div><div class="vm-thermo-stat-val">$${formatearMoneda(d.equilibrioDiario)}</div></div>
+        </div>
+      </div>
+    `;
+    const legend = `
+      <li><span class="resumen-fin-dot" style="background:#1FAE6B" aria-hidden="true"></span>Ventas acumuladas</li>
+      <li><span class="resumen-fin-dot" style="background:var(--color-accent); border-radius:0; width:2px;" aria-hidden="true"></span>Marca de equilibrio</li>
+    `;
+    const afterRender = () => {
+      const fill = document.getElementById('vm-thermo-fill');
+      const aplicar = () => { if (fill) fill.style.height = `${fill.dataset.pct}%`; };
+      if (vmMotionReducido()) { aplicar(); return; }
+      requestAnimationFrame(aplicar);
+    };
+    return { body, legend, caption: '', afterRender };
   }
 
   // Convierte una serie de valores en puntos (x,y) dentro de un viewBox

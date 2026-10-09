@@ -1162,14 +1162,21 @@
                 <span class="resumen-fin-balance-kpi-nota" id="unm-mini-kpi-gastos-nota"></span>
               </div>
             </div>
+            <!-- Punto 383: venta mínima (punto de equilibrio) — tipo de
+                 gráfica elegible por el operador, "Línea de equilibrio" por
+                 defecto. Preferencia en localStorage (mismo criterio que el
+                 riel colapsable del sidebar), nunca en BD — es cosmético,
+                 no un dato de negocio. -->
+            <div class="vm-selector" id="vm-selector" hidden>
+              <button type="button" class="vm-selector-btn" data-tipo="linea">Línea de equilibrio</button>
+              <button type="button" class="vm-selector-btn" data-tipo="gauge">Velocímetro</button>
+              <button type="button" class="vm-selector-btn" data-tipo="bullet">Bullet chart</button>
+              <button type="button" class="vm-selector-btn" data-tipo="termometro">Termómetro</button>
+            </div>
             <div class="resumen-fin-chart-body resumen-fin-utilidad-body" id="resumen-fin-utilidad-body" role="img"></div>
+            <p class="vm-caption" id="resumen-fin-utilidad-caption" hidden></p>
             <p class="admin-empty" id="resumen-fin-utilidad-empty" hidden>Aún no hay ventas ni gastos registrados este mes.</p>
-            <ul class="resumen-fin-chart-leyenda">
-              <li><span class="resumen-fin-dot resumen-fin-dot-subtotal" aria-hidden="true"></span>Subtotal (neto)</li>
-              <li><span class="resumen-fin-dot resumen-fin-dot-iva" aria-hidden="true"></span>IVA cobrado</li>
-              <li><span class="resumen-fin-dot resumen-fin-dot-total" aria-hidden="true"></span>Ventas totales</li>
-              <li><span class="resumen-fin-dot resumen-fin-dot-gastos" aria-hidden="true"></span>Gastos</li>
-            </ul>
+            <ul class="resumen-fin-chart-leyenda" id="resumen-fin-utilidad-leyenda"></ul>
             <div class="resumen-fin-alerta-banner" id="unm-mini-alerta" hidden>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
               <span id="unm-mini-alerta-texto">—</span>

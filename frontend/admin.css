@@ -5269,6 +5269,105 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .resumen-fin-dot-iva { background: #C0D3EB; }
 .resumen-fin-dot-total { background: linear-gradient(135deg, #C0D3EB 50%, #719FD4 50%); }
 
+/* ---------- Venta mínima / punto de equilibrio (punto 383) ----------
+   TODAS las animaciones de este bloque son 10% más lentas, y SOLO en
+   esta tarjeta — --anim-speed vive en .resumen-fin-utilidad-card, nunca
+   en :root, así que ninguna otra gráfica del sitio se ve afectada.
+   var(--anim-speed, 1) con default 1 por si alguna de estas clases
+   llegara a reusarse fuera de esta tarjeta en el futuro. */
+.resumen-fin-utilidad-card { --anim-speed: 1.1; }
+@media (prefers-reduced-motion: reduce) {
+  .resumen-fin-utilidad-card, .resumen-fin-utilidad-card * {
+    transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+  }
+}
+#resumen-fin-utilidad-body { position: relative; }
+
+.vm-selector { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 14px; }
+.vm-selector-btn {
+  font-family: inherit; font-size: 11.5px; font-weight: 600; color: var(--color-ink-soft);
+  background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px;
+  padding: 6px 12px; cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.vm-selector-btn:hover { border-color: var(--color-accent); color: var(--color-ink); }
+.vm-selector-btn.is-active { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+
+.vm-caption { text-align: center; font-size: 12px; color: var(--color-ink-soft); margin: 10px 0 0; }
+.vm-caption b { color: var(--color-accent); font-weight: 700; }
+
+/* Línea de equilibrio (tipo por defecto) — se dibuja (scaleX) después de
+   que las barras terminan de crecer, para leer primero "cuánto
+   vendiste" y luego "dónde estaba la meta". */
+.vm-equilibrio-linea {
+  position: absolute; left: 14px; right: 14px; border-top: 2px dashed var(--color-accent);
+  transform-origin: left center; transform: scaleX(0);
+  transition: transform calc(.5s * var(--anim-speed, 1)) cubic-bezier(.22,1,.36,1);
+  transition-delay: calc(.4s * var(--anim-speed, 1));
+}
+.vm-equilibrio-linea.is-drawn { transform: scaleX(1); }
+.vm-equilibrio-label {
+  position: absolute; right: 14px; transform: translateY(-100%); font-size: 10.5px; font-weight: 700;
+  color: var(--color-accent); background: var(--color-surface); padding: 0 4px;
+  opacity: 0; transition: opacity calc(.35s * var(--anim-speed, 1)) ease; transition-delay: calc(.65s * var(--anim-speed, 1));
+}
+.vm-equilibrio-label.is-shown { opacity: 1; }
+/* Las barras de esta tarjeta ya traían transition:height 0.4s ease — se
+   sobreescribe aquí, por id, SOLO para las de esta tarjeta (el selector
+   de clase genérico .resumen-fin-utilidad-segmento-* sigue igual en
+   cualquier otro lugar que llegara a usarlo). */
+#resumen-fin-utilidad-body .resumen-fin-utilidad-segmento-subtotal,
+#resumen-fin-utilidad-body .resumen-fin-utilidad-segmento-iva,
+#resumen-fin-utilidad-body .resumen-fin-utilidad-segmento-gastos {
+  transition: height calc(.5s * var(--anim-speed, 1)) cubic-bezier(.22,1,.36,1);
+}
+
+/* Velocímetro */
+.vm-gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.vm-gauge-arc { stroke-dasharray: 300; stroke-dashoffset: 300; transition: stroke-dashoffset calc(.8s * var(--anim-speed, 1)) cubic-bezier(.22,1,.36,1); }
+.vm-gauge-arc.is-drawn { stroke-dashoffset: 0; }
+.vm-gauge-needle { transition: transform calc(.6s * var(--anim-speed, 1)) cubic-bezier(.22,1,.36,1); }
+.vm-gauge-needle.vm-gauge-needle-start { transform: rotate(-125deg); }
+.vm-gauge-sub { font-size: 11.5px; color: var(--color-ink-soft); }
+/* Cara en vez de número — mismo color que el arco donde cae la aguja,
+   reusa var(--color-error)/--color-warn)/--color-positive), las MISMAS
+   variables que pintan el arco, nunca un hex suelto ni emoji. Texto
+   siempre visible debajo (nunca solo color). */
+.vm-cara { display: flex; flex-direction: column; align-items: center; gap: 6px; opacity: 0; transform: scale(.6); transition: opacity calc(.4s * var(--anim-speed, 1)) ease, transform calc(.4s * var(--anim-speed, 1)) cubic-bezier(.34,1.56,.64,1); transition-delay: calc(.45s * var(--anim-speed, 1)); }
+.vm-cara.is-shown { opacity: 1; transform: scale(1); }
+.vm-cara-perdida { color: var(--color-error); }
+.vm-cara-perdida .vm-cara-fill { fill: var(--color-error-soft); }
+.vm-cara-riesgo { color: var(--color-warn); }
+.vm-cara-riesgo .vm-cara-fill { fill: var(--color-warn-soft); }
+.vm-cara-cubierto { color: var(--color-positive, #1FAE6B); }
+.vm-cara-cubierto .vm-cara-fill { fill: var(--color-positive-soft, #E4F6ED); }
+.vm-cara-label { font-size: 13px; font-weight: 700; color: currentColor; }
+
+/* Bullet chart */
+.vm-bullet-wrap { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 8px; }
+.vm-bullet-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--color-ink-soft); font-weight: 600; }
+.vm-bullet-top b { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.vm-bullet-track { position: relative; height: 18px; border-radius: 4px; background: var(--color-bg); overflow: visible; }
+.vm-bullet-zone { position: absolute; top: 0; bottom: 0; }
+.vm-bullet-fill { position: absolute; top: 5px; bottom: 5px; border-radius: 3px; background: var(--color-accent-dark); z-index: 2; transition: width calc(.4s * var(--anim-speed, 1)) cubic-bezier(.22,1,.36,1); }
+.vm-bullet-target { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--color-ink); z-index: 3; }
+
+/* Termómetro */
+.vm-thermo-wrap { display: flex; align-items: flex-end; gap: 22px; }
+/* El wrap NO recorta (marcador+etiqueta cuelgan fuera del tubo, a la
+   derecha) — overflow:hidden se queda SOLO en .vm-thermo-tube, que es
+   quien necesita recortar el relleno a la forma de píldora. Bug real
+   corregido: la etiqueta "Equilibrio $X" vivía DENTRO de .vm-thermo-tube
+   con left:46px (fuera de sus 36px de ancho) y el propio overflow:hidden
+   del tubo la recortaba por completo — invisible pese a existir en el DOM. */
+.vm-thermo-tube-wrap { position: relative; }
+.vm-thermo-tube { position: relative; width: 36px; height: 160px; border-radius: 18px; background: var(--color-bg); border: 2px solid var(--color-border); overflow: hidden; display: flex; align-items: flex-end; }
+.vm-thermo-fill { width: 100%; border-radius: 18px 18px 0 0; background: var(--color-positive, #1FAE6B); transition: height calc(.4s * var(--anim-speed, 1)) cubic-bezier(.22,1,.36,1); }
+.vm-thermo-marker { position: absolute; left: -8px; right: -8px; height: 2px; background: var(--color-accent-dark); }
+.vm-thermo-marker-label { position: absolute; left: 46px; transform: translateY(-50%); font-size: 10.5px; font-weight: 700; color: var(--color-accent); white-space: nowrap; }
+.vm-thermo-info { display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.vm-thermo-stat-label { font-size: 11px; color: var(--color-ink-soft); }
+.vm-thermo-stat-val { font-size: 17px; font-weight: 800; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+
 /* ---------- Resumen financiero: gráficas BI (segmento 2026-08-20) ---------- */
 .resumen-fin-grid {
   display: grid;
@@ -5949,6 +6048,13 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .estatus-activo { background: #DCEFE3; color: #146C43; }
 .estatus-suspendido { background: var(--color-warn-soft); color: var(--color-warn); }
 .estatus-baja { background: var(--color-error-soft); color: var(--color-error); }
+
+/* Punto 381: columna "Vence" (suscripción) — mismo lenguaje de pastilla
+   que el estado del tenant, con su propia escala semántica. */
+.estatus-vence-na { background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border); }
+.estatus-vence-ok { background: #DCEFE3; color: #146C43; }
+.estatus-vence-proximo { background: var(--color-warn-soft); color: var(--color-warn); }
+.estatus-vence-vencido { background: var(--color-error-soft); color: var(--color-error); }
 
 /* Fila que acaba de cambiar de estado (ej. tras activar un tenant, ver
    flashFilaTenant() en control.js) — flash suave, no un parpadeo brusco. */
@@ -7221,6 +7327,62 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .control-edit-tab.is-active { color: var(--color-accent); border-color: var(--color-accent); }
 .control-edit-tab:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .control-edit-tab-panel:focus { outline: none; }
+
+/* Pestaña "Suscripción" (punto en curso, propuesta 3 aprobada): panel
+   dividido — izquierda solo-lectura (anillo de progreso calculado en
+   vivo con JS, ver actualizarAnilloSuscripcion en control.js), derecha
+   los campos editables (reusa .control-form-grid de arriba, sin
+   componente nuevo que mantener). El anillo usa conic-gradient (soportado
+   en todos los navegadores que ya usa este proyecto, mismo criterio que
+   los demás donuts del panel — ver renderDonutGenerico en admin.js,
+   construido con SVG; aquí se usa CSS puro por ser un solo valor simple,
+   sin necesitar leyenda ni tooltip). */
+.suscripcion-split {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.suscripcion-left {
+  flex: 0 0 180px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.suscripcion-ring {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: conic-gradient(var(--color-border) 0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  transition: background 0.2s ease;
+}
+.suscripcion-ring-inner {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--color-ink);
+}
+.suscripcion-ring-label {
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+  margin: 0;
+}
+.suscripcion-right { flex: 1; min-width: 280px; }
 
 /* Pestaña "Plan y funciones" */
 .planes-tab-plan-actual {

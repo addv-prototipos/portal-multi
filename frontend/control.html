@@ -85,6 +85,16 @@
       <div class="admin-sidebar-logo">
         <img class="admin-sidebar-logo-img" src="/assets/logoDark.png" alt="CLARVO — Tu negocio bajo control by ADDV" />
       </div>
+      <!-- Solo visible con el riel colapsado — mismo patrón que /admin
+           (admin.css: .admin-body.sidebar-colapsado .admin-sidebar-logo-mini). -->
+      <div class="admin-sidebar-logo-mini">
+        <img src="/assets/favicon.png" alt="CLARVO" />
+      </div>
+      <!-- Riel colapsable de escritorio (>900px), mismo comportamiento que
+           /admin (ver aplicarEstadoColapsoSidebarControl en control.js). -->
+      <button type="button" class="admin-sidebar-rail-toggle" id="control-btn-colapsar-sidebar" aria-pressed="false" aria-label="Colapsar menú lateral">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6"/></svg>
+      </button>
       <button type="button" class="btn-menu-movil" id="btn-control-menu-movil" aria-label="Abrir menú">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke-width="2"/></svg>
         <span>Menú</span>
@@ -159,7 +169,6 @@
         <div id="vista-control-empresas">
         <div class="admin-toolbar">
           <div class="admin-toolbar-title">
-            <h1>Empresas (tenants)</h1>
             <button type="button" class="btn-icon" id="btn-ayuda-vista-empresas" aria-label="Ayuda sobre Empresas" data-tooltip="Ayuda sobre esta sección">?</button>
           </div>
           <div class="admin-toolbar-right">
@@ -171,6 +180,14 @@
               <option value="suspendido">Suspendido</option>
               <option value="baja">Baja</option>
             </select>
+            <!-- Suscripción (punto en curso): filtro client-side sobre lo
+                 ya cargado — no es un query param al backend, los datos de
+                 suscripción vienen en el mismo listarTenants() de siempre. -->
+            <label class="control-switch" for="control-filtro-proximos-vencer" style="margin:0;">
+              <input type="checkbox" id="control-filtro-proximos-vencer" />
+              <span class="control-switch-track" aria-hidden="true"></span>
+              <span class="control-switch-label">Próximos a vencer (≤ 7 días)</span>
+            </label>
             <button type="button" class="btn btn-primary" id="control-btn-nueva-empresa">Nueva empresa</button>
             <button type="button" class="btn btn-secondary" id="control-btn-ver-papelera">Papelera</button>
             <button type="button" class="btn btn-secondary" id="control-btn-refresh">Actualizar</button>
@@ -208,6 +225,7 @@
                 <th>Slug</th>
                 <th>Empresa</th>
                 <th>Estado<button type="button" class="campo-ayuda" aria-label="Más información sobre Estado" data-tooltip="Suspender: pausa temporal, para intermitencias o falta de pago — se revierte con Reactivar. Dar de baja: fin de la relación comercial — también se revierte con Reactivar, no borra nada, solo cambia cómo se ve reflejado el estado.">?</button></th>
+                <th>Vence</th>
                 <th>Contacto</th>
                 <th>Creado</th>
                 <th></th>
@@ -231,7 +249,6 @@
         <div id="vista-control-planes" hidden>
           <div class="admin-toolbar">
             <div class="admin-toolbar-title">
-              <h1>Planes</h1>
               <button type="button" class="btn-icon" id="btn-ayuda-vista-planes" aria-label="Ayuda sobre Planes" data-tooltip="Catálogo de planes — qué funciones y límites trae cada uno. Se asignan a una empresa desde su ficha, en 'Plan y funciones'.">?</button>
             </div>
             <div class="admin-toolbar-right">
@@ -331,7 +348,6 @@
         <div id="vista-control-sucursales" hidden>
           <div class="admin-toolbar">
             <div class="admin-toolbar-title">
-              <h1>Sucursales</h1>
               <button type="button" class="btn-icon" id="btn-ayuda-vista-sucursales" aria-label="Ayuda sobre Sucursales" data-tooltip="Ayuda sobre esta sección">?</button>
             </div>
             <div class="admin-toolbar-right">
@@ -373,7 +389,6 @@
         <div id="vista-control-super" hidden>
           <div class="admin-toolbar">
             <div class="admin-toolbar-title">
-              <h1>Super Admins (ADMIN_USERS)</h1>
               <button type="button" class="btn-icon" id="btn-ayuda-vista-super" aria-label="Ayuda sobre Super Admins" data-tooltip="Cuentas super (ADDV) que entran a /control y a cualquier /<slug>/admin. Se guardan en el .env del host para acceso por servidor si falla la UI.">?</button>
             </div>
             <div class="admin-toolbar-right">
@@ -450,7 +465,6 @@
         <div id="vista-control-auditoria" hidden>
           <div class="admin-toolbar">
             <div class="admin-toolbar-title">
-              <h1>Auditoría</h1>
               <button type="button" class="btn-icon" id="btn-ayuda-vista-auditoria" aria-label="Ayuda sobre Auditoría" data-tooltip="Quién entró a /control, qué hizo y sobre qué empresa — accesos de todo el sistema.">?</button>
             </div>
           </div>
@@ -946,6 +960,7 @@
       <div class="control-edit-tabs" role="tablist" aria-label="Secciones de la empresa">
         <button type="button" class="control-edit-tab is-active" data-tab="general" role="tab" aria-selected="true">General</button>
         <button type="button" class="control-edit-tab" data-tab="plan" role="tab" aria-selected="false">Plan y funciones</button>
+        <button type="button" class="control-edit-tab" data-tab="suscripcion" role="tab" aria-selected="false">Suscripción</button>
         <button type="button" class="control-edit-tab" data-tab="visual" role="tab" aria-selected="false">Identidad visual</button>
         <button type="button" class="control-edit-tab" data-tab="grupo" role="tab" aria-selected="false">Grupo / sucursales</button>
       </div>
@@ -1102,6 +1117,77 @@
             </div>
             <div class="planes-disco-uso-track" id="control-editar-disco-uso-track" hidden>
               <div class="planes-disco-uso-fill" id="control-editar-disco-uso-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Suscripción por tenant (punto en curso, propuesta 3 aprobada):
+             modo de prueba, ciclo de facturación, expiración y estatus de
+             cobro. Panel dividido — izquierda solo-lectura (anillo de
+             progreso + días restantes, calculado en vivo con JS a partir
+             de los campos de la derecha, nunca pedido aparte al backend),
+             derecha editable. Guardado independiente del botón general de
+             abajo (mismo criterio que "Identidad visual" — PUT propio a
+             /api/control/tenants/:slug/suscripcion), porque el estatus de
+             cobro es información operativa que cambia sola con el tiempo,
+             no algo que deba esperar a que el operador toque "Guardar
+             cambios" por otro motivo. -->
+        <div class="control-edit-tab-panel" id="control-edit-tab-suscripcion" hidden>
+          <div class="suscripcion-split">
+            <div class="suscripcion-left">
+              <div class="suscripcion-ring" id="control-suscripcion-ring">
+                <div class="suscripcion-ring-inner" id="control-suscripcion-ring-texto">—</div>
+              </div>
+              <p class="suscripcion-ring-label" id="control-suscripcion-resumen">Sin configurar</p>
+            </div>
+            <div class="suscripcion-right">
+              <div class="control-form-grid">
+                <div class="field">
+                  <label class="control-switch" for="control-suscripcion-en-prueba">
+                    <input type="checkbox" id="control-suscripcion-en-prueba" />
+                    <span class="control-switch-track" aria-hidden="true"></span>
+                    <span class="control-switch-label">Modo de prueba</span>
+                  </label>
+                </div>
+                <div class="field">
+                  <label for="control-suscripcion-dias-prueba">Días de prueba</label>
+                  <input type="number" id="control-suscripcion-dias-prueba" min="1" step="1" placeholder="ej. 14" />
+                </div>
+                <div class="field">
+                  <label for="control-suscripcion-prueba-inicia">Prueba inicia el</label>
+                  <input type="date" id="control-suscripcion-prueba-inicia" />
+                </div>
+                <div class="field">
+                  <label for="control-suscripcion-ciclo">Ciclo de facturación</label>
+                  <select id="control-suscripcion-ciclo">
+                    <option value="">Sin configurar</option>
+                    <option value="mensual">Mensual</option>
+                    <option value="anual">Anual</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="control-suscripcion-expira">Expira el</label>
+                  <input type="date" id="control-suscripcion-expira" />
+                </div>
+                <div class="field">
+                  <label for="control-suscripcion-estatus">Estatus de cobro</label>
+                  <select id="control-suscripcion-estatus">
+                    <option value="">Sin configurar</option>
+                    <option value="prueba">Prueba</option>
+                    <option value="pagada">Pagada</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="vencida">Vencida</option>
+                    <option value="cancelada">Cancelada</option>
+                  </select>
+                  <p class="field-hint">Se edita a mano por ahora — todavía no hay integración con Stripe.</p>
+                </div>
+              </div>
+              <p class="field-error" id="control-suscripcion-error" role="alert"></p>
+              <div class="btn-row" style="justify-content:flex-start">
+                <button type="button" class="btn btn-primary" id="control-btn-guardar-suscripcion">
+                  <span id="control-btn-guardar-suscripcion-label">Guardar suscripción</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

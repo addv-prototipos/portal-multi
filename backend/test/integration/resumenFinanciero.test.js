@@ -65,6 +65,11 @@ describe('Admin: Resumen financiero', () => {
       subtotal_ventas: 4000,
       iva_ventas: 1000,
       utilidad_neta: 2800,
+      // Punto 383 (venta mínima): días del mes EN CURSO al correr la
+      // prueba — no se fija el reloj en este archivo, así que varía
+      // (28-31) según cuándo se ejecute; expect.any(Number) evita un
+      // valor hardcodeado que se vuelva frágil con el calendario real.
+      dias_mes: expect.any(Number),
       ops_totales: 4,
       ops_facturadas: 3,
       ops_sin_facturar: 1,
@@ -113,6 +118,7 @@ describe('Admin: Resumen financiero', () => {
       subtotal_ventas: 0,
       iva_ventas: 0,
       utilidad_neta: 0,
+      dias_mes: expect.any(Number),
       ops_totales: 0,
       ops_facturadas: 0,
       ops_sin_facturar: 0,
