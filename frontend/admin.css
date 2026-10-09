@@ -375,13 +375,27 @@
   border-left: 1px solid rgba(255, 255, 255, 0.14);
   padding-left: 8px;
 }
-.admin-vista-subgrupo[data-colapsado="true"] { grid-template-rows: 0fr; }
 .admin-vista-subgrupo-inner {
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 2px 0;
+}
+/* 0fr + overflow:hidden deja el renglón del grid en 0 SOLO si el hijo no
+   tiene padding — el padding cuenta como tamaño mínimo intrínseco de la
+   caja, grid lo respeta sin importar overflow:hidden/min-height:0 (bug
+   real, reportado con captura: una línea cian seguía viéndose —
+   coincidía justo con los 4px de padding de abajo). El patrón ya probado
+   .admin-sidebar-group-body-inner nunca tuvo este bug porque nunca tuvo
+   padding propio. Se quita aquí solo en el estado colapsado — en
+   expandido sigue dando el respiro visual de siempre. */
+.admin-vista-subgrupo[data-colapsado="true"] {
+  grid-template-rows: 0fr;
+}
+.admin-vista-subgrupo[data-colapsado="true"] .admin-vista-subgrupo-inner {
+  padding: 0;
 }
 .admin-vista-btn-sub { font-size: 12.5px; padding: 7px 10px; }
 @media (prefers-reduced-motion: reduce) {
