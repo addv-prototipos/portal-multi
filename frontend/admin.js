@@ -8790,6 +8790,16 @@
   }
   reubicarCampanaPorBreakpoint();
   window.addEventListener('resize', debounce(reubicarCampanaPorBreakpoint, 150));
+
+  // Barra superior siempre visible (punto en curso, propuesta 5 aprobada):
+  // .admin-header ya es sticky por CSS — aquí solo se agrega/quita la
+  // clase que pinta el acento cian una vez que de verdad bajaste, para
+  // que en el tope de la página se vea igual que siempre.
+  if (els.adminHeader) {
+    window.addEventListener('scroll', () => {
+      els.adminHeader.classList.toggle('is-scrolled', window.scrollY > 4);
+    }, { passive: true });
+  }
   els.ticketsFiltroEstatus.addEventListener('change', () => cargarTickets());
   els.ticketsFiltroUsuario.addEventListener('change', () => cargarTickets());
   els.btnRefreshTickets.addEventListener('click', () => cargarTickets());

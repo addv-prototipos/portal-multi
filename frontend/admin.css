@@ -872,6 +872,41 @@
   padding: 16px 24px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+/* Barra siempre visible en escritorio (punto en curso, propuesta 5
+   aprobada) — position:fixed, NUNCA sticky: probado en vivo con
+   getComputedStyle/getBoundingClientRect, sticky quedaba con
+   position:sticky;top:0 ya aplicado pero igual se iba con el scroll
+   (rectTop bajaba en espejo exacto del scrollY, nunca "se pegaba") — un
+   quirk real de este layout anidado (.admin-dashboard flex +
+   .admin-sidebar fixed como único hermano fuera de flujo), no algo que
+   valiera la pena seguir diagnosticando cuando fixed ya es el patrón
+   que ESTE MISMO sidebar usa a propósito por el motivo idéntico ("nunca
+   debe poder perderse de la vista", ver comentario en .admin-sidebar).
+   left lee de --sidebar-w (mismo var que .admin-content) para quedar
+   alineada con el contenido incluso cuando el riel se colapsa. Alto real
+   medido en vivo (68px) → .admin-main compensa con padding-top para que
+   el contenido no arranque tapado debajo. Solo en escritorio (≥901px):
+   en móvil el header normal (fuera de esta regla) se queda exactamente
+   como está hoy — la propia barra del sidebar colapsado ya es sticky ahí
+   por su cuenta, mezclar los dos a la vez queda fuera de este cambio. */
+@media (min-width: 901px) {
+  .admin-header {
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-w);
+    right: 0;
+    z-index: 9;
+    transition: left 0.32s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+}
+/* Línea de acento cian al hacer scroll (admin.js agrega/quita esta clase
+   según window.scrollY) — el borde gris de siempre se queda igual en el
+   tope de la página, solo cambia una vez que ya bajaste. */
+.admin-header.is-scrolled {
+  border-bottom: 2px solid #05DBF2;
+  box-shadow: 0 2px 10px rgba(5, 219, 242, 0.18);
 }
 
 /* Atajo al Centro de conocimiento en la barra de sesión (mismo destino
@@ -1220,6 +1255,12 @@
      junto al sidebar que ya se había descartado en el punto 331. */
   .admin-main { max-width: min(calc(100vw - var(--sidebar-w)), 1960px); margin: 0 auto; }
   .admin-main { transition: max-width 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+  /* Compensa el alto real de .admin-header (68px, medido en vivo) ahora
+     que es position:fixed en escritorio — sin esto el contenido arranca
+     tapado debajo de la barra. 68px + los 24px de padding-top que ya
+     traía esta regla arriba (línea base de .admin-main, fuera de este
+     media query) = 92px. */
+  .admin-main { padding-top: 92px; }
 }
 
 .admin-toolbar {
