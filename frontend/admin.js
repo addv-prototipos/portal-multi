@@ -1783,9 +1783,20 @@
       const targetRect = target.getBoundingClientRect();
       const tooltipRect = tooltipEl.getBoundingClientRect();
 
+      // Para targets que viven pegados arriba de un contenedor con sus
+      // propias pestañas/controles encima (ej. los segmentos del stacked
+      // bar de "Utilidad neta del mes", #resumen-fin-utilidad-body, bajo
+      // #vm-selector) comparar solo contra el viewport no basta: el
+      // tooltip "cabe" según el viewport pero tapa las pestañas. El
+      // límite real es el borde superior del propio contenedor.
+      const contenedorGrafica = target.closest('#resumen-fin-utilidad-body');
+      const limiteSuperior = contenedorGrafica
+        ? contenedorGrafica.getBoundingClientRect().top + margen
+        : margen;
+
       let top = targetRect.top - tooltipRect.height - margen;
       let flechaArriba = false;
-      if (top < margen) {
+      if (top < limiteSuperior) {
         top = targetRect.bottom + margen;
         flechaArriba = true;
       }
@@ -13593,8 +13604,10 @@
     const alturaPct = (valor) => (valor > 0 ? Math.max((valor / maximo) * 100, 1) : 0);
     const pctEquilibrioEnEscala = Math.min(100, (d.gastos / maximo) * 100);
     const body = `
-      <div class="vm-equilibrio-linea" id="vm-equilibrio-linea" style="bottom:${pctEquilibrioEnEscala}%"></div>
-      <span class="vm-equilibrio-label" id="vm-equilibrio-label" style="bottom:${pctEquilibrioEnEscala}%">Equilibrio $${formatearMoneda(d.equilibrioMensual)}</span>
+      <div class="vm-equilibrio-pista">
+        <div class="vm-equilibrio-linea" id="vm-equilibrio-linea" style="bottom:${pctEquilibrioEnEscala}%"></div>
+        <span class="vm-equilibrio-label" id="vm-equilibrio-label" style="bottom:${pctEquilibrioEnEscala}%">Equilibrio $${formatearMoneda(d.equilibrioMensual)}</span>
+      </div>
       <div class="resumen-fin-chart-columna">
         <div class="resumen-fin-utilidad-apilada" role="img" aria-label="Ventas totales $${formatearMoneda(d.ventasTotales)}: subtotal $${formatearMoneda(d.subtotal)} más IVA $${formatearMoneda(d.iva)}">
           <span class="resumen-fin-utilidad-segmento-iva" style="height:0%" data-h="${alturaPct(d.iva)}" data-tooltip="IVA cobrado: $${formatearMoneda(d.iva)}"></span>

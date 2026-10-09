@@ -1,4 +1,4 @@
-# cmem — memoria de sesión (estilo claude-mem)
+﻿# cmem — memoria de sesión (estilo claude-mem)
 
 Registro manual de esta conversación, en el mismo formato que usa
 claude-mem (observaciones con ID/hora/tipo/título), para que quede
@@ -796,6 +796,8 @@ factura SVG 14×14 doc, admin.js:5030/7988 badges 🔴/⏳/✅→solo texto
 verificación HTTP (/admin 200 sin emojis con SVG, /admin.js con factura).
 Detalle: PROJECT_STATE.md punto 141. Sin cambios de esquema/API.
 
+## 2026-08-24 — Tipografía unificada a Inter y hover homologado
+
 C063 2026-08-24 ◆ Tipografía unificada a Inter en toda la app (a pedido:
 "mismo tipo de letra que tiene el menú derecho"). `frontend/style.css`
 `@import` reducido a solo Inter; `:root` `--font-body` y `--font-display`
@@ -819,6 +821,8 @@ respeta). `frontend/portal.css` `.tile:hover` homologado al mismo fondo
 suave. Aplica a admin, control (reusa admin.css) y portal cliente.
 Documentado en `CLAUDE.md`, `AGENTS.md` y `PROJECT_STATE.md` (nueva sección
 "Convención persistente de hover"). Rebuild y push posteriores.
+
+## 2026-09-12/13 — Esqueleto de carga, centros de conocimiento y arquitectura del menú
 
 C065 2026-09-12/13 ◆ Esqueleto de carga (shimmer tipo Facebook) en todo
 el sitio, punto 289. Pedido: que "esperar" nunca se sienta como "no
@@ -948,6 +952,8 @@ manual + uno automático), persistencia confirmada tras F5 real, cero
 errores de consola. Detalle: `PROJECT_STATE.md`/`CLAUDE.md` punto 296.
 Sin commit/push.
 
+## 2026-09-17 — Incidente real de producción: crash-loop en el VPS
+
 C072 2026-09-17 ● Incidente real de producción: backend en crash-loop
 tras `actualizar.sh` en el VPS real (`yt.addv.com.mx`), punto 316.
 Usuario corrió `actualizar.sh` tras el fix del punto 314 — backend
@@ -980,6 +986,8 @@ si ya se aplicó. Detalle: `PROJECT_STATE.md`/`CLAUDE.md` punto 316. Sin
 commit/push (cambios en `prod/actualizar.sh`, que no viaja a git de la
 misma forma — confirmar con el usuario si se sincroniza al repo o solo
 vive en el VPS).
+
+## 2026-09-13 — SMTP: acordeón estricto de 3 subsecciones
 
 C071 2026-09-13 ◆ SMTP: acordeón estricto de 3 subsecciones +
 autoguardado, punto 297. Pedido: "Correo electrónico (SMTP)"/
@@ -1072,6 +1080,47 @@ addendum de cascada sí se habían commiteado/pusheado en un turno
 anterior de esta misma sesión (`5f6d530`). Detalle línea por línea en
 PROJECT_STATE.md puntos 318-323.
 
+## 2026-09-25 — Rebrand a Clarvo, logout inmediato y recorrido del perfil Inventario
+
+Nota de backfill (2026-10-09): las sesiones del 2026-09-25 al 2026-10-09
+no habían quedado registradas aquí (solo existían los sueltos C080 y
+C081, que además estaban sin encabezado de fecha). Este bloque se
+reconstruyó desde `PROJECT_STATE.md`, `git log` y los timestamps de
+Claude Mem (horas locales, UTC-6). Los IDs C082+ se asignaron en orden
+cronológico del backfill, por eso aparecen antes que C080/C081.
+
+C082 11:42 ○ Rebrand "Portal de Facturación ADDV" → "Clarvo" en toda la
+documentación (README/CLAUDE/AGENTS/PROJECT_STATE) y se documentaron los
+módulos que faltaban (commit `ea90cdf`). Sesión corta, 11:00-12:43.
+
+C083 11:15 ◆ Punto 290: logout inmediato al suspender un usuario del panel
+— antes, suspender no cerraba la sesión viva que ya tenía abierta
+(commit `5b0b136`).
+
+C084 11:57 ● Punto 325: recorrido guiado + "Primeros pasos" para el perfil
+Inventario del panel (commit `5c37ddb`).
+
+## 2026-09-27 — Riel colapsable del panel, trust proxy y siembra (puntos 326-329)
+
+C085 16:00 ● Punto 326: F5 en "Inicio" de /admin dejaba tarjetas y tabla en
+0 — `init()` no llamaba a `cargarInicio()` cuando la vista guardada era
+justo la activa por defecto. Fix solo frontend, validado por curl.
+
+C086 16:00 ● Punto 327: `TRUST_PROXY_HOPS` — número de saltos de `trust
+proxy` configurable para que la auditoría guarde la IP real del cliente y
+no la del proxy (default 1; pendiente de confirmar en prod).
+
+C087 16:05 ◆ Punto 329: sidebar de /admin colapsable a solo íconos (riel
+256↔72px, toggle flotante, monograma, tooltips, persistencia en
+localStorage), solo escritorio. Mismo día: reescritura de `CLAUDE.md` y
+`AGENTS.md` como master prompts sin narrativa histórica, con la sección
+"Gotchas operativos recurrentes" extraída (1.ª entrada del punto 328, cero
+código) y `sembrar-demo.js` reescrito con escenario de escuela privada de
+8 meses + cierre mensual/corte del día/eliminados (2.ª entrada del punto
+328). Sesión sin commit ese día (los commits salen el 09-28).
+
+## 2026-09-28 — Riel 2ª vuelta, correos con puerto, plantilla de correo y campana de /admin (puntos 330-337)
+
 C080 ✓ Punto 336: consistencia visual de acciones en `/admin` — usuario
 mostró 2 imágenes (par de iconos ✔ vs par de botones de texto
 "Gestionar"/"Eliminar" ✘) y pidió auditar TODO el proyecto. Análisis
@@ -1103,6 +1152,73 @@ toca backend, corrida por disciplina), rebuild `--no-cache` +
 real confirmando 0 emojis servidos. Falta: clic real en navegador (sin
 herramienta de navegador en esta sesión) y commit/push (no pedido
 todavía). Detalle completo en PROJECT_STATE.md punto 336.
+
+C088 21:22 ◆ Puntos 330-333: 2ª vuelta del riel colapsado — el contenido
+aprovecha el espacio al colapsar (`.admin-main` con ancho máx. 1584px,
+Opción A, en las 14 vistas), fix del "hueco" real entre riel y contenido
+(`.admin-content` seguía con `margin-left:256px` con el riel en 72px;
+luego `margin:0` en `.admin-main` para que todo el sobrante vaya al borde
+derecho) y ancho adaptativo con `min(calc(100vw - var(--sidebar-w) - 88px),
+1960px)` en vez de 72/256 fijos, para cualquier monitor. Validado con
+computed-style real.
+
+C089 15:48 ✓ Punto 334: los correos salían sin puerto — nginx usaba
+`Host $host` en 3 `proxy_set_header`, cambiado a `$http_host` para que
+`detectarUrlPortal()` detecte el ambiente (bug que solo se veía en el
+contenedor real, no en local).
+
+C090 15:48 ● Puntos 335 y 337 (commit `9835fb0`): plantilla editable del
+correo de "confirmación de venta" en Plantillas de correo, y campana de
+notificaciones en el topbar de /admin — tickets nuevos, alertas de
+inventario y avisos de configuración, sondeo cada 60s reusando 3 endpoints
+ya existentes.
+
+## 2026-09-29 — Auditoría UX/UI, CSF protegido, Ventas con folio y animación de activación (puntos 338-344)
+
+C091 09:37 ◆ Punto 338: el popup emergente "Tickets sin correo de
+contador" quedó solo para el perfil fiscal (commit `5aab3e7`).
+
+C092 10:27 ● Punto 339: reglas escalonadas de aviso de expiración de
+productos + navegación dentro de la campana de notificaciones, validado
+en Docker real vía Chrome (commit `08fe8af`).
+
+C093 12:57 ◆ Punto 340: corrección de los 3 hallazgos de la auditoría
+UX/UI (commit `c91c099`).
+
+C094 13:10 ◆ Punto 341: `csf.html` (formulario de alta/CSF) exige sesión,
+ya no es de acceso público (commit `6b39edb`).
+
+C095 16:44 ● Punto 342: método de pago + folio de conciliación en Ventas
+(commit `065aa21`); a las 17:45, centro de conocimiento del propio punto
+342 y confirmación nginx del punto 323 (`78c109b`). Pendientes marcados
+entonces: probar en Docker real y confirmación visual.
+
+C096 17:38 ● Punto 343: animación de progreso al activar un tenant desde
+`/control` (commit `c93d01a`).
+
+C097 20:01 ◆ Punto 344: aviso de servidor lento/caído + Fase 1 de la BD
+dedicada de `/control` (punto 305) (commit `ebda369`); a las 20:20,
+columna de Acciones en Tickets y margen simétrico de `.admin-main`
+(`87f29f7`).
+
+## 2026-09-30 — Papelera en /control y las 5 fases del gobierno de funcionalidades (puntos 345-347)
+
+C098 12:57 ● Punto 345: papelera de empresas en `/control` + punto 346:
+rediseño de Ventas dentro de Configuraciones (commit `f1d9f10`); 13:11
+README de la BD dedicada de control, folio de conciliación y papelera
+(`7ac96dc`); 14:32 vista dedicada "Papelera" (`fdba0f9`).
+
+C099 20:29 ◆ Punto 347 Fases 0-1: gobierno de funcionalidades por tenant
+desde `/control` — flags en `tenants`/`planes` y `requiereFeature()`
+insertado ruta por ruta (commit `4d34dad`).
+
+C100 21:39 ● Punto 347 Fases 2-5: catálogo de planes, asignación de plan
+y cuota de disco en `/control` (commit `9a4aaee`); 22:12 cuota de disco
+en más subidas + auditoría cross-tenant en `/control` (`599823f`). Al
+cerrar el día, Fase 5 (cierre) quedó pendiente y de ahí salió la regla
+permanente del punto 348.
+
+## 2026-10-01 — Regla de gobernanza, separación de reportes y reglas 8-9 (puntos 348-351)
 
 C081 ⚖ Punto 348: regla permanente de gobernanza de funcionalidades,
 pedida por el usuario tras cerrar el punto 347 (Fases 0-5 de "gobierno
@@ -1149,3 +1265,142 @@ resto del sitio para warnings, nunca un carácter Unicode ni emoji. `node
 verificado antes y después. Sin commit/push todavía — nada implementado
 en código real además del fix del emoji, que es parte del mismo commit
 pendiente.
+
+C101 16:15 ◆ Separa "Corte del día" de "Reporte por rango" (cada uno con
+su propio flag de Reportes, evitando que apagar una pestaña rompiera el
+botón de la otra) + pareja columna de Acciones en las tablas que les
+faltaba (commit `c260363`).
+
+C102 19:53 ◆ Puntos 349-351: diseño aprobado del asistente de 4 pasos en
+`/control` para el gobierno de funcionalidades, con las 3 preguntas
+abiertas resueltas (regla 7 = advertencia, regla 8 = banner antes de
+editar el plan, regla 9 = suspensión automática al bajar `max_usuarios`,
+catálogo llevado a 12 reglas) y Fases 6-7 en curso — commit `31059c7`.
+
+## 2026-10-02 — Mi Cuenta, login RFC-o-correo, gating consistente e Inicio con KPIs reales (puntos 352-362)
+
+C103 13:32 ● Puntos 353-355: "Mi Cuenta" en el portal de cliente
+(segmento 1), login con RFC o correo (segmento 2, con auditoría de
+impacto antes de implementar, como pidió el usuario) y tratamiento de
+escritorio de `mi-cuenta.html` — 2 columnas desde 880px en vez de la
+columna angosta de 480px (commits `3303044`, `9d9eea8`).
+
+C104 16:18 ◆ Punto 356: el usuario apagó Facturación en `/control` para
+`t1` y encontró 6 inconsistencias reales — gating extendido a
+notificaciones, campana y precargas (`4d38483`, `cb8fe60`, `efd7044`).
+Mismo bloque: punto 359, `.webp` no estaba en la whitelist de extensiones
+estáticas de nginx y se servía 404 en tenants (`dad3e83`).
+
+C105 17:24 ● Puntos 357-358: regla persistente de Playwright (toda prueba
+funcional E2E contra Docker+MySQL y toda propuesta visual con capturas,
+decisión explícita del usuario) + card "Tu perfil" en el dashboard para
+capturar el nombre en el primer login, elegida entre 4 prototipos HTML en
+`prototipos/onboarding/` (`f0d981d`).
+
+C106 17:47 ◆ Puntos 360-362: "Gestión de crédito" como página propia de
+Mi Cuenta con CxC e historial real de abonos (`0041b90`), resumen de
+tickets movido de Inicio a Reportes → "Estado de tickets" (`19cf042`) e
+Inicio rediseñado con 4 KPIs reales + auditoría de esqueleto de carga en
+todo el sitio (`d781cf4`). Cerrado de paso el punto 352: la deuda
+retroactiva del mapeo de módulos del punto 348 se comprobó YA
+implementada en `31059c7`, solo faltaba el registro.
+
+## 2026-10-03 — /control con iconografía, sidebar reordenado y siembra de prod (puntos 363-367)
+
+C107 08:34 ● Punto 363: iconografía clara en `/control` (Super Admins,
+Planes) y Papelera reubicada dentro de Empresas (`c57fe13`); 09:47 puntos
+364-365: reorden de categorías del sidebar + atajo global "Registrar
+venta" en header/móvil y limpieza del toolbar de Ventas que lo duplicaba
+(`d5ef27a`), con propuesta antes/después aprobada.
+
+C108 10-03 tarde * Puntos 366-367: siembra de producción a 9 meses/`favorable` y
+cambio inmediato a 8 meses/`normal` +10%/mes con efectos de
+mercadotecnia, validada por SQL espejo contra Docker/MySQL reales para
+preparar `yt.addv.com.mx`. Vive en `prod/` (untracked a propósito), por
+eso no aparece en el historial de commits.
+
+## 2026-10-04 — Stepper de cantidad y logo de ticket (puntos 368-369)
+
+C109 10:33 ● Punto 368: stepper +/- de cantidad en Ventas con
+auto-agregar/auto-sumar al escanear, validado con Playwright real contra
+Docker/MySQL; punto 369: logo y plantilla de la impresión del ticket en
+Configuraciones (commit `deb56dd`).
+
+## 2026-10-05 — Sesión mínima: inicio del fix de zona horaria
+
+C110 11:35 ○ Solo 5 observaciones: arranque del punto 371 (KPIs de
+Inicio anclados a medianoche UTC en vez de la medianoche local del
+tenant); se cerró recién el 10-06.
+
+## 2026-10-06 — Tamaño de imagen global, zona horaria, bloqueo por existencia y marca autoservicio (puntos 370-374)
+
+C111 12:33 ◆ Punto 370: tamaño máximo de imagen configurable desde
+`/control` como un solo valor GLOBAL de plataforma (antes repartido en
+variables de entorno) — tabla `ajustes_globales`, con el gotcha de que el
+límite de `express.json()` tiene que escalar junto con él. Punto 371:
+fix real de la tarjeta "Ventas hoy", que desaparecía a partir de las
+18:00 con México en UTC-6 (commit `c2c7a07`); 13:27 bloquear producto sin
+existencia al buscar/escanear (`7da28c4`); 13:34 `pendientes.html` sin
+DOCTYPE/charset, los acentos se veían rotos (`40f07cc`).
+
+C112 19:19 ● Punto 373: marca e identidad visual autoservicio desde
+`/admin` además de `/control`, con componente compartido (`3c5a2c1`);
+21:01 punto 374: página "Portal de clientes desactivado" con identidad
+Clarvo en lugar de dejar las 6 páginas del portal en blanco
+(`5d8c7df`).
+
+## 2026-10-07 — Pausa real del portal, 404 Clarvo y 4 hallazgos del portal (puntos 375-377)
+
+C113 13:20 ◆ Punto 375: el switch "Portal de clientes" pasó de
+decorativo a control real de autoservicio en Mi Cuenta, aplicable por
+tenant y a la vez al sitio base — con el gotcha de que la raíz `/` no
+tiene segmentos nombrados y `paginaEsPortalCliente()` no la reconocía
+(`c4508f3`); 13:45 punto 376: página 404 con identidad Clarvo + redirect
+a clarvo.mx y seed de 11 meses (`6f40d31`).
+
+C114 19:28 ● Punto 377: 4 hallazgos reales del portal de clientes — el
+correo real no aparecía en el desplegable de Ventas, "Mi cuenta"
+bloqueaba guardar, crédito quedó fuera del Home, y emoji + `%` fijo en
+Home (`2b45b3d`). De ahí salió la regla persistente de unicidad de
+`usuarios.email` acotada a `perfil='cliente'`.
+
+## 2026-10-08 — Pausa de Facturación, campana del portal, histórico visible y submenú de Reportes (puntos 378-380 + UI de la tarde)
+
+C115 09:40 ● Punto 378: pausa de autoservicio "Facturación" desde
+Configuraciones con el mismo patrón de dos capas del punto 375 + fix de
+404 de assets estáticos (`a562b78`); 11:23 punto 379: campana de
+notificaciones del portal de cliente con vigencia, archivar, eliminar y
+relanzar (`2fcde30`).
+
+C116 17:09 ◆ Punto 380: el histórico nunca se esconde — "archivar" en
+cierre mensual pasa a "Papelera" en la pestaña Eliminados, el filtro por
+defecto es "Todos los periodos" y Ventas/Gastos/Cuentas por cobrar
+ganan paginación server-side real; además candado de traslape para que
+no se pueda cerrar el mismo mes dos veces (`cf4d753`).
+
+C117 18:32 ○ Pulido de la tarde sin punto propio (tampoco lo tenía en
+PROJECT_STATE hasta hoy): flechitas nativas del stepper de Cantidad y
+breakpoint móvil que lo aplastaba a ~27px (`0eee910`), "Promociones"
+faltante en el menú grid de íconos móvil (`4e22654`), submenú anidado de
+"Reportes" en el sidebar de escritorio reemplazando las pestañas
+horizontales (`e583d46`) con sus 2 fixes — íconos y riel colapsado
+(`c604ed8`), línea cian con el submenú colapsado (`9eb1918`) — y barra
+superior del panel siempre visible, fixed con acento cian al hacer
+scroll (`0f6546b`).
+
+## 2026-10-09 — Suscripción por tenant, paridad de /control, venta mínima y sincronización de docs (puntos 381-385)
+
+C118 11:09 ◆ Puntos 381/382/384: suscripción por tenant en `/control`,
+paridad de sidebar/header en `/control` (riel colapsable por defecto +
+título de sección visible) y venta mínima / punto de equilibrio dentro de
+"Utilidad neta del mes" (commit `5a9f642`). El punto 383 quedó sin usar:
+la numeración lo salta.
+
+C119 ✓ Sesión actual: sincronización de documentación — `US.md`
+(colisión de numeración de la sección 27 corregida: US-082/083/084 →
+US-112/113/114; US-093 y US-094 actualizadas al punto 380 y al submenú
+de Reportes; sección 28 nueva con US-115 a US-120), `market.md` (punto
+de equilibrio en el beneficio 1, histórico visible en el 11, 2 frases
+gancho nuevas), `cmem.md` (este backfill) y punto 385 en
+`PROJECT_STATE.md`. Revisión del servidor de Claude Mem incluida: worker
+y Chroma sanos, 18,118 observaciones de este proyecto al día.

@@ -26,6 +26,10 @@ sigue pendiente, cuánto gastaste, y — lo que nadie más te da tan claro —
 tu **utilidad neta real del mes**, separando IVA cobrado de ganancia de
 verdad. Con gráficas que muestran tendencia y una proyección de los
 próximos dos meses, para que decidas HOY, no hasta que ya sea tarde.
+Y para que no decidas a ciegas tampoco, te dice **cuánto tienes que vender
+al mes y al día para no perder dinero** — tu punto de equilibrio, con los
+gastos del mes como única referencia. Lo ves como línea, velocímetro,
+bullet o termómetro, como prefieras.
 
 ### 2. Cobras lo que te deben, no lo que crees que te deben
 Cuentas por cobrar con vencimientos, estados "pendiente / vencida /
@@ -90,6 +94,9 @@ hasta la cadena de varias.
 ### 11. Nunca más "¿quién tocó esto?"
 Cada acción queda registrada. Cada reporte se puede reconstruir. Si algo
 cambió, sabes quién, cuándo y qué. Eso es tranquilidad, no burocracia.
+Y nada se esconde: el histórico completo de ventas, gastos y cobros está
+siempre a la mano, con buscador y paginación — archivar el mes es
+organizar, no borrar.
 
 ### 12. Aprendes a usarlo sin manual
 Un recorrido guiado te enseña el sistema la primera vez que entras.
@@ -128,6 +135,8 @@ y un negocio que administra al dueño.
 - "No es un sistema de facturación. Es el gerente financiero que no puedes pagar todavía."
 - "Manda una promoción a todos tus clientes en un clic — se la archivas, la relanzas o la borras cuando quieras."
 - "Pausas Facturación o el portal de tus clientes tú mismo, sin llamar a nadie — y los vuelves a prender igual de rápido."
+- "¿Cuánto necesitas vender al día para no perder? CLARVO te lo dice todos los días, no una vez al mes."
+- "Tu contador te borra el mes viejo; CLARVO lo archiva y te lo deja buscar cuando quieras."
 
 ---
 

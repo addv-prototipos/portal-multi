@@ -1025,18 +1025,28 @@ siga limpiando imágenes/facturas.
 **Criterios de aceptación:**
 - La retención automática configurable (días) sigue aplicando solo a tickets; Ventas y Gastos se
   archivan (`archivado_en`, `periodo_archivado`), nunca se eliminan por retención.
-- Las listas de Ventas/Gastos muestran por defecto solo lo no archivado, con un selector "Periodo"
-  para consultar meses archivados.
+- **El archivado es reportería, nunca ocultamiento** (punto 380, 8 oct 2026): las listas de
+  Ventas/Gastos y el histórico de Cuentas por cobrar arrancan en "Todos los periodos" y muestran
+  **todo** el histórico con paginación real server-side (`pagina`/`por_pagina`, tope 100);
+  `?periodo=YYYY-MM` queda como filtro opcional de conveniencia, jamás como filtro por defecto
+  que esconda filas.
 - Resumen financiero SIEMPRE incluye los meses archivados en sus gráficas y KPIs históricos.
 - El cierre corre para el sitio base y para cada tenant activo, respetando la zona horaria configurada
   de cada uno.
 
 ### US-094 — Lectura de reportes: pestañas por tipo y ledger de eliminados
 Como **administrador**, quiero consultar los reportes organizados por pestañas (Por reporte / Cortes /
-Todo lo eliminado / Estado del inventario), con un ledger cruzado de todo lo que se ha eliminado, para
-auditar sin mezclar conceptos distintos en una sola tabla.
+Todo lo eliminado / Estado del inventario / Estado de tickets), con un ledger cruzado de todo lo que se
+ha eliminado, para auditar sin mezclar conceptos distintos en una sola tabla.
 
 **Criterios de aceptación:**
+- **Navegación** (8 oct 2026): en escritorio (≥901px) las 5 vistas viven en un **submenú anidado
+  dentro del ítem "Reportes" del sidebar** (mismo mecanismo `grid-template-rows` que los grupos
+  FINANZAS/CATÁLOGO) y la fila horizontal de pestañas queda oculta; en móvil (<901px) el sidebar se
+  oculta y la fila horizontal sigue siendo el único camino. Un solo lugar
+  (`activarPestanaReportes()`) sincroniza ambos juegos de botones; el submenú se abre solo al entrar
+  a la vista (incluido el restore de sesión en refresh) y se cierra al salir. El perfil **fiscal**
+  sigue viendo solo "Estado de tickets" en el submenú nuevo.
 - "Todo lo eliminado": ledger de todos los reportes con columna "Reporte de origen" y KPIs de
   auditoría (histórico + tendencia mensual).
 - Cada registro muestra "Generado por" (cruzando `admin_auditoria` por ruta+ventana de tiempo, mejor
@@ -1359,7 +1369,12 @@ Como **operador/product owner**, quiero filtrar `pendientes.html` por app (Clien
 
 ## 27. Facturación y campana de notificaciones del portal de cliente (8 oct 2026)
 
-### US-082 — Pausar/reanudar Facturación desde Configuraciones, tenant y sitio base *(IMPLEMENTADA — punto 378)*
+> Numeración: estas 3 historias se publicaron originalmente como
+> US-082/083/084 y se **renumeraron a US-112/113/114** el 9 oct 2026 al
+> detectarse que Inventarios (sección 18) ya ocupaba US-082/083/084.
+> Si algún documento viejo cita "US-082 = pausa de Facturación", es esta.
+
+### US-112 — Pausar/reanudar Facturación desde Configuraciones, tenant y sitio base *(IMPLEMENTADA — punto 378)*
 Como **administrador**, quiero un switch en Configuraciones para pausar/reanudar Facturación yo mismo, sin pasar por `/control`, para desactivarla temporalmente sin perder la capacidad de reactivarla.
 
 **Criterios de aceptación (implementado 8 oct 2026):**
@@ -1368,7 +1383,7 @@ Como **administrador**, quiero un switch en Configuraciones para pausar/reanudar
 - Pausar Facturación apaga RFC obligatorio, Tickets/CSF y oculta el menú correspondiente para el cliente; Cuentas por cobrar del portal de clientes NO se ve afectada (Portal de clientes gobierna a Facturación, nunca al revés — decisión explícita del usuario).
 - Verificado: Jest 1200/1200, E2E real `facturacion-pausa-admin.spec.ts`.
 
-### US-083 — Campana de notificaciones del portal de cliente: promociones + pago registrado *(IMPLEMENTADA — punto 379)*
+### US-113 — Campana de notificaciones del portal de cliente: promociones + pago registrado *(IMPLEMENTADA — punto 379)*
 Como **cliente**, quiero una campana de notificaciones (con sonido) en mi portal, para enterarme de promociones del negocio y de que mis pagos en Cuentas por cobrar ya quedaron registrados.
 
 **Criterios de aceptación (implementado 8 oct 2026):**
@@ -1378,7 +1393,7 @@ Como **cliente**, quiero una campana de notificaciones (con sonido) en mi portal
 - Gobernanza completa en `/control` (flag nuevo `promocionesHabilitado`, propio — no reutiliza el de Ventas/CxC porque enviar promociones es una capacidad nueva).
 - Verificado: Jest 1216/1216, E2E real `notificaciones-cliente.spec.ts`.
 
-### US-084 — Promociones: componer, vigencia, archivar, relanzar, eliminar *(IMPLEMENTADA — punto 379 + addendum)*
+### US-114 — Promociones: componer, vigencia, archivar, relanzar, eliminar *(IMPLEMENTADA — punto 379 + addendum)*
 Como **administrador**, quiero enviar una promoción a todos mis clientes con vigencia opcional, y poder archivarla/relanzarla/eliminarla después, para no tener que mandar un mensaje nuevo cada vez que quiero repetir o retirar una oferta.
 
 **Criterios de aceptación (implementado 8 oct 2026, propuesta visual 3 de 6 presentadas vía Artifact):**
@@ -1390,3 +1405,163 @@ Como **administrador**, quiero enviar una promoción a todos mis clientes con vi
 - Centro de conocimiento (`CONOCIMIENTO_CATEGORIAS.promociones`) y recorrido guiado del perfil Administrador (`ONBOARDING_TOUR_PASOS.administrador`) actualizados con el nuevo botón del sidebar.
 - Verificado: Jest 1228/1228, E2E real (ciclo completo enviar→archivar→relanzar→eliminar).
 - 24 filas etiquetadas (Ventas→admin, Infra→control, Seguridad 274→admin,control, 271/272→cliente,admin,control, etc.).
+
+---
+
+## 28. Panel y control — trabajos del 8 y 9 de octubre de 2026
+
+> Cubre lo implementado DESPUÉS de la sección 27: puntos 380, 381, 382 y
+> 384 de `PROJECT_STATE.md`, más el bloque de navegación del panel del
+> 8 oct (commits `e583d46`…`0f6546b`, que no tiene número de punto propio).
+
+### US-115 — Histórico siempre visible con paginación real en Ventas, Gastos y Cuentas por cobrar *(IMPLEMENTADA — punto 380)*
+
+Como **administrador**, quiero que el histórico completo de mis ventas,
+gastos y cobros siempre esté a la mano — navegable por páginas reales y
+filtros del servidor —, para que archivar el mes nunca se convierta en
+"¿dónde quedó esa venta?".
+
+**Criterios de aceptación (implementado 8 oct 2026):**
+- `GET /api/admin/ordenes-compra` paginado de verdad: `pagina`/`por_pagina`
+  (default 25, tope 100, mínimo 5) + filtros **server-side**
+  (`busqueda`, `fecha_desde/hasta`, `total_min/max`, `estado_pago`,
+  `vencimiento`, `facturacion`, `periodo`) con `COUNT(*)` + `LIMIT/OFFSET`.
+- Selector de periodo por defecto **"Todos los periodos"** en Ventas y
+  Gastos: el histórico archivado por el cierre mensual (punto 158) deja de
+  ocultarse — `archivado_en` ya no filtra por defecto en ningún endpoint
+  (`GET /api/admin/gastos` perdió ese bloque; `?periodo=` quedó como
+  atajo opcional).
+- Cuentas por cobrar con **dos fuentes** (decisión de diseño documentada en
+  el punto 380): `cxcBaseCache` (máx. 500 pendientes + 500 cobradas
+  recientes) alimenta los KPIs/aging/recordatorio masivo sin cambios, y
+  la pestaña "Cobradas" pagina en el servidor sin tope. Nuevo campo
+  `resumenCxc` en la respuesta para que los KPIs no bajen el histórico.
+- Helper genérico `renderPaginacionServidor()` (con elipsis) reutiliza las
+  clases de la paginación de Reportes→Cortes — un solo lenguaje visual.
+- `ordenesCache` ya **NO** es "todas las ventas": es solo la página actual
+  (ver regla persistente en `CLAUDE.md`).
+- Verificado: Jest 1229/1229, E2E real `ventas-cxc-paginacion.spec.ts`
+  ("1-25 de 212 cobradas" contra datos reales).
+
+### US-116 — Candado de traslape en el cierre mensual automático *(IMPLEMENTADA — punto 380)*
+
+Como **sistema**, quiero que la tarea horaria de cierre mensual nunca corra
+dos veces en paralelo contra la misma base, para que el archivado y su
+reporte-snapshot no se pisen.
+
+**Criterios de aceptación (implementado 8 oct 2026):**
+- Candado **en memoria** (`corridaEnProgreso`): si la corrida anterior sigue
+  viva al llegar la siguiente, esta se omite con
+  `{ omitido: true, motivo: 'corrida_anterior_en_progreso' }` en vez de
+  ejecutarse en paralelo (aislamiento de error por tenant ya existía,
+  dentro de su propio `try/catch` — no se tocó).
+- Pausa de 500 ms entre lotes de 5 tenants (`PAUSA_ENTRE_LOTES_MS`).
+- El reporte-snapshot y el orden "reporte guardado antes de archivar" NO
+  cambian.
+
+### US-117 — Barra superior siempre visible y submenú anidado de Reportes en el panel *(IMPLEMENTADA — 8 oct 2026, sin número de punto)*
+
+Como **administrador**, quiero que la barra superior del panel (libro de
+conocimiento, razón social, "+ Registrar venta", campana, sesión) no se
+vaya con el scroll y que las 5 vistas de Reportes se naveguen desde el
+sidebar, para llegar a cualquier cosa sin volver arriba ni buscar una fila
+de pestañas.
+
+**Criterios de aceptación (implementado 8 oct 2026):**
+- Barra superior `position: fixed` en escritorio (≥901px) — `sticky` no
+  funcionó en este layout anidado (verificado con `getComputedStyle`:
+  `rectTop` en espejo exacto de `scrollY`), mismo motivo por el que el
+  sidebar ya era `fixed`. `left: var(--sidebar-w)` para seguir alineada
+  cuando el riel colapsa; acento cian de marca al hacer scroll.
+- Submenú anidado de Reportes en el sidebar de escritorio: mismos 5 íconos
+  del contenido, ids propios (`btn-sidebar-reportes-*`), sincronizados con
+  la fila horizontal por `activarPestanaReportes()`; la fila horizontal
+  queda solo en móvil (<901px), donde el sidebar no existe.
+- Cierre de 2 bugs propios de este cambio: íconos + `<span>` faltantes en
+  los 5 hijos (texto crudo en riel de 72px) y línea cian visible con el
+  submenú "cerrado" (padding del interno contaba como mínimo intrínseco de
+  `grid-template-rows: 0fr` → 4px reales).
+- **Menú móvil sincronizado**: "Promociones" se agregó al grid de íconos
+  `#admin-menu-movil` (registro HTML aparte del sidebar — el gotcha de
+  "vista nueva" otra vez), y el stepper de inventario dejó de mostrar las
+  flechitas nativas del navegador en "Cantidad".
+- Verificado en vivo con viewport real 1440px y 390px (chrome-devtools);
+  E2E `reportes-estado-tickets.spec.ts` migrado a los botones nuevos.
+
+### US-118 — Suscripción de cada empresa (prueba, ciclo, expiración, estatus de cobro) *(IMPLEMENTADA — punto 381)*
+
+Como **operador de control**, quiero registrar por empresa si está en
+prueba, su ciclo de facturación, cuándo expira y cómo va su cobro, para
+ver de un vistazo qué empresas están por vencer.
+
+**Criterios de aceptación (implementado 9 oct 2026):**
+- 6 columnas nuevas en `control_tenants.tenants` (todas opcionales, el
+  concepto es nuevo): `suscripcion_en_prueba`, `suscripcion_dias_prueba`,
+  `suscripcion_prueba_inicia_en`, `suscripcion_ciclo`
+  (`mensual`/`anual`), `suscripcion_expira_en`, `suscripcion_estatus`
+  (`prueba`/`pagada`/`pendiente`/`vencida`/`cancelada`).
+- **El estatus de cobro es manual** — todavía no hay integración con
+  Stripe; la propia UI lo dice.
+- Pestaña "Suscripción" en el modal de edición (5ª, entre "Plan y funciones"
+  e "Identidad visual"), con **botón de guardar propio** (`PUT
+  /api/control/tenants/:slug/suscripcion`) — patrón independiente del
+  "Guardar cambios" general.
+- Panel dividido: anillo de progreso `conic-gradient` 100% cliente que se
+  recalcula en vivo (verde/ámbar/rojo por días restantes) + los 6 campos.
+- Columna "Vence" en la tabla principal (badge semántico) + checkbox
+  "Próximos a vencer (≤ 7 días)", filtro 100% client-side sobre la última
+  carga (sin endpoint nuevo).
+- Auditoría de la operación en `tenant_eventos` (mismo patrón que
+  `tenantTema.js`/`tenantMarca.js`).
+- *Desviación anotada*: la propuesta aprobada mostraba "Próximos a vencer"
+  como pestaña dedicada; se implementó como checkbox de filtro — pendiente
+  de confirmar con el usuario.
+
+### US-119 — Riel colapsable y barra fija también en `/control`, sin títulos redundantes *(IMPLEMENTADA — punto 382)*
+
+Como **operador de control**, quiero que `/control` se navegue igual que
+`/admin` (riel colapsable, barra superior pegada) y que las vistas no
+repitan en un `<h1>` el nombre que el sidebar ya está resaltando.
+
+**Criterios de aceptación (implementado 9 oct 2026):**
+- Mismo CSS reutilizado de `admin.css` (`/control` ya lo usa); solo se
+  agregó el HTML/JS propio: monograma mini, botón `#control-btn-colapsar-
+  sidebar`, estado en `localStorage` con clave **separada**
+  (`sidebar_colapso_control_v1_<usuario>` — nunca compartir estado con
+  `/admin`), listener de scroll para `.admin-header.is-scrolled`.
+- Sin lógica de grupos anidados: el nav de `/control` no tiene submenús
+  tipo Reportes, no aplica.
+- `<h1>` eliminado de las 5 vistas que mapean 1:1 con un tab del sidebar
+  (Empresas, Planes, Sucursales, Super Admins, Auditoría); **se conserva el
+  de "Papelera"** a propósito (es sub-vista alcanzada desde Empresas y el
+  sidebar se queda en "Empresas"). El botón de ayuda "?" de cada vista se
+  conserva.
+- Verificado con clics reales contra Docker: colapso a 72px, header
+  `fixed` con `left:72px`, títulos ausentes/presentes donde corresponde.
+
+### US-120 — Venta mínima / punto de equilibrio en "Utilidad neta del mes" *(IMPLEMENTADA — punto 384; extiende US-070)*
+
+Como **administrador**, quiero ver en la tarjeta de utilidad cuánto tengo
+que vender al mes y al día para llegar a $0, con la visualización que más
+me guste, para tener una meta concreta en vez de solo un saldo.
+
+**Criterios de aceptación (implementado 9 oct 2026):**
+- Definición: venta mínima **mensual** = gastos del mes (mismo subtotal que
+  la fórmula de utilidad resta para llegar a $0); venta mínima **diaria** =
+  mensual ÷ días del mes (`mes_actual.dias_mes` nuevo en
+  `GET /api/admin/resumen-financiero`, diff de fechas de calendario local,
+  nunca `Date.UTC()` sobre "ahora").
+- Selector de 4 tipos de gráfica dentro de la tarjeta: **línea de
+  equilibrio** (por defecto), velocímetro, bullet chart y termómetro —
+  preferencia en `localStorage` (`vm_tipo_grafica_v1_<tenant>_<usuario>`),
+  nunca en BD (es cosmético).
+- Animación 10% más lenta **solo** en esta tarjeta (`--anim-speed: 1.1`
+  scoped, con `@media (prefers-reduced-motion: reduce)` también scoped).
+- Dos bugs reales corregidos en el camino: `--color-positive` **nunca
+  existió** como variable CSS en este proyecto (verde invisible en
+  velocímetro/bullet → hex directo `#1FAE6B`), y el termómetro recortaba
+  su propia etiqueta (`overflow:hidden` del tubo sobre una etiqueta fuera
+  de su ancho → wrapper nuevo sin overflow).
+- Verificado: Jest 1229/1229 y clics reales con datos del tenant (gastos
+  $75,959.48 → equilibrio diario $2,450.31), preferencia persistente entre
+  recargas.

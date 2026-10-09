@@ -19993,10 +19993,13 @@ pidió revisar recorridos/conocimiento por perfil + actualizar US.md.
   documentado para Configuraciones/Vistas, anotado aquí para la próxima
   categoría nueva que se agregue.
 - **Historias de usuario** (`US.md`): nueva sección 27 con 3 historias
-  IMPLEMENTADA — US-082 (pausa de Facturación, punto 378, sin historia
-  previa), US-083 (campana de notificaciones, punto 379) y US-084
+  IMPLEMENTADA — US-112 (pausa de Facturación, punto 378, sin historia
+  previa), US-113 (campana de notificaciones, punto 379) y US-114
   (vigencia/archivar/relanzar/eliminar de Promociones, mismo punto +
-  addendum). US-079 ("Actualizar centros de conocimiento + recorrido
+  addendum; **renumeradas el 9 oct 2026** de US-082/083/084 a
+  US-112/113/114 porque esos números ya estaban tomados por las 3
+  historias de Inventarios de la sección 18 — colisión detectada al
+  sincronizar la documentación, punto 385). US-079 ("Actualizar centros de conocimiento + recorrido
   guiado", PROPUESTA del punto 273) se deja intacta — su alcance original
   es mucho más amplio (puntos 269/270, 256-260, YouTube) y este trabajo
   solo cubrió la porción de Promociones, no una auditoría completa.
@@ -20303,6 +20306,121 @@ días del mes.
   visibles, termómetro con la etiqueta de equilibrio ya legible.
   Preferencia confirmada persistente entre tipos (localStorage,
   sobrevive recarga completa de página).
+
+## Punto 385 — Sincronización de documentación (US.md, market.md, cmem.md) + registro de los trabajos del 8 de oct (9 oct 2026, CERRADO)
+
+Pedido del usuario: "¿qué hicimos hasta ahora? — revisa US.md y market.md
+para ver si ya están al día, y revisa cmem.md y el servidor de claude-mem".
+Auditoría previa contra el código y `git log` antes de tocar nada:
+
+- **`US.md` tenía 3 brechas + 1 defecto de numeración**: (a) colisión
+  real — la sección 27 (Checklist / control interno) usaba
+  `US-082/083/084`, números que ya ocupaba la sección de Inventarios;
+  (b) `US-093` no reflejaba el punto 380 (archivar = reportería, nunca
+  ocultamiento; "Todos los periodos" por defecto; paginación server-side);
+  (c) `US-094` no reflejaba las 5 vistas de Reportes con submenú anidado;
+  (d) no existía ninguna historia para los puntos 380/381/382/384 ni para
+  los 6 commits de UI del 8 de oct (`e583d46`, `c604ed8`, `9eb1918`,
+  `0f6546b`, `4e22654`, `0eee910`) que tampoco tenían punto propio.
+- **`market.md`** no mencionaba ni el punto de equilibrio (punto 384) ni
+  el histórico siempre visible (punto 380).
+- **`cmem.md`** estaba atrasado desde el 2026-10-01: `C080` y `C081` no
+  tenían encabezado de fecha (entradas huérfanas dentro de la sección
+  2026-09-18/19) y NO existía ningún registro de las sesiones del
+  2026-09-25 al 2026-10-09.
+
+Lo hecho:
+
+- **`US.md`**: sección 27 renumerada a `US-112/113/114` con nota al
+  respecto (nunca renumerar la sección de Inventarios, que es la
+  referencia vieja); `US-093` y `US-094` actualizadas; sección 28 nueva
+  con `US-115` (histórico visible + paginación), `US-116` (candado de
+  traslape), `US-117` (barra superior fixed + submenú de Reportes, 8 oct),
+  `US-118` (suscripción en /control), `US-119` (riel colapsable + header
+  fijo + títulos en /control), `US-120` (venta mínima, extiende `US-070`).
+- **`market.md`**: beneficio 1 con el punto de equilibrio ("cuánto tienes
+  que vender al mes y al día para no perder"), beneficio 11 con
+  "archivar es organizar, no borrar", y 2 frases gancho nuevas.
+- **`cmem.md`**: encabezados `##` reparados para `C080`/`C081` y para los
+  grupos huérfanos `C063`/`C065`/`C072`/`C071` (que estaban todos bajo el
+  encabezado de 2026-08-21); backfill completo de las sesiones
+  2026-09-25 → 2026-10-09 con IDs `C082`-`C119`, reconstruido desde
+  `PROJECT_STATE.md`, `git log` y los timestamps de Claude Mem (horas
+  locales UTC-6), cubriendo los puntos 325-384 y los commits reales de
+  cada día.
+- **Servidor de Claude Mem revisado y sano** (no requirió arreglos):
+  worker `bun` vivo desde 2026-10-07, Chroma (`chroma-mcp` vía uvx) en el
+  puerto 37777, logs diarios al día, `state/hook-failures.json` en 0
+  fallos, DB con 18,118 observaciones de este proyecto y sync `portalFac`
+  al día (última observación minutos antes de la revisión).
+
+**Hallazgos que quedan anotados (no corregidos en esta sesión)**: la
+numeración salta del 382 al 384 (el 383 nunca se usó); `PROJECT_STATE.md`
+tiene el punto 328 dos veces (una entrada "HECHO" de documentación y otra
+"IMPLEMENTADO" de siembra, ambas del 09-27/28); y `cmem.md` conserva
+`C071` (2026-09-13) DESPUÉS de `C072` (2026-09-17) — desorden preexistente
+que se dejó tal cual para no renumerar.
+
+## Punto 386 — 3 bugs visuales reales en "Utilidad neta del mes" reportados por el usuario en producción (9 oct 2026, CERRADO)
+
+Reportados por el usuario con capturas de yt.addv.com.mx/admin, uno
+tras otro en la misma sesión — los 3 en el bloque de gráficas del punto
+384 (venta mínima/equilibrio). Cada uno verificado con un harness DOM
+aislado (misma estructura/CSS real reproducida en `about:blank` vía
+chrome-devtools, sin depender del login real) que midió la intersección/
+posición antes y después del fix — no solo inspección visual.
+
+- **Tooltip del segmento IVA tapaba las pestañas del selector** (captura
+  1): `inicializarTooltips()` (`frontend/admin.js`) solo comparaba contra
+  el borde del viewport (`margen:8px`) para decidir si el tooltip cabía
+  arriba del elemento — no contra ningún otro elemento real de la
+  página. El segmento IVA vive pegado arriba de
+  `#resumen-fin-utilidad-body`, justo debajo de `#vm-selector` (las 4
+  pestañas): el tooltip "cabía" según el viewport pero tapaba las
+  pestañas. Fix: nuevo `limiteSuperior` — si el target está dentro de
+  `#resumen-fin-utilidad-body`, el límite es el borde superior de ESE
+  contenedor (no el viewport), y el tooltip voltea hacia abajo si no
+  cabe ahí.
+- **Etiqueta "Equilibrio $X" del Termómetro se encimaba con "Ventas
+  netas"** (captura 2): `.vm-thermo-tube-wrap` no tenía ancho propio —
+  `.vm-thermo-marker-label` es `position:absolute` y no cuenta para el
+  ancho intrínseco del wrap, así que el layout flex (`gap:22px`) colocaba
+  `.vm-thermo-info` justo después del tubo (36px), sin dejar espacio para
+  la etiqueta que cuelga más ancha hacia la derecha. Además
+  `.vm-thermo-info` queda alineado abajo (`align-items:flex-end` en
+  `.vm-thermo-wrap`), cerca de donde suele caer la marca de equilibrio —
+  coincidencia vertical casi garantizada, no un caso raro. Fix:
+  `min-width:120px` en `.vm-thermo-tube-wrap` (reserva el espacio en el
+  flujo flex) + fondo/padding/sombra tipo badge en la etiqueta (mismo
+  tratamiento que ya tenía `.vm-equilibrio-label` en "Línea de
+  equilibrio"), como respaldo visual.
+- **Línea punteada de equilibrio atravesaba el texto "Ventas totales/
+  Gastos"** (captura 3, la más sutil): `.vm-equilibrio-linea`/
+  `.vm-equilibrio-label` usan `bottom:X%` calculado como porcentaje de
+  los 200px fijos de `.resumen-fin-utilidad-apilada` (la barra) — pero
+  vivían como hijas directas de `#resumen-fin-utilidad-body`, cuyo alto
+  real es MAYOR (incluye también `.resumen-fin-chart-etiqueta` debajo de
+  cada barra). El % se resolvía contra ese alto mayor, así que la línea
+  caía más abajo de lo debido, justo sobre el texto del eje en vez de
+  sobre el tope de la barra de Gastos. Fix: nuevo wrapper
+  `.vm-equilibrio-pista` (`position:absolute; top:0; height:200px`,
+  mismo alto que la barra) — línea y etiqueta ahora son hijas de ESE
+  wrapper, no del body completo, así el % siempre se resuelve contra los
+  200px correctos sin importar cuánto texto tenga la etiqueta de abajo.
+- **Verificación**: `node --check` en `admin.js`. Harness DOM aislado
+  (chrome-devtools en `about:blank`, HTML/CSS calcado del real) para
+  cada uno de los 3 — midió la posición/intersección ANTES (reproduce el
+  bug) y DESPUÉS (confirma el fix) con `getBoundingClientRect()`, no
+  solo captura de pantalla. No se pudo probar en vivo dentro de Docker
+  local porque el login de `/admin` (`#form-login`) no completó el fetch
+  en este entorno (`"No se pudo conectar con el servidor"`, sin
+  request en la pestaña Network — causa no investigada, fuera de
+  alcance de esta sesión). Rebuild real de Docker (`frontend`) +
+  `--force-recreate` sí confirmado.
+- **`prod/`**: sincronizado por contenido (`frontend/admin.js` +
+  `frontend/admin.css`) en 3 pasadas (una por bug, según se fueron
+  reportando) — falta que el usuario corra `prod/actualizar.sh` en el
+  VPS para que yt.addv.com.mx los reciba.
 
 ## Dónde está todo (mapa rápido)
 
