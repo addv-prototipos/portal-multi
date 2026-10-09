@@ -357,6 +357,38 @@
   .admin-sidebar-group-body { transition: none; }
 }
 
+/* Submenú de "Reportes" dentro del sidebar (punto en curso) — mismo
+   mecanismo de .admin-sidebar-group-header/.admin-sidebar-group-body de
+   arriba, un nivel más adentro: el propio ítem de nav se vuelve
+   expandible, en vez de un grupo. El botón padre conserva su clase
+   .admin-vista-btn (mismo hover/is-active que cualquier otro ítem) +
+   un chevron propio que rota igual que el de los grupos. */
+.admin-vista-btn-padre { gap: 11px; }
+.admin-vista-btn-label { flex: 1; }
+.admin-vista-btn-chev { flex-shrink: 0; transition: transform 0.18s ease; }
+.admin-vista-btn-padre[aria-expanded="false"] .admin-vista-btn-chev { transform: rotate(-90deg); }
+.admin-vista-subgrupo {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.2s ease;
+  margin-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  padding-left: 8px;
+}
+.admin-vista-subgrupo[data-colapsado="true"] { grid-template-rows: 0fr; }
+.admin-vista-subgrupo-inner {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+.admin-vista-btn-sub { font-size: 12.5px; padding: 7px 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .admin-vista-btn-chev,
+  .admin-vista-subgrupo { transition: none; }
+}
+
 /* Riel colapsable de escritorio (punto 329) — el sidebar completo se
    angosta de 256px a 72px, dejando solo íconos. Toggle flotante en el
    borde (mismo cyan de marca), estado por cuenta en localStorage (ver
@@ -2393,6 +2425,20 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 22px;
+}
+/* La fila de pestañas horizontal de Reportes (.lectura-reportes-tabs)
+   solo se oculta en escritorio, donde el submenú anidado del sidebar la
+   reemplaza (ver .admin-vista-subgrupo) — en móvil .admin-sidebar-nav
+   tiene display:none (no hay submenú que mostrar ahí), así que esta fila
+   se queda como el único camino real para cambiar de pestaña. El resto
+   de la fila (.inv-estado-toolbar/#cortes-toolbar, Imprimir/CSV/"+ Nuevo
+   reporte por rango") NO se toca — sigue visible en escritorio, solo el
+   view-toggle de 5 botones desaparece. DEBE ir después de la regla base
+   de arriba (misma especificidad, gana la que aparece después en el
+   archivo — ver CLAUDE.md, "Orden de reglas CSS con la misma
+   especificidad") o el view-toggle no se oculta pese al media query. */
+@media (min-width: 901px) {
+  .lectura-reportes-tabs { display: none; }
 }
 
 /* Botón "Volver a la lista" del detalle de un corte (pestaña "Cortes") —

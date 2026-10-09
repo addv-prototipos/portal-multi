@@ -262,10 +262,31 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3v18h18M7 15l4-5 3 3 5-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>Resumen financiero</span>
         </button>
-        <button type="button" class="admin-vista-btn" id="btn-vista-lectura-reportes" role="tab" aria-selected="false">
+        <button type="button" class="admin-vista-btn admin-vista-btn-padre" id="btn-vista-lectura-reportes" role="tab" aria-selected="false" aria-expanded="false" aria-controls="admin-vista-subgrupo-reportes">
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
-          <span>Reportes</span>
+          <span class="admin-vista-btn-label">Reportes</span>
+          <svg class="chev admin-vista-btn-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
+        <!-- Submenú de Reportes (punto en curso) — las 5 vistas que antes
+             eran pestañas horizontales arriba del contenido (ver
+             .lectura-reportes-tabs, oculta en escritorio ≥901px desde
+             admin.css) ahora viven aquí anidadas, mismo mecanismo
+             grid-template-rows que .admin-sidebar-group-body pero un nivel
+             más adentro. IDs nuevos y propios (nunca los mismos que
+             #btn-reportes-vista-*, que siguen existiendo para móvil, donde
+             este submenú no se ve — .admin-sidebar-nav tiene
+             display:none ahí). activarPestanaReportes() (admin.js)
+             sincroniza el estado visual de ambos juegos de botones a la
+             vez. -->
+        <div class="admin-vista-subgrupo" id="admin-vista-subgrupo-reportes" data-colapsado="true">
+          <div class="admin-vista-subgrupo-inner">
+            <button type="button" class="admin-vista-btn admin-vista-btn-sub is-active" id="btn-sidebar-reportes-por-reporte" role="tab" aria-selected="true">Por reporte</button>
+            <button type="button" class="admin-vista-btn admin-vista-btn-sub" id="btn-sidebar-reportes-cortes" role="tab" aria-selected="false">Cortes</button>
+            <button type="button" class="admin-vista-btn admin-vista-btn-sub" id="btn-sidebar-reportes-ledger" role="tab" aria-selected="false">Todo lo eliminado</button>
+            <button type="button" class="admin-vista-btn admin-vista-btn-sub" id="btn-sidebar-reportes-estado-inventario" role="tab" aria-selected="false">Estado del inventario</button>
+            <button type="button" class="admin-vista-btn admin-vista-btn-sub" id="btn-sidebar-reportes-estado-tickets" role="tab" aria-selected="false">Estado de tickets</button>
+          </div>
+        </div>
         </div>
         </div>
 

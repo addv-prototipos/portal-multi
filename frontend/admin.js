@@ -164,6 +164,12 @@
     btnVistaUsuarios: document.getElementById('btn-vista-usuarios'),
     btnVistaConfiguraciones: document.getElementById('btn-vista-configuraciones'),
     btnVistaLecturaReportes: document.getElementById('btn-vista-lectura-reportes'),
+    adminVistaSubgrupoReportes: document.getElementById('admin-vista-subgrupo-reportes'),
+    btnSidebarReportesPorReporte: document.getElementById('btn-sidebar-reportes-por-reporte'),
+    btnSidebarReportesCortes: document.getElementById('btn-sidebar-reportes-cortes'),
+    btnSidebarReportesLedger: document.getElementById('btn-sidebar-reportes-ledger'),
+    btnSidebarReportesEstadoInventario: document.getElementById('btn-sidebar-reportes-estado-inventario'),
+    btnSidebarReportesEstadoTickets: document.getElementById('btn-sidebar-reportes-estado-tickets'),
     btnVistaProveedores: document.getElementById('btn-vista-proveedores'),
     btnVistaMiCuenta: document.getElementById('btn-vista-mi-cuenta'),
     // Riel colapsable del sidebar (punto 329, solo escritorio)
@@ -2475,7 +2481,8 @@
     // Eliminados/Estado del inventario) son de Ventas/Gastos/Inventarios,
     // el backend ya las bloquea con 403 para este perfil. Se ocultan los
     // botones en vez de dejarlos ahí para terminar en un error.
-    ['btnReportesVistaPorReporte', 'btnReportesVistaCortes', 'btnReportesVistaLedger', 'btnReportesVistaEstadoInventario'].forEach((clave) => {
+    ['btnReportesVistaPorReporte', 'btnReportesVistaCortes', 'btnReportesVistaLedger', 'btnReportesVistaEstadoInventario',
+      'btnSidebarReportesPorReporte', 'btnSidebarReportesCortes', 'btnSidebarReportesLedger', 'btnSidebarReportesEstadoInventario'].forEach((clave) => {
       if (els[clave]) els[clave].hidden = perfilActual === 'fiscal';
     });
 
@@ -5588,17 +5595,20 @@
   const PESTANAS_REPORTES = {
     'por-reporte': {
       boton: 'btnReportesVistaPorReporte',
+      botonSidebar: 'btnSidebarReportesPorReporte',
       vista: 'reportesVistaPorReporte',
       caption: 'Elige un reporte automático, manual o de cierre mensual para ver su contenido completo.',
     },
     cortes: {
       boton: 'btnReportesVistaCortes',
+      botonSidebar: 'btnSidebarReportesCortes',
       vista: 'reportesVistaCortes',
       caption: 'Historial de cortes de ventas que has generado — consulta o imprime cualquiera de nuevo.',
       alEntrar: () => renderListaCortes(),
     },
     ledger: {
       boton: 'btnReportesVistaLedger',
+      botonSidebar: 'btnSidebarReportesLedger',
       vista: 'reportesVistaLedger',
       caption: 'Todo lo que se ha borrado del sistema, cruzando todos los reportes — tu evidencia de auditoría.',
       alEntrar: () => {
@@ -5611,6 +5621,7 @@
     },
     'estado-inventario': {
       boton: 'btnReportesVistaEstadoInventario',
+      botonSidebar: 'btnSidebarReportesEstadoInventario',
       vista: 'reportesVistaEstadoInventario',
       caption: 'Salud de tu inventario ahora mismo: qué se vende, qué no se mueve y cuánto vale.',
       alEntrar: () => {
@@ -5625,6 +5636,7 @@
     // antes, cuando era Inicio).
     'estado-tickets': {
       boton: 'btnReportesVistaEstadoTickets',
+      botonSidebar: 'btnSidebarReportesEstadoTickets',
       vista: 'reportesVistaEstadoTickets',
       caption: 'Resumen de solicitudes de facturación: estatus, tendencia y las más recientes.',
       alEntrar: () => cargarEstadoTickets(),
@@ -5633,6 +5645,15 @@
   let invEstadoCargado = false;
   let reportesEstadisticasCargadas = false;
 
+  // Expande el submenú anidado de "Reportes" en el sidebar (ver
+  // admin.html) — se usa tanto al hacer clic en el padre como cada vez
+  // que activarPestanaReportes() corre, para que la pestaña activa
+  // nunca quede escondida detrás de un submenú colapsado.
+  function expandirSubgrupoReportes(expandir) {
+    if (els.btnVistaLecturaReportes) els.btnVistaLecturaReportes.setAttribute('aria-expanded', String(expandir));
+    if (els.adminVistaSubgrupoReportes) els.adminVistaSubgrupoReportes.dataset.colapsado = String(!expandir);
+  }
+
   function activarPestanaReportes(nombre) {
     const activa = PESTANAS_REPORTES[nombre];
     Object.entries(PESTANAS_REPORTES).forEach(([clave, def]) => {
@@ -5640,6 +5661,14 @@
       els[def.boton].classList.toggle('is-active', esActiva);
       els[def.boton].setAttribute('aria-selected', String(esActiva));
       els[def.vista].hidden = !esActiva;
+      // Botón espejo en el submenú del sidebar (ver comentario de cabecera
+      // en admin.html) — mismo criterio que el espejo en
+      // #admin-menu-movil (aplicarRestriccionesPerfil): un solo lugar
+      // decide el estado, nunca una segunda lista que mantener aparte.
+      if (def.botonSidebar && els[def.botonSidebar]) {
+        els[def.botonSidebar].classList.toggle('is-active', esActiva);
+        els[def.botonSidebar].setAttribute('aria-selected', String(esActiva));
+      }
     });
     els.reportesTabCaption.textContent = activa.caption;
     // Punto 271: Imprimir/Descargar CSV viven junto a las pestañas (no
@@ -5647,6 +5676,7 @@
     // visibilidad ya no la resuelve el hidden del contenedor padre.
     if (els.invEstadoToolbar) els.invEstadoToolbar.hidden = nombre !== 'estado-inventario';
     if (els.cortesToolbar) els.cortesToolbar.hidden = nombre !== 'cortes';
+    expandirSubgrupoReportes(true);
     if (activa.alEntrar) activa.alEntrar();
   }
 
@@ -5655,6 +5685,42 @@
   els.btnReportesVistaLedger.addEventListener('click', () => activarPestanaReportes('ledger'));
   els.btnReportesVistaEstadoInventario.addEventListener('click', () => activarPestanaReportes('estado-inventario'));
   els.btnReportesVistaEstadoTickets.addEventListener('click', () => activarPestanaReportes('estado-tickets'));
+
+  // Botones espejo del submenú anidado en el sidebar (escritorio, ver
+  // admin.html) — cada uno navega a la vista "Reportes" (por si se hace
+  // clic estando en otra sección) y activa su pestaña, igual que su
+  // contraparte de arriba.
+  if (els.btnSidebarReportesPorReporte) els.btnSidebarReportesPorReporte.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('por-reporte'); });
+  if (els.btnSidebarReportesCortes) els.btnSidebarReportesCortes.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('cortes'); });
+  if (els.btnSidebarReportesLedger) els.btnSidebarReportesLedger.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('ledger'); });
+  if (els.btnSidebarReportesEstadoInventario) els.btnSidebarReportesEstadoInventario.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('estado-inventario'); });
+  if (els.btnSidebarReportesEstadoTickets) els.btnSidebarReportesEstadoTickets.addEventListener('click', () => { cambiarVistaPrincipal('lectura-reportes'); activarPestanaReportes('estado-tickets'); });
+
+  // Clic en el padre "Reportes": navega a la vista (comportamiento de
+  // siempre) y además abre/cierra su submenú — igual que un grupo del
+  // sidebar, un nivel más adentro. Si ya estabas en Reportes, el submenú
+  // ya está expandido (activarPestanaReportes lo fuerza), así que un
+  // segundo clic aquí solo lo colapsa visualmente sin cambiar de vista.
+  if (els.btnVistaLecturaReportes) {
+    els.btnVistaLecturaReportes.addEventListener('click', () => {
+      const yaExpandido = els.btnVistaLecturaReportes.getAttribute('aria-expanded') === 'true';
+      cambiarVistaPrincipal('lectura-reportes');
+      const vaAExpandir = !yaExpandido;
+      // Primera vez que se expande en toda la sesión (ningún botón del
+      // submenú trae is-active todavía): "Por reporte" ya es la pestaña
+      // visible por default desde el HTML estático, pero nunca pasó por
+      // activarPestanaReportes() — se sincroniza aquí para que el submenú
+      // no se abra sin nada resaltado. En visitas siguientes ya queda un
+      // botón marcado (el usuario pudo haber cambiado a "Cortes", etc.,
+      // y eso se respeta — nunca se resetea a "Por reporte" en cada
+      // visita, mismo comportamiento de "recordar la pestaña" de siempre).
+      if (vaAExpandir && !document.querySelector('.admin-vista-btn-sub.is-active')) {
+        activarPestanaReportes('por-reporte');
+        return; // activarPestanaReportes ya deja el submenú expandido
+      }
+      expandirSubgrupoReportes(vaAExpandir);
+    });
+  }
 
   // ---------- Historial por identificador (idea D) ----------
   // Delegado en document: el botón "Ver historial" vive en 3 tablas
@@ -7968,6 +8034,16 @@
     els.btnVistaUsuarios.setAttribute('aria-selected', String(vista === 'usuarios'));
     els.btnVistaLecturaReportes.classList.toggle('is-active', vista === 'lectura-reportes');
     els.btnVistaLecturaReportes.setAttribute('aria-selected', String(vista === 'lectura-reportes'));
+    // Submenú anidado de Reportes: se abre solo al entrar a la vista y se
+    // cierra solo al salir (mismo criterio que el colapso de grupos del
+    // sidebar) — cubre también la restauración de sesión (refresh de
+    // página), que llama cambiarVistaPrincipal('lectura-reportes')
+    // directo, sin pasar por el clic del padre ni por
+    // activarPestanaReportes(). El clic manual en el padre (ver su
+    // listener más abajo) corre DESPUÉS de este cambiarVistaPrincipal, así
+    // que su propio toggle (abrir/cerrar) siempre tiene la última
+    // palabra — no hay conflicto con este auto-abrir.
+    expandirSubgrupoReportes(vista === 'lectura-reportes');
     els.btnVistaProveedores.classList.toggle('is-active', vista === 'proveedores');
     els.btnVistaProveedores.setAttribute('aria-selected', String(vista === 'proveedores'));
     els.btnVistaMiCuenta.classList.toggle('is-active', vista === 'mi-cuenta');
@@ -8066,7 +8142,8 @@
     aplicarEstadoGruposSidebar('configuraciones');
     abrirConfigModal();
   });
-  els.btnVistaLecturaReportes.addEventListener('click', () => cambiarVistaPrincipal('lectura-reportes'));
+  // btnVistaLecturaReportes: su listener vive junto a activarPestanaReportes
+  // (ver arriba, también navega + abre/cierra el submenú anidado).
   els.btnVistaProveedores.addEventListener('click', () => cambiarVistaPrincipal('proveedores'));
   els.btnVistaMiCuenta.addEventListener('click', () => cambiarVistaPrincipal('mi-cuenta'));
   els.btnVistaAuditoria.addEventListener('click', () => cambiarVistaPrincipal('auditoria'));

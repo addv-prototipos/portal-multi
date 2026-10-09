@@ -36,7 +36,11 @@ test('Reportes → "Estado de tickets" muestra el mismo resumen que antes vivía
   // hay que expandirlo antes de poder hacer clic en su botón.
   await page.click('.admin-sidebar-group-header[data-grupo="finanzas"]');
   await page.click('#btn-vista-lectura-reportes');
-  await page.click('#btn-reportes-vista-estado-tickets');
+  // Punto en curso: las 5 pestañas de Reportes se movieron al submenú
+  // anidado del sidebar en escritorio (#btn-vista-lectura-reportes ya las
+  // deja expandidas) — la fila horizontal vieja (#btn-reportes-vista-*)
+  // ahora solo existe para móvil (oculta en escritorio vía CSS).
+  await page.click('#btn-sidebar-reportes-estado-tickets');
 
   await expect(page.locator('#reportes-tickets-stats-grid')).toBeVisible();
   await expect(page.locator('#reportes-tickets-stat-total')).toHaveText(String(totalReal));
@@ -85,11 +89,13 @@ test('el perfil "fiscal" entra a Reportes y solo ve "Estado de tickets" (las otr
 
   await page.click('.admin-sidebar-group-header[data-grupo="finanzas"]');
   await page.click('#btn-vista-lectura-reportes');
-  await expect(page.locator('#btn-reportes-vista-estado-tickets')).toBeVisible();
-  await expect(page.locator('#btn-reportes-vista-por-reporte')).toBeHidden();
-  await expect(page.locator('#btn-reportes-vista-cortes')).toBeHidden();
-  await expect(page.locator('#btn-reportes-vista-ledger')).toBeHidden();
-  await expect(page.locator('#btn-reportes-vista-estado-inventario')).toBeHidden();
+  // Mismo candado de perfil, ahora sobre los botones del submenú anidado
+  // del sidebar (la fila horizontal vieja está oculta en escritorio).
+  await expect(page.locator('#btn-sidebar-reportes-estado-tickets')).toBeVisible();
+  await expect(page.locator('#btn-sidebar-reportes-por-reporte')).toBeHidden();
+  await expect(page.locator('#btn-sidebar-reportes-cortes')).toBeHidden();
+  await expect(page.locator('#btn-sidebar-reportes-ledger')).toBeHidden();
+  await expect(page.locator('#btn-sidebar-reportes-estado-inventario')).toBeHidden();
   // Se activa sola al entrar — fiscal nunca ve "Por reporte" seleccionada
   // por default sin poder alcanzarla.
   await expect(page.locator('#reportes-tickets-stats-grid')).toBeVisible();
