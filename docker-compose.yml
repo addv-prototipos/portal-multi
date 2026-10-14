@@ -305,7 +305,13 @@ services:
       TENANT_DB_USER: ${TENANT_DB_USER:-app}
       BACKEND_INTERNAL_URL: http://backend:4000
       INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
+      # Punto en curso: clave de cifrado reversible para "Accesos — MinIO"
+      # (ver control/utils/accesoMinio.js) — 32 bytes en hex (64
+      # caracteres), SOLO en este .env, nunca en la BD. Generar con
+      # node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      CONTROL_VAULT_KEY: ${CONTROL_VAULT_KEY:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
+      ONBOARDING_CORS_ORIGIN: ${ONBOARDING_CORS_ORIGIN:-}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
     networks:
       - fiscal-net

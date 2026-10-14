@@ -102,10 +102,10 @@ describe('inventarioConfig.js', () => {
     });
 
     test('entero: acepta los límites min y max exactos', () => {
-      expect(validarValorConfig('inv_import_max_filas', '100')).toEqual({ valor: '100' });
-      expect(validarValorConfig('inv_import_max_filas', '100000')).toEqual({ valor: '100000' });
-      expect(validarValorConfig('inv_import_max_filas', '99').error).toBeDefined();
-      expect(validarValorConfig('inv_import_max_filas', '100001').error).toBeDefined();
+      expect(validarValorConfig('inv_import_max_mb', '1')).toEqual({ valor: '1' });
+      expect(validarValorConfig('inv_import_max_mb', '50')).toEqual({ valor: '50' });
+      expect(validarValorConfig('inv_import_max_mb', '0').error).toBeDefined();
+      expect(validarValorConfig('inv_import_max_mb', '51').error).toBeDefined();
     });
   });
 

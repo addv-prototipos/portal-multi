@@ -46,6 +46,16 @@ const COLUMNAS_NUEVAS = [
   // DEFAULT 1 (encendido) a propósito: ningún tenant ya configurado
   // pierde su identidad visual solo por agregar esta columna.
   { nombre: 'marca_lookfeel_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 1' },
+  // Separación del flag de "Marca propia" (punto en curso, 2026-10-10):
+  // el ticket de impresión (logo + plantilla del recibo) compartía bit
+  // con marca_lookfeel_habilitado desde el punto 368 — ahora es su
+  // propio módulo, togglable aparte desde /control (regla de dependencia
+  // 13: requiere ventas_habilitado). DEFAULT 0 aquí a propósito: el
+  // backfill real que preserva lo que cada tenant ya tenía vive en
+  // asegurarColumnasCicloVidaTenant() de abajo (hereda el valor de
+  // marca_lookfeel_habilitado SOLO en la corrida que agrega la columna),
+  // mismo criterio que sucursales_habilitado.
+  { nombre: 'ticket_impresion_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   // Cuota de cuentas de panel (administrador/fiscal/ventas) por tenant —
   // NULL = sin límite (comportamiento de siempre). Enforcement real en
   // backend/server.js POST /api/admin/usuarios.
@@ -173,16 +183,26 @@ async function asegurarColumnasCicloVidaTenant(db) {
   // del backend: un backfill debe ser condicional a un estado viejo
   // conocido, nunca incondicional).
   let sucursalesHabilitadoReciénAgregada = false;
+  let ticketImpresionReciénAgregada = false;
   for (const { nombre, definicion } of COLUMNAS_NUEVAS) {
     if (!nombres.includes(nombre)) {
       await db.query(`ALTER TABLE tenants ADD COLUMN ${nombre} ${definicion}`);
       if (nombre === 'sucursales_habilitado') sucursalesHabilitadoReciénAgregada = true;
+      if (nombre === 'ticket_impresion_habilitado') ticketImpresionReciénAgregada = true;
     }
   }
   if (sucursalesHabilitadoReciénAgregada) {
     await db.query(
       `UPDATE tenants SET sucursales_habilitado = 1
        WHERE grupo_sucursal_id IS NOT NULL AND sucursales_habilitado = 0`
+    );
+  }
+  if (ticketImpresionReciénAgregada) {
+    // Hereda el valor que cada tenant ya tenía en marca_lookfeel_habilitado
+    // (único momento en que corre: la columna acaba de nacer en 0 para
+    // todos). Nadie pierde el ticket de impresión que ya estaba usando.
+    await db.query(
+      `UPDATE tenants SET ticket_impresion_habilitado = marca_lookfeel_habilitado`
     );
   }
 }
@@ -318,6 +338,11 @@ const COLUMNAS_PLANES_NUEVAS = [
   { nombre: 'reportes_estado_inventario_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'reportes_estado_tickets_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
   { nombre: 'promociones_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // Mismo criterio que en `tenants` arriba: columna propia, DEFAULT 0, con
+  // backfill condicional desde marca_lookfeel_habilitado en
+  // asegurarTablaPlanes() — ningún plan ya creado pierde el ticket de
+  // impresión que ya traía incluido en "Marca propia".
+  { nombre: 'ticket_impresion_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
 ];
 
 async function asegurarTablaPlanes(db) {
@@ -349,10 +374,15 @@ async function asegurarTablaPlanes(db) {
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'planes'`
   );
   const nombresPlanes = columnasPlanes.map((c) => c.COLUMN_NAME);
+  let ticketImpresionPlanesReciénAgregada = false;
   for (const { nombre, definicion } of COLUMNAS_PLANES_NUEVAS) {
     if (!nombresPlanes.includes(nombre)) {
       await db.query(`ALTER TABLE planes ADD COLUMN ${nombre} ${definicion}`);
+      if (nombre === 'ticket_impresion_habilitado') ticketImpresionPlanesReciénAgregada = true;
     }
+  }
+  if (ticketImpresionPlanesReciénAgregada) {
+    await db.query('UPDATE planes SET ticket_impresion_habilitado = marca_lookfeel_habilitado');
   }
 
   // Semilla de arranque — solo si el catálogo está vacío (primera
@@ -402,10 +432,42 @@ async function asegurarTablaAjustesGlobales(db) {
   `);
 }
 
+// Onboarding público (clarvo.mx → modal de alta, Segmento A, 2026-10-13):
+// borrador especulativo de "empresa que está contratando el servicio",
+// guardado ANTES de que exista ningún tenant real — ver
+// control/utils/onboardingBorrador.js para toda la lógica de validación.
+// Sin FK (mismo motivo que el resto de este archivo: control_app no tiene
+// REFERENCES) y sin UNIQUE en slug/admin_email a propósito — un borrador
+// especulativo puede chocar en teoría con otro, el candado real es contra
+// `tenants.slug` en el momento de aprovisionar (Segmento B).
+async function asegurarTablaOnboardingBorradores(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS onboarding_borradores (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      token VARCHAR(64) NOT NULL,
+      plan_clave VARCHAR(30) NOT NULL,
+      ciclo ENUM('mensual','anual') NOT NULL DEFAULT 'mensual',
+      nombre_empresa VARCHAR(255) NULL,
+      slug VARCHAR(50) NULL,
+      contacto_email VARCHAR(200) NULL,
+      nombre_comercial VARCHAR(255) NULL,
+      zona_horaria VARCHAR(64) NOT NULL DEFAULT 'America/Mexico_City',
+      admin_email VARCHAR(200) NULL,
+      admin_password_hash VARCHAR(255) NULL,
+      paso_actual VARCHAR(30) NOT NULL DEFAULT 'plan',
+      estado ENUM('activo','convertido','abandonado') NOT NULL DEFAULT 'activo',
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      UNIQUE KEY uq_onboarding_borradores_token (token)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
 module.exports = {
   asegurarColumnasCicloVidaTenant,
   asegurarTablaApiCredenciales,
   asegurarTablasSucursales,
   asegurarTablaPlanes,
   asegurarTablaAjustesGlobales,
+  asegurarTablaOnboardingBorradores,
 };

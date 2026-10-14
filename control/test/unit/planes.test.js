@@ -120,9 +120,10 @@ describe('utils/planes.js (punto 347)', () => {
       expect(plan.id).toBe(7);
       const [sqlInsert, params] = db.query.mock.calls[0];
       expect(sqlInsert).toMatch(/INSERT INTO planes/);
-      // 21 "?" (campos normales) + 1 literal + 3 "?" (orden/creado_en/actualizado_en).
-      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){20}\?, 1, \?, \?, \?\)/);
-      expect(params).toHaveLength(24);
+      // 23 "?" (campos normales, incluido ticket_impresion_habilitado) + 1
+      // literal + 3 "?" (orden/creado_en/actualizado_en).
+      expect(sqlInsert).toMatch(/VALUES \((?:\?, ){22}\?, 1, \?, \?, \?\)/);
+      expect(params).toHaveLength(26);
       expect(params[0]).toBe('Pro');
       expect(params[4]).toBe(15); // max_usuarios
       expect(params[6]).toBe(1); // facturacion_habilitada normalizado a 1
@@ -183,6 +184,22 @@ describe('utils/planes.js (punto 347)', () => {
             db
           )
         ).resolves.toMatchObject({ id: 9 });
+      });
+
+      test('ticket_impresion_habilitado sin ventas_habilitado: ErrorPlan validacion (regla 13)', async () => {
+        const db = mockDb();
+        await expect(
+          crearPlan({ nombre: 'X', ventas_habilitado: false, ticket_impresion_habilitado: true }, db)
+        ).rejects.toMatchObject({ codigo: 'validacion' });
+        expect(db.query).not.toHaveBeenCalled();
+      });
+
+      test('ticket_impresion_habilitado con ventas_habilitado: se acepta', async () => {
+        const db = mockDb();
+        db.query.mockResolvedValueOnce([{ insertId: 10 }]).mockResolvedValueOnce([[filaPlan({ id: 10 })]]);
+        await expect(
+          crearPlan({ nombre: 'X', ventas_habilitado: true, ticket_impresion_habilitado: true }, db)
+        ).resolves.toMatchObject({ id: 10 });
       });
 
       test('reportes_cortes_habilitado sin ventas_habilitado: ErrorPlan validacion', async () => {

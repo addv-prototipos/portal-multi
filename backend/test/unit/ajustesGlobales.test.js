@@ -8,7 +8,7 @@ jest.mock('../../db', () => ({
 }));
 
 const { obtenerPoolControl } = require('../../db');
-const { obtenerImagenMaxMbCacheado } = require('../../utils/ajustesGlobales');
+const { obtenerImagenMaxMbCacheado, obtenerImportMaxFilasCacheado } = require('../../utils/ajustesGlobales');
 
 describe('utils/ajustesGlobales.js', () => {
   let pool;
@@ -80,5 +80,45 @@ describe('utils/ajustesGlobales.js', () => {
     pool.query.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     const segundo = await obtenerImagenMaxMbCacheado();
     expect(segundo).toBe(12);
+  });
+
+  describe('obtenerImportMaxFilasCacheado', () => {
+    test('sin nada guardado, devuelve el default (10000)', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      const resultado = await obtenerImportMaxFilasCacheado();
+      expect(resultado).toBe(10000);
+    });
+
+    test('respeta un valor guardado válido', async () => {
+      pool.query.mockResolvedValueOnce([[{ valor: '20000' }]]);
+      const resultado = await obtenerImportMaxFilasCacheado();
+      expect(resultado).toBe(20000);
+    });
+
+    test('un valor guardado fuera de rango (menos de 100, más de 100000, no numérico) cae al default', async () => {
+      for (const valorGuardado of ['50', '-3', '100001', 'abc', '2.5']) {
+        tiempoActual += 10 * 60 * 1000;
+        jest.setSystemTime(tiempoActual);
+        pool.query.mockResolvedValueOnce([[{ valor: valorGuardado }]]);
+        // eslint-disable-next-line no-await-in-loop
+        const resultado = await obtenerImportMaxFilasCacheado();
+        expect(resultado).toBe(10000);
+      }
+    });
+
+    test('si control_tenants falla y nunca hubo caché vigente, cae al default sin tronar', async () => {
+      pool.query.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      const resultado = await obtenerImportMaxFilasCacheado();
+      expect(resultado).toBe(10000);
+    });
+
+    test('cachea dentro del TTL: una segunda llamada inmediata no vuelve a consultar', async () => {
+      pool.query.mockResolvedValueOnce([[{ valor: '30000' }]]);
+      const primero = await obtenerImportMaxFilasCacheado();
+      const segundo = await obtenerImportMaxFilasCacheado();
+      expect(primero).toBe(30000);
+      expect(segundo).toBe(30000);
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
   });
 });

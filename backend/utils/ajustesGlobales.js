@@ -16,9 +16,20 @@ const CLAVE_IMAGEN_MAX_MB = 'imagen_max_mb';
 const IMAGEN_MAX_MB_DEFAULT = 2;
 const IMAGEN_MAX_MB_MIN = 1;
 const IMAGEN_MAX_MB_MAX = 20;
+
+// Segundo uso: `import_max_filas` — límite de filas del importador masivo de
+// Inventarios (CSV/XLSX/XLS), antes fijo en inventarioConfig.js sin forma de
+// cambiarlo desde ninguna UI. Mismo mecanismo que imagen_max_mb: un solo
+// valor de plataforma, configurable desde /control, nunca por tenant.
+const CLAVE_IMPORT_MAX_FILAS = 'import_max_filas';
+const IMPORT_MAX_FILAS_DEFAULT = 10000;
+const IMPORT_MAX_FILAS_MIN = 100;
+const IMPORT_MAX_FILAS_MAX = 100000;
+
 const CACHE_TTL_MS = Number(process.env.AJUSTES_GLOBALES_CACHE_TTL_MS || 45 * 1000);
 
 let cache = null; // { valor: number, resueltoEn: number }
+let cacheImportMaxFilas = null; // { valor: number, resueltoEn: number }
 
 async function obtenerImagenMaxMbCacheado() {
   if (cache && Date.now() - cache.resueltoEn < CACHE_TTL_MS) {
@@ -45,4 +56,34 @@ async function obtenerImagenMaxMbCacheado() {
   return valor;
 }
 
-module.exports = { obtenerImagenMaxMbCacheado, IMAGEN_MAX_MB_DEFAULT, IMAGEN_MAX_MB_MAX };
+async function obtenerImportMaxFilasCacheado() {
+  if (cacheImportMaxFilas && Date.now() - cacheImportMaxFilas.resueltoEn < CACHE_TTL_MS) {
+    return cacheImportMaxFilas.valor;
+  }
+  let valor = IMPORT_MAX_FILAS_DEFAULT;
+  try {
+    const [filas] = await obtenerPoolControl().query(
+      'SELECT valor FROM ajustes_globales WHERE clave = ?',
+      [CLAVE_IMPORT_MAX_FILAS]
+    );
+    if (filas.length > 0) {
+      const guardado = Number(filas[0].valor);
+      if (Number.isInteger(guardado) && guardado >= IMPORT_MAX_FILAS_MIN && guardado <= IMPORT_MAX_FILAS_MAX) {
+        valor = guardado;
+      }
+    }
+  } catch (err) {
+    valor = cacheImportMaxFilas ? cacheImportMaxFilas.valor : IMPORT_MAX_FILAS_DEFAULT;
+  }
+  cacheImportMaxFilas = { valor, resueltoEn: Date.now() };
+  return valor;
+}
+
+module.exports = {
+  obtenerImagenMaxMbCacheado,
+  IMAGEN_MAX_MB_DEFAULT,
+  IMAGEN_MAX_MB_MAX,
+  obtenerImportMaxFilasCacheado,
+  IMPORT_MAX_FILAS_DEFAULT,
+  IMPORT_MAX_FILAS_MAX,
+};

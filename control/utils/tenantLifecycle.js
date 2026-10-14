@@ -14,6 +14,14 @@
 
 const { obtenerPool } = require('../db');
 const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, ErrorCalculoDisco } = require('./notificarBackend');
+const { registrarAccesoAdmin } = require('./adminAuditoria');
+
+// Días que un tenant permanece en "baja" (Papelera) antes de que
+// purgarBajasVencidas() lo borre para siempre — decisión confirmada con
+// el usuario junto con el mecanismo de disparo (temporizador propio en
+// control/server.js, sin cron externo). Mismo valor usado en el aviso
+// del frontend al dar de baja ("tienes 30 días para reactivar").
+const DIAS_RETENCION_BAJA = 30;
 
 // Error tipado para que la capa de rutas distinga "el tenant no existe"
 // (404) de "el tenant existe pero no está en un estado válido para esta
@@ -40,6 +48,13 @@ async function listarTenants({ estado, q } = {}, db = obtenerPool()) {
   if (estado) {
     condiciones.push('t.estado = ?');
     parametros.push(estado);
+  } else {
+    // Sin filtro explícito, "baja" nunca aparece en el listado general —
+    // vive solo en Papelera (que sí pide estado='baja' a propósito, ver
+    // cargarPapelera() en frontend/control.js). Decisión confirmada con
+    // el usuario: la lista de trabajo diario no debe mezclar tenants ya
+    // dados de baja con los operativos.
+    condiciones.push("t.estado != 'baja'");
   }
   if (q) {
     condiciones.push('(t.slug LIKE ? OR t.nombre_empresa LIKE ?)');
@@ -190,8 +205,10 @@ async function darDeBajaTenant(slug, { actor } = {}, db = obtenerPool()) {
 // + purga de MinIO + borrado de sus filas en control_tenants
 // (tenants/tenant_eventos/api_credenciales). Candado de seguridad:
 // SOLO se puede eliminar desde "baja" (fin de la relación comercial ya
-// confirmado antes) — nunca directo desde "activo"/"suspendido", 2
-// pasos deliberados para algo irreversible.
+// confirmado antes) o desde "provisioning" (nunca hubo alta real que
+// cerrar, así que no tiene sentido obligarlo a pasar por baja/papelera
+// primero — decisión confirmada con el usuario) — nunca directo desde
+// "activo"/"suspendido", pasos deliberados para algo irreversible.
 //
 // `control_app` no tiene privilegio DELETE (angosto a propósito, ver
 // control/scripts/ensureSchema.js) — ni para las filas de aquí ni para
@@ -207,9 +224,9 @@ async function eliminarTenantDefinitivo(slug, { actor } = {}, db = obtenerPool()
   if (!tenant) {
     throw new ErrorTransicionTenant(`El tenant "${slug}" no existe.`, 'no_encontrado');
   }
-  if (tenant.estado !== 'baja') {
+  if (!['baja', 'provisioning'].includes(tenant.estado)) {
     throw new ErrorTransicionTenant(
-      `El tenant "${slug}" está en estado "${tenant.estado}", no se puede eliminar desde ahí (solo aplica a "Baja").`,
+      `El tenant "${slug}" está en estado "${tenant.estado}", no se puede eliminar desde ahí (solo aplica a "Baja" o "Provisionando").`,
       'estado_invalido'
     );
   }
@@ -240,6 +257,60 @@ async function vaciarPapelera({ actor } = {}, db = obtenerPool()) {
     try {
       await eliminarTenantDefinitivo(t.slug, { actor }, db);
       eliminados.push(t.slug);
+    } catch (err) {
+      fallidos.push({ slug: t.slug, error: err.message });
+    }
+  }
+  return { eliminados, fallidos };
+}
+
+// Purga automática a los DIAS_RETENCION_BAJA días en "baja" (propuesta
+// confirmada con el usuario) — llamada desde un temporizador propio en
+// control/server.js (iniciar()), nunca desde una request HTTP normal, así
+// que NO pasa por el middleware de auditoría de ruta: cada eliminación
+// exitosa se registra a mano en admin_auditoria aquí mismo (actor
+// 'sistema:purga-automatica-30d'), porque sin eso la purga automática de
+// datos de cliente quedaría sin rastro una vez que la fila del tenant
+// (y sus tenant_eventos) desaparece junto con ella. Reutiliza
+// eliminarTenantDefinitivo() — mismo candado atómico, mismo borrado
+// completo (BD + MinIO + 3 tablas) que el botón manual, cero lógica
+// duplicada. Un tenant que falla no detiene a los demás (mismo criterio
+// que vaciarPapelera).
+async function purgarBajasVencidas(db = obtenerPool()) {
+  const ACTOR_PURGA = 'sistema:purga-automatica-30d';
+  const enBaja = await listarTenants({ estado: 'baja' }, db);
+  const limiteMs = DIAS_RETENCION_BAJA * 24 * 60 * 60 * 1000;
+  const ahora = Date.now();
+  // baja_en llega como 'YYYY-MM-DD HH:MM:SS' (dateStrings:true, guardado
+  // en UTC, sin indicador de zona en el texto) — `new Date()` a secas lo
+  // interpretaría como hora LOCAL del proceso, no UTC. En este contenedor
+  // probablemente da lo mismo (TZ=UTC por default), pero no hay que
+  // confiar en eso: mismo gotcha de fechas documentado en CLAUDE.md,
+  // resuelto igual que en frontend/control.js (instanteUtc()).
+  const instanteUtc = (fechaHora) => {
+    const texto = String(fechaHora);
+    return new Date(texto.endsWith('Z') ? texto : `${texto.replace(' ', 'T')}Z`);
+  };
+  const vencidos = enBaja.filter((t) => t.baja_en && ahora - instanteUtc(t.baja_en).getTime() >= limiteMs);
+
+  const eliminados = [];
+  const fallidos = [];
+  for (const t of vencidos) {
+    try {
+      await eliminarTenantDefinitivo(t.slug, { actor: ACTOR_PURGA }, db);
+      eliminados.push(t.slug);
+      await registrarAccesoAdmin(
+        {
+          actor: ACTOR_PURGA,
+          mecanismo: 'admin_users',
+          perfil: 'super',
+          tenantSlug: t.slug,
+          metodo: 'AUTO',
+          ruta: '/internal/purga-automatica-30d',
+          estatus: 200,
+        },
+        db
+      ).catch((err) => console.error('No se pudo auditar la purga automática:', err.message));
     } catch (err) {
       fallidos.push({ slug: t.slug, error: err.message });
     }
@@ -281,6 +352,8 @@ module.exports = {
   darDeBajaTenant,
   eliminarTenantDefinitivo,
   vaciarPapelera,
+  purgarBajasVencidas,
+  DIAS_RETENCION_BAJA,
   recalcularUsoDisco,
   ErrorCalculoDisco,
 };

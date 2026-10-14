@@ -116,6 +116,22 @@ por el NOMBRE REAL en código (`grep -rn marcaLookfeel`), nunca solo por
 la frase en español que usó el usuario o la UI de `/control` — el label
 visible y el identificador interno no siempre coinciden.
 
+**`marcaLookfeelHabilitado` ya NO gatea el ticket de impresión (punto
+387, 2026-10-10)**: desde el punto 368 y hasta el punto 387,
+"Marca e identidad visual" y "Ticket de impresión" compartían el MISMO
+flag — varias notas de este archivo y comentarios en código viejo (ya
+corregidos en el punto 387, pero por si queda alguno sin tocar en el
+futuro) decían literalmente "mismo flag que Ticket de impresión". Ahora
+son dos flags independientes: `marcaLookfeelHabilitado` solo gatea
+logo/colores/tema del sitio (`marca-tema-card` en `/admin`,
+`marca_logo_url`/`tema_json`); `ticketImpresionHabilitado` (columna
+`ticket_impresion_habilitado`, regla de dependencia 13: requiere Ventas)
+gatea las 5 rutas de `/api/admin/configuraciones/ticket*` y la tarjeta
+`ticket-config-card`. Si una sesión futura encuentra código o docs que
+asuma que apagar "Marca propia" también apaga el ticket (o viceversa),
+es un rastro de ANTES del punto 387 — corregirlo, no asumir que sigue
+siendo así.
+
 **Ventanas "hoy/mes" en queries: nunca usar `Date.UTC` ni `toISOString()`
 (punto 371, 2026-10-05)**: `limitesDia()`/`limitesMes()` construían el
 día local con `Date.UTC(...)`, anclando "hoy" a medianoche **UTC** — con
@@ -227,9 +243,83 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   columnas `DATETIME` en UTC, `fechas.*` `'YYYY-MM-DD'` para columnas
   `DATE`); ver la nota completa arriba y `PROJECT_STATE.md` punto 371
   (incluye 5 sitios hermanos aún sin corregir, requieren aprobación).
+- **Primer cifrado reversible del repo: `control/utils/accesoMinio.js`**
+  (punto 390, 2026-10-12) — hasta ahora TODO lo que el proyecto cifraba
+  era un hash irreversible de login (`crypto.scrypt`). "Accesos — MinIO"
+  necesitaba guardar un password que el operador pudiera volver a VER
+  (bloc de notas, no autenticación), así que es AES-256-GCM con una clave
+  nueva (`CONTROL_VAULT_KEY`, 32 bytes hex) que vive SOLO en el `.env` del
+  servidor, nunca en la BD — si se necesita otro campo reversible en el
+  futuro (otro servicio, otra credencial), replicar este patrón
+  (`cifrar`/`descifrar` con IV aleatorio por valor, formato guardado
+  `iv:tag:cifrado` en hex) en vez de reinventar uno nuevo o, peor,
+  reusar `scrypt` para algo que necesita volver a leerse. **No es un
+  vault vivo y la decisión fue explícita del usuario**: editar este
+  registro NUNCA rota la contraseña real de ningún servicio ni cambia
+  cómo `backend/` se autentica — eso sigue siendo el `.env` real. Antes
+  de replicar este patrón para otro servicio, confirmar con el usuario
+  si de verdad quiere "solo un bloc de notas" (como aquí) o algo que de
+  verdad sincronice — son decisiones de producto distintas, no asumir.
+- **Relajar un candado de estado en `control/` tiene un espejo en
+  `backend/` que también hay que tocar** (punto 389, 2026-10-12): el
+  borrado definitivo de un tenant vive en 2 capas —
+  `eliminarTenantDefinitivo()` en `control/utils/tenantLifecycle.js`
+  decide SI se puede borrar (gate de estado), pero el borrado físico real
+  (DROP DATABASE + MinIO + DELETE de las 3 tablas) lo ejecuta
+  `backend/server.js:POST /internal/eliminar-tenant/:slug`, que hace su
+  PROPIA verificación atómica de estado (a propósito, "nunca confía en lo
+  que ya revisó control" — ver comentario en el archivo). Al ampliar los
+  estados permitidos para eliminar (baja → baja+provisioning), el
+  candado de `control/` se relajó pero el de `backend/` seguía
+  hardcodeado a `estado !== 'baja'` en 2 sitios (el check inicial Y el
+  `DELETE ... AND estado = 'baja'` final) — sin tocar ambos, un borrado
+  desde "provisioning" habría pasado el check de `control/` y reventado
+  con 409 al llegar al backend. Antes de dar por "ya relajado" cualquier
+  candado de estado de ciclo de vida de tenant, buscar su espejo en el
+  endpoint interno correspondiente de `backend/server.js`
+  (`grep -n "estado !== '" backend/server.js`).
+- **Mismo gotcha, variante "formatear para mostrar" (punto 388,
+  2026-10-12)**: `frontend/admin.js:formatearFechaSoloDia()` hace
+  `new Date(fechaISO)` + `toLocaleDateString` — para una columna `DATE`
+  pura (`suscripcion_expira_en`, `rango_inicio`/`rango_fin` de Cortes,
+  `vigenciaHasta` de Promociones) eso interpreta "2026-11-04" como
+  medianoche UTC y la repinta en la zona LOCAL del navegador — con
+  México en UTC−6 el día mostrado se corre uno hacia atrás ("04 nov
+  2026" en BD se veía "03 nov 2026" en pantalla, reproducido real en
+  Docker). No es solo un gotcha de ventanas "hoy/mes": cualquier
+  `new Date('YYYY-MM-DD')` + formateo en zona local tiene el mismo
+  riesgo, sea para calcular un rango o solo para pintar una fecha en la
+  UI. Fix aplicado SOLO en el uso que tocaba ese punto
+  (`formatearFechaSoloDiaSinTZ()`, aritmética de texto sin `Date`,
+  usada en `micuentaSuscripcionVence`) — los otros 2 usos de
+  `formatearFechaSoloDia()` (Cortes/Reportes, Promociones) **siguen con
+  el bug sin corregir**, fuera de alcance de esa sesión a propósito. Si
+  una sesión futura toca cualquiera de esos 2 sitios, aplicar el mismo
+  fix ahí (o migrar `formatearFechaSoloDia()` completo a la variante sin
+  `Date`, con aprobación explícita primero — cambia el formato de salida
+  de los 3 usos a la vez).
 - **nginx intercepta 502/503/504 globalmente** (`error_page 502 503 504`
   → `mantenimiento.html`) — cualquier error real de la API debe responder
   **500**, nunca 502/503/504, o se disfraza de "sitio caído".
+- **ExcelJS no lee `.xls` real** (punto 394, 2026-10-13): ExcelJS (ya
+  usado en el proyecto para exportar plantillas/reportes) solo entiende
+  XLSX/OOXML — un `.xls` binario viejo (Excel 97-2003, OLE2/BIFF8) con
+  esa extensión aceptada pero parseado con ExcelJS simplemente truena.
+  Para leer `.xls` real se agregó SheetJS (`xlsx` en npm) SOLO en la rama
+  de lectura (`listarHojasXLS`/`parsearArchivoXLS` en
+  `backend/utils/inventarioImportacion.js`) — ExcelJS sigue siendo la
+  librería para todo lo que el sitio YA escribía. **Trampa de npm**: el
+  paquete `xlsx` publicado en el registro de npm está fijo en 0.18.5
+  (SheetJS dejó de publicar ahí) y esa versión trae 2 CVE altas
+  (prototype pollution, ReDoS) sin fix vía `npm audit fix` — la propia
+  documentación de SheetJS recomienda instalar el tarball oficial
+  parcheado directo de su CDN
+  (`npm install https://cdn.sheetjs.com/xlsx-<version>/xlsx-<version>.tgz`)
+  en vez del nombre del paquete a secas. Si se vuelve a tocar esta
+  dependencia (actualizarla, reinstalar node_modules desde cero en otra
+  máquina), confirmar con `npm audit` que sigue siendo la version del CDN
+  y no la del registro — `npm install` sin el URL completo reinstala la
+  0.18.5 vulnerable silenciosamente.
 - **`Cache-Control: public, max-age=N` en un endpoint cuyo estado puede
   cambiar por un toggle de usuario es una trampa** (punto 375,
   2026-10-07): `GET /api/tema/:slug`/`GET /api/tema-base` cacheaban

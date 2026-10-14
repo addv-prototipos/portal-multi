@@ -11,23 +11,28 @@ const { asegurarTablaAuditoria, registrarAccesoAdmin, listarAuditoria } = requir
 const { asegurarColumnasCicloVidaTenant } = require('./scripts/ensureSchema');
 const {
   listarTenants,
+  obtenerTenantPorSlug,
   activarTenant,
   suspenderTenant,
   reactivarTenant,
   darDeBajaTenant,
   eliminarTenantDefinitivo,
   vaciarPapelera,
+  purgarBajasVencidas,
   recalcularUsoDisco,
   ErrorTransicionTenant,
   ErrorCalculoDisco,
 } = require('./utils/tenantLifecycle');
 const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake');
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant } = require('./utils/tenantMarca');
-const { getImagenMaxMb, setImagenMaxMb } = require('./utils/ajustesGlobales');
+const { getImagenMaxMb, setImagenMaxMb, getImportMaxFilas, setImportMaxFilas } = require('./utils/ajustesGlobales');
+const { getAccesoMinio, setAccesoMinio, ErrorAccesoMinio } = require('./utils/accesoMinio');
+const { getAccesoSmtp, setAccesoSmtp, ErrorAccesoSmtp } = require('./utils/accesoSmtp');
+const { ErrorCifrado } = require('./utils/cifrado');
 const { actualizarTemaTenant, ErrorTemaTenant } = require('./utils/tenantTema');
 const { actualizarSuscripcionTenant, ErrorSuscripcionTenant } = require('./utils/tenantSuscripcion');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('./utils/tenantEdicion');
-const { obtenerUsoUsuarios } = require('./utils/notificarBackend');
+const { obtenerUsoUsuarios, crearAdminInicialFisico, ErrorActivacionFisica } = require('./utils/notificarBackend');
 const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
 const {
@@ -55,6 +60,16 @@ const {
   reactivarPlan,
   ErrorPlan,
 } = require('./utils/planes');
+const {
+  crearBorrador,
+  obtenerBorrador,
+  actualizarBorrador,
+  verificarSlugDisponible,
+  ErrorOnboarding,
+} = require('./utils/onboardingBorrador');
+const { convertirBorrador } = require('./utils/onboardingConversion');
+const { hashPasswordAdmin, validarPasswordAdmin, derivarNombreUsuario } = require('./utils/credencialesAdmin');
+const { isValidEmail } = require('./utils/validateFiscal');
 
 const PORT = Number(process.env.PORT || 4001);
 // Auditoría 2026-09-03 (hallazgo #9, mismo criterio que backend/server.js):
@@ -115,6 +130,29 @@ const adminCredencialesLimiter = rateLimit({
   skipSuccessfulRequests: true,
   message: { error: 'Demasiados intentos fallidos. Intenta de nuevo mas tarde.' },
 });
+
+// Onboarding público (clarvo.mx → modal de alta, Segmento A, 2026-10-13):
+// sin req.adminUser (nadie se autentica todavía), así que es su propio
+// limiter, más estricto que adminApiLimiter a propósito (ese asume
+// tráfico ya autenticado) — frena spam/enumeración de slugs desde un
+// visitante anónimo.
+const onboardingPublicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: claveTenantIp,
+  message: { error: 'Demasiadas solicitudes. Intenta de nuevo mas tarde.' },
+});
+
+// CORS propio de esta superficie — independiente de ALLOWED_ORIGIN de
+// arriba (ese gate protege /api/control/*, autenticado, default
+// deshabilitado por la auditoría 2026-09-03 hallazgo #9). El wizard de
+// onboarding es público por diseño y vive solo bajo
+// /api/public/onboarding/*, nunca bajo /api/control/* — nunca ensanchar
+// ALLOWED_ORIGIN para esto.
+const ONBOARDING_CORS_ORIGIN = process.env.ONBOARDING_CORS_ORIGIN || 'https://clarvo.mx';
+const onboardingCors = cors({ origin: ONBOARDING_CORS_ORIGIN, credentials: false });
 
 app.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
@@ -201,6 +239,102 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// ---------- Onboarding público (clarvo.mx → modal de alta, Segmento A) ----------
+// Sin requireAdminAuth a propósito: quien llama es un prospecto desde el
+// navegador, todavía sin cuenta. app.use (no app.get/post) para que el
+// preflight OPTIONS de CORS también quede cubierto bajo este prefijo.
+app.use('/api/public/onboarding', onboardingCors);
+
+function mapearErrorOnboarding(err) {
+  if (err.codigo === 'no_encontrado') return 404;
+  if (err.codigo === 'slug_tomado' || err.codigo === 'estado_invalido') return 409;
+  // Nunca 502/503/504 aquí: nginx (frontend/nginx.conf.template) intercepta
+  // esos códigos globalmente y los disfraza de mantenimiento.html — mismo
+  // gotcha ya documentado en CLAUDE.md, corregido antes para Accesos
+  // MinIO/SMTP. Un fallo real de aprovisionamiento sigue siendo un error
+  // real del servidor, así que es 500, no 502.
+  if (err.codigo === 'aprovisionamiento') return 500;
+  return 400;
+}
+
+app.post(
+  '/api/public/onboarding/borrador',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    try {
+      const { planClave, ciclo } = req.body || {};
+      const borrador = await crearBorrador({ planClave, ciclo });
+      res.status(201).json({ ok: true, borrador });
+    } catch (err) {
+      if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.get(
+  '/api/public/onboarding/borrador/:token',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    try {
+      const borrador = await obtenerBorrador(req.params.token);
+      res.json({ borrador });
+    } catch (err) {
+      if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/public/onboarding/borrador/:token',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    try {
+      const borrador = await actualizarBorrador(req.params.token, req.body || {});
+      res.json({ ok: true, borrador });
+    } catch (err) {
+      if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.get(
+  '/api/public/onboarding/slug-disponible',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    const slug = typeof req.query.slug === 'string' ? req.query.slug.trim().toLowerCase() : '';
+    try {
+      const disponible = await verificarSlugDisponible(slug);
+      res.json({ slug, disponible });
+    } catch (err) {
+      if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+// Segmento B (13 oct 2026): convierte un borrador completo en un tenant
+// real — intake + aprovisionamiento físico + plan + usuario admin, sin
+// intervención de un operador (self-service, decisión explícita del
+// usuario). Ver control/utils/onboardingConversion.js para el detalle
+// paso a paso; cada paso es idempotente, así que reintentar esta misma
+// ruta tras un error de red nunca duplica nada.
+app.post(
+  '/api/public/onboarding/convertir/:token',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    try {
+      const resultado = await convertirBorrador(req.params.token);
+      res.json({ ok: true, ...resultado });
+    } catch (err) {
+      if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
 app.get(
   '/api/control/tenants',
   adminApiLimiter,
@@ -279,13 +413,91 @@ app.post(
 // con el CLI backend/scripts/provisionar-tenant.js, que completa este
 // paso — ninguno de los dos requiere ya privilegios root para el 99% de
 // los casos (root solo se necesitó UNA vez, para el GRANT inicial).
+//
+// Gap real encontrado por el usuario (13 oct 2026): el alta MANUAL desde
+// "Nueva empresa" nunca pedía credenciales de administrador — un tenant
+// creado así quedaba sin forma de entrar (ningún bootstrap de sesión
+// existe para un tenant con 0 usuarios). El Segmento B del onboarding
+// público ya resolvió esto para el wizard de clarvo.mx; aquí se reusa el
+// MISMO backend interno (/internal/crear-admin-inicial, idempotente) para
+// cerrar el mismo hueco en el alta manual — opcional (`adminEmail`/
+// `adminPassword` en el body): si el operador los captura en "Nueva
+// empresa", esta misma llamada activa Y deja el administrador listo con
+// la contraseña real que esa persona va a usar — mismo criterio
+// self-service que el wizard, nunca se le pide cambiarla después
+// (decisión explícita del usuario: sería redundante, ya la escribió
+// aquí). Si se dejan en blanco, el comportamiento es IDÉNTICO al de
+// siempre (solo activa, sin admin) — no rompe el flujo de dos pasos para
+// quien lo prefiera así.
 app.post(
   '/api/control/tenants/:slug/activar',
   adminApiLimiter,
   requireAdminAuth,
   requireAdminArea(),
   asyncHandler(async (req, res) => {
-    await manejarTransicionTenant(res, () => activarTenant(req.params.slug, { actor: req.adminUser }));
+    const slug = req.params.slug;
+    const { adminEmail, adminPassword } = req.body || {};
+
+    let correoAdmin = null;
+    let passwordHashAdmin = null;
+    if (adminEmail || adminPassword) {
+      correoAdmin = typeof adminEmail === 'string' ? adminEmail.trim().toLowerCase() : '';
+      if (!correoAdmin || !isValidEmail(correoAdmin)) {
+        return res.status(400).json({ error: 'Correo del administrador inválido.' });
+      }
+      const errorPassword = validarPasswordAdmin(adminPassword);
+      if (errorPassword) {
+        return res.status(400).json({ error: errorPassword });
+      }
+      passwordHashAdmin = hashPasswordAdmin(adminPassword);
+    }
+
+    let tenant;
+    try {
+      tenant = await activarTenant(slug, { actor: req.adminUser });
+    } catch (err) {
+      if (!(err instanceof ErrorTransicionTenant)) throw err;
+      // Reintento idempotente: si YA quedó "activo" (el paso del admin
+      // falló la vez pasada, o el operador volvió a dar clic) y esta vez
+      // sí trae credenciales, no es un error — se continúa directo al
+      // paso del administrador. Cualquier otro estado/motivo se comporta
+      // EXACTAMENTE igual que antes de este cambio.
+      if (err.codigo === 'estado_invalido' && correoAdmin && passwordHashAdmin) {
+        const existente = await obtenerTenantPorSlug(slug);
+        if (!existente || existente.estado !== 'activo') {
+          return res.status(409).json({ error: err.message });
+        }
+        tenant = existente;
+      } else {
+        const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'error_fisico' ? 502 : 409;
+        return res.status(estatus).json({ error: err.message });
+      }
+    }
+
+    let adminCreado = false;
+    if (correoAdmin && passwordHashAdmin) {
+      try {
+        const resultado = await crearAdminInicialFisico(slug, {
+          email: correoAdmin,
+          passwordHash: passwordHashAdmin,
+          nombreUsuario: derivarNombreUsuario(correoAdmin),
+        });
+        adminCreado = !resultado.yaExistia;
+      } catch (err) {
+        // El tenant ya quedó activo — nunca se revierte por esto (mismo
+        // criterio que el resto de este archivo). 500, nunca 502/503/504:
+        // esta ruta SÍ pasa por el nginx público (/api/control/*), que
+        // intercepta esos códigos globalmente y los disfraza de
+        // mantenimiento.html (gotcha ya documentado en CLAUDE.md).
+        const motivo =
+          err instanceof ErrorActivacionFisica
+            ? err.message
+            : 'El tenant se activó, pero no se pudo crear el usuario administrador.';
+        return res.status(500).json({ error: motivo, tenant, reintentarActivarConAdmin: true });
+      }
+    }
+
+    res.json({ ok: true, tenant, adminCreado });
   })
 );
 
@@ -598,6 +810,128 @@ app.put(
       res.json({ ok: true, imagen_max_mb });
     } catch (err) {
       res.status(400).json({ error: err.message });
+    }
+  })
+);
+
+// Límite de filas del importador masivo de Inventarios (CSV/XLSX/XLS) —
+// antes fijo e inalcanzable desde ninguna UI (inv_import_max_filas,
+// per-tenant, backend/utils/inventarioConfig.js); ahora un solo valor de
+// plataforma, mismo patrón que imagen_max_mb.
+app.get(
+  '/api/control/ajustes/import-max-filas',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const import_max_filas = await getImportMaxFilas();
+    res.json({ import_max_filas });
+  })
+);
+
+app.put(
+  '/api/control/ajustes/import-max-filas',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const import_max_filas = await setImportMaxFilas((req.body || {}).import_max_filas);
+      res.json({ ok: true, import_max_filas });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  })
+);
+
+// "Accesos — MinIO" (punto en curso): bloc de notas cifrado con
+// URL/usuario/password de MinIO, SOLO informativo (ver cabecera de
+// accesoMinio.js — no sincroniza con backend/ ni con MinIO real). Mismo
+// criterio de middlewares que el resto de /control (solo perfil super).
+app.get(
+  '/api/control/accesos/minio',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const acceso = await getAccesoMinio();
+      res.json(acceso);
+    } catch (err) {
+      if (err instanceof ErrorAccesoMinio || err instanceof ErrorCifrado) {
+        // Nunca 502/503/504: nginx los intercepta globalmente y los
+        // disfraza de "sitio en mantenimiento" (gotcha documentado en
+        // CLAUDE.md) — un error real de configuración (CONTROL_VAULT_KEY
+        // faltante) usa 500, no 503, para que el mensaje real le llegue
+        // al operador en vez de una pantalla de robot genérica.
+        return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
+      }
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/accesos/minio',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const acceso = await setAccesoMinio(req.body || {});
+      res.json({ ok: true, ...acceso });
+    } catch (err) {
+      if (err instanceof ErrorAccesoMinio || err instanceof ErrorCifrado) {
+        // Nunca 502/503/504: nginx los intercepta globalmente y los
+        // disfraza de "sitio en mantenimiento" (gotcha documentado en
+        // CLAUDE.md) — un error real de configuración (CONTROL_VAULT_KEY
+        // faltante) usa 500, no 503, para que el mensaje real le llegue
+        // al operador en vez de una pantalla de robot genérica.
+        return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
+      }
+      throw err;
+    }
+  })
+);
+
+// "Accesos — SMTP" (punto en curso, mismo pedido del usuario): copia del
+// SMTP del sitio base (sin tenant) ya configurado en backend/, para que
+// control/ pueda mandar sus propios correos (ej. bienvenida de
+// onboarding) sin depender de backend en tiempo real. Mismo patrón que
+// "Accesos — MinIO" (bloc de notas cifrado, reusa ajustes_globales) —
+// ver cabecera de accesoSmtp.js.
+app.get(
+  '/api/control/accesos/smtp',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const acceso = await getAccesoSmtp();
+      res.json(acceso);
+    } catch (err) {
+      if (err instanceof ErrorAccesoSmtp || err instanceof ErrorCifrado) {
+        return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
+      }
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/accesos/smtp',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const acceso = await setAccesoSmtp(req.body || {});
+      res.json({ ok: true, ...acceso });
+    } catch (err) {
+      if (err instanceof ErrorAccesoSmtp || err instanceof ErrorCifrado) {
+        return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
+      }
+      throw err;
     }
   })
 );
@@ -960,15 +1294,53 @@ app.use((req, res) => {
 async function iniciar() {
   await asegurarTablaAuditoria();
   await asegurarColumnasCicloVidaTenant(obtenerPool());
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores } = require('./scripts/ensureSchema');
   await asegurarTablaApiCredenciales(obtenerPool());
   await asegurarTablasSucursales(obtenerPool());
   await asegurarTablaPlanes(obtenerPool());
   await asegurarTablaAjustesGlobales(obtenerPool());
+  await asegurarTablaOnboardingBorradores(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);
   });
+
+  iniciarPurgaAutomatica();
+}
+
+// Temporizador propio dentro del proceso de control/ (mecanismo elegido
+// con el usuario — nada de cron externo ni infraestructura nueva): corre
+// una vez al arrancar (con un pequeño retraso, para no competir con las
+// migraciones de iniciar()) y luego cada 24h, sin depender de que ningún
+// operador abra /control. `enCurso` evita que dos corridas se encimen si
+// una tarda más de 24h (no debería, pero es una guarda barata). Un fallo
+// nunca tumba el proceso — se loguea y se reintenta en la siguiente
+// vuelta, mismo criterio que el resto del archivo (fire-and-forget para
+// trabajo de fondo que no debe bloquear ni abortar el servicio real).
+const INTERVALO_PURGA_MS = 24 * 60 * 60 * 1000;
+let purgaEnCurso = false;
+
+function iniciarPurgaAutomatica() {
+  const ejecutar = async () => {
+    if (purgaEnCurso) return;
+    purgaEnCurso = true;
+    try {
+      const { eliminados, fallidos } = await purgarBajasVencidas();
+      if (eliminados.length || fallidos.length) {
+        console.log(
+          `Purga automática de tenants en baja (>30 días): ${eliminados.length} eliminados, ${fallidos.length} fallidos.`,
+          { eliminados, fallidos }
+        );
+      }
+    } catch (err) {
+      console.error('Error corriendo la purga automática de tenants en baja:', err.message);
+    } finally {
+      purgaEnCurso = false;
+    }
+  };
+
+  setTimeout(ejecutar, 30 * 1000);
+  setInterval(ejecutar, INTERVALO_PURGA_MS);
 }
 
 // Igual que backend/server.js: solo arranca si este archivo se ejecuta

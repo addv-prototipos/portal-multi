@@ -13,6 +13,7 @@ const {
   normalizarTipoProducto,
   normalizarEstadoProducto,
   validarFilasImportacion,
+  detectarDatosMezclados,
   generarPlantillaCSV,
   protegerCeldaCSV,
   CLAVES_EXTRA_PROHIBIDAS,
@@ -270,6 +271,224 @@ describe('validarFilasImportacion (§34.5)', () => {
     expect(resultado.filasOk).toBe(1);
     expect(resultado.filasValidas[0].sku).toBe('B1');
     expect(resultado.errores.some((e) => e.motivo.includes('INV_IMPORT_SERVICIO_NO_PERMITIDO'))).toBe(true);
+  });
+
+  // Punto 397, propuesta 1: "agrupar por valor" — un mismo valor de
+  // catálogo sin resolver (ej. "UNIDAD") repetido en miles de filas se
+  // reporta como un solo grupo con conteo real, no una fila por error.
+  test('erroresAgrupados colapsa errores idénticos (misma columna/valor/motivo) con su conteo real', async () => {
+    const filas = [
+      ['A1', 'Producto A', 'UNIDAD', '1'],
+      ['A2', 'Producto B', 'UNIDAD', '1'],
+      ['A3', 'Producto C', 'UNIDAD', '1'],
+      ['A4', 'Producto D', 'OtraCosa', '1'],
+    ];
+    const resultado = await validarFilasImportacion(cabeceras, filas, { mapeoFinal, modo: 'tolerante' });
+    expect(resultado.filasOk).toBe(0);
+    expect(resultado.errores.length).toBe(4);
+    expect(resultado.erroresAgrupados.length).toBe(2);
+    const grupoUnidad = resultado.erroresAgrupados.find((g) => g.valor === 'UNIDAD');
+    expect(grupoUnidad.count).toBe(3);
+    expect(grupoUnidad.filasEjemplo).toEqual([2, 3, 4]);
+  });
+
+  // Punto 397, propuesta 1: valorOverrides resuelve "UNIDAD" → "Pieza" sin
+  // tocar el archivo original — las 3 filas pasan a ser válidas.
+  test('valorOverrides resuelve un valor de catálogo desconocido para todas las filas que lo usan', async () => {
+    const filas = [
+      ['A1', 'Producto A', 'UNIDAD', '1'],
+      ['A2', 'Producto B', 'UNIDAD', '1'],
+    ];
+    const resultado = await validarFilasImportacion(cabeceras, filas, {
+      mapeoFinal,
+      modo: 'tolerante',
+      valorOverrides: { unidad_base: { unidad: 'Pieza' } },
+    });
+    expect(resultado.filasOk).toBe(2);
+    expect(resultado.filasValidas.every((f) => f.unidad_id === 1)).toBe(true);
+    expect(resultado.errores.length).toBe(0);
+  });
+
+  test('valorOverrides no afecta valores que no coinciden con la clave guardada', async () => {
+    const filas = [['A1', 'Producto A', 'UNIDAD', '1']];
+    const resultado = await validarFilasImportacion(cabeceras, filas, {
+      mapeoFinal,
+      modo: 'tolerante',
+      valorOverrides: { unidad_base: { otravalor: 'Pieza' } },
+    });
+    expect(resultado.filasOk).toBe(0);
+    expect(resultado.errores[0].motivo).toContain('Unidad de medida desconocida');
+  });
+
+  // Punto 397, propuesta 5: checklist de calidad de datos ampliado.
+  describe('hallazgosCalidad', () => {
+    test('detecta SKU que ya existe en el catálogo (distinto de duplicado dentro del archivo)', async () => {
+      pool.query.mockReset();
+      pool.query
+        .mockResolvedValueOnce([[{ id: 1, nombre: 'Pieza' }]]) // unidades_medida
+        .mockResolvedValueOnce([[{ sku: 'A1' }]]); // productos ya existentes
+      const filas = [['A1', 'Producto A', 'Pieza', '1']];
+      const resultado = await validarFilasImportacion(cabeceras, filas, { mapeoFinal, modo: 'tolerante' });
+      const hallazgo = resultado.hallazgosCalidad.find((h) => h.tipo === 'duplicado_catalogo');
+      expect(hallazgo).toBeDefined();
+      expect(hallazgo.count).toBe(1);
+      expect(hallazgo.filasEjemplo).toEqual([2]);
+    });
+
+    test('no reporta duplicado_catalogo si ningún SKU del archivo existe ya', async () => {
+      pool.query.mockReset();
+      pool.query
+        .mockResolvedValueOnce([[{ id: 1, nombre: 'Pieza' }]])
+        .mockResolvedValueOnce([[]]);
+      const filas = [['A1', 'Producto A', 'Pieza', '1']];
+      const resultado = await validarFilasImportacion(cabeceras, filas, { mapeoFinal, modo: 'tolerante' });
+      expect(resultado.hallazgosCalidad.some((h) => h.tipo === 'duplicado_catalogo')).toBe(false);
+    });
+
+    test('detecta texto con pinta de precio mezclado en una columna de texto libre (ej. "nombre")', async () => {
+      pool.query.mockReset();
+      pool.query.mockResolvedValue([[{ id: 1, nombre: 'Pieza' }]]);
+      const filas = [['A1', 'BRAZO AUXILIAR FORD F150 2005 $519 MAYASA', 'Pieza', '1']];
+      const resultado = await validarFilasImportacion(cabeceras, filas, { mapeoFinal, modo: 'tolerante' });
+      const hallazgo = resultado.hallazgosCalidad.find((h) => h.tipo === 'datos_mezclados');
+      expect(hallazgo).toBeDefined();
+      expect(hallazgo.count).toBe(1);
+      expect(hallazgo.filasEjemplo).toEqual([2]);
+    });
+
+    test('precio en $0.00 explícito se reporta como aviso informativo, nunca bloquea la fila', async () => {
+      pool.query.mockReset();
+      pool.query.mockResolvedValue([[{ id: 1, nombre: 'Pieza' }]]);
+      const cabecerasConPrecio = [...cabeceras, 'precio'];
+      const mapeoConPrecio = { ...mapeoFinal, precio: 4 };
+      const filas = [['A1', 'Producto A', 'Pieza', '1', '0']];
+      const resultado = await validarFilasImportacion(cabecerasConPrecio, filas, { mapeoFinal: mapeoConPrecio, modo: 'tolerante' });
+      expect(resultado.filasOk).toBe(1);
+      const hallazgo = resultado.hallazgosCalidad.find((h) => h.tipo === 'precio_cero');
+      expect(hallazgo).toBeDefined();
+      expect(hallazgo.severidad).toBe('info');
+      expect(hallazgo.count).toBe(1);
+    });
+  });
+
+  // Punto 398: proveedor + precio pegados al texto, detección real (dato
+  // encontrado en producción con el archivo real del usuario: "BRAZO
+  // AUXILIAR FORD F150 2005 $519 MAYASA" dentro de "Producto").
+  describe('datos mezclados: proveedor + precio (punto 398)', () => {
+    test('detectarDatosMezclados: un token junto a $precio en 2+ filas se confirma como proveedor', () => {
+      const filasCrudas = [
+        ['A1', 'BRAZO AUXILIAR FORD F150 2005 $519 MAYASA', 'Pieza', '1'],
+        ['A2', 'BIELETA NISS SENTRA B14 $66 MAYASA', 'Pieza', '1'],
+      ];
+      const deteccion = detectarDatosMezclados(filasCrudas, mapeoFinal);
+      const mezclaNombre = deteccion.get('nombre');
+      expect(mezclaNombre.tokensConfirmados.get('MAYASA')).toBe(2);
+      expect(mezclaNombre.filasProveedor.size).toBe(2);
+      expect(mezclaNombre.filasProveedor.get(0)).toEqual({ token: 'MAYASA', textoLimpio: 'BRAZO AUXILIAR FORD F150 2005' });
+    });
+
+    test('detectarDatosMezclados: un token que aparece UNA sola vez junto a $precio NO se confirma (evita falsos positivos)', () => {
+      const filasCrudas = [['A1', 'ROTULA RAM 700 IZQ $57 UNICO', 'Pieza', '1']];
+      const deteccion = detectarDatosMezclados(filasCrudas, mapeoFinal);
+      const mezclaNombre = deteccion.get('nombre');
+      expect(mezclaNombre.filasProveedor.size).toBe(0);
+      expect(mezclaNombre.filasPrecio.size).toBe(1); // el precio sí se detecta, no depende de confirmar proveedor
+    });
+
+    test('detectarDatosMezclados: con el token ya confirmado, también detecta filas SIN precio (ej. "FILTRO GASOLINA VW A4 MAYASA")', () => {
+      const filasCrudas = [
+        ['A1', 'BRAZO AUXILIAR FORD F150 2005 $519 MAYASA', 'Pieza', '1'],
+        ['A2', 'BIELETA NISS SENTRA B14 $66 MAYASA', 'Pieza', '1'],
+        ['A3', 'FILTRO GASOLINA VW A4 MAYASA', 'Pieza', '1'],
+      ];
+      const deteccion = detectarDatosMezclados(filasCrudas, mapeoFinal);
+      const mezclaNombre = deteccion.get('nombre');
+      expect(mezclaNombre.filasProveedor.size).toBe(3);
+      expect(mezclaNombre.filasProveedor.get(2)).toEqual({ token: 'MAYASA', textoLimpio: 'FILTRO GASOLINA VW A4' });
+    });
+
+    test('hallazgosCalidad reporta tienePrecio/tieneProveedor y desaparece una vez que el usuario ya decidió qué hacer', async () => {
+      pool.query.mockReset();
+      pool.query.mockResolvedValue([[{ id: 1, nombre: 'Pieza' }]]);
+      const filas = [
+        ['A1', 'BRAZO AUXILIAR FORD F150 2005 $519 MAYASA', 'Pieza', '1'],
+        ['A2', 'BIELETA NISS SENTRA B14 $66 MAYASA', 'Pieza', '1'],
+      ];
+      const sinResolver = await validarFilasImportacion(cabeceras, filas, { mapeoFinal, modo: 'tolerante' });
+      const hallazgo = sinResolver.hallazgosCalidad.find((h) => h.tipo === 'datos_mezclados');
+      expect(hallazgo.tienePrecio).toBe(true);
+      expect(hallazgo.tieneProveedor).toBe(true);
+      expect(hallazgo.totalProveedor).toBe(2);
+
+      const yaResuelto = await validarFilasImportacion(cabeceras, filas, {
+        mapeoFinal,
+        modo: 'tolerante',
+        limpiezaMezcla: { nombre: { proveedor: 'proveedor_principal', precio: 'costo' } },
+      });
+      expect(yaResuelto.hallazgosCalidad.some((h) => h.tipo === 'datos_mezclados')).toBe(false);
+    });
+
+    test('limpiezaMezcla: mueve proveedor a proveedor_principal y precio a costo, dejando el nombre limpio', async () => {
+      pool.query.mockReset();
+      pool.query.mockResolvedValue([[{ id: 1, nombre: 'Pieza' }]]);
+      const filas = [
+        ['A1', 'BRAZO AUXILIAR FORD F150 2005 $519 MAYASA', 'Pieza', '1'],
+        ['A2', 'BIELETA NISS SENTRA B14 $66 MAYASA', 'Pieza', '1'],
+      ];
+      const resultado = await validarFilasImportacion(cabeceras, filas, {
+        mapeoFinal,
+        modo: 'tolerante',
+        limpiezaMezcla: { nombre: { proveedor: 'proveedor_principal', precio: 'costo' } },
+      });
+      expect(resultado.filasValidas[0].nombre).toBe('BRAZO AUXILIAR FORD F150 2005');
+      expect(resultado.filasValidas[0].proveedor_principal).toBe('MAYASA');
+      expect(resultado.filasValidas[0].costo).toBe(519);
+    });
+
+    test('limpiezaMezcla NUNCA sobreescribe un proveedor_principal ya mapeado desde una columna real', async () => {
+      pool.query.mockReset();
+      pool.query.mockResolvedValue([[{ id: 1, nombre: 'Pieza' }]]);
+      const cabecerasConProveedor = [...cabeceras, 'proveedor'];
+      const mapeoConProveedor = { ...mapeoFinal, proveedor_principal: 4 };
+      const filas = [
+        ['A1', 'BRAZO AUXILIAR FORD F150 2005 $519 MAYASA', 'Pieza', '1', 'Proveedor Real SA'],
+        ['A2', 'BIELETA NISS SENTRA B14 $66 MAYASA', 'Pieza', '1', 'Proveedor Real SA'],
+      ];
+      const resultado = await validarFilasImportacion(cabecerasConProveedor, filas, {
+        mapeoFinal: mapeoConProveedor,
+        modo: 'tolerante',
+        limpiezaMezcla: { nombre: { proveedor: 'proveedor_principal' } },
+      });
+      expect(resultado.filasValidas[0].proveedor_principal).toBe('Proveedor Real SA');
+    });
+
+    test('limpiezaMezcla con "descartar" limpia el nombre sin escribir nada en otro campo', async () => {
+      pool.query.mockReset();
+      pool.query.mockResolvedValue([[{ id: 1, nombre: 'Pieza' }]]);
+      const filas = [
+        ['A1', 'BRAZO AUXILIAR FORD F150 2005 $519 MAYASA', 'Pieza', '1'],
+        ['A2', 'BIELETA NISS SENTRA B14 $66 MAYASA', 'Pieza', '1'],
+      ];
+      const resultado = await validarFilasImportacion(cabeceras, filas, {
+        mapeoFinal,
+        modo: 'tolerante',
+        limpiezaMezcla: { nombre: { proveedor: 'descartar', precio: 'descartar' } },
+      });
+      expect(resultado.filasValidas[0].nombre).toBe('BRAZO AUXILIAR FORD F150 2005');
+      expect(resultado.filasValidas[0].proveedor_principal).toBeNull();
+      expect(resultado.filasValidas[0].costo).toBeNull();
+    });
+
+    test('sin limpiezaMezcla, el nombre se deja exactamente como vino en el archivo (comportamiento por default, sin sorpresas)', async () => {
+      pool.query.mockReset();
+      pool.query.mockResolvedValue([[{ id: 1, nombre: 'Pieza' }]]);
+      const filas = [
+        ['A1', 'BRAZO AUXILIAR FORD F150 2005 $519 MAYASA', 'Pieza', '1'],
+        ['A2', 'BIELETA NISS SENTRA B14 $66 MAYASA', 'Pieza', '1'],
+      ];
+      const resultado = await validarFilasImportacion(cabeceras, filas, { mapeoFinal, modo: 'tolerante' });
+      expect(resultado.filasValidas[0].nombre).toBe('BRAZO AUXILIAR FORD F150 2005 $519 MAYASA');
+    });
   });
 });
 

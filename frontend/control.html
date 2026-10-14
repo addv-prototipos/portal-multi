@@ -120,6 +120,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Auditoría</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-accesos" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" stroke-width="1.8"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke-linecap="round" stroke-width="1.8"/></svg>
+          <span>Accesos</span>
+        </button>
       </nav>
       <div class="admin-sidebar-footer">
         <button type="button" class="admin-sidebar-ayuda" id="btn-abrir-conocimiento" aria-label="Centro de conocimiento" aria-haspopup="dialog">
@@ -164,6 +168,10 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round" stroke-width="1.8"/></svg>
             <span>Auditoría</span>
           </button>
+          <button type="button" class="admin-menu-movil-btn" data-vista="accesos">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" stroke-width="1.8"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke-linecap="round" stroke-width="1.8"/></svg>
+            <span>Accesos</span>
+          </button>
         </div>
 
         <div id="vista-control-empresas">
@@ -178,7 +186,6 @@
               <option value="provisioning">Provisionando</option>
               <option value="activo">Activo</option>
               <option value="suspendido">Suspendido</option>
-              <option value="baja">Baja</option>
             </select>
             <!-- Suscripción (punto en curso): filtro client-side sobre lo
                  ya cargado — no es un query param al backend, los datos de
@@ -326,7 +333,7 @@
                   <th>Slug</th>
                   <th>Empresa</th>
                   <th>Contacto</th>
-                  <th>Creado</th>
+                  <th>Se elimina en</th>
                   <th></th>
                 </tr>
               </thead>
@@ -455,6 +462,44 @@
               <p class="admin-config-catalogo-info" id="imagen-max-info"></p>
             </div>
           </section>
+
+          <!-- Límite de filas del importador masivo de Inventarios
+               (CSV/XLSX/XLS) — antes fijo e inalcanzable desde ninguna UI
+               (inv_import_max_filas, per-tenant); ahora ajuste global de
+               plataforma, mismo patrón de tarjeta que "Ajustes de
+               imágenes" arriba. -->
+          <section class="admin-config-card" id="import-max-config-card" style="margin-top:20px">
+            <button type="button" class="admin-config-toggle" id="btn-toggle-import-max" aria-expanded="false" aria-controls="import-max-config-body">
+              <span class="admin-config-toggle-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <path d="M8 13h8M8 17h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                Ajustes de importación
+              </span>
+              <svg class="admin-config-chevron" id="import-max-config-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+
+            <div class="admin-config-body" id="import-max-config-body" hidden>
+              <p class="panel-subtitle admin-config-subtitle">
+                Máximo de filas por archivo en el importador masivo de Inventarios (CSV, XLSX o XLS) — aplica a toda la plataforma, todas las empresas.
+              </p>
+              <div class="retencion-config-fila">
+                <div class="field retencion-config-input">
+                  <label for="import-max-filas">Máximo de filas por archivo</label>
+                  <input type="number" id="import-max-filas" min="100" max="100000" placeholder="10000" />
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-guardar-import-max">
+                  <span id="btn-guardar-import-max-label">Guardar</span>
+                </button>
+              </div>
+              <p class="field-error" id="import-max-error" role="alert"></p>
+              <p class="admin-config-catalogo-info" id="import-max-info"></p>
+            </div>
+          </section>
         </div>
 
         <!-- Punto 347: Auditoría cross-tenant — replica el diseño ya
@@ -532,6 +577,112 @@
               <p class="admin-empty-titulo" id="auditoria-empty-titulo">Sin accesos registrados todavía</p>
               <p id="auditoria-empty-texto">En cuanto alguien entre a /control, aparecerá aquí.</p>
             </div>
+          </div>
+        </div>
+
+        <!-- Punto en curso: "Accesos — MinIO", bloc de notas cifrado con
+             URL/usuario/password de MinIO para tener a la mano. NO
+             sincroniza con el .env real ni con MinIO en caliente — ver
+             control/utils/accesoMinio.js. -->
+        <div id="vista-control-accesos" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Accesos</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-accesos" aria-label="Ayuda sobre Accesos" data-tooltip="Registros informativos de credenciales de infraestructura, cifrados en reposo. Editar aquí NO cambia cómo los servicios reales se conectan entre sí — sigue siendo el .env del servidor. Útil para no tener que ir a buscarlo cada vez.">?</button>
+            </div>
+          </div>
+          <p class="admin-login-hint">Registros informativos, cifrados en reposo — no sincronizados con el servidor real. Útiles para tenerlos a la mano.</p>
+
+          <h2 class="tema-grupo-titulo" style="margin:28px 0 10px;font-size:15px;">MinIO</h2>
+          <p class="field-error" id="accesos-minio-error" role="alert"></p>
+
+          <form id="accesos-minio-form" class="control-form-grid" style="max-width:640px;">
+            <div class="field control-form-grid-full">
+              <label for="accesos-minio-url">URL de la consola</label>
+              <input type="text" id="accesos-minio-url" placeholder="https://minio.miempresa.com:9001" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="accesos-minio-usuario">Usuario</label>
+              <input type="text" id="accesos-minio-usuario" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="accesos-minio-password">Contraseña</label>
+              <div class="password-field">
+                <input type="password" id="accesos-minio-password" autocomplete="off" />
+                <button type="button" class="btn-toggle-pass" id="btn-accesos-minio-password-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
+                  <svg id="accesos-minio-icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="field control-form-grid-full">
+              <label for="accesos-minio-notas">Notas</label>
+              <textarea id="accesos-minio-notas" rows="3" placeholder="Cualquier contexto para el operador…"></textarea>
+            </div>
+          </form>
+          <div class="btn-row" style="justify-content:flex-start;max-width:640px;">
+            <button type="button" class="btn btn-primary" id="btn-accesos-minio-guardar">
+              <span id="btn-accesos-minio-guardar-label">Guardar</span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-accesos-minio-abrir">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+              Abrir consola
+            </button>
+          </div>
+          <p class="field-hint" style="max-width:640px;">Editar aquí NO rota la contraseña real de MinIO ni cambia cómo backend/ se conecta a él — ese sigue siendo el <code>.env</code> del servidor. Si rotas la contraseña real, actualízala también aquí para que no quede desactualizada.</p>
+
+          <h2 class="tema-grupo-titulo" style="margin:36px 0 10px;font-size:15px;border-top:1px solid var(--color-border);padding-top:24px;">SMTP</h2>
+          <p class="field-hint" style="max-width:640px;margin-top:-4px;">Copia del SMTP del sitio base (sin tenant) — para que control/ pueda mandar sus propios correos. backend/ sigue usando su propia configuración tal cual, esta es independiente.</p>
+          <p class="field-error" id="accesos-smtp-error" role="alert"></p>
+
+          <form id="accesos-smtp-form" class="control-form-grid" style="max-width:640px;">
+            <div class="field control-form-grid-full">
+              <label for="accesos-smtp-host">Host</label>
+              <input type="text" id="accesos-smtp-host" placeholder="smtp.gmail.com" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="accesos-smtp-puerto">Puerto</label>
+              <input type="number" id="accesos-smtp-puerto" min="1" max="65535" placeholder="587" />
+            </div>
+            <div class="field">
+              <label for="accesos-smtp-seguridad">Seguridad</label>
+              <select id="accesos-smtp-seguridad">
+                <option value="">Sin configurar</option>
+                <option value="starttls">STARTTLS (587)</option>
+                <option value="ssl">SSL (465)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="accesos-smtp-usuario">Usuario</label>
+              <input type="text" id="accesos-smtp-usuario" placeholder="notificaciones@tuempresa.com" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="accesos-smtp-password">Contraseña</label>
+              <div class="password-field">
+                <input type="password" id="accesos-smtp-password" autocomplete="off" />
+                <button type="button" class="btn-toggle-pass" id="btn-accesos-smtp-password-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
+                  <svg id="accesos-smtp-icon-eye" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M2 12C2 12 5.5 5.5 12 5.5C18.5 5.5 22 12 22 12C22 12 18.5 18.5 12 18.5C5.5 18.5 2 12 2 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="accesos-smtp-nombre-remitente">Nombre del remitente</label>
+              <input type="text" id="accesos-smtp-nombre-remitente" placeholder="Clarvo - Tu negocio en orden" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="accesos-smtp-correo-remitente">Correo del remitente</label>
+              <input type="text" id="accesos-smtp-correo-remitente" placeholder="info@tuempresa.com" autocomplete="off" />
+            </div>
+          </form>
+          <div class="btn-row" style="justify-content:flex-start;max-width:640px;">
+            <button type="button" class="btn btn-primary" id="btn-accesos-smtp-guardar">
+              <span id="btn-accesos-smtp-guardar-label">Guardar</span>
+            </button>
           </div>
         </div>
       </main>
@@ -748,6 +899,7 @@
     <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="control-confirm-modal-title">
       <h2 id="control-confirm-modal-title">Confirmar acción</h2>
       <p id="control-confirm-modal-mensaje"></p>
+      <p id="control-confirm-modal-destacado" class="control-confirm-destacado" hidden></p>
       <div class="btn-row">
         <button type="button" class="btn btn-secondary" id="control-btn-confirm-cancelar">Cancelar</button>
         <button type="button" class="btn btn-danger" id="control-btn-confirm-aceptar">Confirmar</button>
@@ -930,6 +1082,26 @@
             <label for="control-intake-notas">Notas</label>
             <textarea id="control-intake-notas" rows="3" placeholder="Cualquier contexto para el operador que apruebe el alta…"></textarea>
             <p class="field-hint">Solo visible para operadores de /control — la empresa cliente nunca la ve.</p>
+          </div>
+
+          <div class="field">
+            <label for="control-intake-admin-email">Correo del administrador</label>
+            <input type="email" id="control-intake-admin-email" autocomplete="off" placeholder="admin@miempresa.com" />
+            <p class="field-hint">
+              Si lo llenas junto con la contraseña, la empresa queda <strong>activada de inmediato</strong> con su
+              administrador listo para entrar — mismo criterio self-service que el alta desde clarvo.mx. Si lo
+              dejas en blanco, la empresa queda en "Provisionando" y la activas después sin administrador, como
+              siempre.
+            </p>
+            <p class="field-error" id="error-intake-admin-email" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <label for="control-intake-admin-password">Contraseña del administrador</label>
+            <input type="password" id="control-intake-admin-password" autocomplete="new-password"
+              placeholder="Mínimo 8 caracteres, con número, minúscula y mayúscula" />
+            <p class="field-hint">Es la contraseña real con la que esa persona va a entrar — nunca se le pide cambiarla después.</p>
+            <p class="field-error" id="error-intake-admin-password" role="alert"></p>
           </div>
         </div>
 
@@ -1155,7 +1327,8 @@
                 </div>
                 <div class="field">
                   <label for="control-suscripcion-prueba-inicia">Prueba inicia el</label>
-                  <input type="date" id="control-suscripcion-prueba-inicia" />
+                  <input type="text" id="control-suscripcion-prueba-inicia" readonly />
+                  <p class="field-hint">Se fija sola al prender "Modo de prueba" — no se captura a mano.</p>
                 </div>
                 <div class="field">
                   <label for="control-suscripcion-ciclo">Ciclo de facturación</label>
@@ -1167,7 +1340,8 @@
                 </div>
                 <div class="field">
                   <label for="control-suscripcion-expira">Expira el</label>
-                  <input type="date" id="control-suscripcion-expira" />
+                  <input type="text" id="control-suscripcion-expira" readonly />
+                  <p class="field-hint">Calculado: Prueba inicia el + Días de prueba.</p>
                 </div>
                 <div class="field">
                   <label for="control-suscripcion-estatus">Estatus de cobro</label>

@@ -17,9 +17,13 @@ jest.mock('../../utils/notificarBackend', () => ({
   eliminarTenantFisico: jest.fn().mockResolvedValue({ ok: true }),
   calcularUsoDiscoFisico: jest.fn().mockResolvedValue(734003200),
 }));
+jest.mock('../../utils/adminAuditoria', () => ({
+  registrarAccesoAdmin: jest.fn().mockResolvedValue(undefined),
+}));
 
 const { obtenerPool } = require('../../db');
 const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico } = require('../../utils/notificarBackend');
+const { registrarAccesoAdmin } = require('../../utils/adminAuditoria');
 const {
   ErrorTransicionTenant,
   listarTenants,
@@ -30,6 +34,8 @@ const {
   darDeBajaTenant,
   eliminarTenantDefinitivo,
   vaciarPapelera,
+  purgarBajasVencidas,
+  DIAS_RETENCION_BAJA,
   recalcularUsoDisco,
 } = require('../../utils/tenantLifecycle');
 
@@ -57,14 +63,25 @@ describe('utils/tenantLifecycle.js', () => {
   });
 
   describe('listarTenants', () => {
-    test('sin filtros, consulta sin WHERE', async () => {
+    test('sin filtro de estado, excluye "baja" por default (punto en curso: Papelera deja de mezclarse con la lista general)', async () => {
       const pool = mockPool();
 
       await listarTenants();
 
       const [sql, params] = pool.query.mock.calls[0];
-      expect(sql).not.toMatch(/WHERE/);
+      expect(sql).toMatch(/WHERE t\.estado != 'baja'/);
       expect(params).toEqual([]);
+    });
+
+    test('con estado explícito (ej. "baja" para Papelera), usa match exacto en vez del exclude por default', async () => {
+      const pool = mockPool();
+
+      await listarTenants({ estado: 'baja' });
+
+      const [sql, params] = pool.query.mock.calls[0];
+      expect(sql).toMatch(/WHERE t\.estado = \?/);
+      expect(sql).not.toMatch(/!= 'baja'/);
+      expect(params).toEqual(['baja']);
     });
 
     test('con estado y q, arma el WHERE con LIKE en slug/nombre_empresa', async () => {
@@ -285,7 +302,17 @@ describe('utils/tenantLifecycle.js', () => {
       expect(eliminarTenantFisico).not.toHaveBeenCalled();
     });
 
-    test('estado distinto de "baja" (ej. "activo") -> ErrorTransicionTenant "estado_invalido", candado de seguridad', async () => {
+    test('desde "provisioning" (punto en curso: borrado directo, sin pasar por baja): llama a eliminarTenantFisico y devuelve la fila', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'provisioning' }]]);
+
+      const resultado = await eliminarTenantDefinitivo('cliente1', { actor: 'admin' });
+
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('cliente1');
+      expect(resultado.estado).toBe('provisioning');
+    });
+
+    test('estado distinto de "baja"/"provisioning" (ej. "activo") -> ErrorTransicionTenant "estado_invalido", candado de seguridad', async () => {
       const pool = mockPool();
       pool.query.mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]);
 
@@ -353,6 +380,67 @@ describe('utils/tenantLifecycle.js', () => {
 
       expect(eliminarTenantFisico).not.toHaveBeenCalled();
       expect(resultado).toEqual({ eliminados: [], fallidos: [] });
+    });
+  });
+
+  describe('purgarBajasVencidas (punto en curso: purga automática a 30 días)', () => {
+    function haceNDiasUtc(n) {
+      return new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    }
+
+    test('elimina solo los que llevan >= 30 días en baja, respeta los más recientes', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[
+          { ...TENANT_FILA, id: 1, slug: 'vencido', estado: 'baja', baja_en: haceNDiasUtc(35) },
+          { ...TENANT_FILA, id: 2, slug: 'reciente', estado: 'baja', baja_en: haceNDiasUtc(5) },
+        ]]) // listarTenants({estado:'baja'})
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 1, slug: 'vencido', estado: 'baja', baja_en: haceNDiasUtc(35) }]]); // obtenerTenantPorSlug('vencido')
+
+      const resultado = await purgarBajasVencidas(pool);
+
+      expect(resultado.eliminados).toEqual(['vencido']);
+      expect(resultado.fallidos).toEqual([]);
+      expect(eliminarTenantFisico).toHaveBeenCalledTimes(1);
+      expect(eliminarTenantFisico).toHaveBeenCalledWith('vencido');
+      expect(registrarAccesoAdmin).toHaveBeenCalledWith(
+        expect.objectContaining({ actor: 'sistema:purga-automatica-30d', tenantSlug: 'vencido', metodo: 'AUTO' }),
+        pool
+      );
+    });
+
+    test('sin tenants vencidos (papelera vacía o todos recientes), no elimina ni audita nada', async () => {
+      const pool = mockPool();
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const resultado = await purgarBajasVencidas(pool);
+
+      expect(resultado).toEqual({ eliminados: [], fallidos: [] });
+      expect(eliminarTenantFisico).not.toHaveBeenCalled();
+      expect(registrarAccesoAdmin).not.toHaveBeenCalled();
+    });
+
+    test('un tenant que falla no detiene a los demás — se reporta en "fallidos" y no se audita', async () => {
+      const pool = mockPool();
+      pool.query
+        .mockResolvedValueOnce([[
+          { ...TENANT_FILA, id: 1, slug: 'uno', estado: 'baja', baja_en: haceNDiasUtc(40) },
+          { ...TENANT_FILA, id: 2, slug: 'dos', estado: 'baja', baja_en: haceNDiasUtc(40) },
+        ]])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 1, slug: 'uno', estado: 'baja', baja_en: haceNDiasUtc(40) }]])
+        .mockResolvedValueOnce([[{ ...TENANT_FILA, id: 2, slug: 'dos', estado: 'baja', baja_en: haceNDiasUtc(40) }]]);
+      eliminarTenantFisico.mockImplementationOnce(() => Promise.reject(new Error('MySQL no disponible')));
+      eliminarTenantFisico.mockImplementationOnce(() => Promise.resolve({ ok: true }));
+
+      const resultado = await purgarBajasVencidas(pool);
+
+      expect(resultado.eliminados).toEqual(['dos']);
+      expect(resultado.fallidos).toEqual([{ slug: 'uno', error: 'MySQL no disponible' }]);
+      expect(registrarAccesoAdmin).toHaveBeenCalledTimes(1);
+    });
+
+    test('DIAS_RETENCION_BAJA está fijado en 30 (mismo valor comunicado al usuario)', () => {
+      expect(DIAS_RETENCION_BAJA).toBe(30);
     });
   });
 

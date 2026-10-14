@@ -7,6 +7,7 @@ const {
   detectRealMimeType,
   detectRealImageMimeType,
   esZipValido,
+  esXLSValido,
   zipContienePdfYXml,
   extraerTotalFacturaDeZip,
   extraerTotalCfdi,
@@ -101,6 +102,25 @@ describe('validate.js', () => {
 
     test('rechaza firma que no es de zip', () => {
       expect(esZipValido(Buffer.from([0x25, 0x50, 0x44, 0x46]))).toBe(false);
+    });
+  });
+
+  describe('esXLSValido', () => {
+    test('acepta la firma OLE2 real de un .xls', () => {
+      expect(esXLSValido(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00]))).toBe(true);
+    });
+
+    test('rechaza buffer nulo o demasiado corto', () => {
+      expect(esXLSValido(null)).toBe(false);
+      expect(esXLSValido(Buffer.from([0xd0, 0xcf, 0x11]))).toBe(false);
+    });
+
+    test('rechaza un XLSX real (firma ZIP) disfrazado de .xls', () => {
+      expect(esXLSValido(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]))).toBe(false);
+    });
+
+    test('rechaza un PDF disfrazado de .xls', () => {
+      expect(esXLSValido(Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 0, 0, 0]))).toBe(false);
     });
   });
 

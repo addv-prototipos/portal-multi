@@ -81,6 +81,7 @@ const {
   ALLOWED_IMPORTACION_MIME_TYPES,
   ALLOWED_IMPORTACION_EXTENSIONS,
   esCSVValido,
+  esXLSValido,
   detectRealMimeType,
   detectRealImageMimeType,
   esZipValido,
@@ -154,7 +155,7 @@ const {
 } = require('./utils/inventario');
 const { obtenerTipoCambioUSD } = require('./utils/tipoCambio');
 const { limitesDia, limitesMes, medianocheLocal, fechaLocalZona, cadenaFecha } = require('./utils/limitesPeriodo');
-const { obtenerImagenMaxMbCacheado, IMAGEN_MAX_MB_MAX } = require('./utils/ajustesGlobales');
+const { obtenerImagenMaxMbCacheado, IMAGEN_MAX_MB_MAX, obtenerImportMaxFilasCacheado } = require('./utils/ajustesGlobales');
 const {
   obtenerConfigInventario,
   obtenerValorConfig,
@@ -168,6 +169,8 @@ const {
   parsearArchivoCSV,
   listarHojasXLSX,
   parsearArchivoXLSX,
+  listarHojasXLS,
+  parsearArchivoXLS,
   validarFilasImportacion,
   ejecutarFilasImportacion,
   listarPerfilesMapeo,
@@ -179,7 +182,7 @@ const {
   generarCSVErrores,
   TAMANO_CHUNK,
 } = require('./utils/inventarioImportacion');
-const { obtenerDiccionarioInventario } = require('./utils/inventarioCampos');
+const { obtenerDiccionarioInventario, CAMPOS_IMPORTABLES } = require('./utils/inventarioCampos');
 const {
   ErrorImagenProducto,
   guardarImagenProducto,
@@ -943,6 +946,96 @@ app.post('/internal/activar-tenant/:slug', async (req, res) => {
   }
 });
 
+// Onboarding público, Segmento B (13 oct 2026): crea el PRIMER usuario
+// administrador de un tenant recién aprovisionado — llamado por control/
+// justo después de /internal/activar-tenant/:slug, nunca antes (la tabla
+// `usuarios` de ese tenant no existe hasta entonces). Mismo criterio de
+// confianza que esa ruta: solo X-Internal-Secret, sin requireAdminAuth —
+// no hay ningún admin todavía que autenticar, es justo lo que esta ruta
+// crea. La contraseña llega YA hasheada (formato salt:hash scrypt,
+// idéntico a hashPassword() de este archivo) — control/ nunca ve ni
+// reenvía la contraseña en texto plano, la hashea ella misma al
+// capturarla en el wizard. Idempotente: si el tenant ya tiene un
+// administrador (reintento de control/ tras un timeout de red), no
+// duplica la cuenta.
+const FORMATO_HASH_SCRYPT = /^[0-9a-f]+:[0-9a-f]+$/;
+
+app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  const body = req.body || {};
+  const email = sanitizeText(body.email, 200).toLowerCase();
+  const passwordHash = typeof body.passwordHash === 'string' ? body.passwordHash : '';
+  const nombreUsuario = sanitizeText(body.nombreUsuario, 50).toUpperCase();
+
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ error: 'Correo de administrador inválido.' });
+  }
+  if (!FORMATO_HASH_SCRYPT.test(passwordHash)) {
+    return res.status(400).json({ error: 'Formato de contraseña inválido.' });
+  }
+  if (!nombreUsuario || !/^[A-Z0-9._-]+$/.test(nombreUsuario)) {
+    return res.status(400).json({ error: 'Nombre de usuario inválido.' });
+  }
+
+  const dbName = nombreDbTenant(slug);
+  const poolTenant = obtenerPoolTenant({
+    slug,
+    host: process.env.DB_HOST || 'mysql',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'app',
+    password: process.env.DB_PASSWORD || '',
+    database: dbName,
+  });
+
+  try {
+    const [existentes] = await poolTenant.query(
+      "SELECT id FROM usuarios WHERE perfil = 'administrador' LIMIT 1"
+    );
+    if (existentes.length > 0) {
+      return res.json({ ok: true, yaExistia: true });
+    }
+
+    const ahora = new Date();
+    await poolTenant.query(
+      `INSERT INTO usuarios (rfc, telefono, email, password_hash, debe_cambiar_password, perfil, creado_en, actualizado_en)
+       VALUES (?, '', ?, ?, 0, 'administrador', ?, ?)`,
+      [nombreUsuario, email, passwordHash, ahora, ahora]
+    );
+
+    const urlBase = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');
+    enviarCorreo({
+      destinatario: email,
+      asunto: 'Tu cuenta de Clarvo ya está lista',
+      cuerpo:
+        'Hola,\n\nTu cuenta de Clarvo ya está activa.\n\n' +
+        `Panel de administración: ${urlBase}/${slug}/admin\n` +
+        `Portal para tus clientes: ${urlBase}/${slug}\n\n` +
+        `Usuario: ${nombreUsuario}\n` +
+        'Entra con la contraseña que elegiste al darte de alta.\n\n' +
+        '— Clarvo',
+    }).catch((err) => {
+      // Fire-and-forget, mismo criterio que la invitación de
+      // POST /api/admin/usuarios: la cuenta ya quedó creada aunque el
+      // correo falle (SMTP del sitio base sin configurar, etc.).
+      console.error(`No se pudo enviar el correo de bienvenida a ${email} (tenant ${slug}):`, err.message);
+    });
+
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error(`Error creando el administrador inicial del tenant "${slug}":`, err);
+    res.status(502).json({ error: 'No se pudo crear el usuario administrador.' });
+  }
+});
+
 // Punto 347 (gobierno de funcionalidades): suma los bytes reales en MinIO
 // bajo el prefijo de un tenant — /control no tiene acceso directo a MinIO
 // (las credenciales solo están montadas aquí), así que delega el cálculo
@@ -1144,11 +1237,15 @@ app.post('/internal/eliminar-tenant/:slug', async (req, res) => {
   if (!tenant) {
     return res.status(404).json({ error: `El tenant "${slug}" no existe.` });
   }
-  if (tenant.estado !== 'baja') {
+  // Punto en curso: "Provisionando" se suma a "Baja" como origen válido
+  // para eliminar — una fila que nunca completó el alta no necesita pasar
+  // por baja/papelera primero (nunca hubo relación comercial que cerrar).
+  if (!['baja', 'provisioning'].includes(tenant.estado)) {
     return res.status(409).json({
-      error: `El tenant "${slug}" está en estado "${tenant.estado}", no se puede eliminar desde ahí (solo aplica a "Baja").`,
+      error: `El tenant "${slug}" está en estado "${tenant.estado}", no se puede eliminar desde ahí (solo aplica a "Baja" o "Provisionando").`,
     });
   }
+  const estadoOrigenEliminacion = tenant.estado;
 
   cerrarPoolTenant(slug);
   const dbName = nombreDbTenant(slug);
@@ -1186,7 +1283,7 @@ app.post('/internal/eliminar-tenant/:slug', async (req, res) => {
   try {
     await poolControl.query('DELETE FROM tenant_eventos WHERE tenant_id = ?', [tenant.id]);
     await poolControl.query('DELETE FROM api_credenciales WHERE tenant_slug = ?', [slug]);
-    const [resultado] = await poolControl.query('DELETE FROM tenants WHERE id = ? AND estado = ?', [tenant.id, 'baja']);
+    const [resultado] = await poolControl.query('DELETE FROM tenants WHERE id = ? AND estado = ?', [tenant.id, estadoOrigenEliminacion]);
     if (resultado.affectedRows === 0) {
       // La base de datos y los archivos YA se borraron (irreversible) —
       // esto solo puede pasar si algo cambió el estado en el instante
@@ -3464,6 +3561,7 @@ app.get('/api/admin/login', adminLoginLimiter, tenantAggregateAuthLimiter, requi
           reportesEstadoInventarioHabilitado: req.tenant.reportesEstadoInventarioHabilitado,
           reportesEstadoTicketsHabilitado: req.tenant.reportesEstadoTicketsHabilitado,
           promocionesHabilitado: req.tenant.promocionesHabilitado,
+          ticketImpresionHabilitado: req.tenant.ticketImpresionHabilitado,
         }
       : null,
   });
@@ -4270,6 +4368,16 @@ app.post(
         rfc = await generarIdentificadorSinFiscalUnico();
       }
     } else {
+      // Punto 383 (corrección del usuario sobre el addendum del mismo
+      // punto): "correo o RFC basta" aplica a perfil "cliente" (ya
+      // existía, arriba) — para administrador/fiscal/ventas/inventario
+      // correo Y nombre de usuario son AMBOS obligatorios, nunca
+      // opcionales. Dejar el nombre de usuario opcional habría obligado
+      // a loguear con un identificador interno opaco (SINFISCAL-...) si
+      // el correo-login (abajo, auth.js) alguna vez fallara o el operador
+      // lo olvidara — riesgo real de quedarse sin forma de entrar al
+      // panel. El login SÍ acepta rfc O correo (auth.js) como
+      // conveniencia adicional, pero la CAPTURA exige los dos.
       if (!rfc || rfc.length < 3) {
         return res.status(400).json({ error: 'El nombre de usuario debe tener al menos 3 caracteres.' });
       }
@@ -4679,6 +4787,57 @@ app.get(
         portalClientesActivo: req.tenant ? !req.tenant.portalClientesPausado : !config.portal_clientes_pausado,
         portalClientesPlanHabilitado: req.tenant ? req.tenant.portalClientesHabilitadoPlan : true,
       };
+
+      // Tarjeta "Plan de suscripción" de Mi Cuenta: sin tenant (sitio base
+      // ADDV) no hay fila en control_tenants.tenants que leer — siempre
+      // "ilimitada", mismo criterio que portalClientesPlanHabilitado arriba.
+      // Con tenant: plan/estatus/ciclo vienen de Control (nunca se guardan
+      // en el tenant), y masterPendiente detecta si ya existe un usuario
+      // 'administrador' — si no hay ninguno, se expone el correo del
+      // comprador (contacto_email, ya obligatorio desde el alta de empresa
+      // en /control) para prellenar el alta del usuario master; con un
+      // master ya activo, el correo no se expone (mismo criterio que
+      // contactoEmailPortalApagado — exponer un dato solo cuando hace falta).
+      if (!req.tenant) {
+        respuesta.empresa.suscripcion = { ilimitada: true };
+      } else {
+        const [[{ totalMaster }]] = await pool.query(
+          "SELECT COUNT(*) AS totalMaster FROM usuarios WHERE perfil = 'administrador'"
+        );
+        let planNombre = null;
+        let estatus = null;
+        let ciclo = null;
+        let expiraEn = null;
+        let correoComprador = null;
+        try {
+          const poolControl = obtenerPoolControl();
+          const [[filaTenant]] = await poolControl.query(
+            `SELECT t.plan_id, p.nombre AS plan_nombre, t.suscripcion_estatus, t.suscripcion_ciclo,
+                    t.suscripcion_expira_en, t.contacto_email
+             FROM tenants t LEFT JOIN planes p ON p.id = t.plan_id
+             WHERE t.slug = ?`,
+            [req.tenant.slug]
+          );
+          if (filaTenant) {
+            planNombre = filaTenant.plan_nombre || null;
+            estatus = filaTenant.suscripcion_estatus || null;
+            ciclo = filaTenant.suscripcion_ciclo || null;
+            expiraEn = filaTenant.suscripcion_expira_en || null;
+            if (totalMaster === 0) correoComprador = filaTenant.contacto_email || null;
+          }
+        } catch (err) {
+          console.error('No se pudo leer la suscripción del tenant desde Control:', err.message);
+        }
+        respuesta.empresa.suscripcion = {
+          ilimitada: false,
+          planNombre,
+          estatus,
+          ciclo,
+          expiraEn,
+          masterPendiente: totalMaster === 0,
+          correoComprador,
+        };
+      }
     }
 
     res.json(respuesta);
@@ -4961,14 +5120,16 @@ app.put(
   })
 );
 
-// ---------- Ticket de impresión: logo + plantilla (Punto 368) ----------
+// ---------- Ticket de impresión: logo + plantilla (Punto 368, separado
+// de "Marca propia" en el punto en curso, 2026-10-10) ----------
 // Ruta DEDICADA (no agregada a /api/admin/config/global) a propósito —
-// gobierno de funcionalidades: esta pantalla completa vive detrás de
-// `marcaLookfeelHabilitado` ("Marca propia / Look & Feel", el mismo flag
-// que ya gobierna marca_logo_url/tema_json desde /control, punto 244),
-// y /config/global sirve campos de MUCHOS módulos sin ese flag (IVA,
+// gobierno de funcionalidades: esta pantalla completa vive detrás de su
+// propio flag `ticketImpresionHabilitado` (antes compartía bit con
+// `marcaLookfeelHabilitado`, ahora es un módulo independiente que
+// requiere Ventas — ver control/utils/planes.js, regla 13), y
+// /config/global sirve campos de MUCHOS módulos sin ningún flag (IVA,
 // zona horaria, etc.) — gatearla completa rompería esos campos para
-// cualquier tenant sin "Marca propia". requiereFeature() SIEMPRE antes
+// cualquier tenant sin este módulo. requiereFeature() SIEMPRE antes
 // de requireAdminAuth (404, nunca 403, mismo criterio que el resto del
 // archivo).
 const TICKET_CONFIG_CAMPOS = [
@@ -4988,7 +5149,7 @@ function extraerConfigTicket(config) {
 app.get(
   '/api/admin/configuraciones/ticket',
   adminApiLimiter,
-  requiereFeature('marcaLookfeelHabilitado'),
+  requiereFeature('ticketImpresionHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -5000,7 +5161,7 @@ app.get(
 app.put(
   '/api/admin/configuraciones/ticket',
   adminApiLimiter,
-  requiereFeature('marcaLookfeelHabilitado'),
+  requiereFeature('ticketImpresionHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -5023,7 +5184,7 @@ app.put(
 app.post(
   '/api/admin/configuraciones/ticket/restablecer',
   adminApiLimiter,
-  requiereFeature('marcaLookfeelHabilitado'),
+  requiereFeature('ticketImpresionHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -5034,7 +5195,7 @@ app.post(
   })
 );
 
-app.post('/api/admin/configuraciones/ticket-logo', adminApiLimiter, requiereFeature('marcaLookfeelHabilitado'), requireAdminAuth, requireAdminArea('administrador'), (req, res) => {
+app.post('/api/admin/configuraciones/ticket-logo', adminApiLimiter, requiereFeature('ticketImpresionHabilitado'), requireAdminAuth, requireAdminArea('administrador'), (req, res) => {
   subirConTenant(uploadImagen, 'logo', req, res, async (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -5074,7 +5235,7 @@ app.post('/api/admin/configuraciones/ticket-logo', adminApiLimiter, requiereFeat
 app.delete(
   '/api/admin/configuraciones/ticket-logo',
   adminApiLimiter,
-  requiereFeature('marcaLookfeelHabilitado'),
+  requiereFeature('ticketImpresionHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador'),
   asyncHandler(async (req, res) => {
@@ -9195,7 +9356,59 @@ function carpetaImportacion(id) {
 }
 
 function nombreArchivoImportacion(formato) {
-  return formato === 'xlsx' ? 'original.xlsx' : 'original.csv';
+  if (formato === 'xlsx') return 'original.xlsx';
+  if (formato === 'xls') return 'original.xls';
+  return 'original.csv';
+}
+
+const CAMPOS_IMPORTABLES_NOMBRES = new Set(CAMPOS_IMPORTABLES.map((c) => c.campo));
+
+// Resolución de valores de catálogo (punto 397, propuesta 1 "agrupar por
+// valor"): { [campo]: { [valorOriginal en minúsculas]: valorNuevo } },
+// nunca se confía tal cual en lo que mande el cliente — campo debe ser uno
+// real de CAMPOS_IMPORTABLES (filtra cualquier clave ajena, incluida
+// "__proto__" como posible "campo") y cada valor se sanea con sanitizeText.
+function sanitizarValorOverrides(crudo) {
+  if (!crudo || typeof crudo !== 'object') return {};
+  const limpio = {};
+  for (const campo of Object.keys(crudo)) {
+    if (!CAMPOS_IMPORTABLES_NOMBRES.has(campo)) continue;
+    const valores = crudo[campo];
+    if (!valores || typeof valores !== 'object') continue;
+    const valoresLimpios = {};
+    for (const claveValor of Object.keys(valores)) {
+      if (claveValor === '__proto__' || claveValor === 'constructor' || claveValor === 'prototype') continue;
+      const nuevo = valores[claveValor];
+      if (typeof nuevo !== 'string' || !nuevo.trim()) continue;
+      const claveLimpia = sanitizeText(String(claveValor), 200).toLowerCase();
+      if (!claveLimpia) continue;
+      valoresLimpios[claveLimpia] = sanitizeText(nuevo, 200);
+    }
+    if (Object.keys(valoresLimpios).length > 0) limpio[campo] = valoresLimpios;
+  }
+  return limpio;
+}
+
+// Resolución de precio/proveedor pegados al texto (punto 398): el usuario
+// decide, por campo, a qué campo del sistema mandar cada pieza detectada o
+// si descartarla — nunca se asume un destino por default. Igual que
+// sanitizarValorOverrides, el campo debe ser uno real y los destinos vienen
+// de una lista cerrada (nunca texto libre del cliente).
+const DESTINOS_PROVEEDOR_VALIDOS = new Set(['proveedor_principal', 'notas', 'descartar']);
+const DESTINOS_PRECIO_VALIDOS = new Set(['costo', 'notas', 'descartar']);
+function sanitizarLimpiezaMezcla(crudo) {
+  if (!crudo || typeof crudo !== 'object') return {};
+  const limpio = {};
+  for (const campo of Object.keys(crudo)) {
+    if (!CAMPOS_IMPORTABLES_NOMBRES.has(campo)) continue;
+    const decision = crudo[campo];
+    if (!decision || typeof decision !== 'object') continue;
+    const decisionLimpia = {};
+    if (typeof decision.proveedor === 'string' && DESTINOS_PROVEEDOR_VALIDOS.has(decision.proveedor)) decisionLimpia.proveedor = decision.proveedor;
+    if (typeof decision.precio === 'string' && DESTINOS_PRECIO_VALIDOS.has(decision.precio)) decisionLimpia.precio = decision.precio;
+    if (Object.keys(decisionLimpia).length > 0) limpio[campo] = decisionLimpia;
+  }
+  return limpio;
 }
 
 async function obtenerImportacionOResponder(id, res) {
@@ -9248,6 +9461,9 @@ async function releerArchivoImportacion(req, importacion) {
   const buffer = await streamABuffer(stream);
   if (importacion.formato === 'xlsx') {
     return parsearArchivoXLSX(buffer, importacion.hoja);
+  }
+  if (importacion.formato === 'xls') {
+    return parsearArchivoXLS(buffer, importacion.hoja);
   }
   return parsearArchivoCSV(buffer);
 }
@@ -10843,13 +11059,18 @@ app.post(
             return res.status(400).json({ error: 'El contenido del archivo no es un XLSX válido.' });
           }
           formato = 'xlsx';
+        } else if (ext === '.xls') {
+          if (!esXLSValido(req.file.buffer)) {
+            return res.status(400).json({ error: 'El contenido del archivo no es un XLS válido.' });
+          }
+          formato = 'xls';
         } else if (ext === '.csv') {
           if (!esCSVValido(req.file.buffer)) {
             return res.status(400).json({ error: 'El contenido del archivo no es un CSV de texto válido.' });
           }
           formato = 'csv';
         } else {
-          return res.status(400).json({ error: 'Solo se acepta un archivo CSV o XLSX.' });
+          return res.status(400).json({ error: 'Solo se acepta un archivo CSV, XLSX o XLS.' });
         }
 
         let hojas = null;
@@ -10859,6 +11080,10 @@ app.post(
           hojas = await listarHojasXLSX(req.file.buffer);
           if (!hojaElegida || !hojas.includes(hojaElegida)) hojaElegida = hojas[0] || null;
           parseado = await parsearArchivoXLSX(req.file.buffer, hojaElegida);
+        } else if (formato === 'xls') {
+          hojas = listarHojasXLS(req.file.buffer);
+          if (!hojaElegida || !hojas.includes(hojaElegida)) hojaElegida = hojas[0] || null;
+          parseado = parsearArchivoXLS(req.file.buffer, hojaElegida);
         } else {
           parseado = parsearArchivoCSV(req.file.buffer);
         }
@@ -10867,7 +11092,7 @@ app.post(
           return res.status(400).json({ error: 'El archivo no tiene cabeceras reconocibles.' });
         }
 
-        const maxFilas = Number(await obtenerValorConfig('inv_import_max_filas'));
+        const maxFilas = await obtenerImportMaxFilasCacheado();
         if (parseado.filas.length > maxFilas) {
           return res.status(413).json({ error: `El archivo trae ${parseado.filas.length} filas, más del límite configurado de ${maxFilas}.` });
         }
@@ -10899,7 +11124,11 @@ app.post(
           carpetaImportacion(importacionId),
           nombreArchivoImportacion(formato),
           req.file.buffer,
-          formato === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv'
+          formato === 'xlsx'
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : formato === 'xls'
+              ? 'application/vnd.ms-excel'
+              : 'text/csv'
         );
         await pool.query('UPDATE imp_importaciones SET storage_key = ? WHERE id = ?', [storageKey, importacionId]);
 
@@ -10965,13 +11194,15 @@ app.put(
     const modo = body.modo === 'estricto' ? 'estricto' : 'tolerante';
     const sobrescribirVacios = Boolean(body.sobrescribirVacios);
     const conservarExtra = body.conservarExtra !== false;
+    const valorOverrides = sanitizarValorOverrides(body.valorOverrides);
+    const limpiezaMezcla = sanitizarLimpiezaMezcla(body.limpiezaMezcla);
 
     const cabecerasOriginales = importacion.cabeceras_json
       ? (typeof importacion.cabeceras_json === 'string' ? JSON.parse(importacion.cabeceras_json) : importacion.cabeceras_json)
       : [];
     const { filas: filasCrudas } = await releerArchivoImportacion(req, importacion);
 
-    const resultado = await validarFilasImportacion(cabecerasOriginales, filasCrudas, { mapeoFinal, modo, conservarExtra });
+    const resultado = await validarFilasImportacion(cabecerasOriginales, filasCrudas, { mapeoFinal, modo, conservarExtra, valorOverrides, limpiezaMezcla });
 
     await pool.query('DELETE FROM imp_importacion_errores WHERE importacion_id = ?', [importacion.id]);
     if (resultado.errores.length > 0) {
@@ -10984,9 +11215,14 @@ app.put(
 
     const nuevoEstado = resultado.abortado ? 'error_validacion' : 'validado';
     await pool.query(
-      `UPDATE imp_importaciones SET mapeo_json = ?, modo_errores = ?, sobrescribir_vacios = ?, conservar_extra = ?,
+      `UPDATE imp_importaciones SET mapeo_json = ?, valor_overrides_json = ?, limpieza_mezcla_json = ?, modo_errores = ?, sobrescribir_vacios = ?, conservar_extra = ?,
          estado = ?, filas_ok = ?, filas_error = ?, actualizado_en = ? WHERE id = ?`,
-      [JSON.stringify(mapeoFinal), modo, sobrescribirVacios ? 1 : 0, conservarExtra ? 1 : 0, nuevoEstado, resultado.filasOk, resultado.filasError, new Date(), importacion.id]
+      [
+        JSON.stringify(mapeoFinal),
+        Object.keys(valorOverrides).length > 0 ? JSON.stringify(valorOverrides) : null,
+        Object.keys(limpiezaMezcla).length > 0 ? JSON.stringify(limpiezaMezcla) : null,
+        modo, sobrescribirVacios ? 1 : 0, conservarExtra ? 1 : 0, nuevoEstado, resultado.filasOk, resultado.filasError, new Date(), importacion.id,
+      ]
     );
 
     if (body.guardarPerfil) {
@@ -11023,6 +11259,8 @@ app.put(
       abortado: resultado.abortado,
       motivoAborto: resultado.motivoAborto,
       erroresPreview: resultado.errores.slice(0, 50),
+      erroresAgrupados: resultado.erroresAgrupados,
+      hallazgosCalidad: resultado.hallazgosCalidad,
       perfilGuardado: res.locals.perfilGuardado || null,
       productosNuevosEstimado,
       productosActualizarEstimado,
@@ -11084,11 +11322,26 @@ app.post(
     const idempotencyKey = req.get('Idempotency-Key') || null;
     const mapeoFinal = typeof importacion.mapeo_json === 'string' ? JSON.parse(importacion.mapeo_json) : importacion.mapeo_json;
     const cabecerasOriginales = typeof importacion.cabeceras_json === 'string' ? JSON.parse(importacion.cabeceras_json) : importacion.cabeceras_json;
+    // valor_overrides_json: resolución de valores de catálogo decidida en
+    // el paso de Validación (punto 397) — sin esto, re-validar aquí desde
+    // cero repetiría el mismo rechazo que el usuario ya corrigió.
+    const valorOverrides = importacion.valor_overrides_json
+      ? (typeof importacion.valor_overrides_json === 'string' ? JSON.parse(importacion.valor_overrides_json) : importacion.valor_overrides_json)
+      : {};
+    // limpieza_mezcla_json: misma razón que valor_overrides_json arriba —
+    // la decisión de mover/descartar precio-proveedor pegados (punto 398)
+    // debe seguir aplicando en el "Ejecutar" real, no solo en la vista
+    // previa de Validación.
+    const limpiezaMezcla = importacion.limpieza_mezcla_json
+      ? (typeof importacion.limpieza_mezcla_json === 'string' ? JSON.parse(importacion.limpieza_mezcla_json) : importacion.limpieza_mezcla_json)
+      : {};
     const { filas: filasCrudas } = await releerArchivoImportacion(req, importacion);
     const resultadoValidacion = await validarFilasImportacion(cabecerasOriginales, filasCrudas, {
       mapeoFinal,
       modo: importacion.modo_errores,
       conservarExtra: Boolean(importacion.conservar_extra),
+      valorOverrides,
+      limpiezaMezcla,
     });
 
     const almacenId = await obtenerAlmacenDefectoId();

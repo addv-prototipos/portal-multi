@@ -1569,6 +1569,8 @@ async function ensureSchema(db = pool) {
       delimitador VARCHAR(5) NULL,
       cabeceras_json JSON NULL,
       mapeo_json JSON NULL,
+      valor_overrides_json JSON NULL,
+      limpieza_mezcla_json JSON NULL,
       modo_errores VARCHAR(20) NOT NULL DEFAULT 'tolerante',
       sobrescribir_vacios TINYINT(1) NOT NULL DEFAULT 0,
       conservar_extra TINYINT(1) NOT NULL DEFAULT 1,
@@ -1586,13 +1588,35 @@ async function ensureSchema(db = pool) {
       actualizado_en DATETIME NOT NULL,
       UNIQUE KEY uq_imp_importaciones_idempotency (idempotency_key),
       KEY idx_imp_importaciones_estado (estado),
-      CONSTRAINT chk_imp_importaciones_formato CHECK (formato IN ('csv', 'xlsx')),
+      CONSTRAINT chk_imp_importaciones_formato CHECK (formato IN ('csv', 'xlsx', 'xls')),
       CONSTRAINT chk_imp_importaciones_modo CHECK (modo_errores IN ('tolerante', 'estricto')),
       CONSTRAINT chk_imp_importaciones_estado CHECK (estado IN (
         'validando', 'validado', 'error_validacion', 'ejecutando', 'completada', 'error'
       ))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Migración: bases ya aprovisionadas antes de sumar soporte a .xls
+  // (legacy, Excel 97-2003) traen chk_imp_importaciones_formato con solo
+  // ('csv','xlsx') — se repone en cada arranque, mismo patrón que
+  // chk_tickets_tipo_pago/chk_reportes_tipo más abajo.
+  await db.query('ALTER TABLE imp_importaciones DROP CHECK chk_imp_importaciones_formato');
+  await db.query(`ALTER TABLE imp_importaciones ADD CONSTRAINT chk_imp_importaciones_formato CHECK (formato IN ('csv', 'xlsx', 'xls'))`);
+
+  // valor_overrides_json (punto 397): bases ya aprovisionadas antes de la
+  // resolución de valores de catálogo (ej. "UNIDAD" → "Pieza") no tienen
+  // esta columna todavía.
+  const [columnasImpImportaciones] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'imp_importaciones'`
+  );
+  const nombresColumnasImpImportaciones = columnasImpImportaciones.map((c) => c.COLUMN_NAME);
+  if (!nombresColumnasImpImportaciones.includes('valor_overrides_json')) {
+    await db.query('ALTER TABLE imp_importaciones ADD COLUMN valor_overrides_json JSON NULL');
+  }
+  if (!nombresColumnasImpImportaciones.includes('limpieza_mezcla_json')) {
+    await db.query('ALTER TABLE imp_importaciones ADD COLUMN limpieza_mezcla_json JSON NULL');
+  }
 
   // Detalle de cada rechazo — respalda la tabla en pantalla y el
   // errores-importacion.csv descargable (§34.5).

@@ -17,6 +17,36 @@ le darían — sin la nómina de ninguno de los dos.
 
 ---
 
+## La ventaja que nadie más tiene: tu celular YA es tu punto de venta
+
+Esto no es una feature más de la lista. Es el diferenciador — la razón
+por la que CLARVO no compite contra otro software de facturación, compite
+contra la caja registradora y la terminal de punto de venta de $15,000.
+
+**Tu celular, tu tablet o tu computadora se convierten en punto de venta.**
+Apuntas la cámara al código de barras, el producto entra solo, cobras,
+listo. No necesitas comprar nada para empezar — el changarro que arranca
+hoy con un solo celular factura y vende igual de bien que el que ya tiene
+mostrador. Y si ya eres "ligas mayores", le subes el poder sin cambiar de
+sistema: lectores de código de barras externos e impresoras térmicas de
+ticket se conectan sin fricción — nunca son obligatorios, siempre están
+disponibles cuando tu volumen los justifica.
+
+**Todos los paquetes incluyen multi-caja, sin costo extra y sin letra
+chica.** Dos cajeros, tres sucursales, cinco celulares cobrando al mismo
+tiempo un sábado de quincena — CLARVO no te cobra por caja ni por
+terminal. Escalas el punto de venta sin escalar la factura.
+
+**Y la filosofía detrás de todo esto: CLARVO es una plataforma educativa
+Y operativa, no solo operativa.** No te sientas a "aprender a usar
+CLARVO" en un curso aparte — te educas en cómo administrar tu negocio
+MIENTRAS lo operas. Cada pantalla que usas para vender, cobrar o
+facturar te está enseñando, al mismo tiempo, a leer tu propio negocio
+(utilidad real, punto de equilibrio, cuánto te deben). El aprendizaje no
+es un paso previo al uso — es el uso mismo.
+
+---
+
 ## Lo que de verdad compras cuando compras CLARVO
 
 ### 1. Dejas de operar a ciegas
@@ -60,12 +90,25 @@ Categorías reales (renta, nómina, software, viáticos, combustible…),
 comprobante adjunto, y esa cifra alimentando automáticamente tu utilidad
 neta. Nunca más "no sé en qué se me fue el dinero este mes".
 
-### 6. Trabajas aunque se caiga el internet
+### 6. Sabes a quién le compras y cuánto
+Catálogo de proveedores ligado directo a tus gastos: quién es tu proveedor
+más caro, cuánto le compraste en el mes, tendencia por proveedor — sin
+armar una tabla en Excel para saberlo. Si no compras a proveedores,
+el módulo ni aparece; si lo activas, se conecta solo con Gastos e
+Inventarios.
+
+### 7. Ves tu negocio desde cualquier ángulo, no solo el del mes en curso
+Reportes por rango de fechas, cortes de caja, histórico de lo archivado
+(nada se borra, se guarda) y estado de inventario — cuatro vistas
+distintas de la misma verdad, cada una prendible o apagable por separado
+según lo que de verdad necesites ver.
+
+### 8. Trabajas aunque se caiga el internet
 Registras ventas y gastos sin conexión — el sistema los guarda y los
 sincroniza solo en cuanto vuelve la señal. Tu changarro no se detiene
 porque el router se reinició.
 
-### 7. Les avisas a tus clientes sin WhatsApp masivo
+### 9. Les avisas a tus clientes sin WhatsApp masivo
 Una campana de notificaciones (con sonido propio) directo en el portal de
 tu cliente. Mándale una promoción a todos tus clientes de un jalón, con
 vigencia opcional ("hasta el 31" o indefinida) — la archivas, la relanzas
@@ -73,32 +116,32 @@ o la borras cuando quieras, sin redactar un mensaje nuevo cada vez. La
 misma campana le avisa solo cuando le registras un pago. Tu cliente se
 entera en su portal, no en un grupo de WhatsApp que nadie lee.
 
-### 8. Prendes y apagas lo que necesites, cuando lo necesites
+### 10. Prendes y apagas lo que necesites, cuando lo necesites
 ¿Vas a hacer mantenimiento, o quieres pausar la facturación un rato sin
 perder nada? Tú mismo, desde tu panel, pausas y reactivas el portal de
 tus clientes o el módulo de Facturación — sin esperar soporte, sin tocar
 nada más. Tus datos y tu configuración se quedan exactamente como están;
 solo bajas la cortina y la vuelves a subir cuando quieras.
 
-### 9. Tu marca, no la nuestra
+### 11. Tu marca, no la nuestra
 Colores, tipografías, logo — todo el portal se ve como TU negocio, no
 como una plantilla genérica. Tus clientes ven tu marca en cada correo,
 cada ticket, cada factura.
 
-### 10. Creces sin cambiar de sistema
+### 12. Creces sin cambiar de sistema
 ¿Tienes más de una sucursal? Un mismo usuario entra a todas con la misma
 contraseña, cada una con su propio inventario y sus propias ventas, sin
 mezclarse. CLARVO crece contigo desde el changarro de una sola sucursal
 hasta la cadena de varias.
 
-### 11. Nunca más "¿quién tocó esto?"
+### 13. Nunca más "¿quién tocó esto?"
 Cada acción queda registrada. Cada reporte se puede reconstruir. Si algo
 cambió, sabes quién, cuándo y qué. Eso es tranquilidad, no burocracia.
 Y nada se esconde: el histórico completo de ventas, gastos y cobros está
 siempre a la mano, con buscador y paginación — archivar el mes es
 organizar, no borrar.
 
-### 12. Aprendes a usarlo sin manual
+### 14. Aprendes a usarlo sin manual
 Un recorrido guiado te enseña el sistema la primera vez que entras.
 Un Centro de conocimiento contesta tus dudas sin que tengas que llamar a
 soporte. Tooltips en cada campo que no es obvio. Diseñado para que lo uses
@@ -137,6 +180,9 @@ y un negocio que administra al dueño.
 - "Pausas Facturación o el portal de tus clientes tú mismo, sin llamar a nadie — y los vuelves a prender igual de rápido."
 - "¿Cuánto necesitas vender al día para no perder? CLARVO te lo dice todos los días, no una vez al mes."
 - "Tu contador te borra el mes viejo; CLARVO lo archiva y te lo deja buscar cuando quieras."
+- "Tu celular ya es tu punto de venta. Apunta, escanea, cobra."
+- "No aprendes a usar CLARVO. Aprendes a administrar tu negocio mientras lo usas."
+- "Multi-caja incluido en todos los paquetes — cobra con 1 celular o con 10, nunca pagas por caja."
 
 ---
 

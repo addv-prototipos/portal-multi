@@ -30,7 +30,11 @@ const CLAVES = {
   inv_imagen_max_por_producto: { default: '20', tipo: 'entero', min: 1, max: 50 },
   inv_imagen_cuota_mb: { default: '500', tipo: 'entero', min: 100, max: 5000 },
   inv_import_max_mb: { default: '5', tipo: 'entero', min: 1, max: 50 },
-  inv_import_max_filas: { default: '10000', tipo: 'entero', min: 100, max: 100000 },
+  // inv_import_max_filas vivió aquí (per-tenant, nunca expuesto en ninguna
+  // UI) hasta que se movió a `import_max_filas` en ajustes_globales
+  // (control_tenants) — ahora es un solo valor de plataforma, configurable
+  // desde /control (ver backend/utils/ajustesGlobales.js), igual que
+  // imagen_max_mb. No reintroducir esta clave aquí.
   // D4: fijada a '0' en v1, sin UI para cambiarla — se deja como clave
   // real (no solo un comentario) para que el motor de existencias
   // (registrarMovimiento) tenga un solo lugar de dónde leerla, listo

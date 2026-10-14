@@ -169,6 +169,7 @@ describe('utils/tenantContext.js', () => {
         reportesEstadoInventarioHabilitado: true,
         reportesEstadoTicketsHabilitado: true,
         promocionesHabilitado: false,
+        ticketImpresionHabilitado: false,
       });
       expect(obtenerPoolTenant).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'cliente1', host: 'mysql', database: 'tenant_cliente1', user: 'app' })

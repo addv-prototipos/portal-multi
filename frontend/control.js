@@ -88,6 +88,7 @@
     confirmOverlay: document.getElementById('control-confirm-modal-overlay'),
     confirmTitle: document.getElementById('control-confirm-modal-title'),
     confirmMensaje: document.getElementById('control-confirm-modal-mensaje'),
+    confirmDestacado: document.getElementById('control-confirm-modal-destacado'),
     btnConfirmCancelar: document.getElementById('control-btn-confirm-cancelar'),
     btnConfirmAceptar: document.getElementById('control-btn-confirm-aceptar'),
     activandoOverlay: document.getElementById('control-activando-modal-overlay'),
@@ -156,6 +157,8 @@
     intakeNotas: document.getElementById('control-intake-notas'),
     intakeMarca: document.getElementById('control-intake-marca'),
     intakeLogo: document.getElementById('control-intake-logo'),
+    intakeAdminEmail: document.getElementById('control-intake-admin-email'),
+    intakeAdminPassword: document.getElementById('control-intake-admin-password'),
     editarOverlay: document.getElementById('control-editar-modal-overlay'),
     formEditar: document.getElementById('control-form-editar'),
     editarEmpresa: document.getElementById('control-editar-modal-empresa'),
@@ -210,12 +213,36 @@
     btnVistaSucursales: document.getElementById('btn-vista-control-sucursales'),
     btnVistaSuper: document.getElementById('btn-vista-control-super'),
     btnVistaAuditoria: document.getElementById('btn-vista-control-auditoria'),
+    btnVistaAccesos: document.getElementById('btn-vista-control-accesos'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
     vistaPlanes: document.getElementById('vista-control-planes'),
     vistaPapelera: document.getElementById('vista-control-papelera'),
     vistaSucursales: document.getElementById('vista-control-sucursales'),
     vistaSuper: document.getElementById('vista-control-super'),
     vistaAuditoria: document.getElementById('vista-control-auditoria'),
+    vistaAccesos: document.getElementById('vista-control-accesos'),
+    // Punto en curso: "Accesos — MinIO"
+    accesosMinioError: document.getElementById('accesos-minio-error'),
+    accesosMinioUrl: document.getElementById('accesos-minio-url'),
+    accesosMinioUsuario: document.getElementById('accesos-minio-usuario'),
+    accesosMinioPassword: document.getElementById('accesos-minio-password'),
+    btnAccesosMinioPasswordToggle: document.getElementById('btn-accesos-minio-password-toggle'),
+    accesosMinioNotas: document.getElementById('accesos-minio-notas'),
+    btnAccesosMinioGuardar: document.getElementById('btn-accesos-minio-guardar'),
+    btnAccesosMinioGuardarLabel: document.getElementById('btn-accesos-minio-guardar-label'),
+    btnAccesosMinioAbrir: document.getElementById('btn-accesos-minio-abrir'),
+    // Punto en curso: "Accesos — SMTP"
+    accesosSmtpError: document.getElementById('accesos-smtp-error'),
+    accesosSmtpHost: document.getElementById('accesos-smtp-host'),
+    accesosSmtpPuerto: document.getElementById('accesos-smtp-puerto'),
+    accesosSmtpSeguridad: document.getElementById('accesos-smtp-seguridad'),
+    accesosSmtpUsuario: document.getElementById('accesos-smtp-usuario'),
+    accesosSmtpPassword: document.getElementById('accesos-smtp-password'),
+    btnAccesosSmtpPasswordToggle: document.getElementById('btn-accesos-smtp-password-toggle'),
+    accesosSmtpNombreRemitente: document.getElementById('accesos-smtp-nombre-remitente'),
+    accesosSmtpCorreoRemitente: document.getElementById('accesos-smtp-correo-remitente'),
+    btnAccesosSmtpGuardar: document.getElementById('btn-accesos-smtp-guardar'),
+    btnAccesosSmtpGuardarLabel: document.getElementById('btn-accesos-smtp-guardar-label'),
     // Punto 347: Auditoría cross-tenant
     btnAyudaVistaAuditoria: document.getElementById('btn-ayuda-vista-auditoria'),
     auditoriaFiltroActor: document.getElementById('auditoria-filtro-actor'),
@@ -323,6 +350,15 @@
     btnGuardarImagenMaxLabel: document.getElementById('btn-guardar-imagen-max-label'),
     imagenMaxError: document.getElementById('imagen-max-error'),
     imagenMaxInfo: document.getElementById('imagen-max-info'),
+
+    // Ajuste global "Ajustes de importación" (límite de filas CSV/XLSX/XLS)
+    btnToggleImportMax: document.getElementById('btn-toggle-import-max'),
+    importMaxConfigBody: document.getElementById('import-max-config-body'),
+    importMaxFilasInput: document.getElementById('import-max-filas'),
+    btnGuardarImportMax: document.getElementById('btn-guardar-import-max'),
+    btnGuardarImportMaxLabel: document.getElementById('btn-guardar-import-max-label'),
+    importMaxError: document.getElementById('import-max-error'),
+    importMaxInfo: document.getElementById('import-max-info'),
   };
 
   function getAuthHeader() {
@@ -585,6 +621,12 @@
     baja: 'Baja',
   };
 
+  // Mismo valor que DIAS_RETENCION_BAJA en control/utils/tenantLifecycle.js
+  // (duplicado a propósito — código pequeño, mismo criterio que el resto
+  // del proyecto de no compartir entre frontend/ y los backends). Usado en
+  // el aviso de "Dar de baja" y en la cuenta regresiva de Papelera.
+  const DIAS_RETENCION_BAJA_UI = 30;
+
   // Tooltip por estado (Fase 5 UX, punto 194) — "Provisionando" en
   // particular no tenía ninguna explicación visible salvo el hint de
   // texto de la parte de arriba de la vista, fácil de pasar por alto.
@@ -715,6 +757,16 @@
             })
           )
         );
+        // Punto en curso (confirmado con el usuario): una solicitud que
+        // nunca llegó a "activo" no tiene relación comercial que cerrar —
+        // se puede borrar directo, sin pasar por baja/papelera. Reusa el
+        // mismo modal de "Eliminar definitivo" (escribir el slug exacto),
+        // el backend ya acepta "provisioning" como origen válido.
+        contenedorAcciones.appendChild(
+          crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', () =>
+            abrirModalEliminarTenant(t)
+          )
+        );
       }
 
       if (t.estado === 'activo') {
@@ -730,7 +782,10 @@
         );
       }
 
-      if (t.estado === 'suspendido' || t.estado === 'baja') {
+      // "baja" ya no llega a esta tabla (listarTenants la excluye por
+      // default, punto en curso) — Reactivar/Eliminar definitivo para
+      // tenants en baja viven solo en la vista Papelera (cargarPapelera).
+      if (t.estado === 'suspendido') {
         contenedorAcciones.appendChild(
           crearBotonAccion('btn-icono-accion', 'Reactivar', 'M5 12h14M12 5l7 7-7 7', () =>
             confirmarAccion({
@@ -743,20 +798,13 @@
         );
       }
 
-      if (t.estado === 'baja') {
-        contenedorAcciones.appendChild(
-          crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar definitivo', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', () =>
-            abrirModalEliminarTenant(t)
-          )
-        );
-      }
-
       if (t.estado === 'activo' || t.estado === 'suspendido') {
         contenedorAcciones.appendChild(
           crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Dar de baja', 'M18 6L6 18M6 6l12 12', () =>
             confirmarAccion({
               titulo: '¿Dar de baja este tenant?',
-              mensaje: `"${t.nombre_empresa}" (${t.slug}) dejará de ser accesible. No se borra su base de datos ni sus archivos — puedes reactivarlo después desde aquí mismo.`,
+              mensaje: `"${t.nombre_empresa}" (${t.slug}) dejará de ser accesible. No se borra su base de datos ni sus archivos todavía — puedes reactivarlo en cualquier momento desde Papelera.`,
+              mensajeDestacado: `Si no se reactiva en ${DIAS_RETENCION_BAJA_UI} días, se elimina de forma permanente e irreversible.`,
               textoBoton: 'Dar de baja',
               onConfirmar: () => ejecutarAccion(t.slug, 'baja'),
             })
@@ -1057,6 +1105,43 @@
     }
   }
 
+  // Reinterpreta un DATETIME 'YYYY-MM-DD HH:MM:SS' (guardado en UTC, sin
+  // indicador de zona en el string — mismo patrón ya usado en
+  // formatFecha() de este archivo) como instante real, nunca como texto
+  // local: new Date() a secas sobre ese formato lo interpretaría como
+  // hora LOCAL del navegador, corriendo la cuenta regresiva de purga por
+  // el offset de la zona (mismo gotcha documentado en CLAUDE.md para
+  // columnas DATE, aplicado aquí a una columna DATETIME).
+  function instanteUtc(fechaHora) {
+    if (!fechaHora) return null;
+    const texto = String(fechaHora);
+    const d = texto.endsWith('Z') ? new Date(texto) : new Date(texto.replace(' ', 'T') + 'Z');
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  // Días que faltan para que purgarBajasVencidas() (control/server.js,
+  // temporizador cada 24h) elimine este tenant para siempre —
+  // DIAS_RETENCION_BAJA_UI debe coincidir con DIAS_RETENCION_BAJA del
+  // backend (ver comentario donde se declara).
+  function diasRestantesPurga(bajaEn) {
+    const inicio = instanteUtc(bajaEn);
+    if (!inicio) return null;
+    const purgaEn = inicio.getTime() + DIAS_RETENCION_BAJA_UI * 24 * 60 * 60 * 1000;
+    return Math.ceil((purgaEn - Date.now()) / 86400000);
+  }
+
+  // Reusa las mismas clases .estatus-badge/.estatus-vence-* que ya pinta
+  // la columna "Vence" de Suscripción (ver celdaVenceHtml) — mismo
+  // lenguaje de color (verde/ámbar/rojo) para "faltan N días antes de
+  // algo irreversible", nada nuevo que el operador tenga que aprender.
+  function celdaPurgaHtml(t) {
+    const dias = diasRestantesPurga(t.baja_en);
+    if (dias === null) return '<span class="estatus-badge estatus-vence-na">Sin definir</span>';
+    if (dias <= 0) return '<span class="estatus-badge estatus-vence-vencido">Se elimina hoy</span>';
+    if (dias <= 7) return `<span class="estatus-badge estatus-vence-proximo">${dias} día${dias === 1 ? '' : 's'} restante${dias === 1 ? '' : 's'}</span>`;
+    return `<span class="estatus-badge estatus-vence-ok">${dias} días restantes</span>`;
+  }
+
   function renderPapelera(tenants) {
     els.papeleraCount.textContent = `${tenants.length} empresa${tenants.length === 1 ? '' : 's'}`;
     els.papeleraTableBody.innerHTML = '';
@@ -1070,7 +1155,7 @@
         <td data-label="Slug"><strong>${escapeHtml(t.slug)}</strong></td>
         <td data-label="Empresa">${escapeHtml(t.nombre_empresa)}</td>
         <td data-label="Contacto">${escapeHtml(t.contacto_email) || '—'}</td>
-        <td data-label="Creado">${formatFecha(t.creado_en)}</td>
+        <td data-label="Se elimina en">${celdaPurgaHtml(t)}</td>
         <td data-label=""></td>
       `;
 
@@ -1190,9 +1275,13 @@
 
   let accionConfirmada = null;
 
-  function confirmarAccion({ titulo, mensaje, textoBoton, onConfirmar }) {
+  function confirmarAccion({ titulo, mensaje, mensajeDestacado, textoBoton, onConfirmar }) {
     els.confirmTitle.textContent = titulo;
     els.confirmMensaje.textContent = mensaje;
+    if (els.confirmDestacado) {
+      els.confirmDestacado.textContent = mensajeDestacado || '';
+      els.confirmDestacado.hidden = !mensajeDestacado;
+    }
     els.btnConfirmAceptar.textContent = textoBoton;
     accionConfirmada = onConfirmar;
     els.confirmOverlay.hidden = false;
@@ -1325,6 +1414,36 @@
       els.intakeEmail.focus();
       return;
     }
+
+    // Admin inicial — OPCIONAL (mismo gap que encontró el usuario, 13 oct
+    // 2026): si se llenan los dos campos, el alta activa la empresa Y crea
+    // su administrador en el mismo submit, mismo criterio self-service que
+    // el wizard de clarvo.mx. Validación completa real la hace el
+    // servidor (POST .../activar) — aquí solo se evita mandar algo
+    // obviamente incompleto.
+    const adminEmail = els.intakeAdminEmail.value.trim();
+    const adminPassword = els.intakeAdminPassword.value;
+    if (adminEmail && !adminPassword) {
+      setFieldErrorIntake('intake-admin-password', 'Captura la contraseña del administrador, o deja los dos campos en blanco.');
+      els.intakeAdminPassword.focus();
+      return;
+    }
+    if (adminPassword && !adminEmail) {
+      setFieldErrorIntake('intake-admin-email', 'Captura el correo del administrador, o deja los dos campos en blanco.');
+      els.intakeAdminEmail.focus();
+      return;
+    }
+    if (adminEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
+      setFieldErrorIntake('intake-admin-email', 'El correo del administrador no tiene un formato válido.');
+      els.intakeAdminEmail.focus();
+      return;
+    }
+    if (adminPassword && adminPassword.length < 8) {
+      setFieldErrorIntake('intake-admin-password', 'La contraseña debe tener al menos 8 caracteres.');
+      els.intakeAdminPassword.focus();
+      return;
+    }
+
     setIntakeLoading(true);
     try {
       // Logo de marca (opcional): se lee como base64 y se manda junto con
@@ -1368,6 +1487,31 @@
         els.intakeError.textContent = data.error || 'No se pudo registrar la solicitud.';
         return;
       }
+
+      // Si se capturó admin, encadena la activación en el mismo submit —
+      // sin esto, el alta quedaría igual que siempre (solo "Provisionando").
+      if (adminEmail && adminPassword) {
+        const resActivar = await fetch(`${API_BASE}/tenants/${encodeURIComponent(data.tenant.slug)}/activar`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adminEmail, adminPassword }),
+        });
+        const dataActivar = await resActivar.json().catch(() => ({}));
+        if (!resActivar.ok) {
+          cerrarIntake();
+          showToast(
+            `"${data.tenant.nombre_empresa}" (${data.tenant.slug}) se registró, pero no se pudo activar con el administrador: ${dataActivar.error || 'error desconocido'}. Actívala manualmente desde la lista.`,
+            true
+          );
+          cargarTenants();
+          return;
+        }
+        cerrarIntake();
+        showToast(`"${data.tenant.nombre_empresa}" (${data.tenant.slug}) está activa y lista — su administrador ya puede entrar.`);
+        cargarTenants();
+        return;
+      }
+
       cerrarIntake();
       showToast(`Solicitud de alta registrada: "${data.tenant.nombre_empresa}" (${data.tenant.slug}) en estado "Provisionando".`);
       cargarTenants();
@@ -1699,15 +1843,90 @@
     return Math.round((objetivoUtc - hoyUtc) / 86400000);
   }
 
+  // Punto en curso (propuesta visual confirmada): "Prueba inicia el" y
+  // "Expira el" dejaron de ser inputs de fecha capturables a mano — son
+  // texto informativo calculado a partir de "Modo de prueba" + "Días de
+  // prueba", con la MISMA regla que aplica el backend
+  // (actualizarSuscripcionTenant en control/utils/tenantSuscripcion.js):
+  // el inicio se fija la primera vez que se prende el modo de prueba y
+  // nunca se mueve solo por editar los días; al apagar el modo de
+  // prueba, los 2 valores se congelan (nunca se borran). Esta función
+  // solo calcula la VISTA PREVIA en el navegador — el valor que de
+  // verdad queda guardado lo decide el servidor al guardar.
+  let fechaInicioPreviewIso = '';
+  let fechaExpiraPreviewIso = '';
+
+  function formatearFechaDDMMAAAA(fechaIso) {
+    if (!fechaIso) return '';
+    const [anio, mes, dia] = fechaIso.split('-');
+    return `${dia}/${mes}/${anio}`;
+  }
+
+  function hoyIsoLocal() {
+    const d = new Date();
+    const anio = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${anio}-${mes}-${dia}`;
+  }
+
+  // Suma días operando en componentes UTC a propósito (fecha de
+  // calendario, no un instante real) — mismo criterio que
+  // control/utils/tenantSuscripcion.js:sumarDias(), para que la vista
+  // previa del navegador nunca se desfase un día contra lo que calculará
+  // el servidor.
+  function sumarDiasIso(fechaIso, dias) {
+    const [anio, mes, dia] = fechaIso.split('-').map(Number);
+    const base = Date.UTC(anio, mes - 1, dia);
+    const resultado = new Date(base + dias * 86400000);
+    const yy = resultado.getUTCFullYear();
+    const mm = String(resultado.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(resultado.getUTCDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  }
+
+  function actualizarFechasSuscripcionCalculadas() {
+    const enPrueba = els.suscripcionEnPrueba.checked;
+    const diasPrueba = els.suscripcionDiasPrueba.value ? Number(els.suscripcionDiasPrueba.value) : null;
+    const inicioOriginal = els.suscripcionPruebaInicia.dataset.original || '';
+    const expiraOriginal = els.suscripcionExpira.dataset.original || '';
+
+    if (enPrueba) {
+      fechaInicioPreviewIso = inicioOriginal || hoyIsoLocal();
+      fechaExpiraPreviewIso =
+        Number.isInteger(diasPrueba) && diasPrueba > 0 ? sumarDiasIso(fechaInicioPreviewIso, diasPrueba) : '';
+    } else {
+      fechaInicioPreviewIso = inicioOriginal;
+      fechaExpiraPreviewIso = expiraOriginal;
+    }
+
+    els.suscripcionPruebaInicia.value = fechaInicioPreviewIso
+      ? formatearFechaDDMMAAAA(fechaInicioPreviewIso)
+      : (enPrueba ? 'Se fija al guardar' : 'Sin definir');
+    els.suscripcionExpira.value = fechaExpiraPreviewIso
+      ? formatearFechaDDMMAAAA(fechaExpiraPreviewIso)
+      : (enPrueba ? 'Captura días de prueba' : 'Sin definir');
+  }
+
+  function actualizarDisponibilidadCamposPrueba() {
+    const enPrueba = els.suscripcionEnPrueba.checked;
+    els.suscripcionDiasPrueba.disabled = !enPrueba;
+    els.suscripcionDiasPrueba.classList.toggle('is-bloqueado', !enPrueba);
+    els.suscripcionPruebaInicia.classList.toggle('is-bloqueado', !enPrueba);
+    els.suscripcionExpira.classList.toggle('is-bloqueado', !enPrueba);
+  }
+
   function poblarFormularioSuscripcion(tenant) {
     if (!els.suscripcionEnPrueba) return;
     if (els.suscripcionError) els.suscripcionError.textContent = '';
     els.suscripcionEnPrueba.checked = tenant.suscripcion_en_prueba === 1 || tenant.suscripcion_en_prueba === true;
     els.suscripcionDiasPrueba.value = tenant.suscripcion_dias_prueba != null ? String(tenant.suscripcion_dias_prueba) : '';
-    els.suscripcionPruebaInicia.value = fechaSoloDia(tenant.suscripcion_prueba_inicia_en) || '';
+    els.suscripcionPruebaInicia.dataset.original = fechaSoloDia(tenant.suscripcion_prueba_inicia_en) || '';
+    els.suscripcionExpira.dataset.original = fechaSoloDia(tenant.suscripcion_expira_en) || '';
     els.suscripcionCiclo.value = tenant.suscripcion_ciclo || '';
-    els.suscripcionExpira.value = fechaSoloDia(tenant.suscripcion_expira_en) || '';
     els.suscripcionEstatus.value = tenant.suscripcion_estatus || '';
+    actualizarFechasSuscripcionCalculadas();
+    actualizarDisponibilidadCamposPrueba();
     renderAnilloSuscripcion();
   }
 
@@ -1718,7 +1937,7 @@
   // muestra el conteo de días, sin barra de progreso con sentido.
   function renderAnilloSuscripcion() {
     if (!els.suscripcionRing) return;
-    const expira = els.suscripcionExpira.value || null;
+    const expira = fechaExpiraPreviewIso || null;
     const estatus = els.suscripcionEstatus.value || null;
     const enPrueba = els.suscripcionEnPrueba.checked;
     const diasPrueba = els.suscripcionDiasPrueba.value ? Number(els.suscripcionDiasPrueba.value) : null;
@@ -1763,14 +1982,19 @@
     els.suscripcionRing.style.background = `conic-gradient(${color} 0 ${porcentaje}%, var(--color-border) ${porcentaje}% 100%)`;
   }
 
-  [
-    els.suscripcionEnPrueba,
-    els.suscripcionDiasPrueba,
-    els.suscripcionPruebaInicia,
-    els.suscripcionCiclo,
-    els.suscripcionExpira,
-    els.suscripcionEstatus,
-  ].forEach((el) => {
+  // "Prueba inicia el"/"Expira el" ya no son editables (ver
+  // actualizarFechasSuscripcionCalculadas arriba) — solo "Modo de
+  // prueba" y "Días de prueba" disparan su recálculo; "Ciclo"/"Estatus"
+  // no afectan esas 2 fechas, solo repintan el anillo.
+  [els.suscripcionEnPrueba, els.suscripcionDiasPrueba].forEach((el) => {
+    if (!el) return;
+    el.addEventListener('input', () => {
+      actualizarFechasSuscripcionCalculadas();
+      actualizarDisponibilidadCamposPrueba();
+      renderAnilloSuscripcion();
+    });
+  });
+  [els.suscripcionCiclo, els.suscripcionEstatus].forEach((el) => {
     if (el) el.addEventListener('input', renderAnilloSuscripcion);
   });
 
@@ -1809,11 +2033,11 @@
           method: 'PUT',
           headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            // pruebaIniciaEn/expiraEn ya NO se mandan — el servidor las
+            // calcula solo (ver actualizarSuscripcionTenant).
             enPrueba: els.suscripcionEnPrueba.checked,
             diasPrueba,
-            pruebaIniciaEn: els.suscripcionPruebaInicia.value || null,
             ciclo: els.suscripcionCiclo.value || null,
-            expiraEn: els.suscripcionExpira.value || null,
             estatus: els.suscripcionEstatus.value || null,
           }),
         });
@@ -1828,6 +2052,7 @@
           return;
         }
         showToast(`Suscripción de "${slugActualEdicion}" actualizada.`);
+        if (data.tenant) poblarFormularioSuscripcion(data.tenant);
         cargarTenants();
       } catch (err) {
         els.suscripcionError.textContent = 'No se pudo conectar con el servidor.';
@@ -2039,6 +2264,14 @@
   // cambiar de pestaña nunca descarta datos ya capturados en otra. La
   // pestaña "Identidad visual" ya NO comparte ese botón: se guarda sola
   // (ver montarEditorMarcaTemaControl), mismo criterio que /admin.
+  // Pestañas cuyos campos SÍ viajan en el submit compartido de abajo
+  // ("Guardar cambios") — Suscripción/Identidad visual ya tienen su
+  // propio guardado inmediato y Grupo/sucursales no tiene ninguno; en
+  // esas 3, "Guardar cambios" no actúa sobre nada visible y solo
+  // confundía sobre qué botón persiste qué (ver propuesta visual
+  // confirmada por el usuario, punto en curso).
+  const TABS_CON_GUARDADO_COMPARTIDO = ['general', 'plan'];
+
   function cambiarTabEditar(tab) {
     const TABS = ['general', 'plan', 'suscripcion', 'visual', 'grupo'];
     TABS.forEach((t) => {
@@ -2050,6 +2283,9 @@
       btn.classList.toggle('is-active', activo);
       btn.setAttribute('aria-selected', String(activo));
     });
+    if (els.btnEditarGuardar) {
+      els.btnEditarGuardar.hidden = !TABS_CON_GUARDADO_COMPARTIDO.includes(tab);
+    }
   }
 
   els.editarTabs.forEach((btn) => {
@@ -2537,6 +2773,7 @@
       reportes_estado_inventario_habilitado: false,
       reportes_estado_tickets_habilitado: false,
       promociones_habilitado: false,
+      ticket_impresion_habilitado: false,
     };
   }
 
@@ -2582,6 +2819,10 @@
       if (campo === 'ventas_habilitado' && !encendiendo && planWizardState.cxc_habilitado) {
         planWizardState.cxc_habilitado = false;
         showToast('Se desactivó Cuentas por cobrar: depende de Ventas.');
+      }
+      if (campo === 'ventas_habilitado' && !encendiendo && planWizardState.ticket_impresion_habilitado) {
+        planWizardState.ticket_impresion_habilitado = false;
+        showToast('Se desactivó Ticket de impresión: depende de Ventas.');
       }
     }
 
@@ -2724,6 +2965,14 @@
       modulos: ['ventas', 'gastos'],
       auto: planWizardState.resumen_financiero_habilitado,
     });
+    html += filaDependienteWizard({
+      etiqueta: 'Ticket de impresión',
+      desc: 'Logo y plantilla del recibo impreso — separado de "Marca propia" desde este punto',
+      campo: 'ticket_impresion_habilitado',
+      deshabilitado: !planWizardState.ventas_habilitado,
+      requiereTxt: 'Ventas',
+      modulos: ['ventas'],
+    });
     html += filaAutoWizard(
       'Aviso de expiración de productos',
       'Visible en Configuraciones → Notificaciones del tenant solo si Inventarios está activo — sin interruptor propio aquí',
@@ -2769,6 +3018,7 @@
     html += fila('Portal de clientes', planWizardState.portal_clientes_habilitado);
     html += fila('Sucursales', planWizardState.sucursales_habilitado);
     html += fila('Marca propia', planWizardState.marca_lookfeel_habilitado);
+    html += filaN2('Ticket de impresión', planWizardState.ticket_impresion_habilitado);
     html += fila('Promociones', planWizardState.promociones_habilitado);
     els.planesWizardResumenBody.innerHTML = html;
   }
@@ -2837,6 +3087,7 @@
           reportes_estado_inventario_habilitado: Boolean(p.reportes_estado_inventario_habilitado),
           reportes_estado_tickets_habilitado: Boolean(p.reportes_estado_tickets_habilitado),
           promociones_habilitado: Boolean(p.promociones_habilitado),
+          ticket_impresion_habilitado: Boolean(p.ticket_impresion_habilitado),
         };
         planWizardTotalTenants = Number(p.total_tenants || 0);
         renderPlanWizardTodo();
@@ -2949,20 +3200,30 @@
       els.btnVistaAuditoria.classList.toggle('is-active', vista === 'auditoria');
       els.btnVistaAuditoria.setAttribute('aria-selected', String(vista === 'auditoria'));
     }
+    if (els.btnVistaAccesos) {
+      els.btnVistaAccesos.classList.toggle('is-active', vista === 'accesos');
+      els.btnVistaAccesos.setAttribute('aria-selected', String(vista === 'accesos'));
+    }
     els.vistaEmpresas.hidden = vista !== 'empresas';
     if (els.vistaPlanes) els.vistaPlanes.hidden = vista !== 'planes';
     els.vistaPapelera.hidden = vista !== 'papelera';
     els.vistaSucursales.hidden = vista !== 'sucursales';
     if (els.vistaSuper) els.vistaSuper.hidden = vista !== 'super';
     if (els.vistaAuditoria) els.vistaAuditoria.hidden = vista !== 'auditoria';
+    if (els.vistaAccesos) els.vistaAccesos.hidden = vista !== 'accesos';
     if (vista === 'planes') cargarPlanes();
     if (vista === 'papelera') cargarPapelera();
     if (vista === 'sucursales') cargarSucursales();
     if (vista === 'super') {
       cargarSuperAdmins();
       cargarImagenMaxGlobal();
+      cargarImportMaxGlobal();
     }
     if (vista === 'auditoria') cargarAuditoria();
+    if (vista === 'accesos') {
+      cargarAccesoMinio();
+      cargarAccesoSmtp();
+    }
   }
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
@@ -2972,6 +3233,7 @@
   els.btnVistaSucursales.addEventListener('click', () => cambiarVistaPrincipalControl('sucursales'));
   if (els.btnVistaSuper) els.btnVistaSuper.addEventListener('click', () => cambiarVistaPrincipalControl('super'));
   if (els.btnVistaAuditoria) els.btnVistaAuditoria.addEventListener('click', () => cambiarVistaPrincipalControl('auditoria'));
+  if (els.btnVistaAccesos) els.btnVistaAccesos.addEventListener('click', () => cambiarVistaPrincipalControl('accesos'));
   els.menuMovil.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-vista]');
     if (btn) cambiarVistaPrincipalControl(btn.dataset.vista);
@@ -3489,6 +3751,246 @@
       } finally {
         els.btnGuardarImagenMax.disabled = false;
         if (els.btnGuardarImagenMaxLabel) els.btnGuardarImagenMaxLabel.textContent = 'Guardar';
+      }
+    });
+  }
+
+  // ---------- Ajustes de importación (límite de filas CSV/XLSX/XLS) ----------
+  // Mismo patrón de tarjeta colapsable que "Ajustes de imágenes" arriba —
+  // un solo campo numérico + botón Guardar, ajuste global de plataforma.
+  if (els.btnToggleImportMax) {
+    els.btnToggleImportMax.addEventListener('click', () => {
+      const abierto = els.btnToggleImportMax.getAttribute('aria-expanded') === 'true';
+      els.btnToggleImportMax.setAttribute('aria-expanded', String(!abierto));
+      els.importMaxConfigBody.hidden = abierto;
+    });
+  }
+
+  async function cargarImportMaxGlobal() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/ajustes/import-max-filas`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (els.importMaxFilasInput && Number.isInteger(data.import_max_filas)) {
+        els.importMaxFilasInput.value = data.import_max_filas;
+      }
+    } catch (_) {
+      // Si falla, la tarjeta puede reintentar manualmente con "Actualizar".
+    }
+  }
+
+  if (els.btnGuardarImportMax) {
+    els.btnGuardarImportMax.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+
+      els.importMaxError.textContent = '';
+      const valor = Number(els.importMaxFilasInput.value);
+      if (!Number.isInteger(valor) || valor < 100 || valor > 100000) {
+        els.importMaxError.textContent = 'Ingresa un número entero entre 100 y 100000.';
+        return;
+      }
+
+      els.btnGuardarImportMax.disabled = true;
+      if (els.btnGuardarImportMaxLabel) els.btnGuardarImportMaxLabel.textContent = 'Guardando…';
+      try {
+        const res = await fetch(`${API_BASE}/ajustes/import-max-filas`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ import_max_filas: valor }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.importMaxError.textContent = data.error || 'No se pudo guardar.';
+          return;
+        }
+        if (els.importMaxInfo) {
+          els.importMaxInfo.textContent = 'Guardado — aplica de inmediato a toda la plataforma (hasta ~45 s de caché en el backend de cada empresa).';
+        }
+        showToast(`Máximo de filas actualizado a ${data.import_max_filas}.`);
+      } catch (_) {
+        els.importMaxError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnGuardarImportMax.disabled = false;
+        if (els.btnGuardarImportMaxLabel) els.btnGuardarImportMaxLabel.textContent = 'Guardar';
+      }
+    });
+  }
+
+  // ---------- Punto en curso: "Accesos — MinIO" ----------
+  // Bloc de notas cifrado, NO sincronizado con .env/MinIO real (ver
+  // control/utils/accesoMinio.js). GET trae el password YA descifrado —
+  // a propósito, el operador necesita poder verlo/copiarlo; se enmascara
+  // del lado del cliente con el mismo toggle que ya usa el login.
+
+  async function cargarAccesoMinio() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    if (els.accesosMinioError) els.accesosMinioError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/accesos/minio`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (els.accesosMinioError) {
+          els.accesosMinioError.textContent = data.error || 'No se pudo cargar el registro de MinIO.';
+        }
+        return;
+      }
+      els.accesosMinioUrl.value = data.url || '';
+      els.accesosMinioUsuario.value = data.usuario || '';
+      els.accesosMinioPassword.value = data.password || '';
+      els.accesosMinioNotas.value = data.notas || '';
+    } catch (err) {
+      if (els.accesosMinioError) els.accesosMinioError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  if (els.btnAccesosMinioPasswordToggle) {
+    els.btnAccesosMinioPasswordToggle.addEventListener('click', () => {
+      const esPassword = els.accesosMinioPassword.type === 'password';
+      els.accesosMinioPassword.type = esPassword ? 'text' : 'password';
+      els.btnAccesosMinioPasswordToggle.setAttribute('aria-pressed', String(esPassword));
+      els.btnAccesosMinioPasswordToggle.setAttribute('aria-label', esPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    });
+  }
+
+  if (els.btnAccesosMinioAbrir) {
+    els.btnAccesosMinioAbrir.addEventListener('click', () => {
+      const url = (els.accesosMinioUrl.value || '').trim();
+      if (!url) {
+        if (els.accesosMinioError) els.accesosMinioError.textContent = 'Captura la URL antes de abrir la consola.';
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+    });
+  }
+
+  if (els.btnAccesosMinioGuardar) {
+    els.btnAccesosMinioGuardar.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+      if (els.accesosMinioError) els.accesosMinioError.textContent = '';
+
+      els.btnAccesosMinioGuardar.disabled = true;
+      if (els.btnAccesosMinioGuardarLabel) els.btnAccesosMinioGuardarLabel.textContent = 'Guardando…';
+      try {
+        const res = await fetch(`${API_BASE}/accesos/minio`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: els.accesosMinioUrl.value,
+            usuario: els.accesosMinioUsuario.value,
+            password: els.accesosMinioPassword.value,
+            notas: els.accesosMinioNotas.value,
+          }),
+        });
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (els.accesosMinioError) els.accesosMinioError.textContent = data.error || 'No se pudo guardar.';
+          return;
+        }
+        showToast('Registro de MinIO actualizado.');
+      } catch (err) {
+        if (els.accesosMinioError) els.accesosMinioError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnAccesosMinioGuardar.disabled = false;
+        if (els.btnAccesosMinioGuardarLabel) els.btnAccesosMinioGuardarLabel.textContent = 'Guardar';
+      }
+    });
+  }
+
+  // ---------- Punto en curso: "Accesos — SMTP" ----------
+  // Mismo molde que "Accesos — MinIO" arriba: copia informativa, cifrada
+  // en reposo, de la configuración SMTP que backend/ ya usa para el
+  // sitio base (sin tenant) — ver control/utils/accesoSmtp.js.
+
+  async function cargarAccesoSmtp() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    if (els.accesosSmtpError) els.accesosSmtpError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/accesos/smtp`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (els.accesosSmtpError) els.accesosSmtpError.textContent = data.error || 'No se pudo cargar el registro de SMTP.';
+        return;
+      }
+      els.accesosSmtpHost.value = data.host || '';
+      els.accesosSmtpPuerto.value = data.puerto != null ? String(data.puerto) : '';
+      els.accesosSmtpSeguridad.value = data.seguridad || '';
+      els.accesosSmtpUsuario.value = data.usuario || '';
+      els.accesosSmtpPassword.value = data.password || '';
+      els.accesosSmtpNombreRemitente.value = data.nombreRemitente || '';
+      els.accesosSmtpCorreoRemitente.value = data.correoRemitente || '';
+    } catch (err) {
+      if (els.accesosSmtpError) els.accesosSmtpError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  if (els.btnAccesosSmtpPasswordToggle) {
+    els.btnAccesosSmtpPasswordToggle.addEventListener('click', () => {
+      const esPassword = els.accesosSmtpPassword.type === 'password';
+      els.accesosSmtpPassword.type = esPassword ? 'text' : 'password';
+      els.btnAccesosSmtpPasswordToggle.setAttribute('aria-pressed', String(esPassword));
+      els.btnAccesosSmtpPasswordToggle.setAttribute('aria-label', esPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    });
+  }
+
+  if (els.btnAccesosSmtpGuardar) {
+    els.btnAccesosSmtpGuardar.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+      if (els.accesosSmtpError) els.accesosSmtpError.textContent = '';
+
+      els.btnAccesosSmtpGuardar.disabled = true;
+      if (els.btnAccesosSmtpGuardarLabel) els.btnAccesosSmtpGuardarLabel.textContent = 'Guardando…';
+      try {
+        const res = await fetch(`${API_BASE}/accesos/smtp`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            host: els.accesosSmtpHost.value,
+            puerto: els.accesosSmtpPuerto.value ? Number(els.accesosSmtpPuerto.value) : null,
+            seguridad: els.accesosSmtpSeguridad.value,
+            usuario: els.accesosSmtpUsuario.value,
+            password: els.accesosSmtpPassword.value,
+            nombreRemitente: els.accesosSmtpNombreRemitente.value,
+            correoRemitente: els.accesosSmtpCorreoRemitente.value,
+          }),
+        });
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (els.accesosSmtpError) els.accesosSmtpError.textContent = data.error || 'No se pudo guardar.';
+          return;
+        }
+        showToast('Registro de SMTP actualizado.');
+      } catch (err) {
+        if (els.accesosSmtpError) els.accesosSmtpError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnAccesosSmtpGuardar.disabled = false;
+        if (els.btnAccesosSmtpGuardarLabel) els.btnAccesosSmtpGuardarLabel.textContent = 'Guardar';
       }
     });
   }

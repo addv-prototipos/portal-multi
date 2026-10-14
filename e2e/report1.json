@@ -1,0 +1,300 @@
+[
+  {
+    "label": "01-login",
+    "horizontalOverflow": false,
+    "overflowDetail": null,
+    "smallTargets": [
+      {
+        "tag": "BUTTON",
+        "cls": "campo-ayuda",
+        "w": 20,
+        "h": 20,
+        "text": "?"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn-toggle-pass",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "auth-switch-link",
+        "w": 157,
+        "h": 15,
+        "text": "¿Olvidaste tu contraseña?"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "auth-switch-link",
+        "w": 66,
+        "h": 15,
+        "text": "Regístrate"
+      }
+    ],
+    "clippedText": []
+  },
+  {
+    "label": "02-dashboard",
+    "horizontalOverflow": false,
+    "overflowDetail": null,
+    "smallTargets": [
+      {
+        "tag": "BUTTON",
+        "cls": "portal-notif-btn",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn btn-secondary",
+        "w": 123,
+        "h": 35,
+        "text": "Cerrar sesión"
+      },
+      {
+        "tag": "A",
+        "cls": "profile-action",
+        "w": 286,
+        "h": 36,
+        "text": "Agregar nombre"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn btn-secondary",
+        "w": 97,
+        "h": 35,
+        "text": "Actualizar"
+      }
+    ],
+    "clippedText": []
+  },
+  {
+    "label": "02b-dashboard-campana-abierta",
+    "horizontalOverflow": false,
+    "overflowDetail": null,
+    "smallTargets": [
+      {
+        "tag": "BUTTON",
+        "cls": "portal-notif-btn",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "",
+        "w": 104,
+        "h": 15,
+        "text": "Marcar todo leído"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn btn-secondary",
+        "w": 123,
+        "h": 35,
+        "text": "Cerrar sesión"
+      },
+      {
+        "tag": "A",
+        "cls": "profile-action",
+        "w": 286,
+        "h": 36,
+        "text": "Agregar nombre"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn btn-secondary",
+        "w": 97,
+        "h": 35,
+        "text": "Actualizar"
+      }
+    ],
+    "clippedText": []
+  },
+  {
+    "label": "03-tickets",
+    "horizontalOverflow": false,
+    "overflowDetail": null,
+    "smallTargets": [
+      {
+        "tag": "BUTTON",
+        "cls": "portal-notif-btn",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "A",
+        "cls": "btn-volver-tablero",
+        "w": 38,
+        "h": 38,
+        "text": "Volver al tablero"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn btn-secondary",
+        "w": 123,
+        "h": 35,
+        "text": "Cerrar sesión"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "campo-ayuda",
+        "w": 20,
+        "h": 20,
+        "text": "?"
+      }
+    ],
+    "clippedText": [
+      {
+        "tag": "SPAN",
+        "cls": "btn-volver-tablero-texto",
+        "id": null,
+        "scrollH": 17,
+        "clientH": 1
+      }
+    ]
+  },
+  {
+    "label": "04-csf",
+    "horizontalOverflow": false,
+    "overflowDetail": null,
+    "smallTargets": [
+      {
+        "tag": "BUTTON",
+        "cls": "portal-notif-btn",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "A",
+        "cls": "btn-volver-tablero",
+        "w": 38,
+        "h": 38,
+        "text": "Volver al tablero"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn btn-secondary",
+        "w": 123,
+        "h": 35,
+        "text": "Cerrar sesión"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "campo-ayuda",
+        "w": 20,
+        "h": 20,
+        "text": "?"
+      }
+    ],
+    "clippedText": [
+      {
+        "tag": "SPAN",
+        "cls": "btn-volver-tablero-texto",
+        "id": null,
+        "scrollH": 17,
+        "clientH": 1
+      }
+    ]
+  },
+  {
+    "label": "05-mi-cuenta",
+    "horizontalOverflow": false,
+    "overflowDetail": null,
+    "smallTargets": [
+      {
+        "tag": "BUTTON",
+        "cls": "portal-notif-btn",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "A",
+        "cls": "btn-volver-tablero",
+        "w": 38,
+        "h": 38,
+        "text": "Volver al tablero"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn btn-secondary",
+        "w": 123,
+        "h": 35,
+        "text": "Cerrar sesión"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn-toggle-pass",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn-toggle-pass",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn-toggle-pass",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      }
+    ],
+    "clippedText": [
+      {
+        "tag": "SPAN",
+        "cls": "btn-volver-tablero-texto",
+        "id": null,
+        "scrollH": 17,
+        "clientH": 1
+      }
+    ]
+  },
+  {
+    "label": "06-credito",
+    "horizontalOverflow": false,
+    "overflowDetail": null,
+    "smallTargets": [
+      {
+        "tag": "BUTTON",
+        "cls": "portal-notif-btn",
+        "w": 34,
+        "h": 34,
+        "text": ""
+      },
+      {
+        "tag": "A",
+        "cls": "btn-volver-tablero",
+        "w": 38,
+        "h": 38,
+        "text": "Volver al tablero"
+      },
+      {
+        "tag": "BUTTON",
+        "cls": "btn btn-secondary",
+        "w": 123,
+        "h": 35,
+        "text": "Cerrar sesión"
+      }
+    ],
+    "clippedText": [
+      {
+        "tag": "SPAN",
+        "cls": "btn-volver-tablero-texto",
+        "id": null,
+        "scrollH": 17,
+        "clientH": 1
+      }
+    ]
+  }
+]

@@ -4,12 +4,59 @@
 // hay integración real con Stripe todavía (confirmado con el usuario) —
 // la columna queda lista para que un futuro webhook la actualice sola
 // sin tener que tocar este archivo ni el esquema de nuevo.
+//
+// suscripcion_prueba_inicia_en / suscripcion_expira_en NUNCA se reciben
+// del cliente (ver propuesta visual confirmada): el admin solo decide
+// enPrueba + diasPrueba, estas dos fechas se calculan aquí. Al prender
+// enPrueba, pruebaIniciaEn se fija en HOY la primera vez (nunca se mueve
+// mientras siga prendido, aunque se edite diasPrueba después) y expiraEn
+// siempre es pruebaIniciaEn + diasPrueba. Al apagar enPrueba, las 2
+// fechas NO se borran — quedan congeladas con su último valor, para que
+// una reactivación futura muestre el trial anterior en vez de perderlo.
 
 const { obtenerPool } = require('../db');
 const { validarSlug } = require('./tenant');
 
 const CICLOS_VALIDOS = ['mensual', 'anual'];
 const ESTATUS_VALIDOS = ['prueba', 'pagada', 'pendiente', 'vencida', 'cancelada'];
+
+// Zona de negocio fija (HQ) para calcular "hoy" — a diferencia de las
+// ventanas "hoy/mes" de backend/utils/limitesPeriodo.js, esto no es un
+// corte financiero por tenant: es la fecha administrativa en que un
+// operador de Control prendió el trial, así que una sola zona de
+// referencia es correcta (nunca Date.UTC/toISOString a secas — mismo
+// gotcha documentado en CLAUDE.md, aquí resuelto con Intl.DateTimeFormat).
+const ZONA_NEGOCIO_CONTROL = 'America/Mexico_City';
+
+function hoyYYYYMMDD() {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONA_NEGOCIO_CONTROL,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const obj = {};
+  for (const parte of partes) obj[parte.type] = parte.value;
+  return `${obj.year}-${obj.month}-${obj.day}`;
+}
+
+// Suma días de calendario a una fecha 'YYYY-MM-DD' operando en
+// componentes UTC a propósito: no representa un instante real, es
+// aritmética de calendario pura, así que usar Date.UTC aquí es seguro
+// (evita que un DST de la zona local del proceso corra el resultado).
+function sumarDias(fechaYYYYMMDD, dias) {
+  const [anio, mes, dia] = fechaYYYYMMDD.split('-').map(Number);
+  const base = Date.UTC(anio, mes - 1, dia);
+  const resultado = new Date(base + dias * 86400000);
+  const yy = resultado.getUTCFullYear();
+  const mm = String(resultado.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(resultado.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+function fechaSoloDia(valor) {
+  return valor ? String(valor).slice(0, 10) : null;
+}
 
 // Error tipado — mismo criterio que ErrorMarcaTenant/ErrorTemaTenant: la
 // capa de rutas distingue "el slug no existe" (404) de "los datos no
@@ -30,25 +77,14 @@ async function registrarEvento(db, tenantId, tipo, detalle, actor) {
   );
 }
 
-function validarFecha(valor, campo) {
-  if (valor === null || valor === undefined || valor === '') return null;
-  if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
-    throw new ErrorSuscripcionTenant(`${campo} debe tener formato YYYY-MM-DD.`, 'validacion');
-  }
-  const d = new Date(`${valor}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) {
-    throw new ErrorSuscripcionTenant(`${campo} no es una fecha válida.`, 'validacion');
-  }
-  return valor;
-}
-
 // Actualiza la suscripción de un tenant existente. `datos`:
 //   enPrueba: boolean
 //   diasPrueba: int > 0, o null
-//   pruebaIniciaEn: 'YYYY-MM-DD', o null
 //   ciclo: 'mensual' | 'anual' | null
-//   expiraEn: 'YYYY-MM-DD', o null
 //   estatus: 'prueba' | 'pagada' | 'pendiente' | 'vencida' | 'cancelada' | null
+// pruebaIniciaEn/expiraEn NUNCA se leen de `datos` — se calculan aquí
+// (ver comentario de cabecera). Si el cliente las manda de todas formas
+// (código viejo, request manual), se ignoran a propósito.
 // Devuelve la fila completa del tenant después del UPDATE.
 async function actualizarSuscripcionTenant(slug, datos = {}, { actor, db = obtenerPool() } = {}) {
   const errorSlug = validarSlug(slug);
@@ -73,8 +109,21 @@ async function actualizarSuscripcionTenant(slug, datos = {}, { actor, db = obten
     diasPrueba = n;
   }
 
-  const pruebaIniciaEn = validarFecha(datos.pruebaIniciaEn, 'La fecha de inicio de prueba');
-  const expiraEn = validarFecha(datos.expiraEn, 'La fecha de expiración');
+  let pruebaIniciaEn;
+  let expiraEn;
+  if (enPrueba) {
+    // Se fija HOY solo la primera vez — si ya había un inicio guardado
+    // (trial ya en curso), se respeta: cambiar días de prueba no debe
+    // reiniciar el conteo de cuántos días ya pasaron.
+    pruebaIniciaEn = fechaSoloDia(tenant.suscripcion_prueba_inicia_en) || hoyYYYYMMDD();
+    expiraEn = diasPrueba ? sumarDias(pruebaIniciaEn, diasPrueba) : null;
+  } else {
+    // Apagado: se congelan los últimos valores conocidos, nunca se
+    // borran (propuesta confirmada) — una reactivación futura los vuelve
+    // a mostrar en vez de perder el rastro del trial anterior.
+    pruebaIniciaEn = fechaSoloDia(tenant.suscripcion_prueba_inicia_en);
+    expiraEn = fechaSoloDia(tenant.suscripcion_expira_en);
+  }
 
   let ciclo = null;
   if (datos.ciclo !== null && datos.ciclo !== undefined && datos.ciclo !== '') {

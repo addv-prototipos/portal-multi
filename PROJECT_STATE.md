@@ -20422,6 +20422,1101 @@ posición antes y después del fix — no solo inspección visual.
   reportando) — falta que el usuario corra `prod/actualizar.sh` en el
   VPS para que yt.addv.com.mx los reciba.
 
+## Punto 383 — Tarjeta "Plan de suscripción" real en Mi Cuenta + alta del usuario master del tenant (9 oct 2026, CERRADO)
+
+Reemplaza el placeholder fijo "Próximamente" (ligado al punto 272 Fase 2,
+Stripe, que sigue diferido) por datos reales leídos de Control, y agrega
+la forma de dar de alta al primer usuario `administrador` de un tenant
+recién aprovisionado sin dejarlo "solo provisionado". Protocolo
+addv-web-app completo: analizar (código real, no memoria — confirmó que
+`contacto_email` YA existe desde el alta de empresa en `/control`,
+segmento 9c, y que el onboarding con RFC/pagos sigue sin construir) →
+revisar impacto → criticar/mejorar (separó "plan+master" de "método de
+cobro/consumo", que sigue bloqueado por Stripe) → propuesta visual
+antes/después (Artifact, capturas reales vía chrome-devtools con banner
+"PROTOTIPO" cuando la vista se simuló sobre la app real) → confirmación
+explícita del usuario → implementar → probar (Jest 1229/1229 sin
+regresión + flujo real de punta a punta en Docker) → asegurar (Control
+sigue siendo la única fuente de verdad del comprador, el tenant nunca lo
+guarda).
+
+- **Backend** (`GET /api/admin/mi-cuenta`, bloque `administrador`/`super`):
+  nuevo `empresa.suscripcion`. Sin `req.tenant` (sitio base ADDV) siempre
+  `{ ilimitada: true }` — mismo criterio que `portalClientesPlanHabilitado`
+  ya usa en ese mismo endpoint. Con tenant: `SELECT ... FROM
+  control_tenants.tenants LEFT JOIN planes` (vía `obtenerPoolControl()`,
+  mismo patrón sin HTTP nuevo entre servicios que `ajustesGlobales.js`,
+  con `try/catch` que no rompe el resto de la respuesta si Control no
+  responde) trae `planNombre`/`estatus`/`ciclo`/`expiraEn`; una query
+  aparte sobre el pool del propio tenant
+  (`SELECT COUNT(*) FROM usuarios WHERE perfil='administrador'`) deriva
+  `masterPendiente`. `correoComprador` (`contacto_email`) solo se expone
+  cuando `masterPendiente` es `true` — mismo criterio de "exponer un dato
+  solo cuando hace falta" que ya aplicó `contactoEmailPortalApagado` del
+  punto 374.
+- **Frontend** (`frontend/admin.html`/`admin.js`): la tarjeta
+  `#micuenta-suscripcion-card` (vive en Mi Cuenta, NO en Configuraciones
+  — no aplica el patrón de 3 registros de CONFIG_SECCIONES) pasa de un
+  párrafo fijo a una grilla (`.micuenta-empresa-grid` reusada, con
+  override de color para fondo navy) con Plan/Estatus/Modo de pago/Vence
+  + una nota "Próximamente" acotada solo a método de cobro/consumo de
+  recursos. Si `masterPendiente`, aparece el bloque "Usuario master" con
+  el correo de Control y un botón que **reusa el modal existente
+  "Crear usuario"** (`abrirCrearUsuarioModal(prefill)`, ahora acepta un
+  prefill opcional de `{perfil, email}` sin romper su único otro llamador
+  sin argumentos) — perfil `administrador` y correo prellenados, pero el
+  nombre de usuario y la contraseña se siguen pidiendo igual que hoy. Tras
+  crear un `administrador`, se refresca `cargarMiCuenta()` para que la
+  tarjeta pase a modo solo-info sin el bloque de alta.
+- **Addendum, mismo día — "correo o RFC basta" SOLO aplica a perfil
+  "cliente" (ya existía); administrador/fiscal/ventas/inventario exigen
+  AMBOS (CERRADO, con una vuelta atrás a medio camino)**: primera pasada
+  interpretó mal el alcance y dejó el nombre de usuario opcional también
+  para los 4 perfiles admin (auto-generando `SINFISCAL-*` si se dejaba
+  vacío) — el usuario corrigió de inmediato: sin un nombre de usuario
+  real, una cuenta admin podía quedar sin forma humana de identificarse
+  para entrar al panel, riesgo real de bloqueo de acceso. Revertido en la
+  misma sesión: `POST /api/admin/usuarios` vuelve a exigir nombre de
+  usuario (≥3 caracteres) Y correo para los 4 perfiles admin, sin
+  excepción — el bloque `else if (!rfc) { auto-generar }` se quitó por
+  completo. `frontend/admin.js`: label/hint vuelven a "Nombre de usuario"
+  (obligatorio) y `rfcObligatorio` vuelve a
+  `perfil !== 'cliente' || planPermite('facturacionHabilitada')`. Lo que
+  SÍ se queda (no se revirtió, no conflictúa con "ambos obligatorios" en
+  la captura): `backend/utils/auth.js:verificarUsuarioAdministrativo()`
+  sigue aceptando login por `rfc` O `email` (clonando el patrón ya
+  probado de `POST /api/auth/login`) — pura conveniencia adicional sobre
+  cuentas que ya tienen los dos datos, nunca reduce lo que se exige al
+  crearlas. Confirmado real en Docker tras el revert: el backend rechaza
+  con 400 "El nombre de usuario debe tener al menos 3 caracteres." un
+  alta sin username (`curl` directo) y el modal de "Crear usuario" lo
+  bloquea igual del lado del cliente. Jest completo 1229/1229 sin
+  regresión. `prod/` sincronizado (`server.js`, `auth.js`, `admin.js`).
+  **Lección para no repetir**: cuando el usuario dice "X o Y basta, no
+  los dos" sin precisar a qué perfil/flujo aplica, no asumir que cubre
+  TODOS los perfiles en juego — confirmar el alcance exacto antes de
+  tocar una validación que, si se relaja de más, puede dejar una cuenta
+  sin forma de entrar al sistema.
+- **Verificación**: `node --check` en `server.js`/`admin.js`. Jest
+  completo `backend/` 1229/1229 sin regresión. Rebuild real
+  (`docker compose build backend frontend` + `--force-recreate`) y flujo
+  de punta a punta en Docker local contra el tenant real `t1`
+  (`plan_id`/`suscripcion_*` en `NULL`, sin fila `perfil='administrador'`
+  — confirmado por SQL directo antes de implementar): tarjeta mostró
+  "Sin plan asignado (manual)"/"Sin configurar"/"Sin definir" reales (no
+  inventados), botón abrió el modal con perfil/correo prellenados
+  (`t@gmail.com`, el `contacto_email` real de t1), alta completada
+  (usuario `MASTER_T1`, toast de invitación real), tarjeta se refrescó
+  sola sin el bloque de alta y "Cuentas de panel" pasó de 0 a 1. Sitio
+  base real (`localhost:8088/admin`, empresa ADDV) confirmado aparte:
+  "Ilimitada" / "Sitio base ADDV", sin bloque de master.
+- **`prod/`**: sincronizado por contenido (`backend/server.js`,
+  `frontend/admin.js`/`admin.css`/`admin.html`) — falta que el usuario
+  corra `prod/actualizar.sh` en el VPS.
+
+## Punto 387 — "Ticket de impresión" separado de "Marca propia" como módulo propio en /control (10 oct 2026, CERRADO)
+
+El usuario reportó que, al crear un plan en `/control`, no aparecía
+ninguna opción para la impresora — porque no existía: desde el punto 368,
+la tarjeta "Ticket de impresión" de Configuraciones compartía el MISMO
+flag que "Marca e identidad visual" (`marcaLookfeelHabilitado`), así que
+el wizard de planes solo mostraba un switch ("Marca propia") que
+encendía las dos cosas juntas, sin forma de separarlas. Protocolo
+addv-web-app completo: analizar (grep del código real confirmó que era
+una decisión deliberada del punto 368, no un olvido — comentario explícito
+"mismo flag que Ticket de impresión") → auditoría completa de los 8
+`planPermite()` de tarjetas + 9 de vistas del sidebar contra el wizard de
+planes: único gap real, todo lo demás ya 1:1 mapeado → criticar (agregar
+un segundo checkbox atado al mismo campo sería cosmético, no resuelve lo
+pedido) → 2 decisiones de diseño confirmadas explícitamente por el
+usuario (dependencia: Ticket de impresión SÍ requiere Ventas, como las
+sub-pestañas de Reportes; migración: hereda el valor de
+`marca_lookfeel_habilitado` que cada tenant/plan ya tenía, nadie pierde
+el ticket) → propuesta visual (Artifact HTML, antes/después del wizard
+replicando clases/colores reales de `admin.css`) → confirmación explícita
+→ implementar → probar (Jest + Playwright real contra Docker/MySQL) →
+asegurar (mismo criterio 404-antes-que-auth que el resto del archivo).
+
+- **Columna nueva**: `ticket_impresion_habilitado` en `tenants` Y en
+  `planes` (`control/scripts/ensureSchema.js`), `DEFAULT 0` en el ALTER —
+  el backfill real corre en la MISMA corrida que agrega la columna
+  (`ticketImpresionReciénAgregada`/`ticketImpresionPlanesReciénAgregada`,
+  mismo patrón ya usado para `sucursales_habilitado`): `UPDATE tenants/
+  planes SET ticket_impresion_habilitado = marca_lookfeel_habilitado`,
+  una sola vez, nunca en restarts posteriores.
+- **Regla de dependencia 13** (ver `stitch/gobierno-funcionalidades/
+  NOTAS.md`): Ticket de impresión requiere Ventas — validada en
+  `control/utils/planes.js:validarReglasDependencia` y
+  `control/utils/tenantEdicion.js:validarReglasDependenciaTenant`, mismo
+  criterio que `reportes_cortes_habilitado`.
+- **Backend**: `backend/utils/tenantContext.js` expone
+  `ticketImpresionHabilitado` (patrón "ausente = apagado", igual que
+  `promocionesHabilitado` — DEFAULT en BD es 0); `GET /api/admin/login`
+  lo agrega a la whitelist `funciones` (17 flags); las 5 rutas de
+  `/api/admin/configuraciones/ticket*` en `backend/server.js` pasan de
+  `requiereFeature('marcaLookfeelHabilitado')` a
+  `requiereFeature('ticketImpresionHabilitado')` — "Marca e identidad
+  visual" no se tocó, sigue en su flag original.
+- **Frontend**: `frontend/admin.js` — `PLAN_GATE_TARJETA_CONFIG['ticket-
+  config-card']` apunta al nuevo flag. `frontend/control.js` — "Ticket de
+  impresión" vive en el Paso 3 "Dependientes" del wizard (mismo patrón
+  que Cuentas por cobrar: `filaDependienteWizard`, `data-dep`, NO en el
+  grid de Módulos del Paso 2, porque SÍ tiene prerrequisito), con cascada
+  real (`alternarModuloWizard`: apagar Ventas apaga Ticket de impresión
+  con toast, igual que CxC). **No se agregó un switch manual en el modal
+  de edición de tenant** — mismo criterio que CxC/Reportes/Promociones,
+  que tampoco tienen override individual ahí (solo vía plan), a
+  diferencia de los 4 switches que sí existen (Facturación/Portal/
+  Sucursales/Marca propia); mantiene el patrón existente en vez de
+  inventar un quinto.
+- **Verificación**: `node --check` en los 6 `.js` tocados. Jest completo
+  backend 1229/1229 y control 348/348 fuera de `test/unit/
+  ensureSchema.test.js` (sin regresión — se corrigieron 3 archivos de
+  test rotos por el cambio: `tenantContext.test.js`,
+  `multitenant.test.js`, `planes.test.js`, más 2 tests nuevos para la
+  regla 13 en `planes.test.js`/`tenantEdicion.test.js`).
+  `control/test/unit/ensureSchema.test.js` tiene 7 tests YA rotos en
+  `main` antes de esta sesión (confirmado con `git stash` — faltan
+  `promociones_habilitado`/`facturacion_pausada`/6 columnas de
+  suscripción, ninguna de esta sesión) — deuda preexistente, no corregida
+  aquí, fuera de alcance. **Funcional real contra Docker/MySQL**: rebuild
+  + `--force-recreate` de `backend`/`control`/`frontend`; SQL directo
+  confirmó el backfill en el tenant real `t1` (`marca_lookfeel=0` →
+  `ticket=0`) y `t2` (`marca_lookfeel=1` → `ticket=1`); `GET /api/admin/
+  login` confirmó `ticketImpresionHabilitado` igual a lo anterior para
+  ambos; `e2e/tests/control-planes-wizard.spec.ts` extendido con 3
+  aserciones nuevas (switch habilitado con Ventas ON, chip "Incluido" en
+  Resumen, cascada a disabled+unchecked al apagar Ventas) — **3/3 en
+  verde contra Docker real**. `admin-plan-gating.spec.ts` falló en 1 test
+  no relacionado (requiere que t1 tenga gastos/inventarios/auditoría
+  apagados A MANO antes de correr, precondición de entorno no cumplida en
+  esta sesión — no es una regresión de este cambio).
+- **`prod/`**: NO sincronizado todavía — pendiente, mismo criterio de
+  siempre (solo por `prod/actualizar.sh` cuando el usuario lo pida).
+
+## Punto 388 — Fechas de prueba calculadas solas en Suscripción de /control + homologación "Ciclo de facturación" (12 oct 2026, CERRADO)
+
+El usuario reportó que `/control` ya tenía la info de suscripción pero el
+admin del tenant no "tomaba" los cambios de fechas ni de "modo de pago".
+Investigación (protocolo addv-web-app completo): `estatus`/`ciclo` SÍ
+sincronizaban en vivo (`GET /api/admin/mi-cuenta` lee
+`control_tenants.tenants` sin caché); "Modo de pago" nunca existió como
+columna — era el label incorrecto de un campo que YA mostraba `ciclo`
+real (fix de 1 línea, aplicado primero). El bug real: "Prueba inicia
+el"/"Expira el" eran inputs de fecha manuales que nadie llenaba, así que
+nunca llegaba nada que sincronizar — no un problema de propagación.
+Propuesta visual (Artifact HTML interactivo, réplica de la pestaña real
+con tokens de `admin.css`) confirmada por el usuario con 2 decisiones:
+ancla de inicio = HOY al prender el toggle (nunca se mueve mientras siga
+prendido), y al apagar el toggle los 3 campos solo se deshabilitan
+visualmente (nunca se borran).
+
+- **`control/utils/tenantSuscripcion.js`**: `pruebaIniciaEn`/`expiraEn`
+  YA NO se leen de `datos` (el cliente ya no los manda; si los manda de
+  todas formas, se ignoran) — se calculan server-side.
+  `hoyYYYYMMDD()` usa `Intl.DateTimeFormat` con `timeZone:
+  'America/Mexico_City'` fija (zona de negocio, no por tenant — es la
+  fecha en que un operador de Control prende el trial, no un corte
+  financiero). `sumarDias()` opera en componentes `Date.UTC` a propósito
+  (aritmética de calendario pura, nunca un instante real). `validarFecha`
+  (muerta tras el cambio) se eliminó.
+- **`frontend/control.html`**: "Prueba inicia el"/"Expira el" pasan de
+  `<input type="date">` a `<input type="text" readonly>` con
+  `field-hint` explicando el cálculo.
+- **`frontend/control.js`**: `actualizarFechasSuscripcionCalculadas()`
+  replica la MISMA regla del backend como vista previa en vivo (ancla =
+  `dataset.original` cargado al abrir el modal, nunca `hoy` si ya había
+  un inicio guardado); `actualizarDisponibilidadCamposPrueba()`
+  deshabilita (`.is-bloqueado` + `disabled`) Días de prueba/Prueba
+  inicia el/Expira el cuando el toggle está apagado. El guardado ya no
+  manda `pruebaIniciaEn`/`expiraEn` en el body; repuebla el formulario
+  con la fila que regresa el PUT (fuente de verdad real, no una
+  suposición optimista del cliente).
+- **Homologación en `frontend/admin.html`/`admin.js`** (Mi Cuenta,
+  tarjeta "Plan de suscripción"): label "Modo de pago" → "Ciclo de
+  facturación" (ya mostraba `suscripcion.ciclo` real, solo el texto
+  estaba mal); fallback vacío "Sin definir" → "Sin configurar" para
+  igualar el wording de Control.
+- **Bug de timezone descubierto en vivo al verificar** (no introducido
+  por este punto, pero expuesto por él — antes `suscripcion_expira_en`
+  siempre era `null` así que nunca se notaba): `formatearFechaSoloDia()`
+  en `admin.js` usa `new Date(fechaISO)` + `toLocaleDateString` — para una
+  columna `DATE` pura tipo `suscripcion_expira_en` ("2026-11-04", sin
+  hora), `new Date()` la interpreta como medianoche UTC y
+  `toLocaleDateString` la repinta en la zona LOCAL del navegador — con
+  México en UTC−6 el día mostrado se corre uno hacia atrás ("04 nov 2026"
+  en BD se veía "03 nov 2026" en Mi Cuenta, reproducido real en Docker).
+  Se agregó `formatearFechaSoloDiaSinTZ()` (aritmética de texto pura,
+  sin `Date`) y se usó SOLO en `micuentaSuscripcionVence` — el único
+  punto de este segmento. **`formatearFechaSoloDia()` original sigue
+  viva sin tocar y el mismo bug sigue presente en sus otros 2 usos**
+  (`r.rango_inicio`/`r.rango_fin` de Cortes/Reportes,
+  `p.vigenciaHasta`/`p.creadoEn` de Promociones) — fuera de alcance de
+  este punto a propósito, no se tocó código de otra feature sin
+  aprobación explícita. Pendiente para una sesión futura si el usuario
+  lo confirma.
+- **Pruebas**: `control/test/unit/tenantSuscripcion.test.js` nuevo, 12
+  casos (validación + las 6 combinaciones de la regla de autocálculo,
+  con `jest.useFakeTimers().setSystemTime(...)` para fijar "hoy"
+  determinista) — 12/12 en verde. Suite completa de `control`:
+  360/367 en verde, los 7 que fallan son los mismos de
+  `ensureSchema.test.js` ya documentados como deuda preexistente en el
+  punto 387 (confirmado de nuevo aquí, no son de este cambio).
+  `node --check` en los 4 archivos tocados.
+- **Funcional real contra Docker/MySQL** (chrome-devtools MCP, clics
+  reales, tenant real `t1`): login en `/control` → pestaña Suscripción →
+  prender Modo de prueba con Días de prueba=25 → preview en vivo mostró
+  "Prueba inicia el: 10/10/2026" / "Expira el: 04/11/2026" antes de
+  guardar → Guardar suscripción → toast de éxito → columna "VENCE" de la
+  lista pasó de "Sin configurar" a "23 días · Prueba" → apagar el toggle
+  (sin guardar) deshabilitó visualmente los 3 campos conservando los
+  valores (screenshot capturado) → login en `/t1/admin` → Mi Cuenta →
+  "CICLO DE FACTURACIÓN" (ya no "Modo de pago") y "VENCE: 04 nov 2026"
+  (tras el fix de timezone; antes de ese fix decía "03 nov 2026")
+  confirmados en pantalla.
+- **`prod/`**: NO sincronizado — pendiente, mismo criterio de siempre.
+
+**Addendum mismo día — botón "Guardar cambios" ambiguo fuera de alcance
+de las pestañas independientes:** el usuario reportó, al revisar el punto
+anterior, que no distinguía la diferencia entre "Guardar suscripción" y
+"Guardar cambios" (2 botones navy idénticos visibles a la vez en la
+pestaña Suscripción). Investigación: `Cancelar`/`Guardar cambios` viven
+FUERA de las 5 `.control-edit-tab-panel` en `frontend/control.html`
+(dentro del mismo `<form id="control-form-editar">`), así que se ven en
+TODAS las pestañas aunque solo General/Plan y funciones realmente los
+usan — Suscripción/Identidad visual ya tienen su propio guardado
+inmediato, Grupo/sucursales no tiene ninguno. No eran botones redundantes
+(cada uno pega a un endpoint distinto) — el problema era de visibilidad,
+no de arquitectura. Propuesta visual (Artifact HTML, antes/después de las
+5 pestañas) confirmada por el usuario. Fix: `TABS_CON_GUARDADO_COMPARTIDO
+= ['general', 'plan']` + `els.btnEditarGuardar.hidden = ...` dentro de
+`cambiarTabEditar()` en `frontend/control.js` — `Cancelar` se queda
+siempre visible (cierra el modal desde cualquier pestaña), solo
+"Guardar cambios" se oculta/muestra según la pestaña activa. Sin tocar
+ningún endpoint ni el patrón de guardado independiente ya documentado.
+Verificado con clics reales en Docker en las 5 pestañas: General/Plan
+muestran el botón, Suscripción/Identidad visual/Grupo lo ocultan (`.btn-
+row .btn{flex:1}` ya existente hace que "Cancelar" ocupe el ancho
+completo solo, sin CSS nuevo). De paso se confirmó con la misma sesión de
+navegador que la sincronía Control→Mi Cuenta de `suscripcion_ciclo` sí
+funciona en vivo (cambiado a "Mensual" en Control, reflejado al instante
+en Mi Cuenta) — el reporte inicial del usuario de "no veo el cambio" era
+caché de navegador tras el rebuild anterior, no un bug.
+
+## Punto 389 — Ciclo de vida de tenants: borrado directo desde "Provisionando", Papelera deja de mezclarse con la lista activa, purga automática a 30 días (12 oct 2026, CERRADO)
+
+El usuario pidió 3 cosas sobre `/control`: (1) una solicitud en
+"Provisionando" (nunca llegó a tener alta real) debe poder borrarse
+directo, sin pasar por baja/papelera; (2) la lista principal "Empresas"
+debe dejar de mostrar tenants en "Baja" — solo viven en Papelera; (3) un
+tenant en "Baja" que lleve 30 días sin reactivarse se elimina solo, con
+aviso explícito al dar de baja. Protocolo completo: análisis delegado a
+un fork de investigación (mapa de rutas/renderTenants/Papelera/
+confirmaciones/cron existente) → propuesta visual (Artifact HTML,
+antes/después de los 3 cambios) → 2 decisiones confirmadas explícitamente
+con el usuario (mecanismo de purga: temporizador propio dentro de
+`control/`, sin cron externo ni infra nueva; "activarse" en el pedido
+original = "reactivarse", única transición válida desde Baja) →
+implementar → probar (43 pruebas unitarias nuevas/actualizadas, control
+366/373 — mismos 7 fallos preexistentes de `ensureSchema.test.js` ya
+documentados en los puntos 387-388; backend 1229/1229) → funcional real
+en Docker con clics reales.
+
+- **Borrado directo desde "Provisionando"**: `eliminarTenantDefinitivo()`
+  (`control/utils/tenantLifecycle.js`) relajó su candado de
+  `estado !== 'baja'` a `!['baja','provisioning'].includes(estado)` —
+  reutiliza el MISMO modal "Eliminar definitivo" (escribir el slug exacto)
+  y el mismo `eliminarTenantFisico()` del backend (DROP DATABASE **IF
+  EXISTS** + purga MinIO, ya seguro para un tenant sin BD física
+  todavía). El guardado atómico del endpoint interno
+  (`POST /internal/eliminar-tenant/:slug` en `backend/server.js`) también
+  se relajó — capturaba `estado !== 'baja'` en 2 sitios (el check inicial
+  y el `DELETE ... AND estado = 'baja'` final): ambos ahora usan
+  `estadoOrigenEliminacion` (el estado real encontrado, baja o
+  provisioning), nunca el literal `'baja'` a secas — si solo se tocaba
+  `control/` sin este lado, el borrado de un "Provisionando" habría
+  fallado con 409 al llegar al backend. `frontend/control.js`:
+  `renderTenants()` agrega el botón "Eliminar" junto a "Activar" en filas
+  `provisioning`.
+- **"Baja" fuera de la lista principal**: `listarTenants()` agrega
+  `t.estado != 'baja'` cuando NO se pasa `estado` explícito (el caso de
+  "Todos los estados" en el combo) — con `estado` explícito (ej. el
+  `estado=baja` que ya usaba Papelera) sigue siendo match exacto, sin
+  cambio. Se quitó la opción "Baja" del combo "Filtrar por estado" de la
+  vista Empresas (`frontend/control.html`) y las ramas muertas de
+  Reactivar/Eliminar-definitivo para `estado==='baja'` en
+  `renderTenants()` (esa vista ya nunca recibe filas en baja; Papelera
+  tiene su propio render loop independiente, sin tocar).
+- **Purga automática a 30 días**: `DIAS_RETENCION_BAJA = 30` +
+  `purgarBajasVencidas()` nuevos en `tenantLifecycle.js` — lista
+  `estado='baja'`, filtra por `baja_en` (convertido a instante UTC real,
+  mismo patrón `instanteUtc()` que ya usa `formatFecha()` del frontend —
+  nunca `new Date()` a secas sobre un DATETIME sin indicador de zona) y
+  llama `eliminarTenantDefinitivo()` por cada vencido, uno por uno (mismo
+  criterio que `vaciarPapelera`: un fallo no detiene a los demás). Como
+  NO corre dentro de una request HTTP (la dispara un temporizador, no un
+  operador), no pasa por el middleware de auditoría de ruta — cada
+  purga exitosa se audita a mano con `registrarAccesoAdmin()` (actor
+  `'sistema:purga-automatica-30d'`, perfil `'super'`, método `'AUTO'`),
+  para no perder el rastro una vez que la fila del tenant (y sus
+  `tenant_eventos`) desaparece junto con la purga. Disparo:
+  `iniciarPurgaAutomatica()` en `control/server.js` — corre una vez 30s
+  después de arrancar y luego cada 24h via `setInterval`, con guarda
+  `purgaEnCurso` contra corridas encimadas; vive dentro de `iniciar()`
+  (solo arranca si el archivo corre directo, nunca al hacer `require` en
+  tests).
+- **Aviso de 30 días al dar de baja**: nuevo elemento opcional
+  `mensajeDestacado` en `confirmarAccion()` (`frontend/control.js`) —
+  línea ámbar (`.control-confirm-destacado`, tokens `--color-warn*` ya
+  existentes, sin paleta nueva) que `abrirModalEliminarTenant` ya no
+  necesita pero "Dar de baja" sí: "Si no se reactiva en 30 días, se
+  elimina de forma permanente e irreversible."
+- **Cuenta regresiva en Papelera** (hallazgo propio al auditar con
+  `ui-ux-pro-max`: sin esto, un operador no tenía forma de saber la
+  urgencia antes de una purga irreversible): columna "Creado" de la
+  tabla de Papelera se reemplazó por "Se elimina en" —
+  `celdaPurgaHtml()`/`diasRestantesPurga()` nuevos en
+  `frontend/control.js`, reusan las mismas clases `.estatus-badge
+  .estatus-vence-ok/-proximo/-vencido` que ya pinta la columna "Vence" de
+  Suscripción (mismo lenguaje verde/ámbar/rojo, cero CSS nuevo).
+- **Pruebas**: `control/test/unit/tenantLifecycle.test.js` — 1 test
+  actualizado (`listarTenants` sin filtro ahora SÍ arma WHERE), 1 test
+  nuevo de exclusión con estado explícito, 1 test nuevo de
+  `eliminarTenantDefinitivo` desde "provisioning", 4 tests nuevos de
+  `purgarBajasVencidas` (incluye el de `DIAS_RETENCION_BAJA === 30`) — 31
+  tests en ese archivo, todos en verde. Suite completa de `control`:
+  366/373 (los 7 que fallan son `ensureSchema.test.js`, deuda
+  preexistente ya documentada 2 veces, confirmada otra vez sin relación a
+  este cambio). `backend`: 1229/1229 sin regresión (el endpoint interno
+  tocado no tenía test propio que lo ejercitara, pero tampoco se quitó
+  ningún caso válido, solo se amplió el conjunto de estados aceptados).
+  `node --check` en los 5 archivos tocados.
+- **Funcional real contra Docker/MySQL** (chrome-devtools MCP, clics
+  reales): un tenant real en "Provisionando" (slug `ddd`) se eliminó
+  directo con el botón nuevo — lista pasó de 3 a 2 tenants sin pasar por
+  baja. Combo del filtro sin "Baja"; los 3 tenants de prueba e2e que
+  antes se veían mezclados en la lista principal ya no aparecen ahí
+  (Papelera real mostró "0 empresas" en el momento de la verificación —
+  no fue la purga automática, que no corrió contra ellos: sus fechas no
+  llegaban a 30 días y el log del contenedor no registró ninguna purga;
+  lo más probable es que el propio usuario los haya limpiado en paralelo
+  durante la sesión). Prueba reversible con `t2`: Dar de baja → modal
+  mostró el aviso ámbar de 30 días → Papelera mostró "30 días restantes"
+  en verde → Reactivar devolvió a `t2` a "Activo", sin tocar datos reales.
+- **`prod/`**: NO sincronizado — pendiente, mismo criterio de siempre.
+
+## Punto 390 — "Accesos — MinIO" en /control: bloc de notas cifrado, NO un vault vivo (12 oct 2026, CERRADO)
+
+El usuario pidió guardar en /control las credenciales de MinIO + la URL
+para llegar a él, con usuario/password en la BD de control. Esto choca de
+entrada con una regla de arquitectura ya documentada varias veces
+(`control/` nunca toca servicios externos directo, siempre delega a
+`backend/`), así que el protocolo completo aquí fue sobre todo de
+**crítica y refinamiento del requerimiento** (usando `/prompt-master` —
+sin otra herramienta de IA de destino, se aplicó su disciplina de
+extracción de intención + máximo de preguntas directo a este mismo build)
+antes de proponer nada:
+1. ¿Para qué exactamente? → el usuario confirmó: SOLO un registro para
+   tener a la mano + poder editarlo (nunca llamadas directas de
+   `control/` a la API de MinIO) — no rompe el límite de arquitectura.
+2. ¿Qué usuario de MinIO? → el usuario eligió explícitamente el
+   root/admin real (el mismo que ya usa `backend/` vía
+   `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`), sabiendo que es más sensible
+   que uno de alcance acotado.
+3. Hallazgo propio no pedido por el usuario: el usuario ROOT de MinIO se
+   fija al arrancar el contenedor (env vars), **no se puede rotar vía
+   API** — "editar" nunca iba a poder significar "rotar la contraseña
+   real". Presentada la disyuntiva (vault vivo con `backend/` leyendo de
+   control vs. registro informativo), el usuario resolvió: **es un bloc
+   de notas, no sincronizado, el `.env` sigue siendo el método real de
+   recuperación.** Esto evita el peor desenlace posible (un operador
+   "rota" la contraseña aquí, cree que ya cambió, pero `backend/`+MinIO
+   siguen con la vieja).
+
+Propuesta visual (Artifact HTML, mockup del formulario con los tokens
+reales de `admin.css`) confirmada → implementar → probar → asegurar.
+
+- **`control/utils/accesoMinio.js`** (nuevo): primer cifrado REVERSIBLE
+  del repo — todo lo demás es hash irreversible de login
+  (`crypto.scrypt`, `backend/utils/auth.js`). AES-256-GCM con clave
+  nueva `CONTROL_VAULT_KEY` (32 bytes hex, SOLO en el `.env` del
+  servidor, nunca en la BD — primer requisito de seguridad no
+  negociable: aunque sea "solo un bloc de notas", el VALOR que se escribe
+  ahí puede ser el password real, así que se cifra igual). Reusa la
+  tabla genérica `ajustes_globales` (punto 370, mismo patrón que
+  `imagen_max_mb`) con 4 claves nuevas — cero tabla nueva. Dos fallos de
+  descifrado tratados distinto a propósito: `CONTROL_VAULT_KEY`
+  faltante/inválida propaga `ErrorAccesoMinio('config')` sin
+  esconderlo (mismo trato en lectura y escritura — antes de corregirlo,
+  la lectura lo tragaba en silencio y mostraba "sin contraseña" en vez de
+  avisar que el sistema no está configurado, encontrado en revisión
+  propia antes de escribir las pruebas); un valor corrupto o cifrado con
+  una clave ya rotada devuelve `null` sin tumbar el resto del registro.
+  `password === undefined` (campo no enviado) conserva el valor guardado;
+  `password === ''` (el operador lo borra a propósito) sí lo limpia.
+  Password vacío/null nunca exige que `CONTROL_VAULT_KEY` esté
+  configurada (solo hace falta la clave cuando de verdad hay algo que
+  cifrar/descifrar).
+- **Rutas**: `GET`/`PUT /api/control/accesos/minio` en `control/server.js`
+  — mismos middlewares que el resto de `/control` (`requireAdminAuth` +
+  `requireAdminArea()`, solo perfil super). El GET devuelve el password
+  YA DESCIFRADO a propósito (el operador necesita poder verlo/copiarlo);
+  se enmascara del lado del cliente. `ErrorAccesoMinio('config')` → 503,
+  validación → 400.
+- **Frontend**: pestaña nueva "Accesos" en el sidebar de `/control`
+  (`frontend/control.html`/`control.js`) — agregada en LAS DOS listas de
+  navegación que ya existen (sidebar de escritorio Y menú móvil
+  `#control-menu-movil`, gotcha ya documentado en PROJECT_STATE: "sidebar
+  reordenado pero menú móvil quedó desincronizado" — esta vez agregadas
+  juntas desde el inicio). Campo de contraseña reusa el componente real
+  ya existente del login (`.password-field`/`.btn-toggle-pass`, mismo
+  SVG de ojo), no uno inventado. Botón "Abrir consola" (`window.open` a
+  la URL guardada) + aviso permanente de que editar aquí no sincroniza
+  con nada real.
+- **`docker-compose.yml`**: `CONTROL_VAULT_KEY: ${CONTROL_VAULT_KEY:-}`
+  agregado al servicio `control` (vacío por default, como
+  `INTERNAL_CACHE_SECRET` — un secreto real nunca lleva un default
+  adivinable). **Pendiente del usuario**: agregar
+  `CONTROL_VAULT_KEY=<64 hex>` al `.env` real (Claude no puede leer/
+  escribir ese archivo) — generar con
+  `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+  Sin esa variable, guardar o leer un password real responde 503; url/
+  usuario/notas y un registro vacío funcionan igual sin ella.
+- **Pruebas**: `control/test/unit/accesoMinio.test.js` nuevo, 17 casos
+  (roundtrip de cifrado, IV distinto cada vez, los 2 modos de fallo de
+  `descifrar()` por separado, `password` undefined vs `''`, validación de
+  URL/longitud, error 503 por configuración) — 17/17 en verde. Suite
+  completa de `control`: 383/390 (mismos 7 fallos preexistentes de
+  `ensureSchema.test.js`, ya documentados en los puntos 387-389, sin
+  relación con este cambio). `node --check` en los 4 archivos tocados.
+- **Funcional real contra Docker** (chrome-devtools MCP, clics reales):
+  clave de prueba temporal SOLO en el default de `docker-compose.yml`
+  (nunca en `.env`, revertida al terminar) — formulario vacío carga sin
+  error (password vacío no exige la clave), guardado con URL/usuario/
+  password/notas reales mostró el toast correcto, reload completo del
+  navegador confirmó persistencia, toggle "Mostrar/Ocultar contraseña"
+  reveló el valor real correctamente descifrado. Registro de prueba
+  limpiado (vaciado y guardado) antes de cerrar, para no dejar datos
+  falsos en la BD del usuario.
+- **`prod/`**: no aplica — `prod/` no tiene contenedor `control` (por
+  diseño, confirmado en el punto 389).
+
+**Addendum mismo día — bug real de status code, encontrado al probar con
+la clave ya en el `.env` real:** las rutas devolvían **503** para
+`ErrorAccesoMinio('config')` — exactamente el error que CLAUDE.md ya
+documenta ("nginx intercepta 502/503/504 globalmente, los disfraza de
+mantenimiento.html") y que yo mismo escribí en la nota de ese punto sin
+aplicarlo a mi propio código. Reproducido real: `PUT` con password
+devolvía la página de "En breve volveremos" en vez del JSON de error.
+Corregido a **500** en ambas rutas (`control/server.js`). De paso quedó
+confirmado que `CONTROL_VAULT_KEY` todavía no estaba en el `.env` real
+del usuario (solo en `.env.example`, que es plantilla — docker-compose
+no lo lee) — con el fix de status code, el mensaje de error real
+("CONTROL_VAULT_KEY no está configurada...") ya le llega en vez de la
+pantalla de mantenimiento genérica.
+
+## Punto 391 — Refinamiento de onboarding (investigación), 4 planes reales creados en /control, "Accesos — SMTP" (12 oct 2026, EN CURSO)
+
+El usuario pidió refinar el requerimiento de "onboarding guiado + planes
+públicos + Stripe" usando `/prompt-master` — investigación completa antes
+de construir nada (fork de research): `CLARVO_Planes.md` en este repo
+resultó ser un brief de marketing con precios inconsistentes, NO un dato
+real; clarvo.mx no vive en este repo (es `D:\srv\clarvo-Site`, confirmado
+luego con acceso real); tenantIntake.js no captura plan/pago/usuario
+master; cero Stripe; control/ no puede mandar correo. Se entregaron 2
+Artifacts (guía de Stripe paso a paso + 5 opciones de onboarding/3 de
+configuración de cobro) y se espera decisión del usuario — **el
+onboarding/Stripe en sí sigue sin construirse, a propósito**, el usuario
+dijo explícitamente "espera por más indicaciones".
+
+Mientras tanto, 2 pasos de preparación SÍ pedidos y completados:
+
+- **4 planes reales creados en /control** (CLARVO Solicita/Controla/Crece/
+  Domina, IDs 19-22) — precios y nombres tomados de
+  `D:\srv\clarvo-Site\src\data\plans.ts` (fuente real confirmada por el
+  usuario 2026-10-09, NO el `CLARVO_Planes.md` de este repo). Flags de
+  función mapeados a mano desde el texto de cada plan (`ventas_habilitado`
+  desde "Registro de ventas", etc.) — varios items de marketing (ej.
+  "Operación offline", "Automatizaciones disponibles", "Soporte
+  prioritario") **no tienen flag técnico correspondiente todavía**,
+  quedaron sin marcar a propósito en vez de inventar un campo — revisar
+  en `/control` → Planes si se quiere ajustar algo del mapeo.
+  **Gotcha real encontrado**: pasar acentos (`ó`, `í`) en el body de
+  `curl` desde Git Bash en Windows los corrompe (codepage de la consola,
+  no UTF-8) — "operación" se guardó como "operaci�n" en el primer
+  intento. Corregido escribiendo el JSON a un archivo (vía la herramienta
+  de escritura, UTF-8 real) y usando `curl --data-binary @archivo` en vez
+  de interpolar el string en el comando — mismo truco necesario para
+  cualquier dato con acentos que se mande por `curl` en este entorno.
+- **"Accesos — SMTP"** (mismo apartado que "Accesos — MinIO", punto 390):
+  copia informativa cifrada del SMTP del sitio base (sin tenant) que
+  `backend/` ya usa — pedido explícito: "copia los datos... exactamente
+  iguales". **Interpretado como COPIA, no migración** (el usuario dijo
+  "muévelos" pero borrar la config de `backend/` rompería funciones ya en
+  producción — factura lista, recuperación de contraseña, aviso al
+  contador — todas siguen leyendo su propia `configuracion_global` sin
+  tocar). `control/utils/cifrado.js` nuevo — el cifrado AES-256-GCM se
+  sacó de `accesoMinio.js` a un módulo compartido (código pequeño se
+  duplica entre backend/control, pero DENTRO de control/ no — ver
+  CLAUDE.md) — `accesoMinio.js` y `accesoSmtp.js` (nuevo) lo importan
+  los dos. `control/server.js`: `ErrorAccesoMinio`/`ErrorAccesoSmtp`
+  (validación, 400) vs. `ErrorCifrado` (config, 500 — nunca 503, mismo
+  gotcha de nginx del punto anterior) ahora se capturan por separado en
+  las 4 rutas de Accesos.
+  **Limitación real, no resuelta**: `backend/utils/email.js:
+  configSmtpParaMostrar()` quita el password de CUALQUIER respuesta a
+  propósito (`const { password, ...resto } = config`) — nunca se expuso
+  en texto plano, ni a la UI ni a la API, desde que existe esa función.
+  Se copiaron host/puerto/seguridad/usuario/nombre remitente/correo
+  remitente (sí expuestos) vía `PUT /api/control/accesos/smtp` — **la
+  contraseña real sigue pendiente de que el usuario la vuelva a
+  capturar una sola vez** en Accesos → SMTP, no hay forma técnica de
+  copiarla automáticamente.
+- **Pruebas**: `control/test/unit/cifrado.test.js` nuevo (8 casos, movidos
+  de `accesoMinio.test.js`), `accesoSmtp.test.js` nuevo (14 casos),
+  `accesoMinio.test.js` actualizado (ahora separa `ErrorAccesoMinio` de
+  `ErrorCifrado`) — 32 tests en los 3 archivos de cifrado/accesos, todos
+  en verde. Suite completa de `control`: 398/405 (mismos 7 fallos
+  preexistentes de `ensureSchema.test.js`).
+- **Funcional real contra Docker**: 4 planes creados vía API y
+  confirmados visualmente en `/control` → Planes (lista las de prueba
+  E2E viejas mezcladas, sin tocar — fuera de alcance). SMTP sembrado y
+  confirmado visualmente en Accesos — host/puerto/seguridad/usuario/
+  remitentes correctos, password vacío esperando captura manual.
+- **`prod/`**: no aplica (`/control` no existe en prod, punto 389).
+
+## Punto 392 — Onboarding público, Segmento A: wizard real en clarvo.mx (modelo 3 "modal sobre precios") + borrador en /control, sin Stripe todavía (13 oct 2026, CERRADO)
+
+Continuación directa del punto 391. El usuario pidió primero **8
+propuestas visuales** del modelo de onboarding (Artifact estático, sin
+código), luego un **prototipo interactivo** clicable del mismo flujo
+(Artifact con JS vanilla, sin código real), y finalmente, tras ver las 8
+variantes **interactivas** (checklist/wizard/modal/split/chat/acordeón/
+checkout), eligió explícitamente el **modelo 3 — modal sobre la sección
+de precios** y dio luz verde a "Segmento A": construir el wizard real en
+`clarvo.mx` + el motor de borrador en `/control`, dejando el cobro real
+con Stripe para un Segmento C posterior (checkout por default, confirmado
+por el usuario; Stripe sigue sin configurar). El usuario también pidió
+explícitamente aclarar en el campo "Correo de contacto" que ahí llegan
+las aclaraciones de los clientes y los avisos de mantenimiento/
+promociones de Clarvo, y que es editable después desde la cuenta admin —
+ese texto ya quedó en el paso real, no solo en los mockups.
+
+**Decisión de arquitectura confirmada con el usuario antes de construir**:
+UI del wizard vive en `clarvo-Site` (Astro estático + isla React), el
+motor (borrador, validación, futuro Stripe) vive en `control/` — nunca en
+`clarvo-Site` ni en `backend/`. Mismo criterio de todo el proyecto:
+`control/` y `backend/` nunca comparten código, `clarvo-Site` es un repo
+totalmente aparte sin build step compartido con ninguno de los dos.
+
+**Qué es un "borrador" aquí**: una fila especulativa en
+`control_tenants.onboarding_borradores` — existe ANTES de que haya ningún
+tenant real, identificada por un `token` opaco (32 bytes), nunca por
+slug. Guarda plan elegido, ciclo, datos de empresa, config inicial del
+panel y credenciales del admin (contraseña ya hasheada, nunca en texto
+plano) — pero el PASO DE PAGO queda honesto: "pendiente", nunca se finge
+un cobro exitoso (Stripe no existe todavía). Al completar el último paso,
+el borrador queda en `paso_actual='completado'` con el pago sin resolver;
+conectar Stripe y convertir un borrador en tenant real es el Segmento B/C,
+fuera de alcance de este punto.
+
+**`control/` (motor, nuevo)**:
+- `control/utils/onboardingBorrador.js` — `crearBorrador`,
+  `obtenerBorrador`, `actualizarBorrador`, `verificarSlugDisponible`,
+  `hashPasswordAdmin`/`validarPasswordAdmin` (mismo formato `salt:hash`
+  scrypt que `backend/utils/authUsuario.js`, duplicado a propósito).
+  `plan_clave` es un string libre (`solicita|controla|crece|domina`), NO
+  un `plan_id` con FK al catálogo de `control/utils/planes.js` — decisión
+  explícita (documentada también en `pendientes.html` v-391): `clarvo.mx`
+  sigue mostrando precios desde su propio `src/data/plans.ts`, no desde
+  este catálogo, hasta que exista el CMS en vivo (fuera de alcance). 17
+  tests unitarios nuevos, suite completa de `control`: 415/422 en verde
+  (mismos 7 fallos preexistentes de `ensureSchema.test.js`, ajenos a este
+  punto — confirmado con `git stash` que ya fallaban antes de esta
+  sesión).
+- Tabla `onboarding_borradores` (sin FK, `control_app` no tiene
+  `REFERENCES` — mismo motivo que el resto de `control/`) vía
+  `asegurarTablaOnboardingBorradores()` en `control/scripts/ensureSchema.js`,
+  invocada en `iniciar()` de `control/server.js`.
+- 4 rutas públicas nuevas, SIN `requireAdminAuth` (un prospecto sin cuenta
+  todavía) bajo `/api/public/onboarding/*`: `POST .../borrador`,
+  `GET .../borrador/:token`, `PUT .../borrador/:token`,
+  `GET .../slug-disponible`. Nunca devuelven `admin_password_hash` — solo
+  un booleano `tieneContrasena`.
+- Candados propios de esta superficie, independientes de los existentes
+  (nunca se ensanchó `ALLOWED_ORIGIN`/`adminApiLimiter`, que protegen
+  `/api/control/*` autenticado): `onboardingPublicLimiter` (40 req/15min
+  por IP) y `onboardingCors` (`ONBOARDING_CORS_ORIGIN`, default
+  `https://clarvo.mx`) montado con `app.use('/api/public/onboarding',
+  onboardingCors)` — `app.use`, no `app.get/post`, para que el preflight
+  `OPTIONS` de CORS también quede cubierto. Verificado real: un `Origin`
+  ajeno recibe el header fijo `https://clarvo.mx` (nunca se refleja el
+  origin del request), así que el navegador bloquea la lectura aunque el
+  endpoint respondió 200 — comportamiento correcto, no una reflexión
+  vulnerable.
+- `docker-compose.yml`: variable `ONBOARDING_CORS_ORIGIN` agregada al
+  servicio `control` (mismo patrón `${VAR:-}` que `CORS_ORIGIN`).
+
+**`clarvo-Site` (UI, nuevo)**:
+- `src/lib/onboardingApi.ts` — cliente fetch tipado hacia
+  `/api/public/onboarding/*`, usa `publicEnv.apiBaseUrl`
+  (`PUBLIC_CLARVO_API_BASE_URL`, ya documentada en `.env.example` desde
+  antes de este punto, nunca usada hasta ahora) — nunca lee
+  `import.meta.env.PUBLIC_*` directo, mismo criterio que el resto del
+  sitio.
+- `src/components/onboarding/OnboardingModal.tsx` — isla React, modelo 3
+  (overlay con blur sobre `PricingSection`), 5 pasos reales: Plan (toggle
+  mensual/anual) → Pago (placeholder honesto, "pago pendiente", nunca
+  finge éxito) → Datos de empresa (slug autogenerado + verificación de
+  disponibilidad en vivo contra `control`, con el texto exacto sobre
+  aclaraciones/mantenimientos/promociones en "Correo de contacto") →
+  Configurar panel (nombre comercial, zona horaria) → Usuario y
+  contraseña del admin → pantalla final "Guardamos tu progreso" con
+  `https://clarvo.mx/<slug>` (formato de ruta real, corregido tras
+  feedback del usuario — nunca subdominio). Reanuda un borrador existente
+  vía `localStorage` si el visitante cierra y vuelve a abrir.
+- `PricingSection.astro`: los 4 CTA pasan de `<a href="#cotizador-a-medida">`
+  a `<button data-open-onboarding={plan.id}>`, que dispara
+  `window.dispatchEvent(new CustomEvent('clarvo:abrir-onboarding', {detail}))`
+  con el plan Y el ciclo mensual/anual que el visitante ya tenía elegido
+  en esa misma sección. `<OnboardingModal client:load />` (bug real
+  encontrado y corregido: con `client:visible`, como el componente
+  renderiza `null` mientras está cerrado, el `IntersectionObserver` de
+  Astro nunca lo considera "visible" — nunca hidrata, el CTA no hace
+  nada. `client:load` es correcto aquí: es infraestructura de escucha de
+  eventos, no contenido que deba esperar scroll).
+
+**Probado funcional real, no solo mocks** (Docker+MySQL real +
+Playwright-equivalente vía Claude-in-Chrome, siguiendo la regla del
+proyecto): stack mínimo levantado (`mysql`, `mysql-control`, `control`),
+flujo de 5 pasos completo ejecutado en un navegador real contra
+`localhost:4321` (Astro dev) hablando con `control` real — plan
+confirmado, pago marcado pendiente, empresa+slug+correo guardados (con
+verificación de disponibilidad real contra MySQL), config de panel,
+credenciales de admin (password nunca expuesta, solo
+`tieneContrasena:true`), pantalla final mostrando
+`clarvo.mx/tacos-el-buen-sabor` y el correo de aviso — captura de
+pantalla confirmada visualmente. CORS, rate limit y status codes (201/
+400/404/409) probados con `curl`/`node http` directo contra el contenedor
+real. `npm run build` de `clarvo-Site` limpio (sin errores de TS/JSX).
+Exposición de puerto usada solo para esta prueba (`ports:
+127.0.0.1:4001:4001` temporal en `docker-compose.yml`) **revertida** antes
+de cerrar — en producción esta ruta pública necesita su propio proxy de
+nginx (o equivalente), todavía sin construir, ver pendientes.
+
+**Fuera de alcance de este punto, a propósito (Segmento B/C,
+pendientes)**:
+- Conectar Stripe real (producto dinámico vía API, Checkout, webhooks,
+  reintentos/mensajes configurables) — el paso de pago sigue siendo un
+  placeholder honesto.
+- Convertir un borrador completado en tenant real (llamar al flujo
+  existente de aprovisionamiento/activación + enviar el correo con los
+  accesos reales).
+- Proxy de nginx (u otro mecanismo) para que `clarvo.mx` en producción
+  pueda llegar a `/api/public/onboarding/*` de `control` por HTTPS —
+  `control` solo expone el puerto a la red interna de Docker
+  (`expose: "4001"`), nunca al host, por diseño (mismo criterio de
+  seguridad del segmento 9b). Decidir esto es condición previa para
+  desplegar este Segmento A en producción real.
+- `prod/`: no aplica — `/control` no existe en `prod/` (punto 389), y
+  `clarvo-Site` es un repo/deploy totalmente aparte de este.
+
+## Punto 393 — Onboarding público, Segmento B: borrador → tenant real self-service, sin operador (13 oct 2026, CERRADO)
+
+Continuación directa del punto 392. El usuario pidió seguir con el
+Segmento B ("convertir un borrador en tenant real"). Antes de tocar
+código se le preguntó explícitamente el alcance, porque hoy crear la BD
+física de un tenant requiere privilegios que `control_app` nunca tiene a
+propósito (segmento 9c): ¿solo dejar todo listo para que un operador
+complete el alta a mano, o automatizar también la creación física? El
+usuario eligió automatizar completo y lo reforzó aparte: **"el sistema
+debe funcionar como selfservice"**. Decisión tomada SIN reversar la
+frontera de seguridad de `control_app` (sigue angosta, sin privilegios
+sobre ninguna `tenant_*`) — en vez de eso, se reusó el MISMO patrón de
+confianza que ya existía para reactivar tenants suspendidos: `control/`
+delega el trabajo físico a `backend/` vía HTTP interno con
+`X-Internal-Secret` (`control/utils/notificarBackend.js`), nunca gana
+privilegios nuevos de MySQL.
+
+**Cadena completa, un solo POST desde el navegador** (`POST
+/api/public/onboarding/convertir/:token`, pública, mismo rate-limit/CORS
+que el resto del Segmento A):
+1. **Intake** — reusa `crearTenantIntake()` (ya existía, segmento 9c)
+   para crear la fila en `control_tenants.tenants` (`estado='provisioning'`).
+2. **Aprovisionamiento físico + activación** — reusa `activarTenant()`
+   (ya existía, `control/utils/tenantLifecycle.js`), que a su vez llama
+   `activarTenantFisico()` → `POST /internal/activar-tenant/:slug` en
+   `backend/` (ya existía, confirmado que el usuario `app` de MySQL YA
+   tiene el GRANT amplio sobre `tenant_%` desde que corrió
+   `provisionar-tenant.js` por primera vez — no hubo que tocar ningún
+   privilegio).
+3. **Plan** — resuelve `plan_clave` (string libre del borrador,
+   `solicita|controla|crece|domina`) contra el `nombre` real del catálogo
+   de planes (`CLARVO Solicita`/etc., los 4 creados en el punto 391) y
+   reusa `actualizarDatosTenant({planId})` (ya existía) — best-effort,
+   nunca bloquea el alta si el catálogo cambió de nombre.
+4. **Usuario administrador inicial — NUEVO** — `POST
+   /internal/crear-admin-inicial/:slug` en `backend/server.js` (mismo
+   patrón de confianza que activar-tenant: solo `X-Internal-Secret`, sin
+   `requireAdminAuth` porque no hay ningún admin todavía que autenticar,
+   es justo lo que esta ruta crea). Recibe `passwordHash` YA hasheado
+   (formato `salt:hash` scrypt, calculado en el wizard —
+   `control/utils/onboardingBorrador.js:hashPasswordAdmin()`, idéntico al
+   de `backend/utils/authUsuario.js`) — `control/` nunca ve ni reenvía la
+   contraseña en texto plano. `rfc`/nombre de usuario se deriva del
+   local-part del correo del admin (`admin@x.com` → `ADMIN`). Idempotente:
+   si el tenant ya tiene un `administrador`, no duplica. Envía el correo
+   de bienvenida (host/portal real, `clarvo.mx/<slug>/admin` y
+   `clarvo.mx/<slug>`) con `enviarCorreo()` — corre FUERA de
+   `ejecutarComoTenant()`, así que usa el `pool` por defecto = SMTP del
+   **sitio base** (la cuenta Gmail de ADDV, única SMTP disponible — el
+   tenant nuevo no tiene la suya propia todavía), fire-and-forget (un
+   fallo de correo no revierte la cuenta ya creada).
+5. Marca el borrador `estado='convertido'`.
+
+Orquestación completa en `control/utils/onboardingConversion.js`
+(`convertirBorrador()`) — **idempotente paso a paso** (releer antes de
+repetir, nunca asume que "no hay fila" significa "hay que crearla"): un
+reintento del navegador tras un timeout de red no duplica el tenant, no
+reactiva algo ya activo, y no duplica el usuario admin. Límite conocido y
+aceptado: una vez que el borrador pasa a `estado='convertido'`, un
+reintento tardío de esa MISMA conversión (ej. el navegador perdió la
+respuesta pero el servidor sí terminó) ya no encuentra el borrador activo
+y responde 404 en vez de repetir el mismo resultado de éxito — no se
+resolvió en este punto (requeriría guardar el resultado de la conversión
+para poder "repetirlo" en vez de rehacerlo, fuera de alcance de esta
+sesión).
+
+**`frontend/OnboardingModal.tsx`**: el último paso (credenciales) ya no
+solo guarda datos — al hacer clic en "Guardar y continuar" encadena el
+PUT final con `convertirBorrador(token)` en el mismo clic
+(`finalizarYActivar()`). La pantalla final pasó de "guardamos tu
+progreso, esperamos a Stripe" (Segmento A, honesto pero no accionable) a
+**"Tu cuenta ya está activa"** con el link real
+`https://clarvo.mx/<slug>/admin` — el cobro con Stripe sigue pendiente
+(Segmento C), pero la cuenta y el acceso son reales ya, no una promesa.
+
+**Probado funcional real, no solo mocks**: stack completo levantado
+(`mysql`, `mysql-control`, `minio`, `backend`, `control`), flujo
+`crear borrador → PUT empresa/config/credenciales → convertir` ejecutado
+vía HTTP real contra el contenedor real — confirmado con queries directas
+a MySQL: fila en `control_tenants.tenants` con `estado='activo'` y
+`plan_id` real asignado, base de datos física `tenant_<slug>` creada con
+su tabla `usuarios` y el administrador real adentro (`password_hash` de
+161 caracteres, formato `salt:hash` correcto). **Login real verificado**:
+`GET /api/admin/mi-cuenta` con Basic Auth usando el usuario y LA MISMA
+contraseña que se escribió en el wizard respondió `200 OK` — la cadena
+completa funciona de punta a punta, no solo "se crean filas". Correo de
+bienvenida: SMTP del sitio base confirmado configurado con contraseña en
+esta BD local (`notificaciones@addv.mx`), sin errores en el log del
+backend tras el envío — consistente con que se entregó. Reintento de
+`convertir` sobre un token ya convertido confirmado devolviendo 404 (ver
+límite conocido arriba, no es un bug, es el comportamiento documentado).
+Exposición temporal de puerto para esta prueba (`ports:
+127.0.0.1:4001:4001`) **revertida** antes de cerrar — mismo criterio que
+el punto 392. Interrupción real de Docker a medio probar (el motor de
+Docker se reinició solo, exit code 137 en todos los contenedores,
+ajeno a este cambio) — se documenta porque causó un primer intento
+fallido ("No se pudo conectar con el backend") que no era un bug del
+código, solo infraestructura local cayéndose; el reintento tras levantar
+el stack de nuevo fue 100% exitoso.
+
+Suite completa tras este punto: `control` 422/429 (mismos 7 fallos
+preexistentes de `ensureSchema.test.js`, ajenos), 7 tests nuevos en
+`control/test/unit/onboardingConversion.test.js`; `backend` 698/698 sin
+regresiones.
+
+**Fuera de alcance de este punto, a propósito (Segmento C y después)**:
+- Conectar Stripe real (sigue siendo el único hueco real para que esto
+  sea un self-service de verdad cobrando) — Checkout por default, ya
+  confirmado antes.
+- Proxy de nginx (u otro mecanismo) para que `clarvo.mx` en producción
+  real llegue a `/api/public/onboarding/*` — sigue sin resolverse, mismo
+  hueco documentado en el punto 392. Bloqueador real de despliegue, no de
+  funcionalidad local.
+- El límite de idempotencia de reintento-sobre-ya-convertido descrito
+  arriba.
+- `prod/`: no aplica (mismo motivo que el punto 392).
+
+## Punto 394 — Límite de filas del importador de Inventarios configurable en /control + soporte real a .XLS (13 oct 2026, CERRADO)
+
+El usuario reportó el mensaje real "El archivo trae 11552 filas, más del
+límite configurado de 10000" al importar un catálogo, y pidió dos cosas:
+(1) que ese límite se pudiera cambiar desde `/control`, en la misma zona
+donde ya vive el máximo de imagen (punto 370), y (2) que el importador de
+Inventarios (admin, con y sin tenant) acepte también `.xls` real (Excel
+97-2003), no solo `.xlsx`/`.csv`.
+
+**Parte 1 — límite de filas, ahora global de plataforma.** El límite
+vivía como `inv_import_max_filas` en `backend/utils/inventarioConfig.js`
+(per-tenant, tabla `configuracion`) pero **nunca tuvo ninguna UI que lo
+expusiera** — era un default fijo de 10000 sin forma real de cambiarlo.
+Se movió a `import_max_filas` en `ajustes_globales` (`control_tenants`),
+mismo patrón 1:1 que `imagen_max_mb`: `control/utils/ajustesGlobales.js`
+(`getImportMaxFilas`/`setImportMaxFilas`, rango 100-100000, default
+10000) + `GET`/`PUT /api/control/ajustes/import-max-filas` en
+`control/server.js` + tarjeta colapsable "Ajustes de importación" en
+`frontend/control.html`/`control.js`, justo debajo de "Ajustes de
+imágenes" en Super Admins. El backend solo LEE, vía
+`backend/utils/ajustesGlobales.js:obtenerImportMaxFilasCacheado()` (caché
+45s, mismo mecanismo que `obtenerImagenMaxMbCacheado`), usado en
+`backend/server.js` donde antes estaba `obtenerValorConfig('inv_import_max_filas')`.
+La clave vieja se eliminó de `inventarioConfig.js` (comentario explica por
+qué, para que nadie la reintroduzca).
+
+**Parte 2 — .xls real.** `ExcelJS` (ya usado en el proyecto) **solo lee
+XLSX/OOXML, nunca el binario viejo OLE2/BIFF8 de .xls** — aceptar la
+extensión sin un parser nuevo habría tronado con cualquier .xls real. Se
+agregó SheetJS (`xlsx` en npm) **solo para esta rama de lectura**
+(`listarHojasXLS`/`parsearArchivoXLS` en
+`backend/utils/inventarioImportacion.js`, require perezoso) — ExcelJS
+sigue intacto para todo lo demás (exportar plantillas/reportes). Decisión
+de librería confirmada explícitamente con el usuario antes de instalar
+(alternativa descartada: aceptar la extensión sin parser real, que habría
+fallado en la práctica). **Vulnerabilidad real evitada**: la versión de
+`xlsx` publicada en el registro de npm está fija en 0.18.5 (SheetJS deja
+de publicar ahí) y trae 2 CVE altas (prototype pollution
+GHSA-4r6h-8v6p-xvw6, ReDoS GHSA-5pgg-2g8v-p4x9) sin fix disponible vía
+npm — se instaló en cambio el tarball oficial parcheado
+(`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`, mismo mecanismo
+que la propia documentación de SheetJS recomienda para npm), confirmado
+con `npm audit` limpio de `xlsx` después. Validación de firma binaria
+nueva, mismo criterio que `esZipValido`: `esXLSValido()` en
+`backend/utils/validate.js` (firma OLE2 `D0 CF 11 E0 A1 B1 1A E1`), nunca
+confiar solo en la extensión. `ALLOWED_IMPORTACION_EXTENSIONS` (gate de
+`multer`) y el switch de `ext` en `POST /api/admin/inventarios/importaciones`
+(`backend/server.js`) ganan la rama `.xls`. Esquema: `imp_importaciones.formato`
+tenía `CHECK (formato IN ('csv','xlsx'))` — se amplió a incluir `'xls'`
+en `backend/db.js`, con migración `DROP CHECK`+`ADD CONSTRAINT` que corre
+en cada arranque (mismo patrón que `chk_tickets_tipo_pago`/`chk_reportes_tipo`,
+para que bases ya aprovisionadas también la reciban). Frontend: `accept`
+del `<input>` de Inventarios y los textos de ayuda en
+`frontend/admin.html`/`admin.js` ahora dicen "CSV, XLSX o XLS" — un solo
+codebase sirve admin con y sin tenant, así que no hubo que tocar una
+segunda superficie.
+
+Suites completas tras este punto, sin regresiones: `backend` 63/63 (1234
+tests), `control` 23/24 (mismos 7 fallos preexistentes de
+`ensureSchema.test.js`, ajenos — ver punto 393). `node --check` limpio en
+los 8 archivos tocados.
+
+**Fuera de alcance de este punto, a propósito**: no se validó contra
+Docker+MySQL reales ni se subió un `.xls` real en navegador (piso de
+"pruebas funcionales" del protocolo `addv-web-app`) — queda pendiente que
+el usuario lo confirme con clics reales o se corra Playwright contra el
+stack real antes de considerar esto validado en producción.
+
+## Punto 395 — Gap real encontrado por el usuario: el alta manual desde "Nueva empresa" nunca creaba administrador (13 oct 2026, CERRADO)
+
+El usuario, revisando el Segmento B recién cerrado (punto 393), preguntó:
+*"en control no se pide el usuario admin del tenant que se contrata, ¿cómo
+lo va a conectar a la base del tenant?"* — pregunta que destapó un hueco
+real, **preexistente a esta sesión, nunca introducido por el trabajo de
+onboarding**: el modal "Nueva empresa" de `/control` (alta manual, operada
+por un humano de ADDV, segmento 9c) nunca capturó correo/contraseña de
+administrador, y no existe ningún mecanismo de bootstrap de sesión para
+un tenant con 0 usuarios (`requireAdminAuth` no tiene excepción para eso).
+Un tenant creado por esa vía quedaba, literal, sin forma de entrar.
+Confirmado leyendo `frontend/control.html` (el modal real, campos:
+nombre/marca/logo/slug/correo de contacto/notas — ninguno de admin) antes
+de proponer nada.
+
+**Decisión del usuario**: seguir la misma filosofía self-service del
+Segmento B, y **nunca forzar cambio de contraseña** — la que el operador
+captura en el modal es la real que la persona va a usar, igual que en el
+wizard de clarvo.mx (pedirle cambiarla después sería redundante, su
+propia palabra).
+
+**Reuso, no reinvención**: el mismo backend interno
+`/internal/crear-admin-inicial/:slug` del punto 393 cierra este hueco
+también aquí — un tenant necesita exactamente lo mismo sin importar si
+llegó por el wizard público o por un operador. Único código nuevo:
+- `control/utils/credencialesAdmin.js` — `hashPasswordAdmin`/
+  `validarPasswordAdmin`/`derivarNombreUsuario` extraídos a su propio
+  archivo (antes vivían duplicados/sueltos en `onboardingBorrador.js` y
+  `onboardingConversion.js`) — ahora un solo lugar, usado por los 3 flujos
+  (wizard público, conversión, alta manual).
+- `POST /api/control/tenants/:slug/activar` (existente, segmento 9c)
+  ahora acepta `adminEmail`/`adminPassword` **opcionales** en el body: si
+  se mandan, la misma llamada activa el tenant Y crea su administrador
+  real. Si se dejan en blanco, el comportamiento es **idéntico al de
+  siempre** (solo activa, sin admin) — no se forzó el campo, no se rompió
+  el flujo de dos pasos para quien lo prefiera. Idempotente: un reintento
+  sobre un tenant que esta misma ruta ya dejó "activo" (el paso de admin
+  falló la vez pasada) no reactiva nada, solo repite el paso del admin —
+  `crearAdminInicialFisico` en backend/ ya detecta si el admin ya existe.
+  500, nunca 502/503/504, para el fallo del paso de admin — esta ruta SÍ
+  pasa por el nginx público (`/api/control/*`), a diferencia de las rutas
+  nuevas del punto 392/393 que todavía no están proxyadas.
+- `frontend/control.html`/`control.js` — dos campos nuevos opcionales
+  ("Correo del administrador"/"Contraseña del administrador") en el modal
+  "Nueva empresa", con el mismo texto explicando la disyuntiva (activación
+  inmediata vs. dejarlo en "Provisionando" como siempre). El submit
+  encadena intake → activar-con-admin en un solo clic cuando se llenan;
+  si falla el paso de admin, el toast lo deja claro y ofrece activar
+  manualmente después (la empresa ya quedó registrada, nunca se pierde).
+
+**Bug real atrapado por las pruebas automatizadas antes de llegar a
+Docker** (no solo encontrado — corregido en la misma sesión): la primera
+versión de la ruta pre-leía el tenant con `obtenerTenantPorSlug()` ANTES
+de llamar `activarTenant()`, para poder saltarse la reactivación si ya
+estaba "activo" — pero `activarTenant()` YA hace esa misma lectura
+internamente como su primer paso, así que la pre-lectura duplicaba la
+consulta y además, al no distinguir "activo" de "suspendido"/"baja",
+habría dejado crear un administrador nuevo sobre un tenant suspendido o
+dado de baja (hueco de seguridad real, nunca llegó a producción). Fix:
+intentar `activarTenant()` siempre primero (mismo comportamiento de
+siempre para el caso normal, cero lecturas extra); solo si falla con
+`codigo==='estado_invalido'` Y se trajeron credenciales de admin, se hace
+UNA lectura de confirmación y se verifica explícitamente `estado ===
+'activo'` antes de proceder — cualquier otro estado sigue devolviendo el
+409 original, sin excepción. Atrapado por 2 de los 6 tests nuevos
+fallando contra el mock existente (`test/integration/control.test.js`),
+no por inspección manual.
+
+**Probado funcional real contra Docker/MySQL** (no solo mocks): alta
+manual completa — intake + activar con admin en un solo flujo — contra el
+contenedor real, confirmado `adminCreado:true` en la primera llamada y
+`adminCreado:false` en el reintento (idempotente de verdad). **Login real
+verificado** igual que en el punto 393: mismo usuario/contraseña
+capturados en el modal, `GET /api/admin/mi-cuenta` respondió `200 OK`.
+Caso `slug` inexistente sin admin confirmado en 404 (comportamiento de
+siempre, sin regresión).
+
+Suite completa tras este punto: `control` 441/448 (434 pasan + mismos 7
+fallos preexistentes de `ensureSchema.test.js`, ajenos — 6 tests nuevos
+en `control/test/integration/control.test.js`), `backend` sin tocar
+(ningún archivo de `backend/` cambió en este punto). `node --check`
+limpio en los 3 archivos de `control/` tocados y en `frontend/control.js`.
+
+**Fuera de alcance de este punto, a propósito**: el mismo límite de
+idempotencia que el punto 393 (reintento sobre un resultado ya exitoso
+que el navegador perdió, en vez de un fallo real, no se distingue — caso
+raro, no resuelto). `prod/`: no aplica (`/control` no existe ahí, punto
+389).
+
+## Punto 396 — Rediseño "Hoja y vista previa" del importador de Inventarios: resumen + tabla condensada + pie de botones anclado (13 oct 2026, CERRADO)
+
+Continuación directa del punto 394 (el punto 395, en paralelo, fue un
+gap distinto sobre alta manual de tenants — ver arriba, sin relación). El
+usuario reportó, con captura real, que
+al subir `inventario.xlsx` (11,552 filas, 10 columnas) la vista previa
+quedaba ilegible (texto partido letra por letra) y no encontraba el botón
+"Siguiente". Propuesta visual con 5 alternativas (Artifact, protocolo
+`addv-web-app`) — el usuario eligió la **Propuesta 5: "Resumen primero,
+tabla cruda después"**.
+
+**Causa raíz (dos bugs distintos, confirmados antes de proponer nada)**:
+(1) `.admin-table{table-layout:fixed; min-width:760px}` repartía el ancho
+del modal en partes iguales entre las 10 columnas del archivo (~75px cada
+una), partiendo nombres de producto letra por letra; (2)
+`.inv-importacion-modal` tenía `overflow-y:auto` en el contenedor
+COMPLETO (encabezado + pasos + tabla + pie de navegación comparten un solo
+scroll) — con una vista previa larga, el pie con "Siguiente" quedaba
+empujado fuera de la pantalla.
+
+**Implementado en `frontend/admin.html`/`admin.js`/`admin.css`** (paso 2
+del wizard de 6 pasos):
+- **Pie de botones anclado** (beneficia los 6 pasos, no solo el 2):
+  `.inv-importacion-modal` pasa a `overflow-y:hidden`, solo
+  `.inv-import-cuerpo` scrollea (`overflow-y:auto`) — encabezado,
+  indicador de pasos y pie de navegación quedan siempre visibles.
+- **Tabla legible**: `#inv-import-preview-tabla{table-layout:auto}` +
+  `white-space:nowrap` en celdas (antes heredaba `table-layout:fixed` de
+  `.admin-table`), con scroll horizontal propio (ya lo daba
+  `.admin-table-wrap`).
+- **Resumen primero**: 4 tarjetas (Filas/Columnas/Hoja/Tamaño —
+  `estadoImport.archivo.size`, ya disponible client-side, sin tocar el
+  backend) + tabla condensada a las primeras 5 columnas
+  (`LIMITE_COLUMNAS_CONDENSADO_PREVIEW`) con chip
+  "+N columna(s) más — ver completo" que expande/colapsa
+  (`renderTablaPreviewImport()`, `estadoImport.previewExpandido`).
+
+Validado con clics reales en Docker/MySQL real (no Playwright esta vez,
+confirmación visual directa del usuario vía claude-in-chrome contra su
+sesión real de `/admin`): archivo de prueba real (220 filas × 10
+columnas, mismo patrón de datos que la captura original) — tarjetas
+correctas, tabla legible sin texto partido, toggle expandir/colapsar
+funcional, botón "Continuar al mapeo" siempre visible, paso 3 "Mapear
+cabeceras" sin regresión (mismo pie anclado). `node --check` limpio en
+`admin.js`.
+
+## Punto 399 — Importador de Inventarios roto en tenants (gap de schema, no de código) + ejemplos de proveedor/precio detectados en el UI (14 oct 2026, CERRADO)
+
+El usuario reportó que el importador masivo "solo funciona en el sitio
+base" — probado en `http://localhost:8088/sry/admin` y el wizard tronaba
+al validar.
+
+**Causa raíz, confirmada contra código real antes de tocar nada** (nunca
+asumir desde un mensaje de usuario — ver memoria `task-observer`
+observación #1): el código del importador SÍ es tenant-aware (`API_BASE`
+en `admin.js` ya antepone el slug, las 8 rutas de
+`/api/admin/inventarios/importaciones*` en `server.js` ya llevan
+`requiereFeature('inventariosHabilitado')`). El bug real es el gotcha YA
+documentado en este archivo sobre `ensureSchema()`: las columnas
+`valor_overrides_json`/`limpieza_mezcla_json` (agregadas el 13 oct para
+el punto 397/398, sin documentar en su momento — gap de doc real, no solo
+hipotético) solo llegaron a `portal_facturacion` (pool base, migra en
+cada arranque) — **ningún tenant ya aprovisionado las tenía**: `tenant_sry`
+y los otros 8 tenants de prueba locales (`t1`, `t2`, `sdf`, `seedtest`,
+`manual-alta-mv72rvgs`, `manual-alta2-mv72xs2k`,
+`papeleria-segmentb-mv71rydg`, `papeleria-segmentb-mv71tpd9`)
+reventaban con `ER_BAD_FIELD_ERROR: Unknown column 'valor_overrides_json'`
+en `PUT /api/admin/inventarios/importaciones/:id/mapeo` (500, "Ocurrió un
+error interno" en el wizard). Reproducido real en Docker/MySQL contra
+`tenant_sry` vía claude-in-chrome antes de tocar nada.
+
+**Fix**: reinvocar `/internal/activar-tenant/:slug` (idempotente,
+`ensureSchema(poolTenant)`) contra los 9 tenants locales — no fue un
+cambio de código. Validado con el archivo real de 11,552 filas
+(`inventario.xlsx`, el mismo del punto 396) contra `tenant_sry`: subida,
+vista previa, mapeo y validación completas sin error. **Pendiente para
+producción real** (yt.addv.com.mx): si hay tenants reales ya
+aprovisionados ahí, correr el mismo `POST /internal/activar-tenant/:slug`
+por cada uno antes de que usen el importador — no se tocó prod en esta
+sesión (localhost por defecto).
+
+**Mejora de UI pedida en el mismo reporte**: el hallazgo de "datos
+mezclados" (punto 398) ya resolvía proveedor/precio detectados
+(mover/descartar/ignorar vía los 2 `<select>`), pero solo mostraba UN
+ejemplo de precio en una frase de prosa y los proveedores enterrados en
+el mismo párrafo — el usuario pidió ver varios ejemplos de cada campo
+para juzgar si de verdad es un proveedor/precio antes de decidir qué
+hacer. `backend/utils/inventarioImportacion.js`:
+`hallazgosCalidad` ahora incluye `ejemplosProveedor`/`ejemplosPrecio`
+(hasta 8 valores distintos, ordenados por frecuencia, mismo criterio que
+`tokensConfirmados`). `frontend/admin.js:renderCalidadImport()` pinta esos
+ejemplos como chips (`.inv-import-calidad-chip`, mismo lenguaje visual que
+`.corte-chip`) justo arriba de cada `<select>` de destino. Validado visual
+contra el mismo archivo real: proveedor muestra "MAYASA, VIPLA, OPTIMO,
+DJ, MODERNA, SP, HULES, PISTON"; precio muestra "$60, $57, $85, $120,
+$100, $75, $69, $64". 55/55 tests unitarios de
+`inventarioImportacion.test.js` sin regresión, `node --check` limpio en
+ambos archivos.
+
+**Bug real #2, encontrado al probar también `.xls` (no solo `.xlsx`) en el
+mismo tenant**: `releerArchivoImportacion()` (`backend/server.js:9456`,
+usada por los pasos de Validación/Ejecutar para releer el archivo ya
+subido) solo distinguía `'xlsx'` vs. todo-lo-demás-es-CSV — nunca se
+actualizó cuando se agregó soporte XLS real (punto 394). Con un `.xls`
+subido, "Validar archivo" tronaba 500
+(`CsvError: Invalid Opening Quote`, el parser de CSV intentando leer
+bytes binarios OLE2/BIFF8). Mismo patrón en `nombreArchivoImportacion()`
+y el `Content-Type` al guardar en MinIO: un `.xls` se guardaba como
+`original.csv` con mime `text/csv` (funcionaba por casualidad — lectura y
+escritura usan el mismo helper — pero mal etiquetado para cualquier
+inspección/descarga futura). Las 3 funciones ahora tienen rama explícita
+`'xls'` (`parsearArchivoXLS(buffer, importacion.hoja)`,
+`'original.xls'`, `application/vnd.ms-excel`). Validado con el mismo
+archivo real (`inventario.xls`, 2.3 MB, 11,552 filas) contra `tenant_sry`
+tras redeploy: subida → vista previa → mapeo → validación completas sin
+error, mismos 2,712 hallazgos de datos mezclados que con el `.xlsx`
+equivalente. 722/722 tests unitarios de backend sin regresión,
+`node --check` limpio. Nota para la próxima vez que se agregue un formato
+de archivo nuevo al importador: grep `formato === 'xlsx'` en
+`server.js` para encontrar los 3 sitios que necesitan su rama gemela —
+no solo el de subida inicial.
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
@@ -20457,3 +21552,9 @@ posición antes y después del fix — no solo inspección visual.
 - Histórico siempre visible + paginación real en Ventas/Gastos/CxC + candado de traslape en cierre mensual (punto 380): `GET /api/admin/ordenes-compra` paginado real + `resumenCxc` en `backend/server.js`, `GET /api/admin/gastos` sin ocultamiento por defecto, `cargarOrdenes`/`renderOrdenesConPendientes`/`renderPaginacionServidor` + `cxcBaseCache`/`cxcCobradasCache`/`cargarCxcBase`/`cargarCxcCobradasPagina` en `frontend/admin.js`, candado `corridaEnProgreso` + pausa entre lotes en `backend/utils/cierreMensual.js`
 - Suscripción (prueba/ciclo/expiración/estatus de cobro, manual — sin Stripe aún) por tenant (punto 381): 6 columnas `suscripcion_*` en `control/scripts/ensureSchema.js`, `control/utils/tenantSuscripcion.js` (`actualizarSuscripcionTenant`), `PUT /api/control/tenants/:slug/suscripcion` en `control/server.js`, pestaña independiente "Suscripción" + anillo en vivo + columna "Vence" + filtro client-side "Próximos a vencer" en `frontend/control.html`/`control.js`/`admin.css`
 - Venta mínima / punto de equilibrio en "Utilidad neta del mes" (punto 384): `mes_actual.dias_mes` en `backend/server.js` (`GET /api/admin/resumen-financiero`), selector de 4 tipos de gráfica (línea de equilibrio por defecto, velocímetro, bullet chart, termómetro) con preferencia en localStorage en `renderResumenFinUtilidad`/`vmRender*` de `frontend/admin.js`, estilos `.vm-*` + `--anim-speed` scoped en `frontend/admin.css`
+- Plan de suscripción real en Mi Cuenta + alta del usuario master (punto 383): `empresa.suscripcion` en `GET /api/admin/mi-cuenta` de `backend/server.js` (lee `planes`/`suscripcion_*`/`contacto_email` de Control vía `obtenerPoolControl()`, `masterPendiente` vía `COUNT(usuarios WHERE perfil='administrador')`), tarjeta `#micuenta-suscripcion-card` + `aplicarEstadoSuscripcionMiCuenta()` en `frontend/admin.html`/`admin.js`, botón de alta reusa `abrirCrearUsuarioModal(prefill)` (ahora acepta `{perfil, email}` opcional)
+- "Ticket de impresión" como módulo propio, separado de "Marca propia" (punto 387): columna `ticket_impresion_habilitado` (tenants + planes) en `control/scripts/ensureSchema.js` con backfill condicional desde `marca_lookfeel_habilitado`, regla de dependencia 13 (requiere Ventas) en `control/utils/planes.js`/`tenantEdicion.js`, flag `ticketImpresionHabilitado` en `backend/utils/tenantContext.js` + 5 rutas `/api/admin/configuraciones/ticket*` en `backend/server.js`, Paso 3 "Dependientes" del wizard en `frontend/control.js`, `PLAN_GATE_TARJETA_CONFIG['ticket-config-card']` en `frontend/admin.js`
+- Onboarding público, Segmento A — wizard real modelo 3 en `clarvo.mx` + borrador en `/control`, sin Stripe aún (punto 392): `control/utils/onboardingBorrador.js` + tabla `onboarding_borradores` en `control/scripts/ensureSchema.js`, rutas públicas `/api/public/onboarding/*` + `onboardingPublicLimiter`/`onboardingCors` en `control/server.js`, `clarvo-Site/src/lib/onboardingApi.ts` + `clarvo-Site/src/components/onboarding/OnboardingModal.tsx` + CTAs de `clarvo-Site/src/components/site/PricingSection.astro`
+- Onboarding público, Segmento B — borrador → tenant real self-service, sin operador (punto 393): `backend/server.js` `POST /internal/crear-admin-inicial/:slug` (usuario administrador inicial + correo de bienvenida vía SMTP del sitio base), `control/utils/onboardingConversion.js` (`convertirBorrador`, orquestación idempotente intake+activación+plan+admin), `control/utils/notificarBackend.js:crearAdminInicialFisico`, `POST /api/public/onboarding/convertir/:token` en `control/server.js`, `clarvo-Site/src/lib/onboardingApi.ts:convertirBorrador` + pantalla final real en `OnboardingModal.tsx:finalizarYActivar`
+- Límite de filas del importador de Inventarios global en /control + soporte real a .XLS (punto 394): `import_max_filas` en `control/utils/ajustesGlobales.js`/`control/server.js` (tarjeta "Ajustes de importación" en `frontend/control.html`/`control.js`), `backend/utils/ajustesGlobales.js:obtenerImportMaxFilasCacheado`, `listarHojasXLS`/`parsearArchivoXLS` (SheetJS) en `backend/utils/inventarioImportacion.js`, `esXLSValido` en `backend/utils/validate.js`, `imp_importaciones.formato` ampliado a `'xls'` en `backend/db.js`
+- Alta manual de /control crea administrador real (punto 395): `control/utils/credencialesAdmin.js` (hash/validación/derivación de usuario, compartido por los 3 flujos de alta), `POST /api/control/tenants/:slug/activar` en `control/server.js` acepta `adminEmail`/`adminPassword` opcionales (reusa `/internal/crear-admin-inicial/:slug` del punto 393), campos nuevos en el modal "Nueva empresa" de `frontend/control.html`/`control.js`

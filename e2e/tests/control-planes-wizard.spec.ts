@@ -94,12 +94,22 @@ test('crea un plan nuevo recorriendo los 4 pasos, con cascadas y bloqueos reales
     await chkCortes.check();
     await expect(chkCortes).toBeChecked();
 
+    // Ticket de impresión (punto en curso, 2026-10-10 — separado de
+    // "Marca propia") SÍ debe estar habilitado (Ventas está ON), mismo
+    // patrón que Cuentas por cobrar (data-dep, no data-reporte).
+    const ticketSwitch = page.locator('[data-dep="ticket_impresion_habilitado"]');
+    await expect(ticketSwitch).toBeEnabled();
+    await ticketSwitch.locator('xpath=..').click();
+    await expect(ticketSwitch).toBeChecked();
+
     await page.click('#btn-planes-guardar'); // -> paso 4
 
     // ---------- Paso 4: Resumen ----------
     await expect(page.locator('.planes-wizard-step.is-active')).toContainText('Resumen');
     const filaVentasResumen = page.locator('#planes-wizard-resumen-body tr', { hasText: 'Ventas' }).first();
     await expect(filaVentasResumen.locator('.planes-chip')).toHaveText('Incluido');
+    const filaTicketResumen = page.locator('#planes-wizard-resumen-body tr', { hasText: 'Ticket de impresión' });
+    await expect(filaTicketResumen.locator('.planes-chip')).toHaveText('Incluido');
     await expect(page.locator('#btn-planes-guardar-label')).toHaveText('Guardar plan');
 
     await page.click('#btn-planes-guardar');
@@ -135,8 +145,8 @@ test('reabre el plan creado: la cascada apaga Cuentas por cobrar y Cortes al apa
   await expect(tarjetaVentas).not.toHaveClass(/is-selected/);
 
   // La cascada debe haber avisado sobre Resumen financiero y al menos
-  // una de las pestañas de Reportes.
-  await expect(page.locator('#control-toast')).toContainText(/Resumen financiero|Cortes|Cuentas por cobrar/);
+  // una de las pestañas de Reportes (o Ticket de impresión).
+  await expect(page.locator('#control-toast')).toContainText(/Resumen financiero|Cortes|Cuentas por cobrar|Ticket de impresión/);
 
   await page.click('#btn-planes-guardar'); // -> paso 3
   const cxcSwitch = page.locator('[data-dep="cxc_habilitado"]');
@@ -145,6 +155,9 @@ test('reabre el plan creado: la cascada apaga Cuentas por cobrar y Cortes al apa
   const chkCortes = page.locator('[data-reporte="reportes_cortes_habilitado"]');
   await expect(chkCortes).toBeDisabled();
   await expect(chkCortes).not.toBeChecked();
+  const ticketSwitch = page.locator('[data-dep="ticket_impresion_habilitado"]');
+  await expect(ticketSwitch).toBeDisabled();
+  await expect(ticketSwitch).not.toBeChecked();
 
   await page.click('#btn-planes-guardar'); // -> paso 4
   await page.click('#btn-planes-guardar'); // guardar

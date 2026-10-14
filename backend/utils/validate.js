@@ -383,7 +383,7 @@ const ALLOWED_IMPORTACION_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/octet-stream',
 ]);
-const ALLOWED_IMPORTACION_EXTENSIONS = new Set(['.csv', '.xlsx']);
+const ALLOWED_IMPORTACION_EXTENSIONS = new Set(['.csv', '.xlsx', '.xls']);
 
 // Firma binaria de un CSV (§34.9): "nunca confiar en la extensión". Un CSV
 // real es texto — la señal fiable de que en realidad es otra cosa (binario
@@ -392,6 +392,16 @@ const ALLOWED_IMPORTACION_EXTENSIONS = new Set(['.csv', '.xlsx']);
 function esCSVValido(buffer) {
   if (!buffer || buffer.length === 0) return false;
   return !buffer.includes(0x00);
+}
+
+// Firma binaria de un .xls real (Excel 97-2003, OLE2/Compound File Binary
+// Format) — mismo criterio que esZipValido para .xlsx: nunca confiar en la
+// extensión, validar los bytes reales antes de pasarle el buffer al parser.
+const XLS_MAGIC_SIGNATURE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+
+function esXLSValido(buffer) {
+  if (!buffer || buffer.length < XLS_MAGIC_SIGNATURE.length) return false;
+  return XLS_MAGIC_SIGNATURE.every((byte, idx) => buffer[idx] === byte);
 }
 
 module.exports = {
@@ -406,6 +416,7 @@ module.exports = {
   ALLOWED_IMPORTACION_MIME_TYPES,
   ALLOWED_IMPORTACION_EXTENSIONS,
   esCSVValido,
+  esXLSValido,
   detectRealMimeType,
   detectRealImageMimeType,
   esZipValido,

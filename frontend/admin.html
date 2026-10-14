@@ -2735,9 +2735,11 @@
       <!-- Marca e identidad visual (Punto 210) — el administrador del
            propio tenant edita logo/favicon/colores/radio, lo mismo que hoy
            solo editaba un super desde /control. Gateada por
-           "marcaLookfeelHabilitado" (mismo flag que "Ticket de impresión"
-           de abajo) — ver PLAN_GATE_TARJETA_CONFIG en admin.js. El
-           formulario completo lo inyecta frontend/marcaTemaEditor.js
+           "marcaLookfeelHabilitado" — ver PLAN_GATE_TARJETA_CONFIG en
+           admin.js. "Ticket de impresión" de abajo tenía el mismo flag
+           hasta el punto en curso (2026-10-10): ahora es su propio módulo
+           ("ticketImpresionHabilitado", requiere Ventas), separado de este.
+           El formulario completo lo inyecta frontend/marcaTemaEditor.js
            (compartido con control.js) dentro de #marca-tema-body. -->
       <section class="admin-config-card" id="marca-tema-card">
         <button type="button" class="admin-config-toggle" id="btn-toggle-marca-tema" aria-expanded="false" aria-controls="marca-tema-body">
@@ -2753,10 +2755,12 @@
         <div class="admin-config-body" id="marca-tema-body" hidden></div>
       </section>
 
-      <!-- Ticket de impresión — logo + plantilla (Punto 368). Gateada por
-           "marcaLookfeelHabilitado" (el mismo flag de "Marca propia / Look
-           & Feel" ya usado para marca_logo_url/tema_json desde /control,
-           punto 244) — ver PLAN_GATE_TARJETA_CONFIG en admin.js. Layout
+      <!-- Ticket de impresión — logo + plantilla (Punto 368; flag propio
+           desde el punto en curso, 2026-10-10). Gateada por
+           "ticketImpresionHabilitado" — módulo independiente de "Marca
+           propia", requiere Ventas (regla de dependencia 13, ver
+           control/utils/planes.js) — ver PLAN_GATE_TARJETA_CONFIG en
+           admin.js. Layout
            "formulario + vista previa en vivo" (Propuesta 2, confirmada por
            el usuario): cada cambio en los campos de la izquierda redibuja
            el ticket de la derecha al instante, sin esperar a "Guardar". -->
@@ -4367,11 +4371,47 @@
             </div>
           </section>
 
-          <!-- Plan de suscripción — visual, ligado al punto 272 Fase 2
-               (Stripe, explícitamente diferido). Sin cifras inventadas. -->
+          <!-- Plan de suscripción: plan/estatus/ciclo reales leídos de
+               Control (nunca guardados en el tenant); sin tenant (sitio
+               base ADDV) siempre "Ilimitada", mismo criterio que
+               portalClientesPlanHabilitado arriba. Si el tenant no tiene
+               usuario master todavía, muestra el correo del comprador
+               (contacto_email, ya obligatorio desde el alta de empresa en
+               /control) y un botón que reusa el modal existente de "Crear
+               usuario" (perfil administrador prellenado) — nunca un
+               formulario nuevo. Método de cobro/consumo de recursos sigue
+               "Próximamente" (punto 272 Fase 2, Stripe diferido a
+               propósito, sin tocar). -->
           <section class="micuenta-card micuenta-card-ancha micuenta-card-navy" id="micuenta-suscripcion-card" hidden>
-            <h2 class="micuenta-card-titulo micuenta-card-titulo-navy">Plan de suscripción <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Cobro por suscripción vía Stripe — punto 272 Fase 2, diferido a propósito.">Próximamente</span></h2>
-            <p class="micuenta-suscripcion-texto">Cuando el cobro esté activo, aquí verás tu plan, fecha de renovación, método de cobro y consumo de recursos (almacenamiento, cuentas de panel) de este tenant.</p>
+            <h2 class="micuenta-card-titulo micuenta-card-titulo-navy">Plan de suscripción</h2>
+            <div class="micuenta-empresa-grid micuenta-suscripcion-grid">
+              <div>
+                <span class="micuenta-empresa-label">Plan contratado</span>
+                <p class="micuenta-empresa-valor" id="micuenta-suscripcion-plan">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label" id="micuenta-suscripcion-estatus-label">Estatus de cobro</span>
+                <p class="micuenta-empresa-valor" id="micuenta-suscripcion-estatus">—</p>
+              </div>
+              <div id="micuenta-suscripcion-ciclo-wrap">
+                <span class="micuenta-empresa-label">Ciclo de facturación</span>
+                <p class="micuenta-empresa-valor" id="micuenta-suscripcion-ciclo">—</p>
+              </div>
+              <div id="micuenta-suscripcion-vence-wrap">
+                <span class="micuenta-empresa-label">Vence</span>
+                <p class="micuenta-empresa-valor" id="micuenta-suscripcion-vence">—</p>
+              </div>
+            </div>
+            <p class="micuenta-suscripcion-texto" id="micuenta-suscripcion-nota"></p>
+            <div class="micuenta-suscripcion-master" id="micuenta-suscripcion-master" hidden>
+              <span class="micuenta-empresa-label">Usuario master</span>
+              <p class="micuenta-suscripcion-master-texto">Este tenant todavía no tiene un usuario administrador activo.</p>
+              <p class="micuenta-suscripcion-master-correo">Correo del comprador, leído de Control: <strong id="micuenta-suscripcion-correo-comprador">—</strong></p>
+              <button type="button" class="btn-suscripcion-alta" id="btn-suscripcion-dar-alta-master">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Dar de alta y activar usuario master
+              </button>
+            </div>
           </section>
 
           <!-- Facturación de Clarvo (autofactura de ADDV) — visual, ligado
@@ -5799,7 +5839,7 @@
       <div class="inv-import-cuerpo">
         <div class="inv-import-paso" data-paso="1" id="inv-import-paso-1">
           <h3 class="inv-import-paso-titulo" id="inv-import-paso-1-titulo" tabindex="-1">Subir archivo</h3>
-          <p class="field-hint">Acepta CSV o XLSX. Cabeceras desordenadas o con nombres distintos se auto-mapean solas en el siguiente paso.</p>
+          <p class="field-hint">Acepta CSV, XLSX o XLS. Cabeceras desordenadas o con nombres distintos se auto-mapean solas en el siguiente paso.</p>
           <div class="inv-import-plantillas">
             <span>¿Catálogo nuevo? Empieza con la plantilla:</span>
             <button type="button" class="btn-link" id="btn-inv-import-plantilla-csv">Descargar CSV</button>
@@ -5815,8 +5855,8 @@
             </select>
           </div>
           <div class="field">
-            <label for="inv-import-archivo">Archivo (CSV o XLSX)</label>
-            <input type="file" id="inv-import-archivo" accept=".csv,.xlsx" />
+            <label for="inv-import-archivo">Archivo (CSV, XLSX o XLS)</label>
+            <input type="file" id="inv-import-archivo" accept=".csv,.xlsx,.xls" />
           </div>
         </div>
 
@@ -5827,12 +5867,32 @@
             <select id="inv-import-hoja-select"></select>
           </div>
           <p class="field-hint" id="inv-import-info-archivo"></p>
+          <div class="inv-import-stats" id="inv-import-stats">
+            <div class="inv-import-stat-tile">
+              <span class="inv-import-stat-v" id="inv-import-stat-filas">0</span>
+              <span class="inv-import-stat-l">Filas</span>
+            </div>
+            <div class="inv-import-stat-tile">
+              <span class="inv-import-stat-v" id="inv-import-stat-columnas">0</span>
+              <span class="inv-import-stat-l">Columnas</span>
+            </div>
+            <div class="inv-import-stat-tile">
+              <span class="inv-import-stat-v" id="inv-import-stat-hoja">—</span>
+              <span class="inv-import-stat-l">Hoja</span>
+            </div>
+            <div class="inv-import-stat-tile">
+              <span class="inv-import-stat-v" id="inv-import-stat-tamano">—</span>
+              <span class="inv-import-stat-l">Tamaño</span>
+            </div>
+          </div>
+          <p class="inv-import-preview-subtitulo" id="inv-import-preview-subtitulo">Muestra de las primeras filas</p>
           <div class="admin-table-wrap">
             <table class="admin-table" id="inv-import-preview-tabla">
               <thead id="inv-import-preview-thead"></thead>
               <tbody id="inv-import-preview-tbody"></tbody>
             </table>
           </div>
+          <button type="button" class="inv-import-expandir-chip" id="btn-inv-import-expandir-preview" hidden></button>
         </div>
 
         <div class="inv-import-paso" data-paso="3" id="inv-import-paso-3">
@@ -5873,13 +5933,25 @@
           </div>
           <div id="inv-import-resultado-validacion" hidden>
             <p id="inv-import-validacion-resumen" aria-live="polite"></p>
-            <div class="admin-table-wrap">
+
+            <div id="inv-import-calidad" hidden>
+              <p class="inv-import-preview-subtitulo">Calidad de datos</p>
+              <div id="inv-import-calidad-lista"></div>
+            </div>
+
+            <div id="inv-import-valores-agrupados-wrap" hidden>
+              <p class="inv-import-preview-subtitulo">Valores sin resolver (agrupados — corrige uno, aplica a todas las filas iguales)</p>
+              <div id="inv-import-valores-agrupados"></div>
+            </div>
+
+            <button type="button" class="inv-import-expandir-chip" id="btn-inv-import-ver-detalle-errores" hidden>Ver detalle fila por fila</button>
+            <div class="admin-table-wrap" id="inv-import-detalle-errores-wrap" hidden style="margin-top:10px">
               <table class="admin-table">
                 <thead><tr><th>Fila</th><th>Columna</th><th>Valor</th><th>Motivo</th></tr></thead>
                 <tbody id="inv-import-errores-body"></tbody>
               </table>
             </div>
-            <button type="button" class="btn btn-secondary" id="btn-inv-import-descargar-errores" hidden>Descargar errores (CSV)</button>
+            <button type="button" class="btn btn-secondary" id="btn-inv-import-descargar-errores" hidden style="margin-top:10px">Descargar errores (CSV)</button>
           </div>
         </div>
 

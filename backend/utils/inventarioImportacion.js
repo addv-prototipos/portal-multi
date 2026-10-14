@@ -256,6 +256,39 @@ async function listarHojasXLSX(buffer) {
   return workbook.worksheets.map((ws) => ws.name);
 }
 
+// Lectura de .xls real (Excel 97-2003, binario OLE2) — ExcelJS NO lee este
+// formato (solo XLSX/OOXML), así que se usa SheetJS ('xlsx' en npm) SOLO
+// para esta rama de lectura. require() perezoso para no cargar la
+// dependencia si ningún tenant sube un .xls real.
+let xlsLegacy = null;
+function obtenerLibreriaXLSLegacy() {
+  if (!xlsLegacy) xlsLegacy = require('xlsx');
+  return xlsLegacy;
+}
+
+function listarHojasXLS(buffer) {
+  const workbook = obtenerLibreriaXLSLegacy().read(buffer, { type: 'buffer' });
+  return workbook.SheetNames;
+}
+
+function parsearArchivoXLS(buffer, hojaNombre = null) {
+  const XLSX = obtenerLibreriaXLSLegacy();
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const nombreHoja = hojaNombre && workbook.SheetNames.includes(hojaNombre)
+    ? hojaNombre
+    : workbook.SheetNames[0];
+  const hoja = nombreHoja ? workbook.Sheets[nombreHoja] : null;
+  if (!hoja) return { cabeceras: [], filas: [], hoja: null, filaEncabezados: 1 };
+
+  const filasCrudas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: null, blankrows: false });
+  if (filasCrudas.length === 0) return { cabeceras: [], filas: [], hoja: nombreHoja, filaEncabezados: 1 };
+
+  const filaEncabezadosIdx = detectarFilaEncabezadosXLSX(filasCrudas);
+  const cabeceras = filasCrudas[filaEncabezadosIdx];
+  const filas = filasCrudas.slice(filaEncabezadosIdx + 1);
+  return { cabeceras, filas, hoja: nombreHoja, filaEncabezados: filaEncabezadosIdx + 1 };
+}
+
 async function parsearArchivoXLSX(buffer, hojaNombre = null) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
@@ -323,16 +356,106 @@ function normalizarEstadoProducto(valorCrudo) {
 // primero el archivo completo.
 // ---------------------------------------------------------------------
 
+// Columnas de texto libre (nunca numéricas, nunca de catálogo cerrado)
+// donde puede venir un precio y/o un proveedor pegados al dato real — ej.
+// una fila real vista en producción: "BRAZO AUXILIAR FORD F150 2005 $519
+// MAYASA" dentro de la columna "Producto" (nombre real, precio de lista
+// del proveedor, código del proveedor, los 3 concatenados). No es un error
+// que bloquee la fila — es un aviso de calidad de datos (§34, ampliación
+// "sanitización en validación") con una resolución real: separar el
+// precio/proveedor a su propio campo, o descartarlos, dejando el nombre
+// limpio (punto 398).
+const CAMPOS_TEXTO_LIBRE_PARA_MEZCLA = ['nombre', 'descripcion_corta', 'descripcion_larga', 'marca', 'fabricante', 'modelo', 'proveedor_principal', 'categoria'];
+
+// "$519 MAYASA" al final del texto: precio con $ opcionalmente seguido de
+// un token en mayúsculas (el candidato a proveedor). El token es opcional
+// a propósito — un archivo puede traer SOLO el precio pegado, sin proveedor.
+const PATRON_PRECIO_TOKEN_FINAL = /\$\s?([\d,]+(?:\.\d+)?)\s*([A-ZÑÁÉÍÓÚ][A-ZÑÁÉÍÓÚ0-9]{1,30})?\s*$/;
+// Un token se considera "proveedor confirmado" solo si aparece junto a un
+// $precio explícito en 2+ filas distintas — nunca se adivina una palabra
+// suelta en mayúsculas sin ese respaldo (evita falsos positivos como
+// "IZQ"/"STD" que son parte normal del nombre del producto, no un proveedor).
+const MIN_OCURRENCIAS_PROVEEDOR_CONFIRMADO = 2;
+
+// Detección en 2 pasadas, por columna de texto libre mapeada (§34,
+// ampliación "datos mezclados", punto 398):
+// 1) Candidatos a proveedor: tokens que aparecen junto a "$precio" en 2+
+//    filas — señal fuerte, no una palabra cualquiera en mayúsculas.
+// 2) Con esos tokens ya confirmados, se buscan también al final de filas
+//    SIN precio (ej. "FILTRO GASOLINA VW A4 GONHER") — mismo proveedor,
+//    el archivo simplemente no repitió el precio en esa fila.
+// Nunca se persiste ni se hardcodea ningún nombre de proveedor real —
+// el set de tokens se descubre de nuevo en cada archivo.
+function detectarDatosMezclados(filasCrudas, mapeoFinal) {
+  const resultadoPorColumna = new Map();
+
+  for (const campo of CAMPOS_TEXTO_LIBRE_PARA_MEZCLA) {
+    const idx = mapeoFinal[campo];
+    if (idx === undefined || idx === null) continue;
+
+    const tokensConfirmados = new Map();
+    for (let i = 0; i < filasCrudas.length; i++) {
+      const texto = String(filasCrudas[i][idx] || '').trim();
+      const m = texto.match(PATRON_PRECIO_TOKEN_FINAL);
+      if (m && m[2]) tokensConfirmados.set(m[2], (tokensConfirmados.get(m[2]) || 0) + 1);
+    }
+    for (const [token, count] of Array.from(tokensConfirmados.entries())) {
+      if (count < MIN_OCURRENCIAS_PROVEEDOR_CONFIRMADO) tokensConfirmados.delete(token);
+    }
+
+    const filasProveedor = new Map(); // filaIdx -> { token, textoLimpio }
+    const filasPrecio = new Map(); // filaIdx -> { valor, textoLimpio }
+    for (let i = 0; i < filasCrudas.length; i++) {
+      const texto = String(filasCrudas[i][idx] || '').trim();
+      if (!texto) continue;
+      const m = texto.match(PATRON_PRECIO_TOKEN_FINAL);
+      if (m) {
+        const valorPrecio = Number(m[1].replace(/,/g, ''));
+        const textoLimpio = texto.slice(0, m.index).trim();
+        if (Number.isFinite(valorPrecio)) filasPrecio.set(i, { valor: valorPrecio, textoLimpio });
+        if (m[2] && tokensConfirmados.has(m[2])) filasProveedor.set(i, { token: m[2], textoLimpio });
+        continue;
+      }
+      for (const token of tokensConfirmados.keys()) {
+        if (texto.length <= token.length) continue;
+        if (texto.slice(-token.length) !== token) continue;
+        const antes = texto[texto.length - token.length - 1];
+        if (antes !== ' ') continue; // el token debe ser una palabra suelta al final, no parte de otra
+        filasProveedor.set(i, { token, textoLimpio: texto.slice(0, texto.length - token.length).trim() });
+        break;
+      }
+    }
+
+    if (filasProveedor.size > 0 || filasPrecio.size > 0) {
+      resultadoPorColumna.set(campo, { tokensConfirmados, filasProveedor, filasPrecio });
+    }
+  }
+
+  return resultadoPorColumna;
+}
+
 async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opciones) {
   const {
     mapeoFinal, // { campo: columnaIndice }
     modo = 'tolerante', // 'tolerante' | 'estricto'
     conservarExtra = true,
+    // { [campo]: { [valorOriginalNormalizado]: valorNuevo } } — resolución de
+    // valores de catálogo (ej. unidad_base "UNIDAD" → "Pieza") decidida por
+    // el usuario en el paso de Validación (propuesta 1, agrupar por valor).
+    // La clave se normaliza igual que unidadesPorNombre (trim+lowercase) para
+    // que no importe cómo vino capitalizado el valor original en el archivo.
+    valorOverrides = {},
+    // { [campo]: { proveedor?: 'proveedor_principal'|'notas'|'descartar', precio?: 'costo'|'notas'|'descartar' } }
+    // Decisión del usuario sobre qué hacer con el precio/proveedor
+    // detectados pegados al texto (punto 398) — sin esto (default), el
+    // texto se deja tal cual, solo se reporta como hallazgo de calidad.
+    limpiezaMezcla = {},
   } = opciones;
 
   const pool = obtenerPool();
   const [unidadesFilas] = await pool.query('SELECT id, nombre FROM unidades_medida');
   const unidadesPorNombre = new Map(unidadesFilas.map((u) => [u.nombre.trim().toLowerCase(), u.id]));
+  const deteccionMezcla = detectarDatosMezclados(filasCrudas, mapeoFinal);
 
   const columnasMapeadas = new Set(Object.values(mapeoFinal));
   const columnasExtra = cabecerasOriginales
@@ -352,10 +475,18 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
     .filter((c) => !columnasMapeadas.has(c.indice) && c.normalizada);
 
   const skusVistos = new Set();
+  const skuAPrimeraFila = new Map();
   const filasValidas = [];
   const errores = [];
   let abortado = false;
   let motivoAborto = null;
+
+  // Hallazgos de calidad de datos (§34, ampliación "sanitización en
+  // validación") — informativos, NUNCA bloquean una fila (a diferencia de
+  // erroresFila): datos mezclados por columna (de deteccionMezcla, arriba)
+  // y precio de venta en $0.00. El de "ya existe en el catálogo" se calcula
+  // aparte, después del loop, con una sola consulta en lote.
+  let precioCero = { count: 0, filasEjemplo: [] };
 
   for (let i = 0; i < filasCrudas.length; i++) {
     if (abortado) break;
@@ -365,14 +496,31 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
       const idx = mapeoFinal[campo];
       if (idx === undefined || idx === null) return '';
       const valor = filaCruda[idx];
-      return valor === undefined || valor === null ? '' : String(valor).trim();
+      let texto = valor === undefined || valor === null ? '' : String(valor).trim();
+      if (!texto) return texto;
+      const overridesCampo = valorOverrides[campo];
+      if (overridesCampo) {
+        const reemplazo = overridesCampo[texto.toLowerCase()];
+        if (reemplazo !== undefined && reemplazo !== null && reemplazo !== '') return String(reemplazo);
+      }
+      // Punto 398: si el usuario decidió QUÉ HACER con el precio/proveedor
+      // detectados pegados a este campo (moverlos a otro campo o
+      // descartarlos), el texto queda limpio de ese momento en adelante —
+      // sin decisión tomada, el texto se deja exactamente como vino.
+      const mezcla = deteccionMezcla.get(campo);
+      const decisionCampo = limpiezaMezcla[campo];
+      if (mezcla && decisionCampo && (decisionCampo.precio || decisionCampo.proveedor)) {
+        const info = mezcla.filasPrecio.get(i) || mezcla.filasProveedor.get(i);
+        if (info) texto = info.textoLimpio;
+      }
+      return texto;
     };
 
     const erroresFila = [];
     const sku = sanitizeText(obtener('sku'), 60);
     if (!sku) erroresFila.push({ columna: 'sku', valor: '', motivo: 'SKU vacío.' });
     else if (skusVistos.has(sku)) erroresFila.push({ columna: 'sku', valor: sku, motivo: 'SKU duplicado dentro del archivo.' });
-    else skusVistos.add(sku);
+    else { skusVistos.add(sku); skuAPrimeraFila.set(sku, numeroFilaVisible); }
 
     const nombre = sanitizeText(obtener('nombre'), 200);
     if (!nombre) erroresFila.push({ columna: 'nombre', valor: '', motivo: 'Nombre vacío.' });
@@ -411,6 +559,10 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
     if (Number.isFinite(numeros.existencia_inicial) && numeros.existencia_inicial < 0) {
       erroresFila.push({ columna: 'existencia_inicial', valor: String(numeros.existencia_inicial), motivo: 'La existencia inicial no puede ser negativa.' });
     }
+    if (numeros.precio === 0) {
+      precioCero.count += 1;
+      if (precioCero.filasEjemplo.length < 10) precioCero.filasEjemplo.push(numeroFilaVisible);
+    }
 
     const extra = {};
     if (conservarExtra) {
@@ -440,6 +592,28 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
       continue;
     }
 
+    // Punto 398: precio/proveedor detectados pegados al texto, SOLO si el
+    // usuario pidió moverlos a un campo (limpiezaMezcla) — nunca de oficio.
+    // El dato YA mapeado por el usuario desde una columna real del archivo
+    // siempre gana sobre el extraído (nunca se sobreescribe algo explícito
+    // con algo inferido).
+    let costoExtraido = null;
+    let proveedorExtraido = null;
+    const notasExtraidas = [];
+    for (const [campoConMezcla, mezcla] of deteccionMezcla.entries()) {
+      const decisionCampo = limpiezaMezcla[campoConMezcla];
+      if (!decisionCampo) continue;
+      const infoPrecio = mezcla.filasPrecio.get(i);
+      const infoProveedor = mezcla.filasProveedor.get(i);
+      if (infoPrecio && decisionCampo.precio === 'costo') costoExtraido = infoPrecio.valor;
+      if (infoPrecio && decisionCampo.precio === 'notas') notasExtraidas.push(`Precio detectado en "${campoConMezcla}": $${infoPrecio.valor}`);
+      if (infoProveedor && decisionCampo.proveedor === 'proveedor_principal') proveedorExtraido = infoProveedor.token;
+      if (infoProveedor && decisionCampo.proveedor === 'notas') notasExtraidas.push(`Proveedor detectado en "${campoConMezcla}": ${infoProveedor.token}`);
+    }
+    const costoMapeado = Number.isFinite(numeros.costo) ? numeros.costo : null;
+    const proveedorMapeado = sanitizeText(obtener('proveedor_principal'), 200) || null;
+    const notasMapeadas = sanitizeTextoLibre(obtener('notas'), 2000) || null;
+
     filasValidas.push({
       fila: numeroFilaVisible,
       sku,
@@ -448,28 +622,127 @@ async function validarFilasImportacion(cabecerasOriginales, filasCrudas, opcione
       categoria: sanitizeText(obtener('categoria'), 100) || null,
       unidad_id: unidadId,
       tipo,
-      costo: Number.isFinite(numeros.costo) ? numeros.costo : null,
+      costo: costoMapeado !== null ? costoMapeado : costoExtraido,
       precio: Number.isFinite(numeros.precio) ? numeros.precio : null,
       stock_minimo: Number.isFinite(numeros.stock_minimo) ? numeros.stock_minimo : null,
       stock_maximo: Number.isFinite(numeros.stock_maximo) ? numeros.stock_maximo : null,
       punto_reorden: Number.isFinite(numeros.punto_reorden) ? numeros.punto_reorden : null,
-      proveedor_principal: sanitizeText(obtener('proveedor_principal'), 200) || null,
-      notas: sanitizeTextoLibre(obtener('notas'), 2000) || null,
+      proveedor_principal: proveedorMapeado || proveedorExtraido,
+      notas: [notasMapeadas, ...notasExtraidas].filter(Boolean).join(' — ') || null,
       estado: normalizarEstadoProducto(obtener('estado')),
       existencia_inicial: Number.isFinite(numeros.existencia_inicial) ? numeros.existencia_inicial : null,
       extra: Object.keys(extra).length > 0 ? extra : null,
     });
   }
 
+  // "Ya existe en el catálogo" (§34, ampliación): distinto del "SKU
+  // duplicado dentro del archivo" de arriba (ese compara el archivo contra
+  // sí mismo) — este cruza contra `productos` real. No es un error, es
+  // información (el upsert de ejecutarFilasImportacion() los ACTUALIZA a
+  // propósito, nunca los rechaza) — el aviso es para que el usuario sepa
+  // que va a sobreescribir productos existentes antes de confirmar.
+  let hallazgoDuplicadosCatalogo = null;
+  if (skusVistos.size > 0) {
+    const [existentes] = await pool.query('SELECT sku FROM productos WHERE sku IN (?)', [Array.from(skusVistos)]);
+    if (existentes.length > 0) {
+      hallazgoDuplicadosCatalogo = {
+        tipo: 'duplicado_catalogo',
+        severidad: 'media',
+        titulo: `${existentes.length} SKU ya existen en tu catálogo`,
+        descripcion: 'Se actualizarán en vez de crearse como productos nuevos — revisa si es lo esperado.',
+        count: existentes.length,
+        filasEjemplo: existentes.slice(0, 10).map((f) => skuAPrimeraFila.get(f.sku)).filter((f) => f !== undefined),
+      };
+    }
+  }
+
+  const hallazgosCalidad = [];
+  if (hallazgoDuplicadosCatalogo) hallazgosCalidad.push(hallazgoDuplicadosCatalogo);
+  // Punto 398: una vez que el usuario ya decidió qué hacer con el
+  // precio/proveedor de una columna (limpiezaMezcla), el hallazgo deja de
+  // listarse como pendiente — mismo criterio que los grupos de unidad_base
+  // resueltos (propuesta 1): resuelto = desaparece, no queda "fantasma".
+  for (const [columna, mezcla] of deteccionMezcla.entries()) {
+    if (limpiezaMezcla[columna]) continue;
+    const totalProveedor = mezcla.filasProveedor.size;
+    const totalPrecio = mezcla.filasPrecio.size;
+    if (totalProveedor === 0 && totalPrecio === 0) continue;
+    const primerPrecio = mezcla.filasPrecio.values().next().value;
+    const tokensOrdenados = Array.from(mezcla.tokensConfirmados.entries()).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+    // Conteo de valores de precio detectados, mismo criterio que
+    // tokensConfirmados (más frecuente primero) — para mostrar unos cuantos
+    // ejemplos en el UI y que el usuario juzgue si de verdad es un precio
+    // antes de decidir qué hacer con él (mover/descartar/ignorar).
+    const preciosConteo = new Map();
+    for (const info of mezcla.filasPrecio.values()) {
+      preciosConteo.set(info.valor, (preciosConteo.get(info.valor) || 0) + 1);
+    }
+    const preciosOrdenados = Array.from(preciosConteo.entries()).sort((a, b) => b[1] - a[1]).map(([v]) => v);
+    const filasCombinadas = Array.from(new Set([...mezcla.filasProveedor.keys(), ...mezcla.filasPrecio.keys()]))
+      .sort((a, b) => a - b)
+      .slice(0, 10)
+      .map((idxFila) => idxFila + 2);
+    const partes = [];
+    if (totalPrecio > 0) partes.push(`un precio (ej. "$${primerPrecio.valor}")`);
+    if (totalProveedor > 0) partes.push(`un posible proveedor (${tokensOrdenados.length} distinto(s): ${tokensOrdenados.slice(0, 5).join(', ')}${tokensOrdenados.length > 5 ? '…' : ''})`);
+    hallazgosCalidad.push({
+      tipo: 'datos_mezclados',
+      severidad: 'media',
+      columna,
+      titulo: `${Math.max(totalProveedor, totalPrecio)} fila(s) con datos mezclados en "${columna}"`,
+      descripcion: `Se detectó ${partes.join(' y ')} pegados al texto — ¿los separo a su propio campo?`,
+      count: Math.max(totalProveedor, totalPrecio),
+      filasEjemplo: filasCombinadas,
+      tienePrecio: totalPrecio > 0,
+      tieneProveedor: totalProveedor > 0,
+      totalPrecio,
+      totalProveedor,
+      ejemplosProveedor: tokensOrdenados.slice(0, 8),
+      ejemplosPrecio: preciosOrdenados.slice(0, 8),
+    });
+  }
+  if (precioCero.count > 0) {
+    hallazgosCalidad.push({
+      tipo: 'precio_cero',
+      severidad: 'info',
+      titulo: `${precioCero.count} fila(s) con precio de venta en $0.00`,
+      descripcion: 'No bloquea la importación, solo aviso — confirma que sea intencional.',
+      count: precioCero.count,
+      filasEjemplo: precioCero.filasEjemplo,
+    });
+  }
+
   return {
     filasValidas,
     errores,
+    erroresAgrupados: agruparErroresPorValor(errores),
+    hallazgosCalidad,
     totalFilas: filasCrudas.length,
     filasOk: filasValidas.length,
     filasError: abortado ? filasCrudas.length - filasValidas.length : new Set(errores.map((e) => e.fila)).size,
     abortado,
     motivoAborto,
   };
+}
+
+// Agrupa errores idénticos (misma columna + mismo valor + mismo motivo) en
+// una sola entrada con su conteo real — propuesta 1 del punto 397: un
+// archivo real puede traer 11,552 filas con el MISMO valor de catálogo sin
+// resolver ("UNIDAD" no existe) — listarlas una por una no ayuda a
+// corregir nada, agrupadas sí (corrige el valor una vez, se aplica a
+// todas). Se ordena por conteo descendente: la causa más grande primero.
+function agruparErroresPorValor(errores) {
+  const grupos = new Map();
+  for (const e of errores) {
+    const clave = JSON.stringify([e.columna, e.valor, e.motivo]);
+    if (!grupos.has(clave)) {
+      grupos.set(clave, { columna: e.columna, valor: e.valor, motivo: e.motivo, count: 0, filasEjemplo: [] });
+    }
+    const grupo = grupos.get(clave);
+    grupo.count += 1;
+    if (grupo.filasEjemplo.length < 5) grupo.filasEjemplo.push(e.fila);
+  }
+  return Array.from(grupos.values()).sort((a, b) => b.count - a.count).slice(0, 100);
 }
 
 // ---------------------------------------------------------------------
@@ -829,10 +1102,13 @@ module.exports = {
   parsearArchivoCSV,
   listarHojasXLSX,
   parsearArchivoXLSX,
+  listarHojasXLS,
+  parsearArchivoXLS,
   parsearNumeroTolerante,
   normalizarTipoProducto,
   normalizarEstadoProducto,
   validarFilasImportacion,
+  detectarDatosMezclados,
   ejecutarFilasImportacion,
   listarPerfilesMapeo,
   crearPerfilMapeo,

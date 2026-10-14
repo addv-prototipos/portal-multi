@@ -604,6 +604,22 @@ describe('utils/tenantEdicion.js', () => {
           )
         ).rejects.toMatchObject({ codigo: 'validacion' });
       });
+
+      test('ticketImpresionHabilitado=true por excepción, pero el tenant (sin plan) no tiene ventasHabilitado: ErrorEdicionTenant validacion (regla 13)', async () => {
+        const tenantBase = filaTenant({ plan_id: null, ventas_habilitado: 0, ticket_impresion_habilitado: 0 });
+        const pool = { query: jest.fn() };
+        pool.query.mockResolvedValueOnce([[tenantBase]]); // SELECT tenant
+        obtenerPool.mockReturnValue(pool);
+
+        await expect(
+          actualizarDatosTenant(
+            'cliente1',
+            { nombreEmpresa: 'Empresa Uno', contactoEmail: 'contacto@uno.com', ticketImpresionHabilitado: true },
+            {}
+          )
+        ).rejects.toMatchObject({ name: 'ErrorEdicionTenant', codigo: 'validacion' });
+        expect(pool.query).toHaveBeenCalledTimes(1); // nunca llega al UPDATE
+      });
     });
 
     test('planId de un plan archivado: ErrorEdicionTenant validacion, nunca llega al UPDATE', async () => {

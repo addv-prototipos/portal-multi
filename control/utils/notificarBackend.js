@@ -50,6 +50,35 @@ async function activarTenantFisico(slug) {
   return data;
 }
 
+// Crea el PRIMER usuario administrador de un tenant recién aprovisionado
+// (onboarding público, Segmento B, 13 oct 2026) — llamar SOLO después de
+// que activarTenantFisico() haya terminado (la tabla `usuarios` de ese
+// tenant no existe antes de eso). `passwordHash` ya viene hasheado
+// (formato salt:hash scrypt, ver control/utils/onboardingBorrador.js) —
+// control/ nunca envía ni ve la contraseña en texto plano. Mismo motivo
+// de delegación que activarTenantFisico(): control_app no tiene acceso a
+// ninguna base `tenant_*`.
+async function crearAdminInicialFisico(slug, { email, passwordHash, nombreUsuario }) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  let res;
+  try {
+    res = await fetch(`${url}/internal/crear-admin-inicial/${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
+      body: JSON.stringify({ email, passwordHash, nombreUsuario }),
+    });
+  } catch (err) {
+    throw new ErrorActivacionFisica('No se pudo conectar con el backend para crear el usuario administrador.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ErrorActivacionFisica(data.error || 'No se pudo crear el usuario administrador.');
+  }
+  return data;
+}
+
 // Elimina FÍSICAMENTE un tenant (punto 345, "papelera") — DROP DATABASE +
 // purga de MinIO, delegado al backend por el mismo motivo que
 // activarTenantFisico(): control_app no tiene privilegios para esto
@@ -170,6 +199,7 @@ async function obtenerUsoUsuarios(slug) {
 module.exports = {
   notificarInvalidacionCache,
   activarTenantFisico,
+  crearAdminInicialFisico,
   ErrorActivacionFisica,
   eliminarTenantFisico,
   ErrorEliminacionFisica,

@@ -178,21 +178,28 @@ async function verificarUsuarioSucursal(usuario, password, grupoSucursalId) {
 // A diferencia de los clientes (perfil "cliente", que solo pueden entrar
 // al portal de usuario con cookie de sesión), estos perfiles pueden
 // autenticarse con Basic Auth para entrar al panel de administración,
-// usando su RFC (o el nombre de usuario que se le haya asignado) como
-// "usuario" y su contraseña normal. Si alguno olvida su contraseña, no
-// tiene ningún respaldo especial: cualquier administrador se la puede
-// restablecer desde la vista "Usuarios" del panel, igual que a un cliente.
-async function verificarUsuarioAdministrativo(usuario, password) {
+// usando su RFC (o el nombre de usuario que se le haya asignado) O su
+// correo como "usuario" y su contraseña normal — mismo patrón OR ya
+// probado en POST /api/auth/login (portal cliente): el valor recibido se
+// compara en mayúsculas contra `rfc` y en minúsculas contra `email`,
+// nunca mezclado (punto 383, decisión explícita del usuario: "con
+// correo o RFC basta, no los dos" — antes el alta ya exigía ambos,
+// ahora el username es opcional al crear la cuenta y el login acepta
+// cualquiera de los dos que sí se haya capturado). Si alguno olvida su
+// contraseña, no tiene ningún respaldo especial: cualquier administrador
+// se la puede restablecer desde la vista "Usuarios" del panel, igual que
+// a un cliente.
+async function verificarUsuarioAdministrativo(usuarioIngresado, password) {
   // "nombre"/"email" viajan junto con la fila de autenticación (mismo
   // query, cero costo extra) para que quien llame a requireAdminAuth
   // pueda identificar a la persona real detrás de la sesión (ej. quién
   // registró una venta, punto 320) sin tener que volver a golpear la
   // tabla — "rfc" aquí es solo el nombre de usuario de login para estos
-  // 3 perfiles (nunca un RFC fiscal real, ver server.js:3270), así que
+  // 4 perfiles (nunca un RFC fiscal real, ver server.js:3270), así que
   // nunca debe mostrarse como si fuera la identidad de la persona.
   const [filas] = await pool.query(
-    "SELECT rfc, password_hash, perfil, activo, nombre, email, debe_cambiar_password FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas', 'inventario')",
-    [usuario]
+    "SELECT rfc, password_hash, perfil, activo, nombre, email, debe_cambiar_password FROM usuarios WHERE (rfc = ? OR email = ?) AND perfil IN ('administrador', 'fiscal', 'ventas', 'inventario')",
+    [usuarioIngresado.toUpperCase(), usuarioIngresado.toLowerCase()]
   );
   const fila = filas[0];
   // verifyPassword() SIEMPRE se llama (con el hash real o con el de

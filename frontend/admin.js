@@ -268,6 +268,17 @@
     micuentaSesionPerfil: document.getElementById('micuenta-sesion-perfil'),
     micuentaNotifCard: document.getElementById('micuenta-notif-card'),
     micuentaSuscripcionCard: document.getElementById('micuenta-suscripcion-card'),
+    micuentaSuscripcionPlan: document.getElementById('micuenta-suscripcion-plan'),
+    micuentaSuscripcionEstatusLabel: document.getElementById('micuenta-suscripcion-estatus-label'),
+    micuentaSuscripcionEstatus: document.getElementById('micuenta-suscripcion-estatus'),
+    micuentaSuscripcionCicloWrap: document.getElementById('micuenta-suscripcion-ciclo-wrap'),
+    micuentaSuscripcionCiclo: document.getElementById('micuenta-suscripcion-ciclo'),
+    micuentaSuscripcionVenceWrap: document.getElementById('micuenta-suscripcion-vence-wrap'),
+    micuentaSuscripcionVence: document.getElementById('micuenta-suscripcion-vence'),
+    micuentaSuscripcionNota: document.getElementById('micuenta-suscripcion-nota'),
+    micuentaSuscripcionMaster: document.getElementById('micuenta-suscripcion-master'),
+    micuentaSuscripcionCorreoComprador: document.getElementById('micuenta-suscripcion-correo-comprador'),
+    btnSuscripcionDarAltaMaster: document.getElementById('btn-suscripcion-dar-alta-master'),
     micuentaFacturacionCard: document.getElementById('micuenta-facturacion-card'),
     micuentaFooterMarket: document.getElementById('micuenta-footer-market'),
     // Modal "Configuraciones" (antes vista de página, ver
@@ -941,8 +952,14 @@
     invImportHojaField: document.getElementById('inv-import-hoja-field'),
     invImportHojaSelect: document.getElementById('inv-import-hoja-select'),
     invImportInfoArchivo: document.getElementById('inv-import-info-archivo'),
+    invImportStatFilas: document.getElementById('inv-import-stat-filas'),
+    invImportStatColumnas: document.getElementById('inv-import-stat-columnas'),
+    invImportStatHoja: document.getElementById('inv-import-stat-hoja'),
+    invImportStatTamano: document.getElementById('inv-import-stat-tamano'),
+    invImportPreviewSubtitulo: document.getElementById('inv-import-preview-subtitulo'),
     invImportPreviewThead: document.getElementById('inv-import-preview-thead'),
     invImportPreviewTbody: document.getElementById('inv-import-preview-tbody'),
+    btnInvImportExpandirPreview: document.getElementById('btn-inv-import-expandir-preview'),
     invImportPerfilAviso: document.getElementById('inv-import-perfil-aviso'),
     invImportCobertura: document.getElementById('inv-import-cobertura'),
     invImportMapeoBody: document.getElementById('inv-import-mapeo-body'),
@@ -953,6 +970,12 @@
     invImportSobrescribirVacios: document.getElementById('inv-import-sobrescribir-vacios'),
     invImportResultadoValidacion: document.getElementById('inv-import-resultado-validacion'),
     invImportValidacionResumen: document.getElementById('inv-import-validacion-resumen'),
+    invImportCalidad: document.getElementById('inv-import-calidad'),
+    invImportCalidadLista: document.getElementById('inv-import-calidad-lista'),
+    invImportValoresAgrupadosWrap: document.getElementById('inv-import-valores-agrupados-wrap'),
+    invImportValoresAgrupados: document.getElementById('inv-import-valores-agrupados'),
+    btnInvImportVerDetalleErrores: document.getElementById('btn-inv-import-ver-detalle-errores'),
+    invImportDetalleErroresWrap: document.getElementById('inv-import-detalle-errores-wrap'),
     invImportErroresBody: document.getElementById('inv-import-errores-body'),
     btnInvImportDescargarErrores: document.getElementById('btn-inv-import-descargar-errores'),
     invImportConfirmacionEjecutar: document.getElementById('inv-import-confirmacion-ejecutar'),
@@ -2520,7 +2543,7 @@
       'admin-config-card': () => planPermite('facturacionHabilitada'),
       'global-config-card': () => planPermite('facturacionHabilitada'),
       'marca-tema-card': () => planPermite('marcaLookfeelHabilitado'),
-      'ticket-config-card': () => planPermite('marcaLookfeelHabilitado'),
+      'ticket-config-card': () => planPermite('ticketImpresionHabilitado'),
       'reportes-config-card': () => planPermite('resumenFinancieroHabilitado') || reportesPlanVisible(),
       'ordenes-toggle-card': () => planPermite('ventasHabilitado'),
       'inv-toggle-card': () => planPermite('inventariosHabilitado'),
@@ -5297,6 +5320,26 @@
     const fecha = new Date(fechaISO);
     if (Number.isNaN(fecha.getTime())) return '—';
     return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  // Gemela de formatearFechaSoloDia() pero SIN pasar por `new Date()` —
+  // para columnas DATE puras (sin hora) tipo suscripcion_expira_en,
+  // `new Date('2026-11-04')` las interpreta como medianoche UTC y
+  // toLocaleDateString las vuelve a pintar en la zona LOCAL del
+  // navegador: con México en UTC−6 eso corre el día mostrado un día
+  // hacia atrás (bug real, detectado en vivo al cerrar el punto de
+  // autocálculo de fechas de prueba — "04 nov 2026" en BD se mostraba
+  // "03 nov 2026" aquí). Mismo criterio que CLAUDE.md ya documenta para
+  // "hoy/mes" por zona horaria: una fecha de calendario se formatea con
+  // aritmética de texto, nunca con un objeto Date.
+  function formatearFechaSoloDiaSinTZ(fechaISO) {
+    if (!fechaISO) return '—';
+    const [anio, mes, dia] = String(fechaISO).slice(0, 10).split('-');
+    if (!anio || !mes || !dia) return '—';
+    const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const nombreMes = MESES[Number(mes) - 1];
+    if (!nombreMes) return '—';
+    return `${dia} ${nombreMes} ${anio}`;
   }
 
   // Búsqueda 100% client-side (mismo criterio que los filtros de
@@ -8230,6 +8273,7 @@
         els.micuentaZonaHoraria.textContent = data.empresa.zonaHorariaEtiqueta || 'Sin definir';
         els.micuentaTotalOperadores.textContent = String(data.empresa.totalOperadores);
         aplicarEstadoPortalClientesMiCuenta(data.empresa.portalClientesActivo, data.empresa.portalClientesPlanHabilitado);
+        aplicarEstadoSuscripcionMiCuenta(data.empresa.suscripcion);
         if (data.empresa.tenantSlug && data.empresa.urlPortal) {
           els.micuentaUrlBar.hidden = false;
           els.micuentaUrlTenant.textContent = data.empresa.urlPortal;
@@ -8264,6 +8308,59 @@
       ? 'Tu plan no incluye el portal de clientes — contacta a soporte para activarlo.'
       : 'Si lo apagas, tus clientes ven un aviso de "Portal no disponible" con tu correo de contacto — las URLs no cambian.';
   }
+
+  const ETIQUETAS_ESTATUS_SUSCRIPCION = {
+    prueba: 'Prueba',
+    pagada: 'Pagada',
+    pendiente: 'Pendiente',
+    vencida: 'Vencida',
+    cancelada: 'Cancelada',
+  };
+  const ETIQUETAS_CICLO_SUSCRIPCION = { mensual: 'Mensual', anual: 'Anual' };
+
+  // Tarjeta "Plan de suscripción": sin tenant (sitio base ADDV) siempre
+  // "Ilimitada", sin ciclo/vencimiento (no aplica) — con tenant, lee
+  // plan/estatus/ciclo reales de Control (ver GET /api/admin/mi-cuenta)
+  // y, si todavía no existe un usuario master, muestra el correo del
+  // comprador + botón de alta (reusa el modal de "Crear usuario").
+  function aplicarEstadoSuscripcionMiCuenta(suscripcion) {
+    if (!suscripcion) return;
+    if (suscripcion.ilimitada) {
+      els.micuentaSuscripcionPlan.textContent = 'Ilimitada';
+      els.micuentaSuscripcionEstatusLabel.textContent = 'Estatus';
+      els.micuentaSuscripcionEstatus.textContent = 'Sitio base ADDV';
+      els.micuentaSuscripcionCicloWrap.hidden = true;
+      els.micuentaSuscripcionVenceWrap.hidden = true;
+      els.micuentaSuscripcionNota.innerHTML = 'Este es el sitio base de administración de Clarvo (ADDV) — sin plan ni ciclo de cobro, eso solo aplica a los tenants.';
+      els.micuentaSuscripcionMaster.hidden = true;
+      return;
+    }
+
+    els.micuentaSuscripcionEstatusLabel.textContent = 'Estatus de cobro';
+    els.micuentaSuscripcionCicloWrap.hidden = false;
+    els.micuentaSuscripcionVenceWrap.hidden = false;
+    els.micuentaSuscripcionPlan.textContent = suscripcion.planNombre || 'Sin plan asignado (manual)';
+    els.micuentaSuscripcionEstatus.textContent = suscripcion.estatus
+      ? (ETIQUETAS_ESTATUS_SUSCRIPCION[suscripcion.estatus] || suscripcion.estatus)
+      : 'Sin configurar';
+    els.micuentaSuscripcionCiclo.textContent = suscripcion.ciclo
+      ? (ETIQUETAS_CICLO_SUSCRIPCION[suscripcion.ciclo] || suscripcion.ciclo)
+      : 'Sin configurar';
+    els.micuentaSuscripcionVence.textContent = suscripcion.expiraEn ? formatearFechaSoloDiaSinTZ(suscripcion.expiraEn) : 'Sin definir';
+    els.micuentaSuscripcionNota.innerHTML =
+      '<span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente">Próximamente</span> método de cobro y consumo de recursos (almacenamiento, cuentas de panel) — en cuanto Stripe esté activo.';
+
+    if (suscripcion.masterPendiente) {
+      els.micuentaSuscripcionMaster.hidden = false;
+      els.micuentaSuscripcionCorreoComprador.textContent = suscripcion.correoComprador || 'Sin correo capturado en Control';
+    } else {
+      els.micuentaSuscripcionMaster.hidden = true;
+    }
+  }
+
+  els.btnSuscripcionDarAltaMaster.addEventListener('click', () => {
+    abrirCrearUsuarioModal({ perfil: 'administrador', email: els.micuentaSuscripcionCorreoComprador.textContent });
+  });
 
   els.micuentaPortalClientesSwitch.addEventListener('change', async () => {
     const authHeader = getAuthHeader();
@@ -11983,17 +12080,17 @@
       els.crearUsuarioRfcField.hidden = false;
       els.crearUsuarioRfcLabel.textContent = 'Nombre de usuario';
       els.crearUsuarioRfc.placeholder = 'ej. jperez';
-      els.crearUsuarioRfcHint.textContent = 'No necesita ser un RFC real — es el nombre con el que iniciará sesión en el panel de administración.';
+      els.crearUsuarioRfcHint.textContent = 'No necesita ser un RFC real — es el nombre con el que iniciará sesión en el panel de administración (también puede entrar con su correo).';
       els.crearUsuarioTelefonoField.hidden = true;
     }
   }
 
   els.crearUsuarioPerfil.addEventListener('change', actualizarCamposSegunPerfil);
 
-  function abrirCrearUsuarioModal() {
-    els.crearUsuarioPerfil.value = 'cliente';
+  function abrirCrearUsuarioModal(prefill = {}) {
+    els.crearUsuarioPerfil.value = prefill.perfil || 'cliente';
     els.crearUsuarioRfc.value = '';
-    els.crearUsuarioEmail.value = '';
+    els.crearUsuarioEmail.value = prefill.email || '';
     els.crearUsuarioTelefono.value = '';
     els.crearUsuarioPassword.value = '';
     els.crearUsuarioPassword.type = 'password';
@@ -12096,6 +12193,11 @@
     const password = els.crearUsuarioPassword.value;
     const forzarCambio = els.crearUsuarioForzarCambio.checked;
 
+    // Punto 383 (corrección): "correo o RFC basta" es solo para perfil
+    // "cliente" (ya existía). Para administrador/fiscal/ventas/
+    // inventario, correo Y nombre de usuario son ambos obligatorios —
+    // dejarlo opcional podía dejar una cuenta sin forma humana de
+    // identificarse para entrar al panel.
     const rfcObligatorio = perfil !== 'cliente' || planPermite('facturacionHabilitada');
     let valido = true;
     if (rfcObligatorio && !rfc) {
@@ -12132,6 +12234,10 @@
       showToast(`Usuario ${data.rfc} creado correctamente. Se envió una invitación a ${email}.`);
       cerrarCrearUsuarioModal();
       cargarUsuarios();
+      // Si se creó desde el botón de alta de "Plan de suscripción"
+      // (usuario master pendiente), refresca esa tarjeta para que pase de
+      // "sin master" a mostrar el plan sin el bloque de alta.
+      if (perfil === 'administrador') cargarMiCuenta();
       // Primeros pasos (Fase 2 UX): "invita a tu primer usuario".
       guardarEstadoOnboarding({ usuarioCreado: true });
       renderOnboardingChecklist();
@@ -19489,10 +19595,21 @@
       cabeceras: [],
       vistaPrevia: [],
       totalFilas: 0,
+      previewExpandido: false,
       mapeo: {},
       modo: 'tolerante',
       validado: false,
       validacionAbortada: false,
+      // { [campo]: { [valorOriginalEnMinusculas]: valorNuevo } } — resolución
+      // de valores de catálogo (punto 397, propuesta 1 "agrupar por valor"),
+      // se acumula mientras el usuario corrige y se reenvía en cada
+      // revalidación, para que "UNIDAD" resuelta una vez quede resuelta
+      // también al pasar por mapeo/revalidar/ejecutar.
+      valorOverrides: {},
+      // { [campo]: { proveedor?: destino, precio?: destino } } — qué hacer
+      // con el precio/proveedor detectados pegados al texto (punto 398),
+      // mismo criterio de acumular + reenviar que valorOverrides arriba.
+      limpiezaMezcla: {},
       polling: null,
     };
   }
@@ -19592,7 +19709,7 @@
   async function avanzarDesdePasoImport1() {
     const archivo = els.invImportArchivo.files[0];
     if (!archivo) {
-      mostrarErrorImport('Selecciona un archivo CSV o XLSX.');
+      mostrarErrorImport('Selecciona un archivo CSV, XLSX o XLS.');
       return;
     }
     const authHeader = getAuthHeader();
@@ -19659,6 +19776,20 @@
   }
 
   // ---------- Paso 2: hoja y vista previa ----------
+  // Rediseño (antes/después aprobado por el usuario, propuesta 5): el
+  // texto plano "archivo — N filas, M columnas" se reemplaza por tarjetas
+  // de resumen, y la tabla cruda (sin nombres amigables todavía — eso lo
+  // hace el paso 3) muestra primero solo las primeras columnas en vez de
+  // las 10+ tal cual vienen del archivo, que solo abruma sin ayudar a
+  // decidir nada en este paso.
+  const LIMITE_COLUMNAS_CONDENSADO_PREVIEW = 5;
+
+  function formatearTamanoArchivoImport(bytes) {
+    if (!Number.isFinite(bytes)) return '—';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 
   function renderPasoImport2() {
     const multiHoja = Array.isArray(estadoImport.hojas) && estadoImport.hojas.length > 1;
@@ -19668,11 +19799,45 @@
         .map((h) => `<option value="${escapeHtml(h)}" ${h === estadoImport.hojaSeleccionada ? 'selected' : ''}>${escapeHtml(h)}</option>`)
         .join('');
     }
-    els.invImportInfoArchivo.textContent = `${estadoImport.archivo ? estadoImport.archivo.name : 'Archivo'} — ${estadoImport.totalFilas} fila(s) de datos, ${estadoImport.cabeceras.length} columna(s).`;
-    els.invImportPreviewThead.innerHTML = `<tr>${estadoImport.cabeceras.map((c) => `<th>${escapeHtml(String(c))}</th>`).join('')}</tr>`;
+    estadoImport.previewExpandido = false;
+
+    els.invImportInfoArchivo.textContent = estadoImport.archivo ? estadoImport.archivo.name : 'Archivo';
+    if (els.invImportStatFilas) els.invImportStatFilas.textContent = String(estadoImport.totalFilas);
+    if (els.invImportStatColumnas) els.invImportStatColumnas.textContent = String(estadoImport.cabeceras.length);
+    if (els.invImportStatHoja) els.invImportStatHoja.textContent = estadoImport.hojaSeleccionada || '—';
+    if (els.invImportStatTamano) {
+      els.invImportStatTamano.textContent = estadoImport.archivo
+        ? formatearTamanoArchivoImport(estadoImport.archivo.size)
+        : '—';
+    }
+
+    renderTablaPreviewImport();
+  }
+
+  function renderTablaPreviewImport() {
+    const totalColumnas = estadoImport.cabeceras.length;
+    const hayMasColumnas = totalColumnas > LIMITE_COLUMNAS_CONDENSADO_PREVIEW;
+    const expandido = estadoImport.previewExpandido || !hayMasColumnas;
+    const cantidadVisible = expandido ? totalColumnas : LIMITE_COLUMNAS_CONDENSADO_PREVIEW;
+    const indicesVisibles = estadoImport.cabeceras.slice(0, cantidadVisible).map((_, idx) => idx);
+
+    if (els.invImportPreviewSubtitulo) {
+      els.invImportPreviewSubtitulo.textContent = expandido
+        ? 'Vista previa completa'
+        : `Muestra de las primeras ${LIMITE_COLUMNAS_CONDENSADO_PREVIEW} columnas`;
+    }
+
+    els.invImportPreviewThead.innerHTML = `<tr>${indicesVisibles.map((idx) => `<th>${escapeHtml(String(estadoImport.cabeceras[idx]))}</th>`).join('')}</tr>`;
     els.invImportPreviewTbody.innerHTML = estadoImport.vistaPrevia
-      .map((fila) => `<tr>${estadoImport.cabeceras.map((_, idx) => `<td>${escapeHtml(fila[idx] === undefined ? '' : String(fila[idx]))}</td>`).join('')}</tr>`)
-      .join('') || `<tr><td colspan="${estadoImport.cabeceras.length || 1}">Sin filas de datos.</td></tr>`;
+      .map((fila) => `<tr>${indicesVisibles.map((idx) => `<td>${escapeHtml(fila[idx] === undefined ? '' : String(fila[idx]))}</td>`).join('')}</tr>`)
+      .join('') || `<tr><td colspan="${indicesVisibles.length || 1}">Sin filas de datos.</td></tr>`;
+
+    if (els.btnInvImportExpandirPreview) {
+      els.btnInvImportExpandirPreview.hidden = !hayMasColumnas;
+      els.btnInvImportExpandirPreview.textContent = expandido
+        ? 'Ver solo las primeras columnas'
+        : `+ ${totalColumnas - LIMITE_COLUMNAS_CONDENSADO_PREVIEW} columna(s) más — ver completo`;
+    }
   }
 
   async function cambiarHojaImport() {
@@ -19799,6 +19964,8 @@
       conservarExtra: els.invImportConservarExtra.checked,
       guardarPerfil: els.invImportGuardarPerfil.checked,
       nombrePerfil: els.invImportNombrePerfil.value,
+      valorOverrides: estadoImport.valorOverrides,
+      limpiezaMezcla: estadoImport.limpiezaMezcla,
     };
     els.btnInvImportSiguiente.disabled = true;
     els.btnInvImportSiguiente.textContent = 'Validando…';
@@ -19841,11 +20008,240 @@
     } else {
       els.invImportValidacionResumen.textContent = `${data.filasOk} de ${data.totalFilas} fila(s) válida(s)${data.filasError > 0 ? `, ${data.filasError} con error` : ''}.`;
     }
+
+    renderCalidadImport(data.hallazgosCalidad || []);
+    renderValoresAgrupadosImport(data.erroresAgrupados || []);
+
     const errores = data.erroresPreview || [];
     els.invImportErroresBody.innerHTML = errores.length > 0
       ? errores.map((e) => `<tr><td>${e.fila}</td><td>${escapeHtml(e.columna || '')}</td><td>${escapeHtml(e.valor || '')}</td><td>${escapeHtml(e.motivo)}</td></tr>`).join('')
       : '<tr><td colspan="4">Sin errores.</td></tr>';
     els.btnInvImportDescargarErrores.hidden = data.filasError === 0;
+    if (els.btnInvImportVerDetalleErrores) {
+      els.btnInvImportVerDetalleErrores.hidden = errores.length === 0;
+      if (els.invImportDetalleErroresWrap) els.invImportDetalleErroresWrap.hidden = true;
+      els.btnInvImportVerDetalleErrores.textContent = 'Ver detalle fila por fila';
+    }
+  }
+
+  // ---------- Punto 397 — propuesta 5: calidad de datos ampliada ----------
+  // Hallazgos informativos (duplicado contra catálogo, texto mezclado,
+  // precio en $0) — nunca bloquean la fila, solo avisan antes de ejecutar.
+  const ICONOS_SEVERIDAD_CALIDAD = {
+    alta: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>',
+    media: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 16v3a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-3"/></svg>',
+    info: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>',
+  };
+
+  // Punto 398: destinos posibles para el precio/proveedor detectados
+  // pegados al texto — lista cerrada, el backend solo acepta estos valores
+  // (sanitizarLimpiezaMezcla). "No mover" es el default: no cambia nada,
+  // solo deja de mostrarse el hallazgo hasta la próxima revalidación desde
+  // cero (reabrir el modal).
+  const DESTINOS_PROVEEDOR = [
+    ['', 'No mover (solo avisar)'],
+    ['proveedor_principal', 'Proveedor principal'],
+    ['notas', 'Notas'],
+    ['descartar', 'Descartar (solo limpiar texto)'],
+  ];
+  const DESTINOS_PRECIO = [
+    ['', 'No mover (solo avisar)'],
+    ['costo', 'Costo'],
+    ['notas', 'Notas'],
+    ['descartar', 'Descartar (solo limpiar texto)'],
+  ];
+
+  function renderCalidadImport(hallazgos) {
+    if (!els.invImportCalidad) return;
+    els.invImportCalidad.hidden = hallazgos.length === 0;
+    if (hallazgos.length === 0) {
+      els.invImportCalidadLista.innerHTML = '';
+      return;
+    }
+    els.invImportCalidadLista.innerHTML = hallazgos.map((h, idx) => {
+      const esMezcla = h.tipo === 'datos_mezclados' && h.columna;
+      const hallazgoId = `inv-import-cal-${idx}`;
+      return `
+      <div class="inv-import-calidad-item inv-import-calidad-sev-${escapeHtml(h.severidad)}">
+        <span class="inv-import-calidad-icono">${ICONOS_SEVERIDAD_CALIDAD[h.severidad] || ICONOS_SEVERIDAD_CALIDAD.info}</span>
+        <div class="inv-import-calidad-texto">
+          <div class="inv-import-calidad-titulo">${escapeHtml(h.titulo)}</div>
+          <div class="inv-import-calidad-desc">${escapeHtml(h.descripcion)}</div>
+          ${Array.isArray(h.filasEjemplo) && h.filasEjemplo.length > 0
+            ? `<div class="inv-import-calidad-filas">Filas de ejemplo: ${h.filasEjemplo.join(', ')}${h.count > h.filasEjemplo.length ? '…' : ''}</div>`
+            : ''}
+          ${esMezcla ? `
+            <div class="inv-import-calidad-resolver">
+              ${h.tieneProveedor ? `
+                <label>Proveedor detectado
+                  ${Array.isArray(h.ejemplosProveedor) && h.ejemplosProveedor.length > 0 ? `
+                    <span class="inv-import-calidad-ejemplos">
+                      ${h.ejemplosProveedor.map((v) => `<span class="inv-import-calidad-chip">${escapeHtml(v)}</span>`).join('')}
+                    </span>
+                  ` : ''}
+                  <select id="${hallazgoId}-proveedor">
+                    ${DESTINOS_PROVEEDOR.map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join('')}
+                  </select>
+                </label>
+              ` : ''}
+              ${h.tienePrecio ? `
+                <label>Precio detectado
+                  ${Array.isArray(h.ejemplosPrecio) && h.ejemplosPrecio.length > 0 ? `
+                    <span class="inv-import-calidad-ejemplos">
+                      ${h.ejemplosPrecio.map((v) => `<span class="inv-import-calidad-chip">$${escapeHtml(String(v))}</span>`).join('')}
+                    </span>
+                  ` : ''}
+                  <select id="${hallazgoId}-precio">
+                    ${DESTINOS_PRECIO.map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join('')}
+                  </select>
+                </label>
+              ` : ''}
+              <button type="button" class="btn btn-secondary" data-accion="aplicar-mezcla" data-columna="${escapeHtml(h.columna)}" data-hallazgo="${hallazgoId}">Aplicar</button>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+    }).join('');
+  }
+
+  if (els.invImportCalidadLista) {
+    els.invImportCalidadLista.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-accion="aplicar-mezcla"]');
+      if (!btn) return;
+      const columna = btn.dataset.columna;
+      const selectProveedor = document.getElementById(`${btn.dataset.hallazgo}-proveedor`);
+      const selectPrecio = document.getElementById(`${btn.dataset.hallazgo}-precio`);
+      const decision = {};
+      if (selectProveedor && selectProveedor.value) decision.proveedor = selectProveedor.value;
+      if (selectPrecio && selectPrecio.value) decision.precio = selectPrecio.value;
+      if (Object.keys(decision).length === 0) {
+        showToast('Elige a dónde mover al menos uno de los dos datos detectados (o "Descartar").', true);
+        return;
+      }
+      estadoImport.limpiezaMezcla[columna] = decision;
+      validarImportacion().then(() => {
+        showToast(`Datos mezclados de "${columna}" resueltos — se aplicó a todas las filas iguales.`);
+      });
+    });
+  }
+
+  // ---------- Punto 397 — propuesta 1: agrupar por valor + resolver ----------
+  // 11,552 filas con el MISMO valor de catálogo sin resolver (ej. "UNIDAD")
+  // son, en realidad, un solo problema — se agrupan y se resuelven una vez,
+  // aplicando el reemplazo a todas las filas iguales sin tocar el archivo.
+  function renderValoresAgrupadosImport(grupos) {
+    if (!els.invImportValoresAgrupadosWrap) return;
+    els.invImportValoresAgrupadosWrap.hidden = grupos.length === 0;
+    if (grupos.length === 0) {
+      els.invImportValoresAgrupados.innerHTML = '';
+      return;
+    }
+    if (grupos.some((g) => g.columna === 'unidad_base') && unidadesInventarioActuales.length === 0) {
+      cargarUnidadesInventario();
+    }
+    els.invImportValoresAgrupados.innerHTML = grupos.map((g, idx) => {
+      const resuelto = esFilaUnidadResuelta(g);
+      const esUnidad = g.columna === 'unidad_base' && !resuelto;
+      const filaId = `inv-import-vg-${idx}`;
+      return `
+        <div class="inv-import-valor-grupo" data-fila-id="${filaId}">
+          <div class="inv-import-valor-grupo-fila">
+            <span class="inv-import-valor-grupo-valor">"${escapeHtml(String(g.valor))}"</span>
+            <span class="inv-import-valor-grupo-count">${g.count} fila(s)</span>
+            <span class="inv-import-valor-grupo-motivo">${escapeHtml(g.motivo)}</span>
+            ${esUnidad ? `
+              <select class="inv-import-valor-grupo-select" id="${filaId}-select">
+                <option value="">Elegir unidad…</option>
+                ${unidadesInventarioActuales.map((u) => `<option value="${escapeHtml(u.nombre)}">${escapeHtml(u.nombre)} (${escapeHtml(u.abreviatura)})</option>`).join('')}
+                <option value="__crear_nueva__">+ Crear unidad nueva…</option>
+              </select>
+              <button type="button" class="btn btn-secondary inv-import-valor-grupo-aplicar" data-accion="aplicar-unidad" data-campo="unidad_base" data-valor="${escapeHtml(String(g.valor))}" data-select="${filaId}-select">Aplicar a las ${g.count}</button>
+            ` : resuelto ? '<span class="inv-import-valor-grupo-resuelto">Resuelto — se aplicará al validar</span>' : ''}
+          </div>
+          <div class="inv-import-valor-grupo-nueva" id="${filaId}-nueva" hidden>
+            <input type="text" placeholder="Nombre (ej. Pieza)" maxlength="50" id="${filaId}-nombre" />
+            <input type="text" placeholder="Abreviatura (ej. pz)" maxlength="10" id="${filaId}-abrev" />
+            <button type="button" class="btn btn-primary" data-accion="crear-unidad" data-valor="${escapeHtml(String(g.valor))}" data-select="${filaId}-select" data-nueva="${filaId}-nueva">Crear y aplicar</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function esFilaUnidadResuelta(grupo) {
+    if (grupo.columna !== 'unidad_base') return false;
+    const overridesUnidad = estadoImport.valorOverrides.unidad_base;
+    return Boolean(overridesUnidad && overridesUnidad[String(grupo.valor).trim().toLowerCase()]);
+  }
+
+  async function aplicarResolucionValorImport(campo, valorOriginal, valorNuevo) {
+    if (!valorNuevo) return;
+    if (!estadoImport.valorOverrides[campo]) estadoImport.valorOverrides[campo] = {};
+    estadoImport.valorOverrides[campo][String(valorOriginal).trim().toLowerCase()] = valorNuevo;
+    await validarImportacion();
+    showToast(`"${valorOriginal}" resuelto como "${valorNuevo}" — aplicado a todas las filas iguales.`);
+  }
+
+  async function crearUnidadYAplicarImport(valorOriginal, nombre, abreviatura) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    const nombreLimpio = (nombre || '').trim();
+    const abrevLimpia = (abreviatura || '').trim();
+    if (!nombreLimpio || !abrevLimpia) {
+      showToast('Escribe nombre y abreviatura para la unidad nueva.', true);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/inventarios/unidades`, {
+        method: 'POST',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nombreLimpio, abreviatura: abrevLimpia }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo crear la unidad.', true);
+        return;
+      }
+      await cargarUnidadesInventario();
+      await aplicarResolucionValorImport('unidad_base', valorOriginal, data.nombre || nombreLimpio);
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  if (els.invImportValoresAgrupados) {
+    els.invImportValoresAgrupados.addEventListener('change', (e) => {
+      if (!e.target.classList.contains('inv-import-valor-grupo-select')) return;
+      const grupoEl = e.target.closest('.inv-import-valor-grupo');
+      const nuevaForm = grupoEl.querySelector('.inv-import-valor-grupo-nueva');
+      if (nuevaForm) nuevaForm.hidden = e.target.value !== '__crear_nueva__';
+    });
+    els.invImportValoresAgrupados.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-accion]');
+      if (!btn) return;
+      if (btn.dataset.accion === 'aplicar-unidad') {
+        const select = document.getElementById(btn.dataset.select);
+        if (!select || !select.value || select.value === '__crear_nueva__') {
+          showToast('Elige una unidad del catálogo.', true);
+          return;
+        }
+        aplicarResolucionValorImport(btn.dataset.campo, btn.dataset.valor, select.value);
+      } else if (btn.dataset.accion === 'crear-unidad') {
+        const nueva = document.getElementById(btn.dataset.nueva);
+        const nombre = document.getElementById(`${btn.dataset.nueva.replace('-nueva', '')}-nombre`).value;
+        const abrev = document.getElementById(`${btn.dataset.nueva.replace('-nueva', '')}-abrev`).value;
+        crearUnidadYAplicarImport(btn.dataset.valor, nombre, abrev);
+      }
+    });
+  }
+
+  if (els.btnInvImportVerDetalleErrores) {
+    els.btnInvImportVerDetalleErrores.addEventListener('click', () => {
+      const abierto = !els.invImportDetalleErroresWrap.hidden;
+      els.invImportDetalleErroresWrap.hidden = abierto;
+      els.btnInvImportVerDetalleErrores.textContent = abierto ? 'Ver detalle fila por fila' : 'Ocultar detalle fila por fila';
+    });
   }
 
   async function descargarErroresImport() {
@@ -20374,7 +20770,7 @@
         { t: 'Actívalo primero', d: 'Configuraciones → interruptor "Inventario activo". Antes de eso, la sección permanece oculta para todos los perfiles.' },
         { t: 'Dar de alta un producto o servicio', d: 'Botón "Nuevo producto/servicio" — un servicio pide solo 10 de los 14 campos (sin stock ni código de barras) y se cobra "Por hora" o "Precio fijo (paquete de servicio)" — nunca por las demás unidades del catálogo.' },
         { t: 'Registrar entradas y salidas', d: 'Menú "⋮" de cada fila — cada movimiento queda en el historial permanente, nunca editable una vez guardado.' },
-        { t: 'Importar catálogo', d: 'Botón "Importar catálogo" → sube un CSV/XLSX → el sistema detecta las columnas solo, con vista previa antes de confirmar. Solo para productos, no servicios.' },
+        { t: 'Importar catálogo', d: 'Botón "Importar catálogo" → sube un CSV/XLSX/XLS → el sistema detecta las columnas solo, con vista previa antes de confirmar. Solo para productos, no servicios.' },
         { t: 'Código de barras con la cámara', d: 'En Ventas o al dar de alta un producto, el ícono de cámara escanea el código y llena el campo solo.' },
         { t: 'Imprimir etiqueta de código de barras', d: 'Menú "⋮" de cada fila → "Imprimir etiqueta" — elige térmica (rollo, 40×30mm) o carta (24 por hoja), cuántas copias, y listo. Se genera solo a partir del código de barras del producto (o su SKU si no tiene uno capturado), sin necesidad de escribirlo a mano.' },
         { t: '"Solamente servicios"', d: 'Si tu negocio no maneja stock físico, actívalo en Configuraciones — oculta todo lo relacionado a productos y existencias.' },
@@ -20968,6 +21364,12 @@
   if (els.btnInvImportPlantillaCsv) els.btnInvImportPlantillaCsv.addEventListener('click', () => descargarPlantillaImport('csv'));
   if (els.btnInvImportPlantillaXlsx) els.btnInvImportPlantillaXlsx.addEventListener('click', () => descargarPlantillaImport('xlsx'));
   if (els.invImportHojaSelect) els.invImportHojaSelect.addEventListener('change', cambiarHojaImport);
+  if (els.btnInvImportExpandirPreview) {
+    els.btnInvImportExpandirPreview.addEventListener('click', () => {
+      estadoImport.previewExpandido = !estadoImport.previewExpandido;
+      renderTablaPreviewImport();
+    });
+  }
   if (els.invImportMapeoBody) els.invImportMapeoBody.addEventListener('change', manejarCambioMapeoImport);
   if (els.invImportMapeoBody)
     els.invImportMapeoBody.addEventListener('click', (e) => {

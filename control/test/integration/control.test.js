@@ -19,6 +19,7 @@ jest.mock('../../utils/notificarBackend', () => {
     calcularUsoDiscoFisico: jest.fn().mockResolvedValue(734003200),
     aplicarLimiteUsuarios: jest.fn().mockResolvedValue([]),
     obtenerUsoUsuarios: jest.fn().mockResolvedValue(3),
+    crearAdminInicialFisico: jest.fn().mockResolvedValue({ ok: true }),
     // Clases de error reales (no mockeadas) — recalcularUsoDisco() las
     // re-exporta de este módulo y server.js las usa con `instanceof`
     // para mapear el código HTTP correcto (502 vs 500).
@@ -34,7 +35,7 @@ jest.mock('../../utils/ajustesGlobales', () => ({
 
 const { obtenerPool } = require('../../db');
 const { getImagenMaxMb, setImagenMaxMb } = require('../../utils/ajustesGlobales');
-const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, obtenerUsoUsuarios, ErrorCalculoDisco } = require('../../utils/notificarBackend');
+const { notificarInvalidacionCache, activarTenantFisico, eliminarTenantFisico, calcularUsoDiscoFisico, obtenerUsoUsuarios, crearAdminInicialFisico, ErrorCalculoDisco } = require('../../utils/notificarBackend');
 const app = require('../../server');
 
 const TENANT_FILA = {
@@ -62,6 +63,8 @@ describe('Control standalone (/api/control)', () => {
     eliminarTenantFisico.mockResolvedValue({ ok: true });
     calcularUsoDiscoFisico.mockClear();
     calcularUsoDiscoFisico.mockResolvedValue(734003200);
+    crearAdminInicialFisico.mockClear();
+    crearAdminInicialFisico.mockResolvedValue({ ok: true });
   });
 
   describe('GET /api/control/tenants', () => {
@@ -133,6 +136,102 @@ describe('Control standalone (/api/control)', () => {
     test('401 sin credenciales válidas', async () => {
       const res = await request(app).post('/api/control/tenants/cliente1/activar').auth('quien-sea', 'loquesea');
       expect(res.status).toBe(401);
+    });
+
+    // Gap real encontrado por el usuario (13 oct 2026): el alta manual
+    // nunca pedía credenciales de administrador — ver nota en server.js.
+    describe('con adminEmail/adminPassword (alta manual con administrador)', () => {
+      test('200, activa Y crea el administrador, adminCreado=true', async () => {
+        pool.query
+          .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'provisioning' }]]) // obtenerTenantPorSlug inicial
+          .mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE
+          .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]) // obtenerTenantPorSlug posterior
+          .mockResolvedValueOnce([{}]); // registrarEvento
+
+        const res = await request(app)
+          .post('/api/control/tenants/cliente1/activar')
+          .auth('admin', 'admin')
+          .send({ adminEmail: 'admin@empresauno.com', adminPassword: 'Abcdef12' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.adminCreado).toBe(true);
+        expect(crearAdminInicialFisico).toHaveBeenCalledWith(
+          'cliente1',
+          expect.objectContaining({ email: 'admin@empresauno.com', nombreUsuario: 'ADMIN' })
+        );
+        // La contraseña nunca viaja en texto plano al backend interno.
+        const [, payload] = crearAdminInicialFisico.mock.calls[0];
+        expect(payload.passwordHash).not.toBe('Abcdef12');
+        expect(payload.passwordHash).toMatch(/^[0-9a-f]+:[0-9a-f]+$/);
+      });
+
+      test('400 si el correo del administrador no es válido', async () => {
+        const res = await request(app)
+          .post('/api/control/tenants/cliente1/activar')
+          .auth('admin', 'admin')
+          .send({ adminEmail: 'no-es-correo', adminPassword: 'Abcdef12' });
+
+        expect(res.status).toBe(400);
+        expect(activarTenantFisico).not.toHaveBeenCalled();
+        expect(crearAdminInicialFisico).not.toHaveBeenCalled();
+      });
+
+      test('400 si la contraseña del administrador es débil', async () => {
+        const res = await request(app)
+          .post('/api/control/tenants/cliente1/activar')
+          .auth('admin', 'admin')
+          .send({ adminEmail: 'admin@empresauno.com', adminPassword: 'abc' });
+
+        expect(res.status).toBe(400);
+        expect(crearAdminInicialFisico).not.toHaveBeenCalled();
+      });
+
+      test('reintento sobre un tenant YA activo: no reactiva, solo crea el administrador', async () => {
+        pool.query
+          .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]) // obtenerTenantPorSlug DENTRO de activarTenant() — lanza estado_invalido
+          .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]]); // obtenerTenantPorSlug de confirmación en el catch
+
+        const res = await request(app)
+          .post('/api/control/tenants/cliente1/activar')
+          .auth('admin', 'admin')
+          .send({ adminEmail: 'admin@empresauno.com', adminPassword: 'Abcdef12' });
+
+        expect(res.status).toBe(200);
+        expect(activarTenantFisico).not.toHaveBeenCalled();
+        expect(crearAdminInicialFisico).toHaveBeenCalled();
+      });
+
+      test('500 (nunca 502/503/504, ruta pública vía nginx) si falla crear el administrador', async () => {
+        pool.query
+          .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'provisioning' }]])
+          .mockResolvedValueOnce([{ affectedRows: 1 }])
+          .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]])
+          .mockResolvedValueOnce([{}]);
+        const { ErrorActivacionFisica } = jest.requireActual('../../utils/notificarBackend');
+        crearAdminInicialFisico.mockRejectedValueOnce(new ErrorActivacionFisica('No se pudo crear el usuario administrador.'));
+
+        const res = await request(app)
+          .post('/api/control/tenants/cliente1/activar')
+          .auth('admin', 'admin')
+          .send({ adminEmail: 'admin@empresauno.com', adminPassword: 'Abcdef12' });
+
+        expect(res.status).toBe(500);
+        expect(res.body.tenant.estado).toBe('activo'); // el tenant NO se revierte
+      });
+
+      test('sin adminEmail/adminPassword: comportamiento idéntico al de siempre (adminCreado=false)', async () => {
+        pool.query
+          .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'provisioning' }]])
+          .mockResolvedValueOnce([{ affectedRows: 1 }])
+          .mockResolvedValueOnce([[{ ...TENANT_FILA, estado: 'activo' }]])
+          .mockResolvedValueOnce([{}]);
+
+        const res = await request(app).post('/api/control/tenants/cliente1/activar').auth('admin', 'admin');
+
+        expect(res.status).toBe(200);
+        expect(res.body.adminCreado).toBe(false);
+        expect(crearAdminInicialFisico).not.toHaveBeenCalled();
+      });
     });
   });
 

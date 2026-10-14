@@ -89,6 +89,10 @@ function normalizarDatosPlan(datos = {}, { parcial = false } = {}) {
     // prerrequisito (igual que sucursales_habilitado/marca_lookfeel_habilitado
     // arriba, nunca entra en validarReglasDependencia).
     'promociones_habilitado',
+    // Ticket de impresión (logo + plantilla del recibo) — separado de
+    // marca_lookfeel_habilitado (punto en curso, 2026-10-10). SÍ entra en
+    // validarReglasDependencia (regla 13: requiere ventas_habilitado).
+    'ticket_impresion_habilitado',
   ]) {
     if (!parcial || datos[campo] !== undefined) {
       resultado[campo] = booleano(datos[campo]) ? 1 : 0;
@@ -129,6 +133,11 @@ function validarReglasDependencia(estado) {
   if (activo('reportes_estado_tickets_habilitado') && !activo('facturacion_habilitada')) {
     throw new ErrorPlan('Reportes "Estado de tickets" requiere Facturación activo en este plan.', 'validacion');
   }
+  // Regla 13 (punto en curso, 2026-10-10): sin Ventas no hay orden sobre
+  // el cual imprimir un ticket — mismo criterio que reportes_cortes_habilitado.
+  if (activo('ticket_impresion_habilitado') && !activo('ventas_habilitado')) {
+    throw new ErrorPlan('Ticket de impresión requiere Ventas activo en este plan.', 'validacion');
+  }
 }
 
 function mapearFila(fila) {
@@ -155,6 +164,7 @@ function mapearFila(fila) {
     reportes_estado_inventario_habilitado: Boolean(fila.reportes_estado_inventario_habilitado),
     reportes_estado_tickets_habilitado: Boolean(fila.reportes_estado_tickets_habilitado),
     promociones_habilitado: Boolean(fila.promociones_habilitado),
+    ticket_impresion_habilitado: Boolean(fila.ticket_impresion_habilitado),
     disco_cuota_mb: fila.disco_cuota_mb === null ? null : Number(fila.disco_cuota_mb),
     activo: Boolean(fila.activo),
     orden: fila.orden,
@@ -204,8 +214,9 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
         reportes_por_reporte_habilitado, reportes_cortes_habilitado,
         reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
         reportes_estado_tickets_habilitado, promociones_habilitado,
+        ticket_impresion_habilitado,
         activo, orden, creado_en, actualizado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
     [
       normalizado.nombre,
       normalizado.descripcion,
@@ -229,6 +240,7 @@ async function crearPlan(datos = {}, db = obtenerPool()) {
       normalizado.reportes_estado_inventario_habilitado,
       normalizado.reportes_estado_tickets_habilitado,
       normalizado.promociones_habilitado,
+      normalizado.ticket_impresion_habilitado,
       normalizado.orden,
       ahora,
       ahora,
