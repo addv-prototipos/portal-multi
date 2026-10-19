@@ -1,9 +1,16 @@
-# Entorno
+# Entorno — REGLA GLOBAL (2026-10-19): .env y .env.example (y cualquier
+# variante .env.*) NUNCA se versionan. .env.example dejó de estar en el
+# repositorio aunque siga siendo la plantilla local que se copia a .env.
 .env
-# Cualquier variante (.env.local, .env.production, etc.) — .env.example es
-# la única excepción a propósito, es la plantilla sin secretos reales.
 .env.*
-!.env.example
+
+# Hallazgo M-11 (sonar.html, 2026-10-15): archivo dedicado SOLO a
+# ADMIN_USERS que control/ monta :rw — separado del .env principal a
+# propósito (blast radius: un control/ comprometido ya no puede leer ni
+# reescribir MySQL/SESSION_SECRET/INTERNAL_CACHE_SECRET/etc., solo esta
+# línea). admin-users.env.example sí se versiona (sin secretos reales).
+admin-users.env
+!admin-users.env.example
 
 # Certificados/llaves privadas — nunca al repositorio si alguna vez se
 # generan localmente para pruebas de HTTPS.
