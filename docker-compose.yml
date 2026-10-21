@@ -7,8 +7,14 @@
 # tráfico real: copia `.env.example` a `.env` y cambia TODAS las variables
 # marcadas "cámbiala/cámbialas en producción" (ver README, sección
 # "Variables de entorno") — en particular MYSQL_ROOT_PASSWORD, MYSQL_PASSWORD,
-# ADMIN_USERS, MINIO_ROOT_PASSWORD, CONTROL_APP_PASSWORD,
-# INTERNAL_CACHE_SECRET y SESSION_SECRET.
+# MINIO_ROOT_PASSWORD, CONTROL_APP_PASSWORD, INTERNAL_CACHE_SECRET,
+# SESSION_SECRET y DB_DROP_PASSWORD (hallazgo M-14, 2026-10-15).
+# ADMIN_USERS es la EXCEPCIÓN: desde el hallazgo M-11 (sonar.html,
+# 2026-10-15) ya NO vive en este .env — vive en admin-users.env (copia
+# admin-users.env.example antes del primer `docker compose up`), un
+# archivo dedicado y más angosto que control/ monta y escribe en
+# caliente desde su pantalla "Super Admins" sin tocar ningún otro
+# secreto del stack.
 # ──────────────────────────────────────────────────────────────────────────
 services:
   mysql:
@@ -190,6 +196,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    # Hallazgo M-11 (sonar.html, 2026-10-15): ADMIN_USERS se lee de este
+    # archivo dedicado (ver admin-users.env.example) en vez de
+    # interpolarse desde el .env principal — así un cambio hecho en
+    # caliente desde /control (que escribe directo en admin-users.env,
+    # nunca en el .env principal) sobrevive un restart de este servicio
+    # también, sin que backend necesite montar ningún archivo.
+    env_file:
+      - ./admin-users.env
     environment:
       PORT: 4000
       UPLOAD_DIR: /app/uploads
@@ -198,6 +212,18 @@ services:
       DB_USER: ${MYSQL_USER:-app}
       DB_PASSWORD: ${MYSQL_PASSWORD:-changeme_app_password}
       DB_NAME: ${MYSQL_DATABASE:-portal_facturacion}
+      # Hallazgo M-14 (sonar.html, 2026-10-15): credencial NUEVA y
+      # separada, usada EXCLUSIVAMENTE por eliminarBaseDeDatosTenant()
+      # (backend/db.js) para el único DROP DATABASE real del proyecto —
+      # nunca por las ~90 rutas parametrizadas de arriba, que siguen con
+      # DB_USER/DB_PASSWORD (ahora sin privilegio DROP, ver
+      # backend/scripts/lib/controlDb.js). Mismo usuario que crea/rota
+      # asegurarControlYPrivilegios() cuando se corre
+      # provisionar-tenant.js/cutover-tenant-piloto.js con
+      # DB_DROP_PASSWORD definido en el entorno (opcional ahí, igual
+      # criterio que CONTROL_APP_PASSWORD).
+      DB_DROP_USER: ${DB_DROP_USER:-app_tenant_drop}
+      DB_DROP_PASSWORD: ${DB_DROP_PASSWORD:-changeme_app_drop_password}
       # Punto 305 (Fase 1): admin_auditoria vive en control_tenants
       # (obtenerPoolControl() en backend/db.js), que se movió a su propia
       # instancia (mysql-control) -- antes caía por defecto a
@@ -220,11 +246,18 @@ services:
       CONTROL_DB_NAME: control_tenants
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
-      ADMIN_USERS: ${ADMIN_USERS:-admin:admin}
       USO_CFDI_SYNC_URL: ${USO_CFDI_SYNC_URL:-}
       CLAVE_PROD_SERV_SYNC_URL: ${CLAVE_PROD_SERV_SYNC_URL:-https://raw.githubusercontent.com/phpcfdi/resources-sat-catalogs/master/database/data/cfdi_40_productos_servicios.sql}
       SESSION_SECRET: ${SESSION_SECRET:-}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # true a partir de M-18 (sonar_1.1.html, 2026-10-19): con
+      # NODE_ENV=production, authUsuario.js ya hace secure=true SIEMPRE y
+      # aborta el arranque si esta variable llega en "false" — dejarla en
+      # "false" aquí (el default de antes) ya ni siquiera arranca. Sigue
+      # funcionando en http://localhost (los navegadores modernos guardan
+      # cookies Secure ahí aunque no haya HTTPS real) — se rompe SOLO si
+      # pruebas por IP de LAN sin HTTPS (http://192.168.x.x), caso ya
+      # documentado como excepción, no el uso diario.
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       NODE_ENV: production
       MINIO_ENDPOINT: http://minio:9000
       MINIO_BUCKET: ${MINIO_BUCKET:-portal-facturacion}
@@ -234,6 +267,11 @@ services:
       # POST /internal/cache-tenant/invalidar (ver server.js). Sin esto,
       # ese endpoint queda inalcanzable (rechaza todo con 403), no roto.
       INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
+      # Hallazgo m-01 (sonar_1.1.html, Fase D, punto 410): DOCS_ENABLED
+      # se invirtió a opt-in (apagado por defecto) -- se enciende aquí
+      # explícito para no perder Swagger en desarrollo local. prod/ NUNCA
+      # debe definir esta variable.
+      DOCS_ENABLED: 'true'
     volumes:
       - ./uploads:/app/uploads
     networks:
@@ -271,23 +309,35 @@ services:
         condition: service_healthy
       mysql-control:
         condition: service_healthy
-    # Punto 247 — .env montado para que /control pueda gestionar ADMIN_USERS
-    # escribiendo en el archivo del host (híbrido .env + BD, con .env como
-    # fuente de verdad en disco si la UI falla). Se le darán permisos de
-    # escritura en el host como indicó el usuario.
+    # Punto 247 — archivo montado para que /control pueda gestionar
+    # ADMIN_USERS escribiendo en disco (híbrido archivo + BD, con el
+    # archivo como fuente de verdad en disco si la UI falla).
+    # Hallazgo M-11 (sonar.html, 2026-10-15): el mount apuntaba al `.env`
+    # PRINCIPAL del stack completo (MySQL root, SESSION_SECRET,
+    # INTERNAL_CACHE_SECRET, CONTROL_VAULT_KEY, MinIO/SMTP — todo) con
+    # permiso de escritura — un control/ comprometido podía leer o
+    # reescribir CUALQUIER secreto del stack, no solo el que administra.
+    # Se le darán permisos de escritura en el host como indicó el
+    # usuario — ahora sobre admin-users.env (ver admin-users.env.example),
+    # un archivo dedicado SOLO a esta línea; backend/ lee el mismo
+    # archivo vía `env_file:` (arriba) para que un restart tampoco pierda
+    # un cambio hecho en caliente desde aquí.
     # Bug real corregido (2026-09-10): el montaje original apuntaba a
     # "/app/.env" — el Dockerfile de control usa WORKDIR /usr/src/app (sin
     # ningún directorio "/app"), así que Docker creaba "/app" como
     # directorio nuevo, propiedad de root, sin permiso de escritura para
     # "appuser" (el usuario sin privilegios con el que corre el proceso) —
     # cualquier escritura fallaba con EACCES al crear el archivo temporal
-    # del guardado atómico. Corregido a la ruta real de la app.
+    # del guardado atómico. Corregido a la ruta real de la app (la ruta
+    # DENTRO del contenedor, /usr/src/app/.env, no cambió — solo el
+    # archivo del HOST que se monta ahí).
     volumes:
-      - ./.env:/usr/src/app/.env:rw
+      - ./admin-users.env:/usr/src/app/.env:rw
+    env_file:
+      - ./admin-users.env
     environment:
       PORT: 4001
       ADMIN_USERS_ENV_PATH: /usr/src/app/.env
-      ADMIN_USERS: ${ADMIN_USERS:-admin:admin}
       # Punto 305 (Fase 1): instancia MySQL propia, ya no la compartida
       # con el backend de tenants (mysql) — ver servicio mysql-control
       # arriba. TENANT_DB_HOST de abajo se queda explícito en "mysql" a
@@ -313,6 +363,20 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       ONBOARDING_CORS_ORIGIN: ${ONBOARDING_CORS_ORIGIN:-}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      # Hallazgo m-01 (sonar_1.1.html, Fase D, punto 410): DOCS_ENABLED
+      # se invirtió a opt-in -- encendido aquí para desarrollo local;
+      # prod/ nunca debe definir esta variable.
+      DOCS_ENABLED: 'true'
+      # Hallazgo M-06 (sonar_1.1.html, Fase D, punto 410): secret key de
+      # Cloudflare Turnstile que verifica control/utils/turnstile.js antes
+      # de aprovisionar un tenant real desde el onboarding público. El
+      # default es el secret key PÚBLICO de prueba que documenta
+      # Cloudflare (siempre aprueba, pensado para dev/CI) -- nunca un
+      # secreto real. Sobreescribir con TURNSTILE_SECRET_KEY en el .env
+      # del host al tener cuenta real. prod/ NUNCA debe traer un default:
+      # sin esta variable, el candado falla CERRADO (rechaza el
+      # onboarding) a propósito.
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA}
     networks:
       - fiscal-net
     expose:

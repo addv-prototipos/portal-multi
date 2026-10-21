@@ -9,10 +9,12 @@ const swaggerDefinition = {
       'API del portal (backend). Todas las rutas bajo `/api` pasan por `frontend/nginx.conf.template` → `backend:4000`. ' +
       'Con tenant, prefijo `/<slug>/api/*` + `X-Tenant-Slug`. Autenticación: `Basic ADMIN_USERS` para `/api/admin/*` y `/api/control/*` (super-only), cookie `session` para cliente. Ver `backend/server.js` y `control/server.js` como fuente de verdad.',
   },
-  servers: [
-    { url: 'http://localhost:8088', description: 'Local (FRONTEND_PORT=8088)' },
-    { url: 'http://192.168.68.75:8088', description: 'LAN (IP verificada 2026-08-24)' },
-  ],
+  // Hallazgo M-17 (sonar.html): esta lista se publica tal cual en
+  // /api/docs.json, público — nunca una IP/host real de un desarrollador
+  // o servidor aquí (quedó una IP de LAN hardcodeada hasta este punto).
+  // Server relativo ("/"): Swagger UI ya resuelve "Try it out" contra el
+  // origen desde el que se sirve, sin necesidad de listar hosts reales.
+  servers: [{ url: '/', description: 'Origen actual' }],
   components: {
     securitySchemes: {
       basicAuth: { type: 'http', scheme: 'basic' },

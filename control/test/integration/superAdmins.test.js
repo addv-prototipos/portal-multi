@@ -76,7 +76,7 @@ describe('Control: Super Admins (ADMIN_USERS en .env, punto 247)', () => {
         .auth('admin', 'admin')
         .send({ usuario: 'nuevo_super', password: '123' });
       expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/mínimo 6 caracteres/);
+      expect(res.body.error).toMatch(/mínimo 8 caracteres/);
     });
 
     test('usuario ya existente responde 409', async () => {

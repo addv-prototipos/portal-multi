@@ -500,6 +500,71 @@ describe('Admin', () => {
     });
   });
 
+  // Hallazgo M-03 (sonar.html, 2026-10-14): CSRF sobre Basic Auth — un
+  // navegador reenvía las credenciales cacheadas a CUALQUIER request
+  // hacia este origen, incluida una disparada por un sitio ajeno.
+  // requireOrigenPropio() (app.use('/api/admin', ...), antes de
+  // cualquier ruta) rechaza una mutación cuyo `Origin` no coincide con
+  // el host real que recibió la request — sin tocar GET (nunca debería
+  // tener efectos secundarios) ni a un cliente server-to-server que
+  // nunca manda `Origin`.
+  describe('CSRF — requireOrigenPropio (M-03)', () => {
+    test('POST/PUT/DELETE con Origin de un sitio ajeno responde 403, sin llegar a la ruta', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      const res = await request(app)
+        .put('/api/admin/usuarios/2/estado')
+        .auth(usuario, password)
+        .set('Origin', 'https://atacante.com')
+        .send({ activo: false });
+
+      expect(res.status).toBe(403);
+      // requireOrigenPropio corre ANTES de requireAdminAuth (registrado
+      // vía app.use('/api/admin', ...) antes que cualquier ruta) — cero
+      // queries, ni siquiera la de autenticación.
+      expect(pool.query).toHaveBeenCalledTimes(0);
+    });
+
+    // El caso "mismo origen pasa" se prueba a nivel unitario en
+    // test/unit/requireOrigenPropio.test.js — supertest usa un puerto
+    // efímero distinto en cada corrida, así que fijar aquí un Origin
+    // que coincida con `req.get('host')` real no es determinista.
+
+    test('sin cabecera Origin (cliente no-navegador): pasa sin tocar', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ rfc: 'OTRO000000XXX' }]]);
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE
+
+      const res = await request(app)
+        .put('/api/admin/usuarios/2/estado')
+        .auth(usuario, password)
+        .send({ activo: false });
+
+      expect(res.status).toBe(200);
+    });
+
+    test('Sec-Fetch-Site: cross-site responde 403 aunque no venga Origin', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      const res = await request(app)
+        .put('/api/admin/usuarios/2/estado')
+        .auth(usuario, password)
+        .set('Sec-Fetch-Site', 'cross-site')
+        .send({ activo: false });
+
+      expect(res.status).toBe(403);
+      expect(pool.query).toHaveBeenCalledTimes(0);
+    });
+
+    test('GET nunca se bloquea por Origin ajeno (solo mutaciones)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      const res = await request(app)
+        .get('/api/admin/usuarios')
+        .auth(usuario, password)
+        .set('Origin', 'https://atacante.com');
+
+      expect(res.status).not.toBe(403);
+    });
+  });
+
   describe('/api/admin/usuarios', () => {
     test('GET requiere perfil administrador (fiscal responde 403)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('fiscal');
@@ -667,6 +732,86 @@ describe('Admin', () => {
       pool.query.mockResolvedValueOnce([{}]); // UPDATE
       await request(app).put('/api/admin/usuarios/2/estado').auth(usuario, password).send({ activo: false });
       expect(pool.query.mock.calls[2][0]).not.toMatch(/suspendido_motivo/);
+    });
+  });
+
+  // Hallazgo M-09 (sonar.html, 2026-10-14): este reseteo sobrescribía la
+  // contraseña de CUALQUIER usuario sin verificar nada del lado del
+  // operador — Basic Auth robado bastaba para resetear TODAS las demás
+  // cuentas admin y tomar persistencia total. Ahora exige la contraseña
+  // ACTUAL del propio operador (mismo criterio de step-up que
+  // PUT /api/admin/mi-cuenta/password), cubriendo los 2 mecanismos de
+  // login que pueden llegar aquí: perfil_bd (fila real en `usuarios`) y
+  // admin_users/"super" (ADMIN_USERS del .env, sin fila en `usuarios`).
+  describe('PUT /api/admin/usuarios/:id/password (M-09 — step-up del operador)', () => {
+    test('perfil_bd: sin password_actual responde 400, sin llegar al UPDATE', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      // Query de verificación del operador: fila real, pero sin
+      // password_actual en el body nunca debe coincidir.
+      pool.query.mockResolvedValueOnce([[{ password_hash: hashPassword(password) }]]);
+
+      const res = await request(app)
+        .put('/api/admin/usuarios/2/password')
+        .auth(usuario, password)
+        .send({ password: 'ClaveNueva9' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/contraseña actual/i);
+      expect(pool.query).toHaveBeenCalledTimes(2); // auth + verificación del operador, sin UPDATE
+    });
+
+    test('perfil_bd: con password_actual incorrecta responde 400, sin llegar al UPDATE', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ password_hash: hashPassword(password) }]]);
+
+      const res = await request(app)
+        .put('/api/admin/usuarios/2/password')
+        .auth(usuario, password)
+        .send({ password: 'ClaveNueva9', password_actual: 'NoEsLaMia1' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/contraseña actual/i);
+      expect(pool.query).toHaveBeenCalledTimes(2);
+    });
+
+    test('perfil_bd: con password_actual correcta sí llega al UPDATE y responde 200', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ password_hash: hashPassword(password) }]]); // verificación del operador
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
+
+      const res = await request(app)
+        .put('/api/admin/usuarios/2/password')
+        .auth(usuario, password)
+        .send({ password: 'ClaveNueva9', password_actual: password });
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(pool.query.mock.calls[2][0]).toMatch(/UPDATE usuarios SET password_hash/);
+    });
+
+    test('mecanismo "super" (ADMIN_USERS): valida password_actual contra checkCredentials, nunca contra la tabla usuarios', async () => {
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
+      const res = await request(app)
+        .put('/api/admin/usuarios/2/password')
+        .auth('admin', 'admin') // fallback dev-only ya cubierto por ADMIN_USERS en el stack de pruebas
+        .send({ password: 'ClaveNueva9', password_actual: 'admin' });
+
+      expect(res.status).toBe(200);
+      // El mecanismo "super" no tiene fila en `usuarios` — la única
+      // query real es el UPDATE, sin ningún SELECT de verificación.
+      expect(pool.query).toHaveBeenCalledTimes(1);
+      expect(pool.query.mock.calls[0][0]).toMatch(/UPDATE usuarios SET password_hash/);
+    });
+
+    test('mecanismo "super" con password_actual incorrecta responde 400, sin tocar la tabla usuarios', async () => {
+      const res = await request(app)
+        .put('/api/admin/usuarios/2/password')
+        .auth('admin', 'admin')
+        .send({ password: 'ClaveNueva9', password_actual: 'incorrecta' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/contraseña actual/i);
+      expect(pool.query).not.toHaveBeenCalled();
     });
   });
 

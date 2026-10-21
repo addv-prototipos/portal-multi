@@ -121,6 +121,30 @@ solo la frase en español de la UI.
   veces no recoge cambios de archivo — usar `--no-cache` seguido de
   `up -d --force-recreate <servicio>` cuando un cambio no aparece al
   probar.
+- **`docker compose restart <servicio>` nunca re-lee `env_file`/`.env`**
+  (punto 403, hallazgo M-11, 2026-10-16): solo reinicia el proceso
+  dentro del contenedor YA existente — un cambio en una variable que
+  viene de `env_file:` (o de la interpolación `${VAR}` del `.env` host)
+  necesita `up -d --force-recreate <servicio>` (o un rebuild real) para
+  tomar efecto. Confirmado real al probar la persistencia de
+  `admin-users.env`: `restart` seguía viendo el valor viejo, `--force-recreate`
+  sí vio el nuevo.
+- **La automatización de navegador NO puede abrir `file://`** (punto en
+  curso, 2026-10-16, confirmado con la extensión de Claude in Chrome —
+  revisar si aplica igual a la herramienta de navegador que use Codex):
+  afecta sobre todo a `pendientes.html` (vive en el repo, nunca servido
+  por nginx, se abre siempre como archivo local) — su `localStorage` de
+  checks no es legible por automatización de navegador; si se necesita
+  leerlo, pedirle al usuario el botón "Copiar estado" y que pegue el
+  resultado, nunca intentar navegar ahí directo.
+- **Después de recrear `backend`, `frontend` (nginx) puede quedar
+  apuntando a la IP vieja del contenedor** (observado repetidamente
+  2026-10-15/16, no es un bug de esta sesión): nginx resuelve el nombre
+  "backend" a una IP de Docker una sola vez y no siempre la refresca
+  tras un `--force-recreate` de ese servicio — síntoma: `/api/health`
+  responde la página de `mantenimiento.html` (502/503) aunque
+  `docker compose ps` muestre `backend` como `healthy`. Fix de un paso:
+  `docker compose restart frontend` después de recrear `backend`.
 - **Scripts de `prod/` horneados en la imagen**: el backend de
   producción construye desde `prod/backend` sin bind mount (solo
   `uploads` es volumen) — un cambio en `prod/backend/scripts/*` (p. ej.
@@ -278,6 +302,15 @@ solo la frase en español de la UI.
   condición de carrera — Playwright lo descarta solo, automáticamente,
   justo antes de cualquier acción que quedaría bloqueada, sin importar
   cuándo aparezca.
+- **Playwright en este entorno: chromium NO instalado + transiciones a
+  medio camino** (punto 400, 2026-10-14): los binarios de chromium no
+  existen aquí — usar `--channel msedge` (Edge del sistema) en el CLI, o
+  `chromium.launch({ channel: 'msedge' })` en scripts con
+  `playwright-core` instalado en un temporal FUERA del repo (nunca en el
+  `node_modules` del proyecto). Y al capturar pantallas justo después de
+  un clic, esperar ~400 ms: cualquier `transition` de 150 ms dispara el
+  screenshot a medio camino y un estado a medio pintar se confunde con
+  un bug de estilos (falso positivo de `aria-pressed`/colores).
 - **Desincronización MySQL/`.env`**: MySQL solo aplica las credenciales
   de `.env` en la PRIMERA inicialización del volumen — editar `.env`
   después desincroniza contra el password real ya grabado. Runbook en
@@ -409,6 +442,15 @@ node --check backend/ruta/al/archivo.js
   `backend/utils/auth.js`).
 - Todas las páginas del frontend reutilizan `style.css` como base; los
   demás `.css` son extensiones, no reemplazos.
+- **`.env` y `.env.example` (y cualquier variante `.env.*`) NUNCA van al
+  repositorio** — regla global decidida por el usuario, 2026-10-19: ambos
+  están en `.gitignore` sin excepciones; `.env.example` se quitó del índice
+  y del árbol de `origin/main` (commit `4fc96b2`), aunque el archivo sigue
+  en disco local y su contenido viejo permanece en el historial de 4 commits
+  previos (sin secretos reales: solo `changeme_*`/`admin:admin`). Si algún
+  día aparece trackeado de nuevo: `git rm --cached <archivo>` + commit,
+  nunca `git rm` (eso lo borraría también del disco). Ver `PROJECT_STATE.md`
+  punto 405.
 - **Tipografía unificada**: toda la app usa **una sola familia
   tipográfica — Inter** (`--font-body`/`--font-display` en `style.css`,
   `--font-display` alias de `--font-body`; `mantenimiento.html` replica el

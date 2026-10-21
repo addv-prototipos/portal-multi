@@ -361,15 +361,22 @@
     importMaxInfo: document.getElementById('import-max-info'),
   };
 
+  // Hallazgo M-02 (sonar.html, 2026-10-14): sessionStorage guardaba
+  // btoa(usuario:contraseña) — la contraseña real del super-admin,
+  // reversible en 1 línea. Ahora guarda el token de sesión opaco que
+  // emite control/utils/auth.js (firmado HMAC, 30 min deslizante) — un
+  // XSS que lo robe obtiene un token que expira solo, nunca la
+  // contraseña real.
   function getAuthHeader() {
-    const creds = sessionStorage.getItem(SESSION_KEY);
-    return creds ? `Basic ${creds}` : null;
+    const token = sessionStorage.getItem(SESSION_KEY);
+    return token ? `Bearer ${token}` : null;
   }
 
-  function setSession(username, password) {
-    const encoded = btoa(unescape(encodeURIComponent(`${username}:${password}`)));
-    sessionStorage.setItem(SESSION_KEY, encoded);
-    sessionStorage.setItem(SESSION_USER_KEY, username);
+  // Recibe el token ya emitido por el backend — nunca construye ni
+  // guarda la contraseña aquí (ver interceptor global de fetch() más
+  // abajo, que llama esto en cada respuesta con un token fresco).
+  function setSession(token) {
+    sessionStorage.setItem(SESSION_KEY, token);
   }
 
   function clearSession() {
@@ -377,10 +384,47 @@
     sessionStorage.removeItem(SESSION_USER_KEY);
   }
 
+  // Interceptor global de fetch() (M-02) — mismo patrón que
+  // frontend/admin.js ("punto 290"): captura la cabecera
+  // X-Admin-Session-Token en CUALQUIER respuesta exitosa de
+  // /api/control/* (login inicial vía Basic, o cualquier request
+  // posterior vía Bearer, sesión deslizante de 30 min) y actualiza
+  // sessionStorage sin tocar los 48 fetch() del archivo.
+  const fetchOriginal = window.fetch.bind(window);
+  window.fetch = function fetchConRenovacionDeToken(recurso, opciones) {
+    return fetchOriginal(recurso, opciones).then((res) => {
+      const url = typeof recurso === 'string' ? recurso : (recurso && recurso.url) || '';
+      if (url.startsWith(API_BASE)) {
+        const tokenFresco = res.headers.get('X-Admin-Session-Token');
+        if (tokenFresco) setSession(tokenFresco);
+      }
+      return res;
+    });
+  };
+
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : String(str);
     return div.innerHTML;
+  }
+
+  // Hallazgo C-05 (sonar.html, 2026-10-13): escapeHtml() escapa & < > pero
+  // nunca " ' ` (textContent→innerHTML no los toca, no son especiales en
+  // un nodo de texto). Seguro para contenido de elemento, NO dentro de un
+  // atributo (`attr="${escapeHtml(x)}"`). Usar escapeHtmlAttr() ahí.
+  function escapeHtmlAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
+  }
+
+  // Hallazgo m-13 (sonar_1.1.html, 2026-10-19): unescape() está deprecado
+  // desde ES5 — reemplazo moderno para codificar un string UTF-8 a base64
+  // sin perder bytes (duplicado de admin.js, mismo criterio que
+  // escapeHtml/escapeHtmlAttr de arriba — sin bundler, se duplica).
+  function base64Utf8(str) {
+    const bytes = new TextEncoder().encode(str);
+    let binario = '';
+    bytes.forEach((b) => { binario += String.fromCharCode(b); });
+    return btoa(binario);
   }
 
   // Mismo formato que admin.js formatFecha() — el backend siempre manda
@@ -515,7 +559,7 @@
 
     setLoginLoading(true);
     try {
-      const encoded = btoa(unescape(encodeURIComponent(`${usuario}:${contrasena}`)));
+      const encoded = base64Utf8(`${usuario}:${contrasena}`);
       const res = await fetch(`${API_BASE}/tenants`, {
         headers: { Authorization: `Basic ${encoded}` },
       });
@@ -534,7 +578,10 @@
       }
 
       const data = await res.json();
-      setSession(usuario, contrasena);
+      // M-02: el token de sesión ya quedó guardado por el interceptor
+      // global de fetch() en cuanto esta respuesta llegó — aquí solo se
+      // guarda el nombre de usuario (cosmético, para "Sesión activa").
+      sessionStorage.setItem(SESSION_USER_KEY, usuario);
       showDashboard(usuario);
       renderTenants(data.tenants || []);
     } catch (err) {
@@ -658,12 +705,12 @@
     const etiquetaEstatus = ETIQUETA_ESTATUS_SUSCRIPCION[t.suscripcion_estatus] || '';
     const sufijo = etiquetaEstatus ? ` · ${escapeHtml(etiquetaEstatus)}` : '';
     if (dias < 0) {
-      return `<span class="estatus-badge estatus-vence-vencido" data-tooltip="${escapeHtml(fechaTexto)}">Vencida${sufijo}</span>`;
+      return `<span class="estatus-badge estatus-vence-vencido" data-tooltip="${escapeHtmlAttr(fechaTexto)}">Vencida${sufijo}</span>`;
     }
     if (dias <= 7) {
-      return `<span class="estatus-badge estatus-vence-proximo" data-tooltip="${escapeHtml(fechaTexto)}">${dias} día${dias === 1 ? '' : 's'}${sufijo}</span>`;
+      return `<span class="estatus-badge estatus-vence-proximo" data-tooltip="${escapeHtmlAttr(fechaTexto)}">${dias} día${dias === 1 ? '' : 's'}${sufijo}</span>`;
     }
-    return `<span class="estatus-badge estatus-vence-ok" data-tooltip="${escapeHtml(fechaTexto)}">${dias} días${sufijo}</span>`;
+    return `<span class="estatus-badge estatus-vence-ok" data-tooltip="${escapeHtmlAttr(fechaTexto)}">${dias} días${sufijo}</span>`;
   }
 
   // Punto 381: filtro "Próximos a vencer" es client-side — listarTenants()
@@ -705,12 +752,12 @@
       // acceso nuevo, solo un atajo.
       const urlAdminTenant = `${window.location.origin}/${t.slug}/admin`;
       const slugCelda = t.estado === 'activo'
-        ? `<a href="${escapeHtml(urlAdminTenant)}" target="_blank" rel="noopener noreferrer" class="control-slug-link" data-tooltip="${escapeHtml(urlAdminTenant)}"><strong>${escapeHtml(t.slug)}</strong></a>`
+        ? `<a href="${escapeHtmlAttr(urlAdminTenant)}" target="_blank" rel="noopener noreferrer" class="control-slug-link" data-tooltip="${escapeHtmlAttr(urlAdminTenant)}"><strong>${escapeHtml(t.slug)}</strong></a>`
         : `<strong>${escapeHtml(t.slug)}</strong>`;
       tr.innerHTML = `
         <td data-label="Slug">${slugCelda}</td>
         <td data-label="Empresa">${escapeHtml(t.nombre_empresa)}</td>
-        <td data-label="Estado"><span class="estatus-badge estatus-${escapeHtml(t.estado)}" data-tooltip="${escapeHtml(tooltipEstado)}">${escapeHtml(etiquetaEstado)}</span></td>
+        <td data-label="Estado"><span class="estatus-badge estatus-${escapeHtmlAttr(t.estado)}" data-tooltip="${escapeHtmlAttr(tooltipEstado)}">${escapeHtml(etiquetaEstado)}</span></td>
         <td data-label="Vence">${celdaVenceHtml(t)}</td>
         <td data-label="Contacto">${escapeHtml(t.contacto_email) || '—'}</td>
         <td data-label="Creado">${formatFecha(t.creado_en)}</td>
@@ -1450,8 +1497,9 @@
       // el alta; el backend de control lo reenvía al almacenamiento y
       // guarda la ruta pública (ver control/utils/tenantIntake.js).
       let logoBase64 = null;
-      const archivoLogo = els.intakeLogo.files && els.intakeLogo.files[0];
+      let archivoLogo = els.intakeLogo.files && els.intakeLogo.files[0];
       if (archivoLogo) {
+        archivoLogo = await comprimirSiAplica(archivoLogo, { objetivoKB: 250, calidadMin: 0.65, dimMaxPx: 1200 });
         if (archivoLogo.size > imagenMaxMbActual * 1024 * 1024) {
           setFieldErrorIntake('intake-logo', `El logo excede el tamaño máximo permitido de ${imagenMaxMbActual} MB.`);
           els.intakeLogo.focus();
@@ -1758,6 +1806,22 @@
       reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
       reader.readAsDataURL(file);
     });
+  }
+
+  // Comprime a WebP en el navegador antes de leer como base64 (módulo
+  // auditado en webp/comprimir.js, copiado tal cual a
+  // frontend/comprimir.js — cero red). Si el módulo no cargó, el archivo
+  // no es imagen, o la compresión falla, sigue con el archivo original:
+  // nunca bloquea una subida legítima.
+  async function comprimirSiAplica(archivo, opciones) {
+    if (!window.comprimirImagen || !archivo || !archivo.type || archivo.type.indexOf('image/') !== 0) return archivo;
+    try {
+      const r = await window.comprimirImagen(archivo, opciones);
+      if (r.sinCambios) return archivo;
+      return new File([r.blob], r.nombre, { type: r.blob.type || 'image/webp' });
+    } catch (err) {
+      return archivo;
+    }
   }
 
   function setFieldErrorEditar(id, mensaje) {
@@ -3357,7 +3421,7 @@
           label.setAttribute('data-tooltip', 'Esta empresa no tiene "Sucursales" activado en su plan');
         }
         label.innerHTML = `
-          <input type="checkbox" value="${escapeHtml(t.slug)}" ${yaAsociado ? 'checked' : ''} ${tieneSucursales ? '' : 'disabled'} />
+          <input type="checkbox" value="${escapeHtmlAttr(t.slug)}" ${yaAsociado ? 'checked' : ''} ${tieneSucursales ? '' : 'disabled'} />
           <span class="gastos-categoria-nombre">${escapeHtml(t.nombre_empresa)} (${escapeHtml(t.slug)})</span>
         `;
         els.sucursalesGrupoTenantsLista.appendChild(label);
@@ -3821,9 +3885,29 @@
 
   // ---------- Punto en curso: "Accesos — MinIO" ----------
   // Bloc de notas cifrado, NO sincronizado con .env/MinIO real (ver
-  // control/utils/accesoMinio.js). GET trae el password YA descifrado —
-  // a propósito, el operador necesita poder verlo/copiarlo; se enmascara
-  // del lado del cliente con el mismo toggle que ya usa el login.
+  // control/utils/accesoMinio.js).
+  //
+  // Hallazgo M-08/M-19 (sonar.html, 2026-10-14): antes, GET traía el
+  // password YA descifrado en CADA carga de la pestaña, sin que el
+  // operador lo pidiera — cualquier bug de auth/proxy/extensión lo
+  // exponía sin dejar rastro (la auditoría global salta todo GET). Ahora
+  // el campo arranca VACÍO (con un placeholder si hay algo guardado) y
+  // el botón de "ojo" dispara el nuevo endpoint `POST .../revelar` SOLO
+  // la primera vez que el operador lo pide — al ser POST, esa lectura sí
+  // queda auditada. `minioPasswordTocado` distingue "el operador nunca
+  // tocó el campo" (no se manda `password` en el PUT, se conserva el
+  // valor ya guardado) de "sí lo tocó" (se manda, incluso vacío si lo
+  // borró a propósito) — sin esto, Guardar habría borrado la contraseña
+  // en cada edición de URL/usuario/notas, porque el campo ya no llega
+  // prellenado con el valor real.
+  let minioPasswordRevelada = false;
+  let minioPasswordTocado = false;
+
+  if (els.accesosMinioPassword) {
+    els.accesosMinioPassword.addEventListener('input', () => {
+      minioPasswordTocado = true;
+    });
+  }
 
   async function cargarAccesoMinio() {
     const authHeader = getAuthHeader();
@@ -3845,15 +3929,52 @@
       }
       els.accesosMinioUrl.value = data.url || '';
       els.accesosMinioUsuario.value = data.usuario || '';
-      els.accesosMinioPassword.value = data.password || '';
+      els.accesosMinioPassword.value = '';
+      els.accesosMinioPassword.type = 'password';
+      els.accesosMinioPassword.placeholder = data.passwordConfigurada ? '••••••••' : '(sin contraseña guardada)';
       els.accesosMinioNotas.value = data.notas || '';
+      minioPasswordRevelada = false;
+      minioPasswordTocado = false;
+      if (els.btnAccesosMinioPasswordToggle) {
+        els.btnAccesosMinioPasswordToggle.setAttribute('aria-pressed', 'false');
+        els.btnAccesosMinioPasswordToggle.setAttribute('aria-label', 'Mostrar contraseña');
+      }
     } catch (err) {
       if (els.accesosMinioError) els.accesosMinioError.textContent = 'No se pudo conectar con el servidor.';
     }
   }
 
   if (els.btnAccesosMinioPasswordToggle) {
-    els.btnAccesosMinioPasswordToggle.addEventListener('click', () => {
+    els.btnAccesosMinioPasswordToggle.addEventListener('click', async () => {
+      if (!minioPasswordRevelada) {
+        const authHeader = getAuthHeader();
+        if (!authHeader) { showLogin(); return; }
+        try {
+          const res = await fetch(`${API_BASE}/accesos/minio/revelar`, {
+            method: 'POST',
+            headers: { Authorization: authHeader },
+          });
+          if (res.status === 401) {
+            clearSession();
+            showLogin();
+            return;
+          }
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            if (els.accesosMinioError) els.accesosMinioError.textContent = data.error || 'No se pudo revelar la contraseña.';
+            return;
+          }
+          // El valor revelado reemplaza el campo vacío, pero NO cuenta
+          // como "tocado" por sí solo — solo mirarla no debe disparar un
+          // reguardado si el operador después solo edita otro campo y
+          // da Guardar sin querer cambiar la contraseña.
+          els.accesosMinioPassword.value = data.password || '';
+          minioPasswordRevelada = true;
+        } catch (err) {
+          if (els.accesosMinioError) els.accesosMinioError.textContent = 'No se pudo conectar con el servidor.';
+          return;
+        }
+      }
       const esPassword = els.accesosMinioPassword.type === 'password';
       els.accesosMinioPassword.type = esPassword ? 'text' : 'password';
       els.btnAccesosMinioPasswordToggle.setAttribute('aria-pressed', String(esPassword));
@@ -3881,15 +4002,16 @@
       els.btnAccesosMinioGuardar.disabled = true;
       if (els.btnAccesosMinioGuardarLabel) els.btnAccesosMinioGuardarLabel.textContent = 'Guardando…';
       try {
+        const cuerpo = {
+          url: els.accesosMinioUrl.value,
+          usuario: els.accesosMinioUsuario.value,
+          notas: els.accesosMinioNotas.value,
+        };
+        if (minioPasswordTocado) cuerpo.password = els.accesosMinioPassword.value;
         const res = await fetch(`${API_BASE}/accesos/minio`, {
           method: 'PUT',
           headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: els.accesosMinioUrl.value,
-            usuario: els.accesosMinioUsuario.value,
-            password: els.accesosMinioPassword.value,
-            notas: els.accesosMinioNotas.value,
-          }),
+          body: JSON.stringify(cuerpo),
         });
         if (res.status === 401) {
           clearSession();
@@ -3902,6 +4024,7 @@
           return;
         }
         showToast('Registro de MinIO actualizado.');
+        cargarAccesoMinio();
       } catch (err) {
         if (els.accesosMinioError) els.accesosMinioError.textContent = 'No se pudo conectar con el servidor.';
       } finally {
@@ -3915,6 +4038,17 @@
   // Mismo molde que "Accesos — MinIO" arriba: copia informativa, cifrada
   // en reposo, de la configuración SMTP que backend/ ya usa para el
   // sitio base (sin tenant) — ver control/utils/accesoSmtp.js.
+
+  // Hallazgo M-08/M-19 (sonar.html): mismo criterio de enmascarar +
+  // revelar-a-petición-auditado que "Accesos — MinIO" arriba.
+  let smtpPasswordRevelada = false;
+  let smtpPasswordTocado = false;
+
+  if (els.accesosSmtpPassword) {
+    els.accesosSmtpPassword.addEventListener('input', () => {
+      smtpPasswordTocado = true;
+    });
+  }
 
   async function cargarAccesoSmtp() {
     const authHeader = getAuthHeader();
@@ -3936,16 +4070,49 @@
       els.accesosSmtpPuerto.value = data.puerto != null ? String(data.puerto) : '';
       els.accesosSmtpSeguridad.value = data.seguridad || '';
       els.accesosSmtpUsuario.value = data.usuario || '';
-      els.accesosSmtpPassword.value = data.password || '';
+      els.accesosSmtpPassword.value = '';
+      els.accesosSmtpPassword.type = 'password';
+      els.accesosSmtpPassword.placeholder = data.passwordConfigurada ? '••••••••' : '(sin contraseña guardada)';
       els.accesosSmtpNombreRemitente.value = data.nombreRemitente || '';
       els.accesosSmtpCorreoRemitente.value = data.correoRemitente || '';
+      smtpPasswordRevelada = false;
+      smtpPasswordTocado = false;
+      if (els.btnAccesosSmtpPasswordToggle) {
+        els.btnAccesosSmtpPasswordToggle.setAttribute('aria-pressed', 'false');
+        els.btnAccesosSmtpPasswordToggle.setAttribute('aria-label', 'Mostrar contraseña');
+      }
     } catch (err) {
       if (els.accesosSmtpError) els.accesosSmtpError.textContent = 'No se pudo conectar con el servidor.';
     }
   }
 
   if (els.btnAccesosSmtpPasswordToggle) {
-    els.btnAccesosSmtpPasswordToggle.addEventListener('click', () => {
+    els.btnAccesosSmtpPasswordToggle.addEventListener('click', async () => {
+      if (!smtpPasswordRevelada) {
+        const authHeader = getAuthHeader();
+        if (!authHeader) { showLogin(); return; }
+        try {
+          const res = await fetch(`${API_BASE}/accesos/smtp/revelar`, {
+            method: 'POST',
+            headers: { Authorization: authHeader },
+          });
+          if (res.status === 401) {
+            clearSession();
+            showLogin();
+            return;
+          }
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            if (els.accesosSmtpError) els.accesosSmtpError.textContent = data.error || 'No se pudo revelar la contraseña.';
+            return;
+          }
+          els.accesosSmtpPassword.value = data.password || '';
+          smtpPasswordRevelada = true;
+        } catch (err) {
+          if (els.accesosSmtpError) els.accesosSmtpError.textContent = 'No se pudo conectar con el servidor.';
+          return;
+        }
+      }
       const esPassword = els.accesosSmtpPassword.type === 'password';
       els.accesosSmtpPassword.type = esPassword ? 'text' : 'password';
       els.btnAccesosSmtpPasswordToggle.setAttribute('aria-pressed', String(esPassword));
@@ -3962,18 +4129,19 @@
       els.btnAccesosSmtpGuardar.disabled = true;
       if (els.btnAccesosSmtpGuardarLabel) els.btnAccesosSmtpGuardarLabel.textContent = 'Guardando…';
       try {
+        const cuerpo = {
+          host: els.accesosSmtpHost.value,
+          puerto: els.accesosSmtpPuerto.value ? Number(els.accesosSmtpPuerto.value) : null,
+          seguridad: els.accesosSmtpSeguridad.value,
+          usuario: els.accesosSmtpUsuario.value,
+          nombreRemitente: els.accesosSmtpNombreRemitente.value,
+          correoRemitente: els.accesosSmtpCorreoRemitente.value,
+        };
+        if (smtpPasswordTocado) cuerpo.password = els.accesosSmtpPassword.value;
         const res = await fetch(`${API_BASE}/accesos/smtp`, {
           method: 'PUT',
           headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            host: els.accesosSmtpHost.value,
-            puerto: els.accesosSmtpPuerto.value ? Number(els.accesosSmtpPuerto.value) : null,
-            seguridad: els.accesosSmtpSeguridad.value,
-            usuario: els.accesosSmtpUsuario.value,
-            password: els.accesosSmtpPassword.value,
-            nombreRemitente: els.accesosSmtpNombreRemitente.value,
-            correoRemitente: els.accesosSmtpCorreoRemitente.value,
-          }),
+          body: JSON.stringify(cuerpo),
         });
         if (res.status === 401) {
           clearSession();
@@ -3986,6 +4154,7 @@
           return;
         }
         showToast('Registro de SMTP actualizado.');
+        cargarAccesoSmtp();
       } catch (err) {
         if (els.accesosSmtpError) els.accesosSmtpError.textContent = 'No se pudo conectar con el servidor.';
       } finally {
@@ -4041,7 +4210,7 @@
           (d, i) => `
         <span class="filtro-chip">
           <span class="filtro-chip-etiqueta">${escapeHtml(d.etiqueta)}:</span> ${escapeHtml(d.valor)}
-          <button type="button" data-chip-quitar="${i}" aria-label="Quitar filtro ${escapeHtml(d.etiqueta)}">
+          <button type="button" data-chip-quitar="${i}" aria-label="Quitar filtro ${escapeHtmlAttr(d.etiqueta)}">
             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
           </button>
         </span>`

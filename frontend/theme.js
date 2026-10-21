@@ -175,7 +175,7 @@
       '.pd-contacto-texto{text-align:left;}' +
       '.pd-contacto-label{display:block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--pd-ink-soft);margin:0 0 2px;}' +
       '.pd-contacto-email{font-size:14.5px;font-weight:700;color:#fff;margin:0;word-break:break-all;}' +
-      '.pd-pie{margin-top:34px;font-size:12px;color:rgba(175,194,220,0.55);letter-spacing:.02em;}' +
+      '.pd-pie{margin-top:34px;font-size:12px;color:rgba(175,194,220,0.68);letter-spacing:.02em;}' +
       '.pd-pie strong{color:rgba(234,243,251,0.75);font-weight:700;}' +
       '@media (prefers-reduced-motion:reduce){.pd-blob,.pd-halo,.pd-cristal{animation:none;}}';
     document.head.appendChild(estilo);

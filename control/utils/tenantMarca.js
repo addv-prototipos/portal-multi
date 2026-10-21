@@ -58,7 +58,12 @@ function detectarMimeImagen(buffer) {
 }
 
 async function subirLogoAlBackend(slug, buffer) {
-  const url = `${process.env.BACKEND_INTERNAL_URL || 'http://backend:4000'}/internal/marca-logo/${slug}`;
+  // M-07 (sonar.html): encodeURIComponent() como defensa en profundidad
+  // — el llamador (control/server.js) ya valida el slug ANTES de
+  // llegar aquí, pero esta función queda segura aunque algún día se
+  // invoque con un slug que no pasó por esa validación (patrón que
+  // notificarBackend.js ya usa correctamente).
+  const url = `${process.env.BACKEND_INTERNAL_URL || 'http://backend:4000'}/internal/marca-logo/${encodeURIComponent(slug)}`;
   const secreto = process.env.INTERNAL_CACHE_SECRET;
   const mime = detectarMimeImagen(buffer);
   if (!mime) {
@@ -89,7 +94,9 @@ async function subirLogoAlBackend(slug, buffer) {
 }
 
 async function borrarLogoDelBackend(slug) {
-  const url = `${process.env.BACKEND_INTERNAL_URL || 'http://backend:4000'}/internal/marca-logo/${slug}`;
+  // M-07 (sonar.html): mismo criterio de encodeURIComponent() que
+  // subirLogoAlBackend(), defensa en profundidad.
+  const url = `${process.env.BACKEND_INTERNAL_URL || 'http://backend:4000'}/internal/marca-logo/${encodeURIComponent(slug)}`;
   const secreto = process.env.INTERNAL_CACHE_SECRET;
   try {
     const res = await fetch(url, {

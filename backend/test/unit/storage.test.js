@@ -342,3 +342,51 @@ describe('utils/storage.js', () => {
     });
   });
 });
+
+// Hallazgo M-15 (sonar.html, 2026-10-14): mismo criterio fail-closed de
+// C-02 (loadAdminUsers) — minioadmin/changeme_minio_password son
+// defaults dev-only; en NODE_ENV=production sin las 2 variables reales,
+// el módulo debe abortar al cargarse, nunca servir con credenciales
+// conocidas.
+describe('fail-closed de credenciales MinIO (M-15) — solo en producción', () => {
+  const ORIGINALES = {
+    NODE_ENV: process.env.NODE_ENV,
+    MINIO_ROOT_USER: process.env.MINIO_ROOT_USER,
+    MINIO_ROOT_PASSWORD: process.env.MINIO_ROOT_PASSWORD,
+  };
+
+  afterEach(() => {
+    for (const [clave, valor] of Object.entries(ORIGINALES)) {
+      if (valor === undefined) delete process.env[clave];
+      else process.env[clave] = valor;
+    }
+    jest.resetModules();
+  });
+
+  test('producción sin MINIO_ROOT_USER/MINIO_ROOT_PASSWORD: truena al cargar el módulo', () => {
+    jest.resetModules();
+    process.env.NODE_ENV = 'production';
+    delete process.env.MINIO_ROOT_USER;
+    delete process.env.MINIO_ROOT_PASSWORD;
+
+    expect(() => require('../../utils/storage')).toThrow(/producción/);
+  });
+
+  test('producción con ambas variables reales: carga sin problema', () => {
+    jest.resetModules();
+    process.env.NODE_ENV = 'production';
+    process.env.MINIO_ROOT_USER = 'usuario-real';
+    process.env.MINIO_ROOT_PASSWORD = 'password-real';
+
+    expect(() => require('../../utils/storage')).not.toThrow();
+  });
+
+  test('dev/test sin las variables: nunca truena (comportamiento de siempre)', () => {
+    jest.resetModules();
+    delete process.env.NODE_ENV;
+    delete process.env.MINIO_ROOT_USER;
+    delete process.env.MINIO_ROOT_PASSWORD;
+
+    expect(() => require('../../utils/storage')).not.toThrow();
+  });
+});

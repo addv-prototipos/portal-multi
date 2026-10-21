@@ -1389,6 +1389,7 @@
     // Modal de restablecer contraseña
     passwordModalOverlay: document.getElementById('password-modal-overlay'),
     passwordModalRfc: document.getElementById('password-modal-rfc'),
+    passwordModalActual: document.getElementById('password-modal-actual'),
     btnGenerarPassword: document.getElementById('btn-generar-password'),
     passwordModalNueva: document.getElementById('password-modal-nueva'),
     btnTogglePasswordModal: document.getElementById('btn-toggle-password-modal'),
@@ -1413,12 +1414,24 @@
   // `${API_BASE}/admin/login`: esa ruta ya maneja su propio 403 de
   // suspensión inline (submit de login e init(), que cierra sesión ante
   // cualquier !res.ok) — interceptarla aquí duplicaría el efecto.
+  // Hallazgo M-02 (sonar.html): el mismo interceptor global captura la
+  // cabecera X-Admin-Session-Token — el backend la manda en CUALQUIER
+  // respuesta autenticada con éxito (Basic del login inicial O Bearer
+  // de cualquier request posterior, sesión deslizante de 30 min). Esto
+  // cubre los 200+ fetch() del archivo sin tocar ni uno: todos pasan
+  // por aquí porque `fetch` ya apunta a esta función para cuando
+  // cualquiera de ellos se invoca en tiempo de ejecución.
   const fetchOriginal = window.fetch.bind(window);
   window.fetch = function fetchConDeteccionDeSuspension(recurso, opciones) {
     return fetchOriginal(recurso, opciones).then((res) => {
       const url = typeof recurso === 'string' ? recurso : (recurso && recurso.url) || '';
-      const esRutaAdmin = url.startsWith(`${API_BASE}/admin`) && !url.startsWith(`${API_BASE}/admin/login`);
-      if (res.status === 403 && esRutaAdmin) {
+      const esRutaAdmin = url.startsWith(`${API_BASE}/admin`);
+      if (esRutaAdmin) {
+        const tokenFresco = res.headers.get('X-Admin-Session-Token');
+        if (tokenFresco) setSession(tokenFresco);
+      }
+      const esRutaAdminSinLogin = esRutaAdmin && !url.startsWith(`${API_BASE}/admin/login`);
+      if (res.status === 403 && esRutaAdminSinLogin) {
         res.clone().json().then((data) => {
           if (data && data.codigo === 'CUENTA_SUSPENDIDA') {
             clearSession();
@@ -1654,9 +1667,16 @@
     showToast._t = setTimeout(() => { els.toast.hidden = true; }, duracion);
   }
 
+  // Hallazgo M-02 (sonar.html, 2026-10-14): sessionStorage guardaba
+  // btoa(usuario:contraseña) — la contraseña real, reversible en una
+  // línea. Ahora guarda el token de sesión opaco que emite el backend
+  // (firmado HMAC, 30 min deslizante — ver backend/utils/auth.js:
+  // emitirTokenSesion()); un XSS que lo robe obtiene un token que
+  // expira solo y nunca sirve para autenticar en ningún otro lugar,
+  // nunca la contraseña real del operador.
   function getAuthHeader() {
-    const creds = sessionStorage.getItem(SESSION_KEY);
-    return creds ? `Basic ${creds}` : null;
+    const token = sessionStorage.getItem(SESSION_KEY);
+    return token ? `Bearer ${token}` : null;
   }
 
   // Imágenes de producto (punto 159, Segmento B): son endpoints admin
@@ -1717,9 +1737,12 @@
     wrapEl.addEventListener('focusout', ocultarLupaProducto);
   }
 
-  function setSession(username, password) {
-    const encoded = btoa(unescape(encodeURIComponent(`${username}:${password}`)));
-    sessionStorage.setItem(SESSION_KEY, encoded);
+  // Hallazgo M-02: recibe el token ya emitido por el backend (login
+  // inicial vía Basic con la contraseña recién tecleada, o cualquier
+  // request posterior vía Bearer) — nunca construye ni guarda la
+  // contraseña aquí.
+  function setSession(token) {
+    sessionStorage.setItem(SESSION_KEY, token);
   }
 
   function clearSession() {
@@ -1967,6 +1990,38 @@
     return div.innerHTML;
   }
 
+  // Hallazgo C-05 (sonar.html, 2026-10-13): escapeHtml() (arriba) usa
+  // textContent→innerHTML, que el navegador escapa como & < > — pero NUNCA
+  // " ' ` (no son especiales dentro de un nodo de texto). Es seguro para
+  // contenido de elemento (`<span>${escapeHtml(x)}</span>`), pero NO
+  // dentro de un atributo (`attr="${escapeHtml(x)}"`): un valor con
+  // comillas rompe el atributo y permite inyectar HTML/JS (ver C-06).
+  // Usar escapeHtmlAttr() en cualquier `${...}` que viva dentro de
+  // attr="...", nunca escapeHtml() a secas.
+  function escapeHtmlAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
+  }
+
+  // Hallazgo m-13 (sonar_1.1.html, 2026-10-19): unescape() está deprecado
+  // desde ES5 — reemplazo moderno para codificar un string UTF-8 (puede
+  // traer acentos/ñ en usuario o contraseña) a base64 sin perder bytes.
+  function base64Utf8(str) {
+    const bytes = new TextEncoder().encode(str);
+    let binario = '';
+    bytes.forEach((b) => { binario += String.fromCharCode(b); });
+    return btoa(binario);
+  }
+
+  // Hallazgo M-10 (sonar.html): mismo criterio que backend/utils/csvSeguro.js
+  // — una celda que empiece con = + - @ tab/CR se abre como fórmula en
+  // Excel con los permisos de quien exporta. Sin bundler en frontend/, se
+  // duplica aquí (patrón ya establecido del proyecto) en vez de importar
+  // del backend.
+  function protegerCeldaCSVFrontend(valor) {
+    const texto = valor === null || valor === undefined ? '' : String(valor);
+    return /^[=+\-@\t\r]/.test(texto) ? `'${texto}` : texto;
+  }
+
   // ---------- Homologación de filtros y búsqueda (ver PROJECT_STATE.md) ----------
   // 2 helpers compartidos por las 6 vistas con filtros (Ventas, Cuentas
   // por cobrar, Gastos, Inventarios, Lectura de reportes, Todo lo
@@ -2006,7 +2061,7 @@
           (d, i) => `
         <span class="filtro-chip">
           <span class="filtro-chip-etiqueta">${escapeHtml(d.etiqueta)}:</span> ${escapeHtml(d.valor)}
-          <button type="button" data-chip-quitar="${i}" aria-label="Quitar filtro ${escapeHtml(d.etiqueta)}">
+          <button type="button" data-chip-quitar="${i}" aria-label="Quitar filtro ${escapeHtmlAttr(d.etiqueta)}">
             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
           </button>
         </span>`
@@ -2761,8 +2816,10 @@
   // tanto el login normal como el flujo de cambio de contraseña
   // obligatorio (punto 321 addendum), que primero cambia la contraseña y
   // LUEGO entra con la nueva.
-  async function entrarAlPanel(usuario, contrasena, perfil, funciones, imagenMaxMb) {
-    setSession(usuario, contrasena);
+  async function entrarAlPanel(usuario, perfil, funciones, imagenMaxMb) {
+    // M-02: el token de sesión ya quedó guardado por el interceptor
+    // global de fetch() (ver más arriba) en cuanto la respuesta del
+    // login/cambio de contraseña llegó — no hay nada que guardar aquí.
     // Login nuevo: siempre "Inicio", sin importar qué vista haya quedado
     // guardada de una sesión anterior en esta misma pestaña — la
     // restauración de vista (ver init()) es solo para refrescar una
@@ -2797,7 +2854,7 @@
 
     setLoginLoading(true);
     try {
-      const encoded = btoa(unescape(encodeURIComponent(`${usuario}:${contrasena}`)));
+      const encoded = base64Utf8(`${usuario}:${contrasena}`);
       const res = await fetch(`${API_BASE}/admin/login`, {
         headers: { Authorization: `Basic ${encoded}` },
       });
@@ -2831,7 +2888,7 @@
         return;
       }
 
-      await entrarAlPanel(data.usuario || usuario, contrasena, data.perfil, data.funciones, data.imagenMaxMb);
+      await entrarAlPanel(data.usuario || usuario, data.perfil, data.funciones, data.imagenMaxMb);
     } catch (err) {
       els.loginError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -2876,7 +2933,7 @@
 
     setAdminForzarPasswordLoading(true);
     try {
-      const encoded = btoa(unescape(encodeURIComponent(`${loginPendiente.usuario}:${loginPendiente.contrasena}`)));
+      const encoded = base64Utf8(`${loginPendiente.usuario}:${loginPendiente.contrasena}`);
       const res = await fetch(`${API_BASE}/admin/mi-cuenta/password`, {
         method: 'PUT',
         headers: { Authorization: `Basic ${encoded}`, 'Content-Type': 'application/json' },
@@ -2891,7 +2948,7 @@
       loginPendiente = null;
       els.adminForzarPasswordPanel.hidden = true;
       els.adminLoginNormal.hidden = false;
-      await entrarAlPanel(usuario, passwordNueva, perfil, funciones, imagenMaxMb);
+      await entrarAlPanel(usuario, perfil, funciones, imagenMaxMb);
     } catch (err) {
       els.adminForzarPasswordError.textContent = 'No se pudo conectar con el servidor.';
     } finally {
@@ -3660,7 +3717,7 @@
       showToast('No hay ventas en este rango para exportar', 'error');
       return;
     }
-    const csvCelda = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csvCelda = (v) => `"${protegerCeldaCSVFrontend(v ?? '').replace(/"/g, '""')}"`;
     const encabezado = ['No. Venta', 'Fecha', 'Correo', 'Facturación', 'Total'];
     const lineas = ordenes.map((o) =>
       [
@@ -4432,10 +4489,11 @@
     }
   });
 
-  async function subirLogoTicket(archivo) {
+  async function subirLogoTicket(archivoOriginal) {
     const authHeader = getAuthHeader();
     if (!authHeader) return;
     els.errorTicketLogo.textContent = '';
+    const archivo = await comprimirSiAplica(archivoOriginal, { objetivoKB: 80, calidadMin: 0.6, dimMaxPx: 600 });
     const formData = new FormData();
     formData.append('logo', archivo);
     try {
@@ -5061,8 +5119,8 @@
         const columna = document.createElement('div');
         columna.className = 'resumen-fin-chart-columna';
         columna.innerHTML = `
-          <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtml(m.mes)}: ${m.total} eliminados">
-            <span class="resumen-fin-chart-barra resumen-fin-chart-barra-eliminado-reportes" style="height:${(m.total / maximo) * 100}%" data-tooltip="${escapeHtml(m.mes)}: ${m.total} eliminados"></span>
+          <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtmlAttr(m.mes)}: ${m.total} eliminados">
+            <span class="resumen-fin-chart-barra resumen-fin-chart-barra-eliminado-reportes" style="height:${(m.total / maximo) * 100}%" data-tooltip="${escapeHtmlAttr(m.mes)}: ${m.total} eliminados"></span>
           </div>
           <span class="resumen-fin-chart-etiqueta">${escapeHtml(m.mes)}</span>
         `;
@@ -5143,7 +5201,7 @@
         <td data-label="Tipo">${TIPO_REGISTRO_ETIQUETA[item.tipo_registro] || item.tipo_registro}</td>
         <td data-label="Identificador">
           <span class="reportes-id-pill">${escapeHtml(item.identificador)}</span>
-          <button type="button" class="btn-ver-historial" data-tipo="${item.tipo_registro}" data-identificador="${escapeHtml(item.identificador)}" data-tooltip="Ver historial en todos los reportes" aria-label="Ver historial de ${escapeHtml(item.identificador)}">
+          <button type="button" class="btn-ver-historial" data-tipo="${item.tipo_registro}" data-identificador="${escapeHtmlAttr(item.identificador)}" data-tooltip="Ver historial en todos los reportes" aria-label="Ver historial de ${escapeHtmlAttr(item.identificador)}">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           </button>
         </td>
@@ -6210,7 +6268,7 @@
     const asuntoEl = document.getElementById('plantilla-asunto-fijo');
     if (asuntoEl) asuntoEl.textContent = '"' + def.asunto + '"';
     els.plantillaVars.innerHTML = def.vars.length
-      ? def.vars.map((v) => `<span class="var-chip" data-tooltip="${escapeHtml(v.desc)}">${escapeHtml(v.nombre)}</span>`).join('')
+      ? def.vars.map((v) => `<span class="var-chip" data-tooltip="${escapeHtmlAttr(v.desc)}">${escapeHtml(v.nombre)}</span>`).join('')
       : '<span style="font-size:11px;color:#94A3B8">Sin variables para esta plantilla.</span>';
     els.plantillaTexto.value = plantillasTextos[id] || '';
     const contador = document.getElementById('plantilla-texto-contador');
@@ -8644,10 +8702,10 @@
 
     const acciones =
       p.estado === 'activa'
-        ? `<button type="button" class="btn-icono-accion" data-accion="archivar" data-tooltip="Archivar" aria-label="Archivar ${escapeHtml(p.titulo)}">${ICONO_ARCHIVAR}</button>
-           <button type="button" class="btn-icono-accion btn-icono-accion-peligro" data-accion="eliminar" data-tooltip="Eliminar" aria-label="Eliminar ${escapeHtml(p.titulo)}">${ICONO_PAPELERA}</button>`
-        : `<button type="button" class="btn-icono-accion" data-accion="relanzar" data-tooltip="Relanzar" aria-label="Relanzar ${escapeHtml(p.titulo)}">${ICONO_RESTAURAR}</button>
-           <button type="button" class="btn-icono-accion btn-icono-accion-peligro" data-accion="eliminar" data-tooltip="Eliminar" aria-label="Eliminar ${escapeHtml(p.titulo)}">${ICONO_PAPELERA}</button>`;
+        ? `<button type="button" class="btn-icono-accion" data-accion="archivar" data-tooltip="Archivar" aria-label="Archivar ${escapeHtmlAttr(p.titulo)}">${ICONO_ARCHIVAR}</button>
+           <button type="button" class="btn-icono-accion btn-icono-accion-peligro" data-accion="eliminar" data-tooltip="Eliminar" aria-label="Eliminar ${escapeHtmlAttr(p.titulo)}">${ICONO_PAPELERA}</button>`
+        : `<button type="button" class="btn-icono-accion" data-accion="relanzar" data-tooltip="Relanzar" aria-label="Relanzar ${escapeHtmlAttr(p.titulo)}">${ICONO_RESTAURAR}</button>
+           <button type="button" class="btn-icono-accion btn-icono-accion-peligro" data-accion="eliminar" data-tooltip="Eliminar" aria-label="Eliminar ${escapeHtmlAttr(p.titulo)}">${ICONO_PAPELERA}</button>`;
 
     card.innerHTML = `
       <div class="promo-card-top">
@@ -10307,7 +10365,7 @@
         <td class="num">$${formatearMoneda(producto.precio)}</td>
         <td class="num">${producto.cantidad}</td>
         <td class="num">$${formatearMoneda(subtotalProductoOrden(producto))}</td>
-        <td><button type="button" class="btn-quitar-producto-orden" aria-label="Quitar ${escapeHtml(producto.concepto)}">✕</button></td>
+        <td><button type="button" class="btn-quitar-producto-orden" aria-label="Quitar ${escapeHtmlAttr(producto.concepto)}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></td>
       `;
       tr.querySelector('.btn-quitar-producto-orden').addEventListener('click', quitar);
       els.ordenProductosListaBody.appendChild(tr);
@@ -10323,7 +10381,7 @@
           <span class="orden-productos-lista-movil-precio">${producto.cantidad} pza${producto.cantidad === 1 ? '' : 's'}</span>
           <div class="orden-productos-lista-movil-derecha">
             <span class="orden-productos-lista-movil-subtotal">$${formatearMoneda(subtotalProductoOrden(producto))}</span>
-            <button type="button" class="btn-quitar-producto-orden" aria-label="Quitar ${escapeHtml(producto.concepto)}">✕</button>
+            <button type="button" class="btn-quitar-producto-orden" aria-label="Quitar ${escapeHtmlAttr(producto.concepto)}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
           </div>
         </div>
       `;
@@ -11336,7 +11394,7 @@
     const textoPie = ticketConfigActual.ticket_texto_pie || '';
 
     return `
-      <img class="ticket-imprimir-logo" src="${escapeHtml(logoSrc)}" alt="Logo" />
+      <img class="ticket-imprimir-logo" src="${escapeHtmlAttr(logoSrc)}" alt="Logo" />
       <div class="ticket-imprimir-titulo">Ticket de venta</div>
       <div class="ticket-imprimir-separador"></div>
       <div class="ticket-imprimir-meta">Folio: ${escapeHtml(orden.numero_compra || '—')}</div>
@@ -11477,11 +11535,16 @@
     tarjeta_debito: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4" stroke-linecap="round"/></svg>',
   };
   const ICONO_COPIAR_FOLIO_TABLA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  // Hallazgo m-15 (sonar_1.1.html, 2026-10-19): badges de "pendiente de
+  // sincronizar" (modo offline) usaban los glifos ⚠/⏳ como texto crudo —
+  // sustituidos por SVG feather-like, mismo criterio que el resto del sitio.
+  const ICONO_PENDIENTE_ALERTA = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICONO_PENDIENTE_RELOJ = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function celdaPagoOrden(metodo, folio) {
     if (!metodo || !ETIQUETAS_METODO_PAGO_ORDEN[metodo]) return '—';
     const esTransferencia = metodo === 'transferencia';
     const folioHtml = folio
-      ? `<button type="button" class="folio-copiable" data-folio="${escapeHtml(folio)}">${ICONO_COPIAR_FOLIO_TABLA}<span>${escapeHtml(folio)}</span></button>`
+      ? `<button type="button" class="folio-copiable" data-folio="${escapeHtmlAttr(folio)}">${ICONO_COPIAR_FOLIO_TABLA}<span>${escapeHtml(folio)}</span></button>`
       : '';
     return `<div class="pago-icono-fila">
       <span class="pago-icono-swatch${esTransferencia ? ' is-transferencia' : ''}">${ICONOS_METODO_PAGO_ORDEN[metodo]}</span>
@@ -11492,7 +11555,9 @@
   function filaOrdenPendiente(orden) {
     const tr = document.createElement('tr');
     tr.className = `fila-pendiente-sync${orden.__error ? ' tiene-error' : ''}`;
-    const badgeTexto = orden.__error ? '⚠ No se pudo sincronizar' : '⏳ Pendiente de sincronizar';
+    const badgeTexto = orden.__error
+      ? `${ICONO_PENDIENTE_ALERTA} No se pudo sincronizar`
+      : `${ICONO_PENDIENTE_RELOJ} Pendiente de sincronizar`;
     const errorHtml = orden.__error
       ? `<span class="pendiente-sync-error">${escapeHtml(orden.__error)}</span>`
       : '';
@@ -11579,7 +11644,7 @@
         <td data-label="Fecha" data-col="fecha">${fechaCeldaHtml}</td>
         <td data-label="Concepto" data-col="concepto">${renderConceptoPreviewOrden(orden.concepto)}</td>
         <td data-label="Total" data-col="total"><strong>$${formatearMoneda(orden.total)}</strong></td>
-        <td data-label="Correo" data-col="correo" class="orden-correo-con-tooltip" data-tooltip="${escapeHtml(tituloCorreo)}">${orden.email ? escapeHtml(orden.email) : 'Sin correo'}</td>
+        <td data-label="Correo" data-col="correo" class="orden-correo-con-tooltip" data-tooltip="${escapeHtmlAttr(tituloCorreo)}">${orden.email ? escapeHtml(orden.email) : 'Sin correo'}</td>
         <td data-label="Pago" data-col="pago">${celdaPagoOrden(orden.metodo_pago, orden.folio_conciliacion)}</td>
         <td data-label=""></td>
       `;
@@ -12385,6 +12450,7 @@
   function abrirPasswordModal(usuario) {
     usuarioActual = usuario;
     els.passwordModalRfc.textContent = `RFC: ${usuario.rfc}`;
+    els.passwordModalActual.value = '';
     els.passwordModalNueva.value = '';
     els.passwordModalNueva.type = 'password';
     els.btnTogglePasswordModal.setAttribute('aria-pressed', 'false');
@@ -12400,6 +12466,7 @@
 
   function cerrarPasswordModal() {
     els.passwordModalOverlay.hidden = true;
+    els.passwordModalActual.value = '';
     usuarioActual = null;
   }
 
@@ -12531,6 +12598,17 @@
       els.passwordModalError.textContent = 'La contraseña no cumple con los requisitos de arriba.';
       return;
     }
+    // Hallazgo M-09 (sonar.html): el backend ahora exige la contraseña
+    // ACTUAL del propio operador (step-up) antes de aceptar el reseteo —
+    // nunca se autorrellena desde la sesión (sessionStorage/authHeader),
+    // a propósito: si algún día ese valor se filtra (XSS, extensión), la
+    // protección pierde sentido si el mismo origen del robo también
+    // puede rellenar este campo solo. El usuario SIEMPRE lo teclea aquí.
+    const passwordActual = els.passwordModalActual.value;
+    if (!passwordActual) {
+      els.passwordModalError.textContent = 'Captura tu contraseña actual para confirmar.';
+      return;
+    }
     els.passwordModalError.textContent = '';
 
     setGuardandoPasswordLoading(true);
@@ -12538,7 +12616,7 @@
       const res = await fetch(`${API_BASE}/admin/usuarios/${usuarioActual.id}/password`, {
         method: 'PUT',
         headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, forzar_cambio: els.passwordModalForzarCambio.checked }),
+        body: JSON.stringify({ password, password_actual: passwordActual, forzar_cambio: els.passwordModalForzarCambio.checked }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -12686,20 +12764,20 @@
     }
     if (categoriaGastoEditandoId === c.id) {
       return `<div class="gastos-categoria-fila" data-id="${c.id}">
-        <input type="text" class="gastos-categoria-input-editar" value="${escapeHtml(c.etiqueta)}" maxlength="100" />
+        <input type="text" class="gastos-categoria-input-editar" value="${escapeHtmlAttr(c.etiqueta)}" maxlength="100" />
         <button type="button" class="btn-categoria-accion btn-categoria-guardar" data-id="${c.id}">Guardar</button>
         <button type="button" class="btn-categoria-accion gastos-categoria-cancelar">Cancelar</button>
       </div>`;
     }
     return `<div class="gastos-categoria-fila" data-id="${c.id}">
       <span class="gastos-categoria-nombre">${escapeHtml(c.etiqueta)}${c.activa ? '' : ' <em>(inactiva)</em>'}</span>
-      <select class="gastos-categoria-tipo" data-id="${c.id}" aria-label="Tipo de gasto de ${escapeHtml(c.etiqueta)}" data-tooltip="Fijo/variable — usado en Resumen financiero (KPI \'Gastos Variables/Flexibles\')">
+      <select class="gastos-categoria-tipo" data-id="${c.id}" aria-label="Tipo de gasto de ${escapeHtmlAttr(c.etiqueta)}" data-tooltip="Fijo/variable — usado en Resumen financiero (KPI \'Gastos Variables/Flexibles\')">
         <option value="fijo" ${c.tipo === 'fijo' ? 'selected' : ''}>Fijo</option>
         <option value="variable" ${c.tipo === 'variable' ? 'selected' : ''}>Variable</option>
       </select>
       ${c.activa ? '' : `<button type="button" class="btn-categoria-accion gastos-categoria-reactivar" data-id="${c.id}">Reactivar</button>`}
-      <button type="button" class="btn-icono-accion gastos-categoria-renombrar" data-id="${c.id}" data-tooltip="Renombrar ${escapeHtml(c.etiqueta)}" aria-label="Renombrar ${escapeHtml(c.etiqueta)}">${ICONO_EDITAR}</button>
-      ${c.tieneGastos ? '' : `<button type="button" class="btn-icono-accion btn-icono-accion-peligro gastos-categoria-borrar" data-id="${c.id}" data-tooltip="Eliminar ${escapeHtml(c.etiqueta)}" aria-label="Eliminar ${escapeHtml(c.etiqueta)}">${ICONO_PAPELERA}</button>`}
+      <button type="button" class="btn-icono-accion gastos-categoria-renombrar" data-id="${c.id}" data-tooltip="Renombrar ${escapeHtmlAttr(c.etiqueta)}" aria-label="Renombrar ${escapeHtmlAttr(c.etiqueta)}">${ICONO_EDITAR}</button>
+      ${c.tieneGastos ? '' : `<button type="button" class="btn-icono-accion btn-icono-accion-peligro gastos-categoria-borrar" data-id="${c.id}" data-tooltip="Eliminar ${escapeHtmlAttr(c.etiqueta)}" aria-label="Eliminar ${escapeHtmlAttr(c.etiqueta)}">${ICONO_PAPELERA}</button>`}
     </div>`;
   }
 
@@ -13480,7 +13558,7 @@
       const columna = document.createElement('div');
       columna.className = 'resumen-fin-chart-columna resumen-fin-chart-columna--4';
       columna.innerHTML = `
-        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtml(m.mes)}: ventas $${formatearMoneda(m.ventas)}, gastos $${formatearMoneda(m.gastos)}, facturado $${formatearMoneda(m.facturado)}, sin facturar $${formatearMoneda(sinFacturar)}">
+        <div class="resumen-fin-chart-barras" role="img" aria-label="${escapeHtmlAttr(m.mes)}: ventas $${formatearMoneda(m.ventas)}, gastos $${formatearMoneda(m.gastos)}, facturado $${formatearMoneda(m.facturado)}, sin facturar $${formatearMoneda(sinFacturar)}">
           <span class="resumen-fin-chart-barra resumen-fin-chart-barra-ventas" style="height:${(m.ventas / maximo) * 100}%" data-tooltip="Ventas: $${formatearMoneda(m.ventas)}"></span>
           <span class="resumen-fin-chart-barra resumen-fin-chart-barra-gastos" style="height:${(m.gastos / maximo) * 100}%" data-tooltip="Gastos: $${formatearMoneda(m.gastos)}"></span>
           <span class="resumen-fin-chart-barra resumen-fin-chart-barra-facturado" style="height:${(m.facturado / maximo) * 100}%" data-tooltip="Facturado: $${formatearMoneda(m.facturado)}"></span>
@@ -14555,7 +14633,7 @@
       .map(
         (f) => `
       <li class="resumen-fin-proveedor-fila">
-        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.proveedor)}" tabindex="0">${escapeHtml(f.proveedor)}${f.categoria ? ` <small>· ${escapeHtml(etiquetaCategoriaGasto(f.categoria))}</small>` : ''}</span>
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtmlAttr(f.proveedor)}" tabindex="0">${escapeHtml(f.proveedor)}${f.categoria ? ` <small>· ${escapeHtml(etiquetaCategoriaGasto(f.categoria))}</small>` : ''}</span>
         <div class="resumen-fin-proveedor-barra-wrap">
           <span class="resumen-fin-proveedor-barra" style="width:${(f.monto / maximo) * 100}%"></span>
         </div>
@@ -14778,7 +14856,7 @@
       .map(
         (f) => `
       <li class="resumen-fin-proveedor-fila">
-        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.nombre)}" tabindex="0">${escapeHtml(f.nombre)}</span>
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtmlAttr(f.nombre)}" tabindex="0">${escapeHtml(f.nombre)}</span>
         <div class="resumen-fin-proveedor-barra-wrap">
           <span class="resumen-fin-proveedor-barra" style="width:${(f.cantidad_vendida_90d / maximo) * 100}%;background:${color}"></span>
         </div>
@@ -14798,7 +14876,7 @@
       .map(
         (f) => `
       <li class="resumen-fin-proveedor-fila">
-        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.nombre)}" tabindex="0">${escapeHtml(f.nombre)}</span>
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtmlAttr(f.nombre)}" tabindex="0">${escapeHtml(f.nombre)}</span>
         <div class="resumen-fin-proveedor-barra-wrap">
           <span class="resumen-fin-proveedor-barra" style="width:${(f.unidades_vendidas_90d / maximo) * 100}%;background:${color}"></span>
         </div>
@@ -14838,7 +14916,7 @@
         const diasAgotamiento = f.unidades_vendidas_90d > 0 ? Math.round(f.existencia_actual / (f.unidades_vendidas_90d / 90)) : null;
         return `
       <li class="resumen-fin-proveedor-fila">
-        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtml(f.nombre)}${diasAgotamiento !== null ? ` — agotamiento ~${diasAgotamiento}d` : ''}" tabindex="0">${escapeHtml(f.nombre)}</span>
+        <span class="resumen-fin-proveedor-nombre" data-tooltip="${escapeHtmlAttr(f.nombre)}${diasAgotamiento !== null ? ` — agotamiento ~${diasAgotamiento}d` : ''}" tabindex="0">${escapeHtml(f.nombre)}</span>
         <div class="resumen-fin-proveedor-barra-wrap">
           <span class="resumen-fin-proveedor-barra" style="width:${(f.rotacion / maximo) * 100}%"></span>
         </div>
@@ -14897,7 +14975,7 @@
     ];
     els.invEstadoCoberturaBarra.innerHTML = segmentos
       .filter((s) => s.dato.porcentaje > 0)
-      .map((s) => `<span style="width:${s.dato.porcentaje}%;background:${s.color}" data-tooltip="${escapeHtml(s.etiqueta)}: ${s.dato.porcentaje}%"></span>`)
+      .map((s) => `<span style="width:${s.dato.porcentaje}%;background:${s.color}" data-tooltip="${escapeHtmlAttr(s.etiqueta)}: ${s.dato.porcentaje}%"></span>`)
       .join('');
     els.invEstadoCoberturaLeyenda.innerHTML = segmentos
       .map(
@@ -14968,7 +15046,7 @@
   function exportarEstadoInventarioCsv() {
     const filas = (estadoInventarioCache && estadoInventarioCache.valuacion_detalle) || [];
     if (filas.length === 0) { showToast('No hay datos para exportar', 'error'); return; }
-    const csvCelda = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csvCelda = (v) => `"${protegerCeldaCSVFrontend(v ?? '').replace(/"/g, '""')}"`;
     const encabezado = ['Producto', 'SKU', 'Categoría', 'Existencia', 'Costo promedio', 'Valor', 'Vendidas (90d)', 'Días de cobertura', 'Clasificación'];
     const lineas = filas.map((f) =>
       [
@@ -16450,7 +16528,7 @@
           <td>${pct}%</td>
           <td class="${momClase}">${momTexto}</td>
           <td>${pctComprobante}% (${f.con_comprobante}/${f.cantidad})</td>
-          <td><button type="button" class="unm-btn-export" data-categoria="${escapeHtml(f.categoria)}">Ver en Gastos</button></td>
+          <td><button type="button" class="unm-btn-export" data-categoria="${escapeHtmlAttr(f.categoria)}">Ver en Gastos</button></td>
         </tr>
       `;
     }).join('');
@@ -16603,7 +16681,9 @@
   function filaGastoPendiente(g) {
     const tr = document.createElement('tr');
     tr.className = `fila-pendiente-sync${g.__error ? ' tiene-error' : ''}`;
-    const badgeTexto = g.__error ? '⚠ No se pudo sincronizar' : '⏳ Pendiente de sincronizar';
+    const badgeTexto = g.__error
+      ? `${ICONO_PENDIENTE_ALERTA} No se pudo sincronizar`
+      : `${ICONO_PENDIENTE_RELOJ} Pendiente de sincronizar`;
     const errorHtml = g.__error ? `<span class="pendiente-sync-error">${escapeHtml(g.__error)}</span>` : '';
     tr.innerHTML = `
       <td data-label="Fecha" data-col="fecha">${formatoFechaGasto(g.fecha)}</td>
@@ -16720,7 +16800,7 @@
           : '<span class="estatus-badge estatus-listo">Con factura</span>'
         : '<span class="estatus-badge estatus-rechazado">Sin factura</span>';
       const recurrenteBadge = g.recurrente
-        ? '<span class="estatus-badge estatus-proceso" data-tooltip="Gasto recurrente" aria-label="Gasto recurrente">⟳</span>'
+        ? '<span class="estatus-badge estatus-proceso" data-tooltip="Gasto recurrente" aria-label="Gasto recurrente"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
         : '';
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -17644,7 +17724,7 @@
   }
 
   function exportarCxcCsv(filas) {
-    const csvCelda = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csvCelda = (v) => `"${protegerCeldaCSVFrontend(v ?? '').replace(/"/g, '""')}"`;
     const encabezado = ['No. Venta', 'Cliente', 'RFC', 'Total', 'Cobrado', 'Saldo', 'Vencimiento', 'Estado', 'Facturada'];
     const lineas = filas.map((o) => {
       const saldo = Math.round((Number(o.total) - Number(o.monto_cobrado || 0)) * 100) / 100;
@@ -18115,7 +18195,7 @@
   function filaCategoriaInvPanel(c) {
     if (categoriaInvEditandoId === c.id) {
       return `<div class="gastos-categoria-fila" data-id="${c.id}">
-        <input type="text" class="gastos-categoria-input-editar" value="${escapeHtml(c.nombre)}" maxlength="100" />
+        <input type="text" class="gastos-categoria-input-editar" value="${escapeHtmlAttr(c.nombre)}" maxlength="100" />
         <button type="button" class="btn-categoria-accion btn-categoria-guardar" data-id="${c.id}">Guardar</button>
         <button type="button" class="btn-categoria-accion gastos-categoria-cancelar">Cancelar</button>
       </div>`;
@@ -18123,8 +18203,8 @@
     return `<div class="gastos-categoria-fila" data-id="${c.id}">
       <span class="gastos-categoria-nombre">${escapeHtml(c.nombre)}${c.activa ? '' : ' <em>(inactiva)</em>'}</span>
       ${c.activa ? '' : `<button type="button" class="btn-categoria-accion gastos-categoria-reactivar" data-id="${c.id}">Reactivar</button>`}
-      <button type="button" class="btn-icono-accion gastos-categoria-renombrar" data-id="${c.id}" data-tooltip="Renombrar ${escapeHtml(c.nombre)}" aria-label="Renombrar ${escapeHtml(c.nombre)}">${ICONO_EDITAR}</button>
-      ${c.tieneProductos ? '' : `<button type="button" class="btn-icono-accion btn-icono-accion-peligro gastos-categoria-borrar" data-id="${c.id}" data-tooltip="Eliminar ${escapeHtml(c.nombre)}" aria-label="Eliminar ${escapeHtml(c.nombre)}">${ICONO_PAPELERA}</button>`}
+      <button type="button" class="btn-icono-accion gastos-categoria-renombrar" data-id="${c.id}" data-tooltip="Renombrar ${escapeHtmlAttr(c.nombre)}" aria-label="Renombrar ${escapeHtmlAttr(c.nombre)}">${ICONO_EDITAR}</button>
+      ${c.tieneProductos ? '' : `<button type="button" class="btn-icono-accion btn-icono-accion-peligro gastos-categoria-borrar" data-id="${c.id}" data-tooltip="Eliminar ${escapeHtmlAttr(c.nombre)}" aria-label="Eliminar ${escapeHtmlAttr(c.nombre)}">${ICONO_PAPELERA}</button>`}
     </div>`;
   }
 
@@ -18834,12 +18914,29 @@
     if (tieneImagen) cargarImagenAutenticada(els.invImagenActualPreview, producto.imagen_thumb_url);
   }
 
-  async function subirImagenProducto(archivo) {
+  // Comprime a WebP en el navegador antes de subir (módulo auditado en
+  // webp/comprimir.js, copiado tal cual a frontend/comprimir.js — cero
+  // red, cero dependencias). Si el módulo no cargó, el archivo no es
+  // imagen, o la compresión falla por cualquier motivo, se sigue con el
+  // archivo original: nunca bloquea una subida legítima.
+  async function comprimirSiAplica(archivo, opciones) {
+    if (!window.comprimirImagen || !archivo || !archivo.type || archivo.type.indexOf('image/') !== 0) return archivo;
+    try {
+      const r = await window.comprimirImagen(archivo, opciones);
+      if (r.sinCambios) return archivo;
+      return new File([r.blob], r.nombre, { type: r.blob.type || 'image/webp' });
+    } catch (err) {
+      return archivo;
+    }
+  }
+
+  async function subirImagenProducto(archivoOriginal) {
     if (!inventarioModalEditando) return;
     els.errorInvModalImagen.textContent = '';
     const authHeader = getAuthHeader();
     if (!authHeader) return;
 
+    const archivo = await comprimirSiAplica(archivoOriginal, { objetivoKB: 200, calidadMin: 0.45, dimMaxPx: 1600 });
     const formData = new FormData();
     formData.append('imagen', archivo);
     try {
@@ -19310,7 +19407,7 @@
           m.costo_unitario === null
             ? '—'
             : m.tipo_cambio
-              ? `<span data-tooltip="${escapeHtml(`$${formatearMoneda(m.costo_original)} USD × ${formatearMoneda(m.tipo_cambio)} = $${formatearMoneda(m.costo_unitario)} MXN`)}">$${formatearMoneda(m.costo_unitario)}</span>`
+              ? `<span data-tooltip="${escapeHtmlAttr(`$${formatearMoneda(m.costo_original)} USD × ${formatearMoneda(m.tipo_cambio)} = $${formatearMoneda(m.costo_unitario)} MXN`)}">$${formatearMoneda(m.costo_unitario)}</span>`
               : `$${formatearMoneda(m.costo_unitario)}`;
         tr.innerHTML = `
           <td data-label="Folio">${escapeHtml(m.folio || '—')}</td>
@@ -19796,7 +19893,7 @@
     els.invImportHojaField.hidden = !multiHoja;
     if (multiHoja) {
       els.invImportHojaSelect.innerHTML = estadoImport.hojas
-        .map((h) => `<option value="${escapeHtml(h)}" ${h === estadoImport.hojaSeleccionada ? 'selected' : ''}>${escapeHtml(h)}</option>`)
+        .map((h) => `<option value="${escapeHtmlAttr(h)}" ${h === estadoImport.hojaSeleccionada ? 'selected' : ''}>${escapeHtml(h)}</option>`)
         .join('');
     }
     estadoImport.previewExpandido = false;
@@ -19878,9 +19975,9 @@
       const necesitaConfirmar = asignacion && asignacion.requiereConfirmacion && !asignacion.confirmado;
       return `
         <tr>
-          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}<button type="button" class="campo-ayuda" data-campo="${c.campo}" aria-label="Ver ayuda de ${escapeHtml(c.etiqueta)}">?</button></td>
-          <td><select class="inv-import-mapeo-select" data-campo="${c.campo}" aria-label="Columna para ${escapeHtml(c.etiqueta)}">${opciones}</select></td>
-          <td class="inv-import-mapeo-preview" data-tooltip="${escapeHtml(previewValores)}">${escapeHtml(previewValores)}</td>
+          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}<button type="button" class="campo-ayuda" data-campo="${c.campo}" aria-label="Ver ayuda de ${escapeHtmlAttr(c.etiqueta)}">?</button></td>
+          <td><select class="inv-import-mapeo-select" data-campo="${c.campo}" aria-label="Columna para ${escapeHtmlAttr(c.etiqueta)}">${opciones}</select></td>
+          <td class="inv-import-mapeo-preview" data-tooltip="${escapeHtmlAttr(previewValores)}">${escapeHtml(previewValores)}</td>
           <td>
             <span class="estatus-badge ${badge.clase}">${escapeHtml(badge.texto)}</span>
             ${necesitaConfirmar ? `<label class="inv-import-confirmar"><input type="checkbox" class="inv-import-confirmar-check" data-campo="${c.campo}" /> Confirmo</label>` : ''}
@@ -20096,7 +20193,7 @@
                   </select>
                 </label>
               ` : ''}
-              <button type="button" class="btn btn-secondary" data-accion="aplicar-mezcla" data-columna="${escapeHtml(h.columna)}" data-hallazgo="${hallazgoId}">Aplicar</button>
+              <button type="button" class="btn btn-secondary" data-accion="aplicar-mezcla" data-columna="${escapeHtmlAttr(h.columna)}" data-hallazgo="${hallazgoId}">Aplicar</button>
             </div>
           ` : ''}
         </div>
@@ -20153,16 +20250,16 @@
             ${esUnidad ? `
               <select class="inv-import-valor-grupo-select" id="${filaId}-select">
                 <option value="">Elegir unidad…</option>
-                ${unidadesInventarioActuales.map((u) => `<option value="${escapeHtml(u.nombre)}">${escapeHtml(u.nombre)} (${escapeHtml(u.abreviatura)})</option>`).join('')}
+                ${unidadesInventarioActuales.map((u) => `<option value="${escapeHtmlAttr(u.nombre)}">${escapeHtml(u.nombre)} (${escapeHtml(u.abreviatura)})</option>`).join('')}
                 <option value="__crear_nueva__">+ Crear unidad nueva…</option>
               </select>
-              <button type="button" class="btn btn-secondary inv-import-valor-grupo-aplicar" data-accion="aplicar-unidad" data-campo="unidad_base" data-valor="${escapeHtml(String(g.valor))}" data-select="${filaId}-select">Aplicar a las ${g.count}</button>
+              <button type="button" class="btn btn-secondary inv-import-valor-grupo-aplicar" data-accion="aplicar-unidad" data-campo="unidad_base" data-valor="${escapeHtmlAttr(String(g.valor))}" data-select="${filaId}-select">Aplicar a las ${g.count}</button>
             ` : resuelto ? '<span class="inv-import-valor-grupo-resuelto">Resuelto — se aplicará al validar</span>' : ''}
           </div>
           <div class="inv-import-valor-grupo-nueva" id="${filaId}-nueva" hidden>
             <input type="text" placeholder="Nombre (ej. Pieza)" maxlength="50" id="${filaId}-nombre" />
             <input type="text" placeholder="Abreviatura (ej. pz)" maxlength="10" id="${filaId}-abrev" />
-            <button type="button" class="btn btn-primary" data-accion="crear-unidad" data-valor="${escapeHtml(String(g.valor))}" data-select="${filaId}-select" data-nueva="${filaId}-nueva">Crear y aplicar</button>
+            <button type="button" class="btn btn-primary" data-accion="crear-unidad" data-valor="${escapeHtmlAttr(String(g.valor))}" data-select="${filaId}-select" data-nueva="${filaId}-nueva">Crear y aplicar</button>
           </div>
         </div>
       `;
@@ -20464,14 +20561,14 @@
 
   function renderTarjetaAyuda(d) {
     return `
-      <article class="inv-ayuda-tarjeta" id="campo-${d.id}" tabindex="-1" aria-labelledby="campo-${d.id}-titulo" data-buscable="${escapeHtml(`${d.etiqueta} ${d.explicacion_simple} ${(d.sinonimos || []).join(' ')}`.toLowerCase())}">
+      <article class="inv-ayuda-tarjeta" id="campo-${d.id}" tabindex="-1" aria-labelledby="campo-${d.id}-titulo" data-buscable="${escapeHtmlAttr(`${d.etiqueta} ${d.explicacion_simple} ${(d.sinonimos || []).join(' ')}`.toLowerCase())}">
         <div class="inv-ayuda-tarjeta-header">
           <h4 class="inv-ayuda-tarjeta-titulo" id="campo-${d.id}-titulo">${escapeHtml(d.etiqueta)}</h4>
           ${d.obligatorio === true ? '<span class="estatus-badge estatus-cancelado">Obligatorio</span>' : d.obligatorio === false ? '<span class="estatus-badge estatus-neutro">Opcional</span>' : ''}
         </div>
         <p class="inv-ayuda-tarjeta-explicacion">${escapeHtml(d.explicacion_simple)}</p>
-        <p class="inv-ayuda-ejemplo inv-ayuda-ejemplo-ok"><strong>✓ Correcto:</strong> ${escapeHtml(d.ejemplo_valido)}</p>
-        <p class="inv-ayuda-ejemplo inv-ayuda-ejemplo-mal"><strong>✗ Común:</strong> ${escapeHtml(d.ejemplo_invalido_comun)}</p>
+        <p class="inv-ayuda-ejemplo inv-ayuda-ejemplo-ok"><strong><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Correcto:</strong> ${escapeHtml(d.ejemplo_valido)}</p>
+        <p class="inv-ayuda-ejemplo inv-ayuda-ejemplo-mal"><strong><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="vertical-align:-1px"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg> Común:</strong> ${escapeHtml(d.ejemplo_invalido_comun)}</p>
         ${d.sinonimos && d.sinonimos.length > 0 ? `<p class="inv-ayuda-tarjeta-sinonimos">En tu archivo de importación, estas columnas se reconocen solas: ${escapeHtml(d.sinonimos.join(', '))}…</p>` : ''}
       </article>`;
   }
@@ -20887,7 +20984,7 @@
     // `onclick` inline, para no reabrir la necesidad de 'unsafe-inline'
     // en script-src que la CSP del punto 197 cerró a propósito.
     const accionHtml = p.accion
-      ? `<button type="button" class="conocimiento-paso-boton" data-accion="${escapeHtml(p.accion)}">${escapeHtml(p.textoAccion || 'Repetir')}</button>`
+      ? `<button type="button" class="conocimiento-paso-boton" data-accion="${escapeHtmlAttr(p.accion)}">${escapeHtml(p.textoAccion || 'Repetir')}</button>`
       : '';
     return `
       <div class="conocimiento-paso" style="transition-delay:${reducido ? 0 : i * 55}ms">
@@ -21146,7 +21243,7 @@
         .map(
           (p) => `
         <div class="onboarding-paso">
-          <span class="onboarding-paso-dot${p.hecho ? ' is-done' : ''}" aria-hidden="true">${p.hecho ? '✓' : ''}</span>
+          <span class="onboarding-paso-dot${p.hecho ? ' is-done' : ''}" aria-hidden="true">${p.hecho ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span>
           <div class="onboarding-paso-body">
             <span class="onboarding-paso-titulo${p.hecho ? ' is-done' : ''}">${escapeHtml(p.texto)}</span>
             ${p.hecho ? '' : `<button type="button" class="onboarding-paso-link" data-onboarding-ir="${p.vista}">Ir →</button>`}

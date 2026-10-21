@@ -91,16 +91,29 @@ async function crearBaseDeDatosTenant(dbName) {
 }
 
 // Elimina (si existe) la base de datos física de un tenant — mismo
-// patrón/credenciales que crearBaseDeDatosTenant (conexión suelta, sin
-// pool, se cierra sola). Llamar SIEMPRE con cerrarPoolTenant(slug) hecho
-// justo antes de esto — un pool con conexiones activas contra la base
-// que se va a borrar puede quedar en un estado roto.
+// patrón de conexión suelta (sin pool, se cierra sola) que
+// crearBaseDeDatosTenant, pero credenciales DISTINTAS a propósito.
+// Llamar SIEMPRE con cerrarPoolTenant(slug) hecho justo antes de esto —
+// un pool con conexiones activas contra la base que se va a borrar
+// puede quedar en un estado roto.
+//
+// Hallazgo M-14 (sonar.html, 2026-10-15): antes usaba DB_USER/
+// DB_PASSWORD — la MISMA credencial que las ~90 rutas parametrizadas
+// del día a día, que tenía DROP sobre cualquier tenant_* (GRANT ALL
+// PRIVILEGES). Si alguna vez apareciera una inyección SQL real en
+// cualquier ruta normal (hoy no la hay, verificado), el mismo usuario
+// que ejecuta esa query también podía DROP DATABASE. Ahora usa
+// DB_DROP_USER/DB_DROP_PASSWORD — una credencial NUEVA y separada
+// (ver backend/scripts/lib/controlDb.js:asegurarControlYPrivilegios,
+// usuario "app_tenant_drop") cuyo ÚNICO privilegio es DROP sobre
+// tenant_%.* — nunca usada por ninguna otra query del proyecto, así
+// que ninguna inyección SQL a través del pool normal puede alcanzarla.
 async function eliminarBaseDeDatosTenant(dbName) {
   const conexion = await mysql.createConnection({
     host: process.env.DB_HOST || 'mysql',
     port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'app',
-    password: process.env.DB_PASSWORD || '',
+    user: process.env.DB_DROP_USER || 'app_tenant_drop',
+    password: process.env.DB_DROP_PASSWORD || '',
   });
   try {
     await conexion.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
@@ -1598,10 +1611,19 @@ async function ensureSchema(db = pool) {
 
   // Migración: bases ya aprovisionadas antes de sumar soporte a .xls
   // (legacy, Excel 97-2003) traen chk_imp_importaciones_formato con solo
-  // ('csv','xlsx') — se repone en cada arranque, mismo patrón que
-  // chk_tickets_tipo_pago/chk_reportes_tipo más abajo.
-  await db.query('ALTER TABLE imp_importaciones DROP CHECK chk_imp_importaciones_formato');
-  await db.query(`ALTER TABLE imp_importaciones ADD CONSTRAINT chk_imp_importaciones_formato CHECK (formato IN ('csv', 'xlsx', 'xls'))`);
+  // ('csv','xlsx') — mismo patrón que chk_usuarios_perfil/chk_reportes_tipo:
+  // solo se tira y repone si la cláusula real no incluye ya 'xls'.
+  const [clausulaImpImportacionesFormato] = await db.query(
+    `SELECT CHECK_CLAUSE FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_imp_importaciones_formato'`
+  );
+  if (
+    clausulaImpImportacionesFormato.length > 0 &&
+    !clausulaImpImportacionesFormato[0].CHECK_CLAUSE.includes('xls')
+  ) {
+    await db.query('ALTER TABLE imp_importaciones DROP CHECK chk_imp_importaciones_formato');
+    await db.query(`ALTER TABLE imp_importaciones ADD CONSTRAINT chk_imp_importaciones_formato CHECK (formato IN ('csv', 'xlsx', 'xls'))`);
+  }
 
   // valor_overrides_json (punto 397): bases ya aprovisionadas antes de la
   // resolución de valores de catálogo (ej. "UNIDAD" → "Pieza") no tienen

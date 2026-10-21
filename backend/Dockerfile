@@ -16,6 +16,23 @@ ENV NODE_ENV=production
 # Usuario sin privilegios para ejecutar la aplicacion, y su-exec para poder
 # arrancar como root (solo para fijar permisos del bind mount de uploads) y
 # luego ceder el control a ese usuario sin privilegios.
+#
+# Hallazgo m-11 (sonar_1.1.html, 2026-10-19), verificado contra el
+# contenedor real (`docker exec portalManager-backend ps aux`): el
+# proceso node YA corre como "appuser" (PID 1 = appuser, nunca root) —
+# docker-entrypoint.sh hace el su-exec al final. Lo que el análisis
+# estático detecta es la AUSENCIA de un `USER appuser` en este Dockerfile
+# — eso es a propósito, NO un descuido: `./uploads:/app/uploads`
+# (docker-compose.yml y prod/docker-compose.prod.yml) es un bind mount
+# real, cuyo dueño en el host puede no coincidir con appuser dentro del
+# contenedor. Un `USER appuser` aquí arrancaría el contenedor YA como
+# appuser, y el `chown -R appuser:appgroup "$UPLOAD_DIR"` de
+# docker-entrypoint.sh fallaría (sin privilegios para tomar dueño de un
+# directorio que no es suyo) — el patrón correcto para "arranca como root
+# solo para preparar el entorno, corre como no-root" es ESTE (su-exec
+# dentro del entrypoint), no el `USER` estático del Dockerfile. No
+# "arreglar" agregando `USER appuser` sin antes resolver de otra forma el
+# chown del bind mount.
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
     apk add --no-cache su-exec
 

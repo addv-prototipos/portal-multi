@@ -112,7 +112,7 @@
           </div>
           <div class="dropzone-preview" id="dropzone-preview" hidden>
             <img id="preview-imagen" alt="Vista previa del ticket" />
-            <button type="button" class="btn-icon" id="btn-quitar-imagen" aria-label="Quitar imagen">✕</button>
+            <button type="button" class="btn-icon" id="btn-quitar-imagen" aria-label="Quitar imagen"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
           </div>
         </div>
         <p class="field-error" id="error-imagen" role="alert"></p>
@@ -127,7 +127,7 @@
 
       <!-- Paso 2: confirmación con folio -->
       <section class="panel" id="panel-confirmacion">
-        <div class="success-icon" aria-hidden="true">✓</div>
+        <div class="success-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <h1>¡Ticket recibido!</h1>
         <p class="panel-subtitle">Guarda tu folio para darle seguimiento o hacer una aclaración.</p>
         <p class="folio-generado" id="folio-generado"></p>
@@ -181,6 +181,7 @@
   <script src="/theme.js"></script>
   <script src="/portal.js"></script>
   <script src="/aclaraciones.js"></script>
+  <script src="/comprimir.js"></script>
   <script src="/tickets.js"></script>
 </body>
 </html>

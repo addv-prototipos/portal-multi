@@ -49,11 +49,31 @@ function validarUsuario(usuario) {
   return null;
 }
 
+// Hallazgo M-04 (sonar.html, 2026-10-14): solo bloqueaba "," y ":" — un
+// super-admin (o una sesión Basic Auth robada) podía crear un usuario con
+// password "x\nINTERNAL_CACHE_SECRET=valor" y la línea arbitraria se
+// escribía en el .env real del host (efectiva en el próximo restart);
+// comillas sin escapar también rompían el parseo de dotenv (lockout
+// total). Se amplía la lista negra a \r \n " # además de , y : — ningún
+// caso de uso legítimo necesita esos caracteres en un password.
+// Hallazgo m-06 (sonar_1.1.html, 2026-10-19): el mínimo de 6 caracteres
+// sin regla de complejidad era MÁS débil que la política de los clientes
+// de tenant (backend/utils/authUsuario.js:validarPassword — 8+ con
+// mayúscula/minúscula/número), al revés de lo que debería ser para la
+// cuenta con más privilegio del sistema. Mismo criterio aplicado aquí.
 function validarPassword(password) {
   if (!password || typeof password !== 'string') return 'Contraseña requerida.';
-  if (password.length < 6) return 'Contraseña mínimo 6 caracteres.';
+  if (password.length < 8) return 'Contraseña mínimo 8 caracteres.';
   if (password.length > 128) return 'Contraseña máximo 128 caracteres.';
-  if (password.includes(',') || password.includes(':')) return 'Contraseña no puede contener "," ni ":".';
+  // Candado de inyección en .env (M-04) antes que la complejidad: un
+  // password con salto de línea es peligroso aunque también cumpla
+  // mayúscula/minúscula/número — ese es el error que importa reportar.
+  if (/[,:\r\n"#]/.test(password)) {
+    return 'Contraseña no puede contener "," ":" comillas, "#" ni saltos de línea.';
+  }
+  if (!/[0-9]/.test(password)) return 'Contraseña debe incluir al menos un número.';
+  if (!/[a-z]/.test(password)) return 'Contraseña debe incluir al menos una letra minúscula.';
+  if (!/[A-Z]/.test(password)) return 'Contraseña debe incluir al menos una letra mayúscula.';
   return null;
 }
 

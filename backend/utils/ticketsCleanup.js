@@ -201,6 +201,13 @@ async function ejecutarLimpiezaConReporte(prefijoStorage = storage.PREFIJO_DEFEC
 // el slug real del tenant (o PREFIJO_DEFECTO para la base sin tenant), no
 // el slug crudo del listado de control.
 async function ejecutarLimpiezaParaTodos() {
+  // Hallazgo m-07 (sonar_1.1.html, 2026-10-19): mismo criterio que
+  // cierreMensual.js — `DB_PASSWORD || ''` disfrazaba "no está
+  // configurado" de "conéctate con contraseña vacía" contra cada base de
+  // tenant. Falla alto y claro aquí, una sola vez.
+  if (!process.env.DB_PASSWORD) {
+    throw new Error('[ticketsCleanup] DB_PASSWORD no está definido — no se puede conectar a las bases de tenant.');
+  }
   const resultados = [];
 
   try {
@@ -231,7 +238,7 @@ async function ejecutarLimpiezaParaTodos() {
           host: tenant.db_host,
           port: Number(process.env.DB_PORT || 3306),
           user: tenant.db_user,
-          password: process.env.DB_PASSWORD || '',
+          password: process.env.DB_PASSWORD,
           database: tenant.db_name,
         });
         const r = await ejecutarComoTenant(tenantPool, () => ejecutarLimpiezaConReporte(tenant.slug));

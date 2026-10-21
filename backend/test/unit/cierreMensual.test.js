@@ -176,9 +176,26 @@ describe('cierreMensual — ejecutarCierreMensualParaDB (punto 158)', () => {
 });
 
 describe('cierreMensual — ejecutarCierresMensualesParaTodos (dual base + tenants)', () => {
+  const dbPasswordOriginal = process.env.DB_PASSWORD;
+
   beforeEach(() => {
     jest.clearAllMocks();
     getConfiguracionGlobal.mockResolvedValue({ zona_horaria: 'America/Mexico_City' });
+    // Hallazgo m-07 (sonar_1.1.html): ejecutarCierresMensualesParaTodos
+    // ahora exige DB_PASSWORD definido (fail-closed, ver cierreMensual.js).
+    process.env.DB_PASSWORD = 'claveAppNormal';
+  });
+
+  afterEach(() => {
+    if (dbPasswordOriginal === undefined) delete process.env.DB_PASSWORD;
+    else process.env.DB_PASSWORD = dbPasswordOriginal;
+  });
+
+  // Hallazgo m-07 (sonar_1.1.html, 2026-10-19).
+  test('sin DB_PASSWORD definido, truena de inmediato en vez de conectar con contraseña vacía', async () => {
+    delete process.env.DB_PASSWORD;
+    await expect(ejecutarCierresMensualesParaTodos('2026-08')).rejects.toThrow(/DB_PASSWORD no está definido/);
+    expect(obtenerPoolControl).not.toHaveBeenCalled();
   });
 
   test('corre la base ADDV primero (sin ejecutarComoTenant) y luego cada tenant activo', async () => {

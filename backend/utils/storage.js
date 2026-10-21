@@ -37,6 +37,23 @@ const BUCKET = process.env.MINIO_BUCKET || 'portal-facturacion';
 // no es un carácter válido de slug (ver utils/tenant.js:SLUG_REGEX).
 const PREFIJO_DEFECTO = '_default';
 
+// Hallazgo M-15 (sonar.html, 2026-10-14) — mismo criterio fail-closed de
+// C-02 (backend/utils/auth.js): los defaults `minioadmin`/
+// `changeme_minio_password` son dev-only a propósito (docker-compose.yml
+// ya los documenta como públicos) — en `NODE_ENV=production` sin las 2
+// variables reales, abortar el arranque en vez de servir con
+// credenciales conocidas. Dev/test sin tocar: `docker-compose.yml` local
+// ya mete `${MINIO_ROOT_USER:-minioadmin}` (el env var siempre llega
+// poblado al contenedor), este chequeo es inerte ahí a propósito.
+if (
+  process.env.NODE_ENV === 'production' &&
+  (!process.env.MINIO_ROOT_USER || !process.env.MINIO_ROOT_PASSWORD)
+) {
+  throw new Error(
+    'MINIO_ROOT_USER/MINIO_ROOT_PASSWORD son obligatorias en producción — no se permite arrancar con las credenciales default de MinIO.'
+  );
+}
+
 const client = new S3Client({
   region: process.env.MINIO_REGION || 'us-east-1', // MinIO ignora la región real, pero el SDK exige un valor
   endpoint: process.env.MINIO_ENDPOINT || 'http://minio:9000',

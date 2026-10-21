@@ -128,7 +128,7 @@ async function main() {
   const errorSlug = validarSlug(slug);
   if (errorSlug) fail(errorSlug);
 
-  const { dbHost, dbPort, rootPassword, appUser, appPassword, controlAppPassword } = leerConexionDesdeEnv();
+  const { dbHost, dbPort, rootPassword, appUser, appPassword, controlAppPassword, appDropPassword } = leerConexionDesdeEnv();
   const destinoDb = nombreDbTenant(slug);
 
   const root = await mysql.createConnection({ host: dbHost, port: dbPort, user: 'root', password: rootPassword });
@@ -144,7 +144,7 @@ async function main() {
     }
 
     console.log(`Paso 1/5: asegurando BD de control y registrando "${slug}"...`);
-    await asegurarControlYPrivilegios(root, appUser, controlAppPassword);
+    await asegurarControlYPrivilegios(root, appUser, controlAppPassword, appDropPassword);
 
     const [existentes] = await root.query(`SELECT id, estado FROM \`${CONTROL_DB_NAME}\`.tenants WHERE slug = ?`, [slug]);
     if (existentes.length > 0) {

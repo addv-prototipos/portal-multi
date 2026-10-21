@@ -82,7 +82,7 @@ server {
     root /usr/share/nginx/html;
     index login.html;
 
-    client_max_body_size 20m;
+    client_max_body_size 27m;
 
     # Segmento 7 (seguridad multi-tenant): cabeceras de defensa aplicables
     # a TODA respuesta sin riesgo de romper nada existente.
@@ -144,6 +144,20 @@ server {
     # usando una version vieja por dias despues de un `docker-compose up --build`.
     location ~* \.(?:css|js)$ {
         add_header Cache-Control "no-cache";
+        # Hallazgo M-12 (sonar.html, 2026-10-14): en nginx, un location
+        # que define CUALQUIER add_header apaga la herencia de TODOS los
+        # add_header del nivel server — este location ya traía uno
+        # (Cache-Control, arriba) y por eso servía .css/.js SIN ninguna
+        # cabecera de seguridad (CSP/nosniff/X-Frame-Options/Referrer-
+        # Policy/HSTS). Bajo impacto hoy (no es HTML), pero hay que
+        # repetir el bloque completo aquí — mismo valor que el nivel
+        # server, nunca inventar uno nuevo.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
+        add_header Strict-Transport-Security $hsts_header_valor always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
         # Misma página 404 con identidad Clarvo que el catch-all de más
         # abajo (punto 376) — sin esto, un .css/.js borrado o con typo en
         # la URL mostraba el 404 en blanco default de nginx en vez de la
@@ -157,6 +171,18 @@ server {
     location ~* \.(?:svg|png|jpg|jpeg|webp|woff2?)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
+        # Hallazgo M-12 (sonar.html): mismo motivo que el location de
+        # .css/.js de arriba — este location también apagaba la herencia
+        # de las cabeceras de seguridad del nivel server. Bajo hoy (no se
+        # sirve HTML aquí), pero un .svg futuro quedaría renderizable sin
+        # frame-ancestors si alguna vez se agrega a este grupo de
+        # extensiones.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
+        add_header Strict-Transport-Security $hsts_header_valor always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
         # Mismo motivo que el location de .css/.js de arriba — una imagen
         # borrada o una URL con typo (ej. "/branding.pgn") mostraba el 404
         # en blanco de nginx en vez de 404-clarvo.html.
@@ -232,6 +258,17 @@ server {
         access_log off;
         try_files /restablecer.html =404;
     }
+    # Hallazgo M-13 (sonar.html, 2026-10-14): el bloque de arriba solo
+    # cubre la ruta exacta "/restablecer" — "/restablecer.html?token=..."
+    # es igual de válida (nginx la sirve directo desde disco vía el
+    # catch-all `location /`) y NO estaba cubierta, así que el token
+    # quedaba en texto plano en access.log por esa variante. El token
+    # ahora viaja como fragmento (#token=, nunca llega al servidor), esto
+    # es defensa en profundidad para un enlace viejo con ?token=.
+    location = /restablecer.html {
+        access_log off;
+        try_files /restablecer.html =404;
+    }
 
     # Compatibilidad: esta pagina (constancia de situacion fiscal) se
     # llamaba "index.html" antes de renombrarse a "csf.html". Si alguien
@@ -301,17 +338,27 @@ server {
     # redirigir "/<slug>" (con o sin "/" final) a "/<slug>/login" — mismo
     # criterio que ya usa "/" a secas (index login.html) pero explícito en
     # la URL, para que login.js SIEMPRE detecte el tenant correctamente.
-    # $http_host (no $host) + $proxy_x_forwarded_proto (definidos arriba,
-    # mismo criterio que detectarUrlPortal en el backend): un "return 302
-    # /ruta" con path absoluto deja que nginx arme el Location con
-    # $scheme://$host, pero $host NUNCA incluye el puerto — en este
-    # entorno de desarrollo (mapeo de Docker a :8088) el navegador
-    # terminaba redirigido a :80 (nada escuchando ahí), confirmado con
-    # curl -D- durante la validación. $http_host es el encabezado Host tal
-    # cual lo mandó el cliente (incluye el puerto si no es el estándar) —
-    # nunca falla el reenvío sin importar el puerto externo.
+    # Hallazgo C-03 (sonar.html, 2026-10-13): un "return 302" con
+    # $proxy_x_forwarded_proto://$http_host arma el Location a partir del
+    # encabezado Host que mandó el CLIENTE, sin validar — un Host
+    # falsificado (p. ej. "atacante.com") convierte este redirect en open
+    # redirect para phishing. Fix: Location con SOLO el path, sin
+    # esquema/host — un navegador resuelve un Location que empieza con
+    # "/" contra el host real de la conexión (RFC 7231 §7.1.2), nunca
+    # contra un valor que venga en la propia respuesta.
+    # "absolute_redirect off" es obligatorio aquí: por default nginx
+    # NO deja el path tal cual — completa cualquier Location que empiece
+    # con "/" a una URL absoluta usando $scheme://$host (verificado en
+    # vivo: sin esta línea, "return 302 /$tenant_slug/login" seguía
+    # generando "http://localhost/sry/login", SIN puerto, porque $host
+    # — a diferencia de $http_host — nunca lo incluye; exactamente el
+    # mismo bug de puerto que $http_host evitaba, reintroducido por la
+    # propia normalización automática de nginx). Con el flag apagado,
+    # Location sale literal como "/$tenant_slug/login" y el puerto lo
+    # aporta el navegador desde la conexión real — nunca ningún header.
     location ~ "^/(?<tenant_slug>[a-z0-9][a-z0-9-]{0,48})/?$" {
-        return 302 $proxy_x_forwarded_proto://$http_host/$tenant_slug/login;
+        absolute_redirect off;
+        return 302 /$tenant_slug/login;
     }
 
     # Version con tenant de la API — mismo backend, mismo proxy_pass que
@@ -354,7 +401,7 @@ server {
         proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
-        client_max_body_size 20m;
+        client_max_body_size 27m;
         proxy_intercept_errors on;
         error_page 502 503 504 =503 /mantenimiento.html;
     }
@@ -424,7 +471,11 @@ server {
         proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
         proxy_read_timeout 30s;
         proxy_send_timeout 30s;
-        client_max_body_size 1m;
+        # 27m, no 1m: control recibe logoBase64/faviconBase64 con
+        # express.json({limit:'30mb'}) y valida hasta IMAGEN_MAX_MB_MAX=20MB
+        # (≈27.4MB en base64) — con 1m, cualquier logo/favicon real por
+        # encima de ~700KB nunca llegaba al backend (hallazgo N-01, sonar_1.1).
+        client_max_body_size 27m;
         proxy_intercept_errors on;
         error_page 502 503 504 =503 /mantenimiento.html;
     }
@@ -478,7 +529,7 @@ server {
         proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
-        client_max_body_size 20m;
+        client_max_body_size 27m;
 
         # Página de mantenimiento cuando el backend no responde. 502/504
         # los genera el propio nginx cuando no logra conectar o el

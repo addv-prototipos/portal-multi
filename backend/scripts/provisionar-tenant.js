@@ -79,7 +79,7 @@ async function main() {
   const errorSlug = validarSlug(slug);
   if (errorSlug) fail(errorSlug);
 
-  const { dbHost, dbPort, rootPassword, appUser, appPassword, controlAppPassword } = leerConexionDesdeEnv();
+  const { dbHost, dbPort, rootPassword, appUser, appPassword, controlAppPassword, appDropPassword } = leerConexionDesdeEnv();
   const dbName = nombreDbTenant(slug);
 
   const root = await mysql.createConnection({
@@ -91,7 +91,7 @@ async function main() {
 
   let tenantId = null;
   try {
-    await asegurarControlYPrivilegios(root, appUser, controlAppPassword);
+    await asegurarControlYPrivilegios(root, appUser, controlAppPassword, appDropPassword);
 
     const [existentes] = await root.query(
       `SELECT * FROM \`${CONTROL_DB_NAME}\`.tenants WHERE slug = ?`,

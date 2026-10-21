@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { parse: parseCSV } = require('csv-parse/sync');
 const ExcelJS = require('exceljs');
 const { sanitizeText, sanitizeTextoLibre } = require('./validate');
+const { protegerCeldaCSV, filaACSV } = require('./csvSeguro');
 const {
   CAMPOS_IMPORTABLES,
   CAMPOS_NUMERICOS,
@@ -1024,25 +1025,10 @@ async function marcarPerfilUsado(id) {
 // ---------------------------------------------------------------------
 // Plantilla descargable (§34.3.4) y exportación con protección CSV (§35)
 // ---------------------------------------------------------------------
-
-// OWASP CSV Injection: una celda que empiece con = + - @ tab o CR se abre
-// como fórmula en Excel/Sheets con los permisos de quien la abre. Se
-// antepone un apóstrofo — mismo criterio ya aplicado en §35 del documento,
-// aquí se reutiliza para el CSV de errores de esta misma pantalla.
-function protegerCeldaCSV(valor) {
-  const texto = valor === null || valor === undefined ? '' : String(valor);
-  if (/^[=+\-@\t\r]/.test(texto)) return `'${texto}`;
-  return texto;
-}
-
-function filaACSV(valores) {
-  return valores
-    .map((v) => {
-      const protegido = protegerCeldaCSV(v);
-      return /[",\n]/.test(protegido) ? `"${protegido.replace(/"/g, '""')}"` : protegido;
-    })
-    .join(',');
-}
+// protegerCeldaCSV/filaACSV ahora viven en ./csvSeguro (hallazgo M-10,
+// sonar.html) — se importan arriba. Quedan re-exportadas al final de
+// este archivo (module.exports) para no romper el import existente en
+// test/unit/inventarioImportacion.test.js.
 
 // Punto 179: la carga masiva es SOLO para productos — un servicio siempre
 // se da de alta a mano desde "Nuevo producto" (unidad fija en horas, sin

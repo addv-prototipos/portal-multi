@@ -178,22 +178,44 @@ function establecerCookieSesion(res, rfc, tenantSlug = null) {
   res.cookie(COOKIE_NOMBRE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    // OJO: no se basa en NODE_ENV porque docker-compose.yml siempre define
-    // NODE_ENV=production, incluso para uso local/LAN por HTTP (por
-    // ejemplo, accediendo desde el celular a http://192.168.x.x:8080). Si
-    // esta bandera fuera "secure: true" ahí, el navegador RECHAZA guardar
-    // la cookie por completo (las cookies "Secure" solo se guardan sobre
-    // HTTPS, o sobre "localhost" en navegadores modernos) — el login
-    // parece funcionar del lado del servidor, pero la sesión nunca queda
-    // guardada en el navegador, y cualquier página protegida rebota de
-    // inmediato al login (se ve como si "solo recargara la pantalla").
-    // Actívala explícitamente con COOKIE_SECURE=true solo cuando el sitio
-    // se sirva de verdad por HTTPS (ver sección de despliegue en el README).
-    secure: process.env.COOKIE_SECURE === 'true',
+    // Hallazgo M-18 (sonar_1.1.html, 2026-10-19): con la configuración
+    // previa (secure: COOKIE_SECURE === 'true'), un backend que arranca
+    // con NODE_ENV=production y SIN definir COOKIE_SECURE enviaba la
+    // cookie de sesión por HTTP plano, en silencio — la app creía estar
+    // en producción (y disparaba todos los fail-closed de C-02/M-15) pero
+    // la cookie no. Fail-closed real: en producción, `secure` es `true`
+    // SIEMPRE — verificarAbortarSiCookieInsegura() aborta el arranque si
+    // se pide explícitamente COOKIE_SECURE=false en producción, mismo
+    // criterio que C-02/M-15 (ningún valor conocido-inseguro corre en
+    // prod ni por silencio ni por configuración explícita). Fuera de
+    // producción (desarrollo/LAN por HTTP, docker-compose.yml local) se
+    // conserva el comportamiento de siempre: opt-in explícito con
+    // COOKIE_SECURE=true, default false.
+    secure: process.env.NODE_ENV === 'production' ? true : process.env.COOKIE_SECURE === 'true',
     maxAge: SESSION_DURACION_MS,
     path: tenantSlug ? `/${tenantSlug}` : '/',
   });
 }
+
+// M-18: se corre al cargar el módulo (mismo momento que loadAdminUsers()
+// en auth.js para C-02) — aborta el arranque ANTES de levantar el
+// servidor, nunca en silencio al primer login. Pedir explícitamente
+// COOKIE_SECURE=false con NODE_ENV=production es exactamente el estado
+// que este hallazgo describe (la app se cree en producción y manda la
+// sesión por HTTP plano) — se rechaza sin excepción, incluido el propio
+// docker-compose.yml de desarrollo de este repo si algún día se usa así
+// contra un dominio real.
+function verificarAbortarSiCookieInsegura() {
+  if (process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE === 'false') {
+    throw new Error(
+      'COOKIE_SECURE=false con NODE_ENV=production. Fail-closed a propósito (hallazgo M-18): ' +
+      'la cookie de sesión nunca debe viajar por HTTP plano en producción. ' +
+      'Quita COOKIE_SECURE del entorno (o ponlo en "true") si el sitio ya se sirve por HTTPS real; ' +
+      'si necesitas NODE_ENV=production sin HTTPS (solo pruebas locales/LAN), usa NODE_ENV=development.'
+    );
+  }
+}
+verificarAbortarSiCookieInsegura();
 
 // El `path` debe coincidir EXACTAMENTE con el usado al establecer la
 // cookie (`establecerCookieSesion`) — un navegador solo borra una cookie

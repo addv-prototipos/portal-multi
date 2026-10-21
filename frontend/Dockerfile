@@ -1,5 +1,15 @@
 FROM nginx:1.27-alpine
 
+# Hallazgo m-11 (sonar_1.1.html, 2026-10-19), verificado contra el
+# contenedor real (`docker exec portalManager-frontend ps aux`): los 12
+# "nginx: worker process" — los que de verdad procesan cada request HTTP
+# — ya corren como el usuario sin privilegios "nginx" (comportamiento de
+# fábrica de esta imagen oficial, sin cambios necesarios). Solo el
+# "nginx: master process" (PID 1) es root, y su único trabajo es
+# bindear el puerto 80 (<1024, requiere privilegio) y supervisar a los
+# workers — nunca procesa una request directamente. Mismo patrón de
+# riesgo que el backend (root solo para la preparación, nunca para
+# manejar entrada de usuario).
 RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
 
 # Segmento 9b: nginx.conf.template en vez de un conf.d/default.conf fijo
@@ -11,7 +21,7 @@ RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
 # imagen -- así el contenedor "control" puede vivir en la misma red
 # Docker o en un servidor aparte, solo cambiando esas dos variables.
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-COPY csf.html style.css app.js admin.html admin.css admin.js login.html login.js auth.css dashboard.html dashboard.js tickets.html tickets.js portal.js portal.css mantenimiento.html control.html control.js theme.js offline.js restablecer.html restablecer.js scanner.js aclaraciones.js skeleton.js mi-cuenta.html mi-cuenta.js credito.html credito.js marcaTemaEditor.js 404-clarvo.html 404-clarvo.js /usr/share/nginx/html/
+COPY csf.html style.css app.js admin.html admin.css admin.js login.html login.js auth.css dashboard.html dashboard.js tickets.html tickets.js portal.js portal.css mantenimiento.html control.html control.js theme.js offline.js restablecer.html restablecer.js scanner.js aclaraciones.js skeleton.js mi-cuenta.html mi-cuenta.js credito.html credito.js marcaTemaEditor.js comprimir.js 404-clarvo.html 404-clarvo.js /usr/share/nginx/html/
 COPY assets/ /usr/share/nginx/html/assets/
 
 # Defaults para el despliegue normal (control en la misma red Docker,

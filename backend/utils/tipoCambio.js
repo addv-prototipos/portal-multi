@@ -10,14 +10,26 @@
 // el último valor conocido, marcado como "caducado") y el llamador debe
 // permitir captura manual — nunca bloquea el alta/entrada.
 
+const { fechaLocalZona, cadenaFecha } = require('./limitesPeriodo');
+
 const SERIE_USD_MXN = 'SF43718';
 const URL_DATOS = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/${SERIE_USD_MXN}/datos/oportuno`;
 const TIMEOUT_MS = 5000;
 
 let cache = { fecha: null, valor: null };
 
+// Hallazgo m-03 (sonar_1.1.html, 2026-10-19): `toISOString().slice(0,10)`
+// es la fecha UTC, no la de México — tras las 18:00 hora de CDMX (UTC-6)
+// ya es "mañana" en UTC, así que el caché se invalidaba un día antes de
+// tiempo y el valor del día se pedía de nuevo a Banxico sin necesidad.
+// Esta fecha NO depende del tenant que consulta: Banxico publica 1 valor
+// por día hábil en hora de Ciudad de México (zona de publicación real de
+// la serie), así que siempre es America/Mexico_City, nunca la zona del
+// tenant — es la misma lección del punto 371, aplicada a una fuente
+// externa en vez de a datos propios del tenant.
 function hoyLocal() {
-  return new Date().toISOString().slice(0, 10);
+  const partes = fechaLocalZona('America/Mexico_City');
+  return cadenaFecha(partes.anio, partes.mes, partes.dia);
 }
 
 // Consulta el tipo de cambio del día. Nunca lanza — cualquier falla
@@ -38,9 +50,13 @@ async function obtenerTipoCambioUSD() {
   const controlador = new AbortController();
   const timeoutId = setTimeout(() => controlador.abort(), TIMEOUT_MS);
   try {
-    const respuesta = await fetch(`${URL_DATOS}?token=${encodeURIComponent(token)}`, {
+    // Hallazgo m-03 (sonar_1.1.html, 2026-10-19): el token en query string
+    // queda grabado en logs de proxy/nginx/acceso — la API de Banxico
+    // SIE acepta el mismo token por header (`Bmx-Token`), que los logs de
+    // acceso estándar no registran.
+    const respuesta = await fetch(URL_DATOS, {
       signal: controlador.signal,
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'Bmx-Token': token },
     });
     if (!respuesta.ok) {
       throw new Error(`Banxico respondió ${respuesta.status}`);

@@ -172,6 +172,27 @@ describe('POST /internal/marca-logo/:slug', () => {
     expect(res.status).toBe(400);
     expect(storage.guardarArchivo).not.toHaveBeenCalled();
   });
+
+  // Hallazgo M-05 (sonar_1.1.html, 2026-10-19): esta ruta necesita un
+  // límite de body mucho más grande que el resto de la app (logo/favicon
+  // en base64, hasta ~27.4 MB) — el fix acotó el límite amplio (30mb)
+  // SOLO a este path y /internal/favicon, bajando el global a 2mb. Esta
+  // prueba confirma que un body JSON de ~2.4 MB (por encima del límite
+  // GLOBAL nuevo de 2mb) sí llega completo a esta ruta. El PNG decodifica
+  // a ~1.8 MB a propósito, para quedar por debajo de IMAGEN_MAX_MB
+  // (2 MB default, backend/utils/ajustesGlobales.js) — así la prueba
+  // aísla el límite del body parser, sin chocar con ese otro candado de
+  // negocio (independiente, ver server.js:787).
+  test('M-05: un body JSON de ~2.4MB (por encima del límite global de 2mb) sí llega completo a esta ruta', async () => {
+    const pngGrande = Buffer.concat([PNG_BUFFER, Buffer.alloc(1_800_000, 0)]);
+    const res = await request(app)
+      .post('/internal/marca-logo/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ base64: pngGrande.toString('base64'), mime: 'image/png' });
+
+    expect(res.status).toBe(200);
+    expect(storage.guardarArchivo).toHaveBeenCalled();
+  });
 });
 
 describe('DELETE /internal/marca-logo/:slug', () => {
@@ -823,5 +844,23 @@ describe('POST /internal/eliminar-tenant/:slug (punto 345, "papelera")', () => {
       .set('X-Internal-Secret', 'secreto-de-prueba');
 
     expect(res.status).toBe(409);
+  });
+});
+
+// Hallazgo M-05 (sonar_1.1.html, 2026-10-19): antes de este fix, el body
+// parser global aceptaba hasta 30mb en CUALQUIER ruta — un anónimo podía
+// forzar ese trabajo completo antes de que un rate limiter (en rutas que
+// sí tienen uno, como /api/admin) alcanzara a responder 429. El límite
+// global ahora es 2mb; los 2 endpoints que de verdad necesitan más
+// (/internal/marca-logo, /internal/favicon) tienen su propio parser
+// ampliado montado ANTES del global (ver backend/server.js:~280-292).
+describe('Límite global del body parser JSON (M-05)', () => {
+  test('una ruta SIN el parser ampliado rechaza un body de ~2.5MB con 413, antes de llegar a cualquier otra lógica', async () => {
+    const payloadGrande = { relleno: 'x'.repeat(2_500_000) };
+    const res = await request(app)
+      .post('/api/admin/ruta-que-no-existe')
+      .send(payloadGrande);
+
+    expect(res.status).toBe(413);
   });
 });

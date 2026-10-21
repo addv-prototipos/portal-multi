@@ -53,12 +53,29 @@ describe('adminEnv: validarUsuario', () => {
 });
 
 describe('adminEnv: validarPassword', () => {
+  const ERROR_CARACTERES = 'Contraseña no puede contener "," ":" comillas, "#" ni saltos de línea.';
+
   test.each([
     [undefined, 'Contraseña requerida.'],
-    ['12345', 'Contraseña mínimo 6 caracteres.'],
-    ['a'.repeat(129), 'Contraseña máximo 128 caracteres.'],
-    ['tiene,coma', 'Contraseña no puede contener "," ni ":".'],
-    ['tiene:dos', 'Contraseña no puede contener "," ni ":".'],
+    ['Abcd123', 'Contraseña mínimo 8 caracteres.'],
+    [`A1${'a'.repeat(127)}`, 'Contraseña máximo 128 caracteres.'],
+    // Hallazgo m-06 (sonar_1.1.html, 2026-10-19): mismo criterio de
+    // complejidad que los clientes de tenant (backend/utils/authUsuario.js)
+    // — antes era más débil que esa política (6 caracteres, sin reglas).
+    ['abcdefgh', 'Contraseña debe incluir al menos un número.'],
+    ['ABCDEFG1', 'Contraseña debe incluir al menos una letra minúscula.'],
+    ['abcdefg1', 'Contraseña debe incluir al menos una letra mayúscula.'],
+    ['tiene,coma1A', ERROR_CARACTERES],
+    ['tiene:dos1A', ERROR_CARACTERES],
+    // Hallazgo M-04 (sonar.html, 2026-10-14): \n permitía inyectar una
+    // línea arbitraria en el .env real del host al guardar el usuario
+    // (ej. sobrescribir INTERNAL_CACHE_SECRET); comillas/# rompían el
+    // parseo de dotenv. El candado de inyección corre ANTES que la
+    // complejidad, así que dispara aunque el valor no sea complejo.
+    ['x\nINTERNAL_CACHE_SECRET=robado', ERROR_CARACTERES],
+    ['x\rINTERNAL_CACHE_SECRET=robado', ERROR_CARACTERES],
+    ['tiene"comilla1A', ERROR_CARACTERES],
+    ['tiene#numeral1A', ERROR_CARACTERES],
   ])('%p -> %p', (valor, esperado) => {
     expect(validarPassword(valor)).toBe(esperado);
   });

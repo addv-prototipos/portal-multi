@@ -4024,7 +4024,7 @@
 }
 
 /* Etiqueta de autoguardado de "Correo electrónico (SMTP)" — mismo
-   lenguaje "Guardando…/Guardado ✓" que ya usan los switches de
+   lenguaje "Guardando…/Guardado" (con el ícono de check) que ya usan los switches de
    Configuraciones (Habilitar Ventas, Módulo Auditoría), aquí
    dentro del propio encabezado del acordeón en vez de junto a un
    switch. */
@@ -6277,7 +6277,7 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 
 /* ---------- Tabla "Perfiles y roles de acceso" (solo para "admin") ----------
    Diseñada para escanearse de un vistazo: cada columna es un área del
-   panel, cada fila un perfil, y el ✓/— responde de inmediato "¿puede
+   panel, cada fila un perfil, y el ícono de check/el guion responde de inmediato "¿puede
    entrar aquí?" sin tener que leer texto. El detalle fino (CUÁLES
    tarjetas de Configuraciones) se agrega como texto secundario
    más pequeño, subordinado al símbolo — no compite con la respuesta

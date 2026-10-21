@@ -42,20 +42,27 @@ function leerConexionDesdeEnv() {
   // variable que no le corresponde todavía. Si falta, se omite ese paso
   // (ver asegurarControlYPrivilegios) en vez de fallar.
   const controlAppPassword = process.env.CONTROL_APP_PASSWORD || null;
-  return { dbHost, dbPort, rootPassword, appUser, appPassword, controlAppPassword };
+  // Hallazgo M-14 (sonar.html, 2026-10-15): mismo criterio OPCIONAL que
+  // controlAppPassword — credencial para el usuario angosto que SOLO
+  // puede hacer DROP DATABASE sobre tenant_* (ver asegurarControlYPrivilegios).
+  const appDropPassword = process.env.DB_DROP_PASSWORD || null;
+  return { dbHost, dbPort, rootPassword, appUser, appPassword, controlAppPassword, appDropPassword };
 }
 
-// Asegura la BD/tablas de control y el GRANT amplio del usuario de
-// aplicación sobre `control_tenants` y cualquier BD `tenant_*` (existente
-// o futura). Idempotente a propósito: segura de correr en cada alta, no
-// solo la primera vez. `controlAppPassword` es opcional: si se define,
-// también crea/rota una credencial angosta separada para el contenedor
+// Asegura la BD/tablas de control y el GRANT (angosto, sin DROP — ver
+// hallazgo M-14 más abajo) del usuario de aplicación sobre
+// `control_tenants` y cualquier BD `tenant_*` (existente o futura).
+// Idempotente a propósito: segura de correr en cada alta, no solo la
+// primera vez. `controlAppPassword` es opcional: si se define, también
+// crea/rota una credencial angosta separada para el contenedor
 // "control" (segmento 9b, ver PROJECT_STATE.md) — con acceso SOLO a
 // control_tenants (ni SELECT/DELETE, ni ningún privilegio sobre
 // tenant_*), a diferencia del usuario de aplicación compartido de
 // arriba. Si se omite, no se toca ese usuario (para no romper una
-// instalación que todavía no desplegó ese servicio).
-async function asegurarControlYPrivilegios(root, appUser, controlAppPassword = null) {
+// instalación que todavía no desplegó ese servicio). `appDropPassword`
+// es el mismo criterio para el usuario "app_tenant_drop" (hallazgo
+// M-14).
+async function asegurarControlYPrivilegios(root, appUser, controlAppPassword = null, appDropPassword = null) {
   await root.query(
     `CREATE DATABASE IF NOT EXISTS \`${CONTROL_DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
   );
@@ -97,8 +104,44 @@ async function asegurarControlYPrivilegios(root, appUser, controlAppPassword = n
   // El guion bajo es comodín en el patrón de BD de un GRANT (igual que en
   // LIKE) — se escapa como "\_" para que "tenant\_%" solo matchee bases
   // que empiezan EXACTAMENTE con "tenant_", no cualquier "tenantX...".
-  await root.query(`GRANT ALL PRIVILEGES ON \`${CONTROL_DB_NAME}\`.* TO \`${appUser}\`@'%'`);
-  await root.query(`GRANT ALL PRIVILEGES ON \`tenant\\_%\`.* TO \`${appUser}\`@'%'`);
+  //
+  // Hallazgo M-14 (sonar.html, 2026-10-15): antes era "GRANT ALL
+  // PRIVILEGES" (incluye DROP) sobre control_tenants Y cualquier
+  // tenant_* — cualquier inyección SQL o RCE en backend podría destruir
+  // la BD completa de cualquier cliente, no solo leer/modificar filas.
+  // Lista explícita (todo lo que "app" de verdad usa: CRUD normal +
+  // CREATE/ALTER para crearBaseDeDatosTenant()/ensureSchema() +
+  // REFERENCES/INDEX para las FK y llaves del esquema) — SIN DROP ni
+  // GRANT OPTION. El único DROP DATABASE real del proyecto
+  // (eliminarBaseDeDatosTenant() en backend/db.js, usado solo por el
+  // endpoint interno de borrado definitivo) usa una credencial NUEVA y
+  // separada (ver bloque "app_tenant_drop" más abajo), nunca esta.
+  const PRIVILEGIOS_APP_SIN_DROP =
+    'SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES, ' +
+    'CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, ' +
+    'CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER';
+  await root.query(`GRANT ${PRIVILEGIOS_APP_SIN_DROP} ON \`${CONTROL_DB_NAME}\`.* TO \`${appUser}\`@'%'`);
+  await root.query(`GRANT ${PRIVILEGIOS_APP_SIN_DROP} ON \`tenant\\_%\`.* TO \`${appUser}\`@'%'`);
+  // REVOKE explícito (no solo "no otorgar"): esta función es idempotente
+  // y se re-corre en cada alta — un despliegue YA EXISTENTE con el GRANT
+  // ALL PRIVILEGES viejo queda angostado la próxima vez que se corra,
+  // sin depender de que un operador lo revoque a mano. IGNORE_UNKNOWN_USER
+  // no existe en REVOKE; el error "no such grant" es inofensivo si el
+  // privilegio ya no estaba, pero MySQL lo tolera (no lanza) cuando el
+  // usuario sí existe y el REVOKE es sobre un privilegio que tenía por
+  // ALL PRIVILEGES — verificado contra MySQL 8 real.
+  await root.query(`REVOKE DROP, GRANT OPTION ON \`${CONTROL_DB_NAME}\`.* FROM \`${appUser}\`@'%'`).catch(() => {});
+  await root.query(`REVOKE DROP, GRANT OPTION ON \`tenant\\_%\`.* FROM \`${appUser}\`@'%'`).catch(() => {});
+
+  // Hallazgo M-14: usuario angosto NUEVO, dedicado EXCLUSIVAMENTE al
+  // único DROP DATABASE real del proyecto — opcional (como
+  // controlAppPassword arriba), para no romper una instalación que
+  // todavía no definió DB_DROP_PASSWORD.
+  if (appDropPassword) {
+    await root.query(`CREATE USER IF NOT EXISTS 'app_tenant_drop'@'%' IDENTIFIED BY ?`, [appDropPassword]);
+    await root.query(`ALTER USER 'app_tenant_drop'@'%' IDENTIFIED BY ?`, [appDropPassword]);
+    await root.query(`GRANT DROP ON \`tenant\\_%\`.* TO 'app_tenant_drop'@'%'`);
+  }
 
   // Segmento 9b: credencial angosta para el contenedor "control" (ver
   // PROJECT_STATE.md) — deliberadamente SIN DELETE (ninguna operación de

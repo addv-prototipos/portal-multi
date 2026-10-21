@@ -21517,6 +21517,872 @@ de archivo nuevo al importador: grep `formato === 'xlsx'` en
 `server.js` para encontrar los 3 sitios que necesitan su rama gemela —
 no solo el de subida inicial.
 
+## Punto 400 — Módulo local de compresión de imágenes a WebP (carpeta `webp/`, fuera de Clarvo): implementado y validado con 3 estilos de aviso conmutables (14 oct 2026, CERRADO)
+
+Petición del usuario: usar `/prompt-master` para definir un módulo que
+comprima las imágenes ANTES de subirlas (pasarlas a WebP + reducir tamaño
+al máximo), `/ui-ux-pro-max` + `/impeccable` para la interfaz de prueba
+local (sin login, sin seguridad, **NO integrado al código de Clarvo**),
+todo en una carpeta nueva `webp/`. Protocolo `addv-web-app`: esta fase es
+la de PROPOSTA, falta confirmación del usuario.
+
+**Segmento de subida de imágenes mapeado (solo lectura, nada tocado)**:
+backend `uploadImagen` (multer `memoryStorage`, techo `IMAGEN_MAX_MB_MAX`
+20, límite real `imagen_max_mb` default 2 MB) en `backend/server.js` para
+foto de ticket (`POST /api/tickets`), ticket-logo, marca-logo, favicon e
+imagen de producto; dropzones en `frontend/admin.html`
+(`#ticket-logo-dropzone`, `#inv-imagen-dropzone`),
+`frontend/marcaTemaEditor.js` (logo/favicon de marca) y
+`frontend/tickets.html`; formatos JPG/PNG/WEBP con verificación de firma
+binaria en `backend/utils/validate.js`; storage MinIO/S3
+(`backend/utils/storage.js`). **Solo imágenes de producto ya se
+procesan** (`backend/utils/inventarioImagen.js`, sharp → 1200/300 px +
+webp q80); foto de ticket y logos se guardan crudos — el módulo nuevo
+aporta compresión client-side antes de subir (diferencia: en el navegador,
+sin tocar backend).
+
+**Entregado en esta fase**: `webp/propuestas/index.html` con 3 direcciones
+de aviso (estados En reposo / Comprimiendo / Listo, réplica exacta del
+dropzone actual): (1) "Aviso en línea" — mensaje + barra de 2 px debajo
+del recuadro, el elemento no se mueve; (2) "Ficha en vivo" — el interior
+del recuadro se convierte en ficha de proceso (archivo, fase, %); (3)
+"Proceso sobre la imagen" — velo claro + anillo de avance sobre la
+miniatura, píldora de resultado al terminar. Capturas Playwright con
+`--channel msedge` (chromium NO está instalado en este entorno; Edge del
+sistema funciona): `webp/propuestas/propuestas-desktop.png` (1280) +
+`webp/propuestas/propuestas-movil.png` (390). Detector de impeccable: 1
+hallazgo `overused-font: Inter` — resuelto por regla fija del repo (Inter
+es la única tipografía permitida, AGENTS.md), NO se cambia.
+
+**Implementación final (misma sesión, tras decir el usuario "quiero
+probarlo")**: al no elegir propuesta, el probador trae un conmutador de
+los 3 estilos de aviso (persistido en `localStorage`
+`webp_aviso_estilo`, default "En línea") — misma propuesta visual,
+distinto aviso, sin re-capturar. Archivos (todos dentro de `webp/`,
+cero dependencias, sin build, sin red, sin tocar nada de Clarvo):
+
+- `webp/comprimir.js` — núcleo `window.comprimirImagen(file,
+  {objetivoKB, calidadMin, calidadMax, dimMaxPx, dimMinPx, onFase})` →
+  `{blob, nombre, bytesOriginales, bytesFinales, anchoOriginal,
+  altoOriginal, ancho, alto, calidad, ahorroPct, cumplioObjetivo,
+  fueRedimensionada, esWebp, sinCambios}`. Pipeline: `createImageBitmap`
+  con orientación EXIF (fallback `<img>`) → si ya es WebP dentro del
+  objetivo se devuelve sin recodificar → resize si excede lado máx →
+  escalera de calidad 0.80→0.45 (paso 0.05) hasta cumplir objetivo KB →
+  último recurso: lado −15% por vuelta hasta 800 px → `esWebp` marca si
+  el motor no emitió WebP real.
+- `webp/index.html` + `app.js` + `estilos.css` — probador: réplica del
+  dropzone de Clarvo, estados vacío/trabajando/listo/error, clic +
+  teclado + drag&drop, ajustes de prueba (objetivo KB 50-2000 /
+  calidad mín 0.30-0.60 / lado máx 1024-1600-2048), línea de meta del
+  resultado (dimensiones, calidad, objetivo cumplido/no), demo
+  `?estado=comprimiendo|listo` para revisar estados sin archivo.
+
+**Validación (Playwright real con Edge vía `playwright-core`
+instalado en temporal FUERA del repo)**: PNG sintético 2400×1600 de
+3.65 MB → `image/webp` real 54.9 KB (q 0.80, 1600×1067, −98%, objetivo
+200 KB cumplido, 4 fases emitidas); flujo UI completo "listo" con
+archivo real (3000×2000 → 70 KB, −49%, meta "objetivo cumplido");
+estado de error con formato no soportado; **cero errores de consola**;
+`node --check` OK. Capturas en `webp/capturas/`
+(`01-reposo/02-comprimiendo/03-listo-real/04-ficha-listo/
+05-imagen-listo/06-movil-listo/07-error.png`). Bugs hallados en la
+revisión y corregidos: en estilo "En línea" el aviso de resultado
+quedaba oculto tras terminar (chip + Descargar invisibles); clave del
+demo mal escrita (`comprendio` → `comprimiendo`); `transition: width`
+de la barra → `transform: scaleX()` (regla de motion del repo). Gotcha
+de capturas: los segmentos tienen transición de 150 ms — esperar
+~400 ms tras un clic antes de capturar o el screenshot sale a medio
+camino (se confunde con un bug de `aria-pressed`). Detector de
+impeccable sobre los 4 archivos: solo `overused-font: Inter` — regla
+fija del repo, NO se cambia. `git status`: cambios de esta sesión solo
+`webp/` + `PROJECT_STATE.md` (`backend/server.js` modificado es cambio
+previo ajeno — búsqueda por proveedor —, no se tocó).
+
+## Punto 401 — Módulo WebP (punto 400) auditado e integrado en las 5 secciones reales de carga de fotos + bug real encontrado al validar (14 oct 2026, CERRADO)
+
+Usuario pidió auditar `webp/comprimir.js` (seguridad, eficiencia,
+rendimiento, mejores prácticas) y, si pasaba, implementarlo en "todas las
+secciones que tengan que ver carga de fotos, en todo el proyecto".
+
+**Auditoría — sin hallazgos bloqueantes**: cero red/fetch/XHR (confirmado
+leyendo el archivo completo), cero `eval`/`new Function`, sin escritura a
+DOM (solo produce `Blob`/números — el XSS vive en `webp/app.js`, que sí
+escapa todo con `escapar()` antes de cualquier `innerHTML`). Limpieza de
+memoria correcta (`ImageBitmap.close()`, `URL.revokeObjectURL()` en
+`finally`). Dimensión del canvas siempre acotada por `dimMaxPx` ANTES de
+codificar — nunca procesa a resolución nativa descontrolada. Fallo de
+`canvas.toBlob()` (WebP no soportado) cae a mensaje claro, nunca crashea.
+Único archivo copiado tal cual a `frontend/comprimir.js` — cero bytes
+modificados, para no invalidar la auditoría.
+
+**5 puntos reales de carga de fotos, mapeados y resueltos** (todas con
+fallback silencioso al archivo original si el módulo no cargó, el archivo
+no es imagen, o la compresión falla por cualquier motivo — nunca bloquea
+una subida legítima):
+1. `frontend/admin.js:subirImagenProducto()` — foto de producto
+   (200 KB / calidad 0.45 / 1600 px).
+2. `frontend/admin.js:subirLogoTicket()` — logo del ticket de impresión
+   (80 KB / calidad 0.6 / 600 px).
+3. `frontend/marcaTemaEditor.js:manejarSubida()` — logo (250 KB / 0.65 /
+   1200 px) y favicon (60 KB / 0.7 / 512 px) de "Marca e identidad
+   visual". Un solo punto de cambio cubre **ambas** superficies
+   (`/admin` y `/control`) porque el componente ya es compartido (punto
+   210).
+4. `frontend/control.js` — logo del alta manual "Nueva empresa" (flujo
+   base64, no FormData; 250 KB / 0.65 / 1200 px, comprime ANTES del
+   chequeo de tamaño máximo — permite subir originales más grandes de
+   lo que el límite configurado aceptaría sin comprimir).
+5. `frontend/tickets.js` — foto del ticket del cliente (portal, el de
+   más tráfico real). Comprime en segundo plano al elegir la foto
+   (`archivoComprimidoPromise`, no bloquea la vista previa) y se espera
+   justo antes de enviar (400 KB / 0.55 / 1800 px — calidad más alta
+   que el resto a propósito, es evidencia de compra que debe seguir
+   siendo legible).
+
+`frontend/Dockerfile` actualizado (COPY explícito, mismo gotcha del
+punto de "página nueva 404" ya documentado arriba) + `<script
+src="/comprimir.js">` agregado en `admin.html`/`control.html`/
+`tickets.html`, antes del script que lo usa.
+
+**Validado en vivo contra `tenant_sry` (Docker/MySQL reales, Chrome
+DevTools)**: foto de producto real 556 KB PNG → 123 KB WebP (−78%,
+`Content-Type: image/webp` real en el `multipart/form-data`); logo de
+marca real 643 KB PNG → 82 KB WebP (−87%). Los otros 3 puntos
+(ticket-logo, intake de /control, foto de cliente en tickets.js)
+quedaron verificados por revisión de código + `node --check` — mismo
+patrón ya probado en vivo, sin sesión de cliente real disponible para
+probar el flujo de portal end-to-end en esta sesión.
+
+**Bug real encontrado al validar — nada que ver con la compresión**: la
+primera subida de producto devolvió `imagen_url`/`imagen_thumb_url` SIN
+el prefijo del tenant (`/api/admin/inventarios/productos/:id/imagen` en
+vez de `/sry/api/admin/...`) — `cargarImagenAutenticada()` hace
+`fetch(url)` tal cual, así que la miniatura nunca cargaba en NINGÚN
+tenant (404 contra el backend del sitio base), solo funcionaba en el
+sitio base. Mismo patrón "funciona en base, no en tenant" que el punto
+399, esta vez en construcción de URLs de respuesta, no en schema. Causa:
+`formatearProducto(p, existenciaDisponible)` (helper compartido por 2
+rutas) y 2 rutas más (autocompletado de Ventas, respuesta de subida)
+armaban la URL con `/api/...` fijo, nunca con el prefijo `/<slug>` que
+sí usa `API_BASE` en el frontend. Fix: nuevo 3er parámetro
+`prefijoRuta` en `formatearProducto` + `const prefijoRuta = req.tenant
+? \`/${req.tenant.slug}\` : ''` en las 3 rutas (lista completa con
+`grep -n "imagen_url:\|imagen_thumb_url:" backend/server.js` para la
+próxima vez que se toque esto). Confirmado en vivo tras el fix:
+`GET /sry/api/admin/inventarios/productos/5773/imagen?v=thumb...` → 200,
+miniatura real cargada (antes 404 contra `/api/...` sin prefijo).
+
+1254/1254 tests unitarios+integración de backend sin regresión (la
+firma nueva de `formatearProducto` es retrocompatible — tests del sitio
+base nunca mandan `req.tenant`, cae al default `''`, mismo comportamiento
+de siempre). `node --check` limpio en los 5 archivos frontend tocados +
+`server.js`.
+
+## Punto 402 — Auditoría SonarQube + OWASP (sonar.html): Fase 1 — 6 hallazgos críticos cerrados (14 oct 2026, CERRADO)
+
+Usuario pidió auditar `sonar.html` (informe previo tipo SonarQube + OWASP
+Top 10, 51 hallazgos: 6 críticos, 19 mayores, 17 menores, 9 info),
+presentar plan con mejores prácticas, listar skills (`/find-skill` +
+`github.com/obra/superpowers`), y esperar aprobación antes de ejecutar.
+Verifiqué los 6 críticos línea por línea contra el código real antes de
+confiar en el informe (5 de 6 confirmados exactos; C-04 no se verificó
+línea por línea, patrón consistente con lo demás). Catálogo de
+`/find-skill` truena en Windows (bug de encoding del propio script, no
+corregible desde aquí) — verifiqué `obra/superpowers` por API de GitHub
+directo: 15 skills, 14 ya instaladas en este entorno (falta solo
+`diagnosing-superpowers`, autodiagnóstico del framework, no aplica).
+Usuario aprobó Fase 1 con un matiz: `admin:admin` y los defaults de
+MinIO son **solo para dev**, el código **aún no es productivo** — ese
+matiz cambió el diseño del fix de C-02 (ver abajo).
+
+**C-01 — escalada de privilegios en recuperar contraseña** (`backend/server.js`,
+`POST /api/auth/recuperar`): faltaba `AND perfil = 'cliente'` en el
+`SELECT` — un correo compartido entre cliente y admin/fiscal (diseño
+permitido, punto 377) generaba un token que restablecía la cuenta ADMIN.
+Mismo criterio exacto que ya usa login (`auth-usuario.test.js`). Fix de
+una línea + 2 tests nuevos en `auth-usuario.test.js` (SQL exacto
+esperado + "una cuenta admin que comparte correo nunca recibe token").
+Verificado en vivo contra `tenant_sry` real, sin errores SQL.
+
+**C-02 — fallback `admin:admin` sin fail-closed** (`backend/utils/auth.js`,
+`control/utils/auth.js`): el informe pedía abortar el arranque si
+`ADMIN_USERS` falta, sin condición. El usuario aclaró que `admin:admin`
+es dev-only a propósito — fix real: fail-closed **solo con
+`NODE_ENV=production`**, dev/test sigue exactamente igual. Bug propio
+encontrado al escribir el primer test: `source = raw || 'admin:admin'`
+pre-rellena el fallback ANTES de que el chequeo de `users.size === 0`
+se ejecute, así que mi primer intento de chequear ahí nunca se
+disparaba — el chequeo tiene que vivir ANTES de ese fallback. Verificado
+que el `docker-compose.yml` local YA mete `ADMIN_USERS: ${ADMIN_USERS:-admin:admin}`
+(el env var llega siempre poblado al contenedor, nunca vacío) — el fix
+es inerte ahí a propósito, cero riesgo de romper el stack local; en
+cambio `prod/docker-compose.prod.yml` usa `ADMIN_USERS: ${ADMIN_USERS}`
+sin default, así que ahí sí protege de verdad el día que se despliegue
+real. 4+2 tests nuevos (backend + control) cubriendo prod-sin-env,
+prod-env-vacío, dev-sin-env (sigue sin tronar), prod-con-env.
+
+**C-03 — Host header injection → robo de token / open redirect**:
+dos partes. (1) `backend/server.js:detectarUrlPortal()` confiaba en
+`req.get('host')` sin validar para armar enlaces de correo (recuperación,
+invitación, etc.) — nuevo `ALLOWED_HOSTS` (env opcional, coma-separado)
++ `hostPermitido()`: sin configurar, comportamiento idéntico a antes
+(dev-friendly, sin romper nada); configurado, cualquier Host fuera de
+la lista hace que la función devuelva `''` (mismo contrato ya documentado
+de "cadena vacía = el llamador omite el enlace"). Expuesto como
+`app.hostPermitido` solo para pruebas unitarias directas (el flujo real
+es fire-and-forget dentro del envío de correo, frágil de probar por
+HTTP) — 4 tests nuevos en `hostPermitido.test.js`. (2)
+`frontend/nginx.conf.template`: el `return 302` del redirect
+`/<slug>` → `/<slug>/login` armaba el Location con
+`$proxy_x_forwarded_proto://$http_host` (Host del cliente, sin validar
+— open redirect). Cambiado a `return 302 /$tenant_slug/login;` (sin
+esquema/host) — **pero nginx por default completa igual cualquier
+Location que empiece con "/" a una URL absoluta usando `$scheme://$host`**,
+reintroduciendo el bug de puerto que `$http_host` evitaba (`$host`
+nunca incluye el puerto). Confirmado en vivo con curl antes de dar el
+fix por bueno: sin `absolute_redirect off;`, el Location seguía
+saliendo `http://localhost/sry/login` (sin `:8088`). Con el flag
+agregado al `location{}`: `Location: /sry/login` literal, probado con
+`curl -H "Host: atacante.com"` (no se refleja) y en navegador real
+(`http://localhost:8088/sry` → `http://localhost:8088/sry/login`,
+puerto preservado, login funcional de punta a punta).
+
+**C-05/C-06 — `escapeHtml()` no escapa comillas, XSS en atributos**:
+`escapeHtml()` (textContent→innerHTML) escapa `& < >` pero nunca `" ' \``
+— seguro para contenido de elemento, NO dentro de `attr="${...}"`. Se
+agregó `escapeHtmlAttr()` (mismo escape + `" ' \``) **sin renombrar la
+función existente ni tocar sus ~200 call sites de texto-contenido**
+(decisión deliberada: migrar solo donde hace falta reduce el blast
+radius de un fix de seguridad sin cambiar el comportamiento de nada que
+ya era seguro). El informe citaba solo `admin.js` (21 sitios, incluido
+C-06: `tituloCorreo`, razón social editable por el cliente, en
+`data-tooltip`) — el mismo patrón de función duplicada existe también
+en `control.js` y `dashboard.js` (proyecto sin bundler, código pequeño
+se duplica a propósito), así que se extendió ahí también: 33 sitios
+migrados en total (24 admin.js + 7 control.js + 1 dashboard.js, más los
+9 que el grep inicial del informe no capturó por estar embebidos a
+media cadena de atributo en vez de pegados a `="`). Regla para la
+próxima vez: `grep -nE '(data-[a-z-]+|aria-label|value|title|placeholder|alt|src|href)="[^"]*\$\{escapeHtml\('`
+encuentra los reales, el patrón ingenuo `="\$\{escapeHtml\(` se come la
+mitad.
+
+**Fuera de alcance de Fase 1 a propósito** (quedan para Fase 2, 19
+hallazgos mayores): CSRF, Basic-en-sessionStorage, rate limit antes de
+`express.json`, password del operador en reset admin, CSV injection,
+`.env` montado `:rw` en control, cabeceras perdidas en locations
+estáticos de nginx, token de restablecer en query string, auditoría de
+GET en control, credenciales MinIO/SMTP en claro, `COOKIE_SECURE`
+default, Swagger público. Hallazgo colateral encontrado y NO tocado
+(pre-existente, ajeno a esta sesión): `control/test/unit/ensureSchema.test.js`
+tiene 7 tests con conteos de `db.query` desactualizados contra el
+`ensureSchema.js` real (creció columnas en sesiones previas sin
+actualizar el test) — confirmado con `git diff` que ya estaba así en el
+commit `235f33b` de esta misma mañana, antes de que esta sesión tocara
+nada.
+
+1264/1264 tests backend + 436/443 control (los 7 que fallan son el
+hallazgo colateral de arriba, no tocado) sin regresión nueva.
+`node --check` limpio en los 10 archivos tocados. Validado en vivo
+contra Docker/MySQL reales: C-01 (sin error SQL), C-02 (confirmado que
+no rompe el stack local), C-03 (navegador real, redirect + puerto +
+Host falsificado). Pendiente sincronizar `prod/` por contenido — no se
+hizo en esta sesión, el usuario no lo pidió todavía.
+
+## Punto 403 — Auditoría SonarQube + OWASP (sonar.html): Fase 2 — M-16/M-17/M-10/M-15/M-01/M-07/M-05/M-04/M-09/M-12/M-13/M-08/M-19/M-03/M-02/M-11/M-14 cerrados (14-16 oct 2026, CERRADO — solo M-06 queda, baja urgencia)
+
+Usuario confirmó avanzar a Fase 2 (19 hallazgos mayores). Organicé el
+lote en "arreglos rápidos y seguros primero" — este punto cubre los
+primeros 3 cerrados; el resto de Fase 2 (M-02 a M-15, M-18, M-19) sigue
+pendiente, sin tocar.
+
+**M-16 — mensajes de error internos filtrados al cliente**: 2 sitios en
+`backend/server.js` (sync de catálogos USO_CFDI / clave-prod-serv) sí
+devolvían `err.message` crudo al cliente — se separó `console.error()`
+(detalle real al log) de la respuesta HTTP (mensaje genérico). Revisé
+también los 2 sitios extra que el informe citaba (`setConfiguracionGlobal`/
+`normalizarTema`): ya eran mensajes de validación deliberados y
+user-safe, no se tocaron. Excepción deliberada en los endpoints
+`/api/admin/configuraciones/smtp/prueba|verificar`: SIGUEN devolviendo
+`err.message` al cliente a propósito (son herramientas de
+autodiagnóstico para el propio operador, no filtran nada que el
+operador no esté probando él mismo) — con `console.error()` agregado
+igual para que quede auditado.
+
+**M-17 — Swagger/docs público sin interruptor**: `backend/utils/swagger.js`
+y `control/utils/swagger.js` tenían hardcodeada la IP LAN
+`192.168.68.75:8088` en `servers` — cambiado a `{ url: '/', description:
+'Origen actual' }` (relativo, nunca una IP real). Nuevo `DOCS_ENABLED`
+(opt-out, `!== 'false'`) gatea `/api/docs`, `/api/docs.json`,
+`/api/swagger` en backend y `/api/control/docs`, `/api/control/docs.json`
+en control — responde 404 (nunca 403, mismo criterio anti-enumeración
+de `requiereFeature()`). 4+3 tests nuevos
+(`backend/test/unit/docsEnabled.test.js`, `control/test/unit/docsEnabled.test.js`).
+
+**M-10 — CSV/Formula Injection fuera del importador de Inventarios**:
+el informe solo verificó que `backend/utils/inventarioImportacion.js`
+ya tenía `protegerCeldaCSV()` (punto 35) — pero esa protección nunca se
+replicó a los otros 3 exportadores de CSV/XLSX del proyecto, todos con
+campos de texto libre potencialmente capturados por un cliente o en
+campo manual. Se extrajo `protegerCeldaCSV`/`filaACSV` a un módulo
+nuevo compartido, `backend/utils/csvSeguro.js` (inventarioImportacion.js
+ahora importa de ahí en vez de duplicar, su `module.exports` sigue
+re-exportando igual — cero cambio para quien ya lo consumía) y se
+propagó a los 3 sitios que faltaban: `backend/utils/reportes.js`
+(`itemsAFilas()`, alimenta tanto `generarCSV()` como
+`generarExcelBuffer()` de una sola vez — cubre el export de Reportes en
+ambos formatos con un solo cambio; campos protegidos:
+`identificador`/`rfc`/`estatus_o_concepto`/`atendido_por`), la ruta
+`/api/admin/inventarios/kardex-exportar` de `backend/server.js`
+(`motivo`/`documento_origen`/`usuario`/`folio`), y los 3 `csvCelda`
+duplicados de `frontend/admin.js` (sin bundler — se agregó un
+`protegerCeldaCSVFrontend()` una sola vez, reusado en los 3 sitios:
+corte de Ventas con `o.email`/`o.numero_compra` capturados por el
+cliente en el formulario público de ticket, más otros 2 exports del
+mismo patrón). Tests nuevos: `backend/test/unit/csvSeguro.test.js`
+(6 casos) + 1 test de integración en `inventarios.test.js` que ejercita
+`kardex-exportar` con celdas `=cmd|...`/`+2+3`/`@SUM(A1)` reales y
+confirma el apóstrofo de protección en la respuesta CSV real.
+
+**M-15 — credenciales default de MinIO sin fail-closed**: mismo criterio
+exacto que C-02 (`loadAdminUsers`) — `backend/utils/storage.js` instancia
+el `S3Client` a nivel de módulo con `MINIO_ROOT_USER || 'minioadmin'` /
+`MINIO_ROOT_PASSWORD || 'changeme_minio_password'` (defaults dev-only, ya
+documentados como públicos en `docker-compose.yml`). Agregado un
+chequeo ANTES de `new S3Client(...)`: si `NODE_ENV === 'production'` y
+falta cualquiera de las 2 variables reales, truena al cargar el módulo
+en vez de servir con credenciales conocidas — dev/test sin tocar
+(`docker-compose.yml` local siempre mete el env var poblado). 3 tests
+nuevos en `backend/test/unit/storage.test.js` (prod sin variables
+truena, prod con variables reales no truena, dev/test sin variables
+nunca truena). `control/` no necesitó este fix — no instancia su propio
+`S3Client` con fallback, solo referencia las credenciales ya puestas
+por Docker en `control/utils/accesoMinio.js` (notas del operador, punto
+390).
+
+1278/1278 tests backend en verde (incluye los nuevos). `control/` no se
+tocó para M-10/M-16 (backend-only); para M-17 sí, con sus propios 3
+tests nuevos — 439/446 control en verde, los 7 que fallan son el mismo
+hallazgo colateral ya documentado en el punto 402
+(`control/test/unit/ensureSchema.test.js`, pre-existente desde antes de
+esta sesión, confirmado otra vez con `git status` — el archivo no
+aparece modificado, el test ya fallaba contra el código committeado).
+`node --check` limpio en los 5 archivos tocados
+(`backend/server.js`, `backend/utils/reportes.js`,
+`backend/utils/csvSeguro.js`, `frontend/admin.js`, más los de M-16/M-17).
+Rebuild + `up -d --force-recreate` real de `backend`+`frontend`,
+verificado en vivo: `GET /api/admin/inventarios/kardex-exportar` contra
+MySQL real devuelve el CSV con datos reales del tenant sin alterar
+valores normales (sin falsos positivos).
+
+**M-01 — XSS almacenado en la campana de notificaciones del portal de
+cliente**: `frontend/portal.js` interpolaba `it.titulo`/`it.mensaje`
+crudos en `lista.innerHTML` (más `data-id`/`data-tipo` sin escape de
+atributo). El backend sanitizaba el mensaje de promoción con
+`sanitizeTextoLibre()` (pensada para asunto/cuerpo de correo — solo
+quita caracteres de control, NUNCA etiquetas HTML) en vez de
+`sanitizeText()` (sí las quita). Doble defensa aplicada: (1)
+`escapeHtml()`/`escapeHtmlAttr()` duplicados en `portal.js` (sin
+bundler, mismo patrón que admin.js/control.js/dashboard.js) y usados en
+el render de la campana; (2) `POST /api/admin/promociones` en
+`backend/server.js` cambiado de `sanitizeTextoLibre` a `sanitizeText`
+para el campo `mensaje` (el `titulo` ya usaba `sanitizeText`, era solo
+`mensaje` el que quedó mal). Test nuevo en
+`backend/test/integration/notificacionesCliente.test.js` que manda
+`<img src=x onerror="robarSesion()">Hola` y confirma que se guarda
+solo `Hola`.
+
+**M-07 — path traversal en slug → endpoints internos privilegiados**:
+`control/server.js` llamaba `subirLogoAlBackend(body.slug || '', buffer)`
+**antes** de que `crearTenantIntake()` validara el slug — un slug
+`../../eliminar-tenant/victim` armaba la URL interna
+`/internal/marca-logo/../../eliminar-tenant/victim`, que tras
+normalización invoca `/internal/eliminar-tenant/victim` con el
+`X-Internal-Secret` real del contenedor. Fix: `validarSlug(body.slug)`
+ahora corre ANTES del bloque de subida de logo (ni siquiera se arma la
+URL con un slug inválido) + `encodeURIComponent(slug)` en
+`subirLogoAlBackend()`/`borrarLogoDelBackend()` de
+`control/utils/tenantMarca.js` como defensa en profundidad (la edición
+de un tenant existente, `actualizarMarcaTenant()`, ya validaba el slug
+antes de llegar ahí — solo el alta nueva tenía el hueco). Test de
+integración nuevo que manda ese slug + un logo real y confirma que
+`fetch` (la llamada HTTP interna) nunca se invoca. Verificado en vivo
+con curl contra el stack real: 400 antes de tocar el backend interno.
+
+**M-05 — rate limiter después del parser de 30 MB**: en
+`control/server.js`, `express.json({ limit: '30mb' })` corría antes de
+`app.use(adminCredencialesLimiter)` — cualquier request anónimo pagaba
+el parseo completo de hasta ~27 MB de base64 antes de que el limiter
+pudiera responder 429. El limiter no depende del body (solo de la IP),
+así que se reordenó: `adminCredencialesLimiter` ahora corre
+inmediatamente después de `helmet()`/`cors()`, antes de
+`express.json()`. Las definiciones de los 3 limiters (`adminApiLimiter`,
+`adminCredencialesLimiter`, `onboardingPublicLimiter`) se movieron junto
+con él (JS no permite usar una `const` antes de su declaración en el
+mismo scope de nivel de módulo). Sin cambio de comportamiento para
+ninguna ruta — mismo limiter, mismas rutas, solo corre más temprano.
+
+**M-04 — inyección de variables de entorno vía saltos de línea en
+`.env`**: `control/utils/adminEnv.js:validarPassword()` solo bloqueaba
+`,` y `:` — un super-admin (o Basic Auth robado) podía crear un usuario
+con password `"x\nINTERNAL_CACHE_SECRET=valor"` y esa línea arbitraria
+se escribía en el `.env` real del host, efectiva en el siguiente
+restart; comillas sin escapar también rompían el parseo de `dotenv`
+(lockout total del servicio). Lista negra ampliada a `, : \r \n " #`
+(antes solo `, :`) — ningún password legítimo necesita esos caracteres.
+4 casos nuevos en `adminEnv.test.js` (`\n`, `\r`, `"`, `#`), mensaje de
+error de los 2 casos existentes actualizado para que coincida con el
+nuevo texto.
+
+1282/1282 tests backend + 444/451 control en verde (los 7 que fallan
+siguen siendo el hallazgo colateral pre-existente de
+`ensureSchema.test.js`, ver punto 402, confirmado otra vez sin relación
+con los cambios de esta sesión). `node --check` limpio en los 7
+archivos tocados (`frontend/portal.js`, `backend/server.js`,
+`control/server.js`, `control/utils/tenantMarca.js`,
+`control/utils/adminEnv.js`, más los de M-15/M-10/M-16/M-17). Rebuild +
+`up -d --force-recreate` real de `control`+`backend`+`frontend`;
+verificado en vivo con curl: `/api/health` responde 200, slug de path
+traversal con logo responde 400 sin invocar el backend interno.
+
+**M-09 — reset de contraseña de cualquier admin sin verificar nada del
+operador**: `PUT /api/admin/usuarios/:id/password` sobrescribía el hash
+de CUALQUIER usuario (`requireAdminArea('administrador')`, que también
+deja pasar al "super" de `ADMIN_USERS`) sin pedir ninguna confirmación
+del operador — Basic Auth robado (o una sesión XSS antes de C-05/C-06)
+bastaba para resetear TODAS las demás cuentas admin y tomar
+persistencia total del tenant. La auditoría global de `/api/admin`
+(`app.use('/api/admin', ...)`, ya existente, cubre todas las mutaciones
+incluida esta) SÍ registraba quién/cuándo/sobre qué id, así que el
+hueco real era la falta de step-up, no la falta de bitácora. Fix: mismo
+criterio que `PUT /api/admin/mi-cuenta/password` — exige
+`password_actual` del PROPIO operador (nunca del usuario objetivo)
+antes de aceptar la nueva contraseña, cubriendo los 2 mecanismos que
+pueden llegar aquí: `perfil_bd` (verifica contra su propia fila de
+`usuarios`) y `admin_users`/"super" (verifica con `checkCredentials()`
+contra `ADMIN_USERS`, recién exportado desde `backend/utils/auth.js` —
+el "super" no tiene fila en `usuarios`). Frontend: nuevo campo "Tu
+contraseña actual (confirmación de seguridad)" en el modal de
+`frontend/admin.html`/`admin.js` — deliberadamente NUNCA se autorrellena
+desde `sessionStorage`/`getAuthHeader()` (si ese valor se filtra por
+XSS, un autorrelleno anularía la protección; el operador SIEMPRE lo
+teclea en el momento). 5 tests nuevos en
+`backend/test/integration/admin.test.js` (sin test previo para esta
+ruta en absoluto) cubriendo los 2 mecanismos, con/sin/mal
+`password_actual`. Verificado en vivo con curl contra MySQL real: sin
+o con `password_actual` incorrecta → 400 antes de tocar la tabla;
+con la correcta → pasa el step-up y sigue al flujo normal (404 en un id
+inexistente). Jerarquía de perfiles (ej. impedir que un `administrador`
+resetee a OTRO `administrador`) quedó deliberadamente fuera de alcance
+— es una decisión de producto que puede romper un flujo legítimo
+(recuperar acceso cuando otro admin se bloqueó), no un bug de
+seguridad puro; requiere confirmación explícita del usuario antes de
+implementarse.
+
+1284/1284 tests backend + 444/451 control en verde (los 7 que fallan
+siguen siendo el hallazgo colateral pre-existente de
+`ensureSchema.test.js`). `node --check` limpio en los 4 archivos
+tocados (`backend/utils/auth.js`, `backend/server.js`,
+`frontend/admin.html`, `frontend/admin.js`). Rebuild +
+`up -d --force-recreate` real de `backend`+`frontend`, verificado en
+vivo con curl.
+
+**M-12 — locations estáticos de nginx pierden TODAS las cabeceras de
+seguridad del nivel server**: `location ~* \.(?:css|js)$` y
+`location ~* \.(?:svg|png|jpg|jpeg|webp|woff2?)$` en
+`frontend/nginx.conf.template` ya traían su propio `add_header`
+(`Cache-Control`) — en nginx, **un location que define cualquier
+`add_header` apaga la herencia de TODOS los `add_header` del nivel
+server**, así que esos 2 locations servían sin CSP/`nosniff`/
+`X-Frame-Options`/`Referrer-Policy`/HSTS. Bajo impacto hoy (no se sirve
+HTML ahí), pero un `.svg` futuro quedaría renderizable sin
+`frame-ancestors`. Fix: se repite el bloque completo de cabeceras
+(idéntico al del nivel server) dentro de ambos locations. Verificado en
+vivo con `curl -sI` contra `style.css` y `login.js` reales — ambas
+cabeceras (CSP + X-Frame-Options) ya presentes. `prod/` tiene el mismo
+archivo espejado en la línea ~394 (mencionado en el hallazgo) —
+**pendiente de sincronizar junto con el resto de `prod/` al final**, no
+tocado en esta sesión por la regla ya vigente.
+
+**M-13 — token de recuperación con fugas (historial, access logs, URL
+visible)**: el token viajaba como query string
+(`/restablecer?token=...`) — quedaba en el historial del navegador, y
+aunque `frontend/nginx.conf.template` ya traía `access_log off` para
+`location = /restablecer` exacto, la variante
+`/restablecer.html?token=...` (igual de válida — nginx la sirve directo
+desde disco vía el catch-all `location /`) NO estaba cubierta, así que
+el token SÍ quedaba en texto plano en `access.log` por esa ruta.
+Tampoco se retiraba de la URL visible tras leerlo. Triple fix: (1)
+`backend/server.js:enviarCorreoRecuperacion()` ahora arma el enlace con
+fragmento (`#token=...`) en vez de query string — un fragmento **nunca
+se manda al servidor** (ni a nginx ni al backend), así que no puede
+quedar en ningún log ni filtrarse por `Referer`; (2)
+`frontend/restablecer.js` lee primero del fragmento
+(`window.location.hash`), con el query string como respaldo
+transitorio (un correo ya enviado antes de este cambio, dentro de su
+ventana de 30 min) — y llama `history.replaceState()` justo después de
+leer el token, limpiando la URL visible sin importar de cuál de los 2
+formatos vino; (3) nuevo `location = /restablecer.html { access_log
+off; ... }` en `nginx.conf.template`, defensa en profundidad para
+cualquier enlace viejo con `?token=` que siga circulando. Sin test
+automatizado nuevo (el envío de correo en este proyecto es
+fire-and-forget sin hook de aserción sobre el cuerpo del HTML, mismo
+patrón ya aceptado para el resto de correos salientes) — verificado
+en vivo: `curl -sI "http://localhost:8088/restablecer.html?token=prueba123"`
+seguido de revisar el log del contenedor `frontend` confirma 0
+coincidencias del token en el log.
+
+1284/1284 tests backend en verde (sin tests nuevos para M-12/M-13 —
+son config de nginx + JS de lectura de URL, verificados en vivo en vez
+de con Jest, ver arriba). `node --check` limpio en los 3 archivos
+tocados (`backend/server.js`, `frontend/restablecer.js`,
+`frontend/nginx.conf.template`). Rebuild + `up -d --force-recreate`
+real de `frontend`+`backend`; nginx arrancó sin errores de sintaxis
+(log de arranque limpio) — confirma que el template con `envsubst`
+sigue siendo válido tras los cambios.
+
+**M-08/M-19 — passwords de MinIO/SMTP en claro en cada respuesta +
+auditoría que omite todo GET sobre esa misma lectura**: GET/PUT
+`/api/control/accesos/minio` y `/api/control/accesos/smtp` devolvían el
+password descifrado en CADA respuesta — `frontend/control.js` lo
+cargaba automáticamente al abrir la pestaña "Accesos" (nunca a petición
+real del operador), y como la auditoría global de `/control`
+(`app.use(...)`, comentario "salta GET") excluye TODO método GET, ver
+ese password tampoco dejaba ningún rastro de quién/cuándo. Fix en
+`control/server.js`: GET/PUT ahora enmascaran con
+`enmascararAccesoMinio()`/`enmascararAccesoSmtp()` (quitan `password`,
+agregan `passwordConfigurada: boolean`) — los `utils/accesoMinio.js`/
+`accesoSmtp.js` NO se tocaron (sus funciones `getAccesoMinio()`/
+`getAccesoSmtp()` siguen devolviendo el password real internamente,
+los tests unitarios existentes de esos 2 archivos siguen intactos). 2
+rutas nuevas, `POST .../minio/revelar` y `POST .../smtp/revelar`: al
+ser **POST** (no GET) pasan por la auditoría global existente sin
+tocar su lógica de "salta GET" — cierra M-19 para este caso puntual sin
+ensanchar el registro a las ~45 rutas de lectura normales (el motivo
+original de esa exclusión sigue siendo válido). Frontend
+(`frontend/control.js`): el campo de contraseña arranca VACÍO con un
+placeholder (`••••••••` si hay algo guardado, `(sin contraseña
+guardada)` si no) — el botón de "ojo" dispara el `/revelar`
+correspondiente SOLO la primera vez que se pulsa (`minioPasswordRevelada`/
+`smtpPasswordRevelada`), nunca automático al cargar. Gotcha real
+evitado antes de enviarlo: como el campo ya no llega prellenado con el
+valor real, un Guardar normal (solo tocando URL/usuario/notas) con el
+password enviado tal cual habría BORRADO la contraseña guardada en
+cada edición — se agregó `minioPasswordTocado`/`smtpPasswordTocado`
+(flag en el evento `input` del campo) para solo incluir `password` en
+el body del PUT cuando el operador de verdad lo editó, nunca por
+default. 6 tests de integración nuevos en
+`control/test/integration/control.test.js` (sin cobertura previa de
+estas 4 rutas en absoluto) usando el `cifrar()` real de
+`utils/cifrado.js` para construir filas mockeadas de BD — confirman que
+ningún payload de GET/PUT contiene el password real y que `/revelar` sí
+lo devuelve. Verificado en vivo con curl contra MySQL real (GET
+enmascarado, PUT, GET de nuevo, `/revelar`) — el flujo estructural
+funciona; no se pudo demostrar el caso "con secreto real" en este
+entorno porque `CONTROL_VAULT_KEY` no está configurada en el `.env`
+local (gotcha ya documentado en el punto 390, no es nuevo ni se tocó
+aquí).
+
+450/457 tests control en verde (los 7 que fallan siguen siendo el
+hallazgo colateral pre-existente de `ensureSchema.test.js`) + 1284/1284
+backend (sin cambios de backend en este ítem). `node --check` limpio en
+`control/server.js` y `frontend/control.js`. Rebuild +
+`up -d --force-recreate` real de `control`+`frontend`.
+
+**M-03 — CSRF sobre Basic Auth**: `/api/admin` (backend) y `/api/control`
+(control) se autentican con Basic Auth, que el navegador reenvía
+AUTOMÁTICAMENTE a cualquier request hacia ese mismo origen/realm —
+incluida una disparada por un `<form>`/`fetch` de un sitio ajeno
+mientras la víctima tiene sesión admin cacheada (caso real citado en el
+informe: suspender/eliminar tenant, vaciar papelera, rotar credenciales
+vía un `<form method=post>` cruzado). El portal de cliente NO tiene
+este problema — su cookie ya usa `SameSite=lax` (`authUsuario.js:180`),
+fuera de alcance a propósito. **Decisión de diseño explícita del
+usuario** (presentada antes de implementar, ver AskUserQuestion de esta
+sesión): de las 2 formas de cerrarlo que ofrece el informe — header
+custom (`X-Admin-Csrf`, obliga preflight CORS) vs. validar
+`Origin`/`Sec-Fetch-Site` contra el host real — se eligió la segunda
+por costo: la primera requería tocar los 171 `fetch()` de `admin.js` +
+48 de `control.js` Y las 548+ llamadas `request(app)` de los tests de
+integración de backend (que se habrían roto todas sin el header); la
+segunda no toca el frontend en absoluto (un navegador real ya manda
+`Origin` solo en POST/PUT/PATCH/DELETE) y no rompe ningún test (
+`supertest` nunca manda `Origin` por defecto, confirmado con la suite
+completa antes y después: mismo conteo exacto, sin tocar un solo test
+existente).
+
+Implementación: nueva función `requireOrigenPropio()` en AMBOS
+`server.js` (duplicada a propósito, mismo criterio que
+`hostPermitido()`/`claveTenantIp` — backend/control son builds
+separados) — deja pasar GET/HEAD/OPTIONS siempre; en mutaciones,
+rechaza (403) si `Sec-Fetch-Site: cross-site`, o si `Origin` viene
+presente y su host NO coincide con `req.get('host')` (ni con
+`ALLOWED_ORIGIN`/`CORS_ORIGIN` si está configurado — permite un
+despliegue cross-origin intencional sin romperlo). Sin `Origin` (cliente
+server-to-server con `api_usuario`/`api_clave`, nunca manda esa
+cabecera) pasa sin tocar — esta regla es específica del vector
+"navegador con credenciales cacheadas", no restringe integraciones
+legítimas. Registrada como `app.use('/api/admin', requireOrigenPropio)`
+(backend, antes de `adminCredencialesLimiter`) y
+`app.use('/api/control', requireOrigenPropio)` (control, scoping por
+PREFIJO de ruta a propósito — nunca global: `/api/public/onboarding/*`
+es cross-origin por diseño desde `clarvo.mx`, con su propio
+`onboardingCors`, y quedó deliberadamente fuera del alcance de este
+guard; hay un test de regresión dedicado para esto). Ambas funciones se
+exponen como `app.requireOrigenPropio` (mismo patrón que
+`app.hostPermitido` de C-03) porque probarlas por HTTP vía `supertest`
+no es determinista — el puerto efímero que asigna en cada corrida nunca
+se puede adivinar de antemano para fijar un `Origin` que "coincida".
+
+13 tests nuevos (8 unitarios backend + 4 integración backend + 5
+unitarios control + 1 integración control de regresión onboarding).
+1296/1296 backend + 456/463 control en verde (los 7 que fallan siguen
+siendo el hallazgo colateral de `ensureSchema.test.js`, sin relación).
+`node --check` limpio en los 2 `server.js`. Verificado en vivo con
+curl contra el stack real: PUT a `/api/admin/usuarios/2/estado` con
+`Origin: https://atacante.com` → 403 "Origen no permitido."; la misma
+ruta sin `Origin` → sigue el flujo normal (404 esperado, id
+inexistente); POST a `/api/control/tenants` con `Origin` ajeno → mismo
+403; POST a `/api/public/onboarding/borrador` con `Origin:
+https://clarvo.mx` → 404 "Ruta no encontrada" (el gap de ruteo de nginx
+ya documentado en el punto M-06, NO el 403 de CSRF — confirma que el
+guard nunca tocó esa ruta).
+
+**M-02 — contraseña real del operador en `sessionStorage`**: admin.js/
+control.js guardaban `btoa(usuario:contraseña)` tras el login y la
+reenviaban como Basic Auth en cada request — un XSS o una extensión de
+navegador comprometida exponía la contraseña real, no un token
+revocable. **3 decisiones explícitas del usuario, presentadas antes de
+implementar** (AskUserQuestion de esta sesión): (1) una cuenta
+suspendida a medio-token debe cortarse al instante, igual que hoy con
+Basic — nunca esperar a que expire el token; (2) 30 min de vida; (3)
+sesión DESLIZANTE — cada request exitoso reemite un token fresco, el
+admin nunca se desconecta mientras trabaja activamente.
+
+Diseño (aditivo, Basic Auth sigue funcionando igual para Swagger/
+scripts/curl y para `api_clave`/`api_credencial`/`usuario_sucursal` —
+solo admin_users/perfil_bd, los 2 mecanismos del login de navegador,
+migran): token opaco firmado HMAC-SHA256 (`SESSION_SECRET`, mismo env
+var que `authUsuario.js` pero fallback aleatorio independiente por
+módulo — dominios de firma separados a propósito), payload
+`{usuario, perfil, mecanismo, tenantSlug, iat, exp}`, formato
+`base64url(payload).hmac_hex`. `requireAdminAuth` (ambos `server.js`)
+acepta Basic (sin cambios) O Bearer (nuevo): con Bearer, verifica la
+firma, verifica que no haya expirado, **y revalida en vivo** contra
+`adminUsers`/la tabla `usuarios` (nunca confía ciegamente en el
+payload) — exactamente el mismo nivel de revocación instantánea que ya
+tenía Basic Auth. Candado cross-tenant explícito (`payload.tenantSlug`
+debe coincidir con `req.tenant.slug`): un token emitido bajo un tenant
+nunca autentica en otro, aunque por coincidencia exista el mismo "rfc"
+en ambas bases — Basic Auth lo evitaba gratis (la contraseña solo es
+válida en SU tenant), el token necesita este chequeo porque no vuelve a
+pedir contraseña. `emitirTokenSesion()` corre tras CUALQUIER
+autenticación exitosa (Basic o Bearer) y manda el token fresco en la
+cabecera `X-Admin-Session-Token` — nunca solo en `/login`, así la
+sesión se desliza con cualquier actividad real, no solo con recargas de
+página. `control/utils/auth.js` es la versión simplificada (solo
+`admin_users`, sin tabla propia, sin concepto de tenant — mismo
+criterio de "duplicar lo chico" que el resto del proyecto).
+
+Frontend: el interceptor global de `fetch()` que YA existía en
+`admin.js` ("punto 290", detección de cuenta suspendida a medio uso) se
+extendió para además leer `X-Admin-Session-Token` de CUALQUIER
+respuesta de `/api/admin/*` y llamar `setSession(token)` — cubre los
+171 `fetch()` del archivo sin tocar ni uno. `control.js` no tenía
+interceptor propio; se creó uno nuevo, mismo patrón, para sus 48
+`fetch()`. `setSession()`/`getAuthHeader()` cambiaron de firma (ya no
+reciben usuario+contraseña, solo el token) — el login SIGUE mandando
+Basic con la contraseña recién tecleada (nunca se guarda, se usa una
+sola vez para esa request), pero el token que llega en la respuesta
+reemplaza esa contraseña para todo lo posterior. El token NUNCA se
+autorrellena desde ningún otro sitio ni se expone en la UI — es opaco
+y vive solo en `sessionStorage`, igual de accesible a un XSS que antes,
+pero ya no es la contraseña real.
+
+25 tests nuevos (12 unitarios backend incluyendo round-trip/manipulación
+de firma/expiración/cross-tenant, 7 unitarios control) — 1308/1308
+backend + 463/470 control en verde (los 7 que fallan siguen siendo el
+hallazgo colateral de `ensureSchema.test.js`, confirmado sin relación:
+la suite completa pasó ANTES y DESPUÉS de este cambio con el mismo
+conteo exacto en los paths de Basic Auth, cero regresión). `node
+--check` limpio en los 4 archivos tocados
+(`backend/utils/auth.js`, `control/utils/auth.js`, `frontend/admin.js`,
+`frontend/control.js`). Verificado en vivo con curl contra el stack
+real (ambos servicios): login con Basic → token en la cabecera → ese
+token autentica un request posterior → la respuesta trae un token
+DISTINTO (sesión deslizante confirmada) → un token con 1 carácter
+alterado responde 401 en ambos servicios.
+
+**M-11 — `.env` completo del stack montado `:rw` en `control`**:
+`docker-compose.yml` montaba `./.env:/usr/src/app/.env:rw` en el
+contenedor `control` — el `.env` completo (MySQL root, `SESSION_SECRET`,
+`INTERNAL_CACHE_SECRET`, `CONTROL_VAULT_KEY`, credenciales de MinIO/
+SMTP, todo) quedaba legible Y ESCRIBIBLE desde ahí, cuando `control/`
+solo necesita tocar **una línea** (`ADMIN_USERS=...`, pantalla "Super
+Admins"). Confirmado antes de tocar nada: `notificarBackendRecarga()`
+(ya existente en `control/utils/adminEnv.js`) manda el valor nuevo
+DIRECTO en el body de una llamada interna a backend — backend NUNCA
+vuelve a leer el `.env` en caliente, el acceso de archivo completo
+nunca fue necesario para que la recarga en vivo funcionara, solo para
+que el valor sobreviviera un restart. Decisión del usuario, presentada
+antes de implementar: proceder con el fix.
+
+Fix (sin cambios de código en `control/utils/adminEnv.js` ni en
+backend — es agnóstico de qué archivo apunta `ADMIN_USERS_ENV_PATH`,
+confirmado leyendo el código antes de tocar nada): archivo nuevo y
+dedicado, `admin-users.env` (gitignored, con `admin-users.env.example`
+versionado como plantilla) que contiene SOLO la línea `ADMIN_USERS=...`.
+`control` monta y escribe ESE archivo (`:rw`) en vez del `.env`
+principal — misma ruta interna `/usr/src/app/.env`, solo cambia qué
+archivo del HOST se monta ahí. Tanto `backend` como `control` ahora
+leen `ADMIN_USERS` vía `env_file: [./admin-users.env]` en
+`docker-compose.yml` (en vez de la interpolación `${ADMIN_USERS}` del
+`.env` principal que tenían antes) — así un cambio hecho en caliente
+desde `/control` también sobrevive un **restart real** (recreate) de
+cualquiera de los 2 contenedores, no solo la recarga en caliente vía el
+endpoint interno. `.gitignore` actualizado (`admin-users.env` ignorado,
+`admin-users.env.example` versionado — mismo patrón que `.env`/
+`.env.example`). README y el comentario de cabecera de
+`docker-compose.yml` actualizados para reflejar que `ADMIN_USERS` ya no
+se edita en el `.env` principal.
+
+Verificado en vivo contra el stack real (no solo `node --check`, este
+hallazgo es puramente de infraestructura): `docker compose config`
+valida limpio y resuelve `ADMIN_USERS: admin:admin` para ambos
+servicios desde el archivo nuevo; `docker compose exec control cat
+/usr/src/app/.env` muestra EXACTAMENTE 1 línea (antes tenía decenas,
+con todos los secretos del stack); login con `admin:admin` sigue
+funcionando en ambos servicios; un alta real de super-admin desde
+`/control` (`prueba2`) se escribe en `admin-users.env` en disco y
+autentica de inmediato; tras un **recreate real**
+(`docker compose up -d --force-recreate backend`) el usuario nuevo
+SIGUE autenticando — confirma que la persistencia entre restarts reales
+no se perdió con el cambio. (Nota aparte, sin relación con este
+hallazgo: un `docker compose restart <servicio>` simple NUNCA re-lee
+`env_file` — comportamiento normal de Docker Compose, no específico de
+este mecanismo; hay que usar `up -d --force-recreate` o un rebuild real
+para que un cambio de `env_file` tome efecto, igual que cualquier otra
+variable de `environment:`.) Usuario de prueba (`prueba2`) removido
+después de verificar. 1308/1308 tests backend sin cambios (este
+hallazgo no tocó ningún archivo `.js`, solo `docker-compose.yml` +
+`.gitignore` + 2 archivos nuevos).
+
+**M-14 — "app" con `ALL PRIVILEGES` (incluido `DROP`) en `control_tenants`
+y todas las BD `tenant_%`**: `backend/scripts/lib/controlDb.js:100-101`
+otorgaba `GRANT ALL PRIVILEGES` al usuario de aplicación compartido
+("app", usado por las ~90 rutas parametrizadas del día a día) sobre
+`control_tenants` y cualquier BD `tenant_*` — si alguna vez apareciera
+una inyección SQL o RCE real (el informe confirma que hoy no la hay),
+el daño máximo pasaba de "leer/modificar filas" a "destruir la base
+completa de cualquier cliente". **2 opciones presentadas antes de
+tocar nada** (AskUserQuestion de esta sesión): usuario MySQL por
+tenant (descartada — contradice la decisión de arquitectura ya tomada
+en los Segmentos 1-2, aislamiento LÓGICO por prefijo de BD, nunca de
+infraestructura) vs. revocar `DROP` de "app" + usuario nuevo y angosto
+solo para el único borrado definitivo real — elegida la segunda,
+aprobada explícitamente.
+
+Implementación: `asegurarControlYPrivilegios()` (función idempotente,
+se re-corre en cada alta de tenant vía `provisionar-tenant.js`/
+`cutover-tenant-piloto.js`) ahora otorga una lista EXPLÍCITA de
+privilegios a "app" (`SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER,
+INDEX, REFERENCES, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE,
+CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER`
+— todo lo que de verdad usa: CRUD + `CREATE`/`ALTER` para
+`crearBaseDeDatosTenant()`/`ensureSchema()`) en vez de `ALL
+PRIVILEGES`, y además hace `REVOKE DROP, GRANT OPTION` explícito sobre
+ambos ámbitos justo después — el `REVOKE` está envuelto en `.catch(()
+=> {})` porque una instalación NUEVA (que nunca tuvo el `GRANT ALL`
+viejo) haría que MySQL responda "no such grant" en ese `REVOKE`, error
+inofensivo que no debe tronar la función; una instalación YA EXISTENTE
+con el `GRANT ALL` legado sí se angosta la próxima vez que se re-corra
+esta función (auto-saneamiento, sin depender de que un operador lo
+revoque a mano). Usuario NUEVO, `app_tenant_drop` (mismo criterio
+OPCIONAL que `controlAppPassword`, vía `DB_DROP_PASSWORD`), con el
+ÚNICO privilegio `DROP` sobre `tenant_%.*` — usado exclusivamente por
+`eliminarBaseDeDatosTenant()` en `backend/db.js` (el único `DROP
+DATABASE` real de todo el proyecto, ya aislado ahí desde antes, usado
+solo por el endpoint interno de borrado definitivo de tenant), vía las
+nuevas env vars `DB_DROP_USER`/`DB_DROP_PASSWORD` en
+`docker-compose.yml` (default dev `app_tenant_drop`/
+`changeme_app_drop_password`, a cambiar en producción). Fuera de
+alcance a propósito: `portal_facturacion` (la BD del sitio base,
+sin tenant) conserva su `GRANT ALL PRIVILEGES` sin tocar — el hallazgo
+solo citaba `control_tenants`/`tenant_%`.
+
+9 tests nuevos (6 en `test/unit/controlDb.test.js` — grant sin `ALL
+PRIVILEGES`, contenido exacto de la lista, `REVOKE` en ambos ámbitos,
+resiliencia ante un `REVOKE` que falla, alta/no-alta condicional de
+`app_tenant_drop` — + 3 en `test/unit/eliminarBaseDeDatosTenant.test.js`,
+nuevo, mockeando `mysql2/promise` para confirmar qué credencial usa
+cada conexión suelta). 1317/1317 tests backend en verde. `node --check`
+limpio en los 4 archivos tocados (`controlDb.js`, `db.js`,
+`provisionar-tenant.js`, `cutover-tenant-piloto.js`).
+
+**Verificado en vivo contra MySQL real** (no solo tests — este hallazgo
+es de grants, hay que probarlo contra el servidor real): se aplicó el
+`REVOKE`/`GRANT` narrow + se creó `app_tenant_drop` a mano contra el
+`mysql` de este entorno (root, vía `docker compose exec`, sin que la
+sesión viera el password real de root — se referenció `$MYSQL_ROOT_PASSWORD`
+ya inyectado en el propio contenedor). `SHOW GRANTS` confirmó el
+antes/después exacto. Prueba decisiva: `CREATE DATABASE
+tenant_prueba_m14` (root) → `DROP DATABASE` con `app` → **`ERROR 1044:
+Access denied for user 'app'@'%' to database 'tenant_prueba_m14'`**
+(exactamente el resultado buscado) → el mismo `DROP DATABASE` con
+`app_tenant_drop` → éxito, `SHOW DATABASES` confirma que ya no existe.
+Rebuild + `up -d --force-recreate` real del backend, login/CRUD normal
+y `/control` siguen funcionando sin fricción con el grant angostado.
+
+Fase 2 del catálogo de `sonar.html` queda **CERRADA** salvo M-06 (baja
+urgencia, ruta de onboarding público hoy inalcanzable por un gap de
+ruteo de nginx no relacionado) — los 15 hallazgos mayores restantes
+(M-01 a M-05, M-07 a M-14, M-19) están cerrados; M-18 se resolvió
+explícitamente como "no aplicar" (ver punto 402).
+
+**`prod/` sincronizado (16 oct 2026)**, a pedido explícito del usuario
+("revisa pendientes y sincroniza prod/ al final"): 26 archivos
+`backend`+`frontend` copiados 1:1 desde dev (exactamente los tocados en
+Fase 1+2, confirmado con `diff -rq` antes y después — cero diferencias
+restantes salvo los 2 scripts prod-exclusivos ya existentes,
+`borrar-datos-prueba.js`/`sembrar-prod.js`), `node --check` limpio en
+todos. `docker-compose.prod.yml` actualizado con `DB_DROP_USER`/
+`DB_DROP_PASSWORD` (M-14, sin default de password — mismo criterio que
+`MYSQL_PASSWORD`, config validado con `docker compose config`). M-11
+(`admin-users.env`) **no aplica a `prod/`** — `/control` nunca se ha
+desplegado ahí, decisión de diseño ya existente, confirmado antes de
+tocar nada (no hay servicio `control` ni directorio `prod/control`).
+Limpieza de paso: eliminado un directorio vacío y mal nombrado
+(`prod/frontend/nginx.conf.template;C`, residuo de un comando roto de
+una sesión anterior, no era contenido real).
+
+**Acción manual pendiente en el VPS real para M-14** (no ejecutada por
+esta sesión — solo se sincroniza `prod/` y se avisa, nunca SSH/deploy
+directo, regla ya vigente): antes de que el borrado definitivo de un
+tenant real funcione en producción, hay que (1) definir
+`DB_DROP_PASSWORD` real en el `.env` de ese servidor y (2) aplicar a
+mano el mismo `REVOKE DROP, GRANT OPTION` + `CREATE USER
+app_tenant_drop` + `GRANT DROP` contra el MySQL real de producción
+(mismo SQL que `asegurarControlYPrivilegios()` — ver arriba). Hasta
+entonces, un intento de borrado definitivo en prod falla con un error
+real de permisos (degradación segura, nunca falso-éxito).
+
+**`pendientes.html` consolidado (16 oct 2026)**: nueva sección
+"Auditoría de seguridad SonarQube + OWASP (sonar.html)" con Fase 1 y
+Fase 2 marcadas `Completado` (pill verde) + 1 fila para Fase 3/M-06
+(sin empezar, baja prioridad) — mismo criterio de consolidación
+permanente que el resto del archivo. Nota aclaratoria agregada a la
+fila ya existente `sec-super-control-db` ("Super admin en BD de
+control"): ese pendiente sigue vigente tal cual (M-11 nunca migró el
+mecanismo a BD, solo angostó el archivo que `control` monta), ahora con
+menor urgencia de seguridad. No se pudo leer el `localStorage` de
+`pendientes.html` vía automatización de navegador (la extensión de
+Chrome bloquea `file://` por diseño) — la consolidación de esta sesión
+se hizo por conocimiento directo del trabajo completado, no por los
+checks que el usuario haya marcado a mano en el navegador; si el
+usuario ya había marcado algo en esta sesión vía la UI, sigue viviendo
+solo en su `localStorage` local hasta que lo copie y lo pase ("Copiar
+estado").
+
 ## Dónde está todo (mapa rápido)
 
 - Lógica de negocio del backend: `backend/server.js` (todas las rutas)
@@ -21558,3 +22424,580 @@ no solo el de subida inicial.
 - Onboarding público, Segmento B — borrador → tenant real self-service, sin operador (punto 393): `backend/server.js` `POST /internal/crear-admin-inicial/:slug` (usuario administrador inicial + correo de bienvenida vía SMTP del sitio base), `control/utils/onboardingConversion.js` (`convertirBorrador`, orquestación idempotente intake+activación+plan+admin), `control/utils/notificarBackend.js:crearAdminInicialFisico`, `POST /api/public/onboarding/convertir/:token` en `control/server.js`, `clarvo-Site/src/lib/onboardingApi.ts:convertirBorrador` + pantalla final real en `OnboardingModal.tsx:finalizarYActivar`
 - Límite de filas del importador de Inventarios global en /control + soporte real a .XLS (punto 394): `import_max_filas` en `control/utils/ajustesGlobales.js`/`control/server.js` (tarjeta "Ajustes de importación" en `frontend/control.html`/`control.js`), `backend/utils/ajustesGlobales.js:obtenerImportMaxFilasCacheado`, `listarHojasXLS`/`parsearArchivoXLS` (SheetJS) en `backend/utils/inventarioImportacion.js`, `esXLSValido` en `backend/utils/validate.js`, `imp_importaciones.formato` ampliado a `'xls'` en `backend/db.js`
 - Alta manual de /control crea administrador real (punto 395): `control/utils/credencialesAdmin.js` (hash/validación/derivación de usuario, compartido por los 3 flujos de alta), `POST /api/control/tenants/:slug/activar` en `control/server.js` acepta `adminEmail`/`adminPassword` opcionales (reusa `/internal/crear-admin-inicial/:slug` del punto 393), campos nuevos en el modal "Nueva empresa" de `frontend/control.html`/`control.js`
+- Módulo local de compresión a WebP — carpeta `webp/` aislada de Clarvo (punto 400, CERRADO): módulo `webp/comprimir.js` + probador `webp/index.html` con 3 estilos de aviso conmutables (capturas en `webp/capturas/`); propuestas originales en `webp/propuestas/index.html`; NO integrado a Clarvo
+
+## Punto 404 — Auditoría SonarQube + OWASP v1.1 (`sonar_1.1.html`): re-estado de los 51 hallazgos + 3 nuevos (19 oct 2026, CERRADO)
+
+Segundo pase completo del análisis "tipo SonarQube" pedido por el usuario, con las
+mismas directrices que generó `sonar.html` (1.0, 2026-10-13) pero versionado aparte
+en **`sonar_1.1.html`** para poder comparar, y abierto al final en el navegador.
+Mismo formato: severidades Blocker/Crítica/Mayor/Menor/Info, tipos Vulnerabilidad/
+Code smell/Configuración/Hotspot, OWASP Top 10 (2021), plan de remediación,
+metodología y footer — cada hallazgo con `archivo:línea` verificado leyendo el
+fuente actual, nunca por mensaje de commit (la lección del punto 352).
+
+**Métricas de esta ronda**: 104 archivos de producción / 86,483 líneas
+(backend + control + frontend, sin tests); `prod/` con 154 archivos / 100,880 líneas;
+194 rutas top-level en `backend/server.js` (10,947 líneas), 53 en `control/server.js`
+(antes 44), `frontend/admin.js` en 20,294 líneas. Suites ejecutadas de verdad:
+**backend 1,317/1,317 en verde (68 suites)**; **control 462/470 — 8 rojos en 2 suites**.
+
+**Estado de los 51 hallazgos previos: 19 cerrados, 9 parciales, 23 abiertos, 0 regresiones**
+(cero fixes de la Fase 1/2 perdidos en los 56 archivos sin commitear):
+- **Críticos**: C-01 (`server.js:2085` con `AND perfil='cliente'`), C-02 (fail-closed
+  en `backend|control/utils/auth.js`), C-03 (`hostPermitido` + `absolute_redirect off`
+  en nginx) y C-06 (`escapeHtmlAttr` en `admin.js:11630`) **CERRADOS**; C-04 (defaults
+  dev siguen en `docker-compose.yml`, fail-closed solo para MinIO/ADMIN_USERS) y C-05
+  **PARCIALES**.
+- **Mayores**: 14 cerrados (M-01/02/03/04/07/08/09/10/11/12/13/14/15/17), 2 parciales
+  (M-05: cerrado en control pero `express.json` global de 30 MB sigue antes de los
+  limiters en `backend/server.js:280`; M-16: quedan `server.js:8605` y `:8663`),
+  3 abiertos (M-06 onboarding, M-18 `COOKIE_SECURE:-false` junto a `NODE_ENV:
+  production` en `docker-compose.yml:252-253`, M-19 auditoría de control que sigue
+  saltándose todo GET en `control/server.js:247`).
+- **Menores**: solo m-04 cerrado (`escribirEnvAtomico`); 5 parciales (m-01, m-05,
+  m-11, m-16, m-17) y 11 abiertos. m-15 cuantificado en **68 glifos Unicode** en
+  7 archivos (admin.html 48, admin.js 8, control.html 7, tickets.html 2...).
+- **Info**: i-02/i-03/i-04 abiertos, i-01 sin cambios.
+
+**3 hallazgos NUEVOS (no estaban en 1.0)**:
+- **N-01 (Mayor, funcional)** — `frontend/nginx.conf.template:474` (y el espejo prod):
+  `location ^~ /api/control/` declara `client_max_body_size 1m` mientras
+  `control/server.js:196` acepta `express.json({limit:'30mb'})` y recibe
+  `logoBase64` (`control.js:2433-2439`, `control/server.js:442-454`) hasta
+  `IMAGEN_MAX_MB` (2-20 MB ⇒ ~27 MB en base64): **un logo/favicon real >~700 KB
+  devuelve 413 desde nginx** y nunca llega al backend. Es el bug del punto 370
+  (413 por body insuficiente) invertido: allá se agrandó Express, aquí se olvidó
+  nginx. Fix: `client_max_body_size 27m` en ese location + validar con Playwright.
+- **N-02 (Mayor, calidad)** — `control/test/unit/ensureSchema.test.js:304` (conteo de
+  `db.query` esperado 3, recibe 6 — el hallazgo colateral del punto 402, nunca
+  corregido) y `control/test/unit/docsEnabled.test.js:41` (timeout de 5 s al levantar
+  la app para `GET /api/control/docs.json`) = **8 tests rojos**. Recomendación: asserts
+  por presencia en vez de `toHaveBeenCalledTimes(n)`.
+- **N-03 (Mayor, hotspot)** — residual exacto de C-05: **6 call sites** con
+  `escapeHtml()` dentro de atributo en `admin.js:8695-8698, 10358, 10374`
+  (0 en control.js/dashboard.js/portal.js). Confirmado con el grep efectivo del
+  punto 402, no con el patrón ingenuo. Contenido por la CSP, pero es el mismo
+  patrón de C-05: cambiar `escapeHtml` → `escapeHtmlAttr` en esos 6 sitios.
+
+**OWASP 1.0 → 1.1**: A04 (Insecure Design) y A08 (Integrity) pasan a **CUMPLE**;
+A01, A02, A03, A05, A07, A10 a **PARCIAL**; **A09 (Logging) sigue NO CUMPLE** (es
+M-19); A06 CUMPLE (verificado `integrity` sha512 de `xlsx` desde CDN en el lockfile).
+
+**Fortalezas verificadas en este pase**: cero inyección SQL (re-leído), CSP estricta
+repetida en locations tras M-12, origen validado en ambas superficies con tests,
+fail-closed de C-02/M-15 colocado ANTES del fallback, grants de `app` angostados con
+`REVOKE DROP, GRANT OPTION`, y **el espejo `prod/` está sincronizado al 100%**
+(10/10 archivos idénticos por SHA-256 — la deuda de "espejo desincronizado" quedó
+cerrada sin que nadie la declarara).
+
+**Quality Gate**: 1.0 fue NO APROBADA; **1.1 es APROBADA CON CONDICIONES** — 0
+críticas abiertas, la barrera es funcional/calidad (N-01, N-02) + 7 mayores.
+
+**Deuda detectada por el propio análisis**: 56 archivos modificados sin commit
+(incluye todos los fixes de seguridad) — recomendación explícita de commitear por
+fases; `escapeHtml` duplicado en 4 archivos a propósito es lo que produjo el residual
+N-03 (propongo un test de regresión que grepee los 4 a la vez), y el patrón manual
+de 3 middlewares de `control/server.js` creció de 44 a 53 rutas (chequeo automatizado:
+solo `/health` queda sin auth, correcto).
+
+**Pendiente de la Fase A (3 cambios acotados)**: `27m` en el location de control,
+reparar los 8 tests de control, migrar los 6 call sites de escape — luego re-correr
+`npx jest` en control (meta 470/470) y validar N-01 con Playwright contra Docker real.
+
+## Punto 405 — `.env` y `.env.example` fuera de git: regla global + purga del índice (19 oct 2026, CERRADO)
+
+**Decisión del usuario, 2026-10-19**: `.env` y `.env.example` deben estar en
+`.gitignore` **como regla global** (no solo `.env`), y si ya estaban publicados
+en el repo, hay que borrarlos de git.
+
+**Estado previo verificado (no asumido)**:
+- `.env` **nunca** estuvo trackeado (`git log --all -- .env` vacío; tampoco
+  `admin-users.env` ni `prod/.env`) — solo estaba bloqueado, no publicado.
+- `.env.example` **sí** estaba trackeado y publicado en `origin/main` desde el
+  commit 6d6cd68, con 4 commits en su historial (6d6cd68, b9fe406, edb2592,
+  1ca0829).
+- El único otro `*.env*` trackeado era `admin-users.env.example`… en realidad
+  **no**: `git ls-files` solo devolvía `.env.example` (+ los `.js` de tests
+  `adminEnv.*`, que no tienen nada que ver).
+
+**Qué se hizo**:
+1. `.gitignore`: se quitó la excepción `!.env.example` (y su comentario que la
+   justificaba) — ahora `.env`, `.env.*` y `admin-users.env` cubren todo sin
+   negaciones para plantillas. Se dejó `!admin-users.env.example` **porque
+   usuario no lo incluyó en la regla** y es un archivo dedicado a solo
+   `ADMIN_USERS` (M-11)… *ver nota abajo*.
+2. `git rm --cached .env.example` + commit `4fc96b2` ("chore: .env y .env.example
+   fuera de git…") + **push a `origin/main`** — el archivo desapareció del árbol
+   del remoto, pero **sigue en el historial** de los 4 commits viejos (borrarlo
+   del historial exigiría `git filter-repo` + force-push; no se hizo, y no
+   contiene secretos reales: solo `changeme_*` y `admin:admin`, valores ya
+   documentados como públicos en README).
+3. El archivo **sigue en disco** (8,502 bytes) — `git rm --cached` borra del
+   índice, no del working tree. Es la plantilla local que sigue usando el README.
+
+**Verificación post-cambio**: `git check-ignore -v` confirma `.env` → `.gitignore:4`
+y `.env.example` → `.gitignore:5`; `git ls-files` ya no devuelve ningún `.env*`;
+`prod/` sigue con 0 archivos trackeados; `origin/main` sin `.env*` en el árbol.
+
+**Consecuencia detectada (no corregida, requiere decisión)**: `README.md:69,104,273`
+y `docker-compose.yml:7` dicen `cp .env.example .env` — funciona en ESTA máquina
+(el archivo sigue en disco y ya no se puede perder por un `git clean -xfd`, porque
+está gitignored pero no borrado), pero **un clone nuevo del repo ya no trae la
+plantilla** y ese comando fallaría. Opciones (pendiente de aprobación):
+(a) mover la plantilla a un nombre no-giteado-ejecutable tipo `docs/env-plantilla.md`
+y actualizar README/docker-compose; (b) dejar el `cp` apuntando a un `.env` de
+ejemplo embebido en el README; (c) aceptarlo y documentar que la plantilla vive
+solo en la máquina base. Además: si algún día se limpia el historial, revisar
+que ningún deploy/CI dependa de sacar `.env.example` de un tag viejo.
+
+**Archivos tocados**: `.gitignore`, `.env.example` (del índice), `PROJECT_STATE.md`
+(este punto), `AGENTS.md`/`CLAUDE.md` (regla persistente nueva).
+
+## Punto 406 — Reorganización de `.env`/`.env.example` por arquitectura de la información (19 oct 2026, CERRADO)
+
+**Pedido del usuario**: reordenar `.env`/`.env.example` para que sea más fácil
+de gestionar/configurar. Se presentaron 3 propuestas (A: dominio funcional +
+criticidad, B: fase de ciclo de vida, C: índice + severidad) vía Artifact
+HTML; el usuario eligió el **híbrido A+C**.
+
+**Qué se hizo**: `.env.example` reescrito con 7 secciones por dominio
+(01 Core, 02 Seguridad y sesiones, 03 Almacenamiento/MinIO, 04 Red/CORS,
+05 App de control y multi-tenant, 06 Alta disponibilidad MySQL/Swarm,
+07 Integraciones externas) + un índice escaneable al inicio con tag de
+severidad por sección (REQUERIDO/OPCIONAL/AVANZADO). La severidad no se
+inventó: se derivó de la señal que ya existía en el archivo — variable
+descomentada (activa) = REQUERIDO, comentada = OPCIONAL/AVANZADO según si
+depende de una arquitectura ya activa (control/MinIO) o de un segmento
+futuro (Swarm, segmento 8; multi-tenant por URL, aún sin efecto). Las 33
+variables (16 activas + 17 comentadas) se verificaron 1:1 contra el
+original — ninguna se perdió ni se agregó. `.env` real (4 variables activas
+hoy) se reordenó con el mismo criterio de dominio. De paso se corrigió un
+typo real (`archivo.cla` → `archivo.`, arrastrado desde ~10 sep 2026 según
+observaciones previas de Claude Mem).
+
+**Nota importante heredada del punto 405**: `.env.example` ya NO está
+trackeado en git (gitignored) — este reordenamiento vive **solo en disco
+local**, no se puede `git add`/commit/push de forma normal. Si se decide
+recuperar un mecanismo de plantilla versionada (opción (a)/(b)/(c) del
+punto 405, aún sin decidir), aplicar sobre ESTA versión reordenada, no
+sobre la vieja del historial de git.
+
+**Drift pre-existente detectado al cruzar contra README.md (NO corregido,
+fuera de alcance de esta sesión — requiere decisión del usuario)**:
+1. `README.md:81` dice que `ADMIN_USERS` "desde el hallazgo M-11 ya NO se
+   define en `.env`" (vive en `admin-users.env`) — pero `.env.example`
+   (antes y después de este reordenamiento) sigue declarando
+   `ADMIN_USERS=admin:admin` como si fuera la fuente real. Contradicción ya
+   existía antes de esta sesión, no se originó aquí.
+2. La tabla de variables del README (líneas 71-89) documenta
+   `CLAVE_PROD_SERV_SYNC_URL` y `BANXICO_TOKEN`, que **no existen** en
+   `.env.example` (ninguna versión) — y `.env.example` documenta variables
+   (`TENANT_*`, `CONTROL_DB_*`, `MYSQL_REPLICATION_*`, `CONTROL_UPSTREAM_*`)
+   que **no están** en la tabla del README. Las dos fuentes llevan tiempo
+   desincronizadas; corregirlo es un trabajo aparte (decidir cuál es la
+   fuente de verdad por variable), no una reordenación.
+
+**Archivos tocados**: `.env.example`, `.env`, `PROJECT_STATE.md` (este
+punto).
+
+## Punto 407 — Plan de remediación de `sonar_1.1.html`, Fase A cerrada (19 oct 2026)
+
+**Pedido del usuario**: leer `sonar_1.1.html` (51 hallazgos previos
+re-estado + 3 nuevos) y armar un plan para dejar "todo en verde, nada de
+parcial". Plan de 5 fases + 1 operativa, trackeado con TaskCreate
+(tasks #1-#6 de la sesión): **Fase A** (desbloquear la gate, N-01/N-02/
+N-03-C-05), **Fase B** (6 mayores residuales: M-19/M-18/M-06/M-05/M-16/
+C-04), **Fase C** (16 menores mecánicos sin decisión de producto),
+**Fase D** (5 decisiones de producto/arquitectura que requieren
+confirmación explícita del usuario antes de codear — proveedor de
+captcha para M-06, default de `DOCS_ENABLED`, segmentación del secreto
+único de `/internal/*`, aislamiento real de MinIO por tenant, y
+`style-src 'unsafe-inline'`), **Fase E** (deuda de arquitectura —
+monolitos de `admin.js`/`server.js`, consolidar el patrón de 3
+middlewares de `control/server.js`, `apiFetch()` central — proyecto
+aparte, alto riesgo de regresión). Usuario aprobó arrancar Fase A.
+
+**Fase A, CERRADA, los 3 hallazgos verificados con evidencia real
+(no solo lectura de código)**:
+
+- **N-01** (nginx rechazaba con 413 cualquier logo/favicon real de
+  `/control` por encima de ~700KB): `client_max_body_size 1m → 27m` en
+  `location ^~ /api/control/` de `frontend/nginx.conf.template` y su
+  espejo `prod/frontend/nginx.conf.template`. Se agregó
+  `e2e/tests/control-logo-body-size-n01.spec.ts` (regresión permanente)
+  + `e2e/fixtures/pngAleatorio.js` (genera un PNG real válido de ~1.47MB
+  sin dependencias — necesario porque `control/utils/tenantMarca.js`
+  valida la firma binaria real del archivo, un buffer de bytes crudos
+  con extensión `.png` no pasa). **Verificado real, no deducido**: con
+  Docker levantado, se corrió el test con `1m` (falla con 413 real,
+  confirmando que el test SÍ detecta la regresión) y con `27m` (pasa,
+  200 con `marca_logo_url` seteado) — ciclo completo reproducido dos
+  veces antes de dar el hallazgo por cerrado.
+- **N-02** (8 tests rojos en `control/`, 462/470): causa raíz real —
+  `test/unit/ensureSchema.test.js` mantenía una copia a mano de
+  `COLUMNAS_NUEVAS`/`COLUMNAS_PLANES_NUEVAS` (listas de columnas que
+  `ensureSchema.js` agrega) que se desincronizó 2 veces ya (confirmado:
+  al 2026-10-19 `ensureSchema.js` ya tenía 42 columnas en
+  `COLUMNAS_NUEVAS` y 13 en `COLUMNAS_PLANES_NUEVAS`, varias no
+  reflejadas en el test). Fix estructural (no solo actualizar el número):
+  se exportaron ambas constantes desde `ensureSchema.js` y el test ahora
+  deriva sus fixtures y conteos esperados de la fuente real en vez de una
+  copia — inmune a que se agregue una columna más en el futuro. El
+  timeout reportado en `docsEnabled.test.js:41` **no se reprodujo** en 7
+  corridas (aislado y en la suite completa, 56ms-2.3s siempre) — se deja
+  documentado como no reproducible en este entorno, sin tocar el test
+  (no se inventa un fix para algo que no se pudo confirmar). **control:
+  470/470 verde.**
+- **N-03/C-05** (6 atributos HTML escapando con `escapeHtml()` en vez de
+  `escapeHtmlAttr()` — `frontend/admin.js:8695-8698,10358,10374`): los 6
+  migrados. Verificado con grep que no queda ningún
+  `attr="...${escapeHtml(` real en `admin.js`/`control.js`/
+  `dashboard.js`/`portal.js` (el único match es el comentario que
+  describe la regla, no código).
+
+**Verificación final de la fase**: `node --check frontend/admin.js` OK;
+`backend` 1317/1317 verde; `control` 470/470 verde; el E2E de N-01 en
+verde contra Docker/MySQL reales. Sin regresiones detectadas en ninguna
+de las 2 suites Jest.
+
+**Pendiente de decisión del usuario, explícito, antes de seguir**: si se
+arranca Fase B (mayores residuales) — M-06 dentro de Fase B necesita a
+su vez una sub-decisión de Fase D (proveedor de captcha) antes de
+poderse cerrar al 100%, el resto de Fase B no depende de ninguna
+decisión de producto.
+
+**Archivos tocados**: `frontend/nginx.conf.template`,
+`prod/frontend/nginx.conf.template`, `control/scripts/ensureSchema.js`,
+`control/test/unit/ensureSchema.test.js`, `frontend/admin.js`,
+`e2e/tests/control-logo-body-size-n01.spec.ts` (nuevo),
+`e2e/fixtures/pngAleatorio.js` (nuevo), `PROJECT_STATE.md` (este punto).
+Ninguno commiteado todavía (se suma a los 56+ archivos sin commit del
+hallazgo de deuda técnica del propio `sonar_1.1.html`, sección 7).
+
+## Punto 408 — Plan de remediación de `sonar_1.1.html`, Fase B: 5 de 6 cerrados (19 oct 2026)
+
+Continuación del punto 407. Usuario aprobó arrancar Fase B.
+
+- **M-19** (auditoría cross-tenant omitía TODO GET): quitado el
+  `if (req.method === 'GET') return;` de `control/server.js` (el filtro
+  `!req.adminUser` ya protege las rutas públicas); `ruta` ahora usa
+  `req.originalUrl` (antes `req.path`, perdía la query string). Test
+  nuevo en `control/test/integration/control.test.js` que confirma el
+  INSERT de auditoría en un GET autenticado, con la query string
+  incluida. **control: 470/470 verde.**
+- **M-18** (cookie de sesión sin `Secure` con `NODE_ENV=production`):
+  conflicto real descubierto — el propio stack local corre
+  `NODE_ENV=production` sobre HTTP a propósito (comentario explícito en
+  `authUsuario.js`, decisión previa documentada). Se preguntó al usuario
+  cómo resolverlo; eligió fail-closed real. Implementado en
+  `backend/utils/authUsuario.js`: `secure` es `true` SIEMPRE con
+  `NODE_ENV=production` (ya no depende de `COOKIE_SECURE`), y el módulo
+  aborta al cargarse si se pide `COOKIE_SECURE=false` explícito en
+  producción (mismo criterio que C-02). Para que el stack local
+  siguiera arrancando, `docker-compose.yml` cambió su default de
+  `COOKIE_SECURE` de `false` a `true` (confirmado con el usuario) —
+  funciona en `http://localhost` (navegadores modernos guardan cookies
+  `Secure` ahí) pero **rompería** el acceso por IP de LAN sin HTTPS si
+  alguna vez se usó así. `.env.example` actualizado para reflejar que la
+  variable ya no aplica con `NODE_ENV=production`. 4 tests nuevos en
+  `backend/test/unit/authUsuario.test.js`. **Verificado funcional real**:
+  rebuild + recreate de `backend`, login real vía Playwright/Edge contra
+  `/t1/admin`, `/t2/admin` y `/control` sobre `http://localhost:8088`
+  — los 4 passed.
+- **M-05** (body parser global de 30mb antes de cualquier rate limit):
+  el límite global bajó a 2mb; 30mb queda acotado SOLO a
+  `/internal/marca-logo` y `/internal/favicon` (los únicos 2 endpoints
+  que reciben logo/favicon en base64), montados ANTES del parser global
+  — body-parser no vuelve a leer el stream si `req._body` ya está
+  poblado, así que el global se vuelve un no-op para esas 2 rutas. 3
+  tests nuevos (`backend/test/integration/internal.test.js` x2,
+  confirmando que la ruta scoped sigue aceptando >2mb y que una ruta
+  normal rechaza con 413 a partir de 2mb). **Gotcha real encontrado y
+  documentado en CLAUDE.md**: un primer intento de test usó un buffer
+  decodificado de ~2.2MB que chocó con el candado de NEGOCIO
+  `IMAGEN_MAX_MB` (default 2MB, independiente del límite del parser) —
+  dos candados de tamaño distintos en la misma ruta, fácil de confundir.
+- **M-16** (2 `err.message` crudos de SMTP/reportes expuestos al
+  cliente): `server.js` — "reenviar correo" y "generar reporte antes de
+  eliminar" ahora responden un mensaje genérico (502) y hacen
+  `console.error` con el detalle real. 2 tests nuevos en
+  `backend/test/integration/ordenes-compra.test.js` que fuerzan el fallo
+  y confirman que el string de error real (host/credencial simulados)
+  nunca aparece en la respuesta JSON.
+- **C-04** (defaults públicos sin gate en el deploy real): nuevo Paso 0.6
+  en `prod/actualizar.sh` — aborta el deploy si `MYSQL_ROOT_PASSWORD`,
+  `MYSQL_PASSWORD`, `MINIO_ROOT_PASSWORD`, `CONTROL_APP_PASSWORD`,
+  `INTERNAL_CACHE_SECRET` o `ADMIN_USERS` siguen en su valor
+  público/por defecto conocido. `COOKIE_SECURE` NO se revisa ahí a
+  propósito: `prod/docker-compose.prod.yml` lo deja hardcodeado en
+  `"true"` (nunca interpolado desde `.env`), así que no hay valor de
+  `.env` que pueda desviarlo en ese compose — confirmado leyendo el
+  archivo antes de escribir el check (una primera versión del script sí
+  lo revisaba y habría fallado SIEMPRE, falso positivo, porque
+  `deploy.sh` nunca escribe `COOKIE_SECURE` en `.env`).
+
+**M-06 — llevado a Fase D, no cerrado a propósito**: endurecer el
+onboarding público requiere elegir proveedor de captcha (dependencia
+externa nueva, llave API) — decisión de producto explícita del usuario,
+no se asume. El resto de M-06 (cupo por identidad, respuesta genérica en
+slug-disponible) tampoco se tocó todavía para no dejar un cierre parcial
+del mismo hallazgo en 2 sesiones distintas sin una nota clara — se
+atiende completo cuando se resuelva la Fase D.
+
+**Verificación de la fase**: `node --check` en los 3 archivos backend
+tocados; `backend` 1325/1325 verde; `control` 470/470 verde; 4/4
+Playwright verdes (login real tras el cambio de M-18); `bash -n` en
+`prod/actualizar.sh`.
+
+**Archivos tocados**: `control/server.js`,
+`control/test/integration/control.test.js`,
+`backend/utils/authUsuario.js`,
+`backend/test/unit/authUsuario.test.js`, `docker-compose.yml`,
+`.env.example`, `backend/server.js`,
+`backend/test/integration/internal.test.js`,
+`backend/test/integration/ordenes-compra.test.js`,
+`prod/actualizar.sh`, `CLAUDE.md`, `PROJECT_STATE.md` (este punto).
+Ninguno commiteado todavía.
+
+## Punto 409 — Plan de remediación de `sonar_1.1.html`, Fase C: 15 de 16 cerrados (21 oct 2026)
+
+Continuación de los puntos 407/408. Al retomar la sesión se encontró que
+Fase C **ya había arrancado la tarde del 19 oct** (8 hallazgos —
+m-02/03/05/06/07/10/12/13 — con sus comentarios "Hallazgo m-XX" ya en el
+código) pero **nunca se documentó en este archivo** — exactamente el gap
+que describe la observación de task-observer "reconstruir historial desde
+la fuente real, nunca desde la memoria" (ver `MEMORY.md` /
+`skill-observations`). Se verificó cada uno contra código real (grep, no
+supuesto) antes de reportarlo como cerrado. Esta sesión cerró los 7
+restantes:
+
+- **m-08** (SSRF latente: `sincronizarDesdeOrigen(urlPersonalizada)` en
+  `claveProdServ.js`/`usoCfdi.js` aceptaba una URL por parámetro, nunca
+  usada por ningún call site real — solo por los tests): parámetro
+  eliminado de ambas funciones; los 18 call sites de test que pasaban la
+  URL como argumento ahora fijan `process.env.CLAVE_PROD_SERV_SYNC_URL`/
+  `USO_CFDI_SYNC_URL` antes de llamar sin argumentos. **backend:
+  1333/1333 verde** (+8 tests netos vs. antes de Fase C, por las
+  reescrituras).
+- **m-09** (iframe de "Vista previa del documento" en `admin.html:4997`
+  sin `sandbox`, a diferencia de su hermano `plantilla-preview-frame` de
+  `:3087`): agregado `sandbox=""` — confirmado que el iframe solo recibe
+  un blob URL de solo lectura (PDF/imagen vía `els.previewFrame.src =
+  url`), nunca necesita scripts ni same-origin.
+- **m-14** (contraste insuficiente en el pie de "Portal desactivado",
+  `theme.js:178`): `rgba(175,194,220,0.55)` medía 3.89:1 contra el fondo
+  `#040B1D` (bajo el 4.5:1 de AA) — subido a alpha `0.68` → 5.41:1,
+  verificado con cálculo de luminancia WCAG real, no a ojo.
+- **m-15** (68-70 glifos ✕/✓/⚠/⏳/⟳/✗ como texto crudo en 7 archivos,
+  contra la directiva persistente de cero emojis/glifos de señalización):
+  los ~65 botones de cerrar/quitar (✕) migrados al SVG feather-like ya
+  usado en el sitio (`M6 6l12 12M18 6L6 18`); los ~22 check de la matriz
+  "Perfiles y roles de acceso" y los 2 `success-icon` de csf.html/
+  tickets.html migrados a un SVG de check (`polyline 20 6 9 17 4 12`);
+  los badges "Pendiente de sincronizar"/"No se pudo sincronizar" del modo
+  offline (admin.js, Ventas y Gastos) migrados a 2 íconos nuevos
+  (`ICONO_PENDIENTE_ALERTA`/`ICONO_PENDIENTE_RELOJ`); el badge "Gasto
+  recurrente" migrado a un ícono de repetición; y el par "✓ Correcto:" /
+  "✗ Común:" del panel de ayuda del importador de Inventarios migrado al
+  mismo par de íconos. Verificado con grep tras cada tanda que no quedó
+  ningún glifo real (solo 2 menciones en comentarios, que documentan la
+  regla, no la violan). **70 → 0 glifos reales**, confirmado archivo por
+  archivo.
+- **m-16** (cola offline de Ventas/Gastos en IndexedDB sin TTL — solo se
+  vaciaba en logout, así que una pestaña abierta días acumulaba montos sin
+  cota): `offline.js` — nueva `purgarVencidosTodo()` que corre en
+  `iniciar()` y descarta (con `console.warn`) cualquier pendiente con más
+  de 30 días sin sincronizar, mismo plazo que la purga automática de
+  Papelera (punto 389).
+- **m-17** (único `DROP CHECK` + `ADD` incondicional que quedaba,
+  `chk_imp_importaciones_formato` en `db.js:1616` — los demás ya
+  consultaban `INFORMATION_SCHEMA.CHECK_CONSTRAINTS` primero): mismo
+  patrón condicional que `chk_usuarios_perfil`/`chk_reportes_tipo` — solo
+  tira y repone si la cláusula real todavía no incluye `'xls'`.
+
+**m-11 (Dockerfile sin `USER` en backend/frontend) — resuelto como
+decisión de diseño, no como código pendiente**: ya documentado en
+`backend/Dockerfile`/`control/Dockerfile` (comentario explícito, sesión
+del 19 oct) que el patrón su-exec/entrypoint de `backend` necesita
+arrancar como root para el `chown` del volumen de `uploads` antes de
+bajar privilegios en runtime, y que nginx (frontend) necesita su master
+como root por diseño de Alpine — un `USER` estático ahí rompería el
+patrón real de privilegios. No requiere más trabajo.
+
+**m-01 (DOCS_ENABLED opt-out) — deliberadamente sin tocar**: depende de
+la decisión de producto #2 de Fase D (default de `DOCS_ENABLED`), no es
+"mecánico sin decisión" pese a estar numerado junto a los demás.
+
+**Fase C: CERRADA.** Quedan pendientes únicamente Fase D (5 decisiones de
+producto — captcha para M-06, default de `DOCS_ENABLED`, segmentación del
+secreto de `/internal/*`, aislamiento real de MinIO por tenant,
+`style-src 'unsafe-inline'`) y Fase E (deuda de arquitectura, proyecto
+aparte).
+
+**Verificación de la fase**: `node --check` en los 6 archivos JS tocados;
+`backend` 1333/1333 verde; `control` 478/478 verde; balance de tags
+`<svg>`/`</svg>` verificado en los 5 HTML tocados (sin mismatch).
+Pendiente de este punto, como en 407/408: verificación visual real con
+Playwright (protocolo `addv-web-app`, paso 8) de los íconos nuevos — no
+hecha todavía en esta sesión.
+
+**Archivos tocados**: `backend/utils/claveProdServ.js`,
+`backend/utils/usoCfdi.js`, `backend/test/unit/claveProdServ.test.js`,
+`backend/test/unit/usoCfdi.test.js`, `backend/db.js`,
+`frontend/admin.html`, `frontend/admin.js`, `frontend/admin.css`,
+`frontend/control.html`, `frontend/csf.html`, `frontend/login.html`,
+`frontend/tickets.html`, `frontend/theme.js`, `frontend/offline.js`,
+`PROJECT_STATE.md` (este punto). Ninguno commiteado todavía (se suma a
+los de 407/408).
+
+## Punto 410 — Plan de remediación de `sonar_1.1.html`, Fase D: las 5 decisiones de producto resueltas (21 oct 2026)
+
+Continuación de los puntos 407-409. El usuario pidió resolver las 5
+decisiones de Fase D en un solo mensaje ("resuelve las 5 decisiones de
+Fase D") — antes de preguntar, se investigó cada hallazgo contra el
+código real (nunca contra la descripción del informe a secas), lo que
+cambió sustancialmente el marco de 2 de las 5:
+
+- La CSP `unsafe-inline` (decisión 5) **no es global** — solo vive en los
+  3 headers de `/api/docs`/`/api/swagger` (backend y control), nunca en
+  el resto del sitio. Por eso se presentó junto con `DOCS_ENABLED`
+  (decisión 2): si docs queda apagado por defecto, el problema desaparece
+  solo.
+- M-06 (decisión 1) hoy es inalcanzable en producción real porque nginx
+  no enruta `/api/public/onboarding/*` a `control` — pero se decidió
+  endurecerlo de todas formas (no depender de que ese gap de ruteo siga
+  existiendo).
+
+El usuario eligió la opción recomendada en las 4 preguntas (`AskUserQuestion`):
+
+**Decisión 1 — M-06, captcha: Cloudflare Turnstile.** Implementado
+end-to-end en 2 repos:
+- `clarvo-Site` (sitio público, repo separado — ver su propio
+  `CLAUDE.md`): `src/components/onboarding/TurnstileWidget.tsx` (nuevo,
+  carga el script oficial una sola vez, `window.turnstile.render()`),
+  montado en el ÚLTIMO paso del wizard (`PasoCredenciales` dentro de
+  `OnboardingModal.tsx`) — nunca en el primer paso, porque un token de
+  Turnstile es de un solo uso y expira en minutos; mostrarlo al principio
+  del flujo de 5 pasos lo invalidaría antes de llegar al final.
+  `onboardingApi.ts:convertirBorrador()` ahora manda `turnstileToken` en
+  el body. `publicEnv.ts` agrega `turnstileSiteKey` con default al site
+  key PÚBLICO de prueba de Cloudflare (`1x00000000000000000000AA`, nunca
+  un secreto real).
+- `control/utils/turnstile.js` (nuevo): `verificarTurnstile(token, ip)`
+  llama al endpoint oficial `siteverify` de Cloudflare. **Falla CERRADO a
+  propósito**: sin `TURNSTILE_SECRET_KEY` configurado, rechaza el
+  onboarding en vez de omitir la verificación — decisión explícita del
+  usuario al elegir "sin esas variables, el candado falla cerrado". El
+  gate se agregó en `POST /api/public/onboarding/convertir/:token`
+  (`control/server.js`) — el ÚNICO paso del onboarding que de verdad
+  aprovisiona infraestructura real (crear/leer borrador no toca nada
+  físico); mensaje de rechazo genérico, nunca distingue "sin configurar"
+  de "token inválido" (mismo criterio anti-enumeración del resto del
+  sitio). `docker-compose.yml` trae `TURNSTILE_SECRET_KEY` con default al
+  secret key PÚBLICO de prueba de Cloudflare (`1x0000...AA`, siempre
+  aprueba) SOLO para desarrollo local — `prod/` nunca debe traer ese
+  default, así el candado queda cerrado hasta que el usuario configure
+  sus llaves reales del dashboard de Cloudflare. 11 tests nuevos (7
+  unitarios de `verificarTurnstile` con `fetch` mockeado,
+  mismo patrón que `tipoCambio.test.js`; 4 de integración en
+  `control.test.js`, con app AISLADA vía `jest.resetModules()` por test
+  — ver gotcha de rate limiter abajo). `clarvo-Site` compila limpio
+  (`npm run build`, sin errores de tipos).
+  **Pendiente real, fuera de alcance de esta sesión**: el usuario todavía
+  no tiene cuenta de Cloudflare — hasta que configure
+  `TURNSTILE_SECRET_KEY`/`PUBLIC_TURNSTILE_SITE_KEY` reales, el
+  onboarding público queda funcionando en modo "siempre aprueba" de
+  prueba (dev) o "siempre rechaza" si alguien reutiliza por error el
+  default de dev en un entorno donde `TURNSTILE_SECRET_KEY` no se
+  propaga. Y nginx sigue sin enrutar `/api/public/onboarding/*` — este
+  punto no lo toca, es un hallazgo aparte (ver nota de M-06 en el punto
+  408).
+
+**Gotcha real encontrado al escribir las pruebas de integración**:
+`control/server.js` tiene `app.use(adminCredencialesLimiter)` SIN
+prefijo de ruta — es decir, GLOBAL a cualquier método, con
+`skipSuccessfulRequests: true` (solo cuenta respuestas NO exitosas contra
+un presupuesto compartido de 50 por IP/15min, para TODO el archivo de
+test, porque `app` se `require()` una sola vez al inicio del archivo). 3
+respuestas 400 del candado de Turnstile agotaron ese presupuesto
+compartido y tumbaron con 429 las pruebas de `/health` (completamente
+ajenas) que corren al final del mismo archivo. Fix: el describe de
+Turnstile usa una `app` AISLADA por test (`jest.resetModules()` +
+re-`require()`, mismo patrón ya usado en `docsEnabled.test.js`) en vez de
+la `app` compartida del resto de `control.test.js` — si se agregan más
+pruebas que esperan una respuesta de error (4xx/5xx) a este archivo en el
+futuro, aislar la app de la misma forma o el presupuesto compartido puede
+volver a agotarse en silencio.
+
+**Decisión 2 — `DOCS_ENABLED` invertido a opt-in.**
+`backend/server.js`/`control/server.js`: `docsHabilitados()` ahora es
+`process.env.DOCS_ENABLED === 'true'` (antes `!== 'false'`). Cierra m-01
+Y hace irrelevante la CSP `unsafe-inline` en producción (la ruta que la
+necesita queda 404 por default). `docker-compose.yml` (desarrollo local)
+fija `DOCS_ENABLED: 'true'` explícito en `backend` y `control` para no
+perder Swagger en dev — `prod/docker-compose.prod.yml` nunca lo define,
+así que producción queda cerrada por default sin tocar nada ahí. Los 2
+`docsEnabled.test.js` (backend y control) se reescribieron para el nuevo
+default; se agregaron casos `DOCS_ENABLED=true` que antes no existían
+(antes el "sin configurar" YA era el caso 200, ahora hace falta un caso
+explícito). **Gotcha de timing encontrado**: el primer test del archivo
+de backend (`jest.resetModules()` + primer `require('../../server')` en
+frío) tardó 6.2s bajo la suite completa (más presión de memoria que en
+aislamiento) y superó el timeout default de Jest (5000ms) — no es una
+regresión funcional, es el costo normal de una carga en frío bajo carga;
+se subió el timeout de ESE test a 15000ms.
+
+**Decisión 3 — Secreto único de `/internal/*`: se mantiene, sin cambios
+de código.** 14 rutas privilegiadas (activar/eliminar tenant, marca-logo,
+favicon, cache, etc.) comparten `INTERNAL_CACHE_SECRET`. Decisión
+explícita del usuario: segmentar en 2+ secretos agrega complejidad de
+rotación sin reducir el riesgo real — si `control` se compromete,
+cualquier secreto ahí vale lo mismo (es el único que los conoce, nunca
+viaja al navegador, ya tiene auditoría). **Si una sesión futura encuentra
+este hallazgo "abierto" en una copia vieja de `sonar_1.1.html`: no es
+deuda pendiente, es una decisión de arquitectura ya tomada — no
+segmentar sin que el usuario pida reabrir la discusión.**
+
+**Decisión 4 — Aislamiento de MinIO por tenant: se mantiene bucket único
++ prefijo, sin cambios de código.** Ya era una decisión de arquitectura
+tomada a propósito desde el segmento 5 del plan multi-tenant (ver
+comentario en `backend/utils/storage.js`): un solo par de credenciales
+para todos los tenants, aislamiento lógico por prefijo dentro del mismo
+bucket — prioriza que dar de alta un cliente nunca requiera redeploy ni
+crear infraestructura nueva. Decisión del usuario: mantenerlo así, mismo
+criterio que ya aplica en MySQL (credenciales angostas, no bases
+separadas por infraestructura). **Misma nota que la decisión 3: no es
+deuda pendiente si una sesión futura lo encuentra "abierto" en el
+informe — es arquitectura ya decidida.**
+
+**Fase D: CERRADA.** Las 5 decisiones tienen resolución explícita del
+usuario, documentada aquí. Solo queda Fase E (deuda de arquitectura,
+proyecto aparte, fuera de alcance de este plan de remediación de
+seguridad).
+
+**Verificación de la fase**: `node --check` en los 4 archivos backend
+tocados; `backend` 1335/1335 verde; `control` 490/490 verde;
+`npm run build` de `clarvo-Site` sin errores; `docker compose config
+--quiet` valida `docker-compose.yml` sin errores de sintaxis tras los 2
+bloques de `environment:` nuevos.
+
+**Pendiente de decisión del usuario, explícito, antes de dar M-06 por
+100% cerrado en producción real**: conseguir las llaves reales de
+Cloudflare Turnstile (hoy corre con las llaves PÚBLICAS de prueba, que
+siempre aprueban) y, si se decide arreglar el ruteo de nginx hacia
+`/api/public/onboarding/*` en algún momento, confirmar que este candado
+sigue funcionando end-to-end contra ese ruteo real.
+
+**Archivos tocados**: `backend/server.js`, `control/server.js`,
+`backend/test/unit/docsEnabled.test.js`,
+`control/test/unit/docsEnabled.test.js`, `docker-compose.yml`,
+`.env.example`, `control/utils/turnstile.js` (nuevo),
+`control/test/unit/turnstile.test.js` (nuevo),
+`control/test/integration/control.test.js`,
+`D:\srv\clarvo-Site\src\components\onboarding\TurnstileWidget.tsx`
+(nuevo, repo separado), `D:\srv\clarvo-Site\src\components\onboarding\OnboardingModal.tsx`,
+`D:\srv\clarvo-Site\src\lib\onboardingApi.ts`,
+`D:\srv\clarvo-Site\src\config\publicEnv.ts`,
+`D:\srv\clarvo-Site\.env.example`, `PROJECT_STATE.md` (este punto).
+Ninguno commiteado todavía en ninguno de los 2 repos.

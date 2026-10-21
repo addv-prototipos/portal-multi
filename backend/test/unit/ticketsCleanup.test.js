@@ -278,6 +278,26 @@ describe('ticketsCleanup.js', () => {
   // cualquier tenant real nunca se purgaban por retención. Mismo patrón de
   // prueba que cierreMensual.test.js (dual base + tenants).
   describe('ejecutarLimpiezaParaTodos (dual base + tenants, punto de la auditoría #8)', () => {
+    const dbPasswordOriginal = process.env.DB_PASSWORD;
+
+    beforeEach(() => {
+      // Hallazgo m-07 (sonar_1.1.html): ejecutarLimpiezaParaTodos ahora
+      // exige DB_PASSWORD definido (fail-closed, ver ticketsCleanup.js).
+      process.env.DB_PASSWORD = 'claveAppNormal';
+    });
+
+    afterEach(() => {
+      if (dbPasswordOriginal === undefined) delete process.env.DB_PASSWORD;
+      else process.env.DB_PASSWORD = dbPasswordOriginal;
+    });
+
+    // Hallazgo m-07 (sonar_1.1.html, 2026-10-19).
+    test('sin DB_PASSWORD definido, truena de inmediato en vez de conectar con contraseña vacía', async () => {
+      delete process.env.DB_PASSWORD;
+      await expect(ejecutarLimpiezaParaTodos()).rejects.toThrow(/DB_PASSWORD no está definido/);
+      expect(obtenerPoolControl).not.toHaveBeenCalled();
+    });
+
     test('ejecuta la limpieza contra base ADDV Y cada tenant activo, con su propio prefijo de storage', async () => {
       getRetencionTicketsDias.mockResolvedValue(null); // retención inactiva en todas — solo importa la orquestación
       obtenerPoolControl.mockReturnValue({

@@ -25,6 +25,7 @@ const {
 } = require('./utils/tenantLifecycle');
 const { crearTenantIntake, ErrorIntakeTenant } = require('./utils/tenantIntake');
 const { actualizarMarcaTenant, subirLogoAlBackend, ErrorMarcaTenant } = require('./utils/tenantMarca');
+const { validarSlug } = require('./utils/tenant');
 const { getImagenMaxMb, setImagenMaxMb, getImportMaxFilas, setImportMaxFilas } = require('./utils/ajustesGlobales');
 const { getAccesoMinio, setAccesoMinio, ErrorAccesoMinio } = require('./utils/accesoMinio');
 const { getAccesoSmtp, setAccesoSmtp, ErrorAccesoSmtp } = require('./utils/accesoSmtp');
@@ -68,6 +69,7 @@ const {
   ErrorOnboarding,
 } = require('./utils/onboardingBorrador');
 const { convertirBorrador } = require('./utils/onboardingConversion');
+const { verificarTurnstile } = require('./utils/turnstile');
 const { hashPasswordAdmin, validarPasswordAdmin, derivarNombreUsuario } = require('./utils/credencialesAdmin');
 const { isValidEmail } = require('./utils/validateFiscal');
 
@@ -93,13 +95,6 @@ app.set('trust proxy', TRUST_PROXY_HOPS);
 
 app.use(helmet());
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
-// Límite de body amplio a propósito: el logo/favicon de marca se recibe
-// aquí como base64 desde el navegador (Punto 370: el máximo configurable
-// llega hasta IMAGEN_MAX_MB_MAX = 20 MB de archivo, ~27.4 MB de texto) y
-// se reenvía al backend por su endpoint interno — ver PUT
-// /api/control/tenants/:slug/marca y backend/server.js
-// (POST /internal/marca-logo/:slug, POST /internal/favicon/:slug).
-app.use(express.json({ limit: '30mb' }));
 
 // Sin req.tenant en este servicio (nunca resuelve un tenant específico),
 // así que la clave de los limiters es siempre "sin-tenant:IP" — mismo
@@ -145,6 +140,62 @@ const onboardingPublicLimiter = rateLimit({
   message: { error: 'Demasiadas solicitudes. Intenta de nuevo mas tarde.' },
 });
 
+// Hallazgo M-03 (sonar.html, 2026-10-14): /api/control se autentica con
+// Basic Auth, que el navegador reenvía automáticamente a CUALQUIER
+// request hacia este mismo origen/realm — incluida una disparada por un
+// <form>/fetch de un sitio ajeno mientras la víctima (el super-admin)
+// tiene sesión cacheada. Caso real citado en el informe: "suspender/
+// eliminar tenant, vaciar papelera, rotar credenciales" vía un
+// <form method=post> cruzado. CORS no basta (solo evita que el
+// ATACANTE lea la respuesta, la mutación ya corrió del lado servidor).
+// Mismo criterio exacto que backend/server.js: comparar `Origin` (si el
+// navegador lo manda, siempre en POST/PUT/PATCH/DELETE) contra
+// `req.get('host')`, + `Sec-Fetch-Site` como señal extra. Alcance
+// SOLO `/api/control/*` (prefijo del path, no global) — las rutas
+// `/api/public/onboarding/*` son públicas por diseño y cross-origin a
+// propósito desde clarvo.mx (su propio `onboardingCors`, más abajo),
+// aplicar esto ahí rompería ese flujo real. Cliente server-to-server
+// (api_usuario/api_clave) nunca manda `Origin`, pasa sin tocar.
+function requireOrigenPropio(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const secFetchSite = req.get('sec-fetch-site');
+  if (secFetchSite === 'cross-site') {
+    return res.status(403).json({ error: 'Origen no permitido.' });
+  }
+  const origin = req.get('origin');
+  if (origin) {
+    let origenHost = null;
+    try {
+      origenHost = new URL(origin).host;
+    } catch (err) {
+      origenHost = null;
+    }
+    const mismoOrigen = origenHost && origenHost === req.get('host');
+    const origenPermitidoPorCors = ALLOWED_ORIGIN && origin === ALLOWED_ORIGIN;
+    if (!mismoOrigen && !origenPermitidoPorCors) {
+      return res.status(403).json({ error: 'Origen no permitido.' });
+    }
+  }
+  next();
+}
+app.use('/api/control', requireOrigenPropio);
+
+// Hallazgo M-05 (sonar.html, 2026-10-14): adminCredencialesLimiter
+// (global, todo método) vivía DESPUÉS de express.json({ limit: '30mb' })
+// — cada request anónimo pagaba el parseo completo de hasta ~27 MB
+// ANTES de que el limiter pudiera responder 429. El rate limit no
+// depende del body (solo de la IP), así que se adelanta aquí, antes del
+// parser — ningún endpoint lo necesitaba después.
+app.use(adminCredencialesLimiter);
+
+// Límite de body amplio a propósito: el logo/favicon de marca se recibe
+// aquí como base64 desde el navegador (Punto 370: el máximo configurable
+// llega hasta IMAGEN_MAX_MB_MAX = 20 MB de archivo, ~27.4 MB de texto) y
+// se reenvía al backend por su endpoint interno — ver PUT
+// /api/control/tenants/:slug/marca y backend/server.js
+// (POST /internal/marca-logo/:slug, POST /internal/favicon/:slug).
+app.use(express.json({ limit: '30mb' }));
+
 // CORS propio de esta superficie — independiente de ALLOWED_ORIGIN de
 // arriba (ese gate protege /api/control/*, autenticado, default
 // deshabilitado por la auditoría 2026-09-03 hallazgo #9). El wizard de
@@ -188,15 +239,19 @@ async function manejarTransicionTenant(res, ejecutarTransicion) {
   }
 }
 
-app.use(adminCredencialesLimiter);
-
-// Auditoría de todo lo que sirve este servicio — salta GET (no hay ruta
-// de login propia, la sonda de credenciales es GET /api/control/tenants,
-// una lectura sin efecto de auditoría relevante). tenantSlug siempre
-// null: este servicio actúa cross-tenant por definición.
+// Auditoría de todo lo que sirve este servicio. Hallazgo M-19/A09
+// (sonar_1.1.html): antes saltaba TODO GET, así que ninguna lectura
+// cross-tenant (listado de tenants, credenciales MinIO/SMTP enmascaradas,
+// uso de usuarios y planes) dejaba traza — la única categoría OWASP que
+// seguía sin cumplir. `!req.adminUser` ya filtra las rutas públicas (health,
+// docs, onboarding, el propio probe de credenciales) sin necesidad del
+// chequeo de método: solo queda auditada la lectura de alguien YA
+// autenticado. `req.originalUrl` (no `req.path`) para que los filtros de
+// query string aplicados (ej. `?busqueda=...`) queden en el evento.
+// tenantSlug siempre null: este servicio actúa cross-tenant por
+// definición.
 app.use((req, res, next) => {
   res.on('finish', () => {
-    if (req.method === 'GET') return;
     if (!req.adminUser) return;
     registrarAccesoAdmin({
       actor: req.adminUser,
@@ -204,7 +259,7 @@ app.use((req, res, next) => {
       perfil: req.adminPerfil,
       tenantSlug: null,
       metodo: req.method,
-      ruta: req.path,
+      ruta: req.originalUrl,
       estatus: res.statusCode,
       ip: req.ip,
     }).catch((err) => console.error('No se pudo auditar el acceso de control:', err.message));
@@ -218,11 +273,21 @@ app.use((req, res, next) => {
 // new Function() del bundle es un fallback de globalThis para navegadores
 // viejos, inalcanzable en la práctica — no hace falta 'unsafe-eval'.
 // style-src SÍ necesita 'unsafe-inline' (bloques <style> literales del HTML).
+// Hallazgo m-01 (sonar_1.1.html, Fase D, punto 410): mismo criterio que
+// backend/server.js — DOCS_ENABLED invertido a opt-in (apagado por
+// defecto, 404 nunca 403); el compose de desarrollo lo fija a "true".
+function docsHabilitados() {
+  return process.env.DOCS_ENABLED === 'true';
+}
 app.use('/api/control/docs', (req, res, next) => {
+  if (!docsHabilitados()) return res.status(404).json({ error: 'Ruta no encontrada.' });
   res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https:; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
   next();
 });
-app.get('/api/control/docs.json', (req, res) => res.json(swaggerSpec));
+app.get('/api/control/docs.json', (req, res) => {
+  if (!docsHabilitados()) return res.status(404).json({ error: 'Ruta no encontrada.' });
+  res.json(swaggerSpec);
+});
 app.use('/api/control/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 
 // Health check real: confirma que control_tenants sí es alcanzable, no
@@ -325,6 +390,15 @@ app.post(
   '/api/public/onboarding/convertir/:token',
   onboardingPublicLimiter,
   asyncHandler(async (req, res) => {
+    // Hallazgo M-06 (sonar_1.1.html, Fase D, punto 410): única ruta que de
+    // verdad aprovisiona infraestructura — exige Turnstile antes de tocar
+    // convertirBorrador(). Mensaje genérico a propósito (nunca distingue
+    // "sin token" de "token inválido"/"sin configurar" al cliente, mismo
+    // criterio anti-enumeración del resto del sitio).
+    const verificacion = await verificarTurnstile((req.body || {}).turnstileToken, req.ip);
+    if (!verificacion.ok) {
+      return res.status(400).json({ error: 'No pudimos verificar que eres humano. Intenta de nuevo.' });
+    }
     try {
       const resultado = await convertirBorrador(req.params.token);
       res.json({ ok: true, ...resultado });
@@ -361,6 +435,18 @@ app.post(
   asyncHandler(async (req, res) => {
     try {
       const body = req.body || {};
+
+      // Hallazgo M-07 (sonar.html, 2026-10-14): subirLogoAlBackend()
+      // usaba body.slug SIN VALIDAR para armar la URL interna
+      // (/internal/marca-logo/<slug>) — un slug tipo
+      // "../../eliminar-tenant/victim" invocaba un endpoint interno
+      // PRIVILEGIADO distinto, con el X-Internal-Secret real. El resto
+      // de la validación de slug vive dentro de crearTenantIntake(), que
+      // se llama DESPUÉS de subir el logo — hay que adelantar el
+      // chequeo aquí para que ningún slug inválido llegue siquiera a
+      // armar esa URL.
+      const errorSlug = validarSlug(body.slug);
+      if (errorSlug) return res.status(400).json({ error: errorSlug });
 
       // Logo de marca opcional: se sube al almacenamiento (vía backend
       // interno) ANTES de crear la fila, para que el intake guarde la
@@ -848,6 +934,24 @@ app.put(
 // URL/usuario/password de MinIO, SOLO informativo (ver cabecera de
 // accesoMinio.js — no sincroniza con backend/ ni con MinIO real). Mismo
 // criterio de middlewares que el resto de /control (solo perfil super).
+//
+// Hallazgo M-08/M-19 (sonar.html, 2026-10-14): GET/PUT devolvían el
+// password descifrado en CADA respuesta — el frontend lo cargaba
+// automáticamente al abrir la pestaña "Accesos" (nunca a petición del
+// operador), así que cualquier bug de auth, proxy que loguee bodies o
+// extensión del navegador lo exponía sin que nadie lo hubiera pedido
+// realmente. Y como la auditoría global salta TODO GET (comentario de
+// más abajo, "salta GET"), ver ese password tampoco dejaba rastro. Fix:
+// GET/PUT ahora enmascaran (`passwordConfigurada: boolean`, nunca el
+// valor real); el valor real solo se obtiene con el nuevo endpoint
+// `POST .../revelar`, que al ser POST (no GET) SÍ pasa por la auditoría
+// global existente — cierra M-19 para este caso puntual sin tocar la
+// regla general de "no auditar lecturas".
+function enmascararAccesoMinio(acceso) {
+  const { password, ...resto } = acceso;
+  return { ...resto, passwordConfigurada: Boolean(password) };
+}
+
 app.get(
   '/api/control/accesos/minio',
   adminApiLimiter,
@@ -856,7 +960,7 @@ app.get(
   asyncHandler(async (req, res) => {
     try {
       const acceso = await getAccesoMinio();
-      res.json(acceso);
+      res.json(enmascararAccesoMinio(acceso));
     } catch (err) {
       if (err instanceof ErrorAccesoMinio || err instanceof ErrorCifrado) {
         // Nunca 502/503/504: nginx los intercepta globalmente y los
@@ -864,6 +968,24 @@ app.get(
         // CLAUDE.md) — un error real de configuración (CONTROL_VAULT_KEY
         // faltante) usa 500, no 503, para que el mensaje real le llegue
         // al operador en vez de una pantalla de robot genérica.
+        return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
+      }
+      throw err;
+    }
+  })
+);
+
+app.post(
+  '/api/control/accesos/minio/revelar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const acceso = await getAccesoMinio();
+      res.json({ password: acceso.password });
+    } catch (err) {
+      if (err instanceof ErrorAccesoMinio || err instanceof ErrorCifrado) {
         return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
       }
       throw err;
@@ -879,7 +1001,7 @@ app.put(
   asyncHandler(async (req, res) => {
     try {
       const acceso = await setAccesoMinio(req.body || {});
-      res.json({ ok: true, ...acceso });
+      res.json({ ok: true, ...enmascararAccesoMinio(acceso) });
     } catch (err) {
       if (err instanceof ErrorAccesoMinio || err instanceof ErrorCifrado) {
         // Nunca 502/503/504: nginx los intercepta globalmente y los
@@ -900,6 +1022,13 @@ app.put(
 // onboarding) sin depender de backend en tiempo real. Mismo patrón que
 // "Accesos — MinIO" (bloc de notas cifrado, reusa ajustes_globales) —
 // ver cabecera de accesoSmtp.js.
+// Hallazgo M-08/M-19 (sonar.html): mismo criterio de enmascarar +
+// revelar auditado que accesoMinio.js arriba.
+function enmascararAccesoSmtp(acceso) {
+  const { password, ...resto } = acceso;
+  return { ...resto, passwordConfigurada: Boolean(password) };
+}
+
 app.get(
   '/api/control/accesos/smtp',
   adminApiLimiter,
@@ -908,7 +1037,25 @@ app.get(
   asyncHandler(async (req, res) => {
     try {
       const acceso = await getAccesoSmtp();
-      res.json(acceso);
+      res.json(enmascararAccesoSmtp(acceso));
+    } catch (err) {
+      if (err instanceof ErrorAccesoSmtp || err instanceof ErrorCifrado) {
+        return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
+      }
+      throw err;
+    }
+  })
+);
+
+app.post(
+  '/api/control/accesos/smtp/revelar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const acceso = await getAccesoSmtp();
+      res.json({ password: acceso.password });
     } catch (err) {
       if (err instanceof ErrorAccesoSmtp || err instanceof ErrorCifrado) {
         return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
@@ -926,7 +1073,7 @@ app.put(
   asyncHandler(async (req, res) => {
     try {
       const acceso = await setAccesoSmtp(req.body || {});
-      res.json({ ok: true, ...acceso });
+      res.json({ ok: true, ...enmascararAccesoSmtp(acceso) });
     } catch (err) {
       if (err instanceof ErrorAccesoSmtp || err instanceof ErrorCifrado) {
         return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
@@ -1362,5 +1509,11 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+
+// Probar el guard CSRF (M-03) por HTTP vía supertest no puede fijar un
+// Origin que coincida con el host real (puerto efímero asignado en
+// cada corrida) — se expone para un test unitario directo y
+// determinista, mismo criterio que backend/server.js:app.hostPermitido.
+app.requireOrigenPropio = requireOrigenPropio;
 
 module.exports = app;

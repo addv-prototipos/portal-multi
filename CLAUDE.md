@@ -201,6 +201,33 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   veces no recoge cambios de archivo — usar `--no-cache` seguido de
   `up -d --force-recreate <servicio>` cuando un cambio no aparece al
   probar.
+- **`docker compose restart <servicio>` nunca re-lee `env_file`/`.env`**
+  (punto 403, hallazgo M-11, 2026-10-16): solo reinicia el proceso
+  dentro del contenedor YA existente — un cambio en una variable que
+  viene de `env_file:` (o de la interpolación `${VAR}` del `.env` host)
+  necesita `up -d --force-recreate <servicio>` (o un rebuild real) para
+  tomar efecto. Confirmado real al probar la persistencia de
+  `admin-users.env`: `restart` seguía viendo el valor viejo, `--force-recreate`
+  sí vio el nuevo.
+- **La extensión de Chrome para navegación automatizada NO puede abrir
+  `file://`** (punto en curso, 2026-10-16): cualquier intento de
+  `navigate` a una ruta `file:///...` devuelve "Can't interact with
+  browser-internal or unparseable URLs", sin importar desde qué pestaña
+  se navegue — es una restricción de la extensión, no algo que se pueda
+  activar desde esta sesión. Afecta sobre todo a `pendientes.html`
+  (vive en el repo, nunca servido por nginx, se abre siempre como
+  archivo local) — su `localStorage` de checks NO es legible por
+  automatización; si se necesita leerlo, pedirle al usuario el botón
+  "Copiar estado" y que pegue el resultado, nunca intentar navegar ahí
+  directo.
+- **Después de recrear `backend`, `frontend` (nginx) puede quedar
+  apuntando a la IP vieja del contenedor** (observado repetidamente
+  2026-10-15/16, no es un bug de esta sesión): nginx resuelve el nombre
+  "backend" a una IP de Docker una sola vez y no siempre la refresca
+  tras un `--force-recreate` de ese servicio — síntoma: `/api/health`
+  responde la página de `mantenimiento.html` (502/503) aunque
+  `docker compose ps` muestre `backend` como `healthy`. Fix de un paso:
+  `docker compose restart frontend` después de recrear `backend`.
 - **Scripts de `prod/` horneados en la imagen**: el backend de
   producción construye desde `prod/backend` sin bind mount (solo
   `uploads` es volumen) — un cambio en `prod/backend/scripts/*` (p. ej.
@@ -232,6 +259,15 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 - **Pruebas de responsive**: replicar el `@media` real y su breakpoint
   exacto en el arnés de prueba — angostar solo `body{max-width}` no
   cambia `window.innerWidth` y no dispara el `@media` real.
+- **Playwright en este entorno: chromium NO instalado + transiciones a
+  medio camino** (punto 400, 2026-10-14): los binarios de chromium no
+  existen aquí — usar `--channel msedge` (Edge del sistema) en el CLI, o
+  `chromium.launch({ channel: 'msedge' })` en scripts con
+  `playwright-core` instalado en un temporal FUERA del repo (nunca en el
+  `node_modules` del proyecto). Y al capturar pantallas justo después de
+  un clic, esperar ~400 ms: cualquier `transition` de 150 ms dispara el
+  screenshot a medio camino y un estado a medio pintar se confunde con
+  un bug de estilos (falso positivo de `aria-pressed`/colores).
 - **`setFieldError(id)`** ya antepone `"error-"` internamente — nunca
   volver a prefijarlo en el call site (bug repetido varias veces).
 - **Fechas "hoy/mes" por zona horaria** (punto 371, 2026-10-05): nunca
@@ -365,6 +401,69 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   criterio que ya aplica `requiereFeature()` en el backend (nunca tocar
   una superficie más ancha de la necesaria). Sin `=` en `error_page`: el
   status code se mantiene en 404 real, nunca se reescribe a 200.
+- **Tests que mockean `ensureSchema.js`/`controlDb.js`: derivar las
+  fixtures de la lista de columnas real, nunca copiarla a mano** (punto
+  407, 2026-10-19 — N-02 de `sonar_1.1.html`): `COLUMNAS_NUEVAS`/
+  `COLUMNAS_PLANES_NUEVAS` (`control/scripts/ensureSchema.js`) ya se
+  desincronizaron 2 veces de la copia manual en
+  `test/unit/ensureSchema.test.js` (conteos `toHaveBeenCalledTimes(N)`
+  hardcodeados) — cada columna nueva agregada en una sesión posterior
+  rompía el test en silencio hasta que alguien corría la suite. Fix
+  aplicado: ambas constantes se exportan desde `ensureSchema.js` y el
+  test las importa para construir `TODAS_LAS_COLUMNAS` y los conteos
+  esperados en tiempo de ejecución — ninguna columna nueva debe volver a
+  romper este test. Si se escribe un test nuevo sobre una función que
+  itera un array de columnas/definiciones para migrar un esquema, aplicar
+  el mismo patrón desde el inicio (exportar el array, nunca duplicarlo).
+- **Dos fuentes distintas de 413 en las rutas de logo/favicon — no
+  confundirlas al escribir un test de tamaño** (punto 408, 2026-10-19,
+  M-05): (1) el límite del body parser (`express.json({limit:...})`,
+  ahora 2mb global + 30mb scoped a `/internal/marca-logo` y
+  `/internal/favicon`, `backend/server.js`) rechaza por tamaño del BODY
+  JSON crudo (la cadena base64 + overhead); (2) el candado de negocio
+  `IMAGEN_MAX_MB`/`IMAGEN_MAX_MB_MAX` (`backend/utils/ajustesGlobales.js`,
+  default 2MB) rechaza por tamaño del BUFFER ya decodificado, con su
+  propio 413 (`server.js:787` y hermanos). Un buffer de imagen de prueba
+  que coincida por casualidad con el límite del body parser (ej. ambos en
+  "2") puede disparar el candado de negocio en vez del que se quiere
+  probar — al generar un payload de prueba para una ruta de imagen,
+  calcular aparte: tamaño DECODIFICADO (contra `IMAGEN_MAX_MB`) vs tamaño
+  del BODY JSON/base64 (contra el límite del parser), nunca asumir que
+  son el mismo número.
+- **`control/server.js` tiene un rate limiter GLOBAL sin prefijo de
+  ruta** (`adminCredencialesLimiter`, `app.use(adminCredencialesLimiter)`
+  sin path, M-05/sonar.html) — cuenta CUALQUIER respuesta no-2xx de
+  CUALQUIER ruta contra un presupuesto compartido de 50 por IP/15min, y
+  `control/test/integration/control.test.js` hace `require('../../server')`
+  una sola vez al inicio del archivo, así que ese presupuesto se comparte
+  entre TODOS los tests del archivo. Agregar un puñado de tests nuevos
+  que esperan una respuesta de error (400/401/403/404) puede agotar ese
+  presupuesto en silencio y tumbar con 429 tests completamente ajenos más
+  abajo en el mismo archivo (reproducido real, punto 410: 3 tests 400 del
+  candado de Turnstile rompieron las pruebas de `/health` del final).
+  Fix: para un bloque de tests que vaya a provocar varias respuestas de
+  error, aislar su propia `app` con `jest.resetModules()` +
+  `require('../../server')` fresco dentro de CADA test (mismo patrón ya
+  usado en `docsEnabled.test.js`), nunca reusar la `app` compartida del
+  resto del archivo.
+- **Patrón para integrar un servicio anti-bot/captcha externo (Cloudflare
+  Turnstile, punto 410, M-06)**: falla CERRADO sin la llave real — sin
+  `TURNSTILE_SECRET_KEY` configurado, `control/utils/turnstile.js`
+  rechaza el onboarding en vez de omitir la verificación (decisión
+  explícita del usuario, no asumir "fail open" para no romper flujos sin
+  configurar). El default de desarrollo usa las llaves PÚBLICAS DE PRUEBA
+  que el propio proveedor documenta (`1x00000000000000000000AA`/
+  `1x0000000000000000000000000000000AA` para Turnstile, siempre
+  aprueban) — nunca un secreto real hardcodeado, y SOLO en
+  `docker-compose.yml` (desarrollo), nunca en `prod/`. El token del
+  widget se verifica en el paso donde de verdad importa (la operación
+  sensible/cara), no en el primer paso de un wizard multi-paso: los
+  tokens de este tipo de servicio son de un solo uso y expiran en
+  minutos, así que pedirlo al INICIO de un flujo largo lo invalida antes
+  de que el usuario llegue al final. Replicar este mismo criterio
+  (fail-closed + llaves de prueba públicas solo en dev + verificar en el
+  paso sensible, no en el primero) si se integra otro servicio similar en
+  el futuro.
 - **`ensureSchema()` corre en cada restart/deploy** — cualquier backfill o
   valor forzado debe ser CONDICIONAL (solo si el dato está en un estado
   viejo conocido), nunca incondicional, o revierte en silencio datos
@@ -520,7 +619,15 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   fila — ver PROJECT_STATE.md punto 336.
 - **Cero emojis** en producción, correos y también en
   propuestas/mockups/Artifacts de diseño — sustituir por los SVG
-  feather-like ya usados en el sitio o un `<span>` circular de color.
+  feather-like ya usados en el sitio o un `<span>` circular de color. Esto
+  incluye glifos Unicode de señalización usados como texto crudo
+  (`✕`/`✓`/`⚠`/`⏳`/`⟳`/`✗`, etc.), no solo emojis de color — hallazgo
+  m-15 (`sonar_1.1.html`, punto 409) encontró 70 de estos en 7 archivos
+  del frontend, todos ya migrados a SVG inline. `frontend/admin.js` ya
+  define `ICONO_PENDIENTE_ALERTA` (triángulo de alerta) e
+  `ICONO_PENDIENTE_RELOJ` (reloj) para los badges de "pendiente de
+  sincronizar" del modo offline — reusar esos antes de volver a escribir
+  un glifo o un `<svg>` nuevo para ese mismo significado.
 - **`backend/` y `control/` son builds de Docker separados** — nunca
   copiar código entre ellos en producción; código pequeño compartido se
   duplica a propósito (mismo patrón que el frontend sin bundler).
@@ -735,6 +842,31 @@ node --check backend/ruta/al/archivo.js
   `backend/utils/auth.js`).
 - Todas las páginas del frontend reutilizan `style.css` como base; los
   demás `.css` son extensiones, no reemplazos.
+- **`.env` y `.env.example` (y cualquier variante `.env.*`) NUNCA van al
+  repositorio** — regla global decidida por el usuario, 2026-10-19: ambos
+  están en `.gitignore` sin excepciones; `.env.example` se quitó del índice
+  y del árbol de `origin/main` (commit `4fc96b2`), aunque el archivo sigue
+  en disco local y su contenido viejo permanece en el historial de 4 commits
+  previos (sin secretos reales: solo `changeme_*`/`admin:admin`). Si algún
+  día aparece trackeado de nuevo: `git rm --cached <archivo>` + commit,
+  nunca `git rm` (eso lo borraría también del disco). Ver `PROJECT_STATE.md`
+  punto 405.
+- **`.env.example` tiene 7 secciones por dominio, con índice y tag de
+  severidad al inicio** (punto 406, 2026-10-19, híbrido A+C elegido por el
+  usuario entre 3 propuestas de IA): `01 Core` (REQUERIDO, arranque local
+  mínimo) → `02 Seguridad y sesiones` → `03 Almacenamiento/MinIO` →
+  `04 Red/CORS` → `05 App de control y multi-tenant` →
+  `06 Alta disponibilidad MySQL/Swarm` (AVANZADO) → `07 Integraciones
+  externas` (OPCIONAL). Una variable nueva se agrega a la sección de su
+  dominio, nunca al final del archivo — y el índice de arriba se actualiza
+  en el mismo cambio. Severidad = variable descomentada (activa hoy) es
+  REQUERIDO; comentada es OPCIONAL (override de un default razonable) o
+  AVANZADO (depende de una arquitectura aún sin efecto, ej. Swarm o
+  multi-tenant por URL) — nunca marcar REQUERIDO algo que hoy vive
+  comentado. Drift conocido sin corregir entre este archivo y
+  `README.md` (contradicción de `ADMIN_USERS`/M-11, variables en una
+  fuente que no están en la otra): ver punto 406, pendiente de decisión
+  del usuario, no asumir cuál es la fuente de verdad.
 - **Identidad de marca Clarvo = navy/cian, verificada contra el logo real
   (no contra una variable CSS)** — decisión del usuario, 2026-10-02, no
   negociable y sin excepción por superficie. Al proponer o tocar

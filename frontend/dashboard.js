@@ -23,6 +23,14 @@
     return div.innerHTML;
   }
 
+  // Hallazgo C-05 (sonar.html, 2026-10-13): escapeHtml() escapa & < > pero
+  // nunca " ' ` (textContent→innerHTML no los toca, no son especiales en
+  // un nodo de texto). Seguro para contenido de elemento, NO dentro de un
+  // atributo (`attr="${escapeHtml(x)}"`). Usar escapeHtmlAttr() ahí.
+  function escapeHtmlAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
+  }
+
   function formatFecha(fechaInput) {
     if (!fechaInput) return '—';
     const texto = String(fechaInput);
@@ -69,7 +77,7 @@
         <td data-label="Folio"><strong>${escapeHtml(t.folio)}</strong></td>
         <td data-label="Uso de CFDI">${escapeHtml(t.uso_cfdi || '—')}</td>
         <td data-label="Ticket">${escapeHtml(t.imagen_nombre_original)}</td>
-        <td data-label="Estatus"><span class="estatus-badge ${info.clase}" data-tooltip="${escapeHtml(info.tooltip)}">${escapeHtml(info.texto)}</span></td>
+        <td data-label="Estatus"><span class="estatus-badge ${info.clase}" data-tooltip="${escapeHtmlAttr(info.tooltip)}">${escapeHtml(info.texto)}</span></td>
         <td data-label="Fecha">${formatFecha(t.actualizado_en)}</td>
         <td data-label=""></td>
       `;

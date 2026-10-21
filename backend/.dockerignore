@@ -3,3 +3,11 @@ npm-debug.log
 .env
 .git
 .gitignore
+# Hallazgo m-10 (sonar_1.1.html, 2026-10-19): test/ trae escenarios de
+# auth (credenciales de ejemplo) y scripts/ trae lógica de privilegios
+# (seed, aprovisionamiento) — ninguno de los dos se invoca dentro del
+# contenedor en runtime (provisionar-tenant.js y similares se corren
+# desde el HOST, ver README), así que no hace falta empaquetarlos en la
+# imagen de producción.
+test
+scripts

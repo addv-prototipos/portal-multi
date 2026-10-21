@@ -82,4 +82,39 @@ describe('utils/tipoCambio — obtenerTipoCambioUSD', () => {
 
     jest.useRealTimers();
   });
+
+  // Hallazgo m-03 (sonar_1.1.html, 2026-10-19).
+  test('el token viaja por header Bmx-Token, nunca en la query string (queda en logs de proxy)', async () => {
+    process.env.BANXICO_TOKEN = 'token-secreto-de-prueba';
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ bmx: { series: [{ datos: [{ fecha: '26/08/2026', dato: '18.3542' }] }] } }),
+    });
+    const { obtenerTipoCambioUSD } = require('../../utils/tipoCambio');
+    await obtenerTipoCambioUSD();
+
+    const [urlLlamada, opcionesLlamada] = global.fetch.mock.calls[0];
+    expect(urlLlamada).not.toContain('token-secreto-de-prueba');
+    expect(opcionesLlamada.headers['Bmx-Token']).toBe('token-secreto-de-prueba');
+  });
+
+  // El bug real del punto 371 aplicado a esta fuente externa: 2026-08-25
+  // 23:30 hora de CDMX (UTC-6) es TODAVÍA 25 de agosto ahí, pero ya
+  // 2026-08-26 en UTC — toISOString().slice(0,10) habría cacheado/pedido
+  // el valor del día 26 seis horas y media antes de que ese día hábil
+  // siquiera empezara en México.
+  test('a las 23:30 hora de CDMX, "hoy" sigue siendo el día de CDMX, no el de UTC (adelantado por el huso horario)', async () => {
+    process.env.BANXICO_TOKEN = 'token-de-prueba';
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+    // 2026-08-26T05:30:00Z = 2026-08-25T23:30:00 en America/Mexico_City (UTC-6).
+    jest.setSystemTime(new Date('2026-08-26T05:30:00Z'));
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ bmx: { series: [{ datos: [{ fecha: '25/08/2026', dato: '18.10' }] }] } }),
+    });
+    const { obtenerTipoCambioUSD } = require('../../utils/tipoCambio');
+    const resultado = await obtenerTipoCambioUSD();
+    expect(resultado.fecha).toBe('2026-08-25');
+    jest.useRealTimers();
+  });
 });

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compresor WebP · Probador local</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<main class="hoja">
+
+  <header class="cabecera">
+    <h1>Compresor WebP</h1>
+    <p class="intro">Probador local del m&oacute;dulo: la imagen se comprime en tu navegador (canvas &rarr; WebP) y nunca se sube a ning&uacute;n servidor. Elige un archivo y observa el aviso.</p>
+  </header>
+
+  <div class="herramientas">
+    <div class="grupo" role="group" aria-label="Estilo del aviso">
+      <span class="grupo-label" id="lbl-estilo">Aviso</span>
+      <button type="button" class="seg" data-estilo="linea" aria-pressed="true" aria-describedby="lbl-estilo">En l&iacute;nea</button>
+      <button type="button" class="seg" data-estilo="ficha" aria-pressed="false" aria-describedby="lbl-estilo">Ficha</button>
+      <button type="button" class="seg" data-estilo="imagen" aria-pressed="false" aria-describedby="lbl-estilo">Imagen</button>
+    </div>
+  </div>
+
+  <section class="probador">
+    <span class="campo-label" id="etiqueta-imagen">Imagen del producto</span>
+
+    <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-labelledby="etiqueta-imagen">
+      <svg class="dz-icono" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <p class="dz-titulo">Arrastra una imagen o haz clic para seleccionar</p>
+      <p class="dz-hint">JPG, PNG o WEBP &middot; m&aacute;x. 2 MB</p>
+    </div>
+
+    <!-- Estilo "En línea": aviso + barra fuera del recuadro -->
+    <div class="aviso" id="aviso" hidden></div>
+    <div class="barra" id="barra" role="progressbar" aria-label="Avance de compresi&oacute;n" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span id="barra-relleno" style="transform:scaleX(0)"></span></div>
+    <p class="aviso-meta" id="meta" hidden></p>
+
+    <div class="error" id="error" role="alert" hidden></div>
+
+    <p class="solo-lector" id="estado-vivo" aria-live="polite"></p>
+    <input type="file" id="entrada-archivo" accept="image/jpeg,image/png,image/webp" hidden>
+  </section>
+
+  <details class="ajustes" id="ajustes">
+    <summary>Ajustes de prueba</summary>
+    <div class="ajustes-campos">
+      <div class="ajuste">
+        <label for="ajuste-objetivo">Objetivo de tama&ntilde;o (KB)</label>
+        <input type="number" id="ajuste-objetivo" min="50" max="2000" step="50" value="200" inputmode="numeric">
+        <p class="field-hint">Primer resultado &le; objetivo det&eacute;n la escalera.</p>
+      </div>
+      <div class="ajuste">
+        <span class="ajuste-label" id="lbl-calidad">Calidad m&iacute;nima: <span class="ajuste-valor" id="valor-calidad">0.45</span></span>
+        <input type="range" id="ajuste-calidad" min="30" max="60" step="5" value="45" aria-labelledby="lbl-calidad">
+        <p class="field-hint">Piso: la escalera no baja de aqu&iacute;.</p>
+      </div>
+      <div class="ajuste">
+        <label for="ajuste-dim">Lado m&aacute;ximo (px)</label>
+        <select id="ajuste-dim">
+          <option value="1024">1024</option>
+          <option value="1600" selected>1600</option>
+          <option value="2048">2048</option>
+        </select>
+        <p class="field-hint">M&aacute;s peque&ntilde;o = archivo final m&aacute;s liviano.</p>
+      </div>
+    </div>
+  </details>
+
+  <p class="pie">M&oacute;dulo aislado en <strong>webp/</strong>, sin integrar a Clarvo. Propuestas de dise&ntilde;o en <a href="propuestas/index.html">propuestas/index.html</a>.</p>
+
+</main>
+
+<script src="comprimir.js"></script>
+<script src="app.js" defer></script>
+</body>
+</html>

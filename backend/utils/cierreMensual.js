@@ -214,6 +214,14 @@ async function ejecutarCierresMensualesParaTodos(periodoForzado = null) {
     console.warn('[cierreMensual] Corrida anterior todavía en progreso — se omite esta llamada.');
     return [{ omitido: true, motivo: 'corrida_anterior_en_progreso', periodo: periodoForzado || 'auto' }];
   }
+  // Hallazgo m-07 (sonar_1.1.html, 2026-10-19): `process.env.DB_PASSWORD
+  // || ''` convertía "la variable no está definida" en "conéctate con
+  // contraseña vacía" — un fallo de configuración se disfrazaba de
+  // intento de login real contra cada base de tenant, en vez de fallar
+  // alto y claro aquí, una sola vez.
+  if (!process.env.DB_PASSWORD) {
+    throw new Error('[cierreMensual] DB_PASSWORD no está definido — no se puede conectar a las bases de tenant.');
+  }
   corridaEnProgreso = true;
   try {
     const resultados = [];
@@ -253,7 +261,7 @@ async function ejecutarCierresMensualesParaTodos(periodoForzado = null) {
             host: tenant.db_host,
             port: Number(process.env.DB_PORT || 3306),
             user: tenant.db_user,
-            password: process.env.DB_PASSWORD || '',
+            password: process.env.DB_PASSWORD,
             database: tenant.db_name,
           });
           const r = await ejecutarComoTenant(tenantPool, () => ejecutarCierreMensualParaDB(periodoForzado));

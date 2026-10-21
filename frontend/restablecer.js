@@ -94,7 +94,30 @@
     els.btnRestablecerLabel.textContent = cargando ? 'Guardando…' : 'Guardar y continuar';
   }
 
-  const token = new URLSearchParams(window.location.search).get('token') || '';
+  // Hallazgo M-13 (sonar.html, 2026-10-14): el token venía SIEMPRE como
+  // query string (?token=...) — queda en el historial del navegador, en
+  // el access log de nginx (la variante /restablecer.html?token=... no
+  // estaba cubierta por el access_log off de /restablecer exacto) y en
+  // cualquier Referer si esta página cargara un recurso externo. El
+  // fragmento (#token=...) nunca se manda al servidor (ni a nginx ni al
+  // backend) — backend/server.js ahora arma el enlace así. Se sigue
+  // aceptando el query string como respaldo transitorio (un correo de
+  // recuperación ya enviado antes de este cambio, dentro de su ventana
+  // de 30 min) — leer de query además de hash no reintroduce el riesgo:
+  // el access_log de ambas variantes de /restablecer ya está apagado, y
+  // de cualquier forma se limpia la URL abajo con history.replaceState.
+  function extraerToken() {
+    const delHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token');
+    if (delHash) return delHash;
+    return new URLSearchParams(window.location.search).get('token') || '';
+  }
+  const token = extraerToken();
+  // Retira el token de la URL visible en cuanto se leyó — ni el
+  // historial del navegador ni una captura de pantalla accidental de la
+  // barra de direcciones conservan el valor después de este punto.
+  if (token && window.history && window.history.replaceState) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
 
   els.formRestablecer.addEventListener('submit', async (e) => {
     e.preventDefault();

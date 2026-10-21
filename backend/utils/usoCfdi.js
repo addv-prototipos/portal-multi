@@ -96,8 +96,8 @@ function normalizarCatalogoRemoto(texto) {
   return normalizarCatalogoDesdeTexto(texto, { claveMaxLen: 10, aliasClave: ['c_UsoCFDI'] });
 }
 
-async function sincronizarDesdeOrigen(urlPersonalizada) {
-  const url = urlPersonalizada || process.env.USO_CFDI_SYNC_URL;
+async function sincronizarDesdeOrigen() {
+  const url = process.env.USO_CFDI_SYNC_URL;
 
   // No se asume una URL por defecto: un origen externo "adivinado" puede
   // dejar de existir o nunca haber sido correcto (por eso este mensaje es

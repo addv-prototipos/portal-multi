@@ -198,6 +198,30 @@ describe('Campana de notificaciones del cliente', () => {
       );
     });
 
+    // Hallazgo M-01 (sonar.html, 2026-10-14): mensaje pasaba por
+    // sanitizeTextoLibre() (solo quita caracteres de control, pensado
+    // para correo, nunca para HTML) — un admin podía guardar etiquetas
+    // HTML/script que portal.js pintaba crudas con innerHTML. Ahora usa
+    // sanitizeText() (sí quita etiquetas), defensa en profundidad junto
+    // con escapeHtml() en el render del cliente.
+    test('mensaje con etiquetas HTML/script se guarda sin ellas (M-01)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal (zona_horaria)
+      pool.query.mockResolvedValueOnce([{ insertId: 6 }]); // INSERT
+
+      const res = await request(app)
+        .post('/api/admin/promociones')
+        .auth(usuario, password)
+        .send({ titulo: 'Promo', mensaje: '<img src=x onerror="robarSesion()">Hola' });
+
+      expect(res.status).toBe(201);
+      expect(pool.query).toHaveBeenNthCalledWith(
+        3,
+        'INSERT INTO notificaciones_cliente (rfc, tipo, titulo, mensaje, orden_id, vigencia_hasta, creado_por, creado_en) VALUES (NULL, ?, ?, ?, NULL, ?, ?, ?)',
+        ['promocion', 'Promo', 'Hola', null, usuario, expect.any(Date)]
+      );
+    });
+
     test('con vigencia futura: guarda vigencia_hasta como el instante exclusivo del día siguiente', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       pool.query.mockResolvedValueOnce([[{ valor: JSON.stringify({ zona_horaria: 'America/Mexico_City' }) }]]); // getConfiguracionGlobal

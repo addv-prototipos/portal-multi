@@ -51,7 +51,25 @@
   const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 
   let archivoSeleccionado = null;
+  let archivoComprimidoPromise = null;
   let previewUrl = null;
+
+  // Comprime a WebP en el navegador antes de subir (módulo auditado en
+  // webp/comprimir.js, copiado tal cual a frontend/comprimir.js — cero
+  // red). Se dispara en segundo plano al elegir la foto (no bloquea la
+  // vista previa) y se espera justo antes de enviar. Si el módulo no
+  // cargó o la compresión falla por cualquier motivo, sigue con el
+  // archivo original: nunca bloquea el envío de un ticket real.
+  async function comprimirSiAplica(archivo) {
+    if (!window.comprimirImagen || !archivo || !archivo.type || archivo.type.indexOf('image/') !== 0) return archivo;
+    try {
+      const r = await window.comprimirImagen(archivo, { objetivoKB: 400, calidadMin: 0.55, dimMaxPx: 1800 });
+      if (r.sinCambios) return archivo;
+      return new File([r.blob], r.nombre, { type: r.blob.type || 'image/webp' });
+    } catch (err) {
+      return archivo;
+    }
+  }
 
   function goToStep(panel) {
     els.panelSubir.classList.toggle('is-active', panel === 'subir');
@@ -161,6 +179,10 @@
       return;
     }
     archivoSeleccionado = file;
+    // Se dispara en segundo plano al elegir la foto — no bloquea la vista
+    // previa (que sigue usando el archivo original de inmediato) — y se
+    // espera justo antes de enviar el ticket.
+    archivoComprimidoPromise = comprimirSiAplica(file);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(file);
     els.previewImagen.src = previewUrl;
@@ -171,6 +193,7 @@
   els.btnQuitarImagen.addEventListener('click', (e) => {
     e.stopPropagation();
     archivoSeleccionado = null;
+    archivoComprimidoPromise = null;
     els.inputImagen.value = '';
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
@@ -197,7 +220,7 @@
     }
   });
 
-  els.btnSubirTicket.addEventListener('click', () => {
+  els.btnSubirTicket.addEventListener('click', async () => {
     els.errorImagen.textContent = '';
     document.getElementById('error-ticket-numero-compra').textContent = '';
     document.getElementById('error-ticket-total-compra').textContent = '';
@@ -266,8 +289,15 @@
       return;
     }
 
+    // El botón ya queda deshabilitado aquí (antes del fetch/XHR) para
+    // evitar doble envío mientras se espera la compresión en segundo
+    // plano disparada al elegir la foto — casi siempre ya terminó para
+    // cuando el cliente llega a dar clic en "Enviar ticket".
+    setSubiendoLoading(true);
+    const archivoParaSubir = (await archivoComprimidoPromise) || archivoSeleccionado;
+
     const formData = new FormData();
-    formData.append('imagen', archivoSeleccionado);
+    formData.append('imagen', archivoParaSubir);
     if (ordenesCompraHabilitado) {
       formData.append('numero_compra', numeroCompra);
       formData.append('total_compra', String(totalCompra));
@@ -283,7 +313,6 @@
     xhr.open('POST', `${API_BASE}/tickets`);
     xhr.withCredentials = true;
 
-    setSubiendoLoading(true);
     els.progressWrap.hidden = false;
 
     xhr.upload.addEventListener('progress', (e) => {
@@ -353,6 +382,7 @@
 
   els.btnOtroTicket.addEventListener('click', () => {
     archivoSeleccionado = null;
+    archivoComprimidoPromise = null;
     els.inputImagen.value = '';
     els.usoCfdiSelect.value = '';
     els.tipoPagoSelect.value = '';

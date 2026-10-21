@@ -320,4 +320,58 @@ describe('authUsuario.js', () => {
       expect(res.clearCookie).toHaveBeenCalledWith('sesion_usuario', { path: '/cliente1' });
     });
   });
+
+  // Hallazgo M-18 (sonar_1.1.html, 2026-10-19): secure debe ser SIEMPRE
+  // true en producción (nunca depender de COOKIE_SECURE para el default),
+  // y el módulo debe abortar al cargarse si se pide explícitamente
+  // COOKIE_SECURE=false con NODE_ENV=production — mismo criterio
+  // fail-closed que C-02 (ADMIN_USERS) en utils/auth.js.
+  describe('secure de la cookie de sesión — fail-closed en producción (M-18)', () => {
+    const nodeEnvOriginal = process.env.NODE_ENV;
+    const cookieSecureOriginal = process.env.COOKIE_SECURE;
+
+    afterEach(() => {
+      process.env.NODE_ENV = nodeEnvOriginal;
+      if (cookieSecureOriginal === undefined) delete process.env.COOKIE_SECURE;
+      else process.env.COOKIE_SECURE = cookieSecureOriginal;
+      jest.resetModules();
+    });
+
+    test('NODE_ENV=production con COOKIE_SECURE=false: el módulo truena al cargarse', () => {
+      jest.resetModules();
+      process.env.NODE_ENV = 'production';
+      process.env.COOKIE_SECURE = 'false';
+      expect(() => require('../../utils/authUsuario')).toThrow(/COOKIE_SECURE.*producci[oó]n/i);
+    });
+
+    test('NODE_ENV=production sin COOKIE_SECURE definido: carga normal y secure queda en true (default seguro, no depende de la variable)', () => {
+      jest.resetModules();
+      process.env.NODE_ENV = 'production';
+      delete process.env.COOKIE_SECURE;
+      const mod = require('../../utils/authUsuario');
+      const res = { cookie: jest.fn() };
+      mod.establecerCookieSesion(res, 'GOMJ800101ABC');
+      expect(res.cookie.mock.calls[0][2].secure).toBe(true);
+    });
+
+    test('NODE_ENV=production con COOKIE_SECURE=true: carga normal, secure true (explícito, sin sorpresas)', () => {
+      jest.resetModules();
+      process.env.NODE_ENV = 'production';
+      process.env.COOKIE_SECURE = 'true';
+      const mod = require('../../utils/authUsuario');
+      const res = { cookie: jest.fn() };
+      mod.establecerCookieSesion(res, 'GOMJ800101ABC');
+      expect(res.cookie.mock.calls[0][2].secure).toBe(true);
+    });
+
+    test('NODE_ENV=development con COOKIE_SECURE=false (o sin definir): sigue en false, comportamiento de siempre para LAN/HTTP', () => {
+      jest.resetModules();
+      process.env.NODE_ENV = 'development';
+      delete process.env.COOKIE_SECURE;
+      const mod = require('../../utils/authUsuario');
+      const res = { cookie: jest.fn() };
+      mod.establecerCookieSesion(res, 'GOMJ800101ABC');
+      expect(res.cookie.mock.calls[0][2].secure).toBe(false);
+    });
+  });
 });

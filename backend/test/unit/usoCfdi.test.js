@@ -177,17 +177,20 @@ describe('usoCfdi.js', () => {
 
     test('lanza error si fetch no puede conectar', async () => {
       global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
-      await expect(sincronizarDesdeOrigen('https://sat.example/catalogo')).rejects.toThrow(/No se pudo conectar/);
+      process.env.USO_CFDI_SYNC_URL = 'https://sat.example/catalogo';
+      await expect(sincronizarDesdeOrigen()).rejects.toThrow(/No se pudo conectar/);
     });
 
     test('lanza error si la respuesta HTTP no es ok', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
-      await expect(sincronizarDesdeOrigen('https://sat.example/catalogo')).rejects.toThrow(/error HTTP 500/);
+      process.env.USO_CFDI_SYNC_URL = 'https://sat.example/catalogo';
+      await expect(sincronizarDesdeOrigen()).rejects.toThrow(/error HTTP 500/);
     });
 
     test('lanza error si la respuesta no se pudo interpretar como catálogo', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => 'texto sin sentido' });
-      await expect(sincronizarDesdeOrigen('https://sat.example/catalogo')).rejects.toThrow(/no se pudo interpretar/);
+      process.env.USO_CFDI_SYNC_URL = 'https://sat.example/catalogo';
+      await expect(sincronizarDesdeOrigen()).rejects.toThrow(/no se pudo interpretar/);
     });
 
     test('sincroniza y guarda correctamente con una respuesta válida', async () => {
@@ -203,7 +206,8 @@ describe('usoCfdi.js', () => {
       };
       pool.getConnection.mockResolvedValue(conexionMock);
 
-      const resultado = await sincronizarDesdeOrigen('https://sat.example/catalogo');
+      process.env.USO_CFDI_SYNC_URL = 'https://sat.example/catalogo';
+      const resultado = await sincronizarDesdeOrigen();
 
       expect(resultado).toEqual(catalogoRemoto);
       expect(conexionMock.beginTransaction).toHaveBeenCalled();
@@ -233,7 +237,8 @@ describe('usoCfdi.js', () => {
       };
       pool.getConnection.mockResolvedValue(conexionMock);
 
-      await expect(sincronizarDesdeOrigen('https://sat.example/catalogo')).rejects.toThrow('fallo de escritura');
+      process.env.USO_CFDI_SYNC_URL = 'https://sat.example/catalogo';
+      await expect(sincronizarDesdeOrigen()).rejects.toThrow('fallo de escritura');
       expect(conexionMock.rollback).toHaveBeenCalled();
       expect(conexionMock.release).toHaveBeenCalled();
       expect(conexionMock.commit).not.toHaveBeenCalled();

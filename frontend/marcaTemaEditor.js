@@ -365,11 +365,30 @@
     // así que una subida de favicon por separado debe reenviar los colores
     // vigentes o los perdería). /admin lo ignora: su endpoint dedicado ya
     // hace merge en el servidor.
-    function manejarSubida(input, dropzone, errorEl, subir, onOk) {
-      function procesar(archivo) {
-        if (!archivo) return;
+    // Compresión a WebP en el navegador (módulo auditado en
+    // webp/comprimir.js, copiado tal cual a frontend/comprimir.js — cero
+    // red). Si el módulo no cargó, el archivo no es imagen, o la
+    // compresión falla, se sigue con el archivo original: nunca bloquea
+    // una subida legítima.
+    function comprimirSiAplica(archivo, opcionesCompresion) {
+      if (!window.comprimirImagen || !archivo || !archivo.type || archivo.type.indexOf('image/') !== 0) {
+        return Promise.resolve(archivo);
+      }
+      return window.comprimirImagen(archivo, opcionesCompresion).then(function (r) {
+        if (r.sinCambios) return archivo;
+        return new File([r.blob], r.nombre, { type: r.blob.type || 'image/webp' });
+      }).catch(function () {
+        return archivo;
+      });
+    }
+
+    function manejarSubida(input, dropzone, errorEl, subir, onOk, opcionesCompresion) {
+      function procesar(archivoOriginal) {
+        if (!archivoOriginal) return;
         errorEl.textContent = '';
-        Promise.resolve(subir(archivo, { colores: estado.colores, radio: estado.radio })).then(function (resultado) {
+        comprimirSiAplica(archivoOriginal, opcionesCompresion).then(function (archivo) {
+          return subir(archivo, { colores: estado.colores, radio: estado.radio });
+        }).then(function (resultado) {
           onOk(resultado);
         }).catch(function (err) {
           errorEl.textContent = (err && err.message) || 'No se pudo subir la imagen.';
@@ -397,7 +416,7 @@
     manejarSubida(el.logoInput, el.logoDropzone, el.errorLogo, op.subirLogo, function (res) {
       estado.marcaLogoUrl = (res && res.marcaLogoUrl) || null;
       pintarLogo();
-    });
+    }, { objetivoKB: 250, calidadMin: 0.65, dimMaxPx: 1200 });
     el.btnLogoQuitar.addEventListener('click', function () {
       if (typeof op.quitarLogo !== 'function') return;
       Promise.resolve(op.quitarLogo()).then(function () {
@@ -411,7 +430,7 @@
     manejarSubida(el.faviconInput, el.faviconDropzone, el.errorFavicon, op.subirFavicon, function (res) {
       estado.faviconUrl = (res && res.faviconUrl) || null;
       pintarFavicon();
-    });
+    }, { objetivoKB: 60, calidadMin: 0.7, dimMaxPx: 512 });
     el.btnFaviconQuitar.addEventListener('click', function () {
       if (typeof op.quitarFavicon !== 'function') return;
       Promise.resolve(op.quitarFavicon({ colores: estado.colores, radio: estado.radio })).then(function () {

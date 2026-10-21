@@ -34,7 +34,7 @@ const {
   filaCorreoTabla,
   construirCorreoBase,
 } = require('./utils/correoMarca');
-const { requireAdminAuth, requireAdminArea, recargarAdminUsers } = require('./utils/auth');
+const { requireAdminAuth, requireAdminArea, recargarAdminUsers, checkCredentials } = require('./utils/auth');
 const { asegurarTablaAuditoria, registrarAccesoAdmin, listarAuditoria } = require('./utils/adminAuditoria');
 const {
   hashPassword,
@@ -183,6 +183,7 @@ const {
   TAMANO_CHUNK,
 } = require('./utils/inventarioImportacion');
 const { obtenerDiccionarioInventario, CAMPOS_IMPORTABLES } = require('./utils/inventarioCampos');
+const { protegerCeldaCSV } = require('./utils/csvSeguro');
 const {
   ErrorImagenProducto,
   guardarImagenProducto,
@@ -269,14 +270,26 @@ app.use(helmet());
 // define CORS_ORIGIN con ese dominio exacto (no "*", que los navegadores
 // rechazan combinado con credenciales).
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
-// Límite de body amplio a propósito: el logo/favicon de marca del tenant
-// llega aquí como base64 desde el contenedor "control" (Punto 370: el
-// máximo configurable vía /control llega hasta IMAGEN_MAX_MB_MAX = 20 MB
-// de archivo, ~27.4 MB de texto base64 — de ahí el margen) — ver
-// POST /internal/marca-logo/:slug y /internal/favicon/:slug más abajo.
-// Las rutas que reciben archivos usan multer con sus propios límites, y
-// cada ruta valida el tamaño real de lo que recibe.
-app.use(express.json({ limit: '30mb' }));
+// Hallazgo M-05 (sonar_1.1.html, 2026-10-19): un límite global de 30 MB
+// significaba que CUALQUIER request a /api/admin pagaba el parseo
+// completo del body ANTES de que adminCredencialesLimiter (montado más
+// abajo, :632) tuviera oportunidad de responder 429 — un anónimo podía
+// forzar ese trabajo repetidas veces sin que el rate limit lo frenara a
+// tiempo. Fix: el límite GLOBAL baja a 2 MB (de sobra para cualquier
+// payload JSON normal de la app) y el límite amplio de 30 MB queda
+// acotado SOLO a los 2 endpoints que de verdad reciben un logo/favicon en
+// base64 (Punto 370: IMAGEN_MAX_MB_MAX = 20 MB de archivo, ~27.4 MB en
+// base64) — mismo criterio que control/server.js ya aplicaba (límiter
+// antes del parser amplio). body-parser no vuelve a leer el stream si
+// `req._body` ya quedó poblado, así que declarar el parser de 30 MB
+// ANTES del global (scoped por path) es seguro: para esas 2 rutas, el
+// global de 2 MB simplemente no hace nada (next() inmediato). Las rutas
+// que reciben archivos usan multer con sus propios límites, y cada ruta
+// valida el tamaño real de lo que recibe.
+const jsonLimiteAmplio = express.json({ limit: '30mb' });
+app.use('/internal/marca-logo', jsonLimiteAmplio);
+app.use('/internal/favicon', jsonLimiteAmplio);
+app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 // Multi-tenant (segmento 3, ver PROJECT_STATE.md): resuelve `req.tenant` y
 // el pool de MySQL activo a partir del encabezado `X-Tenant-Slug`. Montado
@@ -382,9 +395,18 @@ const tenantAggregateAuthLimiter = rateLimit({
 // en sí, por lo que aumentar la memoria del contenedor no lo arreglaba.
 // Sigue habiendo un límite (no es ilimitado) para protegerse de un
 // posible abuso, solo que uno que de verdad alcanza para uso legítimo.
+// Hallazgo m-02 (sonar_1.1.html, 2026-10-19): 2000/15min por IP+tenant
+// permite scraping/enumeración sostenida de un tenant completo. Bajado a
+// 600 — sigue siendo generoso para el uso legítimo descrito arriba (40
+// req/min sostenidos por 15 minutos completos, muy por encima de lo que
+// un operador humano navegando entre vistas genera), pero deja de ser
+// prácticamente ilimitado para un scraper. Si vuelve a aparecer el
+// síntoma original ("429 Too Many Requests" con uso normal, ver el
+// comentario de arriba), este es el primer valor a revisar — subir con
+// cautela, no regresar a 2000 sin volver a medir el uso real primero.
 const adminApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 2000,
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: claveTenantIp,
@@ -548,15 +570,34 @@ function asyncHandler(fn) {
 // viejos (inalcanzable en la práctica) — no hace falta 'unsafe-eval'.
 // style-src SÍ necesita 'unsafe-inline': el HTML de swagger-ui-express trae
 // bloques <style> literales.
+// Hallazgo M-17 (sonar.html): el spec/UI son públicos sin auth (el
+// "probar" de cada ruta sigue pidiendo credenciales reales, pero LISTAR
+// el spec completo ya es reconocimiento gratis de toda la superficie de
+// la API). Hallazgo m-01 (sonar_1.1.html, Fase D, punto 410): DOCS_ENABLED
+// era opt-out — decisión del usuario, 2026-10-21, invertir a opt-in: por
+// defecto APAGADO, solo se enciende con DOCS_ENABLED=true explícito. El
+// docker-compose de desarrollo local lo fija a "true" para no perder la
+// conveniencia de dev; el de producción nunca lo define, así que queda
+// cerrado salvo que alguien lo encienda a propósito. Mismo 404 "la ruta
+// no existe" que ya usa requiereFeature() para el resto del sitio, nunca
+// 403 (no delatar que el spec existe apagado).
+function docsHabilitados() {
+  return process.env.DOCS_ENABLED === 'true';
+}
 app.use('/api/docs', (req, res, next) => {
+  if (!docsHabilitados()) return res.status(404).json({ error: 'Ruta no encontrada.' });
   res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https:; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
   next();
 });
 app.use('/api/swagger', (req, res, next) => {
+  if (!docsHabilitados()) return res.status(404).json({ error: 'Ruta no encontrada.' });
   res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob:; script-src 'self' https:; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https: data:");
   next();
 });
-app.get('/api/docs.json', (req, res) => res.json(swaggerSpec));
+app.get('/api/docs.json', (req, res) => {
+  if (!docsHabilitados()) return res.status(404).json({ error: 'Ruta no encontrada.' });
+  res.json(swaggerSpec);
+});
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 // Alias legacy /api/swagger → /api/docs
 app.use('/api/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
@@ -566,6 +607,51 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+// Hallazgo M-03 (sonar.html, 2026-10-14): /api/admin se autentica con
+// Basic Auth, que el navegador reenvía automáticamente a CUALQUIER
+// request hacia este mismo origen/realm — incluida una disparada por un
+// <form>/fetch de un sitio ajeno mientras la víctima tiene sesión admin
+// cacheada (CSRF clásico; el portal de cliente NO tiene este problema,
+// su cookie ya usa SameSite=lax). CORS (`ALLOWED_ORIGIN`, arriba) NO
+// protege esto: solo evita que el navegador ATACANTE pueda LEER la
+// respuesta — la mutación ya se ejecutó en el servidor antes de que esa
+// restricción aplique. Esta validación rechaza la request misma.
+// Un navegador real SIEMPRE manda `Origin` en POST/PUT/PATCH/DELETE
+// (mismo origen o no, desde hace varias versiones del fetch spec) — se
+// compara contra `req.get('host')` (el host real que atendió la
+// request, igual criterio que `detectarUrlPortal`/`hostPermitido` de
+// C-03). `Sec-Fetch-Site` (Chromium/Firefox recientes, no falsificable
+// por JS) es una segunda señal cuando está presente. Un cliente sin
+// navegador (server-to-server con api_usuario/api_clave) nunca manda
+// `Origin`, así que pasa sin tocar — esta regla es específica del
+// vector "navegador con credenciales cacheadas", no amplía ni restringe
+// el acceso de integraciones legítimas. Si `ALLOWED_ORIGIN` está
+// configurado (cross-origin intencional, hoy deshabilitado por
+// default), ese origen también se acepta explícitamente.
+function requireOrigenPropio(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const secFetchSite = req.get('sec-fetch-site');
+  if (secFetchSite === 'cross-site') {
+    return res.status(403).json({ error: 'Origen no permitido.' });
+  }
+  const origin = req.get('origin');
+  if (origin) {
+    let origenHost = null;
+    try {
+      origenHost = new URL(origin).host;
+    } catch (err) {
+      origenHost = null;
+    }
+    const mismoOrigen = origenHost && origenHost === req.get('host');
+    const origenPermitidoPorCors = ALLOWED_ORIGIN && origin === ALLOWED_ORIGIN;
+    if (!mismoOrigen && !origenPermitidoPorCors) {
+      return res.status(403).json({ error: 'Origen no permitido.' });
+    }
+  }
+  next();
+}
+
+app.use('/api/admin', requireOrigenPropio);
 app.use('/api/admin', adminCredencialesLimiter);
 
 // Segmento 7 (seguridad multi-tenant): auditoría de uso de las rutas
@@ -2013,7 +2099,13 @@ app.post(
       return res.status(400).json({ error: 'Escribe tu correo o tu usuario.' });
     }
 
-    const [filas] = await pool.query('SELECT * FROM usuarios WHERE rfc = ? OR email = ? LIMIT 1', [
+    // Punto 377 / hallazgo C-01 (sonar.html): acotado a perfil='cliente',
+    // mismo criterio que login (auth-usuario.test.js) — un correo
+    // compartido con una cuenta admin/fiscal (diseño permitido, ver
+    // CLAUDE.md) nunca debe poder generar un token que resetee esa cuenta
+    // admin. Esta ruta es exclusivamente para clientes (ver comentario
+    // arriba del handler).
+    const [filas] = await pool.query("SELECT * FROM usuarios WHERE (rfc = ? OR email = ?) AND perfil = 'cliente'", [
       identificador.toUpperCase(),
       identificador.toLowerCase(),
     ]);
@@ -2272,9 +2364,28 @@ function resolverCreadoPorVenta(req) {
 // notificación de ticket nuevo, correo de venta) llegaba SIN el slug en
 // instalaciones con tenant — un bug real, no solo de recuperación de
 // contraseña (corregido aquí una sola vez para los 5 llamadores).
+// Hallazgo C-03 (sonar.html, 2026-10-13): sin validar, un Host falsificado
+// (p. ej. "atacante.com") hace que detectarUrlPortal() arme un enlace de
+// recuperación de contraseña (u otros correos) apuntando al dominio del
+// atacante — el correo real sale a la víctima, pero el link roba el
+// token. ALLOWED_HOSTS es opt-in a propósito: sin configurarlo, el
+// comportamiento sigue siendo exactamente el de antes (confía en el Host
+// de la petición) para no romper dev local/LAN sin configuración extra,
+// tal como está documentado arriba; al definirlo (obligatorio antes de
+// un despliegue real), cualquier Host que no esté en la lista se
+// rechaza — mismo criterio de "cadena vacía = el llamador omite el
+// enlace" que ya tenía la función.
+function hostPermitido(host) {
+  const lista = process.env.ALLOWED_HOSTS && process.env.ALLOWED_HOSTS.trim();
+  if (!lista) return true; // sin configurar: comportamiento de siempre (dev-friendly)
+  const permitidos = lista.split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
+  return permitidos.includes(String(host).toLowerCase());
+}
+
 function detectarUrlPortal(req) {
-  const base = req.get('host') ? `${req.protocol}://${req.get('host')}` : '';
-  if (!base) return '';
+  const host = req.get('host');
+  if (!host || !hostPermitido(host)) return '';
+  const base = `${req.protocol}://${host}`;
   const slug = req.tenant && req.tenant.slug;
   return slug ? `${base}/${slug}` : base;
 }
@@ -2921,7 +3032,12 @@ const DURACION_TOKEN_RECUPERACION_MS = 30 * 60 * 1000;
 // URL con slug que enviarInvitacionPortal.
 async function enviarCorreoRecuperacion({ email, urlPortal, marca, token, logoUrl, colores }) {
   const marcaCorreo = marca || MARCA_DEFECTO;
-  const enlaceRestablecer = urlPortal ? `${urlPortal}/restablecer?token=${token}` : '';
+  // Hallazgo M-13 (sonar.html, 2026-10-14): fragmento (#token=), no query
+  // string — el fragmento nunca se manda al servidor (ni a nginx ni al
+  // backend), así que no puede quedar en access logs ni filtrarse por
+  // Referer. Ver restablecer.js: también acepta ?token= como respaldo
+  // transitorio para un correo ya enviado antes de este cambio.
+  const enlaceRestablecer = urlPortal ? `${urlPortal}/restablecer#token=${token}` : '';
   // Sin host detectable no hay forma de armar un enlace usable — mejor no
   // mandar un correo roto que el usuario no pueda seguir.
   if (!enlaceRestablecer) return;
@@ -3810,9 +3926,11 @@ app.post(
       ...info,
     });
   } catch (err) {
-    res.status(502).json({
-      error: err.message || 'No se pudo sincronizar el catálogo. Intenta de nuevo más tarde.',
-    });
+    // Hallazgo M-16 (sonar.html): err.message aquí viene del cliente HTTP
+    // contra el SAT (puede traer la URL de origen interpolada, detalle de
+    // red) — nunca al cliente, solo al log del servidor.
+    console.error('No se pudo sincronizar el catálogo de Uso de CFDI:', err.message);
+    res.status(502).json({ error: 'No se pudo sincronizar el catálogo. Intenta de nuevo más tarde.' });
   }
 });
 
@@ -3865,9 +3983,10 @@ app.post(
         ...info,
       });
     } catch (err) {
-      res.status(502).json({
-        error: err.message || 'No se pudo sincronizar el catálogo. Intenta de nuevo más tarde.',
-      });
+      // Hallazgo M-16 (sonar.html): mismo criterio que Uso de CFDI arriba
+      // — err.message puede traer la URL de origen o detalle de red.
+      console.error('No se pudo sincronizar el catálogo de clave de producto/servicio:', err.message);
+      res.status(502).json({ error: 'No se pudo sincronizar el catálogo. Intenta de nuevo más tarde.' });
     }
   }
 );
@@ -4100,6 +4219,12 @@ app.post(
       // lo disfraza de "sitio caído" (mismo bug ya corregido en
       // /api/aclaraciones, PROJECT_STATE.md punto 170). Esto es un fallo de
       // negocio (credenciales/host malos), no de infraestructura.
+      // Hallazgo M-16 (sonar.html) revisado y NO aplicado aquí a propósito:
+      // el admin que dispara este botón es el MISMO que configuró el SMTP
+      // — genericizar el error rompería el autodiagnóstico ("Invalid
+      // login", "ECONNREFUSED :587") que es el propósito explícito de este
+      // endpoint. Sí se registra server-side para trazabilidad.
+      console.error('Prueba de SMTP falló:', err.message);
       res.status(500).json({ error: err.message || 'No se pudo enviar el correo de prueba.' });
     }
   })
@@ -4118,7 +4243,10 @@ app.post(
       const verificadoEn = await verificarConexionSmtp();
       res.json({ ok: true, verificadoEn });
     } catch (err) {
-      // 500, no 502 — mismo motivo que /prueba arriba.
+      // 500, no 502 — mismo motivo que /prueba arriba. Mismo criterio de
+      // M-16 revisado y NO genericizado (ver comentario completo arriba):
+      // autodiagnóstico del propio admin que configuró el SMTP.
+      console.error('Verificación de SMTP falló:', err.message);
       res.status(500).json({ error: err.message || 'No se pudo verificar la conexión SMTP.' });
     }
   })
@@ -4492,6 +4620,30 @@ app.put(
     const body = req.body || {};
     const password = typeof body.password === 'string' ? body.password : '';
     const forzarCambio = body.forzar_cambio === true;
+
+    // Hallazgo M-09 (sonar.html, 2026-10-14): este reseteo sobrescribía
+    // la contraseña de CUALQUIER usuario sin verificar nada del lado del
+    // operador — Basic Auth robado (o una sesión XSS antes de C-05/C-06)
+    // bastaba para tomar persistencia total reseteando TODAS las demás
+    // cuentas admin. Mismo criterio de step-up que
+    // PUT /api/admin/mi-cuenta/password: exige la contraseña ACTUAL del
+    // propio operador (no la del usuario objetivo) antes de aceptar la
+    // nueva. Cubre los 2 mecanismos de login posibles aquí
+    // (requireAdminArea('administrador') también deja pasar al "super"
+    // de ADMIN_USERS, que no tiene fila en `usuarios`).
+    const passwordActualOperador = typeof body.password_actual === 'string' ? body.password_actual : '';
+    if (req.adminMecanismo === 'admin_users') {
+      if (!checkCredentials(req.adminUser, passwordActualOperador)) {
+        return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+      }
+    } else {
+      const [filasOperador] = await pool.query('SELECT password_hash FROM usuarios WHERE rfc = ? LIMIT 1', [req.adminUser]);
+      const filaOperador = filasOperador[0];
+      if (!filaOperador || !verifyPassword(passwordActualOperador, filaOperador.password_hash)) {
+        return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
+      }
+    }
+
     const errorPassword = validarPassword(password);
     if (errorPassword) {
       return res.status(400).json({ error: errorPassword });
@@ -7768,7 +7920,12 @@ app.post(
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const titulo = sanitizeText(body.titulo, 200);
-    const mensaje = sanitizeTextoLibre(body.mensaje, 500);
+    // Hallazgo M-01 (sonar.html): sanitizeTextoLibre() (pensado para
+    // asunto/cuerpo de correo, nunca quita etiquetas) se usaba aquí por
+    // error — este mensaje se pinta en HTML (campana de notificaciones
+    // del portal), no en un correo. sanitizeText() sí quita etiquetas,
+    // defensa en profundidad junto con escapeHtml() en portal.js.
+    const mensaje = sanitizeText(body.mensaje, 500);
     if (!titulo) return res.status(400).json({ error: 'Captura un título para la promoción.' });
     if (!mensaje) return res.status(400).json({ error: 'Captura el mensaje de la promoción.' });
 
@@ -8468,7 +8625,12 @@ app.post(
         marca: marcaTenantReenvio,
       });
     } catch (err) {
-      return res.status(502).json({ error: `No se pudo reenviar el correo: ${err.message}` });
+      // M-16 (sonar_1.1.html, 2026-10-19): el mensaje crudo de SMTP puede
+      // traer host/banner/detalle de autenticación del cliente de correo
+      // — nunca al cliente, mismo criterio ya aplicado al resto de la
+      // Fase 2.
+      console.error('No se pudo reenviar el correo:', err.message);
+      return res.status(502).json({ error: 'No se pudo reenviar el correo.' });
     }
 
     res.json({
@@ -8526,7 +8688,10 @@ app.delete(
         colorAccent: coloresReporte.acento,
       });
     } catch (err) {
-      return res.status(502).json({ error: `No se pudo generar el reporte antes de eliminar: ${err.message}` });
+      // M-16 (sonar_1.1.html, 2026-10-19): mismo criterio que arriba —
+      // nunca el detalle crudo de la excepción al cliente.
+      console.error('No se pudo generar el reporte antes de eliminar:', err.message);
+      return res.status(502).json({ error: 'No se pudo generar el reporte antes de eliminar.' });
     }
 
     // D8: si la venta tenía un producto y ese producto sigue existiendo
@@ -9682,7 +9847,8 @@ app.post(
 // el conteo del dashboard, para que nunca puedan desincronizarse entre sí
 // (mismo criterio que utilidad_neta en /resumen-financiero).
 
-function formatearProducto(p, existenciaDisponible) {
+function formatearProducto(p, existenciaDisponible, prefijoRuta) {
+  prefijoRuta = prefijoRuta || '';
   return {
     id: p.id,
     sku: p.sku,
@@ -9716,8 +9882,8 @@ function formatearProducto(p, existenciaDisponible) {
     // key en MinIO (nombre de archivo fijo, no uuid), así que sin esto
     // el navegador seguiría mostrando la versión vieja hasta agotar
     // Cache-Control.
-    imagen_url: p.imagen_key ? `/api/admin/inventarios/productos/${p.id}/imagen?t=${new Date(p.imagen_actualizada_en).getTime()}` : null,
-    imagen_thumb_url: p.imagen_thumb_key ? `/api/admin/inventarios/productos/${p.id}/imagen?v=thumb&t=${new Date(p.imagen_actualizada_en).getTime()}` : null,
+    imagen_url: p.imagen_key ? `${prefijoRuta}/api/admin/inventarios/productos/${p.id}/imagen?t=${new Date(p.imagen_actualizada_en).getTime()}` : null,
+    imagen_thumb_url: p.imagen_thumb_key ? `${prefijoRuta}/api/admin/inventarios/productos/${p.id}/imagen?v=thumb&t=${new Date(p.imagen_actualizada_en).getTime()}` : null,
   };
 }
 
@@ -9927,8 +10093,8 @@ app.get(
     const busqueda = typeof req.query.busqueda === 'string' ? req.query.busqueda.trim() : '';
     if (busqueda) {
       const patron = `%${busqueda}%`;
-      condiciones.push('(p.nombre LIKE ? OR p.sku LIKE ? OR p.codigo_barras LIKE ?)');
-      params.push(patron, patron, patron);
+      condiciones.push('(p.nombre LIKE ? OR p.sku LIKE ? OR p.codigo_barras LIKE ? OR p.proveedor_principal LIKE ?)');
+      params.push(patron, patron, patron, patron);
     }
     // Punto 213: alimenta la ventana emergente del indicador "Por vencer"
     // del dashboard — mismo umbral (UMBRAL_POR_VENCER_DIAS) y mismas
@@ -9982,7 +10148,7 @@ app.get(
       total,
       pagina,
       por_pagina: porPagina,
-      productos: filas.map((p) => formatearProducto(p, p.disponible)),
+      productos: filas.map((p) => formatearProducto(p, p.disponible, req.tenant ? `/${req.tenant.slug}` : '')),
     });
   })
 );
@@ -10035,6 +10201,7 @@ app.get(
     }
     const almacenId = await obtenerAlmacenDefectoId();
     const patron = `%${termino}%`;
+    const prefijoRuta = req.tenant ? `/${req.tenant.slug}` : '';
     const [filas] = await pool.query(
       `SELECT p.id, p.sku, p.nombre, p.codigo_barras, p.precio, p.tipo, p.imagen_thumb_key, p.imagen_actualizada_en, e.disponible,
               um.nombre AS unidad_nombre, um.abreviatura AS unidad_abreviatura, um.permite_decimales
@@ -10062,7 +10229,7 @@ app.get(
         unidad_abreviatura: p.unidad_abreviatura,
         permite_decimales: Boolean(p.permite_decimales),
         imagen_thumb_url: p.imagen_thumb_key
-          ? `/api/admin/inventarios/productos/${p.id}/imagen?v=thumb&t=${new Date(p.imagen_actualizada_en).getTime()}`
+          ? `${prefijoRuta}/api/admin/inventarios/productos/${p.id}/imagen?v=thumb&t=${new Date(p.imagen_actualizada_en).getTime()}`
           : null,
       })),
     });
@@ -10086,7 +10253,7 @@ app.get(
       id,
       almacenId,
     ]);
-    res.json({ producto: formatearProducto(producto, existencia ? existencia.disponible : 0) });
+    res.json({ producto: formatearProducto(producto, existencia ? existencia.disponible : 0, req.tenant ? `/${req.tenant.slug}` : '') });
   })
 );
 
@@ -10216,10 +10383,11 @@ app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requier
         [resultado.imagenKey, resultado.thumbKey, ahora, ahora, id]
       );
 
+      const prefijoRuta = req.tenant ? `/${req.tenant.slug}` : '';
       res.json({
         ok: true,
-        imagen_url: `/api/admin/inventarios/productos/${id}/imagen`,
-        imagen_thumb_url: `/api/admin/inventarios/productos/${id}/imagen?v=thumb`,
+        imagen_url: `${prefijoRuta}/api/admin/inventarios/productos/${id}/imagen`,
+        imagen_thumb_url: `${prefijoRuta}/api/admin/inventarios/productos/${id}/imagen?v=thumb`,
       });
     } catch (errGeneral) {
       console.error('Error guardando la imagen de producto:', errGeneral);
@@ -10536,7 +10704,11 @@ app.get(
         WHERE p.eliminado_en IS NULL
         ORDER BY m.creado_en DESC, m.id DESC`
     );
-    const csvCelda = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // M-10 (sonar.html): motivo/documento_origen/usuario/folio son texto
+    // libre — protegerCeldaCSV() antepone "'" si empieza con = + - @ tab/CR
+    // ANTES de envolver en comillas, o el apóstrofo quedaría dentro de la
+    // comilla y Excel igual lo evaluaría como fórmula.
+    const csvCelda = (v) => `"${protegerCeldaCSV(v ?? '').replace(/"/g, '""')}"`;
     const encabezado = ['Fecha', 'SKU', 'Producto', 'Tipo', 'Folio', 'Cantidad', 'Costo unitario', 'Existencia antes', 'Existencia después', 'Motivo', 'Documento origen', 'Usuario'];
     const lineas = filas.map((m) =>
       [
@@ -11593,5 +11765,18 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+
+// Expuesto SOLO para pruebas unitarias directas (hallazgo C-03,
+// sonar.html) — hostPermitido() no depende de req/pool, así que probarla
+// por HTTP implicaría el flujo fire-and-forget de envío de correo
+// (nodemailer), frágil para un assert. Agregar una propiedad al mismo
+// `app` que ya se exporta no cambia nada del export existente
+// (`request(app)` sigue funcionando idéntico).
+app.hostPermitido = hostPermitido;
+// Mismo motivo que app.hostPermitido arriba — probar el guard CSRF
+// (M-03) por HTTP vía supertest no puede fijar un Origin que coincida
+// con el host real (puerto efímero asignado por supertest en cada
+// corrida); exponerla permite un test unitario directo y determinista.
+app.requireOrigenPropio = requireOrigenPropio;
 
 module.exports = app;

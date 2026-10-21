@@ -38,7 +38,7 @@ jest.mock('../../utils/reportes', () => {
 });
 
 const { pool } = require('../../db');
-const { guardarReporte } = require('../../utils/reportes');
+const { guardarReporte, generarYEnviarReporte } = require('../../utils/reportes');
 const { hashPassword } = require('../../utils/authUsuario');
 const { registrarMovimiento, obtenerProductoPorId } = require('../../utils/inventario');
 const { inventarioActivo } = require('../../utils/inventarioConfig');
@@ -655,6 +655,26 @@ describe('Admin: Ventas (ordenes_compra) — correo opcional + reenviar/asignar'
       );
     });
 
+    // Hallazgo M-16 (sonar_1.1.html, 2026-10-19): el 502 no debe traer el
+    // err.message crudo (host/banner/detalle de auth del cliente SMTP).
+    test('si el envío falla, responde 502 genérico — nunca el err.message crudo de SMTP', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 1, numero_compra: 'OC-000001', fecha_compra: '2026-08-22 10:00:00', concepto: 'x', cantidad: '10.00', iva_porcentaje: '16.00', total: '11.60', email: 'ya-tenia@ejemplo.com' }],
+      ]); // SELECT orden
+      pool.query.mockResolvedValueOnce([[]]); // getConfiguracionGlobal -> defaults
+      pool.query.mockRejectedValueOnce(new Error('ECONNREFUSED 10.0.0.1:587 usuario=secreto@interno'));
+
+      const res = await request(app)
+        .post('/api/admin/ordenes-compra/1/reenviar-correo')
+        .auth(usuario, password)
+        .send({});
+
+      expect(res.status).toBe(502);
+      expect(res.body.error).toBe('No se pudo reenviar el correo.');
+      expect(JSON.stringify(res.body)).not.toMatch(/ECONNREFUSED|10\.0\.0\.1|secreto@interno/);
+    });
+
     test('venta sin correo y sin correo en el body: 400', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       pool.query.mockResolvedValueOnce([
@@ -1083,6 +1103,24 @@ describe('Admin: Ventas — D8 (inventarios.md §22, segmento 4): producto opcio
 
       expect(res.status).toBe(200);
       expect(obtenerProductoPorId).not.toHaveBeenCalled();
+    });
+
+    // Hallazgo M-16 (sonar_1.1.html, 2026-10-19): el 502 no debe traer el
+    // err.message crudo del reporte (podría filtrar detalle de SMTP si
+    // generarYEnviarReporte intenta correo, o de la propia generación).
+    test('si el reporte de respaldo falla, responde 502 genérico — nunca el err.message crudo, y nunca borra la venta', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([
+        [{ id: 12, numero_compra: 'OC-000012', fecha_compra: '2026-08-22 10:00:00', concepto: 'x', cantidad: '50.00', iva_porcentaje: '16.00', total: '58.00', email: null, producto_id: null, producto_cantidad: null }],
+      ]);
+      generarYEnviarReporte.mockRejectedValueOnce(new Error('ECONNREFUSED 10.0.0.1:587 usuario=secreto@interno'));
+
+      const res = await request(app).delete('/api/admin/ordenes-compra/12').auth(usuario, password);
+
+      expect(res.status).toBe(502);
+      expect(res.body.error).toBe('No se pudo generar el reporte antes de eliminar.');
+      expect(JSON.stringify(res.body)).not.toMatch(/ECONNREFUSED|10\.0\.0\.1|secreto@interno/);
+      expect(pool.query).not.toHaveBeenCalledWith(expect.stringMatching(/DELETE FROM ordenes_compra/), [12]);
     });
 
     test('varias líneas de inventario (Segmento A): reingresa cada una y borra orden_productos', async () => {

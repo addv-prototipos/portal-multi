@@ -302,6 +302,35 @@ describe('Auth de usuario', () => {
         expect.arrayContaining([expect.any(String), expect.any(Date), 7])
       );
     });
+
+    // Hallazgo C-01 (sonar.html, 2026-10-13) / punto 377: sin este filtro,
+    // un correo compartido entre una cuenta cliente y una cuenta
+    // administrador/fiscal generaba un token que restablecía la contraseña
+    // del ADMIN — que además es el hash que valida Basic Auth. Esta ruta
+    // es exclusivamente para clientes (ver comentario del handler).
+    test('acota la búsqueda a perfil=\'cliente\' — mismo criterio que login (punto 377 / C-01)', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      await request(app).post('/api/auth/recuperar').send({ identificador: 'compartido@example.com' });
+
+      expect(pool.query).toHaveBeenCalledWith(
+        "SELECT * FROM usuarios WHERE (rfc = ? OR email = ?) AND perfil = 'cliente'",
+        ['COMPARTIDO@EXAMPLE.COM', 'compartido@example.com']
+      );
+    });
+
+    test('una cuenta admin que comparte correo con un cliente nunca recibe un token de recuperación', async () => {
+      // El mock simula el filtro SQL real: perfil='cliente' en el WHERE
+      // hace que la fila admin ni siquiera llegue aquí — se verifica que
+      // el endpoint no genera token (0 UPDATE) para ese escenario.
+      pool.query.mockResolvedValueOnce([[]]); // sin filas: la fila admin fue excluida por el AND perfil='cliente'
+      const res = await request(app).post('/api/auth/recuperar').send({ identificador: 'compartido@example.com' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.mensaje).toMatch(/Si el dato coincide con una cuenta/);
+      // Un solo SELECT — nunca llega al UPDATE de reset_token_hash porque
+      // la cuenta admin quedó fuera del resultado.
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('POST /api/auth/restablecer', () => {

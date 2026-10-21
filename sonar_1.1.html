@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sonar 1.1 — Análisis de calidad y seguridad · Portal de Facturación ADDV (Clarvo)</title>
+<style>
+  :root{
+    --sev-blocker:#82071E; --sev-blocker-bg:#FFEBE9;
+    --sev-critical:#CF222E; --sev-critical-bg:#FFEBE9;
+    --sev-major:#BC4C00; --sev-major-bg:#FFF1E5;
+    --sev-minor:#9A6700; --sev-minor-bg:#FFF8C5;
+    --sev-info:#0969DA; --sev-info-bg:#DDF4FF;
+    --verde:#1A7F37; --verde-bg:#DAFBE1;
+    --gris:#59636E; --borde:#D1D9E0; --fondo:#F6F8FA; --texto:#1F2328;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--fondo);color:var(--texto);line-height:1.5;font-size:14px}
+  header{background:#0D1B2A;color:#fff;padding:26px 32px}
+  header h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header .sub{color:#9FB3C8;font-size:13px;margin-top:4px}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 32px 64px}
+  h2{font-size:17px;margin:34px 0 12px;border-bottom:1px solid var(--borde);padding-bottom:6px}
+  h3{font-size:14px;margin:20px 0 8px}
+  .gate{border-radius:8px;padding:16px 20px;margin:20px 0;border:1px solid}
+  .gate.fail{background:var(--sev-blocker-bg);border-color:var(--sev-blocker);color:var(--sev-blocker)}
+  .gate.cond{background:var(--sev-major-bg);border-color:var(--sev-major);color:var(--sev-major)}
+  .gate .titulo{font-weight:700;font-size:15px;margin-bottom:4px}
+  .gate p{margin:4px 0 0;color:var(--texto)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+  .card{background:#fff;border:1px solid var(--borde);border-radius:8px;padding:14px}
+  .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--gris)}
+  .card .v{font-size:26px;font-weight:700;margin-top:2px}
+  .card .d{font-size:12px;color:var(--gris);margin-top:2px}
+  .rating{display:inline-block;width:30px;height:30px;border-radius:50%;color:#fff;font-weight:700;text-align:center;line-height:30px;font-size:15px}
+  .r-a{background:var(--verde)} .r-b{background:#5A9E3E} .r-c{background:var(--sev-minor)} .r-d{background:var(--sev-major)} .r-e{background:var(--sev-critical)}
+  .sev-counts{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .sev-badge{border-radius:20px;padding:5px 14px;font-weight:600;font-size:13px;border:1px solid}
+  .b-blocker{background:var(--sev-blocker-bg);color:var(--sev-blocker);border-color:var(--sev-blocker)}
+  .b-critical{background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)}
+  .b-major{background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)}
+  .b-minor{background:var(--sev-minor-bg);color:var(--sev-minor);border-color:var(--sev-minor)}
+  .b-info{background:var(--sev-info-bg);color:var(--sev-info);border-color:var(--sev-info)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--borde);border-radius:8px;overflow:hidden;font-size:13px}
+  th{background:#F3F4F6;text-align:left;padding:9px 10px;border-bottom:1px solid var(--borde);font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--gris)}
+  td{padding:9px 10px;border-bottom:1px solid #EAECEF;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.id{white-space:nowrap;font-weight:600;color:var(--gris);font-size:12px}
+  td.arch{white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .pill{display:inline-block;border-radius:12px;padding:1px 9px;font-size:11px;font-weight:600;border:1px solid}
+  .p-vuln{background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)}
+  .p-smell{background:#F3F4F6;color:var(--gris);border-color:var(--borde)}
+  .p-hot{background:var(--sev-minor-bg);color:var(--sev-minor);border-color:var(--sev-minor)}
+  .p-conf{background:var(--sev-info-bg);color:var(--sev-info);border-color:var(--sev-info)}
+  .desc b.t{display:block;margin-bottom:2px}
+  .rec{color:var(--gris);margin-top:3px;display:block}
+  .rec::before{content:"Recomendación: ";font-weight:600;color:var(--texto)}
+  .ok{color:var(--verde);font-weight:700}
+  .warn{color:var(--sev-major);font-weight:700}
+  .bad{color:var(--sev-critical);font-weight:700}
+  .parcial{color:var(--sev-major);font-weight:700}
+  ul{margin:8px 0;padding-left:22px} li{margin:4px 0}
+  .owasp td:nth-child(2){font-weight:600}
+  .barra{height:9px;border-radius:5px;background:#EAECEF;overflow:hidden;min-width:120px;margin-top:5px}
+  .barra>span{display:block;height:100%}
+  .nota{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--sev-info);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px}
+  .delta{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--verde);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px}
+  footer{color:var(--gris);font-size:12px;margin-top:40px;border-top:1px solid var(--borde);padding-top:14px}
+  code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#F3F4F6;border-radius:4px;padding:0 4px;font-size:12px}
+  @media (max-width:820px){ .wrap{padding:16px} table{display:block;overflow-x:auto} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Informe de calidad y seguridad — Portal de Facturación ADDV (Clarvo)</h1>
+  <div class="sub">Análisis tipo SonarQube + revisión OWASP Top 10 (2021) · Versión 1.1 · 2026-10-19 · Alcance: backend/, control/, frontend/, docker/, nginx, prod/ · 104 archivos de producción · 86,483 líneas analizadas · Comparado contra sonar.html (1.0, 2026-10-13)</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ═══════════════ COMPARATIVA VS 1.0 ═══════════════ -->
+  <h2>0. Comparativa contra la versión 1.0 (sonar.html)</h2>
+  <div class="delta">
+    <b>Evención de la deuda:</b> de los <b>51 hallazgos</b> del informe 1.0, <b>19 quedaron cerrados</b> con código verificado,
+    <b>9 están parciales</b> (fix aplicado pero con resto o condición) y <b>23 siguen abiertos</b> (11 mayores/menores sin tocar,
+    9 informativos, y el resto con matiz). <b>Cero regresiones detectadas</b>: ningún fix de la Fase 1/2 se perdió en los
+    56 archivos modificados sin commitear. Se suman <b>3 hallazgos nuevos</b> (N-01 a N-03) no presentes en 1.0.
+  </div>
+
+  <table>
+    <tr><th>Antes (1.0)</th><th>Ahora (1.1)</th><th>Delta</th></tr>
+    <tr>
+      <td>Quality Gate: <b class="bad">NO APROBADA</b><br>6 vulnerabilidades críticas activas</td>
+      <td>Quality Gate: <b class="warn">APROBADA CON CONDICIONES</b><br>0 críticas abiertas; 9 mayores + 8 tests rojos</td>
+      <td class="desc"><span class="ok">+6 críticas resueltas</span> (4 cerradas, 2 parciales sin explotación directa). La única barrera que queda es calidad/funcional, no una puerta de entrada explotable.</td>
+    </tr>
+    <tr><td>Seguridad <span class="rating r-e">E</span></td><td>Seguridad <span class="rating r-b">B</span></td><td class="desc">Las 2 parciales (C-04, C-05) están contenidas por CSP estricta y por fail-closed en producción.</td></tr>
+    <tr><td>Confiabilidad <span class="rating r-b">B</span></td><td>Confiabilidad <span class="rating r-c">C</span></td><td class="desc"><b class="warn">Retroceso</b>: la suite de <code>control/</code> quedó con <b>8 tests rojos</b> de 470 (ver N-02). Backend 1317/1317 en verde.</td></tr>
+    <tr><td>Mantenibilidad <span class="rating r-c">C</span></td><td>Mantenibilidad <span class="rating r-c">C</span></td><td class="desc">Monolitos sin tocar (admin.js 20,294 líneas), pero el espejo <code>prod/</code> <span class="ok">ya está sincronizado</span> (antes desincronizado).</td></tr>
+    <tr><td>Tests: 112 archivos</td><td>Tests: 1,787 ejecuciones + 25 specs E2E</td><td class="desc">Backend 1,317 (68 suites, 100% verde) · control 470 (26 suites, 8 rojos).</td></tr>
+  </table>
+
+  <div class="sev-counts">
+    <span class="sev-badge b-blocker">0 Blocker</span>
+    <span class="sev-badge b-critical">0 Críticas abiertas (2 parciales)</span>
+    <span class="sev-badge b-major">9 Mayores abiertas</span>
+    <span class="sev-badge b-minor">17 Menores abiertos</span>
+    <span class="sev-badge b-info">4 Informativas</span>
+  </div>
+
+  <!-- ═══════════════ QUALITY GATE ═══════════════ -->
+  <div class="gate cond">
+    <div class="titulo">QUALITY GATE: APROBADA CON CONDICIONES</div>
+    <p>Ninguna vulnerabilidad Crítica queda explotable en el código actual: los 6 hallazgos de severidad crítica de la versión 1.0 fueron corregidos o reducidos a estado parcial contenido (C-04 fail-closed solo en producción, C-05 con 6 call sites residuales trasladados bajo CSP estricta). <b>Lo que bloquea</b> ahora es otra cosa: <b>N-01</b> (subida de logo/favicon desde /control rechazada con 413 por <code>client_max_body_size 1m</code>), <b>N-02</b> (8 tests rojos en control/) y 7 mayores de seguridad sin cerrar (M-05, M-06, M-16, M-18, M-19, C-04, C-05 residual).</p>
+  </div>
+
+  <!-- ═══════════════ MÉTRICAS ═══════════════ -->
+  <h2>1. Métricas del proyecto</h2>
+  <div class="cards">
+    <div class="card"><div class="k">Seguridad</div><div class="v"><span class="rating r-b">B</span></div><div class="d">0 críticas abiertas, 9 mayores</div></div>
+    <div class="card"><div class="k">Confiabilidad (bugs)</div><div class="v"><span class="rating r-c">C</span></div><div class="d">8 tests rojos en control/</div></div>
+    <div class="card"><div class="k">Mantenibilidad</div><div class="v"><span class="rating r-c">C</span></div><div class="d">Deuda alta (monolitos)</div></div>
+    <div class="card"><div class="k">Líneas de código</div><div class="v">86,483</div><div class="d">104 archivos (JS/HTML/CSS)</div></div>
+    <div class="card"><div class="k">Tests backend</div><div class="v">1,317</div><div class="d">68 suites — 100% en verde</div></div>
+    <div class="card"><div class="k">Tests control</div><div class="v">462/470</div><div class="d">26 suites — 8 fallando</div></div>
+    <div class="card"><div class="k">Rutas backend</div><div class="v">194</div><div class="d">control: 53 (antes 44)</div></div>
+    <div class="card"><div class="k">Espejo prod/</div><div class="v">Sincronizado</div><div class="d">10/10 archivos idénticos por hash</div></div>
+  </div>
+
+  <table>
+    <tr><th>Categoría</th><th>Abiertos</th><th>Distribución</th></tr>
+    <tr><td>Vulnerabilidades de seguridad (mayores + críticas parciales)</td><td>9</td><td><div class="barra"><span style="width:45%;background:var(--sev-critical)"></span></div></td></tr>
+    <tr><td>Code smells / deuda técnica</td><td>17</td><td><div class="barra"><span style="width:68%;background:var(--sev-minor)"></span></div></td></tr>
+    <tr><td>Configuración insegura (infra)</td><td>7</td><td><div class="barra"><span style="width:35%;background:var(--sev-major)"></span></div></td></tr>
+    <tr><td>Calidad de pruebas (regresión)</td><td>1</td><td><div class="barra"><span style="width:10%;background:var(--sev-major)"></span></div></td></tr>
+  </table>
+
+  <!-- ═══════════════ ESTADO DE LOS HALLAZGOS PREVIOS ═══════════════ -->
+  <h2>2. Estado de los 51 hallazgos de la versión 1.0</h2>
+  <p>Cada estado fue <span class="ok">verificado</span> leyendo la línea exacta del fuente actual (no el mensaje de commit). "Cerrado" = el fix está en el código; "Parcial" = hay fix con resto; "AbiertO" = sin cambio.</p>
+
+  <h3>2.1 Críticos (6)</h3>
+  <table>
+    <tr><th>ID</th><th>Estado</th><th>Evidencia verificada</th></tr>
+    <tr><td class="id">C-01</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/server.js:2085 — <code>SELECT * FROM usuarios WHERE (rfc = ? OR email = ?) AND perfil = 'cliente'</code> (mismo candado en 1741, 1896, 7323, 7824)</td></tr>
+    <tr><td class="id">C-02</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/utils/auth.js:117,137 y control/utils/auth.js:25,48 — fail-closed solo con <code>NODE_ENV=production</code>, chequeo ANTES del fallback <code>raw || 'admin:admin'</code></td></tr>
+    <tr><td class="id">C-03</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/server.js:2355 <code>hostPermitido()</code> + <code>ALLOWED_HOSTS</code>; nginx.conf.template:360-361 <code>absolute_redirect off</code> + <code>return 302 /$tenant_slug/login;</code></td></tr>
+    <tr><td class="id">C-04</td><td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span></td><td class="arch">docker-compose.yml:33,36,94,97,144,145,256,257 siguen con <code>changeme_*</code>/<code>minioadmin</code> (dev a propósito, documentado en líneas 4-14). prod/docker-compose.prod.yml:130 sin defaults. El gate de arranque existe para MinIO (storage.js:48-55) y ADMIN_USERS, <b>no</b> para las credenciales MySQL.</td></tr>
+    <tr><td class="id">C-05</td><td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span></td><td class="arch"><code>escapeHtmlAttr()</code> existe en admin.js:2001, control.js:415, dashboard.js:30, portal.js:42 con decenas de call sites migrados. <b class="warn">Quedan 6 atributos con <code>escapeHtml()</code></b>: admin.js:8695-8698, 10358, 10374 (ver N-03-bis / detalle en sección 4)</td></tr>
+    <tr><td class="id">C-06</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">admin.js:11630 — <code>data-tooltip="${escapeHtmlAttr(tituloCorreo)}"</code>. Matiz: el backend sigue guardando comillas a propósito (<code>sanitizeText</code>, validate.js:315-328), así que la defensa queda 100% en el escape del render.</td></tr>
+  </table>
+
+  <h3>2.2 Mayores (19)</h3>
+  <table>
+    <tr><th>ID</th><th>Estado</th><th>Evidencia verificada</th></tr>
+    <tr><td class="id">M-01</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">portal.js:341-342 <code>${escapeHtml(it.titulo/mensaje)}</code> + :338 <code>escapeHtmlAttr</code> en <code>data-id</code>/<code>data-tipo</code></td></tr>
+    <tr><td class="id">M-02</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">admin.js:1744 y control.js:379 — <code>setSession(token)</code> guarda un token opaco emitido por el backend (Bearer), nunca la contraseña</td></tr>
+    <tr><td class="id">M-03</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/server.js:608,631 y control/server.js:158,180 — <code>requireOrigenPropio</code> valida <code>Origin</code> + <code>Sec-Fetch-Site</code> antes del auth; tests en ambos repos</td></tr>
+    <tr><td class="id">M-04</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">control/utils/adminEnv.js:63 — <code>/[,:\r\n"#]/</code> bloquea saltos de línea y comillas en el password</td></tr>
+    <tr><td class="id">M-05</td><td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span></td><td class="arch">control: cerrado — límiter en :188 ANTES de <code>express.json</code> :196. <b class="warn">Backend abierto</b>: <code>express.json({limit:'30mb'})</code> global en server.js:280 se ejecuta ANTES de <code>requireOrigenPropio</code>/limiters (:631-632)</td></tr>
+    <tr><td class="id">M-06</td><td><span class="pill" style="background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)">ABIERTO</span></td><td class="arch">control/server.js:382-383 <code>POST /api/public/onboarding/convertir/:token</code> sigue sin auth/captcha; sigue SIN enrutar en nginx (cae en <code>location ^~ /api/</code> :487 → backend → 404)</td></tr>
+    <tr><td class="id">M-07</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">control/utils/tenantMarca.js:66,99 — <code>encodeURIComponent(slug)</code> + slug validado antes de subir (comentario del fix en :61-65)</td></tr>
+    <tr><td class="id">M-08</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">control/server.js:933-935 y :1010-1012 <code>enmascararAccesoMinio/Smtp</code> → <code>passwordConfigurada: boolean</code>, con <code>POST .../revelar</code> auditado (:962, :1034)</td></tr>
+    <tr><td class="id">M-09</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/server.js:4611-4619 — exige <code>password_actual</code> y la valida con <code>verifyPassword</code> contra el operador antes del UPDATE</td></tr>
+    <tr><td class="id">M-10</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/utils/csvSeguro.js:15 <code>protegerCeldaCSV</code> unificado; usado en server.js:10680, utils/reportes.js:361-365, inventarioImportacion.js:13. Test csvSeguro.test.js</td></tr>
+    <tr><td class="id">M-11</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">docker-compose.yml:322 — control monta <code>./admin-users.env:/usr/src/app/.env:rw</code>; el <code>.env</code> completo ya no se monta ahí</td></tr>
+    <tr><td class="id">M-12</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">nginx.conf.template:155-160 (css/js) y :180-185 (imágenes) — bloque completo de cabeceras repetido dentro de cada location</td></tr>
+    <tr><td class="id">M-13</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">restablecer.js:110-119 — token por fragmento + <code>history.replaceState</code>; nginx :268-271 <code>location = /restablecer.html</code> con <code>access_log off</code></td></tr>
+    <tr><td class="id">M-14</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/scripts/lib/controlDb.js:123-124 grant angosto + :133-134 <code>REVOKE DROP, GRANT OPTION</code>; docker/mysql-control-init/01-narrow-grant.sql:9-10</td></tr>
+    <tr><td class="id">M-15</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/utils/storage.js:48-55 — aborta el arranque si faltan <code>MINIO_ROOT_USER/PASSWORD</code> en producción</td></tr>
+    <tr><td class="id">M-16</td><td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span></td><td class="arch">Quedan <b class="warn">server.js:8605</b> (<code>reenviar correo: ${err.message}</code>) y <b>server.js:8663</b> (reporte antes de eliminar). 5247/5569 son mensajes de validación user-safe; 4205/4227 son la excepción deliberada SMTP documentada</td></tr>
+    <tr><td class="id">M-17</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/server.js:562 y control/server.js:272 <code>DOCS_ENABLED</code> (404, nunca 403) + specs sin IP LAN. Tests docsEnabled.test.js en ambos</td></tr>
+    <tr><td class="id">M-18</td><td><span class="pill" style="background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)">ABIERTO</span></td><td class="arch">docker-compose.yml:252-253 — <code>COOKIE_SECURE: ${COOKIE_SECURE:-false}</code> junto a <code>NODE_ENV: production</code>; backend/utils/authUsuario.js:192 sigue siendo opt-in (<code>=== 'true'</code>)</td></tr>
+    <tr><td class="id">M-19</td><td><span class="pill" style="background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)">ABIERTO</span></td><td class="arch">control/server.js:247 <code>if (req.method === 'GET') return;</code> — toda lectura cross-tenant sigue sin traza, y :255 registra <code>req.path</code> sin query string</td></tr>
+  </table>
+
+  <h3>2.3 Menores e informativos (17 + 4)</h3>
+  <table>
+    <tr><th>ID</th><th>Estado</th><th>Evidencia verificada</th></tr>
+    <tr><td class="id">m-01</td><td><span class="parcial">PARCIAL</span></td><td class="arch">DOCS_ENABLED existe pero es opt-out (server.js:562): la UI sigue pública por defecto</td></tr>
+    <tr><td class="id">m-02</td><td><span class="bad">ABIERTO</span></td><td class="arch">backend/server.js:386-388 — <code>adminApiLimiter max: 2000</code> / 15 min</td></tr>
+    <tr><td class="id">m-03</td><td><span class="bad">ABIERTO</span></td><td class="arch">utils/tipoCambio.js:41 token de Banxico en query string; :20 <code>toISOString().slice(0,10)</code> como fecha local</td></tr>
+    <tr><td class="id">m-04</td><td><span class="ok">CERRADO</span></td><td class="arch">control/utils/adminEnv.js:150 <code>escribirEnvAtomico()</code> + <code>.bak</code> en :148</td></tr>
+    <tr><td class="id">m-05</td><td><span class="parcial">PARCIAL</span></td><td class="arch">control/utils/auth.js:73-80 usa <code>timingSafeEqual</code>, pero :84 corta temprano si el usuario no existe → enumeración por timing aún posible</td></tr>
+    <tr><td class="id">m-06</td><td><span class="bad">ABIERTO</span></td><td class="arch">control/utils/adminEnv.js:61 — 6 caracteres, sin regla de complejidad</td></tr>
+    <tr><td class="id">m-07</td><td><span class="bad">ABIERTO</span></td><td class="arch">utils/cierreMensual.js:256 y utils/ticketsCleanup.js:234 — <code>password: process.env.DB_PASSWORD || ''</code></td></tr>
+    <tr><td class="id">m-08</td><td><span class="bad">ABIERTO</span></td><td class="arch">utils/claveProdServ.js:119 — <code>sincronizarDesdeOrigen(urlPersonalizada)</code> conserva el parámetro</td></tr>
+    <tr><td class="id">m-09</td><td><span class="bad">ABIERTO</span></td><td class="arch">frontend/admin.html:4997 — <code>&lt;iframe class="preview-frame"&gt;</code> sin <code>sandbox</code> (su hermano de :3087 sí lo tiene)</td></tr>
+    <tr><td class="id">m-10</td><td><span class="bad">ABIERTO</span></td><td class="arch">backend/.dockerignore:1-5 — sin <code>test/</code> ni <code>scripts/</code></td></tr>
+    <tr><td class="id">m-11</td><td><span class="parcial">PARCIAL</span></td><td class="arch">control/Dockerfile tiene <code>USER appuser</code>; backend/Dockerfile crea el usuario pero nunca lo activa; frontend/Dockerfile (nginx) arranca como root</td></tr>
+    <tr><td class="id">m-12</td><td><span class="bad">ABIERTO</span></td><td class="arch">nginx.conf.template:85,404,528 — <code>client_max_body_size 20m</code> contra <code>IMAGEN_MAX_MB</code> hasta 20 (base64 ≈ 27.4 MB ⇒ 413)</td></tr>
+    <tr><td class="id">m-13</td><td><span class="bad">ABIERTO</span></td><td class="arch">admin.js:2847,2926 y control.js:551 — <code>btoa(unescape(encodeURIComponent(...)))</code></td></tr>
+    <tr><td class="id">m-14</td><td><span class="bad">ABIERTO</span></td><td class="arch">frontend/theme.js:178 — <code>color:rgba(175,194,220,0.55)</code> en el pie de 12px (contraste por debajo de AA)</td></tr>
+    <tr><td class="id">m-15</td><td><span class="bad">ABIERTO</span></td><td class="arch"><b>68 ocurrencias</b> de ✕/✓ en 7 archivos: admin.html (48), admin.js (8), control.html (7), tickets.html (2), csf/login/mi-cuenta-propuesta (1 c/u)</td></tr>
+    <tr><td class="id">m-16</td><td><span class="parcial">PARCIAL</span></td><td class="arch">offline.js:108-114 <code>limpiarTodo()</code> se invoca en logout (admin.js:3018), pero sigue <b>sin TTL</b> para filas viejas (offline.js:57 solo guarda <code>creadoEn</code>)</td></tr>
+    <tr><td class="id">m-17</td><td><span class="parcial">PARCIAL</span></td><td class="arch">db.js:1780-1791 y :1792-1798 ahora SÍ consultan <code>INFORMATION_SCHEMA.CHECK_CONSTRAINTS</code>, pero :1616 (<code>imp_importaciones</code>) sigue con DROP+ADD incondicional</td></tr>
+    <tr><td class="id">i-01</td><td><span class="parcial">SIN CAMBIOS</span></td><td class="arch">Aislamiento de MinIO por prefijo lógico — no re-modificado en esta ronda</td></tr>
+    <tr><td class="id">i-02</td><td><span class="bad">ABIERTO</span></td><td class="arch">server.js:673 <code>secretoInternoValido()</code> — las 13 rutas <code>/internal/*</code> comparten un único <code>X-Internal-Secret</code></td></tr>
+    <tr><td class="id">i-03</td><td><span class="bad">ABIERTO</span></td><td class="arch">nginx.conf.template:30-33 — HSTS sin <code>preload</code>; 0 cabeceras COOP/CORP en todo el archivo</td></tr>
+    <tr><td class="id">i-04</td><td><span class="bad">ABIERTO</span></td><td class="arch">frontend/style.css:1 — <code>@import</code> de Google Fonts en la hoja crítica</td></tr>
+  </table>
+
+  <!-- ═══════════════ OWASP ═══════════════ -->
+  <h2>3. Cumplimiento OWASP Top 10 (2021)</h2>
+  <table class="owasp">
+    <tr><th>Categoría</th><th>Categoría</th><th>1.0 → 1.1</th><th>Evidencia principal</th></tr>
+    <tr>
+      <td><b>A01</b></td><td>Broken Access Control</td>
+      <td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span><br><small>antes: NO CUMPLE</small></td>
+      <td class="desc">Cerrados: C-01 (filtro <code>perfil='cliente'</code>), M-09 (step-up en reset admin), M-14 (grants angostos), Swagger (M-17). Queda: onboarding público que autoprovisiona tenants (M-06) y un único <code>X-Internal-Secret</code> para 13 rutas (i-02).<br><span class="rec">A01 pasó de 5 hallazgos a 2 — la mayor mejora del ciclo.</span></td>
+    </tr>
+    <tr>
+      <td><b>A02</b></td><td>Cryptographic Failures</td>
+      <td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span></td>
+      <td class="desc">Cerrados: contraseñas de MinIO/SMTP en claro (M-08), credenciales root hardcodeadas en runtime (M-15), <code>.env</code> montado <code>:rw</code> en control (M-11). Queda: cookie de sesión sin <code>Secure</code> por defecto incluso con <code>NODE_ENV=production</code> (M-18), token de Banxico en query (m-03), defaults dev en docker-compose (C-04). El cifrado en reposo sigue correcto.</td>
+    </tr>
+    <tr>
+      <td><b>A03</b></td><td>Injection</td>
+      <td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span><br><small>antes: NO CUMPLE parcial</small></td>
+      <td class="desc"><span class="ok">SQL sin inyección (re-verificado en esta ronda)</span>, CSV injection cerrado (M-10), Host header injection cerrado (C-03), inyección de líneas en <code>.env</code> cerrada (M-04). Queda XSS residual en atributos: 6 call sites con <code>escapeHtml()</code> dentro de <code>attr="..."</code> (C-05 parcial), contenido bajo CSP estricta.</td>
+    </tr>
+    <tr>
+      <td><b>A04</b></td><td>Insecure Design</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: NO CUMPLE</small></td>
+      <td class="desc">CSRF cerrado con validación de <code>Origin</code>/<code>Sec-Fetch-Site</code> (M-03, presente en backend y control con tests), contraseña en <code>sessionStorage</code> eliminada (M-02), <code>.env</code> fuera del contenedor de control (M-11). Residual de diseño: body global de 30 MB antes del rate limit (M-05 parcial).</td>
+    </tr>
+    <tr>
+      <td><b>A05</b></td><td>Security Misconfiguration</td>
+      <td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span></td>
+      <td class="desc">Cerrados: cabeceras perdidas en locations de nginx (M-12), rutas de docs sin interruptor (M-17), credenciales MinIO en runtime (M-15). Quedan: defaults <code>changeme_*</code> en el stack de desarrollo (C-04), procesos root en backend/frontend (m-11), <code>test/</code> y <code>scripts/</code> en la imagen (m-10), <code>client_max_body_size</code> inconsistente (m-12 y N-01), docs públicas por defecto (m-01).</td>
+    </tr>
+    <tr>
+      <td><b>A06</b></td><td>Vulnerable and Outdated Components</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Express 4.19+, mysql2 3.11, sharp 0.35, nodemailer 9.1. Verificado que la dependencia <code>xlsx</code> instalada desde CDN de SheetJS <b>sí lleva <code>integrity</code> sha512</code></b> en package-lock (0.20.3, sin CVE conocido). <span class="rec">Mantener <code>npm audit</code> en CI.</span></td>
+    </tr>
+    <tr>
+      <td><b>A07</b></td><td>Identification and Authentication Failures</td>
+      <td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span><br><small>antes: NO CUMPLE</small></td>
+      <td class="desc">Cerrados: recuperación que tomaba cuentas admin (C-01), Basic Auth almacenado en JS (M-02), fail-closed de <code>ADMIN_USERS</code> (C-02). Quedan: política de contraseñas de super-admin de 6 caracteres (m-06) y enumeración por timing en el login de control (m-05).</td>
+    </tr>
+    <tr>
+      <td><b>A08</b></td><td>Software and Data Integrity Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: PARCIAL</small></td>
+      <td class="desc">Escritura del <code>.env</code> ahora atómica (m-04 cerrado) y <b>el espejo <code>prod/</code> está sincronizado al 100%</b> con su fuente (10/10 archivos idénticos por hash — antes estaba desincronizado). Queda: iframe de preview sin <code>sandbox</code> (m-09).</td>
+    </tr>
+    <tr>
+      <td><b>A09</b></td><td>Security Logging and Monitoring Failures</td>
+      <td><span class="pill" style="background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)">NO CUMPLE</span></td>
+      <td class="desc">Única categoría que sigue sin cumplir: la auditoría de control <b>omite todos los GET</b> (control/server.js:247) — las lecturas cross-tenant (listado de tenants, credenciales, uso de usuarios) no dejan traza — y registra <code>req.path</code> sin query (:255). M-19 sin tocar desde 1.0.</td>
+    </tr>
+    <tr>
+      <td><b>A10</b></td><td>Server-Side Request Forgery</td>
+      <td><span class="pill" style="background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)">PARCIAL</span></td>
+      <td class="desc">Sin SSRF activo (los fetch salientes usan URLs fijas de env). Sigue el "arma cargada": <code>sincronizarDesdeOrigen(urlPersonalizada)</code> en claveProdServ.js:119 con el parámetro sin usar (m-08).</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ HALLAZGOS NUEVOS ═══════════════ -->
+  <h2>4. Hallazgos nuevos de la versión 1.1</h2>
+  <p>Tres hallazgos no presentes en sonar.html, todos <span class="ok">verificados</span> en la línea exacta.</p>
+  <table>
+    <tr><th>ID</th><th>Sev.</th><th>Archivo:línea</th><th>Tipo</th><th>Detalle y recomendación</th></tr>
+
+    <tr>
+      <td class="id">N-01</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">frontend/nginx.conf.template:474<br>(prod espejo:474)<br>control/server.js:196,442-454<br>frontend/control.js:2433-2439 <span class="ok">verificado</span></td>
+      <td><span class="pill p-conf">Configuración</span></td>
+      <td class="desc"><b class="t">Subida de logo/favicon desde /control rechazada con 413: nginx limita el body a 1 MB y el backend espera hasta 30 MB</b>
+        <code>location ^~ /api/control/</code> declara <code>client_max_body_size 1m;</code>, mientras control recibe <code>logoBase64</code> con <code>express.json({ limit: '30mb' })</code> y valida hasta <code>IMAGEN_MAX_MB</code> (2 MB por defecto, 20 MB máximo — un archivo de 2 MB pesa ≈ 2.7 MB en base64). Cualquier logo o favicon real por encima de ~700 KB nunca llega a control: nginx responde 413 con la página de mantenimiento (por el <code>error_page 502 503 504</code> ni siquiera se ve el mensaje del backend). Es el mismo bug del punto 370 (413 por body insuficiente) <b>en el lado contrario</b>: allá se agrandó el límite de Express y aquí se olvidó el de nginx.
+        <span class="rec">Subir ese location a <code>client_max_body_size 27m</code> (margen para IMAGEN_MAX_MB_MAX=20 en base64), consistente con los 20m/27m del resto del archivo. Validar con Playwright subiendo un logo de 3 MB real.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-02</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">control/test/unit/ensureSchema.test.js:304<br>control/test/unit/docsEnabled.test.js:41 <span class="ok">verificado</span></td>
+      <td><span class="pill p-smell">Code smell</span></td>
+      <td class="desc"><b class="t">La suite de control/ corre con 8 tests rojos (462/470)</b>
+        Ejecución real de esta ronda: <b>2 suites fallidas</b>. (a) <code>ensureSchema.test.js:304</code> espera 3 llamadas a <code>db.query</code> y recibe 6 — conteos desactualizados que arrastran desde antes (hallazgo colateral ya conocido en el punto 402, nunca corregido). (b) <code>docsEnabled.test.js:41</code> falla por <b>timeout de 5 s</b> en "sin configurar: /api/control/docs.json responde 200" — un timeout en un test que solo debe levantar la app y hacer un GET sugiere que <code>swagger-jsdoc</code> está tardando o que hay un handle abierto (Jest avisa "Force exiting").
+        <span class="rec">Actualizar los conteos de <code>db.query</code> contra el <code>ensureSchema.js</code> real (o assertions por presencia en vez de número exacto) y subir el timeout de docsEnabled / pasar a <code>--detectOpenHandles</code> para confirmar si el problema es del spec o de la app.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-03</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">frontend/admin.js:8695-8698<br>frontend/admin.js:10358,10374 <span class="ok">verificado</span></td>
+      <td><span class="pill p-hot">Hotspot</span></td>
+      <td class="desc"><b class="t">Residual de C-05: 6 atributos HTML siguen escapando con <code>escapeHtml()</code> en vez de <code>escapeHtmlAttr()</code></b>
+        El grep efectivo documentado en PROJECT_STATE (<code>(data-…|aria-label|value|title|…)="…${escapeHtml(</code>) devuelve exactamente 6 sitios en admin.js (0 en control.js/dashboard.js/portal.js): 4 en botones de promociones (<code>aria-label="Archivar ${escapeHtml(p.titulo)}"</code>) y 2 en <code>aria-label="Quitar ${escapeHtml(producto.concepto)}"</code>, donde <code>concepto</code> es texto capturado por el usuario del tenant. <code>escapeHtml()</code> no escapa comillas, así que una comilla doble cierra el atributo y permite agregar atributos nuevos. Contenido hoy por la CSP sin <code>unsafe-inline</code> en <code>script-src</code> (los handlers inline no ejecutan), pero es exactamente el patrón que C-05 describía.
+        <span class="rec">Migrar esos 6 call sites a <code>escapeHtmlAttr()</code> (cambio de una palabra por sitio) y dejar la regla como checklist de revisión: ningún <code>${...}</code> dentro de <code>attr="..."</code> sin escape de atributo.</span></td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ ABIERTOS MAYORES ═══════════════ -->
+  <h2>5. Hallazgos previos que siguen abiertos (detallados)</h2>
+  <table>
+    <tr><th>ID</th><th>Sev.</th><th>Archivo:línea</th><th>Detalle y recomendación</th></tr>
+
+    <tr>
+      <td class="id">M-19</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">control/server.js:247,255</td>
+      <td class="desc"><b class="t">Auditoría de control sin lecturas cross-tenant (A09, única categoría OWASP sin cumplir)</b>
+        <code>if (req.method === 'GET') return;</code> descarta toda lectura: ver tenants, credenciales MinIO enmascaradas, uso de usuarios y planes no deja traza. Además registra <code>req.path</code>, no <code>req.originalUrl</code>, así que los filtros aplicados no quedan en el evento.
+        <span class="rec">Auditar al menos las rutas de superficie sensible (GET con datos de todos los tenants) usando <code>req.originalUrl</code>; si el volumen preocupa, muestrear con retención corta en vez de descartar.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">M-18</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">docker-compose.yml:252-253<br>backend/utils/authUsuario.js:192</td>
+      <td class="desc"><b class="t">Cookie de sesión sin <code>Secure</code> incluso corriendo con <code>NODE_ENV=production</code></b>
+        El contenedor de backend declara <code>NODE_ENV: production</code> y <code>COOKIE_SECURE: ${COOKIE_SECURE:-false}</code> a la vez: con la configuración por defecto, la app cree estar en producción (y dispara todos los fail-closed nuevos) pero envía la cookie httpOnly de sesión por HTTP plano.
+        <span class="rec">Default <code>true</code> cuando <code>NODE_ENV=production</code> y bloqueo de arranque si se pide <code>false</code> en producción — mismo criterio que C-02/M-15.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">M-06</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">control/server.js:382-383<br>frontend/nginx.conf.template:487</td>
+      <td class="desc"><b class="t">Onboarding público: sigue sin endurecer, y sigue sin estar enrutado</b>
+        <code>POST /api/public/onboarding/convertir/:token</code> crea tenant real con <code>CREATE DATABASE</code>, sin captcha ni verificación, solo con rate limit (onboardingPublicLimiter, :133). Por el lado de nginx, <code>/api/public/onboarding/*</code> cae en <code>location ^~ /api/</code> → backend → 404, así que hoy sigue inalcanzable desde el navegador (defensa por accidente, ya documentada).
+        <span class="rec">Mantener la urgencia baja, pero endurecer ANTES de enrutar: CAPTCHA o verificación por correo, cupo por identidad y respuesta genérica en <code>slug-disponible</code>.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">M-05</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">backend/server.js:280<br>(límiters en :631-632)</td>
+      <td class="desc"><b class="t">En backend, el body parser global de 30 MB sigue corriendo antes del rate limit</b>
+        Cerrado en control (límiter :188 antes de <code>express.json</code> :196), pero en backend <code>express.json({ limit: '30mb' })</code> está en la :280 y los limiters de <code>/api/admin</code> recién en la :631-632: cada request anónimo paga el parseo completo antes de cualquier 429.
+        <span class="rec">Registrar los limiters antes del body parser o aplicar <code>express.json</code> por prefijo (solo las rutas que reciben base64), dejando 1-2 MB como global.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">M-16</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">backend/server.js:8605,8663</td>
+      <td class="desc"><b class="t">Dos rutas devuelven <code>err.message</code> crudo del lado SMTP/generación</b>
+        "No se pudo reenviar el correo: ${err.message}" (8605) y "No se pudo generar el reporte antes de eliminar: ${err.message}" (8663) pueden filtrar host/banner/detalle de autenticación del cliente de correo o rutas internas del proceso. Los otros sitios del informe 1.0 ya fueron corregidos o son mensajes de validación deliberados.
+        <span class="rec">Mensaje genérico al cliente + <code>console.error()</code> con el detalle (mismo patrón aplicado en el resto de la Fase 2).</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">C-04</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">docker-compose.yml:33,36,94,97,<br>144-145,256-257</td>
+      <td class="desc"><b class="t">Defaults públicos: cerrados en producción, vivos en el stack de desarrollo</b>
+        <code>prod/docker-compose.prod.yml</code> ya no trae ningún default y los fail-closed de C-02/M-15 abortan arranques en producción. Falta el mismo gate para las credenciales de MySQL (<code>changeme_root_password</code>/<code>changeme_app_password</code>) y para MinIO en el compose de desarrollo: nada impide un deploy productivo levantando este archivo tal cual.
+        <span class="rec">Preflight en <code>prod/actualizar.sh</code> (ya existe para otras variables) que verifique que ninguna variable siga en default antes de levantar.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">C-05</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">frontend/admin.js:8695-8698,<br>10358,10374</td>
+      <td class="desc"><b class="t">Migración de escape de atributo al 94%</b>
+        6 sitios residuales (ver N-03, que documenta el detalle y el grep exacto). El resto de la base de código ya usa <code>escapeHtmlAttr()</code>.
+        <span class="rec">Cerrar con el mismo cambio de una palabra y sin tocar nada más.</span></td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ MENORES ABIERTOS ═══════════════ -->
+  <h2>6. Menores e informativos abiertos</h2>
+  <table>
+    <tr><th>ID</th><th>Sev.</th><th>Archivo:línea</th><th>Detalle</th></tr>
+    <tr><td class="id">m-15</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">admin.html (48), admin.js (8),<br>control.html (7), tickets.html (2),<br>csf/login/mi-cuenta (1 c/u)</td><td class="desc"><b>68 caracteres ✕/✓/⚠/⏳/⟳</b> en HTML/JS de producción, contra la directiva persistente "cero emojis y cero glifos de señalización". Sustituir por SVG feather-like o <code>&lt;span&gt;</code> de color.</td></tr>
+    <tr><td class="id">m-12</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">nginx.conf.template:85,404,528</td><td class="desc"><code>client_max_body_size 20m</code> choca con <code>IMAGEN_MAX_MB</code> hasta 20 MB (base64 ≈ 27.4 MB ⇒ 413 antes de llegar al backend). También: soft-404 (ruta desconocida sirve login.html con 200) y <code>style-src 'unsafe-inline'</code>.</td></tr>
+    <tr><td class="id">m-02</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">backend/server.js:386-388</td><td class="desc"><code>adminApiLimiter</code> con 2000 req/15 min por IP+tenant: permite scraping/enumeración por tenant. Bajar a ~600 o añadir límite por usuario autenticado.</td></tr>
+    <tr><td class="id">m-13</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">admin.js:2847,2926 · control.js:551</td><td class="desc"><code>unescape()</code> deprecado desde ES5 en la codificación UTF-8→base64 de credenciales. Helper compartido del mismo estilo que los de escape.</td></tr>
+    <tr><td class="id">m-10</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">backend/.dockerignore:1-5</td><td class="desc">La imagen sigue empaquetando <code>test/</code> (escenarios de auth) y <code>scripts/</code> (seed y aprovechamiento con lógica de privilegios).</td></tr>
+    <tr><td class="id">m-11</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">backend/Dockerfile · frontend/Dockerfile</td><td class="desc">control ya usa <code>USER appuser</code>; backend crea el usuario y no lo activa; nginx sigue como root. Sumar <code>cap_drop: [ALL]</code> y <code>user:</code> fijo.</td></tr>
+    <tr><td class="id">m-06</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">control/utils/adminEnv.js:61</td><td class="desc">Contraseña de super-admin: mínimo 6 caracteres, sin complejidad — más débil que la de clientes de tenant (8 + mayúscula + minúscula + número).</td></tr>
+    <tr><td class="id">m-05</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">control/utils/auth.js:84</td><td class="desc">Corte temprano cuando el usuario no existe (sin comparación de relleno) → enumeración por timing. Comparación constante y 401 siempre igual.</td></tr>
+    <tr><td class="id">m-03</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">utils/tipoCambio.js:20,41</td><td class="desc">Token de Banxico en query string (queda en logs de proxy) y <code>hoyLocal()</code> construido con <code>toISOString()</code> (tras 18:00 pide el tipo de cambio de mañana — gotcha del punto 371, usar <code>limitesPeriodo.js</code>).</td></tr>
+    <tr><td class="id">m-07</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">cierreMensual.js:256 · ticketsCleanup.js:234</td><td class="desc">Credencial MySQL global compartida por todos los tenants, con fallback a <code>''</code>: un leak compromete todas las bases.</td></tr>
+    <tr><td class="id">m-08</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">utils/claveProdServ.js:119</td><td class="desc"><code>sincronizarDesdeOrigen(urlPersonalizada)</code>: convierte la ruta en proxy SSRF el día que algún call site pase input del usuario. Eliminar el parámetro.</td></tr>
+    <tr><td class="id">m-09</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">frontend/admin.html:4997</td><td class="desc">Iframe de preview de documento sin <code>sandbox</code> (el de plantilla de correo, :3087, sí lo tiene).</td></tr>
+    <tr><td class="id">m-14</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">frontend/theme.js:178</td><td class="desc">Pie de "Portal desactivado" con <code>rgba(175,194,220,0.55)</code> a 12px: contraste por debajo de AA 4.5:1.</td></tr>
+    <tr><td class="id">m-16</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">frontend/offline.js:57,108</td><td class="desc">Cola offline con montos de Ventas/Gastos: ya se vacía en logout, pero sin TTL para filas viejas si la pestaña queda abierta días.</td></tr>
+    <tr><td class="id">m-17</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">backend/db.js:1616</td><td class="desc">Único <code>DROP CHECK</code> + re-<code>ADD</code> incondicional que queda (los demás ya consultan <code>INFORMATION_SCHEMA</code>).</td></tr>
+    <tr><td class="id">m-01</td><td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td><td class="arch">backend/server.js:562 · control:272</td><td class="desc">Docs siguen habilitadas por defecto (opt-out). En producción basta con <code>DOCS_ENABLED=false</code>, pero no está puesto en el compose.</td></tr>
+    <tr><td class="id">i-02</td><td><span class="sev-badge b-info" style="padding:2px 9px">Info</span></td><td class="arch">backend/server.js:673,701-1280</td><td class="desc">13 rutas <code>/internal/*</code> protegidas por un único <code>X-Internal-Secret</code>: su filtración abre recarga de admins, subida de logos, activación y borrado de tenants a la vez.</td></tr>
+    <tr><td class="id">i-03</td><td><span class="sev-badge b-info" style="padding:2px 9px">Info</span></td><td class="arch">nginx.conf.template:30-33</td><td class="desc">HSTS sin <code>preload</code> y sin <code>Cross-Origin-Opener-Policy</code>/<code>Cross-Origin-Resource-Policy</code> en todo el archivo (0 coincidencias).</td></tr>
+    <tr><td class="id">i-04</td><td><span class="sev-badge b-info" style="padding:2px 9px">Info</span></td><td class="arch">frontend/style.css:1</td><td class="desc"><code>@import</code> de Google Fonts en la hoja crítica (expone IP del cliente a un tercero y rompe tipografía si el CDN se bloquea). Auto-hospedar Inter.</td></tr>
+    <tr><td class="id">i-01</td><td><span class="sev-badge b-info" style="padding:2px 9px">Info</span></td><td class="arch">backend/utils/storage.js:6-10</td><td class="desc">Aislamiento de tenants en MinIO sigue siendo lógico (prefijo), no de infraestructura. Riesgo aceptado, sin cambios.</td></tr>
+  </table>
+
+  <!-- ═══════════════ DEUDA TÉCNICA ═══════════════ -->
+  <h2>7. Deuda técnica y code smells</h2>
+  <table>
+    <tr><th>Impacto</th><th>Localización</th><th>Detalle y recomendación</th></tr>
+    <tr>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Alto</span></td>
+      <td class="arch">frontend/admin.js (20,294)<br>backend/server.js (10,947)<br>frontend/admin.html (5,901)</td>
+      <td class="desc"><b class="t">Monolitos que siguieron creciendo</b> — admin.js ganó ~310 líneas desde 1.0 y server.js ~230. 194 rutas top-level en un solo archivo. Ninguna función supera las 215 líneas (el problema sigue siendo la agregación). <span class="rec">Extraer rutas del backend a routers por dominio; dividir admin.js por vistas cargadas en orden (sin bundler).</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Alto</span></td>
+      <td class="arch">control/server.js (53 rutas)</td>
+      <td class="desc"><b class="t">El patrón manual de 3 middlewares creció de 44 a 53 rutas</b> — <code>adminApiLimiter + requireAdminAuth + requireAdminArea</code> repetido ruta por ruta: verificado con chequeo automatizado de las 53 definiciones, <b>solo <code>/health</code> queda sin auth</b> (correcto, es la sonda), pero cada rutas nueva obliga a recordar el patrón. <span class="rec">Routers por dominio montados bajo un middleware global de auth con whitelist explícita de públicas (la whitelist ya existe de facto: health, docs, onboarding).</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Medio</span></td>
+      <td class="arch">admin.js · control.js<br>dashboard.js · portal.js</td>
+      <td class="desc"><b class="t">Helpers de escape duplicados en 4 archivos</b> — <code>escapeHtml</code>/<code>escapeHtmlAttr</code> copiados a propósito (proyecto sin bundler), pero es justo lo que produjo el residual de C-05: un fix aplicado en un archivo y no en otro. <span class="rec">Mantener la duplicación (es la convención) pero con un test de regresión que grepee los 4 archivos a la vez por <code>attr="…escapeHtml(</code>).</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Medio</span></td>
+      <td class="arch">frontend/admin.js (~100 bloques)</td>
+      <td class="desc"><b class="t">Copia del boilerplate de fetch con manejo de 401</b> — sigue sin <code>apiFetch()</code> central; cada copia es una oportunidad de olvidar <code>clearSession()</code>.</td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Bajo</span></td>
+      <td class="arch">control/test/unit/<br>ensureSchema.test.js:304</td>
+      <td class="desc"><b class="t">Tests acoplados al número exacto de queries</b> — el conteo se rompe cada vez que <code>ensureSchema.js</code> crece (ya van 2 veces). <span class="rec">Assert por presencia (<code>some(sql =&gt; /ALTER TABLE/)</code>) en vez de <code>toHaveBeenCalledTimes(n)</code>.</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Bajo</span></td>
+      <td class="arch">repositorio (git status)</td>
+      <td class="desc"><b class="t">56 archivos modificados sin commit</b> — incluye todos los fixes de seguridad de la Fase 1/2 (C-01…C-06, M-01…M-19). Todo el trabajo de remediación vive solo en disco: un <code>git checkout</code> accidental o un descarte de workspace perdería el ciclo completo. <span class="rec">Commitear por fases con mensajes que referencien los IDs (el propio repo lo hace así).</span></td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ FORTALEZAS ═══════════════ -->
+  <h2>8. Fortalezas verificadas</h2>
+  <ul>
+    <li><b>Cero inyección SQL (re-verificado en esta ronda).</b> Ensamblajes <code>WHERE</code>/<code>ORDER BY</code> dinámicos revisados: los fragmentos interpolados son literales de código y los valores viajan siempre en parámetros <code>?</code>; pool sin <code>multipleStatements</code>.</li>
+    <li><b>Los 6 hallazgos críticos de 1.0 quedaron resueltos con tests</b>: <code>hostPermitido.test.js</code>, <code>docsEnabled.test.js</code> (backend y control), <code>csvSeguro.test.js</code>, <code>requireOrigenPropio.test.js</code> (ambos repos), tests de C-01/C-02 en <code>auth-usuario.test.js</code> y <code>auth.test.js</code>. Backend 1,317/1,317 en verde.</li>
+    <li><b>CSRF con validación de origen</b> antes del auth en ambas superficies (<code>app.use('/api/admin', requireOrigenPropio)</code>, <code>app.use('/api/control', ...)</code>), con caso <code>cross-site sin Origin</code> cubierto por test.</li>
+    <li><b>CSP estricta sin <code>unsafe-inline</code> en <code>script-src</code></b> (nginx:138, repetida en los locations de estáticos tras M-12), con <code>object-src 'none'</code>, <code>base-uri 'self'</code>, <code>frame-ancestors 'self'</code> y <code>img-src</code>/<code>frame-src</code> cubriendo <code>data:</code>/<code>blob:</code>. Cero <code>&lt;script&gt;</code> inline, cero handlers inline, cero <code>eval</code>.</li>
+    <li><b>Fallo seguro homogéneo en producción</b>: <code>ADMIN_USERS</code> (C-02), credenciales de MinIO (M-15) y — con matiz — los defaults de compose abortan el arranque con <code>NODE_ENV=production</code>, con el chequeo colocado antes del fallback (bug que el propio fix detectó y corrigió).</li>
+    <li><b>Auditoría con retroceso controlado</b>: la subida de logos valida el slug ANTES de usarlo y añade <code>encodeURIComponent</code> como defensa en profundidad (M-07); el <code>.env</code> se escribe de forma atómica con backup (m-04); los grants de la credencial <code>app</code> se angostaron con <code>REVOKE DROP, GRANT OPTION</code> (M-14).</li>
+    <li><b>Espejo <code>prod/</code> sincronizado al 100%</b>: los 10 archivos comparados (admin.js, control.js, portal.js, dashboard.js, login.js, style.css, admin.html, control.html, backend/server.js, nginx.conf.template) son idénticos por hash con su fuente — la deuda del punto 366/5 se cerró.</li>
+    <li><b>Supply-chain higiénico</b>: <code>xlsx</code> instalado desde CDN de SheetJS con <code>integrity</code> sha512 verificado en el lockfile, overrides de <code>qs</code>/<code>uuid</code>, dependencias de compilación nativa inexistentes (scrypt nativo de Node).</li>
+    <li><b>Base de pruebas ampliada</b>: 1,787 ejecuciones (1,317 backend + 470 control) y 25 specs E2E Playwright contra Docker/MySQL reales.</li>
+  </ul>
+
+  <!-- ═══════════════ ROADMAP ═══════════════ -->
+  <h2>9. Plan de remediación priorizado (v1.1)</h2>
+  <table>
+    <tr><th>Fase</th><th>Plazo</th><th>Acciones</th><th>IDs</th></tr>
+    <tr>
+      <td><b>Fase A — Desbloquear</b><br><small style="color:var(--gris);font-weight:400">Lo que impide aprobar la gate</small></td>
+      <td>Horas</td>
+      <td class="desc">
+        1. <code>client_max_body_size 27m</code> en <code>location ^~ /api/control/</code> (repo y prod) + prueba real subiendo un logo de 3 MB.<br>
+        2. Reparar los 8 tests rojos de control (conteos de <code>ensureSchema</code> por presencia; timeout de <code>docsEnabled</code>).<br>
+        3. Migrar los 6 call sites residuales de <code>escapeHtml</code> a <code>escapeHtmlAttr</code>.
+      </td>
+      <td class="arch">N-01, N-02,<br>N-03/C-05</td>
+    </tr>
+    <tr>
+      <td><b>Fase B — Mayores</b><br><small style="color:var(--gris);font-weight:400">Cerrar A09 y la cookie</small></td>
+      <td>3-5 días</td>
+      <td class="desc">
+        Auditar GETs sensibles en control con <code>req.originalUrl</code> (M-19, única OWASP sin cumplir); <code>COOKIE_SECURE</code> default true en producción (M-18); límiter antes del body parser en backend (M-05); enmascarar los 2 <code>err.message</code> restantes (M-16); endurecer onboarding antes de enrutarlo (M-06).
+      </td>
+      <td class="arch">M-19, M-18,<br>M-05, M-16,<br>M-06, C-04</td>
+    </tr>
+    <tr>
+      <td><b>Fase C — Continuo</b><br><small style="color:var(--gris);font-weight:400">Deuda y prevención</small></td>
+      <td>Continuo</td>
+      <td class="desc">
+        68 glifos Unicode → SVG; <code>adminApiLimiter</code> a ~600; <code>.dockerignore</code> con <code>test/</code>/<code>scripts/</code>; <code>USER appuser</code> en backend y nginx; política de contraseñas de super-admin alineada; helper anti-<code>unescape</code>; auto-hospedar Inter; COOP/CORP + HSTS preload; commit por fases de los 56 archivos pendientes; gate de CI con <code>npm audit</code> + <code>node --check</code> + Playwright.
+      </td>
+      <td class="arch">m-01…m-17<br>i-01…i-04</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ METODOLOGÍA ═══════════════ -->
+  <h2>10. Metodología y alcance</h2>
+  <div class="nota">
+    <b>Qué se hizo:</b> análisis estático asistido sobre el 100% del código de producción de <code>backend/</code> (server.js completo, db.js, los 20+ módulos de utils y scripts), <code>control/</code> (server.js completo, utils, tests), <code>frontend/</code> (admin.js completo, portal, dashboard, control, login, theme, offline, restablecer, HTML y CSS), <code>docker-compose.yml</code>, los 3 Dockerfiles, los init scripts de MySQL, ambas plantillas de nginx y <code>prod/</code>.<br><br>
+    <b>Cómo se verificó:</b> cada uno de los 51 hallazgos previos se localizó con búsqueda dirigida y se leyó la línea exacta del fuente actual antes de asignarle estado — no se confió en los mensajes de commit ni en la documentación. Se corrieron las dos suites Jest reales (backend 1,317/1,317; control 462/470) y se comparó el espejo <code>prod/</code> por hash SHA-256 contra su fuente. El chequeo de rutas sin autenticación fue automatizado (ventana de 6-10 líneas tras cada <code>app.(get|post|put|delete)</code>).<br><br>
+    <b>Qué NO cubre:</b> no es un pentest dinámico (no se ejecutaron exploits contra el stack levantado); <code>npm audit</code> y la medición de cobertura (<code>jest --coverage</code>) quedan pendientes; los 5 specs E2E de Playwright no se ejecutaron en esta ronda (requieren Docker+MySQL arriba); i-01 se dio por sin cambios sin re-verificación profunda. Un hallazgo funcional (N-01) se dedujo por trazado de la cadena nginx → express → handler, no por una ejecución fallida real.<br><br>
+    <b>Recomendación:</b> aplicar la Fase A (3 cambios acotados), re-correr <code>npx jest</code> en control para confirmar 470/470, y validar N-01 con Playwright contra Docker real antes de dar la gate por aprobada.
+  </div>
+
+  <footer>
+    Informe generado 2026-10-19 · Portal de Facturación ADDV (Clarvo) · Análisis tipo SonarQube + OWASP Top 10 (2021) · Versión 1.1 — 51 hallazgos previos re-estado + 3 nuevos · Archivo autocontenido (sin dependencias externas) · Comparable lado a lado con <code>sonar.html</code> (1.0, 2026-10-13).
+  </footer>
+</div>
+
+</body>
+</html>

@@ -470,4 +470,10 @@ module.exports = {
   asegurarTablaPlanes,
   asegurarTablaAjustesGlobales,
   asegurarTablaOnboardingBorradores,
+  // Exportadas solo para que test/unit/ensureSchema.test.js derive sus
+  // fixtures y conteos esperados de la fuente real, en vez de mantener una
+  // copia a mano que se desincroniza cada vez que se agrega una columna
+  // (hallazgo N-02, sonar_1.1.html — 2 veces ya se rompió por esto).
+  COLUMNAS_NUEVAS,
+  COLUMNAS_PLANES_NUEVAS,
 };

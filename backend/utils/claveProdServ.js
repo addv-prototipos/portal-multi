@@ -116,8 +116,8 @@ async function guardarCatalogo(catalogo, origen) {
 // PROJECT_STATE.md. Sin esa variable configurada (o si se sobreescribe a
 // vacío), el catálogo de ejemplo sigue funcionando normalmente en el
 // formulario.
-async function sincronizarDesdeOrigen(urlPersonalizada) {
-  const url = urlPersonalizada || process.env.CLAVE_PROD_SERV_SYNC_URL;
+async function sincronizarDesdeOrigen() {
+  const url = process.env.CLAVE_PROD_SERV_SYNC_URL;
 
   if (!url) {
     throw new Error(

@@ -461,6 +461,27 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       expect(countCall[0]).not.toMatch(/fecha_expiracion/);
     });
 
+    // "Buscar también por proveedor" — el campo proveedor_principal ya
+    // existía en productos pero la búsqueda de la lista solo miraba
+    // nombre/sku/codigo_barras. Confirma que la columna entró al OR y
+    // que el patrón "%busqueda%" se pasa también para ese 4to parámetro.
+    test('GET /productos?busqueda incluye proveedor_principal en el OR, con el mismo patrón que nombre/sku/codigo_barras', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        ['SELECT COUNT(*) AS total FROM productos', [[{ total: 1 }]]],
+        ['SELECT p.*, e.disponible', [[]]],
+      ]);
+      const res = await request(app)
+        .get('/api/admin/inventarios/productos?busqueda=VIPLA')
+        .auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      const countCall = pool.query.mock.calls.find(([sql]) => String(sql).startsWith('SELECT COUNT(*) AS total FROM productos'));
+      expect(countCall[0]).toMatch(/p\.nombre LIKE \? OR p\.sku LIKE \? OR p\.codigo_barras LIKE \? OR p\.proveedor_principal LIKE \?/);
+      expect(countCall[1]).toEqual(expect.arrayContaining(['%VIPLA%', '%VIPLA%', '%VIPLA%', '%VIPLA%']));
+    });
+
     test('POST /productos tipo=servicio sin unidad "Hora" configurada responde INV_UNIDAD_SERVICIO_NO_CONFIGURADA', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       mockPoolPorPatron([
@@ -910,6 +931,44 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       const res = await request(app).get('/api/admin/inventarios/kardex?producto_id=1').auth(usuario, password);
       expect(res.status).toBe(200);
       expect(res.body.movimientos[0].cantidad).toBe(5);
+    });
+
+    // Hallazgo M-10 (sonar.html): motivo/documento_origen/usuario son
+    // texto libre que puede venir de captura manual — un valor que
+    // empiece con = + - @ debe salir con apóstrofo antepuesto en el CSV,
+    // nunca tal cual (abriría como fórmula al abrir el archivo en Excel).
+    test('kardex-exportar neutraliza celdas que empiezan con fórmula (M-10, CSV/Formula Injection)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([
+        MODULO_ACTIVO,
+        [
+          'SELECT m.folio',
+          [[
+            {
+              folio: '=cmd|"/c calc"!A1',
+              tipo: 'entrada',
+              cantidad: '5.000',
+              costo_unitario: '10.00',
+              existencia_anterior: '0.000',
+              existencia_posterior: '5.000',
+              motivo: '+2+3',
+              documento_origen: '@SUM(A1)',
+              usuario: 'admin1',
+              creado_en: '2026-10-14 10:00:00',
+              sku: 'SKU1',
+              nombre: 'Producto normal',
+            },
+          ]],
+        ],
+      ]);
+
+      const res = await request(app).get('/api/admin/inventarios/kardex-exportar').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain("'=cmd");
+      expect(res.text).toContain("'+2+3");
+      expect(res.text).toContain("'@SUM(A1)");
+      expect(res.text).not.toMatch(/"=cmd/); // nunca sin el apóstrofo de protección
     });
   });
 

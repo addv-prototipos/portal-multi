@@ -2,6 +2,7 @@ const { pool } = require('../db');
 const { getConfiguracionGlobal, formatearFechaHoraMexico } = require('./config');
 const { enviarCorreo, getConfigSmtp, aplicarPlantilla, DEFAULTS_SMTP } = require('./email');
 const { MARCA_DEFECTO, construirCorreoBase, formatearParrafosCuerpo } = require('./correoMarca');
+const { protegerCeldaCSV } = require('./csvSeguro');
 
 // Este módulo es el motor central de "Reportes": arma el contenido en
 // Markdown, guarda los datos estructurados para poder filtrarlos/
@@ -348,13 +349,20 @@ function itemsAFilas(items, zonaHoraria, opciones) {
     const fechaFormateada = fechaSegura ? formatearFechaHoraMexico(fechaSegura, zonaHoraria) : null;
     const tipoLabel = item.tipo_registro === 'ticket' ? 'Ticket' : item.tipo_registro === 'gasto' ? 'Gasto' : 'Ventas';
     const accionLabel = item.accion === 'eliminado' ? 'Eliminado' : item.accion === 'archivado' ? 'Archivado' : '';
+    // Hallazgo M-10 (sonar.html): los 4 campos de texto libre de abajo
+    // (identificador/rfc/estatus_o_concepto/atendido_por) pueden venir de
+    // un cliente (p. ej. "número de venta" capturado en el portal
+    // público al subir un ticket) — protegerCeldaCSV() neutraliza un
+    // prefijo de fórmula ANTES de que la fila llegue a generarCSV() o
+    // generarExcelBuffer() (ambos consumen esta misma función, un solo
+    // punto de protección cubre los dos exportadores).
     const fila = [
       tipoLabel,
-      item.identificador,
-      item.rfc || '',
-      item.estatus_o_concepto || '',
+      protegerCeldaCSV(item.identificador),
+      protegerCeldaCSV(item.rfc || ''),
+      protegerCeldaCSV(item.estatus_o_concepto || ''),
       item.monto === null || item.monto === undefined ? '' : Number(item.monto),
-      item.atendido_por || '',
+      protegerCeldaCSV(item.atendido_por || ''),
       fechaFormateada ? `${fechaFormateada.fecha} ${fechaFormateada.hora}` : '',
       accionLabel,
     ];

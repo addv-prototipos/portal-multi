@@ -12,10 +12,93 @@ const { verifyPassword, hashPassword } = require('./authUsuario');
 // fiscal por temporización.
 const HASH_RELLENO_ADMIN = hashPassword(crypto.randomBytes(32).toString('hex'));
 
+// Hallazgo M-02 (sonar.html, 2026-10-14): admin.js/control.js guardaban
+// la contraseña real del operador en sessionStorage (btoa, reversible
+// en 1 línea) para reenviarla como Basic Auth en cada request — un XSS
+// o una extensión de navegador comprometida la exponía en claro, no un
+// token revocable. Se agrega un token de sesión opaco y firmado
+// (HMAC-SHA256) como alternativa — ADITIVA, Basic Auth sigue
+// funcionando exactamente igual para Swagger/scripts/curl y para los
+// mecanismos de API (api_clave/api_credencial), solo admin.js/control.js
+// migran a Bearer. Decisión explícita del usuario (2026-10-15): 30 min
+// de vida, DESLIZANTE (cada request válido reemite un token fresco vía
+// la cabecera X-Admin-Session-Token — ver emitirTokenSesion() más
+// abajo) y re-validación INSTANTÁNEA contra la BD/ADMIN_USERS en cada
+// request autenticado con Bearer (nunca confía ciegamente en el
+// payload firmado para el estado de suspensión — mismo nivel de
+// seguridad que Basic Auth, que ya revalida en cada petición).
+// Mismo env var que authUsuario.js (SESSION_SECRET) — reusar el nombre
+// simplifica la configuración en prod (un solo secreto), pero cada
+// módulo calcula su PROPIO fallback aleatorio si falta (dominios de
+// firma independientes, nunca se verifican entre sí).
+const SESSION_SECRET_ADMIN = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const DURACION_TOKEN_SESION_MS = 30 * 60 * 1000;
+
+function signAdminToken(payload) {
+  const cuerpo = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const firma = crypto.createHmac('sha256', SESSION_SECRET_ADMIN).update(cuerpo).digest('hex');
+  return `${cuerpo}.${firma}`;
+}
+
+function verifyAdminToken(token) {
+  if (typeof token !== 'string' || !token) return null;
+  const idx = token.lastIndexOf('.');
+  if (idx === -1) return null;
+  const cuerpo = token.slice(0, idx);
+  const firma = token.slice(idx + 1);
+  const firmaEsperada = crypto.createHmac('sha256', SESSION_SECRET_ADMIN).update(cuerpo).digest('hex');
+  if (firma.length !== firmaEsperada.length || !timingSafeEqualStrings(firma, firmaEsperada)) return null;
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(cuerpo, 'base64url').toString('utf8'));
+  } catch (err) {
+    return null;
+  }
+  if (!payload || typeof payload.exp !== 'number' || Date.now() > payload.exp) return null;
+  return payload;
+}
+
+// Emite (o renueva) el token de sesión tras CUALQUIER autenticación
+// exitosa vía admin_users/perfil_bd — tanto la primera vez (Basic, login
+// real con la contraseña recién tecleada) como cada request posterior
+// (Bearer, sesión deslizante). La cabecera se manda siempre que haya
+// autenticación, nunca solo en /login — admin.js intercepta esta
+// cabecera en su wrapper global de fetch() (ver comentario "punto 290"
+// ahí) y actualiza sessionStorage sin tocar los 200+ call sites.
+function emitirTokenSesion(req, res) {
+  const ahora = Date.now();
+  const token = signAdminToken({
+    usuario: req.adminUser,
+    perfil: req.adminPerfil,
+    mecanismo: req.adminMecanismo,
+    tenantSlug: req.tenant ? req.tenant.slug : null,
+    iat: ahora,
+    exp: ahora + DURACION_TOKEN_SESION_MS,
+  });
+  res.set('X-Admin-Session-Token', token);
+}
+
+// Lookup SIN verificación de password — solo se usa DESPUÉS de que la
+// firma HMAC del token ya probó la identidad; a diferencia de
+// verificarUsuarioAdministrativo() (que mezcla lookup+password a
+// propósito, por el blindaje de timing contra enumeración de cuentas),
+// aquí no hay contraseña que comparar, así que ese blindaje no aplica.
+async function obtenerUsuarioAdministrativoPorRfc(rfc) {
+  const [filas] = await pool.query(
+    "SELECT rfc, perfil, activo, nombre, email, debe_cambiar_password FROM usuarios WHERE rfc = ? AND perfil IN ('administrador', 'fiscal', 'ventas', 'inventario')",
+    [rfc]
+  );
+  return filas[0] || null;
+}
+
 /**
  * Lee las credenciales de administrador desde la variable de entorno ADMIN_USERS.
  * Formato: "usuario1:contrasena1,usuario2:contrasena2"
- * Si no se define, usa admin/admin por defecto.
+ * Si no se define, usa admin/admin por defecto — SOLO fuera de producción
+ * (ver hallazgo C-02, sonar.html: con NODE_ENV=production, no tener
+ * ADMIN_USERS aborta el arranque en vez de exponer credenciales públicas
+ * conocidas; en dev/test, admin:admin se conserva tal cual, es el login
+ * de pruebas local de siempre).
  *
  * Para cambiar la contraseña o agregar administradores, edita ADMIN_USERS
  * en docker-compose.yml o en el archivo .env — no requiere tocar código.
@@ -27,6 +110,16 @@ const HASH_RELLENO_ADMIN = hashPassword(crypto.randomBytes(32).toString('hex'));
  */
 function loadAdminUsers() {
   const raw = process.env.ADMIN_USERS && process.env.ADMIN_USERS.trim();
+  // C-02: este chequeo tiene que vivir ANTES del fallback de abajo — si
+  // `source` ya cae a 'admin:admin' aquí, el chequeo de `users.size === 0`
+  // más abajo nunca se dispara (el fallback ya dejó 1 usuario), así que
+  // ADMIN_USERS vacío/ausente nunca llegaría a tronar en producción.
+  if (!raw && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'ADMIN_USERS no está definido con NODE_ENV=production. ' +
+      'Fail-closed a propósito (hallazgo C-02): admin:admin nunca debe correr en producción.'
+    );
+  }
   const source = raw || 'admin:admin';
 
   const users = new Map();
@@ -41,6 +134,12 @@ function loadAdminUsers() {
   });
 
   if (users.size === 0) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'ADMIN_USERS no está definido (o no parsea ningún usuario válido) con NODE_ENV=production. ' +
+        'Fail-closed a propósito (hallazgo C-02): admin:admin nunca debe correr en producción.'
+      );
+    }
     users.set('admin', 'admin');
   }
   return users;
@@ -72,10 +171,18 @@ function timingSafeEqualStrings(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+// Hallazgo m-05 (sonar_1.1.html, 2026-10-19 — mismo patrón encontrado en
+// control/utils/auth.js, corregido ahí también): el corte temprano por
+// "usuario no existe" permitía enumerar usuarios ADMIN_USERS válidos por
+// timing. DUMMY_PASSWORD como password "esperado" cuando el usuario no
+// existe, para que exista/no-exista siempre pague el mismo costo.
+const DUMMY_PASSWORD = 'x'.repeat(64);
+
 function checkCredentials(username, password) {
-  if (!adminUsers.has(username)) return false;
-  const expectedPassword = adminUsers.get(username);
-  return timingSafeEqualStrings(String(password), String(expectedPassword));
+  const existe = adminUsers.has(username);
+  const expectedPassword = existe ? adminUsers.get(username) : DUMMY_PASSWORD;
+  const coincide = timingSafeEqualStrings(String(password), String(expectedPassword));
+  return existe && coincide;
 }
 
 // ---------- Credencial API por empresa (para uso en Swagger y consumo directo) ----------
@@ -260,6 +367,75 @@ async function requireAdminAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const [scheme, encoded] = header.split(' ');
 
+  // Hallazgo M-02: Bearer (token de sesión, ver emitirTokenSesion()
+  // arriba) — SOLO para admin_users/perfil_bd, los 2 mecanismos que usa
+  // el login de navegador de admin.js/control.js. api_clave/
+  // api_credencial/usuario_sucursal (consumo programático, sin sesión de
+  // navegador) siguen exclusivamente con Basic, sin cambios.
+  if (scheme === 'Bearer' && encoded) {
+    const payload = verifyAdminToken(encoded);
+    if (!payload) {
+      res.set('WWW-Authenticate', `Basic realm="${realm}"`);
+      return res.status(401).json({ error: 'Autenticacion requerida.' });
+    }
+    // Candado cross-tenant: un token emitido bajo el tenant A nunca debe
+    // autenticar contra el tenant B, aunque por coincidencia exista un
+    // "rfc" igual en ambas bases — Basic Auth lo evita de forma natural
+    // (la contraseña solo es válida en SU tenant); el token, al no volver
+    // a pedir contraseña, necesita este chequeo explícito.
+    const tenantActual = req.tenant ? req.tenant.slug : null;
+    if (payload.tenantSlug !== tenantActual) {
+      res.set('WWW-Authenticate', `Basic realm="${realm}"`);
+      return res.status(401).json({ error: 'Autenticacion requerida.' });
+    }
+    if (payload.mecanismo === 'admin_users') {
+      // Re-chequeo instantáneo: si ADMIN_USERS cambió (recargarAdminUsers,
+      // vía /control) y este usuario ya no existe, el token muere aquí
+      // mismo sin esperar a que expire — mismo nivel de revocación
+      // inmediata que ya tiene Basic Auth.
+      if (!adminUsers.has(payload.usuario)) {
+        res.set('WWW-Authenticate', `Basic realm="${realm}"`);
+        return res.status(401).json({ error: 'Autenticacion requerida.' });
+      }
+      req.adminUser = payload.usuario;
+      req.adminPerfil = 'super';
+      req.adminMecanismo = 'admin_users';
+      emitirTokenSesion(req, res);
+      return next();
+    }
+    if (payload.mecanismo === 'perfil_bd') {
+      try {
+        const fila = await obtenerUsuarioAdministrativoPorRfc(payload.usuario);
+        if (!fila) {
+          res.set('WWW-Authenticate', `Basic realm="${realm}"`);
+          return res.status(401).json({ error: 'Autenticacion requerida.' });
+        }
+        // Re-chequeo instantáneo de suspensión — igual de inmediato que
+        // Basic Auth, nunca espera a que expire el token (decisión
+        // explícita del usuario, 2026-10-15).
+        if (fila.activo === 0 || fila.activo === false) {
+          return res.status(403).json({ error: 'Tu cuenta está suspendida. Contacta a un administrador.', codigo: 'CUENTA_SUSPENDIDA' });
+        }
+        req.adminUser = fila.rfc;
+        req.adminPerfil = fila.perfil;
+        req.adminMecanismo = 'perfil_bd';
+        req.adminNombre = fila.nombre || null;
+        req.adminEmail = fila.email || null;
+        req.adminDebeCambiarPassword = Boolean(fila.debe_cambiar_password);
+        emitirTokenSesion(req, res);
+        return next();
+      } catch (err) {
+        console.error('Error verificando token de sesión (perfil_bd):', err.message);
+        res.set('WWW-Authenticate', `Basic realm="${realm}"`);
+        return res.status(401).json({ error: 'Autenticacion requerida.' });
+      }
+    }
+    // Token con un mecanismo que esta ruta no reconoce (firma válida
+    // pero payload inesperado) — nunca se asume válido por default.
+    res.set('WWW-Authenticate', `Basic realm="${realm}"`);
+    return res.status(401).json({ error: 'Autenticacion requerida.' });
+  }
+
   if (scheme !== 'Basic' || !encoded) {
     res.set('WWW-Authenticate', `Basic realm="${realm}"`);
     return res.status(401).json({ error: 'Autenticacion requerida.' });
@@ -289,6 +465,7 @@ async function requireAdminAuth(req, res, next) {
     req.adminUser = username;
     req.adminPerfil = 'super';
     req.adminMecanismo = 'admin_users';
+    emitirTokenSesion(req, res);
     return next();
   }
 
@@ -318,6 +495,7 @@ async function requireAdminAuth(req, res, next) {
       // cliente (/api/auth/login) lo hacía. Expuesto aquí para que
       // GET /api/admin/login pueda devolverlo e interceptar el login.
       req.adminDebeCambiarPassword = Boolean(usuarioAdmin.debe_cambiar_password);
+      emitirTokenSesion(req, res);
       return next();
     }
   } catch (err) {
@@ -406,4 +584,13 @@ function requireAdminArea(...perfilesPermitidos) {
   };
 }
 
-module.exports = { requireAdminAuth, requireAdminArea, recargarAdminUsers, listarAdminUsers, loadAdminUsers };
+module.exports = {
+  requireAdminAuth,
+  requireAdminArea,
+  recargarAdminUsers,
+  listarAdminUsers,
+  loadAdminUsers,
+  checkCredentials,
+  signAdminToken,
+  verifyAdminToken,
+};

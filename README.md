@@ -56,6 +56,9 @@ No se usa framework de frontend (React/Vite) para mantener la imagen ligera y si
     nginx.conf            # Sirve estáticos y reenvía /api al backend
     Dockerfile
   /uploads                # VESTIGIAL (ver PROJECT_STATE.md punto 92) — ya no se guarda nada aquí, el almacenamiento real vive en MinIO
+  /webp                   # Módulo LOCAL de compresión a WebP (punto 400) — aislado de Clarvo, sin integrar, sin dependencias ni build.
+                          # Probador: abre /webp/index.html en el navegador (3 estilos de aviso conmutables); núcleo en /webp/comprimir.js.
+                          # No forma parte del stack Docker ni del deploy.
   docker-compose.yml
   .env.example
   README.md
@@ -75,7 +78,7 @@ Copia `.env.example` a `.env` y ajusta si lo necesitas:
 | `MYSQL_PORT` | Puerto de MySQL expuesto en el host (para conectarte con un cliente externo) — publicado solo en `127.0.0.1`, no en toda la LAN/interfaz pública | `3306` |
 | `MAX_FILE_SIZE_MB` | Tamaño máximo (MB) solo para archivos NO imagen (CSF PDF, comprobante de Gastos, factura ZIP, importador CSV/XLSX) — ya no gobierna imágenes (producto, foto de ticket, logo, favicon): eso se configura en vivo desde `/control` → Super Admins → "Ajustes de imágenes" (punto 370), no por variable de entorno. Dejó de declararse en `docker-compose*.yml`: agrégala tú ahí si necesitas cambiar este valor | `5` |
 | `CORS_ORIGIN` | Origen permitido para CORS en el backend | `*` |
-| `ADMIN_USERS` | Usuarios administradores, formato `usuario:contrasena,usuario2:contrasena2` — **cámbialo en producción** (el valor por defecto es público, da acceso a `/admin` y `/control`) | `admin:admin` |
+| `ADMIN_USERS` | Usuarios administradores, formato `usuario:contrasena,usuario2:contrasena2` — **cámbialo en producción** (el valor por defecto es público, da acceso a `/admin` y `/control`). Desde el hallazgo M-11 (sonar.html, 2026-10-15) ya NO se define en `.env` — copia `admin-users.env.example` a `admin-users.env` (gitignored) y edítalo ahí; `control/` lo monta y escribe en caliente desde "Super Admins" sin tocar ningún otro secreto del `.env` principal | `admin:admin` |
 | `USO_CFDI_SYNC_URL` | Origen desde donde se sincroniza el catálogo de Uso de CFDI | sin definir (requiere configurarse explícitamente) |
 | `CLAVE_PROD_SERV_SYNC_URL` | Origen desde donde se sincroniza el catálogo "Clave de Producto o Servicio" del SAT | dump SQL real de `phpcfdi/resources-sat-catalogs` (Unlicense, verificado) |
 | `SESSION_SECRET` | Clave para firmar las sesiones de usuario (login por RFC) | aleatoria al arrancar (fija esta para producción) |
@@ -1023,10 +1026,18 @@ tenant y aplicarle el esquema completo. Verifica el estado ANTES del paso físic
 sigue existiendo como respaldo si el privilegio llegara a faltar.
 
 **Super Admins desde `/control`**: vista propia en el sidebar para dar de alta, editar contraseña o
-quitar cuentas "super" (`ADMIN_USERS`) **sin editar el `.env` ni reiniciar ningún contenedor** — el
-backend recarga la lista de inmediato. La escritura sobre el `.env` real es atómica, con respaldo
-(`.env.bak`) antes de sobreescribir (necesario porque el patrón habitual de "temporal + rename" falla
-con `EBUSY` sobre un bind mount de un solo archivo, una limitación real de Docker).
+quitar cuentas "super" (`ADMIN_USERS`) **sin editar ningún archivo a mano ni reiniciar ningún
+contenedor** — el backend recarga la lista de inmediato. La escritura es atómica, con respaldo
+(`admin-users.env.bak`) antes de sobreescribir (necesario porque el patrón habitual de "temporal +
+rename" falla con `EBUSY` sobre un bind mount de un solo archivo, una limitación real de Docker).
+Hallazgo M-11 (sonar.html, 2026-10-15): desde esta fecha la escritura es sobre `admin-users.env` — un
+archivo DEDICADO solo a esta línea, nunca el `.env` principal del stack completo (que antes se
+montaba `:rw` en `control/` con todos los demás secretos — MySQL root, `SESSION_SECRET`,
+`INTERNAL_CACHE_SECRET`, `CONTROL_VAULT_KEY`, MinIO/SMTP — legibles y escribibles desde ahí). Un
+cambio hecho aquí sobrevive un restart/recreate real de cualquiera de los 2 contenedores (`backend`/
+`control` leen `admin-users.env` vía `env_file:` en `docker-compose.yml`) — **no** sobrevive un
+`docker compose restart <servicio>` simple (Compose nunca re-lee `env_file` en un restart sin
+recrear el contenedor, comportamiento normal de Docker, no un bug de este mecanismo).
 
 **Sucursales — usuarios de acceso compartidos entre empresas del mismo
 negocio (§58, ver `inventarios.md`)**: `/control` puede agrupar varios
@@ -1054,6 +1065,25 @@ sesión.
 crea (con privilegios root). También define `INTERNAL_CACHE_SECRET` (el
 mismo valor en `backend` y `control` — ver `.env.example`) para que la
 invalidación de caché entre contenedores funcione.
+
+Hallazgo M-14 (sonar.html, 2026-10-15): define también `DB_DROP_PASSWORD`
+en el entorno antes de correr esos mismos scripts — crean (si no existe)
+un usuario MySQL NUEVO, `app_tenant_drop`, cuyo único privilegio es `DROP`
+sobre `tenant_%.*`. Antes, el usuario de aplicación compartido (`app`,
+usado por las ~90 rutas parametrizadas del día a día) tenía `GRANT ALL
+PRIVILEGES` sobre cada BD `tenant_*` — incluido `DROP`, así que una
+inyección SQL o RCE hipotética en cualquier ruta normal podría haber
+destruido la base completa de cualquier cliente, no solo leído/modificado
+filas. Ahora `app` perdió `DROP`/`GRANT OPTION` sobre `control_tenants` y
+`tenant_*` (conserva todo lo que de verdad usa: CRUD + `CREATE`/`ALTER`
+para crear tenants y migrar esquema); el único `DROP DATABASE` real del
+proyecto (borrado definitivo de un tenant) usa `app_tenant_drop` en su
+lugar, aislado del resto de las queries del backend. Si omites
+`DB_DROP_PASSWORD`, los scripts de aprovisionamiento no crean ese usuario
+(igual criterio que `CONTROL_APP_PASSWORD` — no rompe una instalación que
+todavía no lo definió), pero el borrado definitivo de tenant fallará con
+un error real de permisos hasta que lo definas y vuelvas a correr el
+script una vez.
 
 - Entra en `http://localhost/control` (o tu dominio, con HTTPS en
   producción) con una cuenta `"super"` (`ADMIN_USERS`).

@@ -28,6 +28,48 @@ describe('auth.js', () => {
     jest.clearAllMocks();
   });
 
+  // Hallazgo C-02 (sonar.html, 2026-10-13): admin:admin se conserva TAL
+  // CUAL en dev/test (decisión explícita del usuario, código aún no
+  // productivo) — el fail-closed solo debe activarse con
+  // NODE_ENV=production.
+  describe('loadAdminUsers — fail-closed solo en producción (C-02)', () => {
+    const nodeEnvOriginal = process.env.NODE_ENV;
+
+    afterEach(() => {
+      process.env.NODE_ENV = nodeEnvOriginal;
+      delete process.env.ADMIN_USERS;
+      jest.resetModules();
+    });
+
+    test('NODE_ENV=production sin ADMIN_USERS: el módulo truena al cargarse, nunca cae a admin:admin', () => {
+      jest.resetModules();
+      process.env.NODE_ENV = 'production';
+      delete process.env.ADMIN_USERS;
+      expect(() => require('../../utils/auth')).toThrow(/ADMIN_USERS.*producci[oó]n/i);
+    });
+
+    test('NODE_ENV=production con ADMIN_USERS vacío (parsea a cero usuarios): también truena', () => {
+      jest.resetModules();
+      process.env.NODE_ENV = 'production';
+      process.env.ADMIN_USERS = '   ';
+      expect(() => require('../../utils/auth')).toThrow(/ADMIN_USERS.*producci[oó]n/i);
+    });
+
+    test('NODE_ENV=development sin ADMIN_USERS: sigue cayendo a admin:admin sin tronar (comportamiento de siempre)', () => {
+      jest.resetModules();
+      process.env.NODE_ENV = 'development';
+      delete process.env.ADMIN_USERS;
+      expect(() => require('../../utils/auth')).not.toThrow();
+    });
+
+    test('NODE_ENV=production CON ADMIN_USERS definido: carga normal, sin tronar', () => {
+      jest.resetModules();
+      process.env.NODE_ENV = 'production';
+      process.env.ADMIN_USERS = 'super:ClaveReal123';
+      expect(() => require('../../utils/auth')).not.toThrow();
+    });
+  });
+
   describe('requireAdminAuth con ADMIN_USERS por defecto (admin:admin)', () => {
     let requireAdminAuth;
 
@@ -484,6 +526,215 @@ describe('auth.js', () => {
 
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(403);
+    });
+  });
+
+  // Hallazgo M-02 (sonar.html, 2026-10-14): token de sesión (Bearer)
+  // como alternativa ADITIVA a Basic Auth — admin.js/control.js migran
+  // a esto para no guardar la contraseña real en sessionStorage. Decisión
+  // explícita del usuario (2026-10-15): 30 min de vida, deslizante
+  // (cada request válido reemite un token fresco), y re-validación
+  // instantánea de suspensión/ADMIN_USERS en cada request (nunca confía
+  // ciegamente en el payload firmado).
+  describe('requireAdminAuth: Bearer — token de sesión (M-02)', () => {
+    let requireAdminAuth;
+    let signAdminToken;
+    let verifyAdminToken;
+
+    beforeEach(() => {
+      jest.resetModules();
+      delete process.env.ADMIN_USERS;
+      pool = require('../../db').pool;
+      pool.query.mockReset();
+      ({ requireAdminAuth, signAdminToken, verifyAdminToken } = require('../../utils/auth'));
+    });
+
+    test('token emitido para admin_users ("super") autentica y reemite un token fresco', async () => {
+      const token = signAdminToken({ usuario: 'admin', perfil: 'super', mecanismo: 'admin_users', tenantSlug: null, iat: Date.now(), exp: Date.now() + 10000 });
+      const req = { headers: { authorization: `Bearer ${token}` } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.adminUser).toBe('admin');
+      expect(req.adminPerfil).toBe('super');
+      expect(req.adminMecanismo).toBe('admin_users');
+      // Sesión deslizante: SIEMPRE sale un token fresco, no solo en /login.
+      expect(res.set).toHaveBeenCalledWith('X-Admin-Session-Token', expect.any(String));
+      // Cero queries — admin_users nunca toca la BD (igual que con Basic).
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    test('token con usuario que ya NO está en ADMIN_USERS: 401 instantáneo, sin esperar a que expire', async () => {
+      const token = signAdminToken({ usuario: 'admin-removido', perfil: 'super', mecanismo: 'admin_users', tenantSlug: null, iat: Date.now(), exp: Date.now() + 10000 });
+      const req = { headers: { authorization: `Bearer ${token}` } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('token emitido para perfil_bd autentica con lookup SIN password (la firma ya probó identidad)', async () => {
+      pool.query.mockResolvedValueOnce([[{ rfc: 'GOMJ800101ABC', perfil: 'fiscal', activo: 1, nombre: 'Juan', email: 'juan@x.com', debe_cambiar_password: 0 }]]);
+      const token = signAdminToken({ usuario: 'GOMJ800101ABC', perfil: 'fiscal', mecanismo: 'perfil_bd', tenantSlug: null, iat: Date.now(), exp: Date.now() + 10000 });
+      const req = { headers: { authorization: `Bearer ${token}` } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.adminUser).toBe('GOMJ800101ABC');
+      expect(req.adminPerfil).toBe('fiscal');
+      expect(req.adminMecanismo).toBe('perfil_bd');
+      expect(req.adminNombre).toBe('Juan');
+      // Lookup sin password: un solo SELECT, nunca verifyPassword.
+      expect(pool.query.mock.calls[0][0]).toMatch(/SELECT rfc, perfil, activo, nombre, email, debe_cambiar_password/);
+      expect(res.set).toHaveBeenCalledWith('X-Admin-Session-Token', expect.any(String));
+    });
+
+    test('perfil_bd suspendido DESPUÉS de emitido el token: 403 instantáneo (nunca espera a que expire)', async () => {
+      pool.query.mockResolvedValueOnce([[{ rfc: 'GOMJ800101ABC', perfil: 'administrador', activo: 0 }]]);
+      const token = signAdminToken({ usuario: 'GOMJ800101ABC', perfil: 'administrador', mecanismo: 'perfil_bd', tenantSlug: null, iat: Date.now(), exp: Date.now() + 10000 });
+      const req = { headers: { authorization: `Bearer ${token}` } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ codigo: 'CUENTA_SUSPENDIDA' }));
+    });
+
+    test('perfil_bd eliminado (sin fila) tras emitido el token: 401, nunca 403', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      const token = signAdminToken({ usuario: 'YA-NO-EXISTE', perfil: 'administrador', mecanismo: 'perfil_bd', tenantSlug: null, iat: Date.now(), exp: Date.now() + 10000 });
+      const req = { headers: { authorization: `Bearer ${token}` } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('token expirado (exp en el pasado) responde 401', async () => {
+      const token = signAdminToken({ usuario: 'admin', perfil: 'super', mecanismo: 'admin_users', tenantSlug: null, iat: Date.now() - 20000, exp: Date.now() - 10000 });
+      const req = { headers: { authorization: `Bearer ${token}` } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('token con firma manipulada (payload alterado tras firmar) responde 401', async () => {
+      const token = signAdminToken({ usuario: 'admin', perfil: 'super', mecanismo: 'admin_users', tenantSlug: null, iat: Date.now(), exp: Date.now() + 10000 });
+      const [cuerpo] = token.split('.');
+      const payloadFalsificado = Buffer.from(JSON.stringify({ usuario: 'otro-admin', perfil: 'super', mecanismo: 'admin_users', tenantSlug: null, iat: Date.now(), exp: Date.now() + 999999 }), 'utf8').toString('base64url');
+      const tokenManipulado = `${payloadFalsificado}.${token.split('.')[1]}`; // cuerpo nuevo + firma vieja (no coincide)
+
+      const req = { headers: { authorization: `Bearer ${tokenManipulado}` } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('token de un tenant distinto al de la request actual (cross-tenant) responde 401', async () => {
+      const token = signAdminToken({ usuario: 'GOMJ800101ABC', perfil: 'administrador', mecanismo: 'perfil_bd', tenantSlug: 'cliente1', iat: Date.now(), exp: Date.now() + 10000 });
+      const req = { headers: { authorization: `Bearer ${token}` }, tenant: { slug: 'cliente2' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(pool.query).not.toHaveBeenCalled(); // rechazado antes de tocar la BD
+    });
+
+    test('token con mecanismo desconocido en el payload (firma válida, payload inesperado) responde 401', async () => {
+      const token = signAdminToken({ usuario: 'x', perfil: 'super', mecanismo: 'api_clave', tenantSlug: null, iat: Date.now(), exp: Date.now() + 10000 });
+      const req = { headers: { authorization: `Bearer ${token}` } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    test('Basic Auth exitoso TAMBIÉN emite un token de sesión (login inicial)', async () => {
+      const req = { headers: { authorization: basicAuthHeader('admin', 'admin') } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      await requireAdminAuth(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.set).toHaveBeenCalledWith('X-Admin-Session-Token', expect.any(String));
+    });
+
+    test('signAdminToken + verifyAdminToken: round-trip exacto del payload', () => {
+      const payload = { usuario: 'admin', perfil: 'super', mecanismo: 'admin_users', tenantSlug: null, iat: Date.now(), exp: Date.now() + 10000 };
+      const token = signAdminToken(payload);
+      const verificado = verifyAdminToken(token);
+      expect(verificado).toEqual(payload);
+    });
+
+    test('verifyAdminToken con basura (ni formato de token) devuelve null', () => {
+      expect(verifyAdminToken('esto-no-es-un-token')).toBeNull();
+      expect(verifyAdminToken('')).toBeNull();
+      expect(verifyAdminToken(null)).toBeNull();
+      expect(verifyAdminToken(undefined)).toBeNull();
+    });
+  });
+
+  // Hallazgo m-05 (sonar_1.1.html, 2026-10-19 — mismo patrón ya corregido
+  // en control/utils/auth.js): checkCredentials() ya no corta temprano
+  // cuando el usuario no existe, para no filtrar por timing cuáles
+  // usuarios de ADMIN_USERS son válidos.
+  describe('checkCredentials — sin corte temprano por timing (m-05)', () => {
+    let checkCredentials;
+
+    beforeEach(() => {
+      jest.resetModules();
+      process.env.ADMIN_USERS = 'admin:ClaveReal123';
+      ({ checkCredentials } = require('../../utils/auth'));
+    });
+
+    test('usuario y password correctos: true', () => {
+      expect(checkCredentials('admin', 'ClaveReal123')).toBe(true);
+    });
+
+    test('usuario correcto, password incorrecto: false', () => {
+      expect(checkCredentials('admin', 'otra-cosa')).toBe(false);
+    });
+
+    test('usuario inexistente: false (nunca lanza, nunca confunde con éxito)', () => {
+      expect(checkCredentials('no-existe', 'cualquier-cosa')).toBe(false);
+    });
+
+    test('usuario inexistente SÍ ejecuta timingSafeEqual (mismo costo que un usuario real)', () => {
+      const crypto = require('crypto');
+      const spy = jest.spyOn(crypto, 'timingSafeEqual');
+      checkCredentials('no-existe', 'cualquier-cosa');
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
     });
   });
 });

@@ -26,6 +26,23 @@
   const TENANT_SLUG = detectarTenantSlug();
   const API_BASE = TENANT_SLUG ? `/${TENANT_SLUG}/api` : '/api';
 
+  // Hallazgo M-01 (sonar.html, 2026-10-14): la campana de notificaciones
+  // interpola it.titulo/it.mensaje crudos en innerHTML. El backend
+  // sanitiza el mensaje de promociones con sanitizeTextoLibre() (solo
+  // quita caracteres de control, NO etiquetas HTML) — un admin (o una
+  // cuenta admin comprometida) que redacte una promoción con HTML lo
+  // ejecuta en la sesión de todos los clientes del tenant que abran la
+  // campana. escapeHtml()/escapeHtmlAttr() duplicados aquí a propósito
+  // (sin bundler, mismo patrón que admin.js/control.js/dashboard.js).
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str === null || str === undefined ? '' : String(str);
+    return div.innerHTML;
+  }
+  function escapeHtmlAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
+  }
+
   // Construye la URL de otra página del portal ("dashboard", "csf",
   // "tickets", "login", sin ".html") respetando el tenant actual, si lo
   // hay — así una redirección o un enlace nunca saca al usuario de su
@@ -318,11 +335,11 @@
           const fechaTexto = Number.isNaN(fecha.getTime())
             ? ''
             : fecha.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
-          return `<button type="button" class="portal-notif-item${leido(it.id) ? '' : ' is-nueva'}" data-id="${it.id}" data-tipo="${it.tipo}">
+          return `<button type="button" class="portal-notif-item${leido(it.id) ? '' : ' is-nueva'}" data-id="${escapeHtmlAttr(it.id)}" data-tipo="${escapeHtmlAttr(it.tipo)}">
             <span class="portal-notif-icon portal-notif-icon-${it.tipo === 'pago_registrado' ? 'pago' : 'promo'}">${ICONOS_NOTIF_CLIENTE[it.tipo] || ''}</span>
             <span class="portal-notif-texto">
-              <strong>${it.titulo}</strong>
-              <span>${it.mensaje}</span>
+              <strong>${escapeHtml(it.titulo)}</strong>
+              <span>${escapeHtml(it.mensaje)}</span>
               <time>${fechaTexto}</time>
             </span>
           </button>`;

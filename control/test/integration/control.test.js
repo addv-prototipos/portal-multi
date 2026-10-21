@@ -32,6 +32,12 @@ jest.mock('../../utils/ajustesGlobales', () => ({
   getImagenMaxMb: jest.fn().mockResolvedValue(2),
   setImagenMaxMb: jest.fn().mockResolvedValue(2),
 }));
+jest.mock('../../utils/onboardingConversion', () => ({
+  convertirBorrador: jest.fn().mockResolvedValue({ slug: 'empresa1', urlAdmin: '/empresa1/admin', urlPortal: '/empresa1' }),
+}));
+jest.mock('../../utils/turnstile', () => ({
+  verificarTurnstile: jest.fn(),
+}));
 
 const { obtenerPool } = require('../../db');
 const { getImagenMaxMb, setImagenMaxMb } = require('../../utils/ajustesGlobales');
@@ -611,6 +617,33 @@ describe('Control standalone (/api/control)', () => {
       expect(llamadas.some((sql) => sql.includes('SELECT id FROM tenants'))).toBe(false);
     });
 
+    // Hallazgo M-07 (sonar.html, 2026-10-14): el slug se usaba SIN
+    // VALIDAR para armar la URL interna del logo
+    // (/internal/marca-logo/<slug>) — un slug tipo
+    // "../../eliminar-tenant/victim" invocaba un endpoint interno
+    // PRIVILEGIADO distinto con el X-Internal-Secret real, porque la
+    // validación real de slug vivía dentro de crearTenantIntake(),
+    // llamada DESPUÉS de subir el logo. Ahora se valida ANTES: ni
+    // siquiera se arma la URL ni se llama a fetch().
+    test('400 con slug de path traversal + logo: nunca llega a invocar el backend interno (M-07)', async () => {
+      global.fetch = jest.fn();
+      const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 0)]);
+
+      const res = await request(app)
+        .post('/api/control/tenants')
+        .auth('admin', 'admin')
+        .send({
+          nombreEmpresa: 'Malicioso',
+          slug: '../../eliminar-tenant/victim',
+          logoBase64: png.toString('base64'),
+        });
+
+      expect(res.status).toBe(400);
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      delete global.fetch;
+    });
+
     test('201 con marca y logo (base64), guarda la ruta pública del logo', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
@@ -906,6 +939,23 @@ describe('Control standalone (/api/control)', () => {
       // importa es que nunca llegó al UPDATE de disco_bytes_usados_cache.
       expect(pool.query.mock.calls.some(([sql]) => sql.includes('disco_bytes_usados_cache'))).toBe(false);
     });
+
+    test('M-19 (sonar_1.1.html): un GET autenticado SÍ queda auditado, con la query string incluida (req.originalUrl)', async () => {
+      pool.query
+        .mockResolvedValueOnce([[{ id: 2, nombre: 'Viejo', activo: 0 }]]) // SELECT planes
+        .mockResolvedValueOnce([{}]); // INSERT INTO admin_auditoria (fire-and-forget)
+
+      const res = await request(app).get('/api/control/planes?incluirArchivados=true').auth('admin', 'admin');
+      expect(res.status).toBe(200);
+
+      const llamadaAuditoria = pool.query.mock.calls.find(([sql]) => /INSERT INTO admin_auditoria/.test(sql));
+      expect(llamadaAuditoria).toBeTruthy();
+      const [, params] = llamadaAuditoria;
+      // Antes de M-19 esta llamada nunca ocurría (la auditoría global
+      // saltaba TODO GET) — y antes del fix de req.originalUrl, "ruta"
+      // habría sido "/api/control/planes" sin la query string.
+      expect(params).toEqual(expect.arrayContaining(['GET', '/api/control/planes?incluirArchivados=true']));
+    });
   });
 
   describe('GET /api/control/tenants/:slug/uso-usuarios (punto 350/351, regla 8 extendida)', () => {
@@ -969,6 +1019,201 @@ describe('Control standalone (/api/control)', () => {
       expect(res.status).toBe(200);
       expect(pool.query.mock.calls[0][0]).toMatch(/WHERE tenant_slug = \?/);
       expect(pool.query.mock.calls[0][1]).toEqual(['norte']);
+    });
+  });
+
+  // Hallazgo M-08 (sonar.html, 2026-10-14): GET/PUT devolvían el
+  // password descifrado en CADA respuesta — el frontend lo cargaba
+  // automáticamente al abrir la pestaña, sin que el operador lo pidiera.
+  // Ahora GET/PUT enmascaran (`passwordConfigurada`, nunca el valor
+  // real); el valor real solo sale por el nuevo `POST .../revelar`.
+  // Nota histórica (M-19, sonar_1.1.html, 2026-10-19): hasta el punto 407
+  // la auditoría global SÍ saltaba todo GET (`if (req.method === 'GET')
+  // return;`), así que ver el password enmascarado tampoco dejaba
+  // rastro — ya no: ver más abajo "M-19: ahora SÍ audita GETs".
+  describe('Accesos — MinIO/SMTP: enmascarado + revelar auditado (M-08/M-19)', () => {
+    const { cifrar } = require('../../utils/cifrado');
+    const CLAVE_VALIDA = 'a'.repeat(64);
+    const VAULT_KEY_ORIGINAL = process.env.CONTROL_VAULT_KEY;
+
+    beforeEach(() => {
+      process.env.CONTROL_VAULT_KEY = CLAVE_VALIDA;
+    });
+
+    afterEach(() => {
+      if (VAULT_KEY_ORIGINAL === undefined) delete process.env.CONTROL_VAULT_KEY;
+      else process.env.CONTROL_VAULT_KEY = VAULT_KEY_ORIGINAL;
+    });
+
+    test('GET /api/control/accesos/minio nunca incluye el password real, solo passwordConfigurada', async () => {
+      pool.query.mockResolvedValueOnce([[
+        { clave: 'minio_url', valor: 'https://minio.local:9001' },
+        { clave: 'minio_usuario', valor: 'root' },
+        { clave: 'minio_password_cifrado', valor: cifrar('SecretoReal123') },
+        { clave: 'minio_notas', valor: 'nota' },
+      ]]);
+
+      const res = await request(app).get('/api/control/accesos/minio').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.passwordConfigurada).toBe(true);
+      expect(res.body.password).toBeUndefined();
+      expect(JSON.stringify(res.body)).not.toContain('SecretoReal123');
+    });
+
+    test('GET /api/control/accesos/minio sin password guardado: passwordConfigurada=false', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const res = await request(app).get('/api/control/accesos/minio').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.passwordConfigurada).toBe(false);
+    });
+
+    test('POST /api/control/accesos/minio/revelar sí devuelve el password real', async () => {
+      pool.query.mockResolvedValueOnce([[
+        { clave: 'minio_password_cifrado', valor: cifrar('SecretoReal123') },
+      ]]);
+
+      const res = await request(app).post('/api/control/accesos/minio/revelar').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.password).toBe('SecretoReal123');
+    });
+
+    test('PUT /api/control/accesos/minio responde enmascarado, nunca el password recién guardado', async () => {
+      // setAccesoMinio hace 4 upserts + 1 SELECT final (getAccesoMinio)
+      pool.query
+        .mockResolvedValueOnce([{}])
+        .mockResolvedValueOnce([{}])
+        .mockResolvedValueOnce([{}])
+        .mockResolvedValueOnce([{}])
+        .mockResolvedValueOnce([[{ clave: 'minio_password_cifrado', valor: cifrar('NuevoSecreto9') }]]);
+
+      const res = await request(app)
+        .put('/api/control/accesos/minio')
+        .auth('admin', 'admin')
+        .send({ url: 'https://minio.local:9001', usuario: 'root', password: 'NuevoSecreto9', notas: '' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.passwordConfigurada).toBe(true);
+      expect(JSON.stringify(res.body)).not.toContain('NuevoSecreto9');
+    });
+
+    test('GET /api/control/accesos/smtp nunca incluye el password real', async () => {
+      pool.query.mockResolvedValueOnce([[
+        { clave: 'smtp_host', valor: 'smtp.local' },
+        { clave: 'smtp_password_cifrado', valor: cifrar('ClaveSmtp456') },
+      ]]);
+
+      const res = await request(app).get('/api/control/accesos/smtp').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.passwordConfigurada).toBe(true);
+      expect(res.body.password).toBeUndefined();
+      expect(JSON.stringify(res.body)).not.toContain('ClaveSmtp456');
+    });
+
+    test('POST /api/control/accesos/smtp/revelar sí devuelve el password real', async () => {
+      pool.query.mockResolvedValueOnce([[
+        { clave: 'smtp_password_cifrado', valor: cifrar('ClaveSmtp456') },
+      ]]);
+
+      const res = await request(app).post('/api/control/accesos/smtp/revelar').auth('admin', 'admin');
+
+      expect(res.status).toBe(200);
+      expect(res.body.password).toBe('ClaveSmtp456');
+    });
+  });
+
+  // Hallazgo M-03 (sonar.html, 2026-10-14): requireOrigenPropio() se
+  // registró con `app.use('/api/control', ...)` — scoping deliberado
+  // para NUNCA tocar /api/public/onboarding/*, que es cross-origin a
+  // propósito (clarvo.mx llamando a este servicio, su propio
+  // onboardingCors más abajo). Esta prueba es el candado de regresión:
+  // un Origin "ajeno" (de hecho el legítimo, clarvo.mx) en una ruta de
+  // onboarding debe fallar por SU PROPIA validación de negocio, nunca
+  // por el guard CSRF nuevo.
+  describe('CSRF (M-03) — /api/public/onboarding/* queda fuera del guard', () => {
+    test('POST /api/public/onboarding/borrador con Origin de clarvo.mx nunca responde el 403 de requireOrigenPropio', async () => {
+      const res = await request(app)
+        .post('/api/public/onboarding/borrador')
+        .set('Origin', 'https://clarvo.mx')
+        .send({}); // body vacío: falla por "Plan no reconocido" (negocio), no por CSRF
+
+      expect(res.body.error).not.toBe('Origen no permitido.');
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Plan no reconocido/);
+    });
+  });
+
+  // Hallazgo M-06 (sonar_1.1.html, Fase D, punto 410): único paso del
+  // onboarding público que de verdad aprovisiona infraestructura real —
+  // debe exigir un token de Turnstile verificado antes de tocar
+  // convertirBorrador(), nunca después.
+  //
+  // App AISLADA por test (jest.resetModules + re-require, mismo patrón
+  // que docsEnabled.test.js): adminCredencialesLimiter es GLOBAL
+  // (app.use sin prefijo) y cuenta cualquier respuesta no-2xx contra un
+  // presupuesto compartido de 50 por IP/15min para TODO el archivo — las
+  // respuestas 400 de este candado agotarían ese presupuesto y harían
+  // fallar con 429 pruebas de /health completamente ajenas más abajo si
+  // compartieran la instancia de `app` del resto del archivo.
+  describe('POST /api/public/onboarding/convertir/:token — candado de Turnstile (M-06)', () => {
+    function appAislada() {
+      jest.resetModules();
+      const { verificarTurnstile: vt } = require('../../utils/turnstile');
+      const { convertirBorrador: cb } = require('../../utils/onboardingConversion');
+      const appFresca = require('../../server');
+      return { appFresca, vt, cb };
+    }
+
+    test('Turnstile rechaza (sin configurar, token inválido, etc.): responde 400 genérico y NUNCA llama a convertirBorrador', async () => {
+      const { appFresca, vt, cb } = appAislada();
+      vt.mockResolvedValue({ ok: false, motivo: 'no_configurado' });
+
+      const res = await request(appFresca)
+        .post('/api/public/onboarding/convertir/un-token')
+        .send({ turnstileToken: 'cualquier-cosa' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('No pudimos verificar que eres humano. Intenta de nuevo.');
+      expect(cb).not.toHaveBeenCalled();
+    });
+
+    test('sin turnstileToken en el body: mismo 400 genérico, mismo candado', async () => {
+      const { appFresca, vt, cb } = appAislada();
+      vt.mockResolvedValue({ ok: false, motivo: 'token_faltante' });
+
+      const res = await request(appFresca).post('/api/public/onboarding/convertir/un-token').send({});
+
+      expect(res.status).toBe(400);
+      expect(cb).not.toHaveBeenCalled();
+    });
+
+    test('Turnstile aprueba: sí llama a convertirBorrador y devuelve el resultado real', async () => {
+      const { appFresca, vt, cb } = appAislada();
+      vt.mockResolvedValue({ ok: true });
+      cb.mockResolvedValue({ slug: 'empresa1', urlAdmin: '/empresa1/admin', urlPortal: '/empresa1' });
+
+      const res = await request(appFresca)
+        .post('/api/public/onboarding/convertir/un-token')
+        .send({ turnstileToken: 'token-valido' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true, slug: 'empresa1', urlAdmin: '/empresa1/admin', urlPortal: '/empresa1' });
+      expect(cb).toHaveBeenCalledWith('un-token');
+    });
+
+    test('verificarTurnstile recibe el token del body y la IP real de la petición', async () => {
+      const { appFresca, vt } = appAislada();
+      vt.mockResolvedValue({ ok: true });
+
+      await request(appFresca)
+        .post('/api/public/onboarding/convertir/un-token')
+        .send({ turnstileToken: 'token-del-widget' });
+
+      expect(vt).toHaveBeenCalledWith('token-del-widget', expect.any(String));
     });
   });
 

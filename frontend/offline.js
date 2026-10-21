@@ -14,6 +14,7 @@
   const NOMBRE_DB = 'portalfac_offline';
   const VERSION_DB = 1;
   const INTERVALO_REINTENTO_MS = 10000; // mientras esté offline, reintenta cada 10s
+  const TTL_PENDIENTE_MS = 30 * 24 * 60 * 60 * 1000; // mismo plazo que la purga de Papelera (punto 389)
 
   let dbPromise = null;
   function abrirDb() {
@@ -103,6 +104,24 @@
         }
       };
     });
+  }
+
+  // Hallazgo m-16 (sonar_1.1.html, 2026-10-19): limpiarTodo() solo corre en
+  // logout — una pestaña que se queda abierta días sin cerrar sesión
+  // acumula montos de Ventas/Gastos sin cota en IndexedDB. Purga las filas
+  // más viejas que TTL_PENDIENTE_MS, sin importar si lograron sincronizar.
+  async function purgarVencidos(tipo) {
+    const limite = Date.now() - TTL_PENDIENTE_MS;
+    const pendientes = await listarPendientes(tipo);
+    const vencidos = pendientes.filter((p) => p.creadoEn < limite);
+    for (const item of vencidos) {
+      console.warn(`[offline] descartando pendiente de "${tipo}" vencido (más de 30 días sin sincronizar): localId ${item.localId}`);
+      await eliminarPendiente(tipo, item.localId);
+    }
+  }
+
+  async function purgarVencidosTodo() {
+    await Promise.all(['ordenes', 'gastos'].map((tipo) => purgarVencidos(tipo).catch(() => {})));
   }
 
   async function limpiarTodo() {
@@ -214,6 +233,7 @@
 
   function iniciar() {
     if (!navigator.onLine) fijarEstado('offline');
+    purgarVencidosTodo();
 
     window.addEventListener('online', () => {
       intentarSincronizarTodo();

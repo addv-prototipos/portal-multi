@@ -7,10 +7,13 @@ const swaggerDefinition = {
     version: '1.0.0',
     description: 'API de la app de control cross-tenant. Todo bajo `/api/control/*` vía `frontend/nginx.conf.template` → `control:4001`. Solo `ADMIN_USERS` super. Ver `control/server.js`.',
   },
-  servers: [
-    { url: 'http://localhost:8088', description: 'Local (FRONTEND_PORT=8088)' },
-    { url: 'http://192.168.68.75:8088', description: 'LAN' },
-  ],
+  // Hallazgo M-17 (sonar.html): esta lista se publica tal cual en
+  // /api/control/docs.json, público — nunca una IP/host real de un
+  // desarrollador o servidor aquí (quedó una IP de LAN hardcodeada hasta
+  // este punto). Server relativo ("/"): Swagger UI ya resuelve "Try it
+  // out" contra el origen desde el que se sirve, sin necesidad de listar
+  // hosts reales.
+  servers: [{ url: '/', description: 'Origen actual' }],
   components: {
     securitySchemes: {
       basicAuth: { type: 'http', scheme: 'basic' },
