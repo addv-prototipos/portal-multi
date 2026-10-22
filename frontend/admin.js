@@ -21286,6 +21286,8 @@
     fiscal: [
       { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Constancias, Tickets, y más según tu perfil.' },
       { selector: '#btn-vista-tickets', titulo: 'Tickets de facturación', desc: 'Aquí llegan las solicitudes de tus clientes para generarles su factura.' },
+      { selector: '#btn-vista-lectura-reportes', titulo: 'Reportes', desc: 'Lo que se archivó o eliminó, con auditoría — cortes del día, cierres mensuales y el historial de quién los generó.' },
+      { selector: '#btn-vista-configuraciones', titulo: 'Configuraciones', desc: 'Campos obligatorios de los formularios y tus datos fiscales (RFC, régimen, zona horaria) — lo único que tu perfil puede ajustar aquí.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
       TOUR_PASO_AYUDA,
     ],
@@ -21293,6 +21295,8 @@
       { selector: '.admin-sidebar-nav', titulo: 'Aquí navegas todo el panel', desc: 'Cada botón te lleva a una sección — Ventas, Cuentas por cobrar, Gastos, y más.' },
       { selector: '#btn-vista-ordenes', titulo: 'Registra tus ventas aquí', desc: 'Desde "Ventas" registras cada venta y controlas si ya se facturó.' },
       { selector: '#btn-vista-promociones', titulo: 'Envía promociones a tus clientes', desc: 'Les llega en la campana de notificaciones de su portal, con sonido — mensaje, vigencia opcional, y puedes archivar/relanzar/eliminar después.' },
+      { selector: '#btn-vista-lectura-reportes', titulo: 'Reportes', desc: 'Lo que se archivó o eliminó, con auditoría — cortes del día, cierres mensuales, estado del inventario y exportar a CSV/Excel.' },
+      { selector: '#btn-vista-configuraciones', titulo: 'Configuraciones', desc: 'Ajustes que cambian todo el panel — datos fiscales, SMTP, interruptores de Ventas/Inventarios y más. Un buscador arriba filtra entre las secciones.' },
       { selector: '#onboarding-checklist-card', titulo: 'Tus primeros pasos', desc: 'Esta tarjeta te va guiando — se oculta sola cuando terminas.' },
       TOUR_PASO_AYUDA,
     ],

@@ -23001,3 +23001,87 @@ sigue funcionando end-to-end contra ese ruteo real.
 `D:\srv\clarvo-Site\src\config\publicEnv.ts`,
 `D:\srv\clarvo-Site\.env.example`, `PROJECT_STATE.md` (este punto).
 Ninguno commiteado todavía en ninguno de los 2 repos.
+
+## Punto 411 — Revisión del punto 273 (Centro de conocimiento): 2 de 3 huecos ya eran decisiones tomadas, no deuda (22 oct 2026)
+
+El usuario pidió revisar el pendiente `cen-273` ("falta perfil super y
+/control" en `pendientes.html`). Antes de tocar código, se verificó cada
+sub-punto contra el código real (mismo criterio que la revisión de
+task-observer del punto 409/410 — nunca confiar en la descripción de un
+pendiente sin grep):
+
+- **(a) Perfil `super` sin checklist/tour**: `admin.js:21203`,
+  `contenedorOnboarding()` devuelve `null` con el comentario "sin
+  checklist propio, es una cuenta de operación/depuración" — decisión ya
+  en el código, pero sin rastro de haber sido confirmada explícitamente
+  con el usuario antes de hoy. El usuario la confirmó en esta sesión.
+- **(b) `/control` sin recorrido**: también intencional, y esta sí YA
+  estaba confirmada — ver la nota del Centro de conocimiento de
+  `/control` más arriba en este archivo ("sin categoría 'Primeros
+  pasos' a propósito... un checklist no aporta lo mismo que en un panel
+  con 4 perfiles distintos"). `pendientes.html` seguía marcándolo como
+  pendiente pese a la decisión ya tomada — corregido.
+- **(c) El tour no cubre Proveedores/Reportes/Configuraciones**: este sí
+  es un hueco real, confirmado — `ONBOARDING_TOUR_PASOS` (`admin.js:21285`)
+  solo tiene las 4 claves de siempre (`fiscal`/`administrador`/`ventas`/
+  `inventario`). Queda abierto, sin decidir todavía si se construye.
+
+**Decisión del usuario**: cerrar (a) y (b) en `pendientes.html` (ya
+resueltos por diseño, no deuda), evaluar (c) como una tarea aparte más
+adelante — sin aprobación todavía para construirla.
+
+**Archivos tocados**: `pendientes.html`, `PROJECT_STATE.md` (este punto).
+Ningún código de producto tocado — solo documentación.
+
+## Punto 413 — Punto 273 (c): recorrido guiado extendido a Reportes y Configuraciones (22 oct 2026)
+
+Continuación del punto 411. El usuario pidió construir el único hueco
+real que quedaba del punto 273: `ONBOARDING_TOUR_PASOS` (`admin.js:21285`)
+no cubría Proveedores, Reportes ni Configuraciones.
+
+**Alcance real tras revisar `RESTRICCIONES_PERFIL`**: de los 4 perfiles
+con tour, solo `administrador` y `fiscal` tienen acceso a Reportes y/o
+Configuraciones — `ventas` e `inventario` no, así que no les aplica
+ningún paso nuevo. Proveedores se excluyó a propósito: la vista
+(`CONOCIMIENTO_CATEGORIAS.proveedores`) es un aviso "Sección en
+construcción" — un spotlight ahí mostraría al administrador una pantalla
+vacía en su primer recorrido, contraproducente.
+
+- **`administrador`**: 2 pasos nuevos (Reportes, Configuraciones),
+  insertados entre "Envía promociones" y la tarjeta de checklist.
+- **`fiscal`**: 2 pasos nuevos con texto propio (no reusa el de
+  administrador — fiscal solo ve 2 de las 6 secciones de Configuraciones,
+  "Campos obligatorios" y "Configuraciones fiscales", así que el texto
+  genérico de administrador habría sido falso para este perfil).
+
+**Verificado real en navegador** (Docker real, rebuild + recreate de
+`frontend`, login real vía claude-in-chrome): se crearon 2 usuarios de
+prueba (`QA-TOUR-ADMIN`/`QA-TOUR-FISCAL`, perfil Administrador/Fiscal,
+tenant `t1`), se disparó el tour automático en el primer login de cada
+uno, y se recorrieron los 5 pasos completos de punta a punta para ambos
+perfiles — el texto y el orden de los 2 pasos nuevos son correctos en
+los dos casos. Ambos usuarios de prueba eliminados al terminar (sin
+dejar datos de prueba en el tenant).
+
+**Hallazgo colateral, NO corregido a propósito (fuera de alcance de esta
+sesión)**: el spotlight del tour posiciona mal cualquier paso cuyo botón
+viva dentro de un grupo colapsable del sidebar (VENTAS Y GASTOS,
+CATÁLOGO, FINANZAS, ADMINISTRACIÓN, CUENTA) — el recuadro aparece sobre
+el encabezado del grupo en vez de sobre el botón real (reproducido con
+"Registra tus ventas aquí" → resalta "CATÁLOGO", y con el nuevo paso de
+Reportes → resalta "CUENTA"). Es un bug preexistente de
+`construirYMostrarTour()`/`mostrarPasoTour()` (el spotlight no expande el
+grupo colapsado antes de medir `getBoundingClientRect()`), no algo que
+introdujeran los 4 pasos nuevos de este punto — los pasos que SÍ viven
+fuera de los grupos colapsables (sidebar completo, checklist-card, ícono
+de ayuda) posicionan bien. Queda registrado aquí para que una sesión
+futura lo retome si el usuario lo pide — no se tocó en esta sesión
+porque no era el alcance pedido.
+
+**Verificación**: `node --check frontend/admin.js`; rebuild+recreate real
+de `frontend` contra Docker; recorrido completo en navegador para
+`administrador` y `fiscal`, 5/5 pasos cada uno. `pendientes.html`
+actualizado a "Completado" para el punto `cen-273` completo (a, b y c).
+
+**Archivos tocados**: `frontend/admin.js`, `pendientes.html`,
+`PROJECT_STATE.md` (este punto).
