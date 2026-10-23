@@ -262,11 +262,21 @@ services:
       - --user=clarvo
       - --pass=garage2026
       - --config=/config/rclone/rclone.conf
+      # Plantilla propia (navy/cian, Inter, SVG feather-like, sin
+      # emojis — mismos lineamientos de marca que el resto del sitio,
+      # ver CLAUDE.md) para la vista HTML que rclone sirve de regalo
+      # junto con WebDAV (se usa solo si alguien abre la URL en el
+      # navegador en vez de montarla como unidad de red). Variables
+      # documentadas por `rclone serve webdav --help` (.Entries/.
+      # Breadcrumb/.Sort/.Order) — verificado real contra el bucket
+      # antes de montarla aquí.
+      - --template=/config/template.html
     depends_on:
       garage:
         condition: service_healthy
     volumes:
       - ./docker/rclone-webdav/rclone.conf:/config/rclone/rclone.conf:ro
+      - ./docker/rclone-webdav/template.html:/config/template.html:ro
     ports:
       - "127.0.0.1:${RCLONE_WEBDAV_PORT:-8899}:8080"
     networks:

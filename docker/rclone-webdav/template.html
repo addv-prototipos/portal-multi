@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ .Title }}</title>
+<style>
+  :root {
+    --color-accent: #03285B;
+    --color-accent-dark: #0B1320;
+    --color-accent-soft: #E6F9FD;
+    --color-cyan: #05DBF2;
+    --color-border: #D7DEE8;
+    --color-text: #0B1320;
+    --color-text-muted: #5A6B85;
+    --color-bg: #F6F8FB;
+    --color-surface: #FFFFFF;
+    --font-body: "Inter", -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-accent: #05DBF2;
+      --color-accent-dark: #E6F9FD;
+      --color-accent-soft: #10263B;
+      --color-border: #223047;
+      --color-text: #EAF1F8;
+      --color-text-muted: #8DA0BC;
+      --color-bg: #0B1320;
+      --color-surface: #101A2C;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+  header {
+    background: var(--color-accent-dark);
+    color: #FFFFFF;
+    padding: 20px 28px;
+  }
+  @media (prefers-color-scheme: dark) { header { background: #060B14; } }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    color: var(--color-cyan);
+    margin-bottom: 10px;
+  }
+  .brand svg { flex-shrink: 0; }
+  nav.breadcrumb {
+    font-size: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+  }
+  nav.breadcrumb a {
+    color: #FFFFFF;
+    text-decoration: none;
+    opacity: 0.85;
+  }
+  nav.breadcrumb a:hover { opacity: 1; text-decoration: underline; }
+  nav.breadcrumb .sep { opacity: 0.4; margin: 0 2px; }
+  main {
+    max-width: 960px;
+    margin: 24px auto;
+    padding: 0 20px 60px;
+  }
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .sort-links { display: flex; gap: 6px; font-size: 13px; }
+  .sort-links a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .sort-links a.active { color: var(--color-accent); font-weight: 600; }
+  .sort-links a:hover { background: var(--color-accent-soft); border-color: var(--color-accent); }
+  #filtro {
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    min-width: 180px;
+  }
+  .lista {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .fila {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+    text-decoration: none;
+    color: var(--color-text);
+    transition: background 0.15s ease;
+  }
+  .fila:last-child { border-bottom: none; }
+  .fila:hover { background: var(--color-accent-soft); }
+  .fila .icono { flex-shrink: 0; color: var(--color-accent); }
+  .fila .icono.carpeta { color: var(--color-cyan); }
+  .fila .nombre { flex: 1; min-width: 0; overflow-wrap: break-word; font-size: 14px; }
+  .fila .meta { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
+  .vacio {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+    Clarvo — Almacenamiento (Garage)
+  </div>
+  <nav class="breadcrumb">
+    <a href="/">raíz</a>
+    {{ range $i, $e := .Breadcrumb }}{{ if gt $i 0 }}<span class="sep">/</span><a href="{{ $e.Link }}">{{ $e.Text }}</a>{{ end }}{{ end }}
+  </nav>
+</header>
+<main>
+  <div class="toolbar">
+    <div class="sort-links">
+      <a href="?sort=namedirfirst&order=asc" class="{{ if eq .Sort "namedirfirst" }}active{{ end }}">Nombre</a>
+      <a href="?sort=size&order=asc" class="{{ if eq .Sort "size" }}active{{ end }}">Tamaño</a>
+      <a href="?sort=time&order=desc" class="{{ if eq .Sort "time" }}active{{ end }}">Modificado</a>
+    </div>
+    <input id="filtro" type="text" placeholder="Filtrar..." onkeyup="filtrar()">
+  </div>
+
+  <div class="lista" id="lista">
+    {{ if not .Entries }}
+      <div class="vacio">Carpeta vacía.</div>
+    {{ end }}
+    {{ range .Entries }}
+    <a class="fila fila-item" href="{{ .URL }}">
+      {{ if .IsDir }}
+      <svg class="icono carpeta" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+      {{ else }}
+      <svg class="icono" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+      {{ end }}
+      <span class="nombre">{{ .Leaf }}</span>
+      <span class="meta">{{ if not .IsDir }}<span class="tam" data-bytes="{{ .Size }}">{{ .Size }} B</span> · {{ end }}<span class="fecha" data-fecha="{{ .ModTime }}">{{ .ModTime }}</span></span>
+    </a>
+    {{ end }}
+  </div>
+</main>
+<script>
+function formatoTamano(bytes) {
+  var u = ['B','KB','MB','GB','TB'], i = 0;
+  while (bytes >= 1024 && i < u.length - 1) { bytes /= 1024; i++; }
+  return bytes.toFixed(i === 0 ? 0 : 1) + ' ' + u[i];
+}
+document.querySelectorAll('.tam').forEach(function (el) {
+  el.textContent = formatoTamano(parseInt(el.getAttribute('data-bytes'), 10));
+});
+document.querySelectorAll('.fecha').forEach(function (el) {
+  var d = new Date(el.getAttribute('data-fecha'));
+  if (!isNaN(d)) el.textContent = d.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+});
+function filtrar() {
+  var q = document.getElementById('filtro').value.trim().toLowerCase();
+  document.querySelectorAll('.fila-item').forEach(function (el) {
+    var nombre = el.querySelector('.nombre').textContent.toLowerCase();
+    el.style.display = (!q || nombre.indexOf(q) !== -1) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>
