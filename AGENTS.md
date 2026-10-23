@@ -331,9 +331,14 @@ solo la frase en español de la UI.
 - **`backend/` y `control/` son builds de Docker separados** — nunca
   copiar código entre ellos en producción; código pequeño compartido se
   duplica a propósito (mismo patrón que el frontend sin bundler).
-- **`prod/`** (espejo de deploy para `yt.addv.com.mx`) es manual y
-  untracked — sincronizar por CONTENIDO tras cualquier sesión relevante,
-  nunca `git add`.
+- **`prod/`** (paquete de despliegue para `yt.addv.com.mx`) **NO es parte
+  del producto, es la herramienta de despliegue** (decisión del usuario,
+  2026-10-22, punto 412 de PROJECT_STATE.md): se reescribe con cada
+  actualización y puede borrarse y regenerarse completa. Sincronizarlo por
+  CONTENIDO tras cualquier sesión relevante, nunca `git add`. Un desfase
+  contra su fuente **nunca se cuenta como hallazgo del producto** en
+  auditorías (métricas, quality gate, code smells) — es un paso del
+  proceso de deploy, no deuda de código.
 - **Credenciales angostas cross-tenant** (`control_app`): sin
   `REFERENCES`/`DELETE` en tablas de otros tenants — usar soft-delete en
   vez de FK/DELETE físico en cualquier tabla cross-tenant.

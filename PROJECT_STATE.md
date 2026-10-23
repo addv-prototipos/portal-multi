@@ -23033,6 +23033,33 @@ adelante — sin aprobación todavía para construirla.
 **Archivos tocados**: `pendientes.html`, `PROJECT_STATE.md` (este punto).
 Ningún código de producto tocado — solo documentación.
 
+## Punto 412 — Aclaración del usuario: `prod/` NO es parte del producto, es la herramienta de despliegue (22 oct 2026)
+
+Decisión explícita del usuario durante la revisión de `sonar_1.2.html`:
+la carpeta `prod/` **no se considera parte del producto** — es una
+**herramienta de despliegue** (el paquete que se lleva a
+`yt.addv.com.mx`). Se reescribe con cada actualización, incluso se puede
+borrar y regenerar completa dejando solo el paquete de despliegue.
+
+Consecuencias para auditorías y análisis futuros:
+
+- **Nunca contar `prod/` dentro de las métricas del producto** (líneas,
+  archivos, code smells, hallazgos de calidad/seguridad). Un desfase
+  entre `prod/` y su fuente **no es un hallazgo del producto**: es un
+  paso del proceso de deploy (la sincronización por contenido se hace
+  antes de desplegar, ya documentada en AGENTS.md).
+- En informes estilo SonarQube, si `prod/` se menciona, es solo como
+  "artefacto de deploy verificado/no verificado", nunca como parte del
+  alcance del código analizado.
+- La recomendación del informe 1.2 de "agregar chequeo de desfase al
+  preflight" sigue siendo válida como mejora del flujo de deploy
+  (herramienta), no como remediación de producto.
+
+**Archivos tocados**: `PROJECT_STATE.md` (este punto), `AGENTS.md`
+(bullet de `prod/`), `sonar_1.2.html` (N-04 reclasificado de "Mayor
+abierto" a nota de herramienta de deploy; métricas y gate ajustadas sin
+contar `prod/`).
+
 ## Punto 413 — Punto 273 (c): recorrido guiado extendido a Reportes y Configuraciones (22 oct 2026)
 
 Continuación del punto 411. El usuario pidió construir el único hueco

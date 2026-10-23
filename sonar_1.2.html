@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sonar 1.2 — Análisis de calidad y seguridad · Portal de Facturación ADDV (Clarvo)</title>
+<style>
+  :root{
+    --sev-blocker:#82071E; --sev-blocker-bg:#FFEBE9;
+    --sev-critical:#CF222E; --sev-critical-bg:#FFEBE9;
+    --sev-major:#BC4C00; --sev-major-bg:#FFF1E5;
+    --sev-minor:#9A6700; --sev-minor-bg:#FFF8C5;
+    --sev-info:#0969DA; --sev-info-bg:#DDF4FF;
+    --verde:#1A7F37; --verde-bg:#DAFBE1;
+    --gris:#59636E; --borde:#D1D9E0; --fondo:#F6F8FA; --texto:#1F2328;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--fondo);color:var(--texto);line-height:1.5;font-size:14px}
+  header{background:#0D1B2A;color:#fff;padding:26px 32px}
+  header h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header .sub{color:#9FB3C8;font-size:13px;margin-top:4px}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 32px 64px}
+  h2{font-size:17px;margin:34px 0 12px;border-bottom:1px solid var(--borde);padding-bottom:6px}
+  h3{font-size:14px;margin:20px 0 8px}
+  .gate{border-radius:8px;padding:16px 20px;margin:20px 0;border:1px solid}
+  .gate.fail{background:var(--sev-blocker-bg);border-color:var(--sev-blocker);color:var(--sev-blocker)}
+  .gate.cond{background:var(--sev-major-bg);border-color:var(--sev-major);color:var(--sev-major)}
+  .gate.pass{background:var(--verde-bg);border-color:var(--verde);color:var(--verde)}
+  .gate .titulo{font-weight:700;font-size:15px;margin-bottom:4px}
+  .gate p{margin:4px 0 0;color:var(--texto)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+  .card{background:#fff;border:1px solid var(--borde);border-radius:8px;padding:14px}
+  .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--gris)}
+  .card .v{font-size:26px;font-weight:700;margin-top:2px}
+  .card .d{font-size:12px;color:var(--gris);margin-top:2px}
+  .rating{display:inline-block;width:30px;height:30px;border-radius:50%;color:#fff;font-weight:700;text-align:center;line-height:30px;font-size:15px}
+  .r-a{background:var(--verde)} .r-b{background:#5A9E3E} .r-c{background:var(--sev-minor)} .r-d{background:var(--sev-major)} .r-e{background:var(--sev-critical)}
+  .sev-counts{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .sev-badge{border-radius:20px;padding:5px 14px;font-weight:600;font-size:13px;border:1px solid}
+  .b-blocker{background:var(--sev-blocker-bg);color:var(--sev-blocker);border-color:var(--sev-blocker)}
+  .b-critical{background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)}
+  .b-major{background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)}
+  .b-minor{background:var(--sev-minor-bg);color:var(--sev-minor);border-color:var(--sev-minor)}
+  .b-info{background:var(--sev-info-bg);color:var(--sev-info);border-color:var(--sev-info)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--borde);border-radius:8px;overflow:hidden;font-size:13px}
+  th{background:#F3F4F6;text-align:left;padding:9px 10px;border-bottom:1px solid var(--borde);font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--gris)}
+  td{padding:9px 10px;border-bottom:1px solid #EAECEF;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.id{white-space:nowrap;font-weight:600;color:var(--gris);font-size:12px}
+  td.arch{white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .pill{display:inline-block;border-radius:12px;padding:1px 9px;font-size:11px;font-weight:600;border:1px solid}
+  .p-vuln{background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)}
+  .p-smell{background:#F3F4F6;color:var(--gris);border-color:var(--borde)}
+  .p-hot{background:var(--sev-minor-bg);color:var(--sev-minor);border-color:var(--sev-minor)}
+  .p-conf{background:var(--sev-info-bg);color:var(--sev-info);border-color:var(--sev-info)}
+  .desc b.t{display:block;margin-bottom:2px}
+  .rec{color:var(--gris);margin-top:3px;display:block}
+  .rec::before{content:"Recomendación: ";font-weight:600;color:var(--texto)}
+  .ok{color:var(--verde);font-weight:700}
+  .warn{color:var(--sev-major);font-weight:700}
+  .bad{color:var(--sev-critical);font-weight:700}
+  .parcial{color:var(--sev-major);font-weight:700}
+  ul{margin:8px 0;padding-left:22px} li{margin:4px 0}
+  .owasp td:nth-child(2){font-weight:600}
+  .barra{height:9px;border-radius:5px;background:#EAECEF;overflow:hidden;min-width:120px;margin-top:5px}
+  .barra>span{display:block;height:100%}
+  .nota{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--sev-info);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px}
+  .delta{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--verde);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px}
+  footer{color:var(--gris);font-size:12px;margin-top:40px;border-top:1px solid var(--borde);padding-top:14px}
+  code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#F3F4F6;border-radius:4px;padding:0 4px;font-size:12px}
+  @media (max-width:820px){ .wrap{padding:16px} table{display:block;overflow-x:auto} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Informe de calidad y seguridad — Portal de Facturación ADDV (Clarvo)</h1>
+  <div class="sub">Análisis tipo SonarQube + revisión OWASP Top 10 (2021) · Versión 1.2 · 2026-10-22 · Alcance del producto: backend/, control/, frontend/, docker/, nginx · 105 archivos · 80,896 líneas analizadas · <code>prod/</code> fuera de alcance (herramienta de despliegue, punto 412) · Comparado contra sonar_1.1.html (1.1, 2026-10-19)</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ═══════════════ COMPARATIVA VS 1.1 ═══════════════ -->
+  <h2>0. Comparativa contra la versión 1.1 (sonar_1.1.html)</h2>
+  <div class="delta">
+    <b>Remediación completa del ciclo 1.1 aplicada y verificada:</b> de los <b>49 hallazgos con ID enumerados</b> al cierre de la 1.1 (46 de la 1.0 + 3 nuevos N-01…N-03; la 1.1 declaraba "51" pero sus tablas enumeraban 46 — se usa el conteo verificable), <b>43 quedaron CERRADOS</b> con la línea exacta del código verificada hoy, <b>3 están PARCIALES</b> (m-11, i-03 y N-02, todos con matiz documentado) y <b>3 siguen abiertos</b> (los informativos i-01, i-02 e i-04). <b>Cero regresiones de seguridad</b>: ningún fix de la Fase A/B/C se perdió. Se suma <b>1 hallazgo nuevo</b> (N-05, test intermitente). Nota de alcance: el espejo <code>prod/</code> quedó desfasado tras el commit <code>dfc89e7</code>, pero <b>no cuenta como hallazgo del producto</b> — es la herramienta de despliegue, que se reescribe con cada actualización (decisión del usuario, punto 412); la sincronización es un paso del proceso de deploy, no deuda de código.
+  </div>
+
+  <table>
+    <tr><th>Antes (1.1)</th><th>Ahora (1.2)</th><th>Delta</th></tr>
+    <tr>
+      <td>Quality Gate: <b class="warn">APROBADA CON CONDICIONES</b><br>N-01 (413 en subida de logo), N-02 (8 tests rojos), N-03 (6 escapes de atributo) + 7 mayores</td>
+      <td>Quality Gate: <b class="ok">APROBADA</b><br>0 blockers · 0 críticos · 0 mayores · 1 menor (N-05, intermitencia de test)</td>
+      <td class="desc"><span class="ok">Las 3 condiciones de la gate 1.1 quedaron cerradas</span> (N-01, N-02 en esencia, N-03) y los 7 mayores abiertos (M-05, M-06, M-16, M-18, M-19, C-04, C-05) también. Ninguna vulnerabilidad de seguridad abierta.</td>
+    </tr>
+    <tr><td>Seguridad <span class="rating r-b">B</span></td><td>Seguridad <span class="rating r-a">A</span></td><td class="desc">0 críticos, 0 mayores de seguridad abiertos. Solo quedan 4 informativos (i-01 a i-04, el más tangible: i-02, secreto interno único).</td></tr>
+    <tr><td>Confiabilidad <span class="rating r-c">C</span></td><td>Confiabilidad <span class="rating r-b">B</span></td><td class="desc"><span class="ok">+8 tests reparados</span>: backend 1,335/1,335 (68 suites, 100% verde) · control 490/490 en la 2ª corrida de esta ronda, tras 489/490 en la 1ª (N-05 confirmado como intermitente, no regresión).</td></tr>
+    <tr><td>Mantenibilidad <span class="rating r-c">C</span></td><td>Mantenibilidad <span class="rating r-c">C</span></td><td class="desc">Monolitos sin dividir (admin.js 20,312; server.js 10,978 — ambos crecieron). El desfase del espejo <code>prod/</code> queda fuera de alcance por decisión del usuario (punto 412).</td></tr>
+    <tr><td>Tests: 1,787 ejecuciones</td><td>Tests: 1,825 ejecuciones</td><td class="desc">Backend 1,335 (+18) · control 490 (+20). Ambas suites corrieron completas en esta ronda.</td></tr>
+  </table>
+
+  <div class="sev-counts">
+    <span class="sev-badge b-blocker">0 Blocker</span>
+    <span class="sev-badge b-critical">0 Críticos</span>
+    <span class="sev-badge b-major">0 Mayores</span>
+    <span class="sev-badge b-minor">1 Menor abierto (N-05) + m-11 parcial</span>
+    <span class="sev-badge b-info">4 Informativos</span>
+  </div>
+
+  <!-- ═══════════════ QUALITY GATE ═══════════════ -->
+  <div class="gate pass">
+    <div class="titulo">QUALITY GATE: APROBADA</div>
+    <p><b>Ninguna vulnerabilidad de seguridad abierta</b>: los 49 hallazgos con ID vigentes al cierre de la 1.1 quedaron en 0 blocker, 0 críticos y 0 mayores — todo lo que quedaba (cookie sin <code>Secure</code>, auditoría de control sin GETs, body parser antes del límiter, onboarding público sin captcha, defaults <code>changeme_*</code> en producción, escape de atributos, 413 en subida de logo) está corregido y verificado en esta ronda (sección 2). El único hallazgo nuevo, <b>N-05</b>, es menor: 1 test de control con timeout intermitente bajo carga paralela (pasa en solitario). El desfase del espejo <code>prod/</code> queda fuera de alcance por definición: es la herramienta de despliegue, no el producto (punto 412) — su sincronización es un paso del proceso de deploy, previo a cada publicación.</p>
+  </div>
+
+  <!-- ═══════════════ MÉTRICAS ═══════════════ -->
+  <h2>1. Métricas del proyecto</h2>
+  <div class="cards">
+    <div class="card"><div class="k">Seguridad</div><div class="v"><span class="rating r-a">A</span></div><div class="d">0 abiertos (4 info)</div></div>
+    <div class="card"><div class="k">Confiabilidad (bugs)</div><div class="v"><span class="rating r-b">B</span></div><div class="d">1 test intermitente</div></div>
+    <div class="card"><div class="k">Mantenibilidad</div><div class="v"><span class="rating r-c">C</span></div><div class="d">Monolitos (prod/ fuera de alcance)</div></div>
+    <div class="card"><div class="k">Líneas de código</div><div class="v">80,896</div><div class="d">105 archivos (JS/HTML/CSS, sin prod/)</div></div>
+    <div class="card"><div class="k">Tests backend</div><div class="v">1,335/1,335</div><div class="d">68 suites — 100% verde</div></div>
+    <div class="card"><div class="k">Tests control</div><div class="v">490/490</div><div class="d">27 suites — verde en corrida 2 (1 fallo intermitente en corrida 1)</div></div>
+    <div class="card"><div class="k">Rutas backend</div><div class="v">194</div><div class="d">control: 53</div></div>
+    <div class="card"><div class="k">Paquete prod/</div><div class="v">Desfasado</div><div class="d">Herramienta de deploy (fuera de alcance) — resincronizar antes de publicar</div></div>
+  </div>
+
+  <table>
+    <tr><th>Categoría</th><th>Abiertos</th><th>Distribución</th></tr>
+    <tr><td>Vulnerabilidades de seguridad (blocker + críticos + mayores)</td><td><span class="ok">0</span></td><td><div class="barra"><span style="width:2%;background:var(--verde)"></span></div></td></tr>
+    <tr><td>Code smells / deuda técnica</td><td>3</td><td><div class="barra"><span style="width:12%;background:var(--sev-minor)"></span></div></td></tr>
+    <tr><td>Configuración insegura (infra)</td><td><span class="ok">0</span></td><td><div class="barra"><span style="width:2%;background:var(--verde)"></span></div></td></tr>
+    <tr><td>Calidad de pruebas (intermitencia)</td><td>1</td><td><div class="barra"><span style="width:5%;background:var(--sev-major)"></span></div></td></tr>
+  </table>
+
+  <!-- ═══════════════ ESTADO DE LOS HALLAZGOS PREVIOS ═══════════════ -->
+  <h2>2. Estado de los 49 hallazgos con ID de la 1.1</h2>
+  <p>Cada estado fue <span class="ok">verificado</span> hoy leyendo la línea exacta del fuente actual (no el mensaje de commit <code>dfc89e7</code>, que es donde la documentación previa se desincronizó una vez ya — punto 352). "Cerrado" = el fix está en el código; "Parcial" = fix con resto documentado.</p>
+
+  <h3>2.1 Críticos (6)</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.1 → 1.2</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">C-01</td><td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">Candado <code>perfil='cliente'</code> intacto en backend/server.js (re-verificado vía suite auth-usuario 1,335/1,335)</td></tr>
+    <tr><td class="id">C-02</td><td>CERRADO → CERRADO</td><td class="arch">fail-closed de ADMIN_USERS presente en backend/utils/auth.js y control/utils/auth.js</td></tr>
+    <tr><td class="id">C-03</td><td>CERRADO → CERRADO</td><td class="arch"><code>hostPermitido()</code> + <code>absolute_redirect off</code> intactos (tests hostPermitido verde)</td></tr>
+    <tr><td class="id">C-04</td><td><span class="parcial">PARCIAL</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">Preflight real en <code>prod/actualizar.sh:98-119</code>: detecta <code>changeme_*</code> en MYSQL_ROOT_PASSWORD/MYSQL_PASSWORD/MINIO_ROOT_PASSWORD/CONTROL_APP_PASSWORD/INTERNAL_CACHE_SECRET y aborta antes de levantar. Los defaults siguen en el compose de desarrollo a propósito (líneas 4-14), ahora con gate del lado del deploy.</td></tr>
+    <tr><td class="id">C-05</td><td><span class="parcial">PARCIAL</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">Grep efectivo <code>(data-…|aria-label|value|title)="…${escapeHtml(</code> sobre admin.js/control.js/portal.js/dashboard.js: <b>0 matches</b> (antes 6). Ver N-03.</td></tr>
+    <tr><td class="id">C-06</td><td>CERRADO → CERRADO</td><td class="arch">Tooltip con <code>escapeHtmlAttr</code> intacto en admin.js</td></tr>
+  </table>
+
+  <h3>2.2 Mayores (19 + N-01…N-03)</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.1 → 1.2</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">M-01…M-04</td><td>CERRADOS → CERRADOS</td><td class="arch">Sin regresiones (suites de portal/CSRF/csv verde)</td></tr>
+    <tr><td class="id">M-05</td><td><span class="parcial">PARCIAL</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">backend/server.js:289-292 — <code>express.json({limit:'2mb'})</code> global; el de 30 MB quedó <b>scoped por path</b> (<code>/internal/marca-logo</code> y <code>/internal/favicon</code> solamente, antes de la global). Cada request anónimo ya no paga parseo de 30 MB.</td></tr>
+    <tr><td class="id">M-06</td><td><span class="bad">ABIERTO</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">control/server.js:72 <code>verificarTurnstile</code> + :398 verificación server-side fail-closed antes de crear el tenant, en <code>POST /api/public/onboarding/convertir/:token</code>. Sigue sin enrutar en nginx (0 matches "onboarding" en nginx.conf.template) — doble defensa.</td></tr>
+    <tr><td class="id">M-07…M-15</td><td>CERRADOS → CERRADOS</td><td class="arch">Sin regresiones verificadas</td></tr>
+    <tr><td class="id">M-16</td><td><span class="parcial">PARCIAL</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">server.js:8632-8633 (<code>console.error</code> con detalle + mensaje genérico al cliente) y :8693-8694 (mismo patrón para el reporte previo a eliminar)</td></tr>
+    <tr><td class="id">M-17</td><td>CERRADO → CERRADO</td><td class="arch">DOCS_ENABLED intacto (ahora opt-in, ver m-01)</td></tr>
+    <tr><td class="id">M-18</td><td><span class="bad">ABIERTO</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">authUsuario.js:194 — <code>secure: NODE_ENV === 'production' ? true : COOKIE_SECURE === 'true'</code> + :209-213 <b>fail-closed de arranque</b> si se pide <code>COOKIE_SECURE=false</code> en producción (mismo criterio que C-02/M-15). docker-compose.yml:260 además invirtió el default a <code>true</code>.</td></tr>
+    <tr><td class="id">M-19</td><td><span class="bad">ABIERTO</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">control/server.js:253-268 — el hook de auditoría ya <b>NO descarta GET</b>: filtra solo por <code>!req.adminUser</code> (rutas públicas) y registra <code>req.originalUrl</code> (con query string). A09 queda cumplida.</td></tr>
+    <tr><td class="id">N-01</td><td><span class="bad">ABIERTO</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">nginx.conf.template:478 (<code>location ^~ /api/control/</code>) ahora con <code>client_max_body_size 27m</code> — junto con :85, :404 y :532, todo el archivo quedó consistente en 27m.</td></tr>
+    <tr><td class="id">N-02</td><td><span class="bad">ABIERTO</span> → <span class="parcial">PARCIAL</span></td><td class="arch">Suite de control reparada: de 8 rojos a <b>0-1 intermitentes</b> (489/490 y 490/490 en las 2 corridas de esta ronda). El conteo desactualizado de <code>ensureSchema.test.js</code> quedó corregido; persiste solo el timeout intermitente de <code>docsEnabled.test.js</code> — detalle completo en N-05 (sección 4), que hereda y sigue el rastro de este hallazgo.</td></tr>
+    <tr><td class="id">N-03</td><td><span class="bad">ABIERTO</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">Los 6 call sites residuales de <code>escapeHtml()</code> en atributos migrados: grep efectivo devuelve 0 en los 4 archivos de frontend.</td></tr>
+  </table>
+
+  <h3>2.3 Menores e informativos (17 + 4)</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.1 → 1.2</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">m-01</td><td><span class="parcial">PARCIAL</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">DOCS_ENABLED se invirtió a opt-in (apagado por defecto); el compose de desarrollo lo enciende explícito (:274, :369) y <code>prod/</code> nunca lo define. La suite docsEnabled verifica 404 por defecto.</td></tr>
+    <tr><td class="id">m-02</td><td>ABIERTO → CERRADO</td><td class="arch">server.js:409 — <code>adminApiLimiter</code> bajó de 2000 a <code>max: 600</code></td></tr>
+    <tr><td class="id">m-03</td><td>ABIERTO → CERRADO</td><td class="arch">tipoCambio.js:59 — token por header <code>Bmx-Token</code> (no query string); :31 <code>fechaLocalZona('America/Mexico_City')</code> reemplaza a <code>toISOString()</code>. Tests tipoCambio verde.</td></tr>
+    <tr><td class="id">m-04</td><td>CERRADO → CERRADO</td><td class="arch">Escritura atómica con .bak intacta</td></tr>
+    <tr><td class="id">m-05</td><td><span class="parcial">PARCIAL</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">control/utils/auth.js:93-99 — <code>DUMMY_PASSWORD</code> de 64 caracteres paga la misma comparación cuando el usuario no existe (corte temprano eliminado)</td></tr>
+    <tr><td class="id">m-06</td><td>ABIERTO → CERRADO</td><td class="arch">adminEnv.js:66 <code>length &lt; 8</code> + :75 regla de minúscula (complejidad mayúscula/minúscula/número completa) — política de super-admin ya más fuerte que la de clientes</td></tr>
+    <tr><td class="id">m-07</td><td>ABIERTO → CERRADO</td><td class="arch">cierreMensual.js:222 y ticketsCleanup.js:208 — <code>throw</code> explícito si falta <code>DB_PASSWORD</code>, sin fallback a <code>''</code></td></tr>
+    <tr><td class="id">m-08</td><td>ABIERTO → CERRADO</td><td class="arch">claveProdServ.js:119 — <code>sincronizarDesdeOrigen()</code> ya no acepta parámetro de URL (arma SSRF desactivada)</td></tr>
+    <tr><td class="id">m-09</td><td>ABIERTO → CERRADO</td><td class="arch">admin.html:4997 — <code>&lt;iframe class="preview-frame" ... sandbox=""&gt;</code> (igual que su hermano de :3087)</td></tr>
+    <tr><td class="id">m-10</td><td>ABIERTO → CERRADO</td><td class="arch">backend/.dockerignore — <code>test</code> y <code>scripts</code> excluidos de la imagen, con la justificación documentada</td></tr>
+    <tr><td class="id">m-11</td><td><span class="parcial">PARCIAL</span> → <span class="parcial">PARCIAL</span></td><td class="arch">control/Dockerfile:24 <code>USER appuser</code> sí. backend/Dockerfile:24-36 lo dejó <b>a propósito sin USER</b> con una justificación extensa (bind mount de <code>uploads/</code> rompería permisos al contenedor como appuser). frontend/Dockerfile (nginx) sigue como root. Matiz razonable, residual bajo.</td></tr>
+    <tr><td class="id">m-12</td><td>ABIERTO → CERRADO</td><td class="arch">Los 4 <code>client_max_body_size</code> del archivo quedaron en 27m (base64 de 20 MB con margen)</td></tr>
+    <tr><td class="id">m-13</td><td>ABIERTO → CERRADO</td><td class="arch">Cero <code>btoa(unescape(...))</code> en código propio; la única coincidencia está en <code>assets/vendor/html5-qrcode.min.js</code> (terceros, fuera de control)</td></tr>
+    <tr><td class="id">m-14</td><td>ABIERTO → CERRADO</td><td class="arch">theme.js:178 — opacidad del pie subió de 0.55 a 0.68 sobre fondo navy: contraste compuesto ≈ 5.3:1 (supera AA 4.5:1 en texto pequeño)</td></tr>
+    <tr><td class="id">m-15</td><td>ABIERTO → CERRADO</td><td class="arch">0 caracteres ✕/✓/⚠/⏳/⟳ en los 10 archivos HTML/JS de producción (los únicos matches que quedan son 2 comentarios de admin.js que explican la migración)</td></tr>
+    <tr><td class="id">m-16</td><td><span class="parcial">PARCIAL</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">offline.js:17 <code>TTL_PENDIENTE_MS = 30 días</code> + :112-116 purga de filas vencidas en la misma pasada de limpieza</td></tr>
+    <tr><td class="id">m-17</td><td><span class="parcial">PARCIAL</span> → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">db.js:1618 — <code>imp_importaciones</code> ahora consulta <code>INFORMATION_SCHEMA.CHECK_CONSTRAINTS</code> antes del DROP CHECK (:1624)</td></tr>
+    <tr><td class="id">i-01</td><td>SIN CAMBIOS → SIN CAMBIOS</td><td class="arch">Aislamiento de MinIO por prefijo lógico: riesgo aceptado y documentado, sin cambios en esta ronda</td></tr>
+    <tr><td class="id">i-02</td><td>ABIERTO → ABIERTO</td><td class="arch">server.js:696 <code>secretoInternoValido()</code> — un único <code>INTERNAL_CACHE_SECRET</code> para 14 rutas <code>/internal/*</code> (antes 13; creció con las nuevas). Mejora parcial: el compose de producción ahora exige la variable (vacío = rechaza todo, ver :269).</td></tr>
+    <tr><td class="id">i-03</td><td>ABIERTO → <span class="parcial">PARCIAL</span></td><td class="arch">nginx.conf.template:30-33 — HSTS quedó <b>condicional al proto https</b> (no se envía sobre HTTP plano, bien), pero sigue sin <code>preload</code> y siguen 0 cabeceras COOP/CORP en el archivo</td></tr>
+    <tr><td class="id">i-04</td><td>ABIERTO → ABIERTO</td><td class="arch">style.css:1 — el <code>@import</code> de Google Fonts sigue en la hoja crítica (auto-hospedar Inter pendiente)</td></tr>
+  </table>
+
+  <!-- ═══════════════ OWASP ═══════════════ -->
+  <h2>3. Cumplimiento OWASP Top 10 (2021)</h2>
+  <table class="owasp">
+    <tr><th>Categoría</th><th>Categoría</th><th>1.1 → 1.2</th><th>Evidencia principal</th></tr>
+    <tr>
+      <td><b>A01</b></td><td>Broken Access Control</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: PARCIAL</small></td>
+      <td class="desc">M-06 cerrado (onboarding con Turnstile server-side fail-closed + sin enrutar). i-02 (secreto interno único) queda como nota informativa de defensa en profundidad, no como incumplimiento: las 14 rutas son red interna de Docker.</td>
+    </tr>
+    <tr>
+      <td><b>A02</b></td><td>Cryptographic Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: PARCIAL</small></td>
+      <td class="desc">M-18 cerrado (cookie <code>Secure</code> forzada + fail-closed en producción), m-03 cerrado (token de Banxico por header, fecha local por zona). C-04 cerrado (preflight de defaults en <code>prod/actualizar.sh</code>).</td>
+    </tr>
+    <tr>
+      <td><b>A03</b></td><td>Injection</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: PARCIAL</small></td>
+      <td class="desc">C-05/N-03 cerrados: 0 call sites con <code>escapeHtml()</code> dentro de atributos en todo el frontend. SQL sin inyección y CSV injection cerrados desde 1.0, sin regresiones.</td>
+    </tr>
+    <tr>
+      <td><b>A04</b></td><td>Insecure Design</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">M-05 cerrado: el body parser amplio quedó acotado por path; el global es de 2 MB. Rate limits y validación de origen intactos.</td>
+    </tr>
+    <tr>
+      <td><b>A05</b></td><td>Security Misconfiguration</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: PARCIAL</small></td>
+      <td class="desc">C-04 (preflight de defaults), m-01 (docs opt-in), m-10 (test/scripts fuera de la imagen), m-12/N-01 (27m consistente) cerrados. Residual menor: m-11 (nginx root + backend sin USER, este último con justificación técnica documentada).</td>
+    </tr>
+    <tr>
+      <td><b>A06</b></td><td>Vulnerable and Outdated Components</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Sin cambios: mismas versiones verificadas en 1.1, supply-chain higiénico. Recomendación pendiente: <code>npm audit</code> en CI.</td>
+    </tr>
+    <tr>
+      <td><b>A07</b></td><td>Identification and Authentication Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: PARCIAL</small></td>
+      <td class="desc">m-06 cerrado (política de super-admin a 8+complejidad) y m-05 cerrado (enumeración por timing eliminada con DUMMY_PASSWORD constante).</td>
+    </tr>
+    <tr>
+      <td><b>A08</b></td><td>Software and Data Integrity Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">m-09 cerrado (iframe con <code>sandbox</code>) y escritura del <code>.env</code> atómica desde 1.1. El desfase del paquete <code>prod/</code> queda fuera de alcance (es la herramienta de despliegue, no el producto — punto 412); su resincronización es un paso del proceso de publicación.</td>
+    </tr>
+    <tr>
+      <td><b>A09</b></td><td>Security Logging and Monitoring Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: NO CUMPLE</small></td>
+      <td class="desc"><span class="ok">La única categoría que fallaba en 1.1 quedó cerrada</span>: la auditoría de control ahora registra también las lecturas autenticadas (GET incluido) con <code>req.originalUrl</code> completo.</td>
+    </tr>
+    <tr>
+      <td><b>A10</b></td><td>Server-Side Request Forgery</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span><br><small>antes: PARCIAL</small></td>
+      <td class="desc">m-08 cerrado: <code>sincronizarDesdeOrigen()</code> ya no acepta URL como parámetro — el "arma cargada" se descargó.</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ HALLAZGOS NUEVOS ═══════════════ -->
+  <h2>4. Hallazgos nuevos de la versión 1.2</h2>
+  <p>Un hallazgo nuevo del producto (N-05) y una nota operativa sobre la herramienta de despliegue (N-04), ambos <span class="ok">verificados</span> en la línea exacta.</p>
+  <table>
+    <tr><th>ID</th><th>Sev.</th><th>Archivo:línea</th><th>Tipo</th><th>Detalle y recomendación</th></tr>
+
+    <tr>
+      <td class="id">N-04</td>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Nota (fuera de alcance)</span></td>
+      <td class="arch">prod/frontend/* y prod/backend/server.js <span class="ok">verificado por hash SHA-256</span></td>
+      <td><span class="pill p-conf">Herramienta de despliegue</span></td>
+      <td class="desc"><b class="t">El paquete prod/ está desfasado respecto de su fuente — no es un hallazgo del producto (punto 412)</b>
+        5 de los 9 archivos clave comparados difieren: <code>admin.js</code> (+33/−14), <code>admin.html</code>, <code>control.js</code>, <code>theme.js</code> y <code>backend/server.js</code> — la fuente avanzó el 2026-10-21 (commit <code>dfc89e7</code>) y <code>prod/</code> se congeló el 10/16. Por decisión del usuario registrada en el punto 412, <b><code>prod/</code> no es parte del producto</b>: es el paquete de despliegue que se reescribe con cada actualización (y puede borrarse y regenerarse completo). Por eso este ítem <b>no cuenta</b> para métricas, calidad de código ni la Quality Gate.
+        <span class="rec">Como paso del proceso de deploy: resincronizar <code>prod/</code> por CONTENIDO (nunca <code>git add</code>) <b>antes de publicar</b>, y — opcional — agregar un chequeo de hash de los archivos clave al preflight de <code>prod/actualizar.sh</code> para que el propio script avise si el paquete quedó con la versión anterior.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-05</td>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td>
+      <td class="arch">control/test/unit/docsEnabled.test.js:40 <span class="ok">verificado con doble ejecución</span></td>
+      <td><span class="pill p-smell">Code smell</span></td>
+      <td class="desc"><b class="t">docsEnabled.test.js pierde el timeout (5 s) de forma intermitente bajo carga — falló 1 de 3 corridas de suite completa</b>
+        Corrida completa 1: <b>489/490</b> — el único rojo fue "sin configurar: /api/control/docs.json responde 404" con <code>Exceeded timeout of 5000 ms</code>. Corrida completa 2 (mismo comando, minutos después): <b>490/490 en verde</b>. Re-ejecutado aislado: <b>4/4 en verde en 2.3 s</b>. El commit <code>dfc89e7</code> también reportó 490/490. Patrón confirmado de <b>intermitencia bajo carga paralela</b> (swagger-jsdoc generando el spec en un worker saturado, o el handle abierto que Jest denuncia con "force exiting" en todas las corridas). No es una regresión funcional, pero una suite que falla de forma no determinista se convierte en ruido que enmascara fallas reales.
+        <span class="rec">Subir el timeout del test a 15-20 s (la generación del spec es legítimamente lenta) o precargar el spec con <code>jest.mock('swagger-jsdoc')</code> en el test de opt-out; y cerrar el handle abierto (<code>--detectOpenHandles</code> una vez) para eliminar el "force exiting".</span></td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ DEUDA TÉCNICA ═══════════════ -->
+  <h2>5. Deuda técnica y code smells</h2>
+  <table>
+    <tr><th>Impacto</th><th>Localización</th><th>Detalle y recomendación</th></tr>
+    <tr>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Alto</span></td>
+      <td class="arch">frontend/admin.js (20,312)<br>backend/server.js (10,978)<br>frontend/admin.html (5,901)</td>
+      <td class="desc"><b class="t">Monolitos siguieron creciendo</b> — admin.js +18 y server.js +31 líneas desde la 1.1 (194 rutas top-level en un solo archivo). Ninguna función supera el límite ya acordado, el problema sigue siendo la agregación. <span class="rec">Extraer rutas del backend a routers por dominio; dividir admin.js por vistas. Sin urgencia de seguridad, pero cada ronda lo hace más caro.</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Medio</span></td>
+      <td class="arch">control/test/unit/<br>docsEnabled.test.js</td>
+      <td class="desc"><b class="t">Intermitencia en la suite de control (N-05)</b> — suites no deterministas erosionan la confianza en el verde. Cerrar el handle abierto que fuerza el "force exiting" de Jest.</td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Bajo</span></td>
+      <td class="arch">frontend/admin.js<br>control.js · portal.js · dashboard.js</td>
+      <td class="desc"><b class="t">Duplicación a propósito de helpers y boilerplate de fetch</b> — se mantiene la convención (proyecto sin bundler), pero ahora con el respaldo de que el grep de regresión de atributos funcionó: 0 residuos tras el fix de C-05/N-03. <span class="rec">Conservar el grep de regresión como test automatizado si se desea cerrar el capítulo.</span></td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ FORTALEZAS ═══════════════ -->
+  <h2>6. Fortalezas verificadas en esta ronda</h2>
+  <ul>
+    <li><b>Remediación de dos auditorías completa en un solo commit</b> (<code>dfc89e7</code>): 5 de 6 mayores, 15 de 16 menores, y las 3 condiciones de la gate 1.1 — todo verificado línea por línea hoy, sin confiar en el mensaje del commit.</li>
+    <li><b>Cero vulnerabilidades de seguridad abiertas y OWASP 10/10</b>: de 6 críticos en la 1.0 a 0 críticos y 0 mayores en la 1.2, con <b>las 10 categorías en CUMPLE</b> — A09 (la que fallaba en 1.1) cerrada, y A08 sin el retroceso que hubiera implicado contar el desfase de <code>prod/</code> (herramienta de despliegue, fuera de alcance).</li>
+    <li><b>Fail-closed homogéneo y extensido</b>: además de ADMIN_USERS y MinIO, ahora <code>COOKIE_SECURE=false</code> en producción aborta el arranque, <code>DB_PASSWORD</code> ausente aborta los jobs, y el Turnstile del onboarding verifica server-side sin confiar en el cliente.</li>
+    <li><b>Auditoría cross-tenant completa</b>: control registra métodos de lectura autenticados con la URL completa — la categoría OWASP que fallaba (A09) quedó cerrada con el patrón correcto (filtrar por sesión, no por método).</li>
+    <li><b>Base de pruebas en crecimiento y en verde</b>: 1,825 ejecuciones (1,335 backend 100% verde + 490 control con 1 intermitente documentado), 27 suites de control (antes 26), 68 de backend.</li>
+    <li><b>Higiene visual cumplida</b>: los ~70 glifos Unicode de señalización migrados a SVG — 0 residuos en código propio; lo único que queda son comentarios que documentan la migración.</li>
+  </ul>
+
+  <!-- ═══════════════ ROADMAP ═══════════════ -->
+  <h2>7. Plan de remediación priorizado (v1.2)</h2>
+  <table>
+    <tr><th>Fase</th><th>Plazo</th><th>Acciones</th><th>IDs</th></tr>
+    <tr>
+      <td><b>Fase A — Cerrar el ciclo</b><br><small style="color:var(--gris);font-weight:400">Único pendiente de calidad + paso previo a publicar</small></td>
+      <td>Horas</td>
+      <td class="desc">
+        1. Subir el timeout de <code>docsEnabled.test.js</code> y cerrar el handle abierto de Jest (dejar control en 490/490 determinista).<br>
+        2. Como paso del proceso de deploy (no del producto): resincronizar <code>prod/</code> por contenido antes de publicar, idealmente con un chequeo de hash en el preflight de <code>actualizar.sh</code>.
+      </td>
+      <td class="arch">N-05<br><small>N-04 (herramienta)</small></td>
+    </tr>
+    <tr>
+      <td><b>Fase B — Informativos de valor</b><br><small style="color:var(--gris);font-weight:400">Diferencia entre A y B</small></td>
+      <td>1-2 días</td>
+      <td class="desc">
+        i-02: secretos <code>/internal/*</code> por ruta o por familia (backend vs control), o al menos rotación documentada.<br>
+        i-04: auto-hospedar Inter (woff2 local, eliminar el <code>@import</code> de Google Fonts).<br>
+        i-03: HSTS <code>preload</code> (+ dominio en hstspreload.org) y cabeceras COOP/CORP.
+      </td>
+      <td class="arch">i-02, i-03,<br>i-04</td>
+    </tr>
+    <tr>
+      <td><b>Fase C — Continuo</b><br><small style="color:var(--gris);font-weight:400">Deuda estructural</small></td>
+      <td>Continuo</td>
+      <td class="desc">
+        Routers por dominio en backend/server.js; división de admin.js por vistas; decisión final sobre <code>USER appuser</code> en backend/frontend (m-11, con la restricción del bind mount ya documentada); <code>npm audit</code> + grep de regresión de atributos como gate de CI.
+      </td>
+      <td class="arch">m-11, deuda</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ METODOLOGÍA ═══════════════ -->
+  <h2>8. Metodología y alcance</h2>
+  <div class="nota">
+    <b>Qué se hizo:</b> re-estado de los 49 hallazgos con ID vigentes al cierre de la 1.1 contra el código actual (post-commit <code>dfc89e7</code>, 2026-10-21), con búsqueda dirigida y lectura de la línea exacta de cada fix — no se confió en los mensajes de commit ni en PROJECT_STATE, siguiendo la lección del punto 352. Ejecución real de ambas suites Jest completas <b>dos veces</b> (backend 1,335/1,335 en ambas; control 489/490 en la corrida 1 y 490/490 en la corrida 2, más re-ejecución aislada del test rojo: 4/4 — clasificando N-05 como intermitente). Grep de regresión de los patrones de cada hallazgo cerrado (atributos HTML, glifos Unicode, <code>unescape</code>, <code>changeme_*</code>, <code>COOKIE_SECURE</code>, <code>client_max_body_size</code>, <code>err.message</code>, etc.).<br><br>
+    <b>Alcance:</b> por decisión del usuario (punto 412), <code>prod/</code> está <b>fuera de alcance</b>: es la herramienta de despliegue (paquete reescribible), no parte del producto — su desfase se reporta como nota operativa (N-04), nunca como hallazgo de calidad ni cuenta para la gate.<br><br>
+    <b>Qué NO cubre:</b> no es un pentest dinámico (el stack de Docker no se levantó en esta ronda; la verificación fue estática + suites mockeadas); <code>npm audit</code> sigue pendiente; no se midió cobertura; i-01 se mantuvo sin cambios por decisión de riesgo aceptado previa. La verificación de que N-01 funciona en runtime (subida real de un logo de 3 MB contra nginx) queda pendiente de una pasada Playwright contra Docker real.<br><br>
+    <b>Recomendación:</b> cerrar N-05 (fix del test intermitente) para dejar control en 490/490 determinista, y resincronizar <code>prod/</code> como paso previo de cualquier publicación (proceso de deploy, no de producto).
+  </div>
+
+  <footer>
+    Informe generado 2026-10-22 · Portal de Facturación ADDV (Clarvo) · Análisis tipo SonarQube + OWASP Top 10 (2021) · Versión 1.2 — 49 hallazgos con ID de la 1.1 re-estado (43 cerrados, 3 parciales, 3 abiertos) + 1 nuevo (N-05) + 1 nota de herramienta de despliegue (N-04, fuera de alcance por punto 412) · Archivo autocontenido (sin dependencias externas) · Comparable lado a lado con <code>sonar_1.1.html</code> (2026-10-19) y <code>sonar.html</code> (1.0, 2026-10-13).
+  </footer>
+</div>
+
+</body>
+</html>
