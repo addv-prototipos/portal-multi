@@ -157,12 +157,18 @@ services:
       - garage_data:/data/data
     networks:
       - fiscal-net
-    # Mismo criterio que la consola de MinIO antes: solo la API de admin
-    # se expone al host, y solo en 127.0.0.1, útil para inspeccionar el
-    # cluster en desarrollo desde la MISMA máquina. La API S3 (9000) NO
-    # se publica — el backend la alcanza por la red interna de Docker.
+    # Mismo criterio que la consola de MinIO antes: solo se expone al
+    # host, y solo en 127.0.0.1 — útil para inspeccionar el cluster en
+    # desarrollo desde la MISMA máquina, nunca alcanzable desde la LAN.
+    # El puerto S3 (9000) SÍ se publica (a partir de este punto,
+    # 2026-10-23, petición explícita del usuario) para poder usar un
+    # cliente S3 gráfico (Filestash, ver servicio `filestash` abajo, o
+    # cualquier cliente de escritorio) apuntando a `http://localhost:9000`
+    # — el backend sigue alcanzando a Garage por la red interna de
+    # Docker, esta publicación es solo para inspección manual.
     ports:
       - "127.0.0.1:${GARAGE_ADMIN_PORT:-3903}:3903"
+      - "127.0.0.1:${GARAGE_S3_PORT:-9000}:9000"
     healthcheck:
       # La imagen de Garage es "scratch" (sin shell, sin mc/curl) — el
       # binario mismo es el único ejecutable disponible para el
@@ -198,6 +204,36 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-portal-facturacion}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-GKd6b0c9c980d2b76be32856fb}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cae3aeaff02da6ecf3c70081fd7719ec6d7e1f0b29bd66d2d3235f8838b1013e}
+    networks:
+      - fiscal-net
+    security_opt:
+      - no-new-privileges:true
+
+  # Interfaz web gráfica para el bucket de Garage (petición explícita del
+  # usuario, 2026-10-23) — Garage no trae consola propia (a diferencia de
+  # MinIO). Filestash (AGPLv3, machines/filestash en Docker Hub): cliente
+  # S3 genérico con UI moderna (navegador de archivos tipo Explorer,
+  # subir/bajar/previsualizar, sin instalar nada en el host). Se conecta
+  # a Garage por el puerto S3 publicado arriba (127.0.0.1:9000) usando la
+  # MISMA access key/secret que usa el backend — ver docker/filestash/
+  # para el backend S3 pre-cargado en el primer arranque (config.json vía
+  # volumen, evita tener que teclear host/puerto/bucket a mano en la UI
+  # cada vez que se recrea el volumen). El password de administración de
+  # Filestash SÍ se configura a mano la primera vez (su propio asistente
+  # de /admin/setup, sin variable de entorno para preseedearlo) — ver
+  # README/test.md para el valor usado en este equipo.
+  filestash:
+    image: machines/filestash:latest
+    container_name: portalManager-filestash
+    restart: unless-stopped
+    mem_limit: 256m
+    depends_on:
+      garage:
+        condition: service_healthy
+    volumes:
+      - filestash_data:/app/data/state
+    ports:
+      - "127.0.0.1:${FILESTASH_PORT:-8334}:8334"
     networks:
       - fiscal-net
     security_opt:
@@ -478,4 +514,6 @@ volumes:
   garage_meta:
     driver: local
   garage_data:
+    driver: local
+  filestash_data:
     driver: local
