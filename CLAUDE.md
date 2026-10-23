@@ -102,8 +102,14 @@ revisar el código real (`grep -c "requiereFeature("`, columnas de
 `ensureSchema.js`, etc.) como se hizo en el punto 352. Catálogo de
 reglas de dependencia: 12 en total (11 del asistente + regla 9 de
 suspensión automática a nivel de asignación de plan) — detalle completo
-en `stitch/gobierno-funcionalidades/NOTAS.md`, que se mantiene como
-referencia viva del diseño aunque ya esté implementado.
+en `stitch/gobierno-funcionalidades/NOTAS.md` — **reubicado a
+`.trash/stitch/gobierno-funcionalidades/NOTAS.md` (punto 414,
+2026-10-23)**: el usuario confirmó que, con el diseño ya implementado y
+estable, puede salir del área activa del repo; sigue existiendo íntegro
+ahí para consulta, ya no en la raíz. Esta nota reemplaza la anterior
+("se mantiene como referencia viva... aunque ya esté implementado") —
+si una sesión futura necesita el catálogo completo de las 12 reglas de
+dependencia, está en esa ruta dentro de `.trash/`, no se perdió nada.
 
 **Mismo error, variante nueva (punto 369, 2026-10-04)**: una sesión dio
 por no-implementado el flag "Marca propia / Look & Feel" (el switch ya
@@ -781,6 +787,27 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   probar en vivo: `.portal-notif-wrap { display: inline-flex; }` sin su
   `[hidden]` explícito habría dejado la campana del portal de cliente
   SIEMPRE visible sin importar el atributo `hidden` en el DOM.
+- **Carpeta `calidad/` (punto 414, 2026-10-23)**: los informes tipo
+  SonarQube/auditoría (`eval.html`, `sonar.html`, `sonar_1.1.html`,
+  `sonar_1.2.html`) viven ahí, no en la raíz — moverlos con `git mv` no
+  rompe nada: ningún script los abre por ruta, solo se citan como texto
+  en comentarios (`// Hallazgo M-XX (sonar.html)...`). Un informe nuevo
+  de esta familia se crea directo dentro de `calidad/`, no en la raíz.
+- **`uploads/` (carpeta raíz) era un bind mount vestigial, ya movido a
+  `.trash/` (punto 414)**: desde el segmento 5 (MinIO), los 5 `multer(...)`
+  de `backend/server.js` usan `memoryStorage` — `UPLOAD_DIR`/
+  `TICKETS_UPLOAD_DIR`/`FACTURAS_UPLOAD_DIR` solo hacían `mkdirSync` al
+  arrancar, ningún handler leía/escribía ahí. `docker-compose.yml` y
+  `prod/docker-compose.prod.yml` **siguen** con el bind mount
+  `./uploads:/app/uploads` y `UPLOAD_DIR=/app/uploads` sin tocar (fuera de
+  alcance de este punto, no se editó infraestructura) — Docker recrea la
+  carpeta vacía en el host si no existe, así que no rompe `docker compose
+  up`, pero es config muerta que una sesión futura puede retirar con
+  aprobación explícita. La carpeta `webp/` (punto 400, módulo de
+  compresión aislado y nunca integrado a Clarvo) y un `test-results/`
+  suelto en la raíz (artefacto de Playwright corrido desde el directorio
+  equivocado, duplica `e2e/test-results/` que sí está en `.gitignore`)
+  también se movieron a `.trash/` en el mismo punto.
 
 ## Stack
 

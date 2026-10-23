@@ -23112,3 +23112,83 @@ actualizado a "Completado" para el punto `cen-273` completo (a, b y c).
 
 **Archivos tocados**: `frontend/admin.js`, `pendientes.html`,
 `PROJECT_STATE.md` (este punto).
+
+## Punto 414 — Limpieza de la raíz: `calidad/`, `.trash/`, `DOCS/` (23 oct 2026)
+
+Petición del usuario: mover a `.trash/` todo lo que ya no se usa en el
+proyecto, agrupar los informes tipo SonarQube/auditoría (`eval.html`,
+`sonar*.html`) en una carpeta `calidad/`, y evaluar si `uploads/` (ya
+reemplazado por MinIO) también se puede retirar.
+
+**Movido a `calidad/`** (vía `git mv`, sin romper nada — ningún script
+abre estos archivos por ruta, solo se citan como texto en comentarios
+`// Hallazgo M-XX (sonar.html)...`): `eval.html`, `sonar.html`,
+`sonar_1.1.html`, `sonar_1.2.html`.
+
+**Movido a `.trash/`** (confirmado no usado por el producto antes de
+mover, no solo "cero menciones en docs"):
+- `uploads/` (esqueleto vacío) — confirmado leyendo código: los 5
+  `multer(...)` de `backend/server.js` usan `memoryStorage()` desde el
+  segmento 5 (MinIO); `UPLOAD_DIR`/`TICKETS_UPLOAD_DIR`/
+  `FACTURAS_UPLOAD_DIR` solo hacían `mkdirSync` al arrancar, ningún
+  handler leía/escribía ahí. Los archivos reales que sí había (PDFs/ZIPs/
+  fotos de ticket de pruebas pre-MinIO) ya estaban en `.trash/uploads/`
+  desde un commit previo (`ef22fc4`, "script SQLite muerto"); lo movido
+  ahora es solo el directorio-esqueleto que quedaba en la raíz
+  (`.trash/uploads_dir_vacio_minio/`). `docker-compose.yml` y
+  `prod/docker-compose.prod.yml` **siguen** con el bind mount
+  `./uploads:/app/uploads` sin tocar — fuera de alcance de este punto,
+  Docker recrea la carpeta vacía en el host si no existe, así que no
+  rompe `docker compose up`. Queda como config muerta conocida para una
+  sesión futura (retirar `UPLOAD_DIR`/el bind mount con aprobación
+  explícita).
+- `webp/` → `.trash/webp/`: módulo de compresión a WebP (punto 400,
+  CERRADO), construido a propósito aislado de Clarvo y **nunca
+  integrado** — confirmado releyendo el propio punto 400
+  ("NO integrado al código de Clarvo").
+- `test-results/` (raíz) → `.trash/test-results_root_stray/`: artefacto
+  de una corrida de Playwright lanzada desde el directorio equivocado
+  (duplica `e2e/test-results/`, que sí está en `.gitignore`); solo
+  contenía `.last-run.json`.
+
+**`stitch/` → `.trash/stitch/` (confirmado explícitamente por el
+usuario en este punto, vía pregunta directa)**: ya estaba movido sin
+confirmación antes de que esta sesión lo notara (hallazgo propio vía
+`git status`, ver abajo) — el usuario confirmó dejarlo en `.trash/`
+ahora que el diseño de gobierno de funcionalidades está implementado y
+estable. Esto **reemplaza** la nota anterior de `CLAUDE.md`/`AGENTS.md`
+("se mantiene como referencia viva del diseño aunque ya esté
+implementado") — ambos archivos actualizados con la nueva ruta
+(`.trash/stitch/gobierno-funcionalidades/NOTAS.md`, contenido íntegro,
+nada se perdió).
+
+**`DOCS/` (confirmado explícitamente por el usuario en este punto)**:
+agrupa `CLARVO_Planes.md`, `market.md`, `confStripe.html` y
+`como-funciona-nginx-docker.pdf` — ya estaba creado sin confirmación
+antes de que esta sesión lo notara; el usuario confirmó dejarlo así
+(2 de los 4 archivos no tenían ninguna mención en el resto del repo,
+pero son documentos de referencia válidos, no basura).
+
+**Nota operativa para sesiones futuras**: durante este punto se detectó
+que `DOCS/` y el movimiento de `stitch/` ya existían, sin commitear, al
+empezar a trabajar — no por una sesión paralela (se verificó que el
+estado era estable, sin cambios en una ventana de 5s), sino por trabajo
+de una parte anterior de esta misma conversación que quedó fuera de la
+vista tras resumirse el contexto. Lección: `git status` + esperar unos
+segundos y volver a correrlo es la forma correcta de distinguir "cambio
+en progreso de otra sesión" de "cambio ya hecho que no recordaba" — y
+ante cualquier borrado que contradiga una regla escrita en `CLAUDE.md`
+(como el de `stitch/`), preguntar explícito antes de dar por buena la
+decisión, aunque el cambio ya esté en el árbol de trabajo.
+
+**No tocado, revisado y descartado como candidato**: `unavailable/`
+(página de mantenimiento real, activa), `skills-lock.json` (manifiesto
+del CLI `skills`, documentado como estado de entorno local, gitignored),
+`test.md` (notas de trabajo local activas, gitignored, última
+verificación 2026-08-24), `docker-stack.yml`/`docker/`/`mysql/`
+(infraestructura activa), `admin-users.env*` (config activa).
+
+**Archivos tocados**: `CLAUDE.md`, `AGENTS.md` (nota de `stitch/`
+actualizada + gotcha nuevo de `calidad/`/`uploads/`/`webp/`),
+`PROJECT_STATE.md` (este punto). Nada commiteado todavía — todo queda en
+el árbol de trabajo para que el usuario revise antes de un commit.

@@ -71,8 +71,9 @@ asumir que algo "sigue pendiente" solo porque lo dice un commit message o
 este archivo — exactamente el error que originó el punto 352. Validado
 con Playwright real contra Docker/MySQL reales (`admin-plan-gating.spec.ts`
 + `control-planes-wizard.spec.ts`, 5/5). Catálogo de 12 reglas de
-dependencia completo en `stitch/gobierno-funcionalidades/NOTAS.md`
-(referencia viva del diseño, ya implementado).
+dependencia completo en `.trash/stitch/gobierno-funcionalidades/NOTAS.md`
+(punto 414, 2026-10-23: reubicado desde la raíz — diseño ya implementado
+y estable, confirmado por el usuario, sigue íntegro ahí para consulta).
 
 **Mismo error, variante nueva (punto 369, 2026-10-04)**: "Marca propia /
 Look & Feel" (switch real del wizard de `/control`) se dio por
@@ -387,6 +388,17 @@ solo la frase en español de la UI.
   atributo `hidden` se cancela si una regla de autor le da `display` a
   esa clase con la misma especificidad (mismo principio que
   `.admin-notif-dot`/`.admin-notif-empty` en `admin.css`).
+- **Carpeta `calidad/` (punto 414, 2026-10-23)**: informes tipo SonarQube
+  (`eval.html`, `sonar*.html`) viven ahí, no en la raíz — moverlos con
+  `git mv` no rompe nada, se citan solo como texto en comentarios. Un
+  informe nuevo de esta familia se crea directo dentro de `calidad/`.
+- **`uploads/` (raíz) era bind mount vestigial, movido a `.trash/`**
+  (punto 414): desde MinIO (segmento 5), los `multer(...)` usan
+  `memoryStorage` — nada leía/escribía esa carpeta. `docker-compose.yml`
+  sigue con el bind mount sin tocar (fuera de alcance, Docker recrea la
+  carpeta vacía si falta). `webp/` (módulo de compresión aislado, punto
+  400, nunca integrado) y un `test-results/` suelto en la raíz también se
+  movieron a `.trash/` en el mismo punto.
 
 ## Stack
 
