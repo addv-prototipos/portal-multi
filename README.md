@@ -12,7 +12,7 @@
 | Reportes | `exceljs` (genera archivos `.xlsx` reales para "Lectura de reportes"; el Markdown y el CSV se generan sin ninguna librería externa) |
 | Base de datos | **MySQL 8** (`mysql2/promise`), en su propio contenedor con volumen Docker persistente |
 | Frontend | HTML + CSS + JavaScript vanilla, servido con Nginx |
-| Almacenamiento de archivos | **MinIO** (self-hosted, compatible con S3, vía `@aws-sdk/client-s3`) — ver `backend/utils/storage.js`. El bind mount local `./uploads` ya no se usa para guardar nada (queda vestigial, ver PROJECT_STATE.md punto 92) |
+| Almacenamiento de archivos | **Garage** (self-hosted, compatible con S3, vía `@aws-sdk/client-s3`) — ver `backend/utils/storage.js`. Hasta el punto 415 era MinIO; MinIO cerró su distribución gratuita (quay.io/bitnami/binario directo, los 3 el mismo día) y se reemplazó por Garage sin tocar `storage.js` (mismas variables `MINIO_*`, ver PROJECT_STATE.md punto 415). El bind mount local `./uploads` ya no se usa para guardar nada (queda vestigial, ver PROJECT_STATE.md punto 92) |
 | Imágenes de producto | `sharp` (resize + conversión a WebP para la imagen principal de cada producto en Inventarios) |
 | Código de barras | `bwip-js` (genera el Code128 de las etiquetas de producto en el servidor); lectura por cámara con `BarcodeDetector` nativo del navegador, con `html5-qrcode` vendorizado como respaldo |
 | Tipo de cambio | API SIE de Banco de México (`BANXICO_TOKEN`, opcional) para productos de Inventarios en moneda extranjera |
@@ -35,7 +35,7 @@ No se usa framework de frontend (React/Vite) para mantener la imagen ligera y si
     utils/usoCfdi.js       # Catálogo de Uso de CFDI: valores por defecto y sincronización con el SAT
     utils/email.js          # Configuración y envío de correo SMTP (pensado para Gmail)
     utils/ticketsCleanup.js  # Borrado automático de tickets según la retención configurada
-    utils/storage.js        # Almacenamiento en MinIO (constancias/tickets/facturas), reemplaza el disco local
+    utils/storage.js        # Almacenamiento S3-compatible (MinIO en prod, Garage en desarrollo local desde el punto 415), reemplaza el disco local
     utils/tenantContext.js  # Multi-tenant: resuelve el tenant a partir del encabezado X-Tenant-Slug
     utils/tenant.js          # Multi-tenant: reglas de slug (validación, nombre de BD)
     scripts/verificar-mysql.js         # Pruebas de regresión contra una instancia MySQL real
@@ -55,9 +55,13 @@ No se usa framework de frontend (React/Vite) para mantener la imagen ligera y si
     admin.js
     nginx.conf            # Sirve estáticos y reenvía /api al backend
     Dockerfile
-  /uploads                # VESTIGIAL (ver PROJECT_STATE.md punto 92) — ya no se guarda nada aquí, el almacenamiento real vive en MinIO
-  /webp                   # Módulo LOCAL de compresión a WebP (punto 400) — aislado de Clarvo, sin integrar, sin dependencias ni build.
-                          # Probador: abre /webp/index.html en el navegador (3 estilos de aviso conmutables); núcleo en /webp/comprimir.js.
+  /uploads                # Carpeta vacía que Docker recrea para el bind mount (ver docker-compose.yml) — nunca se lee/escribe ahí,
+                          # el almacenamiento real vive en el bucket S3-compatible (Garage, punto 415). Punto 414: el contenido
+                          # viejo (archivos de prueba pre-MinIO) ya se movió a .trash/.
+  /calidad                # Informes tipo SonarQube (eval.html, sonar*.html) — reubicados desde la raíz, punto 414.
+  /DOCS                   # Documentos de referencia (CLARVO_Planes.md, market.md, etc.) — reubicados desde la raíz, punto 414.
+  /docker/garage           # Config del nodo Garage (garage.toml) — punto 415.
+  /docker/garage-init       # Bootstrap one-shot (layout + bucket + access key) de Garage — punto 415.
                           # No forma parte del stack Docker ni del deploy.
   docker-compose.yml
   .env.example
@@ -83,9 +87,10 @@ Copia `.env.example` a `.env` y ajusta si lo necesitas:
 | `CLAVE_PROD_SERV_SYNC_URL` | Origen desde donde se sincroniza el catálogo "Clave de Producto o Servicio" del SAT | dump SQL real de `phpcfdi/resources-sat-catalogs` (Unlicense, verificado) |
 | `SESSION_SECRET` | Clave para firmar las sesiones de usuario (login por RFC) | aleatoria al arrancar (fija esta para producción) |
 | `COOKIE_SECURE` | Pon `true` **solo** si el sitio ya se sirve por HTTPS real (ver despliegue a producción) | `false` |
-| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Credenciales de MinIO (almacenamiento de archivos) — **cámbialas en producción** | `minioadmin` / `changeme_minio_password` |
-| `MINIO_BUCKET` | Bucket compartido donde se guardan constancias/tickets/facturas (se crea solo si no existe) | `portal-facturacion` |
-| `MINIO_CONSOLE_PORT` | Puerto del host para la consola web de administración de MinIO — publicado solo en `127.0.0.1`, no en toda la LAN/interfaz pública | `9001` |
+| `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | Access key / secret del bucket S3-compatible (Garage desde el punto 415 — el nombre de la variable se quedó igual por compatibilidad con `storage.js`) — **cámbialas en producción**. `MINIO_ROOT_USER` debe tener el formato de access key de Garage (`GK` + 24 hex) | `GKd6b0c9c980d2b76be32856fb` / `cae3aeaff02da6ecf3c70081fd7719ec6d7e1f0b29bd66d2d3235f8838b1013e` |
+| `MINIO_REGION` | Región S3 — Garage, a diferencia de MinIO, SÍ la valida contra `s3_region` de `docker/garage/garage.toml` | `garage` |
+| `MINIO_BUCKET` | Bucket compartido donde se guardan constancias/tickets/facturas — lo crea el servicio `garage-init` la primera vez (Garage no soporta `CreateBucket` vía S3 como hacía MinIO) | `portal-facturacion` |
+| `GARAGE_ADMIN_PORT` | Puerto del host para la API HTTP de administración de Garage (sin interfaz web, solo REST con el `admin_token` de `docker/garage/garage.toml`) — publicado solo en `127.0.0.1` | `3903` |
 | `BANXICO_TOKEN` | Token gratuito de la API SIE de Banco de México (para el tipo de cambio automático USD/MXN de productos de Inventarios en moneda extranjera — ver "Vista Inventarios") | sin definir (sin él, el tipo de cambio se captura a mano, sin bloquear nada) |
 
 El backend se conecta a MySQL usando `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` y `DB_NAME` — en `docker-compose.yml` ya están configuradas automáticamente a partir de las variables `MYSQL_*` de arriba (`DB_HOST` apunta al servicio `mysql` dentro de la red interna de Docker), así que normalmente no necesitas tocarlas directamente.
@@ -114,7 +119,7 @@ El backend se conecta a MySQL usando `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWO
     ```
     (`FRONTEND_PORT=8088` por defecto en `.env.example`/`.env`; `http://localhost` solo si lo cambias a `80`).
 
-Los archivos subidos (constancias, tickets, facturas) se guardan en **MinIO** (bucket `MINIO_BUCKET`, volumen Docker `minio_data`) — puedes inspeccionarlos desde la consola web de MinIO en `http://localhost:9001` (o el `MINIO_CONSOLE_PORT` que hayas configurado) con las credenciales `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` de tu `.env`. La carpeta `./uploads` del proyecto ya no se usa para guardar nada (vestigial, ver PROJECT_STATE.md punto 92). La base de datos MySQL vive en el volumen Docker con nombre `mysql_data` — no es un archivo que puedas copiar directamente como con SQLite, pero puedes inspeccionarla con cualquier cliente MySQL apuntando a `localhost:3306` (o el `MYSQL_PORT` que hayas configurado) con el usuario/contraseña de tu `.env`. Tanto MinIO como la base de datos persisten entre reinicios y reconstrucciones (`docker-compose up --build`).
+Los archivos subidos (constancias, tickets, facturas) se guardan en el bucket S3-compatible (**Garage** desde el punto 415, antes MinIO — bucket `MINIO_BUCKET`, volúmenes Docker `garage_meta`/`garage_data`). Garage no trae consola web como MinIO — para inspeccionar el bucket usa la API HTTP de administración (`http://localhost:3903`, o el `GARAGE_ADMIN_PORT` que hayas configurado) con el `admin_token` fijo de `docker/garage/garage.toml` (solo desarrollo local), por ejemplo `curl -H "Authorization: Bearer <admin_token>" http://localhost:3903/v1/bucket?globalAlias=portal-facturacion`. La carpeta `./uploads` del proyecto ya no se usa para guardar nada (vestigial, ver PROJECT_STATE.md punto 92). La base de datos MySQL vive en el volumen Docker con nombre `mysql_data` — no es un archivo que puedas copiar directamente como con SQLite, pero puedes inspeccionarla con cualquier cliente MySQL apuntando a `localhost:3306` (o el `MYSQL_PORT` que hayas configurado) con el usuario/contraseña de tu `.env`. Tanto el almacenamiento S3 como la base de datos persisten entre reinicios y reconstrucciones (`docker-compose up --build`).
 
 ## 🛡️ Confiabilidad (una sola instancia, sin balanceo de carga)
 
