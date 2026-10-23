@@ -1,0 +1,33 @@
+# Config del nodo único de Garage para desarrollo local — reemplaza a
+# MinIO (quay.io/minio/minio dejó de permitir pull anónimo, 401
+# confirmado incluso con token manual, y tanto bitnami/minio como el
+# binario directo de dl.min.io también quedaron cerrados — ver
+# PROJECT_STATE.md punto 415). Garage es S3-compatible (API genérica de
+# `backend/utils/storage.js`, sin cambios de código: mismo
+# `forcePathStyle: true`, mismas variables MINIO_ENDPOINT/MINIO_BUCKET/
+# MINIO_ROOT_USER/MINIO_ROOT_PASSWORD).
+#
+# rpc_secret y el admin_token de abajo son valores fijos SOLO para
+# desarrollo local (mismo criterio que admin:admin o
+# changeme_minio_password en el resto del repo) — un solo nodo sin
+# replicación (replication_factor = 1), nunca el patrón de un cluster
+# real. Si este archivo se usara para algo más que un contenedor
+# descartable de desarrollo, regenerar ambos valores.
+metadata_dir = "/data/meta"
+data_dir = "/data/data"
+db_engine = "lmdb"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "1ee96da113560f433d186161efb30b34bc31e1b27b16a06b72828b8b1e85b409"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:9000"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "73cb415694303326cf86233f549ca56c57eaa7472c2c5f83"

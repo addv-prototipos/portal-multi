@@ -23192,3 +23192,102 @@ verificación 2026-08-24), `docker-stack.yml`/`docker/`/`mysql/`
 actualizada + gotcha nuevo de `calidad/`/`uploads/`/`webp/`),
 `PROJECT_STATE.md` (este punto). Nada commiteado todavía — todo queda en
 el árbol de trabajo para que el usuario revise antes de un commit.
+
+## Punto 415 — MinIO cerró su distribución gratuita; reemplazo por Garage + bugfix de orden en ensureSchema de /control (23 oct 2026)
+
+El usuario borró todo el estado de Docker (containers/volúmenes/imágenes)
+para probar un despliegue limpio y pidió "despliega todo de nuevo". Al
+reconstruir, `quay.io/minio/minio` (pin vigente desde el punto de
+2026-09-11) empezó a responder 401 en el pull anónimo — confirmado real,
+no un problema de cliente: se completó a mano el handshake de token
+(`GET /v2/auth` + reintento con el Bearer obtenido) y quay.io sigue
+rechazando. Se investigaron las 3 vías de distribución gratuita
+conocidas de MinIO y las 3 están cerradas el mismo día: `quay.io/minio/
+minio` (401), `bitnami/minio` (Docker Hub confirma "ya no disponible
+gratis, requiere suscripción de Bitnami Secure Images"), y el binario
+directo de `dl.min.io` (410 Gone).
+
+**Decisión del usuario, confirmada explícita**: reemplazar MinIO por
+**Garage** (`dxflrs/garage`, AGPLv3, activo y gratuito en Docker Hub)
+para almacenamiento S3-compatible en desarrollo local. `backend/utils/
+storage.js` **no cambió ni una línea** — sigue usando `@aws-sdk/
+client-s3` genérico con `forcePathStyle: true` y las mismas variables
+`MINIO_ENDPOINT`/`MINIO_BUCKET`/`MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`
+(se agregó `MINIO_REGION=garage`, nueva — a diferencia de MinIO, Garage
+SÍ valida la región contra `s3_region` del config, confirmado real con
+una prueba HeadBucket que falla con región "us-east-1" y pasa con
+"garage"). Validado con un smoke test real usando el mismo SDK/config
+exacto que usa el backend (HeadBucket + PutObject + GetObject contra un
+Garage de prueba) antes de tocar `docker-compose.yml`.
+
+**Diferencia clave de arquitectura que obligó a un servicio nuevo**:
+Garage, a diferencia de MinIO, NO implementa `CreateBucket` vía el
+protocolo S3 — el layout del cluster, el bucket y la access key se crean
+por fuera, vía su API HTTP de administración (puerto 3903, admin_token
+fijo en `docker/garage/garage.toml`, solo desarrollo local). Se agregó
+`garage-init` (`docker/garage-init/Dockerfile` + `bootstrap.sh`): un
+contenedor one-shot (alpine+bash+curl+jq, SIN el binario de Garage —
+todo vía REST, nunca RPC) que espera el `/health` del admin, asigna y
+aplica el layout de un solo nodo (`replication_factor = 1`), crea el
+bucket `portal-facturacion` si falta, importa una access key fija
+(formato obligatorio de Garage: `GK` + 24 hex) si falta, y otorga
+read/write/owner — cada paso comprueba primero si ya existe (seguro de
+re-correr en cada `docker compose up`). `backend` ahora depende de
+`garage-init` con `condition: service_completed_successfully`, además de
+`garage: service_healthy` (healthcheck: `["CMD", "/garage", "status"]`
+— la imagen de Garage es "scratch", sin shell, así que el binario mismo
+es el único ejecutable disponible). Volumen `minio_data` renombrado a
+`garage_meta` + `garage_data` (metadata y datos separados, como pide
+Garage). **Alcance: SOLO `docker-compose.yml` (desarrollo local) — `prod/`
+no se tocó**, el VPS real ya tiene su propia imagen de MinIO cacheada,
+fuera de este problema por ahora; si algún día `prod/` necesita el mismo
+reemplazo, es una decisión aparte con el usuario.
+
+**Bug real encontrado y corregido, nunca visible hasta esta sesión**:
+con `control_tenants` 100% vacía (DB recién creada, nunca había pasado
+por `ensureSchema()` antes), `control/server.js:iniciar()` llamaba a
+`asegurarColumnasCicloVidaTenant(pool)` (línea 1443) ANTES que
+`asegurarTablasSucursales(pool)` (línea 1446) — la primera hace
+`UPDATE tenants SET sucursales_habilitado = 1 WHERE grupo_sucursal_id
+IS NOT NULL ...`, pero `grupo_sucursal_id` es una columna que crea la
+SEGUNDA función. En todo ambiente existente hasta ahora esa columna ya
+estaba ahí de una corrida anterior (se agregó en una sesión posterior a
+cuando la mayoría de los ambientes de prueba ya tenían el esquema
+completo), así que el bug quedó agazapado sin que ningún `docker compose
+up` normal lo disparara — un wipe completo de Docker (exactamente lo que
+hizo el usuario) es el único camino real que lo expone. Fix: mover la
+llamada a `asegurarTablasSucursales()` antes de
+`asegurarColumnasCicloVidaTenant()` en `iniciar()`. Jest de `control`
+sigue en 490/490 (las pruebas mockean la BD, no ejercitan el orden real
+de arranque — por eso el bug nunca lo atrapó un test, solo un wipe real).
+
+**Para reaprovisionar `control_tenants` desde cero sin tocar
+`docker-compose.yml` permanentemente**: `mysql-control` no publica su
+puerto al host (a propósito, aislado dentro de `fiscal-net`) —
+`backend/scripts/provisionar-tenant.js` (documentado en README para
+correr desde el host) asume la arquitectura VIEJA de una sola instancia
+compartida. Se usó un `docker-compose.override.yml` temporal (agrega
+`127.0.0.1:3307:3306` solo a `mysql-control`), se corrió el script desde
+el host (`DB_HOST=127.0.0.1 DB_PORT=3307 ... node backend/scripts/
+provisionar-tenant.js t1 "Empresa Demo t1"`), y se borró el override
++ se recreó `mysql-control` sin el puerto extra. **Nota para una sesión
+futura**: si este wipe-completo vuelve a pasar seguido, vale la pena
+proponerle al usuario exponer `mysql-control` en un puerto fijo tipo
+`127.0.0.1:3307` de forma PERMANENTE (mismo criterio que ya tiene
+`MYSQL_PORT` para la instancia principal) — no se hizo en esta sesión
+porque no se pidió, pero el README (sección "Dar de alta la base de
+datos de un tenant nuevo") sigue con el comando de la arquitectura vieja
+y debería actualizarse si se decide hacer permanente.
+
+**Verificado real**: `docker compose up -d` con las 6 piezas sanas
+(`mysql`, `mysql-control`, `garage`, `garage-init` exitoso, `backend`,
+`control`, `frontend` — todas `healthy`), `GET /api/health` → `{"status":
+"ok",...}`, `GET /t1/admin` → 200. Jest completo sin regresiones (backend
+1335/1335, control 490/490) antes y después del fix de orden.
+
+**Archivos tocados**: `docker-compose.yml` (servicio `minio` →
+`garage`+`garage-init`, variables `MINIO_*` en `backend`, volúmenes),
+`docker/garage/garage.toml` (nuevo), `docker/garage-init/Dockerfile` +
+`bootstrap.sh` (nuevos), `.env.example` (sección 03 actualizada — no se
+commitea, regla global), `control/server.js` (orden de `iniciar()`),
+`CLAUDE.md`/`AGENTS.md` (gotcha nuevo), `PROJECT_STATE.md` (este punto).

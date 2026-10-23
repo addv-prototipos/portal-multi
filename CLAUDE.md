@@ -808,6 +808,37 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   suelto en la raíz (artefacto de Playwright corrido desde el directorio
   equivocado, duplica `e2e/test-results/` que sí está en `.gitignore`)
   también se movieron a `.trash/` en el mismo punto.
+- **El servicio de almacenamiento S3 en `docker-compose.yml` ya NO es
+  MinIO — es Garage (punto 415, 2026-10-23)**: las 3 vías gratuitas de
+  MinIO (quay.io, bitnami, binario directo de dl.min.io) cerraron el
+  mismo día. `backend/utils/storage.js` no cambió — mismas variables
+  `MINIO_*`, solo se agregó `MINIO_REGION=garage` (Garage SÍ valida
+  región, a diferencia de MinIO). Garage no crea el bucket vía S3
+  `CreateBucket` — lo hace el servicio one-shot `garage-init`
+  (`docker/garage-init/`, solo REST contra el puerto admin 3903, nunca
+  el binario/RPC) antes de que `backend` arranque. Solo se tocó
+  `docker-compose.yml` (desarrollo local) — `prod/` sigue con su MinIO
+  tal cual, fuera de alcance a propósito.
+- **`control/server.js:iniciar()` tenía un bug de orden invisible hasta
+  un wipe 100% de Docker (punto 415)**: `asegurarColumnasCicloVidaTenant()`
+  corría ANTES que `asegurarTablasSucursales()`, pero la primera hace un
+  `UPDATE` sobre `tenants.grupo_sucursal_id`, columna que crea la
+  segunda. Todo ambiente existente ya tenía esa columna de una corrida
+  anterior, así que ningún `docker compose up` normal lo disparaba —
+  solo una base `control_tenants` 100% nueva lo expone. Ya corregido
+  (orden invertido); si se agrega una función nueva a `ensureSchema.js`
+  que dependa de una columna de OTRA función, verificar el orden real de
+  llamadas en `iniciar()`, no asumir que "ya existe" porque siempre
+  existió en los ambientes de prueba usados hasta ahora.
+- **`mysql-control` no publica puerto al host** (a propósito, aislado en
+  `fiscal-net`) — si `backend/scripts/provisionar-tenant.js` necesita
+  correrse desde el host después de un wipe completo (el README todavía
+  documenta la arquitectura vieja de una sola instancia compartida), usar
+  un `docker-compose.override.yml` temporal con
+  `ports: ["127.0.0.1:3307:3306"]` solo en `mysql-control`, correr el
+  script con `DB_HOST=127.0.0.1 DB_PORT=3307`, y borrar el override +
+  recrear `mysql-control` al terminar — nunca dejar ese puerto expuesto
+  de forma permanente sin que el usuario lo pida explícito.
 
 ## Stack
 

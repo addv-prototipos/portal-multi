@@ -128,41 +128,78 @@ services:
   # bind mount local `./uploads` (que se rompe en cuanto hay más de una
   # réplica del backend) por un bucket S3-compatible self-hosted, con un
   # prefijo por tenant dentro del mismo bucket (ver backend/utils/storage.js).
-  # minio/minio en Docker Hub ya no existe (retirado por MinIO, "pull
-  # access denied" confirmado en un despliegue real, 2026-09-11) — el
-  # registro oficial ahora es quay.io. Pin a un tag RELEASE real (no
-  # ":latest", cierra el TODO que tenía esta nota) — verificado contra la
-  # API de quay.io el 2026-09-11: RELEASE.2025-09-07T16-13-09Z es el más
-  # reciente y coincide con el dígest de "latest" en ese momento.
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: portalManager-minio
+  #
+  # Punto 415 (2026-10-23): esto YA NO es MinIO. quay.io/minio/minio cerró
+  # el pull anónimo (401 confirmado incluso completando el handshake de
+  # token a mano), bitnami/minio es de paga ("Bitnami Secure Images"),
+  # y hasta el binario directo de dl.min.io responde 410 Gone — las 3
+  # vías de distribución gratuita de MinIO quedaron cerradas el mismo
+  # día. Reemplazo por Garage (dxflrs/garage, AGPLv3, activo en Docker
+  # Hub), S3-compatible — `backend/utils/storage.js` NO cambió una sola
+  # línea (mismo `forcePathStyle: true`, mismas variables
+  # MINIO_ENDPOINT/MINIO_BUCKET/MINIO_ROOT_USER/MINIO_ROOT_PASSWORD, ver
+  # bloque `backend` abajo; solo se agregó MINIO_REGION porque Garage, a
+  # diferencia de MinIO, SÍ valida la región contra `s3_region` de
+  # docker/garage/garage.toml). Un nodo único, sin replicación
+  # (`replication_factor = 1` en ese mismo archivo) — suficiente para
+  # desarrollo local, nunca el patrón de un cluster real. El layout +
+  # bucket + access key se crean una sola vez vía el servicio
+  # `garage-init` (ver abajo), no con variables de entorno simples como
+  # hacía MinIO.
+  garage:
+    image: dxflrs/garage:v1.1.0
+    container_name: portalManager-garage
     restart: unless-stopped
     mem_limit: 512m
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme_minio_password}
     volumes:
-      - minio_data:/data
+      - ./docker/garage/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/data/meta
+      - garage_data:/data/data
     networks:
       - fiscal-net
-    # Solo la consola de administración se expone al host, y solo en
-    # 127.0.0.1 (no toda la LAN/interfaz pública) — útil para inspeccionar
-    # el bucket en desarrollo desde la MISMA máquina, mismo espíritu que
-    # MYSQL_PORT arriba. En producción real, lo más seguro es quitar este
-    # mapeo por completo o dejarlo detrás de un firewall/VPN — la consola
-    # de MinIO no debería quedar alcanzable desde Internet. El puerto de
-    # la API S3 (9000) NO se publica: el backend lo alcanza por la red
-    # interna de Docker, igual que hace con MySQL.
+    # Mismo criterio que la consola de MinIO antes: solo la API de admin
+    # se expone al host, y solo en 127.0.0.1, útil para inspeccionar el
+    # cluster en desarrollo desde la MISMA máquina. La API S3 (9000) NO
+    # se publica — el backend la alcanza por la red interna de Docker.
     ports:
-      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${GARAGE_ADMIN_PORT:-3903}:3903"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      # La imagen de Garage es "scratch" (sin shell, sin mc/curl) — el
+      # binario mismo es el único ejecutable disponible para el
+      # healthcheck, y `status` solo sale 0 si el nodo respondió RPC.
+      test: ["CMD", "/garage", "status"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  # One-shot: crea el layout de un solo nodo + el bucket + la access key
+  # fija la primera vez que se levanta el stack (ver
+  # docker/garage-init/bootstrap.sh) — Garage, a diferencia de MinIO, no
+  # trae un bucket/credencial listos solo con variables de entorno.
+  # Seguro de re-correr en cada `docker compose up` (cada paso comprueba
+  # primero si ya existe); `backend` espera a que este contenedor termine
+  # bien antes de arrancar.
+  garage-init:
+    build:
+      context: ./docker/garage-init
+      dockerfile: Dockerfile
+    container_name: portalManager-garage-init
+    restart: "no"
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      # Mismo admin_token fijo de docker/garage/garage.toml (solo
+      # desarrollo local — ver el comentario de ese archivo).
+      GARAGE_ADMIN_TOKEN: "73cb415694303326cf86233f549ca56c57eaa7472c2c5f83"
+      MINIO_BUCKET: ${MINIO_BUCKET:-portal-facturacion}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-GKd6b0c9c980d2b76be32856fb}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cae3aeaff02da6ecf3c70081fd7719ec6d7e1f0b29bd66d2d3235f8838b1013e}
+    networks:
+      - fiscal-net
     security_opt:
       - no-new-privileges:true
 
@@ -194,8 +231,10 @@ services:
         condition: service_healthy
       mysql-control:
         condition: service_healthy
-      minio:
+      garage:
         condition: service_healthy
+      garage-init:
+        condition: service_completed_successfully
     # Hallazgo M-11 (sonar.html, 2026-10-15): ADMIN_USERS se lee de este
     # archivo dedicado (ver admin-users.env.example) en vez de
     # interpolarse desde el .env principal — así un cambio hecho en
@@ -259,10 +298,15 @@ services:
       # documentado como excepción, no el uso diario.
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       NODE_ENV: production
-      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ENDPOINT: http://garage:9000
+      # Garage, a diferencia de MinIO, valida la región contra
+      # `s3_region` de docker/garage/garage.toml — sin esto el SDK manda
+      # "us-east-1" por default y Garage rechaza toda operación
+      # (confirmado real: HeadBucket falla con región equivocada).
+      MINIO_REGION: garage
       MINIO_BUCKET: ${MINIO_BUCKET:-portal-facturacion}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme_minio_password}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-GKd6b0c9c980d2b76be32856fb}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cae3aeaff02da6ecf3c70081fd7719ec6d7e1f0b29bd66d2d3235f8838b1013e}
       # Segmento 9b: mismo secreto que el contenedor "control" -- protege
       # POST /internal/cache-tenant/invalidar (ver server.js). Sin esto,
       # ese endpoint queda inalcanzable (rechaza todo con 403), no roto.
@@ -431,5 +475,7 @@ volumes:
     driver: local
   mysql_control_data:
     driver: local
-  minio_data:
+  garage_meta:
+    driver: local
+  garage_data:
     driver: local

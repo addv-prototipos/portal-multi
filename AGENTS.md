@@ -399,6 +399,23 @@ solo la frase en español de la UI.
   carpeta vacía si falta). `webp/` (módulo de compresión aislado, punto
   400, nunca integrado) y un `test-results/` suelto en la raíz también se
   movieron a `.trash/` en el mismo punto.
+- **El servicio S3 de `docker-compose.yml` ya NO es MinIO — es Garage**
+  (punto 415): las 3 vías gratuitas de MinIO (quay.io, bitnami, binario
+  directo) cerraron el mismo día. `backend/utils/storage.js` no cambió
+  (mismas variables `MINIO_*` + `MINIO_REGION=garage` nueva). El bucket/
+  access key los crea `garage-init` (`docker/garage-init/`, solo REST
+  contra el puerto admin 3903) antes de que `backend` arranque. Solo
+  `docker-compose.yml` (desarrollo local) — `prod/` sin tocar.
+- **Bug de orden en `control/server.js:iniciar()`, invisible hasta un
+  wipe 100% de Docker**: `asegurarColumnasCicloVidaTenant()` corría antes
+  que `asegurarTablasSucursales()`, pero depende de una columna
+  (`grupo_sucursal_id`) que crea esta última. Ya corregido (orden
+  invertido). Verificar siempre el orden real en `iniciar()` al agregar
+  una función nueva a `ensureSchema.js` que dependa de columnas de otra.
+- **`mysql-control` no publica puerto al host** — para correr
+  `provisionar-tenant.js` desde el host tras un wipe completo, usar un
+  `docker-compose.override.yml` temporal con `127.0.0.1:3307:3306` solo
+  en `mysql-control`, y borrarlo al terminar.
 
 ## Stack
 

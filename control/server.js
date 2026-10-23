@@ -1440,10 +1440,17 @@ app.use((req, res) => {
 
 async function iniciar() {
   await asegurarTablaAuditoria();
-  await asegurarColumnasCicloVidaTenant(obtenerPool());
   const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores } = require('./scripts/ensureSchema');
-  await asegurarTablaApiCredenciales(obtenerPool());
+  // asegurarTablasSucursales() debe correr ANTES de
+  // asegurarColumnasCicloVidaTenant(): esta última hace un UPDATE sobre
+  // `tenants.grupo_sucursal_id`, columna que crea asegurarTablasSucursales
+  // — en una base de datos 100% nueva (sin ninguna corrida previa de
+  // ensureSchema) el orden original fallaba con "Unknown column
+  // 'grupo_sucursal_id'" (bug latente, nunca visible hasta ahora porque
+  // todo ambiente existente ya tenía la columna de una corrida anterior).
   await asegurarTablasSucursales(obtenerPool());
+  await asegurarColumnasCicloVidaTenant(obtenerPool());
+  await asegurarTablaApiCredenciales(obtenerPool());
   await asegurarTablaPlanes(obtenerPool());
   await asegurarTablaAjustesGlobales(obtenerPool());
   await asegurarTablaOnboardingBorradores(obtenerPool());
