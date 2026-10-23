@@ -239,6 +239,41 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # Puente WebDAV al bucket de Garage (punto 415, 2026-10-23) — reemplaza
+  # a Filestash como la forma recomendada de navegar el bucket: Filestash
+  # pide credenciales por sesión de navegador en una pantalla "Access Key
+  # ID / Secret Access Key / Advanced" que resultó confusa de usar. Con
+  # WebDAV, Windows monta el bucket como una unidad de red normal — se ve
+  # y se usa como una carpeta del Explorador (arrastrar y soltar, sin
+  # login, sin formularios). rclone (MIT) ya trae `serve webdav`; las
+  # credenciales de Garage viven en docker/rclone-webdav/rclone.conf
+  # (mismo criterio que el admin_token de Garage — fijo, solo desarrollo
+  # local). Filestash se deja corriendo por si se prefiere la vista web.
+  rclone-webdav:
+    image: rclone/rclone:latest
+    container_name: portalManager-rclone-webdav
+    restart: unless-stopped
+    mem_limit: 128m
+    command:
+      - serve
+      - webdav
+      - garage:portal-facturacion
+      - --addr=:8080
+      - --user=clarvo
+      - --pass=garage2026
+      - --config=/config/rclone/rclone.conf
+    depends_on:
+      garage:
+        condition: service_healthy
+    volumes:
+      - ./docker/rclone-webdav/rclone.conf:/config/rclone/rclone.conf:ro
+    ports:
+      - "127.0.0.1:${RCLONE_WEBDAV_PORT:-8899}:8080"
+    networks:
+      - fiscal-net
+    security_opt:
+      - no-new-privileges:true
+
   backend:
     build:
       context: ./backend
