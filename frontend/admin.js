@@ -3918,32 +3918,49 @@
     return !restriccion || (restriccion.tarjetasConfigPermitidas || []).includes('global-config-card');
   }
 
-  // Ventana emergente al iniciar sesión si falta el RFC de la compañía
-  // y/o el Código SAT — ver dónde se llama (solo con
-  // { verificarFiscalFaltante: true }, no en cada apertura de la
-  // tarjeta de configuración). Reaparece en cada login mientras falten
-  // datos (igual que el checklist "Primeros pasos" — no se calla hasta
-  // completarse), pero solo para quien puede completarlos.
+  // Calcula si faltan datos fiscales (RFC/Clave SAT de la compañía) — SIEMPRE
+  // se llama al refrescar Configuraciones globales (alimenta el checklist
+  // "Primeros pasos"), pero el aviso bloqueante (mostrarAvisoFiscalSiFalta)
+  // se dispara aparte, solo en los 2 momentos en que de verdad importa (ver
+  // ahí abajo) — nunca en cada apertura de la tarjeta de configuración,
+  // donde ya estarían viendo los campos a la vista para corregirlos.
   function verificarDatosFiscalesFaltantes(config) {
     const faltaRfc = !(config.rfc_compania || '').trim();
     const faltaClaveSat = !(config.clave_sat || '').trim();
     datosFiscalesCompletos = !(faltaRfc || faltaClaveSat);
-    // Mismo criterio de "Falta configurar..." punto en curso: con
+    renderOnboardingChecklist();
+  }
+
+  // Punto en curso: el aviso bloqueante de "Falta configurar los datos
+  // fiscales" se angostó a propósito — antes salía en CADA login para
+  // administrador/fiscal/super por igual, aunque esa persona no fuera a
+  // tocar nada de facturación esa sesión. Ahora solo se dispara en 2
+  // momentos, donde SIEMPRE es relevante: (1) login de un perfil "fiscal"
+  // (su área completa ES facturación) y (2) cualquier perfil entrando al
+  // segmento de facturación (Tickets/Constancias) — ver las 2 llamadas
+  // más abajo. "administrador"/"super" que solo revisan Ventas/Inventarios
+  // ya no lo ven sin motivo.
+  function mostrarAvisoFiscalSiFalta() {
+    if (datosFiscalesCompletos !== false) return;
+    // Mismo criterio de "Falta configurar..." ya existente: con
     // Facturación apagada, el RFC/Clave SAT de la compañía no tiene para
     // qué completarse (nadie va a facturar) — mismo flag que ya oculta
     // la tarjeta "Configuraciones fiscales" (global-config-card) a la que
     // este aviso manda; mostrarlo sin Facturación activa llevaría a un
     // destino que tampoco está disponible.
-    if ((faltaRfc || faltaClaveSat) && puedeCompletarDatosFiscales() && planPermite('facturacionHabilitada')) {
+    if (puedeCompletarDatosFiscales() && planPermite('facturacionHabilitada')) {
       els.configFiscalFaltanteOverlay.hidden = false;
     }
-    renderOnboardingChecklist();
   }
 
   // El único botón del aviso YA es la acción, no un simple "cerrar": lleva
   // directo a la tarjeta "Configuraciones fiscales" con el foco en el
   // control de subida de la constancia — el mismo destino que el texto
-  // del aviso ya describía en palabras, ahora es un solo clic.
+  // del aviso ya describía en palabras, ahora es un solo clic. A
+  // propósito YA NO hay forma de descartarlo sin completar los datos
+  // (antes: clic fuera del modal lo cerraba sin hacer nada — "no debe
+  // dejar hacer nada mientras falte configurar", decisión explícita del
+  // usuario): se quitó el listener de clic-fuera-para-cerrar.
   els.btnConfigFiscalFaltanteCerrar.addEventListener('click', () => {
     els.configFiscalFaltanteOverlay.hidden = true;
     abrirConfigModal();
@@ -3951,11 +3968,6 @@
     mostrarSeccionMovilConfig();
     els.btnSubirConstanciaCompania?.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     els.btnSubirConstanciaCompania?.focus();
-  });
-  els.configFiscalFaltanteOverlay.addEventListener('click', (e) => {
-    if (e.target === els.configFiscalFaltanteOverlay) {
-      els.configFiscalFaltanteOverlay.hidden = true;
-    }
   });
 
   // Muestra/oculta el botón "Ventas" del menú según el interruptor de
@@ -4814,12 +4826,15 @@
       aplicarVisibilidadOrdenesCompra(config.ordenes_compra_habilitado);
       aplicarVisibilidadAuditoria(config.auditoria_habilitada !== false);
       aplicarInfoFiscalBarra(config);
-      // Solo se revisa (y se muestra la ventana emergente si hace falta)
-      // justo al iniciar sesión — no cada vez que se abre esta misma
-      // tarjeta de configuración, donde ya estarían viendo los campos a
-      // la vista para corregirlos; repetir el aviso ahí sería redundante.
+      // Solo se revisa justo al iniciar sesión — no cada vez que se abre
+      // esta misma tarjeta de configuración, donde ya estarían viendo los
+      // campos a la vista para corregirlos; repetir el aviso ahí sería
+      // redundante. El aviso bloqueante en sí solo se muestra aquí para
+      // perfil "fiscal" (su área completa ES facturación) — administrador/
+      // super lo ven más abajo, solo al entrar a Tickets/Constancias.
       if (opciones.verificarFiscalFaltante) {
         verificarDatosFiscalesFaltantes(config);
+        if (perfilActual === 'fiscal') mostrarAvisoFiscalSiFalta();
       }
       poblarSelectZonasHorarias(els.configZonaHoraria, zonas, config.zona_horaria);
     } catch (err) {
@@ -8257,6 +8272,10 @@
     els.vistaAuditoria.hidden = vista !== 'auditoria';
     els.vistaPromociones.hidden = vista !== 'promociones';
     if (vista === 'inicio') cargarInicio();
+    // Punto en curso: "segmento de facturación" — administrador/super
+    // (fiscal ya lo ve al entrar, arriba en cargarConfigGlobal) ven el
+    // aviso bloqueante SOLO al entrar aquí, nunca en cada login.
+    if (vista === 'constancias' || vista === 'tickets') mostrarAvisoFiscalSiFalta();
     if (vista === 'constancias') cargarRegistros();
     if (vista === 'tickets') {
       cargarUsuariosFiltroTickets();

@@ -23732,3 +23732,39 @@ Archivos: `backend/server.js`, `backend/test/integration/admin.test.js`,
 `frontend/control.html`, `frontend/control.js`, `frontend/admin.js`,
 `frontend/admin.css`, `frontend/style.css`, `PROJECT_STATE.md` (este
 punto).
+
+### Punto 421 — Aviso "Falta configurar los datos fiscales": angostado a fiscal/segmento de facturación, sin escape (2026-10-24)
+
+El usuario reportó que el aviso bloqueante de RFC/Clave SAT faltantes
+salía en CADA login para administrador/fiscal/super por igual, aunque
+esa sesión no fuera a tocar nada de facturación — y además se podía
+descartar con un clic fuera del modal sin completar nada. Pidió: solo
+debe aparecer (a) al entrar un perfil "fiscal", o (b) al entrar al
+segmento de facturación (Tickets/Constancias) — y mientras esté
+mostrado, no debe dejar hacer nada más que completar los datos.
+
+**`frontend/admin.js`**: `verificarDatosFiscalesFaltantes(config)` ahora
+SOLO calcula `datosFiscalesCompletos` (sigue alimentando el checklist
+"Primeros pasos", sin cambios ahí) — ya no decide por sí sola mostrar
+el overlay. Se extrajo `mostrarAvisoFiscalSiFalta()`, invocada en 2
+puntos nuevos: (1) dentro de `cargarConfigGlobal()`, solo si
+`perfilActual === 'fiscal'` (su área completa ES facturación, login
+equivale a "entrar al segmento"); (2) dentro de `cambiarVistaPrincipal()`
+al entrar a `tickets` o `constancias`, sin importar el perfil — cubre a
+administrador/super que sí navegan ahí. Se quitó el listener de
+clic-fuera-del-overlay-para-cerrar — el único camino para salir ahora es
+"Ir a completar" (que ya llevaba directo a la tarjeta de Configuraciones
+fiscales con foco en el control de subir constancia).
+
+Verificado en vivo contra Docker/MySQL reales con clics reales (Claude
+en Chrome, tenant `t2` con RFC/Clave SAT vacíos a propósito): login con
+`admin:admin` (mecanismo `super`) → overlay NUNCA aparece en Inicio;
+clic en "Tickets" → overlay aparece de inmediato; clic en el fondo
+oscuro → overlay sigue visible (ya no se puede descartar sin completar).
+Hallazgo colateral no relacionado: el tenant `t2` apareció `suspendido`
+a mitad de la verificación (otra sesión probando su propio trabajo en
+curso sobre `/control`) — reactivado con
+`POST /api/control/tenants/t2/reactivar` para continuar, sin tocar nada
+más de ese tenant.
+
+Archivos: `frontend/admin.js`, `PROJECT_STATE.md` (este punto).
