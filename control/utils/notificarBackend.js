@@ -196,6 +196,65 @@ async function obtenerUsoUsuarios(slug) {
   }
 }
 
+// Punto en curso (reasignar raíz/maestra desde /control): solo lectura,
+// las cuentas perfil administrador de un tenant — mismo motivo de
+// delegación que obtenerUsoUsuarios() (control_app no tiene acceso a
+// ninguna base `tenant_*`). Devuelve el array, o `null` si no se pudo
+// confirmar (el llamador decide cómo mostrar "no se pudo cargar", nunca
+// se asume una lista vacía).
+async function listarUsuariosAdminTenant(slug) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  try {
+    const res = await fetch(`${url}/internal/usuarios-admin/${encodeURIComponent(slug)}`, {
+      method: 'GET',
+      headers: { 'X-Internal-Secret': secreto || '' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data && Array.isArray(data.usuarios) ? data.usuarios : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Reasigna la cuenta raíz/maestra de un tenant — a diferencia de
+// listarUsuariosAdminTenant() (solo lectura, nunca lanza), esta SÍ
+// propaga el error: es una escritura y el operador necesita saber si de
+// verdad se aplicó, mismo criterio que activarTenantFisico(). `codigo`
+// distingue "el backend rechazó la operación" (404/400 — el id ya no es
+// válido, ej. el usuario se eliminó mientras el operador tenía el modal
+// abierto) de "no se pudo ni hablar con el backend" (mismo patrón que
+// ErrorMarcaTenant/ErrorSuscripcionTenant).
+class ErrorReasignarRaiz extends Error {
+  constructor(message, codigo) {
+    super(message);
+    this.codigo = codigo; // 'no_encontrado' | 'validacion' | 'backend'
+  }
+}
+
+async function reasignarRaizTenant(slug, id) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  let res;
+  try {
+    res = await fetch(`${url}/internal/usuarios-admin/${encodeURIComponent(slug)}/${encodeURIComponent(id)}/raiz`, {
+      method: 'PUT',
+      headers: { 'X-Internal-Secret': secreto || '' },
+    });
+  } catch (err) {
+    throw new ErrorReasignarRaiz('No se pudo conectar con el backend para reasignar la cuenta raíz/maestra.', 'backend');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const codigo = res.status === 404 ? 'no_encontrado' : res.status === 400 ? 'validacion' : 'backend';
+    throw new ErrorReasignarRaiz(data.error || 'No se pudo reasignar la cuenta raíz/maestra.', codigo);
+  }
+  return data;
+}
+
 module.exports = {
   notificarInvalidacionCache,
   activarTenantFisico,
@@ -207,4 +266,7 @@ module.exports = {
   ErrorCalculoDisco,
   aplicarLimiteUsuarios,
   obtenerUsoUsuarios,
+  listarUsuariosAdminTenant,
+  reasignarRaizTenant,
+  ErrorReasignarRaiz,
 };

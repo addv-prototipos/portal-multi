@@ -261,7 +261,18 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 - **Modales anidados**: un modal de confirmación/escáner abierto DESDE
   otro modal ya abierto puede quedar invisible si comparten
   `z-index` — dar más z-index al hijo (patrón ya resuelto en
-  `#confirm-modal-overlay`/`#scanner-modal-overlay`, ambos en 70).
+  `#confirm-modal-overlay`/`#scanner-modal-overlay`, ambos en 70, y
+  desde el punto 419 también `#control-confirm-modal-overlay` de
+  `/control`, mismo valor). El bug no es "este modal ya está roto" sino
+  "este CAMINO de apertura es nuevo" — `confirmarAccion()` de
+  `control.js` llevaba meses sin el fix porque nunca se había disparado
+  desde DENTRO de otro modal (siempre desde la lista de tenants) hasta
+  que la pestaña "Usuarios" del modal "Editar empresa" la invocó por
+  primera vez. Si se agrega un modal de confirmación nuevo (en
+  cualquiera de las 3 apps) y se dispara desde dentro de otro modal ya
+  abierto, aplicar el mismo `z-index: 70` desde el inicio — no asumir
+  que "ya está resuelto" porque otros casos en el mismo archivo ya lo
+  están.
 - **Pruebas de responsive**: replicar el `@media` real y su breakpoint
   exacto en el arnés de prueba — angostar solo `body{max-width}` no
   cambia `window.innerWidth` y no dispara el `@media` real.

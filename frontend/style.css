@@ -818,6 +818,14 @@ body {
 #scanner-modal-overlay {
   z-index: 70;
 }
+/* Mismo motivo, variante /control (punto en curso): el genérico de
+   confirmación de esa app (confirmarAccion() en control.js) nunca se
+   había disparado desde DENTRO de otro modal hasta la pestaña "Usuarios"
+   del modal "Editar empresa" (reasignar raíz/maestra) — hasta ahora
+   siempre se abría desde la lista de tenants, nunca anidado. */
+#control-confirm-modal-overlay {
+  z-index: 70;
+}
 
 .modal {
   background: var(--color-surface);

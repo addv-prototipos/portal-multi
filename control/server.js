@@ -33,7 +33,14 @@ const { ErrorCifrado } = require('./utils/cifrado');
 const { actualizarTemaTenant, ErrorTemaTenant } = require('./utils/tenantTema');
 const { actualizarSuscripcionTenant, ErrorSuscripcionTenant } = require('./utils/tenantSuscripcion');
 const { actualizarDatosTenant, ErrorEdicionTenant } = require('./utils/tenantEdicion');
-const { obtenerUsoUsuarios, crearAdminInicialFisico, ErrorActivacionFisica } = require('./utils/notificarBackend');
+const {
+  obtenerUsoUsuarios,
+  crearAdminInicialFisico,
+  ErrorActivacionFisica,
+  listarUsuariosAdminTenant,
+  reasignarRaizTenant,
+  ErrorReasignarRaiz,
+} = require('./utils/notificarBackend');
 const { swaggerSpec } = require('./utils/swagger');
 const swaggerUi = require('swagger-ui-express');
 const {
@@ -648,6 +655,49 @@ app.get(
       return res.status(502).json({ error: 'No se pudo consultar el uso de usuarios del tenant.' });
     }
     res.json({ ok: true, total });
+  })
+);
+
+// Punto en curso: lista las cuentas perfil administrador de un tenant,
+// para la pestaña "Usuarios" del modal de edición — alcance mínimo a
+// propósito (decisión del usuario): solo lectura de ese subconjunto,
+// nada de editar/suspender/eliminar desde aquí, eso sigue siendo
+// exclusivo de /admin → Usuarios. 502 si el backend no respondió (nunca
+// se asume una lista vacía a ciegas, mismo criterio que uso-usuarios).
+app.get(
+  '/api/control/tenants/:slug/usuarios-admin',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const usuarios = await listarUsuariosAdminTenant(req.params.slug);
+    if (usuarios == null) {
+      return res.status(502).json({ error: 'No se pudo consultar los administradores del tenant.' });
+    }
+    res.json({ ok: true, usuarios });
+  })
+);
+
+// Reasigna la cuenta raíz/maestra de un tenant desde /control — el
+// autoservicio en /admin → Usuarios se mantiene intacto (ambos caminos
+// conviven, decisión del usuario), este es el camino adicional para que
+// el super admin lo haga sin pedirle acceso al tenant.
+app.put(
+  '/api/control/tenants/:slug/usuarios-admin/:id/raiz',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const data = await reasignarRaizTenant(req.params.slug, req.params.id);
+      res.json({ ok: true, mensaje: data.mensaje });
+    } catch (err) {
+      if (err instanceof ErrorReasignarRaiz) {
+        const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'validacion' ? 400 : 502;
+        return res.status(estatus).json({ error: err.message });
+      }
+      throw err;
+    }
   })
 );
 

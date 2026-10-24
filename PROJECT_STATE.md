@@ -23613,3 +23613,122 @@ resumen de plan + formulario) y B4 (chip/pastilla de solo lectura).
   `frontend/admin.html`, `frontend/admin.js`, `frontend/admin.css`,
   `backend/test/integration/miCuenta.test.js`, `PROJECT_STATE.md`
   (este addendum).
+
+### Punto 419 — Reasignar raíz/maestra desde /control + 2 fixes de seguridad (2026-10-23)
+
+Pedido del usuario a partir de una captura real de `/control` (tarjeta
+del tenant con badge "Raíz/maestra"): poder cambiar la asignación de la
+cuenta raíz/maestra de un tenant desde `/control` (super admin,
+accediendo a los usuarios de ese tenant), que la cuenta raíz/maestra
+nunca pueda eliminarse, y que quede claro cómo se asigna hoy. Refinado
+vía `/prompt-master` (grep real antes de proponer, no asumir) +
+`/ui-ux-pro-max` (5 mockups de layout, usuario eligió "1 · Pestaña con
+tabla"). 2 preguntas de alcance (AskUserQuestion) antes de implementar:
+(a) Control solo lista cuentas perfil `administrador` del tenant — nada
+de editar/suspender/eliminar desde ahí (eso sigue en `/admin →
+Usuarios`); (b) el autoservicio YA existente en `/admin → Usuarios`
+(punto 418) se queda intacto, ambos caminos conviven.
+
+**2 gaps de seguridad reales encontrados durante la investigación, no
+parte del pedido original pero el usuario confirmó incluirlos**:
+1. `POST /internal/crear-admin-inicial/:slug` (onboarding público,
+   Segmento B) insertaba el primer admin de un tenant SIN
+   `es_cuenta_raiz=1` — un tenant nuevo se quedaba sin nadie viendo
+   "Datos de pago" hasta que alguien lo marcara a mano. El backfill
+   automático del punto 418 fue un evento de UNA sola vez al crear la
+   columna, nunca una regla viva para onboarding futuro.
+2. `DELETE /api/admin/usuarios/:id` solo bloqueaba auto-eliminación —
+   CUALQUIER otro administrador podía borrar la cuenta raíz/maestra sin
+   candado. Corregido en backend (400 si `es_cuenta_raiz`) + frontend
+   (`admin.js`: botón 🗑 `disabled` + tooltip explicando el porqué,
+   nueva regla `.btn-icono-accion:disabled` en `admin.css`).
+
+**Backend** (`backend/server.js`):
+- `GET /internal/usuarios-admin/:slug` (nuevo) — lista
+  `id, rfc, email, es_cuenta_raiz, creado_en` de `perfil='administrador'`
+  del tenant. Solo secreto interno, mismo patrón que
+  `/internal/uso-usuarios`.
+- `PUT /internal/usuarios-admin/:slug/:id/raiz` (nuevo) — misma
+  exclusividad que `/api/admin/usuarios/:id/raiz` (punto 418) pero
+  validando el id contra la BD de ESE tenant vía `obtenerPoolTenant()`,
+  nunca confiando en lo que `/control` ya filtró.
+- `crear-admin-inicial`: INSERT ahora incluye `es_cuenta_raiz=1`
+  (seguro incondicional — solo corre cuando el tenant no tenía NINGÚN
+  admin todavía).
+- `DELETE /api/admin/usuarios/:id`: nuevo candado `if (usuario.
+  es_cuenta_raiz) return 400`, antes del DELETE.
+
+**Control** (`control/utils/notificarBackend.js`, `control/server.js`):
+- `listarUsuariosAdminTenant(slug)` (solo lectura, `null` en fallo —
+  nunca asume lista vacía) y `reasignarRaizTenant(slug, id)` (propaga
+  error vía `ErrorReasignarRaiz` con `codigo` 'no_encontrado'/
+  'validacion'/'backend', mapeado a 404/400/502 respectivamente —
+  mismo patrón que `ErrorMarcaTenant`).
+- `GET /api/control/tenants/:slug/usuarios-admin` y
+  `PUT /api/control/tenants/:slug/usuarios-admin/:id/raiz` — mismo
+  `adminApiLimiter`+`requireAdminAuth`+`requireAdminArea()` que el
+  resto de rutas de tenant.
+
+**Frontend** (`frontend/control.html`/`control.js`): pestaña nueva
+"Usuarios" en el modal "Editar empresa" (`TABS` de `cambiarTabEditar`,
+patrón del punto 381 — guardado propio, no usa "Guardar cambios"
+compartido). Tabla con badge `.estatus-raiz` (mismo ícono/estilo que
+`/admin`, reimplementado en `control.js` por ser build de Docker
+separado) + botón ícono (`crearBotonAccion`) para reasignar, con
+confirmación (`confirmarAccion`) antes de reemplazar. Carga junto con el
+resto de la ficha (`abrirEdicion()`, mismo criterio que
+`montarEditorMarcaTemaControl`/`cargarUsoUsuariosEdicion` — no lazy por
+pestaña en este modal).
+
+**Gotcha nuevo, misma familia que el ya documentado para
+`#confirm-modal-overlay`/`#scanner-modal-overlay` de `/admin`
+(`frontend/style.css`)**: el modal de confirmación genérico de
+`/control` (`#control-confirm-modal-overlay`, `confirmarAccion()`)
+NUNCA se había disparado desde DENTRO de otro modal ya abierto — hasta
+esta pestaña, siempre se abría desde la lista de tenants. Con el mismo
+`z-index:50` que `#control-editar-modal-overlay`, el modal padre (más
+abajo en el DOM) ganaba la pila y se comía los clics — reproducido real
+con Claude en Chrome: `document.elementFromPoint()` sobre el botón
+"Reasignar" devolvía un `<TD>` de la tabla de abajo, no el botón.
+Mismo fix que ya existía para los otros 2: `#control-confirm-modal-
+overlay { z-index: 70; }` en `style.css`. Si se agrega OTRO modal de
+confirmación anidado en cualquier app de este repo, aplicar el mismo
+patrón desde el inicio — no asumir que "ya está resuelto" solo porque
+los otros 2 casos ya lo están.
+
+**Tests**: `backend/test/integration/admin.test.js` (+1, bloqueo de
+DELETE sobre raíz), `backend/test/integration/internal.test.js` (+11:
+crear-admin-inicial con es_cuenta_raiz, GET/PUT usuarios-admin) —
+backend **1372/1372** verde (69 suites). `control/test/integration/
+usuariosAdminControl.test.js` (nuevo, **archivo aparte** a propósito:
+`adminCredencialesLimiter` es un rate limiter global sin prefijo de ruta
+que cuenta cualquier no-2xx contra un presupuesto compartido de
+50/IP/15min en la `app` ya cargada de `control.test.js` — generar varios
+401/404/400/502 ahí habría agotado ese presupuesto en silencio y tumbado
+pruebas ajenas más abajo en el archivo, mismo patrón ya usado en
+`docsEnabled.test.js`: `jest.resetModules()` + `require('../../server')`
+fresco por test) — control **505/505** verde (28 suites).
+
+**Verificado en vivo contra Docker/MySQL reales** (rebuild
+`backend`+`control`+`frontend`, `--force-recreate`): Claude en Chrome,
+clics reales sobre `/control` real — tenant `t2` (único con 2 admins
+reales: `VENTASNOTIFE2E` con la insignia "Raíz/maestra" original,
+idéntica a la captura del usuario, y `PATRON` sin ella). Reasignado a
+`PATRON` → confirmado 200 real (`PUT /api/control/tenants/t2/usuarios-
+admin/3/raiz`) + insignia movida + toast "Cuenta raíz/maestra
+actualizada correctamente."; revertido a `VENTASNOTIFE2E` para dejar el
+dato de prueba como se encontró. El candado de `DELETE` (gap #2) se
+verificó solo vía la suite de integración real (mismo código de
+`server.js`, solo la capa de BD mockeada) — no se verificó con clics en
+`/admin` por no tener a mano la contraseña de un admin real de `t2` en
+esta sesión; confirmar con clics reales queda pendiente la próxima vez
+que alguien tenga esa credencial a mano.
+
+Archivos: `backend/server.js`, `backend/test/integration/admin.test.js`,
+`backend/test/integration/internal.test.js`,
+`control/utils/notificarBackend.js`, `control/server.js`,
+`control/test/integration/control.test.js` (solo el mock ampliado),
+`control/test/integration/usuariosAdminControl.test.js` (nuevo),
+`frontend/control.html`, `frontend/control.js`, `frontend/admin.js`,
+`frontend/admin.css`, `frontend/style.css`, `PROJECT_STATE.md` (este
+punto).

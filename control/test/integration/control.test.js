@@ -20,12 +20,15 @@ jest.mock('../../utils/notificarBackend', () => {
     aplicarLimiteUsuarios: jest.fn().mockResolvedValue([]),
     obtenerUsoUsuarios: jest.fn().mockResolvedValue(3),
     crearAdminInicialFisico: jest.fn().mockResolvedValue({ ok: true }),
+    listarUsuariosAdminTenant: jest.fn().mockResolvedValue([]),
+    reasignarRaizTenant: jest.fn().mockResolvedValue({ ok: true, mensaje: 'Cuenta raíz/maestra actualizada correctamente.' }),
     // Clases de error reales (no mockeadas) — recalcularUsoDisco() las
     // re-exporta de este módulo y server.js las usa con `instanceof`
     // para mapear el código HTTP correcto (502 vs 500).
     ErrorActivacionFisica: real.ErrorActivacionFisica,
     ErrorEliminacionFisica: real.ErrorEliminacionFisica,
     ErrorCalculoDisco: real.ErrorCalculoDisco,
+    ErrorReasignarRaiz: real.ErrorReasignarRaiz,
   };
 });
 jest.mock('../../utils/ajustesGlobales', () => ({

@@ -461,6 +461,84 @@ describe('POST /internal/activar-tenant/:slug', () => {
   });
 });
 
+// Segmento B (onboarding público) — crea el PRIMER administrador de un
+// tenant recién aprovisionado. Punto en curso: ya debe marcarlo
+// es_cuenta_raiz=1 (antes se quedaba en 0, y el tenant nunca tenía quién
+// viera "Datos de pago" en Mi Cuenta hasta que alguien lo marcara a mano
+// desde /admin → Usuarios).
+describe('POST /internal/crear-admin-inicial/:slug', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+  const bodyValido = {
+    email: 'nuevo@cliente1.mx',
+    passwordHash: 'aabbcc:112233',
+    nombreUsuario: 'ADMIN1',
+  };
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  function mockPoolTenant() {
+    const poolTenant = { query: jest.fn() };
+    obtenerPoolTenant.mockReturnValue(poolTenant);
+    return poolTenant;
+  }
+
+  beforeEach(() => {
+    obtenerPoolTenant.mockClear();
+  });
+
+  test('sin el secreto responde 403 y no consulta nada', async () => {
+    const res = await request(app).post('/internal/crear-admin-inicial/cliente1').send(bodyValido);
+    expect(res.status).toBe(403);
+    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+  });
+
+  test('hash con formato inválido responde 400', async () => {
+    const res = await request(app)
+      .post('/internal/crear-admin-inicial/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send({ ...bodyValido, passwordHash: 'texto-plano-no-hasheado' });
+    expect(res.status).toBe(400);
+    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+  });
+
+  test('tenant ya tiene un administrador: no duplica, responde yaExistia:true', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([[{ id: 1 }]]); // SELECT ... LIMIT 1
+
+    const res = await request(app)
+      .post('/internal/crear-admin-inicial/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send(bodyValido);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, yaExistia: true });
+    expect(poolTenant.query).toHaveBeenCalledTimes(1); // nunca llega al INSERT
+  });
+
+  test('tenant sin administrador: inserta la cuenta YA marcada como raíz/maestra', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([[]]); // SELECT ... LIMIT 1: sin fila
+    poolTenant.query.mockResolvedValueOnce([{ insertId: 1 }]); // INSERT
+
+    const res = await request(app)
+      .post('/internal/crear-admin-inicial/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba')
+      .send(bodyValido);
+
+    expect(res.status).toBe(201);
+    const [sqlInsert, paramsInsert] = poolTenant.query.mock.calls[1];
+    expect(sqlInsert).toMatch(/es_cuenta_raiz/);
+    expect(sqlInsert).toMatch(/VALUES \(\?, '', \?, \?, 0, 'administrador', 1, \?, \?\)/);
+    expect(paramsInsert).toEqual(['ADMIN1', 'nuevo@cliente1.mx', 'aabbcc:112233', expect.any(Date), expect.any(Date)]);
+  });
+});
+
 describe('POST /internal/disco-uso/:slug (punto 347)', () => {
   const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
 
@@ -702,6 +780,137 @@ describe('GET /internal/uso-usuarios/:slug (punto 350/351, regla 8 extendida)', 
       .set('X-Internal-Secret', 'secreto-de-prueba');
 
     expect(res.status).toBe(502);
+  });
+});
+
+// Punto en curso: /control delega aquí la pestaña "Usuarios" (reasignar
+// raíz/maestra) — mismo motivo de delegación que uso-usuarios de arriba
+// (control_app no tiene acceso a ninguna base tenant_*).
+describe('GET /internal/usuarios-admin/:slug', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  function mockPoolTenant() {
+    const poolTenant = { query: jest.fn() };
+    obtenerPoolTenant.mockReturnValue(poolTenant);
+    return poolTenant;
+  }
+
+  beforeEach(() => {
+    obtenerPoolTenant.mockClear();
+  });
+
+  test('sin el secreto responde 403 y no consulta nada', async () => {
+    const res = await request(app).get('/internal/usuarios-admin/cliente1');
+    expect(res.status).toBe(403);
+    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+  });
+
+  test('slug inválido responde 400', async () => {
+    const res = await request(app)
+      .get('/internal/usuarios-admin/Mal Slug')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+    expect(res.status).toBe(400);
+  });
+
+  test('responde 200 con solo las cuentas perfil administrador', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([
+      [{ id: 1, rfc: 'ADMIN1', email: 'a@x.com', es_cuenta_raiz: 1, creado_en: '2026-10-01 10:00:00' }],
+    ]);
+
+    const res = await request(app)
+      .get('/internal/usuarios-admin/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(200);
+    expect(res.body.usuarios).toHaveLength(1);
+    const [sql] = poolTenant.query.mock.calls[0];
+    expect(sql).toMatch(/WHERE perfil = 'administrador'/);
+  });
+
+  test('si la BD del tenant falla, responde 502', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockRejectedValueOnce(new Error('conexión rechazada'));
+
+    const res = await request(app)
+      .get('/internal/usuarios-admin/cliente1')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(502);
+  });
+});
+
+describe('PUT /internal/usuarios-admin/:slug/:id/raiz', () => {
+  const SECRETO_ANTERIOR = process.env.INTERNAL_CACHE_SECRET;
+
+  beforeAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = 'secreto-de-prueba';
+  });
+
+  afterAll(() => {
+    process.env.INTERNAL_CACHE_SECRET = SECRETO_ANTERIOR;
+  });
+
+  function mockPoolTenant() {
+    const poolTenant = { query: jest.fn() };
+    obtenerPoolTenant.mockReturnValue(poolTenant);
+    return poolTenant;
+  }
+
+  beforeEach(() => {
+    obtenerPoolTenant.mockClear();
+  });
+
+  test('sin el secreto responde 403 y no consulta nada', async () => {
+    const res = await request(app).put('/internal/usuarios-admin/cliente1/2/raiz');
+    expect(res.status).toBe(403);
+    expect(obtenerPoolTenant).not.toHaveBeenCalled();
+  });
+
+  test('usuario inexistente en ese tenant responde 404', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([[]]); // SELECT id, perfil
+
+    const res = await request(app)
+      .put('/internal/usuarios-admin/cliente1/99/raiz')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(404);
+  });
+
+  test('perfil distinto de administrador responde 400, sin tocar ningún UPDATE', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([[{ id: 2, perfil: 'ventas' }]]);
+
+    const res = await request(app)
+      .put('/internal/usuarios-admin/cliente1/2/raiz')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(400);
+    expect(poolTenant.query).toHaveBeenCalledTimes(1);
+  });
+
+  test('reasigna: desmarca la anterior y marca la nueva (misma exclusividad que /admin)', async () => {
+    const poolTenant = mockPoolTenant();
+    poolTenant.query.mockResolvedValueOnce([[{ id: 2, perfil: 'administrador' }]]);
+    poolTenant.query.mockResolvedValueOnce([{}]); // UPDATE ... = 0
+    poolTenant.query.mockResolvedValueOnce([{}]); // UPDATE ... = 1 WHERE id = ?
+
+    const res = await request(app)
+      .put('/internal/usuarios-admin/cliente1/2/raiz')
+      .set('X-Internal-Secret', 'secreto-de-prueba');
+
+    expect(res.status).toBe(200);
+    expect(poolTenant.query.mock.calls[1][0]).toMatch(/SET es_cuenta_raiz = 0/);
+    expect(poolTenant.query.mock.calls[2][0]).toMatch(/SET es_cuenta_raiz = 1/);
   });
 });
 
