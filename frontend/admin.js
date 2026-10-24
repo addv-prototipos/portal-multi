@@ -1395,7 +1395,6 @@
     // Modal de restablecer contraseña
     passwordModalOverlay: document.getElementById('password-modal-overlay'),
     passwordModalRfc: document.getElementById('password-modal-rfc'),
-    passwordModalActual: document.getElementById('password-modal-actual'),
     btnGenerarPassword: document.getElementById('btn-generar-password'),
     passwordModalNueva: document.getElementById('password-modal-nueva'),
     btnTogglePasswordModal: document.getElementById('btn-toggle-password-modal'),
@@ -12054,9 +12053,15 @@
         : suspendidaPorLimite
         ? '<span class="estatus-badge estatus-suspendido" data-tooltip="Suspendido automáticamente: se superó el límite de usuarios del plan">Suspendido (límite de plan)</span>'
         : '<span class="estatus-badge estatus-suspendido">Suspendido</span>';
+      // Punto 418: insignia de cuenta raíz/maestra — única por tenant/
+      // sitio base, es la cuenta que ve "Datos de pago" en Mi Cuenta.
+      const esCuentaRaiz = Boolean(u.es_cuenta_raiz);
+      const badgeRaiz = esCuentaRaiz
+        ? ` <span class="estatus-badge estatus-raiz" data-tooltip="Cuenta raíz/maestra: gestiona la suscripción y ve los datos de pago">${ICONO_ESTRELLA} Raíz/maestra</span>`
+        : '';
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td data-label="RFC / usuario" data-col="rfc"><strong>${escapeHtml(u.rfc)}</strong> ${badgeEstado}${pendienteCambio ? ' <span class="estatus-badge estatus-pendiente" data-tooltip="Debe cambiar su contraseña en el siguiente inicio de sesión">Cambio pendiente</span>' : ''}</td>
+        <td data-label="RFC / usuario" data-col="rfc"><strong>${escapeHtml(u.rfc)}</strong> ${badgeEstado}${pendienteCambio ? ' <span class="estatus-badge estatus-pendiente" data-tooltip="Debe cambiar su contraseña en el siguiente inicio de sesión">Cambio pendiente</span>' : ''}${badgeRaiz}</td>
         <td data-label="Perfil" data-col="perfil"><span class="perfil-badge ${perfilInfo.clase}">${escapeHtml(perfilInfo.texto)}</span></td>
         <td data-label="Contacto" data-col="contacto">${contactoHtml}</td>
         <td data-label="Registrado" data-col="registrado">${formatFecha(u.creado_en)}</td>
@@ -12091,6 +12096,21 @@
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="15" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M11 12l9-9M16 3l3 3M13 6l2.5 2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       btnReset.addEventListener('click', () => abrirPasswordModal(u));
       contenedorAcciones.appendChild(btnReset);
+
+      // Punto 418: solo perfil administrador puede ser cuenta raíz/
+      // maestra — una cuenta YA marcada no muestra el botón (su insignia
+      // en la celda RFC ya lo indica; no tiene sentido "marcarla otra
+      // vez").
+      if (u.perfil === 'administrador' && !esCuentaRaiz) {
+        const btnRaiz = document.createElement('button');
+        btnRaiz.type = 'button';
+        btnRaiz.className = 'btn-icono-accion';
+        btnRaiz.setAttribute('data-tooltip', 'Marcar como cuenta raíz/maestra');
+        btnRaiz.setAttribute('aria-label', 'Marcar como cuenta raíz/maestra');
+        btnRaiz.innerHTML = ICONO_ESTRELLA;
+        btnRaiz.addEventListener('click', () => confirmarMarcarCuentaRaiz(u));
+        contenedorAcciones.appendChild(btnRaiz);
+      }
 
       const divisorEstado = document.createElement('div');
       divisorEstado.className = 'admin-row-actions-divisor';
@@ -12166,6 +12186,43 @@
         return;
       }
       showToast(data.mensaje || 'Estado actualizado.');
+      cargarUsuarios();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  function confirmarMarcarCuentaRaiz(u) {
+    abrirConfirmacion({
+      titulo: '¿Marcar como cuenta raíz/maestra?',
+      mensaje: `"${u.rfc}" pasará a ser la cuenta raíz/maestra — la única que ve "Datos de pago" en Mi Cuenta. Reemplaza a la cuenta raíz actual, si había una.`,
+      textoBoton: 'Marcar como raíz/maestra',
+      onConfirmar: () => marcarCuentaRaiz(u.id),
+    });
+  }
+
+  async function marcarCuentaRaiz(id) {
+    const authHeader = getAuthHeader();
+    if (!authHeader) {
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/usuarios/${id}/raiz`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo marcar la cuenta raíz/maestra.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Cuenta raíz/maestra actualizada.');
       cargarUsuarios();
     } catch (err) {
       showToast('No se pudo conectar con el servidor.', true);
@@ -12532,7 +12589,6 @@
   function abrirPasswordModal(usuario) {
     usuarioActual = usuario;
     els.passwordModalRfc.textContent = `RFC: ${usuario.rfc}`;
-    els.passwordModalActual.value = '';
     els.passwordModalNueva.value = '';
     els.passwordModalNueva.type = 'password';
     els.btnTogglePasswordModal.setAttribute('aria-pressed', 'false');
@@ -12548,7 +12604,6 @@
 
   function cerrarPasswordModal() {
     els.passwordModalOverlay.hidden = true;
-    els.passwordModalActual.value = '';
     usuarioActual = null;
   }
 
@@ -12680,17 +12735,9 @@
       els.passwordModalError.textContent = 'La contraseña no cumple con los requisitos de arriba.';
       return;
     }
-    // Hallazgo M-09 (sonar.html): el backend ahora exige la contraseña
-    // ACTUAL del propio operador (step-up) antes de aceptar el reseteo —
-    // nunca se autorrellena desde la sesión (sessionStorage/authHeader),
-    // a propósito: si algún día ese valor se filtra (XSS, extensión), la
-    // protección pierde sentido si el mismo origen del robo también
-    // puede rellenar este campo solo. El usuario SIEMPRE lo teclea aquí.
-    const passwordActual = els.passwordModalActual.value;
-    if (!passwordActual) {
-      els.passwordModalError.textContent = 'Captura tu contraseña actual para confirmar.';
-      return;
-    }
+    // Punto 418: el step-up "contraseña actual del operador" (Hallazgo
+    // M-09) se retiró de este modal — ver nota en backend/server.js. La
+    // bitácora de auditoría de /api/admin es el control compensatorio.
     els.passwordModalError.textContent = '';
 
     setGuardandoPasswordLoading(true);
@@ -12698,7 +12745,7 @@
       const res = await fetch(`${API_BASE}/admin/usuarios/${usuarioActual.id}/password`, {
         method: 'PUT',
         headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, password_actual: passwordActual, forzar_cambio: els.passwordModalForzarCambio.checked }),
+        body: JSON.stringify({ password, forzar_cambio: els.passwordModalForzarCambio.checked }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -18629,6 +18676,9 @@
   const ICONO_KARDEX = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 17V9m3 8V5m3 12v-5M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICONO_EDITAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   const ICONO_PAPELERA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  // Punto 418: cuenta raíz/maestra (Usuarios) — mismo estilo feather que
+  // el resto de íconos del sitio, sin emojis ni glifos Unicode.
+  const ICONO_ESTRELLA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.9 6.6 7.1.7-5.4 4.8 1.6 7-6.2-3.8-6.2 3.8 1.6-7-5.4-4.8 7.1-.7L12 2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   const ICONO_RESTAURAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICONO_KEBAB = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
   // Mismo ícono de impresora ya usado en Ventas (btnImprimirOrden).

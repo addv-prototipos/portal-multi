@@ -6071,6 +6071,16 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
   cursor: help;
 }
 .estatus-pendiente { background: var(--color-warn-soft); color: var(--color-warn); }
+/* Punto 418: cuenta raíz/maestra (Usuarios) — único badge con ícono
+   inline, por eso sobreescribe display a inline-flex sobre .estatus-badge. */
+.estatus-raiz {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-accent);
+  color: #fff;
+}
+.estatus-raiz svg { flex: none; width: 12px; height: 12px; }
 .estatus-en-curso { background: var(--color-accent-soft); color: var(--color-accent-dark); }
 .estatus-cancelado { background: var(--color-error-soft); color: var(--color-error); }
 .estatus-listo { background: #DCEFE3; color: #146C43; }

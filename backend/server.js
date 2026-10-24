@@ -4447,7 +4447,7 @@ app.get(
     const perfil = sanitizeText(req.query.perfil, 20);
     const perfilesValidos = ['cliente', 'administrador', 'fiscal', 'ventas', 'inventario'];
 
-    let sql = `SELECT id, rfc, telefono, email, debe_cambiar_password, perfil, activo, suspendido_motivo, creado_en, actualizado_en FROM usuarios`;
+    let sql = `SELECT id, rfc, telefono, email, debe_cambiar_password, perfil, activo, suspendido_motivo, es_cuenta_raiz, creado_en, actualizado_en FROM usuarios`;
     const params = [];
     if (perfil && perfilesValidos.includes(perfil)) {
       sql += ' WHERE perfil = ?';
@@ -4621,29 +4621,17 @@ app.put(
     const password = typeof body.password === 'string' ? body.password : '';
     const forzarCambio = body.forzar_cambio === true;
 
-    // Hallazgo M-09 (sonar.html, 2026-10-14): este reseteo sobrescribía
-    // la contraseña de CUALQUIER usuario sin verificar nada del lado del
-    // operador — Basic Auth robado (o una sesión XSS antes de C-05/C-06)
-    // bastaba para tomar persistencia total reseteando TODAS las demás
-    // cuentas admin. Mismo criterio de step-up que
-    // PUT /api/admin/mi-cuenta/password: exige la contraseña ACTUAL del
-    // propio operador (no la del usuario objetivo) antes de aceptar la
-    // nueva. Cubre los 2 mecanismos de login posibles aquí
-    // (requireAdminArea('administrador') también deja pasar al "super"
-    // de ADMIN_USERS, que no tiene fila en `usuarios`).
-    const passwordActualOperador = typeof body.password_actual === 'string' ? body.password_actual : '';
-    if (req.adminMecanismo === 'admin_users') {
-      if (!checkCredentials(req.adminUser, passwordActualOperador)) {
-        return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
-      }
-    } else {
-      const [filasOperador] = await pool.query('SELECT password_hash FROM usuarios WHERE rfc = ? LIMIT 1', [req.adminUser]);
-      const filaOperador = filasOperador[0];
-      if (!filaOperador || !verifyPassword(passwordActualOperador, filaOperador.password_hash)) {
-        return res.status(400).json({ error: 'La contraseña actual no es correcta.' });
-      }
-    }
-
+    // Punto 418: el step-up "contraseña actual del operador" que exigía
+    // el Hallazgo M-09 (sonar.html, 2026-10-14) se retiró a propósito —
+    // confundía a quien resetea la contraseña de OTRO usuario (se le
+    // pedía SU propia contraseña, no la del usuario objetivo, y no hay
+    // forma intuitiva de comunicar eso en un modal). Decisión explícita
+    // del usuario (2026-10-23): el control compensatorio es la bitácora
+    // de auditoría de `/api/admin` (ya registra quién/cuándo/sobre qué id
+    // para esta ruta, sin cambios). `PUT /api/admin/mi-cuenta/password`
+    // (cambiar TU PROPIA contraseña) nunca tuvo este problema — ahí el
+    // operador sí conoce la contraseña que se le pide — y sigue exigiendo
+    // la actual sin cambios.
     const errorPassword = validarPassword(password);
     if (errorPassword) {
       return res.status(400).json({ error: errorPassword });
@@ -4834,6 +4822,38 @@ app.put(
   })
 );
 
+// Punto 418: marca una cuenta perfil "administrador" como la cuenta
+// raíz/maestra — única por tenant (y por sitio base): es la que ve
+// "Datos de pago" en Mi Cuenta (junto con el mecanismo admin_users, que
+// ya tiene acceso total sin restricciones por diseño). Exclusiva: antes
+// de marcar la nueva, se desmarca cualquier otra que ya lo fuera.
+app.put(
+  '/api/admin/usuarios/:id/raiz',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea('administrador'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Identificador inválido.' });
+    }
+
+    const [filas] = await pool.query('SELECT id, perfil FROM usuarios WHERE id = ?', [id]);
+    const usuario = filas[0];
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+    if (usuario.perfil !== 'administrador') {
+      return res.status(400).json({ error: 'Solo una cuenta con perfil administrador puede ser la cuenta raíz/maestra.' });
+    }
+
+    await pool.query('UPDATE usuarios SET es_cuenta_raiz = 0 WHERE es_cuenta_raiz = 1');
+    await pool.query('UPDATE usuarios SET es_cuenta_raiz = 1, actualizado_en = ? WHERE id = ?', [new Date(), id]);
+
+    res.json({ ok: true, mensaje: 'Cuenta raíz/maestra actualizada correctamente.' });
+  })
+);
+
 // Elimina una cuenta de usuario de forma permanente (no hay papelera para
 // cuentas — a diferencia de constancias/tickets, no hay un archivo que
 // preservar, y el administrador siempre puede volver a crear la cuenta si
@@ -4891,15 +4911,21 @@ app.get(
   asyncHandler(async (req, res) => {
     const editable = req.adminMecanismo === 'perfil_bd';
     let datos = null;
+    // Punto 418: admin_users (el "super" real, sin fila en `usuarios`) ya
+    // tiene acceso total sin restricciones por diseño — se trata como
+    // cuenta raíz para efectos de "Datos de pago" sin necesitar una fila
+    // que marcar. perfil_bd sí tiene fila: su es_cuenta_raiz real decide.
+    let esCuentaRaiz = req.adminMecanismo === 'admin_users';
     if (editable) {
       const [filas] = await pool.query(
-        'SELECT nombre, telefono, email FROM usuarios WHERE rfc = ? LIMIT 1',
+        'SELECT nombre, telefono, email, es_cuenta_raiz FROM usuarios WHERE rfc = ? LIMIT 1',
         [req.adminUser]
       );
       const fila = filas[0];
       datos = fila
         ? { nombre: fila.nombre || '', telefono: fila.telefono || '', email: fila.email || '' }
         : null;
+      esCuentaRaiz = !!(fila && fila.es_cuenta_raiz);
     }
 
     const respuesta = {
@@ -4991,15 +5017,18 @@ app.get(
           masterPendiente: totalMaster === 0,
           correoComprador,
         };
-        // Punto 416: "Datos de pago" en Mi Cuenta — SOLO administrador/
-        // super (mismo criterio que el acceso total de ADMIN_USERS en
-        // todo lo demás, ver utils/auth.js). fiscal/ventas/inventario
-        // nunca reciben este bloque, ni siquiera vacío, para que el
-        // frontend no pueda mostrarlo por accidente con un flag mal
-        // leído — su sola AUSENCIA en la respuesta es el candado real.
-        // Nunca se expone el número de tarjeta: solo el identificador de
-        // cliente de Stripe (o null si todavía no existe uno).
-        if (req.adminPerfil === 'administrador' || req.adminPerfil === 'super') {
+        // Punto 418: "Datos de pago" en Mi Cuenta — SOLO la cuenta
+        // raíz/maestra (antes: cualquier administrador/super, ver punto
+        // 416 — estrechado a propósito tras decisión explícita del
+        // usuario). admin_users conserva acceso total (esCuentaRaiz=true
+        // arriba, mismo criterio que el resto de sus privilegios en
+        // utils/auth.js). fiscal/ventas/inventario y un administrador
+        // SIN la marca nunca reciben este bloque, ni siquiera vacío, para
+        // que el frontend no pueda mostrarlo por accidente con un flag
+        // mal leído — su sola AUSENCIA en la respuesta es el candado
+        // real. Nunca se expone el número de tarjeta: solo el
+        // identificador de cliente de Stripe (o null si no existe aún).
+        if (esCuentaRaiz) {
           respuesta.empresa.datosPago = { stripeCustomerId };
         }
       }

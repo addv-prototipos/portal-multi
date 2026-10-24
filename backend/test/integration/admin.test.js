@@ -735,83 +735,106 @@ describe('Admin', () => {
     });
   });
 
-  // Hallazgo M-09 (sonar.html, 2026-10-14): este reseteo sobrescribía la
-  // contraseña de CUALQUIER usuario sin verificar nada del lado del
-  // operador — Basic Auth robado bastaba para resetear TODAS las demás
-  // cuentas admin y tomar persistencia total. Ahora exige la contraseña
-  // ACTUAL del propio operador (mismo criterio de step-up que
-  // PUT /api/admin/mi-cuenta/password), cubriendo los 2 mecanismos de
-  // login que pueden llegar aquí: perfil_bd (fila real en `usuarios`) y
-  // admin_users/"super" (ADMIN_USERS del .env, sin fila en `usuarios`).
-  describe('PUT /api/admin/usuarios/:id/password (M-09 — step-up del operador)', () => {
-    test('perfil_bd: sin password_actual responde 400, sin llegar al UPDATE', async () => {
+  // Punto 418 (2026-10-23): el step-up "contraseña actual del operador"
+  // del Hallazgo M-09 (sonar.html, 2026-10-14) se retiró a propósito —
+  // confundía a quien resetea la contraseña de OTRO usuario (se le pedía
+  // SU PROPIA contraseña, no la del usuario objetivo). Decisión explícita
+  // del usuario: la bitácora de auditoría de /api/admin es el control
+  // compensatorio. PUT /api/admin/mi-cuenta/password (cambiar TU PROPIA
+  // contraseña) no se tocó — sigue exigiendo la actual, ver su propio
+  // describe más abajo.
+  describe('PUT /api/admin/usuarios/:id/password (punto 418 — sin step-up del operador)', () => {
+    test('perfil_bd: resetea sin pedir password_actual, va directo al UPDATE', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
-      // Query de verificación del operador: fila real, pero sin
-      // password_actual en el body nunca debe coincidir.
-      pool.query.mockResolvedValueOnce([[{ password_hash: hashPassword(password) }]]);
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
 
       const res = await request(app)
         .put('/api/admin/usuarios/2/password')
         .auth(usuario, password)
         .send({ password: 'ClaveNueva9' });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/contraseña actual/i);
-      expect(pool.query).toHaveBeenCalledTimes(2); // auth + verificación del operador, sin UPDATE
-    });
-
-    test('perfil_bd: con password_actual incorrecta responde 400, sin llegar al UPDATE', async () => {
-      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
-      pool.query.mockResolvedValueOnce([[{ password_hash: hashPassword(password) }]]);
-
-      const res = await request(app)
-        .put('/api/admin/usuarios/2/password')
-        .auth(usuario, password)
-        .send({ password: 'ClaveNueva9', password_actual: 'NoEsLaMia1' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/contraseña actual/i);
-      expect(pool.query).toHaveBeenCalledTimes(2);
-    });
-
-    test('perfil_bd: con password_actual correcta sí llega al UPDATE y responde 200', async () => {
-      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
-      pool.query.mockResolvedValueOnce([[{ password_hash: hashPassword(password) }]]); // verificación del operador
-      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
-
-      const res = await request(app)
-        .put('/api/admin/usuarios/2/password')
-        .auth(usuario, password)
-        .send({ password: 'ClaveNueva9', password_actual: password });
-
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
-      expect(pool.query.mock.calls[2][0]).toMatch(/UPDATE usuarios SET password_hash/);
+      // 1 SELECT de autenticación (verificarUsuarioAdministrativo) + el
+      // UPDATE — sin ningún SELECT extra de verificación del operador.
+      expect(pool.query).toHaveBeenCalledTimes(2);
+      expect(pool.query.mock.calls[1][0]).toMatch(/UPDATE usuarios SET password_hash/);
     });
 
-    test('mecanismo "super" (ADMIN_USERS): valida password_actual contra checkCredentials, nunca contra la tabla usuarios', async () => {
+    test('mecanismo "super" (ADMIN_USERS): resetea sin pedir password_actual tampoco', async () => {
       pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]); // UPDATE
       const res = await request(app)
         .put('/api/admin/usuarios/2/password')
         .auth('admin', 'admin') // fallback dev-only ya cubierto por ADMIN_USERS en el stack de pruebas
-        .send({ password: 'ClaveNueva9', password_actual: 'admin' });
+        .send({ password: 'ClaveNueva9' });
 
       expect(res.status).toBe(200);
-      // El mecanismo "super" no tiene fila en `usuarios` — la única
-      // query real es el UPDATE, sin ningún SELECT de verificación.
       expect(pool.query).toHaveBeenCalledTimes(1);
       expect(pool.query.mock.calls[0][0]).toMatch(/UPDATE usuarios SET password_hash/);
     });
 
-    test('mecanismo "super" con password_actual incorrecta responde 400, sin tocar la tabla usuarios', async () => {
+    test('contraseña nueva débil responde 400, sin llegar al UPDATE', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
       const res = await request(app)
         .put('/api/admin/usuarios/2/password')
-        .auth('admin', 'admin')
-        .send({ password: 'ClaveNueva9', password_actual: 'incorrecta' });
+        .auth(usuario, password)
+        .send({ password: 'corta' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/contraseña actual/i);
-      expect(pool.query).not.toHaveBeenCalled();
+      // Solo el SELECT de autenticación corrió — nunca llega al UPDATE.
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Punto 418: cuenta raíz/maestra — única por tenant/sitio base, ve
+  // "Datos de pago" en Mi Cuenta. Solo una cuenta perfil administrador
+  // puede ser marcada; marcar una nueva desmarca cualquier otra.
+  describe('PUT /api/admin/usuarios/:id/raiz (punto 418)', () => {
+    test('fiscal responde 403 (requiere perfil administrador, igual que el resto de mutaciones de Usuarios)', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('fiscal');
+      const res = await request(app).put('/api/admin/usuarios/2/raiz').auth(usuario, password);
+      expect(res.status).toBe(403);
+    });
+
+    test('id inválido responde 400 sin consultar la fila objetivo', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      const res = await request(app).put('/api/admin/usuarios/abc/raiz').auth(usuario, password);
+      expect(res.status).toBe(400);
+      // Solo el SELECT de autenticación corrió.
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+
+    test('usuario inexistente responde 404', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[]]); // SELECT id, perfil
+      const res = await request(app).put('/api/admin/usuarios/99/raiz').auth(usuario, password);
+      expect(res.status).toBe(404);
+    });
+
+    test('perfil distinto de administrador responde 400, sin desmarcar/marcar nada', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ id: 2, perfil: 'ventas' }]]); // SELECT id, perfil
+      const res = await request(app).put('/api/admin/usuarios/2/raiz').auth(usuario, password);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/perfil administrador/i);
+      // Auth (1) + SELECT id,perfil (1) — nunca llega a ningún UPDATE.
+      expect(pool.query).toHaveBeenCalledTimes(2);
+    });
+
+    test('marca la cuenta raíz: primero desmarca la anterior (exclusividad), luego marca la nueva', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ id: 2, perfil: 'administrador' }]]); // SELECT id, perfil
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE ... SET es_cuenta_raiz = 0
+      pool.query.mockResolvedValueOnce([{}]); // UPDATE ... SET es_cuenta_raiz = 1 WHERE id = ?
+
+      const res = await request(app).put('/api/admin/usuarios/2/raiz').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      // calls[0] = auth, calls[1] = SELECT id,perfil, calls[2]/[3] = los 2 UPDATE.
+      expect(pool.query.mock.calls[2][0]).toMatch(/SET es_cuenta_raiz = 0/);
+      expect(pool.query.mock.calls[3][0]).toMatch(/SET es_cuenta_raiz = 1/);
+      expect(pool.query.mock.calls[3][1]).toEqual([expect.any(Date), 2]);
     });
   });
 

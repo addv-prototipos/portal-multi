@@ -505,6 +505,23 @@ async function ensureSchema(db = pool) {
   if (!nombresColumnasUsuarios.includes('suspendido_motivo')) {
     await db.query("ALTER TABLE usuarios ADD COLUMN suspendido_motivo VARCHAR(50) NULL");
   }
+  // Punto 418: cuenta raíz/maestra — única por tenant/sitio base, es la
+  // única que ve "Datos de pago" en Mi Cuenta (junto con el mecanismo
+  // admin_users, que ya tiene acceso total sin restricciones). Backfill
+  // SOLO en el momento en que la columna se crea (no en cada restart —
+  // mismo gotcha ya documentado en CLAUDE.md para `ensureSchema()`): se
+  // marca automáticamente la cuenta administrador más antigua, si existe
+  // alguna, para que ninguna instalación quede sin nadie viendo sus
+  // datos de pago tras el despliegue.
+  if (!nombresColumnasUsuarios.includes('es_cuenta_raiz')) {
+    await db.query('ALTER TABLE usuarios ADD COLUMN es_cuenta_raiz TINYINT(1) NOT NULL DEFAULT 0');
+    await db.query(
+      `UPDATE usuarios SET es_cuenta_raiz = 1
+       WHERE perfil = 'administrador'
+       ORDER BY creado_en ASC, id ASC
+       LIMIT 1`
+    );
+  }
   // El campo "rfc" se usa como nombre de usuario también para perfiles
   // administrador/fiscal, que no necesariamente tienen un RFC real — se
   // ensancha por si la instalación existente todavía tiene la columna en

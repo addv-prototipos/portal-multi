@@ -23459,3 +23459,107 @@ Mi Cuenta), `frontend/admin.html`/`admin.js`/`admin.css` (muro + tarjeta
 de pago), `frontend/control.html`/`control.js` (badge Origen + link de
 pago stub), 3 archivos de test nuevos/extendidos, `PROJECT_STATE.md`
 (este punto).
+
+**Addendum — invalidación de caché faltante en `tenantSuscripcion.js`
+(2026-10-23, cerrado el mismo día que el punto 417)**: el usuario
+preguntó "si ahora mismo le cambio a uno el estado, debe funcionar?" —
+al revisar se encontró que `actualizarSuscripcionTenant()`
+(`control/utils/tenantSuscripcion.js`) nunca llamaba a
+`notificarInvalidacionCache(slug)`, el patrón que SÍ usan
+`tenantMarca.js`/`tenantTema.js`/`tenantEdicion.js`/`tenantLifecycle.js`/
+`sucursales.js` — sin eso, un cambio de estatus/ciclo guardado desde
+`/control` tardaba hasta `CACHE_TTL_MS` (45s por default) en reflejarse
+en `/admin`, porque `tenantContext.js` seguía sirviendo la fila vieja
+cacheada. Fix: fire-and-forget idéntico al resto (`.catch()` solo
+loguea, nunca tumba el guardado ya hecho en BD). Test nuevo en
+`tenantSuscripcion.test.js` (19/19 verde). Verificado en vivo contra
+Docker/MySQL reales: `PUT /api/control/tenants/t1/suscripcion` con
+`{"estatus":"vencida"}` → `GET` inmediato a `/t1/api/admin/mi-cuenta`
+sin invalidar caché a mano → 402 `SUSCRIPCION_BLOQUEADA` aparece de
+inmediato, sin esperar los 45s. Commit `fdb3bd2`.
+
+### Punto 418 — Reset de contraseña sin step-up + cuenta raíz/maestra (2026-10-23)
+
+Dos hallazgos del usuario en la misma sesión: (1) capturas de pantalla
+mostrando el modal "Restablecer contraseña" (vía
+`PUT /api/admin/usuarios/:id/password`) pidiendo "Tu contraseña actual
+(confirmación de seguridad)" — campo del Hallazgo M-09 (punto
+anterior a 416, sonar.html) — y quedándose atascado/mostrando error al
+no llenarlo; (2) pedido explícito de agregar un concepto de "cuenta
+raíz o maestra" seleccionable en Usuarios (tenant y sitio base) que
+concentre la gestión de la suscripción, con espacio reservado para 2FA
+futuro.
+
+**Diagnóstico, no bug**: el modal se comportaba exactamente como M-09
+lo diseñó — el campo pide la contraseña del OPERADOR (quien resetea),
+no la del usuario objetivo, para evitar que un Basic Auth robado/XSS
+reseteara en cadena todas las cuentas admin. El problema real era de
+UX: nadie espera que resetear la contraseña de OTRO usuario pida la
+propia. Propuesta presentada vía Artifact
+(antes/después del modal + tabla Usuarios con badge) con 3 preguntas de
+alcance (AskUserQuestion) antes de implementar — el usuario confirmó
+las 3 opciones recomendadas: (a) quitar el step-up para AMBOS
+mecanismos (`perfil_bd` y `admin_users`/super real), (b) "Datos de
+pago" en Mi Cuenta pasa de "administrador o super" a "solo la cuenta
+raíz" (admin_users conserva acceso total por ser ya el master sin
+restricciones en todo lo demás), (c) backfill automático: la cuenta
+`administrador` más antigua de cada tenant/sitio base queda marcada
+raíz al desplegar el cambio (no queda sin asignar).
+
+**Backend**:
+- `backend/db.js`: columna nueva `usuarios.es_cuenta_raiz TINYINT(1)
+  NOT NULL DEFAULT 0` (mismo patrón `INFORMATION_SCHEMA.COLUMNS` que
+  `activo`/`suspendido_motivo`) — backfill CONDICIONAL (solo al crear
+  la columna, nunca en cada restart, mismo gotcha ya documentado):
+  `UPDATE usuarios SET es_cuenta_raiz=1 WHERE perfil='administrador'
+  ORDER BY creado_en ASC, id ASC LIMIT 1`.
+- `backend/server.js`:
+  - `PUT /api/admin/usuarios/:id/password` — se retiró por completo el
+    bloque de verificación `password_actual` (ambos mecanismos). El
+    control compensatorio es la bitácora de auditoría de `/api/admin`,
+    que ya registraba esta ruta sin cambios.
+  - `PUT /api/admin/usuarios/:id/raiz` (nuevo, `requireAdminArea
+    ('administrador')`) — exclusivo: primero
+    `UPDATE usuarios SET es_cuenta_raiz=0 WHERE es_cuenta_raiz=1`,
+    luego marca la nueva. 400 si el perfil objetivo no es
+    `administrador`, 404 si no existe.
+  - `GET /api/admin/usuarios` expone `es_cuenta_raiz` en el SELECT.
+  - `GET /api/admin/mi-cuenta`: `datosPago` ahora depende de
+    `esCuentaRaiz` (`adminMecanismo==='admin_users'` O la fila propia
+    tiene `es_cuenta_raiz=1`), reemplazando el gate anterior
+    (`adminPerfil==='administrador'||'super'` del punto 416).
+- Frontend (`admin.html`/`admin.js`/`admin.css`): campo
+  "Tu contraseña actual" eliminado del modal de reset (HTML + JS +
+  `els.passwordModalActual`); badge `.estatus-raiz` (ícono estrella
+  feather, degradado navy/cian) junto al RFC; botón ícono "Marcar como
+  cuenta raíz/maestra" en la fila (solo visible si perfil=administrador
+  y aún no es raíz, exclusivo — al marcar una nueva se desmarca la
+  anterior sola, con confirmación `abrirConfirmacion`).
+
+**Tests**: `admin.test.js` — describe M-09 reescrito a "sin step-up"
+(perfil_bd y super resetean directo al UPDATE, contraseña débil 400
+sin tocar BD) + describe nuevo para `/raiz` (403 no-administrador, 400
+id inválido, 404 inexistente, 400 perfil no-administrador, exclusividad
+real con 2 UPDATE en orden). `miCuenta.test.js` — 3 tests nuevos para
+el gate de `datosPago` (administrador sin raíz → sin datosPago;
+administrador CON raíz → datosPago; admin_users → siempre datosPago),
+mock de `obtenerPoolControl`/tenant extendido al patrón de
+`cuotaUsuarios.test.js`. Backend **1359/1359** verde (69 suites).
+
+**Verificado en vivo contra Docker/MySQL reales** (rebuild
+`--no-cache`+`--force-recreate` backend+frontend): columna migrada
+en el pool base, backfill sin filas que marcar (sitio base sin
+administradores aún, no-op correcto); 2 cuentas de prueba creadas vía
+curl — reset de contraseña SIN `password_actual` funcionó y la cuenta
+pudo loguearse con la nueva contraseña; marcar raíz a la cuenta A,
+luego a la cuenta B, confirmado en BD que A se desmarcó sola
+(exclusividad real). Confirmación visual con Claude en Chrome (clics
+reales sobre `/admin` real, no mockup): tabla Usuarios con el badge
+"Raíz/maestra" renderizado (ícono estrella + degradado navy/cian) y el
+modal "Restablecer contraseña" abriendo directo en "Nueva contraseña",
+sin el campo de confirmación. Cuentas de prueba borradas al terminar.
+Archivos: `backend/db.js`, `backend/server.js`, `frontend/admin.html`,
+`frontend/admin.js`, `frontend/admin.css`,
+`backend/test/integration/admin.test.js`,
+`backend/test/integration/miCuenta.test.js`, `PROJECT_STATE.md` (este
+punto).

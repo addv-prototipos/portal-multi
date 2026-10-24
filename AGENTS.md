@@ -425,6 +425,21 @@ solo la frase en español de la UI.
 - **Columna nueva en medio de un `UPDATE ... SET` rompe tests que
   indexan parámetros por posición** — agregar columnas siempre al final
   de la lista, nunca intercaladas (ver `tenantSuscripcion.js`).
+- **Cambio de suscripción vía `/control` necesita invalidar la caché
+  del backend** (punto 417 addendum): `actualizarSuscripcionTenant()`
+  debe llamar `notificarInvalidacionCache(slug)` (mismo patrón que
+  `tenantMarca.js`/`tenantTema.js`/`tenantEdicion.js`), o un cambio de
+  estatus tarda hasta `CACHE_TTL_MS` (45s) en reflejarse en `/admin`.
+- **`PUT /api/admin/usuarios/:id/password` ya no pide la contraseña del
+  operador** (punto 418 — reemplaza M-09): confundía resetear la
+  contraseña de OTRO usuario pidiendo la PROPIA. Compensación: bitácora
+  de auditoría de `/api/admin`. `PUT /api/admin/mi-cuenta/password`
+  (autoservicio) no cambió, sigue pidiendo la actual.
+- **"Cuenta raíz/maestra" (`usuarios.es_cuenta_raiz`, punto 418)**:
+  única por tenant/sitio base, solo perfil `administrador`, exclusiva.
+  Es quien ve "Datos de pago" en Mi Cuenta junto con `admin_users`
+  (acceso total ya documentado). Backfill de la columna es CONDICIONAL
+  (solo al crearse, nunca en cada restart).
 
 ## Stack
 

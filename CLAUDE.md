@@ -859,6 +859,25 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   lista de columnas/params, nunca intercaladas, o hay que tocar cada
   test existente que referencia un índice.
 
+- **`PUT /api/admin/usuarios/:id/password` ya NO pide la contraseña del
+  operador** (punto 418, 2026-10-23 — reemplaza el Hallazgo M-09
+  anterior): decisión explícita del usuario, confunde resetear la
+  contraseña de OTRO usuario pidiendo la PROPIA. El control
+  compensatorio es la bitácora de auditoría de `/api/admin`
+  (`adminAuditoria.js`), sin cambios. `PUT /api/admin/mi-cuenta/password`
+  (cambiar TU PROPIA contraseña) nunca tuvo este problema y sigue
+  exigiendo la actual — no confundir ambas rutas al tocar password
+  flows en el futuro.
+- **"Cuenta raíz/maestra" (`usuarios.es_cuenta_raiz`, punto 418)**:
+  única por tenant/sitio base, solo perfil `administrador` puede
+  serlo, exclusiva (marcar una nueva desmarca la anterior en el mismo
+  endpoint). Es quien ve "Datos de pago" en Mi Cuenta — `admin_users`
+  (super real, sin fila en `usuarios`) también lo ve siempre, mismo
+  criterio que su acceso total ya documentado. Backfill de la columna
+  nueva es CONDICIONAL (solo al crear la columna, nunca en cada
+  restart) — mismo gotcha de `ensureSchema()` ya documentado abajo para
+  cualquier columna nueva que necesite un valor inicial no trivial.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
