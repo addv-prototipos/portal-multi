@@ -23291,3 +23291,171 @@ y debería actualizarse si se decide hacer permanente.
 `bootstrap.sh` (nuevos), `.env.example` (sección 03 actualizada — no se
 commitea, regla global), `control/server.js` (orden de `iniciar()`),
 `CLAUDE.md`/`AGENTS.md` (gotcha nuevo), `PROJECT_STATE.md` (este punto).
+
+## Punto 416 — Acceso gráfico al bucket de Garage: puerto S3 expuesto, Filestash y unidad de red WebDAV (23 oct 2026)
+
+Petición del usuario tras el punto 415: quería gestionar el bucket de
+Garage de forma gráfica. Se hizo en 2 pasadas:
+
+1. **Filestash** (`machines/filestash`, servicio nuevo en
+   `127.0.0.1:8334`) + puerto S3 de Garage publicado
+   (`127.0.0.1:9000`, antes solo el admin en 3903). Password de admin
+   grabado directo en `config.json` del volumen (hash bcrypt con el
+   mismo vendorizado que usa el propio asistente web de Filestash — se
+   evitó ese asistente porque su API exige un origen de navegador real,
+   no accesible por script) y conexión S3 a Garage precargada. Plantilla
+   propia con identidad Clarvo (navy/cian, Inter, íconos SVG, cero
+   emojis) vía `/ui-ux-pro-max`, con foco visible, indicador de
+   dirección de orden, fila "Subir un nivel" y estado vacío con ícono
+   — todo probado en un contenedor descartable antes de aplicarse al
+   servicio real.
+2. **Usuario reportó que el login por sesión de Filestash (pantalla
+   "Access Key ID / Secret Access Key / Advanced") resultaba confuso**
+   — se agregó `rclone-webdav` (servicio nuevo, `127.0.0.1:8899`,
+   usuario/password fijos) como alternativa recomendada: Windows monta
+   el bucket como unidad de red normal, sin login por sesión. Filestash
+   se dejó corriendo por si se prefiere la vista web.
+
+Credenciales de ambos servicios en `test.md` (gitignored, no se
+commitea). `docker/garage-init/` ya tenía el patrón de bootstrap
+idempotente vía REST (sin binario/RPC) — `docker/rclone-webdav/` y la
+plantilla de Filestash siguen el mismo criterio de "solo desarrollo
+local, valores fijos documentados como tal en el propio código".
+
+## Punto 417 — Suscripción: bloqueo de /admin por pago vencido, auto-cálculo de ciclo, origen, Mi Cuenta "Datos de pago" (23 oct 2026)
+
+Requerimiento grande del usuario, procesado con el protocolo completo
+`addv-web-app` (`/prompt-master` para estructurar el requerimiento →
+análisis del código real → crítica de ambigüedades → 2 rondas de
+propuesta visual en Artifact, 4 direcciones de UI primero, luego el
+flujo completo confirmado → implementación → pruebas unitarias e
+integración → verificación real contra Docker/MySQL).
+
+**Hallazgo clave del análisis inicial**: la parte de "Modo de prueba"
+que el usuario describía como manual (inicia/expira calculados solos)
+**ya estaba completamente implementada** desde antes (backend ignora
+esos 2 campos si el cliente los manda, frontend los renderiza readonly
+con preview en vivo) — si el usuario la veía como manual era cache de
+navegador/frontend sin rebuild, no falta de lógica. El trabajo real fue
+en 3 piezas que SÍ faltaban:
+
+**1. Suscripción de pago (no-prueba) con auto-cálculo por ciclo** —
+`control/utils/tenantSuscripcion.js`: nueva columna
+`suscripcion_ciclo_inicia_en` (mismo mecanismo "se fija sola la primera
+vez" que ya usaba `suscripcion_prueba_inicia_en`), `suscripcion_expira_en`
+se recalcula en cada guardado como `cicloIniciaEn + 1 mes/año` (función
+`sumarCiclo()`, aritmética de calendario correcta — un inicio el 31 de
+enero + 1 mes cae en 28/29 de febrero, nunca se desborda a marzo).
+Nueva columna `suscripcion_origen` ENUM('onboarding','manual'), también
+"se fija sola la primera vez": `onboardingConversion.js` la fuerza a
+'onboarding' al convertir un borrador (parámetro `origenForzado`, nunca
+expuesto por la ruta HTTP de `/control`); un tenant dado de alta sin
+onboarding la fija a 'manual' en el primer guardado desde `/control`.
+Resuelve la regla confirmada por el usuario ("si vino de onboarding se
+respeta, si fue alta manual se toma la fecha de ese guardado") sin
+bifurcar código — la diferencia la hace únicamente quién llega primero
+a fijar el valor, mismo patrón que el trial ya validado.
+
+**2. Bloqueo de `/admin` por suscripción (nunca el portal de clientes)**
+— `backend/utils/suscripcionTenant.js` (función pura
+`evaluarBloqueoSuscripcion`, calculada una vez en `tenantContext.js`
+junto con el resto de flags efectivos del tenant) +
+`backend/utils/auth.js` (`finalizarAutenticacionAdmin()`, reemplaza los
+8 `return next()` exitosos de `requireAdminAuth` — uno por mecanismo:
+api_clave pre-basic, bearer admin_users, bearer perfil_bd, basic
+admin_users, basic perfil_bd, api_credencial, api_clave por header,
+usuario_sucursal). Reglas confirmadas por el usuario: estatus `null`
+("sin configurar") **nunca bloquea** — regla no-retroactiva a propósito,
+todo tenant existente antes de este punto tiene este valor, tratarlo
+como bloqueo habría apagado la administración de cada cliente activo el
+día del despliegue; `pagada` nunca bloquea; `prueba` bloquea SOLO si ya
+pasó `suscripcion_expira_en` (un trial a medio configurar, sin fecha
+todavía, no bloquea); `pendiente`/`vencida`/`cancelada` bloquean
+siempre. El super admin real (ADMIN_USERS, mismo mecanismo que usa
+`/control`) **nunca se bloquea** — se filtra por `adminMecanismo ===
+'admin_users'`, nunca por `adminPerfil === 'super'` a secas: ese mismo
+valor de perfil también lo reciben `api_credencial`/`api_clave`
+(acceso "super" pero acotado a UN tenant, no el super admin real) y esos
+SÍ deben bloquearse. Respuesta 402 (nunca 403/404) con
+`codigo: 'SUSCRIPCION_BLOQUEADA'`, `motivo`, `mensaje`,
+`portalClientesActivo: true` siempre — el portal de clientes nunca pasa
+por `requireAdminAuth`, así que nunca se ve afectado por diseño, no por
+casualidad.
+
+**3. Muro de bloqueo (frontend)** — propuesta 4 confirmada ("muro de
+pago", ver Artifact), ajustada en 2 rondas con el usuario: alcance
+SOLO `/admin` (el mensaje lo dice explícito: "tu portal de clientes
+sigue funcionando normal"), nunca cierra sesión sola (a diferencia de
+`CUENTA_SUSPENDIDA`, que sí lo hace) — el interceptor global de fetch
+en `frontend/admin.js` (mismo patrón ya usado para 403/
+`CUENTA_SUSPENDIDA`) detecta el 402 y muestra `#suscripcion-muro-overlay`
+(z-index 300, por encima de cualquier otro modal del sitio). Botón
+"Actualizar método de pago" es un stub HONESTO — Stripe todavía no está
+integrado de verdad ("por ahora usa solo mocks, al final integramos",
+confirmado explícito por el usuario) — nunca simula un redirect que no
+pasa nada, muestra un toast real explicando el estado y qué hacer
+mientras tanto (contactar soporte). Mismo criterio aplicado en
+`/control` (botón "Generar link de pago", visible solo con estatus
+capturado y distinto a "Pagada") y en la nueva tarjeta "Datos de pago"
+de Mi Cuenta.
+
+**4. "Datos de pago" en Mi Cuenta — SOLO administrador/super** — nueva
+columna `stripe_customer_id` (nunca un número de tarjeta real, alcance
+PCI explícitamente fuera de discusión — eso vive en Stripe). El propio
+backend (`GET /api/admin/mi-cuenta`) **omite el bloque completo** de la
+respuesta para fiscal/ventas/inventario — la ausencia del dato es el
+candado real, no solo ocultar la tarjeta en el DOM. "Master" se definió
+con el mismo criterio que ya usaba `masterPendiente` en todo el código
+(perfil='administrador', sin un flag especial de "el único master"
+aparte de eso) — no se inventó un concepto nuevo.
+
+**Verificado real contra Docker/MySQL** (no solo Jest): se confirmaron
+las 3 columnas nuevas creadas solas en el arranque de `control`
+(`asegurarColumnasCicloVidaTenant`, pool base, sin tocar nada de
+tenants ya aprovisionados); se creó un usuario `administrador` real
+para `t1`, se puso `suscripcion_estatus='vencida'` directo en BD, se
+invalidó la caché de tenant (`POST /internal/cache-tenant/invalidar`) y
+`GET /t1/api/admin/mi-cuenta` con ese usuario respondió exactamente
+402 + el JSON esperado — mientras que la MISMA ruta con `admin:admin`
+(ADMIN_USERS) siguió respondiendo 200, y `GET /t1/api/tema/t1` (portal
+de clientes) nunca se vio afectado. Usuario de prueba y estatus
+restaurados al terminar, sin dejar residuo.
+
+**Jest**: 11 tests nuevos en `backend/test/unit/suscripcionTenant.test.js`
+(la función pura, incluida la regla no-retroactiva), 6 en
+`backend/test/unit/auth.test.js` (`finalizarAutenticacionAdmin`,
+incluida la distinción super-real vs api_credencial/api_clave), 6 en
+`control/test/unit/tenantSuscripcion.test.js` (ciclo/origen, incluida
+la idempotencia de `origenForzado` ante reintentos de
+`onboardingConversion.js`) — backend 1353/1353, control 496/496, sin
+regresiones. **Bug propio encontrado y corregido antes de que llegara a
+un test**: el primer borrador del `UPDATE` en `tenantSuscripcion.js`
+insertaba las 2 columnas nuevas EN MEDIO de la lista de columnas
+existente, corriendo la indexación posicional que ya usaban los tests
+viejos (`paramsUpdate[4]`/`[5]` para expiraEn/estatus) — se movieron
+las columnas nuevas al final del `UPDATE` para no romper esa
+indexación, en vez de tocar los 6 tests existentes.
+
+**Fuera de alcance a propósito (confirmado explícito por el usuario,
+"por ahora usa solo mocks, al final integramos")**: ninguna llamada
+real a Stripe — ni Checkout, ni Payment Links, ni Customer Portal, ni
+webhooks. El link de pago de `/control` y "Actualizar método de pago"
+(tanto en el muro como en Mi Cuenta) son UI real con stubs honestos,
+nunca una simulación que finja funcionar. Cuando se integre Stripe de
+verdad: (1) el webhook `checkout.session.completed` debe llamar a
+`actualizarSuscripcionTenant` con `estatus:'pagada'`, (2) el botón de
+"Generar link de pago" en `/control` debe crear una Payment Link real y
+guardarla/reenviarla, (3) "Actualizar método de pago" debe abrir una
+sesión real del Stripe Customer Portal.
+
+**Archivos tocados**: `control/scripts/ensureSchema.js` (3 columnas
+nuevas), `control/utils/tenantSuscripcion.js` (auto-cálculo ciclo +
+origen), `control/utils/onboardingConversion.js` (Paso 3b),
+`control/utils/tenantLifecycle.js` (SELECT de `listarTenants`),
+`backend/utils/suscripcionTenant.js` (nuevo), `backend/utils/tenantContext.js`
+(SELECT + campo computado), `backend/utils/auth.js`
+(`finalizarAutenticacionAdmin`), `backend/server.js` (`datosPago` en
+Mi Cuenta), `frontend/admin.html`/`admin.js`/`admin.css` (muro + tarjeta
+de pago), `frontend/control.html`/`control.js` (badge Origen + link de
+pago stub), 3 archivos de test nuevos/extendidos, `PROJECT_STATE.md`
+(este punto).

@@ -69,7 +69,7 @@ async function listarTenants({ estado, q } = {}, db = obtenerPool()) {
             t.facturacion_habilitada, t.portal_clientes_habilitado, t.sucursales_habilitado,
             t.disco_cuota_mb, t.disco_bytes_usados_cache, t.disco_cache_actualizado_en,
             t.suscripcion_en_prueba, t.suscripcion_dias_prueba, t.suscripcion_prueba_inicia_en,
-            t.suscripcion_ciclo, t.suscripcion_expira_en, t.suscripcion_estatus
+            t.suscripcion_ciclo, t.suscripcion_ciclo_inicia_en, t.suscripcion_expira_en, t.suscripcion_estatus, t.suscripcion_origen
      FROM tenants t LEFT JOIN planes p ON p.id = t.plan_id
      ${where}
      ORDER BY t.creado_en DESC`,

@@ -324,11 +324,54 @@ async function verificarUsuarioAdministrativo(usuarioIngresado, password) {
   return fila;
 }
 
+// Punto 416: último paso de CUALQUIER mecanismo que termine en sesión
+// válida dentro de requireAdminAuth — reemplaza cada `return next();`
+// exitoso de la función (8 en total, uno por mecanismo: api_clave
+// pre-basic, bearer admin_users, bearer perfil_bd, basic admin_users,
+// basic perfil_bd, api_credencial, api_clave por header, usuario_sucursal).
+// req.adminUser/adminPerfil/adminMecanismo ya quedaron puestos por el
+// bloque que llamó a esta función — aquí solo se decide si, además de
+// estar autenticado, se le deja seguir.
+//
+// El super admin (ADMIN_USERS — el MISMO mecanismo que usa /control,
+// ver CLAUDE.md) NUNCA se bloquea, sin importar el estatus de la
+// suscripción: es quien necesita poder entrar precisamente para
+// arreglarla. api_credencial/api_clave reciben adminPerfil='super'
+// TAMBIÉN pero están acotados a un solo tenant (no son el super admin
+// real) — se filtra por adminMecanismo, no por adminPerfil, para no
+// confundir los dos.
+//
+// Nunca afecta al portal de clientes: esta función solo la llaman las 8
+// ramas de requireAdminAuth, que protege exclusivamente /api/admin/* —
+// requireUserAuth (sesión de cliente) es un middleware completamente
+// aparte que nunca pasa por aquí.
+function finalizarAutenticacionAdmin(req, res, next) {
+  if (req.adminMecanismo === 'admin_users') {
+    return next();
+  }
+  const bloqueo = req.tenant && req.tenant.suscripcionBloqueo;
+  if (bloqueo && bloqueo.bloqueada) {
+    return res.status(402).json({
+      error: bloqueo.titulo,
+      codigo: 'SUSCRIPCION_BLOQUEADA',
+      motivo: bloqueo.motivo,
+      mensaje: bloqueo.mensaje,
+      expiraEn: bloqueo.expiraEn,
+      portalClientesActivo: true,
+    });
+  }
+  return next();
+}
+
 /**
  * Middleware de autenticacion HTTP Basic para las rutas /api/admin/*.
  * Acepta credenciales de CUALQUIERA de estos dos mecanismos:
  *   1. ADMIN_USERS (variable de entorno, sin cambios respecto a antes).
  *   2. Un usuario con perfil "administrador", "fiscal", "ventas" o "inventario" en la tabla usuarios.
+ *
+ * Punto 416: toda rama exitosa termina en finalizarAutenticacionAdmin()
+ * en vez de `next()` directo — ver esa función arriba para el candado de
+ * suscripción vencida/no pagada (402, nunca para ADMIN_USERS).
  */
 async function requireAdminAuth(req, res, next) {
   // Multi-tenant (segmento 3 del plan): con dominio único compartido entre
@@ -356,7 +399,7 @@ async function requireAdminAuth(req, res, next) {
           req.adminUser = credClave.api_usuario;
           req.adminPerfil = 'super';
           req.adminMecanismo = 'api_clave';
-          return next();
+          return finalizarAutenticacionAdmin(req, res, next);
         }
       } catch (err) {
         console.error('Error verificando clave API (pre-Basic):', err.message);
@@ -401,7 +444,7 @@ async function requireAdminAuth(req, res, next) {
       req.adminPerfil = 'super';
       req.adminMecanismo = 'admin_users';
       emitirTokenSesion(req, res);
-      return next();
+      return finalizarAutenticacionAdmin(req, res, next);
     }
     if (payload.mecanismo === 'perfil_bd') {
       try {
@@ -423,7 +466,7 @@ async function requireAdminAuth(req, res, next) {
         req.adminEmail = fila.email || null;
         req.adminDebeCambiarPassword = Boolean(fila.debe_cambiar_password);
         emitirTokenSesion(req, res);
-        return next();
+        return finalizarAutenticacionAdmin(req, res, next);
       } catch (err) {
         console.error('Error verificando token de sesión (perfil_bd):', err.message);
         res.set('WWW-Authenticate', `Basic realm="${realm}"`);
@@ -466,7 +509,7 @@ async function requireAdminAuth(req, res, next) {
     req.adminPerfil = 'super';
     req.adminMecanismo = 'admin_users';
     emitirTokenSesion(req, res);
-    return next();
+    return finalizarAutenticacionAdmin(req, res, next);
   }
 
   // 2. Usuarios administrativos (perfil administrador/fiscal) creados desde el panel
@@ -496,7 +539,7 @@ async function requireAdminAuth(req, res, next) {
       // GET /api/admin/login pueda devolverlo e interceptar el login.
       req.adminDebeCambiarPassword = Boolean(usuarioAdmin.debe_cambiar_password);
       emitirTokenSesion(req, res);
-      return next();
+      return finalizarAutenticacionAdmin(req, res, next);
     }
   } catch (err) {
     console.error('Error verificando usuario administrativo:', err.message);
@@ -511,7 +554,7 @@ async function requireAdminAuth(req, res, next) {
         // 'super' para que tenga acceso total al tenant (como ADMIN_USERS pero acotado al slug)
         req.adminPerfil = 'super';
         req.adminMecanismo = 'api_credencial';
-        return next();
+        return finalizarAutenticacionAdmin(req, res, next);
       }
     } catch (err) {
       console.error('Error verificando credencial API:', err.message);
@@ -531,7 +574,7 @@ async function requireAdminAuth(req, res, next) {
           req.adminUser = credClave.api_usuario;
           req.adminPerfil = 'super';
           req.adminMecanismo = 'api_clave';
-          return next();
+          return finalizarAutenticacionAdmin(req, res, next);
         }
       } catch (err) {
         console.error('Error verificando clave API:', err.message);
@@ -547,7 +590,7 @@ async function requireAdminAuth(req, res, next) {
           req.adminUser = usuarioSucursal.usuario;
           req.adminPerfil = usuarioSucursal.perfil;
           req.adminMecanismo = 'usuario_sucursal';
-          return next();
+          return finalizarAutenticacionAdmin(req, res, next);
         }
       } catch (err) {
         console.error('Error verificando usuario de sucursal:', err.message);
@@ -587,6 +630,7 @@ function requireAdminArea(...perfilesPermitidos) {
 module.exports = {
   requireAdminAuth,
   requireAdminArea,
+  finalizarAutenticacionAdmin,
   recargarAdminUsers,
   listarAdminUsers,
   loadAdminUsers,

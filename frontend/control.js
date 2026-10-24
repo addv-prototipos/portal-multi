@@ -202,6 +202,10 @@
   suscripcionResumen: document.getElementById('control-suscripcion-resumen'),
   btnGuardarSuscripcion: document.getElementById('control-btn-guardar-suscripcion'),
   btnGuardarSuscripcionLabel: document.getElementById('control-btn-guardar-suscripcion-label'),
+  // Punto 416: origen + link de pago (stub)
+  suscripcionOrigen: document.getElementById('control-suscripcion-origen'),
+  suscripcionLinkPagoBox: document.getElementById('control-suscripcion-link-pago'),
+  btnGenerarLinkPago: document.getElementById('control-btn-generar-link-pago'),
     editarError: document.getElementById('control-editar-error'),
     btnEditarCancelar: document.getElementById('control-btn-editar-cancelar'),
     btnEditarGuardar: document.getElementById('control-btn-editar-guardar'),
@@ -1980,6 +1984,18 @@
     els.suscripcionExpira.classList.toggle('is-bloqueado', !enPrueba);
   }
 
+  // Punto 416: nunca editable — solo informa quién creó la suscripción.
+  const ORIGEN_SUSCRIPCION_LABELS = { onboarding: 'Onboarding (sitio oficial)', manual: 'Alta manual' };
+
+  function actualizarVisibilidadLinkPago() {
+    if (!els.suscripcionLinkPagoBox) return;
+    const estatus = els.suscripcionEstatus.value || '';
+    // Solo tiene sentido ofrecer un link de pago si hay un estatus
+    // capturado y no es "Pagada" — nunca para "Sin configurar" (todavía
+    // no hay nada que cobrar) ni para una suscripción ya al corriente.
+    els.suscripcionLinkPagoBox.hidden = !estatus || estatus === 'pagada';
+  }
+
   function poblarFormularioSuscripcion(tenant) {
     if (!els.suscripcionEnPrueba) return;
     if (els.suscripcionError) els.suscripcionError.textContent = '';
@@ -1989,8 +2005,12 @@
     els.suscripcionExpira.dataset.original = fechaSoloDia(tenant.suscripcion_expira_en) || '';
     els.suscripcionCiclo.value = tenant.suscripcion_ciclo || '';
     els.suscripcionEstatus.value = tenant.suscripcion_estatus || '';
+    if (els.suscripcionOrigen) {
+      els.suscripcionOrigen.value = ORIGEN_SUSCRIPCION_LABELS[tenant.suscripcion_origen] || '—';
+    }
     actualizarFechasSuscripcionCalculadas();
     actualizarDisponibilidadCamposPrueba();
+    actualizarVisibilidadLinkPago();
     renderAnilloSuscripcion();
   }
 
@@ -2061,6 +2081,19 @@
   [els.suscripcionCiclo, els.suscripcionEstatus].forEach((el) => {
     if (el) el.addEventListener('input', renderAnilloSuscripcion);
   });
+  if (els.suscripcionEstatus) {
+    els.suscripcionEstatus.addEventListener('input', actualizarVisibilidadLinkPago);
+  }
+  if (els.btnGenerarLinkPago) {
+    els.btnGenerarLinkPago.addEventListener('click', () => {
+      // Honesto a propósito: Stripe todavía no está integrado de verdad
+      // (confirmado con el usuario, punto 416 — "por ahora usa solo
+      // mocks, al final integramos"). Nunca se genera una URL falsa.
+      if (els.suscripcionError) {
+        els.suscripcionError.textContent = 'La integración con Stripe para generar links de pago todavía está pendiente.';
+      }
+    });
+  }
 
   function setGuardandoSuscripcion(isLoading) {
     if (!els.btnGuardarSuscripcion) return;

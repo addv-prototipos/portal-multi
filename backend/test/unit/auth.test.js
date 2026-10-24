@@ -737,4 +737,113 @@ describe('auth.js', () => {
       spy.mockRestore();
     });
   });
+
+  // Punto 416: finalizarAutenticacionAdmin() — único punto donde
+  // requireAdminAuth() decide si, además de autenticado, se le deja
+  // seguir. Pura en el sentido de que no vuelve a tocar BD (lee
+  // req.tenant.suscripcionBloqueo, ya calculado por tenantContext.js).
+  describe('finalizarAutenticacionAdmin (punto 416 — bloqueo por suscripción)', () => {
+    let finalizarAutenticacionAdmin;
+
+    beforeEach(() => {
+      jest.resetModules();
+      process.env.ADMIN_USERS = 'admin:ClaveReal123';
+      ({ finalizarAutenticacionAdmin } = require('../../utils/auth'));
+    });
+
+    function mockRes() {
+      const res = {};
+      res.status = jest.fn().mockReturnValue(res);
+      res.json = jest.fn().mockReturnValue(res);
+      return res;
+    }
+
+    test('adminMecanismo="admin_users" (super real) SIEMPRE pasa, incluso con suscripción bloqueada', () => {
+      const req = {
+        adminMecanismo: 'admin_users',
+        adminPerfil: 'super',
+        tenant: { slug: 't1', suscripcionBloqueo: { bloqueada: true, motivo: 'vencida' } },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+      finalizarAutenticacionAdmin(req, res, next);
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    test('adminPerfil="super" vía api_credencial (tenant-scoped) SÍ se bloquea — no es el super admin real', () => {
+      const req = {
+        adminMecanismo: 'api_credencial',
+        adminPerfil: 'super',
+        tenant: { slug: 't1', suscripcionBloqueo: { bloqueada: true, motivo: 'vencida', titulo: 'x', mensaje: 'y', expiraEn: '2026-09-01' } },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+      finalizarAutenticacionAdmin(req, res, next);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(402);
+    });
+
+    test('perfil "administrador" (perfil_bd) con suscripción bloqueada responde 402 con codigo SUSCRIPCION_BLOQUEADA y portalClientesActivo:true', () => {
+      const req = {
+        adminMecanismo: 'perfil_bd',
+        adminPerfil: 'administrador',
+        tenant: {
+          slug: 't1',
+          suscripcionBloqueo: {
+            bloqueada: true,
+            motivo: 'pendiente',
+            titulo: 'Tu pago está pendiente',
+            mensaje: 'Aún no confirmamos tu pago.',
+            expiraEn: null,
+            portalClientesActivo: true,
+          },
+        },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+      finalizarAutenticacionAdmin(req, res, next);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(402);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ codigo: 'SUSCRIPCION_BLOQUEADA', motivo: 'pendiente', portalClientesActivo: true })
+      );
+    });
+
+    test('perfil "fiscal"/"ventas"/"inventario" también se bloquean igual que administrador', () => {
+      for (const perfil of ['fiscal', 'ventas', 'inventario']) {
+        const req = {
+          adminMecanismo: 'perfil_bd',
+          adminPerfil: perfil,
+          tenant: { slug: 't1', suscripcionBloqueo: { bloqueada: true, motivo: 'cancelada', titulo: 'x', mensaje: 'y' } },
+        };
+        const res = mockRes();
+        const next = jest.fn();
+        finalizarAutenticacionAdmin(req, res, next);
+        expect(next).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(402);
+      }
+    });
+
+    test('suscripción NO bloqueada: pasa normal, sin importar el perfil', () => {
+      const req = {
+        adminMecanismo: 'perfil_bd',
+        adminPerfil: 'administrador',
+        tenant: { slug: 't1', suscripcionBloqueo: { bloqueada: false } },
+      };
+      const res = mockRes();
+      const next = jest.fn();
+      finalizarAutenticacionAdmin(req, res, next);
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    test('sin tenant resuelto (sitio base) nunca bloquea', () => {
+      const req = { adminMecanismo: 'perfil_bd', adminPerfil: 'administrador', tenant: null };
+      const res = mockRes();
+      const next = jest.fn();
+      finalizarAutenticacionAdmin(req, res, next);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+  });
 });

@@ -280,6 +280,12 @@
     micuentaSuscripcionCorreoComprador: document.getElementById('micuenta-suscripcion-correo-comprador'),
     btnSuscripcionDarAltaMaster: document.getElementById('btn-suscripcion-dar-alta-master'),
     micuentaFacturacionCard: document.getElementById('micuenta-facturacion-card'),
+    // Punto 416: "Datos de pago" (solo administrador/super)
+    micuentaPagoCard: document.getElementById('micuenta-pago-card'),
+    micuentaPagoSinConfigurar: document.getElementById('micuenta-pago-sin-configurar'),
+    micuentaPagoConfigurado: document.getElementById('micuenta-pago-configurado'),
+    micuentaPagoCustomerId: document.getElementById('micuenta-pago-customer-id'),
+    btnMicuentaActualizarPago: document.getElementById('btn-micuenta-actualizar-pago'),
     micuentaFooterMarket: document.getElementById('micuenta-footer-market'),
     // Modal "Configuraciones" (antes vista de página, ver
     // PROJECT_STATE.md): barra lateral + buscador + panel de contenido.
@@ -1402,6 +1408,13 @@
     // Franja de estado de conexión (Ventas/Gastos offline)
     conexionBanner: document.getElementById('conexion-banner'),
     conexionBannerTexto: document.getElementById('conexion-banner-texto'),
+    // Punto 416: muro de bloqueo por suscripción
+    suscripcionMuroOverlay: document.getElementById('suscripcion-muro-overlay'),
+    suscripcionMuroIcono: document.getElementById('suscripcion-muro-icono'),
+    suscripcionMuroTitulo: document.getElementById('suscripcion-muro-titulo'),
+    suscripcionMuroMensaje: document.getElementById('suscripcion-muro-mensaje'),
+    btnSuscripcionActualizarPago: document.getElementById('btn-suscripcion-actualizar-pago'),
+    btnSuscripcionCerrarSesion: document.getElementById('btn-suscripcion-cerrar-sesion'),
   };
 
   // Cuenta suspendida a MEDIO USO (punto 290) — requireAdminAuth() ya
@@ -1440,9 +1453,57 @@
           }
         }).catch(() => {});
       }
+      // Punto 416: a diferencia de CUENTA_SUSPENDIDA arriba, un 402
+      // SUSCRIPCION_BLOQUEADA (ver utils/suscripcionTenant.js +
+      // finalizarAutenticacionAdmin en el backend) NUNCA cierra la
+      // sesión sola — el usuario sigue autenticado, solo se le tapa
+      // todo con el muro hasta que se resuelva el pago. Se excluye
+      // `/admin/login` igual que arriba por el mismo motivo.
+      if (res.status === 402 && esRutaAdminSinLogin) {
+        res.clone().json().then((data) => {
+          if (data && data.codigo === 'SUSCRIPCION_BLOQUEADA') {
+            mostrarMuroSuscripcion(data);
+          }
+        }).catch(() => {});
+      }
       return res;
     });
   };
+
+  // Punto 416: muro de bloqueo por suscripción — ver el interceptor
+  // global de fetch arriba (dispara con el 402 SUSCRIPCION_BLOQUEADA).
+  // No se oculta sola: una vez mostrado, se queda hasta que el usuario
+  // cierre sesión o la página se recargue y el pago ya esté al
+  // corriente (entonces el 402 deja de llegar y el muro nunca vuelve a
+  // aparecer).
+  const ICONO_ALERTA_MURO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>';
+  const MOTIVOS_CRITICOS_MURO = new Set(['vencida', 'cancelada']);
+
+  function mostrarMuroSuscripcion(data) {
+    if (!els.suscripcionMuroOverlay) return;
+    els.suscripcionMuroIcono.innerHTML = ICONO_ALERTA_MURO;
+    els.suscripcionMuroIcono.classList.toggle('es-critico', MOTIVOS_CRITICOS_MURO.has(data.motivo));
+    els.suscripcionMuroTitulo.textContent = data.error || 'Administración bloqueada';
+    els.suscripcionMuroMensaje.textContent = data.mensaje || '';
+    els.suscripcionMuroOverlay.hidden = false;
+  }
+
+  if (els.btnSuscripcionActualizarPago) {
+    els.btnSuscripcionActualizarPago.addEventListener('click', () => {
+      // Honesto a propósito: Stripe todavía no está integrado de verdad
+      // (confirmado con el usuario, punto 416 — "por ahora usa solo
+      // mocks, al final integramos"). Nunca se simula un redirect que no
+      // pasa nada — el mensaje dice la verdad y da un camino real.
+      showToast('La integración con Stripe para pagar en línea está pendiente. Contacta a soporte para regularizar tu suscripción mientras tanto.', true);
+    });
+  }
+  if (els.btnSuscripcionCerrarSesion) {
+    els.btnSuscripcionCerrarSesion.addEventListener('click', () => {
+      clearSession();
+      els.suscripcionMuroOverlay.hidden = true;
+      showLogin();
+    });
+  }
 
   inicializarTooltips();
   inicializarScrollArrastrableTablas();
@@ -8332,6 +8393,7 @@
         els.micuentaTotalOperadores.textContent = String(data.empresa.totalOperadores);
         aplicarEstadoPortalClientesMiCuenta(data.empresa.portalClientesActivo, data.empresa.portalClientesPlanHabilitado);
         aplicarEstadoSuscripcionMiCuenta(data.empresa.suscripcion);
+        aplicarDatosPagoMiCuenta(data.empresa.datosPago);
         if (data.empresa.tenantSlug && data.empresa.urlPortal) {
           els.micuentaUrlBar.hidden = false;
           els.micuentaUrlTenant.textContent = data.empresa.urlPortal;
@@ -8413,6 +8475,26 @@
       els.micuentaSuscripcionCorreoComprador.textContent = suscripcion.correoComprador || 'Sin correo capturado en Control';
     } else {
       els.micuentaSuscripcionMaster.hidden = true;
+    }
+  }
+
+  // Punto 416: "Datos de pago" — `datosPago` solo llega del backend para
+  // administrador/super (ver GET /api/admin/mi-cuenta en server.js); si
+  // no llega (undefined, perfil sin acceso), la tarjeta se queda hidden
+  // — nunca se muestra "sin configurar" a un perfil que no debería ni
+  // enterarse de que esta tarjeta existe.
+  function aplicarDatosPagoMiCuenta(datosPago) {
+    if (!els.micuentaPagoCard) return;
+    if (!datosPago) {
+      els.micuentaPagoCard.hidden = true;
+      return;
+    }
+    els.micuentaPagoCard.hidden = false;
+    const tieneCliente = Boolean(datosPago.stripeCustomerId);
+    els.micuentaPagoSinConfigurar.hidden = tieneCliente;
+    els.micuentaPagoConfigurado.hidden = !tieneCliente;
+    if (tieneCliente) {
+      els.micuentaPagoCustomerId.textContent = datosPago.stripeCustomerId;
     }
   }
 

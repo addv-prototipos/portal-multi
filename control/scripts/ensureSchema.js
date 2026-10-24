@@ -167,6 +167,24 @@ const COLUMNAS_NUEVAS = [
   { nombre: 'suscripcion_ciclo', definicion: "ENUM('mensual','anual') NULL" },
   { nombre: 'suscripcion_expira_en', definicion: 'DATE NULL' },
   { nombre: 'suscripcion_estatus', definicion: "ENUM('prueba','pagada','pendiente','vencida','cancelada') NULL" },
+  // Punto 416: quién creó la suscripción — determina si la fecha de
+  // inicio del ciclo se protege (onboarding) o se puede volver a anclar
+  // en el primer guardado manual desde /control (ver
+  // tenantSuscripcion.js). NULL = tenant anterior a este punto, se
+  // trata igual que 'manual' (nunca bloquea un guardado existente).
+  { nombre: 'suscripcion_origen', definicion: "ENUM('onboarding','manual') NULL" },
+  // Ancla de la suscripción DE PAGO (no-prueba) — mismo patrón que
+  // suscripcion_prueba_inicia_en pero para el ciclo mensual/anual: se
+  // fija sola la primera vez (NUNCA se mueve después, ni siquiera si el
+  // ciclo cambia de mensual a anual — solo expira_en se recalcula desde
+  // esta misma fecha). Ver tenantSuscripcion.js.
+  { nombre: 'suscripcion_ciclo_inicia_en', definicion: 'DATE NULL' },
+  // Punto 416: identificador de Stripe Customer — NUNCA se guarda un
+  // número de tarjeta real aquí ni en ningún lado del repo (alcance
+  // PCI, decisión explícita del usuario). Stripe aún no está integrado
+  // de verdad (confirmado: "por ahora usa solo mocks, al final
+  // integramos") — la columna queda lista para cuando sí lo esté.
+  { nombre: 'stripe_customer_id', definicion: 'VARCHAR(255) NULL' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {

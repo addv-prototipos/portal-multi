@@ -163,4 +163,96 @@ describe('utils/tenantSuscripcion.js', () => {
       expect(paramsUpdate[4]).toBe('2026-10-22');
     });
   });
+
+  // Punto 416: suscripción DE PAGO (no-prueba) — ciclo_inicia_en (índice 6)
+  // y origen (índice 7) van al final del UPDATE a propósito, para no
+  // romper la indexación posicional que ya usaban los tests de arriba.
+  describe('actualizarSuscripcionTenant — punto 416 (ciclo de pago + origen)', () => {
+    test('!enPrueba + ciclo, sin ancla previa: fija cicloIniciaEn=hoy y expiraEn=hoy+1 mes/año', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-23T12:00:00Z'));
+      const tenantFila = { id: 1, slug: 'cliente1', suscripcion_ciclo_inicia_en: null, suscripcion_origen: null };
+      const pool = mockPool(tenantFila, tenantFila);
+
+      await actualizarSuscripcionTenant('cliente1', { enPrueba: false, ciclo: 'mensual', estatus: 'pendiente' });
+
+      const [, paramsUpdate] = pool.query.mock.calls[1];
+      const [, , , , expiraEn, , cicloIniciaEn, origen] = paramsUpdate;
+      expect(cicloIniciaEn).toBe('2026-10-23');
+      expect(expiraEn).toBe('2026-11-23');
+      expect(origen).toBe('manual'); // default cuando no hay origenForzado ni origen previo
+    });
+
+    test('!enPrueba + ciclo, con ancla ya guardada: NUNCA mueve cicloIniciaEn, solo recalcula expiraEn', async () => {
+      const tenantFila = {
+        id: 1,
+        slug: 'cliente1',
+        suscripcion_ciclo_inicia_en: '2026-01-15',
+        suscripcion_origen: 'onboarding',
+      };
+      const pool = mockPool(tenantFila, tenantFila);
+
+      // Cambia de mensual a anual — la fecha de FIN debe correrse, pero
+      // el INICIO (protegido, origen=onboarding) nunca se toca.
+      await actualizarSuscripcionTenant('cliente1', { enPrueba: false, ciclo: 'anual', estatus: 'pendiente' });
+
+      const [, paramsUpdate] = pool.query.mock.calls[1];
+      const [, , , , expiraEn, , cicloIniciaEn, origen] = paramsUpdate;
+      expect(cicloIniciaEn).toBe('2026-01-15'); // sin mover
+      expect(expiraEn).toBe('2027-01-15'); // +1 año desde la MISMA ancla
+      expect(origen).toBe('onboarding'); // se respeta, nunca lo pisa un guardado manual
+    });
+
+    test('origenForzado="onboarding" solo se aplica si el tenant todavía no tenía origen', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-23T12:00:00Z'));
+      const tenantFila = { id: 1, slug: 'cliente1', suscripcion_ciclo_inicia_en: null, suscripcion_origen: null };
+      const pool = mockPool(tenantFila, tenantFila);
+
+      await actualizarSuscripcionTenant(
+        'cliente1',
+        { enPrueba: false, ciclo: 'mensual', estatus: 'pendiente' },
+        { origenForzado: 'onboarding' }
+      );
+
+      const [, paramsUpdate] = pool.query.mock.calls[1];
+      expect(paramsUpdate[7]).toBe('onboarding');
+      expect(paramsUpdate[6]).toBe('2026-10-23'); // cicloIniciaEn también se fija en este mismo guardado
+    });
+
+    test('origenForzado nunca pisa un origen ya guardado (idempotente ante reintentos de onboardingConversion.js)', async () => {
+      const tenantFila = { id: 1, slug: 'cliente1', suscripcion_ciclo_inicia_en: '2026-05-01', suscripcion_origen: 'manual' };
+      const pool = mockPool(tenantFila, tenantFila);
+
+      await actualizarSuscripcionTenant(
+        'cliente1',
+        { enPrueba: false, ciclo: 'mensual', estatus: 'pendiente' },
+        { origenForzado: 'onboarding' }
+      );
+
+      const [, paramsUpdate] = pool.query.mock.calls[1];
+      expect(paramsUpdate[7]).toBe('manual'); // ya tenía un origen, se respeta tal cual
+    });
+
+    test('enPrueba=true nunca toca cicloIniciaEn/origen aunque haya un ciclo capturado', async () => {
+      const tenantFila = {
+        id: 1,
+        slug: 'cliente1',
+        suscripcion_prueba_inicia_en: null,
+        suscripcion_ciclo_inicia_en: null,
+        suscripcion_origen: null,
+      };
+      const pool = mockPool(tenantFila, tenantFila);
+
+      await actualizarSuscripcionTenant('cliente1', { enPrueba: true, diasPrueba: 14, ciclo: 'mensual' });
+
+      const [, paramsUpdate] = pool.query.mock.calls[1];
+      expect(paramsUpdate[6]).toBeNull(); // cicloIniciaEn sigue null, la rama de pago nunca corrió
+    });
+
+    test('origenForzado con valor inválido lanza ErrorSuscripcionTenant de validación', async () => {
+      mockPool({ id: 1, slug: 'cliente1' });
+      await expect(
+        actualizarSuscripcionTenant('cliente1', {}, { origenForzado: 'algo-raro' })
+      ).rejects.toMatchObject({ codigo: 'validacion' });
+    });
+  });
 });

@@ -416,6 +416,15 @@ solo la frase en español de la UI.
   `provisionar-tenant.js` desde el host tras un wipe completo, usar un
   `docker-compose.override.yml` temporal con `127.0.0.1:3307:3306` solo
   en `mysql-control`, y borrarlo al terminar.
+- **Bloqueo por suscripción (punto 417): `adminPerfil === 'super'` ≠ "el
+  super admin real"** — `api_credencial`/`api_clave` también reciben ese
+  perfil pero SÍ deben bloquearse. Filtrar por `adminMecanismo ===
+  'admin_users'` (mismo mecanismo que `/control`), nunca por
+  `adminPerfil`. `suscripcion_estatus = NULL` nunca bloquea (regla
+  no-retroactiva) — ver `backend/utils/auth.js:finalizarAutenticacionAdmin`.
+- **Columna nueva en medio de un `UPDATE ... SET` rompe tests que
+  indexan parámetros por posición** — agregar columnas siempre al final
+  de la lista, nunca intercaladas (ver `tenantSuscripcion.js`).
 
 ## Stack
 

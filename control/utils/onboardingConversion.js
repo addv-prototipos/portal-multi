@@ -19,6 +19,7 @@ const { obtenerTenantPorSlug, activarTenant, ErrorTransicionTenant } = require('
 const { actualizarDatosTenant } = require('./tenantEdicion');
 const { crearAdminInicialFisico, ErrorActivacionFisica } = require('./notificarBackend');
 const { derivarNombreUsuario } = require('./credencialesAdmin');
+const { actualizarSuscripcionTenant } = require('./tenantSuscripcion');
 
 // Mismo catálogo de claves que clarvo-Site/src/data/plans.ts y
 // onboardingBorrador.js:PLANES_PUBLICOS — el nombre exacto con el que
@@ -124,6 +125,25 @@ async function convertirBorrador(token, { actor = 'onboarding-publico', db = obt
     } catch (err) {
       console.error(`No se pudo asignar el plan "${borrador.plan_clave}" al tenant "${borrador.slug}":`, err.message);
     }
+  }
+
+  // ----- Paso 3b: inicializar la suscripción (punto 416, idempotente) -----
+  // origenForzado='onboarding' protege la fecha de inicio del ciclo —
+  // ningún guardado manual posterior desde /control podrá moverla (ver
+  // tenantSuscripcion.js). estatus='pendiente', nunca 'pagada': Stripe
+  // todavía no está integrado de verdad (confirmado con el usuario,
+  // "por ahora usa solo mocks, al final integramos") — marcar "pagada"
+  // aquí sería mentir sobre un cobro que nunca ocurrió. Un operador
+  // puede cambiarlo a mano por ahora; el webhook real de Stripe lo hará
+  // solo cuando esa integración exista.
+  try {
+    await actualizarSuscripcionTenant(
+      borrador.slug,
+      { enPrueba: false, ciclo: borrador.ciclo || 'mensual', estatus: 'pendiente' },
+      { actor, db, origenForzado: 'onboarding' }
+    );
+  } catch (err) {
+    console.error(`No se pudo inicializar la suscripción del tenant "${borrador.slug}":`, err.message);
   }
 
   // ----- Paso 4: usuario administrador inicial (idempotente en backend/) -----

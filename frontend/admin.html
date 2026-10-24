@@ -4414,6 +4414,30 @@
             </div>
           </section>
 
+          <!-- Punto 416: "Datos de pago" — SOLO perfil administrador/super
+               (el backend ni siquiera manda este bloque a fiscal/ventas/
+               inventario, ver GET /api/admin/mi-cuenta en server.js — la
+               ausencia del dato es el candado real, no solo ocultar la
+               tarjeta aquí). Nunca se guarda ni se muestra un número de
+               tarjeta — todo vive en Stripe, nosotros solo guardamos el
+               customer_id. -->
+          <section class="micuenta-card micuenta-card-ancha" id="micuenta-pago-card" hidden>
+            <h2 class="micuenta-card-titulo">Datos de pago <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="La integración con Stripe todavía está pendiente — este panel ya existe, pero actualizar el método de pago todavía no es posible.">Próximamente</span></h2>
+            <div class="admin-empty admin-empty-rica" id="micuenta-pago-sin-configurar">
+              <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10h20" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p class="admin-empty-titulo">Sin método de pago configurado</p>
+              <p>Cuando la integración con Stripe esté activa, podrás agregar o actualizar tu tarjeta desde aquí.</p>
+            </div>
+            <div class="micuenta-empresa-grid" id="micuenta-pago-configurado" hidden>
+              <div>
+                <span class="micuenta-empresa-label">Cliente de Stripe</span>
+                <p class="micuenta-empresa-valor" id="micuenta-pago-customer-id">—</p>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-micuenta-actualizar-pago" disabled data-tooltip="Disponible cuando la integración con Stripe esté activa.">Actualizar método de pago</button>
+            <p class="micuenta-suscripcion-texto">El número de tarjeta y su fecha de expiración viven en Stripe, nunca en la base de datos de Clarvo.</p>
+          </section>
+
           <!-- Facturación de Clarvo (autofactura de ADDV) — visual, ligado
                al punto 272 Fase 2 (confirmado con el usuario: ADDV SÍ se
                autofactura, pero depende de Stripe, todavía sin construir). -->
@@ -6221,6 +6245,40 @@
        JS en cada hover — hijo directo de <body> para no quedar recortado
        por el overflow de la tabla/dropdown que lo dispara. -->
   <img id="lupa-producto-flotante" class="lupa-producto-flotante" alt="" hidden />
+
+  <!-- Punto 416: muro de bloqueo por suscripción no pagada/vencida —
+       dispara desde el interceptor global de fetch (ver admin.js,
+       mismo patrón que CUENTA_SUSPENDIDA) al recibir 402 con
+       codigo "SUSCRIPCION_BLOQUEADA". A diferencia de CUENTA_SUSPENDIDA,
+       NUNCA cierra la sesión sola — el usuario sigue "adentro" pero ve
+       solo este muro hasta regularizar el pago. Hijo directo de <body>,
+       z-index por encima de CUALQUIER otro modal (ver admin.css): debe
+       ganarle a cualquier cosa que ya estuviera abierta cuando llegó
+       el 402. -->
+  <div class="modal-overlay" id="suscripcion-muro-overlay" hidden>
+    <div class="suscripcion-muro-tarjeta">
+      <div class="suscripcion-muro-header">
+        <div class="suscripcion-muro-icono" id="suscripcion-muro-icono"></div>
+        <div>
+          <h2 id="suscripcion-muro-titulo"></h2>
+          <p id="suscripcion-muro-mensaje"></p>
+        </div>
+      </div>
+      <div class="suscripcion-muro-aviso-portal">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>
+        <p><strong>Tu portal de clientes sigue funcionando normal.</strong> Esto solo bloquea la administración (ventas, gastos, reportes) hasta regularizar el pago — tus clientes no se ven afectados.</p>
+      </div>
+      <p class="suscripcion-muro-nota">Solo el usuario administrador puede actualizar el método de pago. El resto de los usuarios de administración verán este mismo aviso hasta que se resuelva.</p>
+      <div class="suscripcion-muro-acciones">
+        <button type="button" class="btn btn-primary" id="btn-suscripcion-actualizar-pago">
+          Actualizar método de pago
+        </button>
+        <button type="button" class="btn btn-secondary" id="btn-suscripcion-cerrar-sesion">
+          Cerrar sesión
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script src="/theme.js"></script>
   <script src="/offline.js"></script>

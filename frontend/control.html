@@ -1353,7 +1353,12 @@
                     <option value="vencida">Vencida</option>
                     <option value="cancelada">Cancelada</option>
                   </select>
-                  <p class="field-hint">Se edita a mano por ahora — todavía no hay integración con Stripe.</p>
+                  <p class="field-hint">Distinto a "Pagada" bloquea /admin del tenant hasta regularizar (nunca el portal de clientes). Se edita a mano por ahora — todavía no hay integración con Stripe.</p>
+                </div>
+                <div class="field">
+                  <label for="control-suscripcion-origen">Origen</label>
+                  <input type="text" id="control-suscripcion-origen" readonly />
+                  <p class="field-hint">Quién creó esta suscripción — solo informativo, nunca editable.</p>
                 </div>
               </div>
               <p class="field-error" id="control-suscripcion-error" role="alert"></p>
@@ -1361,6 +1366,16 @@
                 <button type="button" class="btn btn-primary" id="control-btn-guardar-suscripcion">
                   <span id="control-btn-guardar-suscripcion-label">Guardar suscripción</span>
                 </button>
+              </div>
+              <!-- Punto 416: link de pago para reenviar por correo — stub
+                   honesto (Stripe aún no integrado, confirmado con el
+                   usuario). Solo visible con un estatus capturado distinto
+                   a "Pagada": no tiene sentido ofrecer un link de pago
+                   para una suscripción ya pagada o sin configurar. -->
+              <div class="suscripcion-link-pago" id="control-suscripcion-link-pago" hidden>
+                <h3>Link de pago para esta empresa</h3>
+                <p class="field-hint">Genera un link para que el cliente pague y quede directo en su tenant al terminar.</p>
+                <button type="button" class="btn btn-secondary" id="control-btn-generar-link-pago">Generar link de pago</button>
               </div>
             </div>
           </div>

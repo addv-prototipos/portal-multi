@@ -839,6 +839,25 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   script con `DB_HOST=127.0.0.1 DB_PORT=3307`, y borrar el override +
   recrear `mysql-control` al terminar — nunca dejar ese puerto expuesto
   de forma permanente sin que el usuario lo pida explícito.
+- **Bloqueo por suscripción (punto 417): `adminPerfil === 'super'` NO es
+  lo mismo que "el super admin real"** — `api_credencial`/`api_clave`
+  (acceso tenant-scoped) también reciben `adminPerfil = 'super'`, pero
+  SÍ deben bloquearse si la suscripción está vencida; solo
+  `adminMecanismo === 'admin_users'` (el mismo mecanismo que usa
+  `/control`) es el super admin real que nunca se bloquea. Filtrar por
+  `adminPerfil` ahí habría dejado pasar cualquier credencial API de un
+  tenant moroso. Ver `backend/utils/auth.js:finalizarAutenticacionAdmin`.
+  Regla no-retroactiva: `suscripcion_estatus = NULL` ("sin configurar")
+  nunca bloquea — todo tenant existente antes de este punto tiene ese
+  valor, bloquear ahí habría apagado la administración de cada cliente
+  activo el día del despliegue.
+- **Insertar una columna nueva EN MEDIO de un `UPDATE ... SET` rompe
+  cualquier test que indexe los parámetros por posición** (patrón ya
+  usado en `tenantSuscripcion.js` antes del punto 417) — al agregar
+  columnas a un `UPDATE` con tests que hacen
+  `pool.query.mock.calls[1][1][N]`, agregarlas siempre al FINAL de la
+  lista de columnas/params, nunca intercaladas, o hay que tocar cada
+  test existente que referencia un índice.
 
 ## Stack
 

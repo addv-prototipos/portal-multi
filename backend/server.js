@@ -4961,11 +4961,12 @@ app.get(
         let ciclo = null;
         let expiraEn = null;
         let correoComprador = null;
+        let stripeCustomerId = null;
         try {
           const poolControl = obtenerPoolControl();
           const [[filaTenant]] = await poolControl.query(
             `SELECT t.plan_id, p.nombre AS plan_nombre, t.suscripcion_estatus, t.suscripcion_ciclo,
-                    t.suscripcion_expira_en, t.contacto_email
+                    t.suscripcion_expira_en, t.contacto_email, t.stripe_customer_id
              FROM tenants t LEFT JOIN planes p ON p.id = t.plan_id
              WHERE t.slug = ?`,
             [req.tenant.slug]
@@ -4976,6 +4977,7 @@ app.get(
             ciclo = filaTenant.suscripcion_ciclo || null;
             expiraEn = filaTenant.suscripcion_expira_en || null;
             if (totalMaster === 0) correoComprador = filaTenant.contacto_email || null;
+            stripeCustomerId = filaTenant.stripe_customer_id || null;
           }
         } catch (err) {
           console.error('No se pudo leer la suscripción del tenant desde Control:', err.message);
@@ -4989,6 +4991,17 @@ app.get(
           masterPendiente: totalMaster === 0,
           correoComprador,
         };
+        // Punto 416: "Datos de pago" en Mi Cuenta — SOLO administrador/
+        // super (mismo criterio que el acceso total de ADMIN_USERS en
+        // todo lo demás, ver utils/auth.js). fiscal/ventas/inventario
+        // nunca reciben este bloque, ni siquiera vacío, para que el
+        // frontend no pueda mostrarlo por accidente con un flag mal
+        // leído — su sola AUSENCIA en la respuesta es el candado real.
+        // Nunca se expone el número de tarjeta: solo el identificador de
+        // cliente de Stripe (o null si todavía no existe uno).
+        if (req.adminPerfil === 'administrador' || req.adminPerfil === 'super') {
+          respuesta.empresa.datosPago = { stripeCustomerId };
+        }
       }
     }
 
