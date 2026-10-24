@@ -7,7 +7,16 @@ jest.mock('../../db', () => ({
   obtenerPool: jest.fn(),
 }));
 
+// Punto 417: actualizarSuscripcionTenant ahora invalida la caché del
+// backend tras guardar (ver notificarBackend.js) — se mockea para no
+// hacer una llamada de red real en cada test, mismo patrón ya usado en
+// tenantEdicion.test.js/tenantMarca.test.js/tenantTema.test.js.
+jest.mock('../../utils/notificarBackend', () => ({
+  notificarInvalidacionCache: jest.fn().mockResolvedValue(undefined),
+}));
+
 const { obtenerPool } = require('../../db');
+const { notificarInvalidacionCache } = require('../../utils/notificarBackend');
 const { ErrorSuscripcionTenant, actualizarSuscripcionTenant } = require('../../utils/tenantSuscripcion');
 
 function mockPool(tenantFila, filaPostUpdate) {
@@ -253,6 +262,12 @@ describe('utils/tenantSuscripcion.js', () => {
       await expect(
         actualizarSuscripcionTenant('cliente1', {}, { origenForzado: 'algo-raro' })
       ).rejects.toMatchObject({ codigo: 'validacion' });
+    });
+
+    test('un guardado exitoso invalida la caché del backend para ese slug (sin esto, un cambio de estatus tarda hasta 45s en aplicar)', async () => {
+      mockPool({ id: 1, slug: 'cliente1' });
+      await actualizarSuscripcionTenant('cliente1', { estatus: 'vencida' });
+      expect(notificarInvalidacionCache).toHaveBeenCalledWith('cliente1');
     });
   });
 });

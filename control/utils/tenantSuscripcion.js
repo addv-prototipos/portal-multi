@@ -38,6 +38,7 @@
 
 const { obtenerPool } = require('../db');
 const { validarSlug } = require('./tenant');
+const { notificarInvalidacionCache } = require('./notificarBackend');
 
 const CICLOS_VALIDOS = ['mensual', 'anual'];
 const ESTATUS_VALIDOS = ['prueba', 'pagada', 'pendiente', 'vencida', 'cancelada'];
@@ -238,6 +239,15 @@ async function actualizarSuscripcionTenant(slug, datos = {}, { actor, db = obten
     'suscripcion_actualizada',
     `slug=${slug} enPrueba=${enPrueba} diasPrueba=${diasPrueba ?? '-'} ciclo=${ciclo ?? '-'} expiraEn=${expiraEn ?? '-'} estatus=${estatus ?? '-'} origen=${origen ?? '-'}`,
     actor || null
+  );
+
+  // Punto 417: sin esto, un cambio de estatus (ej. a "vencida") tarda
+  // hasta CACHE_TTL_MS (45s por default) en reflejarse en /admin —
+  // mismo patrón ya usado por tenantMarca.js/tenantTema.js/tenantEdicion.js
+  // (fire-and-forget: un fallo de red aquí nunca debe tumbar el guardado
+  // ya hecho en BD, la próxima lectura after el TTL lo recupera igual).
+  notificarInvalidacionCache(slug).catch((err) =>
+    console.error(`No se pudo invalidar la caché de "${slug}" tras actualizar su suscripción:`, err.message)
   );
 
   return tenantActualizado;
