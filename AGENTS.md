@@ -441,6 +441,15 @@ solo la frase en español de la UI.
   (acceso total ya documentado). Backfill de la columna es CONDICIONAL
   (solo al crearse, nunca en cada restart).
 
+- **Vista sin sidebar** (`#vista-metodo-pago`, punto 418): no toda vista
+  necesita `mapaNavPorVista`/`GRUPOS_SIDEBAR_NAV` — si solo se entra
+  desde un botón, basta `els.vistaX.hidden = vista !== 'x'` dentro de
+  `cambiarVistaPrincipal()` + el botón llamando esa función directo.
+- **Nunca inventar un monto en pantallas de pago, ni en mock** (punto
+  418): precio real de `control_tenants.planes.precio_mensual/anual`,
+  expuesto en `empresa.suscripcion.precioMensual/precioAnual` — null si
+  no hay precio capturado, nunca relleno.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),

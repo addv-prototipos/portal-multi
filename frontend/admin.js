@@ -287,6 +287,17 @@
     micuentaPagoCustomerId: document.getElementById('micuenta-pago-customer-id'),
     btnMicuentaActualizarPago: document.getElementById('btn-micuenta-actualizar-pago'),
     micuentaFooterMarket: document.getElementById('micuenta-footer-market'),
+    // Punto 418 (Deck A2): vista completa "Actualizar método de pago".
+    vistaMetodoPago: document.getElementById('vista-metodo-pago'),
+    btnMetodoPagoVolver: document.getElementById('btn-metodo-pago-volver'),
+    metodoPagoPlanNombre: document.getElementById('metodo-pago-plan-nombre'),
+    metodoPagoPlanPrecio: document.getElementById('metodo-pago-plan-precio'),
+    metodoPagoProximoCobro: document.getElementById('metodo-pago-proximo-cobro'),
+    metodoPagoNumero: document.getElementById('metodo-pago-numero'),
+    metodoPagoVencimiento: document.getElementById('metodo-pago-vencimiento'),
+    metodoPagoCvc: document.getElementById('metodo-pago-cvc'),
+    metodoPagoTitular: document.getElementById('metodo-pago-titular'),
+    btnMetodoPagoGuardar: document.getElementById('btn-metodo-pago-guardar'),
     // Modal "Configuraciones" (antes vista de página, ver
     // PROJECT_STATE.md): barra lateral + buscador + panel de contenido.
     configModalSidebar: document.getElementById('config-modal-sidebar'),
@@ -8239,6 +8250,10 @@
     els.vistaLecturaReportes.hidden = vista !== 'lectura-reportes';
     els.vistaProveedores.hidden = vista !== 'proveedores';
     els.vistaMiCuenta.hidden = vista !== 'mi-cuenta';
+    // Punto 418: sin botón propio en el sidebar — solo se entra desde
+    // "Actualizar método de pago" en Mi Cuenta — pero sigue el mismo
+    // patrón de ocultar/mostrar que el resto de vistas.
+    els.vistaMetodoPago.hidden = vista !== 'metodo-pago';
     els.vistaAuditoria.hidden = vista !== 'auditoria';
     els.vistaPromociones.hidden = vista !== 'promociones';
     if (vista === 'inicio') cargarInicio();
@@ -8292,6 +8307,7 @@
       if (perfilActual === 'fiscal') activarPestanaReportes('estado-tickets');
     }
     if (vista === 'mi-cuenta') cargarMiCuenta();
+    if (vista === 'metodo-pago') cargarVistaMetodoPago();
     if (vista === 'auditoria') cargarAuditoria();
     if (vista === 'promociones') cargarPromociones();
     // Primeros pasos (Fase 2 UX): "revisar" tickets/Constancias/CxC cuenta
@@ -8332,6 +8348,10 @@
   // GET /api/admin/mi-cuenta en server.js). Solo datos 100% reales — sin
   // 2FA/bitácora de sesiones/suscripción todavía (ver PROJECT_STATE.md
   // puntos 272/274), a propósito, no fabricados.
+  // Punto 418: última respuesta de empresa.suscripcion — reusada por la
+  // vista "Actualizar método de pago" sin pedirla otra vez.
+  let ultimaSuscripcionMiCuenta = null;
+
   async function cargarMiCuenta() {
     const authHeader = getAuthHeader();
     if (!authHeader) {
@@ -8393,6 +8413,9 @@
         aplicarEstadoPortalClientesMiCuenta(data.empresa.portalClientesActivo, data.empresa.portalClientesPlanHabilitado);
         aplicarEstadoSuscripcionMiCuenta(data.empresa.suscripcion);
         aplicarDatosPagoMiCuenta(data.empresa.datosPago);
+        // Punto 418: se cachea para que la vista "Actualizar método de
+        // pago" no necesite un fetch propio — ya viajó aquí.
+        ultimaSuscripcionMiCuenta = data.empresa.suscripcion || null;
         if (data.empresa.tenantSlug && data.empresa.urlPortal) {
           els.micuentaUrlBar.hidden = false;
           els.micuentaUrlTenant.textContent = data.empresa.urlPortal;
@@ -8496,6 +8519,41 @@
       els.micuentaPagoCustomerId.textContent = datosPago.stripeCustomerId;
     }
   }
+
+  // Punto 418 (Deck A2): resumen del plan a la izquierda, tomado de la
+  // misma respuesta que ya pobló la tarjeta "Plan de suscripción" — sin
+  // tenant (sitio base) o sin datos de precio, se muestra un guion en
+  // vez de inventar un monto.
+  function cargarVistaMetodoPago() {
+    const s = ultimaSuscripcionMiCuenta;
+    els.metodoPagoNumero.value = '';
+    els.metodoPagoVencimiento.value = '';
+    els.metodoPagoCvc.value = '';
+    els.metodoPagoTitular.value = '';
+    if (!s || s.ilimitada) {
+      els.metodoPagoPlanNombre.textContent = 'Ilimitada';
+      els.metodoPagoPlanPrecio.textContent = '—';
+      els.metodoPagoProximoCobro.textContent = '—';
+      return;
+    }
+    els.metodoPagoPlanNombre.textContent = s.planNombre || 'Sin plan asignado';
+    const precio = s.ciclo === 'anual' ? s.precioAnual : s.precioMensual;
+    els.metodoPagoPlanPrecio.textContent =
+      precio != null ? `${formatearMoneda(precio)} / ${s.ciclo === 'anual' ? 'año' : 'mes'}` : 'Sin definir';
+    els.metodoPagoProximoCobro.textContent = s.expiraEn ? formatearFechaSoloDiaSinTZ(s.expiraEn) : 'Sin definir';
+  }
+
+  els.btnMicuentaActualizarPago.addEventListener('click', () => {
+    cambiarVistaPrincipal('metodo-pago');
+  });
+  els.btnMetodoPagoVolver.addEventListener('click', () => {
+    cambiarVistaPrincipal('mi-cuenta');
+  });
+  els.btnMetodoPagoGuardar.addEventListener('click', () => {
+    // Mismo mensaje honesto que el botón del muro de suscripción (ver
+    // mostrarMuroSuscripcion) — nunca se simula un guardado exitoso.
+    showToast('La integración con Stripe para pagar en línea está pendiente. Contacta a soporte para regularizar tu suscripción mientras tanto.', true);
+  });
 
   els.btnSuscripcionDarAltaMaster.addEventListener('click', () => {
     abrirCrearUsuarioModal({ perfil: 'administrador', email: els.micuentaSuscripcionCorreoComprador.textContent });
@@ -12133,11 +12191,20 @@
       const btnEliminar = document.createElement('button');
       btnEliminar.type = 'button';
       btnEliminar.className = 'btn-icono-accion btn-icono-accion-peligro';
-      btnEliminar.setAttribute('data-tooltip', 'Eliminar usuario');
-      btnEliminar.setAttribute('aria-label', 'Eliminar usuario');
       btnEliminar.innerHTML =
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      btnEliminar.addEventListener('click', () => confirmarEliminarUsuario(u.id, u.rfc));
+      // Punto en curso: la cuenta raíz/maestra nunca se elimina
+      // directamente — hay que reasignarla primero (mismo candado que ya
+      // existe en el backend, DELETE /api/admin/usuarios/:id).
+      if (esCuentaRaiz) {
+        btnEliminar.disabled = true;
+        btnEliminar.setAttribute('data-tooltip', 'No puedes eliminar la cuenta raíz/maestra — reasígnala primero');
+        btnEliminar.setAttribute('aria-label', 'Eliminar usuario (bloqueado: es la cuenta raíz/maestra)');
+      } else {
+        btnEliminar.setAttribute('data-tooltip', 'Eliminar usuario');
+        btnEliminar.setAttribute('aria-label', 'Eliminar usuario');
+        btnEliminar.addEventListener('click', () => confirmarEliminarUsuario(u.id, u.rfc));
+      }
       contenedorAcciones.appendChild(btnEliminar);
 
       celdaAcciones.appendChild(contenedorAcciones);

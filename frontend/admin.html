@@ -4422,7 +4422,7 @@
                tarjeta — todo vive en Stripe, nosotros solo guardamos el
                customer_id. -->
           <section class="micuenta-card micuenta-card-ancha" id="micuenta-pago-card" hidden>
-            <h2 class="micuenta-card-titulo">Datos de pago <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="La integración con Stripe todavía está pendiente — este panel ya existe, pero actualizar el método de pago todavía no es posible.">Próximamente</span></h2>
+            <h2 class="micuenta-card-titulo">Datos de pago <span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente" data-tooltip="Puedes ver el flujo completo de actualizar tu método de pago, pero todavía no se conecta con Stripe de verdad — guardar no cobra ni cambia tu tarjeta real.">Vista previa</span></h2>
             <div class="admin-empty admin-empty-rica" id="micuenta-pago-sin-configurar">
               <svg class="admin-empty-icono" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10h20" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <p class="admin-empty-titulo">Sin método de pago configurado</p>
@@ -4434,7 +4434,7 @@
                 <p class="micuenta-empresa-valor" id="micuenta-pago-customer-id">—</p>
               </div>
             </div>
-            <button type="button" class="btn btn-secondary" id="btn-micuenta-actualizar-pago" disabled data-tooltip="Disponible cuando la integración con Stripe esté activa.">Actualizar método de pago</button>
+            <button type="button" class="btn btn-secondary" id="btn-micuenta-actualizar-pago">Actualizar método de pago</button>
             <p class="micuenta-suscripcion-texto">El número de tarjeta y su fecha de expiración viven en Stripe, nunca en la base de datos de Clarvo.</p>
           </section>
 
@@ -4458,6 +4458,73 @@
             <p class="micuenta-footer-market-texto">Cuando esté disponible, desde aquí vas a poder explorar y activar módulos adicionales para este tenant.</p>
           </div>
           <button type="button" class="btn btn-secondary micuenta-footer-market-btn" disabled data-tooltip="Disponible cuando exista Clarvo Site Market.">Abrir Clarvo Market</button>
+        </div>
+      </div>
+
+      <!-- ========== Actualizar método de pago (punto 418, propuesta A2) ==========
+           Vista completa (no modal), split: resumen del plan a la izquierda
+           + formulario de tarjeta a la derecha. Solo se entra desde el botón
+           "Actualizar método de pago" de Mi Cuenta — no vive en el sidebar
+           (ver cambiarVistaPrincipal en admin.js). Sigue siendo mock: el
+           botón "Guardar método" nunca llama a Stripe de verdad (decisión
+           del usuario, "por ahora usa solo mocks, al final integramos"). -->
+      <div id="vista-metodo-pago" hidden>
+        <div class="admin-toolbar">
+          <button type="button" class="btn btn-secondary" id="btn-metodo-pago-volver">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Volver a Mi Cuenta
+          </button>
+        </div>
+        <div class="metodo-pago-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+          <p>Vista previa del flujo real — la integración con Stripe todavía está pendiente. "Guardar método" no cobra ni cambia tu tarjeta de verdad. Si necesitas regularizar tu suscripción ahora, contacta a soporte.</p>
+        </div>
+        <div class="metodo-pago-split">
+          <div class="micuenta-card micuenta-card-navy metodo-pago-plan">
+            <h2 class="micuenta-card-titulo micuenta-card-titulo-navy">Tu plan</h2>
+            <div class="micuenta-empresa-grid micuenta-suscripcion-grid">
+              <div>
+                <span class="micuenta-empresa-label">Plan</span>
+                <p class="micuenta-empresa-valor" id="metodo-pago-plan-nombre">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label">Precio</span>
+                <p class="micuenta-empresa-valor" id="metodo-pago-plan-precio">—</p>
+              </div>
+              <div>
+                <span class="micuenta-empresa-label">Próximo cobro</span>
+                <p class="micuenta-empresa-valor" id="metodo-pago-proximo-cobro">—</p>
+              </div>
+            </div>
+          </div>
+          <div class="micuenta-card metodo-pago-form">
+            <h2 class="micuenta-card-titulo">Nueva tarjeta</h2>
+            <div class="field">
+              <label for="metodo-pago-numero">Número de tarjeta</label>
+              <input type="text" id="metodo-pago-numero" placeholder="•••• •••• •••• ••••" autocomplete="off" inputmode="numeric" maxlength="19" />
+            </div>
+            <div class="metodo-pago-fila-doble">
+              <div class="field">
+                <label for="metodo-pago-vencimiento">Vencimiento</label>
+                <input type="text" id="metodo-pago-vencimiento" placeholder="MM / AA" autocomplete="off" inputmode="numeric" maxlength="7" />
+              </div>
+              <div class="field">
+                <label for="metodo-pago-cvc">CVC</label>
+                <input type="text" id="metodo-pago-cvc" placeholder="•••" autocomplete="off" inputmode="numeric" maxlength="4" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="metodo-pago-titular">Nombre del titular</label>
+              <input type="text" id="metodo-pago-titular" placeholder="Como aparece en la tarjeta" autocomplete="off" />
+            </div>
+            <p class="metodo-pago-trust">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              Procesado de forma segura por Stripe — el número de tarjeta nunca se guarda en los servidores de Clarvo.
+            </p>
+            <div class="btn-row">
+              <button type="button" class="btn btn-primary" id="btn-metodo-pago-guardar">Guardar método</button>
+            </div>
+          </div>
         </div>
       </div>
 

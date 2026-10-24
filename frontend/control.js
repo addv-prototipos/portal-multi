@@ -189,6 +189,10 @@
   btnRecalcularDisco: document.getElementById('control-btn-recalcular-disco'),
   editarGrupoInfo: document.getElementById('control-editar-grupo-info'),
   btnEditarIrSucursales: document.getElementById('control-btn-editar-ir-sucursales'),
+  // Punto en curso: pestaña "Usuarios" (reasignar raíz/maestra)
+  usuariosAdminTableBody: document.getElementById('control-usuarios-admin-table-body'),
+  usuariosAdminEmpty: document.getElementById('control-usuarios-admin-empty'),
+  usuariosAdminError: document.getElementById('control-usuarios-admin-error'),
   // Punto 381: Suscripción (prueba/ciclo/expiración/estatus de cobro)
   suscripcionEnPrueba: document.getElementById('control-suscripcion-en-prueba'),
   suscripcionDiasPrueba: document.getElementById('control-suscripcion-dias-prueba'),
@@ -1606,6 +1610,93 @@
     renderImpactoBannerEdicion();
   }
 
+  // ---------- Punto en curso: pestaña "Usuarios" (reasignar raíz/maestra) ----------
+  const ICONO_ESTRELLA_CONTROL =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.9 6.6 7.1.7-5.4 4.8 1.6 7-6.2-3.8-6.2 3.8 1.6-7-5.4-4.8 7.1-.7L12 2z"/></svg>';
+
+  async function cargarUsuariosAdminControl(slug) {
+    if (!els.usuariosAdminTableBody) return;
+    els.usuariosAdminTableBody.innerHTML = '';
+    els.usuariosAdminEmpty.hidden = true;
+    els.usuariosAdminError.textContent = '';
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slug)}/usuarios-admin`, {
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        els.usuariosAdminError.textContent = data.error || 'No se pudieron cargar los administradores de esta empresa.';
+        return;
+      }
+      renderUsuariosAdminControl(slug, data.usuarios || []);
+    } catch (err) {
+      els.usuariosAdminError.textContent = 'No se pudo conectar con el servidor.';
+    }
+  }
+
+  function renderUsuariosAdminControl(slug, usuarios) {
+    els.usuariosAdminTableBody.innerHTML = '';
+    els.usuariosAdminEmpty.hidden = usuarios.length > 0;
+    usuarios.forEach((u) => {
+      const esRaiz = Boolean(u.es_cuenta_raiz);
+      const tr = document.createElement('tr');
+      if (esRaiz) tr.style.background = 'var(--color-accent-soft)';
+      const badgeRaiz = esRaiz
+        ? ` <span class="estatus-badge estatus-raiz" data-tooltip="Cuenta raíz/maestra: gestiona la suscripción y ve los datos de pago">${ICONO_ESTRELLA_CONTROL} Raíz/maestra</span>`
+        : '';
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(u.rfc)}</strong>${badgeRaiz}</td>
+        <td>${escapeHtml(u.email || '—')}</td>
+        <td>${formatFecha(u.creado_en)}</td>
+        <td></td>
+      `;
+      if (!esRaiz) {
+        const btn = crearBotonAccion(
+          'btn-icono-accion',
+          'Marcar como raíz/maestra',
+          'M12 2l2.9 6.6 7.1.7-5.4 4.8 1.6 7-6.2-3.8-6.2 3.8 1.6-7-5.4-4.8 7.1-.7L12 2z',
+          () => confirmarReasignarRaizControl(slug, u)
+        );
+        tr.lastElementChild.appendChild(btn);
+      }
+      els.usuariosAdminTableBody.appendChild(tr);
+    });
+  }
+
+  function confirmarReasignarRaizControl(slug, u) {
+    confirmarAccion({
+      titulo: '¿Reasignar la cuenta raíz/maestra?',
+      mensaje: `"${u.rfc}" pasará a ser la cuenta raíz/maestra de esta empresa — la única que ve "Datos de pago" en Mi Cuenta. Reemplaza a la cuenta raíz actual.`,
+      textoBoton: 'Reasignar',
+      onConfirmar: () => reasignarRaizControl(slug, u.id),
+    });
+  }
+
+  async function reasignarRaizControl(slug, id) {
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/tenants/${encodeURIComponent(slug)}/usuarios-admin/${id}/raiz`, {
+        method: 'PUT',
+        headers: { Authorization: authHeader },
+      });
+      if (res.status === 401) {
+        clearSession();
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo reasignar la cuenta raíz/maestra.', true);
+        return;
+      }
+      showToast(data.mensaje || 'Cuenta raíz/maestra actualizada.');
+      cargarUsuariosAdminControl(slug);
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
   // Aviso de impacto ANTES de guardar (Regla 8 extendida a edición de
   // empresa, punto 350) — fijo desde que se abre la pestaña "Plan y
   // funciones", se recalcula en vivo mientras el operador cambia el plan
@@ -1891,6 +1982,7 @@
     actualizarBadgesOrigenPlan();
     cargarUsoUsuariosEdicion(tenant.slug);
     poblarFormularioSuscripcion(tenant);
+    cargarUsuariosAdminControl(tenant.slug);
   }
 
   // ---------- Punto 381: Suscripción (prueba/ciclo/expiración/estatus) ----------
@@ -1968,12 +2060,24 @@
       fechaExpiraPreviewIso = expiraOriginal;
     }
 
-    els.suscripcionPruebaInicia.value = fechaInicioPreviewIso
-      ? formatearFechaDDMMAAAA(fechaInicioPreviewIso)
-      : (enPrueba ? 'Se fija al guardar' : 'Sin definir');
-    els.suscripcionExpira.value = fechaExpiraPreviewIso
-      ? formatearFechaDDMMAAAA(fechaExpiraPreviewIso)
-      : (enPrueba ? 'Captura días de prueba' : 'Sin definir');
+    // Punto 418 (Deck B4): chip de solo lectura — el ícono de candado vive
+    // fijo en el HTML, aquí solo se reemplaza el texto que lo acompaña
+    // (nodo de texto después del <svg>, nunca innerHTML completo).
+    setTextoChipCalculado(
+      els.suscripcionPruebaInicia,
+      fechaInicioPreviewIso ? formatearFechaDDMMAAAA(fechaInicioPreviewIso) : (enPrueba ? 'Se fija al guardar' : 'Sin definir')
+    );
+    setTextoChipCalculado(
+      els.suscripcionExpira,
+      fechaExpiraPreviewIso ? formatearFechaDDMMAAAA(fechaExpiraPreviewIso) : (enPrueba ? 'Captura días de prueba' : 'Sin definir')
+    );
+  }
+
+  function setTextoChipCalculado(chipEl, texto) {
+    if (!chipEl) return;
+    const svg = chipEl.querySelector('svg');
+    chipEl.textContent = texto;
+    if (svg) chipEl.prepend(svg);
   }
 
   function actualizarDisponibilidadCamposPrueba() {
@@ -2370,7 +2474,7 @@
   const TABS_CON_GUARDADO_COMPARTIDO = ['general', 'plan'];
 
   function cambiarTabEditar(tab) {
-    const TABS = ['general', 'plan', 'suscripcion', 'visual', 'grupo'];
+    const TABS = ['general', 'plan', 'suscripcion', 'visual', 'grupo', 'usuarios'];
     TABS.forEach((t) => {
       const panel = document.getElementById(`control-edit-tab-${t}`);
       if (panel) panel.hidden = t !== tab;

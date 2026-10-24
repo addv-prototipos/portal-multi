@@ -654,6 +654,21 @@ describe('Admin', () => {
       expect(res.body.ok).toBe(true);
     });
 
+    // Punto en curso: la cuenta raíz/maestra nunca se elimina
+    // directamente, sin importar quién la borre — hay que reasignarla
+    // primero (PUT .../raiz o desde /control).
+    test('DELETE bloquea a la cuenta raíz/maestra, aunque no sea la propia sesión', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador', { usuario: 'admin1' });
+      pool.query.mockResolvedValueOnce([[{ rfc: 'OTRO000000XXX', es_cuenta_raiz: 1 }]]);
+
+      const res = await request(app).delete('/api/admin/usuarios/2').auth(usuario, password);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/no puedes eliminar la cuenta raíz\/maestra/i);
+      // Auth (1) + SELECT rfc,es_cuenta_raiz (1) — nunca llega al DELETE.
+      expect(pool.query).toHaveBeenCalledTimes(2);
+    });
+
     test('PUT .../estado requiere perfil administrador (ventas responde 403)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('ventas', { usuario: 'ventas1' });
       const res = await request(app).put('/api/admin/usuarios/2/estado').auth(usuario, password).send({ activo: false });

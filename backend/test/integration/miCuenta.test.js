@@ -100,9 +100,13 @@ describe('Admin: Mi Cuenta (autoservicio de la sesión actual)', () => {
   // administrador/super" a "solo la cuenta raíz/maestra" — admin_users
   // (super real, sin fila en usuarios) conserva acceso total por diseño.
   describe('"Datos de pago" solo para la cuenta raíz/maestra (punto 418)', () => {
-    function mockPlanYSuscripcion(poolControl, { stripeCustomerId = 'cus_123' } = {}) {
+    function mockPlanYSuscripcion(poolControl, { stripeCustomerId = 'cus_123', precioMensual = 1490, precioAnual = 14900 } = {}) {
       poolControl.query.mockResolvedValueOnce([
-        [{ plan_id: 1, plan_nombre: 'Pro', suscripcion_estatus: 'pagada', suscripcion_ciclo: 'mensual', suscripcion_expira_en: '2026-12-01', contacto_email: null, stripe_customer_id: stripeCustomerId }],
+        [{
+          plan_id: 1, plan_nombre: 'Pro', precio_mensual: precioMensual, precio_anual: precioAnual,
+          suscripcion_estatus: 'pagada', suscripcion_ciclo: 'mensual', suscripcion_expira_en: '2026-12-01',
+          contacto_email: null, stripe_customer_id: stripeCustomerId,
+        }],
       ]);
     }
 
@@ -150,6 +154,39 @@ describe('Admin: Mi Cuenta (autoservicio de la sesión actual)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.empresa.datosPago).toEqual({ stripeCustomerId: 'cus_super' });
+    });
+
+    // Punto 418 (Deck A2): el panel "Actualizar método de pago" muestra el
+    // precio REAL del plan (nunca un monto inventado) — expuesto junto al
+    // resto de empresa.suscripcion sin importar si hay o no datosPago.
+    test('empresa.suscripcion expone precioMensual/precioAnual reales del plan', async () => {
+      poolControl.query.mockResolvedValueOnce([[tenantFila()]]);
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[{ nombre: 'Ana', telefono: '', email: 'ana@norte.mx', es_cuenta_raiz: 0 }]]);
+      mockConfigGlobalYOperadores({ totalOperadores: 1 });
+      pool.query.mockResolvedValueOnce([[{ totalMaster: 1 }]]);
+      mockPlanYSuscripcion(poolControl, { precioMensual: 1490, precioAnual: 14900 });
+
+      const res = await request(app).get('/api/admin/mi-cuenta').set('X-Tenant-Slug', 'norte').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body.empresa.suscripcion.precioMensual).toBe(1490);
+      expect(res.body.empresa.suscripcion.precioAnual).toBe(14900);
+    });
+
+    test('plan sin precio configurado (NULL en BD): precioMensual/precioAnual quedan null, nunca inventados', async () => {
+      poolControl.query.mockResolvedValueOnce([[tenantFila()]]);
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      pool.query.mockResolvedValueOnce([[{ nombre: 'Ana', telefono: '', email: 'ana@norte.mx', es_cuenta_raiz: 0 }]]);
+      mockConfigGlobalYOperadores({ totalOperadores: 1 });
+      pool.query.mockResolvedValueOnce([[{ totalMaster: 1 }]]);
+      mockPlanYSuscripcion(poolControl, { precioMensual: null, precioAnual: null });
+
+      const res = await request(app).get('/api/admin/mi-cuenta').set('X-Tenant-Slug', 'norte').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+      expect(res.body.empresa.suscripcion.precioMensual).toBeNull();
+      expect(res.body.empresa.suscripcion.precioAnual).toBeNull();
     });
   });
 

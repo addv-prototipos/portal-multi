@@ -878,6 +878,22 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   restart) — mismo gotcha de `ensureSchema()` ya documentado abajo para
   cualquier columna nueva que necesite un valor inicial no trivial.
 
+- **Vista del SPA sin botón en el sidebar** (`#vista-metodo-pago`, punto
+  418): no toda vista necesita entrada en `mapaNavPorVista`/
+  `GRUPOS_SIDEBAR_NAV` (puntos 378-379) — si solo se entra desde un botón
+  específico (ej. "Actualizar método de pago" en Mi Cuenta), basta con
+  agregar su `els.vistaX.hidden = vista !== 'x';` dentro de
+  `cambiarVistaPrincipal()` (sin togglear ningún botón de nav que no
+  existe) y cablear el botón de origen para llamar
+  `cambiarVistaPrincipal('x')` directamente.
+- **Nunca inventar un monto en una pantalla de pago, ni siquiera en un
+  mock** (punto 418, Deck A2): el precio mostrado en "Actualizar método
+  de pago" viene de `control_tenants.planes.precio_mensual/anual` (dato
+  real), expuesto en `GET /api/admin/mi-cuenta` como
+  `empresa.suscripcion.precioMensual/precioAnual` — si el plan no tiene
+  precio capturado, se muestra "Sin definir", nunca un número de
+  relleno.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),

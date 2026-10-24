@@ -1135,6 +1135,7 @@
         <button type="button" class="control-edit-tab" data-tab="suscripcion" role="tab" aria-selected="false">Suscripción</button>
         <button type="button" class="control-edit-tab" data-tab="visual" role="tab" aria-selected="false">Identidad visual</button>
         <button type="button" class="control-edit-tab" data-tab="grupo" role="tab" aria-selected="false">Grupo / sucursales</button>
+        <button type="button" class="control-edit-tab" data-tab="usuarios" role="tab" aria-selected="false">Usuarios</button>
       </div>
 
       <form id="control-form-editar" novalidate>
@@ -1326,8 +1327,8 @@
                   <input type="number" id="control-suscripcion-dias-prueba" min="1" step="1" placeholder="ej. 14" />
                 </div>
                 <div class="field">
-                  <label for="control-suscripcion-prueba-inicia">Prueba inicia el</label>
-                  <input type="text" id="control-suscripcion-prueba-inicia" readonly />
+                  <span class="field-label-solo-lectura">Prueba inicia el</span>
+                  <span class="campo-calculado-chip" id="control-suscripcion-prueba-inicia"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>—</span>
                   <p class="field-hint">Se fija sola al prender "Modo de prueba" — no se captura a mano.</p>
                 </div>
                 <div class="field">
@@ -1339,8 +1340,8 @@
                   </select>
                 </div>
                 <div class="field">
-                  <label for="control-suscripcion-expira">Expira el</label>
-                  <input type="text" id="control-suscripcion-expira" readonly />
+                  <span class="field-label-solo-lectura">Expira el</span>
+                  <span class="campo-calculado-chip" id="control-suscripcion-expira"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>—</span>
                   <p class="field-hint">Calculado: Prueba inicia el + Días de prueba.</p>
                 </div>
                 <div class="field">
@@ -1400,6 +1401,36 @@
           <p class="field-hint" id="control-editar-grupo-info">Esta empresa no pertenece a ningún grupo de sucursales.</p>
           <div class="btn-row" style="justify-content:flex-start">
             <button type="button" class="btn btn-secondary" id="control-btn-editar-ir-sucursales">Ir a Sucursales</button>
+          </div>
+        </div>
+
+        <!-- Punto en curso: reasignar la cuenta raíz/maestra del tenant
+             (único usuario que ve "Datos de pago" en Mi Cuenta) sin pedir
+             acceso al tenant. Alcance mínimo a propósito: solo cuentas
+             perfil administrador, solo lectura + reasignar — nada de
+             editar/suspender/eliminar, eso sigue siendo exclusivo de
+             /admin → Usuarios. Guardado independiente (no usa el botón
+             "Guardar cambios" de abajo), mismo criterio que Suscripción/
+             Identidad visual. -->
+        <div class="control-edit-tab-panel" id="control-edit-tab-usuarios" hidden>
+          <p class="field-hint">Solo cuentas perfil administrador. Reasignar aquí reemplaza a la cuenta raíz/maestra actual — la única que ve "Datos de pago" en Mi Cuenta. El autoservicio en <code>/admin → Usuarios</code> sigue disponible igual.</p>
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="control-usuarios-admin-tabla">
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Contacto</th>
+                  <th>Registrado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="control-usuarios-admin-table-body"></tbody>
+            </table>
+            <div class="admin-empty admin-empty-rica" id="control-usuarios-admin-empty" hidden>
+              <svg class="admin-empty-icono" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <p class="admin-empty-titulo">Esta empresa todavía no tiene administradores</p>
+            </div>
+            <p class="field-error" id="control-usuarios-admin-error" role="alert"></p>
           </div>
         </div>
 

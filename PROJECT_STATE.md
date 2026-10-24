@@ -23563,3 +23563,53 @@ Archivos: `backend/db.js`, `backend/server.js`, `frontend/admin.html`,
 `backend/test/integration/admin.test.js`,
 `backend/test/integration/miCuenta.test.js`, `PROJECT_STATE.md` (este
 punto).
+
+**Addendum — Deck A2 ("Actualizar método de pago") + Deck B4 (campos
+calculados de prueba) implementados (2026-10-23, mismo día)**: tras
+revisar la documentación real de Stripe (Customer Portal + Payment
+Element — tarjeta enmascarada, marcas de tarjeta, insignia de
+seguridad) se presentaron 8 propuestas para la página de actualizar
+método de pago + 4 para el tratamiento de "Prueba inicia el"/"Expira
+el" en `/control`. El usuario eligió A2 (página completa split:
+resumen de plan + formulario) y B4 (chip/pastilla de solo lectura).
+
+- **Deck B4** (`frontend/control.html`/`control.js`/`admin.css`): los
+  `<input readonly>` de "Prueba inicia el"/"Expira el" se reemplazaron
+  por `<span class="campo-calculado-chip">` (pastilla navy-soft + ícono
+  de candado) — ya no parecen un campo de formulario capturable.
+  `actualizarFechasSuscripcionCalculadas()` ahora escribe
+  `.textContent` vía `setTextoChipCalculado()` (preserva el ícono SVG
+  fijo) en vez de `.value`. `actualizarDisponibilidadCamposPrueba()` y
+  `poblarFormularioSuscripcion()` sin cambios de lógica, solo el target
+  DOM.
+- **Deck A2** (`backend/server.js`, `frontend/admin.html`/`admin.js`/
+  `admin.css`): nueva vista `#vista-metodo-pago` dentro del SPA de
+  `/admin` — split navy (plan/precio real/próximo cobro) + formulario
+  de tarjeta (mock) con insignia "Procesado de forma segura por
+  Stripe". Se entra SOLO desde el botón "Actualizar método de pago" de
+  Mi Cuenta (ya no `disabled`, tag cambió de "Próximamente" a "Vista
+  previa") — no tiene entrada en el sidebar, sigue el mismo patrón
+  hidden/mostrado que el resto de vistas en `cambiarVistaPrincipal()`.
+  Precio REAL (no inventado): `GET /api/admin/mi-cuenta` amplía su
+  SELECT a `control_tenants.planes` con `precio_mensual`/
+  `precio_anual`, expuestos en `empresa.suscripcion.precioMensual`/
+  `precioAnual` (null si el plan no tiene precio capturado — nunca se
+  fabrica un monto). "Guardar método" sigue el mismo honest-stub ya
+  usado en el muro de suscripción (nunca llama a Stripe de verdad,
+  mismo mensaje de toast).
+- **5 tests nuevos** en `miCuenta.test.js` (precio real expuesto,
+  precio NULL nunca inventado) — backend **1374/1374** verde (69
+  suites). Verificado en vivo contra Docker/MySQL reales con clics
+  reales (Claude en Chrome): se asignó temporalmente el plan "Pro"
+  (con precio real $1,490/$14,900 en `control_tenants.planes`) al
+  tenant `t2` para confirmar que el panel muestra "$1,490.00 / mes" y
+  "12 nov 2026" reales — revertido a su plan original ("Enterprise",
+  sin precio) al terminar. Botón "Guardar método" confirmado
+  disparando el toast honesto exacto. Chip de Deck B4 confirmado en
+  `/control` → editar tenant → pestaña Suscripción: pastilla navy con
+  candado, visualmente distinta de los campos SÍ editables de al lado
+  ("Días de prueba", "Ciclo de facturación"). Archivos: `backend/
+  server.js`, `frontend/control.html`, `frontend/control.js`,
+  `frontend/admin.html`, `frontend/admin.js`, `frontend/admin.css`,
+  `backend/test/integration/miCuenta.test.js`, `PROJECT_STATE.md`
+  (este addendum).

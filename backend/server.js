@@ -1091,9 +1091,15 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
     }
 
     const ahora = new Date();
+    // Este INSERT solo corre cuando el tenant todavía no tiene NINGÚN
+    // administrador (ver el check de "existentes" arriba) — por eso es
+    // seguro marcar es_cuenta_raiz=1 incondicionalmente aquí: es siempre
+    // la primera cuenta admin del tenant. Antes de esto, un tenant nuevo
+    // se quedaba sin nadie viendo "Datos de pago" en Mi Cuenta hasta que
+    // alguien lo marcara a mano desde /admin → Usuarios.
     await poolTenant.query(
-      `INSERT INTO usuarios (rfc, telefono, email, password_hash, debe_cambiar_password, perfil, creado_en, actualizado_en)
-       VALUES (?, '', ?, ?, 0, 'administrador', ?, ?)`,
+      `INSERT INTO usuarios (rfc, telefono, email, password_hash, debe_cambiar_password, perfil, es_cuenta_raiz, creado_en, actualizado_en)
+       VALUES (?, '', ?, ?, 0, 'administrador', 1, ?, ?)`,
       [nombreUsuario, email, passwordHash, ahora, ahora]
     );
 
@@ -1273,6 +1279,98 @@ app.get('/internal/uso-usuarios/:slug', async (req, res) => {
   } catch (err) {
     console.error(`Error calculando el uso de usuarios del tenant "${slug}":`, err);
     res.status(502).json({ error: 'No se pudo calcular el uso de usuarios.' });
+  }
+});
+
+// Punto en curso (reasignar raíz/maestra desde /control): solo lectura,
+// las cuentas perfil "administrador" de un tenant — control_app no tiene
+// acceso a ninguna base `tenant_*` (mismo motivo que uso-usuarios de
+// arriba), así que /control delega aquí. Alcance mínimo a propósito
+// (decisión del usuario): solo administradores, nada de editar/
+// suspender/eliminar desde Control — eso sigue siendo exclusivo de
+// /admin → Usuarios.
+app.get('/internal/usuarios-admin/:slug', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+
+  const dbName = nombreDbTenant(slug);
+  const poolTenant = obtenerPoolTenant({
+    slug,
+    host: process.env.DB_HOST || 'mysql',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'app',
+    password: process.env.DB_PASSWORD || '',
+    database: dbName,
+  });
+
+  try {
+    const [usuarios] = await poolTenant.query(
+      `SELECT id, rfc, email, es_cuenta_raiz, creado_en FROM usuarios
+       WHERE perfil = 'administrador'
+       ORDER BY creado_en ASC, id ASC`
+    );
+    res.json({ ok: true, usuarios });
+  } catch (err) {
+    console.error(`Error listando administradores del tenant "${slug}":`, err);
+    res.status(502).json({ error: 'No se pudo consultar los administradores del tenant.' });
+  }
+});
+
+// Reasigna la cuenta raíz/maestra de un tenant desde /control — misma
+// regla exclusiva que PUT /api/admin/usuarios/:id/raiz (se desmarca
+// cualquier otra antes de marcar la nueva), pero con el id validado
+// contra la base de ESTE tenant, nunca confiando en que /control ya lo
+// hizo (mismo criterio de "nunca confía en lo que ya revisó control" que
+// el resto de este archivo).
+app.put('/internal/usuarios-admin/:slug/:id/raiz', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+
+  const slug = String(req.params.slug || '').toLowerCase();
+  const errorSlug = validarSlug(slug);
+  if (errorSlug) {
+    return res.status(400).json({ error: 'Slug inválido.' });
+  }
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Identificador inválido.' });
+  }
+
+  const dbName = nombreDbTenant(slug);
+  const poolTenant = obtenerPoolTenant({
+    slug,
+    host: process.env.DB_HOST || 'mysql',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'app',
+    password: process.env.DB_PASSWORD || '',
+    database: dbName,
+  });
+
+  try {
+    const [filas] = await poolTenant.query('SELECT id, perfil FROM usuarios WHERE id = ?', [id]);
+    const usuario = filas[0];
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+    if (usuario.perfil !== 'administrador') {
+      return res.status(400).json({ error: 'Solo una cuenta con perfil administrador puede ser la cuenta raíz/maestra.' });
+    }
+
+    await poolTenant.query('UPDATE usuarios SET es_cuenta_raiz = 0 WHERE es_cuenta_raiz = 1');
+    await poolTenant.query('UPDATE usuarios SET es_cuenta_raiz = 1, actualizado_en = ? WHERE id = ?', [new Date(), id]);
+
+    res.json({ ok: true, mensaje: 'Cuenta raíz/maestra actualizada correctamente.' });
+  } catch (err) {
+    console.error(`Error reasignando la cuenta raíz/maestra del tenant "${slug}":`, err);
+    res.status(502).json({ error: 'No se pudo reasignar la cuenta raíz/maestra.' });
   }
 });
 
@@ -4871,7 +4969,7 @@ app.delete(
       return res.status(400).json({ error: 'Identificador inválido.' });
     }
 
-    const [filas] = await pool.query('SELECT rfc FROM usuarios WHERE id = ?', [id]);
+    const [filas] = await pool.query('SELECT rfc, es_cuenta_raiz FROM usuarios WHERE id = ?', [id]);
     const usuario = filas[0];
     if (!usuario) {
       return res.status(404).json({ error: 'Usuario no encontrado.' });
@@ -4883,6 +4981,15 @@ app.delete(
     // backend/utils/auth.js).
     if (usuario.rfc === req.adminUser) {
       return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta mientras tienes la sesión iniciada.' });
+    }
+
+    // La cuenta raíz/maestra nunca se elimina directamente — hay que
+    // reasignarla a otro administrador primero (desde /admin → Usuarios o
+    // desde /control), igual que el candado de "no te elimines a ti
+    // mismo" de arriba: nunca dejar al tenant sin nadie viendo "Datos de
+    // pago" en Mi Cuenta.
+    if (usuario.es_cuenta_raiz) {
+      return res.status(400).json({ error: 'No puedes eliminar la cuenta raíz/maestra — reasígnala a otro administrador primero.' });
     }
 
     await pool.query('DELETE FROM usuarios WHERE id = ?', [id]);
@@ -4988,10 +5095,13 @@ app.get(
         let expiraEn = null;
         let correoComprador = null;
         let stripeCustomerId = null;
+        let precioMensual = null;
+        let precioAnual = null;
         try {
           const poolControl = obtenerPoolControl();
           const [[filaTenant]] = await poolControl.query(
-            `SELECT t.plan_id, p.nombre AS plan_nombre, t.suscripcion_estatus, t.suscripcion_ciclo,
+            `SELECT t.plan_id, p.nombre AS plan_nombre, p.precio_mensual, p.precio_anual,
+                    t.suscripcion_estatus, t.suscripcion_ciclo,
                     t.suscripcion_expira_en, t.contacto_email, t.stripe_customer_id
              FROM tenants t LEFT JOIN planes p ON p.id = t.plan_id
              WHERE t.slug = ?`,
@@ -5004,6 +5114,8 @@ app.get(
             expiraEn = filaTenant.suscripcion_expira_en || null;
             if (totalMaster === 0) correoComprador = filaTenant.contacto_email || null;
             stripeCustomerId = filaTenant.stripe_customer_id || null;
+            precioMensual = filaTenant.precio_mensual != null ? Number(filaTenant.precio_mensual) : null;
+            precioAnual = filaTenant.precio_anual != null ? Number(filaTenant.precio_anual) : null;
           }
         } catch (err) {
           console.error('No se pudo leer la suscripción del tenant desde Control:', err.message);
@@ -5016,6 +5128,8 @@ app.get(
           expiraEn,
           masterPendiente: totalMaster === 0,
           correoComprador,
+          precioMensual,
+          precioAnual,
         };
         // Punto 418: "Datos de pago" en Mi Cuenta — SOLO la cuenta
         // raíz/maestra (antes: cualquier administrador/super, ver punto
