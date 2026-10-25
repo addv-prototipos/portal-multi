@@ -1727,10 +1727,40 @@
     categoriasGastos: [], // { id, slug, etiqueta, activa, protegida, tieneGastos }
   };
 
+  const SVG_TOAST_CHECK = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l2.5 2.5L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const SVG_TOAST_ALERTA = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // Punto (2026-10-24): el aviso ya no flota fijo abajo-centro — nace
+  // dentro del modal abierto o de la vista activa (nunca tapado, nunca
+  // fuera del campo de visión). Prioridad: modal visible > vista del
+  // sidebar visible > <main> > body.
+  function contenedorAvisoActivo() {
+    const modal = document.querySelector('.modal-overlay:not([hidden]) .modal');
+    if (modal) return modal;
+    const vista = document.querySelector('main [id^="vista-"]:not([hidden])');
+    if (vista) return vista;
+    return document.querySelector('main') || document.body;
+  }
+
   function showToast(message, isError = false) {
-    els.toast.textContent = message;
+    const contenedor = contenedorAvisoActivo();
+    if (els.toast.parentElement !== contenedor || els.toast !== contenedor.firstChild) {
+      contenedor.prepend(els.toast);
+    }
+    els.toast.innerHTML = '';
+    const icono = document.createElement('span');
+    icono.className = 'toast-icon';
+    icono.innerHTML = isError ? SVG_TOAST_ALERTA : SVG_TOAST_CHECK;
+    const texto = document.createElement('span');
+    texto.className = 'toast-texto';
+    texto.textContent = message;
+    els.toast.append(icono, texto);
     els.toast.classList.toggle('is-error', isError);
+    els.toast.setAttribute('aria-live', isError ? 'assertive' : 'polite');
     els.toast.hidden = false;
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      els.toast.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
     clearTimeout(showToast._t);
     // Mensajes largos (sobre todo errores con pasos a seguir) necesitan más
     // tiempo en pantalla que un aviso corto de "listo".
@@ -2939,6 +2969,16 @@
         // su propio mensaje específico — se muestra tal cual en vez del
         // genérico, igual que cualquier otro error con `error` real.
         const dataError = await res.json().catch(() => ({}));
+        // Punto 420: el 402 SUSCRIPCION_BLOQUEADA (finalizarAutenticacionAdmin)
+        // también llega aquí — antes solo mostraba el texto rojo genérico
+        // del campo (credenciales SÍ son correctas, solo bloqueado por
+        // pago), ahora usa el mismo muro completo que ya ven las rutas
+        // autenticadas (mostrarMuroSuscripcion), para no obligar al
+        // operador a entrar primero para enterarse.
+        if (res.status === 402 && dataError.codigo === 'SUSCRIPCION_BLOQUEADA') {
+          mostrarMuroSuscripcion(dataError);
+          return;
+        }
         els.loginError.textContent = dataError.error || 'No se pudo iniciar sesión. Intenta de nuevo.';
         return;
       }

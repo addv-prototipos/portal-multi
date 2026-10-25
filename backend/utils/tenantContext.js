@@ -38,6 +38,27 @@ const CACHE_TTL_MS = Number(process.env.TENANT_CACHE_TTL_MS || 45 * 1000);
 // slug en caché como "no encontrado" — aceptable para esta fase.
 const cacheResolucion = new Map();
 
+// Punto 422 (2026-10-24, decisión explícita del usuario — acepta el
+// trade-off de anti-enumeración solo para este caso): "suspendido" es un
+// estado que SOLO /control puede poner (siempre por irregularidades,
+// nunca algo que un tenant se haga a sí mismo) — a diferencia de "baja"
+// o "provisioning", el admin de ese tenant SÍ debe enterarse con un
+// mensaje claro al intentar entrar, en vez del 404 genérico de
+// anti-enumeración. Caché aparte (solo guarda el string `estado`, nunca
+// la fila completa) para no pegarle a la BD en cada intento de login de
+// un tenant ya conocido como suspendido.
+const cacheEstado = new Map();
+async function estadoCrudoTenant(slug) {
+  const enCache = cacheEstado.get(slug);
+  if (enCache && Date.now() - enCache.resueltoEn < CACHE_TTL_MS) {
+    return enCache.estado;
+  }
+  const [filas] = await obtenerPoolControl().query('SELECT estado FROM tenants WHERE slug = ? LIMIT 1', [slug]);
+  const estado = filas[0] ? filas[0].estado : null;
+  cacheEstado.set(slug, { estado, resueltoEn: Date.now() });
+  return estado;
+}
+
 async function resolverTenantPorSlug(slug) {
   const enCache = cacheResolucion.get(slug);
   if (enCache && Date.now() - enCache.resueltoEn < CACHE_TTL_MS) {
@@ -83,8 +104,13 @@ function facturacionEfectiva(tenant) {
 // un tenant, invalidar su entrada (o toda la caché, sin argumento) para
 // que el cambio sea visible sin esperar el TTL completo.
 function invalidarCacheTenant(slug = null) {
-  if (slug) cacheResolucion.delete(slug);
-  else cacheResolucion.clear();
+  if (slug) {
+    cacheResolucion.delete(slug);
+    cacheEstado.delete(slug);
+  } else {
+    cacheResolucion.clear();
+    cacheEstado.clear();
+  }
 }
 
 async function resolverTenantMiddleware(req, res, next) {
@@ -100,6 +126,18 @@ async function resolverTenantMiddleware(req, res, next) {
   try {
     const tenant = await resolverTenantPorSlug(slug);
     if (!tenant) {
+      // Punto 422: "suspendido" (solo /control lo pone, por
+      // irregularidades) se anuncia con su propio mensaje — cualquier
+      // otro estado no-activo (baja, provisioning) o un slug que nunca
+      // existió se queda detrás del 404 genérico de siempre, con su
+      // costo artificial anti-temporización intacto.
+      const estado = await estadoCrudoTenant(slug);
+      if (estado === 'suspendido') {
+        return res.status(403).json({
+          error: 'Esta cuenta fue suspendida. Contacta a soporte para más información.',
+          codigo: 'TENANT_SUSPENDIDO',
+        });
+      }
       costoArtificialComparable();
       return res.status(404).json({ error: 'Tenant no encontrado.' });
     }

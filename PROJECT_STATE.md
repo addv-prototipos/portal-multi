@@ -23733,6 +23733,115 @@ Archivos: `backend/server.js`, `backend/test/integration/admin.test.js`,
 `frontend/admin.css`, `frontend/style.css`, `PROJECT_STATE.md` (este
 punto).
 
+### Punto 423 — Aviso contextual reemplaza el toast flotante (FASE 1 de 2, 2026-10-24)
+
+Usuario pidió dejar de usar el toast flotante (UX pobre: fuera del campo
+de visión, tapado por modales) en todo el sitio + `/control` — se
+presentaron 2 Artifacts de propuesta (protocolo `addv-web-app`, paso 4):
+"Mensajes del sistema — 5 propuestas" y "Misma ventana de listo — 6
+propuestas". Usuario aprobó la **propuesta 5 del primer Artifact**
+(combinada: éxito = reusar la palomita de "Registrar venta"/"Cobro CxC",
+error/advertencia = banner nunca flotante) y pidió **esperar** la
+decisión del segundo Artifact (guardado) — esta es la **Fase 1**: solo
+error/advertencia. La generalización de la palomita de éxito a cada
+forma de guardado queda pendiente de que el usuario elija entre las 6
+propuestas del segundo Artifact.
+
+**Decisión técnica de alcance** (`AskUserQuestion`, antes de tocar
+código): con ~270 llamadas a `showToast()` en el sitio (205 en
+`admin.js`, 51 en `control.js`, resto repartido en `login.js`/
+`portal.js`/`app.js`), el anclaje exacto por elemento habría obligado a
+tocar las 270 una por una. Usuario eligió **banner contextual**: UN solo
+cambio por archivo en la función `showToast()` — ningún call site se
+tocó, misma firma `showToast(mensaje, esError)` de siempre.
+
+**Implementación**: `contenedorAvisoActivo()` (nueva función, duplicada
+a propósito en cada archivo — mismo patrón ya establecido de "código
+pequeño compartido se duplica" entre `backend/`/`control/`, aquí
+replicado entre los `.js` del frontend sin bundler) decide dónde insertar
+el mismo nodo `#toast`/`#control-toast` de siempre:
+1. Modal abierto (`.modal-overlay:not([hidden]) .modal`) → ahí.
+2. Vista activa del sidebar (`main [id^="vista-"]:not([hidden])`,
+   admin.js/control.js) → ahí.
+3. Panel de auth activo (`.auth-panel.is-active`, login.js) → ahí.
+4. `<main>` de la página (portal.js/app.js, páginas de una sola vista) →
+   ahí.
+5. `document.body` — último recurso.
+
+`showToast()` hace `contenedor.prepend(els.toast)` (mueve el MISMO nodo,
+nunca clona) y reconstruye su contenido con un ícono SVG (check circular
+en éxito, triángulo de alerta en error — mismo path que
+`ICONO_PENDIENTE_ALERTA` ya usado en `admin.js`, reusado por consistencia)
++ `textContent` del mensaje (nunca HTML crudo del mensaje — solo el ícono
+es markup estático controlado). `aria-live` cambia a `"assertive"` en
+error / `"polite"` en éxito (antes siempre `"polite"`); `scrollIntoView`
+respeta `prefers-reduced-motion`.
+
+**CSS** (`frontend/style.css`, único lugar — las 13 páginas cargan este
+archivo): `.toast` pasó de `position:fixed` abajo-centro a un banner en
+flujo normal (`display:flex`, fondo success-soft `#E4F6ED`/borde
+`#1FAE6B` en éxito — mismo hex ad-hoc que ya usa el resto del sitio para
+"positivo", ver nota de paleta arriba — `--color-error-soft`/
+`--color-error` ya existentes en error). `.toast[hidden]{display:none}`
+explícito (mismo gotcha ya documentado arriba para `.algo[hidden]`).
+
+**Verificado contra Docker/MySQL reales**: rebuild+`--force-recreate`
+de `frontend`. `node --check` limpio en los 5 `.js` tocados.
+`e2e/tests/mi-cuenta.spec.ts` (sin modificar) corrido contra el stack
+real — **4/5 verde**, incluidas las 2 aserciones que importan aquí
+(`#toast` con "actualizaron correctamente"/"actualizada correctamente"
+tras mover el nodo a `<main>`); el 1 fallo (`#portal-user-label`) es
+preexistente y no relacionado (dato de sesión, no toast). Verificado
+también por script Playwright ad-hoc: `position:static` (ya no
+`fixed`) en `#toast` (admin) y `#control-toast` (control) tras login
+real con `admin:admin`. `control-alta-empresa.spec.ts`/
+`control-editar-empresa.spec.ts` corridos sueltos fallaron por fixtures
+de sesiones de prueba previas ajenas al cambio (filas `e2e9c8...`/
+"Empresa E2E Migracion" no sembradas en esta corrida aislada) — no se
+investigaron más a fondo por ser fuera de alcance de este punto.
+
+Archivos: `frontend/style.css`, `frontend/admin.js`, `frontend/control.js`,
+`frontend/login.js`, `frontend/portal.js`, `frontend/app.js`,
+`PROJECT_STATE.md` (este punto). `restablecer.js`/`credito.js` no usan
+`showToast()`, sin cambios.
+
+### Punto 420 — Muro de suscripción también en el login de `/admin` (2026-10-24)
+
+Hueco encontrado por el usuario en el punto 417 (bloqueo por suscripción
+vencida/no pagada): `GET /api/admin/login` YA pasa por `requireAdminAuth`
+→ `finalizarAutenticacionAdmin` (mismo 402 `SUSCRIPCION_BLOQUEADA` que
+bloquea cualquier otra ruta de `/admin`) — las credenciales de un
+administrador de un tenant vencido devuelven ese 402 real desde el
+login. El problema era 100% frontend: el interceptor global de fetch Y
+el submit de login EXCLUYEN a propósito `/admin/login` (comentario
+"ya maneja su propio 403 de suspensión inline" — cierto para
+`CUENTA_SUSPENDIDA`, pero nadie agregó el caso 402 ahí), así que el 402
+caía al `else` genérico y solo pintaba el texto rojo del campo ("Tu
+suscripción venció") en vez del muro completo
+(`#suscripcion-muro-overlay`, icono+explicación+botones) que sí ven las
+rutas ya autenticadas.
+
+**Fix**: en el submit de `#form-login` (`frontend/admin.js`), antes del
+mensaje genérico de `!res.ok`, se intercepta
+`res.status === 402 && dataError.codigo === 'SUSCRIPCION_BLOQUEADA'` y
+llama a la misma `mostrarMuroSuscripcion(dataError)` que ya usa el
+interceptor global — reutiliza el modal, 0 HTML/CSS nuevo. El usuario
+nunca llega a "entrar" (el backend no emite token: `next()` nunca corre
+en `finalizarAutenticacionAdmin`), así que el modal aparece sobre la
+PANTALLA DE LOGIN (fondo desenfocado), no sobre el panel admin — mismo
+componente, contexto distinto, sin cambios al componente en sí.
+
+**Verificado contra Docker/MySQL reales**: tenant `t1` ya tenía
+`suscripcion_estatus='vencida'` en este entorno (expira 2026-09-01) —
+se insertó una fila de prueba desechable en `tenant_t1.usuarios`
+(`QA-SUSCRIP-419`, perfil `administrador`, hash scrypt generado a mano
+en el mismo formato `salt:hash` de `authUsuario.js:hashPassword`),
+login real por Playwright confirmó `#suscripcion-muro-overlay` visible
+con el título/mensaje reales del 402 y `#login-error` vacío (ya no
+compite); fila de prueba borrada al terminar. `node --check` limpio.
+
+Archivos: `frontend/admin.js`, `PROJECT_STATE.md` (este punto).
+
 ### Punto 421 — Aviso "Falta configurar los datos fiscales": angostado a fiscal/segmento de facturación, sin escape (2026-10-24)
 
 El usuario reportó que el aviso bloqueante de RFC/Clave SAT faltantes
@@ -23768,3 +23877,64 @@ curso sobre `/control`) — reactivado con
 más de ese tenant.
 
 Archivos: `frontend/admin.js`, `PROJECT_STATE.md` (este punto).
+
+### Punto 422 — Mensaje claro para tenant "suspendido" en ambos logins, trade-off de anti-enumeración aceptado explícitamente (2026-10-24)
+
+Mismo hueco del punto 420 pero para el estado `suspendido` de un tenant
+(solo `/control` lo pone, siempre por irregularidades — nunca algo que
+el propio tenant se haga): tanto el login de `/admin` como el del
+portal de clientes mostraban "Tenant no encontrado" (404 genérico de
+anti-enumeración, `tenantContext.js`) en vez de avisar que está
+suspendido.
+
+**Conflicto detectado antes de implementar** (protocolo addv-web-app,
+paso "criticar y mejorar"): el 404 genérico para `estado != 'activo'`
+es una decisión de seguridad YA tomada (segmento 7, anti-enumeración de
+tenants) — separar "suspendido" de "no existe" permite a cualquiera que
+pruebe slugs al azar distinguir un tenant que fue cliente real (y lo
+suspendieron) de uno que nunca existió. Se presentó el trade-off vía
+`AskUserQuestion` antes de tocar código — usuario lo aceptó
+conscientemente ("Debe decir suspendido cuando esta suspendido por
+control... cuando no se encuentra, entonces deja ese mensaje nada más")
+y pidió extenderlo también al portal de clientes ("si se suspende es
+por irregularidades, esto solo es desde control el suspender").
+
+**Alcance deliberadamente angosto**: SOLO `estado === 'suspendido'`
+gana mensaje propio. `baja`/`provisioning`/slug inexistente siguen
+cayendo en el mismo 404 genérico con su costo artificial anti-
+temporización intacto.
+
+**Implementación** (`backend/utils/tenantContext.js`): nueva
+`estadoCrudoTenant(slug)` (caché propia, `cacheEstado`, mismo TTL que
+`cacheResolucion` — nunca toca la caché/contrato de
+`resolverTenantPorSlug()`, que sigue devolviendo `null` para CUALQUIER
+estado no-activo exactamente igual que antes, cero blast radius sobre
+sus demás consumidores) — se consulta SOLO dentro de la rama 404 del
+middleware (ya es el camino lento, un query de una sola columna no
+cambia su perfil de costo), nunca en el camino feliz. Si
+`estado === 'suspendido'`: 403 con `codigo: 'TENANT_SUSPENDIDO'` y
+`error` ya redactado para el usuario final. `invalidarCacheTenant()`
+ahora limpia las 2 cachés.
+
+**Frontend: cero cambios.** `admin.js` (login submit) y `login.js`
+(portal de clientes) ya mostraban `dataError.error`/`data.error` tal
+cual en el campo de error genérico — el mensaje nuevo llega solo con
+mejorar el texto en el backend. (A diferencia del punto 420/muro de
+suscripción: ahí sí hacía falta reusar `mostrarMuroSuscripcion()`
+porque esa ruta quedaba excluida del interceptor global — aquí el
+texto genérico ya bastaba.)
+
+**Verificado contra Docker/MySQL reales**: `UPDATE ... SET
+estado='suspendido' WHERE slug='t2'` temporal, login real por
+Playwright en `/t2/admin` Y `/t2/login` (credenciales cualquiera — el
+bloqueo ocurre ANTES de verificar contraseña) — ambos muestran "Esta
+cuenta fue suspendida. Contacta a soporte para más información.",
+revertido a `estado='activo'` al terminar (confirmado limpio después,
+`t2` en `activo`/`pagada`). `node --check` limpio. Nota de
+coordinación: esta prueba coincidió en el tiempo con otra sesión
+trabajando sobre `/control` en el mismo `t2` (ver punto 421,
+"hallazgo colateral") — sin conflicto real, ambas dejaron el tenant en
+`activo`.
+
+Archivos: `backend/utils/tenantContext.js`, `PROJECT_STATE.md` (este
+punto).

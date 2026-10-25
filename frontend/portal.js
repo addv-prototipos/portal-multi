@@ -74,12 +74,38 @@
     });
   }
 
+  const SVG_TOAST_CHECK = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l2.5 2.5L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const SVG_TOAST_ALERTA = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // Punto (2026-10-24): aviso contextual — nace dentro del modal abierto
+  // (csf.html/tickets.html) o del <main> de la página, nunca flotante.
+  function contenedorAvisoActivo() {
+    const modal = document.querySelector('.modal-overlay:not([hidden]) .modal');
+    if (modal) return modal;
+    return document.querySelector('main') || document.body;
+  }
+
   function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
     if (!toast) return;
-    toast.textContent = message;
+    const contenedor = contenedorAvisoActivo();
+    if (toast.parentElement !== contenedor || toast !== contenedor.firstChild) {
+      contenedor.prepend(toast);
+    }
+    toast.innerHTML = '';
+    const icono = document.createElement('span');
+    icono.className = 'toast-icon';
+    icono.innerHTML = isError ? SVG_TOAST_ALERTA : SVG_TOAST_CHECK;
+    const texto = document.createElement('span');
+    texto.className = 'toast-texto';
+    texto.textContent = message;
+    toast.append(icono, texto);
     toast.classList.toggle('is-error', isError);
+    toast.setAttribute('aria-live', isError ? 'assertive' : 'polite');
     toast.hidden = false;
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      toast.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
     clearTimeout(showToast._t);
     const duracion = Math.min(9000, Math.max(4000, message.length * 80));
     showToast._t = setTimeout(() => { toast.hidden = true; }, duracion);

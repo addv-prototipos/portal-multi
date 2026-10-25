@@ -905,6 +905,31 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   precio capturado, se muestra "Sin definir", nunca un número de
   relleno.
 
+- **El "toast" ya NO es flotante** (punto 423, 2026-10-24): `showToast()`
+  en `admin.js`/`control.js`/`login.js`/`portal.js`/`app.js` inserta el
+  mismo nodo `#toast`/`#control-toast` dentro del contenido afectado
+  (`contenedorAvisoActivo()`: modal abierto > vista activa > panel de
+  auth > `<main>` > `body`) en vez de flotar fijo. Ningún call site de
+  `showToast(mensaje, esError)` cambió — si se agrega un `.js` nuevo con
+  su propio toast, replicar `contenedorAvisoActivo()` ahí (duplicar, no
+  importar) en vez de volver a un `position:fixed`. Fase 2 pendiente
+  (generalizar la palomita de éxito de "Registrar venta"/"Cobro CxC" a
+  cada guardado del sitio) — el usuario todavía no elige entre las 6
+  propuestas del segundo Artifact; no asumir que ya se hizo.
+
+- **Anti-enumeración de tenants: una sola excepción deliberada**
+  (punto 422, 2026-10-24): `backend/utils/tenantContext.js` responde
+  SIEMPRE el mismo 404 "Tenant no encontrado" para cualquier `estado !=
+  'activo'` (incluido un slug que nunca existió) — salvo
+  `estado === 'suspendido'`, que desde este punto devuelve 403
+  `TENANT_SUSPENDIDO` con mensaje explícito (decisión consciente del
+  usuario, acepta el leak de "este slug fue cliente real" porque
+  `suspendido` **solo** lo pone `/control`, siempre por irregularidades
+  — nunca un estado que el propio tenant pueda alcanzar). `baja` y
+  `provisioning` siguen 100% detrás del 404 genérico — si se necesita
+  distinguir OTRO estado en el futuro, es una decisión nueva, no asumir
+  que "ya se abrió la puerta" a mostrar cualquier estado.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),

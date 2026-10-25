@@ -896,22 +896,37 @@ body {
   overflow-wrap: anywhere;
 }
 
-/* Toast */
+/* Aviso contextual (antes "toast" flotante fijo abajo-centro: se perdía
+   fuera del campo de visión y quedaba tapado por modales abiertos —
+   decisión del usuario, 2026-10-24). Ahora nace DENTRO del contenido que
+   afecta (el modal abierto, o la vista/panel activo — ver
+   contenedorAvisoActivo() en cada *.js) y empuja el layout, nunca flota
+   encima. Mismo nodo/id de siempre: ningún call site de showToast()
+   cambia, solo dónde y cómo se pinta. */
 .toast {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  background: var(--color-ink);
-  color: #fff;
-  padding: 12px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #E4F6ED;
+  border: 1px solid #1FAE6B;
+  color: var(--color-ink);
+  padding: 12px 14px;
   border-radius: var(--radius-sm);
   font-size: 13.5px;
-  max-width: 90vw;
-  z-index: 60;
   box-shadow: var(--shadow-card);
+  margin: 0 0 16px;
+  animation: toast-entrada 0.2s ease;
 }
-.toast.is-error { background: var(--color-error); }
+.toast[hidden] { display: none; }
+.toast.is-error { background: var(--color-error-soft); border-color: var(--color-error); }
+.toast-icon { flex: none; width: 18px; height: 18px; margin-top: 1px; color: #1FAE6B; }
+.toast.is-error .toast-icon { color: var(--color-error); }
+.toast-icon svg { display: block; width: 100%; height: 100%; }
+.toast-texto { flex: 1; overflow-wrap: anywhere; }
+@keyframes toast-entrada { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
 
 .app-footer {
   text-align: center;
