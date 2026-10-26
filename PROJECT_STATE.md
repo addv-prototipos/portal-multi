@@ -23938,3 +23938,54 @@ trabajando sobre `/control` en el mismo `t2` (ver punto 421,
 
 Archivos: `backend/utils/tenantContext.js`, `PROJECT_STATE.md` (este
 punto).
+
+### Punto 424 — Aviso de cuota de usuarios como banner propio, no error de campo (2026-10-25)
+
+Usuario pidió mejorar la UX del aviso al llegar al límite de usuarios del
+plan (`codigo: 'CUOTA_USUARIOS_EXCEDIDA'`, `backend/server.js:4649-4659`
+alta y `:4836-4850` edición de perfil — PERFILES_CUOTA =
+`['administrador','fiscal','ventas','inventario']`, `cliente` siempre
+ilimitado, sin cambios de alcance). Antes del cambio: el frontend volcaba
+`data.error` tal cual en el mismo `<p class="field-error">` que un error
+de validación de campo ("RFC inválido") — sin ícono, sin color propio,
+hasta abajo del formulario.
+
+**Propuesta antes/después** (protocolo `addv-web-app`, paso 4):
+Artifact con capturas reales de Playwright/chrome-devtools contra
+Docker+MySQL reales (tenant `t2`, cuota temporal 2/2, revertida después
+sin dejar filas de prueba) — aprobada por el usuario con el CTA apuntando
+a Mi Cuenta > Suscripción.
+
+**Implementación** (solo frontend, cero cambios de backend/lógica de
+cuota): `mostrarAvisoCuotaUsuarios(contenedorEl, mensaje, cerrarModal)`
+(nueva función en `frontend/admin.js`, compartida entre Crear y Editar
+usuario) detecta `data.codigo === 'CUOTA_USUARIOS_EXCEDIDA'` en la
+respuesta 400 y, solo en ese caso, redibuja el contenedor
+`#crear-usuario-error-general`/`#editar-usuario-error-general` como
+banner (`.field-error.aviso-cuota` en `admin.css`, mismo lenguaje visual
+que `.micuenta-banner-market` — `--color-warn`/`--color-warn-soft`,
+nunca `--color-error`): ícono de alerta, título fijo, cuerpo = el mensaje
+real del backend (incluye el número vigente, una sola fuente de verdad),
+y botón "Ir a Suscripción" que cierra el modal y llama
+`cambiarVistaPrincipal('mi-cuenta')` (vista ya existente, tarjeta
+"Plan de suscripción"). `tabindex="-1"` + foco automático al aparecer
+(patrón "Focusable Error Summary", verificado vía `ui-ux-pro-max
+--domain ux`). Cualquier otro 400 de esos dos endpoints (ej. correo
+duplicado) sigue cayendo en el `.field-error` plano de siempre — el
+`className` se resetea a `'field-error'` en los 4 puntos donde el
+formulario se limpia/reintenta, para que el banner no quede pegado entre
+intentos.
+
+**Verificado contra Docker/MySQL reales**: rebuild de `frontend`
+(`docker compose build frontend` + `--force-recreate`), cuota temporal
+`max_usuarios=2` en `t2` vía `UPDATE` directo + invalidación de caché
+(`/internal/cache-tenant/invalidar`), clic real en navegador (Crear
+usuario → perfil Administrador → banner aparece con foco automático →
+clic en "Ir a Suscripción" → modal cierra → vista Mi Cuenta carga →
+tarjeta "Plan de suscripción" visible). Revertido a `max_usuarios=NULL`
+al terminar, sin filas `PRUEBACUOTA*` remanentes. `node --check` limpio;
+suite Jest de `backend` (1374 tests, no tocada por este cambio) sigue en
+verde.
+
+Archivos: `frontend/admin.js`, `frontend/admin.css`, `PROJECT_STATE.md`
+(este punto).

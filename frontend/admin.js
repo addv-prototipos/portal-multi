@@ -12429,6 +12429,7 @@
     els.btnCopiarCrearUsuarioPassword.hidden = true;
     els.crearUsuarioForzarCambio.checked = false;
     els.crearUsuarioErrorGeneral.textContent = '';
+    els.crearUsuarioErrorGeneral.className = 'field-error';
     setFieldError('crear-usuario-rfc', '');
     setFieldError('crear-usuario-email', '');
     setFieldError('crear-usuario-telefono', '');
@@ -12503,6 +12504,38 @@
     els.btnCrearUsuarioGuardarLabel.textContent = cargando ? 'Creando…' : 'Crear usuario';
   }
 
+  const ICONO_ALERTA_CUOTA =
+    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // Aviso de cuota de usuarios (codigo: CUOTA_USUARIOS_EXCEDIDA) — se
+  // distingue de un error de validación de campo: es un bloqueo de
+  // plan/negocio, no un dato mal escrito. Mismo contenedor
+  // `.field-error` (conserva el `:empty{display:none}` al limpiarlo),
+  // pero con la clase `aviso-cuota` que lo redibuja como banner propio
+  // (--color-warn, nunca --color-error) con CTA real a Mi Cuenta >
+  // Suscripción, y foco automático (patrón "Focusable Error Summary").
+  function mostrarAvisoCuotaUsuarios(contenedorEl, mensaje, cerrarModal) {
+    contenedorEl.className = 'field-error aviso-cuota';
+    contenedorEl.innerHTML = `
+      <span class="aviso-cuota-icono">${ICONO_ALERTA_CUOTA}</span>
+      <span class="aviso-cuota-texto">
+        <span class="aviso-cuota-titulo">Llegaste al límite de usuarios de tu plan</span>
+        <span class="aviso-cuota-cuerpo">${escapeHtml(mensaje)}</span>
+      </span>
+    `;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'aviso-cuota-cta';
+    btn.textContent = 'Ir a Suscripción';
+    btn.addEventListener('click', () => {
+      cerrarModal();
+      cambiarVistaPrincipal('mi-cuenta');
+    });
+    contenedorEl.appendChild(btn);
+    contenedorEl.setAttribute('tabindex', '-1');
+    contenedorEl.focus();
+  }
+
   els.btnCrearUsuarioGuardar.addEventListener('click', async () => {
     const authHeader = getAuthHeader();
     if (!authHeader) {
@@ -12511,6 +12544,7 @@
     }
 
     els.crearUsuarioErrorGeneral.textContent = '';
+    els.crearUsuarioErrorGeneral.className = 'field-error';
     setFieldError('crear-usuario-rfc', '');
     setFieldError('crear-usuario-email', '');
     setFieldError('crear-usuario-telefono', '');
@@ -12558,7 +12592,11 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        els.crearUsuarioErrorGeneral.textContent = data.error || 'No se pudo crear el usuario.';
+        if (data.codigo === 'CUOTA_USUARIOS_EXCEDIDA') {
+          mostrarAvisoCuotaUsuarios(els.crearUsuarioErrorGeneral, data.error, cerrarCrearUsuarioModal);
+        } else {
+          els.crearUsuarioErrorGeneral.textContent = data.error || 'No se pudo crear el usuario.';
+        }
         return;
       }
       showToast(`Usuario ${data.rfc} creado correctamente. Se envió una invitación a ${email}.`);
@@ -12611,6 +12649,7 @@
     els.editarUsuarioEmail.value = usuario.email || '';
     els.editarUsuarioTelefono.value = usuario.telefono || '';
     els.editarUsuarioErrorGeneral.textContent = '';
+    els.editarUsuarioErrorGeneral.className = 'field-error';
     setFieldError('editar-usuario-rfc', '');
     setFieldError('editar-usuario-email', '');
     setFieldError('editar-usuario-telefono', '');
@@ -12643,6 +12682,7 @@
     if (!idUsuarioEnEdicion) return;
 
     els.editarUsuarioErrorGeneral.textContent = '';
+    els.editarUsuarioErrorGeneral.className = 'field-error';
     setFieldError('editar-usuario-rfc', '');
     setFieldError('editar-usuario-email', '');
     setFieldError('editar-usuario-telefono', '');
@@ -12677,7 +12717,11 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        els.editarUsuarioErrorGeneral.textContent = data.error || 'No se pudo actualizar el usuario.';
+        if (data.codigo === 'CUOTA_USUARIOS_EXCEDIDA') {
+          mostrarAvisoCuotaUsuarios(els.editarUsuarioErrorGeneral, data.error, cerrarEditarUsuarioModal);
+        } else {
+          els.editarUsuarioErrorGeneral.textContent = data.error || 'No se pudo actualizar el usuario.';
+        }
         return;
       }
       showToast(`Usuario ${data.rfc} actualizado correctamente.`);

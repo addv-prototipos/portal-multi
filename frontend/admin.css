@@ -10083,6 +10083,44 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 }
 .metodo-pago-banner svg { flex: none; color: var(--color-warn); margin-top: 1px; }
 .metodo-pago-banner p { margin: 0; font-size: 13px; color: var(--color-ink); }
+
+/* Aviso de cuota de usuarios (codigo: CUOTA_USUARIOS_EXCEDIDA) en los
+   modales Crear/Editar usuario — distinto de un error de validación de
+   campo (.field-error a secas): es un bloqueo de plan/negocio, nunca
+   --color-error. Mismo lenguaje visual que .micuenta-banner-market. */
+.field-error.aviso-cuota {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--color-warn-soft);
+  border: 1px solid var(--color-warn);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+.aviso-cuota-icono { flex: none; color: var(--color-warn); margin-top: 1px; }
+.aviso-cuota-icono svg { display: block; }
+.aviso-cuota-texto { display: flex; flex-direction: column; gap: 4px; }
+.aviso-cuota-titulo { font-weight: 700; font-size: 13.5px; color: var(--color-warn); }
+.aviso-cuota-cuerpo { font-size: 12.5px; line-height: 1.45; color: var(--color-ink-soft); }
+.aviso-cuota-cta {
+  align-self: flex-start;
+  margin-top: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.aviso-cuota-cta:hover { filter: brightness(0.85); }
+.aviso-cuota-cta:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
 .metodo-pago-split {
   display: grid;
   grid-template-columns: 1fr 1.3fr;

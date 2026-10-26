@@ -917,6 +917,21 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   cada guardado del sitio) — el usuario todavía no elige entre las 6
   propuestas del segundo Artifact; no asumir que ya se hizo.
 
+- **Un bloqueo de plan/negocio nunca se pinta igual que un error de
+  campo** (punto 424, 2026-10-25): `.field-error` (clase compartida de
+  todo el sitio) es para "corrige este dato" — un `codigo` propio en la
+  respuesta 400 (ej. `CUOTA_USUARIOS_EXCEDIDA`) que señala un límite de
+  plan/suscripción se redibuja como banner independiente
+  (`.field-error.aviso-cuota` en `admin.css`, mismo lenguaje que
+  `.micuenta-banner-market`: `--color-warn`/`--color-warn-soft`, nunca
+  `--color-error`) con CTA real, nunca texto plano en el mismo contenedor
+  que un typo de RFC. Patrón: `mostrarAvisoCuotaUsuarios()` en
+  `frontend/admin.js` (Crear/Editar usuario) — replicar la misma idea
+  (detectar `data.codigo`, banner propio + CTA a la sección relevante de
+  Mi Cuenta, foco automático vía `tabindex="-1"` + `.focus()`) para
+  cualquier otro 400 futuro que sea un límite de plan y no un error de
+  formulario.
+
 - **Anti-enumeración de tenants: una sola excepción deliberada**
   (punto 422, 2026-10-24): `backend/utils/tenantContext.js` responde
   SIEMPRE el mismo 404 "Tenant no encontrado" para cualquier `estado !=

@@ -449,6 +449,13 @@ solo la frase en español de la UI.
   418): precio real de `control_tenants.planes.precio_mensual/anual`,
   expuesto en `empresa.suscripcion.precioMensual/precioAnual` — null si
   no hay precio capturado, nunca relleno.
+- **Un bloqueo de plan/negocio no se pinta como error de campo** (punto
+  424, 2026-10-25): un `codigo` propio en un 400 (ej.
+  `CUOTA_USUARIOS_EXCEDIDA`) que señala un límite de plan se redibuja
+  como banner independiente (`.field-error.aviso-cuota` en `admin.css`,
+  `--color-warn`, nunca `--color-error`) con CTA real, no texto plano en
+  el mismo `.field-error` que un typo de RFC. Patrón:
+  `mostrarAvisoCuotaUsuarios()` en `frontend/admin.js`.
 
 ## Stack
 
