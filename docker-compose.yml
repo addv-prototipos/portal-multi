@@ -488,6 +488,13 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       ONBOARDING_CORS_ORIGIN: ${ONBOARDING_CORS_ORIGIN:-}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      # Punto en curso (cobrar primero, onboarding público): control/ es
+      # quien crea el Checkout Session y recibe el webhook — backend/ no
+      # necesita ninguna de estas 3.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      PUBLIC_APP_BASE_URL: ${PUBLIC_APP_BASE_URL:-https://clarvo.mx}
       # Hallazgo m-01 (sonar_1.1.html, Fase D, punto 410): DOCS_ENABLED
       # se invirtió a opt-in -- encendido aquí para desarrollo local;
       # prod/ nunca debe definir esta variable.

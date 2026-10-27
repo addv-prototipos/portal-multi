@@ -457,6 +457,21 @@ solo la frase en español de la UI.
   el mismo `.field-error` que un typo de RFC. Patrón:
   `mostrarAvisoCuotaUsuarios()` en `frontend/admin.js`.
 
+- **Stripe: los planes NUNCA viven como Product/Price en el catálogo de
+  Stripe** (punto 425): cada Checkout Session
+  (`control/utils/stripePagos.js`) arma el precio al vuelo con
+  `price_data`/`product_data` inline usando el precio real de
+  `control_tenants.planes` — Stripe nunca es la fuente de verdad del
+  precio. Excepción real: los cupones sí son objetos reales de Stripe
+  (`stripe.coupons`/`stripe.promotionCodes`), por eso el reporte de
+  cupones cruza contra la API, no solo la BD.
+- **`payment_method_types` ya no se acepta en Checkout Sessions** —
+  Stripe gobierna métodos de pago 100% desde su Dashboard; el parámetro
+  revienta con `StripeInvalidRequestError`.
+  `stripe.promotionCodes.create()` tampoco acepta `coupon: id` plano,
+  forma real: `promotion: { type: 'coupon', coupon: id }` (verificar
+  contra el `.d.ts` instalado si la librería se actualiza, no asumir).
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),

@@ -92,6 +92,7 @@
       <li><a href="#paso5">Configurar el webhook</a></li>
       <li><a href="#paso6">Dónde van estas 3 llaves en Clarvo</a></li>
       <li><a href="#paso7">Probar antes de cobrar de verdad</a></li>
+      <li><a href="#paso8">Activar OXXO</a></li>
     </ol>
   </nav>
 
@@ -222,6 +223,56 @@ STRIPE_WEBHOOK_SECRET=whsec_...</div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         <span>Con esto ya puedes probar el onboarding completo (pago exitoso, pago fallido con el borrador que pidió guardarse, reintentos) sin arriesgar un centavo real ni necesitar la cuenta activada todavía.</span>
       </div>
+    </div>
+  </section>
+
+  <section class="step" id="paso8">
+    <div class="step-head"><span class="step-num">8</span><h2>Activar OXXO</h2></div>
+    <div class="step-body">
+      <p>OXXO es un método de pago aparte de tarjeta — el cliente genera una ficha y paga en
+      efectivo en cualquier tienda OXXO. A diferencia de tarjeta, <strong>la confirmación NO es
+      instantánea</strong>: tarda de minutos a 1-3 días hábiles en llegarte. Esto es justo lo que
+      hace que el flujo de Clarvo tenga un estado "pago pendiente" — el tenant se queda en
+      <code>provisioning</code> hasta que ese pago se confirme.</p>
+
+      <div class="mock-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg> Dashboard → <b>Settings</b> → <b>Payment methods</b> → busca <b>OXXO</b> y actívalo</div>
+      <p>Requisitos para que aparezca disponible:</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Cuenta de Stripe con país <strong>México</strong> (ya lo definiste en el paso 1).</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Moneda del cobro en <strong>MXN</strong> — OXXO no existe en otra moneda.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Un correo del cliente en la sesión de Checkout — Stripe lo usa para mandarle la ficha/recordatorio.</li>
+      </ul>
+
+      <div class="callout warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/></svg>
+        <span>OXXO tiene un monto mínimo y máximo por ficha, y un vencimiento por defecto (normalmente
+        unos días, configurable vía <code>payment_method_options.oxxo.expires_after_days</code> en la
+        API) — estos valores los ajusta Stripe de vez en cuando. Confirma los vigentes en tu propio
+        Dashboard (Settings → Payment methods → OXXO) antes de lanzar, no los asumas de memoria.</span>
+      </div>
+
+      <p><strong>En el código del Checkout</strong>: confirmado al probar en local (2026-10-26) que
+      Stripe YA NO acepta <code>payment_method_types</code> explícito al crear el Checkout Session —
+      los métodos se gobiernan 100% desde este mismo Dashboard (Settings → Payment methods). Con
+      OXXO activado aquí, Checkout lo ofrece solo; el código nunca necesita listar métodos a mano.</p>
+
+      <div class="codebox">// Eventos de webhook — AGREGAR estos 2 a los 5 que ya configuraste
+// (el pago de OXXO nunca dispara checkout.session.completed de inmediato,
+// solo cuando el cliente ya pagó la ficha):
+checkout.session.async_payment_succeeded
+checkout.session.async_payment_failed</div>
+
+      <div class="callout danger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Si el webhook solo escucha <code>checkout.session.completed</code>, una sesión pagada con
+        OXXO NUNCA la dispara por sí sola para métodos asíncronos — el tenant se quedaría en
+        <code>provisioning</code> para siempre aunque el cliente sí haya pagado. Agregar los 2 eventos
+        de arriba es obligatorio, no opcional, para que OXXO funcione de verdad.</span>
+      </div>
+
+      <p><strong>Probar en modo Test</strong>: Stripe no tiene una "tienda OXXO falsa" — en vez de eso,
+      el Dashboard en modo Test te deja abrir el Payment Intent generado y marcarlo manualmente como
+      <em>Succeeded</em> o <em>Failed</em> para simular que el cliente ya pagó (o no) la ficha.</p>
     </div>
   </section>
 

@@ -7322,6 +7322,18 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
   flex: 1 1 200px;
 }
 
+/* Punto en curso (Upscale + Configurar Stripe en /control): sub-pestañas
+   dentro de una vista del sidebar (no confundir con CONFIG_SECCIONES/
+   mapaNavPorVista de admin.js — ese es otro sistema, en otro archivo) y
+   el selector tipo "chip" reusado tanto para plazos de MSI como para el
+   tipo de cobro de una funcionalidad upscale. */
+.control-subtabs { display: inline-flex; gap: 4px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px; padding: 4px; margin: 14px 0 20px; }
+.control-subtab { font: inherit; font-size: 13px; font-weight: 650; border: none; background: none; color: var(--color-ink-soft); padding: 8px 16px; border-radius: 999px; cursor: pointer; }
+.control-subtab.is-active { background: var(--color-accent); color: #fff; }
+.control-chip-select { display: flex; gap: 8px; flex-wrap: wrap; }
+.control-chip { font: inherit; font-size: 12.5px; font-weight: 650; border: 1px solid var(--color-border); border-radius: 999px; padding: 7px 14px; background: var(--color-surface); color: var(--color-ink); cursor: pointer; }
+.control-chip.is-active { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+
 /* `.field label { display: block; ... }` (style.css) gana por
    especificidad sobre `.control-switch { display: inline-flex }`
    (control-switch es un <label> dentro de .field) — el switch perdía su

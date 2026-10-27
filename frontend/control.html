@@ -124,6 +124,18 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" stroke-width="1.8"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke-linecap="round" stroke-width="1.8"/></svg>
           <span>Accesos</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-upscale" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8-8-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Upscale y Stripe</span>
+        </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-recordatorios" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Recordatorios</span>
+        </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-cupones" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20.59 13.41 11 22l-9-9L11 2h8a2 2 0 0 1 2 2v9.41z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none"/></svg>
+          <span>Reporte cupones</span>
+        </button>
       </nav>
       <div class="admin-sidebar-footer">
         <button type="button" class="admin-sidebar-ayuda" id="btn-abrir-conocimiento" aria-label="Centro de conocimiento" aria-haspopup="dialog">
@@ -685,6 +697,229 @@
             </button>
           </div>
         </div>
+
+        <!-- Punto en curso: Upscale (funcionalidades vendibles aparte del
+             plan base) + Configurar Stripe (meses sin intereses, métodos
+             de pago, códigos de descuento). -->
+        <div id="vista-control-upscale" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Upscale y Stripe</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-upscale" aria-label="Ayuda" data-tooltip="Funcionalidades que se venden aparte del plan base, y configuración del cobro real con Stripe.">?</button>
+            </div>
+          </div>
+
+          <div class="control-subtabs" id="upscale-subtabs" role="tablist">
+            <button type="button" class="control-subtab is-active" data-upscale-tab="funciones" role="tab" aria-selected="true">Funcionalidades upscale</button>
+            <button type="button" class="control-subtab" data-upscale-tab="stripe" role="tab" aria-selected="false">Configurar Stripe</button>
+          </div>
+
+          <div id="upscale-panel-funciones">
+            <p class="admin-login-hint">Se suman a la mensualidad/anualidad del tenant (recurrente) o se cobran una sola vez (único) — esto es solo el catálogo, asignarlas a un tenant es aparte.</p>
+            <p class="field-error" id="upscale-error" role="alert"></p>
+            <div class="admin-toolbar-right" style="margin-bottom:12px;">
+              <button type="button" class="btn btn-primary" id="btn-upscale-nuevo">+ Nueva funcionalidad</button>
+            </div>
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead><tr><th>Funcionalidad</th><th>Tipo de cobro</th><th>Precio</th><th></th></tr></thead>
+                <tbody id="upscale-table-body"></tbody>
+              </table>
+            </div>
+            <p class="admin-empty-state" id="upscale-empty" hidden>Todavía no hay funcionalidades upscale.</p>
+
+            <div id="upscale-form" class="control-form-grid" style="max-width:640px;margin-top:18px;" hidden>
+              <input type="hidden" id="upscale-form-id" value="" />
+              <div class="field control-form-grid-full">
+                <label for="upscale-nombre">Nombre</label>
+                <input type="text" id="upscale-nombre" maxlength="120" placeholder="Ej. Soporte prioritario 24/7" autocomplete="off" />
+              </div>
+              <div class="field control-form-grid-full">
+                <label for="upscale-descripcion">Descripción</label>
+                <input type="text" id="upscale-descripcion" maxlength="255" placeholder="Una línea" autocomplete="off" />
+              </div>
+              <div class="field control-form-grid-full">
+                <label>Tipo de cobro</label>
+                <div class="control-chip-select" id="upscale-tipo-cobro">
+                  <button type="button" class="control-chip is-active" data-upscale-tipo="recurrente">Recurrente (mensual/anual)</button>
+                  <button type="button" class="control-chip" data-upscale-tipo="unico">Pago único</button>
+                </div>
+              </div>
+              <div class="field" id="upscale-campo-mensual">
+                <label for="upscale-precio-mensual">Precio mensual (MXN)</label>
+                <input type="number" id="upscale-precio-mensual" min="0" step="0.01" />
+              </div>
+              <div class="field" id="upscale-campo-anual">
+                <label for="upscale-precio-anual">Precio anual (MXN)</label>
+                <input type="number" id="upscale-precio-anual" min="0" step="0.01" />
+              </div>
+              <div class="field" id="upscale-campo-unico" hidden>
+                <label for="upscale-precio-unico">Precio único (MXN)</label>
+                <input type="number" id="upscale-precio-unico" min="0" step="0.01" />
+              </div>
+              <div class="btn-row control-form-grid-full" style="justify-content:flex-start;">
+                <button type="button" class="btn btn-primary" id="btn-upscale-guardar">Guardar funcionalidad</button>
+                <button type="button" class="btn btn-secondary" id="btn-upscale-cancelar">Cancelar</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="upscale-panel-stripe" hidden>
+            <div class="control-subtabs" id="stripe-subtabs" role="tablist">
+              <button type="button" class="control-subtab is-active" data-stripe-tab="metodos" role="tab" aria-selected="true">Métodos de pago</button>
+              <button type="button" class="control-subtab" data-stripe-tab="msi" role="tab" aria-selected="false">Meses sin intereses</button>
+              <button type="button" class="control-subtab" data-stripe-tab="descuentos" role="tab" aria-selected="false">Códigos de descuento</button>
+            </div>
+
+            <div id="stripe-panel-metodos">
+              <div class="field-error" id="stripe-metodos-nota" style="background:var(--color-warn-soft);color:var(--color-warn);border-radius:var(--radius-md);padding:12px 14px;"></div>
+              <p class="field-hint" style="margin-top:12px;">Métodos relevantes para México: <span id="stripe-metodos-lista"></span></p>
+              <a class="btn btn-secondary" id="stripe-metodos-dashboard-link" href="#" target="_blank" rel="noopener">Abrir Dashboard de Stripe</a>
+            </div>
+
+            <div id="stripe-panel-msi" hidden>
+              <p class="field-error" id="stripe-msi-error" role="alert"></p>
+              <div class="field">
+                <label>Plazos permitidos</label>
+                <div class="control-chip-select" id="stripe-msi-plazos"></div>
+              </div>
+              <div class="field" style="max-width:260px;">
+                <label for="stripe-msi-monto-minimo">Monto mínimo de compra (MXN)</label>
+                <input type="number" id="stripe-msi-monto-minimo" min="0" step="0.01" />
+              </div>
+              <button type="button" class="btn btn-primary" id="btn-stripe-msi-guardar">
+                <span id="btn-stripe-msi-guardar-label">Guardar</span>
+              </button>
+            </div>
+
+            <div id="stripe-panel-descuentos" hidden>
+              <p class="field-error" id="stripe-descuentos-error" role="alert"></p>
+              <div class="admin-toolbar-right" style="margin-bottom:12px;">
+                <button type="button" class="btn btn-primary" id="btn-stripe-descuento-nuevo">+ Nuevo código</button>
+              </div>
+              <div class="admin-table-wrap">
+                <table class="admin-table">
+                  <thead><tr><th>Código</th><th>Descuento</th><th>Duración</th><th>Vigencia</th><th>Usos</th><th>Estado</th><th></th></tr></thead>
+                  <tbody id="stripe-descuentos-table-body"></tbody>
+                </table>
+              </div>
+
+              <div id="stripe-descuento-form" class="control-form-grid" style="max-width:640px;margin-top:18px;" hidden>
+                <div class="field">
+                  <label for="stripe-descuento-codigo">Código</label>
+                  <input type="text" id="stripe-descuento-codigo" placeholder="VERANO15" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label for="stripe-descuento-tipo">Tipo</label>
+                  <select id="stripe-descuento-tipo">
+                    <option value="porcentaje">% porcentaje</option>
+                    <option value="monto">$ monto fijo (MXN)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="stripe-descuento-valor">Valor</label>
+                  <input type="number" id="stripe-descuento-valor" min="0" step="0.01" />
+                </div>
+                <div class="field">
+                  <label for="stripe-descuento-duracion">Duración</label>
+                  <select id="stripe-descuento-duracion">
+                    <option value="once">Una vez</option>
+                    <option value="repeating">Repetida (N meses)</option>
+                    <option value="forever">Para siempre</option>
+                  </select>
+                </div>
+                <div class="field" id="stripe-descuento-duracion-meses-campo">
+                  <label for="stripe-descuento-duracion-meses">Número de meses</label>
+                  <input type="number" id="stripe-descuento-duracion-meses" min="1" step="1" />
+                </div>
+                <div class="field">
+                  <label for="stripe-descuento-vigencia">Vigente hasta (opcional)</label>
+                  <input type="date" id="stripe-descuento-vigencia" />
+                </div>
+                <div class="field">
+                  <label for="stripe-descuento-usos">Usos máximos (vacío = sin límite)</label>
+                  <input type="number" id="stripe-descuento-usos" min="1" step="1" />
+                </div>
+                <div class="btn-row control-form-grid-full" style="justify-content:flex-start;">
+                  <button type="button" class="btn btn-primary" id="btn-stripe-descuento-guardar">Guardar código</button>
+                  <button type="button" class="btn btn-secondary" id="btn-stripe-descuento-cancelar">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Punto en curso: Recordatorios de activación -->
+        <div id="vista-control-recordatorios" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Recordatorios de activación</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-recordatorios" aria-label="Ayuda" data-tooltip="Para borradores con pago pendiente o fallido — nunca para tenants ya activados. OXXO/SPEI siempre se recuerda cada 24h, sin importar la frecuencia configurada aquí.">?</button>
+            </div>
+          </div>
+          <p class="field-error" id="recordatorios-error" role="alert"></p>
+
+          <div class="control-form-grid" style="max-width:720px;">
+            <div class="field">
+              <label for="recordatorios-frecuencia">Recordar cada</label>
+              <select id="recordatorios-frecuencia">
+                <option value="24">24 horas</option>
+                <option value="72">3 días</option>
+                <option value="168">7 días</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="recordatorios-max-intentos">Detener después de</label>
+              <select id="recordatorios-max-intentos">
+                <option value="3">3 intentos</option>
+                <option value="5">5 intentos</option>
+                <option value="10">10 intentos</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="recordatorios-angulo">Ángulo del mensaje</label>
+              <select id="recordatorios-angulo">
+                <option value="compromiso">Compromiso + anclaje</option>
+                <option value="perdida">Pérdida + urgencia</option>
+                <option value="social">Prueba social + confianza</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-row" style="justify-content:flex-start;max-width:720px;">
+            <button type="button" class="btn btn-primary" id="btn-recordatorios-guardar">Guardar configuración</button>
+            <button type="button" class="btn btn-secondary" id="btn-recordatorios-procesar">Procesar ahora</button>
+          </div>
+
+          <h2 class="tema-grupo-titulo" style="margin:32px 0 10px;font-size:15px;">En seguimiento</h2>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Empresa</th><th>Motivo</th><th>Último recordatorio</th><th>Próximo intento</th><th>Intentos</th></tr></thead>
+              <tbody id="recordatorios-table-body"></tbody>
+            </table>
+          </div>
+          <p class="admin-empty-state" id="recordatorios-empty" hidden>Nadie en seguimiento ahora mismo.</p>
+        </div>
+
+        <!-- Punto en curso: Reporte de cupones -->
+        <div id="vista-control-cupones" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Reporte de cupones</h1>
+              <button type="button" class="btn-icon" id="btn-ayuda-vista-cupones" aria-label="Ayuda" data-tooltip="Redenciones y compradas vienen de pagos reales confirmados por Stripe. La fuente de tráfico solo se conoce para borradores creados después de activar la captura de utm_source — los anteriores muestran 'Sin datos'.">?</button>
+            </div>
+          </div>
+          <p class="admin-login-hint">Redenciones/ingreso: 100% real, calculado desde pagos confirmados. Fuente de tráfico: solo disponible para borradores nuevos (utm_source), nunca inventada.</p>
+
+          <div class="kpi-row" id="cupones-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0 24px;"></div>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Código</th><th>Redenciones</th><th>Compradas</th><th>Ingreso</th><th>Fuente top</th></tr></thead>
+              <tbody id="cupones-table-body"></tbody>
+            </table>
+          </div>
+          <p class="admin-empty-state" id="cupones-empty" hidden>Todavía no hay redenciones registradas.</p>
+        </div>
       </main>
     </div>
   </div>
@@ -753,7 +988,7 @@
         </div>
 
         <div class="planes-wizard-panel" id="planes-wizard-panel-3" data-paso="3">
-          <h3>Funcionalidades dependientes</h3>
+          <h3>Reglas automáticas</h3>
           <p class="field-hint planes-wizard-sub">Lo que depende de un módulo del paso anterior vive aquí — lo que no aplica queda inhabilitado con el motivo a la vista, nunca oculto sin explicación.</p>
           <div class="planes-wizard-leyenda">
             <strong>De dónde sale cada dependencia:</strong>
@@ -762,10 +997,16 @@
             <span class="planes-wizard-chip-dep m-gastos">Gastos</span>
             <span class="planes-wizard-chip-dep m-inventarios">Inventarios</span>
           </div>
-          <div id="planes-wizard-dependientes"></div>
+          <div id="planes-wizard-reglas-auto"></div>
         </div>
 
         <div class="planes-wizard-panel" id="planes-wizard-panel-4" data-paso="4">
+          <h3>Pestañas de Reportes</h3>
+          <p class="field-hint planes-wizard-sub">Independientes de los módulos — se activan una por una, cada una con lo que necesita para mostrar algo.</p>
+          <div id="planes-wizard-reportes"></div>
+        </div>
+
+        <div class="planes-wizard-panel" id="planes-wizard-panel-5" data-paso="5">
           <h3>Resumen antes de guardar</h3>
           <p class="field-hint planes-wizard-sub">Así quedará el plan — revisa antes de confirmar.</p>
           <div class="admin-table-wrap">

@@ -361,6 +361,13 @@ const COLUMNAS_PLANES_NUEVAS = [
   // asegurarTablaPlanes() — ningún plan ya creado pierde el ticket de
   // impresión que ya traía incluido en "Marca propia".
   { nombre: 'ticket_impresion_habilitado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // Punto en curso (integración de pagos): gobierna si el plan se muestra
+  // en el sitio público (clarvo.mx) — DEFAULT 0 a propósito, mismo
+  // criterio que el resto de esta tabla: un plan nuevo (o ya existente,
+  // incluidos los 3 registros de prueba E2E de este entorno) no se
+  // publica solo porque exista la columna. El operador lo activa a
+  // propósito desde /control.
+  { nombre: 'publicado_sitio', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
 ];
 
 async function asegurarTablaPlanes(db) {
@@ -431,6 +438,92 @@ async function asegurarTablaPlanes(db) {
       ]
     );
   }
+
+  // Punto en curso (integración de pagos): el catálogo público REAL vive
+  // en clarvo-Site/src/data/plans.ts (confirmado por el usuario,
+  // 2026-10-09 — fuente CLARVO_Planes.md) y en
+  // OnboardingModal.tsx (mismos 4 nombres/precios duplicados a
+  // propósito, repos separados). resolverPlanIdPorClave() en
+  // control/utils/onboardingConversion.js busca esos nombres exactos
+  // ("CLARVO Solicita", etc.).
+  //
+  // Primera versión de esta migración (ya corregida aquí) heredaba
+  // módulos de 3 filas de prueba viejas (Básico/Pro/Enterprise) con una
+  // asignación placeholder que NO coincidía con la copia real — el caso
+  // más notorio: dejaba facturacion_habilitada=0 en Solicita, cuando la
+  // propuesta de valor completa de ese plan ES facturación/CFDI. Esta
+  // versión mapea cada módulo directo desde los `items` reales de
+  // plans.ts. Sigue siendo best-effort en 2 cosas que esa fuente NO
+  // especifica y el esquema de `planes` no modela todavía: (1) máximo de
+  // usuarios de Solicita/Controla (plans.ts solo marca el límite a partir
+  // de Crece: "Hasta 5 usuarios") — se infiere una progresión ascendente
+  // razonable (1 y 3); (2) cuota de disco (no aparece en plans.ts en
+  // absoluto) y máximo de SUCURSALES por cantidad ("Hasta 2"/"Hasta 5" —
+  // la columna actual `sucursales_habilitado` es un booleano, no soporta
+  // un tope numérico) quedan fuera de alcance de esta migración; ambos
+  // confirmarlos/resolverlos con el usuario antes de depender de ellos
+  // en producción.
+  //
+  // Idempotente de una sola vez: solo corre si ninguno de los 4 nombres
+  // reales existe todavía, para no pisar ajustes que el operador ya haya
+  // hecho a mano desde /control.
+  const [[{ totalReal }]] = await db.query(
+    `SELECT COUNT(*) AS totalReal FROM planes WHERE nombre IN ('CLARVO Solicita','CLARVO Controla','CLARVO Crece','CLARVO Domina')`
+  );
+  if (totalReal === 0) {
+    const ahora2 = new Date();
+    const columnasComunes = `
+      (nombre, descripcion, precio_mensual, precio_anual, max_usuarios, disco_cuota_mb,
+       facturacion_habilitada, portal_clientes_habilitado,
+       ventas_habilitado, gastos_habilitado, cxc_habilitado, resumen_financiero_habilitado,
+       reportes_por_reporte_habilitado, reportes_cortes_habilitado, reportes_eliminados_habilitado,
+       reportes_estado_inventario_habilitado, reportes_estado_tickets_habilitado,
+       ticket_impresion_habilitado,
+       inventarios_habilitado, sucursales_habilitado, auditoria_habilitado, marca_lookfeel_habilitado,
+       promociones_habilitado,
+       publicado_sitio, activo, orden, creado_en, actualizado_en)`;
+
+    await db.query(
+      `INSERT INTO planes ${columnasComunes} VALUES
+         ('CLARVO Solicita', 'Deja de perseguir facturas por WhatsApp.', 199, 1990, 1, 500,
+          1, 1,
+          0, 0, 0, 0,
+          0, 0, 0,
+          0, 0,
+          0,
+          0, 0, 0, 0,
+          0,
+          1, 1, 1, ?, ?),
+         ('CLARVO Controla', 'Deja de administrar tu negocio a ciegas.', 599, 5990, 3, 1024,
+          1, 1,
+          1, 1, 1, 1,
+          1, 0, 0,
+          0, 0,
+          1,
+          0, 0, 0, 0,
+          0,
+          1, 1, 2, ?, ?),
+         ('CLARVO Crece', 'Controla tu operación mientras tu negocio crece.', 799, 7990, 5, 2048,
+          1, 1,
+          1, 1, 1, 1,
+          1, 1, 0,
+          1, 0,
+          1,
+          1, 1, 1, 1,
+          0,
+          1, 1, 3, ?, ?),
+         ('CLARVO Domina', 'Ten una visión completa de tu negocio.', 999, 9990, 10, 5120,
+          1, 1,
+          1, 1, 1, 1,
+          1, 1, 1,
+          1, 1,
+          1,
+          1, 1, 1, 1,
+          1,
+          1, 1, 4, ?, ?)`,
+      [ahora2, ahora2, ahora2, ahora2, ahora2, ahora2, ahora2, ahora2]
+    );
+  }
 }
 
 // Punto 370: ajustes globales de la plataforma (clave/valor) — mismo
@@ -479,6 +572,85 @@ async function asegurarTablaOnboardingBorradores(db) {
       UNIQUE KEY uq_onboarding_borradores_token (token)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Punto en curso (cobrar primero): el pago se rastrea APARTE de
+  // `estado` — `estado` sigue describiendo el ciclo de vida del borrador
+  // (activo→convertido), nunca "ya pagó". `pago_estado` es NULL mientras
+  // el prospecto no llega al paso Pago; 'pendiente' cubre tanto tarjeta en
+  // vuelo como OXXO/SPEI esperando confirmación — el webhook es el único
+  // que lo pasa a 'confirmado' (y dispara convertirBorrador()) o
+  // 'fallido' (nunca aprovisiona). metodo_pago se guarda solo para mostrar
+  // el mensaje correcto en el paso Completado (tarjeta vs OXXO/SPEI).
+  const [columnasBorradores] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'onboarding_borradores'`
+  );
+  const nombresBorradores = columnasBorradores.map((c) => c.COLUMN_NAME);
+  const COLUMNAS_BORRADOR_PAGO = [
+    { nombre: 'stripe_checkout_session_id', definicion: 'VARCHAR(255) NULL' },
+    { nombre: 'metodo_pago', definicion: "VARCHAR(20) NULL" },
+    { nombre: 'pago_estado', definicion: "ENUM('pendiente','confirmado','fallido') NULL" },
+    // Reporte de cupones (punto en curso): código de Stripe realmente
+    // usado al pagar (si el prospecto escribió uno en la página de
+    // Checkout — allow_promotion_codes, ver stripePagos.js) y el
+    // utm_source con el que llegó a clarvo.mx, si clarvo-Site lo captura
+    // y lo manda al crear el borrador. NULL es honesto: "no se sabe",
+    // nunca un valor inventado.
+    { nombre: 'stripe_promotion_code', definicion: 'VARCHAR(100) NULL' },
+    { nombre: 'utm_source', definicion: 'VARCHAR(100) NULL' },
+    // Recordatorios de activación (punto en curso): cuándo se mandó el
+    // último, y cuántos van — el scheduler de control/utils/recordatorios.js
+    // los usa para decidir si ya toca otro o si hay que archivar.
+    { nombre: 'ultimo_recordatorio_en', definicion: 'DATETIME NULL' },
+    { nombre: 'intentos_recordatorio', definicion: 'INT NOT NULL DEFAULT 0' },
+  ];
+  for (const { nombre, definicion } of COLUMNAS_BORRADOR_PAGO) {
+    if (!nombresBorradores.includes(nombre)) {
+      await db.query(`ALTER TABLE onboarding_borradores ADD COLUMN ${nombre} ${definicion}`);
+    }
+  }
+}
+
+// Punto en curso (Upscale): catálogo de funcionalidades vendibles por
+// separado, encima del plan base de un tenant — su costo se suma a la
+// mensualidad/anualidad de la suscripción bajo la misma regla de ciclo
+// que el plan (tipo_cobro='recurrente'), o se cobra una sola vez
+// (tipo_cobro='unico', solo usa precio_unico). Esta tabla es SOLO el
+// catálogo (qué funcionalidades existen y cuánto cuestan) — asignar una
+// funcionalidad a un tenant específico y facturarla de verdad es trabajo
+// aparte, fuera de alcance de este punto.
+async function asegurarTablaUpscale(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS funcionalidades_upscale (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nombre VARCHAR(120) NOT NULL,
+      descripcion VARCHAR(255) NULL,
+      tipo_cobro ENUM('recurrente','unico') NOT NULL DEFAULT 'recurrente',
+      precio_mensual DECIMAL(10,2) NULL,
+      precio_anual DECIMAL(10,2) NULL,
+      precio_unico DECIMAL(10,2) NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 1,
+      orden INT NOT NULL DEFAULT 0,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
+// Idempotencia de webhooks de Stripe: un mismo evento puede reenviarse
+// (reintentos de red, redelivery manual desde el Dashboard) — sin esto,
+// un checkout.session.completed duplicado reintentaría
+// convertirBorrador()/el correo de credenciales dos veces. Solo guarda el
+// id del evento, nunca el payload completo (no hace falta, y evita
+// guardar datos de pago innecesarios).
+async function asegurarTablaStripeEventos(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS stripe_eventos_procesados (
+      event_id VARCHAR(255) PRIMARY KEY,
+      tipo VARCHAR(100) NOT NULL,
+      procesado_en DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 }
 
 module.exports = {
@@ -488,6 +660,8 @@ module.exports = {
   asegurarTablaPlanes,
   asegurarTablaAjustesGlobales,
   asegurarTablaOnboardingBorradores,
+  asegurarTablaStripeEventos,
+  asegurarTablaUpscale,
   // Exportadas solo para que test/unit/ensureSchema.test.js derive sus
   // fixtures y conteos esperados de la fuente real, en vez de mantener una
   // copia a mano que se desincroniza cada vez que se agrega una columna

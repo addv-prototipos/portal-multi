@@ -23989,3 +23989,130 @@ verde.
 
 Archivos: `frontend/admin.js`, `frontend/admin.css`, `PROJECT_STATE.md`
 (este punto).
+
+## Punto 425 — Onboarding Segmento C: Stripe real "cobrar primero, activar después" + Upscale/Recordatorios/Reporte de cupones (26-27 oct 2026, CERRADO, pendiente de commit)
+
+Cierra el hueco documentado en `pendientes.html`/`AGENTS.md`
+("Segmento C — Stripe + proxy público, esperando luz verde"): decisión
+explícita del usuario — el onboarding público de `clarvo.mx` cobra
+ANTES de aprovisionar el tenant, nunca al revés. Trabajo grande, resumen
+por pieza (todas verificadas reales contra Docker+MySQL+Stripe test
+mode+navegador, nunca solo `node --check`):
+
+**1. Arquitectura de cobro.** `control/utils/stripePagos.js`:
+`crearCheckoutSession()` crea un Stripe Checkout (`mode:'payment'`) con
+`price_data`/`product_data` armados al vuelo — el precio real sale de
+`resolverPlanPorClave()` contra `control_tenants.planes`, Stripe NUNCA
+es dueño del catálogo de precios (ver gotcha nuevo en `CLAUDE.md`).
+`manejarPagoConfirmado()` (disparado solo por el webhook, nunca por el
+navegador) es el ÚNICO lugar que llama `convertirBorrador()` ahora —
+se eliminó el endpoint viejo `POST /convertir/:token` que activaba sin
+pagar (hueco de seguridad real cerrado). `POST
+/api/control/webhooks/stripe` verifica firma con `req.rawBody`
+(`express.json({verify:...})`) y responde 200 de inmediato, procesa
+async; `requireOrigenPropio` tiene bypass explícito para esa ruta.
+OXXO/SPEI: el borrador queda en `provisioning` hasta que
+`checkout.session.async_payment_succeeded` llega — **recordatorio cada
+24h fijo sin importar la config global** (decisión explícita del
+usuario, "usa neuroventas para accionar el CTA").
+
+**2. nginx.** `frontend/nginx.conf.template` no tenía proxy para
+`/api/public/*` — solo `/api/control/*` — así que el onboarding público
+real era inalcanzable desde fuera de la red interna de Docker (mismo
+hueco que describía `pendientes.html`). Agregado
+`location ^~ /api/public/ { proxy_pass http://control_upstream/...; }`.
+
+**3. `clarvo-Site` (repo separado, `D:\srv\clarvo-Site`).**
+`OnboardingModal.tsx`/`onboardingApi.ts`: `convertirBorrador()` se quitó
+del cliente; se agregó `pagarBorrador()` (Turnstile-gated, redirige a
+`checkoutUrl`) y `estadoPago()` (polling de solo lectura tras el regreso
+de Stripe o mientras OXXO/SPEI sigue pendiente). `PasoCompletado` ahora
+tiene 3 ramas: fallido / activado (con `urlPortal` condicional a si el
+plan incluye portal) / pendiente (copy neuroventas, ángulo
+"compromiso+anclaje"). Captura UTM honesta:
+`utmSourceActual()` lee `window.location.search`, nunca inventa un
+valor si no viene. `PricingSection.astro`: precios ya no son estáticos
+de `data/plans.ts` — `cargarPlanes()` hace fetch a
+`GET /api/public/planes` (nuevo endpoint público, filtra
+`publicado_sitio=1 AND activo=1`) y re-renderiza las tarjetas
+client-side (Opción 1 de la propuesta, "isla con fetch", confirmada por
+el usuario) con la misma animación de números ya existente.
+
+**4. Catálogo de planes corregido.** `ensureSchema.js`: la migración
+de catálogo inicial tenía mal el mapeo de flags por plan (asumía
+Solicita=Básico sin facturación) — corregido contra la fuente real
+(`clarvo-Site/src/data/plans.ts`, confirmada por el usuario 2026-10-09):
+4 planes reales (Solicita/Controla/Crece/Domina,
+$199/$599/$799/$999 mensual), `max_usuarios` 1/3/5/10 (Domina NO es
+ilimitado). Columna nueva `planes.publicado_sitio`.
+
+**5. Wizard de planes — Dependientes dividido (Opción B confirmada).**
+`frontend/control.html`/`control.js`: el paso 3 ("Dependientes") se
+dividió en paso 3 "Reglas automáticas" + paso 4 "Reportes" (antes
+mezclaba ambas cosas en un solo panel denso) — wizard pasó de 4 a 5
+pasos. `renderPlanWizardDependientes()` se dividió en
+`renderPlanWizardReglasAutomaticas()`/`renderPlanWizardReportes()`.
+
+**6. Upscale (catálogo).** `control/utils/upscale.js` (nuevo): CRUD de
+funcionalidades vendibles aparte del plan (`recurrente`/`unico`),
+soft-delete vía `activo` (nunca DELETE físico, mismo criterio que
+`control_app` no tiene permisos de FK/DELETE cross-tenant). Tabla
+`funcionalidades_upscale` nueva en `ensureSchema.js`.
+
+**7. Config de Stripe.** `control/utils/stripeConfig.js` (nuevo), 3
+piezas con 3 niveles de realidad distintos (documentado en el propio
+archivo): MSI real vía API (`payment_method_options.card.installments`,
+guardado en `ajustes_globales`); "Métodos de pago" solo informativo
+(Stripe ya no deja controlarlo por API, confirmado real al probar —
+ver gotcha nuevo en `CLAUDE.md`/`AGENTS.md`); Códigos de descuento
+real vía Stripe Coupons+PromotionCodes (proxy delgado, Stripe es la
+única fuente de verdad, sin tabla local).
+
+**8. Recordatorios de activación.** `control/utils/recordatorios.js`
+(nuevo): scheduler automático (`setTimeout` 45s + `setInterval` 1h,
+mismo patrón que `iniciarPurgaAutomatica()`), config vía
+`ajustes_globales` (frecuencia 24/72/168h, máx intentos 3/5/10, ángulo
+compromiso/pérdida/social) — OXXO/SPEI siempre 24h fijo sin importar la
+config (punto 1). Archiva (`estado='abandonado'`) al agotar intentos.
+`control/utils/notificarBackend.js`: `enviarCorreoBase()` nuevo,
+delega el envío real a `backend` vía `/internal/enviar-correo-base`
+(mismo patrón `X-Internal-Secret` que el resto de llamadas
+`control→backend` — `control` nunca toca SMTP directo).
+
+**9. Reporte de cupones.** `control/utils/reporteCupones.js` (nuevo):
+cruza `onboarding_borradores.stripe_promotion_code` (solo se llena
+cuando Stripe confirma un pago con cupón) contra
+`listarCodigosDescuento()` (nombre humano del código) y
+`resolverPlanPorClave()` (precio real por plan/ciclo) — agrega
+redenciones/compradas/ingreso/fuente-UTM-top por código. Nunca inventa
+cifras: si Stripe no está configurado, cae a mostrar el ID crudo en vez
+de tronar.
+
+**10. Frontend `/control` para 8-9.** `frontend/control.html`/`.js`:
+3 vistas nuevas ("Upscale y Stripe" con sub-tabs Funciones/Stripe/MSI/
+Descuentos, "Recordatorios", "Reporte cupones") — verificadas con datos
+reales de principio a fin (tabla de seguimiento mostrando un borrador
+real, KPIs de cupones con cifras reales de un cupón de prueba
+`LANZAMIENTO20`).
+
+**Gotchas reales encontrados y corregidos** (detalle completo en
+`CLAUDE.md`/`AGENTS.md`, sección de gotchas): `payment_method_types` ya
+no se acepta al crear un Checkout Session;
+`stripe.promotionCodes.create()` cambió de `coupon: id` plano a
+`promotion: {type:'coupon', coupon:id}` anidado (verificado contra el
+`.d.ts` real de la versión instalada); Git-Bash en Windows corrompe
+acentos en argumentos de línea de comandos (heredocs `mysql`, `curl -d`)
+— cualquier dato de prueba con tildes/eñes se creó vía `fetch()` en el
+navegador, nunca vía Bash.
+
+**Estado real**: todo este trabajo (control/server.js,
+control/utils/{stripePagos,stripeConfig,upscale,recordatorios,
+reporteCupones,onboardingConversion,onboardingBorrador,
+notificarBackend}.js, control/scripts/ensureSchema.js,
+backend/server.js, frontend/{control.html,control.js},
+frontend/nginx.conf.template, docker-compose.yml,
+DOCS/confStripe.html, + el repo separado `clarvo-Site`) está **sin
+commitear** al cerrar este punto — confirmar con el usuario antes de
+commitear (alcance grande, varios archivos). Ver punto 426 para el
+trabajo de UI inmediatamente posterior (mismo commit pendiente o
+aparte, a decidir).

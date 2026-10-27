@@ -1061,6 +1061,7 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
   const email = sanitizeText(body.email, 200).toLowerCase();
   const passwordHash = typeof body.passwordHash === 'string' ? body.passwordHash : '';
   const nombreUsuario = sanitizeText(body.nombreUsuario, 50).toUpperCase();
+  const portalHabilitado = body.portalHabilitado !== false;
 
   if (!email || !isValidEmail(email)) {
     return res.status(400).json({ error: 'Correo de administrador inválido.' });
@@ -1104,13 +1105,17 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
     );
 
     const urlBase = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');
+    // El link de portal solo se incluye si el plan del tenant lo trae —
+    // mostrar/enviar un acceso a una superficie que su plan no incluye
+    // sería engañoso (punto Stripe: "cobrar primero", correo de
+    // activación tras confirmar el pago).
     enviarCorreo({
       destinatario: email,
       asunto: 'Tu cuenta de Clarvo ya está lista',
       cuerpo:
         'Hola,\n\nTu cuenta de Clarvo ya está activa.\n\n' +
         `Panel de administración: ${urlBase}/${slug}/admin\n` +
-        `Portal para tus clientes: ${urlBase}/${slug}\n\n` +
+        (portalHabilitado ? `Portal para tus clientes: ${urlBase}/${slug}\n\n` : '\n') +
         `Usuario: ${nombreUsuario}\n` +
         'Entra con la contraseña que elegiste al darte de alta.\n\n' +
         '— Clarvo',
@@ -1135,6 +1140,28 @@ app.post('/internal/crear-admin-inicial/:slug', async (req, res) => {
 // propia credencial, mismo patrón que activar-tenant/eliminar-tenant de
 // arriba. Nunca se llama en el camino de una request normal — solo desde
 // el botón "Recalcular" de /control, bajo demanda del operador.
+// Punto en curso (recordatorios de activación): correo genérico del
+// SITIO BASE — control/ no tiene SMTP propio para esto, reusa la misma
+// configuración/transportador que ya usa el resto de correos sin tenant
+// (ver backend/utils/email.js). Sin tenant de por medio (el prospecto
+// aún no tiene uno), así que no hay AsyncLocalStorage que resolver aquí.
+app.post('/internal/enviar-correo-base', async (req, res) => {
+  if (!secretoInternoValido(req)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
+  const { destinatario, asunto, cuerpo } = req.body || {};
+  if (!destinatario || !isValidEmail(destinatario) || !asunto || !cuerpo) {
+    return res.status(400).json({ error: 'destinatario, asunto y cuerpo son obligatorios.' });
+  }
+  try {
+    await enviarCorreo({ destinatario, asunto, cuerpo });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`No se pudo enviar el correo base a ${destinatario}:`, err.message);
+    res.status(502).json({ error: 'No se pudo enviar el correo.' });
+  }
+});
+
 app.post('/internal/disco-uso/:slug', async (req, res) => {
   if (!secretoInternoValido(req)) {
     return res.status(403).json({ error: 'No autorizado.' });

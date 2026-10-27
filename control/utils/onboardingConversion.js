@@ -37,12 +37,19 @@ const APP_BASE_URL = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').re
 // No bloquea la conversión si el plan no se encuentra (catálogo editado,
 // plan archivado, etc.) — la cuenta igual debe quedar activa; el operador
 // puede asignar el plan manualmente después desde /control.
-async function resolverPlanIdPorClave(planClave, db) {
+//
+// Fila completa (id + precios) — usada también por stripePagos.js para
+// calcular el monto real del Checkout Session, nunca un número inventado
+// en el frontend.
+async function resolverPlanPorClave(planClave, db) {
   const nombre = NOMBRE_PLAN_POR_CLAVE[planClave];
   if (!nombre) return null;
   try {
-    const [filas] = await db.query('SELECT id FROM planes WHERE nombre = ? AND activo = 1 LIMIT 1', [nombre]);
-    return filas.length > 0 ? filas[0].id : null;
+    const [filas] = await db.query(
+      'SELECT id, precio_mensual, precio_anual, portal_clientes_habilitado FROM planes WHERE nombre = ? AND activo = 1 LIMIT 1',
+      [nombre]
+    );
+    return filas.length > 0 ? filas[0] : null;
   } catch (err) {
     console.error(`No se pudo resolver el plan "${planClave}" (${nombre}):`, err.message);
     return null;
@@ -114,12 +121,12 @@ async function convertirBorrador(token, { actor = 'onboarding-publico', db = obt
   // tenant.plan_id: obtenerTenantPorSlug() no trae esa columna en su
   // SELECT, así que compararla aquí compararía contra `undefined` y
   // reaplicaría de todas formas — más simple y correcto no comparar.
-  const planId = await resolverPlanIdPorClave(borrador.plan_clave, db);
-  if (planId) {
+  const planResuelto = await resolverPlanPorClave(borrador.plan_clave, db);
+  if (planResuelto) {
     try {
       tenant = await actualizarDatosTenant(
         borrador.slug,
-        { nombreEmpresa: tenant.nombre_empresa, contactoEmail: tenant.contacto_email, planId },
+        { nombreEmpresa: tenant.nombre_empresa, contactoEmail: tenant.contacto_email, planId: planResuelto.id },
         { actor, db }
       );
     } catch (err) {
@@ -130,16 +137,17 @@ async function convertirBorrador(token, { actor = 'onboarding-publico', db = obt
   // ----- Paso 3b: inicializar la suscripción (punto 416, idempotente) -----
   // origenForzado='onboarding' protege la fecha de inicio del ciclo —
   // ningún guardado manual posterior desde /control podrá moverla (ver
-  // tenantSuscripcion.js). estatus='pendiente', nunca 'pagada': Stripe
-  // todavía no está integrado de verdad (confirmado con el usuario,
-  // "por ahora usa solo mocks, al final integramos") — marcar "pagada"
-  // aquí sería mentir sobre un cobro que nunca ocurrió. Un operador
-  // puede cambiarlo a mano por ahora; el webhook real de Stripe lo hará
-  // solo cuando esa integración exista.
+  // tenantSuscripcion.js). estatus='pagada' (cambiado del 'pendiente'
+  // original, punto Stripe): desde que se integró el cobro "primero
+  // pagar, luego aprovisionar", convertirBorrador() SOLO se invoca una
+  // vez que el pago ya se confirmó — o de forma síncrona (tarjeta exitosa
+  // al instante, en PasoPago/onContinuar) o desde el webhook de Stripe
+  // (OXXO/SPEI, checkout.session.completed/async_payment_succeeded). Por
+  // construcción, llegar aquí siempre significa que ya se cobró.
   try {
     await actualizarSuscripcionTenant(
       borrador.slug,
-      { enPrueba: false, ciclo: borrador.ciclo || 'mensual', estatus: 'pendiente' },
+      { enPrueba: false, ciclo: borrador.ciclo || 'mensual', estatus: 'pagada' },
       { actor, db, origenForzado: 'onboarding' }
     );
   } catch (err) {
@@ -152,6 +160,7 @@ async function convertirBorrador(token, { actor = 'onboarding-publico', db = obt
       email: borrador.admin_email,
       passwordHash: borrador.admin_password_hash,
       nombreUsuario: derivarNombreUsuario(borrador.admin_email),
+      portalHabilitado: !planResuelto || !!planResuelto.portal_clientes_habilitado,
     });
   } catch (err) {
     const motivo =
@@ -167,11 +176,14 @@ async function convertirBorrador(token, { actor = 'onboarding-publico', db = obt
     [new Date(), token]
   );
 
+  // urlPortal solo si el plan del tenant lo incluye — mismo criterio que
+  // el resto del sitio: nunca mostrar/enviar un link a una superficie que
+  // el plan contratado no tiene.
   return {
     slug: borrador.slug,
     urlAdmin: `${APP_BASE_URL}/${borrador.slug}/admin`,
-    urlPortal: `${APP_BASE_URL}/${borrador.slug}`,
+    urlPortal: planResuelto && planResuelto.portal_clientes_habilitado ? `${APP_BASE_URL}/${borrador.slug}` : null,
   };
 }
 
-module.exports = { convertirBorrador };
+module.exports = { convertirBorrador, resolverPlanPorClave, NOMBRE_PLAN_POR_CLAVE };

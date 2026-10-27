@@ -58,7 +58,7 @@ async function activarTenantFisico(slug) {
 // control/ nunca envía ni ve la contraseña en texto plano. Mismo motivo
 // de delegación que activarTenantFisico(): control_app no tiene acceso a
 // ninguna base `tenant_*`.
-async function crearAdminInicialFisico(slug, { email, passwordHash, nombreUsuario }) {
+async function crearAdminInicialFisico(slug, { email, passwordHash, nombreUsuario, portalHabilitado }) {
   const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
   const secreto = process.env.INTERNAL_CACHE_SECRET;
 
@@ -67,7 +67,7 @@ async function crearAdminInicialFisico(slug, { email, passwordHash, nombreUsuari
     res = await fetch(`${url}/internal/crear-admin-inicial/${encodeURIComponent(slug)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
-      body: JSON.stringify({ email, passwordHash, nombreUsuario }),
+      body: JSON.stringify({ email, passwordHash, nombreUsuario, portalHabilitado: portalHabilitado !== false }),
     });
   } catch (err) {
     throw new ErrorActivacionFisica('No se pudo conectar con el backend para crear el usuario administrador.');
@@ -255,8 +255,34 @@ async function reasignarRaizTenant(slug, id) {
   return data;
 }
 
+// Punto en curso (recordatorios de activación): control/ no tiene SMTP
+// propio para correos del SITIO BASE (solo lo copia para SUS PROPIOS
+// avisos operativos, ver utils/accesoSmtp.js) — backend/ ya es dueño de
+// la configuración SMTP base real (configuracion_global, ver
+// backend/utils/config.js) y de enviarCorreo(). Reusar eso en vez de
+// duplicar SMTP aquí. Fire-and-forget a propósito, igual que
+// notificarInvalidacionCache(): un correo de recordatorio que falla no
+// debe tumbar el barrido del scheduler (ver recordatorios.js, que ya
+// envuelve cada llamada en try/catch de todas formas — esto es defensa
+// en profundidad, no el único candado).
+async function enviarCorreoBase({ destinatario, asunto, cuerpo }) {
+  const url = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+
+  const res = await fetch(`${url}/internal/enviar-correo-base`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
+    body: JSON.stringify({ destinatario, asunto, cuerpo }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'No se pudo enviar el correo.');
+  }
+}
+
 module.exports = {
   notificarInvalidacionCache,
+  enviarCorreoBase,
   activarTenantFisico,
   crearAdminInicialFisico,
   ErrorActivacionFisica,

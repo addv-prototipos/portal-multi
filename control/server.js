@@ -71,11 +71,17 @@ const {
 const {
   crearBorrador,
   obtenerBorrador,
+  obtenerEstadoPago,
   actualizarBorrador,
   verificarSlugDisponible,
   ErrorOnboarding,
 } = require('./utils/onboardingBorrador');
-const { convertirBorrador } = require('./utils/onboardingConversion');
+const { crearCheckoutSession, procesarEventoWebhook } = require('./utils/stripePagos');
+const { resolverPlanPorClave } = require('./utils/onboardingConversion');
+const { ErrorUpscale, listarUpscale, crearUpscale, editarUpscale, archivarUpscale, reactivarUpscale } = require('./utils/upscale');
+const { getConfigMsi, setConfigMsi, metodosPagoInfo, listarCodigosDescuento, crearCodigoDescuento, desactivarCodigoDescuento } = require('./utils/stripeConfig');
+const { getConfigRecordatorios, setConfigRecordatorios, listarEnSeguimiento, procesarRecordatoriosPendientes } = require('./utils/recordatorios');
+const { listarReporteCupones } = require('./utils/reporteCupones');
 const { verificarTurnstile } = require('./utils/turnstile');
 const { hashPasswordAdmin, validarPasswordAdmin, derivarNombreUsuario } = require('./utils/credencialesAdmin');
 const { isValidEmail } = require('./utils/validateFiscal');
@@ -164,6 +170,13 @@ const onboardingPublicLimiter = rateLimit({
 // aplicar esto ahí rompería ese flujo real. Cliente server-to-server
 // (api_usuario/api_clave) nunca manda `Origin`, pasa sin tocar.
 function requireOrigenPropio(req, res, next) {
+  // El webhook de Stripe vive bajo /api/control por conveniencia de
+  // enrutamiento (nginx ya proxea ese prefijo aquí) pero Stripe llama
+  // servidor-a-servidor, sin Origin ni sec-fetch-site de navegador — su
+  // autenticación real es la firma HMAC que valida el handler mismo
+  // (STRIPE_WEBHOOK_SECRET), nunca este gate pensado para el operador
+  // logueado desde su propio navegador.
+  if (req.path === '/webhooks/stripe' || req.path === '/api/control/webhooks/stripe') return next();
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   const secFetchSite = req.get('sec-fetch-site');
   if (secFetchSite === 'cross-site') {
@@ -201,7 +214,13 @@ app.use(adminCredencialesLimiter);
 // se reenvía al backend por su endpoint interno — ver PUT
 // /api/control/tenants/:slug/marca y backend/server.js
 // (POST /internal/marca-logo/:slug, POST /internal/favicon/:slug).
-app.use(express.json({ limit: '30mb' }));
+// verify: captura el body crudo (Buffer) ANTES de que express.json lo
+// parsee — el webhook de Stripe (más abajo) necesita exactamente esos
+// bytes para validar la firma con STRIPE_WEBHOOK_SECRET; una vez
+// parseado a objeto ya no se puede reconstruir el string original byte a
+// byte (JSON.stringify no garantiza el mismo orden/espaciado que Stripe
+// firmó). Barato: solo guarda el Buffer, no duplica el trabajo de parseo.
+app.use(express.json({ limit: '30mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 
 // CORS propio de esta superficie — independiente de ALLOWED_ORIGIN de
 // arriba (ese gate protege /api/control/*, autenticado, default
@@ -315,7 +334,10 @@ app.get('/health', async (req, res) => {
 // Sin requireAdminAuth a propósito: quien llama es un prospecto desde el
 // navegador, todavía sin cuenta. app.use (no app.get/post) para que el
 // preflight OPTIONS de CORS también quede cubierto bajo este prefijo.
-app.use('/api/public/onboarding', onboardingCors);
+// Punto en curso (isla de precios): ensanchado de /api/public/onboarding
+// a /api/public — misma política de CORS cubre ahora también
+// GET /api/public/planes, pensado para el mismo origen (clarvo.mx).
+app.use('/api/public', onboardingCors);
 
 function mapearErrorOnboarding(err) {
   if (err.codigo === 'no_encontrado') return 404;
@@ -334,13 +356,36 @@ app.post(
   onboardingPublicLimiter,
   asyncHandler(async (req, res) => {
     try {
-      const { planClave, ciclo } = req.body || {};
-      const borrador = await crearBorrador({ planClave, ciclo });
+      const { planClave, ciclo, utmSource } = req.body || {};
+      const borrador = await crearBorrador({ planClave, ciclo, utmSource });
       res.status(201).json({ ok: true, borrador });
     } catch (err) {
       if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
       throw err;
     }
+  })
+);
+
+// Punto en curso (isla de precios, opción 1 confirmada — fetch en el
+// navegador): fuente real para la ficha pública de cada plan en
+// clarvo.mx. Filtra por publicado_sitio=1 — los 3 registros de prueba
+// E2E (sin ese flag) y cualquier plan interno sin publicar nunca se
+// exponen aquí, mismo criterio anti-enumeración del resto del sitio.
+// Lista de columnas explícita (nunca SELECT *): esta ruta no tiene auth,
+// cualquier columna nueva de `planes` queda privada hasta que alguien
+// decida a propósito agregarla aquí.
+app.get(
+  '/api/public/planes',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    const [filas] = await obtenerPool().query(
+      `SELECT nombre, descripcion, precio_mensual, precio_anual, max_usuarios, disco_cuota_mb,
+              facturacion_habilitada, ventas_habilitado, gastos_habilitado, cxc_habilitado,
+              inventarios_habilitado, auditoria_habilitado, portal_clientes_habilitado,
+              sucursales_habilitado, marca_lookfeel_habilitado, promociones_habilitado
+         FROM planes WHERE publicado_sitio = 1 AND activo = 1 ORDER BY orden`
+    );
+    res.json({ planes: filas });
   })
 );
 
@@ -387,27 +432,25 @@ app.get(
   })
 );
 
-// Segmento B (13 oct 2026): convierte un borrador completo en un tenant
-// real — intake + aprovisionamiento físico + plan + usuario admin, sin
-// intervención de un operador (self-service, decisión explícita del
-// usuario). Ver control/utils/onboardingConversion.js para el detalle
-// paso a paso; cada paso es idempotente, así que reintentar esta misma
-// ruta tras un error de red nunca duplica nada.
+// Punto Stripe ("cobrar primero, activar después" — confirmado por el
+// usuario): ESTA ruta ya NO aprovisiona nada directamente — antes
+// (POST /api/public/onboarding/convertir/:token) cualquiera con el token
+// y un Turnstile válido podía activarse sin pagar. convertirBorrador()
+// ahora solo lo invoca control/utils/stripePagos.js, desde el webhook de
+// Stripe (o de forma síncrona ahí mismo si el pago ya se confirmó al
+// instante) — nunca un endpoint público directo. El frontend usa esta
+// ruta para generar el Checkout y, después del redirect, GET
+// estado-pago/:token (abajo) para saber cuándo ya se activó.
 app.post(
-  '/api/public/onboarding/convertir/:token',
+  '/api/public/onboarding/pagar/:token',
   onboardingPublicLimiter,
   asyncHandler(async (req, res) => {
-    // Hallazgo M-06 (sonar_1.1.html, Fase D, punto 410): única ruta que de
-    // verdad aprovisiona infraestructura — exige Turnstile antes de tocar
-    // convertirBorrador(). Mensaje genérico a propósito (nunca distingue
-    // "sin token" de "token inválido"/"sin configurar" al cliente, mismo
-    // criterio anti-enumeración del resto del sitio).
     const verificacion = await verificarTurnstile((req.body || {}).turnstileToken, req.ip);
     if (!verificacion.ok) {
       return res.status(400).json({ error: 'No pudimos verificar que eres humano. Intenta de nuevo.' });
     }
     try {
-      const resultado = await convertirBorrador(req.params.token);
+      const resultado = await crearCheckoutSession(req.params.token);
       res.json({ ok: true, ...resultado });
     } catch (err) {
       if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
@@ -415,6 +458,81 @@ app.post(
     }
   })
 );
+
+// Polling público (sin datos sensibles): el frontend lo usa después del
+// redirect de Stripe para saber si el webhook ya activó la cuenta —
+// nunca expone el estado de un tenant por su cuenta, solo lo que YA está
+// ligado a este borrador específico (mismo criterio que el resto de
+// onboarding: el token es la única llave).
+app.get(
+  '/api/public/onboarding/estado-pago/:token',
+  onboardingPublicLimiter,
+  asyncHandler(async (req, res) => {
+    try {
+      const borrador = await obtenerEstadoPago(req.params.token);
+      const activado = borrador.estado === 'convertido';
+      let resultado = null;
+      if (activado && borrador.slug) {
+        const plan = await resolverPlanPorClave(borrador.plan_clave, obtenerPool());
+        const base = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');
+        resultado = {
+          slug: borrador.slug,
+          urlAdmin: `${base}/${borrador.slug}/admin`,
+          urlPortal: !plan || plan.portal_clientes_habilitado ? `${base}/${borrador.slug}` : null,
+        };
+      }
+      res.json({
+        pagoEstado: borrador.pago_estado,
+        metodoPago: borrador.metodo_pago,
+        estado: borrador.estado,
+        activado,
+        resultado,
+      });
+    } catch (err) {
+      if (err instanceof ErrorOnboarding) return res.status(mapearErrorOnboarding(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+// Webhook de Stripe — a propósito FUERA de /api/control (bloqueado por
+// requireOrigenPropio, pensado para el propio operador logueado) y de
+// /api/public/onboarding (CORS angosto a ONBOARDING_CORS_ORIGIN, pensado
+// para el navegador del prospecto). Stripe llama server-a-servidor, sin
+// Origin de navegador — su autenticación real es la firma HMAC
+// (STRIPE_WEBHOOK_SECRET), no un gate de origen/CORS. req.rawBody viene
+// del `verify` de express.json() de arriba — Stripe exige el body crudo
+// exacto para validar esa firma.
+app.post('/api/control/webhooks/stripe', async (req, res) => {
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!stripeKey || !webhookSecret) {
+    // Fail-closed, mismo criterio que turnstile.js: sin configurar, nunca
+    // procesa un evento sin poder verificar de verdad que viene de Stripe.
+    return res.status(503).json({ error: 'Webhook de Stripe no configurado.' });
+  }
+  const Stripe = require('stripe');
+  const stripe = new Stripe(stripeKey);
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.rawBody, req.get('stripe-signature'), webhookSecret);
+  } catch (err) {
+    console.error('Firma de webhook de Stripe inválida:', err.message);
+    return res.status(400).json({ error: 'Firma inválida.' });
+  }
+
+  // Responde 200 de inmediato y procesa después — Stripe reintenta con
+  // backoff si no recibe 2xx en unos segundos; procesarEventoWebhook() ya
+  // es idempotente (stripe_eventos_procesados) así que un reintento
+  // nunca duplica nada, pero no hay razón para hacer que Stripe espere el
+  // aprovisionamiento completo del tenant.
+  res.json({ received: true });
+  try {
+    await procesarEventoWebhook(event);
+  } catch (err) {
+    console.error(`Error procesando evento de Stripe "${event.type}" (${event.id}):`, err);
+  }
+});
 
 app.get(
   '/api/control/tenants',
@@ -1341,6 +1459,231 @@ app.put(
   })
 );
 
+// ---------- Punto en curso: catálogo de funcionalidades upscale ----------
+app.get(
+  '/api/control/upscale',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const items = await listarUpscale();
+    res.json({ items });
+  })
+);
+
+app.post(
+  '/api/control/upscale',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const item = await crearUpscale(req.body || {});
+      res.status(201).json({ ok: true, item });
+    } catch (err) {
+      if (err instanceof ErrorUpscale) return res.status(err.codigo === 'no_encontrado' ? 404 : 400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/upscale/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const item = await editarUpscale(Number(req.params.id), req.body || {});
+      res.json({ ok: true, item });
+    } catch (err) {
+      if (err instanceof ErrorUpscale) return res.status(err.codigo === 'no_encontrado' ? 404 : 400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/upscale/:id/archivar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await archivarUpscale(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorUpscale) return res.status(err.codigo === 'no_encontrado' ? 404 : 400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/upscale/:id/reactivar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await reactivarUpscale(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorUpscale) return res.status(err.codigo === 'no_encontrado' ? 404 : 400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+// ---------- Punto en curso: configuración de Stripe (MSI, métodos, descuentos) ----------
+app.get(
+  '/api/control/stripe/msi',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json(await getConfigMsi());
+  })
+);
+
+app.put(
+  '/api/control/stripe/msi',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const resultado = await setConfigMsi(req.body || {});
+      res.json({ ok: true, ...resultado });
+    } catch (err) {
+      if (err.codigo === 'validacion') return res.status(400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.get(
+  '/api/control/stripe/metodos-pago',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json(metodosPagoInfo());
+  })
+);
+
+app.get(
+  '/api/control/stripe/descuentos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      res.json({ items: await listarCodigosDescuento() });
+    } catch (err) {
+      if (err.codigo === 'no_configurado') return res.status(503).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.post(
+  '/api/control/stripe/descuentos',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const item = await crearCodigoDescuento(req.body || {});
+      res.status(201).json({ ok: true, item });
+    } catch (err) {
+      if (err.codigo === 'validacion' || err.codigo === 'no_configurado') {
+        return res.status(err.codigo === 'no_configurado' ? 503 : 400).json({ error: err.message });
+      }
+      // Errores propios de la API de Stripe (ej. código ya existe) — mensaje
+      // tal cual, Stripe ya los redacta en español/inglés según la cuenta.
+      if (err.type && err.type.startsWith('Stripe')) return res.status(400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/stripe/descuentos/:id/desactivar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await desactivarCodigoDescuento(req.params.id);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.codigo === 'no_configurado') return res.status(503).json({ error: err.message });
+      if (err.type && err.type.startsWith('Stripe')) return res.status(400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+// ---------- Punto en curso: recordatorios de activación ----------
+app.get(
+  '/api/control/recordatorios/config',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json(await getConfigRecordatorios());
+  })
+);
+
+app.put(
+  '/api/control/recordatorios/config',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      res.json({ ok: true, ...(await setConfigRecordatorios(req.body || {})) });
+    } catch (err) {
+      if (err.codigo === 'validacion') return res.status(400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.get(
+  '/api/control/recordatorios',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json({ items: await listarEnSeguimiento() });
+  })
+);
+
+// Botón "Procesar ahora" — mismo trabajo que el scheduler automático,
+// para probar sin esperar la siguiente vuelta de la hora.
+app.post(
+  '/api/control/recordatorios/procesar-ahora',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json({ ok: true, ...(await procesarRecordatoriosPendientes()) });
+  })
+);
+
+// ---------- Punto en curso: reporte de cupones ----------
+app.get(
+  '/api/control/reportes/cupones',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json({ items: await listarReporteCupones() });
+  })
+);
+
 // ---------- Punto 247: gestión de super admins (ADMIN_USERS en .env) ----------
 // Híbrido: super = ADMIN_USERS (.env) + usuarios perfil super en BD (si los hay),
 // pero la alta/edición/baja de ADMIN_USERS solo se hace aquí, en /control,
@@ -1490,7 +1833,7 @@ app.use((req, res) => {
 
 async function iniciar() {
   await asegurarTablaAuditoria();
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale } = require('./scripts/ensureSchema');
   // asegurarTablasSucursales() debe correr ANTES de
   // asegurarColumnasCicloVidaTenant(): esta última hace un UPDATE sobre
   // `tenants.grupo_sucursal_id`, columna que crea asegurarTablasSucursales
@@ -1504,12 +1847,15 @@ async function iniciar() {
   await asegurarTablaPlanes(obtenerPool());
   await asegurarTablaAjustesGlobales(obtenerPool());
   await asegurarTablaOnboardingBorradores(obtenerPool());
+  await asegurarTablaStripeEventos(obtenerPool());
+  await asegurarTablaUpscale(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);
   });
 
   iniciarPurgaAutomatica();
+  iniciarRecordatoriosAutomaticos();
 }
 
 // Temporizador propio dentro del proceso de control/ (mecanismo elegido
@@ -1545,6 +1891,35 @@ function iniciarPurgaAutomatica() {
 
   setTimeout(ejecutar, 30 * 1000);
   setInterval(ejecutar, INTERVALO_PURGA_MS);
+}
+
+// Recordatorios de activación: mismo criterio de fondo que la purga de
+// arriba (sin cron externo). Cada hora alcanza para que la regla de
+// "OXXO/SPEI siempre cada 24h" tenga margen de sobra sin esperar casi un
+// día completo a que corra — procesarRecordatoriosPendientes() ya decide
+// internamente, por borrador, si de verdad toca enviar algo en esta
+// vuelta.
+const INTERVALO_RECORDATORIOS_MS = 60 * 60 * 1000;
+let recordatoriosEnCurso = false;
+
+function iniciarRecordatoriosAutomaticos() {
+  const ejecutar = async () => {
+    if (recordatoriosEnCurso) return;
+    recordatoriosEnCurso = true;
+    try {
+      const { enviados, archivados } = await procesarRecordatoriosPendientes();
+      if (enviados || archivados) {
+        console.log(`Recordatorios de activación: ${enviados} enviado(s), ${archivados} borrador(es) archivado(s) por agotar intentos.`);
+      }
+    } catch (err) {
+      console.error('Error corriendo los recordatorios de activación:', err.message);
+    } finally {
+      recordatoriosEnCurso = false;
+    }
+  };
+
+  setTimeout(ejecutar, 45 * 1000);
+  setInterval(ejecutar, INTERVALO_RECORDATORIOS_MS);
 }
 
 // Igual que backend/server.js: solo arranca si este archivo se ejecuta

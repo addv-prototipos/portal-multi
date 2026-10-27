@@ -69,18 +69,24 @@ function mapearFila(fila) {
   };
 }
 
-async function crearBorrador({ planClave, ciclo } = {}, db = obtenerPool()) {
+async function crearBorrador({ planClave, ciclo, utmSource } = {}, db = obtenerPool()) {
   if (!PLANES_PUBLICOS.has(planClave)) {
     throw new ErrorOnboarding('Plan no reconocido.', 'validacion');
   }
   const cicloFinal = ciclo === 'anual' ? 'anual' : 'mensual';
+  // Reporte de cupones (punto en curso): captura best-effort del
+  // utm_source con el que el prospecto llegó a clarvo.mx — nunca
+  // obligatorio, nunca bloquea el alta si viene vacío o con basura
+  // (trunca, no valida formato: es solo para un reporte interno, no un
+  // dato que la aplicación use para decidir nada).
+  const utmLimpio = typeof utmSource === 'string' ? utmSource.trim().slice(0, 100) : null;
   const token = generarToken();
   const ahora = new Date();
   await db.query(
     `INSERT INTO onboarding_borradores
-       (token, plan_clave, ciclo, zona_horaria, paso_actual, estado, creado_en, actualizado_en)
-     VALUES (?, ?, ?, 'America/Mexico_City', 'plan', 'activo', ?, ?)`,
-    [token, planClave, cicloFinal, ahora, ahora]
+       (token, plan_clave, ciclo, zona_horaria, paso_actual, estado, utm_source, creado_en, actualizado_en)
+     VALUES (?, ?, ?, 'America/Mexico_City', 'plan', 'activo', ?, ?, ?)`,
+    [token, planClave, cicloFinal, utmLimpio || null, ahora, ahora]
   );
   return { token, planClave, ciclo: cicloFinal };
 }
@@ -103,6 +109,23 @@ async function obtenerBorradorInterno(token, db = obtenerPool()) {
 async function obtenerBorrador(token, db = obtenerPool()) {
   const fila = await obtenerBorradorInterno(token, db);
   return mapearFila(fila);
+}
+
+// A diferencia de obtenerBorradorInterno() (exige estado='activo' — para
+// todo el resto del onboarding, un borrador ya convertido no debe seguir
+// editándose), esta SÍ necesita encontrar un borrador que YA pasó a
+// 'convertido' — es la que usa el polling público de estado de pago
+// (GET /api/public/onboarding/estado-pago/:token) para avisarle al
+// frontend que el webhook de Stripe ya activó la cuenta.
+async function obtenerEstadoPago(token, db = obtenerPool()) {
+  const [filas] = await db.query(
+    `SELECT estado, pago_estado, metodo_pago, slug, plan_clave FROM onboarding_borradores WHERE token = ?`,
+    [token]
+  );
+  if (filas.length === 0) {
+    throw new ErrorOnboarding('Borrador no encontrado.', 'no_encontrado');
+  }
+  return filas[0];
 }
 
 async function verificarSlugDisponible(slug, db = obtenerPool()) {
@@ -223,6 +246,7 @@ module.exports = {
   crearBorrador,
   obtenerBorrador,
   obtenerBorradorInterno,
+  obtenerEstadoPago,
   actualizarBorrador,
   verificarSlugDisponible,
   hashPasswordAdmin,

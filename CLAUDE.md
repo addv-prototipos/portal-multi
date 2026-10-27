@@ -945,6 +945,37 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   distinguir OTRO estado en el futuro, es una decisión nueva, no asumir
   que "ya se abrió la puerta" a mostrar cualquier estado.
 
+- **Stripe: los planes NUNCA viven como Product/Price en el catálogo de
+  Stripe** (punto 425, 2026-10-26/27): cada Checkout Session
+  (`control/utils/stripePagos.js:crearCheckoutSession`) arma el precio al
+  vuelo con `price_data`/`product_data` inline, usando el precio real
+  resuelto de `control_tenants.planes` (`resolverPlanPorClave()`) —
+  Stripe genera un Product/Price efímero por sesión (puede aparecer
+  listado en el Dashboard) pero NUNCA es la fuente de verdad ni algo
+  reusable/editable ahí. Cambiar un precio en `/control` se refleja en el
+  siguiente Checkout sin tocar Stripe. Excepción real: los **cupones**
+  (`control/utils/stripeConfig.js`) sí son objetos reales de Stripe
+  (`stripe.coupons.create()`/`stripe.promotionCodes.create()`) — por eso
+  "Reporte de cupones" tiene que cruzar contra la API en vez de leer solo
+  la BD local. No confundir ambos mecanismos al tocar código de pagos.
+- **`payment_method_types` ya no se acepta al crear un Checkout Session**
+  (confirmado real contra Stripe, 2026-10-26, ver `DOCS/confStripe.html`
+  paso 5): Stripe gobierna 100% los métodos de pago habilitados desde el
+  Dashboard (Settings → Payment methods) — pasar ese parámetro revienta
+  con `StripeInvalidRequestError`. `control/utils/stripeConfig.js:
+  metodosPagoInfo()` es deliberadamente solo texto + link al Dashboard,
+  nunca un estado real controlable por API (sí añade `modo`
+  prueba/producción y `webhookConfigurado`, ambos leídos de variables de
+  entorno del propio proceso — gratis, reales, nunca inventados).
+- **`stripe.promotionCodes.create()` ya no acepta `coupon: id` plano** —
+  la forma real (confirmada leyendo
+  `node_modules/stripe/cjs/resources/PromotionCodes.d.ts` de la versión
+  instalada, nunca asumida de memoria/docs viejas) es anidada:
+  `promotion: { type: 'coupon', coupon: id }`. Mismo criterio al LEER:
+  `listarCodigosDescuento()` lee `p.promotion.coupon`, nunca `p.coupon`.
+  Si la librería `stripe` se actualiza alguna vez, volver a verificar
+  contra el `.d.ts` real antes de asumir que la forma sigue igual.
+
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),

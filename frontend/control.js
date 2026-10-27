@@ -222,6 +222,9 @@
     btnVistaSuper: document.getElementById('btn-vista-control-super'),
     btnVistaAuditoria: document.getElementById('btn-vista-control-auditoria'),
     btnVistaAccesos: document.getElementById('btn-vista-control-accesos'),
+    btnVistaUpscale: document.getElementById('btn-vista-control-upscale'),
+    btnVistaRecordatorios: document.getElementById('btn-vista-control-recordatorios'),
+    btnVistaCupones: document.getElementById('btn-vista-control-cupones'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
     vistaPlanes: document.getElementById('vista-control-planes'),
     vistaPapelera: document.getElementById('vista-control-papelera'),
@@ -229,6 +232,9 @@
     vistaSuper: document.getElementById('vista-control-super'),
     vistaAuditoria: document.getElementById('vista-control-auditoria'),
     vistaAccesos: document.getElementById('vista-control-accesos'),
+    vistaUpscale: document.getElementById('vista-control-upscale'),
+    vistaRecordatorios: document.getElementById('vista-control-recordatorios'),
+    vistaCupones: document.getElementById('vista-control-cupones'),
     // Punto en curso: "Accesos — MinIO"
     accesosMinioError: document.getElementById('accesos-minio-error'),
     accesosMinioUrl: document.getElementById('accesos-minio-url'),
@@ -296,8 +302,10 @@
     planesWizardPanel2: document.getElementById('planes-wizard-panel-2'),
     planesWizardPanel3: document.getElementById('planes-wizard-panel-3'),
     planesWizardPanel4: document.getElementById('planes-wizard-panel-4'),
+    planesWizardPanel5: document.getElementById('planes-wizard-panel-5'),
     planesWizardModulos: document.getElementById('planes-wizard-modulos'),
-    planesWizardDependientes: document.getElementById('planes-wizard-dependientes'),
+    planesWizardReglasAuto: document.getElementById('planes-wizard-reglas-auto'),
+    planesWizardReportes: document.getElementById('planes-wizard-reportes'),
     planesWizardResumenBody: document.getElementById('planes-wizard-resumen-body'),
     btnAyudaVistaPlanes: document.getElementById('btn-ayuda-vista-planes'),
     btnAyudaVistaPapelera: document.getElementById('btn-ayuda-vista-papelera'),
@@ -3009,7 +3017,7 @@
   let planWizardState = planWizardStateVacio();
   let planWizardPaso = 1;
   let planWizardTotalTenants = 0;
-  const PLANES_WIZARD_TOTAL_PASOS = 4;
+  const PLANES_WIZARD_TOTAL_PASOS = 5;
 
   function resumenFinancieroDisponibleWizard() {
     return planWizardState.ventas_habilitado || planWizardState.gastos_habilitado;
@@ -3093,7 +3101,7 @@
   }
 
   function renderPlanWizardSteps() {
-    const nombres = ['Datos básicos', 'Módulos', 'Dependientes', 'Resumen'];
+    const nombres = ['Datos básicos', 'Módulos', 'Reglas automáticas', 'Reportes', 'Resumen'];
     let html = '';
     for (let i = 1; i <= PLANES_WIZARD_TOTAL_PASOS; i++) {
       const cls = ['planes-wizard-step'];
@@ -3118,7 +3126,7 @@
   }
 
   function renderPlanWizardPanels() {
-    [els.planesWizardPanel1, els.planesWizardPanel2, els.planesWizardPanel3, els.planesWizardPanel4].forEach((panel, idx) => {
+    [els.planesWizardPanel1, els.planesWizardPanel2, els.planesWizardPanel3, els.planesWizardPanel4, els.planesWizardPanel5].forEach((panel, idx) => {
       panel.classList.toggle('is-active', idx + 1 === planWizardPaso);
     });
     els.btnPlanesWizardAtras.hidden = planWizardPaso === 1;
@@ -3173,7 +3181,7 @@
     </label>`;
   }
 
-  function renderPlanWizardDependientes() {
+  function renderPlanWizardReglasAutomaticas() {
     let html = '';
     html += filaDependienteWizard({
       etiqueta: 'Cuentas por cobrar',
@@ -3211,17 +3219,18 @@
       html += filaAutoWizard('Proveedores', 'Alimentado por Inventarios y/o Gastos, sin interruptor propio', ['inventarios', 'gastos']);
     }
 
-    html += '<div class="planes-wizard-reportes">';
-    html += '<div class="planes-wizard-reportes-titulo">Reportes</div>';
-    html += '<div class="planes-wizard-reportes-nota">Independiente de Resumen financiero — elige qué pestañas de la vista "Reportes" incluye el plan.</div>';
-    REPORTES_WIZARD_DEF.forEach((def) => { html += casillaReporteWizard(def); });
-    html += '</div>';
-
-    els.planesWizardDependientes.innerHTML = html;
-    els.planesWizardDependientes.querySelectorAll('[data-dep]').forEach((input) => {
+    els.planesWizardReglasAuto.innerHTML = html;
+    els.planesWizardReglasAuto.querySelectorAll('[data-dep]').forEach((input) => {
       input.addEventListener('change', () => alternarDependienteWizard(input.getAttribute('data-dep')));
     });
-    els.planesWizardDependientes.querySelectorAll('[data-reporte]').forEach((input) => {
+  }
+
+  function renderPlanWizardReportes() {
+    let html = '<div class="planes-wizard-reportes-nota">Independiente de Resumen financiero — elige qué pestañas de la vista "Reportes" incluye el plan.</div>';
+    REPORTES_WIZARD_DEF.forEach((def) => { html += casillaReporteWizard(def); });
+
+    els.planesWizardReportes.innerHTML = html;
+    els.planesWizardReportes.querySelectorAll('[data-reporte]').forEach((input) => {
       input.addEventListener('change', () => alternarReporteWizard(input.getAttribute('data-reporte')));
     });
   }
@@ -3257,7 +3266,8 @@
     renderPlanWizardBanner();
     renderPlanWizardPanels();
     renderPlanWizardModulos();
-    renderPlanWizardDependientes();
+    renderPlanWizardReglasAutomaticas();
+    renderPlanWizardReportes();
     renderPlanWizardResumen();
   }
 
@@ -3364,7 +3374,7 @@
       return;
     }
 
-    // Paso 4: guardar de verdad.
+    // Último paso (Resumen): guardar de verdad.
     const nombre = els.planesNombre.value.trim();
     const cuerpo = {
       nombre,
@@ -3433,6 +3443,18 @@
       els.btnVistaAccesos.classList.toggle('is-active', vista === 'accesos');
       els.btnVistaAccesos.setAttribute('aria-selected', String(vista === 'accesos'));
     }
+    if (els.btnVistaUpscale) {
+      els.btnVistaUpscale.classList.toggle('is-active', vista === 'upscale');
+      els.btnVistaUpscale.setAttribute('aria-selected', String(vista === 'upscale'));
+    }
+    if (els.btnVistaRecordatorios) {
+      els.btnVistaRecordatorios.classList.toggle('is-active', vista === 'recordatorios');
+      els.btnVistaRecordatorios.setAttribute('aria-selected', String(vista === 'recordatorios'));
+    }
+    if (els.btnVistaCupones) {
+      els.btnVistaCupones.classList.toggle('is-active', vista === 'cupones');
+      els.btnVistaCupones.setAttribute('aria-selected', String(vista === 'cupones'));
+    }
     els.vistaEmpresas.hidden = vista !== 'empresas';
     if (els.vistaPlanes) els.vistaPlanes.hidden = vista !== 'planes';
     els.vistaPapelera.hidden = vista !== 'papelera';
@@ -3440,6 +3462,9 @@
     if (els.vistaSuper) els.vistaSuper.hidden = vista !== 'super';
     if (els.vistaAuditoria) els.vistaAuditoria.hidden = vista !== 'auditoria';
     if (els.vistaAccesos) els.vistaAccesos.hidden = vista !== 'accesos';
+    if (els.vistaUpscale) els.vistaUpscale.hidden = vista !== 'upscale';
+    if (els.vistaRecordatorios) els.vistaRecordatorios.hidden = vista !== 'recordatorios';
+    if (els.vistaCupones) els.vistaCupones.hidden = vista !== 'cupones';
     if (vista === 'planes') cargarPlanes();
     if (vista === 'papelera') cargarPapelera();
     if (vista === 'sucursales') cargarSucursales();
@@ -3453,6 +3478,9 @@
       cargarAccesoMinio();
       cargarAccesoSmtp();
     }
+    if (vista === 'upscale') cargarUpscale();
+    if (vista === 'recordatorios') cargarRecordatorios();
+    if (vista === 'cupones') cargarReporteCupones();
   }
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
@@ -3463,10 +3491,419 @@
   if (els.btnVistaSuper) els.btnVistaSuper.addEventListener('click', () => cambiarVistaPrincipalControl('super'));
   if (els.btnVistaAuditoria) els.btnVistaAuditoria.addEventListener('click', () => cambiarVistaPrincipalControl('auditoria'));
   if (els.btnVistaAccesos) els.btnVistaAccesos.addEventListener('click', () => cambiarVistaPrincipalControl('accesos'));
+  if (els.btnVistaUpscale) els.btnVistaUpscale.addEventListener('click', () => cambiarVistaPrincipalControl('upscale'));
+  if (els.btnVistaRecordatorios) els.btnVistaRecordatorios.addEventListener('click', () => cambiarVistaPrincipalControl('recordatorios'));
+  if (els.btnVistaCupones) els.btnVistaCupones.addEventListener('click', () => cambiarVistaPrincipalControl('cupones'));
   els.menuMovil.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-vista]');
     if (btn) cambiarVistaPrincipalControl(btn.dataset.vista);
   });
+
+  // ---------- Punto en curso: Upscale + Configurar Stripe ----------
+  let upscaleEditandoId = null;
+  let upscaleTipoCobroActual = 'recurrente';
+
+  function formatearPrecioUpscale(item) {
+    const money = (n) => Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 });
+    if (item.tipo_cobro === 'unico') return `$${money(item.precio_unico)} único`;
+    const partes = [];
+    if (item.precio_mensual !== null) partes.push(`$${money(item.precio_mensual)}/mes`);
+    if (item.precio_anual !== null) partes.push(`$${money(item.precio_anual)}/año`);
+    return partes.join(' · ') || 'Sin precio';
+  }
+
+  async function cargarUpscale() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    els.upscaleError = els.upscaleError || document.getElementById('upscale-error');
+    const tbody = document.getElementById('upscale-table-body');
+    Esqueleto.aplicarEsqueletoTabla(tbody, 4);
+    try {
+      const res = await fetch(`${API_BASE}/upscale`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      if (!res.ok) { Esqueleto.aplicarErrorTabla(tbody, 4, 'No se pudo cargar.', cargarUpscale); return; }
+      const data = await res.json();
+      renderUpscale(data.items || []);
+      Esqueleto.quitarEsqueletoTabla(tbody);
+    } catch {
+      Esqueleto.aplicarErrorTabla(tbody, 4, 'No se pudo conectar con el servidor.', cargarUpscale);
+    }
+  }
+
+  function renderUpscale(items) {
+    const tbody = document.getElementById('upscale-table-body');
+    document.getElementById('upscale-empty').hidden = items.length > 0;
+    tbody.innerHTML = '';
+    items.forEach((item) => {
+      const tr = document.createElement('tr');
+      const nombreHtml = item.activo
+        ? `<strong>${escapeHtml(item.nombre)}</strong>`
+        : `<strong>${escapeHtml(item.nombre)}</strong> <span class="planes-chip-archivado">Archivado</span>`;
+      const descHtml = item.descripcion ? `<br><span class="field-hint" style="margin:0">${escapeHtml(item.descripcion)}</span>` : '';
+      tr.innerHTML = `
+        <td>${nombreHtml}${descHtml}</td>
+        <td>${item.tipo_cobro === 'recurrente' ? 'Recurrente' : 'Pago único'}</td>
+        <td>${escapeHtml(formatearPrecioUpscale(item))}</td>
+        <td></td>
+      `;
+      const celda = tr.lastElementChild;
+      const acciones = document.createElement('div');
+      acciones.className = 'admin-row-actions';
+      acciones.appendChild(crearBotonAccion('btn-icono-accion', 'Editar', 'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z', () => abrirUpscaleForm(item)));
+      if (item.activo) {
+        acciones.appendChild(crearBotonAccion('btn-icono-accion', 'Archivar', 'M2 3h20v5H2zM4 8v13h16V8M10 12h4', () =>
+          confirmarAccion({
+            titulo: '¿Archivar esta funcionalidad?',
+            mensaje: `"${item.nombre}" deja de ofrecerse para asignar a empresas nuevas.`,
+            textoBoton: 'Archivar',
+            onConfirmar: () => accionUpscale(item.id, 'archivar'),
+          })
+        ));
+      } else {
+        acciones.appendChild(crearBotonAccion('btn-icono-accion', 'Reactivar', 'M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5', () => accionUpscale(item.id, 'reactivar')));
+      }
+      celda.appendChild(acciones);
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function accionUpscale(id, accion) {
+    const authHeader = getAuthHeader();
+    const res = await fetch(`${API_BASE}/upscale/${id}/${accion}`, { method: 'PUT', headers: { Authorization: authHeader } });
+    if (res.ok) { showToast(accion === 'archivar' ? 'Funcionalidad archivada' : 'Funcionalidad reactivada'); cargarUpscale(); }
+    else showToast('No se pudo completar la acción', true);
+  }
+
+  function abrirUpscaleForm(item) {
+    upscaleEditandoId = item ? item.id : null;
+    document.getElementById('upscale-form-id').value = upscaleEditandoId || '';
+    document.getElementById('upscale-nombre').value = item ? item.nombre : '';
+    document.getElementById('upscale-descripcion').value = item ? item.descripcion || '' : '';
+    document.getElementById('upscale-precio-mensual').value = item && item.precio_mensual !== null ? item.precio_mensual : '';
+    document.getElementById('upscale-precio-anual').value = item && item.precio_anual !== null ? item.precio_anual : '';
+    document.getElementById('upscale-precio-unico').value = item && item.precio_unico !== null ? item.precio_unico : '';
+    seleccionarTipoCobroUpscale(item ? item.tipo_cobro : 'recurrente');
+    document.getElementById('upscale-form').hidden = false;
+  }
+
+  function seleccionarTipoCobroUpscale(tipo) {
+    upscaleTipoCobroActual = tipo;
+    document.querySelectorAll('[data-upscale-tipo]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.upscaleTipo === tipo);
+    });
+    document.getElementById('upscale-campo-mensual').hidden = tipo === 'unico';
+    document.getElementById('upscale-campo-anual').hidden = tipo === 'unico';
+    document.getElementById('upscale-campo-unico').hidden = tipo === 'recurrente';
+  }
+
+  document.querySelectorAll('[data-upscale-tipo]').forEach((btn) => {
+    btn.addEventListener('click', () => seleccionarTipoCobroUpscale(btn.dataset.upscaleTipo));
+  });
+
+  const btnUpscaleNuevo = document.getElementById('btn-upscale-nuevo');
+  if (btnUpscaleNuevo) btnUpscaleNuevo.addEventListener('click', () => abrirUpscaleForm(null));
+  const btnUpscaleCancelar = document.getElementById('btn-upscale-cancelar');
+  if (btnUpscaleCancelar) btnUpscaleCancelar.addEventListener('click', () => { document.getElementById('upscale-form').hidden = true; });
+
+  const btnUpscaleGuardar = document.getElementById('btn-upscale-guardar');
+  if (btnUpscaleGuardar) btnUpscaleGuardar.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    const cuerpo = {
+      nombre: document.getElementById('upscale-nombre').value.trim(),
+      descripcion: document.getElementById('upscale-descripcion').value.trim(),
+      tipo_cobro: upscaleTipoCobroActual,
+      precio_mensual: document.getElementById('upscale-precio-mensual').value || null,
+      precio_anual: document.getElementById('upscale-precio-anual').value || null,
+      precio_unico: document.getElementById('upscale-precio-unico').value || null,
+    };
+    const url = upscaleEditandoId ? `${API_BASE}/upscale/${upscaleEditandoId}` : `${API_BASE}/upscale`;
+    const metodo = upscaleEditandoId ? 'PUT' : 'POST';
+    const res = await fetch(url, { method: metodo, headers: { Authorization: authHeader, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'No se pudo guardar', true); return; }
+    showToast('Funcionalidad guardada');
+    document.getElementById('upscale-form').hidden = true;
+    cargarUpscale();
+  });
+
+  // Sub-pestañas: Funcionalidades upscale / Configurar Stripe
+  document.querySelectorAll('#upscale-subtabs [data-upscale-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#upscale-subtabs [data-upscale-tab]').forEach((b) => {
+        b.classList.toggle('is-active', b === btn);
+        b.setAttribute('aria-selected', String(b === btn));
+      });
+      document.getElementById('upscale-panel-funciones').hidden = btn.dataset.upscaleTab !== 'funciones';
+      document.getElementById('upscale-panel-stripe').hidden = btn.dataset.upscaleTab !== 'stripe';
+      if (btn.dataset.upscaleTab === 'stripe') cargarStripeMetodos();
+    });
+  });
+
+  // Sub-pestañas de Configurar Stripe: Métodos / MSI / Descuentos
+  document.querySelectorAll('#stripe-subtabs [data-stripe-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#stripe-subtabs [data-stripe-tab]').forEach((b) => {
+        b.classList.toggle('is-active', b === btn);
+        b.setAttribute('aria-selected', String(b === btn));
+      });
+      document.getElementById('stripe-panel-metodos').hidden = btn.dataset.stripeTab !== 'metodos';
+      document.getElementById('stripe-panel-msi').hidden = btn.dataset.stripeTab !== 'msi';
+      document.getElementById('stripe-panel-descuentos').hidden = btn.dataset.stripeTab !== 'descuentos';
+      if (btn.dataset.stripeTab === 'msi') cargarStripeMsi();
+      if (btn.dataset.stripeTab === 'descuentos') cargarStripeDescuentos();
+    });
+  });
+
+  async function cargarStripeMetodos() {
+    const authHeader = getAuthHeader();
+    const res = await fetch(`${API_BASE}/stripe/metodos-pago`, { headers: { Authorization: authHeader } });
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('stripe-metodos-nota').textContent = data.nota;
+    document.getElementById('stripe-metodos-lista').textContent = data.metodosRelevantesMexico.join(', ');
+    document.getElementById('stripe-metodos-dashboard-link').href = data.dashboardUrl;
+  }
+
+  const MSI_PLAZOS_DISPONIBLES = [3, 6, 9, 12, 18];
+  let msiPlazosSeleccionados = [];
+
+  function renderMsiPlazos() {
+    const cont = document.getElementById('stripe-msi-plazos');
+    cont.innerHTML = MSI_PLAZOS_DISPONIBLES.map((p) =>
+      `<button type="button" class="control-chip${msiPlazosSeleccionados.includes(p) ? ' is-active' : ''}" data-msi-plazo="${p}">${p} meses</button>`
+    ).join('');
+    cont.querySelectorAll('[data-msi-plazo]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = Number(btn.dataset.msiPlazo);
+        msiPlazosSeleccionados = msiPlazosSeleccionados.includes(p)
+          ? msiPlazosSeleccionados.filter((x) => x !== p)
+          : [...msiPlazosSeleccionados, p];
+        renderMsiPlazos();
+      });
+    });
+  }
+
+  async function cargarStripeMsi() {
+    const authHeader = getAuthHeader();
+    const res = await fetch(`${API_BASE}/stripe/msi`, { headers: { Authorization: authHeader } });
+    if (!res.ok) return;
+    const data = await res.json();
+    msiPlazosSeleccionados = data.plazos || [];
+    document.getElementById('stripe-msi-monto-minimo').value = data.montoMinimo || 0;
+    renderMsiPlazos();
+  }
+
+  const btnStripeMsiGuardar = document.getElementById('btn-stripe-msi-guardar');
+  if (btnStripeMsiGuardar) btnStripeMsiGuardar.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    const cuerpo = { plazos: msiPlazosSeleccionados, montoMinimo: Number(document.getElementById('stripe-msi-monto-minimo').value) || 0 };
+    const res = await fetch(`${API_BASE}/stripe/msi`, { method: 'PUT', headers: { Authorization: authHeader, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { document.getElementById('stripe-msi-error').textContent = data.error || 'No se pudo guardar.'; return; }
+    document.getElementById('stripe-msi-error').textContent = '';
+    showToast('Configuración de MSI guardada');
+  });
+
+  async function cargarStripeDescuentos() {
+    const authHeader = getAuthHeader();
+    const tbody = document.getElementById('stripe-descuentos-table-body');
+    const errorEl = document.getElementById('stripe-descuentos-error');
+    errorEl.textContent = '';
+    Esqueleto.aplicarEsqueletoTabla(tbody, 6);
+    try {
+      const res = await fetch(`${API_BASE}/stripe/descuentos`, { headers: { Authorization: authHeader } });
+      if (res.status === 503) { errorEl.textContent = 'Stripe no está configurado en este entorno.'; Esqueleto.quitarEsqueletoTabla(tbody); tbody.innerHTML = ''; return; }
+      if (!res.ok) { Esqueleto.aplicarErrorTabla(tbody, 6, 'No se pudo cargar.', cargarStripeDescuentos); return; }
+      const data = await res.json();
+      renderStripeDescuentos(data.items || []);
+      Esqueleto.quitarEsqueletoTabla(tbody);
+    } catch {
+      Esqueleto.aplicarErrorTabla(tbody, 6, 'No se pudo conectar con el servidor.', cargarStripeDescuentos);
+    }
+  }
+
+  function renderStripeDescuentos(items) {
+    const tbody = document.getElementById('stripe-descuentos-table-body');
+    tbody.innerHTML = items.map((d) => {
+      const valorTxt = d.tipo === 'porcentaje' ? `${d.valor}%` : `$${Number(d.valor).toLocaleString('es-MX')}`;
+      const duracionTxt = d.duracion === 'repeating' ? `${d.duracionMeses} meses` : d.duracion === 'once' ? 'Una vez' : 'Para siempre';
+      const vigenciaTxt = d.vigenciaHasta ? new Date(d.vigenciaHasta).toLocaleDateString('es-MX') : 'Sin vencimiento';
+      return `<tr>
+        <td><code>${escapeHtml(d.codigo)}</code></td>
+        <td>${escapeHtml(valorTxt)}</td>
+        <td>${escapeHtml(duracionTxt)}</td>
+        <td>${escapeHtml(vigenciaTxt)}</td>
+        <td>${d.usosActuales}${d.usosMaximos ? ' / ' + d.usosMaximos : ''}</td>
+        <td><span class="planes-chip${d.activo ? '' : ' is-apagado'}">${d.activo ? 'Activo' : 'Pausado'}</span></td>
+        <td>${d.activo ? `<button type="button" class="btn-icono-accion" data-tooltip="Desactivar" aria-label="Desactivar" data-desactivar-id="${d.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/></svg></button>` : ''}</td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('[data-desactivar-id]').forEach((btn) => {
+      btn.addEventListener('click', () =>
+        confirmarAccion({
+          titulo: '¿Desactivar este código?',
+          mensaje: 'Deja de poder redimirse — esto no se puede deshacer desde aquí (habría que crear uno nuevo).',
+          textoBoton: 'Desactivar',
+          onConfirmar: async () => {
+            const authHeader = getAuthHeader();
+            const res = await fetch(`${API_BASE}/stripe/descuentos/${btn.dataset.desactivarId}/desactivar`, { method: 'PUT', headers: { Authorization: authHeader } });
+            if (res.ok) { showToast('Código desactivado'); cargarStripeDescuentos(); }
+            else showToast('No se pudo desactivar', true);
+          },
+        })
+      );
+    });
+  }
+
+  function alternarCampoDuracionMeses() {
+    const duracion = document.getElementById('stripe-descuento-duracion').value;
+    document.getElementById('stripe-descuento-duracion-meses-campo').hidden = duracion !== 'repeating';
+  }
+  const selectDuracionDescuento = document.getElementById('stripe-descuento-duracion');
+  if (selectDuracionDescuento) selectDuracionDescuento.addEventListener('change', alternarCampoDuracionMeses);
+
+  const btnStripeDescuentoNuevo = document.getElementById('btn-stripe-descuento-nuevo');
+  if (btnStripeDescuentoNuevo) btnStripeDescuentoNuevo.addEventListener('click', () => {
+    document.getElementById('stripe-descuento-form').hidden = false;
+    alternarCampoDuracionMeses();
+  });
+  const btnStripeDescuentoCancelar = document.getElementById('btn-stripe-descuento-cancelar');
+  if (btnStripeDescuentoCancelar) btnStripeDescuentoCancelar.addEventListener('click', () => { document.getElementById('stripe-descuento-form').hidden = true; });
+
+  const btnStripeDescuentoGuardar = document.getElementById('btn-stripe-descuento-guardar');
+  if (btnStripeDescuentoGuardar) btnStripeDescuentoGuardar.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    const errorEl = document.getElementById('stripe-descuentos-error');
+    const cuerpo = {
+      codigo: document.getElementById('stripe-descuento-codigo').value.trim(),
+      tipo: document.getElementById('stripe-descuento-tipo').value,
+      valor: document.getElementById('stripe-descuento-valor').value,
+      duracion: document.getElementById('stripe-descuento-duracion').value,
+      duracionMeses: document.getElementById('stripe-descuento-duracion-meses').value || null,
+      vigenciaHasta: document.getElementById('stripe-descuento-vigencia').value || null,
+      usosMaximos: document.getElementById('stripe-descuento-usos').value || null,
+    };
+    const res = await fetch(`${API_BASE}/stripe/descuentos`, { method: 'POST', headers: { Authorization: authHeader, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { errorEl.textContent = data.error || 'No se pudo crear el código.'; return; }
+    errorEl.textContent = '';
+    showToast('Código de descuento creado');
+    document.getElementById('stripe-descuento-form').hidden = true;
+    cargarStripeDescuentos();
+  });
+
+  // ---------- Punto en curso: Recordatorios de activación ----------
+  async function cargarRecordatorios() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    const errorEl = document.getElementById('recordatorios-error');
+    errorEl.textContent = '';
+    try {
+      const [cfgRes, listaRes] = await Promise.all([
+        fetch(`${API_BASE}/recordatorios/config`, { headers: { Authorization: authHeader } }),
+        fetch(`${API_BASE}/recordatorios`, { headers: { Authorization: authHeader } }),
+      ]);
+      if (cfgRes.status === 401 || listaRes.status === 401) { clearSession(); showLogin(); return; }
+      const cfg = await cfgRes.json();
+      document.getElementById('recordatorios-frecuencia').value = String(cfg.frecuenciaHoras);
+      document.getElementById('recordatorios-max-intentos').value = String(cfg.maxIntentos);
+      document.getElementById('recordatorios-angulo').value = cfg.angulo;
+      const { items } = await listaRes.json();
+      renderRecordatorios(items || [], cfg);
+    } catch {
+      errorEl.textContent = 'No se pudo cargar. Intenta de nuevo.';
+    }
+  }
+
+  function etiquetaMotivoRecordatorio(item) {
+    if (item.pago_estado === 'fallido') return 'Pago rechazado';
+    if (item.metodo_pago === 'oxxo') return 'Ficha OXXO sin pagar';
+    if (item.metodo_pago === 'spei') return 'SPEI sin confirmar';
+    return 'Pago pendiente';
+  }
+
+  function renderRecordatorios(items, cfg) {
+    const tbody = document.getElementById('recordatorios-table-body');
+    document.getElementById('recordatorios-empty').hidden = items.length > 0;
+    tbody.innerHTML = items.map((item) => {
+      const esOxxoSpei = item.metodo_pago === 'oxxo' || item.metodo_pago === 'spei';
+      const frecuenciaHoras = esOxxoSpei ? 24 : cfg.frecuenciaHoras;
+      const ultimo = item.ultimo_recordatorio_en ? new Date(item.ultimo_recordatorio_en) : null;
+      const ultimoTxt = ultimo ? ultimo.toLocaleString('es-MX') : 'Nunca';
+      const proximoTxt = ultimo ? new Date(ultimo.getTime() + frecuenciaHoras * 3600000).toLocaleString('es-MX') : 'Pronto';
+      return `<tr>
+        <td>${escapeHtml(item.nombre_empresa || '(sin nombre todavía)')}</td>
+        <td>${escapeHtml(etiquetaMotivoRecordatorio(item))}</td>
+        <td>${escapeHtml(ultimoTxt)}</td>
+        <td>${escapeHtml(proximoTxt)}</td>
+        <td>${item.intentos_recordatorio} / ${cfg.maxIntentos}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  const btnRecordatoriosGuardar = document.getElementById('btn-recordatorios-guardar');
+  if (btnRecordatoriosGuardar) btnRecordatoriosGuardar.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    const cuerpo = {
+      frecuenciaHoras: Number(document.getElementById('recordatorios-frecuencia').value),
+      maxIntentos: Number(document.getElementById('recordatorios-max-intentos').value),
+      angulo: document.getElementById('recordatorios-angulo').value,
+    };
+    const res = await fetch(`${API_BASE}/recordatorios/config`, { method: 'PUT', headers: { Authorization: authHeader, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { document.getElementById('recordatorios-error').textContent = data.error || 'No se pudo guardar.'; return; }
+    showToast('Configuración guardada');
+    cargarRecordatorios();
+  });
+
+  const btnRecordatoriosProcesar = document.getElementById('btn-recordatorios-procesar');
+  if (btnRecordatoriosProcesar) btnRecordatoriosProcesar.addEventListener('click', async () => {
+    const authHeader = getAuthHeader();
+    const res = await fetch(`${API_BASE}/recordatorios/procesar-ahora`, { method: 'POST', headers: { Authorization: authHeader } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast('No se pudo procesar', true); return; }
+    showToast(`${data.enviados} enviado(s), ${data.archivados} archivado(s)`);
+    cargarRecordatorios();
+  });
+
+  // ---------- Punto en curso: Reporte de cupones ----------
+  async function cargarReporteCupones() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    const tbody = document.getElementById('cupones-table-body');
+    Esqueleto.aplicarEsqueletoTabla(tbody, 5);
+    try {
+      const res = await fetch(`${API_BASE}/reportes/cupones`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      const data = await res.json();
+      renderReporteCupones(data.items || []);
+      Esqueleto.quitarEsqueletoTabla(tbody);
+    } catch {
+      Esqueleto.aplicarErrorTabla(tbody, 5, 'No se pudo cargar.', cargarReporteCupones);
+    }
+  }
+
+  function renderReporteCupones(items) {
+    const tbody = document.getElementById('cupones-table-body');
+    document.getElementById('cupones-empty').hidden = items.length > 0;
+    const totalRedenciones = items.reduce((s, i) => s + i.redenciones, 0);
+    const totalCompradas = items.reduce((s, i) => s + i.compradas, 0);
+    const totalIngreso = items.reduce((s, i) => s + i.ingreso, 0);
+    const top = items.slice().sort((a, b) => b.redenciones - a.redenciones)[0];
+    document.getElementById('cupones-kpis').innerHTML = `
+      <div class="kpi" style="background:var(--color-bg);border-radius:10px;padding:13px 15px;"><b style="display:block;font-size:20px;">${totalRedenciones}</b><span style="font-size:11px;color:var(--color-ink-soft);text-transform:uppercase;">Redenciones</span></div>
+      <div class="kpi" style="background:var(--color-bg);border-radius:10px;padding:13px 15px;"><b style="display:block;font-size:20px;">${totalCompradas}</b><span style="font-size:11px;color:var(--color-ink-soft);text-transform:uppercase;">Suscripciones compradas</span></div>
+      <div class="kpi" style="background:var(--color-bg);border-radius:10px;padding:13px 15px;"><b style="display:block;font-size:20px;">$${totalIngreso.toLocaleString('es-MX')}</b><span style="font-size:11px;color:var(--color-ink-soft);text-transform:uppercase;">Ingreso atribuido</span></div>
+      <div class="kpi" style="background:var(--color-bg);border-radius:10px;padding:13px 15px;"><b style="display:block;font-size:20px;">${top ? escapeHtml(top.codigo) : '—'}</b><span style="font-size:11px;color:var(--color-ink-soft);text-transform:uppercase;">Cupón con más uso</span></div>
+    `;
+    tbody.innerHTML = items.map((i) => `<tr>
+      <td><code>${escapeHtml(i.codigo)}</code></td>
+      <td>${i.redenciones}</td>
+      <td>${i.compradas}</td>
+      <td>$${i.ingreso.toLocaleString('es-MX')}</td>
+      <td>${escapeHtml(i.fuenteTop)}</td>
+    </tr>`).join('');
+  }
 
   async function cargarSucursales() {
     const authHeader = getAuthHeader();
