@@ -1078,6 +1078,26 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   se conservan tal cual a propósito, cero migración de esquema. Si se
   toca este archivo otra vez, no renombrar esas claves internas sin
   decisión explícita — son invisibles para el operador.
+- **Un "Eliminar" definitivo en `control/` casi nunca puede ser un
+  `DELETE` físico real** (punto 432, 2026-10-27): `control_app` (la
+  credencial de BD de `control/`) no tiene privilegio `DELETE` ni
+  `REFERENCES` — a propósito, hardening del segmento 9b, confirmado en
+  `control/scripts/ensureSchema.js:268-272` (mismo motivo documentado ya
+  para `grupos_sucursal`/`orden_productos`/`api_credenciales`). Antes de
+  implementar un botón "Eliminar" nuevo en cualquier tabla de
+  `control_tenants`, grepear ese comentario primero — si aplica, la
+  única vía sin ampliar privilegios de MySQL (cambio de seguridad, pide
+  confirmación explícita del usuario, no se asume) es un SEGUNDO
+  soft-delete propio de esa tabla (columna `eliminado_en DATETIME NULL`,
+  independiente de `activo`) que la deje invisible PARA SIEMPRE en todas
+  las vistas, incluida cualquier "incluir archivados". Patrón real
+  aplicado en `planes.js:eliminarPlan()`: 2 candados en orden (1) debe
+  estar ya archivado (`activo=0`) — mismo criterio de fricción
+  intencional que `stripeConfig.js:eliminarCodigoDescuento()` (Eliminar
+  nunca convive con Archivar en la misma fila, solo con Reactivar); (2)
+  `total_tenants === 0`, bloqueando con `codigo:'tiene_empresas'` →
+  **409** (no 400 genérico) para que el frontend distinga ese caso de un
+  error de validación.
 
 ## Stack
 

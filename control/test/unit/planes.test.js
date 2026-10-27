@@ -12,6 +12,7 @@ const {
   actualizarPlan,
   archivarPlan,
   reactivarPlan,
+  eliminarPlan,
 } = require('../../utils/planes');
 
 function mockDb() {
@@ -52,7 +53,7 @@ describe('utils/planes.js (punto 347)', () => {
 
       const planes = await listarPlanes({}, db);
 
-      expect(db.query.mock.calls[0][0]).toMatch(/WHERE p\.activo = 1/);
+      expect(db.query.mock.calls[0][0]).toMatch(/WHERE p\.eliminado_en IS NULL AND p\.activo = 1/);
       expect(planes).toHaveLength(1);
       expect(planes[0]).toMatchObject({ id: 1, nombre: 'Pro', precio_mensual: 1490, total_tenants: 3 });
       expect(planes[0].sucursales_habilitado).toBe(true);
@@ -381,6 +382,44 @@ describe('utils/planes.js (punto 347)', () => {
 
       expect(plan.activo).toBe(true);
       expect(db.query.mock.calls[1][0]).toMatch(/UPDATE planes SET activo = 1/);
+    });
+  });
+
+  describe('eliminarPlan (soft-delete permanente vía eliminado_en)', () => {
+    test('plan archivado y sin empresas: marca eliminado_en', async () => {
+      const db = mockDb();
+      db.query
+        .mockResolvedValueOnce([[filaPlan({ activo: 0, total_tenants: 0 })]]) // obtenerPlan
+        .mockResolvedValueOnce([{}]); // UPDATE eliminado_en
+
+      await eliminarPlan(1, db);
+
+      expect(db.query.mock.calls[1][0]).toMatch(/UPDATE planes SET eliminado_en = \?/);
+      expect(db.query).toHaveBeenCalledTimes(2);
+    });
+
+    test('plan todavía activo (no archivado): ErrorPlan validacion, sin UPDATE', async () => {
+      const db = mockDb();
+      db.query.mockResolvedValueOnce([[filaPlan({ activo: 1, total_tenants: 0 })]]);
+
+      await expect(eliminarPlan(1, db)).rejects.toMatchObject({ codigo: 'validacion' });
+      expect(db.query).toHaveBeenCalledTimes(1);
+    });
+
+    test('plan archivado con empresas asignadas: ErrorPlan tiene_empresas, sin UPDATE', async () => {
+      const db = mockDb();
+      db.query.mockResolvedValue([[filaPlan({ activo: 0, total_tenants: 2 })]]);
+
+      await expect(eliminarPlan(1, db)).rejects.toMatchObject({ codigo: 'tiene_empresas' });
+      await expect(eliminarPlan(1, db)).rejects.toThrow(/2 empresa/);
+      expect(db.query).toHaveBeenCalledTimes(2);
+    });
+
+    test('plan inexistente: ErrorPlan no_encontrado', async () => {
+      const db = mockDb();
+      db.query.mockResolvedValueOnce([[]]);
+
+      await expect(eliminarPlan(999, db)).rejects.toMatchObject({ codigo: 'no_encontrado' });
     });
   });
 });

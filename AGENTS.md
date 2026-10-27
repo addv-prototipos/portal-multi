@@ -513,6 +513,17 @@ solo la frase en español de la UI.
   el reemplazo del punto 415 — IDs del DOM y claves de
   `ajustes_globales` (`minio_*`) se conservan sin tocar a propósito,
   cambio solo de texto visible.
+- **Un "Eliminar" en `control/` casi nunca es un `DELETE` físico real**
+  (punto 432): `control_app` no tiene privilegio `DELETE` ni
+  `REFERENCES` (hardening a propósito del segmento 9b,
+  `ensureSchema.js:268-272`) — grepear ese comentario antes de agregar
+  un botón "Eliminar" nuevo en cualquier tabla de `control_tenants`. Sin
+  ampliar privilegios de MySQL (cambio de seguridad, pide confirmación
+  explícita), la vía es un segundo soft-delete propio
+  (`eliminado_en DATETIME NULL`, invisible para siempre en toda vista).
+  Patrón real en `planes.js:eliminarPlan()`: debe estar ya archivado +
+  `total_tenants === 0`, bloqueando con 409 `codigo:'tiene_empresas'`
+  (no 400 genérico).
 
 ## Stack
 

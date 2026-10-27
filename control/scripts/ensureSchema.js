@@ -368,6 +368,12 @@ const COLUMNAS_PLANES_NUEVAS = [
   // publica solo porque exista la columna. El operador lo activa a
   // propósito desde /control.
   { nombre: 'publicado_sitio', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  // Punto en curso (2026-10-27): segundo soft-delete de esta tabla, ver
+  // cabecera de control/utils/planes.js — NULL = vivo (filtrado por
+  // listarPlanes/obtenerPlan), con fecha = eliminado para siempre. DEFAULT
+  // NULL implícito — ningún plan existente queda eliminado por agregar la
+  // columna.
+  { nombre: 'eliminado_en', definicion: 'DATETIME NULL' },
 ];
 
 async function asegurarTablaPlanes(db) {
@@ -385,6 +391,7 @@ async function asegurarTablaPlanes(db) {
       marca_lookfeel_habilitado TINYINT(1) NOT NULL DEFAULT 0,
       disco_cuota_mb INT NULL,
       activo TINYINT(1) NOT NULL DEFAULT 1,
+      eliminado_en DATETIME NULL,
       orden INT NOT NULL DEFAULT 0,
       creado_en DATETIME NOT NULL,
       actualizado_en DATETIME NOT NULL

@@ -831,7 +831,7 @@ describe('Control standalone (/api/control)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.planes[0].nombre).toBe('Pro');
-      expect(pool.query.mock.calls[0][0]).toMatch(/WHERE p\.activo = 1/);
+      expect(pool.query.mock.calls[0][0]).toMatch(/WHERE p\.eliminado_en IS NULL AND p\.activo = 1/);
     });
 
     test('GET ?incluirArchivados=true no filtra por activo', async () => {

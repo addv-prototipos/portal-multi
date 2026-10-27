@@ -2902,6 +2902,25 @@
             })
           )
         );
+        contenedorAcciones.appendChild(
+          crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', () => {
+            if (p.total_tenants > 0) {
+              confirmarAccion({
+                titulo: `No se puede eliminar "${p.nombre}"`,
+                mensaje: `Tiene ${p.total_tenants} empresa(s) asignada(s) — primero reasígnalas a otro plan desde su ficha. Mientras una sola empresa lo tenga asignado, este plan no se puede borrar, solo editar.`,
+                textoBoton: 'Entendido',
+                onConfirmar: () => {},
+              });
+              return;
+            }
+            confirmarAccion({
+              titulo: '¿Eliminar este plan definitivamente?',
+              mensaje: `"${p.nombre}" se borra para siempre del catálogo — a diferencia de archivar, esto NO se puede deshacer.`,
+              textoBoton: 'Eliminar definitivo',
+              onConfirmar: () => eliminarPlanDefinitivo(p.id),
+            });
+          })
+        );
       }
       celdaAcciones.appendChild(contenedorAcciones);
       els.planesTableBody.appendChild(tr);
@@ -2921,6 +2940,25 @@
         return;
       }
       showToast(accion === 'archivar' ? 'Plan archivado.' : 'Plan reactivado.');
+      cargarPlanes();
+    } catch (err) {
+      showToast('No se pudo conectar con el servidor.', true);
+    }
+  }
+
+  async function eliminarPlanDefinitivo(id) {
+    const authHeader = getAuthHeader();
+    try {
+      const res = await fetch(`${API_BASE}/planes/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: authHeader },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || 'No se pudo eliminar el plan.', true);
+        return;
+      }
+      showToast('Plan eliminado.');
       cargarPlanes();
     } catch (err) {
       showToast('No se pudo conectar con el servidor.', true);

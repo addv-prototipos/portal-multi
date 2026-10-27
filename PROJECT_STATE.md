@@ -24357,3 +24357,66 @@ respectivamente.
 
 Archivos: `clarvo-Site/src/components/site/PricingSection.astro`,
 `PROJECT_STATE.md` (este punto).
+
+## Punto 432 — /control: Eliminar definitivamente un plan (candado en 2 pasos, solo si 0 empresas) (27 oct 2026, CERRADO)
+
+Usuario pidió poder borrar un plan del catálogo cuando no tiene ninguna
+empresa asignada, bloqueando con mensaje claro si sí tiene. Propuesta
+visual (Artifact, 2 opciones: directo vs. candado en 2 pasos) — usuario
+eligió la opción 2, mismo patrón que `stripeConfig.js:eliminarCodigoDescuento()`:
+"Eliminar" solo aparece en la fila una vez que el plan ya está
+**Archivado** (nunca sobre un plan Activo, sin importar cuántas
+empresas tenga).
+
+**Hallazgo que cambió el diseño técnico**: `control_app` (credencial de
+BD de `control/`) no tiene privilegio `DELETE` ni `REFERENCES` — a
+propósito, hardening del segmento 9b (confirmado en
+`ensureSchema.js:268-272`, mismo motivo que `grupos_sucursal`/
+`orden_productos`). Un `DELETE FROM planes` físico real habría
+requerido un `GRANT DELETE` nuevo (cambio de seguridad, no solo de
+código) — se le preguntó al usuario y eligió el soft-delete permanente:
+columna nueva `planes.eliminado_en` (`DATETIME NULL`), filtrada siempre
+con `IS NULL` en `listarPlanes()`/`obtenerPlan()` (incluida la vista
+`incluirArchivados=true` de `/control` — una vez eliminado, desaparece
+para siempre de TODO, la fila sigue en la tabla pero invisible en
+cualquier listado).
+
+**2 candados en `eliminarPlan()` (`control/utils/planes.js`), en este
+orden**: (1) el plan debe estar ya archivado (`activo=0`) — si no,
+`ErrorPlan('validacion')`, "Primero archiva este plan antes de
+eliminarlo."; (2) `total_tenants === 0` — si no,
+`ErrorPlan('tiene_empresas')`, "No se puede eliminar: tiene N
+empresa(s) asignada(s)." `mapearErrorPlan()` en `control/server.js`
+mapea ese código nuevo a **409** (no 400 genérico), para que el
+frontend lo distinga de un error de validación — nueva ruta
+`DELETE /api/control/planes/:id`.
+
+Frontend (`frontend/control.js`, bloque de Planes): el botón "Eliminar"
+solo se agrega en la rama `else` (plan archivado), junto a "Reactivar"
+— si `p.total_tenants > 0` el clic abre directo el modal de bloqueo
+(mismo `confirmarAccion()`, sin pasar por el servidor) mostrando el
+conteo real; si es 0, pide confirmación de borrado definitivo y llama
+`DELETE`.
+
+**Verificado real contra Docker/MySQL real** (extensión de Chrome
+desconectada esta sesión — no hubo verificación de clics reales en
+navegador, solo API): migración de esquema corrió limpia al recrear
+`control` (`eliminado_en` agregada sin tocar los 6 planes existentes);
+`DELETE` sobre un plan E2E archivado con 0 empresas → 200, desaparece
+de ambas vistas; `DELETE` sobre "CLARVO Solicita" (activo, 1 empresa)
+→ 400 "Primero archiva..."; archivar "CLARVO Controla" (5 empresas) y
+luego `DELETE` → 409 "tiene 5 empresa(s)...", reactivado después para
+dejar el catálogo real como estaba. Tests: 4 nuevos en
+`test/unit/planes.test.js` (éxito, bloqueo por no-archivado, bloqueo
+por empresas, no-encontrado) + 2 asserts de SQL actualizados en
+`test/unit/planes.test.js`/`test/integration/control.test.js` (el
+`WHERE` de `listarPlanes()` ahora lleva `eliminado_en IS NULL` antes de
+`activo = 1`) — suite completa en verde salvo las fallas Turnstile
+preexistentes (M-06, no relacionadas, confirmado corriendo la suite sin
+estos cambios).
+
+Archivos: `control/scripts/ensureSchema.js`, `control/utils/planes.js`,
+`control/server.js`, `frontend/control.js`,
+`control/test/unit/planes.test.js`,
+`control/test/integration/control.test.js`, `PROJECT_STATE.md` (este
+punto).

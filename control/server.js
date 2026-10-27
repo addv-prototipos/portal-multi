@@ -66,6 +66,7 @@ const {
   actualizarPlan,
   archivarPlan,
   reactivarPlan,
+  eliminarPlan,
   ErrorPlan,
 } = require('./utils/planes');
 const {
@@ -1364,6 +1365,7 @@ app.put(
 // grupos-sucursal arriba: super-only, soft-delete, sin FK físico.
 function mapearErrorPlan(err) {
   if (err.codigo === 'no_encontrado') return 404;
+  if (err.codigo === 'tiene_empresas') return 409;
   return 400;
 }
 
@@ -1454,6 +1456,28 @@ app.put(
       res.json({ ok: true, plan });
     } catch (err) {
       if (err instanceof ErrorPlan) return res.status(mapearErrorPlan(err)).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+// Eliminar: soft-delete permanente, solo si ya está archivado y con 0
+// empresas asignadas — ver eliminarPlan() en utils/planes.js. 409 (no
+// 400) cuando el candado es "tiene empresas", para que el frontend
+// distinga ese caso de un error de validación genérico.
+app.delete(
+  '/api/control/planes/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await eliminarPlan(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err) {
+      if (err instanceof ErrorPlan) {
+        return res.status(mapearErrorPlan(err)).json({ error: err.message, codigo: err.codigo });
+      }
       throw err;
     }
   })

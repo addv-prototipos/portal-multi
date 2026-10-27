@@ -3,11 +3,16 @@
 // y nombra sin ningún cliente en mente, se asigna después (ver
 // utils/tenantFeatures.js para la asignación/excepciones por tenant).
 //
-// Mismo patrón que utils/sucursales.js: soft-delete siempre (`activo`),
-// nunca DELETE físico — `control_app` no tiene privilegio DELETE ni
-// REFERENCES (validado contra MySQL real, ver control/scripts/ensureSchema.js).
+// Mismo patrón que utils/sucursales.js: soft-delete siempre, nunca DELETE
+// físico — `control_app` no tiene privilegio DELETE ni REFERENCES
+// (validado contra MySQL real, ver control/scripts/ensureSchema.js).
 // "Archivar" un plan con tenants ya asignados no los toca — solo deja de
-// ofrecerse para asignar a empresas nuevas.
+// ofrecerse para asignar a empresas nuevas. "Eliminar" (punto en curso,
+// 2026-10-27) es un segundo soft-delete, vía `eliminado_en` — solo
+// permitido sobre un plan ya archivado y con 0 empresas asignadas; una
+// vez eliminado desaparece para siempre de listarPlanes/obtenerPlan
+// (incluida la vista "incluirArchivados" de /control), la fila sigue en
+// la tabla pero invisible en todo.
 
 const { obtenerPool } = require('../db');
 
@@ -183,7 +188,7 @@ async function listarPlanes({ incluirArchivados = false } = {}, db = obtenerPool
   const [planes] = await db.query(
     `SELECT p.*, (SELECT COUNT(*) FROM tenants t WHERE t.plan_id = p.id) AS total_tenants
      FROM planes p
-     ${incluirArchivados ? '' : 'WHERE p.activo = 1'}
+     WHERE p.eliminado_en IS NULL ${incluirArchivados ? '' : 'AND p.activo = 1'}
      ORDER BY p.orden ASC, p.nombre ASC`
   );
   return planes.map(mapearFila);
@@ -192,7 +197,7 @@ async function listarPlanes({ incluirArchivados = false } = {}, db = obtenerPool
 async function obtenerPlan(id, db = obtenerPool()) {
   const [filas] = await db.query(
     `SELECT p.*, (SELECT COUNT(*) FROM tenants t WHERE t.plan_id = p.id) AS total_tenants
-     FROM planes p WHERE p.id = ?`,
+     FROM planes p WHERE p.id = ? AND p.eliminado_en IS NULL`,
     [id]
   );
   const plan = filas[0];
@@ -290,6 +295,28 @@ async function reactivarPlan(id, db = obtenerPool()) {
   return obtenerPlan(id, db);
 }
 
+// Eliminar (soft-delete permanente vía `eliminado_en`, nunca DELETE físico
+// — control_app carece de privilegio DELETE a propósito, ver cabecera del
+// archivo). Dos candados, en este orden: (1) solo un plan ya ARCHIVADO
+// puede eliminarse (mismo criterio de 2 pasos que
+// stripeConfig.js:eliminarCodigoDescuento — fricción intencional, nunca
+// borrar un plan activo de un tirón); (2) cero empresas asignadas
+// (`total_tenants`), o se bloquea con `codigo:'tiene_empresas'` para que
+// el frontend muestre el motivo real, nunca un error genérico.
+async function eliminarPlan(id, db = obtenerPool()) {
+  const plan = await obtenerPlan(id, db);
+  if (plan.activo) {
+    throw new ErrorPlan('Primero archiva este plan antes de eliminarlo.', 'validacion');
+  }
+  if (plan.total_tenants > 0) {
+    throw new ErrorPlan(
+      `No se puede eliminar: tiene ${plan.total_tenants} empresa(s) asignada(s).`,
+      'tiene_empresas'
+    );
+  }
+  await db.query('UPDATE planes SET eliminado_en = ? WHERE id = ?', [new Date(), id]);
+}
+
 module.exports = {
   ErrorPlan,
   listarPlanes,
@@ -298,4 +325,5 @@ module.exports = {
   actualizarPlan,
   archivarPlan,
   reactivarPlan,
+  eliminarPlan,
 };
