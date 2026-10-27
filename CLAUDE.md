@@ -975,6 +975,31 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `listarCodigosDescuento()` lee `p.promotion.coupon`, nunca `p.coupon`.
   Si la librería `stripe` se actualiza alguna vez, volver a verificar
   contra el `.d.ts` real antes de asumir que la forma sigue igual.
+- **Un Promotion Code de Stripe nunca "desaparece" al eliminar su
+  Coupon** (punto 427, 2026-10-27): `stripe.coupons.del()` invalida el
+  código para siempre, pero `stripe.promotionCodes.list()` lo sigue
+  devolviendo indefinidamente con `coupon.deleted===true` y sus demás
+  campos (`percent_off`/`amount_off`/etc.) en `null` — confirmado real
+  al probar, se veía como una fila fantasma "$0" en la tabla de
+  `/control`. `listarCodigosDescuento()`
+  (`control/utils/stripeConfig.js`) filtra `coupon.deleted` antes de
+  mapear — cualquier código nuevo que lea esta lista debe mantener ese
+  filtro, no asumir que "eliminado" significa "ya no aparece en
+  `.list()`".
+- **"Editar" un cupón de Stripe = archivar el viejo y crear uno nuevo,
+  nunca una edición in-place** (punto 427): ni `Coupons.update()`
+  (solo metadata) ni `PromotionCodes.update()` (solo
+  `active`/`metadata`/`restrictions`) permiten tocar
+  valor/código/vigencia — confirmado en el `.d.ts` real. El patrón
+  implementado (`reemplazarCodigoDescuento()`) archiva el código viejo
+  **antes** de crear el nuevo, nunca después — Stripe exige que el
+  texto del código sea único solo entre códigos ACTIVOS, así que
+  reutilizar el mismo código (el caso típico al editar) chocaría si el
+  nuevo se creara primero. Si crear el nuevo falla, reintentar
+  reactivar el viejo (no dejar al operador sin ningún código vigente).
+  Replicar este orden (archivar→crear, nunca crear→archivar) en
+  cualquier flujo futuro de "reemplazar" un objeto de Stripe con
+  restricción de unicidad.
 - **`<a class="btn ...">` no se ve como botón solo con las clases —
   falta un reset** (punto 426, 2026-10-27): `.btn`/`.btn-secondary` en
   `style.css` nunca definieron `text-decoration` ni `display` propio, así

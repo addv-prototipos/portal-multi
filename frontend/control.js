@@ -3757,31 +3757,82 @@
       const valorTxt = d.tipo === 'porcentaje' ? `${d.valor}%` : `$${Number(d.valor).toLocaleString('es-MX')}`;
       const duracionTxt = d.duracion === 'repeating' ? `${d.duracionMeses} meses` : d.duracion === 'once' ? 'Una vez' : 'Para siempre';
       const vigenciaTxt = d.vigenciaHasta ? new Date(d.vigenciaHasta).toLocaleDateString('es-MX') : 'Sin vencimiento';
-      return `<tr>
+      return `<tr data-descuento-row="${d.id}">
         <td><code>${escapeHtml(d.codigo)}</code></td>
         <td>${escapeHtml(valorTxt)}</td>
         <td>${escapeHtml(duracionTxt)}</td>
         <td>${escapeHtml(vigenciaTxt)}</td>
         <td>${d.usosActuales}${d.usosMaximos ? ' / ' + d.usosMaximos : ''}</td>
-        <td><span class="planes-chip${d.activo ? '' : ' is-apagado'}">${d.activo ? 'Activo' : 'Pausado'}</span></td>
-        <td>${d.activo ? `<button type="button" class="btn-icono-accion" data-tooltip="Desactivar" aria-label="Desactivar" data-desactivar-id="${d.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/></svg></button>` : ''}</td>
+        <td><span class="planes-chip${d.activo ? '' : ' is-apagado'}">${d.activo ? 'Activo' : 'Archivado'}</span></td>
+        <td></td>
       </tr>`;
     }).join('');
-    tbody.querySelectorAll('[data-desactivar-id]').forEach((btn) => {
-      btn.addEventListener('click', () =>
-        confirmarAccion({
-          titulo: '¿Desactivar este código?',
-          mensaje: 'Deja de poder redimirse — esto no se puede deshacer desde aquí (habría que crear uno nuevo).',
-          textoBoton: 'Desactivar',
-          onConfirmar: async () => {
-            const authHeader = getAuthHeader();
-            const res = await fetch(`${API_BASE}/stripe/descuentos/${btn.dataset.desactivarId}/desactivar`, { method: 'PUT', headers: { Authorization: authHeader } });
-            if (res.ok) { showToast('Código desactivado'); cargarStripeDescuentos(); }
-            else showToast('No se pudo desactivar', true);
-          },
-        })
-      );
+
+    items.forEach((d) => {
+      const tr = tbody.querySelector(`[data-descuento-row="${d.id}"]`);
+      if (!tr) return;
+      const celda = tr.lastElementChild;
+      const acciones = document.createElement('div');
+      acciones.className = 'admin-row-actions';
+
+      acciones.appendChild(crearBotonAccion('btn-icono-accion', 'Editar', 'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z', () => abrirDescuentoForm(d)));
+
+      if (d.activo) {
+        acciones.appendChild(crearBotonAccion('btn-icono-accion', 'Archivar', 'M2 3h20v5H2zM4 8v13h16V8M10 12h4', () =>
+          confirmarAccion({
+            titulo: '¿Archivar este código?',
+            mensaje: `"${d.codigo}" deja de poder redimirse de inmediato — reversible con "Reactivar", siempre que no haya vencido.`,
+            textoBoton: 'Archivar',
+            onConfirmar: () => accionDescuento(d.id, 'desactivar', 'archivar'),
+          })
+        ));
+      } else {
+        acciones.appendChild(crearBotonAccion('btn-icono-accion', 'Reactivar', 'M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5', () => accionDescuento(d.id, 'activar', 'reactivar')));
+        acciones.appendChild(crearBotonAccion('btn-icono-accion btn-icono-accion-peligro', 'Eliminar', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', () =>
+          confirmarAccion({
+            titulo: '¿Eliminar este código definitivamente?',
+            mensaje: `"${d.codigo}" se borra para siempre de Stripe — a diferencia de archivar, esto NO se puede deshacer.`,
+            textoBoton: 'Eliminar definitivo',
+            onConfirmar: () => accionDescuento(d.id, '', 'eliminar'),
+          })
+        ));
+      }
+      celda.appendChild(acciones);
     });
+  }
+
+  async function accionDescuento(id, subruta, accion) {
+    const authHeader = getAuthHeader();
+    const url = `${API_BASE}/stripe/descuentos/${id}${subruta ? '/' + subruta : ''}`;
+    const metodo = accion === 'eliminar' ? 'DELETE' : 'PUT';
+    const res = await fetch(url, { method: metodo, headers: { Authorization: authHeader } });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      const mensajes = { archivar: 'Código archivado', reactivar: 'Código reactivado', eliminar: 'Código eliminado' };
+      showToast(mensajes[accion] || 'Hecho');
+      cargarStripeDescuentos();
+    } else {
+      showToast(data.error || 'No se pudo completar la acción', true);
+    }
+  }
+
+  let descuentoEditandoId = null;
+
+  function abrirDescuentoForm(item) {
+    descuentoEditandoId = item ? item.id : null;
+    document.getElementById('stripe-descuento-form-id-viejo').value = descuentoEditandoId || '';
+    document.getElementById('stripe-descuento-form-aviso-editar').hidden = !item;
+    document.getElementById('btn-stripe-descuento-guardar-label').textContent = item ? 'Guardar cambios' : 'Guardar código';
+    document.getElementById('stripe-descuento-codigo').value = item ? item.codigo : '';
+    document.getElementById('stripe-descuento-tipo').value = item ? item.tipo : 'porcentaje';
+    document.getElementById('stripe-descuento-valor').value = item ? item.valor : '';
+    document.getElementById('stripe-descuento-duracion').value = item ? item.duracion : 'once';
+    document.getElementById('stripe-descuento-duracion-meses').value = item && item.duracionMeses ? item.duracionMeses : '';
+    document.getElementById('stripe-descuento-vigencia').value = item && item.vigenciaHasta ? item.vigenciaHasta.slice(0, 10) : '';
+    document.getElementById('stripe-descuento-usos').value = item && item.usosMaximos ? item.usosMaximos : '';
+    document.getElementById('stripe-descuentos-error').textContent = '';
+    document.getElementById('stripe-descuento-form').hidden = false;
+    alternarCampoDuracionMeses();
   }
 
   function alternarCampoDuracionMeses() {
@@ -3792,12 +3843,13 @@
   if (selectDuracionDescuento) selectDuracionDescuento.addEventListener('change', alternarCampoDuracionMeses);
 
   const btnStripeDescuentoNuevo = document.getElementById('btn-stripe-descuento-nuevo');
-  if (btnStripeDescuentoNuevo) btnStripeDescuentoNuevo.addEventListener('click', () => {
-    document.getElementById('stripe-descuento-form').hidden = false;
-    alternarCampoDuracionMeses();
-  });
+  if (btnStripeDescuentoNuevo) btnStripeDescuentoNuevo.addEventListener('click', () => abrirDescuentoForm(null));
+
   const btnStripeDescuentoCancelar = document.getElementById('btn-stripe-descuento-cancelar');
-  if (btnStripeDescuentoCancelar) btnStripeDescuentoCancelar.addEventListener('click', () => { document.getElementById('stripe-descuento-form').hidden = true; });
+  if (btnStripeDescuentoCancelar) btnStripeDescuentoCancelar.addEventListener('click', () => {
+    descuentoEditandoId = null;
+    document.getElementById('stripe-descuento-form').hidden = true;
+  });
 
   const btnStripeDescuentoGuardar = document.getElementById('btn-stripe-descuento-guardar');
   if (btnStripeDescuentoGuardar) btnStripeDescuentoGuardar.addEventListener('click', async () => {
@@ -3812,11 +3864,18 @@
       vigenciaHasta: document.getElementById('stripe-descuento-vigencia').value || null,
       usosMaximos: document.getElementById('stripe-descuento-usos').value || null,
     };
-    const res = await fetch(`${API_BASE}/stripe/descuentos`, { method: 'POST', headers: { Authorization: authHeader, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    // Editar un cupón no existe en Stripe (ver nota en stripeConfig.js) —
+    // si venimos de "Editar", esto pega a .../reemplazar: archiva el
+    // código viejo y crea uno nuevo con estos valores en un solo paso.
+    const idViejo = descuentoEditandoId;
+    const url = idViejo ? `${API_BASE}/stripe/descuentos/${idViejo}/reemplazar` : `${API_BASE}/stripe/descuentos`;
+    const metodo = idViejo ? 'PUT' : 'POST';
+    const res = await fetch(url, { method: metodo, headers: { Authorization: authHeader, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { errorEl.textContent = data.error || 'No se pudo crear el código.'; return; }
+    if (!res.ok) { errorEl.textContent = data.error || (idViejo ? 'No se pudo guardar los cambios.' : 'No se pudo crear el código.'); return; }
     errorEl.textContent = '';
-    showToast('Código de descuento creado');
+    showToast(idViejo ? 'Código actualizado (se archivó el anterior)' : 'Código de descuento creado');
+    descuentoEditandoId = null;
     document.getElementById('stripe-descuento-form').hidden = true;
     cargarStripeDescuentos();
   });

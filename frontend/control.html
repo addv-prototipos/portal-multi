@@ -836,6 +836,8 @@
               </div>
 
               <div id="stripe-descuento-form" class="control-form-grid" style="max-width:640px;margin-top:18px;" hidden>
+                <input type="hidden" id="stripe-descuento-form-id-viejo" value="" />
+                <p class="field-hint control-form-grid-full" id="stripe-descuento-form-aviso-editar" hidden>Stripe no permite editar un código en el mismo lugar — al guardar, este código se archiva y se crea uno nuevo con estos valores.</p>
                 <div class="field">
                   <label for="stripe-descuento-codigo">Código</label>
                   <input type="text" id="stripe-descuento-codigo" placeholder="VERANO15" autocomplete="off" />
@@ -872,7 +874,7 @@
                   <input type="number" id="stripe-descuento-usos" min="1" step="1" />
                 </div>
                 <div class="btn-row control-form-grid-full" style="justify-content:flex-start;">
-                  <button type="button" class="btn btn-primary" id="btn-stripe-descuento-guardar">Guardar código</button>
+                  <button type="button" class="btn btn-primary" id="btn-stripe-descuento-guardar"><span id="btn-stripe-descuento-guardar-label">Guardar código</span></button>
                   <button type="button" class="btn btn-secondary" id="btn-stripe-descuento-cancelar">Cancelar</button>
                 </div>
               </div>

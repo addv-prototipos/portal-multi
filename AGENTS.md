@@ -471,6 +471,17 @@ solo la frase en español de la UI.
   `stripe.promotionCodes.create()` tampoco acepta `coupon: id` plano,
   forma real: `promotion: { type: 'coupon', coupon: id }` (verificar
   contra el `.d.ts` instalado si la librería se actualiza, no asumir).
+- **Un Promotion Code nunca desaparece de `.list()` al eliminar su
+  Coupon** (punto 427): `stripe.coupons.del()` lo invalida para siempre
+  pero sigue listado con `coupon.deleted===true` y campos en null —
+  `listarCodigosDescuento()` filtra eso, cualquier código nuevo debe
+  mantener el filtro.
+- **"Editar" un cupón = archivar el viejo y crear uno nuevo** (punto
+  427): ni `Coupons.update()` ni `PromotionCodes.update()` permiten
+  tocar valor/código/vigencia (solo metadata/active/restrictions).
+  `reemplazarCodigoDescuento()` archiva PRIMERO (Stripe exige código
+  único solo entre activos) y si crear el nuevo falla, reintenta
+  reactivar el viejo.
 - **`<a class="btn ...">` no se ve como botón solo con las clases**
   (punto 426): `.btn`/`.btn-secondary` en `style.css` nunca reseteaban
   `text-decoration`/`display` para `<a>` — fix global

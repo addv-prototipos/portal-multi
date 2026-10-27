@@ -24180,3 +24180,73 @@ Archivos: `frontend/control.html`, `frontend/control.js`,
 (este punto), `CLAUDE.md`, `AGENTS.md` (gotchas nuevos). Commiteado
 aparte del punto 425 (decisión explícita del usuario, "separa en 2
 commits").
+
+## Punto 427 — Códigos de descuento: pausar/reactivar, editar (clonar+archivar) y eliminar definitivo, con /ui-ux-pro-max (27 oct 2026, CERRADO)
+
+Usuario pidió 4 cosas sobre "Códigos de descuento" (Upscale y Stripe →
+Configurar Stripe): cómo pausar/reactivar, agregar eliminar (archivar
+primero), y permitir editar. Antes de construir se verificó contra los
+`.d.ts` reales de la versión instalada de `stripe` (mismo criterio que
+puntos previos) — la capacidad real de la API acotó el diseño:
+
+- **Pausar/Reactivar**: `stripe.promotionCodes.update(id,{active:true|
+  false})` — ya existía "desactivar" (ahora rotulado "Archivar", mismo
+  verbo/ícono que ya usa Upscale para consistencia visual dentro del
+  grupo "Monetización"); se agregó `activarCodigoDescuento()` (simétrico,
+  sin confirmación — mismo criterio que "Reactivar" en Upscale/Planes).
+- **Eliminar, de verdad irreversible**: Stripe NO permite borrar un
+  Promotion Code, solo su Coupon subyacente
+  (`stripe.coupons.del()`) — borrarlo invalida el código para siempre
+  (a diferencia de pausar, que es reversible). Candado de negocio: solo
+  se puede eliminar un código YA archivado (`eliminarCodigoDescuento()`
+  valida `promo.active===false` antes de borrar), exactamente el flujo
+  de 2 pasos que pidió el usuario ("primero se archiva, después se
+  elimina"). **Hallazgo real al probar**: un Promotion Code con su
+  Coupon ya borrado NUNCA desaparece de `stripe.promotionCodes.list()`
+  — queda listado para siempre con `coupon.deleted===true` y sus demás
+  campos en null/0 (se vio como una fila fantasma "$0" en la tabla).
+  Corregido filtrando esas filas en `listarCodigosDescuento()` — para
+  el operador, "eliminar" debe significar que desaparece.
+- **Editar — no existe en la API real**: `Coupons.update()` solo toca
+  metadata; `PromotionCodes.update()` solo toca
+  `active`/`metadata`/`restrictions` (confirmado en el `.d.ts`,
+  ningún valor/código/vigencia es editable). Patrón honesto
+  implementado: "Editar" abre el formulario de creación prefillado y,
+  al guardar, pega a un endpoint nuevo
+  (`PUT .../descuentos/:id/reemplazar`) que **archiva el viejo PRIMERO
+  y crea el nuevo después** — el orden importa porque Stripe exige que
+  el texto del código sea único solo entre códigos ACTIVOS, así que
+  reutilizar el mismo código (el caso típico, solo corregir un valor)
+  chocaría si se creara el nuevo antes de archivar el viejo. Si crear el
+  nuevo falla, se reintenta reactivar el viejo automáticamente para no
+  dejar al operador sin ningún código vigente. Aviso explícito en el
+  formulario ("este código se archiva y se crea uno nuevo") — nunca se
+  simula una edición in-place que no existe.
+
+**Backend**: `control/utils/stripeConfig.js` (`activarCodigoDescuento`,
+`eliminarCodigoDescuento`, `reemplazarCodigoDescuento` + filtro de
+cupones fantasma) + 3 rutas nuevas en `control/server.js`
+(`PUT .../activar`, `DELETE .../:id`, `PUT .../reemplazar`), mismo
+manejo de errores (`validacion`→400, `no_configurado`→503, error de
+Stripe→400) que las rutas ya existentes.
+
+**Frontend** (`frontend/control.html`/`control.js`, con
+`/ui-ux-pro-max`): fila de la tabla ahora usa `crearBotonAccion()` +
+`.admin-row-actions` (igual que Upscale, antes era HTML plano) —
+Editar siempre visible; Archivar si activo; Reactivar+Eliminar si
+archivado. Confirmación modal (`confirmarAccion()`) solo en Archivar y
+Eliminar (acciones que cambian/destruyen estado); Editar y Reactivar
+sin confirmación (mismo criterio que Upscale/Planes). Formulario con
+campo oculto de "id viejo" + aviso contextual cuando está en modo
+editar + label del botón dinámico ("Guardar código"/"Guardar cambios").
+
+**Verificado real** contra Stripe test mode (no mocks): creado
+`TESTACCION10` (10%) → archivado → reactivado → editado a 15% (mismo
+código, sin chocar por duplicado) → archivado el original 10% →
+eliminado definitivo → confirmado que el fantasma ya NO aparece en el
+listado. Ciclo completo limpiado al terminar, sin residuos en Stripe
+test.
+
+Archivos: `control/utils/stripeConfig.js`, `control/server.js`,
+`frontend/control.html`, `frontend/control.js`, `PROJECT_STATE.md`
+(este punto).

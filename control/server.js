@@ -79,7 +79,7 @@ const {
 const { crearCheckoutSession, procesarEventoWebhook } = require('./utils/stripePagos');
 const { resolverPlanPorClave } = require('./utils/onboardingConversion');
 const { ErrorUpscale, listarUpscale, crearUpscale, editarUpscale, archivarUpscale, reactivarUpscale } = require('./utils/upscale');
-const { getConfigMsi, setConfigMsi, metodosPagoInfo, listarCodigosDescuento, crearCodigoDescuento, desactivarCodigoDescuento } = require('./utils/stripeConfig');
+const { getConfigMsi, setConfigMsi, metodosPagoInfo, listarCodigosDescuento, crearCodigoDescuento, desactivarCodigoDescuento, activarCodigoDescuento, eliminarCodigoDescuento, reemplazarCodigoDescuento } = require('./utils/stripeConfig');
 const { getConfigRecordatorios, setConfigRecordatorios, listarEnSeguimiento, procesarRecordatoriosPendientes } = require('./utils/recordatorios');
 const { listarReporteCupones } = require('./utils/reporteCupones');
 const { verificarTurnstile } = require('./utils/turnstile');
@@ -1637,6 +1637,63 @@ app.put(
       res.json({ ok: true });
     } catch (err) {
       if (err.codigo === 'no_configurado') return res.status(503).json({ error: err.message });
+      if (err.type && err.type.startsWith('Stripe')) return res.status(400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/stripe/descuentos/:id/activar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await activarCodigoDescuento(req.params.id);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.codigo === 'validacion' || err.codigo === 'no_configurado') {
+        return res.status(err.codigo === 'no_configurado' ? 503 : 400).json({ error: err.message });
+      }
+      if (err.type && err.type.startsWith('Stripe')) return res.status(400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.delete(
+  '/api/control/stripe/descuentos/:id',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      await eliminarCodigoDescuento(req.params.id);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.codigo === 'validacion' || err.codigo === 'no_configurado') {
+        return res.status(err.codigo === 'no_configurado' ? 503 : 400).json({ error: err.message });
+      }
+      if (err.type && err.type.startsWith('Stripe')) return res.status(400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+app.put(
+  '/api/control/stripe/descuentos/:id/reemplazar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const item = await reemplazarCodigoDescuento(req.params.id, req.body || {});
+      res.json({ ok: true, item });
+    } catch (err) {
+      if (err.codigo === 'validacion' || err.codigo === 'no_configurado') {
+        return res.status(err.codigo === 'no_configurado' ? 503 : 400).json({ error: err.message });
+      }
       if (err.type && err.type.startsWith('Stripe')) return res.status(400).json({ error: err.message });
       throw err;
     }

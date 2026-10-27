@@ -90,7 +90,16 @@ async function listarCodigosDescuento() {
   // El cupón ahora vive anidado bajo promotion.coupon (confirmado al
   // probar en local, 2026-10-26) — expand con la ruta anidada real.
   const promociones = await stripe.promotionCodes.list({ limit: 50, expand: ['data.promotion.coupon'] });
-  return promociones.data.map((p) => {
+  // Un Promotion Code NUNCA desaparece de Stripe al "eliminar" (solo se
+  // puede borrar su Coupon subyacente, ver eliminarCodigoDescuento) —
+  // confirmado real al probar: el código sigue listado para siempre con
+  // `coupon.deleted === true` y el resto de sus campos en null/0. Ese
+  // residuo fantasma se filtra aquí, nunca se muestra — para el operador,
+  // "eliminar" debe significar que desaparece, no que queda como una fila
+  // rota con "$0".
+  return promociones.data
+    .filter((p) => p.promotion.coupon && !p.promotion.coupon.deleted)
+    .map((p) => {
     const coupon = p.promotion.coupon;
     return {
       id: p.id,
@@ -145,6 +154,67 @@ async function desactivarCodigoDescuento(promotionCodeId) {
   await stripe.promotionCodes.update(promotionCodeId, { active: false });
 }
 
+async function activarCodigoDescuento(promotionCodeId) {
+  const stripe = obtenerStripe();
+  try {
+    await stripe.promotionCodes.update(promotionCodeId, { active: true });
+  } catch (err) {
+    // "A promotion code can only be reactivated when the coupon is still
+    // valid" (PromotionCodeUpdateParams.active, ver .d.ts) — el motivo
+    // típico real es que el cupón ya venció o fue eliminado; mensaje
+    // honesto en vez del error crudo de Stripe.
+    const e = new Error('No se pudo reactivar — el cupón ya no es válido (venció o fue eliminado). Crea uno nuevo.');
+    e.codigo = 'validacion';
+    throw e;
+  }
+}
+
+// Eliminar de verdad: Stripe NO permite borrar un Promotion Code (solo
+// pausarlo con `active`), pero sí permite borrar el Coupon subyacente —
+// borrar el cupón invalida PARA SIEMPRE cualquier código que lo use (ya
+// no se puede reactivar, a diferencia de pausar). Candado de negocio
+// (archivar primero): solo se deja eliminar un código YA pausado, para
+// que "archivar → eliminar" sea un flujo de 2 pasos explícito, nunca un
+// borrado directo de un código todavía en uso.
+async function eliminarCodigoDescuento(promotionCodeId) {
+  const stripe = obtenerStripe();
+  const promo = await stripe.promotionCodes.retrieve(promotionCodeId, { expand: ['promotion.coupon'] });
+  if (promo.active) {
+    const err = new Error('Archiva el código antes de eliminarlo — un código activo no se puede borrar directamente.');
+    err.codigo = 'validacion';
+    throw err;
+  }
+  const couponId = promo.promotion.coupon.id || promo.promotion.coupon;
+  await stripe.coupons.del(couponId);
+}
+
+// "Editar" un cupón no existe en la API real de Stripe (Coupons.update()
+// solo toca metadata; PromotionCodes.update() solo toca active/metadata/
+// restrictions — ver .d.ts, ningún valor/código/vigencia es editable).
+// El patrón honesto: archivar el viejo y crear uno nuevo con los valores
+// corregidos — nunca se pretende una edición in-place que Stripe no
+// soporta. Orden importa: el viejo se archiva PRIMERO porque Stripe
+// exige que el texto del código sea único solo entre códigos ACTIVOS —
+// si el operador reutiliza el mismo código (típico al solo corregir un
+// valor), crear el nuevo ANTES de archivar el viejo chocaría por
+// duplicado. Si crear el nuevo falla, se reintenta reactivar el viejo
+// para no dejar al operador sin ningún código vigente.
+async function reemplazarCodigoDescuento(idViejo, datosNuevos) {
+  await desactivarCodigoDescuento(idViejo);
+  try {
+    return await crearCodigoDescuento(datosNuevos);
+  } catch (err) {
+    try {
+      await activarCodigoDescuento(idViejo);
+    } catch {
+      // El viejo tampoco se pudo reactivar — ya quedó registrado por el
+      // error principal que se relanza abajo, no hay nada más honesto
+      // que hacer aquí que dejarlo pasar.
+    }
+    throw err;
+  }
+}
+
 module.exports = {
   PLAZOS_VALIDOS,
   getConfigMsi,
@@ -153,4 +223,7 @@ module.exports = {
   listarCodigosDescuento,
   crearCodigoDescuento,
   desactivarCodigoDescuento,
+  activarCodigoDescuento,
+  eliminarCodigoDescuento,
+  reemplazarCodigoDescuento,
 };
