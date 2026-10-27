@@ -1619,6 +1619,19 @@
 }
 .admin-config-toggle-label svg { flex-shrink: 0; }
 
+/* Variante SIN botón de plegar (punto 428) — mismo fondo/borde/sombra de
+   .admin-config-card, pero el contenido vive siempre visible. El
+   encabezado reusa .admin-config-toggle-label dentro de un <div> (no
+   <button>) solo por el estilo, nunca por comportamiento. */
+.admin-config-card-static {
+  padding: 16px 18px 18px;
+}
+.admin-config-card-static .admin-config-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
 .admin-config-chevron {
   color: var(--color-ink-soft);
   flex-shrink: 0;

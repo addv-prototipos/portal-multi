@@ -358,9 +358,8 @@
     superModalTitle: document.getElementById('super-modal-title'),
     btnAyudaVistaSuper: document.getElementById('btn-ayuda-vista-super'),
 
-    // Punto 370: ajuste global "Ajustes de imágenes"
-    btnToggleImagenMax: document.getElementById('btn-toggle-imagen-max'),
-    imagenMaxConfigBody: document.getElementById('imagen-max-config-body'),
+    // Punto 370/428: ajuste global "Ajustes de imágenes" — tarjeta
+    // siempre visible, sin botón de plegar (ver control.html).
     imagenMaxMbInput: document.getElementById('imagen-max-mb'),
     btnGuardarImagenMax: document.getElementById('btn-guardar-imagen-max'),
     btnGuardarImagenMaxLabel: document.getElementById('btn-guardar-imagen-max-label'),
@@ -368,8 +367,6 @@
     imagenMaxInfo: document.getElementById('imagen-max-info'),
 
     // Ajuste global "Ajustes de importación" (límite de filas CSV/XLSX/XLS)
-    btnToggleImportMax: document.getElementById('btn-toggle-import-max'),
-    importMaxConfigBody: document.getElementById('import-max-config-body'),
     importMaxFilasInput: document.getElementById('import-max-filas'),
     btnGuardarImportMax: document.getElementById('btn-guardar-import-max'),
     btnGuardarImportMaxLabel: document.getElementById('btn-guardar-import-max-label'),
@@ -4428,16 +4425,9 @@
     finally { els.superBtnGuardar.disabled = false; if (els.superBtnGuardarLabel) els.superBtnGuardarLabel.textContent = superEditando ? 'Actualizar' : 'Crear'; }
   });
 
-  // ---------- Punto 370: Ajustes de imágenes (ajuste global de plataforma) ----------
-  // Mismo patrón de tarjeta colapsable que "Borrado automático de tickets"
-  // en /admin (admin.js) — un solo campo numérico + botón Guardar.
-  if (els.btnToggleImagenMax) {
-    els.btnToggleImagenMax.addEventListener('click', () => {
-      const abierto = els.btnToggleImagenMax.getAttribute('aria-expanded') === 'true';
-      els.btnToggleImagenMax.setAttribute('aria-expanded', String(!abierto));
-      els.imagenMaxConfigBody.hidden = abierto;
-    });
-  }
+  // ---------- Punto 370/428: Ajustes de imágenes (ajuste global de plataforma) ----------
+  // Tarjeta siempre visible (grid de 2 columnas, sin botón de plegar) —
+  // un solo campo numérico + botón Guardar.
 
   // Hint estático "máx. X MB" del intake de empresa nueva — el de "Editar
   // empresa"/"Identidad visual" ahora lo pone el propio módulo compartido
@@ -4510,15 +4500,8 @@
   }
 
   // ---------- Ajustes de importación (límite de filas CSV/XLSX/XLS) ----------
-  // Mismo patrón de tarjeta colapsable que "Ajustes de imágenes" arriba —
+  // Tarjeta siempre visible (grid de 2 columnas, sin botón de plegar) —
   // un solo campo numérico + botón Guardar, ajuste global de plataforma.
-  if (els.btnToggleImportMax) {
-    els.btnToggleImportMax.addEventListener('click', () => {
-      const abierto = els.btnToggleImportMax.getAttribute('aria-expanded') === 'true';
-      els.btnToggleImportMax.setAttribute('aria-expanded', String(!abierto));
-      els.importMaxConfigBody.hidden = abierto;
-    });
-  }
 
   async function cargarImportMaxGlobal() {
     const authHeader = getAuthHeader();

@@ -24250,3 +24250,23 @@ test.
 Archivos: `control/utils/stripeConfig.js`, `control/server.js`,
 `frontend/control.html`, `frontend/control.js`, `PROJECT_STATE.md`
 (este punto).
+
+## Punto 429 — Super Admins: opción 3 (grid sin acordeón) + fix de desborde en riel colapsado (27 oct 2026, CERRADO)
+
+Usuario pidió 6 propuestas de UX para la vista "Super Admins" (mucho
+espacio vacío — 1 fila de usuario + 2 ajustes pequeños estirados a todo
+el ancho) con `/ui-ux-pro-max`; eligió la opción 3. Implementado:
+`frontend/control.html` — las 2 tarjetas ("Ajustes de imágenes",
+"Ajustes de importación") perdieron su botón de plegar
+(`.admin-config-toggle`/chevron/`aria-expanded`) y ahora viven siempre
+visibles, lado a lado en `.config-dashboard-grid` (2 columnas, clase ya
+existente y reusada tal cual — colapsa a 1 columna <760px). Encabezado
+de cada tarjeta reusa `.admin-config-toggle-label` dentro de un `<div>`
+(no `<button>`), nueva clase mínima `.admin-config-card-static` solo
+para el padding. `frontend/control.js`: removidos los 2 listeners de
+toggle (`btn-toggle-imagen-max`/`btn-toggle-import-max`, elementos que
+ya no existen). Verificado real: ambos ajustes cargan sus valores reales
+(2 MB / 12000 filas) y Guardar sigue funcionando sin regresión.
+
+Archivos: `frontend/control.html`, `frontend/admin.css`,
+`frontend/control.js`, `PROJECT_STATE.md` (este punto).
