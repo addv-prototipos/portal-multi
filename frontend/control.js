@@ -3654,6 +3654,8 @@
     });
   });
 
+  let stripeDashboardUrlActual = '';
+
   async function cargarStripeMetodos() {
     const authHeader = getAuthHeader();
     const res = await fetch(`${API_BASE}/stripe/metodos-pago`, { headers: { Authorization: authHeader } });
@@ -3661,7 +3663,34 @@
     const data = await res.json();
     document.getElementById('stripe-metodos-nota').textContent = data.nota;
     document.getElementById('stripe-metodos-lista').textContent = data.metodosRelevantesMexico.join(', ');
-    document.getElementById('stripe-metodos-dashboard-link').href = data.dashboardUrl;
+    stripeDashboardUrlActual = data.dashboardUrl;
+
+    const badgeModo = document.getElementById('stripe-metodos-badge-modo');
+    if (data.modo) {
+      badgeModo.hidden = false;
+      badgeModo.textContent = data.modo === 'prueba' ? 'Modo: prueba' : 'Modo: producción';
+      badgeModo.classList.toggle('is-ok', data.modo === 'produccion');
+      badgeModo.classList.toggle('is-pendiente', data.modo === 'prueba');
+    } else {
+      badgeModo.hidden = true;
+    }
+    const badgeWebhook = document.getElementById('stripe-metodos-badge-webhook');
+    badgeWebhook.hidden = false;
+    badgeWebhook.textContent = data.webhookConfigurado ? 'Webhook configurado' : 'Webhook sin configurar';
+    badgeWebhook.classList.toggle('is-ok', data.webhookConfigurado);
+    badgeWebhook.classList.toggle('is-pendiente', !data.webhookConfigurado);
+
+    const resumen = data.resumenMonetizacion || {};
+    document.getElementById('stripe-kpi-ingreso-cupones').textContent = `$${Number(resumen.ingresoCupones || 0).toLocaleString('es-MX')}`;
+    document.getElementById('stripe-kpi-en-seguimiento').textContent = resumen.borradoresEnSeguimiento ?? 0;
+    document.getElementById('stripe-kpi-upscale-activas').textContent = resumen.upscaleActivas ?? 0;
+  }
+
+  const btnStripeMetodosDashboard = document.getElementById('stripe-metodos-dashboard-btn');
+  if (btnStripeMetodosDashboard) {
+    btnStripeMetodosDashboard.addEventListener('click', () => {
+      if (stripeDashboardUrlActual) window.open(stripeDashboardUrlActual, '_blank', 'noopener,noreferrer');
+    });
   }
 
   const MSI_PLAZOS_DISPONIBLES = [3, 6, 9, 12, 18];
@@ -4525,7 +4554,7 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (els.accesosMinioError) {
-          els.accesosMinioError.textContent = data.error || 'No se pudo cargar el registro de MinIO.';
+          els.accesosMinioError.textContent = data.error || 'No se pudo cargar el registro de Garage.';
         }
         return;
       }
@@ -4588,7 +4617,7 @@
     els.btnAccesosMinioAbrir.addEventListener('click', () => {
       const url = (els.accesosMinioUrl.value || '').trim();
       if (!url) {
-        if (els.accesosMinioError) els.accesosMinioError.textContent = 'Captura la URL antes de abrir la consola.';
+        if (els.accesosMinioError) els.accesosMinioError.textContent = 'Captura la URL antes de abrir el endpoint.';
         return;
       }
       window.open(url, '_blank', 'noopener,noreferrer');
@@ -4625,7 +4654,7 @@
           if (els.accesosMinioError) els.accesosMinioError.textContent = data.error || 'No se pudo guardar.';
           return;
         }
-        showToast('Registro de MinIO actualizado.');
+        showToast('Registro de Garage actualizado.');
         cargarAccesoMinio();
       } catch (err) {
         if (els.accesosMinioError) els.accesosMinioError.textContent = 'No se pudo conectar con el servidor.';

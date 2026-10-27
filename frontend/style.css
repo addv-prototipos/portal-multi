@@ -666,6 +666,18 @@ body {
 }
 .btn-secondary:hover { border-color: var(--color-ink-soft); }
 
+/* Red de seguridad: un <a class="btn ...">, a diferencia de <button>, no
+   pierde el subrayado/color azul de enlace de fábrica solo con .btn —
+   ninguna regla de arriba resetea text-decoration ni define display
+   para el elemento <a>. Aplica a las 3 apps (comparten style.css). */
+a.btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 .btn-row {
   display: flex;
   gap: 10px;

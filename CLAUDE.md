@@ -975,6 +975,31 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `listarCodigosDescuento()` lee `p.promotion.coupon`, nunca `p.coupon`.
   Si la librería `stripe` se actualiza alguna vez, volver a verificar
   contra el `.d.ts` real antes de asumir que la forma sigue igual.
+- **`<a class="btn ...">` no se ve como botón solo con las clases —
+  falta un reset** (punto 426, 2026-10-27): `.btn`/`.btn-secondary` en
+  `style.css` nunca definieron `text-decoration` ni `display` propio, así
+  que un `<a>` con esas clases conserva el subrayado azul de fábrica del
+  navegador (bug real encontrado en "Abrir Dashboard de Stripe", se veía
+  como texto plano pese a llevar `btn btn-secondary`). Fix aplicado como
+  regla global (`a.btn { text-decoration:none; display:inline-flex;
+  align-items:center; justify-content:center; gap:8px; }`, cerca de
+  `.btn-secondary:hover` en `style.css`) — cubre las 3 apps, no solo el
+  sitio donde se encontró. Si se agrega un `<a>` nuevo con clases `.btn*`
+  en cualquier app, ya no hace falta convertirlo a `<button>` para que se
+  vea bien — pero si la acción no navega a otra URL (ej. abre algo con
+  JS), seguir prefiriendo `<button>` real, no `<a href="#">`.
+- **Accesos → Garage (S3), no MinIO** (punto 426, 2026-10-27): el bloc de
+  notas de credenciales en `/control` (`frontend/control.html`,
+  `control/utils/accesoMinio.js`) seguía 100% rotulado "MinIO" pese al
+  reemplazo por Garage del punto 415 — ya corregido a "Garage (S3)" /
+  "Access Key ID" / "Secret Access Key" / "Abrir endpoint" (Garage no
+  trae panel web propio, a diferencia de MinIO con su consola en el
+  puerto 9001). Cambio **solo de rótulos visibles** — IDs del DOM
+  (`accesos-minio-*`) y claves de `ajustes_globales`
+  (`minio_url`/`minio_usuario`/`minio_password_cifrado`/`minio_notas`)
+  se conservan tal cual a propósito, cero migración de esquema. Si se
+  toca este archivo otra vez, no renombrar esas claves internas sin
+  decisión explícita — son invisibles para el operador.
 
 ## Stack
 

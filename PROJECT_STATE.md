@@ -24111,8 +24111,72 @@ reporteCupones,onboardingConversion,onboardingBorrador,
 notificarBackend}.js, control/scripts/ensureSchema.js,
 backend/server.js, frontend/{control.html,control.js},
 frontend/nginx.conf.template, docker-compose.yml,
-DOCS/confStripe.html, + el repo separado `clarvo-Site`) está **sin
-commitear** al cerrar este punto — confirmar con el usuario antes de
-commitear (alcance grande, varios archivos). Ver punto 426 para el
-trabajo de UI inmediatamente posterior (mismo commit pendiente o
-aparte, a decidir).
+DOCS/confStripe.html, + el repo separado `clarvo-Site`, este último sin
+commitear por ser otro repositorio) se commiteó en un commit dedicado
+(usuario pidió separar de los ajustes de UI del punto 426). Ver punto
+426 para el trabajo de UI inmediatamente posterior, commiteado aparte.
+
+## Punto 426 — 4 ajustes de UX en /control: Garage, arquitectura del menú, botón de Stripe, panel de monetización (27 oct 2026, CERRADO)
+
+Usuario pidió 4 cambios puntuales sobre capturas reales de `/control`,
+con propuesta visual antes/después (Artifact) antes de implementar —
+los 4 aprobados, D con fusión explícita de 2 de las 5 opciones
+propuestas ("tarjeta de estado" + "resumen de monetización").
+
+**A — Accesos: MinIO → Garage.** El bloc de notas de credenciales
+(`frontend/control.html`, `control/utils/accesoMinio.js`) seguía
+rotulado "MinIO" completo pese al reemplazo del punto 415. Cambio solo
+de texto visible (título "Garage (S3)" + badge "sustituyó a MinIO",
+"Usuario/Contraseña"→"Access Key ID/Secret Access Key", "Abrir
+consola"→"Abrir endpoint", hints actualizados) — IDs del DOM y claves
+de `ajustes_globales` (`minio_*`) sin tocar, cero migración.
+
+**B — Menú lateral reagrupado.** 9 vistas sueltas en una sola lista
+plana → 3 grupos con título (`.control-sidebar-grupo-titulo`, nuevo en
+`admin.css`, patrón NO colapsable — a diferencia de
+`.admin-sidebar-group-header` de `/admin`, que sí colapsa): **Clientes**
+(Empresas, Sucursales), **Monetización** (Planes, Upscale y Stripe,
+Recordatorios, Reporte cupones), **Seguridad y sistema** (Super Admins,
+Auditoría, Accesos). Bug encontrado y corregido en el mismo cambio: con
+el riel colapsado, el título de grupo se desbordaba (texto sin ocultar)
+— agregada la regla `.admin-body.sidebar-colapsado
+.control-sidebar-grupo-titulo` (mismo criterio que ya aplica
+`.admin-sidebar-group-header` en `/admin`).
+
+**C — "Abrir Dashboard de Stripe": de link a botón real.** Causa real
+encontrada en `style.css`: `.btn`/`.btn-secondary` nunca reseteaban
+`text-decoration`/`display`, así que el `<a class="btn btn-secondary">`
+se veía como texto subrayado. Fix de 2 partes: (1) regla global
+`a.btn{text-decoration:none;display:inline-flex;...}` en `style.css`
+(cubre las 3 apps); (2) el elemento en sí se convirtió a `<button>` con
+`window.open()`, con el ícono "abrir externo" ya usado en Accesos.
+
+**D — Panel "Métodos de pago" fusionado (tarjeta de estado +
+resumen de monetización).** `control/utils/stripeConfig.js:
+metodosPagoInfo()` ahora devuelve también `modo` (prueba/producción,
+leído del prefijo de `STRIPE_SECRET_KEY`, cero llamada nueva a la API)
+y `webhookConfigurado` (`!!process.env.STRIPE_WEBHOOK_SECRET`). La ruta
+`GET /api/control/stripe/metodos-pago` (`control/server.js`) agrega
+`resumenMonetizacion` agregando 3 cifras YA calculadas en sus propios
+módulos (`listarUpscale({soloActivos:true})`,
+`listarEnSeguimiento()`, `listarReporteCupones()` sumado) — nunca
+recalculadas con otro criterio. Frontend: 2 badges (reusa
+`.smtp-estado-badge` ya existente, is-ok/is-pendiente) + 3 KPIs (reusa
+`.resumen-fin-balance-kpi*` ya existente) antes del banner de siempre.
+
+**Verificado real** contra Docker+MySQL (rebuild `control`+`frontend`,
+`docker compose restart frontend` para el gotcha de IP vieja de nginx):
+sidebar con los 3 grupos en el orden correcto (expandido Y colapsado),
+Accesos con los textos nuevos, botón de Stripe como `<button>` real con
+badges "Modo: prueba"/"Webhook configurado" y KPIs reales ($599 /
+1 / 1, con datos de prueba ya existentes de sesiones anteriores).
+`node --check` limpio en los 3 archivos backend tocados
+(`control/server.js`, `control/utils/stripeConfig.js`,
+`frontend/control.js`).
+
+Archivos: `frontend/control.html`, `frontend/control.js`,
+`frontend/admin.css`, `frontend/style.css`,
+`control/utils/stripeConfig.js`, `control/server.js`, `PROJECT_STATE.md`
+(este punto), `CLAUDE.md`, `AGENTS.md` (gotchas nuevos). Commiteado
+aparte del punto 425 (decisión explícita del usuario, "separa en 2
+commits").

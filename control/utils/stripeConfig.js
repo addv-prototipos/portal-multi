@@ -66,13 +66,22 @@ async function setConfigMsi({ plazos, montoMinimo }, db = obtenerPool()) {
   return { plazos: plazosLimpios, montoMinimo: montoLimpio };
 }
 
-// Nunca un estado real de la cuenta — ver nota de arriba. Lista fija de
-// los métodos relevantes para México, con el link real al Dashboard.
+// Nunca un estado real de la CUENTA de Stripe (eso seguiría requiriendo
+// una llamada a la API) — pero "modo" y "webhookConfigurado" sí son
+// datos reales y gratis: se leen del propio proceso del servidor, nunca
+// se inventan. Lista fija de los métodos relevantes para México, con el
+// link real al Dashboard.
 function metodosPagoInfo() {
+  const secretKey = process.env.STRIPE_SECRET_KEY || '';
+  let modo = null;
+  if (secretKey.startsWith('sk_test_')) modo = 'prueba';
+  else if (secretKey.startsWith('sk_live_')) modo = 'produccion';
   return {
     nota: 'Stripe ya no permite controlar los métodos de pago habilitados por API al crear un Checkout Session — se activan/desactivan directo en el Dashboard de Stripe.',
     dashboardUrl: 'https://dashboard.stripe.com/settings/payment_methods',
     metodosRelevantesMexico: ['card', 'oxxo', 'spei', 'link'],
+    modo,
+    webhookConfigurado: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
   };
 }
 

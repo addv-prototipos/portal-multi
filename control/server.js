@@ -1568,7 +1568,25 @@ app.get(
   requireAdminAuth,
   requireAdminArea(),
   asyncHandler(async (req, res) => {
-    res.json(metodosPagoInfo());
+    // Punto en curso: el panel "Métodos de pago" se fusiona con un
+    // resumen real de monetización (opciones D2+D3 de la propuesta
+    // visual aprobada) — 3 cifras que YA existen en sus propios módulos
+    // (Reporte de cupones, Recordatorios, catálogo Upscale), solo
+    // reutilizadas aquí, nunca recalculadas con otro criterio.
+    const [upscaleActivas, enSeguimiento, cupones] = await Promise.all([
+      listarUpscale({ soloActivos: true }),
+      listarEnSeguimiento(),
+      listarReporteCupones(),
+    ]);
+    const ingresoCupones = cupones.reduce((acc, c) => acc + (Number(c.ingreso) || 0), 0);
+    res.json({
+      ...metodosPagoInfo(),
+      resumenMonetizacion: {
+        ingresoCupones: Math.round(ingresoCupones * 100) / 100,
+        borradoresEnSeguimiento: enSeguimiento.length,
+        upscaleActivas: upscaleActivas.length,
+      },
+    });
   })
 );
 

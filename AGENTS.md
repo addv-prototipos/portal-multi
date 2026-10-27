@@ -471,6 +471,16 @@ solo la frase en español de la UI.
   `stripe.promotionCodes.create()` tampoco acepta `coupon: id` plano,
   forma real: `promotion: { type: 'coupon', coupon: id }` (verificar
   contra el `.d.ts` instalado si la librería se actualiza, no asumir).
+- **`<a class="btn ...">` no se ve como botón solo con las clases**
+  (punto 426): `.btn`/`.btn-secondary` en `style.css` nunca reseteaban
+  `text-decoration`/`display` para `<a>` — fix global
+  `a.btn{text-decoration:none;display:inline-flex;...}` agregado ahí,
+  cubre las 3 apps.
+- **Accesos → "Garage (S3)", no "MinIO"** (punto 426): rótulos en
+  `frontend/control.html`/`control/utils/accesoMinio.js` corregidos tras
+  el reemplazo del punto 415 — IDs del DOM y claves de
+  `ajustes_globales` (`minio_*`) se conservan sin tocar a propósito,
+  cambio solo de texto visible.
 
 ## Stack
 

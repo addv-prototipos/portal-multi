@@ -303,6 +303,21 @@
 }
 .admin-sidebar-icon { flex-shrink: 0; }
 
+/* Encabezado de grupo NO colapsable para /control (punto en curso) —
+   /control nunca tuvo el mecanismo collapse/chevron de
+   .admin-sidebar-group-header de /admin; esta es solo la etiqueta, sin
+   aria-expanded ni cursor de botón, porque no abre/cierra nada. */
+.control-sidebar-grupo-titulo {
+  padding: 14px 12px 4px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.42);
+}
+.admin-sidebar-nav .control-sidebar-grupo-titulo:first-child { padding-top: 4px; }
+
 /* Encabezados de grupo del menú lateral (arquitectura de información
    revisada, 2026-09-13) — mismo criterio tipográfico que las etiquetas
    de categoría de Configuraciones (.config-modal-nav no tiene
@@ -503,6 +518,21 @@
   }
   .admin-body.sidebar-colapsado .admin-sidebar-group-body[data-colapsado="true"] {
     grid-template-rows: 1fr;
+  }
+  /* Mismo criterio para el título de grupo NO colapsable de /control
+     (.control-sidebar-grupo-titulo) — nunca interactivo, así que solo
+     necesita el divisor, nunca el pointer-events:none del header de
+     /admin (nunca lo tuvo puesto). */
+  .admin-body.sidebar-colapsado .control-sidebar-grupo-titulo {
+    padding: 6px 0;
+    margin: 8px 10px 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 0;
+    line-height: 0;
+  }
+  .admin-body.sidebar-colapsado .control-sidebar-grupo-titulo:first-child {
+    border-top: none;
+    margin-top: 0;
   }
   /* Switcher de sucursales (§58): son enlaces de solo texto (nombre de
      la empresa), sin ícono equivalente que mostrar en el riel — mismo
