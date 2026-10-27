@@ -24339,3 +24339,21 @@ login real en `/admin` del tenant nuevo. Los 3 tenants de prueba
 Archivos: `portalFac/.env`, `control/utils/stripePagos.js`,
 `clarvo-Site/src/components/onboarding/OnboardingModal.tsx`,
 `CLAUDE.md`, `AGENTS.md`, `PROJECT_STATE.md` (este punto).
+
+## Punto 431 — Isla de precios: cuota de disco por plan (propuesta ya aprobada, nunca implementada) (27 oct 2026, CERRADO)
+
+Usuario notó que la cuota de disco por plan (ya aprobada en una sesión
+anterior — "actualiza que ponga el uso del disco y cantidad de usuarios,
+que se entienda que el uso del disco es para la cantidad de imágenes")
+nunca llegó a verse en el sitio. Causa real: `GET /api/public/planes`
+(`control/server.js`) siempre mandó `disco_cuota_mb` en el SELECT, y
+`PricingSection.astro` ya tenía el campo tipado en `PlanApi` — pero
+ningún punto del render de la tarjeta lo usaba, se descartaba en
+silencio. Agregado `discoTexto()` (MB→GB cuando ≥1024, nunca "1024 MB"
+crudo) y una línea bajo "Hasta N usuarios": "{cuota} para tus fotos de
+productos y tickets". Verificado real contra `/api/public/planes`: 500
+MB / 1 GB / 2 GB / 5 GB para Solicita/Controla/Crece/Domina
+respectivamente.
+
+Archivos: `clarvo-Site/src/components/site/PricingSection.astro`,
+`PROJECT_STATE.md` (este punto).
