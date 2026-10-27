@@ -471,6 +471,27 @@ solo la frase en español de la UI.
   `stripe.promotionCodes.create()` tampoco acepta `coupon: id` plano,
   forma real: `promotion: { type: 'coupon', coupon: id }` (verificar
   contra el `.d.ts` instalado si la librería se actualiza, no asumir).
+- **Sin `stripe listen`, el webhook nunca llega en local** (punto 430):
+  Stripe no alcanza `localhost` desde sus servidores. Correr
+  `stripe listen --forward-to localhost:8088/api/control/webhooks/stripe`
+  antes de pagar, o reenviar el evento real firmado a mano
+  (`stripe.webhooks.generateTestHeaderString`) al puerto interno 4001 de
+  `control` si el pago ya se hizo sin listener.
+- **`127.0.0.1` y `localhost` son orígenes DISTINTOS para CORS/CSP**
+  (punto 430): estandarizar `ONBOARDING_CORS_ORIGIN`/
+  `PUBLIC_APP_BASE_URL` (`portalFac/.env`) y `clarvo-Site/.env` a la
+  MISMA forma — mezclarlos rompe el onboarding con "No se pudo
+  conectar" sin error de CORS visible.
+- **El wizard de onboarding: "Pagar" debe ser el ÚLTIMO paso** (punto
+  430): el webhook llega en 1-3s — con pasos de captura DESPUÉS de
+  pagar, `convertirBorrador()` falla por falta de datos y el evento de
+  Stripe queda marcado procesado sin reintento posible. Orden correcto:
+  Plan → Empresa → Config → Credenciales → Pago (último) → Completado.
+- **El resume-from-URL de éxito debe usar `estadoPago()`, nunca
+  `obtenerBorrador()`** (punto 430): `obtenerBorrador()` exige
+  `estado='activo'`, da 404 en cuanto el webhook ya convirtió el
+  borrador (carrera real) — el visitante que pagó ve el sitio normal
+  sin mensaje. `estadoPago()` nunca exige ese estado, a propósito.
 - **Un Promotion Code nunca desaparece de `.list()` al eliminar su
   Coupon** (punto 427): `stripe.coupons.del()` lo invalida para siempre
   pero sigue listado con `coupon.deleted===true` y campos en null —

@@ -86,11 +86,11 @@ async function crearCheckoutSession(token, { db = obtenerPool() } = {}) {
       },
     ],
     metadata: { borradorToken: token },
-    // Rutas exactas de retorno: se terminan de cablear en el wizard real
-    // (clarvo-Site/OnboardingModal.tsx) — por ahora resumen al mismo
-    // onboarding con el token, que es lo único que ese componente
-    // necesita para seguir leyendo/escribiendo el borrador.
-    success_url: `${APP_BASE_URL}/?onboarding=${token}&paso=empresa&session_id={CHECKOUT_SESSION_ID}`,
+    // Pago es el ÚLTIMO paso del wizard (punto 430) — al volver exitoso
+    // no queda NADA por llenar, solo esperar el polling de activación
+    // ("completado"). Si cancela/vuelve atrás desde Stripe, regresa al
+    // mismo paso de pago (ya tiene todo lo demás guardado).
+    success_url: `${APP_BASE_URL}/?onboarding=${token}&paso=completado&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${APP_BASE_URL}/?onboarding=${token}&paso=pago`,
   });
 

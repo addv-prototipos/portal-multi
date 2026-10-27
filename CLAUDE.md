@@ -975,6 +975,59 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `listarCodigosDescuento()` lee `p.promotion.coupon`, nunca `p.coupon`.
   Si la librería `stripe` se actualiza alguna vez, volver a verificar
   contra el `.d.ts` real antes de asumir que la forma sigue igual.
+- **Sin `stripe listen` corriendo, el webhook de pago NUNCA llega en
+  local** (punto 430, 2026-10-27): Stripe no puede alcanzar
+  `localhost`/`127.0.0.1` desde sus servidores — un pago real completado
+  en Checkout test se queda para siempre en `pago_estado='pendiente'`
+  (confirmado real: el modal del sitio quedó en "Casi listo, falta
+  confirmar tu pago" indefinidamente pese a que Stripe ya marcaba
+  `payment_status:'paid'`). Esto NO es un bug del código — es que nadie
+  reenvía el evento. Dos formas de probar el flujo completo en local:
+  (1) correr `stripe listen --forward-to localhost:8088/api/control/webhooks/stripe`
+  ANTES de pagar (recibe eventos nuevos en tiempo real); (2) si el pago ya
+  se hizo sin listener activo, recuperar el evento real
+  (`GET https://api.stripe.com/v1/events?type=checkout.session.completed`,
+  buscar por el `cs_test_...` de la sesión) y reenviarlo firmado a mano
+  con `stripe.webhooks.generateTestHeaderString({payload, secret})` +
+  POST directo al puerto interno de `control` (4001, no el 8088 de
+  nginx) en `/api/control/webhooks/stripe` — nunca fabricar el evento
+  con `stripe trigger` genérico, usa datos reales de la sesión real.
+  `stripe events resend <id>` (CLI) es la vía oficial si el CLI está
+  instalado y logueado; el POST firmado a mano es el respaldo cuando no.
+- **`127.0.0.1` y `localhost` son orígenes DISTINTOS para CORS/CSP,
+  aunque sea la misma máquina** (punto 430, 2026-10-27): el sitio
+  público en local a veces corre en una forma, a veces en la otra —
+  mezclarlos entre `ONBOARDING_CORS_ORIGIN`/`PUBLIC_APP_BASE_URL`
+  (`portalFac/.env`) y la URL real que el navegador usa rompe el
+  onboarding con "No se pudo conectar" (sin ningún error de CORS visible
+  en consola si el mismatch es solo de host, no de CSP). Estandarizado a
+  `localhost` en los 3 lugares (los 2 de `portalFac/.env` +
+  `clarvo-Site/.env`) — si se vuelve a tocar esta config, los 3 deben
+  usar la MISMA forma, nunca mezclar.
+- **El wizard de onboarding público: "Pagar" DEBE ser el último paso,
+  nunca uno intermedio** (punto 430, 2026-10-27): el webhook de Stripe
+  confirma el pago en 1-3 segundos — si quedan pasos de captura de datos
+  DESPUÉS de pagar (como estaba antes: Pago era el paso 2 de 5),
+  `convertirBorrador()` casi siempre falla por falta de datos cuando el
+  webhook llega, Y el evento de Stripe queda marcado "ya procesado"
+  ANTES de intentar la conversión — sin ningún reintento automático
+  posible, ni siquiera reenviando el mismo evento a mano. Reproducido
+  real 2 veces. El orden correcto, ya implementado
+  (`clarvo-Site/OnboardingModal.tsx`): Plan → Empresa → Config →
+  Credenciales → Pago (último) → Completado. Cualquier campo nuevo que
+  el wizard necesite capturar debe ir ANTES del paso de pago, nunca
+  después.
+- **El resume-from-URL tras volver de Stripe NUNCA debe usar
+  `obtenerBorrador()` para el caso de éxito** (punto 430, 2026-10-27):
+  esa función exige `estado='activo'` en el servidor — en cuanto el
+  webhook convierte el borrador (`estado='convertido'`), carrera real
+  contra la misma carga de la página de éxito (~1-3s ambos), ese fetch
+  da 404 y el visitante que SÍ pagó ve el sitio normal sin ningún
+  mensaje. `estadoPago()`/`obtenerEstadoPago()` nunca exige ese estado
+  (a propósito) — es la única fuente confiable para
+  `paso==='completado'`. Si se agrega otro paso de retorno que dependa
+  de leer el borrador YA convertido, usar `estadoPago()`, nunca
+  `obtenerBorrador()`.
 - **Un Promotion Code de Stripe nunca "desaparece" al eliminar su
   Coupon** (punto 427, 2026-10-27): `stripe.coupons.del()` invalida el
   código para siempre, pero `stripe.promotionCodes.list()` lo sigue

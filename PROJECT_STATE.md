@@ -24270,3 +24270,72 @@ ya no existen). Verificado real: ambos ajustes cargan sus valores reales
 
 Archivos: `frontend/control.html`, `frontend/admin.css`,
 `frontend/control.js`, `PROJECT_STATE.md` (este punto).
+
+## Punto 430 — Onboarding real end-to-end con el usuario: 2 bugs de producción encontrados y corregidos (27 oct 2026, CERRADO)
+
+Usuario pidió probar el onboarding real desde `clarvo-Site` juntos,
+pagando con tarjeta de prueba en vivo. Encontró/corrigió, en orden:
+
+**1. CORS/CSP roto por mezclar `127.0.0.1` y `localhost`.** El sitio a
+veces corre en `http://127.0.0.1:8090`, a veces en
+`http://localhost:8090` — para el navegador son orígenes DISTINTOS
+aunque sea la misma máquina. `ONBOARDING_CORS_ORIGIN`/
+`PUBLIC_APP_BASE_URL` (`portalFac/.env`) estaban fijos a `127.0.0.1` —
+estandarizado a `localhost` en los 3 lugares (los 2 de arriba +
+`clarvo-Site/.env` ya lo tenía bien). Gotcha nuevo documentado en
+`CLAUDE.md`/`AGENTS.md`.
+
+**2. Bug real de severidad alta — orden del wizard rompía la activación
+real.** `OnboardingModal.tsx` tenía "Pagar" como **paso 2 de 5**, antes
+de "Datos de tu empresa"/"Config"/"Credenciales". El webhook de Stripe
+llega en 1-3s — casi siempre ANTES de que un humano real termine de
+llenar los 3 pasos restantes — así que `convertirBorrador()` fallaba por
+falta de datos, Y el evento quedaba marcado "ya procesado"
+(`stripe_eventos_procesados`) ANTES de intentar la conversión, sin
+ningún reintento automático posible. Reproducido real 2 veces (requirió
+recuperación manual server-side ambas veces). **Fix**: reordenado el
+wizard — Plan(1) → Empresa(2) → Config(3) → Credenciales(4) →
+**Pago(5, último)** → Completado. `success_url` de
+`control/utils/stripePagos.js` ahora manda `paso=completado` (antes
+`paso=empresa`, ya no tiene sentido — no queda nada por llenar).
+Verificado real con `stripe listen` corriendo de verdad (sin parche
+manual): pagó, webhook llegó, activó solo, sin intervención.
+
+**3. Bug real nuevo, encontrado al verificar el fix anterior — carrera
+webhook-vs-resume.** El `useEffect` de "reanudar tras volver de Stripe"
+llamaba `obtenerBorrador(token)` incondicionalmente — esa función exige
+`estado='activo'` en el servidor
+(`control/utils/onboardingBorrador.js:obtenerBorradorInterno`). Si el
+webhook ya convirtió el borrador (`estado='convertido'`) para cuando el
+navegador termina de cargar la página de éxito (carrera real, ambos
+tardan ~1-3s), ese fetch da 404, el `catch` se traga el error en
+silencio, y el visitante que SÍ pagó ve el sitio normal — sin éxito ni
+error. Reproducido real forzando la navegación de retorno sobre un
+token ya convertido. **Fix**: cuando `paso==='completado'`, usar
+`estadoPago(token)` en vez de `obtenerBorrador(token)` —
+`estadoPago`/`obtenerEstadoPago` nunca exigió `estado='activo'` (a
+propósito, documentado en el propio archivo), es la única fuente
+confiable para "vengo de pagar". Efecto secundario arreglado: el
+mensaje "Te enviamos tus accesos a ." (correo vacío, ese camino no lo
+recupera) ahora cae a "Revisa tu correo para tus accesos." en vez de
+interpolar un campo vacío.
+
+**Gotcha de infraestructura, no bug de código**: en local, el webhook
+de Stripe NUNCA llega sin `stripe listen --forward-to
+http://localhost:8088/api/control/webhooks/stripe` corriendo (Stripe no
+alcanza `localhost` desde sus servidores) — confirmado real en la
+sesión anterior (punto 428 del `CLAUDE.md`/`AGENTS.md`). Con el listener activo,
+el secret que imprime (`whsec_...`) coincidió exactamente con el ya
+guardado en `.env` — Stripe CLI lo reusa por cuenta, no hace falta
+regenerar `STRIPE_WEBHOOK_SECRET` cada vez que se reinicia el listener.
+
+**Verificado real de punta a punta, 3 veces en esta sesión** (2 con el
+orden viejo, requirieron recuperación manual; 1 con el orden nuevo +
+fix de carrera, sin intervención): pago real en Stripe test →
+`stripe listen` reenvía el webhook real → `control` activa el tenant →
+login real en `/admin` del tenant nuevo. Los 3 tenants de prueba
+(`taller-mecanico-prueba-claude`, `-2`, `-3`) dados de baja al cerrar.
+
+Archivos: `portalFac/.env`, `control/utils/stripePagos.js`,
+`clarvo-Site/src/components/onboarding/OnboardingModal.tsx`,
+`CLAUDE.md`, `AGENTS.md`, `PROJECT_STATE.md` (este punto).
