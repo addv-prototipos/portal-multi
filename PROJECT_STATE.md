@@ -24647,3 +24647,64 @@ Archivos adicionales: `control/utils/garageCapacidad.js` (nuevo),
 `control/server.js`, `control/test/unit/tenantEdicion.test.js`,
 `frontend/control.html`, `frontend/control.js`, `frontend/admin.css`,
 `docker-compose.yml`, `CLAUDE.md`, `PROJECT_STATE.md` (este addendum).
+
+### Addendum 2 (mismo día) — Garage mide SU PROPIA VM, no el disco real de Windows: capacidad ahora se lee del host de verdad
+
+El usuario reportó, con evidencia real (sus propios discos C:/D: de
+Windows), que "Disponible" seguía sin cuadrar incluso después del primer
+fix: Garage decía ~945 GB libres, pero C: (donde vive el disco virtual
+de Docker Desktop) solo tenía 45 de 295 GB libres de verdad. Confirmado
+con `Get-PSDrive`: la causa es que el admin API de Garage mide el
+filesystem ext4 DENTRO de la VM de WSL2 (`docker-desktop`), que vive en
+su propio disco virtual (vhdx) — sparse, con un tamaño lógico propio que
+no tiene por qué coincidir con el NTFS real del host. Documentado ya en
+`CLAUDE.md` como "no es un bug, es la VM" — correcto como diagnóstico,
+pero el usuario señaló (con razón) que el NÚMERO que de verdad importa
+para prevenir que el disco real se llene es el del host, no el de la VM.
+
+**Fuente nueva, más simple y más confiable que Garage**: un bind mount
+de solo lectura de una carpeta VACÍA y de bajo riesgo
+(`C:/ProgramData/clarvo-disk-probe` por defecto, configurable vía
+`HOST_DISK_PROBE_PATH`) hacia `/hostdisk` en el contenedor `control` +
+`fs.statfsSync('/hostdisk')` (Node 20, API nativa) —
+`control/utils/hostDiscoCapacidad.js`. `statfsSync` reporta las
+estadísticas del FILESYSTEM completo donde vive esa carpeta, nunca de su
+contenido (vacío a propósito) — el bind mount no expone ningún archivo
+real del host, solo permite medir la unidad. **Verificado real antes de
+implementar** (mismo criterio que el addendum anterior con Garage):
+`docker run --rm -v "C:/ProgramData/clarvo-disk-probe:/hostdisk:ro"
+node:20-alpine node -e "..."` → `295.9 GB total / 45.3 GB libres`, exacto
+a lo que `Get-PSDrive C` reportaba en ese momento.
+
+`discoCapacidad.js:resolverCapacidadTotal()` ahora prueba 3 fuentes en
+orden: host (nueva, primaria) → Garage (fallback si el bind mount no
+está configurado) → caché (último recurso). `resumen.capacidadFuente`
+ahora puede ser `'host'`, además de `'garage'`/`'cache'`/`'sin_datos'` —
+frontend (`control.js`) actualizado para los 3 casos ("en vivo — disco
+del host" como etiqueta principal).
+
+**Bug propio encontrado al verificar en vivo (de nuevo, no en revisión de
+código)**: el primer intento de este addendum dejó `disponibleMb =
+fuente === 'garage' ? disponibleRealMb : disponibleParaAsignarMb` — con
+`fuente === 'host'` esa condición no entraba, así que "Disponible" volvía
+a mostrar el número por promesas (298 GB) en vez del real (36.8 GB),
+mismo bug-shape que el addendum 1 pero en la rama nueva. Corregido a
+`fuente === 'host' || fuente === 'garage'`, verificado real tras el fix:
+`disponibleMb` y `disponibleRealMb` coinciden (36801 MB), `porcentaje`
+sube a 88% (semáforo rojo, correcto — C: está genuinamente casi lleno en
+la máquina de desarrollo del usuario).
+
+**Lección para sesiones futuras** (ya en `CLAUDE.md`): al agregar una
+tercera fuente/rama a un campo ya condicionado por un `fuente === 'x'`
+anterior, revisar TODOS los lugares que ya hacían ese mismo check — no
+solo el de arriba que decide cuál fuente usar, sino cualquier cálculo
+derivado que compare contra el valor literal de la fuente vieja.
+
+Validado real: suite completa de control 502/509 tras el rebuild (7
+fallas, las mismas 3 preexistentes de siempre — confirmado re-corriendo
+dos veces, la primera corrida tuvo 2 fallas extra por timeout de carga
+del sistema, no reproducibles, descartadas como ruido).
+
+Archivos adicionales: `control/utils/hostDiscoCapacidad.js` (nuevo),
+`control/utils/discoCapacidad.js`, `frontend/control.js`,
+`docker-compose.yml`, `CLAUDE.md`, `PROJECT_STATE.md` (este addendum).

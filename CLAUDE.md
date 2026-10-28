@@ -1131,7 +1131,28 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   desarrollo, esto es la explicación antes de asumir que el código está
   mal — sí revisar primero que la fórmula use el dato real de Garage y
   no una resta contra lo "comprometido" (ese SÍ fue un bug real, ya
-  corregido, ver el punto completo).
+  corregido, ver el punto completo). **Superado por el addendum 2 de
+  abajo**: el usuario pidió (con razón) el número del disco real del
+  host, no el de la VM de Garage — ya implementado.
+- **Capacidad total de disco: fuente primaria es el HOST real, no
+  Garage** (punto 433, addendum 2, 2026-10-27, reemplaza el criterio del
+  punto anterior): `control/utils/hostDiscoCapacidad.js` lee
+  `fs.statfsSync('/hostdisk')` contra un bind mount de solo lectura de
+  una carpeta VACÍA (`C:/ProgramData/clarvo-disk-probe` por defecto,
+  `HOST_DISK_PROBE_PATH` configurable — ver `docker-compose.yml`,
+  servicio `control`) — `statfsSync` reporta el filesystem COMPLETO
+  donde vive esa carpeta, nunca su contenido, así que el mount no expone
+  ningún archivo real del host. Verificado real contra
+  `Get-PSDrive`/`docker run` antes de implementar: coincide exacto con
+  el disco de Windows. `discoCapacidad.js:resolverCapacidadTotal()`
+  prueba host → Garage (fallback) → caché, en ese orden —
+  `resumen.capacidadFuente` ahora es `'host'|'garage'|'cache'|'sin_datos'`.
+  **Si se agrega una tercera fuente a un campo que ya tenía un check
+  `fuente === 'garage'` en algún lado, revisar TODOS los sitios con ese
+  mismo check** — el bug real de este addendum fue exactamente eso: el
+  cálculo de `disponibleMb` seguía comparando solo contra `'garage'`,
+  así que con `fuente === 'host'` caía al número por promesas equivocado
+  otra vez (mismo bug-shape que el addendum 1, en la rama nueva).
 - **Primera llamada interna en sentido backend→control** (punto 433,
   2026-10-27): hasta entonces TODAS las llamadas `/internal/*` entre los
   2 servicios eran control→backend (`notificarBackend.js`:

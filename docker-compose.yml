@@ -464,6 +464,20 @@ services:
     # archivo del HOST que se monta ahí).
     volumes:
       - ./admin-users.env:/usr/src/app/.env:rw
+      # Capacidad real de disco (punto 433, addendum 2 — hallazgo del
+      # usuario, 2026-10-27): Garage reporta el filesystem ext4 DENTRO de
+      # la VM de WSL2, que no coincide con el disco real de Windows
+      # (confirmado real: Garage decía ~945 GB libres, C: real tenía 45 de
+      # 295 GB). Este bind mount de una carpeta VACÍA y de bajo riesgo
+      # (nunca la unidad completa) deja que `fs.statfsSync()` dentro del
+      # contenedor lea las estadísticas REALES de la unidad donde vive esa
+      # carpeta — confirmado real con un contenedor de prueba: reportó
+      # 295.9/45.3 GB, exacto a lo que Windows mostraba. Ver
+      # control/utils/hostDiscoCapacidad.js. HOST_DISK_PROBE_PATH
+      # configurable para otra unidad/plataforma (ej. "/" en un host
+      # Linux) — el default asume Windows con Docker Desktop (como este
+      # entorno de desarrollo).
+      - ${HOST_DISK_PROBE_PATH:-C:/ProgramData/clarvo-disk-probe}:/hostdisk:ro
     env_file:
       - ./admin-users.env
     environment:

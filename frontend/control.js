@@ -4668,18 +4668,20 @@
 
     if (els.discoCapacidadFuente) {
       els.discoCapacidadFuente.classList.remove('es-cache', 'es-sin-datos');
-      if (resumen.capacidadFuente === 'garage') {
+      if (resumen.capacidadFuente === 'host') {
+        els.discoCapacidadFuente.textContent = 'en vivo — disco del host';
+      } else if (resumen.capacidadFuente === 'garage') {
         els.discoCapacidadFuente.textContent = 'en vivo — Garage';
       } else if (resumen.capacidadFuente === 'cache') {
-        els.discoCapacidadFuente.textContent = 'Garage no respondió — última lectura';
+        els.discoCapacidadFuente.textContent = 'sin lectura real — última conocida';
         els.discoCapacidadFuente.classList.add('es-cache');
       } else {
-        els.discoCapacidadFuente.textContent = 'sin datos de Garage todavía';
+        els.discoCapacidadFuente.textContent = 'sin datos reales todavía';
         els.discoCapacidadFuente.classList.add('es-sin-datos');
       }
     }
-    els.discoCapacidadFoot.textContent = resumen.capacidadFuente === 'garage'
-      ? `Capacidad total leída en vivo de Garage (${resumen.disponibleRealMb != null ? mbAGbTexto(resumen.disponibleRealMb) + ' libres ahora mismo en el host' : ''}) · aviso por correo a partir de 80%.`
+    els.discoCapacidadFoot.textContent = (resumen.capacidadFuente === 'host' || resumen.capacidadFuente === 'garage')
+      ? `Capacidad total leída en vivo del disco real${resumen.disponibleRealMb != null ? ` (${mbAGbTexto(resumen.disponibleRealMb)} libres ahora mismo)` : ''} · aviso por correo a partir de 80%.`
       : 'Recalculado con cada alta/edición de plan de tenant · aviso por correo a partir de 80%.';
 
     if (resumen.tenantsIlimitados > 0) {

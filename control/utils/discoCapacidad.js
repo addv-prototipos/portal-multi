@@ -20,21 +20,33 @@ const {
   DISCO_ALERTA_UMBRAL_PCT,
 } = require('./ajustesGlobales');
 const { obtenerCapacidadRealGarage } = require('./garageCapacidad');
+const { obtenerCapacidadRealHost } = require('./hostDiscoCapacidad');
 
-// Capacidad total: SIEMPRE se intenta en vivo contra Garage primero
-// (decisión del usuario — nunca un valor capturado a mano). Si Garage no
-// responde (contenedor caído, red, etc.), se cae al último valor que sí
-// se logró leer (cacheado en ajustes_globales por la propia lectura
-// exitosa anterior) para que la tarjeta de /control no se quede en
-// blanco por un problema transitorio — `fuente` le dice al frontend cuál
-// de los 2 casos está viendo.
+// Capacidad total: SIEMPRE se intenta en vivo, NUNCA un valor capturado a
+// mano. 2 fuentes reales, en orden (addendum 2, punto 433 — hallazgo del
+// usuario): (1) el disco del HOST vía bind mount + fs.statfsSync() — el
+// disco de verdad donde corre Docker, confirmado exacto contra Windows
+// (295.9/45.3 GB reales vs lo que Garage decía, ~1007/945 GB, el
+// filesystem interno de su propia VM); (2) Garage, solo si el bind mount
+// no está configurado (entorno viejo, o un futuro servidor donde montar
+// el host no aplique). Si NINGUNA de las 2 responde, se cae al último
+// valor que sí se logró leer (cacheado en ajustes_globales) para que la
+// tarjeta no se quede en blanco por un problema transitorio — `fuente`
+// le dice al frontend cuál de los 3 casos está viendo.
 async function resolverCapacidadTotal() {
+  try {
+    const real = obtenerCapacidadRealHost();
+    await setDiscoCapacidadTotalMb(real.totalMb);
+    return { capacidadTotalMb: real.totalMb, disponibleRealMb: real.disponibleMb, fuente: 'host' };
+  } catch (errHost) {
+    console.error('No se pudo leer la capacidad real de disco del host:', errHost.message);
+  }
   try {
     const real = await obtenerCapacidadRealGarage();
     await setDiscoCapacidadTotalMb(real.totalMb);
     return { capacidadTotalMb: real.totalMb, disponibleRealMb: real.disponibleRealMb, fuente: 'garage' };
-  } catch (err) {
-    console.error('No se pudo leer la capacidad real de disco desde Garage:', err.message);
+  } catch (errGarage) {
+    console.error('No se pudo leer la capacidad real de disco desde Garage:', errGarage.message);
     const cache = await getDiscoCapacidadTotalMb();
     return { capacidadTotalMb: cache, disponibleRealMb: null, fuente: cache == null ? 'sin_datos' : 'cache' };
   }
@@ -91,7 +103,7 @@ async function calcularResumenCapacidad(db = obtenerPool()) {
   // forma de medir lo real, así que se cae al estimado por promesas como
   // mejor aproximación disponible, nunca como el valor normal.
   const disponibleParaAsignarMb = capacidadTotalMb === null ? null : Math.max(0, capacidadTotalMb - comprometidoMb);
-  const disponibleMb = fuente === 'garage' ? disponibleRealMb : disponibleParaAsignarMb;
+  const disponibleMb = (fuente === 'host' || fuente === 'garage') ? disponibleRealMb : disponibleParaAsignarMb;
   // Mismo criterio para el %/semáforo: el objetivo es "que no se agote el
   // disco real", así que el % usado se calcula contra el uso REAL del
   // host cuando se tiene (no contra lo prometido) — un disco puede estar
