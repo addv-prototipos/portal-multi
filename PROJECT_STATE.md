@@ -24793,7 +24793,15 @@ Archivos: `.gitignore`, `CLAUDE.md`, `AGENTS.md`, `README.md`,
 `PROJECT_STATE.md` (este punto). Carpeta `prod/` → `hostinger/` (fuera
 de git, cambio solo en disco).
 
-## Punto 436 — `.campo-ayuda`: ícono real + "Ayuda" + halo de descubribilidad (28 oct 2026, CERRADO)
+## Punto 438 — `.campo-ayuda`: ícono real + "Ayuda" + halo de descubribilidad (28 oct 2026, CERRADO)
+
+**Nota de numeración**: este punto se escribió originalmente como "436",
+pero esa colisiona con un punto 436 distinto agregado por Codex en
+paralelo (renombrado de Docker, `portalfac` → `clarvo-app`) — renumerado
+a 438 para no pisar esa entrada. Si una sesión futura busca "campo-ayuda"
+o "halo de descubribilidad" y encuentra referencias a "punto 436" en
+`CLAUDE.md`/`AGENTS.md`, son de ANTES de esta corrección — el número
+correcto es 438.
 
 Usuario pidió rediseñar el ícono de ayuda de campo ("se me hace
 simple"), con propuestas vía Artifact (`/ui-ux-pro-max`). Primera ronda
@@ -24864,6 +24872,47 @@ hallazgo.
 Archivos: `frontend/style.css`, `frontend/theme.js`, `frontend/admin.js`,
 `frontend/admin.html`, `frontend/control.html`, `frontend/csf.html`,
 `frontend/dashboard.html`, `frontend/login.html`, `frontend/tickets.html`,
+`PROJECT_STATE.md` (este punto).
+
+**Extensión del mismo punto, misma sesión**: usuario reportó "no veo el
+cambio" con una captura mostrando un "?" todavía en bruto — resultó ser
+el OTRO componente de ayuda del sitio, `.btn-icon` con
+`id="btn-ayuda-vista-X"` (el "?" de SECCIÓN, 12 sitios: Empresas, Planes,
+Papelera, Sucursales, Super Admins, Auditoría, Accesos, Upscale,
+Recordatorios, Cupones en `/control`; Ventas, Cuentas por cobrar, Gastos
+en `/admin`), que la primera ronda de este punto nunca tocó a propósito
+(alcance se había corregido explícitamente a `.campo-ayuda` únicamente).
+El usuario confirmó que quiere el mismo tratamiento en los dos
+componentes — convertidos los 12 a `class="campo-ayuda"` + ícono real +
+"Ayuda" (mismo script de reemplazo por regex que la primera ronda,
+scopeado a `id="btn-ayuda-vista-"` para no tocar el botón "cerrar" del
+modal de ayuda, que usa la misma clase `btn-icon` pero con un ícono de
+X, no un "?"). Los 12 ya estaban cableados con un
+`addEventListener('click', ...)` DIRECTO sobre el botón (nunca
+delegación por `classList.contains`), así que no aplica el mismo riesgo
+del hallazgo de `.closest()` de arriba — ningún JS adicional que tocar
+ahí. Verificado real en `/control` → Empresas tras rebuild: ambos
+componentes (sección y campo) ahora idénticos visualmente.
+
+Archivos (adicionales a los de arriba): ninguno nuevo — mismos
+`admin.html`/`control.html`, `PROJECT_STATE.md` (este punto).
+
+**2da extensión, misma sesión**: usuario reportó un "?" en bruto en
+Inventarios tras la conversión de los 12 — el regex de la 1ra ronda
+buscaba específicamente `id="btn-ayuda-vista-*"`, pero existían 3 más
+con otra convención de id (`btn-ayuda-corte`, `btn-inv-ayuda-abrir`,
+y `btn-ayuda-vista-super` — este último se había saltado el PRIMER
+regex por una razón distinta: su `data-tooltip` incluye literalmente
+`/<slug>/admin`, y el `<`/`>` de ese placeholder truncó el
+`[^>]*` del patrón antes de llegar al cierre real del botón). Barrido
+final con `grep -rln '>?</button>'` sobre los 6 HTML confirma CERO
+restantes en todo el proyecto. Lección para la próxima vez que se
+busque "todas las instancias de X": un regex que para en el primer
+`>` se rompe si CUALQUIER atributo (tooltip, aria-label) contiene
+`<`/`>` literales como parte del texto — verificar con un barrido
+final sin asumir que un solo patrón cubrió el 100%.
+
+Archivos (adicionales): `frontend/admin.html`, `frontend/control.html`,
 `PROJECT_STATE.md` (este punto).
 
 ## Punto 436 — Renombrado de Docker: proyecto `portalfac` → `clarvo-app`, contenedores `portalManager-*` → `clrv-*` (28 oct 2026, CERRADO)

@@ -570,28 +570,79 @@ body {
    ver arriba) — único ícono de ayuda del sitio, reusado en cualquier
    contexto (antes había un componente CSS-only paralelo,
    .tooltip-trigger/.tooltip-popover, consolidado aquí para que TODO
-   tooltip del sitio se vea y se comporte exactamente igual). */
+   tooltip del sitio se vea y se comporte exactamente igual).
+   Rediseño (punto en curso, 2026-10-28, propuesta 3+5 de Artifact,
+   confirmada por el usuario): el carácter "?" crudo pasa a ser un ícono
+   SVG real (help-circle, feather-like) + la palabra "Ayuda" visible —
+   antes era un círculo de 20px casi invisible en reposo. Se acepta a
+   propósito que en contextos muy angostos (celdas de tabla, labels
+   cortos) el texto agregue ancho — decisión explícita del usuario sobre
+   lo visto en los 30 usos reales del componente. */
 .campo-ayuda {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
+  gap: 4px;
   margin-left: 6px;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-border);
-  background: var(--color-bg);
+  padding: 3px 9px 3px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   color: var(--color-ink-soft);
   font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
+  font-weight: 600;
+  line-height: 1.3;
   cursor: pointer;
   vertical-align: middle;
+  position: relative;
+  white-space: nowrap;
+}
+.campo-ayuda svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  display: block;
 }
 .campo-ayuda:hover,
 .campo-ayuda:focus-visible {
   color: var(--color-accent-dark);
   border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  outline: none;
+}
+
+/* Halo que respira alrededor de CUALQUIER .campo-ayuda hasta que el
+   usuario toca uno por primera vez en cualquier página del sitio (ver
+   theme.js, bloque de descubribilidad — localStorage, flag global, no
+   por campo). Clase en <body>, nunca en el botón mismo, para que
+   funcione igual con botones ya en el DOM y con los que se rendericen
+   después (ej. filas de tabla de inventario). */
+.campo-ayuda-pulso .campo-ayuda::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-accent);
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .campo-ayuda-pulso .campo-ayuda::before {
+    animation: campo-ayuda-halo 1.9s ease-out infinite;
+  }
+}
+@keyframes campo-ayuda-halo {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
 }
 
 .field-error {

@@ -234,3 +234,60 @@
       }
     });
 })();
+
+// ---------- Halo de descubribilidad de .campo-ayuda (punto en curso,
+// 2026-10-28, propuesta 3+5 de Artifact) ----------
+// Nada de esto depende de datos de tenant — se agrupa aquí solo porque
+// theme.js es el único script que YA se carga en las 6 páginas con
+// .campo-ayuda (login, dashboard, csf, tickets, admin, control, ver nota
+// de cabecera arriba) sin excepción, evitando 5 copias idénticas de esta
+// misma docena de líneas en admin.js/control.js/login.js/dashboard.js/
+// tickets.js. Flag GLOBAL, no por campo: en cuanto el usuario toca
+// cualquier .campo-ayuda en cualquier página, el halo se apaga para
+// siempre en todas — "ya sé que ahí hay ayuda" es un aprendizaje del
+// usuario, no del campo específico.
+(function () {
+  'use strict';
+  var CLAVE_AYUDA_DESCUBIERTA = 'clarvoAyudaDescubierta';
+  if (!window.localStorage) return;
+  try {
+    if (localStorage.getItem(CLAVE_AYUDA_DESCUBIERTA) === '1') return;
+  } catch (err) {
+    return;
+  }
+
+  document.body.classList.add('campo-ayuda-pulso');
+
+  function marcarAyudaDescubierta() {
+    document.body.classList.remove('campo-ayuda-pulso');
+    try {
+      localStorage.setItem(CLAVE_AYUDA_DESCUBIERTA, '1');
+    } catch (err) {
+      /* Storage lleno/bloqueado: el halo igual ya se apagó para esta carga. */
+    }
+  }
+
+  function esCampoAyuda(e) {
+    return e.target && e.target.closest && e.target.closest('.campo-ayuda');
+  }
+
+  document.addEventListener(
+    'pointerdown',
+    function (e) {
+      if (esCampoAyuda(e)) marcarAyudaDescubierta();
+    },
+    true
+  );
+  // 'click' además de 'pointerdown': algunos entornos (automatización,
+  // navegadores viejos) no siempre disparan pointerdown en un clic real.
+  document.addEventListener(
+    'click',
+    function (e) {
+      if (esCampoAyuda(e)) marcarAyudaDescubierta();
+    },
+    true
+  );
+  document.addEventListener('focusin', function (e) {
+    if (esCampoAyuda(e)) marcarAyudaDescubierta();
+  });
+})();

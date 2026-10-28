@@ -1227,7 +1227,7 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   compró.
 - **Agregar hijos (ícono/texto) dentro de un `.campo-ayuda`/botón con
   delegación por `classList.contains` exacto rompe el clic en silencio**
-  (punto 436, 2026-10-28): 3 listeners en `admin.js` (modal de ayuda de
+  (punto 438, 2026-10-28): 3 listeners en `admin.js` (modal de ayuda de
   inventario) hacían `e.target.classList.contains('campo-ayuda')` — al
   meter un `<svg>` + texto "Ayuda" DENTRO del botón (rediseño del
   componente), un clic sobre esos hijos vuelve `e.target` el hijo, nunca

@@ -564,7 +564,7 @@ solo la frase en español de la UI.
   variable que el cierre resetea (`planEditandoId`, `usuarioActual`),
   capturarla en una constante antes de cerrar.
 - **Delegación por `classList.contains` exacto se rompe si el elemento
-  gana hijos** (punto 436): al rediseñar `.campo-ayuda` (ícono SVG +
+  gana hijos** (punto 438): al rediseñar `.campo-ayuda` (ícono SVG +
   texto "Ayuda" dentro del botón, antes solo el carácter "?"), 3
   listeners en `admin.js` que hacían `e.target.classList.contains(
   'campo-ayuda')` dejaron de matchear — un clic en el SVG/texto hace que
