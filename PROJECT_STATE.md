@@ -24912,3 +24912,54 @@ etc.) por consistencia, sin probarse contra un cluster real.
 Archivos: `docker-compose.yml`, `docker-stack.yml`, `CLAUDE.md`,
 `AGENTS.md`, `README.md`, `test.md` (local, gitignored),
 `PROJECT_STATE.md` (este punto).
+
+## Punto 437 — "Facturación" → "Gestión de facturas" en todo el sitio + Control (28 oct 2026, CERRADO)
+
+Petición explícita del usuario: renombrar la marca visible del módulo de
+"Facturación (electrónica/CFDI)" a "Gestión de facturas", homologado
+entre `/admin` y `/control` — aclaró que el producto todavía NO timbra
+(no hay integración con un PAC/SAT real), solo valida datos fiscales
+(RFC, régimen) y organiza la solicitud/documento.
+
+**Criterio aplicado — solo el NOMBRE DEL MÓDULO, nunca el uso genérico
+del verbo**: el sitio usa "facturación"/"facturar"/"factura" en 2
+sentidos distintos que NO deben confundirse — (1) el nombre del módulo/
+feature (sidebar, tarjetas de Configuraciones, toggle de /control,
+wizard de planes, emails) → renombrado; (2) el estatus de una venta
+("Facturada"/"Sin facturar", columna de tablas, filtro de Ventas,
+"Facturación y cobro" como grupo de Cortes) → sin tocar, es vocabulario
+de negocio normal, no la marca del módulo. Tampoco se tocó "Facturación
+de Clarvo" (Mi Cuenta) — es la AUTOFACTURA de ADDV por el cobro de la
+suscripción, un concepto completamente distinto.
+
+**Correción real de contenido, no solo nombre** (Centro de conocimiento,
+glosario de `/admin`): 3 entradas (`CFDI`, `Facturado / Sin facturar`,
+`Ticket`) afirmaban que el sistema "genera"/"convierte en" un CFDI —
+falso mientras no exista timbrado real. Reescritas para decir que
+Gestión de facturas valida los datos fiscales y organiza la solicitud,
+y que el CFDI/factura se sube ya generado por el sistema de facturación
+propio del admin o su contador.
+
+**Sitios reales cambiados** (de 173 apariciones de "facturaci" en el
+repo, solo ~20 eran el nombre del módulo): sidebar de `/admin`, tarjeta
+y toggle "Habilitar ..." de Configuraciones, label de búsqueda de
+`CONFIG_SECCIONES`, mensaje de error "Tu plan no incluye..." (frontend Y
+backend — 2 copias del mismo mensaje); wizard de planes de `/control`
+(chip de dependencia, módulo del wizard con su `desc` también corregida
+de "CFDI" a "validación de datos fiscales", reglas de dependencia de
+Reportes, nombres de chip, fila de resumen, texto de ayuda "¿Qué es un
+plan?"); el switch/hint de "Módulo de Facturación" y su `field-hint`;
+4 emails reales (`eyebrow: 'Facturación'` en `aviso_contador`, `cliente`,
+y el correo de "Factura lista") en `backend/server.js`.
+
+**Verificado real**: suite de backend (`gatingFacturacion.test.js`,
+`gobiernoFunciones.test.js`, `reportesEstadoTickets.test.js`) 25/25 sin
+regresión — ningún test asertaba el string exacto "Facturación" como
+valor esperado, solo como nombre de `describe`/`test`. Rebuild +
+`--force-recreate` real de `backend`/`frontend`; verificado contra el
+HTML servido de verdad (`curl http://localhost:8088/admin.html` → 4
+apariciones de "Gestión de facturas"; `control.html` → 3).
+
+Archivos: `frontend/admin.html`, `frontend/admin.js`,
+`frontend/control.html`, `frontend/control.js`, `backend/server.js`,
+`PROJECT_STATE.md` (este punto).

@@ -3240,7 +3240,7 @@ async function notificarNuevoTicketAlContador(rfc, folio, urlPortal, marca, logo
     logoUrl,
     colorPrimario: colores && colores.primario,
     colorAccent: colores && colores.acento,
-    eyebrow: 'Facturación',
+    eyebrow: 'Gestión de facturas',
     titulo: 'Nuevo ticket para facturar',
     filas: [
       { etiqueta: 'RFC', valor: escapeHtmlCorreo(rfc) },
@@ -4227,7 +4227,7 @@ const PLANTILLAS_CORREO_PREVIEW = {
     variables: {},
   }),
   aviso_contador: () => ({
-    eyebrow: 'Facturación',
+    eyebrow: 'Gestión de facturas',
     titulo: 'Nuevo ticket para facturar',
     filas: [
       { etiqueta: 'RFC', valor: 'XAXX010101000' },
@@ -4237,7 +4237,7 @@ const PLANTILLAS_CORREO_PREVIEW = {
     variables: { rfc: 'XAXX010101000', folio: 'TK-000123' },
   }),
   cliente: () => ({
-    eyebrow: 'Facturación',
+    eyebrow: 'Gestión de facturas',
     titulo: 'Factura lista',
     filas: [],
     cta: { href: '#', texto: 'Entrar al Portal' },
@@ -5443,7 +5443,7 @@ app.put(
         return res.json({ ok: true, activo: false });
       }
       if (activo && !req.tenant.facturacionHabilitadaPlan) {
-        return res.status(400).json({ error: 'Tu plan no incluye Facturación — contacta a soporte para activarla.' });
+        return res.status(400).json({ error: 'Tu plan no incluye Gestión de facturas — contacta a soporte para activarla.' });
       }
       await obtenerPoolControl().query(
         'UPDATE tenants SET facturacion_pausada = ? WHERE slug = ?',
@@ -7263,7 +7263,7 @@ async function notificarFacturaListaAlCliente(rfc, folio, marca, urlPortal, logo
     logoUrl,
     colorPrimario: colores && colores.primario,
     colorAccent: colores && colores.acento,
-    eyebrow: 'Facturación',
+    eyebrow: 'Gestión de facturas',
     titulo: 'Factura lista',
     parrafos: formatearParrafosCuerpo(cuerpoPersonalizado),
     cta: enlacePortal ? { href: enlacePortal, texto: 'Entrar al Portal' } : null,

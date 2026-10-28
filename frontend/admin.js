@@ -4350,7 +4350,7 @@
     els.configFacturacionHabilitada.disabled = bloqueado;
     if (els.facturacionHabilitadaLabel) els.facturacionHabilitadaLabel.setAttribute('aria-disabled', bloqueado ? 'true' : 'false');
     els.facturacionHabilitadaHint.textContent = bloqueado
-      ? 'Tu plan no incluye Facturación — contacta a soporte para activarla.'
+      ? 'Tu plan no incluye Gestión de facturas — contacta a soporte para activarla.'
       : 'Con esto apagado, tus clientes dejan de pedir RFC, subir constancia o solicitar tickets de factura — se usa un identificador interno en su lugar. Las cuentas por cobrar del portal de clientes no se ven afectadas. Este interruptor se guarda solo, sin necesidad de presionar "Guardar cambios".';
   }
 
@@ -8138,7 +8138,7 @@
     { id: 'smtp-config-card', label: 'Correo electrónico (SMTP)' },
     { id: 'reportes-config-card', label: 'Notificación de reportes' },
     { id: 'notif-toggle-card', label: 'Notificaciones' },
-    { id: 'facturacion-toggle-card', label: 'Módulo Facturación' },
+    { id: 'facturacion-toggle-card', label: 'Módulo Gestión de facturas' },
     { id: 'ordenes-toggle-card', label: 'Módulo Ventas' },
     { id: 'inv-toggle-card', label: 'Módulo Inventarios' },
     { id: 'auditoria-toggle-card', label: 'Módulo Auditoría' },
@@ -20482,7 +20482,7 @@
       const necesitaConfirmar = asignacion && asignacion.requiereConfirmacion && !asignacion.confirmado;
       return `
         <tr>
-          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}<button type="button" class="campo-ayuda" data-campo="${c.campo}" aria-label="Ver ayuda de ${escapeHtmlAttr(c.etiqueta)}">?</button></td>
+          <td>${escapeHtml(c.etiqueta)}${c.obligatorio ? ' <span class="required">*</span>' : ''}<button type="button" class="campo-ayuda" data-campo="${c.campo}" aria-label="Ver ayuda de ${escapeHtmlAttr(c.etiqueta)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ayuda</button></td>
           <td><select class="inv-import-mapeo-select" data-campo="${c.campo}" aria-label="Columna para ${escapeHtmlAttr(c.etiqueta)}">${opciones}</select></td>
           <td class="inv-import-mapeo-preview" data-tooltip="${escapeHtmlAttr(previewValores)}">${escapeHtml(previewValores)}</td>
           <td>
@@ -21284,7 +21284,7 @@
       lead: 'Qué significa cada palabra que ves en el panel, en español simple — sin necesitar experiencia previa en contabilidad ni en manejo de inventarios.',
       pasos: [
         { t: 'Balance (ventas vs gastos)', d: 'Lo que entra menos lo que sale, de un vistazo. Ejemplo: si en el mes vendiste $50,000 y gastaste $30,000, tu balance es $20,000 a favor.' },
-        { t: 'CFDI', d: 'Es el nombre técnico de una factura electrónica en México (Comprobante Fiscal Digital por Internet). Cuando "facturas" un ticket, en realidad estás generando un CFDI.' },
+        { t: 'CFDI', d: 'Es el nombre técnico de una factura electrónica en México (Comprobante Fiscal Digital por Internet), el documento que timbra el SAT. Gestión de facturas valida los datos fiscales del cliente (RFC, régimen) y organiza la solicitud — el timbrado en sí lo haces con tu propio sistema de facturación o tu contador, y subes aquí el resultado.' },
         { t: 'Código de barras', d: 'El número que identifica a un producto — lo puedes escanear con la cámara del celular en vez de teclearlo a mano cada vez que lo vendes o das de alta.' },
         { t: 'Constancia de Situación Fiscal (CSF)', d: 'El documento oficial del SAT que dice quién es fiscalmente tu cliente (nombre, RFC, régimen). Se sube una vez y el sistema saca esos datos solo para armar la factura.' },
         { t: 'Corte del día', d: 'Un resumen de todo lo que vendiste en un rango de fechas que tú eliges — para cuadrar caja o cerrar el turno, se puede imprimir.' },
@@ -21292,7 +21292,7 @@
         { t: 'Cuentas por cobrar', d: 'Ventas que ya hiciste pero el cliente todavía no te paga — quedan marcadas como "Pendiente" hasta que registras el cobro.' },
         { t: 'Días de cobertura', d: 'Con lo que tienes en existencia ahorita, para cuántos días de venta te alcanza al ritmo que vendes normalmente.' },
         { t: 'Existencia', d: 'Cuánto tienes disponible de un producto en este momento — sube cuando registras una entrada, baja cuando lo vendes.' },
-        { t: 'Facturado / Sin facturar', d: 'Una venta "facturada" ya tiene su CFDI generado y el cliente puede descargarla. "Sin facturar" significa que la venta ya se hizo, pero todavía nadie pidió la factura.' },
+        { t: 'Facturado / Sin facturar', d: 'Una venta "facturada" ya tiene su factura (CFDI) subida y el cliente puede descargarla. "Sin facturar" significa que la venta ya se hizo, pero todavía nadie subió la factura.' },
         { t: 'Fecha de expiración', d: 'Opcional, para productos que caducan — el sistema te avisa cuando se acerca o ya pasó, pero no te impide venderlo.' },
         { t: 'Folio', d: 'El número único que identifica cada solicitud de factura (ticket) — te sirve para dar seguimiento o buscarla después.' },
         { t: 'Kardex', d: 'El historial completo de entradas, salidas y ajustes de un producto — como una libreta donde queda registrado cada movimiento, nunca se puede editar después de guardado.' },
@@ -21300,7 +21300,7 @@
         { t: 'Rotación (de inventario)', d: 'Qué tan rápido se está moviendo un producto — uno con rotación alta se vende seguido, uno con rotación baja lleva tiempo quieto en el estante.' },
         { t: 'SKU', d: 'La clave interna que tú le pones a cada producto para identificarlo — como un código de referencia propio, distinto del código de barras.' },
         { t: 'Stock mínimo', d: 'La cantidad más baja que quieres tener de un producto antes de que se te acabe — si bajas de ese número, la tarjeta "Bajo mínimo" te avisa.' },
-        { t: 'Ticket', d: 'La solicitud que hace un cliente para que le generes su factura — sube su comprobante de pago y tú la conviertes en CFDI.' },
+        { t: 'Ticket', d: 'La solicitud que hace un cliente para pedir su factura — sube su comprobante de pago, el sistema valida sus datos fiscales, y tú subes la factura (CFDI) ya generada por tu propio sistema de facturación.' },
         { t: 'Utilidad neta', d: 'Lo que de verdad ganaste: tus ventas totales, menos el IVA que cobraste, menos tus gastos del mes.' },
         { t: 'Valuación del inventario', d: 'Cuánto dinero tienes invertido en todo lo que guardas — se calcula multiplicando lo que tienes de cada producto por su costo promedio, y sumando todo.' },
       ],
@@ -21981,8 +21981,13 @@
   if (els.invImportMapeoBody) els.invImportMapeoBody.addEventListener('change', manejarCambioMapeoImport);
   if (els.invImportMapeoBody)
     els.invImportMapeoBody.addEventListener('click', (e) => {
-      if (e.target.classList.contains('campo-ayuda')) {
-        abrirAyudaInventario(e.target.dataset.campo);
+      // .closest(), no e.target directo: desde que .campo-ayuda lleva
+      // ícono SVG + texto "Ayuda" adentro, un clic sobre esos hijos hace
+      // que e.target sea el <svg>/texto, nunca el <button> — un check
+      // exacto de classList se habría roto en silencio.
+      const btn = e.target.closest('.campo-ayuda');
+      if (btn) {
+        abrirAyudaInventario(btn.dataset.campo);
       }
     });
   if (els.btnInvAyudaAbrir) els.btnInvAyudaAbrir.addEventListener('click', () => abrirAyudaInventario(null));
@@ -22093,7 +22098,8 @@
   if (els.invProductoModalOverlay)
     els.invProductoModalOverlay.addEventListener('click', (e) => {
       if (e.target === els.invProductoModalOverlay) cerrarProductoModal();
-      if (e.target.classList.contains('campo-ayuda')) abrirAyudaInventario(e.target.dataset.campo);
+      const btnAyuda = e.target.closest('.campo-ayuda');
+      if (btnAyuda) abrirAyudaInventario(btnAyuda.dataset.campo);
     });
   if (els.btnInvModalGuardar) els.btnInvModalGuardar.addEventListener('click', guardarProductoInv);
 
@@ -22103,7 +22109,8 @@
   if (els.invMovimientoModalOverlay)
     els.invMovimientoModalOverlay.addEventListener('click', (e) => {
       if (e.target === els.invMovimientoModalOverlay) cerrarMovimientoModal();
-      if (e.target.classList.contains('campo-ayuda')) abrirAyudaInventario(e.target.dataset.campo);
+      const btnAyuda = e.target.closest('.campo-ayuda');
+      if (btnAyuda) abrirAyudaInventario(btnAyuda.dataset.campo);
     });
   if (els.btnInvMovGuardar) els.btnInvMovGuardar.addEventListener('click', guardarMovimientoInv);
   if (els.invMovCostoOriginal) els.invMovCostoOriginal.addEventListener('input', actualizarPreviewCostoUsdMovimiento);

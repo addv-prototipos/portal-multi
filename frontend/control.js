@@ -2850,7 +2850,7 @@
   function chipsFuncionesPlan(plan) {
     const chips = [];
     chips.push({ texto: plan.max_usuarios ? `${plan.max_usuarios} usuarios` : 'Usuarios sin límite', on: true });
-    chips.push({ texto: 'Facturación', on: plan.facturacion_habilitada });
+    chips.push({ texto: 'Gestión de facturas', on: plan.facturacion_habilitada });
     chips.push({ texto: 'Ventas', on: plan.ventas_habilitado });
     chips.push({ texto: 'Gastos', on: plan.gastos_habilitado });
     chips.push({ texto: 'Inventarios', on: plan.inventarios_habilitado });
@@ -3021,7 +3021,7 @@
     '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
 
   const MODULOS_WIZARD_DEF = [
-    { campo: 'facturacion_habilitada', titulo: 'Facturación', desc: 'Tickets, constancias, CFDI',
+    { campo: 'facturacion_habilitada', titulo: 'Gestión de facturas', desc: 'Tickets, constancias, validación de datos fiscales',
       icono: '<path d="M9 14l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>' },
     { campo: 'ventas_habilitado', titulo: 'Ventas', desc: 'Vista Ventas, base de Cuentas por cobrar',
       icono: '<path d="M4 7h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke-linejoin="round"/><path d="M8 7V5a4 4 0 0 1 8 0v2" stroke-linecap="round"/>' },
@@ -3051,7 +3051,7 @@
   // usuario, 2026-10-01).
   const REPORTES_WIZARD_DEF = [
     { campo: 'reportes_por_reporte_habilitado', etiqueta: 'Por reporte (automático / manual / cierre mensual)',
-      modulos: ['facturacion', 'ventas'], requiere: 'Facturación o Ventas',
+      modulos: ['facturacion', 'ventas'], requiere: 'Gestión de facturas o Ventas',
       habilitado: () => planWizardState.facturacion_habilitada || planWizardState.ventas_habilitado },
     { campo: 'reportes_cortes_habilitado', etiqueta: 'Cortes de ventas',
       modulos: ['ventas'], requiere: 'Ventas',
@@ -3063,11 +3063,11 @@
       modulos: ['inventarios'], requiere: 'Inventarios',
       habilitado: () => planWizardState.inventarios_habilitado },
     { campo: 'reportes_estado_tickets_habilitado', etiqueta: 'Estado de tickets',
-      modulos: ['facturacion'], requiere: 'Facturación',
+      modulos: ['facturacion'], requiere: 'Gestión de facturas',
       habilitado: () => planWizardState.facturacion_habilitada },
   ];
 
-  const CHIP_DEP_NOMBRES = { facturacion: 'Facturación', ventas: 'Ventas', gastos: 'Gastos', inventarios: 'Inventarios' };
+  const CHIP_DEP_NOMBRES = { facturacion: 'Gestión de facturas', ventas: 'Ventas', gastos: 'Gastos', inventarios: 'Inventarios' };
 
   function planWizardStateVacio() {
     return {
@@ -3141,10 +3141,10 @@
     }
 
     if (campo === 'portal_clientes_habilitado' && encendiendo && !planWizardState.facturacion_habilitada) {
-      showToast('Aviso: el portal de clientes no mostrará nada útil sin Facturación activa.');
+      showToast('Aviso: el portal de clientes no mostrará nada útil sin Gestión de facturas activa.');
     }
     if (campo === 'facturacion_habilitada' && !encendiendo && planWizardState.portal_clientes_habilitado) {
-      showToast('Aviso: el portal de clientes sigue encendido pero sin Facturación no mostrará nada útil.');
+      showToast('Aviso: el portal de clientes sigue encendido pero sin Gestión de facturas no mostrará nada útil.');
     }
 
     if (['facturacion_habilitada', 'ventas_habilitado', 'gastos_habilitado', 'inventarios_habilitado'].includes(campo)) {
@@ -3320,7 +3320,7 @@
       return `<tr class="nivel2"><td class="nombre">${nombre}</td><td><span class="planes-chip${on ? '' : ' is-apagado'}">${on ? 'Incluido' : 'Oculto'}</span></td></tr>`;
     }
     let html = '';
-    html += fila('Facturación', planWizardState.facturacion_habilitada);
+    html += fila('Gestión de facturas', planWizardState.facturacion_habilitada);
     html += fila('Ventas', planWizardState.ventas_habilitado);
     html += filaN2('Cuentas por cobrar', planWizardState.cxc_habilitado);
     html += fila('Gastos', planWizardState.gastos_habilitado);
@@ -5300,7 +5300,7 @@
     planes: {
       titulo: 'Ayuda — Planes',
       items: [
-        { titulo: '¿Qué es un plan?', texto: 'Un conjunto con nombre de funciones y límites (Facturación, portal de clientes, sucursales, marca propia, cuota de disco) — se crea sin pensar en ningún cliente todavía.' },
+        { titulo: '¿Qué es un plan?', texto: 'Un conjunto con nombre de funciones y límites (Gestión de facturas, portal de clientes, sucursales, marca propia, cuota de disco) — se crea sin pensar en ningún cliente todavía.' },
         { titulo: '¿Cómo se usa?', texto: 'Se asigna después, desde la ficha de cada empresa (pestaña "Plan y funciones") — al asignarlo, sus valores se copian a esa empresa.' },
         { titulo: 'Editar un plan ya asignado', texto: 'NO cambia a las empresas que ya lo tienen — cada una conserva sus valores hasta que alguien la reasigne a mano desde su ficha.' },
         { titulo: 'Archivar', texto: 'Deja de ofrecerse para asignar a empresas nuevas — las que ya lo tienen asignado siguen funcionando exactamente igual. Reversible con "Reactivar".' },
