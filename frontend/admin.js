@@ -10138,8 +10138,11 @@
         showToast(data.error || 'No se pudo actualizar el ticket.', true);
         return;
       }
-      showToast('Ticket actualizado.');
+      // Cerrar antes de notificar: con el modal abierto, el toast nace
+      // dentro de él (contenedorAvisoActivo) y se ocultaría junto con el
+      // modal en la línea siguiente.
       cerrarTicketModal();
+      showToast('Ticket actualizado.');
       cargarTickets();
     } catch (err) {
       showToast('No se pudo conectar con el servidor.', true);
@@ -10256,8 +10259,8 @@
         showToast(data.error || 'No se pudo subir la factura.', true);
         return;
       }
-      showToast(data.mensaje || 'Factura cargada.');
       cerrarTicketModal();
+      showToast(data.mensaje || 'Factura cargada.');
       cargarTickets();
     } catch (err) {
       showToast('No se pudo conectar con el servidor.', true);
@@ -12796,8 +12799,10 @@
         }
         return;
       }
-      showToast(`Usuario ${data.rfc} creado correctamente. Se envió una invitación a ${email}.`);
+      // Cerrar antes de notificar (mismo motivo que en el modal de tickets):
+      // el toast nace dentro del modal abierto y se ocultaría con él.
       cerrarCrearUsuarioModal();
+      showToast(`Usuario ${data.rfc} creado correctamente. Se envió una invitación a ${email}.`);
       cargarUsuarios();
       // Si se creó desde el botón de alta de "Plan de suscripción"
       // (usuario master pendiente), refresca esa tarjeta para que pase de
@@ -12921,8 +12926,8 @@
         }
         return;
       }
-      showToast(`Usuario ${data.rfc} actualizado correctamente.`);
       cerrarEditarUsuarioModal();
+      showToast(`Usuario ${data.rfc} actualizado correctamente.`);
       cargarUsuarios();
     } catch (err) {
       els.editarUsuarioErrorGeneral.textContent = 'No se pudo conectar con el servidor.';
@@ -13119,8 +13124,11 @@
         els.passwordModalError.textContent = data.error || 'No se pudo actualizar la contraseña.';
         return;
       }
-      showToast(`Contraseña de ${usuarioActual.rfc} actualizada.`);
+      // Mensaje capturado antes de cerrar porque cerrarPasswordModal() limpia
+      // usuarioActual — y cerrar antes de notificar, mismo motivo de siempre.
+      const mensajeGuardado = `Contraseña de ${usuarioActual.rfc} actualizada.`;
       cerrarPasswordModal();
+      showToast(mensajeGuardado);
       cargarUsuarios();
     } catch (err) {
       els.passwordModalError.textContent = 'No se pudo conectar con el servidor.';
@@ -19576,8 +19584,8 @@
         else els.invModalErrorGeneral.textContent = data.mensaje || data.error || 'No se pudo guardar el producto.';
         return;
       }
-      showToast(data.mensaje || 'Producto guardado.');
       cerrarProductoModal();
+      showToast(data.mensaje || 'Producto guardado.');
       await cargarInventarios();
       cargarDashboardInventario();
     } catch (err) {

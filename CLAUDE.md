@@ -931,6 +931,23 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   (generalizar la palomita de éxito de "Registrar venta"/"Cobro CxC" a
   cada guardado del sitio) — el usuario todavía no elige entre las 6
   propuestas del segundo Artifact; no asumir que ya se hizo.
+- **Consecuencia del punto anterior: `showToast()` ANTES de cerrar el
+  modal lo oculta sin que nadie lo vea** (punto 434, 2026-10-27): como el
+  toast nace DENTRO de `.modal-overlay:not([hidden]) .modal` cuando hay
+  un modal abierto, el patrón `showToast(...); cerrarXModal();` inserta
+  el toast como hijo del modal y lo oculta un instante después al
+  ocultar ese mismo modal — el usuario ve el modal cerrarse sin ningún
+  mensaje (bug real reportado por el usuario en Planes de `/control`,
+  encontrado también en Super Admins, y en Tickets/Usuarios/Producto de
+  `admin.js`, 8 sitios en total). Orden correcto: cerrar el modal
+  PRIMERO, mostrar el toast DESPUÉS — con el modal ya oculto,
+  `contenedorAvisoActivo()` cae a la vista activa detrás de él, que sigue
+  visible. Si el mensaje del toast lee una variable que la propia función
+  de cierre resetea (`editandoId`, `usuarioActual`, etc. — pasa en
+  Planes y en "Cambiar contraseña"), capturar el mensaje en una constante
+  ANTES de cerrar, no después. Cualquier flujo nuevo de
+  guardar-y-cerrar-modal: grepear `showToast(` seguido de un cierre de
+  modal antes de dar el orden por bueno.
 
 - **Un bloqueo de plan/negocio nunca se pinta igual que un error de
   campo** (punto 424, 2026-10-25): `.field-error` (clase compartida de

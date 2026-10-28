@@ -24708,3 +24708,50 @@ del sistema, no reproducibles, descartadas como ruido).
 Archivos adicionales: `control/utils/hostDiscoCapacidad.js` (nuevo),
 `control/utils/discoCapacidad.js`, `frontend/control.js`,
 `docker-compose.yml`, `CLAUDE.md`, `PROJECT_STATE.md` (este addendum).
+
+## Punto 434 — Toast que se cierra con el modal que lo contiene, en 8 sitios (27 oct 2026, CERRADO)
+
+Usuario editó un plan en `/control`, el modal cerró pero no vio ningún
+mensaje de guardado/error. Bug real, sistémico — no del toast en sí: el
+toast de "guardado" se dispara **ANTES** de cerrar el modal
+(`showToast(...); cerrar...Modal(); ...`), y desde el punto 423 el toast
+ya no es flotante — `contenedorAvisoActivo()` lo inserta DENTRO del
+`.modal-overlay:not([hidden]) .modal` abierto, que es exactamente el que
+la línea siguiente oculta con `hidden = true` — el toast nace, vive un
+instante como hijo de un contenedor que se vuelve invisible al tick
+siguiente, el usuario nunca lo ve.
+
+**8 sitios con el mismo bug-shape** (encontrados con `grep -A2
+"showToast(" | grep -B2 "cerrar.*Modal("` en los 2 archivos): Planes y
+Super Admins en `frontend/control.js`; estatus de ticket, factura
+cargada, crear usuario, editar usuario, cambiar contraseña y guardar
+producto en `frontend/admin.js`. Fix: invertir el orden (cerrar primero,
+notificar después) en los 8 — con el modal ya oculto,
+`contenedorAvisoActivo()` cae a la vista activa detrás de él (`main
+[id^="vista-"]:not([hidden])`), que sí sigue visible, y el toast aparece
+ahí con normalidad. **2 de los 8 necesitaron un paso extra**: el mensaje
+de Planes depende de `planEditandoId` y el de "Cambiar contraseña" de
+`usuarioActual.rfc` — ambas variables las limpia la propia función de
+cierre (`cerrarPlanModal()`/`cerrarPasswordModal()`), así que invertir el
+orden a secas habría roto el texto del mensaje (siempre "Plan creado.",
+o `undefined.rfc`). Se capturó el mensaje en una constante ANTES de
+cerrar, en esos 2 únicamente — los otros 6 usan datos de la respuesta del
+servidor (`data.rfc`, `data.mensaje`, texto literal), independientes del
+estado que el cierre resetea, así que un reorden directo bastó.
+
+**Lección para sesiones futuras**: cualquier flujo nuevo de
+guardar-y-cerrar-modal debe cerrar el modal ANTES de llamar
+`showToast()`, nunca después — y si el mensaje del toast lee una
+variable que la función de cierre resetea (`editandoId`, `usuarioActual`,
+etc.), capturarla en una constante antes de cerrar. Mismo criterio
+aplica a cualquier `cerrar...Modal()`/`cerrar...Form()` nuevo en
+`admin.js`/`control.js` — grepear `showToast(` seguido de un cierre de
+modal antes de dar por bueno el orden.
+
+Verificado: `node --check` en ambos archivos, rebuild + recreate de
+`frontend` real en Docker. Extensión de Chrome desconectada esta sesión
+— no hubo clic real confirmando visualmente el toast tras el fix,
+pendiente de que el usuario lo confirme.
+
+Archivos: `frontend/control.js`, `frontend/admin.js`, `PROJECT_STATE.md`
+(este punto).

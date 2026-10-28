@@ -3478,8 +3478,15 @@
         els.planesModalError.textContent = data.error || 'No se pudo guardar el plan.';
         return;
       }
-      showToast(planEditandoId ? 'Plan actualizado.' : 'Plan creado.');
+      // El toast nace DENTRO del contenedor activo (contenedorAvisoActivo) —
+      // con el modal todavía abierto, eso es el modal mismo, así que hay
+      // que cerrar PRIMERO (lo que lo oculta a él y a cualquier hijo) y
+      // recién después mostrar el toast, o el aviso se cierra con el modal
+      // antes de que nadie lo vea. Mensaje capturado antes de cerrar porque
+      // cerrarPlanModal() limpia planEditandoId.
+      const mensajeGuardado = planEditandoId ? 'Plan actualizado.' : 'Plan creado.';
       cerrarPlanModal();
+      showToast(mensajeGuardado);
       cargarPlanes();
     } catch (err) {
       els.planesModalError.textContent = 'No se pudo conectar con el servidor.';
@@ -4499,8 +4506,11 @@
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { els.superModalError.textContent = data.error || 'No se pudo guardar.'; return; }
-      showToast(superEditando ? `Contraseña de "${superEditando}" actualizada.` : `Super "${usuario}" creado.`);
+      // Mismo motivo que en Planes: cerrar antes de notificar, o el toast
+      // se oculta junto con el modal que lo contiene.
+      const mensajeGuardado = superEditando ? `Contraseña de "${superEditando}" actualizada.` : `Super "${usuario}" creado.`;
       cerrarSuperModal();
+      showToast(mensajeGuardado);
       cargarSuperAdmins();
     } catch (_) { els.superModalError.textContent = 'No se pudo conectar.'; }
     finally { els.superBtnGuardar.disabled = false; if (els.superBtnGuardarLabel) els.superBtnGuardarLabel.textContent = superEditando ? 'Actualizar' : 'Crear'; }
