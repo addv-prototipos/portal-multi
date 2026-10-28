@@ -108,6 +108,15 @@ const COLUMNAS_NUEVAS = [
   { nombre: 'disco_cuota_mb', definicion: 'INT NULL' },
   { nombre: 'disco_bytes_usados_cache', definicion: 'BIGINT NULL' },
   { nombre: 'disco_cache_actualizado_en', definicion: 'DATETIME NULL' },
+  // Upscale de almacenamiento (punto en curso): suma denormalizada de lo
+  // que este tenant ya acumuló en tenant_upscales_activos — disco_cuota_mb
+  // de arriba YA incluye este monto (se suma ahí al momento de la compra),
+  // estas 2 columnas existen solo para no tener que hacer JOIN/SUM cada
+  // vez que se pinta "tu cuota base + upscales" en Mi Cuenta o en el
+  // desglose de /control. DEFAULT 0 — ningún tenant existente tiene
+  // upscales comprados todavía.
+  { nombre: 'disco_upscale_mb', definicion: 'INT NOT NULL DEFAULT 0' },
+  { nombre: 'disco_upscale_monto', definicion: 'DECIMAL(10,2) NOT NULL DEFAULT 0' },
   // Ampliación del gobierno de funcionalidades (punto 349-350, ver
   // stitch/gobierno-funcionalidades/NOTAS.md — 12 reglas de dependencia):
   // Ventas, Gastos, Inventarios, Auditoría (de /admin, por tenant — no
@@ -642,6 +651,49 @@ async function asegurarTablaUpscale(db) {
       actualizado_en DATETIME NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Primer caso real de funcionalidad con un efecto concreto en el
+  // sistema (punto en curso, "Almacenamiento +500 MB"): NULL para
+  // cualquier funcionalidad que NO otorgue disco (ej. "Soporte
+  // prioritario 24/7") — ver utils/tenantUpscaleCompra.js, que es el
+  // único lugar que lee esta columna para decidir cuánta cuota sumar.
+  const [columnasUpscale] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'funcionalidades_upscale'`
+  );
+  if (!columnasUpscale.map((c) => c.COLUMN_NAME).includes('disco_mb')) {
+    await db.query('ALTER TABLE funcionalidades_upscale ADD COLUMN disco_mb INT NULL');
+  }
+}
+
+// Asignación real de una funcionalidad_upscale a un tenant (el "trabajo
+// aparte" que el comentario de arriba dejaba fuera de alcance a
+// propósito) — un renglón por cada compra. tenant_id/funcionalidad_id sin
+// FK (mismo motivo que plan_id en tenants: control_app no tiene privilegio
+// REFERENCES). primer_cobro_estado describe SOLO el cobro del primer
+// ciclo: 'cobrado_hoy' si se pagó de inmediato vía Stripe Checkout
+// (faltaban más de 20 días para el corte), 'pendiente_corte' si se aplicó
+// sin cobrar porque faltaban 20 días o menos — a partir de ahí, el monto
+// ya vive en tenants.disco_upscale_monto y se cobra junto con el plan en
+// cada corte futuro sin distinción (ver tenantUpscaleCompra.js).
+async function asegurarTablaUpscaleActivos(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS tenant_upscales_activos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenant_id INT NOT NULL,
+      funcionalidad_id INT NOT NULL,
+      cantidad INT NOT NULL DEFAULT 1,
+      disco_mb_otorgado INT NULL,
+      monto_recurrente DECIMAL(10,2) NOT NULL,
+      ciclo ENUM('mensual','anual') NOT NULL,
+      primer_cobro_estado ENUM('cobrado_hoy','pendiente_corte') NOT NULL,
+      stripe_checkout_session_id VARCHAR(255) NULL,
+      activo TINYINT(1) NOT NULL DEFAULT 1,
+      creado_en DATETIME NOT NULL,
+      actualizado_en DATETIME NOT NULL,
+      KEY idx_tenant_upscales_tenant (tenant_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 }
 
 // Idempotencia de webhooks de Stripe: un mismo evento puede reenviarse
@@ -669,6 +721,7 @@ module.exports = {
   asegurarTablaOnboardingBorradores,
   asegurarTablaStripeEventos,
   asegurarTablaUpscale,
+  asegurarTablaUpscaleActivos,
   // Exportadas solo para que test/unit/ensureSchema.test.js derive sus
   // fixtures y conteos esperados de la fuente real, en vez de mantener una
   // copia a mano que se desincroniza cada vez que se agrega una columna

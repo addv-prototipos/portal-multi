@@ -24420,3 +24420,230 @@ Archivos: `control/scripts/ensureSchema.js`, `control/utils/planes.js`,
 `control/test/unit/planes.test.js`,
 `control/test/integration/control.test.js`, `PROJECT_STATE.md` (este
 punto).
+
+## Punto 433 — Indicador de almacenamiento en Mi Cuenta (A5) + compra de upscale (B5) + Capacidad de disco en /control (27 oct 2026, CERRADO salvo validación Docker/MySQL real)
+
+Propuesta visual previa (Artifact, A1-A5 + B1-B8 + explicador de cobro +
+Sección C) aprobada por el usuario: A5 (medidor permanente + aviso
+condicional al 80%/95%) y B5 (modal con simulador de fecha) para Mi
+Cuenta, más una tarjeta nueva "Capacidad de disco" en /control → Super
+Admins. 3 decisiones explícitas del usuario antes de implementar: (1)
+uso de disco incremental en cada subida, no solo recálculo manual; (2)
+el upscale aplicado antes del corte queda como cargo pendiente visible
+en /control, sin cobro recurrente automático real todavía (ese
+mecanismo no existe — `suscripcion_estatus` se sigue editando a mano);
+(3) el upscale es **recurrente**: sube `disco_cuota_mb` de forma
+permanente y se suma para siempre a la mensualidad/anualidad, no es una
+compra de una sola vez.
+
+**Reutilizado en vez de reinventado**: `funcionalidades_upscale` ya
+existía (catálogo genérico con CRUD completo en /control → "Upscale y
+Stripe", nunca conectado a ningún tenant) — se le agregó una sola
+columna nullable `disco_mb` (NULL para funcionalidades que no otorgan
+disco, ej. "Soporte prioritario 24/7"). El operador da de alta
+"Almacenamiento +500 MB" ($50 MXN, recurrente) desde esa UI ya
+existente — **no se construyó ninguna pantalla nueva de catálogo**. Solo
+existe UNA funcionalidad "comprable" de disco a la vez: la primera fila
+activa con `disco_mb` no nulo (`obtenerFuncionalidadDiscoDisponible()`).
+
+**Esquema nuevo** (`control/scripts/ensureSchema.js`): `tenants.disco_upscale_mb`/
+`disco_upscale_monto` (denormalizado, el total acumulado); tabla
+`tenant_upscales_activos` (un renglón por compra, `primer_cobro_estado`
+`cobrado_hoy`/`pendiente_corte` — distingue SOLO si el primer ciclo se
+cobró ya o no, el monto recurrente ya vive en `disco_upscale_monto`
+desde el momento de la compra en los dos casos); `funcionalidades_upscale.disco_mb`;
+`ajustes_globales` 4 claves nuevas (`disco_capacidad_total_mb`,
+`disco_alerta_email`, `disco_alerta_estado` con histéresis 70/80%,
+`disco_alerta_enviada_en`) vía `control/utils/ajustesGlobales.js`
+extendido (mismo patrón que `imagen_max_mb`/`import_max_filas`, punto
+370).
+
+**Flujo de compra** (`control/utils/tenantUpscaleCompra.js`): regla de
+20 días confirmada por el usuario — `simularCompraUpscale()` calcula
+días restantes contra `suscripcion_expira_en` (zona `America/Mexico_City`,
+mismo criterio que `tenantSuscripcion.js`) y decide `cobroInmediato`.
+Si `>20` días: `confirmarCompraUpscale()` crea un Stripe Checkout
+Session con `price_data` inline (mismo "cobrar primero, activar
+después" que onboarding, punto 425) — **nada se aplica hasta que el
+webhook confirme** (`confirmarUpscalePagado()`, enrutado desde
+`stripePagos.js:procesarEventoWebhook` por `metadata.tipo === 'upscale'`,
+`require()` perezoso para evitar un ciclo de dependencias entre los 2
+archivos). Si `<=20` días: se aplica de inmediato sin tocar Stripe
+(`primer_cobro_estado = 'pendiente_corte'`) — el cobro real de ese
+primer ciclo lo termina de procesar un operador en el siguiente corte
+manual (decisión 2 de arriba).
+
+**Primera llamada interna en sentido backend→control** (hasta ahora
+todas las llamadas `/internal/*` eran control→backend, ver
+`notificarBackend.js`): el admin del tenant compra desde Mi Cuenta
+(backend) pero el catálogo/Stripe/`disco_cuota_mb` vive en control — 2
+endpoints nuevos (`POST /internal/upscale/simular`,
+`POST /internal/upscale/confirmar`), mismo `INTERNAL_CACHE_SECRET`
+compartido, mismo `secretoInternoValido()` (duplicado, no importado —
+mismo motivo que siempre: `backend/`/`control/` son builds de Docker
+separados). `CONTROL_INTERNAL_URL` nuevo en `docker-compose.yml`
+(`http://control:4001`, simétrico a `BACKEND_INTERNAL_URL` ya
+existente). Backend expone 2 proxies delgados:
+`GET /api/admin/mi-cuenta/upscale/disponible` y
+`POST /api/admin/mi-cuenta/upscale/comprar` (ambos
+`administrador`/`super`, 404 sin tenant — el sitio base no tiene cuota
+de disco).
+
+**Uso de disco incremental** (`backend/utils/discoUso.js`,
+`ajustarUsoDisco()`): escribe directo a `control_tenants.tenants` desde
+`backend` (ya tenía permiso de escritura ahí — `marca_logo_url`/
+`tema_json`/etc. ya lo hacían) en los 3 puntos YA gateados por cuota
+(punto 347): foto de ticket, CSF, imagen de producto
+(`guardarImagenProducto()` ya regresaba `pesoBytes` sin usar — quedó
+conectado). **Límite documentado a propósito**: solo SUMA en cada
+subida nueva, nunca resta al reemplazar/borrar una imagen de producto
+(no hay columna que guarde el tamaño de un archivo ya subido para poder
+restarlo) — el caché puede ir quedando por encima del uso real con el
+tiempo; "Recalcular" en /control sigue siendo la reconciliación
+periódica, antes única fuente del dato, ahora corrector. Si una sesión
+futura necesita exactitud real, el camino es un `HeadObjectCommand`
+contra la key vieja antes de sobrescribir (no implementado, fuera de
+alcance de este punto).
+
+**Mi Cuenta (A5/B5)**: `GET /api/admin/mi-cuenta` expone
+`empresa.almacenamiento` (cuotaMb/usadosBytes/porcentaje/actualizadoEn)
+solo si `discoCuotaMb` no es null — nunca un 0% inventado sin cuota.
+`aplicarEstadoDiscoMiCuenta()` en `admin.js`: medidor permanente
+siempre visible (si hay cuota), banner `.micuenta-disco-aviso` SOLO al
+cruzar 80%/95% (reusa el lenguaje visual de `.aviso-cuota`, punto 424).
+`abrirModalUpscale()`/`pintarResumenUpscale()`: modal con línea de
+tiempo (posición de "Corte" escalada visualmente 0-40 días, el texto de
+`upscale-billing-box` es la respuesta real calculada server-side, la
+línea es solo ilustrativa). Vuelta de Stripe Checkout:
+`success_url`/`cancel_url` apuntan a `/admin?vista=mi-cuenta&upscale=exito|cancelado`
+— `admin.js` consume el parámetro una sola vez (`history.replaceState`)
+y muestra el toast correspondiente.
+
+**Capacidad de disco en /control** (`control/utils/discoCapacidad.js`):
+suma `disco_cuota_mb` de todos los tenants (`estado != 'baja'`) por
+plan y por empresa — tenants con cuota `NULL` ("ilimitada") quedan
+FUERA de la suma y se reportan aparte (`tenantsIlimitados`), nunca
+tratados como 0. Semáforo (verde/ámbar/rojo) **siempre visible**,
+independiente de si hay correo configurado — decisión que se tomó por
+el usuario al construir la propuesta visual y quedó confirmada al
+aprobarla. Alerta por correo con histéresis 70/80% (`discoCapacidadAlerta.js`,
+reusa `enviarCorreoBase()` ya existente en `notificarBackend.js` —
+cero SMTP nuevo) — se evalúa en caliente al guardar ajustes o editar un
+tenant (fire-and-forget, después de responder) y con un intervalo de
+respaldo cada hora (`iniciarAlertaCapacidadDiscoAutomatica()`, mismo
+patrón que `iniciarRecordatoriosAutomaticos()`).
+
+**Puntos abiertos, explícitos, no resueltos por este punto** (quedaron
+marcados en la propuesta visual antes de aprobarse): si alguna sesión
+futura construye cobro recurrente automático real, debe decidir
+explícitamente cómo reconciliar `tenant_upscales_activos.primer_cobro_estado = 'pendiente_corte'`
+contra ese mecanismo (hoy es 100% manual, un operador lo ve y lo cobra
+"a mano" sin ninguna UI dedicada en /control más allá de los datos
+crudos en la tabla); si el precio anual de un upscale queda sin
+configurar, `calcularResumenCompra()` cae a `precio_mensual` como
+sustituto — no es un error, pero tampoco se validó con el usuario que
+sea la intención correcta para un tenant con ciclo anual.
+
+**Sin validar contra Docker/MySQL/Stripe test-mode real en esta
+sesión** (limitación de este entorno de generación, ver sección
+correspondiente más arriba) — validado con `node --check` en los 14
+archivos tocados/nuevos, suite unitaria de backend 804/804 en verde
+(1 assert de `tenantContext.test.js` actualizado para incluir el campo
+nuevo `discoCacheActualizadoEn`), suite de integración de backend
+570/570 en verde (sin tocar ningún assert), suite unitaria de control
+396/399 (3 fallas preexistentes de un punto anterior del mismo día, sin
+relación — confirmado con `git stash`), suite de integración de control
+106/110 (4 fallas preexistentes de Turnstile/M-06, ya documentadas en
+el punto 432, confirmado con `git stash`). Antes de producción:
+levantar Docker/MySQL real, probar la compra de upscale con tarjeta de
+prueba de Stripe en ambos caminos (>20 días y <=20 días), confirmar que
+el webhook local requiere `stripe listen` corriendo (mismo gotcha ya
+documentado arriba, punto 428) y correr Playwright real sobre los 2
+flujos nuevos de Mi Cuenta y la tarjeta de /control.
+
+Archivos: `control/scripts/ensureSchema.js`, `control/server.js`,
+`control/utils/ajustesGlobales.js`, `control/utils/discoCapacidad.js`
+(nuevo), `control/utils/discoCapacidadAlerta.js` (nuevo),
+`control/utils/tenantUpscaleCompra.js` (nuevo),
+`control/utils/stripePagos.js`, `backend/server.js`,
+`backend/utils/discoUso.js` (nuevo), `backend/utils/tenantContext.js`,
+`backend/utils/inventarioImagen.js`,
+`backend/test/unit/tenantContext.test.js`, `frontend/admin.html`,
+`frontend/admin.css`, `frontend/admin.js`, `frontend/control.html`,
+`frontend/control.js`, `docker-compose.yml`, `PROJECT_STATE.md` (este
+punto).
+
+### Addendum (mismo día, mismo punto 433) — Capacidad total REAL desde Garage + tope por tenant, validado contra Docker real
+
+El usuario, tras ver la tarjeta funcionando, pidió 2 cosas más: (1) que
+"Capacidad total de disco" nunca se capture a mano, sino que se lea REAL
+de donde vive el bucket; (2) un tope máximo de disco POR TENANT,
+indistinto del plan, para que una sola empresa no se quede con todo el
+disco. 2 preguntas resueltas con el usuario antes de tocar código:
+fuente de la capacidad real = admin API de Garage (confirmado antes de
+implementar, con `curl` real contra el contenedor: `GET /v1/status` con
+`Authorization: Bearer <GARAGE_ADMIN_TOKEN>` expone
+`nodes[].dataPartition.{total,available}` — bytes reales del filesystem
+del host, no el `role.capacity` declarado en el layout de replicación,
+que es otro campo); candado del tope = rechazar con error claro, nunca
+recortar en silencio.
+
+**`control/utils/garageCapacidad.js`** (nuevo): `obtenerCapacidadRealGarage()`
+suma `dataPartition.total`/`available` de todos los nodos `isUp` (correcto
+hoy con 1 nodo, y para un futuro cluster multi-nodo del Segmento 8 sin
+tocar este archivo). `GARAGE_ADMIN_URL`/`GARAGE_ADMIN_TOKEN` nuevos en el
+entorno de `control` en `docker-compose.yml` (mismo token fijo de
+`docker/garage/garage.toml`, solo desarrollo). `discoCapacidad.js` llama
+a esto SIEMPRE primero; si Garage no responde, cae al último valor que
+sí se logró leer (cacheado en `ajustes_globales.disco_capacidad_total_mb`,
+que dejó de ser editable a mano y pasó a ser solo caché de la última
+lectura real) — el resumen expone `capacidadFuente: 'garage'|'cache'|'sin_datos'`
+para que el frontend lo muestre (`control.js`/`control.html`: badge junto
+a "Capacidad total" + botón "Actualizar" para forzar una relectura).
+
+**Tope por tenant** (`ajustes_globales.disco_tope_tenant_mb`, nuevo):
+un solo candado para los 2 caminos que pueden subir `disco_cuota_mb` de
+un tenant — `tenantEdicion.js:resolverPlanYFunciones()` (asignar plan O
+editar la excepción a mano, el check vive DESPUÉS de resolver el valor
+final de los 2 caminos, antes de `validarReglasDependenciaTenant`) y
+`tenantUpscaleCompra.js` (`validarTopeTenant()`, antes de tocar Stripe —
+nunca cobrar algo que de todas formas se va a rechazar). La tarjeta
+"Capacidad total de disco" (manual) de la UI se reemplazó por "Tope
+máximo por empresa" (manual, el campo que sí tiene sentido que el
+operador capture).
+
+**Bug real encontrado probando en vivo contra Docker/MySQL real** (no en
+revisión de código): `setValorTexto(clave, null)` hacía
+`DELETE FROM ajustes_globales WHERE clave=?` para "sin valor" — truena
+con `DELETE command denied to user 'control_app'` (`control_app` no
+tiene `DELETE` en NINGUNA tabla, confirmado con
+`grep -rn "DELETE FROM" control/` → cero resultados en todo el código
+existente, nadie lo había necesitado hasta este punto). Reproducido real
+al limpiar el tope por tenant desde el endpoint. Fix: "sin valor" ahora
+se guarda como cadena vacía (`''`) en vez de borrar la fila;
+`getValorTexto()` trata `''` igual que "la fila no existe". Detalle
+completo y la regla general para `control/` en `CLAUDE.md`.
+
+**Validado real, de punta a punta, contra el stack de Docker corriendo**
+(no solo `node --check`/tests): `docker compose build` +
+`up -d --force-recreate` de `control`/`frontend` (y antes `backend`, al
+confirmar el primer tramo del punto 433 — el usuario reportó "no veo mis
+cambios" porque los contenedores corrían con imágenes de antes de la
+sesión, gotcha ya documentado arriba sobre rebuild). `curl` real contra
+`GET/PUT /api/control/ajustes/disco-capacidad`: capacidad real leída de
+Garage (`capacidadFuente:"garage"`, ~1007 GB total / ~945 GB libres en
+el host de desarrollo en ese momento), guardar/limpiar el tope, y el
+candado de tope rechazando (`PUT /api/control/tenants/t2` con
+`discoCuotaMb:2000` contra un tope de 1500 → 400 con el mensaje
+esperado) y aceptando (1000 ≤ 1500 → 200) — tenant revertido a su valor
+original y tope limpiado al terminar, sin dejar datos de prueba.
+Suites: control 396/399 unitarias y 106/110 integración, mismas 3+4
+fallas preexistentes de antes de este punto (confirmado con `git stash`
+en el addendum anterior), sin regresiones nuevas.
+
+Archivos adicionales: `control/utils/garageCapacidad.js` (nuevo),
+`control/utils/ajustesGlobales.js`, `control/utils/discoCapacidad.js`,
+`control/utils/tenantEdicion.js`, `control/utils/tenantUpscaleCompra.js`,
+`control/server.js`, `control/test/unit/tenantEdicion.test.js`,
+`frontend/control.html`, `frontend/control.js`, `frontend/admin.css`,
+`docker-compose.yml`, `CLAUDE.md`, `PROJECT_STATE.md` (este addendum).

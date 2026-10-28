@@ -658,7 +658,22 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   proceso de deploy, no deuda de código.
 - **Credenciales angostas cross-tenant** (`control_app`): sin
   `REFERENCES`/`DELETE` en tablas de otros tenants — usar soft-delete en
-  vez de FK/DELETE físico en cualquier tabla cross-tenant.
+  vez de FK/DELETE físico en cualquier tabla cross-tenant. **El alcance es
+  más amplio de lo que suena** (punto 433, bug real encontrado probando
+  en vivo, no en revisión de código): `control_app` no tiene `DELETE` en
+  NINGUNA tabla, ni siquiera las propias de `control_tenants` como
+  `ajustes_globales` (confirmado: `grep -rn "DELETE FROM" control/` da
+  cero resultados en todo el código existente — nadie lo había
+  necesitado hasta este punto). Un `DELETE FROM ajustes_globales WHERE
+  clave=?` para implementar "borrar este ajuste" truena en runtime con
+  `DELETE command denied to user 'control_app'` — nunca se detecta con
+  `node --check` ni con tests que mockeen el pool. Patrón correcto para
+  "sin valor" en una tabla clave/valor: guardar cadena vacía (`''`) en
+  vez de borrar la fila, y que el getter trate `''` igual que "la fila no
+  existe" (ver `ajustesGlobales.js:getValorTexto/setValorTexto`). Antes
+  de escribir cualquier `DELETE FROM` nuevo en `control/`, asumir que
+  fallará y usar soft-delete/valor vacío en su lugar — no es una
+  excepción rara, es la regla por defecto en este servicio.
 - **Inputs numéricos**: asignar `.value =` a un `<input type="number">`
   sanea silenciosamente valores intermedios inválidos (efecto que NO
   ocurre con tecleo real) — validar con tecleo real (CDP/`computer`
@@ -1098,6 +1113,71 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `total_tenants === 0`, bloqueando con `codigo:'tiene_empresas'` →
   **409** (no 400 genérico) para que el frontend distinga ese caso de un
   error de validación.
+- **Capacidad real de Garage: correcta, pero en este entorno (Docker
+  Desktop + WSL2 en Windows) NO coincide con el disco real de Windows —
+  no es un bug, es la VM** (punto 433, addendum, 2026-10-27): el admin
+  API de Garage (`dataPartition.total`/`available`) reporta las
+  estadísticas REALES del filesystem ext4 dentro de la VM de WSL2
+  (`docker-desktop`), que vive en un disco virtual (vhdx) separado —
+  confirmado real: ese vhdx pesaba 38.1 GB en disco (sparse, poco
+  usado), pero el ext4 que Garage ve adentro reporta ~1007 GB
+  total/~945 GB libres, mientras los discos C:/D: de Windows tenían
+  36.9/43.8 GB libres reales. **La lectura de Garage es honesta sobre SU
+  PROPIO filesystem** — el desfase es 100% la capa de virtualización de
+  Docker Desktop en Windows, no un error de cálculo. En producción (VPS
+  Linux real, sin WSL2 de por medio) este mismo mecanismo SÍ refleja el
+  disco físico real del servidor — no hay nada que corregir ahí. Si una
+  sesión futura ve "el disponible no cuadra" en un entorno Windows de
+  desarrollo, esto es la explicación antes de asumir que el código está
+  mal — sí revisar primero que la fórmula use el dato real de Garage y
+  no una resta contra lo "comprometido" (ese SÍ fue un bug real, ya
+  corregido, ver el punto completo).
+- **Primera llamada interna en sentido backend→control** (punto 433,
+  2026-10-27): hasta entonces TODAS las llamadas `/internal/*` entre los
+  2 servicios eran control→backend (`notificarBackend.js`:
+  `notificarInvalidacionCache`/`activarTenantFisico`/`enviarCorreoBase`).
+  La compra de upscale desde Mi Cuenta necesitó el sentido contrario (el
+  admin del tenant está autenticado en `backend`, pero el catálogo/
+  Stripe/`disco_cuota_mb` viven en `control`) — mismo mecanismo exacto
+  (`INTERNAL_CACHE_SECRET` compartido, `secretoInternoValido()`
+  duplicado en los 2 `server.js`, nunca importado entre servicios), solo
+  invertido. Si se necesita otra llamada backend→control en el futuro,
+  replicar este patrón (`CONTROL_INTERNAL_URL` en `docker-compose.yml`,
+  default `http://control:4001`) en vez de inventar uno nuevo.
+- **Un campo "preparado pero nunca conectado" puede llevar meses en el
+  código sin que nadie lo note** (punto 433): `inventarioImagen.js:guardarImagenProducto()`
+  ya regresaba `pesoBytes` desde antes de este punto — ningún call site
+  lo usaba. Al construir el uso incremental de disco (punto 433), ese
+  campo ya estaba listo para conectarse, cero cambio de firma necesario.
+  Antes de agregar un campo "para después" a un valor de retorno, dejar
+  un comentario corto explicando para qué es — si no, una sesión futura
+  tiene que adivinar o re-derivarlo desde cero (en este caso se dedujo
+  bien, pero no siempre es tan obvio).
+- **Uso de disco incremental (punto 433): solo SUMA, nunca resta** —
+  `backend/utils/discoUso.js:ajustarUsoDisco()` se conectó en los 3
+  puntos ya gateados por cuota (punto 347: foto de ticket, CSF, imagen
+  de producto) pero SOLO en el camino de subida nueva. Reemplazar o
+  borrar una imagen de producto no resta el tamaño del archivo viejo —
+  no hay ninguna columna que guarde cuánto pesaba un archivo ya subido
+  para poder restarlo después. El caché (`disco_bytes_usados_cache`)
+  puede ir quedando por encima del uso real con el tiempo; el botón
+  "Recalcular" de /control (que antes era la ÚNICA fuente del dato)
+  ahora es la reconciliación periódica que lo corrige — sigue siendo
+  necesario, no quedó obsoleto. Si una sesión futura necesita exactitud
+  real en cada operación, el camino es un `HeadObjectCommand` contra la
+  key vieja antes de sobrescribirla (no implementado a propósito, para
+  no completar algo sin aprobación explícita del costo que agrega).
+- **`funcionalidades_upscale` (catálogo de /control → "Upscale y
+  Stripe") existía desde antes, sin conectar a ningún tenant — primer
+  uso real en el punto 433**: antes de construir una pantalla nueva para
+  "vender algo encima del plan base", revisar si esta tabla/UI ya cubre
+  el caso (CRUD completo: nombre, tipo_cobro recurrente/único, precios).
+  El patrón para conectarla a un efecto real del sistema es agregar UNA
+  columna nullable con ese efecto (ej. `disco_mb`, punto 433) — nunca
+  construir un catálogo paralelo. La asignación real a un tenant
+  específico (cuál funcionalidad, cuánto, cobrado cómo) es una tabla
+  aparte (`tenant_upscales_activos`), el catálogo nunca sabe quién lo
+  compró.
 
 ## Stack
 

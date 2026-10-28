@@ -363,6 +363,31 @@
     imagenMaxMbInput: document.getElementById('imagen-max-mb'),
     btnGuardarImagenMax: document.getElementById('btn-guardar-imagen-max'),
     btnGuardarImagenMaxLabel: document.getElementById('btn-guardar-imagen-max-label'),
+    // Sección C (propuesta aprobada): Capacidad de disco.
+    discoTopeTenantInput: document.getElementById('disco-tope-tenant-mb'),
+    btnGuardarDiscoTopeTenant: document.getElementById('btn-guardar-disco-tope-tenant'),
+    btnGuardarDiscoTopeTenantLabel: document.getElementById('btn-guardar-disco-tope-tenant-label'),
+    discoTopeTenantError: document.getElementById('disco-tope-tenant-error'),
+    discoTopeTenantInfo: document.getElementById('disco-tope-tenant-info'),
+    discoCapacidadFuente: document.getElementById('disco-capacidad-fuente'),
+    btnDiscoCapacidadActualizar: document.getElementById('btn-disco-capacidad-actualizar'),
+    discoAlertaEmailInput: document.getElementById('disco-alerta-email'),
+    btnGuardarDiscoAlertaEmail: document.getElementById('btn-guardar-disco-alerta-email'),
+    btnGuardarDiscoAlertaEmailLabel: document.getElementById('btn-guardar-disco-alerta-email-label'),
+    discoAlertaEmailError: document.getElementById('disco-alerta-email-error'),
+    discoAlertaEmailInfo: document.getElementById('disco-alerta-email-info'),
+    discoCapacidadResumen: document.getElementById('disco-capacidad-resumen'),
+    discoCapacidadSemaforo: document.getElementById('disco-capacidad-semaforo'),
+    discoCapacidadSemaforoTexto: document.getElementById('disco-capacidad-semaforo-texto'),
+    discoCapacidadComprometido: document.getElementById('disco-capacidad-comprometido'),
+    discoCapacidadDisponible: document.getElementById('disco-capacidad-disponible'),
+    discoCapacidadTotalNum: document.getElementById('disco-capacidad-total'),
+    discoCapacidadFill: document.getElementById('disco-capacidad-fill'),
+    discoCapacidadFoot: document.getElementById('disco-capacidad-foot'),
+    discoCapacidadIlimitados: document.getElementById('disco-capacidad-ilimitados'),
+    discoCapacidadPorPlan: document.getElementById('disco-capacidad-por-plan'),
+    discoCapacidadPorEmpresa: document.getElementById('disco-capacidad-por-empresa'),
+    discoCapacidadSinConfigurar: document.getElementById('disco-capacidad-sin-configurar'),
     imagenMaxError: document.getElementById('imagen-max-error'),
     imagenMaxInfo: document.getElementById('imagen-max-info'),
 
@@ -459,6 +484,23 @@
 
   const SVG_TOAST_CHECK = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l2.5 2.5L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const SVG_TOAST_ALERTA = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // Confirmación de guardado CON foco visual, anclada en la propia
+  // tarjeta (punto 433, hallazgo del usuario: el texto gris liso de
+  // .admin-config-catalogo-info no daba "sensación de guardado" — esto
+  // le pone el mismo verde/ícono/animación que .toast, mismo
+  // SVG_TOAST_CHECK de arriba, sin reventar un toast de página aparte).
+  function mostrarInfoExito(el, mensaje) {
+    if (!el) return;
+    el.classList.add('es-exito');
+    el.innerHTML = '';
+    const icono = document.createElement('span');
+    icono.className = 'info-exito-icono';
+    icono.innerHTML = SVG_TOAST_CHECK;
+    const texto = document.createElement('span');
+    texto.textContent = mensaje;
+    el.append(icono, texto);
+  }
 
   // Punto (2026-10-24): mismo cambio que admin.js — el aviso nace dentro
   // del modal abierto o de la vista activa, nunca flotante.
@@ -3507,6 +3549,7 @@
       cargarSuperAdmins();
       cargarImagenMaxGlobal();
       cargarImportMaxGlobal();
+      cargarDiscoCapacidad();
     }
     if (vista === 'auditoria') cargarAuditoria();
     if (vista === 'accesos') {
@@ -4524,10 +4567,12 @@
         }
         imagenMaxMbActual = data.imagen_max_mb;
         aplicarHintsImagenMax();
-        if (els.imagenMaxInfo) {
-          els.imagenMaxInfo.textContent = `Guardado — aplica de inmediato a toda la plataforma (hasta ~45 s de caché en el backend de cada empresa).`;
-        }
-        showToast(`Máximo de imagen actualizado a ${data.imagen_max_mb} MB.`);
+        // Confirmación SOLO inline (nunca toast de página): esta tarjeta
+        // suele vivir lejos del tope de una página larga como Super
+        // Admins — un toast que aparece arriba queda desconectado de la
+        // tarjeta que de verdad cambió (hallazgo real del usuario,
+        // 2026-10-27). El texto junto al botón es la única confirmación.
+        mostrarInfoExito(els.imagenMaxInfo, `Guardado — máximo de imagen actualizado a ${data.imagen_max_mb} MB. Aplica de inmediato a toda la plataforma (hasta ~45 s de caché en el backend de cada empresa).`);
       } catch (_) {
         els.imagenMaxError.textContent = 'No se pudo conectar con el servidor.';
       } finally {
@@ -4581,15 +4626,180 @@
           els.importMaxError.textContent = data.error || 'No se pudo guardar.';
           return;
         }
-        if (els.importMaxInfo) {
-          els.importMaxInfo.textContent = 'Guardado — aplica de inmediato a toda la plataforma (hasta ~45 s de caché en el backend de cada empresa).';
-        }
-        showToast(`Máximo de filas actualizado a ${data.import_max_filas}.`);
+        mostrarInfoExito(els.importMaxInfo, `Guardado — máximo de filas actualizado a ${data.import_max_filas}. Aplica de inmediato a toda la plataforma (hasta ~45 s de caché en el backend de cada empresa).`);
       } catch (_) {
         els.importMaxError.textContent = 'No se pudo conectar con el servidor.';
       } finally {
         els.btnGuardarImportMax.disabled = false;
         if (els.btnGuardarImportMaxLabel) els.btnGuardarImportMaxLabel.textContent = 'Guardar';
+      }
+    });
+  }
+
+  // ---------- Sección C (propuesta aprobada): Capacidad de disco ----------
+  // capacidad_total_mb se guarda en MB (como disco_cuota_mb de cada
+  // tenant) pero el campo de captura es en GB — más natural para
+  // configurar "500 GB" que "512000". Conversión solo en el frontend.
+  function mbAGbTexto(mb) {
+    if (mb == null) return '—';
+    return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
+  }
+
+  function pintarResumenDiscoCapacidad(resumen) {
+    if (!els.discoCapacidadResumen) return;
+    if (resumen.capacidadTotalMb == null) {
+      els.discoCapacidadResumen.hidden = true;
+      if (els.discoCapacidadSinConfigurar) els.discoCapacidadSinConfigurar.hidden = false;
+      return;
+    }
+    if (els.discoCapacidadSinConfigurar) els.discoCapacidadSinConfigurar.hidden = true;
+    els.discoCapacidadResumen.hidden = false;
+
+    els.discoCapacidadResumen.classList.remove('es-ambar', 'es-rojo');
+    if (resumen.semaforo === 'rojo') els.discoCapacidadResumen.classList.add('es-rojo');
+    else if (resumen.semaforo === 'ambar') els.discoCapacidadResumen.classList.add('es-ambar');
+
+    const etiquetas = { verde: 'Sano', ambar: 'Vigilar', rojo: 'Crítico' };
+    els.discoCapacidadSemaforoTexto.textContent = `${etiquetas[resumen.semaforo] || ''} — ${resumen.porcentaje}% comprometido`;
+    els.discoCapacidadComprometido.textContent = mbAGbTexto(resumen.comprometidoMb);
+    els.discoCapacidadDisponible.textContent = mbAGbTexto(resumen.disponibleMb);
+    els.discoCapacidadTotalNum.textContent = mbAGbTexto(resumen.capacidadTotalMb);
+    els.discoCapacidadFill.style.width = `${Math.min(100, resumen.porcentaje)}%`;
+
+    if (els.discoCapacidadFuente) {
+      els.discoCapacidadFuente.classList.remove('es-cache', 'es-sin-datos');
+      if (resumen.capacidadFuente === 'garage') {
+        els.discoCapacidadFuente.textContent = 'en vivo — Garage';
+      } else if (resumen.capacidadFuente === 'cache') {
+        els.discoCapacidadFuente.textContent = 'Garage no respondió — última lectura';
+        els.discoCapacidadFuente.classList.add('es-cache');
+      } else {
+        els.discoCapacidadFuente.textContent = 'sin datos de Garage todavía';
+        els.discoCapacidadFuente.classList.add('es-sin-datos');
+      }
+    }
+    els.discoCapacidadFoot.textContent = resumen.capacidadFuente === 'garage'
+      ? `Capacidad total leída en vivo de Garage (${resumen.disponibleRealMb != null ? mbAGbTexto(resumen.disponibleRealMb) + ' libres ahora mismo en el host' : ''}) · aviso por correo a partir de 80%.`
+      : 'Recalculado con cada alta/edición de plan de tenant · aviso por correo a partir de 80%.';
+
+    if (resumen.tenantsIlimitados > 0) {
+      els.discoCapacidadIlimitados.hidden = false;
+      els.discoCapacidadIlimitados.textContent =
+        `${resumen.tenantsIlimitados} empresa(s) con cuota "ilimitada" (sin tope configurado) no entran en esta suma — su consumo real no se refleja aquí.`;
+    } else if (els.discoCapacidadIlimitados) {
+      els.discoCapacidadIlimitados.hidden = true;
+    }
+
+    els.discoCapacidadPorPlan.innerHTML = resumen.porPlan.length
+      ? resumen.porPlan.map((p) => `
+          <div class="disco-capacidad-bk-row">
+            <span class="disco-capacidad-bk-nombre">${escapeHtml(p.planNombre)}<span class="disco-capacidad-bk-sub">${p.tenants} empresa(s)</span></span>
+            <span class="disco-capacidad-bk-val">${mbAGbTexto(p.totalMb)}</span>
+          </div>`).join('')
+      : '<p class="muted-sm">Sin cuotas asignadas todavía.</p>';
+
+    els.discoCapacidadPorEmpresa.innerHTML = resumen.porEmpresa.length
+      ? resumen.porEmpresa.map((e) => `
+          <div class="disco-capacidad-bk-row">
+            <span class="disco-capacidad-bk-nombre">${escapeHtml(e.nombreEmpresa)}<span class="disco-capacidad-bk-sub">${escapeHtml(e.planNombre)}</span></span>
+            <span class="disco-capacidad-bk-val">${mbAGbTexto(e.cuotaMb)}</span>
+          </div>`).join('')
+      : '<p class="muted-sm">Sin cuotas asignadas todavía.</p>';
+  }
+
+  async function cargarDiscoCapacidad() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) return;
+    try {
+      const res = await fetch(`${API_BASE}/ajustes/disco-capacidad`, { headers: { Authorization: authHeader } });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (els.discoTopeTenantInput) {
+        els.discoTopeTenantInput.value = data.tope_tenant_mb != null ? Math.round(data.tope_tenant_mb / 1024) : '';
+      }
+      if (els.discoAlertaEmailInput) els.discoAlertaEmailInput.value = data.alerta_email || '';
+      pintarResumenDiscoCapacidad(data.resumen);
+    } catch (_) {
+      // La tarjeta puede reintentar manualmente al volver a la pestaña.
+    }
+  }
+
+  if (els.btnDiscoCapacidadActualizar) {
+    els.btnDiscoCapacidadActualizar.addEventListener('click', cargarDiscoCapacidad);
+  }
+
+  if (els.btnGuardarDiscoTopeTenant) {
+    els.btnGuardarDiscoTopeTenant.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+
+      els.discoTopeTenantError.textContent = '';
+      const texto = els.discoTopeTenantInput.value.trim();
+      let topeMb = null;
+      if (texto) {
+        const gb = Number(texto);
+        if (!Number.isInteger(gb) || gb < 1) {
+          els.discoTopeTenantError.textContent = 'Ingresa un número entero de GB mayor a 0, o deja vacío para no limitar.';
+          return;
+        }
+        topeMb = gb * 1024;
+      }
+
+      els.btnGuardarDiscoTopeTenant.disabled = true;
+      if (els.btnGuardarDiscoTopeTenantLabel) els.btnGuardarDiscoTopeTenantLabel.textContent = 'Guardando…';
+      try {
+        const res = await fetch(`${API_BASE}/ajustes/disco-capacidad`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tope_tenant_mb: topeMb }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.discoTopeTenantError.textContent = data.error || 'No se pudo guardar.';
+          return;
+        }
+        pintarResumenDiscoCapacidad(data.resumen);
+        const mensajeTope = topeMb != null
+          ? `Guardado — tope máximo por empresa: ${Math.round(topeMb / 1024).toLocaleString('es-MX')} GB. Aplica de inmediato al asignar planes y comprar upscales.`
+          : 'Guardado — sin tope máximo por empresa (eliminado).';
+        mostrarInfoExito(els.discoTopeTenantInfo, mensajeTope);
+      } catch (_) {
+        els.discoTopeTenantError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnGuardarDiscoTopeTenant.disabled = false;
+        if (els.btnGuardarDiscoTopeTenantLabel) els.btnGuardarDiscoTopeTenantLabel.textContent = 'Guardar';
+      }
+    });
+  }
+
+  if (els.btnGuardarDiscoAlertaEmail) {
+    els.btnGuardarDiscoAlertaEmail.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+
+      els.discoAlertaEmailError.textContent = '';
+      els.btnGuardarDiscoAlertaEmail.disabled = true;
+      if (els.btnGuardarDiscoAlertaEmailLabel) els.btnGuardarDiscoAlertaEmailLabel.textContent = 'Guardando…';
+      try {
+        const res = await fetch(`${API_BASE}/ajustes/disco-capacidad`, {
+          method: 'PUT',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alerta_email: els.discoAlertaEmailInput.value.trim() }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          els.discoAlertaEmailError.textContent = data.error || 'No se pudo guardar.';
+          return;
+        }
+        const mensajeEmail = els.discoAlertaEmailInput.value.trim()
+          ? `Guardado — se avisará a ${els.discoAlertaEmailInput.value.trim()} al cruzar el 80% de capacidad.`
+          : 'Guardado — sin correo de alerta (el semáforo sigue funcionando igual).';
+        mostrarInfoExito(els.discoAlertaEmailInfo, mensajeEmail);
+      } catch (_) {
+        els.discoAlertaEmailError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnGuardarDiscoAlertaEmail.disabled = false;
+        if (els.btnGuardarDiscoAlertaEmailLabel) els.btnGuardarDiscoAlertaEmailLabel.textContent = 'Guardar';
       }
     });
   }

@@ -189,6 +189,7 @@ const {
   guardarImagenProducto,
   eliminarImagenProducto,
 } = require('./utils/inventarioImagen');
+const { ajustarUsoDisco } = require('./utils/discoUso');
 
 const PORT = process.env.PORT || 4000;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 5);
@@ -2791,6 +2792,7 @@ app.post('/api/tickets', requireUserAuth, requiereFacturacionActiva, submitLimit
       const extensiones = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
       const storedFilename = `${crypto.randomUUID()}${extensiones[realMime] || ''}`;
       await storage.guardarArchivo(storage.prefijoTenant(req), 'tickets', storedFilename, req.file.buffer, realMime);
+      ajustarUsoDisco(req.tenant, req.file.buffer.length);
 
       const ahora = new Date();
       const [resultado] = await pool.query(
@@ -3694,6 +3696,7 @@ app.post('/api/registro', requireUserAuth, submitLimiter, (req, res) => {
       const storedFilename = `${crypto.randomUUID()}${safeExt}`;
       const prefijoRegistro = storage.prefijoTenant(req);
       await storage.guardarArchivo(prefijoRegistro, null, storedFilename, req.file.buffer, realMime);
+      ajustarUsoDisco(req.tenant, req.file.buffer.length);
 
       const ahora = new Date();
 
@@ -5110,6 +5113,24 @@ app.get(
       // en /control) para prellenar el alta del usuario master; con un
       // master ya activo, el correo no se expone (mismo criterio que
       // contactoEmailPortalApagado — exponer un dato solo cuando hace falta).
+      // Propuesta A5 (indicador de espacio en Mi Cuenta): sin tenant
+      // (sitio base) no hay cuota que medir — se omite el bloque entero
+      // (nunca "ilimitado" aquí: el sitio base ni siquiera usa Garage por
+      // tenant). Con tenant: discoCuotaMb null = sin límite impuesto
+      // desde /control, discoBytesUsadosCache null = nunca se ha
+      // calculado todavía (ni por "Recalcular" en /control ni de forma
+      // incremental — ver backend/utils/discoUso.js).
+      if (req.tenant && req.tenant.discoCuotaMb != null) {
+        const cuotaBytes = req.tenant.discoCuotaMb * 1024 * 1024;
+        const usadosBytes = req.tenant.discoBytesUsadosCache;
+        respuesta.empresa.almacenamiento = {
+          cuotaMb: req.tenant.discoCuotaMb,
+          usadosBytes,
+          porcentaje: usadosBytes == null ? null : Math.min(100, Math.round((usadosBytes / cuotaBytes) * 100)),
+          actualizadoEn: req.tenant.discoCacheActualizadoEn,
+        };
+      }
+
       if (!req.tenant) {
         respuesta.empresa.suscripcion = { ilimitada: true };
       } else {
@@ -5252,6 +5273,72 @@ app.put(
     }
 
     res.json({ ok: true, activo });
+  })
+);
+
+// Propuesta B5 (simulador de fecha): el admin del tenant NUNCA tiene
+// credenciales de /control — estos 2 endpoints son un simple proxy hacia
+// los internos de control (ver "Compra de upscale..." en control/server.js),
+// protegidos por el mismo secreto compartido que ya usa
+// invalidarCacheTenant/activarTenantFisico en sentido contrario. Sin
+// tenant (sitio base) no hay nada que ampliar — 404 directo, mismo
+// criterio que el resto de "solo aplica a tenants" del archivo.
+async function llamarControlInterno(ruta, body) {
+  const url = process.env.CONTROL_INTERNAL_URL || 'http://control:4001';
+  const secreto = process.env.INTERNAL_CACHE_SECRET;
+  const res = await fetch(`${url}${ruta}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secreto || '' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
+app.get(
+  '/api/admin/mi-cuenta/upscale/disponible',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (req.adminPerfil !== 'administrador' && req.adminPerfil !== 'super') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a esta opción.' });
+    }
+    if (!req.tenant) {
+      return res.status(404).json({ error: 'El sitio base no tiene cuota de almacenamiento que ampliar.' });
+    }
+    const { ok, status, data } = await llamarControlInterno('/internal/upscale/simular', {
+      slug: req.tenant.slug,
+      cantidad: Number(req.query.cantidad) || 1,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo calcular la compra.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+app.post(
+  '/api/admin/mi-cuenta/upscale/comprar',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (req.adminPerfil !== 'administrador' && req.adminPerfil !== 'super') {
+      return res.status(403).json({ error: 'Tu perfil no tiene acceso a esta opción.' });
+    }
+    if (!req.tenant) {
+      return res.status(404).json({ error: 'El sitio base no tiene cuota de almacenamiento que ampliar.' });
+    }
+    const cantidad = Number((req.body || {}).cantidad) || 1;
+    const urlPortal = detectarUrlPortal(req);
+    const { ok, status, data } = await llamarControlInterno('/internal/upscale/confirmar', {
+      slug: req.tenant.slug,
+      cantidad,
+      successUrl: `${urlPortal}/admin?vista=mi-cuenta&upscale=exito`,
+      cancelUrl: `${urlPortal}/admin?vista=mi-cuenta&upscale=cancelado`,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo procesar la compra.', codigo: data.codigo });
+    if (!data.cobroInmediato) {
+      invalidarCacheTenant(req.tenant.slug);
+    }
+    res.json(data);
   })
 );
 
@@ -10565,6 +10652,7 @@ app.post('/api/admin/inventarios/productos/:id/imagen', adminApiLimiter, requier
         'UPDATE productos SET imagen_key = ?, imagen_thumb_key = ?, imagen_actualizada_en = ?, actualizado_en = ? WHERE id = ?',
         [resultado.imagenKey, resultado.thumbKey, ahora, ahora, id]
       );
+      ajustarUsoDisco(req.tenant, resultado.pesoBytes);
 
       const prefijoRuta = req.tenant ? `/${req.tenant.slug}` : '';
       res.json({

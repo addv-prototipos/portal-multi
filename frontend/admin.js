@@ -279,6 +279,29 @@
     micuentaSuscripcionMaster: document.getElementById('micuenta-suscripcion-master'),
     micuentaSuscripcionCorreoComprador: document.getElementById('micuenta-suscripcion-correo-comprador'),
     btnSuscripcionDarAltaMaster: document.getElementById('btn-suscripcion-dar-alta-master'),
+    // Propuesta A5 (elegida): medidor permanente + aviso condicional.
+    micuentaDiscoMedidor: document.getElementById('micuenta-disco-medidor'),
+    micuentaDiscoMedidorTexto: document.getElementById('micuenta-disco-medidor-texto'),
+    micuentaDiscoMedidorFill: document.getElementById('micuenta-disco-medidor-fill'),
+    micuentaDiscoAviso: document.getElementById('micuenta-disco-aviso'),
+    micuentaDiscoAvisoTitulo: document.getElementById('micuenta-disco-aviso-titulo'),
+    micuentaDiscoAvisoCuerpo: document.getElementById('micuenta-disco-aviso-cuerpo'),
+    btnMicuentaDiscoComprar: document.getElementById('btn-micuenta-disco-comprar'),
+    // Propuesta B5 (elegida): modal de compra de upscale.
+    upscaleModalOverlay: document.getElementById('upscale-modal-overlay'),
+    upscaleModalCargando: document.getElementById('upscale-modal-cargando'),
+    upscaleModalContenido: document.getElementById('upscale-modal-contenido'),
+    upscaleModalPaquete: document.getElementById('upscale-modal-paquete'),
+    upscaleTimelineSegCyan: document.getElementById('upscale-timeline-seg-cyan'),
+    upscaleTimelineSegWarn: document.getElementById('upscale-timeline-seg-warn'),
+    upscaleTimelinePinUmbral: document.getElementById('upscale-timeline-pin-umbral'),
+    upscaleTimelinePinCorte: document.getElementById('upscale-timeline-pin-corte'),
+    upscaleBillingBox: document.getElementById('upscale-billing-box'),
+    upscaleBillingTitulo: document.getElementById('upscale-billing-titulo'),
+    upscaleBillingCuerpo: document.getElementById('upscale-billing-cuerpo'),
+    upscaleModalError: document.getElementById('upscale-modal-error'),
+    btnUpscaleCancelar: document.getElementById('btn-upscale-cancelar'),
+    btnUpscaleConfirmar: document.getElementById('btn-upscale-confirmar'),
     micuentaFacturacionCard: document.getElementById('micuenta-facturacion-card'),
     // Punto 416: "Datos de pago" (solo administrador/super)
     micuentaPagoCard: document.getElementById('micuenta-pago-card'),
@@ -8471,6 +8494,7 @@
         els.micuentaTotalOperadores.textContent = String(data.empresa.totalOperadores);
         aplicarEstadoPortalClientesMiCuenta(data.empresa.portalClientesActivo, data.empresa.portalClientesPlanHabilitado);
         aplicarEstadoSuscripcionMiCuenta(data.empresa.suscripcion);
+        aplicarEstadoDiscoMiCuenta(data.empresa.almacenamiento);
         aplicarDatosPagoMiCuenta(data.empresa.datosPago);
         // Punto 418: se cachea para que la vista "Actualizar método de
         // pago" no necesite un fetch propio — ya viajó aquí.
@@ -8486,6 +8510,7 @@
         els.micuentaEmpresaCard.hidden = true;
         els.micuentaBannerMarket.hidden = true;
         els.micuentaSuscripcionCard.hidden = true;
+        els.micuentaDiscoAviso.hidden = true;
         els.micuentaFacturacionCard.hidden = true;
         els.micuentaFooterMarket.hidden = true;
       }
@@ -8558,6 +8583,178 @@
       els.micuentaSuscripcionMaster.hidden = true;
     }
   }
+
+  function formatearMbOGb(mb) {
+    return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+  }
+
+  // Propuesta A5 (elegida): medidor siempre visible + aviso SOLO al
+  // cruzar 80% (advertencia) o 95%/cuota agotada (crítico) — reusa el
+  // lenguaje visual de .aviso-cuota ya aprobado (punto 424). Sin tenant,
+  // sin disco_cuota_mb asignado desde /control, o sin uso calculado
+  // todavía (nunca "Recalcular"/primera subida), el medidor se oculta —
+  // nunca muestra un 0% engañoso.
+  function aplicarEstadoDiscoMiCuenta(almacenamiento) {
+    if (!almacenamiento) {
+      els.micuentaDiscoMedidor.hidden = true;
+      els.micuentaDiscoAviso.hidden = true;
+      return;
+    }
+    const { cuotaMb, usadosBytes, porcentaje } = almacenamiento;
+    const cuotaTexto = formatearMbOGb(cuotaMb);
+
+    if (usadosBytes == null) {
+      els.micuentaDiscoMedidor.hidden = false;
+      els.micuentaDiscoMedidorTexto.textContent = `Almacenamiento: sin calcular todavía (cuota ${cuotaTexto})`;
+      els.micuentaDiscoMedidorFill.style.width = '0%';
+      els.micuentaDiscoAviso.hidden = true;
+      return;
+    }
+
+    const usadosTexto = formatearMbOGb(usadosBytes / (1024 * 1024));
+    const pct = porcentaje == null ? 0 : porcentaje;
+    els.micuentaDiscoMedidor.hidden = false;
+    els.micuentaDiscoMedidorTexto.textContent = `Almacenamiento: ${usadosTexto} de ${cuotaTexto} (${pct}%)`;
+    els.micuentaDiscoMedidorFill.style.width = `${Math.min(100, pct)}%`;
+    els.micuentaDiscoMedidorFill.classList.toggle('es-advertencia', pct >= 80 && pct < 95);
+    els.micuentaDiscoMedidorFill.classList.toggle('es-critico', pct >= 95);
+
+    if (pct >= 95) {
+      els.micuentaDiscoAviso.hidden = false;
+      els.micuentaDiscoAviso.classList.add('es-critico');
+      els.micuentaDiscoAvisoTitulo.textContent = pct >= 100 ? 'Espacio agotado' : 'Tu espacio está por agotarse';
+      els.micuentaDiscoAvisoCuerpo.textContent = pct >= 100
+        ? 'No podrás subir fotos de productos, tickets ni tu constancia fiscal hasta liberar o comprar espacio.'
+        : `Llevas ${usadosTexto} de ${cuotaTexto} (${pct}%) — compra espacio adicional antes de que se agote.`;
+    } else if (pct >= 80) {
+      els.micuentaDiscoAviso.hidden = false;
+      els.micuentaDiscoAviso.classList.remove('es-critico');
+      els.micuentaDiscoAvisoTitulo.textContent = 'Tu espacio está por agotarse';
+      els.micuentaDiscoAvisoCuerpo.textContent = `Llevas ${usadosTexto} de ${cuotaTexto} (${pct}%) — considera comprar espacio adicional.`;
+    } else {
+      els.micuentaDiscoAviso.hidden = true;
+    }
+  }
+
+  // Propuesta B5 (elegida): modal de compra de upscale con simulador de
+  // fecha — GET .../upscale/disponible calcula días restantes/cobro
+  // inmediato server-side (nunca confiar en un cálculo de fecha hecho en
+  // el navegador para decidir un cobro real).
+  async function abrirModalUpscale() {
+    if (!els.upscaleModalOverlay) return;
+    els.upscaleModalOverlay.hidden = false;
+    els.upscaleModalCargando.hidden = false;
+    els.upscaleModalContenido.hidden = true;
+    els.upscaleModalError.textContent = '';
+    els.btnUpscaleConfirmar.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/upscale/disponible`, {
+        headers: { Authorization: getAuthHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo calcular la compra.');
+      pintarResumenUpscale(data.resumen);
+      els.upscaleModalCargando.hidden = true;
+      els.upscaleModalContenido.hidden = false;
+      els.btnUpscaleConfirmar.disabled = false;
+    } catch (err) {
+      els.upscaleModalCargando.hidden = true;
+      els.upscaleModalError.textContent = err.message || 'No se pudo calcular la compra.';
+    }
+  }
+
+  function cerrarModalUpscale() {
+    if (els.upscaleModalOverlay) els.upscaleModalOverlay.hidden = true;
+  }
+
+  // Posiciones de la línea de tiempo: "20 días" fijo al centro (es el
+  // umbral real), "Corte" se mueve según diasRestantes de verdad — escala
+  // visual de 0 a 40 días (el doble del umbral), acotada para no
+  // encimarse con las otras etiquetas. Es un simulador ilustrativo, no
+  // una regla exacta: el texto de upscale-billing-box es la respuesta
+  // real, ya calculada server-side.
+  function pintarResumenUpscale(resumen) {
+    els.upscaleModalPaquete.textContent = `${resumen.funcionalidadNombre} (+${resumen.mbOtorgado} MB) — ${formatearMoneda(resumen.monto)} MXN`;
+    els.upscaleTimelineSegCyan.style.width = '50%';
+    els.upscaleTimelineSegWarn.style.width = '50%';
+    if (resumen.diasRestantes == null) {
+      els.upscaleTimelinePinCorte.style.left = '100%';
+      els.upscaleTimelinePinCorte.textContent = 'Sin corte';
+    } else {
+      const cortePct = Math.min(96, Math.max(10, Math.round((resumen.diasRestantes / 40) * 100)));
+      els.upscaleTimelinePinCorte.style.left = `${cortePct}%`;
+      els.upscaleTimelinePinCorte.style.transform = cortePct >= 90 ? 'translateX(-100%)' : 'translateX(-50%)';
+      els.upscaleTimelinePinCorte.textContent = `Corte (${resumen.diasRestantes}d)`;
+    }
+
+    if (resumen.cobroInmediato) {
+      els.upscaleBillingBox.classList.remove('es-pendiente');
+      els.upscaleBillingTitulo.textContent = `Se cobra hoy — ${formatearMoneda(resumen.monto)} MXN`;
+      els.upscaleBillingCuerpo.textContent = resumen.diasRestantes == null
+        ? 'No tienes una fecha de corte configurada — se cobra de inmediato por seguridad.'
+        : `Faltan ${resumen.diasRestantes} días para tu corte, más de 20 — cargo inmediato a tu tarjeta en Stripe.`;
+      els.btnUpscaleConfirmar.textContent = 'Pagar con Stripe';
+    } else {
+      els.upscaleBillingBox.classList.add('es-pendiente');
+      els.upscaleBillingTitulo.textContent = 'Se suma a tu próximo corte';
+      els.upscaleBillingCuerpo.textContent = `Faltan ${resumen.diasRestantes} días para tu corte, 20 o menos — no se cobra hoy, se acumula a tu plan y se cobra todo junto en tu siguiente corte.`;
+      els.btnUpscaleConfirmar.textContent = 'Confirmar compra';
+    }
+  }
+
+  async function confirmarCompraUpscale() {
+    els.btnUpscaleConfirmar.disabled = true;
+    els.upscaleModalError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/upscale/comprar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+        body: JSON.stringify({ cantidad: 1 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo procesar la compra.');
+      if (data.cobroInmediato && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      cerrarModalUpscale();
+      showToast('Espacio adicional aplicado — se sumará a tu próximo corte.', false);
+      cargarMiCuenta();
+    } catch (err) {
+      els.upscaleModalError.textContent = err.message || 'No se pudo procesar la compra.';
+    } finally {
+      els.btnUpscaleConfirmar.disabled = false;
+    }
+  }
+
+  if (els.btnMicuentaDiscoComprar) els.btnMicuentaDiscoComprar.addEventListener('click', abrirModalUpscale);
+  if (els.btnUpscaleCancelar) els.btnUpscaleCancelar.addEventListener('click', cerrarModalUpscale);
+  if (els.btnUpscaleConfirmar) els.btnUpscaleConfirmar.addEventListener('click', confirmarCompraUpscale);
+  if (els.upscaleModalOverlay) {
+    els.upscaleModalOverlay.addEventListener('click', (ev) => {
+      if (ev.target === els.upscaleModalOverlay) cerrarModalUpscale();
+    });
+  }
+
+  // Vuelta de Stripe Checkout (cobro inmediato del upscale, propuesta
+  // B5): success_url/cancel_url de confirmarCompraUpscale (control/)
+  // regresan aquí con ?upscale=exito|cancelado — se consume una sola vez
+  // (history.replaceState) para que un refresh de la página no repita el
+  // toast ni reabra nada.
+  (function consumirRetornoUpscale() {
+    const params = new URLSearchParams(window.location.search);
+    const estado = params.get('upscale');
+    if (!estado) return;
+    params.delete('upscale');
+    const nuevaQuery = params.toString();
+    history.replaceState(null, '', window.location.pathname + (nuevaQuery ? `?${nuevaQuery}` : ''));
+    cambiarVistaPrincipal('mi-cuenta');
+    if (estado === 'exito') {
+      showToast('Pago confirmado — tu espacio adicional ya está disponible.', false);
+    } else if (estado === 'cancelado') {
+      showToast('Compra de espacio adicional cancelada.', true);
+    }
+  })();
 
   // Punto 416: "Datos de pago" — `datosPago` solo llega del backend para
   // administrador/super (ver GET /api/admin/mi-cuenta en server.js); si

@@ -19,7 +19,7 @@ const { obtenerPool } = require('../db');
 const { validarSlug, nombreDbTenant } = require('./tenant');
 const { normalizarDatosBase } = require('./tenantIntake');
 const { subirLogoAlBackend, borrarLogoDelBackend } = require('./tenantMarca');
-const { getImagenMaxMb } = require('./ajustesGlobales');
+const { getImagenMaxMb, getDiscoTopeTenantMb } = require('./ajustesGlobales');
 const { notificarInvalidacionCache, aplicarLimiteUsuarios } = require('./notificarBackend');
 const { obtenerPlan, ErrorPlan } = require('./planes');
 
@@ -261,6 +261,22 @@ async function resolverPlanYFunciones(tenant, datos, db) {
     const r = normalizarDiscoCuotaMb(datos.discoCuotaMb);
     if (!r.ok) throw new ErrorEdicionTenant(r.error, 'validacion');
     base.discoCuotaMb = r.valor;
+  }
+
+  // Tope máximo de disco POR TENANT, indistinto de lo que diga el plan
+  // (punto en curso, 2026-10-27) — mismo punto de control para los 2
+  // caminos que pueden fijar discoCuotaMb arriba (copiarlo de un plan, o
+  // la excepción explícita por tenant): si CUALQUIERA de los 2 resulta en
+  // una cuota mayor al tope, se rechaza con error claro — nunca se
+  // recorta en silencio (decisión del usuario).
+  if (base.discoCuotaMb != null) {
+    const topeTenantMb = await getDiscoTopeTenantMb();
+    if (topeTenantMb != null && base.discoCuotaMb > topeTenantMb) {
+      throw new ErrorEdicionTenant(
+        `La cuota de disco de esta empresa (${base.discoCuotaMb.toLocaleString('es-MX')} MB) supera el tope máximo por empresa configurado en Super Admins (${topeTenantMb.toLocaleString('es-MX')} MB).`,
+        'validacion'
+      );
+    }
   }
 
   validarReglasDependenciaTenant(base);

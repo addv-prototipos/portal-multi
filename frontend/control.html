@@ -505,6 +505,92 @@
               <p class="admin-config-catalogo-info" id="import-max-info"></p>
             </section>
           </div>
+
+          <!-- Sección C (propuesta aprobada): capacidad de disco de
+               infraestructura — cuánto disco físico real se puede
+               repartir entre las cuotas de todos los tenants, para que
+               /control no asigne más de lo que el servidor de verdad
+               tiene. Semáforo SIEMPRE visible (decisión confirmada
+               cuando se aprobó la propuesta); el correo es un canal
+               adicional, no el único indicador. -->
+          <div class="config-dashboard-grid" style="margin-top:20px">
+            <section class="admin-config-card admin-config-card-static" id="disco-tope-tenant-card">
+              <div class="admin-config-toggle-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2 2 7v6c0 5 4 9 10 11 6-2 10-6 10-11V7Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                Tope máximo por empresa
+              </div>
+              <p class="panel-subtitle admin-config-subtitle">
+                Límite de disco que puede llegar a tener UNA sola empresa, indistinto de lo que diga su plan — evita que un solo tenant consuma todo el disco disponible. Aplica al asignar/editar un plan y al comprar un upscale.
+              </p>
+              <div class="retencion-config-fila">
+                <div class="field retencion-config-input">
+                  <label for="disco-tope-tenant-mb">Tope máximo por empresa (GB)</label>
+                  <input type="number" id="disco-tope-tenant-mb" min="1" placeholder="Sin límite" />
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-guardar-disco-tope-tenant">
+                  <span id="btn-guardar-disco-tope-tenant-label">Guardar</span>
+                </button>
+              </div>
+              <p class="field-error" id="disco-tope-tenant-error" role="alert"></p>
+              <p class="admin-config-catalogo-info" id="disco-tope-tenant-info"></p>
+            </section>
+
+            <section class="admin-config-card admin-config-card-static" id="disco-alerta-email-card">
+              <div class="admin-config-toggle-label">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Correo de alerta (80% de capacidad)
+              </div>
+              <p class="panel-subtitle admin-config-subtitle">
+                A dónde avisar cuando lo comprometido entre todos los tenants llegue al 80% de la capacidad real del disco (abajo). Vacío = sin correo — el semáforo de abajo sigue funcionando igual.
+              </p>
+              <div class="retencion-config-fila">
+                <div class="field retencion-config-input">
+                  <label for="disco-alerta-email">Correo destino (opcional)</label>
+                  <input type="email" id="disco-alerta-email" placeholder="infraestructura@addv.com.mx" />
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-guardar-disco-alerta-email">
+                  <span id="btn-guardar-disco-alerta-email-label">Guardar</span>
+                </button>
+              </div>
+              <p class="field-error" id="disco-alerta-email-error" role="alert"></p>
+              <p class="admin-config-catalogo-info" id="disco-alerta-email-info"></p>
+            </section>
+          </div>
+
+          <div class="disco-capacidad-card" id="disco-capacidad-resumen" style="margin-top:16px" hidden>
+            <div class="disco-capacidad-head">
+              <div class="disco-capacidad-titulo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.6"/><path d="M3 5v14c0 1.657 4.03 3 9 3s9-1.343 9-3V5M3 12c0 1.657 4.03 3 9 3s9-1.343 9-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Uso de capacidad asignable
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="disco-semaforo" id="disco-capacidad-semaforo"><span class="disco-semaforo-dot"></span><span id="disco-capacidad-semaforo-texto"></span></span>
+                <button type="button" class="btn-icon" id="btn-disco-capacidad-actualizar" aria-label="Volver a leer la capacidad real de Garage" data-tooltip="Vuelve a leer la capacidad real de Garage ahora mismo">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="disco-capacidad-nums">
+              <div class="disco-capacidad-num"><strong id="disco-capacidad-comprometido">—</strong><span>Comprometido</span></div>
+              <div class="disco-capacidad-num"><strong id="disco-capacidad-disponible">—</strong><span>Disponible</span></div>
+              <div class="disco-capacidad-num"><strong id="disco-capacidad-total">—</strong><span>Capacidad total<span class="disco-capacidad-fuente" id="disco-capacidad-fuente"></span></span></div>
+            </div>
+            <div class="disco-capacidad-track"><div class="disco-capacidad-fill" id="disco-capacidad-fill"></div></div>
+            <p class="disco-capacidad-foot" id="disco-capacidad-foot"></p>
+            <p class="disco-capacidad-ilimitados" id="disco-capacidad-ilimitados" hidden></p>
+
+            <div class="disco-capacidad-breakdown">
+              <div class="disco-capacidad-breakdown-col">
+                <h5>Comprometido por plan</h5>
+                <div id="disco-capacidad-por-plan"></div>
+              </div>
+              <div class="disco-capacidad-breakdown-col">
+                <h5>Mayor cuota por empresa</h5>
+                <div id="disco-capacidad-por-empresa"></div>
+              </div>
+            </div>
+          </div>
+          <p class="admin-empty-state" id="disco-capacidad-sin-configurar" hidden>No se pudo leer la capacidad real de Garage todavía — verifica que el contenedor "garage" esté sano y vuelve a intentar.</p>
         </div>
 
         <!-- Punto 347: Auditoría cross-tenant — replica el diseño ya

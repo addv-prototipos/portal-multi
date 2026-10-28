@@ -4403,6 +4403,16 @@
               </div>
             </div>
             <p class="micuenta-suscripcion-texto" id="micuenta-suscripcion-nota"></p>
+            <!-- Propuesta A5 (elegida): barra de almacenamiento siempre
+                 visible dentro de la tarjeta navy, sin agregar una tarjeta
+                 nueva — hidden hasta que GET /api/admin/mi-cuenta mande
+                 empresa.almacenamiento (requiere disco_cuota_mb asignado
+                 desde /control). -->
+            <div class="micuenta-disco-medidor" id="micuenta-disco-medidor" hidden>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.657 4.03 3 9 3s9-1.343 9-3V5M3 12c0 1.657 4.03 3 9 3s9-1.343 9-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span id="micuenta-disco-medidor-texto">Almacenamiento</span>
+              <div class="micuenta-disco-medidor-track"><div class="micuenta-disco-medidor-fill" id="micuenta-disco-medidor-fill"></div></div>
+            </div>
             <div class="micuenta-suscripcion-master" id="micuenta-suscripcion-master" hidden>
               <span class="micuenta-empresa-label">Usuario master</span>
               <p class="micuenta-suscripcion-master-texto">Este tenant todavía no tiene un usuario administrador activo.</p>
@@ -4413,6 +4423,20 @@
               </button>
             </div>
           </section>
+
+          <!-- Propuesta A5 (elegida): solo aparece al cruzar 80% (advertencia)
+               o 95%/cuota agotada (crítico) — reusa el lenguaje visual de
+               .aviso-cuota ya aprobado (punto 424), nunca visible si el uso
+               está sano. aplicarEstadoDiscoMiCuenta() en admin.js decide
+               cuál de los 2 estados mostrar, o deja hidden si no aplica. -->
+          <div class="micuenta-disco-aviso" id="micuenta-disco-aviso" hidden>
+            <svg class="micuenta-disco-aviso-icono" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="micuenta-disco-aviso-texto">
+              <p class="micuenta-disco-aviso-titulo" id="micuenta-disco-aviso-titulo"></p>
+              <p class="micuenta-disco-aviso-cuerpo" id="micuenta-disco-aviso-cuerpo"></p>
+            </div>
+            <button type="button" class="micuenta-disco-aviso-cta" id="btn-micuenta-disco-comprar">Comprar espacio</button>
+          </div>
 
           <!-- Punto 416: "Datos de pago" — SOLO perfil administrador/super
                (el backend ni siquiera manda este bloque a fiscal/ventas/
@@ -4957,6 +4981,41 @@
       <div class="btn-row">
         <button type="button" class="btn btn-secondary" id="btn-confirm-cancelar">Cancelar</button>
         <button type="button" class="btn btn-danger" id="btn-confirm-aceptar">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Propuesta B5 (elegida): simulador de fecha — GET
+       /api/admin/mi-cuenta/upscale/disponible llena la línea de tiempo y
+       decide si el botón confirma cobro inmediato (Stripe Checkout,
+       redirige) o aplica sin cobrar (queda pendiente del corte). -->
+  <div class="modal-overlay" id="upscale-modal-overlay" hidden>
+    <div class="modal upscale-modal" role="dialog" aria-modal="true" aria-labelledby="upscale-modal-title">
+      <h2 id="upscale-modal-title">Ampliar almacenamiento</h2>
+      <div id="upscale-modal-cargando">Calculando tu fecha de corte…</div>
+      <div id="upscale-modal-contenido" hidden>
+        <p class="upscale-modal-paquete" id="upscale-modal-paquete"></p>
+        <div class="upscale-timeline">
+          <div class="upscale-timeline-track">
+            <div class="upscale-timeline-seg" id="upscale-timeline-seg-cyan"></div>
+            <div class="upscale-timeline-seg upscale-timeline-seg-warn" id="upscale-timeline-seg-warn"></div>
+          </div>
+          <span class="upscale-timeline-pin upscale-timeline-pin-hoy" id="upscale-timeline-pin-hoy">Hoy</span>
+          <span class="upscale-timeline-pin" id="upscale-timeline-pin-umbral">20 días</span>
+          <span class="upscale-timeline-pin upscale-timeline-pin-corte" id="upscale-timeline-pin-corte">Corte</span>
+        </div>
+        <div class="upscale-billing-box" id="upscale-billing-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div>
+            <strong id="upscale-billing-titulo"></strong>
+            <p id="upscale-billing-cuerpo"></p>
+          </div>
+        </div>
+      </div>
+      <p class="field-error" id="upscale-modal-error" role="alert"></p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-upscale-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-upscale-confirmar" disabled>Confirmar compra</button>
       </div>
     </div>
   </div>

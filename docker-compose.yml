@@ -392,6 +392,12 @@ services:
       # POST /internal/cache-tenant/invalidar (ver server.js). Sin esto,
       # ese endpoint queda inalcanzable (rechaza todo con 403), no roto.
       INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
+      # Compra de upscale desde Mi Cuenta (propuesta B5): backend llama a
+      # control en sentido contrario al de arriba (control -> backend), vía
+      # /internal/upscale/simular y /internal/upscale/confirmar, con el
+      # mismo INTERNAL_CACHE_SECRET. Nombre del servicio Docker, mismo
+      # patrón que BACKEND_INTERNAL_URL en el servicio "control" abajo.
+      CONTROL_INTERNAL_URL: http://control:4001
       # Hallazgo m-01 (sonar_1.1.html, Fase D, punto 410): DOCS_ENABLED
       # se invirtió a opt-in (apagado por defecto) -- se enciende aquí
       # explícito para no perder Swagger en desarrollo local. prod/ NUNCA
@@ -480,6 +486,14 @@ services:
       TENANT_DB_USER: ${TENANT_DB_USER:-app}
       BACKEND_INTERNAL_URL: http://backend:4000
       INTERNAL_CACHE_SECRET: ${INTERNAL_CACHE_SECRET:-}
+      # Capacidad real de disco (decisión del usuario, 2026-10-27): mismo
+      # admin_token fijo de docker/garage/garage.toml (solo desarrollo
+      # local) — control lo usa para leer dataPartition.total/available
+      # real de Garage, nunca un valor capturado a mano. "garage" es el
+      # nombre del servicio en esta misma red (fiscal-net); GARAGE_ADMIN_URL
+      # queda configurable por si algún día el nodo vive en otro host.
+      GARAGE_ADMIN_URL: ${GARAGE_ADMIN_URL:-http://garage:3903}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-73cb415694303326cf86233f549ca56c57eaa7472c2c5f83}
       # Punto en curso: clave de cifrado reversible para "Accesos — MinIO"
       # (ver control/utils/accesoMinio.js) — 32 bytes en hex (64
       # caracteres), SOLO en este .env, nunca en la BD. Generar con

@@ -190,6 +190,21 @@ async function manejarPagoFallido(session, db) {
   );
 }
 
+// Dos metadata.tipo posibles en un checkout.session de este proyecto:
+// onboarding (metadata.borradorToken, el flujo de arriba) y upscale
+// (metadata.tipo === 'upscale', ver tenantUpscaleCompra.js) — mismo
+// webhook de Stripe, dos destinos. require() perezoso (no al cargar el
+// módulo) para evitar una dependencia circular: tenantUpscaleCompra.js
+// también necesita obtenerStripe/montoCentavos de este archivo.
+async function enrutarPagoConfirmado(session, db) {
+  if (session.metadata && session.metadata.tipo === 'upscale') {
+    const { confirmarUpscalePagado } = require('./tenantUpscaleCompra');
+    await confirmarUpscalePagado(session, db);
+    return;
+  }
+  await manejarPagoConfirmado(session, db);
+}
+
 async function procesarEventoWebhook(event, { db = obtenerPool() } = {}) {
   if (await yaProcesado(event.id, event.type, db)) return;
 
@@ -201,11 +216,11 @@ async function procesarEventoWebhook(event, { db = obtenerPool() } = {}) {
       // dinero no ha llegado) y el aviso real es
       // checkout.session.async_payment_succeeded más adelante.
       if (session.payment_status === 'paid') {
-        await manejarPagoConfirmado(session, db);
+        await enrutarPagoConfirmado(session, db);
       }
       break;
     case 'checkout.session.async_payment_succeeded':
-      await manejarPagoConfirmado(session, db);
+      await enrutarPagoConfirmado(session, db);
       break;
     case 'checkout.session.async_payment_failed':
       await manejarPagoFallido(session, db);
@@ -219,4 +234,14 @@ async function procesarEventoWebhook(event, { db = obtenerPool() } = {}) {
   }
 }
 
-module.exports = { crearCheckoutSession, procesarEventoWebhook };
+module.exports = {
+  crearCheckoutSession,
+  procesarEventoWebhook,
+  // Exportadas para tenantUpscaleCompra.js (mismo mecanismo "cobrar
+  // primero, activar después" que onboarding, aplicado a la compra de un
+  // upscale) — evita reimplementar la resolución de la llave de Stripe o
+  // la conversión a centavos en un segundo archivo.
+  obtenerStripe,
+  montoCentavos,
+  APP_BASE_URL,
+};

@@ -157,6 +157,7 @@ describe('utils/tenantContext.js', () => {
         sucursalesHabilitado: false,
         discoCuotaMb: null,
         discoBytesUsadosCache: null,
+        discoCacheActualizadoEn: null,
         ventasHabilitado: true,
         gastosHabilitado: true,
         inventariosHabilitado: true,

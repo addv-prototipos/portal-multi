@@ -18,6 +18,7 @@ jest.mock('../../utils/notificarBackend', () => ({
 
 jest.mock('../../utils/ajustesGlobales', () => ({
   getImagenMaxMb: jest.fn().mockResolvedValue(2),
+  getDiscoTopeTenantMb: jest.fn().mockResolvedValue(null),
 }));
 
 const { obtenerPool } = require('../../db');

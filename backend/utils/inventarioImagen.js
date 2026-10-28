@@ -89,7 +89,7 @@ async function guardarImagenProducto(prefijo, productoId, buffer) {
   const carpeta = carpetaProducto(productoId);
   const imagenKey = await storage.guardarArchivo(prefijo, carpeta, 'principal.webp', principalBuffer, 'image/webp');
   const thumbKey = await storage.guardarArchivo(prefijo, carpeta, 'thumb_principal.webp', thumbBuffer, 'image/webp');
-  return { imagenKey, thumbKey, ancho, alto, pesoBytes: principalBuffer.length };
+  return { imagenKey, thumbKey, ancho, alto, pesoBytes: principalBuffer.length + thumbBuffer.length };
 }
 
 /** Borra ambas variantes de MinIO — idempotente (ver storage.eliminarArchivo). */

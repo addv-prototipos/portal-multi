@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -82,6 +83,15 @@ const { resolverPlanPorClave } = require('./utils/onboardingConversion');
 const { ErrorUpscale, listarUpscale, crearUpscale, editarUpscale, archivarUpscale, reactivarUpscale } = require('./utils/upscale');
 const { getConfigMsi, setConfigMsi, metodosPagoInfo, listarCodigosDescuento, crearCodigoDescuento, desactivarCodigoDescuento, activarCodigoDescuento, eliminarCodigoDescuento, reemplazarCodigoDescuento } = require('./utils/stripeConfig');
 const { getConfigRecordatorios, setConfigRecordatorios, listarEnSeguimiento, procesarRecordatoriosPendientes } = require('./utils/recordatorios');
+const { calcularResumenCapacidad } = require('./utils/discoCapacidad');
+const { ErrorUpscaleCompra, simularCompraUpscale, confirmarCompraUpscale } = require('./utils/tenantUpscaleCompra');
+const { evaluarYEnviarAlertaCapacidadDisco } = require('./utils/discoCapacidadAlerta');
+const {
+  getDiscoAlertaEmail,
+  setDiscoAlertaEmail,
+  getDiscoTopeTenantMb,
+  setDiscoTopeTenantMb,
+} = require('./utils/ajustesGlobales');
 const { listarReporteCupones } = require('./utils/reporteCupones');
 const { verificarTurnstile } = require('./utils/turnstile');
 const { hashPasswordAdmin, validarPasswordAdmin, derivarNombreUsuario } = require('./utils/credencialesAdmin');
@@ -955,6 +965,13 @@ app.put(
     try {
       const tenant = await actualizarDatosTenant(req.params.slug, req.body || {}, { actor: req.adminUser });
       res.json({ ok: true, tenant });
+      // Editar/reasignar plan puede cambiar disco_cuota_mb — se evalúa en
+      // caliente en vez de esperar al intervalo de la próxima hora
+      // (fire-and-forget, después de responder: nunca debe retrasar ni
+      // tumbar el guardado si el correo de alerta falla).
+      evaluarYEnviarAlertaCapacidadDisco().catch((err) => {
+        console.error('No se pudo evaluar la alerta de capacidad de disco tras editar el tenant:', err.message);
+      });
     } catch (err) {
       if (err instanceof ErrorEdicionTenant) {
         const estatus =
@@ -1096,6 +1113,57 @@ app.put(
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
+  })
+);
+
+// Capacidad de disco de infraestructura (punto en curso, propuesta
+// "Sección C"): cuánto disco físico real se puede repartir entre todos
+// los tenants + a dónde avisar al 80% + el tope máximo POR TENANT
+// (indistinto del plan, 2026-10-27). GET regresa ajustes + el resumen
+// calculado (comprometido/disponible/semáforo/desglose/capacidadFuente)
+// en una sola llamada. `capacidad_total_mb` YA NO se guarda desde aquí —
+// se lee en vivo de Garage dentro de `calcularResumenCapacidad()`
+// (ver `resumen.capacidadTotalMb`/`resumen.capacidadFuente`).
+app.get(
+  '/api/control/ajustes/disco-capacidad',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const [alertaEmail, topeTenantMb, resumen] = await Promise.all([
+      getDiscoAlertaEmail(),
+      getDiscoTopeTenantMb(),
+      calcularResumenCapacidad(),
+    ]);
+    res.json({ alerta_email: alertaEmail, tope_tenant_mb: topeTenantMb, resumen });
+  })
+);
+
+app.put(
+  '/api/control/ajustes/disco-capacidad',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    try {
+      if (body.alerta_email !== undefined) {
+        await setDiscoAlertaEmail(body.alerta_email);
+      }
+      if (body.tope_tenant_mb !== undefined) {
+        await setDiscoTopeTenantMb(body.tope_tenant_mb);
+      }
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    const resumen = await calcularResumenCapacidad();
+    // Guardar un ajuste de capacidad puede cruzar el umbral de inmediato
+    // (bajar la capacidad total, por ejemplo) — se evalúa en caliente en
+    // vez de esperar al intervalo de la próxima hora.
+    evaluarYEnviarAlertaCapacidadDisco().catch((err) => {
+      console.error('No se pudo evaluar la alerta de capacidad de disco tras guardar ajustes:', err.message);
+    });
+    res.json({ ok: true, resumen });
   })
 );
 
@@ -1559,6 +1627,60 @@ app.put(
   })
 );
 
+// ---------- Compra de upscale de almacenamiento, llamada desde backend ----------
+// El admin del tenant NUNCA tiene credenciales de /control — compra su
+// upscale desde Mi Cuenta (backend), que llama a estos 2 endpoints
+// internos con el mismo secreto compartido que ya protege
+// notificarInvalidacionCache/activarTenantFisico (primera vez que la
+// llamada va en sentido backend→control, no al revés — mismo mecanismo,
+// dirección nueva).
+function secretoInternoValido(req) {
+  const secretoEsperado = process.env.INTERNAL_CACHE_SECRET;
+  const recibido = req.get('X-Internal-Secret') || '';
+  if (!secretoEsperado) return false;
+  const bufEsperado = Buffer.from(secretoEsperado);
+  const bufRecibido = Buffer.from(recibido);
+  if (bufEsperado.length !== bufRecibido.length) {
+    crypto.timingSafeEqual(bufEsperado, bufEsperado);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufEsperado, bufRecibido);
+}
+
+app.post('/internal/upscale/simular', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, cantidad } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    const resumen = await simularCompraUpscale(slug, Number(cantidad) || 1);
+    res.json({ ok: true, resumen });
+  } catch (err) {
+    if (err instanceof ErrorUpscaleCompra) {
+      const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'sin_catalogo' ? 409 : 400;
+      return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
+
+app.post('/internal/upscale/confirmar', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, cantidad, successUrl, cancelUrl } = req.body || {};
+  if (!slug || !successUrl || !cancelUrl) {
+    return res.status(400).json({ error: 'slug, successUrl y cancelUrl son obligatorios.' });
+  }
+  try {
+    const resultado = await confirmarCompraUpscale(slug, Number(cantidad) || 1, { successUrl, cancelUrl });
+    res.json(resultado);
+  } catch (err) {
+    if (err instanceof ErrorUpscaleCompra) {
+      const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'sin_catalogo' ? 409 : 400;
+      return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
+
 // ---------- Punto en curso: configuración de Stripe (MSI, métodos, descuentos) ----------
 app.get(
   '/api/control/stripe/msi',
@@ -1932,7 +2054,7 @@ app.use((req, res) => {
 
 async function iniciar() {
   await asegurarTablaAuditoria();
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos } = require('./scripts/ensureSchema');
   // asegurarTablasSucursales() debe correr ANTES de
   // asegurarColumnasCicloVidaTenant(): esta última hace un UPDATE sobre
   // `tenants.grupo_sucursal_id`, columna que crea asegurarTablasSucursales
@@ -1948,6 +2070,7 @@ async function iniciar() {
   await asegurarTablaOnboardingBorradores(obtenerPool());
   await asegurarTablaStripeEventos(obtenerPool());
   await asegurarTablaUpscale(obtenerPool());
+  await asegurarTablaUpscaleActivos(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);
@@ -1955,6 +2078,7 @@ async function iniciar() {
 
   iniciarPurgaAutomatica();
   iniciarRecordatoriosAutomaticos();
+  iniciarAlertaCapacidadDiscoAutomatica();
 }
 
 // Temporizador propio dentro del proceso de control/ (mecanismo elegido
@@ -2019,6 +2143,33 @@ function iniciarRecordatoriosAutomaticos() {
 
   setTimeout(ejecutar, 45 * 1000);
   setInterval(ejecutar, INTERVALO_RECORDATORIOS_MS);
+}
+
+// Capacidad de disco (punto en curso): mismo criterio que los
+// recordatorios de arriba — sin cron externo, un intervalo en proceso
+// alcanza. Cada hora porque el cambio típico (asignar/editar un plan de
+// tenant) ya dispara una evaluación inmediata aparte (ver
+// tenantEdicion.js) — este intervalo es solo el respaldo para cuando el
+// cruce del umbral lo provoca un ajuste de la capacidad total configurada
+// en vez de un cambio de tenant.
+const INTERVALO_DISCO_CAPACIDAD_MS = 60 * 60 * 1000;
+let discoCapacidadEnCurso = false;
+
+function iniciarAlertaCapacidadDiscoAutomatica() {
+  const ejecutar = async () => {
+    if (discoCapacidadEnCurso) return;
+    discoCapacidadEnCurso = true;
+    try {
+      await evaluarYEnviarAlertaCapacidadDisco();
+    } catch (err) {
+      console.error('Error evaluando la capacidad de disco:', err.message);
+    } finally {
+      discoCapacidadEnCurso = false;
+    }
+  };
+
+  setTimeout(ejecutar, 60 * 1000);
+  setInterval(ejecutar, INTERVALO_DISCO_CAPACIDAD_MS);
 }
 
 // Igual que backend/server.js: solo arranca si este archivo se ejecuta
