@@ -393,7 +393,10 @@ app.get(
       `SELECT nombre, descripcion, precio_mensual, precio_anual, max_usuarios, disco_cuota_mb,
               facturacion_habilitada, ventas_habilitado, gastos_habilitado, cxc_habilitado,
               inventarios_habilitado, auditoria_habilitado, portal_clientes_habilitado,
-              sucursales_habilitado, marca_lookfeel_habilitado, promociones_habilitado
+              sucursales_habilitado, marca_lookfeel_habilitado, promociones_habilitado,
+              reportes_por_reporte_habilitado, reportes_cortes_habilitado,
+              reportes_eliminados_habilitado, reportes_estado_inventario_habilitado,
+              reportes_estado_tickets_habilitado
          FROM planes WHERE publicado_sitio = 1 AND activo = 1 ORDER BY orden`
     );
     res.json({ planes: filas });

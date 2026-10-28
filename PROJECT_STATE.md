@@ -24963,3 +24963,46 @@ apariciones de "Gestión de facturas"; `control.html` → 3).
 Archivos: `frontend/admin.html`, `frontend/admin.js`,
 `frontend/control.html`, `frontend/control.js`, `backend/server.js`,
 `PROJECT_STATE.md` (este punto).
+
+### Addendum — isla de precios de clarvo-Site: agrega Reportes + homologa "Gestión de facturas" (28 oct 2026)
+
+Petición explícita del usuario: la isla de precios pública (`clarvo-Site`,
+repo aparte — `PricingSection.astro`, consume `GET /api/public/planes` en
+vivo) no mostraba Reportes en absoluto, y seguía con el rótulo viejo
+"Facturación electrónica (CFDI)".
+
+**`GET /api/public/planes` (control/server.js) era una whitelist que
+nunca incluyó los 5 flags de Reportes** (`reportes_por_reporte_habilitado`,
+`reportes_cortes_habilitado`, `reportes_eliminados_habilitado`,
+`reportes_estado_inventario_habilitado`, `reportes_estado_tickets_habilitado`)
+— ya existían en el catálogo real desde el punto 350, simplemente nunca
+se habían agregado a esta respuesta pública (comentario explícito en el
+propio endpoint: "cualquier columna nueva de planes queda privada hasta
+que alguien decida a propósito agregarla aquí"). Agregados los 5.
+
+**Valores REALES verificados en vivo** antes de representarlos
+(`GET /api/control/planes` con las credenciales admin): Solicita (solo
+Estado de tickets), Controla (por_reporte + cortes + estado_inventario +
+estado_tickets), Crece (por_reporte + cortes + estado_inventario, SIN
+estado_tickets), Domina (los 5) — nunca inventados.
+
+**`PricingSection.astro`**: nuevo grupo "Reportes" con sus 5 claves
+(mismo patrón que los demás grupos — icono + label + flag), posicionado
+entre "Facturación y clientes" y "Organización". `MOD_LABELS.facturacion`
+pasó de "Facturación electrónica (CFDI)" a "Gestión de facturas", mismo
+criterio del punto 437 — homologado también en el sitio público, no solo
+en `/admin`/`/control`.
+
+`src/data/plans.ts`/`OnboardingModal.tsx` (mismo repo) NO se tocaron —
+confirmado que `plans.ts` ya está huérfano (el propio comentario de
+`PricingSection.astro` dice que la isla de precios dejó de usarlo desde
+que se conectó a la API real) y `OnboardingModal.tsx` no lo importa.
+
+Verificado: `npm run build` limpio (Astro), confirmado el bundle de
+salida (`dist/_astro/*.js`) contiene los strings nuevos ("Gestión de
+facturas", "Reportes por periodo"). `GET /api/public/planes` real
+contra Docker expone los 5 flags nuevos tras rebuild + recreate de
+`control`.
+
+Archivos (repo `clarvo-Site`, aparte): `src/components/site/PricingSection.astro`.
+Archivo (este repo): `control/server.js`.
