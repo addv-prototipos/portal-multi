@@ -524,6 +524,45 @@ solo la frase en español de la UI.
   Patrón real en `planes.js:eliminarPlan()`: debe estar ya archivado +
   `total_tenants === 0`, bloqueando con 409 `codigo:'tiene_empresas'`
   (no 400 genérico).
+- **Indicador de disco en Mi Cuenta + compra de upscale + Capacidad de
+  disco en `/control`** (punto 433, 2026-10-27): medidor de
+  almacenamiento en Mi Cuenta con aviso al 80%/95% (uso ahora
+  INCREMENTAL en cada subida — `backend/utils/discoUso.js` — no solo el
+  "Recalcular" manual de /control). Compra de upscale: regla de 20 días
+  contra `suscripcion_expira_en` decide Stripe Checkout inmediato o
+  cargo `pendiente_corte` (sin cobro automático real todavía, lo cobra
+  un operador a mano). Reutiliza el catálogo `funcionalidades_upscale`
+  ya existente en /control (se le agregó `disco_mb`) — nunca construir
+  un catálogo paralelo para "vender algo encima del plan". Tope máximo
+  de disco POR TENANT (`ajustes_globales.disco_tope_tenant_mb`,
+  indistinto del plan): un solo candado en
+  `tenantEdicion.js:resolverPlanYFunciones()` (cubre asignar plan Y
+  editar a mano) + `tenantUpscaleCompra.js` — rechaza con error claro,
+  nunca recorta en silencio. Primera llamada interna backend→control
+  (antes solo control→backend) vía `/internal/upscale/*`, mismo
+  `INTERNAL_CACHE_SECRET`.
+- **Capacidad total de disco: el HOST real, nunca Garage ni captura
+  manual** (punto 433, addendum 2): Garage mide el filesystem de SU
+  PROPIA VM (WSL2 en Docker Desktop) — en desarrollo Windows eso puede
+  reportar cientos de GB "libres" que no existen en el disco real
+  (confirmado: Garage decía ~945 GB, el host tenía 45). Fuente correcta:
+  `control/utils/hostDiscoCapacidad.js`, `fs.statfsSync()` contra un
+  bind mount de solo lectura de una carpeta VACÍA
+  (`HOST_DISK_PROBE_PATH`, default `C:/ProgramData/clarvo-disk-probe` →
+  `/hostdisk` en `docker-compose.yml`) — Garage queda solo como
+  fallback. `control_app` no tiene `DELETE` en NINGUNA tabla (ni
+  `ajustes_globales`, propia de `control_tenants`) — "sin valor" en una
+  tabla clave/valor se guarda como `''`, nunca `DELETE FROM`
+  (`ajustesGlobales.js:getValorTexto/setValorTexto`).
+- **`showToast()` antes de cerrar el modal lo oculta sin que nadie lo
+  vea** (punto 434): el toast nace DENTRO de `.modal-overlay:not([hidden])
+  .modal` si hay uno abierto (punto 423) — `showToast(...);
+  cerrarXModal();` lo inserta como hijo del modal que la línea siguiente
+  oculta. 8 sitios reales con este bug (Planes/Super Admins en
+  `control.js`; Tickets/Usuarios/Producto en `admin.js`). Orden correcto:
+  cerrar primero, notificar después — y si el mensaje depende de una
+  variable que el cierre resetea (`planEditandoId`, `usuarioActual`),
+  capturarla en una constante antes de cerrar.
 
 ## Stack
 

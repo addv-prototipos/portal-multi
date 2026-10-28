@@ -1158,9 +1158,16 @@
           <tr data-app="admin,control">
             <td class="col-punto">250</td>
             <td class="col-item">Cuota de almacenamiento de imágenes por empresa</td>
-            <td class="col-dependencia">Control fija MB por empresa; Admin al subir imagen en Inventarios recibe <code>INV_IMAGEN_CUOTA_EXCEDIDA</code> si excede <code>inv_imagen_cuota_mb</code> / <code>inv_imagen_max_mb</code> / <code>max_por_producto</code>. UI deshabilita "Subir imagen" hasta liberar espacio.</td>
-            <td><code>control_tenants.tenants.inventario_cuota_mb</code> → <code>POST /api/admin/inventarios/productos/:id/imagen:7547</code> + <code>inventarioImagen.js</code></td>
-            <td><span class="pill pill-red">Sin decidir</span></td>
+            <td class="col-dependencia">Diseño original (nombres <code>inv_imagen_cuota_mb</code>/<code>INV_IMAGEN_CUOTA_EXCEDIDA</code>) superado — la implementación real (punto 347, luego ampliada en el 433) usa <code>disco_cuota_mb</code>/<code>DISCO_CUOTA_EXCEDIDA</code>, cubre las 3 subidas de mayor volumen (producto, foto de ticket, constancia fiscal) y ya tiene indicador en Mi Cuenta con aviso al 80%/95%, compra de upscale, y tope máximo por empresa indistinto del plan (Super Admins → "Capacidad de disco"). Ver <code>PROJECT_STATE.md</code> puntos 347 y 433.</td>
+            <td><code>control_tenants.tenants.disco_cuota_mb</code>/<code>disco_upscale_mb</code> → <code>backend/utils/discoUso.js</code> + <code>control/utils/discoCapacidad.js</code></td>
+            <td><span class="pill pill-green">Implementado (punto 433)</span></td>
+          </tr>
+          <tr data-app="admin,control">
+            <td class="col-punto">433</td>
+            <td class="col-item">Upscale de disco: cobro recurrente automático real + reconciliación de cargos pendientes</td>
+            <td class="col-dependencia">Hoy, si faltan ≤20 días para el corte, el upscale se aplica sin cobrar (<code>primer_cobro_estado='pendiente_corte'</code> en <code>tenant_upscales_activos</code>) y un operador lo cobra a mano en el siguiente corte — decisión explícita del usuario (no construir cobro recurrente automático todavía). Falta: (a) UI en /control para ver/reconciliar esos cargos pendientes (hoy solo la tabla cruda); (b) si algún día se construye un corte automático real, decidir cómo se cruza contra esta tabla. También pendiente: <code>prod/</code> (VPS Linux real) necesita su propio <code>HOST_DISK_PROBE_PATH</code> (montar <code>/</code> o la ruta real de datos) — hoy solo configurado en <code>docker-compose.yml</code> de desarrollo.</td>
+            <td><code>control/utils/tenantUpscaleCompra.js</code> + <code>tenant_upscales_activos</code></td>
+            <td><span class="pill pill-red">Sin decidir (cobro automático) / Pendiente (prod)</span></td>
           </tr>
           <tr data-app="admin,control">
             <td class="col-punto">D10 / 32</td>
