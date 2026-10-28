@@ -8573,8 +8573,7 @@
       ? (ETIQUETAS_CICLO_SUSCRIPCION[suscripcion.ciclo] || suscripcion.ciclo)
       : 'Sin configurar';
     els.micuentaSuscripcionVence.textContent = suscripcion.expiraEn ? formatearFechaSoloDiaSinTZ(suscripcion.expiraEn) : 'Sin definir';
-    els.micuentaSuscripcionNota.innerHTML =
-      '<span class="resumen-fin-header-tag resumen-fin-header-tag-pendiente">Próximamente</span> método de cobro y consumo de recursos (almacenamiento, cuentas de panel) — en cuanto Stripe esté activo.';
+    els.micuentaSuscripcionNota.innerHTML = '';
 
     if (suscripcion.masterPendiente) {
       els.micuentaSuscripcionMaster.hidden = false;

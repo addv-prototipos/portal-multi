@@ -25055,3 +25055,20 @@ contra Docker expone los 5 flags nuevos tras rebuild + recreate de
 
 Archivos (repo `clarvo-Site`, aparte): `src/components/site/PricingSection.astro`.
 Archivo (este repo): `control/server.js`.
+
+## Punto 439 — Mi Cuenta: quita la nota "Próximamente... en cuanto Stripe esté activo" (28 oct 2026, CERRADO)
+
+Usuario pidió eliminar esa nota de la tarjeta Suscripción (Mi Cuenta,
+admin/tenant con cuenta raíz) — Stripe ya está activo y en uso real
+desde los puntos 425/430, la nota quedó obsoleta. `aplicarEstadoSuscripcionMiCuenta()`
+en `admin.js` seteaba ese texto incondicionalmente para cualquier
+tenant no-ilimitado; ahora `els.micuentaSuscripcionNota.innerHTML = ''`.
+No se tocaron los demás tags "Próximamente" del sitio (2FA, sesiones
+activas, Clarvo Site Market, conciliación de pagos, autofacturación de
+ADDV) — esos describen features genuinamente sin construir, ninguno
+depende solo de "Stripe activo" como esta nota.
+
+Verificado: `node --check` limpio, rebuild + recreate de `frontend`,
+confirmado por `curl` que el string ya no se sirve.
+
+Archivos: `frontend/admin.js`, `PROJECT_STATE.md` (este punto).
