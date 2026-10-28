@@ -24755,3 +24755,40 @@ pendiente de que el usuario lo confirme.
 
 Archivos: `frontend/control.js`, `frontend/admin.js`, `PROJECT_STATE.md`
 (este punto).
+
+## Punto 435 — Carpeta `prod/` renombrada a `hostinger/` (28 oct 2026, CERRADO)
+
+Petición explícita del usuario: "cambia el nombre de la carpeta prod a
+hostinger que es donde tenemos el server de pruebas... que ya quede
+registrado en el proyecto". Mismo rol de siempre (paquete de despliegue,
+punto 412 — NO es parte del producto), solo cambia el nombre local.
+
+**Verificado antes de renombrar**: `prod/*.sh` usan `$SCRIPT_DIR`
+(calculado en runtime) para ubicar `docker-compose.prod.yml`, nunca una
+ruta hardcodeada con el nombre de la carpeta — y los nombres de
+contenedor (`portalManager-prod-mysql`, etc.) viven DENTRO de
+`docker-compose.prod.yml`, independientes del nombre del directorio que
+lo contiene. Renombrar la carpeta no rompe nada funcional.
+
+**Cambios**: `mv prod hostinger` (carpeta nunca trackeada por git, cero
+historial que preservar); nueva entrada `hostinger/` en `.gitignore`
+(formaliza la regla "nunca `git add`" que antes era solo disciplina
+manual); `CLAUDE.md`/`AGENTS.md`/`README.md` — todas las referencias a
+`prod/` reemplazadas por `hostinger/` (8 sitios en CLAUDE.md/AGENTS.md
+cada uno, 1 en README.md).
+
+**Lo que NO cambió, a propósito**: la ruta REMOTA en el VPS real sigue
+siendo `/root/clarvo/prod/` — renombrar un directorio en el servidor en
+vivo es una acción aparte, en una máquina real, que no se asume ni se
+hace sin pedirse explícitamente (mismo criterio que "nunca ofrecer SSH"
+ya establecido). `CLAUDE.md` deja la distinción explícita (carpeta
+LOCAL `hostinger/` vs ruta REMOTA `prod/`) para que ninguna sesión
+futura arme un comando de despliegue confundiendo los dos nombres.
+Nombres de archivo internos (`docker-compose.prod.yml`,
+`.env.prod.example`, contenedores `portalManager-prod-*`) tampoco se
+tocaron — describen el ambiente ("producción"), no la carpeta, y
+renombrarlos no aportaba nada al pedido del usuario.
+
+Archivos: `.gitignore`, `CLAUDE.md`, `AGENTS.md`, `README.md`,
+`PROJECT_STATE.md` (este punto). Carpeta `prod/` → `hostinger/` (fuera
+de git, cambio solo en disco).

@@ -234,12 +234,12 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   responde la página de `mantenimiento.html` (502/503) aunque
   `docker compose ps` muestre `backend` como `healthy`. Fix de un paso:
   `docker compose restart frontend` después de recrear `backend`.
-- **Scripts de `prod/` horneados en la imagen**: el backend de
-  producción construye desde `prod/backend` sin bind mount (solo
-  `uploads` es volumen) — un cambio en `prod/backend/scripts/*` (p. ej.
+- **Scripts de `hostinger/` horneados en la imagen**: el backend de
+  producción construye desde `hostinger/backend` sin bind mount (solo
+  `uploads` es volumen) — un cambio en `hostinger/backend/scripts/*` (p. ej.
   `sembrar-prod.js`) NO llega al contenedor con `./sembrar.sh` (que solo
   hace `exec` sobre la imagen ya construida): reconstruir primero
-  (`prod/actualizar.sh` lo hace, o `docker compose build backend` +
+  (`hostinger/actualizar.sh` lo hace, o `docker compose build backend` +
   recreate) o se ejecutará el script viejo (punto 366). El flujo
   histórico no lo notaba porque `./actualizar.sh` (rebuild) corre ANTES
   de `./sembrar.sh`; además el seed es determinista (misma semilla →
@@ -391,7 +391,7 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   (`img-src 'self' data: blob:`, `frame-src 'self' blob:`) si se usan
   imágenes/iframes con blob URLs.
 - **Whitelist de extensiones estáticas en nginx**: `frontend/nginx.conf.template`
-  (y su espejo `prod/frontend/nginx.conf.template`) tiene un `location`
+  (y su espejo `hostinger/frontend/nginx.conf.template`) tiene un `location`
   con regex explícito de extensiones cacheables
   (`\.(?:svg|png|jpg|jpeg|webp|woff2?)$`) — cualquier extensión nueva de
   asset (ej. un formato de imagen que nunca se había usado) que NO esté
@@ -472,7 +472,7 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   que el propio proveedor documenta (`1x00000000000000000000AA`/
   `1x0000000000000000000000000000000AA` para Turnstile, siempre
   aprueban) — nunca un secreto real hardcodeado, y SOLO en
-  `docker-compose.yml` (desarrollo), nunca en `prod/`. El token del
+  `docker-compose.yml` (desarrollo), nunca en `hostinger/`. El token del
   widget se verifica en el paso donde de verdad importa (la operación
   sensible/cara), no en el primer paso de un wizard multi-paso: los
   tokens de este tipo de servicio son de un solo uso y expiran en
@@ -506,7 +506,7 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   de `.env` en la PRIMERA inicialización del volumen — editar `.env`
   después desincroniza contra el password real ya grabado. Runbook en
   memoria `project_mysql_credential_desync_prod.md`; preflight ya
-  integrado en `prod/actualizar.sh`.
+  integrado en `hostinger/actualizar.sh`.
 - **Candado de feature-flag por tenant**: `backend/utils/requiereFeature.js`
   (punto 347) — responde **404, nunca 403**, un tenant sin el módulo se
   comporta como si la ruta no existiera (mismo criterio que la
@@ -648,14 +648,23 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 - **`backend/` y `control/` son builds de Docker separados** — nunca
   copiar código entre ellos en producción; código pequeño compartido se
   duplica a propósito (mismo patrón que el frontend sin bundler).
-- **`prod/`** (paquete de despliegue para `yt.addv.com.mx`) **NO es parte
-  del producto, es la herramienta de despliegue** (decisión del usuario,
-  2026-10-22, punto 412 de PROJECT_STATE.md): se reescribe con cada
-  actualización y puede borrarse y regenerarse completa. Sincronizarlo por
-  CONTENIDO tras cualquier sesión relevante, nunca `git add`. Un desfase
-  contra su fuente **nunca se cuenta como hallazgo del producto** en
-  auditorías (métricas, quality gate, code smells) — es un paso del
-  proceso de deploy, no deuda de código.
+- **`hostinger/`** (paquete de despliegue para `yt.addv.com.mx`, el
+  server de pruebas real del usuario alojado en Hostinger — carpeta
+  renombrada de `prod/` a `hostinger/` el 2026-10-28, petición explícita
+  del usuario, "que quede registrado en el proyecto"; `.gitignore` ya
+  trae la entrada `hostinger/` para que nunca se trackeé por accidente)
+  **NO es parte del producto, es la herramienta de despliegue** (decisión
+  del usuario, 2026-10-22, punto 412 de PROJECT_STATE.md): se reescribe
+  con cada actualización y puede borrarse y regenerarse completa.
+  Sincronizarlo por CONTENIDO tras cualquier sesión relevante, nunca
+  `git add`. Un desfase contra su fuente **nunca se cuenta como hallazgo
+  del producto** en auditorías (métricas, quality gate, code smells) —
+  es un paso del proceso de deploy, no deuda de código. **La ruta
+  REMOTA en el VPS sigue siendo `/root/clarvo/prod/`** (sin renombrar —
+  ese es un cambio aparte, en el servidor en vivo, nunca asumido ni
+  hecho sin pedirlo explícito) — no confundir el nombre de la carpeta
+  LOCAL (ahora `hostinger/`) con la ruta remota (sigue `prod/`) al armar
+  cualquier comando de despliegue.
 - **Credenciales angostas cross-tenant** (`control_app`): sin
   `REFERENCES`/`DELETE` en tablas de otros tenants — usar soft-delete en
   vez de FK/DELETE físico en cualquier tabla cross-tenant. **El alcance es
@@ -824,7 +833,7 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   de `backend/server.js` usan `memoryStorage` — `UPLOAD_DIR`/
   `TICKETS_UPLOAD_DIR`/`FACTURAS_UPLOAD_DIR` solo hacían `mkdirSync` al
   arrancar, ningún handler leía/escribía ahí. `docker-compose.yml` y
-  `prod/docker-compose.prod.yml` **siguen** con el bind mount
+  `hostinger/docker-compose.prod.yml` **siguen** con el bind mount
   `./uploads:/app/uploads` y `UPLOAD_DIR=/app/uploads` sin tocar (fuera de
   alcance de este punto, no se editó infraestructura) — Docker recrea la
   carpeta vacía en el host si no existe, así que no rompe `docker compose
@@ -843,7 +852,7 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `CreateBucket` — lo hace el servicio one-shot `garage-init`
   (`docker/garage-init/`, solo REST contra el puerto admin 3903, nunca
   el binario/RPC) antes de que `backend` arranque. Solo se tocó
-  `docker-compose.yml` (desarrollo local) — `prod/` sigue con su MinIO
+  `docker-compose.yml` (desarrollo local) — `hostinger/` sigue con su MinIO
   tal cual, fuera de alcance a propósito.
 - **`control/server.js:iniciar()` tenía un bug de orden invisible hasta
   un wipe 100% de Docker (punto 415)**: `asegurarColumnasCicloVidaTenant()`

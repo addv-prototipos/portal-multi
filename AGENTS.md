@@ -146,12 +146,12 @@ solo la frase en español de la UI.
   responde la página de `mantenimiento.html` (502/503) aunque
   `docker compose ps` muestre `backend` como `healthy`. Fix de un paso:
   `docker compose restart frontend` después de recrear `backend`.
-- **Scripts de `prod/` horneados en la imagen**: el backend de
-  producción construye desde `prod/backend` sin bind mount (solo
-  `uploads` es volumen) — un cambio en `prod/backend/scripts/*` (p. ej.
+- **Scripts de `hostinger/` horneados en la imagen**: el backend de
+  producción construye desde `hostinger/backend` sin bind mount (solo
+  `uploads` es volumen) — un cambio en `hostinger/backend/scripts/*` (p. ej.
   `sembrar-prod.js`) NO llega al contenedor con `./sembrar.sh` (que solo
   hace `exec` sobre la imagen ya construida): reconstruir primero
-  (`prod/actualizar.sh` lo hace, o `docker compose build backend` +
+  (`hostinger/actualizar.sh` lo hace, o `docker compose build backend` +
   recreate) o se ejecutará el script viejo (punto 366). El flujo
   histórico no lo notaba porque `./actualizar.sh` (rebuild) corre ANTES
   de `./sembrar.sh`; además el seed es determinista (misma semilla →
@@ -246,7 +246,7 @@ solo la frase en español de la UI.
   (`img-src 'self' data: blob:`, `frame-src 'self' blob:`) si se usan
   imágenes/iframes con blob URLs.
 - **Whitelist de extensiones estáticas en nginx**: `frontend/nginx.conf.template`
-  (y su espejo `prod/frontend/nginx.conf.template`) tiene un `location`
+  (y su espejo `hostinger/frontend/nginx.conf.template`) tiene un `location`
   con regex explícito de extensiones cacheables
   (`\.(?:svg|png|jpg|jpeg|webp|woff2?)$`) — cualquier extensión nueva de
   asset que NO esté en esa lista cae al catch-all anti-enumeración de
@@ -316,7 +316,7 @@ solo la frase en español de la UI.
   de `.env` en la PRIMERA inicialización del volumen — editar `.env`
   después desincroniza contra el password real ya grabado. Runbook en
   memoria `project_mysql_credential_desync_prod.md`; preflight ya
-  integrado en `prod/actualizar.sh`.
+  integrado en `hostinger/actualizar.sh`.
 - **`db_host` mal grabado**: correr un script de aprovisionamiento con
   `DB_HOST=127.0.0.1` desde el host graba ese valor en
   `control_tenants.tenants.db_host` — el backend (dentro de Docker)
@@ -332,7 +332,7 @@ solo la frase en español de la UI.
 - **`backend/` y `control/` son builds de Docker separados** — nunca
   copiar código entre ellos en producción; código pequeño compartido se
   duplica a propósito (mismo patrón que el frontend sin bundler).
-- **`prod/`** (paquete de despliegue para `yt.addv.com.mx`) **NO es parte
+- **`hostinger/`** (paquete de despliegue para `yt.addv.com.mx`) **NO es parte
   del producto, es la herramienta de despliegue** (decisión del usuario,
   2026-10-22, punto 412 de PROJECT_STATE.md): se reescribe con cada
   actualización y puede borrarse y regenerarse completa. Sincronizarlo por
@@ -405,7 +405,7 @@ solo la frase en español de la UI.
   (mismas variables `MINIO_*` + `MINIO_REGION=garage` nueva). El bucket/
   access key los crea `garage-init` (`docker/garage-init/`, solo REST
   contra el puerto admin 3903) antes de que `backend` arranque. Solo
-  `docker-compose.yml` (desarrollo local) — `prod/` sin tocar.
+  `docker-compose.yml` (desarrollo local) — `hostinger/` sin tocar.
 - **Bug de orden en `control/server.js:iniciar()`, invisible hasta un
   wipe 100% de Docker**: `asegurarColumnasCicloVidaTenant()` corría antes
   que `asegurarTablasSucursales()`, pero depende de una columna

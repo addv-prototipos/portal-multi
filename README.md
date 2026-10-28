@@ -958,7 +958,7 @@ propósito por seguridad y portabilidad:
   proceso/credenciales, no solo la base lógica, del MySQL que usa el
   backend de tenants. Fase 2 (servidor físico separado) queda pendiente
   de que exista esa infraestructura. Solo en el stack de desarrollo
-  local por ahora — `prod/` (VPS único nodo) no incluye este servicio.
+  local por ahora — `hostinger/` (VPS único nodo) no incluye este servicio.
 
 **Sí captura altas nuevas (segmento 9c)**: el botón **"Nueva empresa"**
 del `/control` guarda la solicitud con estado `provisioning` (nombre,

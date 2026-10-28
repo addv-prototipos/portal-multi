@@ -45,6 +45,14 @@ Thumbs.db
 # Papelera local de limpieza de área de trabajo — nunca al repositorio
 .trash/
 
+# Paquete de despliegue al VPS de Hostinger (antes "prod/", renombrado
+# 2026-10-28 — ahí vive el server de pruebas real) — herramienta de
+# despliegue, no código del producto (ver CLAUDE.md): se reescribe con
+# cada actualización y se sincroniza por contenido, nunca por git add.
+# Formaliza en .gitignore la regla que ya era manual, para que un
+# "git add -A" accidental nunca lo arrastre.
+hostinger/
+
 # Editores / herramientas locales
 .idea/
 .claude/
