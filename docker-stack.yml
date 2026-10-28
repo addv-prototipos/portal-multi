@@ -184,7 +184,7 @@ services:
           memory: 512m
 
   backend:
-    image: ${BACKEND_IMAGE:-portalManager-backend:latest}
+    image: ${BACKEND_IMAGE:-clrv-backend:latest}
     environment:
       PORT: 4000
       UPLOAD_DIR: /app/uploads
@@ -250,7 +250,7 @@ services:
   # duplicar la separación sin poder probarla es más riesgo que
   # beneficio. Revisar cuando Swarm se ejercite de verdad.
   control:
-    image: ${CONTROL_IMAGE:-portalManager-control:latest}
+    image: ${CONTROL_IMAGE:-clrv-control:latest}
     environment:
       PORT: 4001
       ADMIN_USERS: ${ADMIN_USERS:?falta ADMIN_USERS}
@@ -277,7 +277,7 @@ services:
           memory: 256m
 
   frontend:
-    image: ${FRONTEND_IMAGE:-portalManager-frontend:latest}
+    image: ${FRONTEND_IMAGE:-clrv-frontend:latest}
     environment:
       CONTROL_UPSTREAM_HOST: ${CONTROL_UPSTREAM_HOST:-control}
       CONTROL_UPSTREAM_PORT: ${CONTROL_UPSTREAM_PORT:-4001}

@@ -1225,13 +1225,36 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   específico (cuál funcionalidad, cuánto, cobrado cómo) es una tabla
   aparte (`tenant_upscales_activos`), el catálogo nunca sabe quién lo
   compró.
+- **Agregar hijos (ícono/texto) dentro de un `.campo-ayuda`/botón con
+  delegación por `classList.contains` exacto rompe el clic en silencio**
+  (punto 436, 2026-10-28): 3 listeners en `admin.js` (modal de ayuda de
+  inventario) hacían `e.target.classList.contains('campo-ayuda')` — al
+  meter un `<svg>` + texto "Ayuda" DENTRO del botón (rediseño del
+  componente), un clic sobre esos hijos vuelve `e.target` el hijo, nunca
+  el botón, y el check exacto deja de matchear. Mismo bug-shape que el
+  toast del punto 434 (ahí era orden de cierre, aquí es contenido
+  anidado) — siempre `.closest('.campo-ayuda')`, nunca `e.target`
+  directo, en cualquier delegación sobre un elemento que pueda ganar
+  hijos después. `theme.js` es el único script que se carga en las 6
+  páginas con `.campo-ayuda` sin excepción — comportamiento de UI global
+  no ligado a tenant se agrupa ahí en vez de duplicarlo 5 veces (ver
+  bloque de descubribilidad del halo, mismo punto). **Nota de
+  verificación**: el clic sintético de la extensión de Chrome en esta
+  sesión no disparó ningún evento observable por `document` en fase de
+  captura (ni por coordenadas ni por referencia) — confirmado que es
+  limitación de la herramienta, no del código, disparando el mismo
+  evento a mano con `dispatchEvent(new PointerEvent('pointerdown'))`
+  (funcionó al instante) y con `.focus()` programático (equivalente a
+  Tab real, también funcionó). Si una sesión futura ve un clic que "no
+  hace nada" solo en pruebas automatizadas de Chrome, probar primero con
+  `dispatchEvent` manual antes de asumir que el código está roto.
 
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
 Nginx sirviendo frontend estático (HTML/CSS/JS vanilla, sin build step),
 todo sobre Docker/Docker Compose. Ver README para la lista completa de
-dependencias. Prefijo de contenedores: `portalManager-*`.
+dependencias. Prefijo de contenedores: `clrv-*` (proyecto Docker Compose "clarvo-app", antes "portalManager-*"/"portalfac", renombrado punto 436).
 
 **Tres servicios de aplicación, tres directorios de build separados**
 (segmento 9b, ver PROJECT_STATE.md punto 99): `backend/` (portal de

@@ -16,10 +16,20 @@
 # caliente desde su pantalla "Super Admins" sin tocar ningún otro
 # secreto del stack.
 # ──────────────────────────────────────────────────────────────────────────
+
+# Nombre del proyecto de Docker Compose (antes "portalfac", heredado del
+# nombre de la carpeta) — decide el prefijo de red/volúmenes nuevos y las
+# imágenes de build sin `image:` explícito. Cambiado por petición del
+# usuario, 2026-10-28, ver PROJECT_STATE.md punto 436. Los volúmenes de
+# abajo quedan anclados (`name:`) a su nombre físico REAL ya existente
+# (`portalfac_*`) a propósito — cambiar el nombre del proyecto NO debe
+# mover ni un byte de los datos de tenants/Garage ya creados.
+name: clarvo-app
+
 services:
   mysql:
     image: mysql:8.0
-    container_name: portalManager-mysql
+    container_name: clrv-mysql-companies
     restart: unless-stopped
     # Limite de memoria: sin esto, un pico de memoria en cualquiera de los
     # tres contenedores puede dejar sin RAM al host completo, y el OOM
@@ -87,7 +97,7 @@ services:
   # DROP — ver backend/scripts/lib/controlDb.js).
   mysql-control:
     image: mysql:8.0
-    container_name: portalManager-mysql-control
+    container_name: clrv-mysql-control
     restart: unless-stopped
     mem_limit: 384m
     environment:
@@ -148,7 +158,7 @@ services:
   # hacía MinIO.
   garage:
     image: dxflrs/garage:v1.1.0
-    container_name: portalManager-garage
+    container_name: clrv-garage
     restart: unless-stopped
     mem_limit: 512m
     volumes:
@@ -192,7 +202,7 @@ services:
     build:
       context: ./docker/garage-init
       dockerfile: Dockerfile
-    container_name: portalManager-garage-init
+    container_name: clrv-garage-init
     restart: "no"
     depends_on:
       garage:
@@ -224,7 +234,7 @@ services:
   # README/test.md para el valor usado en este equipo.
   filestash:
     image: machines/filestash:latest
-    container_name: portalManager-filestash
+    container_name: clrv-filestash
     restart: unless-stopped
     mem_limit: 256m
     depends_on:
@@ -251,7 +261,7 @@ services:
   # local). Filestash se deja corriendo por si se prefiere la vista web.
   rclone-webdav:
     image: rclone/rclone:latest
-    container_name: portalManager-rclone-webdav
+    container_name: clrv-rclone-webdav
     restart: unless-stopped
     mem_limit: 128m
     command:
@@ -288,7 +298,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: portalManager-backend
+    container_name: clrv-backend
     restart: unless-stopped
     # 512m era razonable cuando se fijó este límite por primera vez, pero
     # desde entonces se agregaron exceljs (genera archivos .xlsx
@@ -431,7 +441,7 @@ services:
     build:
       context: ./control
       dockerfile: Dockerfile
-    container_name: portalManager-control
+    container_name: clrv-control
     restart: unless-stopped
     mem_limit: 256m
     stop_grace_period: 10s
@@ -548,7 +558,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: portalManager-frontend
+    container_name: clrv-frontend
     restart: unless-stopped
     mem_limit: 128m
     depends_on:
@@ -586,14 +596,23 @@ networks:
   fiscal-net:
     driver: bridge
 
+# Anclados (`name:`) a su nombre físico REAL ya existente en disco
+# (`portalfac_*`, del nombre de proyecto de ANTES del rename a
+# "clarvo-app") — a propósito, para que el rename de arriba nunca mueva
+# ni recree los datos reales de tenants/Garage/control ya creados.
 volumes:
   mysql_data:
+    name: portalfac_mysql_data
     driver: local
   mysql_control_data:
+    name: portalfac_mysql_control_data
     driver: local
   garage_meta:
+    name: portalfac_garage_meta
     driver: local
   garage_data:
+    name: portalfac_garage_data
     driver: local
   filestash_data:
+    name: portalfac_filestash_data
     driver: local

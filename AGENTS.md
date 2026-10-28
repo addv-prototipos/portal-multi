@@ -563,13 +563,24 @@ solo la frase en español de la UI.
   cerrar primero, notificar después — y si el mensaje depende de una
   variable que el cierre resetea (`planEditandoId`, `usuarioActual`),
   capturarla en una constante antes de cerrar.
+- **Delegación por `classList.contains` exacto se rompe si el elemento
+  gana hijos** (punto 436): al rediseñar `.campo-ayuda` (ícono SVG +
+  texto "Ayuda" dentro del botón, antes solo el carácter "?"), 3
+  listeners en `admin.js` que hacían `e.target.classList.contains(
+  'campo-ayuda')` dejaron de matchear — un clic en el SVG/texto hace que
+  `e.target` sea ese hijo, no el botón. Siempre `.closest('.campo-ayuda')`
+  en cualquier delegación sobre un elemento que pueda ganar hijos
+  después. `theme.js` es el único script cargado en las 6 páginas con
+  `.campo-ayuda` sin excepción — el halo de descubribilidad (localStorage
+  global, 3 eventos: pointerdown/click/focusin) se agrupó ahí en vez de
+  duplicarlo 5 veces.
 
 ## Stack
 
 Node.js 20 + Express 4, MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM),
 Nginx sirviendo frontend estático (HTML/CSS/JS vanilla, sin build step),
 todo sobre Docker/Docker Compose. Ver README para la lista completa de
-dependencias. Prefijo de contenedores: `portalManager-*`.
+dependencias. Prefijo de contenedores: `clrv-*` (proyecto Docker Compose "clarvo-app", antes "portalManager-*"/"portalfac", renombrado punto 436).
 
 **Tres servicios de aplicación, tres directorios de build separados**
 (segmento 9b, ver PROJECT_STATE.md punto 99): `backend/` (portal de

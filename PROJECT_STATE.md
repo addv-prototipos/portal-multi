@@ -24792,3 +24792,123 @@ renombrarlos no aportaba nada al pedido del usuario.
 Archivos: `.gitignore`, `CLAUDE.md`, `AGENTS.md`, `README.md`,
 `PROJECT_STATE.md` (este punto). Carpeta `prod/` → `hostinger/` (fuera
 de git, cambio solo en disco).
+
+## Punto 436 — `.campo-ayuda`: ícono real + "Ayuda" + halo de descubribilidad (28 oct 2026, CERRADO)
+
+Usuario pidió rediseñar el ícono de ayuda de campo ("se me hace
+simple"), con propuestas vía Artifact (`/ui-ux-pro-max`). Primera ronda
+apuntó al componente equivocado (`.btn-icon`, el "?" de sección de
+`/control`) con paleta oscura/cian copiada del sitio público por error
+— corregido en la 2da ronda al componente real: `.campo-ayuda`
+(`style.css`), usado en 31 sitios reales (30 estáticos en
+`admin.html`/`control.html`/`csf.html`/`dashboard.html`/`login.html`/
+`tickets.html` + 1 generado dinámicamente en `admin.js`), superficie
+clara real, acento navy `#03285B` (confirmado en `admin.css`, no cian).
+Usuario eligió combinar propuesta 3 (ícono real + texto "Ayuda" visible,
+no solo el carácter "?") con la 5 (halo pulsante solo hasta la primera
+vez que se toca uno, en cualquier parte del sitio).
+
+**Candado de alcance resuelto con el usuario antes de tocar código**:
+propuesta 3 agrega texto "Ayuda" visible — 17 de los 30 usos estáticos
+(más el dinámico) viven pegados a un `<label>` en espacio angosto (ej.
+`Tipo<button class="campo-ayuda">?</button>`). Se preguntó
+explícitamente si aplicar el texto en TODOS lados o solo ícono —el
+usuario confirmó texto en todos lados, aceptando el riesgo. Verificado
+real después (login.html, "RFC o correo [ícono] Ayuda", y la columna
+"Estado" de /control): cabe sin romper en los 2 contextos más angostos
+del sitio.
+
+**Implementación**:
+- `style.css`: `.campo-ayuda` pasa de círculo 20px con el carácter "?"
+  (`color`/`font-weight`, sin ícono real) a píldora con ícono SVG
+  `help-circle` (feather-style) + texto "Ayuda". Nuevo bloque
+  `.campo-ayuda-pulso .campo-ayuda::before` — halo que respira
+  (`@keyframes campo-ayuda-halo`, gateado en
+  `prefers-reduced-motion: no-preference`), activo solo cuando `<body>`
+  lleva la clase `campo-ayuda-pulso`.
+- `theme.js`: nuevo bloque al final del archivo (IIFE separada, fuera
+  de la lógica de tema de tenant) — es el único script que YA se carga
+  en las 6 páginas con `.campo-ayuda` sin excepción (confirmado en su
+  propio comentario de cabecera), así que se agrupó ahí en vez de
+  duplicar ~15 líneas en `admin.js`/`control.js`/`login.js`/
+  `dashboard.js`/`tickets.js`. Flag GLOBAL en `localStorage`
+  (`clarvoAyudaDescubierta`), no por campo — tocar CUALQUIER
+  `.campo-ayuda` en cualquier página apaga el halo para siempre en
+  todas. 3 vías de "descubrir": `pointerdown` + `click` (captura,
+  redundantes a propósito — ver hallazgo de verificación abajo) y
+  `focusin` (cubre navegación por teclado).
+- `admin.js`: los 3 listeners delegados que abren el modal de ayuda de
+  inventario (`invImportMapeoBody`, `invProductoModalOverlay`,
+  `invMovimientoModalOverlay`) usaban `e.target.classList.contains(
+  'campo-ayuda')` — exacto, sin `.closest()`. Con el ícono SVG + texto
+  "Ayuda" ahora DENTRO del botón, un clic sobre esos hijos hace que
+  `e.target` sea el `<svg>`/texto, nunca el `<button>` — el check se
+  habría roto en silencio (mismo bug-shape que el toast del punto 434,
+  versión "click en un hijo" en vez de "orden de cierre"). Las 3
+  arregladas a `e.target.closest('.campo-ayuda')`.
+
+**Hallazgo de verificación (no es un bug del producto)**: el clic
+sintético de la extensión de Chrome en esta sesión no disparó NINGÚN
+evento (`click`/`pointerdown`) observable por un listener en fase de
+captura sobre `document` — ni con coordenadas ni con referencia de
+elemento. Confirmado real con `dispatchEvent(new PointerEvent(
+'pointerdown'))` manual: el flag se marca, la clase se quita,
+instantáneo. `.focus()` programático (equivalente a Tab real) también
+confirmado funcionando. Limitación de la herramienta de automatización
+en este entorno, no del código — un clic/tap/teclado real de un
+usuario dispara estos eventos con normalidad en cualquier navegador. Se
+agregó `click` como tercer listener (además de `pointerdown`) solo por
+robustez adicional, no porque se haya identificado una causa real del
+hallazgo.
+
+Archivos: `frontend/style.css`, `frontend/theme.js`, `frontend/admin.js`,
+`frontend/admin.html`, `frontend/control.html`, `frontend/csf.html`,
+`frontend/dashboard.html`, `frontend/login.html`, `frontend/tickets.html`,
+`PROJECT_STATE.md` (este punto).
+
+## Punto 436 — Renombrado de Docker: proyecto `portalfac` → `clarvo-app`, contenedores `portalManager-*` → `clrv-*` (28 oct 2026, CERRADO)
+
+Petición explícita del usuario. 2 cambios, cero riesgo funcional
+verificado antes de ejecutar: el networking interno entre servicios usa
+el nombre de SERVICIO (`mysql`, `backend`, `control`, `garage`), nunca
+`container_name` — renombrar contenedores no toca ninguna resolución
+DNS interna, confirmado revisando `CONTROL_DB_HOST`/`BACKEND_INTERNAL_URL`/
+`GARAGE_ADMIN_URL` en `docker-compose.yml`, todos apuntan al nombre de
+servicio.
+
+**`docker-compose.yml`**: `name: clarvo-app` nuevo top-level (antes
+implícito, derivado del nombre de la carpeta → "portalfac"); los 9
+`container_name` con prefijo `clrv-` (`clrv-mysql-companies` —
+distingue del `-control` por pedido explícito del usuario, único
+rename no-literal; el resto es sustitución directa de prefijo:
+`clrv-mysql-control`, `clrv-garage`, `clrv-garage-init`,
+`clrv-filestash`, `clrv-rclone-webdav`, `clrv-backend`, `clrv-control`,
+`clrv-frontend`).
+
+**Único riesgo real — volúmenes con datos de tenants ya creados —
+resuelto sin mover un byte**: cambiar el nombre del proyecto de Compose
+cambia el prefijo con el que Docker nombra volúmenes NUEVOS
+(`<proyecto>_<volumen>`) — sin anclarlos, el stack habría creado 5
+volúmenes `clarvo-app_*` VACÍOS y dejado los 5 `portalfac_*` reales
+(tenants, bucket de Garage, BD de control) huérfanos. Los 5 volúmenes
+quedan anclados con `name: portalfac_mysql_data` (etc.) — mismo volumen
+físico real, solo cambia la clave con la que Compose lo referencia.
+Verificado real: `docker compose down` (proyecto viejo, explícito con
+`-p portalfac`, sin `-v`) → `docker compose up -d` (proyecto nuevo) →
+`docker volume ls` sigue mostrando exactamente los mismos 5
+`portalfac_*`, cero duplicados; `GET /api/control/tenants` siguió
+devolviendo los tenants de prueba ya creados (`taller-mecanico-prueba-2`,
+etc.); `/api/health` → 200; los 9 contenedores sanos con sus nombres
+`clrv-*` nuevos (`docker compose ps`).
+
+**Fuera de alcance, a propósito**: `hostinger/` (paquete de despliegue,
+prefijo `portalManager-prod-*`) no se tocó — pedido explícito del
+usuario era sobre el stack de desarrollo, no sobre el paquete de
+despliegue (que además sigue con su propia sincronización pendiente,
+ver conversación en curso); `docker-stack.yml` (Swarm, nunca desplegado
+real) solo se actualizó en las referencias de imagen (`clrv-backend:latest`,
+etc.) por consistencia, sin probarse contra un cluster real.
+
+Archivos: `docker-compose.yml`, `docker-stack.yml`, `CLAUDE.md`,
+`AGENTS.md`, `README.md`, `test.md` (local, gitignored),
+`PROJECT_STATE.md` (este punto).
