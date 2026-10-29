@@ -271,6 +271,7 @@
     micuentaSuscripcionPlan: document.getElementById('micuenta-suscripcion-plan'),
     micuentaSuscripcionEstatusLabel: document.getElementById('micuenta-suscripcion-estatus-label'),
     micuentaSuscripcionEstatus: document.getElementById('micuenta-suscripcion-estatus'),
+    micuentaSuscripcionEstatusBadge: document.getElementById('micuenta-suscripcion-estatus-badge'),
     micuentaSuscripcionCicloWrap: document.getElementById('micuenta-suscripcion-ciclo-wrap'),
     micuentaSuscripcionCiclo: document.getElementById('micuenta-suscripcion-ciclo'),
     micuentaSuscripcionVenceWrap: document.getElementById('micuenta-suscripcion-vence-wrap'),
@@ -8612,6 +8613,9 @@
     els.micuentaSuscripcionEstatus.textContent = suscripcion.estatus
       ? (ETIQUETAS_ESTATUS_SUSCRIPCION[suscripcion.estatus] || suscripcion.estatus)
       : 'Sin configurar';
+    if (els.micuentaSuscripcionEstatusBadge) {
+      els.micuentaSuscripcionEstatusBadge.className = 'micuenta-estatus-badge' + (suscripcion.estatus ? ` es-${suscripcion.estatus}` : '');
+    }
     els.micuentaSuscripcionCiclo.textContent = suscripcion.ciclo
       ? (ETIQUETAS_CICLO_SUSCRIPCION[suscripcion.ciclo] || suscripcion.ciclo)
       : 'Sin configurar';

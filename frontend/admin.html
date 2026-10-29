@@ -4384,43 +4384,67 @@
                propósito, sin tocar). -->
           <section class="micuenta-card micuenta-card-ancha micuenta-card-navy" id="micuenta-suscripcion-card" hidden>
             <h2 class="micuenta-card-titulo micuenta-card-titulo-navy">Plan de suscripción</h2>
-            <div class="micuenta-empresa-grid micuenta-suscripcion-grid">
-              <div>
-                <span class="micuenta-empresa-label">Plan contratado</span>
-                <p class="micuenta-empresa-valor" id="micuenta-suscripcion-plan">—</p>
-              </div>
-              <div>
-                <span class="micuenta-empresa-label" id="micuenta-suscripcion-estatus-label">Estatus de cobro</span>
-                <p class="micuenta-empresa-valor" id="micuenta-suscripcion-estatus">—</p>
-              </div>
-              <div id="micuenta-suscripcion-ciclo-wrap">
-                <span class="micuenta-empresa-label">Ciclo de facturación</span>
-                <p class="micuenta-empresa-valor" id="micuenta-suscripcion-ciclo">—</p>
-              </div>
-              <div id="micuenta-suscripcion-vence-wrap">
-                <span class="micuenta-empresa-label">Vence</span>
-                <p class="micuenta-empresa-valor" id="micuenta-suscripcion-vence">—</p>
-              </div>
-            </div>
             <p class="micuenta-suscripcion-texto" id="micuenta-suscripcion-nota"></p>
-            <!-- Propuesta A5 (elegida): barra de almacenamiento siempre
-                 visible dentro de la tarjeta navy, sin agregar una tarjeta
-                 nueva — hidden hasta que GET /api/admin/mi-cuenta mande
-                 empresa.almacenamiento (requiere disco_cuota_mb asignado
-                 desde /control). -->
-            <div class="micuenta-disco-medidor" id="micuenta-disco-medidor" hidden>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.657 4.03 3 9 3s9-1.343 9-3V5M3 12c0 1.657 4.03 3 9 3s9-1.343 9-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span id="micuenta-disco-medidor-texto">Almacenamiento</span>
-              <div class="micuenta-disco-medidor-track"><div class="micuenta-disco-medidor-fill" id="micuenta-disco-medidor-fill"></div></div>
+            <!-- Reorganización (propuesta 4 del Artifact, confirmada por
+                 el usuario, 2026-10-29): split "Tu plan" (identidad) |
+                 "Recursos y acciones" (qué puedes hacer) — antes todo
+                 vivía apilado en una sola columna, con "Vence" separado
+                 del resto de los datos y el aviso de no-renovación como
+                 texto diminuto hasta el final. La barra de almacenamiento
+                 se conserva EXACTA (mismo markup/clases/JS) — pedido
+                 explícito del usuario, no tocar esa parte. -->
+            <div class="micuenta-suscripcion-split">
+              <div class="micuenta-suscripcion-col">
+                <h3 class="micuenta-suscripcion-col-titulo">Tu plan</h3>
+                <div class="micuenta-empresa-grid micuenta-suscripcion-grid">
+                  <div>
+                    <span class="micuenta-empresa-label">Plan contratado</span>
+                    <p class="micuenta-empresa-valor" id="micuenta-suscripcion-plan">—</p>
+                  </div>
+                  <div id="micuenta-suscripcion-ciclo-wrap">
+                    <span class="micuenta-empresa-label">Ciclo de facturación</span>
+                    <p class="micuenta-empresa-valor" id="micuenta-suscripcion-ciclo">—</p>
+                  </div>
+                  <div>
+                    <span class="micuenta-empresa-label" id="micuenta-suscripcion-estatus-label">Estatus de cobro</span>
+                    <p class="micuenta-empresa-valor">
+                      <span class="micuenta-estatus-badge" id="micuenta-suscripcion-estatus-badge">
+                        <span class="micuenta-estatus-badge-dot" aria-hidden="true"></span>
+                        <span id="micuenta-suscripcion-estatus">—</span>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="micuenta-suscripcion-divider" aria-hidden="true"></div>
+              <div class="micuenta-suscripcion-col">
+                <h3 class="micuenta-suscripcion-col-titulo">Recursos y acciones</h3>
+                <div id="micuenta-suscripcion-vence-wrap" class="micuenta-suscripcion-vence-wrap">
+                  <span class="micuenta-empresa-label">Vence</span>
+                  <p class="micuenta-empresa-valor" id="micuenta-suscripcion-vence">—</p>
+                </div>
+                <!-- Propuesta A5 (elegida): barra de almacenamiento
+                     siempre visible dentro de la tarjeta navy, sin
+                     agregar una tarjeta nueva — hidden hasta que GET
+                     /api/admin/mi-cuenta mande empresa.almacenamiento
+                     (requiere disco_cuota_mb asignado desde /control).
+                     Conservada tal cual, sin cambios. -->
+                <div class="micuenta-disco-medidor" id="micuenta-disco-medidor" hidden>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.657 4.03 3 9 3s9-1.343 9-3V5M3 12c0 1.657 4.03 3 9 3s9-1.343 9-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <span id="micuenta-disco-medidor-texto">Almacenamiento</span>
+                  <div class="micuenta-disco-medidor-track"><div class="micuenta-disco-medidor-fill" id="micuenta-disco-medidor-fill"></div></div>
+                </div>
+                <p class="micuenta-suscripcion-texto" id="micuenta-suscripcion-cancelar-al-corte-aviso" hidden></p>
+                <!-- Cuenta raíz únicamente (puedeGestionarSuscripcion,
+                     mismo candado que "Datos de pago") — cancelar/pausar
+                     (A2+A1) y ver el catálogo de upscale/subir de plan
+                     completo. -->
+                <div class="micuenta-suscripcion-acciones" id="micuenta-suscripcion-acciones" hidden>
+                  <button type="button" class="btn btn-secondary" id="btn-micuenta-ver-upscale">Ampliar mi plan</button>
+                  <button type="button" class="btn-danger-text" id="btn-micuenta-cancelar-suscripcion">Cancelar suscripción</button>
+                </div>
+              </div>
             </div>
-            <!-- Cuenta raíz únicamente (puedeGestionarSuscripcion, mismo
-                 candado que "Datos de pago") — cancelar/pausar (A2+A1) y
-                 ver el catálogo de upscale/subir de plan completo. -->
-            <div class="micuenta-suscripcion-acciones" id="micuenta-suscripcion-acciones" hidden>
-              <button type="button" class="btn btn-secondary" id="btn-micuenta-ver-upscale">Ampliar mi plan</button>
-              <button type="button" class="btn-danger-text" id="btn-micuenta-cancelar-suscripcion">Cancelar suscripción</button>
-            </div>
-            <p class="micuenta-suscripcion-texto" id="micuenta-suscripcion-cancelar-al-corte-aviso" hidden></p>
             <div class="micuenta-suscripcion-master" id="micuenta-suscripcion-master" hidden>
               <span class="micuenta-empresa-label">Usuario master</span>
               <p class="micuenta-suscripcion-master-texto">Este tenant todavía no tiene un usuario administrador activo.</p>

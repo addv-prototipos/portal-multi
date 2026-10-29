@@ -10275,7 +10275,56 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 .upscale-billing-box p { margin: 0; color: var(--color-ink-soft); }
 #upscale-modal-cargando { font-size: 13px; color: var(--color-ink-soft); padding: 10px 0; }
 
+/* Reorganización de "Plan de suscripción" (propuesta 4, 2026-10-29):
+   split "Tu plan" | "Recursos y acciones" — antes todo apilado en una
+   sola columna. En móvil colapsa a 1 columna (el divisor se oculta,
+   no aporta nada vertical). */
+.micuenta-suscripcion-split { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 24px; margin-top: 4px; }
+.micuenta-suscripcion-divider { background: rgba(255, 255, 255, 0.14); }
+.micuenta-suscripcion-col-titulo {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55); margin: 0 0 14px;
+}
+.micuenta-suscripcion-vence-wrap { margin-bottom: 14px; }
+@media (max-width: 760px) {
+  .micuenta-suscripcion-split { grid-template-columns: 1fr; gap: 20px; }
+  .micuenta-suscripcion-divider { display: none; }
+}
+
+/* Badge de estatus de cobro — color semántico + texto (nunca solo
+   color, ver hallazgo de accesibilidad). Clase default (es-neutro) para
+   cualquier estatus sin mapeo explícito (ej. "Sin configurar"). */
+.micuenta-estatus-badge {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700;
+  padding: 3px 11px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: #fff;
+}
+.micuenta-estatus-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.micuenta-estatus-badge.es-pagada { background: rgba(31, 174, 107, 0.18); color: #6fe8ad; }
+.micuenta-estatus-badge.es-prueba { background: rgba(5, 219, 242, 0.16); color: #6fe9fb; }
+.micuenta-estatus-badge.es-pendiente { background: rgba(245, 168, 98, 0.2); color: #ffce9e; }
+.micuenta-estatus-badge.es-vencida,
+.micuenta-estatus-badge.es-cancelada { background: rgba(243, 139, 130, 0.2); color: #ffb3ab; }
+
 .micuenta-suscripcion-acciones { display: flex; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+/* .btn-secondary normal (style.css) es color:var(--color-ink) sobre fondo
+   transparente — pensado para superficies claras. Sobre la tarjeta navy
+   de Suscripción eso se ve lavado/sin ningún relleno visible ("sin
+   efecto", hallazgo real del usuario) — override explícito con el mismo
+   tratamiento de la propuesta aprobada: texto blanco, relleno sutil en
+   reposo, más visible en hover/foco. */
+.micuenta-suscripcion-acciones .btn-secondary {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.micuenta-suscripcion-acciones .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.micuenta-suscripcion-acciones .btn-secondary:focus-visible {
+  outline: 2px solid #05dbf2;
+  outline-offset: 2px;
+}
 .btn-danger-text {
   appearance: none; border: none; background: none; cursor: pointer; padding: 4px 0;
   font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--color-error); text-decoration: underline;
@@ -10399,8 +10448,16 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
    override explícito para legibilidad sobre .micuenta-card-navy, mismo
    criterio que .micuenta-card-titulo-navy arriba. */
 .micuenta-suscripcion-grid { margin-top: 14px; }
-.micuenta-suscripcion-grid .micuenta-empresa-label { color: rgba(255, 255, 255, 0.65); }
-.micuenta-suscripcion-grid .micuenta-empresa-valor { color: #fff; }
+/* Antes escopado solo a .micuenta-suscripcion-grid — la reorganización
+   de split (2026-10-29) sacó "Vence" de ese grid a su propio wrapper
+   (.micuenta-suscripcion-vence-wrap), y perdió el blanco (quedaba con
+   el var(--color-ink) oscuro de .micuenta-empresa-valor, pensado para
+   tarjetas claras — hallazgo real del usuario). Escopado a TODA la
+   tarjeta navy en vez de a un wrapper específico, para que cualquier
+   .micuenta-empresa-label/valor futuro adentro de esta tarjeta herede
+   el contraste correcto sin tener que acordarse de repetir el override. */
+.micuenta-card-navy .micuenta-empresa-label { color: rgba(255, 255, 255, 0.65); }
+.micuenta-card-navy .micuenta-empresa-valor { color: #fff; }
 .micuenta-suscripcion-master {
   margin-top: 18px;
   padding-top: 18px;
