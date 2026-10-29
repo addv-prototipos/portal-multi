@@ -4413,6 +4413,14 @@
               <span id="micuenta-disco-medidor-texto">Almacenamiento</span>
               <div class="micuenta-disco-medidor-track"><div class="micuenta-disco-medidor-fill" id="micuenta-disco-medidor-fill"></div></div>
             </div>
+            <!-- Cuenta raíz únicamente (puedeGestionarSuscripcion, mismo
+                 candado que "Datos de pago") — cancelar/pausar (A2+A1) y
+                 ver el catálogo de upscale/subir de plan completo. -->
+            <div class="micuenta-suscripcion-acciones" id="micuenta-suscripcion-acciones" hidden>
+              <button type="button" class="btn btn-secondary" id="btn-micuenta-ver-upscale">Ampliar mi plan</button>
+              <button type="button" class="btn-danger-text" id="btn-micuenta-cancelar-suscripcion">Cancelar suscripción</button>
+            </div>
+            <p class="micuenta-suscripcion-texto" id="micuenta-suscripcion-cancelar-al-corte-aviso" hidden></p>
             <div class="micuenta-suscripcion-master" id="micuenta-suscripcion-master" hidden>
               <span class="micuenta-empresa-label">Usuario master</span>
               <p class="micuenta-suscripcion-master-texto">Este tenant todavía no tiene un usuario administrador activo.</p>
@@ -4436,6 +4444,19 @@
               <p class="micuenta-disco-aviso-cuerpo" id="micuenta-disco-aviso-cuerpo"></p>
             </div>
             <button type="button" class="micuenta-disco-aviso-cta" id="btn-micuenta-disco-comprar">Comprar espacio</button>
+          </div>
+
+          <!-- Propuesta B8 (elegida, generaliza la A5 de disco): mismo
+               aviso contextual, ahora para usuarios de panel cerca del
+               límite — abre el mismo modal de upscale en la pestaña
+               "Usuarios". -->
+          <div class="micuenta-disco-aviso" id="micuenta-usuarios-aviso" hidden>
+            <svg class="micuenta-disco-aviso-icono" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="micuenta-disco-aviso-texto">
+              <p class="micuenta-disco-aviso-titulo" id="micuenta-usuarios-aviso-titulo"></p>
+              <p class="micuenta-disco-aviso-cuerpo" id="micuenta-usuarios-aviso-cuerpo"></p>
+            </div>
+            <button type="button" class="micuenta-disco-aviso-cta" id="btn-micuenta-usuarios-comprar">Comprar usuarios</button>
           </div>
 
           <!-- Punto 416: "Datos de pago" — SOLO perfil administrador/super
@@ -4985,38 +5006,132 @@
     </div>
   </div>
 
-  <!-- Propuesta B5 (elegida): simulador de fecha — GET
-       /api/admin/mi-cuenta/upscale/disponible llena la línea de tiempo y
-       decide si el botón confirma cobro inmediato (Stripe Checkout,
-       redirige) o aplica sin cobrar (queda pendiente del corte). -->
+  <!-- Propuesta B8 (elegida, generaliza B5): catálogo con 2 pestañas de
+       upscale comprable (disco/usuarios, cobro recurrente real vía
+       Subscription Item de Stripe, ver tenantUpscaleCompra.js) + D1
+       (subir de plan completo, mismo modal) — se llega aquí SIEMPRE
+       desde un aviso contextual (disco/usuarios cerca del límite) o
+       desde "Ver catálogo completo" en la tarjeta de suscripción, nunca
+       como ventana central por defecto. -->
   <div class="modal-overlay" id="upscale-modal-overlay" hidden>
     <div class="modal upscale-modal" role="dialog" aria-modal="true" aria-labelledby="upscale-modal-title">
-      <h2 id="upscale-modal-title">Ampliar almacenamiento</h2>
-      <div id="upscale-modal-cargando">Calculando tu fecha de corte…</div>
-      <div id="upscale-modal-contenido" hidden>
-        <p class="upscale-modal-paquete" id="upscale-modal-paquete"></p>
-        <div class="upscale-timeline">
-          <div class="upscale-timeline-track">
-            <div class="upscale-timeline-seg" id="upscale-timeline-seg-cyan"></div>
-            <div class="upscale-timeline-seg upscale-timeline-seg-warn" id="upscale-timeline-seg-warn"></div>
+      <h2 id="upscale-modal-title">Ampliar tu plan</h2>
+      <div class="upscale-tabs" id="upscale-tabs" role="tablist">
+        <button type="button" class="upscale-tab is-activa" id="upscale-tab-disco" data-tipo="disco" role="tab" aria-selected="true">Almacenamiento</button>
+        <button type="button" class="upscale-tab" id="upscale-tab-usuarios" data-tipo="usuarios" role="tab" aria-selected="false">Usuarios</button>
+        <button type="button" class="upscale-tab" id="upscale-tab-plan" data-tipo="plan" role="tab" aria-selected="false">Subir de plan</button>
+      </div>
+
+      <div id="upscale-panel-recurso">
+        <div id="upscale-modal-cargando">Calculando tu compra…</div>
+        <div id="upscale-modal-contenido" hidden>
+          <p class="upscale-modal-paquete" id="upscale-modal-paquete"></p>
+          <div class="upscale-billing-box" id="upscale-billing-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div>
+              <strong id="upscale-billing-titulo"></strong>
+              <p id="upscale-billing-cuerpo"></p>
+            </div>
           </div>
-          <span class="upscale-timeline-pin upscale-timeline-pin-hoy" id="upscale-timeline-pin-hoy">Hoy</span>
-          <span class="upscale-timeline-pin" id="upscale-timeline-pin-umbral">20 días</span>
-          <span class="upscale-timeline-pin upscale-timeline-pin-corte" id="upscale-timeline-pin-corte">Corte</span>
         </div>
-        <div class="upscale-billing-box" id="upscale-billing-box">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p class="field-error" id="upscale-modal-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-upscale-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-upscale-confirmar" disabled>Confirmar compra</button>
+        </div>
+      </div>
+
+      <!-- D1: subir de plan — lista real de planes.orden mayor al actual,
+           la primera opción (orden más bajo entre las disponibles) se
+           marca "Recomendado". Mismo cobro inmediato con proración que
+           el upscale, nunca pendiente al corte. -->
+      <div id="upscale-panel-plan" hidden>
+        <div id="upscale-plan-cargando">Calculando opciones de plan…</div>
+        <div id="upscale-plan-lista"></div>
+        <p class="field-error" id="upscale-plan-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-upscale-plan-cerrar">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cancelación de suscripción con retención (A2 primer intento, A1
+       pausar si ya se usó el descuento) + encuesta de salida obligatoria
+       (C1), siempre ANTES de confirmar — mismo mecanismo de bloqueo real
+       (estado='suspendido') que /control ya usa, disparado por el
+       webhook de Stripe cuando el periodo pagado de verdad termina, no
+       por este modal. Solo accesible a la cuenta raíz (ver
+       empresa.puedeGestionarSuscripcion). -->
+  <div class="modal-overlay" id="cancelacion-modal-overlay" hidden>
+    <div class="modal cancelacion-modal" role="dialog" aria-modal="true" aria-labelledby="cancelacion-modal-title">
+      <h2 id="cancelacion-modal-title">Cancelar suscripción</h2>
+
+      <!-- Paso 1 (A2): oferta de descuento, solo si nunca se usó. -->
+      <div class="cancelacion-paso" id="cancelacion-paso-descuento" hidden>
+        <div class="cancelacion-metricas">
+          <div class="cancelacion-metrica"><b id="cancelacion-metrica-plan">—</b><span>Tu plan</span></div>
+          <div class="cancelacion-metrica"><b id="cancelacion-metrica-corte">—</b><span>Tu corte</span></div>
+        </div>
+        <div class="descuento-card">
+          <span class="pct" id="cancelacion-descuento-pct">−50%</span>
+          <p>en tu próximo cobro, solo por quedarte. Puedes cancelar después si decides que no es para ti.</p>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-cancelacion-descuento-no">No gracias, continuar</button>
+          <button type="button" class="btn btn-primary" id="btn-cancelacion-descuento-si">Aceptar descuento</button>
+        </div>
+      </div>
+
+      <!-- Paso 1b (A1): pausar — siempre disponible, incluso si ya se
+           usó el descuento (entrada directa cuando no aplica A2). -->
+      <div class="cancelacion-paso" id="cancelacion-paso-pausar" hidden>
+        <div class="pausa-card">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
           <div>
-            <strong id="upscale-billing-titulo"></strong>
-            <p id="upscale-billing-cuerpo"></p>
+            <strong>¿Solo necesitas una pausa?</strong>
+            <p>Pausa 30 días sin cargos — reactivamos el cobro solo, automáticamente, al terminar la pausa.</p>
           </div>
         </div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary" id="btn-cancelacion-pausar">Pausar 30 días</button>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn-danger-text" id="btn-cancelacion-continuar-encuesta">Cancelar mi suscripción de todas formas</button>
+        </div>
       </div>
-      <p class="field-error" id="upscale-modal-error" role="alert"></p>
-      <div class="btn-row">
-        <button type="button" class="btn btn-secondary" id="btn-upscale-cancelar">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="btn-upscale-confirmar" disabled>Confirmar compra</button>
+
+      <!-- Paso 2 (C1): encuesta de salida — motivo obligatorio, comentario
+           opcional. Se guarda SIEMPRE antes de procesar la cancelación. -->
+      <div class="cancelacion-paso" id="cancelacion-paso-encuesta" hidden>
+        <p class="upscale-modal-paquete">Antes de irte, ¿por qué cancelas?</p>
+        <div class="motivo-grid" id="cancelacion-motivo-grid">
+          <button type="button" class="motivo-chip" data-motivo="Es muy caro">Es muy caro</button>
+          <button type="button" class="motivo-chip" data-motivo="Ya no lo uso">Ya no lo uso</button>
+          <button type="button" class="motivo-chip" data-motivo="Me cambié a otro sistema">Me cambié a otro sistema</button>
+          <button type="button" class="motivo-chip" data-motivo="Le faltan funciones">Le faltan funciones</button>
+          <button type="button" class="motivo-chip" data-motivo="Cerré el negocio">Cerré el negocio</button>
+          <button type="button" class="motivo-chip" data-motivo="Otro motivo">Otro motivo</button>
+        </div>
+        <textarea id="cancelacion-comentario" placeholder="Cuéntanos más (opcional)"></textarea>
+        <p class="field-error" id="cancelacion-encuesta-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-cancelacion-encuesta-volver">Volver</button>
+          <button type="button" class="btn btn-primary" id="btn-cancelacion-encuesta-continuar" disabled>Continuar</button>
+        </div>
       </div>
+
+      <!-- Paso 3: confirmación final con fecha de corte real. -->
+      <div class="cancelacion-paso" id="cancelacion-paso-confirmar" hidden>
+        <p class="cancelacion-timeline-nota">Sigues con acceso completo hasta tu corte, <strong id="cancelacion-confirmar-fecha">—</strong>. Ese día no se cobra nada nuevo y tu cuenta se suspende.</p>
+        <p class="field-error" id="cancelacion-confirmar-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-cancelacion-confirmar-volver">Volver</button>
+          <button type="button" class="btn-danger-text" id="btn-cancelacion-confirmar-si">Confirmar cancelación</button>
+        </div>
+      </div>
+
+      <div id="cancelacion-cargando">Cargando…</div>
     </div>
   </div>
 

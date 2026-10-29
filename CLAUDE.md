@@ -999,6 +999,12 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   (`stripe.coupons.create()`/`stripe.promotionCodes.create()`) — por eso
   "Reporte de cupones" tiene que cruzar contra la API en vez de leer solo
   la BD local. No confundir ambos mecanismos al tocar código de pagos.
+  **Segunda excepción real (punto 440)**: `stripe.subscriptionItems.create()`/
+  `subscriptions.create()` (llamadas directas, fuera de un Checkout
+  Session — usadas para upscale/subir de plan sobre una Subscription ya
+  activa) NO soportan `product_data` inline, exigen un `product` ya
+  existente — ver el gotcha dedicado más abajo. El Checkout Session del
+  onboarding sigue 100% efímero como describe este punto, sin cambios.
 - **`payment_method_types` ya no se acepta al crear un Checkout Session**
   (confirmado real contra Stripe, 2026-10-26, ver `DOCS/confStripe.html`
   paso 5): Stripe gobierna 100% los métodos de pago habilitados desde el
@@ -1069,6 +1075,80 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `paso==='completado'`. Si se agrega otro paso de retorno que dependa
   de leer el borrador YA convertido, usar `estadoPago()`, nunca
   `obtenerBorrador()`.
+- **`stripe.subscriptionItems.create()`/`subscriptions.create()` NO
+  aceptan `price_data.product_data` inline** (punto 440, 2026-10-28,
+  confirmado real contra la API de prueba) — a diferencia de un Checkout
+  Session (`line_items[].price_data.product_data`, que SÍ lo soporta y
+  es como está hecho el plan del onboarding), estas 2 llamadas directas
+  exigen un `product` ya existente (ID de un Product real). Patrón: crear
+  el Product una sola vez (lazy, la primera vez que se necesita) y
+  cachear su id — `funcionalidades_upscale.stripe_product_id` para
+  upscale, `ajustes_globales` clave `stripe_product_id_plan` para cambios
+  de plan — el PRECIO sigue siendo ad-hoc en cada operación, solo el
+  contenedor se persiste, por requisito de la API, no por elección de
+  diseño. Si se agrega un tercer caso que toque Subscription Items
+  directamente (no vía Checkout), aplicar el mismo patrón desde el
+  inicio — `product_data` ahí truena con
+  `Received unknown parameter: ... [price_data][product_data]`.
+- **Una acción de retención/upsell nunca tiene sentido en la fila de un
+  tenant que YA cancela, si esa acción no toca `cancel_at_period_end`**
+  (punto 440, encontrado por el usuario revisando el reporte, no por mí):
+  "Subir plan" en el reporte de cancelaciones cobraba una mejora real en
+  Stripe sin reactivar nada — el tenant pagaba por algo que de todas
+  formas se cancela en el corte. Vino de copiar el botón del mockup
+  equivocado (D2 era para "tenants cerca de su límite", no para
+  cancelaciones). Reemplazado por "Enviar propuesta de retención"
+  (correo manual, visible solo si `suscripcion_descuento_retencion_usado=0`).
+  Antes de poner un botón de upsell en una fila de "ya se fue", preguntar
+  primero si esa acción de verdad revierte la salida — si no, no
+  pertenece ahí.
+- **`invoice.subscription` ya NO existe en la versión de API de Stripe
+  que trae el SDK instalado — CRÍTICO, bug real encontrado hasta probar
+  una renovación de verdad (punto 440, addendum 2)**: el id de la
+  Subscription de una Invoice vive ahora en
+  `invoice.parent.subscription_details.subscription`. El webhook
+  `invoice.payment_succeeded` leía el campo viejo, resolvía `undefined`,
+  no encontraba el tenant y retornaba SIN actualizar nada —
+  **respondiendo 200 igual, sin ningún error**. En producción esto
+  habría significado: Stripe cobra bien cada corte, pero
+  `suscripcion_expira_en` se queda congelada para siempre en la fecha
+  del primer cobro, en completo silencio. Fix:
+  `webhooksSuscripcion.js:resolverSubscriptionIdDeInvoice()` lee el
+  campo nuevo primero, cae al viejo como fallback. `lines[0].period`
+  SÍ sigue en su lugar de siempre (no se movió) — solo `subscription` se
+  reestructuró. Si se lee cualquier otro campo "de nivel superior" de
+  un objeto Invoice en código nuevo, verificar primero contra un objeto
+  real (`stripe.invoices.retrieve()`) si también migró a vivir bajo
+  `invoice.parent.*` — no asumir que la forma de hace unos puntos sigue
+  igual. Solo se detectó probando una renovación real completa (Test
+  Clock avanzado + webhook real entregado) — ni `node --check` ni mocks
+  lo hubieran atrapado nunca.
+- **Nunca cobrar en Stripe antes de correr la validación local que podría
+  rechazar el cambio** (punto 440): un flujo que (a) cobra una proración
+  real y (b) después aplica el cambio en la BD local con su propia
+  validación, puede cobrar dinero real por un cambio que la validación
+  rechaza después — bug real encontrado subiendo de plan (D1): el cargo
+  a Stripe pasaba ANTES de que `tenantEdicion.js:resolverPlanYFunciones`
+  revisara el tope de disco por tenant, así que un rechazo dejaba al
+  tenant cobrado sin el plan nuevo. Fix: correr (duplicada a propósito,
+  nunca tocar la función compartida con `/control`) la misma validación
+  ANTES de tocar Stripe. Antes de escribir cualquier flujo nuevo que
+  cobre y después aplique un cambio con su propia validación interna,
+  invertir el orden: validar primero, cobrar después.
+- **`tenantEdicion.js:actualizarDatosTenant` fija `disco_cuota_mb`/
+  `max_usuarios` al valor BASE del plan nuevo al reasignar plan — pisa
+  cualquier upscale que el tenant ya hubiera comprado y pagado por
+  separado** (punto 440, bug preexistente desde que existe el upscale de
+  disco, punto 433 — nunca antes expuesto porque nadie había comprado un
+  upscale Y cambiado de plan en la misma sesión hasta que D1 lo hizo
+  posible desde Mi Cuenta). Afecta TAMBIÉN el camino manual de `/control`
+  → "Editar empresa" → cambiar plan, no solo D1 — **sigue sin corregirse
+  ahí**, fuera de alcance a propósito (cambiar una función tan compartida
+  necesita aprobación explícita). El fix en D1
+  (`control/utils/upgradePlan.js:confirmarSubirPlan`) re-suma
+  `disco_upscale_mb`/`usuarios_upscale` DESPUÉS de llamar a
+  `actualizarDatosTenant()`, nunca antes. Si se toca el flujo de
+  `/control` para esto en el futuro, replicar el mismo re-sumado ahí.
 - **Un Promotion Code de Stripe nunca "desaparece" al eliminar su
   Coupon** (punto 427, 2026-10-27): `stripe.coupons.del()` invalida el
   código para siempre, pero `stripe.promotionCodes.list()` lo sigue
@@ -1248,6 +1328,22 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   Tab real, también funcionó). Si una sesión futura ve un clic que "no
   hace nada" solo en pruebas automatizadas de Chrome, probar primero con
   `dispatchEvent` manual antes de asumir que el código está roto.
+- **`setInterval` de polling corto (≤5s) NUNCA debe compartir rate
+  limiter con tráfico de escritura/uso general** (punto 441,
+  2026-10-29): bug real en vivo — `GET estado-pago` (onboarding, 5s)
+  compartía `onboardingPublicLimiter` (40/15min) con las rutas de
+  escritura del wizard, lo topaba a los ~3 min, el 429 quedaba
+  silencioso en el frontend (`catch` sin mostrar error, pensado para
+  fallos de red transitorios) — la UI se congelaba para siempre sin
+  avisar nada, aunque el backend ya tuviera todo confirmado. Mismo
+  bug-shape encontrado en `admin.js:pollImportacionEjecucion` (2s,
+  compartía `adminApiLimiter` 600/15min con TODO lo demás del admin).
+  Fix: limiter propio y holgado por cada ruta de polling
+  (`onboardingEstadoPagoLimiter` 300/15min, `importPollingLimiter`
+  1200/15min), calculado contra intervalo × duración máxima esperada de
+  espera. Cualquier endpoint nuevo pensado para `setInterval` corto:
+  nunca reusar un limiter de escritura, calcular el suyo propio desde
+  el día uno.
 
 ## Stack
 

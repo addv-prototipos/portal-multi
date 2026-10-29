@@ -287,21 +287,62 @@
     micuentaDiscoAvisoTitulo: document.getElementById('micuenta-disco-aviso-titulo'),
     micuentaDiscoAvisoCuerpo: document.getElementById('micuenta-disco-aviso-cuerpo'),
     btnMicuentaDiscoComprar: document.getElementById('btn-micuenta-disco-comprar'),
-    // Propuesta B5 (elegida): modal de compra de upscale.
+    // Propuesta B8 (elegida, generaliza B5): aviso de usuarios cerca del
+    // límite — mismo patrón visual que el de disco, reusa .micuenta-disco-aviso*.
+    micuentaUsuariosAviso: document.getElementById('micuenta-usuarios-aviso'),
+    micuentaUsuariosAvisoTitulo: document.getElementById('micuenta-usuarios-aviso-titulo'),
+    micuentaUsuariosAvisoCuerpo: document.getElementById('micuenta-usuarios-aviso-cuerpo'),
+    btnMicuentaUsuariosComprar: document.getElementById('btn-micuenta-usuarios-comprar'),
+    // Cuenta raíz: cancelar/ampliar (ver empresa.puedeGestionarSuscripcion).
+    micuentaSuscripcionAcciones: document.getElementById('micuenta-suscripcion-acciones'),
+    btnMicuentaVerUpscale: document.getElementById('btn-micuenta-ver-upscale'),
+    btnMicuentaCancelarSuscripcion: document.getElementById('btn-micuenta-cancelar-suscripcion'),
+    micuentaSuscripcionCancelarAlCorteAviso: document.getElementById('micuenta-suscripcion-cancelar-al-corte-aviso'),
+    // Propuesta B8 (elegida, generaliza B5): modal con pestañas
+    // disco/usuarios + D1 (subir de plan) en el mismo modal.
     upscaleModalOverlay: document.getElementById('upscale-modal-overlay'),
+    upscaleTabs: document.getElementById('upscale-tabs'),
+    upscaleTabDisco: document.getElementById('upscale-tab-disco'),
+    upscaleTabUsuarios: document.getElementById('upscale-tab-usuarios'),
+    upscaleTabPlan: document.getElementById('upscale-tab-plan'),
+    upscalePanelRecurso: document.getElementById('upscale-panel-recurso'),
+    upscalePanelPlan: document.getElementById('upscale-panel-plan'),
     upscaleModalCargando: document.getElementById('upscale-modal-cargando'),
     upscaleModalContenido: document.getElementById('upscale-modal-contenido'),
     upscaleModalPaquete: document.getElementById('upscale-modal-paquete'),
-    upscaleTimelineSegCyan: document.getElementById('upscale-timeline-seg-cyan'),
-    upscaleTimelineSegWarn: document.getElementById('upscale-timeline-seg-warn'),
-    upscaleTimelinePinUmbral: document.getElementById('upscale-timeline-pin-umbral'),
-    upscaleTimelinePinCorte: document.getElementById('upscale-timeline-pin-corte'),
     upscaleBillingBox: document.getElementById('upscale-billing-box'),
     upscaleBillingTitulo: document.getElementById('upscale-billing-titulo'),
     upscaleBillingCuerpo: document.getElementById('upscale-billing-cuerpo'),
     upscaleModalError: document.getElementById('upscale-modal-error'),
     btnUpscaleCancelar: document.getElementById('btn-upscale-cancelar'),
     btnUpscaleConfirmar: document.getElementById('btn-upscale-confirmar'),
+    upscalePlanCargando: document.getElementById('upscale-plan-cargando'),
+    upscalePlanLista: document.getElementById('upscale-plan-lista'),
+    upscalePlanError: document.getElementById('upscale-plan-error'),
+    btnUpscalePlanCerrar: document.getElementById('btn-upscale-plan-cerrar'),
+    // Cancelación con retención (A2+A1) + encuesta de salida (C1).
+    cancelacionModalOverlay: document.getElementById('cancelacion-modal-overlay'),
+    cancelacionCargando: document.getElementById('cancelacion-cargando'),
+    cancelacionPasoDescuento: document.getElementById('cancelacion-paso-descuento'),
+    cancelacionMetricaPlan: document.getElementById('cancelacion-metrica-plan'),
+    cancelacionMetricaCorte: document.getElementById('cancelacion-metrica-corte'),
+    cancelacionDescuentoPct: document.getElementById('cancelacion-descuento-pct'),
+    btnCancelacionDescuentoNo: document.getElementById('btn-cancelacion-descuento-no'),
+    btnCancelacionDescuentoSi: document.getElementById('btn-cancelacion-descuento-si'),
+    cancelacionPasoPausar: document.getElementById('cancelacion-paso-pausar'),
+    btnCancelacionPausar: document.getElementById('btn-cancelacion-pausar'),
+    btnCancelacionContinuarEncuesta: document.getElementById('btn-cancelacion-continuar-encuesta'),
+    cancelacionPasoEncuesta: document.getElementById('cancelacion-paso-encuesta'),
+    cancelacionMotivoGrid: document.getElementById('cancelacion-motivo-grid'),
+    cancelacionComentario: document.getElementById('cancelacion-comentario'),
+    cancelacionEncuestaError: document.getElementById('cancelacion-encuesta-error'),
+    btnCancelacionEncuestaVolver: document.getElementById('btn-cancelacion-encuesta-volver'),
+    btnCancelacionEncuestaContinuar: document.getElementById('btn-cancelacion-encuesta-continuar'),
+    cancelacionPasoConfirmar: document.getElementById('cancelacion-paso-confirmar'),
+    cancelacionConfirmarFecha: document.getElementById('cancelacion-confirmar-fecha'),
+    cancelacionConfirmarError: document.getElementById('cancelacion-confirmar-error'),
+    btnCancelacionConfirmarVolver: document.getElementById('btn-cancelacion-confirmar-volver'),
+    btnCancelacionConfirmarSi: document.getElementById('btn-cancelacion-confirmar-si'),
     micuentaFacturacionCard: document.getElementById('micuenta-facturacion-card'),
     // Punto 416: "Datos de pago" (solo administrador/super)
     micuentaPagoCard: document.getElementById('micuenta-pago-card'),
@@ -8495,6 +8536,8 @@
         aplicarEstadoPortalClientesMiCuenta(data.empresa.portalClientesActivo, data.empresa.portalClientesPlanHabilitado);
         aplicarEstadoSuscripcionMiCuenta(data.empresa.suscripcion);
         aplicarEstadoDiscoMiCuenta(data.empresa.almacenamiento);
+        aplicarEstadoUsuariosMiCuenta(data.empresa.maxUsuarios, data.empresa.totalOperadores);
+        aplicarAccionesSuscripcionMiCuenta(data.empresa.puedeGestionarSuscripcion, data.empresa.suscripcion);
         aplicarDatosPagoMiCuenta(data.empresa.datosPago);
         // Punto 418: se cachea para que la vista "Actualizar método de
         // pago" no necesite un fetch propio — ya viajó aquí.
@@ -8635,19 +8678,93 @@
     }
   }
 
-  // Propuesta B5 (elegida): modal de compra de upscale con simulador de
-  // fecha — GET .../upscale/disponible calcula días restantes/cobro
-  // inmediato server-side (nunca confiar en un cálculo de fecha hecho en
-  // el navegador para decidir un cobro real).
-  async function abrirModalUpscale() {
+  // Propuesta B8 (elegida, generaliza la A5 de disco): mismo aviso
+  // contextual para usuarios de panel. Sin maxUsuarios (plan ilimitado o
+  // sitio base) el aviso nunca se muestra.
+  function aplicarEstadoUsuariosMiCuenta(maxUsuarios, totalOperadores) {
+    if (!els.micuentaUsuariosAviso) return;
+    if (maxUsuarios == null || totalOperadores == null) {
+      els.micuentaUsuariosAviso.hidden = true;
+      return;
+    }
+    const pct = Math.min(100, Math.round((totalOperadores / maxUsuarios) * 100));
+    if (pct >= 100) {
+      els.micuentaUsuariosAviso.hidden = false;
+      els.micuentaUsuariosAviso.classList.add('es-critico');
+      els.micuentaUsuariosAvisoTitulo.textContent = 'Ya usas todos tus usuarios de panel';
+      els.micuentaUsuariosAvisoCuerpo.textContent = `Llevas ${totalOperadores} de ${maxUsuarios} usuarios — compra más para seguir dando de alta operadores.`;
+    } else if (pct >= 80) {
+      els.micuentaUsuariosAviso.hidden = false;
+      els.micuentaUsuariosAviso.classList.remove('es-critico');
+      els.micuentaUsuariosAvisoTitulo.textContent = 'Tus usuarios de panel están por agotarse';
+      els.micuentaUsuariosAvisoCuerpo.textContent = `Llevas ${totalOperadores} de ${maxUsuarios} usuarios (${pct}%) — considera comprar más.`;
+    } else {
+      els.micuentaUsuariosAviso.hidden = true;
+    }
+  }
+
+  // Cuenta raíz únicamente (empresa.puedeGestionarSuscripcion, mismo
+  // candado que "Datos de pago") — cancelar/pausar (A2+A1) y el acceso
+  // al catálogo de upscale/subir de plan completo.
+  function aplicarAccionesSuscripcionMiCuenta(puedeGestionar, suscripcion) {
+    if (!els.micuentaSuscripcionAcciones) return;
+    els.micuentaSuscripcionAcciones.hidden = !puedeGestionar;
+    if (!puedeGestionar) {
+      els.micuentaSuscripcionCancelarAlCorteAviso.hidden = true;
+      return;
+    }
+    if (suscripcion && suscripcion.cancelarAlCorte) {
+      els.micuentaSuscripcionCancelarAlCorteAviso.hidden = false;
+      els.micuentaSuscripcionCancelarAlCorteAviso.textContent = suscripcion.expiraEn
+        ? `Tu suscripción no se renueva — sigues con acceso hasta el ${formatearFechaSoloDiaSinTZ(suscripcion.expiraEn)}.`
+        : 'Tu suscripción no se renueva — sigues con acceso hasta tu corte.';
+      els.btnMicuentaCancelarSuscripcion.hidden = true;
+    } else {
+      els.micuentaSuscripcionCancelarAlCorteAviso.hidden = true;
+      els.btnMicuentaCancelarSuscripcion.hidden = false;
+    }
+  }
+
+  // Propuesta B8 (elegida, generaliza B5): modal de compra de upscale
+  // con simulador de fecha — GET .../upscale/disponible calcula días
+  // restantes/cobro inmediato server-side (nunca confiar en un cálculo
+  // de fecha hecho en el navegador para decidir un cobro real).
+  let upscaleTipoActivo = 'disco';
+
+  function seleccionarTabUpscale(tipo) {
+    upscaleTipoActivo = tipo;
+    const esPlan = tipo === 'plan';
+    els.upscalePanelRecurso.hidden = esPlan;
+    els.upscalePanelPlan.hidden = !esPlan;
+    [['disco', els.upscaleTabDisco], ['usuarios', els.upscaleTabUsuarios], ['plan', els.upscaleTabPlan]].forEach(([t, el]) => {
+      if (!el) return;
+      el.classList.toggle('is-activa', t === tipo);
+      el.setAttribute('aria-selected', String(t === tipo));
+    });
+    if (esPlan) {
+      cargarOpcionesPlan();
+    } else {
+      cargarResumenUpscale(tipo);
+    }
+  }
+
+  async function abrirModalUpscale(tipoInicial = 'disco') {
     if (!els.upscaleModalOverlay) return;
     els.upscaleModalOverlay.hidden = false;
+    seleccionarTabUpscale(tipoInicial);
+  }
+
+  function cerrarModalUpscale() {
+    if (els.upscaleModalOverlay) els.upscaleModalOverlay.hidden = true;
+  }
+
+  async function cargarResumenUpscale(tipo) {
     els.upscaleModalCargando.hidden = false;
     els.upscaleModalContenido.hidden = true;
     els.upscaleModalError.textContent = '';
     els.btnUpscaleConfirmar.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/admin/mi-cuenta/upscale/disponible`, {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/upscale/disponible?tipo=${tipo}`, {
         headers: { Authorization: getAuthHeader() },
       });
       const data = await res.json().catch(() => ({}));
@@ -8662,43 +8779,15 @@
     }
   }
 
-  function cerrarModalUpscale() {
-    if (els.upscaleModalOverlay) els.upscaleModalOverlay.hidden = true;
-  }
-
-  // Posiciones de la línea de tiempo: "20 días" fijo al centro (es el
-  // umbral real), "Corte" se mueve según diasRestantes de verdad — escala
-  // visual de 0 a 40 días (el doble del umbral), acotada para no
-  // encimarse con las otras etiquetas. Es un simulador ilustrativo, no
-  // una regla exacta: el texto de upscale-billing-box es la respuesta
-  // real, ya calculada server-side.
+  // El upscale recurrente (hoy el único real en el catálogo) se cobra
+  // SIEMPRE de inmediato vía Subscription Item real de Stripe — ya no
+  // hay rama "se suma a tu próximo corte" ni redirect a Checkout.
   function pintarResumenUpscale(resumen) {
-    els.upscaleModalPaquete.textContent = `${resumen.funcionalidadNombre} (+${resumen.mbOtorgado} MB) — ${formatearMoneda(resumen.monto)} MXN`;
-    els.upscaleTimelineSegCyan.style.width = '50%';
-    els.upscaleTimelineSegWarn.style.width = '50%';
-    if (resumen.diasRestantes == null) {
-      els.upscaleTimelinePinCorte.style.left = '100%';
-      els.upscaleTimelinePinCorte.textContent = 'Sin corte';
-    } else {
-      const cortePct = Math.min(96, Math.max(10, Math.round((resumen.diasRestantes / 40) * 100)));
-      els.upscaleTimelinePinCorte.style.left = `${cortePct}%`;
-      els.upscaleTimelinePinCorte.style.transform = cortePct >= 90 ? 'translateX(-100%)' : 'translateX(-50%)';
-      els.upscaleTimelinePinCorte.textContent = `Corte (${resumen.diasRestantes}d)`;
-    }
-
-    if (resumen.cobroInmediato) {
-      els.upscaleBillingBox.classList.remove('es-pendiente');
-      els.upscaleBillingTitulo.textContent = `Se cobra hoy — ${formatearMoneda(resumen.monto)} MXN`;
-      els.upscaleBillingCuerpo.textContent = resumen.diasRestantes == null
-        ? 'No tienes una fecha de corte configurada — se cobra de inmediato por seguridad.'
-        : `Faltan ${resumen.diasRestantes} días para tu corte, más de 20 — cargo inmediato a tu tarjeta en Stripe.`;
-      els.btnUpscaleConfirmar.textContent = 'Pagar con Stripe';
-    } else {
-      els.upscaleBillingBox.classList.add('es-pendiente');
-      els.upscaleBillingTitulo.textContent = 'Se suma a tu próximo corte';
-      els.upscaleBillingCuerpo.textContent = `Faltan ${resumen.diasRestantes} días para tu corte, 20 o menos — no se cobra hoy, se acumula a tu plan y se cobra todo junto en tu siguiente corte.`;
-      els.btnUpscaleConfirmar.textContent = 'Confirmar compra';
-    }
+    els.upscaleModalPaquete.textContent = `${resumen.funcionalidadNombre} (+${resumen.cantidadOtorgada} ${resumen.unidad}) — ${formatearMoneda(resumen.monto)} MXN`;
+    els.upscaleBillingBox.classList.remove('es-pendiente');
+    els.upscaleBillingTitulo.textContent = `Se cobra hoy — ${formatearMoneda(resumen.monto)} MXN`;
+    els.upscaleBillingCuerpo.textContent = 'Cargo inmediato a tu suscripción real de Stripe, con la proración del periodo que ya llevas corriendo.';
+    els.btnUpscaleConfirmar.textContent = 'Confirmar compra';
   }
 
   async function confirmarCompraUpscale() {
@@ -8708,16 +8797,12 @@
       const res = await fetch(`${API_BASE}/admin/mi-cuenta/upscale/comprar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
-        body: JSON.stringify({ cantidad: 1 }),
+        body: JSON.stringify({ tipo: upscaleTipoActivo, cantidad: 1 }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'No se pudo procesar la compra.');
-      if (data.cobroInmediato && data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-        return;
-      }
       cerrarModalUpscale();
-      showToast('Espacio adicional aplicado — se sumará a tu próximo corte.', false);
+      showToast('Compra aplicada — ya se cobró a tu suscripción.', false);
       cargarMiCuenta();
     } catch (err) {
       els.upscaleModalError.textContent = err.message || 'No se pudo procesar la compra.';
@@ -8726,34 +8811,242 @@
     }
   }
 
-  if (els.btnMicuentaDiscoComprar) els.btnMicuentaDiscoComprar.addEventListener('click', abrirModalUpscale);
+  // D1: subir de plan — lista real de planes.orden mayor al actual
+  // (ver control/utils/upgradePlan.js), la primera opción se marca
+  // "Recomendado". Mismo cobro inmediato con proración que el upscale.
+  async function cargarOpcionesPlan() {
+    els.upscalePlanCargando.hidden = false;
+    els.upscalePlanLista.innerHTML = '';
+    els.upscalePlanError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/opciones-plan`, {
+        headers: { Authorization: getAuthHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudieron calcular las opciones de plan.');
+      els.upscalePlanCargando.hidden = true;
+      if (!data.opciones || data.opciones.length === 0) {
+        els.upscalePlanLista.innerHTML = '<p class="upscale-modal-paquete">Ya tienes el plan más alto disponible.</p>';
+        return;
+      }
+      data.opciones.forEach((opcion) => {
+        const precio = data.ciclo === 'anual' ? opcion.precioAnual : opcion.precioMensual;
+        const card = document.createElement('div');
+        card.className = 'upscale-plan-card' + (opcion.recomendado ? ' es-recomendado' : '');
+        card.innerHTML = `
+          <div>
+            <p class="upscale-plan-card-nombre">${opcion.nombre}${opcion.recomendado ? '<span class="upscale-plan-card-tag">Recomendado</span>' : ''}</p>
+            <p class="upscale-plan-card-precio">${precio == null ? 'Sin precio configurado' : `${formatearMoneda(precio)} MXN / ${data.ciclo === 'anual' ? 'año' : 'mes'}`}</p>
+          </div>
+          <button type="button" class="btn btn-primary" data-plan-id="${opcion.id}" ${precio == null ? 'disabled' : ''}>Subir</button>
+        `;
+        card.querySelector('button').addEventListener('click', () => confirmarSubirPlan(opcion.id, opcion.nombre));
+        els.upscalePlanLista.appendChild(card);
+      });
+    } catch (err) {
+      els.upscalePlanCargando.hidden = true;
+      els.upscalePlanError.textContent = err.message || 'No se pudieron calcular las opciones de plan.';
+    }
+  }
+
+  async function confirmarSubirPlan(planId, nombrePlan) {
+    els.upscalePlanError.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/subir-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+        body: JSON.stringify({ planId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo subir de plan.');
+      cerrarModalUpscale();
+      showToast(`Ahora tienes el plan ${nombrePlan} — ya se cobró la diferencia.`, false);
+      cargarMiCuenta();
+    } catch (err) {
+      els.upscalePlanError.textContent = err.message || 'No se pudo subir de plan.';
+    }
+  }
+
+  if (els.btnMicuentaDiscoComprar) els.btnMicuentaDiscoComprar.addEventListener('click', () => abrirModalUpscale('disco'));
+  if (els.btnMicuentaUsuariosComprar) els.btnMicuentaUsuariosComprar.addEventListener('click', () => abrirModalUpscale('usuarios'));
+  if (els.btnMicuentaVerUpscale) els.btnMicuentaVerUpscale.addEventListener('click', () => abrirModalUpscale('disco'));
   if (els.btnUpscaleCancelar) els.btnUpscaleCancelar.addEventListener('click', cerrarModalUpscale);
+  if (els.btnUpscalePlanCerrar) els.btnUpscalePlanCerrar.addEventListener('click', cerrarModalUpscale);
   if (els.btnUpscaleConfirmar) els.btnUpscaleConfirmar.addEventListener('click', confirmarCompraUpscale);
+  if (els.upscaleTabDisco) els.upscaleTabDisco.addEventListener('click', () => seleccionarTabUpscale('disco'));
+  if (els.upscaleTabUsuarios) els.upscaleTabUsuarios.addEventListener('click', () => seleccionarTabUpscale('usuarios'));
+  if (els.upscaleTabPlan) els.upscaleTabPlan.addEventListener('click', () => seleccionarTabUpscale('plan'));
   if (els.upscaleModalOverlay) {
     els.upscaleModalOverlay.addEventListener('click', (ev) => {
       if (ev.target === els.upscaleModalOverlay) cerrarModalUpscale();
     });
   }
 
-  // Vuelta de Stripe Checkout (cobro inmediato del upscale, propuesta
-  // B5): success_url/cancel_url de confirmarCompraUpscale (control/)
-  // regresan aquí con ?upscale=exito|cancelado — se consume una sola vez
-  // (history.replaceState) para que un refresh de la página no repita el
-  // toast ni reabra nada.
-  (function consumirRetornoUpscale() {
-    const params = new URLSearchParams(window.location.search);
-    const estado = params.get('upscale');
-    if (!estado) return;
-    params.delete('upscale');
-    const nuevaQuery = params.toString();
-    history.replaceState(null, '', window.location.pathname + (nuevaQuery ? `?${nuevaQuery}` : ''));
-    cambiarVistaPrincipal('mi-cuenta');
-    if (estado === 'exito') {
-      showToast('Pago confirmado — tu espacio adicional ya está disponible.', false);
-    } else if (estado === 'cancelado') {
-      showToast('Compra de espacio adicional cancelada.', true);
+  // ========== Cancelación de suscripción con retención (A2+A1) + encuesta de salida (C1) ==========
+  let cancelacionMotivoSeleccionado = null;
+  let cancelacionCorteFechaTexto = '—';
+
+  function ocultarPasosCancelacion() {
+    [els.cancelacionPasoDescuento, els.cancelacionPasoPausar, els.cancelacionPasoEncuesta, els.cancelacionPasoConfirmar].forEach((p) => {
+      if (p) p.hidden = true;
+    });
+  }
+
+  async function abrirModalCancelacion() {
+    if (!els.cancelacionModalOverlay) return;
+    els.cancelacionModalOverlay.hidden = false;
+    ocultarPasosCancelacion();
+    els.cancelacionCargando.hidden = false;
+    cancelacionMotivoSeleccionado = null;
+    els.cancelacionComentario.value = '';
+    els.cancelacionMotivoGrid.querySelectorAll('.motivo-chip').forEach((chip) => chip.classList.remove('is-sel'));
+    els.btnCancelacionEncuestaContinuar.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/estado-cancelacion`, {
+        headers: { Authorization: getAuthHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo consultar tu suscripción.');
+      els.cancelacionCargando.hidden = true;
+      cancelacionCorteFechaTexto = data.fechaCorte ? formatearFechaSoloDiaSinTZ(data.fechaCorte) : 'tu próximo corte';
+      if (data.ofreceDescuento) {
+        els.cancelacionMetricaPlan.textContent = ultimaSuscripcionMiCuenta?.planNombre || '—';
+        els.cancelacionMetricaCorte.textContent = cancelacionCorteFechaTexto;
+        els.cancelacionDescuentoPct.textContent = `−${data.porcentajeDescuento}%`;
+        els.cancelacionPasoDescuento.hidden = false;
+      } else {
+        els.cancelacionPasoPausar.hidden = false;
+      }
+    } catch (err) {
+      els.cancelacionCargando.hidden = true;
+      cerrarModalCancelacion();
+      showToast(err.message || 'No se pudo consultar tu suscripción.', true);
     }
-  })();
+  }
+
+  function cerrarModalCancelacion() {
+    if (els.cancelacionModalOverlay) els.cancelacionModalOverlay.hidden = true;
+  }
+
+  async function aceptarDescuentoRetencion() {
+    els.btnCancelacionDescuentoSi.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/descuento-retencion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo aplicar el descuento.');
+      cerrarModalCancelacion();
+      showToast(`Listo — ${data.porcentaje}% de descuento aplicado a tu próximo cobro.`, false);
+      cargarMiCuenta();
+    } catch (err) {
+      cerrarModalCancelacion();
+      showToast(err.message || 'No se pudo aplicar el descuento.', true);
+    } finally {
+      els.btnCancelacionDescuentoSi.disabled = false;
+    }
+  }
+
+  async function pausarSuscripcionRetencion() {
+    els.btnCancelacionPausar.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/pausar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo pausar tu suscripción.');
+      cerrarModalCancelacion();
+      showToast(`Suscripción pausada ${data.diasPausa} días — sin cargos hasta entonces.`, false);
+      cargarMiCuenta();
+    } catch (err) {
+      cerrarModalCancelacion();
+      showToast(err.message || 'No se pudo pausar tu suscripción.', true);
+    } finally {
+      els.btnCancelacionPausar.disabled = false;
+    }
+  }
+
+  function irAPasoEncuesta() {
+    ocultarPasosCancelacion();
+    els.cancelacionPasoEncuesta.hidden = false;
+  }
+
+  function irAPasoConfirmar() {
+    ocultarPasosCancelacion();
+    els.cancelacionConfirmarFecha.textContent = cancelacionCorteFechaTexto;
+    els.cancelacionConfirmarError.textContent = '';
+    els.cancelacionPasoConfirmar.hidden = false;
+  }
+
+  async function guardarEncuestaYContinuar() {
+    els.cancelacionEncuestaError.textContent = '';
+    if (!cancelacionMotivoSeleccionado) {
+      els.cancelacionEncuestaError.textContent = 'Elige un motivo para continuar.';
+      return;
+    }
+    els.btnCancelacionEncuestaContinuar.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/encuesta-salida`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+        body: JSON.stringify({ motivo: cancelacionMotivoSeleccionado, comentario: els.cancelacionComentario.value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo guardar tu respuesta.');
+      irAPasoConfirmar();
+    } catch (err) {
+      els.cancelacionEncuestaError.textContent = err.message || 'No se pudo guardar tu respuesta.';
+    } finally {
+      els.btnCancelacionEncuestaContinuar.disabled = false;
+    }
+  }
+
+  async function confirmarCancelacionFinal() {
+    els.cancelacionConfirmarError.textContent = '';
+    els.btnCancelacionConfirmarSi.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/cancelar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo cancelar tu suscripción.');
+      cerrarModalCancelacion();
+      showToast(`Listo — no se renueva. Sigues con acceso hasta el ${data.fechaCorte ? formatearFechaSoloDiaSinTZ(data.fechaCorte) : 'corte'}.`, false);
+      cargarMiCuenta();
+    } catch (err) {
+      els.cancelacionConfirmarError.textContent = err.message || 'No se pudo cancelar tu suscripción.';
+    } finally {
+      els.btnCancelacionConfirmarSi.disabled = false;
+    }
+  }
+
+  if (els.btnMicuentaCancelarSuscripcion) els.btnMicuentaCancelarSuscripcion.addEventListener('click', abrirModalCancelacion);
+  if (els.btnCancelacionDescuentoSi) els.btnCancelacionDescuentoSi.addEventListener('click', aceptarDescuentoRetencion);
+  if (els.btnCancelacionDescuentoNo) els.btnCancelacionDescuentoNo.addEventListener('click', irAPasoEncuesta);
+  if (els.btnCancelacionPausar) els.btnCancelacionPausar.addEventListener('click', pausarSuscripcionRetencion);
+  if (els.btnCancelacionContinuarEncuesta) els.btnCancelacionContinuarEncuesta.addEventListener('click', irAPasoEncuesta);
+  if (els.btnCancelacionEncuestaVolver) els.btnCancelacionEncuestaVolver.addEventListener('click', abrirModalCancelacion);
+  if (els.btnCancelacionEncuestaContinuar) els.btnCancelacionEncuestaContinuar.addEventListener('click', guardarEncuestaYContinuar);
+  if (els.btnCancelacionConfirmarVolver) els.btnCancelacionConfirmarVolver.addEventListener('click', irAPasoEncuesta);
+  if (els.btnCancelacionConfirmarSi) els.btnCancelacionConfirmarSi.addEventListener('click', confirmarCancelacionFinal);
+  if (els.cancelacionMotivoGrid) {
+    els.cancelacionMotivoGrid.addEventListener('click', (ev) => {
+      const chip = ev.target.closest('.motivo-chip');
+      if (!chip) return;
+      els.cancelacionMotivoGrid.querySelectorAll('.motivo-chip').forEach((c) => c.classList.remove('is-sel'));
+      chip.classList.add('is-sel');
+      cancelacionMotivoSeleccionado = chip.dataset.motivo;
+      els.btnCancelacionEncuestaContinuar.disabled = false;
+    });
+  }
+  if (els.cancelacionModalOverlay) {
+    els.cancelacionModalOverlay.addEventListener('click', (ev) => {
+      if (ev.target === els.cancelacionModalOverlay) cerrarModalCancelacion();
+    });
+  }
 
   // Punto 416: "Datos de pago" — `datosPago` solo llega del backend para
   // administrador/super (ver GET /api/admin/mi-cuenta en server.js); si

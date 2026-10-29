@@ -25072,3 +25072,296 @@ Verificado: `node --check` limpio, rebuild + recreate de `frontend`,
 confirmado por `curl` que el string ya no se sirve.
 
 Archivos: `frontend/admin.js`, `PROJECT_STATE.md` (este punto).
+
+## Punto 440 — Cobro recurrente REAL de Stripe + cancelación con retención (A2+A1) + encuesta de salida (C1) + upscale generalizado (B8) + subir de plan (D1) + reporte de cancelaciones (E1) (28 oct 2026, CERRADO)
+
+Pedido del usuario: garantizar que Stripe cobre recurrente (mensual/anual
+según el plan) y no un cobro único como hasta ahora; agregar cancelación
+de suscripción desde Mi Cuenta (admin raíz) con retención tipo
+neuroventas pero que SIEMPRE se pueda cancelar de verdad; encuesta de
+salida obligatoria; suspensión real al terminar el periodo pagado;
+ventana de upscale que también ofrezca subir de plan. Propuesta visual
+previa (8+8, Artifact) ya aprobada: A2 (descuento 1 sola vez) + A1
+(pausar, siempre disponible) para cancelar, C1 para la encuesta, B8 para
+el catálogo de upscale generalizado, D1 para subir de plan, E1 para el
+reporte en Control.
+
+**Cambio de fondo**: `control/utils/stripePagos.js:crearCheckoutSession`
+pasó de `mode:'payment'` a `mode:'subscription'` con
+`price_data.recurring.interval` ('month'/'year' según `borrador.ciclo`)
+— Stripe arma una Subscription real, no un cobro de una sola vez.
+`stripe_subscription_id`/`stripe_customer_id` se guardan en
+`tenants` al convertir el borrador (`onboardingConversion.js`, ahora
+acepta esos 2 params opcionales). Meses sin intereses
+(`payment_method_options.card.installments`) se quitó de aquí — Stripe
+no lo soporta en el primer cobro de una Subscription, solo en pagos
+únicos.
+
+**Archivos nuevos**:
+- `control/utils/cancelacionSuscripcion.js` — `obtenerEstadoCancelacion`
+  (ofrece descuento solo si `suscripcion_descuento_retencion_usado=0`),
+  `aplicarDescuentoRetencion` (cupón Stripe 50% `duration:'once'`,
+  marca el candado para siempre), `pausarSuscripcion` (Stripe
+  `pause_collection`, 30 días, real — Stripe reanuda el cobro solo),
+  `registrarEncuestaSalida` (tabla nueva `cancelaciones_encuesta`,
+  nunca se borra — `control_app` sin privilegio DELETE), `confirmarCancelacion`
+  (`cancel_at_period_end:true` real).
+- `control/utils/webhooksSuscripcion.js` — 4 eventos nuevos manejados
+  por `stripePagos.js:procesarEventoWebhook`: `invoice.payment_succeeded`
+  (recalcula `suscripcion_expira_en` desde el periodo real que Stripe
+  facturó, nunca "hoy + 1 mes" a mano), `invoice.payment_failed`
+  (`suscripcion_estatus='vencida'`, reusa el 402 ya existente de
+  `finalizarAutenticacionAdmin`), `customer.subscription.updated`
+  (sincroniza `suscripcion_cancelar_al_corte`), `customer.subscription.deleted`
+  (el periodo YA terminó de verdad → `suspenderTenant()`, el MISMO
+  mecanismo que `/control` ya usa para suspender a mano — bloquea admin
+  Y portal de un jalón, nada nuevo que inventar).
+- `control/utils/upgradePlan.js` — D1, self-service desde Mi Cuenta:
+  `listarOpcionesSubirPlan` (planes con `orden` mayor al actual, el
+  primero se marca recomendado), `confirmarSubirPlan` (swap del
+  Subscription Item del plan vía `price_data`, proración cobrada de
+  inmediato, luego `actualizarDatosTenant()` — el MISMO helper que usa
+  el modal "Editar empresa" de `/control`, nunca duplicado).
+- `control/utils/reporteCancelaciones.js` — E1, `listarReporteCancelaciones`
+  (motivos agregados + detalle, tope 200 filas, declarado explícito en
+  la respuesta — nunca un corte silencioso).
+
+**Generalización de upscale** (antes solo disco): `tenantUpscaleCompra.js`
+reescrito con un mapa `RECURSOS` (disco/usuarios) — mismo patrón que el
+resto del proyecto para gobernar por tipo de recurso. El upscale
+recurrente (hoy el único tipo real en el catálogo) YA NO se cobra con un
+Checkout Session de una sola vez: se agrega como `subscriptionItems.create()`
+en la MISMA Subscription del tenant y se factura la proración de
+inmediato (`invoices.create`+`finalizeInvoice`+`pay`) — nunca queda
+"pendiente del corte" (ese camino solo existía porque antes no había una
+Subscription real que pudiera cobrar sola). `tipo_cobro='unico'` (si el
+catálogo llega a tener algo así en el futuro) sigue el Checkout de una
+sola vez de siempre.
+
+**3 bugs reales encontrados validando en vivo contra Stripe (nunca con
+`node --check` ni mocks — ver metodología abajo), los 3 corregidos antes
+de cerrar**:
+1. `stripe.subscriptionItems.create()`/`subscriptions.create()` NO
+   aceptan `product_data` inline (a diferencia de un Checkout Session,
+   que sí) — exigen un `product` ya existente. Fix: se crea un Product
+   de Stripe una sola vez por funcionalidad/por "el plan en general"
+   (lazy, cacheado en `funcionalidades_upscale.stripe_product_id` y en
+   `ajustes_globales.stripe_product_id_plan` respectivamente) y se
+   reusa siempre después — el PRECIO sigue siendo ad-hoc en cada compra,
+   solo el contenedor se persiste, por requisito de la API.
+2. Subir de plan (D1) cobraba la proración en Stripe ANTES de validar
+   el tope de disco por tenant (`tenantEdicion.js:resolverPlanYFunciones`
+   tiene su propio candado) — si el tope rechazaba, el tenant ya había
+   pagado por un cambio que nunca se aplicó. Fix: el mismo cálculo del
+   tope se corre en `upgradePlan.js` ANTES de tocar Stripe (duplicado a
+   propósito, no se tocó `tenantEdicion.js` porque también lo usa
+   `/control` con alcance más amplio).
+3. `tenantEdicion.js:actualizarDatosTenant` (reasignar plan, usado por
+   `/control` y ahora también por D1) fija `disco_cuota_mb`/`max_usuarios`
+   al valor BASE del plan nuevo — pisa cualquier upscale que el tenant ya
+   hubiera comprado y pagado por separado. Bug preexistente (afecta
+   también a `/control` desde siempre, no solo a D1) — fuera de alcance
+   tocar esa función compartida; el fix vive SOLO en `upgradePlan.js`
+   (re-suma `disco_upscale_mb`/`usuarios_upscale` después de la
+   reasignación). **Pendiente, fuera de alcance a propósito**: el mismo
+   bug sigue sin corregir en el camino de `/control` → "Editar empresa"
+   → cambiar plan — un operador que suba de plan a mano a un tenant con
+   upscale comprado todavía pisaría su cuota ampliada.
+
+**Metodología de validación (real, no simulada)**: se corrió el wizard
+de onboarding completo de `clarvo-Site` con tarjeta de prueba
+`4242 4242 4242 4242` hasta Stripe Checkout real; sin `stripe listen`
+disponible en este entorno (CLAUDE.md ya documenta este gotcha, punto
+430), el webhook `checkout.session.completed` se firmó y entregó a mano
+(`stripe.webhooks.generateTestHeaderString` + POST directo al puerto
+interno de `control`, 4001). Se confirmó en Stripe real: Subscription
+`interval=month`, primera factura `paid`; se compró un upscale de disco
+real (Subscription Item + factura de proración `paid`); se subió de
+plan dos veces real (Solicita→Controla→Crece, ambas con factura `paid`,
+la segunda disparó y expuso el bug #3 arriba); se canceló la
+suscripción real (`cancel_at_period_end:true` confirmado vía API) con
+el flujo completo A2 (rechazar descuento) → C1 (encuesta con motivo real
+guardado) → confirmar. Se validó el reporte E1 en `/control` (KPIs +
+ranking de motivos + tabla con el comentario real) y el botón "Subir
+plan" de esa fila (abre "Editar empresa" ya en la pestaña Plan). Tenant
+de prueba (`validacion-recurrente-test`) y su Subscription/Customer de
+Stripe se limpiaron al cerrar — no quedó rastro de prueba en Stripe ni
+en la BD.
+
+**Suites existentes**: backend 804/804 sin regresiones. Control: 2
+fallas en `test/unit/ensureSchema.test.js`/`test/unit/onboardingConversion.test.js`
+confirmadas PRE-EXISTENTES (con `git stash` de los archivos tocados en
+este punto, las mismas 2 pruebas fallan igual) — no se tocaron, quedan
+como deuda del punto 433 (donde se agregó el código que las rompió sin
+actualizar el test), fuera de alcance de esta sesión arreglarlas sin
+aprobación explícita.
+
+**Catálogo real al cerrar**: `funcionalidades_upscale` solo tiene el
+item preexistente "Soporte prioritario 24/7" (sin efecto real, `disco_mb`/
+`usuarios_otorgados` ambos NULL) — los 2 items de disco/usuarios creados
+para esta validación se borraron al cerrar. Para que B8 (disco/usuarios)
+tenga algo que vender de verdad, un operador necesita crear al menos un
+item con `disco_mb` o `usuarios_otorgados` no nulo desde `/control` →
+"Upscale y Stripe".
+
+**Addendum (28 oct 2026, mismo día)**: el usuario cuestionó el botón
+"Subir plan" dentro del reporte de cancelaciones (D1 lado Control) —
+"¿para qué me sirve subir el plan si ya cancelaron?". Correcto: ese
+botón venía copiado del mockup equivocado (D2, pensado para "tenants
+cerca de su límite", no para cancelaciones) y "subir de plan" no toca
+`cancel_at_period_end` — cobrar una mejora que de todas formas se va a
+cancelar no tiene sentido. Reemplazado por "Enviar propuesta de
+retención" — correo manual disparado por el operador (sin operadores de
+llamada todavía, decisión explícita del usuario; el contenido real de
+la campaña se programa después, esta sesión solo deja la mecánica),
+visible SOLO si `suscripcion_descuento_retencion_usado=0` (si ya usó el
+descuento de A2, no hay nada nuevo que ofrecerle por esta vía). Nueva
+columna `cancelaciones_encuesta.propuesta_enviada_en` (marca cuándo se
+envió, para no repetir el botón una vez enviada). Reusa
+`control/utils/notificarBackend.js:enviarCorreoBase()` — mismo mecanismo
+ya usado por `recordatorios.js`, sin SMTP propio en `control/`. Nueva
+función `cancelacionSuscripcion.js:enviarPropuestaRetencion()` + endpoint
+`POST /api/control/cancelaciones/:slug/propuesta`. Validado real: tenant
++ fila de encuesta de prueba insertados a mano, `POST` real contra el
+endpoint, correo enviado sin error (`ok:true`) y `propuesta_enviada_en`
+quedó con timestamp real en la BD — limpiado al cerrar.
+
+**Addendum 2 (28 oct 2026, CRÍTICO) — validación real de la renovación
+pidió el usuario explícitamente**: "da de alta 5 empresas siguiendo el
+flujo de pago... a 1 día de expirar... para probar la suscripción
+recurrente". Se dieron de alta 5 tenants reales (3 mensuales, 2
+anuales) vía los endpoints públicos reales de onboarding
+(`POST`/`PUT /api/public/onboarding/borrador/...`) + Stripe real
+(cliente+suscripción reales, `pm_card_visa`) + `convertirBorrador()` —
+mismo código que usaría un cliente real, sin mocks. Primer intento de
+anclar el corte a "mañana" vía `subscriptions.update({billing_cycle_anchor:
+<timestamp futuro>})` falló real (`StripeInvalidRequestError: Invalid
+object`) — confirmado contra el `.d.ts`: en `update()` ese campo solo
+acepta `'now'|'unchanged'`, el timestamp futuro arbitrario solo es
+válido en `create()`. Se corrigió usando **Stripe Test Clocks**
+(`stripe.testHelpers.testClocks`): cada tenant con su propio clock
+congelado en "hoy − (1 periodo − 1 día)", así el primer periodo cae
+exacto en "vence mañana" sin trucos de fecha a mano.
+
+Después se avanzaron los 5 Test Clocks más allá del corte real
+(`testClocks.advance()`) — Stripe cobró real el siguiente ciclo de las
+5 (facturas `paid`, confirmado). Al firmar y entregar a mano los 5
+webhooks reales `invoice.payment_succeeded` (sin `stripe listen`, mismo
+mecanismo ya documentado), **se encontró un bug crítico real**:
+`invoice.subscription` ya NO existe en la versión de API que trae el
+SDK instalado — el id de la Subscription vive ahora en
+`invoice.parent.subscription_details.subscription`. El handler leía el
+campo viejo, resolvía `undefined`, no encontraba ningún tenant, y
+retornaba sin actualizar nada — **el webhook respondía 200 igual, sin
+ningún error que avisara**. En producción esto habría significado:
+Stripe cobra bien cada corte, pero `suscripcion_expira_en` se queda
+congelada para siempre en la fecha del primer cobro — exactamente lo
+que el punto 440 decía garantizar, roto en silencio. Corregido en
+`webhooksSuscripcion.js:resolverSubscriptionIdDeInvoice()` (lee el
+campo nuevo, cae al viejo como fallback). Revalidado real: reconstruido
+el contenedor, reenviados los mismos 5 webhooks reales — las 5
+`suscripcion_expira_en` quedaron correctas (mensuales → +1 mes real,
+anuales → +1 año real, coincide exacto con el `current_period_end` que
+Stripe reportó tras cobrar). Este hallazgo solo salió a la luz por
+pedir la prueba de renovación real — ni `node --check` ni ningún mock
+lo habría detectado.
+
+También se crearon 8 cancelaciones reales (vía `registrarEncuestaSalida`
++ `confirmarCancelacion`, mismo código real del flujo A2/A1/C1) con
+motivos variados para poblar el reporte E1 con métricas reales — 1 caso
+con `suscripcion_descuento_retencion_usado=1` (ya usó su descuento) y 1
+caso con `enviarPropuestaRetencion()` ya disparado (correo real
+enviado), para validar las 3 variantes de la columna de acción del
+reporte. Verificado real en `/control` → Cancelaciones: ranking de
+motivos y acciones por fila exactos.
+
+13 tenants de prueba (`prueba-renovacion-*`, `prueba-cancel-*`) quedan
+vivos en el ambiente de desarrollo para que el usuario siga probando —
+no se limpiaron al cerrar este punto (a diferencia del tenant de
+validación del addendum anterior).
+
+**Addendum 3 (mismo día) — se cerró el último tramo sin probar: la
+suspensión real al terminar el periodo**. `prueba-cancel-1` se canceló
+de verdad en Stripe (`subscriptions.cancel()`, mismo efecto final que
+"Stripe terminó la Subscription sola al vencer el periodo ya marcado
+para no renovar") y se entregó a mano el webhook real
+`customer.subscription.deleted`. Confirmado real en los 2 puntos de
+acceso: `estado` pasó a `'suspendido'` (con `suspendido_en` real,
+`suscripcion_cancelar_al_corte` vuelto a 0 porque ya no es "pendiente",
+ya pasó) — `POST /api/admin/mi-cuenta` (admin) y
+`POST /api/auth/login` (portal de cliente) del tenant **ambos**
+responden 403 `TENANT_SUSPENDIDO` real. `GET /api/tema/:slug` sigue
+200 con datos normales — correcto a propósito, es el endpoint público
+de branding que pinta el shell de login ANTES de autenticar, el
+candado real vive en el intento de login mismo, no ahí. Con esto queda
+validado en vivo el ciclo completo: alta real → cobro recurrente real →
+renovación real → cancelación con retención real → suspensión real que
+bloquea las 2 superficies — exactamente lo que pidió el usuario desde
+el mensaje original de este punto.
+
+Archivos nuevos: `control/utils/cancelacionSuscripcion.js`,
+`control/utils/webhooksSuscripcion.js`, `control/utils/upgradePlan.js`,
+`control/utils/reporteCancelaciones.js`.
+Archivos modificados: `control/utils/stripePagos.js`,
+`control/utils/onboardingConversion.js`, `control/utils/tenantUpscaleCompra.js`,
+`control/scripts/ensureSchema.js`, `control/server.js`, `backend/server.js`,
+`frontend/admin.html`, `frontend/admin.css`, `frontend/admin.js`,
+`frontend/control.html`, `frontend/control.js`, `PROJECT_STATE.md` (este punto).
+
+## Punto 441 — Rate limiter compartido pegaba polling legítimo (onboarding + importación) (28 oct 2026, CERRADO)
+
+Bug real en vivo: el usuario probó una compra real de onboarding
+(webhook de Stripe no llegó por `stripe listen` caído — ver nota aparte,
+causa aparte), y tras repararlo a mano (reproducir el evento real
+firmado desde dentro del contenedor `control`), la UI seguía pegada en
+"Casi listo, falta confirmar tu pago" — el backend ya tenía todo
+correcto (`estado=convertido`, `pago_estado=confirmado`). Causa real:
+`GET /api/public/onboarding/estado-pago/:token` (polling cada 5s desde
+`OnboardingModal.tsx`) compartía `onboardingPublicLimiter` (40/15min)
+con las rutas de ESCRITURA del wizard — a 5s de intervalo, el límite se
+topaba a los ~3 minutos de espera, mucho antes de lo que el propio
+código documenta como normal para OXXO/SPEI ("minutos a días"). El 429
+resultante quedaba silencioso en el frontend (`catch` sin mostrar
+error, a propósito para fallos de red transitorios) — el visitante
+nunca ve ningún aviso, solo una rueda que gira para siempre.
+
+A pedido del usuario, auditados los 9 rate limiters del proyecto
+(`backend/server.js` ×6, `control/server.js` ×3 antes de este punto) —
+encontrado un SEGUNDO caso del mismo bug-shape: `GET
+/api/admin/inventarios/importaciones/:id` (polling cada 2s desde
+`admin.js:pollImportacionEjecucion`, importaciones grandes >500 filas,
+§34.8) compartía `adminApiLimiter` (600/15min, TODO lo demás que el
+admin haga) — solo el polling consume 450 de 600 en la ventana,
+dejando apenas 150 para cualquier otra cosa. Mismo síntoma
+(`if (!res.ok) return;`, 429 silencioso, barra de progreso congelada
+sin avisar).
+
+**Fix aplicado a los 2**: limiter propio y holgado para cada ruta de
+polling, separado del limiter compartido de escritura/uso general —
+`onboardingEstadoPagoLimiter` (300/15min, `control/server.js`) e
+`importPollingLimiter` (1200/15min, `backend/server.js`). Ningún otro
+`setInterval` del frontend (`admin.js` notificaciones 60s,
+`portal.js` sondeo 60s, `offline.js` reintento 10s solo si offline) se
+acerca a ningún límite existente — a 60s/10s el presupuesto de 15min
+nunca se acerca a agotarse, confirmado por aritmética simple, no
+requieren cambio.
+
+**Lección para sesiones futuras**: cualquier endpoint nuevo que el
+frontend vaya a sondear con `setInterval` a intervalo corto (≤5s) NUNCA
+debe compartir un rate limiter pensado para tráfico de escritura/uso
+general — necesita su propio limiter, calculado contra el intervalo de
+polling real × la duración máxima de espera esperada, con margen
+amplio. Y cualquier `catch`/`if (!res.ok) return;` que "silencia fallos
+de red transitorios" debe distinguir un 429 de un fallo de red real —
+hoy ninguno de los dos lo hace, quedó así a propósito (el fix real es
+el límite más holgado, no mostrar el error, que seguiría sin explicar
+la causa real al usuario).
+
+Verificado real: `curl` directo a `estado-pago` tras el fix devuelve
+`activado:true` con el resultado completo. `node --check` limpio en
+ambos archivos, rebuild + recreate de `backend`/`control` (+ restart de
+`frontend` por el gotcha de DNS cache ya documentado), `/api/health`
+200 tras el rebuild de `backend`.
+
+Archivos: `control/server.js`, `backend/server.js`, `PROJECT_STATE.md`
+(este punto).

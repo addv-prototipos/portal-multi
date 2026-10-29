@@ -127,6 +127,10 @@
           <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20.59 13.41 11 22l-9-9L11 2h8a2 2 0 0 1 2 2v9.41z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/><circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none"/></svg>
           <span>Reporte cupones</span>
         </button>
+        <button type="button" class="admin-vista-btn" id="btn-vista-control-cancelaciones" role="tab" aria-selected="false">
+          <svg class="admin-sidebar-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/></svg>
+          <span>Cancelaciones</span>
+        </button>
 
         <div class="control-sidebar-grupo-titulo">Seguridad y sistema</div>
         <button type="button" class="admin-vista-btn" id="btn-vista-control-super" role="tab" aria-selected="false">
@@ -1026,6 +1030,34 @@
             </table>
           </div>
           <p class="admin-empty-state" id="cupones-empty" hidden>Todavía no hay redenciones registradas.</p>
+        </div>
+
+        <!-- Punto en curso: Reporte de cancelaciones (E1) — motivos de la
+             encuesta de salida (C1), siempre guardada antes de confirmar
+             cualquier cancelación en Mi Cuenta. -->
+        <div id="vista-control-cancelaciones" hidden>
+          <div class="admin-toolbar">
+            <div class="admin-toolbar-title">
+              <h1>Cancelaciones</h1>
+              <button type="button" class="campo-ayuda" id="btn-ayuda-vista-cancelaciones" aria-label="Ayuda" data-tooltip="Motivos de la encuesta de salida que cada tenant contesta antes de confirmar su cancelación en Mi Cuenta — nunca se borran, solo se acumulan.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ayuda
+              </button>
+            </div>
+          </div>
+
+          <div class="kpi-row" id="cancelaciones-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0 24px;"></div>
+
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Motivos más frecuentes</h2>
+          <div id="cancelaciones-motivos-lista" style="display:flex;flex-direction:column;gap:7px;margin-bottom:28px;"></div>
+
+          <h2 class="tema-grupo-titulo" style="margin:0 0 10px;font-size:15px;">Cancelaciones recientes</h2>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Empresa</th><th>Motivo</th><th>Comentario</th><th>Fecha</th><th></th></tr></thead>
+              <tbody id="cancelaciones-table-body"></tbody>
+            </table>
+          </div>
+          <p class="admin-empty-state" id="cancelaciones-empty" hidden>Todavía no hay cancelaciones registradas.</p>
         </div>
       </main>
     </div>

@@ -414,6 +414,25 @@ const adminApiLimiter = rateLimit({
   message: { error: 'Demasiadas solicitudes. Intenta de nuevo mas tarde.' },
 });
 
+// Mismo motivo que onboardingEstadoPagoLimiter de control/server.js
+// (punto en curso, 2026-10-29, bug real en vivo): el polling de
+// "¿ya terminó la importación grande?" (cada 2s, ver admin.js
+// pollImportacionEjecucion) compartía adminApiLimiter — solo ese
+// polling consume 450 de los 600 disponibles en 15 min, dejando apenas
+// 150 para TODO lo demás que el admin haga al mismo tiempo (otra
+// pestaña, otra acción) durante una importación larga. Un 429 ahí
+// queda silencioso en el frontend (`if (!res.ok) return;`), la barra
+// de progreso se congela sin avisar — mismo síntoma que el de
+// onboarding. Límite propio y holgado, lectura barata de solo-estado.
+const importPollingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: claveTenantIp,
+  message: { error: 'Demasiadas solicitudes. Intenta de nuevo mas tarde.' },
+});
+
 // Segmento 7 (seguridad multi-tenant): adminLoginLimiter arriba solo cubre
 // GET /api/admin/login, pero Basic Auth manda las credenciales en CADA
 // petición — sin esto, alguien puede probar contraseñas directo contra
@@ -5093,6 +5112,7 @@ app.get(
         nombreEmpresaTenant: req.tenant ? req.tenant.nombreEmpresa : null,
         urlPortal: detectarUrlPortal(req),
         totalOperadores,
+        maxUsuarios: req.tenant ? req.tenant.maxUsuarios : null,
         // Punto 375: switch real "Portal de clientes" (antes decorativo,
         // "pendiente 269") — portalClientesActivo es la pausa propia del
         // admin (lo que este switch prende/apaga); portalClientesPlanHabilitado
@@ -5145,12 +5165,15 @@ app.get(
         let stripeCustomerId = null;
         let precioMensual = null;
         let precioAnual = null;
+        let tieneSuscripcionReal = false;
+        let cancelarAlCorte = false;
         try {
           const poolControl = obtenerPoolControl();
           const [[filaTenant]] = await poolControl.query(
             `SELECT t.plan_id, p.nombre AS plan_nombre, p.precio_mensual, p.precio_anual,
                     t.suscripcion_estatus, t.suscripcion_ciclo,
-                    t.suscripcion_expira_en, t.contacto_email, t.stripe_customer_id
+                    t.suscripcion_expira_en, t.contacto_email, t.stripe_customer_id,
+                    t.stripe_subscription_id, t.suscripcion_cancelar_al_corte
              FROM tenants t LEFT JOIN planes p ON p.id = t.plan_id
              WHERE t.slug = ?`,
             [req.tenant.slug]
@@ -5164,6 +5187,8 @@ app.get(
             stripeCustomerId = filaTenant.stripe_customer_id || null;
             precioMensual = filaTenant.precio_mensual != null ? Number(filaTenant.precio_mensual) : null;
             precioAnual = filaTenant.precio_anual != null ? Number(filaTenant.precio_anual) : null;
+            tieneSuscripcionReal = !!filaTenant.stripe_subscription_id;
+            cancelarAlCorte = !!filaTenant.suscripcion_cancelar_al_corte;
           }
         } catch (err) {
           console.error('No se pudo leer la suscripción del tenant desde Control:', err.message);
@@ -5178,6 +5203,8 @@ app.get(
           correoComprador,
           precioMensual,
           precioAnual,
+          tieneSuscripcionReal,
+          cancelarAlCorte,
         };
         // Punto 418: "Datos de pago" en Mi Cuenta — SOLO la cuenta
         // raíz/maestra (antes: cualquier administrador/super, ver punto
@@ -5192,6 +5219,13 @@ app.get(
         // identificador de cliente de Stripe (o null si no existe aún).
         if (esCuentaRaiz) {
           respuesta.empresa.datosPago = { stripeCustomerId };
+          // Cancelar/pausar suscripción (A2+A1) y subir de plan (D1) son
+          // acciones de la cuenta raíz, mismo candado exacto que "Datos
+          // de pago" — su ausencia aquí es lo que oculta los botones en
+          // el frontend; cada POST real se vuelve a validar server-side
+          // de todas formas (ver exigirAdminRaizConTenant), esto solo
+          // decide qué se pinta.
+          respuesta.empresa.puedeGestionarSuscripcion = tieneSuscripcionReal;
         }
       }
     }
@@ -5295,6 +5329,20 @@ async function llamarControlInterno(ruta, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
+// Mismo criterio exacto que GET /api/admin/mi-cuenta (punto 418): solo la
+// cuenta raíz puede cancelar/pausar la suscripción real — es quien ve
+// "Datos de pago", así que es quien decide si se sigue pagando o no.
+// admin_users (super real, sin fila en `usuarios`) cuenta como raíz sin
+// necesitar una fila que marcar; api_credencial/api_clave (acceso
+// angosto de un tenant) NO, aunque reciban adminPerfil='super' también
+// (se filtra por adminMecanismo, mismo candado que finalizarAutenticacionAdmin).
+async function esAdminRaiz(req) {
+  if (req.adminMecanismo === 'admin_users') return true;
+  if (req.adminMecanismo !== 'perfil_bd') return false;
+  const [filas] = await pool.query('SELECT es_cuenta_raiz FROM usuarios WHERE rfc = ? LIMIT 1', [req.adminUser]);
+  return !!(filas[0] && filas[0].es_cuenta_raiz);
+}
+
 app.get(
   '/api/admin/mi-cuenta/upscale/disponible',
   adminApiLimiter,
@@ -5308,6 +5356,7 @@ app.get(
     }
     const { ok, status, data } = await llamarControlInterno('/internal/upscale/simular', {
       slug: req.tenant.slug,
+      tipo: req.query.tipo === 'usuarios' ? 'usuarios' : 'disco',
       cantidad: Number(req.query.cantidad) || 1,
     });
     if (!ok) return res.status(status).json({ error: data.error || 'No se pudo calcular la compra.', codigo: data.codigo });
@@ -5326,18 +5375,161 @@ app.post(
     if (!req.tenant) {
       return res.status(404).json({ error: 'El sitio base no tiene cuota de almacenamiento que ampliar.' });
     }
+    const tipo = (req.body || {}).tipo === 'usuarios' ? 'usuarios' : 'disco';
     const cantidad = Number((req.body || {}).cantidad) || 1;
     const urlPortal = detectarUrlPortal(req);
     const { ok, status, data } = await llamarControlInterno('/internal/upscale/confirmar', {
       slug: req.tenant.slug,
+      tipo,
       cantidad,
       successUrl: `${urlPortal}/admin?vista=mi-cuenta&upscale=exito`,
       cancelUrl: `${urlPortal}/admin?vista=mi-cuenta&upscale=cancelado`,
     });
     if (!ok) return res.status(status).json({ error: data.error || 'No se pudo procesar la compra.', codigo: data.codigo });
-    if (!data.cobroInmediato) {
-      invalidarCacheTenant(req.tenant.slug);
-    }
+    // Siempre se cobra ya (vía Subscription real o Checkout único) — el
+    // caché del tenant se invalida en los 2 casos para que Mi Cuenta
+    // refleje la cuota nueva de inmediato, nunca solo cuando no se cobró.
+    invalidarCacheTenant(req.tenant.slug);
+    res.json(data);
+  })
+);
+
+// ---------- Cancelación de suscripción con retención (A2+A1) + encuesta de salida (C1) ----------
+// Mismo proxy backend->control que el upscale de arriba. Solo la cuenta
+// raíz puede tocar esto (ver esAdminRaiz) — "Cancelar suscripción" no es
+// una acción que cualquier operador con acceso a /admin deba poder
+// disparar. Sin tenant (sitio base ADDV) no hay ninguna suscripción de
+// Stripe que cancelar — 404 directo, mismo criterio que el resto de
+// "solo aplica a tenants" de este archivo.
+async function exigirAdminRaizConTenant(req, res) {
+  if (!req.tenant) {
+    res.status(404).json({ error: 'El sitio base no tiene una suscripción que cancelar.' });
+    return false;
+  }
+  if (!(await esAdminRaiz(req))) {
+    res.status(403).json({ error: 'Solo la cuenta raíz puede administrar la suscripción.' });
+    return false;
+  }
+  return true;
+}
+
+app.get(
+  '/api/admin/mi-cuenta/suscripcion/estado-cancelacion',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { ok, status, data } = await llamarControlInterno('/internal/suscripcion/estado-cancelacion', {
+      slug: req.tenant.slug,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo consultar tu suscripción.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+// A2: oferta de descuento — solo se puede llamar una vez por tenant
+// (ver suscripcion_descuento_retencion_usado, control/ lo valida de
+// nuevo server-side, nunca se confía en que el frontend ya lo revisó).
+app.post(
+  '/api/admin/mi-cuenta/suscripcion/descuento-retencion',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { ok, status, data } = await llamarControlInterno('/internal/suscripcion/descuento-retencion', {
+      slug: req.tenant.slug,
+      actor: req.adminUser,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo aplicar el descuento.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+// A1: pausar 30 días — siempre disponible, incluso si ya se usó el
+// descuento (es la alternativa que SIEMPRE se puede ofrecer).
+app.post(
+  '/api/admin/mi-cuenta/suscripcion/pausar',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { ok, status, data } = await llamarControlInterno('/internal/suscripcion/pausar', {
+      slug: req.tenant.slug,
+      actor: req.adminUser,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo pausar tu suscripción.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+// C1: encuesta de salida — SIEMPRE se llama antes de
+// .../suscripcion/cancelar (ver frontend/admin.js), nunca después.
+app.post(
+  '/api/admin/mi-cuenta/suscripcion/encuesta-salida',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { motivo, comentario } = req.body || {};
+    const { ok, status, data } = await llamarControlInterno('/internal/suscripcion/encuesta-salida', {
+      slug: req.tenant.slug,
+      motivo,
+      comentario,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo guardar tu respuesta.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+// Confirma la cancelación real (cancel_at_period_end en Stripe) — el
+// tenant sigue con acceso completo hasta el corte; la suspensión real
+// (bloquea admin Y portal) la dispara después el webhook de Stripe
+// cuando el periodo de verdad termina (ver control/utils/webhooksSuscripcion.js).
+app.post(
+  '/api/admin/mi-cuenta/suscripcion/cancelar',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { ok, status, data } = await llamarControlInterno('/internal/suscripcion/cancelar', {
+      slug: req.tenant.slug,
+      actor: req.adminUser,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo cancelar tu suscripción.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+// D1: subir de plan desde la misma ventana de upscale — self-service,
+// complementa (no reemplaza) el modal "Editar empresa" de /control.
+app.get(
+  '/api/admin/mi-cuenta/suscripcion/opciones-plan',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { ok, status, data } = await llamarControlInterno('/internal/suscripcion/opciones-plan', {
+      slug: req.tenant.slug,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudieron calcular las opciones de plan.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+app.post(
+  '/api/admin/mi-cuenta/suscripcion/subir-plan',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { planId } = req.body || {};
+    const { ok, status, data } = await llamarControlInterno('/internal/suscripcion/subir-plan', {
+      slug: req.tenant.slug,
+      planId,
+      actor: req.adminUser,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo subir de plan.', codigo: data.codigo });
+    invalidarCacheTenant(req.tenant.slug);
     res.json(data);
   })
 );
@@ -11599,7 +11791,7 @@ app.post(
 
 app.get(
   '/api/admin/inventarios/importaciones/:id',
-  adminApiLimiter,
+  importPollingLimiter,
   requiereFeature('inventariosHabilitado'),
   requireAdminAuth,
   requireAdminArea('administrador', 'inventario'),

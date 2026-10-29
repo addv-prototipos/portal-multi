@@ -117,6 +117,14 @@ const COLUMNAS_NUEVAS = [
   // upscales comprados todavía.
   { nombre: 'disco_upscale_mb', definicion: 'INT NOT NULL DEFAULT 0' },
   { nombre: 'disco_upscale_monto', definicion: 'DECIMAL(10,2) NOT NULL DEFAULT 0' },
+  // Segundo recurso comprable (punto en curso, "+1 usuario de panel"):
+  // mismo patrón que disco_upscale_mb/monto arriba — max_usuarios (ya
+  // existente) sigue siendo el tope FINAL resuelto (base del plan +
+  // esto), usuarios_upscale es solo la porción comprada por separado,
+  // para poder mostrar "tu plan trae 3, compraste 2 más" en Mi Cuenta y
+  // en el reporte de /control sin tener que restar a mano.
+  { nombre: 'usuarios_upscale', definicion: 'INT NOT NULL DEFAULT 0' },
+  { nombre: 'usuarios_upscale_monto', definicion: 'DECIMAL(10,2) NOT NULL DEFAULT 0' },
   // Ampliación del gobierno de funcionalidades (punto 349-350, ver
   // stitch/gobierno-funcionalidades/NOTAS.md — 12 reglas de dependencia):
   // Ventas, Gastos, Inventarios, Auditoría (de /admin, por tenant — no
@@ -194,6 +202,20 @@ const COLUMNAS_NUEVAS = [
   // de verdad (confirmado: "por ahora usa solo mocks, al final
   // integramos") — la columna queda lista para cuando sí lo esté.
   { nombre: 'stripe_customer_id', definicion: 'VARCHAR(255) NULL' },
+  // Suscripción recurrente real (punto en curso, reemplaza el cobro
+  // único: ver control/utils/stripePagos.js). stripe_subscription_id se
+  // llena al convertir el borrador de onboarding — con él se cancela/
+  // actualiza la Subscription real vía API. suscripcion_cancelar_al_corte
+  // espeja localmente cancel_at_period_end de Stripe (para pintar la UI
+  // sin llamar a la API en cada carga de Mi Cuenta) — la fuente de verdad
+  // real sigue siendo Stripe, este campo se sincroniza desde el webhook
+  // customer.subscription.updated. suscripcion_descuento_retencion_usado
+  // es el candado de "la oferta de descuento al cancelar (A2) solo se
+  // aplica una vez por tenant" — en el segundo intento de cancelar solo
+  // se ofrece pausar (A1), nunca el descuento otra vez.
+  { nombre: 'suscripcion_cancelar_al_corte', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'suscripcion_descuento_retencion_usado', definicion: 'TINYINT(1) NOT NULL DEFAULT 0' },
+  { nombre: 'stripe_subscription_id', definicion: 'VARCHAR(255) NULL' },
 ];
 
 async function asegurarColumnasCicloVidaTenant(db) {
@@ -664,6 +686,25 @@ async function asegurarTablaUpscale(db) {
   if (!columnasUpscale.map((c) => c.COLUMN_NAME).includes('disco_mb')) {
     await db.query('ALTER TABLE funcionalidades_upscale ADD COLUMN disco_mb INT NULL');
   }
+  // Segundo efecto real (punto en curso, "+1 usuario de panel"): mismo
+  // patrón que disco_mb arriba, NULL para cualquier funcionalidad que no
+  // otorgue usuarios. Generaliza el catálogo a un segundo tipo de
+  // recurso sin tocar disco_mb ni su lectura existente.
+  if (!columnasUpscale.map((c) => c.COLUMN_NAME).includes('usuarios_otorgados')) {
+    await db.query('ALTER TABLE funcionalidades_upscale ADD COLUMN usuarios_otorgados INT NULL');
+  }
+  // Único caso de este archivo que SÍ persiste algo en el catálogo de
+  // Stripe (punto en curso, descubierto validando contra la API real de
+  // Stripe): a diferencia de un Checkout Session (price_data.product_data
+  // inline, siempre efímero), `stripe.subscriptionItems.create()` EXIGE
+  // un Product ya existente — no acepta product_data. Se crea una sola
+  // vez por funcionalidad (lazy, la primera compra que la necesite) y se
+  // reusa siempre después — ver tenantUpscaleCompra.js:obtenerOCrearProductoStripe().
+  // El PRECIO sigue siendo ad-hoc (price_data con unit_amount/recurring
+  // calculado en cada compra) — solo el contenedor "Product" se persiste.
+  if (!columnasUpscale.map((c) => c.COLUMN_NAME).includes('stripe_product_id')) {
+    await db.query('ALTER TABLE funcionalidades_upscale ADD COLUMN stripe_product_id VARCHAR(255) NULL');
+  }
 }
 
 // Asignación real de una funcionalidad_upscale a un tenant (el "trabajo
@@ -684,6 +725,7 @@ async function asegurarTablaUpscaleActivos(db) {
       funcionalidad_id INT NOT NULL,
       cantidad INT NOT NULL DEFAULT 1,
       disco_mb_otorgado INT NULL,
+      usuarios_otorgados INT NULL,
       monto_recurrente DECIMAL(10,2) NOT NULL,
       ciclo ENUM('mensual','anual') NOT NULL,
       primer_cobro_estado ENUM('cobrado_hoy','pendiente_corte') NOT NULL,
@@ -694,6 +736,25 @@ async function asegurarTablaUpscaleActivos(db) {
       KEY idx_tenant_upscales_tenant (tenant_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  const [columnas] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tenant_upscales_activos'`
+  );
+  const nombres = columnas.map((c) => c.COLUMN_NAME);
+  if (!nombres.includes('usuarios_otorgados')) {
+    await db.query('ALTER TABLE tenant_upscales_activos ADD COLUMN usuarios_otorgados INT NULL');
+  }
+  // Decisión del usuario (punto en curso): el upscale recurrente ya NO
+  // solo se "suma a tenants.disco_upscale_monto para cobrarse junto con
+  // el plan" de forma conceptual — ahora SE AGREGA como un Subscription
+  // Item real a la misma Subscription de Stripe del tenant
+  // (stripe.subscriptionItems.create), para que Stripe lo cobre de
+  // verdad en cada corte sin intervención manual. Este id es necesario
+  // para poder quitar/actualizar ese item si el tenant cancela el
+  // upscale o cambia de cantidad.
+  if (!nombres.includes('stripe_subscription_item_id')) {
+    await db.query('ALTER TABLE tenant_upscales_activos ADD COLUMN stripe_subscription_item_id VARCHAR(255) NULL');
+  }
 }
 
 // Idempotencia de webhooks de Stripe: un mismo evento puede reenviarse
@@ -712,6 +773,44 @@ async function asegurarTablaStripeEventos(db) {
   `);
 }
 
+// Encuesta de salida (propuesta C1, siempre antes de confirmar la
+// cancelación — ver control/utils/cancelacionSuscripcion.js). tenant_id
+// SIN FK (mismo motivo que el resto de esta BD: control_app no tiene
+// REFERENCES) y `slug` DENORMALIZADO a propósito — el reporte de
+// Control (Sección E) debe seguir leyendo el nombre del tenant aunque
+// ese tenant se dé de baja/elimine después; un JOIN contra `tenants` lo
+// perdería. SIN DELETE real: control_app no tiene ese privilegio en
+// ninguna tabla (ver nota de `grupos_sucursal` arriba) y de todas formas
+// un historial de motivos de cancelación nunca debería borrarse.
+async function asegurarTablaCancelacionesEncuesta(db) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS cancelaciones_encuesta (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tenant_id INT NOT NULL,
+      slug VARCHAR(50) NOT NULL,
+      motivo VARCHAR(60) NOT NULL,
+      comentario TEXT NULL,
+      creado_en DATETIME NOT NULL,
+      KEY idx_cancelaciones_encuesta_tenant (tenant_id),
+      KEY idx_cancelaciones_encuesta_motivo (motivo)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  // Propuesta de retención por correo (punto en curso, reemplaza el
+  // botón "Subir plan" del reporte — no tenía sentido subir de plan a
+  // alguien que ya cancela): el operador dispara el envío a mano desde
+  // el reporte de Control, NUNCA automático (no hay operadores de
+  // llamada todavía, decisión explícita del usuario — el contenido real
+  // de la campaña se programa después, esto solo deja la mecánica
+  // lista). NULL = nunca se le envió una propuesta por esta cancelación.
+  const [columnas] = await db.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cancelaciones_encuesta'`
+  );
+  if (!columnas.map((c) => c.COLUMN_NAME).includes('propuesta_enviada_en')) {
+    await db.query('ALTER TABLE cancelaciones_encuesta ADD COLUMN propuesta_enviada_en DATETIME NULL');
+  }
+}
+
 module.exports = {
   asegurarColumnasCicloVidaTenant,
   asegurarTablaApiCredenciales,
@@ -722,6 +821,7 @@ module.exports = {
   asegurarTablaStripeEventos,
   asegurarTablaUpscale,
   asegurarTablaUpscaleActivos,
+  asegurarTablaCancelacionesEncuesta,
   // Exportadas solo para que test/unit/ensureSchema.test.js derive sus
   // fixtures y conteos esperados de la fuente real, en vez de mantener una
   // copia a mano que se desincroniza cada vez que se agrega una columna

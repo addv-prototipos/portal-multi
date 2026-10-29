@@ -56,7 +56,10 @@ async function resolverPlanPorClave(planClave, db) {
   }
 }
 
-async function convertirBorrador(token, { actor = 'onboarding-publico', db = obtenerPool() } = {}) {
+async function convertirBorrador(
+  token,
+  { actor = 'onboarding-publico', db = obtenerPool(), stripeCustomerId = null, stripeSubscriptionId = null } = {}
+) {
   const borrador = await obtenerBorradorInterno(token, db);
 
   const faltantes = [];
@@ -152,6 +155,18 @@ async function convertirBorrador(token, { actor = 'onboarding-publico', db = obt
     );
   } catch (err) {
     console.error(`No se pudo inicializar la suscripción del tenant "${borrador.slug}":`, err.message);
+  }
+
+  // ----- Paso 3c: guardar los identificadores reales de Stripe (punto en
+  // curso, cobro recurrente real) — con ellos se cancela/amplía la
+  // Subscription real más adelante (ver cancelacionSuscripcion.js,
+  // tenantUpscaleCompra.js). NUNCA se guarda ningún dato de tarjeta aquí
+  // ni en ningún lado del repo, solo los identificadores de Stripe.
+  if (stripeCustomerId || stripeSubscriptionId) {
+    await db.query(
+      `UPDATE tenants SET stripe_customer_id = COALESCE(?, stripe_customer_id), stripe_subscription_id = COALESCE(?, stripe_subscription_id) WHERE slug = ?`,
+      [stripeCustomerId, stripeSubscriptionId, borrador.slug]
+    );
   }
 
   // ----- Paso 4: usuario administrador inicial (idempotente en backend/) -----

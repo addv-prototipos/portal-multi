@@ -225,6 +225,7 @@
     btnVistaUpscale: document.getElementById('btn-vista-control-upscale'),
     btnVistaRecordatorios: document.getElementById('btn-vista-control-recordatorios'),
     btnVistaCupones: document.getElementById('btn-vista-control-cupones'),
+    btnVistaCancelaciones: document.getElementById('btn-vista-control-cancelaciones'),
     vistaEmpresas: document.getElementById('vista-control-empresas'),
     vistaPlanes: document.getElementById('vista-control-planes'),
     vistaPapelera: document.getElementById('vista-control-papelera'),
@@ -235,6 +236,11 @@
     vistaUpscale: document.getElementById('vista-control-upscale'),
     vistaRecordatorios: document.getElementById('vista-control-recordatorios'),
     vistaCupones: document.getElementById('vista-control-cupones'),
+    vistaCancelaciones: document.getElementById('vista-control-cancelaciones'),
+    cancelacionesKpis: document.getElementById('cancelaciones-kpis'),
+    cancelacionesMotivosLista: document.getElementById('cancelaciones-motivos-lista'),
+    cancelacionesTableBody: document.getElementById('cancelaciones-table-body'),
+    cancelacionesEmpty: document.getElementById('cancelaciones-empty'),
     // Punto en curso: "Accesos — MinIO"
     accesosMinioError: document.getElementById('accesos-minio-error'),
     accesosMinioUrl: document.getElementById('accesos-minio-url'),
@@ -3539,6 +3545,10 @@
       els.btnVistaCupones.classList.toggle('is-active', vista === 'cupones');
       els.btnVistaCupones.setAttribute('aria-selected', String(vista === 'cupones'));
     }
+    if (els.btnVistaCancelaciones) {
+      els.btnVistaCancelaciones.classList.toggle('is-active', vista === 'cancelaciones');
+      els.btnVistaCancelaciones.setAttribute('aria-selected', String(vista === 'cancelaciones'));
+    }
     els.vistaEmpresas.hidden = vista !== 'empresas';
     if (els.vistaPlanes) els.vistaPlanes.hidden = vista !== 'planes';
     els.vistaPapelera.hidden = vista !== 'papelera';
@@ -3549,6 +3559,7 @@
     if (els.vistaUpscale) els.vistaUpscale.hidden = vista !== 'upscale';
     if (els.vistaRecordatorios) els.vistaRecordatorios.hidden = vista !== 'recordatorios';
     if (els.vistaCupones) els.vistaCupones.hidden = vista !== 'cupones';
+    if (els.vistaCancelaciones) els.vistaCancelaciones.hidden = vista !== 'cancelaciones';
     if (vista === 'planes') cargarPlanes();
     if (vista === 'papelera') cargarPapelera();
     if (vista === 'sucursales') cargarSucursales();
@@ -3566,6 +3577,7 @@
     if (vista === 'upscale') cargarUpscale();
     if (vista === 'recordatorios') cargarRecordatorios();
     if (vista === 'cupones') cargarReporteCupones();
+    if (vista === 'cancelaciones') cargarReporteCancelaciones();
   }
 
   els.btnVistaEmpresas.addEventListener('click', () => cambiarVistaPrincipalControl('empresas'));
@@ -3579,6 +3591,7 @@
   if (els.btnVistaUpscale) els.btnVistaUpscale.addEventListener('click', () => cambiarVistaPrincipalControl('upscale'));
   if (els.btnVistaRecordatorios) els.btnVistaRecordatorios.addEventListener('click', () => cambiarVistaPrincipalControl('recordatorios'));
   if (els.btnVistaCupones) els.btnVistaCupones.addEventListener('click', () => cambiarVistaPrincipalControl('cupones'));
+  if (els.btnVistaCancelaciones) els.btnVistaCancelaciones.addEventListener('click', () => cambiarVistaPrincipalControl('cancelaciones'));
   els.menuMovil.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-vista]');
     if (btn) cambiarVistaPrincipalControl(btn.dataset.vista);
@@ -4076,6 +4089,92 @@
       <td>$${i.ingreso.toLocaleString('es-MX')}</td>
       <td>${escapeHtml(i.fuenteTop)}</td>
     </tr>`).join('');
+  }
+
+  // ---------- Sección E (propuesta E1): reporte de cancelaciones ----------
+  async function cargarReporteCancelaciones() {
+    const authHeader = getAuthHeader();
+    if (!authHeader) { showLogin(); return; }
+    Esqueleto.aplicarEsqueletoTabla(els.cancelacionesTableBody, 5);
+    try {
+      const res = await fetch(`${API_BASE}/reportes/cancelaciones`, { headers: { Authorization: authHeader } });
+      if (res.status === 401) { clearSession(); showLogin(); return; }
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      renderReporteCancelaciones(data);
+      Esqueleto.quitarEsqueletoTabla(els.cancelacionesTableBody);
+    } catch {
+      Esqueleto.aplicarErrorTabla(els.cancelacionesTableBody, 5, 'No se pudo cargar.', cargarReporteCancelaciones);
+    }
+  }
+
+  function renderReporteCancelaciones(data) {
+    els.cancelacionesEmpty.hidden = data.total > 0;
+    els.cancelacionesKpis.innerHTML = `
+      <div class="kpi" style="background:var(--color-bg);border-radius:10px;padding:13px 15px;"><b style="display:block;font-size:20px;">${data.total}</b><span style="font-size:11px;color:var(--color-ink-soft);text-transform:uppercase;">Cancelaciones totales</span></div>
+      <div class="kpi" style="background:var(--color-bg);border-radius:10px;padding:13px 15px;"><b style="display:block;font-size:20px;">${data.motivos[0] ? escapeHtml(data.motivos[0].motivo) : '—'}</b><span style="font-size:11px;color:var(--color-ink-soft);text-transform:uppercase;">Motivo #1</span></div>
+    `;
+    els.cancelacionesMotivosLista.innerHTML = data.motivos.map((m) => `
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;">
+          <span>${escapeHtml(m.motivo)}</span><span>${m.total} (${m.porcentaje}%)</span>
+        </div>
+        <div style="height:6px;border-radius:99px;background:var(--color-border);overflow:hidden;">
+          <div style="height:100%;width:${m.porcentaje}%;background:var(--color-accent);border-radius:99px;"></div>
+        </div>
+      </div>
+    `).join('') || '<p class="admin-login-hint">Sin motivos registrados todavía.</p>';
+
+    els.cancelacionesTableBody.innerHTML = data.detalle.map((d) => {
+      // "Subir plan" no tiene sentido aquí — esta empresa ya cancela, no
+      // sube de plan. La única acción real: ofrecerle por correo la
+      // retención que no aceptó en el flujo de cancelación (A2), y solo
+      // si todavía no la usó — disparo manual del operador, nunca
+      // automático (sin operadores de llamada todavía).
+      let accion;
+      if (d.propuesta_enviada_en) {
+        accion = `<span style="font-size:11px;color:var(--color-ink-soft);">Propuesta enviada</span>`;
+      } else if (d.suscripcion_descuento_retencion_usado) {
+        accion = `<span style="font-size:11px;color:var(--color-ink-soft);">Ya usó su descuento</span>`;
+      } else {
+        accion = `<button type="button" class="btn-icono-accion" data-tooltip="Enviar propuesta de retención por correo" data-slug-propuesta="${escapeHtmlAttr(d.slug)}" aria-label="Enviar propuesta a ${escapeHtmlAttr(d.slug)}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z" stroke="none"/><path d="M22 6l-10 7L2 6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 6h20v12H2z" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+      }
+      return `<tr>
+        <td>${escapeHtml(d.slug)}</td>
+        <td>${escapeHtml(d.motivo)}</td>
+        <td>${d.comentario ? escapeHtml(d.comentario) : '—'}</td>
+        <td>${formatearFechaHoraAuditoriaControl(d.creado_en)}</td>
+        <td>${accion}</td>
+      </tr>`;
+    }).join('');
+
+    if (data.truncado) {
+      els.cancelacionesEmpty.hidden = true;
+      const aviso = document.createElement('p');
+      aviso.className = 'admin-login-hint';
+      aviso.textContent = `Mostrando las ${data.limiteDetalle} cancelaciones más recientes de ${data.total} totales.`;
+      els.cancelacionesTableBody.parentElement.parentElement.appendChild(aviso);
+    }
+
+    els.cancelacionesTableBody.querySelectorAll('[data-slug-propuesta]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const slug = btn.dataset.slugPropuesta;
+        btn.disabled = true;
+        try {
+          const res = await fetch(`${API_BASE}/cancelaciones/${slug}/propuesta`, {
+            method: 'POST',
+            headers: { Authorization: getAuthHeader() },
+          });
+          const resData = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(resData.error || 'No se pudo enviar la propuesta.');
+          showToast('Propuesta enviada por correo.');
+          cargarReporteCancelaciones();
+        } catch (err) {
+          showToast(err.message || 'No se pudo enviar la propuesta.', true);
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   async function cargarSucursales() {

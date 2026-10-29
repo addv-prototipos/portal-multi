@@ -85,6 +85,16 @@ const { getConfigMsi, setConfigMsi, metodosPagoInfo, listarCodigosDescuento, cre
 const { getConfigRecordatorios, setConfigRecordatorios, listarEnSeguimiento, procesarRecordatoriosPendientes } = require('./utils/recordatorios');
 const { calcularResumenCapacidad } = require('./utils/discoCapacidad');
 const { ErrorUpscaleCompra, simularCompraUpscale, confirmarCompraUpscale } = require('./utils/tenantUpscaleCompra');
+const {
+  ErrorCancelacion,
+  obtenerEstadoCancelacion,
+  aplicarDescuentoRetencion,
+  pausarSuscripcion,
+  registrarEncuestaSalida,
+  confirmarCancelacion,
+  enviarPropuestaRetencion,
+} = require('./utils/cancelacionSuscripcion');
+const { ErrorUpgradePlan, listarOpcionesSubirPlan, confirmarSubirPlan } = require('./utils/upgradePlan');
 const { evaluarYEnviarAlertaCapacidadDisco } = require('./utils/discoCapacidadAlerta');
 const {
   getDiscoAlertaEmail,
@@ -93,6 +103,7 @@ const {
   setDiscoTopeTenantMb,
 } = require('./utils/ajustesGlobales');
 const { listarReporteCupones } = require('./utils/reporteCupones');
+const { listarReporteCancelaciones } = require('./utils/reporteCancelaciones');
 const { verificarTurnstile } = require('./utils/turnstile');
 const { hashPasswordAdmin, validarPasswordAdmin, derivarNombreUsuario } = require('./utils/credencialesAdmin');
 const { isValidEmail } = require('./utils/validateFiscal');
@@ -158,6 +169,24 @@ const adminCredencialesLimiter = rateLimit({
 const onboardingPublicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: claveTenantIp,
+  message: { error: 'Demasiadas solicitudes. Intenta de nuevo mas tarde.' },
+});
+
+// Bug real encontrado en vivo (punto en curso, 2026-10-29): el polling de
+// "¿ya se confirmó mi pago?" (cada 5s, ver OnboardingModal.tsx) compartía
+// el límite de 40/15min de onboardingPublicLimiter — un visitante
+// esperando OXXO/SPEI (que el propio código documenta como "minutos a
+// días") topaba el límite a los ~3 minutos, y el error 429 quedaba
+// silenciado en el frontend (catch sin mostrar nada), dejando la UI
+// pegada en "Casi listo" para siempre sin ninguna señal. Límite propio,
+// mucho más holgado — es una lectura barata de solo-estado, no una
+// escritura — alcanza para polling continuo durante toda la ventana.
+const onboardingEstadoPagoLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: claveTenantIp,
@@ -480,7 +509,7 @@ app.post(
 // onboarding: el token es la única llave).
 app.get(
   '/api/public/onboarding/estado-pago/:token',
-  onboardingPublicLimiter,
+  onboardingEstadoPagoLimiter,
   asyncHandler(async (req, res) => {
     try {
       const borrador = await obtenerEstadoPago(req.params.token);
@@ -1652,10 +1681,10 @@ function secretoInternoValido(req) {
 
 app.post('/internal/upscale/simular', asyncHandler(async (req, res) => {
   if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
-  const { slug, cantidad } = req.body || {};
+  const { slug, tipo, cantidad } = req.body || {};
   if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
   try {
-    const resumen = await simularCompraUpscale(slug, Number(cantidad) || 1);
+    const resumen = await simularCompraUpscale(slug, tipo || 'disco', Number(cantidad) || 1);
     res.json({ ok: true, resumen });
   } catch (err) {
     if (err instanceof ErrorUpscaleCompra) {
@@ -1666,18 +1695,123 @@ app.post('/internal/upscale/simular', asyncHandler(async (req, res) => {
   }
 }));
 
+// Nota: successUrl/cancelUrl ya NO son obligatorios aquí — solo los usa
+// la rama tipo_cobro='unico' (Checkout de una sola vez). La rama
+// recurrente (hoy la única real en el catálogo) cobra de inmediato vía
+// Subscription Item, sin ningún redirect.
 app.post('/internal/upscale/confirmar', asyncHandler(async (req, res) => {
   if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
-  const { slug, cantidad, successUrl, cancelUrl } = req.body || {};
-  if (!slug || !successUrl || !cancelUrl) {
-    return res.status(400).json({ error: 'slug, successUrl y cancelUrl son obligatorios.' });
+  const { slug, tipo, cantidad, successUrl, cancelUrl } = req.body || {};
+  if (!slug) {
+    return res.status(400).json({ error: 'slug es obligatorio.' });
   }
   try {
-    const resultado = await confirmarCompraUpscale(slug, Number(cantidad) || 1, { successUrl, cancelUrl });
+    const resultado = await confirmarCompraUpscale(slug, tipo || 'disco', Number(cantidad) || 1, { successUrl, cancelUrl });
     res.json(resultado);
   } catch (err) {
     if (err instanceof ErrorUpscaleCompra) {
       const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'sin_catalogo' ? 409 : 400;
+      return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
+
+// ---------- Cancelación de suscripción con retención (A2+A1) + encuesta de salida (C1) ----------
+// Mismo patrón backend->control que /internal/upscale/* arriba — el
+// admin raíz está autenticado en backend/, pero stripe_subscription_id,
+// el candado de "descuento ya usado" y la Subscription real viven en
+// control_tenants. Siempre llamado por un admin raíz ya validado en
+// backend/ (ver backend/server.js) — este secreto es la única barrera
+// aquí, igual que el resto de /internal/*.
+function manejarErrorCancelacion(err, res) {
+  if (err instanceof ErrorCancelacion) {
+    const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'sin_suscripcion' ? 409 : 400;
+    return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+  }
+  throw err;
+}
+
+app.post('/internal/suscripcion/estado-cancelacion', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    res.json({ ok: true, ...(await obtenerEstadoCancelacion(slug)) });
+  } catch (err) {
+    manejarErrorCancelacion(err, res);
+  }
+}));
+
+app.post('/internal/suscripcion/descuento-retencion', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, actor } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    res.json(await aplicarDescuentoRetencion(slug, { actor }));
+  } catch (err) {
+    manejarErrorCancelacion(err, res);
+  }
+}));
+
+app.post('/internal/suscripcion/pausar', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, actor } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    res.json(await pausarSuscripcion(slug, { actor }));
+  } catch (err) {
+    manejarErrorCancelacion(err, res);
+  }
+}));
+
+app.post('/internal/suscripcion/encuesta-salida', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, motivo, comentario } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    res.json(await registrarEncuestaSalida(slug, { motivo, comentario }));
+  } catch (err) {
+    manejarErrorCancelacion(err, res);
+  }
+}));
+
+app.post('/internal/suscripcion/cancelar', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, actor } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    res.json(await confirmarCancelacion(slug, { actor }));
+  } catch (err) {
+    manejarErrorCancelacion(err, res);
+  }
+}));
+
+// ---------- Subir de plan desde Mi Cuenta (D1) — self-service, complementa (no reemplaza) el modal "Editar empresa" de /control ----------
+app.post('/internal/suscripcion/opciones-plan', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    res.json({ ok: true, ...(await listarOpcionesSubirPlan(slug)) });
+  } catch (err) {
+    if (err instanceof ErrorUpgradePlan) {
+      const estatus = err.codigo === 'no_encontrado' ? 404 : 400;
+      return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
+
+app.post('/internal/suscripcion/subir-plan', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, planId, actor } = req.body || {};
+  if (!slug || !planId) return res.status(400).json({ error: 'slug y planId son obligatorios.' });
+  try {
+    res.json(await confirmarSubirPlan(slug, planId, { actor }));
+  } catch (err) {
+    if (err instanceof ErrorUpgradePlan) {
+      const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'sin_suscripcion' ? 409 : 400;
       return res.status(estatus).json({ error: err.message, codigo: err.codigo });
     }
     throw err;
@@ -1908,6 +2042,38 @@ app.get(
   })
 );
 
+// ---------- Sección E (propuesta E1): reporte de cancelaciones ----------
+app.get(
+  '/api/control/reportes/cancelaciones',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    res.json(await listarReporteCancelaciones());
+  })
+);
+
+// Propuesta de retención por correo — disparo manual del operador desde
+// el reporte, nunca automático (reemplaza "Subir plan", que no tenía
+// sentido para un tenant que ya cancela).
+app.post(
+  '/api/control/cancelaciones/:slug/propuesta',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await enviarPropuestaRetencion(req.params.slug, { actor: req.adminUser }));
+    } catch (err) {
+      if (err instanceof ErrorCancelacion) {
+        const estatus = err.codigo === 'no_encontrado' ? 404 : 400;
+        return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+      }
+      throw err;
+    }
+  })
+);
+
 // ---------- Punto 247: gestión de super admins (ADMIN_USERS en .env) ----------
 // Híbrido: super = ADMIN_USERS (.env) + usuarios perfil super en BD (si los hay),
 // pero la alta/edición/baja de ADMIN_USERS solo se hace aquí, en /control,
@@ -2057,7 +2223,7 @@ app.use((req, res) => {
 
 async function iniciar() {
   await asegurarTablaAuditoria();
-  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos } = require('./scripts/ensureSchema');
+  const { asegurarTablaApiCredenciales, asegurarTablasSucursales, asegurarTablaPlanes, asegurarTablaAjustesGlobales, asegurarTablaOnboardingBorradores, asegurarTablaStripeEventos, asegurarTablaUpscale, asegurarTablaUpscaleActivos, asegurarTablaCancelacionesEncuesta } = require('./scripts/ensureSchema');
   // asegurarTablasSucursales() debe correr ANTES de
   // asegurarColumnasCicloVidaTenant(): esta última hace un UPDATE sobre
   // `tenants.grupo_sucursal_id`, columna que crea asegurarTablasSucursales
@@ -2074,6 +2240,7 @@ async function iniciar() {
   await asegurarTablaStripeEventos(obtenerPool());
   await asegurarTablaUpscale(obtenerPool());
   await asegurarTablaUpscaleActivos(obtenerPool());
+  await asegurarTablaCancelacionesEncuesta(obtenerPool());
 
   app.listen(PORT, () => {
     console.log(`Control escuchando en el puerto ${PORT}`);

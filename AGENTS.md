@@ -524,14 +524,51 @@ solo la frase en español de la UI.
   Patrón real en `planes.js:eliminarPlan()`: debe estar ya archivado +
   `total_tenants === 0`, bloqueando con 409 `codigo:'tiene_empresas'`
   (no 400 genérico).
+- **Cobro recurrente REAL de Stripe (punto 440, reemplaza el cobro único
+  de siempre)**: `crearCheckoutSession` ahora usa `mode:'subscription'`
+  con `price_data.recurring.interval`. Cancelar (A2 descuento 1 vez +
+  A1 pausar siempre disponible + encuesta de salida obligatoria antes de
+  confirmar) y subir de plan (D1) son self-service desde Mi Cuenta
+  (admin raíz). 2 gotchas de Stripe nuevos:
+  (1) `subscriptionItems.create()`/`subscriptions.create()` NO aceptan
+  `product_data` inline (a diferencia de un Checkout Session) — exigen
+  `product` ya existente, crear uno lazy y cachear su id.
+  (2) nunca cobrar antes de correr la validación local que podría
+  rechazar el cambio (bug real: D1 cobraba la proración ANTES del tope
+  de disco de `tenantEdicion.js`). Bug preexistente sin corregir fuera
+  de D1: `actualizarDatosTenant` pisa `disco_cuota_mb`/`max_usuarios` al
+  valor BASE del plan nuevo al reasignar plan, descartando cualquier
+  upscale ya comprado — D1 lo re-suma después, `/control` → "Editar
+  empresa" todavía no.
+- **Addendum 440: "Subir plan" quitado del reporte de cancelaciones** —
+  no tocaba `cancel_at_period_end`, cobraba una mejora que de todas
+  formas se cancela (el usuario lo detectó, no yo). Reemplazado por
+  "Enviar propuesta de retención" (correo manual vía `enviarCorreoBase`,
+  solo si `suscripcion_descuento_retencion_usado=0`). Antes de poner un
+  botón de upsell en una fila de "ya se fue", confirmar que SÍ revierte
+  la salida — si no, no pertenece ahí.
+- **CRÍTICO — `invoice.subscription` ya no existe (punto 440, addendum
+  2)**: se movió a `invoice.parent.subscription_details.subscription`
+  en la versión de API del SDK instalado. El webhook
+  `invoice.payment_succeeded` leía el campo viejo, resolvía `undefined`,
+  no actualizaba nada y respondía 200 IGUAL — sin error. En producción:
+  Stripe cobra bien, `suscripcion_expira_en` se congela para siempre, en
+  silencio total. Fix en `resolverSubscriptionIdDeInvoice()`
+  (`webhooksSuscripcion.js`), lee el campo nuevo con fallback al viejo.
+  Solo se encontró probando una renovación real completa (Test Clock +
+  webhook real) — pedido explícito del usuario, nunca lo hubiera
+  atrapado `node --check` ni un mock. Antes de leer cualquier campo
+  "de nivel superior" de un Invoice en código nuevo, verificar contra
+  un objeto real primero.
 - **Indicador de disco en Mi Cuenta + compra de upscale + Capacidad de
   disco en `/control`** (punto 433, 2026-10-27): medidor de
   almacenamiento en Mi Cuenta con aviso al 80%/95% (uso ahora
   INCREMENTAL en cada subida — `backend/utils/discoUso.js` — no solo el
-  "Recalcular" manual de /control). Compra de upscale: regla de 20 días
-  contra `suscripcion_expira_en` decide Stripe Checkout inmediato o
-  cargo `pendiente_corte` (sin cobro automático real todavía, lo cobra
-  un operador a mano). Reutiliza el catálogo `funcionalidades_upscale`
+  "Recalcular" manual de /control). Compra de upscale original: regla de
+  20 días contra `suscripcion_expira_en` decidía Stripe Checkout
+  inmediato o cargo `pendiente_corte` — **superado por el punto 440**:
+  ahora siempre se cobra ya, vía Subscription Item real, sin la rama
+  pendiente. Reutiliza el catálogo `funcionalidades_upscale`
   ya existente en /control (se le agregó `disco_mb`) — nunca construir
   un catálogo paralelo para "vender algo encima del plan". Tope máximo
   de disco POR TENANT (`ajustes_globales.disco_tope_tenant_mb`,

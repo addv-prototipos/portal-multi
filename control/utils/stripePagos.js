@@ -20,7 +20,6 @@ const Stripe = require('stripe');
 const { obtenerPool } = require('../db');
 const { obtenerBorradorInterno, ErrorOnboarding } = require('./onboardingBorrador');
 const { resolverPlanPorClave, convertirBorrador } = require('./onboardingConversion');
-const { getConfigMsi } = require('./stripeConfig');
 
 const APP_BASE_URL = (process.env.PUBLIC_APP_BASE_URL || 'https://clarvo.mx').replace(/\/$/, '');
 
@@ -51,6 +50,15 @@ async function crearCheckoutSession(token, { db = obtenerPool() } = {}) {
 
   const stripe = obtenerStripe();
   const intervaloNombre = borrador.ciclo === 'anual' ? 'año' : 'mes';
+  // Garantiza el cobro recurrente real (punto en curso, reemplaza el
+  // cobro único que tenía este archivo): mode:'subscription' + un Price
+  // ad-hoc con `recurring.interval` — Stripe arma la Subscription y
+  // cobra sola, mes tras mes o año tras año, hasta que se cancele vía
+  // API (ver cancelacionSuscripcion.js). Mismo criterio ya documentado
+  // en el proyecto para los Price "nunca viven en el catálogo de
+  // Stripe": este price_data es efímero, el precio real sigue viniendo
+  // de `planes.precio_mensual/anual` arriba, nunca de Stripe.
+  const intervaloStripe = borrador.ciclo === 'anual' ? 'year' : 'month';
 
   // Nota real (descubierto al probar en local, 2026-10-26): Stripe ya NO
   // acepta `payment_method_types` explícito al crear un Checkout Session
@@ -58,34 +66,33 @@ async function crearCheckoutSession(token, { db = obtenerPool() } = {}) {
   // Dashboard (Settings → Payment methods, ver DOCS/confStripe.html paso
   // 8). Mientras OXXO no esté activado ahí, Checkout solo ofrece
   // tarjeta — eso es correcto y esperado, no un bug de este código.
-  // Meses sin intereses: solo si hay plazos configurados en /control Y el
-  // monto alcanza el mínimo que ahí mismo se definió — Stripe exige
-  // enabled=true explícito, nunca lo ofrece solo porque la tarjeta lo
-  // soporte.
-  const configMsi = await getConfigMsi(db);
-  const paymentMethodOptions = {};
-  if (configMsi.plazos.length > 0 && precio >= configMsi.montoMinimo) {
-    paymentMethodOptions.card = { installments: { enabled: true } };
-  }
+  // Meses sin intereses (`payment_method_options.card.installments`) ya
+  // NO aplica aquí: Stripe solo los soporte en pagos únicos
+  // (PaymentIntent), nunca en el primer cobro de una Subscription — el
+  // catálogo de plazos en /control sigue vivo para cuando se necesite en
+  // algún cobro único (ej. upscale tipo_cobro='unico').
 
   const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
+    mode: 'subscription',
     // Reporte de cupones (punto en curso): deja que el prospecto escriba
     // un código en la propia página de Stripe — sin esto, ningún código
     // de descuento de /control es alcanzable desde el onboarding real.
     allow_promotion_codes: true,
-    ...(Object.keys(paymentMethodOptions).length ? { payment_method_options: paymentMethodOptions } : {}),
     line_items: [
       {
         price_data: {
           currency: 'mxn',
           unit_amount: montoCentavos(precio),
+          recurring: { interval: intervaloStripe },
           product_data: { name: `Clarvo — ${plan.nombre || borrador.plan_clave} (${intervaloNombre})` },
         },
         quantity: 1,
       },
     ],
     metadata: { borradorToken: token },
+    subscription_data: {
+      metadata: { borradorToken: token },
+    },
     // Pago es el ÚLTIMO paso del wizard (punto 430) — al volver exitoso
     // no queda NADA por llenar, solo esperar el polling de activación
     // ("completado"). Si cancela/vuelve atrás desde Stripe, regresa al
@@ -164,7 +171,15 @@ async function manejarPagoConfirmado(session, db) {
   );
 
   try {
-    const resultado = await convertirBorrador(token, { actor: 'stripe-webhook', db });
+    // session.customer/session.subscription son los ids reales que
+    // Stripe asigna al completar un Checkout en mode:'subscription' —
+    // con mode:'payment' (como era antes) ninguno de los dos existía.
+    const resultado = await convertirBorrador(token, {
+      actor: 'stripe-webhook',
+      db,
+      stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+      stripeSubscriptionId: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null,
+    });
     console.log(`Tenant "${resultado.slug}" activado tras confirmar pago (Stripe, método ${metodo}).`);
   } catch (err) {
     // El dinero YA se cobró — un fallo aquí es un caso que requiere
@@ -225,11 +240,19 @@ async function procesarEventoWebhook(event, { db = obtenerPool() } = {}) {
     case 'checkout.session.async_payment_failed':
       await manejarPagoFallido(session, db);
       break;
+    case 'invoice.payment_succeeded':
+    case 'invoice.payment_failed':
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted': {
+      // Lazy require: mismo motivo que enrutarPagoConfirmado arriba —
+      // evita un ciclo de dependencias (webhooksSuscripcion.js no
+      // necesita nada de este archivo hoy, pero mantiene el mismo
+      // patrón por consistencia).
+      const { enrutarEventoSuscripcion } = require('./webhooksSuscripcion');
+      await enrutarEventoSuscripcion(event, db);
+      break;
+    }
     default:
-      // Otros eventos (subscription.updated, etc.) se suman cuando se
-      // construya facturación recurrente — fuera de alcance de este pase
-      // (hoy es un cobro único por periodo, no una Subscription real de
-      // Stripe).
       break;
   }
 }
