@@ -77,6 +77,15 @@
     smtpConfigBody: document.getElementById('smtp-config-body'),
     smtpAutosaveTag: document.getElementById('smtp-autosave-tag'),
     smtpEstadoBadge: document.getElementById('smtp-estado-badge'),
+    // SMTP default de plataforma (punto en curso): banner "ya configurado"
+    // + franja de revertir — ver aplicarEstadoDefaultSmtp.
+    smtpDefaultBanner: document.getElementById('smtp-default-banner'),
+    btnSmtpUsarPropio: document.getElementById('btn-smtp-usar-propio'),
+    smtpAccHeaderConexion: document.getElementById('smtp-acc-header-conexion'),
+    smtpAccBodyConexion: document.getElementById('smtp-acc-body-conexion'),
+    smtpRevertirFranja: document.getElementById('smtp-revertir-franja'),
+    btnSmtpRevertir: document.getElementById('btn-smtp-revertir'),
+    smtpRevertirError: document.getElementById('smtp-revertir-error'),
     configSidebarSmtpEstado: document.getElementById('config-sidebar-smtp-estado'),
     configSidebarSmtpEstadoTexto: document.getElementById('config-sidebar-smtp-estado-texto'),
     smtpHost: document.getElementById('smtp-host'),
@@ -6310,6 +6319,25 @@
   // siempre arranca en "conexion" al entrar a esta tarjeta (ver
   // seleccionarSeccionConfig más abajo).
   let smtpAccSeccionAbierta = 'conexion';
+  // SMTP default de plataforma (punto en curso): mientras usandoDefault
+  // sea true y el admin no haya pedido explícitamente "usar mi propio
+  // correo" en ESTA visita a la tarjeta, el banner verde reemplaza el
+  // formulario de conexión — se reinicia a false en cada cargarConfigSmtp().
+  let smtpMostrarFormularioPropio = false;
+  let ultimoDatoSmtp = null;
+
+  // Decide banner vs. formulario de conexión + franja de revertir.
+  // "Correo de quien va a facturar" y "Plantillas de correo" nunca pasan
+  // por aquí — son independientes de la conexión SMTP (ver admin.html).
+  function aplicarEstadoDefaultSmtp(data) {
+    const usandoDefault = Boolean(data && data.usandoDefault);
+    const configurado = Boolean(data && data.configurado);
+    const mostrarFormulario = !usandoDefault || smtpMostrarFormularioPropio;
+    if (els.smtpDefaultBanner) els.smtpDefaultBanner.hidden = !(usandoDefault && !smtpMostrarFormularioPropio);
+    if (els.smtpAccHeaderConexion) els.smtpAccHeaderConexion.hidden = !mostrarFormulario;
+    if (els.smtpAccBodyConexion) els.smtpAccBodyConexion.hidden = !mostrarFormulario;
+    if (els.smtpRevertirFranja) els.smtpRevertirFranja.hidden = !configurado;
+  }
 
   function aplicarAcordeonSmtp() {
     document.querySelectorAll('.smtp-acc-header').forEach((btn) => {
@@ -6521,6 +6549,9 @@
       });
       if (!res.ok) return;
       const data = await res.json();
+      ultimoDatoSmtp = data;
+      smtpMostrarFormularioPropio = false;
+      aplicarEstadoDefaultSmtp(data);
 
       els.smtpHost.value = data.host || 'smtp.gmail.com';
       els.smtpPuerto.value = data.puerto || 587;
@@ -6546,10 +6577,16 @@
         ? 'Ya hay una contraseña guardada. Déjala en blanco para conservarla, o escribe una nueva para reemplazarla.'
         : 'Sin contraseña guardada todavía.';
 
+      // "Configurado" significa "los correos SÍ salen" — ya sea con
+      // conexión propia (data.configurado) o con el default de la
+      // plataforma (data.usandoDefault, ver smtpDefault.js). Nunca
+      // mostrar "Sin configurar" mientras el default esté activo: sería
+      // alarmar al admin por algo que ya funciona.
+      const smtpEfectivamenteConfigurado = Boolean(data.configurado || data.usandoDefault);
       els.smtpEstadoBadge.hidden = false;
-      els.smtpEstadoBadge.textContent = data.configurado ? 'Configurado' : 'Sin configurar';
-      els.smtpEstadoBadge.className = `smtp-estado-badge ${data.configurado ? 'is-ok' : 'is-pendiente'}`;
-      actualizarBadgeSidebarSmtp(data.configurado);
+      els.smtpEstadoBadge.textContent = smtpEfectivamenteConfigurado ? 'Configurado' : 'Sin configurar';
+      els.smtpEstadoBadge.className = `smtp-estado-badge ${smtpEfectivamenteConfigurado ? 'is-ok' : 'is-pendiente'}`;
+      actualizarBadgeSidebarSmtp(smtpEfectivamenteConfigurado);
       renderSmtpVerificado(data.ultima_verificacion_en);
     } catch (err) {
       // Si falla la carga, el formulario se queda con los valores por
@@ -6568,9 +6605,10 @@
     return fecha && hora ? `${fecha} ${hora} UTC` : null;
   }
 
-  // Badge real del pie del sidebar de Configuraciones — refleja el mismo
-  // dato (data.configurado) que ya usa #smtp-estado-badge, nunca un
-  // "Conectado" fijo. Oculto hasta la primera carga real.
+  // Badge real del pie del sidebar de Configuraciones — recibe
+  // smtpEfectivamenteConfigurado (propio O default de plataforma),
+  // mismo criterio que #smtp-estado-badge. Oculto hasta la primera
+  // carga real.
   function actualizarBadgeSidebarSmtp(configurado) {
     if (!els.configSidebarSmtpEstado || !els.configSidebarSmtpEstadoTexto) return;
     els.configSidebarSmtpEstado.hidden = false;
@@ -6701,10 +6739,11 @@
       els.smtpPasswordHint.textContent = data.passwordConfigurada
         ? 'Ya hay una contraseña guardada. Déjala en blanco para conservarla, o escribe una nueva para reemplazarla.'
         : 'Sin contraseña guardada todavía.';
+      const smtpEfectivamenteConfigurado = Boolean(data.configurado || data.usandoDefault);
       els.smtpEstadoBadge.hidden = false;
-      els.smtpEstadoBadge.textContent = data.configurado ? 'Configurado' : 'Sin configurar';
-      els.smtpEstadoBadge.className = `smtp-estado-badge ${data.configurado ? 'is-ok' : 'is-pendiente'}`;
-      actualizarBadgeSidebarSmtp(data.configurado);
+      els.smtpEstadoBadge.textContent = smtpEfectivamenteConfigurado ? 'Configurado' : 'Sin configurar';
+      els.smtpEstadoBadge.className = `smtp-estado-badge ${smtpEfectivamenteConfigurado ? 'is-ok' : 'is-pendiente'}`;
+      actualizarBadgeSidebarSmtp(smtpEfectivamenteConfigurado);
       renderSmtpVerificado(data.ultima_verificacion_en);
       return true;
     } catch (err) {
@@ -6822,6 +6861,53 @@
         els.smtpVerificarError.textContent = 'No se pudo conectar con el servidor.';
       } finally {
         setVerificarSmtpLoading(false);
+      }
+    });
+  }
+
+  // Banner default de plataforma: "Usar mi propio correo en su lugar"
+  // solo revela el formulario (local, nada se guarda todavía) — el
+  // autoguardado de siempre se encarga en cuanto el admin llene host/
+  // usuario/password.
+  if (els.btnSmtpUsarPropio) {
+    els.btnSmtpUsarPropio.addEventListener('click', () => {
+      smtpMostrarFormularioPropio = true;
+      aplicarEstadoDefaultSmtp(ultimoDatoSmtp);
+      smtpAccSeccionAbierta = 'conexion';
+      aplicarAcordeonSmtp();
+      els.smtpHost.focus();
+    });
+  }
+
+  // "Volver al correo predeterminado de Clarvo" (propuesta 8, confirmada
+  // por el usuario): borra la conexión propia guardada y vuelve a
+  // usandoDefault=true — recarga la tarjeta completa para que el banner
+  // verde reaparezca con el estado real ya confirmado por el servidor.
+  if (els.btnSmtpRevertir) {
+    els.btnSmtpRevertir.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) {
+        showLogin();
+        return;
+      }
+      if (els.smtpRevertirError) els.smtpRevertirError.textContent = '';
+      els.btnSmtpRevertir.disabled = true;
+      try {
+        const res = await fetch(`${API_BASE}/admin/config/smtp/revertir`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (els.smtpRevertirError) els.smtpRevertirError.textContent = data.error || 'No se pudo revertir al correo predeterminado.';
+          return;
+        }
+        showToast('Ahora usas el correo predeterminado de Clarvo.');
+        await cargarConfigSmtp();
+      } catch (err) {
+        if (els.smtpRevertirError) els.smtpRevertirError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnSmtpRevertir.disabled = false;
       }
     });
   }

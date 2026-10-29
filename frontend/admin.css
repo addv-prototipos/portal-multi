@@ -4207,6 +4207,83 @@
 #smtp-config-card .smtp-config-grid select:focus { background: #fff; border-color: #0f2744; box-shadow: 0 0 0 3px rgba(15,39,68,.12); }
 #smtp-config-card .smtp-verificar-franja { background: #F1F5F9; border-color: #E2E8F0; }
 #smtp-config-card .guia-smtp-toggle { background: #EFF6FF; border-color: #DBEAFE; color: #0f2744; }
+
+/* ---------- SMTP default de plataforma (punto en curso) ----------
+   Banner "ya configurado" (propuesta 1, confirmada en verde por el
+   usuario) — reusa el mismo trío verde que .pill-green de esta misma
+   hoja (#ECFDF5/#A7F3D0/#065F46), consistente con la paleta stitch ya
+   confinada a esta tarjeta, nunca --color-warn (eso es para avisos, no
+   para "todo está bien"). */
+.smtp-default-banner {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.smtp-default-banner-icono { flex: none; width: 20px; height: 20px; color: #065F46; margin-top: 1px; }
+.smtp-default-banner-icono svg { display: block; }
+.smtp-default-banner-texto { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.smtp-default-banner-titulo { margin: 0; font-size: 13.5px; font-weight: 700; color: #065F46; }
+.smtp-default-banner-cuerpo { margin: 0; font-size: 12.5px; color: #0f2744; }
+.smtp-default-banner-link {
+  align-self: flex-start;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f2744;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.smtp-default-banner-link:hover { color: #2563EB; }
+.smtp-default-banner-link:focus-visible { outline: 2px solid #0f2744; outline-offset: 2px; }
+
+/* Franja de revertir — mismo contenedor que .smtp-verificar-franja pero
+   sin icono de rayo (no es una acción de diagnóstico, es un cambio de
+   modo), visible solo cuando este tenant/sitio SÍ tiene su propia
+   conexión guardada (ver admin.js). */
+.smtp-revertir-franja {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-top: 10px;
+}
+.smtp-revertir-texto { flex: 1; min-width: 180px; font-size: 12.5px; color: var(--color-ink-soft); }
+.smtp-revertir-link {
+  flex-shrink: 0;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f2744;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.smtp-revertir-link:hover { color: #2563EB; }
+.smtp-revertir-link:focus-visible { outline: 2px solid #0f2744; outline-offset: 2px; }
+#smtp-revertir-error { margin-top: 8px; }
+#smtp-config-card .smtp-revertir-franja { background: #F1F5F9; border-color: #E2E8F0; }
+
+/* "Correo de quien va a facturar" vive FUERA del acordeón de conexión
+   (nunca se oculta con usandoDefault) — mismo look de .smtp-subseccion,
+   con un poco más de aire arriba al quedar entre dos acordeones. */
+.smtp-subseccion-standalone { margin-top: 2px; }
 #smtp-config-card .smtp-estado-badge.is-ok { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
 #smtp-config-card .smtp-verificar-icono { color: #64748B; }
 #smtp-config-card .smtp-autosave-tag.is-guardado { background: #ECFDF5; color: #065F46; }

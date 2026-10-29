@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const { pool } = require('../db');
+const { obtenerSmtpDefaultCacheado } = require('./smtpDefault');
 
 const CLAVE_SMTP = 'smtp_config';
 
@@ -108,6 +109,32 @@ async function setConfigSmtp(cambios) {
   return nuevo;
 }
 
+// Borra la conexión propia (host/puerto/seguridad/usuario/password/
+// remitente) para que este tenant/sitio vuelva a usar el default de la
+// plataforma — "Volver al correo predeterminado de Clarvo" en el
+// frontend. Conserva correo_contador y las 6 plantillas de cuerpo tal
+// cual (son contenido editorial, no credenciales de conexión).
+async function limpiarConexionSmtp() {
+  const actual = (await getConfigSmtp()) || { ...DEFAULTS_SMTP };
+  const nuevo = {
+    ...actual,
+    host: '',
+    puerto: DEFAULTS_SMTP.puerto,
+    seguridad: DEFAULTS_SMTP.seguridad,
+    usuario: '',
+    password: '',
+    nombre_remitente: '',
+    correo_remitente: '',
+    ultima_verificacion_en: null,
+  };
+  await pool.query(
+    `INSERT INTO configuracion (clave, valor) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
+    [CLAVE_SMTP, JSON.stringify(nuevo)]
+  );
+  return nuevo;
+}
+
 // Registra que la configuración SMTP guardada SÍ funciona ahora mismo —
 // llamado tras un handshake exitoso (verificarConexionSmtp) o un envío de
 // prueba exitoso (ver POST /api/admin/config/smtp/prueba en server.js).
@@ -140,10 +167,20 @@ const DEFAULTS_PLANTILLAS = {
   cuerpo_venta: DEFAULTS_SMTP.cuerpo_venta,
 };
 
-function configSmtpParaMostrar(config) {
+// `usandoDefault`: true cuando este tenant/sitio NO tiene su propia
+// configuración SMTP completa y por eso los correos salen con el
+// default de la plataforma (control/, ver smtpDefault.js) — el frontend
+// usa esta bandera para decidir entre el banner "ya configurado" (no
+// propio) y el formulario completo (propio). `configurado` sigue
+// significando "este tenant/sitio tiene SU PROPIA configuración", sin
+// cambiar su significado previo.
+async function configSmtpParaMostrar(config) {
+  const propioConfigurado = Boolean(config && config.host && config.usuario && config.password);
+  const usandoDefault = propioConfigurado ? false : Boolean(await obtenerSmtpDefaultCacheado());
   if (!config) {
     return {
       configurado: false,
+      usandoDefault,
       ...DEFAULTS_SMTP,
       password: undefined,
       passwordConfigurada: false,
@@ -152,7 +189,8 @@ function configSmtpParaMostrar(config) {
   }
   const { password, ...resto } = config;
   return {
-    configurado: Boolean(config.host && config.usuario && config.password),
+    configurado: propioConfigurado,
+    usandoDefault,
     ...resto,
     passwordConfigurada: Boolean(password),
     defaultsPlantillas: DEFAULTS_PLANTILLAS,
@@ -222,8 +260,23 @@ function traducirErrorSmtp(err, config) {
   return new Error(err.message || 'No se pudo completar la operación SMTP.');
 }
 
-async function enviarCorreo({ destinatario, asunto, cuerpo, html, adjuntos }) {
+// Resuelve la configuración de CONEXIÓN (host/puerto/seguridad/usuario/
+// password/remitente) que de verdad se va a usar para mandar/verificar
+// un correo: la propia del tenant/sitio si está completa, o si no el
+// default de la plataforma (control/, ver smtpDefault.js) — nunca una
+// mezcla de host propio con password default ni viceversa, siempre un
+// juego de credenciales completo de una sola fuente.
+async function resolverConfigConexion() {
   const config = await getConfigSmtp();
+  const propioConfigurado = Boolean(config && config.host && config.usuario && config.password);
+  if (propioConfigurado) return { config, usandoDefault: false };
+  const def = await obtenerSmtpDefaultCacheado();
+  if (!def) return { config, usandoDefault: false };
+  return { config: { ...DEFAULTS_SMTP, ...(config || {}), ...def }, usandoDefault: true };
+}
+
+async function enviarCorreo({ destinatario, asunto, cuerpo, html, adjuntos }) {
+  const { config } = await resolverConfigConexion();
   if (!config || !config.host || !config.usuario || !config.password) {
     throw new Error(
       'El correo SMTP no está configurado todavía. Configúralo en el panel de administración antes de enviar correos.'
@@ -282,4 +335,5 @@ module.exports = {
   DEFAULTS_SMTP,
   marcarSmtpVerificado,
   verificarConexionSmtp,
+  limpiarConexionSmtp,
 };

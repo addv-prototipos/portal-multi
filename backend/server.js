@@ -115,6 +115,7 @@ const {
   DEFAULTS_SMTP,
   marcarSmtpVerificado,
   verificarConexionSmtp,
+  limpiarConexionSmtp,
 } = require('./utils/email');
 const {
   ejecutarLimpiezaParaTodos,
@@ -4150,7 +4151,18 @@ app.get(
   requireAdminArea(),
   asyncHandler(async (req, res) => {
     const config = await getConfigSmtp();
-    res.json(configSmtpParaMostrar(config));
+    res.json(await configSmtpParaMostrar(config));
+  })
+);
+
+app.post(
+  '/api/admin/config/smtp/revertir',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    const nuevo = await limpiarConexionSmtp();
+    res.json(await configSmtpParaMostrar(nuevo));
   })
 );
 
@@ -4216,7 +4228,7 @@ app.put(
       cuerpo_reporte: cuerpoReporte,
       cuerpo_venta: cuerpoVenta,
     });
-    res.json(configSmtpParaMostrar(nuevo));
+    res.json(await configSmtpParaMostrar(nuevo));
   })
 );
 

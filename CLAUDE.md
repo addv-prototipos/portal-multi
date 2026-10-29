@@ -203,6 +203,49 @@ usado en todo este repo hasta hoy) cuenta como prueba de
 
 ## Gotchas operativos recurrentes (leer antes de tocar Docker/nginx/CSP/tests)
 
+- **SSH desde esta máquina Windows: el cliente de Git Bash puede fallar
+  en silencio** (punto 442, 2026-10-29): `/usr/bin/ssh` dentro de Git
+  Bash (OpenSSH_9.7p1/OpenSSL) tiene un bug real firmando con la
+  extensión `publickey-hostbound@openssh.com` que un sshd reciente
+  negocia por default — el servidor acepta la llave ("Server accepts
+  key") pero el cliente nunca manda la firma ("we did not send a
+  packet, disable method") y el acceso SSH parece completamente roto
+  ("Permission denied (publickey,password)") sin ningún mensaje de
+  error claro, aunque la llave/permisos/config del servidor estén
+  perfectos. Diagnóstico: `ssh -vvv` muestra exactamente esa secuencia.
+  **Fix**: usar el OpenSSH nativo de Windows en su lugar —
+  `/c/Windows/System32/OpenSSH/ssh.exe` (mismos flags `-i`) — funciona
+  sin el bug. Detalle completo en memoria
+  (`project_ssh_gitbash_hostbound_bug.md`).
+- **Garage (`dxflrs/garage`): nunca copiar el `command:` de MinIO**
+  (punto 442, 2026-10-29): la imagen no trae `ENTRYPOINT` (solo
+  `CMD=[/garage server]`) — un `command:` en compose/stack REEMPLAZA el
+  CMD completo. `garage server` NO acepta argumentos (ni ruta de datos
+  ni `--console-address`, eso es sintaxis de MinIO) — todo lo lee de
+  `garage.toml` ya montado. Un `command: server /data --console-address
+  ":9001"` (arrastrado por error de la migración MinIO→Garage, punto
+  415) revienta con `error: Found argument '/data' which wasn't
+  expected`. El comando correcto es `/garage server` a secas.
+- **`control_tenants.tenants` no se crea sola en un servidor 100% nuevo**
+  (punto 442, 2026-10-29): ni `backend` ni `control` la crean al
+  arrancar — requiere correr `asegurarControlYPrivilegios()`
+  (`backend/scripts/lib/controlDb.js`, normalmente invocada por
+  `provisionar-tenant.js`) una sola vez a mano. Como `scripts/` está
+  excluido a propósito de la imagen de producción del backend
+  (`.dockerignore`), hay que montarla desde el host en un contenedor
+  temporal (ej. un servicio Swarm efímero con `--entrypoint node` y
+  `--mount type=bind,src=<host>/backend/scripts,dst=/scripts,readonly`)
+  — nunca meter `scripts/` a la imagen real solo para este paso único.
+- **`TRUST_PROXY_HOPS` depende de cuántos nginx hay delante, no de un
+  default fijo** (puntos 327 y 442): con nginx del HOST (fuera de
+  Docker, con certbot) delante del contenedor `frontend`, son 2 saltos
+  reales (host nginx + frontend nginx), no 1 — mismo criterio en
+  cualquier VPS de un solo nodo con ese patrón (`yt.addv.com.mx`,
+  `clarvo.mx`). Con el valor equivocado, `admin_auditoria` registra la
+  IP del proxy, no la del cliente real. Verificar la topología real
+  (cuántos reverse proxies hay antes de llegar a Express) antes de
+  asumir que el default de `docker-compose.yml` (pensado para un solo
+  nginx local) aplica igual en un VPS real.
 - **Rebuild que no se refleja**: `docker compose build <servicio>` a
   veces no recoge cambios de archivo — usar `--no-cache` seguido de
   `up -d --force-recreate <servicio>` cuando un cambio no aparece al
@@ -1344,6 +1387,43 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   espera. Cualquier endpoint nuevo pensado para `setInterval` corto:
   nunca reusar un limiter de escritura, calcular el suyo propio desde
   el día uno.
+- **SMTP default de plataforma (punto 443, 2026-10-29)**: todo
+  tenant/sitio base sin su propia conexión SMTP completa ya cae en el
+  default configurado en `/control` → Accesos → SMTP, en vez de fallar
+  al enviar correos. Cadena real: `control/utils/accesoSmtp.js`
+  (storage + AES-256-GCM, igual que MinIO) → `POST /internal/smtp-default`
+  (nuevo, mismo secreto `X-Internal-Secret` que el resto de `/internal/*`)
+  → `backend/utils/smtpDefault.js` (cacheado 45s, mismo patrón que
+  `ajustesGlobales.js`) → `backend/utils/email.js:resolverConfigConexion()`
+  (nunca mezcla host propio con password default: o el juego completo es
+  propio, o el juego completo es el default). `configSmtpParaMostrar()`
+  ahora es **async** (antes síncrona) y expone `usandoDefault` — cualquier
+  caller nuevo debe `await`. En `/admin`, `usandoDefault=true` oculta el
+  header+body de la sección "conexion" del acordeón SMTP
+  (`#smtp-acc-header-conexion`/`#smtp-acc-body-conexion`, IDs nuevos) y
+  muestra `#smtp-default-banner` (verde, "Correo electrónico ya
+  configurado" + link "Usar mi propio correo en su lugar", solo revela el
+  formulario localmente, no guarda nada todavía). Con conexión propia
+  guardada (`configurado=true`), aparece `#smtp-revertir-franja` →
+  `POST /api/admin/config/smtp/revertir` (nuevo, llama a
+  `limpiarConexionSmtp()`) borra host/usuario/password propios y regresa a
+  `usandoDefault=true`. "Correo de quien va a facturar" y "Plantillas de
+  correo" **nunca** se ocultan — son independientes de la conexión SMTP,
+  a propósito fuera del acordeón que se oculta. **`CONTROL_VAULT_KEY`
+  estaba vacía en `.env`** desde que existe (ningún "Accesos" —ni MinIO ni
+  SMTP— pudo cifrar/descifrar nada hasta ahora) — se generó y sembró en
+  esta sesión; si otra sesión ve `"CONTROL_VAULT_KEY no está configurada"`
+  en un entorno nuevo, generar con
+  `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+  y `up -d --force-recreate control` (nunca `restart`, no relee `.env`).
+  `/control` → Accesos → SMTP ahora replica la MISMA richness visual que
+  `/admin` (acordeón, 3 subsecciones con puntos de color, franja
+  "Verificar conexión ahora" con timestamp) reusando las clases
+  `.smtp-*` de `admin.css` (control.html ya enlaza `admin.css`, cero CSS
+  duplicado) — la única pieza NO replicada a propósito es la guía
+  "¿Cómo configuro Gmail paso a paso?" colapsable (vive como un array de
+  datos grande en `admin.js`, de poco valor para el operador de
+  `/control`, que no es quien configura su propio Gmail).
 
 ## Stack
 

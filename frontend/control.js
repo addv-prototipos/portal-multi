@@ -263,6 +263,13 @@
     accesosSmtpCorreoRemitente: document.getElementById('accesos-smtp-correo-remitente'),
     btnAccesosSmtpGuardar: document.getElementById('btn-accesos-smtp-guardar'),
     btnAccesosSmtpGuardarLabel: document.getElementById('btn-accesos-smtp-guardar-label'),
+    accesosSmtpAccHeader: document.getElementById('accesos-smtp-acc-header'),
+    accesosSmtpAccBody: document.getElementById('accesos-smtp-acc-body'),
+    accesosSmtpEstadoBadge: document.getElementById('accesos-smtp-estado-badge'),
+    accesosSmtpVerificarTexto: document.getElementById('accesos-smtp-verificar-texto'),
+    btnAccesosSmtpVerificar: document.getElementById('btn-accesos-smtp-verificar'),
+    btnAccesosSmtpVerificarLabel: document.getElementById('btn-accesos-smtp-verificar-label'),
+    accesosSmtpVerificarError: document.getElementById('accesos-smtp-verificar-error'),
     // Punto 347: Auditoría cross-tenant
     btnAyudaVistaAuditoria: document.getElementById('btn-ayuda-vista-auditoria'),
     auditoriaFiltroActor: document.getElementById('auditoria-filtro-actor'),
@@ -5113,9 +5120,73 @@
         els.btnAccesosSmtpPasswordToggle.setAttribute('aria-pressed', 'false');
         els.btnAccesosSmtpPasswordToggle.setAttribute('aria-label', 'Mostrar contraseña');
       }
+      const configurado = Boolean(data.host && data.usuario && data.passwordConfigurada);
+      if (els.accesosSmtpEstadoBadge) {
+        els.accesosSmtpEstadoBadge.hidden = false;
+        els.accesosSmtpEstadoBadge.textContent = configurado ? 'Configurado' : 'Sin configurar';
+        els.accesosSmtpEstadoBadge.className = `smtp-estado-badge ${configurado ? 'is-ok' : 'is-pendiente'}`;
+      }
+      renderAccesosSmtpVerificado(data.verificadoEn);
     } catch (err) {
       if (els.accesosSmtpError) els.accesosSmtpError.textContent = 'No se pudo conectar con el servidor.';
     }
+  }
+
+  // Mismo formato/criterio que admin.js:formatearVerificadoEn — timestamp
+  // ISO (siempre UTC), mostrado tal cual con sufijo "UTC" explícito.
+  function renderAccesosSmtpVerificado(valor) {
+    if (!els.accesosSmtpVerificarTexto) return;
+    const valido = valor && typeof valor === 'string';
+    const fecha = valido ? valor.slice(0, 10) : '';
+    const hora = valido ? valor.slice(11, 16) : '';
+    if (fecha && hora) {
+      els.accesosSmtpVerificarTexto.textContent = `Última verificación exitosa: ${fecha} ${hora} UTC`;
+      els.accesosSmtpVerificarTexto.classList.add('is-ok');
+    } else {
+      els.accesosSmtpVerificarTexto.textContent = 'Aún no se ha verificado la conexión.';
+      els.accesosSmtpVerificarTexto.classList.remove('is-ok');
+    }
+  }
+
+  if (els.accesosSmtpAccHeader) {
+    els.accesosSmtpAccHeader.addEventListener('click', () => {
+      const abierto = els.accesosSmtpAccHeader.getAttribute('aria-expanded') === 'true';
+      els.accesosSmtpAccHeader.setAttribute('aria-expanded', String(!abierto));
+      if (els.accesosSmtpAccBody) els.accesosSmtpAccBody.dataset.colapsado = String(abierto);
+    });
+  }
+
+  if (els.btnAccesosSmtpVerificar) {
+    els.btnAccesosSmtpVerificar.addEventListener('click', async () => {
+      const authHeader = getAuthHeader();
+      if (!authHeader) { showLogin(); return; }
+      if (els.accesosSmtpVerificarError) els.accesosSmtpVerificarError.textContent = '';
+      els.btnAccesosSmtpVerificar.disabled = true;
+      if (els.btnAccesosSmtpVerificarLabel) els.btnAccesosSmtpVerificarLabel.textContent = 'Verificando…';
+      try {
+        const res = await fetch(`${API_BASE}/accesos/smtp/verificar`, {
+          method: 'POST',
+          headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+        });
+        if (res.status === 401) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (els.accesosSmtpVerificarError) els.accesosSmtpVerificarError.textContent = data.error || 'No se pudo verificar la conexión.';
+          return;
+        }
+        renderAccesosSmtpVerificado(data.verificadoEn);
+        showToast('Conexión SMTP verificada.');
+      } catch (err) {
+        if (els.accesosSmtpVerificarError) els.accesosSmtpVerificarError.textContent = 'No se pudo conectar con el servidor.';
+      } finally {
+        els.btnAccesosSmtpVerificar.disabled = false;
+        if (els.btnAccesosSmtpVerificarLabel) els.btnAccesosSmtpVerificarLabel.textContent = 'Verificar conexión ahora';
+      }
+    });
   }
 
   if (els.btnAccesosSmtpPasswordToggle) {

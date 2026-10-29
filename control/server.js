@@ -30,6 +30,7 @@ const { validarSlug } = require('./utils/tenant');
 const { getImagenMaxMb, setImagenMaxMb, getImportMaxFilas, setImportMaxFilas } = require('./utils/ajustesGlobales');
 const { getAccesoMinio, setAccesoMinio, ErrorAccesoMinio } = require('./utils/accesoMinio');
 const { getAccesoSmtp, setAccesoSmtp, ErrorAccesoSmtp } = require('./utils/accesoSmtp');
+const { verificarAccesoSmtp } = require('./utils/smtpVerificar');
 const { ErrorCifrado } = require('./utils/cifrado');
 const { actualizarTemaTenant, ErrorTemaTenant } = require('./utils/tenantTema');
 const { actualizarSuscripcionTenant, ErrorSuscripcionTenant } = require('./utils/tenantSuscripcion');
@@ -1352,6 +1353,27 @@ app.put(
   })
 );
 
+// Handshake de solo-verificación ("Verificar conexión ahora") — mismo
+// criterio que backend/utils/email.js:verificarConexionSmtp, sin enviar
+// ningún correo.
+app.post(
+  '/api/control/accesos/smtp/verificar',
+  adminApiLimiter,
+  requireAdminAuth,
+  requireAdminArea(),
+  asyncHandler(async (req, res) => {
+    try {
+      const verificadoEn = await verificarAccesoSmtp();
+      res.json({ ok: true, verificadoEn });
+    } catch (err) {
+      if (err instanceof ErrorAccesoSmtp || err instanceof ErrorCifrado) {
+        return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
+      }
+      res.status(400).json({ error: err.message });
+    }
+  })
+);
+
 app.get(
   '/api/control/grupos-sucursal',
   adminApiLimiter,
@@ -1813,6 +1835,24 @@ app.post('/internal/suscripcion/subir-plan', asyncHandler(async (req, res) => {
     if (err instanceof ErrorUpgradePlan) {
       const estatus = err.codigo === 'no_encontrado' ? 404 : err.codigo === 'sin_suscripcion' ? 409 : 400;
       return res.status(estatus).json({ error: err.message, codigo: err.codigo });
+    }
+    throw err;
+  }
+}));
+
+// SMTP default de la plataforma: backend/ (tenants y sitio base sin
+// configuración propia) llama aquí vía llamarControlInterno() para
+// obtener el default DESCIFRADO — mismo secreto compartido que el resto
+// de /internal/*, mismo criterio de "nunca el password sale del
+// servidor salvo por este canal autenticado" que accesoMinio.js.
+app.post('/internal/smtp-default', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  try {
+    const acceso = await getAccesoSmtp();
+    res.json({ ok: true, ...acceso });
+  } catch (err) {
+    if (err instanceof ErrorAccesoSmtp || err instanceof ErrorCifrado) {
+      return res.status(err.codigo === 'config' ? 500 : 400).json({ error: err.message });
     }
     throw err;
   }

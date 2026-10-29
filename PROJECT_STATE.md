@@ -25365,3 +25365,198 @@ ambos archivos, rebuild + recreate de `backend`/`control` (+ restart de
 
 Archivos: `control/server.js`, `backend/server.js`, `PROJECT_STATE.md`
 (este punto).
+
+## Punto 442 — Primer despliegue productivo real: Clarvo en Vultr (clarvo.mx) (29 oct 2026, CERRADO)
+
+Primer tenant de producción real del proyecto, fuera de `yt.addv.com.mx`
+(que sigue siendo el VPS de pruebas en Hostinger). Nuevo servidor Vultr
+(`clarvo-prod-01`, Atlanta, plan `vx1-g-4c-16g` — 4 vCPU/16GB, $0.12/hr),
+con almacenamiento desacoplado del cómputo a petición explícita del
+usuario: Block Storage de 50GB booteable (`clarvo-prod-boot`) + Block
+Storage de 100GB para datos (`clarvo-prod-datos`, montado en
+`/mnt/blockstorage`) — decisión tomada para poder crecer el disco sin
+tocar el servidor. Paquete de despliegue nuevo: `VULTR/` (en
+`.gitignore`, mismo criterio que `hostinger/` — herramienta de
+despliegue, no código del producto). **Todo el detalle operativo
+completo — secretos reales, comandos, runbook — vive en
+`VULTR/prodDoc.html` y `VULTR/README-VULTR.md`, nunca en este archivo.**
+
+**Arquitectura**: Docker Swarm en modo de 1 solo nodo (manager único,
+label `mysql-role=primary` ya puesto desde ahora para no tocarlo el día
+que se sume el nodo 2 — decisión explícita del usuario de diferir el
+2do nodo "cuando suba la demanda", documentado el runbook completo de
+cómo sumarlo). `docker-stack.yml` reescrito desde cero a partir del
+original (que estaba desactualizado: seguía en MinIO, sin
+`mysql-control` separado, sin las variables de Stripe/Turnstile/
+`CONTROL_VAULT_KEY`/`ONBOARDING_CORS_ORIGIN` que ya existían en
+`docker-compose.yml` de desarrollo). `clarvo-Site`
+(`D:\srv\clarvo-Site`) se desplegó APARTE con `docker compose` normal
+(no Swarm — es 100% estático/stateless, sin beneficio de orquestación),
+en el mismo servidor, publicado en `127.0.0.1:8090` mientras portalFac
+va en `127.0.0.1:8088` — es la primera vez que ambos proyectos
+(`portalFac` y `clarvo-Site`) comparten servidor y dominio real
+(`clarvo.mx`), con nginx del host (fuera de Docker, con certbot real)
+enrutando entre los dos por path. HTTPS real con Let's Encrypt, DNS ya
+apuntado por el usuario en GoDaddy durante la misma sesión.
+
+**3 bugs reales encontrados y corregidos durante el despliegue** (los 3
+documentados también en `VULTR/prodDoc.html` con el detalle completo):
+
+1. El cliente SSH de Git Bash (`/usr/bin/ssh`, OpenSSH_9.7p1/OpenSSL)
+   tiene un bug real firmando con la extensión
+   `publickey-hostbound@openssh.com` que un sshd reciente negocia por
+   default — el servidor acepta la llave pero el cliente nunca manda la
+   firma, deja el acceso SSH pareciendo completamente roto sin ningún
+   mensaje de error claro. Fix: usar el OpenSSH nativo de Windows
+   (`/c/Windows/System32/OpenSSH/ssh.exe`) en su lugar — guardado en
+   memoria (`project_ssh_gitbash_hostbound_bug.md`) para que ninguna
+   sesión futura pierda tiempo con el mismo diagnóstico.
+2. La imagen `dxflrs/garage:v1.1.0` no tiene `ENTRYPOINT` (solo
+   `CMD=[/garage server]`) — el `command:` que traía el
+   `docker-stack.yml` viejo (`server /data --console-address ":9001"`)
+   era sintaxis de MinIO arrastrada por error en la migración del punto
+   415, nunca válida para Garage. Corregido a `/garage server` a secas
+   (todo lo demás lo lee de `garage.toml`).
+3. La tabla `tenants` de `control_tenants` NO se crea sola al arrancar
+   `backend`/`control` en un servidor 100% nuevo — requiere correr
+   `asegurarControlYPrivilegios()` (`backend/scripts/lib/controlDb.js`,
+   normalmente invocada por `provisionar-tenant.js`) una sola vez a
+   mano. Como `scripts/` está excluido a propósito de la imagen de
+   producción del backend (punto ya documentado,
+   `backend/.dockerignore`), se corrió vía un servicio Swarm efímero con
+   el entrypoint sobreescrito a `node` directo y esa carpeta montada
+   desde el host — sin tocar la imagen de producción.
+
+**Fix post-despliegue #1 — planes no se veían en clarvo.mx**: no era bug
+del despliegue. El endpoint público `GET /api/public/planes` (`control`,
+ya existía desde antes, comentario "isla de precios, opción 1
+confirmada — fetch en el navegador") funcionaba perfecto. El bug real
+vivía en `clarvo-Site`: `PUBLIC_CLARVO_API_BASE_URL` vacío se vuelve
+`null` en `src/config/publicEnv.ts` (`readUrl("")` → `null`), y
+`PricingSection.astro` terminaba pidiendo la URL inválida
+`"null/api/public/planes"`. Fix: las 3 variables
+`PUBLIC_CLARVO_API_BASE_URL`/`PUBLIC_CLARVO_ONBOARDING_URL`/
+`PUBLIC_CLARVO_APP_URL` son `https://clarvo.mx` explícito (mismo dominio
+para ambos proyectos en producción) — rebuild + redeploy (las variables
+de Astro se hornean en build time, no alcanza con cambiar el `.env` y
+reiniciar el contenedor).
+
+**Fix post-despliegue #2 — logo cortado en vista previa de WhatsApp**:
+`og-cover.png` era solo el fondo decorativo (sin el wordmark "CLARVO"
+incrustado), 1536×1024 (3:2) — WhatsApp/Facebook recortan ese ratio
+agresivo a casi-cuadrado, cayendo en una esquina vacía de la imagen. Fix:
+imagen nueva 1200×630 (el estándar real de Open Graph) compuesta con
+Python/PIL — logo real (`images/logo/logo-on-dark.png`) centrado sobre
+el mismo fondo — y `og:image:width`/`og:image:height` actualizados en
+`src/layouts/Layout.astro`.
+
+**Fix post-despliegue #3 — `TRUST_PROXY_HOPS` mal calculado**: se
+desplegó inicialmente en `1` (mismo valor que trae `docker-compose.yml`
+de desarrollo, donde el frontend SÍ es el único proxy delante de
+`backend`). En este despliegue real hay un salto adicional — nginx del
+HOST (fuera de Docker, con certbot) delante del contenedor
+`frontend` — exactamente el mismo bug-shape ya documentado para
+`yt.addv.com.mx` en el punto 327 (`pendientes.html` ítem 327, ahí sigue
+sin resolver, sigue siendo deuda de ESE VPS específico). Para
+`clarvo.mx`/Vultr se detectó y corrigió en la misma sesión del
+despliegue inicial, antes de que hubiera tráfico real que dependiera de
+la auditoría: `TRUST_PROXY_HOPS=2` en `VULTR/.env`, redeploy de
+`backend`+`control`.
+
+**Pendientes explícitos, documentados también en `VULTR/prodDoc.html`**:
+Stripe sigue en modo PRUEBA (decisión confirmada del usuario,
+2026-10-28 — pasar a Live cuando él confirme); `TURNSTILE_SECRET_KEY`
+sigue en la llave pública de prueba de Cloudflare (onboarding público
+sin protección anti-bot real todavía, pendiente que el usuario saque una
+llave real gratis); 2 contraseñas reales (root de Vultr, perfil de
+Windows) se pegaron en texto plano en el chat durante la sesión —
+recomendado rotarlas aunque nunca se usaron ni quedaron en ningún
+archivo; sin segundo nodo Swarm todavía (runbook completo de cómo
+sumarlo ya escrito en `VULTR/README-VULTR.md`, no ejecutado).
+
+Archivos nuevos: `VULTR/docker-stack.yml`, `VULTR/.env`,
+`VULTR/clarvo-site.env`, `VULTR/nginx-host-clarvo.mx.conf`,
+`VULTR/prodDoc.html`, `VULTR/README-VULTR.md`,
+`clarvo-Site/public/images/site/og-cover.png` (regenerado).
+Archivos modificados: `.gitignore` (regla `VULTR/`),
+`clarvo-Site/src/layouts/Layout.astro`, `PROJECT_STATE.md` (este punto).
+
+## Punto 443 — SMTP default de plataforma: control/ pasa a ser el fallback real de todos los tenants + sitio base, con banner verde en /admin (29 oct 2026, CERRADO)
+
+Pedido del usuario: mover la configuración SMTP (hoy por tenant/sitio en
+`/admin`) a `/control` como default de TODA la plataforma — cualquier
+tenant o sitio base sin su propio SMTP completo cae en ese default en vez
+de no poder mandar correos; en `/admin`, el formulario rico se reemplaza
+por un banner "ya configurado" con salida a "usar mi propio correo". 8
+propuestas visuales presentadas (Artifact, `/prompt-master`+`/ux-copy`+
+`/ui-ux-pro-max`), el usuario eligió la 8 (shield) pero pidió el verde de
+la 1 + la opción de revertir ya agregada a la 8.
+
+**Decisión explícita del usuario** (`AskUserQuestion`): construir las 2
+partes de una vez (backend real + UI), no solo el cascarón visual —
+evita el riesgo de un banner "ya configurado" mintiendo mientras no hay
+default real detrás.
+
+**Cadena real** (ver detalle completo en `CLAUDE.md`, sección de
+gotchas): `control/utils/accesoSmtp.js` (ya existía, de una sesión de
+Codex concurrente, con un propósito más angosto — se amplió su alcance y
+su comentario de cabecera) + `control/utils/smtpVerificar.js` (nuevo,
+handshake nodemailer) → `POST /internal/smtp-default` (nuevo, mismo
+secreto `X-Internal-Secret`) → `backend/utils/smtpDefault.js` (nuevo,
+cacheado 45s) → `backend/utils/email.js` (`configSmtpParaMostrar` ahora
+async + `usandoDefault`, nuevo `resolverConfigConexion()` en
+`enviarCorreo`, nuevo `limpiarConexionSmtp()` para el revert) →
+`POST /api/admin/config/smtp/revertir` (nuevo). UI: `frontend/admin.html`
+(`#smtp-default-banner` verde + `#smtp-revertir-franja`, "Correo de quien
+va a facturar" se sacó del acordeón de conexión a un bloque siempre
+visible) + `frontend/control.html` (acordeón rico idéntico a `/admin`,
+reusando clases `.smtp-*` de `admin.css` — control.html ya enlaza ese
+archivo).
+
+**Gotcha real encontrado y corregido en la misma sesión**:
+`CONTROL_VAULT_KEY` estaba vacía en `.env` desde siempre — "Accesos" (ni
+MinIO ni SMTP) nunca pudo cifrar/descifrar nada hasta hoy. Se generó una
+clave real de 32 bytes y se sembró en `.env` + `control` recreado
+(`--force-recreate`, `restart` no relee `.env`).
+
+**Probado real, no solo con mocks**: credenciales reales del sitio base
+(`notificaciones@addv.mx`, Gmail App Password) copiadas al default de
+`/control`; handshake de verificación real exitoso
+(`POST /api/control/accesos/smtp/verificar`); correo de prueba REAL
+enviado y recibido (`aprado13@gmail.com`) pasando por la cadena completa
+backend→control→nodemailer con el sitio base temporalmente revertido a
+"sin config propia" (`usandoDefault:true`); confirmado visualmente en
+Chrome real (extensión reconectada a media sesión) el banner verde en
+`/admin`, el reveal de "usar mi propio correo", y el acordeón rico +
+verificación real en `/control`; sitio base restaurado a su configuración
+original al terminar ambas pruebas.
+
+**Fuera de alcance a propósito**: la guía colapsable "¿Cómo configuro
+Gmail paso a paso?" de `/admin` (array de datos grande en `admin.js`) NO
+se replicó en `/control` — bajo valor para el operador de control, que no
+es quien configura su propio Gmail.
+
+Archivos nuevos: `backend/utils/smtpDefault.js`,
+`control/utils/smtpVerificar.js`.
+Archivos modificados: `backend/server.js`, `backend/utils/email.js`,
+`control/server.js`, `control/utils/accesoSmtp.js`, `control/package.json`
+(+ `nodemailer`), `frontend/admin.html`, `frontend/admin.css`,
+`frontend/admin.js`, `frontend/control.html`, `frontend/control.js`,
+`.env` (`CONTROL_VAULT_KEY`), `PROJECT_STATE.md`, `CLAUDE.md` (este
+punto).
+
+**Addendum (29 oct 2026, mismo día)**: el usuario reportó en un tenant
+real (`prueba-cancel-8`) que el banner no aparecía — resultó ser caché de
+navegador (Firefox nunca había cargado el build nuevo; confirmado con
+`curl` que el HTML/JS servido por nginx ya traía el banner, y que
+`GET /prueba-cancel-8/api/admin/config/smtp` ya devolvía
+`usandoDefault:true` — no era un bug real). Sí había un bug de MENSAJE
+real: el badge "Configurado"/"Sin configurar" (header del acordeón y pie
+del sidebar de Configuraciones) leía solo `data.configurado` (conexión
+PROPIA) — un tenant usando el default de la plataforma veía "SMTP sin
+configurar" aunque sus correos SÍ salen. Fix:
+`smtpEfectivamenteConfigurado = data.configurado || data.usandoDefault`
+en los 2 call sites de `admin.js` (`cargarConfigSmtp` y el guardado de
+plantillas). Probado real: correo de prueba enviado y recibido en
+`antonio.prado@addv.mx` desde el tenant `prueba-cancel-8` (sin SMTP
+propio, 100% vía default) y desde el sitio base (con su SMTP propio).
