@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<title>Plan VPS Vultr — Portal Facturación ADDV</title>
+<style>
+  :root{
+    --bg:#0B1320; --panel:#111B2E; --panel2:#16213A; --text:#E7ECF3; --muted:#9AA7BD;
+    --accent:#05DBF2; --accent-dark:#03285B; --ok:#1FAE6B; --ok-soft:#153323;
+    --warn:#E0A42B; --warn-soft:#2A2110; --border:#223050;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;
+       margin:0;padding:40px 20px;line-height:1.55}
+  .wrap{max-width:920px;margin:0 auto}
+  h1{font-size:1.7rem;margin-bottom:4px}
+  .sub{color:var(--muted);margin-bottom:32px}
+  h2{font-size:1.2rem;margin-top:40px;border-bottom:1px solid var(--border);padding-bottom:8px;
+     display:flex;align-items:center;gap:10px}
+  .badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+         border-radius:50%;background:var(--accent-dark);color:var(--accent);font-size:.85rem;
+         font-weight:700;flex-shrink:0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px 22px;
+        margin:16px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);font-size:.92rem}
+  th{color:var(--muted);font-weight:600}
+  tr.total td{font-weight:700;color:var(--accent);border-top:2px solid var(--border)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.78rem;font-weight:600}
+  .pill-ok{background:var(--ok-soft);color:var(--ok)}
+  .pill-warn{background:var(--warn-soft);color:var(--warn)}
+  ol.steps{margin:0;padding-left:0;list-style:none;counter-reset:step}
+  ol.steps li{counter-increment:step;position:relative;padding:10px 0 10px 42px;border-bottom:1px dashed var(--border)}
+  ol.steps li:last-child{border-bottom:none}
+  ol.steps li::before{content:counter(step);position:absolute;left:0;top:8px;width:28px;height:28px;
+       border-radius:8px;background:var(--panel2);border:1px solid var(--border);color:var(--accent);
+       font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center}
+  code{background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:2px 6px;
+       font-size:.85em;color:var(--accent)}
+  .note{border-left:3px solid var(--accent);background:var(--panel2);padding:10px 16px;border-radius:0 8px 8px 0;
+        margin:12px 0;font-size:.92rem;color:var(--muted)}
+  .warnbox{border-left:3px solid var(--warn);background:var(--warn-soft);padding:10px 16px;border-radius:0 8px 8px 0;
+        margin:12px 0;font-size:.92rem}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:700px){.cols{grid-template-columns:1fr}}
+  a{color:var(--accent)}
+  .check{color:var(--ok);font-weight:700;margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Plan de contratación — VPS Vultr</h1>
+  <div class="sub">Portal Facturación ADDV (Clarvo) · cómputo y almacenamiento separados · armado en sesión del 2026-10-27</div>
+
+  <h2><span class="badge">1</span> Plan elegido</h2>
+  <div class="card">
+    <table>
+      <tr><th>Recurso</th><th>Specs</th><th>Costo</th></tr>
+      <tr><td>Compute (VX1, Shared/Dedicated CPU)</td><td>4 vCPU · 8 GB RAM · boot storage mínimo (sistema + Docker)</td><td>según plan exacto confirmado en consola</td></tr>
+      <tr><td>Block Storage (datos)</td><td>100 GB NVMe, ampliable sin downtime</td><td>$0.10/GB/mes → $10/mes</td></tr>
+      <tr class="total"><td colspan="2">Total estimado inicial</td><td>~$58/mes</td></tr>
+    </table>
+    <div class="note">Precio final de cómputo se confirma en vivo dentro de la consola (la tabla pública de precios bloqueó el acceso automatizado) — el número que se ve al momento de seleccionar el plan en el dashboard es el real.</div>
+  </div>
+
+  <h2><span class="badge">2</span> Por qué este armado</h2>
+  <div class="card">
+    <ul>
+      <li><span class="check">✔</span>4 vCPU / 8GB alcanza para los 5 contenedores del stack corriendo juntos: <code>backend</code>, <code>control</code>, <code>frontend</code> (nginx), <code>mysql</code>, <code>garage</code>.</li>
+      <li><span class="check">✔</span>Datos (MySQL datadir + bucket Garage) viven en el Block Storage desde el día uno — nunca en el disco del compute.</li>
+      <li><span class="check">✔</span>Cuando el bloque se llena: resize desde el dashboard + <code>resize2fs</code> adentro del servidor. Cero downtime, cero migración de datos.</li>
+      <li><span class="check">✔</span>Si el día de mañana falta RAM/CPU: se sube el plan del compute (requiere apagar/prender la instancia — downtime corto, minutos). El disco de datos no se toca en ese proceso.</li>
+    </ul>
+  </div>
+
+  <h2><span class="badge">3</span> Paso a paso — crear el Compute</h2>
+  <div class="card">
+    <ol class="steps">
+      <li>Dashboard Vultr → <b>Compute</b> → <b>Create Instance</b>.</li>
+      <li>Tipo de plan: <b>Dedicated CPU</b> o <b>Shared CPU</b> según disponibilidad/precio del momento — filtrar en el buscador de planes por <code>4c-8g</code> (4 vCPU, 8GB).</li>
+      <li>Elegir la fila cuyo <b>Storage</b> diga <b>Block Storage</b> (boot separado del disco físico) en vez de "Local NVMe" — así el disco de arranque también queda desacoplado, no solo los datos.</li>
+      <li>Región: la más cercana a México disponible en esa familia de plan (Ciudad de México si aparece listada; si no, la más cercana en AMER — confirmar en el selector de <b>Location</b>).</li>
+      <li>Sistema operativo: Ubuntu LTS más reciente disponible (es lo que ya usa <code>prod/README-DESPLIEGUE.md</code> del proyecto).</li>
+      <li>SSH Key: subir/generar una antes de desplegar — nunca dejar solo password.</li>
+      <li>Hostname/etiqueta: algo identificable, ej. <code>clarvo-prod-01</code>.</li>
+      <li>Revisar el resumen de costo a la derecha (<code>$/hr</code> × 672 = costo mensual real) antes de confirmar.</li>
+      <li><b>Deploy Now</b> — esto SÍ cobra, confirmar antes de dar clic final.</li>
+    </ol>
+  </div>
+
+  <h2><span class="badge">4</span> Paso a paso — agregar el Block Storage</h2>
+  <div class="card">
+    <ol class="steps">
+      <li>Dashboard → <b>Storage</b> → <b>Add Block Storage</b>.</li>
+      <li>Tamaño inicial: <b>100 GB</b>, tipo NVMe.</li>
+      <li>Región: <b>la misma región exacta</b> del compute — si no coincide, no se puede atachar.</li>
+      <li>Attach: elegir la instancia creada en el paso 3.</li>
+      <li>Dentro del servidor (SSH), aparece como <code>/dev/vdb</code>. Formatear y montar (ver sección 5).</li>
+    </ol>
+  </div>
+
+  <h2><span class="badge">5</span> Comandos dentro del servidor (una sola vez)</h2>
+  <div class="card">
+<pre style="background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-size:.85rem">parted -s /dev/vdb mklabel gpt
+parted -s /dev/vdb unit mib mkpart primary 0% 100%
+mkfs.ext4 /dev/vdb1
+mkdir -p /mnt/data
+mount /dev/vdb1 /mnt/data
+
+# persistir en reinicios
+blkid /dev/vdb1   # copiar el UUID que imprime
+echo "UUID=&lt;uuid-copiado&gt; /mnt/data ext4 defaults 0 2" | sudo tee -a /etc/fstab</pre>
+    <div class="note">Después de montar: editar <code>docker-compose.prod.yml</code> para que los volúmenes de <code>mysql</code> y <code>garage</code> apunten a rutas dentro de <code>/mnt/data</code> en vez del disco raíz — ese es el paso que hace que crecer el bloque después sea realmente "solo asignar espacio".</div>
+  </div>
+
+  <h2><span class="badge">6</span> Crecer el almacenamiento después (sin downtime)</h2>
+  <div class="card">
+    <ol class="steps">
+      <li>Dashboard → Storage → seleccionar el volumen → <b>Resize</b> → nuevo tamaño (ej. 100→250 GB).</li>
+      <li>Dentro del servidor: <code>resize2fs /dev/vdb1</code> — toma el nuevo tamaño en caliente.</li>
+      <li>Nada se detiene, nada se mueve. MySQL/Garage ni se enteran.</li>
+    </ol>
+  </div>
+
+  <h2><span class="badge">7</span> Checklist antes de dar "Deploy"</h2>
+  <div class="card">
+    <table>
+      <tr><td><span class="pill pill-ok">Confirmar</span></td><td>Región del compute = región del Block Storage</td></tr>
+      <tr><td><span class="pill pill-ok">Confirmar</span></td><td>SSH key cargada, no solo password</td></tr>
+      <tr><td><span class="pill pill-ok">Confirmar</span></td><td>Precio real mostrado en el resumen antes de pagar</td></tr>
+      <tr><td><span class="pill pill-warn">Pendiente</span></td><td>DNS de producción apuntando a la IP nueva (una vez creada la instancia)</td></tr>
+      <tr><td><span class="pill pill-warn">Pendiente</span></td><td>Correr <code>prod/deploy.sh</code> o <code>prod/actualizar.sh</code> según corresponda</td></tr>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

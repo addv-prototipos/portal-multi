@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Catálogo de skills instaladas — Portal de Facturación ADDV</title>
+<style>
+  :root {
+    --page-bg: #F7F8FA; --page-surface: #FFFFFF; --page-ink: #14151A;
+    --page-ink-soft: #5B6472; --page-border: #E3E6EC; --accent: #03285B;
+    --accent-soft: #E7ECF3; --ok: #1FAE6B; --ok-soft: #E4F6ED;
+    --warn: #B4530C; --warn-soft: #FBEBDC; --danger: #B3261E; --danger-soft: #FBEAE9;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --page-bg:#0D0F14; --page-surface:#15171F; --page-ink:#ECEDF2; --page-ink-soft:#9BA1AF; --page-border:#262A36; --accent:#5B9BFF; --accent-soft:#1A2338; --ok:#3CCB8C; --ok-soft:#102B20; --warn:#E08A3C; --warn-soft:#2E1F0E; --danger:#F37C73; --danger-soft:#2E1513; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--page-bg); color: var(--page-ink); }
+  .shell { max-width: 1100px; margin: 0 auto; padding: clamp(24px, 5vw, 64px) clamp(18px, 4vw, 32px) 80px; }
+
+  header.top { margin-bottom: 32px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--page-ink-soft); margin-bottom: 12px; }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; letter-spacing: -0.015em; margin: 0 0 12px; text-wrap: balance; }
+  .lead { font-size: 16px; line-height: 1.65; color: var(--page-ink-soft); max-width: 72ch; margin: 0; }
+
+  .toolbar { position: sticky; top: 0; z-index: 5; background: var(--page-bg); padding: 14px 0 12px; margin-bottom: 8px; border-bottom: 1px solid var(--page-border); }
+  .search-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  #busqueda { flex: 1 1 320px; font-family: var(--font); font-size: 14px; padding: 11px 14px; border: 1px solid var(--page-border); border-radius: var(--radius-sm); background: var(--page-surface); color: var(--page-ink); }
+  #busqueda:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .contador { font-size: 12.5px; color: var(--page-ink-soft); white-space: nowrap; }
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--page-border); background: var(--page-surface); color: var(--page-ink-soft); cursor: pointer; transition: all .15s ease; }
+  .chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  @media (prefers-reduced-motion: reduce) { .chip { transition: none; } }
+
+  nav.toc { background: var(--page-surface); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 18px 22px; margin: 26px 0 40px; }
+  nav.toc h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--page-ink-soft); margin: 0 0 12px; }
+  nav.toc ol { margin: 0; padding-left: 20px; font-size: 14px; line-height: 2; columns: 2; column-gap: 32px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  section.cat { margin-bottom: 46px; scroll-margin-top: 96px; }
+  .cat-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .cat-head h2 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .cat-head .badge { font-size: 11.5px; font-weight: 700; color: var(--page-ink-soft); background: var(--accent-soft); border: 1px solid var(--page-border); padding: 2px 9px; border-radius: 999px; }
+  .cat-note { font-size: 13.5px; line-height: 1.6; color: var(--page-ink-soft); margin: 0 0 14px; max-width: 80ch; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--page-border); border-radius: var(--radius-md); background: var(--page-surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  thead th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--page-ink-soft); background: var(--accent-soft); padding: 10px 14px; border-bottom: 1px solid var(--page-border); position: sticky; top: 0; }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--page-border); vertical-align: top; line-height: 1.55; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: color-mix(in srgb, var(--page-bg) 55%, var(--page-surface)); }
+  tbody tr:hover { background: var(--accent-soft); }
+  td.skill { white-space: nowrap; }
+  td.skill code, code.k { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 1px solid var(--page-border); border-radius: 4px; padding: 1px 6px; }
+  td.func { min-width: 300px; color: var(--page-ink); }
+  td.ejemplo { min-width: 260px; color: var(--page-ink-soft); font-style: italic; }
+  tr.oculta { display: none; }
+
+  .callout { display: flex; gap: 10px; padding: 13px 16px; border-radius: var(--radius-sm); font-size: 13.5px; line-height: 1.6; margin: 20px 0 6px; }
+  .callout svg { flex-shrink: 0; margin-top: 2px; width: 16px; height: 16px; }
+  .callout.ok { background: var(--ok-soft); color: var(--ok); }
+  .callout.warn { background: var(--warn-soft); color: var(--warn); }
+  .callout b { font-weight: 700; }
+
+  .vacio { display: none; text-align: center; padding: 40px 16px; color: var(--page-ink-soft); font-size: 14px; border: 1px dashed var(--page-border); border-radius: var(--radius-md); }
+
+  footer.end { background: var(--accent-soft); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 24px 26px; font-size: 14px; line-height: 1.65; margin-top: 48px; }
+  footer.end h3 { margin: 0 0 8px; font-size: 15px; }
+  footer.end ul { margin: 6px 0 0; padding-left: 20px; }
+  footer.end li { margin-bottom: 5px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="top">
+    <span class="eyebrow"><span class="dot"></span>Referencia del entorno · OpenCode</span>
+    <h1>Catálogo de skills instaladas</h1>
+    <p class="lead">
+      Listado completo de las skills disponibles para cualquier sesión que trabaje en este repo:
+      qué hace cada una y un ejemplo concreto de cuándo invocarla. Usa el buscador o los filtros
+      por categoría para revisarlas a detalle. No hay skills propias dentro del repo
+      (no existe <code class="k">.opencode/</code> ni ningún <code class="k">SKILL.md</code> en árbol) —
+      todo el catálogo es el global del entorno.
+    </p>
+  </header>
+
+  <div class="toolbar">
+    <div class="search-row">
+      <label for="busqueda" class="visually-hidden" style="position:absolute;left:-9999px;">Buscar skill</label>
+      <input id="busqueda" type="search" placeholder="Buscar por nombre o funcionalidad… (ej. docker, costos, accesibilidad)" autocomplete="off" />
+      <span class="contador" id="contador"></span>
+    </div>
+    <div class="chips" id="chips">
+      <button class="chip" data-cat="todas" aria-pressed="true">Todas</button>
+      <button class="chip" data-cat="diseno" aria-pressed="false">Diseño y frontend</button>
+      <button class="chip" data-cat="flujo" aria-pressed="false">Flujo de trabajo</button>
+      <button class="chip" data-cat="backend" aria-pressed="false">Backend y arquitectura</button>
+      <button class="chip" data-cat="seguridad" aria-pressed="false">Seguridad</button>
+      <button class="chip" data-cat="infra" aria-pressed="false">Docker y deploy</button>
+      <button class="chip" data-cat="datos" aria-pressed="false">Base de datos</button>
+      <button class="chip" data-cat="swarm" aria-pressed="false">Multi-agente</button>
+      <button class="chip" data-cat="memoria" aria-pressed="false">Memoria y vectores</button>
+      <button class="chip" data-cat="costos" aria-pressed="false">Costos</button>
+      <button class="chip" data-cat="git" aria-pressed="false">Git y GitHub</button>
+      <button class="chip" data-cat="browser" aria-pressed="false">Browser</button>
+      <button class="chip" data-cat="ml" aria-pressed="false">ML y mercados</button>
+      <button class="chip" data-cat="harness" aria-pressed="false">Harness y plataforma</button>
+    </div>
+  </div>
+
+  <nav class="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#diseno">Diseño y frontend</a></li>
+      <li><a href="#flujo">Planificación y flujo de trabajo</a></li>
+      <li><a href="#backend">Backend, arquitectura y APIs</a></li>
+      <li><a href="#seguridad">Seguridad</a></li>
+      <li><a href="#infra">Docker, deploy e infraestructura</a></li>
+      <li><a href="#datos">Base de datos y migraciones</a></li>
+      <li><a href="#swarm">Multi-agente y orquestación</a></li>
+      <li><a href="#memoria">Memoria, vectores y knowledge graphs</a></li>
+      <li><a href="#costos">Control de costos</a></li>
+      <li><a href="#git">Git, GitHub y project management</a></li>
+      <li><a href="#browser">Browser y automatización web</a></li>
+      <li><a href="#ml">Datos, ML y mercados</a></li>
+      <li><a href="#harness">Harness, MetaHarness y plataforma Codex</a></li>
+    </ol>
+  </nav>
+
+  <div class="callout ok">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <div><b>Para este proyecto (portalFac)</b>: las skills de uso diario son <code class="k">addv-web-app</code> (protocolo obligatorio), <code class="k">docker-containerization</code>, <code class="k">backend-robustness-architecture</code>, <code class="k">api-integration-consumption</code>, <code class="k">web-performance-accessibility</code>, <code class="k">accessibility-review</code>, <code class="k">low-impact-motion</code>, <code class="k">frontend-design-direction</code>, <code class="k">security-and-hardening</code>, <code class="k">test-driven-development</code>, <code class="k">migrate-create</code>/<code class="k">migrate-validate</code> y <code class="k">debugging-and-error-recovery</code>. El resto está disponible pero aplica a otros dominios.</div>
+  </div>
+
+  <div class="callout warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div>Las skills de swarms, trader, IoT, GAIA y MetaHarness <b>no aplican</b> al portal de facturación salvo que se usen deliberadamente.</div>
+  </div>
+
+  <!-- ===================== 1. DISEÑO ===================== -->
+  <section class="cat" id="diseno" data-cat="diseno">
+    <div class="cat-head"><h2>1. Protocolo del proyecto y diseño frontend</h2><span class="badge" data-badge></span></div>
+    <p class="cat-note">Todo lo que toca la apariencia o el flujo de cara al usuario: protocolo corporativo, dirección visual, accesibilidad, microcopy y generación de referencias.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>addv-web-app</code></td><td class="func">Protocolo corporativo ADDV: flujo Analizar → Proponer → Confirmar → Implementar, con piso obligatorio de UX/accesibilidad/rendimiento/seguridad/Docker/tests/calidad.</td><td class="ejemplo">Cualquier tarea de web en este repo (es el protocolo oficial del proyecto).</td></tr>
+          <tr><td class="skill"><code>brainstorming</code></td><td class="func">Explora intención, requisitos y diseño antes de implementar cualquier feature creativa.</td><td class="ejemplo">"Agrega una función nueva" sin requisitos claros.</td></tr>
+          <tr><td class="skill"><code>idea-refine</code></td><td class="func">Refina ideas vagas en conceptos accionables, con estrés de supuestos.</td><td class="ejemplo">"Se me ocurrió algo" antes de escribir un plan.</td></tr>
+          <tr><td class="skill"><code>interview-me</code></td><td class="func">Entrevista una pregunta a la vez hasta ~95% de confianza en el objetivo real.</td><td class="ejemplo">Peticiones underspecificadas como "hazme X" sin contexto.</td></tr>
+          <tr><td class="skill"><code>frontend-design</code></td><td class="func">Dirección de diseño visual distintiva: tipografía, layout, evitar defaults genéricos ("AI slop").</td><td class="ejemplo">Definir el look de una página nueva.</td></tr>
+          <tr><td class="skill"><code>frontend-design-direction</code></td><td class="func">Variante en español del anterior, orientada a landing/corporativo/SaaS; define dirección estética previa al código.</td><td class="ejemplo">Rediseñar el home o una sección del portal.</td></tr>
+          <tr><td class="skill"><code>taste-skill</code></td><td class="func">Anti-slop para landing pages y rediseños, con pre-flight y auditoría primero.</td><td class="ejemplo">Rediseñar una vista sin que se vea "plantilla de IA".</td></tr>
+          <tr><td class="skill"><code>taste-skill-v1</code></td><td class="func">Versión v1 congelada de la anterior, solo para compatibilidad exacta.</td><td class="ejemplo">Si un proyecto depende del comportamiento viejo.</td></tr>
+          <tr><td class="skill"><code>gpt-tasteskill</code></td><td class="func">Ingeniería de motion con GSAP, grids bento y tipografía editorial amplia.</td><td class="ejemplo">Landing con scroll storytelling y animaciones complejas.</td></tr>
+          <tr><td class="skill"><code>soft-skill</code></td><td class="func">"High-end visual design": fuentes, sombras, espaciado y microinteracciones de agencia premium.</td><td class="ejemplo">Darle sensación "cara" a una web corporativa.</td></tr>
+          <tr><td class="skill"><code>minimalist-skill</code></td><td class="func">Interfaces editoriales monocromas, sin gradientes ni sombras pesadas.</td><td class="ejemplo">Vistas limpias tipo informe editorial.</td></tr>
+          <tr><td class="skill"><code>brutalist-skill</code></td><td class="func">Estética industrial/brutalista suiza con terminal militar, para datos densos.</td><td class="ejemplo">Dashboards con look "plano desclasificado".</td></tr>
+          <tr><td class="skill"><code>impeccable</code></td><td class="func">Pule, audita y mejora interfaces: jerarquía, motion, theming, empty states, edge cases.</td><td class="ejemplo">Pulir contraste, microinteracciones o estados vacíos.</td></tr>
+          <tr><td class="skill"><code>redesign-skill</code></td><td class="func">Rediseño premium sobre proyecto existente, sin romper funcionalidad; audita patrones genéricos.</td><td class="ejemplo">Modernizar una vista vieja del admin.</td></tr>
+          <tr><td class="skill"><code>design-critique</code></td><td class="func">Feedback estructurado de usabilidad, jerarquía y consistencia.</td><td class="ejemplo">"¿Qué te parece esta pantalla?" en cualquier etapa.</td></tr>
+          <tr><td class="skill"><code>design-handoff</code></td><td class="func">Spec de handoff: tokens, props, breakpoints, estados, edge cases, animación.</td><td class="ejemplo">Cuando un diseño está listo para desarrollo.</td></tr>
+          <tr><td class="skill"><code>design-system</code></td><td class="func">Audita, documenta o extiende el design system (nombres, valores hardcodeados, variantes).</td><td class="ejemplo">Documentar un componente o detectar tokens huérfanos.</td></tr>
+          <tr><td class="skill"><code>frontend-ui-engineering</code></td><td class="func">Construye UIs de producción accesibles y responsive: estados, layout, manejo de estado.</td><td class="ejemplo">Implementar un componente o vista completa.</td></tr>
+          <tr><td class="skill"><code>accessibility-review</code></td><td class="func">Auditoría WCAG 2.1 AA: contraste, navegación por teclado, tamaño de targets, lectores de pantalla.</td><td class="ejemplo">"Revisa accesibilidad" antes de handoff.</td></tr>
+          <tr><td class="skill"><code>web-performance-accessibility</code></td><td class="func">Checklist obligatoria (a11y + Core Web Vitals + arquitectura de componentes) antes de cerrar.</td><td class="ejemplo">Antes de cada commit de UI.</td></tr>
+          <tr><td class="skill"><code>low-impact-motion</code></td><td class="func">Animaciones solo con propiedades de bajo costo (transform/opacity), sin dañar rendimiento.</td><td class="ejemplo">Scroll reveal, hover effects, transiciones.</td></tr>
+          <tr><td class="skill"><code>ux-copy</code></td><td class="func">Escribe/revisa microcopy: CTAs, mensajes de error, empty states, confirmaciones.</td><td class="ejemplo">Redactar el texto de un botón o un estado vacío.</td></tr>
+          <tr><td class="skill"><code>imagegen-frontend-web</code></td><td class="func">Genera una imagen de referencia horizontal por sección de landing (referencias visuales premium).</td><td class="ejemplo">Producir el comp visual de un sitio nuevo.</td></tr>
+          <tr><td class="skill"><code>imagegen-frontend-mobile</code></td><td class="func">Genera conceptos de screens y flujos de app mobile en mockup de teléfono.</td><td class="ejemplo">Visualizar un módulo móvil.</td></tr>
+          <tr><td class="skill"><code>image-to-code-skill</code></td><td class="func">Convierte imágenes de diseño en código, con imágenes por sección de alta legibilidad.</td><td class="ejemplo">Implementar un sitio fiel a un comp aprobado.</td></tr>
+          <tr><td class="skill"><code>brandkit</code></td><td class="func">Generación de brand kits premium: logos, sistemas de identidad, guías de marca.</td><td class="ejemplo">Crear material de identidad visual.</td></tr>
+          <tr><td class="skill"><code>stitch-skill</code></td><td class="func">Genera <code class="k">DESIGN.md</code> semánticos con estándares estrictos para Google Stitch.</td><td class="ejemplo">Documentar la dirección de diseño de un proyecto.</td></tr>
+          <tr><td class="skill"><code>user-research</code></td><td class="func">Planifica y sintetiza investigación: entrevistas, encuestas, guías de usabilidad.</td><td class="ejemplo">Entender usuarios antes de un rediseño.</td></tr>
+          <tr><td class="skill"><code>research-synthesis</code></td><td class="func">Sintetiza investigación en temas, insights y recomendaciones con gradación de evidencia.</td><td class="ejemplo">Resumir tickets de soporte en patrones.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 2. FLUJO ===================== -->
+  <section class="cat" id="flujo" data-cat="flujo">
+    <div class="cat-head"><h2>2. Planificación, ejecución y flujo de trabajo</h2><span class="badge" data-badge></span></div>
+    <p class="cat-note">Cómo llevar una tarea de la idea al código con verificación, delegación y calidad.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>spec-driven-development</code></td><td class="func">Crea especificaciones previas al código con criterios de aceptación y descomposición.</td><td class="ejemplo">Feature nueva sin spec.</td></tr>
+          <tr><td class="skill"><code>agent-specification</code></td><td class="func">Fase Specification de SPARC: requisitos, criterios y constraints.</td><td class="ejemplo">Inicio de un ciclo SPARC.</td></tr>
+          <tr><td class="skill"><code>sparc-spec</code></td><td class="func">Ejecuta la fase Specification y la guarda en memoria.</td><td class="ejemplo">Primer paso del flujo SPARC.</td></tr>
+          <tr><td class="skill"><code>writing-plans</code></td><td class="func">Planes de implementación multi-paso a partir de una spec.</td><td class="ejemplo">Antes de tocar código en features grandes.</td></tr>
+          <tr><td class="skill"><code>agent-planner</code></td><td class="func">Planificador general de tareas.</td><td class="ejemplo">Descomponer un objetivo amplio.</td></tr>
+          <tr><td class="skill"><code>agent-code-goal-planner</code></td><td class="func">Planificación de metas orientadas a código.</td><td class="ejemplo">Traducir un objetivo de producto a pasos de código.</td></tr>
+          <tr><td class="skill"><code>agent-goal-planner</code></td><td class="func">Planificador de objetivos genérico.</td><td class="ejemplo">Metas de largo alcance.</td></tr>
+          <tr><td class="skill"><code>goal-plan</code></td><td class="func">Acciones GOAP con análisis de precondiciones y replanificación adaptativa.</td><td class="ejemplo">Tareas con dependencias de estado.</td></tr>
+          <tr><td class="skill"><code>planning-and-task-breakdown</code></td><td class="func">Divide trabajo en tareas ordenadas y paralelizables.</td><td class="ejemplo">Feature demasiado grande para un paso.</td></tr>
+          <tr><td class="skill"><code>executing-plans</code></td><td class="func">Ejecuta un plan escrito en sesión separada con checkpoints de review.</td><td class="ejemplo">Segunda sesión de un plan ya aprobado.</td></tr>
+          <tr><td class="skill"><code>incremental-implementation</code></td><td class="func">Entrega cambios de forma incremental, evitando escribir código masivo de golpe.</td><td class="ejemplo">Cambio que toca muchos archivos.</td></tr>
+          <tr><td class="skill"><code>subagent-driven-development</code></td><td class="func">Ejecuta planes con tareas independientes delegadas a subagentes.</td><td class="ejemplo">Plan con unidades desacopladas.</td></tr>
+          <tr><td class="skill"><code>dispatching-parallel-agents</code></td><td class="func">Delega 2+ tareas independientes a agentes en paralelo.</td><td class="ejemplo">Trabajo paralelo sin estado compartido.</td></tr>
+          <tr><td class="skill"><code>nested-subagents</code></td><td class="func">Spawnea subagentes anidados (hasta profundidad 5) con manejo de contexto.</td><td class="ejemplo">Tarea profunda con muchos subpasos.</td></tr>
+          <tr><td class="skill"><code>sparc-implement</code></td><td class="func">Ejecuta las fases Pseudocode y Architecture de SPARC.</td><td class="ejemplo">Fases 2-3 del flujo SPARC.</td></tr>
+          <tr><td class="skill"><code>sparc-refine</code></td><td class="func">Ejecuta Refinement y Completion: review, cobertura, docs.</td><td class="ejemplo">Cierre de un ciclo SPARC.</td></tr>
+          <tr><td class="skill"><code>agent-refinement</code></td><td class="func">Fase de refinamiento de código y tests.</td><td class="ejemplo">Endurecer una implementación inicial.</td></tr>
+          <tr><td class="skill"><code>agent-pseudocode</code></td><td class="func">Escribe pseudocódigo de algoritmos antes de implementar.</td><td class="ejemplo">Lógica compleja tipo cálculo o concurrencia.</td></tr>
+          <tr><td class="skill"><code>agent-implementer-sparc-coder</code></td><td class="func">Rol implementador del ciclo SPARC.</td><td class="ejemplo">Escribir el código de una fase ya diseñada.</td></tr>
+          <tr><td class="skill"><code>doubt-driven-development</code></td><td class="func">Review adversarial de contexto fresco antes de cada decisión no trivial.</td><td class="ejemplo">Producción, seguridad o código no familiar.</td></tr>
+          <tr><td class="skill"><code>verification-before-completion</code></td><td class="func">Exige correr comandos de verificación antes de claimar "listo/corregido/pasando".</td><td class="ejemplo">Antes de cerrar cualquier tarea.</td></tr>
+          <tr><td class="skill"><code>verification-quality</code></td><td class="func">Scoring de verdad con umbral 0.95 y rollback automático de salidas deficientes.</td><td class="ejemplo">Validar output crítico.</td></tr>
+          <tr><td class="skill"><code>receiving-code-review</code></td><td class="func">Recibe feedback con rigor técnico, sin implementar a ciegas.</td><td class="ejemplo">Antes de aplicar sugerencias de review.</td></tr>
+          <tr><td class="skill"><code>requesting-code-review</code></td><td class="func">Pide review verificando que el trabajo cumple requisitos.</td><td class="ejemplo">Al terminar una feature mayor.</td></tr>
+          <tr><td class="skill"><code>code-review-and-quality</code></td><td class="func">Review multi-eje de calidad antes de merge.</td><td class="ejemplo">Revisar código propio o de otro agente.</td></tr>
+          <tr><td class="skill"><code>code-simplification</code></td><td class="func">Refactoriza para claridad sin cambiar comportamiento.</td><td class="ejemplo">Código que funciona pero es enredo de leer.</td></tr>
+          <tr><td class="skill"><code>diff-analyze</code></td><td class="func">Score de riesgo del diff, clasificación de cambio y recomendación de revisores.</td><td class="ejemplo">PR grande o cruzando módulos.</td></tr>
+          <tr><td class="skill"><code>finishing-a-development-branch</code></td><td class="func">Decide cómo integrar la rama terminada (merge directo, PR, borrar).</td><td class="ejemplo">Implementación completa y tests verdes.</td></tr>
+          <tr><td class="skill"><code>using-git-worktrees</code></td><td class="func">Asegura un workspace aislado antes de ejecutar planes.</td><td class="ejemplo">Trabajo paralelo sin ensuciar el checkout principal.</td></tr>
+          <tr><td class="skill"><code>constraint-driven-development</code></td><td class="func">Fija el piso de calidad por escrito en CONSTRAINTS.md y vigila que no se baje (ts-ignore, tests borrados, umbrales reducidos).</td><td class="ejemplo">Cuando no hay umbral de coverage/perf definido.</td></tr>
+          <tr><td class="skill"><code>context-engineering</code></td><td class="func">Optimiza contexto de sesión, reglas y configuración.</td><td class="ejemplo">Sesión nueva o degradación de calidad.</td></tr>
+          <tr><td class="skill"><code>using-agent-skills</code></td><td class="func">Meta-skill: descubre e invoca la skill adecuada para la tarea.</td><td class="ejemplo">Al inicio de una sesión.</td></tr>
+          <tr><td class="skill"><code>find-skill</code></td><td class="func">Busca e instala skills en 14 fuentes con ranking por estrellas.</td><td class="ejemplo">"Busca una skill para Docker".</td></tr>
+          <tr><td class="skill"><code>source-command-install-skill</code></td><td class="func">Instala una skill desde GitHub en Codex/OpenCode/Cursor.</td><td class="ejemplo">Instalar una skill encontrada en internet.</td></tr>
+          <tr><td class="skill"><code>skill-builder</code></td><td class="func">Crea skills nuevas con frontmatter YAML y estructura de divulgación progresiva.</td><td class="ejemplo">Formalizar un flujo repetitivo del equipo.</td></tr>
+          <tr><td class="skill"><code>writing-skills</code></td><td class="func">Crea, edita y verifica skills antes de desplegarlas.</td><td class="ejemplo">Escribir una skill propia del proyecto.</td></tr>
+          <tr><td class="skill"><code>create-plugin</code></td><td class="func">Andamia un plugin con estructura, skills, comandos y agentes.</td><td class="ejemplo">Empaquetar varias skills juntas.</td></tr>
+          <tr><td class="skill"><code>validate-plugin</code></td><td class="func">Valida estructura, frontmatter y referencias de un plugin.</td><td class="ejemplo">Antes de publicar un plugin.</td></tr>
+          <tr><td class="skill"><code>discover-plugins</code></td><td class="func">Recomienda plugins según workflow, herramientas MCP y tarea actual.</td><td class="ejemplo">"¿Qué plugin me sirve para esto?".</td></tr>
+          <tr><td class="skill"><code>autopilot-loop</code></td><td class="func">Iteración autónoma: revisa avance, trabaja la siguiente tarea y reprograma.</td><td class="ejemplo">Sesiones de larga duración.</td></tr>
+          <tr><td class="skill"><code>autopilot-predict</code></td><td class="func">Predice la siguiente acción óptima con patrones aprendidos.</td><td class="ejemplo">Continuar un flujo automáticamente.</td></tr>
+          <tr><td class="skill"><code>loop-worker</code></td><td class="func">Corre workers de Ruflo con la planificación nativa de loop.</td><td class="ejemplo">Tareas recurrentes en background.</td></tr>
+          <tr><td class="skill"><code>cron-schedule</code></td><td class="func">Programa workers persistentes vía CronCreate.</td><td class="ejemplo">Tareas programadas.</td></tr>
+          <tr><td class="skill"><code>horizon-track</code></td><td class="func">Trackea objetivos de largo horizonte con milestones y detección de drift.</td><td class="ejemplo">Objetivos que cruzan varias sesiones.</td></tr>
+          <tr><td class="skill"><code>task-observer</code></td><td class="func">Observa la sesión y captura patrones, correcciones y lecciones como skills reutilizables.</td><td class="ejemplo">Sesiones largas con muchos tool calls.</td></tr>
+          <tr><td class="skill"><code>report</code></td><td class="func">Recopila diagnósticos y publica un issue de OpenCode en GitHub.</td><td class="ejemplo">Encontrar un bug del harness.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 3. BACKEND ===================== -->
+  <section class="cat" id="backend" data-cat="backend">
+    <div class="cat-head"><h2>3. Backend, arquitectura y APIs</h2><span class="badge" data-badge></span></div>
+    <p class="cat-note">Diseño de servicios, contratos, integración con terceros, observabilidad, rendimiento y documentación.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>backend-robustness-architecture</code></td><td class="func">Backend robusto: manejo de errores, seguridad, observabilidad y arquitectura de datos.</td><td class="ejemplo">Diseñar o arreglar endpoints y servicios.</td></tr>
+          <tr><td class="skill"><code>api-and-interface-design</code></td><td class="func">Diseño de APIs estables y contratos de módulo.</td><td class="ejemplo">Nuevo endpoint REST o contrato frontend-backend.</td></tr>
+          <tr><td class="skill"><code>api-integration-consumption</code></td><td class="func">Integración robusta con APIs externas: reintentos, rate limits, autenticación.</td><td class="ejemplo">Conectar con Stripe, SMTP u otro tercero.</td></tr>
+          <tr><td class="skill"><code>api-docs</code></td><td class="func">Genera documentación de API con JSDoc/OpenAPI.</td><td class="ejemplo">Documentar endpoints existentes.</td></tr>
+          <tr><td class="skill"><code>ddd-aggregate</code></td><td class="func">Andamiaje de agregado: entidad, VO, repo, eventos de dominio, tests.</td><td class="ejemplo">Agregar un concepto con invariantes nuevos.</td></tr>
+          <tr><td class="skill"><code>ddd-context</code></td><td class="func">Crea un bounded context con estructura domain/application/infrastructure.</td><td class="ejemplo">Nuevo subdominio del portal.</td></tr>
+          <tr><td class="skill"><code>ddd-validate</code></td><td class="func">Valida fronteras entre contextos e invariantes de agregados.</td><td class="ejemplo">Auditar importaciones cruzadas antes de merge.</td></tr>
+          <tr><td class="skill"><code>agent-architecture</code></td><td class="func">Skill de arquitectura de sistemas.</td><td class="ejemplo">Definir estructura de módulos.</td></tr>
+          <tr><td class="skill"><code>agent-arch-system-design</code></td><td class="func">Diseño de arquitectura de sistema completo.</td><td class="ejemplo">Nueva capacidad de escala multi-tenant.</td></tr>
+          <tr><td class="skill"><code>agent-repo-architect</code></td><td class="func">Arquitecto de estructura del repositorio.</td><td class="ejemplo">Reorganizar carpetas del proyecto.</td></tr>
+          <tr><td class="skill"><code>agent-migration-plan</code></td><td class="func">Plan de migración de sistemas existentes.</td><td class="ejemplo">Siguiente fase de evolución multi-tenant.</td></tr>
+          <tr><td class="skill"><code>deprecation-and-migration</code></td><td class="func">Gestiona retiros y migración de APIs/sistemas viejos.</td><td class="ejemplo">Sunset de un endpoint o librería.</td></tr>
+          <tr><td class="skill"><code>observability-and-instrumentation</code></td><td class="func">Logging, métricas y trazas para diagnóstico en producción.</td><td class="ejemplo">Feature que corre en prod y necesita evidencia.</td></tr>
+          <tr><td class="skill"><code>performance-optimization</code></td><td class="func">Optimización full-stack: queries N+1, Core Web Vitals, caching.</td><td class="ejemplo">Lentitudes reportadas o regresiones.</td></tr>
+          <tr><td class="skill"><code>performance-analysis</code></td><td class="func">Perfiling, benchmarking y validación de releases.</td><td class="ejemplo">Diagnóstico de lentitudes concreta.</td></tr>
+          <tr><td class="skill"><code>debugging-and-error-recovery</code></td><td class="func">Debug sistemático de causa raíz antes de proponer fixes.</td><td class="ejemplo">Tests rotos o comportamiento inesperado.</td></tr>
+          <tr><td class="skill"><code>systematic-debugging</code></td><td class="func">Metodología de debugging antes de tocar un fix.</td><td class="ejemplo">Bug que "no debería pasar".</td></tr>
+          <tr><td class="skill"><code>documentation-and-adrs</code></td><td class="func">Registra decisiones y documentación para futuras sesiones.</td><td class="ejemplo">Cambio de API o de arquitectura.</td></tr>
+          <tr><td class="skill"><code>doc-gen</code></td><td class="func">Genera y mantiene docs con detección de drift contra el código.</td><td class="ejemplo">Refrescar README/docs desactualizados.</td></tr>
+          <tr><td class="skill"><code>source-driven-development</code></td><td class="func">Implementación anclada a documentación oficial actual, citada.</td><td class="ejemplo">Framework donde el detalle exacto importa.</td></tr>
+          <tr><td class="skill"><code>ci-cd-and-automation</code></td><td class="func">Configura pipelines CI/CD con quality gates y estrategias de deploy.</td><td class="ejemplo">Agregar CI al repo.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 4. SEGURIDAD ===================== -->
+  <section class="cat" id="seguridad" data-cat="seguridad">
+    <div class="cat-head"><h2>4. Seguridad</h2><span class="badge" data-badge></span></div>
+    <p class="cat-note">Endurecimiento, escaneo de vulnerabilidades, PII, permisos y auditoría de flujos de autenticación.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>security-and-hardening</code></td><td class="func">Endurece código: input de usuario, auth, almacenamiento, integraciones.</td><td class="ejemplo">Cualquier feature que acepte datos de usuario.</td></tr>
+          <tr><td class="skill"><code>security-audit</code></td><td class="func">Escaneo de vulnerabilidades enfocado en auth, pagos y datos.</td><td class="ejemplo">Antes de deploy.</td></tr>
+          <tr><td class="skill"><code>security-scan</code></td><td class="func">Escaneo completo con profundidad quick/standard/deep vía Ruflo.</td><td class="ejemplo">Review de PR con cambios sensibles.</td></tr>
+          <tr><td class="skill"><code>dependency-check</code></td><td class="func">Busca CVEs en dependencias del proyecto.</td><td class="ejemplo">Tras <code class="k">npm install</code> o antes de release.</td></tr>
+          <tr><td class="skill"><code>safety-scan</code></td><td class="func">Anti prompt-injection y contenido inseguro en inputs no confiables.</td><td class="ejemplo">Antes de pasar datos externos a un modelo.</td></tr>
+          <tr><td class="skill"><code>pii-detect</code></td><td class="func">Detecta PII (emails, teléfonos, SSN, RFC, llaves) en texto/código/config.</td><td class="ejemplo">Antes de commitear o loguear datos.</td></tr>
+          <tr><td class="skill"><code>claims</code></td><td class="func">Autorización basada en claims para agentes y operaciones.</td><td class="ejemplo">Permisos en operaciones multi-agente.</td></tr>
+          <tr><td class="skill"><code>agent-security-manager</code></td><td class="func">Gestor de seguridad de agentes.</td><td class="ejemplo">Políticas de acceso entre agentes.</td></tr>
+          <tr><td class="skill"><code>agent-v3-security-architect</code></td><td class="func">Arquitecto de seguridad v3 (superficie MCP, secretos).</td><td class="ejemplo">Diseñar seguridad de un harness.</td></tr>
+          <tr><td class="skill"><code>browser-auth-flow</code></td><td class="func">Audita flujos de login: leaks de redirect, CSRF, cookies de sesión, OAuth.</td><td class="ejemplo">Revisar autenticación de un sitio.</td></tr>
+          <tr><td class="skill"><code>harness-security-bench</code></td><td class="func">Bench de detección de seguridad evolutivo (10 vulns / 9 decoys) con TPR/FPR.</td><td class="ejemplo">Evaluar un detector de seguridad.</td></tr>
+          <tr><td class="skill"><code>harness-mcp-scan</code></td><td class="func">Scan estático de la superficie MCP declarada (servers.json + claims).</td><td class="ejemplo">Auditar herramientas MCP de un harness.</td></tr>
+          <tr><td class="skill"><code>harness-threat-model</code></td><td class="func">Threat model de grado auditoría para superficie de agentes.</td><td class="ejemplo">Revisión formal de seguridad.</td></tr>
+          <tr><td class="skill"><code>witness</code></td><td class="func">Firma Ed25519 de marcadores de fix para detectar regresiones.</td><td class="ejemplo">Congelar comportamiento ya corregido.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 5. INFRA ===================== -->
+  <section class="cat" id="infra" data-cat="infra">
+    <div class="cat-head"><h2>5. Docker, deploy e infraestructura</h2><span class="badge" data-badge></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>docker-containerization</code></td><td class="func">Dockerfiles/compose pequeños, seguros y reproducibles (multi-stage, no root).</td><td class="ejemplo">Escribir o revisar cualquier Dockerfile del repo.</td></tr>
+          <tr><td class="skill"><code>shipping-and-launch</code></td><td class="func">Checklist pre-launch, rollout gradual, monitoreo y rollback.</td><td class="ejemplo">Antes de desplegar a producción.</td></tr>
+          <tr><td class="skill"><code>agent-ops-cicd-github</code></td><td class="func">Operaciones CI/CD en GitHub.</td><td class="ejemplo">Pipelines de despliegue.</td></tr>
+          <tr><td class="skill"><code>github-automation</code></td><td class="func">Automatización de issues, PRs, CI y releases en GitHub.</td><td class="ejemplo">Cuando se pide hosting en GitHub Actions.</td></tr>
+          <tr><td class="skill"><code>github-workflow-automation</code></td><td class="func">Workflows de GitHub Actions avanzados con swarm.</td><td class="ejemplo">Pipelines complejos multi-etapa.</td></tr>
+          <tr><td class="skill"><code>agent-release-manager</code></td><td class="func">Gestión de releases con versionado y rollback.</td><td class="ejemplo">Corte de release.</td></tr>
+          <tr><td class="skill"><code>agent-release-swarm</code></td><td class="func">Release orquestado en swarm.</td><td class="ejemplo">Release con validación paralela.</td></tr>
+          <tr><td class="skill"><code>github-release-management</code></td><td class="func">Orquestación completa de releases con IA.</td><td class="ejemplo">Versionado y publicación automatizados.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 6. DATOS ===================== -->
+  <section class="cat" id="datos" data-cat="datos">
+    <div class="cat-head"><h2>6. Base de datos y migraciones</h2><span class="badge" data-badge></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>migrate-create</code></td><td class="func">Crea migración SQL secuencial con archivos up/down.</td><td class="ejemplo">Agregar tabla o columna nueva.</td></tr>
+          <tr><td class="skill"><code>migrate-validate</code></td><td class="func">Valida migraciones pendientes: consistencia de FK, seguridad de rollback, buenas prácticas.</td><td class="ejemplo">Antes de aplicar migraciones en prod.</td></tr>
+          <tr><td class="skill"><code>memory-management</code></td><td class="func">Memoria persistente de agentes con búsqueda semántica HNSW.</td><td class="ejemplo">Cuando hay aprendizaje, no tareas puntuales.</td></tr>
+          <tr><td class="skill"><code>agentdb-memory-patterns</code></td><td class="func">Patrones de memoria persistente: sesión, largo plazo, control de contexto.</td><td class="ejemplo">Chats o agentes con estado.</td></tr>
+          <tr><td class="skill"><code>memory-bridge</code></td><td class="func">Puente de memoria auto-guardada de Codex a AgentDB con embeddings ONNX.</td><td class="ejemplo">Búsqueda unificada cross-proyecto.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 7. SWARM ===================== -->
+  <section class="cat" id="swarm" data-cat="swarm">
+    <div class="cat-head"><h2>7. Multi-agente y orquestación (swarm)</h2><span class="badge" data-badge></span></div>
+    <p class="cat-note">El bloque más grande del catálogo. Aplica cuando se trabaja con varios agentes coordinados; para tareas individuales del portal no se usan.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>ruflo</code></td><td class="func">Instalación/init de Ruflo: orquestación multi-agente con 314+ tools MCP y 30+ plugins.</td><td class="ejemplo">"Init ruflo" en un repo nuevo.</td></tr>
+          <tr><td class="skill"><code>ruflo-doctor</code></td><td class="func">Health checks de la instalación de Ruflo y fixes comunes.</td><td class="ejemplo">Cuando las tools MCP no responden.</td></tr>
+          <tr><td class="skill"><code>ruflo-status</code></td><td class="func">Diagnóstico de salud: sistema, servidor MCP, agentes activos.</td><td class="ejemplo">Verificar estado sin cambiar nada.</td></tr>
+          <tr><td class="skill"><code>init-project</code></td><td class="func">Inicializa Ruflo en un repo: MCP, hooks y configs.</td><td class="ejemplo">Primer día de trabajo en un proyecto nuevo.</td></tr>
+          <tr><td class="skill"><code>swarm-init</code></td><td class="func">Inicia un swarm con configuración anti-drift.</td><td class="ejemplo">Tarea multi-archivo con 3+ agentes.</td></tr>
+          <tr><td class="skill"><code>swarm-advanced</code></td><td class="func">Orquestación avanzada de swarms para research, dev, testing.</td><td class="ejemplo">Flujos complejos distribuidos.</td></tr>
+          <tr><td class="skill"><code>swarm-orchestration</code></td><td class="func">Orquestación con topología dinámica y ejecución paralela.</td><td class="ejemplo">Escalar más allá de un agente.</td></tr>
+          <tr><td class="skill"><code>agent-swarm</code></td><td class="func">Skill base de enjambre de agentes.</td><td class="ejemplo">Fan-out de trabajo.</td></tr>
+          <tr><td class="skill"><code>agent-coordination</code></td><td class="func">Gestión de pools de 60+ tipos de agentes y su lifecycle.</td><td class="ejemplo">Spawning y coordinación.</td></tr>
+          <tr><td class="skill"><code>agent-coordinator-swarm-init</code></td><td class="func">Init del coordinador de swarm.</td><td class="ejemplo">Arrancar un swarm jerárquico.</td></tr>
+          <tr><td class="skill"><code>hive-mind</code></td><td class="func">Consenso Byzantine-tolerant con reina jerárquica.</td><td class="ejemplo">Decisión colectiva con agentes poco confiables.</td></tr>
+          <tr><td class="skill"><code>hive-mind-advanced</code></td><td class="func">Consenso avanzado con memoria persistente.</td><td class="ejemplo">Coordinación prolongada de la colmena.</td></tr>
+          <tr><td class="skill"><code>agent-queen-coordinator</code></td><td class="func">Coordinación dirigida por una reina.</td><td class="ejemplo">Jerarquía con un líder único.</td></tr>
+          <tr><td class="skill"><code>agent-v3-queen-coordinator</code></td><td class="func">Variante v3 de la reina coordinadora.</td><td class="ejemplo">Proyectos Codex-flow v3.</td></tr>
+          <tr><td class="skill"><code>agent-hierarchical-coordinator</code></td><td class="func">Coordinación jerárquica por capas.</td><td class="ejemplo">Delegación en árbol.</td></tr>
+          <tr><td class="skill"><code>agent-mesh-coordinator</code></td><td class="func">Coordinación en malla sin líder.</td><td class="ejemplo">Agentes entre pares simétricos.</td></tr>
+          <tr><td class="skill"><code>agent-adaptive-coordinator</code></td><td class="func">Coordinador que adapta la topología a la tarea.</td><td class="ejemplo">Cargas mixtas.</td></tr>
+          <tr><td class="skill"><code>agent-collective-intelligence-coordinator</code></td><td class="func">Inteligencia colectiva: síntesis de salidas de varios agentes.</td><td class="ejemplo">Votación o fusión de propuestas.</td></tr>
+          <tr><td class="skill"><code>agent-byzantine-coordinator</code></td><td class="func">Coordinación tolerante a fallos bizantinos.</td><td class="ejemplo">Agentes que pueden fallar o mentir.</td></tr>
+          <tr><td class="skill"><code>agent-consensus-coordinator</code></td><td class="func">Consenso explícito entre agentes.</td><td class="ejemplo">Acuerdo antes de actuar.</td></tr>
+          <tr><td class="skill"><code>agent-gossip-coordinator</code></td><td class="func">Coordinación por protocolo gossip.</td><td class="ejemplo">Difusión de estado en muchos nodos.</td></tr>
+          <tr><td class="skill"><code>agent-coder</code></td><td class="func">Agente especializado en escribir código.</td><td class="ejemplo">Delegar implementación.</td></tr>
+          <tr><td class="skill"><code>agent-reviewer</code></td><td class="func">Agente revisor de código.</td><td class="ejemplo">Review independiente en paralelo.</td></tr>
+          <tr><td class="skill"><code>agent-tester</code></td><td class="func">Agente de pruebas.</td><td class="ejemplo">Redactar/validar tests.</td></tr>
+          <tr><td class="skill"><code>agent-researcher</code></td><td class="func">Agente investigador.</td><td class="ejemplo">Research previo a una decisión.</td></tr>
+          <tr><td class="skill"><code>agent-analyze-code-quality</code></td><td class="func">Análisis de calidad de código.</td><td class="ejemplo">Auditoría de un módulo.</td></tr>
+          <tr><td class="skill"><code>agent-code-analyzer</code></td><td class="func">Analizador de código (patrones, deuda).</td><td class="ejemplo">Revisión técnica profunda.</td></tr>
+          <tr><td class="skill"><code>agent-performance-analyzer</code></td><td class="func">Analista de rendimiento.</td><td class="ejemplo">Encontrar cuellos de botella.</td></tr>
+          <tr><td class="skill"><code>agent-performance-optimizer</code></td><td class="func">Optimizador de rendimiento.</td><td class="ejemplo">Aplicar mejoras detectadas.</td></tr>
+          <tr><td class="skill"><code>agent-performance-benchmarker</code></td><td class="func">Benchmarks de performance.</td><td class="ejemplo">Medir antes/después.</td></tr>
+          <tr><td class="skill"><code>agent-performance-monitor</code></td><td class="func">Monitoreo continuo de performance.</td><td class="ejemplo">Vigilar regresiones.</td></tr>
+          <tr><td class="skill"><code>agent-code-review-swarm</code></td><td class="func">Review de código en paralelo con muchos agentes.</td><td class="ejemplo">PR grande con varios ángulos de revisión.</td></tr>
+          <tr><td class="skill"><code>agent-swarm-pr</code></td><td class="func">Gestión de PRs en swarm.</td><td class="ejemplo">Varios PRs simultáneos.</td></tr>
+          <tr><td class="skill"><code>agent-pr-manager</code></td><td class="func">Gestión de pull requests.</td><td class="ejemplo">Mantener PRs al día.</td></tr>
+          <tr><td class="skill"><code>agent-github-pr-manager</code></td><td class="func">PR manager específico de GitHub.</td><td class="ejemplo">Automatizar revisión/merge.</td></tr>
+          <tr><td class="skill"><code>agent-github-modes</code></td><td class="func">Modos de operación con GitHub.</td><td class="ejemplo">Cambiar flujo de trabajo GitHub.</td></tr>
+          <tr><td class="skill"><code>agent-swarm-issue</code></td><td class="func">Gestión de issues en swarm.</td><td class="ejemplo">Triaje paralelo de issues.</td></tr>
+          <tr><td class="skill"><code>agent-issue-tracker</code></td><td class="func">Seguimiento de issues.</td><td class="ejemplo">Mantener backlog ordenado.</td></tr>
+          <tr><td class="skill"><code>agent-project-board-sync</code></td><td class="func">Sincronización del tablero de proyecto.</td><td class="ejemplo">Actualizar estado de tareas.</td></tr>
+          <tr><td class="skill"><code>agent-multi-repo-swarm</code></td><td class="func">Coordinación entre varios repositorios.</td><td class="ejemplo">Cambios atómicos en varios repos.</td></tr>
+          <tr><td class="skill"><code>stream-chain</code></td><td class="func">Cadena de JSON por streams para pipelines multi-agente.</td><td class="ejemplo">Conectar salidas de un agente a la entrada de otro.</td></tr>
+          <tr><td class="skill"><code>workflow-automation</code></td><td class="func">Creación, ejecución y plantillas de workflows con coordinación de agentes.</td><td class="ejemplo">Procesos repetitivos complejos.</td></tr>
+          <tr><td class="skill"><code>workflow-create</code></td><td class="func">Autora workflows MCP persistidos o scripts de orquestación nativos.</td><td class="ejemplo">Crear un flujo nuevo.</td></tr>
+          <tr><td class="skill"><code>workflow-run</code></td><td class="func">Ejecuta workflows (lifecycle execute/pause/resume/cancel).</td><td class="ejemplo">Correr un flujo existente.</td></tr>
+          <tr><td class="skill"><code>agent-workflow</code></td><td class="func">Skill de workflow de agentes.</td><td class="ejemplo">Flujos guiados.</td></tr>
+          <tr><td class="skill"><code>agent-workflow-automation</code></td><td class="func">Automatización de workflows de agentes.</td><td class="ejemplo">Ejecución recurrente.</td></tr>
+          <tr><td class="skill"><code>agent-orchestrator-task</code></td><td class="func">Orquestador de tareas.</td><td class="ejemplo">Coordinar unidades de trabajo.</td></tr>
+          <tr><td class="skill"><code>agent-matrix-optimizer</code></td><td class="func">Optimiza matrices de asignación agente↔tarea.</td><td class="ejemplo">Repartir trabajo de forma óptima.</td></tr>
+          <tr><td class="skill"><code>agent-topology-optimizer</code></td><td class="func">Optimiza la topología del swarm.</td><td class="ejemplo">Mejorar el grafo de comunicación.</td></tr>
+          <tr><td class="skill"><code>agent-resource-allocator</code></td><td class="func">Asignación de recursos entre agentes.</td><td class="ejemplo">Presupuestos y cupos.</td></tr>
+          <tr><td class="skill"><code>agent-load-balancer</code></td><td class="func">Balanceo de carga entre agentes.</td><td class="ejemplo">Evitar saturar un agente.</td></tr>
+          <tr><td class="skill"><code>agent-quorum-manager</code></td><td class="func">Gestión de quórum para decisiones.</td><td class="ejemplo">Votaciones con umbral.</td></tr>
+          <tr><td class="skill"><code>agent-raft-manager</code></td><td class="func">Consenso Raft entre agentes.</td><td class="ejemplo">Replicación de estado confiable.</td></tr>
+          <tr><td class="skill"><code>agent-sync-coordinator</code></td><td class="func">Coordinación de sincronización.</td><td class="ejemplo">Alinear estados entre nodos.</td></tr>
+          <tr><td class="skill"><code>agent-crdt-synchronizer</code></td><td class="func">Sincronización con CRDTs (ediciones concurrentes sin conflictos).</td><td class="ejemplo">Edición paralela del mismo contenido.</td></tr>
+          <tr><td class="skill"><code>agent-memory-coordinator</code></td><td class="func">Coordina la memoria compartida del swarm.</td><td class="ejemplo">Conocimiento común entre agentes.</td></tr>
+          <tr><td class="skill"><code>agent-swarm-memory-manager</code></td><td class="func">Gestión de memoria del enjambre.</td><td class="ejemplo">Persistir aprendizajes del swarm.</td></tr>
+          <tr><td class="skill"><code>agent-sandbox</code></td><td class="func">Ejecución aislada de agentes.</td><td class="ejemplo">Correr código no confiable.</td></tr>
+          <tr><td class="skill"><code>agent-benchmark-suite</code></td><td class="func">Suite de benchmarks de agentes.</td><td class="ejemplo">Comparar variantes.</td></tr>
+          <tr><td class="skill"><code>agent-challenges</code></td><td class="func">Retos/evaluaciones de agentes.</td><td class="ejemplo">Ejercitar capacidades.</td></tr>
+          <tr><td class="skill"><code>agent-test-long-runner</code></td><td class="func">Tests de larga duración.</td><td class="ejemplo">Estabilidad prolongada.</td></tr>
+          <tr><td class="skill"><code>agent-tdd-london-swarm</code></td><td class="func">TDD London School en swarm (mock-first).</td><td class="ejemplo">Outside-in con varios agentes.</td></tr>
+          <tr><td class="skill"><code>tdd-workflow</code></td><td class="func">Workflow TDD London School mock-first.</td><td class="ejemplo">Desarrollo guiado por tests.</td></tr>
+          <tr><td class="skill"><code>tdd-repair</code></td><td class="func">Reparación dirigida por test: un agente acotado hace pasar un test fallido sin tocarlo.</td><td class="ejemplo">Test rojo conocido con presupuesto limitado.</td></tr>
+          <tr><td class="skill"><code>test-driven-development</code></td><td class="func">TDD clásico: escribir el test primero, luego el código.</td><td class="ejemplo">Probar que un fix funciona o cambiar comportamiento.</td></tr>
+          <tr><td class="skill"><code>test-gaps</code></td><td class="func">Detecta huecos de cobertura y sugiere tests.</td><td class="ejemplo">Tras agregar una feature.</td></tr>
+          <tr><td class="skill"><code>agent-authentication</code></td><td class="func">Agente especializado en autenticación.</td><td class="ejemplo">Diseñar o auditar login.</td></tr>
+          <tr><td class="skill"><code>agent-payments</code></td><td class="func">Agente especializado en pagos.</td><td class="ejemplo">Integrar proveedores de pago.</td></tr>
+          <tr><td class="skill"><code>agent-agentic-payments</code></td><td class="func">Pagos entre agentes.</td><td class="ejemplo">Micro-transacciones agent-to-agent.</td></tr>
+          <tr><td class="skill"><code>agent-dev-backend-api</code></td><td class="func">Agente de desarrollo backend/API.</td><td class="ejemplo">Crear endpoints.</td></tr>
+          <tr><td class="skill"><code>agent-docs-api-openapi</code></td><td class="func">Agente de documentación OpenAPI.</td><td class="ejemplo">Specs OpenAPI.</td></tr>
+          <tr><td class="skill"><code>agent-spec-mobile-react-native</code></td><td class="func">Agente de especificación mobile React Native.</td><td class="ejemplo">Apps móviles.</td></tr>
+          <tr><td class="skill"><code>agent-data-ml-model</code></td><td class="func">Agente de datos y modelos ML.</td><td class="ejemplo">Entrenar/evaluar modelos.</td></tr>
+          <tr><td class="skill"><code>agent-neural-network</code></td><td class="func">Agente de redes neuronales.</td><td class="ejemplo">Arquitecturas neuronales.</td></tr>
+          <tr><td class="skill"><code>agent-trading-predictor</code></td><td class="func">Agente predictor de trading.</td><td class="ejemplo">Predicciones de mercado.</td></tr>
+          <tr><td class="skill"><code>agent-app-store</code></td><td class="func">App store de agentes: publicar/instalar.</td><td class="ejemplo">Compartir agentes.</td></tr>
+          <tr><td class="skill"><code>agent-user-tools</code></td><td class="func">Herramientas del usuario para agentes.</td><td class="ejemplo">Exponer utilidades propias.</td></tr>
+          <tr><td class="skill"><code>agent-base-template-generator</code></td><td class="func">Genera plantillas base de agentes.</td><td class="ejemplo">Nuevo agente desde cero.</td></tr>
+          <tr><td class="skill"><code>agent-pagerank-analyzer</code></td><td class="func">PageRank sobre grafos de dependencias.</td><td class="ejemplo">Ranking de impacto de módulos.</td></tr>
+          <tr><td class="skill"><code>agent-automation-smart-agent</code></td><td class="func">Agente de automatización inteligente.</td><td class="ejemplo">Automatizar procesos.</td></tr>
+          <tr><td class="skill"><code>agent-worker-specialist</code></td><td class="func">Especialista en workers.</td><td class="ejemplo">Tareas en background.</td></tr>
+          <tr><td class="skill"><code>agent-production-validator</code></td><td class="func">Validador de preparación para producción.</td><td class="ejemplo">Gate previo a deploy.</td></tr>
+          <tr><td class="skill"><code>agent-scout-explorer</code></td><td class="func">Explorador/scrout de código y entorno.</td><td class="ejemplo">Reconocimiento rápido de un área.</td></tr>
+          <tr><td class="skill"><code>agent-v3-integration-architect</code></td><td class="func">Arquitecto de integración v3.</td><td class="ejemplo">Integrar sistemas en Codex-flow v3.</td></tr>
+          <tr><td class="skill"><code>agent-v3-memory-specialist</code></td><td class="func">Especialista de memoria v3.</td><td class="ejemplo">Unificar memorias en v3.</td></tr>
+          <tr><td class="skill"><code>agent-v3-performance-engineer</code></td><td class="func">Ingeniero de performance v3.</td><td class="ejemplo">Optimizar v3.</td></tr>
+          <tr><td class="skill"><code>sparc-methodology</code></td><td class="func">Metodología SPARC completa con orquestación multi-agente.</td><td class="ejemplo">Ciclo completo de desarrollo.</td></tr>
+          <tr><td class="skill"><code>monitor-stream</code></td><td class="func">Stream de eventos de swarm en vivo.</td><td class="ejemplo">Observar qué hacen los agentes.</td></tr>
+          <tr><td class="skill"><code>hooks-automation</code></td><td class="func">Hooks inteligentes con MCP: pre/post task, sesión, git, memoria.</td><td class="ejemplo">Automatizar operaciones del harness.</td></tr>
+          <tr><td class="skill"><code>cognitive-pattern</code></td><td class="func">Define y gestiona patrones cognitivos de razonamiento.</td><td class="ejemplo">Ajustar cómo decide el agente.</td></tr>
+          <tr><td class="skill"><code>daa-agent</code></td><td class="func">Agentes Dynamic Agentic Architecture que aprenden y evolucionan.</td><td class="ejemplo">Agentes auto-adaptativos.</td></tr>
+          <tr><td class="skill"><code>agent-sona-learning-optimizer</code></td><td class="func">Optimizador de aprendizaje SONA.</td><td class="ejemplo">Mejorar patrones aprendidos.</td></tr>
+          <tr><td class="skill"><code>neural-training</code></td><td class="func">Entrenamiento neural con SONA, MoE y EWC++.</td><td class="ejemplo">Consolidar conocimiento de agentes.</td></tr>
+          <tr><td class="skill"><code>neural-train</code></td><td class="func">Fases DISTILL + CONSOLIDATE del pipeline neural.</td><td class="ejemplo">Entrenar desde tareas exitosas.</td></tr>
+          <tr><td class="skill"><code>reasoningbank-agentdb</code></td><td class="func">ReasoningBank con AgentDB: trayectorias, veredictos, destilación.</td><td class="ejemplo">Agentes que aprenden de experiencia.</td></tr>
+          <tr><td class="skill"><code>reasoningbank-intelligence</code></td><td class="func">Inteligencia adaptativa ReasoningBank: reconocimiento de patrones.</td><td class="ejemplo">Optimizar estrategias recurrentes.</td></tr>
+          <tr><td class="skill"><code>agentdb-learning</code></td><td class="func">9 algoritmos de reinforcement learning como plugins.</td><td class="ejemplo">Q-Learning, Actor-Critic, etc.</td></tr>
+          <tr><td class="skill"><code>agentic-jujutsu</code></td><td class="func">Version control de agentes con ReasoningBank y coordinación multi-agente.</td><td class="ejemplo">Versionar decisiones de agentes.</td></tr>
+          <tr><td class="skill"><code>session-persist</code></td><td class="func">Persiste y restaura sesiones de agente con snapshots.</td><td class="ejemplo">Retomar trabajo interrumpido.</td></tr>
+          <tr><td class="skill"><code>pod-sales</code></td><td class="func">Pod de ventas (dry-run por defecto; solo lectura de plantillas y ledger).</td><td class="ejemplo">Simular el pipeline comercial.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 8. MEMORIA ===================== -->
+  <section class="cat" id="memoria" data-cat="memoria">
+    <div class="cat-head"><h2>8. Memoria, vectores y knowledge graphs</h2><span class="badge" data-badge></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>embeddings</code></td><td class="func">Embeddings con HNSW, persistencia sql.js y soporte hiperbólico (75x más rápido).</td><td class="ejemplo">Búsqueda semántica o retrieval.</td></tr>
+          <tr><td class="skill"><code>vector-embed</code></td><td class="func">Genera embeddings ONNX all-MiniLM-L6-v2 (384 dims) y los guarda en HNSW.</td><td class="ejemplo">Indexar documentos.</td></tr>
+          <tr><td class="skill"><code>vector-search</code></td><td class="func">Búsqueda vectorial vía embeddings_* y router WASM, con RaBitQ 1-bit.</td><td class="ejemplo">Similaridad rápida con poca memoria.</td></tr>
+          <tr><td class="skill"><code>vector-setup</code></td><td class="func">Primera ejecución: instala add-ons ONNX/Brain/SONA y registra el servidor MCP.</td><td class="ejemplo">Instalar ruvector por primera vez.</td></tr>
+          <tr><td class="skill"><code>vector-cluster</code></td><td class="func">Clustering de código por detección de comunidades (espectral/Louvain).</td><td class="ejemplo">Agrupar módulos relacionados.</td></tr>
+          <tr><td class="skill"><code>vector-hyperbolic</code></td><td class="func">Embedding hiperbólico en bola de Poincaré para jerarquías.</td><td class="ejemplo">Datos con estructura jerárquica fuerte.</td></tr>
+          <tr><td class="skill"><code>agentdb-vector-search</code></td><td class="func">Búsqueda vectorial semántica para RAG y matching.</td><td class="ejemplo">RAG sobre documentación.</td></tr>
+          <tr><td class="skill"><code>agentdb-query</code></td><td class="func">Consulta AgentDB vía bridge: routing semántico, recall jerárquico, grafos causales.</td><td class="ejemplo">Síntesis de contexto complejo.</td></tr>
+          <tr><td class="skill"><code>agentdb-advanced</code></td><td class="func">Sync QUIC, multi-DB, métricas de distancia custom, búsqueda híbrida.</td><td class="ejemplo">Sistemas distribuidos con vectores.</td></tr>
+          <tr><td class="skill"><code>agentdb-optimization</code></td><td class="func">Quantización 4-32x, HNSW 150x, caching, batch operations.</td><td class="ejemplo">Escalar a millones de vectores.</td></tr>
+          <tr><td class="skill"><code>memory-search</code></td><td class="func">Búsqueda híbrida SOTA (sparse+dense), Graph RAG, MMR, recencia.</td><td class="ejemplo">Multi-hop con diversidad de resultados.</td></tr>
+          <tr><td class="skill"><code>kg-extract</code></td><td class="func">Extrae entidades y relaciones de archivos a un knowledge graph.</td><td class="ejemplo">Indexar el código del proyecto.</td></tr>
+          <tr><td class="skill"><code>kg-traverse</code></td><td class="func">Recorrido Pathfinder desde una entidad semilla.</td><td class="ejemplo">Hallar caminos entre conceptos.</td></tr>
+          <tr><td class="skill"><code>graphify</code></td><td class="func">Convierte código/docs en grafo persistente con god nodes y comunidad.</td><td class="ejemplo">Preguntas de arquitectura sobre un repo.</td></tr>
+          <tr><td class="skill"><code>dossier-collect</code></td><td class="func">Construye un dossier en grafo sobre una entidad con fan-out paralelo.</td><td class="ejemplo">Investigación profunda de una entidad.</td></tr>
+          <tr><td class="skill"><code>chat-format</code></td><td class="func">Templates de chat por proveedor + retrieval de contexto.</td><td class="ejemplo">Formatear prompts para distintos modelos.</td></tr>
+          <tr><td class="skill"><code>llm-config</code></td><td class="func">Configura inferencia local RuVLLM: modelo, MicroLoRA, adaptación SONA.</td><td class="ejemplo">Correr modelos localmente.</td></tr>
+          <tr><td class="skill"><code>intelligence-route</code></td><td class="func">Ruteo de tareas por selector de 3 niveles con patrones aprendidos.</td><td class="ejemplo">Elegir modelo según la tarea.</td></tr>
+          <tr><td class="skill"><code>intelligence-transfer</code></td><td class="func">Publica/fetcha patrones aprendidos entre proyectos vía IPFS.</td><td class="ejemplo">Compartir aprendizajes entre repos.</td></tr>
+          <tr><td class="skill"><code>prompt-master</code></td><td class="func">Optimiza prompts para herramientas de IA específicas (solo si se pide explícitamente).</td><td class="ejemplo">"Arregla este prompt para Midjourney".</td></tr>
+          <tr><td class="skill"><code>deep-research</code></td><td class="func">Investigación multiphase: búsqueda web + memoria + patrones + síntesis.</td><td class="ejemplo">Temas que requieren research profundo.</td></tr>
+          <tr><td class="skill"><code>research-synthesize</code></td><td class="func">Sintetiza hallazgos en reportes estructurados con gradación de evidencia.</td><td class="ejemplo">Consolidar research disperso.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 9. COSTOS ===================== -->
+  <section class="cat" id="costos" data-cat="costos">
+    <div class="cat-head"><h2>9. Control de costos (tokens y gasto)</h2><span class="badge" data-badge></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>cost-track</code></td><td class="func">Captura el uso de tokens por sesión desde los jsonl y lo persiste.</td><td class="ejemplo">Empezar a medir gasto.</td></tr>
+          <tr><td class="skill"><code>cost-summary</code></td><td class="func">Dump único de todo el gasto: total, por tier, sesión más cara, presupuesto.</td><td class="ejemplo">"¿Cuánto gastamos este mes?" (JSON o markdown).</td></tr>
+          <tr><td class="skill"><code>cost-report</code></td><td class="func">Reporte de tokens y USD por agente y modelo.</td><td class="ejemplo">Desglose por equipo/agente.</td></tr>
+          <tr><td class="skill"><code>cost-conversation</code></td><td class="func">Vista por conversación: fechas, nº de mensajes, modelo dominante, costo.</td><td class="ejemplo">Revisar sesiones individuales.</td></tr>
+          <tr><td class="skill"><code>cost-session</code></td><td class="func">Desglose por mensaje dentro de una sesión outlier (output, cache writes, escaladas).</td><td class="ejemplo">Drill-down tras detectar una sesión cara.</td></tr>
+          <tr><td class="skill"><code>cost-budget-check</code></td><td class="func">Lee gasto y presupuesto, calcula utilización y emite alertas 50/75/90/100%.</td><td class="ejemplo">Gate de presupuesto.</td></tr>
+          <tr><td class="skill"><code>cost-projection</code></td><td class="func">Extrapolación hacia 7/30/90/365 días y días hasta agotar presupuesto.</td><td class="ejemplo">Prever consumo futuro.</td></tr>
+          <tr><td class="skill"><code>cost-health</code></td><td class="func">Gate compuesto CI: budget + burn + anomaly + projection en paralelo.</td><td class="ejemplo">Un solo comando de salud financiera.</td></tr>
+          <tr><td class="skill"><code>cost-burn</code></td><td class="func">Tendencia de gasto por buckets con alerta de drift.</td><td class="ejemplo">Detectar aceleración del gasto en producción.</td></tr>
+          <tr><td class="skill"><code>cost-anomaly</code></td><td class="func">Outliers MAD por sesión (robusto a los propios outliers) con z-score modificado.</td><td class="ejemplo">"¿Qué sesión es la anómala?" en CI.</td></tr>
+          <tr><td class="skill"><code>cost-trend</code></td><td class="func">Drift de win rate, latencia, escaladas y costo de benchmarks en el tiempo.</td><td class="ejemplo">Detectar regresión de calidad.</td></tr>
+          <tr><td class="skill"><code>cost-diff</code></td><td class="func">Delta entre dos snapshots de cost-summary (regresión por PR).</td><td class="ejemplo">Comparar antes/después de un PR.</td></tr>
+          <tr><td class="skill"><code>cost-counterfactual</code></td><td class="func">Compara gasto real contra baselines always-haiku/sonnet/opus.</td><td class="ejemplo">"¿El ruteo vale la pena?".</td></tr>
+          <tr><td class="skill"><code>cost-benchmark</code></td><td class="func">Bench con baseline local y Gemini/Sonnet/Opus, con tabla medida vs. reclamada.</td><td class="ejemplo">Verificar claims de rendimiento.</td></tr>
+          <tr><td class="skill"><code>cost-optimize</code></td><td class="func">Analiza patrones de uso y recomienda ahorros con estimación.</td><td class="ejemplo">Reducir factura.</td></tr>
+          <tr><td class="skill"><code>cost-compact-context</code></td><td class="func">Recupera contexto compactado de ReasoningBank y reporta tokens ahorrados.</td><td class="ejemplo">Consultas de bajo costo con contexto ya compactado.</td></tr>
+          <tr><td class="skill"><code>cost-export</code></td><td class="func">Exporta telemetría a Prometheus textfile o webhook JSON.</td><td class="ejemplo">Grafana/Datadog externos.</td></tr>
+          <tr><td class="skill"><code>cost-federation</code></td><td class="func">Gasto federado: ventanas por peer y suspensión por umbral.</td><td class="ejemplo">Varias instalaciones conectadas.</td></tr>
+          <tr><td class="skill"><code>cost-booster-route</code></td><td class="func">Rutea tareas separando las disponibles vía Agent Booster ($0).</td><td class="ejemplo">Maximizar tier 1 gratuito.</td></tr>
+          <tr><td class="skill"><code>cost-booster-edit</code></td><td class="func">Transformos simples de código vía motor WASM: sub-milisegundo, $0.</td><td class="ejemplo">Ediciones mecánicas sin LLM.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 10. GIT ===================== -->
+  <section class="cat" id="git" data-cat="git">
+    <div class="cat-head"><h2>10. Git, GitHub y project management</h2><span class="badge" data-badge></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>git-workflow</code></td><td class="func">Workflows avanzados: ramas, conflictos, ciclo de vida de PRs.</td><td class="ejemplo">Resolver conflictos de merge.</td></tr>
+          <tr><td class="skill"><code>git-workflow-and-versioning</code></td><td class="func">Estructura el flujo de git y versionado (semver, changelog, releases).</td><td class="ejemplo">Cortar un release o decidir el bump.</td></tr>
+          <tr><td class="skill"><code>github-code-review</code></td><td class="func">Review de GitHub con coordinación de swarm.</td><td class="ejemplo">Revisar PRs con varios ángulos.</td></tr>
+          <tr><td class="skill"><code>github-multi-repo</code></td><td class="func">Coordinación, sincronización y arquitectura multi-repo.</td><td class="ejemplo">Varios repos con release acoplado.</td></tr>
+          <tr><td class="skill"><code>github-project-management</code></td><td class="func">Gestión de proyecto: issues con swarm, tableros, sprint planning.</td><td class="ejemplo">Planificar un sprint.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 11. BROWSER ===================== -->
+  <section class="cat" id="browser" data-cat="browser">
+    <div class="cat-head"><h2>11. Browser y automatización web</h2><span class="badge" data-badge></span></div>
+    <p class="cat-note">Muy útil en este proyecto para pruebas E2E con Playwright y propuestas antes/después.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>browser</code></td><td class="func">Automatización de navegador con snapshots optimizados.</td><td class="ejemplo">Navegar un sitio y actuar sobre él.</td></tr>
+          <tr><td class="skill"><code>browser-intent</code></td><td class="func">Ejecuta una intención en lenguaje natural vía page-agent.</td><td class="ejemplo">"Ve a facturación y descarga el reporte".</td></tr>
+          <tr><td class="skill"><code>browser-extract</code></td><td class="func">Extracción estructurada con gates obligatorios de PII e inyección.</td><td class="ejemplo">Sacar datos tabulares de una página.</td></tr>
+          <tr><td class="skill"><code>browser-scrape</code></td><td class="func">Deprecated desde v0.2.0 — shim de compatibilidad (usar browser-extract).</td><td class="ejemplo">Nunca en código nuevo.</td></tr>
+          <tr><td class="skill"><code>browser-form-fill</code></td><td class="func">Llena formularios mapeando nombre de campo → valor, con templates.</td><td class="ejemplo">Formularios conocidos y repetitivos.</td></tr>
+          <tr><td class="skill"><code>browser-login</code></td><td class="func">Autentica una vez, sanea cookies y guarda un handle reutilizable.</td><td class="ejemplo">Sesiones persistentes entre pruebas.</td></tr>
+          <tr><td class="skill"><code>browser-record</code></td><td class="func">Grabar sesiones como trayectorias RVF (recorrido completo).</td><td class="ejemplo">Capturar un flujo para reutilizarlo.</td></tr>
+          <tr><td class="skill"><code>browser-replay</code></td><td class="func">Replay de trayectorias con recuperación por similitud ante drift del DOM.</td><td class="ejemplo">Verificar que el flujo sigue funcionando.</td></tr>
+          <tr><td class="skill"><code>browser-screenshot-diff</code></td><td class="func">Diff visual + DOM entre dos sesiones grabadas.</td><td class="ejemplo">Regresión visual.</td></tr>
+          <tr><td class="skill"><code>browser-test</code></td><td class="func">Recipe de UI test: captura + replay, siempre con artefacto replayable.</td><td class="ejemplo">Cubrir una historia de usuario con E2E.</td></tr>
+          <tr><td class="skill"><code>browser-auth-flow</code></td><td class="func">Auditoría de flujos de auth: redirects, CSRF, cookies, OAuth.</td><td class="ejemplo">Revisar el login del portal.</td></tr>
+          <tr><td class="skill"><code>browser-testing-with-devtools</code></td><td class="func">Pruebas reales vía Chrome DevTools MCP: DOM, console, network, perf.</td><td class="ejemplo">Debuggear un error solo visible en runtime.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 12. ML ===================== -->
+  <section class="cat" id="ml" data-cat="ml">
+    <div class="cat-head"><h2>12. Datos, ML y mercados</h2><span class="badge" data-badge></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>market-ingest</code></td><td class="func">Ingesta y normalización de datos OHLCV con indexación HNSW.</td><td class="ejemplo">Cargar histórico de mercado.</td></tr>
+          <tr><td class="skill"><code>market-pattern</code></td><td class="func">Detección y clasificación de patrones de velas.</td><td class="ejemplo">Identificar patrones en velas japonesas.</td></tr>
+          <tr><td class="skill"><code>trader-signal</code></td><td class="func">Señales con detección de anomalías (Z-score) y predicción neural.</td><td class="ejemplo">Generar señales de entrada/salida.</td></tr>
+          <tr><td class="skill"><code>trader-regime</code></td><td class="func">Clasifica el régimen: alcista/bajista/rango/volátil + estrategia sugerida.</td><td class="ejemplo">Antes de un backtest o señal.</td></tr>
+          <tr><td class="skill"><code>trader-backtest</code></td><td class="func">Backtest histórico walk-forward con firma Ed25519 (papel→real).</td><td class="ejemplo">Validar una estrategia históricamente.</td></tr>
+          <tr><td class="skill"><code>trader-cloud-backtest</code></td><td class="func">Backtest pesado en la nube (Managed Agent).</td><td class="ejemplo">Sweeps grandes o Monte Carlo.</td></tr>
+          <tr><td class="skill"><code>trader-train</code></td><td class="func">Entrena LSTM/Transformer/N-BEATS con intervalos de confianza.</td><td class="ejemplo">Modelos de predicción sobre mercado.</td></tr>
+          <tr><td class="skill"><code>trader-risk</code></td><td class="func">VaR, CVaR, Sharpe, position sizing, circuit breakers.</td><td class="ejemplo">Evaluar riesgo de portafolio.</td></tr>
+          <tr><td class="skill"><code>trader-portfolio</code></td><td class="func">Optimización media-varianza con restricciones y plan de rebalanceo.</td><td class="ejemplo">Asignación de capital.</td></tr>
+          <tr><td class="skill"><code>trader-portfolio-cg</code></td><td class="func">Optimización por Conjugate Gradient (40-60x más rápida).</td><td class="ejemplo">Optimización pesada.</td></tr>
+          <tr><td class="skill"><code>trader-explain</code></td><td class="func">Atribución regulatoria PageRank de features en una señal neural.</td><td class="ejemplo">Explicar por qué el modelo predijo X.</td></tr>
+          <tr><td class="skill"><code>flow-nexus-neural</code></td><td class="func">Entrena/despliega redes en sandboxes E2B distribuidos.</td><td class="ejemplo">Entrenamiento distribuido.</td></tr>
+          <tr><td class="skill"><code>iot-register</code></td><td class="func">Registra un dispositivo Cognitum Seed por endpoint y establece el bridge.</td><td class="ejemplo">Alta de hardware nuevo.</td></tr>
+          <tr><td class="skill"><code>iot-fleet</code></td><td class="func">Gestión de flotas de dispositivos con políticas de firmware.</td><td class="ejemplo">Administrar un grupo de dispositivos.</td></tr>
+          <tr><td class="skill"><code>iot-firmware</code></td><td class="func">Rollouts de firmware con canary y avance con gates de anomalía.</td><td class="ejemplo">Actualizar firmware por lotes.</td></tr>
+          <tr><td class="skill"><code>iot-anomalies</code></td><td class="func">Detección y clasificación de anomalías en telemetría.</td><td class="ejemplo">Investigar un dispositivo raro antes de avanzar el canary.</td></tr>
+          <tr><td class="skill"><code>iot-witness-verify</code></td><td class="func">Verificación de integridad de la cadena de testigos.</td><td class="ejemplo">Comprobar procedencia.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== 13. HARNESS ===================== -->
+  <section class="cat" id="harness" data-cat="harness">
+    <div class="cat-head"><h2>13. Harness, MetaHarness y plataforma Codex/OpenCode</h2><span class="badge" data-badge></span></div>
+    <p class="cat-note">Skills sobre las propias herramientas de agentes: OpenCode, harnesses medibles, agentes aislados, federación y observabilidad.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Skill</th><th>Funcionalidad</th><th>Cuándo usarla (ejemplo)</th></tr></thead>
+        <tbody>
+          <tr><td class="skill"><code>opencode</code></td><td class="func">Todo sobre OpenCode: plugins, SDK, server, CLI, TUI, desktop, web, temas, keybinds.</td><td class="ejemplo">Cualquier duda de configuración de OpenCode.</td></tr>
+          <tr><td class="skill"><code>harness-genome</code></td><td class="func">Reporte de readiness de 7 secciones: tipo de repo, riesgo, MCP, tests, publish.</td><td class="ejemplo">Evaluar si un repo sirve como harness.</td></tr>
+          <tr><td class="skill"><code>harness-score</code></td><td class="func">Scorecard de 5 dimensiones + costo estimado por run.</td><td class="ejemplo">Puntuar un harness.</td></tr>
+          <tr><td class="skill"><code>harness-similarity</code></td><td class="func">Similitud ponderada entre dos harnesses (cosine + categóricas + jaccard).</td><td class="ejemplo">Comparar variantes o detectar drift.</td></tr>
+          <tr><td class="skill"><code>harness-bench</code></td><td class="func">Gestiona suites bench fijas (create/verify) como corpora de evaluación.</td><td class="ejemplo">Base fija para evolución.</td></tr>
+          <tr><td class="skill"><code>harness-evolve</code></td><td class="func">Muta 7 políticas del harness, sandbox-scorea y promueve solo victorias medidas.</td><td class="ejemplo">Mejorar el harness, no el modelo.</td></tr>
+          <tr><td class="skill"><code>harness-learn</code></td><td class="func">Ciclo de aprendizaje GEPA contra un slice SWE-bench (dry-run $0 por defecto).</td><td class="ejemplo">Aprender de un corpus con opt-in de gasto.</td></tr>
+          <tr><td class="skill"><code>harness-gepa</code></td><td class="func">Inspecciona/genoma GEPA, renderiza el system prompt y clasifica fallos.</td><td class="ejemplo">Auditar un candidato GEPA.</td></tr>
+          <tr><td class="skill"><code>harness-drift-from-history</code></td><td class="func">Detecta drift estructural comparando el último audit con el actual.</td><td class="ejemplo">CI de deriva del harness.</td></tr>
+          <tr><td class="skill"><code>harness-mint</code></td><td class="func">Genera un harness nuevo desde plantilla (dry-run salvo --confirm).</td><td class="ejemplo">Crear un harness dedicado.</td></tr>
+          <tr><td class="skill"><code>harness-oia-audit</code></td><td class="func">Auditoría compuesta (manifest + threat model + mcp-scan) guardada en memoria.</td><td class="ejemplo">Auditoría programada tipo cron.</td></tr>
+          <tr><td class="skill"><code>managed-agent</code></td><td class="func">Agente cloud gestionado (contenedor + tools), contraparte local wasm-agent.</td><td class="ejemplo">Cargas pesadas en la nube.</td></tr>
+          <tr><td class="skill"><code>wasm-agent</code></td><td class="func">Agentes WASM sandbox para ejecución aislada.</td><td class="ejemplo">Ejecutar código sin riesgo.</td></tr>
+          <tr><td class="skill"><code>wasm-gallery</code></td><td class="func">Galería: publicar e instalar agentes WASM de la comunidad.</td><td class="ejemplo">Compartir agentes aislados.</td></tr>
+          <tr><td class="skill"><code>gaia-architecture-comparison</code></td><td class="func">Comparativa ruflo vs HAL vs otros harnesses GAIA: gaps y roadmap.</td><td class="ejemplo">Decidir arquitectura GAIA.</td></tr>
+          <tr><td class="skill"><code>gaia-debugging</code></td><td class="func">Diagnostica tareas GAIA fallidas: traza, modo de fallo y fix propuesto.</td><td class="ejemplo">Un task_id salió incorrecto.</td></tr>
+          <tr><td class="skill"><code>gaia-submission</code></td><td class="func">Flujo completo benchmark → submit con paquete HAL-compatible.</td><td class="ejemplo">Entregar resultados GAIA.</td></tr>
+          <tr><td class="skill"><code>agntcy-status</code></td><td class="func">Estado de AGNTCY/SLIM/CASA: paquetes, transporte, enforcement.</td><td class="ejemplo">"¿Está configurado AGNTCY?".</td></tr>
+          <tr><td class="skill"><code>flow-nexus-platform</code></td><td class="func">Sandboxes, despliegue de apps, pagos y challenges de Flow Nexus.</td><td class="ejemplo">Desplegar en la plataforma.</td></tr>
+          <tr><td class="skill"><code>flow-nexus-swarm</code></td><td class="func">Swarm cloud con automatización event-driven.</td><td class="ejemplo">Swarms distribuidos en la nube.</td></tr>
+          <tr><td class="skill"><code>output-skill</code></td><td class="func">Fuerza output completo: prohíbe placeholders y maneja splits por límite de tokens.</td><td class="ejemplo">Generación de código muy larga.</td></tr>
+          <tr><td class="skill"><code>federation-init</code></td><td class="func">Inicializa federación: keypair y configuración de peers.</td><td class="ejemplo">Conectar instalaciones entre máquinas.</td></tr>
+          <tr><td class="skill"><code>federation-status</code></td><td class="func">Salud de la federación: peers, sesiones, trust, métricas.</td><td class="ejemplo">"¿Está sana la federación?".</td></tr>
+          <tr><td class="skill"><code>federation-audit</code></td><td class="func">Logs de auditoría de federación con filtros de compliance.</td><td class="ejemplo">Revisar actividad entre pares.</td></tr>
+          <tr><td class="skill"><code>rvf-manage</code></td><td class="func">Gestión de archivos RVF: memoria portable entre plataformas.</td><td class="ejemplo">Transferir memoria a otra instalación.</td></tr>
+          <tr><td class="skill"><code>observe-metrics</code></td><td class="func">Métricas agregadas con detección de anomalías por periodo.</td><td class="ejemplo">Monitoreo de salud del sistema.</td></tr>
+          <tr><td class="skill"><code>observe-trace</code></td><td class="func">Traza la ejecución del agente en spans y árbol.</td><td class="ejemplo">Diagnóstico de rendimiento por paso.</td></tr>
+          <tr><td class="skill"><code>agent-migration-plan</code> / <code>agent-docs-api-openapi</code> / <code>agent-app-store</code></td><td class="func">Ver también en las secciones de Backend, Multi-agente y ML (agrupadas por dominio).</td><td class="ejemplo">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="vacio" id="vacio">Ninguna skill coincide con la búsqueda. Limpia el filtro para ver el catálogo completo.</div>
+
+  <footer class="end">
+    <h3>Notas de uso</h3>
+    <ul>
+      <li><b>Cómo se activan</b>: en sesión, basta con mencionar la skill o describir una tarea que coincida con su descripción; el agente la invoca con el tool de skills. También se pueden invocar directamente por su id.</li>
+      <li><b>Skills propias del repo</b>: ninguna — si se necesita una regla de este proyecto (ej. el protocolo <code class="k">addv-web-app</code>), vive en <code class="k">AGENTS.md</code> + skill global, no en <code class="k">.opencode/</code>.</li>
+      <li><b>Regla persistente</b>: antes de dar una skill o herramienta por "no disponible", revisar este catálogo, luego <code class="k">D:\cc</code> y luego el repositorio oficial (regla de <code class="k">AGENTS.md</code>).</li>
+      <li>Archivo generado el 2026-10-27. Si el entorno se actualiza con skills nuevas, este documento debe refrescarse.</li>
+    </ul>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var input = document.getElementById('busqueda');
+  var contador = document.getElementById('contador');
+  var vacio = document.getElementById('vacio');
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var secciones = Array.prototype.slice.call(document.querySelectorAll('section.cat'));
+  var filas = [];
+  secciones.forEach(function (sec) {
+    var filasSec = Array.prototype.slice.call(sec.querySelectorAll('tbody tr'));
+    filasSec.forEach(function (tr) { filas.push({ tr: tr, sec: sec }); });
+    var badge = sec.querySelector('[data-badge]');
+    if (badge) badge.textContent = filasSec.length + ' skills';
+  });
+
+  var catActiva = 'todas';
+
+  function normalizar(s) { return (s || '').toLowerCase(); }
+
+  function aplicar() {
+    var q = normalizar(input.value.trim());
+    var visibles = 0;
+    filas.forEach(function (f) {
+      var catOk = (catActiva === 'todas') || (f.sec.getAttribute('data-cat') === catActiva);
+      var textoOk = !q || normalizar(f.tr.textContent).indexOf(q) !== -1;
+      var mostrar = catOk && textoOk;
+      f.tr.classList.toggle('oculta', !mostrar);
+      if (mostrar) visibles++;
+    });
+    secciones.forEach(function (sec) {
+      var algunaVisible = sec.querySelector('tbody tr:not(.oculta)');
+      sec.style.display = algunaVisible ? '' : 'none';
+    });
+    contador.textContent = visibles + ' de ' + filas.length + ' skills';
+    vacio.style.display = visibles ? 'none' : 'block';
+  }
+
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      chips.forEach(function (c) { c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'); });
+      catActiva = chip.getAttribute('data-cat');
+      aplicar();
+    });
+  });
+
+  var timer = null;
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(aplicar, 120);
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { input.value = ''; aplicar(); }
+  });
+
+  aplicar();
+})();
+</script>
+</body>
+</html>

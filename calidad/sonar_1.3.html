@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sonar 1.3 — Análisis de calidad y seguridad · Portal de Facturación ADDV (Clarvo)</title>
+<style>
+  :root{
+    --sev-blocker:#82071E; --sev-blocker-bg:#FFEBE9;
+    --sev-critical:#CF222E; --sev-critical-bg:#FFEBE9;
+    --sev-major:#BC4C00; --sev-major-bg:#FFF1E5;
+    --sev-minor:#9A6700; --sev-minor-bg:#FFF8C5;
+    --sev-info:#0969DA; --sev-info-bg:#DDF4FF;
+    --verde:#1A7F37; --verde-bg:#DAFBE1;
+    --gris:#59636E; --borde:#D1D9E0; --fondo:#F6F8FA; --texto:#1F2328;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--fondo);color:var(--texto);line-height:1.5;font-size:14px}
+  header{background:#0D1B2A;color:#fff;padding:26px 32px}
+  header h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header .sub{color:#9FB3C8;font-size:13px;margin-top:4px}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 32px 64px}
+  h2{font-size:17px;margin:34px 0 12px;border-bottom:1px solid var(--borde);padding-bottom:6px}
+  h3{font-size:14px;margin:20px 0 8px}
+  .gate{border-radius:8px;padding:16px 20px;margin:20px 0;border:1px solid}
+  .gate.fail{background:var(--sev-blocker-bg);border-color:var(--sev-blocker);color:var(--sev-blocker)}
+  .gate.cond{background:var(--sev-major-bg);border-color:var(--sev-major);color:var(--sev-major)}
+  .gate.pass{background:var(--verde-bg);border-color:var(--verde);color:var(--verde)}
+  .gate .titulo{font-weight:700;font-size:15px;margin-bottom:4px}
+  .gate p{margin:4px 0 0;color:var(--texto)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+  .card{background:#fff;border:1px solid var(--borde);border-radius:8px;padding:14px}
+  .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--gris)}
+  .card .v{font-size:26px;font-weight:700;margin-top:2px}
+  .card .d{font-size:12px;color:var(--gris);margin-top:2px}
+  .rating{display:inline-block;width:30px;height:30px;border-radius:50%;color:#fff;font-weight:700;text-align:center;line-height:30px;font-size:15px}
+  .r-a{background:var(--verde)} .r-b{background:#5A9E3E} .r-c{background:var(--sev-minor)} .r-d{background:var(--sev-major)} .r-e{background:var(--sev-critical)}
+  .sev-counts{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+  .sev-badge{border-radius:20px;padding:5px 14px;font-weight:600;font-size:13px;border:1px solid}
+  .b-blocker{background:var(--sev-blocker-bg);color:var(--sev-blocker);border-color:var(--sev-blocker)}
+  .b-critical{background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)}
+  .b-major{background:var(--sev-major-bg);color:var(--sev-major);border-color:var(--sev-major)}
+  .b-minor{background:var(--sev-minor-bg);color:var(--sev-minor);border-color:var(--sev-minor)}
+  .b-info{background:var(--sev-info-bg);color:var(--sev-info);border-color:var(--sev-info)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--borde);border-radius:8px;overflow:hidden;font-size:13px}
+  th{background:#F3F4F6;text-align:left;padding:9px 10px;border-bottom:1px solid var(--borde);font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--gris)}
+  td{padding:9px 10px;border-bottom:1px solid #EAECEF;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.id{white-space:nowrap;font-weight:600;color:var(--gris);font-size:12px}
+  td.arch{white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+  .pill{display:inline-block;border-radius:12px;padding:1px 9px;font-size:11px;font-weight:600;border:1px solid}
+  .p-vuln{background:var(--sev-critical-bg);color:var(--sev-critical);border-color:var(--sev-critical)}
+  .p-smell{background:#F3F4F6;color:var(--gris);border-color:var(--borde)}
+  .p-hot{background:var(--sev-minor-bg);color:var(--sev-minor);border-color:var(--sev-minor)}
+  .p-conf{background:var(--sev-info-bg);color:var(--sev-info);border-color:var(--sev-info)}
+  .desc b.t{display:block;margin-bottom:2px}
+  .rec{color:var(--gris);margin-top:3px;display:block}
+  .rec::before{content:"Recomendación: ";font-weight:600;color:var(--texto)}
+  .ok{color:var(--verde);font-weight:700}
+  .warn{color:var(--sev-major);font-weight:700}
+  .bad{color:var(--sev-critical);font-weight:700}
+  .parcial{color:var(--sev-major);font-weight:700}
+  ul{margin:8px 0;padding-left:22px} li{margin:4px 0}
+  .owasp td:nth-child(2){font-weight:600}
+  .barra{height:9px;border-radius:5px;background:#EAECEF;overflow:hidden;min-width:120px;margin-top:5px}
+  .barra>span{display:block;height:100%}
+  .nota{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--sev-info);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px}
+  .delta{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--verde);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:13px}
+  footer{color:var(--gris);font-size:12px;margin-top:40px;border-top:1px solid var(--borde);padding-top:14px}
+  code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#F3F4F6;border-radius:4px;padding:0 4px;font-size:12px}
+  @media (max-width:820px){ .wrap{padding:16px} table{display:block;overflow-x:auto} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Informe de calidad y seguridad — Portal de Facturación ADDV (Clarvo)</h1>
+  <div class="sub">Análisis tipo SonarQube + revisión OWASP Top 10 (2021) · Versión 1.3 · 2026-10-29 · Alcance del producto: backend/, control/, frontend/, docker/ · 115 archivos · 84,190 líneas analizadas · <code>hostinger/</code> y <code>VULTR/</code> fuera de alcance (herramientas de despliegue, puntos 412/435/448) · Comparado contra sonar_1.2.html (1.2, 2026-10-22)</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ═══════════════ COMPARATIVA VS 1.2 ═══════════════ -->
+  <h2>0. Comparativa contra la versión 1.2 (sonar_1.2.html)</h2>
+  <div class="delta">
+    <b>Cero regresiones de seguridad, dos frentes nuevos de deuda.</b> Los <b>51 hallazgos con ID vigentes al cierre de la 1.2</b> (49 re-estado en la propia 1.2 + N-04 nota de herramienta + N-05) fueron <span class="ok">re-verificados línea por línea hoy</span>: los 43 cerrados siguen cerrados, los parciales (m-11, i-03) y abiertos (i-01, i-02, i-04, N-05) mantienen su estado, y N-02 (intermitencia de control) cerró — la suite de control no la reprodujo en 2 corridas completas. El crecimiento desde la 1.2 (puntos 414-443: Garage, suscripción, Stripe recurrente, onboarding real, SMTP de plataforma, indicador de disco) trajo <b>2 hallazgos nuevos mayores</b>: <b>N-06</b> — el <code>npm audit</code> pendiente desde la 1.2 finalmente corrió y encontró <b>8 vulnerabilidades en backend y 7 en control</b> (1 crítica + 5 altas + 2 moderadas en backend) — y <b>N-07</b> — el commit más reciente (SMTP de plataforma, <code>7160a10</code>) se integró con <b>14 tests rojos en 5 suites</b>, todos verificados hoy como <b>tests desactualizados, no regresiones del producto</b>. Un menor nuevo: <b>N-08</b> (2da suite intermitente: <code>preferenciasDashboard</code>). La Quality Gate vuelve de APROBADA (1.2) a <b>APROBADA CON CONDICIONES</b> — ninguna condición es una vulnerabilidad de código propio, ambas son remediables en horas.
+  </div>
+
+  <table>
+    <tr><th>Antes (1.2)</th><th>Ahora (1.3)</th><th>Delta</th></tr>
+    <tr>
+      <td>Quality Gate: <b class="ok">APROBADA</b><br>0 blockers · 0 críticos · 0 mayores · 1 menor (N-05)</td>
+      <td>Quality Gate: <b class="warn">APROBADA CON CONDICIONES</b><br>0 blockers · 0 críticos · 2 mayores (N-06 supply-chain, N-07 tests rojos) · 2 menores (N-05, N-08)</td>
+      <td class="desc">Las 2 condiciones son <b>N-07</b> (actualizar los 14 tests que el commit SMTP dejó rojos — el código nuevo es correcto, los tests quedaron viejos) y <b>N-06</b> (<code>npm audit fix</code> no-breaker + decisión sobre nodemailer 10.x). Cero vulnerabilidades de código propio abiertas.</td>
+    </tr>
+    <tr><td>Seguridad <span class="rating r-a">A</span></td><td>Seguridad <span class="rating r-b">B</span></td><td class="desc">El único retroceso de la ronda, y es de <b>supply-chain, no de código propio</b>: A06 (componentes vulnerables) pasa de CUMPLE a PARCIAL por las 15 vulnerabilidades de dependencias (8 backend + 7 control, casi todas compartidas). La crítica (proxy-addr) tiene explotabilidad baja aquí (<code>trust proxy</code> con hop-count numérico, no subnet); la de mayor relevancia real es nodemailer (divulgación cross-tenant de credenciales SMTP, CVE que aplica al patrón multi-tenant con SMTP por-tenant de este producto).</td></tr>
+    <tr><td>Confiabilidad <span class="rating r-b">B</span></td><td>Confiabilidad <span class="rating r-c">C</span></td><td class="desc">La suite dejó de estar en verde determinista: <b>14 rojos</b> (3 backend + 11 control, todos tests desactualizados verificados uno por uno) + <b>2 intermitentes</b> (N-05 <code>docsEnabled</code> persiste; N-08 <code>preferenciasDashboard</code> nuevo). Ninguna regresión funcional del producto — cada rojo fue trazado al commit que cambió el comportamiento sin actualizar el test.</td></tr>
+    <tr><td>Mantenibilidad <span class="rating r-c">C</span></td><td>Mantenibilidad <span class="rating r-c">C</span></td><td class="desc">Monolitos crecieron otra vez: admin.js +935 (21,247), server.js +450 (11,428), admin.html +348 (6,249). El código total del producto subió de 80,896 a 84,190 líneas (+4.1%) en una semana.</td></tr>
+    <tr><td>Tests: 1,825 ejecuciones</td><td>Tests: 1,883 ejecuciones</td><td class="desc">Backend 1,374 (+39, de las cuales 1,371 en verde) · control 509 (+19, 498 en verde). La base de pruebas sigue creciendo; lo que falta ahora es ponerla al día con los cambios ya integrados.</td></tr>
+  </table>
+
+  <div class="sev-counts">
+    <span class="sev-badge b-blocker">0 Blocker</span>
+    <span class="sev-badge b-critical">0 Críticos de código propio</span>
+    <span class="sev-badge b-major">2 Mayores (N-06, N-07)</span>
+    <span class="sev-badge b-minor">2 Menores (N-05, N-08) + m-11 parcial</span>
+    <span class="sev-badge b-info">4 Informativos (i-01 a i-04)</span>
+  </div>
+
+  <!-- ═══════════════ QUALITY GATE ═══════════════ -->
+  <div class="gate cond">
+    <div class="titulo">QUALITY GATE: APROBADA CON CONDICIONES</div>
+    <p><b>Ninguna vulnerabilidad de código propio abierta</b>: los 49 hallazgos de producto vigentes al cierre de la 1.2 siguen sin regresiones (verificados con grep de cada patrón de fix + lectura de línea: cookie <code>Secure</code>, auditoría con <code>originalUrl</code>, body parser acotado, Turnstile, preflight de defaults, escapes de atributo, 27m consistente, iframe sandbox). El código nuevo de la ronda (Stripe recurrente con firma HMAC + fail-closed, Garage, suscripción, SMTP de plataforma con AES-256-GCM) fue revisado y cumple los patrones del repo. <b>Las 2 condiciones de la gate son:</b> (1) <b>N-07</b> — actualizar los 14 tests que el commit <code>7160a10</code> dejó rojos (backend 3, control 11; el comportamiento nuevo es intencional y verificado, los tests quedaron apuntando a la API vieja); y (2) <b>N-06</b> — correr <code>npm audit fix</code> (no-breaker: proxy-addr, body-parser, qs, brace-expansion, js-yaml, sharp) y decidir el upgrade de nodemailer a 10.x con una prueba de envío real. Ninguna de las dos requiere rediseño.</p>
+  </div>
+
+  <!-- ═══════════════ MÉTRICAS ═══════════════ -->
+  <h2>1. Métricas del proyecto</h2>
+  <div class="cards">
+    <div class="card"><div class="k">Seguridad</div><div class="v"><span class="rating r-b">B</span></div><div class="d">Código propio: 0 abiertos. Supply-chain: 15 CVEs (N-06)</div></div>
+    <div class="card"><div class="k">Confiabilidad (bugs)</div><div class="v"><span class="rating r-c">C</span></div><div class="d">14 tests rojos + 2 intermitentes</div></div>
+    <div class="card"><div class="k">Mantenibilidad</div><div class="v"><span class="rating r-c">C</span></div><div class="d">Monolitos (+935/+450 líneas)</div></div>
+    <div class="card"><div class="k">Líneas de código</div><div class="v">84,190</div><div class="d">115 archivos (JS/HTML/CSS, sin hostinger/)</div></div>
+    <div class="card"><div class="k">Tests backend</div><div class="v">1,371/1,374</div><div class="d">69 suites — 3 rojos (email.test.js, tests viejos)</div></div>
+    <div class="card"><div class="k">Tests control</div><div class="v">498/509</div><div class="d">28 suites — 11 rojos (tests viejos post-Stripe/SMTP)</div></div>
+    <div class="card"><div class="k">Rutas backend</div><div class="v">208</div><div class="d">control: 93 (onboarding/Stripe/suscripciones)</div></div>
+    <div class="card"><div class="k">Paquete hostinger/</div><div class="v">Desfasado</div><div class="d">Herramienta de deploy (fuera de alcance) — nota N-04</div></div>
+  </div>
+
+  <table>
+    <tr><th>Categoría</th><th>Abiertos</th><th>Distribución</th></tr>
+    <tr><td>Vulnerabilidades de código propio (blocker + críticos + mayores)</td><td><span class="ok">0</span></td><td><div class="barra"><span style="width:2%;background:var(--verde)"></span></div></td></tr>
+    <tr><td>Supply-chain (dependencias con CVE)</td><td><span class="bad">15</span> (8 backend, 7 control)</td><td><div class="barra"><span style="width:70%;background:var(--sev-critical)"></span></div></td></tr>
+    <tr><td>Calidad de pruebas (rojos + intermitencia)</td><td>16</td><td><div class="barra"><span style="width:55%;background:var(--sev-major)"></span></div></td></tr>
+    <tr><td>Code smells / deuda técnica</td><td>3</td><td><div class="barra"><span style="width:12%;background:var(--sev-minor)"></span></div></td></tr>
+    <tr><td>Configuración insegura (infra)</td><td><span class="ok">0</span></td><td><div class="barra"><span style="width:2%;background:var(--verde)"></span></div></td></tr>
+  </table>
+
+  <!-- ═══════════════ ESTADO DE LOS HALLAZGOS PREVIOS ═══════════════ -->
+  <h2>2. Estado de los 51 hallazgos con ID vigentes al cierre de la 1.2</h2>
+  <p>Cada estado fue <span class="ok">verificado</span> hoy leyendo la línea exacta del fuente actual (no mensajes de commit — la lección del punto 352). "Cerrado" = el fix sigue en el código; "Parcial" = fix con resto documentado.</p>
+
+  <h3>2.1 Críticos (6) — todos cerrados, sin regresiones</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.2 → 1.3</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">C-01</td><td>CERRADO → CERRADO</td><td class="arch">Candado <code>perfil='cliente'</code> intacto (suite auth-usuario verde)</td></tr>
+    <tr><td class="id">C-02</td><td>CERRADO → CERRADO</td><td class="arch">fail-closed de ADMIN_USERS presente en backend/utils/auth.js y control/utils/auth.js</td></tr>
+    <tr><td class="id">C-03</td><td>CERRADO → CERRADO</td><td class="arch"><code>hostPermitido()</code> + <code>absolute_redirect off</code> intactos</td></tr>
+    <tr><td class="id">C-04</td><td>CERRADO → CERRADO</td><td class="arch">Preflight real en <code>hostinger/actualizar.sh:115-119</code>: detecta los 5 <code>changeme_*</code> (MYSQL_ROOT_PASSWORD, MYSQL_PASSWORD, MINIO_ROOT_PASSWORD, CONTROL_APP_PASSWORD, INTERNAL_CACHE_SECRET) y aborta</td></tr>
+    <tr><td class="id">C-05</td><td>CERRADO → CERRADO</td><td class="arch">Grep de atributos <code>(data-…|aria-label|value|title)="…${escapeHtml(</code> sobre admin.js/control.js/portal.js: <b>0 matches</b></td></tr>
+    <tr><td class="id">C-06</td><td>CERRADO → CERRADO</td><td class="arch">Tooltip con <code>escapeHtmlAttr</code> intacto</td></tr>
+  </table>
+
+  <h3>2.2 Mayores (19 + N-01…N-03) — todos cerrados, sin regresiones</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.2 → 1.3</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">M-01…M-04</td><td>CERRADOS → CERRADOS</td><td class="arch">Sin regresiones (suites de portal/CSRF/csv verde)</td></tr>
+    <tr><td class="id">M-05</td><td>CERRADO → CERRADO</td><td class="arch">backend/server.js:292-293 — <code>jsonLimiteAmplio</code> sigue scoped solo a <code>/internal/marca-logo</code> y <code>/internal/favicon</code></td></tr>
+    <tr><td class="id">M-06</td><td>CERRADO → CERRADO</td><td class="arch">control/server.js:492 — <code>verificarTurnstile</code> server-side fail-closed preservado en la ruta NUEVA <code>pagar/:token</code> (la vieja <code>convertir/:token</code> se eliminó con el rediseño de Stripe, punto 425 — ver N-07)</td></tr>
+    <tr><td class="id">M-07…M-15</td><td>CERRADOS → CERRADOS</td><td class="arch">Sin regresiones verificadas</td></tr>
+    <tr><td class="id">M-16</td><td>CERRADO → CERRADO</td><td class="arch">Mensajes genéricos al cliente + <code>console.error</code> con detalle intactos</td></tr>
+    <tr><td class="id">M-17</td><td>CERRADO → CERRADO</td><td class="arch">DOCS_ENABLED opt-in intacto (suite docsEnabled verde en aislado)</td></tr>
+    <tr><td class="id">M-18</td><td>CERRADO → CERRADO</td><td class="arch">backend/utils/authUsuario.js:194 <code>secure</code> + :209-213 fail-closed de arranque intactos</td></tr>
+    <tr><td class="id">M-19</td><td>CERRADO → CERRADO</td><td class="arch">control/server.js:329 — auditoría registra <code>req.originalUrl</code> sin descartar GET (A09 cumple)</td></tr>
+    <tr><td class="id">N-01</td><td>CERRADO → CERRADO</td><td class="arch">Los 4 <code>client_max_body_size 27m</code> de nginx.conf.template (:85, :404, :502, :556) consistentes</td></tr>
+    <tr><td class="id">N-02</td><td>PARCIAL → <span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CERRADO</span></td><td class="arch">La intermitencia de <code>docsEnabled</code> (control) no se reprodujo en 2 corridas completas de esta ronda. El nuevo rojo de <code>ensureSchema.test.js</code> es de motivo DISTINTO (mock sin cubrir la query nueva <code>totalReal</code>, punto 432) — va en N-07.</td></tr>
+    <tr><td class="id">N-03</td><td>CERRADO → CERRADO</td><td class="arch">0 call sites residuales con <code>escapeHtml()</code> dentro de atributos en el frontend</td></tr>
+  </table>
+
+  <h3>2.3 Menores e informativos (17 + 4) — sin regresiones</h3>
+  <table>
+    <tr><th>ID</th><th>Estado 1.2 → 1.3</th><th>Evidencia verificada hoy</th></tr>
+    <tr><td class="id">m-01…m-10, m-12…m-17</td><td>CERRADOS → CERRADOS</td><td class="arch">Sin regresiones verificadas (greps de cada patrón: docs opt-in, límites, token Banxico, DUMMY_PASSWORD, throw de DB_PASSWORD, iframe sandbox, .dockerignore, 27m, sin <code>btoa(unescape)</code> propio, contraste del pie, glifos Unicode, TTL de offline, CHECK_CONSTRAINTS)</td></tr>
+    <tr><td class="id">m-11</td><td>PARCIAL → PARCIAL</td><td class="arch">control/Dockerfile con <code>USER appuser</code>. backend/Dockerfile:24-36 sigue a propósito sin USER (justificación documentada: el bind mount <code>./uploads</code> — que sigue en docker-compose.yml:417 como config muerta conocida del punto 414 — rompería permisos). frontend (nginx) sigue como root. Matiz razonable, residual bajo.</td></tr>
+    <tr><td class="id">i-01</td><td>ABIERTO → ABIERTO</td><td class="arch">Aislamiento de storage por prefijo lógico por tenant intacto (backend/utils/storage.js:86-91) — mismo riesgo aceptado documentado, sin cambios</td></tr>
+    <tr><td class="id">i-02</td><td>ABIERTO → ABIERTO</td><td class="arch">Un único <code>INTERNAL_CACHE_SECRET</code> para <b>16</b> rutas <code>/internal/*</code> (antes 14 — creció con disco-uso, uso-usuarios, aplicar-limite-usuarios, etc.). El compose de producción sigue exigiendo la variable.</td></tr>
+    <tr><td class="id">i-03</td><td>PARCIAL → PARCIAL</td><td class="arch">HSTS condicional al proto https intacto (:30-33), pero sigue sin <code>preload</code> y 0 cabeceras COOP/CORP en el archivo</td></tr>
+    <tr><td class="id">i-04</td><td>ABIERTO → ABIERTO</td><td class="arch">style.css:1 — el <code>@import</code> de Google Fonts sigue en la hoja crítica (auto-hospedar Inter pendiente)</td></tr>
+    <tr><td class="id">N-05</td><td>ABIERTO → ABIERTO</td><td class="arch">Backend <code>docsEnabled.test.js</code> volvió a fallar 1 de 3 corridas completas (<code>Exceeded timeout of 5000 ms</code>) y pasó en aislado — intermitencia confirmada otra vez. Ahora con hermano nuevo (N-08).</td></tr>
+    <tr><td class="id">N-04</td><td>Nota → Nota (actualizada)</td><td class="arch">hostinger/ (antes prod/, punto 435) sigue desfasado: 8 de 9 pares clave comparados por SHA-256 difieren (admin.js, admin.html, control.js, theme.js, backend/server.js, nginx.conf.template, docker-compose) y <b>hostinger/control/ no existe</b> — el paquete de deploy no incluye el tercer servicio. Fuera de alcance por puntos 412/435; ver sección 4.</td></tr>
+  </table>
+
+  <!-- ═══════════════ OWASP ═══════════════ -->
+  <h2>3. Cumplimiento OWASP Top 10 (2021)</h2>
+  <table class="owasp">
+    <tr><th>Categoría</th><th>Categoría</th><th>1.2 → 1.3</th><th>Evidencia principal</th></tr>
+    <tr>
+      <td><b>A01</b></td><td>Broken Access Control</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Candados <code>requiereFeature</code>, <code>perfil='cliente'</code> y fail-closed de ADMIN_USERS intactos. La ruta pública de onboarding se redujo con el rediseño de Stripe (la conversión ya no es un endpoint público — solo <code>pagar/:token</code> con Turnstile, y la activación ocurre vía webhook firmado), lo que refuerza la categoría.</td>
+    </tr>
+    <tr>
+      <td><b>A02</b></td><td>Cryptographic Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Cookie <code>Secure</code> forzada + fail-closed intactos. Nuevo cifrado de credenciales SMTP/Garage: AES-256-GCM con IV aleatorio de 12 bytes y clave <code>CONTROL_VAULT_KEY</code> solo en .env (control/utils/cifrado.js:16-45) — patrón correcto. La advertencia de nodemailer (divulgación de credenciales SMTP cross-tenant) queda en N-06 como supply-chain.</td>
+    </tr>
+    <tr>
+      <td><b>A03</b></td><td>Injection</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">0 escapes de atributo residuales; SQL parametrizado y CSV injection sin regresiones.</td>
+    </tr>
+    <tr>
+      <td><b>A04</b></td><td>Insecure Design</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Body parser global de 2 MB con amplio acotado por path intacto. El nuevo flujo de onboarding "cobrar primero, activar después" (punto 425) elimina la capacidad de activarse sin pagar — mejora de diseño respecto de la 1.2.</td>
+    </tr>
+    <tr>
+      <td><b>A05</b></td><td>Security Misconfiguration</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Preflight de defaults, docs opt-in, 27m consistente, cookie fail-closed — intactos. Webhook de Stripe: fail-closed (sin <code>STRIPE_SECRET_KEY</code>/<code>STRIPE_WEBHOOK_SECRET</code> responde 503, nunca procesa) + firma HMAC verificada con <code>constructEvent</code> sobre el body crudo (control/server.js:550-566). Residual menor: m-11 (backend sin <code>USER</code>, con justificación).</td>
+    </tr>
+    <tr>
+      <td><b>A06</b></td><td>Vulnerable and Outdated Components</td>
+      <td><span class="bad">PARCIAL</span><br><small>antes: CUMPLE</small></td>
+      <td class="desc"><b>La única categoría que empeora — y es exactamente lo que la 1.2 marcaba como "recomendación pendiente: npm audit"</b>. Corrido hoy: 15 vulnerabilidades (8 backend, 7 control): 1 crítica (proxy-addr), 5+4 altas (nodemailer ×12 advisories, body-parser, brace-expansion, js-yaml, sharp), 2+2 moderadas (qs). Detalle con explotabilidad real evaluada en N-06 (sección 4).</td>
+    </tr>
+    <tr>
+      <td><b>A07</b></td><td>Identification and Authentication Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Política de super-admin, DUMMY_PASSWORD anti-timing, candado de unicidad — intactos, sin regresiones.</td>
+    </tr>
+    <tr>
+      <td><b>A08</b></td><td>Software and Data Integrity Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Escritura atómica del .env e iframe sandbox intactos. El webhook de Stripe (integración crítica nueva) verifica firma HMAC antes de procesar y es idempotente vía <code>stripe_eventos_procesados</code> — patrón correcto de integridad. El desfase de <code>hostinger/</code> queda fuera de alcance (herramienta de despliegue, puntos 412/435).</td>
+    </tr>
+    <tr>
+      <td><b>A09</b></td><td>Security Logging and Monitoring Failures</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc">Auditoría cross-tenant con lecturas autenticadas y <code>req.originalUrl</code> intacta. El bloqueo de suscripción vencida (punto 417) agrega trazabilidad nueva sin tocar el hook.</td>
+    </tr>
+    <tr>
+      <td><b>A10</b></td><td>Server-Side Request Forgery</td>
+      <td><span class="pill" style="background:var(--verde-bg);color:var(--verde);border-color:var(--verde)">CUMPLE</span></td>
+      <td class="desc"><code>sincronizarDesdeOrigen()</code> sin parámetro de URL intacto; las llamadas nuevas (Stripe API, API interna backend→control) van a hosts fijos por configuración, no a URLs de usuario.</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ HALLAZGOS NUEVOS ═══════════════ -->
+  <h2>4. Hallazgos nuevos de la versión 1.3</h2>
+  <p>Tres hallazgos nuevos del producto (N-06, N-07, N-08) y la actualización de la nota de herramienta (N-04), todos <span class="ok">verificados</span> con evidencia reproducible.</p>
+  <table>
+    <tr><th>ID</th><th>Sev.</th><th>Archivo:línea</th><th>Tipo</th><th>Detalle y recomendación</th></tr>
+
+    <tr>
+      <td class="id">N-06</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">backend/package-lock.json + control/package-lock.json <span class="ok">verificado con npm audit --omit=dev</span></td>
+      <td><span class="pill p-vuln">Supply-chain</span></td>
+      <td class="desc"><b class="t">npm audit (pendiente desde la 1.2): 8 vulnerabilidades en backend, 7 en control — 1 crítica + 9 altas + 4 moderadas únicas</b>
+        Resultado real de hoy (<code>npm audit --omit=dev</code>, solo dependencias de producción):
+
+        <table style="margin-top:8px;font-size:12px">
+          <tr><th>Paquete</th><th>Sev.</th><th>Backend</th><th>Control</th><th>Explotabilidad real en ESTE producto</th></tr>
+          <tr><td class="arch">proxy-addr 2.0.7<br>GHSA-jqcg-44mw-7w3h</td><td><span class="bad">Crítica</span></td><td>Si</td><td>Si</td><td class="desc"><b>Baja</b> — la CVE aplica a <code>trust proxy</code> configurado con subnet; aquí ambos servicios usan hop-count numérico (backend/server.js:259-264, control/server.js:125-130, default 1). Fix no-breaker.</td></tr>
+          <tr><td class="arch">nodemailer 9.1.1<br>12 advisories (GHSA-6vj9-mwq6-2f5v la principal)</td><td><span class="bad">Alta</span></td><td>Si</td><td>Si</td><td class="desc"><b>Media-Alta — la más relevante del informe</b>: "caché DNS global de proceso reutiliza el servername TLS entre transportes, permitiendo divulgación de credenciales SMTP cross-tenant". El backend ES multi-tenant con SMTP configurado por-tenant (email.js) y el punto 443 agregó SMTP de plataforma como fallback compartido en control/ — el contexto exacto de la CVE. Fix requiere nodemailer 10.3.1 (breaking).</td></tr>
+          <tr><td class="arch">sharp &lt;0.35.5<br>librsvg CVE-2026-96889</td><td><span class="bad">Alta</span></td><td>Si</td><td>No</td><td class="desc"><b>Media</b> — sharp SÍ procesa imágenes en runtime (backend/utils/inventarioImagen.js:9, fotos de producto subidas por usuarios autenticados). Fix no-breaker.</td></tr>
+          <tr><td class="arch">body-parser ≤1.20.8<br>GHSA-27r3-jxmh-p828</td><td><span class="warn">Alta</span></td><td>Si</td><td>Si</td><td class="desc"><b>Baja-Media</b> — DoS por bytes trailing tras cuerpo comprimido; el límite de 2 MB global mitiga el impacto. Fix no-breaker.</td></tr>
+          <tr><td class="arch">brace-expansion ≤1.1.20</td><td><span class="warn">Alta</span></td><td>Si</td><td>Si</td><td class="desc"><b>Baja</b> — DoS CPU/recursión en expansión de patrones glob; entrada no controlada directamente por atacantes en runtime. Fix no-breaker.</td></tr>
+          <tr><td class="arch">js-yaml 4.0.0-4.3.1<br>(vía swagger-jsdoc)</td><td><span class="warn">Alta</span></td><td>Si</td><td>Si</td><td class="desc"><b>Baja</b> — solo se invoca con <code>DOCS_ENABLED=true</code> (opt-in, apagado por defecto desde m-01). Fix no-breaker.</td></tr>
+          <tr><td class="arch">qs 6.7.0-6.16.0<br>(vía express)</td><td><span class="warn">Moderada</span></td><td>Si</td><td>Si</td><td class="desc"><b>Baja</b> — DoS en <code>qs.stringify</code> con <code>arrayFormat:'comma'</code>, patrón no usado en el código propio. Fix no-breaker.</td></tr>
+        </table>
+
+        <span class="rec">Fase 1 (horas, sin breaking): <code>npm audit fix</code> en ambos paquetes — cubre proxy-addr, body-parser, qs, brace-expansion, js-yaml y sharp. Fase 2 (decisión explícita): upgrade de nodemailer a 10.3.1 en backend Y control ( builds separados, doble upgrade) con prueba de envío real + <code>verificarConexionSmtp</code> después; dado el patrón multi-tenant con SMTP por-tenant, este upgrade es la prioridad de seguridad #1 de la ronda. Agregar <code>npm audit --omit=dev</code> al preflight de <code>hostinger/actualizar.sh</code> para que el gate sea permanente, no una corrida manual.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-07</td>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Mayor</span></td>
+      <td class="arch">5 suites: backend/test/unit/email.test.js · control/test/unit/accesoSmtp.test.js · control/test/unit/ensureSchema.test.js · control/test/unit/onboardingConversion.test.js · control/test/integration/control.test.js <span class="ok">verificado test por test</span></td>
+      <td><span class="pill p-smell">Code smell (calidad de pruebas)</span></td>
+      <td class="desc"><b class="t">El commit 7160a10 (SMTP de plataforma) y la ronda 417-443 se integraron con 14 tests rojos — todos son tests desactualizados, no regresiones del producto</b>
+        Cada rojo fue trazado al cambio de comportamiento INTENCIONAL que no actualizó su test:
+        <ul>
+          <li><b>backend/email.test.js (3 rojos)</b> — <code>configSmtpParaMostrar()</code> ahora es <code>async</code> (espera <code>obtenerSmtpDefaultCacheado()</code> para el banner "usandoDefault" del punto 443, backend/utils/email.js:177-198); los 3 tests la llaman síncrona y reciben un Promise (<code>undefined</code> en las aserciones).</li>
+          <li><b>control/accesoSmtp.test.js (4 rojos)</b> — <code>getAccesoSmtp()</code> ahora devuelve el campo nuevo <code>verificadoEn</code> (punto 443); los tests usan <code>toEqual</code> estricto sin él.</li>
+          <li><b>control/ensureSchema.test.js (2 rojos)</b> — <code>asegurarTablaPlanes()</code> agregó la query <code>SELECT COUNT(*) AS totalReal … WHERE nombre IN ('CLARVO …')</code> (punto 432, catálogo real de 4 planes); el mock no la cubre y revienta el destructuring.</li>
+          <li><b>control/onboardingConversion.test.js (1 rojo)</b> — <code>urlPortal</code> ahora es <code>null</code> cuando el plan no tiene <code>portal_clientes_habilitado</code> (gobernanza en Control, onboardingConversion.js:200); el test espera la URL incondicionalmente.</li>
+          <li><b>control/control.test.js (4 rojos)</b> — apuntan a <code>POST /api/public/onboarding/convertir/:token</code>, ruta <b>eliminada a propósito</b> con el rediseño de Stripe (punto 425): ahora es <code>pagar/:token</code> y la conversión solo ocurre vía webhook firmado. El 404 que reciben es el comportamiento correcto.</li>
+        </ul>
+        El síntoma de proceso: la suite ya no sirve como red de seguridad para detectar regresiones reales mientras hay ruido rojo constante (mismo argumento que la 1.2 usó para N-02/N-05).
+        <span class="rec">Actualizar los 14 tests al comportamiento nuevo (await en email.test.js, incluir <code>verificadoEn</code>, mockear <code>totalReal</code>, condicionar <code>urlPortal</code> al plan, migrar los 4 tests de Turnstile a <code>pagar/:token</code>). Esfuerzo estimado: menos de una hora, sin tocar código de producto — y dejaría ambas suites en verde determinista salvo los 2 intermitentes (N-05/N-08).</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-08</td>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Menor</span></td>
+      <td class="arch">backend/test/integration/preferenciasDashboard.test.js <span class="ok">verificado con doble ejecución</span></td>
+      <td><span class="pill p-smell">Code smell</span></td>
+      <td class="desc"><b class="t">2da suite intermitente de backend: preferenciasDashboard falla 1 de 3 corridas completas con timeout y pasa en aislado</b>
+        Corrida completa 1: <b>4 rojos</b> (email 3 + preferenciasDashboard 1). Corrida completa 2: <b>6 rojos</b> (email 3 + preferenciasDashboard 2 + docsEnabled 1). Corrida completa 3: <b>3 rojos</b> (solo email, deterministas). Aislada: <b>9/9 en 8.3 s</b>. Mismo patrón que N-05: timeout bajo carga paralela de suites. Ambos comparten la misma causa raíz probable (suites de integración que levantan el servidor completo + swagger-jsdoc bajo saturación de workers).
+        <span class="rec">Mismo fix que N-05: subir el timeout a 15-20 s en las suites de integración que levantan el server, o correrlas con <code>--maxWorkers=2</code> en CI. Tratar N-05 y N-08 como un solo trabajo.</span></td>
+    </tr>
+
+    <tr>
+      <td class="id">N-04</td>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Nota (fuera de alcance)</span></td>
+      <td class="arch">hostinger/frontend/* y hostinger/backend/server.js <span class="ok">verificado por hash SHA-256</span></td>
+      <td><span class="pill p-conf">Herramienta de despliegue</span></td>
+      <td class="desc"><b class="t">hostinger/ (antes prod/, punto 435) sigue desfasado — no es un hallazgo del producto (puntos 412/435, regla formalizada y extendida a VULTR/ en el punto 448)</b>
+        Comparados 9 pares clave por SHA-256 hoy: <b>8 difieren</b> (admin.js, admin.html, control.js, theme.js, backend/server.js, nginx.conf.template, docker-compose) y solo <code>backend/package.json</code> coincide. Además, <b><code>hostinger/control/</code> no existe</b> — el paquete de deploy no incluye el tercer servicio (control/), que sí es parte de la arquitectura desde el segmento 9b y ahora maneja onboarding, Stripe y el SMTP de plataforma. Por decisión del usuario (puntos 412/435, formalizada en el punto 448 junto con <code>VULTR/</code>), <code>hostinger/</code> y <code>VULTR/</code> son herramientas de despliegue temporales, reescribibles, no parte del producto — se ignoran siempre en análisis de calidad: este desfase no cuenta para métricas ni gate.
+        <span class="rec">Como paso del proceso de deploy: regenerar hostinger/ por CONTENIDO desde su fuente antes de publicar, decidiendo explícitamente si el paquete pasa a incluir control/ (o documentar que /control vive en otro servidor vía CONTROL_UPSTREAM_HOST, que la arquitectura ya soporta).</span></td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ DEUDA TÉCNICA ═══════════════ -->
+  <h2>5. Deuda técnica y code smells</h2>
+  <table>
+    <tr><th>Impacto</th><th>Localización</th><th>Detalle y recomendación</th></tr>
+    <tr>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Alto</span></td>
+      <td class="arch">frontend/admin.js (21,247)<br>backend/server.js (11,428)<br>frontend/admin.html (6,249)</td>
+      <td class="desc"><b class="t">Monolitos siguieron creciendo</b> — admin.js +935 y server.js +450 líneas desde la 1.2 (208 rutas top-level en un solo archivo). Cada ronda hace más caro el siguiente cambio. <span class="rec">Extraer rutas del backend a routers por dominio; dividir admin.js por vistas. Sin urgencia de seguridad.</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-major" style="padding:2px 9px">Alto</span></td>
+      <td class="arch">14 tests en 5 suites<br>(backend y control)</td>
+      <td class="desc"><b class="t">Suite roja constante desde el commit SMTP (N-07)</b> — la suite ya no distingue una regresión nueva de los 14 rojos viejos. Cerrar N-07 restaura la red de seguridad.</td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Medio</span></td>
+      <td class="arch">docsEnabled.test.js<br>preferenciasDashboard.test.js</td>
+      <td class="desc"><b class="t">2 suites intermitentes (N-05 + N-08)</b> — timeouts de 5 s bajo carga paralela; ambas pasan en aislado. Mismo fix para las dos.</td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-minor" style="padding:2px 9px">Medio</span></td>
+      <td class="arch">docker-compose.yml:417</td>
+      <td class="desc"><b class="t">Bind mount <code>./uploads</code> sigue vivo como config muerta</b> (punto 414 ya movió la carpeta a .trash; los multer usan memoryStorage desde el segmento 5). Es además la razón por la que backend/Dockerfile no puede usar <code>USER appuser</code> (m-11). <span class="rec">Retirar el bind mount con aprobación explícita; eso desbloquea m-11.</span></td>
+    </tr>
+    <tr>
+      <td><span class="sev-badge b-info" style="padding:2px 9px">Bajo</span></td>
+      <td class="arch">frontend/admin.js<br>control.js · portal.js · dashboard.js</td>
+      <td class="desc"><b class="t">Duplicación a propósito de helpers y boilerplate</b> — convención del proyecto sin bundler, sin cambios.</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ FORTALEZAS ═══════════════ -->
+  <h2>6. Fortalezas verificadas en esta ronda</h2>
+  <ul>
+    <li><b>Cero regresiones de seguridad en 12 días y 30 commits</b>: los 43 hallazgos cerrados de la 1.2 siguen cerrados, verificado con el grep de cada patrón de fix — la remediación de los ciclos 1.0/1.1/1.2 se sostiene.</li>
+    <li><b>Integración de Stripe con el patrón correcto a la primera</b>: webhook con firma HMAC sobre body crudo + fail-closed (sin secretos → 503) + idempotencia con tabla de eventos procesados (control/server.js:550-579); cobro recurrente con <code>mode:'subscription'</code>; y el bug de <code>invoice.parent.subscription_details</code> (punto 440) fue atrapado con un Test Clock real, no con mocks.</li>
+    <li><b>Credenciales sensibles nuevas con cifrado correcto</b>: SMTP y accesos de Garage guardados con AES-256-GCM, IV aleatorio, clave solo en .env, formato <code>iv:tag:cifrado</code> (control/utils/cifrado.js) — sin atajos.</li>
+    <li><b>El onboarding quedó más cerrado que en la 1.2</b>: la activación sin pago (que M-06 mitigaba con Turnstile) ya no existe como endpoint público — la conversión solo ocurre vía webhook de Stripe firmado.</li>
+    <li><b>Base de pruebas sigue creciendo</b>: 1,883 ejecuciones (+58 desde la 1.2), 69 suites backend, 28 de control.</li>
+    <li><b>La auditoría cumplió su función</b>: los 14 rojos y las 15 CVEs fueron detectados por las propias herramientas del repo (suites Jest + npm audit), no por un incidente en producción — exactamente lo que una Quality Gate debe hacer.</li>
+  </ul>
+
+  <!-- ═══════════════ ROADMAP ═══════════════ -->
+  <h2>7. Plan de remediación priorizado (v1.3)</h2>
+  <table>
+    <tr><th>Fase</th><th>Plazo</th><th>Acciones</th><th>IDs</th></tr>
+    <tr>
+      <td><b>Fase A — Cerrar la gate</b><br><small style="color:var(--gris);font-weight:400">Las 2 condiciones</small></td>
+      <td>Horas</td>
+      <td class="desc">
+        1. Actualizar los 14 tests al comportamiento nuevo (await de <code>configSmtpParaMostrar</code>, campo <code>verificadoEn</code>, mock de <code>totalReal</code>, <code>urlPortal</code> condicional, migrar Turnstile a <code>pagar/:token</code>).<br>
+        2. <code>npm audit fix</code> (no-breaker) en backend/ y control/ — cubre proxy-addr (crítica), body-parser, qs, brace-expansion, js-yaml y sharp. Reconstruir imágenes Docker después.
+      </td>
+      <td class="arch">N-07,<br>N-06 (parte 1)</td>
+    </tr>
+    <tr>
+      <td><b>Fase B — Prioridad de seguridad + intermitencias</b><br><small style="color:var(--gris);font-weight:400">Decisión + estabilidad</small></td>
+      <td>1-2 días</td>
+      <td class="desc">
+        1. Upgrade de nodemailer a 10.3.1 en ambos paquetes (breaking) + prueba de envío real y <code>verificarConexionSmtp</code> — la CVE cross-tenant de credenciales SMTP aplica al patrón multi-tenant del producto.<br>
+        2. Cerrar N-05 + N-08: timeouts a 15-20 s en las suites de integración (o <code>--maxWorkers=2</code>), y eliminar el "force exiting" de Jest con <code>--detectOpenHandles</code> una vez.<br>
+        3. Agregar <code>npm audit --omit=dev</code> al preflight de <code>hostinger/actualizar.sh</code> (gate permanente).
+      </td>
+      <td class="arch">N-06 (parte 2),<br>N-05, N-08</td>
+    </tr>
+    <tr>
+      <td><b>Fase C — Informativos + despliegue</b><br><small style="color:var(--gris);font-weight:400">Diferencia entre A/B y C</small></td>
+      <td>1-2 días</td>
+      <td class="desc">
+        i-02: secretos <code>/internal/*</code> por familia (backend vs control) o rotación documentada.<br>
+        i-04: auto-hospedar Inter (woff2 local, eliminar el <code>@import</code>).<br>
+        i-03: HSTS <code>preload</code> + cabeceras COOP/CORP.<br>
+        Regenerar hostinger/ por contenido y decidir si el paquete incluye control/ (N-04, paso de deploy).
+      </td>
+      <td class="arch">i-02, i-03,<br>i-04, N-04</td>
+    </tr>
+    <tr>
+      <td><b>Fase D — Continuo</b><br><small style="color:var(--gris);font-weight:400">Deuda estructural</small></td>
+      <td>Continuo</td>
+      <td class="desc">
+        Routers por dominio en backend/server.js; división de admin.js por vistas; retirar el bind mount <code>./uploads</code> (desbloquea <code>USER appuser</code>, m-11).
+      </td>
+      <td class="arch">m-11, deuda</td>
+    </tr>
+  </table>
+
+  <!-- ═══════════════ METODOLOGÍA ═══════════════ -->
+  <h2>8. Metodología y alcance</h2>
+  <div class="nota">
+    <b>Qué se hizo:</b> re-estado de los 51 hallazgos con ID vigentes al cierre de la 1.2 contra el código actual (HEAD <code>7160a10</code>, 2026-10-29, con cambios de trabajo sin commitear del punto 443 incluidos — el análisis es del árbol en disco), con búsqueda dirigida y lectura de la línea exacta de cada fix, no confiando en mensajes de commit. Ejecución real de ambas suites Jest completas <b>3 veces backend / 2 veces control</b> (backend: 4, 6 y 3 rojos — clasificando 3 deterministas y 2 intermitentes; control: 18 rojos en la corrida 1 descartada por <code>node_modules</code> local desincronizado tras el commit que agregó nodemailer a control/package.json —faltaba <code>npm install</code>— y 11 rojos estables en la corrida 2 tras instalar), con re-ejecución aislada de cada suite roja para separar deterministas de intermitentes y lectura del fuente de cada test fallido contra el comportamiento real del código. <code>npm audit --omit=dev</code> en ambos paquetes (primera vez en la serie — era la recomendación pendiente de la 1.2). Greps de regresión de los patrones de cada hallazgo cerrado (atributos HTML, glifos Unicode, <code>btoa(unescape)</code>, <code>COOKIE_SECURE</code>, <code>client_max_body_size</code>, Turnstile, auditoría, iframe sandbox, preflight de defaults). Revisión del código nuevo de la ronda (puntos 414-443): webhook de Stripe (firma + fail-closed + idempotencia), cifrado AES-256-GCM de accesos, Garage/garage-init, suscripción y upscale, bloqueo por pago vencido, SMTP de plataforma. Verificación de versiones instaladas (nodemailer 9.1.1, express 4.22.2, proxy-addr 2.0.7 en ambos paquetes) y de la relevancia real de cada CVE contra el patrón de uso del código (hop-count de trust proxy, multi-tenant SMTP por-tenant, sharp en runtime).<br><br>
+    <b>Alcance:</b> por decisión del usuario (puntos 412/435, formalizada y extendida a <code>VULTR/</code> en el punto 448), las carpetas <code>hostinger/</code> (paquete de despliegue para yt.addv.com.mx) y <code>VULTR/</code> (operación del despliegue productivo en Vultr/clarvo.mx) están <b>fuera de alcance</b>: son herramientas de despliegue temporales, reescribibles y regenerables — <b>se ignoran siempre</b> en análisis de calidad, métricas y Quality Gate. Su desfase se reporta como nota operativa (N-04), nunca como hallazgo de calidad. El alcance del producto es SIEMPRE: backend/, control/, frontend/ y docker/. Métricas de líneas/archivos: esos 4 directorios con extensiones .js/.html/.css/.template, excluyendo node_modules, test, scripts y .trash.<br><br>
+    <b>Qué NO cubre:</b> no es un pentest dinámico (el stack de Docker no se levantó en esta ronda; la verificación fue estática + suites mockeadas); no se midió cobertura; i-01 se mantuvo sin cambios por decisión de riesgo aceptado previa; las CVEs de npm audit no fueron probadas dinámicamente contra el stack (la explotabilidad es un juicio basado en el patrón de uso del código, señalado por hallazgo).<br><br>
+    <b>Recomendación:</b> cerrar las 2 condiciones de la gate (Fase A: actualizar los 14 tests + <code>npm audit fix</code> no-breaker) y tomar la decisión de nodemailer 10.x como prioridad de seguridad de la ronda — la única CVE con contexto de explotabilidad real (multi-tenant SMTP) en el informe.
+  </div>
+
+  <footer>
+    Informe generado 2026-10-29 · Portal de Facturación ADDV (Clarvo) · Análisis tipo SonarQube + OWASP Top 10 (2021) · Versión 1.3 — 51 hallazgos con ID de la 1.2 re-estado (44 cerrados, 2 parciales, 4 abiertos + 1 nota) + 3 nuevos (N-06 supply-chain, N-07 tests rojos, N-08 intermitencia) + 1 nota de herramienta de despliegue actualizada (N-04, fuera de alcance por puntos 412/435/448 — hostinger/ y VULTR/ siempre ignoradas en análisis de calidad) · Archivo autocontenido (sin dependencias externas) · Comparable lado a lado con <code>sonar_1.2.html</code> (2026-10-22), <code>sonar_1.1.html</code> (2026-10-19) y <code>sonar.html</code> (1.0, 2026-10-13).
+  </footer>
+</div>
+
+</body>
+</html>

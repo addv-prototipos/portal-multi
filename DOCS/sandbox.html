@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Guía — Tarjetas de prueba de Stripe (sandbox)</title>
+<style>
+  :root {
+    --page-bg: #F7F8FA; --page-surface: #FFFFFF; --page-ink: #14151A;
+    --page-ink-soft: #5B6472; --page-border: #E3E6EC; --accent: #03285B;
+    --accent-soft: #E7ECF3; --ok: #1FAE6B; --ok-soft: #E4F6ED;
+    --warn: #B4530C; --warn-soft: #FBEBDC; --danger: #B3261E; --danger-soft: #FBEAE9;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --page-bg:#0D0F14; --page-surface:#15171F; --page-ink:#ECEDF2; --page-ink-soft:#9BA1AF; --page-border:#262A36; --accent:#5B9BFF; --accent-soft:#1A2338; --ok:#3CCB8C; --ok-soft:#102B20; --warn:#E08A3C; --warn-soft:#2E1F0E; --danger:#F37C73; --danger-soft:#2E1513; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--page-bg); color: var(--page-ink); }
+  .shell { max-width: 920px; margin: 0 auto; padding: clamp(24px, 5vw, 64px) clamp(18px, 4vw, 32px) 80px; }
+
+  header.top { margin-bottom: 40px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--page-ink-soft); margin-bottom: 12px; }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; letter-spacing: -0.015em; margin: 0 0 12px; text-wrap: balance; }
+  .lead { font-size: 16px; line-height: 1.65; color: var(--page-ink-soft); max-width: 68ch; margin: 0; }
+
+  nav.toc { background: var(--page-surface); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 18px 22px; margin: 32px 0 44px; }
+  nav.toc h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--page-ink-soft); margin: 0 0 12px; }
+  nav.toc ol { margin: 0; padding-left: 20px; font-size: 14px; line-height: 2; columns: 2; }
+  nav.toc a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  nav.toc a:hover { text-decoration: underline; }
+
+  section.step { margin-bottom: 52px; scroll-margin-top: 20px; }
+  .step-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 16px; }
+  .step-num { flex-shrink: 0; width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; }
+  .step-head h2 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .step-body { padding-left: 48px; }
+  .step-body p { font-size: 14.5px; line-height: 1.68; color: var(--page-ink-soft); margin: 0 0 14px; }
+  .step-body p strong { color: var(--page-ink); font-weight: 650; }
+  .step-body ol, .step-body ul.plain { font-size: 14.5px; line-height: 1.75; color: var(--page-ink-soft); padding-left: 20px; margin: 0 0 14px; }
+  .step-body ol li strong, .step-body ul.plain li strong { color: var(--page-ink); }
+
+  .checklist { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .checklist li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.55; color: var(--page-ink-soft); }
+  .checklist li svg { flex-shrink: 0; margin-top: 2px; width: 16px; height: 16px; color: var(--ok); }
+
+  .codebox { background: var(--accent-soft); border: 1px solid var(--page-border); border-radius: var(--radius-sm); padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; margin: 10px 0 16px; overflow-x: auto; white-space: pre; color: var(--page-ink); }
+
+  .callout { display: flex; gap: 10px; padding: 12px 15px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.55; margin: 14px 0; }
+  .callout svg { flex-shrink: 0; margin-top: 1px; width: 16px; height: 16px; }
+  .callout.warn { background: var(--warn-soft); color: var(--warn); }
+  .callout.danger { background: var(--danger-soft); color: var(--danger); }
+  .callout.ok { background: var(--ok-soft); color: var(--ok); }
+  .callout b { font-weight: 700; }
+
+  .divider { height: 1px; background: var(--page-border); margin: 48px 0; }
+
+  footer.end { background: var(--accent-soft); border: 1px solid var(--page-border); border-radius: var(--radius-lg); padding: 24px 26px; font-size: 14px; line-height: 1.65; }
+  footer.end h3 { margin: 0 0 8px; font-size: 15px; }
+  footer.end code { font-family: var(--mono); background: var(--page-surface); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+
+  /* Tabla de tarjetas */
+  .card-table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13.5px; }
+  .card-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--page-ink-soft); padding: 8px 10px; border-bottom: 1px solid var(--page-border); }
+  .card-table td { padding: 10px; border-bottom: 1px solid var(--page-border); vertical-align: top; }
+  .card-table tr:last-child td { border-bottom: none; }
+  .card-num { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .02em; white-space: nowrap; }
+  .card-meta { color: var(--page-ink-soft); font-size: 12.5px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.danger { background: var(--danger-soft); color: var(--danger); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .card-wrap { background: var(--page-surface); border: 1px solid var(--page-border); border-radius: var(--radius-md); overflow: hidden; margin: 14px 0 20px; }
+  .card-wrap-head { padding: 12px 16px; font-weight: 700; font-size: 13.5px; border-bottom: 1px solid var(--page-border); display: flex; align-items: center; gap: 8px; }
+  .card-wrap table { margin: 0; }
+  .card-wrap td, .card-wrap th { padding: 10px 16px; }
+
+  .fixed-fields { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--page-ink-soft); margin: 0 0 18px; }
+  .fixed-fields b { color: var(--page-ink); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <span class="eyebrow"><span class="dot"></span>Guía paso a paso · pruebas locales</span>
+    <h1>Tarjetas de prueba de Stripe para probar el onboarding</h1>
+    <p class="lead">
+      Números de tarjeta reales y públicos del <em>sandbox</em> de Stripe (modo prueba,
+      nunca modo Live, cero riesgo de cobro real) — para probar el checkout de
+      Clarvo de principio a fin: pagos que se activan al instante, pagos que
+      Stripe rechaza, y OXXO/SPEI (que se quedan "pendientes" hasta confirmar).
+    </p>
+  </header>
+
+  <nav class="toc">
+    <h2>En esta guía</h2>
+    <ol>
+      <li><a href="#antes">Antes de empezar</a></li>
+      <li><a href="#exito">Tarjetas que SÍ aprueban</a></li>
+      <li><a href="#3ds">Tarjetas con autenticación (3D Secure)</a></li>
+      <li><a href="#rechazo">Tarjetas que Stripe rechaza</a></li>
+      <li><a href="#oxxo">OXXO y SPEI (pago diferido)</a></li>
+      <li><a href="#pasoexito">Paso a paso: pago exitoso completo</a></li>
+      <li><a href="#pasofallo">Paso a paso: tarjeta rechazada</a></li>
+      <li><a href="#pasooxxo">Paso a paso: OXXO (pendiente → recordatorio → pago)</a></li>
+      <li><a href="#verificar">Cómo confirmar qué pasó de verdad</a></li>
+      <li><a href="#limpieza">Limpiar después de probar</a></li>
+    </ol>
+  </nav>
+
+  <section class="step" id="antes">
+    <div class="step-head"><span class="step-num">1</span><h2>Antes de empezar</h2></div>
+    <div class="step-body">
+      <p>Estas tarjetas <strong>solo funcionan si la cuenta de Stripe está en modo
+      Prueba</strong> (clave <code>sk_test_...</code>) — en modo Live, Stripe las
+      rechaza todas de inmediato porque no son tarjetas reales.</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Verifica el modo en <code>/control → Upscale y Stripe → Configurar Stripe → Métodos de pago</code>: el badge debe decir <b>"Modo: prueba"</b>.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> El sitio público (<code>clarvo-Site</code>) debe estar corriendo y apuntando a tu <code>control</code> local — si ves "No se pudo conectar" al confirmar el plan, es un problema de CORS/CSP, no de la tarjeta.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Para TODAS las tarjetas de esta guía: cualquier fecha de vencimiento futura, cualquier CVC de 3 dígitos (4 en Amex), cualquier código postal.</li>
+      </ul>
+      <div class="fixed-fields">
+        <div>Fecha de vencimiento: <b>cualquier mes/año futuro</b> (ej. 12/30)</div>
+        <div>CVC: <b>cualquier 3 dígitos</b> (ej. 123)</div>
+        <div>Código postal: <b>cualquiera</b> (ej. 00000)</div>
+        <div>Nombre en la tarjeta: <b>cualquiera</b></div>
+      </div>
+      <div class="callout warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Nunca metas una tarjeta real aquí, ni siquiera "para ver qué pasa" — en modo Live estos números solo generan un rechazo real y no prueban nada.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="exito">
+    <div class="step-head"><span class="step-num">2</span><h2>Tarjetas que SÍ aprueban (activación inmediata)</h2></div>
+    <div class="step-body">
+      <p>Cualquiera de estas simula un pago exitoso sin pedir autenticación extra
+      — el webhook <code>checkout.session.completed</code> llega casi de inmediato
+      y el tenant se activa solo.</p>
+      <div class="card-wrap">
+        <table class="card-table">
+          <thead><tr><th>Marca</th><th>Número</th><th>Resultado</th></tr></thead>
+          <tbody>
+            <tr><td>Visa</td><td class="card-num">4242 4242 4242 4242</td><td><span class="badge ok">Aprueba siempre</span></td></tr>
+            <tr><td>Visa (débito)</td><td class="card-num">4000 0566 5566 5556</td><td><span class="badge ok">Aprueba siempre</span></td></tr>
+            <tr><td>Mastercard</td><td class="card-num">5555 5555 5555 4444</td><td><span class="badge ok">Aprueba siempre</span></td></tr>
+            <tr><td>American Express</td><td class="card-num">3782 822463 10005</td><td><span class="badge ok">Aprueba siempre</span><div class="card-meta">CVC de 4 dígitos (ej. 1234)</div></td></tr>
+            <tr><td>Discover</td><td class="card-num">6011 1111 1111 1117</td><td><span class="badge ok">Aprueba siempre</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="3ds">
+    <div class="step-head"><span class="step-num">3</span><h2>Tarjetas con autenticación (3D Secure)</h2></div>
+    <div class="step-body">
+      <p>En México muchas tarjetas piden un paso extra de autenticación del banco
+      (3D Secure / "verificado por Visa"). Stripe simula esa pantalla en modo
+      prueba — estas tarjetas la disparan a propósito.</p>
+      <div class="card-wrap">
+        <table class="card-table">
+          <thead><tr><th>Número</th><th>Qué pasa</th><th>Resultado</th></tr></thead>
+          <tbody>
+            <tr><td class="card-num">4000 0025 0000 3155</td><td class="card-meta">Pide autenticación — en la pantalla de prueba de Stripe, clic en "Complete authentication"</td><td><span class="badge ok">Aprueba tras autenticar</span></td></tr>
+            <tr><td class="card-num">4000 0000 0000 3220</td><td class="card-meta">Pide autenticación — clic en "Fail authentication" en esa misma pantalla</td><td><span class="badge danger">Falla la autenticación</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Útil para confirmar que el checkout de Clarvo no se rompe si el banco pide
+      este paso extra (pasa seguido con tarjetas mexicanas reales).</p>
+    </div>
+  </section>
+
+  <section class="step" id="rechazo">
+    <div class="step-head"><span class="step-num">4</span><h2>Tarjetas que Stripe rechaza</h2></div>
+    <div class="step-body">
+      <div class="callout warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span><b>Importante:</b> un rechazo de tarjeta pasa DENTRO de la página de
+        Stripe (no regresa a Clarvo todavía) — Stripe muestra el error ahí mismo y
+        te deja intentar con otra tarjeta en la misma sesión. El borrador de
+        Clarvo sigue en <code>pendiente</code> mientras tanto; recién se marca
+        <code>fallido</code> si cierras/abandonas esa pantalla de Stripe sin pagar.</span>
+      </div>
+      <div class="card-wrap">
+        <table class="card-table">
+          <thead><tr><th>Número</th><th>Motivo del rechazo</th><th>Código real de Stripe</th></tr></thead>
+          <tbody>
+            <tr><td class="card-num">4000 0000 0000 0002</td><td>Rechazo genérico</td><td class="card-meta"><code>card_declined</code></td></tr>
+            <tr><td class="card-num">4000 0000 0000 9995</td><td>Fondos insuficientes</td><td class="card-meta"><code>insufficient_funds</code></td></tr>
+            <tr><td class="card-num">4000 0000 0000 9987</td><td>Tarjeta reportada perdida</td><td class="card-meta"><code>lost_card</code></td></tr>
+            <tr><td class="card-num">4000 0000 0000 9979</td><td>Tarjeta reportada robada</td><td class="card-meta"><code>stolen_card</code></td></tr>
+            <tr><td class="card-num">4000 0000 0000 0069</td><td>Tarjeta vencida</td><td class="card-meta"><code>expired_card</code></td></tr>
+            <tr><td class="card-num">4000 0000 0000 0127</td><td>CVC incorrecto</td><td class="card-meta"><code>incorrect_cvc</code></td></tr>
+            <tr><td class="card-num">4000 0000 0000 0119</td><td>Error de procesamiento del banco</td><td class="card-meta"><code>processing_error</code></td></tr>
+            <tr><td class="card-num">4000 0000 0000 6975</td><td>Bloqueo por riesgo/fraude</td><td class="card-meta"><code>fraudulent</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="oxxo">
+    <div class="step-head"><span class="step-num">5</span><h2>OXXO y SPEI (pago diferido)</h2></div>
+    <div class="step-body">
+      <p>No llevan número de tarjeta — Stripe genera una ficha/referencia y el
+      borrador se queda en <code>provisioning</code> (no activa el tenant) hasta
+      que el pago se confirma de verdad. Así se ven en el checkout de prueba:</p>
+      <ul class="plain">
+        <li><strong>OXXO</strong>: Stripe muestra un voucher de prueba con código de barras — no existe una tienda real donde "pagarlo".</li>
+        <li><strong>SPEI</strong>: Stripe muestra una CLABE de prueba para "transferir" — tampoco hay banco real del otro lado.</li>
+      </ul>
+      <p>Para simular que el cliente SÍ pagó en la tienda/banco (y disparar el
+      webhook real <code>checkout.session.async_payment_succeeded</code>), dos
+      formas, de más fácil a más técnica:</p>
+      <ol>
+        <li><strong>Dashboard de Stripe</strong> (recomendado): Payments → busca el Payment Intent con estado "Requires action"/"Processing" → botón <b>"Mark as succeeded"</b> (test mode marca el voucher como pagado y dispara el webhook real).</li>
+        <li><strong>Stripe CLI</strong>, si ya tienes <code>stripe listen</code> corriendo: <code>stripe trigger checkout.session.async_payment_succeeded</code> (dispara un evento de prueba genérico, útil para probar el handler sin esperar el Dashboard).</li>
+      </ol>
+      <p>Para simular que <strong>nunca se pagó</strong> (y ver entrar los
+      recordatorios automáticos): simplemente no hagas nada — el borrador se
+      queda <code>pendiente</code> y <code>/control → Recordatorios</code> lo
+      debe mostrar "en seguimiento" (botón "Procesar ahora" para no esperar el
+      scheduler real de 1h).</p>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="step" id="pasoexito">
+    <div class="step-head"><span class="step-num">6</span><h2>Paso a paso: pago exitoso completo</h2></div>
+    <div class="step-body">
+      <ol>
+        <li>En el sitio, elige un plan → <b>"Confirma tu plan"</b> → Continuar.</li>
+        <li><b>"Método de pago"</b> → resuelve el Turnstile (en local pasa solo) → "Pagar $X y continuar".</li>
+        <li>Te redirige a <code>checkout.stripe.com</code>. Usa <span class="card-num">4242 4242 4242 4242</span>, fecha/CVC/código postal cualquiera, correo cualquiera.</li>
+        <li>Clic en <b>Pagar</b>. Stripe redirige de vuelta a Clarvo.</li>
+        <li>El modal entra a "Paso 5" y empieza a <strong>consultar solo
+        (polling cada 5s)</strong> si ya se activó — no hace falta recargar nada,
+        en unos segundos debe mostrar el resultado con el usuario/URL del admin
+        (y del portal, si el plan lo incluye).</li>
+      </ol>
+      <div class="callout ok">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Si en ~10-15s no cambia, el webhook no llegó — revisa <a href="#verificar">Cómo confirmar qué pasó de verdad</a>.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="pasofallo">
+    <div class="step-head"><span class="step-num">7</span><h2>Paso a paso: tarjeta rechazada</h2></div>
+    <div class="step-body">
+      <ol>
+        <li>Repite los pasos 1-3 de arriba, pero usa <span class="card-num">4000 0000 0000 0002</span> (rechazo genérico).</li>
+        <li>Stripe muestra el error EN su propia página ("Your card was declined") — Clarvo todavía no se entera de nada.</li>
+        <li>Para completar la prueba de "sí falló": en vez de reintentar, cierra la pestaña o da clic en la flecha de "volver" de Stripe.</li>
+        <li>De vuelta en el sitio, el borrador sigue en <code>pendiente</code> (no "fallido" — ese estado es para OXXO/SPEI que expiran, ver sección 5). Puedes volver a intentar el pago completo desde el mismo link/token.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="step" id="pasooxxo">
+    <div class="step-head"><span class="step-num">8</span><h2>Paso a paso: OXXO (pendiente → recordatorio → pago)</h2></div>
+    <div class="step-body">
+      <ol>
+        <li>En "Método de pago", si el Dashboard de Stripe tiene OXXO activado, elige esa opción al llegar al Checkout (si no la ves, actívala primero — ver <code>DOCS/confStripe.html</code>, paso 8).</li>
+        <li>Stripe muestra el voucher de prueba. Cierra esa pestaña sin "pagarlo" — el borrador queda <code>provisioning</code>.</li>
+        <li>En <code>/control → Recordatorios</code>, busca el borrador — debe aparecer "en seguimiento" con "Próximo intento: Pronto". Clic en <b>"Procesar ahora"</b> para forzar el envío sin esperar.</li>
+        <li>Para simular que SÍ pagó: Dashboard de Stripe → el Payment Intent de esa sesión → <b>"Mark as succeeded"</b>. El webhook real activa el tenant.</li>
+      </ol>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="step" id="verificar">
+    <div class="step-head"><span class="step-num">9</span><h2>Cómo confirmar qué pasó de verdad</h2></div>
+    <div class="step-body">
+      <p>Nunca confíes solo en lo que muestra el modal del sitio — confirma contra
+      el estado real:</p>
+      <ul class="checklist">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> <code>/control → Empresas</code>: busca por el slug o nombre que capturaste — estado debe pasar de "Provisionando" a "Activo".</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Dashboard de Stripe → Developers → Webhooks → tu endpoint → pestaña "Events" — confirma que el evento llegó con <code>200</code> (no <code>4xx/5xx</code>).</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Si tienes <code>stripe listen</code> corriendo en la terminal, ahí se ve cada evento y su respuesta en tiempo real — el primer lugar a mirar si algo no activa.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="step" id="limpieza">
+    <div class="step-head"><span class="step-num">10</span><h2>Limpiar después de probar</h2></div>
+    <div class="step-body">
+      <p>Cada prueba completa crea un tenant real en tu base local. Si no lo vas
+      a seguir usando:</p>
+      <ul class="plain">
+        <li><code>/control → Empresas</code> → "Dar de baja" (reversible) o, desde Papelera, "Eliminar definitivo" (borra la base de datos del tenant, irreversible).</li>
+        <li>Los pagos de prueba en Stripe no cuestan nada ni hay que "reembolsarlos" — pero puedes borrarlos del Dashboard (Payments → ⋯ → Delete) si quieres la lista limpia.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="end">
+    <h3>Fuente de estos números</h3>
+    <p style="margin:0;">Son las tarjetas de prueba oficiales y públicas de Stripe
+    (<code>stripe.com/docs/testing</code>) — no son datos sensibles, cualquiera con
+    una cuenta de Stripe las puede usar en modo prueba. Si Stripe agrega/cambia
+    alguna en el futuro, esa página es la fuente de verdad, no esta guía.</p>
+  </footer>
+</div>
+</body>
+</html>
