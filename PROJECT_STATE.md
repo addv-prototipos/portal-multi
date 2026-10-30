@@ -26533,3 +26533,29 @@ reales esperados, y el auto-cierre funciona.
 
 Archivos: `frontend/admin.html`, `frontend/admin.js`,
 `frontend/admin.css`, `PROJECT_STATE.md` (este punto).
+
+## Punto 457 — Versión 1.0.01 (literal) + despliegue a producción (Vultr) del punto 456 (30 oct 2026, CERRADO)
+
+Version bump a **1.0.01** (texto literal, pedido explícito del usuario
+tras confirmar que no es semver válido — cero a la izquierda no se
+permite en ningún segmento; se le preguntó "1.0.2 vs 1.0.01 literal" y
+eligió el literal) en `backend/package.json`, `control/package.json` y
+la etiqueta visible `.config-sidebar-version`.
+
+Despliegue a Vultr/clarvo.mx del punto 456 (cupo del plan + overlay de
+compra confirmada). A diferencia del despliegue del punto 455,
+`docker-stack.yml` **no cambió** esta ronda — se usó `docker service
+update --force` en los 3 servicios en vez de `docker stack deploy`
+(evita por completo el riesgo del incidente del punto 455, que solo
+aplica cuando el YAML del stack cambia). Backup real previo
+(`mysqldump`), verificado con `grep`/`md5sum` que el código extraído en
+el servidor sí traía la versión nueva antes de reconstruir (lección del
+punto 455, nunca más solo confiar en que el `tar` "debió" funcionar).
+
+Verificado real: los 8 servicios en el estado esperado, `curl` 200 en
+`/`, `/api/health`, `/control`, versión `1.0.01` confirmada dentro del
+contenedor de backend (`require('./package.json').version`), `appuser`
+corriendo.
+
+Archivos: `backend/package.json`, `control/package.json`,
+`frontend/admin.html`, `PROJECT_STATE.md` (este punto).
