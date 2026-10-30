@@ -26243,3 +26243,30 @@ Archivos modificados: `backend/server.js`, `control/server.js`,
 `backend/test/integration/auditoria.test.js`, `frontend/admin.html`,
 `frontend/admin.js`, `frontend/control.html`, `frontend/control.js`,
 `PROJECT_STATE.md` (este punto).
+
+## Punto 453 — Despliegue a producción real (Vultr/clarvo.mx) de la ubicación por IP en Auditoría (punto 452) (30 oct 2026, CERRADO)
+
+Mismo runbook del punto 451, código del punto 452 (`geoip-lite`, columna
+"Ubicación" en Auditoría de `/admin` y `/control`) ya commiteado en
+`main` (`e1abff2`) — se desplegó a petición explícita del usuario.
+
+Backup (`mysqldump --all-databases` de `mysql-primary` y `mysql-control`
+a `/mnt/blockstorage/backups/`, timestamped) → `tar` de
+`backend/control/frontend/docker` → `scp` (OpenSSH nativo de Windows) →
+extraído a `/opt/clarvo` (reemplazando las 4 carpetas viejas por
+completo, no solo sobreescribiendo) → `docker build` de las 3 imágenes →
+`docker service update --force` de los 3 servicios. Los 3 convergieron
+sanos (`healthy`).
+
+**Verificado real dentro de los contenedores de producción** (no solo
+"el servicio está arriba"): `docker exec` directo a `clrv-backend` y
+`clrv-control` corriendo `ubicacionDesdeIp()` real — IP pública real
+(`189.243.163.85`) resuelve a `"Morelia, Michoacán"` en AMBOS
+contenedores, IP interna de Docker (`172.19.0.1`) resuelve a `null` —
+mismo resultado exacto que en local. `curl` real contra `https://clarvo.mx/`
+(200), `/api/health` (200), `/control` (200). Logs de arranque limpios en
+ambos servicios, sin el warning `EBADENGINE` (ese warning solo aparece en
+`npm install`, nunca en runtime — confirmado real, no solo documentado).
+
+Archivos: ninguno de código (ya estaba commiteado antes de este
+despliegue) — solo `PROJECT_STATE.md` (este punto).

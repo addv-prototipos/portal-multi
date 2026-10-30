@@ -1404,3 +1404,132 @@ de equilibrio en el beneficio 1, histórico visible en el 11, 2 frases
 gancho nuevas), `cmem.md` (este backfill) y punto 385 en
 `PROJECT_STATE.md`. Revisión del servidor de Claude Mem incluida: worker
 y Chroma sanos, 18,118 observaciones de este proyecto al día.
+
+## 2026-10-09 a 2026-10-30 — Backfill de 3 semanas sin registrar (puntos 386-453)
+
+Esta sección es un ÍNDICE, no la bitácora detallada de siempre — el
+volumen real (68 puntos) hizo inviable el nivel de detalle de las
+secciones anteriores sin reprocesar cada sesión de cero. Cada línea
+apunta a su punto real en `PROJECT_STATE.md` (buscar `## Punto NNN` o
+`### Punto NNN`) para el detalle completo. Generado el 2026-10-30 junto
+con el resto de la documentación (README/CLAUDE.md/pendientes.html/VULTR).
+
+C120 09-oct ● P386: 3 bugs visuales reales en "Utilidad neta del mes".
+
+C121 10-oct ↻ P387: "Ticket de impresión" separado de "Marca propia"
+como flag propio en /control (antes compartían el mismo flag).
+
+C122 12-oct ◆ P388 fechas de prueba auto-calculadas en Suscripción de
+/control; P389 ciclo de vida de tenants (borrado directo desde
+"Provisionando", papelera separada, purga 30 días); P390 "Accesos —
+MinIO" como bloc de notas cifrado (AES-256-GCM, primer cifrado
+reversible del repo); P391 investigación de onboarding + 4 planes
+reales + "Accesos — SMTP" (quedó EN CURSO ese día).
+
+C123 13-oct ◆ P392/P393: onboarding público real en clarvo.mx (Segmentos
+A y B) — wizard modal sobre precios, borrador→tenant self-service sin
+operador, sin Stripe todavía. P394: límite de filas del importador +
+soporte real a `.XLS` (SheetJS). P395: gap real — alta manual desde
+"Nueva empresa" nunca creaba administrador. P396: rediseño del
+importador de Inventarios (resumen + tabla condensada).
+
+C124 14-oct ◆ P399: importador de Inventarios roto en tenants (gap de
+schema). P400: módulo local de compresión WebP (`webp/`, nunca integrado
+a Clarvo — luego movido a `.trash/` en el punto 414). P401: WebP
+integrado en las 5 secciones reales de carga de fotos. P402/P403:
+auditoría SonarQube+OWASP (`sonar.html`) Fases 1-2, ~20 hallazgos
+cerrados, solo M-06 (Turnstile) quedó pendiente de baja urgencia.
+
+C125 19-oct ✓ P404: re-auditoría `sonar_1.1.html` (51 hallazgos + 3
+nuevos). P405: `.env`/`.env.example` purgados de git para siempre
+(regla global). P406: reorganización de `.env.example` por severidad/
+dominio (7 secciones). P407/P408: plan de remediación `sonar_1.1.html`
+Fases A y B.
+
+C126 21-oct ✓ P409: Fase C del plan de remediación (15/16 cerrados).
+P410: Fase D — 5 decisiones de producto resueltas (incluye integración
+de Cloudflare Turnstile en onboarding, fail-closed).
+
+C127 22-oct ○ P411: revisión del punto 273 (Centro de conocimiento) — 2
+de 3 huecos ya eran decisiones tomadas, no deuda real. P412: aclaración
+explícita del usuario — `prod/` es herramienta de despliegue, no
+producto (origen de la regla que después aplicó también a `hostinger/`/
+`VULTR/`). P413: recorrido guiado extendido a Reportes/Configuraciones.
+
+C128 23-oct ◆ P414: limpieza de raíz (`calidad/`, `.trash/`, `DOCS/`).
+P415: MinIO cerró su distribución gratuita el mismo día en sus 3 vías —
+reemplazo por Garage sin tocar `storage.js`. P416: acceso gráfico a
+Garage (Filestash + unidad de red WebDAV). P417: suscripción — bloqueo
+de `/admin` por pago vencido, Mi Cuenta "Datos de pago". P418: reset de
+password sin pedir la del operador + cuenta raíz/maestra. P419:
+reasignar raíz/maestra desde `/control` + 2 fixes de seguridad.
+
+C129 24-oct ✓ P420: muro de suscripción también en login de `/admin`.
+P421: aviso fiscal angostado a perfil fiscal/segmento facturación. P422:
+mensaje claro para tenant "suspendido" (único estado que rompe a
+propósito la anti-enumeración, decisión aceptada explícita). P423:
+toast deja de ser flotante, nace dentro del contenido afectado (Fase 1
+de 2 — Fase 2, generalizar la palomita de éxito, sigue sin elegirse
+entre 6 propuestas). P424: aviso de cuota de usuarios como banner propio
+(`.field-error.aviso-cuota`), no error de campo.
+
+C130 26/27-oct ◆ P425: Segmento C de onboarding — Stripe real "cobrar
+primero, activar después" + upscale/recordatorios/reporte de cupones.
+P426: 4 ajustes UX en /control (Garage, menú, botón Stripe, panel de
+monetización). P427: códigos de descuento — pausar/reactivar/editar
+(clonar+archivar)/eliminar definitivo. P429: Super Admins grid sin
+acordeón + fix de desborde. P430: onboarding real end-to-end con el
+usuario — 2 bugs de producción encontrados y corregidos en vivo
+(incluido el orden "pagar siempre al final del wizard"). P431: cuota de
+disco por plan en la isla de precios. P432: eliminar definitivamente un
+plan en /control (candado en 2 pasos). P433: indicador de
+almacenamiento en Mi Cuenta + compra de upscale + capacidad de disco en
+/control (real, desde el host, no desde la VM de Garage). P434: toast
+que se cierra junto con su modal, en 8 sitios — orden correcto: cerrar
+modal primero, mostrar toast después.
+
+C131 28-oct ↻ P435: `prod/` renombrada a `hostinger/` (ruta remota sigue
+`prod/`). P436: renombrado de Docker — proyecto `portalfac`→`clarvo-app`,
+contenedores `portalManager-*`→`clrv-*`. P437: "Facturación"→"Gestión de
+facturas" en todo el sitio. P438: `.campo-ayuda` con ícono real + "Ayuda"
++ halo de descubribilidad. P439: quita nota obsoleta de Stripe en Mi
+Cuenta. P440 (grande): cobro recurrente REAL de Stripe + cancelación con
+retención + encuesta de salida + upscale generalizado + subir de plan +
+reporte de cancelaciones. P441: rate limiter compartido pegaba polling
+legítimo (onboarding + importación) — limiters propios por ruta.
+
+C132 29-oct 🎯 P442: PRIMER DESPLIEGUE PRODUCTIVO REAL — Clarvo en Vultr
+(clarvo.mx), Docker Swarm 1 nodo, 3 bugs reales encontrados y corregidos
+en vivo (SSH Git Bash, sintaxis Garage, tabla control_tenants). P443:
+SMTP default de plataforma (control/ como fallback real). P444: filtro
+de pestañas de Reportes por flag de plan individual. P445: auditoría
+`sonar_1.3.html`. P446: `inventario_activo` nace en 1 si el plan lo
+incluye. P447: recorrido guiado — perfiles sin módulo + sidebar
+expandido + prioridad sobre aviso fiscal. P448: `hostinger/`/`VULTR/`
+siempre fuera de análisis de calidad. P449: cancelar suscripción movido
+a Configuraciones + doble fricción final.
+
+C133 29/30-oct ● P450: bug de cuota de usuarios (3 sitios) + catálogo de
+recursos de upscale + columna "Plan" en /control + reactivar suscripción
++ aviso "N días" — recuperado de una sesión cortada por cierre abrupto
+del IDE, verificación funcional real completada al retomarlo.
+
+C134 30-oct 🎯 Sesión actual (retoma tras reinicio de PC a medio punto
+450): cerró la verificación funcional pendiente del punto 450 (clic real
+de reactivar suscripción, con Stripe test mode). P451: despliegue a
+producción real de los puntos 440-450 a Vultr, con backup previo
+(mysqldump) y `TRUST_PROXY_HOPS` re-verificado con evidencia real en
+`admin_auditoria` — aclarado que el ítem 327 de `pendientes.html` mezclaba
+2 servidores distintos (Vultr ya resuelto, Hostinger sigue pendiente,
+workflow del usuario, nunca SSH directo de una sesión). P452: columna
+"Ubicación" (ciudad/estado) en Auditoría de /admin y /control via
+`geoip-lite` (GeoLite2 embebida, sin terceros) — alcance confirmado
+explícito con el usuario (solo admin/control, no portal de clientes).
+Gotcha real: `geoip-lite@2.0.3` declara Node >=24 pero probado real en
+`node:20-alpine` — solo warning, funciona igual; se descartó forzar
+`ip-address` parcheado vía `overrides` (salto de 5 mayores, rompería la
+librería). P453: mismo feature desplegado y verificado real en Vultr
+(`docker exec` + `ubicacionDesdeIp()` con IP pública real). Documentación
+completa de este backfill: este archivo, `README.md`, `CLAUDE.md`,
+`pendientes.html` (ítem `sec-bitacora` actualizado a "parcial"),
+`VULTR/README-VULTR.md` y `VULTR/prodDoc.html`.

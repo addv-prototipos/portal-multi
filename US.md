@@ -39,7 +39,7 @@ propia identidad visual (marca, logo, tema).
 | App de control | Node.js + Express propio en contenedor aparte (`control/`, puerto 4001) — cross-tenant, credencial MySQL angosta |
 | Frontend | HTML + CSS + JavaScript vanilla (sin build step), servido por Nginx (`frontend/`) |
 | Base de datos | MySQL 8 (`mysql2/promise`, SQL crudo, sin ORM) — una BD por tenant |
-| Almacenamiento | MinIO (S3-compatible) para constancias, tickets, facturas, logos y favicons |
+| Almacenamiento | Garage (self-hosted, S3-compatible — MinIO hasta el punto 415, reemplazado cuando cerró su distribución gratuita) para constancias, tickets, facturas, logos y favicons |
 | Correo | Nodemailer (SMTP configurable, pensado para Gmail) |
 | Contenedores | Docker + Docker Compose; `docker-stack.yml` para Swarm (MySQL primario/réplica) |
 
@@ -756,7 +756,7 @@ Como **super**, quiero editar los datos de una empresa (mismos campos que el alt
 lectura activable con switch "Cambiar slug"), para corregir información.
 
 **Criterios de aceptación:**
-- Cambiar slug migra TODOS los archivos del tenant en MinIO (verificado por conteo; 502 sin borrar nada si no cuadra).
+- Cambiar slug migra TODOS los archivos del tenant en Garage (verificado por conteo; 502 sin borrar nada si no cuadra).
 - `db_name` se conserva (la BD física no se renombra); `storage_prefix` sí cambia.
 - nginx no necesita recarga (rutas regex); el control invalida la caché de ambos slugs.
 - Auditoría `datos_actualizados`/`slug_cambiado`.
@@ -766,7 +766,7 @@ Como **super**, quiero editar el nombre de marca y subir/reemplazar/quitar el lo
 (botón "Editar marca" por fila), para que sus correos lleven su identidad.
 
 **Criterios de aceptación:**
-- El logo se guarda en MinIO (`marca/<slug>/logo`) vía endpoint interno protegido por `X-Internal-Secret` (no expuesto por nginx).
+- El logo se guarda en Garage (`marca/<slug>/logo`) vía endpoint interno protegido por `X-Internal-Secret` (no expuesto por nginx).
 - Se sirve público en `GET /api/marca-logo/:slug` con cache de 24 h.
 - Sin logo, los correos usan el nombre de marca en texto; sin marca, fallback "ADDV".
 
@@ -800,7 +800,7 @@ muestre su icono.
 
 **Criterios de aceptación:**
 - Se sube junto con el tema (campo de favicon en "Identidad visual") o en la edición de tema.
-- El archivo vive en MinIO bajo `marca/<slug>/favicon`, subido vía `POST/DELETE /internal/favicon/:slug` (protegido con `X-Internal-Secret`, no expuesto por nginx).
+- El archivo vive en Garage bajo `marca/<slug>/favicon`, subido vía `POST/DELETE /internal/favicon/:slug` (protegido con `X-Internal-Secret`, no expuesto por nginx).
 - Se sirve público en `GET /api/favicon/:slug` con cache de 24 h.
 - El renombrado de slug (segmento Edición) migra también el favicon si existe.
 
@@ -820,7 +820,7 @@ colores y radio de esquinas de mi portal desde Configuraciones, sin depender de 
   `/tema/restablecer`, `/marca-logo`, `/favicon`), gateados por `marcaLookfeelHabilitado` antes de
   la autenticación (404, nunca 403) y por el mismo `control_tenants.tenants` que ya editaba
   `/control` — un tenant editado desde cualquiera de las dos superficies cae en el mismo dato y el
-  mismo archivo en MinIO.
+  mismo archivo en Garage.
 - Logo y favicon se guardan de inmediato al seleccionarlos (sin esperar un botón "Guardar"
   general); el nombre de marca y los colores se guardan con el botón "Guardar cambios" propio de
   la tarjeta.
@@ -868,8 +868,8 @@ GTID) y failover manual, para tolerar la pérdida de un nodo.
 - Failover deliberadamente manual (`promote-replica.js`) para evitar split-brain.
 - **Pendiente de validación real**: nunca desplegado contra un clúster Swarm multi-nodo real.
 
-### US-058 — Almacenamiento de archivos en MinIO
-Como **operador**, quiero que constancias, tickets y facturas se guarden en MinIO (S3-compatible),
+### US-058 — Almacenamiento de archivos en Garage
+Como **operador**, quiero que constancias, tickets y facturas se guarden en Garage (S3-compatible),
 para no depender del disco local y poder escalar a múltiples nodos.
 
 **Criterios de aceptación:**
@@ -1183,6 +1183,11 @@ propio tenant, para revisar quién hizo qué sin pedirle el acceso a `/control`.
   evita el switch.
 - El registro de auditoría en sí (`admin_auditoria`) sigue corriendo pase lo que pase; el switch solo
   controla la pantalla de consulta.
+- Columna "Ubicación" (punto 452): traduce la IP ya guardada a ciudad/estado aproximado con
+  `geoip-lite` (GeoLite2 embebida, sin llamadas a terceros), calculado al listar — sin tabla nueva,
+  retroactivo a todo el historial. IPs privadas/internas muestran "—". Mismo campo en la auditoría
+  cross-tenant de `/control`. Alcance a propósito: solo panel admin/control, el portal de clientes no
+  tiene auditoría de login todavía (ver `pendientes.html`, ítem `sec-bitacora`).
 
 ### US-104 — Checklist "Primeros pasos" y recorrido guiado
 Como **usuario nuevo** de una cuenta, quiero un checklist de primeros pasos y un recorrido guiado con
@@ -1565,3 +1570,81 @@ me guste, para tener una meta concreta en vez de solo un saldo.
 - Verificado: Jest 1229/1229 y clics reales con datos del tenant (gastos
   $75,959.48 → equilibrio diario $2,450.31), preferencia persistente entre
   recargas.
+
+## 29. Suscripciones reales, upscale y auditoría con ubicación (28-30 oct 2026)
+
+### US-121 — Cobro recurrente real de Stripe, con cancelación y retención
+Como **administrador raíz/maestro**, quiero que mi suscripción se cobre de verdad cada corte vía
+Stripe (no un estatus editado a mano) y poder cancelarla con una oferta de retención antes de
+irme, para controlar mi gasto sin perder el servicio por sorpresa.
+
+**Criterios de aceptación:**
+- Webhook real de Stripe (`invoice.payment_succeeded`) renueva `suscripcion_expira_en` en cada
+  corte — leyendo el id de Subscription desde `invoice.parent.subscription_details.subscription`
+  (el campo viejo `invoice.subscription` ya no existe en la versión de API instalada).
+- Botón "Cancelar suscripción" (Configuraciones → Suscripción, perfil raíz/maestro únicamente):
+  oferta de descuento de retención → encuesta de salida → doble fricción final (escribir
+  "cancelar" exacto + código de 6 caracteres generado, nunca reusado) → `cancel_at_period_end:true`
+  real en Stripe, acceso se mantiene hasta el corte.
+- "Cambié de opinión, reactivar cobro": reversa exacta sobre la MISMA Subscription, nunca crea una
+  nueva ni toca precio/plan.
+- Aviso "te quedan N días" si faltan ≤3 días para el corte y la suscripción está marcada para
+  cancelar — se difiere si el recorrido guiado está abierto (el tour tiene prioridad).
+
+### US-122 — Comprar recursos adicionales (upscale) sin cambiar de plan
+Como **administrador raíz/maestro**, quiero poder comprar más disco o más usuarios sin tener que
+subir de plan completo, para pagar solo por lo que de verdad necesito de más.
+
+**Criterios de aceptación:**
+- Catálogo en `/control` → "Upscale y Stripe": cada funcionalidad declara qué otorga (ninguno /
+  disco / usuarios), un recurso a la vez.
+- Compra real desde Mi Cuenta: si faltan >20 días para el corte, Stripe Checkout "cobrar primero,
+  activar después"; si faltan ≤20 días, se aplica de inmediato y el cobro queda pendiente del
+  siguiente corte manual.
+- El upscale es recurrente (se suma para siempre a la cuota/mensualidad), nunca una compra única.
+- Subir de plan completo NUNCA pisa un upscale ya comprado por separado (bug real corregido: el
+  cambio de plan re-suma el upscale después de aplicar el plan base, nunca antes).
+
+### US-123 — Ver de un vistazo el plan y los upscale de cada empresa en /control
+Como **super admin**, quiero ver el plan contratado y los upscale comprados de cada empresa
+directo en la tabla de "Empresas", para no tener que abrir cada una para saber qué tiene.
+
+**Criterios de aceptación:**
+- Columna "Plan" (reemplaza "Contacto"): nombre del plan + un chip visual por cada upscale de
+  disco/usuarios ya comprado.
+
+### US-124 — Cuota de usuarios respetada en todos los caminos de alta/edición
+Como **operador de plataforma**, quiero que el límite de usuarios del plan se respete sin
+excepción sin importar por dónde se cree o edite una cuenta, para que un tenant no se quede con
+más operadores de los que paga.
+
+**Criterios de aceptación:**
+- El conteo que bloquea alta (`POST /api/admin/usuarios`) y edición (`PUT /api/admin/usuarios/:id`)
+  usa los mismos 4 perfiles cuotables (administrador/fiscal/ventas/inventario) + `activo=1` que el
+  conteo que se MUESTRA al administrador — los 3 sitios alineados tras un bug real donde
+  desalinearse permitía saltarse la cuota en 2 de los 3.
+
+### US-125 — Saber desde dónde se conecta cada acceso administrativo
+Como **super admin u operador de seguridad**, quiero ver una ubicación aproximada (ciudad/estado)
+junto a cada acceso en la Auditoría, para saber desde qué parte de la república se conectan mis
+operadores y poder investigar si una contraseña robada se usó desde un lugar inusual.
+
+**Criterios de aceptación:**
+- Columna "Ubicación" en Auditoría de `/admin` y `/control`, calculada de la IP ya guardada (sin
+  llamadas a servicios externos, sin tabla nueva, retroactiva a todo el historial).
+- IPs privadas/internas (Docker, loopback) muestran "—", nunca una ubicación inventada.
+- Fuera de alcance a propósito (ver `pendientes.html`, ítem `sec-bitacora`): el portal de clientes
+  no tiene esta bitácora todavía, y no hay alerta automática por correo si cambia la ubicación —
+  solo se MUESTRA el dato en Auditoría.
+
+### US-126 — Primer cliente de producción real (infraestructura)
+Como **dueño del producto**, quiero tener Clarvo corriendo en un servidor de producción real
+(`clarvo.mx`, Vultr) separado del servidor de pruebas, para poder dar de alta clientes reales.
+
+**Criterios de aceptación:**
+- Docker Swarm de 1 nodo, backup real (`mysqldump`) antes de cada despliegue de código nuevo.
+- `TRUST_PROXY_HOPS` correcto para la topología real (nginx del host + contenedor frontend = 2
+  saltos) — verificado con evidencia real en `admin_auditoria`, no solo revisando el valor del
+  `.env`.
+- Stripe en modo prueba y Turnstile con llave pública de prueba (decisiones explícitas, pendiente
+  pasar a real cuando el usuario lo confirme).

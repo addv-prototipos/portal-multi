@@ -16,6 +16,7 @@
 | Imágenes de producto | `sharp` (resize + conversión a WebP para la imagen principal de cada producto en Inventarios) |
 | Código de barras | `bwip-js` (genera el Code128 de las etiquetas de producto en el servidor); lectura por cámara con `BarcodeDetector` nativo del navegador, con `html5-qrcode` vendorizado como respaldo |
 | Tipo de cambio | API SIE de Banco de México (`BANXICO_TOKEN`, opcional) para productos de Inventarios en moneda extranjera |
+| Ubicación por IP | `geoip-lite` (base MaxMind GeoLite2 embebida, sin llamadas a terceros) — traduce la IP ya guardada en `admin_auditoria` a ciudad/estado aproximado, solo en la Auditoría de `/admin`/`/control` (punto 452) |
 | Contenedores | Docker + Docker Compose, imágenes multi-stage |
 
 No se usa framework de frontend (React/Vite) para mantener la imagen ligera y sin paso de build; el resultado es una interfaz moderna, responsiva y accesible con JavaScript nativo.
@@ -265,6 +266,19 @@ Flujo de 3 pasos con indicador de progreso:
 Diseño mobile-first en todas las páginas, con foco visible para navegación por teclado, etiquetas asociadas a cada campo y contraste adecuado.
 
 ## 🌍 Despliegue a producción (VPS Ubuntu)
+
+Esta sección es la guía genérica de un solo nodo con `docker compose` (útil
+para clonar el proyecto desde cero). Los 2 despliegues reales del proyecto
+tienen su propio runbook operativo, con secretos y comandos exactos, fuera
+del repo:
+- `hostinger/` (antes `prod/`) → VPS de pruebas real, `yt.addv.com.mx`
+  (Hostinger, un solo nodo, `docker-compose.prod.yml`).
+- `VULTR/` → VPS de producción real, `clarvo.mx` (Vultr, Docker Swarm de
+  un nodo — `VULTR/README-VULTR.md` tiene la arquitectura completa,
+  `VULTR/prodDoc.html` los secretos/comandos operativos reales).
+
+Ambas carpetas están en `.gitignore` (son herramientas de despliegue, no
+código del producto — ver PROJECT_STATE.md puntos 412/442).
 
 1. **Preparar el servidor**
    ```bash
@@ -756,7 +770,11 @@ Consulta, dentro del propio tenant, la bitácora de mutaciones y logins del pane
 otro tenant. Opcional: un switch **"Mostrar Auditoría"** en Configuraciones globales (encendido por
 defecto) oculta el botón del sidebar y bloquea el endpoint también del lado del servidor cuando está
 apagado — el registro en sí (`admin_auditoria`) sigue corriendo pase lo que pase, el switch solo
-controla la pantalla de consulta.
+controla la pantalla de consulta. Columna **"Ubicación"** (punto 452): traduce la IP ya guardada a
+ciudad/estado aproximado con `geoip-lite` (base MaxMind GeoLite2 embebida, sin llamadas a terceros),
+calculado al vuelo al listar — no se guarda en BD, retroactivo a todo el historial. Fuera de México
+muestra "Ciudad, País"; IPs privadas/internas (Docker, loopback) muestran "—". Mismo campo en la
+Auditoría cross-tenant de `/control`.
 
 ### Vista "Proveedores"
 

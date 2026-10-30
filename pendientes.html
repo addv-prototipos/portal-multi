@@ -603,10 +603,10 @@
           </tr>
           <tr data-app="cliente,admin,control" data-id="sec-bitacora">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-bitacora" aria-label="Marcar completado"></td>
-            <td class="col-punto">—</td>
+            <td class="col-punto">452</td>
             <td class="col-item">Bitácora de IP/zona + alerta por cambio de estado</td>
-            <td class="col-detalle">Registrar <strong>IP y zona</strong> (estado/ciudad) de cada inicio de sesión (portal + <code>/admin</code> / <code>/control</code>) en bitácora. Resolver ubicación por IP en servidor (GeoIP: MaxMind GeoLite2 / ip-api / ipinfo — por definir, con fallback si no resuelve). Si el login ocurre desde un <strong>estado distinto</strong> al último registrado para ese usuario, enviar <strong>correo de alerta</strong>: “Alguien accedió desde otra ubicación — ¿fuiste tú? Sí / No fui yo” con IP, ciudad/estado, fecha/hora (zona horaria del tenant) y dispositivo aproximado (UA). Requiere tabla <code>sesiones_log</code> + plantilla de correo + respeto a <code>trust proxy</code> para IP real. Sin código aún.</td>
-            <td class="col-estado"><span class="pill pill-amber">Construible, sin empezar</span></td>
+            <td class="col-detalle"><strong>Mitad admin/control — HECHA (30 oct 2026, punto 452/453):</strong> columna "Ubicación" en Auditoría de <code>/admin</code> y <code>/control</code>, calculada al vuelo con <code>geoip-lite</code> (GeoLite2 embebida, sin llamadas a terceros — decisión confirmada del usuario) sobre la IP que <code>admin_auditoria</code> ya guardaba desde el segmento 7. Sin tabla nueva, retroactivo a todo el historial. Desplegado y verificado real en Vultr/<code>clarvo.mx</code>. <strong>Sigue sin empezar (confirmado explícitamente fuera de alcance por el usuario al construir la mitad de arriba):</strong> (1) el <strong>portal de clientes</strong> (perfil <code>cliente</code>) sigue sin ningún tipo de bitácora de login — ni IP, ni ubicación, tabla <code>sesiones_log</code> nueva necesaria; (2) la <strong>alerta por correo</strong> de "accediste desde otro estado" (ni para admin/control ni para clientes) — hoy solo se MUESTRA la ubicación en Auditoría, nadie compara contra el último login ni dispara ningún correo.</td>
+            <td class="col-estado"><span class="pill pill-blue">Parcial — admin/control hecho, portal cliente + alerta por correo sin empezar</span></td>
           </tr>
           <tr data-app="admin,control" data-id="sec-274">
             <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-274" aria-label="Marcar completado"></td>
