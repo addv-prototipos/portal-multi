@@ -156,6 +156,8 @@
     confirmModalMensaje: document.getElementById('confirm-modal-mensaje'),
     btnConfirmCancelar: document.getElementById('btn-confirm-cancelar'),
     btnConfirmAceptar: document.getElementById('btn-confirm-aceptar'),
+    compraConfirmadaOverlay: document.getElementById('compra-confirmada-overlay'),
+    compraConfirmadaTexto: document.getElementById('compra-confirmada-texto'),
     // Vista previa del documento
     previewOverlay: document.getElementById('preview-overlay'),
     previewTitle: document.getElementById('preview-title'),
@@ -1460,6 +1462,7 @@
     btnGuardarConfigGlobalLabel: document.getElementById('btn-guardar-config-global-label'),
     // Tabla de usuarios
     usuariosCount: document.getElementById('usuarios-count'),
+    usuariosCuotaChip: document.getElementById('usuarios-cuota-chip'),
     usuariosFiltroPerfil: document.getElementById('usuarios-filtro-perfil'),
     btnRefreshUsuarios: document.getElementById('btn-refresh-usuarios'),
     btnCrearUsuario: document.getElementById('btn-crear-usuario'),
@@ -9146,6 +9149,21 @@
     els.btnUpscaleConfirmar.textContent = 'Confirmar compra';
   }
 
+  // Confirmación de compra real (Stripe) — overlay centrado con la misma
+  // palomita animada que "Registrar venta"/"Cobro CxC" (ver admin.css,
+  // .compra-confirmada-card reusa orden-form-exito-check/-texto). Se
+  // auto-cierra sola ~1.9s (circle 0.4s + check 0.25s@0.35 + texto
+  // 0.3s@0.5 = ~0.8s de animación, el resto es tiempo de lectura).
+  // Reemplaza showToast() SOLO en cargos reales (upscale, subir de
+  // plan) — reactivar suscripción no es una compra nueva, sigue con
+  // showToast().
+  function mostrarCompraConfirmada(mensaje) {
+    if (!els.compraConfirmadaOverlay) { showToast(mensaje, false); return; }
+    els.compraConfirmadaTexto.textContent = mensaje;
+    els.compraConfirmadaOverlay.hidden = false;
+    setTimeout(() => { els.compraConfirmadaOverlay.hidden = true; }, 1900);
+  }
+
   async function confirmarCompraUpscale() {
     els.btnUpscaleConfirmar.disabled = true;
     els.upscaleModalError.textContent = '';
@@ -9158,7 +9176,7 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'No se pudo procesar la compra.');
       cerrarModalUpscale();
-      showToast('Compra aplicada — ya se cobró a tu suscripción.', false);
+      mostrarCompraConfirmada('Compra aplicada — ya se cobró a tu suscripción.');
       cargarMiCuenta();
     } catch (err) {
       els.upscaleModalError.textContent = err.message || 'No se pudo procesar la compra.';
@@ -9216,7 +9234,7 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'No se pudo subir de plan.');
       cerrarModalUpscale();
-      showToast(`Ahora tienes el plan ${nombrePlan} — ya se cobró la diferencia.`, false);
+      mostrarCompraConfirmada(`Ahora tienes el plan ${nombrePlan} — ya se cobró la diferencia.`);
       cargarMiCuenta();
     } catch (err) {
       els.upscalePlanError.textContent = err.message || 'No se pudo subir de plan.';
@@ -13041,8 +13059,38 @@
       const data = await res.json();
       renderUsuarios(data.usuarios || []);
       Esqueleto.quitarEsqueletoTabla(els.usuariosTableBody);
+      cargarCuotaUsuarios();
     } catch (err) {
       Esqueleto.aplicarErrorTabla(els.usuariosTableBody, 5, 'No se pudo conectar con el servidor.', cargarUsuarios);
+    }
+  }
+
+  // Cupo del plan junto al conteo — pedido explícito del usuario: que se
+  // vea cuántos operadores caben en el plan sin tener que ir a Mi Cuenta.
+  // Fuente de verdad: GET /api/admin/mi-cuenta (mismo totalOperadores/
+  // maxUsuarios ya usados en el aviso de cuota de Mi Cuenta, con el
+  // mismo filtro real de PERFILES_CUOTA + activo=1, punto 450) — nunca
+  // se deriva de usuarios.length de esta vista (esa lista puede incluir
+  // perfil "cliente", que no cuenta contra la cuota). Falla en silencio
+  // si no se pudo pedir — no es crítico para poder ver la tabla.
+  async function cargarCuotaUsuarios() {
+    const authHeader = getAuthHeader();
+    if (!authHeader || !els.usuariosCuotaChip) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta`, { headers: { Authorization: authHeader } });
+      if (!res.ok) { els.usuariosCuotaChip.hidden = true; return; }
+      const data = await res.json();
+      const maxUsuarios = data.empresa && data.empresa.maxUsuarios;
+      const totalOperadores = data.empresa && data.empresa.totalOperadores;
+      if (maxUsuarios == null || totalOperadores == null) {
+        els.usuariosCuotaChip.hidden = true;
+        return;
+      }
+      els.usuariosCuotaChip.textContent = `Cupo del plan: ${totalOperadores} de ${maxUsuarios}`;
+      els.usuariosCuotaChip.classList.toggle('es-limite', totalOperadores >= maxUsuarios);
+      els.usuariosCuotaChip.hidden = false;
+    } catch (err) {
+      els.usuariosCuotaChip.hidden = true;
     }
   }
 

@@ -1700,6 +1700,18 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   `docker service rm <nombre>` a mano después — un servicio eliminado
   del `docker-stack.yml` sigue corriendo indefinidamente si no se hace
   ninguna de las dos cosas.
+- **Para probar un endpoint de `/admin` con `curl` directo (Basic Auth),
+  la ruta real es `/<slug>/api/admin/...` con `-u usuario:password` —
+  nunca `X-Tenant-Slug` por header contra `/api/admin/...` a secas, y
+  el login real es `GET /api/admin/login` (no `POST`)** (punto 456,
+  2026-10-30): probado real contra el stack local — `curl -u ... -H
+  "X-Tenant-Slug: prueba-cancel-8" http://localhost:8088/api/admin/...`
+  da 401 siempre (el header no resuelve el tenant para esta ruta); el
+  formato que sí funciona es
+  `curl -u usuario:pass http://localhost:8088/<slug>/api/admin/...`
+  (nginx resuelve el tenant por el PATH, igual que en el navegador).
+  Antes de asumir que Basic Auth "no funciona" contra una ruta de
+  `/admin`, verificar primero el formato real de la URL.
 
 ## Stack
 

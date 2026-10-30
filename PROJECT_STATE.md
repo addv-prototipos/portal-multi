@@ -26482,3 +26482,54 @@ Archivos: `backend/package.json`, `control/package.json`,
 `frontend/admin.html` (versión 1.0.1), `VULTR/docker-stack.yml`,
 `hostinger/docker-compose.prod.yml` (bind mount de uploads retirado,
 mismo fix que dev), `PROJECT_STATE.md` (este punto).
+
+## Punto 456 — Cupo del plan visible en Usuarios + confirmación de compra real con overlay en vez de toast (30 oct 2026, CERRADO)
+
+Dos pedidos puntuales del usuario, ambos en `/admin`.
+
+**1. Cupo del plan en la vista "Usuarios"**: junto al conteo existente
+("N usuarios"), un chip nuevo "Cupo del plan: X de Y" — para que el
+administrador sepa cuántos operadores le caben en su plan sin ir a Mi
+Cuenta, y vea cuándo conviene comprar más. Fuente de verdad:
+`GET /api/admin/mi-cuenta` (`empresa.totalOperadores`/`maxUsuarios`,
+mismo filtro `PERFILES_CUOTA` + `activo=1` del punto 450) — nunca
+derivado de `usuarios.length` de esa vista, que puede incluir perfil
+`cliente` (no cuenta contra la cuota). Chip oculto si el plan no tiene
+límite (`maxUsuarios == null`, ej. sitio base). Se refresca solo porque
+todos los flujos que ya tocan la lista (crear/suspender/eliminar/editar
+usuario) ya llamaban `cargarUsuarios()`, que ahora también dispara el
+refresco del chip. Verificado real con Playwright contra
+`prueba-cancel-8` (maxUsuarios=2 en ese momento): "Cupo del plan: 1 de 2".
+
+**2. Confirmación de compra real (Stripe) — overlay en vez de toast**:
+propuesta de 3 opciones vía Artifact (inline/overlay centrado/franja
+superior, las 3 reusando la palomita animada real de "Registrar venta"
+— `orden-form-exito-check`/`-texto`). El usuario eligió la **opción 2
+(overlay centrado)**. Implementado como componente nuevo, reusable:
+`#compra-confirmada-overlay` (vive una sola vez en `admin.html`, mismo
+patrón que `#confirm-modal-overlay`) + función `mostrarCompraConfirmada(mensaje)`
+en `admin.js` — toggle de `hidden`, auto-cierra a los 1900ms, sin botón.
+Reemplaza `showToast()` SOLO en los 2 cargos reales de Stripe —
+`confirmarCompraUpscale()` y `confirmarSubirPlan()` — nunca en
+"reactivar suscripción" (no es una compra nueva, sigue con toast).
+Orden preservado (cerrar modal → mostrar confirmación, mismo criterio
+del punto 434).
+
+**Validado real, no solo visual**: compra real de "Usuario adicional"
+contra el tenant `prueba-cancel-8` vía `POST .../upscale/comprar`
+(formato real de la ruta descubierto en el momento — `/<slug>/api/admin/...`
+con Basic Auth directo, no `X-Tenant-Slug` por header ni Bearer vía
+curl) — respuesta real `{"ok":true,"cobroInmediato":true,
+"cobradoViaSuscripcion":true,...}`, `usuarios_upscale` en BD subió de 1
+a 2 — cargo real procesado por Stripe (test mode), no simulado. El
+componente visual (overlay) se verificó aparte, por DOM/CSS real
+(`getComputedStyle`), porque la vista "Mi Cuenta" del navegador
+automatizado reventó repetidas veces por falta de memoria del sistema
+(1.5 GB libres de 16 GB en el momento) — no relacionado al cambio,
+anotado, no perseguido más allá. Confirmado: el elemento existe, el
+texto se pinta real, la animación corre completa (circle→check→texto,
+opacity 0→1 en ~800ms, trazo `#05DBF2`), la tarjeta tiene los estilos
+reales esperados, y el auto-cierre funciona.
+
+Archivos: `frontend/admin.html`, `frontend/admin.js`,
+`frontend/admin.css`, `PROJECT_STATE.md` (este punto).

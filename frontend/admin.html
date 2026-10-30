@@ -2366,6 +2366,7 @@
           </div>
           <div class="admin-toolbar-right">
             <span class="admin-count" id="usuarios-count">0 usuarios</span>
+            <span class="usuarios-cuota-chip" id="usuarios-cuota-chip" hidden></span>
             <!-- Perfiles y roles de acceso — antes una tarjeta acordeón de
                  ancho completo (se veía asimétrica junto a las tarjetas
                  angostas de arriba); ahora un botón junto al conteo que
@@ -5125,6 +5126,21 @@
         <button type="button" class="btn btn-secondary" id="btn-confirm-cancelar">Cancelar</button>
         <button type="button" class="btn btn-danger" id="btn-confirm-aceptar">Eliminar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Confirmación de compra real (Stripe) — overlay centrado con la misma
+       palomita animada de "Registrar venta" (orden-form-exito-check/-texto,
+       ver admin.css), en vez del toast. Se usa SOLO para cargos reales
+       (upscale, subir de plan) — reactivar suscripción no es una compra
+       nueva, sigue con showToast(). Se auto-cierra sola, sin botón. -->
+  <div class="modal-overlay" id="compra-confirmada-overlay" hidden role="status" aria-live="polite">
+    <div class="compra-confirmada-card">
+      <svg class="orden-form-exito-check" width="56" height="56" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" stroke="#05DBF2" stroke-width="4"/>
+        <path d="M20 33l8 8 16-18" stroke="#05DBF2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p class="orden-form-exito-texto" id="compra-confirmada-texto">Compra aplicada</p>
     </div>
   </div>
 

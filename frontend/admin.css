@@ -1448,6 +1448,24 @@
   color: var(--color-ink-soft);
 }
 
+/* Cupo del plan junto al conteo de Usuarios — para que el administrador
+   sepa cuántos operadores le caben en su plan sin tener que ir a Mi
+   Cuenta, y vea de un vistazo cuándo le conviene comprar más. */
+.usuarios-cuota-chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-ink-soft);
+}
+.usuarios-cuota-chip.es-limite {
+  background: var(--color-warn-soft);
+  border-color: var(--color-warn);
+  color: var(--color-warn);
+}
+
 .admin-toolbar-right .btn {
   padding: 8px 14px;
   font-size: 13.5px;
@@ -3734,6 +3752,22 @@
     stroke-dashoffset: 0;
   }
   .orden-form-exito-texto { animation: none; opacity: 1; }
+}
+
+/* Confirmación de compra real (overlay centrado, opción 2 elegida por el
+   usuario sobre 3 propuestas) — misma palomita de arriba, tarjeta flotante
+   en vez de reemplazar contenido inline (upscale/subir de plan ocurren
+   desde un modal que ya se cerró, no hay dónde hacer swap). */
+.compra-confirmada-card {
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 32px 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+  text-align: center;
 }
 
 .admin-config-grid {
