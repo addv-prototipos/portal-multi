@@ -112,6 +112,7 @@ describe('GET /api/admin/auditoria (punto 244)', () => {
       ruta: '/api/admin/usuarios',
       estatus: 201,
       ip: '10.0.0.1',
+      ubicacion: null,
     });
     const [sqlAuditoria, paramsAuditoria] = poolControl.query.mock.calls[1];
     expect(sqlAuditoria).toMatch(/WHERE tenant_slug = \?/);

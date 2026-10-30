@@ -36,6 +36,7 @@ const {
 } = require('./utils/correoMarca');
 const { requireAdminAuth, requireAdminArea, recargarAdminUsers, checkCredentials } = require('./utils/auth');
 const { asegurarTablaAuditoria, registrarAccesoAdmin, listarAuditoria } = require('./utils/adminAuditoria');
+const { ubicacionDesdeIp } = require('./utils/geoIp');
 const {
   hashPassword,
   verifyPassword,
@@ -6638,6 +6639,7 @@ app.get(
         ruta: f.ruta,
         estatus: f.resultado_estatus,
         ip: f.ip,
+        ubicacion: ubicacionDesdeIp(f.ip),
       })),
     });
   })

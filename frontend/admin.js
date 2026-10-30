@@ -9700,7 +9700,7 @@
     els.auditoriaError.textContent = '';
     els.btnLimpiarAuditoriaActor.hidden = !els.auditoriaFiltroActor.value;
     renderAuditoriaFiltrosChips();
-    Esqueleto.aplicarEsqueletoTabla(els.auditoriaTableBody, 7);
+    Esqueleto.aplicarEsqueletoTabla(els.auditoriaTableBody, 8);
 
     const params = new URLSearchParams();
     const actor = els.auditoriaFiltroActor.value.trim();
@@ -9744,12 +9744,13 @@
           <td data-label="Acción"><code>${escapeHtml(r.metodo)} ${escapeHtml(r.ruta)}</code></td>
           <td data-label="Estatus"><span class="estatus-badge ${claseEstatusHttp(r.estatus)}">${r.estatus}</span></td>
           <td data-label="IP">${escapeHtml(r.ip || '—')}</td>
+          <td data-label="Ubicación">${escapeHtml(r.ubicacion || '—')}</td>
         `;
         els.auditoriaTableBody.appendChild(tr);
       });
       Esqueleto.quitarEsqueletoTabla(els.auditoriaTableBody);
     } catch (err) {
-      Esqueleto.aplicarErrorTabla(els.auditoriaTableBody, 7, err.message || 'No se pudo cargar la auditoría.', cargarAuditoria);
+      Esqueleto.aplicarErrorTabla(els.auditoriaTableBody, 8, err.message || 'No se pudo cargar la auditoría.', cargarAuditoria);
     }
   }
 

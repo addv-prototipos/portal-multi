@@ -26089,3 +26089,157 @@ Archivos involucrados: `backend/server.js`, `control/utils/upscale.js`,
 `frontend/admin.css`, `PROJECT_STATE.md`, `CLAUDE.md`, `AGENTS.md` (este
 punto).
 
+
+## Punto 451 — Despliegue a producción real (Vultr/clarvo.mx) de los puntos 440-450 + verificación real de TRUST_PROXY_HOPS (punto 327, instancia Vultr) (30 oct 2026, CERRADO)
+
+El VPS de Vultr (`clarvo-prod-01`, `clarvo.mx`) seguía corriendo el código
+del punto 442 (29 oct) — todo lo construido después (443-450: SMTP
+default de plataforma, filtro de pestañas de Reportes por plan,
+`inventario_activo` con default correcto, mejoras al recorrido guiado,
+cancelación movida a Configuraciones, bug de cuota de usuarios, catálogo
+de recursos de upscale, columna "Plan" en `/control`, reactivar
+suscripción, aviso "N días") nunca había llegado a producción real. A
+petición explícita del usuario, se desplegó.
+
+**Pre-flight**: `docker service ls` sano, `TRUST_PROXY_HOPS=2` ya vivo en
+`/opt/clarvo/.env` del servidor (fijado desde el punto 442, nunca se
+había vuelto a verificar con evidencia real desde entonces).
+
+**Backup antes de tocar código** (ninguno existía previo en este
+servidor): `mysqldump --all-databases` de `mysql-primary` y
+`mysql-control` a `/mnt/blockstorage/backups/` (timestamped), ambos
+~3.9MB, antes de cualquier rebuild.
+
+**Despliegue**: `tar` de `backend/control/frontend/docker` (excluyendo
+`node_modules`/`.git`) → `scp` al servidor (OpenSSH nativo de Windows,
+`/c/Windows/System32/OpenSSH/`, nunca el de Git Bash — bug ya documentado)
+→ extraído a `/opt/clarvo` → `docker build` de las 3 imágenes
+(`clrv-backend`, `clrv-control`, `clrv-frontend`) → `docker service
+update --force` de los 3 servicios Swarm (nunca `restart`, para que tome
+la imagen nueva). Los 3 convergieron sin downtime visible (`frontend`
+tardó unos segundos extra liberando el puerto host-mode, comportamiento
+normal de Swarm, no error).
+
+**Verificación real, no solo "servicio corriendo"**: `docker ps` confirmó
+los 2 contenedores nuevos `healthy`; sus logs (del contenedor actual, no
+el agregado histórico de `docker service logs` que mezcla tareas
+viejas/crasheadas de despliegues anteriores — ojo con esa trampa, un
+`ER_NO_SUCH_TABLE`/`ENOTFOUND garage` que aparece ahí es ruido del
+primer despliegue del punto 442, no del de hoy) sin errores nuevos. `curl`
+real contra `https://clarvo.mx/` (200), `/api/health` (200), `/control`
+(200) y `/api/public/planes` (200, con datos reales de los 3 planes).
+
+**`TRUST_PROXY_HOPS` (punto 327), instancia Vultr — verificado con
+evidencia real en BD, no solo con curl**: `SELECT ip FROM
+admin_auditoria ORDER BY ocurrido_en DESC` tras generar tráfico real
+mostró la IP pública real del cliente (`189.243.163.85`) en las 8 filas
+más recientes — nunca una IP interna de Docker. Confirma que la
+instancia de Vultr/`clarvo.mx` de este hallazgo quedó resuelta desde el
+punto 442 y sigue correcta hoy. **La instancia de `yt.addv.com.mx`
+(Hostinger, pendientes.html ítem 327) sigue sin resolver** — es un
+servidor distinto con su propio `.env`/nginx del host, y por regla fija
+del usuario (ver memoria `feedback_deploy_vps_solo_prod_scripts.md`) su
+actualización pasa solo por `hostinger/actualizar.sh` corrido por el
+propio usuario, nunca por SSH directo de una sesión de Claude — no se
+tocó ese servidor en este punto. `pendientes.html` ítem 327 actualizado
+para reflejar el split (Vultr resuelto / Hostinger pendiente) en vez de
+un solo estado "Urgente" ambiguo entre 2 servidores distintos.
+
+**No ejecutado, fuera de alcance de este punto (sin pedirse)**: subir
+Stripe a modo Live, sacar llave real de Cloudflare Turnstile, segundo
+nodo Swarm — siguen en la lista de "Pendientes conocidos" de
+`VULTR/README-VULTR.md`, sin cambios.
+
+Archivos: ninguno de código (el código ya estaba commiteado en `main`,
+commit `735f394`, antes de este despliegue) — solo `PROJECT_STATE.md`,
+`pendientes.html` (este punto).
+
+## Punto 452 — Ubicación aproximada (ciudad/estado) en Auditoría de /admin y /control, a partir de la IP ya guardada (30 oct 2026, CERRADO)
+
+Pedido explícito del usuario, motivado por 2 necesidades reales: (1) saber
+desde qué parte de la república se conectan los operadores del panel, y
+(2) poder determinar la ubicación de un acceso si alguien roba una
+contraseña (forense básico). `admin_auditoria.ip` ya guardaba la IP real
+de cada acceso administrativo desde el segmento 7 — este punto solo
+agrega la traducción IP→ubicación a la pantalla que ya existía.
+
+**2 decisiones confirmadas explícitamente por el usuario antes de
+implementar** (vía pregunta directa, no asumidas):
+1. **Alcance**: solo panel admin/control (perfiles administrador/fiscal/
+   ventas/inventario/super) — el portal de clientes (perfil `cliente`)
+   NO tiene ningún tipo de auditoría de login hoy y queda fuera, construir
+   eso sería mucho más trabajo y nunca se había pedido antes.
+2. **Método**: `geoip-lite` (base MaxMind GeoLite2 embebida, sin llamadas
+   a terceros) en vez de una API externa — las IPs de los operadores nunca
+   salen de la infraestructura propia, sin dependencia de un servicio
+   externo con límites de tasa/costo.
+
+**Implementación**: cálculo al vuelo en el momento de LISTAR (nunca se
+guarda en BD) — `backend/utils/geoIp.js` y `control/utils/geoIp.js`
+(duplicado, mismo criterio de siempre entre los 2 builds), función
+`ubicacionDesdeIp(ip)` que limpia el prefijo `::ffff:` y traduce el
+código de región ISO 3166-2 que da `geoip-lite` (ej. `"MIC"`) a nombre
+completo del estado mexicano vía un mapa de 32 entradas — fuera de México
+muestra `"Ciudad, País"` sin intentar traducir subdivisiones de otros
+250 países. IPs privadas/internas (Docker, loopback) ya resuelven a
+`null` en `geoip-lite` mismo, sin código adicional. Conectado en los 2
+`GET .../auditoria` (`backend/server.js` y `control/server.js`), campo
+nuevo `ubicacion` en la respuesta — **sin tabla nueva, sin migración,
+retroactivo a todo el historial ya guardado** (cualquier fila vieja con
+IP ya tiene ubicación en cuanto se lista). Columna "Ubicación" agregada
+a las 2 tablas de Auditoría (`frontend/admin.html`/`admin.js` y
+`frontend/control.html`/`control.js`), mismo patrón `data-label` que las
+demás columnas — sin CSS nuevo.
+
+**Gotcha real encontrado al elegir versión del paquete**: `geoip-lite@1.4.10`
+(la última que declara soporte desde Node 10) depende de `ip-address@5.x`,
+con 6 CVEs reales (XSS, SSRF por parsing de octales, ReDoS) sin fix
+disponible en esa rama mayor — y forzar `ip-address` a la versión
+parcheada (10.x) vía `overrides` (la técnica ya usada en este proyecto
+para `qs`/`uuid`, ver más arriba) **no aplica aquí**: es un salto de 5
+versiones mayores con API incompatible, habría roto `geoip-lite` en
+silencio. `geoip-lite@2.0.3` sí trae el fix (usa una versión de
+`ip-address` sin esas vulnerabilidades) pero declara
+`engines: {"node": ">=24.0.0"}` — el proyecto corre Node 20 en Docker.
+**Probado real en un contenedor `node:20-alpine` antes de decidir** (no
+asumido): `npm install` solo emite un warning (`EBADENGINE`), la función
+`lookup()` funciona exacto igual en Node 20.20.2 que en Node 24 — el
+`engines` es conservador/aspiracional del mantenedor, no un requisito
+técnico real para el uso que le da este proyecto (parseo puro de datos
+binarios embebidos, sin APIs nuevas de Node). Se instaló `2.0.3` en
+`backend/` y `control/` con el warning esperado y documentado aquí para
+que ninguna sesión futura lo confunda con un paquete roto.
+
+**Verificado real, no solo con el lookup aislado**: Docker local
+reconstruido (`backend`/`control`/`frontend`) y probado con Playwright +
+msedge contra las 2 pantallas reales — header "Ubicación" visible, 100
+filas cargadas, celda de la primera fila `"—"` para la IP interna de
+Docker (comportamiento correcto, nunca inventa una ubicación para una IP
+privada), cero errores de consola en ambas. La traducción real
+(`189.243.163.85` → `"Morelia, Michoacán"`) se verificó aparte con un
+`lookup()` directo contra una IP pública real de México — el entorno
+local nunca genera tráfico con IP pública real para probarlo end-to-end
+en pantalla (toda la navegación es interna a la red de Docker).
+
+**Tests existentes actualizados** (1 solo sitio, backend): el `toEqual`
+exacto de `test/integration/auditoria.test.js` esperaba el objeto
+completo de un registro — se le agregó `ubicacion: null` (coincide con la
+IP de prueba `10.0.0.1`, rango privado). `control/`'s tests de auditoría
+no hacen match exacto del objeto completo, no necesitaron cambio. Suite
+completa: backend 1380/1380 (2 flakes de aislamiento de tests
+preexistentes, confirmados no relacionados — pasan limpio en aislado,
+mismo patrón intermitente ya conocido del archivo), control en el mismo
+baseline de 4 suites/11 tests ya documentado (confirmado sin regresión
+nueva).
+
+**No desplegado a Vultr/clarvo.mx todavía** — solo validado en Docker
+local, pendiente de que el usuario confirme si lo quiere también en
+producción real.
+
+Archivos nuevos: `backend/utils/geoIp.js`, `control/utils/geoIp.js`.
+Archivos modificados: `backend/server.js`, `control/server.js`,
+`backend/package.json`, `backend/package-lock.json`,
+`control/package.json`, `control/package-lock.json`,
+`backend/test/integration/auditoria.test.js`, `frontend/admin.html`,
+`frontend/admin.js`, `frontend/control.html`, `frontend/control.js`,
+`PROJECT_STATE.md` (este punto).

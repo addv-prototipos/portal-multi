@@ -1620,6 +1620,27 @@ usado en todo este repo hasta hoy) cuenta como prueba de
     (`avisoSuscripcionPorVencerTextoPendiente`) y se muestra justo al
     cerrarlo — cualquier overlay de "primera vez"/aviso urgente nuevo debe
     revisarse contra este mismo riesgo antes de darlo por aislado.
+- **`geoip-lite@2.0.3`: el warning `EBADENGINE` al instalar es ruido, no un
+  paquete roto** (punto 452, 2026-10-30): declara `engines: {"node":
+  ">=24.0.0"}` pero el proyecto corre Node 20 en Docker — probado real en
+  un contenedor `node:20-alpine` antes de decidir: `npm install` solo
+  emite el warning, `geoip.lookup()` funciona idéntico en Node 20.20.2.
+  Es la única versión de `geoip-lite` sin el CVE real de `ip-address`
+  (XSS/SSRF/ReDoS, 6 avisos) — la versión anterior compatible con Node 10
+  (`1.4.10`) depende de `ip-address@5.x`, sin fix en esa rama mayor, y
+  **no aplica el patrón de `overrides` ya usado en este proyecto para
+  `qs`/`uuid`** (ver abajo) porque el salto a la versión parcheada de
+  `ip-address` es de 5 versiones mayores con API incompatible — habría
+  roto `geoip-lite` en silencio. Si se actualiza esta dependencia en el
+  futuro, repetir la prueba real en `node:20-alpine` antes de asumir que
+  un `engines` más alto significa que de verdad no corre en Node 20.
+- **Traducir región ISO 3166-2 de `geoip-lite` a nombre de estado
+  mexicano requiere mapa propio** (punto 452): `geoip-lite` solo da el
+  código corto (ej. `"MIC"`), nunca el nombre completo — `backend/utils/geoIp.js`/
+  `control/utils/geoIp.js` (duplicado, mismo criterio de siempre) traen
+  un mapa de las 32 entradas. Fuera de México se muestra `"Ciudad, País"`
+  sin intentar traducir subdivisiones de otros países — no extender ese
+  mapa a otros países sin que se pida.
 
 ## Stack
 

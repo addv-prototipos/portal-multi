@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const { obtenerPool } = require('./db');
 const { requireAdminAuth, requireAdminArea } = require('./utils/auth');
 const { asegurarTablaAuditoria, registrarAccesoAdmin, listarAuditoria } = require('./utils/adminAuditoria');
+const { ubicacionDesdeIp } = require('./utils/geoIp');
 const { asegurarColumnasCicloVidaTenant } = require('./scripts/ensureSchema');
 const {
   listarTenants,
@@ -2265,6 +2266,7 @@ app.get(
         ruta: f.ruta,
         estatus: f.resultado_estatus,
         ip: f.ip,
+        ubicacion: ubicacionDesdeIp(f.ip),
       })),
     });
   })
