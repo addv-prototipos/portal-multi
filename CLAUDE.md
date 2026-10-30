@@ -1641,6 +1641,39 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   un mapa de las 32 entradas. Fuera de México se muestra `"Ciudad, País"`
   sin intentar traducir subdivisiones de otros países — no extender ese
   mapa a otros países sin que se pida.
+- **Dockerfile: la ruta que `mkdir`/`chown` prepara DEBE ser exactamente
+  la misma que `UPLOAD_DIR` (o cualquier env var de ruta) resuelve en
+  runtime, nunca una derivada de `WORKDIR` por comodidad** (punto 454,
+  2026-10-30): al retirar el bind mount `./uploads` y pasar a
+  `USER appuser` directo en `backend/Dockerfile`, el `RUN mkdir -p`
+  preparó `/usr/src/app/uploads` (bajo `WORKDIR`) mientras
+  `docker-compose.yml` seguía con `UPLOAD_DIR: /app/uploads` (ruta
+  DISTINTA, fuera del `WORKDIR`) — el contenedor reventó real con
+  `EACCES: permission denied, mkdir '/app/uploads'` en cuanto arrancó
+  como `appuser` no-root (ya no hay un paso previo como root que pueda
+  crear esa carpeta en caliente). Solo se detectó al reconstruir
+  `frontend` y que Docker recreara `backend` en cascada — un
+  `docker build` + `docker run --entrypoint whoami` aislado (sin pasar
+  por el `CMD` real) NO lo atrapa, porque nunca ejecuta el
+  `fs.mkdirSync(UPLOAD_DIR)` real de `server.js`. Antes de dar por
+  bueno un cambio de Dockerfile que toca `USER`/permisos de carpetas,
+  levantar el contenedor con su `CMD` real (`docker compose up`) y
+  confirmar que la app arranca limpio — nunca solo verificar el usuario
+  del proceso con un comando sustituto.
+- **`geoip-lite@2.0.3` vs `1.4.10`: el patrón de `overrides` para forzar
+  una dependencia transitiva parcheada NO siempre aplica** (punto 454,
+  sonar_1.3.html N-06): `geoip-lite@1.4.10` depende de `ip-address@5.x`
+  (vulnerable, 6 CVEs reales) — a diferencia del precedente ya usado en
+  este proyecto para `qs`/`uuid` (forzar la versión parcheada dentro del
+  mismo árbol de dependencias de un paquete de primer nivel sin tocar su
+  versión declarada), aquí el fix real de `ip-address` vive en la rama
+  10.x — un salto de 5 versiones MAYORES con API incompatible que
+  habría roto `geoip-lite` en silencio si se forzaba vía `overrides`. El
+  criterio correcto cuando el patrón de `overrides` no aplica: usar la
+  versión del paquete de primer nivel que YA trae el fix integrado
+  (`geoip-lite@2.0.3`), aunque declare un `engines` más exigente — ver
+  el gotcha de arriba sobre `EBADENGINE` siendo solo advertencia en
+  Node 20.
 
 ## Stack
 

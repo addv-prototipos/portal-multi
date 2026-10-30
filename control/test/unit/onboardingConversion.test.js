@@ -90,7 +90,7 @@ describe('utils/onboardingConversion.js (Segmento B)', () => {
     obtenerTenantPorSlug.mockResolvedValueOnce(null); // no existe todavía
     crearTenantIntake.mockResolvedValueOnce(filaTenant({ estado: 'provisioning' }));
     activarTenant.mockResolvedValueOnce(filaTenant({ estado: 'activo', plan_id: null }));
-    db.query.mockResolvedValueOnce([[{ id: 20 }]]); // SELECT id FROM planes WHERE nombre = 'CLARVO Controla'
+    db.query.mockResolvedValueOnce([[{ id: 20, portal_clientes_habilitado: 1 }]]); // SELECT ... FROM planes WHERE nombre = 'CLARVO Controla'
     actualizarDatosTenant.mockResolvedValueOnce(filaTenant({ estado: 'activo', plan_id: 20 }));
     crearAdminInicialFisico.mockResolvedValueOnce({ ok: true });
     db.query.mockResolvedValueOnce([{}]); // UPDATE onboarding_borradores

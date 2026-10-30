@@ -413,8 +413,6 @@ services:
       # explícito para no perder Swagger en desarrollo local. prod/ NUNCA
       # debe definir esta variable.
       DOCS_ENABLED: 'true'
-    volumes:
-      - ./uploads:/app/uploads
     networks:
       - fiscal-net
     expose:

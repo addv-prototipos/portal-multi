@@ -29,7 +29,7 @@ map $http_x_forwarded_proto $proxy_x_forwarded_proto {
 # (desde nginx 1.7.5) — no hace falta "if" para lograr la condicion.
 map $proxy_x_forwarded_proto $hsts_header_valor {
     default "";
-    https   "max-age=31536000; includeSubDomains";
+    https   "max-age=31536000; includeSubDomains; preload";
 }
 
 # Grupo de conexiones reutilizables hacia el backend. Sin esto, nginx abre
@@ -108,6 +108,8 @@ server {
     # real en frente; queda listo para cuando lo haya (mismo criterio ya
     # usado para X-Forwarded-Proto en este archivo).
     add_header Strict-Transport-Security $hsts_header_valor always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
     # Content-Security-Policy (auditoría 2026-09-03, hallazgo #11) — antes
     # quedaba fuera a propósito por no poder inventariar cada script/
     # estilo inline de las páginas. Inventario real hecho para esta
@@ -119,10 +121,10 @@ server {
     # estáticos (sin datos de usuario, verificado) y sería mucho trabajo
     # para poco beneficio real convertirlos a clases — mismo criterio ya
     # aceptado en la CSP de Swagger (server.js) para su propio bundle.
-    # https://fonts.googleapis.com/https://fonts.gstatic.com: style.css
-    # (cargado en TODAS las páginas) importa la tipografía Inter desde
-    # Google Fonts — sin esto, el sitio completo perdería su tipografía.
-    # mantenimiento.html tiene su PROPIA política más permisiva (ver su
+    # Inter auto-hospedada desde /assets/fonts/ (sonar_1.3.html, i-04) —
+    # style.css ya no importa de fonts.googleapis.com/fonts.gstatic.com,
+    # así que style-src/font-src quedaron acotados a 'self', sin esos 2
+    # hosts externos. mantenimiento.html tiene su PROPIA política más permisiva (ver su
     # location dedicado abajo, antes del catch-all) porque es la única
     # página con un <script> inline real (el polling de /api/health).
     # frame-ancestors 'self' (no 'none', ver X-Frame-Options arriba):
@@ -135,7 +137,7 @@ server {
     # el mismo patrón de imágenes de storage.js) con "Este contenido está
     # bloqueado" — default-src 'self' NO cubre el scheme blob: para
     # frame-src, a diferencia de img-src que ya lo tenía explícito.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
 
     # JS y CSS propios de la app cambian con cada despliegue: se permite
     # cachear, pero SIEMPRE se revalida con el servidor antes de usar la
@@ -157,7 +159,9 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
         # Misma página 404 con identidad Clarvo que el catch-all de más
         # abajo (punto 376) — sin esto, un .css/.js borrado o con typo en
         # la URL mostraba el 404 en blanco default de nginx en vez de la
@@ -182,7 +186,9 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';" always;
         # Mismo motivo que el location de .css/.js de arriba — una imagen
         # borrada o una URL con typo (ej. "/branding.pgn") mostraba el 404
         # en blanco de nginx en vez de 404-clarvo.html.
@@ -206,7 +212,9 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
         try_files /mantenimiento.html =404;
     }
 
@@ -382,6 +390,8 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
         proxy_pass http://backend_upstream/api/$resto_api$is_args$args;
         proxy_set_header X-Tenant-Slug $tenant_slug;
         proxy_http_version 1.1;
@@ -476,6 +486,8 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
         proxy_pass http://control_upstream/api/control/;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -520,6 +532,8 @@ server {
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "geolocation=(), camera=(self), microphone=()" always;
         add_header Strict-Transport-Security $hsts_header_valor always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
         proxy_pass http://backend_upstream/api/;
         proxy_http_version 1.1;
         # Necesario para que el "keepalive" del upstream de arriba

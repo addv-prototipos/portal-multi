@@ -199,6 +199,7 @@ describe('scripts/ensureSchema.js', () => {
     test('crea la tabla, agrega las 11 columnas nuevas de gobierno de funcionalidades e inserta los 3 planes semilla si el catálogo está vacío', async () => {
       const db = mockDb();
       db.query.mockImplementation((sql) => {
+        if (/SELECT COUNT\(\*\) AS totalReal FROM planes/.test(sql)) return Promise.resolve([[{ totalReal: 0 }]]);
         if (/SELECT COUNT\(\*\) AS total FROM planes/.test(sql)) return Promise.resolve([[{ total: 0 }]]);
         if (/CREATE TABLE IF NOT EXISTS planes/.test(sql)) return Promise.resolve([{}]);
         if (/SELECT COLUMN_NAME FROM INFORMATION_SCHEMA\.COLUMNS[\s\S]*'planes'/.test(sql)) return Promise.resolve([COLUMNAS_PLANES_BASE]);
@@ -210,14 +211,17 @@ describe('scripts/ensureSchema.js', () => {
       // 1 CREATE TABLE + 1 SELECT columnas + un ALTER por cada entrada de
       // COLUMNAS_PLANES_NUEVAS (ninguna existía) + 1 UPDATE (backfill de
       // ticket_impresion_habilitado, que nace en esta misma corrida) +
-      // 1 SELECT COUNT + 1 INSERT. Derivado de la fuente real, nunca un
+      // 1 SELECT COUNT + 1 INSERT (semilla vieja Básico/Pro/Enterprise) +
+      // 1 SELECT COUNT totalReal + 1 INSERT (catálogo real de 4 planes,
+      // punto 391/392) — 2 pares SELECT+INSERT independientes, nunca un
       // número a mano (N-02).
-      const totalEsperado = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 1 + 2;
+      const totalEsperado = 2 + COLUMNAS_PLANES_NUEVAS_NOMBRES.length + 1 + 2 + 2;
       expect(db.query).toHaveBeenCalledTimes(totalEsperado);
       expect(db.query.mock.calls[0][0]).toMatch(/CREATE TABLE IF NOT EXISTS planes/);
       expect(db.query.mock.calls[1][0]).toMatch(/SELECT COLUMN_NAME FROM INFORMATION_SCHEMA\.COLUMNS/);
-      COLUMNAS_PLANES_NUEVAS_NOMBRES.forEach((nombre, i) => {
-        expect(db.query.mock.calls[2 + i][0]).toMatch(new RegExp(`ALTER TABLE planes ADD COLUMN ${nombre} TINYINT\\(1\\) NOT NULL DEFAULT 0`));
+      COLUMNAS_PLANES_NUEVAS.forEach(({ nombre, definicion }, i) => {
+        const definicionEscapada = definicion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        expect(db.query.mock.calls[2 + i][0]).toMatch(new RegExp(`ALTER TABLE planes ADD COLUMN ${nombre} ${definicionEscapada}`));
       });
       expect(db.query.mock.calls.some(([sql]) =>
         /UPDATE planes SET ticket_impresion_habilitado = marca_lookfeel_habilitado/.test(sql)
@@ -237,6 +241,15 @@ describe('scripts/ensureSchema.js', () => {
       // al INSERT real, este número cambia a propósito — no derivarlo de
       // COLUMNAS_PLANES_NUEVAS.length (son conjuntos distintos).
       expect(params[0][0]).toHaveLength(25);
+
+      // Catálogo REAL (punto 391/392, nombres "CLARVO ..." que usa el
+      // onboarding) — par independiente de SELECT+INSERT, justo después.
+      expect(db.query.mock.calls[idxCount + 2][0]).toMatch(/SELECT COUNT\(\*\) AS totalReal FROM planes/);
+      const [sqlInsertReal, paramsReal] = db.query.mock.calls[idxCount + 3];
+      expect(sqlInsertReal).toMatch(/INSERT INTO planes/);
+      expect(sqlInsertReal).toMatch(/CLARVO Solicita/);
+      expect(sqlInsertReal).toMatch(/CLARVO Domina/);
+      expect(paramsReal).toHaveLength(8); // 4 planes x (creado_en, actualizado_en)
     });
 
     test('no agrega columnas ni reinserta la semilla si el catálogo ya está migrado y tiene planes (el operador ya es dueño del catálogo)', async () => {
@@ -245,6 +258,7 @@ describe('scripts/ensureSchema.js', () => {
         COLUMNAS_PLANES_NUEVAS_NOMBRES.map((nombre) => ({ COLUMN_NAME: nombre }))
       );
       db.query.mockImplementation((sql) => {
+        if (/SELECT COUNT\(\*\) AS totalReal FROM planes/.test(sql)) return Promise.resolve([[{ totalReal: 4 }]]);
         if (/SELECT COUNT\(\*\) AS total FROM planes/.test(sql)) return Promise.resolve([[{ total: 2 }]]);
         if (/CREATE TABLE IF NOT EXISTS planes/.test(sql)) return Promise.resolve([{}]);
         if (/SELECT COLUMN_NAME FROM INFORMATION_SCHEMA\.COLUMNS[\s\S]*'planes'/.test(sql)) return Promise.resolve([columnasYaMigradas]);
@@ -254,8 +268,9 @@ describe('scripts/ensureSchema.js', () => {
       await asegurarTablaPlanes(db);
 
       // 1 CREATE TABLE + 1 SELECT columnas (todas ya existen, 0 ALTER) +
-      // 1 SELECT COUNT = 3. Sin INSERT.
-      expect(db.query).toHaveBeenCalledTimes(3);
+      // 1 SELECT COUNT (total) + 1 SELECT COUNT (totalReal, catálogo real
+      // ya migrado) = 4. Sin ningún INSERT.
+      expect(db.query).toHaveBeenCalledTimes(4);
       expect(db.query.mock.calls.some(([sql]) => /ALTER TABLE planes/.test(sql))).toBe(false);
       expect(db.query.mock.calls.some(([sql]) => /INSERT INTO planes/.test(sql))).toBe(false);
     });

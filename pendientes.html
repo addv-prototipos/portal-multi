@@ -704,6 +704,34 @@
             <td class="col-detalle">Deliberadamente al final, alto riesgo de regresión: monolitos <code>admin.js</code>/<code>server.js</code>, consolidar el patrón de 3 middlewares de <code>control/server.js</code>, <code>apiFetch()</code> central. No es un hallazgo de seguridad puntual sino deuda estructural — se trata como proyecto propio, no como un hallazgo más de esta auditoría.</td>
             <td class="col-estado"><span class="pill pill-amber">Sin empezar — proyecto aparte</span></td>
           </tr>
+          <tr data-app="admin,control" data-id="sec-sonar-13-remediacion">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-sonar-13-remediacion" aria-label="Marcar completado"></td>
+            <td class="col-punto">454</td>
+            <td class="col-item">Remediación de <code>calidad/sonar_1.3.html</code> — Fases A/B/C cerradas</td>
+            <td class="col-detalle">14 tests rojos (N-07) corregidos, <code>npm audit fix</code> + upgrade breaking de <code>nodemailer</code> a 10.3.1 (N-06, 0 vulnerabilidades en producción en ambos paquetes), intermitencias N-05/N-08 corregidas (<code>jest.setTimeout</code>), Inter auto-hospedada + HSTS <code>preload</code> + COOP/CORP (i-03/i-04), bind mount <code>./uploads</code> retirado + <code>USER appuser</code> real (m-11). Backend 69/69, control 28/28, 2 corridas limpias. 4 ítems deliberadamente fuera de esta ronda — ver las 3 filas siguientes + la Fase E de arriba (monolitos).</td>
+            <td class="col-estado"><span class="pill pill-green">Cerrado (30 oct 2026)</span></td>
+          </tr>
+          <tr data-app="admin,control" data-id="sec-mysql-usuario-por-tenant">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-mysql-usuario-por-tenant" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">Credencial MySQL propia por tenant (en vez de una compartida)</td>
+            <td class="col-detalle">Hoy <code>app</code> (backend) y <code>control_app</code> (control) son credenciales ÚNICAS compartidas entre TODAS las bases <code>tenant_*</code> — aislamiento real por base de datos (cada tenant su propia BD), pero no por credencial de acceso. Dar a cada tenant su propia credencial MySQL, acotada solo a su propia base, es una decisión arquitectónica grande: aprovisionamiento por tenant, rotación, y el pool de conexiones tendría que manejar N credenciales en vez de 1. Explícitamente diferido por el usuario (punto 454, 2026-10-30) — "se hará mucho más adelante", no es deuda urgente ni hallazgo de una auditoría puntual.</td>
+            <td class="col-estado"><span class="pill pill-blue">Sin decidir — mucho más adelante, decisión explícita del usuario</span></td>
+          </tr>
+          <tr data-app="control" data-id="sec-sonar-i02-secretos-familia">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-sonar-i02-secretos-familia" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">i-02: <code>INTERNAL_CACHE_SECRET</code> único para 16 rutas <code>/internal/*</code></td>
+            <td class="col-detalle">Un solo secreto compartido por TODAS las llamadas internas backend↔control (16 rutas, creció desde 14 en la v1.2). Separar por familia (un secreto para backend→control, otro para control→backend) o documentar una rotación periódica real afecta 2 servidores de producción YA desplegados (Hostinger + Vultr) — decisión de arquitectura de secretos, no un fix mecánico de una sesión. Pendiente de decisión explícita del usuario antes de tocarse.</td>
+            <td class="col-estado"><span class="pill pill-amber">Sin decidir — afecta secretos de 2 servidores productivos reales</span></td>
+          </tr>
+          <tr data-app="admin,control" data-id="sec-sonar-hostinger-deploy-pasos">
+            <td class="col-check"><input type="checkbox" class="pend-check" data-id="sec-sonar-hostinger-deploy-pasos" aria-label="Marcar completado"></td>
+            <td class="col-punto">—</td>
+            <td class="col-item">2 pasos de deploy pendientes en <code>hostinger/</code> (N-04 + B.3 de sonar_1.3)</td>
+            <td class="col-detalle"><code>hostinger/</code> nunca se toca sin que el usuario lo pida explícito (regla fija, ver memoria del proyecto) — por eso ninguno de estos 2 se tocó en el punto 454: (1) regenerar <code>hostinger/</code> por CONTENIDO desde su fuente y decidir si el paquete pasa a incluir <code>control/</code> (hoy no existe ahí, aunque es parte de la arquitectura desde el segmento 9b) o documentar que corre en otro servidor vía <code>CONTROL_UPSTREAM_HOST</code>; (2) agregar <code>npm audit --omit=dev</code> al preflight de <code>hostinger/actualizar.sh</code> para que el chequeo de vulnerabilidades sea un gate permanente del deploy, no una corrida manual ocasional.</td>
+            <td class="col-estado"><span class="pill pill-amber">Sin tocar — requiere que el usuario lo pida explícito</span></td>
+          </tr>
         </tbody>
       </table>
     </div>

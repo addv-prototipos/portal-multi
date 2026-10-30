@@ -47,6 +47,7 @@ describe('utils/accesoSmtp.js', () => {
         password: '',
         nombreRemitente: '',
         correoRemitente: '',
+        verificadoEn: null,
       });
     });
 
@@ -71,6 +72,7 @@ describe('utils/accesoSmtp.js', () => {
         password: 'AppPass123',
         nombreRemitente: 'Clarvo - Tu negocio en orden',
         correoRemitente: 'info@addv.mx',
+        verificadoEn: null,
       });
     });
 
@@ -84,7 +86,7 @@ describe('utils/accesoSmtp.js', () => {
   });
 
   describe('setAccesoSmtp', () => {
-    test('guarda host/puerto/seguridad/usuario/remitentes y cifra el password, upsert de las 7 claves', async () => {
+    test('guarda host/puerto/seguridad/usuario/remitentes y cifra el password, upsert de las 8 claves (incluye invalidar verificadoEn)', async () => {
       process.env.CONTROL_VAULT_KEY = CLAVE_VALIDA;
       const pool = mockPool([]);
 
@@ -99,7 +101,7 @@ describe('utils/accesoSmtp.js', () => {
       });
 
       const llamadasUpsert = pool.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO ajustes_globales'));
-      expect(llamadasUpsert).toHaveLength(7);
+      expect(llamadasUpsert).toHaveLength(8);
       const filaPassword = llamadasUpsert.find(([, params]) => params[0] === 'smtp_password_cifrado');
       expect(filaPassword[1][1]).not.toBe('clave-real');
       expect(filaPassword[1][1].split(':')).toHaveLength(3);
@@ -111,7 +113,7 @@ describe('utils/accesoSmtp.js', () => {
       const pool = mockPool([]);
       await setAccesoSmtp({ host: 'smtp.gmail.com', usuario: 'a@b.com', correoRemitente: 'c@d.com' });
       const llamadasUpsert = pool.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO ajustes_globales'));
-      expect(llamadasUpsert).toHaveLength(6); // sin password
+      expect(llamadasUpsert).toHaveLength(7); // 6 campos + invalidar verificadoEn, sin password
       expect(llamadasUpsert.some(([, params]) => params[0] === 'smtp_password_cifrado')).toBe(false);
     });
 

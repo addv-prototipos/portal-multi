@@ -1,5 +1,10 @@
 const request = require('supertest');
 
+// N-08 (sonar_1.3.html): mismo patrón que N-05 (docsEnabled.test.js) —
+// intermitente bajo carga completa de la suite (timeout de 5s, pasa en
+// aislado), nunca falla en aislado.
+jest.setTimeout(20000);
+
 jest.mock('../../db', () => ({
   pool: { query: jest.fn(), getConnection: jest.fn() },
   ensureSchema: jest.fn(),

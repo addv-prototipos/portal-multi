@@ -6,6 +6,11 @@
 // requiereFeature()), solo se enciende con DOCS_ENABLED=true explícito.
 const request = require('supertest');
 
+// N-05 (sonar_1.3.html): intermitente bajo carga completa de la suite
+// (timeout de 5s, pasa en aislado) — levanta el servidor completo +
+// swagger-jsdoc, más lento bajo saturación de workers paralelos.
+jest.setTimeout(20000);
+
 jest.mock('../../db', () => ({
   pool: { query: jest.fn(), getConnection: jest.fn() },
   ensureSchema: jest.fn(),

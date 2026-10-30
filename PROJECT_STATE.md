@@ -26270,3 +26270,150 @@ ambos servicios, sin el warning `EBADENGINE` (ese warning solo aparece en
 
 Archivos: ninguno de código (ya estaba commiteado antes de este
 despliegue) — solo `PROJECT_STATE.md` (este punto).
+
+## Punto 454 — Remediación completa de calidad/sonar_1.3.html: Fases A, B y C cerradas (30 oct 2026, CERRADO)
+
+A petición explícita del usuario ("ejecuta todo con agentes"), se ejecutó
+el plan de remediación priorizado de calidad/sonar_1.3.html (sección 7),
+con 2 exclusiones deliberadas pedidas por el usuario y 3 adicionales por
+criterio propio (documentadas abajo, nunca silenciosas).
+
+**Intento inicial con 3 agentes en paralelo (worktrees aislados)**: los 3
+fallaron a media ejecución por límite de cuota de la sesión (no error de
+código). De los 3 worktrees, solo el de Fase D (retirar el bind mount
+./uploads) tenía trabajo real y verificable — los otros 2 quedaron
+vacíos/rotos (checkout incompleto, archivos inexistentes) y se descartaron
+sin intentar salvar nada. El resto del plan se completó directamente en
+esta sesión tras el corte.
+
+**Fase A — Cerrar la gate (14 tests rojos + npm audit fix no-breaking)**:
+los 14 tests de N-07 corregidos uno por uno contra el comportamiento real
+actual (no asumido del informe, releído cada archivo de producto):
+email.test.js ya estaba corregido de una sesión previa (punto 450);
+accesoSmtp.test.js (4): agregado el campo verificadoEn a los 2
+getAccesoSmtp() esperados, y corregidos los conteos de upsert de
+setAccesoSmtp (7 a 8 con password, 6 a 7 sin password - el informe no
+contaba el upsert que siempre invalida verificadoEn en cada guardado);
+ensureSchema.test.js (2): agregado el mock de SELECT COUNT(*) AS
+totalReal mas las aserciones del INSERT real de los 4 planes - y se
+encontro un SEGUNDO bug real en el test (no listado en sonar_1.3, solo
+visible despues de arreglar el primero): el forEach de columnas nuevas
+asumia TINYINT para las 11, pero eliminado_en es DATETIME NULL
+(soft-delete de planes, punto 427) - corregido para leer la definicion
+real de cada entrada de COLUMNAS_PLANES_NUEVAS en vez de un string
+hardcodeado (mismo principio N-02 que el propio test dice seguir);
+onboardingConversion.test.js (1): el mock del plan no traia
+portal_clientes_habilitado, agregado; control.test.js (4): las 4 pruebas
+de Turnstile migradas de la ruta eliminada /convertir/:token a la real
+/pagar/:token - que ya NO llama a convertirBorrador() sino a
+crearCheckoutSession() y devuelve {ok, checkoutUrl}, no {ok, slug,
+urlAdmin, urlPortal} (cambio de contrato real, no solo de nombre de
+ruta). npm audit fix (no-breaking) en backend/ y control/: cubrio
+proxy-addr, body-parser, qs, brace-expansion, js-yaml, sharp.
+
+**Resultado real, verificado 3 veces**: backend 69/69 suites, 1380/1380
+tests; control 28/28 suites, 509/509 tests - cero rojos, cero
+intermitencias, en las 3 corridas completas (antes: 11 rojos
+reproducibles + 2 intermitentes).
+
+**Fase B — Prioridad de seguridad (nodemailer) + intermitencias**:
+nodemailer 9.1.1 a 10.3.1 (breaking) en backend Y control (builds
+separados, upgrade por partida doble). Uso real revisado antes
+(createTransport/sendMail/verify, superficie estable entre mayores) -
+cero cambios de código necesarios, las 2 suites completas siguieron en
+verde después del upgrade. npm audit --omit=dev final en ambos paquetes:
+0 vulnerabilidades (antes: 15 - 1 critica, 9 altas, 4 moderadas únicas
+entre los 2). Los 6 "low" restantes (npm audit sin --omit=dev) son de
+jest mismo, herramienta de desarrollo, nunca se despliega. N-05/N-08
+(intermitencia): jest.setTimeout(20000) agregado a docsEnabled.test.js y
+preferenciasDashboard.test.js (patrón mínimo invasivo, sin tocar
+jest.config.js global) - mismo origen (timeout de 5s bajo carga paralela
+completa de la suite).
+
+**Fase C — Endurecimiento de frontend (i-03, i-04)**: Inter
+auto-hospedada: 4 archivos .woff2 reales (pesos 400/500/600/700,
+licencia OFL) obtenidos vía npm pack @fontsource/inter en un directorio
+temporal (sin agregar la dependencia al proyecto, que no tiene build
+step) a frontend/assets/fonts/ - @font-face en style.css y en
+mantenimiento.html (tenía su propio @import aparte, no se había notado
+hasta este punto) - el @import a fonts.googleapis.com eliminado de los
+2. HSTS: "; preload" agregado al valor https del map
+$hsts_header_valor. COOP/CORP: Cross-Origin-Opener-Policy/
+Cross-Origin-Resource-Policy: same-origin agregados a los 7 bloques
+server/location que ya mandan cabeceras de seguridad. CSP: los 4
+style-src/font-src que apuntaban a fonts.googleapis.com/
+fonts.gstatic.com se acotaron a 'self' - ya no hace falta el host
+externo.
+
+**Bug real encontrado y corregido durante la verificación** (no estaba
+en el plan original): al reconstruir frontend, Docker recreó backend en
+cascada y reventó con "EACCES: permission denied, mkdir '/app/uploads'"
+- el Dockerfile de la Fase D (abajo) había creado /usr/src/app/uploads
+(bajo WORKDIR), pero UPLOAD_DIR sigue apuntando a /app/uploads (ruta
+distinta, fuera del WORKDIR) - con el contenedor ya arrancando como
+appuser no root, no podía crear ese directorio en caliente. Fix: el RUN
+mkdir del Dockerfile ahora crea y da dueño exactamente a /app/uploads
+(la ruta real que usa el código), no una ruta derivada del WORKDIR.
+Lección: verificar un cambio de Dockerfile con docker build + whoami no
+basta - hay que levantar el contenedor con su comando real (CMD) y
+confirmar que la app arranca limpio, no solo que el usuario del proceso
+es el correcto.
+
+**Verificado real con Playwright + msedge**: document.fonts.check
+('16px Inter') devuelve true, captura visual idéntica a antes, cero
+errores de consola nuevos, fuentes sirviendo 200 real
+(/assets/fonts/inter-*.woff2), headers confirmados por curl -I.
+
+**Fase D — m-11 (USER appuser), ejecutado completo**: bind mount
+./uploads:/app/uploads retirado de docker-compose.yml (dev local);
+backend/docker-entrypoint.sh eliminado (ya no hace falta la danza de
+su-exec); backend/Dockerfile arranca directo USER appuser (ver el
+bug/fix real arriba). Verificado con docker exec ... whoami devolviendo
+appuser desde el arranque, y ls -la /app/uploads/tickets|facturas con
+dueño appuser real. Backend 69/69 sin regresión.
+
+**Excluido a propósito, documentado como observación para más adelante
+(pedido explícito del usuario en este punto)**: usuario MySQL por
+empresa (credencial app/control_app hoy compartida entre TODAS las
+bases de tenant, en vez de una credencial propia por tenant con
+permisos acotados SOLO a su propia base) - decisión arquitectónica
+grande (aprovisionamiento, rotación, pooling de conexiones por
+credencial), fuera de alcance de esta ronda. Mucho más adelante, cuando
+se decida invertir en ese nivel de aislamiento.
+
+**Excluido por criterio propio, documentado, nunca silencioso**:
+Fase C i-02 (secretos /internal/* por familia o rotación documentada):
+tocar el esquema de INTERNAL_CACHE_SECRET afecta 16 rutas reales en 2
+servidores de producción ya desplegados (Hostinger + Vultr) - decisión
+de arquitectura de secretos, no un fix mecánico; necesita decisión
+explícita del usuario antes de tocarse. Fase C N-04 (regenerar
+hostinger/ por contenido / decidir si incluye control/): hostinger/
+nunca se toca salvo pedido explícito (regla fija del usuario, ver
+memoria feedback_deploy_vps_solo_prod_scripts.md) - queda como decisión
+pendiente del usuario, no tocado. Fase B.3 (agregar npm audit --omit=dev
+al preflight de hostinger/actualizar.sh): mismo motivo - hostinger/ no
+se edita sin pedirlo explícito. Recomendación documentada aquí para
+cuando el usuario decida tocar ese script él mismo o lo pida. Fase D
+refactor de monolitos (routers por dominio en backend/server.js,
+división de admin.js por vistas): el propio informe los marca "sin
+urgencia de seguridad" y "continuo" - alto riesgo de romper algo en
+archivos de 11k/21k líneas sin supervisión estrecha, sin beneficio de
+seguridad que lo justifique hoy. Deuda técnica real, documentada, no
+ejecutada.
+
+**Verificación final, las 2 suites, 2 corridas completas consecutivas**:
+backend 69/69 - 1380/1380, control 28/28 - 509/509 - ambas 100% verdes,
+sin flakes. npm audit --omit=dev: 0 vulnerabilidades en ambos paquetes.
+
+Archivos: backend/Dockerfile, backend/docker-entrypoint.sh (borrado),
+backend/package.json, backend/package-lock.json,
+backend/test/integration/preferenciasDashboard.test.js (solo timeout),
+backend/test/unit/docsEnabled.test.js (solo timeout),
+control/package.json, control/package-lock.json,
+control/test/unit/accesoSmtp.test.js,
+control/test/unit/ensureSchema.test.js,
+control/test/unit/onboardingConversion.test.js,
+control/test/integration/control.test.js, docker-compose.yml,
+frontend/style.css, frontend/mantenimiento.html,
+frontend/nginx.conf.template, frontend/assets/fonts/*.woff2 (4 archivos
+nuevos), PROJECT_STATE.md (este punto).

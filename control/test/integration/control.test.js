@@ -1162,58 +1162,70 @@ describe('Control standalone (/api/control)', () => {
   // respuestas 400 de este candado agotarían ese presupuesto y harían
   // fallar con 429 pruebas de /health completamente ajenas más abajo si
   // compartieran la instancia de `app` del resto del archivo.
-  describe('POST /api/public/onboarding/convertir/:token — candado de Turnstile (M-06)', () => {
+  // Migrado de /convertir/:token a /pagar/:token (punto 425): esa ruta
+  // vieja se eliminó con el rediseño de Stripe "cobrar primero, activar
+  // después" — la conversión real ya solo ocurre vía webhook firmado
+  // (ver stripePagos.js:procesarEventoWebhook). /pagar/:token es el
+  // único endpoint público que sigue detrás del candado de Turnstile, y
+  // en éxito arma un Checkout Session (crearCheckoutSession), nunca
+  // convierte el tenant directamente.
+  describe('POST /api/public/onboarding/pagar/:token — candado de Turnstile (M-06)', () => {
     function appAislada() {
       jest.resetModules();
+      jest.doMock('../../utils/stripePagos', () => ({
+        crearCheckoutSession: jest.fn(),
+        procesarEventoWebhook: jest.fn(),
+      }));
       const { verificarTurnstile: vt } = require('../../utils/turnstile');
-      const { convertirBorrador: cb } = require('../../utils/onboardingConversion');
+      const { crearCheckoutSession: ccs } = require('../../utils/stripePagos');
       const appFresca = require('../../server');
-      return { appFresca, vt, cb };
+      return { appFresca, vt, ccs };
     }
 
-    test('Turnstile rechaza (sin configurar, token inválido, etc.): responde 400 genérico y NUNCA llama a convertirBorrador', async () => {
-      const { appFresca, vt, cb } = appAislada();
+    test('Turnstile rechaza (sin configurar, token inválido, etc.): responde 400 genérico y NUNCA llama a crearCheckoutSession', async () => {
+      const { appFresca, vt, ccs } = appAislada();
       vt.mockResolvedValue({ ok: false, motivo: 'no_configurado' });
 
       const res = await request(appFresca)
-        .post('/api/public/onboarding/convertir/un-token')
+        .post('/api/public/onboarding/pagar/un-token')
         .send({ turnstileToken: 'cualquier-cosa' });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('No pudimos verificar que eres humano. Intenta de nuevo.');
-      expect(cb).not.toHaveBeenCalled();
+      expect(ccs).not.toHaveBeenCalled();
     });
 
     test('sin turnstileToken en el body: mismo 400 genérico, mismo candado', async () => {
-      const { appFresca, vt, cb } = appAislada();
+      const { appFresca, vt, ccs } = appAislada();
       vt.mockResolvedValue({ ok: false, motivo: 'token_faltante' });
 
-      const res = await request(appFresca).post('/api/public/onboarding/convertir/un-token').send({});
+      const res = await request(appFresca).post('/api/public/onboarding/pagar/un-token').send({});
 
       expect(res.status).toBe(400);
-      expect(cb).not.toHaveBeenCalled();
+      expect(ccs).not.toHaveBeenCalled();
     });
 
-    test('Turnstile aprueba: sí llama a convertirBorrador y devuelve el resultado real', async () => {
-      const { appFresca, vt, cb } = appAislada();
+    test('Turnstile aprueba: sí llama a crearCheckoutSession y devuelve el resultado real', async () => {
+      const { appFresca, vt, ccs } = appAislada();
       vt.mockResolvedValue({ ok: true });
-      cb.mockResolvedValue({ slug: 'empresa1', urlAdmin: '/empresa1/admin', urlPortal: '/empresa1' });
+      ccs.mockResolvedValue({ checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_123' });
 
       const res = await request(appFresca)
-        .post('/api/public/onboarding/convertir/un-token')
+        .post('/api/public/onboarding/pagar/un-token')
         .send({ turnstileToken: 'token-valido' });
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ ok: true, slug: 'empresa1', urlAdmin: '/empresa1/admin', urlPortal: '/empresa1' });
-      expect(cb).toHaveBeenCalledWith('un-token');
+      expect(res.body).toEqual({ ok: true, checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_123' });
+      expect(ccs).toHaveBeenCalledWith('un-token');
     });
 
     test('verificarTurnstile recibe el token del body y la IP real de la petición', async () => {
-      const { appFresca, vt } = appAislada();
+      const { appFresca, vt, ccs } = appAislada();
       vt.mockResolvedValue({ ok: true });
+      ccs.mockResolvedValue({ checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_456' });
 
       await request(appFresca)
-        .post('/api/public/onboarding/convertir/un-token')
+        .post('/api/public/onboarding/pagar/un-token')
         .send({ turnstileToken: 'token-del-widget' });
 
       expect(vt).toHaveBeenCalledWith('token-del-widget', expect.any(String));
