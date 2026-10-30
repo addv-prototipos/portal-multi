@@ -4367,11 +4367,16 @@ app.post(
     }
 
     try {
-      await enviarCorreo({ destinatario, asunto, cuerpo });
+      const { usandoDefault } = await enviarCorreo({ destinatario, asunto, cuerpo });
       // Un envío real exitoso es al menos tan buena señal como el handshake
       // de "Verificar conexión ahora" — se registra el mismo timestamp.
-      const verificadoEn = await marcarSmtpVerificado();
-      res.json({ ok: true, mensaje: `Correo de prueba enviado a ${destinatario}.`, verificadoEn });
+      // PERO solo si de verdad se usó la conexión PROPIA: si el envío salió
+      // por el default de la plataforma (este tenant/sitio no tiene su
+      // propio SMTP completo), marcar `ultima_verificacion_en` propio sería
+      // mostrar "verificado" sobre una conexión que nunca se configuró
+      // (bug real reportado por el usuario).
+      const verificadoEn = usandoDefault ? null : await marcarSmtpVerificado();
+      res.json({ ok: true, mensaje: `Correo de prueba enviado a ${destinatario}.`, verificadoEn, usandoDefault });
     } catch (err) {
       // 500, no 502 — un 502 aquí lo intercepta el error_page global de
       // nginx (proxy_intercept_errors, ver frontend/nginx.conf.template) y

@@ -275,8 +275,14 @@ async function resolverConfigConexion() {
   return { config: { ...DEFAULTS_SMTP, ...(config || {}), ...def }, usandoDefault: true };
 }
 
+// Devuelve { usandoDefault } — el llamador lo usa para decidir si un envío
+// exitoso prueba de verdad la conexión PROPIA (nunca marcar
+// `ultima_verificacion_en` de este tenant/sitio si en realidad se mandó
+// con el default de la plataforma: eso haría ver como "verificada" una
+// conexión que este tenant nunca configuró — ver
+// POST /api/admin/config/smtp/prueba en server.js).
 async function enviarCorreo({ destinatario, asunto, cuerpo, html, adjuntos }) {
-  const { config } = await resolverConfigConexion();
+  const { config, usandoDefault } = await resolverConfigConexion();
   if (!config || !config.host || !config.usuario || !config.password) {
     throw new Error(
       'El correo SMTP no está configurado todavía. Configúralo en el panel de administración antes de enviar correos.'
@@ -304,6 +310,7 @@ async function enviarCorreo({ destinatario, asunto, cuerpo, html, adjuntos }) {
   } catch (err) {
     throw traducirErrorSmtp(err, config);
   }
+  return { usandoDefault };
 }
 
 // Handshake de solo-verificación (nodemailer .verify(), sin enviar ningún
