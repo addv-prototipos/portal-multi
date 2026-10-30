@@ -53,6 +53,13 @@ Thumbs.db
 # "git add -A" accidental nunca lo arrastre.
 hostinger/
 
+# Paquete de despliegue al VPS de Vultr (producción real, clarvo.mx,
+# 2026-10-28) — mismo criterio que hostinger/ arriba: herramienta de
+# despliegue, no código del producto. Contiene VULTR/prodDoc.html con
+# contraseñas/secretos reales en texto plano (a propósito, documento de
+# soporte/mantenimiento) — jamás debe llegar al repositorio.
+VULTR/
+
 # Editores / herramientas locales
 .idea/
 .claude/

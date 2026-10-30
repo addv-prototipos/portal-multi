@@ -26,10 +26,16 @@ describe('inventarioConfig.js', () => {
       expect(pool.query).not.toHaveBeenCalled();
     });
 
-    test('retorna el default si no hay fila guardada', async () => {
+    test('sin fila guardada, el default de inventario_activo depende de si el plan lo incluye', async () => {
       pool.query.mockResolvedValueOnce([[]]);
-      const resultado = await obtenerValorConfig('inventario_activo');
-      expect(resultado).toBe('0');
+      expect(await obtenerValorConfig('inventario_activo')).toBe('1'); // planIncluyeInventarios default: true
+      pool.query.mockResolvedValueOnce([[]]);
+      expect(await obtenerValorConfig('inventario_activo', { planIncluyeInventarios: false })).toBe('0');
+    });
+
+    test('una fila ya guardada gana siempre sobre el default del plan', async () => {
+      pool.query.mockResolvedValueOnce([[{ valor: '0' }]]);
+      expect(await obtenerValorConfig('inventario_activo', { planIncluyeInventarios: true })).toBe('0');
     });
 
     test('retorna el valor guardado si existe', async () => {
@@ -45,8 +51,14 @@ describe('inventarioConfig.js', () => {
       const resultado = await obtenerConfigInventario();
       expect(Object.keys(resultado).sort()).toEqual(Object.keys(CLAVES).sort());
       expect(pool.query).toHaveBeenCalledTimes(Object.keys(CLAVES).length);
-      expect(resultado.inventario_activo).toBe('0');
+      expect(resultado.inventario_activo).toBe('1'); // sin fila guardada + plan lo incluye (default)
       expect(resultado.inv_imagen_max_mb).toBe('5');
+    });
+
+    test('con planIncluyeInventarios:false, inventario_activo cae a \'0\' sin fila guardada', async () => {
+      pool.query.mockResolvedValue([[]]);
+      const resultado = await obtenerConfigInventario({ planIncluyeInventarios: false });
+      expect(resultado.inventario_activo).toBe('0');
     });
   });
 
@@ -56,6 +68,13 @@ describe('inventarioConfig.js', () => {
       expect(await inventarioActivo()).toBe(true);
       pool.query.mockResolvedValueOnce([[{ valor: '0' }]]);
       expect(await inventarioActivo()).toBe(false);
+    });
+
+    test('inventarioActivo sin fila guardada: sigue el default según el plan', async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+      expect(await inventarioActivo()).toBe(true); // planIncluyeInventarios default: true
+      pool.query.mockResolvedValueOnce([[]]);
+      expect(await inventarioActivo({ planIncluyeInventarios: false })).toBe(false);
     });
 
     test("negativoPermitido es true solo cuando el valor guardado es '1'", async () => {

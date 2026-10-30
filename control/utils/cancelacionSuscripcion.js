@@ -165,6 +165,36 @@ async function confirmarCancelacion(slug, { actor } = {}, db = obtenerPool()) {
   };
 }
 
+// "Cambié de opinión" — reversa exacta de confirmarCancelacion():
+// `cancel_at_period_end: false` en la MISMA Subscription, nunca se crea
+// una nueva ni se toca el precio/plan — Stripe vuelve a cobrar en el
+// siguiente corte por lo que el tenant ya tenía asignado, sin que haga
+// falta volver a pasar por Checkout. Solo tiene sentido si de verdad
+// está marcada para cancelar — si no, no hay nada que reactivar.
+async function reactivarSuscripcion(slug, { actor } = {}, db = obtenerPool()) {
+  const tenant = await cargarTenantPorSlug(slug, db);
+  exigirTenantConSuscripcion(tenant);
+  if (!tenant.suscripcion_cancelar_al_corte) {
+    throw new ErrorCancelacion('Tu suscripción ya está activa — no hay nada que reactivar.', 'validacion');
+  }
+
+  const stripe = obtenerStripe();
+  const suscripcion = await stripe.subscriptions.update(tenant.stripe_subscription_id, {
+    cancel_at_period_end: false,
+  });
+  await db.query(`UPDATE tenants SET suscripcion_cancelar_al_corte = 0 WHERE id = ?`, [tenant.id]);
+  await registrarEventoTenant(db, tenant.id, 'suscripcion_reactivada', null, actor);
+  notificarInvalidacionCache(slug).catch((err) => {
+    console.error(`No se pudo invalidar la caché del backend tras reactivar "${slug}":`, err.message);
+  });
+
+  return {
+    ok: true,
+    cancelarAlCorte: false,
+    estatusStripe: suscripcion.status,
+  };
+}
+
 // Propuesta de retención por correo (reemplaza "Subir de plan" en el
 // reporte de Control — ese botón no tenía sentido para un tenant que ya
 // cancela, ver discusión real con el usuario). SOLO disponible si nunca
@@ -209,4 +239,5 @@ module.exports = {
   pausarSuscripcion,
   registrarEncuestaSalida,
   confirmarCancelacion,
+  reactivarSuscripcion,
 };

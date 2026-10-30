@@ -10,6 +10,7 @@ const { obtenerPool } = require('../db');
 const MAX_NOMBRE = 120;
 const MAX_DESCRIPCION = 255;
 const TIPOS_VALIDOS = ['recurrente', 'unico'];
+const RECURSOS_VALIDOS = ['ninguno', 'disco', 'usuarios'];
 
 class ErrorUpscale extends Error {
   constructor(motivo, codigo) {
@@ -67,6 +68,32 @@ function normalizarDatos(datos = {}, { parcial = false } = {}) {
     resultado.orden = orden === null ? 0 : orden;
   }
 
+  // recurso_tipo/recurso_cantidad: lo que el formulario manda, pero la
+  // tabla guarda cada recurso en su propia columna nullable (disco_mb /
+  // usuarios_otorgados) — mismo mapeo que RECURSOS en
+  // control/utils/tenantUpscaleCompra.js, que lee "la primera fila activa
+  // con esa columna no nula" como el paquete comprable de ese recurso.
+  // Por eso una fila solo puede otorgar UN recurso a la vez: fijar el
+  // elegido y limpiar el otro siempre que recurso_tipo venga en la
+  // petición (edición parcial incluida), nunca solo cuando es alta.
+  if (!parcial || datos.recurso_tipo !== undefined) {
+    const recursoTipo = datos.recurso_tipo || 'ninguno';
+    if (!RECURSOS_VALIDOS.includes(recursoTipo)) {
+      throw new ErrorUpscale('Recurso inválido — debe ser "ninguno", "disco" o "usuarios".', 'validacion');
+    }
+    if (recursoTipo === 'ninguno') {
+      resultado.disco_mb = null;
+      resultado.usuarios_otorgados = null;
+    } else {
+      const cantidad = numeroOpcional(datos.recurso_cantidad, 'La cantidad otorgada');
+      if (cantidad === null || cantidad <= 0) {
+        throw new ErrorUpscale('La cantidad otorgada por compra es obligatoria para este recurso.', 'validacion');
+      }
+      resultado.disco_mb = recursoTipo === 'disco' ? cantidad : null;
+      resultado.usuarios_otorgados = recursoTipo === 'usuarios' ? cantidad : null;
+    }
+  }
+
   return resultado;
 }
 
@@ -87,9 +114,9 @@ async function crearUpscale(datos, db = obtenerPool()) {
   const ahora = new Date();
   const [res] = await db.query(
     `INSERT INTO funcionalidades_upscale
-       (nombre, descripcion, tipo_cobro, precio_mensual, precio_anual, precio_unico, orden, activo, creado_en, actualizado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-    [limpio.nombre, limpio.descripcion, limpio.tipo_cobro, limpio.precio_mensual, limpio.precio_anual, limpio.precio_unico, limpio.orden, ahora, ahora]
+       (nombre, descripcion, tipo_cobro, precio_mensual, precio_anual, precio_unico, orden, disco_mb, usuarios_otorgados, activo, creado_en, actualizado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+    [limpio.nombre, limpio.descripcion, limpio.tipo_cobro, limpio.precio_mensual, limpio.precio_anual, limpio.precio_unico, limpio.orden, limpio.disco_mb, limpio.usuarios_otorgados, ahora, ahora]
   );
   return obtenerUpscalePorId(res.insertId, db);
 }

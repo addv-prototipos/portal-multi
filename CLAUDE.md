@@ -1444,6 +1444,182 @@ usado en todo este repo hasta hoy) cuenta como prueba de
   Validado real con 3 tenants (1/5, 5/5 y 3/5 flags, este último con un
   subconjunto que NO arranca en la primera pestaña declarada, para
   probar que el fallback de pestaña default también elige bien).
+- **Un switch "autoservicio por tenant" (`inventario_activo` y
+  cualquier futuro equivalente) nunca debe defaultear apagado si el
+  PLAN ya lo paga** (punto 446, 2026-10-29, pedido explícito del
+  usuario): `backend/utils/inventarioConfig.js` tenía
+  `inventario_activo` con default fijo `'0'` — un tenant con plan
+  Domina/Crece/Controla (que SÍ incluye Inventarios) seguía sin poder
+  usar el módulo hasta que un admin entraba a Configuraciones y lo
+  prendía a mano, aunque ya lo estuviera pagando. Fix:
+  `obtenerValorConfig()`/`inventarioActivo()`/`obtenerConfigInventario()`
+  ganaron `{ planIncluyeInventarios = true }` — sin fila guardada en
+  `configuracion`, el default es `'1'` si el plan lo incluye (o no hay
+  `req.tenant`, sitio base, siempre tratado como que lo incluye) y
+  `'0'` si no. Una fila YA guardada (el admin tocó el switch, en
+  cualquier sentido) **siempre gana** — cero backfill/migración
+  necesaria, el nuevo default solo aplica donde nunca se había tocado
+  nada. Si se agrega otro switch "autoservicio por tenant" en el
+  futuro que dependa de un flag de plan (mismo patrón que
+  `ventasHabilitadaGlobalmente`/`auditoriaHabilitadaGlobalmente`),
+  replicar este criterio — el usuario fue explícito: si ya pagó el
+  módulo, debe estar prendido desde el día uno, no requerir un paso
+  manual extra.
+- **Asignar un perfil (`ventas`/`inventario`/`fiscal`) a un usuario no
+  valida por sí sola que el PLAN del tenant incluya el módulo de ese
+  perfil — resuelto en el ORIGEN (alta de usuarios), no parchando el
+  checklist/tour** (punto 444/446/447, 2026-10-29): el formulario de
+  alta no filtraba la lista de perfiles por los flags del plan — se
+  podía crear un usuario perfil "inventario" en un tenant Solicita (sin
+  Inventarios) sin ningún aviso; `aplicarRestriccionesPerfil()` ocultaba
+  bien el sidebar, pero el checklist "Primeros pasos" y el recorrido
+  guiado (`ONBOARDING_TOUR_PASOS`) mostraban pasos muertos ("Da de alta
+  tu primer producto") para un módulo inexistente en su sidebar.
+  **Decisión explícita del usuario, vía `AskUserQuestion`** (de 3
+  propuestas ofrecidas — ocultar checklist/tour, mensaje genérico,
+  filtrar pasos individuales — ninguna fue la elegida): en vez de
+  parchar el síntoma en el checklist/tour, se oculta la opción de
+  perfil en el ORIGEN. `perfilPlanVisible(perfil)` (fiscal→
+  `facturacionHabilitada`, inventario→`inventariosHabilitado`, ventas→
+  ANY de `ventasHabilitado`/`cxcHabilitado`/`gastosHabilitado`,
+  administrador/cliente siempre visibles) +
+  `aplicarPerfilesDisponiblesPorPlan()` oculta (`option.hidden`, nunca
+  quita) las opciones no disponibles en los 2 selects de perfil
+  (`crear-usuario-perfil`/`editar-usuario-perfil`) — llamada en
+  `showDashboard()` y de nuevo al abrir cada modal. Un usuario YA creado
+  con un perfil que el plan dejó de incluir conserva su perfil al
+  editar (nunca se le fuerza un cambio), solo deja de poder RE-elegirse
+  desde ese select. Si se agrega un perfil nuevo en el futuro con un
+  módulo de plan asociado, replicar este patrón — filtrar en el origen
+  (quién puede asignarse qué) es más robusto que intentar cubrir cada
+  superficie downstream (checklist, tour, cualquier futura) una por una.
+- **El recorrido guiado necesita el sidebar completamente expandido,
+  nunca solo el grupo de la vista activa** (punto 447, 2026-10-29,
+  pedido explícito del usuario con captura): `aplicarEstadoGruposSidebar()`
+  solo auto-expande el grupo de la vista ACTIVA — un paso del tour
+  apuntando a un botón dentro de un grupo colapsado (ej. "GESTIÓN DE
+  FACTURAS" mientras el usuario está en "Inicio") deja ese paso
+  señalando un elemento invisible. Fix:
+  `expandirTodosLosGruposSidebarParaTour()` (nueva), llamada al inicio
+  de `construirYMostrarTour()` — fuerza `aria-expanded="true"` +
+  `data-colapsado="false"` en TODOS los grupos, sin tocar los overrides
+  de `localStorage` (el usuario puede recolapsar después normalmente,
+  esto es solo el estado visual mientras dura el tour). Si se agrega un
+  spotlight/tour nuevo en cualquier otra pantalla con secciones
+  colapsables, aplicar el mismo criterio desde el día uno.
+- **2 overlays de bienvenida compitiendo a la vez = uno tapa al otro con
+  su propio blur** (punto 447, 2026-10-29, bug real reportado con
+  captura): el aviso "Falta configurar los datos fiscales"
+  (`mostrarAvisoFiscalSiFalta()`, perfil fiscal con RFC/Clave SAT
+  vacíos) se disparaba en el MISMO login que el recorrido guiado —
+  ambos son `modal-overlay` de pantalla completa, el del aviso fiscal
+  se montaba encima y dejaba el globo del tour invisible. Mismo
+  bug-shape que el toast del punto 434 (2 piezas de UI de "bienvenida"
+  nunca antes habían coincidido en el tiempo hasta que ambas condiciones
+  se dieron juntas). Fix: `mostrarAvisoFiscalSiFalta()` revisa
+  `els.onboardingTourOverlay.hidden` — si el tour está abierto, difiere
+  (`avisoFiscalPendienteTrasTour = true`) en vez de mostrar;
+  `cerrarTourBienvenida()` (dispara con "Saltar" o al terminar el último
+  paso) revisa esa bandera y muestra el aviso justo después. Sin tour
+  (perfil sin recorrido, ya visto, o móvil <900px), se muestra de
+  inmediato como siempre — "la prioridad es el tour", decisión explícita
+  del usuario. Si se agrega otro overlay de "primera vez" en el futuro,
+  revisar contra este mismo riesgo (2 modales de bienvenida en el mismo
+  login) antes de darlo por aislado.
+- **Antes de implementar una feature "nueva" que suena a algo ya
+  construido en una sesión anterior, confirmar código real primero**
+  (punto 449, 2026-10-29): el usuario pidió "implementar" cancelación de
+  suscripción con persuasión — resultó que el backend COMPLETO
+  (`control/utils/cancelacionSuscripcion.js`, rutas
+  `/api/admin/mi-cuenta/suscripcion/*`) y el frontend completo
+  (`frontend/admin.js`, modal de 3 pasos) ya existían desde el punto 440,
+  solo faltaba lo que de verdad se pidió: mover el trigger de Mi Cuenta a
+  Configuraciones y agregar 2 pantallas de fricción al final. Si se
+  hubiera reimplementado desde cero sin este grep previo, se habría
+  duplicado lógica real contra Stripe ya probada. Mismo principio que el
+  punto 352 ("antes de asumir que algo sigue pendiente, revisar el
+  código real"), aplicado aquí a una feature completa, no solo un flag.
+- **Doble fricción de confirmación (escribir palabra + código generado):
+  100% client-side, nunca se le pide al backend validar** (punto 449):
+  `#cancelacion-paso-confirmar` (escribir "cancelar") +
+  `#cancelacion-paso-codigo` (código de 6 caracteres,
+  `generarCodigoCancelacion()`, alfabeto sin 0/O/1/I/L, regenerado cada
+  vez que se entra al paso — nunca reusado) solo habilitan el botón
+  siguiente por comparación exacta en el navegador — el candado real ya
+  es `exigirAdminRaizConTenant()` del lado del servidor. Mismo criterio
+  que "escribe el nombre del repo para borrarlo" de GitHub: la fricción
+  es para la INTENCIÓN del humano, no para la autorización (eso ya está
+  resuelto aparte). Replicar este patrón (nunca mandar la palabra/código
+  tecleado al backend) en cualquier confirmación de doble fricción
+  futura — el backend no necesita saberlo, solo necesita el candado real
+  que ya tenía antes de agregar la fricción.
+- **Mover un botón de un card a otro: el modal/overlay que abre casi
+  nunca necesita moverse** (punto 449): `#cancelacion-modal-overlay` ya
+  vivía como overlay independiente al final del `<body>`, sin relación
+  de anidamiento con el botón que lo abría — mover "Cancelar
+  suscripción" de Mi Cuenta a Configuraciones fue solo cambiar QUIÉN
+  dispara `abrirModalCancelacion()` (nuevo `#btn-config-cancelar-suscripcion`
+  en vez de `#btn-micuenta-cancelar-suscripcion`, eliminado), cero
+  cambios al modal en sí. Antes de mover un modal completo al reubicar
+  su trigger, confirmar primero si el modal ya es un overlay top-level
+  independiente (patrón de todos los modales de este archivo) — casi
+  siempre lo es.
+- **Punto 450 (29-30 oct 2026, CERRADO)**: trabajo recuperado tras un cierre
+  abrupto del IDE a mitad de sesión; pasó `node --check` + suite Jest, y
+  el 30 oct se completó la verificación funcional con clics reales
+  (Playwright + msedge) que había quedado pendiente — un reinicio de la
+  PC cortó esa verificación a medio FLOW 4 (reactivar suscripción), se
+  retomó en la sesión siguiente y se cerró: overlay "¿Seguro que quieres
+  irte?" con texto dinámico correcto, clic real en "Cambié de opinión,
+  reactivar cobro" → toast real → llamada real a Stripe test mode
+  (`cancel_at_period_end:false`) → UI revertida sola (desaparece aviso,
+  reaparece "Cancelar suscripción"). Detalle completo de los 5 sub-puntos
+  verificados en `PROJECT_STATE.md` punto 450.
+  - **Cualquier conteo "cuántos operadores cuentan contra la cuota" debe
+    replicar EXACTO el filtro de `PERFILES_CUOTA`, nunca escribirse a mano
+    de nuevo**: `GET /api/admin/mi-cuenta` contaba `totalOperadores` con
+    `WHERE perfil IN ('administrador','fiscal','ventas')` sin `activo=1` y
+    sin `'inventario'` — desalineado con `PERFILES_CUOTA` (creación/edición
+    de usuarios, puntos 418/444). Bug real: un tenant con `maxUsuarios=1`
+    podía mostrar 4 operadores activos sin bloqueo. Fix:
+    `WHERE activo = 1 AND perfil IN ('administrador', 'fiscal', 'ventas',
+    'inventario')`. Cualquier `COUNT(*)` nuevo sobre `usuarios` que se
+    muestre como "cuenta contra tu cuota" debe copiar este mismo filtro,
+    nunca redefinirlo a ojo. **Mismo bug, 2 sitios más que SÍ bloquean
+    (no solo muestran), encontrados y corregidos en la sesión de
+    recuperación**: `POST /api/admin/usuarios` (`PERFILES_CUOTA`) no
+    filtraba `activo=1` en su `COUNT(*)`; `PUT /api/admin/usuarios/:id`
+    (`PERFILES_CUOTA_EDIT`) ni filtraba `activo=1` NI incluía
+    `'inventario'` en el array — editar una cuenta a ese perfil se
+    saltaba la cuota por completo. Ambos ya alineados a los mismos 4
+    perfiles + `activo=1`, con tests nuevos en
+    `backend/test/integration/cuotaUsuarios.test.js` que verifican el SQL
+    real por regex, no solo el resultado.
+  - **El catálogo de upscale (`funcionalidades_upscale`) solo permite UN
+    recurso por fila**: `control/utils/upscale.js:normalizarDatos()` fija
+    el recurso elegido (disco/usuarios, columnas `disco_mb`/
+    `usuarios_otorgados`) y limpia el otro a `null` siempre — nunca los dos
+    a la vez. Si se agrega un tercer tipo de recurso al catálogo en el
+    futuro, mantener el mismo criterio "uno a la vez, limpiar los demás".
+  - **Columna "Plan" de `/control` depende de que `listarTenants()` traiga
+    `disco_upscale_mb`/`usuarios_upscale` en el SELECT**
+    (`control/utils/tenantLifecycle.js`) — si se agrega otro upscale
+    comprado a futuro que deba mostrarse ahí, agregarlo también a ese
+    SELECT, o el chip nuevo nunca aparece aunque la tabla `tenant_upscales_activos`
+    ya tenga el dato.
+  - **Reactivar una suscripción cancelada nunca crea una Subscription
+    nueva**: `reactivarSuscripcion()` solo hace
+    `stripe.subscriptions.update(id, {cancel_at_period_end:false})` sobre
+    la MISMA Subscription + `UPDATE tenants SET suscripcion_cancelar_al_corte
+    = 0` — reversa exacta de la cancelación del punto 440/449, nunca tocar
+    precio/plan al reactivar.
+  - **Tercer caso del mismo bug-shape de "2 overlays de bienvenida
+    compiten"** (ya documentado en el punto 447 para el aviso fiscal vs.
+    el tour): el aviso "te quedan N días para que se cancele tu
+    suscripción" también se difiere si el tour está abierto
+    (`avisoSuscripcionPorVencerTextoPendiente`) y se muestra justo al
+    cerrarlo — cualquier overlay de "primera vez"/aviso urgente nuevo debe
+    revisarse contra este mismo riesgo antes de darlo por aislado.
 
 ## Stack
 

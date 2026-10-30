@@ -3963,7 +3963,7 @@ app.get(
     // a nivel de negocio, no hay nada real que resumir (mismo criterio ya
     // usado en la campana de notificaciones, punto 356).
     const inventarioPlanPermite = !req.tenant || req.tenant.inventariosHabilitado !== false;
-    if ((esSuper || ['administrador', 'inventario'].includes(perfil)) && inventarioPlanPermite && (await inventarioActivo())) {
+    if ((esSuper || ['administrador', 'inventario'].includes(perfil)) && inventarioPlanPermite && (await inventarioActivo({ planIncluyeInventarios: inventarioPlanPermite }))) {
       const [[hoyInventario]] = await pool.query(
         `SELECT
            SUM(CASE WHEN tipo IN ('compra','devolucion_cliente','inventario_inicial','ajuste_positivo') THEN 1 ELSE 0 END) AS entradas,
@@ -4714,8 +4714,12 @@ app.post(
     // (sin req.tenant, sin cuota — comportamiento de siempre).
     const PERFILES_CUOTA = ['administrador', 'fiscal', 'ventas', 'inventario'];
     if (req.tenant && req.tenant.maxUsuarios != null && PERFILES_CUOTA.includes(perfil)) {
+      // Mismo filtro activo=1 que GET /api/admin/mi-cuenta y
+      // /internal/aplicar-limite-usuarios — una cuenta archivada no debe
+      // contar contra la cuota, o un tenant con historial nunca podría
+      // dar de alta a alguien nuevo aunque tenga cupo real disponible.
       const [[{ total }]] = await pool.query(
-        `SELECT COUNT(*) AS total FROM usuarios WHERE perfil IN (${PERFILES_CUOTA.map(() => '?').join(',')})`,
+        `SELECT COUNT(*) AS total FROM usuarios WHERE activo = 1 AND perfil IN (${PERFILES_CUOTA.map(() => '?').join(',')})`,
         PERFILES_CUOTA
       );
       if (total >= req.tenant.maxUsuarios) {
@@ -4895,10 +4899,14 @@ app.put(
 
     // Punto 244: mismo cierre de cuota que POST /api/admin/usuarios —
     // sin esto, editar una cuenta "cliente" ya existente a
-    // administrador/fiscal/ventas sería una forma de saltarse el límite
-    // configurado en /control. Solo aplica cuando este PUT agrega una
-    // cuenta NUEVA a la cuota (el perfil anterior no contaba, el nuevo sí).
-    const PERFILES_CUOTA_EDIT = ['administrador', 'fiscal', 'ventas'];
+    // administrador/fiscal/ventas/inventario sería una forma de saltarse
+    // el límite configurado en /control. Solo aplica cuando este PUT
+    // agrega una cuenta NUEVA a la cuota (el perfil anterior no contaba,
+    // el nuevo sí). Mismos 4 perfiles y mismo filtro activo=1 que
+    // PERFILES_CUOTA de arriba — antes excluía 'inventario' y no
+    // filtraba activo=1 (mismo bug ya corregido en GET /api/admin/mi-cuenta,
+    // punto 450).
+    const PERFILES_CUOTA_EDIT = ['administrador', 'fiscal', 'ventas', 'inventario'];
     if (
       req.tenant &&
       req.tenant.maxUsuarios != null &&
@@ -4906,7 +4914,7 @@ app.put(
       !PERFILES_CUOTA_EDIT.includes(usuarioActual.perfil)
     ) {
       const [[{ total }]] = await pool.query(
-        `SELECT COUNT(*) AS total FROM usuarios WHERE perfil IN (${PERFILES_CUOTA_EDIT.map(() => '?').join(',')})`,
+        `SELECT COUNT(*) AS total FROM usuarios WHERE activo = 1 AND perfil IN (${PERFILES_CUOTA_EDIT.map(() => '?').join(',')})`,
         PERFILES_CUOTA_EDIT
       );
       if (total >= req.tenant.maxUsuarios) {
@@ -5115,8 +5123,13 @@ app.get(
     if (req.adminPerfil === 'administrador' || req.adminPerfil === 'super') {
       const config = await getConfiguracionGlobal();
       const zona = ZONAS_HORARIAS_MEXICO.find((z) => z.id === config.zona_horaria);
+      // Mismos 4 perfiles y mismo filtro activo=1 que PERFILES_CUOTA en
+      // creación/edición de usuarios (líneas ~1256/4715/4901) — antes
+      // excluía 'inventario' y no filtraba activo=1, por lo que este
+      // conteo podía mostrar menos operadores que los que de verdad
+      // cuentan contra la cuota (bug real: "Llevas 3 de 1" con 4 activos).
       const [[{ total_operadores: totalOperadores }]] = await pool.query(
-        "SELECT COUNT(*) AS total_operadores FROM usuarios WHERE perfil IN ('administrador', 'fiscal', 'ventas')"
+        "SELECT COUNT(*) AS total_operadores FROM usuarios WHERE activo = 1 AND perfil IN ('administrador', 'fiscal', 'ventas', 'inventario')"
       );
       respuesta.empresa = {
         razonSocial: config.razon_social_compania || '',
@@ -5513,6 +5526,24 @@ app.post(
       actor: req.adminUser,
     });
     if (!ok) return res.status(status).json({ error: data.error || 'No se pudo cancelar tu suscripción.', codigo: data.codigo });
+    res.json(data);
+  })
+);
+
+// "Cambié de opinión" — reversa de /cancelar: cancel_at_period_end en
+// false, Stripe vuelve a cobrar en el siguiente corte por el plan que
+// el tenant ya tiene asignado (nunca se toca precio/plan aquí).
+app.post(
+  '/api/admin/mi-cuenta/suscripcion/reactivar',
+  adminApiLimiter,
+  requireAdminAuth,
+  asyncHandler(async (req, res) => {
+    if (!(await exigirAdminRaizConTenant(req, res))) return;
+    const { ok, status, data } = await llamarControlInterno('/internal/suscripcion/reactivar', {
+      slug: req.tenant.slug,
+      actor: req.adminUser,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || 'No se pudo reactivar tu suscripción.', codigo: data.codigo });
     res.json(data);
   })
 );
@@ -7685,9 +7716,14 @@ app.post(
     let lineasInventario = []; // [{ productoId, cantidad, producto }]
     const sePidioArrayInventario =
       Array.isArray(body.productos_inventario) && body.productos_inventario.length > 0;
+    // Esta ruta no lleva requiereFeature('inventariosHabilitado') (Ventas
+    // debe funcionar sin Inventarios) — a diferencia del resto de rutas de
+    // inventario, aquí sí hace falta calcular el flag del plan a mano antes
+    // de preguntar el default de inventarioActivo().
+    const planIncluyeInventarios = !req.tenant || req.tenant.inventariosHabilitado !== false;
 
     if (sePidioArrayInventario) {
-      const inventarioEstaActivo = await inventarioActivo();
+      const inventarioEstaActivo = await inventarioActivo({ planIncluyeInventarios });
       if (inventarioEstaActivo) {
         if (body.productos_inventario.length > 50) {
           return res.status(400).json({ error: 'Demasiadas líneas de inventario en una sola venta.' });
@@ -7721,7 +7757,7 @@ app.post(
       // la inmensa mayoría de ventas no llevan producto (D8 es opt-in por
       // tenant), así que inventarioActivo() —una consulta más— solo se
       // paga cuando de verdad hace falta decidir algo.
-      const inventarioEstaActivo = await inventarioActivo();
+      const inventarioEstaActivo = await inventarioActivo({ planIncluyeInventarios });
       if (inventarioEstaActivo) {
         const idCandidato = Number(body.producto_id);
         if (!Number.isInteger(idCandidato)) {

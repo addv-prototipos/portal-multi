@@ -146,22 +146,22 @@ describe('email.js', () => {
   });
 
   describe('configSmtpParaMostrar', () => {
-    test('sin configuración, indica configurado:false y passwordConfigurada:false', () => {
-      const resultado = configSmtpParaMostrar(null);
+    test('sin configuración, indica configurado:false y passwordConfigurada:false', async () => {
+      const resultado = await configSmtpParaMostrar(null);
       expect(resultado.configurado).toBe(false);
       expect(resultado.passwordConfigurada).toBe(false);
       expect(resultado.password).toBeUndefined();
     });
 
-    test('nunca expone la contraseña real, pero sí indica que está configurada', () => {
-      const resultado = configSmtpParaMostrar({ ...DEFAULTS_SMTP, host: 'smtp.gmail.com', usuario: 'a@a.com', password: 'secreta' });
+    test('nunca expone la contraseña real, pero sí indica que está configurada', async () => {
+      const resultado = await configSmtpParaMostrar({ ...DEFAULTS_SMTP, host: 'smtp.gmail.com', usuario: 'a@a.com', password: 'secreta' });
       expect(resultado.password).toBeUndefined();
       expect(resultado.passwordConfigurada).toBe(true);
       expect(resultado.configurado).toBe(true);
     });
 
-    test('configurado:false si falta host, usuario o password', () => {
-      const resultado = configSmtpParaMostrar({ ...DEFAULTS_SMTP, host: '', usuario: 'a@a.com', password: 'x' });
+    test('configurado:false si falta host, usuario o password', async () => {
+      const resultado = await configSmtpParaMostrar({ ...DEFAULTS_SMTP, host: '', usuario: 'a@a.com', password: 'x' });
       expect(resultado.configurado).toBe(false);
     });
   });

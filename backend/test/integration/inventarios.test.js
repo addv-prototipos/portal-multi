@@ -84,7 +84,14 @@ function mockPoolPorPatron(mapa) {
 }
 
 const MODULO_ACTIVO = ['SELECT valor FROM configuracion', [[{ valor: '1' }]]];
-const MODULO_INACTIVO = ['SELECT valor FROM configuracion', [[]]]; // sin fila -> default '0'
+// Punto 444 (2026-10-29): sin fila guardada, el default de inventario_activo
+// pasa a ser '1' cuando el plan lo incluye (sin tenant en este archivo = se
+// trata como sitio base = siempre lo incluye) — MODULO_INACTIVO ya no
+// representa "módulo inactivo", representa "nunca se tocó el switch" (que
+// ahora es sinónimo de activo). Para simular el switch REALMENTE apagado
+// (fila guardada explícita en '0'), usar MODULO_DESACTIVADO_EXPLICITO.
+const MODULO_INACTIVO = ['SELECT valor FROM configuracion', [[]]]; // sin fila -> default nuevo: '1' (plan lo incluye)
+const MODULO_DESACTIVADO_EXPLICITO = ['SELECT valor FROM configuracion', [[{ valor: '0' }]]];
 const ALMACEN_ID = ['SELECT id FROM almacenes WHERE codigo', [[{ id: 1 }]]];
 
 describe('Inventarios — capa HTTP (segmento 2)', () => {
@@ -95,9 +102,24 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
   });
 
   describe('Gate D8/§0.6: requireInventarioActivo', () => {
-    test('módulo inactivo (default) responde 403 INV_MODULO_INACTIVO en una ruta gateada', async () => {
+    // Punto 444 (2026-10-29): sin fila guardada, el default de
+    // inventario_activo pasa a ser '1' cuando el plan lo incluye (o no hay
+    // tenant, como en este archivo sin X-Tenant-Slug) — antes era '0' fijo.
+    // MODULO_INACTIVO (sin fila) ya NO significa "módulo inactivo", significa
+    // "nunca se tocó el switch" — renombrado a SIN_FILA_GUARDADA para no
+    // confundir a quien lea este archivo después.
+    test('sin fila guardada (default nuevo), el módulo está ACTIVO en una ruta gateada', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
       mockPoolPorPatron([MODULO_INACTIVO]);
+
+      const res = await request(app).get('/api/admin/inventarios/categorias').auth(usuario, password);
+
+      expect(res.status).toBe(200);
+    });
+
+    test('con el switch explícitamente apagado (fila \'0\'), responde 403 INV_MODULO_INACTIVO', async () => {
+      const { usuario, password } = mockUsuarioAdministrativo('administrador');
+      mockPoolPorPatron([MODULO_DESACTIVADO_EXPLICITO]);
 
       const res = await request(app).get('/api/admin/inventarios/categorias').auth(usuario, password);
 
@@ -112,7 +134,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
       const res = await request(app).get('/api/admin/inventarios/configuracion').auth(usuario, password);
 
       expect(res.status).toBe(200);
-      expect(res.body.configuracion.inventario_activo).toBe('0');
+      expect(res.body.configuracion.inventario_activo).toBe('1'); // default nuevo: plan lo incluye -> activo
     });
 
     test('perfil "fiscal" no tiene acceso al módulo (403, coherente con D7)', async () => {
@@ -156,7 +178,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
 
     test('PUT /configuracion/inv_solo_servicios con "1" e inventario inactivo responde 400 INV_MODULO_INACTIVO (punto 188)', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
-      mockPoolPorPatron([MODULO_INACTIVO]);
+      mockPoolPorPatron([MODULO_DESACTIVADO_EXPLICITO]);
 
       const res = await request(app)
         .put('/api/admin/inventarios/configuracion/inv_solo_servicios')
@@ -845,7 +867,7 @@ describe('Inventarios — capa HTTP (segmento 2)', () => {
 
     test('módulo de inventario inactivo responde 403 INV_MODULO_INACTIVO', async () => {
       const { usuario, password } = mockUsuarioAdministrativo('administrador');
-      mockPoolPorPatron([MODULO_INACTIVO]);
+      mockPoolPorPatron([MODULO_DESACTIVADO_EXPLICITO]);
       const res = await request(app).get('/api/admin/inventarios/productos/1/codigo-barras.svg').auth(usuario, password);
       expect(res.status).toBe(403);
       expect(res.body.error).toBe('INV_MODULO_INACTIVO');

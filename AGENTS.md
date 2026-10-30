@@ -332,14 +332,25 @@ solo la frase en español de la UI.
 - **`backend/` y `control/` son builds de Docker separados** — nunca
   copiar código entre ellos en producción; código pequeño compartido se
   duplica a propósito (mismo patrón que el frontend sin bundler).
-- **`hostinger/`** (paquete de despliegue para `yt.addv.com.mx`) **NO es parte
-  del producto, es la herramienta de despliegue** (decisión del usuario,
-  2026-10-22, punto 412 de PROJECT_STATE.md): se reescribe con cada
-  actualización y puede borrarse y regenerarse completa. Sincronizarlo por
-  CONTENIDO tras cualquier sesión relevante, nunca `git add`. Un desfase
-  contra su fuente **nunca se cuenta como hallazgo del producto** en
-  auditorías (métricas, quality gate, code smells) — es un paso del
-  proceso de deploy, no deuda de código.
+- **`hostinger/` y `VULTR/` NO son parte del producto, son herramientas de
+  despliegue — SIEMPRE ignorarlas en análisis de calidad** (decisión del
+  usuario, 2026-10-22 punto 412 y reafirmada 2026-10-29 punto 448 de
+  PROJECT_STATE.md): ambas son carpetas **temporales de despliegue**,
+  reescribibles y regenerables por completo. `hostinger/` es el paquete
+  para `yt.addv.com.mx` (VPS de pruebas en Hostinger); `VULTR/` es la
+  documentación/operación del despliegue productivo real en Vultr
+  (`clarvo.mx`, punto 442 — ambos archivos suelen estar gitignored).
+  Consecuencias en CUALQUIER auditoría, métrica o informe estilo
+  SonarQube:
+  1. **Nunca contar sus archivos/líneas** en las métricas del producto.
+  2. **Un desfase contra su fuente nunca es un hallazgo del producto**
+     (ni code smell, ni deuda, ni condición de Quality Gate) — es un
+     paso del proceso de deploy.
+  3. Si se mencionan, es solo como "artefacto de deploy verificado/no
+     verificado", nunca dentro del alcance del código analizado.
+  El alcance del producto es SIEMPRE: `backend/`, `control/`,
+  `frontend/` y `docker/`. Sincronizar `hostinger/`/`VULTR/` por
+  CONTENIDO tras cualquier sesión relevante, nunca `git add`.
 - **Credenciales angostas cross-tenant** (`control_app`): sin
   `REFERENCES`/`DELETE` en tablas de otros tenants — usar soft-delete en
   vez de FK/DELETE físico en cualquier tabla cross-tenant.
@@ -624,6 +635,87 @@ solo la frase en español de la UI.
   3/5 flags). Cualquier módulo futuro con sub-pestañas de flags
   independientes replica este patrón — nunca basta con ocultar el
   contenedor.
+
+- **Un switch "autoservicio por tenant" nunca debe defaultear apagado si
+  el plan ya lo paga** (punto 446, 2026-10-29, pedido explícito del
+  usuario): `inventario_activo` (`backend/utils/inventarioConfig.js`)
+  defaulteaba `'0'` fijo — un tenant con plan que SÍ incluye Inventarios
+  seguía sin poder usarlo hasta que un admin lo prendía a mano.
+  `obtenerValorConfig()`/`inventarioActivo()`/`obtenerConfigInventario()`
+  ganaron `{ planIncluyeInventarios = true }`: sin fila guardada, el
+  default es `'1'` si el plan lo incluye (o sitio base, siempre true),
+  `'0'` si no. Una fila YA guardada (switch tocado, en cualquier
+  sentido) siempre gana — cero backfill necesario. Validado real:
+  tenant plan Domina sin fila guardada, `GET .../inventarios/configuracion`
+  ya devuelve `inventario_activo:"1"` de entrada.
+- **Asignar perfil `ventas`/`inventario`/`fiscal` sin plan que lo
+  incluya — resuelto ocultando la opción en el alta, no parchando el
+  tour** (punto 444/446/447, 2026-10-29, decisión explícita del
+  usuario): `perfilPlanVisible(perfil)` +
+  `aplicarPerfilesDisponiblesPorPlan()` ocultan (`option.hidden`) las
+  opciones de perfil sin módulo en el plan, en los 2 selects de alta/
+  edición de usuario — un usuario YA creado con ese perfil conserva su
+  valor al editar, solo deja de poder re-elegirse. Si se agrega un
+  perfil nuevo con módulo de plan asociado, replicar este patrón.
+- **Recorrido guiado: sidebar expandido + nunca compite con el aviso
+  fiscal** (punto 447, 2026-10-29): `expandirTodosLosGruposSidebarParaTour()`
+  fuerza todos los grupos abiertos al iniciar el tour (sin tocar
+  overrides de localStorage). `mostrarAvisoFiscalSiFalta()` difiere su
+  overlay (`avisoFiscalPendienteTrasTour`) si el tour está abierto —
+  aparece justo al cerrarlo (Saltar o terminar), nunca compitiendo con
+  su propio blur encima del globo del tour.
+
+- **Antes de "implementar" una feature que suena a algo ya construido
+  en otra sesión, grepear el código real primero** (punto 449,
+  2026-10-29): se pidio cancelacion de suscripcion con persuasion -
+  backend y frontend completos ya existian desde el punto 440 (Claude),
+  solo faltaba mover el trigger a Configuraciones + agregar 2 pantallas
+  de friccion final. Mismo principio del punto 352, aplicado a una
+  feature completa, no solo un flag - revisar antes de reimplementar.
+- **Doble friccion de confirmacion (escribir palabra + codigo
+  generado): 100% client-side, nunca se valida en backend** (punto 449):
+  `#cancelacion-paso-confirmar` (escribir "cancelar") +
+  `#cancelacion-paso-codigo` (codigo de 6 caracteres sin 0/O/1/I/L,
+  regenerado cada vez) solo habilitan el boton siguiente por comparacion
+  exacta en el navegador - el candado real es `exigirAdminRaizConTenant()`
+  del servidor, sin cambios. Mismo criterio que "escribe el nombre del
+  repo para borrarlo" de GitHub.
+
+- **Punto 450 (29-30 oct 2026, CERRADO)**: recuperado tras cierre abrupto
+  del IDE a mitad de sesion; paso `node --check` + Jest, y el 30 oct se
+  cerro la verificacion funcional con clics reales (Playwright + msedge)
+  que un reinicio de PC habia cortado a medio FLOW 4 - reactivar
+  suscripcion confirmado real (toast + Stripe test mode + UI revertida).
+  Detalle completo en PROJECT_STATE.md punto 450.
+  - Conteo de `totalOperadores` (`GET /api/admin/mi-cuenta`) no filtraba
+    `activo=1` ni incluia `'inventario'` - desalineado de `PERFILES_CUOTA`
+    (puntos 418/444). Bug real: tenant con `maxUsuarios=1` mostraba 4
+    operadores activos sin bloqueo. Fix:
+    `WHERE activo = 1 AND perfil IN ('administrador','fiscal','ventas','inventario')`.
+    Cualquier conteo nuevo "cuenta contra tu cuota" debe copiar este mismo
+    filtro, nunca redefinirlo a mano. **Mismo bug, 2 sitios mas que SI
+    bloquean (no solo muestran), encontrados y corregidos en la sesion
+    de recuperacion**: `POST /api/admin/usuarios` (`PERFILES_CUOTA`) sin
+    `activo=1` en su `COUNT(*)`; `PUT /api/admin/usuarios/:id`
+    (`PERFILES_CUOTA_EDIT`) sin `activo=1` NI `'inventario'` en el array
+    - editar a ese perfil se saltaba la cuota completa. Ya alineados,
+    tests nuevos en `backend/test/integration/cuotaUsuarios.test.js`.
+  - Catalogo de upscale (`control/utils/upscale.js:normalizarDatos`) ahora
+    conecta un recurso por funcionalidad (disco_mb/usuarios_otorgados,
+    columnas que ya existian desde el punto 440) - solo uno a la vez,
+    fijar el elegido limpia el otro a null.
+  - Columna "Plan" de `/control` (`frontend/control.js:celdaPlanHtml`)
+    reemplaza "Contacto", muestra plan + chips de upscale ya comprado -
+    requiere que `listarTenants()` traiga `disco_upscale_mb`/
+    `usuarios_upscale` en el SELECT.
+  - `reactivarSuscripcion()` (`control/utils/cancelacionSuscripcion.js`)
+    reversa exacta de cancelar (puntos 440/449):
+    `cancel_at_period_end:false` sobre la MISMA Subscription, nunca crea
+    una nueva.
+  - Aviso "te quedan N dias" (suscripcion por cancelar, overlay
+    `#suscripcion-por-vencer-overlay`) es un tercer caso del mismo
+    bug-shape del punto 447 (2 overlays de bienvenida compiten) - se
+    difiere si el tour esta abierto, aparece justo al cerrarlo.
 
 ## Stack
 

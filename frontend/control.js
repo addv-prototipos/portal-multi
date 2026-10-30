@@ -788,6 +788,32 @@
     cancelada: 'Cancelada',
   };
 
+  function formatearMbOGb(mb) {
+    return mb >= 1024 ? `${(mb / 1024).toFixed(2).replace(/\.00$/, '')} GB` : `${Number(mb).toLocaleString('es-MX')} MB`;
+  }
+
+  // Celda "Plan" de la tabla principal — reemplaza "Contacto" (punto en
+  // curso, decisión explícita del usuario: el correo ya vive en el modal
+  // de edición y no ayuda a escanear la tabla). Propuesta A elegida de 4:
+  // el upscale comprado (disco_upscale_mb/usuarios_upscale, punto 433/440
+  // — ya vienen en el SELECT de listarTenants()) se muestra SIEMPRE con
+  // un chip, sin necesitar clic/hover — mismo lenguaje visual que
+  // .campo-calculado-chip (ya usado para "Prueba inicia el"), solo más
+  // chico (.upscale-chip).
+  function celdaPlanHtml(t) {
+    const nombrePlan = t.plan_nombre ? escapeHtml(t.plan_nombre) : '<span class="estatus-badge estatus-vence-na">Sin plan</span>';
+    const chips = [];
+    if (t.disco_upscale_mb > 0) {
+      chips.push(`<span class="upscale-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>${formatearMbOGb(Number(t.disco_upscale_mb))} disco</span>`);
+    }
+    if (t.usuarios_upscale > 0) {
+      const n = Number(t.usuarios_upscale);
+      chips.push(`<span class="upscale-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>${n} usuario${n === 1 ? '' : 's'}</span>`);
+    }
+    if (!chips.length) return `<div class="plan-cell-a"><span class="plan-name">${nombrePlan}</span></div>`;
+    return `<div class="plan-cell-a"><span class="plan-name">${nombrePlan}</span>${chips.join('')}</div>`;
+  }
+
   // Celda "Vence" de la tabla principal (punto 381) — mismo criterio de
   // badge que "Estado": una pastilla con color semántico, nunca solo
   // texto plano, para que el riesgo de vencimiento se lea de un vistazo.
@@ -855,7 +881,7 @@
         <td data-label="Empresa">${escapeHtml(t.nombre_empresa)}</td>
         <td data-label="Estado"><span class="estatus-badge estatus-${escapeHtmlAttr(t.estado)}" data-tooltip="${escapeHtmlAttr(tooltipEstado)}">${escapeHtml(etiquetaEstado)}</span></td>
         <td data-label="Vence">${celdaVenceHtml(t)}</td>
-        <td data-label="Contacto">${escapeHtml(t.contacto_email) || '—'}</td>
+        <td data-label="Plan">${celdaPlanHtml(t)}</td>
         <td data-label="Creado">${formatFecha(t.creado_en)}</td>
         <td data-label=""></td>
       `;
@@ -3607,6 +3633,28 @@
   // ---------- Punto en curso: Upscale + Configurar Stripe ----------
   let upscaleEditandoId = null;
   let upscaleTipoCobroActual = 'recurrente';
+  let upscaleRecursoActual = 'ninguno';
+
+  const UPSCALE_RECURSO_LABEL = {
+    disco: 'Cantidad otorgada por compra (MB)',
+    usuarios: 'Cantidad otorgada por compra (usuarios)',
+  };
+
+  function seleccionarRecursoUpscale(recurso) {
+    upscaleRecursoActual = recurso;
+    document.querySelectorAll('[data-upscale-recurso]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.upscaleRecurso === recurso);
+    });
+    const campo = document.getElementById('upscale-campo-recurso-cantidad');
+    campo.hidden = recurso === 'ninguno';
+    if (recurso !== 'ninguno') {
+      document.getElementById('upscale-recurso-cantidad-label').textContent = UPSCALE_RECURSO_LABEL[recurso];
+    }
+  }
+
+  document.querySelectorAll('[data-upscale-recurso]').forEach((btn) => {
+    btn.addEventListener('click', () => seleccionarRecursoUpscale(btn.dataset.upscaleRecurso));
+  });
 
   function formatearPrecioUpscale(item) {
     const money = (n) => Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 });
@@ -3645,8 +3693,13 @@
         ? `<strong>${escapeHtml(item.nombre)}</strong>`
         : `<strong>${escapeHtml(item.nombre)}</strong> <span class="planes-chip-archivado">Archivado</span>`;
       const descHtml = item.descripcion ? `<br><span class="field-hint" style="margin:0">${escapeHtml(item.descripcion)}</span>` : '';
+      const recursoHtml = item.disco_mb != null
+        ? `<br><span class="upscale-chip">+${Number(item.disco_mb).toLocaleString('es-MX')} MB disco</span>`
+        : item.usuarios_otorgados != null
+          ? `<br><span class="upscale-chip">+${Number(item.usuarios_otorgados).toLocaleString('es-MX')} usuario${Number(item.usuarios_otorgados) === 1 ? '' : 's'}</span>`
+          : '';
       tr.innerHTML = `
-        <td>${nombreHtml}${descHtml}</td>
+        <td>${nombreHtml}${descHtml}${recursoHtml}</td>
         <td>${item.tipo_cobro === 'recurrente' ? 'Recurrente' : 'Pago único'}</td>
         <td>${escapeHtml(formatearPrecioUpscale(item))}</td>
         <td></td>
@@ -3688,6 +3741,11 @@
     document.getElementById('upscale-precio-anual').value = item && item.precio_anual !== null ? item.precio_anual : '';
     document.getElementById('upscale-precio-unico').value = item && item.precio_unico !== null ? item.precio_unico : '';
     seleccionarTipoCobroUpscale(item ? item.tipo_cobro : 'recurrente');
+    const recursoInicial = item && item.disco_mb != null ? 'disco' : item && item.usuarios_otorgados != null ? 'usuarios' : 'ninguno';
+    document.getElementById('upscale-recurso-cantidad').value = item
+      ? (item.disco_mb ?? item.usuarios_otorgados ?? '')
+      : '';
+    seleccionarRecursoUpscale(recursoInicial);
     document.getElementById('upscale-form').hidden = false;
   }
 
@@ -3720,6 +3778,8 @@
       precio_mensual: document.getElementById('upscale-precio-mensual').value || null,
       precio_anual: document.getElementById('upscale-precio-anual').value || null,
       precio_unico: document.getElementById('upscale-precio-unico').value || null,
+      recurso_tipo: upscaleRecursoActual,
+      recurso_cantidad: upscaleRecursoActual === 'ninguno' ? null : document.getElementById('upscale-recurso-cantidad').value || null,
     };
     const url = upscaleEditandoId ? `${API_BASE}/upscale/${upscaleEditandoId}` : `${API_BASE}/upscale`;
     const metodo = upscaleEditandoId ? 'PUT' : 'POST';

@@ -118,6 +118,23 @@ describe('Cuota de usuarios de panel por tenant (punto 244)', () => {
       expect(pool.query).toHaveBeenCalledTimes(2); // nunca llega al INSERT
     });
 
+    test('el COUNT(*) de la cuota filtra activo=1 — una cuenta archivada nunca cuenta (punto 450)', async () => {
+      poolControl.query.mockResolvedValueOnce([[tenantFila({ max_usuarios: 3 })]]);
+      pool.query
+        .mockResolvedValueOnce([[]]) // sin rfc existente
+        .mockResolvedValueOnce([[{ total: 2 }]]) // COUNT(*)
+        .mockResolvedValueOnce([{ insertId: 9 }]); // INSERT
+
+      await request(app)
+        .post('/api/admin/usuarios')
+        .set('X-Tenant-Slug', 'norte')
+        .auth('admin', 'admin')
+        .send(NUEVO_USUARIO);
+
+      const [sqlCount] = pool.query.mock.calls.find(([sql]) => sql.includes('COUNT(*)'));
+      expect(sqlCount).toMatch(/activo\s*=\s*1/);
+    });
+
     test('perfil "cliente" nunca cuenta contra la cuota (no es un asiento del plan)', async () => {
       poolControl.query.mockResolvedValueOnce([[tenantFila({ max_usuarios: 1 })]]);
       pool.query
@@ -180,6 +197,24 @@ describe('Cuota de usuarios de panel por tenant (punto 244)', () => {
         .send({ perfil: 'ventas', rfc: 'VENTAS1', telefono: '', email: 'ventas1@norte.com' });
 
       expect(res.status).toBe(200);
+    });
+
+    test('sube de "cliente" a "inventario" en la cuota exacta: 400 CUOTA_USUARIOS_EXCEDIDA (punto 450 — antes PERFILES_CUOTA_EDIT no incluía "inventario")', async () => {
+      poolControl.query.mockResolvedValueOnce([[tenantFila({ max_usuarios: 2 })]]);
+      pool.query
+        .mockResolvedValueOnce([[{ id: 5, rfc: 'CLIENTE1', perfil: 'cliente' }]]) // SELECT * usuario actual
+        .mockResolvedValueOnce([[{ total: 2 }]]); // COUNT(*) ya en el tope
+
+      const res = await request(app)
+        .put('/api/admin/usuarios/5')
+        .set('X-Tenant-Slug', 'norte')
+        .auth('admin', 'admin')
+        .send({ perfil: 'inventario', rfc: 'CLIENTE1', telefono: '', email: 'cliente1@norte.com' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.codigo).toBe('CUOTA_USUARIOS_EXCEDIDA');
+      const [sqlCount] = pool.query.mock.calls.find(([sql]) => sql.includes('COUNT(*)'));
+      expect(sqlCount).toMatch(/activo\s*=\s*1/);
     });
   });
 });

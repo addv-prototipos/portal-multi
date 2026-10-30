@@ -6261,6 +6261,26 @@ body.is-resizing-column { cursor: col-resize; user-select: none; }
 .estatus-cancelado { background: var(--color-error-soft); color: var(--color-error); }
 .estatus-listo { background: #DCEFE3; color: #146C43; }
 
+/* Celda "Plan" de la tabla principal de /control (reemplaza "Contacto") —
+   nombre del plan + chip(s) de upscale comprado, siempre visibles sin
+   clic/hover (propuesta A de 4, elegida por el usuario). Mismo lenguaje
+   que .campo-calculado-chip, solo más chico para no inflar la altura de
+   fila más de lo necesario. */
+.plan-cell-a { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.plan-cell-a .plan-name { font-weight: 600; color: var(--color-ink); }
+.upscale-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-dark);
+}
+.upscale-chip svg { width: 11px; height: 11px; flex: none; }
+
 /* Estado de tenant (app de control, segmento 9) */
 .estatus-badge { transition: background 0.3s ease, color 0.3s ease; }
 .estatus-provisioning { background: var(--color-bg); color: var(--color-ink-soft); border: 1px solid var(--color-border); }
@@ -10440,6 +10460,12 @@ tr.unm-row-proy { background: var(--color-warn-soft); }
 }
 .cancelacion-paso { display: flex; flex-direction: column; }
 .cancelacion-timeline-nota { font-size: 12.5px; color: var(--color-ink-soft); margin: 10px 0 0; }
+.cancelacion-codigo-generado {
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 22px; font-weight: 800; letter-spacing: .12em; text-align: center;
+  color: var(--color-ink); background: var(--color-bg-soft, #F6F8FB); border: 1.5px dashed var(--color-border);
+  border-radius: 10px; padding: 12px; margin: 10px 0 14px; user-select: all;
+}
 
 /* Punto 418 (Deck A2): vista "Actualizar método de pago" — split
    resumen de plan (navy, reusa .micuenta-card-navy) + formulario de

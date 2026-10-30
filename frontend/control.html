@@ -254,7 +254,7 @@
                 <th>Empresa</th>
                 <th>Estado<button type="button" class="campo-ayuda" aria-label="Más información sobre Estado" data-tooltip="Suspender: pausa temporal, para intermitencias o falta de pago — se revierte con Reactivar. Dar de baja: fin de la relación comercial — también se revierte con Reactivar, no borra nada, solo cambia cómo se ve reflejado el estado."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Ayuda</button></th>
                 <th>Vence</th>
-                <th>Contacto</th>
+                <th>Plan</th>
                 <th>Creado</th>
                 <th></th>
               </tr>
@@ -891,6 +891,19 @@
                   <button type="button" class="control-chip is-active" data-upscale-tipo="recurrente">Recurrente (mensual/anual)</button>
                   <button type="button" class="control-chip" data-upscale-tipo="unico">Pago único</button>
                 </div>
+              </div>
+              <div class="field control-form-grid-full">
+                <label>Recurso que otorga cada compra</label>
+                <div class="control-chip-select" id="upscale-recurso-tipo">
+                  <button type="button" class="control-chip is-active" data-upscale-recurso="ninguno">Ninguno (solo funcionalidad)</button>
+                  <button type="button" class="control-chip" data-upscale-recurso="disco">Almacenamiento</button>
+                  <button type="button" class="control-chip" data-upscale-recurso="usuarios">Usuarios</button>
+                </div>
+                <p class="field-hint">Solo puede haber UNA funcionalidad activa por recurso a la vez — es la que se ofrece en "Ampliar tu plan" de Mi Cuenta.</p>
+              </div>
+              <div class="field" id="upscale-campo-recurso-cantidad" hidden>
+                <label for="upscale-recurso-cantidad" id="upscale-recurso-cantidad-label">Cantidad otorgada por compra</label>
+                <input type="number" id="upscale-recurso-cantidad" min="1" step="1" placeholder="Ej. 500" />
               </div>
               <div class="field" id="upscale-campo-mensual">
                 <label for="upscale-precio-mensual">Precio mensual (MXN)</label>

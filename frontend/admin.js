@@ -305,11 +305,30 @@
     micuentaUsuariosAvisoTitulo: document.getElementById('micuenta-usuarios-aviso-titulo'),
     micuentaUsuariosAvisoCuerpo: document.getElementById('micuenta-usuarios-aviso-cuerpo'),
     btnMicuentaUsuariosComprar: document.getElementById('btn-micuenta-usuarios-comprar'),
-    // Cuenta raíz: cancelar/ampliar (ver empresa.puedeGestionarSuscripcion).
+    // Cuenta raíz: ampliar (ver empresa.puedeGestionarSuscripcion). Cancelar
+    // vive en Configuraciones → Suscripción (ver abajo), no aquí.
     micuentaSuscripcionAcciones: document.getElementById('micuenta-suscripcion-acciones'),
     btnMicuentaVerUpscale: document.getElementById('btn-micuenta-ver-upscale'),
-    btnMicuentaCancelarSuscripcion: document.getElementById('btn-micuenta-cancelar-suscripcion'),
     micuentaSuscripcionCancelarAlCorteAviso: document.getElementById('micuenta-suscripcion-cancelar-al-corte-aviso'),
+    // Configuraciones → Suscripción: solo cuenta raíz, movida desde Mi
+    // Cuenta (punto en curso, pedido explícito del usuario).
+    navSuscripcionConfigCard: document.getElementById('nav-suscripcion-config-card'),
+    configSuscripcionPlan: document.getElementById('config-suscripcion-plan'),
+    configSuscripcionEstatus: document.getElementById('config-suscripcion-estatus'),
+    configSuscripcionEstatusBadge: document.getElementById('config-suscripcion-estatus-badge'),
+    configSuscripcionCancelarAlCorteAviso: document.getElementById('config-suscripcion-cancelar-al-corte-aviso'),
+    configSuscripcionAcciones: document.getElementById('config-suscripcion-acciones'),
+    btnConfigCancelarSuscripcion: document.getElementById('btn-config-cancelar-suscripcion'),
+    // "Cambié de opinión" — reversa de la cancelación (punto en curso).
+    configSuscripcionReactivarWrap: document.getElementById('config-suscripcion-reactivar-wrap'),
+    btnConfigReactivarSuscripcion: document.getElementById('btn-config-reactivar-suscripcion'),
+    // Aviso "te quedan N días" — 3 días o menos antes del corte con la
+    // suscripción marcada para cancelar.
+    suscripcionPorVencerOverlay: document.getElementById('suscripcion-por-vencer-overlay'),
+    suscripcionPorVencerTexto: document.getElementById('suscripcion-por-vencer-texto'),
+    suscripcionPorVencerError: document.getElementById('suscripcion-por-vencer-error'),
+    btnSuscripcionPorVencerCerrar: document.getElementById('btn-suscripcion-por-vencer-cerrar'),
+    btnSuscripcionPorVencerReactivar: document.getElementById('btn-suscripcion-por-vencer-reactivar'),
     // Propuesta B8 (elegida, generaliza B5): modal con pestañas
     // disco/usuarios + D1 (subir de plan) en el mismo modal.
     upscaleModalOverlay: document.getElementById('upscale-modal-overlay'),
@@ -354,6 +373,16 @@
     cancelacionConfirmarFecha: document.getElementById('cancelacion-confirmar-fecha'),
     cancelacionConfirmarError: document.getElementById('cancelacion-confirmar-error'),
     btnCancelacionConfirmarVolver: document.getElementById('btn-cancelacion-confirmar-volver'),
+    // Fricción 1: escribir la palabra "cancelar" (reemplaza el botón único
+    // de antes, punto en curso, pedido explícito del usuario).
+    cancelacionEscribirInput: document.getElementById('cancelacion-escribir-input'),
+    btnCancelacionConfirmarContinuar: document.getElementById('btn-cancelacion-confirmar-continuar'),
+    // Fricción 2: código de cancelación generado, última pantalla.
+    cancelacionPasoCodigo: document.getElementById('cancelacion-paso-codigo'),
+    cancelacionCodigoGenerado: document.getElementById('cancelacion-codigo-generado'),
+    cancelacionCodigoInput: document.getElementById('cancelacion-codigo-input'),
+    cancelacionCodigoError: document.getElementById('cancelacion-codigo-error'),
+    btnCancelacionCodigoVolver: document.getElementById('btn-cancelacion-codigo-volver'),
     btnCancelacionConfirmarSi: document.getElementById('btn-cancelacion-confirmar-si'),
     micuentaFacturacionCard: document.getElementById('micuenta-facturacion-card'),
     // Punto 416: "Datos de pago" (solo administrador/super)
@@ -2479,6 +2508,38 @@
     if (!tenantFuncionesPlan) return true;
     return Boolean(tenantFuncionesPlan.inventariosHabilitado || tenantFuncionesPlan.gastosHabilitado);
   }
+  // Punto 444/446: evita que el alta/edición de usuarios asigne un perfil
+  // cuyo módulo de trabajo no existe en el plan del tenant (ej. "ventas"
+  // en un plan sin Ventas/CxC/Gastos) — antes nada lo impedía y el
+  // usuario resultante se encontraba con un sidebar vacío, además de un
+  // checklist/recorrido guiado describiendo secciones que no existen.
+  // "administrador" y "cliente" nunca dependen del plan (administrador
+  // siempre gestiona lo que SÍ esté disponible; cliente es el perfil del
+  // portal, no tiene módulos de /admin que cruzar).
+  function perfilPlanVisible(perfil) {
+    if (!tenantFuncionesPlan) return true;
+    if (perfil === 'fiscal') return tenantFuncionesPlan.facturacionHabilitada !== false;
+    if (perfil === 'inventario') return tenantFuncionesPlan.inventariosHabilitado !== false;
+    if (perfil === 'ventas') {
+      return ['ventasHabilitado', 'cxcHabilitado', 'gastosHabilitado'].some(
+        (campo) => tenantFuncionesPlan[campo] !== false
+      );
+    }
+    return true;
+  }
+  // Oculta (nunca quita) las <option> de perfil no disponibles para este
+  // plan en ambos selects (crear/editar) — un usuario YA creado con un
+  // perfil que el plan dejó de incluir conserva su valor seleccionado
+  // (no se fuerza ningún cambio de datos), solo deja de poder elegirse
+  // para un usuario nuevo o un cambio de perfil.
+  function aplicarPerfilesDisponiblesPorPlan() {
+    [els.crearUsuarioPerfil, els.editarUsuarioPerfil].forEach((select) => {
+      if (!select) return;
+      Array.from(select.options).forEach((opcion) => {
+        opcion.hidden = !perfilPlanVisible(opcion.value);
+      });
+    });
+  }
   // Interruptor maestro (Configuraciones → Notificaciones): si
   // está en `false`, el checkbox "No volver a mostrar" del popup de
   // tickets sin contador no se pinta y cualquier silenciado guardado
@@ -2496,7 +2557,7 @@
   const RESTRICCIONES_PERFIL = {
     administrador: {
       vistasPermitidas: ['inicio', 'resumen-financiero', 'ordenes', 'cxc', 'gastos', 'inventarios', 'usuarios', 'lectura-reportes', 'proveedores', 'mi-cuenta', 'auditoria', 'promociones', 'configuraciones'],
-      tarjetasConfigPermitidas: ['facturacion-toggle-card', 'global-config-card', 'marca-tema-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card'],
+      tarjetasConfigPermitidas: ['facturacion-toggle-card', 'global-config-card', 'marca-tema-card', 'ticket-config-card', 'reportes-config-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'notif-toggle-card', 'suscripcion-config-card'],
     },
     // Punto 360 (2026-10-02): "lectura-reportes" se agregó aquí porque el
     // resumen de tickets (antes en Inicio) ahora vive SOLO en Reportes →
@@ -2788,7 +2849,7 @@
       'inv-toggle-card': () => planPermite('inventariosHabilitado'),
       'auditoria-toggle-card': () => planPermite('auditoriaHabilitado'),
     };
-    ['admin-config-card', 'global-config-card', 'facturacion-toggle-card', 'marca-tema-card', 'ticket-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'].forEach((idTarjeta) => {
+    ['admin-config-card', 'global-config-card', 'facturacion-toggle-card', 'marca-tema-card', 'ticket-config-card', 'smtp-config-card', 'reportes-config-card', 'notif-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card', 'suscripcion-config-card'].forEach((idTarjeta) => {
       const tarjeta = document.getElementById(idTarjeta);
       if (!tarjeta) return;
       const permitidaPorPerfilTarjeta = sinRestricciones || (restriccion.tarjetasConfigPermitidas || []).includes(idTarjeta);
@@ -2847,6 +2908,7 @@
     els.adminUserLabel.textContent = `Sesión: ${username}`;
     anclarHistorialMovil();
     aplicarRestriccionesPerfil();
+    aplicarPerfilesDisponiblesPorPlan();
     // Punto 368: se precarga una vez por sesión (igual que
     // tenantFuncionesPlan arriba) para que construirHtmlTicket() tenga el
     // logo/textos configurados disponibles desde el primer ticket que se
@@ -4063,6 +4125,14 @@
   // segmento de facturación (Tickets/Constancias) — ver las 2 llamadas
   // más abajo. "administrador"/"super" que solo revisan Ventas/Inventarios
   // ya no lo ven sin motivo.
+  // Pedido del usuario: el recorrido guiado tiene prioridad — si está
+  // abierto, este aviso (otro overlay con blur) se queda en espera y
+  // aparece justo al cerrar el tour (saltar o terminar), en vez de
+  // competir con él por encima (bug real: el blur tapaba el globo del
+  // tour por completo). Si no hay tour (perfil sin recorrido, ya visto,
+  // o vista móvil), se muestra de inmediato como siempre.
+  let avisoFiscalPendienteTrasTour = false;
+
   function mostrarAvisoFiscalSiFalta() {
     if (datosFiscalesCompletos !== false) return;
     // Mismo criterio de "Falta configurar..." ya existente: con
@@ -4071,9 +4141,12 @@
     // la tarjeta "Configuraciones fiscales" (global-config-card) a la que
     // este aviso manda; mostrarlo sin Facturación activa llevaría a un
     // destino que tampoco está disponible.
-    if (puedeCompletarDatosFiscales() && planPermite('facturacionHabilitada')) {
-      els.configFiscalFaltanteOverlay.hidden = false;
+    if (!puedeCompletarDatosFiscales() || !planPermite('facturacionHabilitada')) return;
+    if (els.onboardingTourOverlay && !els.onboardingTourOverlay.hidden) {
+      avisoFiscalPendienteTrasTour = true;
+      return;
     }
+    els.configFiscalFaltanteOverlay.hidden = false;
   }
 
   // El único botón del aviso YA es la acción, no un simple "cerrar": lleva
@@ -8351,6 +8424,7 @@
     { id: 'ordenes-toggle-card', label: 'Módulo Ventas' },
     { id: 'inv-toggle-card', label: 'Módulo Inventarios' },
     { id: 'auditoria-toggle-card', label: 'Módulo Auditoría' },
+    { id: 'suscripcion-config-card', label: 'Suscripción' },
   ];
 
   // Grupos de Configuraciones — mismo criterio que
@@ -8362,6 +8436,7 @@
     marca: ['marca-tema-card', 'ticket-config-card'],
     comunicacion: ['smtp-config-card', 'reportes-config-card', 'notif-toggle-card'],
     modulos: ['facturacion-toggle-card', 'ordenes-toggle-card', 'inv-toggle-card', 'auditoria-toggle-card'],
+    cuenta: ['suscripcion-config-card'],
   };
 
   function actualizarGruposConfigNav() {
@@ -8712,6 +8787,7 @@
         aplicarEstadoDiscoMiCuenta(data.empresa.almacenamiento);
         aplicarEstadoUsuariosMiCuenta(data.empresa.maxUsuarios, data.empresa.totalOperadores);
         aplicarAccionesSuscripcionMiCuenta(data.empresa.puedeGestionarSuscripcion, data.empresa.suscripcion);
+        aplicarAccionesSuscripcionConfig(data.empresa.puedeGestionarSuscripcion, data.empresa.suscripcion);
         aplicarDatosPagoMiCuenta(data.empresa.datosPago);
         // Punto 418: se cachea para que la vista "Actualizar método de
         // pago" no necesite un fetch propio — ya viajó aquí.
@@ -8881,8 +8957,9 @@
   }
 
   // Cuenta raíz únicamente (empresa.puedeGestionarSuscripcion, mismo
-  // candado que "Datos de pago") — cancelar/pausar (A2+A1) y el acceso
-  // al catálogo de upscale/subir de plan completo.
+  // candado que "Datos de pago") — acceso al catálogo de upscale/subir de
+  // plan completo. Cancelar ya NO vive aquí, ver
+  // aplicarAccionesSuscripcionConfig (Configuraciones → Suscripción).
   function aplicarAccionesSuscripcionMiCuenta(puedeGestionar, suscripcion) {
     if (!els.micuentaSuscripcionAcciones) return;
     els.micuentaSuscripcionAcciones.hidden = !puedeGestionar;
@@ -8895,10 +8972,112 @@
       els.micuentaSuscripcionCancelarAlCorteAviso.textContent = suscripcion.expiraEn
         ? `Tu suscripción no se renueva — sigues con acceso hasta el ${formatearFechaSoloDiaSinTZ(suscripcion.expiraEn)}.`
         : 'Tu suscripción no se renueva — sigues con acceso hasta tu corte.';
-      els.btnMicuentaCancelarSuscripcion.hidden = true;
     } else {
       els.micuentaSuscripcionCancelarAlCorteAviso.hidden = true;
-      els.btnMicuentaCancelarSuscripcion.hidden = false;
+    }
+  }
+
+  // Configuraciones → Suscripción: mismo candado (puedeGestionarSuscripcion)
+  // que ya trae GET /api/admin/mi-cuenta, aplicado aquí al nav item (nunca
+  // visible para un administrador que no sea la cuenta raíz) y al estado
+  // de la tarjeta (plan/estatus/botón de cancelar vs aviso de "ya
+  // cancelada"). Movida desde Mi Cuenta, punto en curso.
+  function aplicarAccionesSuscripcionConfig(puedeGestionar, suscripcion) {
+    if (els.navSuscripcionConfigCard) {
+      els.navSuscripcionConfigCard.hidden = !puedeGestionar;
+      actualizarGruposConfigNav();
+    }
+    if (!els.configSuscripcionAcciones) return;
+    if (!puedeGestionar) return;
+    els.configSuscripcionPlan.textContent = suscripcion?.planNombre || 'Sin plan asignado (manual)';
+    els.configSuscripcionEstatus.textContent = suscripcion?.estatus
+      ? (ETIQUETAS_ESTATUS_SUSCRIPCION[suscripcion.estatus] || suscripcion.estatus)
+      : 'Sin configurar';
+    if (els.configSuscripcionEstatusBadge) {
+      els.configSuscripcionEstatusBadge.className = 'micuenta-estatus-badge' + (suscripcion?.estatus ? ` es-${suscripcion.estatus}` : '');
+    }
+    const cancelarAlCorte = !!(suscripcion && suscripcion.cancelarAlCorte);
+    if (cancelarAlCorte) {
+      els.configSuscripcionCancelarAlCorteAviso.hidden = false;
+      els.configSuscripcionCancelarAlCorteAviso.textContent = suscripcion.expiraEn
+        ? `Tu suscripción no se renueva — sigues con acceso hasta el ${formatearFechaSoloDiaSinTZ(suscripcion.expiraEn)}.`
+        : 'Tu suscripción no se renueva — sigues con acceso hasta tu corte.';
+      els.configSuscripcionAcciones.hidden = true;
+      if (els.configSuscripcionReactivarWrap) els.configSuscripcionReactivarWrap.hidden = false;
+    } else {
+      els.configSuscripcionCancelarAlCorteAviso.hidden = true;
+      els.configSuscripcionAcciones.hidden = false;
+      if (els.configSuscripcionReactivarWrap) els.configSuscripcionReactivarWrap.hidden = true;
+    }
+    evaluarAvisoSuscripcionPorVencer(suscripcion);
+  }
+
+  // Días de calendario entre hoy (hora local del navegador) y una fecha
+  // 'YYYY-MM-DD' — construido con Date.UTC en ambos lados para no caer
+  // en el bug ya documentado de `new Date('YYYY-MM-DD')` corriendo el
+  // día por la zona horaria local (ver CLAUDE.md, fechas "hoy/mes").
+  function diasHastaFecha(fechaYMD) {
+    if (!fechaYMD) return null;
+    const [anio, mes, dia] = String(fechaYMD).slice(0, 10).split('-').map(Number);
+    if (!anio || !mes || !dia) return null;
+    const objetivoUTC = Date.UTC(anio, mes - 1, dia);
+    const ahora = new Date();
+    const hoyUTC = Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    return Math.round((objetivoUTC - hoyUTC) / 86400000);
+  }
+
+  // Aviso "te quedan N días" — pedido explícito del usuario: 3 días o
+  // menos antes del corte, con la suscripción ya marcada para cancelar,
+  // recordarle que todavía puede reactivar. Una sola vez por sesión
+  // (no en cada refresco de Mi Cuenta/Configuraciones) — mismo criterio
+  // que el recorrido guiado (tourDisparadoEnEstaSesion). El recorrido
+  // guiado tiene prioridad (punto 447): si está abierto, se difiere
+  // hasta que cierre, mismo mecanismo que el aviso de datos fiscales.
+  let avisoSuscripcionPorVencerMostrado = false;
+  let avisoSuscripcionPorVencerTextoPendiente = null;
+
+  function mostrarAvisoSuscripcionPorVencer(texto) {
+    if (!els.suscripcionPorVencerOverlay) return;
+    els.suscripcionPorVencerTexto.textContent = texto;
+    els.suscripcionPorVencerError.textContent = '';
+    els.suscripcionPorVencerOverlay.hidden = false;
+  }
+
+  function evaluarAvisoSuscripcionPorVencer(suscripcion) {
+    if (avisoSuscripcionPorVencerMostrado) return;
+    if (!suscripcion || !suscripcion.cancelarAlCorte || !suscripcion.expiraEn) return;
+    const dias = diasHastaFecha(suscripcion.expiraEn);
+    if (dias === null || dias < 0 || dias > 3) return;
+    avisoSuscripcionPorVencerMostrado = true;
+    const texto = dias === 0
+      ? 'Tu suscripción deja de estar activa hoy. Si lo reconsideraste, aún puedes reactivar el cobro con un clic.'
+      : `Tu suscripción deja de estar activa en ${dias} día${dias === 1 ? '' : 's'}. Si lo reconsideraste, aún puedes reactivar el cobro con un clic.`;
+    if (els.onboardingTourOverlay && !els.onboardingTourOverlay.hidden) {
+      avisoSuscripcionPorVencerTextoPendiente = texto;
+      return;
+    }
+    mostrarAvisoSuscripcionPorVencer(texto);
+  }
+
+  async function reactivarSuscripcionAccion(boton) {
+    if (!boton) return;
+    boton.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/admin/mi-cuenta/suscripcion/reactivar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo reactivar tu suscripción.');
+      if (els.suscripcionPorVencerOverlay) els.suscripcionPorVencerOverlay.hidden = true;
+      showToast('Listo — tu suscripción vuelve a cobrarse normal en tu siguiente corte.', false);
+      cargarMiCuenta();
+      return true;
+    } catch (err) {
+      showToast(err.message || 'No se pudo reactivar tu suscripción.', true);
+      return false;
+    } finally {
+      boton.disabled = false;
     }
   }
 
@@ -9059,14 +9238,28 @@
     });
   }
 
-  // ========== Cancelación de suscripción con retención (A2+A1) + encuesta de salida (C1) ==========
+  // ========== Cancelación de suscripción con retención (A2+A1) + encuesta de salida (C1) + doble fricción final ==========
   let cancelacionMotivoSeleccionado = null;
   let cancelacionCorteFechaTexto = '—';
+  let cancelacionCodigoGenerado = null;
 
   function ocultarPasosCancelacion() {
-    [els.cancelacionPasoDescuento, els.cancelacionPasoPausar, els.cancelacionPasoEncuesta, els.cancelacionPasoConfirmar].forEach((p) => {
+    [els.cancelacionPasoDescuento, els.cancelacionPasoPausar, els.cancelacionPasoEncuesta, els.cancelacionPasoConfirmar, els.cancelacionPasoCodigo].forEach((p) => {
       if (p) p.hidden = true;
     });
+  }
+
+  // Fricción 2: código de 6 caracteres sin ambigüedad visual (sin 0/O,
+  // 1/I/L) — generado cada vez que se entra a este paso, nunca reusado,
+  // para que "Volver" + "Continuar" otra vez no reutilice un código viejo
+  // que el usuario ya haya visto/copiado antes de arrepentirse.
+  function generarCodigoCancelacion() {
+    const alfabeto = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    let codigo = '';
+    for (let i = 0; i < 6; i += 1) {
+      codigo += alfabeto[Math.floor(Math.random() * alfabeto.length)];
+    }
+    return codigo;
   }
 
   async function abrirModalCancelacion() {
@@ -9075,6 +9268,9 @@
     ocultarPasosCancelacion();
     els.cancelacionCargando.hidden = false;
     cancelacionMotivoSeleccionado = null;
+    cancelacionCodigoGenerado = null;
+    els.cancelacionEscribirInput.value = '';
+    els.cancelacionCodigoInput.value = '';
     els.cancelacionComentario.value = '';
     els.cancelacionMotivoGrid.querySelectorAll('.motivo-chip').forEach((chip) => chip.classList.remove('is-sel'));
     els.btnCancelacionEncuestaContinuar.disabled = true;
@@ -9154,7 +9350,19 @@
     ocultarPasosCancelacion();
     els.cancelacionConfirmarFecha.textContent = cancelacionCorteFechaTexto;
     els.cancelacionConfirmarError.textContent = '';
+    els.cancelacionEscribirInput.value = '';
+    els.btnCancelacionConfirmarContinuar.disabled = true;
     els.cancelacionPasoConfirmar.hidden = false;
+  }
+
+  function irAPasoCodigo() {
+    ocultarPasosCancelacion();
+    cancelacionCodigoGenerado = generarCodigoCancelacion();
+    els.cancelacionCodigoGenerado.textContent = cancelacionCodigoGenerado;
+    els.cancelacionCodigoInput.value = '';
+    els.cancelacionCodigoError.textContent = '';
+    els.btnCancelacionConfirmarSi.disabled = true;
+    els.cancelacionPasoCodigo.hidden = false;
   }
 
   async function guardarEncuestaYContinuar() {
@@ -9200,7 +9408,18 @@
     }
   }
 
-  if (els.btnMicuentaCancelarSuscripcion) els.btnMicuentaCancelarSuscripcion.addEventListener('click', abrirModalCancelacion);
+  if (els.btnConfigCancelarSuscripcion) els.btnConfigCancelarSuscripcion.addEventListener('click', abrirModalCancelacion);
+  if (els.btnConfigReactivarSuscripcion) {
+    els.btnConfigReactivarSuscripcion.addEventListener('click', () => reactivarSuscripcionAccion(els.btnConfigReactivarSuscripcion));
+  }
+  if (els.btnSuscripcionPorVencerCerrar) {
+    els.btnSuscripcionPorVencerCerrar.addEventListener('click', () => {
+      els.suscripcionPorVencerOverlay.hidden = true;
+    });
+  }
+  if (els.btnSuscripcionPorVencerReactivar) {
+    els.btnSuscripcionPorVencerReactivar.addEventListener('click', () => reactivarSuscripcionAccion(els.btnSuscripcionPorVencerReactivar));
+  }
   if (els.btnCancelacionDescuentoSi) els.btnCancelacionDescuentoSi.addEventListener('click', aceptarDescuentoRetencion);
   if (els.btnCancelacionDescuentoNo) els.btnCancelacionDescuentoNo.addEventListener('click', irAPasoEncuesta);
   if (els.btnCancelacionPausar) els.btnCancelacionPausar.addEventListener('click', pausarSuscripcionRetencion);
@@ -9208,6 +9427,22 @@
   if (els.btnCancelacionEncuestaVolver) els.btnCancelacionEncuestaVolver.addEventListener('click', abrirModalCancelacion);
   if (els.btnCancelacionEncuestaContinuar) els.btnCancelacionEncuestaContinuar.addEventListener('click', guardarEncuestaYContinuar);
   if (els.btnCancelacionConfirmarVolver) els.btnCancelacionConfirmarVolver.addEventListener('click', irAPasoEncuesta);
+  // Fricción 1 → 2: "cancelar" escrito correctamente habilita "Continuar"
+  // (nunca enter/submit, solo el botón — mismo criterio que el resto de
+  // formularios de este archivo).
+  if (els.cancelacionEscribirInput) {
+    els.cancelacionEscribirInput.addEventListener('input', () => {
+      els.btnCancelacionConfirmarContinuar.disabled = els.cancelacionEscribirInput.value.trim().toLowerCase() !== 'cancelar';
+    });
+  }
+  if (els.btnCancelacionConfirmarContinuar) els.btnCancelacionConfirmarContinuar.addEventListener('click', irAPasoCodigo);
+  if (els.btnCancelacionCodigoVolver) els.btnCancelacionCodigoVolver.addEventListener('click', irAPasoConfirmar);
+  if (els.cancelacionCodigoInput) {
+    els.cancelacionCodigoInput.addEventListener('input', () => {
+      const coincide = cancelacionCodigoGenerado && els.cancelacionCodigoInput.value.trim().toUpperCase() === cancelacionCodigoGenerado;
+      els.btnCancelacionConfirmarSi.disabled = !coincide;
+    });
+  }
   if (els.btnCancelacionConfirmarSi) els.btnCancelacionConfirmarSi.addEventListener('click', confirmarCancelacionFinal);
   if (els.cancelacionMotivoGrid) {
     els.cancelacionMotivoGrid.addEventListener('click', (ev) => {
@@ -13087,6 +13322,7 @@
   els.crearUsuarioPerfil.addEventListener('change', actualizarCamposSegunPerfil);
 
   function abrirCrearUsuarioModal(prefill = {}) {
+    aplicarPerfilesDisponiblesPorPlan();
     els.crearUsuarioPerfil.value = prefill.perfil || 'cliente';
     els.crearUsuarioRfc.value = '';
     els.crearUsuarioEmail.value = prefill.email || '';
@@ -13314,6 +13550,7 @@
   els.editarUsuarioPerfil.addEventListener('change', actualizarCamposSegunPerfilEditar);
 
   function abrirEditarUsuarioModal(usuario) {
+    aplicarPerfilesDisponiblesPorPlan();
     idUsuarioEnEdicion = usuario.id;
     els.editarUsuarioPerfil.value = usuario.perfil;
     els.editarUsuarioRfc.value = usuario.rfc;
@@ -22294,12 +22531,28 @@
   let tourPasosActuales = [];
   let tourIndiceActual = 0;
 
+  // Pedido del usuario: mientras dura el recorrido, TODOS los grupos del
+  // sidebar se ven expandidos (no solo el de la vista activa) — para que
+  // la guía sea clara de un vistazo y ningún paso apunte a un botón
+  // escondido dentro de un grupo colapsado. Nunca toca los overrides de
+  // localStorage (aplicarEstadoGruposSidebar) — es solo el estado visual
+  // mientras el tour está abierto, el usuario puede recolapsar después
+  // con el mismo clic de siempre.
+  function expandirTodosLosGruposSidebarParaTour() {
+    document.querySelectorAll('.admin-sidebar-group-header').forEach((header) => {
+      header.setAttribute('aria-expanded', 'true');
+      const body = document.querySelector(`.admin-sidebar-group-body[data-grupo="${header.dataset.grupo}"]`);
+      if (body) body.dataset.colapsado = 'false';
+    });
+  }
+
   // Construye la lista real de pasos del tour para el perfil actual
   // (filtra selectores que no existan/estén ocultos en este momento) y
   // los muestra — compartido entre el disparo automático (una vez en la
   // vida de la cuenta) y el botón manual "Ver el recorrido de nuevo" del
   // Centro de conocimiento (Fase 7 UX, 2026-09-04).
   function construirYMostrarTour() {
+    expandirTodosLosGruposSidebarParaTour();
     const pasos = ONBOARDING_TOUR_PASOS[perfilActual]
       .map((p) => ({ ...p, el: document.querySelector(p.selector) }))
       .filter((p) => p.el && !p.el.hidden && p.el.offsetParent !== null);
@@ -22385,6 +22638,21 @@
 
   function cerrarTourBienvenida() {
     els.onboardingTourOverlay.hidden = true;
+    if (avisoFiscalPendienteTrasTour) {
+      avisoFiscalPendienteTrasTour = false;
+      els.configFiscalFaltanteOverlay.hidden = false;
+      // Caso límite no resuelto a propósito (extremadamente raro: cuenta
+      // raíz en su primer login de la vida, ya con datos fiscales
+      // incompletos Y la suscripción marcada para cancelar a 3 días o
+      // menos de su corte): el aviso fiscal gana, el de "por vencer" se
+      // descarta en silencio en vez de encolarse — no vale la pena la
+      // complejidad de un segundo blur apilado para este cruce.
+      avisoSuscripcionPorVencerTextoPendiente = null;
+    } else if (avisoSuscripcionPorVencerTextoPendiente) {
+      const texto = avisoSuscripcionPorVencerTextoPendiente;
+      avisoSuscripcionPorVencerTextoPendiente = null;
+      mostrarAvisoSuscripcionPorVencer(texto);
+    }
   }
 
   els.btnOnboardingTourSaltar.addEventListener('click', cerrarTourBienvenida);

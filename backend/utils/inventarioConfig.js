@@ -42,26 +42,34 @@ const CLAVES = {
   inv_permitir_negativo: { default: '0', tipo: 'booleano01' },
 };
 
-async function obtenerValorConfig(clave) {
+// `planIncluyeInventarios` (default true: cubre sitio base y cualquier
+// call site que ya corre detrás de requiereFeature('inventariosHabilitado'),
+// que garantiza el plan lo incluye) decide el DEFAULT de 'inventario_activo'
+// cuando nunca se guardó una fila explícita en `configuracion` — '1' si el
+// plan lo trae, '0' si no. Una fila YA guardada (el admin tocó el switch,
+// en cualquier sentido) siempre gana sobre este default, sin excepción.
+async function obtenerValorConfig(clave, { planIncluyeInventarios = true } = {}) {
   const definicion = CLAVES[clave];
   if (!definicion) return null;
   const pool = obtenerPool();
   const [filas] = await pool.query('SELECT valor FROM configuracion WHERE clave = ? LIMIT 1', [clave]);
-  return filas.length > 0 ? filas[0].valor : definicion.default;
+  if (filas.length > 0) return filas[0].valor;
+  if (clave === 'inventario_activo') return planIncluyeInventarios ? '1' : '0';
+  return definicion.default;
 }
 
-async function obtenerConfigInventario() {
+async function obtenerConfigInventario({ planIncluyeInventarios = true } = {}) {
   const resultado = {};
   // eslint-disable-next-line no-restricted-syntax
   for (const clave of Object.keys(CLAVES)) {
     // eslint-disable-next-line no-await-in-loop
-    resultado[clave] = await obtenerValorConfig(clave);
+    resultado[clave] = await obtenerValorConfig(clave, { planIncluyeInventarios });
   }
   return resultado;
 }
 
-async function inventarioActivo() {
-  const valor = await obtenerValorConfig('inventario_activo');
+async function inventarioActivo({ planIncluyeInventarios = true } = {}) {
+  const valor = await obtenerValorConfig('inventario_activo', { planIncluyeInventarios });
   return valor === '1';
 }
 

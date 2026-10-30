@@ -33,7 +33,12 @@ function mockPoolPorPatron(mapa) {
 }
 
 const MODULO_ACTIVO = ['SELECT valor FROM configuracion', [[{ valor: '1' }]]];
+// Punto 444 (2026-10-29): sin fila guardada, inventario_activo cae al
+// default nuevo ('1', plan lo incluye) en vez del '0' fijo de antes —
+// MODULO_INACTIVO ya no representa el switch apagado, solo "nunca se tocó".
+// Para simular el switch REALMENTE apagado usar MODULO_DESACTIVADO_EXPLICITO.
 const MODULO_INACTIVO = ['SELECT valor FROM configuracion', [[]]];
+const MODULO_DESACTIVADO_EXPLICITO = ['SELECT valor FROM configuracion', [[{ valor: '0' }]]];
 const ALMACEN_ID = ['SELECT id FROM almacenes WHERE codigo', [[{ id: 1 }]]];
 const VALOR_EXISTENCIA = ["SELECT COALESCE(SUM(e.disponible * p.costo_promedio), 0) AS valor\n         FROM existencias e", [[{ valor: '0' }]]];
 // Punto 271: ahora devuelve las filas completas (para sumar el monto
@@ -60,7 +65,7 @@ describe('Admin: Estado del inventario (Reportes)', () => {
 
   test('módulo Inventarios inactivo responde 403 INV_MODULO_INACTIVO', async () => {
     const { usuario, password } = mockUsuarioAdministrativo('administrador');
-    mockPoolPorPatron([MODULO_INACTIVO]);
+    mockPoolPorPatron([MODULO_DESACTIVADO_EXPLICITO]);
     const res = await request(app).get('/api/admin/inventarios/reportes/estado').auth(usuario, password);
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('INV_MODULO_INACTIVO');

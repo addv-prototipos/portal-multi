@@ -93,6 +93,7 @@ const {
   pausarSuscripcion,
   registrarEncuestaSalida,
   confirmarCancelacion,
+  reactivarSuscripcion,
   enviarPropuestaRetencion,
 } = require('./utils/cancelacionSuscripcion');
 const { ErrorUpgradePlan, listarOpcionesSubirPlan, confirmarSubirPlan } = require('./utils/upgradePlan');
@@ -1804,6 +1805,18 @@ app.post('/internal/suscripcion/cancelar', asyncHandler(async (req, res) => {
   if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
   try {
     res.json(await confirmarCancelacion(slug, { actor }));
+  } catch (err) {
+    manejarErrorCancelacion(err, res);
+  }
+}));
+
+// "Cambié de opinión" — reversa de /cancelar, mismo candado interno.
+app.post('/internal/suscripcion/reactivar', asyncHandler(async (req, res) => {
+  if (!secretoInternoValido(req)) return res.status(403).json({ error: 'No autorizado.' });
+  const { slug, actor } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug es obligatorio.' });
+  try {
+    res.json(await reactivarSuscripcion(slug, { actor }));
   } catch (err) {
     manejarErrorCancelacion(err, res);
   }

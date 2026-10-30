@@ -25703,3 +25703,389 @@ horas).
 **Archivos tocados**: `calidad/sonar_1.3.html` (nuevo),
 `PROJECT_STATE.md` (este punto).
 
+## Punto 446 — `inventario_activo` nace en 1 si el plan incluye Inventarios (tenant y sitio base) (29 oct 2026, CERRADO)
+
+Pedido explícito del usuario, mientras se validaban los recorridos
+guiados por perfil: "por defecto el inventario esta activo... porque
+ahora mismo por defecto lo tiene inactivo, entonces debe estar siempre
+habilitado si su plan lo incluye, esto aplica para tenant y site base".
+Aclarado con `AskUserQuestion` que el cambio es SOLO sobre el switch
+maestro `inventario_activo` — "Solamente servicios" (`inv_solo_servicios`)
+se queda con su default `'0'` de siempre, sin tocar.
+
+**Causa real, encontrada validando los recorridos del perfil
+"inventario"** (ver punto 444, mismo hilo): se creó a propósito un
+usuario perfil "inventario" en `prueba-cancel-8` (plan Solicita, NO trae
+Inventarios) para probar el tour — expuso que nada impide asignar ese
+perfil en un tenant cuyo plan no incluye el módulo (el alta de usuarios
+no filtra perfiles por plan), y el checklist "Primeros pasos"/el
+recorrido quedan mintiendo con acciones muertas. Al investigar por qué
+"Inventarios" no aparecía, se confirmó aparte que incluso en tenants CON
+el módulo en su plan, el switch interno `inventario_activo`
+(`backend/utils/inventarioConfig.js`, tabla `configuracion` por tenant)
+nacía apagado por default — un admin tenía que entrar a Configuraciones y
+prenderlo a mano antes de poder usar el módulo que ya está pagando.
+
+**Fix**: `obtenerValorConfig()`/`inventarioActivo()`/
+`obtenerConfigInventario()` ganaron un parámetro opcional
+`{ planIncluyeInventarios = true }` — cuando NO hay fila guardada en
+`configuracion` (nunca se tocó el switch), el default pasa a ser `'1'`
+si el plan lo incluye (o no hay `req.tenant`, sitio base, tratado
+siempre como "lo incluye") y `'0'` si no. **Una fila ya guardada
+siempre gana** — un admin que apagó el módulo a propósito nunca se ve
+revertido por este cambio, nunca hace falta backfill/migración: el
+default nuevo solo aplica donde antes nunca se había tocado nada.
+`CLAVES.inventario_activo.default` interno se queda en `'0'`
+(fallback de última instancia si `planIncluyeInventarios` llegara
+`undefined`), el default real vive en la nueva lógica condicional.
+
+Casi todos los call sites de `inventarioActivo()` en `backend/server.js`
+ya corren detrás de `requiereFeature('inventariosHabilitado')` (garantiza
+plan incluido) o `GET/PUT /configuracion` (sin ese candado a propósito,
+pero el default `true` sigue siendo correcto ahí) — el parámetro
+explícito solo hizo falta en 2 sitios NO gateados por diseño: el resumen
+de Inicio (ya calculaba `inventarioPlanPermite` aparte, solo se
+reutilizó) y `POST /api/admin/ordenes-compra` (Inventarios es opcional
+ahí, Ventas debe funcionar sin el módulo — se calculó
+`planIncluyeInventarios` una vez y se pasó a sus 2 llamadas).
+
+**Validado real**: `prueba-cancel-4` (plan Domina, incluye Inventarios,
+0 filas en `configuracion` para esa clave) — `GET
+/prueba-cancel-4/api/admin/inventarios/configuracion` ya devuelve
+`inventario_activo:"1"` sin haber tocado el switch nunca; confirmado
+también en navegador, la vista Inventarios carga el catálogo completo
+(KPIs, tabla, filtros) de entrada. Tests: 3 archivos de
+`backend/test/` tenían mocks/asserts que asumían el viejo default `'0'`
+(`inventarioConfig.test.js`, `inventarios.test.js`,
+`inventarioReportesEstado.test.js`) — actualizados para distinguir
+"sin fila guardada" (ahora activo) de "switch explícitamente apagado"
+(constante nueva `MODULO_DESACTIVADO_EXPLICITO`, sigue en `'0'`/403).
+Suite completa: 1375/1378 verdes — los 3 rojos restantes
+(`email.test.js`, `configSmtpParaMostrar`) son de trabajo YA
+existente sin commitear de una sesión anterior (SMTP default,
+punto 443), no relacionados a este cambio, confirmado corriendo esa
+suite en aislado antes de tocar nada aquí.
+
+**Fuera de alcance a propósito, queda pendiente**: el bug de fondo que
+disparó este hallazgo (checklist "Primeros pasos" y recorrido guiado
+mostrando pasos/acciones para un módulo que el plan del tenant no trae,
+ej. perfil "inventario" en un tenant Solicita) sigue sin corregir —
+validación de los 4 recorridos por perfil en curso, ver conversación.
+
+Archivos modificados: `backend/utils/inventarioConfig.js`,
+`backend/server.js`, `backend/test/unit/inventarioConfig.test.js`,
+`backend/test/integration/inventarios.test.js`,
+`backend/test/integration/inventarioReportesEstado.test.js`,
+`PROJECT_STATE.md`, `CLAUDE.md` (este punto).
+
+## Punto 447 — Recorrido guiado: evitar perfiles sin módulo en el plan + sidebar expandido + prioridad sobre el aviso fiscal (29 oct 2026, CERRADO)
+
+Continuación del punto 444/446 (mismo hilo): el usuario pidió validar los
+4 recorridos guiados por perfil, encontrando 2 problemas adicionales
+reales mientras se hacía esa validación.
+
+**1) Alta de usuario con perfil sin módulo en el plan — resuelto
+ocultando la opción, no parchando el tour/checklist.** Decisión
+explícita del usuario (`AskUserQuestion`, 3 opciones ofrecidas: ocultar
+checklist/tour, mensaje genérico, filtrar pasos — eligió una cuarta: "en
+el plan solicita no le des la opción del perfil de ventas, ocultalo").
+`frontend/admin.js` ganó `perfilPlanVisible(perfil)` (fiscal→
+facturacionHabilitada, inventario→inventariosHabilitado, ventas→
+ANY de ventasHabilitado/cxcHabilitado/gastosHabilitado, administrador/
+cliente siempre true) + `aplicarPerfilesDisponiblesPorPlan()` que oculta
+(`option.hidden`) las opciones no disponibles en AMBOS selects
+(`crear-usuario-perfil`/`editar-usuario-perfil`). Se llama al login
+(`showDashboard`) y de nuevo al abrir cada modal (defensivo). Un usuario
+YA creado con un perfil que el plan dejó de incluir conserva su valor
+seleccionado al editar — solo deja de poder ELEGIRSE para alta nueva o
+cambio de perfil, nunca se le fuerza un cambio de datos. Ataca el
+problema en el origen: ya no puede volver a pasar lo que expuso el punto
+444/446 (perfil sin módulo asignado, checklist/tour mostrando pasos
+muertos) para usuarios creados DESDE AHORA — queda fuera de alcance a
+propósito arreglar retroactivamente los que ya existen.
+
+**2) 2 bugs reales encontrados validando el recorrido en vivo (captura +
+reporte del usuario mid-sesión):**
+- **"las opciones del menú deben estar todas abiertas"**: el sidebar
+  solo auto-expande el grupo de la vista ACTIVA (`aplicarEstadoGruposSidebar`)
+  — durante el tour, grupos como "GESTIÓN DE FACTURAS"/"CUENTA" podían
+  quedar colapsados, con pasos del tour señalando botones invisibles.
+  Fix: `expandirTodosLosGruposSidebarParaTour()` (nueva), llamada al
+  inicio de `construirYMostrarTour()` — fuerza `aria-expanded="true"` +
+  `data-colapsado="false"` en TODOS los headers/bodies del sidebar,
+  nunca toca los overrides de `localStorage` (`aplicarEstadoGruposSidebar`
+  sigue intacto, el usuario puede recolapsar después normalmente).
+- **El aviso "Falta configurar los datos fiscales" tapaba el tour con su
+  blur** (bug real, reportado con captura): `mostrarAvisoFiscalSiFalta()`
+  (perfil fiscal, dato fiscal incompleto) se disparaba en el mismo
+  instante que el tour recién abierto, mostrando 2 overlays a la vez —
+  el blur del aviso fiscal encima del globo del tour, dejándolo
+  invisible. Fix: `mostrarAvisoFiscalSiFalta()` ahora revisa
+  `els.onboardingTourOverlay.hidden` — si el tour está abierto, marca
+  `avisoFiscalPendienteTrasTour = true` y no muestra nada; `cerrarTourBienvenida()`
+  (se dispara con "Saltar recorrido" O al terminar el último paso) revisa
+  esa bandera y muestra el aviso justo después. Sin tour (perfil sin
+  recorrido, ya visto, o vista móvil < 900px), se muestra de inmediato
+  como siempre — el usuario fue explícito: "la prioridad es el tour".
+
+**Validado real** con perfil `fiscal` en `prueba-cancel-8` (RFC/Clave SAT
+vacíos a propósito, confirmado por API): tour completo de 6 pasos con
+los 3 grupos del sidebar (FINANZAS/GESTIÓN DE FACTURAS/CUENTA) ya
+expandidos desde el PASO 1; al "Saltar recorrido", el aviso fiscal
+aparece inmediatamente después, sin solape — confirmado con
+instrumentación temporal (`window.__dbg`, removida antes de cerrar el
+punto) que capturó la secuencia real: `entry→deferred→cerrarTour
+(pendiente:true)→overlayHidden:false`.
+
+Archivos modificados: `frontend/admin.js`, `PROJECT_STATE.md`,
+`CLAUDE.md` (este punto).
+
+## Punto 448 — Regla de alcance: `hostinger/` y `VULTR/` siempre fuera de los análisis de calidad (29 oct 2026, CERRADO)
+
+Petición explícita del usuario durante la revisión del informe
+`sonar_1.3.html` (punto 445): documentar que las carpetas `hostinger/`
+y `VULTR/` son **temporales de despliegue, no parte del proyecto**, y
+que se las **ignore siempre** en cualquier análisis de calidad.
+
+**Regla consolidada** (ya escrita en `AGENTS.md`, sección de gotchas):
+
+- `hostinger/` = paquete de despliegue para `yt.addv.com.mx` (VPS de
+  pruebas Hostinger, antes `prod/`, renombrado en el punto 435).
+- `VULTR/` = documentación/operación del despliegue productivo real en
+  Vultr (`clarvo.mx`, punto 442). Sus archivos principales
+  (`prodDoc.html`, `README-VULTR.md`) están gitignored.
+- Ambas son **reescribibles y regenerables completas** sin que eso
+  afecte al producto.
+
+**Consecuencias en auditorías/métricas/informes estilo SonarQube**:
+
+1. Nunca contar sus archivos/líneas en las métricas del producto.
+2. Un desfase contra su fuente **nunca es un hallazgo del producto**
+   (ni code smell, ni deuda, ni condición de Quality Gate) — es un paso
+   del proceso de deploy.
+3. Si se mencionan, solo como "artefacto de deploy verificado/no
+   verificado", nunca dentro del alcance analizado.
+
+**Alcance del producto, siempre**: `backend/`, `control/`, `frontend/`
+y `docker/`. La nota N-04 de `sonar_1.3.html` (desfase de hostinger/)
+ya cumplía el espíritu de esta regla; queda formalizada a petición del
+usuario para que aplique idéntico a `VULTR/` y a toda ronda futura.
+
+**Archivos tocados**: `AGENTS.md` (regla de gotchas extendida a
+`VULTR/` + cláusula explícita de "siempre ignorar en análisis de
+calidad"), `PROJECT_STATE.md` (este punto).
+
+## Punto 449 — Cancelar suscripción se mueve a Configuraciones + doble fricción final (escribir "cancelar" + código generado) (29 oct 2026, CERRADO)
+
+Pedido explícito del usuario: el flujo de cancelación con retención
+(A2 descuento + A1 pausa + C1 encuesta de salida, ya implementado y
+commiteado en el punto 440) vivía en Mi Cuenta — se pidió moverlo a
+Configuraciones → nueva sección "Suscripción", y endurecer el paso
+final: ya no basta un clic en "Confirmar cancelación", hay que escribir
+la palabra **cancelar** y, en una 2da pantalla, escribir un **código de
+cancelación generado** — solo tenants (nunca sitio base), solo la cuenta
+raíz/maestra (`AskUserQuestion`: "quien tiene los datos de la tarjeta y
+pagos"). 2 pantallas secuenciales, no un solo formulario con 2 campos
+(también confirmado vía `AskUserQuestion`).
+
+**Backend: cero cambios** — `control/utils/cancelacionSuscripcion.js` y
+las rutas `backend/server.js:/api/admin/mi-cuenta/suscripcion/*` ya
+existían completas desde el punto 440 (`obtenerEstadoCancelacion`,
+`aplicarDescuentoRetencion`, `pausarSuscripcion`, `registrarEncuestaSalida`,
+`confirmarCancelacion`), gateadas por `exigirAdminRaizConTenant()`
+(404 sin tenant / sitio base, 403 sin cuenta raíz) — la fricción nueva es
+100% UI, nunca se le pide al backend validar la palabra/código (mismo
+criterio que "type the repo name to delete" de GitHub — el candado real
+ya está del lado del servidor).
+
+**Frontend — reubicación**: el botón "Cancelar suscripción" salió de
+Mi Cuenta (`#micuenta-suscripcion-acciones`, que ahora solo trae
+"Ampliar mi plan") y entró a una tarjeta nueva en Configuraciones,
+`#suscripcion-config-card`, registrada en los 3 lugares obligatorios
+(`CONFIG_SECCIONES`, `GRUPOS_CONFIG_NAV` — nuevo grupo "Cuenta" — y
+`tarjetasConfigPermitidas` de `administrador`, ver punto 378) más un
+4to candado dinámico propio de este caso: el nav item nace `hidden` en
+el HTML y solo se revela en runtime desde `aplicarAccionesSuscripcionConfig()`
+cuando `empresa.puedeGestionarSuscripcion` es `true` (mismo dato que ya
+trae `GET /api/admin/mi-cuenta`, cacheado desde el login de
+`administrador` — nunca un fetch aparte). La tarjeta muestra plan +
+estatus de cobro (mismas etiquetas que Mi Cuenta,
+`ETIQUETAS_ESTATUS_SUSCRIPCION`) y, si ya está `cancelarAlCorte`,
+reemplaza el botón por el mismo aviso informativo de siempre.
+
+**Frontend — doble fricción, sobre el modal ya existente**
+(`#cancelacion-modal-overlay`, independiente del botón que lo abre, se
+reutilizó tal cual): el Paso 3 ("Confirmar cancelación", antes un solo
+botón) ahora pide escribir **cancelar** (exacto, minúsculas,
+`trim().toLowerCase()`) para habilitar "Continuar" — nunca Enter/submit,
+solo el botón, mismo criterio que el resto de formularios del archivo.
+Al continuar, nace un Paso 4 nuevo (`#cancelacion-paso-codigo`): código
+de 6 caracteres generado client-side (`generarCodigoCancelacion()`,
+alfabeto sin 0/O/1/I/L para evitar ambigüedad visual, **nuevo cada vez**
+que se entra a este paso — nunca reusado, para que un "Volver" + reintentar
+no deje ver un código ya visto antes de arrepentirse) que hay que
+re-escribir exacto (`trim().toUpperCase()`) para habilitar "Confirmar
+cancelación definitiva", que dispara la llamada real de siempre
+(`POST .../suscripcion/cancelar`) — sin cambios en esa función.
+
+**Validado real, extremo a extremo, contra Stripe test mode** (tenant
+`prueba-cancel-3`, plan Crece, suscripción real nunca antes tocada en
+sesiones previas): botón en Configuraciones → oferta de descuento -50%
+real (fecha de corte real, 28 nov 2026) → "No gracias, continuar" →
+encuesta (motivo "Ya no lo uso") → **"Failed to fetch" real en el primer
+intento** (el contenedor `control` se había reiniciado solo segundos
+antes por causas ajenas a este cambio — confirmado con `docker compose
+ps`, ya sano; reintento inmediato funcionó) → escribir "cancel" (botón
+sigue deshabilitado) → escribir "cancelar" completo (se habilita) →
+código generado real mostrado (`9WVQNG` en esta corrida) → código
+incorrecto (botón sigue deshabilitado) → código correcto → "Confirmar
+cancelación definitiva" → cancelación real en Stripe
+(`cancel_at_period_end:true`) → toast "Listo — no se renueva. Sigues con
+acceso hasta el 28 nov 2026" → la tarjeta de Configuraciones se
+refresca sola (ya no muestra el botón, muestra el aviso) → confirmado
+también que Mi Cuenta ya NO tiene el botón (solo "Ampliar mi plan"), con
+el mismo aviso informativo de "no se renueva" intacto.
+
+**Efecto secundario real de esta validación, dejado tal cual a
+propósito**: el tenant de prueba `prueba-cancel-3` quedó con
+`suscripcion_cancelar_al_corte=1` de verdad (antes 0/0, nunca tocado en
+sesiones anteriores) — es un tenant ficticio sin impacto productivo, se
+deja así como evidencia de la prueba real en vez de revertirlo a mano.
+
+Archivos modificados: `frontend/admin.html`, `frontend/admin.js`,
+`frontend/admin.css`, `PROJECT_STATE.md`, `CLAUDE.md` (este punto).
+
+## Punto 450 — Bug de cuota de usuarios + recursos de upscale en catálogo + columna "Plan" en /control + reactivar suscripción cancelada + aviso "te quedan N días" (29-30 oct 2026, CERRADO)
+
+Trabajo recuperado de una sesión anterior cuyo IDE (IntelliJ) se cerró
+abruptamente a mitad de sesión — el código quedó completo, pasó
+`node --check` y la suite de tests unitarios/integración existente desde
+esa recuperación. Una segunda sesión (30 oct) hizo la verificación
+funcional real con clics en navegador que había quedado pendiente — el
+reinicio de la PC la cortó a medio FLOW 4, se retomó y se cerró en esta
+misma sesión. Ver bloque de verificación al final del punto.
+
+**1. Bug real de cuota de usuarios corregido** (`backend/server.js`, `GET
+/api/admin/mi-cuenta`, ~línea 5115-5124): `totalOperadores` contaba con
+`WHERE perfil IN ('administrador','fiscal','ventas')` sin `activo=1` y sin
+`'inventario'` — desalineado con `PERFILES_CUOTA` (mismos 4 perfiles,
+mismo filtro activo=1, ya usado en creación/edición de usuarios desde los
+puntos 418/444). Bug real reproducido: un tenant con `maxUsuarios=1` podía
+mostrar "Llevas 3 de 1" con 4 operadores activos sin que el sistema lo
+bloqueara en ningún otro lado. Fix: `WHERE activo = 1 AND perfil IN
+('administrador', 'fiscal', 'ventas', 'inventario')` — mismo criterio del
+punto 418/444 sobre cuotas, ahora también en el conteo que se muestra al
+administrador.
+
+**1b. Mismo bug, 2 sitios más encontrados y corregidos en esta sesión de
+recuperación** (`backend/server.js`): el conteo real que BLOQUEA la
+creación/edición de usuarios (no solo el que se muestra en pantalla)
+tenía el mismo defecto en 2 lugares. `POST /api/admin/usuarios`
+(`PERFILES_CUOTA`, ~línea 4715-4727): el `COUNT(*)` no filtraba
+`activo=1` — una cuenta archivada contaba contra la cuota igual que una
+activa, bloqueando altas nuevas en tenants con historial aunque tuvieran
+cupo real. `PUT /api/admin/usuarios/:id` (`PERFILES_CUOTA_EDIT`,
+~línea 4901-4918): el array era `['administrador','fiscal','ventas']`
+— le faltaba `'inventario'`, así que editar una cuenta para asignarle
+ese perfil se saltaba el candado de cuota por completo, y su `COUNT(*)`
+tampoco filtraba `activo=1`. Ambos ahora usan los mismos 4 perfiles +
+`activo=1` que el punto 1 y que `/internal/aplicar-limite-usuarios`.
+Tests nuevos en `backend/test/integration/cuotaUsuarios.test.js`
+(verifican con regex que el SQL real lleva `activo = 1`, y que subir a
+perfil "inventario" en la cuota exacta también rechaza) — suite completa
+en verde (69/69 suites, backend).
+
+**2. Sistema de recursos conectado al catálogo de upscale**
+(`control/utils/upscale.js`, función `normalizarDatos`): cada
+funcionalidad del catálogo de `/control` → "Upscale y Stripe" ahora puede
+declarar qué RECURSO otorga por compra — ninguno / disco / usuarios —
+guardado en las columnas `disco_mb`/`usuarios_otorgados` de
+`funcionalidades_upscale` (columnas y la tabla `tenant_upscales_activos`
+ya existían desde el punto 440; esta sesión solo las conecta al
+formulario de alta/edición). Solo un recurso por fila a la vez: fijar el
+elegido limpia el otro (`resultado.disco_mb = null` /
+`resultado.usuarios_otorgados = null` según el tipo elegido). UI en
+`frontend/control.html`/`control.js`: selector de chips "Ninguno /
+Almacenamiento / Usuarios" + campo de cantidad condicional, con su propio
+chip visual (`.upscale-chip`, SVG "+" feather-like) tanto en el modal de
+edición como en la celda "Plan" de la tabla (ver punto 3).
+
+**3. Columna "Plan" en la tabla de tenants de /control** (reemplaza
+"Contacto" — `frontend/control.js:celdaPlanHtml()`/`formatearMbOGb()`, CSS
+en `frontend/admin.css` clases `.plan-cell-a`/`.upscale-chip`;
+`control.html` ya enlaza `admin.css`, cero CSS duplicado): muestra el
+nombre del plan + un chip por cada upscale de disco/usuarios ya comprado
+por ese tenant (`t.disco_upscale_mb`/`t.usuarios_upscale`, agregados al
+`SELECT` de `listarTenants()` en `control/utils/tenantLifecycle.js:71`).
+Propuesta A (siempre visible, sin necesitar hover/clic) elegida entre 4
+propuestas visuales presentadas al usuario.
+
+**4. "Cambié de opinión" — reactivar suscripción cancelada** (reversa
+exacta de la cancelación con retención de los puntos 440/449):
+`control/utils/cancelacionSuscripcion.js:reactivarSuscripcion(slug,
+{actor})` hace `stripe.subscriptions.update(id, {cancel_at_period_end:
+false})` sobre la MISMA Subscription (nunca crea una nueva ni toca
+precio/plan) + `UPDATE tenants SET suscripcion_cancelar_al_corte = 0`.
+Expuesta vía `POST /internal/suscripcion/reactivar` (`control/server.js:1814`)
+→ `POST /api/admin/mi-cuenta/suscripcion/reactivar` (`backend/server.js:5529`,
+mismo patrón `llamarControlInterno` + `exigirAdminRaizConTenant` que el
+resto de endpoints de suscripción). Frontend: botón "Cambié de opinión,
+reactivar cobro" en la tarjeta de Configuraciones → Suscripción (la misma
+que movió "Cancelar" ahí en el punto 449) y en el overlay del punto 5.
+
+**5. Aviso "te quedan N días"**: si la suscripción está marcada para
+cancelar Y quedan 3 días o menos para el corte, se muestra un overlay
+modal (`#suscripcion-por-vencer-overlay`, `frontend/admin.html:5368`;
+lógica `evaluarAvisoSuscripcionPorVencer()`/`mostrarAvisoSuscripcionPorVencer()`
+en `frontend/admin.js`) con botón directo para reactivar. Se evalúa una
+sola vez por sesión al cargar Mi Cuenta/Configuraciones. Mismo mecanismo
+de prioridad que el aviso fiscal del punto 447: si el recorrido guiado
+(tour) está abierto, el aviso se difiere
+(`avisoSuscripcionPorVencerTextoPendiente`) y aparece justo al cerrar el
+tour — nunca compite por encima con su propio blur (mismo bug-shape ya
+documentado en el punto 447 para el aviso fiscal).
+
+**Verificación funcional real, los 5 sub-puntos, contra Docker/MySQL/Stripe
+test mode reales (Playwright + msedge, `playwright-core` en
+`%TEMP%\pw-verify\`, fuera del repo — mismo patrón del punto 400)**:
+
+1. **Cuota de usuarios**: confirmado con `curl` real contra tenant
+   `PRUEBA-CANCEL-8` (`maxUsuarios=1`) — crear un segundo usuario perfil
+   `ventas` responde 400 `CUOTA_USUARIOS_EXCEDIDA`, candado real activo.
+2. **Catálogo de recursos de upscale** (`/control` → Upscale y Stripe):
+   alta de "Usuario adicional" con recurso "Usuarios" + precios
+   mensual/anual, toggle de campos dinámico — 3/3 aserciones, capturas
+   reales.
+3. **Columna "Plan" en /control**: tabla de tenants muestra el plan +
+   chips de upscale comprado (disco/usuarios), columna "Contacto" ya no
+   existe — 4/4 aserciones, capturas reales.
+4. **Cancelación con doble fricción** (tenant `test-sa-de-cv`): flujo
+   completo clic a clic — oferta de descuento → encuesta de salida →
+   escribir "cancelar" (validación de texto parcial vs exacto) → código
+   de 6 caracteres generado → validación de código incorrecto/correcto —
+   11/11 aserciones. Se detuvo antes de la confirmación final para no
+   generar un cargo real repetido en Stripe (la cancelación real
+   extremo a extremo ya quedó probada en el punto 449 sobre
+   `prueba-cancel-3`).
+5. **Aviso "te quedan N días" + reactivar suscripción** (tenant
+   `PRUEBA-CANCEL-8`, marcado `cancelar_al_corte=1` con corte a 2-3 días):
+   overlay `¿Seguro que quieres irte?` renderizado con el texto dinámico
+   correcto y ambos botones; **clic real en "Cambié de opinión, reactivar
+   cobro"** (Configuraciones → Suscripción) → toast real "Listo — tu
+   suscripción vuelve a cobrarse normal en tu siguiente corte" → llamada
+   real a Stripe test mode (`cancel_at_period_end:false`) → UI se
+   revierte sola: desaparece el aviso, reaparece el link "Cancelar
+   suscripción", desaparece el bloque de reactivar. Confirma también el
+   mecanismo de prioridad del punto 447 (tour de bienvenida antes que
+   este aviso, ya documentado, sin regresión).
+
+Con los 5 sub-puntos confirmados con clics/llamadas reales, el punto pasa
+a **CERRADO**.
+
+Archivos involucrados: `backend/server.js`, `control/utils/upscale.js`,
+`control/utils/cancelacionSuscripcion.js`, `control/server.js`,
+`control/utils/tenantLifecycle.js`, `frontend/control.js`,
+`frontend/control.html`, `frontend/admin.js`, `frontend/admin.html`,
+`frontend/admin.css`, `PROJECT_STATE.md`, `CLAUDE.md`, `AGENTS.md` (este
+punto).
+

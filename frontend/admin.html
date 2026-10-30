@@ -2501,6 +2501,16 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Módulo Auditoría
               </button>
+
+              <!-- Solo visible para la cuenta raíz/maestra (mismo candado
+                   que "Datos de pago" en Mi Cuenta, aplicado en runtime
+                   por aplicarAccionesSuscripcionConfig — nunca por
+                   tarjetasConfigPermitidas, que es solo por perfil). -->
+              <div class="config-modal-nav-group-label" data-grupo="cuenta">Cuenta</div>
+              <button type="button" class="config-modal-nav-item" data-tarjeta="suscripcion-config-card" id="nav-suscripcion-config-card" hidden>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 10h18" stroke="currentColor" stroke-width="1.6"/></svg>
+                Suscripción
+              </button>
             </nav>
             <p class="config-modal-nav-empty" id="config-modal-nav-empty" hidden>Ninguna sección coincide con tu búsqueda.</p>
             <div class="config-modal-nav-footer">
@@ -3446,6 +3456,52 @@
               <span class="switch-toggle-autoguardado" id="auditoria-habilitada-autoguardado" role="status" aria-live="polite"></span>
             </span>
           </label>
+        </div>
+      </section>
+
+      <!-- Suscripción — solo cuenta raíz/maestra, solo tenants (nunca
+           sitio base; el nav item nace hidden, se revela en runtime
+           desde aplicarAccionesSuscripcionConfig, mismo dato que ya
+           trae GET /api/admin/mi-cuenta). Movida aquí desde Mi Cuenta
+           (antes "Recursos y acciones") — decisión explícita del
+           usuario, punto en curso. -->
+      <section class="admin-config-card" id="suscripcion-config-card">
+        <button type="button" class="admin-config-toggle" id="btn-toggle-suscripcion-card" aria-expanded="false" aria-controls="suscripcion-config-body">
+          <span class="admin-config-toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 10h18" stroke="currentColor" stroke-width="1.6"/></svg>
+            Suscripción
+          </span>
+          <svg class="admin-config-chevron" id="suscripcion-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="admin-config-body" id="suscripcion-config-body" hidden>
+          <p class="panel-subtitle">Administra el cobro recurrente de tu plan. Solo la cuenta raíz/maestra (quien tiene los datos de pago) puede verla y cancelarla.</p>
+          <div class="micuenta-empresa-grid">
+            <div>
+              <span class="micuenta-empresa-label">Plan contratado</span>
+              <p class="micuenta-empresa-valor" id="config-suscripcion-plan">—</p>
+            </div>
+            <div>
+              <span class="micuenta-empresa-label">Estatus de cobro</span>
+              <p class="micuenta-empresa-valor">
+                <span class="micuenta-estatus-badge" id="config-suscripcion-estatus-badge">
+                  <span class="micuenta-estatus-badge-dot" aria-hidden="true"></span>
+                  <span id="config-suscripcion-estatus">—</span>
+                </span>
+              </p>
+            </div>
+          </div>
+          <p class="micuenta-suscripcion-texto" id="config-suscripcion-cancelar-al-corte-aviso" hidden></p>
+          <div class="btn-row" id="config-suscripcion-acciones">
+            <button type="button" class="btn-danger-text" id="btn-config-cancelar-suscripcion">Cancelar suscripción</button>
+          </div>
+          <!-- "Cambié de opinión": reversa de la cancelación, solo
+               visible mientras suscripcion_cancelar_al_corte=1 (punto en
+               curso, pedido explícito del usuario). -->
+          <div class="btn-row" id="config-suscripcion-reactivar-wrap" hidden>
+            <button type="button" class="btn btn-primary" id="btn-config-reactivar-suscripcion">Cambié de opinión, reactivar cobro</button>
+          </div>
         </div>
       </section>
 
@@ -4482,7 +4538,6 @@
                      completo. -->
                 <div class="micuenta-suscripcion-acciones" id="micuenta-suscripcion-acciones" hidden>
                   <button type="button" class="btn btn-secondary" id="btn-micuenta-ver-upscale">Ampliar mi plan</button>
-                  <button type="button" class="btn-danger-text" id="btn-micuenta-cancelar-suscripcion">Cancelar suscripción</button>
                 </div>
               </div>
             </div>
@@ -5186,13 +5241,35 @@
         </div>
       </div>
 
-      <!-- Paso 3: confirmación final con fecha de corte real. -->
+      <!-- Paso 3: escribir "cancelar" — primera fricción intencional,
+           reemplaza el botón único de "Confirmar cancelación" de antes
+           (punto en curso, pedido explícito del usuario). -->
       <div class="cancelacion-paso" id="cancelacion-paso-confirmar" hidden>
         <p class="cancelacion-timeline-nota">Sigues con acceso completo hasta tu corte, <strong id="cancelacion-confirmar-fecha">—</strong>. Ese día no se cobra nada nuevo y tu cuenta se suspende.</p>
+        <div class="field">
+          <label for="cancelacion-escribir-input">Escribe <strong>cancelar</strong> para continuar</label>
+          <input type="text" id="cancelacion-escribir-input" autocomplete="off" spellcheck="false" placeholder="cancelar" />
+        </div>
         <p class="field-error" id="cancelacion-confirmar-error" role="alert"></p>
         <div class="btn-row">
           <button type="button" class="btn btn-secondary" id="btn-cancelacion-confirmar-volver">Volver</button>
-          <button type="button" class="btn-danger-text" id="btn-cancelacion-confirmar-si">Confirmar cancelación</button>
+          <button type="button" class="btn-danger-text" id="btn-cancelacion-confirmar-continuar" disabled>Continuar</button>
+        </div>
+      </div>
+
+      <!-- Paso 4: código de cancelación generado — segunda fricción
+           intencional, última pantalla antes de cancelar de verdad. -->
+      <div class="cancelacion-paso" id="cancelacion-paso-codigo" hidden>
+        <p class="cancelacion-timeline-nota">Para terminar, escribe el código que generamos para ti — confirma que de verdad quieres cancelar.</p>
+        <p class="cancelacion-codigo-generado" id="cancelacion-codigo-generado" aria-live="polite">—</p>
+        <div class="field">
+          <label for="cancelacion-codigo-input">Código de cancelación</label>
+          <input type="text" id="cancelacion-codigo-input" autocomplete="off" spellcheck="false" placeholder="Escribe el código de arriba" />
+        </div>
+        <p class="field-error" id="cancelacion-codigo-error" role="alert"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="btn-cancelacion-codigo-volver">Volver</button>
+          <button type="button" class="btn-danger-text" id="btn-cancelacion-confirmar-si" disabled>Confirmar cancelación definitiva</button>
         </div>
       </div>
 
@@ -5280,6 +5357,28 @@
       <p class="panel-subtitle">El RFC de la compañía (se obtiene subiendo la constancia de situación fiscal) y/o la Clave SAT todavía no están capturados. Complétalos en "Configuraciones fiscales" para que se muestren en la barra de sesión.</p>
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="btn-config-fiscal-faltante-cerrar">Ir a completar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aviso "te quedan N días" — suscripción marcada para cancelar y a
+       3 días o menos de su corte (punto en curso, pedido explícito del
+       usuario). Se evalúa en cada login de la cuenta raíz con tenant; el
+       botón primario reactiva directo, sin pasar por Configuraciones. -->
+  <div class="modal-overlay" id="suscripcion-por-vencer-overlay" hidden>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="suscripcion-por-vencer-title">
+      <div class="modal-icono-aviso" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 8v5M12 16.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+      </div>
+      <h2 id="suscripcion-por-vencer-title">¿Seguro que quieres irte?</h2>
+      <p class="panel-subtitle" id="suscripcion-por-vencer-texto">Tu suscripción deja de estar activa en 3 días. Si lo reconsideraste, aún puedes reactivar el cobro con un clic.</p>
+      <p class="field-error" id="suscripcion-por-vencer-error" role="alert"></p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="btn-suscripcion-por-vencer-cerrar">No, gracias</button>
+        <button type="button" class="btn btn-primary" id="btn-suscripcion-por-vencer-reactivar">Reactivar mi suscripción</button>
       </div>
     </div>
   </div>
