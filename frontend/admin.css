@@ -3894,6 +3894,7 @@
 .config-sidebar-smtp-estado.is-ok .config-sidebar-smtp-dot { background: #10B981; }
 .config-sidebar-smtp-estado.is-pendiente { color: var(--color-warn); }
 .config-sidebar-smtp-estado.is-pendiente .config-sidebar-smtp-dot { background: var(--color-warn); }
+.config-sidebar-version { margin: 8px 0 0; font-size: 11px; color: #94A3B8; }
 
 /* Guía Gmail paso a paso, inline (Fase 7 UX, 2026-09-04) — reemplaza el
    antiguo .smtp-aviso-gmail (texto plano estático). El cuerpo reusa
